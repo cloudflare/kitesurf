@@ -1,0 +1,20 @@
+research/rbi-scene-streaming-plan.md
+  s_0d774ef1069d39::t_bf567fd131c97a 4,8-103
+  s_0d774ef1069d39::t_3b73e4bdec0f34 104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "30107d46ee2c7ec5c4f22c9d8673703e89bf578a",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
