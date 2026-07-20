@@ -1,0 +1,21 @@
+packages/engine/test/quickaction.test.ts
+  s_0b5a824d53c86e::t_2242962866870b 1-479
+packages/engine/vitest.config.mts
+  s_0b5a824d53c86e::t_349fc97f25d92b 16-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fb4f749e0c16112afd3abebeeb2d80a48f913a5c",
+  "prompts": {},
+  "sessions": {
+    "s_0b5a824d53c86e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_07f01b687ffeF18QkiX2ryB96n",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
