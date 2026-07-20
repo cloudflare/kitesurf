@@ -1,5 +1,7 @@
 packages/engine/src/pdf.ts
   s_d264cf1778372b::t_2e9463253e8ff9 188
+  s_0b5a824d53c86e::t_be7ea17abb75f9 99-104
+  s_0b5a824d53c86e::t_5446811f504139 41
 packages/engine/src/cdp/page.ts
   s_d264cf1778372b::t_14b577c12f0316 1118-1124
   s_d264cf1778372b::t_4f57514deec14a 1185-1204,1206-1207
@@ -10,6 +12,14 @@ packages/engine/src/cdp/page.ts
   "base_commit_sha": "78704dfe6353a5468ea5c93b06ed117eae594218",
   "prompts": {},
   "sessions": {
+    "s_0b5a824d53c86e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_07f01b687ffeF18QkiX2ryB96n",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_d264cf1778372b": {
       "agent_id": {
         "tool": "opencode",
