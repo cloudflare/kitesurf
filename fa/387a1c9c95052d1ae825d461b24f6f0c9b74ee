@@ -2,9 +2,11 @@ packages/engine/src/screenshot.ts
   s_d264cf1778372b::t_af8687cefe5ca3 4-8,10-12,14-18,20-23,28-31,37-42,44-45,47-48,50-51,53-55,57-60,78-79,102,120-122,128-140,155-157
   s_0b5a824d53c86e::t_6db8744ece2629 81
   s_0b5a824d53c86e::t_09ce4171459fa5 83
+  s_0b5a824d53c86e::t_1b0923911a2f80 85
 packages/engine/src/pdf.ts
   s_d264cf1778372b::t_34d7ad36eaecff 4-6,8-10,15-18,24-37,39-60,77-78,88
   s_0b5a824d53c86e::t_6db8744ece2629 80
+  s_0b5a824d53c86e::t_1b0923911a2f80 89
 packages/engine/src/quickaction.ts
   s_d264cf1778372b::t_7109ab6337080c 1-939
 packages/engine/src/html-source.ts
