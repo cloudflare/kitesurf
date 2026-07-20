@@ -1,0 +1,50 @@
+packages/engine/src/screenshot.ts
+  s_d264cf1778372b::t_c418881747d43d 126-127,130-133,142,177
+  s_d264cf1778372b::t_7989df7b977ae3 133,141,143
+packages/core/src/lib.rs
+  s_d264cf1778372b::t_ca423360f27581 2657-2664
+research/rbi-scene-streaming-plan.md
+  s_73a272ea435601::t_316e71965ef067 1-3,5-6,8-264
+  s_0d774ef1069d39::t_248541b378baeb 4
+  s_0d774ef1069d39::t_c7c494683dec76 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "89bae711c8cfaa3fa825d40f627c45c7c562434d",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_73a272ea435601": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_087771c76ffehEIwtVGP4yDXHt",
+        "model": "claude-fable-5"
+      },
+      "human_author": null
+    },
+    "s_d264cf1778372b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_08d773743ffedu4ERuZ9uK2OxJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_d34d2db4ddfc87": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_09285590bffemRF4ADpyaoiQYK",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
