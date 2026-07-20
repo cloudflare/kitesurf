@@ -1,6 +1,8 @@
 packages/engine/src/pdf.ts
   s_d264cf1778372b::t_1ffa35f2ac8428 191-196
   s_d264cf1778372b::t_3cf8b9094a73c6 204
+  s_0b5a824d53c86e::t_1d39e7c8b87e4c 105-110
+  s_0b5a824d53c86e::t_f537ba480fdb2a 187-190
 packages/engine/src/cdp/page.ts
   s_d264cf1778372b::t_eaf7aa4aa350b1 944-946
   s_d264cf1778372b::t_d1e6b1cbdafba0 995
@@ -11,6 +13,9 @@ packages/engine/src/cdp/page.ts
 packages/engine/src/screenshot.ts
   s_d264cf1778372b::t_363e3882a0dde7 190-198
   s_d264cf1778372b::t_599f5de1a397b0 200-202,204
+  s_0b5a824d53c86e::t_1aca2a001c26db 189,203
+  s_0b5a824d53c86e::t_073e9baed94ffe 82-88
+  s_0b5a824d53c86e::t_cb6081972fb561 44
 packages/core/src/pdf.rs
   s_d264cf1778372b::t_23d21c6d1df864 80
   s_d264cf1778372b::t_1bfc34815ae03d 201-208
@@ -36,6 +41,14 @@ packages/core/src/lib.rs
   "base_commit_sha": "1f9aa3f51f683582f23f4d7a2abd4bb375e6b0a4",
   "prompts": {},
   "sessions": {
+    "s_0b5a824d53c86e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_07f01b687ffeF18QkiX2ryB96n",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_d264cf1778372b": {
       "agent_id": {
         "tool": "opencode",
