@@ -1,0 +1,19 @@
+examples/cookie-jar-probe.mjs
+  s_d34d2db4ddfc87::t_514b1a7f9e30a9 2-6,8-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8f1412a030e20d3c75df7c64aa6d55c26b498c80",
+  "prompts": {},
+  "sessions": {
+    "s_d34d2db4ddfc87": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_09285590bffemRF4ADpyaoiQYK",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
