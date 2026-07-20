@@ -1,0 +1,19 @@
+.gitlab-ci.yml
+  s_46fcd68f5c4214::t_c2f62745c5f361 137-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "29437f870c9be8cc645cb6df08325d8f8275858d",
+  "prompts": {},
+  "sessions": {
+    "s_46fcd68f5c4214": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_08063b124ffewmZb1Y3wH69eRv",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
