@@ -23,6 +23,7 @@ scripts/patches/blitz-paint-0.3.0-beta.1.patch
 scripts/patches/blitz-dom-0.3.0-beta.1.patch
   s_19069b86731766::t_3c3b8667767ca5 1-97,99-101,117-157,171-1349,1384-1404,1406-1461,1463-1848
   s_dfe9872d3f263e::t_59f0a82299133d 1369,1376-1377,1405
+  s_2c0c192010aeba::t_96ac6bdf71885b 98
 packages/core/src/checked_svg_test.rs
   s_19069b86731766::t_d31982258b3a99 16,27
 packages/core/src/pdf_paint.rs
@@ -32,6 +33,7 @@ scripts/patches/README.md
   s_19069b86731766::t_48299fe8ce6b60 176
   s_19069b86731766::t_aadde029c62a62 251
   s_19069b86731766::t_4aafee2fc6ce04 112,117-124,134-139,143-158
+  s_2c0c192010aeba::t_8e0ca191d25d5e 125,132-133
 packages/core/Cargo.lock
   s_19069b86731766::t_534b89d888a888 129,169,171,181,192,200,202,204,2116,2118,2354,2409,2411,2419,2421,2432,2434,2442,2444,2460,2462,2469,2471,2480,2482,2546,2698,2700
 ---
@@ -46,6 +48,14 @@ packages/core/Cargo.lock
         "tool": "opencode",
         "id": "ses_0790dbe40ffekNMt6TgsspoV1c",
         "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_2c0c192010aeba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_074d677a3ffeimND6iMzyRJy86",
+        "model": "claude-opus-4-7"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     },
