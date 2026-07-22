@@ -22,6 +22,7 @@ scripts/patches/blitz-paint-0.3.0-beta.1.patch
   s_19069b86731766::t_3c3b8667767ca5 1-647
 scripts/patches/blitz-dom-0.3.0-beta.1.patch
   s_19069b86731766::t_3c3b8667767ca5 1-1322,1357-1377,1379-1434,1436-1821
+  s_dfe9872d3f263e::t_59f0a82299133d 1342,1349-1350,1378
 packages/core/src/checked_svg_test.rs
   s_19069b86731766::t_d31982258b3a99 16,27
 packages/core/src/pdf_paint.rs
@@ -44,6 +45,14 @@ packages/core/Cargo.lock
       "agent_id": {
         "tool": "opencode",
         "id": "ses_0790dbe40ffekNMt6TgsspoV1c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_dfe9872d3f263e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0756acc38ffeqz5UKWJC9rkSBs",
         "model": "claude-fable-5"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
