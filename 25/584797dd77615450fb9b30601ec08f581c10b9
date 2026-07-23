@@ -1,0 +1,26 @@
+packages/dom-shim/src/layout/cheap.ts
+  s_2c0c192010aeba::t_59414500b0e1f8 410-414
+  s_2c0c192010aeba::t_f58545b7787ac0 451-452
+  s_2c0c192010aeba::t_682aba1fcf0c2d 415-417,453-455
+packages/core/src/lib.rs
+  s_2c0c192010aeba::t_2b71d3f9cc3eb6 1982-1991,2001-2002,2012-2015
+  s_2c0c192010aeba::t_ce790e401b380e 1992-2000,2006-2011
+  s_2c0c192010aeba::t_7844c42d7ab070 2003-2005
+  s_2c0c192010aeba::t_ae21c70132c790 2016-2019
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "25584797dd77615450fb9b30601ec08f581c10b9",
+  "prompts": {},
+  "sessions": {
+    "s_2c0c192010aeba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_074d677a3ffeimND6iMzyRJy86",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
