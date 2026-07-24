@@ -1,0 +1,23 @@
+scripts/build-wasm.mjs
+  s_0046c14203ed54::t_82fcb6f471c75a 67-73
+  s_0046c14203ed54::t_f04169bd8406b0 276-285
+.gitlab-ci.yml
+  s_0046c14203ed54::t_e8ded9c4334d6f 665-669
+  s_0046c14203ed54::t_c7e51f4b2d34d0 486-490,494-497
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4b7b692b567a6c1c06dbd18f31a682f341b28849",
+  "prompts": {},
+  "sessions": {
+    "s_0046c14203ed54": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06aed89efffeRkoavuOtbii5i0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
