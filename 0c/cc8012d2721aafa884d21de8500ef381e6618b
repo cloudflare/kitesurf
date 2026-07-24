@@ -1,0 +1,26 @@
+tests/wpt-expectations.json
+  s_235fc72330162e::t_05b65a8a723077 11036
+  s_235fc72330162e::t_fac70dbc1d3d00 35,83,11035
+  s_235fc72330162e::t_e4997fa69f32be 84
+  s_235fc72330162e::t_20eedb9c95d415 36
+packages/page-script/src/paint.ts
+  s_235fc72330162e::t_bfb4f98ef1c9f8 125-131,135-140,146-147
+packages/engine/test/e2e/demos/vertical-scroll-demo.e2e.test.ts
+  s_235fc72330162e::t_732a48d2570862 56-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0ccc8012d2721aafa884d21de8500ef381e6618b",
+  "prompts": {},
+  "sessions": {
+    "s_235fc72330162e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06b22cb53ffeQlQzk6XxWrfHM7",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
