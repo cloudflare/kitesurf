@@ -1,0 +1,52 @@
+packages/core/src/scene_record.rs
+  s_0d774ef1069d39::t_3a990faa25d9fc 725-727
+  s_0d774ef1069d39::t_12a3f19eb3669f 479-494
+  s_0d774ef1069d39::t_cc2b9c7a3252ff 230
+  s_0d774ef1069d39::t_32892088615ae5 464-465
+  s_0d774ef1069d39::t_1d79aee21c8351 232
+  s_0d774ef1069d39::t_fa253abe9d9f11 553-555
+  s_0d774ef1069d39::t_4117944b86fa06 419-426
+packages/engine/src/cdp/kitesurf.ts
+  s_0d774ef1069d39::t_fc297d94a8cf5b 487-491,494-501,508
+packages/core/src/scene_decode.rs
+  s_0d774ef1069d39::t_39f11ff5f4059d 93-98
+  s_0d774ef1069d39::t_198059a604dc76 496-497
+packages/page-script/src/index.ts
+  s_0d774ef1069d39::t_1b9b547e60ed3c 4329-4336,4355-4356,4359-4364
+packages/core/src/lib.rs
+  s_0d774ef1069d39::t_d6d04cb4a23dd0 3287-3293,3316-3333
+  s_0d774ef1069d39::t_079123214e5ba3 3356,3360-3363,3369,3372-3375
+packages/rbi-client/src/wire.ts
+  s_0d774ef1069d39::t_2746760967a463 14
+  s_0d774ef1069d39::t_2d8e679352716b 104,120-123
+  s_0d774ef1069d39::t_a3ee3c1f06679b 395-396
+packages/engine/src/rbi.ts
+  s_0d774ef1069d39::t_9453356a62fc98 384-386,398-420
+  s_0d774ef1069d39::t_e47642415df5f5 469-475
+  s_0d774ef1069d39::t_dc8fd957badb1a 300-316
+  s_0d774ef1069d39::t_a059a2d61b5cda 425-429
+packages/rbi-client/src/painter.ts
+  s_0d774ef1069d39::t_1c70dd4868235f 744-790
+  s_0d774ef1069d39::t_c45ed3c50c4ef3 799-801,807-810,816,820-821,826,828-830,833-835,840-847,851-852,856-857,861,864-867,875,877-891
+  s_0d774ef1069d39::t_808086cb4f2d78 619-671
+packages/rbi-client/src/index.ts
+  s_0d774ef1069d39::t_f30636e3f61dc2 121-142
+  s_0d774ef1069d39::t_3d7a73798684a0 12
+  s_0d774ef1069d39::t_62fe43adc28a95 13-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1d9182f167458606e52afc1552b4a42d871cd0a5",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

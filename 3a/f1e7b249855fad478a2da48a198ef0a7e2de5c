@@ -1,0 +1,41 @@
+packages/rbi-client/src/wire.ts
+  s_a8f885fcb95839::t_3797cdd206c49f 1-267
+packages/rbi-client/src/input.ts
+  s_a8f885fcb95839::t_818b00eaca9406 1-123
+packages/rbi-client/tsconfig.json
+  s_a8f885fcb95839::t_3c9ad7e86b4ed0 13
+  s_a8f885fcb95839::t_823672a1398a2b 1-12,14-18
+packages/rbi-client/package.json
+  s_a8f885fcb95839::t_d96bc238d1906a 1-23
+packages/rbi-client/src/index.ts
+  s_a8f885fcb95839::t_975d6c2eb515e2 20
+  s_a8f885fcb95839::t_1923b3a2db5b45 1-19,21-83
+packages/rbi-client/src/frame.ts
+  s_a8f885fcb95839::t_94499bdfbc51dd 1-25
+packages/rbi-client/scripts/build.mjs
+  s_a8f885fcb95839::t_e76ae2a44a270e 1-95
+packages/rbi-client/src/painter.ts
+  s_a8f885fcb95839::t_e2f8f29be3d8da 1-267
+packages/engine/src/rbi-view.ts
+  s_a8f885fcb95839::t_4026dc9105e96b 1-2,4-10
+packages/engine/src/index.ts
+  s_a8f885fcb95839::t_6135f4590aa246 241-242
+packages/engine/src/rbi.ts
+  s_a8f885fcb95839::t_a280b1055a14de 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3af1e7b249855fad478a2da48a198ef0a7e2de5c",
+  "prompts": {},
+  "sessions": {
+    "s_a8f885fcb95839": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_08715fe1bffeOqT779JFTfQfse",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
