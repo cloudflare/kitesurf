@@ -17,6 +17,7 @@ packages/engine/src/rbi.ts
   s_0d774ef1069d39::t_bf871e7fa74256 385
 packages/page-script/src/paint.ts
   s_0d774ef1069d39::t_da2b6ec0ca52ce 153-154,157-161,166
+  s_1806cb6a327668::t_fdda935b4636ee 152,155-156
 packages/dom-shim/src/internal-state.d.ts
   s_0d774ef1069d39::t_c0094e20a99268 37-40
 packages/dom-shim/src/mutations/seq.ts
@@ -36,6 +37,14 @@ packages/rbi-client/src/index.ts
         "tool": "opencode",
         "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
         "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_1806cb6a327668": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06ca7ee91ffej4Wl1rcnpitAGq",
+        "model": "claude-fable-5"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     }
