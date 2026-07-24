@@ -22,6 +22,11 @@ packages/engine/src/index.ts
   s_a8f885fcb95839::t_6135f4590aa246 241-242
 packages/engine/src/rbi.ts
   s_a8f885fcb95839::t_a280b1055a14de 9
+packages/engine/package.json
+  s_1806cb6a327668::t_36d87f7725ad76 24
+  s_1806cb6a327668::t_bc96cd809fb11c 7
+package.json
+  s_1806cb6a327668::t_7eee7ff39e2da2 57
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -29,6 +34,14 @@ packages/engine/src/rbi.ts
   "base_commit_sha": "3af1e7b249855fad478a2da48a198ef0a7e2de5c",
   "prompts": {},
   "sessions": {
+    "s_1806cb6a327668": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06ca7ee91ffej4Wl1rcnpitAGq",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_a8f885fcb95839": {
       "agent_id": {
         "tool": "opencode",
