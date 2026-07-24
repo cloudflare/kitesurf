@@ -1,0 +1,31 @@
+packages/core/src/lib.rs
+  s_c9f68948e839d2::t_0aa238b2e8a5b6 551-553
+  s_c9f68948e839d2::t_d728baf61d66bb 2967-3491
+  s_c9f68948e839d2::t_6e851c926ac66e 55-56
+  s_c9f68948e839d2::t_40964f5e0a5592 297-343
+  s_c9f68948e839d2::t_0cfb3a99cbe979 3492
+packages/core/src/scene_record.rs
+  s_c9f68948e839d2::t_c73de9fbc8736b 1-1982
+packages/core/Cargo.toml
+  s_c9f68948e839d2::t_c9a27a002a23b3 100-105
+packages/core/src/scene_decode.rs
+  s_c9f68948e839d2::t_c73de9fbc8736b 1-1454
+packages/core/Cargo.lock
+  s_c9f68948e839d2::t_375eba38e22573 1351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "86da3cea7fd42bf055e9408d8dd292f51b2c79f1",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
