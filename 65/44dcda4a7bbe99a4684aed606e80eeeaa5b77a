@@ -4,6 +4,7 @@ packages/core/src/lib.rs
   s_c9f68948e839d2::t_6e851c926ac66e 56-57
   s_c9f68948e839d2::t_40964f5e0a5592 307-353
   s_c9f68948e839d2::t_0cfb3a99cbe979 3927
+  s_896b78e3e98938::t_b048dbdcfa7578 306
 packages/core/src/scene_record.rs
   s_c9f68948e839d2::t_c73de9fbc8736b 1-1982
 packages/core/Cargo.toml
@@ -19,6 +20,14 @@ packages/core/Cargo.lock
   "base_commit_sha": "6544dcda4a7bbe99a4684aed606e80eeeaa5b77a",
   "prompts": {},
   "sessions": {
+    "s_896b78e3e98938": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0694a798affehyyFlYZR8S3ZCm",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_c9f68948e839d2": {
       "agent_id": {
         "tool": "opencode",
