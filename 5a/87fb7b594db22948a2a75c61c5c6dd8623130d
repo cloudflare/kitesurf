@@ -18,6 +18,22 @@ packages/dom-shim/src/element.ts
   "base_commit_sha": "5a87fb7b594db22948a2a75c61c5c6dd8623130d",
   "prompts": {},
   "sessions": {
+    "s_235fc72330162e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06b22cb53ffeQlQzk6XxWrfHM7",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_f50b7cd97baf3e": {
       "agent_id": {
         "tool": "opencode",
