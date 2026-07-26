@@ -1,0 +1,31 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0023-Flush-nested-inline-pseudo-elements-child-display-no.patch
+  s_f50b7cd97baf3e::t_92c4bae2fa440a 1-42
+scripts/patches/blitz-dom-0.3.0-beta.1/0020-Add-set_text_input_value-IDL-value-override-decouple.patch
+  s_f50b7cd97baf3e::t_92c4bae2fa440a 1-177
+scripts/patches/blitz-dom-0.3.0-beta.1/0022-Add-DocumentMutator-set_text_input_selection-JS-sele.patch
+  s_f50b7cd97baf3e::t_92c4bae2fa440a 1-73
+scripts/patches/blitz-dom-0.3.0-beta.1/0025-CSS-compat-lift-webkit-slider-thumb-colors-into-acce.patch
+  s_f50b7cd97baf3e::t_92c4bae2fa440a 1-269
+scripts/patches/blitz-dom-0.3.0-beta.1/0026-Harden-RangeInput-layout-construction-against-non-fi.patch
+  s_f50b7cd97baf3e::t_92c4bae2fa440a 1-54
+scripts/patches/blitz-dom-0.3.0-beta.1/0024-UA-stylesheet-strip-box-chrome-from-input-type-range.patch
+  s_f50b7cd97baf3e::t_92c4bae2fa440a 1-35
+scripts/patches/blitz-dom-0.3.0-beta.1/0021-Add-SpecialElementData-RangeInput-carrying-the-slide.patch
+  s_f50b7cd97baf3e::t_92c4bae2fa440a 1-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ab9614e191df4d2e5edd45de7823797a384f5ddb",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
