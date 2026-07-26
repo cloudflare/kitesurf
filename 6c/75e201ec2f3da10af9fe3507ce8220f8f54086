@@ -1,0 +1,21 @@
+packages/engine/test/e2e/demos/dom-mutation-events-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_b5fa9c61580983 252-261,281-285,288,291-293
+packages/engine/test/e2e/demos/forms-selection-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_1a561be8f0fc5e 18,22-24,28-32,47-49,51-52,54,56,61-62,66,68-70,72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6c75e201ec2f3da10af9fe3507ce8220f8f54086",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
