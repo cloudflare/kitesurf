@@ -1,0 +1,21 @@
+packages/core/src/lib.rs
+  s_f50b7cd97baf3e::t_05dd28d275ec9e 1934-1937,1941-1943
+scripts/patches/blitz-dom-0.3.0-beta.1/0021-Harden-RangeInput-layout-construction-against-non-fi.patch
+  s_f50b7cd97baf3e::t_08fd998824ded4 1-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "03f0ba278918139bb2b7dd85d467a404c06d78da",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
