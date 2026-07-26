@@ -1,0 +1,43 @@
+packages/page-renderer/tsconfig.json
+  s_c9f68948e839d2::t_e891e87c01089d 1-14,17-19
+  s_c9f68948e839d2::t_b55a63dffa51de 15-16
+packages/page-renderer/src/index.ts
+  s_c9f68948e839d2::t_20cf49a6f5bed0 1-186,191-206
+  s_c9f68948e839d2::t_e5089f7e265af1 187-190
+packages/page-renderer/src/wasm-glue.d.ts
+  s_c9f68948e839d2::t_95494e1267ba68 1-22
+packages/page-renderer/src/shims.d.ts
+  s_c9f68948e839d2::t_811dc3b1799d44 1-30
+packages/page-renderer/scripts/build.mjs
+  s_c9f68948e839d2::t_7f900d90f8bfbc 1-71
+packages/page-renderer/src/ws-codec.ts
+  s_c9f68948e839d2::t_562943fb53b197 1-143
+packages/page-renderer/src/core_bg.d.wasm.ts
+  s_c9f68948e839d2::t_69c6317ee8b17b 1-5
+packages/page-renderer/package.json
+  s_c9f68948e839d2::t_2be560216fdf1c 1-23
+packages/engine/src/eval/page-renderer.ts
+  s_c9f68948e839d2::t_b9081b73220f0d 1-438
+packages/engine/src/eval/page-script.ts
+  s_c9f68948e839d2::t_f66383c3435d04 39-41
+packages/engine/package.json
+  s_c9f68948e839d2::t_68325668061685 7,24
+pnpm-lock.yaml
+  s_c9f68948e839d2::t_c0f7cc127f78fe 76-78,114-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3e363cbf9bdaf16ace1226afd8ae9935e6e99f6c",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
