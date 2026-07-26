@@ -1,0 +1,30 @@
+packages/core/src/scene_record.rs
+  s_c9f68948e839d2::t_525afb02c60934 237,331-332,334-335,337-342,577-583,624-635,684-695,705-706,1269,1281,1363-1367,1373-1378,1393-1398,1410-1411,1441-1444,1598,1619,1733,2085-2093
+  s_c9f68948e839d2::t_d918904cd6b8ca 2084
+scripts/patches/blitz-dom-0.3.0-beta.1/0016-Materialize-decodes-at-the-node-s-laid-out-size-mip-.patch
+  s_c9f68948e839d2::t_efbba557eb1ab4 1-139
+packages/core/src/lib.rs
+  s_c9f68948e839d2::t_d952ae35efd3da 3662-3666,3670-3675,3794-3795,3798-3805,3812,3841,3844-3847,3852-3855
+  s_c9f68948e839d2::t_2ecbc82a9ee3a8 2989-2992,2994
+packages/core/src/scene_replay.rs
+  s_c9f68948e839d2::t_329e37d5e30200 1226-1228,1233,1237-1240,1245-1259,1290-1296,1312,1315,1320,1322-1324,1326,1328-1330,1338-1388
+  s_c9f68948e839d2::t_a4de218c301f5d 121-123,130-138,206-207,209-224,230-243,254-287,291-299,321-328,330-332,369-371,373
+research/page-renderer-plan.md
+  s_c9f68948e839d2::t_e6e24e02f23132 191-194,197-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "19eef49177dfb71e5656aca9f9b0a7978bbbc891",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

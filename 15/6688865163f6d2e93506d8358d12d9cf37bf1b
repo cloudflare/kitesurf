@@ -1,0 +1,40 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c9f68948e839d2::t_6e8c2d920031a0 2101-2128
+packages/core/src/lib.rs
+  s_c9f68948e839d2::t_98fbfa789d44d4 562-563
+  s_c9f68948e839d2::t_72de4202759f78 247-258
+packages/engine/src/cdp/target.ts
+  s_c9f68948e839d2::t_1bd942eb0c7b3d 257,316
+packages/page-script/src/index.ts
+  s_c9f68948e839d2::t_bc9fbe9de740bc 1069-1071
+  s_c9f68948e839d2::t_f9d947801405b0 125
+packages/engine/src/cdp/types.ts
+  s_c9f68948e839d2::t_7dfadf42d94ca0 581-587
+  s_c9f68948e839d2::t_6426400f4b20fb 202
+packages/engine/src/eval/page-script-session.ts
+  s_c9f68948e839d2::t_cd016343fc7297 454-459
+packages/engine/src/eval/page-script.ts
+  s_c9f68948e839d2::t_73817fadd9d495 284-289
+packages/engine/src/cdp/page.ts
+  s_c9f68948e839d2::t_ee5db9fb155dd9 477-480
+  s_c9f68948e839d2::t_791689e9e68bb8 2314
+  s_c9f68948e839d2::t_79bd925d4d7eaf 134-136,481-484,2315-2318
+scripts/patches/blitz-dom-0.3.0-beta.1/0019-Add-eager_font_faces-escape-hatch-to-DocumentConfig.patch
+  s_c9f68948e839d2::t_8e9e2342f311ab 1-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "156688865163f6d2e93506d8358d12d9cf37bf1b",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
