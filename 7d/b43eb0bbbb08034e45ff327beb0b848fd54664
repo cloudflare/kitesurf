@@ -1,0 +1,25 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c9f68948e839d2::t_b2ee5fecc62f25 2025-2069
+packages/engine/test/e2e/demos/font-heavy.e2e.test.ts
+  s_c9f68948e839d2::t_0433d5d5598ec3 1-52
+scripts/patches/blitz-dom-0.3.0-beta.1/0018-Lazy-font-face-loading-fetch-only-faces-whose-family.patch
+  s_c9f68948e839d2::t_ae12f35266e9d9 1-336
+research/page-renderer-plan.md
+  s_c9f68948e839d2::t_654a06360528d9 256-261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7db43eb0bbbb08034e45ff327beb0b848fd54664",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
