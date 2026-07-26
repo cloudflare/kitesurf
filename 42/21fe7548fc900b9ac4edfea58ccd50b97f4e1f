@@ -1,0 +1,27 @@
+packages/page-script/src/index.ts
+  s_c9f68948e839d2::t_4613f918ae74de 3861-3863,3867-3869
+packages/core/src/lib.rs
+  s_c9f68948e839d2::t_4542ca4b470b74 3121-3124,3208-3211,4187-4190
+scripts/patches/blitz-dom-0.3.0-beta.1/0020-Decode-bomb-guard-in-kitesurf_materialize_image_data.patch
+  s_c9f68948e839d2::t_8ec0c0dd2b7267 1-48
+packages/page-script/src/font-loader.ts
+  s_c9f68948e839d2::t_4613f918ae74de 264-268,296-299
+packages/core/src/scene_replay.rs
+  s_c9f68948e839d2::t_b844d06937732e 352-354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4221fe7548fc900b9ac4edfea58ccd50b97f4e1f",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
