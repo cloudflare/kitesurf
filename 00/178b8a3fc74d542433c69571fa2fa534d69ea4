@@ -1,0 +1,26 @@
+packages/engine/test/e2e/demos/oopif-quads-paint.e2e.test.ts
+  s_86e5da766eb425::t_2e4457b29d0b66 1-53
+packages/engine/src/cdp/target.ts
+  s_86e5da766eb425::t_65afc1331c790b 277,336
+packages/engine/src/cdp/page.ts
+  s_86e5da766eb425::t_9953c0fbdeef39 3112-3115,3117
+  s_86e5da766eb425::t_c2b820030d4eff 443-455
+packages/engine/src/cdp/types.ts
+  s_86e5da766eb425::t_35a1195c491a14 592-600
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "00178b8a3fc74d542433c69571fa2fa534d69ea4",
+  "prompts": {},
+  "sessions": {
+    "s_86e5da766eb425": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0665bed1cffeoMugykK9pn22Wf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

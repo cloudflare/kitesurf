@@ -1,0 +1,66 @@
+packages/dom-shim/src/node-base.ts
+  s_86e5da766eb425::t_107e04de6bf1ef 1415-1424
+  s_86e5da766eb425::t_251788ea732ba5 1158-1170
+packages/engine/src/eval/oopif-render.ts
+  s_86e5da766eb425::t_06f28a4cffe2cf 133-139,151-156
+packages/engine/src/cdp/page.ts
+  s_86e5da766eb425::t_c4968f3f1f86bd 4598-4603,4606-4617
+  s_86e5da766eb425::t_d7c8fa5834e1d1 3963-4120
+  s_86e5da766eb425::t_6d8781359f3814 3123
+  s_86e5da766eb425::t_d4847a2c0a23db 4802-4807
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_86e5da766eb425::t_b86298df5f3305 2180-2181
+  s_86e5da766eb425::t_ed2f1b1446a95d 678-684,687-693
+  s_86e5da766eb425::t_71b87cd248c8ab 1040-1041
+  s_86e5da766eb425::t_9564fba463b779 649-677,685-686,694-700
+  s_86e5da766eb425::t_422120afed6e83 1275-1297
+  s_86e5da766eb425::t_6791502fa69ab4 1066-1067
+packages/engine/test/e2e/demos/ce-upgrade-pipeline.e2e.test.ts
+  s_86e5da766eb425::t_11104427f0b7a4 1-51
+packages/page-script/src/index.ts
+  s_86e5da766eb425::t_d3077e2e6fb791 434-446
+  s_86e5da766eb425::t_d612baa5670d19 1977-1986
+packages/engine/src/cdp/types.ts
+  s_86e5da766eb425::t_8afa01722e0fb0 400-405
+packages/page-script/src/ws-dispatch.ts
+  s_86e5da766eb425::t_cd5e8716f24111 96-107
+packages/engine/test/e2e/demos/oopif-late-spawn.e2e.test.ts
+  s_86e5da766eb425::t_8aacc9e6093d7e 1-45,55-67
+  s_86e5da766eb425::t_4e2d18f4911154 46-54
+packages/page-script/src/globals.ts
+  s_86e5da766eb425::t_5a982c8a13a978 2199-2219
+  s_86e5da766eb425::t_3aa1d37f7207fd 2157-2175,2180
+  s_86e5da766eb425::t_e4b9fb5439c12f 2240-2246
+  s_86e5da766eb425::t_0f049011836b36 2109-2112
+  s_86e5da766eb425::t_d12a13e6a6cb96 2238-2239
+packages/engine/src/eval/walk-module-graph.ts
+  s_86e5da766eb425::t_064519109daa11 579-591
+  s_86e5da766eb425::t_3f28219e5f2ac8 798-847,855-857,872-954
+  s_86e5da766eb425::t_467ca19c38f262 601-603,620-624
+  s_86e5da766eb425::t_04d112e3e88e5c 865-868
+  s_33ced4fd01dd18::t_79bbeaddf24502 848-854,858-864,869-871
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4af8963e7647b67677318aa833874f960e09960a",
+  "prompts": {},
+  "sessions": {
+    "s_33ced4fd01dd18": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06460a98cffeiC4uluWD4Bs6JQ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_86e5da766eb425": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0665bed1cffeoMugykK9pn22Wf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
