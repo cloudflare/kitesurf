@@ -7,6 +7,8 @@ packages/page-script/src/resource-fetch.ts
   s_f50b7cd97baf3e::t_54d0b0de9a71b8 402
   s_f50b7cd97baf3e::t_d5bcfbec586c88 255
   s_f50b7cd97baf3e::t_8498e422a0aab3 38-75
+packages/engine/test/e2e/demos/document-fonts-ready.e2e.test.ts
+  s_f50b7cd97baf3e::t_50c3609757ba7f 1-58
 ---
 {
   "schema_version": "authorship/3.0.0",
