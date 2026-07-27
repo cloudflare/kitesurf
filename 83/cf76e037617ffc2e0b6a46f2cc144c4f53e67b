@@ -1,0 +1,27 @@
+packages/core/src/lib.rs
+  s_b8011a7530370a::t_1ba1f787c8a33c 4389-4407
+packages/dom-shim/src/element.ts
+  s_b8011a7530370a::t_6e3af494ca4e11 7386-7411
+scripts/patches/blitz-dom-0.3.0-beta.1/0020-Decode-bomb-guard-in-kitesurf_materialize_image_data.patch
+  s_b8011a7530370a::t_5d88002c06c30e 20,23
+packages/engine/test/e2e/demos/img-srcset-reload-complete.e2e.test.ts
+  s_b8011a7530370a::t_2291cb02956de2 1-69
+scripts/patches/blitz-dom-0.3.0-beta.1/0021-Add-node_has_pending_image-for-srcset-mutation-compl.patch
+  s_b8011a7530370a::t_5d88002c06c30e 1-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "83cf76e037617ffc2e0b6a46f2cc144c4f53e67b",
+  "prompts": {},
+  "sessions": {
+    "s_b8011a7530370a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05fbbb548ffeT7rpcQI10MbBge",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
