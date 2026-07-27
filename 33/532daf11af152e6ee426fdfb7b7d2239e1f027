@@ -1,0 +1,51 @@
+packages/engine/src/cdp/page.ts
+  s_86e5da766eb425::t_778f048cc77fd2 2549
+  s_86e5da766eb425::t_5d82622ebf28fb 463,1021
+  s_86e5da766eb425::t_8865d0c55fbbd7 928
+  s_86e5da766eb425::t_d677831929b463 24
+  s_86e5da766eb425::t_a5f28fcf9ab21e 941
+  s_86e5da766eb425::t_b46f51e5aef3ca 3167-3176
+  s_86e5da766eb425::t_498201ebe1df16 4055-4059,4063,4066,4071-4082
+  s_86e5da766eb425::t_fb5a7552d88d63 3946,4376
+packages/engine/src/cdp/frames.ts
+  s_86e5da766eb425::t_380834a29f6361 177
+packages/engine/test/e2e/demos/oopif-runtime-evaluate.e2e.test.ts
+  s_86e5da766eb425::t_a3bfd27c6811c2 92-96,101-103,105,107
+  s_86e5da766eb425::t_48d39f4438bb1b 1-91,97-100,104,106,108-110
+packages/engine/src/cdp/runtime.ts
+  s_86e5da766eb425::t_491956373a27b0 51
+  s_86e5da766eb425::t_e0049a2951c5a1 54-60
+  s_86e5da766eb425::t_27d17f59dd8f0f 2
+  s_86e5da766eb425::t_23c2eb42afd8c6 269-272,282-283,285-287
+  s_86e5da766eb425::t_2fc98e0ae6d815 373-376
+  s_86e5da766eb425::t_4f02862c8c6099 266-268,273-281,292,304-310
+  s_86e5da766eb425::t_aef21d06774256 139-143,161-186
+  s_86e5da766eb425::t_6c4c4df97a63cb 346-360
+  s_86e5da766eb425::t_dea452135d0788 1,8
+  s_86e5da766eb425::t_ed9c63f03dba25 40-50,52-53,61-127
+  s_86e5da766eb425::t_75eb1fafc5b16a 265
+packages/engine/src/cdp/connection.ts
+  s_86e5da766eb425::t_fdcf43a4d4b212 280-282
+  s_86e5da766eb425::t_6eadb1ca771ecf 283
+packages/engine/src/cdp/types.ts
+  s_86e5da766eb425::t_6a0ff0b9013b7b 382-390
+  s_86e5da766eb425::t_5bf9d390c1a8cf 770-776
+  s_86e5da766eb425::t_8739ad1a25df25 199-203,205,209-219
+  s_86e5da766eb425::t_703477f481ef90 204,206-208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "33532daf11af152e6ee426fdfb7b7d2239e1f027",
+  "prompts": {},
+  "sessions": {
+    "s_86e5da766eb425": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0665bed1cffeoMugykK9pn22Wf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
