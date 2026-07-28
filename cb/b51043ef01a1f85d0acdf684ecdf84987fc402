@@ -1,0 +1,34 @@
+packages/engine/test/e2e/demos/oopif-detach-teardown.e2e.test.ts
+  s_86e5da766eb425::t_42aea19a5ca056 74-88
+packages/engine/src/cdp/page.ts
+  s_86e5da766eb425::t_d95034ce61708c 4641-4653
+  s_86e5da766eb425::t_e339233bbb2643 3798-3801
+  s_86e5da766eb425::t_b7ba943a2ccbcf 4068-4080
+  s_86e5da766eb425::t_75a7c5a9077660 3994-3999
+  s_86e5da766eb425::t_9b3ca0ed7f2bb3 3871-3875
+packages/engine/src/eval/page-script.ts
+  s_86e5da766eb425::t_7bec056727458e 1229-1233
+packages/engine/src/index.ts
+  s_86e5da766eb425::t_0c80bf59ba31e4 585-591
+  s_86e5da766eb425::t_f5b9cb77975f0f 529-531,533-535
+packages/engine/src/eval/walk-module-graph.ts
+  s_86e5da766eb425::t_ab49a4dc93a2f2 923-925,927-937,939-958
+packages/engine/src/eval/oopif-render.ts
+  s_86e5da766eb425::t_376d02cb67dc4d 226-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cbb51043ef01a1f85d0acdf684ecdf84987fc402",
+  "prompts": {},
+  "sessions": {
+    "s_86e5da766eb425": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0665bed1cffeoMugykK9pn22Wf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
