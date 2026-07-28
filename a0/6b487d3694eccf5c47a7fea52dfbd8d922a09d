@@ -30,6 +30,7 @@ packages/engine/src/cdp/page.ts
   s_9919a0fbc98ecc::t_3066c6a96e5bd2 1600
   s_9919a0fbc98ecc::t_cc275d14b5069e 5010
   s_9919a0fbc98ecc::t_aa99221bd645a1 4849-4852,4861-4863
+  s_9919a0fbc98ecc::t_acad45126e7039 4725-4726
 ---
 {
   "schema_version": "authorship/3.0.0",
