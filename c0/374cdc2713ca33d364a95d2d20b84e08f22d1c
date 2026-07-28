@@ -1,0 +1,48 @@
+tests/interactivity-flows/bbc-hydration-probe.mjs
+  s_b8011a7530370a::t_0eba13b9d7ded8 557-581,585-588,593-595,602,607,609
+  s_b8011a7530370a::t_63825ad5c66f6b 339-381
+  s_b8011a7530370a::t_7379f03e4b5c64 732-754
+  s_b8011a7530370a::t_114d3df855778b 435-482
+  s_b8011a7530370a::t_24ef252ac57b7f 227-228,235-243
+  s_b8011a7530370a::t_e3cb53b16d10b6 96-103,181-222
+  s_b8011a7530370a::t_5990bbf8b37563 334-337
+  s_b8011a7530370a::t_c6158c9af6f86b 610-680
+  s_b8011a7530370a::t_c22507ee7ca28a 804-828
+  s_b8011a7530370a::t_353f7cf9016964 156-159
+  s_b8011a7530370a::t_9309dea201c99f 829-863
+  s_b8011a7530370a::t_23e6a8919aaf65 681-731
+  s_b8011a7530370a::t_5cfe885a3c09a4 582-584,589-592,596-601,603-606,608
+  s_b8011a7530370a::t_83027a7f173bb7 755-803
+  s_b8011a7530370a::t_5c3fb51b445e85 382-404,434
+  s_b8011a7530370a::t_9cab0d3da1bbda 483-524
+  s_b8011a7530370a::t_a9a1705f4df92a 864-914,918,927-928
+  s_b8011a7530370a::t_b23155edcc21d8 1-95,223-226,229-234,244-333,338,931-932
+  s_b8011a7530370a::t_7876931a1f0374 147-155,160-180
+  s_b8011a7530370a::t_40f3ca5200e02a 104-146
+  s_b8011a7530370a::t_6878c365cef54c 525-556
+  s_b8011a7530370a::t_e75a2503749ba0 405-433
+  s_b8011a7530370a::t_7b6798e1819a4e 915-917
+  s_b8011a7530370a::t_04ec5dbde9b131 919-921,924-926
+  s_b8011a7530370a::t_d708c095a75d61 929-930
+tests/interactivity-flows/har-replay-relay.mjs
+  s_b8011a7530370a::t_2d50348478da02 79-96
+  s_b8011a7530370a::t_a4c12a3b29f9c1 1-78,97-146
+tests/interactivity-flows/bbc-hydration-verify.mjs
+  s_b8011a7530370a::t_67dd06d52cf1c3 1-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c0374cdc2713ca33d364a95d2d20b84e08f22d1c",
+  "prompts": {},
+  "sessions": {
+    "s_b8011a7530370a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05fbbb548ffeT7rpcQI10MbBge",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

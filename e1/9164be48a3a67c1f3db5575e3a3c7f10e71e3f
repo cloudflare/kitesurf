@@ -1,0 +1,21 @@
+packages/engine/test/e2e/demos/cssom-atrule-mirror.e2e.test.ts
+  s_c9f68948e839d2::t_8333b0dabcde2d 1-83
+packages/dom-shim/src/collections.ts
+  s_c9f68948e839d2::t_69e341487f54b4 1384-1414
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e19164be48a3a67c1f3db5575e3a3c7f10e71e3f",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
