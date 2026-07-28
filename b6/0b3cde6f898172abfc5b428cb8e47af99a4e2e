@@ -1,0 +1,28 @@
+packages/wpt-report/package.json
+  s_8e99f83297903a::t_6d8baa5421953a 8
+packages/bench-report/package.json
+  s_8e99f83297903a::t_599d0b58e78d17 8
+tests/interactivity-flows/spawn-relay.mjs
+  s_8e99f83297903a::t_3d12ac94273168 12-16
+  s_8e99f83297903a::t_83228c6de87c46 31
+  s_8e99f83297903a::t_34a9bb6fcd8d66 48
+  s_8e99f83297903a::t_2671d738162821 21
+packages/engine/package.json
+  s_8e99f83297903a::t_6dbc4378318ed2 8-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b60b3cde6f898172abfc5b428cb8e47af99a4e2e",
+  "prompts": {},
+  "sessions": {
+    "s_8e99f83297903a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0588efc5affeYx90eKdzztJ0rK",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
