@@ -1,0 +1,19 @@
+.githooks/post-checkout
+  s_8e99f83297903a::t_07632ab53ab046 2-5,7,14,21,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "05921872e65acbbe50a101a77a7f17ab91f2dbf8",
+  "prompts": {},
+  "sessions": {
+    "s_8e99f83297903a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0588efc5affeYx90eKdzztJ0rK",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
