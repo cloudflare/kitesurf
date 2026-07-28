@@ -1,0 +1,24 @@
+packages/page-script/src/ws-dispatch.ts
+  s_6d2bd321e74cd3::t_28d0959c0be937 17
+  s_6d2bd321e74cd3::t_b8e8d6d5bdc271 109-115,257-261
+packages/page-script/src/internal-state.ts
+  s_6d2bd321e74cd3::t_22b3324d2623d9 159-200,207-215,218-263
+AGENTS.md
+  s_6d2bd321e74cd3::t_1bc2729ac652ed 386-404
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "967c1903c16ad6a00b5b6e3bbed3dc9671d871aa",
+  "prompts": {},
+  "sessions": {
+    "s_6d2bd321e74cd3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05593a336ffenHUE13Z3AsPOgn",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
