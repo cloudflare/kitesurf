@@ -1,0 +1,21 @@
+packages/page-script/src/defer-shim.ts
+  s_6d2bd321e74cd3::t_50d7277b77e529 45-47,49-53,55-58,60-64,66-67,92-112,114,117,119,124-126,128-135,160,215-216,218,231-232,234,305,351,353,358
+AGENTS.md
+  s_6d2bd321e74cd3::t_91ae90629d486f 405,412-428
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "38501e31d3da55e794952d163cacbd570310ab8c",
+  "prompts": {},
+  "sessions": {
+    "s_6d2bd321e74cd3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05593a336ffenHUE13Z3AsPOgn",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
