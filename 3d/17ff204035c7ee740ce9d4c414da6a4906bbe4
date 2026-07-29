@@ -1,0 +1,65 @@
+pnpm-lock.yaml
+  s_6d2bd321e74cd3::t_cc1c2cb490ab4c 102-103,1035-1037,2255-2256
+packages/dom-shim/src/index.ts
+  s_6d2bd321e74cd3::t_d1b7fb8a022811 18,967-988,1355-1363
+packages/engine/src/cdp/types.ts
+  s_6d2bd321e74cd3::t_78e3e54111cd88 684-689
+  s_6d2bd321e74cd3::t_7e8cb6f3f34a78 679-683
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_6d2bd321e74cd3::t_bbc4d172fcb97e 2541-2547,2550,2552-2583,2585-2594,2602
+  s_6d2bd321e74cd3::t_cffeba51aaa348 2548-2549,2551,2584,2595-2601,2603-2633
+packages/engine/src/cdp/dispatch.ts
+  s_6d2bd321e74cd3::t_78e3e54111cd88 135-137
+  s_6d2bd321e74cd3::t_9eb7c31278f452 20,134,139
+  s_6d2bd321e74cd3::t_090721b39c10a3 138
+packages/engine/src/cdp/webmcp.ts
+  s_6d2bd321e74cd3::t_4c85cfb1aae2f3 4-190,223-354,362,364-378,384-393,395-396
+  s_6d2bd321e74cd3::t_5bf0437e985363 1-3,394
+  s_6d2bd321e74cd3::t_c58116c3ee2bea 191-222
+  s_6d2bd321e74cd3::t_a63bdad49d46ff 355-361,363,379-383
+packages/engine/package.json
+  s_6d2bd321e74cd3::t_cb42a287b3e10d 10,28,34
+packages/page-script/src/wasm.d.ts
+  s_6d2bd321e74cd3::t_df8cf1b673d0ea 49-65
+  s_6d2bd321e74cd3::t_9ff25194b776c7 48
+AGENTS.md
+  s_6d2bd321e74cd3::t_0b0d7a6d1311d9 581-604,614-640
+  s_6d2bd321e74cd3::t_6850ac652fd636 605-613
+packages/engine/src/cdp/target.ts
+  s_6d2bd321e74cd3::t_78e3e54111cd88 290,351-352
+  s_6d2bd321e74cd3::t_5db78bdfa0e81b 289
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_6d2bd321e74cd3::t_cffeba51aaa348 137,189,191-226,228-229,238,244,304
+  s_6d2bd321e74cd3::t_e3d5ef6d940a29 1,23,53,190,227,232-237,239-240,242-243,245-246,248-249
+  s_6d2bd321e74cd3::t_9d04cfbd5c7c42 2-16,24-49,51-52,54-86,90-114,119-132,138-169,171-188,230-231,241,247,250-303
+  s_6d2bd321e74cd3::t_54847256ebc75a 21-22
+  s_6d2bd321e74cd3::t_ff7c9466102b3b 17-20,50,87-89,115-118,133-136,170
+packages/engine/src/cdp/page.ts
+  s_6d2bd321e74cd3::t_606b299cc3e89e 49
+  s_6d2bd321e74cd3::t_78e3e54111cd88 50-52,54,1940-1944,3207,4567-4583
+  s_6d2bd321e74cd3::t_56fd6d1efbb8a0 4584
+  s_6d2bd321e74cd3::t_c58116c3ee2bea 53,3198-3206
+packages/dom-shim/src/model-context.ts
+  s_6d2bd321e74cd3::t_320e57a6b0f735 12-152,158,160-427
+  s_6d2bd321e74cd3::t_1813b0ecf10e39 153-157,159
+  s_6d2bd321e74cd3::t_33a45dbcb5b60c 1-11
+packages/page-script/src/index.ts
+  s_6d2bd321e74cd3::t_df8cf1b673d0ea 4853-4863
+  s_6d2bd321e74cd3::t_1f851179e1dd96 132-136,4852,4864-4868
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3d17ff204035c7ee740ce9d4c414da6a4906bbe4",
+  "prompts": {},
+  "sessions": {
+    "s_6d2bd321e74cd3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05593a336ffenHUE13Z3AsPOgn",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}
