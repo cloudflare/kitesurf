@@ -1,13 +1,16 @@
 packages/engine/test/fixtures-worker/src/serve.ts
   s_2093bfec3117c9::t_b238d1c3081761 770-775,778-783,1189-1190
   s_2093bfec3117c9::t_5a8ba0c5061e17 776-777
+  s_2093bfec3117c9::t_43796e00600973 776-777
 packages/engine/test/e2e/script-font-dir.e2e.test.ts
   s_2093bfec3117c9::t_5a8ba0c5061e17 20-23,25-28,30-31,37,39-40,48,50-51
   s_2093bfec3117c9::t_b238d1c3081761 1-19,24,29,32-36,38,41-47,49,52-61
+  s_2093bfec3117c9::t_bfc44b30eeb43d 20-23,25-28,30-31,37,39-40,48,50-51
 AGENTS.md
   s_2093bfec3117c9::t_b238d1c3081761 295-296,305-309
 packages/core/src/fonts.rs
   s_2093bfec3117c9::t_5a8ba0c5061e17 627-631,633
+  s_2093bfec3117c9::t_5c5809f7ded11f 627-631,633
 packages/page-script/src/font-loader.ts
   s_2093bfec3117c9::t_b238d1c3081761 184-196,442-443,445
 ---
