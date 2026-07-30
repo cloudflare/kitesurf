@@ -1,0 +1,19 @@
+packages/core/src/fonts.rs
+  s_2093bfec3117c9::t_97e33585f88464 637-639
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "23966047a677a1fe2daaa730448b1bba21f6e96f",
+  "prompts": {},
+  "sessions": {
+    "s_2093bfec3117c9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0508dac78ffeJdI1H6arENzGsN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
