@@ -1,0 +1,23 @@
+packages/engine/src/quickactions/ax-serialize.ts
+  s_a75fa05553ff55::t_0f0a65ec157eab 190-196,204,207
+packages/engine/test/ax-serialize.test.ts
+  s_a75fa05553ff55::t_2aa30c1213395a 260-266
+  s_a75fa05553ff55::t_204656fad0787a 40-52,56,107,120,130,143,149,161,172,185,193,212,235,247,268-271,286
+  s_a75fa05553ff55::t_f3282107107299 1-39,53-55,57-106,108-119,121-129,131-142,144-148,150-160,162-171,173-184,186-192,194-211,213-234,236-246,248-259,267,272-285,287-299
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b73406cba0f6987307c2e34d7f0139239a252b75",
+  "prompts": {},
+  "sessions": {
+    "s_a75fa05553ff55": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_056baad8fffe4Zn5Jf0262lNuZ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
