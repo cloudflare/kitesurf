@@ -5,6 +5,8 @@ bench/harness/run.mjs
   s_5f3448ddbd7fba::t_582b8067e5b209 42-45,61,87,134
 bench/README.md
   s_5f3448ddbd7fba::t_582b8067e5b209 195
+docs/RELEASING.md
+  s_5f3448ddbd7fba::t_2aa2339ba810c6 17,20,71-75
 ---
 {
   "schema_version": "authorship/3.0.0",
