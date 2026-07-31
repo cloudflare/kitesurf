@@ -15,6 +15,8 @@ packages/engine/src/eval/outbound.ts
   s_a52b7488ac9f26::t_fd75b5979f70dd 1236,1242-1244
   s_a52b7488ac9f26::t_ac50adc8fc00e7 141
   s_a52b7488ac9f26::t_059e4b5b8418c3 405
+  s_a52b7488ac9f26::t_12aa858bb43864 673-688
+  s_a52b7488ac9f26::t_e923594735173c 433
 packages/engine/test/e2e/wba-test-key.ts
   s_a52b7488ac9f26::t_9fe5b3b408fb43 1-28
 packages/engine/vitest.e2e.config.mts
@@ -30,8 +32,11 @@ packages/engine/test/web-bot-auth.test.ts
   s_a52b7488ac9f26::t_c751cc4dca607e 22-37
 packages/engine/test/e2e/web-bot-auth.e2e.test.ts
   s_a52b7488ac9f26::t_bca5b6ca3690c7 1-32,34-54,56-117
+  s_a52b7488ac9f26::t_e51f5c1b9f7566 33,55
+  s_a52b7488ac9f26::t_07ceb8cc7ef688 118-185
 AGENTS.md
   s_a52b7488ac9f26::t_b141521cd0bc89 732-780
+  s_a52b7488ac9f26::t_4535eba82c9967 731
 packages/engine/wrangler.jsonc
   s_a52b7488ac9f26::t_713ab480594191 245-248
   s_a52b7488ac9f26::t_5fd425bd11a1af 283-286
@@ -39,6 +44,7 @@ packages/engine/wrangler.jsonc
   s_a52b7488ac9f26::t_b674eb96f56364 144,244,282
 packages/engine/test/outbound-forward.test.ts
   s_a52b7488ac9f26::t_fba2eb46fbe4fe 128-146,149-165,168-181,191-204
+  s_a52b7488ac9f26::t_f23241a3254346 147-148,166-167,182-190
 pnpm-lock.yaml
   s_a52b7488ac9f26::t_18f671500c337a 95-97,1162-1164,1184-1186,1412-1415,1564-1566,2458-2461,2482-2483,2759-2760,2891-2895
 ---
