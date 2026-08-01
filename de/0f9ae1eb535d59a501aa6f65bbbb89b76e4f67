@@ -14,6 +14,10 @@ scripts/wpt-testdriver.mjs
   s_0002ed1f6d2608::t_027aab0ed3fb50 536-542,544,546-563
   s_0002ed1f6d2608::t_03aafb83e28baf 427-431
   s_0002ed1f6d2608::t_6d806a74494bf1 1-426,432-535,543,545,564-742
+docs/TESTING.md
+  s_0002ed1f6d2608::t_4e8b0d313dcfcd 43-69
+AGENTS.md
+  s_0002ed1f6d2608::t_9336da583e5528 332-340
 ---
 {
   "schema_version": "authorship/3.0.0",
