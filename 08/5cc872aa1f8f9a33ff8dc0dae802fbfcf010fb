@@ -23,6 +23,9 @@ packages/engine/src/eval/outbound.ts
   s_a52b7488ac9f26::t_9f527dec16b26d 573,575-580
   s_a52b7488ac9f26::t_498f2a46fb4425 1599-1600,1602-1606
   s_a52b7488ac9f26::t_fd75b5979f70dd 1601,1607-1609
+  s_a52b7488ac9f26::t_f351bf22fb60d4 574
+  s_a52b7488ac9f26::t_d42fdf019d52d0 859-862
+  s_a52b7488ac9f26::t_c3ecaab5d948ba 917-931,933-934
 packages/engine/src/eval/web-bot-auth.ts
   s_a52b7488ac9f26::t_dbf88a107f5c1b 167-171
   s_a52b7488ac9f26::t_3f6d1b5cc5e836 112-116
@@ -43,6 +46,10 @@ packages/engine/test/web-bot-auth.test.ts
   s_a52b7488ac9f26::t_22542c19aeb6d9 8
   s_a52b7488ac9f26::t_c751cc4dca607e 22-37
   s_a52b7488ac9f26::t_107d3dcf54b6c8 124,130,133-135,140,143-144,150-151,164,173,196,204,212,223-224,230
+docs/WEB_BOT_AUTH.md
+  s_a52b7488ac9f26::t_21792dcc0cbe55 1-113
+AGENTS.md
+  s_a52b7488ac9f26::t_f351bf22fb60d4 100
 ---
 {
   "schema_version": "authorship/3.0.0",
