@@ -1,0 +1,23 @@
+packages/bench-report/src/bench-runner.ts
+  s_5f3448ddbd7fba::t_1672b564377c0f 12-13,15-18,79-82,106-109,433-434,437-442,450
+packages/bench-report/scripts/build.mjs
+  s_5f3448ddbd7fba::t_2a3645f0926530 133,143-145
+bench/README.md
+  s_5f3448ddbd7fba::t_2a3645f0926530 74-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "218eee02f951d763f25baa2c51a84e5a3d6f6a41",
+  "prompts": {},
+  "sessions": {
+    "s_5f3448ddbd7fba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_046e753d3ffes03EhHMjlrJN7V",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
