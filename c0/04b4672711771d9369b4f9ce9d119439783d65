@@ -1,0 +1,24 @@
+packages/dom-shim/src/mutations/observer.ts
+  s_b8011a7530370a::t_829ecf2f356a21 385-387
+packages/page-script/src/index.ts
+  s_b8011a7530370a::t_dc9902e9949706 2096,2104,2111-2112,2114
+  s_b8011a7530370a::t_deba23069a1919 2098-2102
+  s_b8011a7530370a::t_aa9d288ca639e5 1993,1995-1996,1998-2017,2020,2024-2042,2045,2048-2049,2051-2085,2097,2103,2105-2110,2113,2115
+  s_b8011a7530370a::t_b79d7fa16f7e71 2086-2095
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c004b4672711771d9369b4f9ce9d119439783d65",
+  "prompts": {},
+  "sessions": {
+    "s_b8011a7530370a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05fbbb548ffeT7rpcQI10MbBge",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
