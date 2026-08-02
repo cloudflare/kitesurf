@@ -1,0 +1,31 @@
+tests/wpt-expectations.json
+  s_e97e3a07fa18d7::t_ad1e3eb330e29f 11666,11798
+  s_e97e3a07fa18d7::t_232663b691d585 11665,11797
+docs/CORS.md
+  s_e97e3a07fa18d7::t_3041d4f5210a6e 39-50
+packages/page-script/src/eval-helpers.ts
+  s_e97e3a07fa18d7::t_7a12f724ff3130 832-863
+  s_e97e3a07fa18d7::t_bb1246c80227e0 561-567
+packages/engine/test/outbound-forward.test.ts
+  s_e97e3a07fa18d7::t_c8bd7d14537ec9 205-217,219-225,227-291,293-296
+  s_e97e3a07fa18d7::t_b8ad48e71f0d8a 218,226,292
+packages/engine/src/eval/outbound.ts
+  s_e97e3a07fa18d7::t_d2147cf973e03e 1631-1655
+  s_e97e3a07fa18d7::t_af5d1e7a15b6fb 1507-1606
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d4f11a682c592996ea540e139c9d4a2e42373c78",
+  "prompts": {},
+  "sessions": {
+    "s_e97e3a07fa18d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03d82354effe0awVyr1lajLs9U",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
