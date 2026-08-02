@@ -1,0 +1,25 @@
+docs/RELEASING.md
+  s_5f3448ddbd7fba::t_9112b2ea0ea8b9 75-76
+bench/harness/run.mjs
+  s_5f3448ddbd7fba::t_0cd3c1481d7ebe 74
+packages/bench-report/scripts/build.mjs
+  s_5f3448ddbd7fba::t_23d26aa1b53792 130-134
+packages/bench-report/src/bench-runner.ts
+  s_5f3448ddbd7fba::t_136f9dcb1a860b 128-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bfcdb0ca8ad9cd283df8317386b77ca96fa4ed26",
+  "prompts": {},
+  "sessions": {
+    "s_5f3448ddbd7fba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_046e753d3ffes03EhHMjlrJN7V",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
