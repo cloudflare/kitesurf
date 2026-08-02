@@ -1,0 +1,19 @@
+docs/CORS.md
+  s_b524cf97c98914::t_538a96f7dda291 74-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1402419fa634dc0bcbec0e6892edda8193df0d5d",
+  "prompts": {},
+  "sessions": {
+    "s_b524cf97c98914": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03d73a4c1ffet1b80RoPrkRgfN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
