@@ -48,6 +48,14 @@ packages/engine/test/fixtures-worker/src/serve.ts
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     },
+    "s_80019aaa6f9707": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_037e57f09ffeUR0bVZXgMehJiR",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_d9ecccdb16496d": {
       "agent_id": {
         "tool": "opencode",

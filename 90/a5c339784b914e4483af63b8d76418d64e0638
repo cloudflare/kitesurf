@@ -6,6 +6,7 @@ docs/CORS.md
 packages/engine/src/eval/outbound.ts
   s_198fdbc4c2e86a::t_5473d35a7d360b 465-466
   s_198fdbc4c2e86a::t_6e5449b003270f 485-487
+  s_0d1d30f19cc9dc::t_5ce9cd534c2048 485
 packages/page-script/src/resource-fetch.ts
   s_198fdbc4c2e86a::t_3d6e8852f907b9 237-241
 packages/engine/test/fixtures-worker/src/serve.ts
@@ -13,9 +14,11 @@ packages/engine/test/fixtures-worker/src/serve.ts
   s_198fdbc4c2e86a::t_0efaf22da2d2c6 4183-4190,4193-4199,4203-4205,4208-4212
   s_198fdbc4c2e86a::t_8561b2a89295be 4200-4202,4206-4207
   s_198fdbc4c2e86a::t_0170e5f003cbaf 4191-4192
+  s_0d1d30f19cc9dc::t_87315b5dc0883b 4177,4184,4187,4195,4210-4212,4222-4223
 packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
   s_198fdbc4c2e86a::t_3464538ce73d25 1,4,18-28,30-34,47,53-55,64-67
   s_198fdbc4c2e86a::t_38cde62bdb1145 2-3,5-17,29,35-46,48-52,56-63
+  s_0d1d30f19cc9dc::t_afffb867096940 18-19,20-26,28,30-32,34,55,57,64,66-67
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -23,6 +26,14 @@ packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
   "base_commit_sha": "90a5c339784b914e4483af63b8d76418d64e0638",
   "prompts": {},
   "sessions": {
+    "s_0d1d30f19cc9dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_037c06dd9ffesDNWihuHLbPLHI",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_198fdbc4c2e86a": {
       "agent_id": {
         "tool": "opencode",
