@@ -1,0 +1,19 @@
+packages/engine/src/eval/shaping-cache.ts
+  s_0d1d30f19cc9dc::t_33fc243902c51e 11-28,95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c3dc72991ef0908a9b443f692ce53ca639712757",
+  "prompts": {},
+  "sessions": {
+    "s_0d1d30f19cc9dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_037c06dd9ffesDNWihuHLbPLHI",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
