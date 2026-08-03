@@ -1,0 +1,32 @@
+packages/engine/src/cdp-client.ts
+  s_80019aaa6f9707::t_7c2849d9205352 35
+packages/engine/src/cdp/network-events.ts
+  s_80019aaa6f9707::t_ccbb750c0df1d1 373
+packages/engine/src/cdp/connection.ts
+  s_80019aaa6f9707::t_7c2849d9205352 260-262
+packages/engine/src/quickactions/index.ts
+  s_80019aaa6f9707::t_82d687ebc99888 860-864
+packages/engine/test/e2e/quickaction-body-retention.e2e.test.ts
+  s_80019aaa6f9707::t_eb0cd18beebde9 7-11
+  s_80019aaa6f9707::t_755397eccb2e2a 38-39
+packages/engine/test/network-events-body-budget.test.ts
+  s_80019aaa6f9707::t_70e8904b734a0c 220-221
+docs/NETWORKING.md
+  s_80019aaa6f9707::t_5b6c7193f6bcb8 50-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ac8782bc126858f21e2be41af41599280241e841",
+  "prompts": {},
+  "sessions": {
+    "s_80019aaa6f9707": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_037e57f09ffeUR0bVZXgMehJiR",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
