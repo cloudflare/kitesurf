@@ -1,0 +1,40 @@
+packages/engine/src/eval/retention-budget.ts
+  s_d9ecccdb16496d::t_100100a7de31df 1-93
+docs/MEMPROF.md
+  s_d9ecccdb16496d::t_6b90dc19efc5f5 190-196,201-225
+  s_d9ecccdb16496d::t_d93436bfc11542 226
+docs/CORS.md
+  s_d9ecccdb16496d::t_d14d13f5e907a0 88-92
+packages/engine/test/e2e/engine-image-handoff.e2e.test.ts
+  s_d9ecccdb16496d::t_fcb48522563bae 1-46
+packages/engine/test/resource-store.test.ts
+  s_d9ecccdb16496d::t_9b0523f3c5529f 25,30-37,71-74,76,85,89,98,100,112-113,116-117,159-163,166-169,171-172,181,184,211-216,283-285,288-289,300-301,303,342,346,370-376,384,386-388,390-453
+packages/engine/src/eval/resource-store.ts
+  s_d9ecccdb16496d::t_ac57b06c48a5a8 277
+  s_d9ecccdb16496d::t_34a94f6c1468e7 52-59,167-170,373,419,429-432,453-455,457-463
+  s_d9ecccdb16496d::t_590edfed43c4c4 60-65,262-267,271,274,281-285,304,380-382
+  s_d9ecccdb16496d::t_12475de6ff50c1 71-75,80-121,204-210,214-217
+  s_d9ecccdb16496d::t_c0f0dac82b18d0 438-452,456
+  s_d9ecccdb16496d::t_1d8110f4af9668 21-31,36-40,159,175-178,258
+packages/engine/src/cdp/network-events.ts
+  s_d9ecccdb16496d::t_4ad0c3861165a9 117-122,784,793,811,813
+  s_d9ecccdb16496d::t_6ad1b0fbd3bf89 12-16,131
+  s_d9ecccdb16496d::t_1df3714efa357a 852-858
+  s_d9ecccdb16496d::t_bfebbcc882d688 851,859-860
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0895afa83bc7da14337ffb5f9158aee2eba452b3",
+  "prompts": {},
+  "sessions": {
+    "s_d9ecccdb16496d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03b959d9effev00SNORc7M35W1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
