@@ -54,6 +54,7 @@ packages/core/src/lib.rs
   s_50d45ac3d4c7e5::t_42127b7e9035d4 52
 scripts/patches/blitz-dom-0.3.0-beta.1/0085-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
   s_46581e2f222abb::t_7360c4afd31d6d 3-5,10-18,20-21,25-26,28-33,36-41,43-53
+  s_50d45ac3d4c7e5::t_f7e0c77b4ad932 1-2,6-9,19,22-24,27,34-35,42
 ---
 {
   "schema_version": "authorship/3.0.0",
