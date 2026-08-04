@@ -1,0 +1,23 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0077-Tag-nested-import-stylesheet-fetches-text-css-like-t.patch
+  s_ec767726d83f7d::t_515806fef42b39 1-41
+scripts/patches/blitz-dom-0.3.0-beta.1/0076-Let-the-embedder-deliver-a-dims-only-image-with-no-p.patch
+  s_ec767726d83f7d::t_515806fef42b39 33,36,58,74,107,126,135,138
+scripts/patches/blitz-dom-0.3.0-beta.1/0078-Carry-the-CSS-fetch-mode-on-stylesheet-Requests-as-a.patch
+  s_ec767726d83f7d::t_515806fef42b39 1-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4420453e6c95c8d0e74aec9c55392dfee3f11f1c",
+  "prompts": {},
+  "sessions": {
+    "s_ec767726d83f7d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03236d974ffeJpJa3XPliMqXxm",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
