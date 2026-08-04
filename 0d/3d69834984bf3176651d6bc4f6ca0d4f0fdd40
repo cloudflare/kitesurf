@@ -1,0 +1,40 @@
+packages/engine/src/eval/outbound.ts
+  s_0d1d30f19cc9dc::t_ce58baad19c40a 56,68,1441-1450,1475-1478,1484-1490,1498-1503,1757
+  s_0d1d30f19cc9dc::t_6ddb12713a7dca 1682
+packages/core/src/fonts.rs
+  s_0d1d30f19cc9dc::t_dc9124f15fecb2 2358,2366,2373,2378,2382,2387,2395,2404,2422
+  s_0d1d30f19cc9dc::t_9301ddb80573b2 416-423,435-443,471-472,500-510
+  s_0d1d30f19cc9dc::t_4fff1010f4138b 424-426,428-429,446-448,458-461,464-470,475-476,479-483,489-499,581-583,585-587
+  s_0d1d30f19cc9dc::t_ff900ebca077da 427,580
+  s_0d1d30f19cc9dc::t_096d8034a5d913 511
+packages/core/src/net.rs
+  s_0d1d30f19cc9dc::t_ff900ebca077da 96-98,453
+packages/engine/test/e2e/gateway-font-shaping.e2e.test.ts
+  s_0d1d30f19cc9dc::t_31816cd35d9848 29,43,53,74-76,94-97
+packages/engine/src/cdp/target.ts
+  s_0d1d30f19cc9dc::t_3cafa35d66f4f9 738-743
+packages/core/src/lib.rs
+  s_0d1d30f19cc9dc::t_d49f441cbc2b1d 4801-4808,4810-4812
+  s_0d1d30f19cc9dc::t_35d36e952f9acd 5405,5431-5450,5457-5458
+packages/page-script/src/resource-fetch.ts
+  s_0d1d30f19cc9dc::t_d390799e1041c8 487-490,492-493,670-672,676-678
+  s_0d1d30f19cc9dc::t_367a3073359be4 648-652
+  s_0d1d30f19cc9dc::t_830a83ce2393f1 351,374-385
+  s_0d1d30f19cc9dc::t_690d74aedfa332 386
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0d3d69834984bf3176651d6bc4f6ca0d4f0fdd40",
+  "prompts": {},
+  "sessions": {
+    "s_0d1d30f19cc9dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_037c06dd9ffesDNWihuHLbPLHI",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
