@@ -1,0 +1,24 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0070-Give-display-flow-root-its-own-block-formatting-cont.patch
+  s_50d45ac3d4c7e5::t_646bea0c605f8c 1-48
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_50d45ac3d4c7e5::t_e3d81c7adcbf77 45-46
+  s_50d45ac3d4c7e5::t_1fda6ebcc05fed 1-2
+  s_50d45ac3d4c7e5::t_c2170f72b1438f 19
+  s_50d45ac3d4c7e5::t_45a9efe8e0e7c8 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ba6045396b79836140300b6818b51eabe33e4cc1",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

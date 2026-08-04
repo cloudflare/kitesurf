@@ -1,0 +1,27 @@
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_90e76f18ef9263 6203,6212-6218,6220,6222-6227,6229,6237-6239
+  s_50d45ac3d4c7e5::t_d0a8334b00c067 6244-6245
+  s_50d45ac3d4c7e5::t_9ad48f1554cf10 6200-6202
+  s_50d45ac3d4c7e5::t_3febb02baae30d 6204-6206,6209-6211
+  s_50d45ac3d4c7e5::t_1d24ed18acc902 6219
+  s_50d45ac3d4c7e5::t_4de89b1cb9dcb5 6221
+  s_50d45ac3d4c7e5::t_0f0a33cd394f2e 6228
+  s_50d45ac3d4c7e5::t_f21a7d5259d84c 6230-6232,6234-6236
+  s_50d45ac3d4c7e5::t_cb78f33f4b0f97 6240-6243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f3a0e90d27ecf65f0ed804c07fe34979ac8ddb4",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

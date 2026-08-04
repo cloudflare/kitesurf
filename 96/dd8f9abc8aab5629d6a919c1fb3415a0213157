@@ -1,0 +1,25 @@
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_71c81eb6a99286::t_d6573fc0cfbcf2 30
+  s_71c81eb6a99286::t_dcca4ed27c9156 45-49
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_71c81eb6a99286::t_28917aed24117e 855-856,858
+  s_71c81eb6a99286::t_a370e6c3b4be80 872-874
+scripts/patches/taffy-0.12.2/0010-Cache-the-lowest-float-bottom-per-side-so-clearing-s.patch
+  s_71c81eb6a99286::t_84017dfdede10f 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "96dd8f9abc8aab5629d6a919c1fb3415a0213157",
+  "prompts": {},
+  "sessions": {
+    "s_71c81eb6a99286": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_033159148ffeB63qdosXM3zmFX",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}

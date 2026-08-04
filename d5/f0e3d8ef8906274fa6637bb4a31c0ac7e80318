@@ -1,0 +1,42 @@
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_24f7f52c9983ab 5904-5906
+  s_50d45ac3d4c7e5::t_a988c5d80d193a 5915,6114
+  s_50d45ac3d4c7e5::t_9add80cf2377a3 2749
+  s_50d45ac3d4c7e5::t_da9a751a131716 2786-2788,2791,2799
+  s_50d45ac3d4c7e5::t_fec4fca7ce63ae 5977-5999
+packages/page-script/src/paint.ts
+  s_50d45ac3d4c7e5::t_c3567bf603e45c 116
+  s_50d45ac3d4c7e5::t_cd8874867a2565 114-115
+packages/dom-shim/src/layout/cheap.ts
+  s_50d45ac3d4c7e5::t_cd579dce260d8a 473,478-481
+packages/page-script/src/types.ts
+  s_50d45ac3d4c7e5::t_d33ee1d6a7c2f4 66-68
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_50d45ac3d4c7e5::t_d058a1e870279d 1,3,7-57
+  s_50d45ac3d4c7e5::t_7934e32f593791 58-76,78-91
+  s_50d45ac3d4c7e5::t_113f3d99691844 77
+  s_50d45ac3d4c7e5::t_27600a17ea35db 2,6
+  s_50d45ac3d4c7e5::t_cef613cbf229cb 4-5
+  s_50d45ac3d4c7e5::t_4b3d87eb5d10b9 92-95
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_3062b3fdff3f96 1818-1819
+  s_50d45ac3d4c7e5::t_f02609170a9f78 744-759,761-764,766
+  s_50d45ac3d4c7e5::t_bc71680571a495 760
+  s_50d45ac3d4c7e5::t_6e63a2eeb6b0ad 765
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d5f0e3d8ef8906274fa6637bb4a31c0ac7e80318",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,20 @@
+scripts/build-wasm.mjs
+  s_46581e2f222abb::t_a87027b4f6d435 178-185
+  s_46581e2f222abb::t_5c012dfaec008f 65-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f5f37cb3ee398b1fac8cdfc33503bbb0760c5576",
+  "prompts": {},
+  "sessions": {
+    "s_46581e2f222abb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_034ccb3baffeLXyWaEfrDSKzki",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

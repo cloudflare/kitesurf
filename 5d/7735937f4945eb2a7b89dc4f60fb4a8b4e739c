@@ -1,0 +1,24 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0013-kitesurf-budget-open-layers-by-depth-not-cumulative-.patch
+  s_50d45ac3d4c7e5::t_b05d47bd9b663e 1-81
+packages/engine/test/e2e/layer-budget.e2e.test.ts
+  s_50d45ac3d4c7e5::t_75389cafdfb346 1-46
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_4d7e6e545ebe23 784-808
+  s_50d45ac3d4c7e5::t_ace62bd418a5d8 1862-1863
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5d7735937f4945eb2a7b89dc4f60fb4a8b4e739c",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": null
+    }
+  }
+}
