@@ -10,6 +10,7 @@ packages/page-script/src/resource-fetch.ts
   s_19384c32fdab9f::t_20e5153fa6e958 369
   s_19384c32fdab9f::t_6ae6ce24425ef7 416-420
   s_3180212714990d::t_c2856726f3b1c8 95,155
+  s_19384c32fdab9f::t_cf36523540eadd 332-337,434
 scripts/patches/blitz-dom-0.3.0-beta.1/0077-Carry-the-CSS-fetch-mode-on-stylesheet-Requests-as-a.patch
   s_19384c32fdab9f::t_7b2909ad35e81c 1-160
 packages/engine/src/eval/outbound.ts
@@ -20,6 +21,7 @@ packages/engine/src/eval/outbound.ts
   s_19384c32fdab9f::t_b114c0980a0b19 478-482
   s_19384c32fdab9f::t_83a19cfe2a6a59 518
   s_19384c32fdab9f::t_294987ecbf4355 1498-1499
+  s_19384c32fdab9f::t_ec2d892a046900 1476
 packages/dom-shim/src/collections.ts
   s_19384c32fdab9f::t_6f95265eebbf31 2550
   s_19384c32fdab9f::t_df141d39839902 2493-2495
