@@ -1,0 +1,19 @@
+packages/engine/src/eval/web-bot-auth.ts
+  s_2fffa0fc22ba05::t_7fc765a21c6227 61-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3825c4e46754414b91ab0dd59778aeea1fc3e55c",
+  "prompts": {},
+  "sessions": {
+    "s_2fffa0fc22ba05": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_034774bd8ffe2ZJwnXjqA7FIg6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
