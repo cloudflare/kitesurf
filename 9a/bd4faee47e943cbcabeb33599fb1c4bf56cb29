@@ -1,0 +1,22 @@
+docs/TESTING.md
+  s_f5379a4dfad67f::t_3714120e10f821 155-177
+.gitlab-ci.yml
+  s_f5379a4dfad67f::t_059a872d112c2e 559-616
+  s_f5379a4dfad67f::t_83b39e1da6c14b 62-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9abd4faee47e943cbcabeb33599fb1c4bf56cb29",
+  "prompts": {},
+  "sessions": {
+    "s_f5379a4dfad67f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03285751dffev2wKoRxXpRkxnb",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
