@@ -21,6 +21,8 @@ packages/page-script/src/resource-fetch.ts
   s_0d1d30f19cc9dc::t_367a3073359be4 648-652
   s_0d1d30f19cc9dc::t_830a83ce2393f1 351,374-385
   s_0d1d30f19cc9dc::t_690d74aedfa332 386
+  s_0d1d30f19cc9dc::t_db92875cb5174c 356
+  s_0d1d30f19cc9dc::t_1bff3c13264560 491
 ---
 {
   "schema_version": "authorship/3.0.0",
