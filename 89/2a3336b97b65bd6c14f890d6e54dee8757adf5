@@ -1,0 +1,20 @@
+scripts/patches/taffy-0.12.2/0009-Cache-box-the-entries-so-an-empty-cache-is-pointer-s.patch
+  s_455e9fe7b283e3::t_ccddde9e98405f 1-2,4-16,19-135
+  s_455e9fe7b283e3::t_586894f1447e0c 3,17-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "892a3336b97b65bd6c14f890d6e54dee8757adf5",
+  "prompts": {},
+  "sessions": {
+    "s_455e9fe7b283e3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_031e8773fffeDWEtrTxYKjunEJ",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
