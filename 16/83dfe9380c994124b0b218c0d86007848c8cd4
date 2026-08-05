@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0079-Only-force-a-restyle-for-an-animation-set-that-still.patch
+  s_ec767726d83f7d::t_d05f05b66ce427 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1683dfe9380c994124b0b218c0d86007848c8cd4",
+  "prompts": {},
+  "sessions": {
+    "s_ec767726d83f7d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03236d974ffeJpJa3XPliMqXxm",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
