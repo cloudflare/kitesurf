@@ -1,0 +1,35 @@
+packages/engine/src/wasm.ts
+  s_455e9fe7b283e3::t_6a790221a2c701 21,140-177
+packages/engine/src/cdp/types.ts
+  s_455e9fe7b283e3::t_f6346d12ec3dee 619-623
+packages/engine/src/cdp/target.ts
+  s_455e9fe7b283e3::t_530ea5297fad6e 354,484
+packages/engine/src/cdp/page.ts
+  s_455e9fe7b283e3::t_230d1aa6db9536 514
+  s_455e9fe7b283e3::t_bd2d04042f4d59 1070
+  s_455e9fe7b283e3::t_1ac3533d0c9a92 1249,1251,1253-1257
+  s_455e9fe7b283e3::t_b98ed1b43a6dbd 1071-1074
+  s_455e9fe7b283e3::t_b3e9ae77676ec7 2348-2353
+  s_455e9fe7b283e3::t_d680122696948e 946-954,967-971
+  s_455e9fe7b283e3::t_e0d9f14c34e2f4 5122-5124
+  s_455e9fe7b283e3::t_352d3b35638f20 5033-5040,5045-5121,5125-5129
+  s_455e9fe7b283e3::t_61fe026af76663 14
+  s_455e9fe7b283e3::t_63fc444413f55b 1012-1020,1022
+  s_455e9fe7b283e3::t_4dcb693b29f248 5130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b076250610048ef007072c0ead0e8e5108156562",
+  "prompts": {},
+  "sessions": {
+    "s_455e9fe7b283e3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_031e8773fffeDWEtrTxYKjunEJ",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
