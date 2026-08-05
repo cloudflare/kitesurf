@@ -1,0 +1,24 @@
+packages/core/src/has_invalidation_test.rs
+  s_ec767726d83f7d::t_b5b0fa45af7d23 141-142,144-161,163-164,167-169,171-176,178-179,181,183-193,195-202,204-246,296,308,335
+  s_ec767726d83f7d::t_cd1225fba0ad5f 7-11,13-21
+  s_ec767726d83f7d::t_7fddaa79c4d056 291-295
+  s_ec767726d83f7d::t_6354874e917ef1 290,297-307,309-334
+scripts/patches/blitz-dom-0.3.0-beta.1/0085-Drive-the-relative-selector-invalidator-for-tree-mut.patch
+  s_ec767726d83f7d::t_91f55b8d599bd9 1-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "00b4072cae284f1ab6a84cbcec1bf3ac0b4a2b92",
+  "prompts": {},
+  "sessions": {
+    "s_ec767726d83f7d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03236d974ffeJpJa3XPliMqXxm",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
