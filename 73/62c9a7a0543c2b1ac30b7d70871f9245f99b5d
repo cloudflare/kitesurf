@@ -3,6 +3,7 @@ packages/engine/src/eval/worker-budget.ts
   s_e25adfb431bb8a::t_101fc614944ca3 58-62,68,113-125,130
 docs/IFRAMES.md
   s_e25adfb431bb8a::t_a3a280867011ba 118-119,127-142,161-167
+  s_e25adfb431bb8a::t_191711a234880c 113-117,120-126,143-160
 packages/engine/src/cdp/page.ts
   s_e25adfb431bb8a::t_8c2b434496b6f9 2303-2306,2956-2959,7300-7301
   s_e25adfb431bb8a::t_587b41981207a4 118-120
@@ -10,6 +11,7 @@ packages/engine/src/cdp/page.ts
   s_e25adfb431bb8a::t_d8da073a6b64ab 5201-5204,5211-5226,5276-5278,5289-5290,5300-5303,5392-5399,5444-5448
   s_e25adfb431bb8a::t_53b23c348bf3ae 5404
   s_e25adfb431bb8a::t_179d56d719f476 4752-4767
+  s_e25adfb431bb8a::t_c0545c7841e447 5078-5084,5110-5121,5167-5172,5205-5210
 packages/engine/test/e2e/demos/oopif-worker-budget.e2e.test.ts
   s_e25adfb431bb8a::t_f426a521ad0f61 13-16,18-20,29,33,43
   s_e25adfb431bb8a::t_0502eb3c1ee564 1-12,17,21-28,30-32,34-42,44-80
