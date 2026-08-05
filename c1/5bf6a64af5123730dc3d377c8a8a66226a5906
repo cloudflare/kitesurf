@@ -1,0 +1,23 @@
+package.json
+  s_508a5354537db6::t_712fb2c05d0fd0 27-28
+scripts/build-tracker-list.mjs
+  s_508a5354537db6::t_53daa149753297 1-162
+packages/engine/src/eval/tracker-list.generated.ts
+  s_508a5354537db6::t_e90b153318fae5 1-1067
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c15bf6a64af5123730dc3d377c8a8a66226a5906",
+  "prompts": {},
+  "sessions": {
+    "s_508a5354537db6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02e634a84ffeQZsYplGEK7AdB1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
