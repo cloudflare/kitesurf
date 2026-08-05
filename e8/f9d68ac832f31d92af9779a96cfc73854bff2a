@@ -1,0 +1,41 @@
+.gitignore
+  s_58ab9b44c21c3b::t_c024f9eb9b7aa1 103
+packages/engine/test/e2e/mcp-tools.e2e.test.ts
+  s_58ab9b44c21c3b::t_13061f8d94276e 1-12,14-114,120,122-185
+  s_58ab9b44c21c3b::t_ee5630b1bd9a8d 13
+  s_58ab9b44c21c3b::t_4326a3876b8adc 115-119,121
+packages/engine/test/e2e/mcp-cdp.e2e.test.ts
+  s_58ab9b44c21c3b::t_b58e2402104d50 1-139
+packages/engine/test/e2e/mcp-protocol.e2e.test.ts
+  s_58ab9b44c21c3b::t_0375157905b3b1 1-4,6-8,16-41,79-84,87-110,126-128,130-133,135-149,151-171,174-181,183-191
+  s_58ab9b44c21c3b::t_dd557aed8b6592 85-86,172-173
+  s_58ab9b44c21c3b::t_732a1c52346744 134
+  s_58ab9b44c21c3b::t_8b5f6181091df0 5,9-15,112-113,129,150,182
+  s_58ab9b44c21c3b::t_2c970443a23e15 42-78
+  s_58ab9b44c21c3b::t_ad62ed9acbff1e 111,114-125
+packages/engine/test/e2e/global-setup.ts
+  s_58ab9b44c21c3b::t_c3b89ed7dad4d4 15
+  s_58ab9b44c21c3b::t_4d892410a77e4f 35-42
+  s_58ab9b44c21c3b::t_26bc535362f2e8 43-45
+packages/engine/vitest.e2e.config.mts
+  s_58ab9b44c21c3b::t_14abdf6f56c5af 97-113,123,129
+  s_58ab9b44c21c3b::t_42917fcb273b2f 22
+packages/engine/test/e2e/mcp-client.ts
+  s_58ab9b44c21c3b::t_b5a8aa156be26d 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e8f9d68ac832f31d92af9779a96cfc73854bff2a",
+  "prompts": {},
+  "sessions": {
+    "s_58ab9b44c21c3b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_030f67b4bffewhU4gs1WsQtOzn",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
