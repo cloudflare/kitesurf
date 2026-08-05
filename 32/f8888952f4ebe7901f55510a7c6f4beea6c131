@@ -1,0 +1,38 @@
+packages/engine/src/cdp/accessibility.ts
+  s_455e9fe7b283e3::t_0f5079afd708a1 310,312
+  s_455e9fe7b283e3::t_9975ce09fd085c 6
+packages/engine/src/cdp/dom.ts
+  s_455e9fe7b283e3::t_bda07b0a2a292d 16
+  s_455e9fe7b283e3::t_032223a6ed5277 138,140,164,166,568-570
+packages/engine/test/e2e/target-dom-reclaim.e2e.test.ts
+  s_455e9fe7b283e3::t_adc4ca44582a57 63-103
+packages/engine/src/cdp/css.ts
+  s_455e9fe7b283e3::t_0f5079afd708a1 363-365,367
+  s_455e9fe7b283e3::t_9975ce09fd085c 11
+packages/engine/src/cdp/dom-release.ts
+  s_455e9fe7b283e3::t_30c874c46fe054 25
+  s_455e9fe7b283e3::t_86d59cf6b8ea77 144-201,203-218
+  s_455e9fe7b283e3::t_49c42276178222 202
+packages/engine/src/cdp/page.ts
+  s_455e9fe7b283e3::t_8a1b919b1ba0d6 1497-1500
+  s_455e9fe7b283e3::t_d3f1d4ea034f33 70,75
+  s_455e9fe7b283e3::t_2a8a1cac415994 1291-1295
+  s_455e9fe7b283e3::t_39f36a09477a57 6122-6123
+  s_455e9fe7b283e3::t_d6b5f98582862e 1067-1074
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "32f8888952f4ebe7901f55510a7c6f4beea6c131",
+  "prompts": {},
+  "sessions": {
+    "s_455e9fe7b283e3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_031e8773fffeDWEtrTxYKjunEJ",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
