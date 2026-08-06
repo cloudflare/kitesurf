@@ -1,0 +1,22 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_638b99b03f8b5a::t_cbf06f702ccb7a 917-941
+  s_638b99b03f8b5a::t_41a11ed1c66200 2421-2422
+packages/engine/test/e2e/layer-budget.e2e.test.ts
+  s_638b99b03f8b5a::t_1e8d4e2ff8a1ea 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "73021471cfb002dd1a9cb793d91ab433de4597ec",
+  "prompts": {},
+  "sessions": {
+    "s_638b99b03f8b5a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0321db69bffeRTm4Ld6wotXjl2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
