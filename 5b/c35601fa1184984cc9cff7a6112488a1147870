@@ -1,0 +1,19 @@
+packages/engine/test/e2e/tracker-blocklist.e2e.test.ts
+  s_a665aadc8d3860::t_fc75754a789757 134-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5bc35601fa1184984cc9cff7a6112488a1147870",
+  "prompts": {},
+  "sessions": {
+    "s_a665aadc8d3860": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02e0862bcffePXmIo8KnD5c65H",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
