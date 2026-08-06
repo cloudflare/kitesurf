@@ -1,0 +1,30 @@
+packages/core/src/scan_test.rs
+  s_10325f09f363f7::t_8c95ab11e6728b 127-131
+  s_10325f09f363f7::t_2c0649fe5d787f 441-471
+packages/core/src/scan.rs
+  s_10325f09f363f7::t_8f78bcc10ccd72 150-157
+packages/engine/src/wasm.ts
+  s_10325f09f363f7::t_1fa5b6c1fc6ffe 424-426
+packages/dom-shim/src/mutations/observer.ts
+  s_10325f09f363f7::t_eae707c502016c 394-398
+packages/engine/test/e2e/nomodule.e2e.test.ts
+  s_10325f09f363f7::t_cbece1abc2c57a 1-37
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_10325f09f363f7::t_0454be482d8a9e 1922-1946,2577-2578,4405-4408
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6f6af3283b96a32b10beee97e62afc6599715609",
+  "prompts": {},
+  "sessions": {
+    "s_10325f09f363f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_028d94f7bffeLPzCR3nArdny7w",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
