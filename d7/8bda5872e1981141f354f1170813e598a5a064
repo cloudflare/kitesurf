@@ -1,0 +1,35 @@
+packages/engine/test/e2e/text-fill-color.e2e.test.ts
+  s_bc5c4b84767c48::t_7a1793b839bc6f 1-20,30-46,50-51,66-70,75-96
+  s_bc5c4b84767c48::t_fc842f7b1bac82 21-29
+  s_bc5c4b84767c48::t_c604a00fc33ff7 47-49,52-65,71-74
+scripts/patches/blitz-paint-0.3.0-beta.1/0013-Paint-glyphs-with-webkit-text-fill-color-when-it-is-.patch
+  s_bc5c4b84767c48::t_c464c62e0610e6 1-53
+scripts/patches/blitz-paint-0.3.0-beta.1/0012-Expand-the-effect-layer-AFTER-unioning-the-painted-s.patch
+  s_bc5c4b84767c48::t_c464c62e0610e6 1-58
+scripts/patches/blitz-paint-0.3.0-beta.1/0011-Effect-layer-covers-the-painted-subtree-not-just-the.patch
+  s_bc5c4b84767c48::t_c464c62e0610e6 1-51
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_bc5c4b84767c48::t_68a2d959c12997 4335-4357,4359-4374
+  s_bc5c4b84767c48::t_3791c4fb81735d 4358
+  s_bc5c4b84767c48::t_4cc52b8830c4d6 2511-2512
+scripts/patches/blitz-paint-0.3.0-beta.1/0010-inset-box-shadow-isolate-the-shadow-group-so-DestOut.patch
+  s_bc5c4b84767c48::t_c464c62e0610e6 1-64
+scripts/patches/stylo-0.19.0/0025-Generate-webkit-text-fill-color-for-servo-not-gecko-.patch
+  s_bc5c4b84767c48::t_c464c62e0610e6 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d78bda5872e1981141f354f1170813e598a5a064",
+  "prompts": {},
+  "sessions": {
+    "s_bc5c4b84767c48": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_024652774ffe5dw6HWVHILpS6E",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
