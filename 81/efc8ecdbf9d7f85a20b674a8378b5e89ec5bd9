@@ -1,13 +1,29 @@
 AGENTS.md
   s_bc5c4b84767c48::t_f8328988d5fea2 107
+  s_bc5c4b84767c48::t_9d636210704b56 107
 docs/BOA_V8_FLOW.md
   s_bc5c4b84767c48::t_52f26072809e67 250-293
+  s_bc5c4b84767c48::t_d838fce30e190b 250-293
 packages/core/src/boa_bridge.rs
   s_bc5c4b84767c48::t_5f27ca869b7207 857-1045,1055-1062,1124-1125
+  s_bc5c4b84767c48::t_75c1652b8afebe 1124
+  s_bc5c4b84767c48::t_40e2427ad91379 1004-1045
+  s_bc5c4b84767c48::t_c7ac110073306d 1125
+  s_bc5c4b84767c48::t_e10f2481bc2e0e 857-956,1055,1057-1059,1062
+  s_bc5c4b84767c48::t_b784a8f707a884 976-990,997-1000
+  s_bc5c4b84767c48::t_03816591c73e6f 1056,1060-1061
+  s_bc5c4b84767c48::t_e6c9bd9c7c117e 957-975,991-996,1001-1003
 packages/engine/test/e2e/bridge-defineproperty.e2e.test.ts
   s_bc5c4b84767c48::t_1ce6d6ad9bcbff 1-136
+  s_bc5c4b84767c48::t_68fb7b2e269e08 121-130
+  s_bc5c4b84767c48::t_f4829950f98f4f 62-65
+  s_bc5c4b84767c48::t_fdf0ce180be45d 67-82
+  s_bc5c4b84767c48::t_ef1f47c26a8bc1 1-61,66,83-120,131-136
 packages/engine/test/fixtures-worker/src/serve.ts
   s_bc5c4b84767c48::t_20c2615ef62989 2509-2510,4333-4360
+  s_bc5c4b84767c48::t_8dec7c7e093be6 4333-4358
+  s_bc5c4b84767c48::t_048f1ad2faf7a0 2509-2510
+  s_bc5c4b84767c48::t_792f6da0d3d598 4359-4360
 ---
 {
   "schema_version": "authorship/3.0.0",
