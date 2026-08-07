@@ -1,0 +1,26 @@
+packages/engine/src/cdp/input.ts
+  s_638b99b03f8b5a::t_6805b3d8d913b9 465-529
+  s_638b99b03f8b5a::t_0bdd6b829cc110 86-93,95,98-101
+  s_638b99b03f8b5a::t_28ba359650c647 530-544
+  s_638b99b03f8b5a::t_b2087dbbc0ed89 545-559
+  s_638b99b03f8b5a::t_3cdf9600fc801f 94,96-97,102
+  s_638b99b03f8b5a::t_5449f076cd7d9b 177-182,190
+  s_638b99b03f8b5a::t_b098cc080bc780 183-189
+  s_638b99b03f8b5a::t_38198916821c58 560-562
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d802d33cb235150f8cd0a73f62fd7725e9236ba8",
+  "prompts": {},
+  "sessions": {
+    "s_638b99b03f8b5a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0321db69bffeRTm4Ld6wotXjl2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
