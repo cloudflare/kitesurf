@@ -1,5 +1,7 @@
 packages/page-script/src/index.ts
   s_bc5c4b84767c48::t_50fadcabe7385c 366-387,4041,4579
+  s_bc5c4b84767c48::t_5f7d2ddba6adfd 366-387
+  s_bc5c4b84767c48::t_b63b8047c834c1 4041,4579
 ---
 {
   "schema_version": "authorship/3.0.0",
