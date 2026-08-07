@@ -1,11 +1,18 @@
 docs/SCRIPT_LOADING.md
   s_bc5c4b84767c48::t_4d37853d8d5ded 64,67-103
+  s_bc5c4b84767c48::t_3cb23a8b44420a 64,67-103
 packages/page-script/src/index.ts
   s_bc5c4b84767c48::t_ac6c99f8007fdc 45,2188,2192-2199
+  s_bc5c4b84767c48::t_67aaf47da544bb 45,2188,2192-2199
 packages/page-script/src/inserted-scripts.ts
   s_bc5c4b84767c48::t_d71199169b7263 1-141
+  s_bc5c4b84767c48::t_678f37d84e8be5 1-141
 tests/interactivity-flows/flows.ts
   s_bc5c4b84767c48::t_f3c0b2080ecefc 1238-1292
+  s_bc5c4b84767c48::t_d6dcf4204c205e 1261-1263
+  s_bc5c4b84767c48::t_31150ca6448c69 1284-1285,1287-1288
+  s_bc5c4b84767c48::t_3384594113aff5 1238-1260,1264-1275,1280-1283,1286,1289-1292
+  s_bc5c4b84767c48::t_8121a4e703e225 1276-1279
 ---
 {
   "schema_version": "authorship/3.0.0",
