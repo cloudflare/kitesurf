@@ -1,0 +1,24 @@
+packages/engine/src/cdp/connection.ts
+  s_638b99b03f8b5a::t_ceb9bbd4e53fc5 438-440
+packages/engine/src/rbi.ts
+  s_638b99b03f8b5a::t_bb0e9d51d07087 107,109-111,113
+  s_638b99b03f8b5a::t_b025ce31182e85 785-786
+packages/engine/src/cdp/dispatch.ts
+  s_638b99b03f8b5a::t_05d9df42247e98 40-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b3d39f2661c33787d1227caf89121abc1766dfe5",
+  "prompts": {},
+  "sessions": {
+    "s_638b99b03f8b5a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0321db69bffeRTm4Ld6wotXjl2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
