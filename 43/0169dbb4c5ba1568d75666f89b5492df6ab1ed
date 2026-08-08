@@ -1,0 +1,19 @@
+scripts/patches/stylo_taffy-0.3.0-beta.1/0004-stylo_taffy-resolve-justify-content-left-right-again.patch
+  s_191c96f3ecb98a::t_af90d84f3c57fa 1-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "430169dbb4c5ba1568d75666f89b5492df6ab1ed",
+  "prompts": {},
+  "sessions": {
+    "s_191c96f3ecb98a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0211081d6ffejx3N4ThxsCiA80",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
