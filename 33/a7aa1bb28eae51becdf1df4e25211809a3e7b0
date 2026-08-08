@@ -1,0 +1,19 @@
+scripts/patches/taffy-0.12.2/0012-Stop-the-measure-cache-evicting-entries-it-still-nee.patch
+  s_dfd792beae87ba::t_bae01ace406ff4 1-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "33a7aa1bb28eae51becdf1df4e25211809a3e7b0",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
