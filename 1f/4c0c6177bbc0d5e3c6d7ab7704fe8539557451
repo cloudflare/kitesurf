@@ -1,0 +1,22 @@
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_c4fabad967e6b2 447,697,4663-4666,4691,4717
+packages/core/src/scene_record.rs
+  s_dfd792beae87ba::t_e7981fb82b7eac 462-464,524,800-807,1094-1114,1631-1647
+  s_dfd792beae87ba::t_8bebed96a6b229 1648
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1f4c0c6177bbc0d5e3c6d7ab7704fe8539557451",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
