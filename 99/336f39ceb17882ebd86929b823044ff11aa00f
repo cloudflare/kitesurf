@@ -1,0 +1,27 @@
+packages/core/src/scene_determinism_test.rs
+  s_dfd792beae87ba::t_832b0d4f975848 1-80,82,84-91,118
+  s_dfd792beae87ba::t_b38ded39b516a6 98
+  s_dfd792beae87ba::t_bb01fbb37d4d2f 81,83,92-97,99-117
+packages/core/src/scene_record.rs
+  s_dfd792beae87ba::t_b81010ce8418bc 660-662
+  s_dfd792beae87ba::t_8873245c7d0cbf 663-665,702-704
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_03f9f8f770d15f 117
+  s_dfd792beae87ba::t_bf092b603b99fa 118-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "99336f39ceb17882ebd86929b823044ff11aa00f",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": null
+    }
+  }
+}
