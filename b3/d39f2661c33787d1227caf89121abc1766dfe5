@@ -5,6 +5,14 @@ packages/engine/src/rbi.ts
   s_638b99b03f8b5a::t_b025ce31182e85 785-786
 packages/engine/src/cdp/dispatch.ts
   s_638b99b03f8b5a::t_05d9df42247e98 40-41
+scripts/patches/blitz-dom-0.3.0-beta.1/0087-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-28,30-31,33-53
+scripts/patches/blitz-dom-0.3.0-beta.1/0085-kitesurf-keep-incremental-layout-from-losing-content.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-219,221-294,296-375,377-378,380-402,404-413,415-444,446-460,462-471,473-496,498-506,508-562
+scripts/patches/blitz-dom-0.3.0-beta.1/0086-Give-display-flow-root-its-own-block-formatting-cont.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-48
+scripts/patches/blitz-dom-0.3.0-beta.1/0088-Stop-an-inline-rebuild-stealing-a-hoisted-box-s-layo.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-33,35-36,38-44,46-80
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -17,6 +25,14 @@ packages/engine/src/cdp/dispatch.ts
         "tool": "opencode",
         "id": "ses_0321db69bffeRTm4Ld6wotXjl2",
         "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     }
