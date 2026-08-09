@@ -1,0 +1,24 @@
+packages/ci-workflow/src/index.ts
+  s_8deef65a89b902::t_e0beb1e42a7361 215-217
+  s_8deef65a89b902::t_110e679ed5f83d 220-223,225-240,242-265,267,270-272
+.cloudflare/flamingo/plans/kitesurf-engine-bench.edge-plan
+  s_8deef65a89b902::t_22f08903ce95e7 10
+.cloudflare/flamingo/scripts/kitesurf-wpt-slice.edge-test
+  s_8deef65a89b902::t_393760e0b8e412 23-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e863fdafa501f07aa678ff1fb134daefca9a233a",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
