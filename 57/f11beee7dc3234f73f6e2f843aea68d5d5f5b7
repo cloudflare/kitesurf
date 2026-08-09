@@ -26,6 +26,7 @@ scripts/patches/blitz-dom-0.3.0-beta.1/0097-Rebuild-CSS-counters-only-when-somet
   s_dfd792beae87ba::t_e42392ad113e27 1-74
 scripts/patches/blitz-dom-0.3.0-beta.1/0098-dom-borrow-the-style-cell-once-per-primary_styles.patch
   s_dfd792beae87ba::t_319fc11f772656 1-40
+  s_dfd792beae87ba::t_d1f1d349ce36a1 1-40
 scripts/patches/taffy-0.12.2/0012-Stop-the-measure-cache-evicting-entries-it-still-nee.patch
   s_dfd792beae87ba::t_8646c785ae26bc 1-80
 ---
