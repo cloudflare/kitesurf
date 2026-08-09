@@ -1,0 +1,24 @@
+.gitlab-ci.yml
+  s_8deef65a89b902::t_110917fca4157d 238,569-570,605-611,625-626
+  s_8deef65a89b902::t_f8a08235a7b945 635,661
+scripts/ci-wpt-dist.mjs
+  s_8deef65a89b902::t_271fe4c0ee0de2 90,94-98,102-104,107-108
+  s_8deef65a89b902::t_38f28d57afb44d 72-86,88-89,111-117
+  s_8deef65a89b902::t_1342ee5ab7797f 91-93,99-101,105-106,109-110,119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f696d5e5a4abb4f412b108142600f877597b9e95",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}
