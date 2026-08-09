@@ -1,0 +1,19 @@
+.cloudflare/flamingo/scripts/kitesurf-wpt-slice.edge-test
+  s_8deef65a89b902::t_1520d2c923f4b5 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5696679f66e82767bd11f09b6b93d76c8282f5dc",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
