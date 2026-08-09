@@ -1,0 +1,29 @@
+packages/ci-workflow/wrangler.jsonc
+  s_8deef65a89b902::t_0201185b622e69 35-38
+packages/ci-workflow/Dockerfile
+  s_8deef65a89b902::t_0201185b622e69 45-46
+tests/unit/ci-image.test.ts
+  s_8deef65a89b902::t_1e9e638196be65 7,40-65
+packages/ci-workflow/src/shell.d.ts
+  s_8deef65a89b902::t_0201185b622e69 1-7
+packages/ci-workflow/container/bootstrap.sh
+  s_8deef65a89b902::t_0201185b622e69 2,4-7,10-11,18-25,50
+packages/ci-workflow/src/workflow.ts
+  s_8deef65a89b902::t_e3a8be6ce040e2 15-18,55-56,106-113,117,124,126,168,214,269-270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c505a76627275fa9e8438adc32f058444c89af90",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+scripts/ci-wpt-remote.mjs
+  s_8deef65a89b902::t_b0d7a9da819952 108-116
+scripts/wpt-exec.mjs
+  s_8deef65a89b902::t_b0d7a9da819952 100-106,1164,1190,1338,1360
+packages/ci-workflow/src/env.ts
+  s_8deef65a89b902::t_8445e14afc63bb 13-15
+packages/ci-workflow/src/workflow.ts
+  s_8deef65a89b902::t_8445e14afc63bb 120,129-134,157-167,181,188-193,232,240
+  s_8deef65a89b902::t_41483bbc32f6d1 241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "322750c042dd66b4ec8fadaf29b893a88dcdd433",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

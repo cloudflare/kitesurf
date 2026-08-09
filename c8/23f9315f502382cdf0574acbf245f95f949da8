@@ -1,0 +1,22 @@
+docs/RELEASING.md
+  s_8deef65a89b902::t_38a6b51fe655df 35-38
+.gitlab-ci.yml
+  s_8deef65a89b902::t_b4173631e2fed3 263,288
+  s_8deef65a89b902::t_8b3aae9643b3b0 569-571,587-602,629-644
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c823f9315f502382cdf0574acbf245f95f949da8",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}

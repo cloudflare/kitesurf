@@ -1,0 +1,30 @@
+packages/ci-workflow/src/shard.ts
+  s_8deef65a89b902::t_955fc879818c24 36-60
+docs/RELEASING.md
+  s_8deef65a89b902::t_46e178cc24501a 22,25-27,30-38
+packages/engine/wrangler.jsonc
+  s_8deef65a89b902::t_955fc879818c24 297-300
+  s_8deef65a89b902::t_8a9a0c3f32c270 290-296,301-304
+packages/engine/package.json
+  s_8deef65a89b902::t_8a9a0c3f32c270 22
+packages/ci-workflow/src/index.ts
+  s_8deef65a89b902::t_955fc879818c24 7,68-80
+packages/ci-workflow/wrangler.jsonc
+  s_8deef65a89b902::t_8a9a0c3f32c270 29-33,35-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a6fc1dc5fbe239dc334fff3f12c2d58bc2e8aaa2",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

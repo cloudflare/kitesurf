@@ -1,0 +1,32 @@
+docs/RELEASING.md
+  s_8deef65a89b902::t_46e178cc24501a 22,25-27,30-38
+  s_8deef65a89b902::t_9e13aba7414a40 23-24,28-29,39
+scripts/ci-wpt-dist.mjs
+  s_8deef65a89b902::t_228177a86b7f71 39-42,80
+  s_8deef65a89b902::t_bb79eda07c16c7 1-38,43-79,81-124,135-148
+  s_8deef65a89b902::t_3cec2e7abd2ed5 125-134
+.gitlab-ci.yml
+  s_8deef65a89b902::t_e77c35b779ccef 220,227-229,231
+  s_8deef65a89b902::t_6dadf54120bc22 221-226,230,232-233,245
+  s_8deef65a89b902::t_7553abad5dc9dc 235
+  s_8deef65a89b902::t_aa7d9bcfa1a0c7 236-244,496-511,526-527,538-550,552-554,556,558,571,573-578,583-590,592-598,602,604
+  s_8deef65a89b902::t_3cec2e7abd2ed5 600,1434,1436
+  s_8deef65a89b902::t_e223478dd27698 234,512,514-525,528-533,536-537,557,559-570
+  s_8deef65a89b902::t_3e300f7edf78da 572
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "777e9e6597ecf6dccfb5c1fe2647ccf63c5a2c9a",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}
