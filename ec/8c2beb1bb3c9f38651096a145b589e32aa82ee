@@ -1,0 +1,48 @@
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_7367488878e7b2 117-119,5932-5958
+packages/core/src/taffy_style_source_test.rs
+  s_dfd792beae87ba::t_f95f6cc69b34f1 1-69
+scripts/patches/blitz-dom-0.3.0-beta.1/0086-kitesurf-keep-incremental-layout-from-losing-content.patch
+  s_dfd792beae87ba::t_74b12cbd0a066a 220,295,376,379,403,414,445,461,472,497,507
+scripts/patches/blitz-dom-0.3.0-beta.1/0088-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
+  s_dfd792beae87ba::t_cd649a13e66e3d 29,32
+scripts/patches/blitz-dom-0.3.0-beta.1/0089-Stop-an-inline-rebuild-stealing-a-hoisted-box-s-layo.patch
+  s_dfd792beae87ba::t_beb55c9d4c7cc1 34,37,45
+scripts/patches/blitz-dom-0.3.0-beta.1/0090-Cache-the-class-attribute-pre-split-and-interned.patch
+  s_dfd792beae87ba::t_5ad7d13f6a2039 1-168
+scripts/patches/blitz-dom-0.3.0-beta.1/0091-Invalidate-an-attribute-write-from-its-snapshot-not-.patch
+  s_dfd792beae87ba::t_fdc392d342e2bf 1-183
+scripts/patches/blitz-dom-0.3.0-beta.1/0092-Parse-an-SVG-s-XML-once-when-its-root-needs-no-rewri.patch
+  s_dfd792beae87ba::t_f0ab28f6a54aee 1-49
+scripts/patches/blitz-dom-0.3.0-beta.1/0093-Cache-parsed-SVG-trees-on-their-source.patch
+  s_dfd792beae87ba::t_79dde589431a6f 1-103
+scripts/patches/blitz-dom-0.3.0-beta.1/0094-Time-the-fontface-counters-and-damage-summary-phases.patch
+  s_dfd792beae87ba::t_2743958514c65e 1-39
+scripts/patches/blitz-dom-0.3.0-beta.1/0095-Skip-the-image-layer-flush-for-undamaged-nodes.patch
+  s_dfd792beae87ba::t_87a3a452e569f2 1-39
+scripts/patches/blitz-dom-0.3.0-beta.1/0096-Rebuild-a-node-s-taffy-style-only-when-its-layout-st.patch
+  s_dfd792beae87ba::t_39521e2ead154a 1-230
+scripts/patches/blitz-dom-0.3.0-beta.1/0097-Rebuild-CSS-counters-only-when-something-was-damaged.patch
+  s_dfd792beae87ba::t_e42392ad113e27 1-74
+scripts/patches/blitz-dom-0.3.0-beta.1/0098-dom-borrow-the-style-cell-once-per-primary_styles.patch
+  s_dfd792beae87ba::t_319fc11f772656 1-40
+  s_dfd792beae87ba::t_d1f1d349ce36a1 1-40
+scripts/patches/taffy-0.12.2/0012-Stop-the-measure-cache-evicting-entries-it-still-nee.patch
+  s_dfd792beae87ba::t_8646c785ae26bc 1-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ec8c2beb1bb3c9f38651096a145b589e32aa82ee",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
