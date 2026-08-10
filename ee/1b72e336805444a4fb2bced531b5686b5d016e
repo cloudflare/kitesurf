@@ -1,0 +1,23 @@
+scripts/get-patched-vendor-crates.mjs
+  s_dfd792beae87ba::t_27f416e634f7e1 58
+scripts/patches/vello_cpu-0.0.9/0001-Vectorise-powf-and-skip-the-p-norm-away-from-the-cor.patch
+  s_dfd792beae87ba::t_769e09bb7b3495 1-126
+packages/scene-client/Cargo.toml
+  s_dfd792beae87ba::t_c5a0bd6c6d75d4 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ee1b72e336805444a4fb2bced531b5686b5d016e",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
