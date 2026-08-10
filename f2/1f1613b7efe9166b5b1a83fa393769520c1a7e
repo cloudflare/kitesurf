@@ -1,0 +1,31 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0015-Skip-painting-a-subtree-behind-an-empty-clip-region.patch
+  s_638b99b03f8b5a::t_536f4401646456 39,51,91
+scripts/patches/blitz-paint-0.3.0-beta.1/0016-Cull-against-a-node-local-bbox-instead-of-a-doubled-.patch
+  s_638b99b03f8b5a::t_44a6f88c0a882e 1-79
+scripts/patches/stylo-0.19.0/0025-Damage-box-shadow-as-repaint-instead-of-rebuilding-t.patch
+  s_dfd792beae87ba::t_e0288aaf7dec0d 1-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f21f1613b7efe9166b5b1a83fa393769520c1a7e",
+  "prompts": {},
+  "sessions": {
+    "s_638b99b03f8b5a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0321db69bffeRTm4Ld6wotXjl2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
