@@ -1,0 +1,30 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0099-Rebuild-a-taffy-style-whose-ComputedValues-was-repla.patch
+  s_dfd792beae87ba::t_91aa4bd3c77799 1-76
+packages/core/src/taffy_style_source_test.rs
+  s_dfd792beae87ba::t_64ad61ddde55e3 52-54,66-67
+  s_dfd792beae87ba::t_7972d8fff7982e 1-51,55-65,68-69
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_582024829bc355 125
+  s_dfd792beae87ba::t_1d43a6becc796b 5939-5948,5953-5954,5960-5965
+  s_dfd792beae87ba::t_4163557810d22f 5952
+  s_dfd792beae87ba::t_8e1aee73c6dd95 5955-5959
+  s_dfd792beae87ba::t_caf85490a6827b 124
+  s_dfd792beae87ba::t_56cf57f9ecf88e 5949-5951
+  s_dfd792beae87ba::t_8cb7da8c8023ab 123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "44bfe68a606c079432a47038789a9ea950dedcba",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

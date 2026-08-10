@@ -1,0 +1,19 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0016-Cull-against-a-node-local-bbox-instead-of-a-doubled-.patch
+  s_638b99b03f8b5a::t_44a6f88c0a882e 1-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "109d8ea3f30495796b79c2e1330b58524516b7f7",
+  "prompts": {},
+  "sessions": {
+    "s_638b99b03f8b5a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0321db69bffeRTm4Ld6wotXjl2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

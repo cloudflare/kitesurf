@@ -1,0 +1,30 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0095-Skip-the-image-layer-flush-for-undamaged-nodes.patch
+  s_dfd792beae87ba::t_6f88a792d8082e 1-39
+scripts/patches/blitz-dom-0.3.0-beta.1/0094-Time-the-fontface-counters-and-damage-summary-phases.patch
+  s_dfd792beae87ba::t_6f88a792d8082e 1-39
+scripts/patches/blitz-dom-0.3.0-beta.1/0096-Rebuild-a-node-s-taffy-style-only-when-its-layout-st.patch
+  s_dfd792beae87ba::t_6f88a792d8082e 1-14,26,30-31,33-43,45-64,68-69,77,79-208
+scripts/patches/blitz-dom-0.3.0-beta.1/0097-Rebuild-CSS-counters-only-when-something-was-damaged.patch
+  s_dfd792beae87ba::t_6f88a792d8082e 1-74
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_c4fabad967e6b2 450,700,4666-4669,4694,4720
+packages/core/src/scene_record.rs
+  s_dfd792beae87ba::t_e7981fb82b7eac 462-464,524,800-807,1094-1114,1631-1647
+  s_dfd792beae87ba::t_8bebed96a6b229 1648
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8a98bbd5f92013c14f81f17336c3f9bf2b497b26",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
