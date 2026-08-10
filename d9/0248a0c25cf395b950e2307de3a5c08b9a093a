@@ -1,0 +1,35 @@
+.gitlab-ci.yml
+  s_8deef65a89b902::t_cd9695a6000df7 237-240
+  s_8deef65a89b902::t_1cfed0eb85084e 1503-1504
+  s_8deef65a89b902::t_110917fca4157d 242,245-253,255-260,582-583,587-590,622-628,642-643,1505
+  s_8deef65a89b902::t_f8a08235a7b945 652,678
+packages/ci-workflow/src/index.ts
+  s_8deef65a89b902::t_f286889df724ca 205,246-249,252-260
+  s_8deef65a89b902::t_eaed47bf9c8cd6 200-203,275-278
+  s_8deef65a89b902::t_57d7101d1f84b8 236-245,250-251,261-263,284-286
+scripts/ci-wpt-dist.mjs
+  s_8deef65a89b902::t_38f28d57afb44d 72-86,88-89,111-117
+  s_8deef65a89b902::t_271fe4c0ee0de2 90,94-98,102-104,107-108
+  s_8deef65a89b902::t_1342ee5ab7797f 91-93,99-101,105-106,109-110,119
+  s_8deef65a89b902::t_c710aecbfb2c81 163-178
+packages/ci-workflow/src/claims.ts
+  s_8deef65a89b902::t_f286889df724ca 38-50
+.cloudflare/flamingo/scripts/kitesurf-wpt-slice.edge-test
+  s_8deef65a89b902::t_eaed47bf9c8cd6 33-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d90248a0c25cf395b950e2307de3a5c08b9a093a",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}
