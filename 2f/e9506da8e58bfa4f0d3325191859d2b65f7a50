@@ -1,0 +1,31 @@
+.cloudflare/grafana/kitesurf-sessions.json
+  s_6d3689ca249947::t_7b1b25b1f0d780 114,173,221,276,331,390,446,501,556,615,674
+packages/grafana/src/query.ts
+  s_6d3689ca249947::t_e0633bf741b6f6 1-2,28-33,115,117,134,156,177-178,180,307,322,335-336,346-347,385,391,402,414-415,418-419,421,427-429,440-441,447,449,461-462,465,467,481-482,485,487
+packages/grafana/test/query.test.ts
+  s_6d3689ca249947::t_fe5afdd211615f 124,127-129
+  s_6d3689ca249947::t_a4c8119d99d8bf 10,24
+  s_6d3689ca249947::t_cfd591529a9d2f 11,161,164,177,182-194
+  s_6d3689ca249947::t_3dc788c85a0091 195-196
+packages/grafana/test/dashboard.test.ts
+  s_6d3689ca249947::t_a4c8119d99d8bf 150-152
+  s_6d3689ca249947::t_cfd591529a9d2f 130
+.cloudflare/grafana/kitesurf-usage.json
+  s_6d3689ca249947::t_7b1b25b1f0d780 121,169,217,265,319,373,427,486,545,600,655,710,765
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2fe9506da8e58bfa4f0d3325191859d2b65f7a50",
+  "prompts": {},
+  "sessions": {
+    "s_6d3689ca249947": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0140e861bffez5uNrzuGw9TKvb",
+        "model": "gpt-5.6"
+      },
+      "human_author": "Dina Kozlov <dkozlov@cloudflare.com>"
+    }
+  }
+}
