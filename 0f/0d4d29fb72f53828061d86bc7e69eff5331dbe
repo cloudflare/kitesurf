@@ -1,0 +1,31 @@
+.gitlab-ci.yml
+  s_0ce9ee358b5cab::t_b8b525ff6f079c 684-685,691
+  s_0ce9ee358b5cab::t_77fa272fd892e0 513-522
+docs/PLATFORM.md
+  s_0ce9ee358b5cab::t_168834a72471aa 35-51
+scripts/wpt-batched.mjs
+  s_0ce9ee358b5cab::t_5d1c99d10d5969 518
+  s_0ce9ee358b5cab::t_4c0f7f06f5abc3 23
+  s_0ce9ee358b5cab::t_7ceed698a317e4 515-517,519-521
+  s_0ce9ee358b5cab::t_fd1546522c4ff4 72-73
+  s_0ce9ee358b5cab::t_f66be512eb0f2f 95-109,130,132-138,143
+  s_0ce9ee358b5cab::t_d876adc5193fcc 110-129,131
+scripts/wpt-exec.mjs
+  s_0ce9ee358b5cab::t_23b449228b1789 118-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f0d4d29fb72f53828061d86bc7e69eff5331dbe",
+  "prompts": {},
+  "sessions": {
+    "s_0ce9ee358b5cab": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0175663cafferFTojqYhnIHVzU",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
