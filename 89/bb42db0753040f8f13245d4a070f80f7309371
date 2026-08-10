@@ -1,0 +1,27 @@
+packages/engine/test/e2e/record-scene-overdraw.e2e.test.ts
+  s_dfd792beae87ba::t_357eb3741d14d2 1-91
+packages/engine/src/cdp/kitesurf.ts
+  s_dfd792beae87ba::t_53a65fe88f65ca 601-602
+packages/engine/src/cdp/page-session.ts
+  s_dfd792beae87ba::t_2824515c2529d8 152-153
+packages/engine/src/rbi.ts
+  s_dfd792beae87ba::t_d673a543a3b1c1 42-46,457-458,637-641,1283,1300-1331,1357-1361,1368-1373,1392,1570-1573
+packages/page-script/src/index.ts
+  s_dfd792beae87ba::t_68b89b0f95156a 5314-5319,5359-5360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "89bb42db0753040f8f13245d4a070f80f7309371",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
