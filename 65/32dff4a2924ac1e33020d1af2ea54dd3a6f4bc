@@ -1,0 +1,27 @@
+packages/core/src/sticky.rs
+  s_df0ebce696128f::t_b0fb4b4b937741 56-86,90-92
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_df0ebce696128f::t_36f0c81629018b 462-465,467-482
+  s_df0ebce696128f::t_5560d7afd9f779 466
+  s_df0ebce696128f::t_e1b7c44ca1f5af 2306-2309
+packages/engine/test/e2e/sticky-position.e2e.test.ts
+  s_df0ebce696128f::t_4109f418669597 165-167
+  s_df0ebce696128f::t_3037920ac9fd31 162-164
+  s_df0ebce696128f::t_386b48d0718c97 168-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6532dff4a2924ac1e33020d1af2ea54dd3a6f4bc",
+  "prompts": {},
+  "sessions": {
+    "s_df0ebce696128f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_013408b4cffePZ1qM0zJdo82E7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
