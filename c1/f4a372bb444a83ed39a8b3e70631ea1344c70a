@@ -1,0 +1,19 @@
+packages/engine/test/e2e/media-text-tracks.e2e.test.ts
+  s_a289420ca7cadf::t_21c21019caef63 44-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c1f4a372bb444a83ed39a8b3e70631ea1344c70a",
+  "prompts": {},
+  "sessions": {
+    "s_a289420ca7cadf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01162ba67ffeuJ7Y6RDOI8aQ1x",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
