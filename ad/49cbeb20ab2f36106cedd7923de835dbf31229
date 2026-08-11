@@ -1,0 +1,28 @@
+packages/engine/test/e2e/record-scene-sticky-layer.e2e.test.ts
+  s_dfd792beae87ba::t_b96c73536356b9 1-101
+packages/page-script/src/index.ts
+  s_dfd792beae87ba::t_2c654986186bda 5477-5482
+  s_dfd792beae87ba::t_abe76b5a5702ea 5434-5470,5472-5473,5475,5511
+  s_dfd792beae87ba::t_ca6f074ab5c8c4 5429,5431
+  s_dfd792beae87ba::t_97870b49d73421 5336-5339
+  s_dfd792beae87ba::t_c114e235a9df5a 5538-5547,5549,5551,5553,5555-5558,5566-5570
+  s_dfd792beae87ba::t_b85ea5ba0dc48b 5471,5474,5476,5483-5510
+packages/engine/src/cdp/kitesurf.ts
+  s_dfd792beae87ba::t_300a28fa831183 621-629
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ad49cbeb20ab2f36106cedd7923de835dbf31229",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
