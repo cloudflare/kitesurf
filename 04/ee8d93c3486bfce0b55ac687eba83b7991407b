@@ -1,0 +1,21 @@
+packages/page-script/src/index.ts
+  s_4db6cb72a49b0c::t_96baf5d6620a99 2595-2603
+packages/engine/test/e2e/post-load-settle.e2e.test.ts
+  s_4db6cb72a49b0c::t_24a35ae3a7eeb7 75-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "04ee8d93c3486bfce0b55ac687eba83b7991407b",
+  "prompts": {},
+  "sessions": {
+    "s_4db6cb72a49b0c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00f302972ffeMP0Y07pv7CdLbk",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
