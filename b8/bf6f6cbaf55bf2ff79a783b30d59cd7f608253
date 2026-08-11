@@ -1,0 +1,27 @@
+packages/core/src/paint_layer_split_test.rs
+  s_dfd792beae87ba::t_d45c5d4eccaf2d 1-108
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_c3c523830fb871 99,4582-4584,4594,4598-4602,4722,4730
+packages/core/src/overdraw_band_anchor_test.rs
+  s_dfd792beae87ba::t_89eece4814137f 33
+packages/page-script/src/index.ts
+  s_dfd792beae87ba::t_7ff222f1c7227d 5347
+scripts/patches/blitz-paint-0.3.0-beta.1/0016-Add-PaintLayer-split-the-page-into-content-and-fixed.patch
+  s_dfd792beae87ba::t_06bc7ed3154cb5 1-266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b8bf6f6cbaf55bf2ff79a783b30d59cd7f608253",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

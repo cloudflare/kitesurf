@@ -1,0 +1,21 @@
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_8d9ec904d33951 2670-2673,2693-2710
+packages/core/src/sticky_linear_test.rs
+  s_dfd792beae87ba::t_907f8827f14635 146-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "985bcaa94f1ded66fddec55c74d0c5fa2e68f848",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

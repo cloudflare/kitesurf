@@ -1,0 +1,24 @@
+packages/core/src/sticky_linear_test.rs
+  s_dfd792beae87ba::t_9fdec49fb08843 1-101
+  s_dfd792beae87ba::t_dea756750c26d5 102-145
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_6500ca3c392c0e 100,2661-2718
+packages/core/src/sticky.rs
+  s_dfd792beae87ba::t_08edbaed8239a8 258,311-346,365-367,382-419,424,490-491,544-561
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "43a49c098d310ab794499aa658283e2d94018731",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
