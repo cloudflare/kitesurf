@@ -1,0 +1,24 @@
+packages/core/src/float_cache_incremental_test.rs
+  s_e7dc27bdab5fff::t_f9c70e0dfd05c0 15,22-23,26-27,29-31,34-49,51-60
+  s_e7dc27bdab5fff::t_e272f8415c2938 1-14,16-21,24-25,28,32-33,50,61-93
+packages/core/src/lib.rs
+  s_e7dc27bdab5fff::t_f8fee9894d2cee 114-116,5962-5972
+scripts/patches/blitz-dom-0.3.0-beta.1/0099-kitesurf-bust-the-float-container-s-layout-cache-not.patch
+  s_e7dc27bdab5fff::t_df2190df2deefd 1-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ed39e7832f4aa8082c89c0ab282943a20ae4331d",
+  "prompts": {},
+  "sessions": {
+    "s_e7dc27bdab5fff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00a4f8786ffeFB2n8VkGusS6CL",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

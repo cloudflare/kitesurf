@@ -1,0 +1,19 @@
+packages/engine/test/e2e/layer-budget.e2e.test.ts
+  s_febe8d41b549be::t_861077fc1d2093 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fefd03ea9e7899f4cce05a517d0c071030e48481",
+  "prompts": {},
+  "sessions": {
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
