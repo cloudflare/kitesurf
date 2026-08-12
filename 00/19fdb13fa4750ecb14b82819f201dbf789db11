@@ -1,0 +1,23 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0012-Clip-the-element-away-when-inset-leaves-an-empty-reg.patch
+  s_febe8d41b549be::t_93871c6f48eb42 1-45
+packages/engine/test/e2e/clip-regions.e2e.test.ts
+  s_febe8d41b549be::t_93871c6f48eb42 1-49
+scripts/patches/blitz-paint-0.3.0-beta.1/0013-Apply-the-legacy-clip-property-when-painting.patch
+  s_febe8d41b549be::t_93871c6f48eb42 1-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0019fdb13fa4750ecb14b82819f201dbf789db11",
+  "prompts": {},
+  "sessions": {
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

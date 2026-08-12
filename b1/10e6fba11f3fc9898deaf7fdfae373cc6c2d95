@@ -1,0 +1,23 @@
+scripts/patches/taffy-0.12.2/0009-Clear-past-every-float-on-the-cleared-sides-not-the-.patch
+  s_febe8d41b549be::t_a5636747cc7e6d 1-117
+scripts/patches/blitz-dom-0.3.0-beta.1/0084-Give-display-flow-root-its-own-block-formatting-cont.patch
+  s_febe8d41b549be::t_a5636747cc7e6d 1-48
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_febe8d41b549be::t_a5636747cc7e6d 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b110e6fba11f3fc9898deaf7fdfae373cc6c2d95",
+  "prompts": {},
+  "sessions": {
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
