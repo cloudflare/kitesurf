@@ -1,0 +1,68 @@
+packages/core/src/scene_replay.rs
+  s_50d45ac3d4c7e5::t_0c38f3eacf5954 1800-1830
+  s_76bfd1a366a51d::t_cb950d5b5f83dd 1799
+packages/engine/src/rbi.ts
+  s_50d45ac3d4c7e5::t_3d6622ac150504 18
+  s_50d45ac3d4c7e5::t_22b4ec2ab1feb7 974
+  s_dfd792beae87ba::t_5b8f562a828c08 787-788
+packages/engine/test/rbi-resource-batch.test.ts
+  s_7090a3da6a35b4::t_5a519c18594831 5,319,329
+  s_50d45ac3d4c7e5::t_80af8614c3d00a 261
+  s_50d45ac3d4c7e5::t_41626c5fd76dec 270,278,290,299,308,317,333-355
+  s_dfd792beae87ba::t_8baba45750395d 356-368
+packages/engine/src/rbi-protocol.ts
+  s_dfd792beae87ba::t_6c737006b13bea 235
+  s_dfd792beae87ba::t_d379980f192944 254-256,258-261,267,269-270,272-278,283-289,294-295,298-311,313
+  s_dfd792beae87ba::t_eaa43d0c1889ae 180,186-190
+  s_50d45ac3d4c7e5::t_363b034a02e40f 280
+  s_50d45ac3d4c7e5::t_fbb4f283f55617 239-240,242-243,245-249,251-253,257,262-266,268,279,281-282,290-291,296-297,312,314
+  s_50d45ac3d4c7e5::t_ee75c7ad506602 233
+  s_50d45ac3d4c7e5::t_d22b19031dccb0 241,315
+  s_50d45ac3d4c7e5::t_0f48406b17550c 271
+  s_dfd792beae87ba::t_c7626948aa39bf 169-171
+  s_dfd792beae87ba::t_9a0a68df97544e 152-159
+  s_dfd792beae87ba::t_38a80ab4c236b3 219
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_3e648587a82863 571-578,580-614
+  s_50d45ac3d4c7e5::t_037adb1bc7fa9d 579
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4a4818b96ba9ae559060e61dcad4002c1c326ae0",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": null
+    },
+    "s_7090a3da6a35b4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02de2d88cffeBoHJCjIJ5vTbKT",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_76bfd1a366a51d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02cd68253ffeg1kYLSumAjq6rF",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    },
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": null
+    }
+  }
+}
