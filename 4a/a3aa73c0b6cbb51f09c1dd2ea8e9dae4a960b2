@@ -1,0 +1,19 @@
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_febe8d41b549be::t_f6cecec27c9d63 1-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4aa3aa73c0b6cbb51f09c1dd2ea8e9dae4a960b2",
+  "prompts": {},
+  "sessions": {
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
