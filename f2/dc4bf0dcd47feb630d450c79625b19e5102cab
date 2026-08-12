@@ -1,0 +1,25 @@
+packages/engine/test/e2e/element-measurement.e2e.test.ts
+  s_febe8d41b549be::t_4af113d4249641 48-98
+packages/dom-shim/src/element.ts
+  s_febe8d41b549be::t_4af113d4249641 2525-2534
+packages/core/src/lib.rs
+  s_febe8d41b549be::t_4af113d4249641 2902-2905,6019-6020
+packages/dom-shim/src/layout/scroll.ts
+  s_febe8d41b549be::t_4af113d4249641 99-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f2dc4bf0dcd47feb630d450c79625b19e5102cab",
+  "prompts": {},
+  "sessions": {
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
