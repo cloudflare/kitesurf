@@ -1,0 +1,24 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_e7dc27bdab5fff::t_d7f91572a12f14 6275-6285
+packages/page-script/src/transitions.ts
+  s_e7dc27bdab5fff::t_e35df71f8667ee 57-58,60-66
+  s_e7dc27bdab5fff::t_4aec1c270ccf14 31-36,38-39,42-45,47-48,56,59,67-80
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_e7dc27bdab5fff::t_9d69cb31016b02 209-247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cdf28167a82923fc611dc8c10a8dc1716847ca5b",
+  "prompts": {},
+  "sessions": {
+    "s_e7dc27bdab5fff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00a4f8786ffeFB2n8VkGusS6CL",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
