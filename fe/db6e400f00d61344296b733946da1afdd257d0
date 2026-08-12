@@ -1,0 +1,49 @@
+packages/engine/test/e2e/clip-regions.e2e.test.ts
+  s_febe8d41b549be::t_21c1c799f69bd6 8,17-35,41,83
+packages/engine/test/e2e/bridge-construct.e2e.test.ts
+  s_febe8d41b549be::t_466f5632f769a7 24,30-54
+packages/engine/test/e2e/hoisted-inline-rebreak.e2e.test.ts
+  s_febe8d41b549be::t_d424f6493f8985 11,20-37,43
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_febe8d41b549be::t_b9259ea5c5b68f 18-19,36,81,127,160,196,219
+packages/engine/test/e2e/layer-budget.e2e.test.ts
+  s_991c8660c98c38::t_57e8c772568af7 10,17-36,42
+packages/engine/test/e2e/html/measurement.html
+  s_febe8d41b549be::t_ce7cc3a444e3b7 5-8,12
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_febe8d41b549be::t_8fc5c3aa0e5e99 14,20-50,56
+packages/engine/test/e2e/html/fixed-position.html
+  s_febe8d41b549be::t_f27dcec51137fd 1-37
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_febe8d41b549be::t_d62240b101dfd8 16,18-20,26-30,35,84
+packages/engine/test/e2e/element-measurement.e2e.test.ts
+  s_febe8d41b549be::t_fe2c3ef713ae7e 54-56,58-76,78-90
+packages/engine/test/e2e/html/css-transitions.html
+  s_febe8d41b549be::t_aed6493e93949f 1-42,51-52
+  s_febe8d41b549be::t_6e234400f4f7c2 43-44
+  s_febe8d41b549be::t_c37659d313f898 45-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fedb6e400f00d61344296b733946da1afdd257d0",
+  "prompts": {},
+  "sessions": {
+    "s_991c8660c98c38": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009892ce1ffeHHnJ6vwrpWm3CZ",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
