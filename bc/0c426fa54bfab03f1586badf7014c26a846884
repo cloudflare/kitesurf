@@ -1,0 +1,36 @@
+packages/engine/test/e2e/html/settle-mutation-ticker.html
+  s_6b9fc62980f7c4::t_127b87fa2211c9 1-16
+packages/engine/test/e2e/html/resource-quiet-chain.html
+  s_6b9fc62980f7c4::t_cf11907b2a5368 1-18
+packages/engine/test/e2e/html/settle-timer-ticker.html
+  s_6b9fc62980f7c4::t_ea3767e49c692e 1-13
+packages/engine/test/e2e/post-load-settle.e2e.test.ts
+  s_6b9fc62980f7c4::t_893cc1eca6547c 11,13,15,17-26,38-48,51-54,62-64,79-81,89-94,107,114-116,121-122,129,135-138
+  s_6b9fc62980f7c4::t_d47f644e520dc7 59-61,76-78,86-88,104-106
+packages/engine/test/e2e/html/settle-static.html
+  s_6b9fc62980f7c4::t_30b207f96bb486 1-2
+packages/engine/test/e2e/html/settle-chained.html
+  s_6b9fc62980f7c4::t_ebb15eb8ee2f24 1-19
+packages/engine/test/e2e/html/settle-probe.html
+  s_6b9fc62980f7c4::t_864a9c883e7d41 1-11
+packages/engine/test/e2e/html/settle-microtask-chain.html
+  s_6b9fc62980f7c4::t_696d284c297798 1-16
+packages/engine/test/e2e/html/settle-late-timer.html
+  s_6b9fc62980f7c4::t_73efedfe0b79c8 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bc0c426fa54bfab03f1586badf7014c26a846884",
+  "prompts": {},
+  "sessions": {
+    "s_6b9fc62980f7c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00cbc6d47ffe1i4geTL6yXsvk5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
