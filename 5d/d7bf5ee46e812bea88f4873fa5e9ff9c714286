@@ -1,0 +1,45 @@
+packages/core/src/lib.rs
+  s_40a77a88c7e719::t_7694ec636dc689 124,5948-5974
+  s_f06c48172f5987::t_0352d0d7b38124 125
+  s_40a77a88c7e719::t_ae04dffba53620 123
+scripts/patches/blitz-dom-0.3.0-beta.1/0104-Time-the-fontface-counters-and-damage-summary-phases.patch
+  s_40a77a88c7e719::t_09182142ad014a 1-39
+scripts/patches/taffy-0.12.2/0013-Stop-the-measure-cache-evicting-entries-it-still-nee.patch
+  s_40a77a88c7e719::t_b17706c35fc768 1-80
+scripts/patches/blitz-dom-0.3.0-beta.1/0105-dom-borrow-the-style-cell-once-per-primary_styles.patch
+  s_40a77a88c7e719::t_09182142ad014a 1-40
+scripts/patches/blitz-dom-0.3.0-beta.1/0102-Cut-the-cost-of-an-attribute-write.patch
+  s_40a77a88c7e719::t_09182142ad014a 1-309
+scripts/patches/blitz-dom-0.3.0-beta.1/0103-Parse-each-SVG-once-and-cache-the-tree-on-its-source.patch
+  s_40a77a88c7e719::t_09182142ad014a 1-131
+packages/core/src/taffy_style_source_test.rs
+  s_40a77a88c7e719::t_3bda56764361aa 1-69
+scripts/patches/taffy-0.12.2/0011-Clear-past-every-float-on-the-cleared-sides-not-the-.patch
+  s_40a77a88c7e719::t_e027fe95339efc 1-117
+scripts/patches/taffy-0.12.2/0012-Cache-the-lowest-float-bottom-per-side-so-clearing-s.patch
+  s_40a77a88c7e719::t_e027fe95339efc 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5dd7bf5ee46e812bea88f4873fa5e9ff9c714286",
+  "prompts": {},
+  "sessions": {
+    "s_40a77a88c7e719": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00899d021ffeusxbvHVto59doi",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_f06c48172f5987": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_008ab69edffeNWoiAi6rIb1fAf",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
