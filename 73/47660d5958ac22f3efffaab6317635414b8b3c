@@ -1,0 +1,249 @@
+packages/engine/test/fixtures-worker/assets/oopif-child-quads.html
+  s_46371821d5f8e9::t_57767745c06f98 1-10
+packages/engine/test/fixtures-worker/assets/font-face-variable.html
+  s_46371821d5f8e9::t_57767745c06f98 1-26
+packages/engine/test/fixtures-worker/assets/iframe-nested-l3.html
+  s_46371821d5f8e9::t_57767745c06f98 1-6
+packages/engine/test/fixtures-worker/assets/xhr-boot.js
+  s_46371821d5f8e9::t_57767745c06f98 1-50
+packages/engine/test/fixtures-worker/assets/hostile-timers.html
+  s_46371821d5f8e9::t_57767745c06f98 1-4
+packages/engine/test/fixtures-worker/assets/iframe-child.html
+  s_46371821d5f8e9::t_57767745c06f98 1-11
+packages/engine/test/fixtures-worker/assets/latin1-sheet.html
+  s_46371821d5f8e9::t_57767745c06f98 1-9
+packages/engine/test/fixtures-worker/assets/modules.html
+  s_46371821d5f8e9::t_57767745c06f98 1-25
+packages/engine/test/fixtures-worker/assets/oopif-child-blue.html
+  s_46371821d5f8e9::t_57767745c06f98 1-5
+packages/engine/test/fixtures-worker/assets/font-face.html
+  s_46371821d5f8e9::t_57767745c06f98 1-23
+packages/engine/test/fixtures-worker/assets/oopif-child-color-swap.html
+  s_46371821d5f8e9::t_57767745c06f98 1-16
+packages/engine/test/fixtures-worker/assets/link-media-screen.css
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/link-media.html
+  s_46371821d5f8e9::t_57767745c06f98 1-10
+packages/engine/test/fixtures-worker/assets/dynprobe-graph.html
+  s_46371821d5f8e9::t_57767745c06f98 1-35
+packages/engine/test/fixtures-worker/assets/dynimport-var.html
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/nested-modinit-target.js
+  s_46371821d5f8e9::t_57767745c06f98 1-54
+packages/engine/test/fixtures-worker/assets/ce-mixin-late.html
+  s_46371821d5f8e9::t_57767745c06f98 1-8
+packages/engine/test/fixtures-worker/assets/lifecycle.html
+  s_46371821d5f8e9::t_57767745c06f98 1-46
+packages/engine/test/fixtures-worker/assets/ce-mixin-chunk.js
+  s_46371821d5f8e9::t_57767745c06f98 1-36
+packages/engine/vitest.e2e.config.mts
+  s_46371821d5f8e9::t_8a22aba58097cf 94-99
+packages/engine/test/fixtures-worker/assets/iframe-host.html
+  s_46371821d5f8e9::t_57767745c06f98 1-8
+packages/engine/test/fixtures-worker/assets/keyboard.html
+  s_46371821d5f8e9::t_57767745c06f98 1-29
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_46371821d5f8e9::t_57767745c06f98 41,48,61,67,72,98,102,110,140,197,199,201,203,205,218,220,222,229,231,239,275,277,281,283,290,292,294,298,307,354,365,372,376,380,382,389-391,399,401,477,487,562,569,573,581-583,585-588,590-599,606,610,614,618,622,624,626,630,632,634,856,866,870,877,887,894,896,903,905,907,917,924,926,928,935,942,944,951,959,961,969,971,977,987,994,1147,1194,1201,1231,1235,1242,1252,1263,1267,1279,1281,1283,1287,1289,1303,1305,1309,1313,1317,1324,1529,1539,1541,1545,1549,1559,1566,1573,1586
+packages/engine/test/fixtures-worker/assets/external-sheet.css
+  s_46371821d5f8e9::t_57767745c06f98 1-2
+packages/engine/test/fixtures-worker/assets/cs-microtask.html
+  s_46371821d5f8e9::t_57767745c06f98 1-8
+packages/engine/test/fixtures-worker/assets/msgchannel-modinit.html
+  s_46371821d5f8e9::t_57767745c06f98 1-21
+packages/engine/test/fixtures-worker/assets/link-onload-media.css
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/iframe-nested-l2.html
+  s_46371821d5f8e9::t_57767745c06f98 1-6
+packages/engine/test/fixtures-worker/assets/oopif-child-red.html
+  s_46371821d5f8e9::t_57767745c06f98 1-5
+packages/engine/test/fixtures-worker/assets/oopif-host.html
+  s_46371821d5f8e9::t_57767745c06f98 1-5
+packages/engine/test/fixtures-worker/assets/dynprobe-arity.html
+  s_46371821d5f8e9::t_57767745c06f98 1-19
+packages/engine/test/fixtures-worker/assets/render-features.html
+  s_46371821d5f8e9::t_57767745c06f98 1-12
+packages/engine/test/fixtures-worker/assets/dynimport-chunk.js
+  s_46371821d5f8e9::t_57767745c06f98 1-2
+packages/engine/test/fixtures-worker/assets/abs-chain-entry.js
+  s_46371821d5f8e9::t_57767745c06f98 1-3
+packages/engine/test/fixtures-worker/assets/seam-runtime.js
+  s_46371821d5f8e9::t_57767745c06f98 1-52
+packages/engine/test/fixtures-worker/assets/shaping-metrics.html
+  s_46371821d5f8e9::t_57767745c06f98 1-20
+packages/engine/test/fixtures-worker/assets/xhr-boot.html
+  s_46371821d5f8e9::t_57767745c06f98 1-7
+packages/engine/test/fixtures-worker/assets/dynimport.html
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/nested-modinit.html
+  s_46371821d5f8e9::t_57767745c06f98 1-23
+packages/engine/test/fixtures-worker/assets/seam-plain-route.js
+  s_46371821d5f8e9::t_57767745c06f98 1-15
+packages/engine/test/fixtures-worker/assets/inserted-script.html
+  s_46371821d5f8e9::t_57767745c06f98 1-30
+packages/engine/test/fixtures-worker/assets/pdf-image-smoke.html
+  s_46371821d5f8e9::t_57767745c06f98 1-14
+packages/engine/test/fixtures-worker/assets/oopif-host-quads.html
+  s_46371821d5f8e9::t_57767745c06f98 1-5
+packages/engine/test/fixtures-worker/assets/hostile-timers.js
+  s_46371821d5f8e9::t_57767745c06f98 1-11
+packages/engine/test/fixtures-worker/assets/inserted-ok.js
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/cors-sheet-echo-origin.css
+  s_46371821d5f8e9::t_57767745c06f98 1-2
+packages/engine/test/fixtures-worker/assets/cs-micro-a.js
+  s_46371821d5f8e9::t_57767745c06f98 1-32
+packages/engine/test/fixtures-worker/assets/webfont-link.html
+  s_46371821d5f8e9::t_57767745c06f98 1-13
+packages/engine/test/fixtures-worker/assets/seam-plain-runtime.js
+  s_46371821d5f8e9::t_57767745c06f98 1-7
+packages/engine/test/fixtures-worker/assets/absolute-path-transitive.html
+  s_46371821d5f8e9::t_57767745c06f98 1-8
+packages/engine/test/fixtures-worker/assets/bg-image-capture.html
+  s_46371821d5f8e9::t_57767745c06f98 1-12
+packages/engine/test/fixtures-worker/assets/seam-coll-route.js
+  s_46371821d5f8e9::t_57767745c06f98 1-20
+packages/engine/test/fixtures-worker/assets/concimport.html
+  s_46371821d5f8e9::t_57767745c06f98 1-18
+packages/engine/test/fixtures-worker/assets/abs-chain-root.js
+  s_46371821d5f8e9::t_57767745c06f98 1-3
+packages/engine/test/fixtures-worker/assets/font-face-unicode-range.html
+  s_46371821d5f8e9::t_57767745c06f98 1-34
+packages/engine/test/fixtures-worker/assets/svg-sizing.html
+  s_46371821d5f8e9::t_57767745c06f98 1-14
+packages/engine/test/fixtures-worker/assets/oopif-host-color-swap.html
+  s_46371821d5f8e9::t_57767745c06f98 1-5
+packages/engine/test/fixtures-worker/assets/lazy-load-event.html
+  s_46371821d5f8e9::t_57767745c06f98 1-8
+packages/engine/test/fixtures-worker/assets/ws-boot.html
+  s_46371821d5f8e9::t_57767745c06f98 1-58
+packages/engine/test/fixtures-worker/assets/dynprobe-classic.html
+  s_46371821d5f8e9::t_57767745c06f98 1-50
+packages/engine/test/fixtures-worker/assets/external-scripts.html
+  s_46371821d5f8e9::t_57767745c06f98 1-22
+packages/engine/test/fixtures-worker/assets/wasm-boot.html
+  s_46371821d5f8e9::t_57767745c06f98 1-14
+packages/engine/test/fixtures-worker/assets/img-load-events.html
+  s_46371821d5f8e9::t_57767745c06f98 1-50
+packages/engine/test/fixtures-worker/assets/link-onload-media.html
+  s_46371821d5f8e9::t_57767745c06f98 1-10
+packages/engine/test/fixtures-worker/assets/seam-coll-runtime.js
+  s_46371821d5f8e9::t_57767745c06f98 1-18
+packages/engine/test/fixtures-worker/assets/seam-plain.html
+  s_46371821d5f8e9::t_57767745c06f98 1-15
+packages/engine/test/fixtures-worker/assets/wasm-boot.js
+  s_46371821d5f8e9::t_57767745c06f98 1-46
+packages/engine/test/fixtures-worker/assets/regular.js
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/dynprobe-raf.html
+  s_46371821d5f8e9::t_57767745c06f98 1-19
+packages/engine/test/fixtures-worker/assets/tla-import-helper.js
+  s_46371821d5f8e9::t_57767745c06f98 1-4
+packages/engine/test/fixtures-worker/src/assets.d.ts
+  s_46371821d5f8e9::t_ff04f13a488c10 1-18
+packages/engine/test/fixtures-worker/assets/async.js
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/lifecycle-async.js
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/img-dimensions.html
+  s_46371821d5f8e9::t_57767745c06f98 1-38
+packages/engine/test/fixtures-worker/assets/oopif-host-postmessage.html
+  s_46371821d5f8e9::t_57767745c06f98 1-21
+packages/engine/test/fixtures-worker/assets/reload-loop.html
+  s_46371821d5f8e9::t_57767745c06f98 1-15
+packages/engine/test/fixtures-worker/assets/eager-slow-load.html
+  s_46371821d5f8e9::t_57767745c06f98 1-7
+packages/engine/test/fixtures-worker/assets/svg-css-attrs.html
+  s_46371821d5f8e9::t_57767745c06f98 1-22
+packages/engine/test/fixtures-worker/assets/dynamic-app-mod.js
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/external-sheet.html
+  s_46371821d5f8e9::t_57767745c06f98 1-9
+packages/engine/test/fixtures-worker/assets/inline-script.html
+  s_46371821d5f8e9::t_57767745c06f98 1-36
+packages/engine/test/fixtures-worker/assets/media-texttracks.html
+  s_46371821d5f8e9::t_57767745c06f98 1-4
+packages/engine/test/fixtures-worker/assets/events.html
+  s_46371821d5f8e9::t_57767745c06f98 1-50
+packages/engine/test/fixtures-worker/assets/external-module.js
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/absolute-path-import.html
+  s_46371821d5f8e9::t_57767745c06f98 1-7
+packages/engine/test/fixtures-worker/assets/iframe-nested-l1.html
+  s_46371821d5f8e9::t_57767745c06f98 1-6
+packages/engine/test/fixtures-worker/assets/screencast-partial-image.html
+  s_46371821d5f8e9::t_57767745c06f98 1-18
+packages/engine/test/fixtures-worker/assets/accessibility-parity.html
+  s_46371821d5f8e9::t_57767745c06f98 1-68
+packages/engine/test/fixtures-worker/assets/lazy-coalesce.html
+  s_46371821d5f8e9::t_57767745c06f98 1-18
+packages/engine/test/fixtures-worker/assets/svg-sprite-sidebar.html
+  s_46371821d5f8e9::t_57767745c06f98 1-30
+packages/engine/test/fixtures-worker/assets/oopif-child-postmessage.html
+  s_46371821d5f8e9::t_57767745c06f98 1-14
+packages/engine/test/fixtures-worker/assets/oopif-dynamic-host.html
+  s_46371821d5f8e9::t_57767745c06f98 1-16
+packages/engine/test/fixtures-worker/assets/webfont-probes.html
+  s_46371821d5f8e9::t_57767745c06f98 1-8
+packages/engine/test/fixtures-worker/assets/seam-route.js
+  s_46371821d5f8e9::t_57767745c06f98 1-21
+packages/engine/test/fixtures-worker/assets/defer.js
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/abs-chain-dep.js
+  s_46371821d5f8e9::t_57767745c06f98 1-2
+packages/engine/test/fixtures-worker/assets/inline-wasm.html
+  s_46371821d5f8e9::t_57767745c06f98 1-7
+packages/engine/test/fixtures-worker/assets/oopif-host-budget.html
+  s_46371821d5f8e9::t_57767745c06f98 1-6
+packages/engine/test/fixtures-worker/assets/pdf-css-bg-smoke.html
+  s_46371821d5f8e9::t_57767745c06f98 1-29
+packages/engine/test/fixtures-worker/assets/seam-collections.html
+  s_46371821d5f8e9::t_57767745c06f98 1-15
+packages/engine/test/fixtures-worker/assets/seam-deferred.html
+  s_46371821d5f8e9::t_57767745c06f98 1-15
+packages/engine/test/fixtures-worker/assets/accessibility.html
+  s_46371821d5f8e9::t_57767745c06f98 1-39
+packages/engine/test/fixtures-worker/assets/tla-import-bug.html
+  s_46371821d5f8e9::t_57767745c06f98 1-15
+packages/engine/test/fixtures-worker/assets/tla-import-fix.html
+  s_46371821d5f8e9::t_57767745c06f98 1-17
+packages/engine/test/fixtures-worker/assets/absolute-path-target.js
+  s_46371821d5f8e9::t_57767745c06f98 1-2
+packages/engine/test/fixtures-worker/assets/cs-micro-b.js
+  s_46371821d5f8e9::t_57767745c06f98 1-7
+packages/engine/test/fixtures-worker/assets/link-media-print.css
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/inline-box-model.html
+  s_46371821d5f8e9::t_57767745c06f98 1-19
+packages/engine/test/fixtures-worker/assets/iframe-cycle.html
+  s_46371821d5f8e9::t_57767745c06f98 1-6
+packages/engine/test/fixtures-worker/assets/sprite-icons.html
+  s_46371821d5f8e9::t_57767745c06f98 1-9
+packages/engine/test/fixtures-worker/assets/viewport-drain.html
+  s_46371821d5f8e9::t_57767745c06f98 1-12
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_46371821d5f8e9::t_f69c33ebec90b7 7-9,11-14
+packages/engine/test/fixtures-worker/assets/iframe-bitmap.html
+  s_46371821d5f8e9::t_57767745c06f98 1-5
+packages/engine/test/fixtures-worker/assets/cross-origin-font.html
+  s_46371821d5f8e9::t_57767745c06f98 1-43
+packages/engine/test/fixtures-worker/assets/dynamic-app.html
+  s_46371821d5f8e9::t_57767745c06f98 1
+packages/engine/test/fixtures-worker/assets/lifecycle-defer.js
+  s_46371821d5f8e9::t_57767745c06f98 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7347660d5958ac22f3efffaab6317635414b8b3c",
+  "prompts": {},
+  "sessions": {
+    "s_46371821d5f8e9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00d107a2bffegmHwZNZ4m4wIp9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
