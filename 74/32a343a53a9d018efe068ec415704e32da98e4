@@ -1,0 +1,19 @@
+packages/engine/test/e2e/clip-regions.e2e.test.ts
+  s_991c8660c98c38::t_9bc3b6e5c5b186 29-32,38-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7432a343a53a9d018efe068ec415704e32da98e4",
+  "prompts": {},
+  "sessions": {
+    "s_991c8660c98c38": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009892ce1ffeHHnJ6vwrpWm3CZ",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
