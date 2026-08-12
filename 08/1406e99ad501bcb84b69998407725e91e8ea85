@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0094-Gate-per-resolve-work-on-damage.patch
+  s_dfd792beae87ba::t_3371318c1e4dac 101,110,138,397,409-411,503,521
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "081406e99ad501bcb84b69998407725e91e8ea85",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
