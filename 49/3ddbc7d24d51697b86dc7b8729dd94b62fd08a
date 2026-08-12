@@ -1,0 +1,39 @@
+AGENTS.md
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 85,269-302,304
+  s_febe8d41b549be::t_99a949c866ea9e 111,303
+  s_febe8d41b549be::t_912b3fd4a147cc 481-484,487-491
+  s_991c8660c98c38::t_d9203b7afd15a1 86,268,492,530-533
+docs/SVG.md
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 32-41
+docs/TRANSITIONS.md
+  s_febe8d41b549be::t_99a949c866ea9e 1-110
+docs/TESTING.md
+  s_febe8d41b549be::t_912b3fd4a147cc 60,322
+docs/BOA_V8_FLOW.md
+  s_febe8d41b549be::t_15db0356410c2b 237,244-262
+  s_991c8660c98c38::t_8fe9f8b69ad169 263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "493ddbc7d24d51697b86dc7b8729dd94b62fd08a",
+  "prompts": {},
+  "sessions": {
+    "s_991c8660c98c38": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009892ce1ffeHHnJ6vwrpWm3CZ",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+packages/engine/test/rbi-resource-batch.test.ts
+  s_50d45ac3d4c7e5::t_7dc37d4a6e1a68 2-6
+  s_50d45ac3d4c7e5::t_f5e69a6be8d77f 264,291-294,300-301,303
+  s_7090a3da6a35b4::t_d3f470ea670155 251-263,265-290,295-299,302,304-312
+packages/engine/src/rbi-protocol.ts
+  s_50d45ac3d4c7e5::t_7ad96b464b4734 174-175
+  s_50d45ac3d4c7e5::t_af3e186c319a93 200-201
+  s_50d45ac3d4c7e5::t_4b66c6cfc551b1 146-173,176-199,202-224
+packages/engine/src/rbi.ts
+  s_50d45ac3d4c7e5::t_a7799fe327e348 778-780
+  s_50d45ac3d4c7e5::t_63c4390b1b85c4 18-19
+  s_50d45ac3d4c7e5::t_fff1c3ffa537ec 962-972
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2b54b0ecfa493bdb2468260f71df45c44e80c7e8",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7090a3da6a35b4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02de2d88cffeBoHJCjIJ5vTbKT",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

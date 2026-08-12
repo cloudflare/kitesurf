@@ -1,0 +1,27 @@
+scripts/patches/vello_cpu-0.0.9/0001-Replace-the-blurred-rect-p-norm-with-a-polynomial-in.patch
+  s_40a77a88c7e719::t_f32690e70e2cf9 26-30,32-34,37,79,87-100,120,128-129,133,143,151,171-184
+packages/core/src/box_shadow_blur_accuracy_test.rs
+  s_40a77a88c7e719::t_7c285abfbd1eed 34-35
+  s_40a77a88c7e719::t_57910cd82a9c21 90,99,101-112,145
+  s_40a77a88c7e719::t_d3357f95111325 91-98,100,113-144
+  s_40a77a88c7e719::t_3a690d8d20ebe2 1-33,36-89
+packages/core/src/lib.rs
+  s_40a77a88c7e719::t_d83f3aad9660bc 73-74
+  s_40a77a88c7e719::t_d9e0e8f3c0f901 72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "24a3748b4d6168188662fc8eb7acae3f10fd2850",
+  "prompts": {},
+  "sessions": {
+    "s_40a77a88c7e719": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00899d021ffeusxbvHVto59doi",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}

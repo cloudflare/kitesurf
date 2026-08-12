@@ -1,0 +1,22 @@
+packages/core/src/render_scene_resolve_loop_test.rs
+  s_40a77a88c7e719::t_454861be0c9ba0 1-94
+packages/core/src/lib.rs
+  s_40a77a88c7e719::t_454861be0c9ba0 130-131,2475-2502,4085,4544,4633,5085,5263
+  s_40a77a88c7e719::t_61a40c157c47a3 129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ecb74c2cb1c6938d2919ed912714a5efb3c6af69",
+  "prompts": {},
+  "sessions": {
+    "s_40a77a88c7e719": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00899d021ffeusxbvHVto59doi",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

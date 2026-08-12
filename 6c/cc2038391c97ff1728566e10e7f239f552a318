@@ -1,0 +1,230 @@
+packages/dom-shim/src/layout/scroll.ts
+  s_febe8d41b549be::t_4af113d4249641 99-100
+docs/TESTING.md
+  s_febe8d41b549be::t_912b3fd4a147cc 60,322
+tests/wpt-expectations.json
+  s_991c8660c98c38::t_2708250b550ad3 8627,27754-27761,27763
+  s_e7dc27bdab5fff::t_1bebdea575215f 8300-8307,8332-8335,8384-8391
+  s_991c8660c98c38::t_ce78e933b02506 8950-8951,8954-8955,16638-16639,16670-16671,16702-16703,23376-23377,24268-24269
+  s_991c8660c98c38::t_8ee3eb2fd3d22a 6390,11933,11937,12263,12287
+packages/engine/test/e2e/bridge-construct.e2e.test.ts
+  s_febe8d41b549be::t_15db0356410c2b 1-23,25-29,55-74
+  s_febe8d41b549be::t_466f5632f769a7 24,30-54
+scripts/wpt-compare.mjs
+  s_febe8d41b549be::t_912b3fd4a147cc 437
+scripts/patches/blitz-dom-0.3.0-beta.1/0084-Skip-a-font-family-still-waiting-on-a-face-for-the-w.patch
+  s_e7dc27bdab5fff::t_a579319134aa5e 40-98
+docs/BOA_V8_FLOW.md
+  s_febe8d41b549be::t_15db0356410c2b 237,244-262
+  s_991c8660c98c38::t_243afc19ad9ef6 263
+packages/dom-shim/src/collections.ts
+  s_e7dc27bdab5fff::t_eb225a89586874 37,1795,1814,1821,1825
+packages/page-script/src/index.ts
+  s_febe8d41b549be::t_99a949c866ea9e 224,1974-1976,4998-5001,5139-5142,5148-5149
+scripts/patches/blitz-dom-0.3.0-beta.1/0089-Re-scope-a-linked-stylesheet-when-its-media-attribut.patch
+  s_e7dc27bdab5fff::t_979f2a3907794a 30-51
+scripts/patches/blitz-dom-0.3.0-beta.1/0098-kitesurf-re-check-a-hoist-record-before-replaying-it.patch
+  s_e7dc27bdab5fff::t_d7c6261786e31b 1-206
+packages/dom-shim/src/util/strings.ts
+  s_e7dc27bdab5fff::t_a7fe0d84601705 50-60
+packages/core/src/nested_inline_abspos_test.rs
+  s_82c6f22e2b0444::t_0192c4330aaba6 79
+  s_82c6f22e2b0444::t_0b30b170e74c86 1-35,41-43,46,48-52,55-59,77-78
+  s_82c6f22e2b0444::t_752a2b49501ba5 36-40,44-45,47,53-54,60-76
+packages/engine/test/e2e/element-measurement.e2e.test.ts
+  s_febe8d41b549be::t_4af113d4249641 48-53,57,77
+  s_febe8d41b549be::t_fe2c3ef713ae7e 54-56,58-76,78-90
+scripts/patches/blitz-dom-0.3.0-beta.1/0087-kitesurf-keep-incremental-layout-from-losing-content.patch
+  s_e7dc27bdab5fff::t_fbb50be8b7a533 220-507
+  s_991c8660c98c38::t_43b863d1edd445 1-219,508-562
+packages/core/src/animation_clock_test.rs
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 107-108,111
+  s_febe8d41b549be::t_99a949c866ea9e 1,3-10,12-18,24,41-72,77,86-87,89-95,105-106,109-110,112-143,152-298
+packages/engine/test/e2e/html/measurement.html
+  s_febe8d41b549be::t_ce7cc3a444e3b7 5-8,12
+scripts/patches/blitz-dom-0.3.0-beta.1/0093-Stop-an-inline-rebuild-stealing-a-hoisted-box-s-layo.patch
+  s_e7dc27bdab5fff::t_a5bd0dacf195c6 34-45
+  s_991c8660c98c38::t_d43a6a933a954c 1-33,46-80
+packages/page-script/src/globals.ts
+  s_febe8d41b549be::t_15db0356410c2b 313,315-319
+packages/engine/test/e2e/vendor-prefix-style.e2e.test.ts
+  s_e7dc27bdab5fff::t_c14fa8b00048b3 57-112
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_febe8d41b549be::t_f6cecec27c9d63 1-15,17,21-25,31-34,36-83,85-121
+  s_febe8d41b549be::t_d62240b101dfd8 16,18-20,26-30,35,84
+docs/SVG.md
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 32-41
+packages/dom-shim/src/element.ts
+  s_e7dc27bdab5fff::t_d35938ba6fd8f6 89,2992,3000,3024,3046,3050
+  s_febe8d41b549be::t_4af113d4249641 2526-2535
+scripts/patches/blitz-dom-0.3.0-beta.1/0101-kitesurf-force-CONSTRUCT_BOX-on-anonymous-children-w.patch
+  s_991c8660c98c38::t_cbe1d267f3761f 1-56
+AGENTS.md
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 85,269-302,304
+  s_febe8d41b549be::t_912b3fd4a147cc 481-484,487-491
+  s_febe8d41b549be::t_99a949c866ea9e 111,303
+  s_991c8660c98c38::t_3f5eebdae6579b 86,268,492,530-533
+scripts/patches/blitz-dom-0.3.0-beta.1/0100-kitesurf-clear-taffy-cache-for-RELAYOUT-damage-and-f.patch
+  s_991c8660c98c38::t_eb98b976b403b2 1-65
+packages/dom-shim/src/events/dispatch.ts
+  s_febe8d41b549be::t_99a949c866ea9e 133
+packages/page-script/src/transitions.ts
+  s_e7dc27bdab5fff::t_4aec1c270ccf14 31-36,38-39,42-45,47-48,56,59,67-80
+  s_febe8d41b549be::t_99a949c866ea9e 1-30,37,40-41,46,49-55,81-128
+  s_e7dc27bdab5fff::t_e35df71f8667ee 57-58,60-66
+packages/core/src/float_cache_incremental_test.rs
+  s_e7dc27bdab5fff::t_f9c70e0dfd05c0 15,22-23,26-27,29-31,34-49,51-60
+  s_e7dc27bdab5fff::t_e272f8415c2938 1-14,16-21,24-25,28,32-33,50,61-93
+scripts/patches/blitz-dom-0.3.0-beta.1/0090-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
+  s_e7dc27bdab5fff::t_febcd5152c7513 29-32
+  s_991c8660c98c38::t_317b412793e05f 1-28,33-53
+packages/engine/test/e2e/html/fixed-position.html
+  s_febe8d41b549be::t_f27dcec51137fd 1-37
+packages/core/src/boa_bridge.rs
+  s_febe8d41b549be::t_15db0356410c2b 1137-1141,1147,1150-1154,1158,1190,1230,1240-1272
+  s_991c8660c98c38::t_744d50ac347488 1273-1274
+packages/dom-shim/src/transitions.ts
+  s_febe8d41b549be::t_99a949c866ea9e 1-3,5-7,9-10,19-20,27-29,31-32
+scripts/wpt-batched.mjs
+  s_febe8d41b549be::t_912b3fd4a147cc 47,489
+packages/engine/test/e2e/hoisted-inline-rebreak.e2e.test.ts
+  s_febe8d41b549be::t_d424f6493f8985 11,20-37,43
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-10,12-19,38-42,44-61
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_febe8d41b549be::t_99a949c866ea9e 1-17,20-35,37-80,82-126,128-159,161-195,197-208
+  s_e7dc27bdab5fff::t_9d69cb31016b02 209-218,220-247
+  s_febe8d41b549be::t_b9259ea5c5b68f 18-19,36,81,127,160,196,219
+packages/dom-shim/src/state.ts
+  s_febe8d41b549be::t_99a949c866ea9e 79-82,420-422
+  s_991c8660c98c38::t_f9cf8d42012433 423
+packages/core/Cargo.toml
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 90
+packages/engine/test/e2e/html/css-transitions.html
+  s_febe8d41b549be::t_aed6493e93949f 1-42,51-52
+  s_febe8d41b549be::t_6e234400f4f7c2 43-44
+  s_febe8d41b549be::t_c37659d313f898 45-50
+packages/core/src/radar_grid_repro_test.rs
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 29-89
+docs/TRANSITIONS.md
+  s_febe8d41b549be::t_99a949c866ea9e 1-110
+scripts/build-wasm.mjs
+  s_febe8d41b549be::t_912b3fd4a147cc 66-73,179-186
+packages/core/src/svg_mutation_resnapshot_test.rs
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 90-91,93-95
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_febe8d41b549be::t_a5636747cc7e6d 1-13,15-19,51-55,57-59,61-74,84-92
+  s_febe8d41b549be::t_8fc5c3aa0e5e99 14,20-43,45-50,56
+  s_febe8d41b549be::t_bea5ea236bedca 60,75-80
+  s_991c8660c98c38::t_7c3bc17213cf71 81-83
+  s_991c8660c98c38::t_2ddde0e6312b0c 44
+packages/engine/test/e2e/clip-regions.e2e.test.ts
+  s_febe8d41b549be::t_93871c6f48eb42 1-7,9-16,36-39,42-63,90-93
+  s_febe8d41b549be::t_93e83c2841adbf 40,64-82,84-89
+  s_febe8d41b549be::t_21c1c799f69bd6 8,17-35,41,83
+packages/core/src/transitions.rs
+  s_febe8d41b549be::t_99a949c866ea9e 1-12,14-17,22-83,85-100,102-130,132,141-142,144,150,152-153,156-190,192,198-199,215-216,218-222,224-230,232-234
+  s_e7dc27bdab5fff::t_89898bf1a7d39c 13,18-21,84,101,131,134,200-214,223,231
+  s_991c8660c98c38::t_41857cf4449d34 133,135-140,143,145-149,151,154-155,191,193-197,217
+packages/page-script/src/paint.ts
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 26,61-63
+packages/core/src/lib.rs
+  s_9c00b6f65cc13e::t_863f16d4e0a1d0 117,120
+  s_febe8d41b549be::t_4af113d4249641 2908-2911,6054-6055
+  s_febe8d41b549be::t_99a949c866ea9e 51-52,67,382-396,689-692,2464-2480,2502-2510,2514,2516-2517,3571-3608
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 118-119,831,868,873,5941-5961,6381-6436
+  s_e7dc27bdab5fff::t_12016ff95db394 5973-5990
+  s_e7dc27bdab5fff::t_f8fee9894d2cee 114-116,5962-5972
+  s_82c6f22e2b0444::t_22d3b2e2e84e3e 121-122
+  s_991c8660c98c38::t_8db2367895cc11 3609,6437-6438
+scripts/patches/blitz-dom-0.3.0-beta.1/0085-Decode-legacy-non-UTF-8-stylesheets-instead-of-dropp.patch
+  s_e7dc27bdab5fff::t_88b7b01a10cb5a 39
+packages/engine/src/cdp/page.ts
+  s_febe8d41b549be::t_99a949c866ea9e 7458,7465,7473,7479-7485
+scripts/patches/blitz-dom-0.3.0-beta.1/0092-Drive-the-relative-selector-invalidator-for-tree-mut.patch
+  s_e7dc27bdab5fff::t_883c55b7007b69 36-93
+scripts/patches/blitz-dom-0.3.0-beta.1/0099-kitesurf-bust-the-float-container-s-layout-cache-not.patch
+  s_e7dc27bdab5fff::t_df2190df2deefd 1-82
+packages/engine/test/e2e/layer-budget.e2e.test.ts
+  s_991c8660c98c38::t_57e8c772568af7 10,17-36,42
+  s_febe8d41b549be::t_861077fc1d2093 1-9,11-16,37-41,43-65
+packages/core/src/hoist_incremental_test.rs
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-97,103,106,139
+  s_e7dc27bdab5fff::t_159e343fddccce 100,110,113,117,121,125-126,137,143-144,146-225,227,237,240,243,246-248,250,262,265,271,274
+  s_991c8660c98c38::t_4c567278d9ede9 98-99,101-102,104-105,107-109,111-112,114-116,118-120,122-124,127-136,138,140-142,145,226,228-236,238-239,241-242,244-245,249,251-261,263-264,266-270,272-273
+scripts/patches/blitz-dom-0.3.0-beta.1/0094-white-space-map-preserve-breaks-to-parley-s-Preserve.patch
+  s_e7dc27bdab5fff::t_5b340dc574d340 22
+scripts/patches/blitz-dom-0.3.0-beta.1/0091-Stamp-a-restyle-hint-when-remove_node-unlinks-a-chil.patch
+  s_e7dc27bdab5fff::t_efc5564ad0b799 20-23
+scripts/patches/blitz-dom-0.3.0-beta.1/0088-Give-display-flow-root-its-own-block-formatting-cont.patch
+  s_991c8660c98c38::t_8ee3acfc15925a 1-48
+scripts/patches/blitz-dom-0.3.0-beta.1/0095-Damage-the-nodes-whose-counters-moved-since-the-last.patch
+  s_991c8660c98c38::t_4b81c3f81bafbb 1-108
+scripts/patches/blitz-dom-0.3.0-beta.1/0096-Do-not-hoist-an-abspos-past-a-positioned-inline-ance.patch
+  s_991c8660c98c38::t_e940ebdc5b7cd5 1-64
+scripts/patches/blitz-dom-0.3.0-beta.1/0097-Keep-grid-track-info-for-a-container-layout-did-not-.patch
+  s_991c8660c98c38::t_afccf143a1ed8c 1-51
+scripts/patches/blitz-paint-0.3.0-beta.1/0014-Honour-empty-clip-regions-and-the-legacy-clip-proper.patch
+  s_991c8660c98c38::t_a64eba0fac6f8d 1-143
+scripts/patches/blitz-paint-0.3.0-beta.1/0015-Budget-open-layers-by-depth-not-cumulative-pushes.patch
+  s_991c8660c98c38::t_c6cacb4b555acc 1-80
+scripts/patches/blitz-paint-0.3.0-beta.1/0016-Skip-painting-a-subtree-behind-an-empty-clip-region.patch
+  s_991c8660c98c38::t_935fd85d163ff7 1-108
+scripts/patches/blitz-paint-0.3.0-beta.1/0017-Cull-against-a-node-local-bbox-instead-of-a-doubled-.patch
+  s_991c8660c98c38::t_c05fcffeeed491 1-79
+scripts/patches/stylo-0.19.0/0026-Damage-box-shadow-as-repaint-instead-of-rebuilding-t.patch
+  s_991c8660c98c38::t_c4021954897b7e 1-34
+scripts/patches/taffy-0.12.2/0010-Clear-past-every-float-on-the-cleared-sides-not-the-.patch
+  s_991c8660c98c38::t_f50ed87afba412 1-117
+scripts/patches/taffy-0.12.2/0011-Cache-the-lowest-float-bottom-per-side-so-clearing-s.patch
+  s_991c8660c98c38::t_ee1a28842852f6 1-88
+tests/wpt-tests.json
+  s_991c8660c98c38::t_87e0ae41c367d5 935,3622-3624,3639,3652-3653
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6ccc2038391c97ff1728566e10e7f239f552a318",
+  "prompts": {},
+  "sessions": {
+    "s_82c6f22e2b0444": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00dc5b66cffesWPaC4oZLhbxGN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_991c8660c98c38": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009892ce1ffeHHnJ6vwrpWm3CZ",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_9c00b6f65cc13e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00ec4622dffenjEEbHuORvRc22",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_e7dc27bdab5fff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00a4f8786ffeFB2n8VkGusS6CL",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
