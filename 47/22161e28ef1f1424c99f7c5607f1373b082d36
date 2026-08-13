@@ -1,0 +1,23 @@
+packages/core/src/counter_damage_gate_test.rs
+  s_40a77a88c7e719::t_3fcff986c4c1b8 7-16
+  s_40a77a88c7e719::t_4cbaa6f9b1697b 66-78
+  s_40a77a88c7e719::t_78aa0f6914110a 65
+scripts/patches/blitz-dom-0.3.0-beta.1/0107-Gate-per-resolve-work-on-damage.patch
+  s_40a77a88c7e719::t_e8ff17dfa98f25 63-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4722161e28ef1f1424c99f7c5607f1373b082d36",
+  "prompts": {},
+  "sessions": {
+    "s_40a77a88c7e719": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00899d021ffeusxbvHVto59doi",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

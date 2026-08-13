@@ -1,0 +1,25 @@
+tests/wpt-expectations.json
+  s_991c8660c98c38::t_8ee3eb2fd3d22a 6390,11933,11937,12263,12287
+  s_991c8660c98c38::t_ce78e933b02506 8950-8951,8954-8955,16638-16639,16670-16671,16702-16703,23376-23377,24268-24269
+scripts/patches/blitz-dom-0.3.0-beta.1/0101-kitesurf-force-CONSTRUCT_BOX-on-anonymous-children-w.patch
+  s_991c8660c98c38::t_cbe1d267f3761f 1-56
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_991c8660c98c38::t_7c3bc17213cf71 81-83
+  s_991c8660c98c38::t_2ddde0e6312b0c 44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5610ae75ef4e1cfb9167901859c2916505961c90",
+  "prompts": {},
+  "sessions": {
+    "s_991c8660c98c38": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009892ce1ffeHHnJ6vwrpWm3CZ",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": null
+    }
+  }
+}
