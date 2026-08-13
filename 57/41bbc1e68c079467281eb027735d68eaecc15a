@@ -1,0 +1,31 @@
+packages/grafana/test/query.test.ts
+  s_edad28f68e11b0::t_d5b558eb6ff61c 118-151,153-175
+packages/grafana/src/query.ts
+  s_edad28f68e11b0::t_bab8a3a8ebb00e 162,168
+  s_edad28f68e11b0::t_92faea9be2c145 457-461
+  s_edad28f68e11b0::t_079a0c2fe9cb97 42-60,64
+  s_edad28f68e11b0::t_1e9381f7f86bfc 118-137,143,152
+  s_edad28f68e11b0::t_e0301dc25e6545 313,335,357,375,391,406,496,523,544,563
+.cloudflare/grafana/kitesurf-usage.json
+  s_edad28f68e11b0::t_e28e2f7e47840e 111,121,265,427,476,486,554
+packages/grafana/src/dashboards/kitesurf-usage.ts
+  s_edad28f68e11b0::t_85fc12b66cf7df 30-35,39,121-125,130,145
+packages/grafana/test/dashboard.test.ts
+  s_edad28f68e11b0::t_f374359e46ae8d 165-168,196-228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5741bbc1e68c079467281eb027735d68eaecc15a",
+  "prompts": {},
+  "sessions": {
+    "s_edad28f68e11b0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0062289d9ffeSjoYVfuhpub8tF",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}
