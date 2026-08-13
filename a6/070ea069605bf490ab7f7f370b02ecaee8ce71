@@ -1,0 +1,19 @@
+scripts/patches/README.md
+  s_74bdb8d7eb50dd::t_d712ef17eb21de 79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a6070ea069605bf490ab7f7f370b02ecaee8ce71",
+  "prompts": {},
+  "sessions": {
+    "s_74bdb8d7eb50dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0047be798ffeo63pr3eHm9deOh",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

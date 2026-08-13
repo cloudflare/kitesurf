@@ -1,0 +1,27 @@
+scripts/patches/vello_cpu-0.0.9/0001-Replace-the-blurred-rect-p-norm-with-a-polynomial-in.patch
+  s_74bdb8d7eb50dd::t_997d1a437bff8a 36
+  s_74bdb8d7eb50dd::t_4bc8e79719b6bd 82-86
+  s_74bdb8d7eb50dd::t_64e3382c554d4e 24
+  s_74bdb8d7eb50dd::t_60c0973980ad03 57-60
+scripts/patches/vello_cpu-0.0.9/0002-Add-poly-pnorm-feature-gate-for-the-blurred-rect-p-n.patch
+  s_74bdb8d7eb50dd::t_43e52ab87f8a7e 79-82
+  s_74bdb8d7eb50dd::t_997d1a437bff8a 33
+  s_74bdb8d7eb50dd::t_1a34d24b19f410 108-110
+  s_74bdb8d7eb50dd::t_185790a42ee18b 56-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9186b3bf0444ae477ae551ca97f3c2dc28087947",
+  "prompts": {},
+  "sessions": {
+    "s_74bdb8d7eb50dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0047be798ffeo63pr3eHm9deOh",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
