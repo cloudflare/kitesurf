@@ -4,14 +4,18 @@ scripts/patches/blitz-dom-0.3.0-beta.1/0089-Re-scope-a-linked-stylesheet-when-it
   s_6902c6341bfc35::t_5c6b39d226e0d4 1-29,31-32,34-41,43-50,52-93
 packages/engine/test/fixtures-worker/src/serve.ts
   s_6902c6341bfc35::t_f1df568ccafbd0 567-568
+  s_6902c6341bfc35::t_97d75834bd85d0 142-150
 packages/engine/test/e2e/unresolved-font-src.e2e.test.ts
   s_6902c6341bfc35::t_19b42a7341c1ca 1-63
 scripts/patches/blitz-dom-0.3.0-beta.1/0092-Drive-the-relative-selector-invalidator-for-tree-mut.patch
   s_6902c6341bfc35::t_5c6b39d226e0d4 1-35,37-38,40-50,52-62,64-76,78-92,94-239
 scripts/patches/blitz-dom-0.3.0-beta.1/0108-Skip-an-font-face-source-whose-url-never-resolved.patch
   s_6902c6341bfc35::t_5c6b39d226e0d4 1-2,4-19,21-22,24-37
+  s_6902c6341bfc35::t_18374806794268 3,20,23
 scripts/patches/blitz-dom-0.3.0-beta.1/0086-Drive-stylo-s-relative-selector-invalidator-so-has-i.patch
   s_6902c6341bfc35::t_5c6b39d226e0d4 45
+packages/engine/test/fixtures-worker/assets/unresolved-font-src.html
+  s_6902c6341bfc35::t_34019eba30f506 1-36
 ---
 {
   "schema_version": "authorship/3.0.0",
