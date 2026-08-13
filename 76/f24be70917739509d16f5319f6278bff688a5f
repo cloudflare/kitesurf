@@ -1,0 +1,156 @@
+.gitignore
+  s_48191ea07870ee::t_244771563c16ab 113-114
+  s_48191ea07870ee::t_e57df9ba3480cd 108-112
+vendor/raytrace/.gitignore
+  s_48191ea07870ee::t_cfb404616c8542 1-66
+vendor/raytrace/.windsurf/rules/kumo-cards.md
+  s_48191ea07870ee::t_917a0a98123be6 1-210
+vendor/raytrace/.windsurf/rules/kumo-dialogs.md
+  s_48191ea07870ee::t_afd3b3c49b5daa 1-322
+vendor/raytrace/.windsurf/rules/kumo-forms.md
+  s_48191ea07870ee::t_089288f2e48b83 1-221
+vendor/raytrace/.windsurf/rules/kumo-setup.md
+  s_48191ea07870ee::t_7a297bf4949e03 1-318
+vendor/raytrace/.windsurf/rules/kumo-tables.md
+  s_48191ea07870ee::t_e0ecdee3694310 1-402
+vendor/raytrace/.windsurf/rules/layout_system.md
+  s_48191ea07870ee::t_00613adbe14721 1-297
+vendor/raytrace/README.md
+  s_48191ea07870ee::t_a6b3a8a8219c83 1-23
+vendor/raytrace/migrations/0001_create_colos.sql
+  s_48191ea07870ee::t_092947e1c5f80b 1-11
+vendor/raytrace/migrations/0002_seed_colos.sql
+  s_48191ea07870ee::t_ebfc1c9e226e9a 1-1018
+vendor/raytrace/migrations/0003_create_traces.sql
+  s_48191ea07870ee::t_6faabf9bdb43c2 1-12
+vendor/raytrace/pnpm-lock.yaml
+  s_48191ea07870ee::t_e15758e45a2da8 1-5134
+vendor/raytrace/public/cloudflare.svg
+  s_48191ea07870ee::t_a4539bc7a67eb9 1-11
+vendor/raytrace/public/favicon.svg
+  s_48191ea07870ee::t_63e45669517421 1-3
+vendor/raytrace/public/manifest.json
+  s_48191ea07870ee::t_17cdc439515cec 1-25
+vendor/raytrace/public/robots.txt
+  s_48191ea07870ee::t_c4528946243962 1-3
+vendor/raytrace/public/site.webmanifest
+  s_48191ea07870ee::t_d6c3f3b5c3a943 1-21
+vendor/raytrace/scripts/generate-span-docs.ts
+  s_48191ea07870ee::t_a021e6b3de9501 1-96
+vendor/raytrace/src/components/ContentFrame.tsx
+  s_48191ea07870ee::t_0fc90201cf2ccc 1-29
+vendor/raytrace/src/components/RecentTraces.tsx
+  s_48191ea07870ee::t_3e0058c884aeac 1-67
+vendor/raytrace/src/components/Table.tsx
+  s_48191ea07870ee::t_0a46dd495a94ea 1-86
+vendor/raytrace/src/components/ThemeProvider.tsx
+  s_48191ea07870ee::t_c464a3b7c33c4d 1-77
+vendor/raytrace/src/components/TopNav.tsx
+  s_48191ea07870ee::t_c85c373ade1500 1-149
+vendor/raytrace/src/components/TraceUpload.tsx
+  s_48191ea07870ee::t_e884fc912091fd 1-162
+vendor/raytrace/src/components/index.ts
+  s_48191ea07870ee::t_dd0cebf3e4a3bf 1
+vendor/raytrace/src/components/trace/AggregationRow.tsx
+  s_48191ea07870ee::t_2d10a03df0cb70 1-58
+vendor/raytrace/src/components/trace/InlineDetail.tsx
+  s_48191ea07870ee::t_1172977bdebd6a 1-141
+vendor/raytrace/src/components/trace/Minimap.tsx
+  s_48191ea07870ee::t_c506a23c5c0db3 1-156
+vendor/raytrace/src/components/trace/ServiceFilter.tsx
+  s_48191ea07870ee::t_8297313140a052 1-117
+vendor/raytrace/src/components/trace/SpanBar.tsx
+  s_48191ea07870ee::t_4045a48804194c 1-89
+vendor/raytrace/src/components/trace/SpanDetail.tsx
+  s_48191ea07870ee::t_0c14efe648ddfe 1-163
+vendor/raytrace/src/components/trace/SpanDocPopover.tsx
+  s_48191ea07870ee::t_1c2c72f58c67e9 1-35
+vendor/raytrace/src/components/trace/SpanLabel.tsx
+  s_48191ea07870ee::t_87c0d21631c9bc 1-116
+vendor/raytrace/src/components/trace/Timeline.tsx
+  s_48191ea07870ee::t_aa32a5e2841bed 1-406
+vendor/raytrace/src/components/trace/TraceMap.tsx
+  s_48191ea07870ee::t_e3e4aabc69ce33 1-962
+vendor/raytrace/src/components/trace/TraceToolbar.tsx
+  s_48191ea07870ee::t_a47dde6c7f30e2 1-190
+vendor/raytrace/src/components/trace/useKeyboardNav.ts
+  s_48191ea07870ee::t_e6b60010d5c649 1-106
+vendor/raytrace/src/components/trace/useResizablePanel.ts
+  s_48191ea07870ee::t_a8c87b60d01515 1-47
+vendor/raytrace/src/lib/trace/aggregation.ts
+  s_48191ea07870ee::t_d6f44ffc09f46d 1-55
+vendor/raytrace/src/lib/trace/colo.ts
+  s_48191ea07870ee::t_6f299defdda9e9 1-217
+vendor/raytrace/src/lib/trace/colors.ts
+  s_48191ea07870ee::t_3a6348da7f844d 1-43
+vendor/raytrace/src/lib/trace/critical-path.ts
+  s_48191ea07870ee::t_1de522df89f8c3 1-157
+vendor/raytrace/src/lib/trace/format.ts
+  s_48191ea07870ee::t_bce76cd25c0d2f 1-28
+vendor/raytrace/src/lib/trace/hops.ts
+  s_48191ea07870ee::t_b151543680aa00 1-92
+vendor/raytrace/src/lib/trace/indent.test.ts
+  s_48191ea07870ee::t_f99f300958121d 1-72
+vendor/raytrace/src/lib/trace/indent.ts
+  s_48191ea07870ee::t_1ee406b0140115 1-38
+vendor/raytrace/src/lib/trace/jaeger.ts
+  s_48191ea07870ee::t_ec25ef3ce7c934 1-8
+vendor/raytrace/src/lib/trace/parse.ts
+  s_48191ea07870ee::t_a995087b2fabbc 1-211
+vendor/raytrace/src/lib/trace/process.ts
+  s_48191ea07870ee::t_e04d6e2ffc6b08 1-87
+vendor/raytrace/src/lib/trace/self-time.ts
+  s_48191ea07870ee::t_208b982f324817 1-54
+vendor/raytrace/src/lib/trace/span-docs.ts
+  s_48191ea07870ee::t_b50433a265505e 1-601
+vendor/raytrace/src/lib/trace/types.ts
+  s_48191ea07870ee::t_fe03a471490152 1-149
+vendor/raytrace/src/routeTree.gen.ts
+  s_48191ea07870ee::t_3f2b325f85eb14 1-104
+vendor/raytrace/src/router.tsx
+  s_48191ea07870ee::t_25bc5ca23b686a 1-21
+vendor/raytrace/src/routes/__root.tsx
+  s_48191ea07870ee::t_78cdaa8ca7d7ac 1-82
+vendor/raytrace/src/routes/index.tsx
+  s_48191ea07870ee::t_7f0c40b04ff5aa 1-7
+vendor/raytrace/src/routes/traces/$traceId.tsx
+  s_48191ea07870ee::t_15ed8a31b5286b 1-338
+vendor/raytrace/src/routes/traces/index.tsx
+  s_48191ea07870ee::t_6d3fc3fa676141 1-72
+vendor/raytrace/src/store/raytrace.ts
+  s_48191ea07870ee::t_92cc805b336c02 1-534
+vendor/raytrace/src/styles.css
+  s_48191ea07870ee::t_66d4f37bf490cc 1-121
+vendor/raytrace/src/worker-entry.ts
+  s_48191ea07870ee::t_ca89ab775bba63 1-107
+vendor/raytrace/src/worker/access-auth.ts
+  s_48191ea07870ee::t_b33faa383e4745 1-38
+vendor/raytrace/src/worker/api.ts
+  s_48191ea07870ee::t_1a7fac9a07e599 1-138
+vendor/raytrace/src/worker/index.ts
+  s_48191ea07870ee::t_e4eaf667789347 1-7
+vendor/raytrace/tsconfig.json
+  s_48191ea07870ee::t_37180398f5bf04 1-33
+vendor/raytrace/vite.config.ts
+  s_48191ea07870ee::t_f2b6572af24839 1-93
+vendor/raytrace/vitest.config.ts
+  s_48191ea07870ee::t_a7ce3d2b43f903 1-9
+vendor/raytrace/wrangler.jsonc
+  s_48191ea07870ee::t_edb1d19042ec4c 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "76f24be70917739509d16f5319f6278bff688a5f",
+  "prompts": {},
+  "sessions": {
+    "s_48191ea07870ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009082396ffeXKnEicNrzluRoG",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

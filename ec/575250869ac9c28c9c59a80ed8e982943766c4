@@ -1,0 +1,21 @@
+.vscode/settings.json
+  s_ba35fbf4cf2ff5::t_318a05b1766f34 1-18
+.vscode/extensions.json
+  s_ba35fbf4cf2ff5::t_318a05b1766f34 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ec575250869ac9c28c9c59a80ed8e982943766c4",
+  "prompts": {},
+  "sessions": {
+    "s_ba35fbf4cf2ff5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009539e58ffe2AW5wz0TMPGefw",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
