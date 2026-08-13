@@ -1,0 +1,27 @@
+docs/TESTING.md
+  s_f677e17412da41::t_419e4e95d87f17 289
+  s_f677e17412da41::t_d5a072879ba832 297-307
+tests/playwright/kitesurfTest.ts
+  s_f677e17412da41::t_107463ed155c76 1-58
+scripts/pw-setup.mjs
+  s_f677e17412da41::t_3f395030ed4ebd 2,7-8,11,13,15,24-28,31
+  s_f677e17412da41::t_e2005cc55a7614 65-95,97
+tests/playwright/playwright.config.ts
+  s_f677e17412da41::t_986bc50d69a5c4 1-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "10df1be41b51b40faaae5651a41da0c2f5a2d678",
+  "prompts": {},
+  "sessions": {
+    "s_f677e17412da41": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_004b9a5bcffembTlSNv4UUckq4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
