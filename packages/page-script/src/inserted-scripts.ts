@@ -72,6 +72,36 @@ export interface InsertedScriptInfo {
   integrity?: string;
   nonce?: string;
   crossOrigin?: string | null;
+  written?: boolean;
+}
+
+// A document.write'd script is parser-inserted, so it runs in write order,
+// not fetch-completion order, and DOMContentLoaded waits for it. Pre-ES6
+// loaders such as tdl.js depend on both.
+let writtenChain: Promise<void> = Promise.resolve();
+let writtenPending = 0;
+
+// A written script can write more, so the drain re-checks the count instead
+// of awaiting a snapshot. On timeout DCL goes ahead without the stragglers.
+export async function drainWrittenScripts(timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + (timeoutMs > 0 ? timeoutMs : 0);
+  while (writtenPending > 0) {
+    if (Date.now() > deadline) return false;
+    const expired = new Promise<"t">((r) => {
+      nativeSetTimeout(() => r("t"), Math.max(1, deadline - Date.now()));
+    });
+    const settled = writtenChain.then(
+      () => "d" as const,
+      () => "d" as const,
+    );
+    if ((await Promise.race([settled, expired])) === "t") return false;
+    // A finished script queues its own writes synchronously, so one turn
+    // makes them visible.
+    await new Promise<void>((r) => {
+      nativeSetTimeout(r, 0);
+    });
+  }
+  return true;
 }
 
 export function fetchGatedModuleSource(url: string): Promise<string> {
@@ -138,7 +168,7 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
   const inflightKey = "inserted-script:" + url;
   resourceInflight.add(inflightKey);
 
-  void (async () => {
+  const body = async () => {
     let outcome: "load" | "error" | "silent" = "error";
     try {
       const pre = await insertedScriptAllowed(meta);
@@ -223,5 +253,19 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
         } catch {}
       }
     }
-  })();
+  };
+
+  if (info.written) {
+    writtenPending++;
+    writtenChain = writtenChain.then(body, body).then(
+      () => {
+        writtenPending--;
+      },
+      () => {
+        writtenPending--;
+      },
+    );
+    return;
+  }
+  void body();
 }
