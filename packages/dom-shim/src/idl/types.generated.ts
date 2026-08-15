@@ -1997,7 +1997,7 @@ export interface HTMLScriptElement extends HTMLElement {
   referrerPolicy: string;
   integrity: string;
   fetchPriority: string;
-  // text: string;
+  text: string;
   charset: string;
   event: string;
   htmlFor: string;
