@@ -148,6 +148,18 @@ Object.defineProperty(HTMLScriptElement, "supports", {
   },
 });
 
+// Pre-ES6 loaders build inline scripts with `el.text = code`. Without `text`
+// the script inserted with no source and never ran. Unlike textContent, the
+// setter takes a plain DOMString, so null sets the text "null".
+defineAttribute(HTMLScriptElement.prototype, "text", {
+  get() {
+    return this.textContent ?? "";
+  },
+  set(v) {
+    this.textContent = String(v);
+  },
+});
+
 defineReflectedEnum(HTMLLinkElement.prototype, "as", "as", [
   "fetch",
   "audio",

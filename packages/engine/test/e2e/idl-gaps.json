@@ -407,7 +407,6 @@
   "HTMLScriptElement.prototype.async: missing attribute",
   "HTMLScriptElement.prototype.blocking: no setter",
   "HTMLScriptElement.prototype.src: inherited, not own",
-  "HTMLScriptElement.prototype.text: missing attribute",
   "HTMLScriptElement.prototype.type: inherited, not own",
   "HTMLSelectElement.prototype.showPicker(): missing operation",
   "HTMLSelectedContentElement.prototype: does not inherit from HTMLElement.prototype",
