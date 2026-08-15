@@ -82,7 +82,7 @@ import {
   XMLNS_NS,
 } from "./util/validation.js";
 import { bumpMutationSeq } from "./mutations/seq.js";
-import { markRuntimeCreatedScript } from "./mutations/observer.js";
+import { markRuntimeCreatedScript, markWrittenScript } from "./mutations/observer.js";
 import { addListener, removeListener, dispatchOnKey } from "./events/dispatch.js";
 import {
   KsEvent,
@@ -1115,7 +1115,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       const scripts = tmp.querySelectorAll("script");
       for (let i = 0; i < scripts.length; i++) {
         const id = scripts[i]?._id;
-        if (typeof id === "number") markRuntimeCreatedScript(id);
+        if (typeof id === "number") markWrittenScript(id);
       }
       while (tmp.firstChild) host.appendChild(tmp.firstChild);
     } catch {}

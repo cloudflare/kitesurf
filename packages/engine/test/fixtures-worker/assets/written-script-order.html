@@ -1,0 +1,18 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>written-script-order</title>
+<script>
+  window.__written = [];
+  document.addEventListener("DOMContentLoaded", function () {
+    // Snapshot AT DCL: the assertion is about ordering, so reading this
+    // later would pass even if the scripts had landed afterwards.
+    window.__atDcl = window.__written.join(",");
+  });
+  // Relative src, exactly as a loader builds it (tdl: basePath + path).
+  document.write('<script src="/__fixtures/written-mod-a.js"><\/script>');
+</script>

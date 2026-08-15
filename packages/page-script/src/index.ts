@@ -100,7 +100,11 @@ import {
   stylesheetCors,
 } from "./resource-fetch.ts";
 import { resolveExternalSvgSprites, startLateSpriteSweep } from "./svg-sprites.ts";
-import { evalInsertedOnBoa, runInsertedExternalScript } from "./inserted-scripts.ts";
+import {
+  drainWrittenScripts,
+  evalInsertedOnBoa,
+  runInsertedExternalScript,
+} from "./inserted-scripts.ts";
 import { editContentEditable, editingHostOf } from "./contenteditable-input.ts";
 import {
   inlineInsertDecisionSync,
@@ -341,6 +345,10 @@ import { ksInternals } from "./internals.ts";
 import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
 
 const ISOLATE_KILL_MARKER: IsolateKillMarker = "[ks-kill]";
+
+// Bounds the pre-DCL wait for document.write'd scripts: long enough for a
+// loader's dependency chain, short enough that a dead origin can't hold DCL.
+const WRITTEN_SCRIPT_DRAIN_MS = 10_000;
 
 ksInternals.jsSpanEnter = ks_js_span_enter;
 ksInternals.jsSpanExit = ks_js_span_exit;
@@ -3321,6 +3329,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         integrity?: unknown;
         nonce?: unknown;
         crossOrigin?: unknown;
+        written?: unknown;
       };
       const src = typeof rec.src === "string" ? rec.src : "";
       const source = typeof rec.source === "string" ? rec.source : "";
@@ -3334,6 +3343,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           integrity,
           nonce,
           crossOrigin: typeof rec.crossOrigin === "string" ? rec.crossOrigin : null,
+          written: rec.written === true,
         });
         return;
       }
@@ -3529,6 +3539,15 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 
       scriptCount = scripts.length;
     }
+
+    // document.write'd scripts are parser-inserted, so DCL waits for them.
+    // Without this, a loader that writes its modules (tdl.js) has none of
+    // them defined when a ready handler runs.
+    emitNavigateDiagnostic("start", "written_scripts");
+    const writtenOk = await drainWrittenScripts(WRITTEN_SCRIPT_DRAIN_MS);
+    emitNavigateDiagnostic("end", "written_scripts");
+    bundleExec.push("written:done(ok=" + writtenOk + ")");
+
     state.setReadyState("interactive");
     dispatchLifecycle(state.document, "readystatechange", { bubbles: false });
     dispatchLifecycle(state.document, "DOMContentLoaded", {

@@ -489,6 +489,17 @@ export function markRuntimeCreatedScript(id: number): void {
   if (typeof id === "number" && id >= 0) runtimeCreatedScriptIds.add(id);
 }
 
+// A document.write'd script is parser-inserted: it must run in write order
+// and before DOMContentLoaded. An appended script has no such ordering, so
+// written scripts carry their own mark.
+const writtenScriptIds = new Set<number>();
+
+export function markWrittenScript(id: number): void {
+  if (id < 0) return;
+  runtimeCreatedScriptIds.add(id);
+  writtenScriptIds.add(id);
+}
+
 export function copyScriptStartedFlag(src: LinkishNode, clone: LinkishNode): void {
   let srcId: unknown, cloneId: unknown;
   try {
@@ -584,8 +595,9 @@ function notifyScriptInserts(insertedNode: LinkishNode, nested: LinkishNode[]): 
         : null;
     } catch {}
     executedScriptIds.add(id);
+    const written = writtenScriptIds.has(id);
     try {
-      hook({ id, src, type, source, integrity, nonce, crossOrigin });
+      hook({ id, src, type, source, integrity, nonce, crossOrigin, written });
     } catch {}
   };
   try {
