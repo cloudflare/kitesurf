@@ -1109,6 +1109,14 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       if (!host) return;
       const tmp = this.createElement("div");
       tmp.innerHTML = markup;
+      // innerHTML marks its scripts already-started, but written scripts run:
+      // pre-ES6 loaders write `<script src>` from inside a script. Marking
+      // them lets the insert hook, notified by the append below, run them.
+      const scripts = tmp.querySelectorAll("script");
+      for (let i = 0; i < scripts.length; i++) {
+        const id = scripts[i]?._id;
+        if (typeof id === "number") markRuntimeCreatedScript(id);
+      }
       while (tmp.firstChild) host.appendChild(tmp.firstChild);
     } catch {}
   }
