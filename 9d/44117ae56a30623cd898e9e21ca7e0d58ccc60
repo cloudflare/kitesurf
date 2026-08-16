@@ -19,6 +19,7 @@ packages/core/src/boa_bridge.rs
   s_cf72bc8665a55a::t_40ab7393ed13ca 1982
   s_cf72bc8665a55a::t_9ed31ba41f79e8 1555
   s_cf72bc8665a55a::t_3fe109177748ce 1150-1179,1566-1572
+  s_492d322fdb5636::t_ae7f073c483e92 2025,2030-2048
 packages/core/src/webgl/vm.rs
   s_cf72bc8665a55a::t_7cfb8144aaf8fc 118-122,364,371-373
   s_cf72bc8665a55a::t_1074e68a52c788 198,243,1782
@@ -32,6 +33,14 @@ packages/core/src/webgl/exec.rs
   "base_commit_sha": "9d44117ae56a30623cd898e9e21ca7e0d58ccc60",
   "prompts": {},
   "sessions": {
+    "s_492d322fdb5636": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff5bcdb4effed9sVCVwDFXLQ3u",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_cf72bc8665a55a": {
       "agent_id": {
         "tool": "opencode",
