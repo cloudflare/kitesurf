@@ -3,6 +3,7 @@ packages/core/src/webgl/gl.rs
   s_cf72bc8665a55a::t_73d2ec3917096b 207-209,265-267,428-429,931,936-939
 packages/core/src/boa_bridge.rs
   s_cf72bc8665a55a::t_3bd7456469a32e 1008-1014,1016-1033
+  s_492d322fdb5636::t_10b2664d6a652c 1658-1664,1981,1986-1991,1993-2001
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -10,6 +11,14 @@ packages/core/src/boa_bridge.rs
   "base_commit_sha": "1fcda873e44aba5bb72b2826ce93b8131c2bbb88",
   "prompts": {},
   "sessions": {
+    "s_492d322fdb5636": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff5bcdb4effed9sVCVwDFXLQ3u",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_cf72bc8665a55a": {
       "agent_id": {
         "tool": "opencode",
