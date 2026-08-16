@@ -1,0 +1,35 @@
+packages/core/src/screenshot.rs
+  s_6902c6341bfc35::t_d80c4ccadc01ab 355-360
+  s_6902c6341bfc35::t_f0c8c6bff41f0a 224-240
+  s_6902c6341bfc35::t_343671268b31bc 314-354,361-371
+packages/core/src/svg_raster.rs
+  s_6902c6341bfc35::t_ca8fc4109a90ec 142-146,150,152-158
+  s_6902c6341bfc35::t_0dafa0e2922003 89
+  s_6902c6341bfc35::t_048d11223cede9 19-20,34,37-46,51,60-61,66-74,78-88,90-102,109-141,147-149,151,159-171
+  s_6902c6341bfc35::t_4aa0d4219e95ca 172
+packages/core/src/lib.rs
+  s_6902c6341bfc35::t_eb12e29801154f 4345
+  s_6902c6341bfc35::t_0dafa0e2922003 4373,5808-5809,5817,5843
+packages/core/src/canvas2d.rs
+  s_6902c6341bfc35::t_6ef5fd0999fb32 1810
+scripts/patches/blitz-dom-0.3.0-beta.1/0109-Capture-foreignObject-regions-when-parsing-an-SVG.patch
+  s_6902c6341bfc35::t_59a682245ccc6e 1-263
+packages/engine/test/e2e/canvas-svg-image.e2e.test.ts
+  s_6902c6341bfc35::t_3d1a3902a1d6ec 120-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8602df4129eccbf334fc37e34f51e141cf3c857d",
+  "prompts": {},
+  "sessions": {
+    "s_6902c6341bfc35": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00d66f269ffetpAJALW0c2qGN0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
