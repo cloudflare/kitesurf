@@ -1,9 +1,19 @@
 packages/core/src/webgl/exec.rs
   s_492d322fdb5636::t_f6243d04f27f2f 341-346,350,357-362,368-377,383-392,547-561,564-575,577-665,667,678-680,683,685,687,690,725,728,730,732,735
+  s_9dd8789c49786c::t_0b5935bf485ad9 341-346,350,357-362,368-372,384-385
+  s_9dd8789c49786c::t_a0cd1777477e9c 648,654,658-665,667,725
+  s_9dd8789c49786c::t_95bce9edaa11d2 549-561,564-575,577-647,650,653,655,657,683,728,730
+  s_9dd8789c49786c::t_b2c865657beccd 373-377,383,386-392,547-548,649,651-652,656,678-680,685,687,690,732,735
 packages/core/src/webgl/raster.rs
   s_492d322fdb5636::t_06564864f0d221 9,149-299,477,535-542,550-562,565,570,572-573,576-577,581,584,592-605,611-614
+  s_9dd8789c49786c::t_7180288a0217b0 149-299
+  s_9dd8789c49786c::t_080da80a35972d 9
+  s_9dd8789c49786c::t_e8b7e4746ecc3e 535-542,550-562,565,570,572-573,576-577,581,584,592-605,611-614
+  s_9dd8789c49786c::t_c6ab6a4378c35f 477
 packages/core/src/webgl/vm.rs
   s_492d322fdb5636::t_36dae412342bf8 12-22
+  s_9dd8789c49786c::t_677e38426f3bf2 20
+  s_9dd8789c49786c::t_64cb78e44d9356 12-19,21-22
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -16,6 +26,14 @@ packages/core/src/webgl/vm.rs
         "tool": "opencode",
         "id": "ses_ff5bcdb4effed9sVCVwDFXLQ3u",
         "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_9dd8789c49786c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff7f85c31ffeOYEKPHEExTb524",
+        "model": "claude-opus-5"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     }
