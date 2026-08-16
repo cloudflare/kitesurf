@@ -1,5 +1,9 @@
 packages/core/src/webgl/gl.rs
   s_492d322fdb5636::t_16a31190f96772 33-66,286,357-359
+  s_492d322fdb5636::t_5a10fd86d0aaea 33,53-66
+  s_492d322fdb5636::t_3d1d883ca9f57e 286
+  s_492d322fdb5636::t_0415e1db405978 357-359
+  s_492d322fdb5636::t_7b7c289b260617 34-42
 ---
 {
   "schema_version": "authorship/3.0.0",
