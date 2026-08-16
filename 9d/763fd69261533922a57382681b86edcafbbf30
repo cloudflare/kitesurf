@@ -1,0 +1,39 @@
+packages/engine/test/fixtures-worker/assets/written-mod-a.js
+  s_cf72bc8665a55a::t_45e21ff4ca9e3f 1-5
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_cf72bc8665a55a::t_45e21ff4ca9e3f 154-155,1298-1301
+  s_cf72bc8665a55a::t_29bc511dc896d0 722-723,1203
+packages/engine/test/fixtures-worker/assets/written-script-order.html
+  s_cf72bc8665a55a::t_29bc511dc896d0 1-13
+packages/dom-shim/src/mutations/observer.ts
+  s_cf72bc8665a55a::t_2ed59c2285e7d4 382-394,444-445
+packages/dom-shim/src/document.ts
+  s_cf72bc8665a55a::t_33cc7819d8c291 71,1591
+packages/engine/test/fixtures-worker/assets/written-mod-b.js
+  s_cf72bc8665a55a::t_45e21ff4ca9e3f 1-4
+packages/page-script/src/index.ts
+  s_cf72bc8665a55a::t_39767b316080d3 53-61,2136,2145,2489-2496
+  s_cf72bc8665a55a::t_dbe7d4fe31eee5 2531-2533
+  s_cf72bc8665a55a::t_bf314a77ff2be6 2497
+packages/engine/test/e2e/written-script-order.e2e.test.ts
+  s_cf72bc8665a55a::t_a3644eab7a58f0 22-27
+  s_cf72bc8665a55a::t_2698c2dcc5bd7c 1-21,28-43
+packages/page-script/src/inserted-scripts.ts
+  s_cf72bc8665a55a::t_628ebf061f28c7 70-100,128,189-201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9d763fd69261533922a57382681b86edcafbbf30",
+  "prompts": {},
+  "sessions": {
+    "s_cf72bc8665a55a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00382b600ffeKKvCWdmK9ZTiAt",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
