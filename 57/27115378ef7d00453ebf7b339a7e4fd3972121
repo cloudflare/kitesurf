@@ -1,5 +1,6 @@
 packages/core/src/webgl/exec.rs
   s_492d322fdb5636::t_96cdbe0a7fa495 171-174,176-177,186-204
+  s_9dd8789c49786c::t_a72d857212a4ed 171-174,176-177,186-204
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -12,6 +13,14 @@ packages/core/src/webgl/exec.rs
         "tool": "opencode",
         "id": "ses_ff5bcdb4effed9sVCVwDFXLQ3u",
         "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_9dd8789c49786c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff7f85c31ffeOYEKPHEExTb524",
+        "model": "claude-opus-5"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     }
