@@ -1,0 +1,29 @@
+AGENTS.md
+  s_492d322fdb5636::t_fb543027aad5a2 580-583
+docs/WEBGL.md
+  s_492d322fdb5636::t_8ff015f8d57325 520-522,525-556
+packages/core/src/webgl/exec.rs
+  s_492d322fdb5636::t_bbe0bb576a3776 11-15,98,117,124-126,144,152-179,204,220-227,234,239-252,265-294,580-607
+packages/core/src/webgl/gl.rs
+  s_492d322fdb5636::t_f1f54550cf14cd 54,479-480,492-494,508,530,549-574
+packages/core/src/webgl/vm.rs
+  s_492d322fdb5636::t_8c67055d7d3666 97-99,1346-1353,1717
+packages/core/src/webgl_test.rs
+  s_492d322fdb5636::t_19d66d7662c27f 278-411
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e8ddb01be2149ac785349471c0ef58ecace28125",
+  "prompts": {},
+  "sessions": {
+    "s_492d322fdb5636": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff5bcdb4effed9sVCVwDFXLQ3u",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
