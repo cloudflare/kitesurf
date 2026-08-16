@@ -1,0 +1,20 @@
+packages/core/src/webgl/gl.rs
+  s_492d322fdb5636::t_7b7c289b260617 34-42,46
+  s_492d322fdb5636::t_59de44ebe59bd2 43-45,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "48987466a3f54e10c59049ae6060f1af533f2a70",
+  "prompts": {},
+  "sessions": {
+    "s_492d322fdb5636": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff5bcdb4effed9sVCVwDFXLQ3u",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
