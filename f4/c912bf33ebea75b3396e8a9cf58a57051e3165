@@ -1,0 +1,35 @@
+packages/engine/test/cookies.test.ts
+  s_971f20d9c84b2b::t_692b48424a0b1d 247-292
+packages/engine/src/cookies.ts
+  s_971f20d9c84b2b::t_f49eb4cfdf061a 50
+  s_971f20d9c84b2b::t_050bb3661a216e 28-37
+  s_971f20d9c84b2b::t_ad4e879d2fb768 64-66
+  s_971f20d9c84b2b::t_229cf2c647029b 82-97,101,103
+  s_971f20d9c84b2b::t_612e183bd3fb1f 276-277
+  s_971f20d9c84b2b::t_d7c871ff517fe3 252,255-263,265
+  s_971f20d9c84b2b::t_7925f758886949 450-459
+packages/engine/src/eval/outbound.ts
+  s_971f20d9c84b2b::t_91282aff130324 583-588,598
+  s_971f20d9c84b2b::t_0a633a8d5a640e 991-997
+  s_971f20d9c84b2b::t_1dcce365b49ab8 1455-1456
+  s_971f20d9c84b2b::t_ea6f79e8806918 589-597
+  s_971f20d9c84b2b::t_da4ee33241b51f 1022
+  s_971f20d9c84b2b::t_938fda4c464d46 932
+  s_971f20d9c84b2b::t_58f498c5ed3387 1225-1228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f4c912bf33ebea75b3396e8a9cf58a57051e3165",
+  "prompts": {},
+  "sessions": {
+    "s_971f20d9c84b2b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fea612eb5ffeSycXWkmalHV3jO",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
