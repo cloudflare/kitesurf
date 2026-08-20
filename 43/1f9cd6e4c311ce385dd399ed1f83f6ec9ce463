@@ -1,0 +1,57 @@
+packages/engine/src/rbi-protocol.ts
+  s_50d45ac3d4c7e5::t_eda6d608563221 23-28,30-32,33-34,72,75,79,82-89,91,93-94,100,127-145
+  s_50d45ac3d4c7e5::t_6d6effe308f45a 67-71,73-74,76-78,80-81,90,92,95-99,101-126
+  s_50d45ac3d4c7e5::t_4eead655f28c22 29,35-44,46-56,60,64-65
+  s_50d45ac3d4c7e5::t_2de0cfe34e7b60 57-59
+  s_50d45ac3d4c7e5::t_9309ba2a617f70 66
+  s_50d45ac3d4c7e5::t_165e8d8dbb2615 61-63
+  s_50d45ac3d4c7e5::t_4ba428d4a835f6 45
+packages/engine/src/rbi.ts
+  s_50d45ac3d4c7e5::t_99cee025a371e8 776-778,781,896,898,959-963,972-973,1348-1353
+  s_50d45ac3d4c7e5::t_b1743ba5377733 1212,1250-1260
+  s_50d45ac3d4c7e5::t_25fcdda576e8d4 26
+  s_50d45ac3d4c7e5::t_4f59e8eb4316e4 964-971
+  s_50d45ac3d4c7e5::t_930c97c02fd676 897
+  s_50d45ac3d4c7e5::t_871a3a1bbb11a4 1374-1376
+  s_50d45ac3d4c7e5::t_fd4cb99a23f375 775,779
+  s_50d45ac3d4c7e5::t_26cfd3c868fbb5 18
+packages/engine/test/rbi-resource-batch.test.ts
+  s_50d45ac3d4c7e5::t_3623a074ee742e 1,3-7,14-15,23-30,33-35,44-49,52-66,75-83,87-90,95,97,99,105-111,113-117,123,127-128,132-133,136-137,139-143,145-146,148-149,154-158,161-165,168-171,255-256
+  s_50d45ac3d4c7e5::t_60ed0ab42edc75 67-74,129-131,134-135,150-153
+  s_50d45ac3d4c7e5::t_895eecedb30821 2,8-13,36-43,50-51,84-86,102-104,112,124-126,144,147,159-160,166-167,172-213,225-254
+  s_50d45ac3d4c7e5::t_6091143ee4ce42 91-94,96,98,100-101
+  s_50d45ac3d4c7e5::t_c8cd393325fe85 216-221
+  s_50d45ac3d4c7e5::t_0c9698d0cc50cd 214-215,222-224
+packages/core/src/scene_replay.rs
+  s_50d45ac3d4c7e5::t_9b4bddc1888fdf 60-64
+  s_50d45ac3d4c7e5::t_e95015cce6e4e1 65
+  s_50d45ac3d4c7e5::t_a362c830f4c03b 216-220,223-224,228-235,237,239-243
+  s_50d45ac3d4c7e5::t_f22ba5dd94be10 311-312,314-322,324-327
+  s_50d45ac3d4c7e5::t_0bcc7a7392aec8 386-391
+  s_50d45ac3d4c7e5::t_c8642736a5fb2b 2069-2100
+  s_50d45ac3d4c7e5::t_6fd9dac079c400 371
+  s_50d45ac3d4c7e5::t_3c266d01bde7dc 2068
+  s_50d45ac3d4c7e5::t_f6f86f16bc986d 302
+  s_50d45ac3d4c7e5::t_00ee0d9917bc49 221-222,225-227
+  s_50d45ac3d4c7e5::t_bf61d54d6f950b 313
+  s_50d45ac3d4c7e5::t_fea9deaa24a0e0 356,358-362,364-365
+  s_50d45ac3d4c7e5::t_8ede244b2a275e 347-355,357,363,366-367
+  s_50d45ac3d4c7e5::t_7edc2c237dfcd1 236
+  s_50d45ac3d4c7e5::t_d0de6ddcd69d0a 1797-1817
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "431f9cd6e4c311ce385dd399ed1f83f6ec9ce463",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
