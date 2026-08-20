@@ -22,6 +22,7 @@ packages/engine/test/rbi-resource-batch.test.ts
   s_50d45ac3d4c7e5::t_6091143ee4ce42 91-94,96,98,100-101
   s_50d45ac3d4c7e5::t_c8cd393325fe85 216-221
   s_50d45ac3d4c7e5::t_0c9698d0cc50cd 214-215,222-224
+  s_a6dfb03333579b::t_17b8933c7d23b7 120
 packages/core/src/scene_replay.rs
   s_50d45ac3d4c7e5::t_9b4bddc1888fdf 60-64
   s_50d45ac3d4c7e5::t_e95015cce6e4e1 65
@@ -50,6 +51,14 @@ packages/core/src/scene_replay.rs
         "tool": "opencode",
         "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
         "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a6dfb03333579b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe0584afbffeoAB9k6DTB9mkLz",
+        "model": "@cf/qwen/qwen3.8-27b"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     }
