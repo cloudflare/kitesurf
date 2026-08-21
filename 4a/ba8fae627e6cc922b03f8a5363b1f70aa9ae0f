@@ -1,0 +1,22 @@
+packages/engine/vitest.e2e.config.mts
+  s_74bdb8d7eb50dd::t_77ae71c3252510 109
+  s_74bdb8d7eb50dd::t_3631d7ca9bd902 107-108,110-112
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_74bdb8d7eb50dd::t_835e2856c26109 24-25,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4aba8fae627e6cc922b03f8a5363b1f70aa9ae0f",
+  "prompts": {},
+  "sessions": {
+    "s_74bdb8d7eb50dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0047be798ffeo63pr3eHm9deOh",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
