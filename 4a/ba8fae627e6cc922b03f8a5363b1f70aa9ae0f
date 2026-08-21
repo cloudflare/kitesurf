@@ -3,6 +3,7 @@ packages/engine/vitest.e2e.config.mts
   s_74bdb8d7eb50dd::t_3631d7ca9bd902 107-108,110-112
 packages/engine/test/fixtures-worker/wrangler.jsonc
   s_74bdb8d7eb50dd::t_835e2856c26109 24-25,30
+  s_55a8e0ddb72b43::t_a8aa519ecd576a 29
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -10,6 +11,14 @@ packages/engine/test/fixtures-worker/wrangler.jsonc
   "base_commit_sha": "4aba8fae627e6cc922b03f8a5363b1f70aa9ae0f",
   "prompts": {},
   "sessions": {
+    "s_55a8e0ddb72b43": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fdc0043a3ffeAuozU0SOnYw1DO",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_74bdb8d7eb50dd": {
       "agent_id": {
         "tool": "opencode",
