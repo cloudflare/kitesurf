@@ -1,0 +1,33 @@
+packages/core/src/scene_decode.rs
+  s_63365f51c8df96::t_4ca7553d00b9f6 401-404,420-423
+packages/core/src/scene_record.rs
+  s_63365f51c8df96::t_4ca7553d00b9f6 1802-1807
+scripts/patches/blitz-paint-0.3.0-beta.1/0022-Paint-checkboxes-and-radios-which-blitz-never-did.patch
+  s_63365f51c8df96::t_12397c4d4b4a7a 1-98
+packages/terminal-client/tests/tty_grid.rs
+  s_63365f51c8df96::t_d1482c2051d137 454-461,479-488,491-496,499-517,520-525,527-540
+  s_63365f51c8df96::t_010b74bfb9147e 462-478,489-490,497-498,518-519,526
+packages/core/src/tty_grid.rs
+  s_63365f51c8df96::t_5297ebd717e81a 202-212,215-231
+  s_63365f51c8df96::t_110b35fea70d3b 122-130,547-549,554-560,564,609-612,701-711
+  s_63365f51c8df96::t_2a3f123e123e6b 153,184-201
+  s_63365f51c8df96::t_d1482c2051d137 213-214
+scripts/patches/anyrender-0.11.1/0002-Carry-form-control-state-on-ScenePart.patch
+  s_63365f51c8df96::t_12397c4d4b4a7a 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "da37d325f50516f3d01df2d0be9610fa94136ed8",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
