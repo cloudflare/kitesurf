@@ -8,6 +8,8 @@ packages/page-script/src/index.ts
   s_d99fa5b77d13e0::t_1f4e02cb55ddf7 138,1151-1155
 packages/page-script/src/eval-helpers.ts
   s_d99fa5b77d13e0::t_318657d6ce9006 10-11,818-837
+packages/page-script/src/resource-fetch.ts
+  s_2345a80585d890::t_30973a6c0338ee 785
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -15,6 +17,14 @@ packages/page-script/src/eval-helpers.ts
   "base_commit_sha": "ac5269f51b913203bee7669c2e86440bafa4a6c3",
   "prompts": {},
   "sessions": {
+    "s_2345a80585d890": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd7825cdaffevO3kTYiLE69X7z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_d99fa5b77d13e0": {
       "agent_id": {
         "tool": "opencode",
