@@ -33,6 +33,7 @@ packages/engine/src/eval/walk-module-graph.ts
   s_faa0a9eb9c1377::t_f0b767fd3fad02 940-944,960-961
   s_faa0a9eb9c1377::t_711996a658c92f 886-888
   s_faa0a9eb9c1377::t_060c4296272af1 825-833,841
+  s_f25a28b9ca576f::t_7f8ffce25c1998 945
 packages/engine/test/fixtures-worker/src/serve.ts
   s_faa0a9eb9c1377::t_95e4870ce275f1 787-788,1630-1635
   s_faa0a9eb9c1377::t_f64dbf96c42480 1636
@@ -51,6 +52,14 @@ packages/engine/src/eval/prefetch-wasm.ts
       "agent_id": {
         "tool": "opencode",
         "id": "ses_fe4ebff36ffegPg0ESCPudn95T",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f25a28b9ca576f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd79f44fcffeIcm0JpIPfO5rEA",
         "model": "claude-opus-5"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
