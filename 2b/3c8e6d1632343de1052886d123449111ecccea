@@ -1,0 +1,26 @@
+packages/core/src/tty_modes.rs
+  s_63365f51c8df96::t_54dab636c96ae6 1-406
+packages/core/src/lib.rs
+  s_63365f51c8df96::t_87407ad670d1be 72
+packages/terminal-client/tests/modes.rs
+  s_63365f51c8df96::t_5f9ec6ec788749 192
+  s_63365f51c8df96::t_73cd3680a74a94 1-191,193-249
+packages/scene-client/src/lib.rs
+  s_63365f51c8df96::t_87407ad670d1be 70-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2b3c8e6d1632343de1052886d123449111ecccea",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
