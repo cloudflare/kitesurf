@@ -1,0 +1,19 @@
+packages/page-script/src/eval-helpers.ts
+  s_2345a80585d890::t_b94ec2bf9f6386 824-833,836-837,841-842
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1b0c16bcf55e52621e430f2abbbea087dce91bc5",
+  "prompts": {},
+  "sessions": {
+    "s_2345a80585d890": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd7825cdaffevO3kTYiLE69X7z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
