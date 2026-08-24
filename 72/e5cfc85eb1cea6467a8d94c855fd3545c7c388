@@ -1,0 +1,32 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0024-Paint-checkboxes-and-radios-which-blitz-never-did.patch
+  s_ccf5542acfcceb::t_5617eb64a69004 1-110
+scripts/patches/blitz-paint-0.3.0-beta.1/0025-Sketch-mode-box-SVG-content-instead-of-painting-the-.patch
+  s_ccf5542acfcceb::t_5617eb64a69004 1-99
+scripts/patches/blitz-paint-0.3.0-beta.1/0023-Offset-collapsed-table-borders-to-the-table-s-conten.patch
+  s_ccf5542acfcceb::t_5617eb64a69004 1-107
+packages/core/src/scene_replay.rs
+  s_ccf5542acfcceb::t_9448ea1aff2f52 2130-2131
+  s_ccf5542acfcceb::t_1c8d840d9ae669 2150-2161
+  s_ccf5542acfcceb::t_63ebd456e1f35d 2141-2142,2147-2148
+  s_ccf5542acfcceb::t_8165509d82d180 2048-2129,2132-2140,2143-2146,2149,2162-2171
+scripts/patches/blitz-paint-0.3.0-beta.1/0022-Mark-which-part-of-an-element-each-op-paints.patch
+  s_ccf5542acfcceb::t_5617eb64a69004 1-100
+scripts/patches/blitz-paint-0.3.0-beta.1/0026-Lean-synthetic-italic-to-the-right-not-the-left.patch
+  s_ccf5542acfcceb::t_5617eb64a69004 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "72e5cfc85eb1cea6467a8d94c855fd3545c7c388",
+  "prompts": {},
+  "sessions": {
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
