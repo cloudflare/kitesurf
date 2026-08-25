@@ -1,0 +1,28 @@
+packages/dom-shim/src/window.ts
+  s_c69e5b153a693f::t_c8a51712757d36 1503,1505-1509
+packages/core/src/boa_bridge.rs
+  s_c69e5b153a693f::t_c8a51712757d36 643,667-669,699,715,720-752,1143-1147,2138-2141
+  s_c69e5b153a693f::t_dff293a76a5bcf 1280-1284,1315-1319
+  s_c69e5b153a693f::t_ba7d8a484e47d7 644-666,674-697,716-719
+  s_c69e5b153a693f::t_7715e076d7bdd3 1148-1150
+packages/engine/test/e2e/boa-realm-intrinsics.e2e.test.ts
+  s_c69e5b153a693f::t_c8a51712757d36 105-116
+packages/engine/test/e2e/window-global-scope.e2e.test.ts
+  s_c69e5b153a693f::t_c8a51712757d36 80-87,102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "632109dfb7fd2a0ea6219da08d8ad4218c21ba3d",
+  "prompts": {},
+  "sessions": {
+    "s_c69e5b153a693f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc6ec92dcffeq34jne25C1hUV9",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
