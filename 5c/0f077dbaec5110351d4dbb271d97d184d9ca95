@@ -1,0 +1,42 @@
+packages/terminal-client/Cargo.toml
+  s_63365f51c8df96::t_c767b5e24dc397 61-64
+scripts/patches/anyrender-0.11.1/0001-Add-PaintScene-begin_part-end_part.patch
+  s_63365f51c8df96::t_ad6afbdb7bb165 1-70
+packages/scene-client/Cargo.toml
+  s_63365f51c8df96::t_7add8b8bc956e8 47-49
+packages/core/Cargo.toml
+  s_63365f51c8df96::t_40b68fb7a7304c 260-263
+scripts/get-patched-vendor-crates.mjs
+  s_63365f51c8df96::t_40b68fb7a7304c 50
+packages/core/src/tty_grid.rs
+  s_63365f51c8df96::t_056e57197b87b6 33,118-121,156,170-173,488-495,524-539,552-555,561-562,572-576
+  s_63365f51c8df96::t_cc49ab1414af44 176-186
+  s_63365f51c8df96::t_20afb72c5c63d0 540-551
+  s_63365f51c8df96::t_4431e591d77e4a 556-560
+packages/terminal-client/tests/tty_grid.rs
+  s_63365f51c8df96::t_add67a1ab469b3 341-378,385-386,388,401-453
+  s_63365f51c8df96::t_20afb72c5c63d0 379-384,387,389-400
+scripts/patches/blitz-paint-0.3.0-beta.1/0021-Mark-which-part-of-an-element-each-op-paints.patch
+  s_63365f51c8df96::t_7c4fedb33c34a7 1-100
+packages/core/src/scene_decode.rs
+  s_63365f51c8df96::t_ca2483ac319acf 390-420,516-524,786-794
+  s_63365f51c8df96::t_29e01103c4e37b 795
+packages/core/src/scene_record.rs
+  s_63365f51c8df96::t_d709ce9b6b72bb 267,284-293,1015-1021,1789-1804,1806-1817
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5c0f077dbaec5110351d4dbb271d97d184d9ca95",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

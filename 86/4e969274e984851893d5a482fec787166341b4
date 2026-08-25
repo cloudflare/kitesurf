@@ -1,0 +1,26 @@
+.gitlab-ci.yml
+  s_efb0ecf5826667::t_83e63aab2654a2 1908-1909,1970-1972
+  s_efb0ecf5826667::t_e2ca76d86e826b 2149
+scripts/mr-preview.mjs
+  s_efb0ecf5826667::t_83e63aab2654a2 3,27-33,47-50,53,63,67-70
+  s_efb0ecf5826667::t_e2ca76d86e826b 17,34
+  s_efb0ecf5826667::t_c25a931cdeae08 18-20
+  s_efb0ecf5826667::t_ae3c70d4271663 37
+  s_efb0ecf5826667::t_bd493692d10142 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "864e969274e984851893d5a482fec787166341b4",
+  "prompts": {},
+  "sessions": {
+    "s_efb0ecf5826667": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc7af5d4dffeiQTSLvEAFG6ZKD",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+packages/engine/test/term-size-replies.test.ts
+  s_63365f51c8df96::t_0a911e3f576c5a 1-100
+packages/terminal-client/tests/tty_grid.rs
+  s_63365f51c8df96::t_4e6c3215d2f039 1-104,107-190
+  s_63365f51c8df96::t_bfa43bcbf132cf 105-106
+packages/engine/src/term-session.ts
+  s_63365f51c8df96::t_19e4a50e8d970d 34-46,124,126-130,133-144,146-152,808-816
+  s_63365f51c8df96::t_15f7212bc30c29 68-86,95,464
+  s_63365f51c8df96::t_9578986c3cd056 47-67,87-94,96-117,452,467-468,776-783
+  s_63365f51c8df96::t_0ee16036ed5054 118-123,125,131-132,145
+packages/engine/test/term-geometry.test.ts
+  s_63365f51c8df96::t_11a2379816a50c 1-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "492ff8d4aa0dee425306c9bf8ba602ccb9d33bcc",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

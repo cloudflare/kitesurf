@@ -1,0 +1,26 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_6f730873786f43::t_3e1936398c9b45 1996
+  s_6f730873786f43::t_765a7b8cea4cb4 2684
+  s_6f730873786f43::t_7c6ff4d8d5c938 134-163
+  s_6f730873786f43::t_7c86511105c347 2674-2677,2682
+  s_6f730873786f43::t_5b870a4268e935 164
+packages/engine/test/e2e/fixture-script-escaping.e2e.test.ts
+  s_6f730873786f43::t_00d5a42c3c0f47 49-53,55
+  s_6f730873786f43::t_9d4037d9cbb6ef 1-48,54,56-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b447de033a2db0022ffdfdd39d943289544aa97d",
+  "prompts": {},
+  "sessions": {
+    "s_6f730873786f43": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fde6c232affeH40srv0sUr3Gg3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

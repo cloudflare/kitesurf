@@ -1,0 +1,19 @@
+packages/engine/src/eval/walk-module-graph.ts
+  s_a0b8912ece8d4a::t_b101207e68847d 886-898,907
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d2c1eec0942116a42d60bf93942d3022bdce18ee",
+  "prompts": {},
+  "sessions": {
+    "s_a0b8912ece8d4a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fda1f59d5ffeO6vEx11OvHt0jo",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

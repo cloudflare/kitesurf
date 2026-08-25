@@ -1,0 +1,29 @@
+packages/terminal-client/src/bin/ks-tty.rs
+  s_63365f51c8df96::t_b2dc454d273d79 1,3-4,9,12-17
+packages/terminal-client/src/lib.rs
+  s_63365f51c8df96::t_3fbc28cb7ec1da 12
+packages/terminal-client/src/tty_app.rs
+  s_63365f51c8df96::t_348e2f88045252 10-20
+  s_63365f51c8df96::t_3fbc28cb7ec1da 1-9,21-431
+packages/terminal-client/src/main.rs
+  s_63365f51c8df96::t_0c6f1331f1d29e 533-543
+  s_63365f51c8df96::t_b2dc454d273d79 76-83,87,91-98,140,182-183
+  s_63365f51c8df96::t_cd068a33cd2f73 245-249,251-252
+  s_63365f51c8df96::t_8a37d56a509cc2 250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ce09cd197c39c71dada3d36bfc9113b7454d385f",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
