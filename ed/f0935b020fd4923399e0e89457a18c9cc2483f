@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0110-kitesurf-bound-shadow-child-damage-lookup.patch
+  s_41e3e7b00d6364::t_173e186a1ffce3 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "edf0935b020fd4923399e0e89457a18c9cc2483f",
+  "prompts": {},
+  "sessions": {
+    "s_41e3e7b00d6364": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc7aeae9dffesVfzIvsTCdccZz",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
