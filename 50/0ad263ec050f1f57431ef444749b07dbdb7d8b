@@ -8,6 +8,8 @@ packages/dom-shim/src/index.ts
   s_482f083621a856::t_2dfdd1b5553ea2 964
 packages/engine/test/e2e/webmcp.e2e.test.ts
   s_482f083621a856::t_2dfdd1b5553ea2 280-336
+docs/WEBMCP.md
+  s_482f083621a856::t_755a8afee982d9 15-23,93
 ---
 {
   "schema_version": "authorship/3.0.0",
