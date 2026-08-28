@@ -1,0 +1,21 @@
+packages/engine/package.json
+  s_f78b72afa9dc2e::t_ff6eb634909554 44
+pnpm-lock.yaml
+  s_f78b72afa9dc2e::t_82634665cbb605 136-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "75521e83958923ff16a2dfdc8bf907d58fb4104b",
+  "prompts": {},
+  "sessions": {
+    "s_f78b72afa9dc2e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc86de6bbffeYtq7dIp5NO0iTu",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
