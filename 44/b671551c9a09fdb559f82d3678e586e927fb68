@@ -1,0 +1,36 @@
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_a2feeea1972b1e::t_c37fc10cc3f0e2 99
+  s_a2feeea1972b1e::t_23c5daed775d0f 1-60,101-146
+  s_a2feeea1972b1e::t_aa0297d8ecc9cc 172-174
+  s_a2feeea1972b1e::t_d8532bd6a52443 176
+  s_a2feeea1972b1e::t_43c5d39511a3d8 61-83,147-156,160
+  s_a2feeea1972b1e::t_62b5a686392ad7 84-98,100,162-171,175
+  s_a2feeea1972b1e::t_ba80e84566bb02 157-159
+  s_a2feeea1972b1e::t_6c8913efe027c1 161
+packages/core/src/sticky.rs
+  s_a2feeea1972b1e::t_9a90ef6b32753a 227-231
+  s_a2feeea1972b1e::t_a4a97255c2925b 265
+  s_a2feeea1972b1e::t_a26d0028be6051 267
+  s_a2feeea1972b1e::t_ea77291fdf7328 203-205
+  s_a2feeea1972b1e::t_184104045c984a 212,220,226,233
+  s_a2feeea1972b1e::t_681610536cf8a2 239,266
+  s_a2feeea1972b1e::t_a7004e6f3a6d60 241-264
+scripts/patches/blitz-dom-0.3.0-beta.1/0120-Fix-inline-positioning-and-hit-testing.patch
+  s_a2feeea1972b1e::t_46d47a65bde3de 1-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "44b671551c9a09fdb559f82d3678e586e927fb68",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
