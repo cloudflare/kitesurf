@@ -1,0 +1,59 @@
+packages/engine/test/e2e/layout-hover-regressions.e2e.test.ts
+  s_a2feeea1972b1e::t_289ab40fcc1d37 271
+  s_a2feeea1972b1e::t_2347751f3534c3 359-360
+  s_a2feeea1972b1e::t_5dfcc560d148b4 95-98
+  s_a2feeea1972b1e::t_e4b54c5c78e5ef 100-101
+  s_a2feeea1972b1e::t_764b004d0080eb 375-378
+  s_a2feeea1972b1e::t_ea461759998c22 120-128,273-284
+  s_a2feeea1972b1e::t_dd884e04daf187 112
+  s_a2feeea1972b1e::t_591b7e8a371059 92
+  s_a2feeea1972b1e::t_a2d1fe3a4a719c 365-369
+  s_a2feeea1972b1e::t_954265840573f6 335-339
+  s_a2feeea1972b1e::t_81e175dc36d795 158-160
+  s_a2feeea1972b1e::t_eb8f97594cf355 332-333
+  s_a2feeea1972b1e::t_1c42db67dd7af5 1-91,164-243,252,312-315,334,355-358,370,373-374,379-382
+  s_a2feeea1972b1e::t_c6e7a76b8d1aa9 94,129-138,157,291-310,319
+  s_a2feeea1972b1e::t_11e9b049473ff2 285,290,311
+  s_a2feeea1972b1e::t_3a322e49c05191 162-163
+  s_a2feeea1972b1e::t_0c8da722843d3d 244-245
+  s_a2feeea1972b1e::t_98a170207efe39 316-317
+  s_a2feeea1972b1e::t_39771cc5b04fc6 250-251
+  s_a2feeea1972b1e::t_6f1b0c08b3cd52 371-372
+  s_a2feeea1972b1e::t_13b5fd5e803050 115,150,272,354
+  s_a2feeea1972b1e::t_33e14691ac5474 93,99,102-111,113-114,116-119,139-149,151-154,156,161,246-249,258-270,318,324,328-331,340-353,361-364
+  s_a2feeea1972b1e::t_208807f987635b 286-289
+  s_a2feeea1972b1e::t_3432065be3957a 325-327
+  s_a2feeea1972b1e::t_edd75dd684a88c 253-257
+  s_a2feeea1972b1e::t_a3f412760c7415 155
+  s_a2feeea1972b1e::t_6e8c1dc5cec037 320-323
+packages/core/src/sticky.rs
+  s_a2feeea1972b1e::t_184104045c984a 212,220,226,233,239
+  s_a2feeea1972b1e::t_a26d0028be6051 243
+  s_a2feeea1972b1e::t_ea77291fdf7328 203-205
+  s_a2feeea1972b1e::t_9a90ef6b32753a 227-231
+  s_a2feeea1972b1e::t_a4a97255c2925b 240-242
+scripts/patches/blitz-dom-0.3.0-beta.1/0120-Fix-inline-positioning-and-hit-testing.patch
+  s_a2feeea1972b1e::t_46d47a65bde3de 1-103
+scripts/patches/taffy-0.12.2/0014-Fix-float-height-and-placement.patch
+  s_a2feeea1972b1e::t_8848d90ae804b7 1-43
+scripts/patches/blitz-dom-0.3.0-beta.1/0119-Fix-font-and-inline-metrics.patch
+  s_a2feeea1972b1e::t_46d47a65bde3de 1-299
+scripts/patches/parley-0.10.0/0007-Preserve-parent-line-height-for-inline-boxes.patch
+  s_a2feeea1972b1e::t_39cc27af6f7a5a 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e10d8633f3b4d3d589bb9b4e2329bfb8019e8caa",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

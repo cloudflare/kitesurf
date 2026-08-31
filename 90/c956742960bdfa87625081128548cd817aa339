@@ -1,0 +1,27 @@
+packages/core/src/sticky.rs
+  s_a2feeea1972b1e::t_9a90ef6b32753a 227-231
+  s_a2feeea1972b1e::t_184104045c984a 212,220,226,233,239
+  s_a2feeea1972b1e::t_a26d0028be6051 243
+  s_a2feeea1972b1e::t_ea77291fdf7328 203-205
+  s_a2feeea1972b1e::t_a4a97255c2925b 240-242
+scripts/patches/blitz-dom-0.3.0-beta.1/0120-Fix-inline-positioning-and-hit-testing.patch
+  s_a2feeea1972b1e::t_46d47a65bde3de 1-103
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_a2feeea1972b1e::t_23c5daed775d0f 1-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "90c956742960bdfa87625081128548cd817aa339",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

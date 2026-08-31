@@ -1,0 +1,114 @@
+packages/engine/test/e2e/incremental-shadow-insert.e2e.test.ts
+  s_74bdb8d7eb50dd::t_bbaa87faaea584 1-50
+scripts/patches/blitz-dom-0.3.0-beta.1/0108-kitesurf-propagate-damage-through-shadow-roots.patch
+  s_74bdb8d7eb50dd::t_7a681bacf8f824 1-63
+packages/engine/test/e2e/root-element-metrics.e2e.test.ts
+  s_a2feeea1972b1e::t_72e1c96eb5a350 58-88
+scripts/patches/parley-0.10.0/0007-Preserve-parent-line-height-for-inline-boxes.patch
+  s_a2feeea1972b1e::t_39cc27af6f7a5a 1-28
+scripts/patches/blitz-dom-0.3.0-beta.1/0115-Preserve-parent-font-strut-in-inline-lines.patch
+  s_a2feeea1972b1e::t_3922ceb4597062 1-10,13-104
+  s_a2feeea1972b1e::t_16efd0c18b1be2 11-12
+scripts/patches/blitz-dom-0.3.0-beta.1/0111-Apply-relative-insets-to-atomic-inline-boxes.patch
+  s_a2feeea1972b1e::t_608deb7a30b419 1-9,12-52
+  s_a2feeea1972b1e::t_31da70af7a071d 10-11
+scripts/patches/blitz-dom-0.3.0-beta.1/0112-Resolve-inline-relative-percentages-against-containi.patch
+  s_a2feeea1972b1e::t_407fd290ac2ccf 1-36
+scripts/patches/blitz-dom-0.3.0-beta.1/0117-Preserve-parent-line-height-around-inline-boxes.patch
+  s_a2feeea1972b1e::t_39cc27af6f7a5a 1-46,48-56,58-68
+  s_a2feeea1972b1e::t_a368d66037231c 47,57
+scripts/patches/blitz-dom-0.3.0-beta.1/0114-Apply-vertical-relative-insets-in-the-host-fixup.patch
+  s_a2feeea1972b1e::t_215c69ada4d844 1-10,12-54
+  s_a2feeea1972b1e::t_407fd290ac2ccf 11
+packages/engine/test/e2e/layout-hover-regressions.e2e.test.ts
+  s_a2feeea1972b1e::t_c6e7a76b8d1aa9 94,129-138,157,291-310,319
+  s_a2feeea1972b1e::t_ea461759998c22 120-128,273-284
+  s_a2feeea1972b1e::t_13b5fd5e803050 115,150,272,354
+  s_a2feeea1972b1e::t_1c42db67dd7af5 1-91,164-243,252,312-315,334,355-358,370,373-374,379-382
+  s_a2feeea1972b1e::t_289ab40fcc1d37 271
+  s_a2feeea1972b1e::t_11e9b049473ff2 285,290,311
+  s_a2feeea1972b1e::t_33e14691ac5474 93,99,102-111,113-114,116-119,139-149,151-154,156,161,246-249,258-270,318,324,328-331,340-353,361-364
+  s_a2feeea1972b1e::t_208807f987635b 286-289
+  s_a2feeea1972b1e::t_591b7e8a371059 92
+  s_a2feeea1972b1e::t_5dfcc560d148b4 95-98
+  s_a2feeea1972b1e::t_e4b54c5c78e5ef 100-101
+  s_a2feeea1972b1e::t_dd884e04daf187 112
+  s_a2feeea1972b1e::t_a3f412760c7415 155
+  s_a2feeea1972b1e::t_81e175dc36d795 158-160
+  s_a2feeea1972b1e::t_3a322e49c05191 162-163
+  s_a2feeea1972b1e::t_0c8da722843d3d 244-245
+  s_a2feeea1972b1e::t_39771cc5b04fc6 250-251
+  s_a2feeea1972b1e::t_edd75dd684a88c 253-257
+  s_a2feeea1972b1e::t_98a170207efe39 316-317
+  s_a2feeea1972b1e::t_6e8c1dc5cec037 320-323
+  s_a2feeea1972b1e::t_3432065be3957a 325-327
+  s_a2feeea1972b1e::t_eb8f97594cf355 332-333
+  s_a2feeea1972b1e::t_954265840573f6 335-339
+  s_a2feeea1972b1e::t_2347751f3534c3 359-360
+  s_a2feeea1972b1e::t_a2d1fe3a4a719c 365-369
+  s_a2feeea1972b1e::t_6f1b0c08b3cd52 371-372
+  s_a2feeea1972b1e::t_764b004d0080eb 375-378
+scripts/patches/taffy-0.12.2/0014-Include-block-end-inset-in-float-height.patch
+  s_a2feeea1972b1e::t_414a090752c62e 1-25
+scripts/patches/taffy-0.12.2/0016-Keep-float-child-margins-in-the-float-height.patch
+  s_a2feeea1972b1e::t_38ce4bd74a0b61 1-16,18-24
+  s_a2feeea1972b1e::t_52988d025b7a79 17,25
+scripts/patches/blitz-dom-0.3.0-beta.1/0110-Fix-padded-inline-root-hit-testing.patch
+  s_a2feeea1972b1e::t_414a090752c62e 1-58
+packages/page-script/src/index.ts
+  s_a2feeea1972b1e::t_28e73fe680f66a 4107-4118
+  s_a2feeea1972b1e::t_9d11ae30a75273 4162-4163
+  s_a2feeea1972b1e::t_2303b87f187c10 4167-4169
+  s_a2feeea1972b1e::t_fb6102a6323be9 4154,4159-4161,4164-4166,4170
+  s_a2feeea1972b1e::t_5d3520a174377f 4106
+packages/core/src/sticky.rs
+  s_a2feeea1972b1e::t_9a90ef6b32753a 227-231
+  s_a2feeea1972b1e::t_ea77291fdf7328 203-205
+  s_a2feeea1972b1e::t_184104045c984a 212,220,226,233,239
+  s_a2feeea1972b1e::t_a4a97255c2925b 240-242
+scripts/patches/taffy-0.12.2/0015-Preserve-preceding-bottom-margin-for-floats.patch
+  s_a2feeea1972b1e::t_df718d634440a8 1-26
+packages/core/src/lib.rs
+  s_a2feeea1972b1e::t_228ca51acb85ef 3114-3133,3138
+scripts/patches/blitz-dom-0.3.0-beta.1/0109-Support-CSS-font-format-strings.patch
+  s_a2feeea1972b1e::t_414a090752c62e 1-79
+scripts/patches/blitz-dom-0.3.0-beta.1/0113-Use-inline-container-size-for-relative-percentages.patch
+  s_a2feeea1972b1e::t_f7a55c106fb0eb 1-16,18-33
+  s_a2feeea1972b1e::t_407fd290ac2ccf 17
+scripts/patches/blitz-dom-0.3.0-beta.1/0116-Include-parent-strut-for-atomic-inline-boxes.patch
+  s_a2feeea1972b1e::t_16efd0c18b1be2 11-13,59
+  s_a2feeea1972b1e::t_fd13138112cb41 80
+  s_a2feeea1972b1e::t_33fcc1cf1bcdc8 1-10,14-58,60-79,81-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1710983c60ac20eb49d910a0af285e197122fb6f",
+  "prompts": {},
+  "sessions": {
+    "s_55a8e0ddb72b43": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fdc0043a3ffeAuozU0SOnYw1DO",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_74bdb8d7eb50dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0047be798ffeo63pr3eHm9deOh",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
