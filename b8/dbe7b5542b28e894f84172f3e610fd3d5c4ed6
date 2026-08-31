@@ -26,6 +26,7 @@ packages/engine/src/cdp/page.ts
   s_28a60e7a7f3371::t_ef5ba1366d9d1a 5489-5495
 packages/engine/src/cdp/webmcp.ts
   s_28a60e7a7f3371::t_afdfb847603c5c 49,425,441-442,451-452
+  s_0d393191fb3ea8::t_133492dcc619a3 447-450
 packages/page-script/src/resource-fetch.ts
   s_28a60e7a7f3371::t_5b9eeaddf6a1d2 691-693,809
 packages/page-script/src/eval-helpers.ts
@@ -58,6 +59,14 @@ packages/engine/src/eval/outbound.ts
   "base_commit_sha": "b8dbe7b5542b28e894f84172f3e610fd3d5c4ed6",
   "prompts": {},
   "sessions": {
+    "s_0d393191fb3ea8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fa8f2f114ffev5eyPtXqAZoWoU",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_28a60e7a7f3371": {
       "agent_id": {
         "tool": "opencode",
