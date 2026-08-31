@@ -1,0 +1,21 @@
+packages/page-script/src/paint.ts
+  s_a2feeea1972b1e::t_8c63f978cd4eaa 34,37-38,45-46,100,128,164,201,236
+packages/page-script/src/index.ts
+  s_a2feeea1972b1e::t_8c63f978cd4eaa 4110-4114,4170,4368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "99165009413d385a7b1d9f5e59be9472fbd04af4",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
