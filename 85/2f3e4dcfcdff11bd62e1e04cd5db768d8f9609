@@ -1,0 +1,23 @@
+scripts/patches/taffy-0.12.2/0014-Fix-float-height-and-placement.patch
+  s_a2feeea1972b1e::t_6c695cd715560b 6-8
+scripts/patches/blitz-dom-0.3.0-beta.1/0119-Fix-font-and-inline-metrics.patch
+  s_a2feeea1972b1e::t_6c695cd715560b 6-8
+scripts/patches/blitz-dom-0.3.0-beta.1/0120-Fix-inline-positioning-and-hit-testing.patch
+  s_a2feeea1972b1e::t_6c695cd715560b 6-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "852f3e4dcfcdff11bd62e1e04cd5db768d8f9609",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
