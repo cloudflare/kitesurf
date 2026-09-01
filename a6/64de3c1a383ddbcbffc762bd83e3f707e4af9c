@@ -1,0 +1,23 @@
+packages/core/src/boa_bridge.rs
+  s_f977f0f910b2b1::t_1ee87a366cb4c6 1178-1182
+  s_f977f0f910b2b1::t_85cb755f5f9f36 1183-1184
+packages/engine/test/e2e/demos/boa-evalless-phase2.e2e.test.ts
+  s_f977f0f910b2b1::t_05af542af6500e 49-59
+  s_f977f0f910b2b1::t_1ee87a366cb4c6 60-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a664de3c1a383ddbcbffc762bd83e3f707e4af9c",
+  "prompts": {},
+  "sessions": {
+    "s_f977f0f910b2b1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb817b8e3ffemNhmAdrY3UMtPl",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
