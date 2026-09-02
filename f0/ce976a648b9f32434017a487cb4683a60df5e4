@@ -1,0 +1,19 @@
+packages/core/src/screenshot.rs
+  s_be5ad8f8674f9e::t_a82209bf99d19d 7-8,113-114,116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f0ce976a648b9f32434017a487cb4683a60df5e4",
+  "prompts": {},
+  "sessions": {
+    "s_be5ad8f8674f9e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f9d62aad9ffeYpg6495EPb62Vq",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
