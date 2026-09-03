@@ -424,6 +424,7 @@ scripts/patches/blitz-dom-0.3.0-beta.1/0123-Snap-terminal-table-tracks-with-cell
   s_91836f22884cfe::t_213e60e027bc19 573-574
 packages/engine/vitest.e2e.config.mts
   s_91836f22884cfe::t_5ad62df0c267f1 117
+  s_91836f22884cfe::t_ade2a094b6ea4b 102
 packages/tty-css-preview/extension/manifest.json
   s_91836f22884cfe::t_28126e54784f4c 10-11
   s_91836f22884cfe::t_f3c8e10b49d89d 1-4,6-9,12-15,21-27
