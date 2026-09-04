@@ -1,0 +1,69 @@
+scripts/patches/blitz-paint-0.3.0-beta.2/0001-Kitesurf-baseline-span-decorations-canvas-background.patch
+  s_d69d163eac266a::t_e41672697fd72d 4-5,7,9-11,14-18,22,34,37-39,47-55,63-81,84-89,92,96,105,121-123,125-127,130-132,134,136-143,150,153,163-164,166,168-169,174-181,183,186,190-191,193-195,199-203,205-207,209-226,229-230,233-244,252,255-320,322-323,326-328,339,342,401,473,554,558,617-624
+scripts/patches/blitz-paint-0.3.0-beta.2/0002-Skip-shadow-root-nodes-in-render_node-new-NodeData-v.patch
+  s_d69d163eac266a::t_b235504865bd53 4-5,7,9-10,13,16-17,19-20
+scripts/patches/blitz-paint-0.3.0-beta.2/0003-Paint-input-type-range-track-filled-span-thumb.patch
+  s_d69d163eac266a::t_9cae49f9a5d52e 4
+scripts/patches/blitz-paint-0.3.0-beta.2/0004-Paint-a-UA-dropdown-chevron-on-closed-select-boxes.patch
+  s_d69d163eac266a::t_628a579b8a4787 4
+scripts/patches/blitz-paint-0.3.0-beta.2/0005-Form-controls-color-from-CSS-accent-color-default-ac.patch
+  s_d69d163eac266a::t_ab113d5a7a2bc1 4-5
+scripts/patches/blitz-paint-0.3.0-beta.2/0006-Clip-replaced-svg-painting-to-the-element-s-content-.patch
+  s_d69d163eac266a::t_9cbc8c4825c11e 4,18,21
+scripts/patches/blitz-paint-0.3.0-beta.2/0007-Skip-painting-background-layers-with-clip-text.patch
+  s_d69d163eac266a::t_54e23b16a04878 4,17-18,21,24,28-29,31-34,41,44,55-56
+scripts/patches/blitz-paint-0.3.0-beta.2/0008-Apply-the-re-homed-abspos-translate-when-painting-ch.patch
+  s_d69d163eac266a::t_7ed8b5fae37895 4-5,25-26,29,32-35,48-51,53-54,64,71-72,74-75
+scripts/patches/blitz-paint-0.3.0-beta.2/0009-Inline-svg-without-a-viewBox-paints-1-1-not-object-f.patch
+  s_d69d163eac266a::t_3357b2b7c5dd1c 4-5,23,26,99
+scripts/patches/blitz-paint-0.3.0-beta.2/0010-inset-box-shadow-isolate-the-shadow-group-so-DestOut.patch
+  s_d69d163eac266a::t_d364300d148c9f 4-5
+scripts/patches/blitz-paint-0.3.0-beta.2/0011-Effect-layer-covers-the-painted-subtree-not-just-the.patch
+  s_d69d163eac266a::t_2a97f8701cbd02 4-5,22,25,39
+scripts/patches/blitz-paint-0.3.0-beta.2/0012-Expand-the-effect-layer-AFTER-unioning-the-painted-s.patch
+  s_d69d163eac266a::t_a9a42cb9bf7e0a 4-5,15,18,31,36,39
+scripts/patches/blitz-paint-0.3.0-beta.2/0013-Paint-glyphs-with-webkit-text-fill-color-when-it-is-.patch
+  s_d69d163eac266a::t_363b6a8e41c0c7 4-5,18-19,22,25-74
+scripts/patches/blitz-paint-0.3.0-beta.2/0014-Honour-empty-clip-regions-and-the-legacy-clip-proper.patch
+  s_d69d163eac266a::t_9a2731e0bd132b 4,35,38,66,76
+scripts/patches/blitz-paint-0.3.0-beta.2/0015-Budget-open-layers-by-depth-not-cumulative-pushes.patch
+  s_d69d163eac266a::t_640dbec70e1c4f 4
+scripts/patches/blitz-paint-0.3.0-beta.2/0016-Skip-painting-a-subtree-behind-an-empty-clip-region.patch
+  s_d69d163eac266a::t_dbd5b118ce34f5 4,39,42,51,91
+scripts/patches/blitz-paint-0.3.0-beta.2/0017-Cull-against-a-node-local-bbox-instead-of-a-doubled-.patch
+  s_d69d163eac266a::t_12210fd3d3c613 4,30-31,34,37-38,42,47
+scripts/patches/blitz-paint-0.3.0-beta.2/0018-paint-skip-border-and-background-work-that-draws-not.patch
+  s_d69d163eac266a::t_b4a226cef449d4 4-5,19-21,24,27-29,37,59,61,64,68-69
+scripts/patches/blitz-paint-0.3.0-beta.2/0019-paint-stop-building-clip-BezPaths-nothing-reads.patch
+  s_d69d163eac266a::t_0162db2ec8bfe9 4,22,25,43,62,71,74
+scripts/patches/blitz-paint-0.3.0-beta.2/0020-paint-stop-resolving-styles-the-common-element-disca.patch
+  s_d69d163eac266a::t_2c6330c4dcc253 4-5,21-22,25,28,41
+scripts/patches/blitz-paint-0.3.0-beta.2/0021-Draw-collapsed-table-borders-per-cell-not-per-gridli.patch
+  s_d69d163eac266a::t_000d59ab754ee8 4,27-28,31,34,38-47,49-53,55-70,72-94,96-111,113-140,145,149-158
+scripts/patches/blitz-paint-0.3.0-beta.2/0022-Lean-synthetic-italic-to-the-right-not-the-left.patch
+  s_d69d163eac266a::t_dd40cdd3f20ba4 4,27-28,31,34,38-39,45-46
+scripts/patches/blitz-paint-0.3.0-beta.2/0023-Let-a-re-homed-abspos-escape-its-flow-parent-s-overf.patch
+  s_d69d163eac266a::t_d675ba51bc2385 4-5,38-39,42,45,50,62,70-71,73,77,79-80,84,99,101-102
+scripts/patches/blitz-paint-0.3.0-beta.2/0024-Offset-collapsed-table-borders-to-the-table-s-conten.patch
+  s_d69d163eac266a::t_d67c0875a2b454 4-5,31-32,35,38,43,49-52,54-60
+scripts/patches/stylo_taffy-0.3.0-beta.2/0001-Strip-sticky-insets-from-the-taffy-style-conversion.patch
+  s_d69d163eac266a::t_496e1a87f4aab2 4,30,33,60,63
+scripts/patches/stylo_taffy-0.3.0-beta.2/0002-Strip-inset-properties-from-position-static-boxes-to.patch
+  s_d69d163eac266a::t_cc6be8d450dfbb 4,23,26,42,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7db48cac4dfaefba28bfbe09185da3d427aeefea",
+  "prompts": {},
+  "sessions": {
+    "s_d69d163eac266a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f91703104ffekhGyumDXlphoP8",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
