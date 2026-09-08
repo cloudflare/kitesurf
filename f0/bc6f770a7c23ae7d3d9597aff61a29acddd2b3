@@ -1,0 +1,19 @@
+packages/page-script/src/globals.ts
+  s_6aaa3704780b80::t_6244345006822e 349
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f0bc6f770a7c23ae7d3d9597aff61a29acddd2b3",
+  "prompts": {},
+  "sessions": {
+    "s_6aaa3704780b80": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7fb4f1bfffetWy0uMcVTwuQPB",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
