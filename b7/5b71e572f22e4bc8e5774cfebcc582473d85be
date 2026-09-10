@@ -1,0 +1,25 @@
+packages/engine/test/e2e/workerd-native-browser.e2e.test.ts
+  s_3b94de117771b1::t_cc56c1d25393b9 105,110
+  s_3b94de117771b1::t_4c21f3dadbc87e 109
+  s_3b94de117771b1::t_3a9d1aec664f1e 111-113
+packages/engine/src/eval/outbound.ts
+  s_3b94de117771b1::t_4c21f3dadbc87e 721
+  s_3b94de117771b1::t_1f365e5f712c63 720
+  s_3b94de117771b1::t_c61e466a3d60e2 722-723
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b75b71e572f22e4bc8e5774cfebcc582473d85be",
+  "prompts": {},
+  "sessions": {
+    "s_3b94de117771b1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f86c3919effeBdKzL7Cxlr6FBS",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
