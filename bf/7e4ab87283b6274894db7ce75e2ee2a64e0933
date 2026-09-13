@@ -1,0 +1,30 @@
+docs/WEBMCP.md
+  s_5ca87bda0ae63d::t_aa5f213708c4aa 37-39
+packages/dom-shim/src/model-context.ts
+  s_5ca87bda0ae63d::t_aa5f213708c4aa 1029,1411-1412,1416-1436,1439-1440,1463
+  s_5ca87bda0ae63d::t_e6509b846a5176 116,1027-1028
+  s_5ca87bda0ae63d::t_f422345e23ea55 1051-1080
+packages/engine/test/fixtures-worker/assets/webmcp-declarative.html
+  s_5ca87bda0ae63d::t_f422345e23ea55 17-21,24,26-28
+  s_5ca87bda0ae63d::t_aa5f213708c4aa 23,25,29-30
+  s_5ca87bda0ae63d::t_efd092ce2332cc 22
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_5ca87bda0ae63d::t_f422345e23ea55 513-515,599-618
+  s_5ca87bda0ae63d::t_d44c6e65c6723f 619
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bf7e4ab87283b6274894db7ce75e2ee2a64e0933",
+  "prompts": {},
+  "sessions": {
+    "s_5ca87bda0ae63d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fa5fd5decffedT7g1VFT5L3rKD",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

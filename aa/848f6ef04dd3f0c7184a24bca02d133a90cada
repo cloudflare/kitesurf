@@ -1,0 +1,28 @@
+packages/core/src/lib.rs
+  s_f977f0f910b2b1::t_b98233400a00bf 4630-4633,4635,4638-4639
+  s_28c26f18957f66::t_02308ac9aaba5f 4634,4636-4637,4642-4652,4663,4666,4668,4679,4682,4684
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "aa848f6ef04dd3f0c7184a24bca02d133a90cada",
+  "prompts": {},
+  "sessions": {
+    "s_28c26f18957f66": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fab5cb769ffefuo5AEQ7a6q5ao",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f977f0f910b2b1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb817b8e3ffemNhmAdrY3UMtPl",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

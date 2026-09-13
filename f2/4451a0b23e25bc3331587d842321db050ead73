@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0109-kitesurf-rebuild-nested-shadow-layout-children.patch
+  s_41e3e7b00d6364::t_86e07cb4ba07e5 1-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f24451a0b23e25bc3331587d842321db050ead73",
+  "prompts": {},
+  "sessions": {
+    "s_41e3e7b00d6364": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc7aeae9dffesVfzIvsTCdccZz",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

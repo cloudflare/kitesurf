@@ -1,0 +1,39 @@
+packages/page-script/src/eval-helpers.ts
+  s_d99b1338b2e6ad::t_31afa0e692705c 836-840
+  s_d99b1338b2e6ad::t_7059f42d74d5f2 20,841
+packages/engine/test/e2e/trusted-fetch-metadata.e2e.test.ts
+  s_d99b1338b2e6ad::t_102b9b4c9e2df6 1-32
+packages/engine/test/e2e/resource-type-not-page-settable.e2e.test.ts
+  s_d99b1338b2e6ad::t_6e7b2c9a77ee7a 101,137-279
+  s_d99b1338b2e6ad::t_31dbe8fb572a5c 103-108,112-114,116-120,127,129-130,132-136
+  s_d99b1338b2e6ad::t_97f26d43764c3e 109-111,115,121-126,128,131
+  s_d99b1338b2e6ad::t_a6eafd775bac10 29,68-100
+  s_d99b1338b2e6ad::t_cba51d158caf96 102
+packages/page-script/src/defer-shim.ts
+  s_d99b1338b2e6ad::t_2dc24cdc71b950 83-86,176
+packages/engine/test/e2e/cors-bypass-matrix.e2e.test.ts
+  s_d99b1338b2e6ad::t_31afa0e692705c 21-23
+packages/page-script/src/trusted-fetch.ts
+  s_d99b1338b2e6ad::t_7059f42d74d5f2 35-43,49-55,65-67
+  s_d99b1338b2e6ad::t_2dc24cdc71b950 44-48,59,75-79
+  s_d99b1338b2e6ad::t_05d11d7d3965ce 56-58
+  s_d99b1338b2e6ad::t_6ac959557e7fe4 60-61
+docs/CORS.md
+  s_d99b1338b2e6ad::t_31afa0e692705c 96-100,105-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "db3afda2249e55e37c6c9a07f0fd88c51402d91a",
+  "prompts": {},
+  "sessions": {
+    "s_d99b1338b2e6ad": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe52051e6ffe5b3Ay8nnxWhl15",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

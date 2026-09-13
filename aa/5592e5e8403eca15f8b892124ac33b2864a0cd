@@ -1,0 +1,44 @@
+packages/dom-shim/src/state.ts
+  s_91836f22884cfe::t_e964bbfd83595b 65
+packages/engine/src/term-session.ts
+  s_91836f22884cfe::t_37f82808ec333e 1084-1087
+  s_91836f22884cfe::t_022c2c6a70a594 1088-1092
+  s_91836f22884cfe::t_448d9033ecfdd0 334-342,928-931
+packages/engine/test/term-geometry.test.ts
+  s_91836f22884cfe::t_448d9033ecfdd0 3-7,30-38
+  s_91836f22884cfe::t_2724b1906bb31d 39-40
+docs/TERMINAL.md
+  s_91836f22884cfe::t_3602bad3df6492 294-297
+packages/dom-shim/src/layout/scroll.ts
+  s_91836f22884cfe::t_e964bbfd83595b 37-41
+  s_91836f22884cfe::t_1fafb41a8bc175 165-170,175-176,195-200
+  s_91836f22884cfe::t_ac29d2534e5459 222-227,235,238,240
+packages/engine/test/e2e/tty-wheel-grid.e2e.test.ts
+  s_91836f22884cfe::t_0cc266c2316fe7 1-5,7-35,37-38,40,42-43,45-50
+  s_91836f22884cfe::t_369226abdce4b8 6
+  s_91836f22884cfe::t_5da8e60ef26cdd 36,39,41,44
+packages/page-script/src/paint.ts
+  s_91836f22884cfe::t_e964bbfd83595b 186-187,191-194
+packages/page-script/src/index.ts
+  s_91836f22884cfe::t_74ded7d2523ed9 4471,4473
+  s_91836f22884cfe::t_1a12ad3f5794b2 4474,4476
+  s_91836f22884cfe::t_1fafb41a8bc175 1787-1788
+  s_91836f22884cfe::t_e964bbfd83595b 2136-2141
+  s_91836f22884cfe::t_6bc3b73cfffea3 4472
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "aa5592e5e8403eca15f8b892124ac33b2864a0cd",
+  "prompts": {},
+  "sessions": {
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

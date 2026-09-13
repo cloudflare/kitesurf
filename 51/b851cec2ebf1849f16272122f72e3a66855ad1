@@ -1,0 +1,22 @@
+packages/core/src/webgl/vm.rs
+  s_5c7118c0d7b17f::t_22a16aaec8990e 1947-1950,1954-1955
+  s_5c7118c0d7b17f::t_6ead55a120da44 1865-1946,1951-1953,1956-1971
+  s_5c7118c0d7b17f::t_9c46f646f58e9e 2147-2150
+  s_5c7118c0d7b17f::t_daf7b03518fd66 1810-1833
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "51b851cec2ebf1849f16272122f72e3a66855ad1",
+  "prompts": {},
+  "sessions": {
+    "s_5c7118c0d7b17f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fed24d1d6ffehC1qqR7XlllWLt",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

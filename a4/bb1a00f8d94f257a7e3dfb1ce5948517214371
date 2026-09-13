@@ -1,0 +1,25 @@
+packages/terminal-client/tests/tty_grid.rs
+  s_63365f51c8df96::t_c51dea07bf33fa 541-632
+packages/core/src/tty_grid.rs
+  s_63365f51c8df96::t_c56a0ccb934a6f 169,194-220,258-269,273,288,1031,1034,1061,1128-1130,1138-1146
+  s_63365f51c8df96::t_031ac848d115d1 1147
+packages/core/src/tty_modes.rs
+  s_63365f51c8df96::t_c56a0ccb934a6f 30-31,33-51,435-569
+  s_63365f51c8df96::t_2ade2f4482dc0c 24-29,32,570-571
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a4bb1a00f8d94f257a7e3dfb1ce5948517214371",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

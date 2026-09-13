@@ -1,0 +1,19 @@
+packages/page-script/src/wasm-glue.d.ts
+  s_c2630d58b8d7c9::t_23bd6fd51f8e45 41-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "237f5c3686b3fe66974b4981f5b287b94754be7c",
+  "prompts": {},
+  "sessions": {
+    "s_c2630d58b8d7c9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff0bc1286ffeyDv46m2yQQWK35",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

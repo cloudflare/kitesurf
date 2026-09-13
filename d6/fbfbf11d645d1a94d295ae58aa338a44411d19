@@ -1,0 +1,29 @@
+packages/engine/test/e2e/trusted-fetch-intrinsic.e2e.test.ts
+  s_d99fa5b77d13e0::t_341ca2d6f39a0f 1-80
+packages/page-script/src/index.ts
+  s_d99fa5b77d13e0::t_72a40efac6967e 132,1375-1377
+packages/page-script/src/resource-fetch.ts
+  s_d99fa5b77d13e0::t_94ddcd0614da05 26,663-665,690,732,769
+packages/page-script/src/scripts.ts
+  s_d99fa5b77d13e0::t_ca1d8124fba1fe 13,109-111,113
+packages/page-script/src/startup-probe.ts
+  s_d99fa5b77d13e0::t_ce7fdc9d80a7b3 305-308
+packages/page-script/src/trusted-fetch.ts
+  s_d99fa5b77d13e0::t_6f0bd6d295b67d 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d6fbfbf11d645d1a94d295ae58aa338a44411d19",
+  "prompts": {},
+  "sessions": {
+    "s_d99fa5b77d13e0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff16bedb2ffeFbYGnICET27x4e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

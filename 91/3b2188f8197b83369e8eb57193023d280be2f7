@@ -1,0 +1,19 @@
+packages/engine/test/e2e/table-collapsed-border-spans.e2e.test.ts
+  s_3d13b96ccbbed6::t_1618b7cff3477e 62-64,70-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "913b2188f8197b83369e8eb57193023d280be2f7",
+  "prompts": {},
+  "sessions": {
+    "s_3d13b96ccbbed6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbfd0d45fffeA5nq4ZiGDKSH9X",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+packages/core/src/boa_eval.rs
+  s_2413400ee712a9::t_2f7ffa847cb1b5 431-437
+  s_2413400ee712a9::t_6d322a9b0b6d81 550-557
+  s_2413400ee712a9::t_ac6e408136d466 515
+  s_2413400ee712a9::t_2a503bae8d1a3b 1175-1178,1220
+packages/core/src/boa_bridge.rs
+  s_2413400ee712a9::t_05281d6268735b 1125
+  s_2413400ee712a9::t_2282b5a351b878 81-106,115-126,133-134,136-137
+  s_2413400ee712a9::t_7dd6273d01b957 127-132
+  s_2413400ee712a9::t_c438eaa38124da 1169
+  s_2413400ee712a9::t_3fe1dff86fedc6 1270
+  s_2413400ee712a9::t_6accc53a7975d5 80
+  s_2413400ee712a9::t_b101d1a12ce035 138,141
+  s_2413400ee712a9::t_3397564c656c3f 1094
+  s_2413400ee712a9::t_03b4bf9f49bfc5 135,139-140,142-163
+  s_2413400ee712a9::t_316b59b0bdab77 1134-1137
+  s_2413400ee712a9::t_bae8c135028d63 1426-1427
+  s_2413400ee712a9::t_429cb6627665e2 1212,1215
+  s_2413400ee712a9::t_a5fcfc385d724c 1369
+  s_2413400ee712a9::t_06474a6e90d1cd 79
+  s_2413400ee712a9::t_74cefafad9b593 2134-2137
+  s_2413400ee712a9::t_bd37ecb9c9a267 1237-1240
+  s_2413400ee712a9::t_e92a3ac90222e1 107-114
+  s_2413400ee712a9::t_30241e33fae747 1491,1493-1495,1499-1500,1505
+  s_2413400ee712a9::t_627b31dc1da0fa 1068
+docs/BOA_V8_FLOW.md
+  s_2413400ee712a9::t_48e04ccdc7b200 317-358
+packages/engine/test/e2e/boa-ctx-reentry.e2e.test.ts
+  s_2413400ee712a9::t_81b4d5cba0935c 105,107-108
+  s_2413400ee712a9::t_aa3e74bb567632 1-13,18-23,30-38,46,48-49,56-60,80,82,84,90-92,113
+  s_2413400ee712a9::t_cf788480556794 14-17,24-29,39-45,47,50-55,61-79,81,83,85-89,93-104,106,109-112
+packages/core/src/lib.rs
+  s_2413400ee712a9::t_728a50dda229e1 567-570,572
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "40bc1cc8a49084b169769dbba8afe4fd004b7af9",
+  "prompts": {},
+  "sessions": {
+    "s_2413400ee712a9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fde6bc496ffeDjKDNv32fR97n0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

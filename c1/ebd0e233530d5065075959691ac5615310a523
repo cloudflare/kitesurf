@@ -1,0 +1,37 @@
+packages/dom-shim/src/events/event.ts
+  s_5ca87bda0ae63d::t_d9d41cc9e19b01 340
+  s_5ca87bda0ae63d::t_17cad4c364ccc0 334,345
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_5ca87bda0ae63d::t_58b21113ccf0c7 600
+  s_5ca87bda0ae63d::t_d9d41cc9e19b01 623
+  s_5ca87bda0ae63d::t_17cad4c364ccc0 617-622
+packages/dom-shim/src/model-context.ts
+  s_5ca87bda0ae63d::t_d9d41cc9e19b01 62-66,73-74,295,301,1424-1439,1450,1457,1502-1505
+  s_5ca87bda0ae63d::t_17cad4c364ccc0 122,1014-1026,1030-1031,1050
+packages/engine/src/cdp/page-session.ts
+  s_5ca87bda0ae63d::t_d9d41cc9e19b01 221-222
+docs/WEBMCP.md
+  s_5ca87bda0ae63d::t_17cad4c364ccc0 28-30
+  s_5ca87bda0ae63d::t_d9d41cc9e19b01 39-41
+packages/engine/src/cdp/webmcp.ts
+  s_5ca87bda0ae63d::t_58b21113ccf0c7 152-162
+  s_5ca87bda0ae63d::t_d9d41cc9e19b01 41-45,430-435
+packages/engine/test/fixtures-worker/assets/webmcp-declarative.html
+  s_5ca87bda0ae63d::t_17cad4c364ccc0 27-28,30-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c1ebd0e233530d5065075959691ac5615310a523",
+  "prompts": {},
+  "sessions": {
+    "s_5ca87bda0ae63d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fa5fd5decffedT7g1VFT5L3rKD",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+packages/engine/test/page-script-compat.test.ts
+  s_d4d76e11edf985::t_6346ed024943df 1-56
+packages/engine/src/eval/page-script.ts
+  s_d4d76e11edf985::t_6346ed024943df 3-4,32-35,858-859,927-928,944-945,1045,1504-1505
+package.json
+  s_d4d76e11edf985::t_6346ed024943df 10
+packages/page-script/src/startup-probe.ts
+  s_d4d76e11edf985::t_6346ed024943df 14,93,246-248,251-265,273-278
+packages/engine/src/eval/page-script-compat.ts
+  s_d4d76e11edf985::t_6346ed024943df 1-33
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_d4d76e11edf985::t_6346ed024943df 31-32,34-35
+packages/page-script/src/eval-mode.ts
+  s_d4d76e11edf985::t_6346ed024943df 1-24
+packages/engine/src/eval/oopif-render.ts
+  s_d4d76e11edf985::t_6346ed024943df 133-134,674-675
+examples/eval-capability-probe.mjs
+  s_d4d76e11edf985::t_6346ed024943df 309-315,360-362,372-377,384,406-410
+packages/page-script/src/index.ts
+  s_d4d76e11edf985::t_6346ed024943df 230-234,2232-2233,3542-3543,3917-3919
+  s_d4d76e11edf985::t_7c939574a9e239 229
+packages/page-script/src/inserted-scripts.ts
+  s_d4d76e11edf985::t_6346ed024943df 34-38,215-216
+packages/page-script/src/globals.ts
+  s_d4d76e11edf985::t_6346ed024943df 24,326-328,376-377,415
+packages/engine/test/dispatch-env.test.ts
+  s_d4d76e11edf985::t_6346ed024943df 18-19
+packages/page-script/src/eval-helpers.ts
+  s_d4d76e11edf985::t_6346ed024943df 24,1570-1572
+packages/engine/src/cdp/dispatch.ts
+  s_d4d76e11edf985::t_6346ed024943df 40-41
+packages/engine/src/cdp/dispatch-env.ts
+  s_d4d76e11edf985::t_6346ed024943df 17-19,25
+packages/page-script/src/__ks_startup_probe_input.d.ts
+  s_d4d76e11edf985::t_6346ed024943df 55-57
+packages/engine/wrangler.jsonc
+  s_d4d76e11edf985::t_6346ed024943df 116-118,229-231,262-271
+  s_d4d76e11edf985::t_e509b486a5fd8a 272-279
+packages/engine/package.json
+  s_d4d76e11edf985::t_0748569a1d14d6 9-10
+  s_d4d76e11edf985::t_b071768bf777ce 9-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "75b22df512974c500b98f948cb78ab8beed7905b",
+  "prompts": {},
+  "sessions": {
+    "s_d4d76e11edf985": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8a143d87ffezSkHU6q0WBxs5M",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

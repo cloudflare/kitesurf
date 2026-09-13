@@ -1,0 +1,38 @@
+packages/mcp/src/screencast.ts
+  s_1d6dfed42b1fe9::t_d8fe677b92ee8c 1-125
+docs/MCP.md
+  s_1d6dfed42b1fe9::t_7e830011059959 155
+  s_1d6dfed42b1fe9::t_db2a565255643c 175-206
+  s_1d6dfed42b1fe9::t_73d9ad1fc9133c 139
+  s_1d6dfed42b1fe9::t_3bea61d3f01e8f 276
+packages/mcp/src/tools/index.ts
+  s_1d6dfed42b1fe9::t_9f8e7d838bb02a 313-349
+packages/mcp/src/session.ts
+  s_1d6dfed42b1fe9::t_d3ca48245ed2d1 34-39
+  s_1d6dfed42b1fe9::t_81ba94e5ec5349 68-84,91-231
+  s_1d6dfed42b1fe9::t_a363a10a2bed2b 19-28
+  s_1d6dfed42b1fe9::t_449caed311b6c9 232
+packages/engine/test/e2e/mcp-screencast.e2e.test.ts
+  s_1d6dfed42b1fe9::t_d07048786ba69b 1-102
+packages/mcp/src/index.ts
+  s_1d6dfed42b1fe9::t_76dc630e1a341b 11,161
+  s_1d6dfed42b1fe9::t_ca22c7830b458f 94-109
+packages/engine/test/e2e/mcp-protocol.e2e.test.ts
+  s_1d6dfed42b1fe9::t_093fb063bd3759 95-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3bde86d75e540de17b3ff20b9b9b2c9337f46005",
+  "prompts": {},
+  "sessions": {
+    "s_1d6dfed42b1fe9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03079ac50ffehHp0CIBXySekCk",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

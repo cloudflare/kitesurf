@@ -1,0 +1,27 @@
+packages/bench-report/package.json
+  s_f78b72afa9dc2e::t_d076977e4cd2f5 16
+  s_f78b72afa9dc2e::t_de969243a1dd46 19
+packages/wpt-report/package.json
+  s_f78b72afa9dc2e::t_d076977e4cd2f5 16
+  s_f78b72afa9dc2e::t_de969243a1dd46 19
+packages/engine/package.json
+  s_f78b72afa9dc2e::t_de969243a1dd46 46
+pnpm-lock.yaml
+  s_f78b72afa9dc2e::t_04cd60ea448aeb 49-50,58-59,104,143-144,218-219,227-228,279-280,291-292,303-304,315-316,327-328,333-334,1565-1566,1787-1790,1894-1895,1909-1910,1914,2037,2041,2061,2067,2073,2079,2085,2088,2589,2596,3059,3063-3064,3387-3388,3467,3469-3473,3491,3494,3497,3500,3502
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3cddb84f74b653d4e37fb6527a3d3fe96e61fdcb",
+  "prompts": {},
+  "sessions": {
+    "s_f78b72afa9dc2e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc86de6bbffeYtq7dIp5NO0iTu",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
