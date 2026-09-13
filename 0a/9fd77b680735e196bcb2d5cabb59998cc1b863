@@ -1,0 +1,25 @@
+packages/engine/test/e2e/style-churn-memory.e2e.test.ts
+  s_d3331fe4df3409::t_cab90e0986d816 1-105
+docs/DOM_SHIM.md
+  s_d3331fe4df3409::t_3f37bc5e4e5ea8 29-47
+packages/dom-shim/src/collections.ts
+  s_d3331fe4df3409::t_76a7a9b6697068 2343-2351,2358,2362,2366-2394,2578
+scripts/patches/blitz-dom-0.3.0-beta.1/0119-Evict-replaced-author-sheets-from-the-parse-cache-qu.patch
+  s_d3331fe4df3409::t_e719a087fffd09 1-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a9fd77b680735e196bcb2d5cabb59998cc1b863",
+  "prompts": {},
+  "sessions": {
+    "s_d3331fe4df3409": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f649d4dd3ffeZ9Zfp0qsWRxmBj",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}
