@@ -1,0 +1,31 @@
+packages/engine/test/e2e/classic-seed-walk.e2e.test.ts
+  s_4efb85c8268621::t_a005cbfe9c3d23 1-37
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_4efb85c8268621::t_2388ef32301617 733-734
+  s_4efb85c8268621::t_e80045acb2fdd1 1520-1532
+  s_4efb85c8268621::t_e23691b6b771c8 1472-1477
+packages/engine/test/fixtures-worker/assets/classic-seed-chunk.js
+  s_4efb85c8268621::t_a31c77384aad2f 1-4
+packages/engine/test/fixtures-worker/assets/classic-seed.html
+  s_4efb85c8268621::t_eb762c378d1d05 1-3
+packages/engine/test/fixtures-worker/assets/classic-seed-boot.js
+  s_4efb85c8268621::t_cefaabb66c19e3 1-15
+packages/engine/test/fixtures-worker/assets/classic-seed-dep.js
+  s_4efb85c8268621::t_d44eaff495e7e6 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bb659bd2a63d801c83b3083a23d82a5cd341747f",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
