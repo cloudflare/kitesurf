@@ -1,0 +1,23 @@
+tests/interactivity-flows/flows.ts
+  s_efcd58b93e48ff::t_d0dfd31eb01ec3 617,620,622-624,632-647,649-650,659-661
+  s_efcd58b93e48ff::t_c62b069bb2c37e 618-619,621,625-628,648,651-658
+  s_efcd58b93e48ff::t_44bb558e5e220f 629-631
+tests/interactivity-flows/README.md
+  s_efcd58b93e48ff::t_c62b069bb2c37e 111-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b6cc49ace49ef0ccad6984fb70c547f97f5645b5",
+  "prompts": {},
+  "sessions": {
+    "s_efcd58b93e48ff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f74b34fe8ffe1qO503QG3YN650",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
