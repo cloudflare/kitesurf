@@ -1,0 +1,21 @@
+packages/engine/test/e2e/event-handler-idl.e2e.test.ts
+  s_efcd58b93e48ff::t_8c2c8d4e22bd6c 68-69
+packages/page-script/src/globals.ts
+  s_efcd58b93e48ff::t_892296cb68bcd3 1940-1943,1950-1953
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "309ce9449d785f5e10202dea86631b9f2c88bb14",
+  "prompts": {},
+  "sessions": {
+    "s_efcd58b93e48ff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f74b34fe8ffe1qO503QG3YN650",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
