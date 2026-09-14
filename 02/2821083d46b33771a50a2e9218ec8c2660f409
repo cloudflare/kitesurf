@@ -58,6 +58,14 @@ packages/core/src/radar_grid_repro_test.rs
   "base_commit_sha": "022821083d46b33771a50a2e9218ec8c2660f409",
   "prompts": {},
   "sessions": {
+    "s_b293447b6a89d5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f60896286ffe4DwWsp8rOJfbPw",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_f19c180209e8f6": {
       "agent_id": {
         "tool": "opencode",
