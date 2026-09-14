@@ -1,0 +1,40 @@
+packages/engine/src/cdp/page-session.ts
+  s_37dfc85f678aab::t_52bd948decf28f 117-118,125
+  s_37dfc85f678aab::t_ce112033e5ac2f 119-124
+packages/engine/test/e2e/demos/page-renderer-screencast.e2e.test.ts
+  s_37dfc85f678aab::t_5981972aec7d24 175-190
+  s_37dfc85f678aab::t_c0eed5fe2f0b62 4,118-166,191
+  s_37dfc85f678aab::t_06228d829cb1c3 167-174,192-200
+  s_37dfc85f678aab::t_e05746ededb8f8 201
+packages/engine/src/cdp/page.ts
+  s_37dfc85f678aab::t_1a70be06a43ae1 2139,2145,7713,7718-7719,7731-7733,7737
+  s_37dfc85f678aab::t_7351627bc349bc 7753,7762-7763,8009,8023
+  s_37dfc85f678aab::t_864ed2570c090a 8020-8021
+  s_37dfc85f678aab::t_ce112033e5ac2f 8056
+  s_37dfc85f678aab::t_779bb08d451e3f 7738-7740,7993,8027,8043
+  s_37dfc85f678aab::t_3fd4263cd61511 7741,7751-7752,7754-7761,7868-7871,7970-7974,7995-7996,7998-8003,8008,8010-8017,8022,8032-8038,8066-8072,8088-8090,8092,8106,8111
+  s_37dfc85f678aab::t_ff837b1c252d70 7988-7992,7994,7997,8004-8007,8024-8026,8028-8031,8039,8041-8042
+packages/engine/src/cdp/types.ts
+  s_37dfc85f678aab::t_ce112033e5ac2f 364
+packages/page-script/src/index.ts
+  s_37dfc85f678aab::t_25466c26e8e1a4 178-213
+  s_37dfc85f678aab::t_7aacd0c9e67bb5 5362-5364
+  s_37dfc85f678aab::t_3fd4263cd61511 3113-3118
+  s_37dfc85f678aab::t_ccb43f49e54c9c 5260-5269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f144c373fcbe1abc1b7160e1bcc20338d8efb84c",
+  "prompts": {},
+  "sessions": {
+    "s_37dfc85f678aab": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbc1b9c2fffeiux8GRs2CE0M3a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

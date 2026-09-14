@@ -1,0 +1,23 @@
+packages/page-script/src/index.ts
+  s_c39b250795ef75::t_2a6fbd6c715687 2524-2562,2568-2569,2571-2581,2591-2601
+  s_c39b250795ef75::t_f8ed3f38b4b378 1363-1371
+  s_c39b250795ef75::t_a1601cb060666c 2602
+packages/engine/src/eval/walk-module-graph.ts
+  s_c39b250795ef75::t_dab679d0768fcd 513-521,1039-1042
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "09c8a81ba0187b1b0436a8ee57f804d4a8cfcfd7",
+  "prompts": {},
+  "sessions": {
+    "s_c39b250795ef75": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f611d125effePYy5TeTmmwVpWd",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
