@@ -1,7 +1,24 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Recover-inline-roots-after-layout-panics.patch
+  s_072f20f9103bf7::t_5892b2da49f1db 1-43
+packages/core/src/lib.rs
+  s_072f20f9103bf7::t_44b50702626c93 2909-2912
+packages/core/src/inline_break_restore_test.rs
+  s_072f20f9103bf7::t_44b50702626c93 79-82,86-111
+  s_072f20f9103bf7::t_c6bb45d19fcd8d 83-85
 ---
 {
   "schema_version": "authorship/3.0.0",
   "git_ai_version": "1.6.10",
   "base_commit_sha": "3ab0fbba0969343ddec6987af020596a5b993b0d",
-  "prompts": {}
+  "prompts": {},
+  "sessions": {
+    "s_072f20f9103bf7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f60bf8a49ffen9BKMTnjFv6UQf",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
 }
