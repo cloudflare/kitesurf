@@ -1,0 +1,19 @@
+packages/dom-shim/src/events/dispatch.ts
+  s_36e786693a53b9::t_4b44c1f2af2278 549
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5737ed3f1dc03e320a8796d960f4fa8b9c3d8ca4",
+  "prompts": {},
+  "sessions": {
+    "s_36e786693a53b9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f60ad7d61ffe0S731BPbinLVei",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
