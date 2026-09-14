@@ -1,0 +1,22 @@
+packages/engine/test/e2e/demos/absolute-path-transitive-demo.e2e.test.ts
+  s_4efb85c8268621::t_76466677c54f75 23-31,50
+packages/engine/src/eval/walk-module-graph.ts
+  s_4efb85c8268621::t_8e4a7778443e29 1124-1129
+  s_4efb85c8268621::t_76466677c54f75 1002,1043-1050,1123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a91b3ad3d44979ebf22d5ab7a1b9282bf9d7b165",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
