@@ -1,0 +1,803 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0001-Kitesurf-baseline-inline-decorations-layout-and-robu.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 63-1687
+  s_c00e05fd2c0953::t_60c8052998f1c9 28-30,32-34,37-39,41,44,47-50,59,62,1688,1693-1694
+scripts/patches/blitz-dom-0.3.0-beta.2/0015-Materialize-decodes-at-the-node-s-laid-out-size-mip-.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 89
+  s_c00e05fd2c0953::t_962f546e27196b 22,25,65,88,103,117
+scripts/patches/blitz-paint-0.3.0-beta.2/0006-Clip-replaced-svg-painting-to-the-element-s-content-.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+  s_d69d163eac266a::t_9cbc8c4825c11e 5-21
+  s_c2f0f4abb00608::t_5f8f7633017b05 24-67
+scripts/patches/blitz-dom-0.3.0-beta.2/0116-Span-table-captions-over-outer-border-spacing.patch
+  s_c00e05fd2c0953::t_3c1f628647d0f2 13-14,17,20-63,65-72,78-87,92-99,101,103-113
+  s_c00e05fd2c0953::t_945aa3cc946f3a 64,91,100,102
+  s_9a7def0558783b::t_1fe6bb1b652fa9 1-12,15-16,18-19,73-77,88-90
+scripts/patches/blitz-dom-0.3.0-beta.2/0004-Wire-attach_shadow-through-the-mutator-shadow-aware-.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 52-161
+  s_c00e05fd2c0953::t_16995552c2d788 27-29,31,34,37,46,49,162,164,167-169
+scripts/patches/blitz-paint-0.3.0-beta.2/0001-Kitesurf-baseline-span-decorations-canvas-background.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4-5
+  s_d69d163eac266a::t_e41672697fd72d 6-29,31,33-39,41-91,93-118,120-123,125-135,137-155,157-186,188-197,199-226,228-248,250-257,259-261,263-634
+  s_c2f0f4abb00608::t_5f8f7633017b05 30,32,40,92,119,124,136,156,187,198,227,249,258,262
+scripts/patches/blitz-dom-0.3.0-beta.2/0089-white-space-map-preserve-breaks-to-parley-s-Preserve.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 28
+  s_c00e05fd2c0953::t_26507abab3fa1d 22,25
+scripts/patches/blitz-dom-0.3.0-beta.2/0102-kitesurf-propagate-damage-through-shadow-roots.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 33-65
+  s_c00e05fd2c0953::t_bb6afe93140348 27,30
+scripts/patches/blitz-dom-0.3.0-beta.2/0109-Harden-table-column-occupancy.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 23
+  s_c00e05fd2c0953::t_254eb4299a4d2b 17,20,38,58
+scripts/patches/blitz-dom-0.3.0-beta.2/0041-Inline-bidi-isolation-wrap-dir-attributed-spans-in-U.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 41-149
+  s_c00e05fd2c0953::t_3ab2a9b1d79425 35,38
+scripts/patches/blitz-dom-0.3.0-beta.2/0050-Capture-taffy-s-DetailedGridInfo-per-grid-container.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 39-63
+  s_c00e05fd2c0953::t_cbcacba86587e1 15-17,20,23,36
+scripts/patches/blitz-dom-0.3.0-beta.2/0112-Finish-table-occupancy-review-fixes.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 21-38
+  s_c00e05fd2c0953::t_b310725dc8ecc0 17,20
+scripts/patches/blitz-paint-0.3.0-beta.2/0007-Skip-painting-background-layers-with-clip-text.patch
+  s_c2f0f4abb00608::t_5f8f7633017b05 31,36,49
+  s_d69d163eac266a::t_54e23b16a04878 5-30,32-35,37-48,50-56
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+scripts/patches/blitz-dom-0.3.0-beta.2/0052-Resolve-CSS-values-in-SVG-presentation-attributes-be.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 49-250
+  s_c00e05fd2c0953::t_9aa548c5fe4f8f 43,46,256
+scripts/patches/blitz-paint-0.3.0-beta.2/0013-Paint-glyphs-with-webkit-text-fill-color-when-it-is-.patch
+  s_d69d163eac266a::t_363b6a8e41c0c7 5-49,51-61,63-69,71-73
+  s_c2f0f4abb00608::t_5f8f7633017b05 50,62,70
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+scripts/patches/README.md
+  s_14fc14ef8f57e3::t_506a4edd15b74f 4-5,14-16,111-112
+  s_14fc14ef8f57e3::t_a94bda2023a4ab 80,82,85
+  s_14fc14ef8f57e3::t_3d93abb450949c 77-79
+  s_14fc14ef8f57e3::t_b5a59f9dc75b2f 86
+scripts/patches/blitz-dom-0.3.0-beta.2/0009-Scope-shadow-tree-stylesheets-via-per-root-AuthorSty.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 72-377
+  s_c00e05fd2c0953::t_cc6b3e83b076db 28-32,35,38-40,42,46,50,57,59,61,69-70
+scripts/patches/blitz-dom-0.3.0-beta.2/0048-Replaced-sizing-CSS-naturals-for-SVG-images-no-stret.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 87-245
+  s_c00e05fd2c0953::t_379cc779cffa9a 28-32,35,38-50,55-72,76-84,246-256,258-259,261-262,264,268,274,276,279-280,284-288,295,298,303-311,313,316-317,319,322,324,326,331-335,338-342
+packages/core/src/node_handle_test.rs
+  s_68a5eadbc0a896::t_0d477cdfdf6457 24-29,32,35
+  s_7f2d9acc0640e3::t_b99718a2d79157 3,10-14,40-53,58,60
+  s_7f2d9acc0640e3::t_661c0fdb228161 54-57,59
+  s_f4689fcb0f1502::t_c92f960741b606 1-2,4-9,15-23,30-31,33-34,36-39
+scripts/patches/blitz-dom-0.3.0-beta.2/0055-compare_document_order-pseudo-elements-order-by-box-.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 32
+  s_c00e05fd2c0953::t_48e26d1551a2c7 26,29
+scripts/patches/blitz-dom-0.3.0-beta.2/0078-Scope-linked-stylesheets-to-their-link-media-attribu.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 72-144
+  s_c00e05fd2c0953::t_ce59a9aca1bde3 24,27,35,45
+scripts/patches/blitz-dom-0.3.0-beta.2/0013-Skip-slot-assignment-recompute-when-nothing-could-ha.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 45-100
+  s_c00e05fd2c0953::t_e6005fd707daed 21,24,27,33,35,43,101-104,108-110
+scripts/patches/vello_cpu-0.1.0/0002-Add-poly-pnorm-feature-gate-for-the-blurred-rect-p-n.patch
+  s_c2f0f4abb00608::t_9fa1dddac29dad 1-28,30-41,43-48,50-109,111-113,115-117,119-209,211-240,242-258,260-293
+  s_c2f0f4abb00608::t_da24cec57850fa 29,42,49,110,114,118,210,241,259
+scripts/patches/blitz-dom-0.3.0-beta.2/0114-Adapt-rebased-layout-paths-to-beta.2-APIs.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 35
+  s_c00e05fd2c0953::t_9d4bb1ea4ac00a 1-34,36-47
+scripts/patches/blitz-paint-0.3.0-beta.2/0010-inset-box-shadow-isolate-the-shadow-group-so-DestOut.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4-5
+  s_c2f0f4abb00608::t_5f8f7633017b05 40
+scripts/patches/stylo-0.20.0/0017-Enable-webkit-box-webkit-line-clamp-and-box-orient-i.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 32,40,52,54,80,101,130
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-31,33-39,41-51,53,55-79,81-100,102-129,131-139
+scripts/patches/blitz-dom-0.3.0-beta.2/0065-Namespace-aware-selector-parsing-for-CSSOM-selectorT.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 69
+  s_c00e05fd2c0953::t_5471ca20872e9e 22,25,70
+scripts/patches/blitz-dom-0.3.0-beta.2/0045-Implement-query_container_size-from-the-last-taffy-l.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 45
+  s_c00e05fd2c0953::t_45ac69b080c8d9 23,26
+scripts/patches/blitz-dom-0.3.0-beta.2/0068-font-face-source-with-a-dot-less-URL-is-not-skippabl.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 24
+  s_c00e05fd2c0953::t_a2109b65718905 21
+scripts/patches/blitz-dom-0.3.0-beta.2/0070-record-author-font-face-registrations-for-the-embedd.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 29-106
+  s_c00e05fd2c0953::t_28747745a60d0d 23,26,107
+scripts/patches/blitz-dom-0.3.0-beta.2/0007-Route-layout-construction-through-the-flat-tree-shad.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 43-278
+  s_c00e05fd2c0953::t_bd3dc6b0b90358 26,29-30,33,36,283-284,300-301,303-304,308,312-313,317,320
+scripts/patches/stylo-0.20.0/0013-Fold-min-max-clamp-in-pure-percentage-math-functions.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-28,30-111,113-114
+  s_c2f0f4abb00608::t_5ec69c055b98d8 29,112
+scripts/patches/stylo-0.20.0/0015-list-style-serialize-the-position-when-the-type-iden.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 25
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-24,26-40
+scripts/patches/blitz-dom-0.3.0-beta.2/0088-Stop-an-inline-rebuild-stealing-a-hoisted-box-s-layo.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 40-53
+  s_c00e05fd2c0953::t_5b9e8a92777592 34,37
+scripts/patches/blitz-dom-0.3.0-beta.2/0057-Implement-CSS-counters-resolution-pass-counter-conte.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 86-1047
+  s_c00e05fd2c0953::t_77ab210f3462f3 46,50,54,57-58,70-71,80,83
+scripts/patches/blitz-dom-0.3.0-beta.2/0094-kitesurf-clear-taffy-cache-for-RELAYOUT-damage-and-f.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 43-58
+  s_c00e05fd2c0953::t_a6c0f85c879f1a 37,40,63
+scripts/patches/blitz-dom-0.3.0-beta.2/0108-Count-columns-occupied-by-rowspans.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 25-118
+  s_c00e05fd2c0953::t_a8ea793865bbe8 17,20
+scripts/patches/blitz-paint-0.3.0-beta.2/0022-Lean-synthetic-italic-to-the-right-not-the-left.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+  s_d69d163eac266a::t_dd40cdd3f20ba4 5-33,35-43,45
+  s_c2f0f4abb00608::t_5f8f7633017b05 34,44
+scripts/patches/stylo-0.20.0/0009-Canonical-component-serialization-for-unresolved-col.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-34,36-40,42-139,141-149,151-191
+  s_c2f0f4abb00608::t_5ec69c055b98d8 35,41,140,150
+scripts/patches/blitz-dom-0.3.0-beta.2/0026-UA-stylesheet-strip-box-chrome-from-input-type-range.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 20
+  s_c00e05fd2c0953::t_c64a7b7ca4c829 14,17,35
+scripts/patches/blitz-dom-0.3.0-beta.2/0079-Skip-a-font-family-still-waiting-on-a-face-for-the-w.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 51-196
+  s_c00e05fd2c0953::t_d2ff55cd9f7007 40,43
+scripts/patches/blitz-dom-0.3.0-beta.2/0101-Gate-per-resolve-work-on-damage.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 150-1941
+  s_c00e05fd2c0953::t_834afc08caf112 104-108,110-113,115-120,122,132-133,135,138-139,147,1942-1952
+scripts/patches/taffy-0.14.0/0003-Keep-grid-block-axis-content-contributions.patch
+  s_f4689fcb0f1502::t_b3fa17e1d2e752 9-13
+  s_c2f0f4abb00608::t_fc56a6271f66db 2-7,15-16,19,22,46-49,67,80-103,113-136
+scripts/patches/blitz-dom-0.3.0-beta.2/0105-Size-table-captions-from-their-minimum-width.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 28-40
+  s_c00e05fd2c0953::t_1a935855a9c10b 19,22,24,43,56,73
+scripts/patches/blitz-paint-0.3.0-beta.2/0016-Skip-painting-a-subtree-behind-an-empty-clip-region.patch
+  s_d69d163eac266a::t_dbd5b118ce34f5 5-38,40-44,46-57,59-70,72-73,75-91,105
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4,39
+  s_c2f0f4abb00608::t_5f8f7633017b05 45,58,71,74,94
+scripts/patches/blitz-paint-0.3.0-beta.2/0020-paint-stop-resolving-styles-the-common-element-disca.patch
+  s_d69d163eac266a::t_2c6330c4dcc253 5-29,31-40
+  s_c2f0f4abb00608::t_5f8f7633017b05 30,43
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+packages/core/src/transitions.rs
+  s_68a5eadbc0a896::t_cf92c9a2a7a421 37-39
+scripts/patches/stylo-0.20.0/0027-Reject-mixed-units-outside-length-percentage-context.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-50,52-65,67-75
+  s_c2f0f4abb00608::t_5ec69c055b98d8 51,66
+scripts/patches/blitz-dom-0.3.0-beta.2/0066-dom_caret_from_point-DOM-caret-text-node-utf16-offse.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 28
+  s_c00e05fd2c0953::t_c90d122d99719b 22,25
+scripts/patches/blitz-dom-0.3.0-beta.2/0039-Resolve-dir-auto-DOM-side-and-stamp-inline-layout-ba.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 34-117
+  s_c00e05fd2c0953::t_9c4c07d055564c 30,33
+scripts/patches/stylo-0.20.0/0014-hsl-hwb-percent-tracking-per-component-lab-oklab-car.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-52,54-60,62-69,71-74,76-82,84-91,93-105,107-124,126-176
+  s_c2f0f4abb00608::t_5ec69c055b98d8 53,61,70,75,83,92,106,125
+scripts/patches/taffy-0.14.0/0002-Fix-descendant-float-block-coordinates.patch
+  s_f4689fcb0f1502::t_b3fa17e1d2e752 9-13
+  s_c2f0f4abb00608::t_5ec69c055b98d8 25-44
+  s_c2f0f4abb00608::t_0b10c85a086131 2-4,15-16,19,22-24,45
+scripts/patches/blitz-paint-0.3.0-beta.2/0009-Inline-svg-without-a-viewBox-paints-1-1-not-object-f.patch
+  s_c2f0f4abb00608::t_5f8f7633017b05 29,79-96
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4-5,23,54
+  s_d69d163eac266a::t_3357b2b7c5dd1c 6-22,24-26,99
+scripts/patches/blitz-paint-0.3.0-beta.2/0005-Form-controls-color-from-CSS-accent-color-default-ac.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4-5
+  s_c2f0f4abb00608::t_5f8f7633017b05 22-46
+scripts/patches/blitz-dom-0.3.0-beta.2/0022-Add-set_text_input_value-IDL-value-override-decouple.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 50-173
+  s_c00e05fd2c0953::t_0d0616afd89151 16,18,21,24,46,49
+scripts/patches/usvg-0.48.1/0003-Resolve-linear-calc-in-geometry-length-values.patch
+  s_c2f0f4abb00608::t_39c6743af68b4a 1-36,38-71,73-76,78-81,83-97,99-107,109-268
+  s_c2f0f4abb00608::t_5ec69c055b98d8 37,72,77,82,98,108
+scripts/patches/blitz-dom-0.3.0-beta.2/0024-Add-DocumentMutator-set_text_input_selection-JS-sele.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 22
+  s_c00e05fd2c0953::t_5bcfae29f26308 16,19,31,71
+scripts/patches/blitz-dom-0.3.0-beta.2/0064-Add-live_rehomed_reach-scroll-fresh-union-of-re-home.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 27
+  s_c00e05fd2c0953::t_edc1521e17b4cb 21,24
+packages/core/src/animation_clock_test.rs
+  s_7f2d9acc0640e3::t_a7bd02bb761cef 292,296-306,320-323
+  s_7f2d9acc0640e3::t_b99718a2d79157 283-291,293-295,307-319,324-347
+packages/core/src/radar_grid_repro_test.rs
+  s_f4689fcb0f1502::t_ac2aab5b312e70 1
+scripts/patches/blitz-dom-0.3.0-beta.2/0017-Lazy-font-face-loading-fetch-only-faces-whose-family.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 52-329
+  s_c00e05fd2c0953::t_0a6a100ec17b78 34-35,37,40,43-46
+scripts/patches/stylo-0.20.0/0024-Damage-box-shadow-as-repaint-instead-of-rebuilding-t.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-34
+scripts/patches/blitz-dom-0.3.0-beta.2/0099-dom-borrow-the-style-cell-once-per-primary_styles.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 24
+scripts/patches/blitz-dom-0.3.0-beta.2/0051-SVG-text-let-the-embedder-supply-usvg-s-font-databas.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 98-103
+  s_c00e05fd2c0953::t_a3fea5dbf2f9bb 18-19,22,117-119
+scripts/patches/blitz-dom-0.3.0-beta.2/0030-Hoist-position-fixed-boxes-to-the-root-element-s-lay.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 43-160
+  s_c00e05fd2c0953::t_c4e1859c2e1616 33-34,37,40,161
+scripts/patches/blitz-dom-0.3.0-beta.2/0072-Tag-nested-import-stylesheet-fetches-text-css-like-t.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 26
+  s_c00e05fd2c0953::t_513e6440737c9d 22,25
+scripts/patches/blitz-dom-0.3.0-beta.2/0085-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 35
+  s_c00e05fd2c0953::t_1853dcd6c80320 29,32,53
+scripts/patches/blitz-dom-0.3.0-beta.2/0087-Drive-the-relative-selector-invalidator-for-tree-mut.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 60-237
+  s_c00e05fd2c0953::t_6df73be3e79a59 31,33,36,39-41,43-44,47-52
+scripts/patches/stylo-0.20.0/0023-Generate-webkit-text-fill-color-for-servo-not-gecko-.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-31
+scripts/patches/blitz-dom-0.3.0-beta.2/0104-kitesurf-bound-shadow-child-damage-lookup.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 25-50
+  s_c00e05fd2c0953::t_21f583a1780fe4 17,20-21
+scripts/patches/blitz-paint-0.3.0-beta.2/0011-Effect-layer-covers-the-painted-subtree-not-just-the.patch
+  s_d69d163eac266a::t_2a97f8701cbd02 6-21,23-27,29-39,48
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4-5,22
+  s_c2f0f4abb00608::t_5f8f7633017b05 28
+scripts/patches/blitz-paint-0.3.0-beta.2/0004-Paint-a-UA-dropdown-chevron-on-closed-select-boxes.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+  s_c2f0f4abb00608::t_5f8f7633017b05 17-47
+scripts/patches/blitz-dom-0.3.0-beta.2/0106-Span-table-captions-across-every-column.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 32
+  s_c00e05fd2c0953::t_6ddbe784f970c9 17,20
+scripts/patches/stylo-0.20.0/0010-Relative-color-origins-with-none-serialize-in-the-le.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 28,51
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-27,29-50,52
+scripts/patches/blitz-dom-0.3.0-beta.2/0071-Let-the-embedder-deliver-a-dims-only-image-with-no-p.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 54-140
+  s_c00e05fd2c0953::t_ed454b3173632a 33,36
+scripts/patches/vello_cpu-0.1.0/0001-Replace-the-blurred-rect-p-norm-with-a-polynomial-in.patch
+  s_c2f0f4abb00608::t_9fa1dddac29dad 1-44,46-80,82-134,136-148,150-184
+  s_c2f0f4abb00608::t_da24cec57850fa 45,81,135,149
+scripts/patches/usvg-0.48.1/0001-Apply-SVG2-geometry-properties-from-CSS.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 53
+  s_c2f0f4abb00608::t_5f8f7633017b05 54
+  s_c2f0f4abb00608::t_39c6743af68b4a 1-52,55-73
+scripts/patches/blitz-dom-0.3.0-beta.2/0058-Anonymous-table-objects-CSS-2.2-17.2.1-both-directio.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 84-315
+  s_c00e05fd2c0953::t_6f7695e8be8640 41-43,46,49,60,63-66,69,321,342
+scripts/patches/blitz-dom-0.3.0-beta.2/0111-Keep-auto-table-tracks-flexible-after-captions.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 22
+  s_c00e05fd2c0953::t_4dd66446cddf74 17,20,30
+scripts/patches/blitz-paint-0.3.0-beta.2/0003-Paint-input-type-range-track-filled-span-thumb.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+  s_c2f0f4abb00608::t_5f8f7633017b05 29-75
+scripts/patches/blitz-dom-0.3.0-beta.2/0033-Anchor-absolute-boxes-to-their-CSS-containing-block.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 152-250
+  s_c00e05fd2c0953::t_4c89c174063b2f 28-29,32,35,54,61,65,69-72,80,103,108,119,130,134-137,149,262
+scripts/patches/blitz-dom-0.3.0-beta.2/0003-Only-clamp-replaced-elements-to-available-INLINE-spa.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 29
+  s_c00e05fd2c0953::t_7b7300f54538af 26,30-31,43-44
+scripts/patches/blitz-dom-0.3.0-beta.2/0038-Stamp-bidi-base-direction-alignment-on-text-editors-.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 37-117
+  s_c00e05fd2c0953::t_805262acd0310b 31,34
+scripts/patches/blitz-dom-0.3.0-beta.2/0042-HTML-directionality-dir-matching-dir-auto-cascade-hi.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 47-336
+  s_c00e05fd2c0953::t_90f53765b38855 41,44
+scripts/patches/blitz-dom-0.3.0-beta.2/0083-Give-display-flow-root-its-own-block-formatting-cont.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 36
+  s_c00e05fd2c0953::t_b1503fab4aa714 22,32-33,47
+scripts/patches/blitz-dom-0.3.0-beta.2/0117-Treat-shadow-roots-as-transparent-damage-boundaries.patch
+  s_485082a2dddead::t_14001e36698c2c 1-2,4-8,12,15-16,18-19,21-22,26-39,41-48
+  s_485082a2dddead::t_885d07c3816331 3,9-11,13-14,17,20,24-25,40
+  s_c00e05fd2c0953::t_945aa3cc946f3a 23
+scripts/patches/stylo-0.20.0/0025-Preserve-products-around-non-distributive-math-funct.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-33,35-44
+  s_c2f0f4abb00608::t_5ec69c055b98d8 34
+scripts/patches/blitz-dom-0.3.0-beta.2/0093-kitesurf-bust-the-float-container-s-layout-cache-not.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 46-61
+  s_c00e05fd2c0953::t_cd63a867c22f87 33,36,40,44,62-63,68,71
+scripts/patches/blitz-dom-0.3.0-beta.2/0032-Stamp-computed-CSS-fill-and-sRGB-legacy-colors-on-se.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 32-76
+  s_c00e05fd2c0953::t_9500ae0c0c16fa 28,31
+scripts/patches/blitz-paint-0.3.0-beta.2/0023-Let-a-re-homed-abspos-escape-its-flow-parent-s-overf.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4,41
+  s_d69d163eac266a::t_d675ba51bc2385 5-40,42-51,53-67,69-81,83-101,106
+  s_c2f0f4abb00608::t_5f8f7633017b05 52,68,82
+packages/core/src/lib.rs
+  s_68a5eadbc0a896::t_6a351e1cc91068 75-103,120-133,788,793,798
+  s_7f2d9acc0640e3::t_b99718a2d79157 104-119,135,791,796,801,948,1193,1905,1927,1964,2127,2130,2133,2154,2314,2340,2376,2401,2441,2447-2449,2471,2502,2508,2537-2539,2592-2594,2631-2633,2641,2644,2665,2694-2696,2759-2764,2772,2774,2876-2878,2881,2883,3614,3762,4698,5993,6146,6513,6730,6733,6736,6739
+  s_68a5eadbc0a896::t_9e04a0c3b1ace5 2882,2884
+  s_485082a2dddead::t_ba634d5ebf0d34 1036-1039
+  s_68a5eadbc0a896::t_e123d69e99d54c 4129,4172
+  s_68a5eadbc0a896::t_29d85906e09f99 1189,1631,1670,4112-4127,4130,4135-4146,4148,4223-4224,4226,4230,4232-4237,4241-4242,4256,4260-4264,4282-4284,4287,4296-4301,4310-4324,4339-4345,4347,4361,4385-4387,4396-4401,4419,5382
+  s_68a5eadbc0a896::t_a5da1c6feda14f 72-74
+  s_7f2d9acc0640e3::t_8b7869e56c56f5 136-138
+  s_7f2d9acc0640e3::t_57f66eefae552f 802
+  s_7f2d9acc0640e3::t_6425a12deaf51c 945-947
+  s_68a5eadbc0a896::t_9357d491dced28 1186-1188
+  s_7f2d9acc0640e3::t_99620713d96bf1 1191-1192
+  s_68a5eadbc0a896::t_f4566d8eb1894f 1628-1630
+  s_68a5eadbc0a896::t_ac219a84351dc5 1667-1669
+  s_7f2d9acc0640e3::t_4755aa697aabd1 1904
+  s_7f2d9acc0640e3::t_70d2bddfbcd914 1906
+  s_7f2d9acc0640e3::t_4e3a74851b11ad 1926
+  s_7f2d9acc0640e3::t_19450e57dc0c90 1928
+  s_7f2d9acc0640e3::t_58d7f3689db610 1963
+  s_7f2d9acc0640e3::t_e5c0672ba7b2f3 1965
+  s_7f2d9acc0640e3::t_2bb76d12dd3791 2125-2126
+  s_7f2d9acc0640e3::t_a3046873a95c15 2128-2129
+  s_7f2d9acc0640e3::t_205509cf6a0f72 2131-2132
+  s_7f2d9acc0640e3::t_edd7712286591a 2134-2136
+  s_7f2d9acc0640e3::t_972947823f905a 2151-2153
+  s_7f2d9acc0640e3::t_76f31b8dd3a8f9 2311-2313
+  s_7f2d9acc0640e3::t_d118292c625805 2315
+  s_7f2d9acc0640e3::t_3def417c90227c 2337-2339
+  s_7f2d9acc0640e3::t_f3faaae6616c23 2341-2343
+  s_7f2d9acc0640e3::t_b3cf22b9f72507 2375
+  s_7f2d9acc0640e3::t_181e0630b5dc78 2377
+  s_7f2d9acc0640e3::t_c69fc7e3b7381e 2398-2400
+  s_7f2d9acc0640e3::t_96d8800b5121dc 2402
+  s_7f2d9acc0640e3::t_d086a01b71c1bb 2440
+  s_7f2d9acc0640e3::t_a2db99c896dde2 2442
+  s_7f2d9acc0640e3::t_c1d56a98a3709f 3613
+  s_7f2d9acc0640e3::t_2eb3e99a93ca86 3615
+  s_7f2d9acc0640e3::t_0c0196242a7be8 3760-3761
+  s_68a5eadbc0a896::t_9762a0a5fa2193 4147
+  s_68a5eadbc0a896::t_2e4e85c3d6c41d 4416-4418
+  s_7f2d9acc0640e3::t_32c0749dc321b9 4695-4697
+  s_68a5eadbc0a896::t_fd12c96872819b 5381
+  s_68a5eadbc0a896::t_18d8e2918110f8 5383-5384
+  s_7f2d9acc0640e3::t_9827010d705984 5991-5992
+  s_7f2d9acc0640e3::t_408c7a04a2833d 6145
+  s_7f2d9acc0640e3::t_99f19d8032dfba 6147
+  s_7f2d9acc0640e3::t_c1b8f4164a42fe 6512
+  s_7f2d9acc0640e3::t_17c03d2d20119a 6514
+  s_7f2d9acc0640e3::t_ccd189eda84fd3 6728-6729
+  s_7f2d9acc0640e3::t_732f36e3bfa345 6731-6732
+  s_7f2d9acc0640e3::t_d7fbcef928e7e3 6734-6735
+  s_7f2d9acc0640e3::t_809e6fbbb3c93b 6737-6738
+scripts/patches/blitz-paint-0.3.0-beta.2/0019-paint-stop-building-clip-BezPaths-nothing-reads.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4,22
+  s_d69d163eac266a::t_0162db2ec8bfe9 5-21,23-45,47-74
+  s_c2f0f4abb00608::t_5f8f7633017b05 46,76-92
+scripts/patches/blitz-dom-0.3.0-beta.2/0037-Honour-SVG-view-fragments-on-image-loads-img.svg-vie.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 61-123
+  s_c00e05fd2c0953::t_03492307378638 27,30,38,50,53,124,222-223
+scripts/patches/blitz-dom-0.3.0-beta.2/0092-kitesurf-re-check-a-hoist-record-before-replaying-it.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 49-174
+  s_c00e05fd2c0953::t_a31dbe164d2963 30-31,34,37,39-40,46,195,201,203
+scripts/patches/blitz-dom-0.3.0-beta.2/0110-Preserve-first-row-table-sizing-after-captions.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 25-63
+  s_c00e05fd2c0953::t_3551dcbcae82f9 13-14,17,20,65,70,80,88
+scripts/patches/stylo-0.20.0/0002-Enable-accent-color-in-the-servo-build.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-26
+scripts/patches/stylo-0.20.0/0022-Keep-a-finished-animation-that-fills-forwards-and-re.patch
+  s_c2f0f4abb00608::t_5f8f7633017b05 91
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-46,48-55,57-65,67-89,92-99
+  s_c2f0f4abb00608::t_5ec69c055b98d8 47,56,66,90
+scripts/patches/blitz-paint-0.3.0-beta.2/0002-Skip-shadow-root-nodes-in-render_node-new-NodeData-v.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+  s_d69d163eac266a::t_b235504865bd53 5-14,16-19
+  s_c2f0f4abb00608::t_5f8f7633017b05 15
+scripts/patches/stylo-0.20.0/0011-hsl-hwb-none-serialization-form-lab-family-keyword-n.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-40,42-94,96-100,102-103,105-109,111-118,120-147,149-179,181-192,194-207,209-225
+  s_c2f0f4abb00608::t_5ec69c055b98d8 41,95,101,104,110,119,148,180,193,208
+scripts/patches/stylo-0.20.0/0020-Bulk-servo-enablement-41-gecko-gated-longhands-6-sho.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-122,124-131,133-187,189-227,229-235,237-243,245-325,327-333,335-341,343-349,351-357,359-365,367-373,375-381,383-395,397-399,401-403,405-407,409-411,413-415,417-450,452-454,456-458,460-462,464-469,471-477,479-485,487-493,495-501,503-507,509-512,514-533
+  s_c2f0f4abb00608::t_5ec69c055b98d8 123,132,188,228,236,244,326,334,342,350,358,366,374,382,396,400,404,408,412,416,451,455,459,463,470,478,486,494,502,508,513
+scripts/patches/blitz-paint-0.3.0-beta.2/0017-Cull-against-a-node-local-bbox-instead-of-a-doubled-.patch
+  s_d69d163eac266a::t_12210fd3d3c613 5-33,35-47
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4,34
+scripts/patches/blitz-dom-0.3.0-beta.2/0010-Parse-shadow-root-innerHTML-under-a-temp-host-named-.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 22
+  s_c00e05fd2c0953::t_bacf14b137ffdd 18,21,23
+scripts/patches/blitz-dom-0.3.0-beta.2/0011-Implement-slot-assignment-named-slots-fallback-slott.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 67-538
+  s_c00e05fd2c0953::t_4d08a51b69b487 42,45,48,52,54,56,64
+scripts/patches/blitz-dom-0.3.0-beta.2/0043-DOM-selection-paint-bridge-resolve-DOM-boundaries-on.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 44-305
+  s_c00e05fd2c0953::t_9625d0b9f0dc0e 38,41
+scripts/patches/blitz-dom-0.3.0-beta.2/0002-Add-shadow-root-node-model-NodeData-ShadowRoot-host-.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 69-195
+  s_c00e05fd2c0953::t_aa3461e1e074ba 23,26,29,32-33,39,42-43,49,53,56,58,62,65,68
+scripts/patches/blitz-dom-0.3.0-beta.2/0067-Explicit-height-with-a-ratio-counts-as-an-explicit-w.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 19
+  s_c00e05fd2c0953::t_ed2cd973df228c 15,18
+scripts/patches/stylo-0.20.0/0005-Preserve-none-color-components-through-parse-mix-and.patch
+  s_c2f0f4abb00608::t_5f8f7633017b05 265
+  s_c2f0f4abb00608::t_5ec69c055b98d8 53,83,92,96,126,176,181,204,242,257
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-52,54-82,84-91,93-95,97-125,127-175,177-180,182-203,205-241,243-256,258-264,266-294
+scripts/patches/blitz-dom-0.3.0-beta.2/0073-Carry-the-CSS-fetch-mode-on-stylesheet-Requests-as-a.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 66-123
+  s_c00e05fd2c0953::t_18efcfc40c1096 25,28,31,34,49,60,63,125,133,143
+scripts/patches/blitz-dom-0.3.0-beta.2/0080-Decode-legacy-non-UTF-8-stylesheets-instead-of-dropp.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 31-92
+  s_c00e05fd2c0953::t_e2c496fd2cb60d 25,28
+scripts/patches/blitz-dom-0.3.0-beta.2/0091-Do-not-hoist-an-abspos-past-a-positioned-inline-ance.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 27-35
+  s_c00e05fd2c0953::t_5b54c94bedd15e 17-18,21,24-26,44-45,62,65
+scripts/patches/blitz-dom-0.3.0-beta.2/0096-Cut-the-cost-of-an-attribute-write.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 76-296
+  s_c00e05fd2c0953::t_d2e7f843faba73 51-53,55-56,59,62-67,72-75,298
+scripts/patches/stylo-0.20.0/0016-Enable-background-clip-text-and-background-attachmen.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 33
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-32,34-55
+scripts/patches/blitz-dom-0.3.0-beta.2/0077-Only-force-a-restyle-for-an-animation-set-that-still.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 48-58
+  s_c00e05fd2c0953::t_6dc493175ee908 42,45
+scripts/patches/blitz-dom-0.3.0-beta.2/0103-kitesurf-rebuild-nested-shadow-layout-children.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 41
+  s_c00e05fd2c0953::t_39205422a7506a 18,21,33,45,48-49
+scripts/patches/stylo-0.20.0/0007-color-mix-accept-all-zero-percentage-sums.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-31,33-59,61-72,74-80
+  s_c2f0f4abb00608::t_5ec69c055b98d8 32,60,73
+scripts/patches/blitz-dom-0.3.0-beta.2/0035-Lift-replaced-elements-intrinsic-ratio-into-the-taff.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 36
+  s_c00e05fd2c0953::t_bae5d81a462b83 30,33-34
+scripts/patches/blitz-dom-0.3.0-beta.2/0082-kitesurf-keep-incremental-layout-from-losing-content.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 52-513
+  s_c00e05fd2c0953::t_09b27c752baef3 46,49,540,549
+scripts/patches/taffy-0.14.0/0001-Cache-box-the-entries-so-an-empty-cache-is-pointer-s.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 27-208
+  s_c2f0f4abb00608::t_585772e5072ff0 17-18,21,24-26,209-213
+scripts/patches/blitz-dom-0.3.0-beta.2/0047-SVG-image-naturals-record-viewBox-aspect-survive-zer.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 53-151
+  s_c00e05fd2c0953::t_e18dcbc0f9bd8e 19-52,152
+tests/wpt-expectations.json
+  s_14fc14ef8f57e3::t_fb4cbd75965d78 1944,1952,2058,4659,20399,20403,20407,20411
+scripts/patches/blitz-dom-0.3.0-beta.2/0014-Dims-only-image-loads-for-out-of-isolate-rendering-r.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 62-278
+  s_c00e05fd2c0953::t_3ac3d96784dfbd 37,52,55,305,308,320
+scripts/patches/blitz-dom-0.3.0-beta.2/0084-Re-scope-a-linked-stylesheet-when-its-media-attribut.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 40-54
+  s_c00e05fd2c0953::t_3dff4b205e4b6c 30,33-36,60,91
+scripts/patches/blitz-dom-0.3.0-beta.2/0100-Index-the-inline-roots-instead-of-scanning-the-slab-.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 42-77
+  s_c00e05fd2c0953::t_01871baf918218 26,29-30,32,36,81,84,92,95,127
+scripts/patches/blitz-dom-0.3.0-beta.2/0075-white-space-map-preserve-breaks-to-Collapse-not-Pres.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 28
+  s_c00e05fd2c0953::t_5f5ced7dad9c5e 22,25
+scripts/patches/taffy-0.14.0/0004-Keep-block-replaced-items-clear-of-floats.patch
+  s_f4689fcb0f1502::t_b3fa17e1d2e752 9-13
+  s_c2f0f4abb00608::t_5ec69c055b98d8 23-31
+  s_c2f0f4abb00608::t_3639df06e37378 2-4,15-16,19,22,32-70,72-74
+packages/core/Cargo.toml
+  s_14fc14ef8f57e3::t_fb4cbd75965d78 30-32,89-92,101,134-135
+  s_14fc14ef8f57e3::t_b0123cb01a99af 29
+scripts/patches/stylo-0.20.0/0021-Resolve-light-dark-and-system-colors-against-color-s.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-36,38-54,56-64
+  s_c2f0f4abb00608::t_5ec69c055b98d8 37,55
+scripts/patches/blitz-dom-0.3.0-beta.2/0031-Resolve-use-href-id-against-the-whole-document-for-i.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 34-214
+  s_c00e05fd2c0953::t_e8e2d52fb77f3d 26-27,30,33,215
+scripts/patches/blitz-dom-0.3.0-beta.2/0059-kitesurf-cross-resolve-damage-summary-for-RBI-partia.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 39-197
+  s_c00e05fd2c0953::t_7e4d7a755af877 29,32-35,198
+scripts/patches/blitz-dom-0.3.0-beta.2/0076-re-anchor-hoisted-position-fixed-boxes-by-the-viewpo.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 47-113
+  s_c00e05fd2c0953::t_6b9733c733518c 28-29,32,35,114
+scripts/patches/blitz-dom-0.3.0-beta.2/0012-Keep-shadow-tree-ids-out-of-the-document-ID-map.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 27-35
+  s_c00e05fd2c0953::t_9d080ff8a93a18 19-20,23,26,36
+scripts/patches/stylo-0.20.0/0026-Preserve-min-max-with-incompatible-NaN-units.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-24,26-48,50-58
+  s_c2f0f4abb00608::t_5ec69c055b98d8 25,49
+scripts/patches/blitz-paint-0.3.0-beta.2/0015-Budget-open-layers-by-depth-not-cumulative-pushes.patch
+  s_c2f0f4abb00608::t_5f8f7633017b05 38-78
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+scripts/patches/usvg-0.48.1/0002-Honour-a-zero-viewBox-as-disabling-rendering.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 37,69,83,85,100,102,118,120
+  s_c2f0f4abb00608::t_39c6743af68b4a 1-36,38-68,70-82,84,86-99,101,103-117,119,121-129
+scripts/patches/stylo-0.20.0/0001-Enable-page-descriptors-tolerate-unstyled-snapshot-s.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-48,50-57,59-101,103-111,113-118,120-149
+  s_c2f0f4abb00608::t_5ec69c055b98d8 49,58,102,112,119
+scripts/patches/stylo_taffy-0.3.0-beta.2/0001-Strip-sticky-insets-from-the-taffy-style-conversion.patch
+  s_d69d163eac266a::t_496e1a87f4aab2 4-63,67-71
+scripts/patches/blitz-dom-0.3.0-beta.2/0029-Honor-the-media-attribute-on-style-elements.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 38-83
+  s_c00e05fd2c0953::t_a4b988743a3a84 33,36
+scripts/patches/blitz-paint-0.3.0-beta.2/0012-Expand-the-effect-layer-AFTER-unioning-the-painted-s.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4,14
+  s_d69d163eac266a::t_a9a42cb9bf7e0a 5-13,15-19,21-28,30-38
+  s_c2f0f4abb00608::t_5f8f7633017b05 20,29,41
+scripts/patches/blitz-dom-0.3.0-beta.2/0044-Text-controls-dir-auto-reads-the-live-value-ASCII-ci.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 97-133
+  s_c00e05fd2c0953::t_fc2aef3e7f0a07 38,41,73,82,92,95,135,138,162,165
+scripts/patches/stylo_taffy-0.3.0-beta.2/0002-Strip-inset-properties-from-position-static-boxes-to.patch
+  s_d69d163eac266a::t_cc6be8d450dfbb 4-45,47-48,50-52,55-56
+scripts/patches/blitz-dom-0.3.0-beta.2/0097-Parse-each-SVG-once-and-cache-the-tree-on-its-source.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 38-84
+  s_c00e05fd2c0953::t_c742ca926d8614 28-29,32,117-118
+scripts/patches/blitz-dom-0.3.0-beta.2/0027-CSS-compat-lift-webkit-slider-thumb-colors-into-acce.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 217-261
+  s_c00e05fd2c0953::t_7f4839b1159ac1 212,215
+scripts/patches/stylo-0.20.0/0018-Enable-appearance-in-the-servo-build.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-31
+scripts/patches/blitz-paint-0.3.0-beta.2/0024-Offset-collapsed-table-borders-to-the-table-s-conten.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+  s_c2f0f4abb00608::t_5f8f7633017b05 40,47,52,59-62
+  s_d69d163eac266a::t_d67c0875a2b454 5-39,41-46,48-51,53-58,80,88,98,106
+scripts/patches/stylo-0.20.0/0008-Enable-container-relative-length-units-in-the-servo-.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-44
+scripts/patches/blitz-dom-0.3.0-beta.2/0069-fonts_upgraded-re-bind-glyph-runs-re-serialize-inlin.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 27
+  s_c00e05fd2c0953::t_974e2b77bd12c6 21,24
+scripts/patches/blitz-dom-0.3.0-beta.2/0074-svg-serializer-dedupe-same-local-name-attributes-las.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 27
+  s_c00e05fd2c0953::t_a66f5429831d41 21,24
+scripts/patches/blitz-dom-0.3.0-beta.2/0020-Add-node_has_pending_image-for-srcset-mutation-compl.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 29-32
+  s_c00e05fd2c0953::t_5b39c142f6d67f 26
+scripts/patches/blitz-dom-0.3.0-beta.2/0005-Implement-stylo-s-shadow-topology-traits-flat-tree-t.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 33-148
+  s_c00e05fd2c0953::t_bf5c95120d1d16 28,31
+scripts/patches/stylo-0.20.0/0012-color-mix-items-with-none-serialize-like-relative-or.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 27,47,57,61,66
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-26,28-46,48-56,58-60,62-65,67-88
+scripts/patches/taffy-0.14.0/0005-Anchor-auto-line-grid-abspos-areas-to-padding.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 25-56
+  s_f4689fcb0f1502::t_b3fa17e1d2e752 9-13
+  s_c2f0f4abb00608::t_3459e7a0b9487a 2-4,15-16,19,22-24,58,61,63-69,71-110
+scripts/patches/stylo-0.20.0/0019-Enable-break-and-box-decoration-break-in-the-servo-b.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 59,67,71,75,86,92,98
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-58,60-66,68-70,72-74,76-85,87-91,93-97,99-103
+scripts/patches/blitz-dom-0.3.0-beta.2/0006-Treat-canvas-as-a-replaced-element-with-a-JS-fed-fra.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 38
+  s_c00e05fd2c0953::t_5a70b38ea003e2 30-31,34,37,48,73,83,94
+scripts/patches/blitz-dom-0.3.0-beta.2/0054-Paint-re-anchored-abspos-boxes-at-their-DOM-position.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 68-378
+  s_c00e05fd2c0953::t_b6d24a5b0dacec 56-58,61,64-65,379,387,395,398
+scripts/patches/blitz-dom-0.3.0-beta.2/0098-Time-the-fontface-counters-and-damage-summary-phases.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 24-37
+  s_c00e05fd2c0953::t_10f50d43269adb 16,19
+scripts/patches/blitz-dom-0.3.0-beta.2/0049-webkit-box-flex-emulated-layout-line-clamp-line-trun.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 48-72
+  s_c00e05fd2c0953::t_69e5c75513271e 29,32-34,38-40,42,45-46,91,94,105,108
+scripts/patches/blitz-paint-0.3.0-beta.2/0018-paint-skip-border-and-background-work-that-draws-not.patch
+  s_d69d163eac266a::t_b4a226cef449d4 5-33,35-38,40-46,48-56,58-69
+  s_c2f0f4abb00608::t_5f8f7633017b05 34,39,47,57
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+scripts/patches/blitz-dom-0.3.0-beta.2/0021-Treat-iframe-as-a-replaced-element-with-a-JS-fed-bit.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 38
+  s_c00e05fd2c0953::t_de8fe51f023eab 28-29,32,35,57,93,113
+scripts/patches/stylo-0.20.0/0004-color-mix-serialize-both-percentages-unless-both-are.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-26,28-50,52-57
+  s_c2f0f4abb00608::t_5ec69c055b98d8 27,51
+scripts/patches/blitz-dom-0.3.0-beta.2/0023-Add-SpecialElementData-RangeInput-carrying-the-slide.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 60-101
+  s_c00e05fd2c0953::t_262cdd811af8b3 23,26,114
+scripts/patches/blitz-dom-0.3.0-beta.2/0034-Paint-textarea-s-child-text-content-as-its-default-v.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 26
+  s_c00e05fd2c0953::t_62c00ef2cd317f 21,24,27,41
+scripts/patches/blitz-paint-0.3.0-beta.2/0008-Apply-the-re-homed-abspos-translate-when-painting-ch.patch
+  s_c2f0f4abb00608::t_5f8f7633017b05 47,62-63
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+  s_d69d163eac266a::t_7ed8b5fae37895 5-46,48-61,64-74,81
+scripts/patches/usvg-0.48.1/0004-Zero-disables-rendering-negative-is-an-error-that-ig.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 53
+  s_c2f0f4abb00608::t_39c6743af68b4a 1-52,54
+scripts/patches/stylo-0.20.0/0003-servo-parse-and-plumb-the-dir-pseudo-class.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-59,61-92
+  s_c2f0f4abb00608::t_5ec69c055b98d8 60
+scripts/patches/blitz-dom-0.3.0-beta.2/0018-Drop-doc-wide-materialize-inline-context-invalidatio.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 27
+  s_c00e05fd2c0953::t_482d812628c87d 21,24
+scripts/patches/usvg-0.48.1/0005-Implement-pathLength-rescale-stroke-dash-pattern-by-.patch
+  s_c2f0f4abb00608::t_5ec69c055b98d8 30,121,123,126
+  s_c2f0f4abb00608::t_39c6743af68b4a 1-29,31-120,122,124-125,127-194
+scripts/patches/stylo-0.20.0/0006-contrast-color-resolve-to-black-white-at-computed-va.patch
+  s_c2f0f4abb00608::t_8fb55d91f016d7 1-44,46-77
+  s_c2f0f4abb00608::t_5ec69c055b98d8 45
+scripts/patches/blitz-dom-0.3.0-beta.2/0062-Bake-computed-font-styling-into-serialized-svg-text-.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 34-91
+  s_c00e05fd2c0953::t_30dc0c0ecaefd7 28,31
+scripts/patches/blitz-paint-0.3.0-beta.2/0021-Draw-collapsed-table-borders-per-cell-not-per-gridli.patch
+  s_c2f0f4abb00608::t_5f8f7633017b05 35,37,143,148
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4
+  s_d69d163eac266a::t_000d59ab754ee8 5-34,36,38-142,144-147,149-159
+scripts/patches/blitz-dom-0.3.0-beta.2/0090-Damage-the-nodes-whose-counters-moved-since-the-last.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 38-51
+  s_c00e05fd2c0953::t_5c591929e49599 33,36
+scripts/patches/blitz-dom-0.3.0-beta.2/0095-kitesurf-rebuild-the-box-tree-when-inherited-table-s.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 34
+  s_c00e05fd2c0953::t_89e21a7ce7f451 28,31
+scripts/patches/blitz-dom-0.3.0-beta.2/0016-Expose-invalidate_inline_contexts-for-kitesurf-font-.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 22
+  s_c00e05fd2c0953::t_505249e9bad433 16,19
+scripts/patches/blitz-dom-0.3.0-beta.2/0107-Track-the-table-s-maximum-column-count.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 25-79
+  s_c00e05fd2c0953::t_25c3faa504375e 17,20,85
+scripts/patches/blitz-dom-0.3.0-beta.2/0115-Skip-unstyled-nodes-in-the-damage-scan.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 21
+  s_c00e05fd2c0953::t_efa80e44869cb2 1-20,22-37
+scripts/patches/blitz-paint-0.3.0-beta.2/0014-Honour-empty-clip-regions-and-the-legacy-clip-proper.patch
+  s_c2f0f4abb00608::t_f71ac97bd5fb2a 4,35
+  s_c2f0f4abb00608::t_5f8f7633017b05 41,52,73,93-141
+  s_d69d163eac266a::t_9a2731e0bd132b 5-34,36-40,42-51,53-72,74-76,92
+scripts/patches/blitz-dom-0.3.0-beta.2/0061-Damage-gate-the-transform-pass-only-under-incrementa.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 31
+  s_c00e05fd2c0953::t_3e7bf248c24129 25,28,50
+scripts/patches/blitz-dom-0.3.0-beta.2/0063-Expose-full-SvgImageData-to-consumers.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 20
+  s_c00e05fd2c0953::t_9787eec343d33c 14,17
+scripts/patches/blitz-dom-0.3.0-beta.2/0113-Read-CSS-width-height-off-the-root-when-normalizing-.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 24-50
+  s_c00e05fd2c0953::t_8de30c06f3b3bb 3,10,12,14-23,51-63
+scripts/patches/blitz-dom-0.3.0-beta.2/0081-Drive-stylo-s-relative-selector-invalidator-so-has-i.patch
+  s_c00e05fd2c0953::t_945aa3cc946f3a 51-209
+  s_c00e05fd2c0953::t_fc65517f1bc403 40,42,45,48,50
+packages/core/src/abspos_containing_block_test.rs
+  s_6958ada97569fd::t_42d3c4ff7f4bd1 31-35,52-56,139-143
+packages/core/src/boa_bridge.rs
+  s_6958ada97569fd::t_51eae073786ede 18,268-272,370,376-381,396-398,423-424,428-433,839,1014-1017,1041-1045,1071-1076,1082-1087,1349-1351,1448-1450,1453-1455,1550,1632-1636,1808-1813,1821-1823,1944-1948,2037-2038,2042,2184-2187,2383-2402,2408-2427,2458-2465
+packages/core/src/boa_eval.rs
+  s_6958ada97569fd::t_8c2a2dc1c96a08 111-113,122-124,128-129,193,239-241,243-247,257,501-503,518-520,536-540,544-546,548-553,587-589,733-737,791-795,801-813,1090-1092,1111-1113,1233-1264,1280,1282-1326,1338-1340
+packages/core/src/boa_panic_recovery_test.rs
+  s_6958ada97569fd::t_d4e0488adfaf0f 59-67
+packages/core/src/canvas2d.rs
+  s_6958ada97569fd::t_0cefbba0323f7f 28,116-121,272-276,279-280,289-298,301-306,352,398-399,410-411,425-426,454-455,474-477,490,515-517,536-537,548-549,583-587,657-661,664-665,816-823,827-834,1113-1115,1327-1330,1381,1408-1412,1528-1530,1536-1538,1540-1544,1560-1563,1578-1581,1596-1601,1661-1666,1726-1732,1801-1806,1810-1816,1957-1960,1972-1975
+packages/core/src/checked_svg_test.rs
+  s_6958ada97569fd::t_9500dc3517e4fc 16-18,29-31
+packages/core/src/counter_damage_gate_test.rs
+  s_6958ada97569fd::t_4a4705cac35558 109-113
+packages/core/src/damaged_subtree_skip_test.rs
+  s_6958ada97569fd::t_2f152d0bdc6821 68-71
+packages/core/src/data_uri_bg_test.rs
+  s_6958ada97569fd::t_56a13e4d8f0c32 16-19,65-68,105-107,111-115
+packages/core/src/dom_fastpath.rs
+  s_68a5eadbc0a896::t_f836e9fe873452 28-30,41,90,126,131-139,148-150,163-165,218-220,228-230,263-267,279-283,297-298,301,303,308-317,330-333,348-350,364-388,400-403,408-410,422-426,437,455-459,482-483,488-492,494,497-500,567-568,571-581,585,587-588,590,592,597,604-609,611-643,649-654,657-659
+packages/core/src/float_with_trailing_comment_test.rs
+  s_6958ada97569fd::t_d1f0ee027cfa19 112-116,132-135,155-158
+packages/core/src/focus_pseudoclass_test.rs
+  s_6958ada97569fd::t_965e07d3f57470 38,50-53
+packages/core/src/hit_test_paint_order_test.rs
+  s_6958ada97569fd::t_3969fb0680d229 87,96-97,100-103,151-154,270-271,306-307
+packages/core/src/hit_test_pointer_events_test.rs
+  s_6958ada97569fd::t_7a92c6702112d0 108-111
+packages/core/src/inline_flow_rect_test.rs
+  s_6958ada97569fd::t_66a92e6180ce91 100-101,110-111,150-151,158-159,166-167,172-173,180-181,204-208,212-223,226
+packages/core/src/inner_text.rs
+  s_6958ada97569fd::t_5579c40de4a2dd 11,33-37,61,96-104,112,137-141,165,172-175
+packages/core/src/ks_tracing.rs
+  s_6958ada97569fd::t_dbab2552ec711f 24,239-240
+packages/core/src/pdf.rs
+  s_6958ada97569fd::t_272e24134727d2 67,93-99,102,261,272-275,298,514
+packages/core/src/pdf_paint.rs
+  s_6958ada97569fd::t_2a371c272c3551 48,50-52,54,105,153-156,256,271,297,335,373-377,401,413,603,625-630,674-678,841
+packages/core/src/scan.rs
+  s_6958ada97569fd::t_010fcb1209003e 261-266,273
+packages/core/src/scene_decode.rs
+  s_6958ada97569fd::t_ef73e0ebff92e6 22-28,35-39,42-46,49-53,56-60,192-195,249-250,259-278,368-389,407-411,413-417,419-422,439,507-508,530-533,560-563,565-569,653,662-666,805-810,832-840,872-875,995-998,1019-1023,1060-1063,1088-1097,1101-1110,1114-1133,1137-1174,1274-1281,1293-1300,1304-1316,1320-1328,1354-1364,1486-1492,1516-1519,1532,1534,1570,1572-1573,1627-1629,1631-1640,1642-1687,1701-1704,1738,1740-1741,1792-1794,1796-1805,1807-1814,1817-1852,1856-1859,1885-1888,1890-1899,1901-1908,1912-1947,1980-1982
+packages/core/src/scene_record.rs
+  s_6958ada97569fd::t_9e259168c56e3d 342,778,856-858,860-862,864-866,868-870,872-874,876-878,880-882,884-886,888-890,892-894,907-910,929,1012-1027,1085-1090,1122-1127,1163-1168,1310,1315-1329,1333-1334,1339-1340,1345-1348,1354-1359,1392-1393,1396-1399,1402-1407,1419-1420,1423-1426,1429-1434,1496-1497,1518-1519,1553,1670-1672,1700-1706,1937-1942,2071-2088,2091,2141,2242,2262-2264,2272-2273,2289,2318-2320,2339,2342-2343,2374-2376,2382-2383,2439-2442
+packages/core/src/scene_replay.rs
+  s_6958ada97569fd::t_f81c22788d3b49 14,18-19,22-23,87,155-165,177,405,459,512-513,526,629-634,698-705,802-805,825-832,897-898,909-912,934-938,976-979,1092-1097,1155,1173,1179-1180,1187,1190,1457-1458,1536-1538,1551-1560,1735-1738,1753,1771-1785,1802-1805,1817,1869-1872,1961-1963,1967-1969,1982-1984,2045,2061-2075,2128-2132,2185-2189,2258-2262,2295-2298,2310,2396-2400,2477-2481,2488-2491,2521-2525,2527-2531,2552-2555,2596-2597,2603-2606,2627,2693-2696,2741,2748
+packages/core/src/sticky.rs
+  s_6958ada97569fd::t_0be5ca9751246c 19,23-24,38-41,63,86,105,132,138-139,153,155,232-233,235,273-274,297,309,385,411,427-428,439,451,454-457,499-502,511-512,516-517,532-541
+packages/core/src/stylo_extraction_test.rs
+  s_6958ada97569fd::t_5c7c35ee81193b 83-84,100-101,175-178,206-210,217-220,248,250-253,260-263,338-343,349-351,418-419,499-500,515-517,551-552
+packages/core/src/svg_currentcolor_test.rs
+  s_6958ada97569fd::t_77f01264efcd86 48-52,58-60,80-83
+packages/core/src/svg_view_fragment_test.rs
+  s_6958ada97569fd::t_968e22d20dc5be 23-30,32-34
+packages/core/src/svg_zero_viewbox_test.rs
+  s_6958ada97569fd::t_5ae17a9b94df00 11-13,23,55-59,73-80,107-110,113-117,134-138,149-152,165-168
+packages/core/src/taffy_style_source_test.rs
+  s_6958ada97569fd::t_3619c4970ae1e0 57-60
+scripts/patches/blitz-dom-0.3.0-beta.2/0008-kitesurf_clear_canvas_image-guard-on-canvas-local-na.patch
+  s_c00e05fd2c0953::t_fb1957b8708593 19,22
+scripts/patches/blitz-dom-0.3.0-beta.2/0019-Decode-bomb-guard-in-kitesurf_materialize_image_data.patch
+  s_c00e05fd2c0953::t_bbe4e72a65ec26 20,23
+scripts/patches/blitz-dom-0.3.0-beta.2/0025-Flush-nested-inline-pseudo-elements-child-display-no.patch
+  s_c00e05fd2c0953::t_0ce7a61d08a853 23,26-27
+scripts/patches/blitz-dom-0.3.0-beta.2/0028-Harden-RangeInput-layout-construction-against-non-fi.patch
+  s_c00e05fd2c0953::t_b84b94ffcc48fb 21,24
+scripts/patches/blitz-dom-0.3.0-beta.2/0036-Seed-TextInputData-so-pre-layout-.value-writes-aren-.patch
+  s_c00e05fd2c0953::t_5ec3f00a50ab94 23,26,35
+scripts/patches/blitz-dom-0.3.0-beta.2/0040-UA-stylesheet-overflow-hidden-on-svg-viewport-elemen.patch
+  s_c00e05fd2c0953::t_25b9ced5fa5982 17,20
+scripts/patches/blitz-dom-0.3.0-beta.2/0046-Never-hoist-the-root-element-into-its-own-layout-chi.patch
+  s_c00e05fd2c0953::t_fe7f3cda777044 26,29,38,41
+scripts/patches/blitz-dom-0.3.0-beta.2/0053-SVG-generic-families-fall-back-to-the-registered-san.patch
+  s_c00e05fd2c0953::t_fa29d5e63f65eb 24
+scripts/patches/blitz-dom-0.3.0-beta.2/0056-Persist-atomic-inline-children-s-scrollable-overflow.patch
+  s_c00e05fd2c0953::t_6ed5b047b1f0db 4,11-12,21,28,31,34-35,37,41-43,45-46
+scripts/patches/blitz-dom-0.3.0-beta.2/0060-Replaced-max-size-leniency-only-applies-to-natural-s.patch
+  s_c00e05fd2c0953::t_22ca0cd9983b7c 27,30-32
+scripts/patches/blitz-dom-0.3.0-beta.2/0086-Stamp-a-restyle-hint-when-remove_node-unlinks-a-chil.patch
+  s_c00e05fd2c0953::t_48b8e882b79118 20,23-24
+scripts/patches/parley-0.11.1/0001-Add-inline-span-box-decorations-to-text-layout.patch
+  s_364feffc4d9b03::t_022a3f43ced115 37,62,65,79,92,610,622,648,657,675,688,833,889,1194
+scripts/patches/parley-0.11.1/0002-Base-direction-control-forced-LTR-RTL-per-paragraph-.patch
+  s_364feffc4d9b03::t_58f1701c7a2700 27,34,37,40-42,45-46,48-49,200,208,211,214,224,227-228,238,272,337,340,345-347,349,352
+scripts/patches/parley-0.11.1/0003-Expose-first_strong_direction-for-HTML-dir-auto-reso.patch
+  s_364feffc4d9b03::t_559b215010b0bb 53,56,62-64
+scripts/patches/parley-0.11.1/0004-Expose-current_text_len-on-TreeBuilder-for-source-ra.patch
+  s_364feffc4d9b03::t_e0ae069ad98e6f 23,26
+scripts/patches/parley-0.11.1/0006-Add-a-PreserveBreaks-white-space-collapse-mode.patch
+  s_364feffc4d9b03::t_5abeb4893dc1a0 90
+scripts/patches/selectors-0.40.0/0001-Strict-selector-lists-reject-trailing-input-after-a-.patch
+  s_6798b1a5136aab::t_79d009fbda36fb 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ea5e6985937ba2f36826ec80237c2a665298762b",
+  "prompts": {},
+  "sessions": {
+    "s_14fc14ef8f57e3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f91943103ffemcQ5v9AuqJiB0D",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_364feffc4d9b03": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8fb63b3dffeMF7oVMSXM6tjgd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_485082a2dddead": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8f693b22ffeWDn2pwFfotEmrZ",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_6798b1a5136aab": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8fb63bf9ffe7w2xhiYcsGQiyS",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_68a5eadbc0a896": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8f838e24ffesAmzG9stimNLZQ",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_6958ada97569fd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8f9459d1ffehhTPchFsYUIc6n",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_7f2d9acc0640e3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8f518b2fffec0GSsIBvoWKRVM",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_9a7def0558783b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8f41c1e1ffehdv5te6VxuayCV",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_c00e05fd2c0953": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8f298109ffeI0KTpuN1gXYSPz",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_c2f0f4abb00608": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8f3c275bffejwl0pvwHg66DiE",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_d69d163eac266a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f91703104ffekhGyumDXlphoP8",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f4689fcb0f1502": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8f518b6bffeYo7uPZqzw13LGr",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

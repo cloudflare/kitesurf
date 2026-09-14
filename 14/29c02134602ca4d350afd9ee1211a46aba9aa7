@@ -1,0 +1,30 @@
+packages/engine/test/e2e/cssom-insertrule-append.e2e.test.ts
+  s_d3331fe4df3409::t_676b7859073dea 1-135
+  s_d3331fe4df3409::t_7774cc06a1c6b0 136-140
+docs/DOM_SHIM.md
+  s_d3331fe4df3409::t_389eb0f515224f 29-31,34-56,63-69
+packages/core/src/lib.rs
+  s_d3331fe4df3409::t_087e1862861c4c 6056-6060
+packages/dom-shim/src/collections.ts
+  s_d3331fe4df3409::t_d427b90e11f1f8 11,2352-2393,2408-2452,2454-2456,2459,2461-2463,2466-2478,2480-2482,2539-2548,2633-2638
+packages/engine/test/e2e/style-churn-memory.e2e.test.ts
+  s_d3331fe4df3409::t_35c4aa3fe937b7 61-63,72
+scripts/patches/blitz-dom-0.3.0-beta.1/0121-Coalesce-style-re-parses-one-stylo-parse-per-resolve.patch
+  s_d3331fe4df3409::t_be4ce2dff217ea 1-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1429c02134602ca4d350afd9ee1211a46aba9aa7",
+  "prompts": {},
+  "sessions": {
+    "s_d3331fe4df3409": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f649d4dd3ffeZ9Zfp0qsWRxmBj",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

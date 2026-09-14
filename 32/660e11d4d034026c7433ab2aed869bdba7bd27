@@ -1,0 +1,25 @@
+packages/engine/test/e2e/event-handler-idl.e2e.test.ts
+  s_6aaa3704780b80::t_2b0101b64618e9 44-49,51,58,62-72,74,77-83,85-91
+  s_6aaa3704780b80::t_a16c778f9806fe 75-76
+  s_6aaa3704780b80::t_3e21b41a781ff4 59-60
+  s_6aaa3704780b80::t_b0a8d0e12b6b47 50,52-57,61,73,84
+packages/page-script/src/globals.ts
+  s_6aaa3704780b80::t_b0a8d0e12b6b47 27-32,36-39,1918-1929,1932-1935,1940,1947
+  s_6aaa3704780b80::t_2b0101b64618e9 1912-1917,1930-1931,1936-1939,1941-1946,1948-1955
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "32660e11d4d034026c7433ab2aed869bdba7bd27",
+  "prompts": {},
+  "sessions": {
+    "s_6aaa3704780b80": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7fb4f1bfffetWy0uMcVTwuQPB",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
