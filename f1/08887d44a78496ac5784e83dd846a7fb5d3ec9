@@ -1,0 +1,23 @@
+packages/engine/test/e2e/flex-svg-intrinsic.e2e.test.ts
+  s_f19c180209e8f6::t_f5d76a27191ece 1-120
+packages/engine/test/e2e/intrinsic-sizing.e2e.test.ts
+  s_f19c180209e8f6::t_1b915b7417af0f 1-82
+scripts/patches/taffy-0.14.0/0006-Size-content-determined-containers-from-their-non-cy.patch
+  s_f19c180209e8f6::t_9026adda235bf1 1-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f108887d44a78496ac5784e83dd846a7fb5d3ec9",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
