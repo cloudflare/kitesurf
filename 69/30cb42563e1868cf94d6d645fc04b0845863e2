@@ -1,0 +1,21 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Fix-font-metrics-and-inline-layout-regressions.patch
+  s_4ba79f911c93c4::t_0892efafa6730e 13-19,22,25-40,44,51-83,88-120,195,198,223-225,230-245
+packages/core/src/sticky.rs
+  s_4ba79f911c93c4::t_62fddf643b5255 175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6930cb42563e1868cf94d6d645fc04b0845863e2",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
