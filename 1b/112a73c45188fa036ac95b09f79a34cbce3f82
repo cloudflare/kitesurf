@@ -1,0 +1,24 @@
+packages/core/src/sticky.rs
+  s_4ba79f911c93c4::t_367b60fa15bb2e 234
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_20d529e277ea79 3306,3324,3331
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Fix-font-metrics-and-inline-layout-regressions.patch
+  s_4ba79f911c93c4::t_7b2e02b2c31d9e 14,112,115,132-142
+  s_4ba79f911c93c4::t_80d51b7b8633aa 17-18,383,386-402,419,430
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1b112a73c45188fa036ac95b09f79a34cbce3f82",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
