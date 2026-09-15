@@ -1,0 +1,29 @@
+packages/engine/test/e2e/inline-svg-vertical-align.e2e.test.ts
+  s_f19c180209e8f6::t_ef76ed4e27670a 1-23,26-28,36-37,45
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Pass-inline-alignment-and-x-height-to-Parley.patch
+  s_f19c180209e8f6::t_257728d89c60db 1-378
+scripts/patches/parley-0.11.1/0007-Support-middle-aligned-inline-boxes.patch
+  s_f19c180209e8f6::t_60c66c292c37bd 1-118
+packages/engine/test/e2e/html/text-fill-color.html
+  s_f19c180209e8f6::t_0e6c9036be7ae5 17-24,30
+packages/engine/test/e2e/text-fill-color.e2e.test.ts
+  s_f19c180209e8f6::t_ce8dfe7a558fc4 33,44,80,102-103
+scripts/patches/blitz-paint-0.3.0-beta.2/0025-paint-keep-text-visible-when-gradient-clipping-is-un.patch
+  s_f19c180209e8f6::t_f3b370001c725b 1-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a0850c33e2486151490141af47fd6477820adedc",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
