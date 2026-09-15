@@ -19,6 +19,7 @@ packages/page-script/src/index.ts
   s_0b62245bd53100::t_9d21f966929b0c 4418-4429
   s_0b62245bd53100::t_07173b1dc03e90 342,4396-4406,4408-4416,4430-4446,4453-4455
   s_0b62245bd53100::t_1eeb232261c896 4346
+  s_4ba79f911c93c4::t_7e58435602f3eb 4322-4323,4331-4333,4347,4351
 packages/dom-shim/src/element.ts
   s_0b62245bd53100::t_9f81041af07417 4787-4789,4791
   s_0b62245bd53100::t_dadace9a0effee 3443-3446
@@ -42,6 +43,14 @@ packages/page-script/src/types.ts
         "tool": "opencode",
         "id": "ses_fb909e891ffeOysb1haJ2cDJYI",
         "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     }
