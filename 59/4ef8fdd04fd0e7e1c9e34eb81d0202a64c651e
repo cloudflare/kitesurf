@@ -28,6 +28,7 @@ packages/page-script/src/__ks_startup_probe_input.d.ts
   s_f79ebc3dd819a9::t_ca6709df269d75 18-20,23-28,64
 packages/page-script/src/globals.ts
   s_f79ebc3dd819a9::t_ca6709df269d75 22,26-31,563-573,593,596-631,686-690,692,701,708-714,724-726,747-751
+  s_e14db85d7d877c::t_efed9cd438e654 693-700
 packages/engine/package.json
   s_f79ebc3dd819a9::t_ca6709df269d75 9
 packages/engine/src/cdp/page.ts
@@ -40,6 +41,7 @@ turbo.json
   s_f79ebc3dd819a9::t_ca6709df269d75 84-86,91
 packages/core/src/lib.rs
   s_f79ebc3dd819a9::t_ca6709df269d75 277,632,636,638,640-641,645,673,681,689,704,1632,1652,1660
+  s_e14db85d7d877c::t_90103227217fa4 639
 packages/engine/src/eval/page-script-compat.ts
   s_f79ebc3dd819a9::t_ca6709df269d75 40-41
 packages/engine/test/e2e/workerd-native-browser.e2e.test.ts
@@ -73,6 +75,14 @@ packages/engine/vitest.e2e.config.mts
   "base_commit_sha": "594ef8fdd04fd0e7e1c9e34eb81d0202a64c651e",
   "prompts": {},
   "sessions": {
+    "s_e14db85d7d877c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f58aefaa7ffesWXuu74hnx5qny",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_f79ebc3dd819a9": {
       "agent_id": {
         "tool": "opencode",
