@@ -1,0 +1,31 @@
+packages/engine/test/e2e/timer-wheel-foreign-clear.e2e.test.ts
+  s_4b450167e630e8::t_e57cddea8ef932 1-49
+AGENTS.md
+  s_4b450167e630e8::t_74d5e645226397 217-220
+packages/page-script/src/defer-shim.ts
+  s_4b450167e630e8::t_68433d93852999 119-122
+  s_4b450167e630e8::t_99e4ef51583938 244
+  s_4b450167e630e8::t_8e2a86b8bc365f 266,272
+  s_4b450167e630e8::t_0911be813b9b52 380,388,394,400
+  s_4b450167e630e8::t_4eae0b66352517 321
+  s_4b450167e630e8::t_268655e4260d2b 339,352-361
+  s_4b450167e630e8::t_8996c2effb2af1 304,308
+packages/page-script/src/globals.ts
+  s_4b450167e630e8::t_3350cfc8d92650 381-383,387,393
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "add516e2bd2ac20b893529362b78ee03ab04dc56",
+  "prompts": {},
+  "sessions": {
+    "s_4b450167e630e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e08b52affe2claqo3m243AcK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
