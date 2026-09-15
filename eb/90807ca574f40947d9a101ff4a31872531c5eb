@@ -24,6 +24,7 @@ packages/engine/src/cdp/page.ts
   s_888afb7fb58595::t_e65a378f2d0e0c 4030-4031
 packages/engine/test/fixtures-worker/src/serve.ts
   s_888afb7fb58595::t_0010cbee9bfff7 1548-1552
+  s_e14db85d7d877c::t_17f989ffee4490 1654-1660,1735-1833
 packages/page-script/src/trusted-fetch.ts
   s_888afb7fb58595::t_c5ef52cfaa7be5 16-17,20,70-72
 packages/engine/test/e2e/load-event-propagation.e2e.test.ts
@@ -31,6 +32,20 @@ packages/engine/test/e2e/load-event-propagation.e2e.test.ts
   s_f65880fa48e906::t_83ccf740c00c10 1-4,6-13,25,27-28
 packages/dom-shim/src/events/dispatch.ts
   s_f65880fa48e906::t_9fc34b581fb48d 295-299,322-327
+packages/engine/test/page-script-compat.test.ts
+  s_e14db85d7d877c::t_17f989ffee4490 19
+packages/engine/test/e2e/native-module-preload.e2e.test.ts
+  s_e14db85d7d877c::t_17f989ffee4490 1-37
+packages/page-script/src/scripts.ts
+  s_e14db85d7d877c::t_17f989ffee4490 13,47,91-171,453-456,458-459
+docs/NATIVE_V8.md
+  s_e14db85d7d877c::t_17f989ffee4490 16
+packages/page-script/src/index.ts
+  s_e14db85d7d877c::t_17f989ffee4490 226,1770-1786,2069,2327
+packages/engine/src/eval/page-script-compat.ts
+  s_e14db85d7d877c::t_17f989ffee4490 23
+packages/page-script/src/workerd-unsafe-eval.d.ts
+  s_e14db85d7d877c::t_17f989ffee4490 4-7
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -51,6 +66,14 @@ packages/dom-shim/src/events/dispatch.ts
         "tool": "opencode",
         "id": "ses_f7d94f633ffeREBl69WJvei04X",
         "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_e14db85d7d877c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f58aefaa7ffesWXuu74hnx5qny",
+        "model": "claude-fable-5-1"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     },
