@@ -1,0 +1,19 @@
+packages/page-script/src/index.ts
+  s_4ba79f911c93c4::t_6614e6279610c1 4326-4328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b9157839013af1a5574f6489ffc2af0adfd40900",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

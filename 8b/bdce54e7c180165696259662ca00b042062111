@@ -1,0 +1,23 @@
+packages/engine/test/e2e/demos/module-init-shim-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_4080e72d4b3bf5 186-253,255-258
+  s_4ba79f911c93c4::t_de7d4d9cb98e3c 254
+packages/page-script/src/init-shims.ts
+  s_4ba79f911c93c4::t_0da66c38cfd49f 112-116,133,151,168
+  s_4ba79f911c93c4::t_411fc949543434 59-63,81-82,110-111,117-118,134-136,152-153,169-171,227-228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8bbdce54e7c180165696259662ca00b042062111",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

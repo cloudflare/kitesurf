@@ -1,0 +1,59 @@
+packages/engine/src/cdp/page-session.ts
+  s_4efb85c8268621::t_680279dba2a9c1 144
+packages/engine/test/page-renderer-timeout.test.ts
+  s_4efb85c8268621::t_70425df3c66179 1-2
+packages/engine/src/cdp/types.ts
+  s_4efb85c8268621::t_573cd09766a448 529
+packages/engine/test/e2e/classic-seed-walk.e2e.test.ts
+  s_4efb85c8268621::t_b84eb58075e35b 1-2
+packages/core/src/boa_eval.rs
+  s_4efb85c8268621::t_1ed58be841b353 1209-1212
+packages/engine/test/e2e/computed-style-cache.e2e.test.ts
+  s_4efb85c8268621::t_965d4d0db6fc66 40
+  s_4efb85c8268621::t_b84eb58075e35b 1-2
+packages/engine/src/eval/page-renderer.ts
+  s_4efb85c8268621::t_ac0bb8a1308a34 134,500-503
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_4efb85c8268621::t_81c411376376ca 1-2
+  s_4efb85c8268621::t_dedbd2e6b71296 32-37,39-47
+packages/engine/vitest.config.mts
+  s_4efb85c8268621::t_b84eb58075e35b 35-36
+packages/engine/src/cdp/page.ts
+  s_4efb85c8268621::t_ea363cb7e2c0de 7791-7793
+  s_4efb85c8268621::t_eb17d14631276b 4360-4361
+  s_4efb85c8268621::t_b8dbba740513a8 4355
+  s_4efb85c8268621::t_950a6f2e7d6fa6 4410
+  s_4efb85c8268621::t_b17d7b5147dee2 8059-8060
+  s_4efb85c8268621::t_9339003393f0e8 8131-8132
+  s_4efb85c8268621::t_573cd09766a448 2114
+  s_4efb85c8268621::t_c88fb5e5d41ca3 4449
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_4efb85c8268621::t_680279dba2a9c1 1520-1521
+packages/dom-shim/src/mutations/seq.ts
+  s_4efb85c8268621::t_573cd09766a448 8-9
+packages/dom-shim/src/index.ts
+  s_4efb85c8268621::t_573cd09766a448 382-383
+packages/page-script/src/paint.ts
+  s_4efb85c8268621::t_9eec54e1e32b60 222-224,226-227,229
+packages/engine/test/e2e/demos/page-renderer-screencast.e2e.test.ts
+  s_4efb85c8268621::t_573cd09766a448 4
+packages/page-script/src/index.ts
+  s_4efb85c8268621::t_d911840e126bd4 1514-1515,1522-1524,1526,1541-1542,1546,1550-1551,5326-5327,5340-5342,5510-5514
+  s_4efb85c8268621::t_6543100b440d3c 5328,5354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b343f3cb9fa82ed1d5badde9db4ce987a6d6498d",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

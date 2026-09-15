@@ -1,0 +1,23 @@
+packages/engine/test/e2e/inline-svg-vertical-align.e2e.test.ts
+  s_f19c180209e8f6::t_40733c0dbb8491 1-85
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Pass-inline-alignment-and-x-height-to-Parley.patch
+  s_f19c180209e8f6::t_c359bf9e26381f 1-413
+scripts/patches/parley-0.11.1/0007-Support-middle-aligned-inline-boxes.patch
+  s_f19c180209e8f6::t_be68f7a31bcab6 1-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0c4c198ed1a7ebb72aa8bf3c683e2f455a0e1e75",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

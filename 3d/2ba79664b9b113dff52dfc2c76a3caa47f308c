@@ -1,0 +1,31 @@
+scripts/patches/taffy-0.14.0/0006-Fix-float-height-and-placement.patch
+  s_4ba79f911c93c4::t_fb1591daac047f 1-38
+packages/core/src/sticky.rs
+  s_4ba79f911c93c4::t_2e79ab0f1bb8c8 453-454,477,480-483,525-528,537,541
+  s_4ba79f911c93c4::t_b84dcae44740e5 137-138,237-238,240,465
+  s_4ba79f911c93c4::t_a7496bc68b048d 19,62,85,104,131,152,154,295-296,319,331,407,435
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_844d1f60e4964a 3308
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Fix-font-metrics-and-inline-layout-regressions.patch
+  s_4ba79f911c93c4::t_feb071e8c0f117 1-12,19-111,113-114,122-125,133-135,145-148,150-151,182-197,201-220,222-231,233-242,244-259,267-283,285-372,374-380,383-409,412-424
+  s_4ba79f911c93c4::t_d39ef60cd53f48 13-14,17,112,115-121,126-132,136-144,152-181,199-200,221,232,263-266
+  s_4ba79f911c93c4::t_a60217cf51ba3f 15-16,18,149,198,243,260-262,284,373,381-382,410-411
+scripts/patches/parley-0.11.1/0007-Preserve-parent-line-height-for-inline-boxes.patch
+  s_4ba79f911c93c4::t_613b336fc2c7ea 3,5-7,9,15,18-19,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3d2ba79664b9b113dff52dfc2c76a3caa47f308c",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

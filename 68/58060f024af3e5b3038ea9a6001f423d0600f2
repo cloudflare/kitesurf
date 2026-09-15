@@ -1,0 +1,21 @@
+packages/core/src/transitions.rs
+  s_0b62245bd53100::t_ef79eba438adb0 193-194
+packages/core/src/animation_clock_test.rs
+  s_0b62245bd53100::t_ef79eba438adb0 439-455
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6858060f024af3e5b3038ea9a6001f423d0600f2",
+  "prompts": {},
+  "sessions": {
+    "s_0b62245bd53100": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb909e891ffeOysb1haJ2cDJYI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
