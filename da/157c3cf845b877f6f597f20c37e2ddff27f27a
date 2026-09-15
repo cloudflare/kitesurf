@@ -4,6 +4,8 @@ packages/engine/test/fixtures-worker/assets/importmap.html
   s_a75ea28c7345c6::t_343d49ff5a18fe 1-120
 packages/engine/test/fixtures-worker/src/serve.ts
   s_a75ea28c7345c6::t_a7423f8feefe44 693-694,1445-1446,1480-1485,3162-3190
+packages/engine/test/fixtures-worker/assets/importmap-scoped-entry.js
+  s_e14db85d7d877c::t_2dc3c484845b73 1-4
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -16,6 +18,14 @@ packages/engine/test/fixtures-worker/src/serve.ts
         "tool": "opencode",
         "id": "ses_f6ba347d1ffeBXm6VNFbnPDneO",
         "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_e14db85d7d877c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f58aefaa7ffesWXuu74hnx5qny",
+        "model": "claude-fable-5-1"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     }
