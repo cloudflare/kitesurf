@@ -1,6 +1,7 @@
 packages/engine/test/page-script-compat.test.ts
   s_d4d76e11edf985::t_6346ed024943df 1-2,4,18,22,24-29,30-31,33,34
   s_3b94de117771b1::t_f28f5864771f72 3,19-20
+  s_e14db85d7d877c::t_2cec8939d3116e 12-16,23,32
 packages/engine/src/eval/page-script.ts
   s_d4d76e11edf985::t_6346ed024943df 821,904,1391
   s_d4d76e11edf985::t_f94a02f119337e 942-947
@@ -52,6 +53,7 @@ packages/page-script/src/index.ts
   s_3b94de117771b1::t_e016f98a70f7a6 2299-2315,2317,2319-2322,2326-2335
   s_3b94de117771b1::t_ad8bb52ebba341 2280
   s_6aaa3704780b80::t_ee85f03e3ee504 4981-4984
+  s_e14db85d7d877c::t_fd5351179ef99d 6197
 packages/engine/test/dispatch-env.test.ts
   s_d4d76e11edf985::t_6346ed024943df 18
 packages/engine/src/cdp/dispatch.ts
@@ -116,6 +118,8 @@ packages/page-script/src/globals.ts
   s_6aaa3704780b80::t_a4c9a6c2c75d61 226,272-273
   s_6aaa3704780b80::t_95eed3ca1d3ff6 375
   s_6aaa3704780b80::t_95dab34f03edfa 401
+  s_e14db85d7d877c::t_c82de43f7a6033 596-597,599
+  s_e14db85d7d877c::t_391460c795a83d 442-443
 packages/page-script/src/native-script-source.ts
   s_d4d76e11edf985::t_9c1f1072758be3 40-42
   s_d4d76e11edf985::t_06d5be5692a198 1-31,33-36,43-44,46-49
@@ -272,6 +276,8 @@ docs/SCRIPT_LOADING.md
   s_3b94de117771b1::t_cc56c1d25393b9 39-44
   s_3b94de117771b1::t_46bcbc90e54eae 1,3,5,7-10,12-14,16-19,21-23,25-27,29,31-32,34-37,46-48,50-53,59-60
   s_3b94de117771b1::t_54246126ffcea2 55-57
+  s_e14db85d7d877c::t_05587476beea7f 61-65
+  s_e14db85d7d877c::t_c82de43f7a6033 2,4,6,11,15,20,24,28,30,33,38,45,49,54,58
 tests/interactivity-flows/README.md
   s_3b94de117771b1::t_429622207068c7 4,18-19
   s_3b94de117771b1::t_fa6a5c9c1670fb 364,366-368,372,375
@@ -484,6 +490,8 @@ packages/engine/test/e2e/timer-wheel.e2e.test.ts
   s_6aaa3704780b80::t_0e6b60d64e5ac7 29
   s_6aaa3704780b80::t_5b9bc5b443c146 85
   s_6aaa3704780b80::t_ad56527836333b 110-114
+packages/engine/src/cdp/page-session.ts
+  s_e14db85d7d877c::t_a3298326db3c2a 181
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -528,6 +536,14 @@ packages/engine/test/e2e/timer-wheel.e2e.test.ts
         "tool": "opencode",
         "id": "ses_f8a143d87ffezSkHU6q0WBxs5M",
         "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_e14db85d7d877c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f58aefaa7ffesWXuu74hnx5qny",
+        "model": "claude-fable-5-1"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     }
