@@ -1,0 +1,23 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Pass-inline-alignment-and-x-height-to-Parley.patch
+  s_f19c180209e8f6::t_555f214c59dd7d 14-16,19-20,229,232-236,247-279,288-289,293,298,302,307,311,316,320,325,329,334,339,352,358,363,372,378,383,389,394,400,405
+packages/engine/test/e2e/inline-svg-vertical-align.e2e.test.ts
+  s_f19c180209e8f6::t_0506d1d749f426 20-21
+  s_f19c180209e8f6::t_b49cc8c7e7fad2 22,60
+  s_f19c180209e8f6::t_48d3993d1f9774 47-59,61-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a24f3d6e96950edd6bcd111065047cb03872e8ba",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
