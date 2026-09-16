@@ -1,0 +1,37 @@
+packages/engine/test/e2e/layout-test-helpers.ts
+  s_4ba79f911c93c4::t_7c72087cace41d 1-20
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_8d3e91de918c03 62-71,76-84,89-108,113-131,136-143,148-160
+  s_4ba79f911c93c4::t_e3ce941a5db499 4-61,73-75,86-88,110-112,133-135,145-147
+  s_4ba79f911c93c4::t_b42ef530c81784 72,85,109,132,144,161
+  s_4ba79f911c93c4::t_96d0d8162ecd73 1-3
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_84569a9bb4f440 5
+  s_4ba79f911c93c4::t_9b43dccbbc0129 1-4,6-95,104,111,118,125
+  s_4ba79f911c93c4::t_e3ce941a5db499 96-97,105-106,112-113,119-120,126-127
+  s_4ba79f911c93c4::t_b42ef530c81784 103,110,117,124,131
+  s_4ba79f911c93c4::t_8d3e91de918c03 98-102,107-109,114-116,121-123,128-130
+packages/engine/test/e2e/global-setup.ts
+  s_4ba79f911c93c4::t_1f2d43fab8a27b 21,41-42
+packages/engine/test/e2e/float-layout-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_8d3e91de918c03 66-78,83-88,93-98,103
+  s_4ba79f911c93c4::t_568e7249fe4ecb 1-3,5-63
+  s_4ba79f911c93c4::t_b42ef530c81784 79,89,99,104
+  s_4ba79f911c93c4::t_e3ce941a5db499 4,64-65,80-82,90-92,100-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "977625e61e3a85fc91abc426a939ad77c21c897c",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}

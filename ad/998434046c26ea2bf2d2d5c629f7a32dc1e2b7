@@ -1,0 +1,23 @@
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_9b43dccbbc0129 1-176
+packages/engine/test/e2e/float-layout-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_568e7249fe4ecb 1-141
+packages/engine/test/e2e/global-setup.ts
+  s_4ba79f911c93c4::t_1f2d43fab8a27b 21,41-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ad998434046c26ea2bf2d2d5c629f7a32dc1e2b7",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
