@@ -1,0 +1,60 @@
+packages/engine/src/quickactions/brapi.ts
+  s_1e83ebd7089354::t_c4dfaf7138b60a 47
+  s_1e83ebd7089354::t_f5162ce3278436 48,59-65,82-88,91-97,108,123-127,129-132,136-164
+  s_1e83ebd7089354::t_1045be4030ab34 165-166
+packages/engine/src/eval/external-session.ts
+  s_1e83ebd7089354::t_55232590e51f58 17-21,167,172-175
+packages/engine/test/e2e/external-outbound.e2e.test.ts
+  s_1e83ebd7089354::t_c3158d57ff1c3b 268-285
+packages/engine/src/quickactions/links.ts
+  s_1e83ebd7089354::t_03373748f3c03c 62-65
+  s_1e83ebd7089354::t_55232590e51f58 1-57,68-82,86-128,130-135,140-233,236-244,246-257
+  s_1e83ebd7089354::t_f5162ce3278436 58,129
+  s_1e83ebd7089354::t_f93eb2a2b56818 136-139,234-235,245
+  s_1e83ebd7089354::t_e250d6d7c64b4d 59-61,66-67
+  s_1e83ebd7089354::t_e4f6050e2d030e 83-85
+packages/engine/src/quickactions/index.ts
+  s_1e83ebd7089354::t_c98d74b9509def 1112-1123
+  s_1e83ebd7089354::t_d7f77842369737 383-385,522-523,671-672,745-783
+  s_1e83ebd7089354::t_55232590e51f58 362-365,379,433-434,701-702,832-833,846
+  s_1e83ebd7089354::t_f5162ce3278436 47-51,940-953,957-958,965-968
+  s_1e83ebd7089354::t_e250d6d7c64b4d 392,668,1083,1088-1096,1099-1109,1127
+  s_1e83ebd7089354::t_e4f6050e2d030e 602,921,1144-1146
+  s_1e83ebd7089354::t_97190e3ec566e5 435
+  s_1e83ebd7089354::t_0059d09dc60098 524
+  s_1e83ebd7089354::t_f826f205f84ead 784-785
+  s_1e83ebd7089354::t_4475caacb0cbce 1110-1111
+  s_1e83ebd7089354::t_a93b0561b570fe 1147
+packages/engine/src/observability.ts
+  s_1e83ebd7089354::t_55232590e51f58 67,87
+packages/engine/test/e2e/links-quickaction.e2e.test.ts
+  s_1e83ebd7089354::t_c3158d57ff1c3b 1-13,20-44,51-62,65-83,110
+  s_1e83ebd7089354::t_1e6e6d9acf61a7 111-121,125
+  s_1e83ebd7089354::t_f5162ce3278436 14-19,63-64,84-109
+  s_1e83ebd7089354::t_e4f6050e2d030e 45-50
+  s_1e83ebd7089354::t_c98d74b9509def 122-124
+packages/engine/test/quickaction.test.ts
+  s_1e83ebd7089354::t_e4f6050e2d030e 179,281-302
+  s_1e83ebd7089354::t_c3158d57ff1c3b 25-28,167-178,181-182,195,197-202,212-280,303-305,798,822-825
+  s_1e83ebd7089354::t_e250d6d7c64b4d 183-194
+  s_1e83ebd7089354::t_f5162ce3278436 180,196,203-211
+packages/engine/src/index.ts
+  s_1e83ebd7089354::t_55232590e51f58 17,19,218-232,249,257,267-275,296-297,579,620-622
+  s_1e83ebd7089354::t_bffd4c91ee7cd3 623-624
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b38296bde3fbf3956b9b2ccbd1f15796a7ab1758",
+  "prompts": {},
+  "sessions": {
+    "s_1e83ebd7089354": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5678e3defferijaeQrvmBvYck",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
