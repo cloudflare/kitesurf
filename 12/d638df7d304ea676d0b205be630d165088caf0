@@ -17,6 +17,7 @@ packages/engine/test/e2e/table-collapsed-border-spans.e2e.test.ts
   s_7981d85a04bb1e::t_38d0b5e70250fd 1-61,65-69,75-90
 Cargo.toml
   s_ccf5542acfcceb::t_8162a02cfee604 75-79
+  s_1c957943e307aa::t_4bfa8f7e178be5 80
 scripts/patches/anyrender-0.13.0/0002-Carry-form-control-state-on-ScenePart.patch
   s_ccf5542acfcceb::t_709c04d21aaa68 1-5,14-35
   s_ccf5542acfcceb::t_6c2b3fc032ca47 6-13
@@ -24,6 +25,9 @@ scripts/patches/anyrender-0.13.0/0001-Add-PaintScene-begin_part-end_part.patch
   s_ccf5542acfcceb::t_709c04d21aaa68 1-70
 scripts/patches/README.md
   s_ccf5542acfcceb::t_1804d86af77958 111-118
+  s_1c957943e307aa::t_4bfa8f7e178be5 77
+scripts/get-patched-vendor-crates.mjs
+  s_1c957943e307aa::t_4bfa8f7e178be5 50
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -31,6 +35,14 @@ scripts/patches/README.md
   "base_commit_sha": "12d638df7d304ea676d0b205be630d165088caf0",
   "prompts": {},
   "sessions": {
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_3d13b96ccbbed6": {
       "agent_id": {
         "tool": "opencode",
