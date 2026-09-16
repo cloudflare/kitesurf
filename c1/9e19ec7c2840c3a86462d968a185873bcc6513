@@ -1,0 +1,21 @@
+packages/core/src/animation_clock_test.rs
+  s_7ca2cfacaf92f8::t_c9ac6b00957bfc 385,408,411,421,431,441-497
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_7ca2cfacaf92f8::t_6d055c8976ded5 261,269,273-275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c19e19ec7c2840c3a86462d968a185873bcc6513",
+  "prompts": {},
+  "sessions": {
+    "s_7ca2cfacaf92f8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5573c345ffeaK6L6ECIeoCiFE",
+        "model": "@cf/zai-org/glm-5.3-flash"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
