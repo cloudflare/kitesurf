@@ -1,0 +1,20 @@
+packages/core/src/sticky.rs
+  s_4ba79f911c93c4::t_5dddf80f43a790 281
+  s_4ba79f911c93c4::t_ff8adc68c8e733 142-144,159-160,186-188,230-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d76c93d439413200214eef5e0876ab67dc7d997a",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

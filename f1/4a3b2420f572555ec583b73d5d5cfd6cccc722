@@ -1,0 +1,58 @@
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_0b62245bd53100::t_69311a10d8af15 219-260
+  s_0b62245bd53100::t_6d4fc4618ff321 162-218,261-264
+  s_0b62245bd53100::t_d28ef8a3837777 113,115-116,118-121
+  s_0b62245bd53100::t_9d4df8285b13f3 94-112,114,117,122-161
+packages/page-script/src/font-loader.ts
+  s_0b62245bd53100::t_1f2719ac5974c8 246-248
+  s_0b62245bd53100::t_d9d57628d6fb5a 251-252
+packages/page-script/src/index.ts
+  s_0b62245bd53100::t_a6019bf172ebf0 4848-4854,4856,4869-4870,4877-4878,4893,4910-4912,4915
+  s_0b62245bd53100::t_6cd2d97b130e10 4024-4028
+  s_0b62245bd53100::t_cb893f00edf1a2 336-338,4317-4319,4335,4341-4344
+  s_0b62245bd53100::t_8e9f6579d97bea 4321
+  s_0b62245bd53100::t_350f86e6c81872 3982-3983
+  s_0b62245bd53100::t_fdaad038160eee 4328-4330,4334,4337-4340,4348-4349
+  s_0b62245bd53100::t_27e559f2a8b62a 4029-4031,4316,4320,4324-4327,4336,4345,4350,4352-4355,4456
+  s_0b62245bd53100::t_0174724d6dcbea 4871-4874,4879,4887
+  s_0b62245bd53100::t_34e836fe45db3e 4857-4858,4880-4886,4888-4892
+  s_0b62245bd53100::t_9d21f966929b0c 4418-4429
+  s_0b62245bd53100::t_07173b1dc03e90 342,4396-4406,4408-4416,4430-4446,4453-4455
+  s_0b62245bd53100::t_1eeb232261c896 4346
+  s_4ba79f911c93c4::t_7e58435602f3eb 4322-4323,4331-4333,4347,4351
+packages/dom-shim/src/element.ts
+  s_0b62245bd53100::t_9f81041af07417 4787-4789,4791
+  s_0b62245bd53100::t_dadace9a0effee 3443-3446
+  s_0b62245bd53100::t_05bb5112b975c4 5400-5401
+packages/engine/test/e2e/demos/text-input-caret-font.e2e.test.ts
+  s_0b62245bd53100::t_560f6baa43f5ec 6
+  s_0b62245bd53100::t_69f187c3046fd5 1-5,7-60
+scripts/patches/blitz-dom-0.3.0-beta.2/0109-Apply-computed-font-family-to-text-editors.patch
+  s_0b62245bd53100::t_17581967e783db 1-21
+packages/page-script/src/types.ts
+  s_0b62245bd53100::t_6c7ed0e4a640b5 43-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f14a3b2420f572555ec583b73d5d5cfd6cccc722",
+  "prompts": {},
+  "sessions": {
+    "s_0b62245bd53100": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb909e891ffeOysb1haJ2cDJYI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
