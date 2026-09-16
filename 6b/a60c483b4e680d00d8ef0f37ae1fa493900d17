@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Pass-inline-alignment-and-x-height-to-Parley.patch
+  s_f19c180209e8f6::t_b5b23697863c60 17-18,21-22,231,249,258,264-271,276,279,282,289,299-307,311,320,329,338,347,357,370,381,390,401,412,423
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6ba60c483b4e680d00d8ef0f37ae1fa493900d17",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
