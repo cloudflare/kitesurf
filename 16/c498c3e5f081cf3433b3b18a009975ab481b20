@@ -1,0 +1,27 @@
+packages/engine/test/tty-stylesheet.test.ts
+  s_91836f22884cfe::t_86d4aadf17ae02 110
+  s_91836f22884cfe::t_9c7e09dbf4d438 104-109,111-113
+packages/engine/test/e2e/tty-todomvc-controls.e2e.test.ts
+  s_91836f22884cfe::t_e20c5449da2d8b 1-34,37-40
+  s_91836f22884cfe::t_0736d6e178aaf0 35-36
+packages/engine/src/tty-stylesheet.css
+  s_91836f22884cfe::t_9c7e09dbf4d438 176-187,189-191
+  s_91836f22884cfe::t_86d4aadf17ae02 188
+  s_91836f22884cfe::t_10780c5f3b1aed 175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "16c498c3e5f081cf3433b3b18a009975ab481b20",
+  "prompts": {},
+  "sessions": {
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

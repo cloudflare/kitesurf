@@ -1,0 +1,97 @@
+packages/engine/test/e2e/table-collapsed-border-spans.e2e.test.ts
+  s_7981d85a04bb1e::t_38d0b5e70250fd 1-61,65-69,75-90
+Cargo.toml
+  s_ccf5542acfcceb::t_8162a02cfee604 75-79
+scripts/patches/anyrender-0.13.0/0002-Carry-form-control-state-on-ScenePart.patch
+  s_ccf5542acfcceb::t_709c04d21aaa68 1-5,14-35
+  s_ccf5542acfcceb::t_6c2b3fc032ca47 6-13
+scripts/patches/anyrender-0.13.0/0001-Add-PaintScene-begin_part-end_part.patch
+  s_ccf5542acfcceb::t_709c04d21aaa68 1-70
+scripts/patches/README.md
+  s_ccf5542acfcceb::t_1804d86af77958 111-118
+scripts/patches/blitz-paint-0.3.0-beta.2/0026-Mark-which-part-of-an-element-each-op-paints.patch
+  s_ccf5542acfcceb::t_aca0372b66d565 1-100
+scripts/patches/blitz-paint-0.3.0-beta.2/0027-Paint-checkboxes-and-radios-which-blitz-never-did.patch
+  s_ccf5542acfcceb::t_183d3f81a93f42 6-14
+  s_ccf5542acfcceb::t_aca0372b66d565 1-5,15-107
+packages/core/src/scene_replay.rs
+  s_ccf5542acfcceb::t_316bd48b159493 1036
+packages/core/src/scene_decode.rs
+  s_ccf5542acfcceb::t_316bd48b159493 1403
+  s_ccf5542acfcceb::t_fc05ea0be5e4ae 542-545,887-888,899
+  s_ccf5542acfcceb::t_19e3d51d8624b6 1617
+  s_ccf5542acfcceb::t_a2a1a3046a6462 845,1572-1616,1618-1632
+  s_ccf5542acfcceb::t_ec2937f4d6f2d4 1554-1571,1633-1673
+  s_ccf5542acfcceb::t_d489431017cd0b 424-462,555-563,836-844
+packages/core/src/scene_record.rs
+  s_ccf5542acfcceb::t_365437f4ea798d 2131-2135
+  s_ccf5542acfcceb::t_aa827549caecf2 2121-2123
+  s_ccf5542acfcceb::t_5e069d342bec74 1186,1321-1322
+  s_ccf5542acfcceb::t_a59efc692ab750 2670-2698
+  s_ccf5542acfcceb::t_f7c25df4f1fefa 1859-1873
+  s_ccf5542acfcceb::t_1e1e380376656a 33-48
+  s_ccf5542acfcceb::t_3456fa311c69b2 20-32,280,297-306,1056-1063,1876-1897,1899-1910
+packages/core/src/sketch.rs
+  s_ccf5542acfcceb::t_1b4bb6495dc5a6 1-393
+packages/core/src/screenshot.rs
+  s_ccf5542acfcceb::t_67f6d85323fa30 85
+packages/core/src/lib.rs
+  s_ccf5542acfcceb::t_67f6d85323fa30 68,4616,5046,5224,5630
+  s_ccf5542acfcceb::t_06f6fb7c9eecfd 858,1112,5798,5855
+  s_ccf5542acfcceb::t_449068e93a2d9e 459-460
+  s_ccf5542acfcceb::t_b7ea92bfb2498a 431-458,461-467,916,1132,5805,5870
+packages/core/src/pdf.rs
+  s_ccf5542acfcceb::t_67f6d85323fa30 139
+scripts/patches/blitz-paint-0.3.0-beta.2/0028-Sketch-mode-box-SVG-content-instead-of-painting-the-.patch
+  s_ccf5542acfcceb::t_1b4bb6495dc5a6 1-99
+packages/engine/src/cdp/target.ts
+  s_ccf5542acfcceb::t_874296f5fdeff4 412,595
+packages/engine/src/cdp/kitesurf.ts
+  s_ccf5542acfcceb::t_2091c7f11ea34f 19-24,194-249
+  s_ccf5542acfcceb::t_f863886b4371fc 250
+packages/engine/src/cdp/page.ts
+  s_ccf5542acfcceb::t_1dcb6fdd377a07 3253-3266
+packages/engine/src/cdp/types.ts
+  s_ccf5542acfcceb::t_874296f5fdeff4 141-144,898-903
+packages/page-script/src/index.ts
+  s_ccf5542acfcceb::t_b9ca8663d72d1f 251,6447-6457
+  s_ccf5542acfcceb::t_4617f2ec9cfb04 6458-6459
+  s_ccf5542acfcceb::t_096ba68b55a864 252,1732-1743
+packages/page-script/src/wasm-glue.d.ts
+  s_ccf5542acfcceb::t_b9ca8663d72d1f 183-188
+  s_ccf5542acfcceb::t_ccf18c017af737 189-192
+packages/engine/src/cdp/page-session.ts
+  s_ccf5542acfcceb::t_9feb1ae711b35a 116-119
+packages/engine/src/cdp/connection.ts
+  s_ccf5542acfcceb::t_874296f5fdeff4 456-458
+packages/page-script/src/globals.ts
+  s_ccf5542acfcceb::t_76d9eb56b30b49 2857-2865
+packages/engine/src/eval/page-script.ts
+  s_ccf5542acfcceb::t_096ba68b55a864 334-337
+packages/page-script/src/font-loader.ts
+  s_ccf5542acfcceb::t_7dd2c1bbdcba54 246-268,271-278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a44b6df8757e105cede0e33ba3daf7a6a145d540",
+  "prompts": {},
+  "sessions": {
+    "s_7981d85a04bb1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd142cefaffez3gql9xA3APsAN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
