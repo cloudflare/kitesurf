@@ -1,0 +1,59 @@
+scripts/patches/parley-0.11.1/0007-Preserve-parent-line-height-for-inline-boxes.patch
+  s_a2feeea1972b1e::t_39cc27af6f7a5a 1-2,4,8,10-14,16-17,20,22-29
+  s_4ba79f911c93c4::t_613b336fc2c7ea 3,5-7,9,15,18-19,21
+scripts/patches/taffy-0.14.0/0006-Fix-float-height-and-placement.patch
+  s_4ba79f911c93c4::t_fb1591daac047f 1-38
+packages/page-script/src/index.ts
+  s_a2feeea1972b1e::t_1c8976b5fb3056 4116-4119,4125-4128,4130-4133,4169,4174-4180,4182-4185
+  s_4ba79f911c93c4::t_5e926b5185e42f 4129
+  s_a2feeea1972b1e::t_8c63f978cd4eaa 4120-4124,4181,4379
+packages/page-script/src/paint.ts
+  s_a2feeea1972b1e::t_fec4a78dc9aca5 33
+  s_a2feeea1972b1e::t_8c63f978cd4eaa 34,37-38,45-46,100,128,164,201,236
+packages/core/src/lib.rs
+  s_a2feeea1972b1e::t_3a16f02051eda0 2655-2675
+  s_4ba79f911c93c4::t_201c6ca4b5a522 2955,2957-2962,2966
+  s_4ba79f911c93c4::t_844d1f60e4964a 3315
+  s_a2feeea1972b1e::t_228ca51acb85ef 3306-3314,3316-3325,3330
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Fix-font-metrics-and-inline-layout-regressions.patch
+  s_4ba79f911c93c4::t_d39ef60cd53f48 13-14,17,112,115-121,126-132,136-144,152-181,199-200,221,232,263-266
+  s_4ba79f911c93c4::t_feb071e8c0f117 1-12,19-111,113-114,122-125,133-135,145-148,150-151,182-197,201-220,222-231,233-242,244-259,267-283,285-372,374-380,383-409,412-424
+  s_4ba79f911c93c4::t_a60217cf51ba3f 15-16,18,149,198,243,260-262,284,373,381-382,410-411
+packages/core/src/sticky.rs
+  s_a2feeea1972b1e::t_ea77291fdf7328 203-205
+  s_4ba79f911c93c4::t_a7496bc68b048d 152-154,435
+  s_4ba79f911c93c4::t_d2f10eeb9c315e 243,245-254
+  s_a2feeea1972b1e::t_681610536cf8a2 239,256
+  s_a2feeea1972b1e::t_a26d0028be6051 158,199,257,263
+  s_a2feeea1972b1e::t_184104045c984a 212-226,233
+  s_4ba79f911c93c4::t_2e79ab0f1bb8c8 537,541
+  s_4ba79f911c93c4::t_b84dcae44740e5 237-238,240
+  s_a2feeea1972b1e::t_a4a97255c2925b 255
+  s_a2feeea1972b1e::t_a7004e6f3a6d60 241-242,244
+  s_a2feeea1972b1e::t_9a90ef6b32753a 227-231
+  s_4ba79f911c93c4::t_720396de43831a 20-21,38-40,142-151,155-157,159-198,200-202,206-211,232,234-236,258-262,264-282,289-292,433-434,436-437,556
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b1abce731a4d4748d468e335b64aa8cffde7bcd",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,87 @@
+packages/engine/src/eval/page-script.ts
+  s_1b6c9fae5f95a4::t_5f4d4effe8fd40 1196-1198
+packages/engine/src/cdp/page.ts
+  s_1b6c9fae5f95a4::t_f634dc990c1f93 2681-2682
+  s_1b6c9fae5f95a4::t_7df8a6f943f816 2701-2703,2705
+  s_1b6c9fae5f95a4::t_5f4d4effe8fd40 2714
+  s_1b6c9fae5f95a4::t_430060dc287645 2684-2687
+  s_1b6c9fae5f95a4::t_ea44fbe05ce46e 2683,2704
+packages/engine/test/e2e/import-map.e2e.test.ts
+  s_1b6c9fae5f95a4::t_9a1bc1bfc555a7 17
+  s_1b6c9fae5f95a4::t_301beabf0cec7d 10-14
+  s_1b6c9fae5f95a4::t_30c39785f2bfc7 18-19
+  s_1b6c9fae5f95a4::t_dae0e16ddb0b56 1-5,9,20-21
+  s_1b6c9fae5f95a4::t_b083e137d2588b 15-16
+  s_1b6c9fae5f95a4::t_c51c3f9d53d6dc 6-8
+packages/engine/src/eval/script-bundle.ts
+  s_1b6c9fae5f95a4::t_5f4d4effe8fd40 165-166,612,995-997,1001
+packages/page-script/src/__ks_import_map.d.ts
+  s_1b6c9fae5f95a4::t_c1f55b27e87528 1
+packages/engine/test/fixtures-worker/assets/importmap-lazy.js
+  s_1b6c9fae5f95a4::t_9a1bc1bfc555a7 1-3
+packages/engine/src/wasm.ts
+  s_1b6c9fae5f95a4::t_7df8a6f943f816 188
+  s_1b6c9fae5f95a4::t_430060dc287645 189-193
+packages/core/src/boa_eval.rs
+  s_1b6c9fae5f95a4::t_a3c886a37060cc 49-77,84-89,91-92,242-251,1045-1047,1049,1070-1072
+packages/core/src/scan_test.rs
+  s_1b6c9fae5f95a4::t_ce0b99e721c23f 108,122-123,136-138,223
+  s_1b6c9fae5f95a4::t_806a81e9b372d0 124
+  s_1b6c9fae5f95a4::t_01e568b8f6a381 132-134
+  s_1b6c9fae5f95a4::t_338f745bb35813 315
+  s_1b6c9fae5f95a4::t_96544593ffd9b1 306-314,316
+  s_1b6c9fae5f95a4::t_430060dc287645 125-131,135
+  s_1b6c9fae5f95a4::t_0e968e0205b310 305
+  s_1b6c9fae5f95a4::t_a610f7f01066c6 317-318
+packages/engine/test/fixtures-worker/assets/importmap.html
+  s_1b6c9fae5f95a4::t_30c39785f2bfc7 4
+  s_1b6c9fae5f95a4::t_a3c886a37060cc 5-6
+  s_1b6c9fae5f95a4::t_c51c3f9d53d6dc 1-3,7-33
+packages/engine/test/walk-module-graph.test.ts
+  s_1b6c9fae5f95a4::t_ae2ebea6a1c4ac 110-126,137
+  s_1b6c9fae5f95a4::t_ce0b99e721c23f 13-17,72-109,127-136
+  s_1b6c9fae5f95a4::t_202379c9c53d87 138
+packages/page-script/src/wasm-glue.d.ts
+  s_1b6c9fae5f95a4::t_a3c886a37060cc 38
+packages/core/src/scan.rs
+  s_1b6c9fae5f95a4::t_338f745bb35813 99-102,105-106,118,243,292-295,297
+  s_1b6c9fae5f95a4::t_430060dc287645 103-104,296
+  s_1b6c9fae5f95a4::t_7df8a6f943f816 117,291,298-300,610,621
+  s_1b6c9fae5f95a4::t_c0ff40639d5168 98
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_1b6c9fae5f95a4::t_9a1bc1bfc555a7 218,1380-1381
+  s_1b6c9fae5f95a4::t_c51c3f9d53d6dc 214-215,617-618
+  s_1b6c9fae5f95a4::t_46f9c19310580a 219
+packages/page-script/src/globals.ts
+  s_1b6c9fae5f95a4::t_5f4d4effe8fd40 582-584
+  s_1b6c9fae5f95a4::t_a3c886a37060cc 589-592
+  s_1b6c9fae5f95a4::t_35387cb43350e2 7
+  s_1b6c9fae5f95a4::t_9a1bc1bfc555a7 576-581,585-586
+packages/page-script/scripts/build.mjs
+  s_1b6c9fae5f95a4::t_5f4d4effe8fd40 217
+packages/engine/src/eval/walk-module-graph.ts
+  s_1b6c9fae5f95a4::t_9d3324844d075e 246
+  s_1b6c9fae5f95a4::t_7df8a6f943f816 125-137,144-148,153-156,162-169,171-176,180-187,189-195,197-204,206-222,233-235,249-256,263-272,274-275,647,661-663,703-707,819-820,832,1584,1599,1602-1603,1615,1624,1627-1630
+  s_1b6c9fae5f95a4::t_5f4d4effe8fd40 223-225,232,236-245,247-248,605,720-724,1718-1722
+  s_1b6c9fae5f95a4::t_f634dc990c1f93 149-152,157-161,226-231
+  s_1b6c9fae5f95a4::t_b4d6dca2168bfe 324,358-359
+  s_1b6c9fae5f95a4::t_5eb3a9de2c3e1a 116-124,138-143,257-262,273,325-328
+  s_1b6c9fae5f95a4::t_430060dc287645 170,177-179,188,196,205,648
+  s_1b6c9fae5f95a4::t_9ff8d3639b46de 366-369,1496,1625
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7593556ebd7542cb329e5de326bd6a7f48138e1b",
+  "prompts": {},
+  "sessions": {
+    "s_1b6c9fae5f95a4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f689fc76fffe3zBw7zhMFE1Inb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

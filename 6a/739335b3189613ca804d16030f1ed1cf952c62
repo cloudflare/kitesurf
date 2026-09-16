@@ -1,0 +1,39 @@
+packages/engine/src/eval/outbound.ts
+  s_a75ea28c7345c6::t_ffed017eadf1ac 685-705
+  s_a75ea28c7345c6::t_7c1a3898269521 784-787
+  s_a75ea28c7345c6::t_b09a0efc29e03d 291-332
+  s_a75ea28c7345c6::t_1728edb897f355 615-623,627
+  s_a75ea28c7345c6::t_0e67f30f2a1475 86
+  s_a75ea28c7345c6::t_1a425a0d661c97 885-916
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_a75ea28c7345c6::t_434a488e5ed60a 1661-1679
+  s_a75ea28c7345c6::t_4fca555476a3d8 1767-1827
+docs/NETWORKING.md
+  s_a75ea28c7345c6::t_257a4416a6227f 42-58
+packages/engine/src/eval/egress-ledger.ts
+  s_a75ea28c7345c6::t_8d98126d1f8756 17-21,23-31,35-44,52-56,58-62
+  s_a75ea28c7345c6::t_d34c0a6e505d2c 1-16,22,45-51,57,63-197
+  s_a75ea28c7345c6::t_8392eec8882f7c 32-34
+packages/engine/test/e2e/native-module-fanout.e2e.test.ts
+  s_a75ea28c7345c6::t_ddc89cc24712d9 17
+  s_a75ea28c7345c6::t_099c8f7a489dd1 54
+  s_a75ea28c7345c6::t_51dfdfb59a9a6d 1-16,18-53,55-59
+packages/engine/test/egress-ledger.test.ts
+  s_a75ea28c7345c6::t_9c1b7d9d58818c 1-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6a739335b3189613ca804d16030f1ed1cf952c62",
+  "prompts": {},
+  "sessions": {
+    "s_a75ea28c7345c6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6ba347d1ffeBXm6VNFbnPDneO",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

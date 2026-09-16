@@ -1,0 +1,30 @@
+scripts/patches/blitz-paint-0.3.0-beta.2/0025-paint-keep-text-visible-when-gradient-clipping-is-un.patch
+  s_f19c180209e8f6::t_d4c825571f06bd 4-5,7-17,19-20,23,26,32-37,41-48
+scripts/patches/blitz-dom-0.3.0-beta.2/0123-Restyle-container-queries-against-laid-out-container.patch
+  s_f19c180209e8f6::t_d4c825571f06bd 9,11-22
+  s_f19c180209e8f6::t_149aa46339a3d8 26-27,30,33,43-61,66,74,79,88-128
+packages/engine/test/e2e/text-fill-color.e2e.test.ts
+  s_f19c180209e8f6::t_330088dbe16a5a 34,45,83-96,119-124
+  s_f19c180209e8f6::t_152e3cce17ef39 125-126
+  s_f19c180209e8f6::t_34bd28bdedaea5 127-128
+packages/engine/test/e2e/container-queries.e2e.test.ts
+  s_f19c180209e8f6::t_8a09ee3bc0793b 49-90
+packages/engine/test/e2e/html/text-fill-color.html
+  s_f19c180209e8f6::t_f2e291480962e7 25-34,41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b2e2961b2993a216af8bf56daf05f2b07470229f",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+packages/engine/src/cdp/page-session.ts
+  s_4efb85c8268621::t_2a1c1430720e06 144-145,148-153
+  s_4efb85c8268621::t_7ae55b4de3897e 141-143,146-147,154
+packages/engine/src/cdp/page.ts
+  s_4efb85c8268621::t_ad69f17c16e404 4364-4369,4371-4373,4375,4377,4382-4385,4387
+  s_4efb85c8268621::t_d11f2fe6c03747 4340-4341,4346-4363,4370,4374,4376,4378-4381,4386,4388-4390
+  s_4efb85c8268621::t_f6198ac08de2c8 8025-8028,8035-8036
+  s_4efb85c8268621::t_9e1607074de9f1 4342-4345
+  s_4efb85c8268621::t_dd5ccbc4ceb80c 4432-4440
+  s_4efb85c8268621::t_c081f3eb23593d 8029-8034
+  s_4efb85c8268621::t_be74147b0bbb1e 8047-8051,8060-8062
+  s_4efb85c8268621::t_bae73190b52ef5 8037-8039,8041-8042,8044-8045
+packages/page-script/src/index.ts
+  s_4efb85c8268621::t_8e90286fa91308 1514-1519
+  s_4efb85c8268621::t_5e653b01d94d26 1520-1566
+  s_4efb85c8268621::t_3f419726f0c339 5343-5351,5357,5363
+  s_4efb85c8268621::t_aee963381afd5d 5352-5356,5358-5362
+  s_4efb85c8268621::t_8371a115803dc3 5385-5387
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e9ac6e795d670676216dd35bc50390e5959abec6",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

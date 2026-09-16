@@ -1,0 +1,19 @@
+packages/page-script/src/__ks_import_map.d.ts
+  s_c8afbf24428829::t_b5b1708314c7c1 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ec4bb38b8569106470c774a781d772ca2df276e1",
+  "prompts": {},
+  "sessions": {
+    "s_c8afbf24428829": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f59615273ffezrnlp3L0ES3Ob6",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+packages/engine/src/eval/page-script.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 1200
+packages/core/src/scan_test.rs
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 108,119-135,229,311-322
+  s_1dcff5bc38c3a1::t_a5b4c86e8cfbc3 323-324
+packages/page-script/src/__ks_import_map.d.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 1-2
+tests/wpt-tests.json
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 6235,6310-6321
+packages/engine/src/cdp/page.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 2681-2687,2704,2714
+packages/engine/test/e2e/import-map.e2e.test.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 1-21
+packages/core/src/scan.rs
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 99-106,117-118,243,291-300,610,621
+  s_1dcff5bc38c3a1::t_6c95d63256dceb 98
+packages/engine/src/eval/walk-module-graph.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 127-241,244-247,249-251,253-254,259-283,302-303,702,744-745,758,760,820,1710-1711,1800-1801,1879
+packages/engine/src/wasm.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 188-193
+docs/SCRIPT_LOADING.md
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 134-136,142-143
+packages/engine/src/eval/script-bundle.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 168,614,997-998
+packages/engine/test/fixtures-worker/assets/importmap.html
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 1-33
+packages/engine/test/walk-module-graph.test.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 13-19,99-218
+  s_1dcff5bc38c3a1::t_60cf0b06300eaf 219
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 214-215,218-219,630-631,1424-1425
+packages/engine/test/fixtures-worker/assets/importmap-lazy.js
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "17c302832a5582ceb521548f05cbf9bc9bb6f457",
+  "prompts": {},
+  "sessions": {
+    "s_1dcff5bc38c3a1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e310ec6ffen31DSEk4bSFAtg",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
