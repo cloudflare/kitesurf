@@ -1,0 +1,49 @@
+packages/engine/test/e2e/css-typed-om.e2e.test.ts
+  s_5de5a0b7011c6d::t_b727aa8d2317de 83-88,119-122,131-146,176-179,187-194,204-396,404-467
+  s_7cd74da2e7b1ac::t_7356cda800f05b 59-62,69-75,468-474,476-516,518-673
+  s_5de5a0b7011c6d::t_c8f7f2314fcef8 397-403,475,517
+packages/core/src/style.rs
+  s_5de5a0b7011c6d::t_4a3b5c0f2cfee7 15,19,26-30,93-398,655-679,861-956
+packages/dom-shim/src/css-typed-om.ts
+  s_5de5a0b7011c6d::t_781b0caec5690f 30-33,35-95,104,106-109,130-132,141-142,173-181,184-223,226-245,247-248,250-261,263,267-277,285,308-372,376-451,453-457,459-608,610-616,618-880,882-904,906-1074,1079,1088,1097,1105,1110,1121,1128-1336,1338,1342-1364,1371,1373-1374,1376-1380,1382-1386,1390-1408,1413-1414,1417,1419,1422-1441,1445-1464,1469-1484,1487-1494,1497-1504,1507-1527,1530-1538,1540-1549,1552-1582,1584-1587,1590,1596,1601,1603-1609,1611-1615,1617-1635,1637-1638,1640-1642,1644-1652,1655,1657,1659,1661,1663-1666,1668-1669,1751-1767,1780-1781,1860,1863-1864,1884,1900-1902,1960-1962,1980-1983,1988,1991,2026-2076,2080,2090,2103-2170,2199-2202
+  s_5de5a0b7011c6d::t_c8f7f2314fcef8 1337,1339-1341,1365-1370,1372,1375,1591-1595,1610,1616,1636,1639,1643,1653-1654,1656,1660,1662,1667,1670
+packages/dom-shim/src/state.ts
+  s_5de5a0b7011c6d::t_9211993e525c0c 44-45
+packages/dom-shim/src/webidl.ts
+  s_5de5a0b7011c6d::t_73f843fdf21ccc 250-252,269,317-345
+packages/page-script/src/globals.ts
+  s_5de5a0b7011c6d::t_90b645980e151e 1738-1741,1748-1762,5565-5568
+  s_5de5a0b7011c6d::t_c8f7f2314fcef8 2816
+packages/page-script/src/index.ts
+  s_5de5a0b7011c6d::t_35875aa8168d80 257-258,1817-1822
+packages/page-script/src/wasm-glue.d.ts
+  s_5de5a0b7011c6d::t_1ed284349e1c7f 79-83
+tests/wpt-tests.json
+  s_5de5a0b7011c6d::t_e1d452815d94ed 3035,3052-3054,3058-3070,3072-3075,3082-3087,3090-3091,3093-3095
+packages/dom-shim/src/element.ts
+  s_5de5a0b7011c6d::t_c8f7f2314fcef8 119-121,3085,3087-3088,3093,3096
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "385f8bb42cbab8c84abdb25e25dfe2a73d01aff0",
+  "prompts": {},
+  "sessions": {
+    "s_5de5a0b7011c6d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f594feed1ffenbEe9zCda9KV19",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_7cd74da2e7b1ac": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f56890423ffeObLU80WAQoZsig",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
