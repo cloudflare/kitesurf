@@ -1,0 +1,22 @@
+tests/wpt-expectations.json
+  s_4bd836ca1cbc20::t_69b369bc92a057 2788-2795
+  s_4bd836ca1cbc20::t_89bc84956da81c 5853-5856
+scripts/patches/blitz-dom-0.3.0-beta.2/0124-Keep-the-LAST-duplicate-OpenType-tag-in-font_feature.patch
+  s_4bd836ca1cbc20::t_f670cb7c9b8924 1-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2fdf5389f97a79a7a94d765aed3af1ab4af97d7e",
+  "prompts": {},
+  "sessions": {
+    "s_4bd836ca1cbc20": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5673f067ffe5hsIMQQpLeYlMf",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}
