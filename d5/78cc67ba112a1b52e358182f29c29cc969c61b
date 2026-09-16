@@ -1,0 +1,38 @@
+tests/wpt-expectations.json
+  s_6d20977c7296d4::t_fd24e1ad595ce3 22717
+  s_6d20977c7296d4::t_6708dfd676a265 22765
+  s_6d20977c7296d4::t_d8cfdda4998d83 3625
+  s_6d20977c7296d4::t_47db2b0b8656be 22665
+  s_6d20977c7296d4::t_1fdccb91c19062 3629,3805,3817,6746,6750,6942,22769,22773
+  s_6d20977c7296d4::t_50c8e3642fdb90 3721
+  s_6d20977c7296d4::t_6acfb1c41d3268 22713
+  s_6d20977c7296d4::t_5dda59a44fd5e6 22605
+  s_6d20977c7296d4::t_76f2e3e566cf27 1715
+  s_6d20977c7296d4::t_9664222a190d55 5206
+  s_6d20977c7296d4::t_67eea42634d295 4742
+  s_51597f9c906ac8::t_efa5e990d7071a 6747,6751,6943
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d578cc67ba112a1b52e358182f29c29cc969c61b",
+  "prompts": {},
+  "sessions": {
+    "s_51597f9c906ac8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f561712e0ffeoYtRTsUciKgcoe",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    },
+    "s_6d20977c7296d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5673f158ffeqwMTvK1dygU27k",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}
