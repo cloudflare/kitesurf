@@ -1,0 +1,21 @@
+packages/page-script/src/globals.ts
+  s_5de5a0b7011c6d::t_c8f7f2314fcef8 2816
+packages/dom-shim/src/element.ts
+  s_5de5a0b7011c6d::t_c8f7f2314fcef8 119-121,3085,3087-3088,3093,3096
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6e7d451745ba69994aa04d06b37e561fc519e548",
+  "prompts": {},
+  "sessions": {
+    "s_5de5a0b7011c6d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f594feed1ffenbEe9zCda9KV19",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
