@@ -1,25 +1,68 @@
 packages/engine/src/cdp-client.ts
   s_0fb3273840725a::t_0aa8f8a6606441 41,94-96,280,529
+  s_0fb3273840725a::t_68c55c23bdfab7 41,94-96,280,529
 packages/engine/src/index.ts
   s_0fb3273840725a::t_b9af036a1f8536 17,552-553,593-597
+  s_7b1e3eeb712fc6::t_ccb02aab66d9e1 17,552-553,593-595
+  s_7b1e3eeb712fc6::t_b81797343a4a56 596-597
 packages/engine/src/observability.ts
   s_0fb3273840725a::t_fd336ed3f44fa7 61-73,84
+  s_0fb3273840725a::t_8949444c9445a3 61-73,84
 packages/engine/src/quickactions/brapi.ts
   s_0fb3273840725a::t_2f27ebac8d2347 10,56,60-65,72-73,82-86,89-93,104-105,122-124,128-217,226,235
+  s_7b1e3eeb712fc6::t_d6c3e51ce3ff71 72-73
+  s_0fb3273840725a::t_7c617aa7ffff0f 178,184
+  s_7b1e3eeb712fc6::t_79b964a39cf4f3 56
+  s_7b1e3eeb712fc6::t_813859b5ce437d 60-65,82-86,89-93,104-105,122-124,128-177,179,185-216
+  s_0fb3273840725a::t_4bd1d84dda77e7 226,235
+  s_7b1e3eeb712fc6::t_23c7ffa9ba4600 10
+  s_7b1e3eeb712fc6::t_c56676e7f38d93 183
+  s_6646632b4d228c::t_b71a332e684ad0 180-182,217
 packages/engine/src/quickactions/content.ts
   s_0fb3273840725a::t_f5cb6d18c31cb0 216
+  s_7b1e3eeb712fc6::t_a2c0f81650c09d 216
 packages/engine/src/quickactions/crawl.ts
   s_0fb3273840725a::t_0eead5b2163a78 1-261
+  s_7b1e3eeb712fc6::t_5b2aa0034f3cee 1-5,10-48,57-62,69-90,92-97,99-108,115-118,123-126,128-138,146-173,175-177,181-196,198-233,235-261
+  s_0fb3273840725a::t_4bd1d84dda77e7 63-68,98,119-122,127,144,174,234
+  s_0fb3273840725a::t_9ad396683618b9 91
+  s_7b1e3eeb712fc6::t_9897bfb25061a7 6-9,109-114,139-143,145,179
+  s_0fb3273840725a::t_802f152eb78b2c 49-56
+  s_0fb3273840725a::t_10b71dce1b347f 178,180
+  s_0fb3273840725a::t_43e300308f708a 197
 packages/engine/src/quickactions/index.ts
   s_0fb3273840725a::t_44d1f001119e8b 2,15,25-26,48-52,371-394,400-401,426-428,481-483,518-525,538-541,548-551,630-632,747-751,822,836,901-903,930
+  s_0fb3273840725a::t_802f152eb78b2c 387
+  s_7b1e3eeb712fc6::t_1c551b05d53076 15,26,481-483
+  s_7b1e3eeb712fc6::t_a5bc866f2e31c7 48-52,371-386,392-394,400-401,426-428,518-525,538-541,548-551,747-751,822,836,901-903,930
+  s_7b1e3eeb712fc6::t_2b9a2fc24fca99 630-632
+  s_0fb3273840725a::t_4bd1d84dda77e7 388-391
+  s_7b1e3eeb712fc6::t_712a10d779e3c7 2
+  s_7b1e3eeb712fc6::t_6b459f32688042 25
 packages/engine/test/e2e/crawl-quick-action.e2e.test.ts
   s_0fb3273840725a::t_21cd3163fe3c12 1-116
+  s_0fb3273840725a::t_a4af3efca91636 1-14,16-55,57-98,102-116
+  s_0fb3273840725a::t_4bd1d84dda77e7 15
+  s_0fb3273840725a::t_cb2b0c2e1b41d5 56
+  s_0fb3273840725a::t_547822ec1ec959 99-101
 packages/engine/test/fixtures-worker/assets/crawl.html
   s_0fb3273840725a::t_1d34b4d4d3a3ba 1-26
+  s_0fb3273840725a::t_a4af3efca91636 1-26
 packages/engine/test/fixtures-worker/src/serve.ts
   s_0fb3273840725a::t_4c74e5ce9126f2 43-44,1762-1826
+  s_0fb3273840725a::t_a4af3efca91636 43-44,1762-1807,1818,1820-1825
+  s_0fb3273840725a::t_ca47c25a34785c 1808-1817,1819
+  s_0fb3273840725a::t_5cb8e693a682cd 1826
 packages/engine/test/quickaction.test.ts
   s_0fb3273840725a::t_2e8b352c1b5695 251-315,719-720,744-747,783-809
+  s_7b1e3eeb712fc6::t_47e21251fbe92d 251-252,254-257,260-271,273-293,314-315,744-747
+  s_0fb3273840725a::t_4bd1d84dda77e7 258-259
+  s_0fb3273840725a::t_44b0e885407ffd 253
+  s_7b1e3eeb712fc6::t_05dada59e39519 719-720
+  s_7b1e3eeb712fc6::t_ccf0bccbef8641 783-789,791-809
+  s_0fb3273840725a::t_77c09a242a3e40 272
+  s_0fb3273840725a::t_d0520fc93f8903 294-313
+  s_7b1e3eeb712fc6::t_090fb84deada50 790
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -31,6 +74,22 @@ packages/engine/test/quickaction.test.ts
       "agent_id": {
         "tool": "opencode",
         "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_6646632b4d228c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54f92cc6ffeiduS3xYxEFL6rA",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7b1e3eeb712fc6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54ce185effegKvtOBLzkCk4K3",
         "model": "gpt-5.6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
