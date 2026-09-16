@@ -1,0 +1,24 @@
+packages/engine/test/e2e/awaited-eval-message-channel.e2e.test.ts
+  s_4efb85c8268621::t_921f82c190c69a 70
+  s_4efb85c8268621::t_3a34759da4795a 67-69
+packages/core/src/boa_eval.rs
+  s_4efb85c8268621::t_1514e6cab79c51 1223-1225
+packages/page-script/src/globals.ts
+  s_4efb85c8268621::t_d3f450633a22fc 5174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "78182484c114ac121efb4850b5c15eca7d32a91d",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
