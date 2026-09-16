@@ -1,0 +1,27 @@
+packages/page-script/src/index.ts
+  s_1c957943e307aa::t_c7f839509397ff 252,1732-1743
+packages/core/src/lib.rs
+  s_1c957943e307aa::t_c7f839509397ff 431-467,858,916,1112,1128-1133,5798,5801-5806,5855,5870
+packages/page-script/src/globals.ts
+  s_1c957943e307aa::t_c7f839509397ff 2857-2865
+packages/page-script/src/wasm-glue.d.ts
+  s_1c957943e307aa::t_c7f839509397ff 189-192
+packages/engine/src/eval/page-script.ts
+  s_1c957943e307aa::t_c7f839509397ff 334-337
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bbd48a1e97033a74810c649d7278afdce6fa5dd1",
+  "prompts": {},
+  "sessions": {
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
