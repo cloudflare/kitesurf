@@ -1,0 +1,19 @@
+packages/core/src/lib.rs
+  s_6646632b4d228c::t_c859f6410c40a9 2899-2903
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "672e4b7b8cb18dd0bdd269f8adc53fdc7c873211",
+  "prompts": {},
+  "sessions": {
+    "s_6646632b4d228c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54f92cc6ffeiduS3xYxEFL6rA",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
