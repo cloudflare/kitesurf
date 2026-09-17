@@ -1,0 +1,19 @@
+packages/engine/src/cdp/types.ts
+  s_4efb85c8268621::t_8373e2d0633919 810-813
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c35df4be7aed4e03bb615ab2f749a44f297e793c",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
