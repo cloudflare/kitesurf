@@ -1,0 +1,145 @@
+packages/engine/src/cdp-client.ts
+  s_0bbeacee395aec::t_1246bd5702b5e5 348,421-422
+  s_0bbeacee395aec::t_67ffb1356bb63a 445-452
+  s_0bbeacee395aec::t_dcac2e429bdc7d 172-173,219
+  s_0bbeacee395aec::t_01fbb74558c468 273-276,280,282-287
+  s_0bbeacee395aec::t_975c0c56d2f0ad 516-521,523-536,542
+  s_8714aa99b8b76d::t_f81908732e0e40 41,94-96,293,301,329,562
+  s_0fb3273840725a::t_fd23bc1812c478 277
+docs/PAGE_SCRIPT_PROTOCOL.md
+  s_0bbeacee395aec::t_5534b4b0e2ae14 49-54
+packages/page-script/src/index.ts
+  s_0bbeacee395aec::t_ba9028ea78ebbd 2735,2815,2820-2823
+  s_0bbeacee395aec::t_a6bd7707135737 157-163
+  s_0bbeacee395aec::t_e7a9c1f42863b5 3157-3160,3164
+  s_0bbeacee395aec::t_b7f99ae640be41 3128-3138
+packages/engine/test/page-script-rpc-session.test.ts
+  s_0bbeacee395aec::t_b95b17931ec99a 15,25,42,55-57,75-77
+  s_0bbeacee395aec::t_d96d8e9c39c6ba 151-197
+packages/engine/test/cdp-client.test.ts
+  s_0bbeacee395aec::t_a29aef033b343a 1-70
+packages/engine/src/cdp/target.ts
+  s_0bbeacee395aec::t_9f9527d5185cdf 252,438,441,463,465-471,500-512,523-529,548
+packages/engine/src/cdp/connection.ts
+  s_0bbeacee395aec::t_5534b4b0e2ae14 813
+packages/engine/src/cdp/page-script-generation.ts
+  s_0bbeacee395aec::t_5534b4b0e2ae14 59-61,82-84,89,103,112,114,116,119-136,139-140,150,169-170
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_0bbeacee395aec::t_a4e560675078df 32,43,93-94,330,332-353,362-376
+packages/engine/test/e2e/isolate-kill.e2e.test.ts
+  s_0fb3273840725a::t_d6b965eb2d4330 1-3,29,38-39,43-45
+packages/engine/test/page-script-generation.test.ts
+  s_0bbeacee395aec::t_3cfde110ded01f 242-260
+packages/engine/src/eval/page-script.ts
+  s_0bbeacee395aec::t_5534b4b0e2ae14 288-290,298
+packages/engine/test/e2e/crawl-quick-action.e2e.test.ts
+  s_0cf0d6e5bdc1f0::t_451d432da3d101 1-220
+packages/engine/test/quickaction.test.ts
+  s_0cf0d6e5bdc1f0::t_58ac9db759b163 791-794
+  s_0cf0d6e5bdc1f0::t_8365618331a3de 766-767
+  s_0cf0d6e5bdc1f0::t_2cd87672b60fe6 228-229,236,251-272,274-359
+  s_0cf0d6e5bdc1f0::t_906acba9bcdd28 273
+  s_0cf0d6e5bdc1f0::t_0da630cd954ebd 360,830-845,847-851,853-857,884-894
+  s_0fb3273840725a::t_8f3767aa3cb105 846,852
+  s_0cf0d6e5bdc1f0::t_df95166342900a 361-362
+  s_0cf0d6e5bdc1f0::t_97e100458adba7 895
+packages/engine/src/index.ts
+  s_8714aa99b8b76d::t_03f1cf0923e798 17,593-595
+  s_0cf0d6e5bdc1f0::t_d075075e78a664 552-553
+  s_8714aa99b8b76d::t_120447c267f4e7 596-597
+packages/engine/src/observability.ts
+  s_8714aa99b8b76d::t_23a74d258637d2 61-73,84
+packages/engine/src/quickactions/content.ts
+  s_8714aa99b8b76d::t_a373d03afa4bb5 216
+packages/engine/test/network-enable.test.ts
+  s_0cf0d6e5bdc1f0::t_806823665e2cd7 112-144
+packages/engine/src/cdp/network-events.ts
+  s_8714aa99b8b76d::t_5a6272e4e9d289 62-64,876-890
+  s_8714aa99b8b76d::t_7dc37408373e04 891
+packages/engine/test/fixtures-worker/assets/crawl.html
+  s_0cf0d6e5bdc1f0::t_541fd107f7355d 1-26
+packages/dom-shim/src/mutations/observer.ts
+  s_0cf0d6e5bdc1f0::t_889b7ad718a733 44
+  s_8714aa99b8b76d::t_3a3b655039d3e3 20,46,52-53,55
+  s_8714aa99b8b76d::t_ffeccb042a704e 73
+packages/engine/src/quickactions/crawl.ts
+  s_8714aa99b8b76d::t_f3999c4f9e8713 1-363
+packages/engine/src/quickactions/index.ts
+  s_0cf0d6e5bdc1f0::t_28b1afb3a2c86c 1107,1142-1144
+  s_0cf0d6e5bdc1f0::t_aa6d121690d424 979,981-982,995-1006
+  s_0cf0d6e5bdc1f0::t_1c343e805d3dce 1587,1591-1592,1594
+  s_0cf0d6e5bdc1f0::t_2d85bdf1b40ad7 2,25-26,48-52,195-225,230,240,247,249-252,257-259
+  s_0cf0d6e5bdc1f0::t_581471080c3997 1168-1169,1186-1187,1207,1278,1298
+  s_0cf0d6e5bdc1f0::t_da424aa908dcc0 15,553-555
+  s_0cf0d6e5bdc1f0::t_553828d20fcb71 1128,1130-1136
+  s_0cf0d6e5bdc1f0::t_01be55ebff3728 1166,1172,1175,1177-1178,1180-1181,1190,1195-1196,1198-1202,1220,1252,1254-1258,1262,1300,1303
+  s_0cf0d6e5bdc1f0::t_a444811b9e244e 590-597,610-613,620-623,691,697-699,814-817
+  s_0cf0d6e5bdc1f0::t_0ce13a7e023498 1019,1027,1039,1052,1061
+  s_0cf0d6e5bdc1f0::t_54579e46daf9a1 1012-1018,1025-1026,1037-1038,1046-1051,1059-1060
+  s_0cf0d6e5bdc1f0::t_099b49b0438212 1064-1065,1091,1104
+  s_0cf0d6e5bdc1f0::t_63535cb8f22b0d 358,437-466,472-473,498-499
+  s_0cf0d6e5bdc1f0::t_6c3c98b7929d0d 297-298,365,377,382,389-390
+  s_0fb3273840725a::t_cc587ca4d94282 405-436,968-970,1031,1034,1117,1129,1139-1141,1294-1295
+  s_0cf0d6e5bdc1f0::t_cfcefce0911b56 889,903
+  s_0cf0d6e5bdc1f0::t_0f4a3f00f2dd2d 1010-1011,1023-1024,1035-1036,1044-1045,1057-1058
+  s_0cf0d6e5bdc1f0::t_41f92e4b0155c2 1028,1040,1053,1062,1670-1717
+  s_0cf0d6e5bdc1f0::t_b0edadc3b93bfa 1109-1116,1118-1125
+  s_0cf0d6e5bdc1f0::t_e605abb0b1e20e 500
+  s_0cf0d6e5bdc1f0::t_b69e981ef934e1 818
+  s_0cf0d6e5bdc1f0::t_24788d44dd0fc9 1009
+  s_0cf0d6e5bdc1f0::t_bdbe953f1ae0e8 1020-1022
+  s_0fb3273840725a::t_5273671623662d 1032-1033
+  s_0cf0d6e5bdc1f0::t_d5a16afcec823c 1041-1043
+  s_0cf0d6e5bdc1f0::t_ffe794cd26ad7b 1054-1056
+  s_0cf0d6e5bdc1f0::t_127037c0464822 1063
+packages/engine/src/cdp/page.ts
+  s_8714aa99b8b76d::t_5f96ed98370d55 1004-1015
+packages/engine/src/quickactions/brapi.ts
+  s_8714aa99b8b76d::t_c025e56cf4e997 10,60-65,82-88,91-95,106-110,127-129
+  s_8714aa99b8b76d::t_79c3fff8ccdfce 133-186,190-225,234,243,245-251,259-260
+  s_0fb3273840725a::t_fd23bc1812c478 72-73,187-189
+  s_0cf0d6e5bdc1f0::t_db06e318002184 56
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_0cf0d6e5bdc1f0::t_8d119b9760fddf 43-44
+  s_0cf0d6e5bdc1f0::t_7704d1a64eb65d 1762-1823
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cdffa4cd5984025a412c7b6142c0955aef9d9569",
+  "prompts": {},
+  "sessions": {
+    "s_0bbeacee395aec": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f513021a6ffejoIEquArpBp04o",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_0cf0d6e5bdc1f0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f50f9f329ffe1FIKyBHy0e7lVO",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_0fb3273840725a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_8714aa99b8b76d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5101d0dbffevzIDvy007b3zmH",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
