@@ -27,6 +27,7 @@ scripts/patches/blitz-dom-0.3.0-beta.2/0131-Align-table-tracks-to-their-final-pa
   s_1c957943e307aa::t_62bd47475ea50a 3-4,9,16,18-28,31-32,34,42,44-45,48-51,54-56
   s_1c957943e307aa::t_ec4151f70dc184 13-14,29-30,33,35-37,40-41,43,46-47,52-53
   s_1c957943e307aa::t_732119a8fcace1 17,38-39
+  s_1c957943e307aa::t_8ebdf19211487b 1-2,5-8,10-12,15
 scripts/patches/blitz-paint-0.3.0-beta.2/0031-Paint-tables-from-adjusted-track-geometry.patch
   s_1c957943e307aa::t_d6c54648588032 18,21,29,31,34,37
 scripts/patches/blitz-paint-0.3.0-beta.2/0032-Align-table-row-backgrounds-with-paint-tracks.patch
