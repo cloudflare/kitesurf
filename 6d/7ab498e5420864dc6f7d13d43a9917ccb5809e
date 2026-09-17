@@ -1,0 +1,20 @@
+packages/engine/test/e2e/anchor-positioning-parsing.e2e.test.ts
+  s_c06dc570d7afc3::t_29264a683a313c 17
+  s_c06dc570d7afc3::t_0c437a391b156f 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6d7ab498e5420864dc6f7d13d43a9917ccb5809e",
+  "prompts": {},
+  "sessions": {
+    "s_c06dc570d7afc3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54fa4034ffepBE1L2SqMCP6u4",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
