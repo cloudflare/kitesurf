@@ -1,0 +1,42 @@
+packages/renderer-core/scripts/build.mjs
+  s_b1b42e12824851::t_d0dd58b6065511 38
+  s_b1b42e12824851::t_78bdbb8617a5e9 33
+  s_b1b42e12824851::t_be3617aa0ab113 21,39-40,42-44,54,118,155
+  s_b1b42e12824851::t_68380531789171 34-37,41
+scripts/build-wasm.mjs
+  s_b1b42e12824851::t_be3617aa0ab113 61,67,97-98,104-106,291,303,490-492
+  s_b1b42e12824851::t_b3c86fad006167 68,99-103
+  s_4efb85c8268621::t_c09b7fa5387da0 493
+scripts/patch-wasm-memory-views.mjs
+  s_b1b42e12824851::t_68380531789171 11
+  s_b1b42e12824851::t_be3617aa0ab113 1-10,12-15,17-34
+  s_b1b42e12824851::t_04786dba1346ba 16
+turbo.json
+  s_b1b42e12824851::t_c4c9e48ecb6b3a 101,123
+scripts/patch-wasm-memory-views.test.mjs
+  s_b1b42e12824851::t_be3617aa0ab113 1-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bd1ae4ee33f3b0c3def2466ba08f55ee6de2ae01",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b1b42e12824851": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f51272f2bffeUwE5IFzo4b2Ow9",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
