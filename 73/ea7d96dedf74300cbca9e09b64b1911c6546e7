@@ -1,0 +1,21 @@
+packages/engine/test/quickaction.test.ts
+  s_1e83ebd7089354::t_833e3a122c69b7 207,211-219
+packages/engine/src/quickactions/index.ts
+  s_1e83ebd7089354::t_833e3a122c69b7 533-535,781,784-786
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "73ea7d96dedf74300cbca9e09b64b1911c6546e7",
+  "prompts": {},
+  "sessions": {
+    "s_1e83ebd7089354": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5678e3defferijaeQrvmBvYck",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
