@@ -1,0 +1,21 @@
+packages/engine/src/cdp/wheel-queue.ts
+  s_0fb3273840725a::t_b466af2344ae70 12-20,23,43-44,58-84,102-108,115,135-136,140-147,149,312-326,355-359
+packages/engine/test/wheel-queue.test.ts
+  s_0fb3273840725a::t_c3dfae11f63637 137-214,349-350,354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e4736d08e3091058d3110d1f7c9634e0c8f901cc",
+  "prompts": {},
+  "sessions": {
+    "s_0fb3273840725a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

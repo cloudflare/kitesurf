@@ -1,0 +1,19 @@
+tests/wpt-expectations.json
+  s_4efb85c8268621::t_816ddb52f3687f 6263-6264,12557-12558
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "571fdb15a8e5e66904623d9a55c9c2faca431d79",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

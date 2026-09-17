@@ -1,0 +1,33 @@
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_4efb85c8268621::t_1aa08a25c74c93 84-100
+  s_4efb85c8268621::t_a3869635052e9b 78-80
+  s_4efb85c8268621::t_5d30fe51feffd8 81,83,101,139-150
+  s_4efb85c8268621::t_b7e93faf5a459c 138
+  s_4efb85c8268621::t_4e2c62719f39fe 82
+  s_4efb85c8268621::t_cc767005e479fb 102-104
+  s_4efb85c8268621::t_43e686a558c84e 154-155
+  s_4efb85c8268621::t_e60f96554320db 151,159
+  s_4efb85c8268621::t_9af849b994a27b 75-77
+  s_4efb85c8268621::t_1cfb7bc3e1074f 105-107
+packages/core/src/boa_eval.rs
+  s_4efb85c8268621::t_96620b7a5bd825 1131-1135,1227
+packages/page-script/src/globals.ts
+  s_4efb85c8268621::t_83eaca6a4a9ad5 37,84
+  s_4efb85c8268621::t_f1ffe7c7abecd6 269-270,279-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6ab1589a4ac0087d75a9771403e95f38cab097f9",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

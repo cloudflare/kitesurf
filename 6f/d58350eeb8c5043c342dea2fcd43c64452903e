@@ -1,0 +1,67 @@
+packages/engine/src/quickactions/brapi.ts
+  s_1e83ebd7089354::t_94644db139ed61 14
+packages/engine/src/index.ts
+  s_1e83ebd7089354::t_94644db139ed61 556-557
+  s_1e83ebd7089354::t_0170a61908040d 554-555
+  s_1e83ebd7089354::t_3ae15c568be01d 17,271-272,595-597
+  s_4848c5e31d3eef::t_e9e72f09742528 598-599
+packages/engine/src/quickactions/accessibility-tree.ts
+  s_1e83ebd7089354::t_6d90843f00f558 26,125-127,129
+packages/engine/test/e2e/snapshot-quickaction.e2e.test.ts
+  s_1e83ebd7089354::t_6733d595fb9a91 1-53
+packages/engine/test/quickaction.test.ts
+  s_1e83ebd7089354::t_6733d595fb9a91 163-206,699,721-724
+  s_1e83ebd7089354::t_94644db139ed61 700-701
+packages/engine/src/quickactions/content.ts
+  s_1e83ebd7089354::t_63ddcfd7c9ca87 46,131
+packages/engine/src/quickactions/capture.ts
+  s_1e83ebd7089354::t_5b3f278cda7726 1-19,21-41,44-53,56-100,105-137,140-150,153-184
+  s_1e83ebd7089354::t_9d44314a295042 42-43,54-55,138-139,151-152
+  s_1e83ebd7089354::t_4283a2c7571a79 20,101-104
+packages/engine/src/observability.ts
+  s_1e83ebd7089354::t_3ae15c568be01d 68,88
+packages/engine/src/quickactions/index.ts
+  s_5de5a0b7011c6d::t_e2926c203f47a1 142
+  s_1e83ebd7089354::t_94644db139ed61 814-816,819,821-822
+  s_1e83ebd7089354::t_fdd313012ac80f 77,82,88,92,98,103,267-274,389-392,403,440,540-556,728,833
+  s_1e83ebd7089354::t_3ae15c568be01d 121-129,139-141,143
+packages/engine/src/quickactions/screenshot.ts
+  s_1e83ebd7089354::t_94644db139ed61 248
+  s_1e83ebd7089354::t_236f31c029c2da 50,190-192,196-197
+  s_1e83ebd7089354::t_4283a2c7571a79 193-195
+packages/engine/src/quickactions/snapshot.ts
+  s_1e83ebd7089354::t_cadc5d6b255287 24-29,76-83,86-89,92-93,100
+  s_1e83ebd7089354::t_3ae15c568be01d 1-23,30-75,84-85,90-91,94-99,101-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6fd58350eeb8c5043c342dea2fcd43c64452903e",
+  "prompts": {},
+  "sessions": {
+    "s_1e83ebd7089354": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5678e3defferijaeQrvmBvYck",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    },
+    "s_4848c5e31d3eef": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f56848f89ffewBkJ48XH56Gcpb",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_5de5a0b7011c6d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f594feed1ffenbEe9zCda9KV19",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

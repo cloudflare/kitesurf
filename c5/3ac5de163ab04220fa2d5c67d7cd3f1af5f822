@@ -1,0 +1,21 @@
+AGENTS.md
+  s_4ba79f911c93c4::t_2fbc143f7f8e01 536
+packages/engine/test/e2e/global-setup.ts
+  s_4ba79f911c93c4::t_53ad6bed7bb0c8 43-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c53ac5de163ab04220fa2d5c67d7cd3f1af5f822",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

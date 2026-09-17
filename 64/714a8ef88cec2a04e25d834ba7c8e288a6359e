@@ -1,0 +1,33 @@
+packages/core/src/lib.rs
+  s_1c957943e307aa::t_bc3d998301165e 73-76
+packages/core/src/scene_replay.rs
+  s_1c957943e307aa::t_bc3d998301165e 92-113,137,291,388,513
+packages/core/Cargo.toml
+  s_1c957943e307aa::t_bc3d998301165e 23-35
+scripts/get-patched-vendor-crates.mjs
+  s_1c957943e307aa::t_bc3d998301165e 61
+Cargo.toml
+  s_1c957943e307aa::t_bc3d998301165e 94-100
+scripts/patches/README.md
+  s_1c957943e307aa::t_bc3d998301165e 88,125-128
+packages/core/src/tty_grid.rs
+  s_1c957943e307aa::t_bc3d998301165e 1-1922
+scripts/patches/ratatui-image-8.1.1/0001-Feature-gate-the-terminal-capability-query-behind-qu.patch
+  s_1c957943e307aa::t_bc3d998301165e 1-187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "64714a8ef88cec2a04e25d834ba7c8e288a6359e",
+  "prompts": {},
+  "sessions": {
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
