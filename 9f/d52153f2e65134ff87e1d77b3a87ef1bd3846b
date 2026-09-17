@@ -1,0 +1,21 @@
+packages/core/src/lib.rs
+  s_46a84d57badea3::t_a893e31b85bf9f 1574-1594
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-memory-evict-author-sheets-on-removal.patch
+  s_46a84d57badea3::t_0e2aeaef254b9a 1-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9fd52153f2e65134ff87e1d77b3a87ef1bd3846b",
+  "prompts": {},
+  "sessions": {
+    "s_46a84d57badea3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4fa89502ffe77w2PjnVBsR333",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
