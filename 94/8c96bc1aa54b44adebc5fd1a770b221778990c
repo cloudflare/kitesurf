@@ -1,5 +1,6 @@
 tests/interactivity-flows/lib/driver.ts
   s_4ba79f911c93c4::t_1277e556deafa4 99-101,103-111
+  s_51ed5497a9ef32::t_3b5f71a677e93a 99-101,103-111
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -12,6 +13,14 @@ tests/interactivity-flows/lib/driver.ts
         "tool": "opencode",
         "id": "",
         "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_51ed5497a9ef32": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f514775d7ffeg9CJ8X6f7RZn0V",
+        "model": "gpt-5.6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     }
