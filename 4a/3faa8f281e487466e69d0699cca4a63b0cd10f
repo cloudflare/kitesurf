@@ -1,0 +1,21 @@
+packages/engine/vitest.e2e.config.mts
+  s_91836f22884cfe::t_43c90620e35286 101
+Cargo.lock
+  s_91836f22884cfe::t_a8ab9a148bcf97 486-493
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4a3faa8f281e487466e69d0699cca4a63b0cd10f",
+  "prompts": {},
+  "sessions": {
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

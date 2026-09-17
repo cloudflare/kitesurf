@@ -1,0 +1,21 @@
+packages/engine/src/term-session.ts
+  s_91836f22884cfe::t_5f7798439081f6 115-130
+packages/engine/test/term-geometry.test.ts
+  s_91836f22884cfe::t_5f7798439081f6 131-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "916f3017249d35689914cdb9b459218fa2700626",
+  "prompts": {},
+  "sessions": {
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
