@@ -8,6 +8,8 @@ packages/engine/test/term-target.test.ts
   s_91836f22884cfe::t_a0414c98885d9f 149-150
 packages/engine/src/term-session.ts
   s_91836f22884cfe::t_386f31da812756 271-275,534-538,625-626
+scripts/dev-term.mjs
+  s_1c957943e307aa::t_4a41b16c81fef4 24-25
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -15,6 +17,14 @@ packages/engine/src/term-session.ts
   "base_commit_sha": "e5d4ebaf8a2fedce360c9d09b8dce784dad5ade1",
   "prompts": {},
   "sessions": {
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_91836f22884cfe": {
       "agent_id": {
         "tool": "opencode",
