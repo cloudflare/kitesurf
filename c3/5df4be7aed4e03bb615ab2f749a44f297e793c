@@ -1,5 +1,7 @@
 packages/engine/src/cdp/types.ts
   s_4efb85c8268621::t_8373e2d0633919 810-813
+packages/engine/src/cdp/target.ts
+  s_4ba79f911c93c4::t_6fe96b68284263 464,474-478,483-514
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -7,6 +9,14 @@ packages/engine/src/cdp/types.ts
   "base_commit_sha": "c35df4be7aed4e03bb615ab2f749a44f297e793c",
   "prompts": {},
   "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_4efb85c8268621": {
       "agent_id": {
         "tool": "opencode",
