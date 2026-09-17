@@ -43,11 +43,14 @@ packages/engine/test/quickaction.test.ts
   s_0fb3273840725a::t_8f3767aa3cb105 892,898
   s_0cf0d6e5bdc1f0::t_df95166342900a 405-406
   s_0cf0d6e5bdc1f0::t_97e100458adba7 941
+  s_4ba79f911c93c4::t_3a1c8e2e2e1dd0 810-814
 packages/engine/src/index.ts
   s_8714aa99b8b76d::t_03f1cf0923e798 18,600-602
   s_8714aa99b8b76d::t_120447c267f4e7 603-604
+  s_4ba79f911c93c4::t_19f4e0c25ba8c3 555-557
 packages/engine/src/observability.ts
   s_8714aa99b8b76d::t_23a74d258637d2 61-68,70-74,85
+  s_4ba79f911c93c4::t_1feb6692ad1549 69
 packages/engine/src/quickactions/content.ts
   s_8714aa99b8b76d::t_a373d03afa4bb5 212
 packages/engine/test/network-enable.test.ts
@@ -91,6 +94,7 @@ packages/engine/src/quickactions/index.ts
   s_0cf0d6e5bdc1f0::t_d5a16afcec823c 1093-1095
   s_0cf0d6e5bdc1f0::t_ffe794cd26ad7b 1106-1108
   s_0cf0d6e5bdc1f0::t_127037c0464822 1115
+  s_4ba79f911c93c4::t_4173137737a89c 940
 packages/engine/src/cdp/page.ts
   s_8714aa99b8b76d::t_5f96ed98370d55 1004-1015
 packages/engine/src/quickactions/brapi.ts
@@ -129,6 +133,14 @@ packages/engine/test/fixtures-worker/src/serve.ts
         "tool": "opencode",
         "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
         "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     },
