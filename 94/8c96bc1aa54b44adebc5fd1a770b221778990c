@@ -1,0 +1,19 @@
+tests/interactivity-flows/lib/driver.ts
+  s_4ba79f911c93c4::t_1277e556deafa4 99-101,103-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "948c96bc1aa54b44adebc5fd1a770b221778990c",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
