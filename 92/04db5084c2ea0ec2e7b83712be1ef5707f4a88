@@ -69,6 +69,7 @@ packages/engine/test/quickaction.test.ts
   s_1e83ebd7089354::t_ce794cdb48edec 1104-1105
   s_1e83ebd7089354::t_7b9d8a7d640940 1107-1109
   s_1e83ebd7089354::t_43a30be097235b 1112-1114
+  s_2b6dfb03d8276b::t_c14b4e4e6c1b57 1144-1146
 packages/engine/src/observability.ts
   s_1e83ebd7089354::t_55232590e51f58 67,89
   s_1e83ebd7089354::t_a4f8e958b366f2 70,92
@@ -114,6 +115,7 @@ packages/engine/src/quickactions/index.ts
   s_1e83ebd7089354::t_1edd59a1135964 1630-1632
   s_1e83ebd7089354::t_311b513126e835 1634-1636,1649-1651
   s_1e83ebd7089354::t_44be9965a2fbe4 1653-1655
+  s_2b6dfb03d8276b::t_4b3ab746151683 983,988,1002-1032,1078
 packages/engine/src/quickactions/scrape.ts
   s_1e83ebd7089354::t_a5e1a2d07cba51 36-45,61-63
   s_1e83ebd7089354::t_a4f8e958b366f2 1-35,46-60,64-200
@@ -122,6 +124,7 @@ packages/engine/src/index.ts
   s_1e83ebd7089354::t_922eb2a9a6717f 640-641
   s_1e83ebd7089354::t_a4f8e958b366f2 19,229,303-304,637-639
   s_1e83ebd7089354::t_bffd4c91ee7cd3 635-636
+  s_2b6dfb03d8276b::t_c14b4e4e6c1b57 586-589
 packages/engine/src/quickactions/brapi.ts
   s_1e83ebd7089354::t_c4dfaf7138b60a 46
   s_1e83ebd7089354::t_f5162ce3278436 47,58-64,81-87,90-96,107,116-129,136-140,142-145,149-177
@@ -145,8 +148,13 @@ packages/engine/src/cdp/page-session.ts
   s_3f3b867cbff6ba::t_85526fc36917dd 45
 packages/engine/src/quickactions/accessibility-tree.ts
   s_3f3b867cbff6ba::t_38ae3c87105e6a 19,29,54-56,66,128-130,132-133,155,183-190,230
+  s_2b6dfb03d8276b::t_83076bf336583b 127,131,134-144
 packages/engine/src/quickactions/content.ts
   s_3f3b867cbff6ba::t_f230f6e23780d4 29,37,70-72,82,134-135,137-138,160,209-211
+  s_2b6dfb03d8276b::t_83076bf336583b 133,136,139
+packages/engine/src/quickactions/capture.ts
+  s_2b6dfb03d8276b::t_83076bf336583b 119,137,152-155
+  s_2b6dfb03d8276b::t_3719c84d7e25c7 121-126,128
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -158,6 +166,14 @@ packages/engine/src/quickactions/content.ts
       "agent_id": {
         "tool": "opencode",
         "id": "ses_f5678e3defferijaeQrvmBvYck",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_2b6dfb03d8276b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4eda8d49ffe75fe5OfWieNd4p",
         "model": "gpt-5.6-sol"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
