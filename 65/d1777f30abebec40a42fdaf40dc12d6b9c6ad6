@@ -1,0 +1,25 @@
+packages/engine/src/cdp/input.ts
+  s_4ba79f911c93c4::t_98aca154e6b56c 210,215,227
+packages/engine/src/cdp/connection.ts
+  s_4ba79f911c93c4::t_8a56a458cedace 816
+packages/engine/src/cdp/types.ts
+  s_4ba79f911c93c4::t_6093a047c73da5 372-373
+packages/engine/src/cdp/page.ts
+  s_4ba79f911c93c4::t_78d12a45dd2b01 8285-8291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "65d1777f30abebec40a42fdaf40dc12d6b9c6ad6",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
