@@ -1,0 +1,21 @@
+packages/engine/src/cdp/input.ts
+  s_4ba79f911c93c4::t_7463453b2f5cfc 389-392
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_4ba79f911c93c4::t_fb233783d84ee3 13,95-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5ca63a97c4d5ba5e321337304ddef9178c11f73b",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
