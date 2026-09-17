@@ -1,0 +1,31 @@
+packages/core/src/lib.rs
+  s_1c957943e307aa::t_6fece4f35ba68d 78-79,476-497,1013-1019,4311-4318
+scripts/patches/taffy-0.14.0/0008-Let-a-backend-round-layout-to-something-other-than-a.patch
+  s_1c957943e307aa::t_a47a0b63b6f0d2 1-142
+packages/page-script/src/index.ts
+  s_1c957943e307aa::t_6fece4f35ba68d 254,1795-1797,1802-1808,1810,1818
+packages/core/src/tty_cell_grid_test.rs
+  s_1c957943e307aa::t_6fece4f35ba68d 1-181
+scripts/patches/blitz-dom-0.3.0-beta.2/0125-Carry-the-layout-rounding-step-on-the-document.patch
+  s_1c957943e307aa::t_a47a0b63b6f0d2 1-72
+docs/TERMINAL.md
+  s_1c957943e307aa::t_6fece4f35ba68d 140-186
+packages/page-script/src/wasm-glue.d.ts
+  s_1c957943e307aa::t_6fece4f35ba68d 198-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6b72186ec9f9d8381d3e669eb7c92cb8c6917696",
+  "prompts": {},
+  "sessions": {
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
