@@ -6,6 +6,7 @@ packages/engine/src/cdp/wheel-queue.ts
 packages/engine/src/cdp/page.ts
   s_e752ff6fd075bc::t_546d72b0b41346 8148-8160
   s_e752ff6fd075bc::t_4c32db317bba34 8136-8147,8161-8173,8175-8176,8178-8188
+  s_4ba79f911c93c4::t_71c194ecdd5a2e 8174
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -13,6 +14,14 @@ packages/engine/src/cdp/page.ts
   "base_commit_sha": "4d699cfbaad4ea83161effe2fcaa8b8ea250ae73",
   "prompts": {},
   "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_e752ff6fd075bc": {
       "agent_id": {
         "tool": "opencode",
