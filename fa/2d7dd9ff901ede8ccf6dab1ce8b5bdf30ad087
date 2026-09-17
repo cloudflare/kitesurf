@@ -1,0 +1,33 @@
+packages/core/src/boa_eval.rs
+  s_4efb85c8268621::t_c3b2d6554eb951 1225-1228,1233-1234
+  s_4efb85c8268621::t_e646089bb3a5ad 1235
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_4efb85c8268621::t_eba80e0ad37ab5 168-200
+  s_4efb85c8268621::t_93b16ee5a7e2d4 69
+  s_4efb85c8268621::t_5b6a93d6629952 50-62,70-72,79,82-83
+  s_4efb85c8268621::t_8a9853f4c76d7c 63-68,81
+  s_4efb85c8268621::t_b90d32a6388b5e 73-76,80
+  s_4efb85c8268621::t_9cea6ef9a8d477 77-78
+packages/engine/test/e2e/awaited-eval-message-channel.e2e.test.ts
+  s_4efb85c8268621::t_b26203b622d5dd 83-87,93
+  s_4efb85c8268621::t_6c804df3546001 28-46,76-82,88-92,94
+  s_4efb85c8268621::t_351bd7eb4777d0 95
+packages/dom-shim/src/element.ts
+  s_4efb85c8268621::t_754929b72ec31c 3431-3432,3453
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fa2d7dd9ff901ede8ccf6dab1ce8b5bdf30ad087",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
