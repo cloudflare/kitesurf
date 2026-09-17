@@ -1,0 +1,37 @@
+packages/engine/src/cdp/connection.ts
+  s_4ba79f911c93c4::t_9c4a1527d50c41 31,758,760-765
+packages/engine/src/cdp/input.ts
+  s_4ba79f911c93c4::t_41e9703051e438 9-13,91-138,198,210-239,328,376
+packages/engine/src/cdp/page.ts
+  s_4ba79f911c93c4::t_47c9b456898244 12-16,2205-2210,2266-2271,2501-2510,2558-2564,7988-7993,8127-8136,8146,8181
+packages/engine/src/cdp/target.ts
+  s_4ba79f911c93c4::t_2aa7ef3a590151 18,342-352,469-479
+packages/engine/src/cdp/types.ts
+  s_4ba79f911c93c4::t_f7b98f28341837 15,371-375
+packages/engine/src/cdp/wheel-queue.ts
+  s_4ba79f911c93c4::t_7532f79f55873f 1-225
+packages/engine/src/rbi.ts
+  s_4ba79f911c93c4::t_3a3911728fb3e4 253,256,273,329-349,351-353,355-358,1130
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_4ba79f911c93c4::t_f32fdfdeb4ceae 1-175
+packages/engine/test/e2e/rbi-scene-wire.e2e.test.ts
+  s_4ba79f911c93c4::t_06fcaf84893ed8 1,16,184-238
+packages/engine/test/wheel-queue.test.ts
+  s_4ba79f911c93c4::t_918ee3b37d2a8a 1-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ac31e22f3fa80d0e9d5963f4dd26bcd31457aad6",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
