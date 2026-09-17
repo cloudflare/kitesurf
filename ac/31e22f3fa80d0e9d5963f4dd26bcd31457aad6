@@ -1,23 +1,101 @@
 packages/engine/src/cdp/connection.ts
   s_4ba79f911c93c4::t_9c4a1527d50c41 31,758,760-765
+  s_e752ff6fd075bc::t_69bf7c0d931f9e 31,758,760-765
 packages/engine/src/cdp/input.ts
   s_4ba79f911c93c4::t_41e9703051e438 9-13,91-138,198,210-239,328,376
+  s_e752ff6fd075bc::t_f328778a634c48 210,212,227-229,231,233-239
+  s_e752ff6fd075bc::t_126ab2dd27ba0b 213-215,216-217
+  s_e752ff6fd075bc::t_5ec8f91a675984 100,134,135
+  s_e752ff6fd075bc::t_0afc4f8e61a458 91-93,97-98,103-105,107-108,109,111,121,124-125,127-131,133,137
+  s_a2feeea1972b1e::t_a3fba6e2b9db15 138
+  s_e752ff6fd075bc::t_6aa131b7c4fc7b 132
+  s_e752ff6fd075bc::t_505c51388f299b 211
+  s_e752ff6fd075bc::t_fd8a673a87c5f7 198,218-225,230,232,328,376
+  s_e752ff6fd075bc::t_e6b974cc16aba7 226
+  s_e752ff6fd075bc::t_43d04ba736da1d 99,115
+  s_e752ff6fd075bc::t_13b08630daf017 9-13,94-96,101-102,106,110,112-114,116-120,122-123,126,136
+  s_e752ff6fd075bc::t_fdddcafd68f929 172-188
 packages/engine/src/cdp/page.ts
   s_4ba79f911c93c4::t_47c9b456898244 12-16,2205-2210,2266-2271,2501-2510,2558-2564,7988-7993,8127-8136,8146,8181
+  s_e752ff6fd075bc::t_0afc4f8e61a458 2210
+  s_e752ff6fd075bc::t_985e471e94bc2a 7988-7993
+  s_e752ff6fd075bc::t_7eb10af6dea288 8127-8129,8130,8131-8135
+  s_e752ff6fd075bc::t_176ee527629858 13,15,2266-2270
+  s_e752ff6fd075bc::t_8e6ac07441a9ff 14,16,2205-2209
+  s_e752ff6fd075bc::t_e9fc70e90d37af 2558-2564
+  s_e752ff6fd075bc::t_8af3cc0b8b2015 2271
+  s_e752ff6fd075bc::t_d1a6f3f9eb9d1e 2501-2510
+  s_22c8ba3aea9e40::t_a0e74d9338cc50 12
+  s_e752ff6fd075bc::t_546d72b0b41346 8148-8160
+  s_e752ff6fd075bc::t_4c32db317bba34 8136-8147,8161-8173,8175-8176,8178-8188
+  s_4ba79f911c93c4::t_71c194ecdd5a2e 8174
 packages/engine/src/cdp/target.ts
   s_4ba79f911c93c4::t_2aa7ef3a590151 18,342-352,469-479
+  s_e752ff6fd075bc::t_f6e3c1fa8453e8 18,342-352,469-479
 packages/engine/src/cdp/types.ts
   s_4ba79f911c93c4::t_f7b98f28341837 15,371-375
+  s_e752ff6fd075bc::t_0afc4f8e61a458 372-375
+  s_e752ff6fd075bc::t_75b7748460a81e 15,371
 packages/engine/src/cdp/wheel-queue.ts
   s_4ba79f911c93c4::t_7532f79f55873f 1-225
+  s_e752ff6fd075bc::t_81b5886e430f64 10-12,18-19,21-23,25-27,29-33,35-36,38-43,45-47,48,55-57,60-62,67-68,94-95,101-102,109-110,149-150,184,194,203-204,208
+  s_e752ff6fd075bc::t_08b76261bd7b7f 177-183,185-193,195-196
+  s_e752ff6fd075bc::t_d7221ea55d2075 14-15,17,28,34,37,65,66,90,91,103
+  s_e752ff6fd075bc::t_27b0f93724add8 197-202,205-207
+  s_e752ff6fd075bc::t_c28a43391327d5 1-9,111-148,151-176,209-225
+  s_e752ff6fd075bc::t_31b91faa3b725d 51-52,54,87
+  s_e752ff6fd075bc::t_cfa91baec35d96 13,20,24,58,63
+  s_e752ff6fd075bc::t_588319e35e9533 49
+  s_e752ff6fd075bc::t_50dc5711982b16 53,59,90,92-93,96-100,104-106,108
+  s_e752ff6fd075bc::t_e47586e3013235 70,72-75,79,81-82,87-89
+  s_e752ff6fd075bc::t_612eb6f59fd5cd 76
+  s_e752ff6fd075bc::t_81e5fff41ec431 16,44,50,64,69,71,77-78,80,83-86,107
 packages/engine/src/rbi.ts
   s_4ba79f911c93c4::t_3a3911728fb3e4 253,256,273,329-349,351-353,355-358,1130
+  s_e752ff6fd075bc::t_93468589306ca4 358
+  s_e752ff6fd075bc::t_56c332642ca4c0 253
+  s_e752ff6fd075bc::t_b1777ba3f8fba1 273
+  s_e752ff6fd075bc::t_fd0dec61c0b476 346-349,351,353,355-356
+  s_e752ff6fd075bc::t_028aa28ec2f2a0 330
+  s_e752ff6fd075bc::t_498d2591b004bd 279-280,289-301,310,329,331-345,352,357
+  s_e752ff6fd075bc::t_c113dd331004a2 802,812
+  s_e752ff6fd075bc::t_27a61916ae3e72 911,1130
+  s_e752ff6fd075bc::t_1301379052149c 256
+  s_e752ff6fd075bc::t_6e83dd2dea6ef0 958-959
 packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
   s_4ba79f911c93c4::t_f32fdfdeb4ceae 1-175
+  s_e752ff6fd075bc::t_5ec8f91a675984 12-17,102-117,120-127,144-151,153,155-162
+  s_e752ff6fd075bc::t_87fbaed40881f1 23-33,67,101,118,129,138,143,154,163,172
+  s_e752ff6fd075bc::t_a1f6d3b2135737 128,130-137,139-142
+  s_e752ff6fd075bc::t_d285658d23c851 3-7,9-11,19-22,34-66,68,70-76,152,164-171,173-175
+  s_e752ff6fd075bc::t_34c8c24ea264c2 18
+  s_e752ff6fd075bc::t_4897f5f794e556 1-2
+  s_e752ff6fd075bc::t_fb2911c581b43b 8,77-99
+  s_a2feeea1972b1e::t_af5ebe509d7ab9 100
+  s_e752ff6fd075bc::t_3882d976ac4c49 69
+  s_e752ff6fd075bc::t_cda4b021d1ac9f 119
 packages/engine/test/e2e/rbi-scene-wire.e2e.test.ts
   s_4ba79f911c93c4::t_06fcaf84893ed8 1,16,184-238
+  s_e752ff6fd075bc::t_6360efcab4ec77 184-207
+  s_e752ff6fd075bc::t_89bff8858abd51 16,208-234
+  s_e752ff6fd075bc::t_028aa28ec2f2a0 1
+  s_e752ff6fd075bc::t_43ae80af4ee479 235-237
 packages/engine/test/wheel-queue.test.ts
   s_4ba79f911c93c4::t_918ee3b37d2a8a 1-125
+  s_e752ff6fd075bc::t_9ca9af3174f9db 101,103,115,118-119,124
+  s_e752ff6fd075bc::t_4d423bb89e01d3 1-27,29-30,31-32,34,38,40-41,43-45,58-62,66-70,84-85,91,95,99-100,125
+  s_e752ff6fd075bc::t_93c21f79611a3c 43-45,50,53-54
+  s_e752ff6fd075bc::t_588319e35e9533 53-54
+  s_e752ff6fd075bc::t_b96b3e1d251c26 28,33,39,63,86-90,92-94,96-98,102,104-114,116-117,120-123
+  s_e752ff6fd075bc::t_825f0c9be610dc 35,37,64
+  s_e752ff6fd075bc::t_6889d18de2817a 47
+  s_e752ff6fd075bc::t_10a250b1015a8a 42-46,48-54
+  s_e752ff6fd075bc::t_81e5fff41ec431 1,36,65,71-81
+  s_6392bba76ae2ad::t_fd208746ced138 82-83
+packages/engine/test/e2e/incremental-shadow-insert.e2e.test.ts
+  s_74bdb8d7eb50dd::t_bbaa87faaea584 1-50
+scripts/patches/blitz-dom-0.3.0-beta.2/0102-kitesurf-propagate-damage-through-shadow-roots.patch
+  s_74bdb8d7eb50dd::t_7a681bacf8f824 1-26,28-29,31-32,40-45,48-64,66
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -25,11 +103,59 @@ packages/engine/test/wheel-queue.test.ts
   "base_commit_sha": "ac31e22f3fa80d0e9d5963f4dd26bcd31457aad6",
   "prompts": {},
   "sessions": {
+    "s_22c8ba3aea9e40": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fa83cd7a7ffe7RIccEwE0zhzlZ",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_4ba79f911c93c4": {
       "agent_id": {
         "tool": "opencode",
         "id": "",
         "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_55a8e0ddb72b43": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fdc0043a3ffeAuozU0SOnYw1DO",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_6392bba76ae2ad": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f9773a2daffe1AFJtsMUx1wzrb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_74bdb8d7eb50dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0047be798ffeo63pr3eHm9deOh",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_e752ff6fd075bc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbd167b90ffenoolTk3K48t5Wo",
+        "model": "gpt-5.6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     }
