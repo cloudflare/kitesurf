@@ -606,6 +606,7 @@ scripts/patches/blitz-dom-0.3.0-beta.2/0133-Hit-text-only-on-the-line-that-conta
   s_91836f22884cfe::t_61b22aebde7251 1-55
 packages/engine/src/cdp/input.ts
   s_91836f22884cfe::t_da2ad07d8b6f20 199-201,204
+  s_8e9b4acc6322c3::t_46ce8d1917e495 202-203,224-225
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -658,6 +659,14 @@ packages/engine/src/cdp/input.ts
         "tool": "opencode",
         "id": "ses_fd142cefaffez3gql9xA3APsAN",
         "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_8e9b4acc6322c3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4ab387e8ffeCFOsakV1iJf3ye",
+        "model": "gpt-5.6-sol"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     },
