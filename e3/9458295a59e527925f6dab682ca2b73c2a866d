@@ -1,0 +1,31 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Fix-hit-testing-for-padded-inline-roots.patch
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Resolve-relative-inline-insets-against-used-height.patch
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-61
+packages/page-script/src/paint.ts
+  s_77e8d6f4044102::t_562fbd33ac0edd 133-135,139-145,147-149,163-165,169-174,176-178
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-Apply-relative-insets-to-inline-floats.patch
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-92
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-Fix-absolute-inline-box-positioning.patch
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-55
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-Preserve-parent-line-metrics-for-inline-boxes.patch
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-212
+scripts/patches/blitz-dom-0.3.0-beta.2/0131-Preserve-supported-font-source-fallbacks.patch
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e39458295a59e527925f6dab682ca2b73c2a866d",
+  "prompts": {},
+  "sessions": {
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
