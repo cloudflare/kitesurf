@@ -1,0 +1,27 @@
+packages/dom-shim/src/state.ts
+  s_30a20fc844c90c::t_3320c2fd1c36c3 203-207
+packages/engine/test/e2e/event-target-instance-listeners.e2e.test.ts
+  s_30a20fc844c90c::t_f37cbbeb3c9645 55
+  s_30a20fc844c90c::t_2be65138a02234 1-54,56-75,77-80
+  s_30a20fc844c90c::t_aa71210672a1d6 76
+packages/dom-shim/src/events/dispatch.ts
+  s_30a20fc844c90c::t_3320c2fd1c36c3 58-67,69-71,75,309-311,365-367
+packages/dom-shim/src/node-base.ts
+  s_30a20fc844c90c::t_3320c2fd1c36c3 552-562,579,588,591
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "df29889456bf6b5ab0a267dc495f3f2653867ac0",
+  "prompts": {},
+  "sessions": {
+    "s_30a20fc844c90c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4c39617effeTM9e3L608eW2f4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
