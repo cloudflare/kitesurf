@@ -1,0 +1,34 @@
+scripts/patches/blitz-paint-0.3.0-beta.2/0026-Mark-which-part-of-an-element-each-op-paints.patch
+  s_ccf5542acfcceb::t_aca0372b66d565 1-100
+scripts/patches/blitz-paint-0.3.0-beta.2/0027-Paint-checkboxes-and-radios-which-blitz-never-did.patch
+  s_ccf5542acfcceb::t_183d3f81a93f42 6-14
+  s_ccf5542acfcceb::t_aca0372b66d565 1-5,15-107
+packages/core/src/scene_replay.rs
+  s_ccf5542acfcceb::t_316bd48b159493 1036
+packages/core/src/scene_decode.rs
+  s_ccf5542acfcceb::t_316bd48b159493 1345
+  s_ccf5542acfcceb::t_fc05ea0be5e4ae 503-506,829-830,841
+packages/core/src/scene_record.rs
+  s_ccf5542acfcceb::t_365437f4ea798d 2066-2070
+  s_ccf5542acfcceb::t_aa827549caecf2 2056-2058
+  s_ccf5542acfcceb::t_5e069d342bec74 267,1155,1290-1291
+  s_ccf5542acfcceb::t_a59efc692ab750 2605-2633
+  s_ccf5542acfcceb::t_f7c25df4f1fefa 1828-1842
+  s_ccf5542acfcceb::t_1e1e380376656a 20-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "83aaaf803ddc4ffae0ea1b23cb93d22b366e2f7f",
+  "prompts": {},
+  "sessions": {
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
