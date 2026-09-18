@@ -1,0 +1,21 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Preserve-parent-line-height-for-replaced-inline-boxe.patch
+  s_77e8d6f4044102::t_c837e91cbf86a1 1-29
+packages/page-script/src/paint.ts
+  s_77e8d6f4044102::t_1401f1bb3ef11b 152-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "658ca397a0025159210186ce566e0c4ed7876697",
+  "prompts": {},
+  "sessions": {
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
