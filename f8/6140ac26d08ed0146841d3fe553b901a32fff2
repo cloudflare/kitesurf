@@ -1,0 +1,21 @@
+packages/dom-shim/src/transitions.ts
+  s_77e8d6f4044102::t_0f54eedc13747e 29-32
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_77e8d6f4044102::t_0f54eedc13747e 123-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f86140ac26d08ed0146841d3fe553b901a32fff2",
+  "prompts": {},
+  "sessions": {
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
