@@ -1,0 +1,45 @@
+packages/engine/src/cdp/target.ts
+  s_04ab25d1daf16f::t_9381d511e347ce 424-425,627-628
+packages/engine/src/cdp/types.ts
+  s_04ab25d1daf16f::t_9381d511e347ce 850-854
+  s_04ab25d1daf16f::t_d5692938ca3d70 376-380
+packages/engine/src/cdp/page.ts
+  s_04ab25d1daf16f::t_eb1f6ad9372e4d 8260
+  s_04ab25d1daf16f::t_bb72176ce5d04b 7954-7955
+  s_04ab25d1daf16f::t_145e679aaf1cd3 2296,2298,2302-2305,2337-2338
+  s_04ab25d1daf16f::t_da2bd052b31ba6 7956,8053,8056-8057,8069-8077,8149-8152,8176-8177,8188,8302
+  s_04ab25d1daf16f::t_c433fc821dd22b 2352-2355
+  s_04ab25d1daf16f::t_d5692938ca3d70 8135-8137,8254,8261-8262
+  s_04ab25d1daf16f::t_424aae83c04b0a 8163-8170
+  s_04ab25d1daf16f::t_32242964fc5be3 2164-2199,2278-2295,2297,2299,2306-2317,2319-2335,2339-2343,2345-2346
+  s_1b22ae6cfcd5d1::t_c2f9351decb3b4 2336,8138
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_04ab25d1daf16f::t_eb1f6ad9372e4d 517-534,536-560,562-566,568-572,578-579,582-583,585-588,590-593
+  s_04ab25d1daf16f::t_d5692938ca3d70 573,575-577
+  s_04ab25d1daf16f::t_383f1fadb05e7a 580,584,589
+  s_04ab25d1daf16f::t_50a7a6e464e3dd 535,561,567,574,581
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "145d9903a0e1169897aad54e6fb39cfaa39a8b8c",
+  "prompts": {},
+  "sessions": {
+    "s_04ab25d1daf16f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4c1d3090ffeD74k0gwwEQEP1F",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_1b22ae6cfcd5d1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4bfc77ffffeM5aG7lunD08tIp",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
