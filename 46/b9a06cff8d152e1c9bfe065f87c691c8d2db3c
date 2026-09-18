@@ -1,0 +1,39 @@
+packages/engine/test/quickaction.test.ts
+  s_0fb3273840725a::t_295a01a93f9831 1010,1015,1018,1022,1033,1047
+packages/engine/test/crawl.test.ts
+  s_0fb3273840725a::t_e69169d1d592e5 12,39-62
+  s_0fb3273840725a::t_c87bbd49bc3439 13,29
+  s_0fb3273840725a::t_02ffdee0ca652b 1-11,14-28,30-38,63
+packages/engine/src/quickactions/index.ts
+  s_0fb3273840725a::t_0d5f04f54602c9 264-265,381,1269-1279,1284-1289,1298-1303,1309-1318,1324-1329,1824,1825-1829
+  s_4ba79f911c93c4::t_500d6e18116502 1830-1831
+packages/engine/test/e2e/crawl-quick-action.e2e.test.ts
+  s_0fb3273840725a::t_02ffdee0ca652b 78-87,194,202
+packages/engine/src/quickactions/crawl.ts
+  s_0fb3273840725a::t_02ffdee0ca652b 111
+  s_0fb3273840725a::t_d17af71e3d0ba4 172,227,231-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "46b9a06cff8d152e1c9bfe065f87c691c8d2db3c",
+  "prompts": {},
+  "sessions": {
+    "s_0fb3273840725a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
