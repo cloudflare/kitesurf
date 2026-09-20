@@ -1,0 +1,34 @@
+packages/dom-shim/src/state.ts
+  s_5fb30807a62e14::t_6c3672aa95a767 79,125
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_5fb30807a62e14::t_a5c9f0c033b05c 20-22,33-35,44-46,65-74,88-91
+packages/dom-shim/src/constants.ts
+  s_5fb30807a62e14::t_6c3672aa95a767 62-63
+packages/dom-shim/src/element.ts
+  s_5fb30807a62e14::t_a5c9f0c033b05c 3262-3263,3265-3266
+  s_5fb30807a62e14::t_6c3672aa95a767 56,3264
+packages/core/src/lib.rs
+  s_5fb30807a62e14::t_a5c9f0c033b05c 3905,3954-3958,4097,4121,4154,7258-7261
+  s_5fb30807a62e14::t_6c3672aa95a767 4012-4025,4030,4060-4073,4078,4100-4101,4105
+packages/dom-shim/src/window.ts
+  s_5fb30807a62e14::t_6c3672aa95a767 12,710-712
+  s_5fb30807a62e14::t_a5c9f0c033b05c 755-758
+packages/page-script/src/paint.ts
+  s_5fb30807a62e14::t_6c3672aa95a767 232,245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cc4dd41379448679bfe5d1833c037798609b61dc",
+  "prompts": {},
+  "sessions": {
+    "s_5fb30807a62e14": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f42002932ffeO4pEgQ6dRbcqCu",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
