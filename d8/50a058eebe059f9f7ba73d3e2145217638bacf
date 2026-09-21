@@ -1,0 +1,20 @@
+scripts/patches/parley-0.11.1/0010-kitesurf-gate-tab-expansion-on-runs-containing-tabs-.patch
+  s_4ba79f911c93c4::t_513e4c93d62443 1-152
+  s_4ba79f911c93c4::t_bda90408aaa7b2 153-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d850a058eebe059f9f7ba73d3e2145217638bacf",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
