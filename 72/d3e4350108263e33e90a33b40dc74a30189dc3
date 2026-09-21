@@ -23,8 +23,12 @@ packages/dom-shim/src/collections.ts
   s_d6cf09da1fc80a::t_c6edb37cb5987d 1541
   s_d6cf09da1fc80a::t_50534201a2bfc9 2022
   s_d6cf09da1fc80a::t_a47d32fc85a7c6 2255
+  s_77fdd72a09ebcc::t_8d46fad37f1894 3221
+  s_77fdd72a09ebcc::t_6655d6ca1c356f 3000-3003
 packages/page-script/src/paint.ts
   s_d6cf09da1fc80a::t_d403da324d0a49 265,268-276
+packages/page-script/src/globals.ts
+  s_77fdd72a09ebcc::t_2a609664d1cafb 1788
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -32,6 +36,14 @@ packages/page-script/src/paint.ts
   "base_commit_sha": "72d3e4350108263e33e90a33b40dc74a30189dc3",
   "prompts": {},
   "sessions": {
+    "s_77fdd72a09ebcc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c0619e5ffeeTShC6Mf3l5XUl",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    },
     "s_d6cf09da1fc80a": {
       "agent_id": {
         "tool": "opencode",
