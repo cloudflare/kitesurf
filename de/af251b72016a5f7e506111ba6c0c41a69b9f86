@@ -1,0 +1,22 @@
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_a27560844c9773::t_b201e103bfc7b0 17,36,50,75,100-104
+packages/core/src/lib.rs
+  s_a27560844c9773::t_54a2cc2be7fbef 4037
+  s_a27560844c9773::t_b201e103bfc7b0 4032-4034,4038-4041
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "deaf251b72016a5f7e506111ba6c0c41a69b9f86",
+  "prompts": {},
+  "sessions": {
+    "s_a27560844c9773": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3caf280dffeydThJ1ypgBuNwB",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
