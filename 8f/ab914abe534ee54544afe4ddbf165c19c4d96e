@@ -1,0 +1,22 @@
+scripts/patches/parley-0.11.1/0009-Expand-horizontal-tabs-to-CSS-tab-size-stops.patch
+  s_4ba79f911c93c4::t_4033bd51bb3694 1-348
+  s_4ba79f911c93c4::t_d3d6255d1d5471 349-351
+scripts/patches/blitz-dom-0.3.0-beta.2/0133-Wire-CSS-tab-size-from-stylo-into-parley-TextStyle.patch
+  s_4ba79f911c93c4::t_d868473c38041f 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8fab914abe534ee54544afe4ddbf165c19c4d96e",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
