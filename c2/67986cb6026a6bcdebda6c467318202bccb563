@@ -1,0 +1,36 @@
+scripts/patches/blitz-paint-0.3.0-beta.2/0025-Map-smooth-and-high-quality-image-rendering-to-high-.patch
+  s_ec00f97a97addf::t_30206c335801f4 1-33
+packages/engine/test/e2e/stylo-layout-misc-values.e2e.test.ts
+  s_ec00f97a97addf::t_ddc755edfeab27 1-38,43,49-60,63-64
+  s_ec00f97a97addf::t_ae56cc792308de 39-42,44-48,61-62
+scripts/patches/stylo-0.20.0/0036-Enable-content-box-and-stroke-box-transform-box-keyw.patch
+  s_ec00f97a97addf::t_3d667e726e4b24 1-45
+scripts/patches/stylo-0.20.0/0033-Complete-the-break-before-after-inside-fragmentation.patch
+  s_ec00f97a97addf::t_3d667e726e4b24 1-105
+scripts/patches/stylo-0.20.0/0031-Enable-clip-rule-flood-color-and-lighting-color-in-t.patch
+  s_ec00f97a97addf::t_3d667e726e4b24 1-49
+scripts/patches/stylo-0.20.0/0032-Complete-image-rendering-s-grammar-for-the-servo-bui.patch
+  s_ec00f97a97addf::t_3d667e726e4b24 1-39
+scripts/patches/stylo-0.20.0/0035-Allow-path-for-shape-outside.patch
+  s_ec00f97a97addf::t_3d667e726e4b24 1-44
+packages/core/src/pdf.rs
+  s_ec00f97a97addf::t_bc8f6d12727f46 267-270,278-279
+scripts/patches/stylo-0.20.0/0034-Add-balance-all-to-column-fill-s-grammar.patch
+  s_ec00f97a97addf::t_3d667e726e4b24 1-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c267986cb6026a6bcdebda6c467318202bccb563",
+  "prompts": {},
+  "sessions": {
+    "s_ec00f97a97addf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5673f0eeffeJVBdXXGeBS0d8U",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}
