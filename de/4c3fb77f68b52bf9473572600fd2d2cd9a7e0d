@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0133-Wire-CSS-tab-size-from-stylo-into-parley-TextStyle.patch
+  s_4ba79f911c93c4::t_9d8decc05ccf29 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "de4c3fb77f68b52bf9473572600fd2d2cd9a7e0d",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

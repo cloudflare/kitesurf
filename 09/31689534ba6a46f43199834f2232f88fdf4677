@@ -1,0 +1,28 @@
+tests/interactivity-flows/flows.ts
+  s_4ba79f911c93c4::t_e92a3f224af648 823,892-900,905,910-912,928,930,935-936,940-946
+  s_4ba79f911c93c4::t_be1f7558dcc42e 827-838
+  s_4ba79f911c93c4::t_cdb60a25c9ffbc 906-909,917-920,924,927
+  s_4ba79f911c93c4::t_fda97195655206 921-923,925-926
+  s_4ba79f911c93c4::t_c6b70b90465356 1538-1543,1548,1556-1561,1568
+  s_4ba79f911c93c4::t_0f08142ca042fd 4
+  s_4ba79f911c93c4::t_55d4ed49e31807 929
+  s_4ba79f911c93c4::t_d52ae8a2679d7f 913-916
+  s_4ba79f911c93c4::t_0de4070b1e7d63 976-983,985
+  s_4ba79f911c93c4::t_d8d501b3dc0dc6 1562-1567
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0931689534ba6a46f43199834f2232f88fdf4677",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
