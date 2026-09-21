@@ -1,0 +1,19 @@
+tests/wpt-expectations.json
+  s_c66a8629b3d840::t_e792dcfba2a114 2441-2442,2449-2450,2453-2454
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b7138f339a508a4cfa86329bda7fbfa3eb78fba",
+  "prompts": {},
+  "sessions": {
+    "s_c66a8629b3d840": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3cb20183ffejKu51N7q3Xj0Kt",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}
