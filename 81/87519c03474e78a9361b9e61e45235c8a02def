@@ -1,0 +1,36 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-Preserve-parent-line-metrics-for-inline-boxes.patch
+  s_77e8d6f4044102::t_62a238218f57d3 7-8,11,118,177-182,184-186,221,241,257
+  s_77e8d6f4044102::t_6daad13afb7ae0 235-237,265
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-Fix-absolute-inline-box-positioning.patch
+  s_77e8d6f4044102::t_62a238218f57d3 11,14,22,36
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Resolve-relative-inline-insets-against-used-height.patch
+  s_77e8d6f4044102::t_62a238218f57d3 11,14,53
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-Apply-relative-insets-to-inline-floats.patch
+  s_77e8d6f4044102::t_62a238218f57d3 11,85
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_fb5aeef4788b54::t_25c5003d68df36 125-140,302-314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8187519c03474e78a9361b9e61e45235c8a02def",
+  "prompts": {},
+  "sessions": {
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_fb5aeef4788b54": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4b7e383affeoGAlIOLVNl70TD",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

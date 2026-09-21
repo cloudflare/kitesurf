@@ -1,0 +1,30 @@
+packages/dom-shim/src/model-context.ts
+  s_8487a09e89ac2f::t_8a7c3a9c3770dc 450-463,465,467,471-474,477-478
+packages/page-script/src/globals.ts
+  s_8487a09e89ac2f::t_0f57c6d48e3ef6 5220-5223
+  s_8487a09e89ac2f::t_eaff26d559bf2b 21
+packages/dom-shim/src/contract.ts
+  s_8487a09e89ac2f::t_a2ebb26caf56dc 15
+docs/WEBMCP.md
+  s_8487a09e89ac2f::t_b44b9a70aaea6c 75-85
+packages/dom-shim/src/index.ts
+  s_8487a09e89ac2f::t_edb9218b500ca1 1764
+packages/page-script/src/dom-shim.d.ts
+  s_8487a09e89ac2f::t_a2ebb26caf56dc 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "73a0f142d8cf728817906055f26779cb6814b56a",
+  "prompts": {},
+  "sessions": {
+    "s_8487a09e89ac2f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4fd91da8ffeneEFBDpRKIlgRB",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

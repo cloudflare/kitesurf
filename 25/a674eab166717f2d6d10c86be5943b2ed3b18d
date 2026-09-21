@@ -1,0 +1,21 @@
+packages/engine/test/e2e/pdf-page-margins.e2e.test.ts
+  s_6917a4c76239ca::t_684b2ce020f416 65-66,68-74,78
+packages/engine/test/e2e/svg-paint-fidelity.e2e.test.ts
+  s_6917a4c76239ca::t_b77ed41cc07cf5 33-35,44-45,58,67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "25a674eab166717f2d6d10c86be5943b2ed3b18d",
+  "prompts": {},
+  "sessions": {
+    "s_6917a4c76239ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4957e992ffeVbjatLtj1w4960",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

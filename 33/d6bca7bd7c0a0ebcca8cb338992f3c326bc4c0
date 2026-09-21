@@ -1,0 +1,54 @@
+packages/engine/src/cdp/connection.ts
+  s_4ba79f911c93c4::t_1beeafe3a74aaa 31,758,802-805,818
+  s_4ba79f911c93c4::t_f9bb89d088df9a 818
+packages/engine/src/cdp/input.ts
+  s_4ba79f911c93c4::t_50c90b8e235bd8 10,12,103,117,124,199-203,205-224,226-227,240-247,254-272,276-282,284-288,290-304,317-320,388-389,398-399,406-410,432-437,442,453-454,467-471,476-481,497-498
+packages/engine/src/cdp/page.ts
+  s_4ba79f911c93c4::t_a1fb095ab7b75e 13-14,16-18,2165-2242,2260-2266,2274-2277,2594-2599,2601-2633,2636-2640,2661-2663,2666,8092
+packages/engine/src/cdp/target.ts
+  s_4ba79f911c93c4::t_9b66024c9de420 18-21,349,413,464,474-478,480-490,600
+  s_4ba79f911c93c4::t_6fe96b68284263 464,474-478
+packages/engine/src/cdp/types.ts
+  s_4ba79f911c93c4::t_b70e1645622b20 810-813
+  s_4efb85c8268621::t_8373e2d0633919 810-813
+packages/engine/src/cdp/wheel-queue.ts
+  s_4ba79f911c93c4::t_f40e8e259412a8 12-20,23,43-44,58-84,102-108,115,135-136,140-147,149,165,227-233,236-237,240-255,258,265-298,312-361
+  s_0fb3273840725a::t_b466af2344ae70 12-20,23,43-44,58-84,102-108,115,135-136,140-147,149,312-326,355-359
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_4ba79f911c93c4::t_40844908eed806 8,19-21,29,165-166,176,184-191,193,198-205,215-224,256-265,271-277,279-337,349-352,373-515
+packages/engine/test/wheel-queue.test.ts
+  s_4ba79f911c93c4::t_3d5574049fa6bb 2-13,136-439
+  s_0fb3273840725a::t_c3dfae11f63637 137-214,349-350,354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "33d6bca7bd7c0a0ebcca8cb338992f3c326bc4c0",
+  "prompts": {},
+  "sessions": {
+    "s_0fb3273840725a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

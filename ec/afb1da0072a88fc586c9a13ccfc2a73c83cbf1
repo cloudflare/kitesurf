@@ -1,0 +1,188 @@
+packages/engine/src/cdp/page.ts
+  s_e752ff6fd075bc::t_7eb10af6dea288 8231-8239
+  s_e752ff6fd075bc::t_0afc4f8e61a458 2303
+  s_e752ff6fd075bc::t_09794bb85466d9 16-18
+  s_e752ff6fd075bc::t_176ee527629858 19,2359-2363,8092
+  s_e752ff6fd075bc::t_8e6ac07441a9ff 15,20,2165-2242,2260-2266,2274-2277,2298-2302,2633
+  s_e752ff6fd075bc::t_4c32db317bba34 8240,8250
+  s_e752ff6fd075bc::t_985e471e94bc2a 8093-8097
+  s_22c8ba3aea9e40::t_a0e74d9338cc50 12
+  s_e752ff6fd075bc::t_8af3cc0b8b2015 2364
+  s_e752ff6fd075bc::t_b63c326d6bdd1b 2661-2663
+  s_e752ff6fd075bc::t_e9fc70e90d37af 2664-2668
+  s_e752ff6fd075bc::t_f966e3826034b4 2630-2632
+packages/engine/src/cdp/input.ts
+  s_e752ff6fd075bc::t_126ab2dd27ba0b 234-238
+  s_e752ff6fd075bc::t_edbecdc5ae5bed 124
+  s_e752ff6fd075bc::t_f328778a634c48 205-209,211-214,231,233,273-275,289-311,320
+  s_e752ff6fd075bc::t_6aa131b7c4fc7b 134
+  s_e752ff6fd075bc::t_13b08630daf017 9-15,96-98,104-105,109,113,115,118-122,125,128,138
+  s_e752ff6fd075bc::t_0fb0184162eb37 222,254-272
+  s_e752ff6fd075bc::t_0afc4f8e61a458 93-95,99-100,106-108,110-112,114,123,126-127,129-133,135,137,139
+  s_e752ff6fd075bc::t_60eabd5e8c592f 103
+  s_a2feeea1972b1e::t_a3fba6e2b9db15 140
+  s_e752ff6fd075bc::t_5ec8f91a675984 102,136
+  s_4ba79f911c93c4::t_cc028c3c2e4818 393
+  s_e752ff6fd075bc::t_43d04ba736da1d 101,116
+  s_e752ff6fd075bc::t_505c51388f299b 232
+  s_4ba79f911c93c4::t_a7a124f0760f11 317-318
+  s_4ba79f911c93c4::t_733deeceb91a90 388
+  s_e752ff6fd075bc::t_e2f161f27b577e 117
+  s_e752ff6fd075bc::t_fd8a673a87c5f7 239-253,283
+  s_e752ff6fd075bc::t_f305072770a7e5 284-288
+  s_e752ff6fd075bc::t_492d58e73525f9 276-282
+  s_4ba79f911c93c4::t_b32f61f1cc0ff8 319,389-392
+  s_e752ff6fd075bc::t_cfe0da1c32d091 210
+  s_e752ff6fd075bc::t_33ed01f05c5631 215-217,219-221
+  s_e752ff6fd075bc::t_1eab2f527ac672 223-224
+tests/interactivity-flows/lib/driver.ts
+  s_51ed5497a9ef32::t_3b5f71a677e93a 99-101,103-111
+packages/engine/src/cdp/wheel-queue.ts
+  s_4ba79f911c93c4::t_43576b388d10d5 227-233,361
+  s_e752ff6fd075bc::t_588319e35e9533 86
+  s_e752ff6fd075bc::t_31b91faa3b725d 88-89,91
+  s_e752ff6fd075bc::t_50dc5711982b16 90,96,133,139,148,153-155,157
+  s_e752ff6fd075bc::t_81b5886e430f64 10-11,21,27-28,30-32,34-36,38-42,45-46,48-53,55-57,85,92-94,97-99,110-111,137-138,150-151,158-159,199-200,307-308,362
+  s_e752ff6fd075bc::t_d7221ea55d2075 24,26,37,47,109,134,152
+  s_e752ff6fd075bc::t_08b76261bd7b7f 234-300
+  s_e752ff6fd075bc::t_e47586e3013235 113,116-118,122,124-125,130-132
+  s_e752ff6fd075bc::t_c28a43391327d5 1-9,160-198,201-226,360,363-379
+  s_e752ff6fd075bc::t_612eb6f59fd5cd 119
+  s_e752ff6fd075bc::t_27b0f93724add8 301-306,309-311
+  s_0fb3273840725a::t_b466af2344ae70 12-20,23,43-44,58-84,102-108,115,135-136,140-147,149,312-359
+  s_e752ff6fd075bc::t_cfa91baec35d96 22,29,33,95,100
+  s_e752ff6fd075bc::t_81e5fff41ec431 25,54,87,101,112,114,120-121,123,126-129,156
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_4ba79f911c93c4::t_e1e3b108fa6918 96,100-113,115-121,123-130,132-140
+  s_4ba79f911c93c4::t_5bb031c6fe60f6 13,95,97-99,114,122,131
+  s_b5116f8b90b361::t_91fc54c2bf146c 141-144
+packages/engine/test/wheel-queue.test.ts
+  s_e752ff6fd075bc::t_4d423bb89e01d3 14-38,40-43,45,49,51-52,69-73,77-81,95,110,440
+  s_e752ff6fd075bc::t_b96b3e1d251c26 39,44,50,74,97-101,103-105,107-109,113-134
+  s_6392bba76ae2ad::t_fd208746ced138 93-94
+  s_e752ff6fd075bc::t_588319e35e9533 96,102,106,111-112
+  s_e752ff6fd075bc::t_81e5fff41ec431 1,47,76,82-92
+  s_e752ff6fd075bc::t_9ca9af3174f9db 135,362,415-439
+  s_4ba79f911c93c4::t_b6719f411559e7 2-13,66,136,355-361,363-377,379,381-388,390,392-409,411,413-414
+  s_0fb3273840725a::t_c3dfae11f63637 67-68,137-354,378,380,389,391,410,412
+  s_e752ff6fd075bc::t_6889d18de2817a 58
+  s_e752ff6fd075bc::t_825f0c9be610dc 46,48,75
+  s_e752ff6fd075bc::t_10a250b1015a8a 53-57,59-65
+packages/engine/src/cdp/connection.ts
+  s_4ba79f911c93c4::t_f9bb89d088df9a 819
+packages/engine/src/rbi.ts
+  s_e752ff6fd075bc::t_b1777ba3f8fba1 274
+  s_e752ff6fd075bc::t_498d2591b004bd 330,332-346,353,358
+  s_e752ff6fd075bc::t_028aa28ec2f2a0 331
+  s_e752ff6fd075bc::t_1301379052149c 257
+  s_e752ff6fd075bc::t_fd0dec61c0b476 347-350,352,354,356-357
+  s_e752ff6fd075bc::t_56c332642ca4c0 253
+  s_4ba79f911c93c4::t_ba8f7bca359fa8 256,263-264
+  s_e752ff6fd075bc::t_93468589306ca4 359
+  s_e752ff6fd075bc::t_27a61916ae3e72 1131
+packages/engine/src/cdp/types.ts
+  s_e752ff6fd075bc::t_0afc4f8e61a458 372-375
+  s_4efb85c8268621::t_8373e2d0633919 810-813
+  s_e752ff6fd075bc::t_75b7748460a81e 15,371
+packages/engine/test/e2e/rbi-scene-wire.e2e.test.ts
+  s_e752ff6fd075bc::t_43ae80af4ee479 235-237
+  s_e752ff6fd075bc::t_6360efcab4ec77 184-207,238
+  s_e752ff6fd075bc::t_028aa28ec2f2a0 1
+  s_e752ff6fd075bc::t_89bff8858abd51 16,208-234
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_e752ff6fd075bc::t_d285658d23c851 3-11,22-25,38-70,72,74-80,159-161,170,172,177-183,190,210-211,232-235,247-254,281,283,288-294,307,314,323,330-337,346,362-369,371-516
+  s_e752ff6fd075bc::t_5ec8f91a675984 12-17,106-121,124-131,169,174-175,195,201-202,215,217-220,222-224,236-237,242,256,259-261,263-265,280,285-286,320,326,338-345,347,349,353-360
+  s_a2feeea1972b1e::t_af5ebe509d7ab9 104
+  s_e752ff6fd075bc::t_fb2911c581b43b 81-103,173,284,317,319
+  s_e752ff6fd075bc::t_a1f6d3b2135737 132,134-141,143-146
+  s_4ba79f911c93c4::t_d0b42ad14d9a4e 19-21,147-158,162-166,168,171,176,184-189,191-194,196-200,203-209,212-213,216,221,225-228,230-231,238-240,243-246,257-258,262,266-277,279,282,287,295-306,308-313,315-316,318,321-322,324-325,327-328,350-352
+  s_e752ff6fd075bc::t_4897f5f794e556 1-2
+  s_e752ff6fd075bc::t_3882d976ac4c49 73,241
+  s_e752ff6fd075bc::t_cda4b021d1ac9f 123
+  s_e752ff6fd075bc::t_87fbaed40881f1 26-37,71,105,122,133,142,167,214,229,255,278,329,348,361,370
+  s_e752ff6fd075bc::t_34c8c24ea264c2 18
+packages/engine/src/cdp/target.ts
+  s_e752ff6fd075bc::t_f6e3c1fa8453e8 345-355,479
+  s_4ba79f911c93c4::t_6fe96b68284263 464,474-478
+  s_4ba79f911c93c4::t_667eba25fa1888 18-21,413,480-490,600
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ecafb1da0072a88fc586c9a13ccfc2a73c83cbf1",
+  "prompts": {},
+  "sessions": {
+    "s_0fb3273840725a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_22c8ba3aea9e40": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fa83cd7a7ffe7RIccEwE0zhzlZ",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_51ed5497a9ef32": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f514775d7ffeg9CJ8X6f7RZn0V",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_6392bba76ae2ad": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f9773a2daffe1AFJtsMUx1wzrb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b5116f8b90b361": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4ec2c94dffed2WZX6jVXfVob7",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_e752ff6fd075bc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbd167b90ffenoolTk3K48t5Wo",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

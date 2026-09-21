@@ -1,0 +1,19 @@
+packages/engine/src/cdp/connection.ts
+  s_4ba79f911c93c4::t_f9bb89d088df9a 818
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "edb57f0b10888834d3e12cfb446b0da7dc4d851b",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

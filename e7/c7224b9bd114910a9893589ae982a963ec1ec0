@@ -1,0 +1,24 @@
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_8487a09e89ac2f::t_b6c8b0d79b9658 307-314,316
+  s_8487a09e89ac2f::t_7bd468f2d57488 315
+packages/engine/test/fixtures-worker/assets/webmcp-tools.html
+  s_8487a09e89ac2f::t_a08a27a75228ca 67-260
+docs/WEBMCP.md
+  s_8487a09e89ac2f::t_ce4cd42618746c 86-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e7c7224b9bd114910a9893589ae982a963ec1ec0",
+  "prompts": {},
+  "sessions": {
+    "s_8487a09e89ac2f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4fd91da8ffeneEFBDpRKIlgRB",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

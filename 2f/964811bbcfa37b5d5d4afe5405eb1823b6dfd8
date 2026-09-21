@@ -1,0 +1,73 @@
+packages/engine/test/quickaction.test.ts
+  s_0fb3273840725a::t_979827403182e6 14,21,291-377
+  s_0fb3273840725a::t_ffb1c1bd580f9a 1489-1492
+  s_0fb3273840725a::t_a0ea36889c85ae 378,1525-1541
+  s_0fb3273840725a::t_1f67a517bc1352 379,1103-1184
+  s_b39d3d2ff57285::t_d48cb7e014b14d 380
+packages/engine/test/crawl.test.ts
+  s_0fb3273840725a::t_1456ed5f80d9fc 4,13,16,26
+packages/engine/test/e2e/crawl-quick-action.e2e.test.ts
+  s_0fb3273840725a::t_1456ed5f80d9fc 108,222-223,227,232-233
+  s_0fb3273840725a::t_2781f443a4e461 76
+packages/engine/src/observability.ts
+  s_0fb3273840725a::t_9d660463718fa8 71,94
+packages/engine/test/e2e/external-outbound.e2e.test.ts
+  s_0fb3273840725a::t_1456ed5f80d9fc 310-331
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_0fb3273840725a::t_2781f443a4e461 1795
+packages/engine/src/quickactions/index.ts
+  s_0fb3273840725a::t_778dcca158d152 1563-1568
+  s_0fb3273840725a::t_ef3eca3ed43509 657-664
+  s_0fb3273840725a::t_330c10a3ee059f 471-514,516-518,520-521,529-530,588-589,678-681,685-695,698,701-704,706,712,756,976-977,1060,1169,1246-1247,1364,1374,1388,1403,1414,1435,1450,1464,1491-1493,1715
+  s_0fb3273840725a::t_301923a49c4317 515,1006
+  s_0fb3273840725a::t_1456ed5f80d9fc 1244,1289-1292,1316-1319,1524-1526,1553-1555,1669,1711,2200-2213
+  s_0fb3273840725a::t_caccda42e35f03 1932-1941
+  s_b39d3d2ff57285::t_3a4d9558733e21 1494
+packages/engine/src/quickactions/content.ts
+  s_0fb3273840725a::t_2781f443a4e461 223
+packages/engine/src/quickactions/brapi.ts
+  s_0fb3273840725a::t_cc242d538f447b 65-66,90-91,150-151,182-183
+  s_0fb3273840725a::t_1456ed5f80d9fc 175,184
+packages/engine/src/index.ts
+  s_0fb3273840725a::t_9d660463718fa8 20,232,308-309,591,647-649
+  s_d8cd85c3b6a98b::t_bba8428a9d9239 650-651
+packages/engine/src/eval/external-session.ts
+  s_0fb3273840725a::t_1456ed5f80d9fc 148
+packages/engine/src/quickactions/crawl.ts
+  s_0fb3273840725a::t_9fdb3c3aeb9f43 39-40,82-86
+  s_0fb3273840725a::t_8f22674a3e9c89 1-2,4-8,13,25-38,45,66-68,74,96,112,114,142-144,175-176,189-190,192-193,195-202,206,236,239,242-271,275,277-279,281-291
+  s_0fb3273840725a::t_39c4c73f6661c8 134-135,177,185
+  s_0fb3273840725a::t_1456ed5f80d9fc 136-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2f964811bbcfa37b5d5d4afe5405eb1823b6dfd8",
+  "prompts": {},
+  "sessions": {
+    "s_0fb3273840725a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b39d3d2ff57285": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4adb90bdffeaxtC5KR0dFoG2D",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_d8cd85c3b6a98b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4aecdd0affe68X0ak3zujSVuZ",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/core/src/transform_2d_subset_test.rs
+  s_4ba79f911c93c4::t_2ef27334137ff7 113-115,135-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d24d82afd0586870e8c9aa1f7a690f3a090589da",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+packages/engine/package.json
+  s_4ba79f911c93c4::t_5e2272db59d928 38
+pnpm-lock.yaml
+  s_8a6b790f1afe66::t_b22459c824b154 49,141-142,2582-2584,2587,2591,2936,2938,2952,2954,2961,2976,2978-2979,4277,4280,4837-4838
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9f43166973975af94c8bb4c18dd0c77268520501",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_8a6b790f1afe66": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4baa26c6ffesPjl3sYTKOxvLm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

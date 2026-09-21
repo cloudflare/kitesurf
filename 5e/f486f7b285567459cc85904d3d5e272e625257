@@ -1,0 +1,21 @@
+packages/engine/package.json
+  s_4ba79f911c93c4::t_5e2272db59d928 38
+packages/engine/src/quickactions/index.ts
+  s_4ba79f911c93c4::t_08c4e9f4107a55 35-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5ef486f7b285567459cc85904d3d5e272e625257",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}
