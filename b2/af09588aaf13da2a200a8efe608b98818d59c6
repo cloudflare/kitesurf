@@ -1,0 +1,37 @@
+packages/core/src/sticky.rs
+  s_6d20977c7296d4::t_b6d5af09f43a7a 263-266,271,282,285,287,296-306,308
+  s_6d20977c7296d4::t_89f6167d887d59 439-443
+packages/core/src/lib.rs
+  s_6d20977c7296d4::t_f147fa9a692dde 3080-3083,3096-3098,3103,3107-3112
+  s_6d20977c7296d4::t_4e559854688cb2 4082-4085,4092,4107-4130,4132,4188
+  s_6d20977c7296d4::t_b100a7c7841b45 4086-4091,4131,4133-4156,4158-4162,4178-4179,4189-4200,4217-4218
+  s_6d20977c7296d4::t_bab16b7559c6d5 4157,4163-4177,4180-4187,4201-4216
+  s_6d20977c7296d4::t_d4692323d395db 572-579
+  s_6d20977c7296d4::t_4d029eb1012e58 4219-4305
+  s_6d20977c7296d4::t_f9e506d2ca81a0 974
+  s_1226f4f3d06376::t_1e08012c0cfeb1 3113-3114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b2af09588aaf13da2a200a8efe608b98818d59c6",
+  "prompts": {},
+  "sessions": {
+    "s_1226f4f3d06376": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5a379175ffemt285twLXXf8pZ",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    },
+    "s_6d20977c7296d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5673f158ffeqwMTvK1dygU27k",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}
