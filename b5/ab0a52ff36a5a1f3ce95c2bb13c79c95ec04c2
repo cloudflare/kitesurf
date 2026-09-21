@@ -1,0 +1,31 @@
+scripts/patches/boa_engine-0.20.0/0012-Keep-the-value-stack-aligned-across-try-finally.patch
+  s_4ba79f911c93c4::t_c7ba2c1b20791f 1-79
+packages/engine/test/e2e/boa-finally-stack.e2e.test.ts
+  s_4ba79f911c93c4::t_64a21ebe0aab1e 2-24,26,28-37,39-48,50-61,63-73,75,77-96
+  s_4d67dfa0f79f1a::t_8b59864a73fad6 1
+  s_4d67dfa0f79f1a::t_8304b60812419e 25,27,38,49,62,74,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b5ab0a52ff36a5a1f3ce95c2bb13c79c95ec04c2",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4d67dfa0f79f1a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3d719fa4ffeAnKGoak8x1Ln0w",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
