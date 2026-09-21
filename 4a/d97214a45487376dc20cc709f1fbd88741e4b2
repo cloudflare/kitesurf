@@ -1,0 +1,24 @@
+scripts/dev-term.mjs
+  s_91836f22884cfe::t_107161c5c6f642 15,18-20,31-33
+  s_91836f22884cfe::t_3e4e426233599e 141,143-158
+scripts/dev-term-args.test.mjs
+  s_91836f22884cfe::t_9598a4589ef350 1-35
+scripts/dev-term-args.mjs
+  s_91836f22884cfe::t_f3ad7d749a6dc1 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4ad97214a45487376dc20cc709f1fbd88741e4b2",
+  "prompts": {},
+  "sessions": {
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
