@@ -1,0 +1,19 @@
+tests/wpt-tests.json
+  s_0440002d6eb722::t_3c12db6b61fa59 8185,8260-8276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2930bdb2f81624647553cf7ecea798c044d58468",
+  "prompts": {},
+  "sessions": {
+    "s_0440002d6eb722": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3a2558f9ffe4g3Z8G051SjXGQ",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
