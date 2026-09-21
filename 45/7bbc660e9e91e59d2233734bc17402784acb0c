@@ -1,0 +1,44 @@
+packages/engine/test/e2e/module-registry.e2e.test.ts
+  s_11d008ebdd7940::t_51398b12edc188 9-14
+  s_11d008ebdd7940::t_847ea5b9d69d79 58-63
+  s_06daabca753f93::t_8816bc1a05ca38 50-51,53-57
+  s_06daabca753f93::t_0ea39b82456b64 52
+packages/engine/test/fixtures-worker/assets/module-registry-malformed-json.txt
+  s_06daabca753f93::t_8816bc1a05ca38 1
+packages/engine/test/fixtures-worker/assets/module-registry-fallback.json
+  s_11d008ebdd7940::t_128a04a206fd19 1
+packages/engine/test/fixtures-worker/assets/module-registry-sheet.css
+  s_06daabca753f93::t_8816bc1a05ca38 1
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_11d008ebdd7940::t_b7b8cd8550bcdc 1400-1403
+  s_06daabca753f93::t_8816bc1a05ca38 234-235,1333-1334,1404-1405
+  s_11d008ebdd7940::t_3636d7860dc557 233
+packages/engine/test/fixtures-worker/assets/module-registry.html
+  s_06daabca753f93::t_8816bc1a05ca38 38,44-45,57-62
+  s_11d008ebdd7940::t_aa888f0ae27b2e 46-56
+  s_06daabca753f93::t_0ea39b82456b64 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "457bbc660e9e91e59d2233734bc17402784acb0c",
+  "prompts": {},
+  "sessions": {
+    "s_06daabca753f93": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3ee39a1cffeRHFzTlU8Zso2LJ",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_11d008ebdd7940": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3ca969d8ffeZ7wrzly5eBfLOF",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
