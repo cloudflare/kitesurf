@@ -1,0 +1,21 @@
+packages/engine/src/cdp/page.ts
+  s_4ba79f911c93c4::t_996e4f4193b2bb 8257-8267
+packages/engine/test/e2e/demos/screencast-pipeline-order.e2e.test.ts
+  s_4ba79f911c93c4::t_364f5f1c5dd34a 171-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "447a4a888c11e12cb4511c8832bb8e60296babdc",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

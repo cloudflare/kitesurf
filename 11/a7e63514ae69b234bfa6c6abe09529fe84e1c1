@@ -1,0 +1,23 @@
+packages/core/src/screenshot.rs
+  s_4ba79f911c93c4::t_7a476953951c59 326-327
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_4ba79f911c93c4::t_4180817380e9bc 171,175,320
+packages/core/src/scene_replay.rs
+  s_4ba79f911c93c4::t_4735b56fd202ad 1271,1315,1479,1512,1602,1609,1971,1974,1976,1986,1996
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "11a7e63514ae69b234bfa6c6abe09529fe84e1c1",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
