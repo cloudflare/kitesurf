@@ -12,8 +12,10 @@ scripts/patches/blitz-dom-0.3.0-beta.2/0138-Resolve-relative-inline-insets-again
   s_db3a1fb479bcda::t_4020264e40b345 11,14,53
 scripts/patches/blitz-paint-0.3.0-beta.2/0029-Keep-collapsed-borders-when-terminal-tracks-collapse.patch
   s_1c957943e307aa::t_b2ccba7a7350b4 13-14,17,20,22,34-101
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,21,23-33,102-103
 scripts/patches/blitz-paint-0.3.0-beta.2/0031-Align-table-row-backgrounds-with-paint-tracks.patch
   s_1c957943e307aa::t_b2ccba7a7350b4 13-14,17,20-31,34-39,41
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,32-33,40,42-43
 scripts/patches/blitz-dom-0.3.0-beta.2/0137-Fix-absolute-inline-box-positioning.patch
   s_db3a1fb479bcda::t_4020264e40b345 11,14,22,36
 scripts/patches/blitz-dom-0.3.0-beta.2/0132-Honor-vertical-alignment-inside-table-cells.patch
@@ -24,6 +26,7 @@ scripts/patches/blitz-dom-0.3.0-beta.2/0126-Carry-the-layout-rounding-step-on-th
   s_db3a1fb479bcda::t_4020264e40b345 12,14,17,20-23,25-26,28-31,33,35,44-45,53,56,58,65
 scripts/patches/blitz-dom-0.3.0-beta.2/0140-Align-table-tracks-to-their-final-paint-origin.patch
   s_db3a1fb479bcda::t_4020264e40b345 13-14,17,20-24,27-30,32-33,35-43,46-47,52-53
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,25-26,31,34,44-45,48-51,54-56
 scripts/patches/taffy-0.14.0/0008-Let-a-backend-round-layout-to-something-other-than-a.patch
   s_1c957943e307aa::t_86098762aef707 38-40,43,46,59,72,75,97,100,121-123,131,133,136,145
 scripts/patches/blitz-paint-0.3.0-beta.2/0028-Paint-table-cell-text-at-its-aligned-offset.patch
@@ -38,6 +41,7 @@ scripts/patches/blitz-dom-0.3.0-beta.2/0127-Use-natural-font-metrics-for-inline-
   s_db3a1fb479bcda::t_4020264e40b345 16,27,36,212,223,231
 scripts/patches/blitz-dom-0.3.0-beta.2/0136-Account-for-table-ancestors-when-snapping-tracks.patch
   s_db3a1fb479bcda::t_4020264e40b345 13-14,17,20-21,29,33-42,45-47,52,54-57
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,22-28,30-32,43-44,48-51,53,58-60
 packages/core/src/tty_ansi.rs
   s_31b07b58a577cd::t_0109b650b8fcf3 16
 packages/core/src/tty_omni.rs
@@ -63,6 +67,14 @@ packages/core/src/tty_omni.rs
       "agent_id": {
         "tool": "opencode",
         "id": "ses_f45bdcab7ffe0H5to78VQLhvQL",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_97e369e531e75f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35286b34ffehIQ06dVcNrY6VD",
         "model": "gpt-5.6-sol"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
