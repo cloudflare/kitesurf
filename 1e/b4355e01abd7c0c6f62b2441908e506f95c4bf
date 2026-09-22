@@ -1,0 +1,19 @@
+packages/core/src/fonts.rs
+  s_007aa98d65e76a::t_4428a10542fa7a 2508
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1eb4355e01abd7c0c6f62b2441908e506f95c4bf",
+  "prompts": {},
+  "sessions": {
+    "s_007aa98d65e76a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author follow-up cloudflare/brapi/kitesurf!384",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
