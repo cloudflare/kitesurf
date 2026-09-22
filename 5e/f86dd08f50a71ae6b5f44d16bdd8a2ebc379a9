@@ -1,0 +1,37 @@
+packages/engine/vitest.e2e.config.mts
+  s_97e369e531e75f::t_5bef3473e1380b 97-98,101
+packages/engine/src/tty-stylesheet-level2.css
+  s_97e369e531e75f::t_5bef3473e1380b 1-12
+packages/engine/src/text-modules.d.ts
+  s_97e369e531e75f::t_5bef3473e1380b 1-4
+packages/engine/vitest.config.mts
+  s_97e369e531e75f::t_5bef3473e1380b 17-18,61
+packages/core/src/tty_cell_grid_test.rs
+  s_97e369e531e75f::t_5bef3473e1380b 350-403
+packages/engine/src/tty-stylesheet.css
+  s_97e369e531e75f::t_5bef3473e1380b 1-133
+packages/engine/test/tty-stylesheet.test.ts
+  s_97e369e531e75f::t_5bef3473e1380b 9-12,19-21,25-30,51-79
+packages/engine/src/tty-stylesheet.ts
+  s_97e369e531e75f::t_5bef3473e1380b 1-2,5,7-9,12-13
+packages/engine/wrangler.jsonc
+  s_97e369e531e75f::t_5bef3473e1380b 64,71
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-Propagate-pseudo-damage-through-atomic-inline-hosts.patch
+  s_97e369e531e75f::t_5bef3473e1380b 1-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5ef86dd08f50a71ae6b5f44d16bdd8a2ebc379a9",
+  "prompts": {},
+  "sessions": {
+    "s_97e369e531e75f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35286b34ffehIQ06dVcNrY6VD",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

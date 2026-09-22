@@ -1,0 +1,21 @@
+packages/engine/test/e2e/bridge-dom-fastpath.e2e.test.ts
+  s_a4cd376a121cc2::t_53d2c9ac4419f7 166-170,180
+packages/engine/test/e2e/bridge-construct.e2e.test.ts
+  s_a4cd376a121cc2::t_3d23e79959074c 86-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1914580697b7f03eec35d0c40f4ad122744e2f68",
+  "prompts": {},
+  "sessions": {
+    "s_a4cd376a121cc2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-speedtest-consolidated-mr",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

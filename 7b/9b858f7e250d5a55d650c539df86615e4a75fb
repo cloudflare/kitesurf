@@ -1,0 +1,21 @@
+tests/wpt-tests.json
+  s_103b7f1f0713cd::t_fada73d5212f50 8278,8280,8283,8291,8310-8311,8313-8314,8319,8323,8327
+tests/wpt-expectations.json
+  s_103b7f1f0713cd::t_fada73d5212f50 19323-19366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7b9b858f7e250d5a55d650c539df86615e4a75fb",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
