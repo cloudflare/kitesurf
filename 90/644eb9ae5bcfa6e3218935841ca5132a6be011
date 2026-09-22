@@ -1,0 +1,59 @@
+packages/engine/test/e2e/canvas-text-upgrade.e2e.test.ts
+  s_fd5ace4703f987::t_1744f755b337b9 17,26
+packages/engine/test/e2e/waits.ts
+  s_fd5ace4703f987::t_2738aebddccfa2 1-19
+packages/engine/test/e2e/inline-wasm-bake.e2e.test.ts
+  s_fd5ace4703f987::t_1744f755b337b9 15,31-34
+packages/engine/test/e2e/demos/canvas-2d-draw-demo.e2e.test.ts
+  s_fd5ace4703f987::t_07d1a2bf2ec64b 19,27-30
+packages/engine/test/e2e/demos/ws-boot-demo.e2e.test.ts
+  s_fd5ace4703f987::t_07d1a2bf2ec64b 15,24-27
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_fd5ace4703f987::t_07d1a2bf2ec64b 18,26-29
+packages/engine/test/e2e/demos/xhr-boot-demo.e2e.test.ts
+  s_fd5ace4703f987::t_07d1a2bf2ec64b 15,24-27
+packages/engine/test/e2e/demos/boa-seam-plain-demo.e2e.test.ts
+  s_fd5ace4703f987::t_07d1a2bf2ec64b 12,32-35
+packages/engine/test/e2e/demos/canvas-detached-append.e2e.test.ts
+  s_fd5ace4703f987::t_07d1a2bf2ec64b 13,21-24
+packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
+  s_fd5ace4703f987::t_1744f755b337b9 12,30-31
+packages/engine/test/e2e/gateway-font-shaping.e2e.test.ts
+  s_fd5ace4703f987::t_1744f755b337b9 25,66-67
+packages/engine/test/e2e/demos/boa-seam-identity-demo.e2e.test.ts
+  s_fd5ace4703f987::t_07d1a2bf2ec64b 12,33-36
+packages/engine/test/e2e/author-webfont-custody.e2e.test.ts
+  s_fd5ace4703f987::t_38a7becb9738f6 15,24
+packages/engine/test/e2e/demos/boa-seam-collections-demo.e2e.test.ts
+  s_fd5ace4703f987::t_07d1a2bf2ec64b 12,40-43
+packages/engine/test/e2e/svg-dynamic-text-upgrade.e2e.test.ts
+  s_fd5ace4703f987::t_1744f755b337b9 14,21
+packages/engine/test/e2e/author-webfont.e2e.test.ts
+  s_fd5ace4703f987::t_1744f755b337b9 15,40-41
+packages/engine/test/e2e/inserted-script.e2e.test.ts
+  s_fd5ace4703f987::t_1744f755b337b9 16,30-33
+packages/engine/test/e2e/demos/wasm-bake-demo.e2e.test.ts
+  s_fd5ace4703f987::t_07d1a2bf2ec64b 15,38-41
+packages/engine/test/e2e/demos/conic-gradient.e2e.test.ts
+  s_fd5ace4703f987::t_07d1a2bf2ec64b 17,31
+packages/engine/test/e2e/current-script-microtask.e2e.test.ts
+  s_fd5ace4703f987::t_1744f755b337b9 19,31-34
+packages/engine/test/e2e/demos/canvas-aspect-ratio-hack.e2e.test.ts
+  s_fd5ace4703f987::t_07d1a2bf2ec64b 13,21-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "90644eb9ae5bcfa6e3218935841ca5132a6be011",
+  "prompts": {},
+  "sessions": {
+    "s_fd5ace4703f987": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3b64596affeSYmZpuA13NLow2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
