@@ -1,0 +1,25 @@
+packages/core/src/fonts.rs
+  s_c1d1c93f383cfd::t_753e42c5392914 690,696,755,768,771,787,1206-1207,1406-1408,1569-1570
+packages/page-script/src/font-loader.ts
+  s_c1d1c93f383cfd::t_753e42c5392914 329,358,405
+packages/engine/test/e2e/pixel-free-shaping-fonts.e2e.test.ts
+  s_c1d1c93f383cfd::t_753e42c5392914 135-137
+packages/page-script/src/index.ts
+  s_c1d1c93f383cfd::t_753e42c5392914 226-229,231,6847-6848
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "52b8dd0682483aa6893f01e6d38b32370ec47cdb",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
