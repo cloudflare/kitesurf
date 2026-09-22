@@ -1,0 +1,21 @@
+packages/page-script/src/globals.ts
+  s_49fd263338764b::t_c1f559770e0849 28,160
+packages/page-script/src/intersection-observer.ts
+  s_49fd263338764b::t_8ee5a2a74f10cc 416-423
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9caec1daca50b88de69e3c414fba45f381e19586",
+  "prompts": {},
+  "sessions": {
+    "s_49fd263338764b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-intersection-observer",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

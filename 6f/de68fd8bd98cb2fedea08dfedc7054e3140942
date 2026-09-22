@@ -1,0 +1,19 @@
+packages/page-script/src/globals.ts
+  s_5d3f1159e93642::t_25610f1febb66a 2350-2368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6fde68fd8bd98cb2fedea08dfedc7054e3140942",
+  "prompts": {},
+  "sessions": {
+    "s_5d3f1159e93642": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-speedtest-crash-mr",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

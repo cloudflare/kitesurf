@@ -1,0 +1,19 @@
+.opencode/skills/simple-english/references/use-cases.md
+  s_b0117fe27a64b9::t_176ab226981701 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3b86c6a493a6c9f6d2f921fb1b8d97e91db5767f",
+  "prompts": {},
+  "sessions": {
+    "s_b0117fe27a64b9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author follow-up cloudflare/brapi/kitesurf!386",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

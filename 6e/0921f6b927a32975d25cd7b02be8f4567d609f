@@ -1,0 +1,29 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0138-Use-initial-serif-for-unspecified-generic.patch
+  s_007aa98d65e76a::t_bc4467016c6873 16
+  s_007aa98d65e76a::t_f519da3d4e9fa8 20
+  s_103b7f1f0713cd::t_38025721c30ba1 1-15,17-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6e0921f6b927a32975d25cd7b02be8f4567d609f",
+  "prompts": {},
+  "sessions": {
+    "s_007aa98d65e76a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author follow-up cloudflare/brapi/kitesurf!384",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

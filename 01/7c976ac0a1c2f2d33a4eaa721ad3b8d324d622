@@ -1,0 +1,54 @@
+packages/engine/test/e2e/stale-node-matches.e2e.test.ts
+  s_4b450167e630e8::t_b5c8768da7249e 3-12,54-99
+  s_4b450167e630e8::t_d9853adc7c7159 31-33
+  s_4b450167e630e8::t_51457b59447524 1-2,13-30,34-53,100
+packages/core/src/node_handle_test.rs
+  s_4b450167e630e8::t_acbfa242cde3d6 44-47
+  s_4b450167e630e8::t_90681f41bb72cc 59-60
+  s_4b450167e630e8::t_fccbebb3593311 42
+  s_4b450167e630e8::t_6a41e4c57ecbde 65-66
+  s_4b450167e630e8::t_cbe230491a44b5 61-63
+  s_4b450167e630e8::t_4c9544b983262c 48,50
+  s_4b450167e630e8::t_c5f8a09d9b2a96 67-70
+  s_4b450167e630e8::t_748f2236e0c4c6 43,49,51-58,64,71-72
+packages/core/src/lib.rs
+  s_4b450167e630e8::t_11d029861625a0 1426-1428
+  s_4b450167e630e8::t_8e3cfdc05cc3e1 1469-1471
+  s_4b450167e630e8::t_ccdd4601cf3503 1381
+  s_4b450167e630e8::t_971ef895e8fa28 1410-1414,1429-1430
+  s_4b450167e630e8::t_8c9de60ffdd67d 1455-1457,1472-1473
+  s_4b450167e630e8::t_2f0592e72923d3 1474
+  s_4b450167e630e8::t_215a90bce7dd9a 1458
+  s_4b450167e630e8::t_98b46b17fdf2db 1353-1359,1376-1380,1415
+  s_4b450167e630e8::t_07ab360f9d7fcc 1431
+packages/engine/test/e2e/timer-wheel-foreign-clear.e2e.test.ts
+  s_4b450167e630e8::t_e57cddea8ef932 1-49
+AGENTS.md
+  s_4b450167e630e8::t_74d5e645226397 217-220
+packages/page-script/src/defer-shim.ts
+  s_4b450167e630e8::t_68433d93852999 119-122
+  s_4b450167e630e8::t_99e4ef51583938 244
+  s_4b450167e630e8::t_8e2a86b8bc365f 266,272
+  s_4b450167e630e8::t_0911be813b9b52 380,388,394,400
+  s_4b450167e630e8::t_4eae0b66352517 321
+  s_4b450167e630e8::t_268655e4260d2b 339,352-361
+  s_4b450167e630e8::t_8996c2effb2af1 304,308
+packages/page-script/src/globals.ts
+  s_4b450167e630e8::t_3350cfc8d92650 413-415,419,425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "017c976ac0a1c2f2d33a4eaa721ad3b8d324d622",
+  "prompts": {},
+  "sessions": {
+    "s_4b450167e630e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e08b52affe2claqo3m243AcK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
