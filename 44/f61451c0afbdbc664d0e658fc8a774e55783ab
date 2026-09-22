@@ -1,0 +1,19 @@
+.opencode/skills/kitesurf-deslop/SKILL.md
+  s_b0117fe27a64b9::t_3e80e9efadef2f 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "44f61451c0afbdbc664d0e658fc8a774e55783ab",
+  "prompts": {},
+  "sessions": {
+    "s_b0117fe27a64b9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author follow-up cloudflare/brapi/kitesurf!386",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
