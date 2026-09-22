@@ -1,0 +1,27 @@
+packages/engine/src/term-session.ts
+  s_c95c49f27b7dd9::t_12922b38c3017d 467-505,786-787,791,805,825-832,886,1005,1009,1011,1070-1083,1085-1086,1152,1154,1255-1256,1261,1273,1275-1276,1296-1297,1303,1312,1315-1316,1346,1358,1362,1398,1405,1432,1442
+  s_c95c49f27b7dd9::t_e7c46be73eee65 1462,1499,1512,1515,1531,1539-1541,1595,1608,1610,1636,1648
+packages/engine/test/term-target.test.ts
+  s_c95c49f27b7dd9::t_12ef9085f50d46 6,152-170
+  s_c95c49f27b7dd9::t_6eb056cccd6dbf 171-172
+packages/engine/src/cdp-client.ts
+  s_c95c49f27b7dd9::t_e326fafd46eedb 38,46-52,56,58,60,64,109-110
+packages/engine/src/cdp/types.ts
+  s_c95c49f27b7dd9::t_b85cf39ada3a39 17-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "44b20f9239bd6703fa38e5c8b0773e8c1e779bae",
+  "prompts": {},
+  "sessions": {
+    "s_c95c49f27b7dd9": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "mr-workflow-author-cloudflare-brapi-kitesurf-303",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
