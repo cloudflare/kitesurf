@@ -1,0 +1,30 @@
+scripts/wpt-batched.mjs
+  s_134db753d739da::t_e7f4dc10d8768c 266-274
+  s_134db753d739da::t_b6bb95538af09a 104-105
+  s_134db753d739da::t_c65f179a310720 20
+  s_134db753d739da::t_f91c17a6f86626 476,479-482
+  s_134db753d739da::t_b7f92023c12fa8 228
+  s_134db753d739da::t_1c1125f82bdd3d 490,498-520
+  s_134db753d739da::t_6134e8e64ac657 521-522
+docs/TESTING.md
+  s_134db753d739da::t_ef3556de6522f6 291-296
+.gitlab-ci.yml
+  s_134db753d739da::t_43a377b798e819 933-936
+  s_134db753d739da::t_f78dfe5d046c97 911-912
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "26ec68907c0ac8ddecdeb030fa4b929dd35aba79",
+  "prompts": {},
+  "sessions": {
+    "s_134db753d739da": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f38390151fferd2pd7NBuwhmjT",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
