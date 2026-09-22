@@ -25,6 +25,7 @@ packages/engine/vitest.e2e.config.mts
   s_c39b250795ef75::t_eb986a49c202e7 143,152,163,173,206-207,217-218
 packages/page-script/src/globals.ts
   s_4b450167e630e8::t_36435d78edc4c9 7,604-614,617-620,625,628-629,632
+  s_f54056ecc834d2::t_06e3d3ea05cbaa 419-428,430-433,435-445
 packages/page-script/src/index.ts
   s_4b450167e630e8::t_36435d78edc4c9 1379-1387,2661-2699,2705-2706,2708-2718,2728-2738
   s_4b450167e630e8::t_f71c7d42b1f2c5 2739
@@ -138,6 +139,14 @@ tests/wpt-expectations.json
         "tool": "opencode",
         "id": "ses_f59615273ffezrnlp3L0ES3Ob6",
         "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f54056ecc834d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3608bc04ffeAH8YnF6aHcXgXJ",
+        "model": "gpt-5.6-sol"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     }
