@@ -1,0 +1,71 @@
+packages/engine/src/cdp/page-session.ts
+  s_4b450167e630e8::t_3311adb62862e5 213-214,222-228
+  s_4b450167e630e8::t_ac00bb6ce6e34c 215-221,229
+packages/page-script/src/index.ts
+  s_4b450167e630e8::t_2742c4ebaca692 6871
+  s_4b450167e630e8::t_41773172fdb687 134
+  s_4b450167e630e8::t_01998aed95e8c3 252
+packages/page-script/src/defer-shim.ts
+  s_4b450167e630e8::t_58e2a0a5601cb1 111-129
+packages/core/src/boa_eval.rs
+  s_4b450167e630e8::t_9978c12e55c95f 1026-1030
+  s_4b450167e630e8::t_41785286b7702f 565-602
+packages/page-script/src/globals.ts
+  s_4b450167e630e8::t_6d5234ebd53817 278,280
+  s_4b450167e630e8::t_16b0ff03b038ca 499-523
+  s_4b450167e630e8::t_12fe2e2f3cc07f 524
+packages/engine/src/cdp/kitesurf.ts
+  s_4b450167e630e8::t_bcf1b78c2394d5 452-454
+packages/core/src/lib.rs
+  s_4b450167e630e8::t_87d9555022295d 692-694,696-703
+scripts/patches/blitz-dom-0.3.0-beta.2/0144-Remove-unused-fixed-anchor-import.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-21
+scripts/patches/blitz-dom-0.3.0-beta.2/0135-Preserve-supported-font-source-fallbacks.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0140-Place-box-only-inline-lines-from-the-strut-geometry.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-220
+scripts/patches/blitz-dom-0.3.0-beta.2/0141-Recompute-hoisted-paint-offsets-after-layout.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-115
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-kitesurf-refresh-incremental-SVG-snapshots.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-421
+scripts/patches/blitz-dom-0.3.0-beta.2/0136-Fix-hit-testing-for-padded-inline-roots.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0145-kitesurf-stage-anonymous-style-refreshes.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-85
+scripts/patches/blitz-dom-0.3.0-beta.2/0146-Recover-inline-roots-after-layout-panics.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 19,22-23
+scripts/patches/blitz-dom-0.3.0-beta.2/0139-Give-outside-list-markers-the-natural-line-height-fl.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-71
+scripts/patches/blitz-dom-0.3.0-beta.2/0137-Round-natural-font-metrics-to-whole-pixels.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-55
+scripts/patches/blitz-dom-0.3.0-beta.2/0138-Keep-the-inline-strut-off-empty-and-top-aligned-line.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-144
+scripts/patches/blitz-dom-0.3.0-beta.2/0142-Keep-fixed-boxes-anchored-during-clipped-paints.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-54
+scripts/patches/blitz-dom-0.3.0-beta.2/0134-Wire-CSS-tab-size-from-stylo-into-parley-TextStyle.patch
+  s_f54056ecc834d2::t_3c7612ea491bf5 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "344330cf3f5a5ec25809bf1b1d8dc8267fc3be22",
+  "prompts": {},
+  "sessions": {
+    "s_4b450167e630e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e08b52affe2claqo3m243AcK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f54056ecc834d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3608bc04ffeAH8YnF6aHcXgXJ",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
