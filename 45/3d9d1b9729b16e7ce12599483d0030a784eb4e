@@ -1,0 +1,26 @@
+.gitlab-ci.yml
+  s_22003f779cfaab::t_cd29aa9362bb37 729-734
+docs/TESTING.md
+  s_22003f779cfaab::t_e4f2394228f2e0 272-277
+  s_22003f779cfaab::t_e234e4c942fe08 38-39,44-61
+AGENTS.md
+  s_22003f779cfaab::t_e916963b0c601a 464-469
+package.json
+  s_22003f779cfaab::t_74a624dab622c0 73-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "453d9d1b9729b16e7ce12599483d0030a784eb4e",
+  "prompts": {},
+  "sessions": {
+    "s_22003f779cfaab": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3b30f40affeNlTR42AIXkZr7A",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

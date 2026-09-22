@@ -1,0 +1,42 @@
+packages/engine/test/e2e/import-map.e2e.test.ts
+  s_0440002d6eb722::t_2d6d4718c1da68 22-43
+packages/engine/src/eval/script-gate.ts
+  s_0440002d6eb722::t_9f6c4c50b50d6c 84-138
+packages/core/src/scan.rs
+  s_0440002d6eb722::t_bef9cb549e6236 105-108
+  s_0440002d6eb722::t_2dfe8cbaa10c2c 301-303
+tests/wpt-tests.json
+  s_0440002d6eb722::t_2d6d4718c1da68 8263-8266
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_0440002d6eb722::t_8ee30bbfa92a8a 225,1450-1451
+  s_0440002d6eb722::t_4949e50b123536 220,644-645
+packages/engine/test/fixtures-worker/assets/importmap-early.js
+  s_0440002d6eb722::t_559b4dc8538258 1
+packages/core/src/scan_test.rs
+  s_0440002d6eb722::t_8a50d900b21021 132
+  s_0440002d6eb722::t_c5d97c2f14b313 317,323-325
+packages/engine/src/wasm.ts
+  s_0440002d6eb722::t_ae9aa6480a6ed2 188-191,196
+packages/engine/src/cdp/page.ts
+  s_0440002d6eb722::t_2a2b32861bc0f6 29
+  s_0440002d6eb722::t_ae667c16a0f9a8 2828-2835
+packages/engine/test/fixtures-worker/assets/importmap-csp.html
+  s_0440002d6eb722::t_4534874ee269af 10,13
+  s_0440002d6eb722::t_2fa6625dab49a6 1-9,11-12,14-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e1aba1dcdbda670c9dc8054e2beba836da437525",
+  "prompts": {},
+  "sessions": {
+    "s_0440002d6eb722": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3a2558f9ffe4g3Z8G051SjXGQ",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
