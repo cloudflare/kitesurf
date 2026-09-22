@@ -1,0 +1,19 @@
+COMMENT_METRICS.md
+  s_f5e8884c530658::t_74e086f22f85b3 1-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6441570d42911c400adf678e3b2be3f584bede15",
+  "prompts": {},
+  "sessions": {
+    "s_f5e8884c530658": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35ead35dffet6gPra0kIsD626",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

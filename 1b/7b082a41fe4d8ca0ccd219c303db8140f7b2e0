@@ -1,0 +1,61 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0135-Preserve-supported-font-source-fallbacks.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0136-Fix-hit-testing-for-padded-inline-roots.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0138-Keep-the-inline-strut-off-empty-and-top-aligned-line.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-144
+scripts/patches/blitz-dom-0.3.0-beta.2/0137-Round-natural-font-metrics-to-whole-pixels.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-55
+scripts/patches/blitz-dom-0.3.0-beta.2/0145-kitesurf-stage-anonymous-style-refreshes.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-85
+packages/core/src/svg_descendant_rect_test.rs
+  s_643eba1f6752cf::t_22d8312870b14a 1-107,109-113,115-121,140-152
+  s_643eba1f6752cf::t_5123d350b8df11 108,114
+  s_643eba1f6752cf::t_05a361916dbc30 122-139
+packages/core/Cargo.toml
+  s_643eba1f6752cf::t_a9944597ecbc9f 98-101
+scripts/patches/blitz-dom-0.3.0-beta.2/0140-Place-box-only-inline-lines-from-the-strut-geometry.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-220
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-kitesurf-refresh-incremental-SVG-snapshots.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-421
+scripts/patches/blitz-dom-0.3.0-beta.2/0144-Remove-unused-fixed-anchor-import.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-21
+scripts/patches/blitz-dom-0.3.0-beta.2/0142-Keep-fixed-boxes-anchored-during-clipped-paints.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-54
+scripts/patches/blitz-dom-0.3.0-beta.2/0141-Recompute-hoisted-paint-offsets-after-layout.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-115
+scripts/patches/blitz-dom-0.3.0-beta.2/0146-kitesurf-stamp-element-indices-on-the-svg-snapshot.patch
+  s_643eba1f6752cf::t_414d50e9041852 1-198
+packages/engine/test/e2e/svg-shape-client-rect.e2e.test.ts
+  s_643eba1f6752cf::t_53b9281eab47e9 1-63
+scripts/patches/blitz-dom-0.3.0-beta.2/0134-Wire-CSS-tab-size-from-stylo-into-parley-TextStyle.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-43
+scripts/patches/blitz-dom-0.3.0-beta.2/0139-Give-outside-list-markers-the-natural-line-height-fl.patch
+  s_643eba1f6752cf::t_a0a1ca3792c741 1-71
+packages/core/src/lib.rs
+  s_643eba1f6752cf::t_f6beb967bc9942 275-276
+  s_643eba1f6752cf::t_d42adfabdaa57f 7385-7387
+  s_643eba1f6752cf::t_97c18ae4b18081 6920-6922
+  s_643eba1f6752cf::t_7d537c814295a2 6944-6946
+  s_643eba1f6752cf::t_e899e8be5c8228 7434
+  s_643eba1f6752cf::t_a5b8342111809c 7380-7384,7388-7433,7435-7495
+  s_643eba1f6752cf::t_481bb333e3c0e4 7331-7332,7338-7340,7342-7349,7351-7365,7367-7379
+  s_643eba1f6752cf::t_c788fe47115e32 3321-3328
+  s_643eba1f6752cf::t_3b30f5312870bb 7333-7337,7341,7350,7366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1b7b082a41fe4d8ca0ccd219c303db8140f7b2e0",
+  "prompts": {},
+  "sessions": {
+    "s_643eba1f6752cf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35709494ffecCaSmI0tu3gxCs",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

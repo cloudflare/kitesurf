@@ -1,0 +1,41 @@
+packages/engine/test/e2e/intersection-observer.e2e.test.ts
+  s_103b7f1f0713cd::t_249cc7f0c07d26 275-288
+  s_103b7f1f0713cd::t_404238df51d63f 231-234
+  s_103b7f1f0713cd::t_4595addaaa17c8 264-274
+  s_103b7f1f0713cd::t_932d8d5ac5c19d 223-229,236-243
+  s_103b7f1f0713cd::t_c5eb6f0578b490 290,292,294-295,298-302,304-326
+  s_103b7f1f0713cd::t_9fd26a36b4f241 115
+  s_103b7f1f0713cd::t_fd850eb0d36ec4 289,291,293,296-297,303
+  s_103b7f1f0713cd::t_37e08af1503a14 244-263
+  s_103b7f1f0713cd::t_209b7be17c7bbf 230,235
+packages/page-script/src/intersection-observer.ts
+  s_103b7f1f0713cd::t_14e3e3613ceb58 568
+  s_103b7f1f0713cd::t_e596a10a1651de 564-567
+  s_103b7f1f0713cd::t_a7d99b8b862388 30-32,411,569-571
+  s_103b7f1f0713cd::t_3744b0b94ab277 129-141
+  s_103b7f1f0713cd::t_0c8fdf5aa249be 369-373,380-381
+  s_103b7f1f0713cd::t_c7c0b64394c851 127
+packages/core/src/lib.rs
+  s_103b7f1f0713cd::t_14e3e3613ceb58 7313
+  s_103b7f1f0713cd::t_4319c4dae5d548 3237,7362-7366,7392,7413-7414,7450-7451,7457
+  s_103b7f1f0713cd::t_c30f515ad4e188 3264-3270,3276-3277,3281-3282,3284-3368,3370-3382,7171-7285,7289-7290,7306-7310,7314-7315,7361
+  s_103b7f1f0713cd::t_62b2aa0d2cfd07 7367-7391,7393-7412,7415-7449,7452-7456
+  s_103b7f1f0713cd::t_a12f41a08147d2 7286-7288,7291-7305,7311-7312,7316-7360
+  s_103b7f1f0713cd::t_9add66a86d3ded 7458
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "44d652edc8650dc42506fd393463c38277ed9d42",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
