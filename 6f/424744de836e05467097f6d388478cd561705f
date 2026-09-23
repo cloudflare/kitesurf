@@ -1,0 +1,19 @@
+scripts/patches/stylo-0.20.0/0031-Stop-escalating-a-clip-overflow-axis-to-hidden.patch
+  s_6d20977c7296d4::t_ef48365e3e09a3 1-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6f424744de836e05467097f6d388478cd561705f",
+  "prompts": {},
+  "sessions": {
+    "s_6d20977c7296d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5673f158ffeqwMTvK1dygU27k",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}
