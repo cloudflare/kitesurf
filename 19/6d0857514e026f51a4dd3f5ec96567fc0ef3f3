@@ -1,0 +1,26 @@
+packages/core/src/lib.rs
+  s_103b7f1f0713cd::t_6cffc0192c74b3 3339-3340
+packages/engine/test/e2e/intersection-observer.e2e.test.ts
+  s_103b7f1f0713cd::t_6cffc0192c74b3 121,135
+packages/page-script/src/intersection-observer.ts
+  s_103b7f1f0713cd::t_6cffc0192c74b3 279,333-334,339,342,399-400
+packages/page-script/src/globals.ts
+  s_103b7f1f0713cd::t_6cffc0192c74b3 10-12
+  s_103b7f1f0713cd::t_09310bd4507370 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "196d0857514e026f51a4dd3f5ec96567fc0ef3f3",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
