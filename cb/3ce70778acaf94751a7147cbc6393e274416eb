@@ -1,7 +1,13 @@
 packages/engine/test/e2e/style-churn-memory.e2e.test.ts
   s_93b484cedebccd::t_7ae5f905fa7219 82-87,98-99,103-104,106,108-139
+  s_d3331fe4df3409::t_6a7be0f5245de8 103-104,106,108-110,112,114-116,120-139
+  s_93b484cedebccd::t_5b9f867718bfa9 82-87,98-99,111,113,117-119
 docs/DOM_SHIM.md
   s_93b484cedebccd::t_7ae5f905fa7219 14-25,58-59
+packages/dom-shim/src/node-base.ts
+  s_d3331fe4df3409::t_145eb9437cc5b7 194,202,206-208,884-885,889-890,893-898,908-909,911-916,922-927,929,934,938
+packages/core/src/lib.rs
+  s_d3331fe4df3409::t_33ecfc6af93828 2499-2500,2507-2510,2512-2513,2515,2519-2523
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -16,6 +22,14 @@ docs/DOM_SHIM.md
         "model": "claude-fable-5-1"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_d3331fe4df3409": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f649d4dd3ffeZ9Zfp0qsWRxmBj",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
     }
   }
 }
