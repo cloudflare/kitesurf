@@ -7,6 +7,7 @@ packages/core/src/boa_bridge.rs
   s_c1d1c93f383cfd::t_c8dfadab51b35c 1018
 packages/core/src/lib.rs
   s_c1d1c93f383cfd::t_decd3ec743aca8 694
+  s_c1d1c93f383cfd::t_60441a69e85904 699
 ---
 {
   "schema_version": "authorship/3.0.0",
