@@ -1,6 +1,7 @@
 packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
   s_6d20977c7296d4::t_57f7c720595504 17-90
   s_4bd836ca1cbc20::t_8b6139d4bc14bb 1-16,91-99
+  s_93b484cedebccd::t_ebccb0a3c5c614 100
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -23,6 +24,14 @@ packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
         "model": "claude-sonnet-5"
       },
       "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    },
+    "s_93b484cedebccd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31d712fdffeuTQq5D6PMopaPg",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     }
   }
 }
