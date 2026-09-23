@@ -14,6 +14,7 @@ packages/engine/test/e2e/bridge-cycle-collect.e2e.test.ts
   s_c1d1c93f383cfd::t_3c97f10a0dbfa1 217,229,253
   s_c1d1c93f383cfd::t_ef773783b37928 226,262
   s_c1d1c93f383cfd::t_df5f977482eb21 179-208,210-216,218-223,225
+  s_c1d1c93f383cfd::t_ab9e6d53d3ea69 136
 packages/core/src/dom_fastpath.rs
   s_c1d1c93f383cfd::t_9099728d9f97cf 34,114-116,165-172,423-444,446-463,465-467,485-517,519-525,530-534,545-552,570-571,576,578,581
 packages/core/src/boa_bridge.rs
@@ -23,6 +24,7 @@ scripts/patches/boa_gc-0.20.0/0004-add-a-mark-only-census-that-discounts-externa
   s_c1d1c93f383cfd::t_96a0447739156e 1-13,19-202,204-225
 packages/page-script/src/index.ts
   s_c1d1c93f383cfd::t_9099728d9f97cf 237-238,1254-1272,1282,5074,5103-5105
+  s_c1d1c93f383cfd::t_a447b44a3833e0 5101
 packages/page-script/src/wasm-glue.d.ts
   s_c1d1c93f383cfd::t_9099728d9f97cf 45-47
 docs/BOA_V8_FLOW.md
