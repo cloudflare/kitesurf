@@ -1,0 +1,247 @@
+packages/engine/test/e2e/table-caption-sizing.e2e.test.ts
+  s_a13b6e3e2039d4::t_88ab1c6640dd33 1-3,5-6,7-38,57-63,90-91,93-99,103-104,109-112,149-152,169-173
+  s_a13b6e3e2039d4::t_d7e810c19085bd 68
+  s_a13b6e3e2039d4::t_fd48aa7ed255eb 153-155
+  s_a13b6e3e2039d4::t_d15b710ba77a31 39-44,64-65,69-72,89,113-122,156-157
+  s_3d13b96ccbbed6::t_74223c148b48d8 66-67
+scripts/patches/blitz-dom-0.3.0-beta.2/0105-Size-table-captions-from-their-minimum-width.patch
+  s_a13b6e3e2039d4::t_2803da87015d8d 9-13
+  s_a13b6e3e2039d4::t_4a4210e1d668bb 1-8,14-18,20-21,23,25-27,29,31-39,41-42,44-55,57-72,74-75
+scripts/patches/blitz-dom-0.3.0-beta.2/0107-Track-the-table-s-maximum-column-count.patch
+  s_a13b6e3e2039d4::t_c3a7c991d921b8 1-16,18-19,21-24,26,29-35,37-49,51-52,54-60,62-68,70-76,78,80-84,86-92
+scripts/patches/blitz-dom-0.3.0-beta.2/0108-Count-columns-occupied-by-rowspans.patch
+  s_a13b6e3e2039d4::t_87ebade00f0da5 1-16,18-19,21-24,26,29-35,37-43,45-51,53-59,61-69,71,73-83,85-92,94-95,97-117,119
+scripts/patches/blitz-dom-0.3.0-beta.2/0106-Span-table-captions-across-every-column.patch
+  s_a13b6e3e2039d4::t_cad9fffd67163e 1-16,18-19,21-31,33
+packages/engine/test/e2e/table-collapsed-border-spans.e2e.test.ts
+  s_7981d85a04bb1e::t_38d0b5e70250fd 1-61,65-69,75-90
+Cargo.toml
+  s_ccf5542acfcceb::t_8162a02cfee604 75-79
+  s_1c957943e307aa::t_4bfa8f7e178be5 80
+  s_1c957943e307aa::t_bc3d998301165e 94-100
+  s_ccf5542acfcceb::t_0357b91906f0ca 94-100
+scripts/patches/anyrender-0.13.0/0002-Carry-form-control-state-on-ScenePart.patch
+  s_ccf5542acfcceb::t_709c04d21aaa68 1-4,8,17-21,23-24,26-36,38
+  s_ccf5542acfcceb::t_6c2b3fc032ca47 9-16
+scripts/patches/anyrender-0.13.0/0001-Add-PaintScene-begin_part-end_part.patch
+  s_ccf5542acfcceb::t_709c04d21aaa68 1-24,26-27,29,31-69
+scripts/patches/README.md
+  s_ccf5542acfcceb::t_1804d86af77958 113-120
+  s_1c957943e307aa::t_4bfa8f7e178be5 77
+  s_1c957943e307aa::t_bc3d998301165e 88,126-129
+  s_ccf5542acfcceb::t_08fcb8263428e4 88,126-129
+scripts/get-patched-vendor-crates.mjs
+  s_1c957943e307aa::t_4bfa8f7e178be5 50
+  s_1c957943e307aa::t_bc3d998301165e 61
+  s_ccf5542acfcceb::t_08fcb8263428e4 61
+scripts/patches/blitz-paint-0.3.0-beta.2/0027-Mark-semantic-parts-in-painted-scenes.patch
+  s_ccf5542acfcceb::t_aca0372b66d565 1,5-8,10,12,17-18,20-21,23,25-30,32-33,36-38,40,42-44,46-59,61,63-65,67-68,70-71,100,102-103
+  s_91836f22884cfe::t_ab3088a625aba2 1,5-8,10,12,17-18,20-21,23,25-30,32-33,36-38,40,42-44,46-59,61,63-65,67-68,70-71,100,102-103
+packages/core/src/scene_replay.rs
+  s_ccf5542acfcceb::t_316bd48b159493 1058
+  s_1c957943e307aa::t_bc3d998301165e 92-113,137,291,388,513
+  s_ccf5542acfcceb::t_0357b91906f0ca 92-113,137,291,388,513
+packages/core/src/scene_decode.rs
+  s_ccf5542acfcceb::t_316bd48b159493 1423
+  s_ccf5542acfcceb::t_fc05ea0be5e4ae 554-557,907-908,919
+  s_ccf5542acfcceb::t_19e3d51d8624b6 1637
+  s_ccf5542acfcceb::t_a2a1a3046a6462 865,1592-1636,1638-1652
+  s_ccf5542acfcceb::t_ec2937f4d6f2d4 1574-1581,1583-1585,1587-1591,1653-1657,1659-1664,1666-1682,1687-1694
+  s_ccf5542acfcceb::t_d489431017cd0b 432-444,451-474,567-573,575,848-849,864
+packages/core/src/scene_record.rs
+  s_ccf5542acfcceb::t_365437f4ea798d 2140-2144
+  s_ccf5542acfcceb::t_aa827549caecf2 2130-2132
+  s_ccf5542acfcceb::t_5e069d342bec74 1189,1324-1325
+  s_ccf5542acfcceb::t_a59efc692ab750 2679-2707
+  s_ccf5542acfcceb::t_f7c25df4f1fefa 1862-1876
+  s_ccf5542acfcceb::t_1e1e380376656a 33-48
+  s_ccf5542acfcceb::t_3456fa311c69b2 20-32,280,297-306,1059-1066,1879-1900,1902,1906-1907,1909-1912,1916-1919
+packages/page-script/src/wasm-glue.d.ts
+  s_ccf5542acfcceb::t_b9ca8663d72d1f 217
+  s_1c957943e307aa::t_c7f839509397ff 218-220
+  s_ccf5542acfcceb::t_ccf18c017af737 218-220
+  s_ccf5542acfcceb::t_10c1b60cbe92cb 221-225
+  s_ccf5542acfcceb::t_62ebf46bd8261f 226-231
+packages/page-script/src/index.ts
+  s_1c957943e307aa::t_c7f839509397ff 235,1388-1399
+  s_ccf5542acfcceb::t_096ba68b55a864 235,1388-1399
+  s_ccf5542acfcceb::t_62ebf46bd8261f 136,236,238,1400-1410,1425-1441,1447-1450,1458,1460-1466,1468-1475
+  s_db3a1fb479bcda::t_3945e9f121edc8 338-359,3461-3464,3537
+  s_db3a1fb479bcda::t_251201797e27b1 3505-3508,3523-3526
+packages/core/src/lib.rs
+  s_1c957943e307aa::t_c7f839509397ff 542-578,996,1054,1267,1283-1288,6549,6552-6557,6606,6621
+  s_ccf5542acfcceb::t_06f6fb7c9eecfd 996,1267,6549,6606
+  s_ccf5542acfcceb::t_449068e93a2d9e 570-571
+  s_ccf5542acfcceb::t_b7ea92bfb2498a 542-569,572-578,1054,1287,6556,6621
+  s_ccf5542acfcceb::t_1bb6824d03bcc3 486-511,534-541,1069-1075
+  s_1c957943e307aa::t_bc3d998301165e 77-79,82
+  s_ccf5542acfcceb::t_79f59700131757 74-76
+  s_ccf5542acfcceb::t_262dc9b78a81c5 69-71
+  s_ccf5542acfcceb::t_2518be2b5fb4e4 77-79,82
+  s_ccf5542acfcceb::t_98522be89fef50 83-84
+  s_ccf5542acfcceb::t_88511dfb94121a 85-86
+packages/page-script/src/globals.ts
+  s_1c957943e307aa::t_c7f839509397ff 3157-3165
+  s_ccf5542acfcceb::t_76d9eb56b30b49 3157-3165
+packages/engine/src/eval/page-script.ts
+  s_1c957943e307aa::t_c7f839509397ff 335-338
+  s_ccf5542acfcceb::t_096ba68b55a864 335-338
+  s_ccf5542acfcceb::t_aa25945235f730 339-347
+packages/page-script/src/font-loader.ts
+  s_ccf5542acfcceb::t_7dd2c1bbdcba54 255
+  s_ccf5542acfcceb::t_3783ff376a141f 519-543,568
+packages/core/src/fonts.rs
+  s_ccf5542acfcceb::t_02483552bdb83a 1449-1453,1659-1699
+packages/engine/src/tty-stylesheet.ts
+  s_ccf5542acfcceb::t_88d3996e9b16e7 3-4,6,10,19
+  s_ccf5542acfcceb::t_7a78b85f60a942 10
+packages/engine/src/cdp/page.ts
+  s_ccf5542acfcceb::t_49908011da70a1 603-643
+  s_ccf5542acfcceb::t_aa25945235f730 12,3261-3272,3274-3276
+packages/engine/src/cdp/types.ts
+  s_ccf5542acfcceb::t_aa25945235f730 223-258
+Cargo.lock
+  s_ccf5542acfcceb::t_ea350471ef71ba 324,409,430-444,472-485,486,489,492-493,568,583-594,608-621,630,632-643,727,738,952,1364,1471-1492,1586,1605,1705-1713,1721,1807,1857,2077,2090,2300-2319,2594,2768-2782,2789-2801,2811,2851-2852,2885,2888,2993-3003,3012,3084,3196,3199,3380-3390,3397-3408,3589,3765,3777,3798,3818,3865,3876
+  s_ccf5542acfcceb::t_61f8d882719f64 118-127,287,1389-1394,1587,1900,1916,1919-1924,2320-2331,3047-3055,3062-3073,3491,3516-3521
+  s_ccf5542acfcceb::t_a093eb9359fe22 1604,3320-3328
+scripts/patches/blitz-dom-0.3.0-beta.2/0104-kitesurf-bound-shadow-child-damage-lookup.patch
+  s_91836f22884cfe::t_c23dc3e3f22778 1-16,18-19,22-24,26,28-32,36-49,51-57
+scripts/patches/blitz-dom-0.3.0-beta.2/0102-kitesurf-propagate-damage-through-shadow-roots.patch
+  s_91836f22884cfe::t_c23dc3e3f22778 1-26,28-29,31-32,40-45,48-64,66
+scripts/patches/blitz-paint-0.3.0-beta.2/0023-Let-a-re-homed-abspos-escape-its-flow-parent-s-overf.patch
+  s_91836f22884cfe::t_ab3088a625aba2 1-36,39-40,42-43,47,48,50-51,53-60,62-67,71,73-75,77,80-81,84-97,99,102-105,106-109
+scripts/patches/blitz-paint-0.3.0-beta.2/0022-Lean-synthetic-italic-to-the-right-not-the-left.patch
+  s_91836f22884cfe::t_ab3088a625aba2 1-26,29-30,32-33,35-37,40-43
+scripts/patches/blitz-dom-0.3.0-beta.2/0103-kitesurf-rebuild-nested-shadow-layout-children.patch
+  s_91836f22884cfe::t_c23dc3e3f22778 1-17,19-20,22-32,34-40,42-44,46-47,50-55
+packages/engine/vitest.e2e.config.mts
+  s_91836f22884cfe::t_5ad62df0c267f1 116
+packages/core/Cargo.toml
+  s_1c957943e307aa::t_bc3d998301165e 29-41
+  s_ccf5542acfcceb::t_262dc9b78a81c5 17-22
+  s_ccf5542acfcceb::t_0357b91906f0ca 29-41
+  s_ccf5542acfcceb::t_88511dfb94121a 23-28
+packages/core/src/tty_grid.rs
+  s_1c957943e307aa::t_bc3d998301165e 1-51,70-188,193-232,234-401,406-412,414-415,428,443-445,449,453-454,464-485,487-506,508-511,520-523,565-651,653-824,830-881,883-900,902-913,915-945,950-962,964-985,991-1717,1816-1819,1820-1873,1917-1999,2001-2002,2005-2010,2026-2039,2040-2041,2043-2045,2047-2049,2053,2055,2077-2189
+  s_1c957943e307aa::t_66c22285b98c2a 520-523
+  s_ccf5542acfcceb::t_2518be2b5fb4e4 1-51,70-188,193-232,234-401,406-412,414-415,428,443-445,449,453-454,464-485,487-506,508-511,520-523,565-602,607-651,653-698,700-824,830-881,883-900,902-913,915-945,950-962,964-985,991-1384
+  s_ccf5542acfcceb::t_3edc1b54a609c3 603-606,699
+  s_ccf5542acfcceb::t_218594658763c8 1385-1717,1816-1819,1820-1873,1917-1999,2001-2002,2005-2010,2026-2039,2040-2041,2043-2045,2047-2049,2053,2055,2077-2189
+  s_ccf5542acfcceb::t_dd946355dedcc2 2077-2078
+  s_ccf5542acfcceb::t_19659cc1e16223 428
+  s_91836f22884cfe::t_1265e087f3ac85 520-522
+  s_91836f22884cfe::t_cb13ea6b26368a 523
+scripts/patches/ratatui-image-8.1.1/0001-Feature-gate-the-terminal-capability-query-behind-qu.patch
+  s_1c957943e307aa::t_bc3d998301165e 1-187
+  s_ccf5542acfcceb::t_709c04d21aaa68 1-187
+scripts/patches/blitz-paint-0.3.0-beta.2/0024-Offset-collapsed-table-borders-to-the-table-s-conten.patch
+  s_7981d85a04bb1e::t_2aa8be75ceb77e 1-10,15-18,29,32-33,35-36,38-39,41,43-46,60-61,63-67,68-71,73-77,79-81,83-85,87-91,93-95,97-99,101-103,105-107
+  s_91836f22884cfe::t_482289fdb3bca1 11-14,19-28,72,78,82,86,92,96,100,104
+packages/core/src/tty_ansi.rs
+  s_ccf5542acfcceb::t_262dc9b78a81c5 1-15,17-149
+packages/core/src/tty_modes.rs
+  s_ccf5542acfcceb::t_79f59700131757 1-61,63-67,68-72,73-74,76,79-84,86,87,88-95,96,97-110,111,112-121,122,123-132,133,134-140,142-148,150-197,200-439,442-570
+  s_ccf5542acfcceb::t_2d557051db5aba 571-626,628,630-632,633-704,706-750,752-782,784-820,821-830,832-836
+  s_1c957943e307aa::t_7c5dc5cbc52ad3 62,85,141,149,198-199,627,629,705,751,783,831
+packages/core/src/tty_input.rs
+  s_ccf5542acfcceb::t_98522be89fef50 2,14
+  s_ccf5542acfcceb::t_193667f4e05001 8-11,15-710,989-998,1000-1074
+  s_ccf5542acfcceb::t_e44b3a2b480f02 711-988
+  s_ccf5542acfcceb::t_c56688a504534f 1075
+  s_ccf5542acfcceb::t_9c26366ce94c82 3-7,12-13,999
+  s_ccf5542acfcceb::t_b44ce17fc0615e 1
+packages/core/src/tty_omni.rs
+  s_ccf5542acfcceb::t_88511dfb94121a 19-20,104,139,141,156,191,219,224,229,234,239,244,249,255,298,303,309,330,357,395,485,590,596,598,603,610,617,621,626,632
+  s_ccf5542acfcceb::t_71ee4f2bd48628 504,667-669,671-756,757-823,825-833,836-842,848-911,913,915,921-954,956-1117,1123-1128,1130,1136-1142,1144-1201,1204-1211,1213-1220,1222-1223,1225-1282
+  s_ccf5542acfcceb::t_3ae7840c8fd5ad 1-18,21-23,24-46,47-56,58-61,62-68,76-103,105-130,131-138,140,142-145,146-155,157,160-170,171-190,192-218,220-223,225-228,230-233,235-238,240-243,245-248,250-254,256-297,299-302,304-308,310-329,331-356,358-394,396-463,479-484,486-503,505-519,520-589,591-595,597,599-602,604-609,611-616,618-620,622-625,627-631,633-666
+packages/engine/src/wasm.ts
+  s_ccf5542acfcceb::t_9bba025d6df07d 24-27,29-34,35-36,144-180,188-269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5417c7a5869d2c77b135ebccb0a2380037486df7",
+  "prompts": {},
+  "sessions": {
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_3d13b96ccbbed6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbfd0d45fffeA5nq4ZiGDKSH9X",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_6d0ca96e2dd664": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f991deab6ffeSaiB4VVMWxK8LM",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_748a25868f96d0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fccc0f54affe1bh2BFFK0PXWWe",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_75ec8a9f61c1a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fac679ed1ffecrwrIIAqPO2iog",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_7981d85a04bb1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd142cefaffez3gql9xA3APsAN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_a13b6e3e2039d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbfe61744ffeUjJS5Giydrau9I",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_db3a1fb479bcda": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f45cc0b70ffeJklqn6y6yGrDaB",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,493 @@
+packages/tty-css-preview/extension/background.js
+  s_91836f22884cfe::t_f3c8e10b49d89d 4,42-53,60-75
+  s_91836f22884cfe::t_f0987acc4a97de 38-39,41
+  s_91836f22884cfe::t_28126e54784f4c 3,27-28,30-32,35-37
+  s_91836f22884cfe::t_eaec69a474af46 1,5-21,33-34
+  s_91836f22884cfe::t_213e60e027bc19 2,54-58
+  s_91836f22884cfe::t_ca7b0fe5025889 23-26,29
+  s_91836f22884cfe::t_19e4cc0ccaf938 22,59
+  s_91836f22884cfe::t_0788fde25002b8 40
+packages/engine/src/cdp/page.ts
+  s_91836f22884cfe::t_448d9033ecfdd0 3273
+packages/page-script/src/paint.ts
+  s_91836f22884cfe::t_e964bbfd83595b 192-193,197-200
+packages/engine/src/tty-stylesheet-level2.css
+  s_91836f22884cfe::t_ab9320cc229aad 1-10,12-13
+  s_91836f22884cfe::t_e05792f4d893d2 11
+scripts/patches/blitz-dom-0.3.0-beta.2/0140-Align-table-tracks-to-their-final-paint-origin.patch
+  s_db3a1fb479bcda::t_4020264e40b345 13-14,17,20-24,27-30,32-33,35-43,46-47,52-53
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,25-26,31,34,44-45,48-51,54-56
+packages/tty-css-preview/extension/update.js
+  s_91836f22884cfe::t_28126e54784f4c 16-71
+  s_91836f22884cfe::t_eaec69a474af46 1-15
+packages/tty-css-preview/extension/popup.css
+  s_91836f22884cfe::t_f3c8e10b49d89d 1-52,67-75
+  s_91836f22884cfe::t_ca7b0fe5025889 53-66
+scripts/patches/blitz-paint-0.3.0-beta.2/0028-Paint-table-cell-text-at-its-aligned-offset.patch
+  s_1c957943e307aa::t_b2ccba7a7350b4 19-35
+  s_1c957943e307aa::t_4ec8f04ac83ac6 16-18
+packages/engine/src/tty-stylesheet.ts
+  s_91836f22884cfe::t_321c1666fbb498 12-13,15-17
+  s_91836f22884cfe::t_87c3696a2f9137 1-2
+  s_91836f22884cfe::t_448d9033ecfdd0 11,14
+  s_91836f22884cfe::t_ab9320cc229aad 5,7-9,18
+scripts/patches/blitz-dom-0.3.0-beta.2/0139-Retain-raw-table-tracks-across-terminal-reflow.patch
+  s_db3a1fb479bcda::t_4020264e40b345 18-62
+  s_db3a1fb479bcda::t_38b55c14e5a967 15-17
+  s_db3a1fb479bcda::t_f4f9a4a9e361a0 63-65
+packages/page-script/src/wasm-glue.d.ts
+  s_ccf5542acfcceb::t_bb33a1926bf681 232-236
+packages/tty-css-preview/README.md
+  s_91836f22884cfe::t_eaec69a474af46 32-33
+  s_91836f22884cfe::t_fe5fcf61f8ede6 37
+  s_91836f22884cfe::t_255cd5843aad6a 39
+  s_91836f22884cfe::t_ca7b0fe5025889 28,35-36
+  s_91836f22884cfe::t_f3c8e10b49d89d 1-14,16-27,29-31,42-44
+  s_91836f22884cfe::t_3602bad3df6492 34
+  s_91836f22884cfe::t_cf22abc472a189 15
+  s_91836f22884cfe::t_34e3c5d265f37b 38
+  s_91836f22884cfe::t_83807a31737d52 41
+  s_91836f22884cfe::t_081d9aa488985c 40
+packages/tty-css-preview/test/scroll.test.mjs
+  s_91836f22884cfe::t_37f82808ec333e 7-11,14-17,24-30
+  s_91836f22884cfe::t_022c2c6a70a594 6,31-36
+  s_91836f22884cfe::t_fe5fcf61f8ede6 1-5,12-13,18-23,37
+packages/dom-shim/src/state.ts
+  s_91836f22884cfe::t_e964bbfd83595b 97
+packages/engine/src/cdp/input.ts
+  s_8e9b4acc6322c3::t_46ce8d1917e495 202-203,224-225
+  s_91836f22884cfe::t_da2ad07d8b6f20 199-201,204
+scripts/patches/blitz-dom-0.3.0-beta.2/0136-Account-for-table-ancestors-when-snapping-tracks.patch
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,22-28,30-32,43-44,48-51,53,58-60
+  s_db3a1fb479bcda::t_4020264e40b345 13-14,17,20-21,29,33-42,45-47,52,54-57
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Honor-vertical-alignment-inside-table-cells.patch
+  s_db3a1fb479bcda::t_4020264e40b345 16-107
+  s_db3a1fb479bcda::t_dfc437278a4930 13-15
+  s_db3a1fb479bcda::t_7c2e5dfb90c6e9 108-110
+packages/core/src/hit_test_block_axis_test.rs
+  s_91836f22884cfe::t_8b528161881d57 1-78
+packages/tty-css-preview/extension/scroll.js
+  s_91836f22884cfe::t_022c2c6a70a594 19-30
+  s_91836f22884cfe::t_37f82808ec333e 2-3,5-6,15-18
+  s_91836f22884cfe::t_fe5fcf61f8ede6 1,4,7-14,31
+packages/tty-css-preview/extension/fallback-level2.css
+  s_91836f22884cfe::t_eaec69a474af46 1-13
+packages/tty-css-preview/extension/content.js
+  s_91836f22884cfe::t_fe5fcf61f8ede6 20,210-213,218-231,233-235,237-238,240-241,253-254,256,265-267,274,276-277,286-287,319-324,344-346,353-354,401-402,404,426
+  s_91836f22884cfe::t_34e3c5d265f37b 9-18,128,130-137
+  s_91836f22884cfe::t_6e2550197619d8 77
+  s_91836f22884cfe::t_12aa08420aee62 412
+  s_91836f22884cfe::t_022c2c6a70a594 268-273,288-302,331-332,357-358,360,363,380,390
+  s_91836f22884cfe::t_b5365885f57780 21-29,215,217,303-318,327-330,333-339,341-343,374,376,386,396
+  s_91836f22884cfe::t_f3c8e10b49d89d 1,30,405-411,413-417,431-433,440-446
+  s_91836f22884cfe::t_0a2a5e0c1a9fe1 7-8,19,98-127,129,138-161,197-206,208,429,436
+  s_91836f22884cfe::t_99febf19edf5b0 398-400
+  s_91836f22884cfe::t_e964bbfd83595b 249-251
+  s_91836f22884cfe::t_dd344f910318db 6,84-97,162-196,207,428,435
+  s_91836f22884cfe::t_56ec7cf05b18bf 5,32-35,39,67-71
+  s_91836f22884cfe::t_37f82808ec333e 232,236,239,242-248,252,257,264,275,278-280,284-285,325-326,340,347-352,370-372,377,403,434,438-439
+  s_91836f22884cfe::t_9870e5b2100db8 79
+  s_91836f22884cfe::t_dcddb2293f763d 214,216,359,362,365-366,369,373,375,378-379,381-385,387-389,391-395,397
+  s_91836f22884cfe::t_a1849217f70e66 423
+  s_91836f22884cfe::t_89bea9539c5a27 42-45,47-48,52-53,58,60-66,72-76,78,80-83
+  s_91836f22884cfe::t_28126e54784f4c 2-3,418-422,424-425,427
+  s_91836f22884cfe::t_c4c72e5fbed334 255,258-263,281-283,355-356,361,364,367-368
+  s_91836f22884cfe::t_0788fde25002b8 4,31,36-38,40-41,46,49-51,54-57,59,209,430,437
+scripts/patches/blitz-dom-0.3.0-beta.2/0138-Resolve-relative-inline-insets-against-used-height.patch
+  s_db3a1fb479bcda::t_4020264e40b345 11-53
+packages/tty-css-preview/src/server.mjs
+  s_91836f22884cfe::t_f3c8e10b49d89d 1-94
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-Carry-the-layout-rounding-step-on-the-document.patch
+  s_db3a1fb479bcda::t_4020264e40b345 12-65
+  s_db3a1fb479bcda::t_3e21a50d970240 9-11
+  s_db3a1fb479bcda::t_ef539afc7e4d75 66
+scripts/patches/blitz-dom-0.3.0-beta.2/0135-Snap-terminal-table-tracks-with-cell-layout.patch
+  s_db3a1fb479bcda::t_4020264e40b345 13-101
+  s_db3a1fb479bcda::t_8e70ae7dc6d0eb 10-12
+  s_db3a1fb479bcda::t_8bfb5ee5e3eb2e 102
+packages/tty-css-preview/test/snap.test.mjs
+  s_91836f22884cfe::t_dd344f910318db 1-5,7-16,36
+  s_91836f22884cfe::t_34e3c5d265f37b 6,30-35
+  s_91836f22884cfe::t_0a2a5e0c1a9fe1 17-29
+packages/dom-shim/src/layout/scroll.ts
+  s_91836f22884cfe::t_1fafb41a8bc175 162-167,172-173,192-197
+  s_91836f22884cfe::t_ac29d2534e5459 223-228,236,239,241
+  s_91836f22884cfe::t_e964bbfd83595b 36-40
+packages/engine/test/term-geometry.test.ts
+  s_91836f22884cfe::t_448d9033ecfdd0 3-5,7-8,31-39
+  s_91836f22884cfe::t_0c910836094b42 6,146-152,154-158
+  s_91836f22884cfe::t_1141cbb14af264 153
+  s_91836f22884cfe::t_2724b1906bb31d 40-41
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_91836f22884cfe::t_1a0f20e4e40d84 2576-2578,2580-2594
+  s_91836f22884cfe::t_7449193c718c15 2579
+scripts/dev-term.mjs
+  s_1c957943e307aa::t_4a41b16c81fef4 24-25
+package.json
+  s_91836f22884cfe::t_f3c8e10b49d89d 11
+  s_91836f22884cfe::t_213e60e027bc19 48
+packages/engine/vitest.e2e.config.mts
+  s_1c957943e307aa::t_4b8bd519cbf045 97-98
+  s_91836f22884cfe::t_43c90620e35286 101
+packages/tty-css-preview/extension/manifest.json
+  s_91836f22884cfe::t_f3c8e10b49d89d 1-4,6-9,12-15,21-27
+  s_91836f22884cfe::t_37f82808ec333e 17
+  s_91836f22884cfe::t_b5365885f57780 20
+  s_91836f22884cfe::t_28126e54784f4c 10-11
+  s_91836f22884cfe::t_213e60e027bc19 5
+  s_91836f22884cfe::t_022c2c6a70a594 18-19
+  s_91836f22884cfe::t_dd344f910318db 16
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-Hit-text-only-on-the-line-that-contains-the-point.patch
+  s_db3a1fb479bcda::t_4020264e40b345 29-50
+  s_db3a1fb479bcda::t_690a7519a3751d 26-28
+  s_db3a1fb479bcda::t_dc6332a329db67 51-53
+packages/tty-css-preview/extension/fallback-level1.css
+  s_91836f22884cfe::t_081d9aa488985c 41-42,44-47
+  s_91836f22884cfe::t_2625181ccbdce4 40,43
+  s_91836f22884cfe::t_c6c65d975f789d 34-39
+  s_91836f22884cfe::t_bf516bc57d2555 176-191
+  s_91836f22884cfe::t_f4ffa1afc2a0e6 175
+  s_91836f22884cfe::t_eaec69a474af46 1-33,48-174,192-280
+Cargo.lock
+  s_91836f22884cfe::t_a8ab9a148bcf97 486-493
+  s_97e369e531e75f::t_1eb98620c07214 1587
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_91836f22884cfe::t_a1544f9ab91a0a 27,30-32,40-45,47,83
+  s_91836f22884cfe::t_1b14195b430675 48-53
+  s_91836f22884cfe::t_4f98e641f24ce4 2-5,25-26,28-29,33-39,46,54-74,129
+  s_91836f22884cfe::t_f257c40fd2d662 117-121,123-125
+  s_91836f22884cfe::t_959f829a7ae63b 75-82
+  s_91836f22884cfe::t_1a0f20e4e40d84 1,6-24,84-116,122,126-128
+docs/TERMINAL.md
+  s_ccf5542acfcceb::t_0fb914d31442c1 167-176,207-220
+  s_91836f22884cfe::t_68946a45696915 23
+  s_91836f22884cfe::t_55261f768c1c08 177-191
+  s_91836f22884cfe::t_3602bad3df6492 290-293
+  s_ccf5542acfcceb::t_9050c92fab757c 221
+  s_91836f22884cfe::t_386f31da812756 103-107
+  s_91836f22884cfe::t_4dccfea5cb1d47 24-25,28
+  s_91836f22884cfe::t_d4c9caa0492078 29,34-35,73
+  s_ccf5542acfcceb::t_0f11ddd9526457 143-166,192-206,222-229
+  s_91836f22884cfe::t_8e0cbda2ddbf25 30
+packages/tty-css-preview/test/grid.test.mjs
+  s_91836f22884cfe::t_0a2a5e0c1a9fe1 26-31
+  s_91836f22884cfe::t_ca7b0fe5025889 1-7,9-10,12-15,32
+  s_91836f22884cfe::t_0788fde25002b8 8,11,20-23
+  s_91836f22884cfe::t_19e4cc0ccaf938 16
+  s_91836f22884cfe::t_89bea9539c5a27 17-19
+  s_91836f22884cfe::t_dd344f910318db 24-25
+scripts/patches/blitz-paint-0.3.0-beta.2/0029-Keep-collapsed-borders-when-terminal-tracks-collapse.patch
+  s_1c957943e307aa::t_b2ccba7a7350b4 13-14,17,20,22,34-101
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,21,23-33,102-103
+packages/engine/test/term-target.test.ts
+  s_91836f22884cfe::t_a0414c98885d9f 150-151
+  s_91836f22884cfe::t_386f31da812756 8,136-149
+  s_c95c49f27b7dd9::t_12ef9085f50d46 6,152-170
+  s_c95c49f27b7dd9::t_6eb056cccd6dbf 171-172
+packages/engine/src/term.ts
+  s_91836f22884cfe::t_7c592dbea7ecf4 92
+  s_91836f22884cfe::t_4dccfea5cb1d47 87-90,148
+  s_91836f22884cfe::t_d4c9caa0492078 81,101
+packages/tty-css-preview/extension/popup.js
+  s_91836f22884cfe::t_ca7b0fe5025889 2,6-9,11,22-25
+  s_91836f22884cfe::t_f3c8e10b49d89d 1,3-5,10,12-15,17-21,26-28
+  s_91836f22884cfe::t_eaec69a474af46 16
+packages/tty-css-preview/extension/snap.js
+  s_91836f22884cfe::t_0a2a5e0c1a9fe1 3,8-14
+  s_91836f22884cfe::t_dd344f910318db 1-2,4-7,23
+  s_91836f22884cfe::t_34e3c5d265f37b 15-22
+packages/engine/src/text-modules.d.ts
+  s_91836f22884cfe::t_ce8b07cca55d01 1-4
+scripts/patches/blitz-dom-0.3.0-beta.2/0133-Preserve-parent-line-metrics-for-inline-boxes.patch
+  s_db3a1fb479bcda::t_4020264e40b345 7-279
+packages/engine/src/term-session.ts
+  s_91836f22884cfe::t_0c910836094b42 54-55,218-219,357,506,512-531,534-540,542-543,547-551,758,841,1023-1024,1026,1028,1092,1185
+  s_91836f22884cfe::t_24154060b774aa 788-790,792-793
+  s_91836f22884cfe::t_448d9033ecfdd0 343-351,996-999
+  s_c95c49f27b7dd9::t_12922b38c3017d 467-505,786-787,791,805,825-832,886,1005,1009,1011,1070-1083,1085-1086,1152,1154,1255-1256,1261,1273,1275-1276,1296-1297,1303,1312,1315-1316,1346,1358,1362,1398,1405,1432,1442
+  s_91836f22884cfe::t_37f82808ec333e 1153,1155
+  s_c95c49f27b7dd9::t_e7c46be73eee65 1462,1499,1512,1515,1531,1539-1541,1595,1608,1610,1636,1648
+  s_91836f22884cfe::t_022c2c6a70a594 1156-1160
+  s_91836f22884cfe::t_386f31da812756 271-275,587-591,678-679
+packages/engine/test/e2e/tty-wheel-grid.e2e.test.ts
+  s_91836f22884cfe::t_0cc266c2316fe7 1-5,7-35,37-38,40,42-43,45-50
+  s_91836f22884cfe::t_369226abdce4b8 6
+  s_91836f22884cfe::t_5da8e60ef26cdd 36,39,41,44
+packages/tty-css-preview/test/update.test.mjs
+  s_91836f22884cfe::t_eaec69a474af46 4,17-43
+  s_91836f22884cfe::t_28126e54784f4c 1-3,5-16,44-108
+packages/tty-css-preview/package.json
+  s_91836f22884cfe::t_dd344f910318db 9
+  s_91836f22884cfe::t_f3c8e10b49d89d 1-8,10-12
+packages/core/src/tty_grid.rs
+  s_91836f22884cfe::t_1b24451fea7585 574
+  s_91836f22884cfe::t_320ab0108904f5 1932
+  s_91836f22884cfe::t_00751c1cc1a80f 1777-1789
+  s_91836f22884cfe::t_8498f46c1bbebe 1756
+  s_97e369e531e75f::t_e554cbcf02e238 463,485-495,890-898,917,930,1006
+  s_ccf5542acfcceb::t_1f970f231e3743 52-69,402-405,413,416-427,446-448,450-452
+  s_91836f22884cfe::t_68b336e01a8e3a 1792-1820
+  s_ccf5542acfcceb::t_dd946355dedcc2 2078,2080,2083,2085,2088-2090,2092
+  s_91836f22884cfe::t_c91204d0d671a6 1757
+  s_ccf5542acfcceb::t_c6f47136cd0690 429-435,437-442
+  s_91836f22884cfe::t_2b892239c86dc7 189,455-462,464,496,517,522-529,662,979,1002-1005
+  s_91836f22884cfe::t_95a5d8ca97b4c7 1890-1901
+  s_ccf5542acfcceb::t_4995ed7a0971cc 2058,2075-2077,2079,2081-2082,2084,2091
+  s_ccf5542acfcceb::t_cfd031515f1829 2086-2087
+  s_ccf5542acfcceb::t_19659cc1e16223 436
+  s_ccf5542acfcceb::t_8c61d0cd235de9 2016,2019-2020,2027-2041,2062,2066-2068,2070,2072-2073
+  s_91836f22884cfe::t_c88af08ad8ddaf 1734-1755,1758-1776,1790-1791
+  s_91836f22884cfe::t_4cd6fe159c03b8 1831
+  s_91836f22884cfe::t_1bd6fcae0ae0a1 1902-1908,1911,1922,1925-1928
+  s_91836f22884cfe::t_1265e087f3ac85 190-192,233,534-573,835-839,962-965,1830,1909-1910,1912-1921,1923-1924,1929-1931
+  s_91836f22884cfe::t_3fee2e3a2ceb9d 1821-1829
+  s_97e369e531e75f::t_23e6be192a2b14 172,827
+  s_1a92efd19a388c::t_18db17319d8ce3 2074
+scripts/patches/blitz-dom-0.3.0-beta.2/0134-Apply-relative-insets-to-inline-floats.patch
+  s_db3a1fb479bcda::t_4020264e40b345 11-87
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Tolerate-a-sub-cell-width-change-instead-of-re-break.patch
+  s_db3a1fb479bcda::t_4020264e40b345 22-39
+  s_db3a1fb479bcda::t_cde9976f525913 19-21
+  s_db3a1fb479bcda::t_af9269138e261a 40-42
+packages/engine/vitest.config.mts
+  s_91836f22884cfe::t_cb9b88e9e0648b 61
+  s_91836f22884cfe::t_50f6b877ae557c 17-18
+packages/core/src/tty_modes.rs
+  s_91836f22884cfe::t_24eba4e09c08b2 440-441
+  s_91836f22884cfe::t_386f31da812756 75,77-78
+packages/page-script/src/index.ts
+  s_ccf5542acfcceb::t_bb33a1926bf681 237,1442-1444,1451-1457,1459,1467
+  s_91836f22884cfe::t_d1524c4f4ef34a 338-359
+  s_91836f22884cfe::t_b1f0b8cd3a95ac 3461-3464,3506-3508,3537
+  s_91836f22884cfe::t_6bc3b73cfffea3 3553
+  s_91836f22884cfe::t_e964bbfd83595b 1687-1692
+  s_db3a1fb479bcda::t_251201797e27b1 3505,3523-3526
+  s_91836f22884cfe::t_1a12ad3f5794b2 3555,3557
+  s_91836f22884cfe::t_1fafb41a8bc175 1445-1446
+  s_1a92efd19a388c::t_22d596047941f7 3558
+  s_91836f22884cfe::t_74ded7d2523ed9 3552,3554
+packages/core/src/lib.rs
+  s_ccf5542acfcceb::t_fe4cb50a901175 1082,4963
+  s_91836f22884cfe::t_da72fe83ce74de 290-291
+  s_ccf5542acfcceb::t_0b24bd12e16b7f 4955-4962
+  s_91836f22884cfe::t_b811dbe1a4b842 289
+  s_ccf5542acfcceb::t_6fbfc3e177a3f3 512-533,1076-1081
+  s_ccf5542acfcceb::t_b2460322ca9a1b 80-81
+scripts/patches/blitz-dom-0.3.0-beta.2/0137-Fix-absolute-inline-box-positioning.patch
+  s_db3a1fb479bcda::t_4020264e40b345 11-36
+packages/engine/test/e2e/tty-todomvc-controls.e2e.test.ts
+  s_91836f22884cfe::t_0736d6e178aaf0 35-36
+  s_91836f22884cfe::t_e20c5449da2d8b 1-34,37-40
+scripts/patches/blitz-paint-0.3.0-beta.2/0031-Align-table-row-backgrounds-with-paint-tracks.patch
+  s_1c957943e307aa::t_b2ccba7a7350b4 13-14,17,20-31,34-39,41
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,32-33,40,42-43
+packages/tty-css-preview/test/server.test.mjs
+  s_91836f22884cfe::t_f3c8e10b49d89d 1-2,5,8-10,14-46,67-82,105
+  s_91836f22884cfe::t_eaec69a474af46 12,93-104
+  s_91836f22884cfe::t_28126e54784f4c 3-4,6,47-66
+  s_91836f22884cfe::t_213e60e027bc19 7,11,13,83-92
+AGENTS.md
+  s_91836f22884cfe::t_f3c8e10b49d89d 83-84
+packages/core/src/tty_cell_grid_test.rs
+  s_ccf5542acfcceb::t_c44a9d8a84d394 1-10,16-43,46-58,64-78,88-89,92-96,98-107,109-113,119-153,156,158,169-170,243-254,260-267,273-280
+  s_97e369e531e75f::t_e554cbcf02e238 557,576
+  s_91836f22884cfe::t_be4721fb4a14be 285,489,585-613,643-645,878
+  s_91836f22884cfe::t_6d49fe50f3c495 420
+  s_91836f22884cfe::t_4decedcbde8abc 44-45,59-63,114-118,161-164,194-203,255-259,268-272,281-284,318,366-369,410-412,416-418,438-440,444-446,475-488,630-641
+  s_91836f22884cfe::t_f4ddef936055f5 402,408,431
+  s_ccf5542acfcceb::t_3616478cd68e5b 227,229-240
+  s_ccf5542acfcceb::t_5ab1245f69fd12 11-15,90-91,97,108,154-155,157
+  s_91836f22884cfe::t_9fe47a0c642b09 325-365,370-373,375-383
+  s_91836f22884cfe::t_9da57c95dea15b 409,413-415,419,437,441-443,447-448
+  s_ccf5542acfcceb::t_0996bf72fc397d 287-288,290-294,296,312,316-317,319-322,649-654,656-665,667-671,676-677,680-699,701-739,741-744
+  s_91836f22884cfe::t_1c74faf252be4b 504-506,537-543,563,565-575,577-581
+  s_ccf5542acfcceb::t_35aa70128d5d9b 79-87,171-193,204-226,228
+  s_ccf5542acfcceb::t_f3d48c88358553 241,286,289,295,302,307-311,313-315,323-324,679,700,740,745
+  s_748a25868f96d0::t_0762dcabc3cf09 242
+  s_75ec8a9f61c1a3::t_b79685eda8f664 490,507,642,646
+  s_ccf5542acfcceb::t_0b24bd12e16b7f 159-160,165-168
+  s_91836f22884cfe::t_ae2887d8abd460 384-389,398-401,403-407,432-436,449-453
+  s_91836f22884cfe::t_94a48799bcf47a 491-502,508-513,530-536,544,546-548,550-551,583-584,746-877
+  s_91836f22884cfe::t_b1070a762946a5 503,514-529,545,564
+  s_91836f22884cfe::t_1e2f34ab9b8209 614-629
+  s_ccf5542acfcceb::t_9b1ed04559d854 297-301,303-306
+  s_91836f22884cfe::t_226cd833a7f814 390-397
+  s_91836f22884cfe::t_1c1c9860cb35cb 374,421-430,454-474,647-648,655,666,672-675,678
+  s_91836f22884cfe::t_5eadeea8246b6f 549,552-556,558-562,582
+scripts/patches/taffy-0.14.0/0008-Let-a-backend-round-layout-to-something-other-than-a.patch
+  s_ccf5542acfcceb::t_44ed6f3ce0abc4 1-19,31-37,41-42,44-45,47-58,60-71,73-74,76-96,124-130,132,134-135,137-144,146
+  s_ccf5542acfcceb::t_bb16679126dd54 20-30,98-99,101-120
+  s_1c957943e307aa::t_86098762aef707 38-40,43,46,59,72,75,97,100,121-123,131,133,136,145
+packages/tty-css-preview/extension/popup.html
+  s_91836f22884cfe::t_f3c8e10b49d89d 1-18,23-27
+  s_91836f22884cfe::t_ca7b0fe5025889 19-22
+packages/engine/test/tty-stylesheet.test.ts
+  s_91836f22884cfe::t_213e60e027bc19 22-24,35-37
+  s_91836f22884cfe::t_572d7874d3ecba 185-188
+  s_ccf5542acfcceb::t_a6c28f6e3db491 1-2,4-5,8-9,17,26-31,38-40,49,102,144-179,250-251
+  s_91836f22884cfe::t_e05792f4d893d2 180-184,214-215,227-234
+  s_91836f22884cfe::t_6677677292a39f 70
+  s_91836f22884cfe::t_16c4d38b59163b 20-21,25,32-34,117,138-139
+  s_91836f22884cfe::t_88234abca68722 119-121
+  s_ccf5542acfcceb::t_651e99acd9d019 71-80,89-90
+  s_91836f22884cfe::t_b1ec06e4602ace 101
+  s_91836f22884cfe::t_ce8b07cca55d01 41-43,45-46,48
+  s_91836f22884cfe::t_448d9033ecfdd0 7,12,18-19
+  s_91836f22884cfe::t_cbe0a63d4d1ef7 122-125
+  s_91836f22884cfe::t_bfe3079fded0e9 81-88,91-92
+  s_91836f22884cfe::t_7ffb540c718065 95-100
+  s_91836f22884cfe::t_fed0b0245b561b 135-137,140-143
+  s_91836f22884cfe::t_dd344f910318db 242-248
+  s_91836f22884cfe::t_95a5d8ca97b4c7 209-213
+  s_91836f22884cfe::t_4e633355b7d9d9 94
+  s_91836f22884cfe::t_86d4aadf17ae02 110
+  s_91836f22884cfe::t_95d4be6c11fdba 235-241,249
+  s_91836f22884cfe::t_1e2f34ab9b8209 51-60
+  s_91836f22884cfe::t_226cd833a7f814 127,129-130
+  s_91836f22884cfe::t_953376c1f6e7f4 224
+  s_91836f22884cfe::t_c6c65d975f789d 61-69,93
+  s_91836f22884cfe::t_d64e65d5350bf4 116,118
+  s_91836f22884cfe::t_2625181ccbdce4 190
+  s_91836f22884cfe::t_ae2887d8abd460 114-115,126,128,131-134
+  s_91836f22884cfe::t_081d9aa488985c 189,191-208
+  s_91836f22884cfe::t_14062b1ce3bfad 44,47
+  s_91836f22884cfe::t_25405a97094425 216-223
+  s_91836f22884cfe::t_9c7e09dbf4d438 104-109,111-113
+  s_91836f22884cfe::t_e387fd84ea82f2 225-226
+  s_91836f22884cfe::t_321c1666fbb498 3,6,10-11,13-16
+scripts/patches/blitz-paint-0.3.0-beta.2/0030-Paint-tables-from-adjusted-track-geometry.patch
+  s_1c957943e307aa::t_b2ccba7a7350b4 18-37
+  s_1c957943e307aa::t_148f96cfc265aa 15-17
+  s_1c957943e307aa::t_fee615fa71157e 38-40
+packages/engine/src/cdp-client.ts
+  s_c95c49f27b7dd9::t_e326fafd46eedb 38,46-52,56,58,60,64,109-110
+packages/engine/test/term.test.ts
+  s_91836f22884cfe::t_4dccfea5cb1d47 93,100-101
+  s_91836f22884cfe::t_f97f60ccff3a85 109
+  s_91836f22884cfe::t_7c592dbea7ecf4 3,91-92,94-99,102,108
+  s_91836f22884cfe::t_d4c9caa0492078 103-107
+packages/engine/src/tty-stylesheet.css
+  s_91836f22884cfe::t_081d9aa488985c 41-42,44-47
+  s_91836f22884cfe::t_c6c65d975f789d 34-39
+  s_91836f22884cfe::t_572d7874d3ecba 82-87
+  s_91836f22884cfe::t_2625181ccbdce4 40,43
+  s_91836f22884cfe::t_e05792f4d893d2 48-52,78-81,95-102,132-144
+  s_91836f22884cfe::t_9c7e09dbf4d438 176-187,189-191
+  s_91836f22884cfe::t_95a5d8ca97b4c7 88-94
+  s_91836f22884cfe::t_10780c5f3b1aed 175
+  s_91836f22884cfe::t_ab9320cc229aad 1-3,7-8,12-13,15-23,25-29,145-146,152-156,159-163,196-201,208-232,237-265,267-277,279-280
+  s_91836f22884cfe::t_dd344f910318db 121-131
+  s_91836f22884cfe::t_321c1666fbb498 4-6,9,11
+  s_91836f22884cfe::t_e964bbfd83595b 30-31
+  s_91836f22884cfe::t_7ffb540c718065 32,164-171,173
+  s_91836f22884cfe::t_448d9033ecfdd0 10
+  s_91836f22884cfe::t_ce8b07cca55d01 24,147-151,192-195,202-207,233-236,266,278
+  s_91836f22884cfe::t_b1ec06e4602ace 172
+  s_91836f22884cfe::t_65d9f62c45fedb 174
+  s_91836f22884cfe::t_1e2f34ab9b8209 14
+  s_91836f22884cfe::t_25405a97094425 53-66,68-69,157-158
+  s_91836f22884cfe::t_95d4be6c11fdba 103-120
+  s_91836f22884cfe::t_953376c1f6e7f4 67
+  s_91836f22884cfe::t_e387fd84ea82f2 70-77
+  s_91836f22884cfe::t_86d4aadf17ae02 188
+  s_91836f22884cfe::t_0638d99a7f566b 33
+packages/engine/src/cdp/types.ts
+  s_c95c49f27b7dd9::t_b85cf39ada3a39 17-63
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-Use-natural-font-metrics-for-inline-line-height.patch
+  s_db3a1fb479bcda::t_4020264e40b345 16-231
+.gitlab-ci.yml
+  s_91836f22884cfe::t_213e60e027bc19 573-574
+packages/engine/wrangler.jsonc
+  s_91836f22884cfe::t_ab9320cc229aad 64
+  s_91836f22884cfe::t_cac01e94edc3c7 71
+pnpm-lock.yaml
+  s_1a92efd19a388c::t_eb34d4daf9769b 275-276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d28449ee9d04a05c9e973efc8a1afbc59d8e4656",
+  "prompts": {},
+  "sessions": {
+    "s_1a92efd19a388c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f34aa71c2ffepIc2qyDMMRcI4N",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_748a25868f96d0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fccc0f54affe1bh2BFFK0PXWWe",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_75ec8a9f61c1a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fac679ed1ffecrwrIIAqPO2iog",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_8e9b4acc6322c3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4ab387e8ffeCFOsakV1iJf3ye",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_97e369e531e75f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35286b34ffehIQ06dVcNrY6VD",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_c95c49f27b7dd9": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "mr-workflow-author-cloudflare-brapi-kitesurf-303",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_db3a1fb479bcda": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f45cc0b70ffeJklqn6y6yGrDaB",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
