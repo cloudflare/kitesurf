@@ -1,0 +1,91 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0134-Apply-relative-insets-to-inline-floats.patch
+  s_db3a1fb479bcda::t_4020264e40b345 11,14,22,72,85-87
+scripts/patches/blitz-dom-0.3.0-beta.2/0133-Preserve-parent-line-metrics-for-inline-boxes.patch
+  s_db3a1fb479bcda::t_4020264e40b345 7-8,11,14,38,96,107,118,221,241,257,264,272,279
+scripts/patches/blitz-dom-0.3.0-beta.2/0135-Snap-terminal-table-tracks-with-cell-layout.patch
+  s_db3a1fb479bcda::t_4020264e40b345 13-14,17,20,27-33,38-41,45-48,51-52,65-66,70-84,89,91-94,101
+scripts/patches/blitz-dom-0.3.0-beta.2/0139-Retain-raw-table-tracks-across-terminal-reflow.patch
+  s_db3a1fb479bcda::t_4020264e40b345 18,21-22,26,28,31-32,39-40,42,49,52,60-62
+scripts/patches/blitz-paint-0.3.0-beta.2/0027-Mark-semantic-parts-in-painted-scenes.patch
+  s_1c957943e307aa::t_d6c54648588032 22,24,31,34-35,39,41,45,60,62,66,69,113-115,117-119,121-127
+scripts/patches/blitz-dom-0.3.0-beta.2/0138-Resolve-relative-inline-insets-against-used-height.patch
+  s_db3a1fb479bcda::t_4020264e40b345 11,14,53
+scripts/patches/blitz-paint-0.3.0-beta.2/0029-Keep-collapsed-borders-when-terminal-tracks-collapse.patch
+  s_1c957943e307aa::t_b2ccba7a7350b4 13-14,17,20,22,34-101
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,21,23-33,102-103
+scripts/patches/blitz-paint-0.3.0-beta.2/0031-Align-table-row-backgrounds-with-paint-tracks.patch
+  s_1c957943e307aa::t_b2ccba7a7350b4 13-14,17,20-31,34-39,41
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,32-33,40,42-43
+scripts/patches/blitz-dom-0.3.0-beta.2/0137-Fix-absolute-inline-box-positioning.patch
+  s_db3a1fb479bcda::t_4020264e40b345 11,14,22,36
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Honor-vertical-alignment-inside-table-cells.patch
+  s_db3a1fb479bcda::t_4020264e40b345 16,18,21,24-26,29,35-36,39-40,63-64,71-72,74-79,82,86-88,95,98,105,107
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-Hit-text-only-on-the-line-that-contains-the-point.patch
+  s_db3a1fb479bcda::t_4020264e40b345 29,32-35,43,46,50
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-Carry-the-layout-rounding-step-on-the-document.patch
+  s_db3a1fb479bcda::t_4020264e40b345 12,14,17,20-23,25-26,28-31,33,35,44-45,53,56,58,65
+scripts/patches/blitz-dom-0.3.0-beta.2/0140-Align-table-tracks-to-their-final-paint-origin.patch
+  s_db3a1fb479bcda::t_4020264e40b345 13-14,17,20-24,27-30,32-33,35-43,46-47,52-53
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,25-26,31,34,44-45,48-51,54-56
+scripts/patches/taffy-0.14.0/0008-Let-a-backend-round-layout-to-something-other-than-a.patch
+  s_1c957943e307aa::t_86098762aef707 38-40,43,46,59,72,75,97,100,121-123,131,133,136,145
+scripts/patches/blitz-paint-0.3.0-beta.2/0028-Paint-table-cell-text-at-its-aligned-offset.patch
+  s_1c957943e307aa::t_b2ccba7a7350b4 19,22,25,33-35
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Tolerate-a-sub-cell-width-change-instead-of-re-break.patch
+  s_db3a1fb479bcda::t_4020264e40b345 22-23,26,29-30,33-34,36,39
+scripts/patches/blitz-dom-0.3.0-beta.2/0123-Pass-inline-alignment-and-x-height-to-Parley.patch
+  s_db3a1fb479bcda::t_4020264e40b345 231,249,289,311,320,329,338,347,357,370,381,390,401,412,423
+scripts/patches/blitz-paint-0.3.0-beta.2/0030-Paint-tables-from-adjusted-track-geometry.patch
+  s_1c957943e307aa::t_b2ccba7a7350b4 18,21,29,31,34,37
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-Use-natural-font-metrics-for-inline-line-height.patch
+  s_db3a1fb479bcda::t_4020264e40b345 16,27,36,212,223,231
+scripts/patches/blitz-dom-0.3.0-beta.2/0136-Account-for-table-ancestors-when-snapping-tracks.patch
+  s_db3a1fb479bcda::t_4020264e40b345 13-14,17,20-21,29,33-42,45-47,52,54-57
+  s_97e369e531e75f::t_5cdf6861ea435b 1-12,15-16,18-19,22-28,30-32,43-44,48-51,53,58-60
+packages/core/src/tty_ansi.rs
+  s_31b07b58a577cd::t_0109b650b8fcf3 16
+packages/core/src/tty_omni.rs
+  s_31b07b58a577cd::t_0109b650b8fcf3 57,158-159,670,824,834-835,912,914,916,955,1129,1131-1135,1143,1202-1203,1212,1221,1224
+  s_31b07b58a577cd::t_86e32bb918453e 69-75,843-847,917-920
+  s_31b07b58a577cd::t_de415abef0ae17 1118-1122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2cf5560ca41c7ee164e42195f653da494bffc13a",
+  "prompts": {},
+  "sessions": {
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_31b07b58a577cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f45bdcab7ffe0H5to78VQLhvQL",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_97e369e531e75f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35286b34ffehIQ06dVcNrY6VD",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_db3a1fb479bcda": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f45cc0b70ffeJklqn6y6yGrDaB",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

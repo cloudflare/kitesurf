@@ -1,0 +1,19 @@
+docs/TERMINAL.md
+  s_c95c49f27b7dd9::t_7842bb287f61d8 41-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "71c73d58ba669c20e6183c78b386b5e69338a948",
+  "prompts": {},
+  "sessions": {
+    "s_c95c49f27b7dd9": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "mr-workflow-author-cloudflare-brapi-kitesurf-303",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
