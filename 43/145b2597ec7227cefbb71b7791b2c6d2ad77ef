@@ -1,0 +1,167 @@
+package.json
+  s_1a92efd19a388c::t_9b1d7796f3de6f 11,48
+packages/engine/src/cdp/page.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 3273
+packages/tty-css-preview/src/server.mjs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-7,9-14,16-17,19-94
+packages/engine/test/term-target.test.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 6,8,136-171
+scripts/patches/blitz-dom-0.3.0-beta.2/0159-Align-table-tracks-to-their-final-paint-origin.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-56
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 2576-2594
+packages/engine/src/tty/stylesheet.ts
+  s_1a92efd19a388c::t_b189da8d711350 1-2
+  s_1a92efd19a388c::t_9b1d7796f3de6f 5,7-9,11-18
+scripts/patches/blitz-dom-0.3.0-beta.2/0147-Remove-unused-fixed-anchor-import.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 11,14
+packages/core/src/tty_modes.rs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 75,77-78,440-441
+packages/engine/src/tty/session.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 54-55,218-219,271-275,343-351,357,467-506,512-531,534-540,542-543,547-551,587-591,678-679,758,786-793,805,825-832,841,886,996-999,1005,1009,1011,1023-1024,1026,1028,1070-1083,1085-1086,1092,1152-1160,1185,1255-1256,1261,1273,1275-1276,1296-1297,1303,1312,1315-1316,1346,1358,1362,1398,1405,1432,1442,1462,1499,1512,1515,1531,1539-1541,1595,1608,1610,1636,1648
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-129
+packages/tty-css-preview/extension/scroll.js
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-31
+packages/tty-css-preview/extension/snap.js
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-23
+packages/dom-shim/src/layout/scroll.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 36-40,162-167,172-173,192-197,223-228,236,239,241
+packages/tty-css-preview/package.json
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-12
+scripts/patches/blitz-dom-0.3.0-beta.2/0156-Snap-terminal-table-tracks-with-cell-layout.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-102
+packages/engine/src/cdp-client.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 38,46-52,56,58,60,64,109-110
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-Queue-each-font-face-once-per-document.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 28
+packages/tty-css-preview/extension/popup.js
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-28
+scripts/patches/blitz-dom-0.3.0-beta.2/0158-Retain-raw-table-tracks-across-terminal-reflow.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-67
+packages/engine/test/term.test.ts
+  s_1a92efd19a388c::t_b189da8d711350 4
+  s_1a92efd19a388c::t_9b1d7796f3de6f 92-108
+scripts/patches/blitz-dom-0.3.0-beta.2/0153-Carry-the-layout-rounding-step-on-the-document.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-66
+packages/engine/src/cdp/input.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 199-204,224-225
+packages/tty-css-preview/extension/fallback-level2.css
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-13
+scripts/patches/blitz-paint-0.3.0-beta.2/0029-Keep-collapsed-borders-when-terminal-tracks-collapse.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-103
+packages/dom-shim/src/state.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 97
+packages/tty-css-preview/test/server.test.mjs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-11,13-51,53-64,66-96,99-105
+scripts/patches/blitz-paint-0.3.0-beta.2/0030-Paint-tables-from-adjusted-track-geometry.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-42
+packages/core/src/hit_test_block_axis_test.rs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-78
+packages/engine/src/text-modules.d.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-4
+packages/tty-css-preview/README.md
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-6,9-44
+packages/tty-css-preview/extension/fallback-level1.css
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-280
+packages/engine/vitest.e2e.config.mts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 97-98,101
+packages/engine/test/term-geometry.test.ts
+  s_1a92efd19a388c::t_b189da8d711350 8
+  s_1a92efd19a388c::t_9b1d7796f3de6f 3-7,31-41,146-158
+scripts/patches/blitz-dom-0.3.0-beta.2/0155-Honor-vertical-alignment-inside-table-cells.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-121
+packages/engine/test/e2e/tty-todomvc-controls.e2e.test.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-40
+packages/engine/src/tty/stylesheet-level2.css
+  s_1a92efd19a388c::t_b189da8d711350 1-13
+packages/page-script/src/paint.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 192-193,197-200
+packages/tty-css-preview/extension/popup.html
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-27
+scripts/patches/blitz-dom-0.3.0-beta.2/0146-Gate-font-face-fetches-on-unicode-range-against-the-.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 44,190
+AGENTS.md
+  s_1a92efd19a388c::t_9b1d7796f3de6f 83-84
+packages/engine/src/tty/route.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 31,37-40,42,51,98
+packages/page-script/src/wasm-glue.d.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 232-236
+packages/tty-css-preview/extension/popup.css
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-75
+packages/tty-css-preview/test/grid.test.mjs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-32
+packages/tty-css-preview/test/update.test.mjs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-108
+scripts/dev-term.mjs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 24-25
+scripts/patches/blitz-dom-0.3.0-beta.2/0157-Account-for-table-ancestors-when-snapping-tracks.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-60
+packages/tty-css-preview/test/scroll.test.mjs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-37
+packages/tty-css-preview/extension/content.js
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-446
+.gitlab-ci.yml
+  s_1a92efd19a388c::t_9b1d7796f3de6f 573-574
+scripts/patches/blitz-dom-0.3.0-beta.2/0154-Tolerate-a-sub-cell-width-change-instead-of-re-break.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-47
+packages/engine/wrangler.jsonc
+  s_1a92efd19a388c::t_9b1d7796f3de6f 64,71
+packages/tty-css-preview/extension/update.js
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-71
+scripts/patches/blitz-dom-0.3.0-beta.2/0151-kitesurf-stamp-element-indices-on-the-svg-snapshot.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 37
+packages/engine/src/cdp/types.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 17-63
+scripts/patches/blitz-paint-0.3.0-beta.2/0028-Paint-table-cell-text-at-its-aligned-offset.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-35
+packages/tty-css-preview/extension/manifest.json
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-27
+scripts/patches/blitz-dom-0.3.0-beta.2/0160-Hit-text-only-on-the-line-that-contains-the-point.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-55
+packages/core/src/lib.rs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 80-81,289-291,512-533,1076-1082,4955-4962
+packages/engine/src/tty/stylesheet.css
+  s_1a92efd19a388c::t_b189da8d711350 1-280
+scripts/patches/taffy-0.14.0/0008-Let-a-backend-round-layout-to-something-other-than-a.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-146
+packages/tty-css-preview/extension/background.js
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-75
+packages/engine/vitest.config.mts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 17-18,61
+packages/page-script/src/index.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 237,338-359,1442-1446,1451-1457,1459,1467,1687-1692,3461-3464,3505-3508,3523-3526,3537,3552-3555,3557-3558
+packages/core/src/tty_grid.rs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 52-69,189-192,233,402-405,413,416-427,429-442,446-448,450-452,455-464,485-496,517,522-529,534-574,662,835-839,890-898,917,930,962-965,979,1002-1006,1734-1831,1890-1932,2016,2019-2020,2027-2041,2058,2062,2066-2068,2070,2072-2092
+packages/core/src/tty_cell_grid_test.rs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-878
+scripts/patches/blitz-dom-0.3.0-beta.2/0144-kitesurf-anchor-auto-inset-fixed-boxes-at-their-stat.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 15,18,28
+packages/engine/test/tty-stylesheet.test.ts
+  s_1a92efd19a388c::t_b189da8d711350 3-4
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-2,5-251
+packages/tty-css-preview/test/snap.test.mjs
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-36
+docs/TERMINAL.md
+  s_1a92efd19a388c::t_9b1d7796f3de6f 23-25,28-30,34-35,73,103-107,143-229,291-293
+packages/engine/test/e2e/tty-wheel-grid.e2e.test.ts
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-50
+scripts/patches/blitz-paint-0.3.0-beta.2/0031-Align-table-row-backgrounds-with-paint-tracks.patch
+  s_1a92efd19a388c::t_9b1d7796f3de6f 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "43145b2597ec7227cefbb71b7791b2c6d2ad77ef",
+  "prompts": {},
+  "sessions": {
+    "s_1a92efd19a388c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f34aa71c2ffepIc2qyDMMRcI4N",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
