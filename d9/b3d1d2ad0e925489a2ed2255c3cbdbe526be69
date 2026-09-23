@@ -1,0 +1,32 @@
+packages/core/src/lib.rs
+  s_3b3e543270fcec::t_67e35a6b9969ae 4221-4227,4246-4251
+  s_3b3e543270fcec::t_e95d38c5afc936 3984-3990,4006,4108-4114,4146,4195,4213-4220,4228,4257-4265,4306-4317,4335-4336,4338,4340,4343,4345,4483,7803-7805
+packages/dom-shim/src/state.ts
+  s_3b3e543270fcec::t_6eee7d4f9bbeb7 88,134-139
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_3b3e543270fcec::t_6eee7d4f9bbeb7 69-111
+packages/dom-shim/src/element.ts
+  s_3b3e543270fcec::t_67e35a6b9969ae 3326-3330
+packages/page-script/src/paint.ts
+  s_3b3e543270fcec::t_67e35a6b9969ae 245
+  s_3b3e543270fcec::t_6eee7d4f9bbeb7 232
+packages/dom-shim/src/window.ts
+  s_3b3e543270fcec::t_19fbe08f4f48ac 756-758
+  s_3b3e543270fcec::t_67e35a6b9969ae 709,752-755
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d9b3d1d2ad0e925489a2ed2255c3cbdbe526be69",
+  "prompts": {},
+  "sessions": {
+    "s_3b3e543270fcec": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f37cd76baffeyaGha1BCcZQL9C",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}
