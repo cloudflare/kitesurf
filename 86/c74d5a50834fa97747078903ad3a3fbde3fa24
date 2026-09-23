@@ -1,0 +1,23 @@
+packages/engine/test/e2e/font-face-unicode-range-gating.e2e.test.ts
+  s_d3331fe4df3409::t_18334bd0530f5c 1-101
+docs/FONTS.md
+  s_d3331fe4df3409::t_88b7e052b45b25 132-157
+packages/engine/test/e2e/demos/font-face-unicode-range-demo.e2e.test.ts
+  s_d3331fe4df3409::t_c143ce7fcdd7b5 23-26,83-84,86-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "86c74d5a50834fa97747078903ad3a3fbde3fa24",
+  "prompts": {},
+  "sessions": {
+    "s_d3331fe4df3409": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f649d4dd3ffeZ9Zfp0qsWRxmBj",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}
