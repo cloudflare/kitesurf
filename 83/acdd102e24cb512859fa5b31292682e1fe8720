@@ -1,0 +1,22 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-kitesurf-discard-stylesheets-for-dropped-link-nodes.patch
+  s_c1d1c93f383cfd::t_32af2cb6d70c83 48-50
+  s_c1d1c93f383cfd::t_a1528e7d6b200c 1-47,51-59
+packages/engine/test/e2e/dropped-pending-stylesheet.e2e.test.ts
+  s_c1d1c93f383cfd::t_4e072a3bd89bd3 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "83acdd102e24cb512859fa5b31292682e1fe8720",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": null
+    }
+  }
+}

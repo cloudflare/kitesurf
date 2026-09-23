@@ -1,0 +1,25 @@
+packages/engine/test/e2e/named-global-live.e2e.test.ts
+  s_c1d1c93f383cfd::t_c0f0f4f25b45a9 1-9,11-17,19,25-66,69,71-76,78-96
+  s_c1d1c93f383cfd::t_850b4dddfdc4fb 67-68,70
+  s_c1d1c93f383cfd::t_abd22d0b02001f 10,18,20-24,77
+packages/dom-shim/src/registries.ts
+  s_c1d1c93f383cfd::t_a0243be239d61c 363-364
+packages/dom-shim/src/window.ts
+  s_c1d1c93f383cfd::t_a0243be239d61c 1652-1661,1664,1666-1679,1683-1685,1689,1797-1798,1810
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e3af2a3e19ff5f2dade1054fe25cb9865853bc2c",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
