@@ -1,0 +1,20 @@
+scripts/patches/parley-0.11.1/0012-kitesurf-honour-nowrap-between-atomic-inline-boxes.patch
+  s_103b7f1f0713cd::t_cc835aa139d8f1 3-53
+  s_103b7f1f0713cd::t_28731cd11f3353 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eb83b6c65c0e3871fc9f48425a22d25ff364a62e",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

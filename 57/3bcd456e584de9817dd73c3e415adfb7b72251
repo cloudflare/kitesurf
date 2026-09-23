@@ -1,0 +1,24 @@
+packages/core/src/boa_eval.rs
+  s_103b7f1f0713cd::t_8a4613b4e740ca 711-725
+packages/page-script/src/wasm-glue.d.ts
+  s_103b7f1f0713cd::t_8a4613b4e740ca 31
+packages/page-script/src/globals.ts
+  s_103b7f1f0713cd::t_53020c52eb7a3f 484
+  s_103b7f1f0713cd::t_8a4613b4e740ca 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "573bcd456e584de9817dd73c3e415adfb7b72251",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
