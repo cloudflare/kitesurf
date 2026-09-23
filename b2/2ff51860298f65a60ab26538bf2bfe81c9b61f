@@ -1,7 +1,19 @@
+packages/engine/test/e2e/style-churn-memory.e2e.test.ts
+  s_93b484cedebccd::t_95b1817d425ecc 50,52,78-80,146-175
 ---
 {
   "schema_version": "authorship/3.0.0",
   "git_ai_version": "1.6.10",
   "base_commit_sha": "b22ff51860298f65a60ab26538bf2bfe81c9b61f",
-  "prompts": {}
+  "prompts": {},
+  "sessions": {
+    "s_93b484cedebccd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31d712fdffeuTQq5D6PMopaPg",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
 }
