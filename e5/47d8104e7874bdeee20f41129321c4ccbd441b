@@ -15,6 +15,7 @@ packages/core/src/lib.rs
   s_103b7f1f0713cd::t_4319c4dae5d548 3253,7080,7381-7385,7411,7432-7433,7472-7473,7479
   s_8424cc7fb15c62::t_a9395cc02bbf34 3287,7071
   s_103b7f1f0713cd::t_7ab8e12ccaff2c 3259-3272,3274-3279
+  s_103b7f1f0713cd::t_9d32e9b80c0281 7468-7470
 packages/engine/test/e2e/intersection-observer.e2e.test.ts
   s_103b7f1f0713cd::t_37e08af1503a14 244-263
   s_103b7f1f0713cd::t_ec05d52aa8c5ec 192,202
