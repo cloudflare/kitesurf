@@ -1,0 +1,36 @@
+scripts/patches/boa_engine-0.20.0/0015-bytecompiler-read-var-scoped-declarations-by-referen.patch
+  s_c1d1c93f383cfd::t_bb29bdcafc2434 1-62
+scripts/patches/boa_parser-0.20.0/0001-parser-move-a-parenthesized-expression-instead-of-cl.patch
+  s_c1d1c93f383cfd::t_bb29bdcafc2434 1-31
+packages/core/src/boa_parse_peak_test.rs
+  s_c1d1c93f383cfd::t_aa79fcbc99260d 51-54,59-61,63,87,90,97,100
+  s_c1d1c93f383cfd::t_7d26b05cd70468 7,66-68,71,77-81,83-86,88-89,91-96,98-99
+  s_c1d1c93f383cfd::t_bbb4d0f3722590 1-6,8-50,55-58,62,64-65,69-70,72-76,82,101
+Cargo.toml
+  s_c1d1c93f383cfd::t_c646a872ec27c2 88
+scripts/get-patched-vendor-crates.mjs
+  s_c1d1c93f383cfd::t_c646a872ec27c2 56
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_a6129229412e79 312-313
+  s_c1d1c93f383cfd::t_c81cea0628a5cb 314
+scripts/patches/README.md
+  s_c1d1c93f383cfd::t_4e195df6f19a34 83,131-132
+scripts/patches/boa_ast-0.20.0/0002-operations-borrow-var-scoped-declarations-from-the-A.patch
+  s_c1d1c93f383cfd::t_bb29bdcafc2434 1-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d52b5652e37bdc67dd987d5fbae8fa2a014a5ca2",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
