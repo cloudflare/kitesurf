@@ -1,0 +1,109 @@
+packages/dom-shim/src/layout/cheap.ts
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 23,59-64
+  s_c1d1c93f383cfd::t_9e61169c8a31f0 65
+packages/dom-shim/src/node-base.ts
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 30-35,39,130-133,138-214,217-219,222-224,246-251,263-265,268-269,272-306,479-490,540,575,605,791,793,852-854,1165,1168-1205,1210,1214,1218,1266-1268,1355,1362,1369,1380,1444,1462,1464,1540,1549,1688,1714,1725,1827,1834,1957,2072-2074,2076,2268,2298,2300,2305,2372,2410,2447,2485,2829-2830,2894
+  s_c1d1c93f383cfd::t_0cfce50b5c087d 408-418
+  s_c1d1c93f383cfd::t_c72dd44ea17a8d 376
+  s_c1d1c93f383cfd::t_96ef6a3aa44979 225-231,234-241,243-245,252-257,262,374-375,377-379,381,383-386,404,3043,3187
+  s_c1d1c93f383cfd::t_f8257e5f2bc390 36-38
+  s_c1d1c93f383cfd::t_bd3e921de6ade9 1106
+  s_c1d1c93f383cfd::t_10966e2e331bf2 6
+  s_c1d1c93f383cfd::t_12ac8f685cf2b7 215-216,220-221,232-233,242,258-261,266-267,270-271
+packages/dom-shim/src/collections.ts
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 5,248-258,331-336,2890,2902,2908-2911,4213,4234-4237
+  s_c1d1c93f383cfd::t_c72dd44ea17a8d 37,2896
+packages/dom-shim/src/reclaim.ts
+  s_c1d1c93f383cfd::t_563654e8320fd5 152
+  s_c1d1c93f383cfd::t_c90394bf8f9df5 5-38,40-41,43-45,47-49,51-73,75-80,84,86-90,92,93-94,95-97,100,101-106,107-116,118-120,122-129,131-137,139-151,153-155,157-161,162-172,173,175-189,190,192-198,199-216,218-232
+  s_c1d1c93f383cfd::t_e552f2916e117a 1-4,39,42,46,50,91,98-99,117,121,130,138,156,174,191,217
+packages/engine/test/e2e/detached-listener-reclaim.e2e.test.ts
+  s_c1d1c93f383cfd::t_ebdb48ba49dc27 1-138
+packages/engine/src/cdp/page-session.ts
+  s_c1d1c93f383cfd::t_310d3a70bb0510 232-245
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_59df24f25856e7 2636,8530,8535,8550-8551,8554
+  s_c1d1c93f383cfd::t_c29ed663bcf328 1727-1730,8489-8491,8545-8548
+  s_c1d1c93f383cfd::t_161eecf1a2f783 2616-2617
+  s_c1d1c93f383cfd::t_aa6f2a2249278b 1701
+  s_c1d1c93f383cfd::t_80c526e37b40be 8531-8534,8542-8544,8549
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 1817-1840,2559-2567,2585-2589,2591-2615,2618-2635,2637-2657,8492-8529,8536-8541,8552-8553,8555
+  s_c1d1c93f383cfd::t_26c3e2b2ffae44 1678-1700,1702-1712
+  s_c1d1c93f383cfd::t_b52fde8fc1f235 8556
+packages/dom-shim/src/file-input.ts
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 15,106-109
+  s_c1d1c93f383cfd::t_9e3198b2c52d35 105
+  s_c1d1c93f383cfd::t_dfaca6ecbc7d28 110
+packages/page-script/src/dom-shim.d.ts
+  s_c1d1c93f383cfd::t_f95cdd9567d978 19
+packages/dom-shim/src/contract.ts
+  s_c1d1c93f383cfd::t_f95cdd9567d978 18
+packages/page-script/src/index.ts
+  s_c1d1c93f383cfd::t_f95cdd9567d978 264,5066-5073,5083
+packages/engine/test/e2e/bridge-dom-fastpath.e2e.test.ts
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 166-170,180
+packages/dom-shim/src/document.ts
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 484-493
+packages/core/src/node_handle_test.rs
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 168-208,212-271,275-317
+  s_c1d1c93f383cfd::t_c29ed663bcf328 209-211,272-274
+packages/dom-shim/src/mutations/observer.ts
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 12-16,349-387,560-565
+  s_c1d1c93f383cfd::t_6c36c2d2eff5fd 566
+packages/dom-shim/src/state.ts
+  s_c1d1c93f383cfd::t_134c5ccb016fac 251,331-334
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 342-349,403-419,490-506
+  s_c1d1c93f383cfd::t_a20bac02b63a5d 15,227,231-250,252-330,335-340
+  s_c1d1c93f383cfd::t_3cf88bc1eec0e9 341
+  s_c1d1c93f383cfd::t_e552f2916e117a 228-230
+packages/dom-shim/src/events/slotchange.ts
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 7,15-25
+  s_c1d1c93f383cfd::t_26c1f71dc795ba 26
+packages/dom-shim/src/events/dispatch.ts
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 252-262
+packages/engine/src/cdp/kitesurf.ts
+  s_c1d1c93f383cfd::t_f95cdd9567d978 457-458
+packages/dom-shim/src/registries.ts
+  s_c1d1c93f383cfd::t_4157a93616d129 466
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 15-149,155-163,165-177,300,304-309,311-323,414-460,462-465,467-469,478-479,490-491,499
+  s_c1d1c93f383cfd::t_fb7c1f08a4662c 293-297,310,461,470-471
+  s_c1d1c93f383cfd::t_e552f2916e117a 164
+  s_c1d1c93f383cfd::t_a0243be239d61c 365-366
+packages/dom-shim/src/fastpath.ts
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 49-50,55-59
+packages/dom-shim/src/index.ts
+  s_c1d1c93f383cfd::t_f95cdd9567d978 303
+  s_c1d1c93f383cfd::t_4f640c5fbc335e 78
+  s_c1d1c93f383cfd::t_f8257e5f2bc390 659
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 200-204,266-270,277-294,548-551,564,568,608,657-658
+packages/dom-shim/src/element.ts
+  s_c1d1c93f383cfd::t_0cfce50b5c087d 1660,1689
+  s_c1d1c93f383cfd::t_bd3e921de6ade9 126,1767
+  s_c1d1c93f383cfd::t_c2cb0caa6edc92 48,50-51,99,125,170,1765,1772,8983-9001,9912-9924,9948-9950,9959-9961,9964,9990-9991,9995,9998,10156-10158,10176-10181,10184,10196
+packages/engine/test/e2e/detached-subtree-reclaim.e2e.test.ts
+  s_c1d1c93f383cfd::t_9b610219712100 1-334
+packages/engine/test/e2e/idl-handler-rekey.e2e.test.ts
+  s_c1d1c93f383cfd::t_0792fef37ba7e0 1-54
+packages/engine/test/e2e/named-global-live.e2e.test.ts
+  s_c1d1c93f383cfd::t_c0f0f4f25b45a9 1-9,11-17,19,25-66,69,71-76,78-96
+  s_c1d1c93f383cfd::t_850b4dddfdc4fb 67-68,70
+  s_c1d1c93f383cfd::t_abd22d0b02001f 10,18,20-24,77
+packages/dom-shim/src/window.ts
+  s_c1d1c93f383cfd::t_a0243be239d61c 1654-1663,1666,1668-1681,1685-1687,1691,1799-1800,1812
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0abde57420560b95b001e0e29a778fcb76e41253",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
