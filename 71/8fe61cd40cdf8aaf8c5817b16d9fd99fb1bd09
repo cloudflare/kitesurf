@@ -3,6 +3,8 @@ packages/engine/test/e2e/webmcp.e2e.test.ts
   s_888afb7fb58595::t_4de12f4b5d50de 528-530
 docs/WEBMCP.md
   s_6aaa3704780b80::t_c06ad4e647fdec 90-96
+  s_69fbe553efd20c::t_e158321e807c40 85-86
+  s_69fbe553efd20c::t_aa080f73ee365b 89
 packages/engine/src/cdp/webmcp.ts
   s_6aaa3704780b80::t_58d55b37ff6822 276,278-282
 packages/engine/test/e2e/trusted-fetch-metadata.e2e.test.ts
@@ -34,6 +36,7 @@ packages/dom-shim/src/events/dispatch.ts
   s_f65880fa48e906::t_9fc34b581fb48d 318-322,348-353
 packages/engine/test/page-script-compat.test.ts
   s_e14db85d7d877c::t_17f989ffee4490 19
+  s_69fbe553efd20c::t_aa080f73ee365b 13
 packages/engine/test/e2e/native-module-preload.e2e.test.ts
   s_e14db85d7d877c::t_17f989ffee4490 1-37
 packages/page-script/src/scripts.ts
@@ -53,6 +56,14 @@ packages/page-script/src/workerd-unsafe-eval.d.ts
   "base_commit_sha": "718fe61cd40cdf8aaf8c5817b16d9fd99fb1bd09",
   "prompts": {},
   "sessions": {
+    "s_69fbe553efd20c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3320992effegz7fD0bo3OTUiI",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_6aaa3704780b80": {
       "agent_id": {
         "tool": "opencode",
