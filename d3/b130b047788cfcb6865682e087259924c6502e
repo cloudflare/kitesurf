@@ -1,0 +1,20 @@
+packages/engine/wrangler.jsonc
+  s_9d23f821477cb3::t_5d0d9c24d1e753 439,450
+  s_9d23f821477cb3::t_e4f4631b43103e 451
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d3b130b047788cfcb6865682e087259924c6502e",
+  "prompts": {},
+  "sessions": {
+    "s_9d23f821477cb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2bd96fe6ffeQY26IEIjA0ULIx",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
