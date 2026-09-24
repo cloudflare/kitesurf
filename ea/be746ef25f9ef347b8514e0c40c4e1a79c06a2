@@ -1,0 +1,57 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0156-kitesurf-box-rare-large-node-and-element-fields.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-82
+scripts/patches/blitz-dom-0.3.0-beta.2/0157-kitesurf-skip-stale-scroll-marks-after-node-drop.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-40
+scripts/patches/blitz-dom-0.3.0-beta.2/0151-kitesurf-stamp-element-indices-on-the-svg-snapshot.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-198
+scripts/patches/blitz-dom-0.3.0-beta.2/0148-kitesurf-place-whitespace-only-box-lines-from-the-st.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-36
+scripts/patches/blitz-dom-0.3.0-beta.2/0144-kitesurf-anchor-auto-inset-fixed-boxes-at-their-stat.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-80
+scripts/patches/blitz-dom-0.3.0-beta.2/0150-Recover-inline-roots-after-layout-panics.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-43
+scripts/patches/blitz-dom-0.3.0-beta.2/0154-kitesurf-hold-cached-svg-trees-weakly.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-83
+scripts/patches/blitz-dom-0.3.0-beta.2/0146-Gate-font-face-fetches-on-unicode-range-against-the-.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-277
+scripts/patches/blitz-dom-0.3.0-beta.2/0155-kitesurf-keep-no-image-storage-for-url-free-layers.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-33
+scripts/patches/blitz-dom-0.3.0-beta.2/0152-kitesurf-keep-layout-caches-for-paint-only-damage.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-30
+scripts/patches/blitz-dom-0.3.0-beta.2/0153-kitesurf-discard-stylesheets-for-dropped-link-nodes.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-59
+scripts/patches/blitz-dom-0.3.0-beta.2/0145-kitesurf-refresh-incremental-SVG-snapshots.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-421
+scripts/patches/blitz-dom-0.3.0-beta.2/0149-kitesurf-stage-anonymous-style-refreshes.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-85
+scripts/patches/blitz-dom-0.3.0-beta.2/0147-Remove-unused-fixed-anchor-import.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-21
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-Queue-each-font-face-once-per-document.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 28
+packages/core/src/node_handle_test.rs
+  s_103b7f1f0713cd::t_0c19b67d8f3b1b 268-289
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eabe746ef25f9ef347b8514e0c40c4e1a79c06a2",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
