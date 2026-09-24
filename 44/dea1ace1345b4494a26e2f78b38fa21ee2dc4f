@@ -1,0 +1,33 @@
+packages/engine/src/eval/walk-module-graph.ts
+  s_103b7f1f0713cd::t_60d67b0514b90e 938
+  s_103b7f1f0713cd::t_439b35d37e19f0 547-563
+  s_103b7f1f0713cd::t_89333cd4ea17d8 890-892
+packages/engine/test/fixtures-worker/assets/astro-island.html
+  s_103b7f1f0713cd::t_337f0851d19316 1-9
+packages/engine/test/walk-module-graph.test.ts
+  s_103b7f1f0713cd::t_5de573bc21338a 18,35-47
+  s_103b7f1f0713cd::t_0568742fbfaec0 48
+packages/engine/test/e2e/classic-computed-import.e2e.test.ts
+  s_103b7f1f0713cd::t_3b0a4915bf493a 100-105
+packages/engine/src/cdp/page.ts
+  s_103b7f1f0713cd::t_8c250b61185d7f 35
+  s_103b7f1f0713cd::t_ccf40d6d787051 2853
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_103b7f1f0713cd::t_337f0851d19316 534-535,770-771,1508-1510
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "44dea1ace1345b4494a26e2f78b38fa21ee2dc4f",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

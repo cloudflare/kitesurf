@@ -1,0 +1,23 @@
+packages/core/src/boa_bridge.rs
+  s_c1d1c93f383cfd::t_892006fc90d704 13,15
+  s_c1d1c93f383cfd::t_0598ca3b7637a6 2538-2546,2548-2600
+packages/engine/test/e2e/bridge-fn-pin-release.e2e.test.ts
+  s_c1d1c93f383cfd::t_be0cb9024f49c8 82-84,86-97,99,101
+  s_c1d1c93f383cfd::t_938ba281749fae 85,98,100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5c490393557a222cd6176713ed55e052d705510f",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

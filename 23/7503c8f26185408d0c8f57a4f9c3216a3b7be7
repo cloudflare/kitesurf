@@ -1,0 +1,19 @@
+packages/engine/test/e2e/bridge-cycle-collect.e2e.test.ts
+  s_c1d1c93f383cfd::t_f70841c2cc41bd 136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "237503c8f26185408d0c8f57a4f9c3216a3b7be7",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

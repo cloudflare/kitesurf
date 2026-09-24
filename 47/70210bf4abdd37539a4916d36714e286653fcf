@@ -1,0 +1,24 @@
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_3dd21b9ba9a302 198-199
+  s_c1d1c93f383cfd::t_22cf7d026654d4 197
+packages/core/src/svg_tree_cache_test.rs
+  s_c1d1c93f383cfd::t_3dd21b9ba9a302 1-20
+scripts/patches/blitz-dom-0.3.0-beta.2/0144-kitesurf-hold-cached-svg-trees-weakly.patch
+  s_c1d1c93f383cfd::t_ba6b31f862d3de 1-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4770210bf4abdd37539a4916d36714e286653fcf",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

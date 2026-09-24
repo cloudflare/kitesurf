@@ -1,0 +1,67 @@
+packages/dom-shim/src/layout/cheap.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 23,59-64
+packages/dom-shim/src/reclaim.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 1-239
+packages/dom-shim/src/contract.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 18
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_82e33dfe576afd 1678-1712,1727-1730,1817-1840,2559-2567,2585-2589,2591-2657,8489-8555
+packages/engine/test/e2e/detached-subtree-reclaim.e2e.test.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 1-334
+packages/dom-shim/src/index.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 78,200-204,266-270,277-294,303,548-551,564,568,608,657-659
+packages/page-script/src/dom-shim.d.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 19
+packages/dom-shim/src/events/dispatch.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 252-262
+packages/dom-shim/src/events/slotchange.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 7,15-25
+packages/page-script/src/index.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 264,5066-5073,5083
+packages/dom-shim/src/state.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 15,227-349,403-419,490-506
+packages/engine/src/cdp/page-session.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 232-245
+packages/dom-shim/src/node-base.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 6,30-39,130-133,138-306,374-379,381,383-386,404,408-418,479-490,540,575,605,791,793,852-854,1106,1165,1168-1205,1210,1214,1218,1266-1268,1355,1362,1369,1380,1444,1462,1464,1540,1549,1688,1714,1725,1827,1834,1957,2072-2074,2076,2268,2298,2300,2305,2372,2410,2447,2485,2829-2830,2894,3043,3187
+packages/dom-shim/src/element.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 48,50-51,99,125-126,170,1660,1689,1765,1767,1772,8983-9001,9912-9924,9948-9950,9959-9961,9964,9990-9991,9995,9998,10156-10158,10176-10181,10184,10196
+packages/dom-shim/src/file-input.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 15,105-109
+packages/dom-shim/src/mutations/observer.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 12-16,349-387,560-565
+packages/dom-shim/src/registries.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 1-2,15-149,155-177,293-297,300,304-323,415-472,479-480,491-492,500
+packages/dom-shim/src/collections.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 5,37,248-258,331-336,2890,2896,2902,2908-2911,4213,4234-4237
+packages/engine/src/cdp/kitesurf.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 457-458
+packages/engine/test/e2e/idl-handler-rekey.e2e.test.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 1-54
+packages/core/src/node_handle_test.rs
+  s_c1d1c93f383cfd::t_82e33dfe576afd 168-317
+packages/dom-shim/src/document.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 484-493
+packages/dom-shim/src/fastpath.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 49-50,55-59
+packages/engine/test/e2e/bridge-dom-fastpath.e2e.test.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 166-170,180
+packages/engine/test/e2e/detached-listener-reclaim.e2e.test.ts
+  s_c1d1c93f383cfd::t_82e33dfe576afd 1-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c512ce692bc54a3de4499e17c0aaded8028a9a5e",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

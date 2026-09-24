@@ -1,0 +1,36 @@
+scripts/patches/boa_engine-0.20.0/0018-module-profile-deferred-source-re-parsing.patch
+  s_c1d1c93f383cfd::t_f70841c2cc41bd 1-21
+scripts/patches/boa_engine-0.20.0/0017-module-preserve-source-path-and-parsing-profile-when.patch
+  s_c1d1c93f383cfd::t_f70841c2cc41bd 1-53
+packages/core/src/boa_bridge.rs
+  s_c1d1c93f383cfd::t_f70841c2cc41bd 2547
+packages/core/src/boa_parse_peak_test.rs
+  s_c1d1c93f383cfd::t_f70841c2cc41bd 1,60
+packages/dom-shim/src/reclaim.ts
+  s_c1d1c93f383cfd::t_5205aad6fd0271 91
+  s_c1d1c93f383cfd::t_b994c93cf7d210 1-4,39,42,50,217
+  s_c1d1c93f383cfd::t_5bfaae1224e2ae 46,98-99,117,121,130,138,156,174,191
+  s_c1d1c93f383cfd::t_c021c1b129e45a 74,81-83,85,233-239
+packages/dom-shim/src/registries.ts
+  s_c1d1c93f383cfd::t_f70841c2cc41bd 1-2,164
+packages/dom-shim/src/state.ts
+  s_c1d1c93f383cfd::t_5205aad6fd0271 228-230
+packages/engine/test/e2e/bridge-cycle-collect.e2e.test.ts
+  s_c1d1c93f383cfd::t_f70841c2cc41bd 136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "570ec43743276b3dfcd7b6e83895bc211fb0ad25",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

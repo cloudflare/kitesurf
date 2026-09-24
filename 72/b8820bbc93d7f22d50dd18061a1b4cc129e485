@@ -1,0 +1,19 @@
+packages/dom-shim/src/window.ts
+  s_976952ea0f77dd::t_fc0e09d059e054 1667-1671,1677-1682
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "72b8820bbc93d7f22d50dd18061a1b4cc129e485",
+  "prompts": {},
+  "sessions": {
+    "s_976952ea0f77dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f724de1ffeidXYFNOciC2RDu",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

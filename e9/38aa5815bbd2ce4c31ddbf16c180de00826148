@@ -1,0 +1,19 @@
+packages/dom-shim/src/reclaim.ts
+  s_976952ea0f77dd::t_f9f7f85439dff8 138-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e938aa5815bbd2ce4c31ddbf16c180de00826148",
+  "prompts": {},
+  "sessions": {
+    "s_976952ea0f77dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f724de1ffeidXYFNOciC2RDu",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+docs/PLATFORM.md
+  s_c1d1c93f383cfd::t_b9ed9e01ec1610 109-110
+  s_c1d1c93f383cfd::t_05ab6b3b2f1ec8 95-108,111-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1f74d09b179f47310cd08c99c35e6b4433623169",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": null
+    }
+  }
+}
