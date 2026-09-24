@@ -1,0 +1,22 @@
+packages/dom-shim/src/collections.ts
+  s_38b7bb489593d7::t_b4bb013257c159 318-321
+packages/dom-shim/src/node-base.ts
+  s_38b7bb489593d7::t_b4bb013257c159 29,642-661,984,988,1118-1123,1128,1134
+  s_38b7bb489593d7::t_0bf8e8f3adc8cd 1126-1127,1132-1133,1138-1140,1148-1150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "316cebd85340e29482385032d9491006530eee12",
+  "prompts": {},
+  "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
