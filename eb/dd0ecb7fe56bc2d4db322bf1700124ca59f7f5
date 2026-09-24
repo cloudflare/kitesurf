@@ -1,0 +1,32 @@
+docs/WEBMCP.md
+  s_406c932593ce36::t_9ad9ac77ad078d 48-51
+packages/engine/test/page-script-rpc-session.test.ts
+  s_406c932593ce36::t_8cddb4b08b0f01 148
+  s_406c932593ce36::t_cf4817e1e9ce4a 129-147,149-154
+packages/engine/src/eval/page-script.ts
+  s_406c932593ce36::t_c67efe933b34a4 514-519
+packages/engine/src/cdp/page-session.ts
+  s_406c932593ce36::t_2272baedb2cfc0 282-286
+  s_406c932593ce36::t_83de1985c9027a 298,300-304
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_406c932593ce36::t_fd5347de3658a6 561-566
+packages/engine/src/cdp/webmcp.ts
+  s_406c932593ce36::t_589b7106f867db 74-76
+  s_406c932593ce36::t_2fbcbdde3df627 413-415,420
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ebdd0ecb7fe56bc2d4db322bf1700124ca59f7f5",
+  "prompts": {},
+  "sessions": {
+    "s_406c932593ce36": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2a4ed7d1ffetDqaccHiUn9fzx",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
