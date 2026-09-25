@@ -1,0 +1,161 @@
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_296f2365729419::t_3ceaba3b120497 1-129
+packages/tty-css-preview/extension/update.js
+  s_296f2365729419::t_3ceaba3b120497 1-71
+packages/core/src/tty_grid.rs
+  s_296f2365729419::t_3ceaba3b120497 52-69,197-200,241,451-454,462,465-476,478-491,495-497,499-501,512-526,547-558,579,584-591,596-636,727,905-909,962-970,989,1002,1034-1037,1051,1076-1080,1911-2008,2067-2109,2193,2196-2197,2204-2218,2235,2239,2243-2245,2247,2249-2269
+packages/engine/src/tty/route.ts
+  s_296f2365729419::t_3ceaba3b120497 20,26-29,31,40,87
+packages/tty-css-preview/extension/snap.js
+  s_296f2365729419::t_3ceaba3b120497 1-23
+scripts/patches/blitz-dom-0.3.0-beta.2/0158-Retain-raw-table-tracks-across-terminal-reflow.patch
+  s_296f2365729419::t_3ceaba3b120497 1-67
+scripts/patches/blitz-dom-0.3.0-beta.2/0160-Hit-text-only-on-the-line-that-contains-the-point.patch
+  s_296f2365729419::t_3ceaba3b120497 1-55
+packages/engine/src/tty/session.ts
+  s_296f2365729419::t_3ceaba3b120497 55-56,219-220,272-276,344-352,358,507,513-532,535-541,543-544,548-552,588-590,592,684-685,764,794-799,849,1005-1008,1032-1033,1035,1037,1096,1103,1163-1171,1196
+  s_296f2365729419::t_8db98a66a8d978 1079-1093,1095,1097
+  s_296f2365729419::t_abc7fd43ebbc33 591
+docs/TERMINAL.md
+  s_296f2365729419::t_3ceaba3b120497 23-25,28-30,34-35,73,103-107,143-229,310-312
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_296f2365729419::t_3ceaba3b120497 2595-2613
+packages/tty-css-preview/extension/fallback-level1.css
+  s_296f2365729419::t_3ceaba3b120497 1-280
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-Queue-each-font-face-once-per-document.patch
+  s_296f2365729419::t_3ceaba3b120497 28
+packages/engine/wrangler.jsonc
+  s_296f2365729419::t_3ceaba3b120497 64,71
+packages/engine/src/cdp/page.ts
+  s_296f2365729419::t_3ceaba3b120497 3251
+packages/engine/src/text-modules.d.ts
+  s_296f2365729419::t_3ceaba3b120497 1-4
+packages/dom-shim/src/layout/scroll.ts
+  s_296f2365729419::t_3ceaba3b120497 36-40,162-167,172-173,192-197,223-228,236,239,241
+packages/engine/test/term-geometry.test.ts
+  s_296f2365729419::t_3ceaba3b120497 3-8,31-41,146-158
+packages/engine/test/e2e/tty-todomvc-controls.e2e.test.ts
+  s_296f2365729419::t_3ceaba3b120497 1-40
+packages/tty-css-preview/extension/fallback-level2.css
+  s_296f2365729419::t_3ceaba3b120497 1-13
+packages/tty-css-preview/src/server.mjs
+  s_296f2365729419::t_3ceaba3b120497 1-94
+packages/engine/test/tty-stylesheet.test.ts
+  s_296f2365729419::t_3ceaba3b120497 3,6-7,10-23,25,28-37,40-59,63-68,71-74,77-92,95-249
+packages/engine/src/tty/stylesheet.ts
+  s_296f2365729419::t_3ceaba3b120497 1-2,5,7-9,11-18
+scripts/patches/blitz-paint-0.3.0-beta.2/0030-Paint-tables-from-adjusted-track-geometry.patch
+  s_296f2365729419::t_3ceaba3b120497 1-42
+packages/page-script/src/index.ts
+  s_296f2365729419::t_3ceaba3b120497 237,338-359,1442-1446,1451-1457,1459,1467,1687-1692,3461-3464,3505-3508,3523-3526,3537,3552-3555,3557-3558
+scripts/patches/blitz-dom-0.3.0-beta.2/0146-Gate-font-face-fetches-on-unicode-range-against-the-.patch
+  s_296f2365729419::t_3ceaba3b120497 44,190
+scripts/patches/blitz-dom-0.3.0-beta.2/0157-Account-for-table-ancestors-when-snapping-tracks.patch
+  s_296f2365729419::t_3ceaba3b120497 1-60
+scripts/patches/blitz-dom-0.3.0-beta.2/0153-Carry-the-layout-rounding-step-on-the-document.patch
+  s_296f2365729419::t_3ceaba3b120497 1-66
+packages/engine/vitest.config.mts
+  s_296f2365729419::t_3ceaba3b120497 17-18,61
+packages/engine/src/tty/stylesheet.css
+  s_296f2365729419::t_3ceaba3b120497 1-280
+packages/tty-css-preview/extension/content.js
+  s_296f2365729419::t_3ceaba3b120497 1-446
+packages/core/src/lib.rs
+  s_296f2365729419::t_3ceaba3b120497 80-81,289-291,512-533,1076-1082,4961-4968
+scripts/patches/blitz-dom-0.3.0-beta.2/0155-Honor-vertical-alignment-inside-table-cells.patch
+  s_296f2365729419::t_3ceaba3b120497 1-121
+scripts/patches/blitz-dom-0.3.0-beta.2/0159-Align-table-tracks-to-their-final-paint-origin.patch
+  s_296f2365729419::t_3ceaba3b120497 1-56
+packages/core/src/tty_modes.rs
+  s_296f2365729419::t_3ceaba3b120497 75,77-78,444-445
+packages/page-script/src/wasm-glue.d.ts
+  s_296f2365729419::t_3ceaba3b120497 232-236
+scripts/patches/blitz-dom-0.3.0-beta.2/0144-kitesurf-anchor-auto-inset-fixed-boxes-at-their-stat.patch
+  s_296f2365729419::t_3ceaba3b120497 15,18,28
+scripts/patches/blitz-dom-0.3.0-beta.2/0147-Remove-unused-fixed-anchor-import.patch
+  s_296f2365729419::t_3ceaba3b120497 11,14
+packages/core/src/tty_cell_grid_test.rs
+  s_296f2365729419::t_3ceaba3b120497 1-878
+scripts/patches/blitz-dom-0.3.0-beta.2/0154-Tolerate-a-sub-cell-width-change-instead-of-re-break.patch
+  s_296f2365729419::t_3ceaba3b120497 1-47
+packages/tty-css-preview/README.md
+  s_296f2365729419::t_3ceaba3b120497 1-44
+packages/tty-css-preview/extension/scroll.js
+  s_296f2365729419::t_3ceaba3b120497 1-31
+packages/engine/test/e2e/tty-wheel-grid.e2e.test.ts
+  s_296f2365729419::t_3ceaba3b120497 1-50
+scripts/patches/taffy-0.14.0/0008-Let-a-backend-round-layout-to-something-other-than-a.patch
+  s_296f2365729419::t_3ceaba3b120497 1-146
+packages/tty-css-preview/extension/manifest.json
+  s_296f2365729419::t_3ceaba3b120497 1-27
+packages/tty-css-preview/test/scroll.test.mjs
+  s_296f2365729419::t_3ceaba3b120497 1-37
+packages/engine/vitest.e2e.config.mts
+  s_296f2365729419::t_3ceaba3b120497 97-98,101
+packages/tty-css-preview/package.json
+  s_296f2365729419::t_3ceaba3b120497 1-12
+AGENTS.md
+  s_296f2365729419::t_3ceaba3b120497 83-84
+packages/tty-css-preview/test/grid.test.mjs
+  s_296f2365729419::t_3ceaba3b120497 1-32
+package.json
+  s_296f2365729419::t_3ceaba3b120497 11,48
+packages/engine/test/term.test.ts
+  s_296f2365729419::t_3ceaba3b120497 4,92-108
+.gitlab-ci.yml
+  s_296f2365729419::t_3ceaba3b120497 573-574
+packages/tty-css-preview/test/server.test.mjs
+  s_296f2365729419::t_3ceaba3b120497 1-105
+packages/page-script/src/paint.ts
+  s_296f2365729419::t_3ceaba3b120497 192-193,197-200
+packages/core/src/hit_test_block_axis_test.rs
+  s_296f2365729419::t_3ceaba3b120497 1-78
+scripts/patches/blitz-paint-0.3.0-beta.2/0029-Keep-collapsed-borders-when-terminal-tracks-collapse.patch
+  s_296f2365729419::t_3ceaba3b120497 1-103
+packages/engine/test/term-target.test.ts
+  s_296f2365729419::t_3ceaba3b120497 7,135-147,149
+packages/tty-css-preview/extension/background.js
+  s_296f2365729419::t_3ceaba3b120497 1-75
+packages/engine/src/tty/stylesheet-level2.css
+  s_296f2365729419::t_3ceaba3b120497 1-13
+packages/tty-css-preview/extension/popup.css
+  s_296f2365729419::t_3ceaba3b120497 1-75
+packages/tty-css-preview/extension/popup.html
+  s_296f2365729419::t_3ceaba3b120497 1-27
+packages/dom-shim/src/state.ts
+  s_296f2365729419::t_3ceaba3b120497 97
+scripts/dev-term.mjs
+  s_296f2365729419::t_3ceaba3b120497 24-25
+packages/tty-css-preview/test/snap.test.mjs
+  s_296f2365729419::t_3ceaba3b120497 1-36
+packages/tty-css-preview/test/update.test.mjs
+  s_296f2365729419::t_3ceaba3b120497 1-108
+scripts/patches/blitz-dom-0.3.0-beta.2/0151-kitesurf-stamp-element-indices-on-the-svg-snapshot.patch
+  s_296f2365729419::t_3ceaba3b120497 37
+scripts/patches/blitz-dom-0.3.0-beta.2/0156-Snap-terminal-table-tracks-with-cell-layout.patch
+  s_296f2365729419::t_3ceaba3b120497 1-102
+scripts/patches/blitz-paint-0.3.0-beta.2/0028-Paint-table-cell-text-at-its-aligned-offset.patch
+  s_296f2365729419::t_3ceaba3b120497 1-35
+packages/tty-css-preview/extension/popup.js
+  s_296f2365729419::t_3ceaba3b120497 1-28
+scripts/patches/blitz-paint-0.3.0-beta.2/0031-Align-table-row-backgrounds-with-paint-tracks.patch
+  s_296f2365729419::t_3ceaba3b120497 1-43
+packages/engine/src/cdp/input.ts
+  s_296f2365729419::t_3ceaba3b120497 199-204,224-225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3542d4ffdd1702bb49a439a831757a87449be27b",
+  "prompts": {},
+  "sessions": {
+    "s_296f2365729419": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f28b529a3ffeo0w45PqHM10i01",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
