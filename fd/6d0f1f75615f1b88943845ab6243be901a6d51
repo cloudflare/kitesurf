@@ -1,0 +1,22 @@
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_59355b80332486 7651-7657
+  s_c1d1c93f383cfd::t_38c88255c5e951 7645-7650,7658-7659
+  s_c1d1c93f383cfd::t_5fa368d361f0a2 4294-4295,4297
+  s_c1d1c93f383cfd::t_49dbb20f1aaf23 4296
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fd6d0f1f75615f1b88943845ab6243be901a6d51",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
