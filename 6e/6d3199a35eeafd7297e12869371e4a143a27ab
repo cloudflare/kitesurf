@@ -1,0 +1,23 @@
+packages/page-script/src/scheduler.ts
+  s_d540f8cedf08dc::t_982e3883ae18e8 1-53
+packages/page-script/src/globals.ts
+  s_d540f8cedf08dc::t_3e22689c33688c 32,5738-5749,6075
+packages/engine/test/e2e/tldraw-app-shell.e2e.test.ts
+  s_d540f8cedf08dc::t_3e22689c33688c 39-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6e6d3199a35eeafd7297e12869371e4a143a27ab",
+  "prompts": {},
+  "sessions": {
+    "s_d540f8cedf08dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25735613ffeEW7maT59wy26a8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
