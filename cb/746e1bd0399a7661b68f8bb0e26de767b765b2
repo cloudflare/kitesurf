@@ -1,0 +1,19 @@
+packages/dom-shim/src/registries.ts
+  s_a4cd376a121cc2::t_1444ef55242592 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cb746e1bd0399a7661b68f8bb0e26de767b765b2",
+  "prompts": {},
+  "sessions": {
+    "s_a4cd376a121cc2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-speedtest-consolidated-mr",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
