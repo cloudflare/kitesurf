@@ -14,6 +14,21 @@ packages/core/src/fonts.rs
   s_c1d1c93f383cfd::t_924fc2bb91d0ba 1432,1593-1594,2659-2660
 packages/dom-shim/src/node-base.ts
   s_c1d1c93f383cfd::t_da3da0866b9cb6 127-130
+packages/page-script/src/globals.ts
+  s_4bf6d1a62fbc65::t_7411ecb63186b4 3341-3342
+  s_c1d1c93f383cfd::t_81ade2f581e783 2204-2214
+packages/dom-shim/src/canvas2d.ts
+  s_c1d1c93f383cfd::t_1c516a8bab9616 370
+packages/engine/test/e2e/perf-resource-timing-buffer.e2e.test.ts
+  s_c1d1c93f383cfd::t_eab6dba20a2d60 1-57
+scripts/patches/blitz-dom-0.3.0-beta.2/0141-kitesurf-refresh-incremental-SVG-snapshots.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-421
+scripts/patches/blitz-dom-0.3.0-beta.2/0142-kitesurf-stage-anonymous-style-refreshes.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-85
+scripts/patches/blitz-dom-0.3.0-beta.2/0142-Remove-unused-fixed-anchor-import.patch
+  s_c1d1c93f383cfd::t_2e3b76381c04e6 1-10,12-13,15-21
+packages/engine/test/e2e/detached-subtree-reclaim.e2e.test.ts
+  s_c1d1c93f383cfd::t_1dedfe43350e63 31
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -21,6 +36,46 @@ packages/dom-shim/src/node-base.ts
   "base_commit_sha": "2fb426888f61ac6a1fc15a371ec4d3844265ccb1",
   "prompts": {},
   "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_40903f47007d04": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31c06df3ffeEKUOnQurm3CCTI",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4bf6d1a62fbc65": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f331d74e1ffeFV9A2NojKxCBMV",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_69fbe553efd20c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3320992effegz7fD0bo3OTUiI",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_9e427e87de8d03": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31c8f218ffe2UTBOjN0V8QwMX",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_c1d1c93f383cfd": {
       "agent_id": {
         "tool": "opencode",
