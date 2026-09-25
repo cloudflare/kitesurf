@@ -1,0 +1,19 @@
+packages/engine/test/e2e/img-src-change.e2e.test.ts
+  s_763ace17cc385a::t_37dd9f43985013 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6fc8ddcc3f45325b474c8e27a900d5318e24f4de",
+  "prompts": {},
+  "sessions": {
+    "s_763ace17cc385a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2cea3589ffeJqVL2M7sxo0Kzc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
