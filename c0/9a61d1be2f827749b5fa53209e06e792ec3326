@@ -1,0 +1,23 @@
+docs/CDP.md
+  s_db62237ce9a445::t_62c62405402627 44-46
+packages/engine/test/e2e/eval-during-navigate.e2e.test.ts
+  s_db62237ce9a445::t_50ada34e905120 87-88
+packages/engine/test/e2e/location-assign-navigates.e2e.test.ts
+  s_db62237ce9a445::t_50ada34e905120 33-36,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c09a61d1be2f827749b5fa53209e06e792ec3326",
+  "prompts": {},
+  "sessions": {
+    "s_db62237ce9a445": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25d89749ffe1DHFSv3WId84ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
