@@ -1,0 +1,51 @@
+packages/website/src/pages/bench/Explorer.tsx
+  s_c1a6940130844c::t_3e037dde98b170 421,430
+packages/website/src/client/landing.ts
+  s_c1a6940130844c::t_3e037dde98b170 4,6,34,50
+packages/website/src/components/Document.tsx
+  s_c1a6940130844c::t_3e037dde98b170 9,13-16
+packages/bench-report/scripts/public-data.mjs
+  s_c1a6940130844c::t_47eb652753bde7 7-20
+  s_c1a6940130844c::t_041ef14fcf022a 31-33
+packages/bench-report/scripts/public-data.test.mjs
+  s_c1a6940130844c::t_a59b92bb74121a 28
+  s_c1a6940130844c::t_d537bd5b9339eb 19-20
+docs/RELEASING.md
+  s_c1a6940130844c::t_bcbd4907343449 20,23-26
+  s_c1a6940130844c::t_bddfba76d483de 27
+packages/website/src/client/bench.tsx
+  s_c1a6940130844c::t_7a564960245b5e 5,9-11
+README.md
+  s_c1a6940130844c::t_6044f3f4ec2951 103
+  s_c1a6940130844c::t_6e9a068a1de4d1 330
+packages/website/src/components/SiteHeader.tsx
+  s_c1a6940130844c::t_3e037dde98b170 7
+packages/website/src/components/SiteFooter.tsx
+  s_c1a6940130844c::t_3e037dde98b170 11
+packages/website/src/pages/bench/state.ts
+  s_c1a6940130844c::t_7e65999c10d8f6 22-65
+packages/website/tsconfig.json
+  s_c1a6940130844c::t_a2dc3ae456153a 11-14
+packages/website/src/client/wpt.ts
+  s_c1a6940130844c::t_8291597764ae48 12-14,16
+  s_c1a6940130844c::t_89a4f3e64cc6de 11
+  s_c1a6940130844c::t_391a9cfb98dcf5 15,17-21
+  s_c1a6940130844c::t_3e037dde98b170 29-32,88
+  s_c1a6940130844c::t_7c776d4a5d4314 27-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "55c50b5dfcb3469c75d3b45418af09a5ebb8ca1d",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
