@@ -1,0 +1,24 @@
+packages/engine/test/external-auth.test.ts
+  s_2c0997009df69f::t_ad0835cbbf474a 10,252-269
+  s_2c0997009df69f::t_05e8b7dbc9db04 270
+packages/engine/src/cdp/page.ts
+  s_2c0997009df69f::t_c13c4efc85391a 92,588-593,838,1047,1132,1299,3967
+packages/engine/src/cdp/external-auth.ts
+  s_2c0997009df69f::t_c13c4efc85391a 459-498
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2803319bb139372c91a608de43c88f5ffd41f02e",
+  "prompts": {},
+  "sessions": {
+    "s_2c0997009df69f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f215b4eeaffe2z5WUXyfH9V73a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
