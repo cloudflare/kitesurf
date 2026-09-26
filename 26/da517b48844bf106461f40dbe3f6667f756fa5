@@ -1,0 +1,24 @@
+packages/core/src/abspos_containing_block_test.rs
+  s_9e81b4a6c69001::t_5272b25fa068c2 178-179,185-188,194-195,197-198
+  s_9e81b4a6c69001::t_615c10b65a357c 199-204
+  s_9e81b4a6c69001::t_98bec8d2124612 171-177,180-184,189-193,196,205-207
+scripts/patches/blitz-dom-0.3.0-beta.2/0161-Hoist-an-abspos-box-out-of-an-anonymous-inline-root.patch
+  s_9e81b4a6c69001::t_3989108565a4a2 22-24
+  s_9e81b4a6c69001::t_f47699d550df07 19-21,28,30,33,36-53,57-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "26da517b48844bf106461f40dbe3f6667f756fa5",
+  "prompts": {},
+  "sessions": {
+    "s_9e81b4a6c69001": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f224e5569ffeXS7ZYcaKL0TZNS",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
