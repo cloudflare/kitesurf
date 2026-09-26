@@ -5,9 +5,11 @@ packages/engine/test/walk-module-graph.test.ts
   s_db62237ce9a445::t_7e392a83f4706f 204-226,231-236,238-242,244-263
   s_db62237ce9a445::t_f20a1236bfe289 22
   s_db62237ce9a445::t_9125768a3d55d2 227-230,237,243
+  s_38b7bb489593d7::t_b02a860afb401f 291,297
 packages/engine/src/eval/walk-module-graph.ts
   s_db62237ce9a445::t_9690e14832208c 565-578,580-604,945-946,1128-1131,1346-1362,1729
   s_db62237ce9a445::t_e4a68728897f6f 579
+  s_38b7bb489593d7::t_dee0d5bb47e874 1612,1689
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -15,6 +17,14 @@ packages/engine/src/eval/walk-module-graph.ts
   "base_commit_sha": "927bc65dc8eed855ef66da8b04b7ca68eea754ce",
   "prompts": {},
   "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_db62237ce9a445": {
       "agent_id": {
         "tool": "opencode",
