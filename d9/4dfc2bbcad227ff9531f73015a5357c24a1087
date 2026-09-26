@@ -1,0 +1,23 @@
+packages/website/src/pages/landing/Showcase.tsx
+  s_c1a6940130844c::t_c52a349a4c3e87 70-71
+packages/website/scripts/capture-showcase.mjs
+  s_c1a6940130844c::t_690d7e9f383682 29-31
+  s_c1a6940130844c::t_4472416f8ab3bd 37-39
+  s_c1a6940130844c::t_c52a349a4c3e87 16-20,28,32,34-36,40-41,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d94dfc2bbcad227ff9531f73015a5357c24a1087",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
