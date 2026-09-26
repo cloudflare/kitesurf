@@ -1,0 +1,33 @@
+packages/engine/test/e2e/native-import-map.e2e.test.ts
+  s_a75ea28c7345c6::t_7c71dcfb8d9aa4 1-84
+packages/engine/test/fixtures-worker/assets/importmap.html
+  s_a75ea28c7345c6::t_343d49ff5a18fe 1-120
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_a75ea28c7345c6::t_a7423f8feefe44 717-718,1498-1499,1533-1538,3331-3359
+packages/engine/test/fixtures-worker/assets/importmap-scoped-entry.js
+  s_e14db85d7d877c::t_2dc3c484845b73 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fef73cd90a863626a31efa4ba6a178669a32b459",
+  "prompts": {},
+  "sessions": {
+    "s_a75ea28c7345c6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6ba347d1ffeBXm6VNFbnPDneO",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_e14db85d7d877c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f58aefaa7ffesWXuu74hnx5qny",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

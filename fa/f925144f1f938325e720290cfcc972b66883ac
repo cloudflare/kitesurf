@@ -1,0 +1,19 @@
+packages/engine/test/e2e/load-event-propagation.e2e.test.ts
+  s_a75ea28c7345c6::t_9ae3ad82ad17ac 5,15,29-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "faf925144f1f938325e720290cfcc972b66883ac",
+  "prompts": {},
+  "sessions": {
+    "s_a75ea28c7345c6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6ba347d1ffeBXm6VNFbnPDneO",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
