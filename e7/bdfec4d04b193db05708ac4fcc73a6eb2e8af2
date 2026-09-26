@@ -1,0 +1,43 @@
+packages/website/tsconfig.json
+  s_c1a6940130844c::t_f263e2ec93490e 22-23
+packages/website/package.json
+  s_c1a6940130844c::t_b0796bcf9f90af 27-28
+  s_c1a6940130844c::t_8aaa6c0afd9480 12
+packages/website/src/pages/bench/state.ts
+  s_c1a6940130844c::t_4ffa045db86d53 25,94
+  s_c1a6940130844c::t_d8588719d85ddf 5-7,10-11,13-18,20-23,26,28-29,51-80
+  s_c1a6940130844c::t_f1c9650c450088 81-82
+packages/website/src/client/bench.tsx
+  s_c1a6940130844c::t_fc43b004ce7391 5,9,11-12
+packages/website/src/pages/bench/state.test.ts
+  s_c1a6940130844c::t_2e400135a78fbc 33
+  s_c1a6940130844c::t_fba32ef095be32 1-32,34-52
+.gitlab-ci.yml
+  s_c1a6940130844c::t_82244cda3758e4 2092-2093
+pnpm-lock.yaml
+  s_db62237ce9a445::t_9541f21d28f283 285-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e7bdfec4d04b193db05708ac4fcc73a6eb2e8af2",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_db62237ce9a445": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25d89749ffe1DHFSv3WId84ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
