@@ -1,0 +1,25 @@
+packages/engine/src/cdp/page.ts
+  s_38b7bb489593d7::t_12e2fba5b069cc 4614,4626,4633-4676
+  s_38b7bb489593d7::t_414bd7eeceb326 4443
+  s_38b7bb489593d7::t_b36e6a1415cbc6 4677-4678
+packages/engine/src/cdp/page-session.ts
+  s_38b7bb489593d7::t_b6ae564abd3a78 148-149
+packages/page-script/src/index.ts
+  s_38b7bb489593d7::t_27d21c8c415a33 4262,4266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6576e06e0bfb94b998420c74d3a7fd47e61c36f1",
+  "prompts": {},
+  "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
