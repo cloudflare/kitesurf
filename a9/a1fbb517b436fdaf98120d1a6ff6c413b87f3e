@@ -1,0 +1,32 @@
+packages/dom-shim/src/node-base.ts
+  s_c1d1c93f383cfd::t_4d53fdf37e9399 1655,2490,2528,3181,3183,3185-3186,3188
+  s_c1d1c93f383cfd::t_5f3d89a5fd2b07 486-489,498-506,1323-1325,1331,1338,1743,1842,2205,2212,2214,2232,2260,3178,3184,3187,3190,3193
+  s_c1d1c93f383cfd::t_77817e8fd6f89f 515-518,522
+  s_c1d1c93f383cfd::t_6ee94174a79ff4 483-485,490-497,512,521,523-527
+  s_c1d1c93f383cfd::t_40cc70376cbf24 528
+packages/dom-shim/src/reclaim.ts
+  s_c1d1c93f383cfd::t_6ee94174a79ff4 51-59,66
+packages/dom-shim/src/element.ts
+  s_c1d1c93f383cfd::t_6ee94174a79ff4 170-182,188,1941-1950
+packages/dom-shim/src/state.ts
+  s_c1d1c93f383cfd::t_4d53fdf37e9399 259-263
+  s_c1d1c93f383cfd::t_6ee94174a79ff4 231-237,247,252,258,272
+packages/dom-shim/src/events/dispatch.ts
+  s_c1d1c93f383cfd::t_6ee94174a79ff4 19,74,76,80-82,86-87,674,726-729,740,749
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a9a1fbb517b436fdaf98120d1a6ff6c413b87f3e",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
