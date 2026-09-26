@@ -3,6 +3,7 @@ packages/dom-shim/src/window.ts
 packages/page-script/src/globals.ts
   s_69fbe553efd20c::t_b32b503f61beca 1765-1770,1773-1776
   s_69fbe553efd20c::t_cd3f4d37e737c7 5074
+  s_4a0765e9f35327::t_323ef9170494e3 1771-1772,5073
 packages/page-script/src/transitions.ts
   s_69fbe553efd20c::t_d193bb793d456a 70-72,74,76-78,80-81
 packages/engine/src/eval/page-script.ts
@@ -16,6 +17,14 @@ packages/dom-shim/src/model-context.ts
   "base_commit_sha": "212f4a0b6cf95426d1e61ad52c1681a9b6dd24c0",
   "prompts": {},
   "sessions": {
+    "s_4a0765e9f35327": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22de99daffe33APq8G4JKs5uV",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_69fbe553efd20c": {
       "agent_id": {
         "tool": "opencode",
