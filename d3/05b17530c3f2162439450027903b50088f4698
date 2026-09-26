@@ -1,0 +1,21 @@
+.gitlab-ci.yml
+  s_c1a6940130844c::t_09b8011cfbf4f0 1956-1957
+README.md
+  s_c1a6940130844c::t_22da6969efea99 134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d305b17530c3f2162439450027903b50088f4698",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
