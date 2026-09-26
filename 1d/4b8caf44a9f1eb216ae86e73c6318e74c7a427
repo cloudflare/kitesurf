@@ -1,0 +1,25 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_2c0997009df69f::t_25aac791097378 1891-1894
+  s_2c0997009df69f::t_f4cf8790ee4208 1-2
+packages/engine/test/e2e/external-auth-handoff.e2e.test.ts
+  s_2c0997009df69f::t_83a961e1a40166 1-412
+packages/engine/test/fixtures-worker/src/external-auth.ts
+  s_2c0997009df69f::t_6a1422b63202a0 1-38,43-112
+  s_2c0997009df69f::t_8ac3b0b4555c41 39-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1d4b8caf44a9f1eb216ae86e73c6318e74c7a427",
+  "prompts": {},
+  "sessions": {
+    "s_2c0997009df69f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f215b4eeaffe2z5WUXyfH9V73a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
