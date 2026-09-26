@@ -1,0 +1,20 @@
+packages/website/src/pages/landing/Agents.tsx
+  s_c1a6940130844c::t_ac9f46cff0ea49 181-182
+  s_c1a6940130844c::t_5cda5e0a78c4cc 190,192,196,198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "79ddc3a3965ac01732938953047b43818ae2f190",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
