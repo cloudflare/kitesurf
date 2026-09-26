@@ -1,0 +1,21 @@
+.gitlab-ci.yml
+  s_c1a6940130844c::t_3406229d217f91 1924-1925
+docs/RELEASING.md
+  s_c1a6940130844c::t_3406229d217f91 53-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "733dcfd7e9f86c6ee40b1e218bae90a1f07f0dfe",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
