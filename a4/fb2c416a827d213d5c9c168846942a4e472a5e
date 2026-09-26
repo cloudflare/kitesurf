@@ -1,0 +1,31 @@
+packages/website/src/components/Document.tsx
+  s_c1a6940130844c::t_0d1c5780fca9bd 29
+packages/website/src/styles/base.css
+  s_c1a6940130844c::t_50808f2179f8ca 254,263-269,272
+  s_c1a6940130844c::t_6a2008a373806e 270-271
+packages/engine/public/index.html
+  s_c1a6940130844c::t_dad506b038ccc3 8
+packages/website/public/cloudflare.svg
+  s_c1a6940130844c::t_c27d278c018f77 1
+packages/website/src/components/SiteFooter.tsx
+  s_c1a6940130844c::t_2fd791e0ae8416 59-65,67
+  s_c1a6940130844c::t_30fe7c2d554f6d 66
+packages/engine/public/cloudflare.svg
+  s_c1a6940130844c::t_c27d278c018f77 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a4fb2c416a827d213d5c9c168846942a4e472a5e",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
