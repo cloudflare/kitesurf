@@ -1,0 +1,60 @@
+packages/website/src/components/site.ts
+  s_c1a6940130844c::t_eaa4787c9ed94e 1-10
+.gitignore
+  s_c1a6940130844c::t_0eea6000522d15 48-53
+packages/website/src/pages/landing/About.tsx
+  s_c1a6940130844c::t_eaa4787c9ed94e 2
+  s_c1a6940130844c::t_182bd74b617e91 6-7
+  s_c1a6940130844c::t_66069e3bda6d14 23,26
+.gitlab-ci.yml
+  s_c1a6940130844c::t_adec5c622e7abf 1924-1927
+packages/website/src/components/Document.tsx
+  s_c1a6940130844c::t_eaa4787c9ed94e 1,5
+packages/website/src/components/SiteHeader.tsx
+  s_c1a6940130844c::t_182bd74b617e91 9-10
+  s_c1a6940130844c::t_eaa4787c9ed94e 2
+  s_c1a6940130844c::t_66069e3bda6d14 41,47
+packages/website/src/respond.tsx
+  s_c1a6940130844c::t_eaa4787c9ed94e 2
+package.json
+  s_c1a6940130844c::t_0eea6000522d15 39
+README.md
+  s_c1a6940130844c::t_adec5c622e7abf 165-166
+packages/website/package.json
+  s_c1a6940130844c::t_0eea6000522d15 8
+packages/engine/wrangler.jsonc
+  s_c1a6940130844c::t_0eea6000522d15 185-192,195-196,470,474
+packages/website/src/components/SiteFooter.tsx
+  s_c1a6940130844c::t_eaa4787c9ed94e 10
+  s_c1a6940130844c::t_182bd74b617e91 23-24
+  s_c1a6940130844c::t_66069e3bda6d14 43,46
+packages/website/src/pages/landing/Landing.tsx
+  s_c1a6940130844c::t_eaa4787c9ed94e 2-3
+packages/engine/src/index.ts
+  s_c1a6940130844c::t_52edcf58ed761d 493
+  s_c1a6940130844c::t_adec5c622e7abf 132
+  s_c1a6940130844c::t_844b2bf4a1ad5b 481-492,494-495
+AGENTS.md
+  s_c1a6940130844c::t_adec5c622e7abf 88-89
+docs/RELEASING.md
+  s_c1a6940130844c::t_adec5c622e7abf 53-56
+packages/website/scripts/stage-engine-landing.mjs
+  s_c1a6940130844c::t_f051fc3aed3ef8 1-14,16-45,47,49
+  s_c1a6940130844c::t_8f946207b6df44 15,46,48,50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a41219ceffab25bc25b2e3d5c1703ca0ec5b4bb8",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
