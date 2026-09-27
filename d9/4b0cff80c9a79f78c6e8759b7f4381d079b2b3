@@ -1,0 +1,27 @@
+packages/core/src/ink_rect_test.rs
+  s_103b7f1f0713cd::t_1724ddd791e2db 1-28
+packages/core/src/lib.rs
+  s_103b7f1f0713cd::t_731be2b557f9d8 203-205,5745-5747,5772,5775-5776,5781-5800,7922-7962
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_103b7f1f0713cd::t_bff8cdd34665f8 244-314
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_3ab800254be5bc 1110-1116,4421,4446,4462,4474-4475,4477-4478,4486-4492,4497-4506,4541,4611-4620
+scripts/patches/blitz-dom-0.3.0-beta.2/0165-Classify-transform-only-damage-as-ink-damage.patch
+  s_103b7f1f0713cd::t_d26655269a4709 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d94b0cff80c9a79f78c6e8759b7f4381d079b2b3",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
