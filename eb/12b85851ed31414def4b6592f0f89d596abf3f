@@ -1,0 +1,27 @@
+packages/core/src/boa_bridge.rs
+  s_c1d1c93f383cfd::t_5bc762d87045a8 3589-3593
+  s_c1d1c93f383cfd::t_beaacd31840270 2992
+  s_c1d1c93f383cfd::t_73bd66ea81feeb 3208-3210
+  s_c1d1c93f383cfd::t_6f35f2a4b2bef5 3085
+  s_c1d1c93f383cfd::t_d658fadc6c3d76 3107-3108
+  s_c1d1c93f383cfd::t_c9b23b68120759 3414-3415
+  s_c1d1c93f383cfd::t_6c77a0cdbc363a 3555-3556
+packages/page-script/src/index.ts
+  s_c1d1c93f383cfd::t_c4e217c68cbe2b 5095-5096
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eb12b85851ed31414def4b6592f0f89d596abf3f",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
