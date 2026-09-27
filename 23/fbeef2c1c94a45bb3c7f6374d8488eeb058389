@@ -1,0 +1,23 @@
+docs/DOM_SHIM.md
+  s_38b7bb489593d7::t_16d2464e0eefe8 48-50
+packages/engine/test/e2e/cssom-insert-rule-cascade.e2e.test.ts
+  s_38b7bb489593d7::t_8ef2e0114f5eed 1-55
+scripts/patches/blitz-dom-0.3.0-beta.2/0148-kitesurf-reparse-replaced-style-sheets-once-per-reso.patch
+  s_38b7bb489593d7::t_994c56b3c98bca 1-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "23fbeef2c1c94a45bb3c7f6374d8488eeb058389",
+  "prompts": {},
+  "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
