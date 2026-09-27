@@ -1,0 +1,19 @@
+packages/core/src/tty_input.rs
+  s_296f2365729419::t_fc36d173194b02 284-289,291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6b11e15b1e9d6df4f41806617a13bec8cd105b42",
+  "prompts": {},
+  "sessions": {
+    "s_296f2365729419": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f28b529a3ffeo0w45PqHM10i01",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

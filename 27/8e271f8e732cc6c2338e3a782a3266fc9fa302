@@ -1,0 +1,23 @@
+packages/engine/test/e2e/eval-across-navigation.e2e.test.ts
+  s_db62237ce9a445::t_7b9d6007cd47ca 3-5
+  s_db62237ce9a445::t_0839c0fd84ef95 22-24,27
+  s_db62237ce9a445::t_7cb6c9d4666d9b 1-2,6-21,25-26,28-31
+packages/engine/src/cdp/runtime.ts
+  s_db62237ce9a445::t_7fb9b7dc7d40bf 133-145,448,531
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "278e271f8e732cc6c2338e3a782a3266fc9fa302",
+  "prompts": {},
+  "sessions": {
+    "s_db62237ce9a445": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25d89749ffe1DHFSv3WId84ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

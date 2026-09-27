@@ -1,0 +1,27 @@
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_c5a0b0102d5ad5 1116-1117,1121-1127
+  s_103b7f1f0713cd::t_751b45ef36bd18 4442
+  s_103b7f1f0713cd::t_5d60ec7afb19a3 4522-4523
+  s_103b7f1f0713cd::t_2b2fa0cd70d329 4637
+  s_103b7f1f0713cd::t_2644d2320a3cd4 1128
+packages/core/src/lib.rs
+  s_103b7f1f0713cd::t_b9dfa567a9a554 5781-5783
+docs/RBI.md
+  s_103b7f1f0713cd::t_4ed08de2a30cec 75-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ad9167de3b236fd82b370dd79545721181e0ae96",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

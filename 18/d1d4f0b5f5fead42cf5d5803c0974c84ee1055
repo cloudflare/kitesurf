@@ -1,0 +1,27 @@
+README.md
+  s_c1a6940130844c::t_a6f44d6ad8f747 165,321
+AGENTS.md
+  s_c1a6940130844c::t_a6f44d6ad8f747 40
+.gitlab-ci.yml
+  s_c1a6940130844c::t_c4ec763429db54 1976-1978
+  s_c1a6940130844c::t_1efc683315b1ab 1924-1928
+  s_c1a6940130844c::t_0babdb73d3ac17 1956-1958
+docs/RELEASING.md
+  s_c1a6940130844c::t_a6f44d6ad8f747 52-54,77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "18d1d4f0b5f5fead42cf5d5803c0974c84ee1055",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

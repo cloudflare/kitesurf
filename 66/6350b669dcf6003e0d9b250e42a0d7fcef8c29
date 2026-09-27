@@ -1,0 +1,29 @@
+docs/RBI.md
+  s_103b7f1f0713cd::t_61453c146b7f28 75-84
+packages/core/src/ink_rect_test.rs
+  s_103b7f1f0713cd::t_498d5f236da10f 1-71
+packages/core/src/lib.rs
+  s_103b7f1f0713cd::t_5511606c6cecff 203-205,5745-5747,5772,5775-5776,5781-5801,7923-7987
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_103b7f1f0713cd::t_bb492e590ccf23 244-389
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_dfdad8cdc72418 1112-1128,4441-4442,4467,4483,4495-4496,4498-4499,4507-4513,4518-4527,4562,4632-4640
+scripts/patches/blitz-dom-0.3.0-beta.2/0165-Classify-transform-only-damage-as-ink-damage.patch
+  s_103b7f1f0713cd::t_5dc1557191a0ac 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "666350b669dcf6003e0d9b250e42a0d7fcef8c29",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

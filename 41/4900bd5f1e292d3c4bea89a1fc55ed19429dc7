@@ -1,0 +1,38 @@
+packages/core/src/dom_fastpath.rs
+  s_c1d1c93f383cfd::t_7af60b296ae992 34,114-116,165-172,423-444,446-463,465-467,485-517,519-525,530-534,545-552,570-571,576,578,581
+docs/BOA_V8_FLOW.md
+  s_c1d1c93f383cfd::t_7af60b296ae992 598-606,650-684,689-691
+packages/core/src/boa_bridge.rs
+  s_c1d1c93f383cfd::t_7af60b296ae992 308-315,447-449,467,469,471-472,494-495,497-876,925,997-1003,1018,1262-1263,1282,1286,1291,1646-1651,1781,1801,1824,2293,2393,2449,2451-2454
+packages/engine/test/e2e/bridge-cycle-collect.e2e.test.ts
+  s_c1d1c93f383cfd::t_7af60b296ae992 1-177
+packages/page-script/src/index.ts
+  s_c1d1c93f383cfd::t_7af60b296ae992 239-240,1256-1281,1291,5085,5116,5118-5120
+packages/page-script/src/wasm-glue.d.ts
+  s_c1d1c93f383cfd::t_7af60b296ae992 46-48
+scripts/patches/boa_engine-0.20.0/0014-object-expose-an-object-s-census-key.patch
+  s_c1d1c93f383cfd::t_7af60b296ae992 1-28
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_7af60b296ae992 688-690,722-737
+  s_c1d1c93f383cfd::t_15798fed2493fd 738
+scripts/patches/boa_gc-0.20.0/0004-add-a-mark-only-census-that-discounts-external-handl.patch
+  s_c1d1c93f383cfd::t_7af60b296ae992 1-225
+packages/core/src/boa_cc_graph.rs
+  s_c1d1c93f383cfd::t_7af60b296ae992 1-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "414900bd5f1e292d3c4bea89a1fc55ed19429dc7",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,100 @@
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_6aaa3704780b80::t_837b1cc28fb419 559
+  s_888afb7fb58595::t_4de12f4b5d50de 563-565
+docs/WEBMCP.md
+  s_6aaa3704780b80::t_c06ad4e647fdec 92-98
+  s_69fbe553efd20c::t_e158321e807c40 87-88
+  s_69fbe553efd20c::t_aa080f73ee365b 91
+packages/engine/src/cdp/webmcp.ts
+  s_6aaa3704780b80::t_58d55b37ff6822 276,278-282
+packages/engine/test/e2e/trusted-fetch-metadata.e2e.test.ts
+  s_6aaa3704780b80::t_f67d6f7684eebc 2-4
+  s_888afb7fb58595::t_9e6c25debb41f6 13
+packages/engine/test/e2e/demos/module-init-shim-demo.e2e.test.ts
+  s_6aaa3704780b80::t_9c60c6c74e061f 119,121
+  s_6aaa3704780b80::t_ba29abb9293194 1,3,5,10-11,13-16,19
+  s_6aaa3704780b80::t_251428c0bc7c78 168,170
+  s_6aaa3704780b80::t_e86b849f5a689e 6-8
+  s_6aaa3704780b80::t_3c3da54053f306 126
+  s_6aaa3704780b80::t_44127dde53aa98 81,83
+  s_6aaa3704780b80::t_a14931ec66a2eb 156
+docs/TESTING.md
+  s_6aaa3704780b80::t_37a851e562f3af 98-99
+packages/dom-shim/src/model-context.ts
+  s_888afb7fb58595::t_a915b60c46753a 388-392
+packages/engine/src/cdp/page.ts
+  s_888afb7fb58595::t_e65a378f2d0e0c 4238-4239
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_888afb7fb58595::t_0010cbee9bfff7 1617-1621
+  s_e14db85d7d877c::t_17f989ffee4490 1727-1733,1871-1969
+packages/page-script/src/trusted-fetch.ts
+  s_888afb7fb58595::t_c5ef52cfaa7be5 16-17,20,70-72
+packages/engine/test/e2e/load-event-propagation.e2e.test.ts
+  s_f65880fa48e906::t_261fd45f63897b 14-24,26
+  s_f65880fa48e906::t_83ccf740c00c10 1-4,6-13,25,27-28
+packages/dom-shim/src/events/dispatch.ts
+  s_f65880fa48e906::t_9fc34b581fb48d 318-322,348-353
+packages/engine/test/page-script-compat.test.ts
+  s_e14db85d7d877c::t_17f989ffee4490 19
+  s_69fbe553efd20c::t_aa080f73ee365b 13
+packages/engine/test/e2e/native-module-preload.e2e.test.ts
+  s_e14db85d7d877c::t_17f989ffee4490 1-37
+packages/page-script/src/scripts.ts
+  s_e14db85d7d877c::t_17f989ffee4490 13,47,91-171,453-456,458-459
+docs/NATIVE_V8.md
+  s_e14db85d7d877c::t_17f989ffee4490 16
+packages/page-script/src/index.ts
+  s_e14db85d7d877c::t_17f989ffee4490 211,1518-1534,1719,1936
+packages/engine/src/eval/page-script-compat.ts
+  s_e14db85d7d877c::t_17f989ffee4490 23
+packages/page-script/src/workerd-unsafe-eval.d.ts
+  s_e14db85d7d877c::t_17f989ffee4490 4-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "635d1a8a32ef1a8c2a15bb924e8156bb188dbbf5",
+  "prompts": {},
+  "sessions": {
+    "s_69fbe553efd20c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3320992effegz7fD0bo3OTUiI",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_6aaa3704780b80": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7fb4f1bfffetWy0uMcVTwuQPB",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_888afb7fb58595": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7d94f633ffeREBl69WJvei04X",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_e14db85d7d877c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f58aefaa7ffesWXuu74hnx5qny",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f65880fa48e906": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73e698ceffeOPJB8muBxKD4RT",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

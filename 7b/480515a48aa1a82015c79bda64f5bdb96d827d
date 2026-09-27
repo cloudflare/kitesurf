@@ -1,0 +1,22 @@
+packages/page-script/src/index.ts
+  s_38b7bb489593d7::t_cc01a87ba4d010 1879-1880
+  s_38b7bb489593d7::t_0ce9772db479ed 60
+packages/page-script/src/resource-fetch.ts
+  s_38b7bb489593d7::t_cc01a87ba4d010 229-240,1266-1268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7b480515a48aa1a82015c79bda64f5bdb96d827d",
+  "prompts": {},
+  "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

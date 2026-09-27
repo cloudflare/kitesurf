@@ -1,0 +1,20 @@
+packages/engine/src/cdp/page.ts
+  s_db62237ce9a445::t_635b4a6d9f52ec 3529-3533,3535-3540
+  s_db62237ce9a445::t_d67b3c3ed5a96a 3534
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e2b5d029cc3105d1b9d467edaa2a9e2e1cbd64f4",
+  "prompts": {},
+  "sessions": {
+    "s_db62237ce9a445": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25d89749ffe1DHFSv3WId84ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,70 @@
+packages/dom-shim/src/reclaim.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 1-105,108-256
+packages/dom-shim/src/document.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 484-493
+packages/dom-shim/src/events/slotchange.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 7,15-25
+  s_c1d1c93f383cfd::t_aad0749d2d2293 26
+packages/dom-shim/src/fastpath.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 49-50,55-59
+packages/dom-shim/src/file-input.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 15,105-109
+  s_c1d1c93f383cfd::t_b09518574ed160 110
+packages/dom-shim/src/layout/cheap.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 23,59-64
+  s_c1d1c93f383cfd::t_4f166570705195 65
+packages/dom-shim/src/registries.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 1-2,6-7,17-151,272-276,279,283-302,394-423,424-449,456-457,475
+packages/engine/src/cdp/kitesurf.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 457-458
+packages/engine/test/e2e/bridge-dom-fastpath.e2e.test.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 161-165,175
+packages/dom-shim/src/element.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 48,97,123-124,168-180,186,1670,1699,1775,1777,1782,1854-1856,1858,1916,1939-1948,1983,8340-8348,8420,8427,8451,8623,9013-9031
+packages/dom-shim/src/node-base.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 30-39,135-141,146,147,152-155,156-157,159-249,317-322,324,326-329,347,351-361,422-469,519,554,584,770,772,831-833,1085,1148-1185,1190,1194,1198,1246-1248,1263-1265,1271,1278,1338,1345,1352,1363,1427,1445,1447,1523,1532,1595,1671,1683,1697,1708,1782,1810,1817,1940,2055-2057,2059,2145,2152,2154,2172,2200,2251,2281,2283,2288,2355,2393,2430,2468,2812-2813,2877,3026,3118,3121,3123-3128,3130,3133,3174
+packages/dom-shim/src/index.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 78,200-204,266-268,275-288,289-290,299,544-547,560,564,604,653-655
+packages/page-script/src/dom-shim.d.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 19
+packages/page-script/src/index.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 264,5066-5073,5083
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 1678-1712,1727-1730,1817-1840,2559-2561,2566-2568,2586-2590,2592-2611,2615-2657,8489-8533,8535-8541,8542-8545
+  s_c1d1c93f383cfd::t_b57a002ec95a4c 8546
+packages/dom-shim/src/contract.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 18
+packages/dom-shim/src/state.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 15,227-376,430-446,517
+packages/engine/src/cdp/page-session.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 232-245
+packages/dom-shim/src/events/dispatch.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 19,74,76,80-82,86-87,253-263,674,726-729,740,749
+packages/dom-shim/src/mutations/observer.ts
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 12-16,349-387,560-565
+  s_c1d1c93f383cfd::t_56c55b53cb311c 566
+packages/core/src/node_handle_test.rs
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 168-352
+packages/engine/test/e2e/detached-listener-liveness.e2e.test.ts
+  s_c1d1c93f383cfd::t_f2eb61f42d4d60 1-86
+packages/engine/test/e2e/detached-subtree-liveness.e2e.test.ts
+  s_c1d1c93f383cfd::t_f1eaa7c08a988e 1-263
+scripts/patches/blitz-dom-0.3.0-beta.2/0157-kitesurf-skip-stale-scroll-marks-after-node-drop.patch
+  s_c1d1c93f383cfd::t_41bed9d0fbe872 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eb569e50fbc6848195ee7ab45f564c141aaa9541",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

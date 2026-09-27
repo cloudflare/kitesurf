@@ -1,0 +1,21 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0163-Give-an-inline-of-only-bidi-controls-no-line-box.patch
+  s_d540f8cedf08dc::t_6c0a63cab81a06 1-65
+packages/core/src/nested_inline_abspos_test.rs
+  s_d540f8cedf08dc::t_4be421fedd8657 79-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2f0a7111173bb60034c89f55c1105e36ac0cf87f",
+  "prompts": {},
+  "sessions": {
+    "s_d540f8cedf08dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25735613ffeEW7maT59wy26a8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

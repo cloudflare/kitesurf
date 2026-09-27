@@ -1,0 +1,29 @@
+packages/page-script/src/index.ts
+  s_406c932593ce36::t_d88a2d607e4e71 5214-5226
+packages/engine/test/e2e/cdp-input-and-box-model.e2e.test.ts
+  s_406c932593ce36::t_38c7d4bcb90fb4 8-10,15
+  s_406c932593ce36::t_5d4ee59ad73c5f 122-159
+packages/engine/src/cdp/page-session.ts
+  s_406c932593ce36::t_49babdf95d16b2 76-79
+packages/engine/src/cdp/dom.ts
+  s_406c932593ce36::t_b9d24406256872 406-423
+packages/page-script/src/types.ts
+  s_406c932593ce36::t_6725faeb4a23bc 15
+  s_406c932593ce36::t_fbe12c333cc154 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b182cf54859627fcaa114eb9adb918adb73a21f",
+  "prompts": {},
+  "sessions": {
+    "s_406c932593ce36": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2a4ed7d1ffetDqaccHiUn9fzx",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

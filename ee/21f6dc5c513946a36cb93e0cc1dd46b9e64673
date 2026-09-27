@@ -1,0 +1,23 @@
+packages/dom-shim/src/mutations/seq.ts
+  s_db62237ce9a445::t_234bd540df4899 20-21,23,38,41
+packages/dom-shim/src/model-context.ts
+  s_db62237ce9a445::t_234bd540df4899 367
+packages/dom-shim/src/element.ts
+  s_db62237ce9a445::t_234bd540df4899 10265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ee21f6dc5c513946a36cb93e0cc1dd46b9e64673",
+  "prompts": {},
+  "sessions": {
+    "s_db62237ce9a445": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25d89749ffe1DHFSv3WId84ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
