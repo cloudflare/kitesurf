@@ -1,0 +1,25 @@
+docs/BOA_BRIDGE_V2.md
+  s_38b7bb489593d7::t_ea4ab826bd7d6f 123-127,349-353,374-380,415-417
+packages/engine/src/cdp/page.ts
+  s_38b7bb489593d7::t_80f4d386633261 37-41,2919
+packages/engine/src/eval/walk-module-graph.ts
+  s_38b7bb489593d7::t_f19d1531608edb 565-604,945-946,1128-1131,1346-1362,1612,1689,1729
+packages/engine/test/walk-module-graph.test.ts
+  s_38b7bb489593d7::t_9143abf826a98e 22,204-264,292,298
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "36057eb522385834622b220003e70ece38cbdf67",
+  "prompts": {},
+  "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
