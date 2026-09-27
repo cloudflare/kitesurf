@@ -1,0 +1,23 @@
+scripts/wpt-compare.test.mjs
+  s_26ff982f25d437::t_5863d0abac930b 197-270
+scripts/wpt-compare.mjs
+  s_26ff982f25d437::t_525bf8d0b6089f 736,796,891,970
+  s_26ff982f25d437::t_c23a378c7eb6ad 331,334,488,514,734-735,737-738
+  s_26ff982f25d437::t_d229e8cdc78b20 23-26,236-248,260-269,311,324,534-537,739-740
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4ba51cab8b9be0e4cfe8b556f122d32fa8bd5563",
+  "prompts": {},
+  "sessions": {
+    "s_26ff982f25d437": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1daa4bd0ffef9AmDLJgT70jRR",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
