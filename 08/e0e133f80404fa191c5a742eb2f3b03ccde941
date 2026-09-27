@@ -26,8 +26,11 @@ packages/dom-shim/src/state.ts
   s_38b7bb489593d7::t_3d645dcf393beb 339-340,350-351,411
 packages/page-script/src/globals.ts
   s_38b7bb489593d7::t_f6d0b747f1558f 3755-3757
+  s_38b7bb489593d7::t_822d72ea67fc91 452-459,511-515
+  s_38b7bb489593d7::t_5a044e85282610 31
 packages/page-script/src/index.ts
   s_38b7bb489593d7::t_ab37ba08774890 1877-1878,1892,2265
+  s_38b7bb489593d7::t_822d72ea67fc91 228,2264,2266-2270
 packages/page-script/src/internal-state.ts
   s_38b7bb489593d7::t_8299c60bf359da 23-29,185-186
 ---
