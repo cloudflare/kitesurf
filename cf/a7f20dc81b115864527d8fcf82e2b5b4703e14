@@ -9,6 +9,7 @@ packages/engine/src/cdp/page.ts
   s_103b7f1f0713cd::t_1dfc20fe1bbdcf 2405,4645,4651-4655,4663
   s_103b7f1f0713cd::t_578bac7b4d453f 8178-8180
   s_103b7f1f0713cd::t_a4417b7a5e0a46 8616-8619
+  s_103b7f1f0713cd::t_70dab421726f8f 4646
 packages/engine/src/cdp/types.ts
   s_103b7f1f0713cd::t_abb194971b7aa9 471-474
   s_103b7f1f0713cd::t_0af3c5f1fdb5c6 471-474
@@ -26,6 +27,7 @@ packages/page-script/src/index.ts
   s_103b7f1f0713cd::t_504c24c5fac3c1 4302
   s_103b7f1f0713cd::t_a9cda610712353 35,228,4297-4299,4306
   s_103b7f1f0713cd::t_1fa1deafacf913 4300-4301,4304-4305
+  s_103b7f1f0713cd::t_22670513dcb790 4303,4307
 packages/page-script/src/internal-state.ts
   s_103b7f1f0713cd::t_62cd969e7ba7f0 182-197,199,203-209
   s_103b7f1f0713cd::t_17adbe7e0844af 182-197,199,203-209
