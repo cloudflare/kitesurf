@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0164-Map-skipped-subtrees-overflow-into-the-parent-s-spac.patch
+  s_103b7f1f0713cd::t_d0e7b12ab6c765 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b82aa22d9ba2bb2c31238ebd25e4440a7ff6c40",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
