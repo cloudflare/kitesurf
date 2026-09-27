@@ -1,0 +1,23 @@
+docs/BOA_V8_FLOW.md
+  s_c1d1c93f383cfd::t_c989b542414dec 598-605
+packages/core/src/boa_bridge.rs
+  s_c1d1c93f383cfd::t_b376b18f7f82b3 510-526,535-540,857,875,1987,1993-2006
+packages/engine/test/e2e/bridge-fn-liveness.e2e.test.ts
+  s_c1d1c93f383cfd::t_5b1c6e9fcdf667 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8a79c07b9a3f36e53aa944e68601a2e489d2fb96",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
