@@ -1,0 +1,22 @@
+packages/dom-shim/src/canvas2d.ts
+  s_c1d1c93f383cfd::t_fa6fb4463a04d0 493-498,508
+  s_c1d1c93f383cfd::t_1c516a8bab9616 493-498,508
+packages/engine/test/e2e/canvas-detached-readback.e2e.test.ts
+  s_c1d1c93f383cfd::t_022b6b0709a540 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f72b36baa506e314b755efc3030a3c939ae97f96",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

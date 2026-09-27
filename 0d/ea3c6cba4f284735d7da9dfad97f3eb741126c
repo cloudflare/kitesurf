@@ -1,0 +1,19 @@
+scripts/patches/boa_engine-0.20.0/0016-module-add-parse_deferred-to-re-parse-at-link-instea.patch
+  s_c1d1c93f383cfd::t_f1feb19629d6e6 16-18,21,24,27,37,40-46,66,69,74,78,90,103,105,113,123-130,139,144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0dea3c6cba4f284735d7da9dfad97f3eb741126c",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_22670513dcb790 4303,4307
+  s_103b7f1f0713cd::t_1fa1deafacf913 4300-4301,4304-4305
+  s_103b7f1f0713cd::t_504c24c5fac3c1 4302
+  s_103b7f1f0713cd::t_a9cda610712353 35,228,4297-4299,4306
+packages/page-script/src/internal-state.ts
+  s_103b7f1f0713cd::t_17adbe7e0844af 182-197,199,203-209
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_103b7f1f0713cd::t_3dc4a6fa135670 307-309,311
+  s_103b7f1f0713cd::t_31b0d1950fa7b3 305-306,310,312-331,349-352
+  s_103b7f1f0713cd::t_cce1db1f923ec6 332-348
+packages/engine/src/cdp/types.ts
+  s_103b7f1f0713cd::t_0af3c5f1fdb5c6 471-474
+packages/engine/src/cdp/page-session.ts
+  s_103b7f1f0713cd::t_8048ad3c8884f1 144-147,153
+packages/page-script/src/globals.ts
+  s_103b7f1f0713cd::t_a9cda610712353 124-127,5625-5628
+  s_103b7f1f0713cd::t_1388a216127871 7
+packages/engine/src/cdp/page.ts
+  s_103b7f1f0713cd::t_a4417b7a5e0a46 8616-8619
+  s_103b7f1f0713cd::t_1c81c82e4d4ea3 2383,8181,8374-8377,8495-8500,8614-8615,8620-8625,8627-8629
+  s_103b7f1f0713cd::t_70dab421726f8f 4646
+  s_103b7f1f0713cd::t_1dfc20fe1bbdcf 2405,4645,4651-4655,4663
+  s_103b7f1f0713cd::t_0af3c5f1fdb5c6 6682-6689
+  s_103b7f1f0713cd::t_578bac7b4d453f 8178-8180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8ef74592b675484964cee234dae5b37a081ef6ab",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
