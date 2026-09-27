@@ -1,0 +1,28 @@
+packages/engine/src/cdp/page.ts
+  s_38b7bb489593d7::t_28800510b73809 4798-4799
+packages/engine/test/e2e/demos/dom-innerhtml-rebuild-demo.e2e.test.ts
+  s_38b7bb489593d7::t_28800510b73809 126-182
+packages/engine/src/cdp/types.ts
+  s_38b7bb489593d7::t_28800510b73809 1040-1044
+packages/engine/src/cdp/target.ts
+  s_38b7bb489593d7::t_28800510b73809 435,641
+packages/engine/src/cdp/dom.ts
+  s_38b7bb489593d7::t_28800510b73809 122,153-155,170-172,181-183,216,958-960,1019-1021,1033-1099
+  s_38b7bb489593d7::t_c2beed22df1b14 1100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1c71cc37dc9d19ab2eeec4063f96434a8b6f9742",
+  "prompts": {},
+  "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
