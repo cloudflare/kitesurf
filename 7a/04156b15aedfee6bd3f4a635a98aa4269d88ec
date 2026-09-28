@@ -1,0 +1,61 @@
+docs/TERMINAL.md
+  s_f1784921d4c778::t_4ede7fd359e968 45-52
+packages/engine/test/e2e/tab-focus.e2e.test.ts
+  s_f1784921d4c778::t_e3d9fedea51e5d 1-43,45-64
+  s_f1784921d4c778::t_8f3dd44328b91b 44
+packages/page-script/src/index.ts
+  s_f1784921d4c778::t_20868f0bce0700 429-432,434-452,454-464,469-474,3939-3941,3945
+  s_f1784921d4c778::t_01f95b5b6786e8 475-486,488-495,497-504,509-522,3942-3944
+  s_f1784921d4c778::t_ae1fa95722e1f5 465-468
+  s_f1784921d4c778::t_67a34df2a50298 487,496,505-508
+  s_f1784921d4c778::t_317ff84bb6a211 1600-1602
+  s_f1784921d4c778::t_15ccfbfcd08690 433,453
+  s_f1784921d4c778::t_02e17bdbdb51a6 3946
+packages/engine/src/tty/stylesheet.css
+  s_f1784921d4c778::t_6e5d9a818d08e7 53
+  s_f1784921d4c778::t_33519fabecdc44 54-58
+packages/engine/src/tty/focus.css
+  s_f1784921d4c778::t_a76ab1d28ca6df 1
+  s_f1784921d4c778::t_6e5d9a818d08e7 2,4-5
+  s_f1784921d4c778::t_e0fdcd9a048425 3
+packages/engine/src/cdp/input.ts
+  s_f1784921d4c778::t_67a34df2a50298 447
+packages/engine/src/tty/stylesheet.ts
+  s_f1784921d4c778::t_6e5d9a818d08e7 3-5,20
+packages/engine/test/e2e/keyboard-scroll.e2e.test.ts
+  s_f1784921d4c778::t_efda83207fb11e 6,94-95,99-106
+  s_f1784921d4c778::t_d8b2ee2ee9e255 2-3,5,7-8,13-28,30-39,44-51,53-84,111
+  s_f1784921d4c778::t_965e6825b14fd6 1,4,9-12,85-86,88-90,92-93,96-98,107,109-110
+  s_f1784921d4c778::t_a3f366b5f2e880 29,40-43,52
+  s_f1784921d4c778::t_e5c45458c32fe1 87
+  s_f1784921d4c778::t_4ede7fd359e968 91,108
+packages/engine/src/cdp/page.ts
+  s_f1784921d4c778::t_317ff84bb6a211 13
+  s_f1784921d4c778::t_6e5d9a818d08e7 3271-3273
+packages/engine/src/cdp/connection.ts
+  s_f1784921d4c778::t_67a34df2a50298 466
+packages/core/src/tty_input.rs
+  s_f1784921d4c778::t_953bffd4c16033 435-446
+  s_f1784921d4c778::t_74df8d7ef4d462 657-669
+  s_f1784921d4c778::t_62a46dbc921efa 656
+packages/engine/src/cdp/types.ts
+  s_f1784921d4c778::t_67a34df2a50298 229-230
+packages/engine/src/tty/session.ts
+  s_f1784921d4c778::t_953bffd4c16033 982-983
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7a04156b15aedfee6bd3f4a635a98aa4269d88ec",
+  "prompts": {},
+  "sessions": {
+    "s_f1784921d4c778": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1859fd34ffem9Kd8VtbXwlq4H",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}
