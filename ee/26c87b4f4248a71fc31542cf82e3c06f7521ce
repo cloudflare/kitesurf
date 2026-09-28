@@ -1,0 +1,19 @@
+packages/engine/package.json
+  s_4ba79f911c93c4::t_5e2272db59d928 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ee26c87b4f4248a71fc31542cf82e3c06f7521ce",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

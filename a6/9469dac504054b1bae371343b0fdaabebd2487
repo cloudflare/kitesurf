@@ -1,0 +1,71 @@
+packages/dom-shim/src/layout/cheap.ts
+  s_a0007800c501bb::t_9306295092f517 435-436
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_219a4b5f7a43ea::t_fed6170f558730 150-191,193,291-352,354-355
+  s_a0007800c501bb::t_dbb246fe5c835d 194-198,200-215,227-290
+  s_a0007800c501bb::t_2cea13757b2cf8 216-226
+  s_ef26f8dd06f5df::t_0043164ef6bf96 192,353
+  s_ef26f8dd06f5df::t_754aeabb4533d7 199
+docs/FONTS.md
+  s_a0007800c501bb::t_98f80ed4c73d81 207-213
+packages/core/src/lib.rs
+  s_a0007800c501bb::t_288585ce860830 3323
+  s_a0007800c501bb::t_ddbf7486633c89 3278
+  s_a0007800c501bb::t_4420b5381ff5e7 6944-6947,6956,6958-6967
+  s_a0007800c501bb::t_ba7f1b546ec290 7175-7183,7190,7193-7195,7208-7209
+  s_a6f2ecbc0ba789::t_713fcf3012edfd 7210-7211
+  s_219a4b5f7a43ea::t_cd9f3fa98f4cf3 4944-4945
+  s_a0007800c501bb::t_946ebd53d693f6 7300
+  s_a0007800c501bb::t_148efec256b225 7069-7074
+  s_219a4b5f7a43ea::t_73b09d13d5f06f 4879-4880,4893-4902
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_219a4b5f7a43ea::t_a94f345e978128 117-228
+scripts/patches/parley-0.11.1/0009-Collapse-lines-containing-only-out-of-flow-boxes.patch
+  s_ef26f8dd06f5df::t_38c8ee91598cb9 1-58
+scripts/patches/blitz-dom-0.3.0-beta.2/0141-Keep-fixed-boxes-anchored-during-clipped-paints.patch
+  s_ef26f8dd06f5df::t_46b7c3614bd8d0 1-54
+scripts/patches/blitz-dom-0.3.0-beta.2/0142-Remove-unused-fixed-anchor-import.patch
+  s_ef26f8dd06f5df::t_840fd7e3754937 1-21
+scripts/patches/parley-0.11.1/0010-Trim-out-of-flow-line-comments.patch
+  s_ef26f8dd06f5df::t_29998b3f9405b2 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a69469dac504054b1bae371343b0fdaabebd2487",
+  "prompts": {},
+  "sessions": {
+    "s_219a4b5f7a43ea": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3ae9a30effeFbfG3AeGzksgvy",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a0007800c501bb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3ab9e69cffe7MMIjFZzXa79lE",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a6f2ecbc0ba789": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3ab96185ffehpCfOP3HRlhozj",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_ef26f8dd06f5df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3be04914ffe7HHtOkszWCc5pa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

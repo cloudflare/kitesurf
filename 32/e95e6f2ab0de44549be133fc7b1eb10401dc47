@@ -1,0 +1,23 @@
+bench/harness/run.mjs
+  s_ba35fbf4cf2ff5::t_395a6118733637 28
+scripts/bench-scene-record.mjs
+  s_ba35fbf4cf2ff5::t_395a6118733637 7
+tests/interactivity-flows/find-candidates.ts
+  s_ba35fbf4cf2ff5::t_395a6118733637 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "32e95e6f2ab0de44549be133fc7b1eb10401dc47",
+  "prompts": {},
+  "sessions": {
+    "s_ba35fbf4cf2ff5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009539e58ffe2AW5wz0TMPGefw",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

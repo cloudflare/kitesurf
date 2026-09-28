@@ -1,0 +1,38 @@
+packages/core/src/hoist_incremental_test.rs
+  s_638b99b03f8b5a::t_0d5d52185a24e5 15-22
+  s_638b99b03f8b5a::t_ba486be3fd4333 99-133,135-143,145
+  s_50d45ac3d4c7e5::t_0d10fce03f27d4 134
+  s_bddc26501dd4e8::t_bda47146eb455d 144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "be5985bbdf65c982fa855a644a19e8a171bea080",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_638b99b03f8b5a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0321db69bffeRTm4Ld6wotXjl2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_bddc26501dd4e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03128cdf5ffemSFgXi7EKA5ERa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

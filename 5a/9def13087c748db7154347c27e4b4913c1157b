@@ -1,0 +1,20 @@
+packages/rbi-client/src/index.ts
+  s_0d774ef1069d39::t_6b834b5332dca2 108-110
+  s_0d774ef1069d39::t_6d28e6d8496b7d 69-74,77,86-88,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5a9def13087c748db7154347c27e4b4913c1157b",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

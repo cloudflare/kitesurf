@@ -1,0 +1,21 @@
+tests/playwright/cdp-shim.mjs
+  s_33ced4fd01dd18::t_7b2f0ba8d19cbe 29-72,79-81
+tests/playwright/README.md
+  s_33ced4fd01dd18::t_575f1ea8d6fce6 50-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "92b83a1bf462a5d249b6c3cb46ad56b77cd56d1d",
+  "prompts": {},
+  "sessions": {
+    "s_33ced4fd01dd18": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06460a98cffeiC4uluWD4Bs6JQ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,76 @@
+packages/core/src/screenshot.rs
+  s_c9f68948e839d2::t_ab6caa3f58fd89 11-12,33-36
+packages/engine/src/cdp/target.ts
+  s_c9f68948e839d2::t_632eb3b9c62bea 478
+packages/engine/src/eval/page-renderer.ts
+  s_c9f68948e839d2::t_97bcc3d8e31e83 320
+packages/page-script/src/font-loader.ts
+  s_c9f68948e839d2::t_1c1190111dee31 48-50,52-54,184-188,212-214
+packages/engine/src/landing.ts
+  s_c9f68948e839d2::t_0ed84045465670 471
+packages/engine/src/cdp/types.ts
+  s_c9f68948e839d2::t_c954a33bcd5b7a 202,295-299
+packages/core/src/lib.rs
+  s_c9f68948e839d2::t_605e773677bf21 3386
+  s_c9f68948e839d2::t_d2028e3eac80ac 112,850,2989-2995,3027-3031
+  s_c9f68948e839d2::t_2ca116edd74b99 3987-3990,3992,4006,4030-4032
+  s_c9f68948e839d2::t_43b5d25b0bbaa7 3374,3442-3445,3469-3478,3486-3487
+packages/page-script/src/index.ts
+  s_c9f68948e839d2::t_997a7df119ecee 1066,3527-3528,3564-3566,3625-3626,3677-3678,3847,3856,3905
+  s_c9f68948e839d2::t_710e2e21fc8d11 3583-3584
+  s_c9f68948e839d2::t_d962593f188768 1059-1060
+packages/engine/test/e2e/demos/page-renderer-pdf.e2e.test.ts
+  s_c9f68948e839d2::t_9210ce0f50f91b 1-7,9,67-72
+research/page-renderer-plan.md
+  s_c9f68948e839d2::t_4526d5550dd0b0 158-160,169-173,192-206,275-277,292,330-331
+packages/engine/test/e2e/demos/page-renderer-parity.e2e.test.ts
+  s_c9f68948e839d2::t_f10cfc9b24f958 127-137,139
+  s_c9f68948e839d2::t_9210ce0f50f91b 1,3-11,13,88,94-95,126
+packages/page-script/src/state.ts
+  s_c9f68948e839d2::t_710e2e21fc8d11 34
+packages/core/src/scene_replay.rs
+  s_c9f68948e839d2::t_ab6caa3f58fd89 1044-1045
+  s_c9f68948e839d2::t_b2b9ab2575fe48 884,930,1122
+packages/page-script/src/resource-fetch.ts
+  s_c9f68948e839d2::t_710e2e21fc8d11 347
+packages/engine/src/cdp/page.ts
+  s_c9f68948e839d2::t_42df8cffa56b1e 72-76,89-92,112,114,138-140,155-157,166-168
+  s_c9f68948e839d2::t_97bcc3d8e31e83 1062,1899,1904,4677-4680
+  s_c9f68948e839d2::t_cf10e0ff15915d 1100-1101,1134-1137,1139,1143-1144,1171-1173,1176-1177,1179-1181,1184-1190,1482,1488
+  s_c9f68948e839d2::t_eb8ef04ea64130 1229-1236
+  s_c9f68948e839d2::t_c860bdcb6f29db 1613,4691-4694
+  s_c9f68948e839d2::t_a3eb6db16fdd88 4859-4879,4881-4883,4887-4888,4892,4896-4914,4924
+  s_c9f68948e839d2::t_fa446a3e742326 1330-1335,1339,1350-1351,1361-1362,1399-1400,1445-1447,1449-1468,1470-1481,1483-1487,1492
+scripts/patches/blitz-dom-0.3.0-beta.1/0019-Drop-doc-wide-materialize-inline-context-invalidatio.patch
+  s_c9f68948e839d2::t_402ba4bb57e503 1-61
+packages/page-script/src/paint.ts
+  s_c9f68948e839d2::t_710e2e21fc8d11 59
+packages/engine/test/e2e/demos/page-renderer-cjk.e2e.test.ts
+  s_c9f68948e839d2::t_9210ce0f50f91b 8
+packages/engine/src/eval/ws-codec.ts
+  s_c9f68948e839d2::t_97bcc3d8e31e83 15-16
+packages/engine/test/e2e/demos/page-renderer-emoji.e2e.test.ts
+  s_c9f68948e839d2::t_9210ce0f50f91b 7
+packages/engine/src/cdp/kitesurf.ts
+  s_c9f68948e839d2::t_632eb3b9c62bea 126-129,136
+packages/engine/src/cdp/dispatch.ts
+  s_c9f68948e839d2::t_97bcc3d8e31e83 268
+packages/core/src/pdf.rs
+  s_c9f68948e839d2::t_b2b9ab2575fe48 60-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c719d3605dfe0be79af267773488b2cf6342c8de",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

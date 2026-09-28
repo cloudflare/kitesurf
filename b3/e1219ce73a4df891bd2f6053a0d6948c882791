@@ -1,0 +1,21 @@
+packages/page-script/src/globals.ts
+  s_a4cd376a121cc2::t_4dca911bc8feb9 2350-2366
+packages/engine/test/e2e/bridge-construct.e2e.test.ts
+  s_a4cd376a121cc2::t_a734a48e8b28bf 75-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b3e1219ce73a4df891bd2f6053a0d6948c882791",
+  "prompts": {},
+  "sessions": {
+    "s_a4cd376a121cc2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-speedtest-consolidated-mr",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

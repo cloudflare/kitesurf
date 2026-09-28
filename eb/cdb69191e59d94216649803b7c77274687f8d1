@@ -1,0 +1,21 @@
+packages/core/src/scene_replay.rs
+  s_103b7f1f0713cd::t_d724a0b911355f 1997-2007
+  s_103b7f1f0713cd::t_b9dffbe513fb9a 1086-1111,1126-1141,1358-1360,1512,1579,1608
+  s_103b7f1f0713cd::t_8c9f163b59f936 1081,1609,1643,2008-2010
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ebcdb69191e59d94216649803b7c77274687f8d1",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

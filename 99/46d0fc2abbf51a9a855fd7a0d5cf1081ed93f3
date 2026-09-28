@@ -1,0 +1,20 @@
+packages/dom-shim/src/element.ts
+  s_75d678c932972d::t_d3c6d06d91fb99 7343,7354-7433
+  s_75d678c932972d::t_b331f9902b90f4 7434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9946d0fc2abbf51a9a855fd7a0d5cf1081ed93f3",
+  "prompts": {},
+  "sessions": {
+    "s_75d678c932972d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_084579337ffepy28AOdVrayge7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

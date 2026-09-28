@@ -1,0 +1,37 @@
+packages/engine/src/cdp/page-session.ts
+  s_4b450167e630e8::t_3311adb62862e5 213-214,222-228
+  s_4b450167e630e8::t_ac00bb6ce6e34c 215-221,229
+packages/page-script/src/index.ts
+  s_4b450167e630e8::t_2742c4ebaca692 6871
+  s_4b450167e630e8::t_41773172fdb687 134
+  s_4b450167e630e8::t_01998aed95e8c3 252
+packages/page-script/src/defer-shim.ts
+  s_4b450167e630e8::t_58e2a0a5601cb1 111-129
+packages/core/src/boa_eval.rs
+  s_4b450167e630e8::t_9978c12e55c95f 1026-1030
+  s_4b450167e630e8::t_41785286b7702f 565-602
+packages/page-script/src/globals.ts
+  s_4b450167e630e8::t_6d5234ebd53817 278,280
+  s_4b450167e630e8::t_16b0ff03b038ca 499-523
+  s_4b450167e630e8::t_12fe2e2f3cc07f 524
+packages/engine/src/cdp/kitesurf.ts
+  s_4b450167e630e8::t_bcf1b78c2394d5 452-454
+packages/core/src/lib.rs
+  s_4b450167e630e8::t_87d9555022295d 692-694,696-703
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b387c31c3eb04046575a5c57f3f8f6e448099e35",
+  "prompts": {},
+  "sessions": {
+    "s_4b450167e630e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e08b52affe2claqo3m243AcK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

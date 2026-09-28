@@ -1,0 +1,19 @@
+packages/engine/src/cdp/runtime.ts
+  s_5d3f1159e93642::t_6a5819a28d45e7 291-292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "09bb4836b9b585ecf738fef31fe93a2aa3c4fc2e",
+  "prompts": {},
+  "sessions": {
+    "s_5d3f1159e93642": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-speedtest-crash-mr",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

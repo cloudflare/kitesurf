@@ -1,0 +1,106 @@
+packages/website/src/pages/wpt/Overview.tsx
+  s_c1a6940130844c::t_6d0658e37bab4f 18
+packages/website/src/pages/wpt/Folder.tsx
+  s_c1a6940130844c::t_9d54e1243054b4 19
+packages/website/public/sitemap.xml
+  s_c1a6940130844c::t_3b897a0207a004 1-6
+packages/website/public/robots.txt
+  s_c1a6940130844c::t_3b897a0207a004 1-11
+packages/website/wrangler.jsonc
+  s_c1a6940130844c::t_56f92161e54fbc 17-18
+packages/website/src/content/links.ts
+  s_c1a6940130844c::t_6d0658e37bab4f 1-2
+packages/website/src/components/Document.tsx
+  s_c1a6940130844c::t_6d0658e37bab4f 2,11-12,12,24,32-42,33-36,39-42
+  s_c1a6940130844c::t_eaa4787c9ed94e 1
+packages/website/src/pages/landing/Landing.tsx
+  s_c1a6940130844c::t_3b897a0207a004 2,10-24,10-11,24,30,38
+  s_c1a6940130844c::t_eaa4787c9ed94e 1
+packages/website/src/pages/wpt/TestPage.tsx
+  s_c1a6940130844c::t_9d54e1243054b4 58
+packages/website/src/pages/wpt/WptPage.tsx
+  s_c1a6940130844c::t_6d0658e37bab4f 7-12,14,19
+packages/website/src/pages/bench/Benchmarks.tsx
+  s_c1a6940130844c::t_6d0658e37bab4f 81
+packages/website/src/pages/landing/About.tsx
+  s_c1a6940130844c::t_0e313444bae0a8 24
+  s_c1a6940130844c::t_c834109a58ef63 20,23
+packages/website/src/components/SiteHeader.tsx
+  s_c1a6940130844c::t_b22f30e797c1f7 40
+  s_c1a6940130844c::t_c834109a58ef63 38,44
+packages/website/public/cloudflare.svg
+  s_c1a6940130844c::t_8f946207b6df44 1
+packages/website/public/favicon.svg
+  s_c1a6940130844c::t_8f946207b6df44 1-12
+packages/website/src/components/SiteFooter.tsx
+  s_c1a6940130844c::t_c834109a58ef63 40,43
+packages/engine/src/index.ts
+  s_c1a6940130844c::t_9bc01fd3bee0a3 488
+package.json
+  s_c1a6940130844c::t_91204bf179cece 39
+packages/website/src/styles/landing.css
+  s_909163843c9dee::t_17700dcba6436b 77,500,754,906,926
+  s_909163843c9dee::t_9b100a5f8f0f31 12,18,30,39,41,55,92,129,147,152,496,503,696,710,868,902,909,917,929
+  s_909163843c9dee::t_3725d5067f46af 573
+  s_909163843c9dee::t_9a085ba5c03004 20
+  s_909163843c9dee::t_79357e9a1531dd 490,584,617-618,620,628,630,633-634
+  s_909163843c9dee::t_74a404fdcf69bf 41
+  s_c1a6940130844c::t_22038c65e4cdec 902,906,909,917,920
+packages/website/src/pages/landing/Hero.tsx
+  s_909163843c9dee::t_2362232c5d8f01 120
+  s_909163843c9dee::t_80ad2908598df9 44
+packages/website/src/styles/base.css
+  s_909163843c9dee::t_52c34204f536c1 165
+packages/website/src/pages/landing/Showcase.tsx
+  s_909163843c9dee::t_79357e9a1531dd 16,26,44,46-48
+packages/website/src/content/showcase.ts
+  s_c1a6940130844c::t_6a26522ff5b23f 92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9bd28ca5b485ec812a9765d7f0e42011d07479d5",
+  "prompts": {},
+  "sessions": {
+    "s_1003e5b3c0147d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2556c92affe8OGoS23ATUa3E8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_13441ff3c2dda9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f207041fcffeKUQWc1GhYsB7dB",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_909163843c9dee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1b8ee7e2ffe0ZSBgOtK2CgnBd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Brandon Strittmatter <bstrittmatter@cloudflare.com>"
+    },
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/core/src/boa_bridge.rs
+  s_c1d1c93f383cfd::t_8b50e297184130 926-928,946-958,1681-1683
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_8b50e297184130 707,712
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4be08313dd079bc13b15a219a02d4deefa0bd5dc",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

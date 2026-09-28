@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0102-Treat-a-filter-or-transform-as-establishing-an-abspo.patch
+  s_991c8660c98c38::t_675cef525b33cc 1-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d5334488aa489309982f0b232ab38a7a36fcd99f",
+  "prompts": {},
+  "sessions": {
+    "s_991c8660c98c38": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009892ce1ffeHHnJ6vwrpWm3CZ",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

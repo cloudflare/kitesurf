@@ -1,0 +1,19 @@
+packages/dom-shim/src/model-context.ts
+  s_4ba79f911c93c4::t_bc81c36e72b88c 836-842
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "379f868be1c4c3c94ad2a86406e63251429b4022",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0095-Skip-the-image-layer-flush-for-undamaged-nodes.patch
+  s_dfd792beae87ba::t_6f88a792d8082e 1-39
+scripts/patches/blitz-dom-0.3.0-beta.1/0094-Time-the-fontface-counters-and-damage-summary-phases.patch
+  s_dfd792beae87ba::t_6f88a792d8082e 1-39
+scripts/patches/blitz-dom-0.3.0-beta.1/0096-Rebuild-a-node-s-taffy-style-only-when-its-layout-st.patch
+  s_dfd792beae87ba::t_6f88a792d8082e 1-192
+scripts/patches/blitz-dom-0.3.0-beta.1/0097-Rebuild-CSS-counters-only-when-something-was-damaged.patch
+  s_dfd792beae87ba::t_6f88a792d8082e 1-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "739f8e2f1c7cd92a4877987baaf292490112547a",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

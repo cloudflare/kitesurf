@@ -1,0 +1,21 @@
+packages/dom-shim/src/node-base.ts
+  s_38b7bb489593d7::t_7f23c041e25a58 973-976
+packages/dom-shim/src/range.ts
+  s_38b7bb489593d7::t_7f23c041e25a58 18,88,90-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9e63d7801bbe99ca3bf1f6e27cf70fb10b99f654",
+  "prompts": {},
+  "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

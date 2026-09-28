@@ -1,0 +1,24 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_21a2b5a39670a0::t_55acfffd8c179a 2287-2304
+packages/engine/test/e2e/cookie-samesite-redirect.e2e.test.ts
+  s_21a2b5a39670a0::t_d1dc423c3654d5 1-28,30-56
+  s_21a2b5a39670a0::t_9c0405626a0198 29
+packages/engine/src/eval/outbound.ts
+  s_21a2b5a39670a0::t_4a8dc7a094723f 589-603,605,607,609
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a4284a65f296eabaf6e7140c4d1547376c1ad107",
+  "prompts": {},
+  "sessions": {
+    "s_21a2b5a39670a0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_feb180ed7ffeZCx1tDDM8P9o9r",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

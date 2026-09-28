@@ -1,0 +1,32 @@
+packages/core/src/animation_clock_test.rs
+  s_f5785bea72e01e::t_664e57be225290 307-309,324
+  s_f5785bea72e01e::t_20ce7d79311a9e 311,337
+packages/core/src/node_handle_test.rs
+  s_77e8d6f4044102::t_c84b4f9b7d6c36 55-57,76,96-136
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-memory-report-dropped-shadow-tree-nodes.patch
+  s_f5785bea72e01e::t_3599f2332be2f6 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b92e9b58f00de3c066d3cba21e888e26fba8b8b",
+  "prompts": {},
+  "sessions": {
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_f5785bea72e01e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f51217a23ffeok4Sc2bqio2KUk",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

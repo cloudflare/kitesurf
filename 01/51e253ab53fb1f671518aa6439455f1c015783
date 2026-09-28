@@ -1,0 +1,20 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0121-Fix-replaced-inline-and-root-line-metrics.patch
+  s_a2feeea1972b1e::t_3bf0b68f9b21f5 8-9
+  s_a2feeea1972b1e::t_85decd1f06d598 3,6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0151e253ab53fb1f671518aa6439455f1c015783",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

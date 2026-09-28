@@ -1,0 +1,24 @@
+scripts/mr-preview.mjs
+  s_c1a6940130844c::t_78e9d5621dfd99 90
+  s_c1a6940130844c::t_797eec35704f5c 56
+  s_c1a6940130844c::t_3c8bee27517064 8-12,15,17-29
+  s_c1a6940130844c::t_eff2e3241a9b94 45-47,51
+.gitlab-ci.yml
+  s_c1a6940130844c::t_cbe6c3df06fcb7 2086-2136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d18a016d6e9b1cd5c87ec0c05207b068480fc710",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

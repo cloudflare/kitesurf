@@ -1,0 +1,19 @@
+packages/website/src/components/SiteHeader.tsx
+  s_c1a6940130844c::t_b22f30e797c1f7 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "01d39ca5d2dabc6ced5eb5bc55c158b53ac303fe",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

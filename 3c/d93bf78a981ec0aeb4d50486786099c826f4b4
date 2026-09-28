@@ -1,0 +1,56 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0010-Scope-shadow-tree-stylesheets-via-per-root-AuthorSty.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-365
+scripts/patches/blitz-dom-0.3.0-beta.1/0012-Implement-slot-assignment-named-slots-fallback-slott.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-539
+scripts/patches/blitz-dom-0.3.0-beta.1/0013-Keep-shadow-tree-ids-out-of-the-document-ID-map.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-57
+scripts/patches/blitz-dom-0.3.0-beta.1/0014-Skip-slot-assignment-recompute-when-nothing-could-ha.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-110
+packages/engine/test/e2e/demos/forms-input-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_2871274fc08639 44-48,52-54
+scripts/patches/blitz-dom-0.3.0-beta.1/0011-Parse-shadow-root-innerHTML-under-a-temp-host-named-.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-51
+scripts/patches/blitz-dom-0.3.0-beta.1/0008-Route-layout-construction-through-the-flat-tree-shad.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-329
+scripts/patches/blitz-dom-0.3.0-beta.1/0006-Implement-stylo-s-shadow-topology-traits-flat-tree-t.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-161
+packages/core/src/lib.rs
+  s_f50b7cd97baf3e::t_fc8f84391578de 2000-2024
+scripts/patches/blitz-dom-0.3.0-beta.1/0003-Derive-replaced-aspect-ratio-from-attributes-when-co.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-107
+packages/dom-shim/src/element.ts
+  s_f50b7cd97baf3e::t_cf6458379a5dac 6053-6057,6059,6067
+  s_f50b7cd97baf3e::t_b6d240977adeb3 3895-3900
+  s_f50b7cd97baf3e::t_aa3da3c5546017 2663
+  s_f50b7cd97baf3e::t_05d39083ae3ddc 4191-4194
+  s_f50b7cd97baf3e::t_2e73b1226c2dd5 3759-3778
+scripts/patches/blitz-dom-0.3.0-beta.1/0005-Wire-attach_shadow-through-the-mutator-shadow-aware-.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-164
+scripts/patches/blitz-dom-0.3.0-beta.1/0004-Only-clamp-replaced-elements-to-available-INLINE-spa.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-51
+scripts/patches/blitz-dom-0.3.0-beta.1/0015-Add-set_text_input_value-IDL-value-override-decouple.patch
+  s_f50b7cd97baf3e::t_8ae8d24f082a2a 1-177
+scripts/patches/blitz-dom-0.3.0-beta.1/0009-kitesurf_clear_canvas_image-guard-on-canvas-local-na.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-33
+scripts/patches/blitz-dom-0.3.0-beta.1/0007-Treat-canvas-as-a-replaced-element-with-a-JS-fed-fra.patch
+  s_f50b7cd97baf3e::t_c6a6fc7b771737 1-121
+packages/engine/test/e2e/demos/forms-value-repaint-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_bc11fbdee77e08 41-42,44-47
+  s_f50b7cd97baf3e::t_7d5a52bcd14899 1-40,43,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3cd93bf78a981ec0aeb4d50486786099c826f4b4",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

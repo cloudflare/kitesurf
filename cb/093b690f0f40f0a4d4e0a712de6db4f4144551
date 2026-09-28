@@ -1,0 +1,32 @@
+docs/BOA_BRIDGE_V2.md
+  s_38b7bb489593d7::t_ea4ab826bd7d6f 123-127,349-353,374-380,415-417
+  s_38b7bb489593d7::t_fb5e3d865a7a30 376-378
+  s_38b7bb489593d7::t_c0d1e03327251b 123-127
+  s_38b7bb489593d7::t_d720d2085ab1f9 374-375
+  s_38b7bb489593d7::t_0edd42474227c2 379-380
+packages/engine/src/cdp/page.ts
+  s_38b7bb489593d7::t_80f4d386633261 37-41,2929
+  s_38b7bb489593d7::t_898c5ca627d36d 37-41,2929
+packages/engine/src/eval/walk-module-graph.ts
+  s_38b7bb489593d7::t_f19d1531608edb 565-604,945-946,1128-1131,1346-1362,1612,1689,1729
+  s_38b7bb489593d7::t_702957dbbc2a8d 565-604,945-946,1128-1131,1346-1362,1612,1689,1729
+packages/engine/test/walk-module-graph.test.ts
+  s_38b7bb489593d7::t_9143abf826a98e 22,204-264,292,298
+  s_38b7bb489593d7::t_8defe19d05527a 22,204-264,292,298
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cb093b690f0f40f0a4d4e0a712de6db4f4144551",
+  "prompts": {},
+  "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

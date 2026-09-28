@@ -1,0 +1,21 @@
+packages/page-script/src/globals.ts
+  s_e96f525a1fab81::t_49f3b4f2c59b04 724-820
+packages/engine/test/e2e/subtlecrypto-generatekey-errors.e2e.test.ts
+  s_e96f525a1fab81::t_7234eb5f579b91 1-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4db41f345ae775f40cbbb254ac8f89e40587683c",
+  "prompts": {},
+  "sessions": {
+    "s_e96f525a1fab81": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ffb760b57ffeQtAX5nnhqtSUoB",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

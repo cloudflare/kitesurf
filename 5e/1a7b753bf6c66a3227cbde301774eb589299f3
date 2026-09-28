@@ -1,0 +1,27 @@
+packages/engine/src/tty/session.ts
+  s_296f2365729419::t_c9ff2b629bed2b 1585-1587
+packages/core/src/tty_omni.rs
+  s_296f2365729419::t_e7298a6556f7e4 258,273-279
+  s_296f2365729419::t_6dbfdb79905dd3 169,894-914
+  s_296f2365729419::t_8e7fa41006925f 283,286-290
+  s_296f2365729419::t_85cdff09627b15 131-135
+  s_296f2365729419::t_0708c76702f4e4 151,155-156,159-162,166-168
+  s_296f2365729419::t_7d7f02348d1350 170
+  s_296f2365729419::t_f36c61e90cd28f 915
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5e1a7b753bf6c66a3227cbde301774eb589299f3",
+  "prompts": {},
+  "sessions": {
+    "s_296f2365729419": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f28b529a3ffeo0w45PqHM10i01",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

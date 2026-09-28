@@ -1,0 +1,35 @@
+packages/page-script/src/eval-helpers.ts
+  s_d9ecccdb16496d::t_7619251700ffc7 901-912
+  s_d9ecccdb16496d::t_7146419a87bb54 848-854
+  s_d9ecccdb16496d::t_d38769a96e9fb0 478-507
+  s_d9ecccdb16496d::t_2e5c2b6e42f9e1 1019-1022
+docs/CORS.md
+  s_d9ecccdb16496d::t_417b9e3ca3c8a9 39-63
+packages/engine/test/e2e/no-cors-opaque.e2e.test.ts
+  s_d9ecccdb16496d::t_fe44032242e202 1-99
+packages/engine/src/eval/outbound.ts
+  s_d9ecccdb16496d::t_ba04cd05f727e8 461-469,471,473
+  s_d9ecccdb16496d::t_2a89e5df01fe98 487
+  s_d9ecccdb16496d::t_4c864fe7513ebf 1320
+  s_d9ecccdb16496d::t_996720a336819b 470,472
+  s_d9ecccdb16496d::t_fa90c0266debe9 876-880
+  s_d9ecccdb16496d::t_7df0ad3bc60a9c 1328-1344
+  s_d9ecccdb16496d::t_acc9363c8f41c4 1284
+  s_d9ecccdb16496d::t_bf0ea1af24ea5b 1218-1220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "42b2bfb9ac0f6309ca9c99006602efd16c372e90",
+  "prompts": {},
+  "sessions": {
+    "s_d9ecccdb16496d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03b959d9effev00SNORc7M35W1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

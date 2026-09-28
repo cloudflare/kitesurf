@@ -1,0 +1,46 @@
+packages/core/src/net.rs
+  s_d9ecccdb16496d::t_a64fc2b8ef242d 374-378,383,388,390
+packages/core/src/lib.rs
+  s_d9ecccdb16496d::t_c93ecffadcc10a 5233-5237,5239-5250
+docs/PAGE_RENDERER.md
+  s_d9ecccdb16496d::t_b681d946a405d2 54-76
+packages/core/src/scene_record.rs
+  s_d9ecccdb16496d::t_8c439c6a78448c 2130-2138
+  s_d9ecccdb16496d::t_9f62ea3b430bbe 1454
+  s_d9ecccdb16496d::t_a373d029938e0c 1442-1449,1451-1453,1455-1462
+scripts/patches/blitz-dom-0.3.0-beta.1/0060-Implement-CSS-counters-resolution-pass-counter-conte.patch
+  s_d9ecccdb16496d::t_09edd1357c942d 1044
+scripts/patches/blitz-dom-0.3.0-beta.1/0063-Let-the-embedder-name-a-dims-only-image-resource.patch
+  s_d9ecccdb16496d::t_09edd1357c942d 1-129
+packages/engine/src/eval/resource-key.ts
+  s_d9ecccdb16496d::t_62b9515bf0f10b 1-63
+packages/page-script/src/resource-fetch.ts
+  s_d9ecccdb16496d::t_1c2148651cb010 192-209,266
+  s_d9ecccdb16496d::t_70cd7cd8d3a346 373-377,386-388
+packages/engine/test/e2e/engine-image-key.e2e.test.ts
+  s_d9ecccdb16496d::t_f9375fc46a7d50 65-71,74-76,79-85,88-93
+  s_d9ecccdb16496d::t_8c2786f134b327 86-87
+  s_d9ecccdb16496d::t_72e474d3970702 1-64,94-114
+  s_d9ecccdb16496d::t_17ad863ee67680 72-73,77-78
+packages/engine/src/eval/outbound.ts
+  s_d9ecccdb16496d::t_6e5d6f4a83a6bb 54,1222-1247,1313-1319,1321-1323,1352,1355-1357
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_d9ecccdb16496d::t_cc14f9e0fce26a 2445-2456,2556-2557
+  s_d9ecccdb16496d::t_e0f52d5c47b9a2 4265-4284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ae14ac497a39cd437fd89614d2925e08571bb113",
+  "prompts": {},
+  "sessions": {
+    "s_d9ecccdb16496d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03b959d9effev00SNORc7M35W1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+packages/engine/test/e2e/pdf-page-margins.e2e.test.ts
+  s_2607304cda0fbe::t_d4c60139a9188e 40-43
+  s_2607304cda0fbe::t_b8a66e35aa651b 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4986bd37c3451bc180da327ebba683125b283fbc",
+  "prompts": {},
+  "sessions": {
+    "s_2607304cda0fbe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03396bd34ffetyAlPmf1h4jlHJ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

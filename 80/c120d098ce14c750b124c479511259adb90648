@@ -1,0 +1,38 @@
+packages/rbi-client/src/painter.ts
+  s_0d774ef1069d39::t_07285e112cc9d9 51-68
+packages/core/src/scene_record.rs
+  s_0d774ef1069d39::t_e9e35c677e8a41 781-793,796-804,806-816
+  s_0d774ef1069d39::t_00e2c757d226c6 447
+  s_0d774ef1069d39::t_d8e41c6b920aec 493
+  s_0d774ef1069d39::t_bbb2a1ca1de6cc 410-414
+  s_0d774ef1069d39::t_b9cfc8821724ed 300-303,308-315
+  s_0d774ef1069d39::t_ff3c27635be7d9 1210-1211,1214-1215,1217-1232,1238
+  s_0d774ef1069d39::t_5f8a563f9cb8b9 230
+  s_0d774ef1069d39::t_393d7843bf0ed7 532
+  s_0d774ef1069d39::t_e4edb0e4ea5a2d 265-269
+  s_0d774ef1069d39::t_0df7c1653aae49 1724-1746
+packages/core/src/scene_decode.rs
+  s_0d774ef1069d39::t_9764827b8ba355 507
+  s_0d774ef1069d39::t_ec2ca535a3b28c 589
+  s_0d774ef1069d39::t_cc9290d5c186a5 750-754
+  s_0d774ef1069d39::t_c746a9eb4660df 805-807,809-836
+packages/rbi-client/src/wire.ts
+  s_0d774ef1069d39::t_7b06d8e44a1ced 48-51,72-92
+  s_0d774ef1069d39::t_650a6e7da7e96c 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "80c120d098ce14c750b124c479511259adb90648",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

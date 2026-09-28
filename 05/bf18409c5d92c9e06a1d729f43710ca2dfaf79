@@ -1,0 +1,27 @@
+scripts/patches/stylo-0.20.0/0029-Accept-numeric-calc-results-in-length-percentages.patch
+  s_14fc14ef8f57e3::t_7047fc9ffad990 1-34
+packages/core/src/lib.rs
+  s_14fc14ef8f57e3::t_9309386df8c4cd 275-276
+  s_14fc14ef8f57e3::t_723904a3f5f292 274
+scripts/patches/stylo-0.20.0/0028-Avoid-panics-from-malformed-computed-calc-trees.patch
+  s_14fc14ef8f57e3::t_397fb704a6bcdb 52,67
+  s_14fc14ef8f57e3::t_3549610792feb3 1-51,53-66,68-81
+packages/core/src/calc_resolution_test.rs
+  s_14fc14ef8f57e3::t_9309386df8c4cd 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "05bf18409c5d92c9e06a1d729f43710ca2dfaf79",
+  "prompts": {},
+  "sessions": {
+    "s_14fc14ef8f57e3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f91943103ffemcQ5v9AuqJiB0D",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

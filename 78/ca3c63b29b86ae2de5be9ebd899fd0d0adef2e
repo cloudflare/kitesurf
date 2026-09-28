@@ -1,0 +1,39 @@
+packages/website/src/pages/wpt/Overview.tsx
+  s_c1a6940130844c::t_6d0658e37bab4f 18
+packages/website/src/pages/wpt/Folder.tsx
+  s_c1a6940130844c::t_9d54e1243054b4 19
+packages/website/public/sitemap.xml
+  s_c1a6940130844c::t_3b897a0207a004 1-6
+packages/website/public/robots.txt
+  s_c1a6940130844c::t_3b897a0207a004 1-11
+packages/website/wrangler.jsonc
+  s_c1a6940130844c::t_56f92161e54fbc 17-18
+packages/website/src/content/links.ts
+  s_c1a6940130844c::t_6d0658e37bab4f 1-2
+packages/website/src/components/Document.tsx
+  s_c1a6940130844c::t_6d0658e37bab4f 2,11-12,24,32-42
+packages/website/src/pages/landing/Landing.tsx
+  s_c1a6940130844c::t_3b897a0207a004 2,10-24,30,38
+packages/website/src/pages/wpt/TestPage.tsx
+  s_c1a6940130844c::t_9d54e1243054b4 58
+packages/website/src/pages/wpt/WptPage.tsx
+  s_c1a6940130844c::t_6d0658e37bab4f 7-12,14,19
+packages/website/src/pages/bench/Benchmarks.tsx
+  s_c1a6940130844c::t_6d0658e37bab4f 81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "78ca3c63b29b86ae2de5be9ebd899fd0d0adef2e",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

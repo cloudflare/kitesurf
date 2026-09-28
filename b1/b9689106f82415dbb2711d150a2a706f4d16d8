@@ -1,0 +1,21 @@
+packages/website/src/styles/landing.css
+  s_909163843c9dee::t_f2485a2f50796a 10,33-34,37,40,44-45
+packages/website/src/client/hero-shader.ts
+  s_909163843c9dee::t_f2485a2f50796a 71-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b1b9689106f82415dbb2711d150a2a706f4d16d8",
+  "prompts": {},
+  "sessions": {
+    "s_909163843c9dee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1b8ee7e2ffe0ZSBgOtK2CgnBd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Brandon Strittmatter <bstrittmatter@cloudflare.com>"
+    }
+  }
+}

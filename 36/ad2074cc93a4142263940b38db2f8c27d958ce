@@ -1,0 +1,20 @@
+packages/page-script/src/font-loader.ts
+  s_4ba79f911c93c4::t_edce352446f61f 268-269,272
+  s_4ba79f911c93c4::t_74a955c583bb49 249-257,265-267,273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "36ad2074cc93a4142263940b38db2f8c27d958ce",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

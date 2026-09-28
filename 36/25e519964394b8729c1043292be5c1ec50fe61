@@ -1,0 +1,21 @@
+docs/TESTING.md
+  s_0ce9ee358b5cab::t_9aef66bde2b74c 152,164
+.gitlab-ci.yml
+  s_0ce9ee358b5cab::t_9aef66bde2b74c 484,487,489-494,650,652
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3625e519964394b8729c1043292be5c1ec50fe61",
+  "prompts": {},
+  "sessions": {
+    "s_0ce9ee358b5cab": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0175663cafferFTojqYhnIHVzU",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

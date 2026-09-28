@@ -1,0 +1,21 @@
+packages/engine/package.json
+  s_efb0ecf5826667::t_fa96efac9c3e54 15
+scripts/mr-preview.mjs
+  s_efb0ecf5826667::t_fa96efac9c3e54 35-36,40-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b98912d8ca59e8aebcf8bd9cf3a7a0b47e7e2ebb",
+  "prompts": {},
+  "sessions": {
+    "s_efb0ecf5826667": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc7af5d4dffeiQTSLvEAFG6ZKD",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+packages/page-script/src/globals.ts
+  s_4ba79f911c93c4::t_31e86ae1907cd6 2351,2408,2414-2421
+  s_4ba79f911c93c4::t_83f91e368ab612 2323-2350,2352-2407,2409-2413,2422-2495,2498-2505,2507,2510-2525
+packages/engine/test/e2e/intersection-observer.e2e.test.ts
+  s_4ba79f911c93c4::t_c1c603e5537b39 1-52,56-59,61-74
+  s_4ba79f911c93c4::t_f18365dbcb68ce 53-55,60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9c889974faaf8c880e1a7bffb0b5affd3546bd9b",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+scripts/wpt-exec.mjs
+  s_68d9376cb2ec20::t_19c6d561842d05 289-295,298,303-304,309,315,324-343,345-359,363
+  s_68d9376cb2ec20::t_8f4c51dfd1d7d4 364-380
+  s_63365f51c8df96::t_06e93013106a4c 381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "88c57d827065519ea043bacc66e20329d7681e1b",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_68d9376cb2ec20": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd7355d8fffeRbtZWzuCohmu7n",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

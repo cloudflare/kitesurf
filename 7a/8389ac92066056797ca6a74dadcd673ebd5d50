@@ -1,0 +1,41 @@
+packages/dom-shim/src/element.ts
+  s_093fe9238e1c6b::t_2413b9ad053f28 7959-7961,7969-7973
+  s_093fe9238e1c6b::t_9ea2ec44cb0b45 7937
+  s_093fe9238e1c6b::t_f2021c894e59fd 7962-7968
+  s_093fe9238e1c6b::t_c6e64a86b5b4ab 7942-7951,7955
+  s_093fe9238e1c6b::t_5454877ef6c35f 7841-7848
+  s_093fe9238e1c6b::t_85954a224c196e 7858-7885
+  s_093fe9238e1c6b::t_fa603f5433484b 7849-7857
+  s_093fe9238e1c6b::t_fa5e97bf7100c8 7910-7911
+  s_093fe9238e1c6b::t_f9f7a420f1dba6 7912-7913
+packages/engine/test/e2e/demos/img-srcset-reload-complete.e2e.test.ts
+  s_093fe9238e1c6b::t_764a539ebcc605 70-117
+packages/page-script/src/index.ts
+  s_093fe9238e1c6b::t_0310ed14f24fd1 1996,2000-2006,2008-2012
+docs/SCRIPT_LOADING.md
+  s_093fe9238e1c6b::t_2d190a77857fd5 42-67
+tests/interactivity-flows/har-replay-relay.mjs
+  s_093fe9238e1c6b::t_91ff0ec37fd6dd 83-85
+packages/dom-shim/src/mutations/observer.ts
+  s_093fe9238e1c6b::t_edddb94ca395f4 385
+packages/core/src/lib.rs
+  s_093fe9238e1c6b::t_d26fbc50941e92 5357-5364
+tests/interactivity-flows/bbc-hydration-probe.mjs
+  s_093fe9238e1c6b::t_91ff0ec37fd6dd 96-98,658-659,895-898
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7a8389ac92066056797ca6a74dadcd673ebd5d50",
+  "prompts": {},
+  "sessions": {
+    "s_093fe9238e1c6b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03c0fc2eeffej6j2szSHJDYbOe",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

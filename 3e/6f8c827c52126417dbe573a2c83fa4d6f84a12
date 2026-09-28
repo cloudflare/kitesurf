@@ -1,0 +1,105 @@
+scripts/patches/ratatui-image-8.1.1/0001-Feature-gate-the-terminal-capability-query-behind-qu.patch
+  s_1a92efd19a388c::t_cec1abeca8fdf4 1-187
+packages/page-script/src/wasm-glue.d.ts
+  s_1a92efd19a388c::t_45d10dac877f0f 217-231
+packages/engine/src/cdp/types.ts
+  s_1a92efd19a388c::t_afc5d9414fb584 223-224,227-259
+scripts/patches/README.md
+  s_1a92efd19a388c::t_031c5228a5c564 88,126-129
+packages/page-script/src/globals.ts
+  s_1a92efd19a388c::t_fc5736c1f258e9 3157-3165
+packages/core/src/tty_grid.rs
+  s_1a92efd19a388c::t_25e03f5c08c364 1-114,123-127,129-161,793-832,835-946,949-982,1023-1076,1078-1096,1106-1160,1166,1168-1169,1184-1188,1191-1199,1203-1369,1402-1406,1422-1429,1433-2009,2011-2013,2015-2016,2018,2041-2087,2089,2118-2144,2227
+  s_1a92efd19a388c::t_5de35cdd23e511 470-477
+  s_1a92efd19a388c::t_8a29210d158b51 416-417
+  s_1a92efd19a388c::t_3cc336684fb7d4 710,723-728,732,742
+  s_97e369e531e75f::t_23e6be192a2b14 162-281,290-292,299-302,310,324-331,333-349,363-389,403-404,406-407,409-415,418-469,478-532,542-709,711-722,729-731,733-741,743-773,778-788,792
+  s_1a92efd19a388c::t_7d212c0d20ce0e 1097-1105
+  s_1a92efd19a388c::t_8fef7f1196c9e1 1077
+  s_1a92efd19a388c::t_a0303d6fe777df 1189-1190,1200-1202
+  s_1a92efd19a388c::t_550442252c29be 789-791
+  s_1a92efd19a388c::t_cc53ea4323d750 1161-1165,1167,1170-1183
+  s_1a92efd19a388c::t_28810659da9b07 774-777
+  s_1a92efd19a388c::t_410a63b41e1dfb 359-362,391-393,401-402
+  s_1a92efd19a388c::t_609b065aad3633 947-948
+  s_1a92efd19a388c::t_af5fa70d5473db 1430-1432
+  s_1a92efd19a388c::t_f1ee74ebaefbda 533-541
+  s_1a92efd19a388c::t_9631d58506f6a7 2010,2014
+  s_1a92efd19a388c::t_bb4da20e7cb001 2090-2093,2106-2117
+  s_1a92efd19a388c::t_11c88fd95c675b 115-122,128
+  s_1a92efd19a388c::t_df58cae89a1d7e 390,394-400,405,408
+  s_1a92efd19a388c::t_05a6bf475a58f4 1409-1411
+  s_1a92efd19a388c::t_1f0b6dca539004 2019-2040
+  s_1a92efd19a388c::t_a225ca338c96cf 983-988,992-993,1004-1022
+  s_1a92efd19a388c::t_7ef7a4e9f0a3cd 2094-2105
+  s_1a92efd19a388c::t_5c2eb6f5402738 833-834
+  s_1a92efd19a388c::t_3ddc5bb54bf584 2017,2088
+packages/core/src/tty_modes.rs
+  s_1a92efd19a388c::t_aa98ab5eede3a4 406-412
+  s_1a92efd19a388c::t_8f16b4c861e3d6 1-405,413-776,778,792-851
+  s_1a92efd19a388c::t_bc0cbe3984f4f7 779-786,788-791
+  s_1a92efd19a388c::t_c9e8875f64308f 787
+  s_1a92efd19a388c::t_ca1bf3f8741d0f 777
+packages/core/src/lib.rs
+  s_1a92efd19a388c::t_7048b4b3f639a5 478-488
+  s_1a92efd19a388c::t_122e2fc5777a0b 69-78,477,489-547,965,1023,1038-1044,1229,1245-1250,6502,6505-6510,6559,6574
+packages/page-script/src/font-loader.ts
+  s_1a92efd19a388c::t_10394110003964 519-543,568
+packages/core/src/scene_replay.rs
+  s_1a92efd19a388c::t_42a2ae8a5670df 92-113,137,291,388,513
+packages/engine/src/eval/page-script.ts
+  s_1a92efd19a388c::t_4db117034d044d 335-347
+packages/core/Cargo.toml
+  s_1a92efd19a388c::t_b2a186c3bb8a45 17-22,29-41
+packages/core/src/tty_ansi.rs
+  s_1a92efd19a388c::t_3eb63bb8de4416 1-15,17-149
+packages/engine/src/cdp/page.ts
+  s_1a92efd19a388c::t_f355da03e8f3a5 13
+  s_1a92efd19a388c::t_bb340fddea3743 605-608
+  s_1a92efd19a388c::t_80b17ae708241b 620-621,3239-3253
+  s_1a92efd19a388c::t_d51f15d4d3e1cc 12
+packages/engine/src/tty/nav-params.ts
+  s_1a92efd19a388c::t_31e19ac9ea6186 1-18,24-90
+packages/engine/src/tty/stylesheet.ts
+  s_1a92efd19a388c::t_f355da03e8f3a5 1-26,32-89
+packages/core/src/fonts.rs
+  s_1a92efd19a388c::t_3ae92bcaba3e89 1449-1453
+  s_1a92efd19a388c::t_22bebe2d5c1080 1633,1643-1673
+  s_1a92efd19a388c::t_1d7a87ce305a3a 1634-1642
+packages/engine/test/tty-nav-params.test.ts
+  s_1a92efd19a388c::t_04032c3aa438f0 1-93
+packages/page-script/src/index.ts
+  s_1a92efd19a388c::t_ca970e07661e1b 136,235-237,1365-1387,1402-1439
+Cargo.lock
+  s_1a92efd19a388c::t_cfc559d130cb9b 118-127,287,324,409,430-444,480-493,568,583-594,607-620,629-640,642,695,706,914,1326,1351-1356,1433-1454,1547-1548,1566,1666-1674,1682,1768,1818,1861,1877,1880-1885,2038,2051,2261-2292,2555,2729-2743,2750-2762,2772,2812-2813,2846,2849,2954-2964,2973,3008-3016,3023-3034,3045,3157,3160,3329-3339,3346-3357,3440,3465-3470,3538,3714,3726,3747,3767,3814,3825
+Cargo.toml
+  s_1a92efd19a388c::t_9f326bed7b3faa 94-100
+packages/engine/test/tty-stylesheet.test.ts
+  s_1a92efd19a388c::t_94e09a76add447 1-85
+scripts/get-patched-vendor-crates.mjs
+  s_1a92efd19a388c::t_aad9c720d9d4f8 61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3e6f8c827c52126417dbe573a2c83fa4d6f84a12",
+  "prompts": {},
+  "sessions": {
+    "s_1a92efd19a388c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f34aa71c2ffepIc2qyDMMRcI4N",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    },
+    "s_97e369e531e75f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35286b34ffehIQ06dVcNrY6VD",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

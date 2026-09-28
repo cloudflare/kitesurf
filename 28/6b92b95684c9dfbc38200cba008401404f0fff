@@ -1,0 +1,56 @@
+packages/core/src/scene_record.rs
+  s_76bfd1a366a51d::t_39f58fa59d3dbb 361-363,365-373
+  s_76bfd1a366a51d::t_77fa3e9fda4416 771
+  s_76bfd1a366a51d::t_a2b8803e35e4b3 1563-1565
+  s_76bfd1a366a51d::t_bb5e88b04bfc16 364
+  s_76bfd1a366a51d::t_386e9423c250c4 2094-2095,2100-2143,2150-2152,2158-2160,2162-2168
+  s_76bfd1a366a51d::t_d61d315613a800 2096-2099
+  s_76bfd1a366a51d::t_fe92aa54bae2d6 2144-2149,2153-2157,2161
+  s_76bfd1a366a51d::t_486ff6d779e3e0 1528-1529
+packages/core/Cargo.toml
+  s_76bfd1a366a51d::t_7ccd8bf62e1a08 119-127
+packages/core/src/scene_replay.rs
+  s_76bfd1a366a51d::t_e78c9964b92d72 460
+  s_76bfd1a366a51d::t_30340e12df8bb5 474-481
+  s_76bfd1a366a51d::t_9febceeedc9c5f 2051-2052,2055-2058,2065-2121
+  s_76bfd1a366a51d::t_ca5be2259b6c3c 2341
+  s_76bfd1a366a51d::t_9930bedb42e235 2044,2122,2256-2309,2381-2402
+  s_76bfd1a366a51d::t_7c53215083e345 2310-2321,2323-2340,2342-2345
+  s_76bfd1a366a51d::t_fe2b3cf2984353 1980-1986,1992,2000,2004-2014,2018-2023,2029-2031,2037-2043
+  s_76bfd1a366a51d::t_1cae7a771e95b1 2024-2028,2032-2036
+  s_76bfd1a366a51d::t_353ac070ac65ba 462-473,482-493,495-504,520-529,531-533
+  s_76bfd1a366a51d::t_f7f416026e27a4 2255,2346-2380
+  s_76bfd1a366a51d::t_7762408ddeee76 2015-2016
+  s_76bfd1a366a51d::t_f2b1c934708120 511
+  s_76bfd1a366a51d::t_d3f360f6aac3cf 2322
+  s_76bfd1a366a51d::t_1ece02e970b5eb 2017
+  s_76bfd1a366a51d::t_b4f4a8125f0426 505-510
+  s_76bfd1a366a51d::t_3a350ba68e9a52 461
+  s_76bfd1a366a51d::t_62d5084f8e08f9 2045
+  s_76bfd1a366a51d::t_e4bccb91e2495e 2123
+packages/core/src/lib.rs
+  s_76bfd1a366a51d::t_6c598be88614d3 4928
+  s_76bfd1a366a51d::t_daccb50c326600 4805-4808
+  s_76bfd1a366a51d::t_a5cbc6ce5c050c 4888,4893-4912,4925-4927,4929-4932
+  s_76bfd1a366a51d::t_a8b223a2f0ae5f 4913-4924
+  s_76bfd1a366a51d::t_651e09b4f3be68 4884-4887,4889-4892
+  s_76bfd1a366a51d::t_f042b7f5eaec53 4961-4968,4975
+packages/core/Cargo.lock
+  s_76bfd1a366a51d::t_4d70dfa9f020a7 1363-1368,1418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "286b92b95684c9dfbc38200cba008401404f0fff",
+  "prompts": {},
+  "sessions": {
+    "s_76bfd1a366a51d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02cd68253ffeg1kYLSumAjq6rF",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

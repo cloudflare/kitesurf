@@ -1,0 +1,19 @@
+packages/engine/test/e2e/demos/forms-range-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_d65aa4ea913841 115-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "addd91ec8e9ca21364755ddab7a0fc11e3add320",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+packages/core/src/nested_inline_abspos_test.rs
+  s_82c6f22e2b0444::t_0b30b170e74c86 1-35,41-43,46,48-52,55-59,77-78
+  s_82c6f22e2b0444::t_752a2b49501ba5 36-40,44-45,47,53-54,60-76
+  s_82c6f22e2b0444::t_0192c4330aaba6 79
+packages/core/src/lib.rs
+  s_82c6f22e2b0444::t_22d3b2e2e84e3e 118-119
+  s_9c00b6f65cc13e::t_863f16d4e0a1d0 117
+scripts/patches/blitz-dom-0.3.0-beta.1/0091-Do-not-hoist-an-abspos-past-a-positioned-inline-ance.patch
+  s_82c6f22e2b0444::t_80ad9c03c427f7 1-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a183a72caae7a2dc2a7033b568d111f878a3e103",
+  "prompts": {},
+  "sessions": {
+    "s_82c6f22e2b0444": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00dc5b66cffesWPaC4oZLhbxGN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_9c00b6f65cc13e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00ec4622dffenjEEbHuORvRc22",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

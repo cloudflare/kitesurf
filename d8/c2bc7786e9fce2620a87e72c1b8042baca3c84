@@ -1,0 +1,25 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d8c2bc7786e9fce2620a87e72c1b8042baca3c84",
+  "prompts": {},
+  "sessions": {
+    "s_4cd8b5f9750fc5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_033165567ffecPpsdlMWf0Uflr",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b194460ac5a659": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_032e9224cffeZfl1akIGEZ2npH",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

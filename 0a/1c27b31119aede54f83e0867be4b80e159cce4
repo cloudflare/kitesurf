@@ -1,0 +1,20 @@
+packages/page-script/src/index.ts
+  s_b53babca4e4ca8::t_56631311acfa49 3739-3747
+  s_b53babca4e4ca8::t_a76e3f901faaf3 5105-5114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a1c27b31119aede54f83e0867be4b80e159cce4",
+  "prompts": {},
+  "sessions": {
+    "s_b53babca4e4ca8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_052eb64beffeDFt2W7tlQM9H0Q",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}

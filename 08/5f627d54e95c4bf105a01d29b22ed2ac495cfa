@@ -1,0 +1,68 @@
+tests/wpt-tests.json
+  s_560788ca203201::t_cfe03d091bb180 6209-6210,7016,7032
+tests/wpt-revision.json
+  s_560788ca203201::t_675d5fee40c22c 2-3
+tests/wpt-expectations.json
+  s_560788ca203201::t_e5dd5c45ebb24a 2045,6118,7335,7471,8003,8139,9953,10427,21538,21602,28363-28369,28371-28382
+  s_560788ca203201::t_cfe03d091bb180 18636,18640,21537,21601
+  s_560788ca203201::t_93bb7042b835c5 2046,6119,7336,7472,8004,8140,9954,10428,21539,21603,28370
+  s_75cda20912191f::t_4017abff4b3988 28382
+docs/WEBMCP.md
+  s_482f083621a856::t_755a8afee982d9 15-23,95
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_482f083621a856::t_d8562e96ea2625 777-778,1586-1589
+packages/dom-shim/src/index.ts
+  s_482f083621a856::t_2dfdd1b5553ea2 964
+packages/dom-shim/src/model-context.ts
+  s_482f083621a856::t_2dfdd1b5553ea2 18,64,88-98,163-165,170-282,680,683,685-686,690-694,739-782
+  s_75cda20912191f::t_70e38cb08c9d1f 535
+  s_75cda20912191f::t_9e36a87df79fc2 612-614
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_482f083621a856::t_2dfdd1b5553ea2 433-489
+  s_482f083621a856::t_dca899e22862d3 156,158,201,203,204,206,209,211-212,223
+packages/engine/src/cdp/webmcp.ts
+  s_482f083621a856::t_2dfdd1b5553ea2 19-20,42,127-129,151
+  s_482f083621a856::t_919cffd58b2537 455,456
+packages/engine/test/fixtures-worker/assets/webmcp-declarative.html
+  s_482f083621a856::t_d8562e96ea2625 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "085f627d54e95c4bf105a01d29b22ed2ac495cfa",
+  "prompts": {},
+  "sessions": {
+    "s_482f083621a856": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbb8ca507fferZ4zXnmGDbfz0J",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    },
+    "s_560788ca203201": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fadf4e0c0ffer5IEJqx8LMHshA",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    },
+    "s_75cda20912191f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fba9eb3eefferW8Jv51X1NxKks",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f78b72afa9dc2e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc86de6bbffeYtq7dIp5NO0iTu",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_f50b7cd97baf3e::t_b9d298bb3f93f7 2193-2231
+scripts/patches/blitz-dom-0.3.0-beta.1/0018-Flush-nested-inline-pseudo-elements-child-display-no.patch
+  s_f50b7cd97baf3e::t_3d3fca15815aa4 1-42
+packages/engine/test/e2e/demos/navigate-style-script-order.e2e.test.ts
+  s_f50b7cd97baf3e::t_5b11a65ce9d9fc 43-46,48,50-63
+  s_f50b7cd97baf3e::t_11b00244f5d008 1-42,47,49,64
+packages/engine/src/cdp/page.ts
+  s_f50b7cd97baf3e::t_30bf81ec93a0c3 2285-2295
+packages/engine/src/eval/page-script-session.ts
+  s_f50b7cd97baf3e::t_8fef758daf182d 454-460
+packages/page-script/src/index.ts
+  s_f50b7cd97baf3e::t_36cd809835b74f 1484-1497
+  s_f50b7cd97baf3e::t_d7fd50f60a0f53 1483,1498-1513
+  s_f50b7cd97baf3e::t_5dd301b17c82a1 1078-1099
+packages/engine/src/eval/page-script.ts
+  s_f50b7cd97baf3e::t_8fef758daf182d 284-290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "487ca357a1ea922844281739344782cdddac9c79",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

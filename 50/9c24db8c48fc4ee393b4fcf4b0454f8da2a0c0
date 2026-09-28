@@ -1,0 +1,21 @@
+packages/engine/public/index.html
+  s_c1a6940130844c::t_6845d34ef7cc0e 499
+packages/website/src/pages/landing/Hero.tsx
+  s_c1a6940130844c::t_81e34d93a32bbf 119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "509c24db8c48fc4ee393b4fcf4b0454f8da2a0c0",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

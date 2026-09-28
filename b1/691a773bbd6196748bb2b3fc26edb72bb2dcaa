@@ -1,0 +1,34 @@
+AGENTS.md
+  s_6d2bd321e74cd3::t_978d5e14c4a0c0 525,528-544
+packages/dom-shim/src/model-context.ts
+  s_6d2bd321e74cd3::t_950b5e3bd50901 1,5-12,15,17-18,20-22,24-33,36-40,43,45-47,58-63,65-66,69-93,96,98-100,104,109-112,115,122-141,143-156,158-164,168-181,185-198,200-227,230-237,241-301,303-306,309-310,314,316-325,328-329,338,342,344-346,355,358-359,363-365
+packages/page-script/src/wasm.d.ts
+  s_6d2bd321e74cd3::t_ef1204ec735781 48-49,52,54-56
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_6d2bd321e74cd3::t_cfd461d8a46311 2347-2352,2360-2368,2370-2389,2391-2392,2394-2395,2399
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_6d2bd321e74cd3::t_f6c6d6cb7579e2 2-3,11-19,22,33,37,45,54,58-63,65-72,76-79,89-90,99,103,107-108,115,117-197
+packages/engine/src/cdp/webmcp.ts
+  s_6d2bd321e74cd3::t_073fe349f62105 3-5,8,22-26,34-43,46,48-50,89,91,93-103
+  s_6d2bd321e74cd3::t_ef1204ec735781 1
+packages/dom-shim/src/index.ts
+  s_6d2bd321e74cd3::t_7b94baeafe40ec 1359
+  s_6d2bd321e74cd3::t_bae041eeb07d65 18,967-987
+  s_6d2bd321e74cd3::t_cf6eb2b2a1bf09 988
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b1691a773bbd6196748bb2b3fc26edb72bb2dcaa",
+  "prompts": {},
+  "sessions": {
+    "s_6d2bd321e74cd3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05593a336ffenHUE13Z3AsPOgn",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

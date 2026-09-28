@@ -1,0 +1,24 @@
+packages/core/src/taffy_style_source_test.rs
+  s_38a0bf52e4dc1d::t_6e443851498278 22,117-152,173
+  s_38a0bf52e4dc1d::t_af978ee674d73a 166,172
+  s_38a0bf52e4dc1d::t_bc4d4dcf0fef92 153-165,167-171,174-238
+scripts/patches/blitz-dom-0.3.0-beta.2/0120-Retain-table-computed-styles-for-calc-pointers.patch
+  s_38a0bf52e4dc1d::t_30c5bec3d7a3c3 1-24,26-93
+  s_38a0bf52e4dc1d::t_2df8abb303610b 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "33f8db98beaba2f27df81e9042211ebf627a8095",
+  "prompts": {},
+  "sessions": {
+    "s_38a0bf52e4dc1d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8e4b47a7ffeVSUDRGBOtAte1Z",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

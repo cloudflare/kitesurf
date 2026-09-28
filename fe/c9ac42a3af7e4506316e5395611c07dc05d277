@@ -1,0 +1,37 @@
+packages/engine/src/cdp/network-events.ts
+  s_80019aaa6f9707::t_8346d54e7b6d08 930-933
+  s_80019aaa6f9707::t_03959cc5cea7f7 965-966,968-971,973
+  s_80019aaa6f9707::t_ee13fd3ad7847a 89-96
+  s_80019aaa6f9707::t_0a2f62bb237df3 116-118
+  s_80019aaa6f9707::t_8249ec00a67254 359
+  s_80019aaa6f9707::t_85cdd0216a6c5a 291-295
+  s_80019aaa6f9707::t_c7f9b8ea06a50e 121-143
+  s_80019aaa6f9707::t_271b76131ce3fb 345-346,348-349
+  s_80019aaa6f9707::t_55fc526dc16024 275,282-290,298-301,303-307,309,311-336
+  s_80019aaa6f9707::t_55c633436e5c4e 651-653,659
+docs/NETWORKING.md
+  s_80019aaa6f9707::t_0a76d237519e4b 39-49
+packages/engine/test/network-enable.test.ts
+  s_80019aaa6f9707::t_a16931a5f5f3ed 209-210,212,214-215
+  s_80019aaa6f9707::t_8e370662957131 191-208,211,213,216-236,238-266
+  s_80019aaa6f9707::t_c5357ce7e696ab 237
+  s_80019aaa6f9707::t_04bb45c5c936cb 60-84
+packages/engine/src/cdp/network.ts
+  s_80019aaa6f9707::t_cf540fbdc11831 23-30,32-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fec9ac42a3af7e4506316e5395611c07dc05d277",
+  "prompts": {},
+  "sessions": {
+    "s_80019aaa6f9707": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_037e57f09ffeUR0bVZXgMehJiR",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

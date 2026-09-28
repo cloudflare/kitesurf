@@ -1,0 +1,31 @@
+packages/grafana/test/query.test.ts
+  s_887b2cadd25608::t_407e2401b4b185 175-207
+packages/grafana/test/dashboard.test.ts
+  s_887b2cadd25608::t_a29d8f8142f634 126-127,129-155,160-190
+  s_887b2cadd25608::t_7ecb351cb507a8 191
+packages/grafana/src/query.ts
+  s_887b2cadd25608::t_435f48d81bd688 221-222,225,227-228,230
+  s_887b2cadd25608::t_396f17f8eff4c7 164-216
+  s_887b2cadd25608::t_8a47980cfb2f7e 379-381,385,389,393
+  s_887b2cadd25608::t_628395a0e02b37 416-419,428-437,445-451
+.cloudflare/grafana/kitesurf-usage.json
+  s_887b2cadd25608::t_67f5e223ff56bb 169,217,255,265,319,373,417,427
+packages/grafana/src/dashboards/kitesurf-usage.ts
+  s_887b2cadd25608::t_4b4d1f001075e1 40-44,51-55,61-66,74-76,85-89,97-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6be0a75e9ad9cab71aaf1c503e76f0dd3958a27d",
+  "prompts": {},
+  "sessions": {
+    "s_887b2cadd25608": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009837d99ffetu52Sow09lmJVh",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

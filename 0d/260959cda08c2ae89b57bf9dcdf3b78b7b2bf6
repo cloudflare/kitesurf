@@ -1,0 +1,31 @@
+packages/dom-shim/src/element.ts
+  s_50d45ac3d4c7e5::t_648b7a4d2e2edd 2485-2486,2488-2490,2492-2494
+  s_50d45ac3d4c7e5::t_fb7ad08366ee0c 2487,2491
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_f9e05270d611a2 5672-5673
+  s_50d45ac3d4c7e5::t_090d7457e4c0de 2815-2818
+packages/engine/test/e2e/element-measurement.e2e.test.ts
+  s_50d45ac3d4c7e5::t_e928534405caa3 56-106
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_1bffc491ec837c 564-565
+  s_50d45ac3d4c7e5::t_6f2a8dc5ec4469 562-563
+  s_50d45ac3d4c7e5::t_98c31115fae9b7 571
+packages/dom-shim/src/layout/scroll.ts
+  s_50d45ac3d4c7e5::t_5cd8dc6ed329af 99-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0d260959cda08c2ae89b57bf9dcdf3b78b7b2bf6",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

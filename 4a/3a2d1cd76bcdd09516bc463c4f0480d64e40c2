@@ -1,0 +1,23 @@
+packages/core/src/lib.rs
+  s_e7dc27bdab5fff::t_12016ff95db394 5959-5976
+packages/core/src/hoist_incremental_test.rs
+  s_e7dc27bdab5fff::t_159e343fddccce 146-225
+scripts/patches/blitz-dom-0.3.0-beta.1/0098-kitesurf-re-check-a-hoist-record-before-replaying-it.patch
+  s_e7dc27bdab5fff::t_d7c6261786e31b 1-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4a3a2d1cd76bcdd09516bc463c4f0480d64e40c2",
+  "prompts": {},
+  "sessions": {
+    "s_e7dc27bdab5fff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00a4f8786ffeFB2n8VkGusS6CL",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

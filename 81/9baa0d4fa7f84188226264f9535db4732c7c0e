@@ -1,0 +1,264 @@
+research/page-renderer-plan.md
+  s_c9f68948e839d2::t_26734b3037500c 230-233,241-244,277
+  s_c9f68948e839d2::t_7276e50edc85ff 234-235
+  s_c9f68948e839d2::t_cc8b3e269db1f4 1-22,25,27-38,42-95,104-105,108-138,142-184,228-229,278-294
+  s_c9f68948e839d2::t_462234c11ab949 245-257
+  s_c9f68948e839d2::t_17cde0429c6adf 259-277
+  s_c9f68948e839d2::t_7576270cbe3872 96-103,106-107
+  s_c9f68948e839d2::t_e617ba1047be38 39-41
+  s_c9f68948e839d2::t_2cbcda14465f52 236-240
+  s_c9f68948e839d2::t_63ed2a5b6a069f 185-227
+  s_c9f68948e839d2::t_4dda1241520a87 23-24,26
+packages/core/src/lib.rs
+  s_c9f68948e839d2::t_0aa238b2e8a5b6 581-583
+  s_c9f68948e839d2::t_d728baf61d66bb 3464-3543,3545-3558,3560-3620,3624-3625,3627-3629,3633-3649,3652-3703,3705-3734,3736-3748,3753-3756,3774-3788,3801-3827,3842-4036
+  s_c9f68948e839d2::t_6e851c926ac66e 56-57
+  s_c9f68948e839d2::t_40964f5e0a5592 324-349,354-370
+  s_c9f68948e839d2::t_0cfb3a99cbe979 4037
+  s_896b78e3e98938::t_b048dbdcfa7578 323
+  s_c9f68948e839d2::t_9352579f78a7e7 3559
+  s_c9f68948e839d2::t_44b89f312cf873 3789-3800
+  s_c9f68948e839d2::t_edf3d709e35334 3621-3623,3626,3630-3632
+  s_c9f68948e839d2::t_99640874f2b9d4 3749-3752,3757-3771
+  s_c9f68948e839d2::t_1eee3064a82174 3735
+  s_c9f68948e839d2::t_2ac4db0136e877 3773,3828-3841
+  s_c9f68948e839d2::t_cc0815141ca82b 58
+  s_c9f68948e839d2::t_8e326be04c9d70 350-353
+  s_c9f68948e839d2::t_942802ad2e42be 3704
+  s_c9f68948e839d2::t_361aabbdf9fda5 3772
+  s_c9f68948e839d2::t_6a75dd27e197e8 3544,3650-3651
+  s_c9f68948e839d2::t_9bf044f1a6b45a 223-238,540-541
+  s_c9f68948e839d2::t_916a4ca85cb963 2984-3003,3028,3134,3273-3288,3293-3297,4076
+packages/core/src/scene_record.rs
+  s_c9f68948e839d2::t_c73de9fbc8736b 1-59,61-110,112,114-124,128-232,238-283,285-293,297-300,302-305,307-351,356-371,379-408,416-453,460-494,497-499,509-535,537-543,545-568,570-571,574-609,611-627,630,635-661,663-698,703-705,707-1334,1361-1392,1394-1405,1408-1414,1416,1421,1424-1509,1515-1586,1592-1618,1620-1982,1984-1988,1990-1996,2003-2030,2039-2049,2051-2071
+  s_c9f68948e839d2::t_1ca449a26ac9fb 2050
+  s_c9f68948e839d2::t_73ae354922ceb3 352-355
+  s_c9f68948e839d2::t_02d1afcba609af 628-629,631-634
+  s_c9f68948e839d2::t_fefd0bd331c311 1406-1407,1415,1417-1420,1423
+  s_c9f68948e839d2::t_58f7b12b32f9d9 454-459
+  s_c9f68948e839d2::t_b317d47d662b78 409-415
+  s_c9f68948e839d2::t_4a014a730fdec6 372-378
+  s_c9f68948e839d2::t_0304c0c10e8409 233-237
+  s_c9f68948e839d2::t_af02ac6d8533bd 572-573
+  s_c9f68948e839d2::t_ad1751781fdc49 1619
+  s_c9f68948e839d2::t_7869a8371f978a 495-496,500-506
+  s_c9f68948e839d2::t_971df922c9ce2c 700-702,706
+  s_c9f68948e839d2::t_05bb25a2a15f1f 1587-1591
+  s_c9f68948e839d2::t_db46744dd6b1d9 1983,1989,1997-2002
+  s_c9f68948e839d2::t_a1abec0d0a271b 507-508
+  s_c9f68948e839d2::t_7b2f3e33beec84 60,284,544,1340-1342,1393,1422,2031-2036
+  s_c9f68948e839d2::t_74de777939d52b 111,294-296,301,306,536
+  s_c9f68948e839d2::t_6a75dd27e197e8 699,1510-1514
+  s_c9f68948e839d2::t_bc57d163d224aa 2037-2038
+  s_c9f68948e839d2::t_16d26b29313bfb 569,610,1335-1339,1343-1360
+  s_c9f68948e839d2::t_faee56105d9811 662
+packages/core/Cargo.toml
+  s_c9f68948e839d2::t_c9a27a002a23b3 104-109
+packages/core/src/scene_decode.rs
+  s_c9f68948e839d2::t_c73de9fbc8736b 1-144,149-477,479-564,577-581,584-1472
+  s_c9f68948e839d2::t_ec82a61fe7aadf 145-148
+  s_c9f68948e839d2::t_4cdb9ce11574a6 565-576,582-583
+  s_c9f68948e839d2::t_6a75dd27e197e8 478
+packages/core/Cargo.lock
+  s_c9f68948e839d2::t_375eba38e22573 1351
+packages/core/src/fonts.rs
+  s_c9f68948e839d2::t_e0f8d40cde9a11 109-125,132-140
+  s_c9f68948e839d2::t_791a286a7a887d 303-305
+  s_c9f68948e839d2::t_4bf7075b996129 717-720
+  s_c9f68948e839d2::t_f14c07bf7820ac 217-220
+  s_c9f68948e839d2::t_5fd3f0c87fc09d 773-783
+  s_c9f68948e839d2::t_6a75dd27e197e8 126-131
+packages/core/src/scene_replay.rs
+  s_c9f68948e839d2::t_5fd9ba5c391271 1-24,26-27,33-36,41-47,53,96-128,130-141,143-164,165-166,170-186,193-195,198,200-215,224,227,229-232,234-244,258-264,267-277,283-298,306,325-331,336-457,459,461-542,544,546-757,764-1038,1044-1097,1102-1107,1109-1117,1254-1281
+  s_c9f68948e839d2::t_ddc02dfd8ef02b 758-763
+  s_c9f68948e839d2::t_26439b88bff6ea 25,28-32,37-40
+  s_c9f68948e839d2::t_a9bb4bdd40f333 1039-1043,1098-1101,1108,1118
+  s_c9f68948e839d2::t_e66b987d1df707 62-66,83-87,1119-1120,1234-1253
+  s_c9f68948e839d2::t_4a19185ffb5eab 48-52,54-61,67-82,88-95,129,142,167-169,187-192,299-305
+  s_c9f68948e839d2::t_b654c03b713af2 309-313,317-318
+  s_c9f68948e839d2::t_b2e05c2492cc83 1121-1233
+  s_c9f68948e839d2::t_a42e758bb27b7c 196-197,199,216-223,225-226,228,233,245-257,265-266,278-282,307-308,314-316,319-324,332-335,458,460,543,545
+packages/page-renderer/tsconfig.json
+  s_c9f68948e839d2::t_e891e87c01089d 1-14,17-19
+  s_c9f68948e839d2::t_b55a63dffa51de 15-16
+packages/page-renderer/src/index.ts
+  s_c9f68948e839d2::t_20cf49a6f5bed0 1-21,41-43,48-49,50-61,69,74,76,93-101,137,139-167,169-172,202-273,278-293
+  s_c9f68948e839d2::t_e5089f7e265af1 274-277
+  s_c9f68948e839d2::t_6d1f3fb6915277 22-26,29-36,39-40,45-47
+  s_c9f68948e839d2::t_520a6cbb47143a 127-136
+  s_c9f68948e839d2::t_ffd49b43c34e8c 62-68,70-73,75,79-80
+  s_c9f68948e839d2::t_0c8382d7157232 173-201
+  s_c9f68948e839d2::t_aafc5bc1bdcf92 81
+  s_c9f68948e839d2::t_32d140cbcbcbda 44,82-94,102-126,138,168
+  s_c9f68948e839d2::t_8366576b90abcc 27-28,37-38
+packages/page-renderer/src/wasm-glue.d.ts
+  s_c9f68948e839d2::t_95494e1267ba68 1-22
+packages/page-renderer/src/shims.d.ts
+  s_c9f68948e839d2::t_811dc3b1799d44 1-30
+  s_c9f68948e839d2::t_8057f52eacc710 31-48
+packages/page-renderer/scripts/build.mjs
+  s_c9f68948e839d2::t_7f900d90f8bfbc 1-71
+packages/page-renderer/src/ws-codec.ts
+  s_c9f68948e839d2::t_562943fb53b197 1-143
+packages/page-renderer/src/core_bg.d.wasm.ts
+  s_c9f68948e839d2::t_69c6317ee8b17b 1-5
+packages/page-renderer/package.json
+  s_c9f68948e839d2::t_2be560216fdf1c 1-23
+packages/engine/src/eval/page-renderer.ts
+  s_c9f68948e839d2::t_b9081b73220f0d 1-349,359-373,424-443,455,478,480,482-488,494-497,517-523,531-533,567-576,578-580
+  s_c9f68948e839d2::t_9387b3b5a30f61 577
+  s_c9f68948e839d2::t_906f3a09112def 350-351
+  s_c9f68948e839d2::t_4b9b6874d35770 407-423
+  s_c9f68948e839d2::t_f6d9b3df08d8b0 375,379-406
+  s_c9f68948e839d2::t_7e0e27fa73ba83 504-514,516,524-530,536,556-557,559-566
+  s_c9f68948e839d2::t_65628a62371cdc 535,543-555
+  s_c9f68948e839d2::t_a16e550023f2ba 374
+  s_c9f68948e839d2::t_fc5cf355b214ca 352-358
+  s_c9f68948e839d2::t_b9f7ad4ba878b5 515,534,537-542,558
+  s_c9f68948e839d2::t_0d4a2d1c5704b3 444-454,456-477,479,481
+  s_c9f68948e839d2::t_c22e8cbfa2bb4f 493,498-502
+  s_c9f68948e839d2::t_c81ac90ae24663 503
+packages/engine/src/eval/page-script.ts
+  s_c9f68948e839d2::t_f66383c3435d04 39-41
+  s_c9f68948e839d2::t_3d88068f63965e 284
+packages/engine/package.json
+  s_c9f68948e839d2::t_68325668061685 7,24
+  s_c9f68948e839d2::t_28777e2e725451 10
+pnpm-lock.yaml
+  s_c9f68948e839d2::t_c0f7cc127f78fe 76-78,114-125
+packages/engine/test/e2e/demos/page-renderer-parity.e2e.test.ts
+  s_c9f68948e839d2::t_f1a7225ee2d7f3 20
+  s_c9f68948e839d2::t_358aff9921e4db 111-117
+  s_c9f68948e839d2::t_61da3b82c78ab2 1-19,21-72,89-110,118-141
+  s_c9f68948e839d2::t_75dbc4d3c0eee2 73-88
+packages/engine/src/cdp/dispatch.ts
+  s_c9f68948e839d2::t_84b7537c30caaf 23-31
+packages/engine/src/cdp/kitesurf.ts
+  s_c9f68948e839d2::t_671cb2942cc292 125-130,135-139,142-144
+  s_c9f68948e839d2::t_fb45cd73222e0a 131-134,140-141
+packages/engine/src/cdp/types.ts
+  s_c9f68948e839d2::t_97648f65dac635 200-207
+  s_c9f68948e839d2::t_5d5ac5bc3512b7 199
+packages/engine/wrangler.jsonc
+  s_c9f68948e839d2::t_4351afeee062b6 290
+  s_c9f68948e839d2::t_3240c3dcf0e021 116-121
+packages/engine/vitest.e2e.config.mts
+  s_c9f68948e839d2::t_66a309f1c2e4bf 35-40
+packages/engine/src/cdp/connection.ts
+  s_c9f68948e839d2::t_74773283f038c3 462-471
+  s_c9f68948e839d2::t_100d5506513195 280-281
+  s_c9f68948e839d2::t_d4b38fdb54b553 315-317
+packages/engine/test/e2e/demos/png.ts
+  s_c9f68948e839d2::t_fa21bb0ec3e10b 1-6,8-98
+  s_c9f68948e839d2::t_cdd2a0615a5e97 99-155
+  s_c9f68948e839d2::t_d02f3e701c2fb6 7
+packages/page-script/src/index.ts
+  s_c9f68948e839d2::t_3d1450ef346042 3715-3720,3736-3838
+  s_c9f68948e839d2::t_90c2ee703ddd15 3721-3735
+  s_c9f68948e839d2::t_c090869b24dd6f 123,1062-1068
+packages/engine/src/cdp/page.ts
+  s_c9f68948e839d2::t_0ff80e8fa708fc 1142-1150,1152-1154
+  s_c9f68948e839d2::t_c8bf0b3684b965 44
+  s_c9f68948e839d2::t_68e7fb16364784 72-95,110-111,113-115,133-138,140,151-157,164-172
+  s_c9f68948e839d2::t_cc904b73caee58 4964-4969
+  s_c9f68948e839d2::t_f7d5f116edfa08 4883-4888,4890-4900,4902-4903,4905-4911
+  s_c9f68948e839d2::t_617cafa443d9ba 96-102,104-105,116,119,125-132
+  s_c9f68948e839d2::t_bc3505669019cc 103,106-109,117-118,120-124,158-163
+  s_c9f68948e839d2::t_11b328847bf0f5 4940-4942,4947-4950,4952,4970-4973
+  s_c9f68948e839d2::t_276701969148a3 4943-4946,4951,4953-4963
+  s_c9f68948e839d2::t_c43ac197933624 1151
+  s_c9f68948e839d2::t_d1bdf3eb76a582 112
+  s_c9f68948e839d2::t_fce3dc1dbc934e 139,141-150
+  s_c9f68948e839d2::t_c090869b24dd6f 2275-2279
+packages/engine/test/e2e/demos/page-renderer-screencast.e2e.test.ts
+  s_c9f68948e839d2::t_b1052ae07549f3 1-116
+packages/engine/src/eval/outbound.ts
+  s_c9f68948e839d2::t_66a4db26a7cffd 500,507-511,526-528
+  s_c9f68948e839d2::t_734fdb46e3e31d 455-465,490
+  s_c9f68948e839d2::t_aa8f2a97d3f8e1 512-525
+  s_c9f68948e839d2::t_055a7d47d9816d 433-439,481-484,486
+  s_c9f68948e839d2::t_9d2782f8484791 95-104
+  s_c9f68948e839d2::t_6a0dc895c23ab2 440-454
+  s_c9f68948e839d2::t_0e15a0b94452d1 491-492
+  s_235fc72330162e::t_c9ae855fb1f4cb 529-530
+  s_c9f68948e839d2::t_cad201cc4ac898 105
+  s_c9f68948e839d2::t_c5d92122616cdd 485,488
+  s_c9f68948e839d2::t_51860549e3e600 466-471
+packages/page-script/src/resource-fetch.ts
+  s_c9f68948e839d2::t_a96f2b8ff1df4a 178
+  s_c9f68948e839d2::t_7476e871a04a51 170-177,179-180
+AGENTS.md
+  s_c9f68948e839d2::t_44c324cfa84284 495-507
+tests/interactivity-flows/spawn-relay.mjs
+  s_c9f68948e839d2::t_9ad542168b09bb 1-44
+tests/interactivity-flows/egress-relay.ts
+  s_c9f68948e839d2::t_52ae6318f93a32 85-87
+  s_c9f68948e839d2::t_e736fdc4725646 50-56,62
+packages/engine/test/e2e/global-setup.ts
+  s_c9f68948e839d2::t_0fbcb3604e34e6 52-54,57
+.gitlab-ci.yml
+  s_c9f68948e839d2::t_a7a72b10e78031 572
+tests/interactivity-flows/run.ts
+  s_c9f68948e839d2::t_d9be04b1eb840e 180,182-184,190
+scripts/patches/blitz-dom-0.3.0-beta.1/0012-Implement-slot-assignment-named-slots-fallback-slott.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-539
+scripts/patches/blitz-dom-0.3.0-beta.1/0010-Scope-shadow-tree-stylesheets-via-per-root-AuthorSty.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-365
+scripts/patches/blitz-dom-0.3.0-beta.1/0008-Route-layout-construction-through-the-flat-tree-shad.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-329
+scripts/patches/blitz-dom-0.3.0-beta.1/0009-kitesurf_clear_canvas_image-guard-on-canvas-local-na.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-33
+scripts/patches/blitz-dom-0.3.0-beta.1/0015-Dims-only-image-loads-for-out-of-isolate-rendering-r.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-27,35-337
+  s_c9f68948e839d2::t_20881340ee112e 28-34
+scripts/patches/blitz-dom-0.3.0-beta.1/0004-Only-clamp-replaced-elements-to-available-INLINE-spa.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-51
+scripts/patches/blitz-dom-0.3.0-beta.1/0005-Wire-attach_shadow-through-the-mutator-shadow-aware-.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-164
+scripts/patches/blitz-dom-0.3.0-beta.1/0006-Implement-stylo-s-shadow-topology-traits-flat-tree-t.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-161
+scripts/patches/blitz-dom-0.3.0-beta.1/0003-Derive-replaced-aspect-ratio-from-attributes-when-co.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-107
+scripts/patches/blitz-dom-0.3.0-beta.1/0013-Keep-shadow-tree-ids-out-of-the-document-ID-map.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-57
+scripts/patches/blitz-dom-0.3.0-beta.1/0011-Parse-shadow-root-innerHTML-under-a-temp-host-named-.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-51
+scripts/patches/blitz-dom-0.3.0-beta.1/0007-Treat-canvas-as-a-replaced-element-with-a-JS-fed-fra.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-121
+scripts/patches/blitz-dom-0.3.0-beta.1/0014-Skip-slot-assignment-recompute-when-nothing-could-ha.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-110
+packages/engine/src/eval/page-script-session.ts
+  s_c9f68948e839d2::t_c090869b24dd6f 454
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "819baa0d4fa7f84188226264f9535db4732c7c0e",
+  "prompts": {},
+  "sessions": {
+    "s_235fc72330162e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06b22cb53ffeQlQzk6XxWrfHM7",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_896b78e3e98938": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0694a798affehyyFlYZR8S3ZCm",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

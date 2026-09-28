@@ -1,0 +1,19 @@
+packages/dom-shim/src/collections.ts
+  s_5d3f1159e93642::t_2e15c547a6881c 2878
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5df108f5fe6a57fd053990edc3b80c20e458b766",
+  "prompts": {},
+  "sessions": {
+    "s_5d3f1159e93642": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-speedtest-crash-mr",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

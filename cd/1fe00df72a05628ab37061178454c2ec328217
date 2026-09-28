@@ -1,0 +1,20 @@
+packages/engine/test/e2e/cookie-redirect-domain.e2e.test.ts
+  s_971f20d9c84b2b::t_cf06427e068134 32-33,43
+  s_971f20d9c84b2b::t_8799a86f471099 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cd1fe00df72a05628ab37061178454c2ec328217",
+  "prompts": {},
+  "sessions": {
+    "s_971f20d9c84b2b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fea612eb5ffeSycXWkmalHV3jO",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

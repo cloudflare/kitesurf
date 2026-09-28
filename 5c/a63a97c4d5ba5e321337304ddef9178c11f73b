@@ -1,0 +1,33 @@
+packages/engine/src/cdp/input.ts
+  s_4ba79f911c93c4::t_7463453b2f5cfc 389-392
+  s_4ba79f911c93c4::t_b32f61f1cc0ff8 389-392
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_4ba79f911c93c4::t_fb233783d84ee3 13,95-144
+  s_4ba79f911c93c4::t_e1e3b108fa6918 96,100-113,115-121,123-130,132-140
+  s_4ba79f911c93c4::t_5bb031c6fe60f6 13,95,97-99,114,122,131
+  s_b5116f8b90b361::t_91fc54c2bf146c 141-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5ca63a97c4d5ba5e321337304ddef9178c11f73b",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b5116f8b90b361": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4ec2c94dffed2WZX6jVXfVob7",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

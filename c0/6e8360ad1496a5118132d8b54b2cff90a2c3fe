@@ -1,0 +1,33 @@
+packages/engine/src/cdp/page.ts
+  s_103b7f1f0713cd::t_03972cb76a14ce 3537-3539
+  s_103b7f1f0713cd::t_5225adc76f5584 2383,2405,4648-4649,4654-4658,4666,6685-6692,8181-8184,8377-8380,8498-8503,8617-8628,8630-8632
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_103b7f1f0713cd::t_03972cb76a14ce 314-317,319-330,334,340-345,348,350,353-395
+  s_103b7f1f0713cd::t_2564325ec8359a 305-313,318,331-333,335-339,346-347,349,351-352
+packages/engine/src/cdp/page-session.ts
+  s_103b7f1f0713cd::t_1a5b01c59dea12 144-147,153
+packages/engine/src/cdp/types.ts
+  s_103b7f1f0713cd::t_08f659f758c8d3 471-474
+packages/page-script/src/globals.ts
+  s_103b7f1f0713cd::t_0ec1184d30709e 7,124-127,5625-5628
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_a3891a076f986e 35,228,4297-4307
+packages/page-script/src/internal-state.ts
+  s_103b7f1f0713cd::t_51831b4dd43e78 182-197,199,203-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c06e8360ad1496a5118132d8b54b2cff90a2c3fe",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

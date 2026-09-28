@@ -1,0 +1,25 @@
+packages/dom-shim/src/collections.ts
+  s_e7dc27bdab5fff::t_eb225a89586874 37,1795,1814,1821,1825
+packages/dom-shim/src/element.ts
+  s_e7dc27bdab5fff::t_d35938ba6fd8f6 89,2992,3000,3024,3046,3050
+packages/dom-shim/src/util/strings.ts
+  s_e7dc27bdab5fff::t_a7fe0d84601705 50-60
+packages/engine/test/e2e/vendor-prefix-style.e2e.test.ts
+  s_e7dc27bdab5fff::t_c14fa8b00048b3 57-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0c2486462f78a0a35b6f906f27cbc1ffcb1afe69",
+  "prompts": {},
+  "sessions": {
+    "s_e7dc27bdab5fff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00a4f8786ffeFB2n8VkGusS6CL",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+tests/interactivity-flows/flows.ts
+  s_936e39ae302fbf::t_f7dd0dcc216cdb 26-33
+  s_936e39ae302fbf::t_edffa745110e0e 817-818
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "adab499e25a82f1dd37d1d490a9b6ab712f64182",
+  "prompts": {},
+  "sessions": {
+    "s_936e39ae302fbf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00e7d5f9affed0eT5CkFDq2bo7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

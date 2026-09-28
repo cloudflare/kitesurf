@@ -1,0 +1,20 @@
+packages/core/src/shadow_dom_test.rs
+  s_14fc14ef8f57e3::t_32705321ad52f1 390-391,397,409,434,448,457,484,490,524-525,534
+  s_14fc14ef8f57e3::t_ee498469698cad 535
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "365db1c9629528a5cd4a17af044fbb3a31fcb852",
+  "prompts": {},
+  "sessions": {
+    "s_14fc14ef8f57e3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f91943103ffemcQ5v9AuqJiB0D",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

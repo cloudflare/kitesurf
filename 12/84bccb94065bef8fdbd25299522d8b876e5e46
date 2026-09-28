@@ -1,0 +1,19 @@
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_e752ff6fd075bc::t_8a634a80b8a535 119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1284bccb94065bef8fdbd25299522d8b876e5e46",
+  "prompts": {},
+  "sessions": {
+    "s_e752ff6fd075bc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbd167b90ffenoolTk3K48t5Wo",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

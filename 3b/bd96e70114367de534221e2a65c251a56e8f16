@@ -1,0 +1,39 @@
+packages/wpt-report/src/data.ts
+  s_9e4d1122ecd251::t_02d2268dea59bb 1-99
+packages/wpt-report/src/index.ts
+  s_9e4d1122ecd251::t_b5a710e99f2949 6,30
+packages/wpt-report/scripts/build.mjs
+  s_9e4d1122ecd251::t_9e0953a8869405 46-53,348-351,355-358,388-390,443-444,452-457,459-468,473-494,496-498
+  s_9e4d1122ecd251::t_c4309b51f41d60 306,308-311,314-330,335-336,340,345-346
+  s_9e4d1122ecd251::t_dc7136d75bb825 7-9
+  s_9e4d1122ecd251::t_ed4e1098067886 70-75
+  s_9e4d1122ecd251::t_dd3480bcfabcbf 38-39
+  s_9e4d1122ecd251::t_277b0a309ee3a5 16-21
+  s_fa3e403ddfd9b9::t_f033a43b0c8187 347
+packages/wpt-report/src/wpt-routes.ts
+  s_9e4d1122ecd251::t_b5a710e99f2949 29-36,39,48,256-257,263-267,879,882
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3bbd96e70114367de534221e2a65c251a56e8f16",
+  "prompts": {},
+  "sessions": {
+    "s_9e4d1122ecd251": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2d52f91effetB7ZgCKcH0ISAA",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_fa3e403ddfd9b9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2d751181ffehvqrPDzF7zwTvY",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

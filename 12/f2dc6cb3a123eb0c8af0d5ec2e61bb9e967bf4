@@ -1,0 +1,36 @@
+docs/NETWORKING.md
+  s_bc5c4b84767c48::t_d9df99a7e07d4a 179-186
+  s_bc5c4b84767c48::t_114671b97359ed 179-186
+packages/engine/src/cdp/page.ts
+  s_bc5c4b84767c48::t_833f88282cd99e 25-26,2510-2513,2530-2537,2543-2544
+  s_bc5c4b84767c48::t_dfc2b8f8fb81ef 25-26
+  s_bc5c4b84767c48::t_2b02b8897ae2a8 2510-2511,2513,2530-2537,2543-2544
+  s_bc5c4b84767c48::t_f62e90513cc1e6 2512
+packages/engine/src/eval/prefetch-wasm.ts
+  s_bc5c4b84767c48::t_2eccf06ec41d9b 61-183
+  s_bc5c4b84767c48::t_7bd92e848b2a5c 61-70,76-77,79-80,83-139,144-183
+  s_bc5c4b84767c48::t_29f263b8859407 71-75,78,81-82
+  s_bc5c4b84767c48::t_e5b99d826fbabc 140-143
+packages/engine/test/e2e/inline-wasm-bake.e2e.test.ts
+  s_bc5c4b84767c48::t_2e6a48ccdfcdcf 1-51
+  s_bc5c4b84767c48::t_46cf4ff321fd04 1-51
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_bc5c4b84767c48::t_4f5322c753f96e 2507-2508,4296-4330,4485-4486
+  s_bc5c4b84767c48::t_114671b97359ed 2507-2508,4296-4330,4485-4486
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "12f2dc6cb3a123eb0c8af0d5ec2e61bb9e967bf4",
+  "prompts": {},
+  "sessions": {
+    "s_bc5c4b84767c48": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_024652774ffe5dw6HWVHILpS6E",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

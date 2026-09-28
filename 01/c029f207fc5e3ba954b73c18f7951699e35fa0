@@ -1,0 +1,23 @@
+packages/engine/test/e2e/hit-test-after-restyle.e2e.test.ts
+  s_103b7f1f0713cd::t_3c7168519343ae 1-39,41-57
+  s_103b7f1f0713cd::t_d631208e75b3b1 40
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_916f5137ccfe7b 3116-3117
+  s_103b7f1f0713cd::t_bac32419cfc084 3115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "01c029f207fc5e3ba954b73c18f7951699e35fa0",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

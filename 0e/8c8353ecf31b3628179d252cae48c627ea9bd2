@@ -1,0 +1,25 @@
+packages/engine/test/e2e/sticky-position.e2e.test.ts
+  s_479f7a46340b56::t_a6d7e6aa7963ce 118,120,124-126,131,133,137
+  s_479f7a46340b56::t_3edc070fa8f4d9 197-201,203
+  s_479f7a46340b56::t_fed5b3e9e3e6ed 236-240,242,245
+  s_479f7a46340b56::t_b9aa61a469bd06 71-76
+  s_479f7a46340b56::t_fd358413c08db1 104-108,110,112
+  s_479f7a46340b56::t_ea63f9b03ab664 29-33,35-37
+  s_479f7a46340b56::t_f44c8209f63858 156-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0e8c8353ecf31b3628179d252cae48c627ea9bd2",
+  "prompts": {},
+  "sessions": {
+    "s_479f7a46340b56": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_012e8f953ffeBE1ySMwmNeqr7E",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

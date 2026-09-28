@@ -1,0 +1,25 @@
+packages/engine/src/eval/outbound.ts
+  s_82439a56869a66::t_e8ab7cb9a6b2da 419-424,430-432,1505-1513,1520
+packages/engine/test/e2e/fetch-shim-header-spoof.e2e.test.ts
+  s_82439a56869a66::t_ce299affa706de 232,236-248
+packages/engine/test/outbound-claims.test.ts
+  s_82439a56869a66::t_e8ab7cb9a6b2da 65-74
+docs/CORS.md
+  s_82439a56869a66::t_ce299affa706de 177-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9f4e18ab2590fc913569001eb0371dd1922619ec",
+  "prompts": {},
+  "sessions": {
+    "s_82439a56869a66": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03cee7edaffetAzUTpEXacO83m",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

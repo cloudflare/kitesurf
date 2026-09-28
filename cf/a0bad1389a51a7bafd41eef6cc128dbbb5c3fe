@@ -1,0 +1,48 @@
+packages/page-script/src/state.ts
+  s_75d678c932972d::t_9fecc2b1e292bf 67-72,120
+packages/engine/src/fixtures.ts
+  s_75d678c932972d::t_9fecc2b1e292bf 491-492,731-803,815-816
+packages/page-script/src/index.ts
+  s_75d678c932972d::t_9fecc2b1e292bf 1207
+packages/dom-shim/src/element.ts
+  s_75d678c932972d::t_cd64c48bc77e16 7362
+  s_75d678c932972d::t_9fecc2b1e292bf 713-720,833-838,6595-6852
+  s_75d678c932972d::t_7b05add372e0db 6853
+packages/dom-shim/src/index.ts
+  s_75d678c932972d::t_9fecc2b1e292bf 150,1219-1224
+packages/page-script/src/resource-fetch.ts
+  s_75d678c932972d::t_9fecc2b1e292bf 145-170,176,180,236,240-249
+packages/core/src/lib.rs
+  s_75d678c932972d::t_9fecc2b1e292bf 2915-2989
+tests/wpt-tests.json
+  s_75d678c932972d::t_9fecc2b1e292bf 2233-2235
+packages/dom-shim/src/events/dispatch.ts
+  s_75d678c932972d::t_9fecc2b1e292bf 286-305
+scripts/patches/blitz-dom-0.3.0-alpha.5.patch
+  s_75d678c932972d::t_9fecc2b1e292bf 1-2,14-15,98,111-140,144-145,523-524,593-594,604-605,610,763,765-766,917-948,951-953,955-956,969,1023,1058,1083,1133,1154,1287-1297,1302,1334,1446,1463-1470,1517,1581,1584,1586-1587,1589-1590,1657-1658,1660-1663,1777-1778,1799-1800,1819-1820,1941-1949,2100-2102
+  s_46fcd68f5c4214::t_77ce721b683935 102-103,141,143,949-950,954,1585,1686,1725,1739,1742
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cfa0bad1389a51a7bafd41eef6cc128dbbb5c3fe",
+  "prompts": {},
+  "sessions": {
+    "s_46fcd68f5c4214": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_08063b124ffewmZb1Y3wH69eRv",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_75d678c932972d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_084579337ffepy28AOdVrayge7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+scripts/patches/README.md
+  s_b94a861549b344::t_d987fc81de8b78 216-271
+docs/UPSTREAMING.md
+  s_b94a861549b344::t_365fd2a2b01ca5 1-253
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ba7362d51834685b0881ed7d2cfb4dc6fa15fd58",
+  "prompts": {},
+  "sessions": {
+    "s_b94a861549b344": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe8c1db7cffeW6q5yoxbw4OR7K",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

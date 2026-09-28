@@ -1,0 +1,19 @@
+scripts/patches/boa_engine-0.20.0/0012-boa-turn-invalid-lexical-binding-indexes-into-errors.patch
+  s_4ba79f911c93c4::t_4a814962fc67e1 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1992bbec84c7f471fc9a4b048e34da7ece655e4e",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-Fix-inline-box-metrics-and-positioning.patch
+  s_77e8d6f4044102::t_83cbebe61d56e5 3,7-8,11,42,75,86,97,124,133,193,209,217,233,247,259,279,287
+packages/engine/test/e2e/layout-test-helpers.ts
+  s_77e8d6f4044102::t_8bda2e0b1fa5d9 12,14,19-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e1789a486f90001024bab8c7212bf20910371de4",
+  "prompts": {},
+  "sessions": {
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

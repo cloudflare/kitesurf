@@ -1,0 +1,60 @@
+packages/dom-shim/src/element.ts
+  s_4d67dfa0f79f1a::t_1011e375d49f5a 7574,7581,7584
+scripts/patches/blitz-dom-0.3.0-beta.2/0124-Restyle-container-queries-against-laid-out-container.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-165
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-Use-natural-font-metrics-for-inline-line-height.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-299
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-Resolve-fixed-percentage-sizes-against-the-viewport.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-34
+scripts/patches/blitz-dom-0.3.0-beta.2/0125-Resolve-an-atomic-inline-s-own-intrinsic-width-keywo.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-140
+scripts/patches/blitz-dom-0.3.0-beta.2/0133-Resolve-relative-inline-insets-against-used-height.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-61
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Preserve-parent-line-metrics-for-inline-boxes.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-281
+scripts/patches/blitz-dom-0.3.0-beta.2/0134-Preserve-supported-font-source-fallbacks.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0123-Pass-inline-alignment-and-x-height-to-Parley.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-431
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-memory-manage-cached-author-sheet-lifetimes.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-158
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-memory-support-embedder-managed-node-reclamation.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-57
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Fix-absolute-inline-box-positioning.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-47
+scripts/patches/blitz-dom-0.3.0-beta.2/0137-kitesurf-scope-incremental-SVG-snapshot-refresh.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-293
+packages/engine/test/e2e/theme-flip-repaint.e2e.test.ts
+  s_4d67dfa0f79f1a::t_3e286e1301c8f9 36-44,70-72,94-117
+  s_e2ed5d8e58c377::t_d99182d736f40d 118-121
+scripts/patches/blitz-dom-0.3.0-beta.2/0136-Fix-hit-testing-for-padded-inline-roots.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0131-Apply-relative-insets-to-inline-floats.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-92
+scripts/patches/blitz-dom-0.3.0-beta.2/0135-Refresh-construct-time-style-snapshots-after-a-repai.patch
+  s_4d67dfa0f79f1a::t_aef5abcee1ae4c 1-399
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e3dc514bc6993996961ae814f929e7afcf8a02a7",
+  "prompts": {},
+  "sessions": {
+    "s_4d67dfa0f79f1a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3d719fa4ffeAnKGoak8x1Ln0w",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_e2ed5d8e58c377": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c799579ffekEwBTIWzm9n8Du",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

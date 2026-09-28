@@ -1,0 +1,23 @@
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_bd7d0f49561fa1 173-174
+  s_4ba79f911c93c4::t_789846054e486d 172
+packages/core/src/tab_expansion_test.rs
+  s_4ba79f911c93c4::t_19069076a34228 1-145
+  s_4ba79f911c93c4::t_4f3ed2567dd094 146-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "da37943e174c90c26fde11beaa43926c17db039b",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

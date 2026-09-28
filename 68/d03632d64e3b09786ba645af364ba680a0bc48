@@ -1,0 +1,23 @@
+packages/engine/src/cdp/target.ts
+  s_86e5da766eb425::t_f6910a2ab42a2a 691-703
+packages/engine/test/e2e/demos/oopif-elements-panel.e2e.test.ts
+  s_86e5da766eb425::t_58e485525cab3f 114-147
+packages/engine/src/cdp/dom.ts
+  s_86e5da766eb425::t_e316943f786a70 63-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "68d03632d64e3b09786ba645af364ba680a0bc48",
+  "prompts": {},
+  "sessions": {
+    "s_86e5da766eb425": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0665bed1cffeoMugykK9pn22Wf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

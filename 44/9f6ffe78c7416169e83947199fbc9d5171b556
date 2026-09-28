@@ -1,0 +1,19 @@
+scripts/patches/vello_cpu-0.0.9/0001-Replace-the-blurred-rect-p-norm-with-a-polynomial-in.patch
+  s_dfd792beae87ba::t_b0e88a5992e2a0 4,6-9,11-15,17-25,27-28,31,39,43,52-65,73,75-121,123-143,156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "449f6ffe78c7416169e83947199fbc9d5171b556",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

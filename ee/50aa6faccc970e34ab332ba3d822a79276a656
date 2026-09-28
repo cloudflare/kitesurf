@@ -1,0 +1,25 @@
+packages/grafana/test/query.test.ts
+  s_6d3689ca249947::t_36ddf1fac3d742 124-129,187-192
+packages/grafana/src/query.ts
+  s_6d3689ca249947::t_36ddf1fac3d742 105,113,115
+packages/grafana/test/dashboard.test.ts
+  s_6d3689ca249947::t_36ddf1fac3d742 129-134
+.cloudflare/grafana/kitesurf-usage.json
+  s_6d3689ca249947::t_58cb974c493961 121,169,217,265,319,373,427,486,545,600,655,710,765
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ee50aa6faccc970e34ab332ba3d822a79276a656",
+  "prompts": {},
+  "sessions": {
+    "s_6d3689ca249947": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0140e861bffez5uNrzuGw9TKvb",
+        "model": "gpt-5.6"
+      },
+      "human_author": "Dina Kozlov <dkozlov@cloudflare.com>"
+    }
+  }
+}

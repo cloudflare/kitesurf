@@ -1,0 +1,19 @@
+packages/engine/test/e2e/global-setup.ts
+  s_4ba79f911c93c4::t_a8543d4a55918a 43-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7aa86ec72f9d7674cec0577c8839fd53834bf968",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+tests/interactivity-flows/flows.ts
+  s_079309f26fdca8::t_3561856bf1d271 679-682
+  s_079309f26fdca8::t_4aa464129ffdad 685-688
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f3082bd4bbb2760184151800d2f74a73a55e18a4",
+  "prompts": {},
+  "sessions": {
+    "s_079309f26fdca8": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0c9ef-fe86-73a0-8b9d-0bb4d96cbd27",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

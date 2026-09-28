@@ -1,0 +1,41 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c9f68948e839d2::t_979efa05ca2fc1 1204
+packages/engine/src/cdp/kitesurf.ts
+  s_c9f68948e839d2::t_d35f1c09ba1ec8 142-145,149-156
+  s_c9f68948e839d2::t_a672b517677645 157-158
+packages/engine/src/eval/page-renderer.ts
+  s_c9f68948e839d2::t_bafe1e28a7bc9a 63
+  s_c9f68948e839d2::t_979efa05ca2fc1 72
+  s_c9f68948e839d2::t_d35f1c09ba1ec8 110-112,132-135
+  s_c9f68948e839d2::t_69f0a72bdcd2ba 52-62,64-71,73-109,113-131,136-143,372-397,470-471,644-672,674
+packages/engine/test/page-renderer-cache.test.ts
+  s_c9f68948e839d2::t_bafe1e28a7bc9a 1-44,46-84,86-110
+  s_c9f68948e839d2::t_c1888260b36c44 45,85
+packages/engine/test/e2e/demos/page-renderer-relaunch.e2e.test.ts
+  s_c9f68948e839d2::t_04339711fe149a 1-85
+packages/core/src/scene_record.rs
+  s_c9f68948e839d2::t_3ccc032f4143cc 333-337,584,632,703,707-710,1397-1405,1422-1423,1441,1444,1447
+packages/core/src/scene_replay.rs
+  s_c9f68948e839d2::t_1e6678c670c50f 1152,1156
+  s_c9f68948e839d2::t_3ccc032f4143cc 1233,1241,1274
+packages/core/src/lib.rs
+  s_c9f68948e839d2::t_3ccc032f4143cc 3804
+research/page-renderer-plan.md
+  s_c9f68948e839d2::t_b06a95c3561e2f 229-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "caba96212082fecfa08fb73b0e5d08db12eb638b",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

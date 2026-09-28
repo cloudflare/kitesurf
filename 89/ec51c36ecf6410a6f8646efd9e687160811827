@@ -1,0 +1,45 @@
+tests/interactivity-flows/flows.ts
+  s_76bfbccf6b08d2::t_d74d2f7d1f8f6e 1518-1533,1536-1537
+  s_76bfbccf6b08d2::t_915c99b54aab22 1482,1484-1489
+  s_76bfbccf6b08d2::t_82e43cfe91d9f7 1469-1478,1480-1481,1483,1490-1492
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_8487a09e89ac2f::t_b6c8b0d79b9658 307-314,316
+  s_8487a09e89ac2f::t_7bd468f2d57488 315
+packages/engine/test/fixtures-worker/assets/webmcp-tools.html
+  s_8487a09e89ac2f::t_a08a27a75228ca 67-260
+docs/WEBMCP.md
+  s_8487a09e89ac2f::t_ce4cd42618746c 86-93
+tests/interactivity-flows/run.ts
+  s_8487a09e89ac2f::t_3999ec914015a2 419-426
+  s_8487a09e89ac2f::t_af12702161a6a2 275-278,440,466-469,487-492,495
+tests/interactivity-flows/regress.ts
+  s_8487a09e89ac2f::t_201c8f93a87b9c 30-32,41,107-109,114-116,142,148-150,160,172,192-193,214,222,226-227
+tests/interactivity-flows/comment.ts
+  s_8487a09e89ac2f::t_7a52be9e17a6d1 57,108,111,151-152,154-156
+tests/interactivity-flows/README.md
+  s_8487a09e89ac2f::t_7a52be9e17a6d1 296-302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "89ec51c36ecf6410a6f8646efd9e687160811827",
+  "prompts": {},
+  "sessions": {
+    "s_76bfbccf6b08d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f51a617e5ffezTwFX1MUpkiuYj",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_8487a09e89ac2f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4fd91da8ffeneEFBDpRKIlgRB",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

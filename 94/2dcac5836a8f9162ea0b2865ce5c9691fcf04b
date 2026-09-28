@@ -1,0 +1,23 @@
+packages/engine/test/e2e/demos/dom-innerhtml-rebuild-demo.e2e.test.ts
+  s_32cf082f6ba2e7::t_7e61cb73c9fa16 1-113
+packages/engine/src/cdp/dom.ts
+  s_32cf082f6ba2e7::t_bad18fe41fbe09 728-735
+  s_32cf082f6ba2e7::t_da3729032944c1 749-751
+  s_32cf082f6ba2e7::t_293c7a7c4b2a8d 766-817
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "942dcac5836a8f9162ea0b2865ce5c9691fcf04b",
+  "prompts": {},
+  "sessions": {
+    "s_32cf082f6ba2e7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06f3eacedffeL0iVzUWh1SMMMW",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

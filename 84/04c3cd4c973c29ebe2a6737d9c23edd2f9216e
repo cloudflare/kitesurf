@@ -1,0 +1,27 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0004-Paint-a-UA-dropdown-chevron-on-closed-select-boxes.patch
+  s_f50b7cd97baf3e::t_4eda4448d50160 1-82
+packages/dom-shim/src/select-dropdown.ts
+  s_f50b7cd97baf3e::t_2782cd771bd0af 1-146
+packages/engine/test/e2e/demos/forms-select-dropdown-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_60649d8b4004ee 1-74
+packages/dom-shim/src/index.ts
+  s_f50b7cd97baf3e::t_b7242cff7fc1be 180-182
+packages/page-script/src/index.ts
+  s_f50b7cd97baf3e::t_baf93ee6fd5b75 2954-2974
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8404c3cd4c973c29ebe2a6737d9c23edd2f9216e",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

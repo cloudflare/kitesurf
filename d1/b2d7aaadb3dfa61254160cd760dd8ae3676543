@@ -1,0 +1,23 @@
+packages/dom-shim/src/canvas2d.ts
+  s_d9ecccdb16496d::t_906900c1549fd5 301-312
+  s_d9ecccdb16496d::t_8e60a7dc74d08d 550-559,561-565,567-568
+  s_d9ecccdb16496d::t_50f87da93ab135 241-292
+docs/CANVAS2D.md
+  s_d9ecccdb16496d::t_a86434b2daaac5 48-50,53-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d1b2d7aaadb3dfa61254160cd760dd8ae3676543",
+  "prompts": {},
+  "sessions": {
+    "s_d9ecccdb16496d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03b959d9effev00SNORc7M35W1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+packages/website/src/pages/landing/Hero.tsx
+  s_c1a6940130844c::t_e3b8201747ce7d 49
+  s_c1a6940130844c::t_dcfe302cfa8b04 50
+  s_c1a6940130844c::t_ee5b5d026f3ba8 2
+  s_c1a6940130844c::t_3e200c4588e404 87-89,104-105
+  s_c1a6940130844c::t_73d4424c280166 90-103
+packages/website/src/components/Mark.tsx
+  s_c1a6940130844c::t_e84a035212f136 20-57
+packages/website/src/styles/landing.css
+  s_c1a6940130844c::t_4c2a28315c2940 192,310,313,353-354,359-360
+  s_c1a6940130844c::t_2dd7cddcea62dd 233-234,238
+  s_c1a6940130844c::t_b2bd841fba9a03 314-318,361
+  s_c1a6940130844c::t_afeef64d0fc5aa 230-232,235-237,241-250,253,255,257-273
+  s_c1a6940130844c::t_c63198cf35a6f4 355
+  s_c1a6940130844c::t_69954d672f57e6 298
+  s_c1a6940130844c::t_6044490e96794f 274-297
+  s_c1a6940130844c::t_0765312c20b064 356
+  s_c1a6940130844c::t_212abb0610d937 239-240,311-312
+  s_c1a6940130844c::t_7b089a02511780 251-252,254,256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "abbf4c78eadb791d560b7ac8b871830b3d019e86",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

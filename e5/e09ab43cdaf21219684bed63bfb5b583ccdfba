@@ -1,0 +1,62 @@
+packages/engine/src/tty/session.ts
+  s_1a92efd19a388c::t_d98383667034a9 1-1599
+Cargo.lock
+  s_1a92efd19a388c::t_d2caebc47e8f1a 1565,3269-3277
+packages/engine/test/term-size-replies.test.ts
+  s_1a92efd19a388c::t_bca73200b587b6 1-2,4-100
+  s_1a92efd19a388c::t_d98383667034a9 3
+packages/engine/src/cdp/page.ts
+  s_1a92efd19a388c::t_9a158c5a22e3c9 2245-2246,7016-7034,8098-8105,8117-8121,8164-8198,8357-8358,8501-8506,8508-8540,8560-8563
+packages/core/src/tty_omni.rs
+  s_1a92efd19a388c::t_e4dac7acab9b94 1-1267
+packages/engine/src/cdp/kitesurf.ts
+  s_1a92efd19a388c::t_113ff32cb46c3a 664-707
+packages/core/src/lib.rs
+  s_1a92efd19a388c::t_4cfee3dfc8bdd9 79-82
+packages/engine/src/index.ts
+  s_1a92efd19a388c::t_0a760aaf41a9de 366-371,564-565,567-572
+  s_1a92efd19a388c::t_d98383667034a9 11,566
+packages/engine/src/tty/route.ts
+  s_1a92efd19a388c::t_d98383667034a9 1-208
+packages/engine/src/tty/kitty.ts
+  s_1a92efd19a388c::t_d98383667034a9 1-50
+packages/engine/test/term-geometry.test.ts
+  s_1a92efd19a388c::t_69036fb4b42576 1-2,4-209
+  s_1a92efd19a388c::t_d98383667034a9 3
+packages/core/src/tty_ansi.rs
+  s_1a92efd19a388c::t_41285cef1906a5 16
+packages/core/src/tty_input.rs
+  s_1a92efd19a388c::t_72ab5cb4104320 1-1075
+packages/core/Cargo.toml
+  s_1a92efd19a388c::t_6a0689cbb2fbe2 23-28
+packages/engine/src/observability.ts
+  s_1a92efd19a388c::t_49a856956d8f15 73,97
+packages/engine/src/cdp/types.ts
+  s_1a92efd19a388c::t_10eafe77d00321 449-455
+packages/engine/test/term.test.ts
+  s_1a92efd19a388c::t_c5ecf9e5677f66 1-2,4-90
+  s_1a92efd19a388c::t_d98383667034a9 3
+packages/engine/src/wasm.ts
+  s_1a92efd19a388c::t_da589f8d460efe 24-35,143-261
+packages/engine/test/term-target.test.ts
+  s_1a92efd19a388c::t_ad1bb54eed7a76 1-2,4-98
+  s_1a92efd19a388c::t_d98383667034a9 3
+packages/engine/src/tty/stylesheet.ts
+  s_1a92efd19a388c::t_c05a3709cc5e3f 27-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e5e09ab43cdaf21219684bed63bfb5b583ccdfba",
+  "prompts": {},
+  "sessions": {
+    "s_1a92efd19a388c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f34aa71c2ffepIc2qyDMMRcI4N",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

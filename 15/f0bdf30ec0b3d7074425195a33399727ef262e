@@ -1,0 +1,21 @@
+packages/engine/src/rbi.ts
+  s_dfd792beae87ba::t_2498efe84c2413 293
+  s_dfd792beae87ba::t_304afe026af348 251-260
+  s_dfd792beae87ba::t_3f7128edc901ed 261-267,275-276,279,292,306-310,347-348,355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "15f0bdf30ec0b3d7074425195a33399727ef262e",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

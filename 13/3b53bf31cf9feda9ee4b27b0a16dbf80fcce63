@@ -1,0 +1,29 @@
+packages/engine/test/e2e/demos/font-heavy.e2e.test.ts
+  s_f50b7cd97baf3e::t_ca0bc8612c381f 53,67,69-71,78,104,109
+  s_f50b7cd97baf3e::t_bc7b29b14b0da9 54-66,68,72-77,79-103,105-108
+packages/page-script/src/index.ts
+  s_f50b7cd97baf3e::t_99def0048d9854 803-810
+  s_f50b7cd97baf3e::t_e65ad315d424f6 37
+packages/dom-shim/src/document.ts
+  s_f50b7cd97baf3e::t_0becd6d4f23033 1536-1548,1552-1555,1557-1564,1571-1579
+packages/page-script/src/resource-fetch.ts
+  s_f50b7cd97baf3e::t_54d0b0de9a71b8 402
+  s_f50b7cd97baf3e::t_d5bcfbec586c88 255
+  s_f50b7cd97baf3e::t_8498e422a0aab3 38-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "133b53bf31cf9feda9ee4b27b0a16dbf80fcce63",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

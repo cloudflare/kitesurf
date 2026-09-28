@@ -1,0 +1,38 @@
+docs/RBI.md
+  s_0d774ef1069d39::t_116d3b24a40cac 538-540,544,546-548,551-554,557-558,563
+  s_0d774ef1069d39::t_d13be6c75d51c7 103
+  s_0d774ef1069d39::t_86368d46c86c0d 188-203,207-211
+  s_0d774ef1069d39::t_226dfe7da5a1cf 321-345,352-410
+  s_0d774ef1069d39::t_aa7d017c6a6e42 258,262,277-284
+  s_0d774ef1069d39::t_ff240584c4ca3c 509-512
+  s_0d774ef1069d39::t_1fcecd0520849b 737-742
+  s_0d774ef1069d39::t_7e1aabc66a2d66 226-236,243-246
+  s_0d774ef1069d39::t_0ae67ae9674a1e 818-821,825-834
+  s_0d774ef1069d39::t_961742dec7f585 785-794
+  s_0d774ef1069d39::t_b870633c714567 635,640,642-652,669-686
+  s_0d774ef1069d39::t_4460fcccc54bd4 577,583-584,586,588-620,623
+  s_0d774ef1069d39::t_7a4ebbf2fab429 709-714
+  s_0d774ef1069d39::t_87d4cd12defa41 440-448,454-457
+  s_0d774ef1069d39::t_540dc9881871a3 133
+  s_0d774ef1069d39::t_5241f3a900fc11 164-169
+  s_0d774ef1069d39::t_d9124c6c036ae9 88-96
+  s_0d774ef1069d39::t_2a62ce38b5a681 212
+  s_0d774ef1069d39::t_cad60b84974e86 411
+  s_0d774ef1069d39::t_9c70426c94c67d 687
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "872bdecfb7f8c24f789cd8f79808f3820b592aa3",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

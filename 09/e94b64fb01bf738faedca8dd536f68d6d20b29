@@ -1,0 +1,74 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0122-Honor-vertical-alignment-inside-table-cells.patch
+  s_91836f22884cfe::t_0c1939969fbe0e 9-14
+  s_91836f22884cfe::t_a586c171003619 1-8,15-120
+scripts/patches/blitz-paint-0.3.0-beta.1/0028-Paint-table-cell-text-at-its-aligned-offset.patch
+  s_91836f22884cfe::t_a586c171003619 1-8,14-35
+  s_91836f22884cfe::t_0c1939969fbe0e 9-13
+scripts/patches/blitz-dom-0.3.0-beta.1/0124-Account-for-table-ancestors-when-snapping-tracks.patch
+  s_91836f22884cfe::t_d85e3d2f257875 1-71
+scripts/patches/blitz-dom-0.3.0-beta.1/0126-Align-table-tracks-to-their-final-paint-origin.patch
+  s_91836f22884cfe::t_f76bd1ce856391 1-70
+scripts/patches/blitz-paint-0.3.0-beta.1/0032-Cover-the-leading-table-track-gutter.patch
+  s_91836f22884cfe::t_6748f0267a4392 1-36
+scripts/patches/blitz-dom-0.3.0-beta.1/0125-Retain-raw-table-tracks-across-terminal-reflow.patch
+  s_91836f22884cfe::t_b10b22f206bf74 1-68
+scripts/patches/blitz-paint-0.3.0-beta.1/0030-Paint-tables-from-adjusted-track-geometry.patch
+  s_91836f22884cfe::t_b10b22f206bf74 1-42
+packages/core/src/tty_cell_grid_test.rs
+  s_91836f22884cfe::t_94a48799bcf47a 491-502,508-513,530-536,544,546-548,550-551,583-584,746-877
+  s_91836f22884cfe::t_be4721fb4a14be 489,585-613,643-645,878
+  s_91836f22884cfe::t_1c1c9860cb35cb 374,421-430,454-474,647-648,655,666,672-675,678
+  s_91836f22884cfe::t_5eadeea8246b6f 549,552-562,582
+  s_91836f22884cfe::t_b1070a762946a5 503,514-529,545,564
+  s_91836f22884cfe::t_1e2f34ab9b8209 614-629
+  s_91836f22884cfe::t_1c74faf252be4b 504-506,537-543,563,565-581
+  s_91836f22884cfe::t_4decedcbde8abc 44-45,59-63,114-118,161-164,194-203,255-259,268-272,281-284,318,366-369,410-412,416-418,438-440,444-446,475-488,630-641
+  s_75ec8a9f61c1a3::t_b79685eda8f664 490,507,642,646
+scripts/patches/blitz-paint-0.3.0-beta.1/0029-Keep-collapsed-borders-when-terminal-tracks-collapse.patch
+  s_91836f22884cfe::t_d85e3d2f257875 1-89
+scripts/patches/blitz-paint-0.3.0-beta.1/0031-Align-table-row-backgrounds-with-paint-tracks.patch
+  s_91836f22884cfe::t_864e52418fc7fd 1-44
+scripts/patches/blitz-dom-0.3.0-beta.1/0085-Decode-legacy-non-UTF-8-stylesheets-instead-of-dropp.patch
+  s_91836f22884cfe::t_7288b7419b82e9 25
+packages/core/src/tty_grid.rs
+  s_91836f22884cfe::t_c88af08ad8ddaf 1718-1739,1742-1760,1774-1775
+  s_91836f22884cfe::t_2b892239c86dc7 189,455-463,486,507,512-519,652,882,901,914,963,986-990
+  s_91836f22884cfe::t_1bd6fcae0ae0a1 1886-1892,1895,1906,1909-1912
+  s_91836f22884cfe::t_00751c1cc1a80f 1761-1773
+  s_91836f22884cfe::t_1265e087f3ac85 190-192,233,520-522,524-538,543-563,825-829,946-949,1814,1893-1894,1896-1905,1907-1908,1913-1915
+  s_91836f22884cfe::t_95a5d8ca97b4c7 1874-1885
+  s_91836f22884cfe::t_68b336e01a8e3a 1776-1804
+  s_91836f22884cfe::t_8498f46c1bbebe 1740
+  s_91836f22884cfe::t_c91204d0d671a6 1741
+  s_91836f22884cfe::t_3fee2e3a2ceb9d 1805-1813
+  s_91836f22884cfe::t_cb13ea6b26368a 523
+  s_91836f22884cfe::t_1b24451fea7585 564
+  s_91836f22884cfe::t_4cd6fe159c03b8 1815
+  s_91836f22884cfe::t_320ab0108904f5 1916
+scripts/patches/blitz-dom-0.3.0-beta.1/0123-Snap-terminal-table-tracks-with-cell-layout.patch
+  s_91836f22884cfe::t_7288b7419b82e9 1-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "09e94b64fb01bf738faedca8dd536f68d6d20b29",
+  "prompts": {},
+  "sessions": {
+    "s_75ec8a9f61c1a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fac679ed1ffecrwrIIAqPO2iog",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/core/src/webgl_test.rs
+  s_a2c3078f6b81a1::t_1391cb10e7f769 309-310,312,330-394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5986b1983d201989b38c5079b67628565c4ec6d2",
+  "prompts": {},
+  "sessions": {
+    "s_a2c3078f6b81a1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff44ce6feffeFWOdtLKxcN4c3R",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

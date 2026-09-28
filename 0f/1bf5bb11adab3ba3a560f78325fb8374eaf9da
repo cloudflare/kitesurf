@@ -1,0 +1,60 @@
+scripts/patches/taffy-0.14.0/0009-block-apply-relative-insets-to-floats.patch
+  s_77e8d6f4044102::t_b06c453f7463a7 1-71
+scripts/patches/parley-0.11.1/0008-Preserve-parent-line-height-for-inline-boxes.patch
+  s_77e8d6f4044102::t_b23a4a76e212ae 1-29
+scripts/patches/blitz-dom-0.3.0-beta.2/0125-Fix-font-metrics-and-inline-layout-regressions.patch
+  s_77e8d6f4044102::t_a946f061c1c32a 1-627
+scripts/patches/taffy-0.14.0/0008-Fix-float-height-and-placement.patch
+  s_77e8d6f4044102::t_b06c453f7463a7 1-39
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-inline-apply-relative-inset-to-inline-floats.patch
+  s_77e8d6f4044102::t_a946f061c1c32a 1-53
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-inline-fix-strut-baseline-and-cache-metrics.patch
+  s_77e8d6f4044102::t_a946f061c1c32a 1-164
+AGENTS.md
+  s_77e8d6f4044102::t_12223c116fa23e 541
+packages/engine/test/e2e/root-element-metrics.e2e.test.ts
+  s_77e8d6f4044102::t_8f74d663c5195a 96-120
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_77e8d6f4044102::t_8f74d663c5195a 127-144,188-200
+  s_09a7b167251a3d::t_00b840ce8efc04 201
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-inline-resolve-relative-y-inset-against-used-height.patch
+  s_77e8d6f4044102::t_fe478726b68a32 1-40
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-font-metrics-hash-normalized-cache-keys.patch
+  s_77e8d6f4044102::t_a946f061c1c32a 1-69
+packages/core/src/lib.rs
+  s_77e8d6f4044102::t_a6f7ecad961d0a 3213
+packages/core/src/sticky.rs
+  s_3c8d0649a03a77::t_5875cb19d5e81c 183,222,255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f1bf5bb11adab3ba3a560f78325fb8374eaf9da",
+  "prompts": {},
+  "sessions": {
+    "s_09a7b167251a3d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f86001bffe8Jb7WRamidiJbL",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_3c8d0649a03a77": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f8bccc3ffeToN0qv8Gpk27JT",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

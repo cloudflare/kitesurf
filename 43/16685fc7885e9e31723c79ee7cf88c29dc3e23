@@ -1,0 +1,25 @@
+packages/engine/test/wheel-queue.test.ts
+  s_e752ff6fd075bc::t_b96b3e1d251c26 28,33,35,37,48,56-60,62-64,66-68,72,74-84,86-87,90-93
+packages/engine/src/cdp/wheel-queue.ts
+  s_e752ff6fd075bc::t_79b22120f6ef95 43,84
+  s_e752ff6fd075bc::t_50dc5711982b16 51,57,66,68-69,72-76,80-83,85
+packages/engine/src/cdp/page.ts
+  s_e752ff6fd075bc::t_546d72b0b41346 8084-8096
+  s_e752ff6fd075bc::t_4c32db317bba34 8072-8083,8097-8109,8111-8112,8114-8124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4316685fc7885e9e31723c79ee7cf88c29dc3e23",
+  "prompts": {},
+  "sessions": {
+    "s_e752ff6fd075bc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbd167b90ffenoolTk3K48t5Wo",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

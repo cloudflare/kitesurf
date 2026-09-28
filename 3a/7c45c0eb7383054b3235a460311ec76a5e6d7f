@@ -1,0 +1,20 @@
+packages/ci-workflow/src/index.ts
+  s_8deef65a89b902::t_56014649c0b0da 83-91
+  s_8deef65a89b902::t_f988e5c28c27ef 20-27,30,34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3a7c45c0eb7383054b3235a460311ec76a5e6d7f",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

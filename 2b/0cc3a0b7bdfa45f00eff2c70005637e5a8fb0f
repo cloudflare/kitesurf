@@ -1,0 +1,43 @@
+packages/page-script/src/index.ts
+  s_88a1e4a82dcd93::t_9a4af9502ac9e4 5393-5416
+  s_dfd792beae87ba::t_5133bf9f6b6658 83,5432
+packages/page-script/src/paint.ts
+  s_88a1e4a82dcd93::t_2d25174307cb50 91-104
+packages/engine/test/e2e/screencast-idle-frames.e2e.test.ts
+  s_88a1e4a82dcd93::t_03b2327c59a150 120-130,134-136
+  s_88a1e4a82dcd93::t_0b2062306fbc28 12-13,15-20
+  s_88a1e4a82dcd93::t_f210c578056a70 75-94
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_88a1e4a82dcd93::t_b2dbfe252bdff6 3725-3741
+  s_88a1e4a82dcd93::t_33af7d86a19751 3697,3702-3712
+  s_88a1e4a82dcd93::t_dce0aeca2bdc60 3682,3685,3687-3688
+  s_88a1e4a82dcd93::t_bbe6d75c25df58 3713-3715,3722-3724
+packages/engine/test/e2e/rbi-scene-wire.e2e.test.ts
+  s_88a1e4a82dcd93::t_e17f213bda5bcc 102-103,105-106,110
+packages/page-script/src/state.ts
+  s_88a1e4a82dcd93::t_84140aad516a37 51-57,144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2b0cc3a0b7bdfa45f00eff2c70005637e5a8fb0f",
+  "prompts": {},
+  "sessions": {
+    "s_88a1e4a82dcd93": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01e3d630fffeIXmijb5gEbqoHg",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

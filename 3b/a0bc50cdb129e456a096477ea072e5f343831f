@@ -1,0 +1,36 @@
+packages/engine/test/e2e/rbi-scene-wire.e2e.test.ts
+  s_e752ff6fd075bc::t_6360efcab4ec77 181-204
+packages/engine/src/rbi.ts
+  s_e752ff6fd075bc::t_2ace56193ea894 783,793-796,812-814,816
+  s_e752ff6fd075bc::t_93468589306ca4 307,333,338-339
+  s_e752ff6fd075bc::t_b5d3f585c834c6 291-296
+  s_e752ff6fd075bc::t_e811a371486e11 820-824,826
+  s_e752ff6fd075bc::t_56c332642ca4c0 254
+  s_e752ff6fd075bc::t_2d308b6bb5a34e 958-960
+  s_e752ff6fd075bc::t_6d69ffd62238cf 819,911,1139
+  s_e752ff6fd075bc::t_44c89572e948a2 1132-1138,1140
+  s_e752ff6fd075bc::t_b1777ba3f8fba1 14,274,276
+  s_e752ff6fd075bc::t_fd0dec61c0b476 275,282,297,306,327-330,332,334,336-337
+  s_e752ff6fd075bc::t_92848d19cec4c9 326,815,817-818,825,827
+packages/engine/src/cdp/input.ts
+  s_e752ff6fd075bc::t_505c51388f299b 450
+  s_e752ff6fd075bc::t_1153c24c96575d 109-115,117,126-129,137-140,157-160
+  s_e752ff6fd075bc::t_150f48d2243be6 116,118-125,130-136,141-149,151-156,414-427
+  s_e752ff6fd075bc::t_80c78b17ccf3aa 150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3ba0bc50cdb129e456a096477ea072e5f343831f",
+  "prompts": {},
+  "sessions": {
+    "s_e752ff6fd075bc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbd167b90ffenoolTk3K48t5Wo",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

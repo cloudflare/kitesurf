@@ -1,0 +1,21 @@
+docs/CORS.md
+  s_2345a80585d890::t_fe650990a10224 139-146,151-152
+  s_2345a80585d890::t_17986a4081636a 126-138
+  s_2345a80585d890::t_4c9225192a06ba 147-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "230f694380380d14b70f84a17dcd845ee8f8e720",
+  "prompts": {},
+  "sessions": {
+    "s_2345a80585d890": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd7825cdaffevO3kTYiLE69X7z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,52 @@
+packages/core/src/lib.rs
+  s_1a92efd19a388c::t_1a56ddf979285b 72-73,85-86
+scripts/dev-term-args.test.mjs
+  s_1a92efd19a388c::t_1a56ddf979285b 1-35
+packages/core/src/tty_splash.rs
+  s_1a92efd19a388c::t_1a56ddf979285b 1-419
+docs/TERMINAL.md
+  s_1a92efd19a388c::t_1a56ddf979285b 1-215
+packages/engine/src/tty/route.ts
+  s_1a92efd19a388c::t_1a56ddf979285b 82
+package.json
+  s_1a92efd19a388c::t_1a56ddf979285b 10
+packages/core/Cargo.toml
+  s_1a92efd19a388c::t_1a56ddf979285b 241-246
+packages/core/src/tty_omni.rs
+  s_1a92efd19a388c::t_1a56ddf979285b 464-478
+scripts/dev-term-args.mjs
+  s_1a92efd19a388c::t_1a56ddf979285b 1-45
+packages/engine/src/tty/session.ts
+  s_1a92efd19a388c::t_1a56ddf979285b 247-266,337-340,502,555-559,880-886,923-927,1129-1131,1184,1191-1196,1209-1235,1246,1273-1282,1370-1373,1623,1659-1662
+AGENTS.md
+  s_1a92efd19a388c::t_1a56ddf979285b 42-43,63-64,135
+packages/core/src/tty_logo.rs
+  s_1a92efd19a388c::t_1a56ddf979285b 1-484
+packages/engine/src/eval/oopif-render.ts
+  s_1a92efd19a388c::t_1a56ddf979285b 152-169,559-588
+packages/engine/src/rbi.ts
+  s_1a92efd19a388c::t_1a56ddf979285b 272-275,280,374-378,386-392
+packages/engine/src/wasm.ts
+  s_1a92efd19a388c::t_1a56ddf979285b 28,181-186
+packages/engine/test/term-target.test.ts
+  s_1a92efd19a388c::t_69ff04b447e46d 9
+  s_1a92efd19a388c::t_1a56ddf979285b 3-8,10,106-157
+scripts/dev-term.mjs
+  s_1a92efd19a388c::t_1a56ddf979285b 1-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "282e138f708ba0ce337a75ae2af94a5868d9e4c5",
+  "prompts": {},
+  "sessions": {
+    "s_1a92efd19a388c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f34aa71c2ffepIc2qyDMMRcI4N",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

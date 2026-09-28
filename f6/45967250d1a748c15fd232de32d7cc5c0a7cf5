@@ -1,0 +1,19 @@
+scripts/patches/parley-0.11.1/0009-Expand-horizontal-tabs-to-CSS-tab-size-stops.patch
+  s_4ba79f911c93c4::t_e9168bb153b063 1-348
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f645967250d1a748c15fd232de32d7cc5c0a7cf5",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

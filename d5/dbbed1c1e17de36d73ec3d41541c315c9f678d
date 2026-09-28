@@ -1,0 +1,28 @@
+docs/FONTS.md
+  s_50d45ac3d4c7e5::t_68a86fd9327ff2 66-92
+scripts/patches/blitz-dom-0.3.0-beta.1/0083-Skip-a-font-family-still-waiting-on-a-face-for-the-w.patch
+  s_50d45ac3d4c7e5::t_852af308ed9e08 1-180
+packages/core/src/net.rs
+  s_50d45ac3d4c7e5::t_a0f9354962e17e 116
+  s_50d45ac3d4c7e5::t_8b27cfbdb86fc5 103-107
+  s_50d45ac3d4c7e5::t_e3d24ba92a3471 678-712
+  s_50d45ac3d4c7e5::t_cb61b9722bc877 713-771
+  s_50d45ac3d4c7e5::t_efc058b65af105 496-510
+  s_50d45ac3d4c7e5::t_1b7518de201c06 511-512,677
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d5dbbed1c1e17de36d73ec3d41541c315c9f678d",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,19 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0018-paint-stop-building-clip-BezPaths-nothing-reads.patch
+  s_dfd792beae87ba::t_aaf5aece27d1f6 1-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "500c172a334d707d5ec0d17bd979f28f9d3a8d9b",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

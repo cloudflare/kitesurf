@@ -1,0 +1,17 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e1cce43989c7841518c24692986631530192d287",
+  "prompts": {},
+  "sessions": {
+    "s_d5d592cf7079c9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03238e5eeffeUFJ6V7CtVbOdbY",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,47 @@
+packages/core/src/sketch.rs
+  s_63365f51c8df96::t_c22f0c7b5e5309 1-338
+packages/engine/src/cdp/kitesurf.ts
+  s_63365f51c8df96::t_c22f0c7b5e5309 19-24,194-249
+  s_63365f51c8df96::t_684ae649fcf7e7 250
+packages/engine/src/cdp/page.ts
+  s_63365f51c8df96::t_c22f0c7b5e5309 3107-3118
+packages/core/src/screenshot.rs
+  s_63365f51c8df96::t_c22f0c7b5e5309 85
+packages/engine/public/index.html
+  s_63365f51c8df96::t_c22f0c7b5e5309 71-72,85-98,334-340,678-716,775
+packages/engine/src/cdp/target.ts
+  s_63365f51c8df96::t_c22f0c7b5e5309 382,559
+packages/engine/src/cdp/types.ts
+  s_63365f51c8df96::t_c22f0c7b5e5309 136-139,909-914
+packages/engine/src/index.ts
+  s_63365f51c8df96::t_0d153573c8451a 519-521
+  s_63365f51c8df96::t_c22f0c7b5e5309 502-513,529-531
+packages/page-script/src/index.ts
+  s_63365f51c8df96::t_c22f0c7b5e5309 246,6333-6341
+  s_63365f51c8df96::t_0a3515d38a3de1 6342-6345
+packages/core/src/lib.rs
+  s_63365f51c8df96::t_c22f0c7b5e5309 74,4368,4804,5378
+  s_63365f51c8df96::t_0d153573c8451a 4977
+packages/core/src/pdf.rs
+  s_63365f51c8df96::t_c22f0c7b5e5309 187
+packages/engine/src/cdp/connection.ts
+  s_63365f51c8df96::t_c22f0c7b5e5309 154-155,209-215,383-385
+scripts/patches/blitz-paint-0.3.0-beta.1/0023-Sketch-mode-box-SVG-content-instead-of-painting-the-.patch
+  s_63365f51c8df96::t_d3a05f0dc3b34c 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "807434ce601d9146dcdeec1dec3fd84d1f732697",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

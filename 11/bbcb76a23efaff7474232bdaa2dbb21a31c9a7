@@ -1,0 +1,76 @@
+packages/core/Cargo.lock
+  s_76bfd1a366a51d::t_4d70dfa9f020a7 1363-1368,1418
+packages/engine/test/rbi-resource-batch.test.ts
+  s_76bfd1a366a51d::t_5b262b31663e2a 21,30-31
+  s_76bfd1a366a51d::t_a205dcfb9ef7f6 136-170
+packages/engine/src/rbi.ts
+  s_76bfd1a366a51d::t_a57c8253ddf222 813-814
+  s_76bfd1a366a51d::t_f7133279e6e9eb 796-812,815-816
+  s_76bfd1a366a51d::t_75f13f043d28ea 24
+packages/core/Cargo.toml
+  s_76bfd1a366a51d::t_7ccd8bf62e1a08 119-127
+packages/engine/src/rbi-protocol.ts
+  s_76bfd1a366a51d::t_c2c3fce80fe639 78-82,85-91
+  s_76bfd1a366a51d::t_18619d0a9b3e5d 114-120
+packages/engine/src/wasm.ts
+  s_76bfd1a366a51d::t_19a07989a91c6e 295-310
+  s_76bfd1a366a51d::t_365b175bf143bb 24
+packages/core/src/scene_replay.rs
+  s_76bfd1a366a51d::t_f2b1c934708120 511
+  s_76bfd1a366a51d::t_d3f360f6aac3cf 2342
+  s_76bfd1a366a51d::t_1ece02e970b5eb 2014
+  s_76bfd1a366a51d::t_353ac070ac65ba 462-473,482-493,495-504,520-529,531-533
+  s_76bfd1a366a51d::t_e78c9964b92d72 460
+  s_76bfd1a366a51d::t_1cae7a771e95b1 2027-2031,2035-2039
+  s_76bfd1a366a51d::t_ca5be2259b6c3c 2361
+  s_76bfd1a366a51d::t_7c53215083e345 2309,2330-2341,2343-2360,2362-2365
+  s_76bfd1a366a51d::t_3a350ba68e9a52 461
+  s_76bfd1a366a51d::t_30340e12df8bb5 474-481
+  s_76bfd1a366a51d::t_9930bedb42e235 2047,2125,2259-2308,2310,2401-2422
+  s_76bfd1a366a51d::t_11791dcb698d37 2008,2013,2017-2023
+  s_76bfd1a366a51d::t_62d5084f8e08f9 2048
+  s_76bfd1a366a51d::t_b4f4a8125f0426 505-510
+  s_76bfd1a366a51d::t_f7f416026e27a4 2258,2312,2366-2400
+  s_76bfd1a366a51d::t_e4bccb91e2495e 2126
+  s_76bfd1a366a51d::t_9508eeb4321f6c 2313-2329
+  s_76bfd1a366a51d::t_9febceeedc9c5f 2054-2055,2058-2061,2068-2124
+  s_76bfd1a366a51d::t_fe2b3cf2984353 1980-1986,1992,2000,2004-2007,2009-2012,2015-2016,2024-2026,2032-2034,2040-2046
+  s_76bfd1a366a51d::t_bebe7241d057e5 2311
+packages/core/src/scene_record.rs
+  s_76bfd1a366a51d::t_39f58fa59d3dbb 361-363,365-373
+  s_76bfd1a366a51d::t_a1264653f94aae 2148-2152
+  s_76bfd1a366a51d::t_bb5e88b04bfc16 364
+  s_76bfd1a366a51d::t_386e9423c250c4 2094-2095,2101-2102,2134-2147,2153-2180,2187-2189,2195-2197,2199-2205
+  s_76bfd1a366a51d::t_d61d315613a800 2096-2099
+  s_76bfd1a366a51d::t_77fa3e9fda4416 771
+  s_76bfd1a366a51d::t_fe92aa54bae2d6 2181-2186,2190-2194,2198
+  s_76bfd1a366a51d::t_486ff6d779e3e0 1528-1529
+  s_76bfd1a366a51d::t_8c6cb069a0b3ff 2100
+  s_76bfd1a366a51d::t_6c51abdb9c4c84 2103-2133
+  s_76bfd1a366a51d::t_a2b8803e35e4b3 1563-1565
+packages/core/src/lib.rs
+  s_76bfd1a366a51d::t_f042b7f5eaec53 4970-4977,4984
+  s_76bfd1a366a51d::t_5665093423938b 4919-4922,4926,4931,4933
+  s_76bfd1a366a51d::t_a8b223a2f0ae5f 4932
+  s_76bfd1a366a51d::t_6c598be88614d3 4937
+  s_76bfd1a366a51d::t_a5cbc6ce5c050c 4909,4914-4918,4923-4925,4927-4930,4934-4936,4938-4941
+  s_76bfd1a366a51d::t_daccb50c326600 4826-4829
+  s_76bfd1a366a51d::t_154d28e5724941 301-321
+  s_76bfd1a366a51d::t_651e09b4f3be68 4905-4908,4910-4913
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "11bbcb76a23efaff7474232bdaa2dbb21a31c9a7",
+  "prompts": {},
+  "sessions": {
+    "s_76bfd1a366a51d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02cd68253ffeg1kYLSumAjq6rF",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,43 @@
+packages/engine/test/e2e/demos/forms-step-numeric-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_72504d03dd8451 1-53,59,61-65,67-151
+  s_f50b7cd97baf3e::t_2fcc6d03ef8008 54-58,60,66
+packages/engine/test/e2e/demos/forms-input-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_a6306cab6f3736 126-129,131,135,137
+  s_f50b7cd97baf3e::t_017d763c7f79c7 134,136,138-139
+packages/dom-shim/src/input-types.ts
+  s_f50b7cd97baf3e::t_962510e8857c5b 1-381
+packages/dom-shim/src/element.ts
+  s_f50b7cd97baf3e::t_ff392d641d7d53 4080-4084
+  s_f50b7cd97baf3e::t_eef1eb4cd8aea6 3759-3776
+  s_f50b7cd97baf3e::t_bd559b5bef53f9 7781-7782
+  s_f50b7cd97baf3e::t_3d7fac02572cef 4066-4072,4074-4077,4085-4091,4096-4120
+  s_f50b7cd97baf3e::t_7de9fbf25a62df 3790-3802
+  s_f50b7cd97baf3e::t_36b43eb40bbe40 5687-5712,5717-5719
+  s_f50b7cd97baf3e::t_9d08e89116d030 4482-4489,4491,4493-4499,4501
+  s_f50b7cd97baf3e::t_3e7f0e4e39aa24 84-92
+  s_f50b7cd97baf3e::t_9a407164c1dba2 5109-5151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3c989e4a3820be8662852538c2743a515a374b92",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

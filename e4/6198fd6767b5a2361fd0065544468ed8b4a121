@@ -1,0 +1,23 @@
+packages/engine/test/e2e/cssom-page-rules.e2e.test.ts
+  s_3be8bdc3986df9::t_99e5615d9e95ce 56,90
+  s_3be8bdc3986df9::t_5626bd145785b8 61-74,98-101,135-138
+  s_3be8bdc3986df9::t_e33d46bce91748 55,77,111-114
+packages/dom-shim/src/collections.ts
+  s_3be8bdc3986df9::t_5626bd145785b8 2106-2108,2119,2121,2132-2136,2144-2155,2172-2175,2412,2669
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e46198fd6767b5a2361fd0065544468ed8b4a121",
+  "prompts": {},
+  "sessions": {
+    "s_3be8bdc3986df9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f55e52e2affewnoRhLZP3zCd5c",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

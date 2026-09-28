@@ -1,0 +1,22 @@
+packages/engine/src/cdp/dom.ts
+  s_32cf082f6ba2e7::t_658686a4d53e40 166,169
+  s_32cf082f6ba2e7::t_4f8edebd59593c 788-808,813,821-840
+  s_32cf082f6ba2e7::t_4c32aa8aade871 1-2
+  s_32cf082f6ba2e7::t_2f126e918b82d2 841
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "398ccd30b01718a9cdee5e865a26b3b38563026a",
+  "prompts": {},
+  "sessions": {
+    "s_32cf082f6ba2e7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06f3eacedffeL0iVzUWh1SMMMW",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/page-script/src/defer-shim.ts
+  s_479f7a46340b56::t_45b013662866d4 248-249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b67216fb3edb8cd8059a76f71e2039e202c791c6",
+  "prompts": {},
+  "sessions": {
+    "s_479f7a46340b56": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_012e8f953ffeBE1ySMwmNeqr7E",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

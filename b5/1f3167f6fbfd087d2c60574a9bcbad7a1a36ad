@@ -1,0 +1,25 @@
+docs/DOM_SHIM.md
+  s_93b484cedebccd::t_2909fc80558579 14,16-25,55-59
+scripts/patches/blitz-dom-0.3.0-beta.2/0144-Gate-font-face-fetches-on-unicode-range-against-the-.patch
+  s_93b484cedebccd::t_2909fc80558579 1-277
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-Queue-each-font-face-once-per-document.patch
+  s_93b484cedebccd::t_2909fc80558579 1-114
+docs/FONTS.md
+  s_93b484cedebccd::t_2909fc80558579 135,137,158-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b51f3167f6fbfd087d2c60574a9bcbad7a1a36ad",
+  "prompts": {},
+  "sessions": {
+    "s_93b484cedebccd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31d712fdffeuTQq5D6PMopaPg",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

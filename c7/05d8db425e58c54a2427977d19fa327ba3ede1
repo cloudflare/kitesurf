@@ -1,0 +1,19 @@
+packages/engine/src/quickaction.ts
+  s_d264cf1778372b::t_35b004352097bb 1030-1038
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c705d8db425e58c54a2427977d19fa327ba3ede1",
+  "prompts": {},
+  "sessions": {
+    "s_d264cf1778372b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_08d773743ffedu4ERuZ9uK2OxJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

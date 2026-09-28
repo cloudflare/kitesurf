@@ -1,0 +1,25 @@
+packages/engine/test/e2e/global-setup.ts
+  s_c9f68948e839d2::t_0fbcb3604e34e6 52-54,57
+.gitlab-ci.yml
+  s_c9f68948e839d2::t_a7a72b10e78031 572
+tests/interactivity-flows/run.ts
+  s_c9f68948e839d2::t_d9be04b1eb840e 180,182-184,190
+packages/page-renderer/src/shims.d.ts
+  s_c9f68948e839d2::t_8057f52eacc710 31-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "39973041927ea525879c5fb6485f4fffd40e01a1",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

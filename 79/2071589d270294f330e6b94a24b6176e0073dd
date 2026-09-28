@@ -1,0 +1,21 @@
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_6917a4c76239ca::t_915b884bd40098 203-206
+scripts/patches/blitz-dom-0.3.0-beta.2/0139-Place-box-only-inline-lines-from-the-strut-geometry.patch
+  s_6917a4c76239ca::t_161c39a70c388e 1-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "792071589d270294f330e6b94a24b6176e0073dd",
+  "prompts": {},
+  "sessions": {
+    "s_6917a4c76239ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4957e992ffeVbjatLtj1w4960",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,71 @@
+scripts/patches/taffy-0.12.2.patch
+  s_19069b86731766::t_3c3b8667767ca5 1-203
+packages/core/src/svg_currentcolor_test.rs
+  s_19069b86731766::t_d31982258b3a99 29,38,63,73
+scripts/get-patched-vendor-crates.mjs
+  s_19069b86731766::t_24daadce60b637 69-72
+packages/core/Cargo.toml
+  s_19069b86731766::t_d4a5a36938c5c0 19-20
+  s_19069b86731766::t_90aba06dc92861 212-215
+  s_19069b86731766::t_cf12aad032d918 74-77
+  s_19069b86731766::t_4c46f933c5a2c1 22-23
+scripts/patches/stylo-0.19.0.patch
+  s_19069b86731766::t_3c3b8667767ca5 21-109
+packages/core/src/lib.rs
+  s_19069b86731766::t_bcf6108cd99003 3394-3397
+  s_19069b86731766::t_994f2c639fdc66 2315-2340
+  s_19069b86731766::t_3bc0aad20a5ffc 3228-3229
+  s_19069b86731766::t_e9e49ca1632695 3288-3304,3306-3308,3317,3324-3329
+  s_19069b86731766::t_d39bc1b49af246 3280
+  s_19069b86731766::t_ceb62f103293b9 3369-3371
+scripts/patches/blitz-paint-0.3.0-beta.1.patch
+  s_19069b86731766::t_3c3b8667767ca5 1-647
+scripts/patches/blitz-dom-0.3.0-beta.1.patch
+  s_19069b86731766::t_3c3b8667767ca5 1-97,99-101,117-157,171-1349,1384-1404,1406-1461,1463-1848
+  s_dfe9872d3f263e::t_59f0a82299133d 1369,1376-1377,1405
+  s_2c0c192010aeba::t_96ac6bdf71885b 98
+packages/core/src/checked_svg_test.rs
+  s_19069b86731766::t_d31982258b3a99 16,27
+packages/core/src/pdf_paint.rs
+  s_19069b86731766::t_ff1ad83fdbacf1 572-573
+scripts/patches/README.md
+  s_19069b86731766::t_05c3d4ef394607 91-94
+  s_19069b86731766::t_48299fe8ce6b60 176
+  s_19069b86731766::t_aadde029c62a62 251
+  s_19069b86731766::t_4aafee2fc6ce04 112,117-124,134-139,143-158
+  s_2c0c192010aeba::t_8e0ca191d25d5e 125,132-133
+packages/core/Cargo.lock
+  s_19069b86731766::t_534b89d888a888 129,169,171,181,192,200,202,204,2116,2118,2354,2409,2411,2419,2421,2432,2434,2442,2444,2460,2462,2469,2471,2480,2482,2546,2698,2700
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "242c0131bbfd2610e9f176466b794549d4c60a43",
+  "prompts": {},
+  "sessions": {
+    "s_19069b86731766": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0790dbe40ffekNMt6TgsspoV1c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_2c0c192010aeba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_074d677a3ffeimND6iMzyRJy86",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_dfe9872d3f263e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0756acc38ffeqz5UKWJC9rkSBs",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

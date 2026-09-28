@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0090-Damage-the-nodes-whose-counters-moved-since-the-last.patch
+  s_82c6f22e2b0444::t_411b441d9c12e1 1-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f2c1a3385a5c4dcf650750a2e8da1717b9bc56f0",
+  "prompts": {},
+  "sessions": {
+    "s_82c6f22e2b0444": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00dc5b66cffesWPaC4oZLhbxGN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

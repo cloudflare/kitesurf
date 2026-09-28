@@ -1,0 +1,41 @@
+bench/harness/run.mjs
+  s_5f3448ddbd7fba::t_90e4b0b6675693 329-427,429
+  s_5f3448ddbd7fba::t_37ba8a3f00c11e 325-328,677-679,786-788,791,801-805
+  s_5f3448ddbd7fba::t_6608eaf4ae5c6c 689-702
+  s_5f3448ddbd7fba::t_8d4ca86c3cfad3 206,217,230,244,265,276,493,590-592,646-650,659-660,663,715-718,723-724
+  s_5f3448ddbd7fba::t_980787c4d2f632 898-903
+packages/bench-report/wrangler.jsonc
+  s_5f3448ddbd7fba::t_a2e768f216525f 45-47,49-55
+  s_5f3448ddbd7fba::t_35c2e0a137dca8 7-8
+packages/bench-report/src/bench-routes.ts
+  s_5f3448ddbd7fba::t_7b16888e532b43 286-287
+  s_5f3448ddbd7fba::t_a95604ec3bcd50 490-494,496-499,502,790,804
+packages/bench-report/src/bench-runner.ts
+  s_5f3448ddbd7fba::t_08471171bda1d4 6-18,58-59,68-70,74-76,80,106,119-121,129-132,147,157,192,241-243,257-260
+  s_5f3448ddbd7fba::t_4417dc5480c135 410-418
+packages/bench-report/worker-env.d.ts
+  s_5f3448ddbd7fba::t_35c2e0a137dca8 4-5,13-17
+bench/README.md
+  s_5f3448ddbd7fba::t_88073f4fff80f7 1,3-5,8-17,21-30,32-53,140-153,155-162,165-168,174
+  s_5f3448ddbd7fba::t_98a315ce774bd3 93-96,99-105,187,195,200-202,232,247-248
+  s_5f3448ddbd7fba::t_012756447d8550 288-290,292-293,297-302,306-311,324-329
+  s_5f3448ddbd7fba::t_0c617b865e0edd 257-260
+packages/bench-report/src/landing-urls.ts
+  s_5f3448ddbd7fba::t_3c9481f2fa29de 152-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "304d2cd7515010f66282a94f09a6500fa40e1d57",
+  "prompts": {},
+  "sessions": {
+    "s_5f3448ddbd7fba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_046e753d3ffes03EhHMjlrJN7V",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

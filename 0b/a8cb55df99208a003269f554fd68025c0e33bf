@@ -1,0 +1,24 @@
+packages/engine/test/caller.test.ts
+  s_f1cb8952a6fc05::t_be1d9d1eb21cd9 1-45
+packages/engine/src/caller.ts
+  s_f1cb8952a6fc05::t_4208d3ddd425a9 1-65
+packages/engine/src/index.ts
+  s_f1cb8952a6fc05::t_99b805af382966 14
+  s_f1cb8952a6fc05::t_2aed3da16eca23 397-401
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0ba8cb55df99208a003269f554fd68025c0e33bf",
+  "prompts": {},
+  "sessions": {
+    "s_f1cb8952a6fc05": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_012428cdaffesxLpzfgvwSLPLQ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

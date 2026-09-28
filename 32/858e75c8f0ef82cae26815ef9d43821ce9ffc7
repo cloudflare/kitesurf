@@ -1,0 +1,49 @@
+packages/core/src/ink_rect_test.rs
+  s_103b7f1f0713cd::t_1724ddd791e2db 1-28
+  s_103b7f1f0713cd::t_f56b0a5d9cdd5e 1-28
+packages/core/src/lib.rs
+  s_103b7f1f0713cd::t_731be2b557f9d8 203-205,5745-5747,5772,5775-5776,5781-5800,7922-7962
+  s_103b7f1f0713cd::t_e423650bac21e9 5799,7922-7925,7929,7931,7936-7960
+  s_103b7f1f0713cd::t_f1ce333cf153b1 7926-7928,7930,7932-7935
+  s_103b7f1f0713cd::t_04a815526cf947 5787-5790
+  s_103b7f1f0713cd::t_9316a1f8b7b199 5745-5747
+  s_103b7f1f0713cd::t_1ff779009ab295 5772,5775-5776,5781-5786,5791-5798
+  s_103b7f1f0713cd::t_147b4d0b4c84a5 204-205
+  s_103b7f1f0713cd::t_a4691ac3a85823 203
+  s_103b7f1f0713cd::t_c11b20ccb250b7 5800
+  s_103b7f1f0713cd::t_8016313cf54d83 7961-7962
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_103b7f1f0713cd::t_bff8cdd34665f8 244-314
+  s_103b7f1f0713cd::t_119c64d79026f6 286-287,289
+  s_103b7f1f0713cd::t_75858e59dce7a0 310-311
+  s_103b7f1f0713cd::t_c11751d9a81919 244-285,288,290-292,298-309,312-314
+  s_103b7f1f0713cd::t_a1acd1bf980af8 293-297
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_3ab800254be5bc 1110-1116,4421,4446,4462,4474-4475,4477-4478,4486-4492,4497-4506,4541,4611-4620
+  s_103b7f1f0713cd::t_4fb64d83e8bba3 1110-1116
+  s_103b7f1f0713cd::t_8e8f6b91666abf 4541
+  s_103b7f1f0713cd::t_79799ad78a5047 4421
+  s_103b7f1f0713cd::t_2391812bf69484 4505
+  s_103b7f1f0713cd::t_13b59fee4db698 4611-4620
+  s_103b7f1f0713cd::t_c65202351c8fc2 4446
+  s_103b7f1f0713cd::t_a5fa1038a845cb 4462,4474-4475,4477-4478,4486-4492,4497-4504,4506
+scripts/patches/blitz-dom-0.3.0-beta.2/0165-Classify-transform-only-damage-as-ink-damage.patch
+  s_103b7f1f0713cd::t_d26655269a4709 1-99
+  s_103b7f1f0713cd::t_7ecc344be6f69d 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "32858e75c8f0ef82cae26815ef9d43821ce9ffc7",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+tests/interactivity-flows/flows.ts
+  s_76bfbccf6b08d2::t_d74d2f7d1f8f6e 1518-1533,1536-1537
+  s_76bfbccf6b08d2::t_915c99b54aab22 1482,1484-1489
+  s_76bfbccf6b08d2::t_82e43cfe91d9f7 1469-1478,1480-1481,1483,1490-1492
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2199b477ee284d492275a99bddaf8ab203793dca",
+  "prompts": {},
+  "sessions": {
+    "s_76bfbccf6b08d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f51a617e5ffezTwFX1MUpkiuYj",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

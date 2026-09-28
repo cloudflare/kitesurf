@@ -1,0 +1,31 @@
+packages/page-script/src/index.ts
+  s_f50b7cd97baf3e::t_2ec745e31b77f3 2710-2764,2767,2770-2777,2779-2780
+  s_f50b7cd97baf3e::t_f7392d92d3f972 2765-2766,2768-2769,2778
+  s_f50b7cd97baf3e::t_6ea09418b31517 181-186
+  s_f50b7cd97baf3e::t_6fa56b75be4d88 2849-2857
+packages/core/src/lib.rs
+  s_f50b7cd97baf3e::t_d9343e184da35f 1922-1948
+scripts/patches/blitz-paint-0.3.0-beta.1/0003-Paint-input-type-range-track-filled-span-thumb.patch
+  s_f50b7cd97baf3e::t_d8d7ed503f818e 1-128
+packages/engine/test/e2e/demos/forms-range-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_c348eaf752e1ea 1-86
+scripts/patches/blitz-dom-0.3.0-beta.1/0016-Add-SpecialElementData-RangeInput-carrying-the-slide.patch
+  s_f50b7cd97baf3e::t_d8d7ed503f818e 1-17,19,21-60,73-121
+  s_f50b7cd97baf3e::t_b313a347dec120 18,20,61-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b9ab446a2cedb461525467490812ca89d8bc5e0d",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

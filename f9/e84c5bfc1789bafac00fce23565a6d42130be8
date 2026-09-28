@@ -1,0 +1,29 @@
+docs/CDP.md
+  s_38b7bb489593d7::t_355d694bd0649a 44-46
+docs/PAGE_SCRIPT_PROTOCOL.md
+  s_38b7bb489593d7::t_be0c9fd28cdc1d 68-72
+packages/engine/src/cdp/runtime.ts
+  s_38b7bb489593d7::t_5055674e3d4bd1 133-145,448,531
+packages/engine/test/e2e/eval-across-navigation.e2e.test.ts
+  s_38b7bb489593d7::t_70b45c9e880d70 1-31
+packages/engine/test/e2e/eval-during-navigate.e2e.test.ts
+  s_38b7bb489593d7::t_b24b5ae8c69a64 87-88
+packages/engine/test/e2e/location-assign-navigates.e2e.test.ts
+  s_38b7bb489593d7::t_34d47eebd59efe 33-36,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f9e84c5bfc1789bafac00fce23565a6d42130be8",
+  "prompts": {},
+  "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

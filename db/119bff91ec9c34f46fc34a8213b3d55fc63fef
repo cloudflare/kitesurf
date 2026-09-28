@@ -1,0 +1,22 @@
+scripts/wpt-merge-shards.mjs
+  s_0ce9ee358b5cab::t_b8633427ca8691 77-83
+  s_0ce9ee358b5cab::t_de650f79a9f903 45-55,57-60
+.gitlab-ci.yml
+  s_0ce9ee358b5cab::t_4bd847e3334ba2 706-709
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "db119bff91ec9c34f46fc34a8213b3d55fc63fef",
+  "prompts": {},
+  "sessions": {
+    "s_0ce9ee358b5cab": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0175663cafferFTojqYhnIHVzU",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

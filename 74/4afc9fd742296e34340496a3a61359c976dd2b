@@ -1,0 +1,21 @@
+scripts/patches/jpeg-encoder-0.7.0/0001-Encode-RGBA-images-with-wasm-SIMD128.patch
+  s_103b7f1f0713cd::t_e7840bff36fa5a 1-657
+scripts/patches/jpeg-encoder-0.7.0/0002-Speed-up-the-Huffman-AC-writer.patch
+  s_103b7f1f0713cd::t_e7840bff36fa5a 1-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "744afc9fd742296e34340496a3a61359c976dd2b",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

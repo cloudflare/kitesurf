@@ -1,0 +1,43 @@
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_febe8d41b549be::t_99a949c866ea9e 1-208
+packages/dom-shim/src/state.ts
+  s_febe8d41b549be::t_99a949c866ea9e 79-82,420-422
+packages/engine/src/cdp/page.ts
+  s_febe8d41b549be::t_99a949c866ea9e 7458,7465,7473,7479-7485
+packages/page-script/src/index.ts
+  s_febe8d41b549be::t_99a949c866ea9e 224,1974-1976,4998-5001,5139-5142,5148-5149
+packages/page-script/src/transitions.ts
+  s_febe8d41b549be::t_99a949c866ea9e 1-90
+scripts/patches/blitz-dom-0.3.0-beta.1/0085-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
+  s_febe8d41b549be::t_99a949c866ea9e 1-53
+packages/core/src/lib.rs
+  s_febe8d41b549be::t_99a949c866ea9e 51-52,67,376-390,683-686,2458-2474,2496-2504,2508,2510-2511,3561-3598
+packages/core/src/animation_clock_test.rs
+  s_febe8d41b549be::t_99a949c866ea9e 1,3-10,12-18,24,41-72,77,86-87,89-95,105-106,109-110,112,114-143,152-270
+AGENTS.md
+  s_febe8d41b549be::t_99a949c866ea9e 111,304
+packages/dom-shim/src/events/dispatch.ts
+  s_febe8d41b549be::t_99a949c866ea9e 133
+docs/TRANSITIONS.md
+  s_febe8d41b549be::t_99a949c866ea9e 1-110
+packages/dom-shim/src/transitions.ts
+  s_febe8d41b549be::t_99a949c866ea9e 1-3,5-7,9-10,19-20,27-29,31-32
+packages/core/src/transitions.rs
+  s_febe8d41b549be::t_99a949c866ea9e 1-208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f7c3afa4a45dc1134296b4205cd77256e885c252",
+  "prompts": {},
+  "sessions": {
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

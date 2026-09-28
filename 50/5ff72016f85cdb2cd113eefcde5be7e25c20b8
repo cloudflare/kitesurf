@@ -1,0 +1,29 @@
+packages/engine/test/e2e/current-script-microtask.e2e.test.ts
+  s_10325f09f363f7::t_493dcb2225b9d4 2,5,7-9,23,27,31-37,39,42-45,50,53,59-67,69-76
+  s_10325f09f363f7::t_e700c956fd03ae 54
+  s_10325f09f363f7::t_3ea75eeb2b3cd6 1,3-4,6,10-22,24-26,28-30,38,40-41,46-49,51-52,55-58,68,77-80
+packages/engine/src/eval/script-bundle.ts
+  s_10325f09f363f7::t_4318c84582e9cc 397-406,410
+  s_10325f09f363f7::t_ac345b5e651a0d 756,757,765-771
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_10325f09f363f7::t_b641b13b44875f 1896-1904,1906-1907,1910,1913-1914
+  s_10325f09f363f7::t_890e094c21ff5f 1921
+  s_10325f09f363f7::t_72e0ec34fd27f6 1924,1926,1930-1931
+  s_10325f09f363f7::t_ccab8e63ad672f 1887-1895,1905,1908-1909,1911-1912,1915-1920,1922-1923,1925,1927-1929,2522-2523,4348-4351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "505ff72016f85cdb2cd113eefcde5be7e25c20b8",
+  "prompts": {},
+  "sessions": {
+    "s_10325f09f363f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_028d94f7bffeLPzCR3nArdny7w",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

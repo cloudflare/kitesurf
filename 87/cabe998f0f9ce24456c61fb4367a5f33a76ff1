@@ -1,0 +1,27 @@
+packages/core/src/lib.rs
+  s_4b450167e630e8::t_c0aeb38f39ec21 1322-1326,1340-1347,1379-1384,1392-1398,1425-1426,1434-1440
+packages/core/src/boa_bridge.rs
+  s_4b450167e630e8::t_c0aeb38f39ec21 1471,1799-1800,1825-1826,1831-1833,1835-1836
+packages/engine/test/e2e/bridge-array-lazy.e2e.test.ts
+  s_4b450167e630e8::t_c0aeb38f39ec21 275-278
+packages/engine/test/e2e/domexception-binding-shape.e2e.test.ts
+  s_4b450167e630e8::t_c0aeb38f39ec21 11-15
+AGENTS.md
+  s_4b450167e630e8::t_c0aeb38f39ec21 216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "87cabe998f0f9ce24456c61fb4367a5f33a76ff1",
+  "prompts": {},
+  "sessions": {
+    "s_4b450167e630e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e08b52affe2claqo3m243AcK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

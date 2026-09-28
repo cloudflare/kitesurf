@@ -1,0 +1,28 @@
+packages/engine/test/fixtures-worker/assets/fetch-priority-probe.html
+  s_46371821d5f8e9::t_e782e92e27c60c 1-16
+packages/engine/test/fixtures-worker/assets/inline-wasm.js
+  s_46371821d5f8e9::t_e782e92e27c60c 1-19
+packages/engine/test/fixtures-worker/assets/dynprobe.html
+  s_46371821d5f8e9::t_e782e92e27c60c 1-51
+packages/engine/test/fixtures-worker/assets/icon-sprite.svg
+  s_46371821d5f8e9::t_e782e92e27c60c 1-4
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_46371821d5f8e9::t_9b0b4450eaea9b 350,468,1113,1217
+  s_46371821d5f8e9::t_acbbea94c21780 1215-1216,1218-1221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f1da883bdf7b7f718ec0739a920bfc7f80085dbd",
+  "prompts": {},
+  "sessions": {
+    "s_46371821d5f8e9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00d107a2bffegmHwZNZ4m4wIp9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

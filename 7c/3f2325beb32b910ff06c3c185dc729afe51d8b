@@ -1,0 +1,25 @@
+packages/engine/src/eval/font-shaping.ts
+  s_6082decdafbe43::t_a9d804728c296f 1-108
+docs/FONTS.md
+  s_6082decdafbe43::t_2fd50e40a9bb66 49-61
+packages/engine/src/eval/outbound.ts
+  s_6082decdafbe43::t_1d23bd1ff26922 57,1505
+packages/engine/src/wasm.ts
+  s_6082decdafbe43::t_1d23bd1ff26922 236-238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7c3f2325beb32b910ff06c3c185dc729afe51d8b",
+  "prompts": {},
+  "sessions": {
+    "s_6082decdafbe43": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0339951e2ffeBOAUs88slLuguQ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+scripts/patches/taffy-0.11.0-experimental-cache-fix.3.patch
+  s_75d678c932972d::t_8b39d1ac197c01 103-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "17dacfc31462f6c60c2345e21dd83b902a1d82fc",
+  "prompts": {},
+  "sessions": {
+    "s_75d678c932972d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_084579337ffepy28AOdVrayge7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

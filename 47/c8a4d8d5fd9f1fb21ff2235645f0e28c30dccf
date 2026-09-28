@@ -1,0 +1,62 @@
+packages/engine/src/eval/web-bot-auth.ts
+  s_a52b7488ac9f26::t_dbf88a107f5c1b 167-171
+  s_a52b7488ac9f26::t_3f6d1b5cc5e836 112-116
+  s_a52b7488ac9f26::t_06c47bcee785a6 1-17,20-111,117-166,172-210
+  s_a52b7488ac9f26::t_24071983261c9b 18-19
+packages/engine/package.json
+  s_a52b7488ac9f26::t_c6c33be581ac3b 11,30-31
+packages/engine/src/eval/outbound.ts
+  s_a52b7488ac9f26::t_4fe715242bb4a1 418,424
+  s_a52b7488ac9f26::t_ab53131292d139 37
+  s_a52b7488ac9f26::t_ccec6b3f080ca8 386-387
+  s_a52b7488ac9f26::t_9f527dec16b26d 410,412-417
+  s_a52b7488ac9f26::t_944b3eedfcd1f3 906
+  s_a52b7488ac9f26::t_498f2a46fb4425 956-957,959-963
+  s_a52b7488ac9f26::t_fd75b5979f70dd 958,964-966
+  s_a52b7488ac9f26::t_ac50adc8fc00e7 128
+  s_a52b7488ac9f26::t_059e4b5b8418c3 385
+  s_a52b7488ac9f26::t_3520e28beb43b3 411
+packages/engine/test/e2e/wba-test-key.ts
+  s_a52b7488ac9f26::t_9fe5b3b408fb43 1-28
+packages/engine/vitest.e2e.config.mts
+  s_a52b7488ac9f26::t_c5b4eb40a1269c 14-18
+  s_a52b7488ac9f26::t_f98e393187734c 36-45
+packages/engine/test/web-bot-auth.test.ts
+  s_a52b7488ac9f26::t_7ae02ad02f36a4 1-7,9-21,38-39,55-123,125-129,131-132,136-139,141,145-149,152-163,165-172,174-179,183-195,197-203,205-211,213-222,225-229,231-235
+  s_a52b7488ac9f26::t_b0a531f2fb616e 40-54
+  s_a52b7488ac9f26::t_23202624d2d890 142
+  s_a52b7488ac9f26::t_200b0bddcf955e 180-182
+  s_a52b7488ac9f26::t_107d3dcf54b6c8 124,130,133-135,140,143-144,150-151,164,173,196,204,212,223-224,230
+  s_a52b7488ac9f26::t_22542c19aeb6d9 8
+  s_a52b7488ac9f26::t_c751cc4dca607e 22-37
+packages/engine/test/e2e/web-bot-auth.e2e.test.ts
+  s_a52b7488ac9f26::t_bca5b6ca3690c7 1-116
+AGENTS.md
+  s_a52b7488ac9f26::t_b141521cd0bc89 642-690
+  s_a52b7488ac9f26::t_7d4cfcbc8eb45b 641
+packages/engine/wrangler.jsonc
+  s_a52b7488ac9f26::t_713ab480594191 245-248
+  s_a52b7488ac9f26::t_5fd425bd11a1af 283-286
+  s_a52b7488ac9f26::t_e9a0a0c7fd6783 145-154
+  s_a52b7488ac9f26::t_b674eb96f56364 144,244,282
+packages/engine/test/outbound-forward.test.ts
+  s_a52b7488ac9f26::t_fba2eb46fbe4fe 128-192
+pnpm-lock.yaml
+  s_a52b7488ac9f26::t_18f671500c337a 95-97,1162-1164,1184-1186,1412-1415,1564-1566,2458-2461,2482-2483,2759-2760,2891-2895
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "47c8a4d8d5fd9f1fb21ff2235645f0e28c30dccf",
+  "prompts": {},
+  "sessions": {
+    "s_a52b7488ac9f26": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_052a6a6dbffeifs9URA3GLV7Gj",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

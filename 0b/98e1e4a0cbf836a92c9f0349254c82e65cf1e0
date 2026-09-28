@@ -1,0 +1,30 @@
+packages/core/src/boa_bridge.rs
+  s_4b450167e630e8::t_e530ba961deebf 1934-1937
+  s_4b450167e630e8::t_fb282363b98af2 1436-1443,1885-1887,1927-1928,1938-1953
+packages/engine/test/e2e/bridge-defineproperty.e2e.test.ts
+  s_4b450167e630e8::t_364b36cfb093ed 53-54,114
+packages/engine/test/e2e/html/bridge-defineprop.html
+  s_4b450167e630e8::t_14297eaa6ea485 15-21
+packages/engine/test/e2e/event-handler-idl.e2e.test.ts
+  s_4b450167e630e8::t_4c72c33f76c688 92-117
+packages/engine/test/e2e/bridge-array-lazy.e2e.test.ts
+  s_4b450167e630e8::t_975e0fc45aa60a 275-277
+packages/engine/test/e2e/domexception-binding-shape.e2e.test.ts
+  s_4b450167e630e8::t_975e0fc45aa60a 11-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b98e1e4a0cbf836a92c9f0349254c82e65cf1e0",
+  "prompts": {},
+  "sessions": {
+    "s_4b450167e630e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e08b52affe2claqo3m243AcK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

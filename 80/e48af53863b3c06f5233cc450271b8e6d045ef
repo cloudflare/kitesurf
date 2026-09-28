@@ -1,0 +1,19 @@
+packages/core/src/scene_decode.rs
+  s_c36aec1972980f::t_f808d2016d6550 1302,1323,1325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "80e48af53863b3c06f5233cc450271b8e6d045ef",
+  "prompts": {},
+  "sessions": {
+    "s_c36aec1972980f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_07f5fc1f5ffe9g6uJe63IWmnje",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

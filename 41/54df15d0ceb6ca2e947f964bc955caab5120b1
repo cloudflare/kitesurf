@@ -1,0 +1,19 @@
+scripts/patches/vello_cpu-0.0.9/0001-Vectorise-powf-and-skip-the-p-norm-away-from-the-cor.patch
+  s_dfd792beae87ba::t_f8a51da61cc32e 23-24,27,56,109-113,115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4154df15d0ceb6ca2e947f964bc955caab5120b1",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

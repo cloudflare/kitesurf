@@ -1,0 +1,60 @@
+packages/engine/src/wasm.ts
+  s_c3f4721eac17a8::t_a9cf3db35e26f2 111-113
+  s_c3f4721eac17a8::t_03e5f9f3451067 24-52
+  s_c3f4721eac17a8::t_176ff1e2a4f0b0 114-119
+  s_c3f4721eac17a8::t_4f9fd51c741f53 8
+  s_c3f4721eac17a8::t_e6d7c7e9a62136 95-101
+packages/engine/src/cdp/dispatch.ts
+  s_c3f4721eac17a8::t_e601ca3b25b633 100-106
+  s_c3f4721eac17a8::t_7dbfc8ba269a92 11
+packages/engine/src/cdp/target.ts
+  s_c3f4721eac17a8::t_9a25139aa667f2 1
+  s_c3f4721eac17a8::t_cceee0887c81a4 106-107
+  s_c3f4721eac17a8::t_177f8171fe858e 153-155
+  s_c3f4721eac17a8::t_e121f4e3f7a656 231-236
+  s_c3f4721eac17a8::t_4f9fd51c741f53 6-9,686-687
+  s_c3f4721eac17a8::t_e6c3fefe5b6d68 632-677,679-685,689-693,695-726,728-736
+  s_c3f4721eac17a8::t_00b7bb88638a0e 678,688,694,727
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c3f4721eac17a8::t_6ea2d71af349e9 2700-2766
+packages/engine/src/cdp/network-events.ts
+  s_c3f4721eac17a8::t_94f176fc9bd4e4 763-768,771-775
+  s_c3f4721eac17a8::t_8c84b1109e2d9e 738,746,755,757,770
+  s_c3f4721eac17a8::t_43adbda1b14a2e 120,769
+packages/engine/src/engine-wasm-probe.ts
+  s_c3f4721eac17a8::t_fae92180e023cf 1-32
+AGENTS.md
+  s_c3f4721eac17a8::t_9a93b01656676d 579-607
+packages/engine/src/cdp/connection.ts
+  s_c3f4721eac17a8::t_2145376fcb3102 612-616,623-628
+  s_c3f4721eac17a8::t_2100f722d1b460 9-13
+  s_c3f4721eac17a8::t_f96d73687c8ca9 302-304
+packages/engine/test/e2e/engine-memory-accounting.e2e.test.ts
+  s_c3f4721eac17a8::t_af54397d8e56cd 1-50,52-102
+  s_c3f4721eac17a8::t_a868cc1b0cd59f 51
+packages/engine/test/network-events-body-budget.test.ts
+  s_c3f4721eac17a8::t_0bd277fc68b369 61,79,92
+packages/engine/src/cdp/types.ts
+  s_c3f4721eac17a8::t_6b2eb4a41987af 252-258
+  s_c3f4721eac17a8::t_7ebee491691701 251
+packages/engine/src/cdp/kitesurf.ts
+  s_c3f4721eac17a8::t_2b205c588e4046 27
+  s_c3f4721eac17a8::t_a19a998a2fd5d6 385-388
+  s_c3f4721eac17a8::t_9a25139aa667f2 389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "254f716afdbb059498e61caf16b5a90a7237c240",
+  "prompts": {},
+  "sessions": {
+    "s_c3f4721eac17a8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_04f23b821ffeQZ9jpzLEJnytwY",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

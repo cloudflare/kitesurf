@@ -1,0 +1,95 @@
+packages/engine/src/eval/outbound.ts
+  s_41e060d4f5adf2::t_8f2e7be1be0c32 521-546,1021,1029-1033,1038-1039,1042-1047,1107,1119,1134-1150,1188,1195,1207-1208,1216,1220,1240,1270,1276,1283,1312-1313,1315,1329,1332,1335,1351,1363,1370,1373-1374,1384-1386,1396,1398,1403
+packages/engine/test/fixtures-worker/assets/module-registry.html
+  s_e14db85d7d877c::t_fb2476dac07535 10-12,20-21,27-28
+packages/engine/test/e2e/timer-wheel-foreign-clear.e2e.test.ts
+  s_e14db85d7d877c::t_55ea25b4f52890 2-9
+packages/engine/test/e2e/module-registry.e2e.test.ts
+  s_e14db85d7d877c::t_8962b12d95341f 2-14,44,53-56
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_e14db85d7d877c::t_55ea25b4f52890 214-215,217-220,1362-1364
+packages/engine/test/fixtures-worker/assets/module-registry-tla.js
+  s_e14db85d7d877c::t_742e30673dd1c3 1-3
+packages/page-script/src/globals.ts
+  s_e14db85d7d877c::t_515c3e64e303e8 417-425,427,430
+scripts/patches/blitz-dom-0.3.0-beta.2/0137-Round-natural-font-metrics-to-whole-pixels.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-55
+scripts/patches/blitz-dom-0.3.0-beta.2/0133-Resolve-relative-inline-insets-against-used-height.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-61
+scripts/patches/blitz-dom-0.3.0-beta.2/0134-Wire-CSS-tab-size-from-stylo-into-parley-TextStyle.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-43
+scripts/patches/blitz-dom-0.3.0-beta.2/0141-Recompute-hoisted-paint-offsets-after-layout.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-98,100-101,103-115
+scripts/patches/blitz-dom-0.3.0-beta.2/0136-Fix-hit-testing-for-padded-inline-roots.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0147-Remove-unused-fixed-anchor-import.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-10,12-13,15-21
+scripts/patches/blitz-dom-0.3.0-beta.2/0124-Restyle-container-queries-against-laid-out-container.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-2,4-5,31-56,58-90,94-105,107-165
+scripts/patches/blitz-dom-0.3.0-beta.2/0145-kitesurf-refresh-incremental-SVG-snapshots.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-273,275-284,286-292,294-421
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Preserve-parent-line-metrics-for-inline-boxes.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-281
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-memory-support-embedder-managed-node-reclamation.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-57
+scripts/patches/blitz-dom-0.3.0-beta.2/0151-kitesurf-stamp-element-indices-on-the-svg-snapshot.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-36,38-198
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-memory-manage-cached-author-sheet-lifetimes.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-158
+scripts/patches/blitz-dom-0.3.0-beta.2/0140-Place-box-only-inline-lines-from-the-strut-geometry.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-220
+scripts/patches/blitz-dom-0.3.0-beta.2/0131-Apply-relative-insets-to-inline-floats.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-92
+scripts/patches/blitz-dom-0.3.0-beta.2/0125-Resolve-an-atomic-inline-s-own-intrinsic-width-keywo.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-140
+scripts/patches/blitz-dom-0.3.0-beta.2/0142-Keep-fixed-boxes-anchored-during-clipped-paints.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-54
+scripts/patches/blitz-dom-0.3.0-beta.2/0139-Give-outside-list-markers-the-natural-line-height-fl.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-71
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-Use-natural-font-metrics-for-inline-line-height.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-280,282-283,285-291,293-299
+scripts/patches/blitz-dom-0.3.0-beta.2/0149-kitesurf-stage-anonymous-style-refreshes.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-10,12-13,15-85
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Fix-absolute-inline-box-positioning.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-47
+scripts/patches/blitz-dom-0.3.0-beta.2/0138-Keep-the-inline-strut-off-empty-and-top-aligned-line.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-144
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-Resolve-fixed-percentage-sizes-against-the-viewport.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-34
+scripts/patches/blitz-dom-0.3.0-beta.2/0135-Preserve-supported-font-source-fallbacks.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0123-Pass-inline-alignment-and-x-height-to-Parley.patch
+  s_69fbe553efd20c::t_6a15abc67f96bd 1-431
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fcdfd5a941fde1bb9f9399e5bf7a0423dfce76cd",
+  "prompts": {},
+  "sessions": {
+    "s_41e060d4f5adf2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f62b43221ffeZO12irvkqx00of",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_69fbe553efd20c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3320992effegz7fD0bo3OTUiI",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_e14db85d7d877c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f58aefaa7ffesWXuu74hnx5qny",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

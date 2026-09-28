@@ -1,0 +1,19 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0015-Skip-painting-a-subtree-behind-an-empty-clip-region.patch
+  s_638b99b03f8b5a::t_536f4401646456 39,51,91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "083640bd9ea61486ef358421460e327c4862627b",
+  "prompts": {},
+  "sessions": {
+    "s_638b99b03f8b5a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0321db69bffeRTm4Ld6wotXjl2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

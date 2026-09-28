@@ -1,0 +1,21 @@
+packages/engine/test/e2e/shadow-root-mutation-repaint.e2e.test.ts
+  s_9c00b6f65cc13e::t_0f9fcd93af4ec5 1-48
+scripts/patches/blitz-dom-0.3.0-beta.1/0097-Damage-the-shadow-host-when-its-shadow-root-s-childr.patch
+  s_9c00b6f65cc13e::t_58bed30478388f 1-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "18edd32897342500b479514bb5fc15f619b96424",
+  "prompts": {},
+  "sessions": {
+    "s_9c00b6f65cc13e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00ec4622dffenjEEbHuORvRc22",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

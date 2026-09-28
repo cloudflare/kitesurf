@@ -1,0 +1,36 @@
+packages/engine/test/e2e/response-bounded-text.e2e.test.ts
+  s_c1d1c93f383cfd::t_0f263895a343e8 1-195
+packages/page-script/src/globals.ts
+  s_c1d1c93f383cfd::t_0f263895a343e8 2204-2214
+packages/page-script/src/bounded-body.ts
+  s_c1d1c93f383cfd::t_0f263895a343e8 1-299
+packages/page-script/src/eval-helpers.ts
+  s_c1d1c93f383cfd::t_0f263895a343e8 5,1240-1246
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c1d1c93f383cfd::t_0f263895a343e8 2722-2768
+packages/engine/test/e2e/perf-resource-timing-buffer.e2e.test.ts
+  s_c1d1c93f383cfd::t_0f263895a343e8 1-57
+packages/engine/test/e2e/response-stream-handoff.e2e.test.ts
+  s_c1d1c93f383cfd::t_0f263895a343e8 1-169
+packages/engine/src/read-capped.ts
+  s_c1d1c93f383cfd::t_0f263895a343e8 257
+packages/engine/src/eval/outbound.ts
+  s_c1d1c93f383cfd::t_0f263895a343e8 32,73-79,1617-1633,2308-2399
+  s_c1d1c93f383cfd::t_4af97f76d96e9f 2400-2401
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cfe6cb60084416139069247dd4aaed201cc16333",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+packages/native/src/ui.rs
+  s_32c3dba7fedc7c::t_b6d248a559e391 19
+  s_32c3dba7fedc7c::t_c12abbf7596b88 20-21,179-184,186-192,206,210,212,222-226,228-231,235-255
+packages/native/src/omnibar.rs
+  s_32c3dba7fedc7c::t_95df4d7e8072de 1-17,22-26,28,51-57,61-62,65-66,69-70,73-74,77-85,92,97-98,101,109-118,123-125,127,140-142,147-157,161-163,167-172,182-184
+  s_32c3dba7fedc7c::t_9f1d78f31e51dd 131-139,143,176-181,185-189
+  s_32c3dba7fedc7c::t_b6d248a559e391 18-21,44-47
+packages/native/src/main.rs
+  s_32c3dba7fedc7c::t_f2676a662105ed 49,153-159,342,392-394,472-500,547,549-551,556-557,560
+  s_32c3dba7fedc7c::t_8dc32284694c96 323-324,357-381
+  s_32c3dba7fedc7c::t_fe0dde2c1c43df 926-928,935-941
+  s_32c3dba7fedc7c::t_60bb416ee3bc23 637-645,648,653,658,662,664-665,675-678,683-707,714-721,723,726-780,790
+  s_32c3dba7fedc7c::t_4b13f18a23bc4a 810
+packages/native/src/text.rs
+  s_32c3dba7fedc7c::t_6e13cbce24f133 16,60-90
+  s_32c3dba7fedc7c::t_93e4e7d8dcc009 91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2729a9cb8b2a0a96a88ed80029ef7f7c82056262",
+  "prompts": {},
+  "sessions": {
+    "s_32c3dba7fedc7c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0431e510effe1Vue1bxbBlApwn",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+docs/BOA_V8_FLOW.md
+  s_8ac591c85b50d1::t_d4ad354cc3612f 194,259
+AGENTS.md
+  s_8ac591c85b50d1::t_d4ad354cc3612f 130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0d0a786db4043b740518b4269d7918fee2a7f441",
+  "prompts": {},
+  "sessions": {
+    "s_8ac591c85b50d1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3d4295cdffeP7CNKXGbVh2PW4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

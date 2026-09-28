@@ -1,0 +1,27 @@
+packages/ci-workflow/container/run-shard.sh
+  s_8deef65a89b902::t_2762894cc8c417 25-26
+packages/ci-workflow/Dockerfile
+  s_8deef65a89b902::t_2762894cc8c417 12-27
+packages/ci-workflow/wrangler.jsonc
+  s_8deef65a89b902::t_3f576b5527ebd9 66
+packages/ci-workflow/container/bootstrap.sh
+  s_8deef65a89b902::t_2762894cc8c417 43-46
+tests/unit/ci-image.test.ts
+  s_8deef65a89b902::t_3f576b5527ebd9 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1f0e43f8a7cdd175b370fe5d6e78c026d0171063",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

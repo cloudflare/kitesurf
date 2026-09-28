@@ -1,0 +1,21 @@
+packages/engine/src/wasm.ts
+  s_ba35fbf4cf2ff5::t_56a17dad4ceb18 93-96
+  s_ba35fbf4cf2ff5::t_3daf843eeef9ea 113-114
+  s_ba35fbf4cf2ff5::t_b228c36342d58c 108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "44a8a8d4963c52968b0d2258a9344f9b835520f3",
+  "prompts": {},
+  "sessions": {
+    "s_ba35fbf4cf2ff5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009539e58ffe2AW5wz0TMPGefw",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

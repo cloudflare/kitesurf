@@ -1,0 +1,23 @@
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_0fb3273840725a::t_eeff1726329dc8 59,62-66,482-483,486,657-660,693-696
+packages/engine/test/fixtures-worker/assets/webmcp-declarative.html
+  s_0fb3273840725a::t_7ed0e8a71895ea 5-10
+packages/engine/test/fixtures-worker/assets/webmcp-module.html
+  s_0fb3273840725a::t_73564156f778e5 8,10,13,15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c6f9fa121b851e35e18d4a7a4765a6ef78a6b707",
+  "prompts": {},
+  "sessions": {
+    "s_0fb3273840725a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

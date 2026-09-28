@@ -1,0 +1,27 @@
+packages/webgl/README.md
+  s_cf72bc8665a55a::t_111222f7713741 292-339
+packages/webgl/scripts/essl-to-spirv.mjs
+  s_cf72bc8665a55a::t_97c87353a614fb 1-146
+packages/webgl/src/bin/spvgap.rs
+  s_cf72bc8665a55a::t_88f76ef9b79632 1-60
+packages/webgl/Cargo.toml
+  s_cf72bc8665a55a::t_88f76ef9b79632 18
+packages/webgl/Cargo.lock
+  s_cf72bc8665a55a::t_afa685eec32f9a 95-100,111-116,135-143,150,160,206,213,216,227,249-259,312-320
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "14fecf8fdbc4d2b74d6ec458db22bb0bd0655ba4",
+  "prompts": {},
+  "sessions": {
+    "s_cf72bc8665a55a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00382b600ffeKKvCWdmK9ZTiAt",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

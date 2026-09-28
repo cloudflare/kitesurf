@@ -1,0 +1,27 @@
+packages/core/src/sketch.rs
+  s_ccf5542acfcceb::t_1b4bb6495dc5a6 1-393
+packages/core/src/screenshot.rs
+  s_ccf5542acfcceb::t_67f6d85323fa30 85
+packages/core/src/lib.rs
+  s_ccf5542acfcceb::t_67f6d85323fa30 68,4575,5005,5183,5589
+packages/core/src/pdf.rs
+  s_ccf5542acfcceb::t_67f6d85323fa30 139
+scripts/patches/blitz-paint-0.3.0-beta.2/0028-Sketch-mode-box-SVG-content-instead-of-painting-the-.patch
+  s_ccf5542acfcceb::t_1b4bb6495dc5a6 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4d3e24c461060dbc2bbb6a79f5dc32fe7c8c6b36",
+  "prompts": {},
+  "sessions": {
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+packages/engine/test/e2e/flex-svg-intrinsic.e2e.test.ts
+  s_f19c180209e8f6::t_f5d76a27191ece 1-120
+packages/engine/test/e2e/intrinsic-sizing.e2e.test.ts
+  s_f19c180209e8f6::t_1b915b7417af0f 1-82
+scripts/patches/taffy-0.14.0/0006-Size-content-determined-containers-from-their-non-cy.patch
+  s_f19c180209e8f6::t_9026adda235bf1 1-17,28-151
+AGENTS.md
+  s_f19c180209e8f6::t_aef85a0786f7b3 327-331
+packages/engine/test/e2e/container-queries.e2e.test.ts
+  s_f19c180209e8f6::t_aef85a0786f7b3 1-48
+scripts/patches/blitz-dom-0.3.0-beta.2/0123-Restyle-container-queries-against-laid-out-container.patch
+  s_f19c180209e8f6::t_aef85a0786f7b3 1-102
+scripts/patches/stylo-0.20.0/0030-Enable-container-queries-in-Servo.patch
+  s_f19c180209e8f6::t_aef85a0786f7b3 1-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b26275f1a0fc0eec2add4ae14bfef319d53f69ba",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

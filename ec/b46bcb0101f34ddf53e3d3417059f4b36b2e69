@@ -1,0 +1,21 @@
+packages/core/src/tty_grid.rs
+  s_97e369e531e75f::t_23e6be192a2b14 154,727
+Cargo.lock
+  s_97e369e531e75f::t_1eb98620c07214 1549
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ecb46bcb0101f34ddf53e3d3417059f4b36b2e69",
+  "prompts": {},
+  "sessions": {
+    "s_97e369e531e75f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35286b34ffehIQ06dVcNrY6VD",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

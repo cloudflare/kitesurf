@@ -1,0 +1,35 @@
+packages/engine/test/cookies.test.ts
+  s_971f20d9c84b2b::t_845b4e56a4d289 293-376
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_971f20d9c84b2b::t_265bbdd601dc1f 2305-2323
+packages/engine/test/e2e/cookie-redirect-domain.e2e.test.ts
+  s_971f20d9c84b2b::t_d739da60f32b8e 1-75
+scripts/wpt-batched.mjs
+  s_971f20d9c84b2b::t_af6062ba2a65f8 487-490,766-769
+packages/engine/src/cookies.ts
+  s_971f20d9c84b2b::t_cebe6bf6b9feb4 38-41
+  s_971f20d9c84b2b::t_2126baf9ad078f 567-569
+  s_971f20d9c84b2b::t_45cb5890f1cc20 286-288
+  s_971f20d9c84b2b::t_9bf8465c1cf316 83-90
+  s_971f20d9c84b2b::t_3d77bb03a64537 489-490
+  s_971f20d9c84b2b::t_076f53e3fd41d8 509-532
+  s_971f20d9c84b2b::t_9d59e3545a92bf 414,418-440
+  s_971f20d9c84b2b::t_7dff0ad9202f67 153-158
+  s_971f20d9c84b2b::t_43f9b26a7ccfe6 441-442
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ccb828d9a23b5a6f66097baa6be104110bcc85ec",
+  "prompts": {},
+  "sessions": {
+    "s_971f20d9c84b2b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fea612eb5ffeSycXWkmalHV3jO",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

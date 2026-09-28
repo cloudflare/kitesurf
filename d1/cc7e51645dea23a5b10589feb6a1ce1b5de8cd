@@ -1,0 +1,37 @@
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_6d20977c7296d4::t_57f7c720595504 17-90
+  s_4bd836ca1cbc20::t_8b6139d4bc14bb 1-16,91-99
+  s_93b484cedebccd::t_ebccb0a3c5c614 100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d1cc7e51645dea23a5b10589feb6a1ce1b5de8cd",
+  "prompts": {},
+  "sessions": {
+    "s_4bd836ca1cbc20": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5673f067ffe5hsIMQQpLeYlMf",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    },
+    "s_6d20977c7296d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5673f158ffeqwMTvK1dygU27k",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    },
+    "s_93b484cedebccd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31d712fdffeuTQq5D6PMopaPg",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

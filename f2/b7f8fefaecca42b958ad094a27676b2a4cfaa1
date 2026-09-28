@@ -1,0 +1,99 @@
+docs/CORS.md
+  s_0d1d30f19cc9dc::t_50e6c052a3e35b 86-95
+  s_0d1d30f19cc9dc::t_106f7affea27e2 177-182
+  s_0d1d30f19cc9dc::t_3cec910cd6bd17 174-176
+  s_0d1d30f19cc9dc::t_fce82506852cce 183
+packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
+  s_0d1d30f19cc9dc::t_6a26d9d858154a 5-6
+  s_0d1d30f19cc9dc::t_b06c4486cb33df 1-4,7-106
+packages/engine/src/eval/outbound.ts
+  s_0d1d30f19cc9dc::t_5c8e43ae6deadd 494
+  s_0d1d30f19cc9dc::t_38cd360c340a2e 522
+  s_0d1d30f19cc9dc::t_c7f0809931592e 519-521
+  s_0d1d30f19cc9dc::t_10c3bf181f79a4 156-171
+  s_0d1d30f19cc9dc::t_f9d0281415b480 1413-1422,1437-1460,1465-1469,1485-1491,1498-1501
+  s_0d1d30f19cc9dc::t_9af857269d6240 57
+  s_0d1d30f19cc9dc::t_ce58baad19c40a 56,68,1423-1428,1434-1436,1461-1464,1470-1473,1484,1492-1497,1715
+  s_0d1d30f19cc9dc::t_c6364c83961627 1036-1037,1429-1433,1474-1483,2125-2130
+packages/engine/test/e2e/cors-bypass-matrix.e2e.test.ts
+  s_0d1d30f19cc9dc::t_895787096882f1 30,39-43
+packages/core/src/fonts.rs
+  s_0d1d30f19cc9dc::t_91f2d653f00197 297-316,355,357-358
+  s_0d1d30f19cc9dc::t_2c9b1dc7572ef4 2123,2126-2154,2159,2161-2169
+  s_0d1d30f19cc9dc::t_1db63ff33ca81c 2155-2158,2160
+  s_0d1d30f19cc9dc::t_7bc5c1e30b8dc8 2074-2091,2093-2122,2124,2170-2184
+  s_0d1d30f19cc9dc::t_b437e2e681481c 317-354,356
+  s_0d1d30f19cc9dc::t_19cc1ccd8bae9e 2092
+  s_0d1d30f19cc9dc::t_34679f6fb415c6 2125
+  s_0d1d30f19cc9dc::t_dc9124f15fecb2 2358,2366,2373,2378,2382,2387,2395,2404,2422
+  s_0d1d30f19cc9dc::t_9301ddb80573b2 416-423,435-443,471-472,500-510
+  s_0d1d30f19cc9dc::t_4fff1010f4138b 424-426,428-429,446-448,458-461,464-470,475-476,479-483,489-499,581-583,585-587
+  s_0d1d30f19cc9dc::t_ff900ebca077da 427,580
+  s_0d1d30f19cc9dc::t_096d8034a5d913 511
+packages/engine/src/wasm.ts
+  s_0d1d30f19cc9dc::t_7e4bb0f59356b0 21,230-241
+  s_0d1d30f19cc9dc::t_d88981b82ab7a6 242-243
+packages/engine/test/e2e/gateway-font-shaping.e2e.test.ts
+  s_0d1d30f19cc9dc::t_69b2f224cca80b 1-3,12-24,30-31,35-38,45-49,54-56,58-63,77-84,87-90,98-101
+  s_0d1d30f19cc9dc::t_c2830f0338bf5f 26-27,50-51
+  s_0d1d30f19cc9dc::t_0c3ca2c4f391f3 4-11,25,28,32-34,39-42,44,52,57,64-73,85-86,91-93
+  s_0d1d30f19cc9dc::t_31816cd35d9848 29,43,53,97
+  s_0d1d30f19cc9dc::t_9be26c998b669e 74-76,94-96
+docs/FONTS.md
+  s_0d1d30f19cc9dc::t_529c9a72ba7bba 31-60
+packages/engine/src/eval/page-script.ts
+  s_0d1d30f19cc9dc::t_6dbeda2b3c7a85 1210-1212
+packages/engine/src/eval/shaping-cache.ts
+  s_0d1d30f19cc9dc::t_03a3b984f26c11 1-9,35,43-67,68,70-72,82-99,102,131,134,137-156
+  s_0d1d30f19cc9dc::t_33fc243902c51e 25-42,135
+  s_0d1d30f19cc9dc::t_07664213e2dc20 10-23
+  s_0d1d30f19cc9dc::t_a4e1b3c4547b78 69,73-81,100-101,103-130,132-133,136
+packages/engine/test/resource-store.test.ts
+  s_0d1d30f19cc9dc::t_16254a7645351b 6,9,132-179
+  s_0d1d30f19cc9dc::t_17bffe79616389 180-221
+packages/engine/src/eval/resource-store.ts
+  s_0d1d30f19cc9dc::t_a95a7b01c622b3 99-108,175-176,178-179,199,228,268-270,282-286,293-296,308-311
+  s_0d1d30f19cc9dc::t_71aad9354941f4 1,13-20,50-61,87,109
+  s_0d1d30f19cc9dc::t_9838f164b2c8cd 139-160,166,198,247-267,280,291
+  s_0d1d30f19cc9dc::t_ab56f4c75a5cb4 88
+  s_0d1d30f19cc9dc::t_42c43f76ad6406 63-73,164-165,167,182-197,200-225
+  s_0d1d30f19cc9dc::t_855b2c9e7933fb 62
+packages/engine/src/eval/page-renderer.ts
+  s_0d1d30f19cc9dc::t_d1386769ab4b6f 96,103
+  s_0d1d30f19cc9dc::t_0464d320ea3436 20,349-365,486,590
+packages/page-renderer/src/index.ts
+  s_0d1d30f19cc9dc::t_6dc199f3d6ef1c 259,489,493,504,608,612,623
+  s_0d1d30f19cc9dc::t_1e3f87b36f5bb7 348-359,361-362,364-366
+  s_0d1d30f19cc9dc::t_2d68c359503ae4 559,674
+  s_0d1d30f19cc9dc::t_d1386769ab4b6f 184-188
+packages/core/src/net.rs
+  s_0d1d30f19cc9dc::t_ff900ebca077da 96-98,409
+packages/engine/src/cdp/target.ts
+  s_0d1d30f19cc9dc::t_3cafa35d66f4f9 738-743
+packages/core/src/lib.rs
+  s_0d1d30f19cc9dc::t_d49f441cbc2b1d 4801-4808,4810-4812
+  s_0d1d30f19cc9dc::t_35d36e952f9acd 5405,5431-5450,5457-5458
+packages/page-script/src/resource-fetch.ts
+  s_0d1d30f19cc9dc::t_d390799e1041c8 396-401,563-565,569-571
+  s_0d1d30f19cc9dc::t_367a3073359be4 541-545
+  s_0d1d30f19cc9dc::t_830a83ce2393f1 275-280,297-308
+  s_0d1d30f19cc9dc::t_690d74aedfa332 309
+packages/engine/test/outbound-forward.test.ts
+  s_0d1d30f19cc9dc::t_ea7eb7fed9e5f9 120-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f2b7f8fefaecca42b958ad094a27676b2a4cfaa1",
+  "prompts": {},
+  "sessions": {
+    "s_0d1d30f19cc9dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_037c06dd9ffesDNWihuHLbPLHI",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

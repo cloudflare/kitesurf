@@ -1,0 +1,31 @@
+.cloudflare/flamingo/scripts/kitesurf/cdp-screenshot-burst.edge-test
+  s_6c2fca7a3c604b::t_1580dcc214418a 1-257
+.gitlab-ci.yml
+  s_53806db5ffcdc2::t_434eb11a4e4bab 333-347
+.cloudflare/flamingo/plans/kitesurf-cdp-screenshot-burst.edge-plan
+  s_6c2fca7a3c604b::t_1580dcc214418a 1-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3f7716d38dada0ff3dd8bb75f0062f8d37ddae70",
+  "prompts": {},
+  "sessions": {
+    "s_53806db5ffcdc2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f91c49fe4ffeXETbByJyRzfnM1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_6c2fca7a3c604b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f92c0ac38ffeCiIkXwCXhmX2Jb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,46 @@
+packages/engine/wrangler.jsonc
+  s_763ace17cc385a::t_4fa9004b76f98f 83-87,90
+packages/page-script/src/eval-helpers.ts
+  s_763ace17cc385a::t_9ed01d1d3a92b0 22
+  s_763ace17cc385a::t_adc62faa6f1375 785-789
+packages/engine/src/eval/outbound.ts
+  s_763ace17cc385a::t_b7fc274e03620c 1386-1387
+  s_763ace17cc385a::t_9b3e9ae45bfcb2 458-473,478-485,508,514-517,528-540,544,548-551,554,556-559,564-568,571-572,576,578,581,584,587-589,594,596,611
+  s_763ace17cc385a::t_a2df7b7f19d0c3 2724-2730
+packages/engine/test/walk-module-graph.test.ts
+  s_763ace17cc385a::t_d227a995012777 142
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_763ace17cc385a::t_45a89a4e4d40a1 41,49-54,141,144
+packages/engine/test/e2e/session-outbound-abort.e2e.test.ts
+  s_763ace17cc385a::t_f0a4e20a2d0134 1-29,31-40
+  s_763ace17cc385a::t_3d17f5ff9f36a3 30
+packages/engine/src/eval/page-script.ts
+  s_763ace17cc385a::t_45a89a4e4d40a1 1311-1314,1338,1378,1468-1470
+  s_763ace17cc385a::t_de8b094ee55634 1315-1337
+packages/page-script/src/index.ts
+  s_763ace17cc385a::t_290239e2ea9baa 2385
+  s_763ace17cc385a::t_3a90e167bb376d 2370-2375,2384,2386
+  s_763ace17cc385a::t_9ed89fbe572d2d 43
+  s_763ace17cc385a::t_a9c3e194b1238b 2387
+packages/page-script/src/session-outbound.ts
+  s_763ace17cc385a::t_978eddb14191f8 60-62
+  s_763ace17cc385a::t_cfbc5bf37921c1 25,27-31
+  s_763ace17cc385a::t_9ca0bb67318487 1-24,26,32-55,57-59,63-79
+  s_763ace17cc385a::t_e56b066bd8c11b 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6e6e0c421a2825c81f4a5c8a1558415da7edb3c4",
+  "prompts": {},
+  "sessions": {
+    "s_763ace17cc385a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2cea3589ffeJqVL2M7sxo0Kzc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

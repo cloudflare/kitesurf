@@ -1,0 +1,40 @@
+packages/engine/test/e2e/table-caption-sizing.e2e.test.ts
+  s_a13b6e3e2039d4::t_88ab1c6640dd33 1-42,51-57,68-84,95-98,104-108
+  s_a13b6e3e2039d4::t_d7e810c19085bd 62
+  s_a13b6e3e2039d4::t_fd48aa7ed255eb 99-101
+  s_a13b6e3e2039d4::t_d15b710ba77a31 43-50,58-59,63-67,85-94,102-103
+  s_3d13b96ccbbed6::t_74223c148b48d8 60-61
+scripts/patches/blitz-dom-0.3.0-beta.1/0111-Size-table-captions-from-their-minimum-width.patch
+  s_a13b6e3e2039d4::t_2803da87015d8d 9-13
+  s_a13b6e3e2039d4::t_4a4210e1d668bb 1-8,14-75
+scripts/patches/blitz-dom-0.3.0-beta.1/0113-Track-the-table-s-maximum-column-count.patch
+  s_a13b6e3e2039d4::t_c3a7c991d921b8 1-92
+scripts/patches/blitz-dom-0.3.0-beta.1/0114-Count-columns-occupied-by-rowspans.patch
+  s_a13b6e3e2039d4::t_87ebade00f0da5 1-119
+scripts/patches/blitz-dom-0.3.0-beta.1/0112-Span-table-captions-across-every-column.patch
+  s_a13b6e3e2039d4::t_cad9fffd67163e 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cfac699b76ca7656bd9522af84c97eceb6dadf88",
+  "prompts": {},
+  "sessions": {
+    "s_3d13b96ccbbed6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbfd0d45fffeA5nq4ZiGDKSH9X",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_a13b6e3e2039d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbfe61744ffeUjJS5Giydrau9I",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

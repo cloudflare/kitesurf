@@ -1,0 +1,30 @@
+packages/engine/test/e2e/cssom-page-rules.e2e.test.ts
+  s_110f1bd75f384d::t_e8f120f1e51575 58,78,80,114
+packages/dom-shim/src/collections.ts
+  s_110f1bd75f384d::t_e8f120f1e51575 1233-1237,1783-1784,1945-1949,2008-2009,2020-2021,2144-2147,2149,2632-2633,2647-2648
+  s_4bd836ca1cbc20::t_168279417218f2 2649
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "924cd56ea5b245b381728c02bd286010bf7c9acb",
+  "prompts": {},
+  "sessions": {
+    "s_110f1bd75f384d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f55effe44ffeS8liEBbUq0v7jB",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    },
+    "s_4bd836ca1cbc20": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5673f067ffe5hsIMQQpLeYlMf",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

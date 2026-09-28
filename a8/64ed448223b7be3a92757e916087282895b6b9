@@ -1,0 +1,25 @@
+packages/engine/src/cdp/page-script-generation.ts
+  s_0fb3273840725a::t_d96ad3376a5003 59-61,87-88
+packages/engine/src/cdp/target.ts
+  s_0fb3273840725a::t_d96ad3376a5003 460-461
+packages/engine/test/e2e/isolate-kill.e2e.test.ts
+  s_0fb3273840725a::t_d96ad3376a5003 1-2,28,43-44
+docs/PAGE_SCRIPT_PROTOCOL.md
+  s_0fb3273840725a::t_d96ad3376a5003 49-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a864ed448223b7be3a92757e916087282895b6b9",
+  "prompts": {},
+  "sessions": {
+    "s_0fb3273840725a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
