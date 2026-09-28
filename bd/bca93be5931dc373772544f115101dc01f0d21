@@ -1,0 +1,140 @@
+docs/RBI.md
+  s_909163843c9dee::t_dbc772f0bbf6f6 75-84
+packages/dom-shim/MODULES.md
+  s_909163843c9dee::t_dbc772f0bbf6f6 94
+packages/engine/src/cdp/runtime.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 133-145,448,531
+packages/dom-shim/src/model-context.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 367
+packages/engine/test/e2e/location-assign-navigates.e2e.test.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 33-36,39
+packages/engine/public/favicon.svg
+  s_909163843c9dee::t_dbc772f0bbf6f6 1
+packages/engine/test/walk-module-graph.test.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 22,204-264,292,298
+packages/website/src/pages/landing/Terminal.tsx
+  s_909163843c9dee::t_dbc772f0bbf6f6 1-88
+packages/engine/test/e2e/demos/forms-post-submit-demo.e2e.test.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 33-40,78,94,130-146
+  s_909163843c9dee::t_bf6d9c7d3c493e 147
+packages/dom-shim/src/mutations/seq.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 15,20-21,23,25-27,31-41
+packages/engine/src/tty/route.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 48-51
+packages/website/src/styles/bench.css
+  s_909163843c9dee::t_dbc772f0bbf6f6 7,33,49,95,173,201,219,275,322,452,497-498,502-507,551,556-558,563-565,571,667-671,679-715
+packages/dom-shim/src/node-base.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 10,59,230-231,640-651,965-968,976,980,1086,1110-1115,1118-1120,1124-1126,1130-1132,1140-1142,1227,1257,1308,1354-1357,1483,1508,1588,1633-1636,1710,1836,2882,2887,2890
+scripts/dev-tui-args.test.mjs
+  s_909163843c9dee::t_dbc772f0bbf6f6 37
+docs/CDP.md
+  s_909163843c9dee::t_dbc772f0bbf6f6 44-46
+packages/engine/src/cdp/page-session.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 144-147,151-153
+packages/page-script/src/index.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 35,61,228,230,1112-1128,1896-1897,1907-1908,1911,2283-2289,4313-4324,4441-4442,4467,4483,4495-4496,4498-4499,4507-4513,4518-4527,4562,4632-4640
+packages/engine/test/e2e/eval-across-navigation.e2e.test.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 1-31
+packages/website/src/styles/dashboard.css
+  s_909163843c9dee::t_dbc772f0bbf6f6 5-7,61,67,136,150,184-187,195,198
+packages/website/src/components/CodeWindow.tsx
+  s_909163843c9dee::t_dbc772f0bbf6f6 1-31
+packages/dom-shim/src/document.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 163-165,167-173
+docs/PAGE_SCRIPT_PROTOCOL.md
+  s_909163843c9dee::t_dbc772f0bbf6f6 68-72
+packages/engine/src/eval/walk-module-graph.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 565-604,945-946,1128-1131,1346-1362,1612,1689,1729
+packages/website/src/pages/wpt/Trend.tsx
+  s_909163843c9dee::t_dbc772f0bbf6f6 52-55,73-75,140-151
+AGENTS.md
+  s_909163843c9dee::t_dbc772f0bbf6f6 377-381
+packages/engine/src/index.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 345,561-563
+packages/engine/src/tty/session.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 3-4
+packages/engine/test/e2e/cssom-insert-rule-cascade.e2e.test.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 1-55
+packages/core/src/ink_rect_test.rs
+  s_909163843c9dee::t_dbc772f0bbf6f6 1-71
+scripts/dev-tui-args.mjs
+  s_909163843c9dee::t_dbc772f0bbf6f6 16-17
+packages/core/src/lib.rs
+  s_909163843c9dee::t_dbc772f0bbf6f6 204-205,5745-5747,5772,5775-5776,5781-5801,7923-7985
+  s_909163843c9dee::t_a9718eaf2e91da 203,7986-7987
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 305-395
+packages/dom-shim/src/element.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 575-576,584-587,592,599,811,979,10265
+packages/dom-shim/src/record.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 59,73
+packages/dom-shim/src/index.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 515-516,523-534,540-541,549-550,567-568,578-579,588-589,600-601,913
+packages/engine/src/cdp/types.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 471-474
+packages/dom-shim/src/state.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 339-340,350-351,411
+packages/dom-shim/src/mutations/observer.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 61-62,64,66-69,71-72,74,77-80,89-90,117-118,135-136,449-452,457,463-466,518,521,539,551,557,565,567,573-574,581,583-594,596-601,604-606
+packages/engine/test/e2e/demos/devtools-elements-live-update-demo.e2e.test.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 261-291
+packages/engine/wrangler.jsonc
+  s_909163843c9dee::t_dbc772f0bbf6f6 146
+docs/TERMINAL.md
+  s_909163843c9dee::t_dbc772f0bbf6f6 7,22-23,26-28,31-33,35,240
+packages/page-script/src/internal-state.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 23-29,182-197,199,201-209
+packages/website/src/components/Document.tsx
+  s_909163843c9dee::t_dbc772f0bbf6f6 3,29-42,76-79
+packages/page-script/src/resource-fetch.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 229-240,1266-1268
+packages/dom-shim/src/collections.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 4,248-249,252,260,319-322,4057-4063,4065-4067,4076
+docs/DOM_SHIM.md
+  s_909163843c9dee::t_dbc772f0bbf6f6 6-22,25-30,53-55
+RELEASE_NOTES
+  s_909163843c9dee::t_dbc772f0bbf6f6 1-40
+docs/BOA_BRIDGE_V2.md
+  s_909163843c9dee::t_dbc772f0bbf6f6 123-127,349-353,374-380,415-417
+packages/website/src/pages/bench/Explorer.tsx
+  s_909163843c9dee::t_dbc772f0bbf6f6 349-352
+scripts/patches/blitz-dom-0.3.0-beta.2/0164-Map-skipped-subtrees-overflow-into-the-parent-s-spac.patch
+  s_909163843c9dee::t_dbc772f0bbf6f6 1-57
+scripts/patches/blitz-dom-0.3.0-beta.2/0165-Classify-transform-only-damage-as-ink-damage.patch
+  s_909163843c9dee::t_dbc772f0bbf6f6 1-99
+packages/website/src/styles/wpt.css
+  s_909163843c9dee::t_dbc772f0bbf6f6 53,118,139,155,217,335,372,413-418,435
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 244-389
+scripts/patches/blitz-dom-0.3.0-beta.2/0148-kitesurf-reparse-replaced-style-sheets-once-per-reso.patch
+  s_909163843c9dee::t_dbc772f0bbf6f6 1-101
+packages/page-script/src/globals.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 7,32,124-127,457-464,516-520,3760-3762,5625-5628
+packages/core/src/screenshot.rs
+  s_909163843c9dee::t_dbc772f0bbf6f6 7,374-384,392,394-399,405-535,718-752
+packages/dom-shim/src/range.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 18-19,86-97,2095
+packages/engine/test/e2e/eval-during-navigate.e2e.test.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 87-88
+packages/engine/src/cdp/page.ts
+  s_909163843c9dee::t_dbc772f0bbf6f6 37-41,2383,2405,2931,3537-3539,3587-3603,4475,4634-4637,4648-4649,4654-4658,4665-4666,4673-4723,6685-6692,6965,7083,8181-8184,8377-8380,8498-8503,8617-8628,8630-8632
+packages/core/src/scene_replay.rs
+  s_909163843c9dee::t_dbc772f0bbf6f6 1335-1383,1632,1636-1644,1658,1663,1735-1740,2192-2220
+  s_909163843c9dee::t_881b414ab74532 2221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bdbca93be5931dc373772544f115101dc01f0d21",
+  "prompts": {},
+  "sessions": {
+    "s_909163843c9dee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1b8ee7e2ffe0ZSBgOtK2CgnBd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Brandon Strittmatter <bstrittmatter@cloudflare.com>"
+    }
+  }
+}
