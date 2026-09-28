@@ -1,0 +1,32 @@
+AGENTS.md
+  s_f1784921d4c778::t_3ec257f01d0b99 85-86
+docs/TERMINAL.md
+  s_f1784921d4c778::t_3ec257f01d0b99 22-24
+packages/kitesurf-cli/README.md
+  s_f1784921d4c778::t_3ec257f01d0b99 1-4,8,11-12,14-16
+  s_f1784921d4c778::t_3b05ee9d6ebeda 13
+  s_f1784921d4c778::t_8fb1d71937109e 5-7,9-10,17-19
+packages/kitesurf-cli/.gitignore
+  s_f1784921d4c778::t_3ec257f01d0b99 1-3
+packages/kitesurf-cli/package.json
+  s_f1784921d4c778::t_9416afcab59f19 1-4,9
+  s_f1784921d4c778::t_3b05ee9d6ebeda 5-8
+packages/kitesurf-cli/kitesurf.zig
+  s_f1784921d4c778::t_9416afcab59f19 1-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d379aac6d7656a8574401f464caeee47509a53cd",
+  "prompts": {},
+  "sessions": {
+    "s_f1784921d4c778": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1859fd34ffem9Kd8VtbXwlq4H",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}
