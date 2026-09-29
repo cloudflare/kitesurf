@@ -1,0 +1,19 @@
+packages/bench-report/scripts/record.mjs
+  s_3fc265f386e88a::t_eeabc4cde90f39 25,54,63,72-76,106-109,319-325,336-343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d03ab7a455b659f57d6ce41fdd651f1279f941b0",
+  "prompts": {},
+  "sessions": {
+    "s_3fc265f386e88a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f152787e0ffe51sPhnS0pmtLDd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
