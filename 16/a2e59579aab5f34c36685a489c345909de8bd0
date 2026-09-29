@@ -1,0 +1,24 @@
+scripts/wait-for-main-wasm.mjs
+  s_4376a60b5dde28::t_1eb50c3b2f4e99 1-63,65-66,68-84,86-93
+  s_4376a60b5dde28::t_508e7d21fa21d4 64,67,85
+scripts/wait-for-main-wasm.test.mjs
+  s_4376a60b5dde28::t_508e7d21fa21d4 1-22
+.gitlab-ci.yml
+  s_4376a60b5dde28::t_1eb50c3b2f4e99 401-403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "16a2e59579aab5f34c36685a489c345909de8bd0",
+  "prompts": {},
+  "sessions": {
+    "s_4376a60b5dde28": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f14b8631efferhlYRR5J3BCy65",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
