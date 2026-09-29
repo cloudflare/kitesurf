@@ -6,6 +6,7 @@ packages/engine/src/cdp/types.ts
   s_bf847f99fe8063::t_f974fb3ed04620 179-183
   s_bf847f99fe8063::t_d7f80a51d9291c 567
   s_bf847f99fe8063::t_b2c6613f8967eb 435-436
+  s_bf847f99fe8063::t_a1eda70cd44f89 251
 packages/engine/src/cdp/dispatch.ts
   s_bf847f99fe8063::t_f081868f0532e1 3
   s_bf847f99fe8063::t_9c346f7ea9dce9 68-75
@@ -38,6 +39,7 @@ packages/engine/src/cdp/connection.ts
   s_bf847f99fe8063::t_82b87967b9a173 1095-1101
   s_bf847f99fe8063::t_131a260c9e0104 1199-1205
   s_e6ab61d4f00763::t_eec200e6558301 1009
+  s_bf847f99fe8063::t_a1eda70cd44f89 435
 packages/engine/src/cdp/target.ts
   s_bf847f99fe8063::t_d7f80a51d9291c 193
   s_bf847f99fe8063::t_3bbf764a4c7b32 304,328,350,682,752,815,856,1047
