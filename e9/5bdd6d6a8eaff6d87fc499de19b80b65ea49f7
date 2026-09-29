@@ -1,0 +1,156 @@
+docs/DOM_SHIM.md
+  s_02150bead85cd9::t_3ff842d02f8dac 3-4,6,32,34-40,42
+  s_02150bead85cd9::t_a028e21151c9e3 85
+  s_02150bead85cd9::t_559610db202107 87-98
+  s_02150bead85cd9::t_786dca96444c00 63-80
+  s_02150bead85cd9::t_362963c9a8cd9d 82-84
+  s_02150bead85cd9::t_87439fcee0c1f5 58-62
+  s_02150bead85cd9::t_4840b0a30865c8 56-57
+  s_02150bead85cd9::t_3966dee8bb7045 81
+  s_02150bead85cd9::t_39c32e65860e3b 86
+AGENTS.md
+  s_02150bead85cd9::t_c5d2b16992a038 466-468
+  s_02150bead85cd9::t_9b6a4c1a0c5034 13-17,32-35,280-288
+  s_02150bead85cd9::t_840f96d299a02a 27-28
+  s_02150bead85cd9::t_3338b96dca7105 21-25
+docs/BOA_BRIDGE_V2.md
+  s_02150bead85cd9::t_d98e69fd822b08 136-148
+  s_02150bead85cd9::t_fbd2aabb78c14e 1-6,77-78
+  s_02150bead85cd9::t_c4dff07946f0d4 133-134,283-285,291,293
+  s_02150bead85cd9::t_a1cd9eb705afc6 89,96,99,104-114
+  s_02150bead85cd9::t_9904fc67b97711 163-166
+  s_02150bead85cd9::t_30d62e047f4d50 281,295,318-322,328-331,335-336,340-341
+  s_02150bead85cd9::t_95634db1251cfe 260-265
+  s_02150bead85cd9::t_da6303027180f6 323-327
+  s_02150bead85cd9::t_ac6446815ca5f0 170-173,187-191
+  s_02150bead85cd9::t_f6765678c50ebf 38,42,45,49-51,54-55,63,79-80
+  s_02150bead85cd9::t_87484a0d9d6402 123-124,150
+  s_02150bead85cd9::t_84cf4d95cb1f14 33-36,57-61,65,70-71
+  s_02150bead85cd9::t_5e282320593f54 152-161
+  s_02150bead85cd9::t_37002424afdb41 126-129
+  s_02150bead85cd9::t_e62d51bbd55512 135
+  s_02150bead85cd9::t_9eb4eff649d7c5 149
+  s_02150bead85cd9::t_ee886feca7f1c7 151
+  s_02150bead85cd9::t_0cc790b7a62d1d 162
+  s_02150bead85cd9::t_ec47942466c6f3 282
+docs/BOA_V8_FLOW_EXAMPLES.md
+  s_02150bead85cd9::t_b93b254396e15a 293-297
+README.md
+  s_02150bead85cd9::t_a424d09b11104a 3-4,18,28-29
+  s_02150bead85cd9::t_b18e1f974ecc82 79
+  s_02150bead85cd9::t_271064db4a2859 106-108,226-245,248-253
+  s_02150bead85cd9::t_fbfdb0c3d0346b 22-24
+  s_02150bead85cd9::t_77850aca50868f 122-123,163-172,174,182-200,207-208,218-220
+  s_02150bead85cd9::t_6718657b48712b 173
+  s_02150bead85cd9::t_2a184c071b01bb 5-6,8,12,25,55-58
+  s_02150bead85cd9::t_12688166693ea3 9-10,134-135,143-144,158,201-206,320-321,326,336-338
+  s_02150bead85cd9::t_477c0e57195120 277-293,297-305
+  s_02150bead85cd9::t_c0fed2b05f4966 375-391
+  s_02150bead85cd9::t_9958a9aa5b46d5 26-27
+  s_02150bead85cd9::t_56f902cffd6962 67-68,83,85-92,115-116
+  s_02150bead85cd9::t_b543cea0b0fdaa 246-247
+  s_02150bead85cd9::t_4c2491d48f0f8b 342,344-347,352-353,357-359
+docs/WEBMCP.md
+  s_02150bead85cd9::t_0a1a7b0ade2867 46-50
+  s_02150bead85cd9::t_e36c0aab489945 7-30,32-45,51-69
+  s_02150bead85cd9::t_73e40cf3593e31 129-197
+  s_02150bead85cd9::t_6d3e42deef155c 3-5
+  s_02150bead85cd9::t_f7e312bf2cb2c2 72-73,75-127
+  s_c1d1c93f383cfd::t_977ed95b7272bc 6,128
+docs/TESTING.md
+  s_02150bead85cd9::t_851fbf78e5e1c8 77-80,402-403
+  s_02150bead85cd9::t_06458acdae1812 111,160-163
+  s_02150bead85cd9::t_6e99fc0da0bc42 358,395-396
+  s_02150bead85cd9::t_33265bcf30d4fa 112,114-119
+  s_02150bead85cd9::t_aa65f57f8e01dc 105-108
+  s_02150bead85cd9::t_14e2b6d2394130 8-9,33-34
+  s_02150bead85cd9::t_39b8b26afe904c 110
+  s_02150bead85cd9::t_cf2578410095ba 136-142
+  s_02150bead85cd9::t_eb8089149e36e6 144-148
+bench/README.md
+  s_02150bead85cd9::t_db17e8d1891f5c 184,484,494,501,504,511,518,522,526,532
+docs/SELECTION.md
+  s_02150bead85cd9::t_10e97e64e7a50a 42-53
+docs/MEMPROF.md
+  s_02150bead85cd9::t_b5004967d98132 39
+  s_02150bead85cd9::t_895732df0207c9 10-13
+  s_02150bead85cd9::t_a27ec56f3cdaea 3-9
+docs/TERMINAL.md
+  s_02150bead85cd9::t_3946e1d919a670 15-18,20-23,36,46-48,94,96,110-124,126,128,130-134
+  s_02150bead85cd9::t_cdf9aad23bde0f 136-145,149-156,160-181
+  s_02150bead85cd9::t_c1df2d906d1576 97-100,195
+  s_02150bead85cd9::t_ec4eb3928ed9c8 197-199,203-206,208-212,216-219,234-238,242-245
+  s_02150bead85cd9::t_4538188c57d035 31-35
+  s_02150bead85cd9::t_d9756095cf5009 1,3-4,6-7,60-63,65-67,90-92,102,158-159
+  s_c1d1c93f383cfd::t_37d67d998941d0 135,157
+docs/TRACING.md
+  s_02150bead85cd9::t_727fff3da4331a 110-117
+docs/BOA_HARDENING.md
+  s_02150bead85cd9::t_7ae0127c3125ae 107,113-123
+  s_02150bead85cd9::t_7506f2c584f3c8 125-143
+  s_c1d1c93f383cfd::t_f82fd9e47b9ff7 124
+docs/NETWORKING.md
+  s_02150bead85cd9::t_68e507a145369d 11-12
+  s_02150bead85cd9::t_82162e67f67490 17-22
+  s_02150bead85cd9::t_1b2c70b299a5a9 40-52
+  s_02150bead85cd9::t_d31ba408acee4b 132-133
+  s_02150bead85cd9::t_dae99e56623202 23-25
+  s_02150bead85cd9::t_5c99fda7d42689 77-79
+  s_02150bead85cd9::t_62d774f2b51701 85-87,89,97-98,101-103
+  s_02150bead85cd9::t_615330cc9669d4 80-81
+  s_02150bead85cd9::t_22857048e0194a 139-140,153-156
+  s_02150bead85cd9::t_7661805dcec601 93-94
+  s_02150bead85cd9::t_2a716624dc2224 54-76
+  s_02150bead85cd9::t_0e0dd3d4afafd1 134-135,138,146-152
+  s_02150bead85cd9::t_bc5e41d9476a9e 141-145
+  s_02150bead85cd9::t_deae584242a6c7 136-137
+  s_02150bead85cd9::t_656c41ad2b5162 6-10,13-16,27-38
+  s_02150bead85cd9::t_8e4d9466107ac4 95-96
+  s_02150bead85cd9::t_fc1043c8620353 39
+  s_02150bead85cd9::t_eda6c70a0e5aba 53
+packages/dom-shim/MODULES.md
+  s_02150bead85cd9::t_beed31d0e92dcd 138-142
+  s_02150bead85cd9::t_ded3ec2de3a0a6 3-4
+  s_02150bead85cd9::t_75a749142f756b 107-110
+  s_02150bead85cd9::t_efc31612a985e2 76-77,83,97
+  s_02150bead85cd9::t_1f38dde8bb5860 130-131
+docs/BOA_V8_FLOW.md
+  s_02150bead85cd9::t_6fec8df10ac936 244-252
+  s_02150bead85cd9::t_8e9515344ac27a 611-621
+docs/PAGE_RENDERER.md
+  s_02150bead85cd9::t_6079cdeb842250 64-66
+  s_02150bead85cd9::t_d8420fafe569f5 61
+  s_02150bead85cd9::t_a443fa2be04767 1,7-10,12-21,23-27
+  s_02150bead85cd9::t_c4a43ce6d43dbd 3,5
+  s_02150bead85cd9::t_869bbb1a2dcbc9 31-35,40-50,73-78
+  s_02150bead85cd9::t_e2a271929fd41d 62-63,82-90,92-99,101
+  s_02150bead85cd9::t_dc396d8208a172 28-30,36-39,51-60
+  s_02150bead85cd9::t_5367ab82793b3d 68-72
+  s_c1d1c93f383cfd::t_800179697f2852 67
+docs/CANVAS2D.md
+  s_02150bead85cd9::t_634ec46c2fb5c8 31-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e95bdd6d6a8eaff6d87fc499de19b80b65ea49f7",
+  "prompts": {},
+  "sessions": {
+    "s_02150bead85cd9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2c0a441cffeNWhALKFxzso34h",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
