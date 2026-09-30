@@ -1,0 +1,21 @@
+bench/harness/run.mjs
+  s_3fc265f386e88a::t_31340b873f4259 1098-1101
+packages/bench-report/scripts/record.mjs
+  s_3fc265f386e88a::t_31340b873f4259 166,255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d0142a111a4b57057723219bc4c4f7226f947b30",
+  "prompts": {},
+  "sessions": {
+    "s_3fc265f386e88a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f152787e0ffe51sPhnS0pmtLDd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
