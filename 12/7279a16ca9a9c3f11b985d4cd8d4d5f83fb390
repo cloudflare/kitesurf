@@ -1,0 +1,27 @@
+packages/engine/src/quickactions/index.ts
+  s_20642805355ab4::t_7ffdba1bfa2c44 424
+  s_20642805355ab4::t_7e37def4a356d0 1157
+packages/engine/test/e2e/snapshot-quickaction.e2e.test.ts
+  s_20642805355ab4::t_92330789887369 42,48
+packages/engine/src/quickactions/snapshot.ts
+  s_20642805355ab4::t_c1eaa1ea618591 67
+  s_20642805355ab4::t_5dd3ab792d1f47 3
+packages/engine/test/quickaction.test.ts
+  s_20642805355ab4::t_d1e18137b562e0 481,485,489-502
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "127279a16ca9a9c3f11b985d4cd8d4d5f83fb390",
+  "prompts": {},
+  "sessions": {
+    "s_20642805355ab4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e2fe02ffeBPRkxpXKpYOZzY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
