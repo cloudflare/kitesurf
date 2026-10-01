@@ -1,0 +1,30 @@
+packages/kitesurf-cli/src/main.rs
+  s_28ed432e4799d5::t_c529b496fd443b 1062-1072
+  s_28ed432e4799d5::t_1946078f2caad7 393
+  s_28ed432e4799d5::t_666506778de029 1061
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_28ed432e4799d5::t_25ffac84198a16 80,654-655
+packages/engine/src/rbi.ts
+  s_28ed432e4799d5::t_a1d0e7d2214629 658-660
+packages/engine/test/e2e/rbi-scene-wire.e2e.test.ts
+  s_28ed432e4799d5::t_25ffac84198a16 29,54,205-225
+  s_28ed432e4799d5::t_3bc56a8fbde0ed 226-228
+packages/engine/test/fixtures-worker/assets/rbi-navigation-damage.html
+  s_28ed432e4799d5::t_25ffac84198a16 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bfcff1e7d40f835b167867aa3afd9dfe64ca9c1c",
+  "prompts": {},
+  "sessions": {
+    "s_28ed432e4799d5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f11febf36ffev2pH98LyFr5yWI",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}
