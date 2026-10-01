@@ -1,0 +1,22 @@
+packages/engine/test/e2e/no-set-immediate.e2e.test.ts
+  s_ebc9d43f49867a::t_c162a60aea1382 1-23
+packages/page-script/src/globals.ts
+  s_ebc9d43f49867a::t_c39109ba293667 635-651
+  s_ebc9d43f49867a::t_7d7e006795453f 627-634,652-653
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c747f99991ebabaa48813fbcb383ed9754af67a4",
+  "prompts": {},
+  "sessions": {
+    "s_ebc9d43f49867a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0d62d6bfffeEicn5CQ06c8WIb",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

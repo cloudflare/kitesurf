@@ -1,0 +1,231 @@
+packages/engine/test/e2e/no-cors-opaque.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,11-27,30-40,43-50,53-83,86-108
+packages/engine/test/e2e/dripping-image-body.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,8,11-28,30-32,35-36,41-42
+packages/engine/test/e2e/page-wrapped-create-element.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,9-30,33-49
+packages/engine/test/e2e/vendor-prefix-style.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8,15-41,52-61,63-68,70-90
+packages/engine/test/e2e/sticky-position.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9,164,167-171,173-190
+packages/engine/test/e2e/intrinsic-sizing.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1,8-18,20-22,25-34,36-38,41-51,53-55,64-81,83-104
+packages/engine/test/e2e/interception-abandoned-park.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7,16-17,20,22-23,25-31,33-48
+packages/engine/test/e2e/opaque-image-render.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 26,77-79,81-90,92-102,105-109,111-116,118-120,122-126,128,130-150,153-203,205-240,243-254,257-270
+packages/engine/test/e2e/location-assign-navigates.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9,15-55,58-79,87-106,108-118,121-135
+packages/engine/test/e2e/xpath.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3,74-114,117-125,128-134,139-160
+packages/engine/test/e2e/resource-type-not-page-settable.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 18,20,26-38,43-44,51-54,57-97,100-103,105-111,114-121,124-138,140-144,147-162,164-170,172-174,176-187,189-198,200-211,213-223,225-250,258-268
+packages/engine/test/e2e/tldraw-app-shell.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3,9-17,19,24-32,34-37,39,43-56,58-64,66,70-110,112,117-132,137-146,148-159,164-193
+packages/engine/test/e2e/navigation-fidelity.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,10-37,40-48,51-60,62-76
+packages/engine/test/e2e/table-collapsed-border-spans.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8,46-48,50-58,60-64,66-70,72-76
+packages/engine/test/e2e/gateway-font-shaping.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 24,113,118-125
+packages/engine/test/e2e/inserted-script-globals.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4,7-19,22,37,56
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14,25-60,64-101,104-123,125,128-152,155-182,185-194,202-227,236-248,250-277,280-298,301-323,326-356
+packages/engine/test/e2e/subtlecrypto-generatekey-errors.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11,14-41
+packages/engine/test/e2e/hoisted-inline-rebreak.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7,31-47
+packages/engine/test/e2e/trusted-fetch-intrinsic.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12,24-76,90-140
+packages/engine/test/e2e/css-typed-om.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1,3-17,19-117,119-132,134-186,189-202,204-213,215-224,226-234,236-241,243-250,252-258,260-271,273-275,277-281,283-314,316-333,335-348,350-358,360-391,393-399,401-432,434-443,445-456,458-464,466-520,523-588,590-596,598-638
+packages/engine/test/e2e/cssom-rule-interfaces.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9,16-64,67-82,84-100,102-179
+packages/engine/test/e2e/theme-flip-repaint.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3,30-34,36-43,45-47,49-50,52-59,61-64,66-68,71-75,77-84,86-90
+packages/engine/test/e2e/classic-regex-globals.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4,7-17,20-35,38-45
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,8-20,22-48,55-60,62-69,71-80,82-95,97-114
+packages/engine/test/e2e/cssom-insert-rule-cascade.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1,10-32,34-40
+packages/engine/test/e2e/window-constructors.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,9-26
+packages/engine/test/e2e/boa-finally-stack.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 2,4-7,9-14,16,18-24,26-27,29-38,41-45,47,55-59,61,69-74,76-82
+packages/engine/test/e2e/boa-accessor-descriptor.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3,6-23
+packages/engine/test/e2e/author-webfont.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12,81-84,86-91,93-95,97-107,109-120
+packages/engine/test/e2e/link-onload-media.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8-27,30-52
+packages/engine/test/e2e/inline-style-flush.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8,12-56,65-115
+packages/engine/test/e2e/legacy-charset-sheet.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,8-11,13-18
+packages/engine/test/e2e/layer-budget.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,30-32,34-39,41-49,51
+packages/engine/test/e2e/fetch-interception.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7,16-32,35-47,50-67,70-92,95-129,132-158,161-220,222-236,239-247
+packages/engine/test/e2e/eval-during-navigate.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17,71-75,77-80,82-92,94-95,98-100,102-111,113,119-126,128
+packages/engine/test/e2e/svg-geometry-length.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 2,14-17,19-38,40-47
+packages/engine/test/e2e/cors-stylesheets.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 20,122-123,126-138,141-144,147,150-152,155-159,162,165-174,177,181-183,186,194-198
+packages/engine/test/e2e/boa-contextual-class-name.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3,6-14
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4,153-182,184-188,190-208,210-227,230-247,249-256,258-260,262-264,266-275,278-283,285-308
+packages/engine/test/e2e/style-churn-memory.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 19,41-79,141-162
+packages/engine/test/e2e/accessibility-live-select.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 5,46-80,93-99
+packages/engine/test/e2e/smoke.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,8-13,16-21
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1-2,255-263,266,269-526,529-540,543-566,613-648,650-667,669-693
+packages/engine/test/e2e/slow-document-headers.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4,6-8,13,16-28
+packages/engine/test/e2e/external-outbound.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13,16,151,178,202,241,252,270,288,312,338,347
+packages/engine/test/e2e/exec-command.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,9-106
+packages/engine/test/e2e/domexception-binding-shape.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14,17-58,60-69,71-73,75-83
+packages/engine/test/e2e/README.md
+  s_2900fbb1a4773e::t_035022fa72eb59 17,27,29,38-44
+packages/engine/test/e2e/cors-bypass-matrix.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 34,43-72,76-79,81-93,122-141
+packages/engine/test/e2e/layout-test-helpers.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 5-7
+packages/engine/test/e2e/browser-context.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8-91,94-112,114-149,152-197,200-208,211-222
+packages/engine/test/e2e/tty-nav-params-page-initiated.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,13-47
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1-2,144-151,153-158,160-165,167-172,174-179,181-188,190-205
+packages/engine/test/e2e/invalid-selector-throws.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9,16-43
+packages/engine/test/e2e/cdp-input-and-box-model.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8,16-24,26-40,42-57,59-66,68-71,74-78,80-81,83-87,89-91,93-97
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16,64-65,67-75,77-87,90-96,98-103,105-118,121-133,135-143,146-153,155-163,166-177,180-185,187-203,206-214,217-226,228-235,237-244,247-261,263-268,270-278,281-294
+packages/engine/test/e2e/blank-page-document.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8,15-33,36-40,42-54,56-64,73-77
+packages/engine/test/e2e/table-caption-sizing.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1,88-90,92-126,128-129,131-132,135-163
+packages/engine/test/e2e/redirect-per-hop-gating.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 18,20,34-36,38-47,49,51-58,66-69,71-73,75-79,83,106-114,119-121,131-144,152-164,167-180,186-194,196-204,215-220,222-224,226-232,242-253,255-262,265-269,271-301,303-306,308-313
+packages/engine/test/e2e/canvas-image-bytes.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10,15-25,28-40,42-64,67
+packages/engine/test/e2e/accessibility.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9,34-127,130-155,158-198,201-230,236-260,262-314,322-375,383-420
+packages/engine/test/e2e/native-function-shape.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3,6-20,22-33
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9,17-41,43-44,47-90,92-107,109-115,117-119,121-123,127-135,137-146,150-154,156-187,189-224,227-231,233-242,244-246,248,250,257-262,264-291,293-312,314-333
+packages/engine/test/e2e/storage-cookies.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,16-40
+packages/engine/test/e2e/tracker-blocklist.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15,20-45,48-80,83-111,114-124,127-158,161-180
+packages/engine/test/e2e/expose-function.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,38-54,57-61,63-67,69-81,83-88,90-93,98-114,117-121
+packages/engine/test/e2e/container-queries.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1,4-14,16-34,41-51,53-70
+packages/engine/test/e2e/cross-origin-redirect-shell.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16,24-25,27-31,33-47,49-54,56-58,60-68,70-71,73-81,83-87,89-96,104-108,110-113
+packages/engine/test/e2e/typed-input-value-tracker.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8,15-19,21-35,37-46,48-56,58-65,67-70,72-75
+packages/engine/test/e2e/background-reopen-lifecycle.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,8,10-12,14-17,19-21,23-47
+packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10,61-64,66-69,71-73,75-78
+packages/engine/test/e2e/author-webfont-custody.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11,50-54,56-61,63-66,68-78,80-91
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10,44-46,48-55,57-78
+packages/engine/test/e2e/flex-wrap-stretch-fit.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1,9-19,21-27,30-46,48-54
+packages/engine/test/e2e/img-dimensions.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9,14-15,17,19-29
+packages/engine/test/e2e/cssom-page-rules.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13,20-43,45-52,54-62,64-70,72-76,78-171
+packages/engine/test/e2e/context-lifecycle.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9,21-31,33-43,46-63,65-76,79-88,90-105,107-116
+packages/engine/test/e2e/abspos-escapes-overflow-clip.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17,39-40,42-46,48-54,56-59,61-66,68-71,73-79,81-84
+packages/engine/test/e2e/webkit-box-line-clamp.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9,16-54
+packages/engine/test/e2e/demos/text-input-caret-font.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1,5-16,18-20,22-39,41,43-46
+packages/engine/test/e2e/sealed-outbound-identity.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8,13-27,30-60,63-81,84-99
+packages/engine/test/e2e/css-supports-condition.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8,15-51,54-80,82-84,86-91
+packages/engine/test/e2e/script-navigation-tab.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7,23-30,33-44
+packages/engine/test/e2e/pseudo-computed-style.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8,15-51
+packages/engine/test/e2e/flex-svg-intrinsic.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1,4-19,21-29,32-53,55-60,63-87,89-94
+packages/engine/test/e2e/eval-across-navigation.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,9-10,12-15,17
+packages/engine/test/e2e/awaited-eval-no-deadline.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14-26,29-42
+packages/engine/test/e2e/float-layout-regressions.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1-2,25-28
+packages/engine/test/e2e/link-media-scope.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,8-11,13-17,19-22
+packages/engine/test/e2e/font-face-unicode-range-gating.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17,19,25,43-48,50-52,54-60,62-72,75-81,84-88,90-99
+packages/engine/test/e2e/select-default-submit.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4,15-31,34-62,65-80
+packages/engine/test/e2e/cssom-counter-style-rule.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10,17-40,42,44-63,65-126
+packages/engine/test/e2e/clip-regions.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4,35-37,39-40,42-45,47-52,54-56,58-59,61-63,71-73,75,77-79
+packages/engine/test/e2e/blank-page-fetch.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,8-17
+packages/engine/test/e2e/light-dark-color-scheme.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7,12-15,17-27,30-68,70-73,75-76
+packages/engine/test/e2e/header-intrinsic-tamper.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 31,149-155,157-163,269-291,298-317
+packages/engine/test/e2e/dom-parser-dataset.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 2,4-7,9-21,23-28
+packages/engine/test/e2e/svg-shape-client-rect.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8,19-21,23-33,35-40,42-49
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12,14,24-25,27-47,49-62,67-68,70-73,75-83,85-87,89-99,101
+packages/engine/test/e2e/hostile-global-timers.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13,17-50,52-59
+packages/engine/test/e2e/replaced-display-table.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4,7-17
+packages/engine/test/e2e/svg-ratio-sizing.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9,11-15,17-30,32-42
+packages/engine/test/e2e/demos/page-renderer-pdf.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11,13,17,21-41,50-51
+packages/engine/test/e2e/svg-css-attribute-values.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8,14-53
+packages/engine/test/e2e/button-descendant-submit.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6,23-30,34-42
+packages/engine/test/e2e/window-page-functions.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3,6-16,19-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "145960f696a09a75d502c919caabc2cdfaeea096",
+  "prompts": {},
+  "sessions": {
+    "s_2900fbb1a4773e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08d6ecf9ffeleGyhLrUlnAeqh",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
