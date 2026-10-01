@@ -1,0 +1,595 @@
+packages/engine/test/e2e/demos/cross-origin-nav-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 20
+packages/engine/test/e2e/timer-wheel.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/grid-abspos-static-position.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/font-heavy.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/boa-call-receiver.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/classic-computed-import.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/cookie-redirect-domain.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 24
+packages/engine/test/e2e/runtime-wait-for-selector.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/wpt-regression-debt.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/iframe-legacy-charset.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/anonymous-block-style-flush.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9
+packages/engine/test/e2e/demos/page-renderer-emoji.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/inline-style-attribute-resync.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/positioned-root-hoist.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17
+packages/engine/test/e2e/demos/forms-instanceof-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 5
+packages/engine/test/e2e/demos/oopif-detach-teardown.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/text-fill-color.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 18
+packages/engine/test/e2e/demos/cssom-atrule-mirror.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/demos/cookies-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 19
+packages/engine/test/e2e/demos/css-getstylesheettext-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 24
+packages/engine/test/e2e/demos/absolute-path-transitive-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/module-registry.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 19
+packages/engine/test/e2e/pdf-page-margins.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/isolate-wall-cap.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/demos/fixed-in-fixed-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17
+packages/engine/test/e2e/pdf-break-properties.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/links-quickaction.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4-5
+packages/engine/test/e2e/bridge-dom-fastpath.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/demos/css-inline-style-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 19
+packages/engine/test/e2e/root-element-metrics.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/demos/boa-concurrent-import-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/forms-dir-auto-value.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/ready-analytics.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/renderer-laziness.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/demos/forms-misc-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/demos/forms-textarea-bidi.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/page-renderer-parity.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/trusted-events.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/load-event-propagation.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/accessibility-tree-quickaction.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/oopif-prespawn.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 22
+packages/engine/test/e2e/element-measurement.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/demos/svg-document-render.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9
+packages/engine/test/e2e/rbi-scene-wire.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7-8
+packages/engine/test/e2e/demos/mjs-import-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 23
+packages/engine/test/e2e/demos/modules-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/network-ua-override-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/demos/defer-shim-nested-modinit-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 22
+packages/engine/test/e2e/import-map.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/demos/cookie-passthrough-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 20
+packages/engine/test/e2e/demos/transition-settles-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 24
+packages/engine/test/e2e/script-font-dir.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/demos/boa-evalless-phase11.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/engine-memory-accounting.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/demos/mouse-events-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 23
+packages/engine/test/e2e/boa-getter-throws.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/demos/forms-step-numeric-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 5
+packages/engine/test/e2e/boa-ctx-reentry.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 19
+packages/engine/test/e2e/incremental-shadow-insert.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/document-fonts-ready.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/raw-text-inner-html.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14
+packages/engine/test/e2e/demos/onhashchange-probe.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/anchor-positioning-parsing.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/demos/matchmedia-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/media-text-tracks.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/boa-interner-reclaim.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/forms-radio-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3
+packages/engine/test/e2e/demos/boa-seam-plain-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/attributes-live-namednodemap.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 18
+packages/engine/test/e2e/demos/boa-evalless-phase2.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/demos/screencast-pipeline-order.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3
+packages/engine/test/e2e/late-timer-image-load.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/navigator-send-beacon.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 2
+packages/engine/test/e2e/custom-element-import-node.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/demos/forms-select-dropdown-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 5
+packages/engine/test/e2e/demos/iframe-dynamic-cdp-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6
+packages/engine/test/e2e/boa-heap-shape.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/cookie-samesite-redirect.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 23
+packages/engine/test/e2e/demos/forms-activation-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3
+packages/engine/test/e2e/demos/forms-value-repaint-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/bridge-defineproperty.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 21
+packages/engine/test/e2e/demos/network-event-shape-probe.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 20
+packages/engine/test/e2e/demos/offscreen-canvas-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14
+packages/engine/test/e2e/demos/devtools-elements-live-update-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 26-27
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/demos/tla-import-iife-fix-probe.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 48
+packages/engine/test/e2e/bridge-pin-identity.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/computed-style-cache.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/intersection-observer.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/inserted-script.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14
+packages/engine/test/e2e/isolate-kill.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/css-inherited-styles-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 38
+packages/engine/test/e2e/demos/selection-paint-bridge.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/demos/dom-innerhtml-rebuild-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 18
+packages/engine/test/e2e/demos/events-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/lazy-load-event.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/snapshot-quickaction.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 2-3
+packages/engine/test/e2e/demos/boa-evalless-phase10a.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/page-renderer-cjk.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/svg-sprite-icons.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/trusted-fetch-metadata.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6
+packages/engine/test/e2e/crawl-quick-action.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4-5
+packages/engine/test/e2e/demos/boa-evalless-phase3.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/boa-import-meta-url.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/tty-wheel-grid.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/demos/oopif-worker-budget.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/forms-select-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3
+packages/engine/test/e2e/demos/range-live-mutation-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/boa-seam-identity-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/css-matched-styles-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 32
+packages/engine/test/e2e/demos/picture-srcset-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 42
+packages/engine/test/e2e/demos/css-ua-styles-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 27
+packages/engine/test/e2e/filereader-event-tasks.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/keyboard-scroll.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/custom-element-attributes.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/demos/style-media-attr-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/xhtml-doctype-parser-routing.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/scrollable-overflow-origin.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/corp-classic-script.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/demos/ws-boot-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/demos/forms-form-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3
+packages/engine/test/e2e/demos/screencast-placeholder-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/demos/iframe-bitmap-paint.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/demos/oopif-heap-usage.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/corner-shape-paint.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 5
+packages/engine/test/e2e/demos/canvas-detached-append.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 20
+packages/engine/test/e2e/fixture-script-escaping.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 19
+packages/engine/test/e2e/harness.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1-6,13-15
+packages/engine/test/e2e/demos/hello.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3
+packages/engine/test/e2e/demos/oopif-postmessage.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/oopif-quads-paint.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/local-tracing.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/svg-sprite-sidebar.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/boa-evalless-phase4.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9
+packages/engine/test/e2e/bridge-pin-stats.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/oversize-body-streams.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 19
+packages/engine/test/e2e/demos/screencast-viewport-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 27
+packages/engine/test/e2e/demos/font-face-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 66
+packages/engine/test/e2e/demos/print-media-emulation-probe.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14
+packages/engine/test/e2e/demos/forms-selection-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3
+packages/engine/test/e2e/demos/images-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 25
+packages/engine/test/e2e/reentrant-new-function-scope.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 18
+packages/engine/test/e2e/quickaction-containment.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 27-28
+packages/engine/test/e2e/inner-text-getter.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/demos/forms-file-input-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 5
+packages/engine/test/e2e/awaited-eval-message-channel.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/demos/module-init-shim-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 44
+packages/engine/test/e2e/demos/page-renderer-screencast.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/demos/dom-mutation-events-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 23
+packages/engine/test/e2e/stale-node-matches.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14
+packages/engine/test/e2e/demos/canvas-aspect-ratio-hack.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/demos/mouse-move-debounce-probe.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/inline-opacity.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9
+packages/engine/test/e2e/quickaction-body-retention.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14
+packages/engine/test/e2e/demos/css-stylesheet-added-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 29
+packages/engine/test/e2e/demos/style-property-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 21
+packages/engine/test/e2e/svg-paint-fidelity.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17
+packages/engine/test/e2e/demos/lifecycle-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 22
+packages/engine/test/e2e/canvas-text-upgrade.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/inline-span-white-space.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/keyboard-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/demos/selection-api.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/demos/img-srcset-reload-complete.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/demos/network-stylesheet-headers-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 31
+packages/engine/test/e2e/demos/svg-overflow-clip.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/inset-box-shadow.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/demos/entity-parse-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 21
+packages/engine/test/e2e/tabs-tab-stops.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/svg-dash-stroke.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/web-bot-auth.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14
+packages/engine/test/e2e/demos/forms-textarea-default-paint.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/inline-wasm-bake.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/demos/boa-evalless-phase1.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/demos/iframe-frame-tree-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/table-anonymous-boxes.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/iframe-nested-frame-tree.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17
+packages/engine/test/e2e/demos/forms-selection-paint-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 5
+packages/engine/test/e2e/demos/boa-seam-collections-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/idl-interface-shape.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/white-space-pre-line.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/demos/dom-mutate2-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/boa-object-from-page.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 5
+packages/engine/test/e2e/demos/conic-gradient.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/document-title-svg.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/canvas-natural-size.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/css-counters.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/demos/font-face-variable-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 24
+packages/engine/test/e2e/bridge-inherit-v8.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 24
+packages/engine/test/e2e/img-src-change.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9
+packages/engine/test/e2e/demos/skip-speculative-raster.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16,19
+packages/engine/test/e2e/percent-margin-basis.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/demos/forms-realworld-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/screenshot-pdf-brapi.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6
+packages/engine/test/e2e/demos/click-selector-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/demos/forms-post-submit-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6
+packages/engine/test/e2e/svg-dynamic-text-upgrade.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/viewport-drain.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/text-setters.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/vertical-scroll-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/inline-svg-vertical-align.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 2
+packages/engine/test/e2e/demos/forms-formdata-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3
+packages/engine/test/e2e/demos/external-scripts-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 29
+packages/engine/test/e2e/inserted-script-bake.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/demos/canvas-2d-draw-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17
+packages/engine/test/e2e/demos/boa-evalless-phase7.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6
+packages/engine/test/e2e/window-global-scope.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/boa-null-base-message.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/boa-evalless-phase10b.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/runtime-remote-object-classname.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/script-inserted-text-fonts.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6
+packages/engine/test/e2e/classic-seed-walk.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/demos/clock-floor-stamp-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/demos/network-extra-headers-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17
+packages/engine/test/e2e/demos/top-level-await-fetch-probe.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 47
+packages/engine/test/e2e/grid-auto-row-content-size.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/post-load-settle.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/demos/css-computed-style-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 20
+packages/engine/test/e2e/screencast-partial-image.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/iframe-load-order.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/current-script-microtask.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17
+packages/engine/test/e2e/demos/oopif-late-spawn.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/absolute-path-import-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 18
+packages/engine/test/e2e/demos/screenshot-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 22
+packages/engine/test/e2e/session-outbound.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/boa-realm-intrinsics.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17
+packages/engine/test/e2e/event-target-instance-listeners.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/scrape-quickaction.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 2-3
+packages/engine/test/e2e/session-deadlines.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16-17
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3
+packages/engine/test/e2e/bridge-array-lazy.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/raf-wrap-reentrancy.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/bg-image-capture.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 11
+packages/engine/test/e2e/demos/event-listener-fixes-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14
+packages/engine/test/e2e/demos/boa-evalless-phase9.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/demos/img-load-events-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 23
+packages/engine/test/e2e/tty-todomvc-controls.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/iframe-dom-reclaim.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 18
+packages/engine/test/e2e/timer-wheel-foreign-clear.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/demos/event-handler-hydration.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/grid-min-content-floor-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 23
+packages/engine/test/e2e/demos/hit-test-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 22
+packages/engine/test/e2e/demos/inline-bidi-direction.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/oopif-elements-panel.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/fetch-slot-order.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/lazy-coalesce.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/forms-input-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/stylo-layout-misc-values.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/transition-reused-node-slot.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/caret-after-typing.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/demos/element-scroll-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 23
+packages/engine/test/e2e/demos/oopif-rerender.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/demos/oopif-runtime-evaluate.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/demos/wasm-bake-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/dom-rect.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/demos/forms-select-cdp-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/demos/shadow-dir-directionality.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/shadow-scroll-ownership.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 3
+packages/engine/test/e2e/oversize-document.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 19
+packages/engine/test/e2e/demos/inline-bidi-isolation.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/event-handler-idl.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/html-font-defer.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 10
+packages/engine/test/e2e/demos/mc-conformance.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/demos/scrollintoview-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 18
+packages/engine/test/e2e/shadow-dom.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/css-highlight-api.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/check-visibility.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/pixel-free-shaping-fonts.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 16
+packages/engine/test/e2e/term-session.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 5-6
+packages/engine/test/e2e/demos/ce-upgrade-pipeline.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 14
+packages/engine/test/e2e/demos/font-face-unicode-range-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 35
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/offset-geometry.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 7
+packages/engine/test/e2e/demos/history-shim-probe.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 17
+packages/engine/test/e2e/demos/iframe-content-document-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 12
+packages/engine/test/e2e/tab-focus.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 1
+packages/engine/test/e2e/bridge-construct.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 22
+packages/engine/test/e2e/demos/forms-range-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 6
+packages/engine/test/e2e/boa-bridge-fidelity.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/target-dom-reclaim.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 15
+packages/engine/test/e2e/demos/xhr-boot-demo.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+packages/engine/test/e2e/img-data-url-load.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 4
+packages/engine/test/e2e/demos/startup-input-probe.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 9
+packages/engine/test/e2e/demos/page-renderer-relaunch.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 8
+packages/engine/test/e2e/demos/navigate-style-script-order.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "da68728157fea7d1315b3e9ddb1fefd1a33869a7",
+  "prompts": {},
+  "sessions": {
+    "s_2900fbb1a4773e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08d6ecf9ffeleGyhLrUlnAeqh",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
