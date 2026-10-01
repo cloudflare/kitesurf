@@ -1,0 +1,158 @@
+packages/engine/src/eval/outbound.ts
+  s_20642805355ab4::t_86fe5352404be6 757-759,1729-1730
+packages/engine/src/eval/page-script-tail.ts
+  s_20642805355ab4::t_86fe5352404be6 11-13,24-25,40
+packages/engine/src/quickactions/content.ts
+  s_20642805355ab4::t_86fe5352404be6 12,14,37-39,161
+packages/engine/src/cdp/dispatch.ts
+  s_20642805355ab4::t_86fe5352404be6 7,317
+packages/engine/src/quickactions/pdf.ts
+  s_20642805355ab4::t_86fe5352404be6 10,34-35,195
+packages/engine/src/tracing-local.ts
+  s_20642805355ab4::t_86fe5352404be6 37-41,256,476-479
+packages/engine/src/cdp/connection.ts
+  s_20642805355ab4::t_86fe5352404be6 65
+packages/engine/src/rbi.ts
+  s_20642805355ab4::t_86fe5352404be6 30-36,58-65,68-69,73,82,91,93-95,109,144-146,148,150-155,157-164,225,519-523,526,774-775,828,831,834,933,935,981,1038-1039
+packages/engine/src/quickactions/screenshot.ts
+  s_20642805355ab4::t_86fe5352404be6 8,16-17,44-46,262-269,307
+packages/engine/src/tracing.ts
+  s_20642805355ab4::t_86fe5352404be6 1-7,12-17,19-31,33,43,47
+packages/engine/src/eval/span-sink.ts
+  s_20642805355ab4::t_86fe5352404be6 66-68
+packages/engine/src/eval/page-renderer.ts
+  s_20642805355ab4::t_86fe5352404be6 28-33,82,89,93,96,233,249,314,476,600
+  s_20642805355ab4::t_e350ab72f31632 27
+packages/engine/wrangler.jsonc
+  s_20642805355ab4::t_86fe5352404be6 11-12,31,48,95-96,169,209
+packages/engine/src/observability.ts
+  s_20642805355ab4::t_86fe5352404be6 1-2,15-28,30-33,67,81-96,103,151,247,275
+packages/engine/src/quickactions/forward-headers.ts
+  s_20642805355ab4::t_86fe5352404be6 1-13
+packages/engine/src/caller.ts
+  s_20642805355ab4::t_737c0380e0b40e 44-49
+packages/engine/src/cdp/accessibility.ts
+  s_20642805355ab4::t_cd174e58215712 536
+packages/engine/src/cdp/css.ts
+  s_20642805355ab4::t_5d9b33205b57d6 200,798-799,814-816,1649
+packages/engine/src/cdp/dom.ts
+  s_20642805355ab4::t_f79cc9beac552f 228,230,242,244,254,260,262,281,288,337,340,548,551-552,555,741
+packages/engine/src/cdp/frames.ts
+  s_20642805355ab4::t_9760f7548fbca5 3-4,17-20,97-99,193-226
+packages/engine/src/cdp/iframe-events.ts
+  s_20642805355ab4::t_2bbd505e1ce346 1-58
+packages/engine/src/cdp/input.ts
+  s_20642805355ab4::t_d2c86b953823d7 86,581
+packages/engine/src/cdp/kitesurf.ts
+  s_20642805355ab4::t_22f312746dfbc7 619-622,625-627,630,636,722,724
+packages/engine/src/cdp/page-script-generation.ts
+  s_20642805355ab4::t_a834497b4744e4 264
+packages/engine/src/cdp/page.ts
+  s_20642805355ab4::t_86dd21e464f842 60,67,147-153,515,548,1271-1278,1321-1323,1472-1475,1549-1551,1563-1564,1572-1574,2602-2604,3454,3461,3500,3666,3959-3968,4873-4877,4879-4886,5449-5450,5504-5506,5529-5533,5565,5573,6035,6167,6434-6436,6476,6484,7080,7094,7490-7492,7569-7576,7625-7626,7632-7633,7641
+packages/engine/src/cdp/protocol-extensions.d.ts
+  s_20642805355ab4::t_a11184054c7758 23-30,48-50
+packages/engine/src/cdp/target.ts
+  s_20642805355ab4::t_8e0192cfa801b9 116,129-130,691-693,707-711
+packages/engine/src/cdp/types.ts
+  s_20642805355ab4::t_c99be41e5b15a5 18-92,115-119,126-134,137-153,632-635,637-639,650-651,653-655,669-671,683-685,706-707,711
+packages/engine/src/cookies.ts
+  s_20642805355ab4::t_5eddd9b9f22a8f 624,696
+packages/engine/src/eval/external-outbound.ts
+  s_20642805355ab4::t_20bfbaff9c1adb 40
+packages/engine/src/eval/external-session.ts
+  s_20642805355ab4::t_66ed1239539d4a 25
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_20642805355ab4::t_18e3b419592b7b 1-2,11-13,58,232-234,237,262,280-281,402-406,417,425,430,435,437,442,454-456,470-472,476-478,484-485,491-493,503-504,512,518-519,534,541
+packages/engine/src/eval/page-script.ts
+  s_14542af769a0ad::t_6c02218cab8a77 1-4,7,15,80,158,262-264,283,353-354,357,583-584,629,714-716,719,723-725,730,738-740,840,944,953,1280-1282,1351-1353,1373-1374,1395-1398,1400,1418,1434,1437,1446-1448,1583,1672,1683-1684,1830
+packages/engine/src/eval/prefetch-wasm.ts
+  s_20642805355ab4::t_0d618fb6c4c304 145,181,189
+packages/engine/src/eval/script-bundle.ts
+  s_20642805355ab4::t_be4feebf2ed419 3,89,145,300,423,588
+packages/engine/src/eval/walk-module-graph.ts
+  s_20642805355ab4::t_9953e02ece0cfa 1319,1821-1823,1831,1849,1870,1875,2223-2225
+packages/engine/src/eval/worker-budget.ts
+  s_20642805355ab4::t_ca9310149c2be9 135
+packages/engine/src/index.ts
+  s_20642805355ab4::t_e19627cad2679b 1-2,9,11,13,16,256-261,263,548,566-570
+packages/engine/src/quickactions/accessibility-tree.ts
+  s_20642805355ab4::t_b2a545277e8697 26
+packages/engine/src/quickactions/brapi.ts
+  s_20642805355ab4::t_f538df6d4d1fd9 208-217
+packages/engine/src/quickactions/capture.ts
+  s_20642805355ab4::t_e08fd00a91cf49 125,151
+packages/engine/src/quickactions/crawl.ts
+  s_20642805355ab4::t_4686452ab40769 26
+packages/engine/src/quickactions/dispatch.ts
+  s_20642805355ab4::t_78bee08498aa7b 1-44
+packages/engine/src/quickactions/index.ts
+  s_20642805355ab4::t_727f0ca205baf0 120-123,131-134,341,538-551,615,1116,1166,1179-1184,1203,1339-1345,1638-1639,1643-1644,1649,1653,1658,1808,1821-1823,1837-1840
+packages/engine/src/quickactions/links.ts
+  s_20642805355ab4::t_39724197c50789 21
+packages/engine/src/quickactions/memory-headers.ts
+  s_20642805355ab4::t_099afa7d8ccb55 1-49
+packages/engine/src/quickactions/render-session.ts
+  s_20642805355ab4::t_f2f6325480146b 1,3,5-6,30,116,118,120,122-123,127-133,136,138
+packages/engine/src/quickactions/scrape.ts
+  s_20642805355ab4::t_5e58b8d8dd2486 9,22,29-48,142,184
+packages/engine/src/quickactions/snapshot.ts
+  s_20642805355ab4::t_adc246a2a3e95d 26,32-38,95
+packages/engine/src/rate-limit.ts
+  s_20642805355ab4::t_3ec7a554a69d9b 15-18
+packages/engine/src/rbi-protocol.ts
+  s_20642805355ab4::t_738cd9dbfedf4b 354-357,360-361,363,365,369,373-374,378-379,386-387,391-393,404,406,412-414
+packages/engine/src/read-capped.ts
+  s_20642805355ab4::t_880ac8ffe195ce 41-45,156-157
+packages/engine/src/runtime.d.ts
+  s_20642805355ab4::t_cac9e2441d889c 1-4
+packages/engine/src/sentry.ts
+  s_20642805355ab4::t_cb450d6acc842e 98-105,202,246,315-322,324-325,329-331,333-336,338
+packages/engine/src/tty/term-event.ts
+  s_20642805355ab4::t_46ccad5354e3bb 52-53
+packages/engine/src/wasm.ts
+  s_20642805355ab4::t_c2c5fa66963030 139,268,272,386-387
+packages/engine/test/e2e/demos/iframe-nested-frame-tree.e2e.test.ts
+  s_20642805355ab4::t_165fb411917e91 26-31,34-37,39-43,77-84
+packages/engine/test/page-script-generation.test.ts
+  s_20642805355ab4::t_dd62a5428f7662 61,162,209,227,242,244
+packages/engine/test/quickaction.test.ts
+  s_20642805355ab4::t_0b12e59dc2101b 1500-1502
+packages/engine/test/target-close.test.ts
+  s_20642805355ab4::t_17e186f5616e74 46,70
+packages/page-renderer/scripts/build.mjs
+  s_20642805355ab4::t_b7b7cdb36c0f38 59-60
+packages/page-renderer/src/contract-types.ts
+  s_20642805355ab4::t_1a4e40d512894f 1-54
+packages/page-renderer/src/index.ts
+  s_20642805355ab4::t_9503747bccdff5 26-39
+packages/page-script/scripts/build.mjs
+  s_20642805355ab4::t_fa80e08adc1137 6,34,213,292,307-308
+packages/page-script/src/pack.ts
+  s_20642805355ab4::t_a637ef72ca0314 6-8,172-173,180
+packages/page-script/src/packed-result.ts
+  s_20642805355ab4::t_d92299508a47de 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b8865b7887fda50709ac84588c4c854593368103",
+  "prompts": {},
+  "sessions": {
+    "s_14542af769a0ad": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f13f723efffeIVqYpBLMqBphS4",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_20642805355ab4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e2fe02ffeBPRkxpXKpYOZzY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
