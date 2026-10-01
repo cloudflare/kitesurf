@@ -1,0 +1,41 @@
+packages/engine/src/tty/session.ts
+  s_28ed432e4799d5::t_a0225dd0bd852d 1288
+packages/kitesurf-cli/src/access.rs
+  s_28ed432e4799d5::t_d292d7499f3129 2,26
+packages/kitesurf-cli/src/main.rs
+  s_28ed432e4799d5::t_d292d7499f3129 351-353,504-505,606-607,616,740-743,923-925,951,962
+packages/engine/src/rbi.ts
+  s_28ed432e4799d5::t_a0225dd0bd852d 31,754-758,760,776-777,779-780,810
+packages/engine/src/rbi-start.ts
+  s_28ed432e4799d5::t_a0225dd0bd852d 64
+packages/scene-host-wasm/src/lib.rs
+  s_28ed432e4799d5::t_1026d660b9a278 42-44,53-55,75-76,93,123-126,142-143,155,160-161
+  s_28ed432e4799d5::t_9fa1d331b1423b 117-118
+docs/TERMINAL.md
+  s_28ed432e4799d5::t_9fa1d331b1423b 103
+AGENTS.md
+  s_28ed432e4799d5::t_9fa1d331b1423b 86-87
+packages/engine/test/rbi-params.test.ts
+  s_28ed432e4799d5::t_28434a5c529ffa 1-36
+packages/engine/src/rbi-params.ts
+  s_28ed432e4799d5::t_6d770b374aeca6 2,19-20
+  s_28ed432e4799d5::t_a0225dd0bd852d 1,3-18,21-28
+packages/kitesurf-cli/package.json
+  s_28ed432e4799d5::t_9fa1d331b1423b 5,7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f9a5a375bd530bbb691985d23c2536263c41b2af",
+  "prompts": {},
+  "sessions": {
+    "s_28ed432e4799d5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f11febf36ffev2pH98LyFr5yWI",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}
