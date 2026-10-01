@@ -1,0 +1,19 @@
+packages/engine/test/e2e/inserted-script-globals.e2e.test.ts
+  s_090f1138f4038a::t_c22cf67475a0f7 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2132586c6067f8f52e42e2587d96e36d8230bef5",
+  "prompts": {},
+  "sessions": {
+    "s_090f1138f4038a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0b0703e6ffeN05VE2WmscgF7t",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
