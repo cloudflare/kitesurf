@@ -1,0 +1,21 @@
+packages/engine/test/e2e/cdp-input-and-box-model.e2e.test.ts
+  s_6e6860e87b7ff7::t_3aa39b830666f8 111-115
+  s_6e6860e87b7ff7::t_e86de43bd43fc3 12,93-106,109-110,116,118-126,128-138
+  s_6e6860e87b7ff7::t_e96008e746c8af 107-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "05802d83bd769fdd3542468c78d47aabcc8960aa",
+  "prompts": {},
+  "sessions": {
+    "s_6e6860e87b7ff7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0e430475ffev1V4jl8k9B1ITU",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

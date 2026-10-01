@@ -1,0 +1,47 @@
+packages/website/src/styles/session.css
+  s_ebc9d43f49867a::t_ef4d609152a83c 1,72-131
+packages/website/src/pages/sessions/Session.tsx
+  s_ebc9d43f49867a::t_ef4d609152a83c 22-23,73-89,112
+packages/website/src/pages/sessions/NewSession.tsx
+  s_ebc9d43f49867a::t_693d8f717458cf 1-37,44-85
+  s_ebc9d43f49867a::t_38b98f505e0005 38-43
+packages/website/src/pages/landing/Hero.tsx
+  s_ebc9d43f49867a::t_a1de71e6551aa4 15,45,47
+  s_ebc9d43f49867a::t_e3f13063d5348c 46
+packages/website/src/client/landing.ts
+  s_ebc9d43f49867a::t_a1de71e6551aa4 34
+packages/website/index.d.ts
+  s_ebc9d43f49867a::t_ef4d609152a83c 12,31,35-39,42-45
+packages/engine/src/index.ts
+  s_ebc9d43f49867a::t_2a8cd21d42bd38 31,167,363,449-460
+  s_ebc9d43f49867a::t_d0fb5988796d98 101
+  s_ebc9d43f49867a::t_5d015ad8062e3a 461
+packages/engine/test/e2e/stateful-session.e2e.test.ts
+  s_ebc9d43f49867a::t_25f85898dbd6eb 354,381,419,421-483
+packages/website/src/styles/landing.css
+  s_ebc9d43f49867a::t_a1de71e6551aa4 172-173,175,178-180,182-184
+packages/engine/src/stateful.ts
+  s_ebc9d43f49867a::t_ee2a30b9f44bd6 236-237,240-241,246-275,277-329,338-339,341-345,347,350,352-354
+  s_ebc9d43f49867a::t_2a8cd21d42bd38 65,242-245,276,330-333,337
+docs/STATEFUL_SESSIONS.md
+  s_ebc9d43f49867a::t_99981c49b6f303 63,65-78,83-84,87-90
+packages/website/src/routes.tsx
+  s_ebc9d43f49867a::t_ef4d609152a83c 14,21-23
+  s_ebc9d43f49867a::t_097d8cac5502f4 24-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c66b24bd32577e330abdcbe603e28dc58f0788e9",
+  "prompts": {},
+  "sessions": {
+    "s_ebc9d43f49867a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0d62d6bfffeEicn5CQ06c8WIb",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

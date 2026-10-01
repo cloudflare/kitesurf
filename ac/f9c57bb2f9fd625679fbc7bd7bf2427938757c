@@ -1,0 +1,29 @@
+packages/core/src/lib.rs
+  s_103b7f1f0713cd::t_13bc2274b2bf36 6706,6715,6718-6722
+  s_103b7f1f0713cd::t_d7fadb67c9cbe4 946-953,962
+packages/core/src/rbi_image_cache_test.rs
+  s_103b7f1f0713cd::t_7baee366ee4b65 24-27,29
+  s_103b7f1f0713cd::t_2ba64cc6f8a898 86,91-93,95-98,106-107,113-124,126-128
+  s_103b7f1f0713cd::t_aa3feb33651d05 99-102
+  s_103b7f1f0713cd::t_0ab60a0985fd3b 125
+  s_103b7f1f0713cd::t_4bc475836d4dae 87-90,94,103-105,108-112
+packages/core/src/pdf.rs
+  s_103b7f1f0713cd::t_f1d27660dbf9a3 165
+  s_103b7f1f0713cd::t_4355a94d617d0a 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "acf9c57bb2f9fd625679fbc7bd7bf2427938757c",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

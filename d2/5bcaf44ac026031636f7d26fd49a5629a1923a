@@ -1,0 +1,19 @@
+packages/engine/src/cdp/network-events.ts
+  s_bf847f99fe8063::t_e60551ef6d1ffa 1158-1160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d25bcaf44ac026031636f7d26fd49a5629a1923a",
+  "prompts": {},
+  "sessions": {
+    "s_bf847f99fe8063": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f177050d8ffefiikrogdFB3Zzv",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+packages/bench-report/package.json
+  s_bb374a6c0508f6::t_8bfa7e6a65f86a 11
+scripts/wpt-batched.mjs
+  s_bb374a6c0508f6::t_e6cb663d206420 437
+  s_bb374a6c0508f6::t_120f8e6d2b960f 45
+packages/engine/vitest.config.mts
+  s_bb374a6c0508f6::t_39b1ef78793a73 14-21
+scripts/workerd-autogates.d.mts
+  s_bb374a6c0508f6::t_b5547e032dada6 1-2
+packages/engine/package.json
+  s_bb374a6c0508f6::t_8bfa7e6a65f86a 8-11
+packages/wpt-report/package.json
+  s_bb374a6c0508f6::t_8bfa7e6a65f86a 11
+tests/interactivity-flows/run.ts
+  s_bb374a6c0508f6::t_e4c79165476a86 7
+  s_bb374a6c0508f6::t_c0f71c381f4296 237
+scripts/workerd-autogates.mjs
+  s_bb374a6c0508f6::t_74863058f2f268 1-24
+.gitlab-ci.yml
+  s_bb374a6c0508f6::t_464b5f678fe1ca 1418-1420
+scripts/pw-run.mjs
+  s_bb374a6c0508f6::t_ff71273f25eb5b 31
+  s_bb374a6c0508f6::t_97a165537a9db7 143
+packages/engine/vitest.e2e.config.mts
+  s_bb374a6c0508f6::t_d7712662be4408 16,22-26
+  s_bb374a6c0508f6::t_379b779a107fc3 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6ebbb6f85439937724106ce67fa54d8fafc20128",
+  "prompts": {},
+  "sessions": {
+    "s_bb374a6c0508f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0caf315dffeM7ogvnCr1kfaYr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
