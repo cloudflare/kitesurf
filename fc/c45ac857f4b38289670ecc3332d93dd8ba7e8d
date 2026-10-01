@@ -247,6 +247,7 @@ packages/scene-host-wasm/src/lib.rs
   s_28ed432e4799d5::t_3de0883017b35a 111
   s_28ed432e4799d5::t_0809152be0ce99 141-142,144-145,147-148,152-157
   s_28ed432e4799d5::t_aa406dbc187046 59,64,84
+  s_f31fe8b734ae46::t_c14f8e8974be37 22-23,25,29,33-34,41,44-45,50,54,56,91,97-98,122,124,127-128,133,136,139,143,149,159,164,166
 .gitlab-ci.yml
   s_28ed432e4799d5::t_edf2f62c4e776d 410
 packages/core/Cargo.toml
@@ -266,6 +267,14 @@ packages/kitesurf-cli/Cargo.lock
       "agent_id": {
         "tool": "opencode",
         "id": "ses_f11febf36ffev2pH98LyFr5yWI",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    },
+    "s_f31fe8b734ae46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f07a5b8e3ffermPEBUJXW8AjHg",
         "model": "gpt-6-sol"
       },
       "human_author": "Celso Martinho <celso@cloudflare.com>"
