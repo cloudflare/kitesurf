@@ -1,0 +1,39 @@
+packages/scene-host-wasm/src/lib.rs
+  s_56e421b5f59c04::t_34c15bc9ab3696 74-76,97-102,133,168-172,175-184
+  s_f759be96061792::t_1fafac06bf0e0f 201-202
+  s_f759be96061792::t_a0617c8b23f2b4 85,88,92,95-96,110,117,119,125,131,147,187,192,199-200,208
+  s_56e421b5f59c04::t_79ea250c26947e 64-65
+  s_56e421b5f59c04::t_6c90b5b0193efc 104-107,139-144,188-191,193-196
+.gitlab-ci.yml
+  s_f759be96061792::t_3794925dcd45bb 563
+packages/scene-host-wasm/test/abi.test.mjs
+  s_f759be96061792::t_f9c4d5e1eb966d 251,253,255-257,259,335-340
+  s_f759be96061792::t_1665c1890ba4ba 341
+  s_f759be96061792::t_47bb9090fd9f65 260
+  s_56e421b5f59c04::t_32a7cce967a473 31-32,83
+  s_56e421b5f59c04::t_79ea250c26947e 1-30,33-82,84-250,252,254,258,261-334,342
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f1492489e68851f1cb322756eeba3098dc370b5e",
+  "prompts": {},
+  "sessions": {
+    "s_56e421b5f59c04": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0359bbddffeKPoWUgoqtspKNR",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_f759be96061792": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f038b6e8affeI47oJbJHo7meyw",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
