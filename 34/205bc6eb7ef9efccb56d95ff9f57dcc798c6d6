@@ -1,0 +1,305 @@
+AGENTS.md
+  s_c9d8c2c13d3652::t_00357958bc33ec 255-262
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 255-262
+packages/engine/test/e2e/engine-routes.e2e.test.ts
+  s_c9d8c2c13d3652::t_6c9e99bcce2e43 83-89
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 83-89
+  s_c9d8c2c13d3652::t_8ce513eff3f876 5-8
+packages/engine/test/fixtures-worker/assets/astro-island-component.js
+  s_c9d8c2c13d3652::t_e4598221517e2a 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/bench-canvas.html
+  s_c9d8c2c13d3652::t_c0efec157d3e8f 1-47
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-47
+packages/engine/test/fixtures-worker/assets/bench-static.html
+  s_c9d8c2c13d3652::t_e2bf7ccb1d10a2 1-72
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-72
+packages/engine/test/fixtures-worker/assets/canvas-drawimage.html
+  s_c9d8c2c13d3652::t_47b9c560891c58 1-67
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-67
+packages/engine/test/fixtures-worker/assets/cors-sheet-clean.html
+  s_c9d8c2c13d3652::t_ce02e4875e37a3 1-10
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-10
+packages/engine/test/fixtures-worker/assets/cors-sheet-echo-origin.html
+  s_c9d8c2c13d3652::t_7e6f90cc7070a3 1-10
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-10
+packages/engine/test/fixtures-worker/assets/cors-sheet-no-acao.html
+  s_c9d8c2c13d3652::t_56259cbebbfd49 1-10
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-10
+packages/engine/test/fixtures-worker/assets/cors-sheet-no-attr.html
+  s_c9d8c2c13d3652::t_ce9e19527acf5f 1-10
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-10
+packages/engine/test/fixtures-worker/assets/cors-sheet-redirect.html
+  s_c9d8c2c13d3652::t_2117018447a600 1-10
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-10
+packages/engine/test/fixtures-worker/assets/cors-sheet-same-origin.html
+  s_c9d8c2c13d3652::t_feb12d5a54e036 1-10
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-10
+packages/engine/test/fixtures-worker/assets/dynprobe-baked.js
+  s_c9d8c2c13d3652::t_7e9f66632b7ba3 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/dynprobe-ce.js
+  s_c9d8c2c13d3652::t_dd0bfd33a5b878 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/dynprobe-imports-baked.js
+  s_c9d8c2c13d3652::t_943798bf249bb3 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/dynprobe-leaf.js
+  s_c9d8c2c13d3652::t_3d018ac1cbc51b 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/dynprobe-leaf2.js
+  s_c9d8c2c13d3652::t_30a208ac9894b5 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/dynprobe-leaf3.js
+  s_c9d8c2c13d3652::t_09e472ac52bb2f 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/dynprobe-raf-wrap.js
+  s_c9d8c2c13d3652::t_b412a7d230889d 1-19
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-19
+packages/engine/test/fixtures-worker/assets/dynprobe-shared.js
+  s_c9d8c2c13d3652::t_c54f0b73fde636 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/dynprobe-tree-dep.js
+  s_c9d8c2c13d3652::t_f42d4164fcf222 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/dynprobe-tree.js
+  s_c9d8c2c13d3652::t_121727cc852758 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/dynprobe-user-a.js
+  s_c9d8c2c13d3652::t_25ab547b7eb35b 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/dynprobe-user-b.js
+  s_c9d8c2c13d3652::t_56b25df08daf74 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/euckr-child.html.bin
+  s_c9d8c2c13d3652::t_b647ffbe7eca04 1
+  s_c9d8c2c13d3652::t_4b2defcd5f415a 1
+packages/engine/test/fixtures-worker/assets/graphprobe/g-arity.js
+  s_c9d8c2c13d3652::t_4219b3008679fb 1-8
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-8
+packages/engine/test/fixtures-worker/assets/graphprobe/g-baked-default.js
+  s_c9d8c2c13d3652::t_4e82830454267f 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/graphprobe/g-baked.js
+  s_c9d8c2c13d3652::t_332ff61d82b5e0 1-4
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-cycle-a.js
+  s_c9d8c2c13d3652::t_afe2ea36e2bb94 1-3
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-3
+packages/engine/test/fixtures-worker/assets/graphprobe/g-cycle-b.js
+  s_c9d8c2c13d3652::t_9148a288a7094e 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-alias.js
+  s_c9d8c2c13d3652::t_3f42df2f1006d8 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-annexb.js
+  s_c9d8c2c13d3652::t_f6be7b2dd30caf 1-4
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-default.js
+  s_c9d8c2c13d3652::t_13a7045dfaa68f 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-fnprops.js
+  s_c9d8c2c13d3652::t_41251af3fd995c 1-3
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-3
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-named.js
+  s_c9d8c2c13d3652::t_bb973d0490148b 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-obj.js
+  s_c9d8c2c13d3652::t_5c8f77ea0de05a 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-var.js
+  s_c9d8c2c13d3652::t_1e0c8a2218be74 1-3
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-3
+packages/engine/test/fixtures-worker/assets/graphprobe/g-mid-reexport.js
+  s_c9d8c2c13d3652::t_264e42154ae054 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/graphprobe/g-mid-star.js
+  s_c9d8c2c13d3652::t_a4f75ea3d70b75 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/graphprobe/g-shared-leaf.js
+  s_c9d8c2c13d3652::t_5d225e3e7755df 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/graphprobe/g-shared-mid.js
+  s_c9d8c2c13d3652::t_a7de7e39385462 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g1.js
+  s_c9d8c2c13d3652::t_4bdfbcf533a11a 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g10.js
+  s_c9d8c2c13d3652::t_357d3320776a98 1-3
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-3
+packages/engine/test/fixtures-worker/assets/graphprobe/g11.js
+  s_c9d8c2c13d3652::t_9c44771ca3c73c 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g12.js
+  s_c9d8c2c13d3652::t_222e6d5405190a 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g15.js
+  s_c9d8c2c13d3652::t_39c96878ca80ae 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g16.js
+  s_c9d8c2c13d3652::t_190276f727b111 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g17.js
+  s_c9d8c2c13d3652::t_9002a9c0764da4 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g18.js
+  s_c9d8c2c13d3652::t_af4f1e5979c830 1-6
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g19.js
+  s_c9d8c2c13d3652::t_bbd216afae0a35 1
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1
+packages/engine/test/fixtures-worker/assets/graphprobe/g2.js
+  s_c9d8c2c13d3652::t_1333574f464aef 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g3.js
+  s_c9d8c2c13d3652::t_fcfc765cd90422 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g4.js
+  s_c9d8c2c13d3652::t_c9c65b107079cb 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g5.js
+  s_c9d8c2c13d3652::t_57bdd9c50e98c7 1-3
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-3
+packages/engine/test/fixtures-worker/assets/graphprobe/g6.js
+  s_c9d8c2c13d3652::t_c5f7f21bebe1ea 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g7.js
+  s_c9d8c2c13d3652::t_fa760119a60a37 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g8.js
+  s_c9d8c2c13d3652::t_7e922b274eb2a2 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/g9.js
+  s_c9d8c2c13d3652::t_56671d87fe03ea 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/gc1.js
+  s_c9d8c2c13d3652::t_6b6c66bac467a2 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/gc2.js
+  s_c9d8c2c13d3652::t_01ac3d4dcd7a6c 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/gc3.js
+  s_c9d8c2c13d3652::t_d0947899c8b904 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/gc4.js
+  s_c9d8c2c13d3652::t_332db933b2ab8f 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/gc5.js
+  s_c9d8c2c13d3652::t_ef4b0eae43f0a4 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/graphprobe/gc6.js
+  s_c9d8c2c13d3652::t_f61b76d2e5a330 1-2
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2
+packages/engine/test/fixtures-worker/assets/importmeta-chunk.js
+  s_c9d8c2c13d3652::t_7b0e7207f5157b 1-4
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-4
+packages/engine/test/fixtures-worker/assets/latin1.css.bin
+  s_c9d8c2c13d3652::t_9d5c428e673934 1-2
+  s_c9d8c2c13d3652::t_940ad36035ac6c 1-2
+packages/engine/test/fixtures-worker/assets/sticky-body-overflow.html
+  s_c9d8c2c13d3652::t_a11d402d2789cb 1-15
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-15
+packages/engine/test/fixtures-worker/assets/sticky-root-overflow.html
+  s_c9d8c2c13d3652::t_cd1ef8f085176e 1-15
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-15
+packages/engine/test/fixtures-worker/assets/svg-document-metadata.svg
+  s_c9d8c2c13d3652::t_9cebb17502bcd7 1-8
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-8
+packages/engine/test/fixtures-worker/assets/svg-document-overflowing.svg
+  s_c9d8c2c13d3652::t_59fa643f79495e 1-3
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-3
+packages/engine/test/fixtures-worker/assets/svg-document-prologue.svg
+  s_c9d8c2c13d3652::t_13497bf7545ca7 1-5
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-5
+packages/engine/test/fixtures-worker/assets/svg-document-sized.svg
+  s_c9d8c2c13d3652::t_5dec6c376b3a9e 1-4
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-4
+packages/engine/test/fixtures-worker/assets/svg-document-styled.svg
+  s_c9d8c2c13d3652::t_257ec9a31c9176 1-4
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-4
+packages/engine/test/fixtures-worker/assets/svg-document-viewbox.svg
+  s_c9d8c2c13d3652::t_3fd46aacacceb2 1-3
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-3
+packages/engine/test/fixtures-worker/src/assets.d.ts
+  s_c9d8c2c13d3652::t_ef71b77483ab59 31-42
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 31-42
+packages/engine/test/fixtures-worker/src/dynamic/bench.ts
+  s_c9d8c2c13d3652::t_9c82786736dac3 1-271
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-271
+packages/engine/test/fixtures-worker/src/dynamic/cors.ts
+  s_c9d8c2c13d3652::t_3c5c292a13a808 1-164
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-164
+packages/engine/test/fixtures-worker/src/dynamic/crawl.ts
+  s_c9d8c2c13d3652::t_7d6a79e0ca7b2b 1-43
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-43
+packages/engine/test/fixtures-worker/src/dynamic/documents.ts
+  s_c9d8c2c13d3652::t_1f26e2049fef51 1-139
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-62,64-139
+  s_c9d8c2c13d3652::t_aac70263318f97 63
+packages/engine/test/fixtures-worker/src/dynamic/fonts.ts
+  s_c9d8c2c13d3652::t_ef1eeb41046535 1-164
+  s_c9d8c2c13d3652::t_aac70263318f97 9,21,131,136
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-8,10-20,22-130,132-135,137-164
+packages/engine/test/fixtures-worker/src/dynamic/frames.ts
+  s_c9d8c2c13d3652::t_7a11fcdea2ce47 1-81
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-81
+packages/engine/test/fixtures-worker/src/dynamic/scripts.ts
+  s_c9d8c2c13d3652::t_018e33feb65af6 1-130
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-130
+packages/engine/test/fixtures-worker/src/dynamic/slow.ts
+  s_c9d8c2c13d3652::t_7f8d09447b2459 1-105
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-96,98-105
+  s_c9d8c2c13d3652::t_aac70263318f97 97
+packages/engine/test/fixtures-worker/src/dynamic/ws-echo.ts
+  s_c9d8c2c13d3652::t_0b3a5c061ade14 1-25
+  s_c9d8c2c13d3652::t_aac70263318f97 13
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-12,14-25
+packages/engine/test/fixtures-worker/src/png.ts
+  s_c9d8c2c13d3652::t_7cb512648595b4 1-119
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-45,48-101,104-119
+  s_c9d8c2c13d3652::t_aac70263318f97 46-47,102-103
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c9d8c2c13d3652::t_d26b2da53e82d3 1-26,30,34,36-49,53-58
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 2-26,30,34,36,49,53,56-58
+  s_c9d8c2c13d3652::t_aac70263318f97 1,54-55
+  s_c9d8c2c13d3652::t_0130620b13a2c9 37-48
+packages/engine/test/fixtures-worker/src/snapshot.ts
+  s_c9d8c2c13d3652::t_a879aac8b3742f 1-2,10-17,28-32,35,38,52,55-58,64
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-2,10-17,28-32,35,38,52,55-58,64
+packages/engine/test/fixtures-worker/src/static.ts
+  s_c9d8c2c13d3652::t_05aa2f3245f0ec 1-743
+  s_c9d8c2c13d3652::t_aac70263318f97 266,355,357,359,363,365,525
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1-265,267-354,356,358,360-362,364,366-524,526-743
+packages/engine/test/fixtures-worker/src/util.ts
+  s_c9d8c2c13d3652::t_767c2edc43315c 1,3-15,21-26,28-43
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 1,3-15,22-26,28-43
+  s_c9d8c2c13d3652::t_aac70263318f97 21
+  s_c9d8c2c13d3652::t_8ce513eff3f876 2,16-20,27
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_c9d8c2c13d3652::t_d5e2a90c7c9b98 8-9,12-13,18-24,29
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 8-9,12-13,18-24,29
+packages/engine/vitest.e2e.config.mts
+  s_c9d8c2c13d3652::t_b484596ebe63e7 186
+  s_c9d8c2c13d3652::t_da6438ae5b3e4c 186
+packages/engine/test/e2e/cloudflare-env.d.ts
+  s_c9d8c2c13d3652::t_8ce513eff3f876 1-5
+packages/engine/src/index.ts
+  s_c9d8c2c13d3652::t_8ce513eff3f876 21,264-274,277-278,280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "34205bc6eb7ef9efccb56d95ff9f57dcc798c6d6",
+  "prompts": {},
+  "sessions": {
+    "s_c9d8c2c13d3652": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f012fb728ffev3JPvVPB6eQ5iI",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
