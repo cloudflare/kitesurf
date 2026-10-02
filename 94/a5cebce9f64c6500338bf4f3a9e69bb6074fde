@@ -1,0 +1,59 @@
+packages/script-gate/src/classic-scan.ts
+  s_dae2a321c55580::t_f956e987bc94db 1,72-79,146-147,173,195-196,246-247,253
+packages/script-gate/src/csp.ts
+  s_47c30dc7e2f3aa::t_1fda9c458ab8a6 1-7,17-19,26-28,40-41,93,96,136,142,270,275-276,350-351,355-356,362
+packages/script-gate/src/gate.ts
+  s_dae2a321c55580::t_21cf5faecb15a1 1-2,44-45,49-51,87,112-113,130,135-138,170-171,178,181-182,210-211,214,241,243-260,269,286,322-323,329,375-376
+packages/script-gate/src/gateway-headers.ts
+  s_dae2a321c55580::t_2c8506ee32e790 1
+packages/script-gate/src/index.ts
+  s_36cdb809e94ae1::t_4327f66f4af40e 44-49
+packages/script-gate/src/mime.ts
+  s_dae2a321c55580::t_21092d94784586 1-2,68-69,95-96
+packages/script-gate/src/sri.ts
+  s_dae2a321c55580::t_ab683e6549c80d 1,39-42,56-59,61-62,76-77,102-117,122-123,131-132,151-152
+packages/script-gate/test/digest.test.ts
+  s_36cdb809e94ae1::t_35efea89bb96a5 8-11
+packages/script-gate/test/gate.test.ts
+  s_e1d7461d1a8822::t_d6c9b7c0d5914f 2,12,18-27,52,73-75,87,111-165,239,370-371,394-395,400-401,441-442,471-503
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "94a5cebce9f64c6500338bf4f3a9e69bb6074fde",
+  "prompts": {},
+  "sessions": {
+    "s_36cdb809e94ae1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03982365ffezVyqdLg6n6lno5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_47c30dc7e2f3aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03986894ffeLs3pkWKYkmMCuo",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_dae2a321c55580": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039868a3ffelpQrAvKruzw0dY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_e1d7461d1a8822": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039ac9d0ffeQZMXoLnEhbaNG7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
