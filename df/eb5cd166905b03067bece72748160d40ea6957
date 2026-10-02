@@ -1,0 +1,21 @@
+packages/website/scripts/build.mjs
+  s_36cdb809e94ae1::t_45461741c15ca2 1-3
+packages/website/src/client/wpt.ts
+  s_36cdb809e94ae1::t_69434c7833ec2c 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dfeb5cd166905b03067bece72748160d40ea6957",
+  "prompts": {},
+  "sessions": {
+    "s_36cdb809e94ae1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03982365ffezVyqdLg6n6lno5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
