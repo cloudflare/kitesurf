@@ -1,0 +1,45 @@
+.gitlab-ci.yml
+  s_20642805355ab4::t_05060e80aa1505 11-12,178-179
+packages/engine/src/cdp-client.ts
+  s_20642805355ab4::t_7b326daa4d8a99 110
+packages/engine/test/e2e/demos/dom-mutation-events-demo.e2e.test.ts
+  s_20642805355ab4::t_89b589b821b919 300
+  s_20642805355ab4::t_377459baf1b4ef 55-56,115,139,155,179,212,235-250
+examples/manifest.json
+  s_20642805355ab4::t_9a05130bd3f7c2 79-85,282-287
+  s_20642805355ab4::t_706d23689abe7a 288
+packages/engine/src/rbi.ts
+  s_20642805355ab4::t_7b326daa4d8a99 161-165
+packages/engine/src/cdp/connection.ts
+  s_20642805355ab4::t_7b326daa4d8a99 304,345
+scripts/gen-examples-manifest.mjs
+  s_20642805355ab4::t_b42efa75fc2a6e 24
+packages/engine/src/cdp/dom.ts
+  s_20642805355ab4::t_7b326daa4d8a99 620-621,654
+docs/PLATFORM.md
+  s_20642805355ab4::t_7715affc25dd8d 59-61
+packages/engine/src/eval/outbound.ts
+  s_20642805355ab4::t_7b326daa4d8a99 448-452
+packages/engine/src/quickactions/memory-headers.ts
+  s_20642805355ab4::t_31c537fec74592 12
+  s_20642805355ab4::t_b87fe729c83542 28-33
+packages/engine/test/quickaction.test.ts
+  s_20642805355ab4::t_31c537fec74592 25,30-51
+  s_20642805355ab4::t_88e8008ec5e6c8 52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "38a1640dac991e85fd050f734bb9701ec5147690",
+  "prompts": {},
+  "sessions": {
+    "s_20642805355ab4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e2fe02ffeBPRkxpXKpYOZzY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
