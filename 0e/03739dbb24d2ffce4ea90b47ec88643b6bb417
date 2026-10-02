@@ -1,0 +1,20 @@
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_389aa8bfb4b14f::t_0ba9c829b8c484 18,44-51,53-60
+  s_389aa8bfb4b14f::t_2a3874dd44c035 10-15,31,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0e03739dbb24d2ffce4ea90b47ec88643b6bb417",
+  "prompts": {},
+  "sessions": {
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
