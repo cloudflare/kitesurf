@@ -4,6 +4,7 @@ packages/renderer-core/src/lib.rs
 packages/renderer-core/Cargo.toml
   s_b59a5e4402e532::t_b2134a30411c6b 12,15,18-19
   s_b59a5e4402e532::t_6121cd3e69798a 13
+  s_b59a5e4402e532::t_510d814aba9b88 14,17
 ---
 {
   "schema_version": "authorship/3.0.0",
