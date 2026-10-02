@@ -1,0 +1,20 @@
+packages/engine/test/e2e/background-reopen-lifecycle.e2e.test.ts
+  s_76ef56a289f4d5::t_a2599125400701 51,58,61,64-72,74-79,85
+  s_76ef56a289f4d5::t_bd5424f8db19eb 45,52-57,86-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "30a01d7c40e3d3f3bffbe8cc8bb7e9c32943a61d",
+  "prompts": {},
+  "sessions": {
+    "s_76ef56a289f4d5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039850ccffe1lEzMLm9ElUAiQ",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
