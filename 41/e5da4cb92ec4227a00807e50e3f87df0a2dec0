@@ -1,0 +1,26 @@
+packages/engine/src/rbi.ts
+  s_f31fe8b734ae46::t_af8eb108a730da 77-78,165-166
+  s_f31fe8b734ae46::t_94be60f96eaacc 13-14,47-48,72,74,80,84,100-104,106-107,109,133,138,147,151-156,159,176,202,215,242,246,250,260,265,269-270,279,300,334-335,341,343-344,361
+packages/engine/test/e2e/harness.ts
+  s_f31fe8b734ae46::t_056f37e64b803c 21-23,26-29,52
+packages/kitesurf-cli/README.md
+  s_f31fe8b734ae46::t_94be60f96eaacc 37
+packages/engine/test/e2e/cdp-scene-stream.e2e.test.ts
+  s_f31fe8b734ae46::t_056f37e64b803c 2,7-8,36,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "41e5da4cb92ec4227a00807e50e3f87df0a2dec0",
+  "prompts": {},
+  "sessions": {
+    "s_f31fe8b734ae46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f07a5b8e3ffermPEBUJXW8AjHg",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}
