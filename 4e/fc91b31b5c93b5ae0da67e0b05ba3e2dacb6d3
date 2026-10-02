@@ -1,0 +1,17 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4efc91b31b5c93b5ae0da67e0b05ba3e2dacb6d3",
+  "prompts": {},
+  "sessions": {
+    "s_090f1138f4038a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0b0703e6ffeN05VE2WmscgF7t",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
