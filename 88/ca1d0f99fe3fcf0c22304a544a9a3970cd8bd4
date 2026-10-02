@@ -24,6 +24,8 @@ packages/engine/src/quickactions/memory-headers.ts
 packages/engine/test/quickaction.test.ts
   s_20642805355ab4::t_31c537fec74592 25,30-51
   s_20642805355ab4::t_88e8008ec5e6c8 52
+packages/engine/src/rbi.ts
+  s_02aec11c0b5059::t_75cdac938b0a3c 713
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -31,6 +33,14 @@ packages/engine/test/quickaction.test.ts
   "base_commit_sha": "88ca1d0f99fe3fcf0c22304a544a9a3970cd8bd4",
   "prompts": {},
   "sessions": {
+    "s_02aec11c0b5059": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03971ae2ffeDMPCFO8lzrIemS",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_20642805355ab4": {
       "agent_id": {
         "tool": "opencode",
