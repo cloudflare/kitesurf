@@ -1,5 +1,6 @@
 docs/PLATFORM.md
   s_b28f10956c0cd2::t_0a6250b8e5a45d 93,97
+  s_389aa8bfb4b14f::t_f67ab12c51d2eb 92,94-96
 packages/engine/test/e2e/canvas-raw-renderer.e2e.test.ts
   s_b28f10956c0cd2::t_15aa7ba7b2bc3b 1-2,6-8,14-24,26-37
 docs/PAGE_RENDERER.md
@@ -20,6 +21,14 @@ packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
         "tool": "opencode",
         "id": "ses_f0eae1bebffeH0x3Q3vwkoOycu",
         "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     },
