@@ -1202,6 +1202,10 @@ packages/engine/src/rbi.ts
   s_20642805355ab4::t_27eb2638963766 515
   s_20642805355ab4::t_4c8eff67997387 233,241,289
   s_20642805355ab4::t_0975ecf3dbfabc 109
+  s_02aec11c0b5059::t_c6af04705f7650 354,488
+  s_02aec11c0b5059::t_a9eb6fc1a83b33 75,77,80
+  s_02aec11c0b5059::t_68031ddaa5aaad 111
+  s_02aec11c0b5059::t_35e7b97e6f60f6 342
 packages/engine/test/e2e/root-element-metrics.e2e.test.ts
   s_20642805355ab4::t_4b949eb66df282 1-2
 packages/engine/test/e2e/smoke.e2e.test.ts
@@ -1299,6 +1303,14 @@ packages/engine/test/e2e/demos/img-srcset-reload-complete.e2e.test.ts
   "base_commit_sha": "3946c48304492411245283a5c5b9537ad11e7dec",
   "prompts": {},
   "sessions": {
+    "s_02aec11c0b5059": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03971ae2ffeDMPCFO8lzrIemS",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_20642805355ab4": {
       "agent_id": {
         "tool": "opencode",
