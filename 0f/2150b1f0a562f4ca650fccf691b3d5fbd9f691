@@ -1,0 +1,25 @@
+packages/core/Cargo.toml
+  s_b0bff6c749373b::t_d036baabd0299f 61-64
+packages/core/src/lib.rs
+  s_b0bff6c749373b::t_4a734255432710 92
+packages/core/src/text_encoding.rs
+  s_b0bff6c749373b::t_b60e2e115de142 1-203
+Cargo.lock
+  s_b0bff6c749373b::t_e68e884b597110 1563
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f2150b1f0a562f4ca650fccf691b3d5fbd9f691",
+  "prompts": {},
+  "sessions": {
+    "s_b0bff6c749373b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f01e505e3ffeYGxi5TryF52yhF",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
