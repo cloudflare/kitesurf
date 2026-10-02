@@ -1,0 +1,21 @@
+packages/engine/test/e2e/raf-overrun-frame-gap.e2e.test.ts
+  s_b1966cfb8f6c29::t_a5e88a964ec087 1-52
+packages/page-script/src/globals.ts
+  s_b1966cfb8f6c29::t_20a1ddbeef8349 182-192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a5d4bb94fa5554f4c779aa7ee30825f15e2bfb4c",
+  "prompts": {},
+  "sessions": {
+    "s_b1966cfb8f6c29": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f01d16946ffeP3yF6gjdtoI05e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
