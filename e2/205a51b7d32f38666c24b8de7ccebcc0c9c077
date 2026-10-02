@@ -1,0 +1,97 @@
+packages/engine/test/fixtures-worker/src/dynamic/slow.ts
+  s_f563325ff71527::t_5372775ebd5895 29-31,34,41,47-48,50-51,53-56,61-66,79,88,91,101
+  s_f563325ff71527::t_5a961b19e474c9 74
+packages/engine/test/fixtures-worker/src/dynamic/ws-echo.ts
+  s_f563325ff71527::t_05ef98e07fe86b 12,15-16,21-22
+packages/engine/test/fixtures-worker/src/util.ts
+  s_f563325ff71527::t_d0390bfbd8caed 6-14,16-19,24,28
+  s_f563325ff71527::t_dff989ef781f2a 26-27
+packages/engine/test/fixtures-worker/src/png.ts
+  s_f563325ff71527::t_763bf45c87d5e7 102
+  s_f563325ff71527::t_4d9defe9c4f083 1-48,61-62,64-68,72,74,76-79,81-90,94-96,98,105,109-114,116,121-125
+  s_f563325ff71527::t_a0ecffaca4b97a 52,54-55
+packages/engine/test/fixtures-worker/src/dynamic/frames.ts
+  s_f563325ff71527::t_f86e9462ddccba 56
+  s_f563325ff71527::t_94c1041d525737 23-26,29-30,32,36,44,50,54-55,66,68,70-71
+  s_f563325ff71527::t_29aacbffbe8f80 45-47,49
+  s_f563325ff71527::t_cc6207e7c51860 1
+  s_f563325ff71527::t_37ae477450defd 27,31
+packages/engine/test/fixtures-worker/assets/canvas-drawimage.html
+  s_f563325ff71527::t_a49e1cbfaea9bd 25-31
+  s_f563325ff71527::t_94f130185fa024 33-35,37,43-45,47-50,53-55
+  s_f563325ff71527::t_b4eb8bb34f125a 58-59
+packages/engine/test/fixtures-worker/src/dynamic/scripts.ts
+  s_f563325ff71527::t_1aa8e4332b765b 98
+  s_f563325ff71527::t_b1a75b0ebcf03d 59-60
+  s_f563325ff71527::t_466afaaf1a7ae2 68-70
+  s_f563325ff71527::t_c81c007d6a58e4 115,117
+  s_f563325ff71527::t_c5b38c7e98a7e1 86-87
+packages/engine/test/fixtures-worker/src/snapshot.ts
+  s_f563325ff71527::t_cd0fcbe96db0b4 10-12
+  s_f563325ff71527::t_ec8df19633e438 28-32,35,38
+  s_f563325ff71527::t_bcd61f43ef19f8 52,55-58
+packages/engine/test/fixtures-worker/src/static.ts
+  s_f563325ff71527::t_90305dec34adf7 718
+  s_f563325ff71527::t_223aad316700f1 477
+  s_f563325ff71527::t_ee034ac2747866 678
+  s_f563325ff71527::t_df75ddbcddb541 728
+  s_f563325ff71527::t_baa202c3146902 699
+  s_f563325ff71527::t_8cbb920436f45b 711
+  s_f563325ff71527::t_43b7ec3bcab10b 734
+  s_f563325ff71527::t_dd95bf5a88a395 687
+packages/engine/test/fixtures-worker/src/dynamic/cors.ts
+  s_f563325ff71527::t_4eeb8dbeb461de 10-13
+  s_f563325ff71527::t_86ada57249f4d6 60,62-63
+  s_f563325ff71527::t_9da8ac3fefcf29 158-161,163-164
+  s_f563325ff71527::t_43142f38f6d747 134
+  s_f563325ff71527::t_b69bb8413a20f6 6
+  s_f563325ff71527::t_1ca48088295c69 146
+  s_f563325ff71527::t_37978a4c612829 115-118
+  s_f563325ff71527::t_acc5792044950d 127
+packages/engine/test/fixtures-worker/src/dynamic/crawl.ts
+  s_f563325ff71527::t_499f3944948bb2 10
+packages/engine/test/fixtures-worker/src/dynamic/bench.ts
+  s_f563325ff71527::t_2d4cd039deeb97 226-227
+  s_f563325ff71527::t_a2c43844ae474a 17
+  s_f563325ff71527::t_f2a51923a2bd3b 6,10-14,18-20,22-30,33-36,38-42,59,61-62,71,81,92-93,95,100,114-116,118-124,127,129-135,139,152-156,167,176-177,185-189,192,195,202,206,217-219,222-223,228,237-239,248,250-254,257,260,264-266
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_f563325ff71527::t_8fa3626ba399a9 46,48,51-52
+  s_f563325ff71527::t_3927db4d65810f 20-31
+  s_f563325ff71527::t_a6b0a75e7c0fb8 35
+  s_f563325ff71527::t_4ef9d1bdc50b6d 47
+packages/engine/test/fixtures-worker/assets/bench-canvas.html
+  s_f563325ff71527::t_df653ca577fd60 23-27,29-39
+packages/engine/test/fixtures-worker/src/dynamic/fonts.ts
+  s_f563325ff71527::t_9011561267605e 42-44
+  s_f563325ff71527::t_fac0ea2e2c1575 92-94
+  s_f563325ff71527::t_e447d2a04f0c2f 96-97,100-102,107-108
+  s_f563325ff71527::t_1ff98a874729d5 144
+  s_f563325ff71527::t_7ecceeee87da8b 69
+  s_f563325ff71527::t_260db1efa1f8fd 61-63
+  s_f563325ff71527::t_ca5952b89bc542 49-50,52-53
+  s_f563325ff71527::t_e44b0c8232ea96 11
+  s_f563325ff71527::t_bcd6c12b5ee444 19
+packages/engine/test/fixtures-worker/src/dynamic/documents.ts
+  s_f563325ff71527::t_7612637560e2bc 21-23,25,27
+  s_f563325ff71527::t_c568f6c5720b61 85
+  s_f563325ff71527::t_489f555ea7b48f 66-69
+  s_f563325ff71527::t_101bd11ac21b10 14
+packages/engine/test/e2e/engine-routes.e2e.test.ts
+  s_f563325ff71527::t_db16e3e6b74f65 92-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e2205a51b7d32f38666c24b8de7ccebcc0c9c077",
+  "prompts": {},
+  "sessions": {
+    "s_f563325ff71527": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0478eb4affeDBEZT4neB4711r",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
