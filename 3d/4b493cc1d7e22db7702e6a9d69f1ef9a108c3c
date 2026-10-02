@@ -1,0 +1,66 @@
+packages/tty-css-preview/src/server.mjs
+  s_b421a028f30fb3::t_680f1e5077d255 6-8
+  s_b421a028f30fb3::t_4ed790da45853a 10
+packages/tty-css-preview/test/server.test.mjs
+  s_b421a028f30fb3::t_680f1e5077d255 14-15,54-55
+packages/tty-css-preview/README.md
+  s_b421a028f30fb3::t_4ed790da45853a 33
+  s_b421a028f30fb3::t_993f4088c1bd00 30-31
+packages/tty-css-preview/extension/popup.js
+  s_b421a028f30fb3::t_fb030750c6bb0f 15
+packages/tty-css-preview/test/content-script-fixture.mjs
+  s_b421a028f30fb3::t_801b1ae7199df0 2-193,195-199,201-216,221-222,230-238,244-249,258,261-285
+  s_b421a028f30fb3::t_9550bd0a2202a3 239-241,250-251
+  s_b421a028f30fb3::t_a7fa4f52efc9df 242-243
+  s_b421a028f30fb3::t_e22f765b9b676c 217-220,223-229
+  s_b421a028f30fb3::t_f887489c87612b 1,194,200,252-257,259-260
+packages/tty-css-preview/test/content.test.mjs
+  s_b421a028f30fb3::t_41210e88fa3f34 397
+  s_b421a028f30fb3::t_e79386b3b83be4 70,81-82,297-299,303,309
+  s_b421a028f30fb3::t_801b1ae7199df0 1-13,27-69,72-80,83-107,110-129,132-145,148-158,161-167,169-174,177-187,202-203,206-215,217-222,225-242,245-252,254-259,262-275,278-294,300-302,304-308,310-315,318-348,351-368,371-381,386-391,399,401-413
+  s_b421a028f30fb3::t_e3f6c5b7b69077 188-201
+  s_b421a028f30fb3::t_b80e6c48b9deee 71
+  s_b421a028f30fb3::t_4ed790da45853a 369-370,398,400
+  s_b421a028f30fb3::t_1cb3b748016198 14-26
+  s_b421a028f30fb3::t_d066def62c2a4c 168,253,382-385,392-396
+  s_b421a028f30fb3::t_81639001d1c609 108-109,130-131,146-147,159-160,175-176,204-205,223-224,243-244,260-261,276-277,295-296,316-317,349-350
+  s_b421a028f30fb3::t_66b8cbbb3fc813 216
+packages/tty-css-preview/extension/content.js
+  s_b421a028f30fb3::t_c7c5fec99afab0 134,267-276,278-282,291,295,313-315,323-324
+  s_b421a028f30fb3::t_8d4443a9e83acd 20-23,90,95-105,108,113-124,126,128-129,131,133
+  s_b421a028f30fb3::t_0aaab0ac4f4a1c 127
+  s_b421a028f30fb3::t_0a1fd3f0b3069e 163-166
+  s_b421a028f30fb3::t_4ed790da45853a 302
+  s_b421a028f30fb3::t_379c801bc0ccf3 344,348-349,380-381,468
+  s_b421a028f30fb3::t_d24c0c46cccb75 130
+  s_b421a028f30fb3::t_9550bd0a2202a3 143-144
+  s_b421a028f30fb3::t_5a0620c31ff90c 277
+  s_b421a028f30fb3::t_01f11d18e88193 132
+  s_b421a028f30fb3::t_f9d05478662d53 125
+  s_b421a028f30fb3::t_7912f35cff0d1b 71-72,197-198,235
+  s_47c30dc7e2f3aa::t_2389899fb842cc 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3d4b493cc1d7e22db7702e6a9d69f1ef9a108c3c",
+  "prompts": {},
+  "sessions": {
+    "s_47c30dc7e2f3aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03986894ffeLs3pkWKYkmMCuo",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b421a028f30fb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f036a3268ffeCXpNHPVlSudfaM",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
