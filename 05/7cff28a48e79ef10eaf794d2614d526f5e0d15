@@ -1,0 +1,55 @@
+packages/grafana/src/cli.ts
+  s_e2fe9b4ff2b6f7::t_0f0a8a42e2789f 8
+packages/grafana/src/query.ts
+  s_e2fe9b4ff2b6f7::t_add7b091c02359 65
+  s_e2fe9b4ff2b6f7::t_d85d36a119d901 119
+  s_e2fe9b4ff2b6f7::t_955a320a137cf0 22,27-39,54-56,114,131,166,178,187,191-192,208,226,233,238,242,245,251,263,424,434,458-459,464,569-573,575,587,595,604,611-612
+packages/grafana/src/datasources.ts
+  s_e2fe9b4ff2b6f7::t_856289d7d187fb 1
+packages/grafana/test/dashboard.test.ts
+  s_e2fe9b4ff2b6f7::t_0f0a8a42e2789f 122-123,210-211
+  s_e2fe9b4ff2b6f7::t_9e71b342e1d2bc 345
+  s_e2fe9b4ff2b6f7::t_258b5230f1a47a 1,27-36,44-48,67-89,110-118,133,154,167-175,206-209,212-232,237,251,263,279,291-292,305,330,338,341,356,388,392,398,401
+packages/grafana/src/dashboard.ts
+  s_e2fe9b4ff2b6f7::t_856289d7d187fb 12-17,22-23,60-63,82-83,93-94,96,112
+packages/grafana/src/panel.ts
+  s_e2fe9b4ff2b6f7::t_83f60ac417b73c 30,43,45,90,99,107,141,207-208,217,227,233
+  s_e2fe9b4ff2b6f7::t_a466d113549cdf 32,79
+  s_e2fe9b4ff2b6f7::t_3a6ce1bb942d87 165
+  s_e2fe9b4ff2b6f7::t_0f0a8a42e2789f 1
+  s_e2fe9b4ff2b6f7::t_9e71b342e1d2bc 93,96,103,129
+packages/grafana/README.md
+  s_e2fe9b4ff2b6f7::t_d85d36a119d901 24,26-27
+  s_e2fe9b4ff2b6f7::t_9e71b342e1d2bc 11,16
+  s_e2fe9b4ff2b6f7::t_f6ae51727f8959 28
+  s_e2fe9b4ff2b6f7::t_856289d7d187fb 3-5,20,25
+  s_e2fe9b4ff2b6f7::t_0f0a8a42e2789f 22-23
+packages/grafana/package.json
+  s_e2fe9b4ff2b6f7::t_856289d7d187fb 5
+packages/grafana/src/dashboards/kitesurf-usage.ts
+  s_e2fe9b4ff2b6f7::t_0f0a8a42e2789f 1-2
+  s_e2fe9b4ff2b6f7::t_34a4f3c407cc77 50,61,82,95
+packages/grafana/test/query.test.ts
+  s_e2fe9b4ff2b6f7::t_34a4f3c407cc77 231
+  s_e2fe9b4ff2b6f7::t_f6ae51727f8959 319
+  s_e2fe9b4ff2b6f7::t_82e4cbb48a5aa3 143,151-152,209
+  s_e2fe9b4ff2b6f7::t_269f6054053061 134,159,222,271,283,286,302,316,329,334,340,350
+  s_e2fe9b4ff2b6f7::t_af1080d58b3fa6 173
+  s_e2fe9b4ff2b6f7::t_2867f0d2aa2f35 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "057cff28a48e79ef10eaf794d2614d526f5e0d15",
+  "prompts": {},
+  "sessions": {
+    "s_e2fe9b4ff2b6f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03700089ffech41pef4K7nkF4",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
