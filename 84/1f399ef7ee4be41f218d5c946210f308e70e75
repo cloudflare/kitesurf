@@ -1,0 +1,19 @@
+.opencode/skills/kitesurf-deslop/SKILL.md
+  s_76ef56a289f4d5::t_fb18b15075869f 254-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "841f399ef7ee4be41f218d5c946210f308e70e75",
+  "prompts": {},
+  "sessions": {
+    "s_76ef56a289f4d5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039850ccffe1lEzMLm9ElUAiQ",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
