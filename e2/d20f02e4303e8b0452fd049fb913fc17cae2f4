@@ -1,0 +1,19 @@
+packages/engine/test/e2e/canvas-raw-renderer.e2e.test.ts
+  s_389aa8bfb4b14f::t_a7e8d8ceac4155 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e2d20f02e4303e8b0452fd049fb913fc17cae2f4",
+  "prompts": {},
+  "sessions": {
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

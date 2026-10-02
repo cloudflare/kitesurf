@@ -1,0 +1,19 @@
+packages/dom-shim/src/element.ts
+  s_03997f732ec005::t_a2f091e9d9f95e 2885-2890,2893-2895,2934-2940,2946
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f80b3769f32c9294301fc7125567752b8ddcc3c",
+  "prompts": {},
+  "sessions": {
+    "s_03997f732ec005": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0eae1bebffeH0x3Q3vwkoOycu",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
