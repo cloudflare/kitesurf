@@ -1,0 +1,23 @@
+packages/page-script/src/globals.ts
+  s_62bd79c66854c1::t_8d223a6ffccb93 67,168-175,191
+packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
+  s_62bd79c66854c1::t_a2c5cb5d99ebca 13-15,22,25-27,39-40,42-60,62-63,65-80,82-83
+  s_62bd79c66854c1::t_eac90054dfd024 61,64,81
+  s_62bd79c66854c1::t_486a3622f3a4e2 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4ce5fbc53824c13e8829fceae141ea0ba4e96f9c",
+  "prompts": {},
+  "sessions": {
+    "s_62bd79c66854c1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0daa0868ffeEIQuXt2gq1KU8H",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
