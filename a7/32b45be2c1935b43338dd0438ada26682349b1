@@ -1,0 +1,20 @@
+packages/tty-css-preview/test/content.test.mjs
+  s_b421a028f30fb3::t_b9b44c4034a482 270-271,365-368,377-378,382-385
+  s_b421a028f30fb3::t_88a4f1ecfcee74 86-90,92-95,99-102,221-226,228,241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a732b45be2c1935b43338dd0438ada26682349b1",
+  "prompts": {},
+  "sessions": {
+    "s_b421a028f30fb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f036a3268ffeCXpNHPVlSudfaM",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
