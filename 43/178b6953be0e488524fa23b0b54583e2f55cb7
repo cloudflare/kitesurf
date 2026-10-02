@@ -1,0 +1,49 @@
+packages/grafana/test/dashboard.test.ts
+  s_8c9b931ea170ea::t_9e7472a986b578 128,138,140,151,167,250-252,264-266,282-284,295-296,368
+  s_8c9b931ea170ea::t_d5b709ee620b19 54-56
+  s_47c30dc7e2f3aa::t_d647a7086e9141 124-125
+packages/grafana/src/query.ts
+  s_8c9b931ea170ea::t_1910387de8449d 177
+  s_8c9b931ea170ea::t_d5b709ee620b19 176,178
+  s_8c9b931ea170ea::t_9e7472a986b578 109-111,364-365
+  s_8c9b931ea170ea::t_c48a94be4abddb 615
+  s_f759be96061792::t_2286cad77d7cad 27-28
+packages/grafana/src/dashboard.ts
+  s_8c9b931ea170ea::t_87152ea5a28736 41,67-72,76
+  s_8c9b931ea170ea::t_9e7472a986b578 58,60,74
+packages/grafana/src/panel.ts
+  s_8c9b931ea170ea::t_5d970aa648f23b 79
+  s_8c9b931ea170ea::t_7550ebd64f1fa8 141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "43178b6953be0e488524fa23b0b54583e2f55cb7",
+  "prompts": {},
+  "sessions": {
+    "s_47c30dc7e2f3aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03986894ffeLs3pkWKYkmMCuo",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_8c9b931ea170ea": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f02bac023ffeCPt4MDfV02WFZ8",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_f759be96061792": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f038b6e8affeI47oJbJHo7meyw",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
