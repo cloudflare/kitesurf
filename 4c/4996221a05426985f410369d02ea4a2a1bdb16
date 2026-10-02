@@ -16,6 +16,7 @@ packages/renderer-core/scripts/build.mjs
   s_b59a5e4402e532::t_aeb51e931d1292 176-178
   s_b59a5e4402e532::t_ee22f00fcd4fd0 42,213
   s_b59a5e4402e532::t_8ebe51c213dbff 16,19-24,53,64-65,77-87,113-118,132-150,153-158,165-166,168-172,218
+  s_b59a5e4402e532::t_d518d81bb0c74e 151-152
 ---
 {
   "schema_version": "authorship/3.0.0",
