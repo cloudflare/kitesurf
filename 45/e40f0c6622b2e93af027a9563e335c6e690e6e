@@ -1,0 +1,46 @@
+packages/comparison-core/package.json
+  s_47c30dc7e2f3aa::t_6cfec4dc412723 6,8
+  s_8e609071796038::t_222442f87545df 7
+packages/comparison-core/src/lib.rs
+  s_47c30dc7e2f3aa::t_6cfec4dc412723 7-8,64,99-108,110,122-135,138-141,149,152-153,165-171,203-215,218-221,232-234,236,238-239,241,243-246,253-256,258-259
+  s_47c30dc7e2f3aa::t_12d05f1f9a270b 142-143,151,222-225,228-231,235,237,240,247-252
+  s_47c30dc7e2f3aa::t_7fe990062e7ecd 144,146
+  s_47c30dc7e2f3aa::t_4b4e00bde2f444 150
+  s_47c30dc7e2f3aa::t_9cb80ae69c62b1 136-137,216-217,226-227,242
+  s_47c30dc7e2f3aa::t_1a4c2c62f533e2 172-202
+  s_8e609071796038::t_b396404993b0ab 112-113,147-148
+  s_8e609071796038::t_06184d908951fd 6,98,111,114-118,145,154-159
+  s_20642805355ab4::t_3eebc8b88989cc 109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "45e40f0c6622b2e93af027a9563e335c6e690e6e",
+  "prompts": {},
+  "sessions": {
+    "s_20642805355ab4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e2fe02ffeBPRkxpXKpYOZzY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_47c30dc7e2f3aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03986894ffeLs3pkWKYkmMCuo",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_8e609071796038": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f02c73e8effewZY7rVKKjoocIM",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
