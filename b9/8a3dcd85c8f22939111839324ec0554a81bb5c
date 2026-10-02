@@ -3,6 +3,7 @@ packages/engine/test/e2e/canvas-image-bytes.e2e.test.ts
   s_03997f732ec005::t_4c3aa4d11ee6e7 50,57-58,61-62,70,86,93-94,96-100,102-104,113
   s_03997f732ec005::t_329c75652403cc 73,79,89
   s_03997f732ec005::t_4becc879ca8769 63-69,105
+  s_389aa8bfb4b14f::t_45a61486e9d12b 13-27,32-37,46-49,51,53-56,59-60,71-72,74-78,80-85,87-88,90-92,95,101,106-112,116-121,135-148
 packages/dom-shim/src/canvas2d.ts
   s_03997f732ec005::t_3f7fb7ff068ce2 698
   s_03997f732ec005::t_978157df63f809 643,656-661,685-688,697,699-700,707-709
@@ -23,6 +24,14 @@ packages/core/src/lib.rs
         "tool": "opencode",
         "id": "ses_f0eae1bebffeH0x3Q3vwkoOycu",
         "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     }
