@@ -1,0 +1,37 @@
+packages/kitesurf-cli/src/main.rs
+  s_f31fe8b734ae46::t_7c2ebfc52c31e3 637,639,657,691,698,855-856,985,1042
+  s_f31fe8b734ae46::t_d3fb87776dabc2 675-676,680-682,685-690,701
+  s_f31fe8b734ae46::t_ed2f58e988fc67 1238-1258
+  s_f31fe8b734ae46::t_c60636b719ffd4 677-679,683-684,702
+packages/kitesurf-cli/src/cli.rs
+  s_f31fe8b734ae46::t_d3fb87776dabc2 94-96,127
+  s_f31fe8b734ae46::t_f9ed1cabeff22c 128
+packages/kitesurf-cli/src/access.rs
+  s_f31fe8b734ae46::t_f9ed1cabeff22c 143
+  s_f31fe8b734ae46::t_7c2ebfc52c31e3 3,19,36-52,88-89,142,146-157
+  s_f31fe8b734ae46::t_d3fb87776dabc2 20,22-31,127-141,144-145
+packages/engine/test/e2e/scene-stream-idle-frames.e2e.test.ts
+  s_f31fe8b734ae46::t_c60636b719ffd4 1,5-14,23,25,27,48-52,60,74,76,86
+packages/kitesurf-cli/README.md
+  s_f31fe8b734ae46::t_77bcced7af12e8 72-73
+packages/engine/test/e2e/cdp-scene-stream.e2e.test.ts
+  s_f31fe8b734ae46::t_c60636b719ffd4 28-32
+scripts/wait-for-main-wasm.test.mjs
+  s_f31fe8b734ae46::t_c60636b719ffd4 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "962a3a4d2e5af5a267fab8d21146379d02166384",
+  "prompts": {},
+  "sessions": {
+    "s_f31fe8b734ae46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f07a5b8e3ffermPEBUJXW8AjHg",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}
