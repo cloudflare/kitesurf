@@ -1,0 +1,25 @@
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_ae1ba390236c92::t_1436a5e531f1bd 25
+  s_ae1ba390236c92::t_985b5c0a34619a 27
+  s_ae1ba390236c92::t_08180317b9e7aa 28,34,46,52,54
+  s_ae1ba390236c92::t_6fd5017aa6581a 26,29-33,35-45,47-51,53,55-57
+packages/core/src/lib.rs
+  s_ae1ba390236c92::t_f57811a0d780c7 551-555
+  s_ae1ba390236c92::t_10b85d71bf9907 567-574,592-594
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "973fcc8dadc60d8a96ff3850303b9f4af15084ad",
+  "prompts": {},
+  "sessions": {
+    "s_ae1ba390236c92": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00dbc716ffeCNa36CStCv1WEf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
