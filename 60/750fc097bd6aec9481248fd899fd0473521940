@@ -3,6 +3,8 @@ docs/PLATFORM.md
 packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
   s_389aa8bfb4b14f::t_2a3874dd44c035 93,96,116,124-126,130-143,147-150,152-182
   s_389aa8bfb4b14f::t_31aa6a75a1002f 127-129,144-146,151
+packages/page-script/src/page-tasks.ts
+  s_7ef3db5fbd7641::t_0bcf31213f9874 97-98,101-102
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -14,6 +16,14 @@ packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
       "agent_id": {
         "tool": "opencode",
         "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7ef3db5fbd7641": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00f5d022ffeMJO0YDl7fwi3KE",
         "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
