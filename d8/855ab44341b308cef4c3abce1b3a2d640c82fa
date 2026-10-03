@@ -1,0 +1,115 @@
+packages/kitesurf-app/scripts/build-engine.sh
+  s_f9254de60e80ce::t_78c2a2e79dbfa5 1-12
+packages/kitesurf-app/src/menu.rs
+  s_f9254de60e80ce::t_7aa00c79ee4e99 1-164
+packages/kitesurf-app/src/engine.rs
+  s_f9254de60e80ce::t_7aa00c79ee4e99 26-46,48-56,85-89,100-103,112-116,137-139,157-161,222-231,264-266,279-283,303-304,313-315,318-320,322-325,328-333,351-355,382-385,442-447,458-463,467-469,491-494,499-502,506-508,511-514,517-520,527-540
+  s_f9254de60e80ce::t_68fa6e1f699758 156,170,186,259,389-391,427-435
+  s_f9254de60e80ce::t_37ccf7d4d472a7 392,414
+  s_f9254de60e80ce::t_3f5a8915224d97 474-477
+  s_f9254de60e80ce::t_5edd3e6ff6de96 1-25,47,57-69,75-84,90-99,104-111,117-136,140-155,162-169,171-185,187-221,232-258,260-263,267-272,274-278,284-302,305-312,316-317,321,326-327,334-350,356-381,386-388,393-413,415-426,436-441,448-457,464-466,470-473,478-484,486-490,495-498,503-505,509-510,515-516,521-526,541-546
+  s_f9254de60e80ce::t_0c17f1f00b97c4 70-74,273,485
+packages/kitesurf-app/assets/chrome.css
+  s_f9254de60e80ce::t_c3a01d08692538 31-38
+  s_f9254de60e80ce::t_1950b3c5d4d432 3,8,13,21,26,39,43,46,48,53,56-57,64-65,69,74,78,81,84,92,96,99,108,112,115-116,121,124,133,137,149-150,155,157,159-161,165-199
+  s_f9254de60e80ce::t_dfb26f3c8762f3 30
+  s_f9254de60e80ce::t_879e7acdc1e9bd 15-20
+  s_f9254de60e80ce::t_4c1028649cd4b3 1-2
+  s_f9254de60e80ce::t_8c83517291c653 4-7
+  s_f9254de60e80ce::t_064c2985c0e15a 9-12
+  s_f9254de60e80ce::t_a175ce530091e2 14
+  s_f9254de60e80ce::t_45652e19d33ba4 22-25
+  s_f9254de60e80ce::t_01975c49ef432e 27-29
+  s_f9254de60e80ce::t_816aca2616746f 40-42
+  s_f9254de60e80ce::t_8dd0515f3c5daa 44-45
+  s_f9254de60e80ce::t_791dc6d444302a 47
+  s_f9254de60e80ce::t_9b5af46432a0c7 49-52
+  s_f9254de60e80ce::t_4d0699de43177f 54-55
+  s_f9254de60e80ce::t_3b077a2d1d64ee 58-63
+  s_f9254de60e80ce::t_67767539f56601 66-68
+  s_f9254de60e80ce::t_be84037cc79bca 70-73
+  s_f9254de60e80ce::t_dae2963d0eddda 75-77
+  s_f9254de60e80ce::t_c3de4582a53cae 79-80
+  s_f9254de60e80ce::t_39dd832fcda48c 82-83
+  s_f9254de60e80ce::t_8de9582b6df80a 85-87,89-91
+  s_f9254de60e80ce::t_d65167691f61c5 93-95
+  s_f9254de60e80ce::t_8eab7b6f515817 97-98
+  s_f9254de60e80ce::t_4096244ee11a6e 100-102,105-107
+  s_f9254de60e80ce::t_aace9f87a52cf6 109-111
+  s_f9254de60e80ce::t_af2e0afd31a7f2 113-114
+  s_f9254de60e80ce::t_b3e01dcfe8830a 117-120
+  s_f9254de60e80ce::t_b84911adc700db 122-123
+  s_f9254de60e80ce::t_b4daf7dafd638d 125-127,130-132
+  s_f9254de60e80ce::t_8b0093777a58c0 134-136
+  s_f9254de60e80ce::t_92b2498d61ac22 138-140,146-148
+  s_f9254de60e80ce::t_9a78df888dde84 151-154
+  s_f9254de60e80ce::t_d7bcb27c54bda6 156
+  s_f9254de60e80ce::t_c7fba0db42d52d 158
+  s_f9254de60e80ce::t_ba70d70cdd52cc 162-164
+packages/kitesurf-app/src/chrome.rs
+  s_f9254de60e80ce::t_3f5a8915224d97 31-40
+  s_f9254de60e80ce::t_0c425ea5a2c5ed 169,355
+  s_f9254de60e80ce::t_81fe49a7334e8e 212
+  s_f9254de60e80ce::t_c59db46588d3dd 5-29,53-60,66-90,97-102,134,149,163,170,172-187,194-200,206,233,236-253,255-265,267-273,275-281,283-286,309-317,319-343,347,366,374
+  s_f9254de60e80ce::t_1a605d0d348c42 171,230-231,254,266,274,282
+  s_f9254de60e80ce::t_7aa00c79ee4e99 61-65,92-96,108-111,136-148,150-161,201-205,344,346,365,369-373
+  s_f9254de60e80ce::t_995274eb0bf791 188-191
+  s_f9254de60e80ce::t_dd0013b73b74d1 91,318
+  s_f9254de60e80ce::t_88180714440382 103-107,112-132,162,299,345,364
+  s_f9254de60e80ce::t_8af3529974dadb 1-4,30,41-52,133,135,164-168,192-193,207-211,213-229,232,234-235,287-298,300-308,348-354,356-363,367-368
+packages/kitesurf-app/scripts/engine-config.mjs
+  s_f9254de60e80ce::t_66365df353daf8 83
+  s_f9254de60e80ce::t_e6720272a1fe8f 1-82,84-93
+packages/kitesurf-app/src/omnibox.rs
+  s_f9254de60e80ce::t_7aa00c79ee4e99 1-97
+packages/kitesurf-app/src/tabs.rs
+  s_f9254de60e80ce::t_11ae8996ddee8b 1-19,26-29,36-56,62-92,96-119,123-222
+  s_f9254de60e80ce::t_7aa00c79ee4e99 20-25,30-35,57-61,93-95,120-122
+AGENTS.md
+  s_f9254de60e80ce::t_347b767dc050a9 81-84
+.gitignore
+  s_f9254de60e80ce::t_2bdd60b8ceaea5 144-147
+packages/kitesurf-app/build.rs
+  s_f9254de60e80ce::t_9a18324aca1f4e 1-8
+packages/kitesurf-app/Cargo.toml
+  s_f9254de60e80ce::t_9eebd1263414f2 19
+  s_f9254de60e80ce::t_aba4059d965d90 42-47
+  s_f9254de60e80ce::t_4c4b97bceed253 36
+  s_f9254de60e80ce::t_232162344c684e 24-30,53-54
+  s_f9254de60e80ce::t_47d14f0a5f6d64 31-35,37-40
+  s_f9254de60e80ce::t_73eafb27de1233 1-18,20-23,41,48-52,55-68
+packages/kitesurf-app/src/window.rs
+  s_f9254de60e80ce::t_64c6b34f8d206d 1-19,26-35
+  s_f9254de60e80ce::t_7aa00c79ee4e99 20-25
+packages/kitesurf-app/src/main.rs
+  s_f9254de60e80ce::t_1950b3c5d4d432 1-10
+  s_f9254de60e80ce::t_fe8495817f30a3 12
+  s_f9254de60e80ce::t_2deeab83b1c918 11,13-40
+packages/kitesurf-app/src/input.rs
+  s_f9254de60e80ce::t_3477fdb6b910f2 1-42,48-69,73-77,80-95,100-123
+  s_f9254de60e80ce::t_0b3f8d8f3b5e31 70-72,78-79
+  s_f9254de60e80ce::t_7aa00c79ee4e99 43-47,96-99
+packages/kitesurf-app/src/page_view.rs
+  s_f9254de60e80ce::t_0c17f1f00b97c4 21,66,71
+  s_f9254de60e80ce::t_dd0013b73b74d1 11-12
+  s_f9254de60e80ce::t_7aa00c79ee4e99 33-38,52-55,58-61
+  s_f9254de60e80ce::t_6ff602f99d9114 1-10,13-20,22-32,39-51,56-57,62-65,67-70,72-76
+packages/kitesurf-app/Cargo.lock
+  s_f9254de60e80ce::t_84cf139633c53c 1-5725
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d8855ab44341b308cef4c3abce1b3a2d640c82fa",
+  "prompts": {},
+  "sessions": {
+    "s_f9254de60e80ce": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00dc160affeo42rTKL7JKgba7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
