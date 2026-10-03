@@ -1,0 +1,20 @@
+packages/page-script/src/index.ts
+  s_9cbe1ab83fe757::t_c73602f9462bfb 951
+  s_9cbe1ab83fe757::t_6dd1000f8909c1 1879
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "66837fd30960b16338f0c41d348063929686be28",
+  "prompts": {},
+  "sessions": {
+    "s_9cbe1ab83fe757": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00f05efaffeheHN130dAdiPNC",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
