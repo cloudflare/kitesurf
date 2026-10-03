@@ -1,0 +1,23 @@
+packages/page-script/src/globals.ts
+  s_ebc9d43f49867a::t_1f7f9514d3c045 758,781
+packages/engine/test/e2e/message-channel-task-queue.e2e.test.ts
+  s_ebc9d43f49867a::t_1f7f9514d3c045 1-34
+packages/page-script/src/index.ts
+  s_ebc9d43f49867a::t_1f7f9514d3c045 234,2297
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "75a8e1bede52ceea89fde9307c6b1253eed7c499",
+  "prompts": {},
+  "sessions": {
+    "s_ebc9d43f49867a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0d62d6bfffeEicn5CQ06c8WIb",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
