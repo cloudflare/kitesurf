@@ -1,5 +1,38 @@
 packages/engine/test/e2e/no-set-immediate.e2e.test.ts
   s_ebc9d43f49867a::t_adac33b74855a1 5-6,16,19-20,22
+packages/dom-shim/src/detached-wrappers.ts
+  s_83cbebb813e639::t_643bc97c8b6017 1-192
+packages/dom-shim/src/mutations/seq.ts
+  s_83cbebb813e639::t_643bc97c8b6017 14,36
+packages/page-script/src/dom-shim.d.ts
+  s_83cbebb813e639::t_643bc97c8b6017 12-13
+packages/dom-shim/src/registries.ts
+  s_83cbebb813e639::t_643bc97c8b6017 26-70,199-204,206-207,209,211-214,306
+packages/dom-shim/src/contract.ts
+  s_83cbebb813e639::t_643bc97c8b6017 17-18
+packages/engine/src/cdp/page-session.ts
+  s_83cbebb813e639::t_643bc97c8b6017 192-193
+packages/dom-shim/src/node-base.ts
+  s_83cbebb813e639::t_643bc97c8b6017 20-21,185,190,209,216-219,899,908
+packages/page-script/src/index.ts
+  s_83cbebb813e639::t_643bc97c8b6017 276,5272-5277,5282-5286
+packages/engine/test/e2e/detached-node-reclaim.e2e.test.ts
+  s_83cbebb813e639::t_643bc97c8b6017 1-144
+docs/DOM_SHIM.md
+  s_83cbebb813e639::t_643bc97c8b6017 24,27-38
+packages/dom-shim/src/collections.ts
+  s_83cbebb813e639::t_643bc97c8b6017 19,2715
+packages/page-script/src/page-tasks.ts
+  s_83cbebb813e639::t_ddaf9e560e7505 2,627-629
+packages/dom-shim/src/element.ts
+  s_83cbebb813e639::t_643bc97c8b6017 153-154,161,601,613
+packages/dom-shim/src/index.ts
+  s_83cbebb813e639::t_643bc97c8b6017 254-255,264,284,381,1413
+  s_83cbebb813e639::t_cc7fb48cea44fe 368
+packages/engine/src/cdp/kitesurf.ts
+  s_83cbebb813e639::t_643bc97c8b6017 269-272
+packages/core/src/lib.rs
+  s_83cbebb813e639::t_643bc97c8b6017 2276-2314
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -7,6 +40,14 @@ packages/engine/test/e2e/no-set-immediate.e2e.test.ts
   "base_commit_sha": "31b1fd4a482441ee8b833a915abd81a7475aabd2",
   "prompts": {},
   "sessions": {
+    "s_83cbebb813e639": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0388623affeMZhtpmKWNkHzTW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_ebc9d43f49867a": {
       "agent_id": {
         "tool": "opencode",
