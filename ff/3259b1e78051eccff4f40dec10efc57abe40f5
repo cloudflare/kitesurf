@@ -1,0 +1,31 @@
+packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
+  s_62bd79c66854c1::t_a2c5cb5d99ebca 13-15,22,25-27,39-40,42-60,62-63,65-80,82-83
+  s_62bd79c66854c1::t_eac90054dfd024 61,64,81
+  s_62bd79c66854c1::t_486a3622f3a4e2 41
+packages/page-script/src/page-tasks.ts
+  s_7ef3db5fbd7641::t_7b4d66ada247b0 36,99-105,118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ff3259b1e78051eccff4f40dec10efc57abe40f5",
+  "prompts": {},
+  "sessions": {
+    "s_62bd79c66854c1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0daa0868ffeEIQuXt2gq1KU8H",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7ef3db5fbd7641": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00f5d022ffeMJO0YDl7fwi3KE",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

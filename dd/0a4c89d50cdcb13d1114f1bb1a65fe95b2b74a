@@ -1,0 +1,19 @@
+packages/engine/test/e2e/mouse-input-fields.e2e.test.ts
+  s_389aa8bfb4b14f::t_36cab6d9ac99ed 1,4-14,34,51-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dd0a4c89d50cdcb13d1114f1bb1a65fe95b2b74a",
+  "prompts": {},
+  "sessions": {
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
