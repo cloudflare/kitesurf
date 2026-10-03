@@ -1,0 +1,19 @@
+packages/engine/test/e2e/canvas-image-bytes.e2e.test.ts
+  s_389aa8bfb4b14f::t_4411e4868698c9 103-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7b657e57c77739071f03cdea72566a04cdc5f9ad",
+  "prompts": {},
+  "sessions": {
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
