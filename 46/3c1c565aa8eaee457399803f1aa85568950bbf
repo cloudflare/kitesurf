@@ -94,6 +94,8 @@ packages/core/src/scene_replay.rs
   s_20642805355ab4::t_f5b89cf59b38ad 9,213,304,527,534,544,557,586,655,658,1128,1130,3222,3226
 packages/core/src/tty_grid.rs
   s_20642805355ab4::t_f5b89cf59b38ad 1244
+packages/renderer-core/scripts/build.mjs
+  s_de9b73755c1191::t_59335c90439b16 137,143-145
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -162,6 +164,14 @@ packages/core/src/tty_grid.rs
         "tool": "opencode",
         "id": "ses_f0c4dbffeffeRpYsE4LTa4LDna",
         "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     }
