@@ -29,6 +29,7 @@ packages/page-script/src/index.ts
   s_103b7f1f0713cd::t_b4db3c4248c03a 231-232,1508,1510-1519,4326,4328
   s_03997f732ec005::t_5846cfaf5ba6b3 231-232,1508,1510-1519,4326,4328
   s_03997f732ec005::t_a13d27be0748fa 2664,4341,4384,4634-4635,4648,4659,4667
+  s_7ef3db5fbd7641::t_ca620315704c7e 4639
 packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
   s_103b7f1f0713cd::t_7c7e30fe443127 3,5,15-20,22-23,27-33,35-38,88-93,95-96,98-99,101,106-119,121-127
   s_103b7f1f0713cd::t_b4db3c4248c03a 6-11,94,102-105
@@ -80,6 +81,11 @@ packages/core/src/scene_replay.rs
   s_03997f732ec005::t_a0ff3e8323e248 1181,1197-1198,1711-1712
   s_03997f732ec005::t_6ff55eac275a01 402,2724-2744
   s_03997f732ec005::t_2ab1749aef7253 2745-2746
+  s_20642805355ab4::t_f5b89cf59b38ad 9,213,304,527,534,544,557,586,655,658,1128,1130,3222,3226
+packages/core/src/tty_grid.rs
+  s_20642805355ab4::t_f5b89cf59b38ad 1244
+packages/page-script/src/page-tasks.ts
+  s_7ef3db5fbd7641::t_ca620315704c7e 96-97
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -103,6 +109,14 @@ packages/core/src/scene_replay.rs
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     },
+    "s_20642805355ab4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e2fe02ffeBPRkxpXKpYOZzY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_389aa8bfb4b14f": {
       "agent_id": {
         "tool": "opencode",
@@ -116,6 +130,14 @@ packages/core/src/scene_replay.rs
         "tool": "opencode",
         "id": "ses_f0daa0868ffeEIQuXt2gq1KU8H",
         "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7ef3db5fbd7641": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00f5d022ffeMJO0YDl7fwi3KE",
+        "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     },
