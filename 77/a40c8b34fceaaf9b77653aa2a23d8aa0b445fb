@@ -1,3 +1,5 @@
+packages/page-script/src/page-tasks.ts
+  s_7ef3db5fbd7641::t_ee080e216107f8 96-97,100-102
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -9,6 +11,14 @@
       "agent_id": {
         "tool": "opencode",
         "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7ef3db5fbd7641": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00f5d022ffeMJO0YDl7fwi3KE",
         "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
