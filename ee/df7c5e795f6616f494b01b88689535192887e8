@@ -1,0 +1,44 @@
+tests/wpt-expectations.json
+  s_b0bff6c749373b::t_4a0c7d8a1e7321 12313,12349,12485,18043,18487-18488,18491-18492,18495-18496,18499-18500,18547-18548,18563,30613-30614,30617-30618
+packages/core/src/text_encoding.rs
+  s_57c08728af1561::t_1cec0613b48fbf 72-73
+packages/dom-shim/src/text-encoding.ts
+  s_57c08728af1561::t_1cec0613b48fbf 49-56
+docs/FORMS.md
+  s_57c08728af1561::t_1cec0613b48fbf 70-72
+packages/dom-shim/src/element.ts
+  s_57c08728af1561::t_1cec0613b48fbf 6486-6489,6494-6500,6534-6537,6541,6550,6579-6580,6582-6583,6633,6645,6978-6983
+packages/page-script/src/index.ts
+  s_57c08728af1561::t_496f663e14f418 820
+  s_57c08728af1561::t_1cec0613b48fbf 791,793-808,813,819,821-822,824-828,831-836,847-856,863-869,2106
+  s_57c08728af1561::t_b89e0b389ed276 792,815,839-840
+packages/engine/test/e2e/legacy-charset-url-encoding.e2e.test.ts
+  s_57c08728af1561::t_1cec0613b48fbf 49-50,69-71,96-97,106-107,113,116
+  s_57c08728af1561::t_496f663e14f418 95,108-111
+docs/NETWORKING.md
+  s_57c08728af1561::t_1cec0613b48fbf 200-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eedf7c5e795f6616f494b01b88689535192887e8",
+  "prompts": {},
+  "sessions": {
+    "s_57c08728af1561": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f015a8619ffeNQlP8wNaWWCHJG",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_b0bff6c749373b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f01e505e3ffeYGxi5TryF52yhF",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
