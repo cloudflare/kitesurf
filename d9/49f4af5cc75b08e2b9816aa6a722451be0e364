@@ -19,6 +19,7 @@ packages/engine/src/rbi.ts
   s_103b7f1f0713cd::t_59e9b35ee89a82 118
 packages/page-script/src/index.ts
   s_103b7f1f0713cd::t_277cd028095f22 231,4313,4315,4335
+  s_7ef3db5fbd7641::t_54b8719e262aaa 4314,4334
 packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
   s_103b7f1f0713cd::t_7c7e30fe443127 1-68
 packages/engine/src/cdp/page-session.ts
@@ -27,6 +28,8 @@ packages/engine/src/cdp/page-session.ts
   s_389aa8bfb4b14f::t_6c11c7bdfc2c03 136
 packages/engine/src/cdp/kitesurf.ts
   s_389aa8bfb4b14f::t_6c11c7bdfc2c03 418
+packages/page-script/src/page-tasks.ts
+  s_7ef3db5fbd7641::t_54b8719e262aaa 36-56,67,88,93
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -46,6 +49,14 @@ packages/engine/src/cdp/kitesurf.ts
       "agent_id": {
         "tool": "opencode",
         "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7ef3db5fbd7641": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00f5d022ffeMJO0YDl7fwi3KE",
         "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
