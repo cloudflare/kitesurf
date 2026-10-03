@@ -1,0 +1,54 @@
+scripts/patches/jpeg-encoder-0.7.0/0001-Encode-RGBA-images-with-wasm-SIMD128.patch
+  s_103b7f1f0713cd::t_38ae52fde36cfa 3,15-27,30-33,35,39-41,45,75,97-102,121,147,175,270,273,312-315,323-354,578-590,604-607,629-631,730-841
+packages/core/src/lib.rs
+  s_103b7f1f0713cd::t_13bc2274b2bf36 6345,6354,6357-6361
+  s_103b7f1f0713cd::t_d7fadb67c9cbe4 849-856,865
+packages/core/src/rbi_image_cache_test.rs
+  s_103b7f1f0713cd::t_7baee366ee4b65 24-27,29
+  s_103b7f1f0713cd::t_2ba64cc6f8a898 86,91-93,95-98,106-107,113-124,126-128
+  s_103b7f1f0713cd::t_aa3feb33651d05 99-102
+  s_103b7f1f0713cd::t_0ab60a0985fd3b 125
+  s_103b7f1f0713cd::t_4bc475836d4dae 87-90,94,103-105,108-112
+packages/core/src/pdf.rs
+  s_103b7f1f0713cd::t_f1d27660dbf9a3 86
+  s_103b7f1f0713cd::t_4355a94d617d0a 70
+packages/engine/src/cdp/page.ts
+  s_103b7f1f0713cd::t_277cd028095f22 3328,3334,6074
+packages/engine/src/rbi.ts
+  s_103b7f1f0713cd::t_0836ba4b3418ee 282
+  s_103b7f1f0713cd::t_59e9b35ee89a82 118
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_277cd028095f22 231,4313,4315,4335
+packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
+  s_103b7f1f0713cd::t_7c7e30fe443127 1-68
+packages/engine/src/cdp/page-session.ts
+  s_103b7f1f0713cd::t_dc04101517e3f1 138
+  s_103b7f1f0713cd::t_4336a6a343dde2 158-159
+  s_389aa8bfb4b14f::t_6c11c7bdfc2c03 136
+packages/engine/src/cdp/kitesurf.ts
+  s_389aa8bfb4b14f::t_6c11c7bdfc2c03 418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d949f4af5cc75b08e2b9816aa6a722451be0e364",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
