@@ -5,6 +5,7 @@ packages/engine/test/e2e/mouse-input-fields.e2e.test.ts
   s_03997f732ec005::t_627466b03c2d49 20,25-26,28
 packages/page-script/src/index.ts
   s_03997f732ec005::t_00359d7c31d5a5 367,3240,3243
+  s_7ef3db5fbd7641::t_a2ffb05d33f71d 3231,3237-3238,3241-3242
 packages/dom-shim/src/events/event.ts
   s_03997f732ec005::t_00359d7c31d5a5 654-655,672-673
 packages/engine/src/cdp/input.ts
@@ -21,6 +22,14 @@ packages/engine/src/cdp/input.ts
         "tool": "opencode",
         "id": "ses_f0eae1bebffeH0x3Q3vwkoOycu",
         "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7ef3db5fbd7641": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00f5d022ffeMJO0YDl7fwi3KE",
+        "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     }
