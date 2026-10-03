@@ -7,6 +7,7 @@ packages/engine/test/e2e/canvas-image-bytes.e2e.test.ts
 packages/dom-shim/src/canvas2d.ts
   s_03997f732ec005::t_3f7fb7ff068ce2 692
   s_03997f732ec005::t_978157df63f809 650-652,654-655,679-682,691,693-694,701-703
+  s_20642805355ab4::t_4e04a17e4fbe92 642-643,653
 packages/core/src/lib.rs
   s_03997f732ec005::t_978157df63f809 5360-5368,5373-5374,5380,5382-5392,5402-5409
   s_03997f732ec005::t_4c3aa4d11ee6e7 5359,5393-5395
@@ -23,6 +24,14 @@ packages/core/src/lib.rs
       "agent_id": {
         "tool": "opencode",
         "id": "ses_f0eae1bebffeH0x3Q3vwkoOycu",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_20642805355ab4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e2fe02ffeBPRkxpXKpYOZzY",
         "model": "gpt-6.1-sol"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
