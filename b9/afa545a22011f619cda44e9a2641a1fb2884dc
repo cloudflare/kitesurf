@@ -1,0 +1,21 @@
+scripts/patches/anyrender-0.13.0/0003-Add-PaintScene-push_clip_path-pop_clip_path.patch
+  s_de9b73755c1191::t_be392312bb15f2 6-8
+scripts/patches/anyrender_vello_cpu-0.17.0/0002-Skip-premultiplying-opaque-images.patch
+  s_de9b73755c1191::t_be392312bb15f2 6-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b9afa545a22011f619cda44e9a2641a1fb2884dc",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
