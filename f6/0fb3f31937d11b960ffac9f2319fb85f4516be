@@ -1,0 +1,21 @@
+packages/dom-shim/src/form-data.ts
+  s_1eeadfc3cf234c::t_ba6a392e323fab 22-42,111,114,175-176,211-212
+packages/engine/test/e2e/form-data-blob-entries.e2e.test.ts
+  s_1eeadfc3cf234c::t_3cffdf73010bdb 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f60fb3f31937d11b960ffac9f2319fb85f4516be",
+  "prompts": {},
+  "sessions": {
+    "s_1eeadfc3cf234c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef96c93d9ffejoSx8lQT0uXgHZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

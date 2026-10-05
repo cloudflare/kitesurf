@@ -1,0 +1,41 @@
+packages/engine/src/cdp/page.ts
+  s_4acd3f313775ac::t_dfe391b90d161b 111-115,133,2350-2356,2358,2435-2437,4707-4709,4713-4721,4750-4763
+packages/engine/src/cdp/types.ts
+  s_4acd3f313775ac::t_dfe391b90d161b 246-249,397
+packages/page-script/src/web-storage.ts
+  s_4acd3f313775ac::t_dfe391b90d161b 1-104
+packages/engine/src/state/local-storage.ts
+  s_4acd3f313775ac::t_dfe391b90d161b 1-113
+packages/page-script/src/state.ts
+  s_4acd3f313775ac::t_dfe391b90d161b 45-49,171
+packages/engine/test/e2e/local-storage.e2e.test.ts
+  s_4acd3f313775ac::t_dfe391b90d161b 1-76
+packages/engine/src/cdp/target.ts
+  s_4acd3f313775ac::t_dfe391b90d161b 7,61-74,174-177,191
+AGENTS.md
+  s_4acd3f313775ac::t_dfe391b90d161b 628-630
+packages/page-script/src/index.ts
+  s_4acd3f313775ac::t_dfe391b90d161b 1639-1641
+packages/engine/src/eval/page-script.ts
+  s_4acd3f313775ac::t_dfe391b90d161b 322-325
+packages/page-script/src/globals.ts
+  s_4acd3f313775ac::t_dfe391b90d161b 4,19,21,2667-2671,2673-2687
+packages/engine/src/cdp/connection.ts
+  s_4acd3f313775ac::t_dfe391b90d161b 66-67,311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "867e1cebdb9e627663d1288c85ee38d902e64005",
+  "prompts": {},
+  "sessions": {
+    "s_4acd3f313775ac": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f043692f9ffengU1yq6aOljVvB",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

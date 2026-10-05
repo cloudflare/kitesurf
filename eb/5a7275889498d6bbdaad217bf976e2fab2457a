@@ -1,0 +1,22 @@
+tests/wpt-tests.json
+  s_1eeadfc3cf234c::t_bd452437080347 11607
+  s_1eeadfc3cf234c::t_5da92dd291480a 11597,11601,11608
+tests/wpt-expectations.json
+  s_1eeadfc3cf234c::t_7454a2c3d01ce8 43,47,51,12637,38599-38614
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eb5a7275889498d6bbdaad217bf976e2fab2457a",
+  "prompts": {},
+  "sessions": {
+    "s_1eeadfc3cf234c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef96c93d9ffejoSx8lQT0uXgHZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

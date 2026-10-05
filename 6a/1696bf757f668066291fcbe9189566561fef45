@@ -1,0 +1,19 @@
+packages/engine/test/e2e/stateful-session.e2e.test.ts
+  s_4acd3f313775ac::t_ee25de738be03c 662-663,665,670,677-679,682
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6a1696bf757f668066291fcbe9189566561fef45",
+  "prompts": {},
+  "sessions": {
+    "s_4acd3f313775ac": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f043692f9ffengU1yq6aOljVvB",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
