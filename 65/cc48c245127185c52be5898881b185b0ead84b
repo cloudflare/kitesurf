@@ -1,0 +1,19 @@
+packages/dom-shim/tsconfig.json
+  s_8d4a10d11caf91::t_19f294525299f7 9-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "65cc48c245127185c52be5898881b185b0ead84b",
+  "prompts": {},
+  "sessions": {
+    "s_8d4a10d11caf91": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef34dedf4ffeD0RXnnKFngi2DZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
