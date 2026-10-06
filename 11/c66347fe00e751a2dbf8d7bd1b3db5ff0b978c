@@ -1,0 +1,23 @@
+packages/core/src/canvas2d.rs
+  s_e1d7461d1a8822::t_4125db48c74148 2162-2177
+  s_e1d7461d1a8822::t_003293aad1df34 1875
+  s_e1d7461d1a8822::t_cab336d094cfdd 1-5
+  s_e1d7461d1a8822::t_7d247e75a912af 1046-1047
+  s_e1d7461d1a8822::t_ba3844a02a4859 2178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "11c66347fe00e751a2dbf8d7bd1b3db5ff0b978c",
+  "prompts": {},
+  "sessions": {
+    "s_e1d7461d1a8822": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039ac9d0ffeQZMXoLnEhbaNG7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

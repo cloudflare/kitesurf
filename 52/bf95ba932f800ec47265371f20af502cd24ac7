@@ -1,0 +1,45 @@
+packages/storage-state-extension/extension/popup.js
+  s_83cbebb813e639::t_97a298a0ac85ba 1-107
+.gitlab-ci.yml
+  s_83cbebb813e639::t_97a298a0ac85ba 580-581
+packages/storage-state-extension/test/kitesurf.test.mjs
+  s_83cbebb813e639::t_97a298a0ac85ba 1-48
+docs/STATEFUL_SESSIONS.md
+  s_83cbebb813e639::t_97a298a0ac85ba 141-144
+AGENTS.md
+  s_83cbebb813e639::t_97a298a0ac85ba 81-83
+packages/storage-state-extension/extension/popup.css
+  s_83cbebb813e639::t_97a298a0ac85ba 1-98
+packages/storage-state-extension/extension/storage-state.js
+  s_83cbebb813e639::t_97a298a0ac85ba 1-141
+packages/storage-state-extension/extension/kitesurf.js
+  s_83cbebb813e639::t_97a298a0ac85ba 1-59
+packages/storage-state-extension/extension/popup.html
+  s_83cbebb813e639::t_97a298a0ac85ba 1-32
+packages/storage-state-extension/extension/manifest.json
+  s_83cbebb813e639::t_97a298a0ac85ba 1-13
+packages/storage-state-extension/README.md
+  s_83cbebb813e639::t_97a298a0ac85ba 1-37
+packages/storage-state-extension/package.json
+  s_83cbebb813e639::t_97a298a0ac85ba 1-11
+package.json
+  s_83cbebb813e639::t_97a298a0ac85ba 49
+packages/storage-state-extension/test/storage-state.test.mjs
+  s_83cbebb813e639::t_97a298a0ac85ba 1-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "52bf95ba932f800ec47265371f20af502cd24ac7",
+  "prompts": {},
+  "sessions": {
+    "s_83cbebb813e639": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0388623affeMZhtpmKWNkHzTW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

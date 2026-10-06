@@ -1,0 +1,23 @@
+docs/PAGE_RENDERER.md
+  s_389aa8bfb4b14f::t_a7e8d8ceac4155 38
+packages/core/src/lib.rs
+  s_389aa8bfb4b14f::t_a7e8d8ceac4155 5371,6058
+packages/core/src/scene_record.rs
+  s_389aa8bfb4b14f::t_a7e8d8ceac4155 238,559,1684-1685,1688
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2666df584cfbe1d3e7933b4384f0c4979368599b",
+  "prompts": {},
+  "sessions": {
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

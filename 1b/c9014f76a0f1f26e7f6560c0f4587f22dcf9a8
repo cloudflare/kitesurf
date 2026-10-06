@@ -1,0 +1,98 @@
+packages/core/Cargo.toml
+  s_b0bff6c749373b::t_d036baabd0299f 62
+packages/core/src/lib.rs
+  s_b0bff6c749373b::t_4a734255432710 84
+packages/core/src/text_encoding.rs
+  s_b0bff6c749373b::t_b60e2e115de142 2,5-9,10-36,37-71,74-93,94-98,100-114,116-190
+Cargo.lock
+  s_b0bff6c749373b::t_e68e884b597110 1563
+packages/dom-shim/src/text-encoding.ts
+  s_b0bff6c749373b::t_fba42b0f6d5a02 48,89
+  s_b0bff6c749373b::t_9855c22def0caf 5
+  s_b0bff6c749373b::t_bf975fc23b350a 34-35,39-42
+  s_b0bff6c749373b::t_b9f3d87edf4cec 4,6-11,15,21-28,29-33,36-38,43-47,57-59,63-68,70-82,84-87,88,90-92,96-98,99-117,119-122
+  s_b0bff6c749373b::t_5bc99bb6b3236d 12-14,16-20,69,83,93-95
+packages/dom-shim/src/index.ts
+  s_b0bff6c749373b::t_bf975fc23b350a 1425
+packages/page-script/src/dom-shim.d.ts
+  s_b0bff6c749373b::t_4086984fbe9440 12
+packages/dom-shim/src/form-data.ts
+  s_b0bff6c749373b::t_2ad6d47d3143b6 83-85
+packages/page-script/src/index.ts
+  s_b0bff6c749373b::t_c964e7cd80d4f2 1590-1597
+  s_b0bff6c749373b::t_3db8c7eca8473d 1880-1884
+  s_b0bff6c749373b::t_96777af8ebd589 261-263
+  s_b0bff6c749373b::t_4086984fbe9440 282,1002,1103,3843-3847
+  s_b0bff6c749373b::t_f3bba0304f27e7 1598-1600
+  s_9cbe1ab83fe757::t_6107b1d93bd853 787-810,813,815,819-822,824-836,839-841,843-873,976-985,1038,1118,1135,2100-2107
+packages/page-script/src/wasm-glue.d.ts
+  s_b0bff6c749373b::t_96777af8ebd589 117-125
+docs/FORMS.md
+  s_b0bff6c749373b::t_32f94aee315f6b 59-60
+  s_b0bff6c749373b::t_338cccbe1ca9d5 54-58,61-69,73-74,80
+  s_9cbe1ab83fe757::t_6107b1d93bd853 75-79
+packages/engine/src/cdp/page.ts
+  s_b0bff6c749373b::t_40244d243de65d 504,1081,2398
+  s_b0bff6c749373b::t_fa2c95dc2e7c33 835-837
+  s_b0bff6c749373b::t_6ec61246704b54 5360
+  s_b0bff6c749373b::t_157bc3eda15349 6196-6203,6205,6208,6211,6221,6227
+  s_9cbe1ab83fe757::t_6107b1d93bd853 64,5130
+packages/engine/test/e2e/legacy-charset-url-encoding.e2e.test.ts
+  s_b0bff6c749373b::t_f8ebd0bd9277cd 130-146
+  s_b0bff6c749373b::t_4bd6b3a8c4140a 1-3,5-47,147-151,157-159
+  s_b0bff6c749373b::t_2cbf2de1f6f528 4
+  s_9cbe1ab83fe757::t_6107b1d93bd853 48-129
+packages/engine/test/fixtures-worker/assets/euckr-form.html
+  s_b0bff6c749373b::t_ab7f9b7bfb783a 1-10
+packages/dom-shim/src/state.ts
+  s_b0bff6c749373b::t_240255552e616b 114,116-123
+packages/engine/src/cdp/types.ts
+  s_b0bff6c749373b::t_e385bfff24bfe0 583
+packages/dom-shim/src/contract.ts
+  s_b0bff6c749373b::t_4086984fbe9440 17
+packages/dom-shim/src/document.ts
+  s_b0bff6c749373b::t_9855c22def0caf 102
+  s_b0bff6c749373b::t_090080665ec663 359-361
+packages/dom-shim/src/element.ts
+  s_b0bff6c749373b::t_2ad6d47d3143b6 6484-6485,6505,7019
+  s_b0bff6c749373b::t_bf975fc23b350a 11,6631-6632,6639,6642
+  s_b0bff6c749373b::t_12eb99b5199f9d 8-10,12-14,3286-3287,3292,3302,9339,9349,9396
+  s_b0bff6c749373b::t_007e330e21a70f 6584-6585,6621,6627-6630,6634-6638,6640-6641,6643,7013-7018,7026,7030
+  s_b0bff6c749373b::t_6beae3ce7a6447 7,6644
+  s_9cbe1ab83fe757::t_36125fbc6b08cc 6533
+  s_9cbe1ab83fe757::t_b438d72713005f 6490
+  s_9cbe1ab83fe757::t_02ea693baad044 6581
+  s_9cbe1ab83fe757::t_902263bb3df0a4 6626
+  s_9cbe1ab83fe757::t_6107b1d93bd853 6576-6577,6645-6654,6963-6965,6967-6976,6978-6984,7022,7033-7035
+packages/engine/test/fixtures-worker/src/dynamic/documents.ts
+  s_9cbe1ab83fe757::t_dc2fa3e6dd060e 7
+  s_9cbe1ab83fe757::t_a8d4af7e5cf7fa 141-146
+packages/engine/src/cdp/frames.ts
+  s_9cbe1ab83fe757::t_6107b1d93bd853 42-51
+packages/page-script/src/internal-state.ts
+  s_9cbe1ab83fe757::t_6107b1d93bd853 120-124,207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1bc9014f76a0f1f26e7f6560c0f4587f22dcf9a8",
+  "prompts": {},
+  "sessions": {
+    "s_9cbe1ab83fe757": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00f05efaffeheHN130dAdiPNC",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_b0bff6c749373b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f01e505e3ffeYGxi5TryF52yhF",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

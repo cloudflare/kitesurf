@@ -1,0 +1,29 @@
+packages/kitesurf-cli/src/cli.rs
+  s_4ba7a10fc24412::t_80104002e4f238 72,87,95
+  s_4ba7a10fc24412::t_8a31ad928d276e 137,143-144
+packages/kitesurf-cli/src/main.rs
+  s_4ba7a10fc24412::t_80104002e4f238 31,398-402
+  s_4ba7a10fc24412::t_2169b87576a204 65
+  s_4ba7a10fc24412::t_0250ff80f51f2e 36,43,45,49,51,56,63-64,67,74,337-342,353-354,367,380,403-404,545-551,708-709,712,715-717,759,761-763,775-777,863-867,961-979,985,1073-1075,1077-1082,1127,1178,1180,1239,1297-1300,1303,1324,1326,1404-1410,1435-1437,1439,1443,1445-1446,1450-1452
+packages/kitesurf-cli/src/wasm.rs
+  s_4ba7a10fc24412::t_2169b87576a204 30-32,36-37,39-47,50
+  s_4ba7a10fc24412::t_f17e2776d859ed 35
+packages/kitesurf-cli/src/access.rs
+  s_4ba7a10fc24412::t_96f4c71447ca98 7,56-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4b9a1087c018d6ea16488cf9b7e296b3477d4064",
+  "prompts": {},
+  "sessions": {
+    "s_4ba7a10fc24412": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039850efffeBQSi5xVbdQfKSf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

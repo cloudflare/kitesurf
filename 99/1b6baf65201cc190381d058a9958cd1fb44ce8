@@ -1,0 +1,23 @@
+packages/engine/src/rbi.ts
+  s_de9b73755c1191::t_5a902865660f58 130-134,138,220,244,247,249,255,257,270,300
+packages/engine/src/cdp/page.ts
+  s_de9b73755c1191::t_5a902865660f58 43,5779-5782,5855,5875,5966,5985,6011,6022,6033,6089,6092,6176
+packages/engine/src/cdp/scene-stream.ts
+  s_de9b73755c1191::t_5a902865660f58 16,220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "991b6baf65201cc190381d058a9958cd1fb44ce8",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+scripts/patches/vello_cpu-0.1.0/0004-Guarantee-the-blur-store-chunk-size-in-its-type.patch
+  s_de9b73755c1191::t_0652893d6b0094 1-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "77ee2382fb04cbefa0ce1f4ed64911b777d63ba4",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

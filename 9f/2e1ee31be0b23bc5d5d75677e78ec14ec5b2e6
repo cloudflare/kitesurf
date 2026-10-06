@@ -1,0 +1,46 @@
+docs/NATIVE_V8.md
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 16
+packages/engine/test/e2e/demos/module-init-shim-demo.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 81,83,119,121,126,156,168,170
+packages/engine/test/page-script-compat.test.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 13,19
+docs/TESTING.md
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 96-97
+packages/engine/test/e2e/trusted-fetch-metadata.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 2-4,13
+packages/engine/src/eval/page-script-compat.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 23
+packages/engine/test/e2e/native-module-preload.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 1-37
+packages/page-script/src/scripts.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 13,47,91-171,453-456,458-459
+packages/page-script/src/workerd-unsafe-eval.d.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 4-7
+packages/page-script/src/index.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 216,1721-1737,1925
+  s_c3a5a4d70c5a2b::t_0d6e3583579d17 2134
+packages/dom-shim/src/model-context.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 388-392
+docs/WEBMCP.md
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 99-101,107-112
+packages/page-script/src/trusted-fetch.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 70-72
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 559,563-565
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9f2e1ee31be0b23bc5d5d75677e78ec14ec5b2e6",
+  "prompts": {},
+  "sessions": {
+    "s_c3a5a4d70c5a2b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0138ddb2ffe2O8lnmc1pCGk6d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

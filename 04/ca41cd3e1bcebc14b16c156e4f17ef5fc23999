@@ -1,0 +1,23 @@
+packages/engine/test/e2e/engine-routes.e2e.test.ts
+  s_c9d8c2c13d3652::t_8ce513eff3f876 5-8
+packages/engine/test/e2e/cloudflare-env.d.ts
+  s_c9d8c2c13d3652::t_8ce513eff3f876 1-5
+packages/engine/src/index.ts
+  s_c9d8c2c13d3652::t_8ce513eff3f876 21,264-274,277-278,280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "04ca41cd3e1bcebc14b16c156e4f17ef5fc23999",
+  "prompts": {},
+  "sessions": {
+    "s_c9d8c2c13d3652": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f012fb728ffev3JPvVPB6eQ5iI",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

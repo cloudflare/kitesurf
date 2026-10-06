@@ -1,0 +1,50 @@
+packages/script-gate/src/digest.ts
+  s_99f3fde15b3f69::t_657102c2348fa5 5-7,10
+packages/script-gate/test/digest.test.ts
+  s_99f3fde15b3f69::t_6dbbdc22ee52ee 7-11
+packages/script-gate/test/classic-scan.test.ts
+  s_99f3fde15b3f69::t_90910e4e626973 21-24,33-34
+packages/script-gate/src/sri.ts
+  s_99f3fde15b3f69::t_ff0350a99410e3 23-24
+  s_99f3fde15b3f69::t_8fe888ee059268 63,66,68
+  s_99f3fde15b3f69::t_acba57e981eb3d 64-65,69,79-82,84-89,95-101,156-158
+packages/script-gate/test/gate.test.ts
+  s_99f3fde15b3f69::t_7cab973dbb0790 226
+  s_99f3fde15b3f69::t_7926f682e70eb7 35,39,54,58,332,336
+  s_99f3fde15b3f69::t_12fa0f1c1be961 16
+  s_99f3fde15b3f69::t_ff0350a99410e3 375
+  s_99f3fde15b3f69::t_702d083b3bdf59 155-156
+packages/script-gate/src/classic-scan.ts
+  s_99f3fde15b3f69::t_674b978f626694 19-22,24,27,30,32-33,35-36,39-42,45-49,52-54,64-73,78
+  s_99f3fde15b3f69::t_ff0350a99410e3 51,55-61,101-119,121-124,165-169,178-182,184-192,217-221,236,261-265,269-270,274-275,285-290,292-295,298-301,356-365,368-373,402-407
+  s_99f3fde15b3f69::t_629e7deb1faf75 90-92,94-100,128-138,140-142,144-153,155
+  s_99f3fde15b3f69::t_aada0ec2931b0e 158-159,161-162,170,172-174,177,193-206,208-216,222,225-231,235,237-241,243-248,251-260,266-268,271-273,276-284,291,297,303-309,311-315,319,322-329,335
+  s_99f3fde15b3f69::t_6fab5e958539c5 349-350,354-355,366-367,376-380,388,390-394,396-398,400-401,414-418
+packages/script-gate/src/gate.ts
+  s_99f3fde15b3f69::t_ff0350a99410e3 183,185-190
+  s_99f3fde15b3f69::t_d1bd4b3cde29a2 96-97,231,237,264,274,278,280,298
+packages/script-gate/src/mime.ts
+  s_99f3fde15b3f69::t_d1bd4b3cde29a2 32-35
+  s_99f3fde15b3f69::t_702d083b3bdf59 86
+packages/script-gate/src/csp.ts
+  s_99f3fde15b3f69::t_abac2738e26f8b 104-109,111,134,151,153-156,161-164,170,172-175,177,359
+  s_99f3fde15b3f69::t_3d99c0fd6414d5 255,260-261,276,278-279,287,298-299,317
+  s_99f3fde15b3f69::t_12f5675083694d 246-247,251,259,297,334-336,340,354,356-358,360,363
+  s_99f3fde15b3f69::t_ff0350a99410e3 300,302,309-311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "47e81e63187ec0e4bc823c25a0b657b0bd90c3bf",
+  "prompts": {},
+  "sessions": {
+    "s_99f3fde15b3f69": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03983a2affeiZefVSSNjVyEb7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

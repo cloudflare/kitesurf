@@ -1,0 +1,25 @@
+packages/engine/test/e2e/native-import-map.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_1949ffdeac41f8 1-84
+packages/engine/test/fixtures-worker/assets/importmap-scoped-entry.js
+  s_c3a5a4d70c5a2b::t_1949ffdeac41f8 1-4
+packages/engine/test/fixtures-worker/assets/importmap.html
+  s_c3a5a4d70c5a2b::t_1949ffdeac41f8 2-5,7-17,20-25,27-29,31-117,119-120
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c3a5a4d70c5a2b::t_1949ffdeac41f8 543-544,1184-1185,1212-1217,2939-2966
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4a85ec702aa47afba9daf19b9b12da3ee93621c6",
+  "prompts": {},
+  "sessions": {
+    "s_c3a5a4d70c5a2b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0138ddb2ffe2O8lnmc1pCGk6d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

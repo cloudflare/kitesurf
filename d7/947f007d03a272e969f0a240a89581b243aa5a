@@ -1,0 +1,22 @@
+packages/comparison-core/scripts/build.mjs
+  s_8e609071796038::t_4b6e8f7829fc26 9-10,62,73,77
+packages/comparison-core/src/lib.rs
+  s_8e609071796038::t_4b6e8f7829fc26 50,55,64,203,212,216
+  s_8e609071796038::t_9d977800c4bb76 219-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d7947f007d03a272e969f0a240a89581b243aa5a",
+  "prompts": {},
+  "sessions": {
+    "s_8e609071796038": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f02c73e8effewZY7rVKKjoocIM",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

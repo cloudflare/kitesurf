@@ -1,0 +1,31 @@
+.opencode/skills/kitesurf-package-audit/SKILL.md
+  s_20642805355ab4::t_417be1b23d97f5 1-2,4-7,11-24,28,31-35,38,43,48-50,66-70,80-82,91-95,99-101,107-110,115-129
+  s_20642805355ab4::t_71508033b92e97 3,8-10,25-27,29-30,36-37,39-42,44-47,51-65,71-79,83-90,96-98,102-106,111-114
+.opencode/skills/kitesurf-type-safety/SKILL.md
+  s_20642805355ab4::t_dd01379b0f5a87 3,8-10,14-20,22,24-56,58-60,63-82,91-93
+  s_20642805355ab4::t_d6a07e72e307b8 1-2,4-7,11-13,21,23,57,61-62,83-90
+.opencode/skills/kitesurf-contract-cleanup/SKILL.md
+  s_20642805355ab4::t_80dd05943ed2e3 1-2,4-8,12-17,21,81-83,89-94
+  s_20642805355ab4::t_a315fd36745e95 3,9-11,18-20,22-80,84-88
+.opencode/skills/kitesurf-scoped-verification/SKILL.md
+  s_20642805355ab4::t_f901eb61b2523f 61-63
+  s_20642805355ab4::t_f5b9a5b33b182b 53-54
+  s_20642805355ab4::t_3a4439e4f9afa4 1-2,4-7,11-15,17-18,21-22,24-25,28-30,32-33,43-44,47-49,51-52,55-56,71,75-77,81-83,85,87-93,100-109,111-118,120-127,129-131
+  s_20642805355ab4::t_82a87c8bc6cc6a 3,8-10,16,19-20,23,26-27,31,34-42,45-46,50,57-60,64-70,72-74,78-80,84,86,94-99,110,119,128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "53a3a43c3c39f520c01669f469c915acfcb8ccf6",
+  "prompts": {},
+  "sessions": {
+    "s_20642805355ab4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e2fe02ffeBPRkxpXKpYOZzY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

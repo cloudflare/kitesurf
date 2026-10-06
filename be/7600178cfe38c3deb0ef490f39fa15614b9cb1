@@ -1,0 +1,24 @@
+packages/renderer-core/src/lib.rs
+  s_b59a5e4402e532::t_b2134a30411c6b 9-11
+  s_b59a5e4402e532::t_ee22f00fcd4fd0 3
+packages/renderer-core/Cargo.toml
+  s_b59a5e4402e532::t_b2134a30411c6b 12,15,18-19
+  s_b59a5e4402e532::t_6121cd3e69798a 13
+  s_b59a5e4402e532::t_510d814aba9b88 14,17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "be7600178cfe38c3deb0ef490f39fa15614b9cb1",
+  "prompts": {},
+  "sessions": {
+    "s_b59a5e4402e532": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03983a75ffe2QyEFcjNBkwb60",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

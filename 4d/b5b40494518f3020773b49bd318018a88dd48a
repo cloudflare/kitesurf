@@ -1,0 +1,21 @@
+packages/page-script/src/globals.ts
+  s_ae1ba390236c92::t_d131aa753c3473 4635-4640
+packages/page-script/src/index.ts
+  s_ae1ba390236c92::t_d131aa753c3473 1365-1374
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4db5b40494518f3020773b49bd318018a88dd48a",
+  "prompts": {},
+  "sessions": {
+    "s_ae1ba390236c92": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00dbc716ffeCNa36CStCv1WEf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

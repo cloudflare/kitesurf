@@ -1,0 +1,42 @@
+packages/ra-schema/src/manifest.ts
+  s_2e0a92bb45cc00::t_447841eaadd8c1 25-26,90-91,94-95
+  s_2e0a92bb45cc00::t_f668c09b868bea 17,31-32,96
+  s_2e0a92bb45cc00::t_381a0a6dc74b19 24,33
+  s_2e0a92bb45cc00::t_fc7034889d7732 19-21
+  s_2e0a92bb45cc00::t_b0ceb0d743f4c7 1,4-5
+  s_2e0a92bb45cc00::t_0b81f78105aa74 15-16,28-30,66-70
+  s_2e0a92bb45cc00::t_61f71454181c7b 27
+  s_2e0a92bb45cc00::t_86e440e2743623 2-3
+packages/ra-schema/src/runtime.ts
+  s_2e0a92bb45cc00::t_b4e39f89d6b58f 28
+  s_2e0a92bb45cc00::t_b41ce855f542ed 11
+  s_2e0a92bb45cc00::t_0b81f78105aa74 29
+  s_2e0a92bb45cc00::t_77353f827e9605 21
+  s_2e0a92bb45cc00::t_381a0a6dc74b19 40,43-44
+packages/ra-schema/src/types.ts
+  s_2e0a92bb45cc00::t_993a10edb902e6 44
+  s_2e0a92bb45cc00::t_9c6985378ff2e6 15,29-31,76-77
+  s_2e0a92bb45cc00::t_0b81f78105aa74 37
+  s_2e0a92bb45cc00::t_d344225adf0aa5 16,88
+  s_2e0a92bb45cc00::t_463bcdbe83b4af 47
+  s_2e0a92bb45cc00::t_5b4cf6247c0317 56
+  s_2e0a92bb45cc00::t_447841eaadd8c1 52
+packages/ra-schema/src/cli.ts
+  s_2e0a92bb45cc00::t_b4e39f89d6b58f 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6903f90df4e82eacf594d817e4a0f26a64615f82",
+  "prompts": {},
+  "sessions": {
+    "s_2e0a92bb45cc00": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03983ac2ffeXK7Z09mP2CS3qW",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

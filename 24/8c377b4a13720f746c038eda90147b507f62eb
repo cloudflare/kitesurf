@@ -1,0 +1,19 @@
+tests/interactivity-flows/lib/browser-run.ts
+  s_8d4a10d11caf91::t_335cdcfc06bb17 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "248c377b4a13720f746c038eda90147b507f62eb",
+  "prompts": {},
+  "sessions": {
+    "s_8d4a10d11caf91": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef34dedf4ffeD0RXnnKFngi2DZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
