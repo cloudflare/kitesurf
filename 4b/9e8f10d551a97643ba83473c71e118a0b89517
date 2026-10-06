@@ -1,0 +1,28 @@
+packages/engine/test/e2e/xpath.e2e.test.ts
+  s_4ba79f911c93c4::t_c5d75d7b038970 233-235
+  s_4ba79f911c93c4::t_b397a589944f0a 240-241,245
+  s_4ba79f911c93c4::t_e003756276a17e 225-232,236-239,242-244
+  s_4ba79f911c93c4::t_db71fa77f6190c 246-247
+packages/dom-shim/src/parser.ts
+  s_4ba79f911c93c4::t_73aeaf9a847f81 125
+  s_4ba79f911c93c4::t_76b4934399b2c7 96-100
+  s_4ba79f911c93c4::t_b9b84fc30c226b 639-641,938
+  s_4ba79f911c93c4::t_119492214fcfdf 103-104,106-108,110,114-115,117,122-124,127-130,285-287,935-937
+  s_4ba79f911c93c4::t_2c1e271ce11157 89-95,101-102,105,109,111-113,116,118-121,126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4b9e8f10d551a97643ba83473c71e118a0b89517",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
