@@ -1,0 +1,29 @@
+packages/engine/src/cdp/page.ts
+  s_a3b42a28f6acb3::t_65b5301be9e6ad 4563,4565-4567
+packages/engine/src/cdp/target.ts
+  s_a3b42a28f6acb3::t_65b5301be9e6ad 12,298,420-421,426-427,859
+packages/engine/src/eval/resource-store.ts
+  s_a3b42a28f6acb3::t_51e7c0c401f19d 163
+packages/engine/test/target-close.test.ts
+  s_a3b42a28f6acb3::t_65b5301be9e6ad 19
+packages/engine/test/e2e/target-close-payloads.e2e.test.ts
+  s_a3b42a28f6acb3::t_65b5301be9e6ad 1-63
+packages/engine/src/cdp/network-events.ts
+  s_a3b42a28f6acb3::t_65b5301be9e6ad 151-156,158-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f02a1c6f73556228f0a9a9fdb6ccdac691b5b7c6",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

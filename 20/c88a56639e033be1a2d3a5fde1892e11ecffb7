@@ -1,0 +1,22 @@
+scripts/patches/README.md
+  s_de9b73755c1191::t_33ae75c7bd3a54 134
+  s_de9b73755c1191::t_f1027c8378c42c 133
+scripts/patches/anyrender_vello_cpu-0.17.0/0002-Skip-premultiplying-opaque-images.patch
+  s_de9b73755c1191::t_f2cd782f3f1fe5 1-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "20c88a56639e033be1a2d3a5fde1892e11ecffb7",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+packages/core/src/screenshot.rs
+  s_de9b73755c1191::t_d6b934bef907f9 360
+  s_de9b73755c1191::t_9a99c86f04878c 366,369-372,437,440,459,502,545,562,854,863,865
+packages/core/src/scene_replay.rs
+  s_de9b73755c1191::t_fd085095f928f4 1348,2547-2554,2556-2601
+  s_de9b73755c1191::t_d36eebe8cd09e1 1688
+  s_de9b73755c1191::t_9a99c86f04878c 14,741,803-806,819-826,831,833-834,836-838,840-847,887-892,1284-1285,1299,1306,1315,1349-1354,1366,1518,1561,1568,1574,1915,1923
+  s_de9b73755c1191::t_c727334a35980b 1314
+  s_de9b73755c1191::t_be3ce0bffded78 2074
+  s_de9b73755c1191::t_f99086975d70e9 839
+  s_de9b73755c1191::t_3f54e120dc05ed 2555
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "15759e8469ecb5e4da14006a562b5e290aff8d7a",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/engine/test/e2e/constraint-validity.e2e.test.ts
+  s_ae1ba390236c92::t_423b2b8665fb62 4,7,9,13-16,20-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "846bec34f2bbcb578c045be565995039903d793f",
+  "prompts": {},
+  "sessions": {
+    "s_ae1ba390236c92": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00dbc716ffeCNa36CStCv1WEf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

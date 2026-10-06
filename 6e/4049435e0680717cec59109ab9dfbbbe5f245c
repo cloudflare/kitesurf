@@ -1,0 +1,36 @@
+packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
+  s_de9b73755c1191::t_fe4e9f205f1d54 5,42-51,72,76-77,80,82,92,103,108,110,113,115,122,180,183,185,204,207,209,219
+  s_de9b73755c1191::t_f5851ad2d1c034 1-4,6-41,52-71,73-75,78-79,81,83-91,93-102,104-107,109,111-112,114,116-121,123-179,181-182,184,186-203,205-206,208,210-218,220
+packages/engine/src/cdp/page-session.ts
+  s_de9b73755c1191::t_f5851ad2d1c034 136,138,145,159-160,180
+packages/page-script/src/page-tasks.ts
+  s_de9b73755c1191::t_f5851ad2d1c034 36-71,82,100-107,110-111,116,144,148,151,643-644,647,654,665-667,669-674,679
+packages/engine/test/rbi-pacing.test.ts
+  s_de9b73755c1191::t_f5851ad2d1c034 1-58
+packages/engine/src/cdp/page.ts
+  s_de9b73755c1191::t_f5851ad2d1c034 3334-3335,3340,3349,6081,6084-6086
+packages/page-script/src/index.ts
+  s_de9b73755c1191::t_f5851ad2d1c034 231-232,1603-1614,4440-4442,4449,4453,4459,4461-4462,4465,4490,4645,4720,4876
+packages/engine/src/cdp/kitesurf.ts
+  s_de9b73755c1191::t_f5851ad2d1c034 418
+packages/engine/src/rbi.ts
+  s_de9b73755c1191::t_f5851ad2d1c034 118,282,296-298
+docs/PLATFORM.md
+  s_de9b73755c1191::t_f5851ad2d1c034 92-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6e4049435e0680717cec59109ab9dfbbbe5f245c",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
