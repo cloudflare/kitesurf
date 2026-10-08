@@ -1,0 +1,62 @@
+packages/dom-shim/src/parser.ts
+  s_ce52dc360d2c92::t_f58cba1ff739f2 65-69,906,941,955
+  s_ce52dc360d2c92::t_bcbf4487b84acf 992,995
+  s_ce52dc360d2c92::t_223c58a4133d9f 70
+  s_ce52dc360d2c92::t_65feb5e0fc7796 7
+packages/dom-shim/src/model-context.ts
+  s_ce52dc360d2c92::t_28e4d1d98d483c 1259-1263
+packages/dom-shim/src/collections.ts
+  s_ce52dc360d2c92::t_a59f950ce2c93d 2313,2317
+  s_ce52dc360d2c92::t_cd11fbbe26c260 868-869,879,895
+  s_ce52dc360d2c92::t_65feb5e0fc7796 3138-3139
+  s_ce52dc360d2c92::t_d8013808b35165 234-239
+  s_ce52dc360d2c92::t_bcbf4487b84acf 4
+  s_ce52dc360d2c92::t_52a140d7a76bf0 241,249,710,750
+packages/dom-shim/src/layout/scroll.ts
+  s_ce52dc360d2c92::t_cbd3afb51d83f4 52-53,55,71-72,74
+packages/dom-shim/src/css-typed-om.ts
+  s_ce52dc360d2c92::t_cc3e94491df739 1395,1423-1424,1454
+  s_ce52dc360d2c92::t_00b625af90099a 1393-1394,1421-1422,1453
+packages/dom-shim/src/registries.ts
+  s_ce52dc360d2c92::t_710551aefb2ad7 129
+packages/dom-shim/src/range.ts
+  s_ce52dc360d2c92::t_f52133ea12735c 940-942,949-955,972
+  s_ce52dc360d2c92::t_bcbf4487b84acf 317
+  s_ce52dc360d2c92::t_65feb5e0fc7796 7
+packages/dom-shim/src/element.ts
+  s_ce52dc360d2c92::t_1f55f46fe8190e 1196,1202,1581,1610
+  s_ce52dc360d2c92::t_bcbf4487b84acf 5,1837,1845,1870,1894,1930,8382
+  s_ce52dc360d2c92::t_710551aefb2ad7 977
+  s_ce52dc360d2c92::t_fa8378d3bf474f 3214
+  s_ce52dc360d2c92::t_f5d86c87b72b4a 1163-1166
+packages/dom-shim/src/document.ts
+  s_ce52dc360d2c92::t_710551aefb2ad7 1246
+  s_ce52dc360d2c92::t_bcbf4487b84acf 18,968,981,1026,1044,1092,2991,2994,3111
+packages/dom-shim/src/canvas2d.ts
+  s_ce52dc360d2c92::t_bc0f53ea8f2592 169-171
+  s_ce52dc360d2c92::t_a59f950ce2c93d 876-877
+packages/dom-shim/src/node-base.ts
+  s_ce52dc360d2c92::t_1f55f46fe8190e 556
+  s_ce52dc360d2c92::t_bcbf4487b84acf 6,714,742,750,787,789
+packages/dom-shim/src/state.ts
+  s_ce52dc360d2c92::t_d52ce1ffffdd87 417,421-427,429-431,443-445,447-449,452
+  s_ce52dc360d2c92::t_916a43cddd2610 267-272,275-279
+  s_ce52dc360d2c92::t_223c58a4133d9f 432-436,450-451,453-454
+  s_ce52dc360d2c92::t_faddcb57581778 418-420
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "60857f4916c90ef16596d06c9b52800290d7ebc0",
+  "prompts": {},
+  "sessions": {
+    "s_ce52dc360d2c92": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eed58f53affefdASmYi8rwbPsZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
