@@ -1,0 +1,19 @@
+packages/engine/test/e2e/fixed-position-viewport.e2e.test.ts
+  s_e9182bdddd53f2::t_7b7c35079bcfd1 75-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8c78a69a854eb21c11a07c2397f597eee35b7eef",
+  "prompts": {},
+  "sessions": {
+    "s_e9182bdddd53f2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee38bf00affe3IUdl0t5xAGtRi",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
