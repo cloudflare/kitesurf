@@ -1,0 +1,24 @@
+packages/engine/src/rbi.ts
+  s_f70b272515436f::t_81031447507ecd 131-135,139,233,258,261,263,270,272,285,328
+  s_f70b272515436f::t_b1eeaf67bddb2d 161,167
+packages/engine/src/cdp/scene-stream.ts
+  s_f70b272515436f::t_81031447507ecd 17,229
+packages/engine/src/cdp/page.ts
+  s_f70b272515436f::t_81031447507ecd 43,5770-5773,5846,5866,5957,5976,6002,6013,6024,6080,6083,6167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "71229332415c1c03f593b640e8e21d4da6b17df1",
+  "prompts": {},
+  "sessions": {
+    "s_f70b272515436f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee3accdeaffe8lRMgSeLfyUGrr",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
