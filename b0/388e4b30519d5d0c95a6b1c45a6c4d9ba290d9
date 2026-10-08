@@ -174,6 +174,7 @@ packages/dom-shim/strict-baseline.json
   s_1eeadfc3cf234c::t_863cb51dc7c22d 1,2,3,25,27-28,30
   s_1eeadfc3cf234c::t_be73bd22a7d5ab 26
   s_d158d8db780134::t_e3e8c4b3b364ca 4-24
+  s_4416da8af6d192::t_a53aa857a5b9e1 29
 packages/dom-shim/src/xpath.ts
   s_1eeadfc3cf234c::t_2a4dc6cca65629 456,462,468,474,538,635-638
 packages/dom-shim/src/mutations/observer.ts
@@ -341,6 +342,14 @@ packages/dom-shim/src/element/aria.ts
         "tool": "opencode",
         "id": "ses_ef96c93d9ffejoSx8lQT0uXgHZ",
         "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_4416da8af6d192": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee37cab46ffexOAxPtgtRZ3gOW",
+        "model": "gpt-5.6-luna"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     },
