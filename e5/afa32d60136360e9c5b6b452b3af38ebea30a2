@@ -76,6 +76,8 @@ docs/DOM_SHIM.md
   s_1eeadfc3cf234c::t_47d2bad5146331 125-126,133-135,144
   s_1eeadfc3cf234c::t_75e7eef69344fb 138-144
   s_1eeadfc3cf234c::t_66819e1428396f 117-120,127-132,136
+  s_4416da8af6d192::t_268a722a5db56f 173-183
+  s_4416da8af6d192::t_b3286e13e4895f 184-189
 packages/dom-shim/src/css-typed-om.ts
   s_1eeadfc3cf234c::t_a29fc9fcfe0f54 1
   s_1eeadfc3cf234c::t_c5fd79a89cb158 1399,1401,1403,1428,1430,1432,1434,1458,1460,1462
@@ -203,6 +205,14 @@ packages/engine/test/e2e/idl-conformance.ts
         "tool": "opencode",
         "id": "ses_ef96c93d9ffejoSx8lQT0uXgHZ",
         "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_4416da8af6d192": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee37cab46ffexOAxPtgtRZ3gOW",
+        "model": "gpt-5.6-luna"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     },
