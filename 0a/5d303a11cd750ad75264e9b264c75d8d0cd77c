@@ -1,0 +1,19 @@
+packages/page-script/src/fetch-shim.ts
+  s_4ba79f911c93c4::t_d03a2f27c148d2 117-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a5d303a11cd750ad75264e9b264c75d8d0cd77c",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
