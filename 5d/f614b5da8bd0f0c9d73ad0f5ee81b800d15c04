@@ -1,5 +1,8 @@
 packages/engine/test/e2e/bridge-fn-name.e2e.test.ts
   s_9e39f1f9c12a70::t_ff0c2e18c87fe7 1-60
+packages/core/src/boa_bridge.rs
+  s_13716c95882f21::t_ee6144a07b4c9a 2263,2423
+  s_13716c95882f21::t_07365e98d1a177 2372-2397
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -7,6 +10,14 @@ packages/engine/test/e2e/bridge-fn-name.e2e.test.ts
   "base_commit_sha": "5df614b5da8bd0f0c9d73ad0f5ee81b800d15c04",
   "prompts": {},
   "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_9e39f1f9c12a70": {
       "agent_id": {
         "tool": "opencode",
