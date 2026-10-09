@@ -1,0 +1,173 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 9 Oct 2026 19:27:33 +0100
+Subject: [PATCH] Resolve ::placeholder style for text controls
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A text control showing its placeholder was forced italic, and paint
+dimmed it to 40% of the input's colour. Browsers paint the
+::placeholder cascade instead: Chromium's UA sheet gives #757575, and
+author rules override it. radar.cloudflare.com sets the placeholder of
+its location picker to the text colour, so it read as an empty field.
+
+::placeholder is a lazy pseudo, so construction now computes it
+against the control's style when the placeholder shows, and stores
+its colour (opacity folded in) on TextInputData for paint. The
+editor takes its font style from it, and from the control's own style
+otherwise, so `font-style: italic` on an input now applies to its
+value too. The UA sheet gains Chromium's placeholder colour.
+
+beep-boop-🤖
+---
+ assets/default.css      |  6 +++++
+ src/layout/construct.rs | 55 +++++++++++++++++++++++++++++++++++++----
+ src/node/text.rs        |  8 ++++--
+ 3 files changed, 62 insertions(+), 7 deletions(-)
+
+diff --git a/assets/default.css b/assets/default.css
+index 72461a5..b4ac1d5 100644
+--- a/assets/default.css
++++ b/assets/default.css
+@@ -102,6 +102,12 @@ input[type="range"] {
+     height: 1.3em;
+ }
+
++/* Chromium's placeholder colour. Paint reads the ::placeholder
++   cascade while a text control shows its placeholder. */
++::placeholder {
++    color: #757575;
++}
++
+ input:focus,
+ textarea:focus {
+     outline: 2px solid #4D90FE;
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index decd09e..9093730 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1464,7 +1464,38 @@ fn collect_complex_layout_children(
+     out.anonymous_table_id = None;
+ }
+
++/// The `::placeholder` style of a text control that has a non-empty
++/// `placeholder` attribute. It is a lazy pseudo, so nothing in the style
++/// traversal computes it; resolve it against the control's own style here.
++fn placeholder_pseudo_style(
++    doc: &BaseDocument,
++    input_element_id: NodeId,
++) -> Option<style::servo_arc::Arc<style::properties::ComputedValues>> {
++    use style::selector_parser::PseudoElement;
++    use style::stylist::RuleInclusion;
++    let node = doc.get_node(input_element_id)?;
++    if node
++        .attr(local_name!("placeholder"))
++        .is_none_or(|p| p.is_empty())
++    {
++        return None;
++    }
++    let primary = node.primary_styles()?;
++    let guard = doc.guard().read();
++    let guards = StylesheetGuards::same(&guard);
++    doc.stylist.lazily_compute_pseudo_element_style(
++        &guards,
++        node,
++        &PseudoElement::Placeholder,
++        RuleInclusion::All,
++        &primary,
++        false,
++        None,
++    )
++}
++
+ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multiline: bool) {
++    let placeholder_style = placeholder_pseudo_style(doc, input_element_id);
+     let node = &mut doc.nodes[input_element_id];
+     let parley_style = node
+         .primary_styles()
+@@ -1535,11 +1566,24 @@ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multi
+         _ => (" ".to_string(), false),
+     };
+
++    // The ::placeholder cascade (UA `color: #757575`, plus any author
++    // rules) supplies the colour and font style while the placeholder
++    // shows. Without it the text keeps the input's own style.
++    let placeholder_style = placeholder_style.filter(|_| is_placeholder);
++    let placeholder_color = placeholder_style.as_ref().map(|s| {
++        s.clone_color()
++            .with_alpha(s.clone_color().alpha * s.get_effects().opacity)
++    });
++    let placeholder_font_style = placeholder_style
++        .as_ref()
++        .map(|s| stylo_to_parley::font_style(s.clone_font_style()));
++
+     if !matches!(element.special_data, SpecialElementData::TextInput(_)) {
+         let mut text_input_data = TextInputData::new(is_multiline);
+         let editor = &mut text_input_data.editor;
+         editor.set_text(&display_text);
+         text_input_data.is_showing_placeholder = is_placeholder;
++        text_input_data.placeholder_color = placeholder_color;
+         element.special_data = SpecialElementData::TextInput(text_input_data);
+     } else if let SpecialElementData::TextInput(data) = &mut element.special_data {
+         // Update the editor's text on subsequent layouts so an
+@@ -1552,6 +1596,7 @@ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multi
+             editor.set_text(&display_text);
+         }
+         data.is_showing_placeholder = is_placeholder;
++        data.placeholder_color = placeholder_color;
+     }
+
+     let SpecialElementData::TextInput(text_input_data) = &mut element.special_data else {
+@@ -1567,7 +1612,9 @@ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multi
+     styles.insert(StyleProperty::FontFamily(parley_style.font_family));
+     styles.insert(StyleProperty::FontSize(parley_style.font_size));
+     styles.insert(StyleProperty::FontWidth(parley_style.font_width));
+-    styles.insert(StyleProperty::FontStyle(parley_style.font_style));
++    styles.insert(StyleProperty::FontStyle(
++        placeholder_font_style.unwrap_or(parley_style.font_style),
++    ));
+     styles.insert(StyleProperty::FontWeight(parley_style.font_weight));
+     styles.insert(StyleProperty::FontVariations(parley_style.font_variations));
+     styles.insert(StyleProperty::FontFeatures(parley_style.font_features));
+@@ -1580,11 +1627,9 @@ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multi
+     styles.insert(StyleProperty::WhiteSpaceCollapse(
+         parley_style.white_space_collapse,
+     ));
++    // The brush stays the input's node: paint swaps in
++    // `placeholder_color` while the placeholder shows.
+     styles.insert(StyleProperty::Brush(parley_style.brush));
+-    // Italic-by-default placeholder mirrors most user agents.
+-    if is_placeholder {
+-        styles.insert(StyleProperty::FontStyle(parley::FontStyle::Italic));
+-    }
+     editor.set_alignment(alignment);
+     editor.set_base_direction(base_direction);
+
+diff --git a/src/node/text.rs b/src/node/text.rs
+index 76926cc..c4a9d34 100644
+--- a/src/node/text.rs
++++ b/src/node/text.rs
+@@ -100,9 +100,12 @@ pub struct TextInputData {
+     pub scroll_offset: f32,
+     /// True when the editor currently holds the
+     /// element's `placeholder` attribute text (because `value`
+-    /// was empty). The paint layer reads this to dim the text
+-    /// at 0.4 alpha, mimicking `:placeholder-shown`.
++    /// was empty).
+     pub is_showing_placeholder: bool,
++    /// The `::placeholder` colour (opacity folded into its alpha)
++    /// while the placeholder shows. Paint draws the placeholder
++    /// text in it instead of the input's own `color`.
++    pub placeholder_color: Option<style::color::AbsoluteColor>,
+     /// Authoritative IDL `.value` override. When Some,
+     /// layout construction displays this instead of the `value`
+     /// content attribute: HTML decouples the IDL value (live,
+@@ -127,6 +130,7 @@ impl TextInputData {
+             is_multiline,
+             scroll_offset: 0.0,
+             is_showing_placeholder: false,
++            placeholder_color: None,
+             value_override: None,
+         }
+     }
