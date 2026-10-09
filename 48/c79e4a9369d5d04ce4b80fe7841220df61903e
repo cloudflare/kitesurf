@@ -3,6 +3,8 @@ packages/core/src/webgl/gl.rs
 packages/core/src/boa_bridge.rs
   s_cf72bc8665a55a::t_aa5c6131e3434c 1308
   s_492d322fdb5636::t_fc4a7d2539b636 1393-1396
+packages/core/src/lib.rs
+  s_13716c95882f21::t_3c1c6ba83dd502 5516
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -10,6 +12,14 @@ packages/core/src/boa_bridge.rs
   "base_commit_sha": "48c79e4a9369d5d04ce4b80fe7841220df61903e",
   "prompts": {},
   "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_492d322fdb5636": {
       "agent_id": {
         "tool": "opencode",
