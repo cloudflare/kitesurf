@@ -1,0 +1,21 @@
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_095b7a0cb9dd4c 8859-8861
+  s_4ba79f911c93c4::t_966556222761fc 8856-8858
+  s_4ba79f911c93c4::t_cdc2f8539013bb 8862-8863
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "78440a7a3a76b3a503ebed9d4e9f303587324d49",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

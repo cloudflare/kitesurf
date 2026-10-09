@@ -1,0 +1,22 @@
+docs/FORMS.md
+  s_d357b260f2be6b::t_9fec5673d9a1f2 66
+  s_d357b260f2be6b::t_cd8c85fdf6b93a 67-71
+  s_d357b260f2be6b::t_68613c59a545e0 65,72
+  s_d357b260f2be6b::t_c0e9e9f504c23b 62-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "83b7c5557a600b78ec8b03ba7b501623648252a3",
+  "prompts": {},
+  "sessions": {
+    "s_d357b260f2be6b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_edeb94b8dffeNheYIHpqY8BMkr",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
