@@ -8,6 +8,7 @@ packages/engine/test/node/session-store.test.ts
 packages/page-script/src/index.ts
   s_41d5a40b9168bd::t_981e05c703a952 5656-5658
   s_41d5a40b9168bd::t_058f30d5ae0d7e 4
+  s_41d5a40b9168bd::t_6ec575cd7bd696 5659
 packages/page-script/src/web-storage.ts
   s_41d5a40b9168bd::t_981e05c703a952 36,59-76
 packages/engine/test/e2e/stateful-session.e2e.test.ts
@@ -16,6 +17,7 @@ packages/engine/src/cdp/connection.ts
   s_41d5a40b9168bd::t_981e05c703a952 437-438,629
 packages/engine/src/cdp/protocol-extensions.ts
   s_41d5a40b9168bd::t_058f30d5ae0d7e 264-265,275-276,280-293
+  s_41d5a40b9168bd::t_f4e348d21f9bf3 294-295
 docs/STATEFUL_SESSIONS.md
   s_41d5a40b9168bd::t_981e05c703a952 148-157
 packages/engine/src/cdp/kitesurf.ts
