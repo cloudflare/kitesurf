@@ -84,6 +84,11 @@ const rasterizer = new SceneRasterizer();
 let retainedKey = "";
 let retainedSeq = -1;
 let retainedScene: Uint8Array | null = null;
+// A scene still changes when an animation runs where the viewport can't show
+// it, so a poll that encodes the same image answers unchanged. The scroll
+// offset rides in the frame metadata, so a scroll over a blank page is still
+// a new frame.
+let retainedImage: { bytes: Uint8Array; scrollX: number; scrollY: number } | null = null;
 
 function sameBytes(leftBytes: Uint8Array, rightBytes: Uint8Array): boolean {
   const length = leftBytes.length;
@@ -505,10 +510,11 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
         scrollY,
       };
     }
+    // Only a polling caller whose client holds the retained frame may be told
+    // "unchanged". A negative sequence forces a fresh frame.
+    const pollsRetained = baseValid && typeof opts.sinceSeq === "number" && opts.sinceSeq >= 0;
     if (
-      baseValid &&
-      typeof opts.sinceSeq === "number" &&
-      opts.sinceSeq >= 0 &&
+      pollsRetained &&
       recordReply?.partial !== true &&
       retainedScene !== null &&
       sameBytes(retainedScene, scene)
@@ -574,6 +580,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
         retainedKey = "";
         retainedSeq = -1;
         retainedScene = null;
+        retainedImage = null;
       }
       return {
         error: `rasterize failed: ${info}`,
@@ -590,6 +597,19 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
       retainedKey = held ? partialKey : "";
       retainedSeq = held ? seq : -1;
       retainedScene = held && !isPartial ? scene : null;
+      const previous = retainedImage;
+      retainedImage = held ? { bytes, scrollX, scrollY } : null;
+      if (
+        held &&
+        pollsRetained &&
+        previous &&
+        previous.scrollX === scrollX &&
+        previous.scrollY === scrollY &&
+        sameBytes(previous.bytes, bytes)
+      ) {
+        phases.push("sameImage");
+        return { unchanged: true, phases, seq, scrollX, scrollY };
+      }
     }
     return { bytes, info, phases, seq, scrollX, scrollY };
   }
