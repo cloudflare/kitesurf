@@ -1,0 +1,19 @@
+packages/dom-shim/src/parser.ts
+  s_4ba79f911c93c4::t_4e83aa34fd1d3b 36,300,654,883,886,889,950
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dc06acb3e6007396e189cace180a9cdf6f2925ea",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
