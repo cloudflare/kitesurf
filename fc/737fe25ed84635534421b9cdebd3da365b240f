@@ -6,6 +6,12 @@ packages/dom-shim/src/index.ts
   s_f70b272515436f::t_d63c6b9e3370f7 342-343
 packages/engine/test/e2e/children-options-sameobject.e2e.test.ts
   s_f70b272515436f::t_772072f8c13f09 1-39
+packages/dom-shim/src/element/element.ts
+  s_f70b272515436f::t_52bdafe4fce88b 56
+  s_f70b272515436f::t_b2abaf0d52e2f8 1292-1293,1295-1297,1306-1307
+packages/dom-shim/src/element/forms/select.ts
+  s_f70b272515436f::t_64c7e1615acf66 65-68,73-74,77
+  s_f70b272515436f::t_cdbe4b15a90ae7 9
 ---
 {
   "schema_version": "authorship/3.0.0",
