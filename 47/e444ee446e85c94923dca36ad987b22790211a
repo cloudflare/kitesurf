@@ -1,7 +1,9 @@
 scripts/patches/blitz-dom-0.3.0-beta.2/0175-kitesurf-storeless-capped-image-decode-for-GL-textur.patch
   s_a2c3078f6b81a1::t_46a098dc5416e0 1-26,28-29,31-32,34-42,44-67,69-102,104-126,128-135,137
+  s_13716c95882f21::t_097c68adb1db98 27,30,33,43,68,103,127,136
 packages/core/src/lib.rs
   s_a2c3078f6b81a1::t_50419bee780baf 5399-5405,5408-5410,5412-5415,5417-5423
+  s_13716c95882f21::t_8e6939c3b3aac7 5406-5407,5411,5416
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -9,6 +11,14 @@ packages/core/src/lib.rs
   "base_commit_sha": "47e444ee446e85c94923dca36ad987b22790211a",
   "prompts": {},
   "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_a2c3078f6b81a1": {
       "agent_id": {
         "tool": "opencode",
