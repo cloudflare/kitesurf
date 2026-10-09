@@ -1042,14 +1042,14 @@
           "REPO_MAPPING:rules_rust+,bazel_tools bazel_tools",
           "REPO_MAPPING:rules_rust+,rules_cc rules_cc+",
           "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.lock 4f3fc0d1f6fc5f492dcd51b6b6922ce1044b786e816f5d1e69c1481cae6b5966",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml ada32d7c041a94b75d2e9eec598c920a778a251f52b3f6bd0fc5b94daa826aeb",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json 1e1d6b98f061edc38f73cb9f0c84bb3a39d71ab30c048d6449bc7e96c1825b8a",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml 2e9a34460113176e8a181de90d1b8b4c2d89b48ed9c84d0c7806a8a867b69bf7",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json fa996f65e47d2640d680f4ee78b56da15ea8badde43e554325c12d7955cd509b",
           "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.lock 08c2c31bf17628b62dcec93f07e64ff14972d99edcef6dbcc546a02b5d562ebb",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml 334a724bbc6ff33a31f9a1074ce98ec84f9db03c7687456caab8d6d9d8800959",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json 1e1d6b98f061edc38f73cb9f0c84bb3a39d71ab30c048d6449bc7e96c1825b8a",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml 4616a00e0f4ee75418904e5ac05fe5f6f5662046b1a4aa25ad5c0c5a52f8f10d",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json fa996f65e47d2640d680f4ee78b56da15ea8badde43e554325c12d7955cd509b",
           "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.lock 7d2be77560219a8ac6fa2927ec00d7ab1a2de1954083af0773a6a9b7cc19030b",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml a42af9eb0564356f84ab495919e88a3c421bfec843023e411c76d5e2b77aaabe",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json 1e1d6b98f061edc38f73cb9f0c84bb3a39d71ab30c048d6449bc7e96c1825b8a",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml 7d6a0a2ac4252c85eca1cfce821e8a9329e6006195148639b7dc189222cf22d7",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json fa996f65e47d2640d680f4ee78b56da15ea8badde43e554325c12d7955cd509b",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.lock 700ce60a085805e81be18248290fa55c12fd753835006ab68256b8f397261384",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.toml 6982e34060f201166856e8294a4c4a42cd957eb79df82f72f536b5318e6244b8",
           "FILE:@@//packages/kitesurf-cli/Cargo.lock 5c1bbe667adc3920fe8da379789cf39742064274345a62c53afdf3566daaf7f2",
@@ -1508,7 +1508,8 @@
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0067-Fix-span-backgrounds-select-labels-and-image-source-.patch",
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0068-Keep-template-contents-out-of-the-document.patch",
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0069-restyle-inherited-dir-and-lang-selectors-on-write.patch",
-                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0070-layout-rebuild-inline-backgrounds-when-fragment-pres.patch"
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0070-layout-rebuild-inline-backgrounds-when-fragment-pres.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0071-Resolve-placeholder-style-for-text-controls.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "a814bfd3ad19e6d8d26f99c75188062baca499564f9abe44250230962427d183",
@@ -1570,7 +1571,8 @@
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0021-Pass-the-scale-to-live_rehomed_reach.patch",
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0022-Don-t-clip-a-body-whose-overflow-went-to-the-viewpor.patch",
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0023-Propagate-text-decorations-into-in-flow-block-childr.patch",
-                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0024-Clip-only-the-clipped-axis-for-one-axis-overflow-cli.patch"
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0024-Clip-only-the-clipped-axis-for-one-axis-overflow-cli.patch",
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0025-Paint-placeholder-text-in-its-placeholder-colour.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "28803328124d7b7ea5f8f41501513ccb005559e9f6baf33fa0c1fb7612654a93",
@@ -5087,7 +5089,8 @@
                 "@@//scripts:patches/stylo-0.22.0/0011-Stop-escalating-a-clip-overflow-axis-to-hidden.patch",
                 "@@//scripts:patches/stylo-0.22.0/0012-Shrink-retained-CSS-buffers-to-their-contents.patch",
                 "@@//scripts:patches/stylo-0.22.0/0013-Complete-keyword-grammars-for-the-servo-build.patch",
-                "@@//scripts:patches/stylo-0.22.0/0014-Insert-a-stylesheet-before-an-unknown-anchor-by-appe.patch"
+                "@@//scripts:patches/stylo-0.22.0/0014-Insert-a-stylesheet-before-an-unknown-anchor-by-appe.patch",
+                "@@//scripts:patches/stylo-0.22.0/0015-Parse-webkit-input-placeholder-as-placeholder.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "7a255e46af2478628c48daab3774090caabd7812b1dd3ca98801c2b9c53491ed",

@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 9 Oct 2026 19:23:24 +0100
+Subject: [PATCH] Paint placeholder text in its ::placeholder colour
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A text control showing its placeholder drew it at 40% alpha of the
+input's own colour, and blitz-dom also forced it italic. No browser
+does either: Chromium paints the ::placeholder cascade, #757575 by
+default. Author rules such as `.x::placeholder { color: ... }` were
+ignored, so radar.cloudflare.com's location picker, which sets the
+placeholder to the text colour, read as an empty grey field.
+
+blitz-dom now resolves ::placeholder onto the text input data, and
+stroke_text takes an optional fill colour in place of the alpha that
+only this caller used.
+
+beep-boop-🤖
+---
+ src/render.rs | 15 +++++++--------
+ src/text.rs   | 12 +++++++++---
+ 2 files changed, 16 insertions(+), 11 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 6325e7f..e183cec 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -1037,7 +1037,7 @@ impl ElementCx<'_, '_> {
+                 self.scale,
+                 self.node.id,
+                 &mut draw_text_context,
+-                1.0,
++                None,
+             );
+
+             crate::text_box_decorations::paint_span_fragment_borders(
+@@ -1102,11 +1102,10 @@ impl ElementCx<'_, '_> {
+                 };
+             }
+
+-            let alpha = if input_data.is_showing_placeholder {
+-                0.4
+-            } else {
+-                1.0
+-            };
++            let fill_override = input_data
++                .placeholder_color
++                .filter(|_| input_data.is_showing_placeholder)
++                .map(|color| color.as_srgb_color());
+             let mut draw_text_context = self.context.draw_text_context.borrow_mut();
+             crate::text::stroke_text(
+                 scene,
+@@ -1116,7 +1115,7 @@ impl ElementCx<'_, '_> {
+                 self.scale,
+                 self.node.id,
+                 &mut draw_text_context,
+-                alpha,
++                fill_override,
+             );
+         }
+     }
+@@ -1172,7 +1171,7 @@ impl ElementCx<'_, '_> {
+                 self.scale,
+                 self.node.id,
+                 &mut draw_text_context,
+-                1.0,
++                None,
+             );
+         }
+     }
+diff --git a/src/text.rs b/src/text.rs
+index b80feff..c0762dd 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -594,7 +594,7 @@ pub(crate) fn stroke_text<'a>(
+     scale: f64,
+     inline_root_id: NodeId,
+     context: &mut DrawTextContext,
+-    alpha: f32,
++    fill_override: Option<Color>,
+ ) {
+     let DrawTextContext {
+         stack,
+@@ -700,9 +700,15 @@ pub(crate) fn stroke_text<'a>(
+                     continue;
+                 }
+
++                // `fill_override` stands in for `color` (the ::placeholder
++                // colour of a text control); inline opacity still applies.
+                 let text_fill_color = stack
+                     .last()
+-                    .map(|entry| entry.text_fill_color.multiply_alpha(entry.opacity))
++                    .map(|entry| {
++                        fill_override
++                            .unwrap_or(entry.text_fill_color)
++                            .multiply_alpha(entry.opacity)
++                    })
+                     .unwrap_or(Color::BLACK);
+
+                 let embolden = if FONT_EMBOLDEN_ENABLED {
+@@ -721,7 +727,7 @@ pub(crate) fn stroke_text<'a>(
+                     embolden,
+                     Fill::NonZero,
+                     &anyrender::Paint::from(text_fill_color),
+-                    alpha,
++                    1.0,
+                     transform,
+                     glyph_xform,
+                     glyph_run.positioned_glyphs().map(|glyph| anyrender::Glyph {
