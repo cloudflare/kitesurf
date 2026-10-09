@@ -1,0 +1,23 @@
+packages/core/src/scene_record.rs
+  s_f70b272515436f::t_3609ca982cf032 2700-2719
+  s_f70b272515436f::t_a05065b31512ad 1651
+  s_f70b272515436f::t_82692898292f43 2630-2631
+  s_f70b272515436f::t_b266806d1df1b9 2664-2693
+  s_f70b272515436f::t_6338302b92dcbb 2699
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a50a42df99d3beeebafe398f1605c73f7e4a3c3a",
+  "prompts": {},
+  "sessions": {
+    "s_f70b272515436f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee3accdeaffe8lRMgSeLfyUGrr",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

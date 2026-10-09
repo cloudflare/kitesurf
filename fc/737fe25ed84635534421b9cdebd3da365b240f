@@ -1,0 +1,25 @@
+packages/dom-shim/src/registries.ts
+  s_f70b272515436f::t_67c4e29a2d0313 281-282
+  s_f70b272515436f::t_4008b41d9e7b5d 157-162
+packages/dom-shim/src/index.ts
+  s_f70b272515436f::t_a639af14f3c8aa 231-232
+  s_f70b272515436f::t_d63c6b9e3370f7 342-343
+packages/engine/test/e2e/children-options-sameobject.e2e.test.ts
+  s_f70b272515436f::t_772072f8c13f09 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fc737fe25ed84635534421b9cdebd3da365b240f",
+  "prompts": {},
+  "sessions": {
+    "s_f70b272515436f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee3accdeaffe8lRMgSeLfyUGrr",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
