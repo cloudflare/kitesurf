@@ -8,6 +8,7 @@ packages/core/src/webgl/raster.rs
   s_cf72bc8665a55a::t_c5b1dffb30b37b 1-340
 AGENTS.md
   s_cf72bc8665a55a::t_59996c0e3aec9f 668-670,672
+  s_13716c95882f21::t_6bf2bc97c1e11e 64-66,152,671
 packages/core/src/lib.rs
   s_cf72bc8665a55a::t_a21ee6be6d5bfa 86-88
   s_cf72bc8665a55a::t_e7a1ab397e1dad 91
@@ -36,6 +37,7 @@ docs/WEBGL.md
   s_cf72bc8665a55a::t_b927f91df079f7 2-155,158-303,305-357,359-469
   s_cf72bc8665a55a::t_cc9a5348e9ad57 156-157
   s_cf72bc8665a55a::t_7c79083d08e415 304,358
+  s_13716c95882f21::t_6bf2bc97c1e11e 1
 packages/core/src/webgl_test.rs
   s_cf72bc8665a55a::t_eeaca8212bca36 2-15,24,27-28,33,35,42-43,50-60,62-71,75,78-90,96,104-109,111-115,123-126,128
   s_cf72bc8665a55a::t_0c311ee75972e9 16-23,25-26,29-32,34,61
@@ -50,6 +52,14 @@ Cargo.lock
   "base_commit_sha": "594bbf120cee5ec3470b2475f460445d1d009019",
   "prompts": {},
   "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_cf72bc8665a55a": {
       "agent_id": {
         "tool": "opencode",
