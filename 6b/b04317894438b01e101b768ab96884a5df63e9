@@ -24,8 +24,10 @@ packages/dom-shim/src/registries.ts
 packages/core/src/lib.rs
   s_cf72bc8665a55a::t_56ab750a3effb5 661-665,1078,5345-5421,5425-5444,5446-5459
   s_cf72bc8665a55a::t_fbc5b8952321c2 5460
+  s_13716c95882f21::t_0728bd9e216e14 5422-5424,5445
 AGENTS.md
   s_cf72bc8665a55a::t_b71726ae9d702d 669-671
+  s_13716c95882f21::t_7a7059ce5aafca 64-65,668
 packages/core/src/webgl/mod.rs
   s_cf72bc8665a55a::t_56ab750a3effb5 28
 packages/core/src/webgl/raster.rs
@@ -34,6 +36,8 @@ packages/engine/test/e2e/html/webgl.html
   s_cf72bc8665a55a::t_c785d245cf7c0f 1-80
 packages/core/src/webgl_test.rs
   s_cf72bc8665a55a::t_85704078a1c4af 59
+packages/dom-shim/src/element/canvas.ts
+  s_13716c95882f21::t_507ad6c260ef7a 2,4,26-39,44-46,64-84
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -41,6 +45,14 @@ packages/core/src/webgl_test.rs
   "base_commit_sha": "6bb04317894438b01e101b768ab96884a5df63e9",
   "prompts": {},
   "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_cf72bc8665a55a": {
       "agent_id": {
         "tool": "opencode",
