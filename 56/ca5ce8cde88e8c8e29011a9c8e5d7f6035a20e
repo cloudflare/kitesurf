@@ -1,5 +1,6 @@
 packages/engine/test/e2e/bridge-fn-name.e2e.test.ts
   s_9e39f1f9c12a70::t_ff0c2e18c87fe7 3,8-54
+  s_13716c95882f21::t_4558ec099404ab 1-2,4-7
 ---
 {
   "schema_version": "authorship/3.0.0",
