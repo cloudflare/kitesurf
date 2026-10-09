@@ -3,6 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { expect, test } from "../harness";
+import { setContent } from "../set-content";
 import { decodePng, sample, near } from "./png";
 import { targetIdForSession } from "../connect";
 
@@ -566,6 +567,49 @@ test.for([
     await cdpSession.send("Page.stopScreencast");
   },
 );
+
+// The animation is recorded into every scene, so the scene bytes change each
+// tick, but an opaque box covers it and the image never does.
+test("a covered animation does not stream identical frames", async ({ page, cdpSession }) => {
+  await setContent(
+    page,
+    `<!doctype html><style>
+    body { margin: 0; background: #fff; }
+    #patch { position: absolute; left: 300px; top: 200px; width: 60px;
+             height: 60px; background: #00f; }
+    @keyframes fade { to { opacity: 0.3; } }
+    #under { position: absolute; left: 20px; top: 20px; width: 40px;
+             height: 40px; background: #000; animation: fade .6s linear infinite alternate; }
+    #cover { position: absolute; left: 10px; top: 10px; width: 60px;
+             height: 60px; background: #0a0; }
+  </style><div id="patch"></div><div id="under"></div><div id="cover"></div>`,
+  );
+
+  let frames = 0;
+  let last: Uint8Array | undefined;
+  cdpSession.on("Page.screencastFrame", (ev: { data: string; sessionId: number }) => {
+    frames++;
+    last = Uint8Array.from(Buffer.from(ev.data, "base64"));
+    cdpSession.send("Page.screencastFrameAck", { sessionId: ev.sessionId }).catch(() => {});
+  });
+  await cdpSession.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+  await expect.poll(() => frames, { timeout: 15_000 }).toBeGreaterThan(0);
+
+  await new Promise((r) => setTimeout(r, LOAD_DRAIN_MS));
+  const settled = frames;
+  await new Promise((r) => setTimeout(r, IDLE_WINDOW_MS));
+  expect(frames - settled, "identical frames are not re-sent").toBeLessThanOrEqual(1);
+
+  await page.evaluate(() => {
+    const el = document.getElementById("patch");
+    if (el) el.style.background = "#f00";
+  });
+  await expect
+    .poll(() => (last ? sample(decodePng(last), 330, 230) : null), { timeout: 10_000 })
+    .toEqual([255, 0, 0]);
+
+  await cdpSession.send("Page.stopScreencast");
+});
 
 const SLOW_FRAME_INTERVAL_MS = 1_000;
 
