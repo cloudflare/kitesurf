@@ -65,6 +65,27 @@ export function paintPrepStats(): { prepares: number } {
   return { prepares: paintPrepCount };
 }
 
+let layoutResolveStatsWarned = false;
+
+// Null before the first document. A throwing wasm read is null too, so a
+// stats read never fails the getMemoryStats reply around it.
+export function layoutResolveStats(): {
+  mutationResolves: number;
+  animationResolves: number;
+} | null {
+  let counts: Uint32Array | undefined;
+  try {
+    counts = state.dom?.resolveCounts();
+  } catch (error) {
+    if (!layoutResolveStatsWarned) console.warn("[kitesurf] resolveCounts failed", error);
+    layoutResolveStatsWarned = true;
+    return null;
+  }
+  const [mutationResolves, animationResolves] = counts ?? [];
+  if (mutationResolves === undefined || animationResolves === undefined) return null;
+  return { mutationResolves, animationResolves };
+}
+
 export function cascadeSeq(): number {
   const internalState = getInternalState();
   return ((internalState.mutationSeq | 0) - (internalState.paintNeutralSeq | 0)) | 0;

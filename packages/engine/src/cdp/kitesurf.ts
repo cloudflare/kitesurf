@@ -367,6 +367,7 @@ export async function handleKitesurf(ctx: DispatchCtx, req: CdpRequest): Promise
             domNodes: typeof reply?.domNodes === "number" ? reply.domNodes : null,
             wrappers: reply?.wrappers ?? null,
             paint: reply?.paint ?? null,
+            layout: reply?.layout ?? null,
             intersectionObserver: reply?.intersectionObserver ?? null,
             timerWheel: reply?.timerWheel ?? null,
             error: reply?.error,

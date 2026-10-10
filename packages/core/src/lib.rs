@@ -351,6 +351,10 @@ pub struct DomHandle {
     /// Bumped by every resolve that succeeded (a panicked one leaves it), so a size
     /// poll can tell "nothing relaid out since I looked" without re-reading geometry.
     layout_epoch: std::cell::Cell<u32>,
+    /// Resolves run so far: `[mutation-driven, animation-only]`. An animation-only resolve
+    /// re-cascades every running animation with nothing else to show for it. Reported through
+    /// Kitesurf.getMemoryStats.
+    resolve_counts: std::cell::Cell<[u32; 2]>,
     /// Per-(node, property) transition state as of the last resolve.
     /// Diffed against the next one to synthesise the DOM events;
     /// stylo clears `is_new` before we ever see it.
@@ -492,6 +496,7 @@ impl DomHandle {
             animating: std::cell::Cell::new(false),
             last_resolve_now: std::cell::Cell::new(f64::NEG_INFINITY),
             layout_epoch: std::cell::Cell::new(0),
+            resolve_counts: std::cell::Cell::new([0, 0]),
             transition_states: RefCell::new(TransitionStates::default()),
             transition_events: RefCell::new(Vec::new()),
             animation_states: RefCell::new(AnimationStates::default()),
@@ -655,6 +660,9 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return,
         };
+        let mut counts = self.resolve_counts.get();
+        counts[usize::from(!dirty)] = counts[usize::from(!dirty)].saturating_add(1);
+        self.resolve_counts.set(counts);
         #[cfg(test)]
         let _cascade_guard = STYLE_CASCADE_TEST_LOCK
             .lock()
@@ -739,6 +747,12 @@ impl DomHandle {
             current = doc.get_node(id).and_then(|node| node.parent);
         }
         None
+    }
+
+    /// `[mutationResolves, animationResolves]` since the document was built.
+    #[wasm_bindgen(js_name = "resolveCounts")]
+    pub fn resolve_counts(&self) -> Vec<u32> {
+        self.resolve_counts.get().to_vec()
     }
 
     #[wasm_bindgen(js_name = "resolveLayout")]
