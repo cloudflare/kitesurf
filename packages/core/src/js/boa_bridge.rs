@@ -185,6 +185,28 @@ fn boa_strict() -> bool {
     BOA_STRICT.with(|c| c.get())
 }
 
+// A feature-detection loop can swallow one throw per call, so only the first
+// few are named; the rest would bury the console without saying more.
+const SWALLOWED_CTOR_WARN_LIMIT: u32 = 16;
+
+thread_local! {
+    static SWALLOWED_CTOR_WARNS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+fn warn_swallowed_ctor_throw(e: &impl std::fmt::Display) {
+    let n = SWALLOWED_CTOR_WARNS.with(|c| {
+        let n = c.get().saturating_add(1);
+        c.set(n);
+        n
+    });
+    if n <= SWALLOWED_CTOR_WARN_LIMIT {
+        crate::console_warn_str(&format!("[ks-bridge] boa ctor threw (swallowed): {e}"));
+    }
+    if n == SWALLOWED_CTOR_WARN_LIMIT {
+        crate::console_warn_str("[ks-bridge] further swallowed ctor throws are not logged");
+    }
+}
+
 struct PinSlab<T> {
     entries: Vec<(u32, Option<T>)>,
     free: Vec<u32>,
@@ -2516,10 +2538,12 @@ fn tramp_construct_body(
             Ok(inst) => Ok(boa_to_v8(&BoaValue::from(inst), ctx)),
             Err(e) => {
                 if boa_strict() {
-                    Err(error_to_v8(&e, ctx))
-                } else {
-                    Ok(wasm_bindgen::JsValue::UNDEFINED)
+                    return Err(error_to_v8(&e, ctx));
                 }
+                // Non-strict mode turns the throw into `undefined`; warn so
+                // the failure can be traced.
+                warn_swallowed_ctor_throw(&e);
+                Ok(wasm_bindgen::JsValue::UNDEFINED)
             }
         }
     })
