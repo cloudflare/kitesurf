@@ -1,0 +1,22 @@
+packages/engine/src/cdp/page.ts
+  s_1c71c5f2b19fff::t_562a9988e7fd9a 822
+docs/NETWORKING.md
+  s_1c71c5f2b19fff::t_f375aeade78092 88
+  s_1c71c5f2b19fff::t_0c76caed3e2d89 89-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "75d57f1bc4294824de58df9ee61ef9a695ad27b4",
+  "prompts": {},
+  "sessions": {
+    "s_1c71c5f2b19fff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede9a1cdeffeVqP74W6V1QU94d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
