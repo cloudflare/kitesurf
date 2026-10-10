@@ -29,6 +29,7 @@ import {
   state,
   type ShimEventCtors,
 } from "./state.ts";
+import { ensurePaintDom, invalidatePaintDom } from "./paint.ts";
 import { fetchGatedModuleSource } from "./inserted-scripts.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
 import { indexedDbGlobals } from "./indexeddb.ts";
@@ -1828,10 +1829,16 @@ export function installGlobals(
     if (typeof globalThis.ResizeObserver !== "function") {
       const RESIZE_OBSERVER_POLL_INTERVAL_MS = 250;
       const RESIZE_OBSERVER_SIZE_TOLERANCE_PX = 0.5;
-      const activeResizeObservers = new Set<any>();
+      // A poll on a clean layout reads the committed boxes, since a resolve
+      // re-cascades every running animation. Every 4th poll on an animating
+      // page resolves anyway, so a size only an animation moves lands within
+      // about 1 s. A mutation dirties the layout and lands on the next poll.
+      const RESIZE_OBSERVER_ANIMATING_RESOLVE_EVERY = 4;
+      const activeResizeObservers = new Set<ResizeObserverShim>();
       let resizeObserverPollTimer: number | null = null;
       let resizeObserverPolledEpoch = -1;
       let resizeObserverResolveWarned = false;
+      let resizeObserverPolls = 0;
       const pollResizeObservers = () => {
         if (activeResizeObservers.size === 0) {
           if (resizeObserverPollTimer !== null) {
@@ -1845,55 +1852,61 @@ export function installGlobals(
         // A box only resizes through a resolve, and a running CSS animation only advances
         // when someone resolves, so skip only an idle page that nothing relaid out since.
         const dom = state.dom;
-        const idle = dom?.layoutClean() === true && dom.isAnimating() !== true;
-        if (idle && dom.layoutEpoch() === resizeObserverPolledEpoch) return;
+        const animating = dom?.isAnimating() === true;
+        if (
+          resizeObserverLayoutCommitted() &&
+          !animating &&
+          dom?.layoutEpoch() === resizeObserverPolledEpoch
+        )
+          return;
         resizeObserverPolledEpoch = -1;
-        try {
-          dom?.resolveLayout();
-        } catch (error) {
-          if (!resizeObserverResolveWarned)
-            console.warn("[kitesurf] ResizeObserver poll: layout failed", error);
-          resizeObserverResolveWarned = true;
-        }
-        const measuredEpoch = dom?.layoutClean() === true ? dom.layoutEpoch() : -1;
-        pollResizeTargets();
+        resizeObserverPolls++;
+        const measuredEpoch = pollResizeTargets(
+          animating && resizeObserverPolls % RESIZE_OBSERVER_ANIMATING_RESOLVE_EVERY === 0,
+        );
         // A callback that relaid out may have moved boxes measured before it
         // ran, so only an epoch nothing advanced past lets the next poll skip.
-        const settled = dom?.layoutClean() === true && dom.layoutEpoch() === measuredEpoch;
+        const settled =
+          measuredEpoch !== -1 &&
+          dom?.layoutClean() === true &&
+          dom.layoutEpoch() === measuredEpoch;
         resizeObserverPolledEpoch = settled ? measuredEpoch : -1;
       };
-      const pollResizeTargets = () => {
+      // Returns the layout epoch the measurements read, or -1 if unknown. The
+      // first measurement resolves if anything is pending, so the epoch read
+      // right after it is the layout every later measurement must match.
+      const pollResizeTargets = (forceResolve: boolean): number => {
+        let measuredEpoch: number | undefined;
         for (const observer of activeResizeObservers) {
-          const changedEntries: unknown[] = [];
+          const changed: ResizeObserverSizes[] = [];
           for (const target of observer._targets) {
-            const entry = observer._entryFor(target);
+            const sizes = measureResizeObserverTarget(target, forceResolve);
+            forceResolve = false;
+            if (measuredEpoch === undefined) {
+              const dom = state.dom;
+              measuredEpoch = dom?.layoutClean() === true ? dom.layoutEpoch() : -1;
+            }
             const lastSize = observer._last.get(target);
-            const width = entry.contentRect.width;
-            const height = entry.contentRect.height;
-            const borderWidth = entry.borderBoxSize[0].inlineSize;
-            const borderHeight = entry.borderBoxSize[0].blockSize;
+            // Watch BOTH boxes: a padding-only change moves the border box
+            // while the content box stands still, and vice versa.
             const moved =
               !lastSize ||
-              Math.abs(lastSize.w - width) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
-              Math.abs(lastSize.h - height) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
-              Math.abs(lastSize.bw - borderWidth) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
-              Math.abs(lastSize.bh - borderHeight) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX;
+              Math.abs(lastSize.w - sizes.w) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
+              Math.abs(lastSize.h - sizes.h) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
+              Math.abs(lastSize.bw - sizes.bw) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
+              Math.abs(lastSize.bh - sizes.bh) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX;
             if (moved) {
-              observer._last.set(target, {
-                w: width,
-                h: height,
-                bw: borderWidth,
-                bh: borderHeight,
-              });
-              changedEntries.push(entry);
+              observer._last.set(target, sizes);
+              changed.push(sizes);
             }
           }
-          if (changedEntries.length) {
+          if (changed.length) {
             try {
-              observer._cb(changedEntries, observer);
+              observer._cb(changed.map(resizeObserverEntry), observer);
             } catch {}
           }
         }
+        return measuredEpoch ?? -1;
       };
       const ensureResizeObserverPoll = () => {
         if (resizeObserverPollTimer === null && globalThis.setInterval) {
@@ -1905,28 +1918,82 @@ export function installGlobals(
           } catch {}
         }
       };
+      interface ResizeObserverSizes {
+        target: unknown;
+        w: number;
+        h: number;
+        bw: number;
+        bh: number;
+      }
       interface ResizeObserverShim {
         _cb: (entries: unknown[], observer: ResizeObserverShim) => void;
         _targets: Set<unknown>;
-        _last: Map<unknown, { w: number; h: number; bw: number; bh: number }>;
-        _entryFor(target: unknown): ReturnType<typeof entryFor>;
+        _last: Map<unknown, ResizeObserverSizes>;
       }
       const ResizeObserverStub = function (this: ResizeObserverShim, callback) {
         this._cb = callback;
         this._targets = new Set();
         this._last = new Map();
       };
-      const entryFor = (target) => {
+      // One wasm read per target. The CSSOM path below is only the fallback
+      // for a target the layout cannot answer for. A clean layout at the
+      // current viewport is read as committed unless the caller forces a
+      // resolve; a callback that mutated the DOM dirties it again.
+      const resizeObserverLayoutCommitted = () =>
+        state.dom?.layoutClean() === true &&
+        state.paintCacheViewportW === state.paintViewportW &&
+        state.paintCacheViewportH === state.paintViewportH;
+      const measureResizeObserverTarget = (
+        target: unknown,
+        forceResolve: boolean,
+      ): ResizeObserverSizes => {
+        const nodeId: unknown =
+          typeof target === "object" && target !== null ? Reflect.get(target, "_id") : undefined;
+        if (typeof nodeId === "number") {
+          const resolve = forceResolve || !resizeObserverLayoutCommitted();
+          try {
+            const dom = resolve ? ensurePaintDom() : state.dom;
+            const [w, h, bw, bh] = dom?.resizeObserverBoxes(nodeId, resolve) ?? [];
+            if (w !== undefined && h !== undefined && bw !== undefined && bh !== undefined) {
+              return { target, w, h, bw, bh };
+            }
+          } catch (error) {
+            // A panicked resolve has already recovered; the CSSOM read below
+            // measures what it left. Warn once so a broken poll is not silent.
+            if (!resizeObserverResolveWarned)
+              console.warn("[kitesurf] ResizeObserver poll: layout failed", error);
+            resizeObserverResolveWarned = true;
+            invalidatePaintDom();
+          }
+        }
+        return measureResizeObserverTargetFromCssom(target);
+      };
+      interface ResizeObserverCssomTarget {
+        getBoundingClientRect(): { width: number; height: number };
+        clientWidth?: unknown;
+        clientHeight?: unknown;
+      }
+      const isResizeObserverCssomTarget = (target: unknown): target is ResizeObserverCssomTarget =>
+        typeof target === "object" &&
+        target !== null &&
+        typeof Reflect.get(target, "getBoundingClientRect") === "function";
+      // A border-box request must not receive content-box numbers.
+      const measureResizeObserverTargetFromCssom = (target: unknown): ResizeObserverSizes => {
         let borderWidth = 0;
         let borderHeight = 0;
         let width = 0;
         let height = 0;
+        if (!isResizeObserverCssomTarget(target)) {
+          return { target, w: width, h: height, bw: borderWidth, bh: borderHeight };
+        }
         try {
           const rect = target.getBoundingClientRect();
           borderWidth = rect.width;
           borderHeight = rect.height;
           width = borderWidth;
           height = borderHeight;
+          // contentRect is the content box; clientWidth and clientHeight are the
+          // padding box, so take the padding back off.
           const computedStyle = globalThis.getComputedStyle
             ? globalThis.getComputedStyle(target)
             : null;
@@ -1940,12 +2007,21 @@ export function installGlobals(
             );
             height = Math.max(
               0,
-              target.clientHeight -
+              Number(target.clientHeight) -
                 parsePixels(computedStyle.paddingTop) -
                 parsePixels(computedStyle.paddingBottom),
             );
           }
         } catch {}
+        return { target, w: width, h: height, bw: borderWidth, bh: borderHeight };
+      };
+      const resizeObserverEntry = ({
+        target,
+        w: width,
+        h: height,
+        bw,
+        bh,
+      }: ResizeObserverSizes) => {
         const devicePixelRatio = Number(globalThis.devicePixelRatio) || 1;
         return {
           target,
@@ -1959,7 +2035,7 @@ export function installGlobals(
             right: width,
             bottom: height,
           },
-          borderBoxSize: [{ inlineSize: borderWidth, blockSize: borderHeight }],
+          borderBoxSize: [{ inlineSize: bw, blockSize: bh }],
           contentBoxSize: [{ inlineSize: width, blockSize: height }],
           devicePixelContentBoxSize: [
             {
@@ -1978,15 +2054,10 @@ export function installGlobals(
           const observer = this;
           ((globalThis.setTimeout || ((callback) => callback())) as any)(() => {
             if (!observer._targets.has(target)) return;
-            const entry = observer._entryFor(target);
-            observer._last.set(target, {
-              w: entry.contentRect.width,
-              h: entry.contentRect.height,
-              bw: entry.borderBoxSize[0].inlineSize,
-              bh: entry.borderBoxSize[0].blockSize,
-            });
+            const sizes = measureResizeObserverTarget(target, true);
+            observer._last.set(target, sizes);
             try {
-              observer._cb([entry], observer);
+              observer._cb([resizeObserverEntry(sizes)], observer);
             } catch {}
           }, 0);
         },
@@ -1999,9 +2070,6 @@ export function installGlobals(
           this._targets.clear();
           this._last.clear();
           activeResizeObservers.delete(this);
-        },
-        _entryFor(target) {
-          return entryFor(target);
         },
       });
       globalThis.ResizeObserver = ResizeObserverStub;
