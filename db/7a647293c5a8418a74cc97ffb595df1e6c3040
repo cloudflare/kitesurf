@@ -1,0 +1,19 @@
+packages/core/src/webgl/gl.rs
+  s_13716c95882f21::t_28c7cbb9d80d98 203-209,264-267,428-429,644-660,931,935-940
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "db7a647293c5a8418a74cc97ffb595df1e6c3040",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
