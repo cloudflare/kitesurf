@@ -1,0 +1,92 @@
+packages/engine/test/e2e/route-churn-memory.e2e.test.ts
+  s_47d6ef2b5aabaa::t_53004389f4d38c 1-145
+packages/engine/test/e2e/idl-handler-rekey.e2e.test.ts
+  s_47d6ef2b5aabaa::t_53004389f4d38c 1-89
+packages/core/src/lib.rs
+  s_47d6ef2b5aabaa::t_a3ce366a8e4b20 8921
+  s_47d6ef2b5aabaa::t_79d371fcece8d2 8918-8920
+  s_47d6ef2b5aabaa::t_0b2c53cf9b7891 8922
+packages/dom-shim/src/state.ts
+  s_47d6ef2b5aabaa::t_e19ea7e775afb0 263-270,380-414,424-453,455-483
+packages/engine/test/e2e/reclaim-pending-stylesheet.e2e.test.ts
+  s_47d6ef2b5aabaa::t_53004389f4d38c 1-102
+packages/dom-shim/src/fastpath.ts
+  s_47d6ef2b5aabaa::t_aabbe15f75290c 49-51
+packages/engine/src/cdp/runtime.ts
+  s_47d6ef2b5aabaa::t_9c5f9f3d00783c 44-51
+  s_47d6ef2b5aabaa::t_5f0aac3a918b79 41-43
+  s_47d6ef2b5aabaa::t_fe066050996bc1 52-54
+packages/dom-shim/src/reclaim.ts
+  s_47d6ef2b5aabaa::t_2235ebffcc0edf 209-210,228,230-238
+  s_47d6ef2b5aabaa::t_d224d1b4cce4b7 62-76,100
+  s_47d6ef2b5aabaa::t_a79ee40b18efe4 33-37,48
+  s_47d6ef2b5aabaa::t_17a1eb1cb1b0cf 7,194-196
+  s_47d6ef2b5aabaa::t_46eb720a4241e5 82,92
+  s_47d6ef2b5aabaa::t_ed274fbb76ee7b 56,171,352-355,364-367
+  s_47d6ef2b5aabaa::t_dfc416055beb9b 280-283,305
+  s_47d6ef2b5aabaa::t_05ca2ecb99a9f8 165,199-202,251,257,266,276,294,302,323-326
+  s_47d6ef2b5aabaa::t_b0df7dae8fc079 85,95,110-115,118-141,150-164
+  s_31ce136802e446::t_97aada3df3808a 166,197
+packages/engine/src/cdp/types.ts
+  s_47d6ef2b5aabaa::t_9c5f9f3d00783c 472-474
+packages/dom-shim/src/index.ts
+  s_47d6ef2b5aabaa::t_6b1d56dbdf293b 276-284
+packages/engine/test/e2e/retention-gauges.e2e.test.ts
+  s_47d6ef2b5aabaa::t_53004389f4d38c 1-95
+packages/dom-shim/src/registries.ts
+  s_47d6ef2b5aabaa::t_76b11268afbba6 549-553
+  s_47d6ef2b5aabaa::t_6eeadc7ce3700c 548
+  s_47d6ef2b5aabaa::t_2c410fedab1978 554
+packages/dom-shim/src/parser.ts
+  s_47d6ef2b5aabaa::t_2ad5728f002c9d 64,66,67,69-76,78,81-82,85-90,95-96,98,104-105,108-111,132,134-148,150-151
+packages/engine/src/cdp/kitesurf.ts
+  s_d357b260f2be6b::t_81b96579a391cc 15,322-329,362
+packages/engine/src/cdp/target.ts
+  s_47d6ef2b5aabaa::t_0d31831d0a1ff6 931-933
+packages/engine/test/e2e/detached-subtree-reclaim.e2e.test.ts
+  s_47d6ef2b5aabaa::t_8ab01e76f9b415 1-737
+packages/engine/test/e2e/dom-parser-dataset.e2e.test.ts
+  s_47d6ef2b5aabaa::t_e2cac4d436c4c1 30,46,56,76,79,86,93
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_47d6ef2b5aabaa::t_d1efd5cab78658 2,16-19,21-28,31-32,39-41,43-50,52-54,67-69,111,219,223-226,229-234
+packages/page-script/src/defer-shim.ts
+  s_47d6ef2b5aabaa::t_787a944f1b0cb5 29-50
+packages/page-script/src/font-loader.ts
+  s_47d6ef2b5aabaa::t_56dd511da71e47 234-241
+packages/page-script/src/handles.ts
+  s_47d6ef2b5aabaa::t_b978885511e34c 52-64
+scripts/e2e-perf.mjs
+  s_47d6ef2b5aabaa::t_72fef929444a06 43-44,159,182-190,195,290,341-358,427-432,441,473-490,506-508,558-559
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7deec208aa7fd875beaf4fb689bb89edce4fa166",
+  "prompts": {},
+  "sessions": {
+    "s_31ce136802e446": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_edea0a8dfffecox3X2GD4NpCGC",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_47d6ef2b5aabaa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_edf8dc3d2ffeviW9Sk3JEj3MrU",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_d357b260f2be6b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_edeb94b8dffeNheYIHpqY8BMkr",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
