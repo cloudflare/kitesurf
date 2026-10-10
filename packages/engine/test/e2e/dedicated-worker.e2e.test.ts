@@ -21,6 +21,8 @@ test("a blob worker answers messages and sees a worker global", async ({ page })
           noDocument: typeof document === "undefined",
           protocol: location.protocol,
           ua: navigator.userAgent.length > 0,
+          // MapLibre's worker serializer tests instanceof ImageData unguarded.
+          imageData: new ImageData(2, 1).data.length,
         });
       };`;
     const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
@@ -46,6 +48,7 @@ test("a blob worker answers messages and sees a worker global", async ({ page })
       noDocument: true,
       protocol: "blob:",
       ua: true,
+      imageData: 8,
     },
     {
       echo: { n: 2, nested: [1, { deep: true }] },
@@ -55,6 +58,7 @@ test("a blob worker answers messages and sees a worker global", async ({ page })
       noDocument: true,
       protocol: "blob:",
       ua: true,
+      imageData: 8,
     },
   ]);
 });

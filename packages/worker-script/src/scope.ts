@@ -149,6 +149,45 @@ export class ErrorEventClass extends NativeEvent {
   }
 }
 
+// HTML's ImageData: `new ImageData(w, h)` or `new ImageData(data, w, h?)`.
+export class ImageDataClass {
+  readonly data: Uint8ClampedArray;
+  readonly width: number;
+  readonly height: number;
+  readonly colorSpace = "srgb";
+  constructor(a: unknown, b: unknown, c?: unknown) {
+    if (a instanceof Uint8ClampedArray) {
+      const w = Number(b) >>> 0;
+      if (w === 0 || a.length % 4 !== 0 || (a.length / 4) % w !== 0) {
+        throw new DOMException(
+          "The input data length is not a multiple of (4 * width).",
+          "IndexSizeError",
+        );
+      }
+      const h = c === undefined ? a.length / 4 / w : Number(c) >>> 0;
+      if (h * w * 4 !== a.length) {
+        throw new DOMException(
+          "The input data length is not equal to (4 * width * height).",
+          "IndexSizeError",
+        );
+      }
+      this.data = a;
+      this.width = w;
+      this.height = h;
+      return;
+    }
+    const w = Number(a) >>> 0;
+    const h = Number(b) >>> 0;
+    if (w === 0 || h === 0) {
+      throw new DOMException("The source width and height must be non-zero.", "IndexSizeError");
+    }
+    this.data = new Uint8ClampedArray(w * h * 4);
+    this.width = w;
+    this.height = h;
+  }
+}
+Object.defineProperty(ImageDataClass, "name", { value: "ImageData" });
+
 export class MessageEventClass extends NativeEvent {
   data: unknown;
   origin: string;
@@ -346,6 +385,9 @@ export function installScope(params: WorkerStartParams, send: ScopeHooks["send"]
   }
   defineValue("ErrorEvent", ErrorEventClass);
   defineValue("MessageEvent", MessageEventClass);
+  // workerd has no ImageData. MapLibre's worker serializer tests
+  // `x instanceof ImageData` without a typeof guard, so every reply failed.
+  if (!("ImageData" in scope)) defineValue("ImageData", ImageDataClass);
   const workerGlobalScope = illegalConstructor("WorkerGlobalScope");
   const dedicatedWorkerGlobalScope = illegalConstructor("DedicatedWorkerGlobalScope");
   Object.setPrototypeOf(dedicatedWorkerGlobalScope.prototype, workerGlobalScope.prototype);
