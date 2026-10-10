@@ -129,9 +129,10 @@ impl DomHandle {
         }
     }
 
+    /// Does not resolve. The drain tick in transitions.ts decides whether its turn needs
+    /// `resolveLayout`; a resolve here would re-cascade every running animation on each tick.
     #[wasm_bindgen(js_name = "takeTransitionEvents")]
     pub fn take_transition_events(&self) -> Result<JsValue, JsError> {
-        self.ensure_layout();
         let drained: Vec<TransitionEvent> = match self.transition_events.try_borrow_mut() {
             Ok(mut e) => std::mem::take(&mut *e),
             Err(_) => Vec::new(),
@@ -139,9 +140,9 @@ impl DomHandle {
         serde_wasm_bindgen::to_value(&drained).map_err(|e| JsError::new(&e.to_string()))
     }
 
+    /// Does not resolve, like `takeTransitionEvents`.
     #[wasm_bindgen(js_name = "takeAnimationEvents")]
     pub fn take_animation_events(&self) -> Result<JsValue, JsError> {
-        self.ensure_layout();
         let drained: Vec<AnimationEvent> = match self.animation_events.try_borrow_mut() {
             Ok(mut e) => std::mem::take(&mut *e),
             Err(_) => Vec::new(),
