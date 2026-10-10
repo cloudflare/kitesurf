@@ -141,6 +141,7 @@ import {
   kickLayoutForFontFaceDiscovery,
   takePaintPrep,
   paintPrepStats,
+  layoutResolveStats,
   rectWithScrollOffset,
   renderSceneRawPooled,
   scrollBy,
@@ -6833,6 +6834,7 @@ function queryDomMemoryStats(): QueryDomResult<"getMemoryStats"> {
     domNodes,
     wrappers: detachedWrapperStats(),
     paint: paintPrepStats(),
+    layout: layoutResolveStats(),
     intersectionObserver: intersectionObserverStats(),
     timerWheel: { ...timerWheelStats(), shim: deferShimStats() },
   } satisfies QueryDomResult<"getMemoryStats">;

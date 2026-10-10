@@ -106,6 +106,10 @@ export interface PageScriptGauges {
   domNodes?: number | null;
   wrappers?: Record<string, number> | null;
   paint?: { prepares: number } | null;
+  // Layout resolves since the document was built. An animation-only resolve
+  // re-cascades every running animation, so a fast climb on an idle page
+  // means some poller keeps asking.
+  layout?: { mutationResolves: number; animationResolves: number } | null;
   intersectionObserver?: {
     free: number;
     forced: number;
