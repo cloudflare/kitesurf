@@ -120,6 +120,35 @@ pub(crate) fn has_layout_data(node: &Node) -> bool {
     )
 }
 
+/// The node and every ancestor generate a box, and the chain reaches the document root.
+/// display_constructed_as persists from the style flush, so it stays valid mid-measure
+/// (unlike primary_styles).
+pub(crate) fn generates_box(doc: &BaseDocument, node: &Node) -> bool {
+    let no_box = |d: ::style::values::specified::box_::Display| {
+        use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
+        d.outside() == DisplayOutside::None && d.inside() == DisplayInside::None
+    };
+    if no_box(*node.display_constructed_as()) {
+        return false;
+    }
+    let root_id = doc.root_node().id;
+    if node.id == root_id {
+        return true;
+    }
+    let mut cur = node.parent;
+    while let Some(pid) = cur {
+        let Some(p) = doc.get_node(pid) else { break };
+        if p.is_element() && no_box(*p.display_constructed_as()) {
+            return false;
+        }
+        if pid == root_id {
+            return true;
+        }
+        cur = p.parent;
+    }
+    false
+}
+
 enum SerializeStep<'a> {
     Open(&'a Node),
     Close(&'a str),

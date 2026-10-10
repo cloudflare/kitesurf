@@ -12,7 +12,7 @@ use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 use crate::{emulated_color_scheme, DomHandle, LayoutMode};
-use crate::dom::tree::has_layout_data;
+use crate::dom::tree::{generates_box, has_layout_data};
 use crate::layout::scroll::{is_scroll_container, overflow_clips};
 
 pub(crate) fn svg_natural_dimensions(
@@ -879,6 +879,56 @@ impl DomHandle {
         }));
         let rect = rect_result.unwrap_or(Rect::ZERO);
         serde_wasm_bindgen::to_value(&rect).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// ResizeObserver's two boxes in one call: `[contentWidth, contentHeight, borderWidth,
+    /// borderHeight]` from the layout box, so transforms do not count. A node that generates no
+    /// box measures zero. Empty when there is no layout to read, so the caller falls back to its
+    /// CSSOM reads. With `resolve` false this reads the last committed layout.
+    #[wasm_bindgen(js_name = "resizeObserverBoxes")]
+    pub fn resize_observer_boxes(&self, node_id: u32, resolve: bool) -> Vec<f32> {
+        if self.layout_mode.get() == LayoutMode::Off {
+            return Vec::new();
+        }
+        if resolve {
+            self.ensure_layout();
+        }
+        let Some(internal_id) = self.resolve_node_id(node_id) else {
+            return Vec::new();
+        };
+        let Ok(doc) = self.doc.try_borrow() else {
+            return Vec::new();
+        };
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let node = doc.get_node(internal_id)?;
+            if !has_layout_data(node) {
+                return None;
+            }
+            if !generates_box(&doc, node) {
+                return Some(vec![0.0; 4]);
+            }
+            let layout = node.final_layout();
+            let content_width = (layout.size.width
+                - layout.border.left
+                - layout.border.right
+                - layout.padding.left
+                - layout.padding.right)
+                .max(0.0);
+            let content_height = (layout.size.height
+                - layout.border.top
+                - layout.border.bottom
+                - layout.padding.top
+                - layout.padding.bottom)
+                .max(0.0);
+            Some(vec![
+                content_width,
+                content_height,
+                layout.size.width,
+                layout.size.height,
+            ])
+        }));
+        drop(doc);
+        result.ok().flatten().unwrap_or_default()
     }
 
     /// Compute one Intersection Observer geometry result.

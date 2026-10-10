@@ -3,8 +3,9 @@
 // https://opensource.org/licenses/Apache-2.0
 
 // An infinite CSS animation makes every resolve re-cascade the animated
-// element, so the engine's own pollers must not resolve just because the
-// clock moved. Counted through Kitesurf.getMemoryStats' layout block.
+// element, so the engine's own pollers (the transition drain and the
+// ResizeObserver poll) must not resolve just because the clock moved.
+// Counted through Kitesurf.getMemoryStats' layout block.
 import type { Page } from "@cloudflare/puppeteer";
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
@@ -56,3 +57,42 @@ test("a page that mutates nonstop does not pull the animation drain to frame rat
   const iterations = await page.evaluate(() => Reflect.get(globalThis, "__iterations") as number);
   expect(iterations - iterationsBefore).toBeGreaterThanOrEqual(2);
 });
+
+test("the ResizeObserver poll reads a clean layout without resolving", async ({ page }) => {
+  await setContent(
+    page,
+    `<style>${SPIN} #box { width: 100px; height: 50px }</style>
+    <div id="spin"></div><div id="box"></div><script>
+      globalThis.__entries = 0;
+      new ResizeObserver(() => { globalThis.__entries++; }).observe(document.getElementById("box"));
+    </script>`,
+  );
+  await sleep(300);
+  // Eight polls in this window. Only every fourth may resolve for the clock.
+  const resolves = await resolvesOver(page, 2000);
+  expect(resolves).toBeLessThanOrEqual(4);
+  expect(await page.evaluate(() => Reflect.get(globalThis, "__entries") as number)).toBe(1);
+});
+
+test("a ResizeObserver still sees a size that only an animation changes", async ({ page }) => {
+  await setContent(
+    page,
+    `<style>
+      @keyframes grow { from { width: 100px } to { width: 300px } }
+      #box { height: 20px; animation: grow 2s linear infinite alternate }
+    </style><div id="box"></div><script>
+      globalThis.__widths = [];
+      new ResizeObserver((entries) => {
+        for (const e of entries) globalThis.__widths.push(Math.round(e.contentRect.width));
+      }).observe(document.getElementById("box"));
+    </script>`,
+  );
+  // Nothing else resolves this page, so only the poll's own clock-driven
+  // resolve can move the box.
+  await page.waitForFunction(
+    () => new Set(Reflect.get(globalThis, "__widths") as number[]).size >= 3,
+    { timeout: 10_000 },
+  );
+  const widths = await page.evaluate(() => Reflect.get(globalThis, "__widths") as number[]);
+  expect(widths.every((w) => w >= 100 && w <= 300)).toBe(true);
+}, 30_000);

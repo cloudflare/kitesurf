@@ -10,7 +10,7 @@ use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 use crate::DomHandle;
-use crate::dom::tree::has_layout_data;
+use crate::dom::tree::{generates_box, has_layout_data};
 
 pub(crate) fn overflow_clips(node: &blitz_dom::Node) -> (bool, bool) {
     use ::style::values::computed::Overflow;
@@ -221,31 +221,7 @@ impl DomHandle {
                     )
                 })
                 .unwrap_or((false, false, false, false, false, false));
-            let no_box = |d: ::style::values::specified::box_::Display| {
-                use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
-                d.outside() == DisplayOutside::None && d.inside() == DisplayInside::None
-            };
-            let mut has_box = !no_box(*node.display_constructed_as());
-            if has_box {
-                let root_id = doc.root_node().id;
-                let mut connected = node.id == root_id;
-                let mut cur = node.parent;
-                while let Some(pid) = cur {
-                    let Some(p) = doc.get_node(pid) else { break };
-                    if p.is_element() && no_box(*p.display_constructed_as()) {
-                        has_box = false;
-                        break;
-                    }
-                    if pid == root_id {
-                        connected = true;
-                        break;
-                    }
-                    cur = p.parent;
-                }
-                if !connected {
-                    has_box = false;
-                }
-            }
+            let has_box = generates_box(&doc, node);
             let mut scroll_width = layout.scroll_width();
             let mut scroll_height = layout.scroll_height();
             if node.id == doc.root_element().id {
