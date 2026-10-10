@@ -50,6 +50,11 @@ let animationDrainRequested = false;
 let tickIntervalMs = TICK_MS;
 let zeroEventTicks = 0;
 let tickTimer: ReturnType<typeof setTimeout> | null = null;
+// When the drain next owes a time-driven sample: a transition's frame or a
+// backed-off keyframe sample. Earlier ticks only discover what a mutation
+// started, so a page that mutates every frame can't pull the backoff to 60 Hz.
+let sampleDueAt = 0;
+let tickTimerDelayMs = 0;
 let scheduleGen = 0;
 const queuedAnimationEvents: AnimationEventData[] = [];
 
@@ -66,6 +71,7 @@ function cancelDrainTimer(): void {
 function scheduleDrain(delayMs: number): void {
   cancelDrainTimer();
   tickPending = true;
+  tickTimerDelayMs = delayMs;
   const gen = scheduleGen;
   try {
     retryWhenIoAllowed(() => {
@@ -92,9 +98,9 @@ export function armTransitionDrain(animationListeners?: boolean): void {
   }
   if (tickPending) {
     armedSinceSchedule = true;
-    if (tickIntervalMs > TICK_MS) {
-      tickIntervalMs = TICK_MS;
-      zeroEventTicks = 0;
+    if (tickTimerDelayMs > TICK_MS) {
+      // A backed-off keyframe sample is waiting. Discover the mutation within
+      // a frame, but keep the backoff: that tick resolves only a dirty layout.
       deferredTicks = 0;
       scheduleDrain(TICK_MS);
     }
@@ -104,6 +110,7 @@ export function armTransitionDrain(animationListeners?: boolean): void {
   deferredTicks = 0;
   tickIntervalMs = TICK_MS;
   zeroEventTicks = 0;
+  sampleDueAt = 0;
   scheduleDrain(tickIntervalMs);
 }
 
@@ -117,12 +124,14 @@ function drainTick(): void {
   )
     return;
 
+  const now = Date.now();
+  const sampleDue = now >= sampleDueAt;
   if (armedSinceSchedule && deferredTicks < MAX_DEFERRED_TICKS) {
     let pending = false;
     try {
       pending = dom.hasPendingTransitions() === true;
     } catch {}
-    if (!pending && animationDrainRequested) {
+    if (!pending && sampleDue && animationDrainRequested) {
       try {
         pending = dom.isAnimating() === true;
       } catch {}
@@ -130,7 +139,7 @@ function drainTick(): void {
     if (!pending) {
       armedSinceSchedule = false;
       deferredTicks++;
-      scheduleDrain(tickIntervalMs);
+      scheduleDrain(TICK_MS);
       return;
     }
   }
@@ -140,9 +149,17 @@ function drainTick(): void {
     scheduleDrain(0);
     return;
   }
+  // A due sample is the frame: the resolve advances the clock and queues the
+  // events. Before then only a dirty layout needs a resolve; if another
+  // caller already resolved, its events are waiting.
   let transitionEvents: unknown = [];
   let animationEvents: unknown = [];
+  let sampled = false;
   try {
+    if (sampleDue || dom.layoutClean() !== true) {
+      dom.resolveLayout();
+      sampled = sampleDue;
+    }
     if (typeof dom.takeTransitionEvents === "function") {
       transitionEvents = dom.takeTransitionEvents();
     }
@@ -170,19 +187,22 @@ function drainTick(): void {
     } catch {}
   }
   if (pending || queuedAnimationEvents.length > 0) {
+    // Only a real sample moves the keyframe backoff on.
     if (transitionsPending) {
       zeroEventTicks = 0;
       tickIntervalMs = TICK_MS;
-    } else {
+      sampleDueAt = Math.min(sampleDueAt, now + TICK_MS);
+    } else if (sampled) {
       zeroEventTicks++;
       tickIntervalMs = Math.min(
         TICK_MS * 2 ** Math.min(zeroEventTicks, MAX_ZERO_EVENT_BACKOFF_EXPONENT),
         MAX_BACKOFF_MS,
       );
     }
+    if (sampled) sampleDueAt = now + tickIntervalMs;
     armedSinceSchedule = false;
     deferredTicks = 0;
-    scheduleDrain(tickIntervalMs);
+    scheduleDrain(Math.max(0, sampleDueAt - now));
   }
 }
 
