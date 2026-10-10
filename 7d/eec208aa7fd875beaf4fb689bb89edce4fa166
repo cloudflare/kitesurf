@@ -6,8 +6,10 @@ packages/core/src/lib.rs
   s_47d6ef2b5aabaa::t_a3ce366a8e4b20 8921
   s_47d6ef2b5aabaa::t_79d371fcece8d2 8918-8920
   s_47d6ef2b5aabaa::t_0b2c53cf9b7891 8922
+  s_a3b42a28f6acb3::t_680b0d80b16a66 1879-1884,1901-1913,2622-2624,2671-2675,2690-2691,5803-5904,8913-8917
 packages/dom-shim/src/state.ts
   s_47d6ef2b5aabaa::t_e19ea7e775afb0 263-270,380-414,424-453,455-483
+  s_a3b42a28f6acb3::t_aa18b01c8ed5a8 415-423,454
 packages/engine/test/e2e/reclaim-pending-stylesheet.e2e.test.ts
   s_47d6ef2b5aabaa::t_53004389f4d38c 1-102
 packages/dom-shim/src/fastpath.ts
@@ -16,6 +18,7 @@ packages/engine/src/cdp/runtime.ts
   s_47d6ef2b5aabaa::t_9c5f9f3d00783c 44-51
   s_47d6ef2b5aabaa::t_5f0aac3a918b79 41-43
   s_47d6ef2b5aabaa::t_fe066050996bc1 52-54
+  s_a3b42a28f6acb3::t_680b0d80b16a66 40,55,248
 packages/dom-shim/src/reclaim.ts
   s_47d6ef2b5aabaa::t_2235ebffcc0edf 209-210,228,230-238
   s_47d6ef2b5aabaa::t_d224d1b4cce4b7 62-76,100
@@ -27,18 +30,28 @@ packages/dom-shim/src/reclaim.ts
   s_47d6ef2b5aabaa::t_05ca2ecb99a9f8 165,199-202,251,257,266,276,294,302,323-326
   s_47d6ef2b5aabaa::t_b0df7dae8fc079 85,95,110-115,118-141,150-164
   s_31ce136802e446::t_97aada3df3808a 166,197
+  s_a3b42a28f6acb3::t_680b0d80b16a66 148-149
+  s_a3b42a28f6acb3::t_a8c0ceeec132ca 116-117,142-147
 packages/engine/src/cdp/types.ts
   s_47d6ef2b5aabaa::t_9c5f9f3d00783c 472-474
 packages/dom-shim/src/index.ts
   s_47d6ef2b5aabaa::t_6b1d56dbdf293b 276-284
+  s_a3b42a28f6acb3::t_680b0d80b16a66 238-240,242-243,264-265,374-381,408-409
 packages/engine/test/e2e/retention-gauges.e2e.test.ts
   s_47d6ef2b5aabaa::t_53004389f4d38c 1-95
 packages/dom-shim/src/registries.ts
   s_47d6ef2b5aabaa::t_76b11268afbba6 549-553
   s_47d6ef2b5aabaa::t_6eeadc7ce3700c 548
   s_47d6ef2b5aabaa::t_2c410fedab1978 554
+  s_a3b42a28f6acb3::t_52f3eb7c951366 206
+  s_a3b42a28f6acb3::t_6d48999016a9a4 476-477,479-482,485-486,488-491,493-494,496
+  s_a3b42a28f6acb3::t_63bba4f7d11931 48,121,153,174
+  s_a3b42a28f6acb3::t_680b0d80b16a66 41-42,108-110,159-167,187-205,207-216,459-475,478,483-484,487,492,495,497-499,526-527,546,578-579
 packages/dom-shim/src/parser.ts
   s_47d6ef2b5aabaa::t_2ad5728f002c9d 64,66,67,69-76,78,81-82,85-90,95-96,98,104-105,108-111,132,134-148,150-151
+  s_a3b42a28f6acb3::t_8df85226737a62 97
+  s_a3b42a28f6acb3::t_08dc1cabe81d92 54-63,65,68,77,79-80,83-84,91-94,99-103,106-107,133
+  s_a3b42a28f6acb3::t_680b0d80b16a66 149
 packages/engine/src/cdp/kitesurf.ts
   s_d357b260f2be6b::t_81b96579a391cc 15,322-329,362
 packages/engine/src/cdp/target.ts
@@ -47,16 +60,62 @@ packages/engine/test/e2e/detached-subtree-reclaim.e2e.test.ts
   s_47d6ef2b5aabaa::t_8ab01e76f9b415 1-737
 packages/engine/test/e2e/dom-parser-dataset.e2e.test.ts
   s_47d6ef2b5aabaa::t_e2cac4d436c4c1 30,46,56,76,79,86,93
+  s_a3b42a28f6acb3::t_9bf0e1befb3996 35-45,47-55,57-75,77-78,80-85,87-92
+  s_a3b42a28f6acb3::t_2be43f59ff177b 31-34
 packages/engine/test/e2e/text-content-memory.e2e.test.ts
   s_47d6ef2b5aabaa::t_d1efd5cab78658 2,16-19,21-28,31-32,39-41,43-50,52-54,67-69,111,219,223-226,229-234
+  s_a3b42a28f6acb3::t_ca552077a206bf 30,93,181
+  s_a3b42a28f6acb3::t_1ad8553170b53c 14-15,20,29,34,42,51,59,87,92,101,176,180
+  s_a3b42a28f6acb3::t_595a9e5b540ab6 191-192,195-198,262,264-265,274
+  s_a3b42a28f6acb3::t_90c2098580b20d 103,106-110,113-119,124-130,155-156,170-171,178-179,182
+  s_a3b42a28f6acb3::t_612b2fcda13320 61,63,65-66,70-73,78-83,88-91,94
+  s_a3b42a28f6acb3::t_d204d2845fdefa 327-328,330-331,335-337,361-367
+  s_a3b42a28f6acb3::t_b3994b334448a8 33,35-38
 packages/page-script/src/defer-shim.ts
   s_47d6ef2b5aabaa::t_787a944f1b0cb5 29-50
+  s_a3b42a28f6acb3::t_9e63000a5645a9 28
 packages/page-script/src/font-loader.ts
   s_47d6ef2b5aabaa::t_56dd511da71e47 234-241
 packages/page-script/src/handles.ts
   s_47d6ef2b5aabaa::t_b978885511e34c 52-64
 scripts/e2e-perf.mjs
   s_47d6ef2b5aabaa::t_72fef929444a06 43-44,159,182-190,195,290,341-358,427-432,441,473-490,506-508,558-559
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_a3b42a28f6acb3::t_26a23ef9d6889f 10,18-24
+packages/dom-shim/src/collections.ts
+  s_a3b42a28f6acb3::t_a101a8dcab1146 2687-2688
+  s_a3b42a28f6acb3::t_680b0d80b16a66 3245
+packages/jsrpc-types/src/query-dom.ts
+  s_a3b42a28f6acb3::t_ee4f95873cbea3 85-129,417
+packages/dom-shim/src/node-base.ts
+  s_a3b42a28f6acb3::t_63bba4f7d11931 164,1210,1574,1647,1715-1716,1721-1722,1776
+packages/dom-shim/src/mutations/observer.ts
+  s_a3b42a28f6acb3::t_63bba4f7d11931 24,27-30,162-165,366,467-470,653-681,687-690,694,804
+packages/dom-shim/src/contract.ts
+  s_a3b42a28f6acb3::t_680b0d80b16a66 21-26,28,30
+AGENTS.md
+  s_a3b42a28f6acb3::t_680b0d80b16a66 556-561
+packages/page-script/src/dom-shim.ts
+  s_a3b42a28f6acb3::t_f32cf6454ced77 16-21,23,28
+packages/core/src/canvas2d.rs
+  s_a3b42a28f6acb3::t_680b0d80b16a66 1056-1063,1065-1093
+packages/dom-shim/src/element/element.ts
+  s_a3b42a28f6acb3::t_63bba4f7d11931 1322
+packages/dom-shim/strict-baseline.json
+  s_a3b42a28f6acb3::t_96d443b6cd068e 6,12
+packages/dom-shim/src/element/media.ts
+  s_a3b42a28f6acb3::t_63bba4f7d11931 16,19,38,40
+  s_a3b42a28f6acb3::t_61fb103214449e 18,20-37,39,41-42,44,62-66
+packages/dom-shim/src/document.ts
+  s_a3b42a28f6acb3::t_680b0d80b16a66 475,1088
+packages/page-script/src/index.ts
+  s_a3b42a28f6acb3::t_74b4b285e6d2d8 5850,5877,5913,5924
+  s_a3b42a28f6acb3::t_680b0d80b16a66 157,165,185,253-259,261-263,340-345,347,5851-5858,5871-5876,5878-5912,5914-5923,5926,5928,5939-5942
+packages/dom-shim/src/file-input.ts
+  s_a3b42a28f6acb3::t_680b0d80b16a66 108-115
+packages/dom-shim/src/element/event-handlers.ts
+  s_a3b42a28f6acb3::t_b6febad6b0eb14 10,17,34,36-87
+  s_a3b42a28f6acb3::t_dc22a75cd1b6f3 106,108-109,111,211,228-229,235-243
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -77,6 +136,14 @@ scripts/e2e-perf.mjs
         "tool": "opencode",
         "id": "ses_edf8dc3d2ffeviW9Sk3JEj3MrU",
         "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     },
