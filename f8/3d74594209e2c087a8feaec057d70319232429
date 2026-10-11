@@ -1,0 +1,21 @@
+docs/WORKERS.md
+  s_5ef13aa2ca5d9a::t_d4a02b8491986c 55-61
+docs/NETWORKING.md
+  s_5ef13aa2ca5d9a::t_d4a02b8491986c 192-199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f83d74594209e2c087a8feaec057d70319232429",
+  "prompts": {},
+  "sessions": {
+    "s_5ef13aa2ca5d9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed3357cbbffeROEK7xP7OmXTdD",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
