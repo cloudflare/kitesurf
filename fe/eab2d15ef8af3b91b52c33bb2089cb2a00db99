@@ -20,6 +20,7 @@ packages/dom-shim/src/node-base.ts
   s_83cbebb813e639::t_663415ab3a5bf0 21-22,187,192,211,218-221,901,910
 packages/dom-shim/src/registries.ts
   s_83cbebb813e639::t_7d507f8bc9ab88 26-70,199-204,212-213,215,217-220,312
+  s_059e99c81ea16a::t_b5ece17a6242a2 206,209-210
 packages/engine/src/cdp/kitesurf.ts
   s_83cbebb813e639::t_ce488915fb970a 322-325
 packages/page-script/src/dom-shim.ts
@@ -33,6 +34,9 @@ packages/jsrpc-types/src/query-dom.ts
   s_41d5a40b9168bd::t_c3399aa48844e9 11-14
 packages/dom-shim/src/element/element.ts
   s_41d5a40b9168bd::t_c3399aa48844e9 188-189,196,470,477
+  s_059e99c81ea16a::t_b5ece17a6242a2 1354,1365
+packages/dom-shim/src/element/forms/select.ts
+  s_059e99c81ea16a::t_b5ece17a6242a2 66,73
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -40,6 +44,14 @@ packages/dom-shim/src/element/element.ts
   "base_commit_sha": "feeab2d15ef8af3b91b52c33bb2089cb2a00db99",
   "prompts": {},
   "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_41d5a40b9168bd": {
       "agent_id": {
         "tool": "opencode",
