@@ -2,8 +2,73 @@ docs/MEMPROF.md
   s_a3b42a28f6acb3::t_d74ba15007030a 181
 scripts/patches/blitz-dom-0.3.0-beta.2/0178-Reduce-retained-DOM-storage.patch
   s_a3b42a28f6acb3::t_9be75ee4261a5b 24,29,934,1355,1390-1393,1401,1509,1524,1551,1569,1580,1589,1605,1614,1639,1648,1657,1666,1675,1698,1707,1716,1725,1734,1743,1752,1761,1770
+  s_a3b42a28f6acb3::t_46a1b57a374263 1-23,25-28,30-933,935-1354,1356-1389,1394-1400,1402-1508,1510-1523,1525-1550,1552-1568,1570-1579,1581-1588,1590-1604,1606-1613,1615-1638,1640-1647,1649-1656,1658-1665,1667-1674,1676-1697,1699-1706,1708-1715,1717-1724,1726-1733,1735-1742,1744-1751,1753-1760,1762-1769,1771-2174
 scripts/patches/blitz-dom-0.3.0-beta.2/0179-Allocate-and-share-element-layout-state.patch
   s_a3b42a28f6acb3::t_9a3dddbdd1a398 127,139,152,235,254,528,607,651,666
+  s_a3b42a28f6acb3::t_46a1b57a374263 1-126,128-138,140-151,153-234,236-253,255-527,529-606,608-650,652-665,667-690
+packages/core/src/shadow_dom_test.rs
+  s_a3b42a28f6acb3::t_46a1b57a374263 430,436,447-449,616-618,628-630,637-638,822-827
+packages/engine/src/eval/page-script.ts
+  s_a3b42a28f6acb3::t_46a1b57a374263 80-87
+packages/engine/test/e2e/clone-layout.e2e.test.ts
+  s_a3b42a28f6acb3::t_46a1b57a374263 1-37
+packages/core/src/inner_text.rs
+  s_a3b42a28f6acb3::t_46a1b57a374263 86
+scripts/patches/blitz-paint-0.3.0-beta.2/0038-Read-compact-DOM-sidecars-while-painting.patch
+  s_a3b42a28f6acb3::t_46a1b57a374263 1-109
+packages/page-script/src/index.ts
+  s_a3b42a28f6acb3::t_46a1b57a374263 196,2079-2082
+packages/core/src/lib.rs
+  s_a3b42a28f6acb3::t_46a1b57a374263 46,90-95,99-100,104-117,120-129,137-141,146-176,197,205-235,240,243-246,248-282,916-919,927-931,935-943,945-947,949-960,1205-1210,1827,1852,1901,2570,2593,2804,2926,3549,3768,3779,3924,3978,3994,4134-4137,4376,4393,4823,4978,4989,5048,7605,7621-7624,7638,7829,7960,7974,8003,8140,8464,8662,8672,8971,8991
+packages/core/src/sticky.rs
+  s_a3b42a28f6acb3::t_46a1b57a374263 76
+packages/core/src/scan_test.rs
+  s_a3b42a28f6acb3::t_46a1b57a374263 39-42,60,67,124-127,551-556,570-573,806-854
+scripts/patches/parley-0.11.1/0019-Pack-cluster-metadata-into-sixteen-bytes.patch
+  s_a3b42a28f6acb3::t_46a1b57a374263 1-403
+packages/dom-shim/src/window.ts
+  s_a3b42a28f6acb3::t_dd49a86280a1f3 1531
+  s_a3b42a28f6acb3::t_b24cb4b548251b 9
+  s_a3b42a28f6acb3::t_46a1b57a374263 11,1485-1488,1494-1502,1506-1507,1509,1514-1524,1526,1533,1536
+  s_a3b42a28f6acb3::t_25b7069cd758a8 1528,1631,1689
+packages/engine/test/network-events-body-budget.test.ts
+  s_a3b42a28f6acb3::t_46a1b57a374263 171-204
+packages/dom-shim/src/element/element.ts
+  s_a3b42a28f6acb3::t_46a1b57a374263 40-44,613,755
+packages/engine/src/cdp/network-events.ts
+  s_a3b42a28f6acb3::t_46a1b57a374263 66-67,161-164,474
+scripts/patches/blitz-dom-0.3.0-beta.2/0180-Leave-derived-text-layouts-out-of-element-clones.patch
+  s_a3b42a28f6acb3::t_46a1b57a374263 1-29
+scripts/patches/taffy-0.14.0/0009-Allocate-measurement-cache-slots-only-when-needed.patch
+  s_a3b42a28f6acb3::t_46a1b57a374263 1-134
+packages/dom-shim/src/mutations/observer.ts
+  s_a3b42a28f6acb3::t_46a1b57a374263 24-25,189,383,472
+packages/engine/test/e2e/named-global-live.e2e.test.ts
+  s_a3b42a28f6acb3::t_46a1b57a374263 36,41-66
+packages/core/src/transform_2d_subset_test.rs
+  s_a3b42a28f6acb3::t_46a1b57a374263 29
+packages/engine/src/wasm.ts
+  s_a3b42a28f6acb3::t_46a1b57a374263 8,13-14,78,129
+packages/core/src/dom_fastpath.rs
+  s_a3b42a28f6acb3::t_46a1b57a374263 297
+packages/core/src/animation_clock_test.rs
+  s_a3b42a28f6acb3::t_46a1b57a374263 309-314,337,339-340
+packages/core/src/scan.rs
+  s_a3b42a28f6acb3::t_46a1b57a374263 594-603,625-629
+packages/core/src/box_decorations_test.rs
+  s_a3b42a28f6acb3::t_46a1b57a374263 41-47,95,154-159
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_a3b42a28f6acb3::t_46a1b57a374263 227
+scripts/patches/parley-0.11.1/0014-Reduce-retained-Parley-layout-allocations.patch
+  s_a3b42a28f6acb3::t_46a1b57a374263 1-121
+packages/core/src/node_handle_test.rs
+  s_a3b42a28f6acb3::t_46a1b57a374263 1,40-183,285-294,311-312,352,360-362,388,399,476,482-512
+packages/dom-shim/src/node-base.ts
+  s_a3b42a28f6acb3::t_46a1b57a374263 431-432
+scripts/patches/blitz-paint-0.3.0-beta.2/0039-Paint-optional-text-style-decorations.patch
+  s_a3b42a28f6acb3::t_46a1b57a374263 1-41
+scripts/patches/parley-0.11.1/0018-Box-sparse-text-style-decorations.patch
+  s_a3b42a28f6acb3::t_46a1b57a374263 1-65
 ---
 {
   "schema_version": "authorship/3.0.0",
