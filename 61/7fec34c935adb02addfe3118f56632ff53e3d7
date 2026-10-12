@@ -1,0 +1,27 @@
+docs/BOA_V8_FLOW.md
+  s_c6d6a3ac21fe46::t_252baec9039169 254,308,576,611
+docs/MEMPROF.md
+  s_c6d6a3ac21fe46::t_252baec9039169 120
+docs/TESTING.md
+  s_c6d6a3ac21fe46::t_252baec9039169 392
+docs/DOM_SHIM.md
+  s_c6d6a3ac21fe46::t_252baec9039169 20,62
+docs/FONTS.md
+  s_c6d6a3ac21fe46::t_252baec9039169 131,156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "617fec34c935adb02addfe3118f56632ff53e3d7",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
