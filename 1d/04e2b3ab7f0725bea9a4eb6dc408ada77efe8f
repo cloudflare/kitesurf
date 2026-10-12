@@ -1,6 +1,8 @@
 packages/engine/test/e2e/demos/boa-evalless-phase2.e2e.test.ts
   s_f977f0f910b2b1::t_05af542af6500e 40-50
   s_f977f0f910b2b1::t_1ee87a366cb4c6 51-54
+packages/core/src/boa_bridge.rs
+  s_475e4d725d6b24::t_893ad1d6014d5b 1549,1551-1552,1560-1567
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -8,6 +10,14 @@ packages/engine/test/e2e/demos/boa-evalless-phase2.e2e.test.ts
   "base_commit_sha": "1d04e2b3ab7f0725bea9a4eb6dc408ada77efe8f",
   "prompts": {},
   "sessions": {
+    "s_475e4d725d6b24": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed2d54f7affeLVV5TGHfIURcXx",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_f977f0f910b2b1": {
       "agent_id": {
         "tool": "opencode",
