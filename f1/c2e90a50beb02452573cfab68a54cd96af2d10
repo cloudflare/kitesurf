@@ -1,0 +1,35 @@
+.gitlab-ci.yml
+  s_c6d6a3ac21fe46::t_d063c8a2c78301 568,1846
+internal/packages/shadow-replay/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_ffafa0094a812d 50
+docs/TELEMETRY.md
+  s_c6d6a3ac21fe46::t_971fcf1b2cb8d7 1-66
+internal/docs/ANALYTICS.md
+  s_c6d6a3ac21fe46::t_971fcf1b2cb8d7 1-204
+packages/engine/src/cdp-client.ts
+  s_c6d6a3ac21fe46::t_d063c8a2c78301 112
+packages/engine/src/cdp/connection.ts
+  s_c6d6a3ac21fe46::t_d063c8a2c78301 531
+AGENTS.md
+  s_c6d6a3ac21fe46::t_d063c8a2c78301 154
+packages/engine/src/internal/ready-analytics.ts
+  s_c6d6a3ac21fe46::t_d063c8a2c78301 1
+internal/packages/grafana/src/dashboards/kitesurf-sessions.ts
+  s_c6d6a3ac21fe46::t_ffafa0094a812d 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f1c2e90a50beb02452573cfab68a54cd96af2d10",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
