@@ -1,0 +1,23 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0174-kitesurf-pass-vertical-align-shifts-to-inline-boxes.patch
+  s_b011b4890692e8::t_020b1f15c81869 1-14,17-18,20-21,23-41,44-71,73-79
+scripts/patches/parley-0.11.1/0014-kitesurf-shift-inline-boxes-off-the-baseline.patch
+  s_b011b4890692e8::t_020b1f15c81869 1-164
+packages/engine/test/e2e/inline-box-baseline-shift.e2e.test.ts
+  s_b011b4890692e8::t_e29273dda3a672 1-24,30-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b34297c8f141e09a2d71242e2820d472d5121890",
+  "prompts": {},
+  "sessions": {
+    "s_b011b4890692e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efe2ab1cfffeVYQW8LR11yml5y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

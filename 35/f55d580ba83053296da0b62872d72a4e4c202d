@@ -1,0 +1,23 @@
+packages/engine/test/e2e/webgl-resize.e2e.test.ts
+  s_13716c95882f21::t_1906510bfd9ff2 1-29
+packages/dom-shim/src/webgl.ts
+  s_13716c95882f21::t_116955eb124ede 143-147,161-171,177
+docs/WEBGL.md
+  s_13716c95882f21::t_58a2639ab1017d 662
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "35f55d580ba83053296da0b62872d72a4e4c202d",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+scripts/patches/taffy-0.14.0/0009-Let-the-tree-override-an-abspos-child-s-containing-b.patch
+  s_b011b4890692e8::t_5f47f2b9db91eb 1-78
+packages/engine/test/e2e/fixed-position-viewport.e2e.test.ts
+  s_b011b4890692e8::t_0545f0e4c8e3f4 1-74,80-86
+scripts/patches/blitz-dom-0.3.0-beta.2/0172-kitesurf-size-hoisted-fixed-boxes-against-the-viewpo.patch
+  s_b011b4890692e8::t_5f47f2b9db91eb 1-73
+packages/engine/test/e2e/pseudo-text-font-arrival.e2e.test.ts
+  s_b011b4890692e8::t_0ea14a284292d3 30-31
+  s_b011b4890692e8::t_a242b2d5e92c9a 1-18,20-24,28-29,32,38-45,48,51-62
+  s_b011b4890692e8::t_95230f4757b234 19
+scripts/patches/blitz-dom-0.3.0-beta.2/0173-kitesurf-damage-a-pseudo-element-inline-root-when-fo.patch
+  s_b011b4890692e8::t_13b7f8e7e3ee96 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ae67d07ed01b7ea6b1b6b87092bbcf7497a23dac",
+  "prompts": {},
+  "sessions": {
+    "s_b011b4890692e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efe2ab1cfffeVYQW8LR11yml5y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,64 @@
+docs/TESTING.md
+  s_37030c8886fda0::t_4136ffc54772b5 169-175,178
+  s_37030c8886fda0::t_461ffb5dcfa7b4 176-177
+packages/wpt-report/src/wpt-routes.ts
+  s_37030c8886fda0::t_fbdb6a552ce078 713-731,733-734,744,760-776,829,839,886-891,901,915,921
+  s_37030c8886fda0::t_cf69ec540830aa 900
+packages/wpt-report/scripts/not-enrolled.mjs
+  s_37030c8886fda0::t_6643f9aa2885f9 1-6,8-24,26,43-50,53,56,58-59,61-63,65-67
+  s_37030c8886fda0::t_4da2a10b0ef082 7,25,27-42,51-52,54-55,57,60,64
+packages/website/src/pages/wpt/Overview.tsx
+  s_37030c8886fda0::t_ec9228948e2f9d 66
+  s_37030c8886fda0::t_3a1bba132ddde0 2-10
+  s_37030c8886fda0::t_990db173ef0348 32
+packages/wpt-report/src/types.ts
+  s_37030c8886fda0::t_b7c6a9949b91ec 85-90
+packages/website/src/pages/wpt/parts.tsx
+  s_37030c8886fda0::t_cc1e5300fb3d68 138-173,175,193,203,210-230
+  s_37030c8886fda0::t_3cf1f782139f5b 2-3
+packages/website/src/pages/wpt/Folder.tsx
+  s_37030c8886fda0::t_afd00fc9833c27 3-11,27,35,54-59,83,87-95,98
+  s_37030c8886fda0::t_0069a8cfc19837 18
+turbo.json
+  s_37030c8886fda0::t_6501435ddeeb0a 35-39
+.gitlab-ci.yml
+  s_37030c8886fda0::t_6b0c309a7412f5 890,2271-2277
+  s_37030c8886fda0::t_b0ec78084035e0 891-897,2278
+  s_37030c8886fda0::t_16ce6c15394f50 1036-1037
+  s_37030c8886fda0::t_37a774a22d1c5c 953-954
+packages/wpt-report/tsconfig.json
+  s_37030c8886fda0::t_2f4d9d022a614a 21
+packages/wpt-report/scripts/build.mjs
+  s_37030c8886fda0::t_fc75835e66a098 299-303
+  s_37030c8886fda0::t_d06118182babc3 378-379
+  s_37030c8886fda0::t_5aa28bcf9ee16f 240
+  s_37030c8886fda0::t_8c01ef7021d89a 1-2
+  s_37030c8886fda0::t_e45da0dab77919 24
+  s_5ef13aa2ca5d9a::t_aeb07add98704f 304-305
+packages/wpt-report/scripts/not-enrolled.test.mjs
+  s_37030c8886fda0::t_710ac5f20b72d4 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3a2972fa560691b6c04ea3472a28176d54890a61",
+  "prompts": {},
+  "sessions": {
+    "s_37030c8886fda0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed2c75067ffe8Z6jrtiGSFqCml",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_5ef13aa2ca5d9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed3357cbbffeROEK7xP7OmXTdD",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+packages/core/src/webgl/gl.rs
+  s_cf72bc8665a55a::t_241c2fe9736a61 292,456,461,466
+  s_cf72bc8665a55a::t_25d7caf273da0e 610-630,635,679
+  s_cf72bc8665a55a::t_f4cea9b8ff18a2 43-48,75-76,141-145,219-223,285-291,293,412-455,457,459-460,467-481,940
+  s_cf72bc8665a55a::t_e45262239acfc5 80-85,87-93,504-512,808-812,824-832,877-881
+  s_cf72bc8665a55a::t_d5c6c65b23ea6f 200-202,254-256,458,462-465,901,904
+packages/core/src/lib.rs
+  s_cf72bc8665a55a::t_241c2fe9736a61 5421-5423,5427,5434,5438,5440-5444,5446,5448
+  s_cf72bc8665a55a::t_7f8cd9846850f7 5401-5404,5414-5419,5425-5426,5429-5433,5436-5437,5445,5447,5449,5458-5459
+  s_cf72bc8665a55a::t_64d1eda4ecf36d 5485-5488,5493-5495,5497-5509
+  s_13716c95882f21::t_396be921bc173f 5420,5424,5428,5435,5439,5489-5492,5496
+packages/dom-shim/src/webgl.ts
+  s_cf72bc8665a55a::t_64609bb0fe2052 137,144,361-389
+  s_cf72bc8665a55a::t_a4f7c929389fb5 432-434
+packages/core/src/webgl_test.rs
+  s_cf72bc8665a55a::t_4256f9d68ba3fe 204-213,215-239,241-277
+  s_cf72bc8665a55a::t_241c2fe9736a61 214,240
+packages/core/src/boa_bridge.rs
+  s_cf72bc8665a55a::t_40ab7393ed13ca 2458
+  s_cf72bc8665a55a::t_3fe109177748ce 1549-1550
+  s_492d322fdb5636::t_ae7f073c483e92 2627,2716-2717
+packages/core/src/webgl/vm.rs
+  s_cf72bc8665a55a::t_7cfb8144aaf8fc 118-122,364,371-373
+  s_cf72bc8665a55a::t_1074e68a52c788 198,243,1782
+packages/core/src/webgl/exec.rs
+  s_cf72bc8665a55a::t_f67e8fe3645a34 7,11-13
+  s_cf72bc8665a55a::t_2f59ec15923ac0 82,86-111,133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2891976ae6b2ddb62bbcbf715ca7be9ee62f277a",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_492d322fdb5636": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff5bcdb4effed9sVCVwDFXLQ3u",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_cf72bc8665a55a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00382b600ffeKKvCWdmK9ZTiAt",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

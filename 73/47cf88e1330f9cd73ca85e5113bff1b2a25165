@@ -1,0 +1,25 @@
+scripts/ts-strict-ratchet.mjs
+  s_4d5d61d735c10d::t_996044025e4d64 3,9-14,22,25-28,36-37,39,60,72-74,85-90
+packages/worker-script/tsconfig.strict.json
+  s_4d5d61d735c10d::t_03f3c8d3fc1845 1-16
+packages/worker-script/package.json
+  s_4d5d61d735c10d::t_b5689c0e8d4adc 16
+packages/worker-script/tsconfig.json
+  s_4d5d61d735c10d::t_a41a35ab662857 11-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7347cf88e1330f9cd73ca85e5113bff1b2a25165",
+  "prompts": {},
+  "sessions": {
+    "s_4d5d61d735c10d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_edadbed07ffe7B0IaFmDBK5M5T",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

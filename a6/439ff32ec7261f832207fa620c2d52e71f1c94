@@ -1,0 +1,25 @@
+packages/engine/wrangler.jsonc
+  s_209949bb7fdfda::t_baf1ddd5fe367d 486-487
+package.json
+  s_209949bb7fdfda::t_5570c6effb80e6 13
+  s_209949bb7fdfda::t_5bf03b4d00d21d 20
+docs/RELEASING.md
+  s_209949bb7fdfda::t_a2e16d98258ffd 78-79
+  s_209949bb7fdfda::t_b52c953cf79693 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a6439ff32ec7261f832207fa620c2d52e71f1c94",
+  "prompts": {},
+  "sessions": {
+    "s_209949bb7fdfda": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed7f14f61ffeFgJ1dNNhtYRvZ0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
