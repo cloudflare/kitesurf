@@ -239,6 +239,8 @@ tests/interactivity-flows/README.md
   s_059e99c81ea16a::t_f1afeac69b3134 4,18-19,387,389-391,395,398
 packages/renderer-core/Cargo.toml
   s_059e99c81ea16a::t_f1afeac69b3134 15
+packages/dom-shim/src/document.ts
+  s_059e99c81ea16a::t_808a4f12562cdf 18
 ---
 {
   "schema_version": "authorship/3.0.0",
