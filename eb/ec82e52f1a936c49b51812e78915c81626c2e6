@@ -53,6 +53,7 @@ packages/engine/test/e2e/iframe-referrer.e2e.test.ts
   s_6e6860e87b7ff7::t_5fa41eb332c75b 106
   s_d11dae8f9ad67a::t_d5a7a025ce5a19 13-17,22-37
   s_6e6860e87b7ff7::t_1103a832da30a3 11-12,18-21,38-77
+  s_309e96a1fea71d::t_6151d7dbb6db85 107-134
 packages/script-gate/package.json
   s_d11dae8f9ad67a::t_19ea520231c153 13-14
   s_d11dae8f9ad67a::t_39d97979e06777 6
@@ -68,6 +69,9 @@ packages/engine/test/outbound-forward.test.ts
   s_d11dae8f9ad67a::t_82cd619b276464 82-117
 packages/engine/test/fixtures-worker/assets/iframe-referrer-host.html
   s_6e6860e87b7ff7::t_1162e33f92a70b 1-7
+packages/page-script/src/fetch-shim.ts
+  s_309e96a1fea71d::t_b4e253317fc0cb 305-309,317-424
+  s_309e96a1fea71d::t_6c6f46a161fd35 297
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -75,6 +79,14 @@ packages/engine/test/fixtures-worker/assets/iframe-referrer-host.html
   "base_commit_sha": "ebec82e52f1a936c49b51812e78915c81626c2e6",
   "prompts": {},
   "sessions": {
+    "s_309e96a1fea71d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecdc99f30ffe6p4BIZq7Uu1cDa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_6407acaa6ac3b1": {
       "agent_id": {
         "tool": "opencode",
