@@ -1,0 +1,47 @@
+docs/WEB_BOT_AUTH.md
+  s_c6d6a3ac21fe46::t_06e692a3c16ec7 86
+AGENTS.md
+  s_c6d6a3ac21fe46::t_06e692a3c16ec7 465-469
+docs/TRACING.md
+  s_c6d6a3ac21fe46::t_06e692a3c16ec7 114
+scripts/pw-run.mjs
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 136
+packages/engine/src/cdp/connection.ts
+  s_c6d6a3ac21fe46::t_7988b90078ea73 67
+docs/RELEASING.md
+  s_c6d6a3ac21fe46::t_06e692a3c16ec7 6
+packages/engine/vitest.e2e.config.mts
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 53,56,75
+.gitlab-ci.yml
+  s_c6d6a3ac21fe46::t_071f6d6dadb2d6 1435-1439
+packages/engine/src/index.ts
+  s_c6d6a3ac21fe46::t_7988b90078ea73 48
+tests/interactivity-flows/run.ts
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 229
+packages/engine/wrangler.internal.jsonc
+  s_c6d6a3ac21fe46::t_7988b90078ea73 1-460
+packages/engine/package.json
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 8-11,13-19
+tests/interactivity-flows/bbc-hydration-probe.mjs
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 16
+packages/engine/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_d38ccbbbe9a632 3,5,8-9,12-13,37-38,40-41,43,45,47,50,52-53,55-57,60,63-64,72-73,78,83,86
+packages/engine/test/e2e/global-setup.ts
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 48-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "910fefa24b1a3152b62ca679d327e6630f263fae",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
