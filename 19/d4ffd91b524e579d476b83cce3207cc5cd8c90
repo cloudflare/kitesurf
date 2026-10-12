@@ -1,0 +1,27 @@
+packages/core/src/hit_test_transform_test.rs
+  s_7331d0016ab792::t_4ade539cb5a029 1-99
+packages/core/src/lib.rs
+  s_7331d0016ab792::t_e7c77c2bff10b8 290-292
+packages/engine/test/e2e/floating-popup.e2e.test.ts
+  s_7331d0016ab792::t_432313f922aa36 1-52
+scripts/patches/blitz-dom-0.3.0-beta.2/0172-kitesurf-map-re-homed-paint-reach-through-each-box-s.patch
+  s_7331d0016ab792::t_465c41e753e814 1-150
+scripts/patches/blitz-paint-0.3.0-beta.2/0037-kitesurf-pass-the-scale-to-live_rehomed_reach.patch
+  s_7331d0016ab792::t_fa66a794733eeb 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "19d4ffd91b524e579d476b83cce3207cc5cd8c90",
+  "prompts": {},
+  "sessions": {
+    "s_7331d0016ab792": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc96dd7affeCNAiwESwI8G3IZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

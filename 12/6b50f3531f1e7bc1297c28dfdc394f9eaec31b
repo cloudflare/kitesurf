@@ -1,0 +1,21 @@
+packages/dom-shim/src/events/dispatch.ts
+  s_83cbebb813e639::t_3a0db75374eb11 20,92-98,100-113
+packages/engine/test/e2e/detached-node-reclaim.e2e.test.ts
+  s_83cbebb813e639::t_86677a198f4ee1 178-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "126b50f3531f1e7bc1297c28dfdc394f9eaec31b",
+  "prompts": {},
+  "sessions": {
+    "s_83cbebb813e639": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0388623affeMZhtpmKWNkHzTW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
