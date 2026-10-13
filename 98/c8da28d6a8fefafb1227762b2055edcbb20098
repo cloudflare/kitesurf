@@ -1,0 +1,23 @@
+packages/core/src/hit_test_transform_test.rs
+  s_7331d0016ab792::t_e9ba2d172946fe 113-130
+packages/engine/test/e2e/floating-popup.e2e.test.ts
+  s_7331d0016ab792::t_82cb18b94969c1 90-131
+scripts/patches/blitz-dom-0.3.0-beta.2/0176-kitesurf-make-isolation-isolate-a-stacking-context.patch
+  s_7331d0016ab792::t_6d49c7fcdd2070 1-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "98c8da28d6a8fefafb1227762b2055edcbb20098",
+  "prompts": {},
+  "sessions": {
+    "s_7331d0016ab792": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc96dd7affeCNAiwESwI8G3IZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

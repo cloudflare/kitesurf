@@ -1,0 +1,23 @@
+docs/DOM_SHIM.md
+  s_059e99c81ea16a::t_a9d9c9685583f4 27,31-35
+packages/dom-shim/src/registries.ts
+  s_059e99c81ea16a::t_071874e7cfcac7 29,32
+packages/dom-shim/src/detached-wrappers.ts
+  s_059e99c81ea16a::t_a452c7137e50dc 48-51,80,95,150,153-155,162-165,203,206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5919034cba3e5a52474d36510e57456eedd56504",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

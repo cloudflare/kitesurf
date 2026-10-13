@@ -1,0 +1,39 @@
+packages/page-script/src/script-policy.ts
+  s_059e99c81ea16a::t_30e331831965c8 76-97,104-106,117,125
+packages/page-script/src/index.ts
+  s_059e99c81ea16a::t_30e331831965c8 99,2416-2437
+packages/page-script/src/scripts.ts
+  s_059e99c81ea16a::t_30e331831965c8 8-12,158-176,178,181-187,190,387-396,420-422,496-498
+packages/jsrpc-types/src/page-script.ts
+  s_059e99c81ea16a::t_30e331831965c8 373-382
+packages/engine/src/eval/native-module-source.ts
+  s_059e99c81ea16a::t_30e331831965c8 72-75,79-83
+packages/engine/src/eval/outbound.ts
+  s_059e99c81ea16a::t_30e331831965c8 92-100,310-404,976,989-990,1001-1044,1083-1088
+packages/page-script/src/import-maps.ts
+  s_059e99c81ea16a::t_30e331831965c8 1-413
+packages/page-script/src/globals.ts
+  s_059e99c81ea16a::t_30e331831965c8 11-12,223-230,232-234,236-272
+packages/dom-shim/src/mutations/observer.ts
+  s_059e99c81ea16a::t_30e331831965c8 584-587,593
+packages/engine/src/cdp/page.ts
+  s_059e99c81ea16a::t_30e331831965c8 78,4512-4537
+packages/page-script/src/eval-mode.ts
+  s_059e99c81ea16a::t_30e331831965c8 26-38,41,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2405ce8801b8598f018b28d0c67cd9f168a94984",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
