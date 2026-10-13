@@ -1,0 +1,38 @@
+packages/engine/src/cdp/dom.ts
+  s_41d5a40b9168bd::t_9924cccbde0b07 526
+packages/engine/src/stateful.ts
+  s_41d5a40b9168bd::t_9924cccbde0b07 41,181-182
+packages/page-script/src/index.ts
+  s_41d5a40b9168bd::t_d23ce41914fb1d 3
+  s_41d5a40b9168bd::t_9924cccbde0b07 5643-5653
+docs/STATEFUL_SESSIONS.md
+  s_41d5a40b9168bd::t_9924cccbde0b07 124-156
+packages/engine/src/eval/page-script.ts
+  s_41d5a40b9168bd::t_9924cccbde0b07 39,388-390,585-588,667,672-676
+packages/engine/test/e2e/stateful-session.e2e.test.ts
+  s_41d5a40b9168bd::t_9924cccbde0b07 277-292
+packages/engine/src/cdp/connection.ts
+  s_41d5a40b9168bd::t_9924cccbde0b07 86,223-224,368,757-759
+packages/engine/src/cdp/types.ts
+  s_41d5a40b9168bd::t_9924cccbde0b07 18,164-166
+packages/engine/src/cdp/page.ts
+  s_41d5a40b9168bd::t_9924cccbde0b07 2139
+packages/engine/src/eval/page-script-host.ts
+  s_41d5a40b9168bd::t_9924cccbde0b07 1-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "60e3dde8c5c9b9b8e8ba279b5380ba202c525b49",
+  "prompts": {},
+  "sessions": {
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

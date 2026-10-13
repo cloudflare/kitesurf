@@ -1,0 +1,21 @@
+packages/engine/test/e2e/xhr-proxy.e2e.test.ts
+  s_5ef13aa2ca5d9a::t_5a68928f60c699 1-60
+packages/page-script/src/globals.ts
+  s_5ef13aa2ca5d9a::t_a955f192735914 3640-3675
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4926e6062b81ae004a3374500b57b0d2e9438eb9",
+  "prompts": {},
+  "sessions": {
+    "s_5ef13aa2ca5d9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed3357cbbffeROEK7xP7OmXTdD",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

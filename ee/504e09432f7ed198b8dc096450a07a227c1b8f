@@ -1,0 +1,21 @@
+LICENSE
+  s_c6d6a3ac21fe46::t_3d1219836c49b2 1,6-191
+NOTICE
+  s_c6d6a3ac21fe46::t_3d1219836c49b2 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ee504e09432f7ed198b8dc096450a07a227c1b8f",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+packages/engine/src/eval/unity-build.ts
+  s_5ef13aa2ca5d9a::t_a3acd30720f61f 17
+  s_5ef13aa2ca5d9a::t_77e59a7be1f3e8 1-16,18-141
+packages/page-script/src/inserted-scripts.ts
+  s_5ef13aa2ca5d9a::t_5a4de7b8c738e9 32-35,229-233
+packages/engine/test/unity-build.test.ts
+  s_5ef13aa2ca5d9a::t_5a68928f60c699 1-48
+packages/engine/src/eval/prefetch-wasm.ts
+  s_5ef13aa2ca5d9a::t_a8030dc7a28cf9 184-187,191-195,197-200,246-255,257-259,261-271,273-274,277-282,284-287,293,295,301-304,307
+  s_5ef13aa2ca5d9a::t_66535a2d5eba6b 188-190,196,201-245,256,260,272,275-276,283,288-289,291-292,294,296-300,305-306,308-309,323-327,336-344,347-353,356-357,370-373,384-385,387
+  s_5ef13aa2ca5d9a::t_c9fe1e3b3dd596 290
+packages/engine/src/cdp/page.ts
+  s_5ef13aa2ca5d9a::t_f59569f881029f 55,59,2039-2065,2142-2151,2192-2194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2ddd292d850dad1f31fdc2885f70621af53f3f69",
+  "prompts": {},
+  "sessions": {
+    "s_5ef13aa2ca5d9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed3357cbbffeROEK7xP7OmXTdD",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

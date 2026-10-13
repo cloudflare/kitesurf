@@ -1,0 +1,28 @@
+packages/engine/test/fetch-interception.test.ts
+  s_765fb2c1143dfd::t_ae916b33fa7dc1 38-39
+  s_20642805355ab4::t_e6e93d4869d3b7 1-37,40-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c86c4038ae237522936e88aac1b6d1603ee6ad45",
+  "prompts": {},
+  "sessions": {
+    "s_20642805355ab4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e2fe02ffeBPRkxpXKpYOZzY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_765fb2c1143dfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc686a3bffezBu3At7PlS859C",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    }
+  }
+}

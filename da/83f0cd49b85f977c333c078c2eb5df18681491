@@ -1,0 +1,19 @@
+packages/core/src/scene_record.rs
+  s_f70b272515436f::t_034fe69d05ac23 2675-2676
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "da83f0cd49b85f977c333c078c2eb5df18681491",
+  "prompts": {},
+  "sessions": {
+    "s_f70b272515436f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee3accdeaffe8lRMgSeLfyUGrr",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

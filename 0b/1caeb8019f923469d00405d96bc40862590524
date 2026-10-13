@@ -1,0 +1,87 @@
+internal/scripts/capture-fixture.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-139
+internal/tests/interactivity-flows/README.md
+  s_c6d6a3ac21fe46::t_892b582499c8ed 1-404
+.gitlab-ci.yml
+  s_c6d6a3ac21fe46::t_01c77d63e1a638 1429,1431
+  s_c6d6a3ac21fe46::t_892b582499c8ed 484,1275-1276,1293,1304-1305,1405-1406,1424,1465,1469,1487,1539-1540,1544-1545,1547-1549,1555-1557,1565,1570,1652,1656,1669-1670,1724,1727,1780,1782,1786,1795-1796
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1153,2285,2367,2388,2435
+internal/scripts/flows-merge-shards.mjs
+  s_c6d6a3ac21fe46::t_892b582499c8ed 1-91
+internal/packages/bench-report/src/bench-routes.ts
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 473,495
+internal/scripts/autoresearch-median.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-194
+internal/scripts/flows-archives.mjs
+  s_c6d6a3ac21fe46::t_892b582499c8ed 22
+internal/packages/bench-report/src/types.ts
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 23
+docs/RELEASING.md
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 17
+package.json
+  s_c6d6a3ac21fe46::t_892b582499c8ed 59,66,69-72,74
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 23-24
+internal/packages/bench-report/src/bench-runner.ts
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 451
+internal/packages/shadow-replay/test/screenshot-policy.test.ts
+  s_c6d6a3ac21fe46::t_892b582499c8ed 12
+packages/engine/package.json
+  s_c6d6a3ac21fe46::t_892b582499c8ed 11
+docs/BOA_HARDENING.md
+  s_c6d6a3ac21fe46::t_892b582499c8ed 78
+turbo.json
+  s_c6d6a3ac21fe46::t_892b582499c8ed 182,222-226,229-231,244-248,250
+internal/packages/bench-report/scripts/record.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 4,15,21,43,90
+internal/scripts/bench-trace-report.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 38-39
+internal/bench/harness/run.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-1187
+internal/scripts/flows-run-cacheable.mjs
+  s_c6d6a3ac21fe46::t_892b582499c8ed 1-105
+internal/bench/README.md
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-578
+.gitignore
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 81,83,95
+  s_c6d6a3ac21fe46::t_892b582499c8ed 99,125,141
+internal/scripts/autoresearch-bench.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-362
+internal/packages/bench-report/container/agent.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 2
+internal/packages/bench-report/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 75
+internal/packages/agent-bench/src/engines.mjs
+  s_c6d6a3ac21fe46::t_892b582499c8ed 60
+.gitlab/build-images/Dockerfile.build
+  s_c6d6a3ac21fe46::t_892b582499c8ed 22
+scripts/memprof.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 155
+docs/TESTING.md
+  s_c6d6a3ac21fe46::t_892b582499c8ed 29
+internal/tests/interactivity-flows/run.ts
+  s_c6d6a3ac21fe46::t_892b582499c8ed 1-765
+internal/packages/bench-report/worker-env.ts
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 13
+internal/scripts/gold-screenshot-check.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-219
+internal/scripts/flows-engine-id.mjs
+  s_c6d6a3ac21fe46::t_892b582499c8ed 1-64
+internal/packages/shadow-replay/tsconfig.json
+  s_c6d6a3ac21fe46::t_892b582499c8ed 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b1caeb8019f923469d00405d96bc40862590524",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

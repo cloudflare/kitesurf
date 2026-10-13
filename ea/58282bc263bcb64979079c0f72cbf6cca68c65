@@ -1,0 +1,21 @@
+packages/jsrpc-types/src/page-script.ts
+  s_41d5a40b9168bd::t_306c3dd5c25090 372-381
+packages/page-script/src/import-maps.ts
+  s_41d5a40b9168bd::t_306c3dd5c25090 256-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ea58282bc263bcb64979079c0f72cbf6cca68c65",
+  "prompts": {},
+  "sessions": {
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

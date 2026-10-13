@@ -1,0 +1,28 @@
+docs/STORAGE_STATE.md
+  s_83cbebb813e639::t_91eeb033c44891 1-27,29-32,45-54,58-82,113-117
+  s_83cbebb813e639::t_6cdbc93be6f10f 28,33-44
+packages/engine/src/cdp/kitesurf.ts
+  s_83cbebb813e639::t_8ac6601ec9629c 433-437,442-443
+packages/engine/src/state/storage-state.ts
+  s_83cbebb813e639::t_8ac6601ec9629c 71-78,84,86-89,92,94
+packages/engine/test/storage-state.test.ts
+  s_83cbebb813e639::t_3f7591d9fb0add 94-137
+packages/engine/test/e2e/storage-state.e2e.test.ts
+  s_83cbebb813e639::t_6cdbc93be6f10f 76-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "34fc17c237d73b5794536a86d23d653551f6c9db",
+  "prompts": {},
+  "sessions": {
+    "s_83cbebb813e639": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0388623affeMZhtpmKWNkHzTW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

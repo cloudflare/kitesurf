@@ -1,0 +1,19 @@
+packages/dom-shim/src/element.ts
+  s_4ba79f911c93c4::t_17eb2c24208f98 167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a3df7714fa39f50ddf226d1fc3e704fcf8494aff",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

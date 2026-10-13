@@ -1,0 +1,27 @@
+packages/page-script/src/transitions.ts
+  s_13716c95882f21::t_0dc945e5226fbf 64-70,92,126-129,139,149-150,153-154,160,166,176-179,182,184,186-187,218,222-223,230,233
+  s_13716c95882f21::t_d9d0eeb027554b 185
+packages/engine/test/e2e/layout-resolve-pollers.e2e.test.ts
+  s_13716c95882f21::t_fe543a6561ec12 7
+  s_13716c95882f21::t_cc620e0b10351c 1-2,8-52
+docs/TRANSITIONS.md
+  s_13716c95882f21::t_199fb22711fb99 123-132
+packages/core/src/lib.rs
+  s_13716c95882f21::t_3f0ef483f48621 4664-4668,4679-4680
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "113736870511cf7bd9e66db46bb3bf4f82770678",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

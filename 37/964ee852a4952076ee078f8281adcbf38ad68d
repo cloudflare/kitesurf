@@ -1,0 +1,27 @@
+packages/engine/src/index.ts
+  s_c6d6a3ac21fe46::t_33c6024682b093 23
+packages/engine/src/eval/web-bot-auth.ts
+  s_c6d6a3ac21fe46::t_404f9c187c301d 1-3,15
+packages/engine/src/inspector.ts
+  s_c6d6a3ac21fe46::t_0d098f843f46f7 1-16
+packages/engine/test/inspector.test.ts
+  s_c6d6a3ac21fe46::t_0e1881de508098 1-19
+packages/engine/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_404f9c187c301d 121-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "37964ee852a4952076ee078f8281adcbf38ad68d",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

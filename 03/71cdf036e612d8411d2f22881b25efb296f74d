@@ -1,0 +1,29 @@
+scripts/patches/blitz-paint-0.3.0-beta.2/0041-Draw-only-the-gradient-tiles-that-reach-the-viewport.patch
+  s_34159d964fa8f8::t_790a992b69eb38 1-99
+packages/engine/test/e2e/gradient-tile-count.e2e.test.ts
+  s_41d5a40b9168bd::t_7b6d063a5f33f4 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0371cdf036e612d8411d2f22881b25efb296f74d",
+  "prompts": {},
+  "sessions": {
+    "s_34159d964fa8f8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_edeaddd2effeIhyeiW3PE0vllQ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

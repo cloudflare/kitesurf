@@ -1,0 +1,19 @@
+docs/DOM_SHIM.md
+  s_e6f14453a46ee6::t_66ce4301e376e9 137-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fd96216d9925ba87a10c663601f99cb30592edc2",
+  "prompts": {},
+  "sessions": {
+    "s_e6f14453a46ee6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee06fef5effeSDn43Wc6Cc3ByY",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

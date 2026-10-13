@@ -1,0 +1,39 @@
+packages/page-script/src/index.ts
+  s_a3b42a28f6acb3::t_78cf289c6208a4 1861,1863,1865-1867,1874-1882
+  s_a3b42a28f6acb3::t_5be3a2a6ba9bb2 1883-1884
+  s_a3b42a28f6acb3::t_81d97304b130a9 1862,1864
+packages/engine/test/e2e/bridge-cycle-collect.e2e.test.ts
+  s_a3b42a28f6acb3::t_b8e5dcc79350a1 10-11,14-17,27-32,34-43,62-63,65-66,86-88,90-91,94,100-109,120-123,125,128,131,137-145,158-159,161,163,166,168,176-178,180-181,183-184,204
+  s_a3b42a28f6acb3::t_fafe51225c935b 201-203,206-208
+scripts/patches/boa_gc-0.20.0/0004-add-a-mark-only-census-that-discounts-external-handl.patch
+  s_a3b42a28f6acb3::t_395add1ca15333 14,16-17,81-85,87-88,95-99,101,110-131,149,186
+  s_a3b42a28f6acb3::t_0f46a8a6fe4104 15,18,53,56,141-146,152
+packages/core/src/boa_bridge.rs
+  s_a3b42a28f6acb3::t_6bf3eb5392be64 642-654,657,659-667,669-672,675-679,682,684-696,699
+  s_a3b42a28f6acb3::t_822f5ba140e17c 638-641
+  s_a3b42a28f6acb3::t_66aabda1f9d7d6 700-701
+  s_a3b42a28f6acb3::t_289ce8c5eb195c 680-681
+  s_a3b42a28f6acb3::t_a52d88a1c6e14c 655-656
+  s_a3b42a28f6acb3::t_9c34561c1029aa 673-674
+packages/engine/test/e2e/bridge-fn-liveness.e2e.test.ts
+  s_a3b42a28f6acb3::t_2b6468fe8569cf 10-13,26-29,32-38
+docs/BOA_V8_FLOW.md
+  s_a3b42a28f6acb3::t_6fec7a59bae487 664-665,669-670
+  s_a3b42a28f6acb3::t_0702defcdc9f95 666-668
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b8f15b474733ba30185d3a11a8d035aa7dcc4ffe",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

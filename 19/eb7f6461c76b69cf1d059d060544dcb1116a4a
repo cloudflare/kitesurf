@@ -1,0 +1,21 @@
+packages/engine/src/eval/worker-budget.ts
+  s_13716c95882f21::t_da070cc5457eb3 1,15,33,37-38,65-68,82-87,94-97,120,122-123,141-144
+packages/engine/test/worker-budget.test.ts
+  s_13716c95882f21::t_1fa185815dca73 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "19eb7f6461c76b69cf1d059d060544dcb1116a4a",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
