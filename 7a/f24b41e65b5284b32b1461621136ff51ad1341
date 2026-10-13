@@ -1,0 +1,21 @@
+scripts/patches/blitz-dom-0.3.0-beta.3/0147-Mark-a-has-anchor-s-ancestors-dirty-after-a-tree-mut.patch
+  s_7c01b0ca8edd6e::t_45bd9016049ca0 1-54
+packages/core/src/has_invalidation_test.rs
+  s_7c01b0ca8edd6e::t_b4915819b6cff0 338-377
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7af24b41e65b5284b32b1461621136ff51ad1341",
+  "prompts": {},
+  "sessions": {
+    "s_7c01b0ca8edd6e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecb467a8effefXIs06RgfyU37s",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
