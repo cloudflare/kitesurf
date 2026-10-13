@@ -1,0 +1,26 @@
+SECURITY.md
+  s_c6d6a3ac21fe46::t_5ae05bfe7fb321 3,5-9,12,14-15
+.github/PULL_REQUEST_TEMPLATE.md
+  s_c6d6a3ac21fe46::t_cdd0b5838a88d8 12
+  s_c6d6a3ac21fe46::t_5ae05bfe7fb321 1,3,5,7-11,16,21-25,27-29
+README.md
+  s_c6d6a3ac21fe46::t_cdd0b5838a88d8 63
+.gitignore
+  s_c6d6a3ac21fe46::t_5ae05bfe7fb321 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "78f3707196ed2078b7ffd53bbe587339dbd1a331",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
