@@ -1,0 +1,28 @@
+docs/DOM_SHIM.md
+  s_89db36e0a74dbd::t_15ad1d21b0b9a9 147
+scripts/generate-webidl-bindings.mjs
+  s_89db36e0a74dbd::t_15ad1d21b0b9a9 448
+scripts/webidl-ts-types.mjs
+  s_89db36e0a74dbd::t_15ad1d21b0b9a9 12-13,176,181
+.opencode/skills/kitesurf-idl-class-types/SKILL.md
+  s_89db36e0a74dbd::t_15ad1d21b0b9a9 35
+  s_89db36e0a74dbd::t_fa21793e1d90f7 36-37
+packages/dom-shim/src/idl/types.generated.ts
+  s_89db36e0a74dbd::t_9efafd284bf855 6,117-120,139,666,992,1567,1762,1822-1825,1948,1969,2009,2323-2324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a28050d2289018ed32a0545b2d1adb801656c68",
+  "prompts": {},
+  "sessions": {
+    "s_89db36e0a74dbd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec8081742ffeOUo1byYY6GJ5h5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
