@@ -239,6 +239,8 @@ packages/renderer-core/Cargo.toml
   s_059e99c81ea16a::t_f1afeac69b3134 15
 packages/dom-shim/src/document.ts
   s_059e99c81ea16a::t_808a4f12562cdf 14
+packages/dom-shim/src/file-input.ts
+  s_059e99c81ea16a::t_86053332e504b7 292
 ---
 {
   "schema_version": "authorship/3.0.0",
