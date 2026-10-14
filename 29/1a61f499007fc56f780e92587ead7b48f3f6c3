@@ -1,0 +1,35 @@
+packages/dom-shim/src/idl/type-gaps.json
+  s_89db36e0a74dbd::t_4e2fcc343b7157 28-32,93-99
+packages/dom-shim/src/document.ts
+  s_89db36e0a74dbd::t_4e2fcc343b7157 2363,2407
+.opencode/skills/kitesurf-idl-class-types/SKILL.md
+  s_89db36e0a74dbd::t_c23ce5ae091dd1 77-80
+packages/dom-shim/src/traversal.ts
+  s_89db36e0a74dbd::t_4e2fcc343b7157 489-490
+packages/dom-shim/src/range.ts
+  s_89db36e0a74dbd::t_4e2fcc343b7157 1929-1935,1937,1975-1976
+packages/dom-shim/src/xpath.ts
+  s_89db36e0a74dbd::t_4e2fcc343b7157 1087,1089,1101,1104,1107,1109
+docs/DOM_SHIM.md
+  s_89db36e0a74dbd::t_c23ce5ae091dd1 160-162
+packages/dom-shim/src/parser.ts
+  s_89db36e0a74dbd::t_4e2fcc343b7157 1324,1326-1327
+packages/dom-shim/src/idl/types.generated.ts
+  s_89db36e0a74dbd::t_10de0d8aec4696 578,3341,3344-3345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "291a61f499007fc56f780e92587ead7b48f3f6c3",
+  "prompts": {},
+  "sessions": {
+    "s_89db36e0a74dbd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec8081742ffeOUo1byYY6GJ5h5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
