@@ -1,0 +1,81 @@
+scripts/get-wasm-bindgen.mjs
+  s_f31fe8b734ae46::t_76c4896ec4f3a6 1-2,4,6
+docs/RBI.md
+  s_f31fe8b734ae46::t_ed131b4017fa28 1,3-6,9,11-12,16-19,124,126-127
+packages/kitesurf-cli/architecture.mmd
+  s_f31fe8b734ae46::t_638a62d79af3ba 10,20,26,29-30,32-36,38
+packages/engine/src/index.ts
+  s_f31fe8b734ae46::t_2933032a2cc46e 145,357-360,390
+packages/engine/src/rbi-protocol.ts
+  s_f31fe8b734ae46::t_ed131b4017fa28 54-55
+packages/renderer-core/scripts/build.mjs
+  s_f31fe8b734ae46::t_76c4896ec4f3a6 9,96
+packages/engine/test/e2e/scene-stream-idle-frames.e2e.test.ts
+  s_f31fe8b734ae46::t_f412b680f3bef6 2,45-67,70
+  s_f31fe8b734ae46::t_7248190f242f41 6-7,12,14,16,71
+  s_f31fe8b734ae46::t_fb38b75dbe38af 25
+  s_f31fe8b734ae46::t_8da07ee10d2caf 1,3,5,8-11,13,15,17-22,24,26,28-43,72,79
+  s_f31fe8b734ae46::t_04920113513345 4
+  s_f31fe8b734ae46::t_9a17bd296d1abf 23,27,44
+  s_f31fe8b734ae46::t_200936ba64efe2 68-69
+  s_f31fe8b734ae46::t_b5eb4c247a6f12 73-78
+packages/engine/src/cdp/input.ts
+  s_f31fe8b734ae46::t_9128b37645631b 245-247,252
+  s_f31fe8b734ae46::t_c7652452b613a7 9,243-244,248-251,274-276
+.gitlab-ci.yml
+  s_f31fe8b734ae46::t_a494fbd9b59f8e 410
+scripts/wait-for-main-wasm.mjs
+  s_f31fe8b734ae46::t_a494fbd9b59f8e 2,10
+packages/engine/wrangler.jsonc
+  s_f31fe8b734ae46::t_2933032a2cc46e 187,194-195,199
+docs/TERMINAL.md
+  s_f31fe8b734ae46::t_ed131b4017fa28 19
+packages/engine/src/cdp/scene-stream.ts
+  s_f31fe8b734ae46::t_c07472c5417359 222
+  s_f31fe8b734ae46::t_c7652452b613a7 8,24-26,31-49,108,163,169,175-177
+  s_f31fe8b734ae46::t_097f226e49ffd5 2
+  s_f31fe8b734ae46::t_e760338ef6e221 178
+AGENTS.md
+  s_f31fe8b734ae46::t_ed131b4017fa28 49-52,176
+packages/renderer-core/Cargo.toml
+  s_f31fe8b734ae46::t_76c4896ec4f3a6 14,19
+packages/engine/test/e2e/cdp-scene-stream.e2e.test.ts
+  s_f31fe8b734ae46::t_cf213c7195bc8a 18-35
+packages/core/Cargo.toml
+  s_f31fe8b734ae46::t_76c4896ec4f3a6 254-256,277
+packages/core/.cargo/config.toml
+  s_f31fe8b734ae46::t_097f226e49ffd5 59
+  s_f31fe8b734ae46::t_76c4896ec4f3a6 6-7
+rust-toolchain.toml
+  s_f31fe8b734ae46::t_76c4896ec4f3a6 9
+packages/kitesurf-cli/README.md
+  s_f31fe8b734ae46::t_638a62d79af3ba 15-22
+package.json
+  s_f31fe8b734ae46::t_a494fbd9b59f8e 35
+Cargo.toml
+  s_f31fe8b734ae46::t_76c4896ec4f3a6 82-83,114-115
+  s_f31fe8b734ae46::t_a494fbd9b59f8e 1-2,17
+packages/kitesurf-cli/architecture.svg
+  s_f31fe8b734ae46::t_b0759d977abb59 1
+scripts/wait-for-main-wasm.test.mjs
+  s_f31fe8b734ae46::t_a494fbd9b59f8e 11
+packages/engine/src/rbi.ts
+  s_f31fe8b734ae46::t_097f226e49ffd5 324,416-417
+  s_f31fe8b734ae46::t_ca1a59c9ce7f74 1,166-171,187-189,227,301-302,305,385-398,411
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c8e9683e142b3b958284c010a3330297dd78143d",
+  "prompts": {},
+  "sessions": {
+    "s_f31fe8b734ae46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f07a5b8e3ffermPEBUJXW8AjHg",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}
