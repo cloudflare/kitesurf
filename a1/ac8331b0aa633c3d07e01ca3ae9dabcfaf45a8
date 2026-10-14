@@ -1,0 +1,22 @@
+packages/storage-state-extension/extension/popup.css
+  s_5ea4b7f8ec5ae7::t_76c4e55c89b9bc 1-2,4,6-30,36-45,54-65,68,70,88-91,110,113-114,120-136,145,161
+packages/storage-state-extension/extension/popup.html
+  s_5ea4b7f8ec5ae7::t_58e644529f2e9d 11-38
+  s_5ea4b7f8ec5ae7::t_a85dc150bb43c2 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a1ac8331b0aa633c3d07e01ca3ae9dabcfaf45a8",
+  "prompts": {},
+  "sessions": {
+    "s_5ea4b7f8ec5ae7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee588c4dcffe4AV8d7K8aCpWBR",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
