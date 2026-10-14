@@ -1,0 +1,106 @@
+packages/page-script/src/startup-probe.ts
+  s_6e6860e87b7ff7::t_c1d47bfc14f967 79
+  s_6e6860e87b7ff7::t_04628ca93cf267 21
+  s_6e6860e87b7ff7::t_8cda146fbf1fde 80
+  s_6e6860e87b7ff7::t_f094b4c5b19a2c 22
+packages/engine/src/eval/redirect-walk.ts
+  s_6e6860e87b7ff7::t_218643d36072b7 259-265
+  s_6e6860e87b7ff7::t_a4fc1a98eebfa9 115-120
+packages/engine/src/cdp/types.ts
+  s_6e6860e87b7ff7::t_c06f5b4b9822d6 458
+packages/page-script/src/__ks_startup_probe_input.ts
+  s_6e6860e87b7ff7::t_5fca84decc25e2 26
+packages/page-script/src/index.ts
+  s_6e6860e87b7ff7::t_34423fed0df8bb 66
+  s_6e6860e87b7ff7::t_e1f680090f6cc5 2148
+  s_d11dae8f9ad67a::t_efb3695afead18 82,1358,1501,1535,3360-3365
+  s_6e6860e87b7ff7::t_70a4e111ad02e1 1318-1336,1344-1346,1352,1354
+  s_6e6860e87b7ff7::t_453e7503faf771 3344,3348-3350
+  s_6e6860e87b7ff7::t_3da98c560a149d 67
+  s_6e6860e87b7ff7::t_7ca0b31e5e379f 1296-1299,1301-1303
+  s_6e6860e87b7ff7::t_abd23b511f81a5 3358-3359
+packages/engine/src/cdp/page.ts
+  s_6e6860e87b7ff7::t_8be731fd9c270a 505
+  s_6e6860e87b7ff7::t_4b4e05a8cd13a8 5300-5303
+packages/engine/test/e2e/navigation-fidelity.e2e.test.ts
+  s_6e6860e87b7ff7::t_7a9cd3d8dedb1e 69-70
+packages/engine/src/eval/page-script.ts
+  s_6e6860e87b7ff7::t_52adae19426bab 524
+  s_6e6860e87b7ff7::t_b5b2de7df7cc45 472-473
+  s_6e6860e87b7ff7::t_ed4cab8a127d34 525
+  s_6e6860e87b7ff7::t_ac389c9d9aa680 474-477
+packages/dom-shim/src/parser.ts
+  s_6e6860e87b7ff7::t_546fefb4621c3d 1370,1372
+  s_6e6860e87b7ff7::t_7ee9caae48253e 823,846-847,1371,1397
+  s_6e6860e87b7ff7::t_263e7cb25010e4 866-867
+  s_6e6860e87b7ff7::t_b0e03a7755628a 930-932
+  s_6e6860e87b7ff7::t_0eb44de0d431e4 837
+  s_6e6860e87b7ff7::t_4d388cb75b373a 865
+  s_6e6860e87b7ff7::t_7bd9490070d080 933-946
+  s_6e6860e87b7ff7::t_d12f65717ba751 1394-1396,1398-1399
+  s_6e6860e87b7ff7::t_46355babc2d1d7 814-822,824-836,838-845,848-849
+packages/engine/test/e2e/iframe-referrer.e2e.test.ts
+  s_6e6860e87b7ff7::t_bae9ca7b505744 1-10,94-121
+  s_6e6860e87b7ff7::t_5fa41eb332c75b 122
+  s_d11dae8f9ad67a::t_d5a7a025ce5a19 13-17,22-37
+  s_6e6860e87b7ff7::t_1103a832da30a3 11-12,18-21,38-39,56-93
+  s_309e96a1fea71d::t_6151d7dbb6db85 123-150
+packages/script-gate/package.json
+  s_d11dae8f9ad67a::t_19ea520231c153 13-14
+  s_d11dae8f9ad67a::t_39d97979e06777 6
+packages/script-gate/test/referrer-policy.test.ts
+  s_d11dae8f9ad67a::t_19ea520231c153 1-3,49-50
+  s_d11dae8f9ad67a::t_0a2bba4eb316bf 4-48,51-63
+packages/script-gate/src/referrer-policy.ts
+  s_d11dae8f9ad67a::t_0a2bba4eb316bf 1-92
+packages/engine/src/eval/outbound.ts
+  s_d11dae8f9ad67a::t_ca0e8c5cda6514 137-138,2430,2449,2451-2453,2455,2461,2465-2479
+  s_d11dae8f9ad67a::t_13f5351f18aaa9 81-84
+packages/engine/test/outbound-forward.test.ts
+  s_d11dae8f9ad67a::t_82cd619b276464 117-152
+packages/engine/test/fixtures-worker/assets/iframe-referrer-host.html
+  s_6e6860e87b7ff7::t_1162e33f92a70b 1-7
+packages/page-script/src/fetch-shim.ts
+  s_309e96a1fea71d::t_b4e253317fc0cb 305-309,317-424
+  s_309e96a1fea71d::t_6c6f46a161fd35 297
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1386175a30fabd42af9075c35b90c8634072e30e",
+  "prompts": {},
+  "sessions": {
+    "s_309e96a1fea71d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecdc99f30ffe6p4BIZq7Uu1cDa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_6407acaa6ac3b1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f033863b4ffeu7xwt0zsQ6SfMv",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_6e6860e87b7ff7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0e430475ffev1V4jl8k9B1ITU",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_d11dae8f9ad67a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0ce6f2c6ffeMRF1MXGSWI5ypH",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
