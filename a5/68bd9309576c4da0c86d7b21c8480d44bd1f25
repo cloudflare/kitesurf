@@ -1,0 +1,27 @@
+packages/engine/test/e2e/tsconfig.json
+  s_c6d6a3ac21fe46::t_094290e60a104d 10
+packages/engine/test/e2e/internal/screenshot-pdf-brapi.e2e.test.ts
+  s_c6d6a3ac21fe46::t_1f74fa279192e3 1-143
+packages/engine/test/e2e/internal/ready-analytics.e2e.test.ts
+  s_c6d6a3ac21fe46::t_1f74fa279192e3 1-312
+packages/engine/vitest.e2e.config.mts
+  s_c6d6a3ac21fe46::t_1f74fa279192e3 136
+docs/ANALYTICS.md
+  s_c6d6a3ac21fe46::t_1f74fa279192e3 159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a568bd9309576c4da0c86d7b21c8480d44bd1f25",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

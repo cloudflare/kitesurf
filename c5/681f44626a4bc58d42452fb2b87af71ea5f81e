@@ -1,0 +1,116 @@
+tests/wpt-expectations.json
+  s_c6d6a3ac21fe46::t_c8f612546d7bbf 7374,17941,17945
+  s_c6d6a3ac21fe46::t_55a9015d613b01 1872,1876,1880,1884,1888,1892,1896,1900,2470,2478,2482,2818,2822,2826,5893,13385,20396,22987,23999,24155,24571,24575,24579,24583,24587,24591,24595,24599,24603,24607,24611,24615,24619,24623,25175,25179,25183,25187,26355,26383,26387,26419,26423,26431,26451,26955,26959,26963,26967,26971,26975,26979,26983,26987,26991,26995,27483,27487,27491,27495,28351,28419,28423,28427,28431,28435,28439,28443,28447,28451,28455,28459,28463,28467,28471,28475,28479,28483,28487,28491,28495,28499,28503,28507,28511,28515,28535,28539,28543,28547,28551,28555,28559,28563,28567,28571,28575,28579,28583,28587,28591,28595,28599,28603,28607,28611,28615,28619,28623,28627,35624
+packages/engine/src/quickactions/scrape.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 24
+packages/engine/test/e2e/font-face-unicode-range-gating.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 2
+packages/engine/src/quickactions/screenshot.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 43,113
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 161
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 1
+packages/engine/src/quickactions/snapshot.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 87,112
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 1,36
+packages/core/src/lib.rs
+  s_c6d6a3ac21fe46::t_643b474697bcd9 1707
+  s_c6d6a3ac21fe46::t_15c9151cb36827 1706
+packages/engine/src/cdp-client.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 111
+packages/engine/test/e2e/links-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 30,64,84
+packages/engine/test/e2e/bridge-inherit-v8.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 1,272
+packages/engine/src/quickactions/render-session.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 10
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 80
+packages/engine/src/sentry.ts
+  s_c6d6a3ac21fe46::t_da6d163e35105a 1,93
+packages/engine/src/quickactions/accessibility-tree.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 1
+packages/core/src/boa_eval.rs
+  s_c6d6a3ac21fe46::t_643b474697bcd9 533
+packages/engine/test/e2e/snapshot-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 72,95
+packages/engine/test/e2e/replay-stub-worker.mjs
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 1
+  s_c6d6a3ac21fe46::t_80ba11d3a38e2f 9
+packages/engine/src/quickactions/pdf.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 1
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 86
+packages/engine/src/quickactions/ax-serialize.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 1
+packages/engine/test/e2e/cssom-counter-style-rule.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 9
+packages/engine/src/cdp/kitesurf.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 118
+packages/engine/test/e2e/quickaction-containment.e2e.test.ts
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 45,109,114,128
+packages/engine/src/tracing-local.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 1
+packages/engine/src/quickactions/crawl.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 1
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 143
+packages/engine/test/e2e/external-outbound.e2e.test.ts
+  s_c6d6a3ac21fe46::t_80ba11d3a38e2f 119,225,288
+packages/engine/test/tracing-local.test.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 2
+packages/engine/src/quickactions/content.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 141
+packages/engine/src/cdp/dispatch.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 51-52
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 64-65
+packages/engine/test/e2e/cssom-page-rules.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 1,11
+packages/core/src/data_uri_bg_test.rs
+  s_c6d6a3ac21fe46::t_643b474697bcd9 26
+packages/engine/test/e2e/stylo-layout-misc-values.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 4
+packages/engine/test/external-outbound.test.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 4
+packages/engine/test/e2e/scrape-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 43
+packages/engine/src/quickactions/index.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 792,1357,1380,1407,1604,1616
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 2,46,289,360,371,373,486,860,1047,1049-1050,1111,1353,1512
+packages/core/src/style.rs
+  s_c6d6a3ac21fe46::t_15c9151cb36827 54-55
+packages/engine/src/cdp/protocol-extensions.ts
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 156
+packages/engine/test/e2e/accessibility-tree-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 274
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 293,398,514
+packages/engine/test/quickaction.test.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 234,305,607,631,650,675,685,962,1212,1333,1396,1460-1461,1481,1483,1521,1542
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 249,409,422,442,462,812,1476
+packages/engine/src/quickactions/capture.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 158
+packages/engine/test/e2e/document-types.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 4
+packages/core/src/ks_tracing.rs
+  s_c6d6a3ac21fe46::t_da6d163e35105a 11,66,237
+packages/engine/src/index.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 313
+packages/engine/src/quickactions/links.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 23
+packages/core/src/boa_bridge.rs
+  s_c6d6a3ac21fe46::t_643b474697bcd9 534,1532,2009,2584,3022,3329
+  s_c6d6a3ac21fe46::t_15c9151cb36827 2272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c5681f44626a4bc58d42452fb2b87af71ea5f81e",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

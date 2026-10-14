@@ -1,0 +1,64 @@
+packages/engine/src/observability.ts
+  s_a6287b5e06af60::t_a42879a4621691 72
+packages/engine/test/fixtures-worker/assets/tui-image-ticker.html
+  s_a6287b5e06af60::t_7caf1a8df633aa 1
+packages/engine/src/wasm.ts
+  s_a6287b5e06af60::t_643648782b1d51 4-5,12-18,83-151
+packages/engine/src/index.ts
+  s_a6287b5e06af60::t_a42879a4621691 8,84-86,198-199,207,235-241,423-430
+  s_a6287b5e06af60::t_46645b4ab36f77 200-206
+  s_a6287b5e06af60::t_42a39c5b497c3e 229-231
+  s_a6287b5e06af60::t_bdadc428e856f4 431
+packages/engine/src/tty/kitty.ts
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-162
+packages/engine/test/term.test.ts
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-151
+packages/engine/test/term-geometry.test.ts
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-235
+packages/engine/src/tty/params.ts
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-65
+packages/engine/src/tty/session.ts
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-1832
+packages/engine/test/e2e/term-session.e2e.test.ts
+  s_a6287b5e06af60::t_1ca076899b0bdb 93-98
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-92,99-228
+packages/engine/test/e2e/cdp-scene-stream.e2e.test.ts
+  s_a6287b5e06af60::t_46645b4ab36f77 4-5,7,10,12-15
+packages/engine/src/tty/route.ts
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-93
+packages/engine/wrangler.jsonc
+  s_a6287b5e06af60::t_676794352c0067 109-111,308
+packages/engine/test/e2e/keyboard-scroll.e2e.test.ts
+  s_a6287b5e06af60::t_9392954e5dfea3 101-121
+packages/engine/src/tty/term-event.ts
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-53
+packages/engine/test/term-params.test.ts
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-134
+packages/engine/test/term-target.test.ts
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-181
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-2,5-23,84-127
+  s_a6287b5e06af60::t_eb0b572d545d3b 128
+packages/engine/test/term-size-replies.test.ts
+  s_a6287b5e06af60::t_7caf1a8df633aa 1-100
+packages/engine/test/fixtures-worker/src/static.ts
+  s_a6287b5e06af60::t_912390522c767a 232,698-700
+packages/engine/src/cdp/connection.ts
+  s_a6287b5e06af60::t_a42879a4621691 324-326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6695612b8415d4a632d75d65f14030a8924ea71a",
+  "prompts": {},
+  "sessions": {
+    "s_a6287b5e06af60": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef2d5b5aeffe42dLIqBD97UFc1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+packages/dom-shim/src/window.ts
+  s_a3b42a28f6acb3::t_cad011bbd0440b 1493,1496,1498-1511,1515-1517,1521,1648-1649,1661
+  s_a3b42a28f6acb3::t_99662bce3fd1a3 1491-1492
+packages/dom-shim/src/registries.ts
+  s_a3b42a28f6acb3::t_cad011bbd0440b 359-360
+packages/engine/test/e2e/named-global-live.e2e.test.ts
+  s_a3b42a28f6acb3::t_cad011bbd0440b 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3a457e5de1ff62f7f260745115958e7afc0ac3cc",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

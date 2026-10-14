@@ -1,5 +1,14 @@
 packages/dom-shim/src/reclaim.ts
   s_c1d1c93f383cfd::t_c021c1b129e45a 74,81-83,85,233-239
+packages/dom-shim/src/canvas2d.ts
+  s_c1d1c93f383cfd::t_fa6fb4463a04d0 348-353,363
+  s_c1d1c93f383cfd::t_1c516a8bab9616 348-353,363
+packages/engine/test/e2e/perf-resource-timing-buffer.e2e.test.ts
+  s_c1d1c93f383cfd::t_eab6dba20a2d60 1-57
+packages/page-script/src/globals.ts
+  s_c1d1c93f383cfd::t_81ade2f581e783 2478-2488
+packages/engine/test/e2e/detached-subtree-reclaim.e2e.test.ts
+  s_4376a60b5dde28::t_a873776796d128 133,144-145,154-156
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -7,6 +16,14 @@ packages/dom-shim/src/reclaim.ts
   "base_commit_sha": "f4b029a690783e76ac094883610d39717f905409",
   "prompts": {},
   "sessions": {
+    "s_4376a60b5dde28": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f14b8631efferhlYRR5J3BCy65",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_c1d1c93f383cfd": {
       "agent_id": {
         "tool": "opencode",

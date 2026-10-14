@@ -1,0 +1,19 @@
+packages/bench-report/scripts/engine-version.mjs
+  s_3fc265f386e88a::t_acfe3466d75004 1-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "10ff844927b8f918fdf53883da9f53d257e9633e",
+  "prompts": {},
+  "sessions": {
+    "s_3fc265f386e88a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f152787e0ffe51sPhnS0pmtLDd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

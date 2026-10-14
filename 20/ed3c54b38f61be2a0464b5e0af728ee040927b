@@ -1,0 +1,24 @@
+packages/engine/src/eval/page-renderer.ts
+  s_4376a60b5dde28::t_f0c8dfab5fcb0c 526-529,653-656
+  s_4376a60b5dde28::t_a6985b630fa5e8 635
+  s_4376a60b5dde28::t_5bb282fc8d7d0a 333-336
+  s_4376a60b5dde28::t_ecd4ea928f5d3f 499-501
+packages/engine/src/cdp/page.ts
+  s_4376a60b5dde28::t_cf938d03c36334 6060-6065
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "20ed3c54b38f61be2a0464b5e0af728ee040927b",
+  "prompts": {},
+  "sessions": {
+    "s_4376a60b5dde28": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f14b8631efferhlYRR5J3BCy65",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

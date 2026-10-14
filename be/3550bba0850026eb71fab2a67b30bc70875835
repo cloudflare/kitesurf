@@ -1,0 +1,25 @@
+packages/page-script/src/wasm-compile.ts
+  s_059e99c81ea16a::t_dd4d3513c48a6c 1-59
+docs/PLATFORM.md
+  s_059e99c81ea16a::t_dd4d3513c48a6c 82-93
+packages/page-script/src/globals.ts
+  s_059e99c81ea16a::t_dd4d3513c48a6c 20,3568
+packages/engine/test/e2e/wasm-compile-io-context.e2e.test.ts
+  s_059e99c81ea16a::t_dd4d3513c48a6c 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "be3550bba0850026eb71fab2a67b30bc70875835",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

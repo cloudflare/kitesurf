@@ -1,0 +1,19 @@
+packages/engine/test/e2e/navigation-fidelity.e2e.test.ts
+  s_6e6860e87b7ff7::t_abe03bebde7aba 10,107-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7290dcb28ef3d9d52934034f90d7fabdab26c6f4",
+  "prompts": {},
+  "sessions": {
+    "s_6e6860e87b7ff7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0e430475ffev1V4jl8k9B1ITU",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

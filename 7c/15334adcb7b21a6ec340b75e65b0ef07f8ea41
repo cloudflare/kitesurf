@@ -1,0 +1,25 @@
+packages/engine/test/e2e/wasm-panic-unwind.e2e.test.ts
+  s_20642805355ab4::t_15b77bf96717ff 1-32
+packages/core/src/lib.rs
+  s_20642805355ab4::t_15b77bf96717ff 1210-1214,1220-1224
+packages/engine/test/e2e/core-wasm-worker.mjs
+  s_20642805355ab4::t_15b77bf96717ff 1-38
+packages/engine/vitest.e2e.config.mts
+  s_20642805355ab4::t_15b77bf96717ff 176-190,249,259
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7c15334adcb7b21a6ec340b75e65b0ef07f8ea41",
+  "prompts": {},
+  "sessions": {
+    "s_20642805355ab4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e2fe02ffeBPRkxpXKpYOZzY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

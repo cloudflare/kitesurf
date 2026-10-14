@@ -1,0 +1,19 @@
+packages/worker-script/tsconfig.strict.json
+  s_73f239168feed6::t_1244283c7896da 14-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "26674de97a3fefaaf70536f35dcf43adebe07838",
+  "prompts": {},
+  "sessions": {
+    "s_73f239168feed6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed81c9452ffeeIx6zXTNpi4WW9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/page-script/src/fetch-shim.ts
+  s_4ba79f911c93c4::t_6028561b52eac6 85-116,133-137,146-148,165
+packages/dom-shim/src/parser.ts
+  s_4ba79f911c93c4::t_d40d669fbba94e 102-107,130-131,133-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6485be78d492d274322491746e18909904a1d451",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

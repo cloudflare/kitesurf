@@ -1,0 +1,57 @@
+packages/dom-shim/src/collections.ts
+  s_1eeadfc3cf234c::t_d1205be6a42213 4
+  s_1eeadfc3cf234c::t_a29fc9fcfe0f54 45,1374,1380,2963
+packages/dom-shim/src/canvas2d.ts
+  s_1eeadfc3cf234c::t_d1205be6a42213 6
+  s_1eeadfc3cf234c::t_a29fc9fcfe0f54 353
+packages/dom-shim/src/events/event.ts
+  s_1eeadfc3cf234c::t_d1205be6a42213 6
+  s_1eeadfc3cf234c::t_a29fc9fcfe0f54 83,302,334,358,374,389,403,419,440,455,470,479,503,527,559,577,589,618,647,710,775,798,809,855
+packages/dom-shim/src/file-input.ts
+  s_1eeadfc3cf234c::t_a29fc9fcfe0f54 187
+  s_1eeadfc3cf234c::t_d1205be6a42213 14
+scripts/generate-webidl-bindings.mjs
+  s_1eeadfc3cf234c::t_d7413bd57f7b1d 18-19,27-28,62,408-409
+scripts/webidl-ts-types.mjs
+  s_1eeadfc3cf234c::t_5e92a35fee1804 1-6,10-21,24-25,31-110,113-159,162-164,166-173,175-194,209-212,224-228,230-250
+  s_1eeadfc3cf234c::t_a29fc9fcfe0f54 7-9,111-112,160-161
+  s_1eeadfc3cf234c::t_6cb388dd874842 26-30,165,174,229
+  s_1eeadfc3cf234c::t_a34677ffb81559 22-23,195-208,213-223
+packages/dom-shim/src/node-base.ts
+  s_1eeadfc3cf234c::t_d1205be6a42213 6
+  s_1eeadfc3cf234c::t_a29fc9fcfe0f54 588
+packages/dom-shim/src/traversal.ts
+  s_1eeadfc3cf234c::t_d1205be6a42213 9
+  s_1eeadfc3cf234c::t_a29fc9fcfe0f54 84,326
+packages/dom-shim/src/model-context.ts
+  s_1eeadfc3cf234c::t_a29fc9fcfe0f54 582
+  s_1eeadfc3cf234c::t_d1205be6a42213 18
+docs/DOM_SHIM.md
+  s_1eeadfc3cf234c::t_47d2bad5146331 123-133
+packages/dom-shim/src/css-typed-om.ts
+  s_1eeadfc3cf234c::t_a29fc9fcfe0f54 1,114,152,154,802,1846,1893
+packages/dom-shim/src/range.ts
+  s_1eeadfc3cf234c::t_d1205be6a42213 5
+  s_1eeadfc3cf234c::t_a29fc9fcfe0f54 1320,1871
+packages/dom-shim/src/element.ts
+  s_1eeadfc3cf234c::t_a29fc9fcfe0f54 275,298
+  s_1eeadfc3cf234c::t_d1205be6a42213 5
+packages/dom-shim/src/idl/types.generated.ts
+  s_1eeadfc3cf234c::t_a42e2b61905120 1-4027
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fe35063b43094c3d8d75aee02db6fc355d3bed1c",
+  "prompts": {},
+  "sessions": {
+    "s_1eeadfc3cf234c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef96c93d9ffejoSx8lQT0uXgHZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

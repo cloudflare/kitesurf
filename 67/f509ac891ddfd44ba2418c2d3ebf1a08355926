@@ -1,0 +1,24 @@
+docs/WEBGL.md
+  s_5ef13aa2ca5d9a::t_0f7bf7e31776ef 931-933
+  s_5ef13aa2ca5d9a::t_6865358a670a52 934
+packages/core/src/webgl_test.rs
+  s_5ef13aa2ca5d9a::t_713e96e8ee1af9 1879-1936
+packages/core/src/webgl/raster.rs
+  s_5ef13aa2ca5d9a::t_f934c9625c7002 4-5,900-907,909,927,930,952,962-963,1072-1117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "67f509ac891ddfd44ba2418c2d3ebf1a08355926",
+  "prompts": {},
+  "sessions": {
+    "s_5ef13aa2ca5d9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed3357cbbffeROEK7xP7OmXTdD",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

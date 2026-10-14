@@ -1,0 +1,27 @@
+scripts/patches/boa_parser-0.20.0/0001-Parse-let-of-.-as-a-lexical-declaration.patch
+  s_ebc9d43f49867a::t_dbf8d2d6bbd07d 1-40
+packages/engine/test/e2e/boa-let-of.e2e.test.ts
+  s_ebc9d43f49867a::t_72b2af595aa600 1-36
+scripts/get-patched-vendor-crates.mjs
+  s_ebc9d43f49867a::t_066f4754135029 59
+scripts/patches/README.md
+  s_ebc9d43f49867a::t_066f4754135029 86,137-138
+Cargo.toml
+  s_ebc9d43f49867a::t_066f4754135029 93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e659d5c1c13e419b1b16da950be4df8ca3b5b232",
+  "prompts": {},
+  "sessions": {
+    "s_ebc9d43f49867a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0d62d6bfffeEicn5CQ06c8WIb",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

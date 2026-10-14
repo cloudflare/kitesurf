@@ -1,0 +1,21 @@
+packages/engine/test/e2e/iframe-load-order.e2e.test.ts
+  s_4ba79f911c93c4::t_4c2af8318a4afe 100,131-132,370-391
+packages/page-script/src/index.ts
+  s_4ba79f911c93c4::t_aeb5de0fa033af 1128-1132,1134-1135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6e739864418422b02a8bb42e7c76120ac76ae6a1",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

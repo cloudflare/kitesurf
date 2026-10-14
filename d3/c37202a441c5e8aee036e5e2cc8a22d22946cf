@@ -1,0 +1,22 @@
+docs/BOA_V8_FLOW.md
+  s_a3b42a28f6acb3::t_89622d80377489 594-597
+  s_a3b42a28f6acb3::t_b1a1b36ab1cf75 690-692
+packages/core/src/boa_bridge.rs
+  s_a3b42a28f6acb3::t_2bd8108b996660 2875
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d3c37202a441c5e8aee036e5e2cc8a22d22946cf",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

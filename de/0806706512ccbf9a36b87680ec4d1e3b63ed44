@@ -1,0 +1,168 @@
+packages/engine/test/e2e/named-global-live.e2e.test.ts
+  s_a3b42a28f6acb3::t_2fb74b802eea5a 66
+  s_a3b42a28f6acb3::t_b59ebaf4242f0f 48-52
+  s_a3b42a28f6acb3::t_26744b3dfa84eb 36,41-47,53-65
+packages/core/src/transform_2d_subset_test.rs
+  s_a3b42a28f6acb3::t_2fb74b802eea5a 29
+packages/core/src/shadow_dom_test.rs
+  s_4a3fa97ff88a3d::t_45ca865f5562b5 637
+  s_a3b42a28f6acb3::t_2731ef6bcdd4ce 447-449,616-618,628-630,638,822-827
+  s_a3b42a28f6acb3::t_2bb902d934d0ca 430,436
+packages/core/src/inner_text.rs
+  s_4a3fa97ff88a3d::t_6a7b241c69bcec 86
+packages/dom-shim/src/window.ts
+  s_a3b42a28f6acb3::t_0b36685774283b 11,1487-1488,1494-1502,1506-1507,1509,1514-1524,1526,1536
+  s_a3b42a28f6acb3::t_5d67291295b553 1533
+  s_a3b42a28f6acb3::t_ea027d13b7d3e2 1485-1486
+  s_a3b42a28f6acb3::t_888c631dc86d56 1537
+packages/dom-shim/src/mutations/observer.ts
+  s_a3b42a28f6acb3::t_ea027d13b7d3e2 24-25,159-164,167,189,383,472
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_a3b42a28f6acb3::t_347786b07ee22c 227
+scripts/patches/blitz-dom-0.3.0-beta.2/0178-Reduce-retained-DOM-storage.patch
+  s_a3b42a28f6acb3::t_5e76bc1dd6340e 1-2163
+packages/dom-shim/src/element/element.ts
+  s_a3b42a28f6acb3::t_ea027d13b7d3e2 40-44,613,755
+packages/engine/test/network-events-body-budget.test.ts
+  s_a3b42a28f6acb3::t_26744b3dfa84eb 171-204
+packages/engine/src/cdp/network-events.ts
+  s_a3b42a28f6acb3::t_0b36685774283b 66-67,161-164,474
+packages/page-script/src/index.ts
+  s_86347dc950a59b::t_875bea1bd87577 194
+  s_a3b42a28f6acb3::t_ea027d13b7d3e2 2096-2099
+scripts/patches/parley-0.11.1/0018-Box-sparse-text-style-decorations.patch
+  s_a3b42a28f6acb3::t_2fb74b802eea5a 1-65
+packages/engine/test/e2e/clone-layout.e2e.test.ts
+  s_a3b42a28f6acb3::t_1f3217c4d909ab 1-37
+packages/core/src/scan_test.rs
+  s_86347dc950a59b::t_875bea1bd87577 39,41-42,806-824,841-853
+  s_a3b42a28f6acb3::t_c288783b786264 124-127,552-556,570-573
+  s_a3b42a28f6acb3::t_fd09dfd9829bc2 825-840
+  s_4a3fa97ff88a3d::t_45ca865f5562b5 60,67,551
+  s_a3b42a28f6acb3::t_2731ef6bcdd4ce 40
+  s_a3b42a28f6acb3::t_2fb74b802eea5a 854
+packages/core/src/dom_fastpath.rs
+  s_4a3fa97ff88a3d::t_6a7b241c69bcec 310
+packages/engine/src/eval/page-script.ts
+  s_a3b42a28f6acb3::t_972e77cf751bd7 80-85
+  s_a3b42a28f6acb3::t_4272708193923e 86-87
+scripts/patches/taffy-0.14.0/0009-Allocate-measurement-cache-slots-only-when-needed.patch
+  s_a3b42a28f6acb3::t_80a2efbc709d74 37,84,120,125,132
+  s_a3b42a28f6acb3::t_e17f5cd03d17af 1-36,38-83,85-119,121-124,126-131,133-134
+packages/core/src/box_decorations_test.rs
+  s_a3b42a28f6acb3::t_4b7057880c7d6d 41-42
+  s_a3b42a28f6acb3::t_34494955240a95 44-47,159
+  s_a3b42a28f6acb3::t_018aa9802611d2 43,95,154-158
+scripts/patches/parley-0.11.1/0019-Pack-cluster-metadata-into-sixteen-bytes.patch
+  s_a3b42a28f6acb3::t_5e76bc1dd6340e 1-403
+packages/core/src/lib.rs
+  s_d750313eaa4945::t_373944e1d4fd93 147-152,156-160,171-173,210-220,228-230,270,282
+  s_d750313eaa4945::t_ac689497831db5 221
+  s_b423bbf8e60279::t_6ab0d9c0f68116 1136-1138,1141-1144,1221
+  s_b423bbf8e60279::t_896d1c455b1b19 965-1082,1084-1094,1097-1135,1139-1140,1145-1189,1197-1208,1210-1216,1218-1220,1223-1227,1229,1231-1240,1242-1244,1246-1254,1256-1274,1276-1281,1283-1288,1294,1298,1300-1304,1306-1316,1321-1340,1342,1357-1362,1364-1368
+  s_86347dc950a59b::t_875bea1bd87577 1613-1618
+  s_4a3fa97ff88a3d::t_6a7b241c69bcec 2235,2260,2309,2978,3001,3334,3957,4176,4187,4332,4386,4402,4542-4545,4784,4801,5231,5386,5397,5456,8013,8029-8032,8046,8237,8368,8382,8411,8548,9070,9080,9399
+  s_a3b42a28f6acb3::t_b9996169d7a018 1275
+  s_a3b42a28f6acb3::t_12c7e5d4d7025a 1190
+  s_d750313eaa4945::t_fca5c5569ff9ed 3212,9379
+  s_a3b42a28f6acb3::t_26744b3dfa84eb 1196,1209,1230,1241,1295-1297
+  s_d750313eaa4945::t_81eae3ef8e5032 94,108,154,174,208,222,231-232,249-250
+  s_a3b42a28f6acb3::t_a3d84e9b601cd6 944-960,964,1083,1217,1222,1255,1289
+  s_a3b42a28f6acb3::t_635992a538809c 1299
+  s_b423bbf8e60279::t_497972acbe81ad 1095-1096,1228
+  s_d750313eaa4945::t_2fde790eb2ca84 112-116
+  s_45a418ae7dbed0::t_c3e9242a95b8d0 8872
+  s_a3b42a28f6acb3::t_3ca6b15e93256e 269,271-272
+  s_a3b42a28f6acb3::t_2731ef6bcdd4ce 46,161-165,252-255,273-281,961-963,1305,1317-1320
+  s_a3b42a28f6acb3::t_602c65014c2e5f 1343-1356
+  s_d750313eaa4945::t_de7492b90de61f 90-93,95,99-100,104-107,109-111,117,120-129,137-141,146,153,155,166-170,175-176,197,205-207,209,223-227,233-235,240,243-248,256-268
+  s_a3b42a28f6acb3::t_9d628ab343bcb2 943
+packages/engine/src/wasm.ts
+  s_86347dc950a59b::t_875bea1bd87577 8,13-14,78,129
+packages/core/src/sticky.rs
+  s_4a3fa97ff88a3d::t_6a7b241c69bcec 76
+scripts/patches/blitz-dom-0.3.0-beta.2/0179-Allocate-and-share-element-layout-state.patch
+  s_a3b42a28f6acb3::t_5e76bc1dd6340e 1-690
+scripts/patches/blitz-paint-0.3.0-beta.2/0039-Paint-optional-text-style-decorations.patch
+  s_a3b42a28f6acb3::t_f6d5a1a449024a 1-41
+scripts/patches/blitz-paint-0.3.0-beta.2/0037-Read-compact-DOM-sidecars-while-painting.patch
+  s_a3b42a28f6acb3::t_5e76bc1dd6340e 1-109
+packages/core/src/scan.rs
+  s_a3b42a28f6acb3::t_b9996169d7a018 629
+  s_a3b42a28f6acb3::t_fd09dfd9829bc2 594-603
+  s_86347dc950a59b::t_875bea1bd87577 625-628,630
+packages/core/src/node_handle_test.rs
+  s_a3b42a28f6acb3::t_2731ef6bcdd4ce 45-48,50-53,62-65,68-71,83-89,98-101,125-128,287-294,482-485
+  s_a3b42a28f6acb3::t_3ca6b15e93256e 79-82,90-97,102-104
+  s_d750313eaa4945::t_df9db6248a8f60 1,40-44,49,54-60,73-78,105-124,129-159
+  s_d750313eaa4945::t_ffabfda742f170 61,66-67,72
+  s_d750313eaa4945::t_8d428281204aa2 163-183
+  s_d750313eaa4945::t_fca5c5569ff9ed 285-286,311-312,352,360-362,388,399,476,486
+  s_a3b42a28f6acb3::t_bad9e464f54c84 162,488-512
+  s_a3b42a28f6acb3::t_2fb74b802eea5a 160,487
+  s_a3b42a28f6acb3::t_ed9e612acf47f9 161
+scripts/patches/parley-0.11.1/0014-Reduce-retained-Parley-layout-allocations.patch
+  s_a3b42a28f6acb3::t_5e76bc1dd6340e 1-121
+scripts/patches/blitz-dom-0.3.0-beta.2/0180-Leave-derived-text-layouts-out-of-element-clones.patch
+  s_a3b42a28f6acb3::t_5e76bc1dd6340e 1-29
+packages/core/src/animation_clock_test.rs
+  s_a3b42a28f6acb3::t_2731ef6bcdd4ce 309-314,337,339-340
+packages/dom-shim/src/node-base.ts
+  s_a3b42a28f6acb3::t_ca66cd3afe5d0d 439-440
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "de0806706512ccbf9a36b87680ec4d1e3b63ed44",
+  "prompts": {},
+  "sessions": {
+    "s_45a418ae7dbed0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef89c9dd0ffeSAskX4bd8L2Fxa",
+        "model": "@cf/deepseek-ai/deepseek-v4-flash"
+      },
+      "human_author": null
+    },
+    "s_4a3fa97ff88a3d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef8d543abffeCViX8yKSFrs16x",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    },
+    "s_86347dc950a59b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef8dd2c3bffeyCO4ivt2UuYJbi",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b423bbf8e60279": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef8c5f5b3ffe2Iq54cUMYhXoEJ",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_d750313eaa4945": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef8b9da26ffe8U61AVEZhqgGRP",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

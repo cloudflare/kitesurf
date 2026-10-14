@@ -1,0 +1,23 @@
+docs/MEMPROF.md
+  s_a3b42a28f6acb3::t_d74ba15007030a 181
+scripts/patches/blitz-dom-0.3.0-beta.2/0178-Reduce-retained-DOM-storage.patch
+  s_a3b42a28f6acb3::t_9be75ee4261a5b 24,29,934,1355,1390-1393,1401,1509,1524,1551,1569,1580,1589,1605,1614,1639,1648,1657,1666,1675,1698,1707,1716,1725,1734,1743,1752,1761,1770
+scripts/patches/blitz-dom-0.3.0-beta.2/0179-Allocate-and-share-element-layout-state.patch
+  s_a3b42a28f6acb3::t_9a3dddbdd1a398 127,139,152,235,254,528,607,651,666
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0ea4ea2c3cd245463ce18e550bac23e8a9ff9f0f",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

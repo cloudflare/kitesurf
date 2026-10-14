@@ -1,0 +1,21 @@
+packages/core/src/box_shadow_blur_accuracy_test.rs
+  s_de9b73755c1191::t_38f7e832327451 94-144
+scripts/patches/vello_cpu-0.1.0/0003-Interpolate-the-columns-of-wide-blurred-rounded-rect.patch
+  s_de9b73755c1191::t_38f7e832327451 1-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "29e1e50642e3afcda88ea69099a7bdf103a35290",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

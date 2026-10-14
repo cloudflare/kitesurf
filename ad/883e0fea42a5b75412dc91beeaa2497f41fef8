@@ -1,0 +1,252 @@
+packages/engine/src/cdp/fetch.ts
+  s_bf847f99fe8063::t_352970d758728f 33-34,38
+packages/engine/src/cdp/types.ts
+  s_bf847f99fe8063::t_d928ad0884afbc 444
+  s_bf847f99fe8063::t_14e7bd93f152c3 140-178,184-185
+  s_bf847f99fe8063::t_f974fb3ed04620 179-183
+  s_bf847f99fe8063::t_d7f80a51d9291c 564
+  s_bf847f99fe8063::t_b2c6613f8967eb 432-433
+packages/engine/src/cdp/dispatch.ts
+  s_bf847f99fe8063::t_f081868f0532e1 3
+  s_bf847f99fe8063::t_9c346f7ea9dce9 68-75
+packages/engine/src/cdp/fetch-interception.ts
+  s_bf847f99fe8063::t_dad11bd55ccf03 91
+  s_bf847f99fe8063::t_e01dfa7a8bde00 123-140
+  s_bf847f99fe8063::t_6e8782036836a7 50-52
+packages/engine/src/cdp/runtime.ts
+  s_bf847f99fe8063::t_74f371e73a55e3 722-730,734-736
+packages/engine/src/cdp/connection.ts
+  s_bf847f99fe8063::t_1637c77788dc14 1156-1161
+  s_bf847f99fe8063::t_5a8ca63591c5d8 334-337
+  s_bf847f99fe8063::t_d2c628c21593cc 905
+  s_bf847f99fe8063::t_56735d31145b3c 4-5
+  s_bf847f99fe8063::t_cfc19daf089311 116-119
+  s_bf847f99fe8063::t_83d43c77446c9d 1170-1172
+  s_bf847f99fe8063::t_31fe1c251b84ec 842-846
+  s_bf847f99fe8063::t_fda46a725a400b 506
+  s_bf847f99fe8063::t_929bdd82e761d9 1-3,6-7,9-10,25,62,73,127-130,135,149-158,165,172,176,185-190,192-207,211,213-215,222,231,235,239-247,249-270,274-324,326-333,338-364,366-388,390-505,507-530,535-553,560-562,564-565,567-576,580-587,589,595-612,615-616,618-619,627-631,636,638,643-694,696,698,700-841,847-848,850,852-859,862-869,871-876,878-883,887-904,906-924,929,944-946,948-950,954-964,966,977-978,989,991,1007,1009-1026,1028,1030-1042,1044-1070,1072-1087,1089-1090,1092-1093,1101-1103,1105-1106,1110,1113,1122,1129,1134,1139,1143,1151-1152,1155,1164,1174,1176,1194,1197,1215-1220,1232,1234-1237,1243-1244,1247-1251,1262-1315,1323
+  s_bf847f99fe8063::t_9256273c3f3d02 8
+  s_bf847f99fe8063::t_f2c7f526b261c5 271-273
+  s_bf847f99fe8063::t_e088df40dffedd 531-534
+  s_bf847f99fe8063::t_8c8a229fc61aae 325,588,590,637,851
+  s_bf847f99fe8063::t_4aa40a9acd1f20 554-559,563
+  s_bf847f99fe8063::t_e47481ac80619a 591-594
+  s_bf847f99fe8063::t_aa42036784f5e8 613-614,617,620-626,632-635,639-642
+  s_bf847f99fe8063::t_c2e68394fb76f1 984-987,995-1006
+  s_bf847f99fe8063::t_4d6316055c74e3 695,697,699
+  s_bf847f99fe8063::t_313ef9f2b3d206 884-885
+  s_bf847f99fe8063::t_82b87967b9a173 1094-1100
+  s_bf847f99fe8063::t_131a260c9e0104 1198-1204
+  s_e6ab61d4f00763::t_eec200e6558301 1008
+  s_83cbebb813e639::t_321114dfd736b7 248,566,577,578,579,849,994,1044,1103
+  s_83cbebb813e639::t_5a9e4769a8ba92 982
+  s_83cbebb813e639::t_a62e95adaee347 365
+packages/engine/src/cdp/target.ts
+  s_bf847f99fe8063::t_d7f80a51d9291c 193
+  s_bf847f99fe8063::t_3bbf764a4c7b32 304,328,350,682,752,815,856,1047
+  s_bf847f99fe8063::t_5c2dfdb96670a4 195,324,708,745,751,784,1035-1036
+  s_bf847f99fe8063::t_2c8a74b341c012 360
+  s_bf847f99fe8063::t_37867133d92a0f 140-141,147,150,153-156,162
+  s_bf847f99fe8063::t_6fe4ded7d4a53f 31-47
+  s_bf847f99fe8063::t_b3d1d3aad4c4e9 269-273
+  s_bf847f99fe8063::t_0c105bf71f64c9 30
+packages/engine/src/cdp/page.ts
+  s_bf847f99fe8063::t_bf6eaf42f9808b 1366
+  s_bf847f99fe8063::t_787ed03b004e94 3594-3595,3598
+  s_bf847f99fe8063::t_d7f80a51d9291c 6391
+packages/engine/test/e2e/interception-abandoned-park.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 45,50-51
+packages/engine/test/e2e/opaque-image-render.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 202,205,207
+packages/engine/test/e2e/location-assign-navigates.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 45,46
+packages/engine/test/e2e/resource-type-not-page-settable.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 149,174,195,234,252
+packages/engine/test/e2e/tldraw-app-shell.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 87
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 95,221
+packages/engine/test/e2e/css-typed-om.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 336
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 36-37,39,43-45
+packages/engine/test/e2e/boa-finally-stack.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 21,23
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 308
+packages/engine/test/e2e/browser-context.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 35
+packages/engine/test/e2e/cdp-input-and-box-model.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 78
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 226
+packages/engine/test/e2e/redirect-per-hop-gating.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 357
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 62,66-68,152
+packages/engine/test/e2e/expose-function.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 104
+packages/engine/test/e2e/typed-input-value-tracker.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 46
+packages/engine/test/e2e/background-reopen-lifecycle.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 39
+packages/engine/test/e2e/light-dark-color-scheme.e2e.test.ts
+  s_2900fbb1a4773e::t_035022fa72eb59 39
+packages/engine/test/e2e/harness.ts
+  s_2900fbb1a4773e::t_33bb791c53b4a5 14-15
+packages/page-script/src/index.ts
+  s_b0bff6c749373b::t_c964e7cd80d4f2 1307
+  s_b0bff6c749373b::t_f3bba0304f27e7 1311-1313
+  s_b0bff6c749373b::t_23e2236d74395a 651
+  s_c3a5a4d70c5a2b::t_83607647cfb8f2 2984
+packages/page-script/src/scripts.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 56,58,59-60,66,95-96
+  s_c3a5a4d70c5a2b::t_812cc08485a965 75,93
+  s_090f1138f4038a::t_b5225e2db18f1a 472,482,512-513,583,584-585
+packages/core/Cargo.toml
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 249
+packages/page-script/src/globals.ts
+  s_c3a5a4d70c5a2b::t_812cc08485a965 685,686-687,690,692
+  s_c3a5a4d70c5a2b::t_e51b8ef8242104 2149-2150
+scripts/build-wasm.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 274,320
+examples/dynamic-import-bake-demo.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 7,10-40,42-66
+packages/page-script/src/inserted-scripts.ts
+  s_c3a5a4d70c5a2b::t_03133af63263a9 103,105-106,108,127,141
+  s_c3a5a4d70c5a2b::t_284d2f607e52f3 142
+packages/engine/test/e2e/demos/boa-concurrent-import-demo.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 3,6,14-47
+packages/engine/test/e2e/demos/wasm-bake-demo.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 3,15-25,27-56
+packages/page-script/src/startup-probe.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 163,170
+packages/engine/test/e2e/global-setup.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 16,56
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 35
+packages/engine/test/e2e/boa-import-meta-url.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 3,13-16,18-53
+packages/engine/test/e2e/inline-wasm-bake.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 3,15-16,18-51
+turbo.json
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 95
+packages/page-script/src/script-policy.ts
+  s_c3a5a4d70c5a2b::t_04ea204ee0f322 92
+packages/engine/test/fixtures-worker/assets/importmap.html
+  s_c3a5a4d70c5a2b::t_033419400e1a73 23
+packages/engine/src/eval/resource-store.ts
+  s_83cbebb813e639::t_c3318b9d5b70a3 270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ad883e0fea42a5b75412dc91beeaa2497f41fef8",
+  "prompts": {},
+  "sessions": {
+    "s_020f2ad6663cbc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f019057a6ffea6Myim24tgDt87",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    },
+    "s_090f1138f4038a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0b0703e6ffeN05VE2WmscgF7t",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_2900fbb1a4773e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08d6ecf9ffeleGyhLrUlnAeqh",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_57c08728af1561": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f015a8619ffeNQlP8wNaWWCHJG",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_6c82873c79dc8a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0168760cffeub4RPPzXnwvqLJ",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": null
+    },
+    "s_83cbebb813e639": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0388623affeMZhtpmKWNkHzTW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_9cbe1ab83fe757": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00f05efaffeheHN130dAdiPNC",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_a4d1da7d21ccdc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efd080671ffevCI9FrDDdZ8Qsg",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_b0bff6c749373b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f01e505e3ffeYGxi5TryF52yhF",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_b1966cfb8f6c29": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f01d16946ffeP3yF6gjdtoI05e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    },
+    "s_bf847f99fe8063": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f177050d8ffefiikrogdFB3Zzv",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_c3a5a4d70c5a2b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0138ddb2ffe2O8lnmc1pCGk6d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_e6ab61d4f00763": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f16fe73bbffeo0U4VYRaCxcy4U",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

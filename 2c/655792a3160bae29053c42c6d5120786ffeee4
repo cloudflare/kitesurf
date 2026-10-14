@@ -1,0 +1,28 @@
+packages/engine/test/e2e/boa-native-import-reenter.e2e.test.ts
+  s_4acd3f313775ac::t_d1934d22eeb664 5-6
+  s_4acd3f313775ac::t_e6e903c5fd1868 1-4,7-17
+packages/engine/test/fixtures-worker/assets/native-import-reenter.html
+  s_4acd3f313775ac::t_e6e903c5fd1868 1-17
+packages/engine/test/fixtures-worker/src/static.ts
+  s_4acd3f313775ac::t_e6e903c5fd1868 179-180,620-623
+packages/engine/test/fixtures-worker/assets/native-import-reenter.js
+  s_4acd3f313775ac::t_e6e903c5fd1868 1-4
+packages/core/src/boa_eval.rs
+  s_4acd3f313775ac::t_6412e4d424892b 554-558,560-563
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2c655792a3160bae29053c42c6d5120786ffeee4",
+  "prompts": {},
+  "sessions": {
+    "s_4acd3f313775ac": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f043692f9ffengU1yq6aOljVvB",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

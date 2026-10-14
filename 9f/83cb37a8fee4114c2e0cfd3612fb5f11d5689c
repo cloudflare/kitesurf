@@ -1,0 +1,22 @@
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_86ff8b90f979d1 2028,2050,8649-8651,8655-8657,8741-8765
+  s_4ba79f911c93c4::t_7fe6223d35b06d 8766
+packages/engine/test/e2e/prefixed-attribute-writes.e2e.test.ts
+  s_4ba79f911c93c4::t_2394a32aa03bd6 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9f83cb37a8fee4114c2e0cfd3612fb5f11d5689c",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

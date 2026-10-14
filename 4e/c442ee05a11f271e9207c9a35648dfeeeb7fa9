@@ -1,0 +1,25 @@
+packages/engine/test/e2e/abspos-escapes-overflow-clip.e2e.test.ts
+  s_7331d0016ab792::t_dc41eccb0bcc2e 11-15,18-20,23,37,49,56,61-62
+packages/engine/test/e2e/floating-popup.e2e.test.ts
+  s_7331d0016ab792::t_4af66d7f8b58e6 6-8,56-73
+scripts/patches/blitz-dom-0.3.0-beta.2/0173-kitesurf-report-when-body-s-overflow-belongs-to-the-.patch
+  s_7331d0016ab792::t_287765a3465f6a 1-83
+scripts/patches/blitz-paint-0.3.0-beta.2/0038-kitesurf-don-t-clip-a-body-whose-overflow-went-to-th.patch
+  s_7331d0016ab792::t_c7982e7bbe782c 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4ec442ee05a11f271e9207c9a35648dfeeeb7fa9",
+  "prompts": {},
+  "sessions": {
+    "s_7331d0016ab792": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc96dd7affeCNAiwESwI8G3IZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

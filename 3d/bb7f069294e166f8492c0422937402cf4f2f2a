@@ -1,0 +1,54 @@
+packages/engine/test/e2e/interface-own-properties.e2e.test.ts
+  s_ace9c0950aa51d::t_bd5e07cd9891d3 2-4
+scripts/generate-webidl-bindings.mjs
+  s_ace9c0950aa51d::t_18a8627a7fde31 7
+packages/page-script/src/globals.ts
+  s_ace9c0950aa51d::t_8eb4515efeaf67 2375-2377
+  s_ace9c0950aa51d::t_f837302066899c 2361
+packages/engine/test/e2e/idl-conformance.ts
+  s_ace9c0950aa51d::t_67406169e40789 10
+packages/dom-shim/src/webidl.ts
+  s_ace9c0950aa51d::t_e5b15c78e1e17e 265
+packages/engine/test/e2e/event-own-properties.e2e.test.ts
+  s_ace9c0950aa51d::t_db43d2d0d40436 3-4
+packages/dom-shim/src/events/event.ts
+  s_ace9c0950aa51d::t_1bd8fd31a78e89 94-97
+  s_ace9c0950aa51d::t_03f4e0eddb9d72 860
+  s_ace9c0950aa51d::t_5251e7dd097339 734-735,737-738
+  s_ace9c0950aa51d::t_3378dd98dd483c 1074-1075
+  s_ace9c0950aa51d::t_71b99364c06945 160-161
+  s_ace9c0950aa51d::t_766b7b919d31aa 956
+  s_ace9c0950aa51d::t_838283a2312293 1090-1091
+  s_ace9c0950aa51d::t_877652963473e4 1-4
+packages/dom-shim/src/range.ts
+  s_ace9c0950aa51d::t_b108da2f1e2260 272
+  s_ace9c0950aa51d::t_e6c7bf71ea454d 526
+  s_ace9c0950aa51d::t_4345104c73f16f 18-20
+  s_ace9c0950aa51d::t_ad0032f5af1c97 527-528
+packages/dom-shim/src/collections.ts
+  s_ace9c0950aa51d::t_fc503f5a250c7d 45-47
+packages/dom-shim/src/index.ts
+  s_ace9c0950aa51d::t_b68b5d95f6c09a 711-712
+  s_ace9c0950aa51d::t_4e2f3ba60ccce5 721
+packages/dom-shim/src/canvas2d.ts
+  s_ace9c0950aa51d::t_8c3de95462ab72 1222-1225
+  s_ace9c0950aa51d::t_62ecb1f0840666 400-402
+packages/dom-shim/src/window.ts
+  s_ace9c0950aa51d::t_376a042bde607e 1196-1198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3dbb7f069294e166f8492c0422937402cf4f2f2a",
+  "prompts": {},
+  "sessions": {
+    "s_ace9c0950aa51d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef4320c6affehrDi8ZPPV9aBTU",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

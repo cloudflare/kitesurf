@@ -1,0 +1,349 @@
+packages/agent-bench/src/llm.mjs
+  s_1ebacffcfb4a03::t_e0dda22dacbad3 63-67,73-78
+  s_1ebacffcfb4a03::t_23bcf4be6ccb87 16-17
+  s_1ebacffcfb4a03::t_b396a0eab84f11 33
+  s_1ebacffcfb4a03::t_af3801f8a2cf70 8-12,42
+  s_1ebacffcfb4a03::t_9e3d6d90905836 100
+  s_1ebacffcfb4a03::t_7dce65102c7bef 20
+  s_1ebacffcfb4a03::t_4e1b6128e4a9a2 1-3
+packages/agent-bench/test/lifecycle.test.mjs
+  s_1ebacffcfb4a03::t_f94d3fac43bd73 14-15,149,160,179,190
+  s_1ebacffcfb4a03::t_d5511a2400051e 75,77,122,124,213,215
+  s_1ebacffcfb4a03::t_76f6d00889e042 173-178,180-189,191-192,194-198,200-207
+  s_1ebacffcfb4a03::t_1f3961f2d76c90 53
+  s_1ebacffcfb4a03::t_ff0945e4f415b5 54,59-61,63,66-67,69-72
+  s_1ebacffcfb4a03::t_261a0f3637c160 3,11,148,151-152,161-162,171-172,208-210
+  s_1ebacffcfb4a03::t_aa84734a8802f9 55,57-58,64-65,68,84,86-89
+  s_1ebacffcfb4a03::t_4e298701bfcfcf 1,4-10,12-13,16-52,56,73-74,76,78-83,85,90-113,118-121,123,125-147,150,153-159,163-170,193,199,211-212,214,216-242,247-252,270-273
+  s_1ebacffcfb4a03::t_f63720e4ba33c1 2,62,114-117,243-246,253-269
+packages/agent-bench/src/types.d.ts
+  s_1ebacffcfb4a03::t_7510e5e832d418 165-176,335
+  s_1ebacffcfb4a03::t_98253ed2f3b9ad 11-19,25,27,131,155,164
+  s_1ebacffcfb4a03::t_87a39c167d9398 177,200-206,208-209,267
+  s_1ebacffcfb4a03::t_b7509bd9b2724d 127
+  s_1ebacffcfb4a03::t_297c05e9c81007 1-5,7-10,20-22,24,26,28-39,81,91-102,114-126,128-130,134,136-137,139-141,143-146,150-154,156-163,178-184,186-191,193-194,198-199,210-216,218-225,228,250-266,268-273,275-280,286-287,289-294,343
+  s_1ebacffcfb4a03::t_34bfc6780cd53d 133
+  s_1ebacffcfb4a03::t_6a9d8565c360bf 103-113
+  s_1ebacffcfb4a03::t_fa9e6f0673cdf1 317
+  s_1ebacffcfb4a03::t_69461470df1539 230-235,241-249
+  s_1ebacffcfb4a03::t_63cf352e2daeec 207,327-333,338
+  s_1ebacffcfb4a03::t_32c158d5bc0c2c 148
+  s_1ebacffcfb4a03::t_489917ac71e739 284-285
+  s_1ebacffcfb4a03::t_82f3450e84e5c9 297-316,318-326,334,336
+  s_1ebacffcfb4a03::t_77e55fc0280371 82-83
+  s_1ebacffcfb4a03::t_ce6b8c0b732cae 23,283,288
+  s_1ebacffcfb4a03::t_eacfeb653e3dfc 132,135,138,142,147,281
+  s_1ebacffcfb4a03::t_dc553ca034e266 274,282
+  s_1ebacffcfb4a03::t_3239a4fd4fc77e 149
+  s_1ebacffcfb4a03::t_f7e4dc62a56729 72-73,295-296,337,339-342
+  s_1ebacffcfb4a03::t_c0c0ef465de9c1 40-70,236-240
+  s_1ebacffcfb4a03::t_6c08380809eef8 229
+  s_1ebacffcfb4a03::t_4e7119a33c0741 6,71,74-80,90,192,195-197,217
+  s_1ebacffcfb4a03::t_64a0f7753aaf2f 226-227
+  s_1ebacffcfb4a03::t_83b93f59ccdc77 84-89,185
+packages/agent-bench/src/benches/online-mind2web.mjs
+  s_1ebacffcfb4a03::t_2b699381c4b3b8 37,39-41,43-44
+  s_1ebacffcfb4a03::t_23bcf4be6ccb87 2
+  s_1ebacffcfb4a03::t_c171317931756f 10-11,14,25
+packages/agent-bench/src/benches/webcanvas.mjs
+  s_1ebacffcfb4a03::t_c04a8dc5eb1ba2 4-5
+  s_1ebacffcfb4a03::t_7dce65102c7bef 3
+  s_1ebacffcfb4a03::t_2b699381c4b3b8 24,26-28,30-31
+  s_1ebacffcfb4a03::t_c171317931756f 11-12,15
+packages/agent-bench/src/act.mjs
+  s_1ebacffcfb4a03::t_d22b359d00a246 3
+  s_1ebacffcfb4a03::t_1bbc3a0e615729 4,68,93,103,108,126-132
+  s_1ebacffcfb4a03::t_9376912c6225d4 6-10,29-33,42-47,76-81
+  s_1ebacffcfb4a03::t_2c106112bdc6ac 70-73,87-88,133,138,141
+  s_1ebacffcfb4a03::t_23bcf4be6ccb87 2,123
+packages/agent-bench/package.json
+  s_1ebacffcfb4a03::t_f94d3fac43bd73 13
+  s_1ebacffcfb4a03::t_4e298701bfcfcf 12,14
+packages/agent-bench/revisions.json
+  s_1ebacffcfb4a03::t_1df02b4b619672 3,7
+packages/agent-bench/src/benches/mind2web.mjs
+  s_1ebacffcfb4a03::t_c171317931756f 9-10,22
+  s_1ebacffcfb4a03::t_ce6b8c0b732cae 14
+  s_1ebacffcfb4a03::t_2b699381c4b3b8 27,33-35,38-39,42,44-46
+  s_1ebacffcfb4a03::t_7dce65102c7bef 1-3
+packages/agent-bench/tsconfig.json
+  s_1ebacffcfb4a03::t_0bf773470ee0fb 6
+  s_1ebacffcfb4a03::t_d00638e0e19336 13
+  s_1ebacffcfb4a03::t_4e298701bfcfcf 1-5,7-12,14
+packages/agent-bench/src/benches/csv.mjs
+  s_1ebacffcfb4a03::t_7dce65102c7bef 5
+  s_1ebacffcfb4a03::t_2b699381c4b3b8 9,12-13,15-18,20-21,23-24,26-29,32-34,42-43
+  s_1ebacffcfb4a03::t_23bcf4be6ccb87 1-2
+  s_1ebacffcfb4a03::t_337eaffa95314f 3-4,6,8,40
+packages/agent-bench/src/benches/webarena-family.mjs
+  s_1ebacffcfb4a03::t_912d42d6f613d6 43-44
+  s_1ebacffcfb4a03::t_478394baa137e4 10,66,194
+  s_1ebacffcfb4a03::t_0e1d8c97d9a1fd 14-17,56,74,79,102,144,173,183
+  s_1ebacffcfb4a03::t_7992f359f35eda 4,39-40,195-196
+  s_1ebacffcfb4a03::t_9762f7b71eb9ff 28-29
+  s_1ebacffcfb4a03::t_d995f24ec12d3a 62,76,116-117,121-122,126,128-135,152-153,156,160,167,180,206-207
+  s_47c30dc7e2f3aa::t_c091ef08e4a14e 13
+packages/agent-bench/scripts/setup.mjs
+  s_1ebacffcfb4a03::t_aa4db66739c256 52
+  s_1ebacffcfb4a03::t_84c0e56dd0cfc4 106-109,113,145
+  s_1ebacffcfb4a03::t_4c75f0c7bd26b8 35-39,152-156,158
+  s_1ebacffcfb4a03::t_ee509ca60279da 40-43,59-65,67-72,81-85
+  s_1ebacffcfb4a03::t_529c3e73a632da 117-119
+  s_1ebacffcfb4a03::t_f52c1f4c434717 134-136,141
+  s_1ebacffcfb4a03::t_cd57b0405bdaf1 34
+  s_1ebacffcfb4a03::t_7645cbff1cf6e7 137-138,140
+  s_1ebacffcfb4a03::t_b396a0eab84f11 86,157
+  s_1ebacffcfb4a03::t_139de16642ce4b 5,66,126-133,142-144
+  s_1ebacffcfb4a03::t_dcb0b56da909b9 8-13,88,167-168,173
+  s_1ebacffcfb4a03::t_7c791a6003375c 17-20,22-23
+  s_1ebacffcfb4a03::t_f94d3fac43bd73 29-33,44-51,53-58,73-80,139
+  s_c090d0888a1ad6::t_9b53336d77bd25 1-2
+packages/agent-bench/bin/agentbench.mjs
+  s_1ebacffcfb4a03::t_7992f359f35eda 209-210,298-299,359-362,405-407
+  s_1ebacffcfb4a03::t_03407b86d41229 14,265-270,408,413
+  s_1ebacffcfb4a03::t_8ac2f2c701ffe5 110,137,145,175,248,250,253,348-353,426-427
+  s_1ebacffcfb4a03::t_d761a22e9b4060 290,302-303,308,315,317-318,334,363,378
+  s_1ebacffcfb4a03::t_a49759ca47ce59 294,331
+  s_1ebacffcfb4a03::t_478394baa137e4 202
+  s_1ebacffcfb4a03::t_ebec92b209fbb5 282-284
+  s_1ebacffcfb4a03::t_7f1e2765d5edb1 75
+  s_1ebacffcfb4a03::t_0626afd424c86b 158,160,163,173,231-232,258,366-368
+  s_1ebacffcfb4a03::t_7bc04d76db2097 319-322
+  s_1ebacffcfb4a03::t_e6d58c903205c0 305
+  s_a550ca7b183bee::t_e5182815c13b5b 11-13,15-24,69,94-95,200,226,230
+packages/agent-bench/src/task.mjs
+  s_1ebacffcfb4a03::t_6619c0c9389f1d 22
+  s_1ebacffcfb4a03::t_4e298701bfcfcf 1-5,15-18,23-24,26-27,30-34,36-37,39-42,45-47,49-53
+  s_1ebacffcfb4a03::t_ebec92b209fbb5 28,35
+  s_1ebacffcfb4a03::t_478394baa137e4 25,44
+  s_1ebacffcfb4a03::t_68e04410116005 38
+  s_1ebacffcfb4a03::t_3b92a206329e28 6,8-9,19-21,29,43,48
+  s_1ebacffcfb4a03::t_c0c0ef465de9c1 7,10-14
+packages/agent-bench/test/setup.test.mjs
+  s_1ebacffcfb4a03::t_7b6f27cfe09498 44-46,49,66-75,78-85,89-91,93-95
+  s_1ebacffcfb4a03::t_f94d3fac43bd73 20
+  s_1ebacffcfb4a03::t_c413c917dab860 14,53,56-58
+  s_1ebacffcfb4a03::t_6e0007c2c01285 27-31
+  s_1ebacffcfb4a03::t_d5511a2400051e 21,23,47-48,55,76-77,92
+  s_1ebacffcfb4a03::t_4e298701bfcfcf 1-13,15-19,22,24-26,32-43,50-52,54,59-65,86-88,96-101
+packages/agent-bench/src/benches/index.mjs
+  s_1ebacffcfb4a03::t_23bcf4be6ccb87 1-2
+  s_1ebacffcfb4a03::t_46c13054d3aca8 13-15,28,30,40
+packages/agent-bench/src/benches/browsecomp.mjs
+  s_1ebacffcfb4a03::t_9376912c6225d4 31-34
+  s_1ebacffcfb4a03::t_23bcf4be6ccb87 2-3
+  s_1ebacffcfb4a03::t_b6ff255417ad84 11-14,54
+  s_1ebacffcfb4a03::t_2b699381c4b3b8 23-25,63,65-66,69-70
+packages/agent-bench/test/task.test.mjs
+  s_1ebacffcfb4a03::t_0336d0d4241bb0 80
+  s_1ebacffcfb4a03::t_910aeff2f30fe2 53,55,57-62,64-65,67-73,75,77-79,82-84,89-91,96-98,100-102
+  s_1ebacffcfb4a03::t_d9b51e9948e3b4 76
+  s_1ebacffcfb4a03::t_9376912c6225d4 8-9
+  s_1ebacffcfb4a03::t_d5511a2400051e 10,12,54,56
+  s_1ebacffcfb4a03::t_f94d3fac43bd73 13-23,32,63,74
+  s_1ebacffcfb4a03::t_6edb9f95c4fc20 34,66,85-88,92-93,95
+  s_1ebacffcfb4a03::t_ebc0e55a6784cb 81,94,99
+  s_1ebacffcfb4a03::t_4e298701bfcfcf 1-7,11,24-31,33,35-52
+packages/agent-bench/src/jmespath.d.ts
+  s_1ebacffcfb4a03::t_7dfc343cba5215 1-6
+packages/agent-bench/src/cdp.mjs
+  s_1ebacffcfb4a03::t_d6a6373fadc3ed 5-6,8,23,86,148
+  s_1ebacffcfb4a03::t_ce6b8c0b732cae 142
+  s_1ebacffcfb4a03::t_4c75f0c7bd26b8 108-110,112,119-124,155-160,168-172
+  s_1ebacffcfb4a03::t_c0c0ef465de9c1 7,28
+  s_1ebacffcfb4a03::t_a12af9333f0707 150
+  s_1ebacffcfb4a03::t_cc0b3baba0b96c 36,59-62,64-66,71-72,75-77,90-91,99-100,102,111,113-116,164-166
+  s_1ebacffcfb4a03::t_f3a6117b7ab92a 81-85,87,137
+  s_1ebacffcfb4a03::t_af325459c3c137 44-53
+  s_1ebacffcfb4a03::t_909f00babdeddb 14,25,32,41,57
+  s_c090d0888a1ad6::t_4d561ef2e32126 1-2
+packages/agent-bench/src/drivers/pi-cdt.mjs
+  s_1ebacffcfb4a03::t_89bb9e6aa4202e 56,103,170,256-257,266
+  s_1ebacffcfb4a03::t_f2e818db8f9a16 34,40,50,58,78,93,112
+  s_1ebacffcfb4a03::t_0265793ecf53b2 57,171,184-185,267
+  s_1ebacffcfb4a03::t_8ad62388a3e83f 52-53,60-63,129-130,137-141,143,150,152-153,157-159,161,166,168,172-173,175
+  s_1ebacffcfb4a03::t_4c75f0c7bd26b8 16,66-74
+  s_1ebacffcfb4a03::t_af1be5fe09998b 147,149,209
+  s_1ebacffcfb4a03::t_e706be542d3529 148
+  s_1ebacffcfb4a03::t_f0de2e06f0473f 154-155
+  s_1ebacffcfb4a03::t_a822a16aa43ae3 292-296
+  s_1ebacffcfb4a03::t_3a89de566e2b5f 97,99-100,102,107,283-284,287,289
+  s_1ebacffcfb4a03::t_5d7e4eef4cc8ea 5,98,101
+  s_1ebacffcfb4a03::t_35290b2eb35698 6,114-115,182,291,297-299
+  s_1ebacffcfb4a03::t_ccb448399c813b 12
+  s_1ebacffcfb4a03::t_fda5dfc658192e 14-15,17-19
+  s_212ac4efbe3cd3::t_877a40bf31340a 13
+packages/agent-bench/src/mcp-client.mjs
+  s_1ebacffcfb4a03::t_8d4b864c61ae5c 26-27,29,72,74,76-78
+  s_1ebacffcfb4a03::t_62572993582746 1
+  s_1ebacffcfb4a03::t_eee94c75a39a3a 31-32,36-38,50-61
+  s_1ebacffcfb4a03::t_4c75f0c7bd26b8 41-44,46,88-91,93,117-122
+  s_1ebacffcfb4a03::t_fdcddf170e4284 103-104
+  s_1ebacffcfb4a03::t_2b92c04c9b6ccf 45
+  s_1ebacffcfb4a03::t_3c928665eb771a 6-10,12,14,16,18,20,35,73,130
+  s_1ebacffcfb4a03::t_34bfc6780cd53d 92,112,124-126
+  s_1ebacffcfb4a03::t_6c08380809eef8 4-5,23,64,83,110
+  s_99f3fde15b3f69::t_7428c081c4872d 33-34
+packages/agent-bench/src/runner.mjs
+  s_1ebacffcfb4a03::t_c0c0ef465de9c1 17,21,155-160
+  s_1ebacffcfb4a03::t_5f2060a695194b 22
+  s_1ebacffcfb4a03::t_ea8a79f4e46da5 129
+  s_1ebacffcfb4a03::t_9412d30474ef6d 49-50,54,70-71,73,76-77,85,87-88,107-108,112,114,116,123,125-126,133-134
+  s_1ebacffcfb4a03::t_3d7f199588002f 8-16,18-20,23,30,43-46,62,66,81,103
+  s_1ebacffcfb4a03::t_106393d14622ce 97-99,121,130-132,135,137-138,147-152
+  s_1ebacffcfb4a03::t_f7e4dc62a56729 162-163,172,174
+  s_1ebacffcfb4a03::t_ed1064562ea488 128,139-141
+  s_c090d0888a1ad6::t_9c3e30c89aa31c 153-154
+packages/agent-bench/src/smoke.mjs
+  s_1ebacffcfb4a03::t_4c75f0c7bd26b8 67-70
+  s_1ebacffcfb4a03::t_4e1b6128e4a9a2 1-2
+  s_1ebacffcfb4a03::t_8c86c1b1210bbd 9-13,32,40,50,52-54,57,59,73
+  s_1ebacffcfb4a03::t_9412d30474ef6d 42,91-93
+  s_1ebacffcfb4a03::t_2a576025af33c7 43-44
+packages/agent-bench/src/engines.mjs
+  s_1ebacffcfb4a03::t_211a5c57cd99db 81,98,126,140,142
+  s_1ebacffcfb4a03::t_ebec92b209fbb5 133
+  s_1ebacffcfb4a03::t_7992f359f35eda 3-4,209
+  s_1ebacffcfb4a03::t_844ca8ca9c66a3 50-53,56,114-115,117-120,154-156,172-173,214
+  s_1ebacffcfb4a03::t_9376912c6225d4 163-166,245,247-248,250
+  s_1ebacffcfb4a03::t_971b97d4d822d4 112,211,280
+  s_1ebacffcfb4a03::t_f0de2e06f0473f 80,175-176,210
+  s_1ebacffcfb4a03::t_4a5420468b58a0 14-21,24,27,29,46-47,58
+  s_1ebacffcfb4a03::t_720fb52919a7b6 218,220,228,230
+  s_1ebacffcfb4a03::t_4c75f0c7bd26b8 257-261
+  s_1ebacffcfb4a03::t_23c89a7da01ba1 28,30-44,48-49,54-55,60-77,265-277
+  s_1ebacffcfb4a03::t_0336d0d4241bb0 246,249
+  s_1ebacffcfb4a03::t_c7a64a78398c50 138-139
+packages/agent-bench/src/benches/webbench.mjs
+  s_1ebacffcfb4a03::t_c171317931756f 11-13
+  s_1ebacffcfb4a03::t_2b699381c4b3b8 22,24-27
+  s_1ebacffcfb4a03::t_23bcf4be6ccb87 3
+packages/agent-bench/src/eval.mjs
+  s_1ebacffcfb4a03::t_ebec92b209fbb5 21,46-47
+  s_1ebacffcfb4a03::t_8d4b864c61ae5c 28
+  s_1ebacffcfb4a03::t_b21b37fd26a9e4 7-12,25,30-35,67
+  s_1ebacffcfb4a03::t_62572993582746 1-2
+  s_1ebacffcfb4a03::t_9376912c6225d4 13-17
+packages/agent-bench/src/benches/assistantbench.mjs
+  s_1ebacffcfb4a03::t_23bcf4be6ccb87 2-3
+  s_1ebacffcfb4a03::t_c171317931756f 9-10,16
+  s_1ebacffcfb4a03::t_5f1bb1be462ef1 27,30-31,34,36
+  s_1ebacffcfb4a03::t_7645cbff1cf6e7 35
+packages/agent-bench/src/benches/webvoyager.mjs
+  s_1ebacffcfb4a03::t_7dce65102c7bef 2-3
+  s_1ebacffcfb4a03::t_b6ff255417ad84 9-11,56
+  s_1ebacffcfb4a03::t_4c75f0c7bd26b8 21-24
+  s_1ebacffcfb4a03::t_d14f85f0e71643 8,12,35,45-46,49-50
+  s_1ebacffcfb4a03::t_ebec92b209fbb5 34,37-39
+  s_1ebacffcfb4a03::t_5f1bb1be462ef1 69,72-75
+packages/agent-bench/test/pi-driver.test.mjs
+  s_1ebacffcfb4a03::t_cfcfd6c91e82e5 34-35,37-43,136-137,139,141-144,147,150-155
+  s_1ebacffcfb4a03::t_f94d3fac43bd73 11-32,127,129,149
+  s_1ebacffcfb4a03::t_620db3912d6f19 2,6-8,44-63,67-79,81-82,84,86,88-97,100-103,106-113,115-124,126,130,132,134-135
+  s_1ebacffcfb4a03::t_e896455834ed7f 4,105
+  s_1ebacffcfb4a03::t_57d7798f964e5a 64
+  s_1ebacffcfb4a03::t_b1292aaa777465 128,131
+  s_1ebacffcfb4a03::t_4e298701bfcfcf 1,3,5,9-10,65-66,80,83,125,133,156
+  s_1ebacffcfb4a03::t_d5511a2400051e 33,36,85,87,98-99,104,114,138,140,145-146,148
+packages/agent-bench/src/suite.mjs
+  s_1ebacffcfb4a03::t_8cb15ab8cec620 116-118,126
+  s_1ebacffcfb4a03::t_b396a0eab84f11 79
+  s_1ebacffcfb4a03::t_59de70a1f82c2f 9,65,95-103
+  s_1ebacffcfb4a03::t_4e1b6128e4a9a2 1-2
+  s_1ebacffcfb4a03::t_8d4b864c61ae5c 50,114,127
+  s_1ebacffcfb4a03::t_4fd65ba906a131 11-18,20,22,34,38,69,73,81,119
+packages/agent-bench/src/agent.mjs
+  s_1ebacffcfb4a03::t_c19780a32c8fe2 17,21-22,52
+  s_1ebacffcfb4a03::t_5a433822d0191e 8-15,40-43,73
+  s_1ebacffcfb4a03::t_720fb52919a7b6 81-82
+packages/agent-bench/src/benches/real.mjs
+  s_1ebacffcfb4a03::t_4c75f0c7bd26b8 84-87
+  s_1ebacffcfb4a03::t_23bcf4be6ccb87 2,83
+  s_1ebacffcfb4a03::t_5f1bb1be462ef1 36,65-66,74,138-139,142-144,146-152
+  s_1ebacffcfb4a03::t_7dce65102c7bef 3
+  s_1ebacffcfb4a03::t_57d7798f964e5a 52
+  s_1ebacffcfb4a03::t_b6ff255417ad84 10-16,26,128
+  s_1ebacffcfb4a03::t_1c06afd7600aa0 59,62,98-99,103-105,107-108,110,114,118-119,122
+packages/agent-bench/src/drivers/pi-tool-content.mjs
+  s_1ebacffcfb4a03::t_e7bc6635cfa81a 7,20
+  s_1ebacffcfb4a03::t_649778f32f4df3 17
+  s_1ebacffcfb4a03::t_4e298701bfcfcf 9-12,14-16,18-19,21
+  s_1ebacffcfb4a03::t_77e55fc0280371 1
+  s_1ebacffcfb4a03::t_64a0f7753aaf2f 2-6,8,13
+packages/agent-bench/src/record.mjs
+  s_1ebacffcfb4a03::t_9202117b7799ae 12,30,38,54,69,92,97,103
+  s_1ebacffcfb4a03::t_04daa48556d2a4 72-84
+  s_1ebacffcfb4a03::t_c9508b19d07f8f 87-88
+  s_1ebacffcfb4a03::t_d5b3c9c265804f 6-10,15,22
+  s_1ebacffcfb4a03::t_62572993582746 1-2
+  s_1ebacffcfb4a03::t_720fb52919a7b6 40
+  s_1ebacffcfb4a03::t_8d4b864c61ae5c 41-43,45-47,49-50
+  s_1ebacffcfb4a03::t_c5212bbd8a2717 67-68
+packages/agent-bench/src/obs.mjs
+  s_1ebacffcfb4a03::t_9376912c6225d4 25-29
+  s_1ebacffcfb4a03::t_23bcf4be6ccb87 65
+  s_1ebacffcfb4a03::t_e88c0308da44bf 5-8,31,36,38,42,89,97
+  s_1ebacffcfb4a03::t_c19780a32c8fe2 32-34,56-58
+packages/agent-bench/src/judge.mjs
+  s_1ebacffcfb4a03::t_7992f359f35eda 50
+  s_1ebacffcfb4a03::t_c19780a32c8fe2 60-62
+  s_1ebacffcfb4a03::t_a60710a729279c 7,9-11,38
+  s_1ebacffcfb4a03::t_bdc3ed11645c3a 8,12,17,65,67
+  s_1ebacffcfb4a03::t_9376912c6225d4 24-28,51-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cfc313271f9a2d0e9548ee83ae4dce5f82a7b9f8",
+  "prompts": {},
+  "sessions": {
+    "s_1ebacffcfb4a03": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039868afffePLT4OPLrw0bZfg",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_212ac4efbe3cd3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03982408ffeQZYyHLGLXe06ND",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_47c30dc7e2f3aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03986894ffeLs3pkWKYkmMCuo",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_99f3fde15b3f69": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03983a2affeiZefVSSNjVyEb7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a550ca7b183bee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039850caffeBC6VMe935Aso0J",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c090d0888a1ad6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f038ca9d8ffeRMTh9abXbp3Eju",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

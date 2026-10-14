@@ -1,0 +1,137 @@
+packages/dom-shim/src/element/media.ts
+  s_9596391e3a31df::t_e66015f3989e4c 49
+  s_9596391e3a31df::t_4d0a9e9b49bf67 1-48,50-275
+packages/dom-shim/src/element/load-events.ts
+  s_9596391e3a31df::t_1ffd323e5b88aa 4-8
+  s_9596391e3a31df::t_e66015f3989e4c 82-254
+  s_9596391e3a31df::t_164a35ca0905a6 1-3,9-81,255-296
+packages/dom-shim/src/element/forms/form.ts
+  s_9596391e3a31df::t_1ffd323e5b88aa 36
+  s_9596391e3a31df::t_58601a9594ce84 78
+  s_9596391e3a31df::t_e66015f3989e4c 132-363
+  s_9596391e3a31df::t_aa66ebea0698df 1-35,37-77,79-131,364-533
+packages/dom-shim/src/element/canvas.ts
+  s_9596391e3a31df::t_e66015f3989e4c 91
+  s_9596391e3a31df::t_14e885cffa7498 1-90,92-134
+packages/dom-shim/src/element/element.ts
+  s_9596391e3a31df::t_e66015f3989e4c 3466
+  s_9596391e3a31df::t_b7da1636f4eba6 29
+  s_9596391e3a31df::t_7b9fc99faec838 1,5-28,30-31,33-34,37-43,54-58,62-64,67,69-70,72-77,80,84-86,92-107,774,794,927,937,2078,2082,3463-3465,3467-3478,3481-3482,3487
+packages/dom-shim/src/element/forms/select.ts
+  s_9596391e3a31df::t_1ffd323e5b88aa 8
+  s_9596391e3a31df::t_e66015f3989e4c 181-186
+  s_9596391e3a31df::t_6b7dd54fce3d84 1-7,9-180,187-383
+packages/dom-shim/src/element/forms/listed.ts
+  s_9596391e3a31df::t_58601a9594ce84 89
+  s_9596391e3a31df::t_e1df2f6f6db2e6 4
+  s_9596391e3a31df::t_9fe69805de67c0 1-3,5-88,90-108
+packages/dom-shim/src/form-data.ts
+  s_9596391e3a31df::t_2cf959c0046916 19
+  s_9596391e3a31df::t_82f4f903cf9687 18
+packages/dom-shim/src/element/forms/select-options.ts
+  s_9596391e3a31df::t_58601a9594ce84 32
+  s_9596391e3a31df::t_e66015f3989e4c 66-122
+  s_9596391e3a31df::t_1ffd323e5b88aa 10
+  s_9596391e3a31df::t_a8c3e3123984d2 1-9,11-31,33-65,123-162
+packages/dom-shim/src/element/event-handlers.ts
+  s_9596391e3a31df::t_0e85ce0f7fba50 23-31,58,122,138,157,167,177,185,256
+  s_9596391e3a31df::t_e66015f3989e4c 191-238
+  s_9596391e3a31df::t_a785ae2400d2c5 20-22
+  s_9596391e3a31df::t_8901e38aa93091 32-34,55-57
+  s_9596391e3a31df::t_9f24e769219dd3 59-61,119-121
+  s_9596391e3a31df::t_46ed39c27f4200 123-125,135-137
+  s_9596391e3a31df::t_3126644bb4c67e 139-141,154-156
+  s_9596391e3a31df::t_8feb62e1c78a18 158-160,164-166
+  s_9596391e3a31df::t_caea0360acf7d1 168-170,174-176
+  s_9596391e3a31df::t_b0ebd2c81ee821 178-180,182-184
+  s_9596391e3a31df::t_764943c9a1e39a 186-190
+  s_9596391e3a31df::t_8cc5dbf964b895 239-241,253-255
+  s_9596391e3a31df::t_4df44dbee0f840 257-259
+packages/dom-shim/strict-baseline.json
+  s_9596391e3a31df::t_1937fb1cb01171 4-19
+  s_9596391e3a31df::t_cec5c5c61fae7c 20-24
+docs/DOM_SHIM.md
+  s_9596391e3a31df::t_5a1737ec4c25b4 159
+docs/FORMS.md
+  s_9596391e3a31df::t_e7cd3e7391c758 26
+packages/dom-shim/MODULES.md
+  s_9596391e3a31df::t_8281afb8d73bc3 17-19,21,93-101,113-115,148-157
+packages/dom-shim/src/agent-control.ts
+  s_9596391e3a31df::t_f6a35ee27cd0ed 1
+packages/dom-shim/src/collections.ts
+  s_9596391e3a31df::t_c45dbbd11cbf05 37,3995
+packages/dom-shim/src/element/aria.ts
+  s_9596391e3a31df::t_9d023802a7269d 1-118
+packages/dom-shim/src/element/embedded.ts
+  s_9596391e3a31df::t_84fc44e0c8ba57 1-90
+packages/dom-shim/src/element/forms/button.ts
+  s_9596391e3a31df::t_f270536654ddf4 1-231
+packages/dom-shim/src/element/forms/fieldset.ts
+  s_9596391e3a31df::t_81a3f91a7c8ebe 1-59
+packages/dom-shim/src/element/forms/input-state.ts
+  s_9596391e3a31df::t_0be1685ebdb84b 1-322
+packages/dom-shim/src/element/forms/input.ts
+  s_9596391e3a31df::t_b7495c27f8f347 1-495
+packages/dom-shim/src/element/forms/label.ts
+  s_9596391e3a31df::t_04fafceaf2e36b 1-44
+packages/dom-shim/src/element/forms/labelable.ts
+  s_9596391e3a31df::t_3dac32a980a0fb 1-92
+packages/dom-shim/src/element/forms/meter.ts
+  s_9596391e3a31df::t_2439b242ae0b1b 1-106
+packages/dom-shim/src/element/forms/output.ts
+  s_9596391e3a31df::t_81c8ebc1c82dfe 1-51
+packages/dom-shim/src/element/forms/selection.ts
+  s_9596391e3a31df::t_3513b4f78012cd 1-323
+packages/dom-shim/src/element/forms/submission.ts
+  s_9596391e3a31df::t_6c6670a383b713 1-203
+packages/dom-shim/src/element/forms/textarea.ts
+  s_9596391e3a31df::t_a255930e518c50 1-158
+packages/dom-shim/src/element/forms/validity.ts
+  s_9596391e3a31df::t_72ba9c6ea000a4 1-389
+packages/dom-shim/src/element/html-classes.ts
+  s_9596391e3a31df::t_bcbee7e683fce8 1-142
+packages/dom-shim/src/element/html-element.ts
+  s_9596391e3a31df::t_63e3f4ef5e234d 1-293
+packages/dom-shim/src/element/image.ts
+  s_9596391e3a31df::t_5f5b347c73f030 1-159
+packages/dom-shim/src/element/index.ts
+  s_9596391e3a31df::t_709ccb4a293a06 1-260
+packages/dom-shim/src/element/interfaces.ts
+  s_9596391e3a31df::t_8a5eadc045f0fb 1-34
+packages/dom-shim/src/element/rect.ts
+  s_9596391e3a31df::t_af1c2702d54123 1-72
+packages/dom-shim/src/element/reflect.ts
+  s_9596391e3a31df::t_dc7ada724ecc74 1-405
+packages/dom-shim/src/element/resolve.ts
+  s_9596391e3a31df::t_1d5afbee73d13d 1-222
+packages/dom-shim/src/element/shadow.ts
+  s_9596391e3a31df::t_37b2579ba1067e 1-121
+packages/dom-shim/src/element/svg.ts
+  s_9596391e3a31df::t_9ad24ff788adeb 1-115
+packages/dom-shim/src/element/table.ts
+  s_9596391e3a31df::t_fc05d675fcb44f 1-213
+packages/dom-shim/src/element/tag-attributes.ts
+  s_9596391e3a31df::t_4fbe180f2112d1 1-449
+packages/dom-shim/src/fastpath.ts
+  s_9596391e3a31df::t_13d2fb985abcee 24
+packages/dom-shim/src/index.ts
+  s_9596391e3a31df::t_572dac64344570 132,709
+packages/dom-shim/src/state.ts
+  s_9596391e3a31df::t_6de5d1bf9b89bf 412-416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ed8848aa4ff4171150ef3001df27b526d5c9e999",
+  "prompts": {},
+  "sessions": {
+    "s_9596391e3a31df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_edf9922d2ffe6Bx0ED7yFDe3bH",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

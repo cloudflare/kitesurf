@@ -1,0 +1,19 @@
+packages/jsrpc-types/tsconfig.json
+  s_ce52dc360d2c92::t_4927f0127fe368 12-13,16-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fe28af5b3673216d7d1de5ad43c748bbbbbadc21",
+  "prompts": {},
+  "sessions": {
+    "s_ce52dc360d2c92": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eed58f53affefdASmYi8rwbPsZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

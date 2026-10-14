@@ -1,0 +1,23 @@
+docs/IFRAMES.md
+  s_ae1ba390236c92::t_42b81835a54d52 285-286,324-325
+  s_ae1ba390236c92::t_87360ca02331ae 287-290
+AGENTS.md
+  s_ae1ba390236c92::t_0b624c5845772f 605-606,609
+  s_ae1ba390236c92::t_87360ca02331ae 607-608
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e6c4607cfed1fced7b19ebd55023eaa4afa4a45d",
+  "prompts": {},
+  "sessions": {
+    "s_ae1ba390236c92": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00dbc716ffeCNa36CStCv1WEf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

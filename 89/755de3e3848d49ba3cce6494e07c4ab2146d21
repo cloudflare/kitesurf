@@ -1,0 +1,24 @@
+packages/shadow-replay/test/workerd/tap-ingest.test.ts
+  s_4376a60b5dde28::t_85c0b35ef44794 113-114
+packages/shadow-replay/src/do.ts
+  s_4376a60b5dde28::t_0992b6ca1c2767 459-460
+  s_4376a60b5dde28::t_15e4ec3d031373 665
+  s_4376a60b5dde28::t_e3aec796a71e7c 818
+  s_4376a60b5dde28::t_9f76ecbe0740ee 1062-1064
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "89755de3e3848d49ba3cce6494e07c4ab2146d21",
+  "prompts": {},
+  "sessions": {
+    "s_4376a60b5dde28": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f14b8631efferhlYRR5J3BCy65",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

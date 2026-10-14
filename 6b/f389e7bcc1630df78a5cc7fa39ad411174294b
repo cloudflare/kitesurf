@@ -1,0 +1,21 @@
+packages/page-script/src/globals.ts
+  s_13716c95882f21::t_9b7623b37eba1c 18,951-953
+packages/page-script/src/message-channel.ts
+  s_13716c95882f21::t_7d30a7a178a715 1-200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6bf389e7bcc1630df78a5cc7fa39ad411174294b",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

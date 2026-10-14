@@ -1,0 +1,41 @@
+packages/core/src/lib.rs
+  s_de9b73755c1191::t_9290bbc5318f46 5144,5731
+  s_de9b73755c1191::t_44577d55f25209 5138-5143,5145-5168,5232,5725-5730,5732-5755,5836
+packages/engine/test/e2e/canvas-raw-renderer.e2e.test.ts
+  s_de9b73755c1191::t_44577d55f25209 2-4,8-12,24,37
+  s_de9b73755c1191::t_9290bbc5318f46 1,5-7,13-23,25-36
+packages/core/src/scene_record.rs
+  s_de9b73755c1191::t_9290bbc5318f46 238,559,1684-1685,1688
+  s_de9b73755c1191::t_44577d55f25209 236-237,239,560-561,600-601,1686-1687,1693,1696,1698-1700,2667-2712
+packages/core/src/scene_replay.rs
+  s_de9b73755c1191::t_44577d55f25209 9,213,304,402,527,534,544,557,586,655,658,662-668,1128,1130,1154,1161-1163,1181,1198,1205,1546,1711-1712,1892-1897,2270,2275-2276,2278-2284,2724-2746,3222,3226
+  s_de9b73755c1191::t_9290bbc5318f46 1197
+packages/core/src/tty_grid.rs
+  s_de9b73755c1191::t_44577d55f25209 1244
+packages/page-script/src/index.ts
+  s_de9b73755c1191::t_44577d55f25209 2774,4455,4501,4753-4754,4758,4767,4778,4786
+packages/core/src/rbi_image_cache_test.rs
+  s_de9b73755c1191::t_44577d55f25209 43-93
+  s_de9b73755c1191::t_4d9a8312a34ef0 42
+packages/core/src/scene_decode.rs
+  s_de9b73755c1191::t_44577d55f25209 613-628,666-674,691-693
+docs/PAGE_RENDERER.md
+  s_de9b73755c1191::t_9290bbc5318f46 38-43
+  s_de9b73755c1191::t_44577d55f25209 37,44-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1e730b2122495f44ee97ee743faf0837e327d25b",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

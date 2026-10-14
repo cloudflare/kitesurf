@@ -1,0 +1,21 @@
+scripts/patches/blitz-paint-0.3.0-beta.2/0037-Blur-box-shadows-with-half-the-blur-radius-as-the-de.patch
+  s_de9b73755c1191::t_f94267d4df8c87 1-58
+packages/core/src/box_shadow_blur_accuracy_test.rs
+  s_de9b73755c1191::t_f94267d4df8c87 152-153,173,187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8415cc29d9a56622c16a86c41d5036f63f38639c",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

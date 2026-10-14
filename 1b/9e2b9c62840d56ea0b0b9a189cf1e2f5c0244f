@@ -1,0 +1,22 @@
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_de9b73755c1191::t_eb1bb085b4f9ee 13,16-35
+  s_de9b73755c1191::t_2d27f0ed6b9264 36
+packages/core/src/scene_replay.rs
+  s_de9b73755c1191::t_eb1bb085b4f9ee 1628-1656,1662,1665
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1b9e2b9c62840d56ea0b0b9a189cf1e2f5c0244f",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/kitesurf-app/src/engine.rs
+  s_f9254de60e80ce::t_17f78e13127b25 260-269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "118a5caee4fffd3620f51948301c1e4690fc4ecc",
+  "prompts": {},
+  "sessions": {
+    "s_f9254de60e80ce": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00dc160affeo42rTKL7JKgba7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

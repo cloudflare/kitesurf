@@ -1,0 +1,38 @@
+packages/page-script/src/index.ts
+  s_4376a60b5dde28::t_4ed5fe8c35f2cd 3195-3196,3198
+packages/engine/src/cdp/dom.ts
+  s_4376a60b5dde28::t_920b86b3e4d252 311-314
+  s_4376a60b5dde28::t_d4811e2f614b54 22
+packages/engine/test/e2e/runtime-object-group.e2e.test.ts
+  s_4376a60b5dde28::t_958425e14fd829 1-44
+packages/engine/src/eval/page-script.ts
+  s_4376a60b5dde28::t_2b295e3e457342 477-478
+packages/engine/src/cdp/object-groups.ts
+  s_4376a60b5dde28::t_74e3b0656df614 1-68
+packages/engine/src/cdp/runtime.ts
+  s_4376a60b5dde28::t_f134efe963c556 576-582
+  s_4376a60b5dde28::t_9a6941c1b60af0 537-546
+  s_4376a60b5dde28::t_bc68c644465164 601,608-622
+  s_4376a60b5dde28::t_ef389384703ee4 18,623-625
+  s_4376a60b5dde28::t_3c68bba3b97a91 19-23
+  s_4376a60b5dde28::t_9af3b285c11f36 446-448
+  s_4376a60b5dde28::t_03d78e70df6931 567-568
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_4376a60b5dde28::t_f6816cae21da37 545
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "611bf83c6c9223b40278b18016237d18b69dbd18",
+  "prompts": {},
+  "sessions": {
+    "s_4376a60b5dde28": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f14b8631efferhlYRR5J3BCy65",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

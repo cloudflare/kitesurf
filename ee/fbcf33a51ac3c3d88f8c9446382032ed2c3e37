@@ -1,0 +1,392 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0157-Bust-the-cache-for-block-children-that-place-floats.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-45
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_cc6123845286a5::t_ded1d5e7e45ba3 13,73
+  s_8557269041e002::t_7b7a1e7ec3088a 70-72,101,119-137
+  s_c1d1c93f383cfd::t_c04939f2fc1dac 138
+packages/dom-shim/src/element.ts
+  s_8557269041e002::t_65805ed6d014ee 2394
+  s_8557269041e002::t_5b45e7128be113 2433
+  s_8557269041e002::t_5ca6f8c12818a0 8242
+  s_8557269041e002::t_1667ebbefe75fd 8445-8447,8450-8451
+  s_8557269041e002::t_6aa0e482928a34 2428-2432,2434
+  s_8557269041e002::t_1d7513ea744bae 2395-2400
+packages/engine/src/eval/walk-module-graph.ts
+  s_8557269041e002::t_975c83e194b5e9 884,928,931-932,977,1210,1236,1903-1904
+scripts/patches/blitz-dom-0.3.0-beta.2/0147-kitesurf-stamp-element-indices-on-the-svg-snapshot.patch
+  s_8557269041e002::t_62c506f2760c45 1-198
+packages/core/src/lib.rs
+  s_8557269041e002::t_6ff761bbad29e1 1585
+  s_8557269041e002::t_b7ef3e9a549931 8196
+  s_7a9271906ed113::t_5d9fd2c8290924 185,222,296-299
+  s_8557269041e002::t_c327d3d432ff26 4296-4299
+  s_8557269041e002::t_cc7800ceadb370 1502,1543
+  s_cc6123845286a5::t_7a9b2e55cec5c6 4143,4146-4163,4165-4166,4169-4173,4314-4324
+  s_8557269041e002::t_4ff4571e996b93 7295-7296,7299-7303
+  s_8557269041e002::t_030e92eb9df0bd 7319,7322-7323,7325,7327,7330,7367-7369,7384,7411-7412,7414-7415,7417,7419
+  s_8557269041e002::t_8be7e5c501d837 1044,4325,7428,8139-8165,8167-8176,8178-8179,8184-8190,8192,8197-8205,8207-8211,8213-8214,8216-8218,8228-8238,8246-8287
+  s_8557269041e002::t_fbe2f5ea6baa17 8180-8182
+  s_8557269041e002::t_ddef35c29925b3 8206,8212,8215,8219-8223,8225-8227
+  s_8557269041e002::t_1126a27429a1ea 543
+  s_8557269041e002::t_55a6dab9f4a8f6 8224
+  s_8557269041e002::t_974b0b8df37ac5 300-301
+  s_8291d2ee87cc27::t_01457de20e1964 193,7828-7840,7842-7844,7846-7849,7851-7859
+  s_8557269041e002::t_32e37112c8a656 8239-8245
+  s_8557269041e002::t_c1fdfec7646852 7370-7383
+  s_8557269041e002::t_6d138c57d36613 8177
+  s_0aef5e87f95186::t_c8431018845ca0 7320-7321,7324,7326,7328-7329,7345,7352-7355
+  s_8557269041e002::t_f874fb30633faa 1233-1239
+  s_8557269041e002::t_5a952e4b376b10 8166
+  s_8557269041e002::t_9a8cb4e89a29e3 8191,8193-8195
+  s_8557269041e002::t_0740864b3ffa99 6686-6687
+  s_8557269041e002::t_0e33de7ed0f635 7801-7802
+  s_8557269041e002::t_05cc79056fe659 7297-7298
+  s_8557269041e002::t_172220a7a9665c 3574,3577,3580-3581,3586-3587
+  s_8557269041e002::t_856a32d77b8004 7845,7850
+  s_8557269041e002::t_cdc0218644daa3 853-882
+  s_8557269041e002::t_ffbad2107ad815 6659,6661,6683-6685,6688-6691,6697,6702-6707
+  s_8557269041e002::t_924c4a9171eaed 19,544,1011,1040-1043,1584,1614
+  s_8557269041e002::t_8c1fb7ed7eba96 6660
+  s_0aef5e87f95186::t_b426beaf4753a2 7335,7397-7403
+  s_8557269041e002::t_ffa0a24f134032 4164,4167-4168
+  s_8557269041e002::t_3b4779f5c59c78 8183
+  s_8557269041e002::t_9b6b4575d8d2e1 186-187
+  s_8557269041e002::t_c9fbda14417716 1555,1600
+  s_8557269041e002::t_55f61d241c1384 1586-1587,1615-1621
+  s_cc6123845286a5::t_4c4e28ec919992 4144-4145,4312-4313
+  s_8557269041e002::t_91b3885a0e5507 6708-6711
+  s_0aef5e87f95186::t_22a9ab4500a1b9 3459,3568-3573,3575-3576,3578-3579,3582-3585,3588-3591,3597-3600,7286-7294,7304-7306,7316-7318,7331-7334,7336-7344,7351,7356-7366,7385-7396,7404-7410,7418,7420-7427
+  s_8557269041e002::t_9c7b0143048b21 4292-4295,4300-4309
+  s_8557269041e002::t_eccc66c181b7b0 7307-7315
+  s_8557269041e002::t_aee0a052de1cbc 7346-7350
+  s_8557269041e002::t_b128b4211d5eca 7413,7416
+  s_c1d1c93f383cfd::t_740ec4c3ae67b0 223-224,1045,7429
+packages/engine/test/e2e/location-assign-navigates.e2e.test.ts
+  s_8557269041e002::t_e5ce776a6a9b75 82
+  s_8557269041e002::t_45e788bb7d14be 190-223
+  s_8557269041e002::t_883c07573fe8f4 71-81,83-91
+packages/engine/src/wasm.ts
+  s_8557269041e002::t_1e55213f5af566 152-153,168-169,181-182,364-365
+  s_8557269041e002::t_1e650fe2cb5543 252
+packages/page-script/src/types.ts
+  s_8557269041e002::t_63d5cb00e3e640 87
+packages/page-script/src/globals.ts
+  s_8557269041e002::t_8413d94e1d586a 37
+  s_8557269041e002::t_2b765b43cb9614 2301
+  s_8557269041e002::t_679d9fe26de59b 5448,5451-5455,5488,5496
+  s_8557269041e002::t_aa815d1d279a9b 2234,2245-2248,2263,2294
+  s_8557269041e002::t_c123f183d9c483 5449-5450
+  s_8557269041e002::t_de148982feb109 2260
+  s_8557269041e002::t_4aa5ed0e5f8301 38,2285
+  s_8557269041e002::t_354c85dadc5065 2274-2275,2278-2279
+  s_8557269041e002::t_a310ae9c981f2c 2276-2277,2282-2283
+  s_8557269041e002::t_61a84acd02a522 2148-2149,2174
+  s_8557269041e002::t_d333e5948e99dd 2235-2244,2249-2259,2261-2262,2271,2280-2281,2284,2286,2288,2290-2293,2536-2543
+  s_8557269041e002::t_7528bdfd7ce1b0 23
+  s_8557269041e002::t_7fc84cbb58dfaa 2287,2289,2295-2300
+  s_8557269041e002::t_cb2d1b724e4c05 2508,2514,2517
+scripts/patches/blitz-dom-0.3.0-beta.2/0152-Restyle-dir-auto-roots-after-content-changes.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-113
+scripts/patches/blitz-dom-0.3.0-beta.2/0159-Apply-the-quirks-line-height-rule.patch
+  s_8557269041e002::t_9ee17e9d01c838 12-13,17,19,22,25-45,53,55,61,76,87,89
+  s_8557269041e002::t_0a3880f2e019f9 1-11,14-16,18,20-21,23-24,46-52,54,56-60,62-75,77-86,88,90-102
+scripts/patches/blitz-dom-0.3.0-beta.2/0149-Resolve-inline-styles-against-the-document-base.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-157
+packages/page-script/src/index.ts
+  s_8557269041e002::t_fb420bfc2a2940 1403
+  s_8557269041e002::t_35930a01289c02 617-618
+  s_8557269041e002::t_e0068b0ae2be89 645,652
+  s_8557269041e002::t_175977175ac47c 1462
+  s_8557269041e002::t_12ad8573924bff 605-607
+  s_8557269041e002::t_46cbdd570c86b3 601-604
+  s_8557269041e002::t_99c13a380b2e15 1432,1440,1456,1459
+  s_8557269041e002::t_4aaaf4fa111064 3172-3179
+  s_8557269041e002::t_94a9ff84931218 1634
+  s_8557269041e002::t_cca759d75482cd 3180
+  s_8557269041e002::t_80c4ebc3da7a4d 795,860,1004,1032
+  s_8557269041e002::t_ef4cf08535328c 619-626
+packages/page-script/src/eval-helpers.ts
+  s_8557269041e002::t_56cf6f28a6dcd1 1199-1200
+scripts/patches/stylo-0.20.0/0039-Allow-color-declarations-in-page-rules.patch
+  s_8557269041e002::t_6b66e2a597756f 1-2,4-8,14-28
+  s_8557269041e002::t_0a3880f2e019f9 3,9-13
+packages/engine/test/e2e/navigator-send-beacon.e2e.test.ts
+  s_f8df914b2a869c::t_b8a7c6d0ea8ba7 7,25,27-29,31-32,34,36-38,40-43
+  s_8557269041e002::t_9c2b8cab525b33 26
+  s_8557269041e002::t_283fb93f0c8f37 30,33,35,39,44-47
+  s_c1d1c93f383cfd::t_7321b60eb989bd 48
+scripts/patches/README.md
+  s_8557269041e002::t_204ce3183985b9 76
+packages/engine/src/eval/prefetch-scripts.ts
+  s_8557269041e002::t_975c83e194b5e9 254-255
+packages/core/src/shadow_dom_test.rs
+  s_8557269041e002::t_d3ffbb2fa59b52 250-262
+  s_8557269041e002::t_796da46e1cc530 249
+scripts/patches/taffy-0.14.0/0009-Rerun-percentage-tracks-for-intrinsically-sized-grid.patch
+  s_8557269041e002::t_0a3880f2e019f9 9-14,16-17,20,23,27-28,34,39-40,43-44,49-50,53
+  s_8557269041e002::t_3d12b0d39e3e29 1-8,15,18-19,21-22,24-26,29-33,35-38,41-42,45-48,51-52
+packages/core/src/scan.rs
+  s_8557269041e002::t_43c2920fc5ef8d 537,540
+  s_8557269041e002::t_cc9742b55a8221 69-70,91-92,339
+packages/core/src/grid_template_serialize_test.rs
+  s_8291d2ee87cc27::t_01457de20e1964 1-22,24,26,28
+  s_8557269041e002::t_947b5ac58d4442 23,25,27
+packages/dom-shim/src/parser.ts
+  s_8557269041e002::t_96c594b2aa3a54 1257-1258
+scripts/patches/blitz-dom-0.3.0-beta.2/0150-Apply-srcset-density-to-loaded-image-dimensions.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-318
+packages/page-script/src/resource-fetch.ts
+  s_8557269041e002::t_9f853da692260e 98,727
+  s_8557269041e002::t_5a092f4889acce 714-719,721-722
+  s_8557269041e002::t_a69084f96c9c19 823-825
+scripts/patches/taffy-0.14.0/0011-Forward-inline-containing-block-basis-to-relative-in.patch
+  s_8557269041e002::t_350a338b8360de 1-8,15,17-18,20-21,23-32,34-36,40-43,45-51,53-59,61-73,75-80,82-90,92-97,99-142
+  s_8557269041e002::t_0a3880f2e019f9 9-14,16,19,22,33,37-39,44,52,60,74,81,91,98
+packages/core/src/rehomed_reach_test.rs
+  s_8557269041e002::t_dba6eea50e9e63 77-179
+packages/page-script/src/wasm-glue.d.ts
+  s_8557269041e002::t_e32f6cb6e689a9 72-73,98,106
+  s_8557269041e002::t_175977175ac47c 119
+scripts/patches/blitz-dom-0.3.0-beta.2/0153-Traverse-selection-ranges-in-the-flat-tree.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-86
+scripts/patches/blitz-dom-0.3.0-beta.2/0155-Propagate-the-parsed-quirks-mode.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-449
+tests/wpt-expectations.json
+  s_8557269041e002::t_978113b073dd9a 20983
+  s_8557269041e002::t_4e7474a31d4827 17943-17944,17947-17948
+  s_8557269041e002::t_0ecede46bf5ad0 27965-27966,27969-27970
+  s_8557269041e002::t_f6653f30559c6a 19489-19490
+  s_8557269041e002::t_235d8e1a647ba6 8686,18483,19981,19997,20982,21046,28685,28689
+  s_8557269041e002::t_bb054f5c5bc295 8687,18484,19982,19998,21047,28686,28690
+  s_8557269041e002::t_07033c941abb7e 21674
+  s_8557269041e002::t_5998369ced6e65 3277,3837,3849
+  s_8557269041e002::t_642410a9f766de 6205-6206
+  s_8557269041e002::t_969ac6af57cbbf 4900-4901
+  s_8557269041e002::t_7f4f854ff7d94a 5084-5085,7378-7379
+  s_8557269041e002::t_e90ff4e5f1e363 7366-7367
+  s_8557269041e002::t_2932c5e211ca52 22617-22618,25361-25362
+  s_8557269041e002::t_5231ce48763b54 25197-25198
+  s_8557269041e002::t_b53d8e04192b7a 8694-8695,8698-8699
+  s_8557269041e002::t_f6a3c57a6177d4 19513-19514
+  s_8557269041e002::t_fbd89e99ee3c81 8815
+  s_8557269041e002::t_058dcf4dcdc9e0 6242
+  s_8557269041e002::t_3ac656d88cf8d8 9255-9256,9259-9260
+  s_8557269041e002::t_2e7569432ef534 11638-11639
+  s_8557269041e002::t_d51a8d3f119363 17171
+  s_8557269041e002::t_5ffaf71214e7e1 6262,6294,6298
+  s_8557269041e002::t_9a850e72879ac6 19429-19430,19433-19434,19437-19438
+  s_8557269041e002::t_e188a0a7a09769 3657
+packages/core/src/sticky.rs
+  s_8557269041e002::t_09b8e88a36ca07 115,121-125,128,131-138,143
+  s_8557269041e002::t_e1af2225923020 103-104
+  s_8557269041e002::t_56dbf6fdf94202 105-106
+  s_283cd3385a7bb7::t_76247abbee2d5a 19,111,116-118,129-130,139-140
+  s_8557269041e002::t_cd2f9c91576a84 114
+  s_c1d1c93f383cfd::t_6ab65d53a5cca2 141
+Cargo.toml
+  s_8557269041e002::t_204ce3183985b9 74
+scripts/patches/stylo-0.20.0/0040-Parse-font-face-request-URL-modifiers.patch
+  s_8557269041e002::t_3d5e60b16f2c18 1-2,4-8,14,17-18,20-60,62-68,70-132,134-145,147-153
+  s_8557269041e002::t_0a3880f2e019f9 3,9-13,15-16,19,61,69,133,146
+packages/engine/test/e2e/demos/mouse-events-demo.e2e.test.ts
+  s_8557269041e002::t_8baa51f30e6b26 166-169
+  s_8557269041e002::t_a2d3aa503b5625 25
+  s_8557269041e002::t_ba25753d490f69 154-165
+  s_c1d1c93f383cfd::t_463d110ed540b3 170
+scripts/patches/blitz-dom-0.3.0-beta.2/0151-Subtract-replaced-box-edges-from-ratio-only-fill-wid.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-35
+scripts/patches/taffy-0.14.0/0010-Expose-block-formatting-context-float-placements.patch
+  s_8557269041e002::t_0a3880f2e019f9 3,9-13
+  s_8557269041e002::t_3ad918bc5b282d 1-2,4-8,14-82
+scripts/get-patched-vendor-crates.mjs
+  s_8557269041e002::t_204ce3183985b9 49
+packages/core/src/inner_html_xml_test.rs
+  s_8557269041e002::t_506c461bc4153e 13
+  s_8557269041e002::t_ce25a215c00a56 1-3,8,10,14,18-29,38-39,43-46
+  s_8557269041e002::t_fa30509302c8e3 30-34
+  s_8557269041e002::t_f33436477c3017 36-37,40-42,47
+  s_8557269041e002::t_1000e5b03686fe 16-17,35
+  s_8557269041e002::t_be930838ee6027 4-7,9,11-12,15
+packages/core/src/br_clear_layout_test.rs
+  s_7a9271906ed113::t_5eae2ea47a9aad 1-4,8,14-15,17
+  s_8557269041e002::t_e7fa3061c18704 5-7,9-13,16,18-19,23,28,30-34,36-39
+  s_8557269041e002::t_84617280818707 20-22,24-27,29
+  s_8557269041e002::t_736e6decfddc86 35,40
+packages/core/src/quirks_mode_test.rs
+  s_8557269041e002::t_d18fc517057586 47-49,61
+  s_8557269041e002::t_974b0b8df37ac5 1-2,9
+  s_8557269041e002::t_9d829b12232482 10-11,46
+  s_8557269041e002::t_a0b8e7ec5c9716 18-25,28,30
+  s_8557269041e002::t_249da587e8c29a 3,6,8,17,26-27,29,31,35-45,50-60
+  s_8557269041e002::t_e5a6c3aa902616 14-16
+  s_8557269041e002::t_62ebcb042c43f8 12-13,32-34
+  s_8557269041e002::t_3dd84e25cd3704 4-5,7
+scripts/patches/stylo-0.20.0/0031-Enable-container-queries-in-Servo.patch
+  s_8557269041e002::t_6b66e2a597756f 1-63
+packages/page-script/src/state.ts
+  s_8557269041e002::t_de58b118130b5c 224
+  s_c1d1c93f383cfd::t_e45d8470958bb6 115-118
+packages/engine/test/e2e/no-cors-opaque.e2e.test.ts
+  s_8557269041e002::t_e1cf1fdfc3d88c 62-96
+packages/core/src/style.rs
+  s_8557269041e002::t_aeb0a76050a7be 1258,1396
+  s_8557269041e002::t_fea25aacddb28f 68-75,807,1458,1498,1830
+  s_307ae1c94634a2::t_24c394f68dcc97 1718,1721-1723
+  s_8557269041e002::t_7d487a9b4d2c11 782,1448,1484
+  s_8557269041e002::t_f774ce0358f045 1806,1818
+  s_8557269041e002::t_6a2b5041bdd6b7 1716,1720,1770,1797,1802-1805,1807-1817,1819-1828
+  s_8557269041e002::t_3c7751dc89511e 860,1089,1092,1101,1104,1111,1121,1131,1144
+  s_8557269041e002::t_fbd12e97df9421 1725-1726
+  s_13173df50bf96f::t_f917b84bbca88e 1727-1769,1771-1796,1798-1801,1829
+  s_c1d1c93f383cfd::t_9e8b95c3db4fae 1711-1715,1717,1719,1724
+scripts/patches/blitz-dom-0.3.0-beta.2/0160-Store-selector-flags-on-shadow-roots.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-71
+packages/core/src/scan_test.rs
+  s_8557269041e002::t_4f34800487a499 106-114,134,169,184,359-371
+  s_8557269041e002::t_d6ac3fc6c07421 372-373
+scripts/patches/stylo-0.20.0/0041-Keep-the-Stylo-device-quirks-mode-current.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-45
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_8557269041e002::t_601e392a197579 416
+scripts/patches/blitz-html-0.3.0-beta.2/0001-Propagate-HTML-parser-quirks-mode.patch
+  s_8557269041e002::t_0a3880f2e019f9 9-12
+  s_8557269041e002::t_4e14305a96f1ca 1-8,13-28
+packages/core/src/relative_inline_percentage_test.rs
+  s_8557269041e002::t_1d5141a337c4d9 1-46,50-64
+  s_8557269041e002::t_319df0752f23fd 47-49,65
+packages/engine/test/e2e/xhtml-doctype-parser-routing.e2e.test.ts
+  s_8557269041e002::t_752782a3508b77 80-102
+  s_8557269041e002::t_bd7c38f6828246 119-120,124
+  s_8557269041e002::t_d1c1a69645dc76 65,103-113
+  s_8557269041e002::t_5a214128f4a4f3 142-149,151-171
+  s_8557269041e002::t_5b81be0b5800fd 150
+  s_8557269041e002::t_486a1866b67917 114-118,121-123,125-141
+  s_8557269041e002::t_333d5e0936649b 66-79
+packages/dom-shim/src/window.ts
+  s_8557269041e002::t_e47c6ee81cfa2f 118-120,123
+  s_f8df914b2a869c::t_b8a7c6d0ea8ba7 620-621,623-624,626-634
+  s_8557269041e002::t_e4866d09325ed4 619,622,625
+scripts/patches/blitz-dom-0.3.0-beta.2/0156-Keep-br-line-boxes-when-trimming-trailing-breaks.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-55
+packages/dom-shim/src/document.ts
+  s_8557269041e002::t_015215a429b8e0 1310
+  s_8557269041e002::t_51c431e4a9808e 1168-1169
+  s_8557269041e002::t_fbfa120e4121e0 1290-1292
+  s_8557269041e002::t_8ca94f17b55889 190,325
+scripts/patches/stylo_taffy-0.3.0-beta.2/0005-Mark-inline-boxes-for-the-relative-inset-basis.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-31
+packages/engine/src/eval/page-script.ts
+  s_8557269041e002::t_601e392a197579 335
+packages/engine/src/eval/script-gate.ts
+  s_8557269041e002::t_975c83e194b5e9 71,171
+scripts/patches/blitz-dom-0.3.0-beta.2/0158-Rehome-clipped-auto-inset-abspos-paint-children.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-244
+scripts/patches/blitz-dom-0.3.0-beta.2/0154-Honor-the-br-clear-attribute.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-211
+scripts/patches/blitz-dom-0.3.0-beta.2/0148-Model-non-positioned-abspos-containing-blocks.patch
+  s_8557269041e002::t_0a3880f2e019f9 1-101
+packages/engine/src/cdp/page.ts
+  s_8557269041e002::t_8ecb25eeffe014 1188
+  s_8557269041e002::t_d58c2f8ac38757 1279,2584,3183
+  s_8557269041e002::t_73a4f36ae52aad 1071-1072
+  s_8557269041e002::t_975c83e194b5e9 2754-2757,2786-2787
+  s_8557269041e002::t_d96e22f15c7caa 6288-6291
+packages/core/src/abspos_containing_block_test.rs
+  s_8557269041e002::t_65ca22c4587834 59-62,64,68-104,109-120
+  s_8557269041e002::t_d7fce4a1e3656b 63,65-67,121-122
+  s_8557269041e002::t_0f39a20b801955 105-108
+packages/engine/test/e2e/img-dimensions.e2e.test.ts
+  s_8557269041e002::t_ae82c958d00f73 14,42-68
+  s_8557269041e002::t_a7270d14abd5e7 70-109,140-143
+  s_8557269041e002::t_304d0017bbb318 69,110-139
+packages/dom-shim/src/index.ts
+  s_8557269041e002::t_8ca94f17b55889 941
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eefbcf33a51ac3c3d88f8c9446382032ed2c3e37",
+  "prompts": {},
+  "sessions": {
+    "s_0aef5e87f95186": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f6217baffeGROZGPk9rSc6Sm",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_13173df50bf96f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f7b28caffedlW50HrdEttJp7",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_283cd3385a7bb7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2d01e699ffeYwYbDBEtMSuEwQ",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    },
+    "s_307ae1c94634a2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2ff96a1bffeA0n6i3bcldnleo",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_7a9271906ed113": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f7b2861ffefkIn5Hn45E0WFK",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_8291d2ee87cc27": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f30a1d527ffex89WWhzczA33ux",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_8557269041e002": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3145d9b6ffegAb4PkhwERdYAP",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_cc6123845286a5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f30c73bacffeFc79FN9hADdRAX",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_f8df914b2a869c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f311624f7ffetTtsXTLA2i8FFU",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    }
+  }
+}

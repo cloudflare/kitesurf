@@ -1,0 +1,19 @@
+packages/renderer-core/scripts/build.mjs
+  s_de9b73755c1191::t_fe20da0b039097 137,143-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "079336f32e69988bf31eb4b5f838b1edf4d94005",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

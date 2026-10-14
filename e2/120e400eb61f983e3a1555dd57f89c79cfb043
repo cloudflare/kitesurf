@@ -1,0 +1,21 @@
+packages/dom-shim/src/model-context.ts
+  s_4416da8af6d192::t_57b27d573d4f37 582,600,602,606,632-633
+packages/dom-shim/strict-baseline.json
+  s_4416da8af6d192::t_c54c7af5298d29 2-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e2120e400eb61f983e3a1555dd57f89c79cfb043",
+  "prompts": {},
+  "sessions": {
+    "s_4416da8af6d192": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee37cab46ffexOAxPtgtRZ3gOW",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

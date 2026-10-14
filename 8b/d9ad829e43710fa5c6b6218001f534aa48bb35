@@ -1,0 +1,27 @@
+packages/engine/test/e2e/get-element-by-id.e2e.test.ts
+  s_a3b42a28f6acb3::t_4f91655f5ba864 1-22
+packages/core/src/id_map_test.rs
+  s_a3b42a28f6acb3::t_4f91655f5ba864 1-94
+packages/dom-shim/src/document.ts
+  s_a3b42a28f6acb3::t_4f91655f5ba864 1013
+packages/core/src/lib.rs
+  s_a3b42a28f6acb3::t_4f91655f5ba864 215-216,1428-1439
+scripts/patches/blitz-dom-0.3.0-beta.2/0177-kitesurf-keep-shadow-ids-out-of-the-id-map-across-mu.patch
+  s_a3b42a28f6acb3::t_4f91655f5ba864 1-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8bd9ad829e43710fa5c6b6218001f534aa48bb35",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

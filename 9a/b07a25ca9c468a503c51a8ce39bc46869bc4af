@@ -1,0 +1,39 @@
+packages/dom-shim/src/index.ts
+  s_1eeadfc3cf234c::t_986c3d9042e386 195,1127-1129
+  s_1eeadfc3cf234c::t_ad4975e12d7451 767
+  s_1eeadfc3cf234c::t_e0dfe65fd43906 79-85,752-755,759-763,765-766,768-769,771,774-785,788,792-814,1121-1122
+packages/dom-shim/src/idl/model.ts
+  s_1eeadfc3cf234c::t_d895366ce77595 52-61
+docs/DOM_SHIM.md
+  s_1eeadfc3cf234c::t_9a009d376ad987 102-129
+packages/dom-shim/src/webidl.ts
+  s_1eeadfc3cf234c::t_95e8b0ced34d65 12
+  s_1eeadfc3cf234c::t_5261f71a682bd2 4-6
+  s_1eeadfc3cf234c::t_aa49b8e76ee5c4 251-286
+  s_1eeadfc3cf234c::t_b914601f81b6b2 287-288
+packages/dom-shim/src/events/event.ts
+  s_1eeadfc3cf234c::t_9d0a14079fd1f4 14-15
+  s_1eeadfc3cf234c::t_2b9e8f0b63276f 956-984,986-987
+scripts/generate-webidl-bindings.mjs
+  s_1eeadfc3cf234c::t_995bf75633103a 57,402
+  s_1eeadfc3cf234c::t_26706437423a43 16-17
+  s_1eeadfc3cf234c::t_211a4a0992bd52 339-361
+packages/dom-shim/src/idl/runtime.generated.ts
+  s_1eeadfc3cf234c::t_9df52c041b1123 1-295
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9ab07a25ca9c468a503c51a8ce39bc46869bc4af",
+  "prompts": {},
+  "sessions": {
+    "s_1eeadfc3cf234c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef96c93d9ffejoSx8lQT0uXgHZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

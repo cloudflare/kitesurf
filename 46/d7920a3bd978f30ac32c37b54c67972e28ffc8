@@ -1,0 +1,30 @@
+packages/dom-shim/src/element/html-classes.ts
+  s_89db36e0a74dbd::t_a10726fcd78dc0 7-8,10,70
+packages/dom-shim/src/element/resolve.ts
+  s_89db36e0a74dbd::t_a10726fcd78dc0 63
+packages/dom-shim/src/element/tag-attributes.ts
+  s_89db36e0a74dbd::t_a10726fcd78dc0 59
+packages/dom-shim/src/element/index.ts
+  s_89db36e0a74dbd::t_a10726fcd78dc0 101
+packages/dom-shim/strict-baseline.json
+  s_89db36e0a74dbd::t_e2721a137ec29b 5
+packages/dom-shim/src/element/media.ts
+  s_89db36e0a74dbd::t_927e1d897f1df8 1,10-11,67-93,95-99,102,112-113,122-123,134-165,169-200,204-214,235-240
+  s_89db36e0a74dbd::t_a10726fcd78dc0 94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "46d7920a3bd978f30ac32c37b54c67972e28ffc8",
+  "prompts": {},
+  "sessions": {
+    "s_89db36e0a74dbd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec8081742ffeOUo1byYY6GJ5h5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

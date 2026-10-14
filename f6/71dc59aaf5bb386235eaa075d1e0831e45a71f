@@ -1,0 +1,27 @@
+packages/engine/tsconfig.json
+  s_65abc89251632c::t_ec6686d8da4c55 21-22
+packages/website/tsconfig.test.json
+  s_65abc89251632c::t_2991b71b6bfd19 1-10
+packages/shadow-replay/tsconfig.json
+  s_65abc89251632c::t_ec6686d8da4c55 22
+packages/website/package.json
+  s_65abc89251632c::t_ec6686d8da4c55 15,24
+pnpm-lock.yaml
+  s_65abc89251632c::t_7c61a510cba38f 312-314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f671dc59aaf5bb386235eaa075d1e0831e45a71f",
+  "prompts": {},
+  "sessions": {
+    "s_65abc89251632c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef446c8cfffeC9NogyjHDidIEP",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
