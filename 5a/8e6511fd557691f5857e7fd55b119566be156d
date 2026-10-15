@@ -309,6 +309,8 @@ packages/agent-bench/src/act.ts
 packages/engine-cf/vitest.e2e.config.mts
   s_decad0046973a9::t_7fab334614673d 25
   s_c6d6a3ac21fe46::t_16045bc0316901 27-32,34-37
+  s_c6d6a3ac21fe46::t_f6e58c066ff537 45
+  s_eca8bcc146fb09::t_1c7c2fb2367abe 17,38-41
 packages/jev-playground/turbo.json
   s_c6d6a3ac21fe46::t_16045bc0316901 1-13,16-25,28-32
   s_0916feb956c724::t_0236cfccabbd7e 14-15,26-27
@@ -404,6 +406,8 @@ bench/README.md
   s_c6d6a3ac21fe46::t_16045bc0316901 1,4-5,23-29,69-75,155-159,190-191,202-205,236-237,239-255,297-300,322-325,363-366,410-413,417-420,448-453,517-518,563-571,657-663,665-691,693-702,704-711,714-723,725-737
 deps/kitesurf
   s_c6d6a3ac21fe46::t_82814e00e18284 1
+packages/boa-bench/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_c20b4070fa01f7 30
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -447,6 +451,14 @@ deps/kitesurf
       "agent_id": {
         "tool": "opencode",
         "id": "ses_ebfbbb92cffeUi8z0b2MGKWmjN",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_eca8bcc146fb09": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebe8dafc6ffetz6nhpvRxD3P6u",
         "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
