@@ -50,6 +50,7 @@ internal/packages/agent-bench/src/benches/assistantbench.ts
   s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 33
 internal/package.json
   s_c6d6a3ac21fe46::t_4beb64ef85e940 1-28,30-48
+  s_c6d6a3ac21fe46::t_03097225d0fa04 29
 internal/packages/shadow-replay/turbo.json
   s_c6d6a3ac21fe46::t_4d8f1bf756003c 1-15
 internal/bench/harness/run.mjs
@@ -80,6 +81,10 @@ internal/docs/ANALYTICS.md
   s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 23,25,172-173,197
 pnpm-lock.yaml
   s_c6d6a3ac21fe46::t_6ff81ce98e27bc 51-52
+internal/packages/agent-bench/src/benches/real.ts
+  s_c6d6a3ac21fe46::t_03097225d0fa04 262
+internal/packages/agent-bench/src/benches/webcanvas.ts
+  s_c6d6a3ac21fe46::t_03097225d0fa04 41
 ---
 {
   "schema_version": "authorship/3.0.0",
