@@ -997,6 +997,7 @@ packages/worker-script/package.json
 packages/engine/test/e2e/demos/skip-speculative-raster.e2e.test.ts
   s_c6d6a3ac21fe46::t_7f6596f1234259 9-12
   s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_bd00f08dfd546f 28
 packages/core/src/net.rs
   s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
 packages/core/src/counter_damage_gate_test.rs
