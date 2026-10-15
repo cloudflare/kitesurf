@@ -7,6 +7,8 @@ packages/engine/src/cdp/connection.ts
   s_41d5a40b9168bd::t_2b5bba9efde9e9 237,790,844,988,1038
   s_059e99c81ea16a::t_7049793bcc26fb 632,731-732
   s_059e99c81ea16a::t_c194812c4e4415 348,394-395
+  s_059e99c81ea16a::t_bd48e9892f8dd7 688
+  s_059e99c81ea16a::t_449fac3c4713d9 382
 packages/engine/src/cdp/fetch-interception.ts
   s_41d5a40b9168bd::t_2389273f514f75 43-45,73,102-117
 packages/engine/src/cdp/dispatch.ts
