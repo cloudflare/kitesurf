@@ -1,0 +1,29 @@
+internal/AGENTS.md
+  s_c6d6a3ac21fe46::t_8c6d567cb2d038 7
+internal/docs/ANALYTICS.md
+  s_c6d6a3ac21fe46::t_8c6d567cb2d038 16,32,170,176
+internal/bench/README.md
+  s_c6d6a3ac21fe46::t_4a86ae7569aa6f 487
+  s_c6d6a3ac21fe46::t_8c6d567cb2d038 59,184,208,368,383,410
+internal/docs/TESTING.md
+  s_c6d6a3ac21fe46::t_f8675d9091b66e 26
+internal/docs/RELEASING.md
+  s_c6d6a3ac21fe46::t_8c6d567cb2d038 46
+  s_c6d6a3ac21fe46::t_0886b995c570a4 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7ac9bbc570b59ae436f8776f39c5f5ea4235cc74",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

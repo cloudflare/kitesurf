@@ -1,0 +1,431 @@
+packages/engine/src/host.ts
+  s_c6d6a3ac21fe46::t_cffa7a6553c234 4,6
+  s_c6d6a3ac21fe46::t_d1c52e1533cd14 1-3,5,7,26-28
+  s_c6d6a3ac21fe46::t_e54256f21d7011 8-18
+  s_c6d6a3ac21fe46::t_92a8372be59f5b 24-25
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 19-23
+packages/engine/src/eval/external-session.ts
+  s_c6d6a3ac21fe46::t_518dbd9c27b4e4 7
+  s_c6d6a3ac21fe46::t_8c905bcb32269d 8
+  s_c6d6a3ac21fe46::t_aade47db61f3ae 156,172
+packages/engine/src/internal/ready-analytics.ts
+  s_c6d6a3ac21fe46::t_3807c3fcab2298 2-17,19-25,27-29,31-32,34-36,38-40,46,49,51-52,54-55,59-63,67,72,74-76,82-84,86-94,96-109,111,113-123,126,128-130,134-135
+  s_c6d6a3ac21fe46::t_5c426719029b5a 1,41-45,47-48,53,64,66,68-69,71,73,77-81,85,95,110,112,124-125,131-133
+  s_c6d6a3ac21fe46::t_3e3e0029bc9c99 65,70
+  s_c6d6a3ac21fe46::t_229fda599f16a6 26,30,33,37
+  s_c6d6a3ac21fe46::t_ec8bf9ed50cb6d 18,50,56-58,127
+packages/engine/src/index.ts
+  s_c6d6a3ac21fe46::t_aade47db61f3ae 24,86,132-134,143,354-357,373,423-428
+  s_c6d6a3ac21fe46::t_187a7cf63d8ae4 17,154-157
+  s_c6d6a3ac21fe46::t_fd357d019db7f6 330,334,407,410,412
+  s_c6d6a3ac21fe46::t_92a8372be59f5b 326,331-332,335,408-409
+  s_c6d6a3ac21fe46::t_33785e7ebae27e 305-309
+  s_c6d6a3ac21fe46::t_ea6c54f815566f 277-283,287,293,299,333,411
+  s_c6d6a3ac21fe46::t_33c6024682b093 23
+  s_c6d6a3ac21fe46::t_7988b90078ea73 48
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 313
+packages/engine/src/observability.ts
+  s_c6d6a3ac21fe46::t_35d1b8e655f81a 1,23,75-117,121-132,134,144-145,148-150,152,158-160,163-170,194-195,197,209,217-219
+  s_c6d6a3ac21fe46::t_9137c03ffd99f7 118-120,146-147,161-162
+packages/engine/src/internal/index.ts
+  s_c6d6a3ac21fe46::t_b227134cd77bfd 23
+  s_c6d6a3ac21fe46::t_eddad7102853c6 1-6,10-11,13-16,21-22,24-33
+  s_c6d6a3ac21fe46::t_ec8bf9ed50cb6d 7-8,17-18
+  s_c6d6a3ac21fe46::t_cb1bf7fe4cd477 20
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 9,12,19
+packages/engine/src/cdp/connection.ts
+  s_c6d6a3ac21fe46::t_80148447e21746 65,109,288-289,292-294
+  s_c6d6a3ac21fe46::t_9137c03ffd99f7 290-291
+  s_c6d6a3ac21fe46::t_e95cb46bdfa98f 100-101
+  s_c6d6a3ac21fe46::t_ae8c0a95561e05 360,678-681,683
+  s_c6d6a3ac21fe46::t_7988b90078ea73 70
+packages/engine/src/internal/caller.ts
+  s_c6d6a3ac21fe46::t_b703ac9ad54f52 1-68
+packages/engine/src/internal/admit.ts
+  s_c6d6a3ac21fe46::t_e54256f21d7011 1-23
+packages/engine/src/rate-limit.ts
+  s_c6d6a3ac21fe46::t_80a41efe4808ff 1,23-42,44,46-75,80-90
+packages/engine/src/quickactions/accessibility-tree.ts
+  s_c6d6a3ac21fe46::t_e54256f21d7011 5,77
+  s_c6d6a3ac21fe46::t_5382fe7f286e9c 26,30,43-46,50,53,57,66,87,90-91,107,112,115,118,126,133,137,141,150,168,170,173,179,185,214,218,223
+  s_c6d6a3ac21fe46::t_a65352dbe1a832 60
+  s_c6d6a3ac21fe46::t_84bafcc9067b18 27-28,216
+  s_c6d6a3ac21fe46::t_241349aaf63074 61
+  s_c6d6a3ac21fe46::t_92a8372be59f5b 203
+  s_c6d6a3ac21fe46::t_e0028dba2e03e8 205
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 1
+packages/engine/src/quickactions/forward-headers.ts
+  s_c6d6a3ac21fe46::t_e54256f21d7011 1-21
+  s_c6d6a3ac21fe46::t_ae8c0a95561e05 23,26-27,29
+packages/engine/src/quickactions/links.ts
+  s_c6d6a3ac21fe46::t_e54256f21d7011 4,65
+  s_c6d6a3ac21fe46::t_241349aaf63074 61
+  s_c6d6a3ac21fe46::t_5382fe7f286e9c 17,20,53,55,57,73,82,84,131,135,151,156,158
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 23
+packages/engine/test/internal/account-rate-limit.test.ts
+  s_c6d6a3ac21fe46::t_ec8bf9ed50cb6d 1-68
+docs/TRACING.md
+  s_c6d6a3ac21fe46::t_84d5af3071c6f5 88
+  s_c6d6a3ac21fe46::t_06e692a3c16ec7 114
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 65,134,142-143,145
+packages/engine/src/quickactions/snapshot.ts
+  s_c6d6a3ac21fe46::t_e54256f21d7011 5,67
+  s_c6d6a3ac21fe46::t_241349aaf63074 62
+  s_c6d6a3ac21fe46::t_5382fe7f286e9c 18,21,48,52,54,75,82,84,122,129,134,136
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 87,112
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 1,36
+packages/engine/test/internal/caller.test.ts
+  s_c6d6a3ac21fe46::t_ec8bf9ed50cb6d 1-80
+packages/engine/vitest.config.mts
+  s_c6d6a3ac21fe46::t_b703ac9ad54f52 48
+packages/engine/src/quickactions/scrape.ts
+  s_c6d6a3ac21fe46::t_e54256f21d7011 4,64
+  s_c6d6a3ac21fe46::t_5382fe7f286e9c 18,21,52,54,56,72,81,83,135,149,152,155,162,168,170
+  s_c6d6a3ac21fe46::t_241349aaf63074 60
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 24
+packages/engine/src/internal/account-rate-limit.ts
+  s_c6d6a3ac21fe46::t_80a41efe4808ff 1-35
+packages/engine/src/quickactions/dispatch.ts
+  s_c6d6a3ac21fe46::t_e54256f21d7011 20-21
+  s_c6d6a3ac21fe46::t_92a8372be59f5b 14-17
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 22
+docs/ANALYTICS.md
+  s_c6d6a3ac21fe46::t_84d5af3071c6f5 55,62
+  s_c6d6a3ac21fe46::t_1f74fa279192e3 159
+packages/engine/src/quickactions/crawl.ts
+  s_c6d6a3ac21fe46::t_e54256f21d7011 7,113
+  s_c6d6a3ac21fe46::t_5382fe7f286e9c 19,23,46,48,50,65,129,153,163,166,210,215,225,228
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 1
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 143
+packages/engine/src/quickactions/envelope.ts
+  s_c6d6a3ac21fe46::t_80853b09b0ae5d 1-97,99-337
+  s_c6d6a3ac21fe46::t_241349aaf63074 98
+packages/engine/src/quickactions/content.ts
+  s_c6d6a3ac21fe46::t_5382fe7f286e9c 33,35,46-49,52,55,59,91,95,107-108,110-111,118,126,130,139,147,163,165,167
+  s_c6d6a3ac21fe46::t_a65352dbe1a832 62
+  s_c6d6a3ac21fe46::t_241349aaf63074 63
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 75-79
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 141
+packages/engine/src/quickactions/index.ts
+  s_c6d6a3ac21fe46::t_92a8372be59f5b 20,1159,1187
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 792,1357,1380,1407,1604,1616
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 2,46,289,360,371,373,486,860,1047,1049-1050,1111,1353,1512
+packages/engine/src/quickactions/screenshot.ts
+  s_c6d6a3ac21fe46::t_5382fe7f286e9c 34,36,52-55,58,61,65,89,93,105-106,108-109,160,167,176,183,201,211,215,239,247,260,292,294,296
+  s_c6d6a3ac21fe46::t_d7e696d034bac7 227
+  s_c6d6a3ac21fe46::t_a65352dbe1a832 68
+  s_c6d6a3ac21fe46::t_241349aaf63074 69
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 79-83
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 43,113
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 161
+packages/engine/test/e2e/quickaction-containment.e2e.test.ts
+  s_c6d6a3ac21fe46::t_cb1bf7fe4cd477 110
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 45,109,114,128
+packages/engine/src/quickactions/pdf.ts
+  s_c6d6a3ac21fe46::t_5382fe7f286e9c 22,24,42-45,48,51,55,116,120,132,134,136-137,162,171-172,185-186,201,216,218,220
+  s_c6d6a3ac21fe46::t_d7e696d034bac7 195
+  s_c6d6a3ac21fe46::t_a65352dbe1a832 58
+  s_c6d6a3ac21fe46::t_241349aaf63074 59
+  s_c6d6a3ac21fe46::t_93e2ba0f4525ff 194
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 106-110
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 1
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 86
+packages/engine/test/quickaction.test.ts
+  s_c6d6a3ac21fe46::t_cbdb75a0e9da2f 1449,1467,1550,1553-1555,1558,1562,1566,1570,1575,1577,1601,1603,1608,1612,1621,1623,1636,1638,1640,1647,1651,1660,1665,1674,1698
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 234,305,607,631,650,675,685,962,1212,1333,1396,1460-1461,1481,1483,1521,1542
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 249,409,422,442,462,812,1476
+packages/engine/src/cdp/css.ts
+  s_c6d6a3ac21fe46::t_e95cb46bdfa98f 493
+packages/engine/src/eval/outbound.ts
+  s_c6d6a3ac21fe46::t_e95cb46bdfa98f 101
+  s_c6d6a3ac21fe46::t_5c3765364c64c1 1120-1121
+packages/engine/test/attribution-tail.test.ts
+  s_c6d6a3ac21fe46::t_5d209b9e042a09 1-31
+packages/engine/src/cdp/dom.ts
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 541-542
+packages/engine/src/cdp/types.ts
+  s_c6d6a3ac21fe46::t_ae8c0a95561e05 240
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 241
+packages/engine/src/eval/page-renderer.ts
+  s_c6d6a3ac21fe46::t_519d2436c137a3 158-162,209
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 111,210,235,242,260
+  s_c6d6a3ac21fe46::t_1bbe0e51069d2e 14-17,56
+packages/engine/src/internal/bench-tail.ts
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 1-6,11-26,31-34,36-81
+  s_c6d6a3ac21fe46::t_ae8c0a95561e05 7-8,27-30,35
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 9-10
+packages/engine/src/cdp/page.ts
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 201,2345,4223-4224
+packages/engine/src/eval/page-script.ts
+  s_c6d6a3ac21fe46::t_519d2436c137a3 131,380,710,787-788
+  s_c6d6a3ac21fe46::t_ae8c0a95561e05 40-43
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 381,789,810
+packages/engine/src/eval/external-outbound.ts
+  s_c6d6a3ac21fe46::t_e95cb46bdfa98f 8
+packages/engine/src/eval/oopif-render.ts
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 77-78,322,420
+docs/MEMPROF.md
+  s_c6d6a3ac21fe46::t_e5a9318da2b044 239
+packages/engine/src/eval/attribution-tail.ts
+  s_c6d6a3ac21fe46::t_519d2436c137a3 1-25
+packages/engine/src/eval/web-bot-auth.ts
+  s_c6d6a3ac21fe46::t_404f9c187c301d 1-3,15
+packages/engine/src/inspector.ts
+  s_c6d6a3ac21fe46::t_0d098f843f46f7 1-16
+packages/engine/test/inspector.test.ts
+  s_c6d6a3ac21fe46::t_0e1881de508098 1-19
+packages/engine/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_404f9c187c301d 54
+  s_c6d6a3ac21fe46::t_d38ccbbbe9a632 3,5,8-9,12-13,37-38,40-41,43,45,47,50,52-53,55-57,60,63-64,72-73,78,83,86
+docs/WEB_BOT_AUTH.md
+  s_c6d6a3ac21fe46::t_06e692a3c16ec7 86
+AGENTS.md
+  s_c6d6a3ac21fe46::t_06e692a3c16ec7 475-479
+  s_c6d6a3ac21fe46::t_dbe1e9ea1152dc 96-120
+scripts/pw-run.mjs
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 136
+  s_c6d6a3ac21fe46::t_21634ee349867c 121-122
+docs/RELEASING.md
+  s_c6d6a3ac21fe46::t_06e692a3c16ec7 6
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 65,84
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 115,121-122
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 17
+packages/engine/vitest.e2e.config.mts
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 53,56,78
+  s_c6d6a3ac21fe46::t_1f74fa279192e3 139
+.gitlab-ci.yml
+  s_c6d6a3ac21fe46::t_071f6d6dadb2d6 1435-1439
+  s_c6d6a3ac21fe46::t_d3178a3984b950 419,572,1926,2225,2278,2315,2375,2392,2398,2420,2427,2436-2438
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 404,843,1330,1635,1659,1718,1778,2099
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 2116,2146,2167
+  s_c6d6a3ac21fe46::t_01c77d63e1a638 1429,1431
+  s_c6d6a3ac21fe46::t_892b582499c8ed 484,1275-1276,1293,1304-1305,1405-1406,1424,1465,1469,1487,1539-1540,1544-1545,1547-1549,1555-1557,1565,1570,1652,1656,1669-1670,1724,1727,1780,1782,1786,1795-1796
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1153,2285,2367,2388,2435
+internal/tests/interactivity-flows/run.ts
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 229
+  s_c6d6a3ac21fe46::t_21634ee349867c 256
+  s_c6d6a3ac21fe46::t_892b582499c8ed 1-765
+packages/engine/wrangler.internal.jsonc
+  s_c6d6a3ac21fe46::t_7988b90078ea73 1-26,28-49,51-211,236-264,269,271-339,344,346-381,383-492
+  s_c6d6a3ac21fe46::t_d3178a3984b950 27,50,382
+packages/engine/package.json
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 8,10-11,14-20
+  s_c6d6a3ac21fe46::t_892b582499c8ed 12
+internal/tests/interactivity-flows/bbc-hydration-probe.mjs
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 16
+packages/engine/test/e2e/global-setup.ts
+  s_c6d6a3ac21fe46::t_c38030c0b0c644 48-56
+internal/packages/wpt-report/scripts/trend.mjs
+  s_c6d6a3ac21fe46::t_d3178a3984b950 8-11,40
+internal/packages/website/scripts/capture-showcase.mjs
+  s_c6d6a3ac21fe46::t_b8f077c83ba44b 14
+internal/packages/wpt-report/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_d3178a3984b950 10,370
+internal/packages/bench-report/scripts/engine-version.mjs
+  s_c6d6a3ac21fe46::t_d3178a3984b950 1
+package.json
+  s_c6d6a3ac21fe46::t_d3178a3984b950 33
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 12,16,68-69
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 50
+  s_c6d6a3ac21fe46::t_0e504e24a0a8dd 64
+  s_c6d6a3ac21fe46::t_892b582499c8ed 60,67,70-73,75
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 23-24
+internal/packages/ra-schema/src/wrapper-tail.ts
+  s_c6d6a3ac21fe46::t_d3178a3984b950 6
+scripts/wpt-shared.mjs
+  s_c6d6a3ac21fe46::t_d3178a3984b950 31-32
+internal/packages/comparison-core/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_b8f077c83ba44b 6-7,11,21
+internal/packages/shadow-replay/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_b8f077c83ba44b 2
+turbo.json
+  s_c6d6a3ac21fe46::t_d3178a3984b950 161-164,168
+  s_c6d6a3ac21fe46::t_892b582499c8ed 188,228-232,235-237,250-254,256
+examples/auto-navigate-demo.mjs
+  s_c6d6a3ac21fe46::t_d3178a3984b950 27
+Cargo.toml
+  s_c6d6a3ac21fe46::t_d3178a3984b950 17
+.gitignore
+  s_c6d6a3ac21fe46::t_d3178a3984b950 15,47-48,67-70,75-78,81-82,90-92,109-111,113
+  s_c6d6a3ac21fe46::t_5f28aa28c5f442 134-135,138-140
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 144-145
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 84,86,98
+  s_c6d6a3ac21fe46::t_892b582499c8ed 102,133,149
+internal/packages/comparison-core/package.json
+  s_c6d6a3ac21fe46::t_b8f077c83ba44b 7
+internal/packages/bench-report/scripts/record.mjs
+  s_c6d6a3ac21fe46::t_d3178a3984b950 1
+  s_c6d6a3ac21fe46::t_b8f077c83ba44b 42
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 4,15,21,43,90
+internal/packages/website/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_d3178a3984b950 36,55
+scripts/wpt-history-append.mjs
+  s_c6d6a3ac21fe46::t_d3178a3984b950 5,15
+internal/packages/ra-schema/src/emit-yaml.ts
+  s_c6d6a3ac21fe46::t_d3178a3984b950 188-189
+internal/packages/bench-report/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_d3178a3984b950 1,4,101
+internal/bench/harness/run.mjs
+  s_c6d6a3ac21fe46::t_d3178a3984b950 7,250,386
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 368,1104
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-1187
+internal/packages/grafana/src/cli.ts
+  s_c6d6a3ac21fe46::t_b8f077c83ba44b 9
+internal/packages/bench-report/scripts/trend.mjs
+  s_c6d6a3ac21fe46::t_d3178a3984b950 3
+internal/output/ra-schema/kitesurf-global-metrics.yaml
+  s_c6d6a3ac21fe46::t_d3178a3984b950 1-2
+pnpm-lock.yaml
+  s_c6d6a3ac21fe46::t_2abfc2544d0b78 51,90,109-228,269,275,1738-1739,5661
+pnpm-workspace.yaml
+  s_c6d6a3ac21fe46::t_38ae29c7269a79 3
+internal/scripts/bench-trace-report.mjs
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 1-37,40-511
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 38-39
+internal/tests/interactivity-flows/README.md
+  s_c6d6a3ac21fe46::t_6b99bd7dbf1041 96
+  s_c6d6a3ac21fe46::t_892b582499c8ed 1-404
+scripts/check-no-dts.mjs
+  s_c6d6a3ac21fe46::t_2077d8bef613ea 2,12
+internal/bench/README.md
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 300-302,305
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-578
+scripts/check-ts-coverage.mjs
+  s_c6d6a3ac21fe46::t_2077d8bef613ea 37,62,65
+internal/scripts/trace-pull.mjs
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 1-54
+internal/scripts/flows-archives.mjs
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 1-21,23-169
+  s_c6d6a3ac21fe46::t_892b582499c8ed 22
+internal/scripts/capture-fixture.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-139
+internal/scripts/flows-merge-shards.mjs
+  s_c6d6a3ac21fe46::t_892b582499c8ed 1-91
+internal/packages/bench-report/src/bench-routes.ts
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 473,495
+internal/scripts/autoresearch-median.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-194
+internal/packages/bench-report/src/types.ts
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 23
+internal/packages/bench-report/src/bench-runner.ts
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 451
+internal/packages/shadow-replay/test/screenshot-policy.test.ts
+  s_c6d6a3ac21fe46::t_892b582499c8ed 12
+docs/BOA_HARDENING.md
+  s_c6d6a3ac21fe46::t_892b582499c8ed 78
+internal/scripts/flows-run-cacheable.mjs
+  s_c6d6a3ac21fe46::t_892b582499c8ed 1-105
+internal/scripts/autoresearch-bench.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-362
+internal/packages/bench-report/container/agent.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 2
+internal/packages/bench-report/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 75
+internal/packages/agent-bench/src/engines.ts
+  s_c6d6a3ac21fe46::t_892b582499c8ed 108
+.gitlab/build-images/Dockerfile.build
+  s_c6d6a3ac21fe46::t_892b582499c8ed 22
+scripts/memprof.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 155
+docs/TESTING.md
+  s_c6d6a3ac21fe46::t_892b582499c8ed 29
+internal/packages/bench-report/worker-env.ts
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 13
+internal/scripts/gold-screenshot-check.mjs
+  s_c6d6a3ac21fe46::t_b6e22ed3fec309 1-219
+internal/scripts/flows-engine-id.mjs
+  s_c6d6a3ac21fe46::t_892b582499c8ed 1-64
+internal/packages/shadow-replay/tsconfig.json
+  s_c6d6a3ac21fe46::t_892b582499c8ed 23
+packages/engine/test/e2e/tsconfig.json
+  s_c6d6a3ac21fe46::t_094290e60a104d 10
+packages/engine/test/e2e/internal/screenshot-pdf-brapi.e2e.test.ts
+  s_c6d6a3ac21fe46::t_1f74fa279192e3 1-143
+packages/engine/test/e2e/internal/ready-analytics.e2e.test.ts
+  s_c6d6a3ac21fe46::t_1f74fa279192e3 1-312
+tests/wpt-expectations.json
+  s_c6d6a3ac21fe46::t_c8f612546d7bbf 7375,17942,17946
+  s_c6d6a3ac21fe46::t_55a9015d613b01 1872,1876,1880,1884,1888,1892,1896,1900,2470,2478,2482,2818,2822,2826,5894,13386,20397,24000,24156,24572,24576,24580,24584,24588,24592,24596,24600,24604,24608,24612,24616,24620,24624,25176,25180,25184,25188,26356,26384,26388,26420,26424,26432,26452,26956,26960,26964,26968,26972,26976,26980,26984,26988,26992,26996,27484,27488,27492,27496,28352,28420,28424,28428,28432,28436,28440,28444,28448,28452,28456,28460,28464,28468,28472,28476,28480,28484,28488,28492,28496,28500,28504,28508,28512,28516,28536,28540,28544,28548,28552,28556,28560,28564,28568,28572,28576,28580,28584,28588,28592,28596,28600,28604,28608,28612,28616,28620,28624,28628,35626
+packages/engine/test/e2e/font-face-unicode-range-gating.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 2
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 1
+packages/core/src/lib.rs
+  s_c6d6a3ac21fe46::t_643b474697bcd9 1771
+  s_c6d6a3ac21fe46::t_15c9151cb36827 1770
+packages/engine/src/cdp-client.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 111
+packages/engine/test/e2e/links-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 30,64,84
+packages/engine/test/e2e/bridge-inherit-v8.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 1,272
+packages/engine/src/quickactions/render-session.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 10
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 80
+packages/engine/src/sentry.ts
+  s_c6d6a3ac21fe46::t_da6d163e35105a 1,93
+packages/core/src/boa_eval.rs
+  s_c6d6a3ac21fe46::t_643b474697bcd9 533
+packages/engine/test/e2e/snapshot-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 72,95
+packages/engine/test/e2e/replay-stub-worker.mjs
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 1
+  s_c6d6a3ac21fe46::t_80ba11d3a38e2f 9
+packages/engine/src/quickactions/ax-serialize.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 1
+packages/engine/test/e2e/cssom-counter-style-rule.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 9
+packages/engine/src/cdp/kitesurf.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 116
+packages/engine/src/tracing-local.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 1
+packages/engine/test/e2e/external-outbound.e2e.test.ts
+  s_c6d6a3ac21fe46::t_80ba11d3a38e2f 119,225,288
+packages/engine/test/tracing-local.test.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 2
+packages/engine/src/cdp/dispatch.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 54-55
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 77-78
+packages/engine/test/e2e/cssom-page-rules.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 1,11
+packages/core/src/data_uri_bg_test.rs
+  s_c6d6a3ac21fe46::t_643b474697bcd9 26
+packages/engine/test/e2e/stylo-layout-misc-values.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 4
+packages/engine/test/external-outbound.test.ts
+  s_c6d6a3ac21fe46::t_ec2bf24596b909 4
+packages/engine/test/e2e/scrape-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 43
+packages/core/src/style.rs
+  s_c6d6a3ac21fe46::t_15c9151cb36827 54-55
+packages/engine/src/cdp/protocol-extensions.ts
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 172
+packages/engine/test/e2e/accessibility-tree-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_dcef68cbba95b6 274
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 293,398,514
+packages/engine/src/quickactions/capture.ts
+  s_c6d6a3ac21fe46::t_bbc4106ef9bc3a 158
+packages/engine/test/e2e/document-types.e2e.test.ts
+  s_c6d6a3ac21fe46::t_9418fddbbc7df7 4
+packages/core/src/ks_tracing.rs
+  s_c6d6a3ac21fe46::t_da6d163e35105a 11,66,237
+packages/core/src/boa_bridge.rs
+  s_c6d6a3ac21fe46::t_643b474697bcd9 534,1532,2009,2584,3022,3329
+  s_c6d6a3ac21fe46::t_15c9151cb36827 2272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "953efda8e7704dcb2e58ade2a2f1826ff2d79114",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}

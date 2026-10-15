@@ -1,0 +1,21 @@
+.github/actions/setup/action.yml
+  s_c6d6a3ac21fe46::t_e0f3ba177c2b34 1-34
+.github/workflows/ci.yml
+  s_c6d6a3ac21fe46::t_fcd081928e1984 1-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "77e56fbc32ccfc7cae5d60751bfbec977257d4d9",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
