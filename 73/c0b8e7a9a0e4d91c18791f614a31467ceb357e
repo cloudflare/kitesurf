@@ -1,0 +1,463 @@
+packages/bench-report/src/bench-tail.ts
+  s_27fd86d8a7588d::t_950bcaea8ec254 7-8
+packages/engine-cf/src/external-session.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 152,171
+  s_decad0046973a9::t_0bc9823967b07a 14
+packages/engine-cf/src/agent/system-one.ts
+  s_decad0046973a9::t_e5055104b24781 7,9
+packages/agent-bench/src/obs.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 43-45
+packages/engine-cf/test/e2e/ready-analytics.e2e.test.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 116,145,153-158,185,207-208,210-212,232-233
+packages/engine-cf/src/agent/loop.ts
+  s_decad0046973a9::t_89e228105a0980 45,56-57
+  s_decad0046973a9::t_661a04932088d3 49
+  s_c6d6a3ac21fe46::t_16045bc0316901 123-124,439,592,597,755,757,802,832
+packages/engine-cf/src/agent/receipts.ts
+  s_decad0046973a9::t_17d733eb5cf443 1
+  s_decad0046973a9::t_74b3b6cd178710 3-15
+packages/agent-bench/src/mcp-client.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 29-33,105,108,114,148,153,170,179
+  s_02e38e3d2190a9::t_45e2c1665f0705 34
+packages/engine-cf/src/ready-analytics.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 127
+packages/ra-schema/src/manifest.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 13,38
+docs/RELEASING.md
+  s_c6d6a3ac21fe46::t_16045bc0316901 57-60,95-113
+  s_c6d6a3ac21fe46::t_1c663f17781b6e 114
+packages/website/scripts/capture-showcase.mjs
+  s_27fd86d8a7588d::t_f026c2d00b23d8 2-4
+packages/engine-cf/src/agent/observe.ts
+  s_decad0046973a9::t_17d733eb5cf443 7
+packages/engine-cf/src/agent/generate.ts
+  s_decad0046973a9::t_17d733eb5cf443 3
+packages/engine-cf/test/unit/quickaction.test.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 1585
+packages/engine-cf/src/agent/progress.ts
+  s_decad0046973a9::t_69b02395c045c6 19
+  s_decad0046973a9::t_83a1d95f2a81c8 4-18,20,22-32
+packages/engine-cf/test/unit/session-policy.test.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-36
+packages/bench-report/scripts/record.mjs
+  s_27fd86d8a7588d::t_f026c2d00b23d8 1-4
+scripts/bench-trace-report.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 41-49,89,96,153,161-165,170,174-178,181,206,214,243,254,261-262
+AGENTS.md
+  s_f2d15cb14e083a::t_97bac0af7ffdae 72-77
+packages/engine-cf/test/agent-run.test.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 14
+  s_decad0046973a9::t_96bccad8ab87e2 81
+packages/agent-bench/src/suite.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 126,242,272
+packages/engine-cf/package.json
+  s_decad0046973a9::t_8b859bf79be5c6 8-10
+  s_c6d6a3ac21fe46::t_16045bc0316901 18,24
+packages/engine-cf/test/e2e/set-content.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-3
+  s_decad0046973a9::t_76e7a7a33fc3b0 4
+packages/shadow-replay/src/comparison/content.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 17,60-63
+packages/wpt-report/scripts/trend.mjs
+  s_27fd86d8a7588d::t_f026c2d00b23d8 1-4
+packages/agent-bench/src/benches/real.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 19-22,97,106,115,132,149
+packages/engine-cf/src/quickactions/render-session.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 12-13,27,67
+scripts/flows-merge-shards.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 52
+packages/engine-cf/src/agent/cdp.ts
+  s_decad0046973a9::t_3b3cdb008c8322 3-15,27,49-54
+  s_c6d6a3ac21fe46::t_16045bc0316901 17,45-48,55-67,200-204,207-208,212-213,258,276-280
+  s_decad0046973a9::t_7aaf0b876339d1 23-26
+packages/shadow-replay/src/emitter.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 56,62-66,68-69,110,182
+scripts/trace-pull.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 24
+packages/engine-cf/src/caller.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 17
+packages/engine-cf/src/quickactions/forward-headers.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 3
+packages/engine-cf/scripts/lint-agent-language.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-68
+packages/agent-bench/src/drivers/pi-cdt.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 18,57
+packages/engine-cf/src/session-policy.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 5-21,23-29,32-38
+  s_decad0046973a9::t_0bc9823967b07a 1-4,22,30-31
+scripts/flows-archives.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 122
+packages/engine-cf/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_16045bc0316901 86,112
+  s_decad0046973a9::t_cb6e2f76fe5c07 3
+packages/engine-cf/test/e2e/agent-system-one.e2e.test.ts
+  s_decad0046973a9::t_9db3c9cbbd8249 7
+  s_decad0046973a9::t_8a9e02940af0d0 18
+scripts/capture-fixture.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 45
+packages/engine-cf/test/e2e/connect.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-4
+  s_decad0046973a9::t_76e7a7a33fc3b0 5
+scripts/wpt-fetch-baseline.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 157
+packages/engine-cf/src/agent/ai-runner.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 117-118
+  s_decad0046973a9::t_17d733eb5cf443 3
+scripts/wpt-compare.mjs
+  s_f2d15cb14e083a::t_cea5828b7b656f 47
+  s_c6d6a3ac21fe46::t_16045bc0316901 86,120-126,180,186,195-196,227,263-266,309,449-450,456,550,555,572,575-576,618,621,625,675,706,709,713,761,780,783,787,837
+  s_f2d15cb14e083a::t_ef0cf26adc52e1 20,35,521
+docs/TRACING.md
+  s_c6d6a3ac21fe46::t_16045bc0316901 49-60,98-101
+  s_f2d15cb14e083a::t_27b4ddb4a285b1 3-5,48
+packages/agent-bench/src/runner.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 28-29,31
+packages/agent-bench/src/runners/local.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 5-6
+packages/engine-cf/test/fixtures-worker/src/index.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-21
+packages/agent-bench/src/drivers/final-answer.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 7,98
+packages/engine-cf/src/agent/wire.ts
+  s_decad0046973a9::t_7d6fa29f60bf98 158,164,295-296
+  s_decad0046973a9::t_94390963312b93 3-155,167-294,297-357,359-392
+  s_decad0046973a9::t_01ff841a62886e 1,358
+  s_decad0046973a9::t_3f28392a86a4b8 2,156-157,159-163,165-166
+packages/engine-cf/src/agent/completion-check.ts
+  s_decad0046973a9::t_5b00444790e37c 4,7-9
+packages/engine-cf/src/agent/completion-request.ts
+  s_decad0046973a9::t_0e5d398236f8ff 6-8
+packages/engine-cf/test/e2e/agent-do.e2e.test.ts
+  s_decad0046973a9::t_b3c1d9d9d06ae8 458
+  s_decad0046973a9::t_df6baec27ed87f 640-641,644
+  s_decad0046973a9::t_b9547a3c35d039 1234,1254,1277,1289,1336,1700
+  s_decad0046973a9::t_9db3c9cbbd8249 10
+  s_decad0046973a9::t_c4d112823749cb 23
+packages/bench-report/src/bench-routes.ts
+  s_27fd86d8a7588d::t_f026c2d00b23d8 443-444
+scripts/autoresearch-median.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 33-35,122-124
+tests/interactivity-flows/har-replay-relay.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 55
+packages/jev-playground/src/browser/bridge.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 149
+packages/agent-bench/src/agent.ts
+  s_02e38e3d2190a9::t_45e2c1665f0705 108
+  s_c6d6a3ac21fe46::t_16045bc0316901 107,143,149
+packages/agent-bench/src/run-overlay.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 12,55
+packages/shadow-replay/src/rasink.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 106
+packages/engine-cf/src/agent/act.ts
+  s_decad0046973a9::t_17d733eb5cf443 3-11
+  s_decad0046973a9::t_ea504596af217e 12,15-16
+  s_c6d6a3ac21fe46::t_16045bc0316901 219,248,327,338,340,370
+docs/ENGINE_CF.md
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-2,4-30,46-57,59-137,139-308
+  s_f2d15cb14e083a::t_d3b56f4690700c 3,31-45,58,138
+docs/ANALYTICS.md
+  s_c6d6a3ac21fe46::t_16045bc0316901 41-47,186-191
+  s_f2d15cb14e083a::t_7c98bd790e062b 3,39-40,68-74,209-210
+packages/engine-cf/test/fixtures-worker/modules.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-4
+docs/REPORT_DATA.md
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-13,15-23,25-64,66-70,72-122,124-132,134-186,188-222
+  s_f2d15cb14e083a::t_bc7eceae91c593 14,24,65,71,123,133,187
+tests/interactivity-flows/lib/cdp-recorder.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 191
+packages/agent-bench/src/drivers/pi-mcp.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 137-139,142,242,244,251
+packages/engine-cf/src/index.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 14,66
+  s_decad0046973a9::t_7319737552d2cb 36
+  s_decad0046973a9::t_0bc9823967b07a 4,64
+tests/interactivity-flows/comment.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 195
+packages/jev-playground/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_16045bc0316901 24
+packages/engine-cf/src/quickactions/containment.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 7
+packages/bench-report/wrangler.jsonc
+  s_27fd86d8a7588d::t_f026c2d00b23d8 45-47
+docs/WEB_BOT_AUTH.md
+  s_f2d15cb14e083a::t_27b4ddb4a285b1 3
+tests/interactivity-flows/egress-relay.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 233
+packages/bench-report/src/bench-runner.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 7-13,86-87,102,108-111,140
+  s_27fd86d8a7588d::t_f026c2d00b23d8 316-318
+packages/shadow-replay/test/workerd/tap-ingest.test.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 671
+packages/wpt-report/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 49,237,344-345
+  s_27fd86d8a7588d::t_f026c2d00b23d8 1-3
+packages/engine-cf/src/agent/types.ts
+  s_decad0046973a9::t_104a19004334ba 2,22
+  s_decad0046973a9::t_226bd84b87a5de 1,4-9,13
+  s_decad0046973a9::t_2e54dc8c126374 11
+bench/harness/run.mjs
+  s_f2d15cb14e083a::t_a234af842bf027 38-40
+  s_c6d6a3ac21fe46::t_16045bc0316901 415,475,544,680,824
+packages/grafana/README.md
+  s_c6d6a3ac21fe46::t_16045bc0316901 29-44
+packages/engine-cf/test/agent-receipts.test.ts
+  s_decad0046973a9::t_dbb8ede0565d43 2
+packages/engine-cf/src/agent/run.ts
+  s_decad0046973a9::t_c235896293334d 9-10,13-25
+  s_decad0046973a9::t_69b02395c045c6 12
+  s_decad0046973a9::t_91b5cc2207745e 11
+  s_c6d6a3ac21fe46::t_16045bc0316901 92,94-102,105-106,112-113,117
+  s_decad0046973a9::t_d14122038c64ce 162,164,167-168,203-208
+  s_c6d6a3ac21fe46::t_15a1d7fc505a9d 251
+  s_decad0046973a9::t_0e8bde94e06a60 3
+scripts/flows-workerd-trap.c
+  s_c6d6a3ac21fe46::t_16045bc0316901 16-17
+packages/agent-bench/container/Dockerfile
+  s_c6d6a3ac21fe46::t_16045bc0316901 39
+  s_02e38e3d2190a9::t_c0920c0e061866 47-51
+packages/jev-playground/package.json
+  s_c6d6a3ac21fe46::t_16045bc0316901 16
+.dockerignore
+  s_0916feb956c724::t_348f5c9b1851b7 2-5,32-33,48-57,62-73,78-79,88-91
+packages/engine-cf/src/quickactions/pdf.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 31-36,70-71,91,95-96,188-191,202-205
+packages/engine-cf/test/e2e/agent-contract.e2e.test.ts
+  s_decad0046973a9::t_9db3c9cbbd8249 7
+  s_decad0046973a9::t_081820a59e0844 18,49,53,56,163,180
+  s_decad0046973a9::t_069d0d5cca565d 50-51
+packages/engine-cf/src/agent/context-state.ts
+  s_decad0046973a9::t_a1b230a5d1f2a9 5,8-10,33,36
+packages/engine-cf/src/agent/protocol-extensions.ts
+  s_decad0046973a9::t_e29c3d39093294 26-27
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-2,9-12,15-25,29-31,33-36
+  s_decad0046973a9::t_3f28392a86a4b8 3-8,13-14
+  s_decad0046973a9::t_92984573ba2bc0 28,32
+packages/agent-bench/src/engines.test.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-62
+packages/bench-report/scripts/engine-version.mjs
+  s_27fd86d8a7588d::t_f026c2d00b23d8 1-3
+packages/shadow-replay/src/comparison/pixels.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 5-6,29,41,54
+packages/agent-mcp/src/cdp.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 6,31,101
+packages/shadow-replay/src/comparison/screenshot.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 15-17,26-29,86-91,138-140
+docs/CI.md
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-4,7-10,12-15,17-64,66-73,75-79,83-85,87-118,120-138,140-157,159-214,216-236,238-244
+  s_f2d15cb14e083a::t_3a8b75ac00d802 5-6,11,16,65,74,80-82,86,119,139,158,215,237,245
+packages/agent-bench/src/drivers/index.ts
+  s_02e38e3d2190a9::t_e1300d4f084c01 10
+packages/agent-bench/src/cdp.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 9,248
+packages/shadow-replay/src/schema.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 14,69-72,74-75,93-94,100,107-108,130-131,159
+packages/engine-cf/src/quickactions/capture.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 13-21,69,80,127,154,169,182,184,200
+tests/interactivity-flows/spawn-relay.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 8-11,14,29-30,32
+packages/agent-bench/src/engines.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 12,21-30,97,150,153,155,171,194-211,248,251,253,272,285,294-309,312-313,317,319,326-349
+  s_02e38e3d2190a9::t_0b7a4798802f41 31,192-193
+  s_02e38e3d2190a9::t_c0920c0e061866 73-76
+packages/bench-report/src/index.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 12
+packages/agent-bench/src/judge.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 9-10,27,30
+  s_02e38e3d2190a9::t_45e2c1665f0705 11
+packages/engine-cf/src/agent/operations.ts
+  s_decad0046973a9::t_b4e0c7f0cd7d2f 2
+  s_decad0046973a9::t_f3a65db294a0d0 1,3-11,13
+packages/shadow-replay/wrangler.jsonc
+  s_27fd86d8a7588d::t_be2db0d2b936ae 30-32
+packages/bench-report/scripts/build.mjs
+  s_27fd86d8a7588d::t_f026c2d00b23d8 1-2
+  s_c6d6a3ac21fe46::t_16045bc0316901 42
+packages/agent-bench/src/overlay.test.ts
+  s_02e38e3d2190a9::t_c0920c0e061866 23-31,41-50,56-57,60,67-69,79,81,91,98
+docs/AGENT_BENCH_CONTAINERS.md
+  s_f2d15cb14e083a::t_34488c83a49cad 101-104,108,111-112,115-117
+  s_c6d6a3ac21fe46::t_16045bc0316901 98,168,334
+  s_f2d15cb14e083a::t_76b4983bf104c5 6-11,33
+  s_f2d15cb14e083a::t_cab9a3c11756fb 298-299
+  s_f2d15cb14e083a::t_d129fe130391b1 349
+  s_f2d15cb14e083a::t_cce286a1225078 172,201
+packages/jev-playground/README.md
+  s_0916feb956c724::t_0236cfccabbd7e 25
+  s_c6d6a3ac21fe46::t_16045bc0316901 27,51
+packages/agent-bench/container/worker.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 24,41
+packages/wpt-report/src/index.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 34,67
+packages/comparison-core/src/lib.rs
+  s_c6d6a3ac21fe46::t_16045bc0316901 7,71,154
+scripts/gold-screenshot-check.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 41-42,103,151,154
+tests/interactivity-flows/README.md
+  s_f2d15cb14e083a::t_a8e212667a4237 417-426,429-433
+  s_c6d6a3ac21fe46::t_16045bc0316901 20-38,64-66,105-107,130-142,144-213,217-287,289-334,357-362,369-371,565-568,595-612,629-662
+  s_f2d15cb14e083a::t_758c5deb0b8875 143
+  s_f2d15cb14e083a::t_aaa07ebf76c105 120-129
+  s_f2d15cb14e083a::t_5fcad9b13ed7be 288
+  s_c6d6a3ac21fe46::t_92726165e8272a 372
+packages/engine-cf/test/agent-tree.ts
+  s_decad0046973a9::t_dbb8ede0565d43 3
+docs/AGENT_RECEIPTS.md
+  s_f2d15cb14e083a::t_27b4ddb4a285b1 6-12
+packages/agent-bench/src/act.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 22-25,80,95,125,134
+  s_02e38e3d2190a9::t_45e2c1665f0705 26
+packages/engine-cf/vitest.e2e.config.mts
+  s_decad0046973a9::t_7fab334614673d 25
+  s_c6d6a3ac21fe46::t_16045bc0316901 27-32,34-38
+packages/jev-playground/turbo.json
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-13,16-25,28-32
+  s_0916feb956c724::t_0236cfccabbd7e 14-15,26-27
+packages/website/src/routes.tsx
+  s_c6d6a3ac21fe46::t_16045bc0316901 15
+packages/engine-cf/src/agent/env.ts
+  s_decad0046973a9::t_1016b00c05642b 5
+  s_decad0046973a9::t_a13c03b552df30 1
+  s_c6d6a3ac21fe46::t_16045bc0316901 4,6-8
+  s_decad0046973a9::t_92984573ba2bc0 2-3
+packages/engine-cf/src/cdp-client.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 248-250,252,260,270,279-280,294-297,306-307,311,316-317,320,322,330,353,371-373
+packages/engine-cf/src/quickactions/screenshot.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 31-32,125,225-228,238-241
+packages/engine-cf/tsconfig.json
+  s_decad0046973a9::t_1c45953a9f2953 3-14
+docs/AGENT_BENCH.md
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-2,6-45,53-58,60-136
+  s_f2d15cb14e083a::t_27b4ddb4a285b1 3-5
+  s_c6d6a3ac21fe46::t_54ba63453b56f3 46-52,59
+packages/bench-report/container/agent.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 17-23,30,142-143,153,196,217-218,224,251,265,282,304,315,317,391
+packages/wpt-report/src/data.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 47,77-80
+docs/WEBSITE.md
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-145,147,149-160
+  s_f2d15cb14e083a::t_27b4ddb4a285b1 146,148
+packages/engine-cf/test/e2e/agent-command-extension.e2e.test.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 2-26
+  s_decad0046973a9::t_76e7a7a33fc3b0 1
+packages/ra-schema/src/emit-yaml.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 19-20,58-62,64
+packages/shadow-replay/test/rasink.test.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 50-53,70,114,136
+scripts/autoresearch-bench.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 138
+scripts/wait-for-main-wasm.mjs
+  s_c6d6a3ac21fe46::t_16045bc0316901 13-14,25-30
+packages/bench-report/worker-env.ts
+  s_27fd86d8a7588d::t_f026c2d00b23d8 1-3
+packages/engine-cf/test/e2e/agent-receipts.e2e.test.ts
+  s_decad0046973a9::t_9c27c2eb77d354 4,17-22,65,116-117
+  s_decad0046973a9::t_9db3c9cbbd8249 5
+  s_decad0046973a9::t_fce98ef4890172 25,28
+packages/shadow-replay/src/do.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 53-54,73-76,150,419,430,449,812-813,865,875-876,887,898-899,914,916,1017,1124,1173
+tests/interactivity-flows/lib/net-archive.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 131,169,192
+.gitignore
+  s_0916feb956c724::t_8d5c38a83254c8 28
+packages/agent-bench/src/container-image.ts
+  s_02e38e3d2190a9::t_c0920c0e061866 22,36-39,170,220
+packages/engine-cf/vitest.config.mts
+  s_c6d6a3ac21fe46::t_16045bc0316901 7-10
+tests/interactivity-flows/flows.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 125,137,1076
+docs/SHADOW_REPLAY.md
+  s_f2d15cb14e083a::t_27b4ddb4a285b1 4,28
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-3,5-27,29-110
+packages/engine-cf/src/quickactions/crawl.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 37-40,61,69-70,72-73,83
+packages/grafana/src/query.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 240-244,387,481,495,522,542,550,578,591,603,613
+tests/interactivity-flows/find-candidates.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 101,140,146
+tests/interactivity-flows/run.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 21-26,106,111,120,122,130-131,146,148,157,159,176-177,180,388,495,520
+scripts/flows-engine-id.mjs
+  s_f2d15cb14e083a::t_49efd61c607951 57-62,67-72
+  s_f2d15cb14e083a::t_ea218471bdbf44 26-28,32
+  s_f2d15cb14e083a::t_537b6e0315db13 16-17
+  s_c6d6a3ac21fe46::t_16045bc0316901 18,29-31,33-36,48-54
+packages/engine-cf/test/e2e/accessibility-live-select-agent.e2e.test.ts
+  s_decad0046973a9::t_76e7a7a33fc3b0 1-2
+  s_c6d6a3ac21fe46::t_16045bc0316901 3-32
+packages/bench-report/scripts/trend.mjs
+  s_27fd86d8a7588d::t_f026c2d00b23d8 1-3
+packages/agent-bench/src/overlay.ts
+  s_02e38e3d2190a9::t_c0920c0e061866 22-28,30-32
+packages/agent-bench/bin/agentbench.ts
+  s_02e38e3d2190a9::t_e1300d4f084c01 105,121,161
+packages/engine-cf/src/quickactions/index.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 19-33,399,402,404-405,613-616,729-736,1036-1038,1251-1259,1293,1316-1322,1343,1398,1419,1435,1447,1452,1468,1503,1552-1554,1802
+packages/engine-cf/test/fixtures-worker/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_16045bc0316901 1-26
+packages/engine-cf/src/quickactions/envelope.ts
+  s_c6d6a3ac21fe46::t_16045bc0316901 129,172
+packages/engine-cf/test/e2e/tsconfig.json
+  s_decad0046973a9::t_1c45953a9f2953 3-4,6-9
+  s_decad0046973a9::t_9db3c9cbbd8249 5
+bench/README.md
+  s_f2d15cb14e083a::t_ee4adf716540db 238,356-357,664,692,703,712-713,724
+  s_c6d6a3ac21fe46::t_16045bc0316901 1,4-5,23-29,69-75,155-159,190-191,202-205,236-237,239-255,297-300,322-325,363-366,410-413,417-420,448-453,517-518,563-571,657-663,665-691,693-702,704-711,714-723,725-737
+deps/kitesurf
+  s_c6d6a3ac21fe46::t_82814e00e18284 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "73c0b8e7a9a0e4d91c18791f614a31467ceb357e",
+  "prompts": {},
+  "sessions": {
+    "s_02e38e3d2190a9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebfbbb8c8ffe4bygi6PP3qlDi9",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_0916feb956c724": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebfbbb938ffew0OwPs3pyW7em5",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_27fd86d8a7588d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebf994502ffe70SdOhEhc08SIy",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_decad0046973a9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebfbbb92cffeUi8z0b2MGKWmjN",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_f2d15cb14e083a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebf9944f3ffe6sCZGL5Zwvwx3d",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
