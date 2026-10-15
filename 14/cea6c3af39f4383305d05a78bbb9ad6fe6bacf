@@ -1,0 +1,3001 @@
+packages/engine/src/rbi-protocol.ts
+  s_78432def045856::t_2dad976ef61a49 179
+  s_76cee6e5edaa4a::t_3adfc8f4ec655e 7-8,13,21-26,28,35,58,68,70,73-78,89-93,130,138,143
+packages/engine/test/fixtures-worker/src/static.ts
+  s_b2bc4296a4424c::t_e0b812e73e8764 269
+packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
+  s_b2bc4296a4424c::t_072b893267bbbf 11-12
+packages/core/src/transitions.rs
+  s_58e002450ea2a7::t_cf1ab3a43a78a8 22
+packages/page-script/src/wasm-glue.ts
+  s_45ac3d10b64cd0::t_92792ee649b4a6 6-7
+packages/page-script/src/startup-probe.ts
+  s_17fb96c5e58da9::t_49cc82db3db49f 86-87
+  s_17fb96c5e58da9::t_f84b1ee9698974 98-111
+packages/engine/src/cdp/page.ts
+  s_09d21ed5822b1d::t_1465879d56d04a 1051
+  s_09d21ed5822b1d::t_e088573003bae5 3042,3066
+  s_76cee6e5edaa4a::t_aef100c68db1ed 2555,2590,2946,4438,4488,4548,5125
+  s_09d21ed5822b1d::t_6cd6f865081679 3582
+  s_d7edd1248351b3::t_e97088bc22358c 522,723
+  s_d7edd1248351b3::t_6595dab80cbc22 166-170,1642,2192,2779,2833
+  s_73ebfaabda0daa::t_e6429a48e4e4a5 209
+  s_d7edd1248351b3::t_4bfb80f2527cf5 1578
+  s_76cee6e5edaa4a::t_2fabb05caeaa78 17-21,46-51,186-189,191-192,195-203,234-235,787-788,999-1001,1003,1135-1136,1173,1177,1183,1340-1345,1347-1364,1368-1369,1375,1891-1892,1928-1931,1950-1952,2083-2084,2087-2088,2158,4180
+  s_8eb11a0a07c69e::t_4db247eb892cfd 2259,4585
+  s_09d21ed5822b1d::t_4cc4ae82f0b721 1208,1241,1264,1275
+  s_76cee6e5edaa4a::t_1d5a4976af46ae 193-194,5134-5137,5238-5241
+  s_09d21ed5822b1d::t_04544a17ac5939 2726
+  s_09d21ed5822b1d::t_b4dfead44f994f 665
+  s_09d21ed5822b1d::t_34c3eaaacfc80d 1486
+  s_09d21ed5822b1d::t_80f15225857c8a 3749,3811,3839-3840,3846-3847
+  s_09d21ed5822b1d::t_5a3185f90d5ec6 4029,4200,4239
+  s_09d21ed5822b1d::t_350667a8c0c8d6 576,585
+  s_09d21ed5822b1d::t_8330932f965233 4511
+  s_09d21ed5822b1d::t_94ad165a37e029 2233,2241,2267,2274,2282
+  s_09d21ed5822b1d::t_638cd89f9b245f 4406,4479
+  s_78432def045856::t_70710367cd65aa 457,569,808,866,1676,2244
+  s_76cee6e5edaa4a::t_683b247814eca4 185,190
+  s_09d21ed5822b1d::t_56bec6242042e5 2840
+  s_09d21ed5822b1d::t_5ff306ef3d1c54 4652
+  s_09d21ed5822b1d::t_edcd853cf5a19a 4838
+docs/RBI.md
+  s_7a14d59b0adfe6::t_b0173ff8d7457c 152-159
+  s_c6d6a3ac21fe46::t_3f5856a03a69d4 95-97,166-170
+  s_c6d6a3ac21fe46::t_82758d2e71a29a 161-165,171
+  s_7a14d59b0adfe6::t_2cb1c60880748d 151,160
+internal/packages/engine-cf/test/fixtures-worker/wrangler.jsonc
+  s_fdbd277ad00a64::t_712367d9df8e79 1-26
+packages/tty-css-preview/README.md
+  s_c6d6a3ac21fe46::t_1997224f929280 19-20
+  s_eb5892a24d7c0d::t_32417e7358411e 55-59
+  s_524eadaaaeaf6f::t_ff1e16238b2b7c 60-62
+  s_c6d6a3ac21fe46::t_e3198eb4ccdcdb 49
+  s_524eadaaaeaf6f::t_b650cb2077a7a2 32-34,36-38,46-48
+internal/packages/shadow-replay/test/workerd/tap-ingest.test.ts
+  s_a1b58daec3e888::t_4f31e2ad003320 671
+docs/LAYOUT.md
+  s_c6d6a3ac21fe46::t_1f4d7626e32e09 1-2,6-15,18-19,26-42
+  s_e79efc0043ae41::t_a184cfd7d94539 3-5
+  s_aebf592dc6e79a::t_9f917c64574059 97-100
+  s_aebf592dc6e79a::t_c3146a750ae4c7 24-25,96,108-110,129-130,145-147
+  s_aebf592dc6e79a::t_211f53b874afe4 106-107,114-128,131,141-144
+  s_aebf592dc6e79a::t_6e334a439e94f0 72-73
+  s_aebf592dc6e79a::t_bb8e888c6971fb 132-135,140
+  s_aebf592dc6e79a::t_78beed2d75e239 136-139
+  s_aebf592dc6e79a::t_54f9596429c6f2 62-71,74
+  s_aebf592dc6e79a::t_6417a3c73b4de4 20-23,111-113
+  s_aebf592dc6e79a::t_76fe300e31c793 151-153
+  s_2c3db2bfaaace3::t_76849b5c424eb5 16-17
+  s_aebf592dc6e79a::t_7ae2f7a4aee84d 43-61,75-83,89-95,101-105,148-150,154-155
+  s_aebf592dc6e79a::t_235b6d2cfcc548 84-88,156-160
+packages/dom-shim/src/element/resolve.ts
+  s_08745e9d0bed18::t_eb94d3a6d96171 6,169
+internal/packages/shadow-replay/src/schema.ts
+  s_d2f0b3019ee744::t_09138f55a87237 14,100,159
+  s_3c0ab630d4f557::t_c5823b23c7edc3 70
+  s_3c0ab630d4f557::t_175eddf938a84c 69,71-72,74-75,93-94,107-108,130-131
+packages/engine/src/sentry.ts
+  s_76cee6e5edaa4a::t_94d4a31a65763c 94-100,116,257-264,266-268,344
+packages/engine/test/e2e/accessibility-live-select.e2e.test.ts
+  s_fdbd277ad00a64::t_8c4bd5f88dda4b 9
+packages/dom-shim/src/collections.ts
+  s_c6d6a3ac21fe46::t_1158989ba609e0 2864
+  s_dd0f730efc12c5::t_68e1df02cafbdd 2481
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 2455-2456
+  s_08745e9d0bed18::t_25f34248064f23 25,28,103,658
+  s_dd0f730efc12c5::t_8748b93cd05f80 688,2493
+  s_c6d6a3ac21fe46::t_e9ccf3d8a08679 1744
+packages/kitesurf-cli/src/access.rs
+  s_58e002450ea2a7::t_cf1ab3a43a78a8 29
+docs/NETWORKING.md
+  s_09d21ed5822b1d::t_08427d00623c18 109-111
+  s_09d21ed5822b1d::t_b44fdf437c2c50 30-33
+  s_c6d6a3ac21fe46::t_7e3959d192288f 144-148
+  s_09d21ed5822b1d::t_e33664e525dead 174-177
+  s_c6d6a3ac21fe46::t_06139ef590da99 198-199
+  s_c6d6a3ac21fe46::t_c2196e21aecadb 112-113
+  s_09d21ed5822b1d::t_06234951c10126 51-54
+  s_c6d6a3ac21fe46::t_96befcef058f5a 398-403
+  s_09d21ed5822b1d::t_a41b86bef7f6aa 266-270,274-275,278-279,287
+  s_73ebfaabda0daa::t_eaf4731098b562 169-172
+  s_09d21ed5822b1d::t_8e0f0d475ec233 358-359
+  s_09d21ed5822b1d::t_3a1c39a89b22e6 150-154
+  s_c6d6a3ac21fe46::t_296ec2be787a82 259-262,265,311,317-320,331
+  s_09d21ed5822b1d::t_32a075126dcf1b 44
+  s_09d21ed5822b1d::t_9a2947ef2862f9 166-167
+  s_09d21ed5822b1d::t_2ee47f48a7c49c 43,47-48,55
+  s_73ebfaabda0daa::t_ccf98aa8d0a199 123-125,324-326
+  s_c6d6a3ac21fe46::t_e31550649a0b39 83-87
+  s_c6d6a3ac21fe46::t_518420c635cece 321-323,327-330
+  s_09d21ed5822b1d::t_ef7e0eb59e72b4 372-376
+  s_09d21ed5822b1d::t_1a4b9b6c9a5751 281-283
+  s_c6d6a3ac21fe46::t_a13186112fed7d 343-345
+  s_09d21ed5822b1d::t_1d1db5b1127003 288-310
+  s_09d21ed5822b1d::t_9700aff489c732 45-46
+  s_c6d6a3ac21fe46::t_2b33f72f4e979c 312-316
+  s_09d21ed5822b1d::t_00436bced5aecb 271-273,276-277,280,284-286
+  s_09d21ed5822b1d::t_a861a9d0887fdb 155-165,173,178-180
+  s_73ebfaabda0daa::t_77896e7bf583c6 404-405
+  s_73ebfaabda0daa::t_42d6aed49c3979 168
+  s_c6d6a3ac21fe46::t_d107a302b7d68d 105-106
+  s_c6d6a3ac21fe46::t_0209ba2b4874dd 88-92
+  s_09d21ed5822b1d::t_372946bdaa6fed 263-264
+  s_c6d6a3ac21fe46::t_56ccf0417b6708 371,377-389,393-397
+  s_c6d6a3ac21fe46::t_86407fa28c9f46 390-392
+  s_09d21ed5822b1d::t_edfbbc845ddcb4 49-50
+  s_c6d6a3ac21fe46::t_fe3e941188aa6b 93-95
+  s_c6d6a3ac21fe46::t_0edc68279d7a83 149
+docs/BUILD_TOOLING.md
+  s_1c48520c8c8aee::t_4a4774ba350ad9 476
+  s_1c48520c8c8aee::t_0960b5fa2e0214 557-558
+  s_1c48520c8c8aee::t_d0f031161d16df 158-159,164
+  s_bfa61356ee59a3::t_ac2d7855ba7865 571,582-592,597
+  s_2e3180ce801352::t_425a01c341fb0a 340
+  s_1c48520c8c8aee::t_2d6e690bbc163f 545-546
+  s_1c48520c8c8aee::t_e268fa1733ac0a 290-293,299
+  s_bfa61356ee59a3::t_4069d4b82dad25 275-289
+  s_bfa61356ee59a3::t_c461523750b919 1-9,194-204,209-214,222-225,230-240,246,257-274,300-302,319,358-364,377
+  s_1c48520c8c8aee::t_35ba75d7bd5e4b 529-537,542
+  s_1c48520c8c8aee::t_da9837a4a920f9 10-14
+  s_bfa61356ee59a3::t_9b80642d6c664d 593-596
+  s_1c48520c8c8aee::t_ff8b76b39d279e 547-550
+  s_1c48520c8c8aee::t_b6b6af2e12f266 541
+  s_1c48520c8c8aee::t_f8f4212606918a 294-296
+  s_c6d6a3ac21fe46::t_5d911d0232eae6 388-389
+  s_2e3180ce801352::t_1a451202aee2a2 118-119
+  s_1c48520c8c8aee::t_1cd148842dad9a 86
+  s_1c48520c8c8aee::t_1de940310e32e2 353-356
+  s_1c48520c8c8aee::t_3008d71c0eb769 136,140-142
+  s_c32c835b7e1175::t_03c07fd1e659cf 113,135
+  s_1c48520c8c8aee::t_14c9b9f3a2def9 226-228
+  s_1c48520c8c8aee::t_d1f783f52c09c5 395-397
+  s_1c48520c8c8aee::t_fdecb92aa3deef 572-576,581
+  s_2e3180ce801352::t_48b0a64dc5da1f 114-117,123-125
+  s_1c48520c8c8aee::t_8978b0e6eb52a8 66-67
+  s_1c48520c8c8aee::t_70a9523db19ab0 347-352
+  s_1c48520c8c8aee::t_0efb6918f57210 89-90
+  s_1c48520c8c8aee::t_bcd2162b4549e1 91
+  s_1c48520c8c8aee::t_3edcc613a89f49 92
+  s_1c48520c8c8aee::t_4c638f69f33cf1 104
+  s_1c48520c8c8aee::t_3b5759603f1a12 215-218,221
+  s_c32c835b7e1175::t_bf6a28131d0017 219-220,598-600
+  s_c32c835b7e1175::t_8ceda3273b169b 138-139
+  s_bfa61356ee59a3::t_3763b53eebc8ef 391-394,398-400,408
+  s_1c48520c8c8aee::t_a085f883f536dd 489-490,496
+  s_2e3180ce801352::t_257a89421e9882 325-329
+  s_1c48520c8c8aee::t_22a9b71a33a790 247-248,252
+  s_bfa61356ee59a3::t_36f16b0015060d 506-514
+  s_2e3180ce801352::t_89610a63d16e03 126-134
+  s_1c48520c8c8aee::t_88675e4503894b 538-540
+  s_1c48520c8c8aee::t_78451a08787cb3 467-468
+  s_1c48520c8c8aee::t_dfa60e9c2bb12f 16,39-41,61-65,68,72-76,85,157,205-208,253-256
+  s_e79efc0043ae41::t_a184cfd7d94539 390,401-404
+  s_14b9d80a80a0b1::t_b84eb044f556d0 318
+  s_1c48520c8c8aee::t_8f63f6a231ffde 189-193
+  s_1c48520c8c8aee::t_fd47c558d7d753 477
+  s_1c48520c8c8aee::t_110cd93ce8d904 346,357
+  s_c32c835b7e1175::t_71ef341376a9ca 173-178,181-184,187-188
+  s_1c48520c8c8aee::t_4669a507be853d 297-298
+  s_14b9d80a80a0b1::t_156c0e4f05edd7 336-339
+  s_e79efc0043ae41::t_857e7d8cac516d 378,380-383
+  s_1c48520c8c8aee::t_5aedb68c1fbdc5 69-71
+  s_2e3180ce801352::t_575f7d05280e4b 303-305,316-317,334-335
+  s_1c48520c8c8aee::t_f7af84be98cf42 249-251
+  s_1c48520c8c8aee::t_708e7b6198c00f 491-495
+  s_1c48520c8c8aee::t_ac8c736aec5688 405-407
+  s_1c48520c8c8aee::t_ad4c9abe24794e 241
+  s_1c48520c8c8aee::t_5074bdf41e0102 229
+  s_bfa61356ee59a3::t_1dff93c37174d5 517-528,543-544,551-555,559-570
+  s_1c48520c8c8aee::t_d553552fa2e4c1 409-413
+  s_1c48520c8c8aee::t_8fa6e8ad7d7611 160-163
+  s_c6d6a3ac21fe46::t_763993f1a64691 374,379,384-387
+  s_bfa61356ee59a3::t_1ae345d78203aa 365-373,375-376
+  s_c32c835b7e1175::t_19eaf65db0a32f 165-172,179-180,185-186
+  s_2e3180ce801352::t_5f1e23ca6fb704 120-122
+  s_1c48520c8c8aee::t_1b2697752b72b2 77-84
+  s_bfa61356ee59a3::t_f9d4fc1f2a47d7 419-431,435-442,451-466,469-475,480-488,497-505,515-516
+  s_2e3180ce801352::t_2f2201c4d5eeb1 306-315,320-324,330-332
+  s_1c48520c8c8aee::t_bd074e86acfa35 15,577-580
+  s_1c48520c8c8aee::t_bb018c44703b70 143-146,148-149
+  s_c32c835b7e1175::t_03df7d4d0f25ab 21-22,35
+  s_1c48520c8c8aee::t_c17bd7da379482 105-109
+  s_c32c835b7e1175::t_8c741c8eb8b41b 34,137
+  s_1c48520c8c8aee::t_2c43fdbd3a2b5e 112
+  s_1c48520c8c8aee::t_d7a9c1ed63c718 42-59,87-88,93-103,110-111,147,150-156
+  s_1c48520c8c8aee::t_0ab1061d1e9bca 414
+  s_1c48520c8c8aee::t_ce7704f44395bd 342-345
+  s_1c48520c8c8aee::t_71eee05caf85b7 432-434
+  s_bfa61356ee59a3::t_ec62f644d485d0 31-33,36-38,60
+  s_1c48520c8c8aee::t_24f7e2ab2d7040 443-450,478-479
+  s_bfa61356ee59a3::t_6e31cd909a38f5 242-245
+  s_1c48520c8c8aee::t_e4342283921930 17-20,23-30
+  s_1c48520c8c8aee::t_98da0c925122b6 556
+  s_1c48520c8c8aee::t_9bbeaf18dcefb7 333,341
+  s_1c48520c8c8aee::t_95fe1837d7d877 415-418
+docs/CANVAS2D.md
+  s_c6d6a3ac21fe46::t_e1b25d5b958699 75-77
+  s_0e9f80ed26fe1c::t_125e5b0fa64384 115
+  s_0e9f80ed26fe1c::t_f96e7139c7c8ca 110-114
+  s_0e9f80ed26fe1c::t_c06aa5bda6f37e 59-60
+  s_0e9f80ed26fe1c::t_534ac52911df7a 102-109
+  s_0e9f80ed26fe1c::t_8df5da14bc20c5 87-88
+  s_0e9f80ed26fe1c::t_8d9b10654ead7b 78-86,92-101
+  s_0e9f80ed26fe1c::t_d33dcb8a2d24fe 89-91
+packages/engine/test/cookies.test.ts
+  s_b2bc4296a4424c::t_68f65490241009 226,253,462
+packages/jsrpc-types/src/page-script.ts
+  s_96ee4df000b017::t_7a74c7d2fab254 278-279
+  s_02e920edba8d88::t_c22062c6c26d93 266
+  s_96ee4df000b017::t_3a0398f1332cdf 12-16,272,276-277,280-284
+  s_96ee4df000b017::t_72e75aea187866 286,288-294
+  s_02e920edba8d88::t_22cebb286f7ad8 287
+  s_c6d6a3ac21fe46::t_02dcd0fe0d0293 285
+tests/wpt-expectations.json
+  s_c6d6a3ac21fe46::t_576f3de6f8d7a6 10724
+packages/page-script/src/engine-error.ts
+  s_17fb96c5e58da9::t_d147d82ad47032 21-22
+  s_17fb96c5e58da9::t_49cc82db3db49f 32-34,41
+internal/packages/agent-bench/src/drivers/pi-do.ts
+  s_fdd0fd6c73650e::t_5188638627cf90 16
+internal/tests/interactivity-flows/find-candidates.ts
+  s_8d9fc3fb359c90::t_5cf56d619ccf91 101
+  s_8d9fc3fb359c90::t_6fd898897085c9 140,146
+internal/packages/engine-cf/test/fixtures-worker/assets/agent-search.html
+  s_fdbd277ad00a64::t_81dbd10c14ba36 1-4
+packages/engine/test/e2e/global-setup.ts
+  s_fdbd277ad00a64::t_2103ec0118a270 8,19-34,48-57
+internal/packages/agent-bench/src/runner.ts
+  s_c6d6a3ac21fe46::t_059f94bd1b9f9f 28-29,31,126
+packages/dom-shim/src/style-declaration.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/packages/engine-cf/test/fixtures-worker/src/index.ts
+  s_fdbd277ad00a64::t_712367d9df8e79 1-21
+packages/page-script/src/dom-shim.ts
+  s_45ac3d10b64cd0::t_f38b282ecc4bd2 6
+packages/dom-shim/src/parser.ts
+  s_08745e9d0bed18::t_af2c1f223a7eed 321,357,362
+  s_08745e9d0bed18::t_08af6b9fac1fc9 555,575
+  s_08745e9d0bed18::t_7bf14153892e7a 110-111,113-115,117,133,147,162,174
+  s_0e9f80ed26fe1c::t_fe240a3997af33 541-542,1000,1002,1067-1068
+  s_08745e9d0bed18::t_af8c0902094f33 784,876,973
+  s_08745e9d0bed18::t_63f6e5e3ad6b12 17-22,30-31
+  s_08745e9d0bed18::t_151059c8aab16b 197,203,214,226,240,246,251,259
+  s_dd0f730efc12c5::t_ef843633944756 710
+docs/TRANSITIONS.md
+  s_eb5892a24d7c0d::t_bf9c6787aced8d 149-153
+internal/packages/engine-cf/test/e2e/accessibility-live-select-agent.e2e.test.ts
+  s_fdbd277ad00a64::t_8c4bd5f88dda4b 1-32
+packages/engine/test/e2e/png.ts
+  s_b2bc4296a4424c::t_c9d3e6b4915cd7 47,70
+packages/page-script/src/boa-classic.ts
+  s_02e920edba8d88::t_2b00ffae0ec65a 16
+  s_eb5892a24d7c0d::t_7ad197135af1e2 43
+packages/dom-shim/src/mutations/seq.ts
+  s_c6d6a3ac21fe46::t_6185c231ed0ccd 26
+packages/engine/test/e2e/demos/png.ts
+  s_b2bc4296a4424c::t_12cfbca6a477f2 14,128-129,132
+packages/dom-shim/src/model-context.ts
+  s_08745e9d0bed18::t_e1f82118de7cf5 17,233,1060,1149
+  s_08745e9d0bed18::t_aac3dbdf8cfce9 14
+  s_dd0f730efc12c5::t_9cae38a9acb640 328
+  s_dd0f730efc12c5::t_1747c7ade56a2d 46,261,384,566,604,869
+  s_0e9f80ed26fe1c::t_46a194b3f4b191 315
+packages/dom-shim/src/element/forms/input-state.ts
+  s_8b8a00484e0f56::t_ebf78726406462 17,32
+  s_dd0f730efc12c5::t_56a8677e469930 92
+  s_c6d6a3ac21fe46::t_44f7bce7fbd81e 172
+internal/packages/shadow-replay/src/comparison/screenshot.ts
+  s_d2f0b3019ee744::t_09138f55a87237 15-17,86-91
+  s_3c0ab630d4f557::t_175eddf938a84c 26-29,138-140
+packages/engine/test/e2e/document-created-legacy-members.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/core/Cargo.toml
+  s_92aba1431f2ef7::t_2719daeba5407e 79-82
+scripts/wpt-collateral.mjs
+  s_7a8515feb07e5c::t_0abc6505682bc7 21,23
+  s_1c48520c8c8aee::t_4348f29ca5ec1f 13
+packages/dom-shim/src/element/shadow.ts
+  s_cfa3a80ee1db24::t_8de6c79cef76d8 33
+  s_dd0f730efc12c5::t_11297bc29b7ecf 107
+  s_08745e9d0bed18::t_eb3f4e454f6bc5 7,44,92
+packages/engine/src/observability.ts
+  s_c2cf363362157f::t_96182a2359be10 26-28,40
+packages/engine/test/e2e/demos/oopif-rerender.e2e.test.ts
+  s_b2bc4296a4424c::t_9fa5cd77cf50b2 16
+internal/packages/engine-cf/src/quickactions/crawl.ts
+  s_d2f0b3019ee744::t_9c35758873df99 37-40,61,69-70,72-73
+  s_fe482cbcf3b988::t_58d54716a3c15d 83
+packages/engine/src/cdp/network.ts
+  s_d7edd1248351b3::t_051eeaf29ee834 40
+internal/packages/engine-cf/test/e2e/ready-analytics.e2e.test.ts
+  s_a1b58daec3e888::t_cd545dee1339e5 116,145,153-158,185,207-208,210-212,232-233
+packages/page-script/src/session-outbound.ts
+  s_eb5892a24d7c0d::t_3722aa364082c6 46
+  s_524eadaaaeaf6f::t_e7c6c6bb03a49a 89
+packages/engine/test/host-session-options.test.ts
+  s_c2cf363362157f::t_99c096d88241b7 38-40,50-52
+  s_c2cf363362157f::t_ea9caf6dd44de2 1-37,41-47,60
+  s_c2cf363362157f::t_69a7b9d56d7e21 48-49,53-59
+packages/engine/test/e2e/document-legacy-members.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/docs/CI.md
+  s_c32c835b7e1175::t_758280f8f15a52 244-245
+  s_c32c835b7e1175::t_d50a9745ec8a02 13-14,47-50
+  s_c32c835b7e1175::t_6c4409e62cec49 9-12,15-19
+  s_c32c835b7e1175::t_eb78025181e5ec 159-160,234-235
+  s_c32c835b7e1175::t_06659b49bd5210 64-65
+  s_c32c835b7e1175::t_0a17dbbd788e5c 130
+  s_c32c835b7e1175::t_071078d7859b75 151-152,208
+  s_c32c835b7e1175::t_c851db9f62092c 190-191
+  s_c32c835b7e1175::t_1939a702f3844e 1,3-8,20-30,33-41,51-53,56-63,66-70,75-96,100-114,116-117,121-123,128-129,135-140,144-145,149-150,155,161-173,182-189,192-205,222-233,236-239,241-243
+  s_c32c835b7e1175::t_034b3f2c8152be 124-127,141-143
+  s_c32c835b7e1175::t_aa0183309ed095 209
+  s_c32c835b7e1175::t_1204ed45f4c131 71-74
+  s_c32c835b7e1175::t_d7449d29674090 210-221
+  s_c32c835b7e1175::t_b72466b36eea01 98-99,175-181
+  s_c32c835b7e1175::t_83be8d1dec1bae 31-32
+  s_c32c835b7e1175::t_8f8616c48d52db 156-158
+  s_c32c835b7e1175::t_76a8f30728525d 131,146-148
+  s_c32c835b7e1175::t_ab68791cb89b96 54-55
+  s_c6d6a3ac21fe46::t_f8be86c4ebc89b 2
+  s_c32c835b7e1175::t_25c56594ff6f8b 132-134,153-154
+  s_c32c835b7e1175::t_8440c84722b8be 174,206-207
+  s_a1b58daec3e888::t_821050fa3be875 115,118-120,240
+  s_c32c835b7e1175::t_bc03ff012166bb 42-46
+  s_c32c835b7e1175::t_08d2964b24065a 97
+packages/page-script/tsconfig.json
+  s_45ac3d10b64cd0::t_92792ee649b4a6 7
+packages/engine/src/eval/cors.ts
+  s_73ebfaabda0daa::t_e6429a48e4e4a5 339
+  s_76cee6e5edaa4a::t_2857a14da66816 48-49,131,393-395,402
+  s_76cee6e5edaa4a::t_683b247814eca4 50
+docs/CDP.md
+  s_73ebfaabda0daa::t_3dd92763f40e55 121-122
+  s_09d21ed5822b1d::t_94d6afbd6b12df 319
+  s_09d21ed5822b1d::t_577ca92ea2fdac 224-226
+  s_09d21ed5822b1d::t_7ca1084e7ad4e4 112-115
+  s_c6d6a3ac21fe46::t_c303352ae0ddfc 169-172,177
+  s_09d21ed5822b1d::t_c01d94bab3bbba 236-238
+  s_73ebfaabda0daa::t_5c84cad9cc0311 100-101
+  s_09d21ed5822b1d::t_df046e41d0fd0c 291-292
+  s_c6d6a3ac21fe46::t_56ccf0417b6708 116-120
+  s_73ebfaabda0daa::t_3cd473c0527fcd 178
+  s_09d21ed5822b1d::t_796d34c312e6cb 368-374
+  s_09d21ed5822b1d::t_61e061b4212f1d 87-89,248-250
+  s_09d21ed5822b1d::t_e393b26b754793 357-367
+  s_09d21ed5822b1d::t_1dbd9ccaa82955 211-215
+  s_c6d6a3ac21fe46::t_2b33f72f4e979c 135-137,141-151,159-162
+  s_c6d6a3ac21fe46::t_0de9158431fae7 164-168
+  s_09d21ed5822b1d::t_0f872008fdfe42 216,228-229,239-247,261-265,268-274,277-281,293,310-314,322-334,338-348,351-355
+  s_c6d6a3ac21fe46::t_4e32fb1a568f16 163,179-185
+  s_09d21ed5822b1d::t_e5130588e0658a 294-309
+  s_09d21ed5822b1d::t_dddd1f440aedd9 47-49
+  s_09d21ed5822b1d::t_38c8839c75636e 104-107,154-156,253-255
+  s_73ebfaabda0daa::t_b0e4a4673fab0d 132-134
+  s_09d21ed5822b1d::t_503584d6a38321 259-260
+  s_09d21ed5822b1d::t_a3a583a1334943 320-321
+  s_73ebfaabda0daa::t_8f1a703c85ca85 123-124
+  s_73ebfaabda0daa::t_684a88a94513e5 152-153,411
+  s_c6d6a3ac21fe46::t_e5bff09cd49e24 188-206
+  s_09d21ed5822b1d::t_791b4b116ad0ce 79-81,275-276
+  s_09d21ed5822b1d::t_5e8ba9db9e0660 209
+  s_c6d6a3ac21fe46::t_c740e2e3c55086 51-54
+  s_09d21ed5822b1d::t_d234620636cb17 227
+  s_09d21ed5822b1d::t_80575d20d9a65f 90,251-252
+  s_09d21ed5822b1d::t_5d22521b7adaf4 29-31
+  s_09d21ed5822b1d::t_7671b7d6ec5c44 390-392
+  s_09d21ed5822b1d::t_998bc70a8b3d08 207-208,210
+  s_09d21ed5822b1d::t_ededb45bdd48ff 382
+  s_09d21ed5822b1d::t_184484d3c54d31 282-284
+  s_09d21ed5822b1d::t_290271ab519861 315-316
+  s_09d21ed5822b1d::t_073f31b49f5503 128-131
+  s_09d21ed5822b1d::t_96d9eefbe3f68d 349-350
+  s_c6d6a3ac21fe46::t_9d931e62bab696 77-78
+  s_09d21ed5822b1d::t_ee22937d028512 384-386
+  s_73ebfaabda0daa::t_f1bf1aa017f1a6 97-99
+  s_09d21ed5822b1d::t_e9d8e8dc253523 389,395
+  s_09d21ed5822b1d::t_9c2a5339ba2093 108-111
+  s_09d21ed5822b1d::t_7bb053e342cb0f 230-235,335-337
+  s_73ebfaabda0daa::t_bb8556851c99c6 396-403,406-408
+  s_09d21ed5822b1d::t_bb6f4c028f589d 157-158,256-258
+  s_09d21ed5822b1d::t_8b4a28a4954e69 102-103,217-223,266-267
+  s_09d21ed5822b1d::t_33df5206affdb7 138-140
+  s_09d21ed5822b1d::t_7c90cbf688154b 186-187
+  s_09d21ed5822b1d::t_b2ae85c6fe6a48 290
+  s_09d21ed5822b1d::t_bbc7a43289bf2e 393-394
+  s_c6d6a3ac21fe46::t_98b92a9b029d74 71-76,82-86,93-96
+  s_09d21ed5822b1d::t_e62ba1f1203f33 91-92
+  s_09d21ed5822b1d::t_40e97623aafb24 23-28,32
+  s_73ebfaabda0daa::t_ee333a60a8395f 404-405
+  s_09d21ed5822b1d::t_f49f89d847de04 356,375-381,383,387-388,409-410,412-413
+  s_09d21ed5822b1d::t_8534160b4196d7 285-289,317-318
+  s_09d21ed5822b1d::t_1f1645c23789d3 125-127
+  s_73ebfaabda0daa::t_dc27a8a3a8cdb8 11-12,173-176
+  s_c6d6a3ac21fe46::t_0c0cd4fa02e74b 50
+internal/packages/engine-cf/src/external-session.ts
+  s_8d9fc3fb359c90::t_43c44f16f9667d 155
+  s_3c0ab630d4f557::t_175eddf938a84c 174
+  s_c2cf363362157f::t_5e0bdbe6ea42be 16-17,21
+scripts/ts-strict-ratchet.mjs
+  s_d04786dc7ec1d7::t_f964b8c7c85b18 12-13,39
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_b2bc4296a4424c::t_87f8b54328144d 17
+packages/dom-shim/src/html-encoding.ts
+  s_08745e9d0bed18::t_e1f82118de7cf5 6,61
+internal/packages/agent-bench/src/drivers/index.ts
+  s_fdd0fd6c73650e::t_f204eadb7bbbff 10
+packages/engine/test/e2e/template-content-parse.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/packages/agent-bench/src/judge.ts
+  s_551f8c15675a8d::t_e80e75ab468df0 9-11,27,30
+packages/engine/test/fixtures-worker/assets/iframe-referrer-host.html
+  s_948e69d8580eb0::t_9446fd2683908b 1-6
+internal/scripts/wpt-compare.mjs
+  s_a1b58daec3e888::t_9a759347f50a32 25,38-39,156
+  s_d2f0b3019ee744::t_5c2911fd9498cd 49-55,109,115,124-125,236,376-377,477,482,499,502-503,545,548,552,602,633,636,640,688,707,710,714,764
+  s_a1b58daec3e888::t_aeb1b2ffd11b34 192-195
+  s_a1b58daec3e888::t_f99da5b906a285 383
+packages/core/src/scene_record.rs
+  s_7a14d59b0adfe6::t_859005a7ca5e77 111
+  s_ae7e28df3d5f67::t_8d9d698c06091b 235,237-238,271,292,701,717-718,888
+  s_7a14d59b0adfe6::t_07dc5b83683d0d 545,1751-1752
+  s_c6d6a3ac21fe46::t_ae1069483db5bf 699
+  s_7a14d59b0adfe6::t_b6cd807e277c35 445
+  s_ae7e28df3d5f67::t_148419346f85d9 28-46,49-56,115-118,121-126
+  s_ae7e28df3d5f67::t_ff7494caaf2ac6 455-462
+  s_7a14d59b0adfe6::t_6a41fb378eba57 681,686,985
+  s_ae7e28df3d5f67::t_2a849a03586da8 119-120,240-241,1504
+  s_ae7e28df3d5f67::t_123aa88e153046 1543-1545
+  s_ae7e28df3d5f67::t_bd60f11fba0a2f 114
+  s_c6d6a3ac21fe46::t_7f62b0e487678a 463
+internal/bench/harness/run.mjs
+  s_d2f0b3019ee744::t_28adb1b14bb49a 12-14,372,432,501,637,781
+packages/engine/test/e2e/demos/picture-srcset-demo.e2e.test.ts
+  s_b2bc4296a4424c::t_cd0ee8da2f0c88 9,11,13
+packages/engine/src/eval/resource-store.ts
+  s_78432def045856::t_2dad976ef61a49 135
+docs/IFRAMES.md
+  s_c6d6a3ac21fe46::t_05751e7ee22881 42-46
+  s_c6d6a3ac21fe46::t_98bc6c97d88b10 176-183
+  s_09d21ed5822b1d::t_37435654173895 18-19
+  s_c6d6a3ac21fe46::t_56ccf0417b6708 184-191
+  s_09d21ed5822b1d::t_58ec8e2839af7b 202,212
+  s_09d21ed5822b1d::t_7c681c8a588e15 209-211
+  s_73ebfaabda0daa::t_62c7289fe7d5b9 95-99
+  s_09d21ed5822b1d::t_3afeed2cb03cb5 301-304
+  s_73ebfaabda0daa::t_ef6eceb3d2a528 386-390
+  s_c6d6a3ac21fe46::t_f5ab93ebbabc13 296-300,305
+  s_09d21ed5822b1d::t_830c8c910e63cd 381-383
+  s_09d21ed5822b1d::t_5ae27fc96c0e5c 203-208
+internal/packages/agent-bench/src/benches/real.ts
+  s_551f8c15675a8d::t_063a4e2fb58963 20-22,106,115,132,149
+  s_551f8c15675a8d::t_b3217d93cc8875 19,97
+packages/engine/test/e2e/isolate-kill.e2e.test.ts
+  s_b2bc4296a4424c::t_21e0fd8d8e024d 30
+scripts/build-wasm.mjs
+  s_7a8515feb07e5c::t_cfa4e1e96a81b9 39,103
+  s_7a8515feb07e5c::t_37ecdd694edd0e 152,180
+internal/packages/agent-bench/container/worker.ts
+  s_fdd0fd6c73650e::t_5188638627cf90 24,41
+internal/packages/agent-bench/container/Dockerfile
+  s_fdd0fd6c73650e::t_197103544a894e 39
+packages/page-script/src/svg-sprites.ts
+  s_17fb96c5e58da9::t_d147d82ad47032 108
+  s_17fb96c5e58da9::t_49cc82db3db49f 110-112
+packages/engine/test/e2e/accessibility-live-select-page.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+  s_fdbd277ad00a64::t_8c4bd5f88dda4b 5-11
+packages/core/src/scan.rs
+  s_58e002450ea2a7::t_cf1ab3a43a78a8 288-289
+packages/engine/src/eval/page-renderer.ts
+  s_76cee6e5edaa4a::t_1d5a4976af46ae 44,301,417
+  s_78432def045856::t_2dad976ef61a49 124,188,309
+internal/packages/engine-cf/src/agent/loop.ts
+  s_fdbd277ad00a64::t_1aa5f5bdd5aff0 49,121-122,452,605,610,768,770,815,845
+packages/dom-shim/src/internal-state.ts
+  s_0e9f80ed26fe1c::t_59a2857070becb 5
+docs/FONTS.md
+  s_7a14d59b0adfe6::t_454970118cf3d6 140-144
+  s_c6d6a3ac21fe46::t_72837fd0e2e5d0 41-45
+  s_c32c835b7e1175::t_42ff0feb78f2c5 114
+  s_7a14d59b0adfe6::t_e18e25c620478b 132-136,138
+  s_7a14d59b0adfe6::t_85a00c908de6e9 33-35
+  s_c32c835b7e1175::t_6ce1f6060ee520 116-124,137,145,230-231
+  s_c32c835b7e1175::t_f2f1855bc64898 60,62-66,109-113
+  s_7a14d59b0adfe6::t_49d1971a9db692 216-218
+  s_c6d6a3ac21fe46::t_0a3ef9c25a6583 37-40
+  s_c6d6a3ac21fe46::t_e94c2b81ebac37 36,115,139,219
+packages/engine/src/cookies.ts
+  s_76cee6e5edaa4a::t_683b247814eca4 10,273-275
+  s_09d21ed5822b1d::t_c8f57e650d89ce 460
+  s_76cee6e5edaa4a::t_2857a14da66816 474-476,529-531
+  s_73ebfaabda0daa::t_18de780d26914d 205-208
+packages/core/src/screenshot.rs
+  s_ae7e28df3d5f67::t_9d565e55167eba 560,562,565,573,581,584-587,595,660,664,668-669
+  s_ae7e28df3d5f67::t_72a4e4f0e7d692 12-18
+  s_ae7e28df3d5f67::t_1970a7efd20abd 267-268,270,350,417,452-456,474
+  s_7a14d59b0adfe6::t_2ea363469d2d99 138
+  s_7a14d59b0adfe6::t_adb6cf7a5b9aaa 132,137,139-140
+  s_7a14d59b0adfe6::t_80c9c253bbb145 481,511
+internal/packages/agent-bench/src/act.ts
+  s_c6d6a3ac21fe46::t_059f94bd1b9f9f 22-26,95,134
+  s_551f8c15675a8d::t_636fd028957d48 125
+  s_551f8c15675a8d::t_644bb94dab4029 80
+packages/engine/src/eval/oopif-render.ts
+  s_76cee6e5edaa4a::t_1d5a4976af46ae 102-103,407,417,426
+  s_09d21ed5822b1d::t_8dc5a3f9c49c06 166
+  s_09d21ed5822b1d::t_910dacc495f921 124
+docs/RUST_DOM_CONTRACTS.md
+  s_aebf592dc6e79a::t_954726cbeff554 244-246,251,256-258,334-337,392,432
+  s_aebf592dc6e79a::t_0e87a72f6f4d2d 12
+  s_aebf592dc6e79a::t_0e8ab7f6d624ef 97-102,106
+  s_aebf592dc6e79a::t_817448b6f6dc2f 163-167,177-181,187,199,427-431,448-449
+  s_2c3db2bfaaace3::t_4742cacb11ae5d 381-383
+  s_aebf592dc6e79a::t_3cc57384423be7 413-414,416-419
+  s_2c3db2bfaaace3::t_30b81111330823 506-508
+  s_2c3db2bfaaace3::t_214d97489c318c 481-483,520-525
+  s_aebf592dc6e79a::t_e3e7c8eaf18938 279-281
+  s_2c3db2bfaaace3::t_5ebe44026a617a 324-327
+  s_aebf592dc6e79a::t_55f73f86ef1396 317-318,321-323,331-333
+  s_aebf592dc6e79a::t_5cbd9ff733b9fd 74-77
+  s_aebf592dc6e79a::t_42f654f664c7d6 147-151,206-207,218-219,282-284
+  s_aebf592dc6e79a::t_7986619531af6e 182-183
+  s_aebf592dc6e79a::t_e654593a61ecbf 189-190,194-198
+  s_aebf592dc6e79a::t_080f124eb802f2 308-310
+  s_aebf592dc6e79a::t_3d3a8564f80c92 351-352,357,364,369-371,378
+  s_2c3db2bfaaace3::t_02215562a15e98 474-476
+  s_2c3db2bfaaace3::t_ecc1f0ad626a3e 386
+  s_aebf592dc6e79a::t_d5b6fede9137c0 403-405
+  s_2c3db2bfaaace3::t_a6786147995a51 485-496,498-501
+  s_aebf592dc6e79a::t_d03ad2eb73c5b8 247-250
+  s_2c3db2bfaaace3::t_67adf04f47940b 298-300
+  s_aebf592dc6e79a::t_fdf8df2e0c9f20 184-186,188
+  s_aebf592dc6e79a::t_dcd2165274626b 394
+  s_aebf592dc6e79a::t_a3dae14a807c32 415
+  s_aebf592dc6e79a::t_32bf3d021a9a3e 433-435
+  s_aebf592dc6e79a::t_30bad2b48aab56 301-305
+  s_2c3db2bfaaace3::t_58ba0be819465d 451-457,480,484,497,504-505
+  s_2c3db2bfaaace3::t_47e2ab96a41a20 477-479
+  s_aebf592dc6e79a::t_4042fbd693e0e4 42-45,208-211
+  s_aebf592dc6e79a::t_a3a9d30a99ac12 1-8,10,16-23,29-36,41,58-62,78-86,89-96,107-110,114-124,133,143-146,152,157-162,200-205,212-217,232-243,252-255,259-278,285,294-297,306-307,314-316,420
+  s_2c3db2bfaaace3::t_c70223312af297 125-129
+  s_aebf592dc6e79a::t_506d03c3e68d07 338-340
+  s_2c3db2bfaaace3::t_832dcc7912c753 440-442
+  s_2c3db2bfaaace3::t_faa5bebef0aa79 511-518,526-528
+  s_2c3db2bfaaace3::t_c7cd66e48e49e5 358-359
+  s_aebf592dc6e79a::t_4853eecd08fd9c 228-231
+  s_2c3db2bfaaace3::t_5543e6334e9f22 347-349,353-354,372-374
+  s_aebf592dc6e79a::t_d713a43ed862c9 168-176
+  s_aebf592dc6e79a::t_0a5b0e34a04db9 63-64
+  s_aebf592dc6e79a::t_15820852f23cb8 393
+  s_aebf592dc6e79a::t_f9e5e58cc3b97b 422-426
+  s_14b9d80a80a0b1::t_0283a7322da923 379-380,400-402
+  s_aebf592dc6e79a::t_e86d7f717c86e8 134-142
+  s_2c3db2bfaaace3::t_cdd3655aba34fd 319-320
+  s_aebf592dc6e79a::t_997afc5672151f 24-28,50-54,57,65-70
+  s_2c3db2bfaaace3::t_f260938e9eb240 111-113
+  s_2c3db2bfaaace3::t_fcd0adfe197ed0 387-389
+  s_2c3db2bfaaace3::t_60366e5c7f6486 502-503
+  s_aebf592dc6e79a::t_69ba8653bd8486 311-313
+  s_2c3db2bfaaace3::t_d92941df4dafb3 9,87-88
+  s_aebf592dc6e79a::t_69ce4420657839 226-227
+  s_aebf592dc6e79a::t_6aeaba95832cdc 286-293
+  s_2c3db2bfaaace3::t_c53e9bb3692e4c 343-346
+  s_aebf592dc6e79a::t_8175789bd96c41 350,355-356,360,365-368,375-377
+  s_2c3db2bfaaace3::t_9d0d3ee9032e84 458-459
+  s_aebf592dc6e79a::t_a87e247ee8db8f 361-363
+  s_aebf592dc6e79a::t_f8260065f16211 406
+  s_2c3db2bfaaace3::t_5a3a150bb03087 37-40,222-225
+  s_aebf592dc6e79a::t_09f19fec58de55 220-221
+  s_2c3db2bfaaace3::t_d16527c2229d7f 466-473
+  s_aebf592dc6e79a::t_e4b8dae075589e 191-193
+  s_2c3db2bfaaace3::t_6bd7453f90ce23 460-463
+  s_aebf592dc6e79a::t_f775870f801aeb 46-49
+  s_2c3db2bfaaace3::t_361631a791a17a 464-465
+  s_2c3db2bfaaace3::t_a1ff775f7f17ec 13-15,450
+  s_2c3db2bfaaace3::t_21238983e7264e 55-56,103-105,436-439
+  s_aebf592dc6e79a::t_860163ba8b221d 11,328-330
+  s_2c3db2bfaaace3::t_ea371cf1e946af 384-385
+  s_2c3db2bfaaace3::t_f56446f6a13352 390-391
+  s_2c3db2bfaaace3::t_4e379ce9a28e15 407-409
+  s_2c3db2bfaaace3::t_9651d164bdf58d 395-399,410-412
+  s_2c3db2bfaaace3::t_7fd2b11f5df2e0 341-342
+  s_2c3db2bfaaace3::t_19342034626f1d 509-510,519
+  s_aebf592dc6e79a::t_03d9860c6359c9 130-132,153-156,421,443-447
+  s_aebf592dc6e79a::t_7599d8f09e6d9d 71-73
+packages/page-script/src/resource-fetch.ts
+  s_17fb96c5e58da9::t_f84b1ee9698974 72-75,338-340,342-343,411-412
+  s_17fb96c5e58da9::t_89fbc3adb42e2b 37-38,63,83-85,87,120-124,126,331-335
+  s_45ac3d10b64cd0::t_7a393512603b3a 593
+  s_17fb96c5e58da9::t_d147d82ad47032 54-57
+  s_17fb96c5e58da9::t_610f4d0466bbfc 58-59,78,86
+  s_45ac3d10b64cd0::t_92792ee649b4a6 787
+  s_02e920edba8d88::t_5b6652f4a600ae 305
+  s_17fb96c5e58da9::t_ec98aca1f93bc4 400-404,406-408,410
+packages/dom-shim/src/traversal.ts
+  s_0e9f80ed26fe1c::t_758e0c3e806955 249
+  s_dd0f730efc12c5::t_8918aac513e8d3 8,306
+internal/docs/RELEASING.md
+  s_a1b58daec3e888::t_17f4a066c1906d 95-109,114
+  s_a1b58daec3e888::t_f17b3984b5a09f 110-113
+  s_a1b58daec3e888::t_1a8d3b6fb91094 57-60
+packages/engine/test/e2e/iframe-referrer.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/engine/test/e2e/style-declaration-object-members.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+docs/PAGE_RENDERER.md
+  s_7a14d59b0adfe6::t_29e98819913224 93-138,141-149,154-188,192-196,200-246,248-258,260-265,269,272-277,281-283,287-289
+  s_7a14d59b0adfe6::t_4ccbc59eddf5aa 150-153
+  s_7a14d59b0adfe6::t_068e4ddf8bf9b9 278-280
+  s_7a14d59b0adfe6::t_881aa6413cbe0d 349-350
+  s_7a14d59b0adfe6::t_49491254f60b23 25-28,65-69,87-88
+  s_7a14d59b0adfe6::t_cad199cabe0d8f 139-140,259,270-271
+  s_7a14d59b0adfe6::t_8fce15de3b2e0c 61-62
+  s_7a14d59b0adfe6::t_4544bc80a2b4c5 266-268
+  s_c6d6a3ac21fe46::t_83a211d3344c18 367-369
+  s_7a14d59b0adfe6::t_e20534937a3f5f 322-329
+  s_7a14d59b0adfe6::t_41833da78fda45 89
+  s_c6d6a3ac21fe46::t_839cf44194b08a 316-321
+  s_7a14d59b0adfe6::t_cbbc2cead1f90d 197-199
+  s_7a14d59b0adfe6::t_787be9d8709a6f 18-20
+  s_7a14d59b0adfe6::t_46727ef9fce66a 189-191,284-286
+  s_7a14d59b0adfe6::t_b677e29ea0ead4 70-73
+  s_c6d6a3ac21fe46::t_1199ffe8734750 347-348
+  s_c6d6a3ac21fe46::t_2409959c450e09 84-85
+  s_7a14d59b0adfe6::t_3c170608bc5780 90-91
+  s_7a14d59b0adfe6::t_ca4d1c36200a4d 392-393
+  s_7a14d59b0adfe6::t_2c4bf29260e4dc 330-331
+  s_c6d6a3ac21fe46::t_6fda39bacc7ef2 60,63-64,86
+  s_7a14d59b0adfe6::t_9417087cac56ab 294
+  s_7a14d59b0adfe6::t_b0b190ff115d34 307-309
+  s_7a14d59b0adfe6::t_ffd5c86106b009 247,290-293,295-296
+  s_7a14d59b0adfe6::t_cd177d3feaf34b 45-46
+  s_c6d6a3ac21fe46::t_a5cfb4f1915fee 75-81
+  s_7a14d59b0adfe6::t_d35523d5b30957 311-315
+  s_c6d6a3ac21fe46::t_215938d2ad7879 82-83,92,297-306,310
+  s_c6d6a3ac21fe46::t_c52eaf8d554a1c 74
+packages/core/src/boa_eval.rs
+  s_2c3db2bfaaace3::t_8bea62dd2a15c8 366,849,888,1055
+packages/engine/src/eval/outbound.ts
+  s_09d21ed5822b1d::t_940469b1e46654 988,1006,1047
+  s_d7edd1248351b3::t_7b35243652d1ba 1130,1217
+  s_76cee6e5edaa4a::t_aae71b4b9449c3 57,134-135,169,953
+  s_78432def045856::t_627f632d145444 917
+  s_76cee6e5edaa4a::t_683b247814eca4 955-957
+  s_8eb11a0a07c69e::t_dbe2df37c4eded 86
+  s_09d21ed5822b1d::t_2267bbb77bd883 1602
+  s_78432def045856::t_3d6984f94de01f 832
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 667-668,1094-1096
+  s_73ebfaabda0daa::t_0d74d9a5d1e6a2 1185
+  s_76cee6e5edaa4a::t_1d5a4976af46ae 188,195-198
+  s_09d21ed5822b1d::t_947adf70ad05ee 454
+  s_78432def045856::t_bda66d2c116fa8 436,444
+  s_09d21ed5822b1d::t_f080eda41b8b65 370
+  s_09d21ed5822b1d::t_0f5da681998100 812
+  s_78432def045856::t_8f2f24534aed9a 528
+  s_78432def045856::t_fd6252cc7102f2 1205
+  s_78432def045856::t_0770efee887a2b 1554
+packages/page-script/src/native-scheduling.ts
+  s_02e920edba8d88::t_63cf6ee6b99e37 5
+packages/engine/src/eval/learned-scripts.ts
+  s_d133c27dfe9926::t_e849f4bc430df8 12-14
+packages/dom-shim/src/layout/scroll.ts
+  s_08745e9d0bed18::t_c7bdc4d69bed8a 19,170-171,186-187
+  s_08745e9d0bed18::t_e1f82118de7cf5 17,142
+  s_c6d6a3ac21fe46::t_ad1591f8d82b35 230
+  s_c6d6a3ac21fe46::t_645d0a7f28e6fb 18
+internal/packages/agent-mcp/src/cdp.mjs
+  s_fdd0fd6c73650e::t_ed6baa4e8d2076 6,31,101
+packages/page-script/src/trusted-fetch.ts
+  s_eb5892a24d7c0d::t_fe13ee6097e1fe 37
+packages/core/src/tty_ansi.rs
+  s_7a14d59b0adfe6::t_07dc5b83683d0d 42
+pnpm-workspace.yaml
+  s_1c48520c8c8aee::t_f347303b53259a 6
+  s_1c48520c8c8aee::t_07ef0e97884b8f 7
+  s_c6d6a3ac21fe46::t_03cbc066348912 5
+internal/packages/agent-bench/src/obs.ts
+  s_c6d6a3ac21fe46::t_059f94bd1b9f9f 43-44
+  s_551f8c15675a8d::t_50d530405fdf69 45
+packages/script-gate/src/sri.ts
+  s_17fb96c5e58da9::t_d147d82ad47032 59-60
+  s_02e920edba8d88::t_5d1b67fab6be00 54,95
+  s_17fb96c5e58da9::t_335c8d3c053b67 62-66
+packages/dom-shim/src/form-data.ts
+  s_c6d6a3ac21fe46::t_1067632b44250c 84
+internal/tests/interactivity-flows/flows.ts
+  s_8d9fc3fb359c90::t_fd18bdb8fa8e58 1076
+  s_8d9fc3fb359c90::t_42714cc0d251e2 125,137
+packages/core/src/lib.rs
+  s_58e002450ea2a7::t_cf1ab3a43a78a8 91
+  s_2c3db2bfaaace3::t_85eb539a9ce75c 986
+  s_ae7e28df3d5f67::t_57a97b25a0131f 5262
+  s_2c3db2bfaaace3::t_404c06bf35f82d 7398
+  s_2c3db2bfaaace3::t_8d1bb00e241a86 7356
+  s_2c3db2bfaaace3::t_36557413956f75 1009-1010
+  s_2c3db2bfaaace3::t_760aed27150a3f 4968
+  s_2c3db2bfaaace3::t_c9e13362ff1c31 5574,5609
+packages/page-script/src/intersection-observer.ts
+  s_17fb96c5e58da9::t_8c2af5b60dcfc0 158-163
+  s_17fb96c5e58da9::t_f84b1ee9698974 147-149
+  s_17fb96c5e58da9::t_d147d82ad47032 133-139
+packages/jsrpc-types/src/query-dom.ts
+  s_fdbd277ad00a64::t_73177d79413738 113-124,128-129,164-165,168-169,172,176,180-182,398
+  s_45ac3d10b64cd0::t_82e90d72b413cd 125,266,289,299
+  s_fdbd277ad00a64::t_493fc637dd123d 397
+  s_45ac3d10b64cd0::t_f38b282ecc4bd2 277
+  s_45ac3d10b64cd0::t_1bdd658f28cc7a 7,291,319,325
+internal/packages/jev-playground/wrangler.jsonc
+  s_fdd0fd6c73650e::t_5188638627cf90 24
+packages/dom-shim/src/state.ts
+  s_8b8a00484e0f56::t_ebf78726406462 35-68,105-107,148-150,324
+packages/engine/test/e2e/inserted-script-bake.e2e.test.ts
+  s_b2bc4296a4424c::t_21e0fd8d8e024d 47,56,79
+packages/dom-shim/src/document.ts
+  s_08745e9d0bed18::t_afff9a7ff3e69b 1354,1520,1527,1548-1549,1557,1571-1572,1580,1588,1592,1597-1598,1614,1630,1638,1653,1684,1691,1716,1752,1787,1817,1831,1840,1843,1893,1914,1917,1949,2507
+  s_762f3d9164029f::t_55860b623bc434 1727
+  s_08745e9d0bed18::t_605cc23fecc487 1143-1144
+  s_08745e9d0bed18::t_e7f09505d68005 911,918
+  s_e79efc0043ae41::t_a184cfd7d94539 395-396
+  s_08745e9d0bed18::t_b6b8c61b98efe9 2001,2025-2027
+  s_0e9f80ed26fe1c::t_f1079a7546b423 862-866
+  s_08745e9d0bed18::t_7e802a87364667 153,314,349,399,432,460,469,525,528,538
+  s_762f3d9164029f::t_0dd20333df64b3 217-218
+  s_762f3d9164029f::t_f6e8cd84eb715f 492,497,531
+  s_762f3d9164029f::t_92191cad7843c2 1299
+  s_08745e9d0bed18::t_39691650c92800 1494-1495
+  s_3f00c479818dcf::t_89a8a13141d248 145,189,919,1038,1385
+  s_08745e9d0bed18::t_b32e71365d7ae8 45-46,137-138
+  s_08745e9d0bed18::t_8ed07d0f0e3e7e 835,2376,2382
+  s_08745e9d0bed18::t_0d4163e426ba96 35,43-44,47,63-64
+  s_08745e9d0bed18::t_c7bdc4d69bed8a 136,139
+  s_dd0f730efc12c5::t_cbfb19c4bbdd82 1454
+packages/engine/test/e2e/corp-classic-script.e2e.test.ts
+  s_b2bc4296a4424c::t_52a2bb2046e6aa 5,32
+internal/packages/engine-cf/vitest.e2e.config.mts
+  s_fdbd277ad00a64::t_bc652f796d260a 25
+  s_fdbd277ad00a64::t_2103ec0118a270 27-32,34-37
+internal/packages/engine-cf/test/e2e/agent-command-extension.e2e.test.ts
+  s_fdbd277ad00a64::t_a6a5dfa514da01 1-26
+packages/dom-shim/src/element/load-events.ts
+  s_0e9f80ed26fe1c::t_46a194b3f4b191 21
+packages/core/src/canvas2d.rs
+  s_7a14d59b0adfe6::t_6a41fb378eba57 682-685
+packages/page-script/src/index.ts
+  s_17fb96c5e58da9::t_92a17ec82fe1aa 3228
+  s_17fb96c5e58da9::t_1947996bf3cb2f 258-264
+  s_45ac3d10b64cd0::t_8217369d666330 4101,4103-4107,4904,4906-4910,4967,4969-4973
+  s_17fb96c5e58da9::t_788c4362b8dfe0 1842-1843,1847,1851
+  s_02e920edba8d88::t_ba864dff4e0481 4421
+  s_96ee4df000b017::t_3b79767453d962 30-31,2728,2747-2749,2783
+  s_17fb96c5e58da9::t_66ab258e6ca1b3 2244-2245
+  s_fdbd277ad00a64::t_7338c3e5deb2de 4095,4100,4102,4903,4905,4966,4968,5507,5518,5520-5521,5526,5537,5539,5541,5548
+  s_17fb96c5e58da9::t_92f17597a17165 5266
+  s_02e920edba8d88::t_6cf81268089a4f 2695
+  s_17fb96c5e58da9::t_50af700df5e803 3389-3394
+  s_17fb96c5e58da9::t_834c7c8ff9083a 1721,1728,2290,2294-2296,2338,2344
+  s_eb5892a24d7c0d::t_801dc1a47d4dac 2659,2910
+  s_17fb96c5e58da9::t_818cd0f0b889ff 225,238
+  s_02e920edba8d88::t_d338eb18085998 2755
+  s_17fb96c5e58da9::t_5078b5181302a8 1287-1301
+  s_17fb96c5e58da9::t_41cd16857617b6 5232,5270,5292
+  s_eb5892a24d7c0d::t_4c7b5996305b34 3214,3601
+  s_17fb96c5e58da9::t_fb7c7a04a91510 1475
+  s_02e920edba8d88::t_29f7afda8b1a99 2795
+  s_17fb96c5e58da9::t_66ef21dfe767f1 3962-3971,5557-5558,5561-5564
+  s_17fb96c5e58da9::t_39d8ceb616f85a 212,384
+  s_17fb96c5e58da9::t_718e8b73824672 1478-1481,4499-4501
+  s_02e920edba8d88::t_f2cd559166537d 1591
+  s_17fb96c5e58da9::t_0e2d627d931ce5 3397-3400,3406-3416
+  s_45ac3d10b64cd0::t_82e90d72b413cd 2982,2989,4362,4919
+  s_17fb96c5e58da9::t_056752a8c3b2fa 4497
+  s_17fb96c5e58da9::t_8c6dc498631556 2247,2257-2260
+  s_96ee4df000b017::t_f3b189e57c38ca 198,2044,2055,2066,2867,2871,4287-4288,4329,4485,4491,4742,4744,4748,4848,4851,5414
+  s_45ac3d10b64cd0::t_ea20443bdbc595 4098-4099,4108-4109,4898-4899,4911,4962-4965,4974-4975
+  s_17fb96c5e58da9::t_3e59053a93125c 1483-1487,4498
+  s_eb5892a24d7c0d::t_a51e6d21793cf6 4667
+  s_fdbd277ad00a64::t_67f714dc3c0681 5522
+  s_17fb96c5e58da9::t_4f9b3de3dd8914 1007-1009
+  s_17fb96c5e58da9::t_da2dd7038050a5 2514,2570,2625-2626,3232,4816-4817,4822,4827,4996,4999,5089,5093
+  s_17fb96c5e58da9::t_fea9e8bab077cd 386,389-391
+  s_17fb96c5e58da9::t_dd7d3d7099e581 1004-1005
+internal/packages/engine-cf/src/agent/run.ts
+  s_fdbd277ad00a64::t_1aa5f5bdd5aff0 3,9,158,160-166,168,171-172,178-179,183
+  s_fdbd277ad00a64::t_fc630e015c4583 167
+internal/packages/engine-cf/test/unit/session-policy.test.ts
+  s_c2cf363362157f::t_bc37e8d263c92f 33
+  s_c2cf363362157f::t_99c096d88241b7 6-8
+  s_c2cf363362157f::t_ea9caf6dd44de2 1-5,9-32,34-36
+internal/scripts/gold-screenshot-check.mjs
+  s_d2f0b3019ee744::t_a06afc72441d79 21-22,83,131,134
+packages/page-script/src/native-http.ts
+  s_45ac3d10b64cd0::t_7a393512603b3a 56
+  s_45ac3d10b64cd0::t_92792ee649b4a6 7,61
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_b2bc4296a4424c::t_9252b1484c1da8 19,39
+packages/core/src/inner_text.rs
+  s_58e002450ea2a7::t_cf1ab3a43a78a8 205
+scripts/wpt-setup.mjs
+  s_7a8515feb07e5c::t_0abc6505682bc7 69
+internal/scripts/flows-engine-id.mjs
+  s_d2f0b3019ee744::t_a06afc72441d79 9,37-42
+packages/engine/test/e2e/location-assign-navigates.e2e.test.ts
+  s_b2bc4296a4424c::t_6e4748110498e2 17
+packages/worker-script/src/__ks_worker_script.ts
+  s_c6d6a3ac21fe46::t_835c8a9374a859 5
+internal/packages/engine-cf/src/agent/cdp.ts
+  s_fdbd277ad00a64::t_0c0e927ac846ca 3-14,17,40-71
+  s_fdbd277ad00a64::t_8a62f426c30dfb 204-208,211-212,216-217,262,286-290
+packages/engine/src/cdp/page-script-generation.ts
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 88
+  s_73ebfaabda0daa::t_554b2425b20582 15
+  s_73ebfaabda0daa::t_e6429a48e4e4a5 119
+packages/engine/test/e2e/intrinsic-sizing.e2e.test.ts
+  s_b2bc4296a4424c::t_21e0fd8d8e024d 8
+packages/dom-shim/src/constants.ts
+  s_08745e9d0bed18::t_b32e71365d7ae8 29-31
+  s_08745e9d0bed18::t_e1f82118de7cf5 18,24-28,32-35
+  s_08745e9d0bed18::t_00309a4b9008c1 19-23
+internal/packages/agent-bench/src/benches/webarena-family.ts
+  s_c6d6a3ac21fe46::t_059f94bd1b9f9f 202
+docs/TRACING.md
+  s_c32c835b7e1175::t_2c32d8ad6b6b8b 20,28,124-126
+  s_09d21ed5822b1d::t_207e8e5d8cc7ca 30-33
+  s_c32c835b7e1175::t_c80024fada80c3 44,53,57-60,70
+  s_73ebfaabda0daa::t_4b0e27355900a3 113-116
+  s_c6d6a3ac21fe46::t_020107c5925615 118-121
+  s_c32c835b7e1175::t_d2502aa1c3e223 22,24
+  s_c32c835b7e1175::t_b0ae3c72cb22d2 26
+  s_c6d6a3ac21fe46::t_f96e19a83963d6 29,122
+scripts/wpt-testdriver.mjs
+  s_7a8515feb07e5c::t_98e7ee5275bb20 527
+packages/engine/src/cdp/accessibility.ts
+  s_fdbd277ad00a64::t_533a02a860e692 10,222,224-229,232-233,238,241-245,249-253,261,263-265,267-269,271-273,330-337
+  s_8eb11a0a07c69e::t_4db247eb892cfd 455
+packages/page-script/scripts/build.mjs
+  s_17fb96c5e58da9::t_2f18797ee04e6d 21,245-246
+  s_45ac3d10b64cd0::t_92792ee649b4a6 169,201
+  s_45ac3d10b64cd0::t_8217369d666330 146
+packages/page-script/src/transitions.ts
+  s_17fb96c5e58da9::t_49cc82db3db49f 26,167
+internal/packages/jev-playground/package.json
+  s_586b6ba09227eb::t_2283e5c7677a77 16
+packages/dom-shim/src/index.ts
+  s_3f00c479818dcf::t_35a9077dbc4bcd 679
+  s_08745e9d0bed18::t_d3dd8ec2505525 20,334,337
+  s_0e9f80ed26fe1c::t_24dc5c514ce666 370,389,413
+internal/packages/engine-cf/wrangler.jsonc
+  s_fdbd277ad00a64::t_c73f59aae4a2e3 78,104
+packages/engine/src/cdp/input.ts
+  s_8eb11a0a07c69e::t_e5fbb2809038fe 96
+  s_73ebfaabda0daa::t_ca42432b0228e4 24
+docs/PAGE_SCRIPT_PROTOCOL.md
+  s_c6d6a3ac21fe46::t_4cb2987c6d7931 139-140
+  s_eb5892a24d7c0d::t_2eb085933f62a1 253-266,269-286
+  s_c6d6a3ac21fe46::t_21a3bcbda12684 151-157
+  s_524eadaaaeaf6f::t_8092eef8c59065 245-246
+  s_524eadaaaeaf6f::t_6f54fc3197402f 127,335-338
+  s_eb5892a24d7c0d::t_801dc1a47d4dac 306-312
+  s_c6d6a3ac21fe46::t_5d15dc3f9602b8 110-113
+  s_eb5892a24d7c0d::t_7dd1fbe3edd0a0 222-226,230-236
+  s_eb5892a24d7c0d::t_cfe28ab65132b7 296,303-305,313-320
+  s_524eadaaaeaf6f::t_6058448183c8fe 178-180
+  s_eb5892a24d7c0d::t_869dbc9126ce6f 209-217,221
+  s_524eadaaaeaf6f::t_5e1359c1439101 218-220,227,297-300,322-324,333-334
+  s_eb5892a24d7c0d::t_fe13ee6097e1fe 121-124
+  s_eb5892a24d7c0d::t_32417e7358411e 195-197,203-207
+  s_524eadaaaeaf6f::t_7b4a1f7638227f 228-229
+  s_524eadaaaeaf6f::t_96187e508cc251 125-126
+  s_524eadaaaeaf6f::t_0d409e82f64203 176-177
+  s_524eadaaaeaf6f::t_51cb5e83f9009b 267-268
+  s_eb5892a24d7c0d::t_e15921120706d9 321,325-332
+  s_eb5892a24d7c0d::t_c6fb1421fcb69b 158-175,181-194
+  s_c6d6a3ac21fe46::t_72837fd0e2e5d0 103-109,114-120,128,134-138,141-144
+  s_eb5892a24d7c0d::t_601958381971d0 208,287-295
+  s_c6d6a3ac21fe46::t_30b70731e8db99 129-133
+  s_eb5892a24d7c0d::t_625fe2ce7d41e0 201-202
+  s_c6d6a3ac21fe46::t_ae5da534768a3d 95-99
+  s_eb5892a24d7c0d::t_19e851dec6eddf 198-200
+  s_c6d6a3ac21fe46::t_bb59074b200983 145-150
+  s_524eadaaaeaf6f::t_33fc5f791525cb 301-302
+  s_eb5892a24d7c0d::t_973819ce22332f 237-244,247-252
+internal/tests/interactivity-flows/lib/cdp-recorder.ts
+  s_8d9fc3fb359c90::t_6f37d859a9c8cb 191
+package.json
+  s_ff4f48493e8289::t_f30ca364a1fb9e 33
+internal/packages/shadow-replay/src/comparison/content.ts
+  s_d2f0b3019ee744::t_09138f55a87237 17,60-63
+packages/kitesurf-cli/src/wasm.rs
+  s_58e002450ea2a7::t_cf1ab3a43a78a8 47
+  s_ae7e28df3d5f67::t_72f54f90b6187d 33-34,49
+packages/core/src/style.rs
+  s_2c3db2bfaaace3::t_4026b2c84eaaee 515-517,663,1311-1312
+  s_ae7e28df3d5f67::t_2053e503c27ff3 540,557
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 900
+  s_ae7e28df3d5f67::t_3c71e9fa1bd618 493-494
+packages/engine/src/eval/page-script-tail.ts
+  s_76cee6e5edaa4a::t_94d4a31a65763c 26-27,44,83-87
+scripts/wpt-inventory.mjs
+  s_7a8515feb07e5c::t_0abc6505682bc7 36
+packages/script-gate/src/classic-scan.ts
+  s_524eadaaaeaf6f::t_3324c65e6ce648 131
+  s_c6d6a3ac21fe46::t_aeeb75c117f949 9,23,146
+  s_02e920edba8d88::t_af0857037e5b86 12
+  s_17fb96c5e58da9::t_0d8b3cc0e094ad 29-36,410
+  s_17fb96c5e58da9::t_335c8d3c053b67 45-52,155-162,414-416
+  s_c6d6a3ac21fe46::t_41e5eb3bf488ce 371
+packages/engine/src/cdp/page-session.ts
+  s_78432def045856::t_b71f8b5ccee45f 152
+  s_8eb11a0a07c69e::t_e5fbb2809038fe 162
+packages/page-script/src/shims.ts
+  s_45ac3d10b64cd0::t_92792ee649b4a6 5,8,12
+packages/core/src/net.rs
+  s_ae7e28df3d5f67::t_8c5b8a8d35e695 11-12,220-221
+  s_2c3db2bfaaace3::t_ec423d005d0f22 267
+internal/scripts/capture-fixture.mjs
+  s_8d9fc3fb359c90::t_8bb76089263133 30
+internal/packages/engine-cf/src/agent/protocol-extensions.ts
+  s_fdbd277ad00a64::t_c1a5aa13f785f3 1-45
+packages/worker-script/scripts/build.mjs
+  s_17fb96c5e58da9::t_2f18797ee04e6d 18,57
+packages/engine/test/e2e/cors-bypass-matrix.e2e.test.ts
+  s_b2bc4296a4424c::t_072b893267bbbf 7-8
+internal/packages/engine-cf/test/fixtures-worker/modules.ts
+  s_fdbd277ad00a64::t_be0a17407957bf 1-4
+packages/core/src/ks_tracing.rs
+  s_aebf592dc6e79a::t_a0f0bfb1a02d2b 41
+packages/core/src/hit_test_fixed_scroll_test.rs
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/engine/test/fixtures-worker/assets/iframe-referrer-nested-host.html
+  s_948e69d8580eb0::t_9446fd2683908b 1-6
+docs/WEBMCP.md
+  s_3f00c479818dcf::t_11cc33fc600ea2 48-49
+  s_3f00c479818dcf::t_f1b9fa8fb9c589 201
+  s_3f00c479818dcf::t_5e9661b7fabd09 45-47,194-200,228-231
+  s_3f00c479818dcf::t_20bba6b51010cf 26-34,44,50-51,80-85,136-139
+  s_c6d6a3ac21fe46::t_37885eacdc063d 95-100,232-235
+  s_c6d6a3ac21fe46::t_6baaacb9b0f1ca 101-109
+internal/packages/jev-playground/README.md
+  s_fdd0fd6c73650e::t_5188638627cf90 25,27,30,51
+internal/package.json
+  s_fdd0fd6c73650e::t_5188638627cf90 30
+packages/script-gate/src/csp.ts
+  s_c6d6a3ac21fe46::t_ad5efc1a9e0317 87,248
+  s_02e920edba8d88::t_e77980a8a1cd83 210
+packages/engine/test/e2e/options-collection-interface.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+docs/SCRIPT_LOADING.md
+  s_c6d6a3ac21fe46::t_56ccf0417b6708 39-40,43
+  s_524eadaaaeaf6f::t_0d409e82f64203 89-90
+  s_c6d6a3ac21fe46::t_72837fd0e2e5d0 251-256
+  s_c6d6a3ac21fe46::t_9fd51e866ccc92 93-94
+  s_c6d6a3ac21fe46::t_fd2b37e05f39a9 257-260
+  s_c6d6a3ac21fe46::t_c4dcb9b185f7ff 269-273
+  s_eb5892a24d7c0d::t_c6fb1421fcb69b 280-293
+  s_eb5892a24d7c0d::t_78cc34104d4b85 294-299
+  s_c6d6a3ac21fe46::t_26e5e5d1ee4a99 265,275-279
+  s_c6d6a3ac21fe46::t_a125cf4a1d9eaa 26-31,35-38
+  s_c6d6a3ac21fe46::t_87ad7cd4d0a18a 266-268,274
+  s_c6d6a3ac21fe46::t_98bc6c97d88b10 92,95-99
+  s_524eadaaaeaf6f::t_faa5a1b1a15b10 32-34,100-104
+  s_eb5892a24d7c0d::t_7ad197135af1e2 41-42
+  s_c6d6a3ac21fe46::t_9957038052a0e4 261-264
+  s_c6d6a3ac21fe46::t_3a76db1cb6bf86 91
+packages/dom-shim/src/layout/cheap.ts
+  s_08745e9d0bed18::t_b32e71365d7ae8 7-13,47-50,53-56
+internal/docs/TRACING.md
+  s_c32c835b7e1175::t_b564cb2694742f 3-5,51-59
+  s_a1b58daec3e888::t_60127ae1ba696b 98-101
+  s_c6d6a3ac21fe46::t_bc43e3de2184ef 48-50,60
+internal/packages/bench-report/scripts/build.mjs
+  s_a1b58daec3e888::t_4a1af93613a82a 40
+packages/engine/src/tty/focus.css
+  s_8eb11a0a07c69e::t_e5fbb2809038fe 7
+docs/SVG.md
+  s_0e9f80ed26fe1c::t_61b1595d7b671a 66-67
+  s_c6d6a3ac21fe46::t_d788eec8050f9e 54-60
+  s_c6d6a3ac21fe46::t_7c294905aff026 61-63
+  s_0e9f80ed26fe1c::t_c6a57f29157d1c 64-65
+  s_c6d6a3ac21fe46::t_37885eacdc063d 44-53
+packages/engine/src/eval/walk-module-graph.ts
+  s_09d21ed5822b1d::t_4c5931facf5943 646
+  s_09d21ed5822b1d::t_f2d7c81701eef4 700
+  s_09d21ed5822b1d::t_e37c2e782e7ac6 563
+  s_09d21ed5822b1d::t_26cf922b404c42 1286
+  s_76cee6e5edaa4a::t_aae71b4b9449c3 538-540,989-991,1510
+internal/packages/engine-cf/src/quickactions/envelope.ts
+  s_fe482cbcf3b988::t_58d54716a3c15d 129
+  s_a1b58daec3e888::t_df652f03f777bd 172
+AGENTS.md
+  s_14b9d80a80a0b1::t_2591540e051119 94-95
+  s_14b9d80a80a0b1::t_c9ce5b61089ead 92-93
+internal/packages/agent-bench/src/overlay.test.ts
+  s_fdd0fd6c73650e::t_57516b538eb416 28
+  s_fdd0fd6c73650e::t_5188638627cf90 26-27
+  s_fdd0fd6c73650e::t_dea20414cd09f8 29,40
+packages/engine/test/e2e/cdp-envelope.e2e.test.ts
+  s_fdbd277ad00a64::t_bc652f796d260a 6,9,33
+packages/dom-shim/src/range.ts
+  s_08745e9d0bed18::t_3eb835e53b2c03 21-32,35-36
+  s_c6d6a3ac21fe46::t_6decdda8daf6e0 251,412
+  s_08745e9d0bed18::t_f072715c4c3f20 879,917,929,945,984,991,1019-1020,1042-1043,1054,1427,1486,1533,1666,1672
+  s_0e9f80ed26fe1c::t_758e0c3e806955 1164
+  s_3f00c479818dcf::t_46f2542befa6da 670,674,678,682
+  s_08745e9d0bed18::t_71db118eb33f29 69-72,77,162,214,260-261,316
+  s_dd0f730efc12c5::t_bbcd82edaa2dda 38,481,972,1350,1701
+  s_08745e9d0bed18::t_3afc51a94a4744 596-598,632,742-743,748-749,845,882,905,920,932
+  s_08745e9d0bed18::t_8a42984ad480d6 1016
+  s_3f00c479818dcf::t_13988077ed94c1 1349
+  s_c6d6a3ac21fe46::t_ace4ca395687b0 621,807,812
+packages/engine/src/guards.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/engine/test/e2e/data-transfer-items-add.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/scripts/flows-archives.mjs
+  s_a1b58daec3e888::t_c6f98e4b6b037f 122
+packages/engine/test/e2e/canvas-natural-size.e2e.test.ts
+  s_b2bc4296a4424c::t_55de4daba0940f 34
+packages/engine/src/cdp/viewport.ts
+  s_76cee6e5edaa4a::t_3adfc8f4ec655e 5-6
+packages/page-script/src/paint.ts
+  s_02e920edba8d88::t_96451654ff7121 45
+docs/TESTING.md
+  s_b2bc4296a4424c::t_1be904a489c744 279-281
+  s_b2bc4296a4424c::t_5d0b06c24a2445 93-98
+  s_c6d6a3ac21fe46::t_532ee1c8eca4f3 271-274
+  s_b2bc4296a4424c::t_47512f37fb36e7 277-278
+  s_c6d6a3ac21fe46::t_be210ccee2ac6b 269-270,275-276,282-287
+  s_b2bc4296a4424c::t_04dad124cc27e4 3-6
+docs/DOM_CONTRACTS.md
+  s_0e9f80ed26fe1c::t_3dd5d1131d28be 81-82
+  s_0e9f80ed26fe1c::t_223b49c2c3be49 211
+  s_0e9f80ed26fe1c::t_e7d280146f0310 277-283
+  s_0e9f80ed26fe1c::t_8b61cead8c70d3 101-103
+  s_0e9f80ed26fe1c::t_11f295cf1959dc 99-100
+  s_0e9f80ed26fe1c::t_a629f566dd9840 144-149
+  s_0e9f80ed26fe1c::t_f95dbc4c553c7b 222-224
+  s_0e9f80ed26fe1c::t_69030e905cd8dc 89-91
+  s_0e9f80ed26fe1c::t_8df5da14bc20c5 201-202
+  s_0e9f80ed26fe1c::t_75d3b731de81a0 28-29
+  s_0e9f80ed26fe1c::t_a8d44454e6bbc5 55-58
+  s_0e9f80ed26fe1c::t_0649ffea507580 121-122
+  s_0e9f80ed26fe1c::t_8c506c76962e34 116-120,123-126
+  s_0e9f80ed26fe1c::t_b1d490109231f5 1-5,10-27,30-54,59-60,67-69,72-80,83-88,92-96,104-115,127-143,150-161,195-200,203,258-268,272,276,284-297
+  s_0e9f80ed26fe1c::t_8712bc73a6d2af 212-213,229-230
+  s_0e9f80ed26fe1c::t_d1656b503d961e 269-271,273-275,298-300
+  s_0e9f80ed26fe1c::t_3d19bd00841e2b 192-193
+  s_0e9f80ed26fe1c::t_37b0f758e27e9c 97-98
+  s_0e9f80ed26fe1c::t_78d9bcd13513d3 215-216
+  s_0e9f80ed26fe1c::t_677cad4853439d 162-174,194
+  s_14b9d80a80a0b1::t_9a1f7b8dd68558 8-9
+  s_0e9f80ed26fe1c::t_0258c3b2182e4f 61-66,70-71
+  s_14b9d80a80a0b1::t_0283a7322da923 6-7
+  s_0e9f80ed26fe1c::t_5e02b9075dae64 225-226
+  s_0e9f80ed26fe1c::t_5574be32610d55 204-210,214,217-221,227-228,231-257
+  s_0e9f80ed26fe1c::t_2470971c583ae9 175-191
+packages/dom-shim/strict-baseline.json
+  s_c6d6a3ac21fe46::t_ee63a6c1c9dfbc 6
+packages/engine/test/e2e/demos/forms-selection-demo.e2e.test.ts
+  s_b2bc4296a4424c::t_cef71e4ad40299 64,70
+packages/core/src/fonts.rs
+  s_ae7e28df3d5f67::t_f52dd6dac479da 43-45,47,55,65,95-97,104,132,140,144,423-424
+internal/docs/SHADOW_REPLAY.md
+  s_a1b58daec3e888::t_144855394f4222 53
+  s_c6d6a3ac21fe46::t_932eb79198cebf 1-6,9-21
+  s_c6d6a3ac21fe46::t_2be157cf255755 39-42,67
+  s_8d9fc3fb359c90::t_75305f3703dee4 68-91
+  s_a1b58daec3e888::t_053d6a0ac849be 7-8,23-38,43-52,54-66,94-96
+  s_c6d6a3ac21fe46::t_f0e231e355f14d 103-106
+  s_c6d6a3ac21fe46::t_c8b93ffdd44d2d 107-110
+  s_c6d6a3ac21fe46::t_1997224f929280 22,92-93,97-102
+internal/packages/engine-cf/src/agent/observe.ts
+  s_fdbd277ad00a64::t_1aa5f5bdd5aff0 7
+internal/docs/AGENT_BENCH.md
+  s_14b9d80a80a0b1::t_ecf03b664f1829 3-6,11
+  s_c6d6a3ac21fe46::t_932eb79198cebf 1-2
+  s_a1b58daec3e888::t_01b3d6491e55c7 71-77
+  s_a1b58daec3e888::t_6cdd49719f6a95 7-10,12-20,26-70,82-126
+  s_8d9fc3fb359c90::t_b29b01070ee92f 21-25,78-81
+  s_8d9fc3fb359c90::t_dc03c9439c78e3 127-129
+packages/dom-shim/src/element/tag-attributes.ts
+  s_cfa3a80ee1db24::t_d8ce35f587b6a1 73
+internal/packages/shadow-replay/src/rasink.ts
+  s_fe482cbcf3b988::t_58d54716a3c15d 106
+internal/packages/wpt-report/scripts/build.mjs
+  s_8d9fc3fb359c90::t_bf4701a37eefb7 234
+  s_d2f0b3019ee744::t_09138f55a87237 46,341-342
+packages/dom-shim/src/detached-wrappers.ts
+  s_dd0f730efc12c5::t_924640dceeb322 9,67,76
+  s_08745e9d0bed18::t_e1f82118de7cf5 14,174
+internal/packages/agent-bench/src/drivers/final-answer.ts
+  s_551f8c15675a8d::t_aed12ba2d48d25 7,98
+packages/engine/src/eval/tail-trace-registry.ts
+  s_76cee6e5edaa4a::t_aae71b4b9449c3 32,36
+docs/DOM_SHIM.md
+  s_0e9f80ed26fe1c::t_864f3b02189b72 639-641
+  s_0e9f80ed26fe1c::t_3f19386e071c22 725-726,729-731
+  s_0e9f80ed26fe1c::t_ee480695e242e3 579-582
+  s_0e9f80ed26fe1c::t_9876a21c818623 214-216
+  s_c6d6a3ac21fe46::t_56ccf0417b6708 134,144
+  s_0e9f80ed26fe1c::t_b9e0973a63dda0 295-302,308-316
+  s_14b9d80a80a0b1::t_6b2a22a0c5dfbe 463-465
+  s_c6d6a3ac21fe46::t_44186522d17747 165-166
+  s_c6d6a3ac21fe46::t_fe07ea24da986b 705-709,714
+  s_c6d6a3ac21fe46::t_89826eb371abc3 957-962,967,974-979
+  s_0e9f80ed26fe1c::t_b1f80458510745 694-696
+  s_0e9f80ed26fe1c::t_6be35e34ae32fc 303-305
+  s_c6d6a3ac21fe46::t_3e364166b77664 290-291
+  s_c6d6a3ac21fe46::t_f1d940d4b7685d 59-60
+  s_0e9f80ed26fe1c::t_637a673b18829a 97-99
+  s_0e9f80ed26fe1c::t_9c15a0fdfb46a3 210-213,217
+  s_c6d6a3ac21fe46::t_2708b4bdebbd7b 527-529,535-536,547-548
+  s_0e9f80ed26fe1c::t_dcbd2f443c6971 55-58,689-691,850-854
+  s_0e9f80ed26fe1c::t_0f8ec10ed50aaa 776-777,797,829-831
+  s_0e9f80ed26fe1c::t_3a2ce86310f315 871-872
+  s_c6d6a3ac21fe46::t_05b95fa78c0ec4 278-281
+  s_0e9f80ed26fe1c::t_02bbb35a8f802a 306-307
+  s_0e9f80ed26fe1c::t_5d0a9d1811f0ac 470-472
+  s_0e9f80ed26fe1c::t_82f17767c831a2 353-357
+  s_c6d6a3ac21fe46::t_4c420321c1afa5 740-747
+  s_0e9f80ed26fe1c::t_f516b7c4c2767e 142-143
+  s_0e9f80ed26fe1c::t_3c2d80d091a0e7 668,672-676,682-684,718
+  s_c6d6a3ac21fe46::t_72dcea79038a6c 636-638,654,893-897
+  s_c6d6a3ac21fe46::t_c072f4705c6f02 980-996,1000
+  s_0e9f80ed26fe1c::t_6564d126ff965e 808-809
+  s_c6d6a3ac21fe46::t_87ad7cd4d0a18a 899-904
+  s_c6d6a3ac21fe46::t_942831c59531f2 571-573
+  s_3f00c479818dcf::t_af27b3c975f2ae 697-703
+  s_0e9f80ed26fe1c::t_18074fe53cdda7 918-922,998-999
+  s_c6d6a3ac21fe46::t_449ddcdbead14a 257-258,264-265
+  s_c6d6a3ac21fe46::t_25ea9fcbb92b33 622-624
+  s_0e9f80ed26fe1c::t_c283228da63dde 647-648
+  s_0e9f80ed26fe1c::t_9bcc4fa8b54a58 661,666-667,669-671
+  s_0e9f80ed26fe1c::t_8e5c7622c038ae 793-796
+  s_0e9f80ed26fe1c::t_0a3cda5c8865a9 630-631
+  s_c6d6a3ac21fe46::t_c4dcb9b185f7ff 905-910
+  s_14b9d80a80a0b1::t_0283a7322da923 439-453,455-462,466-469,481-484
+  s_0e9f80ed26fe1c::t_994a5d9a10c1ac 602-605
+  s_0e9f80ed26fe1c::t_32bd8cc93211eb 135-141
+  s_c6d6a3ac21fe46::t_4583710d43028a 588-594
+  s_c6d6a3ac21fe46::t_f7f8f87a6e4e98 739,748
+  s_c6d6a3ac21fe46::t_3c355dbe26a4de 167-169
+  s_0e9f80ed26fe1c::t_442ecef1b37894 651-653,943
+  s_0e9f80ed26fe1c::t_37d38d8bc3b423 873
+  s_0e9f80ed26fe1c::t_42843c3f4faad3 867-870,953-954
+  s_0e9f80ed26fe1c::t_9d2e333207a685 522-526,537-546,549-556
+  s_c6d6a3ac21fe46::t_b25ed79077ce79 710-713,721-723
+  s_c6d6a3ac21fe46::t_9ff6e4a6cc2e0c 568-570
+  s_0e9f80ed26fe1c::t_4116ea611cae6c 732
+  s_0e9f80ed26fe1c::t_75702d0464b1f4 719-720
+  s_c6d6a3ac21fe46::t_98bc6c97d88b10 282-284,292-294
+  s_0e9f80ed26fe1c::t_1dfe8f3d4c6b44 736-738
+  s_c6d6a3ac21fe46::t_15b0f058669e00 163-164,607-609
+  s_0e9f80ed26fe1c::t_11f295cf1959dc 997
+  s_0e9f80ed26fe1c::t_c4558f3f995138 145-149
+  s_c6d6a3ac21fe46::t_2409959c450e09 285-289
+  s_0e9f80ed26fe1c::t_ea1b8915598f34 810-813
+  s_0e9f80ed26fe1c::t_5b8b62ccefd296 181-184,191-194
+  s_0e9f80ed26fe1c::t_92fb203e3ead7a 578,628-629,649-650
+  s_c6d6a3ac21fe46::t_059f94bd1b9f9f 454
+  s_c6d6a3ac21fe46::t_2817903bffdd0b 692-693,704,715-717
+  s_c6d6a3ac21fe46::t_e4e1b17f79a81d 51-54
+  s_c6d6a3ac21fe46::t_93056482bce375 798-807,823
+  s_c6d6a3ac21fe46::t_cebb2f7d93127c 898,911-917,923,935-938
+  s_0e9f80ed26fe1c::t_e410d18736f339 963-966
+  s_0e9f80ed26fe1c::t_40f5b80d0ecfa7 955-956
+  s_0e9f80ed26fe1c::t_25f1cb9382859a 434-435
+  s_c6d6a3ac21fe46::t_d52b23f5aea37b 642-646
+  s_0e9f80ed26fe1c::t_04867656e65cfb 6-8,86-96,100,109-110,113-118,122-132
+  s_c6d6a3ac21fe46::t_fec4e7219e167d 189-190,195-197
+  s_c6d6a3ac21fe46::t_cbdfd3fb86563a 247-256,259-263,266
+  s_c6d6a3ac21fe46::t_d8c7f004d158ec 749-756,759-766
+  s_0e9f80ed26fe1c::t_4100a12c8a288c 924-934,939-941,944
+  s_c6d6a3ac21fe46::t_c88422bd393f18 947-952
+  s_0e9f80ed26fe1c::t_41b38f05ce4678 855-857,860-862
+  s_c6d6a3ac21fe46::t_e508c38716036b 198-204
+  s_3f00c479818dcf::t_d4d03850d4cb97 399-413,417-430
+  s_c6d6a3ac21fe46::t_21ea94a2caefb8 814-817
+  s_c6d6a3ac21fe46::t_3ca3fc35912878 81-85,133
+  s_0e9f80ed26fe1c::t_2d996271fb836e 436-438
+  s_c6d6a3ac21fe46::t_fab1a3f822384f 771-775,778
+  s_0e9f80ed26fe1c::t_9a9f862309ac92 111-112,119-121
+  s_0e9f80ed26fe1c::t_71da5d71244f01 530-534
+  s_0e9f80ed26fe1c::t_8d2c106b71c364 557-563
+  s_0e9f80ed26fe1c::t_1234aebd68aead 414-416,431-433
+  s_c6d6a3ac21fe46::t_b3c839aa840525 610-621,625-627,632-635
+  s_c6d6a3ac21fe46::t_75e5b4f7e50f4b 767-770
+  s_c6d6a3ac21fe46::t_65c66388d34428 267-277
+  s_0e9f80ed26fe1c::t_9b5b17e7e47555 733-735
+  s_c6d6a3ac21fe46::t_37885eacdc063d 517-521,564-567,583-587,595-601,606
+  s_c6d6a3ac21fe46::t_4cb2987c6d7931 843-849,858-859,863-866
+  s_0e9f80ed26fe1c::t_27abd9cf89a0b7 945-946
+  s_c6d6a3ac21fe46::t_394c8c5d33d005 46-50
+  s_0e9f80ed26fe1c::t_7fae2377a671b8 662-665
+  s_c6d6a3ac21fe46::t_f6b5036b8a0828 818-822
+  s_c6d6a3ac21fe46::t_f0bd95748b2064 655-660,677-681,685-688,724
+  s_c6d6a3ac21fe46::t_efc92e75741b11 179-180,185-188,207
+  s_0e9f80ed26fe1c::t_7fc5acb7c6408f 874-892
+  s_0e9f80ed26fe1c::t_c61068bb0b3c83 238-246
+  s_0e9f80ed26fe1c::t_adcdf8183af862 727-728
+  s_0e9f80ed26fe1c::t_89ad5a56b5d468 577
+  s_0e9f80ed26fe1c::t_9ae76b9e2dbf76 227-231
+  s_c6d6a3ac21fe46::t_26e5e5d1ee4a99 574-576
+  s_0e9f80ed26fe1c::t_3a3bffeb0b3037 101-108
+  s_c6d6a3ac21fe46::t_af4c15a6783ee3 942
+  s_c6d6a3ac21fe46::t_e72e12f749b9fe 824-828,832-842
+  s_c6d6a3ac21fe46::t_6f6dccc73275ca 779-792
+  s_0e9f80ed26fe1c::t_5300a11be54e3e 757-758
+  s_0e9f80ed26fe1c::t_a2bb6b44d8667e 341-342
+  s_c6d6a3ac21fe46::t_52421efcf4ced5 317-331
+  s_0e9f80ed26fe1c::t_a3e7e18f717e0c 968-973
+  s_0e9f80ed26fe1c::t_5cc49041731956 205-206
+  s_0e9f80ed26fe1c::t_4db90ed937ed3f 208-209,218-226,232-237
+  s_c6d6a3ac21fe46::t_68193a9df1ffde 61
+docs/PLATFORM.md
+  s_c6d6a3ac21fe46::t_6a7a00dacf20ef 162-164
+  s_c6d6a3ac21fe46::t_dce49ca34b6730 178-183
+  s_c6d6a3ac21fe46::t_7dd3d808334f06 140-142,146
+  s_c6d6a3ac21fe46::t_69370c7f0d65ac 143-145
+  s_c6d6a3ac21fe46::t_4e4f78fcea5100 129-139
+  s_c6d6a3ac21fe46::t_71464a7f69cb23 165-177
+packages/page-script/src/__ks_startup_probe_input.ts
+  s_45ac3d10b64cd0::t_82e90d72b413cd 5
+packages/dom-shim/src/element/forms/button.ts
+  s_08745e9d0bed18::t_d96147e0e7ba78 6,101
+packages/engine/test/e2e/grid-abspos-static-position.e2e.test.ts
+  s_b2bc4296a4424c::t_e22116299e3abe 5
+docs/TEST_CONTRACTS.md
+  s_b2bc4296a4424c::t_8e9b3042cf5cbb 913-915
+  s_b2bc4296a4424c::t_3543200e7a11a1 427-430,433-448
+  s_b2bc4296a4424c::t_1adf126d2cf9d8 1237-1238,1243-1246,1260-1265,1361-1366
+  s_b2bc4296a4424c::t_a713747a66c1ab 1604-1608
+  s_b2bc4296a4424c::t_58852a914139b6 1103-1104
+  s_b2bc4296a4424c::t_8d8590382fa109 655-661
+  s_b2bc4296a4424c::t_6786d612e9d6a2 747-749,1220-1222
+  s_b2bc4296a4424c::t_ec9ee32714680b 842-852
+  s_b2bc4296a4424c::t_c0153fb2e9788c 1163-1167
+  s_b2bc4296a4424c::t_05be4258155a18 593-601
+  s_b2bc4296a4424c::t_957be2bf86cfaa 1666-1669
+  s_b2bc4296a4424c::t_669d3b23f74c85 1079-1082
+  s_b2bc4296a4424c::t_ca78beda1b0e74 1371
+  s_b2bc4296a4424c::t_7a8ebfde6378d3 1516-1517
+  s_b2bc4296a4424c::t_907987ec813182 202-203,1239-1242,1500-1503
+  s_b2bc4296a4424c::t_417ae69d4364a0 765-770
+  s_b2bc4296a4424c::t_164c2d2ce3883b 821-826
+  s_b2bc4296a4424c::t_cc44552608a61e 701-705
+  s_b2bc4296a4424c::t_9a8431bfbbaeed 1085-1089
+  s_b2bc4296a4424c::t_7cb437808f4531 680-689
+  s_b2bc4296a4424c::t_1b190363a9285d 1389-1391
+  s_b2bc4296a4424c::t_f2e6789dbfc9bb 706-709,1158-1160,1168-1171,1423-1439
+  s_b2bc4296a4424c::t_e83f5f772c5566 919-923
+  s_b2bc4296a4424c::t_57f7ffd5a8795a 1125-1128
+  s_b2bc4296a4424c::t_3e32fc610696bb 762-764,788-792,1329-1342,1348-1353,1367-1370,1379-1383,1414-1418,1672-1673
+  s_b2bc4296a4424c::t_a5f0a3b3ae31ca 1146-1150
+  s_b2bc4296a4424c::t_b21de4be254d01 1343-1347
+  s_b2bc4296a4424c::t_38d3207057e214 226-231,236,1134-1137,1155-1157
+  s_b2bc4296a4424c::t_62e79c8f759ea2 924-927
+  s_b2bc4296a4424c::t_edd5805ef13a46 1596-1603,1609-1632
+  s_b2bc4296a4424c::t_04dad124cc27e4 1-16,21-23,31-50,54,119-129,142-159,172-176,237-242,250-268,275-301,317-330,345-350,356-372,381-384,391-396,409-413,466-526,565-570,577-582,608-613,644-654,662-679,690-695,710-714,730-733,793-800,806-820,861-866,896-899,903-908,928-938,951-953,982-985,1035-1042,1073-1078,1205-1209,1294-1297,1419-1422,1457-1465,1634-1640,1648-1654,1664-1665,1674-1678,1682-1684
+  s_b2bc4296a4424c::t_c02ed07ee4b5f8 839-840
+  s_b2bc4296a4424c::t_0033ecde5a4845 1555-1564,1574-1576
+  s_b2bc4296a4424c::t_e31a9ce9a1ff71 331-335
+  s_b2bc4296a4424c::t_fa80861970c50f 1247
+  s_b2bc4296a4424c::t_8cb23836bf048a 885-889
+  s_b2bc4296a4424c::t_86cc0601789ac5 182-185
+  s_b2bc4296a4424c::t_0a85dd4f9b63cb 186-188,198
+  s_b2bc4296a4424c::t_4c899bf4dd0e39 1013
+  s_b2bc4296a4424c::t_1e639d51f06b8b 1107-1114
+  s_b2bc4296a4424c::t_ff1351f1dfdeee 431-432
+  s_b2bc4296a4424c::t_f88407d4c4f266 1069-1072
+  s_b2bc4296a4424c::t_c2b31c7311c1e2 881-884,916-918
+  s_b2bc4296a4424c::t_886c4bc8e59164 1298-1302
+  s_b2bc4296a4424c::t_d82efc85a436f4 1138-1140
+  s_b2bc4296a4424c::t_16768fc9ec62b9 602-607
+  s_b2bc4296a4424c::t_27f8b9afce05a7 966-972
+  s_b2bc4296a4424c::t_6d771c22e39cd3 1105-1106,1189-1193,1200
+  s_b2bc4296a4424c::t_2f7283fe6872d5 943-946
+  s_b2bc4296a4424c::t_1e2964ee97b5da 1180-1183
+  s_b2bc4296a4424c::t_8476d5cfad8609 736-746,750-751
+  s_b2bc4296a4424c::t_eb73c2e8861c64 1226-1228
+  s_b2bc4296a4424c::t_e938c4feffc8e3 1250-1254
+  s_b2bc4296a4424c::t_db36f96110f694 1184-1188
+  s_b2bc4296a4424c::t_aa0f43db111cdd 947-950
+  s_b2bc4296a4424c::t_60d0d5df76a33e 1307-1310
+  s_b2bc4296a4424c::t_9fe46b65112033 1354-1357
+  s_b2bc4296a4424c::t_16362631b35940 1655-1660
+  s_b2bc4296a4424c::t_33d5e43cc83d7d 1487-1491
+  s_b2bc4296a4424c::t_6038f2309c8c92 199-201,204
+  s_b2bc4296a4424c::t_c746e6f9a0b22d 1392-1400,1404-1413
+  s_b2bc4296a4424c::t_8904bffc0c7db2 1083-1084
+  s_b2bc4296a4424c::t_bea41ac5d8bc67 1031-1034
+  s_b2bc4296a4424c::t_0ffc7e6e73681e 1679-1681
+  s_b2bc4296a4424c::t_fca111fc960b6a 192-193
+  s_b2bc4296a4424c::t_fbdf025a133948 900-902
+  s_b2bc4296a4424c::t_131a4fc1e4db7a 962-964
+  s_b2bc4296a4424c::t_1c9f812aa6a0d2 725-729
+  s_b2bc4296a4424c::t_44ea1e374f9b25 130-133
+  s_b2bc4296a4424c::t_35e269ed17871f 539-543
+  s_b2bc4296a4424c::t_677c2ccac688b6 461-465
+  s_b2bc4296a4424c::t_5d92b2d67492cd 302-308
+  s_b2bc4296a4424c::t_9e54791b248ac9 51-53
+  s_b2bc4296a4424c::t_cf281df2da76d3 373-376
+  s_b2bc4296a4424c::t_948aa284370295 571-576,1054-1057
+  s_b2bc4296a4424c::t_23ac08eee1e783 214-221
+  s_b2bc4296a4424c::t_abc207e01fd702 205-207
+  s_b2bc4296a4424c::t_c5dae4248358c1 24-27
+  s_b2bc4296a4424c::t_3b5dee0545066b 1115-1124
+  s_b2bc4296a4424c::t_d5b12df673a006 1141-1145
+  s_b2bc4296a4424c::t_b538f660b9c409 1248-1249
+  s_b2bc4296a4424c::t_ab928cf9e88e45 208-213
+  s_c6d6a3ac21fe46::t_059f94bd1b9f9f 583-587,753-754,757-760,1048-1053,1283-1287
+  s_b2bc4296a4424c::t_8e0b74b68e41a1 232-235
+  s_b2bc4296a4424c::t_83e557417fbdc2 414-417
+  s_b2bc4296a4424c::t_a540739d94b4b0 781-787
+  s_b2bc4296a4424c::t_e8b946f6781545 1401-1403
+  s_b2bc4296a4424c::t_006512bd0819a8 1466-1486,1497-1499,1633
+  s_b2bc4296a4424c::t_19b96e01d48db3 527-530
+  s_b2bc4296a4424c::t_3e87bd0a3369e4 17-20
+  s_b2bc4296a4424c::t_a9c8fdf3592e3a 1577-1585,1590-1595
+  s_b2bc4296a4424c::t_1ba1808fb7a685 622-643
+  s_b2bc4296a4424c::t_f5404be26fb04d 1176-1179
+  s_b2bc4296a4424c::t_db3c4a445f8db8 719-721
+  s_b2bc4296a4424c::t_ef76283ae12ec4 1641-1647
+  s_b2bc4296a4424c::t_6aab939bf132c3 134,715-718,958-961,965,973
+  s_b2bc4296a4424c::t_053a99c8b0e2cf 553-557
+  s_b2bc4296a4424c::t_8e1b82260e4a67 558-561
+  s_b2bc4296a4424c::t_e74454610dbb1a 1229-1232
+  s_b2bc4296a4424c::t_af1979660a69ac 401-403
+  s_b2bc4296a4424c::t_8c320418f19867 544-548
+  s_b2bc4296a4424c::t_c10a6269409bd1 114-117
+  s_b2bc4296a4424c::t_bbf7dccd663156 890-895
+  s_b2bc4296a4424c::t_c937b33e60e3de 734-735
+  s_b2bc4296a4424c::t_9dce8b3fe35eca 243-247
+  s_b2bc4296a4424c::t_ab305a36d7b2b8 106-113
+  s_b2bc4296a4424c::t_ed8cc8e87ba179 954-957
+  s_b2bc4296a4424c::t_3b35c6292529e6 1063-1065
+  s_b2bc4296a4424c::t_4b0dca24ac81c7 1058-1062
+  s_b2bc4296a4424c::t_5cae12928f735c 1100-1102,1201-1204
+  s_b2bc4296a4424c::t_d6f9ad5e9b99c5 160-171
+  s_b2bc4296a4424c::t_20d9ffe19318ae 1311-1314
+  s_b2bc4296a4424c::t_6df607c87c7153 1445-1452
+  s_b2bc4296a4424c::t_b8fb30315602c9 1570-1573
+  s_b2bc4296a4424c::t_2df8e67a54984c 869-872,878-879
+  s_b2bc4296a4424c::t_64a7a6765ab9b8 1384-1388
+  s_b2bc4296a4424c::t_597091b930f475 1270-1273
+  s_b2bc4296a4424c::t_e375894023680c 1290-1293
+  s_b2bc4296a4424c::t_828357420318be 535-538
+  s_b2bc4296a4424c::t_c3e98faeb6658a 385-390
+  s_b2bc4296a4424c::t_8dbdc8e1599b4a 1518-1519
+  s_b2bc4296a4424c::t_d4ee1bdcefff34 1021-1025
+  s_b2bc4296a4424c::t_90f642e367f686 400,801-805,836-838,841
+  s_b2bc4296a4424c::t_0d1c881443d923 1097-1099,1670-1671
+  s_b2bc4296a4424c::t_faeeafec5211bd 939-942
+  s_b2bc4296a4424c::t_07f54673fef710 1586-1589
+  s_b2bc4296a4424c::t_ad61f7ed21fa64 222-225
+  s_b2bc4296a4424c::t_5a20b22f965f2e 827-835
+  s_b2bc4296a4424c::t_c295f509545255 1453-1456
+  s_b2bc4296a4424c::t_c8290c4129403d 752,755-756,761
+  s_b2bc4296a4424c::t_1b4d7c1d91e912 549-552,562-564,986-1012,1017-1020,1026-1030
+  s_b2bc4296a4424c::t_337133a49e29af 377-380
+  s_b2bc4296a4424c::t_654cc59f5ef6a1 309-316
+  s_b2bc4296a4424c::t_8dc9ee2dac19f1 177-181
+  s_b2bc4296a4424c::t_cd5ced329fd2eb 339-344,418-426,456-460
+  s_b2bc4296a4424c::t_f84b7f99bf1448 139-141
+  s_b2bc4296a4424c::t_77578e396564b1 248-249
+  s_b2bc4296a4424c::t_626999ef14bf6d 722-724
+  s_b2bc4296a4424c::t_354acdcde2d256 135-138
+  s_b2bc4296a4424c::t_6d4c3f6ce9e56f 857-860
+  s_b2bc4296a4424c::t_10e3feef26db49 974-977,981
+  s_b2bc4296a4424c::t_a2b705e5367961 771-775
+  s_b2bc4296a4424c::t_7eb7be467dfcb2 1090-1093
+  s_b2bc4296a4424c::t_ac888f88ce0ef5 405-408
+  s_b2bc4296a4424c::t_f36bdf00228a7f 1161-1162
+  s_b2bc4296a4424c::t_08489d47c0e118 1194-1199
+  s_b2bc4296a4424c::t_a7faa8d3c49a91 696-700
+  s_b2bc4296a4424c::t_c5958d30c06754 1043-1047
+  s_b2bc4296a4424c::t_0eb59f5c3cb154 1255-1259
+  s_b2bc4296a4424c::t_b4fef5ba2e750a 1537-1554
+  s_b2bc4296a4424c::t_1dbaeba1aac5b6 1661-1663
+  s_b2bc4296a4424c::t_1bd0250582a072 449-455
+  s_b2bc4296a4424c::t_df6d91f5052169 1172-1175
+  s_b2bc4296a4424c::t_fc45bb056908d9 1266-1269
+  s_b2bc4296a4424c::t_5d784fb36845b7 1508-1509
+  s_b2bc4296a4424c::t_2de0798e0ce958 531-534
+  s_b2bc4296a4424c::t_b03274cc23ae42 28-30
+  s_b2bc4296a4424c::t_2121850654f2f3 1566-1569
+  s_b2bc4296a4424c::t_805d3474046842 776-780
+  s_b2bc4296a4424c::t_fd1758204f00b0 978-980
+  s_b2bc4296a4424c::t_0b01ba13cca629 1492-1496
+  s_b2bc4296a4424c::t_923a722971065e 1323-1327
+  s_b2bc4296a4424c::t_e27582d9134dc9 1372-1378
+  s_b2bc4296a4424c::t_b9e4e92b8b5a8d 1303-1306,1315-1322,1328
+  s_b2bc4296a4424c::t_6d8458a66aeab1 189-191
+  s_b2bc4296a4424c::t_d0becab35f24e4 1014-1016
+  s_b2bc4296a4424c::t_6f548fd681c964 269-274,336-338
+  s_b2bc4296a4424c::t_ee9b347d2c75e4 867-868,873-877,880
+  s_b2bc4296a4424c::t_a9ba9af74f2f9c 1288-1289
+  s_b2bc4296a4424c::t_c6da66b5a4d363 614-621
+  s_b2bc4296a4424c::t_4b8efbe872585a 909-912
+  s_b2bc4296a4424c::t_9ede161eac35db 351-355
+  s_b2bc4296a4424c::t_acd822fa67a5f2 1223-1225
+  s_b2bc4296a4424c::t_2d8b321d16fa44 1565
+  s_b2bc4296a4424c::t_af59652dbee5fa 1066-1068
+  s_b2bc4296a4424c::t_11b7018e2e51ec 194-197
+  s_b2bc4296a4424c::t_8e04a38d6a9a0e 1358-1360
+  s_b2bc4296a4424c::t_3fdb6320c343d2 1210-1219,1274-1277,1281-1282
+  s_b2bc4296a4424c::t_2e5b9f10538384 1233-1236
+  s_b2bc4296a4424c::t_718b5f1f685dca 853-856
+  s_b2bc4296a4424c::t_6f4bc6a099a158 397-399,404
+  s_b2bc4296a4424c::t_3a02d89872fcee 588-592
+  s_b2bc4296a4424c::t_4ac4391a7df30c 1129-1133,1278-1280
+  s_b2bc4296a4424c::t_97d205a547b286 1151-1154
+  s_b2bc4296a4424c::t_ed3edecc578ad0 1504-1507,1510-1515,1520-1536
+  s_b2bc4296a4424c::t_dc14d0c80266f9 1440-1444
+  s_b2bc4296a4424c::t_b5af41b08e4f98 1094-1096
+  s_b2bc4296a4424c::t_6c2a4279296fe6 55-105,118
+internal/packages/engine-cf/test/e2e/connect.ts
+  s_fdbd277ad00a64::t_a02e9cb71b713a 1-5
+internal/packages/bench-report/src/bench-runner.ts
+  s_d2f0b3019ee744::t_7779c921b24a37 7-13,86-87,102,108-111,140
+internal/docs/REPORT_DATA.md
+  s_a1b58daec3e888::t_45159b1edc5ff5 14-16
+  s_a1b58daec3e888::t_01f5c5553051d8 133-135
+  s_a1b58daec3e888::t_c915c72566f2fd 17-18,36,49-51,67-70,78-80,82-106
+  s_a1b58daec3e888::t_7c35a77e7ba985 143-150
+  s_c6d6a3ac21fe46::t_03d06093d51986 108-112
+  s_a1b58daec3e888::t_2cf59cc199702b 5-13,24-29,52,57-58,62-64,113-115,125-132,137-139
+  s_a1b58daec3e888::t_2424d70aeb5685 37-39
+  s_a1b58daec3e888::t_15ccbc356be55e 19-22,40,46-48
+  s_a1b58daec3e888::t_4e72a6451030fc 30-35,116-120
+  s_a1b58daec3e888::t_957909d1650f8c 59-61,81
+  s_a1b58daec3e888::t_f24b85f7f1425a 177-184,195-197,205-209,217
+  s_a1b58daec3e888::t_dcf0a2c4f74364 155,166-176,218-219
+  s_a1b58daec3e888::t_5f4a758248f82c 53-56
+  s_a1b58daec3e888::t_ed4510c5a8a21b 44-45
+  s_c6d6a3ac21fe46::t_932eb79198cebf 1-4,23
+  s_a1b58daec3e888::t_9e9a2c64fbffeb 121-124,140-142
+  s_a1b58daec3e888::t_96cb3f8aba62dd 71-77
+  s_c6d6a3ac21fe46::t_72fcd9428dd847 136
+  s_a1b58daec3e888::t_ee8e7f11228381 156-165,185-189
+  s_a1b58daec3e888::t_a51b6f326af4a2 214-216
+  s_a1b58daec3e888::t_0790c8b2ace9e2 151-154
+  s_8d9fc3fb359c90::t_d1e96ffc404b92 198-201,204
+  s_a1b58daec3e888::t_51b39abb013bed 210-213
+  s_a1b58daec3e888::t_b11826a916a6fc 220-222
+  s_a1b58daec3e888::t_f978b161aff55c 41-43
+  s_a1b58daec3e888::t_9c5a53c05812a3 190-194
+  s_c6d6a3ac21fe46::t_059f94bd1b9f9f 202-203
+  s_c6d6a3ac21fe46::t_c791505d99ce84 65-66,107
+internal/tests/interactivity-flows/lib/net-archive.ts
+  s_8d9fc3fb359c90::t_bd5ec208276b94 169,192
+  s_8d9fc3fb359c90::t_6fd898897085c9 131
+packages/engine/test/page-script-generation.test.ts
+  s_b2bc4296a4424c::t_755ef68fb441e4 134
+internal/packages/engine-cf/tsconfig.json
+  s_fdbd277ad00a64::t_c73f59aae4a2e3 3
+.gitlab-ci.yml
+  s_1c48520c8c8aee::t_a6b10a6449ea78 434
+  s_1c48520c8c8aee::t_c8eea969368133 940
+  s_1c48520c8c8aee::t_3af48b6507789c 255
+  s_1c48520c8c8aee::t_776cc40dbc6e04 622
+  s_1c48520c8c8aee::t_6f4af6a3fa47f7 1408
+packages/engine/src/eval/redirect-walk.ts
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 163-164
+  s_78432def045856::t_08130b540d599a 140,147
+packages/dom-shim/src/node-base.ts
+  s_dd0f730efc12c5::t_ef843633944756 1889
+  s_8b8a00484e0f56::t_ebf78726406462 462-466,475-479,488
+  s_0e9f80ed26fe1c::t_62cbbf33e30a18 541,604
+  s_0e9f80ed26fe1c::t_5851608875578e 515,519
+  s_08745e9d0bed18::t_44d62616678b52 1625,1627,1643,1645,1908,1920,1959,2023,2050,2096
+  s_08745e9d0bed18::t_c71274f306a1d3 408-413
+  s_08745e9d0bed18::t_171c121d35cf10 240,254,258,265
+  s_08745e9d0bed18::t_c2c441ef648180 56-57,60,76
+  s_08745e9d0bed18::t_62d4a1b4b26775 407
+  s_dd0f730efc12c5::t_d34b66334e2f77 624,821,873,898,1060,1132
+  s_08745e9d0bed18::t_1d8f24c37d4caa 1339,1349,1354-1355,1385,1480-1481,1512,1515-1516,1559-1560
+  s_dd0f730efc12c5::t_619f9a0979a4e4 970
+  s_08745e9d0bed18::t_9ec1acabf08756 97,104,138
+  s_0e9f80ed26fe1c::t_7d3d1ab2612fea 1038
+  s_08745e9d0bed18::t_df7d71b22ed8d1 357,362,376,380,430,434
+  s_08745e9d0bed18::t_adc6741c8ced50 542,555,558,561,565,717,729,737,817,966
+  s_08745e9d0bed18::t_3e119c6bd9760c 699,1510,1601,1634-1635,1662
+  s_0e9f80ed26fe1c::t_217e3979facfb0 1606
+  s_0e9f80ed26fe1c::t_166f693b80878a 1689,1692
+  s_0e9f80ed26fe1c::t_4d5c88fed41a1b 1447
+  s_08745e9d0bed18::t_7806c9322ff130 284-285,298,304,308,314-315,322-323
+  s_0e9f80ed26fe1c::t_d91f0c338b2fd1 1939,1984,2079
+  s_08745e9d0bed18::t_09260992768707 77
+internal/packages/engine-cf/src/quickactions/containment.ts
+  s_8d9fc3fb359c90::t_43c44f16f9667d 7
+internal/packages/engine-cf/src/agent/act.ts
+  s_fdbd277ad00a64::t_1aa5f5bdd5aff0 3-7,227,256,335,346,348,378
+docs/DEPLOYING.md
+  s_c6d6a3ac21fe46::t_18c8b9ce47467e 67-70
+  s_c6d6a3ac21fe46::t_7d9d4665ea3f28 78-81
+  s_c6d6a3ac21fe46::t_7dd3d808334f06 31
+  s_bfa61356ee59a3::t_f16700d794ae55 35-36
+  s_1c48520c8c8aee::t_18f13c37b8bb16 27-30
+packages/engine/src/cdp/scene-stream.ts
+  s_78432def045856::t_2dad976ef61a49 225
+  s_d7edd1248351b3::t_4bfb80f2527cf5 122,126
+  s_8eb11a0a07c69e::t_e5fbb2809038fe 284
+  s_76cee6e5edaa4a::t_e96ed245503572 15-18,25,89-91,168-170,175-177,181-185,188-189,191-201
+  s_76cee6e5edaa4a::t_3adfc8f4ec655e 24,77-85,88,92,95-96,100,104,179-180
+packages/engine/src/tty/nav-params.ts
+  s_76cee6e5edaa4a::t_3adfc8f4ec655e 15-16
+packages/engine/test/e2e/redirect-per-hop-gating.e2e.test.ts
+  s_b2bc4296a4424c::t_b2da1922353c61 71
+internal/packages/jev-playground/turbo.json
+  s_586b6ba09227eb::t_2283e5c7677a77 1-32
+packages/dom-shim/src/canvas2d.ts
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 399-400
+  s_0e9f80ed26fe1c::t_83dc32c7c53e7e 555,572
+  s_dd0f730efc12c5::t_109c66d8fda0ce 137
+  s_0e9f80ed26fe1c::t_312c6a00a5ee0d 22,42,49,71,85
+  s_0e9f80ed26fe1c::t_653b8b06a3d607 958,984
+  s_08745e9d0bed18::t_c7bdc4d69bed8a 34,437
+  s_dd0f730efc12c5::t_cbfb19c4bbdd82 511
+  s_dd0f730efc12c5::t_619f9a0979a4e4 616
+internal/packages/engine-cf/src/index.ts
+  s_fdbd277ad00a64::t_62eadf2a52232e 8,44
+  s_c2cf363362157f::t_5e0bdbe6ea42be 30-33,43
+packages/worker-script/src/scope.ts
+  s_02e920edba8d88::t_fa81e774ad1339 35
+  s_02e920edba8d88::t_62c0ced92d231c 239
+packages/dom-shim/src/otel.ts
+  s_08745e9d0bed18::t_e1f82118de7cf5 50-51,53
+  s_8b8a00484e0f56::t_ebf78726406462 71,83
+packages/dom-shim/src/element/forms/textarea.ts
+  s_c6d6a3ac21fe46::t_7d87420b119a3a 110-111
+packages/core/src/text_node_rect_test.rs
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/page-script/src/eval-helpers.ts
+  s_02e920edba8d88::t_2b00ffae0ec65a 11
+internal/packages/shadow-replay/test/rasink.test.ts
+  s_a1b58daec3e888::t_901d9e1ebaebb7 50-53,70,114,136
+packages/engine/test/e2e/svg-attribute-case.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/packages/wpt-report/src/data.ts
+  s_d2f0b3019ee744::t_09138f55a87237 47,77-80
+internal/scripts/wpt-fetch-baseline.mjs
+  s_a1b58daec3e888::t_b5035c2568da24 157
+packages/dom-shim/scripts/build.mjs
+  s_3f00c479818dcf::t_8c9c438f710a04 40
+packages/engine/test/e2e/document-node-members.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/packages/grafana/README.md
+  s_a1b58daec3e888::t_f4e7436fdea9b0 29-31
+  s_a1b58daec3e888::t_d9c8c82dbfce13 32-44
+packages/page-renderer/src/wasm-glue.ts
+  s_c6d6a3ac21fe46::t_e1a64f5de355c6 5
+internal/packages/agent-bench/src/agent.ts
+  s_551f8c15675a8d::t_e80e75ab468df0 107-108,143,149
+internal/packages/ra-schema/src/manifest.ts
+  s_fe482cbcf3b988::t_58d54716a3c15d 13,38
+internal/packages/agent-bench/src/engines.test.ts
+  s_586b6ba09227eb::t_2283e5c7677a77 1-24,26-28,30-42,44-62
+  s_586b6ba09227eb::t_7227281dc296c7 25,43
+  s_586b6ba09227eb::t_9a9e054f3796d5 29
+packages/kitesurf-cli/src/main.rs
+  s_ae7e28df3d5f67::t_2a4d04c905df68 191-195,259-260,262,267,495-499
+  s_ae7e28df3d5f67::t_063373572f19ed 1232
+  s_ae7e28df3d5f67::t_bd0c2384bb3e9f 454-455,584-585,588-589,593-594
+  s_ae7e28df3d5f67::t_bc8193dca65946 91-92,95-98,103,129,146
+  s_ae7e28df3d5f67::t_16d64f731dba7c 1010
+  s_ae7e28df3d5f67::t_208dde67f35448 89-90,481-484,520,525,1152-1153
+  s_58e002450ea2a7::t_cf1ab3a43a78a8 345
+  s_ae7e28df3d5f67::t_dea79cc591253b 833
+  s_7a14d59b0adfe6::t_10b9f4f9639199 2129
+docs/ENGINE_CONTRACTS.md
+  s_09d21ed5822b1d::t_80e2d899f4231a 131-135,140-142
+  s_09d21ed5822b1d::t_dc78a56dc64cb1 146-147
+  s_09d21ed5822b1d::t_7954d1315fdc7c 24-28,191
+  s_09d21ed5822b1d::t_4fe2bf675a92c3 197-198,203-222
+  s_09d21ed5822b1d::t_7421ef19ea773d 101-104
+  s_09d21ed5822b1d::t_05b5c3051ecf54 136-137,139
+  s_c32c835b7e1175::t_bd65e02e0b35b0 176,181,184-190
+  s_73ebfaabda0daa::t_10852e5115d4ba 41-42
+  s_09d21ed5822b1d::t_17965416f169c8 110-115
+  s_73ebfaabda0daa::t_0dca8d24182093 52-54
+  s_09d21ed5822b1d::t_91296477c6624a 1-23,62-69,83,93,98-100,129-130,138,154-158,163-175,177-180,196,224
+  s_09d21ed5822b1d::t_635ac617dcaae3 143-145
+  s_14b9d80a80a0b1::t_9a1f7b8dd68558 225-226
+  s_73ebfaabda0daa::t_8bcde90a7ad22c 70
+  s_73ebfaabda0daa::t_7b97af0f76e54c 38-40
+  s_73ebfaabda0daa::t_684a88a94513e5 71-79
+  s_09d21ed5822b1d::t_3db13aff265fd1 29-37,43,56-61
+  s_73ebfaabda0daa::t_2eba215b406a6f 80-82
+  s_09d21ed5822b1d::t_810e000f997c01 94-97
+  s_09d21ed5822b1d::t_c3f7d88cc2c21c 151-153
+  s_09d21ed5822b1d::t_481ddd1fbfd2ef 84-87,92
+  s_14b9d80a80a0b1::t_0283a7322da923 223,227-229
+  s_73ebfaabda0daa::t_05a9186a314f81 238-239
+  s_73ebfaabda0daa::t_62eda88d7b30eb 105-109
+  s_09d21ed5822b1d::t_e7f54320fe2f4c 159-162
+  s_e79efc0043ae41::t_f0246cc40526b0 192-195
+  s_09d21ed5822b1d::t_2f54b0cddb4063 88-91
+  s_09d21ed5822b1d::t_e4e9c4ed1dac0b 199-202
+  s_73ebfaabda0daa::t_75e5a5678c26a4 44-51,55
+  s_73ebfaabda0daa::t_e572fd1ca3413e 230-237,240-242
+  s_09d21ed5822b1d::t_486581f16f5544 116-128
+  s_c32c835b7e1175::t_10ee16c0264b77 182-183
+  s_09d21ed5822b1d::t_32937c8333b7d1 148-150
+internal/packages/agent-bench/src/suite.ts
+  s_551f8c15675a8d::t_122a53aa7beaa1 126,242,272
+packages/dom-shim/src/element/forms/select-options.ts
+  s_dd0f730efc12c5::t_78b4f5064f26a9 59,68
+  s_08745e9d0bed18::t_d96147e0e7ba78 6,100
+internal/packages/bench-report/container/agent.mjs
+  s_d2f0b3019ee744::t_7779c921b24a37 14-20,139-140,193,215,221,301,314,388
+  s_a1b58daec3e888::t_83ed786f00c93e 27,150,214,248,262,279,312
+packages/engine/test/e2e/scene-host-worker.mjs
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/packages/agent-bench/src/engines.ts
+  s_fdd0fd6c73650e::t_5188638627cf90 70
+  s_fdd0fd6c73650e::t_ab1bfa95fa7f0c 71,189,191-192,203-206,243,246,248,267
+  s_586b6ba09227eb::t_7227281dc296c7 289-290,293
+  s_586b6ba09227eb::t_81280ac7067666 325,328,333,335,339
+  s_fdd0fd6c73650e::t_0f9a316991ce01 187-188
+  s_c6d6a3ac21fe46::t_059f94bd1b9f9f 17-22,92,148,150,166,280
+  s_c6d6a3ac21fe46::t_34326aec9c26a2 330
+  s_fdd0fd6c73650e::t_57516b538eb416 190
+  s_586b6ba09227eb::t_2c09fc8c50bdc6 312,314,321-322
+  s_551f8c15675a8d::t_06754df3ead424 145
+  s_586b6ba09227eb::t_2283e5c7677a77 8,23-26,291-292,294-304,307-308,323-324,326-327,329,331-332,334,336-338,340-344
+  s_fdd0fd6c73650e::t_d6004840c4a3c9 193-202
+  s_586b6ba09227eb::t_004bc53a8cb805 27
+packages/dom-shim/src/element/forms/input.ts
+  s_8b8a00484e0f56::t_ebf78726406462 65,68
+internal/packages/agent-bench/src/drivers/pi-mcp.ts
+  s_551f8c15675a8d::t_aed12ba2d48d25 137-139,142,242,244,251
+internal/tests/interactivity-flows/run.ts
+  s_8d9fc3fb359c90::t_64472f374e82bc 383,515
+  s_d2f0b3019ee744::t_a06afc72441d79 20-25,110,119,121,130,147,158,179
+  s_8d9fc3fb359c90::t_b7bad97bd75a8c 490
+  s_8d9fc3fb359c90::t_bbf19e21a9e363 105,129,145,156,175-176
+packages/script-gate/src/gate.ts
+  s_02e920edba8d88::t_f2019ad002bc44 61
+packages/dom-shim/src/element/forms/submission.ts
+  s_dd0f730efc12c5::t_2b4d42bed3897f 79,93,100
+packages/core/src/box_decorations_test.rs
+  s_2c3db2bfaaace3::t_3502f08bdbf1bc 43,78,154,156
+internal/packages/engine-cf/test/fixtures-worker/.fixtures-dist/README.md
+  s_c6d6a3ac21fe46::t_43090a42b5dbe5 1
+packages/engine/src/cdp/frames.ts
+  s_d7edd1248351b3::t_051eeaf29ee834 60
+packages/dom-shim/src/mutations/observer.ts
+  s_dd0f730efc12c5::t_924640dceeb322 159,163,520
+  s_08745e9d0bed18::t_e1f82118de7cf5 10,14,191,236,453
+  s_8b8a00484e0f56::t_d97000db025ad1 55
+packages/dom-shim/src/fastpath.ts
+  s_0e9f80ed26fe1c::t_dabc54a7f7011d 35-39,114
+  s_0e9f80ed26fe1c::t_46a194b3f4b191 107-109
+  s_08745e9d0bed18::t_e1f82118de7cf5 6,11-12,44,66,99
+docs/BOA_V8_FLOW.md
+  s_eb5892a24d7c0d::t_c6fb1421fcb69b 725-731
+  s_c6d6a3ac21fe46::t_47bbbca3403118 715-724
+packages/dom-shim/src/current-script.ts
+  s_08745e9d0bed18::t_e1f82118de7cf5 6,21
+internal/packages/engine-cf/test/agent-run.test.ts
+  s_fdbd277ad00a64::t_81dbd10c14ba36 14
+packages/engine/test/e2e/rehomed-fixed-paint-parent.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/packages/engine-cf/test/fixtures-worker/.fixtures-dist/index.js
+  s_c6d6a3ac21fe46::t_43090a42b5dbe5 1-349
+packages/engine/src/read-capped.ts
+  s_d7edd1248351b3::t_7b35243652d1ba 9,108
+  s_78432def045856::t_45347f8c2db1be 94
+  s_78432def045856::t_d937f9c42b9c28 125
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_b2bc4296a4424c::t_0d72243af8fca9 57-58
+packages/core/src/sticky.rs
+  s_ae7e28df3d5f67::t_75731aa3b7b10a 12-13,146
+  s_58e002450ea2a7::t_cf1ab3a43a78a8 260
+packages/engine/test/e2e/writing-suggestions.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/packages/agent-bench/container/runner.ts
+  s_fdd0fd6c73650e::t_5188638627cf90 32
+  s_586b6ba09227eb::t_2283e5c7677a77 9
+internal/docs/ANALYTICS.md
+  s_c6d6a3ac21fe46::t_6ad90e7f1afc8e 184-186,189
+  s_c6d6a3ac21fe46::t_4a4d573792c763 44-45,187-188
+  s_a1b58daec3e888::t_e0af9e1a0a8607 39-43,46-47,207-208
+scripts/e2e-perf.mjs
+  s_d04786dc7ec1d7::t_994c3a456568e8 36-39,115,133,152,154
+packages/core/src/agent_damage_test.rs
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/packages/engine-cf/src/session-policy.ts
+  s_c6d6a3ac21fe46::t_85179aeffd80d0 3
+  s_c2cf363362157f::t_87acb347a8eecc 30,35
+  s_8d9fc3fb359c90::t_43c44f16f9667d 6
+  s_c2cf363362157f::t_5e0bdbe6ea42be 1-2,4-5,7-29,31-34,36-37
+packages/dom-shim/src/element/forms/selection.ts
+  s_08745e9d0bed18::t_d96147e0e7ba78 6,91
+  s_dd0f730efc12c5::t_bc1cffdc633eaf 235
+packages/engine/src/cdp/runtime.ts
+  s_73ebfaabda0daa::t_93a6beabdaf845 397
+  s_d7edd1248351b3::t_858eae73c2b005 119
+internal/packages/engine-cf/src/agent/receipts.ts
+  s_fdbd277ad00a64::t_1aa5f5bdd5aff0 1-3
+packages/engine/test/e2e/collection-named-shadowing.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/engine/src/eval/image-dims.ts
+  s_d133c27dfe9926::t_13418c44aff70e 122
+internal/packages/shadow-replay/src/comparison/pixels.ts
+  s_d2f0b3019ee744::t_09138f55a87237 5-6,29,41,54
+internal/scripts/flows-merge-shards.mjs
+  s_a1b58daec3e888::t_2eda464230fea3 33
+packages/engine/src/cdp/css.ts
+  s_d7edd1248351b3::t_858eae73c2b005 388,404,418,433
+  s_73ebfaabda0daa::t_af5188e949ab18 473
+  s_d7edd1248351b3::t_cacc3cee064147 11,560,565
+  s_76cee6e5edaa4a::t_2857a14da66816 450,469
+  s_09d21ed5822b1d::t_1a8a664537771e 238,366
+packages/engine/src/cdp/dispatch.ts
+  s_fdbd277ad00a64::t_c0396f92494734 12
+  s_fdbd277ad00a64::t_39b24a884e08d3 147
+  s_09d21ed5822b1d::t_60095fa3ec2d6e 177
+  s_73ebfaabda0daa::t_1d96c4989261c9 180
+  s_fdbd277ad00a64::t_a4bee9f61cbacd 37-52,56,144,146,148-159,161
+packages/engine/src/cdp/kitesurf.ts
+  s_d7edd1248351b3::t_4bfb80f2527cf5 30,33
+  s_fdbd277ad00a64::t_6a502572a65cc2 13
+  s_fdbd277ad00a64::t_3c221b3fa468a8 547-548
+  s_76cee6e5edaa4a::t_3adfc8f4ec655e 22-27,47,54,56,58-61,64,496
+packages/engine/src/runtime.ts
+  s_d7edd1248351b3::t_4bfb80f2527cf5 8-11
+packages/dom-shim/src/window.ts
+  s_0e9f80ed26fe1c::t_ae00ac1c5ab155 944
+  s_08745e9d0bed18::t_e1f82118de7cf5 228,255,675
+  s_0e9f80ed26fe1c::t_ac1a74bf68bb7a 62,163
+  s_0e9f80ed26fe1c::t_2cd68682f0e6fc 726
+  s_dd0f730efc12c5::t_21956c8620d115 982,1020
+  s_0e9f80ed26fe1c::t_600c329171016a 1052,1055,1085
+  s_dd0f730efc12c5::t_ef843633944756 1171
+  s_0e9f80ed26fe1c::t_46a194b3f4b191 98,671,1119
+  s_08745e9d0bed18::t_b32e71365d7ae8 17-23,270-273
+  s_0e9f80ed26fe1c::t_14d99c60e5a06c 341
+docs/SELECTION.md
+  s_c6d6a3ac21fe46::t_37885eacdc063d 60-66
+  s_0e9f80ed26fe1c::t_57b3788beeeae7 71-87,97-101
+  s_c6d6a3ac21fe46::t_87779d467e07e4 67-70
+  s_0e9f80ed26fe1c::t_c7318eb40e94ff 88-96
+  s_3f00c479818dcf::t_20bba6b51010cf 18-23
+packages/script-gate/src/referrer-policy.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/packages/engine-cf/test/unit/quickaction.test.ts
+  s_a1b58daec3e888::t_522616fb53ac37 1585
+internal/packages/comparison-core/src/lib.rs
+  s_d2f0b3019ee744::t_09138f55a87237 7,71,154
+packages/engine/test/e2e/slow-document-headers.e2e.test.ts
+  s_b2bc4296a4424c::t_c26a0b4bc7bb77 14
+internal/packages/engine-cf/src/agent/generate.ts
+  s_fdbd277ad00a64::t_1aa5f5bdd5aff0 3
+internal/packages/engine-cf/src/quickactions/capture.ts
+  s_d2f0b3019ee744::t_9c35758873df99 13-21,69,80,127,154,169,182,184,200
+packages/page-script/src/font-loader.ts
+  s_eb5892a24d7c0d::t_e28d0f5c1098b5 520
+internal/packages/engine-cf/src/quickactions/screenshot.ts
+  s_d2f0b3019ee744::t_9c35758873df99 31-32,125,225-228,238-241
+packages/core/src/tty_omni.rs
+  s_2c3db2bfaaace3::t_0d9e2b0d4bb321 1023
+  s_ae7e28df3d5f67::t_5bc580a6e3a86e 17,257
+internal/packages/ra-schema/src/wrapper-tail.ts
+  s_fe482cbcf3b988::t_58d54716a3c15d 3
+packages/dom-shim/src/element/forms/form.ts
+  s_dd0f730efc12c5::t_2b4d42bed3897f 290
+  s_08745e9d0bed18::t_c757d8d2f416a0 6,307
+  s_c6d6a3ac21fe46::t_cdd436caf24094 83,261
+scripts/get-patched-vendor-crates.mjs
+  s_7a8515feb07e5c::t_37ecdd694edd0e 49,85,166,183,194,200
+packages/engine/src/cdp/dispatch-env.ts
+  s_8eb11a0a07c69e::t_e5fbb2809038fe 5
+packages/engine/test/e2e/demos/iframe-bitmap-paint.e2e.test.ts
+  s_b2bc4296a4424c::t_a948272cdb6e5d 24-27
+internal/packages/shadow-replay/src/do.ts
+  s_3c0ab630d4f557::t_175eddf938a84c 75-76,875-876,898-899,916
+  s_a1b58daec3e888::t_98cd179e20222b 449
+  s_d2f0b3019ee744::t_09138f55a87237 53-54,150,430,812-813
+  s_3c0ab630d4f557::t_8926ea985ff6a4 73-74,865,887,914
+  s_fe482cbcf3b988::t_58d54716a3c15d 419,1017,1173
+  s_8d9fc3fb359c90::t_43c44f16f9667d 1124
+packages/page-script/src/wasm-baked.ts
+  s_17fb96c5e58da9::t_f84b1ee9698974 76-82,93-96,111-114
+  s_eb5892a24d7c0d::t_3be7e6f8d39cbe 68
+  s_17fb96c5e58da9::t_936511151c8c51 73,122-123
+  s_17fb96c5e58da9::t_adae12f6b93d46 126-128
+docs/PRINT_AND_PDF.md
+  s_7a14d59b0adfe6::t_3c170608bc5780 46-48
+  s_c6d6a3ac21fe46::t_215938d2ad7879 26-35,43-45,51
+  s_7a14d59b0adfe6::t_8fd8cac75c1e3b 19
+  s_7a14d59b0adfe6::t_e4f10f54dbd5d5 53-56
+  s_7a14d59b0adfe6::t_07a56c209f3f4b 49-50
+  s_c6d6a3ac21fe46::t_93093675d4c4d4 52
+  s_c6d6a3ac21fe46::t_c205ffd9424139 60-61
+  s_c6d6a3ac21fe46::t_901c6304dc8a3c 36-38,42
+  s_7a14d59b0adfe6::t_7156333b9752d9 39-41,57-59,62-71
+internal/packages/jev-playground/src/browser/bridge.ts
+  s_fdd0fd6c73650e::t_5188638627cf90 149
+internal/packages/engine-cf/src/agent/ai-runner.ts
+  s_fdbd277ad00a64::t_1aa5f5bdd5aff0 3
+  s_fdbd277ad00a64::t_20310355a33a5e 117-118
+internal/bench/README.md
+  s_a1b58daec3e888::t_3b6e67b1c364cc 190-191
+  s_a1b58daec3e888::t_fff468fec42249 410-413
+  s_a1b58daec3e888::t_332ef66bf3df3d 71-72
+  s_a1b58daec3e888::t_4548b0d5a77c3a 448-450,453
+  s_a1b58daec3e888::t_89c4e7e52ac152 563-571
+  s_a1b58daec3e888::t_67bdffd936ac11 698-701
+  s_a1b58daec3e888::t_4fa8b07fbfce75 243-245
+  s_a1b58daec3e888::t_a6ba2fc239c396 306
+  s_a1b58daec3e888::t_e3055c066de8a8 657-665,675,688,691-692,702-706,711,723-724
+  s_a1b58daec3e888::t_3735ac952fe3be 417-420
+  s_a1b58daec3e888::t_358371e30213d4 73-75
+  s_a1b58daec3e888::t_c8abec2f49154a 356-357
+  s_a1b58daec3e888::t_bce90ccf9898c0 666-670,676-687,689-690
+  s_a1b58daec3e888::t_4e1939e4bd488f 671-674,693-694
+  s_a1b58daec3e888::t_e60119f93f907e 247,253-255
+  s_a1b58daec3e888::t_0f1df7d97f13b1 155-159
+  s_a1b58daec3e888::t_0cfe84e24e8272 734-737
+  s_a1b58daec3e888::t_01183018b3418f 297-300
+  s_a1b58daec3e888::t_67c4c79102d399 202-205
+  s_a1b58daec3e888::t_0fffb2ddd29472 248-252
+  s_a1b58daec3e888::t_1efa1efc2c8c84 712-722
+  s_a1b58daec3e888::t_81d0be43b7a9fa 709-710
+  s_a1b58daec3e888::t_e3edc09c795536 707-708,725-733
+  s_a1b58daec3e888::t_2010a674a65dc6 69-70
+  s_a1b58daec3e888::t_4fa16b2f722d34 1,23-26
+  s_a1b58daec3e888::t_6ba47b10c75173 451-452
+  s_a1b58daec3e888::t_4d634252cba9f6 4-5,27-29
+  s_a1b58daec3e888::t_9b7f68b612cd44 322-325
+  s_a1b58daec3e888::t_cb8818650347a6 517-518
+  s_a1b58daec3e888::t_2a03aa2c247ac9 236-242,246
+  s_a1b58daec3e888::t_603136e161cb01 695-697
+  s_8d9fc3fb359c90::t_d1e96ffc404b92 363-366
+packages/core/src/container_query_image_flush_test.rs
+  s_aebf592dc6e79a::t_9609f4a9949d0b 73
+packages/engine/src/cdp/dom-release.ts
+  s_78432def045856::t_b71f8b5ccee45f 8,49
+packages/engine/test/e2e/no-set-immediate.e2e.test.ts
+  s_b2bc4296a4424c::t_9f6e167353c610 5
+internal/packages/engine-cf/src/caller.ts
+  s_8d9fc3fb359c90::t_43c44f16f9667d 17
+internal/packages/agent-bench/src/drivers/pi-cdt.ts
+  s_551f8c15675a8d::t_aed12ba2d48d25 18,57
+packages/engine/package.json
+  s_fdbd277ad00a64::t_e6036099ecc550 13
+internal/packages/agent-bench/src/cdp.ts
+  s_551f8c15675a8d::t_8d498782763560 9,248
+packages/core/src/animation_clock_test.rs
+  s_2c3db2bfaaace3::t_3502f08bdbf1bc 728,766
+packages/engine/test/image-dims.test.ts
+  s_b2bc4296a4424c::t_ebaf010fa37313 151
+internal/docs/TESTING.md
+  s_a1b58daec3e888::t_5f08e2b3290e5e 33-35,37,57,117-119
+  s_8d9fc3fb359c90::t_b1a56210ae685c 51
+  s_a1b58daec3e888::t_739c20d774822a 203-208
+  s_a1b58daec3e888::t_b26cbe3d86185b 225-228,230-238
+  s_a1b58daec3e888::t_b74b279cd6d232 187,210-220
+  s_a1b58daec3e888::t_c68140160027cb 239-251,254,264-265,270-284,294-305
+  s_8d9fc3fb359c90::t_d202ec4540736d 52-56
+  s_a1b58daec3e888::t_1bd4a65aff2468 255-263,266-269
+  s_a1b58daec3e888::t_58bffbdcb63241 36,38-50
+  s_8d9fc3fb359c90::t_5fd0cb4dd6fe81 252-253
+  s_a1b58daec3e888::t_741d802c573188 221-224,229
+  s_a1b58daec3e888::t_bdf3a606ba44d1 193-200
+  s_a1b58daec3e888::t_131a226dfd837b 291-293
+  s_a1b58daec3e888::t_1f8e198c0f26c7 188-192,201-202,209
+  s_c6d6a3ac21fe46::t_6ad90e7f1afc8e 175-180
+  s_a1b58daec3e888::t_8a75f835ebccd5 285-290
+  s_c6d6a3ac21fe46::t_1997224f929280 181-186
+  s_a1b58daec3e888::t_ffafdabf9130ff 18-22
+internal/tests/interactivity-flows/spawn-relay.mjs
+  s_d2f0b3019ee744::t_a06afc72441d79 8-11,14,29-30,32
+packages/page-script/src/page-tasks.ts
+  s_524eadaaaeaf6f::t_cc142b50b58b03 642
+  s_524eadaaaeaf6f::t_26323fd3b845de 559
+  s_02e920edba8d88::t_2b00ffae0ec65a 669
+docs/RENDERING_CONTRACTS.md
+  s_7a14d59b0adfe6::t_dfcd6870731ce4 111-114,119-122
+  s_7a14d59b0adfe6::t_78ed24e2e5193b 168-173
+  s_7a14d59b0adfe6::t_881aa6413cbe0d 106-110,115-117,123
+  s_7a14d59b0adfe6::t_4b617d0d9a7580 38-39
+  s_7a14d59b0adfe6::t_185a4864046179 62-67,75-77
+  s_7a14d59b0adfe6::t_589071d2de1ee9 101-105
+  s_7a14d59b0adfe6::t_7d656896e833c6 11-14,24-26,37,50,54-58,72-74,98-99,147-149,151-152,160
+  s_7a14d59b0adfe6::t_a2a713b1c8ac82 153-156,164-167
+  s_7a14d59b0adfe6::t_81f7b01bd28fdd 124-127,134-144
+  s_7a14d59b0adfe6::t_cda00c02cf7122 1-10,15-23,27-33,40-42,51-53,59-61,78,92-97,100,145-146,150,157-159,161
+  s_7a14d59b0adfe6::t_f6cfa35a469622 71,86-87
+  s_7a14d59b0adfe6::t_38803022230500 80
+  s_7a14d59b0adfe6::t_8bf219c0494d91 128
+  s_7a14d59b0adfe6::t_d587574217070d 68-70,81,84-85,88-91
+  s_7a14d59b0adfe6::t_80c466219c3bd5 34-36,43-44
+  s_7a14d59b0adfe6::t_f258c9b8471f31 79,82-83
+  s_7a14d59b0adfe6::t_7633bbfbdd43c0 45-49
+  s_7a14d59b0adfe6::t_f68ecc6e3c85cb 162-163
+  s_7a14d59b0adfe6::t_e8f13f59810c4e 118
+  s_7a14d59b0adfe6::t_70099da8645f6d 129-133
+internal/scripts/bench-trace-report.mjs
+  s_d2f0b3019ee744::t_89e96980fcfd90 41-49,89,96,153,161-165,170,174-178,181,206,214,243,254,261-262
+packages/engine/test/fixtures-worker/assets/iframe-referrer-nested.html
+  s_948e69d8580eb0::t_9446fd2683908b 1-6
+packages/engine/src/tty/stylesheet.ts
+  s_76cee6e5edaa4a::t_3adfc8f4ec655e 8,12-16
+packages/engine/test/e2e/percent-margin-basis.e2e.test.ts
+  s_b2bc4296a4424c::t_9f6e167353c610 5
+docs/WORKERS.md
+  s_524eadaaaeaf6f::t_8092eef8c59065 164-168
+  s_524eadaaaeaf6f::t_667d9742664388 169-170
+  s_524eadaaaeaf6f::t_0346d3070103cf 148-149,154-159,161-163
+  s_524eadaaaeaf6f::t_7fc6aca79c4b47 121-124
+  s_c6d6a3ac21fe46::t_72837fd0e2e5d0 117-120,125-130
+  s_eb5892a24d7c0d::t_c6fb1421fcb69b 147,150-153
+  s_eb5892a24d7c0d::t_7dd1fbe3edd0a0 160
+packages/dom-shim/src/element/forms/label-activation.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+docs/PAGE_RUNTIME_CONTRACTS.md
+  s_eb5892a24d7c0d::t_10a2637e133d5f 145-146,150-152
+  s_524eadaaaeaf6f::t_06045d9bec13b6 147,337
+  s_eb5892a24d7c0d::t_0a24388f183fa3 217-239
+  s_524eadaaaeaf6f::t_8092eef8c59065 360-362
+  s_524eadaaaeaf6f::t_a3aff6f919c753 148-149,265,277-284
+  s_eb5892a24d7c0d::t_a0cd9af9e73ee6 263-264,269-276,285-304,313
+  s_eb5892a24d7c0d::t_7688ca418eb524 266-268
+  s_eb5892a24d7c0d::t_7dd1fbe3edd0a0 210-215
+  s_524eadaaaeaf6f::t_ad8ba2165cb51d 58-61,197-198
+  s_524eadaaaeaf6f::t_61c7114c0bccf9 62,196,317,358
+  s_eb5892a24d7c0d::t_e3c648f32c5f5d 153-172
+  s_eb5892a24d7c0d::t_3f2c72088f6526 126-135
+  s_eb5892a24d7c0d::t_4c7b5996305b34 331-333
+  s_eb5892a24d7c0d::t_601958381971d0 136-144
+  s_524eadaaaeaf6f::t_c5e79f8642aedb 75-77
+  s_eb5892a24d7c0d::t_78cc34104d4b85 173-195,199-209
+  s_eb5892a24d7c0d::t_5ad5aec1bff30c 305-312,359,363-372,376-390
+  s_eb5892a24d7c0d::t_1fe043add78f31 318-330,334-336,338-357
+  s_eb5892a24d7c0d::t_bb084c38cee1dd 87-115
+  s_eb5892a24d7c0d::t_db41626cfe9c46 240-262
+  s_eb5892a24d7c0d::t_c6fb1421fcb69b 1-8,12,18-30,38-57,63-73,86,116-125
+  s_eb5892a24d7c0d::t_bf9c6787aced8d 216,314-316
+  s_524eadaaaeaf6f::t_80a48f446bfa42 9-11,13-17,33-36
+  s_eb5892a24d7c0d::t_85d9a46db7d86c 31-32,37,74,78-85
+  s_eb5892a24d7c0d::t_005ebcf4811dc0 373-375
+packages/dom-shim/src/element/svg.ts
+  s_cfa3a80ee1db24::t_2796859500f290 13
+  s_08745e9d0bed18::t_e75775ab82f40a 6
+internal/packages/agent-bench/worker/wrangler.jsonc
+  s_fdd0fd6c73650e::t_5188638627cf90 2,57,102
+internal/scripts/flows-workerd-trap.c
+  s_8d9fc3fb359c90::t_431f1745e1140f 16-17
+packages/page-script/src/defer-shim.ts
+  s_02e920edba8d88::t_2b00ffae0ec65a 35
+  s_524eadaaaeaf6f::t_5e7ecfa2e95e2a 39
+  s_17fb96c5e58da9::t_d147d82ad47032 327
+  s_17fb96c5e58da9::t_f84b1ee9698974 328-332
+internal/docs/WEBSITE.md
+  s_a1b58daec3e888::t_767322d528c68b 146-155
+  s_a1b58daec3e888::t_e5e2782a48e3eb 41-42,48-51
+  s_a1b58daec3e888::t_ff64443f8dfb47 13-14,40
+  s_a1b58daec3e888::t_7ca7ea96cef7ae 31-34
+  s_a1b58daec3e888::t_198ce8336c3c67 103-106
+  s_a1b58daec3e888::t_6ba65cfdd71272 128-134,139
+  s_a1b58daec3e888::t_100ad64adbaeea 135-138
+  s_a1b58daec3e888::t_12a8f6b48d1aac 158-160
+  s_a1b58daec3e888::t_eaf2f229980e4a 19-27,35-39,43-45,52-57,76-78,94-102,111-119
+  s_a1b58daec3e888::t_477c1548021eb4 28-30,46-47,68-70,107-110,120-126
+  s_a1b58daec3e888::t_772d790616a3a4 91-93
+  s_a1b58daec3e888::t_dfb5c403fd92e0 79-90
+  s_a1b58daec3e888::t_20ca3407ee1c6e 1-12,15-18,58-67,71-75,127,140-145,156-157
+docs/TERMINAL.md
+  s_7a14d59b0adfe6::t_b1b9c382af41fc 75-76,84-85,105-109
+  s_7a14d59b0adfe6::t_3c170608bc5780 92-93
+  s_c6d6a3ac21fe46::t_e3198eb4ccdcdb 30,49-56
+  s_7a14d59b0adfe6::t_a7d78c940862f0 83
+  s_c6d6a3ac21fe46::t_059f94bd1b9f9f 37-40
+  s_c6d6a3ac21fe46::t_b2531df040d7b6 60,113
+  s_7a14d59b0adfe6::t_c5f6cc98b17395 46-47,61-62,71-74,86-87,91,110-112
+  s_92aba1431f2ef7::t_d84665b0caff62 15-19
+  s_7a14d59b0adfe6::t_d9b1b55b89dcca 58-59
+  s_7a14d59b0adfe6::t_face231ecae532 121-123
+  s_7a14d59b0adfe6::t_fcccf3b0bd8bcf 94-95
+  s_c6d6a3ac21fe46::t_123df1bfcca604 133-136
+  s_7a14d59b0adfe6::t_320a8e7728a97f 31-36,41-45,48,63-70,77-82,88-90,96-104
+  s_c6d6a3ac21fe46::t_d34c00aa8b8d78 21-25
+  s_c6d6a3ac21fe46::t_4302115664d42a 57,114-120,124-132
+packages/dom-shim/src/contract.ts
+  s_8b8a00484e0f56::t_89e9b4545e22eb 5-10
+internal/packages/agent-bench/src/overlay.ts
+  s_fdd0fd6c73650e::t_5188638627cf90 28,34
+  s_fdd0fd6c73650e::t_57516b538eb416 30
+internal/packages/engine-cf/src/cdp-client.ts
+  s_c2cf363362157f::t_5e0bdbe6ea42be 8-9
+  s_3c0ab630d4f557::t_175eddf938a84c 250-252,254,262,272,281-282,296-299,308-309,313,318-319,322,324,332,355,373-375
+  s_c2cf363362157f::t_d5324a98f51f2d 3,6
+internal/packages/engine-cf/scripts/lint-agent-language.mjs
+  s_fdbd277ad00a64::t_e6036099ecc550 67
+packages/script-gate/src/digest.ts
+  s_17fb96c5e58da9::t_d147d82ad47032 6-7
+  s_17fb96c5e58da9::t_335c8d3c053b67 14-18
+internal/tests/interactivity-flows/README.md
+  s_a1b58daec3e888::t_1836263191449c 117-118
+  s_a1b58daec3e888::t_98c801a482be67 127-135,148-159,189-198,207-211,215-219,222-226,231-236,248-255,274,287,320
+  s_a1b58daec3e888::t_49b26b0c65687a 227-230,237-241,275-286,310-319,595-598,629-631
+  s_8d9fc3fb359c90::t_e83b7ac4e7e4e9 121-125
+  s_8d9fc3fb359c90::t_7872c9cf629346 105-107
+  s_a1b58daec3e888::t_8ad8985bc812b7 633-637,641-662
+  s_8d9fc3fb359c90::t_32cde34d2fefc1 330-333
+  s_8d9fc3fb359c90::t_48221b7e2c2422 242,269-272
+  s_8d9fc3fb359c90::t_0fadd776e856df 160-172,180-183,188
+  s_8d9fc3fb359c90::t_13a02857cc28e1 64-66
+  s_8d9fc3fb359c90::t_5e3cf4abd220ea 599-600
+  s_8d9fc3fb359c90::t_296a83d08d103d 266-268
+  s_8d9fc3fb359c90::t_2eccb1e3ce51a6 243-247
+  s_8d9fc3fb359c90::t_1783b70dacadc4 184-187
+  s_a1b58daec3e888::t_ec0bcdd14db825 137-147,199-206
+  s_8d9fc3fb359c90::t_8461cfcb382325 20-26
+  s_8d9fc3fb359c90::t_937a79c7569297 368-371
+  s_8d9fc3fb359c90::t_7ac2acc3b2095e 565-568
+  s_8d9fc3fb359c90::t_9ae023dfd08ad6 288-291
+  s_8d9fc3fb359c90::t_ec16386e088451 321-329
+  s_a1b58daec3e888::t_d06a88c6ce3f36 423-429
+  s_8d9fc3fb359c90::t_21170da1e3940a 175-179
+  s_8d9fc3fb359c90::t_ce7db534ea31ec 603-604
+  s_8d9fc3fb359c90::t_01285f46ed5ca7 33-38,638-640
+  s_8d9fc3fb359c90::t_42f2baaba9d530 256-258,262-265,273
+  s_8d9fc3fb359c90::t_f093ff7d69223e 356-361
+  s_8d9fc3fb359c90::t_009ec23ff2b799 27-31
+  s_8d9fc3fb359c90::t_2d4e230a5b2c15 173-174
+  s_8d9fc3fb359c90::t_47327fff6b532e 259-261
+  s_c6d6a3ac21fe46::t_059f94bd1b9f9f 601,632
+  s_8d9fc3fb359c90::t_3126bbc81be2cb 293-309
+  s_8d9fc3fb359c90::t_7aa3ada20f2e30 220-221
+  s_8d9fc3fb359c90::t_a28d2cded0d7bd 602,605-612
+  s_8d9fc3fb359c90::t_d542b6278452c5 120,126
+  s_c6d6a3ac21fe46::t_7f9655b5a6a796 32,119,136,292
+packages/engine/src/cdp/dom.ts
+  s_d7edd1248351b3::t_cacc3cee064147 6,579,587
+  s_78432def045856::t_b71f8b5ccee45f 515
+packages/engine/vitest.e2e.config.mts
+  s_fdbd277ad00a64::t_65449a8c093bff 232
+  s_fdbd277ad00a64::t_6b20233b42ac5e 192-194
+  s_fdbd277ad00a64::t_bc652f796d260a 127,244
+  s_fdbd277ad00a64::t_a9a601ef360c00 187
+  s_fdbd277ad00a64::t_2103ec0118a270 129-134,144-149,188-191,195-198
+  s_fdbd277ad00a64::t_f60c6d25aa3676 199
+packages/engine/src/eval/prefetch-wasm.ts
+  s_76cee6e5edaa4a::t_aae71b4b9449c3 29,76-77
+  s_73ebfaabda0daa::t_9fa47efcd991f8 104,224,278
+  s_d7edd1248351b3::t_7b35243652d1ba 268
+  s_76cee6e5edaa4a::t_ff6c1cd2f7e825 30,32-35
+internal/scripts/trace-pull.mjs
+  s_fe482cbcf3b988::t_58d54716a3c15d 17
+packages/engine/src/engine-wasm-probe.ts
+  s_78432def045856::t_08c919d2dbccd8 5
+packages/page-script/src/globals.ts
+  s_17fb96c5e58da9::t_f419e4b644f9af 1798-1801,1831-1833,1843-1844
+  s_17fb96c5e58da9::t_c93f47f6a9faff 22-28
+  s_45ac3d10b64cd0::t_7a393512603b3a 42,323
+  s_02e920edba8d88::t_91e19846992c6f 433
+  s_17fb96c5e58da9::t_f84b1ee9698974 300-305,1803-1808
+  s_eb5892a24d7c0d::t_7688ca418eb524 800,883,887,2231
+  s_eb5892a24d7c0d::t_262389269a17eb 3017,3132,3202,3459,3475,3561,3575,3658,3684,3686,3738,3787,3797,3807,3820,3852,3983,3991
+  s_45ac3d10b64cd0::t_82e90d72b413cd 2948
+  s_eb5892a24d7c0d::t_d6e2d413705d6d 3301
+  s_02e920edba8d88::t_a46138d3ee10a9 140,185,328,992
+  s_c6d6a3ac21fe46::t_8dc57757f4a6df 324-326
+  s_eb5892a24d7c0d::t_af6a6708788564 3316
+  s_eb5892a24d7c0d::t_ab575bed98833e 118,136,592
+  s_524eadaaaeaf6f::t_348443a25b7cbb 3315
+scripts/webidl-ts-types.mjs
+  s_2e3180ce801352::t_eb536065c84bb3 213
+  s_7a8515feb07e5c::t_7080e2fbba6c91 98,239
+internal/docs/ENGINE_CF.md
+  s_a1b58daec3e888::t_f57faaa654fe7e 208,257-258,271-275,284
+  s_8d9fc3fb359c90::t_d1e96ffc404b92 226-230
+  s_a1b58daec3e888::t_cd8d4877bed482 244-247,251-252
+  s_a1b58daec3e888::t_45f4278c464930 179-184,192-196,294-297
+  s_c6d6a3ac21fe46::t_fd81d83bce9e59 1-2,53-54,61
+  s_a1b58daec3e888::t_ca85e6b97e447d 3-6,11-28,55-60,63-70,98-103,110,131,145-169,172-178,185-191,197-207
+  s_c32c835b7e1175::t_651b584e11801b 44-46
+  s_a1b58daec3e888::t_8627fbf3bfebbb 78-81
+  s_a1b58daec3e888::t_0ee9f371195422 111-117
+  s_a1b58daec3e888::t_8d3f1365e38e4b 132-144,285-293
+  s_8d9fc3fb359c90::t_13eb061803791a 259-264,270
+  s_a1b58daec3e888::t_dbeee284221371 7-10
+  s_c32c835b7e1175::t_e6793cf1dc4e0c 29-40,47-52,118-125,129-130,265-269,276-283
+  s_a1b58daec3e888::t_2077345842e825 248-250
+  s_c32c835b7e1175::t_379dde27a2a511 43
+  s_a1b58daec3e888::t_6842d8c4ad7f93 75-77,107-109
+  s_c32c835b7e1175::t_49089bda435dfb 41
+  s_a1b58daec3e888::t_700b7f5d5abe93 83-97,170-171
+  s_c6d6a3ac21fe46::t_1997224f929280 62,298-300
+  s_a1b58daec3e888::t_38f3e650316bc1 71-74,82
+  s_c32c835b7e1175::t_2172095b00f375 126-128
+  s_8d9fc3fb359c90::t_8217c625639d85 104-106
+  s_a1b58daec3e888::t_664960597ae01b 209-225,231-243,253-256
+  s_c32c835b7e1175::t_70b3217a4e9cfb 42
+internal/packages/engine-cf/src/quickactions/forward-headers.ts
+  s_fe482cbcf3b988::t_58d54716a3c15d 3
+scripts/generate-webidl-bindings.mjs
+  s_2e3180ce801352::t_d3130a2add59e0 351
+  s_2e3180ce801352::t_eb536065c84bb3 200
+  s_7a8515feb07e5c::t_7080e2fbba6c91 50,123,267,292,387
+packages/worker-script/src/index.ts
+  s_02e920edba8d88::t_9d1e226e82df58 42
+packages/core/src/pdf_paint.rs
+  s_ae7e28df3d5f67::t_ac4371c8b254ec 33-35,167-168,225-226,538
+  s_7a14d59b0adfe6::t_0a449b3659987a 5-7
+  s_7a14d59b0adfe6::t_6a41fb378eba57 258
+scripts/check-public-imports.mjs
+  s_7a8515feb07e5c::t_7080e2fbba6c91 76
+  s_c6d6a3ac21fe46::t_c608849833f784 166
+  s_c6d6a3ac21fe46::t_f41ef7cb6284df 44
+  s_c6d6a3ac21fe46::t_975c91375d38ce 92
+  s_ff4f48493e8289::t_f30ca364a1fb9e 1-5,7-30,32-33,36-40,42-43,45-65,71,73-75,77-91,93-101,107-110,112-132,139-142,144-146,148-165,167-168,170-172
+  s_1c48520c8c8aee::t_ccfe7500962e6d 169
+  s_c6d6a3ac21fe46::t_7ad6dd9f1cdde9 66-70,72,102-106,111,133-138
+  s_c6d6a3ac21fe46::t_763993f1a64691 6,41,143,147
+  s_c6d6a3ac21fe46::t_0c287084b9a1c9 31,34-35
+internal/packages/engine-cf/test/e2e/set-content.ts
+  s_fdbd277ad00a64::t_a02e9cb71b713a 1-4
+packages/engine/test/e2e/stylo-layout-misc-values.e2e.test.ts
+  s_b2bc4296a4424c::t_af2a120e990337 8,36
+internal/packages/website/src/routes.tsx
+  s_fe482cbcf3b988::t_58d54716a3c15d 15
+internal/packages/grafana/src/query.ts
+  s_d2f0b3019ee744::t_a06afc72441d79 240-244,387,481,495,522,542,550,578,591,603,613
+internal/packages/bench-report/src/index.ts
+  s_fe482cbcf3b988::t_58d54716a3c15d 12
+packages/page-script/src/native-functions.ts
+  s_17fb96c5e58da9::t_49cc82db3db49f 52-53
+  s_17fb96c5e58da9::t_f84b1ee9698974 77-83,90-96
+packages/engine/test/e2e/demos/forms-post-submit-demo.e2e.test.ts
+  s_b2bc4296a4424c::t_7449af13480681 79
+packages/page-script/src/types.ts
+  s_45ac3d10b64cd0::t_92792ee649b4a6 6,9
+  s_c6d6a3ac21fe46::t_4f66821c4374aa 7-8,25-26,106-107
+scripts/wpt-shared.mjs
+  s_1c48520c8c8aee::t_6dbbea176d3395 330
+  s_7a8515feb07e5c::t_0abc6505682bc7 46,282,361
+  s_d04786dc7ec1d7::t_e08d8793252030 30-31,48,270-271,277,366-367,373
+internal/packages/engine-cf/test/e2e/agent-do.e2e.test.ts
+  s_fdbd277ad00a64::t_20a944e59cbc38 2
+scripts/check-ts-coverage.mjs
+  s_7a8515feb07e5c::t_7080e2fbba6c91 27,57
+  s_c6d6a3ac21fe46::t_763993f1a64691 6,14,30,59
+packages/engine/src/eval/script-bundle.ts
+  s_76cee6e5edaa4a::t_aae71b4b9449c3 12,137-139
+scripts/wpt-exec.mjs
+  s_d04786dc7ec1d7::t_4de10e0755070a 40-47,306-307,507,718,751,845,972,1038
+  s_1c48520c8c8aee::t_ddee8921818100 39,66,995
+  s_d04786dc7ec1d7::t_1260dd1a6fd9b5 953,955
+  s_d04786dc7ec1d7::t_d734d310bb2c17 940-943,952
+  s_7a8515feb07e5c::t_6bbc5848daadd0 34,442,528,544,579,621,781,1187
+  s_7a8515feb07e5c::t_650bf7015f6146 467,641
+  s_1c48520c8c8aee::t_3bb1aa07538922 1247-1248
+  s_7a8515feb07e5c::t_33d561f738381b 1032
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 834
+packages/dom-shim/src/events/event.ts
+  s_08745e9d0bed18::t_e1f82118de7cf5 16,23
+packages/engine/test/e2e/cssom-counter-style-rule.e2e.test.ts
+  s_b2bc4296a4424c::t_eb01fe5bb76360 5
+  s_b2bc4296a4424c::t_40827eed122be9 95,99
+packages/dom-shim/src/events/dispatch.ts
+  s_dd0f730efc12c5::t_3f7f003a441b9c 360,376,545,552
+  s_08745e9d0bed18::t_e1f82118de7cf5 24,28,198,208,251
+packages/engine/test/e2e/cdp-wire.ts
+  s_fdbd277ad00a64::t_bc652f796d260a 5-10,12-15,21-51
+  s_fdbd277ad00a64::t_46f1cfbb941f75 11,16-20
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/engine/src/rbi.ts
+  s_73ebfaabda0daa::t_e6429a48e4e4a5 229
+  s_8eb11a0a07c69e::t_3fcb383f22d14c 279
+  s_76cee6e5edaa4a::t_3adfc8f4ec655e 15-26,29,31,42,47-50,60-62,67-75
+  s_76cee6e5edaa4a::t_452e1317702dd5 112,358
+  s_76cee6e5edaa4a::t_683b247814eca4 116
+  s_76cee6e5edaa4a::t_e96ed245503572 148-151
+  s_78432def045856::t_2dad976ef61a49 93,171,397
+scripts/check-public-imports.test.mjs
+  s_ff4f48493e8289::t_3e545112a886a1 123-124
+  s_c6d6a3ac21fe46::t_0c287084b9a1c9 147-156
+  s_ff4f48493e8289::t_f30ca364a1fb9e 1-7,9-11,22-59,74-89,116-122,125-146,157
+  s_c6d6a3ac21fe46::t_255a42b44b34dd 60-73
+  s_c6d6a3ac21fe46::t_f8f0d1406b34e6 90-115
+  s_c6d6a3ac21fe46::t_f41ef7cb6284df 8,12-21
+docs/TELEMETRY.md
+  s_09d21ed5822b1d::t_63c81100ceb1b4 78-79
+  s_73ebfaabda0daa::t_0d002de827ffdf 29-31,88-90
+  s_c6d6a3ac21fe46::t_182227fffb2248 91,105-108
+  s_73ebfaabda0daa::t_54b4dc5d72edf0 18-19
+  s_09d21ed5822b1d::t_d9cfc5c0a5a493 92-98,101-104
+  s_c6d6a3ac21fe46::t_eb7717efc0e42b 72-77,80-84
+  s_09d21ed5822b1d::t_a8d49c077c84b5 109,117-126
+  s_09d21ed5822b1d::t_b3b43dbb112a00 99-100
+  s_09d21ed5822b1d::t_48afadb8b48b8f 110-116
+  s_c6d6a3ac21fe46::t_dafd68ab34f85c 85-87
+packages/engine/src/cdp/diag-spans.ts
+  s_76cee6e5edaa4a::t_683b247814eca4 33-35,51-54
+  s_76cee6e5edaa4a::t_2857a14da66816 7-14,50,62,74-77,95
+packages/engine/test/e2e/demos/forms-step-numeric-demo.e2e.test.ts
+  s_b2bc4296a4424c::t_8edfe440ccc795 100
+packages/page-renderer/scripts/build.mjs
+  s_17fb96c5e58da9::t_2f18797ee04e6d 18,62
+packages/engine/test/tracing-local.test.ts
+  s_b2bc4296a4424c::t_bcd2e87c2d4b23 296
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_96ee4df000b017::t_f478b88a02183b 28-32
+  s_96ee4df000b017::t_7a74c7d2fab254 15
+  s_73ebfaabda0daa::t_e6429a48e4e4a5 49,301
+  s_78432def045856::t_2dad976ef61a49 224
+docs/CORS.md
+  s_09d21ed5822b1d::t_8e5de0e7d9642a 278-280,286
+  s_09d21ed5822b1d::t_dd558d5e252934 8-9
+  s_c6d6a3ac21fe46::t_4bb9909d8eb793 254-256
+  s_c6d6a3ac21fe46::t_f0eba2a467c33a 24-26
+  s_09d21ed5822b1d::t_1aa8361ebffadd 62-64
+  s_73ebfaabda0daa::t_684a88a94513e5 89-96,175-179,281-285
+internal/packages/shadow-replay/src/emitter.ts
+  s_3c0ab630d4f557::t_175eddf938a84c 62,64-65,68-69
+  s_d2f0b3019ee744::t_09138f55a87237 56,110
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 66
+  s_fe482cbcf3b988::t_58d54716a3c15d 182
+  s_3c0ab630d4f557::t_c5823b23c7edc3 63
+scripts/check-license-headers.mjs
+  s_c6d6a3ac21fe46::t_763993f1a64691 6,237,241
+  s_d04786dc7ec1d7::t_2c405c9db5254c 11,240
+packages/script-gate/test/referrer-policy.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/engine/test/e2e/tldraw-app-shell.e2e.test.ts
+  s_b2bc4296a4424c::t_69480d73281456 80-82,85,131-133
+docker-compose.dev.yml
+  s_bfa61356ee59a3::t_7c6de6e70a7763 7-8
+packages/dom-shim/src/editing/implementation.ts
+  s_0e9f80ed26fe1c::t_59a2857070becb 5
+internal/packages/engine-cf/test/e2e/tsconfig.json
+  s_fdbd277ad00a64::t_a02e9cb71b713a 3
+packages/engine/test/fetch-slots.test.ts
+  s_b2bc4296a4424c::t_83e929c09eb436 90-91
+internal/packages/wpt-report/src/index.ts
+  s_fe482cbcf3b988::t_58d54716a3c15d 34,67
+packages/engine/src/cdp/fetch-interception.ts
+  s_d7edd1248351b3::t_051eeaf29ee834 8
+  s_76cee6e5edaa4a::t_2857a14da66816 51,193
+  s_78432def045856::t_66d5cadfdc5a67 132,189
+packages/dom-shim/src/element/element.ts
+  s_08745e9d0bed18::t_b32e71365d7ae8 73-74,1709-1710
+  s_dd0f730efc12c5::t_ca62f453123052 823-824,1145
+  s_08745e9d0bed18::t_bb52a1ecb0d52b 69-72,75,88
+  s_08745e9d0bed18::t_04ff5c48e6e2df 241,352,385,463-465,477,487,497,539,642,1265-1266,1280-1281,1930,2338-2340
+  s_08745e9d0bed18::t_335fb8495d294b 1222-1223,1541-1542,1671
+  s_cfa3a80ee1db24::t_15045c5e42b8d9 513
+  s_0e9f80ed26fe1c::t_4ac69109a256c6 1273,1528,1530
+  s_0e9f80ed26fe1c::t_482a7bfeffbadb 2329-2330
+  s_0e9f80ed26fe1c::t_920eac84f5d874 233,243,341,627-628
+packages/dom-shim/src/element/table.ts
+  s_08745e9d0bed18::t_64b37e32ff61b0 153-155,185-186
+  s_cfa3a80ee1db24::t_edaae47ae9048a 140
+  s_08745e9d0bed18::t_57f720e3337b06 7
+  s_08745e9d0bed18::t_babb4aaec6663a 193
+packages/dom-shim/src/mutations/attached.ts
+  s_08745e9d0bed18::t_e1f82118de7cf5 7,29
+  s_762f3d9164029f::t_c92422e4107c57 21
+packages/core/src/scene_decode.rs
+  s_ae7e28df3d5f67::t_0964c07e7581cb 10-11,510
+  s_7a14d59b0adfe6::t_07dc5b83683d0d 589
+  s_7a14d59b0adfe6::t_6a41fb378eba57 970
+  s_ae7e28df3d5f67::t_6159ce92a36fe3 5-9,12-13,103-105,563-565,570-571,629,643,649-650,662,700,722,736,753,769,873,878,881,885,919,926,999,1012-1013,1024,1037,1050,1073,1113-1114,1127
+internal/docs/AGENT_BENCH_CONTAINERS.md
+  s_14b9d80a80a0b1::t_371c6f3f5b3e79 336
+  s_14b9d80a80a0b1::t_8fbbd1a1f153f5 5-7,10-12
+  s_14b9d80a80a0b1::t_a1cdd7b5ac87b0 34,99,102-106,109,112-113,116-118,169,173,202,285,299-301,351-352
+internal/packages/agent-bench/src/run-overlay.ts
+  s_fdd0fd6c73650e::t_57516b538eb416 12,55
+internal/packages/engine-cf/src/ready-analytics.ts
+  s_fe482cbcf3b988::t_58d54716a3c15d 127
+packages/core/src/text_encoding.rs
+  s_58e002450ea2a7::t_cf1ab3a43a78a8 71
+internal/tests/interactivity-flows/egress-relay.ts
+  s_8d9fc3fb359c90::t_719dc65f94d9be 233
+internal/packages/engine-cf/src/quickactions/index.ts
+  s_d2f0b3019ee744::t_c6423336db0684 1419
+  s_d2f0b3019ee744::t_fac2381bb8168d 28,1398
+  s_d2f0b3019ee744::t_58c9fa17593ed1 23-27,29-33,1036-1038,1251-1259,1316-1322,1435,1447,1452,1468,1503,1802
+  s_8d9fc3fb359c90::t_bf4701a37eefb7 1293
+  s_a1b58daec3e888::t_e4ea2a00b6bd26 1343,1552-1554
+  s_d2f0b3019ee744::t_9c35758873df99 19-22,399,402,404-405,613-616,729-736
+packages/engine/src/cdp/target.ts
+  s_09d21ed5822b1d::t_ffee2fb039fa3e 366,409
+  s_78432def045856::t_b71f8b5ccee45f 70,384
+  s_09d21ed5822b1d::t_1644ff310829fd 97
+packages/page-script/src/websocket.ts
+  s_17fb96c5e58da9::t_49cc82db3db49f 13-15,103,107-111,169,243,245
+  s_eb5892a24d7c0d::t_ee066610a8829e 117,133,226,257
+  s_17fb96c5e58da9::t_718e8b73824672 145-147
+  s_524eadaaaeaf6f::t_cc142b50b58b03 25
+internal/packages/engine-cf/vitest.config.mts
+  s_fdbd277ad00a64::t_e6036099ecc550 7-10
+packages/engine/src/eval/page-script.ts
+  s_73ebfaabda0daa::t_9117a9dc50aa17 393
+  s_76cee6e5edaa4a::t_aae71b4b9449c3 151-152,155-157
+  s_09d21ed5822b1d::t_bc8745e5cef3ee 583
+  s_96ee4df000b017::t_72e75aea187866 11-12,391-392,394
+  s_09d21ed5822b1d::t_f42bab508f794f 461
+packages/dom-shim/src/element/forms/validity.ts
+  s_c6d6a3ac21fe46::t_1ba79e7b8d403d 96,106
+  s_08745e9d0bed18::t_00309a4b9008c1 6-12,133-136,142-145,150,152
+docs/SCRIPT_GATE.md
+  s_c6d6a3ac21fe46::t_72837fd0e2e5d0 161-162
+  s_eb5892a24d7c0d::t_c6fb1421fcb69b 174-176
+  s_524eadaaaeaf6f::t_2c8b953331d8be 165-168
+  s_524eadaaaeaf6f::t_d69a4d3f4c7b2f 177-179
+  s_524eadaaaeaf6f::t_2a8a0440cc4f97 180-181
+  s_524eadaaaeaf6f::t_a3aff6f919c753 163
+  s_524eadaaaeaf6f::t_4ea4e499e01982 182-188
+  s_524eadaaaeaf6f::t_b963428af0ae88 189-194
+  s_c6d6a3ac21fe46::t_c6ac1e6057617c 164,169-173
+packages/scene-host-wasm/src/lib.rs
+  s_92aba1431f2ef7::t_4f2d16039b3e33 92-93,170-172
+  s_ae7e28df3d5f67::t_2d39c019ddd86e 79-91,96,108,112,116-118,138-139,143,150,155,169,189
+  s_ae7e28df3d5f67::t_5b57d4f7b53a9a 151-154
+packages/engine/test/e2e/form-controls-named-item.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/engine/test/e2e/source-dimensions.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+scripts/get-wasm-bindgen.mjs
+  s_7a8515feb07e5c::t_37ecdd694edd0e 10
+scripts/memprof.mjs
+  s_d04786dc7ec1d7::t_388efeed8236c0 11,100-101,114
+packages/page-script/src/inserted-scripts.ts
+  s_524eadaaaeaf6f::t_cc142b50b58b03 37
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 151-153
+  s_02e920edba8d88::t_9e5b64b09eee62 177
+packages/engine/src/tracing-local.ts
+  s_76cee6e5edaa4a::t_683b247814eca4 21-22,169-170
+  s_76cee6e5edaa4a::t_94d4a31a65763c 12-16,18-20,25-33,87-89,107-108,168,231,264,280,332,436,589-591,599
+internal/AGENTS.md
+  s_c6d6a3ac21fe46::t_085098e310447d 94-96
+  s_14b9d80a80a0b1::t_2591540e051119 25-26,29-32,60
+  s_c6d6a3ac21fe46::t_05422f936dd94c 44,51-52,61
+  s_14b9d80a80a0b1::t_c9ce5b61089ead 27-28
+  s_a1b58daec3e888::t_20ca3407ee1c6e 39-40
+packages/page-script/src/state.ts
+  s_524eadaaaeaf6f::t_26323fd3b845de 79
+  s_17fb96c5e58da9::t_c93f47f6a9faff 21,111-112
+  s_17fb96c5e58da9::t_9503921c5003ef 16-20
+scripts/wpt-merge-shards.mjs
+  s_7a8515feb07e5c::t_dd47bfea83b927 32
+  s_7a8515feb07e5c::t_0abc6505682bc7 151
+packages/engine/src/wasm.ts
+  s_78432def045856::t_08c919d2dbccd8 29,40
+  s_d7edd1248351b3::t_4bfb80f2527cf5 56
+internal/packages/engine-cf/src/quickactions/render-session.ts
+  s_d2f0b3019ee744::t_9c35758873df99 12-13,27,67
+internal/scripts/autoresearch-bench.mjs
+  s_8d9fc3fb359c90::t_431f1745e1140f 98
+packages/engine/test/e2e/document-collections.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/dom-shim/MODULES.md
+  s_c6d6a3ac21fe46::t_be210ccee2ac6b 181-187,199
+  s_0e9f80ed26fe1c::t_aec36b686265f8 196-198
+  s_0e9f80ed26fe1c::t_ee3a88d493789d 159-180,188-195
+  s_0e9f80ed26fe1c::t_49f909addd07b1 200-205
+internal/scripts/wait-for-main-wasm.mjs
+  s_d2f0b3019ee744::t_a06afc72441d79 13-14,25-30
+packages/dom-shim/scripts/editing-implementation.mjs
+  s_0e9f80ed26fe1c::t_33bae634e0a420 5-6
+  s_08745e9d0bed18::t_e1f82118de7cf5 19-20,40,42
+packages/core/src/inline_block_baseline_test.rs
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/core/src/hit_test_line_ripple_test.rs
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/page-script/src/message-channel.ts
+  s_524eadaaaeaf6f::t_e4ddb4e055a7ff 5
+packages/core/src/scene_replay.rs
+  s_ae7e28df3d5f67::t_6117c2eea0e39c 21,24-30
+  s_ae7e28df3d5f67::t_ba019e2a1bca57 117,120-121,123,129,136,144,148,151,177,181-182
+  s_ae7e28df3d5f67::t_8bbb276b94531e 128
+  s_7a14d59b0adfe6::t_7fe0e2dafd4fca 2117
+  s_7a14d59b0adfe6::t_981d89949f7022 3077-3080
+  s_ae7e28df3d5f67::t_008f96e4e4a3f0 81,165,191,226,249
+  s_7a14d59b0adfe6::t_92cfa59a6d9be6 1476-1477
+  s_ae7e28df3d5f67::t_a612535aa2e1f2 337,349-351
+  s_ae7e28df3d5f67::t_751a3fd8e782b6 1173,1176-1177,1179,1182-1183,1857,1860-1861,1863,1867,1871
+  s_ae7e28df3d5f67::t_ee87fa59da2d36 1535
+  s_7a14d59b0adfe6::t_5a08a390271688 1769-1770
+  s_7a14d59b0adfe6::t_01b68382de80d4 1463-1464
+  s_c6d6a3ac21fe46::t_5bc4b45709e71e 31
+packages/engine/test/e2e/exec-command.e2e.test.ts
+  s_b2bc4296a4424c::t_bc69579a17b13c 66
+packages/page-script/src/pack.ts
+  s_17fb96c5e58da9::t_49cc82db3db49f 64-67
+  s_17fb96c5e58da9::t_d147d82ad47032 62
+scripts/wpt-ref-cache.mjs
+  s_7a8515feb07e5c::t_0abc6505682bc7 15
+packages/engine/test/e2e/size-container-abspos.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+docs/MEMPROF.md
+  s_c6d6a3ac21fe46::t_9c07ef769cdb9d 169-174
+packages/engine/src/cdp/network-events.ts
+  s_78432def045856::t_1ee0bffb7df3a3 153,249,262
+  s_76cee6e5edaa4a::t_2857a14da66816 57,134,281,363,456-460
+  s_76cee6e5edaa4a::t_1d5a4976af46ae 54
+  s_76cee6e5edaa4a::t_683b247814eca4 55-56,239-243
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 391-392
+internal/packages/engine-cf/src/quickactions/pdf.ts
+  s_d2f0b3019ee744::t_9c35758873df99 31-36,70-71,91,95-96,188-191,202-205
+packages/core/src/boa_bridge.rs
+  s_2c3db2bfaaace3::t_e28e9749b5c7e7 2220,2374,2390
+  s_2c3db2bfaaace3::t_38683192e21483 2680,2701
+  s_2c3db2bfaaace3::t_a15e3fc91c0cba 1772-1773
+  s_2c3db2bfaaace3::t_1a2f9cb5f78e87 2073
+packages/page-renderer/src/index.ts
+  s_02e920edba8d88::t_ba864dff4e0481 393
+  s_17fb96c5e58da9::t_f84b1ee9698974 530-532
+  s_17fb96c5e58da9::t_2f18797ee04e6d 133-134,138-140,162,170,196,200-204,322,533-535
+  s_02e920edba8d88::t_bdaa7e2b1913c9 277
+  s_02e920edba8d88::t_0bf676c6bf2e24 451
+  s_96ee4df000b017::t_fe5dc099fa7a34 49,53-57,64,73-75,411-412
+packages/dom-shim/src/xpath.ts
+  s_08745e9d0bed18::t_27f6be8c082519 711-712,714,716-719,722
+  s_08745e9d0bed18::t_6f042f38efdeb7 24,897,945,1131-1139,1141-1143,1145
+  s_08745e9d0bed18::t_c9dbc3cdf30bf3 503,512-513,555,643,645,647-648,651,655,660,664,681
+  s_08745e9d0bed18::t_98ca635ab88d2f 833-834,840-841,857
+  s_08745e9d0bed18::t_a406d0941fe745 1064,1069,1074,1079-1083,1088-1090,1094-1098,1103-1107,1113-1117
+  s_08745e9d0bed18::t_dd4efb9666ac50 9-23
+packages/engine/src/host.ts
+  s_c2cf363362157f::t_99c096d88241b7 5
+  s_fdbd277ad00a64::t_1f18974e2dae3a 6,23
+  s_c6d6a3ac21fe46::t_975c91375d38ce 33
+  s_c2cf363362157f::t_96182a2359be10 8-11,22,24-32,34
+internal/scripts/autoresearch-median.mjs
+  s_d2f0b3019ee744::t_a06afc72441d79 10-12,99-101
+internal/packages/ra-schema/src/emit-yaml.ts
+  s_d2f0b3019ee744::t_09138f55a87237 19-20,58-62
+  s_d2f0b3019ee744::t_6f80a1bfb28794 64
+internal/packages/engine-cf/src/agent/env.ts
+  s_fdbd277ad00a64::t_f853b00e57ba66 2-8
+  s_fdbd277ad00a64::t_321cd451f19e05 1
+packages/engine/src/cdp/dedicated-workers.ts
+  s_76cee6e5edaa4a::t_683b247814eca4 64-68,226-227,304-305
+  s_76cee6e5edaa4a::t_06f98b845cd5f8 24-26
+internal/packages/engine-cf/test/agent-receipts.test.ts
+  s_fdbd277ad00a64::t_88a84aa1e5453e 2
+packages/engine/src/cdp/arrival.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/engine/src/cdp/iframe-events.ts
+  s_76cee6e5edaa4a::t_683b247814eca4 11
+  s_76cee6e5edaa4a::t_2857a14da66816 12,18
+scripts/wpt-batched.mjs
+  s_1c48520c8c8aee::t_e258c25d93326a 253
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 428
+  s_1c48520c8c8aee::t_99ec36395090d2 252
+  s_d04786dc7ec1d7::t_20480da8f696d0 104-106,109-112,132-133,141,145,148-153,156-159,161,301
+  s_d04786dc7ec1d7::t_c4207640b2b668 296,338,343,420-421,439,450
+  s_1c48520c8c8aee::t_bcd151552f1d82 138
+  s_7a8515feb07e5c::t_088723a2d6cf0a 257,323,742
+packages/engine/test/e2e/public-agent-commands.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+  s_fdbd277ad00a64::t_bc652f796d260a 5-19,25-28
+  s_fdbd277ad00a64::t_29e90b8dfaf1e9 20-24
+packages/dom-shim/src/element/reflect.ts
+  s_c6d6a3ac21fe46::t_a2f3b1f7420a35 126,307
+packages/engine/test/e2e/demos/forms-range-demo.e2e.test.ts
+  s_b2bc4296a4424c::t_7449af13480681 89,113
+packages/engine/test/e2e/button-descendant-submit.e2e.test.ts
+  s_b2bc4296a4424c::t_55de4daba0940f 14
+internal/packages/engine-cf/package.json
+  s_fdbd277ad00a64::t_c73f59aae4a2e3 8-10
+  s_fdbd277ad00a64::t_e6036099ecc550 18
+  s_c6d6a3ac21fe46::t_99ba0c58fb27b8 24
+packages/page-script/src/internal-state.ts
+  s_45ac3d10b64cd0::t_ea20443bdbc595 99-102
+  s_17fb96c5e58da9::t_9503921c5003ef 8-10,151-152
+  s_45ac3d10b64cd0::t_82e90d72b413cd 95,98,108,165
+  s_45ac3d10b64cd0::t_7a393512603b3a 7,78
+internal/packages/agent-bench/src/mcp-client.ts
+  s_551f8c15675a8d::t_e80e75ab468df0 29-34,105,108,114,148,153,170,179
+packages/engine/test/e2e/demos/iframe-nested-frame-tree.e2e.test.ts
+  s_b2bc4296a4424c::t_3bd7bf66d2afa3 78
+internal/packages/engine-cf/test/agent-tree.ts
+  s_fdbd277ad00a64::t_dfa84776600243 3
+packages/page-script/src/session-methods.ts
+  s_45ac3d10b64cd0::t_92792ee649b4a6 37
+packages/dom-shim/src/element/html-element.ts
+  s_cfa3a80ee1db24::t_c906a0bc46c8d7 199,201
+  s_c6d6a3ac21fe46::t_5fae611f8e2cf5 221-222
+  s_08745e9d0bed18::t_61d0c0b725c458 7,97-98,119,122
+internal/tests/interactivity-flows/comment.ts
+  s_8d9fc3fb359c90::t_98d7bc947c8527 195
+packages/dom-shim/src/input-types.ts
+  s_0e9f80ed26fe1c::t_e8f45fdde3d369 105,113-114
+  s_08745e9d0bed18::t_00309a4b9008c1 5-12,350,402-404
+  s_08745e9d0bed18::t_64b37e32ff61b0 18,101,185,252,261
+packages/dom-shim/src/element/forms/select.ts
+  s_8b8a00484e0f56::t_ebf78726406462 167-169
+packages/engine/test/e2e/demos/keyboard-demo.e2e.test.ts
+  s_b2bc4296a4424c::t_e120724c08b373 21,36
+packages/engine/test/e2e/opaque-image-render.e2e.test.ts
+  s_b2bc4296a4424c::t_9f6e167353c610 5
+packages/engine/src/cdp/connection.ts
+  s_fdbd277ad00a64::t_1f18974e2dae3a 315
+  s_fdbd277ad00a64::t_0c35984ce7df1c 314
+  s_fdbd277ad00a64::t_dfa84776600243 413
+  s_76cee6e5edaa4a::t_2857a14da66816 82,376
+  s_c2cf363362157f::t_96182a2359be10 64-67,100,238,295
+  s_c6d6a3ac21fe46::t_89b0154e2cefd3 175
+  s_8eb11a0a07c69e::t_e5fbb2809038fe 470
+  s_76cee6e5edaa4a::t_1aeb0a4ffa1171 83-84,101,430-437
+internal/packages/agent-bench/bin/agentbench.ts
+  s_586b6ba09227eb::t_64434ce915aca7 101,117
+  s_fdd0fd6c73650e::t_5188638627cf90 157
+  s_c6d6a3ac21fe46::t_059f94bd1b9f9f 566
+packages/core/src/hit_test_pointer_events_test.rs
+  s_2c3db2bfaaace3::t_3502f08bdbf1bc 41,102
+internal/tests/interactivity-flows/har-replay-relay.mjs
+  s_8d9fc3fb359c90::t_6f37d859a9c8cb 55
+packages/core/src/tty_grid.rs
+  s_aebf592dc6e79a::t_eab3b65fe53942 18-21
+  s_ae7e28df3d5f67::t_4887d27a995ddf 13-14,546-550,807,815-816,822
+packages/engine/test/e2e/scene-stream-partials.e2e.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+internal/tests/interactivity-flows/findings.md
+  s_a1b58daec3e888::t_a44ac10f33dce4 3-7,460-469
+packages/scene-host-wasm/scripts/build.mjs
+  s_ae7e28df3d5f67::t_a45204720bfa4e 15,45
+packages/page-script/src/fetch-shim.ts
+  s_eb5892a24d7c0d::t_91154fe88b067f 626,694,718,767,887,915,1053,1087
+  s_17fb96c5e58da9::t_d147d82ad47032 69,1068
+  s_17fb96c5e58da9::t_9523ab6047495c 25,75,1069-1072
+  s_45ac3d10b64cd0::t_8217369d666330 655
+  s_45ac3d10b64cd0::t_7a393512603b3a 22-23,90,115,709,858
+  s_45ac3d10b64cd0::t_1bdd658f28cc7a 286-287
+packages/engine/test/e2e/demos/scrollintoview-demo.e2e.test.ts
+  s_b2bc4296a4424c::t_e8f9071c9c97c8 90
+docs/FORMS.md
+  s_c6d6a3ac21fe46::t_26e5e5d1ee4a99 160-163
+  s_c6d6a3ac21fe46::t_7038b85ee45669 131-138,143
+  s_0e9f80ed26fe1c::t_70bc3e29e63709 223-225
+  s_c6d6a3ac21fe46::t_2d437f92858cbe 217-221
+  s_c6d6a3ac21fe46::t_2d1b1fa6a7c864 193-194
+  s_c6d6a3ac21fe46::t_a4f5b837d22b8f 195-198
+  s_c6d6a3ac21fe46::t_3e8532dfbb6cd8 199-213
+  s_0e9f80ed26fe1c::t_e2671fb30687b3 88-89,121-122
+  s_c6d6a3ac21fe46::t_56ccf0417b6708 123,156-159
+  s_c6d6a3ac21fe46::t_e6bd233b2d2f72 164-169,175,187-189
+  s_c6d6a3ac21fe46::t_642a788bf23d82 139-142
+  s_0e9f80ed26fe1c::t_0754767140c83a 176-186
+  s_c6d6a3ac21fe46::t_0c03ac52856a42 214-216
+  s_0e9f80ed26fe1c::t_e8021a532a0cb4 222,226-252
+  s_c6d6a3ac21fe46::t_489e46605b9dc8 117-120
+  s_0e9f80ed26fe1c::t_a1e8ae7725e795 115-116
+  s_c6d6a3ac21fe46::t_338462af44e68e 124-125,155
+  s_c6d6a3ac21fe46::t_f6b5041780d8ab 126-130,150-154
+  s_c6d6a3ac21fe46::t_37885eacdc063d 102-112
+  s_c6d6a3ac21fe46::t_727fd983afa3c4 190-192
+  s_c6d6a3ac21fe46::t_b9bd49d979be63 170-174
+  s_c6d6a3ac21fe46::t_cf1f3d1a1f782b 113-114
+  s_c6d6a3ac21fe46::t_90122a75cb3374 144-149
+internal/packages/agent-bench/src/runners/local.ts
+  s_551f8c15675a8d::t_122a53aa7beaa1 5-6
+scripts/pw-run.mjs
+  s_1c48520c8c8aee::t_c74c0125ce5679 54,81,114-115
+  s_d04786dc7ec1d7::t_cc8ef5e1fc3d1c 60-63,72,82,118
+packages/engine/test/e2e/demos/cookies-demo.e2e.test.ts
+  s_b2bc4296a4424c::t_52495cfdf2c5ba 11
+packages/engine/src/cdp/types.ts
+  s_d7edd1248351b3::t_fba0a21fe25ebe 5,225
+  s_8eb11a0a07c69e::t_4db247eb892cfd 179,245
+  s_fdbd277ad00a64::t_1f18974e2dae3a 19-20
+  s_73ebfaabda0daa::t_f0fc8d95f84dfa 143,146,173-175,177-178,181-183
+internal/packages/agent-bench/worker/src/index.ts
+  s_586b6ba09227eb::t_2283e5c7677a77 4
+packages/page-script/src/script-policy.ts
+  s_02e920edba8d88::t_5fcc74a765865f 60
+  s_45ac3d10b64cd0::t_92792ee649b4a6 18
+packages/engine/test/e2e/demos/oopif-elements-panel.e2e.test.ts
+  s_b2bc4296a4424c::t_205b09a1f7a9ac 77
+.dockerignore
+  s_fdd0fd6c73650e::t_df650eba0782bf 84-85
+  s_fdd0fd6c73650e::t_e30c13f0a3016e 1,45-49,57-66,70-73,76-83
+  s_586b6ba09227eb::t_2283e5c7677a77 74-75
+packages/engine/test/rbi-idle.test.ts
+  s_948e69d8580eb0::t_9446fd2683908b 1-4
+packages/dom-shim/src/util/validation.ts
+  s_c6d6a3ac21fe46::t_f425c65668156d 56-59,75-78
+internal/packages/engine-cf/test/fixtures-worker/.fixtures-dist/index.js.map
+  s_c6d6a3ac21fe46::t_087acbe1fe3126 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "14cea6c3af39f4383305d05a78bbb9ad6fe6bacf",
+  "prompts": {},
+  "sessions": {
+    "s_02e920edba8d88": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec169101bffeY0wUXQikgJ5liq",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_08745e9d0bed18": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec35d2812ffeltdm5G218i0chY",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_09d21ed5822b1d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4aaed77ffeLlaI2j8NAgEHkA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_0e9f80ed26fe1c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4aaedb9ffeRovod5lYtdmtrj",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_14b9d80a80a0b1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec08917ccffeCtV9oQDIkVmr8f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_17fb96c5e58da9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec35d27f7ffe7O64M1NY3iGWXb",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_1c48520c8c8aee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4aaed27ffe2QywLIF2187f73",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_2c3db2bfaaace3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec42cececffeHX8QLJnZotCx0U",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_2e3180ce801352": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec0991255ffecdeAEXzSEQ0lMX",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_3c0ab630d4f557": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec340dd89ffeKG1nJ9lie7jfj3",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_3f00c479818dcf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4f6e6ffffeHKQxRzK4arJgJh",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_45ac3d10b64cd0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec0bd9147ffe1ndd0Aai0PR66P",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_524eadaaaeaf6f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4aaed89ffeLryPANJlaKVH7T",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_551f8c15675a8d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec0bd913fffeVdsppO0R33dbcJ",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_586b6ba09227eb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec03229a6ffe7jYej2B5BLOgys",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_58e002450ea2a7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec1691009ffeLLDaY8KIBsA19t",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_73ebfaabda0daa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec42cecfaffezX2uP6UfqppADs",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_762f3d9164029f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec0bd916fffeKamlR1PV3t0xaz",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_76cee6e5edaa4a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec35d2803ffewfmvSLK5T973Gk",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_78432def045856": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec1691024ffe6dDmf4uBiTko5P",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_7a14d59b0adfe6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4aaed43ffer5BbX81VAjDYEc",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_7a8515feb07e5c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec1690f9dffeuxWBDehFfszq5b",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_8b8a00484e0f56": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec340dd91ffekgGoPPWheBAXQB",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_8d9fc3fb359c90": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec42cece1ffe83IdZ4RuMKK3bP",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_8eb11a0a07c69e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec0bd9154ffenLZwjDPT6Yh0YZ",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_92aba1431f2ef7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec0bd915cffe4V9vqp1RCy2DV1",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_948e69d8580eb0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec02058cdffe9EPQ690WkV57cG",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_96ee4df000b017": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec31945e8ffesvEcDG11Dr2t6Q",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_a1b58daec3e888": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4aaed0bffewg614qfJB2S8PX",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_ae7e28df3d5f67": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec35d27eeffefs4yk5XmeB24He",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_aebf592dc6e79a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4aaed60ffeakjPPMZy08tTQv",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_b2bc4296a4424c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4aaed33ffeuMsKnAiSBoJBn1",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_bfa61356ee59a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4f6e652ffep4JqO0aJ5ugbaj",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_c2cf363362157f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec340dd82ffeRRMgGoQcFKUf9Y",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_c32c835b7e1175": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec2dfab12ffeGJWdyzJ9R9nXa3",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_cfa3a80ee1db24": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec0bd9164ffeme3fVufrikvx66",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_d04786dc7ec1d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec35d27e6ffe83sFM6tdQR1axs",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_d133c27dfe9926": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4f6e67dffeeBGyL5ShLG1zjI",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_d2f0b3019ee744": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec35d27dcffeSoMe4j129j69w5",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_d7edd1248351b3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec340dd9affeNaqkgcp6hZyQAJ",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_dd0f730efc12c5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec169103cffeVRqAVEefiyeg2m",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_e79efc0043ae41": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec296d047ffeovFcHXvW60TuL1",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_eb5892a24d7c0d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec4f6e6e1ffeNLDGSgw1UZmJyt",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_fdbd277ad00a64": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec0891821ffefF6UurnVVd5vIe",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_fdd0fd6c73650e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec0891813ffe6GsgjAYWabHyaj",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_fe482cbcf3b988": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec1691001ffe2g03Z2UDl0j0Lb",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    },
+    "s_ff4f48493e8289": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec2dfaa50ffel4ugFdE68uLeSV",
+        "model": "gpt-6-luna"
+      },
+      "human_author": null
+    }
+  }
+}
