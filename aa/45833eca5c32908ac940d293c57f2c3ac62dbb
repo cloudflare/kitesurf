@@ -16,6 +16,7 @@ packages/engine/test/node/network-events-store.test.ts
   s_059e99c81ea16a::t_f79e2e2dc6f0ea 1-74
 packages/engine/src/eval/outbound.ts
   s_059e99c81ea16a::t_f79e2e2dc6f0ea 87,163-169,550-551,560,592-598,2108-2113
+  s_059e99c81ea16a::t_3ebe5e42ac0e3a 82-86
 docs/STATEFUL_SESSIONS.md
   s_059e99c81ea16a::t_f79e2e2dc6f0ea 47-50,82-122
 packages/engine/src/cdp/runtime.ts
