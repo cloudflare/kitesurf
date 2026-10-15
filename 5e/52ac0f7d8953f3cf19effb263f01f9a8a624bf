@@ -1,0 +1,28 @@
+packages/engine/test/e2e/layout-resolve-pollers.e2e.test.ts
+  s_13716c95882f21::t_fe543a6561ec12 53-91
+  s_13716c95882f21::t_7c31249a03326d 3-6
+packages/core/src/lib.rs
+  s_13716c95882f21::t_37240d35773380 3579-3581
+  s_13716c95882f21::t_cc3ea8e75d7cfb 3673
+  s_13716c95882f21::t_e0ccdfb189378f 9247-9274
+  s_13716c95882f21::t_d4cc0d867d3150 3572-3578,3582-3621
+  s_13716c95882f21::t_1c99aae3f05951 9275-9276
+packages/page-script/src/globals.ts
+  s_13716c95882f21::t_0dc945e5226fbf 22,1544-1550,1554,1569,1585,1587-1588,1597-1600,1602-1603,1606-1607,1622-1628,1632,1639-1642,1647-1649,1651-1656,1662-1666,1668,1698-1700,1708,1728-1730
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5e52ac0f7d8953f3cf19effb263f01f9a8a624bf",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
