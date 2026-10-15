@@ -1,0 +1,19 @@
+packages/engine/src/tty/session.ts
+  s_28ed432e4799d5::t_cb2e3167051dba 394,431,931-932
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e3eac4c25b5823e9f42b6f644a43639d992e8015",
+  "prompts": {},
+  "sessions": {
+    "s_28ed432e4799d5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f11febf36ffev2pH98LyFr5yWI",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}

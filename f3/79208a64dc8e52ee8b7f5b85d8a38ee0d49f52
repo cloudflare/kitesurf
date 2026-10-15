@@ -1,0 +1,62 @@
+packages/kitesurf-cli/Cargo.toml
+  s_f31fe8b734ae46::t_3c270fdab6a5fc 21
+  s_f31fe8b734ae46::t_344f85519037bc 3
+packages/engine/test/e2e/cdp-scene-stream.e2e.test.ts
+  s_f31fe8b734ae46::t_3a2a66777d8ad6 139,178-185
+  s_f31fe8b734ae46::t_15d62524152cc6 148-149
+packages/engine/src/cdp/scene-stream.ts
+  s_f31fe8b734ae46::t_8f03d5ec6acb3f 7,227
+packages/kitesurf-cli/src/access.rs
+  s_f31fe8b734ae46::t_fde7689dc4afcc 150
+packages/kitesurf-cli/src/cli.rs
+  s_f31fe8b734ae46::t_3f031ebf466254 3,29,66,85,107,181-185
+  s_f31fe8b734ae46::t_c463bb22667406 17
+  s_f31fe8b734ae46::t_fde7689dc4afcc 92,119,146
+  s_f31fe8b734ae46::t_306bb8cb803811 12
+  s_f31fe8b734ae46::t_de3b470881cb04 15-16
+  s_f31fe8b734ae46::t_254b7200c18f13 18-19
+  s_f31fe8b734ae46::t_d54438b5e75315 186-187
+packages/kitesurf-cli/src/main.rs
+  s_f31fe8b734ae46::t_c9ae453a2906fd 1139,1151
+  s_f31fe8b734ae46::t_8d13697472c06b 602-606,1069,1335-1336,1338,1405-1413
+  s_f31fe8b734ae46::t_05cecb3b0b871b 940-941,944
+  s_f31fe8b734ae46::t_aa9def25576e00 929,933,937,939,965,970,981,1001,1077,1081-1082,1084,1100,1161,1191-1193,1343
+  s_f31fe8b734ae46::t_093b72648f43aa 41,158,181-183,1056-1058,1089-1093,1246-1251,1315-1326,1530-1531
+  s_f31fe8b734ae46::t_6912f8f005a782 202-209,1253-1263
+  s_f31fe8b734ae46::t_af70f2036762fe 44-76,707,709-711,721,730-732,745-748,769,776,782
+  s_f31fe8b734ae46::t_13248520f0e7b2 33-34,39-40,564,567,569,576-578,592-601,1052-1054,1083,1088,1310-1314,1327-1333,1395-1404,1414
+  s_f31fe8b734ae46::t_306bb8cb803811 989-992
+  s_f31fe8b734ae46::t_235eb960ecf33a 35-36,42,640,644,651,982,1055,1129,1152,1334,1337
+  s_f31fe8b734ae46::t_12bd13f1204ec2 180,1532-1534
+  s_f31fe8b734ae46::t_c948f31c1d56ac 983-984,988
+  s_f31fe8b734ae46::t_38f4e2782a50b4 43
+  s_f31fe8b734ae46::t_d874a07bf9c998 1415
+packages/kitesurf-cli/package.json
+  s_f31fe8b734ae46::t_344f85519037bc 3
+packages/kitesurf-cli/src/wasm.rs
+  s_f31fe8b734ae46::t_3c270fdab6a5fc 1,13-15
+packages/kitesurf-cli/README.md
+  s_f31fe8b734ae46::t_3f031ebf466254 66
+  s_f31fe8b734ae46::t_fde7689dc4afcc 73
+  s_f31fe8b734ae46::t_093b72648f43aa 91-93
+packages/engine/src/rbi.ts
+  s_f31fe8b734ae46::t_8f03d5ec6acb3f 103,154,156-160,162-163,327,345
+  s_f31fe8b734ae46::t_8d13697472c06b 153
+  s_f31fe8b734ae46::t_4ab071a22dfda4 152,155,161,245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f379208a64dc8e52ee8b7f5b85d8a38ee0d49f52",
+  "prompts": {},
+  "sessions": {
+    "s_f31fe8b734ae46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f07a5b8e3ffermPEBUJXW8AjHg",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}

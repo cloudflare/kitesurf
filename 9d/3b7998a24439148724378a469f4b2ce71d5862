@@ -1,0 +1,27 @@
+packages/engine/test/outbound-forward.test.ts
+  s_bd5dcac1223dfa::t_5e1c1c528fcc67 117-150
+packages/script-gate/package.json
+  s_bd5dcac1223dfa::t_5e1c1c528fcc67 6,13-14
+packages/script-gate/test/referrer-policy.test.ts
+  s_bd5dcac1223dfa::t_5e1c1c528fcc67 1-63
+packages/engine/src/eval/outbound.ts
+  s_bd5dcac1223dfa::t_5e1c1c528fcc67 81-84,137-138,2430,2449-2453,2455,2461,2465-2479
+packages/script-gate/src/referrer-policy.ts
+  s_bd5dcac1223dfa::t_5e1c1c528fcc67 1-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9d3b7998a24439148724378a469f4b2ce71d5862",
+  "prompts": {},
+  "sessions": {
+    "s_bd5dcac1223dfa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec569f0c7ffeag1ZZubqa8cs27",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
