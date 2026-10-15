@@ -10,14 +10,18 @@ scripts/wpt-report-refresh.mjs
   s_c7ab7e49842a97::t_864b45f438cab2 28
 packages/engine-cf/src/quickactions/forward-headers.ts
   s_9a5f50de70830e::t_4aeb33258f85a3 1
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 2-30
 packages/engine-cf/vitest.config.mts
   s_9a5f50de70830e::t_0d074dce441d6a 4
   s_9a5f50de70830e::t_64f6aaabeb2c92 5
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-3,6-9
 packages/engine-cf/test/unit/quickaction.test.ts
   s_9a5f50de70830e::t_4aeb33258f85a3 16
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 12,21-26,234,249,305,409,422,442,462,607,631,650,675,685,812,962,1212,1333,1396,1449,1460-1461,1467,1476,1481,1483,1521,1542,1550,1553-1555,1558,1562,1566,1570,1575,1577,1601,1603,1608,1612,1621,1623,1636,1638,1640,1647,1651,1660,1665,1674,1696,1698
 packages/engine-cf/src/unsafe-bindings.ts
   s_9a5f50de70830e::t_2bb969432a942f 7-8
   s_9a5f50de70830e::t_a6d4a7ec5b50a6 5-6
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-4,9
 packages/grafana/src/cli.ts
   s_c7ab7e49842a97::t_3fabe99b9a54a3 30,35
 packages/comparison-core/Cargo.toml
@@ -28,10 +32,12 @@ packages/engine-cf/src/index.ts
   s_9a5f50de70830e::t_12fb1948c26a33 6,11,14,38-44,47,63,69
   s_9a5f50de70830e::t_4aeb33258f85a3 3-5,7-10,12,19,28,32,37,45-46,48-50,52-53,62,64-68,70-77,94-95,101,112,126,151,164,166,182,203-204,220-221,235-236,239,241
   s_c6d6a3ac21fe46::t_4a3dda44bc31dc 15-18,23-27,29-31,33-36,54-60,97-100,103-111,114-125,127-132,134-149,163,196-202,206-219,223-234
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-2,20-22,78-93,96,102,113,133,150,152-162,165,167-181,183-195,205,222,237-238,240
 tests/interactivity-flows/run.ts
   s_c7ab7e49842a97::t_aa0d0e7410766a 45-47,153,238,257,259-261
 packages/engine-cf/src/cdp-client.ts
   s_9a5f50de70830e::t_2bb969432a942f 9-13
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 107-108
 bench/harness/run.mjs
   s_c7ab7e49842a97::t_b4200fd721fcc9 941
   s_c7ab7e49842a97::t_3fabe99b9a54a3 47,50,368
@@ -54,9 +60,14 @@ pnpm-workspace.yaml
   s_0bd50a19442eec::t_ff7da0b1dae715 712
   s_0bd50a19442eec::t_72f99cc9e9986d 1471
   s_0bd50a19442eec::t_30d91fe8aa6300 1478
+  s_0916feb956c724::t_7d0c477c5f2e4d 626-630
+  s_0916feb956c724::t_386d7bc47253dc 710-711
+  s_0916feb956c724::t_edc21a5aea0746 660
+  s_0916feb956c724::t_2385a3ae8baef8 1374
 package.json
   s_c6d6a3ac21fe46::t_5ffe5b5997203a 2,5,8,10-12,15-18,20-25,28-29,36-37,46,48,50-52
   s_c6d6a3ac21fe46::t_9a083b752d0716 9
+  s_0916feb956c724::t_1ffab9230f7af3 34-35
 docs/ANALYTICS.md
   s_c7ab7e49842a97::t_afefa8d2455568 3-4,20,23,25,58,65,162-163,172-173,197
   s_c7ab7e49842a97::t_00092a4d33ce29 1-2
@@ -71,6 +82,7 @@ packages/comparison-core/scripts/build.mjs
 packages/engine-cf/src/admit.ts
   s_9a5f50de70830e::t_4aeb33258f85a3 1-2
   s_9a5f50de70830e::t_61b366f0f121ca 3-5
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 6-37
 packages/ra-schema/src/cli.ts
   s_c7ab7e49842a97::t_983202e654592f 38
   s_c7ab7e49842a97::t_3fabe99b9a54a3 33
@@ -79,14 +91,18 @@ packages/engine-cf/src/sentry.ts
 packages/engine-cf/test/e2e/tsconfig.json
   s_c6d6a3ac21fe46::t_f8039d65e681db 3
   s_9a5f50de70830e::t_0d074dce441d6a 2
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1,4-5
 .gitignore
   s_c6d6a3ac21fe46::t_854e803cc02222 16-21,24,27,43,48,50,64,67-70
+  s_0916feb956c724::t_5dce31d9f8122f 23,55
 turbo.json
   s_c6d6a3ac21fe46::t_6339dbd5587ff4 3-6,24-30,33-38,42-44,51-53,57-62,66,79,81-82,85-92,94-95,100-101,103-106,108,110-111,150-152,182-184
+  s_0916feb956c724::t_cbc02e09725ed5 63-65
 scripts/flows-run-cacheable.mjs
   s_c7ab7e49842a97::t_bbf0b8835b2b7f 43-44
 AGENTS.md
   s_c7ab7e49842a97::t_31afbb80e8cfa6 1-12,19-22,24,26,49,54-55,73,81,101
+  s_0916feb956c724::t_a6d2c4fa2da594 13-18,23,25,27-39,41-48,50-53,56-72,82-87,89-92,94-95,97-98,100
 bench/README.md
   s_c7ab7e49842a97::t_d5b9a155ddba9d 109,113,410,487
 .opencode/skills/kitesurf-scoped-verification/SKILL.md
@@ -95,6 +111,7 @@ bench/README.md
   s_c6d6a3ac21fe46::t_119c0b0c7c32eb 1-3
 packages/engine-cf/package.json
   s_9a5f50de70830e::t_0d074dce441d6a 7-26
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-6,27-39
 tests/interactivity-flows/README.md
   s_c7ab7e49842a97::t_971d13be92c45f 199-206,208
 docs/TRACING.md
@@ -102,6 +119,7 @@ docs/TRACING.md
   s_c7ab7e49842a97::t_383cf7b3e41cd7 53
   s_c7ab7e49842a97::t_99e4fd0a1b7d8f 77-78
   s_c7ab7e49842a97::t_8f3fd797de1816 83-85
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1
 .envrc
   s_c7ab7e49842a97::t_bbf0b8835b2b7f 6
 packages/ra-schema/turbo.json
@@ -109,6 +127,7 @@ packages/ra-schema/turbo.json
 packages/engine-cf/tsconfig.json
   s_9a5f50de70830e::t_0d074dce441d6a 2
   s_c6d6a3ac21fe46::t_43e2611111dfe2 3
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1,4-5
 packages/agent-bench/src/benches/assistantbench.ts
   s_c7ab7e49842a97::t_1c86e7de24b3ea 33
 packages/agent-bench/src/benches/webbench.ts
@@ -126,12 +145,14 @@ scripts/wpt-compare.mjs
 packages/engine-cf/src/quickactions/render-session.ts
   s_9a5f50de70830e::t_4aeb33258f85a3 10
   s_9a5f50de70830e::t_144961b0364834 7-9
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 4-6,12,23,63
 packages/engine-cf/test/unit/sentry-tail.test.ts
   s_9a5f50de70830e::t_987eabd4eb44a5 1,64-106,109-121
   s_9a5f50de70830e::t_55b293c1b8530f 2-63,122-123
   s_9a5f50de70830e::t_3ad9fbd3fb36dc 107-108
 packages/engine-cf/src/external-session.ts
   s_9a5f50de70830e::t_2bb969432a942f 7-23
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 154,170
 tests/interactivity-flows/bbc-hydration-probe.mjs
   s_c7ab7e49842a97::t_1782ce77e97486 15,17
 packages/engine-cf/src/connection-headers.ts
@@ -148,6 +169,7 @@ packages/engine-cf/wrangler.jsonc
   s_9a5f50de70830e::t_0d074dce441d6a 2,130-212,237-265,270,272-340,345,347-413
   s_9a5f50de70830e::t_a771ac3ee41855 3-4
   s_9a5f50de70830e::t_0f492fcd255cac 124-126
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 28,51,92,477
 packages/agent-bench/src/benches/webvoyager.ts
   s_c7ab7e49842a97::t_1c86e7de24b3ea 63
 packages/engine-cf/vitest.e2e.config.mts
@@ -155,6 +177,7 @@ packages/engine-cf/vitest.e2e.config.mts
   s_9a5f50de70830e::t_54e51af5cb7e90 26
   s_9a5f50de70830e::t_411072d81a71d0 23-25
   s_9a5f50de70830e::t_d3e20cb73d6dac 28-30
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-5,10-22,31-32
 packages/website/src/content/showcase.ts
   s_c7ab7e49842a97::t_527bfc12057ac3 10
 packages/engine-cf/turbo.json
@@ -172,6 +195,7 @@ packages/engine-cf/src/ready-analytics.ts
   s_9a5f50de70830e::t_4aeb33258f85a3 24
   s_9a5f50de70830e::t_264db3836fe277 21-23
   s_9a5f50de70830e::t_7f021c057796c9 25-26
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-20,27-135
 output/ra-schema/kitesurf-global-metrics.yaml
   s_c7ab7e49842a97::t_d10194173b1955 3
 scripts/autoresearch-bench.mjs
@@ -179,11 +203,13 @@ scripts/autoresearch-bench.mjs
 packages/engine-cf/src/bench-tail.ts
   s_9a5f50de70830e::t_4aeb33258f85a3 7
   s_9a5f50de70830e::t_f7a6295f12b605 8-10
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 27-30,35
 docs/RELEASING.md
   s_c7ab7e49842a97::t_383cf7b3e41cd7 119
   s_c7ab7e49842a97::t_1e63b53082a7de 6-7,30,65,116
 docs/WEB_BOT_AUTH.md
   s_c7ab7e49842a97::t_1e63b53082a7de 15
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1,3-4
 packages/ra-schema/src/wrapper-tail.ts
   s_c7ab7e49842a97::t_983202e654592f 5
 packages/agent-bench/src/benches/webarena-family.ts
@@ -224,6 +250,7 @@ packages/engine-cf/test/e2e/accessibility-tree-quickaction.e2e.test.ts
   s_c6d6a3ac21fe46::t_82de7877bd5e09 8,274,293,398,514
 packages/engine-cf/test/e2e/cloudflare-env.ts
   s_c6d6a3ac21fe46::t_b78606f4b0ff7f 1,23,37-38
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 2-22,24-36
 packages/engine-cf/test/e2e/crawl-quick-action.e2e.test.ts
   s_c6d6a3ac21fe46::t_e8cfa1c3ee3e22 5,45,52-54,56,58-59,62,67,87,91,95,100,105,116,123,142,147,158,165,170,190,198,204,209,221
 packages/engine-cf/test/e2e/entry.ts
@@ -258,12 +285,21 @@ packages/engine-cf/test/unit/crawl.test.ts
   s_c6d6a3ac21fe46::t_589a8092f1d9bf 3-5
 packages/wpt-report/turbo.json
   s_c6d6a3ac21fe46::t_019821489f585f 2-18
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1,19-20
 pnpm-lock.yaml
   s_c6d6a3ac21fe46::t_2ce8658c0e4b06 42,44,66,110,128,130,140,142,155,177-188,190-207,209-214,242-317,408-412,4841,4849,5759,5766-5767,8374,8385
 rust-toolchain.toml
   s_c6d6a3ac21fe46::t_d70798d00d0ecb 1
 scripts/mr-preview.mjs
   s_c6d6a3ac21fe46::t_1471c7bae51c8f 38
+packages/agent-bench/src/benches/webcanvas.ts
+  s_02e38e3d2190a9::t_4426421670fdc4 41
+packages/agent-bench/src/benches/real.ts
+  s_02e38e3d2190a9::t_4426421670fdc4 262
+packages/agent-bench/src/llm.ts
+  s_02e38e3d2190a9::t_4426421670fdc4 14
+packages/agent-bench/src/engines.ts
+  s_02e38e3d2190a9::t_4426421670fdc4 61-62,172,199
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -271,6 +307,22 @@ scripts/mr-preview.mjs
   "base_commit_sha": "297680191669297c2e75298773e53d0165c34f9f",
   "prompts": {},
   "sessions": {
+    "s_02e38e3d2190a9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebfbbb8c8ffe4bygi6PP3qlDi9",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_0916feb956c724": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebfbbb938ffew0OwPs3pyW7em5",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_0bd50a19442eec": {
       "agent_id": {
         "tool": "opencode",
