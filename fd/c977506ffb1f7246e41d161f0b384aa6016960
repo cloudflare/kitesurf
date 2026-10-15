@@ -37,16 +37,19 @@ packages/engine/vitest.config.mts
   s_c6d6a3ac21fe46::t_391949899ea2bf 48
 internal/packages/engine-cf/vitest.e2e.config.mts
   s_c6d6a3ac21fe46::t_391949899ea2bf 1-32,34
+  s_a9a63d77875d8c::t_a4a8cde02f3411 33
 packages/engine/vitest.e2e.config.mts
   s_c6d6a3ac21fe46::t_2b9643fb197759 151,226
   s_c6d6a3ac21fe46::t_6d20ee608b66be 164,166
   s_c6d6a3ac21fe46::t_b37e6f0cc39aef 3,10,141-150,152-153,155-163,165,167-181,183-225,227-242,245-253,255,257-274
+  s_a9a63d77875d8c::t_98e6c05e2ac9b5 154,182,243,254
 internal/packages/engine-cf/test/unit/caller.test.ts
   s_c6d6a3ac21fe46::t_fb33aca56c12d6 1
   s_c6d6a3ac21fe46::t_862b8a070d54c2 2-80
 turbo.json
   s_c6d6a3ac21fe46::t_2b9cbd0cb147cd 52-55,57
   s_c6d6a3ac21fe46::t_1abac41a3ce6ab 56,58-59
+  s_c6d6a3ac21fe46::t_1582123ef4d238 60
 internal/packages/engine-cf/src/index.ts
   s_c6d6a3ac21fe46::t_862b8a070d54c2 1-33
 internal/docs/ANALYTICS.md
@@ -76,6 +79,7 @@ packages/engine/package.json
 internal/packages/engine-cf/package.json
   s_c6d6a3ac21fe46::t_0ae7079de7979f 1-8,10-17,19-38
   s_c6d6a3ac21fe46::t_391949899ea2bf 18
+  s_a9a63d77875d8c::t_a4a8cde02f3411 9
 internal/packages/engine-cf/tsconfig.json
   s_c6d6a3ac21fe46::t_b56346a20e1f61 1-2,4-5
   s_c6d6a3ac21fe46::t_84360b7daa1b28 3
@@ -102,6 +106,14 @@ pnpm-lock.yaml
   "base_commit_sha": "fdc977506ffb1f7246e41d161f0b384aa6016960",
   "prompts": {},
   "sessions": {
+    "s_a9a63d77875d8c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec0d6666fffecCS91fgCXnStLd",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_c6d6a3ac21fe46": {
       "agent_id": {
         "tool": "opencode",
