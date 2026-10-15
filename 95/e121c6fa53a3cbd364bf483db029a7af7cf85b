@@ -283,6 +283,7 @@ packages/dom-shim/src/element/forms/input-state.ts
   s_8b8a00484e0f56::t_ebf78726406462 17,32
   s_dd0f730efc12c5::t_56a8677e469930 92
   s_c6d6a3ac21fe46::t_44f7bce7fbd81e 172
+  s_c6d6a3ac21fe46::t_aeab58533ec52b 14
 internal/packages/shadow-replay/src/comparison/screenshot.ts
   s_d2f0b3019ee744::t_09138f55a87237 15-17,86-91
   s_3c0ab630d4f557::t_175eddf938a84c 26-29,138-140
@@ -1026,6 +1027,7 @@ packages/dom-shim/src/range.ts
   s_08745e9d0bed18::t_8a42984ad480d6 1016
   s_3f00c479818dcf::t_13988077ed94c1 1349
   s_c6d6a3ac21fe46::t_ace4ca395687b0 621,807,812
+  s_c6d6a3ac21fe46::t_aeab58533ec52b 37
 packages/engine/src/guards.ts
   s_948e69d8580eb0::t_9446fd2683908b 1-4
 packages/engine/test/e2e/data-transfer-items-add.e2e.test.ts
@@ -2002,6 +2004,7 @@ docs/TERMINAL.md
   s_7a14d59b0adfe6::t_320a8e7728a97f 31-36,41-45,48,63-70,77-82,88-90,96-104
   s_c6d6a3ac21fe46::t_d34c00aa8b8d78 21-25
   s_c6d6a3ac21fe46::t_4302115664d42a 57,114-120,124-132
+  s_c6d6a3ac21fe46::t_aeab58533ec52b 20
 packages/dom-shim/src/contract.ts
   s_8b8a00484e0f56::t_89e9b4545e22eb 5-10
 internal/packages/agent-bench/src/overlay.ts
@@ -2271,6 +2274,9 @@ packages/dom-shim/src/element/element.ts
   s_0e9f80ed26fe1c::t_4ac69109a256c6 1228
   s_0e9f80ed26fe1c::t_482a7bfeffbadb 2260-2261
   s_0e9f80ed26fe1c::t_920eac84f5d874 227,237,331
+  s_8bece456479c09::t_3d9fd60b5c5faf 599-601
+  s_c6d6a3ac21fe46::t_aeab58533ec52b 598
+  s_8bece456479c09::t_f3047bf4ae3f28 602-603
 packages/dom-shim/src/element/table.ts
   s_08745e9d0bed18::t_64b37e32ff61b0 153-155,185-186
   s_cfa3a80ee1db24::t_edaae47ae9048a 140
@@ -2447,6 +2453,7 @@ packages/engine/src/host.ts
   s_fdbd277ad00a64::t_1f18974e2dae3a 6,23
   s_c6d6a3ac21fe46::t_975c91375d38ce 33
   s_c2cf363362157f::t_96182a2359be10 8-11,22,24-32,34
+  s_c6d6a3ac21fe46::t_aeab58533ec52b 7
 internal/scripts/autoresearch-median.mjs
   s_d2f0b3019ee744::t_a06afc72441d79 10-12,99-101
 internal/packages/ra-schema/src/emit-yaml.ts
@@ -2604,6 +2611,10 @@ packages/dom-shim/src/util/validation.ts
   s_c6d6a3ac21fe46::t_f425c65668156d 56-59,75-78
 internal/packages/engine-cf/test/fixtures-worker/.fixtures-dist/index.js.map
   s_c6d6a3ac21fe46::t_087acbe1fe3126 1-8
+packages/dom-shim/src/element/html-tag.ts
+  s_8bece456479c09::t_b6197072e18f78 1-4,11
+packages/engine/test/e2e/label-svg-content-activation.e2e.test.ts
+  s_c6d6a3ac21fe46::t_628454405827bb 1-5
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -2794,6 +2805,14 @@ internal/packages/engine-cf/test/fixtures-worker/.fixtures-dist/index.js.map
         "model": "gpt-6-luna"
       },
       "human_author": null
+    },
+    "s_8bece456479c09": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebfcd5f5fffe5nhpwwA324mpTA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
     },
     "s_8d9fc3fb359c90": {
       "agent_id": {
