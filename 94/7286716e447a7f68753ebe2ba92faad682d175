@@ -21,6 +21,7 @@ packages/engine/test/e2e/local-storage.e2e.test.ts
 AGENTS.md
   s_83cbebb813e639::t_d8efdf2b1810bc 701-702
   s_41d5a40b9168bd::t_d03b78c783e99a 173-191,703-704
+  s_059e99c81ea16a::t_54305df9258bd4 192-193
 packages/engine/src/cdp/types.ts
   s_83cbebb813e639::t_ea0b2c471a0534 172-175,324
   s_41d5a40b9168bd::t_2389273f514f75 130-160,260-262
@@ -54,6 +55,7 @@ packages/engine/src/index.ts
   s_41d5a40b9168bd::t_d03b78c783e99a 52-60,91-93,223-233,285-289
 packages/engine/wrangler.jsonc
   s_41d5a40b9168bd::t_d03b78c783e99a 158-169,220,225,302,307
+  s_059e99c81ea16a::t_54305df9258bd4 216-219,221-224,226-229,300-301,303-306,308-311
 packages/engine/test/e2e/stateful-session.e2e.test.ts
   s_41d5a40b9168bd::t_d03b78c783e99a 1-171
 docs/STATEFUL_SESSIONS.md
