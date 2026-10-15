@@ -33,6 +33,9 @@ packages/engine-cf/src/index.ts
   s_9a5f50de70830e::t_4aeb33258f85a3 3-5,7-10,12,20,34,38,43,52-53,55-57,59-60,69,71-75,77-78,80-85,118-119,125,150,164,189,202,204,220,241-242,258-259,273-274,277,279
   s_c6d6a3ac21fe46::t_4a3dda44bc31dc 15-18,24,30-33,35-37,39-42,61-67,121-124,127-128,143-149,152-163,165-170,172-187,201,234-240,244-257,261-272
   s_c6d6a3ac21fe46::t_804de8ab3d5403 1-2,21-23,86,103-117,120,126,151,171,188,190-200,203,205-219,221-233,243,260,275-276,278
+  s_c6d6a3ac21fe46::t_8e4c4964eed1b2 102
+  s_eca8bcc146fb09::t_8950c6e14541f6 19,25-29,44,79,87-101,129-132,139-142
+  s_eca8bcc146fb09::t_27921b3d03dff6 133-138
 tests/interactivity-flows/run.ts
   s_c7ab7e49842a97::t_aa0d0e7410766a 45-47,153,238,257,259-261
 packages/engine-cf/src/cdp-client.ts
@@ -68,6 +71,7 @@ package.json
   s_c6d6a3ac21fe46::t_5ffe5b5997203a 2,5,8,10-12,16-19,21-26,29-30,40-41,50,52,54-56
   s_c6d6a3ac21fe46::t_9a083b752d0716 9
   s_0916feb956c724::t_1ffab9230f7af3 38-39
+  s_bc733379cfa344::t_a03b6060bcd5a2 13
 docs/ANALYTICS.md
   s_c7ab7e49842a97::t_afefa8d2455568 3-4,20,23,25,58,65,162-163,172-173,197
   s_c7ab7e49842a97::t_00092a4d33ce29 1-2
@@ -103,6 +107,7 @@ scripts/flows-run-cacheable.mjs
 AGENTS.md
   s_c7ab7e49842a97::t_31afbb80e8cfa6 1-12,23-25,27,29,55,60-61,80,88,108
   s_0916feb956c724::t_a6d2c4fa2da594 13-18,26,28,30-42,44-51,56-59,62-67,70-79,89-94,96-99,101-102,104-105,107
+  s_bc733379cfa344::t_198e0ff93016f2 19-22,52-54,68-69
 bench/README.md
   s_c7ab7e49842a97::t_d5b9a155ddba9d 109,113,410,487
 .opencode/skills/kitesurf-scoped-verification/SKILL.md
@@ -112,6 +117,7 @@ bench/README.md
 packages/engine-cf/package.json
   s_9a5f50de70830e::t_0d074dce441d6a 7-9,11-27
   s_c6d6a3ac21fe46::t_804de8ab3d5403 1-6,29-38,41-42
+  s_eca8bcc146fb09::t_8950c6e14541f6 10,28,39-40
 tests/interactivity-flows/README.md
   s_c7ab7e49842a97::t_971d13be92c45f 199-206,208
 docs/TRACING.md
@@ -153,6 +159,8 @@ packages/engine-cf/test/unit/sentry-tail.test.ts
 packages/engine-cf/src/external-session.ts
   s_9a5f50de70830e::t_2bb969432a942f 7-23
   s_c6d6a3ac21fe46::t_804de8ab3d5403 161,181
+  s_eca8bcc146fb09::t_8950c6e14541f6 29-34,163,166-168
+  s_eca8bcc146fb09::t_7e896c96f8edf0 3
 tests/interactivity-flows/bbc-hydration-probe.mjs
   s_c7ab7e49842a97::t_1782ce77e97486 15,17
 packages/engine-cf/src/connection-headers.ts
@@ -170,6 +178,8 @@ packages/engine-cf/wrangler.jsonc
   s_9a5f50de70830e::t_a771ac3ee41855 3-4
   s_9a5f50de70830e::t_0f492fcd255cac 126-128
   s_c6d6a3ac21fe46::t_804de8ab3d5403 28,51,92,492
+  s_eca8bcc146fb09::t_8950c6e14541f6 111-112
+  s_eca8bcc146fb09::t_7464ae42d8ef94 207
 packages/agent-bench/src/benches/webvoyager.ts
   s_c7ab7e49842a97::t_1c86e7de24b3ea 63
 packages/engine-cf/vitest.e2e.config.mts
@@ -178,6 +188,8 @@ packages/engine-cf/vitest.e2e.config.mts
   s_9a5f50de70830e::t_411072d81a71d0 29-31
   s_9a5f50de70830e::t_d3e20cb73d6dac 34-36
   s_c6d6a3ac21fe46::t_804de8ab3d5403 1-5,10-20,28,37
+  s_eca8bcc146fb09::t_8950c6e14541f6 38-46
+  s_eca8bcc146fb09::t_27921b3d03dff6 21-27
 packages/website/src/content/showcase.ts
   s_c7ab7e49842a97::t_527bfc12057ac3 10
 packages/engine-cf/turbo.json
@@ -300,6 +312,37 @@ packages/agent-bench/src/llm.ts
   s_02e38e3d2190a9::t_4426421670fdc4 14
 packages/agent-bench/src/engines.ts
   s_02e38e3d2190a9::t_4426421670fdc4 61-62,172,199
+packages/engine-cf/test/fixtures-worker/.fixtures-dist/README.md
+  s_c6d6a3ac21fe46::t_8e4c4964eed1b2 1
+packages/engine-cf/test/fixtures-worker/.fixtures-dist/index.js
+  s_c6d6a3ac21fe46::t_8e4c4964eed1b2 1-349
+packages/engine-cf/src/client-session.ts
+  s_eca8bcc146fb09::t_e9629a83c0337d 30-32,132
+  s_eca8bcc146fb09::t_7e896c96f8edf0 14,79
+  s_eca8bcc146fb09::t_8950c6e14541f6 2,6,8-12,22,27,33,101-108,113,123,125,144,148
+  s_c6d6a3ac21fe46::t_8e4c4964eed1b2 28-29
+packages/engine-cf/scripts/devtools-session.mjs
+  s_eca8bcc146fb09::t_d1a6d2cf98d451 250
+  s_eca8bcc146fb09::t_8950c6e14541f6 80
+  s_eca8bcc146fb09::t_7e896c96f8edf0 170,339
+packages/boa-bench/Cargo.toml
+  s_1d9e2ab9753492::t_51c52265a68d12 24-38,45-50
+  s_1d9e2ab9753492::t_502fe7efc8e01d 1-5,15
+packages/boa-bench/scripts/build.mjs
+  s_1d9e2ab9753492::t_d31da43f326bbc 49-50
+  s_1d9e2ab9753492::t_51c52265a68d12 9-10,13-14,23,26-32
+packages/engine-cf/test/fixtures-worker/assets/agent-search.html
+  s_c6d6a3ac21fe46::t_8e4c4964eed1b2 1-4
+packages/engine-cf/test/e2e/client-egress.e2e.test.ts
+  s_eca8bcc146fb09::t_36b8d9188c5b8f 2
+  s_eca8bcc146fb09::t_3be6ccd3e57451 3
+  s_eca8bcc146fb09::t_8950c6e14541f6 1,7-8
+packages/boa-bench/README.md
+  s_1d9e2ab9753492::t_1a85402f00e11b 11-13
+  s_1d9e2ab9753492::t_51c52265a68d12 3-10,14-21
+docs/CLIENT_SESSIONS.md
+  s_eca8bcc146fb09::t_8950c6e14541f6 1-45
+  s_eca8bcc146fb09::t_d251329cdfb41c 46-48
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -331,11 +374,27 @@ packages/agent-bench/src/engines.ts
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     },
+    "s_1d9e2ab9753492": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebe8daeebffe5vM2du8vRkf4zR",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_9a5f50de70830e": {
       "agent_id": {
         "tool": "opencode",
         "id": "ses_ec9983c81ffeuWYm1uJyhtRd10",
         "model": "gpt-6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_bc733379cfa344": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebe8dafbcffeV1s21EQT0q9b1j",
+        "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     },
@@ -352,6 +411,14 @@ packages/agent-bench/src/engines.ts
         "tool": "opencode",
         "id": "ses_ec998a425ffeMXADrTrm6CmNql",
         "model": "gpt-6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_eca8bcc146fb09": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebe8dafc6ffetz6nhpvRxD3P6u",
+        "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     }
