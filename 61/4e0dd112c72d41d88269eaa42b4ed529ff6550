@@ -1,0 +1,24 @@
+packages/engine/test/e2e/README.md
+  s_c6d6a3ac21fe46::t_7b00937fbded5d 59-61
+README.md
+  s_c6d6a3ac21fe46::t_e71d5847c5e652 57
+  s_c6d6a3ac21fe46::t_3a05b29c534ca5 53
+docs/BOA_HARDENING.md
+  s_c6d6a3ac21fe46::t_4187f1f6661769 98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "614e0dd112c72d41d88269eaa42b4ed529ff6550",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

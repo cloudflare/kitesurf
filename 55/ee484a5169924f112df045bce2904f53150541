@@ -1,0 +1,104 @@
+internal/packages/bench-report/scripts/record.mjs
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 21-25,68,91,266,355
+.opencode/skills/kitesurf-deslop/SKILL.md
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 407
+pnpm-workspace.yaml
+  s_c6d6a3ac21fe46::t_b341b2834f9c10 3
+internal/packages/ra-schema/src/cli.ts
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 33,38
+internal/packages/grafana/README.md
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 11-13
+internal/packages/bench-report/src/bench-routes.ts
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 482,790,804
+internal/packages/engine-cf/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 205,309,477
+internal/packages/agent-bench/src/benches/webarena-family.ts
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 158
+.gitignore
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 108
+.gitlab-ci.yml
+  s_c6d6a3ac21fe46::t_2cd2a69ff00bbb 1638,1783
+  s_c6d6a3ac21fe46::t_73a7da4b34b78b 566,570-571,574-575,1349,1377-1380,1404,1469,1568,1570,1860,1915,2148
+internal/bench/README.md
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 43,109,113,126,258,263,265,268-270,391,398,400,408-409,413,416,421,425,428-430,569
+scripts/pw-run.mjs
+  s_c6d6a3ac21fe46::t_8acbb5447a821e 121,126
+internal/output/ra-schema/kitesurf-global-metrics.yaml
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 3
+internal/AGENTS.md
+  s_c6d6a3ac21fe46::t_f806d4152a9c27 15-19
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 62-64
+package.json
+  s_c6d6a3ac21fe46::t_80c21e6cfa9516 19,36,40
+internal/packages/agent-bench/src/benches/webvoyager.ts
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 63
+internal/packages/bench-report/scripts/trend.mjs
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 10-13,42,60
+AGENTS.md
+  s_c6d6a3ac21fe46::t_face47f5f97e61 449,582
+internal/packages/ra-schema/src/emit-yaml.ts
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 190
+internal/packages/wpt-report/turbo.json
+  s_c6d6a3ac21fe46::t_4d8f1bf756003c 1-20
+internal/packages/agent-bench/src/benches/browsecomp.ts
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 59
+internal/scripts/flows-run-cacheable.mjs
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 49
+internal/tests/interactivity-flows/README.md
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 13,15-16,28,79-82,97,135,183,185,375
+internal/packages/agent-bench/src/benches/assistantbench.ts
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 33
+internal/package.json
+  s_c6d6a3ac21fe46::t_4beb64ef85e940 1-28,30-48
+  s_c6d6a3ac21fe46::t_03097225d0fa04 29
+internal/packages/shadow-replay/turbo.json
+  s_c6d6a3ac21fe46::t_4d8f1bf756003c 1-15
+internal/bench/harness/run.mjs
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 47,50,941
+internal/packages/engine-cf/turbo.json
+  s_c6d6a3ac21fe46::t_4d8f1bf756003c 1-26
+internal/docs/TRACING.md
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 53,82
+internal/turbo.json
+  s_c6d6a3ac21fe46::t_4d8f1bf756003c 1-112
+internal/docs/TESTING.md
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 8-11,24
+internal/packages/engine-cf/package.json
+  s_c6d6a3ac21fe46::t_8acbb5447a821e 7
+internal/docs/RELEASING.md
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 10-11,13-16,81,119
+internal/packages/agent-bench/src/benches/webbench.ts
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 18
+internal/packages/ra-schema/turbo.json
+  s_c6d6a3ac21fe46::t_4d8f1bf756003c 1-15
+internal/packages/agent-bench/revisions.json
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 4
+internal/packages/grafana/src/cli.ts
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 30,35
+internal/scripts/trace-pull.mjs
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 4,20
+internal/docs/ANALYTICS.md
+  s_c6d6a3ac21fe46::t_8f7e9fd4dd3ea7 23,25,172-173,197
+pnpm-lock.yaml
+  s_c6d6a3ac21fe46::t_6ff81ce98e27bc 51-52
+internal/packages/agent-bench/src/benches/real.ts
+  s_c6d6a3ac21fe46::t_03097225d0fa04 262
+internal/packages/agent-bench/src/benches/webcanvas.ts
+  s_c6d6a3ac21fe46::t_03097225d0fa04 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "55ee484a5169924f112df045bce2904f53150541",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
