@@ -1,0 +1,56 @@
+packages/engine/test/e2e/httponly-cookie-redaction.e2e.test.ts
+  s_5f6d6aa9a3bb5d::t_3bd4ee173003d4 1-83,85-88,92-94,96-97,100,102-105,107-108
+  s_5f6d6aa9a3bb5d::t_84cb7957ce28dc 84,89-91,95
+  s_5f6d6aa9a3bb5d::t_0521c0a8bc1189 98-99,101,106
+packages/engine/test/cookies.test.ts
+  s_5f6d6aa9a3bb5d::t_4a497cd3b44147 283-284
+  s_5f6d6aa9a3bb5d::t_e6c2c7fc59b3b7 5-15
+  s_5f6d6aa9a3bb5d::t_0dca6775cbd611 200-239,241-282
+  s_5f6d6aa9a3bb5d::t_c7b1cf637e9337 240
+packages/engine/src/cdp/network-events.ts
+  s_5f6d6aa9a3bb5d::t_2dfa72b8e8b21e 5,12-13,399,476-477,505,552
+packages/engine/src/cdp/network.ts
+  s_5f6d6aa9a3bb5d::t_b8df03c28107ee 7-9
+  s_5f6d6aa9a3bb5d::t_ea9f89a102eb4c 3,68,76,85,128
+packages/engine/src/cdp/page.ts
+  s_5f6d6aa9a3bb5d::t_b653644f6eb131 732
+  s_5f6d6aa9a3bb5d::t_7a2802447f17f9 85,604-607,730-731,733
+docs/STORAGE_STATE.md
+  s_5f6d6aa9a3bb5d::t_c91ee407832709 115-117
+  s_5f6d6aa9a3bb5d::t_c9db2f6580f197 80-99,106-109
+  s_5f6d6aa9a3bb5d::t_56379738811518 100-105
+packages/engine/src/eval/outbound.ts
+  s_5f6d6aa9a3bb5d::t_1e02cdd90b8c5c 1978
+  s_5f6d6aa9a3bb5d::t_e956da79f6d99c 32-36
+  s_5f6d6aa9a3bb5d::t_6610900c0550e2 1939
+  s_5f6d6aa9a3bb5d::t_7c1618e808e71c 1907-1909
+  s_5f6d6aa9a3bb5d::t_fd5e05f6d20a5e 2180-2196
+  s_5f6d6aa9a3bb5d::t_8dbb8d85b417ca 1893-1894
+packages/engine/src/cookies.ts
+  s_5f6d6aa9a3bb5d::t_040ccff171a483 432,434
+  s_5f6d6aa9a3bb5d::t_f5b7b29d22432e 27-28
+  s_5f6d6aa9a3bb5d::t_6b8737133fe258 522,528-532
+  s_5f6d6aa9a3bb5d::t_4c6a4e897e2c10 618-639,648-749
+  s_5f6d6aa9a3bb5d::t_15550d35b0323b 846
+  s_5f6d6aa9a3bb5d::t_0a8f15caed357c 91-93
+  s_5f6d6aa9a3bb5d::t_7c3b289fac4a10 640-647
+  s_5f6d6aa9a3bb5d::t_24bae142d657d9 829
+  s_5f6d6aa9a3bb5d::t_2038c1b2c51fae 610
+  s_5f6d6aa9a3bb5d::t_d6443d9b227117 474-485
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7f3a5536acc6cc4ec46055d2f3a5161512d8937b",
+  "prompts": {},
+  "sessions": {
+    "s_5f6d6aa9a3bb5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eec7a970affeGZH2ZTFceHteAQ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

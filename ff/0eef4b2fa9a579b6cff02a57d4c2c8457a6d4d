@@ -1,0 +1,166 @@
+packages/kitesurf-cli/architecture.svg
+  s_f31fe8b734ae46::t_a7d59d19598940 1
+docs/TERMINAL.md
+  s_f31fe8b734ae46::t_cb2cdb8dcfed4f 1-22
+packages/kitesurf-cli/src/cli.rs
+  s_f31fe8b734ae46::t_6cd1718531b791 10-11,14-15,109-110,114,120,138,154,157-158
+  s_f31fe8b734ae46::t_1b67d2b2d7d584 3
+  s_f31fe8b734ae46::t_50f58522e01bb1 9,28,64,70-74,100,161-168
+  s_f31fe8b734ae46::t_8ba48599490bda 169-170
+  s_f31fe8b734ae46::t_05746f69a09403 16,88,111,136
+packages/engine/src/cdp/types.ts
+  s_f31fe8b734ae46::t_3d70064ac2089b 137-141
+  s_f31fe8b734ae46::t_3da05d8c87d1f8 234
+packages/engine/src/cdp/dispatch.ts
+  s_f31fe8b734ae46::t_b9e95dda5fe716 51
+packages/engine/src/cdp/kitesurf.ts
+  s_f31fe8b734ae46::t_b04786c8f0e80f 34,109,111
+  s_f31fe8b734ae46::t_3da05d8c87d1f8 714
+  s_f31fe8b734ae46::t_e7267d8df7c80e 33,112-116
+  s_f31fe8b734ae46::t_b9e95dda5fe716 110
+packages/engine/src/cdp/connection.ts
+  s_f31fe8b734ae46::t_4f290f231d40fa 466
+packages/engine/src/index.ts
+  s_f31fe8b734ae46::t_b5dcaf0caf5b89 330
+  s_f31fe8b734ae46::t_6cd1718531b791 28,328-329,331-332,341,373
+  s_f31fe8b734ae46::t_89025089a25a99 375
+packages/core/src/scene_replay.rs
+  s_f31fe8b734ae46::t_8fabdb3a81aad7 1809,1815,1823
+packages/engine/src/cdp/scene-stream.ts
+  s_f31fe8b734ae46::t_85fb7117cc4239 135-146
+  s_f31fe8b734ae46::t_07681cd3312e25 148,151
+  s_f31fe8b734ae46::t_b1a4c17c098b30 18,81,94-108,123-127,132
+  s_f31fe8b734ae46::t_e7267d8df7c80e 1,3-16,19-41,43-48,50-67,69-72,76-80,82-93,109-110,112-119,129-131,133-134,147,149-150,152-158,160,163-174,177-180,182-184
+  s_f31fe8b734ae46::t_b9e95dda5fe716 111
+  s_f31fe8b734ae46::t_c55ba4f0c2c20a 73-75
+  s_f31fe8b734ae46::t_604a6f33a011de 42,49,159,161-162
+  s_f31fe8b734ae46::t_c42ca2e0e3331a 17,68,120-122,128,181
+  s_f31fe8b734ae46::t_43b6056439792a 175-176
+  s_f31fe8b734ae46::t_8874f897a20db0 2
+packages/scene-host-wasm/src/lib.rs
+  s_f31fe8b734ae46::t_072dd11db62c6a 67-68,132
+packages/engine/test/e2e/cdp-scene-stream.e2e.test.ts
+  s_f31fe8b734ae46::t_b5dcaf0caf5b89 9
+  s_f31fe8b734ae46::t_56e74b7c7349bb 31,99,107
+  s_f31fe8b734ae46::t_c48a42d5a0dfd5 81
+  s_f31fe8b734ae46::t_43b6056439792a 87,102
+  s_f31fe8b734ae46::t_113e23f7b9661d 108-114,116-118,120-121
+  s_f31fe8b734ae46::t_51baac1f989273 49-50
+  s_f31fe8b734ae46::t_75a5ba6e6462cb 115,119
+  s_f31fe8b734ae46::t_1edd789346dcc2 8,10-17
+  s_f31fe8b734ae46::t_d397667911ea6a 1-7,18-22,24-28,30,32-38,40-47,51-57,59-75,84-86,88-98,100-101,103-106,122,124-126
+  s_f31fe8b734ae46::t_2627b95c6d9d83 23
+  s_f31fe8b734ae46::t_c1945f289e628f 29,39,48,58,76-78,80,82-83
+  s_f31fe8b734ae46::t_4d70fcbfd49c9c 79
+  s_f31fe8b734ae46::t_85fb7117cc4239 123
+packages/engine/test/dispatch-env.test.ts
+  s_f31fe8b734ae46::t_b9e95dda5fe716 23
+packages/engine/src/rbi-start.ts
+  s_f31fe8b734ae46::t_3da05d8c87d1f8 4
+packages/kitesurf-cli/src/main.rs
+  s_f31fe8b734ae46::t_57f14ffc32f616 928-930,1411-1412
+  s_f31fe8b734ae46::t_77c6480047c108 520,523-524,531,572,579,867,869,874,883,951-954
+  s_f31fe8b734ae46::t_4da663b89c7f9e 137
+  s_f31fe8b734ae46::t_3da05d8c87d1f8 1317
+  s_f31fe8b734ae46::t_0abf374067f532 1406-1408
+  s_f31fe8b734ae46::t_98f760064a9f95 878
+  s_f31fe8b734ae46::t_d4f4ed9cca3864 170,178,296,303,307,310,322,400,403,645,972,976,1033,1070,1180,1190,1198
+  s_f31fe8b734ae46::t_73f95bc2268c38 166,323,325,982-984,1040-1042,1077-1079
+  s_f31fe8b734ae46::t_30cce76cfebbc5 1409-1410,1413,1415-1423
+  s_f31fe8b734ae46::t_bed2179ed5740b 1301,1314,1336-1338,1358,1403,1414,1433
+  s_f31fe8b734ae46::t_6cd1718531b791 824,933
+  s_f31fe8b734ae46::t_b04786c8f0e80f 854,866,870-873,875,879-880
+  s_f31fe8b734ae46::t_757b1f7793a8a1 163
+  s_f31fe8b734ae46::t_c42ca2e0e3331a 877
+  s_f31fe8b734ae46::t_e08d14dad32ee2 1510
+  s_f31fe8b734ae46::t_f4cdd18b189a95 446,1244
+  s_f31fe8b734ae46::t_072dd11db62c6a 179,304-306,308-309,311-312,320-321,328,332
+  s_f31fe8b734ae46::t_5fe73ad4b25917 241
+  s_f31fe8b734ae46::t_e422ae21e869b9 536-537,539-542,559-560,868,1148
+  s_f31fe8b734ae46::t_85fb7117cc4239 578,881-882
+  s_f31fe8b734ae46::t_bfa7b801527c19 313,315,317,324,327,331
+  s_f31fe8b734ae46::t_2a339be92c6790 569,574,837,876,1008,1123,1144,1158,1164
+  s_f31fe8b734ae46::t_734170bfbf25e2 1424-1432,1434-1438
+  s_f31fe8b734ae46::t_18f4c5fcc26365 302
+  s_f31fe8b734ae46::t_3c9ef5ba8a38d7 19,162,164-165,167-169,171-177,180-189,319,326,329-330,333
+  s_f31fe8b734ae46::t_656fe7cc69bdc6 960,962-971,973-975,977-981,985-987,989-996,1089-1091,1094
+  s_f31fe8b734ae46::t_8ea6ff9174f760 338,355,357,394,1117,1304,1315,1341-1345,1366-1367,1395-1396
+  s_f31fe8b734ae46::t_5693118dcc4855 931-932
+  s_f31fe8b734ae46::t_99cca1b3f2aa78 352-353,1397-1402,1404-1405
+  s_f31fe8b734ae46::t_43b6056439792a 575-577
+  s_f31fe8b734ae46::t_54c6c602c72b3c 988
+  s_f31fe8b734ae46::t_d4813660e80bdd 24,26,507-519,521-522,525-530,532-535,538,543-558,561-568,570-571,573,580-588
+  s_f31fe8b734ae46::t_c5ee573f3e4423 961
+  s_f31fe8b734ae46::t_6647b054631e95 589
+packages/engine/src/rbi.ts
+  s_f31fe8b734ae46::t_7bd752c49b7ec8 432,436-442,466,566,581,674
+  s_f31fe8b734ae46::t_3d70064ac2089b 84,106,149,151
+  s_f31fe8b734ae46::t_8874f897a20db0 32,83,90,123,133-134,143-144
+  s_f31fe8b734ae46::t_c5ee573f3e4423 476,520-521,529-530,675
+  s_f31fe8b734ae46::t_6fb5f332159635 467-475,497-509,512-519,522-528,531-547,551-552,614,654,656,687,708,712,738-751,785,792,807,819,822
+  s_f31fe8b734ae46::t_a290aeecd7a656 1-2
+  s_f31fe8b734ae46::t_e69ed0be27f9f5 477-496,510-511
+  s_f31fe8b734ae46::t_51bd567d023ce4 548-550
+  s_f31fe8b734ae46::t_89025089a25a99 834
+  s_f31fe8b734ae46::t_2a2eab68f8a5f0 4,6,9,12,17-18,31
+  s_f31fe8b734ae46::t_43b6056439792a 154,329
+packages/engine/wrangler.jsonc
+  s_f31fe8b734ae46::t_7da94116fe065e 148-149
+packages/scene-host-wasm/Cargo.toml
+  s_f31fe8b734ae46::t_8fabdb3a81aad7 26
+docs/RBI.md
+  s_f31fe8b734ae46::t_18aae8c0483c60 14,40-46
+  s_f31fe8b734ae46::t_786658ab19ae36 3-5,8,11-12,15-16,18-19,21,23,36,39,54-57,61,114-117,131-132,139
+  s_f31fe8b734ae46::t_47b1cd7b6e5ec6 72-74
+  s_f31fe8b734ae46::t_7bb79672c3ae53 47
+packages/kitesurf-cli/README.md
+  s_f31fe8b734ae46::t_18aae8c0483c60 4-5
+  s_f31fe8b734ae46::t_05746f69a09403 64
+  s_f31fe8b734ae46::t_18f4c5fcc26365 55
+  s_f31fe8b734ae46::t_7da94116fe065e 3,29,35,56-57,65
+  s_f31fe8b734ae46::t_b4b0328467c48f 7-15
+  s_f31fe8b734ae46::t_1b67d2b2d7d584 66
+  s_f31fe8b734ae46::t_97a6538280511d 6
+packages/scene-host-wasm/scripts/build.mjs
+  s_f31fe8b734ae46::t_1b67d2b2d7d584 28
+packages/kitesurf-cli/architecture.mmd
+  s_f31fe8b734ae46::t_b39e39e46a81bd 13-14,16-19
+  s_f31fe8b734ae46::t_d185d8619cdeea 6,30
+  s_f31fe8b734ae46::t_2959c193eedbe7 1-5,7-12,15,20-29,31-41
+packages/engine/test/e2e/keyboard-scroll.e2e.test.ts
+  s_f31fe8b734ae46::t_f39ebef061b940 101-102
+  s_f31fe8b734ae46::t_dcd055b0fd3b01 107,123
+  s_f31fe8b734ae46::t_d6cb5e82a549bf 108
+  s_f31fe8b734ae46::t_9cdab7a84536db 109
+  s_f31fe8b734ae46::t_0abf374067f532 105-106,110-122,124
+AGENTS.md
+  s_f31fe8b734ae46::t_7da94116fe065e 40,82-83
+packages/engine/src/rbi-protocol.ts
+  s_f31fe8b734ae46::t_8874f897a20db0 50
+  s_f31fe8b734ae46::t_015b1f7e245b64 51-52
+  s_f31fe8b734ae46::t_607fe6f0390da1 1,49,195
+packages/kitesurf-cli/src/wasm.rs
+  s_f31fe8b734ae46::t_2646e239026027 100-102,120
+packages/kitesurf-cli/src/access.rs
+  s_f31fe8b734ae46::t_0f74638dc24789 76,101
+packages/engine/src/cdp/dispatch-env.ts
+  s_f31fe8b734ae46::t_b9e95dda5fe716 30
+Cargo.lock
+  s_f31fe8b734ae46::t_1bd4dd85cb71c0 2529
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ff0eef4b2fa9a579b6cff02a57d4c2c8457a6d4d",
+  "prompts": {},
+  "sessions": {
+    "s_f31fe8b734ae46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f07a5b8e3ffermPEBUJXW8AjHg",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}

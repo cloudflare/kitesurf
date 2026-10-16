@@ -1,0 +1,33 @@
+packages/engine/test/e2e/harness.ts
+  s_63ab9505dce8c6::t_21cd1b3d10ac81 36,61-65
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_63ab9505dce8c6::t_d510e093e41cc7 5-7
+  s_63ab9505dce8c6::t_21cd1b3d10ac81 8
+  s_63ab9505dce8c6::t_ca1df12fcde845 9
+packages/engine/test/e2e/svg-paint-fidelity.e2e.test.ts
+  s_63ab9505dce8c6::t_21cd1b3d10ac81 11
+  s_63ab9505dce8c6::t_d510e093e41cc7 8-10
+  s_63ab9505dce8c6::t_ff58cff6b0dbc4 12
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_63ab9505dce8c6::t_21cd1b3d10ac81 8
+  s_63ab9505dce8c6::t_d510e093e41cc7 5-7
+  s_63ab9505dce8c6::t_fb82c9d842d226 9
+packages/engine/test/e2e/tabs-tab-stops.e2e.test.ts
+  s_63ab9505dce8c6::t_397c9eac4d7cc3 27-29,33-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1fbda7df4e37c39251a9c92b84eb8f999aa152bd",
+  "prompts": {},
+  "sessions": {
+    "s_63ab9505dce8c6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec565b0dfffeJFt2mc8oWjKrAq",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

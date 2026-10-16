@@ -1,0 +1,24 @@
+packages/script-gate/src/import-map.ts
+  s_059e99c81ea16a::t_7f05638bb86a2d 1-459
+packages/script-gate/package.json
+  s_059e99c81ea16a::t_7f05638bb86a2d 15
+  s_059e99c81ea16a::t_9597f3d429cdb8 6,14
+packages/engine/test/import-map.test.ts
+  s_059e99c81ea16a::t_7f05638bb86a2d 1-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5655f35c223c6d5aee4abc3abebfd48c582e1676",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

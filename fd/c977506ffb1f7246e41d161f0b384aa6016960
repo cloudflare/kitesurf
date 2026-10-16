@@ -1,0 +1,126 @@
+internal/AGENTS.md
+  s_c6d6a3ac21fe46::t_dc59d9632e2066 18-20
+  s_c6d6a3ac21fe46::t_fb33aca56c12d6 6-13,63
+internal/tests/interactivity-flows/run.ts
+  s_c6d6a3ac21fe46::t_90cfa377f55891 46-47,153,231,238
+internal/packages/engine-cf/src/caller.ts
+  s_c6d6a3ac21fe46::t_862b8a070d54c2 1-68
+AGENTS.md
+  s_c6d6a3ac21fe46::t_90cfa377f55891 97
+internal/packages/engine-cf/src/bench-tail.ts
+  s_c6d6a3ac21fe46::t_862b8a070d54c2 1-81
+internal/packages/engine-cf/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_b56346a20e1f61 92,130,150,165,284,413
+  s_c6d6a3ac21fe46::t_3ddc55fe405ba1 1-91,93-129,131-149,151-164,166-212,237-265,270,272-283,285-340,345,347-412,414-493
+packages/engine/src/index.ts
+  s_c6d6a3ac21fe46::t_90cfa377f55891 48
+internal/packages/engine-cf/test/e2e/tsconfig.json
+  s_c6d6a3ac21fe46::t_391949899ea2bf 1-5
+internal/packages/engine-cf/test/unit/account-rate-limit.test.ts
+  s_c6d6a3ac21fe46::t_fb33aca56c12d6 1
+  s_c6d6a3ac21fe46::t_862b8a070d54c2 2-68
+internal/packages/engine-cf/src/account-rate-limit.ts
+  s_c6d6a3ac21fe46::t_862b8a070d54c2 1-35
+internal/packages/engine-cf/test/e2e/ready-analytics.e2e.test.ts
+  s_c6d6a3ac21fe46::t_862b8a070d54c2 1-312
+scripts/pw-run.mjs
+  s_c6d6a3ac21fe46::t_90cfa377f55891 136
+internal/packages/engine-cf/src/admit.ts
+  s_c6d6a3ac21fe46::t_862b8a070d54c2 1-23
+.gitlab-ci.yml
+  s_c6d6a3ac21fe46::t_1abac41a3ce6ab 604,687-688
+  s_c6d6a3ac21fe46::t_90cfa377f55891 1436-1441
+  s_c6d6a3ac21fe46::t_21b87b21e64375 1851,1920,1972,2031
+packages/engine/test/e2e/tsconfig.json
+  s_c6d6a3ac21fe46::t_aed48dc36852dd 10
+packages/engine/vitest.config.mts
+  s_c6d6a3ac21fe46::t_391949899ea2bf 48
+internal/packages/engine-cf/vitest.e2e.config.mts
+  s_c6d6a3ac21fe46::t_391949899ea2bf 1-32,34
+  s_a9a63d77875d8c::t_a4a8cde02f3411 33
+packages/engine/vitest.e2e.config.mts
+  s_c6d6a3ac21fe46::t_2b9643fb197759 151,226
+  s_c6d6a3ac21fe46::t_6d20ee608b66be 164,166
+  s_c6d6a3ac21fe46::t_b37e6f0cc39aef 3,10,141-150,152-153,155-163,165,167-181,183-225,227-242,245-253,255,257-274
+  s_a9a63d77875d8c::t_98e6c05e2ac9b5 154,182,243,254
+internal/packages/engine-cf/test/unit/caller.test.ts
+  s_c6d6a3ac21fe46::t_fb33aca56c12d6 1
+  s_c6d6a3ac21fe46::t_862b8a070d54c2 2-80
+turbo.json
+  s_c6d6a3ac21fe46::t_2b9cbd0cb147cd 52-55,57
+  s_c6d6a3ac21fe46::t_1abac41a3ce6ab 56,58-59
+  s_c6d6a3ac21fe46::t_1582123ef4d238 60
+internal/packages/engine-cf/src/index.ts
+  s_c6d6a3ac21fe46::t_862b8a070d54c2 1-33
+internal/docs/ANALYTICS.md
+  s_c6d6a3ac21fe46::t_fb33aca56c12d6 4,58,162-163
+internal/docs/RELEASING.md
+  s_c6d6a3ac21fe46::t_fb33aca56c12d6 6-7
+internal/docs/TRACING.md
+  s_c6d6a3ac21fe46::t_fb33aca56c12d6 29
+packages/engine/src/unsafe-bindings.ts
+  s_c6d6a3ac21fe46::t_f72964a5a04cbb 1-10
+packages/engine/test/e2e/engine-routes.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b9643fb197759 56-58
+internal/packages/engine-cf/test/e2e/cloudflare-env.ts
+  s_c6d6a3ac21fe46::t_391949899ea2bf 1-11
+internal/tests/interactivity-flows/bbc-hydration-probe.mjs
+  s_c6d6a3ac21fe46::t_90cfa377f55891 15-17
+internal/scripts/mr-preview.mjs
+  s_c6d6a3ac21fe46::t_21b87b21e64375 38
+packages/engine/test/e2e/global-setup.ts
+  s_c6d6a3ac21fe46::t_6d20ee608b66be 13-15,55
+internal/packages/engine-cf/src/ready-analytics.ts
+  s_c6d6a3ac21fe46::t_862b8a070d54c2 1-135
+.gitignore
+  s_c6d6a3ac21fe46::t_391949899ea2bf 131
+packages/engine/package.json
+  s_c6d6a3ac21fe46::t_1411539c130d97 8-10,12
+internal/packages/engine-cf/package.json
+  s_c6d6a3ac21fe46::t_0ae7079de7979f 1-8,10-17,19-38
+  s_c6d6a3ac21fe46::t_391949899ea2bf 18
+  s_a9a63d77875d8c::t_a4a8cde02f3411 9
+internal/packages/engine-cf/tsconfig.json
+  s_c6d6a3ac21fe46::t_b56346a20e1f61 1-2,4-5
+  s_c6d6a3ac21fe46::t_84360b7daa1b28 3
+internal/docs/WEB_BOT_AUTH.md
+  s_c6d6a3ac21fe46::t_fb33aca56c12d6 15
+packages/engine/test/e2e/entry.ts
+  s_c6d6a3ac21fe46::t_2b9643fb197759 3-5
+internal/packages/engine-cf/test/e2e/screenshot-pdf-brapi.e2e.test.ts
+  s_c6d6a3ac21fe46::t_862b8a070d54c2 1-143
+internal/packages/engine-cf/src/unsafe-bindings.ts
+  s_c6d6a3ac21fe46::t_f72964a5a04cbb 1-7
+internal/packages/engine-cf/vitest.config.mts
+  s_c6d6a3ac21fe46::t_391949899ea2bf 1-9
+packages/engine/test/e2e/cloudflare-env.ts
+  s_c6d6a3ac21fe46::t_2b9643fb197759 45
+packages/engine/src/cdp/connection.ts
+  s_c6d6a3ac21fe46::t_90cfa377f55891 70
+pnpm-lock.yaml
+  s_c6d6a3ac21fe46::t_93a4d8e12752c2 111-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fdc977506ffb1f7246e41d161f0b384aa6016960",
+  "prompts": {},
+  "sessions": {
+    "s_a9a63d77875d8c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec0d6666fffecCS91fgCXnStLd",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

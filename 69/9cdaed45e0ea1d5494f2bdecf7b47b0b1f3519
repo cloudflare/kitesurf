@@ -1,0 +1,34 @@
+packages/shadow-replay/test/workerd/stub-relay-worker.mjs
+  s_16d438c4c70917::t_ca81b521fbd270 41
+packages/shadow-replay/vitest.config.mts
+  s_16d438c4c70917::t_d56f7af9bb67e6 40
+  s_16d438c4c70917::t_bd1a63e24409ad 11
+  s_16d438c4c70917::t_a544625ac0ab04 44-50
+  s_16d438c4c70917::t_1dd9929cbf76aa 7
+.gitlab-ci.yml
+  s_16d438c4c70917::t_ca81b521fbd270 605
+packages/shadow-replay/package.json
+  s_16d438c4c70917::t_bd1a63e24409ad 23
+packages/engine/test/e2e/replay-stub-worker.mjs
+  s_16d438c4c70917::t_ca81b521fbd270 51
+AGENTS.md
+  s_16d438c4c70917::t_4f7486d13dd65e 87-88
+pnpm-lock.yaml
+  s_16d438c4c70917::t_b0aa4dbef8c837 408-409,4994
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "699cdaed45e0ea1d5494f2bdecf7b47b0b1f3519",
+  "prompts": {},
+  "sessions": {
+    "s_16d438c4c70917": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebc112abeffesMR4egGjewkAOw",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
