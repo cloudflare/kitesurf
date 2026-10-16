@@ -18,6 +18,14 @@ docs/FONTS.md
         "model": "claude-opus-5-5"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_e7962f6bea340c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee044ef47ffeWCppXX2LIGL4y0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
     }
   }
 }
