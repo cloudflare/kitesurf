@@ -1,0 +1,21 @@
+packages/page-script/src/web-storage.ts
+  s_059e99c81ea16a::t_b356ebae71fac8 40,42-46,202-212,215,221-225,233-234,239-242,245,247-248
+packages/engine/test/node/session-storage-quota.test.ts
+  s_059e99c81ea16a::t_b356ebae71fac8 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1db553c4e203513151d62741975b71e237f3aab6",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+docs/RELEASING.md
+  s_059e99c81ea16a::t_a7ad4aa17df830 16-17,26
+package.json
+  s_059e99c81ea16a::t_a7ad4aa17df830 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d9ba797677cd120e1681889ca3729362a242d939",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

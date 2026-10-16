@@ -1,0 +1,40 @@
+docs/STATEFUL_SESSIONS.md
+  s_059e99c81ea16a::t_cebd395105be7c 92-94,241-243
+AGENTS.md
+  s_059e99c81ea16a::t_cebd395105be7c 175-180,226-229
+docs/IFRAMES.md
+  s_059e99c81ea16a::t_cebd395105be7c 213
+  s_059e99c81ea16a::t_050d537652e32f 221-222
+docs/WORKERS.md
+  s_059e99c81ea16a::t_cebd395105be7c 23-25
+docs/NETWORKING.md
+  s_059e99c81ea16a::t_cebd395105be7c 157-159,177-179
+packages/engine/src/cdp/types.ts
+  s_059e99c81ea16a::t_cebd395105be7c 173-174
+  s_059e99c81ea16a::t_4b0d927dd2ad4f 161-169
+packages/engine/src/cdp/dispatch.ts
+  s_059e99c81ea16a::t_4b0d927dd2ad4f 126,132,138
+packages/engine/test/e2e/stateful-session.e2e.test.ts
+  s_059e99c81ea16a::t_6e8c1797a77cbb 737-783
+packages/engine/src/cdp/target.ts
+  s_059e99c81ea16a::t_4b0d927dd2ad4f 380-383
+  s_059e99c81ea16a::t_cbe15d28b31443 384-386,728,736,738,760,768,770,794,803,805
+packages/engine/src/cdp/connection.ts
+  s_059e99c81ea16a::t_4b00f7c3d8a295 479,881
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e0a034d1ea086f268923580c2641660c4ffd6982",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
