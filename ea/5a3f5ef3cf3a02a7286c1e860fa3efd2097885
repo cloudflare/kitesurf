@@ -1,0 +1,39 @@
+packages/engine/src/inspector.ts
+  s_059e99c81ea16a::t_c0051ed331f3d9 2-13,15-21,23-48,61-99
+docs/STATEFUL_SESSIONS.md
+  s_059e99c81ea16a::t_c0051ed331f3d9 68-74
+AGENTS.md
+  s_059e99c81ea16a::t_c0051ed331f3d9 239-243
+packages/engine/src/index.ts
+  s_059e99c81ea16a::t_c0051ed331f3d9 28,80-85,256-258,343,408
+packages/engine/src/stateful.ts
+  s_059e99c81ea16a::t_c0051ed331f3d9 330
+packages/engine/test/inspector.test.ts
+  s_059e99c81ea16a::t_c0051ed331f3d9 1-80
+packages/engine/cloudflare.config.ts
+  s_6645e9af38ab61::t_dd53265153a97d 180-184,270-271,433-434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ea5a3f5ef3cf3a02a7286c1e860fa3efd2097885",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_6645e9af38ab61": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebb570861ffex5VyP4TzNEuxWV",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
