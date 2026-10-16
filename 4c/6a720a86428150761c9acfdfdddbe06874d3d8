@@ -1,0 +1,98 @@
+scripts/pw-run.mjs
+  s_e9e98b1128f045::t_7482b388c309c3 136,383
+  s_e9e98b1128f045::t_24b74f2745c2c9 384-385
+scripts/wpt-batched.mjs
+  s_e9e98b1128f045::t_7482b388c309c3 433,789-790
+  s_e9e98b1128f045::t_24b74f2745c2c9 791-794
+docs/ANALYTICS.md
+  s_e9e98b1128f045::t_368b803c5d0d74 145-146,155-156,161-163
+tests/interactivity-flows/bbc-hydration-probe.mjs
+  s_e9e98b1128f045::t_0ff67e08332aa0 16
+packages/agent-bench/src/drivers/index.ts
+  s_e9e98b1128f045::t_0ff67e08332aa0 10
+.gitlab-ci.yml
+  s_e9e98b1128f045::t_1b11a49a55f51b 1435-1439
+  s_e9e98b1128f045::t_22438b49b357b5 1925
+packages/engine/src/index.ts
+  s_e9e98b1128f045::t_0ff67e08332aa0 53-54
+packages/agent-bench/src/engines.ts
+  s_e9e98b1128f045::t_c37b6a3df69f46 5,167-170,232
+docs/RELEASING.md
+  s_e9e98b1128f045::t_3c465d9c150927 5-9,12-13,22-25,35,53,62-83
+packages/engine/test/e2e/global-setup.ts
+  s_e9e98b1128f045::t_d61931ef8f4b70 48
+packages/agent-bench/bin/agentbench.ts
+  s_e9e98b1128f045::t_0ff67e08332aa0 161
+packages/agent-bench/src/llm.ts
+  s_e9e98b1128f045::t_0ff67e08332aa0 14
+packages/engine/scripts/wrangler-json.ts
+  s_e9e98b1128f045::t_33cbbb83abddae 20-48,50,52-59,66,70
+  s_e9e98b1128f045::t_8b7e24649cde91 13-16,61-64
+  s_e9e98b1128f045::t_7f1f4248f5dad2 49
+  s_e9e98b1128f045::t_2a2ea305c17629 1-12,17-19,51,60,65,67-69
+README.md
+  s_e9e98b1128f045::t_368b803c5d0d74 110
+packages/engine/test/font-profile.test.ts
+  s_e9e98b1128f045::t_0ff67e08332aa0 12
+packages/engine/vitest.e2e.config.mts
+  s_e9e98b1128f045::t_f57199f176a14c 70-71
+  s_e9e98b1128f045::t_d61931ef8f4b70 54-55,57-58,69,87
+  s_e9e98b1128f045::t_189337bcbfe334 12
+docs/TRACING.md
+  s_e9e98b1128f045::t_368b803c5d0d74 34-36,47,114
+packages/engine/cloudflare.config.ts
+  s_e9e98b1128f045::t_06a40c2881ecad 1-21,24-99,104-189,192-243,245-246,248-424
+  s_e9e98b1128f045::t_ce30f210fc2fd3 22-23
+  s_e9e98b1128f045::t_6d1dbce33e7670 100-103,190-191,244,247
+docs/WEB_BOT_AUTH.md
+  s_e9e98b1128f045::t_29ecd32e044d37 85
+  s_e9e98b1128f045::t_368b803c5d0d74 82,87
+  s_e9e98b1128f045::t_073e339ace99d3 83-84
+packages/agent-bench/container/Dockerfile
+  s_e9e98b1128f045::t_4b2f94be15baba 52-53
+docs/NETWORKING.md
+  s_e9e98b1128f045::t_368b803c5d0d74 59
+packages/engine/src/cdp/connection.ts
+  s_e9e98b1128f045::t_0ff67e08332aa0 72-73
+AGENTS.md
+  s_e9e98b1128f045::t_813093623e2fe3 473,478-484
+packages/engine/tsconfig.json
+  s_e9e98b1128f045::t_59d0987ceca664 21-23
+turbo.json
+  s_e9e98b1128f045::t_5a1e4b55dc85d8 51
+packages/engine/package.json
+  s_e9e98b1128f045::t_1ed9ff8bb448d2 9-13,15-16,18-20
+  s_e9e98b1128f045::t_189337bcbfe334 8,21-22
+  s_e9e98b1128f045::t_6a4f376a4007c1 48,52
+  s_e9e98b1128f045::t_3dd5a8e2cbb2cf 5
+.dockerignore
+  s_e9e98b1128f045::t_bf3d2af79c6c7f 24-25
+tests/interactivity-flows/run.ts
+  s_e9e98b1128f045::t_c37b6a3df69f46 5,229,665-671
+.gitignore
+  s_e9e98b1128f045::t_305ef5a62e90f8 11-15
+scripts/build-wasm.mjs
+  s_e9e98b1128f045::t_0ff67e08332aa0 36
+packages/engine/wrangler.config.ts
+  s_e9e98b1128f045::t_1715a4cabed40f 1-15
+docs/CDP.md
+  s_e9e98b1128f045::t_368b803c5d0d74 86-88
+pnpm-lock.yaml
+  s_e9e98b1128f045::t_34ab95da714314 189-191,201-203,774-779,806-808,2797-2801,5074-5081,5122-5130,6771-6782
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4c6a720a86428150761c9acfdfdddbe06874d3d8",
+  "prompts": {},
+  "sessions": {
+    "s_e9e98b1128f045": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebe30cc79ffe4xWgC0WF5M4k71",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
