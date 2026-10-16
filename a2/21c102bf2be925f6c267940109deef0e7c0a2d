@@ -1,0 +1,25 @@
+AGENTS.md
+  s_059e99c81ea16a::t_de83dad5072bf8 634
+README.md
+  s_059e99c81ea16a::t_de83dad5072bf8 169-173
+docs/STATEFUL_SESSIONS.md
+  s_059e99c81ea16a::t_de83dad5072bf8 28,102-105
+packages/engine/src/cdp/connection.ts
+  s_059e99c81ea16a::t_4a7d0fff33dd4d 85-86,297-299,490,1115,1131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a221c102bf2be925f6c267940109deef0e7c0a2d",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
