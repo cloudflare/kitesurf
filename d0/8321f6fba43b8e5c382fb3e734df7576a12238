@@ -21,6 +21,7 @@ packages/engine/src/eval/page-script.ts
 docs/FONTS.md
   s_e7962f6bea340c::t_e586ae5c1237af 252-260,263-283
   s_e7962f6bea340c::t_af48ca6c644b8e 8-9
+  s_728b93cd05a14e::t_fb32fbd11d0b32 261-262
 packages/engine/src/cdp/connection.ts
   s_e7962f6bea340c::t_9201ee92ff7b70 71,147-148,151,361-362
 packages/page-script/src/font-loader.ts
@@ -43,6 +44,9 @@ packages/page-script/src/wasm-glue.ts
   s_e7962f6bea340c::t_49aa43738b7def 156-157,163,165
 packages/engine/test/font-profile.test.ts
   s_e7962f6bea340c::t_4c7452da092400 1-11,13-32
+  s_728b93cd05a14e::t_fdfc92f75c4344 12
+packages/engine/cloudflare.config.ts
+  s_728b93cd05a14e::t_99133da8b4b9df 155-158
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -50,6 +54,14 @@ packages/engine/test/font-profile.test.ts
   "base_commit_sha": "d08321f6fba43b8e5c382fb3e734df7576a12238",
   "prompts": {},
   "sessions": {
+    "s_728b93cd05a14e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebb6bda9cffe4Psu9UCXZfQ9fT",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
     "s_e7962f6bea340c": {
       "agent_id": {
         "tool": "opencode",
