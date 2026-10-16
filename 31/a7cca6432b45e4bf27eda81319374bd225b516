@@ -1,0 +1,24 @@
+packages/engine/test/e2e/web-animations.e2e.test.ts
+  s_b30753b0f1f8d5::t_0ee7ac02db286c 101-148
+packages/dom-shim/src/animations.ts
+  s_b30753b0f1f8d5::t_cbba5ef03550fa 490,818,835,838,842
+docs/TRANSITIONS.md
+  s_b30753b0f1f8d5::t_b1c723af754245 164-168
+  s_b30753b0f1f8d5::t_cbba5ef03550fa 169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "31a7cca6432b45e4bf27eda81319374bd225b516",
+  "prompts": {},
+  "sessions": {
+    "s_b30753b0f1f8d5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebc0d54b3ffe9Qs8ix4SK4Ht8l",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
