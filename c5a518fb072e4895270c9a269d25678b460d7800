@@ -1,0 +1,25 @@
+README.md
+  s_af6292cc62379b::t_c9d7a94f2b4b90 14-15,21
+  s_af6292cc62379b::t_57fc2fad791364 16-20
+CONTRIBUTING.md
+  s_af6292cc62379b::t_c9d7a94f2b4b90 7-26,68-69
+.github/vouch-pr-response.md
+  s_af6292cc62379b::t_57fc2fad791364 3-5
+  s_af6292cc62379b::t_6e21595b4622dc 7-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c5a518fb072e4895270c9a269d25678b460d7800",
+  "prompts": {},
+  "sessions": {
+    "s_af6292cc62379b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebe6378ffffeOesK8ewMrGy7ym",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
