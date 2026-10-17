@@ -1,0 +1,88 @@
+packages/page-script/src/fetch-shim.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 6,946-951,1274,1293-1310
+packages/page-script/src/state.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 120-122,185-188
+packages/engine/src/eval/page-script-compat.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 41-42
+packages/engine/test/walk-module-graph.test.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 26,828-861
+packages/page-script/src/eval-mode.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 4,12-47
+packages/page-script/src/index.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 269,1750-1761,2463-2467,2550,2656-2688,2768,2785-2805,2816-2823,2850-2851,2876-2877,3101-3104,3106-3108,3592-3595
+packages/page-script/src/native-script-source.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 1-49
+packages/engine/src/eval/walk-module-graph.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 24,33-99
+packages/engine/vitest.e2e.config.mts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 88-90,230-234
+packages/engine/test/fixtures-worker/src/dynamic/scripts.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 17-19,23-36,39-61,63,66-80
+scripts/build-wasm.mjs
+  s_41d5a40b9168bd::t_c12e92a7b7390e 98-99,107,109-113,227,229-232,278-280,283,286,582-586
+packages/page-script/src/shims.ts
+  s_41d5a40b9168bd::t_8571d248674123 20-29
+packages/core/src/boa_disabled.rs
+  s_41d5a40b9168bd::t_c12e92a7b7390e 1-58,67-80
+packages/engine/package.json
+  s_41d5a40b9168bd::t_c12e92a7b7390e 11
+packages/core/Cargo.toml
+  s_41d5a40b9168bd::t_c12e92a7b7390e 198,222-224
+packages/page-script/scripts/build.mjs
+  s_41d5a40b9168bd::t_c12e92a7b7390e 211
+packages/page-script/src/script-policy.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 15-19,37-39
+packages/engine/test/e2e/global-setup.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 12,31-51,60-63,71
+packages/page-script/src/eval-helpers.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 6-8,271-273,277,286
+packages/engine/test/e2e/workerd-native-browser.e2e.test.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 1-347
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 199,204-209,211,213-217,329-346
+packages/engine/test/native-script-source.test.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 1-88
+packages/engine/src/cdp/page.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 42,156,1998,2046-2083,2273,2337-2338,2387-2389
+packages/engine/src/eval/page-script.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 53,345-346,477-522,567-569,596,627,632,640,676,726-738
+packages/page-script/src/globals.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 21,26-31,183-193,216-251,287-291,294-302,309-315,320-322,339-343
+turbo.json
+  s_41d5a40b9168bd::t_c12e92a7b7390e 101-103,108
+packages/page-script/package.json
+  s_41d5a40b9168bd::t_c12e92a7b7390e 27
+packages/engine/src/wasm.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 164-170
+packages/page-script/src/startup-probe.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 6,30,117,149-161
+packages/page-script/src/scripts.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 8-15,23-25,27-31,49,102-106,112,127-141,143-152,156,158,161-185,188-190,194-195,199-243,252-253,259-262,265-270,272,279-287,289,291,300-301,304-317,320,324-325,328,335-338,340-341,346,350,352-357,360-362,364-365,370,374,388-389,392-393,398,402-411,414,418-419,445-451,476-477,649-657,660,662-685,687-720
+packages/engine/src/eval/outbound.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 58-61,233-255,287-315,764-975,981-987
+packages/core/src/lib.rs
+  s_41d5a40b9168bd::t_c12e92a7b7390e 343,787,789,791-794,798,828,852,860,874,1840,1864,1872
+packages/page-script/src/__ks_startup_probe_input.ts
+  s_41d5a40b9168bd::t_2b01182ec7402a 69
+  s_41d5a40b9168bd::t_c12e92a7b7390e 19-21,23-28
+packages/engine/test/page-script-compat.test.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 38-39,54-55
+packages/page-script/src/inserted-scripts.ts
+  s_41d5a40b9168bd::t_c12e92a7b7390e 26,208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2d6a7efb0090898fed427ae748786f0defe565e3",
+  "prompts": {},
+  "sessions": {
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
