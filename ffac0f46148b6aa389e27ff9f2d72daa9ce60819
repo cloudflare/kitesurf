@@ -1,0 +1,31 @@
+AGENTS.md
+  s_4ba79f911c93c4::t_af40e1a58604e1 181-184
+packages/engine/src/index.ts
+  s_4ba79f911c93c4::t_a3e419abcfaf50 35-36,195-199
+packages/engine/src/inspector.ts
+  s_4ba79f911c93c4::t_c8fa49a00ef59c 5
+packages/engine/test/e2e/cloudflare-env.ts
+  s_4ba79f911c93c4::t_30edc1b0b955c6 12
+packages/engine/test/e2e/engine-routes.e2e.test.ts
+  s_4ba79f911c93c4::t_a49c98a25d2be7 15-29,61-85,105,107
+packages/engine/vitest.e2e.config.mts
+  s_4ba79f911c93c4::t_1e5c751ad93016 167,170-171,177,213-216
+packages/engine/wrangler.jsonc
+  s_4ba79f911c93c4::t_e677281109dd1d 40-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ffac0f46148b6aa389e27ff9f2d72daa9ce60819",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
