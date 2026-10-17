@@ -12,6 +12,7 @@ package.json
   s_41d5a40b9168bd::t_c18efff276edc8 12
 packages/engine/package.json
   s_41d5a40b9168bd::t_c18efff276edc8 11
+  s_f1929c5c748783::t_b403497745bd04 12
 packages/engine/src/eval/page-script-compat.ts
   s_41d5a40b9168bd::t_c18efff276edc8 1-44
 packages/engine/src/eval/oopif-render.ts
@@ -27,6 +28,8 @@ packages/page-script/src/eval-mode.ts
   s_41d5a40b9168bd::t_c18efff276edc8 1-18
 packages/engine/test/fixtures-worker/wrangler.jsonc
   s_41d5a40b9168bd::t_c18efff276edc8 36,38
+  s_f1929c5c748783::t_73ec2b8ad5300c 32-34
+  s_f1929c5c748783::t_b403497745bd04 37
 packages/engine/src/cdp/dispatch.ts
   s_41d5a40b9168bd::t_c18efff276edc8 40-41
 packages/page-script/src/globals.ts
@@ -34,6 +37,8 @@ packages/page-script/src/globals.ts
 packages/page-script/src/__ks_startup_probe_input.ts
   s_41d5a40b9168bd::t_bfcacd73f97ec6 62
   s_41d5a40b9168bd::t_c18efff276edc8 60-61
+packages/engine/cloudflare.config.ts
+  s_f1929c5c748783::t_510037db0953bd 22-25,150-152,240-262,434
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -45,6 +50,14 @@ packages/page-script/src/__ks_startup_probe_input.ts
       "agent_id": {
         "tool": "opencode",
         "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f1929c5c748783": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb67e1014ffeeXTE6BiuRnAJLk",
         "model": "claude-opus-5-5"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
