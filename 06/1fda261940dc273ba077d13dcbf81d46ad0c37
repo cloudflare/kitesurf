@@ -758,6 +758,7 @@ AGENTS.md
   s_83cbebb813e639::t_ee6a91914b84c5 89
   s_83cbebb813e639::t_16e7125e69f1bd 88
   s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 59-60,150,162,168,173-174,301,322-323,326-327,464,466-468
+  s_f1929c5c748783::t_2cf90271c820da 90-93
 tests/interactivity-flows/README.md
   s_059e99c81ea16a::t_f1afeac69b3134 4,18-19,398,400-402,406,409
   s_41d5a40b9168bd::t_eb53925d585bbd 4,18-19,398,400-402,406,409
@@ -897,6 +898,37 @@ Cargo.lock
   s_83cbebb813e639::t_2cdc502a3ab9d8 425,943,945,957,959,972,973,988-991,993,1009,1011-1012,1014,1033-1034,1037,1047,1049,1054,1092-1093,1302,1578,1648-1649,1659-1660,1670,1679-1680,1755-1756,2291,2302-2303,2650,3080,3188,3252,3254,3264,3266
 packages/engine/test/e2e/render-blocking-warning.e2e.test.ts
   s_090f1138f4038a::t_f7a940eba55706 1-27
+packages/kitesurf-app/src/tabs.rs
+  s_f1929c5c748783::t_2cf90271c820da 1-222
+packages/kitesurf-app/scripts/build-engine.sh
+  s_f1929c5c748783::t_2cf90271c820da 1-12
+packages/kitesurf-app/src/input.rs
+  s_f1929c5c748783::t_2cf90271c820da 1-123
+packages/kitesurf-app/src/omnibox.rs
+  s_f1929c5c748783::t_2cf90271c820da 1-97
+packages/kitesurf-app/assets/chrome.css
+  s_f1929c5c748783::t_2cf90271c820da 1-199
+packages/kitesurf-app/src/page_view.rs
+  s_f1929c5c748783::t_2cf90271c820da 1-76
+packages/kitesurf-app/src/window.rs
+  s_f1929c5c748783::t_2cf90271c820da 1-35
+packages/kitesurf-app/src/main.rs
+  s_f1929c5c748783::t_2cf90271c820da 1-40
+packages/kitesurf-app/src/chrome.rs
+  s_f1929c5c748783::t_2cf90271c820da 1-374
+packages/kitesurf-app/Cargo.toml
+  s_f1929c5c748783::t_2cf90271c820da 1-68
+.gitignore
+  s_f1929c5c748783::t_2cf90271c820da 176-178
+  s_f1929c5c748783::t_c04dff731901a9 175
+packages/kitesurf-app/src/engine.rs
+  s_f1929c5c748783::t_2cf90271c820da 1-546
+packages/kitesurf-app/build.rs
+  s_f1929c5c748783::t_2cf90271c820da 1-8
+packages/kitesurf-app/scripts/engine-config.mjs
+  s_f1929c5c748783::t_2cf90271c820da 1-93
+packages/kitesurf-app/src/menu.rs
+  s_f1929c5c748783::t_2cf90271c820da 1-164
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -988,6 +1020,14 @@ packages/engine/test/e2e/render-blocking-warning.e2e.test.ts
       "agent_id": {
         "tool": "opencode",
         "id": "ses_f0d62d6bfffeEicn5CQ06c8WIb",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f1929c5c748783": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb67e1014ffeeXTE6BiuRnAJLk",
         "model": "claude-opus-5-5"
       },
       "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
