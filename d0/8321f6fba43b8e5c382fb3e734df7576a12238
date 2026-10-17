@@ -1,0 +1,74 @@
+packages/core/src/fonts.rs
+  s_e7962f6bea340c::t_016f29ef8b57aa 2188-2232
+  s_e7962f6bea340c::t_d4a31522efa8e1 1439-1440,1448,1450,1457-1459
+  s_e7962f6bea340c::t_74713fc50e1755 1135-1179,1184
+  s_e7962f6bea340c::t_44244e0f20e781 1216,1218-1219,1224
+  s_e7962f6bea340c::t_4cc79d55d70a86 1806-1807,1811-1812
+  s_e7962f6bea340c::t_d9f6a432e55ab6 1470-1471
+  s_e7962f6bea340c::t_47559d4150bc66 1487
+  s_e7962f6bea340c::t_fe7f9a13cc9deb 1536,2082,2152-2159,2362
+  s_e7962f6bea340c::t_9c0d7488e976f6 2187
+packages/engine/src/cdp/dom.ts
+  s_e7962f6bea340c::t_fa83d488f3a3af 540
+packages/engine/test/e2e/font-profile.e2e.test.ts
+  s_e7962f6bea340c::t_7e52f27e564c24 1-115,121,127
+  s_e7962f6bea340c::t_cbbe51a897a3bc 116-120,122-126
+packages/page-script/src/__ks_startup_probe_input.ts
+  s_e7962f6bea340c::t_e9aca070a968b3 41-43
+packages/engine/src/eval/page-script.ts
+  s_e7962f6bea340c::t_074c8923cc03cf 359-360,487,541,832-833,853
+  s_e7962f6bea340c::t_20f21120109bb0 46
+docs/FONTS.md
+  s_e7962f6bea340c::t_e586ae5c1237af 252-260,263-283
+  s_e7962f6bea340c::t_af48ca6c644b8e 8-9
+  s_728b93cd05a14e::t_fb32fbd11d0b32 261-262
+packages/engine/src/cdp/connection.ts
+  s_e7962f6bea340c::t_9201ee92ff7b70 71,147-148,151,361-362
+packages/page-script/src/font-loader.ts
+  s_e7962f6bea340c::t_7a5df5a9cabcc3 48-53,55
+  s_e7962f6bea340c::t_0da6e1d1de1cee 586
+  s_e7962f6bea340c::t_5f5f3eccab33e5 7,18-22,40,44-47,54,56-67,562,564-565,567,577,681,747,749,755,762
+packages/engine/src/eval/oopif-render.ts
+  s_e7962f6bea340c::t_fa83d488f3a3af 16,425
+  s_e7962f6bea340c::t_20f21120109bb0 80-81,326
+packages/engine/src/cdp/page.ts
+  s_e7962f6bea340c::t_fa83d488f3a3af 2333,4226
+packages/engine/src/cdp/font-profile.ts
+  s_e7962f6bea340c::t_57db8c7514857e 1-41
+packages/engine/src/cdp/types.ts
+  s_e7962f6bea340c::t_9201ee92ff7b70 232-235
+  s_e7962f6bea340c::t_43211d20a943f8 19
+packages/page-script/src/startup-probe.ts
+  s_e7962f6bea340c::t_e9aca070a968b3 18,103
+packages/page-script/src/wasm-glue.ts
+  s_e7962f6bea340c::t_49aa43738b7def 156-157,163,165
+packages/engine/test/font-profile.test.ts
+  s_e7962f6bea340c::t_4c7452da092400 1-11,13-32
+  s_728b93cd05a14e::t_fdfc92f75c4344 12
+packages/engine/cloudflare.config.ts
+  s_728b93cd05a14e::t_99133da8b4b9df 155-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d08321f6fba43b8e5c382fb3e734df7576a12238",
+  "prompts": {},
+  "sessions": {
+    "s_728b93cd05a14e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebb6bda9cffe4Psu9UCXZfQ9fT",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_e7962f6bea340c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee044ef47ffeWCppXX2LIGL4y0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
