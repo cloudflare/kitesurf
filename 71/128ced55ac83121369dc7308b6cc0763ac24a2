@@ -283,6 +283,7 @@ packages/engine-cf/src/ready-analytics.ts
   s_c6d6a3ac21fe46::t_804de8ab3d5403 1-11,13-15,21-30,31-34,36-47,49-66,68-74,76-85,90-104,105-111,113-115
   s_c6d6a3ac21fe46::t_16045bc0316901 112
   s_c6d6a3ac21fe46::t_55206342da675b 12,48,67,75,86-89
+  s_c6d6a3ac21fe46::t_5d804d915fe078 35
 output/ra-schema/kitesurf-global-metrics.yaml
   s_c7ab7e49842a97::t_d10194173b1955 3
 scripts/autoresearch-bench.mjs
@@ -343,6 +344,7 @@ packages/engine-cf/src/quickactions/index.ts
   s_6a411c7352f185::t_cdaff46f706b42 1170,1172,1174,1176,1186-1195
   s_6a411c7352f185::t_c706604a8d5631 1018-1019,1032-1035,1265-1272,1275-1282
   s_06e70006376ca7::t_5036aa1759b55b 1381,1383,1389,1391-1411,1437-1453,1455-1456,1461-1471,1474-1482,1484,1486-1494,1496
+  s_c6d6a3ac21fe46::t_5d804d915fe078 1412
 packages/engine-cf/src/quickactions/links.ts
   s_c6d6a3ac21fe46::t_5f865fa0478c10 2,15,18,50,52,54,58,62,69,78,80,127,131,145,150,152
   s_c6d6a3ac21fe46::t_55206342da675b 134-135,168,239-241
@@ -457,6 +459,7 @@ packages/engine-cf/src/client-session.ts
   s_c6d6a3ac21fe46::t_55206342da675b 105-106,119,172-174
   s_17a95d7d09cc74::t_ad0b6db6b940c0 175
   s_06e70006376ca7::t_536f7191919297 10,166,185-186,188-189
+  s_fe5f10e7fd96fe::t_8970b69d937976 187
 packages/engine-cf/scripts/devtools-session.mjs
   s_eca8bcc146fb09::t_d1a6d2cf98d451 295
   s_eca8bcc146fb09::t_8950c6e14541f6 101
@@ -628,11 +631,13 @@ packages/engine-cf/src/agent/loop.ts
   s_50801acb047ac0::t_c0180090210f6d 1750
   s_50801acb047ac0::t_d929e26a7019a5 1789-1790
   s_50801acb047ac0::t_657fc40f96dafa 2167
+  s_c6d6a3ac21fe46::t_5d804d915fe078 1015-1016,1557,1610,1661,1663,1808-1809
 packages/engine-cf/src/agent/receipts.ts
   s_decad0046973a9::t_17d733eb5cf443 1
   s_c6d6a3ac21fe46::t_55206342da675b 5,50-52,62-78,81-84,97-105,128-131,135-140,146-150,155-158,160-162,181-186,197-199,202-208,219-226,234-239,241-243
   s_c6d6a3ac21fe46::t_5ccaf03efbad0d 244
   s_06e70006376ca7::t_33e5746c92181a 28-33,85
+  s_c6d6a3ac21fe46::t_5d804d915fe078 3
 packages/agent-bench/src/mcp-client.ts
   s_c6d6a3ac21fe46::t_16045bc0316901 29-33
   s_02e38e3d2190a9::t_45e2c1665f0705 34
@@ -654,6 +659,7 @@ packages/engine-cf/src/agent/progress.ts
   s_c6d6a3ac21fe46::t_55206342da675b 68-73,76-85,90-93,108-111,126-127,166-171,188-190,193-211,234-237,258-259,271-282,296-297,313-314,339-341,382-397,402-403,406-407,428-433,439
   s_06e70006376ca7::t_533204ec36c077 88,128-130,137
   s_c6d6a3ac21fe46::t_755c9af60dbb02 440-442
+  s_c6d6a3ac21fe46::t_5d804d915fe078 131-136,138-140
 packages/engine-cf/test/unit/session-policy.test.ts
   s_c6d6a3ac21fe46::t_16045bc0316901 1-24,26-29,33-34
   s_c6d6a3ac21fe46::t_55206342da675b 25,30-32
@@ -669,6 +675,7 @@ packages/engine-cf/test/agent-run.test.ts
   s_c6d6a3ac21fe46::t_ddd7fd3973be47 154-156
   s_14b2d98170d3d4::t_9241561b1b8b75 17-24,28-30,33-36
   s_75b806519f87e1::t_847fb9da334178 25-27,31
+  s_c6d6a3ac21fe46::t_5d804d915fe078 38
 packages/agent-bench/src/suite.ts
   s_c6d6a3ac21fe46::t_16045bc0316901 129
   s_c6d6a3ac21fe46::t_55206342da675b 22-24,28-29,33-35,39-43,47-48,52-53,61,69-80,84-89,92-95,99-108,112-122,125-128,132,136-147,149-165,167-200,203-266,269-291,293-295,297-322,324-326,328-362,367-382
@@ -676,6 +683,7 @@ packages/agent-bench/src/suite.ts
   s_c6d6a3ac21fe46::t_8fc029701dd444 21
   s_c6d6a3ac21fe46::t_df0a6deea46e66 62
   s_c6d6a3ac21fe46::t_b9e5b326939689 383-384
+  s_c6d6a3ac21fe46::t_5d804d915fe078 63
 packages/shadow-replay/src/comparison/content.ts
   s_c6d6a3ac21fe46::t_16045bc0316901 17
   s_c6d6a3ac21fe46::t_55206342da675b 34,38,52,97,140
@@ -838,6 +846,7 @@ packages/agent-bench/src/drivers/pi-mcp.ts
   s_c6d6a3ac21fe46::t_cf13e3e29ec728 487-488
   s_c6d6a3ac21fe46::t_5f9851f337a0b5 491
   s_c6d6a3ac21fe46::t_8e222e8d64db7e 493-495
+  s_c6d6a3ac21fe46::t_5d804d915fe078 313-315,462-465
 packages/jev-playground/wrangler.jsonc
   s_c6d6a3ac21fe46::t_16045bc0316901 24
   s_c6d6a3ac21fe46::t_55206342da675b 11,16-17,21,37-38
@@ -1152,6 +1161,7 @@ packages/jev-playground/src/tests/system-two.test.ts
   s_a2d0cb2e67600f::t_2af2be5e79367b 39-40
   s_c6d6a3ac21fe46::t_2aff24ec51cefd 55
   s_a2d0cb2e67600f::t_798dbd869d58da 49-51
+  s_c6d6a3ac21fe46::t_5d804d915fe078 52-54
 packages/agent-mcp/package.json
   s_c6d6a3ac21fe46::t_55206342da675b 2-30
 packages/engine-cf/test/agent-context-corpus.ts
@@ -1205,6 +1215,7 @@ packages/engine-cf/test/fixtures-worker/src/agent-ai.ts
 packages/engine-cf/test/agent-system-one.test.ts
   s_c6d6a3ac21fe46::t_55206342da675b 40-41,48-62,64-76,83-100,103-114,117-121,130-133,161-173,189-193,197-202,204-209,211-218,224-241,245-248,257-268,273-278,285-286,302-309,314-316,324-331,333-345,350-357,363-374,376,388-396,398,406-411,427-456,458,471-483,485,502-519,521,523-524,528-531,540-553,594-598,600-610
   s_75b806519f87e1::t_847fb9da334178 156-158
+  s_c6d6a3ac21fe46::t_5d804d915fe078 148
 packages/boa-bench/scripts/case.mjs
   s_c6d6a3ac21fe46::t_55206342da675b 17-19
 packages/agent-bench/src/benches/webarena-family.ts
@@ -1232,6 +1243,7 @@ packages/agent-bench/src/receipts.ts
   s_c6d6a3ac21fe46::t_55206342da675b 8-11,15-18,22-27,30-31,34-36,39-48,53-57,60-63,66-69,73-74,78-79,83-87,91-95,141-146,150-169,175-182,186-198,202-353,356-361,364-406
   s_c6d6a3ac21fe46::t_ff4992dec222ee 407-408
   s_a2d0cb2e67600f::t_4c69316d95fda0 98-139
+  s_c6d6a3ac21fe46::t_5d804d915fe078 201
 packages/engine-cf/test/agent-generate.test.ts
   s_c6d6a3ac21fe46::t_55206342da675b 24-33,58-68,73-74,78-92,98-99,101-106,113-116,123-133,158-160,170-172,178-185,190-192,196-201,234-237,244-251,257-258,261-266,270-285,290-291,300-305,311-317,319-322,333-339,345-351,359-364,366-370,376-382,384-397
 packages/engine-cf/test/agent-opened.test.ts
@@ -1288,6 +1300,7 @@ packages/agent-bench/src/do-metrics.ts
   s_a2d0cb2e67600f::t_4c69316d95fda0 150,186-219
   s_c6d6a3ac21fe46::t_55206342da675b 11-27,31-37,41-43,47-50,56-75,78-90,93-110,114-116,120-123,127-131,135,140-142,145-147,220-335,339-383
   s_a2d0cb2e67600f::t_bef27fcdd70f73 151-153
+  s_c6d6a3ac21fe46::t_5d804d915fe078 154-185
 tests/interactivity-flows/lib/dash-auth.ts
   s_c6d6a3ac21fe46::t_55206342da675b 72,146-148,181-184,199-201,203,224-229,239,322,357-359
 packages/agent-bench/worker/src/relay-queue.ts
@@ -1298,6 +1311,7 @@ packages/agent-bench/src/diagnose.ts
   s_c6d6a3ac21fe46::t_55206342da675b 12-14,18-20,24-27,31-32,36-40,48-50,54,58-64,68-74,78-79,83-85,89-122,148-151,156-164,167-174,180-185,189-197,200-203,206-210,213-214,217-228,232-237,240-244,247-248,253-275,279-300,306-316,319-379,381-511,517-583,587-618,622-623
   s_c6d6a3ac21fe46::t_2e3cd965135e93 624-625
   s_a2d0cb2e67600f::t_4c69316d95fda0 125-146
+  s_c6d6a3ac21fe46::t_5d804d915fe078 380,516
 packages/jev-playground/sidecar/cdp-tee.ts
   s_c6d6a3ac21fe46::t_55206342da675b 8,26,33-41,44-49,62,75-78,108-109,122-125,133-137,152-156,166-170,205,207,247-253,259,261,285-291,293,303-305,309-311,328-329
 packages/jev-playground/tsconfig.json
@@ -1365,6 +1379,7 @@ packages/engine-cf/src/agent/observe.ts
   s_37d941ebbac928::t_16ed359b613c59 79-92,395-415,426-433,444-463,506-530,542,582,594,598-599
   s_37d941ebbac928::t_17d6c2b8ff1095 600
   s_37d941ebbac928::t_504c01e7125204 366,464-505,609-612,615-616,620-625
+  s_c6d6a3ac21fe46::t_5d804d915fe078 367,626
 packages/jev-playground/sidecar/model-proxy.ts
   s_c6d6a3ac21fe46::t_55206342da675b 5-9,26-29,31-32,46-49
   s_a2d0cb2e67600f::t_4c3f792c829983 51
@@ -1379,6 +1394,7 @@ packages/agent-bench/src/runners/container.ts
   s_c6d6a3ac21fe46::t_21d470cfe9a111 581
   s_c6d6a3ac21fe46::t_7c9aade26b6f72 583
   s_126f37ee8316ae::t_c942907c667977 60
+  s_c6d6a3ac21fe46::t_5d804d915fe078 215,271
 packages/agent-bench/worker/test/relay-wire.test.ts
   s_c6d6a3ac21fe46::t_55206342da675b 12-24
 packages/shadow-replay/test/schema.test.ts
@@ -1475,6 +1491,7 @@ packages/wpt-report/tsconfig.json
   s_c6d6a3ac21fe46::t_55206342da675b 21-26
 packages/agent-bench/src/llm-relay-client.test.ts
   s_c6d6a3ac21fe46::t_55206342da675b 7-10,15-34,36-37,39-40,42-43,47-77,79-90,92-110,114-132,136-177,180-182,185-190,194-202,205-208,211-270,274-303
+  s_c6d6a3ac21fe46::t_5d804d915fe078 35,38,41
 packages/jev-playground/sidecar/cdp-tee.test.ts
   s_c6d6a3ac21fe46::t_55206342da675b 18,23-26,44-48,55,59-63,65-70,81-92,96,111-114,120-123,132-143
 packages/wpt-report/scripts/not-enrolled.mjs
@@ -1560,6 +1577,7 @@ packages/agent-bench/container/runner.ts
   s_a2d0cb2e67600f::t_2d6b426b749f47 15
   s_c6d6a3ac21fe46::t_880751a2d5b1b6 174
   s_c6d6a3ac21fe46::t_92ed8afde91b51 177-179
+  s_c6d6a3ac21fe46::t_5d804d915fe078 24
 packages/grafana/src/panel.ts
   s_c6d6a3ac21fe46::t_55206342da675b 113,117,127,138,197,199
 tests/interactivity-flows/lib/browser-run.test.ts
@@ -1599,6 +1617,7 @@ packages/agent-bench/container/service.ts
   s_c6d6a3ac21fe46::t_55206342da675b 16-18,21-30,34-41,45,49-64,68,72-75,79-85,89-91,95-96,100-102,106-109,113-121,125-127,131,135-141,147-149,159-160,162-170,174-200,203-207,210-218,222,226,230,234-394,396-400,402-490,494
   s_a2d0cb2e67600f::t_8deff24ea8aa9b 5,10,395
   s_a2d0cb2e67600f::t_489c221e10dce3 1-4
+  s_c6d6a3ac21fe46::t_5d804d915fe078 401
 packages/jev-playground/src/tests/cost.test.ts
   s_a2d0cb2e67600f::t_842148f00c0967 3-14,18-32,34,36-38,40-50,51,52,53,54-56,71-80,83-87,95-100,102,105,109-110
   s_c6d6a3ac21fe46::t_55206342da675b 68,106-108,111-112,117
@@ -1625,6 +1644,7 @@ packages/agent-bench/src/container-ops.ts
 packages/agent-bench/src/drivers/pi-evidence.ts
   s_a2d0cb2e67600f::t_984d1f77808cf0 178
   s_c6d6a3ac21fe46::t_55206342da675b 11-23,27-33,37-41,45-48,53-174,179-221
+  s_c6d6a3ac21fe46::t_5d804d915fe078 175-177
 packages/agent-bench/scripts/setup.ts
   s_c6d6a3ac21fe46::t_55206342da675b 13-16,20-23,27,30-31,34-45,48-50,54-69,72-82,84-89,91-125,130-173
 packages/agent-bench/src/deploy-env.ts
@@ -1644,6 +1664,7 @@ packages/agent-bench/src/llm.ts
   s_c6d6a3ac21fe46::t_f9343ffce533e3 228-230
   s_a2d0cb2e67600f::t_489c221e10dce3 1-4
   s_a2d0cb2e67600f::t_4c69316d95fda0 76-84
+  s_c6d6a3ac21fe46::t_5d804d915fe078 162
 packages/engine-cf/test/agent-choice.test.ts
   s_c6d6a3ac21fe46::t_55206342da675b 21-26,49-53
 packages/agent-bench/src/benches/assistantbench.ts
@@ -1652,6 +1673,7 @@ packages/shadow-replay/src/comparison/response.ts
   s_c6d6a3ac21fe46::t_55206342da675b 28,38,46,71,74,92,112
 packages/agent-bench/src/llm-proxy.ts
   s_c6d6a3ac21fe46::t_55206342da675b 11-18,28-29,35-36,40-43,49-62,66-69,73-76,80-94,97-100,103-118,121-123,127-128,132-138,142,146-148,152-157,161-162,175-183,187-214,218-228,234-252,258-290,296-307,313-332,335-343,345-517,521-581,584-588,595-673,678-692
+  s_c6d6a3ac21fe46::t_5d804d915fe078 344
 packages/agent-bench/src/benches/browsecomp.ts
   s_c6d6a3ac21fe46::t_55206342da675b 8-15,25-26,30-36,42-62,66-82
 packages/agent-bench/src/eval.test.ts
@@ -1698,6 +1720,7 @@ packages/agent-bench/src/receipts.test.ts
   s_c6d6a3ac21fe46::t_55206342da675b 9-98,102-161
 packages/agent-mcp/src/tools.d.mts
   s_c6d6a3ac21fe46::t_55206342da675b 5-6,10-12,16-17,21-25,29-30,32,34-36,40-45,49-51,55-58,62-77,81,85-93,99-100
+  s_c6d6a3ac21fe46::t_5d804d915fe078 31,33
 tests/interactivity-flows/lib/compare.ts
   s_c6d6a3ac21fe46::t_55206342da675b 32-37,93-94
 packages/jev-playground/src/protocol.ts
@@ -1741,6 +1764,7 @@ packages/shadow-replay/test/workerd/fake-engine-worker.mjs
   s_c6d6a3ac21fe46::t_55206342da675b 35-36,37-55,57-76,79-89,90-97,99-100,102-106,108-179,182-214,217-285,292-322,325-327,342-343,354,357,362,370-374,381,397-400,403-405,407,409-411,413,416-418,421,434-435,438-440,445,448,450-452,454-455,460,462-464,468-486,489-491,527-531,536-547,549-551,552,556,559,561-568,580,586-598,602-603,643-646,658,679-680,683,691-693,695,722-723,727-728,733,740-743,750,781,785-786,789-794,802-805,812-814,840,845-846,854-859,875,879-880,891,893,894,895-898,900-930,933-960,962,975-976,984-985,993-1003,1006-1021,1023-1032,1035-1058,1060-1075,1077-1082,1085-1086,1089,1093-1099,1107-1109,1116-1117,1146-1147,1149,1154-1157,1159-1162,1165-1171,1174-1180,1195-1217,1219,1221-1223,1225-1316,1318-1349,1351-1365,1371-1372,1374-1379,1380-1383,1386-1387,1392-1410,1412-1414,1416-1417,1419-1475,1476-1531,1534,1535-1556,1591-1595,1597,1598-1600,1602-1605,1608-1610,1614-1615,1617,1621-1622,1623-1626,1627,1631-1632,1634-1644,1646,1647,1651,1652-1657,1658-1673,1675-1678,1682-1683,1685-1694,1696,1697,1701,1702-1707,1708-1711,1712-1713,1718-1730,1732,1733-1738,1742,1743-1747,1748-1751,1752-1753,1765-1774,1776-1797,1801-1804,1806-1824,1828-1858,1860,1862,1863-1871,1874-1883,1884,1885-1887,2482-2492,2494-2505,2508-2514,2517-2520,2522,2523-2525,2527-2555,2557-2568,2570-2571,2574-2588,2591-2596,2599-2601,2602,2604,2606-2612,2615-2730
   s_c6d6a3ac21fe46::t_d56428b83f3980 32-34
   s_c6d6a3ac21fe46::t_9d4c2a81f9e10d 406
+  s_bb9154925ad1ca::t_b737850ebfdfb5 782-783,787,797-801,806-811,815-818,852,2000,2113-2114,2281,2326,2373,2424,2476
 packages/website/src/components/Document.tsx
   s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,35
 packages/jev-playground/src/browser/prompt.ts
@@ -1844,6 +1868,7 @@ packages/jev-playground/src/browser/tools.ts
   s_5654d840522568::t_c75a3818f7fb9c 49
   s_a2d0cb2e67600f::t_41fd585cd2ded7 29-30
   s_5654d840522568::t_f65ac601284414 46-48
+  s_c6d6a3ac21fe46::t_5d804d915fe078 44-45
 packages/website/src/pages/wpt/parts.tsx
   s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,30,54,84,101,122,156,178,216,298,335,364
 packages/jev-playground/env.ts
@@ -2105,6 +2130,14 @@ packages/website/src/pages/landing/Showcase.tsx
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
     },
+    "s_bb9154925ad1ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb5cafbb9ffeV4C7XcRDWyZZqo",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
     "s_bc733379cfa344": {
       "agent_id": {
         "tool": "opencode",
@@ -2165,6 +2198,14 @@ packages/website/src/pages/landing/Showcase.tsx
       "agent_id": {
         "tool": "opencode",
         "id": "ses_eb9addf32ffeUKIDRQAlonDa53",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_fe5f10e7fd96fe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb577732bffeWnhPKXXR7Urs5X",
         "model": "gpt-6-luna"
       },
       "human_author": "bpereira <bpereira@cloudflare.com>"
