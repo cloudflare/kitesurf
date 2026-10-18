@@ -1,0 +1,72 @@
+# Scoped Cargo config for the kitesurf-core crate — and, via the
+# symlink at packages/renderer-core/.cargo/config.toml, for the
+# renderer-core slice (same unwind + build-std needs; one source of
+# truth). scene-host-wasm deliberately does NOT share it: build-std +
+# panic=unwind must never reach the CLI's abort-only wasm.
+#
+# Two purposes:
+#
+#   1. Rebuild std + panic_unwind for wasm32-unknown-unknown. The
+#      stock libstd shipped via rustup is built with `panic=abort`,
+#      so it has no unwind tables and can't participate in a
+#      `panic=unwind` build. `-Zbuild-std=std,panic_unwind` rebuilds
+#      it from the rust-src component (installed by the repo-root
+#      rust-toolchain.toml). Nightly-only feature; hence the pin.
+#
+#   2. Pass `-Cpanic=unwind` to rustc for the wasm target only. Host
+#      builds (aarch64-apple-darwin unit tests on the rlib crate-type
+#      under `src/*_test.rs`) keep the default panic strategy so the
+#      test binaries stay normal.
+#
+# Why `[target.wasm32-unknown-unknown]` instead of `[build]`:
+# putting `target = "wasm32-unknown-unknown"` under `[build]` would
+# force *every* cargo invocation in this crate to cross-compile,
+# which breaks `cargo test` (it would try to run wasm binaries on
+# host). Scoping to the wasm target leaves host builds alone.
+#
+# Why `[unstable]` at the crate root: this section is global to
+# the cargo invocation (cargo doesn't accept it under [target.*]).
+# It's gated by the nightly pin in rust-toolchain.toml; on stable
+# cargo would refuse the unknown `[unstable]` table.
+
+[unstable]
+build-std = ["std", "panic_unwind"]
+# `build-std-features = ["panic_immediate_abort"]` would shrink the
+# unwind tables but defeat the purpose — leave it off.
+
+[target.wasm32-unknown-unknown]
+# `+simd128` enables wasm SIMD codegen (auto-vectorization in tight
+# loops + intrinsics via std::arch::wasm32). Workerd's V8-based wasm
+# runtime has supported SIMD since 2021. Used by composite + vello
+# raster + jpeg-encoder RGB→YCbCr loops (iter 75).
+#
+# `+bulk-memory` enables Memory.copy / Memory.fill instructions —
+# significantly faster than scalar loops for memcpy/memset-style
+# operations. Auto-emitted by LLVM for std::ptr::copy / slice
+# assign / Vec growth. Workerd has supported bulk-memory since
+# 2021 (wasm 2.0 baseline).
+#
+# `+nontrapping-fptoint` allows non-trapping float-to-int casts
+# (saturating instead of trapping on overflow). Used by stylo's
+# CSS percentage math and vello's coordinate math.
+#
+# `+sign-ext` enables i32.extend8_s / i32.extend16_s. Tiny but
+# ubiquitous; saves a couple of bytes per use.
+# `-C panic=unwind` here is the SOLE source of the unwind strategy
+# since the profiles moved to the workspace root, whose
+# [profile.release] carries no `panic` key (scene-host-wasm must stay on
+# the wasm default, abort). What unwind buys (needs workerd ≥ v1.20250620
+# for modern Wasm EH): wasm-bindgen emits `extern "C-unwind"`
+# boundaries that turn Rust panics into JS PanicError exceptions, Drop
+# runs on RefCell borrow guards so a panic no longer permanently locks
+# `doc`, and subsequent calls into the same DomHandle succeed. The
+# try_borrow* calls in lib.rs stay as belt-and-suspenders against
+# non-unwinding aborts (e.g. OOM).
+rustflags = [
+  "-C",
+  "panic=unwind",
+  "-C",
+  "target-feature=+simd128,+bulk-memory,+nontrapping-fptoint,+sign-ext",
+  '--cfg',
+  'getrandom_backend="wasm_js"',
+]

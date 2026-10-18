@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kitesurf vendor <vendor@kitesurf.invalid>
+Date: Fri, 18 Sep 2026 21:34:18 +0100
+Subject: [PATCH] Expand horizontal tabs to CSS tab-size stops
+
+HarfRust shapes a tab as an ordinary glyph (usually the font's missing
+glyph, painted as a box) with a ~1-space advance. Chrome treats a tab
+as invisible whitespace that advances the pen to the next multiple of
+tab-size x space-advance from the line start.
+
+Expand tabs at line-commit time, when the pen position within the line
+is known: rewrite the tab cluster's advance (and its glyph) to the
+tab stop, swapping the glyph for the font's space glyph (no outlines)
+when the font has one, so paint draws nothing. Rewriting the
+cluster/glyph advances keeps run offsets, line metrics, hit-testing
+and selection consistent.
+
+Thread the CSS tab-size value through TextStyle, ResolvedStyle and the
+layout Style so explicit tab-size values are honored (default 8).
+
+parley_engine owns the shaped clusters and glyphs, so this half only
+adds the (doc-hidden) mutable accessors the line-commit rewrite needs;
+the expansion itself lives in the parley series.
+---
+ src/shape/shaped_text.rs | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/src/shape/shaped_text.rs b/src/shape/shaped_text.rs
+index 63afadd..b42070c 100644
+--- a/src/shape/shaped_text.rs
++++ b/src/shape/shaped_text.rs
+@@ -245,6 +245,21 @@ impl ShapedText {
+         &self.glyphs
+     }
+
++    /// Mutable access to the shaped clusters, for `parley`'s line-commit rewrites (tab
++    /// stops, whose advance depends on the pen position within the line). Not public API.
++    #[doc(hidden)]
++    #[inline(always)]
++    pub fn shaped_clusters_mut(&mut self) -> &mut [ShapedCluster] {
++        &mut self.shaped_clusters
++    }
++
++    /// Mutable access to the shaped glyphs; see [`Self::shaped_clusters_mut`].
++    #[doc(hidden)]
++    #[inline(always)]
++    pub fn glyphs_mut(&mut self) -> &mut [Glyph] {
++        &mut self.glyphs
++    }
++
+     /// The fonts.
+     ///
+     /// [`ShapedRun::font_index`] indexes into this.

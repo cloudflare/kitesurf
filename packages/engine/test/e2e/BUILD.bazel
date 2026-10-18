@@ -1,0 +1,85 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("//bazel:checks.bzl", "workspace_configs")
+load("//tests/e2e:defs.bzl", "e2e_shards")
+load("//tests/e2e:shards.bzl", "E2E_SHARD_STARTS")
+
+e2e_shards(
+    helper_deps = [
+        "//packages/dom-shim:srcs",
+        "//packages/page-script:srcs",
+    ],
+    helpers = glob(
+        ["**"],
+        exclude = [
+            "**/*.e2e.test.ts",
+            ".engine-dist/**",
+            ".fixtures-dist/**",
+            "BUILD.bazel",
+        ],
+    ),
+    starts = E2E_SHARD_STARTS,
+    tests = glob(["**/*.e2e.test.ts"]),
+)
+
+js_library(
+    name = "tests",
+    srcs = glob(["**/*.e2e.test.ts"]),
+    visibility = ["//packages/engine:__pkg__"],
+)
+
+js_library(
+    name = "idl_gaps",
+    srcs = ["idl-gaps.json"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+js_library(
+    name = "ts_srcs",
+    srcs = glob(
+        ["**/*.json", "**/*.ts"],
+        exclude = [".engine-dist/**", ".fixtures-dist/**"],
+    ),
+    visibility = ["//packages/engine:__pkg__"],
+)
+
+filegroup(
+    name = "overlay_e2e_inputs",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            ".engine-dist/**",
+            ".fixtures-dist/**",
+            "BUILD.bazel",
+        ],
+    ),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "overlay_dom_shim_inputs",
+    srcs = ["//packages/dom-shim:srcs"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "overlay_page_script_inputs",
+    srcs = ["//packages/page-script:srcs"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "overlay_fixture_assets",
+    srcs = ["//packages/engine:overlay_e2e_fixture_assets"],
+    visibility = ["//visibility:public"],
+)
+
+copy_to_directory(
+    name = "overlay_e2e_fixture_dist",
+    srcs = ["//packages/engine:e2e_fixtures_dist"],
+    out = ".fixtures-dist",
+    root_paths = ["packages/engine/e2e_fixtures_dist"],
+    visibility = ["//visibility:public"],
+)
+
+workspace_configs()

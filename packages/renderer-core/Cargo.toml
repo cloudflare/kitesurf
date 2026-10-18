@@ -1,0 +1,45 @@
+[package]
+name = "renderer-core"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "PageRenderer isolate wasm: the SceneRasterizer replay/raster/PDF slice of kitesurf-core."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyrender = { workspace = true }
+anyrender_vello_cpu = { workspace = true }
+vello_cpu = { workspace = true }
+peniko = { workspace = true }
+kurbo = { workspace = true }
+skrifa = { workspace = true }
+krilla = { workspace = true }
+image = { workspace = true }
+jpeg-encoder = { workspace = true }
+foldhash = "0.2"
+png = { workspace = true }
+wuff = { workspace = true }
+flate2 = { workspace = true }
+smallvec = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-core = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+getrandom = { workspace = true }
+getrandom_03 = { workspace = true }
+wasm-bindgen = { workspace = true }
+js-sys = { workspace = true }
+console_error_panic_hook = { workspace = true, optional = true }
+
+[features]
+default = ["console_error_panic_hook", "pdf"]
+native-host = []
+pdf = []
+
+[lints]
+workspace = true

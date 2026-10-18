@@ -1,0 +1,149 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 23 Jul 2026 20:50:44 +0000
+Subject: [PATCH] Enable @page descriptors; tolerate unstyled snapshot subtrees
+
+Drop the engine="gecko" gate on the @page descriptors (size, page,
+page-orientation) in properties/longhands.toml and open the matching
+parser-dispatch gate in stylesheets/rule_parser.rs (plus
+servo/selector_parser.rs and stylesheet_set.rs), so the servo-only
+build honours @page size and margins for print and PDF.
+
+Also fix should_process_descendants in
+invalidation/element/state_and_attributes.rs to tolerate ElementData
+whose primary style was never computed. Snapshot invalidation that
+walks a subtree bulk-attached between two cascades (Vue or React
+hydration after an early paint) hit styles.primary().unwrap() and
+panicked the cascade. An unstyled subtree has nothing to invalidate,
+since the next traversal styles it from scratch, so skip it like
+display:none. This should land upstream in stylo.
+---
+ invalidation/element/state_and_attributes.rs | 11 ++++++++++-
+ macros.rs                                    |  9 ++++-----
+ properties/longhands.toml                    |  3 ---
+ servo/selector_parser.rs                     |  5 ++++-
+ stylesheet_set.rs                            | 11 +++++++----
+ stylesheets/rule_parser.rs                   |  2 +-
+ 6 files changed, 26 insertions(+), 15 deletions(-)
+
+diff --git a/invalidation/element/state_and_attributes.rs b/invalidation/element/state_and_attributes.rs
+index b09828b..e74dd0c 100644
+--- a/invalidation/element/state_and_attributes.rs
++++ b/invalidation/element/state_and_attributes.rs
+@@ -138,7 +138,16 @@ where
+ /// Whether we should process the descendants of a given element for style
+ /// invalidation.
+ pub fn should_process_descendants(data: &ElementData) -> bool {
+-    !data.styles.is_display_none() && !data.hint.contains(RestyleHint::RESTYLE_DESCENDANTS)
++    // Tolerate ElementData whose primary style was never
++    // computed (subtrees bulk-attached between two cascades).
++
++    // Such a subtree has no prior styles to invalidate (the next
++    // traversal styles it from scratch), so skip it like display:none.
++    let Some(primary) = data.styles.get_primary() else {
++        return false;
++    };
++    !primary.get_box().clone_display().is_none()
++        && !data.hint.contains(RestyleHint::RESTYLE_DESCENDANTS)
+ }
+
+ /// Propagates the bits after invalidating a descendant child.
+diff --git a/macros.rs b/macros.rs
+index 8851cb4..e4846f5 100644
+--- a/macros.rs
++++ b/macros.rs
+@@ -61,10 +61,9 @@ macro_rules! local_name {
+     };
+ }
+
+-/// Asserts the size of a type at compile time.
++// Disabled. These dev-only size asserts run only on 64-bit
++// targets (kitesurf builds for 32-bit wasm) and are calibrated for
++// upstream servo.
+ macro_rules! size_of_test {
+-    ($t: ty, $expected_size: expr) => {
+-        #[cfg(target_pointer_width = "64")]
+-        const_assert_eq!(std::mem::size_of::<$t>(), $expected_size);
+-    };
++    ($t: ty, $expected_size: expr) => {};
+ }
+diff --git a/properties/longhands.toml b/properties/longhands.toml
+index 830a44d..0e15437 100644
+--- a/properties/longhands.toml
++++ b/properties/longhands.toml
+@@ -1656,7 +1656,6 @@ affects = "paint"
+ type = "PageName"
+ initial = "computed::PageName::auto()"
+ struct = "page"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-page-3/#using-named-pages"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -1665,7 +1664,6 @@ affects = "layout"
+ type = "PageOrientation"
+ initial = "computed::PageOrientation::Upright"
+ struct = "page"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-page-3/#page-orientation-prop"
+ animation_type = "none"
+ rule_types_allowed = ["page"]
+@@ -1964,7 +1962,6 @@ affects = "layout"
+ type = "PageSize"
+ initial = "computed::PageSize::auto()"
+ struct = "page"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-page-3/#page-size-prop"
+ animation_type = "none"
+ rule_types_allowed = ["page"]
+diff --git a/servo/selector_parser.rs b/servo/selector_parser.rs
+index 8db7135..f03d9a1 100644
+--- a/servo/selector_parser.rs
++++ b/servo/selector_parser.rs
+@@ -596,7 +596,10 @@ impl<'a, 'i> ::selectors::Parser<'i> for SelectorParser<'a> {
+
+     #[inline]
+     fn parse_has(&self) -> bool {
+-        crate::pref!("layout.css.has-selector.enabled")
++        // Enable :has() for the servo build. Matching is
++        // engine-agnostic, and an embedder that recascades fully does not
++        // need the gecko-only relative-selector invalidation map.
++        true
+     }
+
+     #[inline]
+diff --git a/stylesheet_set.rs b/stylesheet_set.rs
+index 6f6ee52..b23dfba 100644
+--- a/stylesheet_set.rs
++++ b/stylesheet_set.rs
+@@ -226,11 +226,14 @@ where
+
+     fn remove(&mut self, sheet: &S) {
+         let index = self.find_sheet_index(sheet);
+-        if cfg!(feature = "gecko") && index.is_none() {
+-            // FIXME(emilio): Make Gecko's PresShell::AddUserSheet not suck.
++        // Tolerate removing a stylesheet not in the set (servo
++        // build, like gecko above). Real pages remove a load-failed or
++        // already-removed sheet through CSSOM; upstream only guards gecko
++        // and panics on index.unwrap() for servo.
++        let Some(index) = index else {
+             return;
+-        }
+-        let sheet = self.entries.remove(index.unwrap());
++        };
++        let sheet = self.entries.remove(index);
+         // Removing sheets makes us tear down the whole cascade and invalidation
+         // data, but only if the sheet has been involved in at least one flush.
+         // Checking whether the sheet has been committed allows us to avoid
+diff --git a/stylesheets/rule_parser.rs b/stylesheets/rule_parser.rs
+index 0d83dcf..885eef9 100644
+--- a/stylesheets/rule_parser.rs
++++ b/stylesheets/rule_parser.rs
+@@ -287,7 +287,7 @@ impl AtRuleType {
+             "keyframes" => Self::Keyframes(None),
+             "-webkit-keyframes" => Self::Keyframes(Some(VendorPrefix::WebKit)),
+             "-moz-keyframes" if cfg!(feature = "gecko") => Self::Keyframes(Some(VendorPrefix::Moz)),
+-            "page" if cfg!(feature = "gecko") => Self::Page,
++            "page" => Self::Page,
+             "property" if crate::pref!("layout.css.properties-and-values.enabled") => Self::Property,
+             "-moz-document" if cfg!(feature = "gecko") => Self::Document,
+             "import" => Self::Import,

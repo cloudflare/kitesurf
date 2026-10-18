@@ -1,0 +1,1619 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 23 Jul 2026 20:50:44 +0000
+Subject: [PATCH] Baseline: inline decorations, layout and robustness fixes
+
+- stylo_to_parley extracts padding-inline-*, border-inline-*-
+  {width,color}, background-color and border-radius into the new parley
+  TextStyle fields, so the existing (Inline, Flow) path in
+  layout/construct.rs gains box decorations.
+- Inline-IFC abs-pos padding-box containing block + zero-line post-pass
+  (layout/inline.rs); first-baseline report for inline roots.
+- Paint-order float gate in layout/damage.rs: a float only bumps the
+  paint layer for position:static elements.
+- <input> placeholder polyfill (is_showing_placeholder on TextInputData
+  + construct-time synthesis); <select> label sync.
+- pub visibility on util::parse_svg_image; currentColor root-stamp for
+  inline <svg>.
+- BaseDocument::clear_style_snapshots(): resolve_stylist clears element
+  snapshots only after a successful traverse_dom, so a cascade panic
+  costs one frame instead of livelocking the navigation generation
+  (vuejs.org sticky transparent-background).
+---
+ src/config.rs            |   6 +
+ src/document.rs          | 102 ++++++-
+ src/iframe.rs            |   1 +
+ src/layout/construct.rs  |  76 +++++-
+ src/layout/inline.rs     |  63 ++++-
+ src/layout/paint_tree.rs |  25 +-
+ src/mutator.rs           | 559 ++++++++++++++++++++++++++++++++++++++-
+ src/net.rs               | 105 +++++++-
+ src/node/text.rs         |   6 +
+ src/resolve.rs           |  10 +
+ src/stylo.rs             |  93 ++++++-
+ src/stylo_to_parley.rs   | 161 +++++++++++
+ src/tree.rs              |   6 +
+ src/util.rs              |   2 +-
+ 14 files changed, 1169 insertions(+), 46 deletions(-)
+
+diff --git a/src/config.rs b/src/config.rs
+index f1a9a5e..2e8ed88 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -66,4 +66,10 @@ pub struct DocumentConfig {
+     /// How deeply this document is nested within other documents
+     /// (0 for a root document). Used to limit `<iframe>` nesting depth.
+     pub subdocument_depth: usize,
++    /// Optional hint for the initial node-slab capacity. When set,
++    /// the document reserves this many node slots up front instead
++    /// of growing the slab by doubling during parse, which avoids
++    /// the power-of-two overshoot (and its wasted memory) on large
++    /// documents. The embedder can estimate this from the source HTML.
++    pub node_capacity_hint: Option<usize>,
+ }
+diff --git a/src/document.rs b/src/document.rs
+index 5331a89..94b0fc7 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -232,7 +232,9 @@ pub struct BaseDocument {
+
+     // Stylo
+     /// The Stylo engine
+-    pub(crate) stylist: Stylist,
++    // `pub` so the embedder can walk the stylist's PageRuleMap to
++    // extract @page descriptors (size and margins) for PDF page sizing.
++    pub stylist: Stylist,
+     pub(crate) animations: DocumentAnimationSet,
+     /// Stylo shared lock
+     pub(crate) guard: SharedRwLock,
+@@ -306,6 +308,16 @@ pub struct BaseDocument {
+     /// Stylesheets added by the useragent
+     /// where the key is the hashed CSS
+     pub(crate) ua_stylesheets: HashMap<String, DocumentStyleSheet>,
++    /// Cache of author-origin stylesheets keyed by FxHash of the CSS
++    /// source text. Real pages (and Astro/Vite/SSR-driven fixtures)
++    /// frequently inline the same companion stylesheet 3+ times when
++    /// the same code-block / island appears multiple times. Without
++    /// this cache, stylo re-parses identical CSS bytes from scratch
++    /// for every <style> node. The cache reuses the already-parsed
++    /// ServoArc<StylesheetContents> via DocumentStyleSheet::clone
++    /// (an Arc bump), while each <style> node still registers
++    /// individually with the stylist (so cascade order is unchanged).
++    pub(crate) author_sheet_cache: HashMap<u64, DocumentStyleSheet>,
+     /// Map from form control node ID's to their associated forms node ID's
+     pub(crate) controls_to_form: HashMap<NodeId, NodeId>,
+     /// Nodes that contain sub documents
+@@ -410,7 +422,13 @@ impl BaseDocument {
+         let device = make_device(&viewport, media_type.clone(), font_ctx.clone());
+         let stylist = Stylist::new(device, QuirksMode::NoQuirks);
+         let snapshots = SnapshotMap::new();
+-        let nodes = Box::new(NodeTree::new());
++        // Reserve the node slab up front when the embedder supplies a
++        // capacity hint (estimated from the source HTML), avoiding
++        // the doubling overshoot on large documents. with_capacity(0)
++        // is equivalent to Slab::new(), so the default path is unchanged.
++        let nodes = Box::new(NodeTree::with_capacity(
++            config.node_capacity_hint.unwrap_or(0),
++        ));
+         let guard = SharedRwLock::new();
+         let nodes_to_id = HashMap::new();
+
+@@ -455,6 +473,7 @@ impl BaseDocument {
+             devtool_settings: DevtoolSettings::default(),
+             url: base_url,
+             ua_stylesheets: HashMap::new(),
++            author_sheet_cache: HashMap::new(),
+             nodes_to_stylesheet: BTreeMap::new(),
+             stylesheet_generation: 0,
+             font_ctx,
+@@ -1120,8 +1139,29 @@ impl BaseDocument {
+
+     pub fn process_style_element(&mut self, target_id: NodeId) {
+         let css = self.nodes[target_id].text_content();
+-        let css = html_escape::decode_html_entities(&css);
+-        let sheet = self.make_stylesheet(&css, Origin::Author);
++        // Hash on the pre-decode bytes via inline FNV-1a (~2-3 GB/s,
++        // vs SipHash's ~1 GB/s). For typical CSS (no HTML entities)
++        // pre-decode and post-decode are byte-identical, so caching
++        // by pre-decode hash hits the same entries while skipping the
++        // entity-decode scan entirely on hit. On miss we decode +
++        // parse as before. Worst case (CSS with real `&amp;`-style
++        // entities) we get one extra cache entry per distinct raw
++        // byte form: still correct, just slightly less dedup.
++        let bytes = css.as_bytes();
++        let mut h: u64 = 0xcbf29ce484222325;
++        for &b in bytes {
++            h ^= b as u64;
++            h = h.wrapping_mul(0x100000001b3);
++        }
++        let cache_key = h;
++        let sheet = if let Some(cached) = self.author_sheet_cache.get(&cache_key) {
++            cached.clone()
++        } else {
++            let decoded = html_escape::decode_html_entities(&css);
++            let s = self.make_stylesheet(&decoded, Origin::Author);
++            self.author_sheet_cache.insert(cache_key, s.clone());
++            s
++        };
+         self.add_stylesheet_for_node(sheet, target_id);
+     }
+
+@@ -1250,6 +1290,60 @@ impl BaseDocument {
+         !self.pending_critical_resources.is_empty()
+     }
+
++    // Drop stale element snapshots after a cascade panic.
++    // resolve_stylist only clears them on a successful traversal.
++    //
++    // Without this, a panic mid-invalidation leaves the snapshot that
++    // triggered it queued, and every retry re-panics (livelock).
++    pub fn clear_style_snapshots(&mut self) {
++        for opaque in self.snapshots.keys() {
++            let id = NodeId::from_u64(opaque.id() as u64);
++            if let Some(node) = self.nodes.get_mut(id) {
++                node.set_has_snapshot(false);
++            }
++        }
++        self.snapshots.clear();
++    }
++
++    /// Count of bg-image / image fetches that have been
++    /// issued but whose response hasn't been applied yet. Lets the
++    /// renderer loop ensure_layout an extra time if there are
++    /// in-flight image fetches that the next resolve's
++    /// handle_messages will drain.
++    pub fn pending_images_count(&self) -> usize {
++        self.pending_images.len()
++    }
++
++    /// Node ids of `<img>` elements (ImageType::Image
++    /// entries only; background-image / mask-image layers are
++    /// excluded) currently waiting on `url`. The JS side snapshots
++    /// this right before deliverResource / deliverResourceError
++    /// (delivery drains the entry via apply_loaded_image) so it can
++    /// fire per-element `load` / `error` events after the bytes are
++    /// applied. See the dom-shim's `notifyImageResults`.
++    /// Whether `url` is already in the document's image
++    /// cache. A src/srcset mutation pointing at a cached URL applies
++    /// synchronously at the next mutator flush without a network
++    /// fetch, so the JS side must not mark the <img> as
++    /// pending-reload (HTMLImageElement.complete would stick false:
++    /// no delivery notification ever fires for cache hits).
++    pub fn image_cache_has(&self, url: &str) -> bool {
++        self.image_cache.contains_key(url)
++    }
++
++    pub fn pending_image_nodes(&self, url: &str) -> Vec<NodeId> {
++        self.pending_images
++            .get(url)
++            .map(|waiting| {
++                waiting
++                    .iter()
++                    .filter(|(_, ty)| matches!(ty, ImageType::Image))
++                    .map(|(node_id, _)| *node_id)
++                    .collect()
++            })
++            .unwrap_or_default()
++    }
++
+     pub fn load_resource(&mut self, res: ResourceLoadResponse) {
+         self.pending_critical_resources.remove(&res.request_id);
+
+diff --git a/src/iframe.rs b/src/iframe.rs
+index 801366d..11a1a26 100644
+--- a/src/iframe.rs
++++ b/src/iframe.rs
+@@ -72,6 +72,7 @@ impl BaseDocument {
+             incremental: Some(self.incremental_layout),
+             abort_signal: Some(abort_signal),
+             subdocument_depth: self.subdocument_depth + 1,
++            node_capacity_hint: None,
+         }
+     }
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index a1b07ff..077121b 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -459,7 +459,33 @@ fn collect_layout_children_with_wrap(
+
+         #[cfg(feature = "svg")]
+         if matches!(tag_name, "svg") {
+-            let outer_html = doc.get_node(container_node_id).unwrap().svg_source();
++            let mut outer_html = doc.get_node(container_node_id).unwrap().svg_source();
++
++            // Stamp the element's computed `color` on the serialized
++            // root so usvg resolves any surviving `currentColor` by inheritance.
++            // write_outer_html substitutes currentColor per node from its
++            // primary_styles, but an unstyled child (styles not yet resolved at
++            // construct time) leaves currentColor verbatim, and usvg then
++            // defaults it to black. A root color attr is usvg's inheritance
++            // fallback.
++            use style_traits::values::ToCss as _;
++            let root_color = doc
++                .get_node(container_node_id)
++                .and_then(|n| n.primary_styles())
++                .map(|s| s.clone_color())
++                .map(|c| c.to_css_string());
++            // Scope the "already has color" check to the opening <svg ...> tag;
++            // a descendant color="..." must not suppress the root stamp.
++            let root_tag_has_color = outer_html
++                .split_once('>')
++                .map(|(open_tag, _)| open_tag.contains(" color=\""))
++                .unwrap_or(false);
++            if let Some(color) = root_color {
++                if !root_tag_has_color {
++                    outer_html =
++                        outer_html.replacen("<svg", &format!("<svg color=\"{color}\""), 1);
++                }
++            }
+
+             // Remove contruction damage from subtree
+             doc.iter_subtree_mut(container_node_id, |id: NodeId, doc: &mut BaseDocument| {
+@@ -874,11 +900,53 @@ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multi
+         node.attr(local_name!("value")).unwrap_or("").to_string()
+     };
+     let element = &mut node.data.downcast_element_mut().unwrap();
++    // Decide what text the editor should display. The HTML spec
++    // says <input> shows its `value` attribute (or the empty
++    // string if absent), and shows the `placeholder` attribute
++    // (with placeholder styling: typically grey / lighter color)
++    // only when the value is empty and the field is unfocused.
++    //
++    // This synthesizes the placeholder text into the editor with a
++    // lighter brush so the user sees something instead of a
++    // blank box. Once the user types into the field, value
++    // becomes non-empty, refresh_layout runs again here, and
++    // the placeholder fallback stops firing.
++    //
++    // This is a simplified `:placeholder-shown` polyfill; a
++    // proper implementation would pseudo-element-style the
++    // placeholder (color, font-style: italic, etc.) and
++    // render it without putting it through the editor's
++    // selection/caret machinery. This version shows
++    // the user the prompt text, doesn't count as the field's
++    // actual value (caret behaviour, form submission, etc.
++    // all read `value` not editor text).
++    // (Upstream: a <textarea>'s value is its child text, an <input>'s its
++    // value attribute; `initial_text` already picked the right one.)
++    let value_attr = Some(initial_text.as_str());
++    let placeholder_attr = element.attr(local_name!("placeholder"));
++    let (display_text, is_placeholder) = match (value_attr, placeholder_attr) {
++        (Some(v), _) if !v.is_empty() => (v.to_string(), false),
++        (_, Some(p)) if !p.is_empty() => (p.to_string(), true),
++        _ => (" ".to_string(), false),
++    };
++
+     if !matches!(element.special_data, SpecialElementData::TextInput(_)) {
+         let mut text_input_data = TextInputData::new(is_multiline);
+         let editor = &mut text_input_data.editor;
+-        editor.set_text(&initial_text);
++        editor.set_text(&display_text);
++        text_input_data.is_showing_placeholder = is_placeholder;
+         element.special_data = SpecialElementData::TextInput(text_input_data);
++    } else if let SpecialElementData::TextInput(data) = &mut element.special_data {
++        // Update the editor's text on subsequent layouts so an
++        // empty input switches between placeholder and real
++        // value as the user types. This guard keeps the
++        // is_showing_placeholder flag in sync with what the
++        // editor actually contains.
++        let editor = &mut data.editor;
++        if editor.text() != display_text.as_str() {
++            editor.set_text(&display_text);
++        }
++        data.is_showing_placeholder = is_placeholder;
+     }
+
+     let SpecialElementData::TextInput(text_input_data) = &mut element.special_data else {
+@@ -908,6 +976,10 @@ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multi
+         parley_style.white_space_collapse,
+     ));
+     styles.insert(StyleProperty::Brush(parley_style.brush));
++    // Italic-by-default placeholder mirrors most user agents.
++    if is_placeholder {
++        styles.insert(StyleProperty::FontStyle(parley::FontStyle::Italic));
++    }
+     editor.set_alignment(alignment);
+     editor.set_base_direction(base_direction);
+
+diff --git a/src/layout/inline.rs b/src/layout/inline.rs
+index 226243b..c18b9a6 100644
+--- a/src/layout/inline.rs
++++ b/src/layout/inline.rs
+@@ -6,7 +6,7 @@ use style::values::{
+     generics::text::GenericTextIndent,
+ };
+ use taffy::{
+-    AvailableSpace, AxisStaticPosition, BlockContainerStyle, BlockContext, BlockFormattingContext,
++    AvailableSpace, AxisStaticEdge, AxisStaticPosition, BlockContainerStyle, BlockContext, BlockFormattingContext,
+     BoxSizing, CollapsibleMarginSet, CompactLength, CoreStyle as _, Direction, LayoutInput,
+     LayoutOutput, LayoutPartialTree as _, MaybeMath as _, MaybeResolve as _, OofCandidate,
+     OofCandidates, OofItemStyle, OofPositioningArea, Overflow, Point, RequestedAxis,
+@@ -1087,6 +1087,67 @@ impl LayoutPassState<'_> {
+             }
+         }
+
++        // Post-pass for abs-pos children parley left
++        // unprocessed. When the IFC root has no in-flow content
++        // (only `position: absolute` descendants), parley's line
++        // breaker produces zero lines, so the per-line iteration
++        // above sees nothing and the abs-pos children are never
++        // offered to the out-of-flow pass. Worse, when the IFC root
++        // has `height: 0` styling (a common responsive-image
++        // placeholder pattern, e.g. BBC's `.ssrcss-9ozhtx`: `height: 0;
++        // padding-top: 56.25%`), parley's `build_inline_layout_into`
++        // may not even populate `inline_boxes()` for the abs-pos
++        // descendant, so iterating parley's list isn't reliable.
++        //
++        // We iterate the IFC root's `layout_children` instead.
++        // That list is populated by `find_inline_layout_embedded_boxes`
++        // during construct and contains the flattened atomic-inline
++        // descendants (img/svg/input/etc.) regardless of whether
++        // parley managed to lay them out. Any out-of-flow child that
++        // did not get a candidate above is offered to the out-of-flow
++        // pass with its static position at the start of the content box.
++        let missing_oof: Vec<NodeId> = {
++            let lc = self.nodes[node_id].layout_children.borrow();
++            lc.as_deref()
++                .map(|children| {
++                    children
++                        .iter()
++                        .copied()
++                        .filter(|&cid| {
++                            self.nodes[cid].taffy_position().is_out_of_flow()
++                                && !oof_candidates
++                                    .iter()
++                                    .any(|c| c.node == crate::taffy_node_id(cid))
++                        })
++                        .collect()
++                })
++                .unwrap_or_default()
++        };
++        for cid in missing_oof {
++            let inline_start = if container_direction.is_rtl() {
++                final_size.width - container_pb.right
++            } else {
++                container_pb.left
++            };
++            oof_candidates.push(OofCandidate {
++                node: crate::taffy_node_id(cid),
++                order: ibox_order,
++                position: self.nodes[cid].taffy_position(),
++                static_position: taffy::Point {
++                    x: AxisStaticPosition::from_edge(
++                        inline_start,
++                        if container_direction.is_rtl() {
++                            AxisStaticEdge::End
++                        } else {
++                            AxisStaticEdge::Start
++                        },
++                    ),
++                    y: AxisStaticPosition::from_edge(line_box_top, AxisStaticEdge::Start),
++                },
++            });
++            ibox_order += 1;
++        }
++
+         // println!("INLINE LAYOUT FOR {:?}. max_advance: {:?}", node_id, max_advance);
+         // dbg!(&inline_layout.text);
+         // println!("Computed: w: {} h: {}", inline_layout.layout.width(), inline_layout.layout.height());
+diff --git a/src/layout/paint_tree.rs b/src/layout/paint_tree.rs
+index 99875ea..c3f0c43 100644
+--- a/src/layout/paint_tree.rs
++++ b/src/layout/paint_tree.rs
+@@ -275,7 +275,13 @@ impl BaseDocument {
+         };
+
+         let children = self.nodes[node_id].layout_children.borrow_mut().take();
+-        if let Some(children) = children {
++        if let Some(mut children) = children {
++            // Anonymous blocks and pseudo-elements can be removed from the
++            // slab between resolve and this paint-tree pass; drop stale ids
++            // upfront so the indexed accesses below can't panic with
++            // "invalid key".
++            children.retain(|&id| self.nodes.contains_key(id));
++
+             let is_flex_or_grid =
+                 matches!(display.inside(), DisplayInside::Flex | DisplayInside::Grid);
+
+@@ -454,9 +460,18 @@ fn node_to_paint_order(node: &Node, is_flex_or_grid: bool) -> (i32, i32) {
+             Position::Absolute | Position::Fixed => (2, 0),
+         }
+     } else {
+-        (
+-            position_to_order(position) + float_to_order(style.clone_float()),
+-            0,
+-        )
++        // Float only contributes when the element is otherwise
++        // in the static layer; positioned elements skip the float-bump
++        // because their painting layer is dictated by position (CSS 2.1
++        // §9.7 / Appendix E layer 6). Without this, a `position:relative;
++        // float:right` element (2+1=3) sorted above an abs-pos sibling
++        // (2), flipping hit-test order in the todomvc footer. See
++        // examples/todomvc-react-demo.mjs step 6.
++        let float_layer = if position == Position::Static {
++            float_to_order(style.clone_float())
++        } else {
++            0
++        };
++        (position_to_order(position) + float_layer, 0)
+     }
+ }
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 8bd4f9f..ec847c3 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -370,6 +370,26 @@ impl DocumentMutator<'_> {
+             return;
+         }
+
++        // Image loads fire for detached <img> elements too:
++        // per HTML §update-the-image-data, a relevant mutation starts
++        // the image request regardless of connectedness. The
++        // `new Image(); img.src = ...` preload pattern and the WPT
++        // img.complete async subtests depend on it (the load/error
++        // event must fire on the detached element). Deliberately
++        // above the is_in_document() early-return below.
++        if (tag, attr) == tag_and_attr!("img", "src")
++            || (tag, attr) == tag_and_attr!("img", "srcset")
++        {
++            // srcset edits re-run candidate selection. The src
++            // attribute may not change, but the URL we actually
++            // fetch can; without re-firing here, pages that hydrate
++            // srcset post-mount (BBC, NYT, anything with a
++            // responsive-image React component) never load the
++            // higher-resolution variant.
++            self.load_image(node_id);
++            return;
++        }
++
+         // If node if not in the document, then don't apply any special behaviours
+         // and simply set the attribute value
+         if !node.flags.is_in_document() {
+@@ -384,8 +404,15 @@ impl DocumentMutator<'_> {
+
+         if (tag, attr) == tag_and_attr!("input", "checked") {
+             set_input_checked_state(element, value.to_string());
+-        } else if (tag, attr) == tag_and_attr!("img", "src") {
+-            self.load_image(node_id);
++        } else if tag == &local_name!("source") && attr == &local_name!("srcset") {
++            // A <source> srcset mutation inside a
++            // <picture> needs to re-fire the sibling <img>'s
++            // load_image, since the source's srcset takes
++            // priority over the img's own src/srcset. Walk to the
++            // <picture> parent, then find its <img> descendant.
++            if let Some(img_id) = self.find_picture_img_sibling(node_id) {
++                self.load_image(img_id);
++            }
+         } else if (tag, attr) == tag_and_attr!("canvas", "src") {
+             self.load_custom_paint_src(node_id);
+         } else if (tag, attr) == tag_and_attr!("link", "href")
+@@ -751,6 +778,24 @@ impl DocumentMutator<'_> {
+     }
+
+     pub fn replace_node_with(&mut self, anchor_node_id: NodeId, new_node_ids: &[NodeId]) {
++        // Self-replace short-circuit.
++        // `replaceChild(x, x)` (same node on both sides) should
++        // leave the tree unchanged (per DOM §4.2.3 "replace"
++        // semantics; the JS shim emits the MutationObserver
++        // records before reaching wasm, so we don't need to
++        // simulate the work here).
++        //
++        // Without this guard, the post-detach refactor below would
++        // call `index_of_child(anchor)` after `anchor` had been
++        // detached, returning None and panicking on unwrap. The
++        // original (pre-detach) code also corrupted the tree on
++        // self-replace: splice inserted a duplicate, then
++        // `retain` removed every occurrence including the
++        // anchor, then `remove_node(anchor)` no-op'd because the
++        // anchor was already gone.
++        if new_node_ids.len() == 1 && new_node_ids[0] == anchor_node_id {
++            return;
++        }
+         self.insert_nodes_before(anchor_node_id, new_node_ids);
+         self.remove_node(anchor_node_id);
+     }
+@@ -889,9 +934,48 @@ impl<'doc> DocumentMutator<'doc> {
+             self.doc.process_style_element(id);
+         }
+
+-        for id in self.form_nodes.drain() {
++        // Snapshot form_nodes so we can both reset_form_owner
++        // and sync_select_label without double-draining the set.
++        let form_ids: Vec<NodeId> = self.form_nodes.drain().collect();
++        for &id in &form_ids {
+             self.doc.reset_form_owner(id);
+         }
++        // Closed `<select>` paints the selected
++        // option's text. Blitz has no native form-control
++        // rendering, so without this every <select> renders as
++        // an empty inline-block (just the bootstrap chrome /
++        // chevron from author CSS).
++        //
++        // We run at flush() rather than from process_button_input
++        // because flush() runs once per mutate session (Drop of
++        // DocumentMutator): after the HTML parser has finished
++        // attaching all children of all <select>s. Running per-
++        // element from process_button_input would either fire
++        // before options exist (parser appends them one at a
++        // time after the select open tag is processed) or fire
++        // multiple times against intermediate states with extra
++        // bookkeeping for idempotency. flush()-time gives one
++        // clean pass against the final parsed tree.
++        //
++        // Selection rule: first `<option>` with the `selected`
++        // content attribute wins; otherwise the first `<option>`
++        // in document order. Matches HTML §form-controls
++        // initial selectedness for a single-select. Multi-
++        // selects (`<select multiple>`) and explicit `size`
++        // listboxes aren't special-cased: they render their
++        // first selected option's text as a one-line label,
++        // which is wrong for the listbox shape but no worse
++        // than the all-empty baseline.
++        //
++        // Caveat: this runs at parse time only. Later JS
++        // mutations (`select.value = ...`, `option.selected =
++        // true`, `select.add(...)`) won't refresh the label.
++        // Acceptable for the static-screenshot path; an
++        // interactive sync hook would belong in the dom-shim's
++        // HTMLSelectElement setters.
++        for id in form_ids {
++            self.sync_select_label_from_attrs(id);
++        }
+
+         #[cfg(feature = "autofocus")]
+         if let Some(node_id) = self.node_to_autofocus.take() {
+@@ -1124,11 +1208,15 @@ impl<'doc> DocumentMutator<'doc> {
+                 .insert(handler.request_id());
+         }
+
+-        self.doc.net_provider.fetch(
+-            self.doc.id(),
+-            self.doc.build_request(url),
+-            Box::new(handler),
+-        );
++        // Tag the Request with `content_type = "text/css"`
++        // so embedders (KitesurfNetProvider) can distinguish stylesheet
++        // loads from generic resource loads without having to peek at
++        // the NetHandler trait object. Blitz's NetProvider trait
++        // doesn't expose the handler type, and Request has no
++        // `kind` field, so content_type is the cleanest signal.
++        let mut req = self.doc.build_request(url);
++        req.content_type = Some("text/css".to_string());
++        self.doc.net_provider.fetch(self.doc.id(), req, Box::new(handler));
+     }
+
+     fn unload_stylesheet(&mut self, node_id: NodeId) {
+@@ -1150,11 +1238,144 @@ impl<'doc> DocumentMutator<'doc> {
+         self.doc.stylesheet_generation += 1;
+     }
+
+-    fn load_image(&mut self, target_id: NodeId) {
++    /// Walk from a `<source>` node up to its enclosing
++    /// `<picture>` parent, then return the first `<img>` child of
++    /// that picture. Used by the attribute-mutation handler to
++    /// re-fire `load_image` when a `<source>`'s srcset changes
++    /// post-mount.
++    fn find_picture_img_sibling(&self, source_id: NodeId) -> Option<NodeId> {
++        let parent_id = self.doc.nodes[source_id].parent?;
++        let parent = &self.doc.nodes[parent_id];
++        if !parent.data.is_element_with_tag_name(&local_name!("picture")) {
++            return None;
++        }
++        for &child_id in &parent.children {
++            if self.doc.nodes[child_id]
++                .data
++                .is_element_with_tag_name(&local_name!("img"))
++            {
++                return Some(child_id);
++            }
++        }
++        None
++    }
++
++    /// Pick the URL to actually fetch for an `<img>`.
++    ///
++    /// Precedence (matches WHATWG HTML §4.8.4.3 "Updating the
++    /// image data", trimmed to what real pages depend on):
++    ///
++    /// 1. If the `<img>` is inside a `<picture>`, walk the
++    ///    `<source>` siblings in document order. For each, if its
++    ///    `type` attribute names an image MIME we can render
++    ///    (and isn't explicitly unsupported, e.g. `image/avif`,
++    ///    which the image crate is built without), parse its `srcset` and pick a
++    ///    candidate.
++    /// 2. Otherwise, parse the `<img>`'s own `srcset` and pick a
++    ///    candidate.
++    /// 3. Otherwise, fall back to the `<img>`'s `src` attribute.
++    ///
++    /// We don't yet honour `<source media="...">` (viewport
++    /// queries) or the `sizes` attribute: we always pick the
++    /// largest descriptor in the srcset, which is the right
++    /// answer for headless rendering where we're sizing for
++    /// screenshots, not for a real viewport-aware browser.
++    fn select_image_url(&self, target_id: NodeId) -> Option<String> {
+         let node = &self.doc.nodes[target_id];
+-        if let Some(raw_src) = node.attr(local_name!("src")) {
++
++        // Step 1: <picture><source> walk.
++        if let Some(parent_id) = node.parent {
++            let parent = &self.doc.nodes[parent_id];
++            if parent.data.is_element_with_tag_name(&local_name!("picture")) {
++                for &sibling_id in &parent.children {
++                    if sibling_id == target_id {
++                        // <source> elements only count if they
++                        // precede the <img> in tree order.
++                        break;
++                    }
++                    let sibling = &self.doc.nodes[sibling_id];
++                    if !sibling
++                        .data
++                        .is_element_with_tag_name(&local_name!("source"))
++                    {
++                        continue;
++                    }
++                    // Skip MIME types we can't render. The image
++                    // crate compiled into the wasm build doesn't
++                    // include the avif feature; selecting an
++                    // AVIF source would produce an unrenderable
++                    // image. PNG/JPEG/WebP/GIF are all fine.
++                    if let Some(ty) = sibling.attr(local_name!("type")) {
++                        let ty_trim = ty.trim().to_ascii_lowercase();
++                        if ty_trim == "image/avif" {
++                            continue;
++                        }
++                    }
++                    if let Some(srcset) = sibling.attr(local_name!("srcset"))
++                        && let Some(candidate) = pick_srcset_candidate(srcset)
++                    {
++                        return Some(candidate);
++                    }
++                }
++            }
++        }
++
++        // Step 2: <img srcset>.
++        if let Some(srcset) = node.attr(local_name!("srcset"))
++            && let Some(candidate) = pick_srcset_candidate(srcset)
++        {
++            return Some(candidate);
++        }
++
++        // Step 3: <img src> fallback.
++        node.attr(local_name!("src"))
++            .filter(|s| !s.is_empty())
++            .map(|s| s.to_string())
++    }
++
++    /// Read the `<img width|height>` attrs and return
++    /// the larger of the two as a u32 hint for ImageHandler's
++    /// rgba8 cap. Returns `None` if neither attr is set or
++    /// neither parses to a useful integer; ImageHandler falls
++    /// back to `DEFAULT_DECODE_MAX_DIM` in that case.
++    ///
++    /// We deliberately ignore CSS-driven sizing here (`<img
++    /// style="width:240px">`). Reading style requires a cascade
++    /// to have run, which it hasn't at LoadImage queue time; the
++    /// attr-only path covers the dominant real-world case: most
++    /// large sites set explicit width/height attrs for layout
++    /// stability.
++    fn read_img_display_dim(&self, node_id: NodeId) -> Option<u32> {
++        let node = &self.doc.nodes[node_id];
++        let w = node
++            .attr(local_name!("width"))
++            .and_then(|s| s.trim().parse::<u32>().ok());
++        let h = node
++            .attr(local_name!("height"))
++            .and_then(|s| s.trim().parse::<u32>().ok());
++        match (w, h) {
++            (Some(w), Some(h)) => Some(w.max(h)),
++            (Some(w), None) => Some(w),
++            (None, Some(h)) => Some(h),
++            (None, None) => None,
++        }
++    }
++
++    fn load_image(&mut self, target_id: NodeId) {
++        if let Some(raw_src) = self.select_image_url(target_id) {
+             if !raw_src.is_empty() {
+-                let src = self.doc.resolve_url(raw_src);
++                // Fallible resolve. `img.src = "http://"`
++                // (or any unresolvable string) must put the element
++                // in the broken state, not panic the wasm isolate:
++                // resolve_url()'s unwrap fired a real panic here (WPT
++                // img.complete.html "invalid URL" subtest). The JS
++                // shim detects unresolvable srcs on the attribute
++                // hook and fires the error event; wasm-side we just
++                // skip the fetch.
++                let Some(src) = self.doc.url.resolve_relative(&raw_src) else {
++                    return;
++                };
++                let display_dim = self.read_img_display_dim(target_id);
+                 let src_string = src.as_str();
+
+                 // Check cache first
+@@ -1184,15 +1405,29 @@ impl<'doc> DocumentMutator<'doc> {
+                     .pending_images
+                     .insert(src_string.to_string(), vec![(target_id, ImageType::Image)]);
+
++                // Tag with content_type = "image/*" so the
++                // outbound gateway routes through the Image
++                // cross-origin bypass even for URLs without a useful
++                // file extension.
++                let mut req = self.doc.build_request(src);
++                req.content_type = Some("image/*".to_string());
++                // Pass the display-size hint to
++                // ImageHandler so it can downscale before
++                // materialising rgba8. Critical for image-heavy
++                // pages; see ImageHandler::decode_max_dim doc.
++                let handler = match display_dim {
++                    Some(d) => ImageHandler::with_max_dim(ImageType::Image, d),
++                    None => ImageHandler::new(ImageType::Image),
++                };
+                 self.doc.net_provider.fetch(
+                     self.doc.id(),
+-                    self.doc.build_request(src),
++                    req,
+                     ResourceHandler::boxed(
+                         self.doc.tx.clone(),
+                         self.doc.id(),
+                         None, // Don't pass node_id, we'll handle it via pending_images
+                         self.doc.shell_provider.clone(),
+-                        ImageHandler::new(ImageType::Image),
++                        handler,
+                     ),
+                 );
+             }
+@@ -1248,6 +1483,111 @@ impl<'doc> DocumentMutator<'doc> {
+         }
+     }
+
++    /// Append/update/remove the synthetic Text child
++    /// that paints as the closed-`<select>` label. No-op for non-
++    /// `<select>` ids (form_nodes also tracks button/input/etc.).
++    ///
++    /// `text = None` means "no label" (empty select, or no option
++    /// has a non-empty visible text); the prior label is dropped
++    /// if present. `text = Some(s)` updates an existing label in
++    /// place (last Text child of the select) via set_node_text,
++    /// or appends a fresh one. Idempotent: re-runs converge on
++    /// the right state.
++    ///
++    /// Used by two callers:
++    /// - The parse-time pass in `flush()` walks form_nodes,
++    ///   resolves the initially-selected option from the wasm
++    ///   `selected` content attribute, and calls this with the
++    ///   resolved text.
++    /// - The runtime resync path called from the dom-shim (which
++    ///   tracks IDL-level selectedness in a JS Map, not in the
++    ///   `selected` content attribute per spec). The JS side
++    ///   resolves the label itself and hands the resolved text
++    ///   to the wasm; we can't re-derive it here because the
++    ///   wasm-visible attribute would lie about the live state.
++    pub fn set_select_label(&mut self, target_id: NodeId, text: Option<&str>) {
++        let Some(node) = self.doc.get_node(target_id) else {
++            return;
++        };
++        let Some(data) = node.element_data() else {
++            return;
++        };
++        if &*data.name.local != "select" {
++            return;
++        }
++
++        // Last child being a Text node is the marker for a
++        // previously-injected label. <select>'s content model is
++        // option / optgroup / script / template only, so any
++        // Text child can only be ours (or parser-emitted
++        // whitespace, which is invisible either way).
++        let existing_label = node.children.last().copied().and_then(|id| {
++            if self.doc.nodes[id].is_text_node() {
++                Some(id)
++            } else {
++                None
++            }
++        });
++
++        let normalized = text.filter(|s| !s.is_empty());
++
++        match (existing_label, normalized) {
++            (Some(text_id), Some(s)) => self.set_node_text(text_id, s),
++            (Some(text_id), None) => {
++                self.remove_and_drop_node(text_id);
++            }
++            (None, Some(s)) => {
++                let text_id = self.create_text_node(s);
++                self.append_children(target_id, &[text_id]);
++            }
++            (None, None) => {}
++        }
++    }
++
++    /// Parse-time helper that scans `<select>`'s
++    /// children for the initially-selected option (first
++    /// `<option>` with the `selected` content attribute; else
++    /// first `<option>` in document order) and applies its
++    /// text_content via `set_select_label`. Called from flush()
++    /// for every entry in form_nodes: non-selects early-return
++    /// inside set_select_label.
++    pub fn sync_select_label_from_attrs(&mut self, target_id: NodeId) {
++        let Some(node) = self.doc.get_node(target_id) else {
++            return;
++        };
++        let Some(data) = node.element_data() else {
++            return;
++        };
++        if &*data.name.local != "select" {
++            return;
++        }
++
++        let mut chosen: Option<NodeId> = None;
++        let mut first_option: Option<NodeId> = None;
++        for child_id in node.children.iter().copied() {
++            let child_node = &self.doc.nodes[child_id];
++            let Some(child_data) = child_node.element_data() else {
++                continue;
++            };
++            if &*child_data.name.local != "option" {
++                continue;
++            }
++            if first_option.is_none() {
++                first_option = Some(child_id);
++            }
++            if chosen.is_none()
++                && child_data.attr(local_name!("selected")).is_some()
++            {
++                chosen = Some(child_id);
++            }
++        }
++
++        let text = chosen
++            .or(first_option)
++            .map(|opt_id| self.doc.nodes[opt_id].text_content());
++        self.set_select_label(target_id, text.as_deref());
++    }
++
+     fn process_button_input(&mut self, target_id: NodeId) {
+         let node = &self.doc.nodes[target_id];
+         let Some(data) = node.element_data() else {
+@@ -1268,6 +1608,16 @@ impl<'doc> DocumentMutator<'doc> {
+             self.append_children(target_id, &[id]);
+             return;
+         }
++
++        // <select> label injection is deliberately
++        // not handled here. The HTML parser calls
++        // process_added_subtree (which queues this fn) before
++        // children are attached, so we'd see an empty option
++        // list every time. Instead, sync_select_labels() runs
++        // from `flush()` at end-of-parse against the
++        // accumulated `form_nodes` set: by then the option
++        // children are fully populated. See the comment at
++        // sync_select_label below for the design rationale.
+         #[cfg(feature = "file-input")]
+         if let ("input", Some("file")) = (tagname, type_attr) {
+             let button_id = self.create_element(
+@@ -1350,6 +1700,121 @@ impl Drop for ViewportMut<'_> {
+     }
+ }
+
++/// Pick a URL from an HTML `srcset` attribute.
++///
++/// `srcset` is a comma-separated list of candidates, each of
++/// which is a URL optionally followed by a width descriptor
++/// (`NNNw`) or pixel-density descriptor (`Nx`). Examples:
++///
++/// ```text
++///   "foo.jpg 480w, bar.jpg 960w"
++///   "foo-1x.png, bar-2x.png 2x"
++///   "single.jpg"
++/// ```
++///
++/// We don't implement the full WHATWG candidate selection
++/// algorithm (which depends on viewport width + DPR + `sizes`).
++/// Instead we pick the candidate with the largest descriptor:
++/// for `Nw` that's the largest pixel-width source available, and
++/// for `Nx` that's the highest-density. In headless rendering
++/// for screenshots, "always the largest" is the right call:
++/// we'd rather pay bytes for a crisp result than save bandwidth
++/// on a thumbnail. Missing descriptors default to `1x`.
++///
++/// Returns `None` if the srcset is empty or every entry fails to
++/// parse a URL.
++fn pick_srcset_candidate(srcset: &str) -> Option<String> {
++    // Best candidate so far: (url, descriptor_value, is_width).
++    // We prefer width-descriptors over density-descriptors when
++    // both appear in the same srcset (it's invalid per spec, but
++    // real pages do it; widths give us the higher-res answer).
++    let mut best: Option<(String, f64, bool)> = None;
++
++    // Whitespace-anchored scan, not a `,`-split; `data:` URLs
++    // contain literal commas (between `image/png;base64` and the
++    // payload) and would shred on a naive split. WHATWG §srcset
++    // parsing is character-by-character: skip leading whitespace,
++    // read a URL (non-whitespace run), read an optional descriptor
++    // run, then consume the comma separator. Commas at the end of
++    // a URL token (i.e. directly attached, no whitespace) are
++    // stripped per spec and act as separators in that one case.
++    let bytes = srcset.as_bytes();
++    let mut i = 0;
++    while i < bytes.len() {
++        // Skip whitespace and commas between entries.
++        while i < bytes.len()
++            && (bytes[i].is_ascii_whitespace() || bytes[i] == b',')
++        {
++            i += 1;
++        }
++        if i >= bytes.len() {
++            break;
++        }
++        // Read URL: run of non-whitespace.
++        let url_start = i;
++        while i < bytes.len() && !bytes[i].is_ascii_whitespace() {
++            i += 1;
++        }
++        let mut url_end = i;
++        // A trailing comma at the end of a URL acts as the entry
++        // separator (per spec). Strip it off the URL token.
++        let mut had_trailing_comma = false;
++        if url_end > url_start && bytes[url_end - 1] == b',' {
++            url_end -= 1;
++            had_trailing_comma = true;
++        }
++        if url_end == url_start {
++            continue;
++        }
++        let url = &srcset[url_start..url_end];
++
++        // Read descriptor: skip whitespace, then read up to the
++        // next comma (or end). Skip if we already consumed the
++        // separator via a trailing comma on the URL.
++        let descriptor = if had_trailing_comma {
++            ""
++        } else {
++            while i < bytes.len()
++                && bytes[i].is_ascii_whitespace()
++                && bytes[i] != b'\n'
++            {
++                i += 1;
++            }
++            let desc_start = i;
++            while i < bytes.len() && bytes[i] != b',' {
++                i += 1;
++            }
++            srcset[desc_start..i].trim()
++        };
++        // Consume the comma separator if present; the top-of-loop
++        // skip will eat any trailing whitespace.
++        if i < bytes.len() && bytes[i] == b',' {
++            i += 1;
++        }
++
++        let (value, is_width) = if let Some(num) = descriptor.strip_suffix('w') {
++            num.trim().parse::<f64>().map(|v| (v, true)).unwrap_or((1.0, false))
++        } else if let Some(num) = descriptor.strip_suffix('x') {
++            num.trim().parse::<f64>().map(|v| (v, false)).unwrap_or((1.0, false))
++        } else {
++            // No descriptor: treat as 1x density.
++            (1.0, false)
++        };
++
++        let take = match &best {
++            None => true,
++            Some((_, _, prev_is_width)) if is_width && !*prev_is_width => true,
++            Some((_, _, prev_is_width)) if !is_width && *prev_is_width => false,
++            Some((_, prev_value, _)) => value > *prev_value,
++        };
++        if take {
++            best = Some((url.to_string(), value, is_width));
++        }
++    }
++
++    best.map(|(url, _, _)| url)
++}
++
+ #[cfg(test)]
+ mod test {
+     use style::media_queries::MediaType;
+@@ -1365,6 +1830,74 @@ mod test {
+
+     use crate::{Attribute, BaseDocument, DocumentConfig, ElementData, NodeData, qual_name};
+
++    #[test]
++    fn srcset_single_url_no_descriptor() {
++        assert_eq!(
++            super::pick_srcset_candidate("foo.jpg").as_deref(),
++            Some("foo.jpg")
++        );
++    }
++
++    #[test]
++    fn srcset_picks_largest_width() {
++        assert_eq!(
++            super::pick_srcset_candidate("a.jpg 480w, b.jpg 960w, c.jpg 240w").as_deref(),
++            Some("b.jpg")
++        );
++    }
++
++    #[test]
++    fn srcset_picks_largest_density() {
++        assert_eq!(
++            super::pick_srcset_candidate("a.png 1x, b.png 2x, c.png 3x").as_deref(),
++            Some("c.png")
++        );
++    }
++
++    #[test]
++    fn srcset_width_beats_density_when_mixed() {
++        // Spec-invalid but seen in the wild. Widths win because
++        // they give us higher-res source bytes.
++        assert_eq!(
++            super::pick_srcset_candidate("small.jpg 2x, big.jpg 800w").as_deref(),
++            Some("big.jpg")
++        );
++    }
++
++    #[test]
++    fn srcset_skips_empty_entries() {
++        assert_eq!(
++            super::pick_srcset_candidate(" , foo.jpg 100w , ").as_deref(),
++            Some("foo.jpg")
++        );
++    }
++
++    #[test]
++    fn srcset_empty_returns_none() {
++        assert!(super::pick_srcset_candidate("").is_none());
++        assert!(super::pick_srcset_candidate("  ,  ,  ").is_none());
++    }
++
++    #[test]
++    fn srcset_data_url_with_commas() {
++        // data: URLs contain a comma between the mime-prefix and
++        // the payload. A naive `,`-split would shred the URL into
++        // pieces; the whitespace-anchored scanner has to keep it
++        // intact.
++        let s = "data:image/png;base64,iVBORw0KGgo= 100w, https://x/big.png 400w";
++        assert_eq!(
++            super::pick_srcset_candidate(s).as_deref(),
++            Some("https://x/big.png")
++        );
++    }
++
++    #[test]
++    fn srcset_data_url_only_no_descriptor() {
++        let s = "data:image/png;base64,iVBORw0KGgo=";
++        assert_eq!(super::pick_srcset_candidate(s).as_deref(), Some(s));
++    }
++
++
+     #[test]
+     fn media_type_defaults_to_screen() {
+         let mut document = BaseDocument::new(DocumentConfig::default());
+diff --git a/src/net.rs b/src/net.rs
+index 786b5bd..f1b096c 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -46,9 +46,8 @@ pub(crate) fn stamped_request(url: Url, signal: Option<&AbortSignal>) -> Request
+ pub struct FontFaceOverrides {
+     /// `font-family` descriptor (the alias the rest of the stylesheet uses).
+     pub family_name: Option<String>,
+-    /// `font-weight` descriptor as a single CSS weight (100–900). Stylo
+-    /// parses this as a range; we record the lower bound, which equals the
+-    /// upper bound in the common single-value case.
++    /// `font-weight` descriptor when it names a single weight; `None` for
++    /// true ranges (variable faces match via their own fvar/wght axis).
+     pub weight: Option<f32>,
+     /// `font-style` descriptor mapped to fontique's `FontStyle`.
+     pub style: Option<parley::fontique::FontStyle>,
+@@ -423,10 +422,16 @@ pub(crate) fn fetch_font_face_rules<'a>(
+                 // style) rather than whatever metadata the TTF reports.
+                 let overrides = FontFaceOverrides {
+                     family_name: Some(family.name.to_string()),
+-                    weight: descriptor
+-                        .font_weight
+-                        .as_ref()
+-                        .and_then(|range| range.0.compute().map(|w| w.value())),
++                    // A true range (e.g. `100 900` on a variable
++                    // face) must not pin the face to its lower bound.
++
++                    // Passing None keeps the fvar default weight so wght-
++                    // axis synthesis serves every weight in the range.
++                    weight: descriptor.font_weight.as_ref().and_then(|range| {
++                        let min = range.0.compute()?.value();
++                        let max = range.1.compute()?.value();
++                        (min == max).then_some(min)
++                    }),
+                     style: descriptor.font_style.as_ref().map(stylo_to_fontique_style),
+                 };
+                 Some((src, overrides))
+@@ -503,9 +508,20 @@ pub(crate) fn fetch_font_face_rules<'a>(
+                 });
+
+             if let Some((url, format)) = preferred_source {
++                // Tag with content_type = "font/*" so the
++                // outbound gateway routes through the Font cross-
++                // origin bypass (matching the opaque-resource path
++                // real browsers take for @font-face). Without this
++                // tag, KitesurfNetProvider falls back to URL-
++                // extension inference, which fails for
++                // content-negotiating CDNs (e.g. fonts.gstatic.com
++                // serves /<hash>.woff2 with no extension hint to
++                // the JS fetch bridge).
++                let mut req = stamped_request(url, abort_signal);
++                req.content_type = Some("font/*".to_string());
+                 network_provider.fetch(
+                     doc_id,
+-                    stamped_request(url, abort_signal),
++                    req,
+                     ResourceHandler::boxed(
+                         tx.clone(),
+                         doc_id,
+@@ -553,10 +569,54 @@ impl NetHandler for ResourceHandler<DocumentSrcHandler> {
+
+ pub struct ImageHandler {
+     kind: ImageType,
++    /// Cap on the longest decoded-RGBA8 dimension. When
++    /// `Some(n)` and the decoded image exceeds `n` on either axis,
++    /// we resize down (Lanczos3) before materialising the rgba8
++    /// buffer. Set by `load_image` from the `<img width|height>`
++    /// attrs.
++    ///
++    /// Why this exists: workerd's 128 MiB memory ceiling. Image-
++    /// heavy pages (bbc.co.uk: 121 images per render) blow past
++    /// it instantly when every decode allocates a full-res rgba8
++    /// (~2 MB per 960×540 webp). Capping at the display size
++    /// drops typical thumbnail footprint from ~2 MB to ~130 KB
++    /// without any visible quality regression: the canvas
++    /// rasteriser samples at display resolution anyway.
++    ///
++    /// `None` falls back to `DEFAULT_DECODE_MAX_DIM` (600 px on
++    /// the longest side): enough for any single hero image while
++    /// keeping the worst case bounded. Pages that need bigger
++    /// images can set explicit width/height attrs.
++    decode_max_dim: Option<u32>,
+ }
++
++/// Default cap on decoded-image longest dimension when
++/// the `<img>` element carries no `width` / `height` attrs.
++///
++/// Sized for the workerd 128 MiB ceiling: 600 × 600 × 4 = 1.4 MB
++/// rgba8 per image. BBC-class pages with ~120 images fit in
++/// ~170 MB worst case, comfortably handled by the layout cascade
++/// since pending images decode one-at-a-time through the fetch
++/// concurrency cap (6 in-flight per workerd 6-fetch limit).
++const DEFAULT_DECODE_MAX_DIM: u32 = 600;
++
+ impl ImageHandler {
+     pub fn new(kind: ImageType) -> Self {
+-        Self { kind }
++        Self { kind, decode_max_dim: None }
++    }
++
++    /// Build an ImageHandler with an explicit
++    /// decoded-RGBA8 longest-side cap. Called from `load_image`
++    /// when the `<img>` carries `width` / `height` attrs.
++    pub fn with_max_dim(kind: ImageType, max_dim: u32) -> Self {
++        // Clamp to a sane floor (16 px): pages occasionally set
++        // width="0" or width="1" placeholders to hide images, and
++        // we don't want to decode at 1×1 only to upscale on paint.
++        let cap = max_dim.max(16);
++        Self {
++            kind,
++            decode_max_dim: Some(cap),
++        }
+     }
+ }
+
+@@ -575,13 +635,30 @@ impl ImageHandler {
+             .decode()
+         {
+             Ok(image) => {
+-                let width = image.width();
+-                let height = image.height();
+-                let raw_rgba8_data = image.into_rgba8().into_raw();
++                // Downscale before rgba8 materialisation if
++                // the decoded image exceeds the display-size cap. The
++                // `image` crate's `resize` preserves aspect ratio and
++                // we pick `FilterType::Triangle`; Lanczos3 produces
++                // ~10% sharper output but adds ~3× wall-clock on a
++                // 960×540 webp; on a 121-image page that's the
++                // difference between 200 ms and 600 ms of decode CPU.
++                // Triangle is fine for screenshots; we're not pixel-
++                // peeping.
++                let cap = self.decode_max_dim.unwrap_or(DEFAULT_DECODE_MAX_DIM);
++                let (w, h) = (image.width(), image.height());
++                let scaled = if w > cap || h > cap {
++                    use image::imageops::FilterType;
++                    image.resize(cap, cap, FilterType::Triangle)
++                } else {
++                    image
++                };
++                let final_w = scaled.width();
++                let final_h = scaled.height();
++                let raw_rgba8_data = scaled.into_rgba8().into_raw();
+                 return Ok(Resource::Image(
+                     self.kind,
+-                    width,
+-                    height,
++                    final_w,
++                    final_h,
+                     Arc::new(raw_rgba8_data),
+                 ));
+             }
+diff --git a/src/node/text.rs b/src/node/text.rs
+index 61906af..6bdf708 100644
+--- a/src/node/text.rs
++++ b/src/node/text.rs
+@@ -72,6 +72,11 @@ pub struct TextInputData {
+     /// vertical offset. It is kept up to date so that the caret remains visible within the
+     /// input's content box.
+     pub scroll_offset: f32,
++    /// True when the editor currently holds the
++    /// element's `placeholder` attribute text (because `value`
++    /// was empty). The paint layer reads this to dim the text
++    /// at 0.4 alpha, mimicking `:placeholder-shown`.
++    pub is_showing_placeholder: bool,
+ }
+
+ // FIXME: Implement Clone for PlainEditor
+@@ -88,6 +93,7 @@ impl TextInputData {
+             editor,
+             is_multiline,
+             scroll_offset: 0.0,
++            is_showing_placeholder: false,
+         }
+     }
+
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 29a6607..0ee49c9 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -279,7 +279,17 @@ impl BaseDocument {
+
+                 // Recurse into newly collected layout children
+                 for child_id in layout_children.iter().copied() {
++                    // Anonymous blocks and pseudo-elements can be removed
++                    // from the slab between render passes (or by the
++                    // recursive call itself collapsing siblings); skip
++                    // stale IDs. Mirrors the else-branch guard below.
++                    if !doc.nodes.contains_key(child_id) {
++                        continue;
++                    }
+                     resolve_layout_children_recursive(doc, child_id);
++                    if !doc.nodes.contains_key(child_id) {
++                        continue;
++                    }
+                     doc.nodes[child_id].layout_parent.set(Some(node_id));
+                     if let Some(mut data) = doc.nodes[child_id]
+                         .try_stylo_element_data_mut()
+diff --git a/src/stylo.rs b/src/stylo.rs
+index 96998d7..89e1bbd 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -467,7 +467,54 @@ impl selectors::Element for BlitzNode<'_> {
+             NonTSPseudoClass::AnyLink => self
+                 .element_state()
+                 .intersects(ElementState::VISITED_OR_UNVISITED),
+-            NonTSPseudoClass::Checked => self.element_state().contains(ElementState::CHECKED),
++            NonTSPseudoClass::Checked => {
++                // Two-tier: layout-tracked state first (covers the
++                // .checked IDL property mutation path that real
++                // pages use), fall back to the content attribute
++                // (covers detached/Fragment elements where layout
++                // never ran: the WPT
++                // ParentNode-querySelector-All "matching checked
++                // radio buttons and checkboxes" pattern).
++                //
++                // Per HTML §dom-checked-pseudo:
++                //   - input[type=checkbox|radio] is :checked when
++                //     the *checkedness* is true. Checkedness starts
++                //     from the `checked` content attribute and is
++                //     then mutated by .checked = ... / user input.
++                //   - option is :checked when the `selected` IDL
++                //     state is true.
++                //
++                // SpecialElementData::CheckboxInput tracks live
++                // checkedness once the element enters layout, so
++                // it's authoritative for rendered inputs. Detached
++                // / Fragment-rooted elements never get that data
++                // populated, so we fall back to the content attr.
++                let elem = self.data.downcast_element();
++                if let Some(elem) = elem {
++                    if elem.name.local == local_name!("input") {
++                        let type_attr = elem
++                            .attr(local_name!("type"))
++                            .unwrap_or("text");
++                        let is_checkable = type_attr.eq_ignore_ascii_case("checkbox")
++                            || type_attr.eq_ignore_ascii_case("radio");
++                        if !is_checkable {
++                            false
++                        } else if let Some(state) = elem.checkbox_input_checked() {
++                            // Live layout-tracked state. Real pages.
++                            state
++                        } else {
++                            // Detached / unrendered. WPT pattern.
++                            elem.attr(local_name!("checked")).is_some()
++                        }
++                    } else if elem.name.local == local_name!("option") {
++                        elem.attr(local_name!("selected")).is_some()
++                    } else {
++                        false
++                    }
++                } else {
++                    false
++                }
++            },
+             NonTSPseudoClass::Valid => false,
+             NonTSPseudoClass::Invalid => false,
+             NonTSPseudoClass::Defined => false,
+@@ -479,7 +526,34 @@ impl selectors::Element for BlitzNode<'_> {
+             NonTSPseudoClass::Fullscreen => false,
+             NonTSPseudoClass::Hover => self.element_state().contains(ElementState::HOVER),
+             NonTSPseudoClass::Indeterminate => false,
+-            NonTSPseudoClass::Lang(_) => false,
++            NonTSPseudoClass::Lang(ref lang_arg) => {
++                // Walk self + ancestors looking for the nearest `lang`
++                // attribute. BCP-47 prefix-match (case-insensitive).
++                let arg = lang_arg.as_ref();
++                if arg.is_empty() {
++                    false
++                } else {
++                    let mut cur = Some(*self);
++                    let effective_lang = loop {
++                        let Some(node) = cur else { break None };
++                        if let Some(value) = node.data.attr(local_name!("lang")) {
++                            break Some(value);
++                        }
++                        cur = node.parent_node();
++                    };
++                    match effective_lang {
++                        None => false,
++                        Some(lang) => {
++                            let lang_b = lang.as_bytes();
++                            let arg_b = arg.as_bytes();
++                            lang_b.eq_ignore_ascii_case(arg_b)
++                                || (lang_b.len() > arg_b.len()
++                                    && lang_b[arg_b.len()] == b'-'
++                                    && lang_b[..arg_b.len()].eq_ignore_ascii_case(arg_b))
++                        }
++                    }
++                }
++            },
+             NonTSPseudoClass::CustomState(_) => false,
+             NonTSPseudoClass::Link => self.element_state().contains(ElementState::UNVISITED),
+             NonTSPseudoClass::PlaceholderShown => false,
+@@ -595,13 +669,20 @@ impl selectors::Element for BlitzNode<'_> {
+     }
+
+     fn is_empty(&self) -> bool {
+-        self.dom_children().next().is_none()
++        // Per CSS Selectors Level 4 + WPT (matching Chrome/Firefox):
++        // comments do not count as content for `:empty`.
++        self.dom_children()
++            .all(|c| matches!(c.data, NodeData::Comment { .. }))
+     }
+
+     fn is_root(&self) -> bool {
+-        self.parent_node()
+-            .and_then(|parent| parent.parent_node())
+-            .is_none()
++        // Per CSS Selectors Level 4 `:root` matches the root element;
++        // the element whose parent is a Document node. Detached
++        // elements and children of detached subtrees must not match.
++        match self.parent_node() {
++            Some(parent) => matches!(parent.data, NodeData::Document(_)),
++            None => false,
++        }
+     }
+
+     fn has_custom_state(
+diff --git a/src/stylo_to_parley.rs b/src/stylo_to_parley.rs
+index 5876f8b..fc1555b 100644
+--- a/src/stylo_to_parley.rs
++++ b/src/stylo_to_parley.rs
+@@ -396,6 +396,158 @@ pub(crate) fn vertical_align(style: &stylo::ComputedValues) -> parley::VerticalA
+     parley::VerticalAlign::new(alignment, shift)
+ }
+
++/// Extract CSS box decorations (padding, border, background,
++/// border-radius) from a stylo `ComputedValues` into a
++/// `BoxDecorations` ready to attach to a parley `TextStyle`.
++///
++/// Conventions:
++/// - The block-/inline-axis mapping assumes horizontal-tb LTR
++///   (the only writing mode parley currently lays out): block-
++///   start = top, block-end = bottom, inline-start = left,
++///   inline-end = right.
++/// - Padding values that resolve to a percentage at computed-
++///   value time would normally need the inline fragment's
++///   container width to be resolved. We don't have that at
++///   style-extraction time, so percentage-padding falls back to
++///   `0.0`. Pure-length padding (the common case) works.
++/// - Border widths are always pure lengths (CSS spec) so they
++///   convert cleanly via `to_f64_px`.
++/// - Border-radius percentages also need fragment dimensions;
++///   they fall back to `0.0`.
++/// - Brushes (background_brush, border_*_brush) are not
++///   populated; the painter looks up colors directly from the
++///   styled node via `TextBrush::id`. The fields are reserved
++///   for a future change that decouples the painter from the
++///   live DOM at render time (e.g. for off-thread painting).
++fn extract_box_decorations(
++    style: &stylo::ComputedValues,
++) -> parley::BoxDecorations<TextBrush> {
++    use ::style::values::computed::Au;
++    use ::style::values::specified::BorderStyle;
++    use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
++
++    // Inline-span box decorations are only applicable to elements
++    // that are themselves laid out inline AS part OF the parent's
++    // inline-formatting-context; i.e., `display: inline` proper
++    // (outside=Inline, inside=Flow). Atomic inline boxes
++    // (inline-block, inline-flex, inline-grid, inline-table) also
++    // satisfy outside=Inline, but they get their own independent
++    // taffy layout pass with their own block-level draw_border
++    // call: extracting decorations for them paints the border
++    // twice: once at the block-level border-box and once again
++    // by the inline-span pass around the inner text fragment.
++    //
++    // Symptom when this gate was too loose: every
++    // display:inline-block `<a>` or button rendered
++    // with four horizontal dark strokes (top-outer, top-inner,
++    // bottom-inner, bottom-outer) instead of two. The inner
++    // strokes were the inline-span pass painting over the inner
++    // text fragment's rect; the outer strokes were the regular
++    // block-level paint. See
++    // packages/core/src/paint/tests/inline_block_border.rs for the
++    // pixel-level pin.
++    //
++    // For block / list-item / flex / table containers, taffy
++    // already applies the element's padding + border when
++    // computing the block's content rect: double-applying here
++    // would also push inline content twice as far (e.g. todomvc's
++    // <label class=label-with-toggle> has 60px padding-left to
++    // leave room for an absolutely-positioned checkbox; if we
++    // extract that padding into the inline-span BoxDecorations,
++    // the line breaker pushes the first cluster by another 60px
++    // and "milk" lands at x≈120 instead of x=60).
++    //
++    // The display here is the computed display, which already
++    // reflects blockification rules (e.g. position:absolute makes
++    // a display:inline element compute to display:block).
++    let display = style.clone_display();
++    if !matches!(display.outside(), DisplayOutside::Inline) {
++        return parley::BoxDecorations::default();
++    }
++    if !matches!(display.inside(), DisplayInside::Flow) {
++        return parley::BoxDecorations::default();
++    }
++
++    let padding = style.get_padding();
++    let border = style.get_border();
++
++    let resolve_px = |lp: &::style::values::computed::LengthPercentage| -> f32 {
++        // `maybe_to_used_value(None)` returns `Some(Au)` when the
++        // length-percentage is purely a length (no percentage
++        // component); falls back to 0.0 for any percentage we
++        // can't resolve without a containing-block size.
++        lp.maybe_to_used_value(None)
++            .map(Au::to_f32_px)
++            .unwrap_or(0.0)
++    };
++
++    // Per-edge border style → "is this border actually visible".
++    // CSS spec: when border-style is `none` or `hidden`, the
++    // computed border-width is 0 and nothing is painted. Stylo
++    // preserves the specified width even when style is None
++    // (e.g. UA default `medium` on every element); without this
++    // filter we'd charge ~3px of advance and paint a stripe for
++    // every inline element on the page. Match the existing
++    // blitz-paint behavior in render.rs:913 (which checks
++    // `border_*_style != BorderStyle::Hidden` before drawing).
++    let visible = |s: BorderStyle, w: ::style::values::computed::Au| -> f32 {
++        match s {
++            BorderStyle::None | BorderStyle::Hidden => 0.0,
++            _ => w.to_f32_px(),
++        }
++    };
++    let border_block_start_width =
++        visible(border.border_top_style, border.border_top_width.0);
++    let border_block_end_width =
++        visible(border.border_bottom_style, border.border_bottom_width.0);
++    let border_inline_start_width =
++        visible(border.border_left_style, border.border_left_width.0);
++    let border_inline_end_width =
++        visible(border.border_right_style, border.border_right_width.0);
++
++    // Padding.
++    let padding_block_start = resolve_px(&padding.padding_top.0);
++    let padding_block_end = resolve_px(&padding.padding_bottom.0);
++    let padding_inline_start = resolve_px(&padding.padding_left.0);
++    let padding_inline_end = resolve_px(&padding.padding_right.0);
++
++    // Border radius (per-corner X/Y). Percentages resolve to 0.0.
++    let resolve_radius = |corner: &::style::values::computed::BorderCornerRadius| -> (f32, f32) {
++        (resolve_px(&corner.0.width.0), resolve_px(&corner.0.height.0))
++    };
++    let (top_left_x, top_left_y) = resolve_radius(&border.border_top_left_radius);
++    let (top_right_x, top_right_y) = resolve_radius(&border.border_top_right_radius);
++    let (bottom_right_x, bottom_right_y) =
++        resolve_radius(&border.border_bottom_right_radius);
++    let (bottom_left_x, bottom_left_y) = resolve_radius(&border.border_bottom_left_radius);
++
++    parley::BoxDecorations {
++        padding_inline_start,
++        padding_inline_end,
++        padding_block_start,
++        padding_block_end,
++        border_inline_start_width,
++        border_inline_end_width,
++        border_block_start_width,
++        border_block_end_width,
++        border_inline_start_brush: None,
++        border_inline_end_brush: None,
++        border_block_start_brush: None,
++        border_block_end_brush: None,
++        background_brush: None,
++        border_radius: parley::BorderRadius {
++            top_left_x,
++            top_left_y,
++            top_right_x,
++            top_right_y,
++            bottom_right_x,
++            bottom_right_y,
++            bottom_left_x,
++            bottom_left_y,
++        },
++    }
++}
++
+ pub(crate) fn style(
+     span_id: NodeId,
+     style: &stylo::ComputedValues,
+@@ -519,6 +671,15 @@ pub(crate) fn style(
+         strikethrough_offset: Default::default(),
+         strikethrough_size: Default::default(),
+         strikethrough_brush: Default::default(),
++
++        // CSS box decorations (padding, border, background,
++        // border-radius) extracted from stylo's computed values
++        // for this span's element. The painter (blitz-paint's
++        // text_box_decorations module) consumes this data via
++        // parley's per-line span_fragments() to draw filled
++        // backgrounds, edge borders, and rounded corners on
++        // styled inline elements like <a class="pill">.
++        box_decorations: extract_box_decorations(style),
+     }
+ }
+
+diff --git a/src/tree.rs b/src/tree.rs
+index d92a84a..c8de940 100644
+--- a/src/tree.rs
++++ b/src/tree.rs
+@@ -72,6 +72,12 @@ impl NodeTree {
+         self.geometry_generation.fetch_add(1, Ordering::Relaxed);
+     }
+
++    pub(crate) fn with_capacity(capacity: usize) -> Self {
++        let mut tree = Self::new();
++        tree.map = SlotMap::with_capacity_and_key(capacity);
++        tree
++    }
++
+     /// The number of live nodes in the map.
+     pub fn len(&self) -> usize {
+         self.map.len()
+diff --git a/src/util.rs b/src/util.rs
+index 5929599..809bc1f 100644
+--- a/src/util.rs
++++ b/src/util.rs
+@@ -155,7 +155,7 @@ pub fn walk_tree(indent: usize, node: &Node) {
+
+ /// Parse an SVG image.
+ #[cfg(feature = "svg")]
+-pub(crate) fn parse_svg_image(source: &[u8]) -> Result<crate::node::SvgImageData, usvg::Error> {
++pub fn parse_svg_image(source: &[u8]) -> Result<crate::node::SvgImageData, usvg::Error> {
+     let options = usvg::Options {
+         fontdb: Arc::clone(&*FONT_DB),
+         ..Default::default()

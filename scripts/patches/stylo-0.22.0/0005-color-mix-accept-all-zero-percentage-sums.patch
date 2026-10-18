@@ -1,0 +1,59 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 30 Jul 2026 14:44:51 +0100
+Subject: [PATCH] color-mix: accept all-zero percentage sums
+
+css-values-5 percentage normalization no longer invalidates a zero sum:
+the items mix with equal weights and the result's alpha is multiplied
+by zero. mix_many's transparent-black early-out disagreed with the
+expected equal-mix result in WPT color-computed-color-mix-function.
+---
+ color/mix.rs | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/color/mix.rs b/color/mix.rs
+index 8105e7f..8333456 100644
+--- a/color/mix.rs
++++ b/color/mix.rs
+@@ -168,11 +168,13 @@ pub fn mix_many(
+     items: impl IntoIterator<Item = ColorMixItem>,
+     flags: ColorMixFlags,
+ ) -> AbsoluteColor {
+-    let items = items.into_iter().collect::<ColorMixItemList<_>>();
++    let mut items = items.into_iter().collect::<ColorMixItemList<_>>();
+
+     // Convert a mix result into the syntax required by the flags:
+     // - modern syntax when requested (converting legacy spaces like hsl/hwb to srgb), otherwise;
+     // - legacy srgb when every mixed color used legacy syntax.
++    // Computed before `items` is re-weighted below, so the closure doesn't borrow it.
++    let all_legacy = items.iter().all(|item| item.color.is_legacy_syntax());
+     let finalize = |result: AbsoluteColor| -> AbsoluteColor {
+         if flags.contains(ColorMixFlags::RESULT_IN_MODERN_SYNTAX) {
+             if result.is_legacy_syntax() && !result.has_none_components() {
+@@ -185,7 +187,7 @@ pub fn mix_many(
+             } else {
+                 result
+             }
+-        } else if items.iter().all(|item| item.color.is_legacy_syntax()) {
++        } else if all_legacy {
+             result.into_srgb_legacy()
+         } else {
+             result
+@@ -204,9 +206,14 @@ pub fn mix_many(
+         // https://drafts.csswg.org/css-color-5/#color-mix-percent-norm
+         let sum: f32 = items.iter().map(|item| item.weight).sum();
+         if sum == 0.0 {
+-            return finalize(AbsoluteColor::TRANSPARENT_BLACK.to_color_space(interpolation.space));
+-        }
+-        if (sum - 1.0).abs() > f32::EPSILON {
++            // All-zero weights mix equally and zero out the result's
++            // alpha (css-values-5 normalization; WPT zero-sum rows).
++            let equal = 1.0 / items.len() as f32;
++            for item in items.iter_mut() {
++                item.weight = equal;
++            }
++            alpha_multiplier = 0.0;
++        } else if (sum - 1.0).abs() > f32::EPSILON {
+             weight_scale = 1.0 / sum;
+             if sum < 1.0 {
+                 alpha_multiplier = sum;

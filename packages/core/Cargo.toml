@@ -1,0 +1,167 @@
+[package]
+name = "kitesurf-core"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "Wasm core for kitesurf: DOM data plane + Stylo + Blitz render."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+ratatui = { version = "0.29", default-features = false }
+unicode-width = "0.2"
+tui-input = { version = "0.14", default-features = false }
+ratatui-image = { version = "=8.1.1", default-features = false }
+# Stylo (Servo/Firefox CSS engine). Used directly by `style/cssom.rs` for
+# stylesheet parsing exposed to JS, and indirectly by Blitz for
+# cascade + computed styles. Pin matches the version blitz
+# 0.3.0-beta.3 uses so we don't end up with two Stylos in the
+# build.
+stylo = { version = "0.22", default-features = false, features = ["servo"] }
+stylo_atoms = "0.22"
+# Au (app units) for resolving stylo <length-percentage> insets in sticky.rs.
+# Already a transitive dep via stylo; cargo unifies on 0.7.
+app_units = "0.7"
+# ToCss/CssWriter for px serialization in computed_style's layout-
+# resolved values (and the color round-trip tests); transitive anyway.
+stylo_traits = "0.22"
+# Runtime style prefs used by init_style_prefs(). Stylo 0.22 enables
+# multi-color color-mix by default, but we set it explicitly at start().
+stylo_static_prefs = "0.22"
+servo_arc = "0.5"
+# Reference box for stylo's transform matrices (getComputedStyle's resolved transform).
+# Already a transitive dep via stylo; cargo unifies on 0.22.
+euclid = "0.22"
+cssparser = "0.38"
+url = "2"
+encoding_rs = "0.8"
+smallvec = { workspace = true }
+rustc-hash = "2"
+foldhash = "0.2"
+
+# Blitz provides the DOM, layout, paint, and HTML parser. Use its
+# `markup5ever` re-exports to keep one version of the DOM types.
+#
+# Why we hand-pick features instead of using defaults:
+#   blitz-dom's defaults are [svg, woff, accessibility, system_fonts,
+#   file_input]. We want some but not all:
+#   - svg     → render <img src="data:image/svg+xml,...">  +
+#               background-image: url("data:image/svg+xml,..."). Pulls
+#               in usvg (~600 KB wasm). Required for todomvc-react
+#               (toggle-circle SVG), wikipedia (icons), most pages.
+#   - floats  → respect float:left/right in layout. Required for
+#               todomvc-react footer (`.todo-count { float: left }`,
+#               `.clear-completed { float: right }`). Without it,
+#               floats compute correctly in the cascade but don't
+#               affect taffy layout, so floated elements render
+#               stacked instead of side-by-side.
+#   - woff    → ENABLE. Most modern web fonts ship as woff2, which
+#               is a Brotli-compressed wrapper around an OpenType
+#               font and requires runtime decompression. Without
+#               this feature, blitz-dom's `fetch_font_face`
+#               short-circuits any FontFaceSourceFormatKeyword::Woff
+#               or Woff2 source and skips the fetch entirely
+#               (`return None` in src/net.rs), so @font-face
+#               declarations that only list woff2 sources are
+#               silently dropped. The feature pulls in the `wuff`
+#               crate (~400 KB wasm) which does the woff2 →
+#               OpenType inflation. Without woff support, ANY page
+#               using web fonts falls back to our embedded Noto
+#               family — which is fine for graceful degradation
+#               but loses brand fonts everywhere (BBC's Reith,
+#               Stripe's Sohne, Cloudflare's own marketing fonts).
+#   - accessibility → SKIP. accesskit isn't usable in a single
+#               worker; AT clients aren't local to this isolate.
+#               Saves ~150 KB wasm.
+#   - system_fonts → SKIP. parley's system font scanning is a no-op
+#               on workerd anyway (no filesystem); we provide
+#               make_font_context() with embedded fonts.
+#   - file_input → SKIP. <input type=file> is non-functional in the
+#               sandbox (no filesystem to upload from).
+# Direct dep for scan.rs's tokenizer-only document scanner. Already in the
+# graph via blitz-html; pinned to the same 0.40 so we keep a single
+# html5ever/markup5ever (the blitz-dom re-export comment near the blitz block
+# still holds — one QualName universe per build).
+html5ever = "=0.40.1"
+blitz-traits = { version = "=0.3.0-beta.3", default-features = false }
+blitz-dom = { version = "=0.3.0-beta.3", default-features = false, features = [
+  "svg",
+  "floats",
+  "woff",
+] }
+blitz-html = { version = "=0.3.0-beta.3", default-features = false }
+blitz-paint = { version = "=0.3.0-beta.3", default-features = false, features = ["svg"] }
+# Direct dep so getBoundingClientRect can read a shape's bbox out of
+# the inline-svg snapshot blitz-dom already holds (svg_canvas_bbox);
+# the crate is in the artifact through blitz-dom either way.
+usvg = { version = "0.48.1", default-features = false }
+anyrender = { workspace = true }
+anyrender_vello_cpu = { workspace = true }
+vello_cpu = { workspace = true }
+peniko = { workspace = true }
+kurbo = { workspace = true }
+parley = { version = "0.12.0", default-features = false, features = ["std"] }
+# Already in-tree via blitz-dom. computed_style reads CoreStyle::is_replaced
+# off blitz's lazy taffy style, and the layout-cache test plants a taffy
+# cache entry to see whether a resolve cleared it.
+taffy = { version = "0.15", default-features = false }
+# Casts parley's F2Dot14 normalized coords to the i16 slice vello_cpu's
+# glyph runs take (canvas2d.rs), as blitz-paint does. Already transitive.
+bytemuck = "1"
+linebender_resource_handle = "0.1"
+
+wuff = { workspace = true }
+png = { workspace = true }
+
+jpeg-encoder = { workspace = true }
+
+flate2 = { workspace = true }
+
+skrifa = { workspace = true }
+
+krilla = { workspace = true }
+
+image = { workspace = true }
+
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = "0.4"
+js-sys = { workspace = true }
+# Boa runs page `Runtime.evaluate` expressions in the core wasm.
+boa_engine = { workspace = true }
+# boa pulls getrandom 0.2; on wasm32-unknown-unknown it needs the `js`
+# feature to source entropy from crypto.getRandomValues at runtime.
+getrandom = { workspace = true }
+futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { workspace = true }
+
+tracing = { workspace = true }
+tracing-core = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+
+getrandom_03 = { workspace = true }
+serde-wasm-bindgen = "0.6"
+
+console_error_panic_hook = { workspace = true, optional = true }
+
+[features]
+native-host = []
+default = ["console_error_panic_hook", "blitz", "pdf"]
+blitz = []
+pdf = ["blitz"]
+
+[dev-dependencies]
+crc32fast = "1"
+
+# [profile.*] lives in the workspace root Cargo.toml — cargo only
+# honors profiles there. Note: this crate's panic=unwind (so the DOM survives a panic) now
+# comes SOLELY from .cargo/config.toml's wasm-target rustflags; the
+# root [profile.release] deliberately carries no `panic` key because
+# scene-host-wasm must stay on the wasm default (abort).
+
+[lints]
+workspace = true

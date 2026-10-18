@@ -1,0 +1,24 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>body { margin: 0; background: #fff }</style>
+<script>
+  setTimeout(function () {
+    var NS = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("width", "400");
+    svg.setAttribute("height", "100");
+    var t = document.createElementNS(NS, "text");
+    t.setAttribute("x", "10");
+    t.setAttribute("y", "60");
+    t.setAttribute("font-size", "40");
+    t.setAttribute("fill", "#f00");
+    t.textContent = "Svg Text";
+    svg.appendChild(t);
+    document.body.appendChild(svg);
+    setTimeout(function () { document.title = "INJECTED"; }, 200);
+  }, 50);
+</script>

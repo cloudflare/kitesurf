@@ -1,0 +1,23 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<!-- An import map is an inline script to CSP. This policy names the
+     module below by hash but NOT the map, so the map must be refused and
+     "react" stays a bare specifier — while the same module's direct
+     import of the mapped URL loads under 'self', which proves it is the
+     map and not the fetch that the policy stopped. Regenerate the hash
+     with: echo -n "<module body>" | openssl dgst -sha256 -binary | base64
+     (the body is everything between the module tags, no surrounding
+     whitespace). -->
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-QdU9fWrLJVQbgIiGGE+Td+cZI9RMY/HYshr01xjel3M='">
+<script type="importmap">{"imports":{"react":"https://ks.invalid/__fixtures/importmap-early.js"}}</script>
+<script type="module">const outcome = (p) =>
+    p.then((m) => ({ ok: m.default }), (e) => ({ error: String(e) }));
+  globalThis.importMapResult = {
+    bare: await outcome(import("react")),
+    direct: await outcome(import("https://ks.invalid/__fixtures/importmap-early.js")),
+  };</script>

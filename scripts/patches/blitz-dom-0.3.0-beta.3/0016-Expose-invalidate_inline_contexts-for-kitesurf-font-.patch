@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 25 Jul 2026 12:54:09 +0100
+Subject: [PATCH] Expose invalidate_inline_contexts for kitesurf font swaps
+
+The emoji full-font upgrade (renderer mode) replaces fontique's
+fallback chain after layout has already shaped runs against the
+stripped font; without an inline-context invalidation the swap is
+invisible to paint. One-line pub wrapper over the crate-private
+helper.
+---
+ src/document.rs | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index b15d9ac..60b8a2a 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1762,6 +1762,15 @@ impl BaseDocument {
+         count
+     }
+
++    /// Re-shape every inline context. Needed after a
++    /// font-collection swap that layout can't observe (e.g. the
++    /// emoji full-font upgrade replaces the fallback chain, but
++    /// shaped runs still reference the old FontData). Wraps the
++    /// crate-private invalidate_inline_contexts.
++    pub fn kitesurf_invalidate_inline_contexts(&mut self) {
++        self.invalidate_inline_contexts();
++    }
++
+     /// Cache a loaded image and apply it to all nodes waiting on it
+     /// (`<img>` elements, `background-image` layers and `mask-image` layers).
+     /// Set a canvas element's framebuffer as its replaced

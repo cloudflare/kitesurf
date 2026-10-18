@@ -1,0 +1,16 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<title>settle late timer</title>
+<h1 id="h">late</h1>
+<script>
+  window.addEventListener("load", function () {
+    setTimeout(function () {
+      document.title = "LATE_FIRED";
+    }, 30000);
+    document.title = "SETTLE_LATE_READY";
+  });
+</script>

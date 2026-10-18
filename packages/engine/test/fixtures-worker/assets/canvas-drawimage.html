@@ -1,0 +1,73 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>canvas drawImage fixture</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  img { display: none; }
+  canvas { display: block; width: 8px; height: 8px; }
+</style>
+</head>
+<body>
+<img id="same" src="/__fixtures/solid-red.png">
+<img id="cross" src="https://ks-other.invalid/__fixtures/solid-red.png">
+<!-- Cross-origin SVG: the one image type whose payload still reaches the
+     isolate, so it is the case where "never paint cross-origin" has to be
+     enforced locally rather than by the byte-pull gate. -->
+<img id="crossSvg" src="https://ks-other.invalid/__fixtures/svg-document.svg?case=sized">
+<canvas id="c1" width="8" height="8"></canvas>
+<canvas id="c2" width="8" height="8"></canvas>
+<canvas id="c3" width="8" height="8"></canvas>
+<script>
+globalThis.__ks_canvas = null;
+globalThis.__ks_canvas_ready = (async () => {
+  // Wait up to LOAD_POLLS * POLL_MS for each image, give each draw
+  // DRAW_SETTLE_MS to land, then read the 8x8 canvas's center pixel.
+  const LOAD_POLLS = 100;
+  const POLL_MS = 50;
+  const DRAW_SETTLE_MS = 300;
+  const CENTER = 4;
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const settled = async (id) => {
+    const img = document.getElementById(id);
+    for (let poll = 0; poll < LOAD_POLLS && !img.complete; poll++) {
+      await sleep(POLL_MS);
+    }
+    return img;
+  };
+  await settled("same");
+  await settled("cross");
+  await settled("crossSvg");
+  const draw = async (canvasId, imgId) => {
+    const ctx = document.getElementById(canvasId).getContext("2d");
+    ctx.drawImage(document.getElementById(imgId), 0, 0);
+    await sleep(DRAW_SETTLE_MS);
+    try {
+      const pixel = ctx.getImageData(CENTER, CENTER, 1, 1).data;
+      return pixel[0] + "," + pixel[1] + "," + pixel[2] + "," + pixel[3];
+    } catch (err) {
+      return "THREW:" + (err && err.name ? err.name : String(err));
+    }
+  };
+  const natural = (id) => {
+    const img = document.getElementById(id);
+    return img.naturalWidth + "x" + img.naturalHeight + ":" + img.complete;
+  };
+  globalThis.__ks_canvas = {
+    sameNat: natural("same"),
+    crossNat: natural("cross"),
+    same: await draw("c1", "same"),
+    cross: await draw("c2", "cross"),
+    crossSvg: await draw("c3", "crossSvg"),
+  };
+})();
+</script>
+</body>
+</html>

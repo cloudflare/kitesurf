@@ -1,0 +1,46 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<div id="a"></div>
+<div id="b"></div>
+<div id="c"></div>
+<p id="status">init</p>
+<script>
+  var report = {};
+  var a = document.getElementById("a");
+  a.innerText = "abc\r\ndef\nghi";
+  report.innerTextBr = a.innerHTML === "abc<br>def<br>ghi";
+  a.innerText = null;
+  report.innerTextNull = a.innerHTML === "";
+  a.innerText = undefined;
+  report.innerTextUndefined = a.innerHTML === "undefined";
+
+  var b = document.getElementById("b");
+  b.append("A", "B", document.createElement("span"), "D", "E");
+  b.childNodes[2].outerText = "Replaced";
+  report.outerTextMerge =
+    b.innerHTML === "ABReplacedDE" &&
+    b.childNodes.length === 3 &&
+    b.childNodes[1].data === "BReplacedD";
+
+  var c = document.getElementById("c");
+  c.appendChild(document.createElement("span"));
+  c.childNodes[0].outerText = "\n\r\n\r";
+  report.outerTextBrs =
+    c.childNodes.length === 3 && c.innerHTML === "<br><br><br>";
+
+  var threw = false;
+  try { document.createElement("span").outerText = ""; }
+  catch (e) { threw = e && e.name === "NoModificationAllowedError"; }
+  report.outerTextDetachedThrows = threw;
+
+  var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.innerText = "abc";
+  report.svgInnerTextExpando = svg.innerHTML === "" && svg.innerText === "abc";
+
+  globalThis.__tsReport = JSON.stringify(report);
+  document.getElementById("status").textContent = "done";
+</script>

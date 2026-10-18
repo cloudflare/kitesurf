@@ -1,0 +1,30 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><title>pending</title></head>
+<body>
+<p>inserted-bake</p>
+<script>
+  var src = new URLSearchParams(location.search).get("src") || "/__fixtures/inserted-bake.js";
+  if (src === "none") document.title = "BAKE:none";
+  var s = document.createElement("script");
+  s.src = src;
+  s.onload = function () {
+    document.title = "BAKE:" + JSON.stringify({
+      native: window.__insertedNative,
+      runs: window.__insertedRuns,
+      hello: typeof window.insertedHello === "function" ? window.insertedHello() : null,
+      current: window.__insertedCurrentSrc,
+      strict: window.__insertedStrict,
+    });
+  };
+  s.onerror = function () { document.title = "BAKE:error"; };
+  if (src !== "none") document.head.appendChild(s);
+</script>
+</body>
+</html>

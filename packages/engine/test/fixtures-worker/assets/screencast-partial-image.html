@@ -1,0 +1,24 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><style>
+  body { margin: 0; background: #ffffff; }
+  #slow { position: absolute; left: 60px; top: 60px; width: 80px; height: 80px; }
+  #marker { position: absolute; left: 8px; top: 8px; font-family: sans-serif; }
+</style></head>
+<body>
+<div id="marker">partial-paint probe</div>
+<img id="slow" src="/__fixtures/slow-red.png?ms=5000">
+<script>
+  window.__imgLoadedAt = 0;
+  document.getElementById("slow").addEventListener("load", function () {
+    window.__imgLoadedAt = Date.now();
+  });
+</script>
+</body>
+</html>

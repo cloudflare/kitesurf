@@ -1,0 +1,347 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 25 Jul 2026 06:41:34 +0100
+Subject: [PATCH] Dims-only image loads for out-of-isolate rendering (renderer
+ mode)
+
+DocumentConfig::dims_only_images routes every ImageHandler through a
+header-only dimension sniff (image crate into_dimensions; no RGBA
+decode) and stores the original encoded bytes in the node's replaced
+slot via Resource::EncodedImage -> RasterImageData{encoded:true}.
+Layout only ever reads width/height, so intrinsic sizing is exact
+(better than the decode-cap path, which downscales dims too).
+
+Local raster consumers that DO need pixels (canvas drawImage, the
+legacy in-isolate screenshot/PDF path) call the new
+kitesurf_materialize_node_image / kitesurf_materialize_encoded_images
+to decode in place (capped, damage-marked). Undecodable bytes drop to
+ImageData::None so vello never sees garbage.
+
+Why: the embedder's renderer mode paints in a separate isolate.
+Decoded RGBA is the dominant page heap cost (4000x3000 jpeg: ~2 MB
+encoded vs ~48 MB decoded); shipping encoded bytes also beats the
+recorder's lossless-WebP re-encode on both size and CPU.
+---
+ src/config.rs        |  4 ++
+ src/document.rs      | 96 ++++++++++++++++++++++++++++++++++++++++++++
+ src/iframe.rs        |  1 +
+ src/layout/damage.rs |  8 +++-
+ src/mutator.rs       | 12 ++++--
+ src/net.rs           | 40 +++++++++++++++++-
+ src/node/element.rs  | 16 ++++++++
+ 7 files changed, 172 insertions(+), 5 deletions(-)
+
+diff --git a/src/config.rs b/src/config.rs
+index 2e8ed88..4b2076a 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -31,6 +31,10 @@ pub enum StyleThreading {
+ /// Options used when constructing a [`BaseDocument`](crate::BaseDocument)
+ #[derive(Default)]
+ pub struct DocumentConfig {
++    /// When true, image loads sniff dimensions from the
++    /// container header and store the encoded bytes (renderer mode)
++    /// instead of decoding RGBA in this isolate.
++    pub dims_only_images: bool,
+     /// The initial `Viewport`
+     pub viewport: Option<Viewport>,
+     /// The base url which relative URLs are resolved against
+diff --git a/src/document.rs b/src/document.rs
+index e0899e3..3f3e881 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -358,6 +358,9 @@ pub struct BaseDocument {
+     /// Cache of loaded images, keyed by URL. Allows reusing images across multiple
+     /// elements without re-fetching from the network.
+     pub(crate) image_cache: HashMap<String, ImageData>,
++    /// Renderer-mode flag: image loads keep encoded
++    /// bytes + dims only. See DocumentConfig::dims_only_images.
++    pub dims_only_images: bool,
+
+     /// Tracks in-flight image requests. When an image is being fetched, additional
+     /// requests for the same URL are queued here instead of starting new fetches.
+@@ -523,6 +526,7 @@ impl BaseDocument {
+             changed_nodes: HashSet::new(),
+             deferred_construction_nodes: Vec::new(),
+             image_cache: HashMap::new(),
++            dims_only_images: config.dims_only_images,
+             pending_images: HashMap::new(),
+             pending_style_image_nodes: Vec::new(),
+             pending_critical_resources: HashSet::new(),
+@@ -1610,6 +1614,18 @@ impl BaseDocument {
+                 self.stylist
+                     .force_stylesheet_origins_dirty(style::stylesheets::OriginSet::all());
+             }
++            Resource::EncodedImage(_kind, width, height, encoded_bytes) => {
++                // Dims-only load; cache dims + encoded
++                // bytes; paint happens out-of-isolate.
++                let image =
++                    ImageData::Raster(RasterImageData::new_encoded(width, height, encoded_bytes));
++
++                let Some(url) = res.resolved_url.as_ref() else {
++                    return;
++                };
++
++                self.apply_loaded_image(url, image);
++            }
+             Resource::Image(_kind, width, height, image_data) => {
+                 // Create the ImageData and cache it
+                 let image = ImageData::Raster(RasterImageData::new(width, height, image_data));
+@@ -1682,6 +1698,55 @@ impl BaseDocument {
+         }
+     }
+
++    /// Decode one encoded (dims-only) image in place:
++    /// RGBA-materialise a node's replaced image so local raster
++    /// paths (canvas drawImage, legacy screenshot/PDF fallback)
++    /// see real pixels. Returns true if anything changed.
++    ///
++    /// Decoded dims can differ from the header dims when max_dim
++    /// caps them; damage + cache clears keep layout honest.
++    pub fn kitesurf_materialize_node_image(&mut self, node_id: usize, max_dim: u32) -> bool {
++        let Some(node) = self.get_node_mut(node_id) else {
++            return false;
++        };
++        let Some(el) = node.element_data_mut() else {
++            return false;
++        };
++        let mut changed = false;
++        if let SpecialElementData::Image(data) = &mut el.special_data {
++            changed |= kitesurf_materialize_image_data(data, max_dim);
++        }
++        for layer in el.background_images.iter_mut().chain(el.mask_images.iter_mut()) {
++            if let Some(res) = layer {
++                changed |= kitesurf_materialize_image_data(&mut res.image, max_dim);
++            }
++        }
++        if changed {
++            node.clear_layout_cache();
++            node.insert_damage(ALL_DAMAGE);
++        }
++        changed
++    }
++
++    /// Materialise EVERY encoded image in the document
++    /// (nodes + url cache). Safety net before local rasterization
++    /// in dims-only mode; a no-op when nothing is encoded.
++    pub fn kitesurf_materialize_encoded_images(&mut self, max_dim: u32) -> usize {
++        let ids: Vec<usize> = self.nodes.iter().map(|(id, _)| id).collect();
++        let mut count = 0;
++        for id in ids {
++            if self.kitesurf_materialize_node_image(id, max_dim) {
++                count += 1;
++            }
++        }
++        for image in self.image_cache.values_mut() {
++            if kitesurf_materialize_image_data(image, max_dim) {
++                count += 1;
++            }
++        }
++        count
++    }
++
+     /// Cache a loaded image and apply it to all nodes waiting on it
+     /// (`<img>` elements, `background-image` layers and `mask-image` layers).
+     /// Set a canvas element's framebuffer as its replaced
+@@ -3721,3 +3786,34 @@ mod font_face_override_tests {
+         );
+     }
+ }
++
++/// Decode an EncodedRaster-style ImageData (RGBA blob
++/// flagged `encoded`) in place. Shared by the materialize paths.
++fn kitesurf_materialize_image_data(image: &mut ImageData, max_dim: u32) -> bool {
++    let ImageData::Raster(raster) = image else {
++        return false;
++    };
++    if !raster.encoded {
++        return false;
++    }
++    let decoded = match image::load_from_memory(raster.data.as_ref()) {
++        Ok(d) => d,
++        // Undecodable bytes: drop to None so paint skips it
++        // instead of feeding garbage to vello.
++        Err(_) => {
++            *image = ImageData::None;
++            return true;
++        }
++    };
++    let (w, h) = (decoded.width(), decoded.height());
++    let scaled = if w > max_dim || h > max_dim {
++        use image::imageops::FilterType;
++        decoded.resize(max_dim, max_dim, FilterType::Triangle)
++    } else {
++        decoded
++    };
++    let (fw, fh) = (scaled.width(), scaled.height());
++    let rgba = scaled.into_rgba8().into_raw();
++    *image = ImageData::Raster(RasterImageData::new(fw, fh, std::sync::Arc::new(rgba)));
++    true
++}
+diff --git a/src/iframe.rs b/src/iframe.rs
+index 11a1a26..635b3a9 100644
+--- a/src/iframe.rs
++++ b/src/iframe.rs
+@@ -55,6 +55,7 @@ impl BaseDocument {
+         abort_signal: AbortSignal,
+     ) -> DocumentConfig {
+         DocumentConfig {
++            dims_only_images: self.dims_only_images,
+             viewport: None,
+             base_url,
+             ua_stylesheets: None,
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index b8b190d..299a864 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -616,7 +616,13 @@ impl BaseDocument {
+                                 doc_id,
+                                 None, // Don't pass node_id, we'll handle via pending_images
+                                 self.shell_provider.clone(),
+-                                ImageHandler::new(kind.image_type(idx)),
++                                // Dims-only in renderer
++                                // mode (see mutator.rs load_image).
++                                if self.dims_only_images {
++                                    ImageHandler::new_dims_only(kind.image_type(idx))
++                                } else {
++                                    ImageHandler::new(kind.image_type(idx))
++                                },
+                             ),
+                         );
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 7aa2ed2..5555e6d 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1515,9 +1515,15 @@ impl<'doc> DocumentMutator<'doc> {
+                 // ImageHandler so it can downscale before
+                 // materialising rgba8. Critical for image-heavy
+                 // pages; see ImageHandler::decode_max_dim doc.
+-                let handler = match display_dim {
+-                    Some(d) => ImageHandler::with_max_dim(ImageType::Image, d),
+-                    None => ImageHandler::new(ImageType::Image),
++                // Renderer mode skips RGBA decode entirely
++                // (dims from the header; encoded bytes retained).
++                let handler = if self.doc.dims_only_images {
++                    ImageHandler::new_dims_only(ImageType::Image)
++                } else {
++                    match display_dim {
++                        Some(d) => ImageHandler::with_max_dim(ImageType::Image, d),
++                        None => ImageHandler::new(ImageType::Image),
++                    }
+                 };
+                 self.doc.net_provider.fetch(
+                     self.doc.id(),
+diff --git a/src/net.rs b/src/net.rs
+index f1b096c..96511d8 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -56,6 +56,11 @@ pub struct FontFaceOverrides {
+ #[derive(Clone, Debug)]
+ pub enum Resource {
+     Image(ImageType, u32, u32, Arc<Vec<u8>>),
++    /// Dims-only image load: width/height sniffed from
++    /// the container header, payload = original encoded bytes.
++    /// Used in renderer mode where paint happens out-of-isolate,
++    /// so we never materialise decoded RGBA here.
++    EncodedImage(ImageType, u32, u32, Arc<Vec<u8>>),
+     #[cfg(feature = "svg")]
+     Svg(ImageType, crate::node::SvgImageData),
+     Css(DocumentStyleSheet),
+@@ -588,6 +593,12 @@ pub struct ImageHandler {
+     /// keeping the worst case bounded. Pages that need bigger
+     /// images can set explicit width/height attrs.
+     decode_max_dim: Option<u32>,
++    /// When true, sniff dimensions from the container
++    /// header only and return `Resource::EncodedImage` carrying
++    /// the original bytes: no RGBA decode at all. Layout needs
++    /// nothing but dims; in renderer mode paint happens in a
++    /// separate isolate that decodes from the encoded bytes.
++    dims_only: bool,
+ }
+
+ /// Default cap on decoded-image longest dimension when
+@@ -602,7 +613,13 @@ const DEFAULT_DECODE_MAX_DIM: u32 = 600;
+
+ impl ImageHandler {
+     pub fn new(kind: ImageType) -> Self {
+-        Self { kind, decode_max_dim: None }
++        Self { kind, decode_max_dim: None, dims_only: false }
++    }
++
++    /// Dims-only handler for renderer mode. See the
++    /// `dims_only` field doc.
++    pub fn new_dims_only(kind: ImageType) -> Self {
++        Self { kind, decode_max_dim: None, dims_only: true }
+     }
+
+     /// Build an ImageHandler with an explicit
+@@ -616,6 +633,7 @@ impl ImageHandler {
+         Self {
+             kind,
+             decode_max_dim: Some(cap),
++            dims_only: false,
+         }
+     }
+ }
+@@ -629,6 +647,26 @@ impl NetHandler for ResourceHandler<ImageHandler> {
+
+ impl ImageHandler {
+     fn parse(&self, bytes: Bytes) -> Result<Resource, String> {
++        // Renderer-mode fast path: header-only dimension
++        // sniff, retain the encoded container bytes for the out-of-
++        // isolate rasterizer. Falls through to the normal decode
++        // (and the SVG fallback) when the header can't be read.
++        if self.dims_only {
++            if let Ok((w, h)) = image::ImageReader::new(Cursor::new(&bytes))
++                .with_guessed_format()
++                .expect("IO errors impossible with Cursor")
++                .into_dimensions()
++            {
++                if w > 0 && h > 0 {
++                    return Ok(Resource::EncodedImage(
++                        self.kind,
++                        w,
++                        h,
++                        Arc::new(bytes.to_vec()),
++                    ));
++                }
++            }
++        }
+         let image_err = match image::ImageReader::new(Cursor::new(&bytes))
+             .with_guessed_format()
+             .expect("IO errors impossible with Cursor")
+diff --git a/src/node/element.rs b/src/node/element.rs
+index c3452f2..3fb3d93 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -845,6 +845,11 @@ pub struct RasterImageData {
+     pub height: u32,
+     /// The raw image data in RGBA8 format
+     pub data: Blob<u8>,
++    /// When true, `data` holds the original encoded
++    /// container bytes (png/jpeg/gif/webp), not RGBA8: dims-only
++    /// renderer mode. Layout reads width/height only; paint-side
++    /// consumers must check this before touching pixels.
++    pub encoded: bool,
+ }
+ impl RasterImageData {
+     pub fn new(width: u32, height: u32, data: Arc<Vec<u8>>) -> Self {
+@@ -852,6 +857,17 @@ impl RasterImageData {
+             width,
+             height,
+             data: Blob::new(data),
++            encoded: false,
++        }
++    }
++
++    /// Dims-only entry; see the `encoded` field doc.
++    pub fn new_encoded(width: u32, height: u32, data: Arc<Vec<u8>>) -> Self {
++        Self {
++            width,
++            height,
++            data: Blob::new(data),
++            encoded: true,
+         }
+     }
+ }

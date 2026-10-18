@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 13 Aug 2026 20:23:20 +0100
+Subject: [PATCH] expose heap occupancy stats
+
+(bytes_allocated, threshold) tells a host how much garbage the
+collector currently tolerates between cycles. An embedder can use it to
+split resident wasm memory into GC slack and live data, and to decide
+when forcing a collection is worth it.
+---
+ src/lib.rs | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 4674236..1b317af 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -530,6 +530,16 @@ impl Collector {
+     }
+ }
+
++/// Returns the current heap occupancy as `(bytes_allocated, threshold)`: how
++/// much garbage the collector tolerates between cycles.
++#[must_use]
++pub fn heap_stats() -> (usize, usize) {
++    BOA_GC.with(|current| {
++        let gc = current.borrow();
++        (gc.runtime.bytes_allocated, gc.config.threshold)
++    })
++}
++
+ /// Forcefully runs a garbage collection of all inaccessible nodes.
+ pub fn force_collect() {
+     BOA_GC.with(|current| {

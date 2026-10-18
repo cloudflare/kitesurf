@@ -1,0 +1,53 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>declarative WebMCP fixture</title></head>
+<body>
+<form toolname="scan_url"
+      tooldescription="Submit a URL and open its scan report."
+      toolautosubmit>
+  <input name="url" toolparamdescription="The full URL to scan.">
+  <button type="submit">Scan</button>
+</form>
+<form toolname="complete_booking"
+      tooldescription="Complete the reservation by providing guest information.">
+  <input name="firstName" required
+         toolparamdescription="The first name of the primary guest.">
+  <input name="email" type="email" required
+         toolparamdescription="The reservation confirmation email address.">
+  <select name="room" required toolparamdescription="The room category.">
+    <option value="standard">Standard</option>
+    <option value="suite">Suite</option>
+  </select>
+  <button type="submit">Confirm reservation</button>
+</form>
+<script>
+  document.querySelector('[toolname="scan_url"]').addEventListener("submit", (event) => {
+    event.preventDefault();
+    window.__scanSubmitTrusted = event.isTrusted;
+    window.__scanAgentInvoked = event.agentInvoked;
+    window.__scanSubmitter = event.submitter?.textContent;
+    const url = document.querySelector('[name="url"]').value;
+    if (event.agentInvoked) {
+      const normalized = new URL(url).href;
+      event.respondWith(Promise.resolve(
+        `Started a scan for ${normalized}. Report: /scan/test-id`,
+      ));
+    }
+    history.pushState(null, "", `?scan=${encodeURIComponent(url)}`);
+  });
+  document.querySelector('[toolname="complete_booking"]').addEventListener("submit", (event) => {
+    event.preventDefault();
+    window.__bookingAgentInvoked = event.agentInvoked;
+    const firstName = document.querySelector('[name="firstName"]').value;
+    const room = document.querySelector('[name="room"]').value;
+    event.respondWith(Promise.resolve({ bookingId: "test-reservation", firstName, room }));
+  });
+</script>
+</body>
+</html>

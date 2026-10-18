@@ -1,0 +1,12 @@
+common --incompatible_strict_action_env
+# Aspect's rulesets otherwise report usage data from every repository fetch.
+common --repo_env=DO_NOT_TRACK=1
+# rules_rust registers one toolchain per channel, and rust-toolchain.toml pins a nightly: without
+# this the host toolchain that builds proc-macros and build scripts never matches.
+common --@rules_rust//rust/toolchain/channel=nightly
+# Like cargo, a crate's dependents start on its metadata, not its codegen.
+common --@rules_rust//rust/settings:pipelined_compilation=true
+# Repository rules get no PATH; cc autoconfiguration needs one to find the gcc that links
+# proc-macros and build scripts.
+common --repo_env=PATH=/usr/bin:/bin
+try-import %workspace%/.bazelrc.user

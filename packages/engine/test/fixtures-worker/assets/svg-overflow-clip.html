@@ -1,0 +1,19 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html><html><head><style>
+      html, body { margin: 0; padding: 0; background: #ffffff; }
+      .slot { position: absolute; width: 40px; height: 40px; }
+      #imghost { left: 100px; top: 100px; }
+      #inlinehost { left: 400px; top: 100px; }
+    </style></head><body>
+      <img id="imghost" class="slot" width="40" height="40"
+           src="/__fixtures/svg-document.svg?case=overflowing">
+      <svg id="inlinehost" class="slot" xmlns="http://www.w3.org/2000/svg"
+           width="40" height="40" viewBox="0 0 40 40" style="overflow: visible">
+        <rect width="400" height="400" fill="#0000ff"/>
+      </svg>
+    </body></html>

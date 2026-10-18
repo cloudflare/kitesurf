@@ -1,0 +1,63 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 14 Sep 2026 10:42:49 +0100
+Subject: [PATCH] Enable container queries in Servo
+
+---
+ properties/shorthands.rs   | 8 +++++---
+ properties/shorthands.toml | 1 -
+ stylesheets/rule_parser.rs | 2 +-
+ 3 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/properties/shorthands.rs b/properties/shorthands.rs
+index dda8273..450241b 100644
+--- a/properties/shorthands.rs
++++ b/properties/shorthands.rs
+@@ -545,7 +545,6 @@ pub mod border {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod container {
+     use super::*;
+     pub use crate::properties::generated::shorthands::container::*;
+@@ -575,9 +574,12 @@ pub mod container {
+             W: fmt::Write,
+         {
+             self.container_name.to_css(dest)?;
+-            if !self.container_type.is_normal() {
++            if self
++                .container_type
++                .is_some_and(|container_type| !container_type.is_normal())
++            {
+                 dest.write_str(" / ")?;
+-                self.container_type.to_css(dest)?;
++                self.container_type.unwrap().to_css(dest)?;
+             }
+             Ok(())
+         }
+diff --git a/properties/shorthands.toml b/properties/shorthands.toml
+index 5827b04..56010df 100644
+--- a/properties/shorthands.toml
++++ b/properties/shorthands.toml
+@@ -209,7 +209,6 @@ spec = "https://wicg.github.io/overscroll-behavior/#overscroll-behavior-properti
+ kind = "two_properties"
+
+ [container]
+-engine = "gecko"
+ sub_properties = ["container-name", "container-type"]
+ spec = "https://drafts.csswg.org/css-contain-3/#container-shorthand"
+
+diff --git a/stylesheets/rule_parser.rs b/stylesheets/rule_parser.rs
+index 885eef9..ea7cbce 100644
+--- a/stylesheets/rule_parser.rs
++++ b/stylesheets/rule_parser.rs
+@@ -282,7 +282,7 @@ impl AtRuleType {
+             "counter-style" if cfg!(feature = "gecko") => Self::CounterStyle,
+             "media" => Self::Media,
+             "custom-media" if crate::pref!("layout.css.custom-media.enabled") => Self::CustomMedia,
+-            "container" if cfg!(feature = "gecko") => Self::Container,
++            "container" => Self::Container,
+             "supports" => Self::Supports,
+             "keyframes" => Self::Keyframes(None),
+             "-webkit-keyframes" => Self::Keyframes(Some(VendorPrefix::WebKit)),

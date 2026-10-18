@@ -1,0 +1,98 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  body { margin: 0; background: #808080; }
+  #cv { position: absolute; left: 40px; top: 30px; }
+</style>
+<canvas id="cv" width="200" height="160"></canvas>
+<script>
+(function () {
+  var out = {};
+  var cv = document.getElementById("cv");
+  var ctx = cv.getContext("2d");
+  out.ctxOk = !!ctx;
+  if (!ctx) { document.title = "CANVASDRAW:" + JSON.stringify(out); return; }
+
+  // fillStyle round-trips through the wasm color serializer.
+  ctx.fillStyle = "red";
+  out.fillStyleSerialized = ctx.fillStyle;
+  ctx.fillStyle = "not-a-color";
+  out.invalidIgnored = ctx.fillStyle;
+  ctx.fillRect(0, 0, 100, 80);
+
+  ctx.fillStyle = "#0000ff";
+  ctx.beginPath();
+  ctx.arc(150, 40, 28, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.save();
+  ctx.translate(0, 80);
+  ctx.fillStyle = "rgb(0, 128, 0)";
+  ctx.fillRect(0, 0, 100, 80);
+  ctx.restore();
+
+  var grad = ctx.createLinearGradient(100, 0, 200, 0);
+  grad.addColorStop(0, "red");
+  grad.addColorStop(1, "yellow");
+  ctx.fillStyle = grad;
+  ctx.fillRect(100, 80, 100, 80);
+
+  // Stroke: 8px white horizontal line across the green region.
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(10, 120);
+  ctx.lineTo(90, 120);
+  ctx.stroke();
+
+  // Punch a notch through the red rect down to the page bg.
+  ctx.clearRect(0, 60, 10, 10);
+
+  // Clip: only the inside of a small rect takes the black fill.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(120, 8, 20, 12);
+  ctx.clip();
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, 200, 160);
+  ctx.restore();
+
+  // In-page readback assertions (wasm rasterize + crop).
+  function px(x, y) {
+    var d = ctx.getImageData(x, y, 1, 1).data;
+    return d[0] + "," + d[1] + "," + d[2] + "," + d[3];
+  }
+  out.redAt = px(50, 40);
+  out.blueAt = px(150, 40);
+  out.greenAt = px(50, 100);
+  out.notchAt = px(5, 65);
+  out.clippedAt = px(130, 14);
+  out.unclippedAt = px(150, 70);
+
+  // Text: shaping + raster must ADD inked pixels to the sampled
+  // strip; metrics come from parley via measureText.
+  function inkCount(x, y, w, h) {
+    var t = ctx.getImageData(x, y, w, h).data;
+    var n = 0;
+    for (var i = 3; i < t.length; i += 4) { if (t[i] > 0) n++; }
+    return n;
+  }
+  ctx.fillStyle = "black";
+  ctx.font = "24px sans-serif";
+  var m = ctx.measureText("Hi");
+  out.measuredWidth = m.width;
+  var before = inkCount(104, 40, 40, 24);
+  ctx.fillText("Hi", 104, 60);
+  out.textInkDelta = inkCount(104, 40, 40, 24) - before;
+
+  var url = cv.toDataURL("image/png");
+  out.dataUrlOk = url.indexOf("data:image/png;base64,") === 0 && url.length > 200;
+
+  out.pointIn = ctx.isPointInPath(130, 14);
+  document.title = "CANVASDRAW:" + JSON.stringify(out);
+})();
+</script>

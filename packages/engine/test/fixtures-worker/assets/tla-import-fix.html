@@ -1,0 +1,23 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html><html><body>
+<div id="status">init</div>
+<script type="module">
+import { greet, HELPER_LOADED } from "./tla-import-helper.js";
+;(async () => {
+window.__fix_helper_loaded = HELPER_LOADED;
+window.__fix_greeting = greet("fix");
+window.__fix_started = true;
+const r = await fetch("/__fixtures/tla-import-helper.js");
+const text = await r.text();
+window.__fix_fetched_bytes = text.length;
+window.__fix_completed = true;
+document.getElementById("status").textContent =
+  "fix-done:" + window.__fix_greeting + ":" + text.length;
+})();
+</script>
+</body></html>

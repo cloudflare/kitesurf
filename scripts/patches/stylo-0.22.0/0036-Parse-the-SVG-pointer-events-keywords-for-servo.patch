@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 26 Sep 2026 00:22:44 +0100
+Subject: [PATCH] Parse the SVG pointer-events keywords for servo
+
+The servo build knew only `auto` and `none`; `all`, `visiblePainted`,
+`fill` and the rest were gecko-only, so a declaration using them was a
+parse error and got dropped. Pages write `pointer-events: all` on HTML
+to take hits back under an inherited `none`, for example toolbar
+buttons over a canvas editor's `none` panel layer. With the declaration
+dropped they inherited `none`, and every click fell through to the
+canvas below.
+
+On HTML every keyword other than `none` behaves as `auto`, which is
+what the hit-tester already does with anything that is not `None`.
+---
+ values/specified/ui.rs | 11 +++--------
+ 1 file changed, 3 insertions(+), 8 deletions(-)
+
+diff --git a/values/specified/ui.rs b/values/specified/ui.rs
+index f614764..2cd059a 100644
+--- a/values/specified/ui.rs
++++ b/values/specified/ui.rs
+@@ -274,20 +274,15 @@ pub enum MozTheme {
+ pub enum PointerEvents {
+     Auto,
+     None,
+-    #[cfg(feature = "gecko")]
++    // The SVG keywords parse in servo too: a page writes `pointer-events:
++    // all` on HTML to undo an inherited `none`, and dropping it as invalid
++    // left the element unhittable. On HTML they all behave as `auto`.
+     Visiblepainted,
+-    #[cfg(feature = "gecko")]
+     Visiblefill,
+-    #[cfg(feature = "gecko")]
+     Visiblestroke,
+-    #[cfg(feature = "gecko")]
+     Visible,
+-    #[cfg(feature = "gecko")]
+     Painted,
+-    #[cfg(feature = "gecko")]
+     Fill,
+-    #[cfg(feature = "gecko")]
+     Stroke,
+-    #[cfg(feature = "gecko")]
+     All,
+ }

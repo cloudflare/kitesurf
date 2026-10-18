@@ -1,0 +1,299 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 4 Oct 2026 12:07:04 +0100
+Subject: [PATCH] paint z-index:auto fixed boxes in tree order
+
+A fixed box is hoisted to the root for layout, and it was painted - and
+hit-tested - from there too, after everything in body. CSS 2.1 Appendix
+E paints z-index:auto positioned boxes of a stacking context in tree
+order, so a later abspos box belongs on top of an earlier fixed one.
+
+Base UI renders a transparent position: fixed backdrop just before the
+menu positioner in the same portal. Painted from the root, the backdrop
+sat above the menu and took every hit meant for it: Dash's user menu
+never saw the pointer reach its Appearance item, so the submenu never
+opened.
+
+An auto-z fixed box now paints from its flow parent, the way a re-homed
+abspos box already does. Paint only escapes the flow parent's own clip,
+while a fixed box escapes every clip below its containing block, so a
+box with a clipping ancestor further up keeps upstream's placement.
+clips_descendants mirrors blitz-paint's clip decision for that check.
+
+That check reads boxes above the flow parent, which can change without
+damaging it. The containing block always rebuilds when one does, so it
+re-checks its hoisted boxes and damages the chain down to any flow
+parent whose decision flipped.
+
+A viewport-fixed box does not scroll with the page, so
+rehomed_paint_translate cancels the viewport scroll for it, and its
+reach covers every scroll position: pure-scroll frames skip the resolve
+that computes it.
+---
+ src/document.rs          |  19 +++++++
+ src/layout/paint_tree.rs | 112 +++++++++++++++++++++++++++++++++------
+ src/node/node.rs         |  29 ++++++++++
+ src/resolve.rs           |  22 +++++++-
+ 4 files changed, 165 insertions(+), 17 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 525491a..9f10ab5 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1053,6 +1053,25 @@ impl BaseDocument {
+             .is_some_and(|body| body.id == node_id)
+     }
+
++    /// Whether `node_id` clips the boxes it paints: non-`visible` overflow
++    /// (minus the root and a body whose overflow went to the viewport) or
++    /// `contain: paint`. Mirrors blitz-paint's clip decision for elements.
++    pub fn clips_descendants(&self, node_id: NodeId) -> bool {
++        use style::values::computed::{Contain, Overflow};
++        if self.try_root_element().is_some_and(|root| root.id == node_id)
++            || self.propagates_overflow_to_viewport(node_id)
++        {
++            return false;
++        }
++        let Some(styles) = self.nodes.get(node_id).and_then(|n| n.primary_styles()) else {
++            return false;
++        };
++        let b = styles.get_box();
++        !matches!(b.overflow_x, Overflow::Visible)
++            || !matches!(b.overflow_y, Overflow::Visible)
++            || b.clone_contain().contains(Contain::PAINT)
++    }
++
+     pub fn create_node(&mut self, node_data: NodeData) -> NodeId {
+         let tree_ptr = self.nodes.as_mut() as *mut NodeTree;
+         let guard = self.guard.clone();
+diff --git a/src/layout/paint_tree.rs b/src/layout/paint_tree.rs
+index e485a17..abf63fb 100644
+--- a/src/layout/paint_tree.rs
++++ b/src/layout/paint_tree.rs
+@@ -261,6 +261,8 @@ impl BaseDocument {
+             return;
+         };
+
++        self.damage_stale_rehome_hosts(node_id);
++
+         // Entries hoisted out of this subtree are collected directly into the
+         // storage that will hold them afterwards: the node's own stacking
+         // context for a root, otherwise its contribution cache (from which
+@@ -317,7 +319,7 @@ impl BaseDocument {
+                 .copied()
+                 .filter(|&id| {
+                     self.nodes.get(id).is_some_and(|n| {
+-                        n.layout_parent.get() != Some(node_id) && !Self::paints_rehomed(n)
++                        n.layout_parent.get() != Some(node_id) && !self.paints_rehomed(id)
+                     })
+                 })
+                 .map(|id| {
+@@ -340,7 +342,7 @@ impl BaseDocument {
+             paint_children.reserve(children.len() + hoisted_past_parent.len());
+
+             for (index, &child_id) in children.iter().enumerate() {
+-                if !owned_here(self, child_id) && Self::paints_rehomed(&self.nodes[child_id]) {
++                if !owned_here(self, child_id) && self.paints_rehomed(child_id) {
+                     // An abspos box laid out by an ancestor containing
+                     // block still paints here, in tree order among this node's
+                     // children (CSS 2.1 Appendix E step 8); see
+@@ -412,21 +414,99 @@ impl BaseDocument {
+         }
+     }
+
+-    /// Whether `node` (an out-of-flow box hoisted past its flow
++    /// Whether `node_id` (an out-of-flow box hoisted past its flow
+     /// parent) paints under its flow parent rather than its containing block.
+-    /// Only `position: absolute` boxes with `z-index: auto`/`0`: their paint
+-    /// order is tree order (CSS 2.1 Appendix E step 8), which painting under
+-    /// the containing block destroys (todomvc's abspos `.filters` covered the
+-    /// later `.clear-completed` button and swallowed its clicks). A z-indexed
+-    /// box is ordered by its stacking context; fixed boxes keep upstream's
+-    /// placement.
+-    fn paints_rehomed(node: &Node) -> bool {
+-        node.taffy_position() == taffy::Position::Absolute
+-            && node.z_index() == 0
+-            && node
+-                .oof_containing_block
+-                .get()
+-                .is_some_and(|cb| node.layout_parent.get() != Some(cb))
++    /// Only boxes with `z-index: auto`/`0`: their paint order is tree order
++    /// (CSS 2.1 Appendix E step 8), which painting under the containing block
++    /// destroys (todomvc's abspos `.filters` covered the later
++    /// `.clear-completed` button and swallowed its clicks; Base UI's
++    /// transparent fixed menu backdrop, painted from the root, sat above the
++    /// popup rendered after it and took every hit meant for it). A z-indexed
++    /// box is ordered by its stacking context.
++    ///
++    /// Paint only escapes the flow parent's own clip, though, and a fixed box
++    /// escapes every clip below its containing block, so a fixed box with a
++    /// clipping box further up keeps upstream's placement.
++    fn paints_rehomed(&self, node_id: NodeId) -> bool {
++        let Some(node) = self.nodes.get(node_id) else {
++            return false;
++        };
++        let Some(cb) = node.oof_containing_block.get() else {
++            return false;
++        };
++        let Some(flow_parent) = node.layout_parent.get() else {
++            return false;
++        };
++        if flow_parent == cb || node.z_index() != 0 {
++            return false;
++        }
++        match node.taffy_position() {
++            taffy::Position::Absolute => true,
++            taffy::Position::Fixed => !self.clipped_below(flow_parent, cb),
++            _ => false,
++        }
++    }
++
++    /// Whether a box strictly between `flow_parent` and its
++    /// ancestor `cb` clips. Starts at the flow parent's parent: the painter
++    /// draws re-homed boxes outside the flow parent's own clip. An anonymous
++    /// flow parent's parent is the element that owns it, whose clip applies.
++    fn clipped_below(&self, flow_parent: NodeId, cb: NodeId) -> bool {
++        let next = |id: NodeId| {
++            let node = self.nodes.get(id)?;
++            node.parent
++                .or_else(|| node.shadow_root_data().map(|data| data.host))
++        };
++        let mut cur = next(flow_parent);
++        // Bounded: a malformed parent chain must not spin.
++        for _ in 0..512 {
++            let Some(id) = cur else { break };
++            if id == cb {
++                return false;
++            }
++            if self.clips_descendants(id) {
++                return true;
++            }
++            cur = next(id);
++        }
++        // Never reached the containing block: keep upstream's placement.
++        true
++    }
++
++    /// Whether a re-home decision depends on more than the box
++    /// itself (a fixed box checks every clip between its flow parent and its
++    /// containing block), so a clip that starts or stops above a clean flow
++    /// parent leaves that parent's cached lists stale. Every such clip lies
++    /// below the containing block, whose subtree damage therefore makes it
++    /// rebuild: re-check its hoisted boxes here and damage the layout chain
++    /// down to each flow parent whose decision flipped, so the walk below
++    /// rebuilds it.
++    fn damage_stale_rehome_hosts(&mut self, node_id: NodeId) {
++        let hoisted: ThinVec<NodeId> = self.nodes[node_id]
++            .hoisted_children
++            .borrow()
++            .iter()
++            .copied()
++            .collect();
++        for id in hoisted {
++            let Some(child) = self.nodes.get(id) else { continue };
++            let Some(flow_parent) = child.layout_parent.get() else { continue };
++            if flow_parent == node_id {
++                continue;
++            }
++            let rehomed = child.paint_parent_override.get() == Some(flow_parent);
++            if self.paints_rehomed(id) == rehomed {
++                continue;
++            }
++            let mut cur = Some(flow_parent);
++            // Bounded: a malformed layout-parent chain must not spin.
++            for _ in 0..512 {
++                let Some(cur_id) = cur.filter(|&c| c != node_id) else { break };
++                let Some(node) = self.nodes.get_mut(cur_id) else { break };
++                node.insert_damage(RestyleDamage::REBUILD_STACKING_CONTEXT);
++                cur = node.layout_parent.get();
++            }
++        }
+     }
+
+     /// The layout child of `node_id` whose subtree contains `id`, following
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 2413f4d..c040028 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -1628,6 +1628,16 @@ impl Node {
+         // Bounded: a malformed layout-parent chain must not spin.
+         for _ in 0..64 {
+             if cur == containing_block {
++                // A viewport-fixed box does not scroll with the
++                // page, so cancel the viewport scroll its containing block
++                // (the root element) applies, as paint and hit-testing do for
++                // the root's own fixed children.
++                if self.is_viewport_fixed() {
++                    let scroll = *tree[containing_block].scroll_offset();
++                    let anchor = tree.fixed_anchor_scroll();
++                    offset.x -= (scroll.x + anchor.x) as f32;
++                    offset.y -= (scroll.y + anchor.y) as f32;
++                }
+                 return taffy::Point { x: -offset.x, y: -offset.y };
+             }
+             let Some(node) = tree.get(cur) else { break };
+@@ -1643,6 +1653,25 @@ impl Node {
+         taffy::Point { x: 0.0, y: 0.0 }
+     }
+
++    /// Whether this is a `position: fixed` box positioned against
++    /// the viewport: its containing block is the root element, which is a
++    /// layout child of the Document node. A fixed box contained by a
++    /// transformed ancestor scrolls with that ancestor instead.
++    pub fn is_viewport_fixed(&self) -> bool {
++        if self.taffy_position() != taffy::Position::Fixed {
++            return false;
++        }
++        let tree = self.tree();
++        self.oof_containing_block
++            .get()
++            .and_then(|cb| tree.get(cb))
++            .is_some_and(|cb| {
++                cb.containing_block()
++                    .and_then(|id| tree.get(id))
++                    .is_none_or(|parent| matches!(parent.data, NodeData::Document(_)))
++            })
++    }
++
+     /// This re-homed paint child's painted extent in `host`'s CSS-px space:
+     /// its layout box and overflow, mapped through its own transform.
+     /// Floating UI parks every popup at `left:0;top:0` and moves it with
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 947406b..22a52a3 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -444,6 +444,20 @@ impl BaseDocument {
+             };
+
+         let scale = self.viewport.scale_f64();
++        // A re-homed viewport-fixed box moves through its host's
++        // space as the page scrolls, and a pure-scroll frame skips resolve,
++        // so its reach covers every scroll position: from where it sits at
++        // scroll 0 to that plus the document's extent. Too wide only costs
++        // culling along one chain; too narrow drops the box from paint and
++        // hit-testing after a scroll.
++        let fixed_anchor = self.nodes.fixed_anchor_scroll();
++        let doc_extent = self.try_root_element().map_or((0.0, 0.0), |root| {
++            let layout = root.final_layout();
++            (
++                layout.size.width.max(layout.scrollable_overflow_rect.right),
++                layout.size.height.max(layout.scrollable_overflow_rect.bottom),
++            )
++        });
+         for host_id in host_ids.iter().copied() {
+             let mut rect: Option<(f32, f32, f32, f32)> = None;
+             let rehomed: Vec<NodeId> = self.nodes[host_id]
+@@ -454,6 +468,12 @@ impl BaseDocument {
+                 .filter(|id| self.nodes.contains_key(*id))
+                 .collect();
+             for child_id in rehomed {
+-                rect = union(rect, self.nodes[child_id].rehomed_paint_rect(host_id, scale));
++                let child = &self.nodes[child_id];
++                let mut r = child.rehomed_paint_rect(host_id, scale);
++                if child.is_viewport_fixed() {
++                    let (sx, sy) = (fixed_anchor.x as f32, fixed_anchor.y as f32);
++                    r = (r.0 - sx, r.1 - sy, r.2 - sx + doc_extent.0, r.3 - sy + doc_extent.1);
++                }
++                rect = union(rect, r);
+             }
+             let Some(mut rect) = rect else { continue };

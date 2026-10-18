@@ -1,0 +1,61 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Sun, 2 Aug 2026 23:23:03 +0100
+Subject: [PATCH] Namespace-aware selector parsing for CSSOM selectorText
+ writes
+
+parse_author_origin_no_namespace (built for querySelector, where
+namespaces don't apply) was the only selector-list entry point, so a
+rule living in a sheet with @namespace could never re-parse svg|*:
+every prefixed selectorText write failed and CSSOM cleanup restores
+silently no-opped, poisoning later subtests
+(CSSStyleRule-set-selectorText-namespace). The new variant takes the
+sheet's prefix map and default namespace.
+---
+ src/query_selector.rs | 33 +++++++++++++++++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/src/query_selector.rs b/src/query_selector.rs
+index ec30c96..02f2613 100644
+--- a/src/query_selector.rs
++++ b/src/query_selector.rs
+@@ -208,6 +208,39 @@ impl BaseDocument {
+         let url_extra_data = self.url.url_extra_data();
+         SelectorParser::parse_author_origin_no_namespace(input, &url_extra_data)
+     }
++
++    // Namespace-aware variant for CSSOM selectorText writes: a rule in a
++    // sheet with @namespace must resolve `svg|*` against the sheet's map,
++    // which parse_author_origin_no_namespace (built for querySelector)
++    // never sees: every prefixed selector failed to parse there.
++    pub fn try_parse_selector_list_with_namespaces(
++        &self,
++        input: &str,
++        default_namespace: Option<&str>,
++        prefixes: &[(String, String)],
++    ) -> Result<SelectorList<SelectorImpl>, ParseError> {
++        use cssparser::Parser as CssParser;
++        use selectors::parser::ParseRelative;
++        use style::selector_parser::SelectorParser;
++        use style::stylesheets::{Namespaces, Origin};
++        use style::{Namespace, Prefix};
++
++        let mut namespaces = Namespaces::default();
++        namespaces.default = default_namespace.map(Namespace::from);
++        for (prefix, url) in prefixes {
++            namespaces
++                .prefixes
++                .insert(Prefix::from(prefix.as_str()), Namespace::from(url.as_str()));
++        }
++        let url_extra_data = self.url.url_extra_data();
++        let parser = SelectorParser {
++            stylesheet_origin: Origin::Author,
++            namespaces: &namespaces,
++            url_data: &url_extra_data,
++            for_supports_rule: false,
++        };
++        SelectorList::parse(&parser, &mut CssParser::new(input), ParseRelative::No)
++    }
+ }
+
+ impl Node {

@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 6 Sep 2026 03:28:05 +0100
+Subject: [PATCH] Tag iframe document requests as HTML
+
+The embedder sees an erased NetHandler and otherwise infers
+extensionless iframe URLs as Other. Stamp the request where its
+DocumentSrcHandler type is still known.
+---
+ src/iframe.rs | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/iframe.rs b/src/iframe.rs
+index 635b3a9..e62c90b 100644
+--- a/src/iframe.rs
++++ b/src/iframe.rs
+@@ -134,9 +134,13 @@ impl BaseDocument {
+             DocumentSrcHandler,
+         );
+         let signal = self.new_iframe_generation(node_id, Some(handler.request_id()));
++        let mut request = stamped_request(url, Some(&signal));
++        // The embedder cannot recover the erased DocumentSrcHandler type.
++        // Stamp the MIME kind here so extensionless iframe URLs stay Documents.
++        request.content_type = Some("text/html".to_string());
+         self.net_provider.fetch(
+             self.id(),
+-            stamped_request(url, Some(&signal)),
++            request,
+             Box::new(handler),
+         );
+     }

@@ -1,0 +1,72 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<p id="status">init</p>
+<script>
+  // Describe what the page exposes for each requested IDL interface. The
+  // test injects the request and grades the report against the model, so
+  // this script only observes: descriptors never run getters. The IIFE
+  // keeps its names off the global (a top-level `var name` IS window.name).
+  (function () {
+  var request = /*__IDL_REQUEST__*/ null;
+  var hasOwn = Object.prototype.hasOwnProperty;
+
+  function describe(holder, key) {
+    if (holder === null || (typeof holder !== "object" && typeof holder !== "function")) {
+      return { k: "-" };
+    }
+    var d = Object.getOwnPropertyDescriptor(holder, key);
+    if (!d) return { k: key in holder ? "i" : "-" };
+    if (d.get || d.set) return { k: "a", g: !!d.get, s: !!d.set, e: !!d.enumerable };
+    var out = { k: "d", e: !!d.enumerable, w: !!d.writable, c: !!d.configurable, t: typeof d.value };
+    if (typeof d.value === "function") out.l = d.value.length;
+    else if (typeof d.value === "number" || typeof d.value === "boolean") out.v = d.value;
+    return out;
+  }
+
+  function members(holder, names) {
+    var out = {};
+    for (var i = 0; i < names.length; i++) out[names[i]] = describe(holder, names[i]);
+    return out;
+  }
+
+  var report = {};
+  for (var name in request.interfaces) {
+    var want = request.interfaces[name];
+    var C = globalThis[name];
+    var entry = { type: typeof C };
+    report[name] = entry;
+    if (C === null || (typeof C !== "function" && typeof C !== "object")) continue;
+    var P = C.prototype;
+    var parent = want.parent ? globalThis[want.parent] : undefined;
+    entry.name = typeof C === "function" ? C.name : null;
+    entry.length = typeof C === "function" ? C.length : null;
+    entry.objectParent = want.parent
+      ? Object.getPrototypeOf(C) === parent
+      : Object.getPrototypeOf(C) === Function.prototype;
+    entry.hasPrototype = P !== null && typeof P === "object";
+    if (entry.hasPrototype) {
+      entry.prototypeParent = want.parent
+        ? !!parent && Object.getPrototypeOf(P) === parent.prototype
+        : Object.getPrototypeOf(P) === Object.prototype;
+      entry.classString = Object.prototype.toString.call(P);
+      entry.iterator = typeof P[Symbol.iterator] === "function";
+    }
+    entry.constants = members(C, want.constants);
+    entry.prototypeConstants = entry.hasPrototype ? members(P, want.constants) : {};
+    entry.attributes = entry.hasPrototype ? members(P, want.attributes) : {};
+    entry.operations = entry.hasPrototype ? members(P, want.operations) : {};
+    entry.staticAttributes = members(C, want.staticAttributes);
+    entry.staticOperations = members(C, want.staticOperations);
+  }
+  var globals = {};
+  for (var i = 0; i < request.globals.length; i++) {
+    globals[request.globals[i]] = typeof globalThis[request.globals[i]];
+  }
+  globalThis.__idlConformance = JSON.stringify({ interfaces: report, globals: globals });
+  document.getElementById("status").textContent = "done";
+  })();
+</script>

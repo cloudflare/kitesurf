@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": ["@types/node", "@cloudflare/vitest-plugin/types"]
+  },
+  // Top-level e2e specs; demos/ has its own, non-strict tsconfig. The
+  // protocol augmentation types Kitesurf.* on puppeteer's CDPSession too,
+  // which shares the engine's devtools-protocol copy (root pnpm override).
+  "include": ["*.ts", "../../src/cdp/protocol-extensions.ts"],
+  "exclude": []
+}

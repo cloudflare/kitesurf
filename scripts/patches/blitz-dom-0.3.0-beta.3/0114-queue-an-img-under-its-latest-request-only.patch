@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 25 Sep 2026 10:25:44 +0100
+Subject: [PATCH] queue an <img> under its latest request only
+
+load_image added the node to the new URL's pending list but never
+took it off the previous one. Both responses then targeted it, and the
+first to land won: a stale success painted the old image over the new
+src, and a stale 404 reported the node broken. The page-script shim
+keeps the first terminal state per node, so that 404 also swallowed the
+real load event (WPT img.complete.html "async src complete test").
+
+Drop the node's Image entries from every pending list before queueing
+the new request. The old fetch stays in flight and still fills the
+image cache.
+---
+ src/mutator.rs | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 73a22dc..1618a59 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1650,6 +1650,16 @@ impl<'doc> DocumentMutator<'doc> {
+     }
+
+     fn load_image(&mut self, target_id: NodeId) {
++        // An <img> waits on its latest request only. Changing
++        // src left the node queued under the previous URL too, so
++        // whichever response landed first won: a stale success painted
++        // the old image, and a stale 404 reported the node broken (the
++        // shim keeps the first terminal state), swallowing the real
++        // load event (WPT img.complete.html "async src complete test").
++        // The old fetch stays in flight and still fills the cache.
++        for waiting in self.doc.pending_images.values_mut() {
++            waiting.retain(|(id, ty)| !(*id == target_id && matches!(ty, ImageType::Image)));
++        }
+         if let Some(raw_src) = self.select_image_url(target_id) {
+             if !raw_src.is_empty() {
+                 // Fallible resolve. `img.src = "http://"`

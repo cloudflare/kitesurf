@@ -1,0 +1,13 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<title>absolute-path-import</title>
+<script type="module">
+window.__abspath = { value: null, error: null };
+import { value } from "/__fixtures/absolute-path-target.js";
+window.__abspath.value = value;
+</script>

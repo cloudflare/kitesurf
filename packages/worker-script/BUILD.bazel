@@ -1,0 +1,63 @@
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@npm//packages/worker-script:typescript/package_json.bzl", tsc = "bin")
+load("//bazel:checks.bzl", "strict_ratchet_test", "tsc_test", "workspace_configs")
+
+npm_link_all_packages(name = "node_modules")
+
+js_library(
+    name = "srcs",
+    srcs = ["package.json", "tsconfig.json"] + glob(["src/**"]),
+    deps = [
+        ":node_modules/@kitesurf/jsrpc-types",
+        ":node_modules/@kitesurf/page-script",
+    ],
+)
+
+js_binary(
+    name = "build_tool",
+    data = [":node_modules/esbuild", "//scripts:declaration_twin_guard"],
+    entry_point = "scripts/build.mjs",
+)
+
+js_run_binary(
+    name = "dist",
+    srcs = [":srcs"],
+    out_dirs = ["dist"],
+    chdir = package_name(),
+    mnemonic = "WorkerScriptBuild",
+    progress_message = "Bundling worker-script",
+    tool = ":build_tool",
+)
+
+js_library(
+    name = "pkg",
+    srcs = [":dist"],
+    deps = [":srcs"],
+    visibility = ["//visibility:public"],
+)
+
+tsc_test(
+    name = "types",
+    bin = tsc,
+    data = [
+        ":srcs",
+        "//:node_modules/@cloudflare/workers-types",
+        "//packages/core/pkg",
+    ],
+)
+
+strict_ratchet_test(
+    name = "types_strict",
+    data = [
+        ":node_modules/typescript",
+        ":srcs",
+        "//:node_modules/@cloudflare/workers-types",
+        "//packages/core/pkg",
+    ],
+    only = "src",
+)
+
+build_test(name = "build", targets = [":dist"])
+workspace_configs()

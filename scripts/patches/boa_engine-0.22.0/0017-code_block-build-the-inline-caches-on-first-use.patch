@@ -1,0 +1,343 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 12 Oct 2026 11:07:37 +0100
+Subject: [PATCH] code_block: build the inline caches on first use
+
+Each property-access site kept a 36-byte inline cache from compile
+time on, a fifth of a compiled bundle's retained code, while most of a
+bundle's functions never run. Keep only the property names and build
+the caches the first time the code block touches one.
+---
+ src/bytecompiler/mod.rs       | 13 +++++++------
+ src/vm/code_block.rs          | 28 ++++++++++++++++++++--------
+ src/vm/inline_cache/tests.rs  | 34 +++++++++++++++++-----------------
+ src/vm/opcode/get/name.rs     |  4 ++--
+ src/vm/opcode/get/property.rs |  4 ++--
+ src/vm/opcode/mod.rs          |  4 +---
+ src/vm/opcode/set/property.rs |  4 ++--
+ 7 files changed, 51 insertions(+), 40 deletions(-)
+
+diff --git a/src/bytecompiler/mod.rs b/src/bytecompiler/mod.rs
+index 582d869..c8048e8 100644
+--- a/src/bytecompiler/mod.rs
++++ b/src/bytecompiler/mod.rs
+@@ -45,7 +45,7 @@ use crate::{
+     js_string,
+     vm::{
+         CallFrame, CodeBlock, CodeBlockFlags, Constant, GeneratorResumeKind, GlobalFunctionBinding,
+-        Handler, InlineCache,
++        Handler,
+         opcode::{Address, BindingOpcode, BytecodeEmitter, RegisterOperand},
+         source_info::{SourceInfo, SourceMap, SourceMapBuilder, SourcePath},
+     },
+@@ -570,7 +570,7 @@ pub struct ByteCompiler<'ctx> {
+     pub(crate) current_open_environments_count: u32,
+     code_block_flags: CodeBlockFlags,
+     handlers: ThinVec<Handler>,
+-    pub(crate) ic: Vec<InlineCache>,
++    pub(crate) ic: Vec<JsString>,
+     literals_map: FxHashMap<Literal, u32>,
+     names_map: FxHashMap<Sym, u32>,
+     bindings_map: FxHashMap<BindingLocator, u32>,
+@@ -951,7 +951,7 @@ impl<'ctx> ByteCompiler<'ctx> {
+                 BindingAccessOpcode::GetName => {
+                     let ic_index = self.ic.len() as u32;
+                     let name = self.bindings[*index as usize].name().clone();
+-                    self.ic.push(InlineCache::new(name));
++                    self.ic.push(name);
+                     self.bytecode.emit_get_name_global(
+                         value.variable(),
+                         (*index).into(),
+@@ -1053,7 +1053,7 @@ impl<'ctx> ByteCompiler<'ctx> {
+         let Constant::String(ref name) = self.constants[name_index as usize].clone() else {
+             unreachable!("there should be a string at index")
+         };
+-        self.ic.push(InlineCache::new(name.clone()));
++        self.ic.push(name.clone());
+
+         if let Some(receiver) = receiver {
+             self.bytecode.emit_get_property_by_name_with_this(
+@@ -1090,7 +1090,7 @@ impl<'ctx> ByteCompiler<'ctx> {
+         let Constant::String(ref name) = self.constants[name_index as usize].clone() else {
+             unreachable!("there should be a string at index")
+         };
+-        self.ic.push(InlineCache::new(name.clone()));
++        self.ic.push(name.clone());
+
+         if let Some(receiver) = receiver {
+             self.bytecode.emit_set_property_by_name_with_this(
+@@ -2822,7 +2822,8 @@ impl<'ctx> ByteCompiler<'ctx> {
+             bindings: self.bindings.into_boxed_slice(),
+             handlers: self.handlers,
+             flags: Cell::new(self.code_block_flags),
+-            ic: self.ic.into_boxed_slice(),
++            ic_names: self.ic.into_boxed_slice(),
++            ic: std::cell::OnceCell::new(),
+             source_info: SourceInfo::new(
+                 SourceMap::new(source_map_entries, self.source_path),
+                 self.function_name,
+diff --git a/src/vm/code_block.rs b/src/vm/code_block.rs
+index 8d98737..ef1828a 100644
+--- a/src/vm/code_block.rs
++++ b/src/vm/code_block.rs
+@@ -14,7 +14,7 @@ use bitflags::bitflags;
+ use boa_ast::scope::{BindingLocator, Scope};
+ use boa_gc::{Finalize, Gc, Trace, empty_trace};
+ use itertools::Itertools;
+-use std::{cell::Cell, fmt::Display, fmt::Write as _};
++use std::{cell::Cell, cell::OnceCell, fmt::Display, fmt::Write as _};
+ use thin_vec::ThinVec;
+
+ use super::{
+@@ -156,8 +156,12 @@ pub struct CodeBlock {
+     #[unsafe_ignore_trace]
+     pub(crate) handlers: ThinVec<Handler>,
+
+-    /// inline caching
+-    pub(crate) ic: Box<[InlineCache]>,
++    /// Property names of the inline caches, by IC index.
++    pub(crate) ic_names: Box<[JsString]>,
++
++    // The caches themselves are built on first use; most of a bundle's
++    // functions never run, and a site's cache is 9x the size of its name.
++    pub(crate) ic: OnceCell<Box<[InlineCache]>>,
+
+     /// Bytecode to source code mapping.
+     pub(crate) source_info: SourceInfo,
+@@ -176,6 +180,13 @@ pub struct CodeBlock {
+
+ /// ---- `CodeBlock` public API ----
+ impl CodeBlock {
++    /// The inline caches, built from [`Self::ic_names`] the first time any is used.
++    #[inline]
++    pub(crate) fn ic(&self) -> &[InlineCache] {
++        self.ic
++            .get_or_init(|| self.ic_names.iter().cloned().map(InlineCache::new).collect())
++    }
++
+     /// Creates a new `CodeBlock`.
+     #[must_use]
+     pub fn new(name: JsString, length: u32, strict: bool) -> Self {
+@@ -192,7 +203,8 @@ impl CodeBlock {
+             mapped_arguments_binding_indices: ThinVec::new(),
+             parameter_length: 0,
+             handlers: ThinVec::default(),
+-            ic: Box::default(),
++            ic_names: Box::default(),
++            ic: OnceCell::new(),
+             source_info: SourceInfo::new(
+                 SourceMap::new(Box::default(), SourcePath::None),
+                 name,
+@@ -653,7 +665,7 @@ impl CodeBlock {
+                 value,
+                 ic_index,
+             } => {
+-                let ic = &self.ic[u32::from(*ic_index) as usize];
++                let ic = &self.ic_names[u32::from(*ic_index) as usize].display_escaped();
+                 format!("dst:{dst}, value:{value}, ic:{ic}")
+             }
+             Instruction::GetPropertyByNameWithThis {
+@@ -662,7 +674,7 @@ impl CodeBlock {
+                 value,
+                 ic_index,
+             } => {
+-                let ic = &self.ic[u32::from(*ic_index) as usize];
++                let ic = &self.ic_names[u32::from(*ic_index) as usize].display_escaped();
+                 format!("dst:{dst}, receiver:{receiver}, value:{value}, ic:{ic}")
+             }
+             Instruction::SetPropertyByName {
+@@ -670,7 +682,7 @@ impl CodeBlock {
+                 object,
+                 ic_index,
+             } => {
+-                let ic = &self.ic[u32::from(*ic_index) as usize];
++                let ic = &self.ic_names[u32::from(*ic_index) as usize].display_escaped();
+                 format!("object:{object}, value:{value}, ic:{ic}")
+             }
+             Instruction::SetPropertyByNameWithThis {
+@@ -679,7 +691,7 @@ impl CodeBlock {
+                 object,
+                 ic_index,
+             } => {
+-                let ic = &self.ic[u32::from(*ic_index) as usize];
++                let ic = &self.ic_names[u32::from(*ic_index) as usize].display_escaped();
+                 format!("object:{object}, receiver:{receiver}, value:{value}, ic:{ic}")
+             }
+             Instruction::GetPropertyByValue {
+diff --git a/src/vm/inline_cache/tests.rs b/src/vm/inline_cache/tests.rs
+index 65135ca..3cca574 100644
+--- a/src/vm/inline_cache/tests.rs
++++ b/src/vm/inline_cache/tests.rs
+@@ -329,8 +329,8 @@ fn set_property_by_name_set_inline_cache_on_property_load() -> JsResult<()> {
+     let function = context.eval(Source::from_bytes("(function (o) { return o.test; })"))?;
+     let (function, code) = get_codeblock(&function).unwrap();
+
+-    assert_eq!(code.ic.len(), 1);
+-    assert_eq!(code.ic[0].entries().len(), 0);
++    assert_eq!(code.ic().len(), 1);
++    assert_eq!(code.ic()[0].entries().len(), 0);
+
+     let o = ObjectInitializer::new(context)
+         .property(js_string!("test"), 0, Attribute::all())
+@@ -339,9 +339,9 @@ fn set_property_by_name_set_inline_cache_on_property_load() -> JsResult<()> {
+
+     function.call(&JsValue::undefined(), &[o.clone().into()], context)?;
+
+-    assert_eq!(code.ic[0].entries().len(), 1);
++    assert_eq!(code.ic()[0].entries().len(), 1);
+     assert_eq!(
+-        code.ic[0].entries()[0]
++        code.ic()[0].entries()[0]
+             .shape
+             .upgrade()
+             .unwrap()
+@@ -358,8 +358,8 @@ fn get_property_by_name_set_inline_cache_on_property_load() -> JsResult<()> {
+     let function = context.eval(Source::from_bytes("(function (o) { o.test = 30; })"))?;
+     let (function, code) = get_codeblock(&function).unwrap();
+
+-    assert_eq!(code.ic.len(), 1);
+-    assert_eq!(code.ic[0].entries().len(), 0);
++    assert_eq!(code.ic().len(), 1);
++    assert_eq!(code.ic()[0].entries().len(), 0);
+
+     let o = ObjectInitializer::new(context)
+         .property(js_string!("test"), 0, Attribute::all())
+@@ -368,9 +368,9 @@ fn get_property_by_name_set_inline_cache_on_property_load() -> JsResult<()> {
+
+     function.call(&JsValue::undefined(), &[o.clone().into()], context)?;
+
+-    assert_eq!(code.ic[0].entries().len(), 1);
++    assert_eq!(code.ic()[0].entries().len(), 1);
+     assert_eq!(
+-        code.ic[0].entries()[0]
++        code.ic()[0].entries()[0]
+             .shape
+             .upgrade()
+             .unwrap()
+@@ -387,9 +387,9 @@ fn test_polymorphic_inline_cache() -> JsResult<()> {
+     let function = context.eval(Source::from_bytes("(function (o) { return o.test; })"))?;
+     let (function, code) = get_codeblock(&function).unwrap();
+
+-    assert_eq!(code.ic.len(), 1);
+-    assert_eq!(code.ic[0].entries().len(), 0);
+-    assert!(!code.ic[0].megamorphic.get());
++    assert_eq!(code.ic().len(), 1);
++    assert_eq!(code.ic()[0].entries().len(), 0);
++    assert!(!code.ic()[0].megamorphic.get());
+
+     let shapes = vec![
+         ObjectInitializer::new(context)
+@@ -413,8 +413,8 @@ fn test_polymorphic_inline_cache() -> JsResult<()> {
+         function.call(&JsValue::undefined(), &[o.clone().into()], context)?;
+     }
+
+-    assert_eq!(code.ic[0].entries().len(), 4);
+-    assert!(!code.ic[0].megamorphic.get());
++    assert_eq!(code.ic()[0].entries().len(), 4);
++    assert!(!code.ic()[0].megamorphic.get());
+
+     Ok(())
+ }
+@@ -451,8 +451,8 @@ fn test_megamorphic_inline_cache() -> JsResult<()> {
+         function.call(&JsValue::undefined(), &[o.clone().into()], context)?;
+     }
+
+-    assert_eq!(code.ic[0].entries().len(), 0);
+-    assert!(code.ic[0].megamorphic.get());
++    assert_eq!(code.ic()[0].entries().len(), 0);
++    assert!(code.ic()[0].megamorphic.get());
+
+     // Regression check: repeated miss should remain empty
+     let o6 = ObjectInitializer::new(context)
+@@ -460,8 +460,8 @@ fn test_megamorphic_inline_cache() -> JsResult<()> {
+         .property(js_string!("test"), 1, Attribute::all())
+         .build();
+     function.call(&JsValue::undefined(), &[o6.clone().into()], context)?;
+-    assert_eq!(code.ic[0].entries().len(), 0);
+-    assert!(code.ic[0].megamorphic.get());
++    assert_eq!(code.ic()[0].entries().len(), 0);
++    assert!(code.ic()[0].megamorphic.get());
+
+     Ok(())
+ }
+diff --git a/src/vm/opcode/get/name.rs b/src/vm/opcode/get/name.rs
+index 168dd87..d4d5b6d 100644
+--- a/src/vm/opcode/get/name.rs
++++ b/src/vm/opcode/get/name.rs
+@@ -57,7 +57,7 @@ impl GetNameGlobal {
+         if binding_locator.is_global() {
+             let object = context.global_object();
+
+-            let ic = &context.vm.frame().code_block().ic[usize::from(ic_index)];
++            let ic = &context.vm.frame().code_block().ic()[usize::from(ic_index)];
+
+             let object_borrowed = object.borrow();
+             if let Some((shape, slot)) = ic.get(object_borrowed.shape()) {
+@@ -96,7 +96,7 @@ impl GetNameGlobal {
+             // Cache the property.
+             let slot = *context.slot();
+             if slot.is_cacheable() {
+-                let ic = &context.vm.frame().code_block.ic[usize::from(ic_index)];
++                let ic = &context.vm.frame().code_block.ic()[usize::from(ic_index)];
+                 let object_borrowed = object.borrow();
+                 let shape = object_borrowed.shape();
+                 ic.set(shape, slot);
+diff --git a/src/vm/opcode/get/property.rs b/src/vm/opcode/get/property.rs
+index f42c42f..bb3ae5f 100644
+--- a/src/vm/opcode/get/property.rs
++++ b/src/vm/opcode/get/property.rs
+@@ -42,7 +42,7 @@ fn get_by_name<const LENGTH: bool>(
+         .base_class(context)
+         .map_err(|_| null_base_error_by_name(object, Access::Read, usize::from(index), context))?;
+
+-    let ic = &context.vm.frame().code_block().ic[usize::from(index)];
++    let ic = &context.vm.frame().code_block().ic()[usize::from(index)];
+     let object_borrowed = object.borrow();
+     if let Some((shape, slot)) = ic.get(object_borrowed.shape()) {
+         let mut result = if slot.attributes.contains(SlotAttributes::PROTOTYPE) {
+@@ -75,7 +75,7 @@ fn get_by_name<const LENGTH: bool>(
+     // Cache the property.
+     let slot = *context.slot();
+     if slot.is_cacheable() {
+-        let ic = &context.vm.frame().code_block.ic[usize::from(index)];
++        let ic = &context.vm.frame().code_block.ic()[usize::from(index)];
+         let object_borrowed = object.borrow();
+         let shape = object_borrowed.shape();
+         ic.set(shape, slot);
+diff --git a/src/vm/opcode/mod.rs b/src/vm/opcode/mod.rs
+index 4dc5793..7a2e714 100644
+--- a/src/vm/opcode/mod.rs
++++ b/src/vm/opcode/mod.rs
+@@ -71,9 +71,7 @@ pub(crate) fn null_base_error_by_name(
+     ic_index: usize,
+     context: &Context,
+ ) -> crate::JsError {
+-    let name = context.vm.frame().code_block().ic[ic_index]
+-        .name
+-        .to_std_string_escaped();
++    let name = context.vm.frame().code_block().ic_names[ic_index].to_std_string_escaped();
+     null_base_error(value, access, &name)
+ }
+ use std::ops::ControlFlow;
+diff --git a/src/vm/opcode/set/property.rs b/src/vm/opcode/set/property.rs
+index 7d1f42e..befcfd3 100644
+--- a/src/vm/opcode/set/property.rs
++++ b/src/vm/opcode/set/property.rs
+@@ -26,7 +26,7 @@ fn set_by_name(
+         null_base_error_by_name(value_object, Access::Write, usize::from(index), context)
+     })?;
+
+-    let ic = &context.vm.frame().code_block().ic[usize::from(index)];
++    let ic = &context.vm.frame().code_block().ic()[usize::from(index)];
+
+     let object_borrowed = object.borrow();
+     if let Some((shape, slot)) = ic.get(object_borrowed.shape()) {
+@@ -77,7 +77,7 @@ fn set_by_name(
+     // Cache the property.
+     let slot = *context.slot();
+     if succeeded && slot.is_cacheable() {
+-        let ic = &context.vm.frame().code_block.ic[usize::from(index)];
++        let ic = &context.vm.frame().code_block.ic()[usize::from(index)];
+         let object_borrowed = object.borrow();
+         let shape = object_borrowed.shape();
+         ic.set(shape, slot);

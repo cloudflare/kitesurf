@@ -1,0 +1,20 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8" /><title>svg sizing</title>
+<style>body { margin: 0 } .box { width: 600px }</style>
+</head>
+<body>
+  <div class="box"><svg id="s-block" viewBox="0 0 100 50"><rect width="100" height="50" fill="green"/></svg></div>
+  <div class="box">before <svg id="s-inline" viewBox="0 0 100 50"><rect width="100" height="50" fill="green"/></svg> after</div>
+  <div class="box"><img id="s-img" src="data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%2050%22%3E%3Crect%20width%3D%22100%22%20height%3D%2250%22%20fill%3D%22blue%22%2F%3E%3C%2Fsvg%3E" /></div>
+  <div class="box"><svg id="s-css" style="width:120px" viewBox="0 0 100 50"><rect width="100" height="50" fill="green"/></svg></div>
+  <div class="box"><svg id="s-attr" width="80" height="40" viewBox="0 0 100 50"><rect width="100" height="50" fill="green"/></svg></div>
+  <div class="box"><svg id="s-noratio"><rect width="100" height="50" fill="green"/></svg></div>
+</body>
+</html>

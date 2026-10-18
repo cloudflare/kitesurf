@@ -1,0 +1,91 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 12 Oct 2026 11:07:37 +0100
+Subject: [PATCH] bytecompiler: share one JsString per name across a compile
+
+Every function's ByteCompiler resolved each name it used to a fresh
+JsString for its constant pool, so a name used in 500 functions of a
+bundle was allocated 500 times and kept by every code block: 55-60% of
+the constant-pool strings react-dom retains are such duplicates. Cache
+Sym -> JsString for as long as the outermost compiler lives.
+---
+ src/bytecompiler/mod.rs | 53 ++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 47 insertions(+), 6 deletions(-)
+
+diff --git a/src/bytecompiler/mod.rs b/src/bytecompiler/mod.rs
+index fc5d3b1..582d869 100644
+--- a/src/bytecompiler/mod.rs
++++ b/src/bytecompiler/mod.rs
+@@ -97,12 +97,50 @@ pub(crate) trait ToJsString {
+ impl ToJsString for Sym {
+     #[allow(clippy::cast_possible_truncation)]
+     fn to_js_string(&self, interner: &Interner) -> JsString {
+-        let utf16 = interner.resolve_expect(*self).utf16();
+-        if interner.is_latin1(*self) {
+-            let bytes: Vec<u8> = utf16.iter().map(|&c| c as u8).collect();
+-            js_string!(JsStr::latin1(&bytes))
+-        } else {
+-            js_string!(utf16)
++        let make = || {
++            let utf16 = interner.resolve_expect(*self).utf16();
++            if interner.is_latin1(*self) {
++                let bytes: Vec<u8> = utf16.iter().map(|&c| c as u8).collect();
++                js_string!(JsStr::latin1(&bytes))
++            } else {
++                js_string!(utf16)
++            }
++        };
++        SYM_STRINGS.with(|cache| match cache.borrow_mut().as_mut() {
++            Some(map) => map.entry(*self).or_insert_with(make).clone(),
++            None => make(),
++        })
++    }
++}
++
++thread_local! {
++    // One JsString per symbol for a whole compile, shared by every nested
++    // function's constants, instead of a fresh allocation per function per name.
++    static SYM_STRINGS: std::cell::RefCell<Option<FxHashMap<Sym, JsString>>> =
++        const { std::cell::RefCell::new(None) };
++}
++
++/// Keeps [`SYM_STRINGS`] alive while the outermost [`ByteCompiler`] of a compile lives.
++#[derive(Debug)]
++pub(crate) struct SymStringsGuard(bool);
++
++impl SymStringsGuard {
++    fn enter() -> Self {
++        SYM_STRINGS.with(|cache| {
++            let mut cache = cache.borrow_mut();
++            let outermost = cache.is_none();
++            if outermost {
++                *cache = Some(FxHashMap::default());
++            }
++            Self(outermost)
++        })
++    }
++}
++
++impl Drop for SymStringsGuard {
++    fn drop(&mut self) {
++        if self.0 {
++            SYM_STRINGS.with(|cache| drop(cache.borrow_mut().take()));
+         }
+     }
+ }
+@@ -564,6 +602,8 @@ pub struct ByteCompiler<'ctx> {
+
+     #[cfg(feature = "annex-b")]
+     pub(crate) annex_b_function_names: Vec<Sym>,
++
++    _sym_strings: SymStringsGuard,
+ }
+
+ pub(crate) enum BindingKind {
+@@ -685,5 +725,6 @@ impl<'ctx> ByteCompiler<'ctx> {
+             global_lexs: Vec::new(),
+             global_fns: Vec::new(),
+             global_vars: Vec::new(),
++            _sym_strings: SymStringsGuard::enter(),
+         }
+     }

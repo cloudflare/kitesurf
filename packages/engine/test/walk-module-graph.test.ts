@@ -1,0 +1,739 @@
+// Copyright (c) 2026 Cloudflare, Inc.
+// Licensed under the Apache 2.0 license found in the LICENSE file or at:
+// https://opensource.org/licenses/Apache-2.0
+
+import { describe, it, expect } from "vitest";
+import {
+  assignModuleRegistryNames,
+  astroIslandModuleUrls,
+  chunkBaseName,
+  documentTokens,
+  extractClassicDynamicSeeds,
+  importMapModuleSource,
+  mergeImportMap,
+  modulePreloadSeeds,
+  parseImportMap,
+  parseImportMaps,
+  resolvedModuleRecord,
+  resolveImportMapSpecifier,
+  rewriteImportMetaResolve,
+  walkModuleGraph,
+  type ParsedImportMap,
+} from "../src/eval/walk-module-graph.ts";
+import type { SandboxOutboundOverride } from "../src/eval/outbound.ts";
+import type { ParentScriptDescriptor } from "../src/wasm.ts";
+
+const BASE = "https://example.com/js/app.min.js";
+
+describe("astroIslandModuleUrls", () => {
+  it("collects component and renderer urls from every island once", () => {
+    const html =
+      '<astro-island uid="a" component-url="/_astro/a.js?v=1&amp;x=2" renderer-url="/_astro/client.js">' +
+      '</astro-island><astro-island component-url="https://cdn.example/b.js" renderer-url="/_astro/client.js">' +
+      '</astro-island><div component-url="/_astro/not-an-island.js"></div>';
+    expect(astroIslandModuleUrls(html, "https://site.example/page")).toEqual([
+      "https://site.example/_astro/a.js?v=1&x=2",
+      "https://site.example/_astro/client.js",
+      "https://cdn.example/b.js",
+    ]);
+  });
+});
+
+describe("extractClassicDynamicSeeds", () => {
+  it("seeds and absolutizes relative literal imports", () => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(`import("./chunk.js").then(go);`, BASE);
+    expect(seeds).toEqual(["https://example.com/js/chunk.js"]);
+    expect(rewritten).toContain(`import("https://example.com/js/chunk.js")`);
+  });
+
+  it("does NOT seed bare specifiers and defers them to __ks_import", () => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(
+      `import("@wordpress/vips/worker").then(go);`,
+      BASE,
+    );
+    expect(seeds).toEqual([]);
+    expect(rewritten).toContain(`__ks_import("@wordpress/vips/worker", ${JSON.stringify(BASE)})`);
+    expect(rewritten).not.toMatch(/(?<!__ks_)import\("@wordpress/);
+  });
+
+  it("treats backtick bare specifiers the same", () => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds("import(`lodash-es`).then(go);", BASE);
+    expect(seeds).toEqual([]);
+    expect(rewritten).toContain(`__ks_import("lodash-es"`);
+  });
+
+  it("seeds root-absolute and leaves data: untouched", () => {
+    const root = extractClassicDynamicSeeds(`import("/assets/x.js")`, BASE);
+    expect(root.seeds).toEqual(["https://example.com/assets/x.js"]);
+    const data = extractClassicDynamicSeeds(`import("data:text/javascript,export{}")`, BASE);
+    expect(data.seeds).toEqual([]);
+    expect(data.rewritten).toBe(`import("data:text/javascript,export{}")`);
+  });
+
+  it("routes computed import(expr) to __ks_import", () => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(`import(name + ".js");`, BASE);
+    expect(seeds).toEqual([]);
+    expect(rewritten).toContain(`__ks_import(name + ".js", ${JSON.stringify(BASE)})`);
+  });
+
+  it("keeps the options argument when absolutizing a literal", () => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(
+      `import("./cfg.json", { with: { type: "json" } })`,
+      BASE,
+    );
+    expect(seeds).toEqual(["https://example.com/js/cfg.json"]);
+    expect(rewritten).toBe(`import("https://example.com/js/cfg.json", { with: { type: "json" } })`);
+  });
+
+  it("passes only the specifier expression of a computed import to __ks_import", () => {
+    const { rewritten } = extractClassicDynamicSeeds(
+      'import(`./${name}.json`, { with: { type: "json" } })',
+      BASE,
+    );
+    expect(rewritten).toBe("__ks_import(`./${name}.json`, " + JSON.stringify(BASE) + ")");
+  });
+});
+
+function stubOutbound(
+  bodies: Record<string, string> = {},
+  delays: Record<string, number> = {},
+): SandboxOutboundOverride {
+  const fetcher = {
+    fetch: async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (delays[url]) await new Promise((r) => setTimeout(r, delays[url]));
+      return new Response(bodies[url] ?? "export default 1;", {
+        headers: { "content-type": "text/javascript" },
+      });
+    },
+  } as Fetcher;
+  return {
+    external: false,
+    parent: () => fetcher,
+    loaded: () => fetcher,
+    session: () => (request) => fetcher.fetch(request.url),
+    final: async () => new Response(null, { status: 404 }),
+  };
+}
+
+function classicExternal(src: string, prefetchedSource: string): ParentScriptDescriptor {
+  return { src, kind: "classic", defer: false, async: false, body: "", prefetchedSource };
+}
+
+function moduleInline(body: string): ParentScriptDescriptor {
+  return { src: null, kind: "module", defer: false, async: false, body };
+}
+
+describe("walkModuleGraph query-collision alias in classic bodies", () => {
+  const PAGE = "https://example.com/page.html";
+  const walk = (descriptors: ParentScriptDescriptor[]) =>
+    walkModuleGraph({
+      descriptors,
+      pageUrl: PAGE,
+      connectionId: "conn",
+      mainFrameId: "",
+      mainLoaderId: "",
+      extraHeaders: {},
+      cookieKey: "",
+      options: {},
+      sandboxOutbound: stubOutbound(),
+    });
+
+  it("re-points an external classic script whose src is relative", async () => {
+    const { descriptors, additionalModules } = await walk([
+      moduleInline(`import "/x.js?v=1";`),
+      moduleInline(`import "/x.js?v=2";`),
+      classicExternal("/static/app.js", `import("/x.js?v=1").then(go);`),
+    ]);
+    const aliases = Object.keys(additionalModules).filter((k) => k.includes("__ks_query_"));
+    expect(aliases).toHaveLength(2);
+    expect(additionalModules["https://example.com/x.js"]).toBeUndefined();
+
+    const classic = descriptors.find((d) => d.kind === "classic");
+    expect(classic?.prefetchedSource).toMatch(
+      /import\("https:\/\/example\.com\/x\.__ks_query_\d+\.js"\)\.then\(go\);/,
+    );
+    expect(classic?.prefetchedSource).not.toContain("x.js?v=1");
+  });
+});
+
+describe("modulePreloadSeeds", () => {
+  it("collects script-destination modulepreload links once, with their nonce", () => {
+    const html =
+      '<link rel="modulepreload" href="/a.js?x=1&amp;y=2" nonce="n1">' +
+      "<link rel='preload modulepreload' href='b.js'>" +
+      '<link rel=modulepreload href="/a.js?x=1&amp;y=2">' +
+      '<link rel="modulepreload" as="script" href="https://cdn.example/c.js">' +
+      '<link rel="modulepreload" as="style" href="/style.css">' +
+      '<link rel="modulepreload" href="/sri.js" integrity="sha384-x">' +
+      '<link rel="modulepreload" href="data:text/javascript,export{}">' +
+      '<link rel="preload" as="script" href="/classic.js">';
+    expect(modulePreloadSeeds(html, "https://site.example/dir/page")).toEqual([
+      { url: "https://site.example/a.js?x=1&y=2", nonce: "n1" },
+      { url: "https://site.example/dir/b.js", nonce: null },
+      { url: "https://cdn.example/c.js", nonce: null },
+    ]);
+  });
+});
+
+describe("walkModuleGraph modulepreload seeds", () => {
+  const PAGE = "https://example.com/page.html";
+  const DEP = "https://example.com/dep.js";
+
+  it("still bakes an imported module whose preload fetch failed", async () => {
+    let depRequests = 0;
+    const fetcher = {
+      fetch: async (input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url === DEP && depRequests++ === 0) return new Response("no", { status: 404 });
+        return new Response(url === DEP ? "export default 1;" : `import "/dep.js";`, {
+          headers: { "content-type": "text/javascript" },
+        });
+      },
+    } as Fetcher;
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [{ src: "/entry.js", kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      mainFrameId: "",
+      mainLoaderId: "",
+      extraHeaders: {},
+      cookieKey: "",
+      options: { preloadSeeds: [{ url: DEP, nonce: null }] },
+      sandboxOutbound: {
+        external: false,
+        parent: () => fetcher,
+        loaded: () => fetcher,
+        session: () => (request) => fetcher.fetch(request.url),
+        final: async () => new Response(null, { status: 404 }),
+      },
+    });
+    expect(depRequests).toBe(2);
+    expect(additionalModules[DEP]).toBe("export default 1;");
+  });
+});
+
+describe("walkModuleGraph oversized dynamic modules", () => {
+  const PAGE = "https://example.com/page.html";
+  const huge = `export default ${JSON.stringify("x".repeat(5 * 1024 * 1024))};`;
+  const walk = (descriptors: ParentScriptDescriptor[]) =>
+    walkModuleGraph({
+      descriptors,
+      pageUrl: PAGE,
+      connectionId: "conn",
+      mainFrameId: "",
+      mainLoaderId: "",
+      extraHeaders: {},
+      cookieKey: "",
+      options: {},
+      sandboxOutbound: stubOutbound({ "https://example.com/huge.js": huge }),
+    });
+
+  it("does not bake a dynamic-only module past the per-module ceiling", async () => {
+    const { additionalModules } = await walk([
+      moduleInline(`import("/huge.js").then(go); import "/small.js";`),
+    ]);
+    const baked = Object.keys(additionalModules);
+    expect(baked).toContain("https://example.com/small.js");
+    expect(baked).not.toContain("https://example.com/huge.js");
+  });
+
+  it("does not bake a classic script's oversized import() target", async () => {
+    const { descriptors, additionalModules } = await walk([
+      classicExternal("/static/app.js", `import("/huge.js").then(go);`),
+    ]);
+    expect(Object.keys(additionalModules)).not.toContain("https://example.com/huge.js");
+    const classic = descriptors.find((d) => d.kind === "classic");
+    expect(classic?.prefetchedSource).toBe(
+      `__ks_import("https://example.com/huge.js", "https://example.com/static/app.js").then(go);`,
+    );
+  });
+
+  it("still bakes the same module when it is imported statically", async () => {
+    const { additionalModules } = await walk([moduleInline(`import "/huge.js";`)]);
+    expect(Object.keys(additionalModules)).toContain("https://example.com/huge.js");
+  });
+});
+
+describe("registry entries the document names", () => {
+  it("strips vite and webpack content hashes from chunk names", () => {
+    expect(chunkBaseName("https://h.test/build/ModelList-B41z-uz2.js")).toBe("ModelList");
+    expect(chunkBaseName("https://h.test/build/index-client-BK7Bwd96.js")).toBe("index-client");
+    expect(chunkBaseName("https://h.test/static/js/settings.3f2a9c1e.js")).toBe("settings");
+    expect(chunkBaseName("https://h.test/js/chunk-vendors.js")).toBe("chunk-vendors");
+    expect(chunkBaseName("https://h.test/js/a-1b2c3d4e.js")).toBeNull();
+  });
+
+  it("strips digit-less vite hashes and webpack's .chunk suffix, not words", () => {
+    expect(chunkBaseName("https://h.test/build/ModelList-DzKqWvXa.js")).toBe("ModelList");
+    expect(chunkBaseName("https://h.test/build/ModelList-Bxz_uzQa.js")).toBe("ModelList");
+    expect(chunkBaseName("https://h.test/static/js/settings.3f2a9c1e.chunk.js")).toBe("settings");
+    expect(chunkBaseName("https://h.test/js/header-dropdown.js")).toBe("header-dropdown");
+    expect(chunkBaseName("https://h.test/js/ModelList-Settings.js")).toBe("ModelList-Settings");
+  });
+
+  it("tokenizes markup into whole case-sensitive names", () => {
+    const tokens = documentTokens(`<div data-target="ModelList"></div><p>modellist rows</p>`);
+    expect(tokens.has("ModelList")).toBe(true);
+    expect(tokens.has("Model")).toBe(false);
+  });
+
+  it("does not tokenize a document past the size guard", () => {
+    const big = `<div data-target="ModelList"></div>${" ".repeat(4 * 1024 * 1024)}`;
+    expect(documentTokens(big).size).toBe(0);
+  });
+
+  it("bakes the named entry of a registry past the deadline", async () => {
+    const PAGE = "https://h.test/models";
+    const names = [
+      "Admin",
+      "Billing",
+      "Charts",
+      "Datasets",
+      "Emojis",
+      "Feeds",
+      "Gallery",
+      "Inbox",
+      "Jobs",
+      "ModelList",
+    ];
+    const registry = names
+      .map((n, i) => `case "${n}": return import("./${n}-Ab12Cd3${i}.js");`)
+      .join("\n");
+    const out = stubOutbound(
+      {
+        "https://h.test/build/index.js": `export function load(n) { switch (n) {\n${registry}\n} }`,
+      },
+      { "https://h.test/build/index.js": 1_100 },
+    );
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [classicExternal("/boot.js", `import("/build/index.js");`)],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      mainFrameId: "",
+      mainLoaderId: "",
+      extraHeaders: {},
+      cookieKey: "",
+      options: { documentHtml: `<section data-target="ModelList"></section>` },
+      sandboxOutbound: out,
+    });
+    const baked = Object.keys(additionalModules).map((u) => u.split("/").pop());
+    expect(baked).toContain("ModelList-Ab12Cd39.js");
+    expect(baked.filter((f) => f !== "index.js" && f !== "ModelList-Ab12Cd39.js")).toEqual([]);
+  });
+});
+
+describe("walkModuleGraph import maps in document order", () => {
+  const PAGE = "https://example.com/page.html";
+  const at = (d: ParentScriptDescriptor, scriptDomIndex: number) => ({ ...d, scriptDomIndex });
+  const walk = (
+    descriptors: ParentScriptDescriptor[],
+    importMaps: { source: string; baseUrl: string; scriptDomIndex: number }[],
+    bodies: Record<string, string> = {},
+  ) =>
+    walkModuleGraph({
+      descriptors,
+      pageUrl: PAGE,
+      connectionId: "conn",
+      mainFrameId: "",
+      mainLoaderId: "",
+      extraHeaders: {},
+      cookieKey: "",
+      options: { importMaps },
+      sandboxOutbound: stubOutbound(bodies),
+    });
+
+  it("does not let a map below a script redirect what that script already resolved", async () => {
+    const { descriptors, additionalModules, importMapModuleSource } = await walk(
+      [
+        at({ src: null, kind: "classic", defer: false, async: false, body: `import("/a.js");` }, 0),
+        at(moduleInline(`import "/early.js";`), 2),
+        at(moduleInline(`import "/a.js"; import "late"; import "/early.js";`), 4),
+      ],
+      [
+        {
+          source: JSON.stringify({ imports: { "/a.js": "/b.js", late: "/late.js" } }),
+          baseUrl: PAGE,
+          scriptDomIndex: 1,
+        },
+        {
+          source: JSON.stringify({ imports: { "/early.js": "/redirected.js" } }),
+          baseUrl: PAGE,
+          scriptDomIndex: 3,
+        },
+      ],
+    );
+    const classic = descriptors.find((d) => d.kind === "classic");
+    expect(classic?.body).toBe(`import("https://example.com/a.js");`);
+    const baked = Object.keys(additionalModules);
+    expect(baked).toContain("https://example.com/a.js");
+    expect(baked).toContain("https://example.com/early.js");
+    expect(baked).toContain("https://example.com/late.js");
+    expect(baked).not.toContain("https://example.com/b.js");
+    expect(baked).not.toContain("https://example.com/redirected.js");
+    const later = additionalModules["https://example.com/__kitesurf_inline_1.js"];
+    expect(later).toBe(`import "/a.js"; import "https://example.com/late.js"; import "/early.js";`);
+    expect(importMapModuleSource).toContain(`["late","https://example.com/late.js"]`);
+    expect(importMapModuleSource).not.toContain("b.js");
+    expect(importMapModuleSource).not.toContain("redirected.js");
+  });
+
+  it("resolves an external module entry's imports against the final map", async () => {
+    const { additionalModules } = await walk(
+      [at({ src: "/entry.js", kind: "module", defer: false, async: false, body: "" }, 0)],
+      [
+        {
+          source: JSON.stringify({ imports: { "/dep.js": "/dep-mapped.js" } }),
+          baseUrl: PAGE,
+          scriptDomIndex: 1,
+        },
+      ],
+      { "https://example.com/entry.js": `import "/dep.js";` },
+    );
+    const baked = Object.keys(additionalModules);
+    expect(baked).toContain("https://example.com/dep-mapped.js");
+    expect(baked).not.toContain("https://example.com/dep.js");
+    expect(additionalModules["https://example.com/entry.js"]).toBe(
+      `import "https://example.com/dep-mapped.js";`,
+    );
+  });
+});
+
+describe("import maps", () => {
+  const map = parseImportMaps(
+    [
+      JSON.stringify({
+        imports: {
+          react: "/vendor/react.js?dev",
+          docs: "/docs/",
+          "pkg/": "/vendor/pkg/",
+        },
+        scopes: {
+          "/admin/": { react: "/vendor/react-admin.js" },
+        },
+      }),
+    ],
+    "https://example.com/app/",
+  );
+
+  it("resolves exact and prefix bare specifiers", () => {
+    expect(resolveImportMapSpecifier("react", "https://example.com/app/main.js", map)).toBe(
+      "https://example.com/vendor/react.js?dev",
+    );
+    expect(resolveImportMapSpecifier("docs", "https://example.com/app/main.js", map)).toBe(
+      "https://example.com/docs/",
+    );
+    expect(resolveImportMapSpecifier("pkg/utils.js", "https://example.com/app/main.js", map)).toBe(
+      "https://example.com/vendor/pkg/utils.js",
+    );
+  });
+
+  it("prefers the longest matching scope", () => {
+    expect(resolveImportMapSpecifier("react", "https://example.com/admin/main.js", map)).toBe(
+      "https://example.com/vendor/react-admin.js",
+    );
+  });
+
+  it("leaves unmapped bare specifiers unresolved", () => {
+    expect(resolveImportMapSpecifier("missing", "https://example.com/app/main.js", map)).toBeNull();
+  });
+
+  it("blocks null mappings and prefix backtracking", () => {
+    const blocked = parseImportMaps(
+      [JSON.stringify({ imports: { blocked: null, "safe/": "/vendor/safe/" } })],
+      "https://example.com/",
+    );
+    expect(resolveImportMapSpecifier("blocked", "https://example.com/main.js", blocked)).toBeNull();
+    expect(
+      resolveImportMapSpecifier("safe/../secret.js", "https://example.com/main.js", blocked),
+    ).toBeNull();
+  });
+
+  it("nulls addresses that are neither absolute nor /, ./, ../ prefixed", () => {
+    const parsed = parseImportMap(
+      JSON.stringify({
+        imports: {
+          foo1: "bar",
+          foo2: "\\bar",
+          foo3: "~bar",
+          foo4: "#bar",
+          foo5: "?bar",
+          dotSlash1: "%2E/",
+          dotDotSlash1: "%2E%2E/",
+          slash2: "%2F",
+        },
+      }),
+      "https://base.example/path1/path2/path3",
+    );
+    expect(parsed).not.toBeNull();
+    expect([...parsed!.imports.values()]).toEqual([null, null, null, null, null, null, null, null]);
+  });
+
+  it("keeps unparseable absolute URL specifier keys as bare keys", () => {
+    const parsed = parseImportMap(
+      JSON.stringify({
+        imports: {
+          "https://example.com:demo": "/unparseable2",
+          "http://[www.example.com]/": "/unparseable3/",
+        },
+      }),
+      "https://base.example/path1/path2/path3",
+    );
+    expect([...parsed!.imports]).toEqual([
+      ["https://example.com:demo", "https://base.example/unparseable2"],
+      ["http://[www.example.com]/", "https://base.example/unparseable3/"],
+    ]);
+  });
+
+  it("resolves /, ./ and ../ addresses against the map's base and keeps absolute ones", () => {
+    const parsed = parseImportMap(
+      JSON.stringify({
+        imports: {
+          dotSlash: "./foo",
+          dotDotSlash: "../foo",
+          slash: "/foo",
+          absolute: "https://cdn.example/x.js",
+          scheme: "data:text/javascript,export default 1",
+        },
+      }),
+      "https://base.example/path1/path2/path3",
+    );
+    expect([...parsed!.imports]).toEqual([
+      ["dotSlash", "https://base.example/path1/path2/foo"],
+      ["dotDotSlash", "https://base.example/path1/foo"],
+      ["slash", "https://base.example/foo"],
+      ["absolute", "https://cdn.example/x.js"],
+      ["scheme", "data:text/javascript,export default 1"],
+    ]);
+  });
+
+  it("rejects a map whose imports or scopes are not objects", () => {
+    expect(parseImportMap(`{"imports": []}`, "https://example.com/")).toBeNull();
+    expect(parseImportMap(`{"scopes": "x"}`, "https://example.com/")).toBeNull();
+    expect(parseImportMap(`{"scopes": {"/a/": 1}}`, "https://example.com/")).toBeNull();
+    expect(parseImportMap(`Parse Error`, "https://example.com/")).toBeNull();
+    expect(parseImportMap(`{}`, "https://example.com/")).toEqual({
+      imports: new Map(),
+      scopes: new Map(),
+    });
+  });
+
+  it("matches a scope exactly unless it ends with a slash", () => {
+    const exact = parseImportMaps(
+      [JSON.stringify({ scopes: { "/js": { moment: "/exact/moment" } } })],
+      "https://example.com/app/index.html",
+    );
+    expect(resolveImportMapSpecifier("moment", "https://example.com/js", exact)).toBe(
+      "https://example.com/exact/moment",
+    );
+    expect(resolveImportMapSpecifier("moment", "https://example.com/js/", exact)).toBeNull();
+    expect(resolveImportMapSpecifier("moment", "https://example.com/js/app.mjs", exact)).toBeNull();
+    expect(resolveImportMapSpecifier("moment", "https://example.com/jsiscool", exact)).toBeNull();
+    const prefix = parseImportMaps(
+      [JSON.stringify({ scopes: { "/js/": { moment: "/any/moment" } } })],
+      "https://example.com/app/index.html",
+    );
+    expect(resolveImportMapSpecifier("moment", "https://example.com/js", prefix)).toBeNull();
+    expect(resolveImportMapSpecifier("moment", "https://example.com/js/app.mjs", prefix)).toBe(
+      "https://example.com/any/moment",
+    );
+  });
+
+  it("drops incoming rules for already-resolved pairs and keeps the rest", () => {
+    const referrer = "https://example.com/app/main.js";
+    const target: ParsedImportMap = { imports: new Map(), scopes: new Map() };
+    const resolved = [
+      resolvedModuleRecord("./log.js?name=A", referrer),
+      resolvedModuleRecord("lodash", referrer),
+      resolvedModuleRecord("pkg/util.js", referrer),
+    ];
+    const incoming = parseImportMap(
+      JSON.stringify({
+        imports: {
+          "./log.js?name=A": "./log.js?name=B",
+          "./log.js?name=C": "./log.js?name=D",
+          lodash: "/vendor/lodash.js",
+          "pkg/": "/vendor/pkg/",
+          "other/": "/vendor/other/",
+        },
+        scopes: {
+          "/app/": { lodash: "/vendor/lodash-app.js", react: "/vendor/react.js" },
+          "/elsewhere/": { lodash: "/vendor/lodash-elsewhere.js" },
+        },
+      }),
+      "https://example.com/app/",
+    )!;
+    mergeImportMap(target, incoming, resolved);
+    expect([...target.imports.keys()]).toEqual(["https://example.com/app/log.js?name=C", "other/"]);
+    expect([...target.scopes.get("https://example.com/app/")!.keys()]).toEqual(["react"]);
+    expect([...target.scopes.get("https://example.com/elsewhere/")!.keys()]).toEqual(["lodash"]);
+    expect(resolveImportMapSpecifier("./log.js?name=A", referrer, target)).toBe(
+      "https://example.com/app/log.js?name=A",
+    );
+    expect(resolveImportMapSpecifier("lodash", referrer, target)).toBeNull();
+  });
+
+  it("refreshes scope order after a map merge", () => {
+    const target = parseImportMaps(
+      [JSON.stringify({ scopes: { "/app/": { react: "/vendor/react.js" } } })],
+      "https://example.com/",
+    );
+    expect(
+      resolveImportMapSpecifier("react", "https://example.com/app/admin/main.js", target),
+    ).toBe("https://example.com/vendor/react.js");
+
+    const incoming = parseImportMap(
+      JSON.stringify({ scopes: { "/app/admin/": { react: "/vendor/react-admin.js" } } }),
+      "https://example.com/",
+    )!;
+    mergeImportMap(target, incoming);
+    expect(
+      resolveImportMapSpecifier("react", "https://example.com/app/admin/main.js", target),
+    ).toBe("https://example.com/vendor/react-admin.js");
+
+    const source = importMapModuleSource(target);
+    const runtime = new Function(
+      `${source.replaceAll("export function", "function")}\nreturn { resolveImportMap };`,
+    )() as { resolveImportMap(specifier: string, importer: string): string };
+    expect(runtime.resolveImportMap("react", "https://example.com/app/admin/main.js")).toBe(
+      "https://example.com/vendor/react-admin.js",
+    );
+  });
+
+  it("does not let a prefix rule claim a recorded non-special URL", () => {
+    const referrer = "https://example.com/app/main.js";
+    const target: ParsedImportMap = { imports: new Map(), scopes: new Map() };
+    const resolved = [resolvedModuleRecord("data:text/javascript,1", referrer)];
+    const incoming = parseImportMap(
+      JSON.stringify({ imports: { "data:text/": "/vendor/" } }),
+      "https://example.com/app/",
+    )!;
+    mergeImportMap(target, incoming, resolved);
+    expect(target.imports.has("data:text/")).toBe(true);
+    expect(resolveImportMapSpecifier("data:text/javascript,1", referrer, target)).toBe(
+      "data:text/javascript,1",
+    );
+  });
+
+  it("keeps the generated runtime resolver in step with the bake-time one", () => {
+    const table = parseImportMaps(
+      [
+        JSON.stringify({
+          imports: {
+            react: "/vendor/react.js?dev",
+            "pkg/": "/vendor/pkg/",
+            blocked: null,
+            "./legacy.js": "./modern.js",
+            "https://cdn.example/old/": "https://cdn.example/new/",
+          },
+          scopes: {
+            "/admin/": { react: "/vendor/react-admin.js" },
+            "/js": { react: "/vendor/react-exact.js" },
+          },
+        }),
+      ],
+      "https://example.com/app/",
+    );
+    const source = importMapModuleSource(
+      table,
+      new Map([
+        [
+          "https://example.com/vendor/react.js?dev",
+          "https://example.com/vendor/react.__ks_query_0.js",
+        ],
+      ]),
+    );
+    const runtime = new Function(
+      `${source.replaceAll("export function", "function")}\nreturn { resolveImportMap, resolveModuleRegistryUrl };`,
+    )() as {
+      resolveImportMap(specifier: string, importer: string): string;
+      resolveModuleRegistryUrl(url: string): string;
+    };
+    const cases: [string, string][] = [
+      ["react", "https://example.com/app/main.js"],
+      ["react", "https://example.com/admin/main.js"],
+      ["react", "https://example.com/js"],
+      ["react", "https://example.com/js/app.js"],
+      ["pkg/a/b.js", "https://example.com/app/main.js"],
+      ["pkg/../x.js", "https://example.com/app/main.js"],
+      ["blocked", "https://example.com/app/main.js"],
+      ["missing", "https://example.com/app/main.js"],
+      ["./legacy.js", "https://example.com/app/main.js"],
+      ["../app/legacy.js", "https://example.com/app/sub/main.js"],
+      ["./other.js", "https://example.com/app/main.js"],
+      ["https://cdn.example/old/lib.js", "https://example.com/app/main.js"],
+      ["data:text/javascript,1", "https://example.com/app/main.js"],
+      ["pkg/", "https://example.com/app/main.js"],
+    ];
+    for (const [specifier, importer] of cases) {
+      const bakeTime = resolveImportMapSpecifier(specifier, importer, table);
+      let runtimeAnswer: string | null;
+      try {
+        runtimeAnswer = runtime.resolveImportMap(specifier, importer);
+      } catch (e) {
+        expect(e).toBeInstanceOf(TypeError);
+        runtimeAnswer = null;
+      }
+      expect(runtimeAnswer, `${specifier} from ${importer}`).toBe(bakeTime);
+    }
+    expect(runtime.resolveModuleRegistryUrl("https://example.com/vendor/react.js?dev")).toBe(
+      "https://example.com/vendor/react.__ks_query_0.js",
+    );
+  });
+
+  it("uses mappings for classic literal dynamic imports", () => {
+    const result = extractClassicDynamicSeeds(`import("react")`, BASE, (specifier, importer) =>
+      resolveImportMapSpecifier(specifier, importer, map),
+    );
+    expect(result.seeds).toEqual(["https://example.com/vendor/react.js?dev"]);
+    expect(result.rewritten).toBe(`import("https://example.com/vendor/react.js?dev")`);
+  });
+
+  it("routes import.meta.resolve through the document import map", () => {
+    expect(
+      rewriteImportMetaResolve(`import.meta.resolve("react")`, "https://example.com/app.js"),
+    ).toBe(
+      `((specifier) => globalThis.__ks_resolve_import_map(specifier, "https://example.com/app.js"))("react")`,
+    );
+  });
+
+  it("rewrites only import.meta.resolve syntax inside computed imports", () => {
+    expect(
+      rewriteImportMetaResolve(
+        `new URL("import.meta.resolve", import.meta.url) + import.meta ["resolve"]("react")`,
+        "https://example.com/app.js",
+      ),
+    ).toBe(
+      `new URL("import.meta.resolve", import.meta.url) + ((specifier) => globalThis.__ks_resolve_import_map(specifier, "https://example.com/app.js"))("react")`,
+    );
+  });
+
+  it("rewrites other import.meta uses to one synthetic binding", () => {
+    expect(
+      rewriteImportMetaResolve(
+        `new URL("./x.js", import.meta.url) + (import.meta === import.meta) + import.meta.resolve("pkg")`,
+        "https://example.com/app.js",
+        "__ks_import_meta",
+      ),
+    ).toBe(
+      `new URL("./x.js", __ks_import_meta.url) + (__ks_import_meta === __ks_import_meta) + __ks_import_meta.resolve("pkg")`,
+    );
+  });
+
+  it("gives query-distinct modules unique workerd registry names", () => {
+    const first = "https://example.com/log.js?name=first";
+    const second = "https://example.com/log.js?name=second";
+    const names = assignModuleRegistryNames([first, second]);
+    expect(names.get(first)).toBe("https://example.com/log.__ks_query_0.js");
+    expect(names.get(second)).toBe("https://example.com/log.__ks_query_1.js");
+  });
+
+  it("accepts a single-use iterable when assigning registry names", () => {
+    function* urls() {
+      yield "https://example.com/log.js?first";
+      yield "https://example.com/log.js?second";
+    }
+    expect(assignModuleRegistryNames(urls()).size).toBe(2);
+  });
+});

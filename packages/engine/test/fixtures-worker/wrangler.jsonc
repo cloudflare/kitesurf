@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kitesurf-fixtures",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-11",
+  "rules": [
+    {
+      "type": "Text",
+      "globs": [
+        "*/assets/*.html",
+        "*/assets/*.css",
+        "*/assets/*.svg",
+        "*/assets/*.js",
+        "*/assets/*.mjs",
+        "*/assets/*.txt",
+        "*/assets/*.json",
+      ],
+    },
+    {
+      "type": "Data",
+      "globs": ["*/assets/*.woff2", "*/assets/*.png", "*/assets/*.wasm", "*/assets/*.bin"],
+    },
+  ],
+  "env": {
+    "local": { "name": "kitesurf-fixtures" },
+  },
+}

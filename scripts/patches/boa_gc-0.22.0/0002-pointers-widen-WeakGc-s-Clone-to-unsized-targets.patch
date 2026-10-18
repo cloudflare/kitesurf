@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 13 Aug 2026 18:54:43 +0100
+Subject: [PATCH] pointers: widen WeakGc's Clone to unsized targets
+
+Ephemeron<K: ?Sized, V> already implements Clone, so WeakGc<T>'s
+T: Sized bound was needlessly tight. WeakGc<ErasedVTableObject> (the
+erased-object weak handle boa_engine now exposes as WeakJsObject)
+needs the unsized clone.
+---
+ src/pointers/weak.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/pointers/weak.rs b/src/pointers/weak.rs
+index 4cd38a8..990c712 100644
+--- a/src/pointers/weak.rs
++++ b/src/pointers/weak.rs
+@@ -42,7 +42,7 @@ impl<T: Trace + ?Sized> WeakGc<T> {
+     }
+ }
+
+-impl<T: Trace> Clone for WeakGc<T> {
++impl<T: Trace + ?Sized> Clone for WeakGc<T> {
+     fn clone(&self) -> Self {
+         Self {
+             inner: self.inner.clone(),

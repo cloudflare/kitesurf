@@ -1,0 +1,23 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html><head><meta charset="utf-8"><title>iframe-reinsert</title></head>
+<body style="margin:0">
+<iframe id="f" src="/__fixtures/iframe-churn-child.html?seed=1" width="300" height="200" style="border:0"></iframe>
+<script>
+window.__phase = "initial";
+window.__reinsert = function () {
+  var f = document.getElementById("f");
+  var parent = f.parentNode;
+  f.remove();
+  window.__phase = "removed";
+  parent.appendChild(f);
+  window.__phase = "reinserted";
+  return window.__phase;
+};
+</script>
+</body></html>

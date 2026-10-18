@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Tue, 1 Sep 2026 19:54:53 +0100
+Subject: [PATCH] Align table tracks to their final paint origin
+
+Collapsed borders can retain a sub-cell inset that layout cannot round
+away without making padding negative. Subtract that final inset so table
+rules end on the snapped cell edge.
+---
+ src/resolve.rs | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/src/resolve.rs b/src/resolve.rs
+index b2b7dfb..7fce7b6 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -36,7 +36,8 @@ use crate::{
+
+ fn snap_table_tracks(
+     tracks: &mut taffy::DetailedGridTracksInfo<style::Atom>,
+-    origin: f32,
++    raw_origin: f32,
++    paint_origin: f32,
+     step: f32,
+ ) {
+     if step <= 1.0 || tracks.positions.is_empty() {
+@@ -44,10 +45,9 @@ fn snap_table_tracks(
+     }
+
+     let snap = |value: f32| (value / step).round() * step;
+-    let snapped_origin = snap(origin);
+     for position in &mut tracks.positions {
+-        position.start = snap(origin + position.start, step) - snapped_origin;
+-        position.end = snap(origin + position.end, step) - snapped_origin;
++        position.start = snap(raw_origin + position.start) - paint_origin;
++        position.end = snap(raw_origin + position.end) - paint_origin;
+     }
+ }
+
+@@ -797,11 +797,13 @@ impl BaseDocument {
+                 snap_table_tracks(
+                     &mut grid_info.columns,
+                     table_x,
++                    (table_x / grid_x).round() * grid_x,
+                     grid_x,
+                 );
+                 snap_table_tracks(
+                     &mut grid_info.rows,
+                     table_y,
++                    (table_y / grid_y).round() * grid_y,
+                     grid_y,
+                 );
+                 *table.paint_grid_info.borrow_mut() = Some(grid_info);

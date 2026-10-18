@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 17 Sep 2026 20:18:20 +0100
+Subject: [PATCH] memory: support embedder-managed node reclamation
+
+Detach replaced nodes so embedders can preserve live wrappers, then
+report every recursively dropped node, including attached shadow trees,
+when reclamation is safe.
+---
+ src/document.rs |  2 +-
+ src/mutator.rs  | 10 ++++++++--
+ 2 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 77c2629..e1e8037 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1204,7 +1204,7 @@ impl BaseDocument {
+             // Shadow trees hang off ElementData::shadow_root rather than
+             // children, so drop them explicitly or their slots leak.
+             if let Some(shadow_root_id) = node.attached_shadow_root_id() {
+-                self.drop_node_ignoring_parent(shadow_root_id);
++                self.drop_node_ignoring_parent_with(shadow_root_id, on_drop);
+             }
+
+             if node.is_shadow_root() {
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 02a995f..0233a22 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1163,7 +1163,13 @@ impl<'doc> DocumentMutator<'doc> {
+     }
+
+     pub fn set_inner_html(&mut self, node_id: NodeId, html: &str) {
+-        self.remove_and_drop_all_children(node_id);
++        // The embedder may still hold wrappers for replaced children. Detach
++        // them here; the DOM shim drops only subtrees it can prove are
++        // unwrapped after this operation returns.
++        let old_children = self.doc.nodes[node_id].children.clone();
++        for child_id in old_children {
++            self.remove_node(child_id);
++        }
+
+         // html5ever's fragment parser needs an element context (its
+         // elem_name callback panics otherwise). Shadow roots parse
+@@ -1823,7 +1829,7 @@ impl<'doc> DocumentMutator<'doc> {
+         match (existing_label, normalized) {
+             (Some(text_id), Some(s)) => self.set_node_text(text_id, s),
+             (Some(text_id), None) => {
+-                self.remove_and_drop_node(text_id);
++                self.remove_node(text_id);
+             }
+             (None, Some(s)) => {
+                 let text_id = self.create_text_node(s);

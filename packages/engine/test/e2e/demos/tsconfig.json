@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.json",
+  // The demos started as untyped .mjs scripts and lean on implicit any
+  // and unchecked nulls throughout; strict here is a separate migration.
+  "compilerOptions": {
+    "strict": false
+  },
+  "include": [
+    "*.ts",
+    "../html-raw.ts",
+    "../css-raw.ts",
+    "../cloudflare-env.ts",
+    "../../../src/cdp/protocol-extensions.ts"
+  ],
+  "exclude": []
+}

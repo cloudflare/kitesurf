@@ -1,0 +1,158 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  span { color: rgb(7, 8, 9); }
+</style>
+<div id="host"><p id="light" style="height: 500px;">unslotted light content</p></div>
+<span id="lightspan">light span</span>
+<div id="closed-host"></div>
+<script>
+  // Incremental recording: a throw keeps everything computed so
+  // far, plus the error itself, visible to the e2e assertions.
+  const out = {};
+  globalThis.__ks_shadow = out;
+  try {
+    const host = document.getElementById("host");
+    const root = host.attachShadow({ mode: "open" });
+    root.innerHTML = '<style>span { color: rgb(4, 5, 6); } .box { width: 120px; height: 40px; background: rgb(10, 20, 30); }</style>' +
+      '<span id="shadowspan">shadow span</span><div class="box"></div>';
+
+    const closed = document.getElementById("closed-host").attachShadow({ mode: "closed" });
+    closed.innerHTML = "<span>closed content</span>";
+
+    out.isShadowRoot = root instanceof ShadowRoot;
+    out.hostLink = root.host === host;
+    out.shadowRootProp = host.shadowRoot === root;
+    out.closedHidden = document.getElementById("closed-host").shadowRoot === null;
+    out.closedRootUsable = closed.querySelector("span") !== null;
+    out.reattachThrows = (() => {
+      try { host.attachShadow({ mode: "open" }); return false; }
+      catch (e) { return e.name === "NotSupportedError"; }
+    })();
+    out.queryHidden = document.querySelector("#shadowspan") === null;
+    out.queryInside = root.querySelector("#shadowspan") !== null;
+    const sspan = root.querySelector("#shadowspan");
+    out.rootNode = !!sspan && sspan.getRootNode() === root;
+    out.composedRoot = !!sspan && sspan.getRootNode({ composed: true }) === document;
+    out.serializationHidden = !host.outerHTML.includes("shadowspan");
+
+    // Slots: named + default distribution, fallback, APIs, slotchange.
+    const sh = document.createElement("x-card");
+    sh.innerHTML = '<span slot="title">TITLE</span><b>BODY</b>';
+    document.body.appendChild(sh);
+    const sroot = sh.attachShadow({ mode: "open" });
+    sroot.innerHTML = '<header><slot name="title"></slot></header>' +
+      '<main><slot><i>fallback</i></slot></main>' +
+      '<footer><slot name="empty"><em id="fb">fb-shown</em></slot></footer>';
+    const titleSlot = sroot.querySelector('slot[name="title"]');
+    const mainSlot = sroot.querySelector("main slot");
+    out.slotNamed = titleSlot.assignedNodes().length === 1 &&
+      titleSlot.assignedNodes()[0] === sh.querySelector("span");
+    out.slotDefault = mainSlot.assignedElements().length === 1 &&
+      mainSlot.assignedElements()[0] === sh.querySelector("b");
+    out.slotBack = sh.querySelector("b").assignedSlot === mainSlot;
+    out.slotEmptyFallback = sroot.querySelector('slot[name="empty"]').assignedNodes().length === 0;
+
+    out.slotchangeCount = 0;
+    mainSlot.addEventListener("slotchange", () => { out.slotchangeCount++; });
+    const late = document.createElement("u");
+    late.textContent = "LATE";
+    sh.appendChild(late);
+
+    // M3 retargeting: insiders see the real node, outsiders the host.
+    const rHost = document.createElement("div");
+    document.body.appendChild(rHost);
+    const rRoot = rHost.attachShadow({ mode: "open" });
+    rRoot.innerHTML = '<button id="btn">B</button>';
+    const btn = rRoot.querySelector("#btn");
+    let insideTarget = null, hostTarget = null, docTarget = null, docPathHasBtn = null;
+    btn.addEventListener("click", (e) => { insideTarget = e.target; });
+    rHost.addEventListener("click", (e) => { hostTarget = e.target; });
+    const docClick = (e) => { docTarget = e.target; docPathHasBtn = e.composedPath().indexOf(btn) >= 0; };
+    document.addEventListener("click", docClick);
+    btn.click();
+    document.removeEventListener("click", docClick);
+    out.retargetInside = insideTarget === btn;
+    out.retargetHost = hostTarget === rHost;
+    out.retargetDoc = docTarget === rHost;
+    out.openPathVisible = docPathHasBtn === true;
+
+    // composed:false stays inside the tree (root listener still fires).
+    let escaped = false, rootSaw = false;
+    document.addEventListener("marco", () => { escaped = true; });
+    rRoot.addEventListener("marco", () => { rootSaw = true; });
+    btn.dispatchEvent(new Event("marco", { bubbles: true }));
+    out.composedFalseContained = rootSaw && !escaped;
+
+    // Closed tree: outsiders get the host AND a path scrubbed of it.
+    const cHost = document.createElement("div");
+    document.body.appendChild(cHost);
+    const cRoot = cHost.attachShadow({ mode: "closed" });
+    cRoot.innerHTML = '<span id="cs">C</span>';
+    const cs = cRoot.querySelector("#cs");
+    let closedDocTarget = null, closedPathHidden = null;
+    const docClick2 = (e) => { closedDocTarget = e.target; closedPathHidden = e.composedPath().indexOf(cs) < 0; };
+    document.addEventListener("click", docClick2);
+    cs.click();
+    document.removeEventListener("click", docClick2);
+    out.closedRetarget = closedDocTarget === cHost;
+    out.closedPathHidden = closedPathHidden === true;
+
+    // Slotted content: the path threads the slot, target stays real.
+    const sHost2 = document.createElement("div");
+    document.body.appendChild(sHost2);
+    const sRoot2 = sHost2.attachShadow({ mode: "open" });
+    sRoot2.innerHTML = "<slot></slot>";
+    const lightB = document.createElement("b");
+    lightB.textContent = "L";
+    sHost2.appendChild(lightB);
+    let slotSaw = false, slottedTarget = null;
+    sRoot2.querySelector("slot").addEventListener("click", (e) => { slotSaw = true; slottedTarget = e.target; });
+    lightB.click();
+    out.slottedPathThroughSlot = slotSaw;
+    out.slottedNotRetargetedInside = slottedTarget === lightB;
+
+    // Lit-essence probe: template.innerHTML with a data-carrying
+    // marker comment, importNode deep clone, TreeWalker(129) marker
+    // discovery, then a marker-anchored insertBefore commit — the
+    // exact chain lit-html's prepare/commit uses for ChildParts.
+    const lt = document.createElement("template");
+    lt.innerHTML = "<p>before<!--?lit$999$--></p>";
+    const tc = lt.content;
+    out.litTplChild = !!(tc && tc.childNodes.length === 1 && tc.childNodes[0].localName === "p");
+    const tplComment = tc && tc.childNodes[0] && tc.childNodes[0].childNodes[1];
+    out.litTplMarkerData = tplComment ? String(tplComment.data) : "(missing)";
+    const lfrag = document.importNode(tc, true);
+    out.litCloneKids = lfrag ? lfrag.childNodes.length : -1;
+    const walker = document.createTreeWalker(lfrag, 129);
+    const seen = [];
+    let wn;
+    while ((wn = walker.nextNode())) {
+      seen.push(wn.nodeType === 8 ? "c:" + wn.data : "e:" + (wn.localName || "?"));
+    }
+    out.litWalk = seen.join("|");
+    const litHost = document.createElement("div");
+    document.body.appendChild(litHost);
+    const litRoot = litHost.attachShadow({ mode: "open" });
+    litRoot.appendChild(lfrag);
+    const marker = (() => {
+      const p = litRoot.querySelector("p");
+      if (!p) return null;
+      for (const n of Array.from(p.childNodes)) {
+        if (n.nodeType === 8) return n;
+      }
+      return null;
+    })();
+    out.litMarkerInRoot = marker ? String(marker.data) : "(missing)";
+    if (marker && marker.parentNode) {
+      marker.parentNode.insertBefore(document.createTextNode("COMMITTED"), marker);
+    }
+    out.litCommitted = String(litRoot.querySelector("p") && litRoot.querySelector("p").textContent);
+  } catch (e) {
+    out.error = String((e && e.stack) || e);
+  }
+</script>

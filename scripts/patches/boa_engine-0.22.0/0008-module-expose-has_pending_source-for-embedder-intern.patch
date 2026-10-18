@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 14 Aug 2026 15:05:25 +0100
+Subject: [PATCH] module: expose has_pending_source for embedder interner
+ hygiene
+
+An embedder that truncates the interner between parse batches must
+know when a registered module still holds its AST. Those ASTs hold
+post-checkpoint Syms and make truncation unsafe. 0.22 drops the AST
+itself once a module links, so the source is pending exactly in the
+Unlinked and Linking states.
+---
+ src/module/mod.rs    | 10 ++++++++++
+ src/module/source.rs |  9 +++++++++
+ 2 files changed, 19 insertions(+)
+
+diff --git a/src/module/mod.rs b/src/module/mod.rs
+index 6f13bb4..7187552 100644
+--- a/src/module/mod.rs
++++ b/src/module/mod.rs
+@@ -437,6 +437,16 @@ impl Module {
+         &self.inner.host_defined
+     }
+
++    /// Whether this module still retains its parsed AST, i.e. it has not yet
++    /// passed initialize_environment so embedders can tell when its interner is unused.
++    #[must_use]
++    pub fn has_pending_source(&self) -> bool {
++        match self.kind() {
++            ModuleKind::SourceText(src) => src.has_pending_source(),
++            ModuleKind::Synthetic(_) => false,
++        }
++    }
++
+     /// Gets the kind of this `Module`.
+     pub(crate) fn kind(&self) -> &ModuleKind {
+         &self.inner.kind
+diff --git a/src/module/source.rs b/src/module/source.rs
+index f19bdf1..aea2840 100644
+--- a/src/module/source.rs
++++ b/src/module/source.rs
+@@ -331,6 +331,15 @@ impl<'ast> boa_ast::visitor::Visitor<'ast> for ModuleRequestsVisitor<'_> {
+ }
+
+ impl SourceTextModule {
++    /// True while the parsed AST is still held (pre-link, or a failed link kept it
++    /// for retry): post-checkpoint Syms may be live, so the interner must not rewind.
++    pub(crate) fn has_pending_source(&self) -> bool {
++        matches!(
++            &*self.status.borrow(),
++            ModuleStatus::Unlinked { .. } | ModuleStatus::Linking { .. }
++        )
++    }
++
+     /// Creates a new `SourceTextModule` from a parsed `ModuleSource`.
+     ///
+     /// Contains part of the abstract operation [`ParseModule`][parse].

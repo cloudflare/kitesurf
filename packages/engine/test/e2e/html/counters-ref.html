@@ -1,0 +1,25 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  body { margin: 0; font: 16px monospace; }
+  #toc h3 { margin: 0; }
+  #nested ol, #nested li { list-style: none; }
+  #roman { list-style-type: upper-roman; }
+  #toc h3:nth-child(1)::before { content: "Ch 1: "; }
+  #toc h3:nth-child(2)::before { content: "Ch 2: "; }
+  #toc h3:nth-child(3)::before { content: "Ch 3: "; }
+  #nested > li:nth-child(1)::before { content: "1 "; }
+  #nested ol li:nth-child(1)::before { content: "1.1 "; }
+  #nested ol li:nth-child(2)::before { content: "1.2 "; }
+  #nested > li:nth-child(2)::before { content: "2 "; }
+  #attr::after { content: " [badge]"; }
+</style>
+<div id="toc"><h3>Intro</h3><h3>Body</h3><h3>End</h3></div>
+<ol id="nested"><li>a<ol><li>b</li><li>c</li></ol></li><li>d</li></ol>
+<ol id="roman" start="4"><li id="rv">four</li></ol>
+<ol><li value="3">three</li><li value="2">two</li><li value="1">one</li></ol>
+<div id="attr" data-tag="badge">label</div>

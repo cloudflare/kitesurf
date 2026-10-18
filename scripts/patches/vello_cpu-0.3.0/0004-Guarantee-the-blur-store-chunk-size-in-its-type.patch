@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 6 Oct 2026 08:40:13 +0100
+Subject: [PATCH] Guarantee the blur store chunk size in its type
+
+The subsampled painter already visits complete 64-byte chunks. Preserve
+that invariant as array references so the SIMD store needs no fallible
+slice conversion.
+---
+ src/fine/common/rounded_blurred_rect.rs | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/fine/common/rounded_blurred_rect.rs b/src/fine/common/rounded_blurred_rect.rs
+index b9eb0f3..b303f0b 100644
+--- a/src/fine/common/rounded_blurred_rect.rs
++++ b/src/fine/common/rounded_blurred_rect.rs
+@@ -104,7 +104,7 @@ impl<S: Simd> Iterator for BlurredRoundedRectFiller<S> {
+ impl<S: Simd> BlurredRoundedRectFiller<S> {
+     /// Store two four-row columns of alphas each, as premultiplied RGBA8.
+     #[inline(always)]
+-    fn store_columns(&self, first: f32x8<S>, second: f32x8<S>, chunk: &mut [u8]) {
++    fn store_columns(&self, first: f32x8<S>, second: f32x8<S>, chunk: &mut [u8; 64]) {
+         let simd = self.a.simd;
+         let (first, second) = if self.invert {
+             let one = f32x8::splat(simd, 1.0);
+@@ -116,7 +116,7 @@ impl<S: Simd> BlurredRoundedRectFiller<S> {
+         let g = u8x16::from_f32(simd, simd.combine_f32x8(self.g * first, self.g * second));
+         let b = u8x16::from_f32(simd, simd.combine_f32x8(self.b * first, self.b * second));
+         let a = u8x16::from_f32(simd, simd.combine_f32x8(self.a * first, self.a * second));
+-        simd.store_four_interleaved_u8x16([r, g, b, a], chunk.try_into().unwrap());
++        simd.store_four_interleaved_u8x16([r, g, b, a], chunk);
+     }
+
+     /// Evaluate one column in every `SUBSAMPLE_STRIDE` and interpolate the
+@@ -136,13 +136,13 @@ impl<S: Simd> BlurredRoundedRectFiller<S> {
+                 let quarter = f32x4::splat(simd, 0.25);
+                 let half = f32x4::splat(simd, 0.5);
+                 let three_quarters = f32x4::splat(simd, 0.75);
+-                for chunk in buf.chunks_exact_mut(64) {
++                let (chunks, _) = buf.as_chunks_mut::<64>();
++                for chunk in chunks {
+                     let right = match pending.take() {
+                         Some(right) => right,
+                         None => {
+-                            let (right, next) = simd.split_f32x8(
+-                                calc.columns(col + stride, col + 2.0 * stride),
+-                            );
++                            let (right, next) =
++                                simd.split_f32x8(calc.columns(col + stride, col + 2.0 * stride));
+                             pending = Some(next);
+                             right
+                         }

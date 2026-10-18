@@ -1,0 +1,47 @@
+sequenceDiagram
+    participant Site as Website
+    participant Page as PageScript isolate
+    participant Engine as Engine Worker CDP
+    participant CLI as Rust CLI
+    participant Wasm as Wasm rasterizer
+    participant TTY as Terminal
+
+    CLI->>Engine: HTTP GET /rbi/scene_host.json and scene_host.wasm
+    Engine-->>CLI: Versioned rasterizer code, no font files
+    CLI->>Engine: CDP WebSocket attach and set viewport
+    CLI->>Engine: Start scene stream, then navigate
+    Engine->>Site: Fetch document
+    Site-->>Engine: HTML response
+    Engine->>Page: Build DOM and run page JavaScript
+    Page->>Engine: Request subresources
+    Engine->>Site: Fetch styles, scripts, images
+    Site-->>Engine: Subresource responses
+    Engine-->>Page: Deliver resources
+    Note over Page,Engine: CSS sans-serif uses Kitesurf's built-in Noto Sans
+
+    loop Changed page, up to requested FPS and two unacked frames
+        Engine->>Page: recordScene
+        Page-->>Engine: Drawing commands and resource batch
+        Engine-->>CLI: Kitesurf.sceneFrame with base64 scene envelope
+        CLI->>Wasm: Ingest inline resources and check missing hashes
+        opt Missing image or font resource
+            CLI->>Engine: Kitesurf.getSceneResources
+            Engine-->>CLI: CDP resource batch with font asset path or font bytes
+            CLI->>Wasm: Ingest resource batch
+        end
+        opt Built-in Noto Sans asset needed
+            Wasm-->>CLI: Pending font asset /fonts/NotoSans.ttf
+            CLI->>Engine: HTTP GET /rbi/fonts/NotoSans.ttf
+            Engine-->>CLI: Noto Sans font file bytes
+            CLI->>Wasm: Register font bytes for pending asset
+        end
+        Note over Engine,Wasm: Author fonts from @font-face arrive as bytes in the CDP batch
+        CLI->>Wasm: Decode resources, replay scene, rasterize
+        Wasm-->>CLI: RGBA pixels or PNG / ANSI text
+        CLI->>TTY: Kitty image or selectable ANSI text
+        CLI->>Engine: Kitesurf.sceneFrameAck returns stream credit
+    end
+
+    TTY-->>CLI: Keyboard, mouse, resize
+    CLI->>Engine: CDP Input events and viewport updates
+    Engine->>Page: Deliver input and record the next scene

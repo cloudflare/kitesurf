@@ -1,0 +1,269 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>webmcp fixture</title></head>
+<body>
+<h1 id="title">WebMCP fixture</h1>
+<script>
+window.__ready = Promise.all([
+  document.modelContext.registerTool({
+    name: "echo",
+    title: "Echo",
+    description: "Echo the message back",
+    inputSchema: {
+      type: "object",
+      properties: { message: { type: "string" } },
+      required: ["message"],
+    },
+    annotations: { readOnlyHint: true },
+    execute: async (args, { signal }) => {
+      window.__executeSignalAborted = signal.aborted;
+      return {
+        content: [{ type: "text", text: "echo: " + args.message }],
+      };
+    },
+  }),
+  document.modelContext.registerTool({
+    name: "readTitle",
+    description: "Read the document heading",
+    execute: () => document.getElementById("title").textContent,
+  }),
+  document.modelContext.registerTool({
+    name: "boom",
+    description: "Always throws",
+    execute: () => { throw new Error("tool exploded"); },
+  }),
+]);
+
+window.__toolchanges = 0;
+document.modelContext.addEventListener("toolchange", () => {
+  window.__toolchanges++;
+});
+
+window.__lateController = null;
+window.__registerLate = function () {
+  window.__lateController = new AbortController();
+  return document.modelContext.registerTool({
+    name: "late",
+    description: "Registered after load",
+    execute: () => "late result",
+  }, { signal: window.__lateController.signal });
+};
+
+window.__cancelSignalAborted = false;
+window.__registerCancellable = function () {
+  return document.modelContext.registerTool({
+    name: "waitForCancel",
+    description: "Wait until the invocation is canceled",
+    execute: (_, { signal }) => new Promise((resolve) => {
+      const canceled = () => {
+        window.__cancelSignalAborted = signal.aborted;
+        resolve("canceled");
+      };
+      if (signal.aborted) canceled();
+      else signal.addEventListener("abort", canceled, { once: true });
+    }),
+  });
+};
+
+// Page-side executeTool contract: result serialization, abort precedence
+// and the order of caller reactions vs the queued cancel/completion tasks.
+// It runs HERE, as page script, and the e2e test only awaits its JSON:
+// the pin asserts microtask-vs-task order, which is defined inside one
+// realm only. Through Runtime.evaluate this code would run on boa, whose
+// reaction to a V8 promise lands when the boa job queue next drains, so a
+// queued task can overtake it in either direction. Cross-boundary microtask
+// ordering is out of scope.
+window.__cancellationScenario = async function () {
+  const events = [];
+  window.addEventListener("toolactivated", (event) => {
+    events.push("activated:" + event.toolName);
+  });
+  window.addEventListener("toolcancel", (event) => {
+    events.push("cancel:" + event.toolName);
+  });
+
+  let callbackSignal;
+  let release;
+  await document.modelContext.registerTool({
+    name: "pageAbort",
+    description: "exercise page cancellation",
+    annotations: { readOnlyHint: true },
+    execute: (_input, options) => {
+      callbackSignal = options.signal;
+      options.signal.onabort = () => events.push("signal-aborted");
+      return new Promise((resolve) => { release = resolve; });
+    },
+  });
+  await document.modelContext.registerTool({
+    name: "pageObject",
+    description: "exercise result serialization",
+    execute: () => ({ ok: true }),
+  });
+  await document.modelContext.registerTool({
+    name: "pageCircular",
+    description: "exercise failed serialization",
+    execute: () => {
+      const value = {};
+      value.self = value;
+      return value;
+    },
+  });
+
+  const tools = await document.modelContext.getTools();
+  const abortTool = tools.find((tool) => tool.name === "pageAbort");
+  const objectTool = tools.find((tool) => tool.name === "pageObject");
+  const circularTool = tools.find((tool) => tool.name === "pageCircular");
+  const throwingTool = tools.find((tool) => tool.name === "boom");
+  const controller = new AbortController();
+  const queuedCompletionController = new AbortController();
+  await document.modelContext.registerTool({
+    name: "abortAfterCompletionQueued",
+    description: "Abort after completion queues its task",
+    execute: (_input, options) => ({
+      then: (resolve) => {
+        options.signal.addEventListener("abort", () => {
+          events.push("signal-aborted-after-completion");
+        });
+        resolve({ ok: true });
+        queueMicrotask(() => queueMicrotask(() => {
+          queuedCompletionController.abort("queued completion abort");
+        }));
+      },
+    }),
+  });
+  const queuedCompletionTool = (await document.modelContext.getTools())
+    .find((tool) => tool.name === "abortAfterCompletionQueued");
+  const abortAfterCompletionQueued = await document.modelContext
+    .executeTool(queuedCompletionTool, "{}", { signal: queuedCompletionController.signal })
+    .catch((error) => String(error));
+  let releaseAfterAbort;
+  let callbackStartedResolve;
+  const callbackStarted = new Promise((resolve) => {
+    callbackStartedResolve = resolve;
+  });
+  const abortBeforeCancelTaskController = new AbortController();
+  await document.modelContext.registerTool({
+    name: "abortBeforeCancelTask",
+    description: "Abort before the cancellation task runs",
+    execute: (_input, options) => {
+      callbackStartedResolve();
+      options.signal.addEventListener("abort", () => {
+        events.push("signal-aborted-before-cancel-task");
+      });
+      return new Promise((resolve) => { releaseAfterAbort = resolve; });
+    },
+  });
+  const abortBeforeCancelTaskTool = (await document.modelContext.getTools())
+    .find((tool) => tool.name === "abortBeforeCancelTask");
+  const abortBeforeCancelTaskExecution = document.modelContext.executeTool(
+    abortBeforeCancelTaskTool,
+    "{}",
+    { signal: abortBeforeCancelTaskController.signal },
+  );
+  await callbackStarted;
+  abortBeforeCancelTaskController.abort("abort before cancel task");
+  releaseAfterAbort("late");
+  const abortBeforeCancelTask = await abortBeforeCancelTaskExecution
+    .catch((error) => String(error));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const execution = document.modelContext.executeTool(
+    abortTool,
+    "{}",
+    { signal: controller.signal },
+  );
+  await Promise.resolve();
+  controller.abort("stop");
+  const rejection = await execution.catch((error) => {
+    events.push("rejected:" + error);
+    return error;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  release("late");
+
+  const rejectionOrder = [];
+  const failedExecution = document.modelContext
+    .executeTool(circularTool, "{}")
+    .catch((error) => {
+      rejectionOrder.push("rejected");
+      return error.name;
+    });
+  await new Promise((resolve) => setTimeout(() => {
+    rejectionOrder.push("next-task");
+    resolve();
+  }, 0));
+  const circularError = await failedExecution;
+
+  const callbackRejectionOrder = [];
+  const rejectedCallback = document.modelContext
+    .executeTool(throwingTool, "{}")
+    .catch((error) => {
+      callbackRejectionOrder.push("rejected");
+      return error.name;
+    });
+  await new Promise((resolve) => setTimeout(() => {
+    callbackRejectionOrder.push("next-task");
+    resolve();
+  }, 0));
+  const callbackError = await rejectedCallback;
+
+  const resolutionOrder = [];
+  const successfulExecution = document.modelContext
+    .executeTool(objectTool, "{}")
+    .then((value) => {
+      resolutionOrder.push("resolved");
+      return value;
+    });
+  await new Promise((resolve) => setTimeout(() => {
+    resolutionOrder.push("next-task");
+    resolve();
+  }, 0));
+  const objectResult = await successfulExecution;
+
+  const nativeSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = undefined;
+  const timerlessOrder = [];
+  let resultWithoutTimer;
+  try {
+    const timerlessExecution = document.modelContext
+      .executeTool(objectTool, "{}")
+      .then((value) => {
+        timerlessOrder.push("resolved");
+        return value;
+      });
+    await new Promise((resolve) => nativeSetTimeout(() => {
+      timerlessOrder.push("next-task");
+      resolve();
+    }, 0));
+    resultWithoutTimer = await timerlessExecution;
+  } finally {
+    globalThis.setTimeout = nativeSetTimeout;
+  }
+
+  // A JSON string, not the object: a plain string crosses the CDP
+  // boundary by value with no proxy or array marshalling in between.
+  return JSON.stringify({
+    annotations: abortTool.annotations,
+    callbackSignal: callbackSignal instanceof AbortSignal,
+    rejection,
+    events,
+    objectResult,
+    abortAfterCompletionQueued,
+    abortBeforeCancelTask,
+    circularError,
+    callbackError,
+    rejectionOrder,
+    callbackRejectionOrder,
+    resolutionOrder,
+    resultWithoutTimer,
+    timerlessOrder,
+  });
+};
+</script>
+</body>
+</html>

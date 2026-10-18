@@ -1,0 +1,24 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  body { margin: 0; }
+  .grid { display: grid; grid-template-columns: 1fr 400px 1fr; }
+  .head { grid-column: span 3; height: 72px; background: #cde; }
+  main { grid-column: 2; grid-row: 2; }
+  .tall { height: 3000px; background: #efe; }
+  .foot { grid-column: span 3; height: 200px; background: #edc; }
+</style>
+<div class="grid" id="fr">
+  <div class="head"></div>
+  <main id="fr-main"><div class="tall"></div></main>
+  <div class="foot" id="fr-foot"></div>
+</div>
+<div class="grid" id="fixed" style="grid-template-columns: 100px 400px 100px">
+  <div class="head"></div>
+  <main id="fixed-main"><div class="tall"></div></main>
+  <div class="foot" id="fixed-foot"></div>
+</div>

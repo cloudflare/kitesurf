@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Thu, 27 Aug 2026 00:11:37 +0100
+Subject: [PATCH] Keep auto table tracks flexible after captions
+
+Only recover first-content-row sizing after a caption for fixed tables
+so caption minimum widths can still expand auto tables.
+
+Against blitz-dom 0.3.0-beta.3: same gate on upstream's col_needs_width
+column-width path and stray-content column push.
+---
+ src/layout/table.rs | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index bc8845a..c422105 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -709,7 +709,8 @@ fn collect_table_cells(
+             // Column widths from `<col>` elements take precedence over cell widths
+             let col_needs_width =
+                 (col as usize) >= columns.len() || columns[col as usize].max.is_auto();
+-            if cursor.is_first_content_row(*row) && col_needs_width {
++            let is_first_content_row = cursor.is_first_content_row(*row);
++            if (*row == 1 || (is_fixed && is_first_content_row)) && col_needs_width {
+                 let column: TrackSizingFunction = match style.size.width.tag() {
+                     taffy::CompactLength::LENGTH_TAG => {
+                         let len = style.size.width.value();
+@@ -811,7 +812,11 @@ fn collect_table_cells(
+             let mut style = table_taffy_style(stylo_style, wm);
+             let col = cursor.next_free();
+             let is_caption = display.outside() == DisplayOutside::TableCaption;
+-            if !is_caption && cursor.is_first_content_row(*row) && (col as usize) >= columns.len() {
++            let is_first_content_row = !is_caption && cursor.is_first_content_row(*row);
++            if !is_caption
++                && (*row == 1 || (is_fixed && is_first_content_row))
++                && (col as usize) >= columns.len()
++            {
+                 columns.resize(col as usize, style_helpers::auto());
+                 columns.push(style_helpers::auto());
+             }

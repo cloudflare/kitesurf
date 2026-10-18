@@ -1,0 +1,268 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 12 Oct 2026 11:07:13 +0100
+Subject: [PATCH] ast: box the large, rarely used expression and statement
+ variants
+
+An enum is as large as its largest variant, so the inline function
+expressions and tagged templates made every Expression 128 bytes on
+wasm32, and for-in/for-of, switch and try made every Statement 312.
+Most nodes are identifiers, calls and member accesses. Boxing the big
+variants brings Expression to 48 and Statement to 64 bytes and halves a
+bundle's syntax tree, at one extra allocation per function expression.
+---
+ src/expression/mod.rs                  | 14 +++++++-------
+ src/expression/tagged_template.rs      |  2 +-
+ src/function/arrow_function.rs         |  2 +-
+ src/function/async_arrow_function.rs   |  2 +-
+ src/function/async_function.rs         |  2 +-
+ src/function/async_generator.rs        |  2 +-
+ src/function/generator.rs              |  2 +-
+ src/function/ordinary_function.rs      |  2 +-
+ src/statement/iteration/for_in_loop.rs |  2 +-
+ src/statement/iteration/for_of_loop.rs |  2 +-
+ src/statement/mod.rs                   |  8 ++++----
+ src/statement/switch.rs                |  2 +-
+ src/statement/try.rs                   |  2 +-
+ src/visitor.rs                         | 14 ++++++++++++++
+ 14 files changed, 36 insertions(+), 22 deletions(-)
+
+diff --git a/src/expression/mod.rs b/src/expression/mod.rs
+index 4e6f0e9..c5d4e75 100644
+--- a/src/expression/mod.rs
++++ b/src/expression/mod.rs
+@@ -102,22 +102,22 @@ pub enum Expression {
+     Spread(Spread),
+
+     /// See [`FunctionExpression`].
+-    FunctionExpression(FunctionExpression),
++    FunctionExpression(Box<FunctionExpression>),
+
+     /// See [`ArrowFunction`].
+-    ArrowFunction(ArrowFunction),
++    ArrowFunction(Box<ArrowFunction>),
+
+     /// See [`AsyncArrowFunction`].
+-    AsyncArrowFunction(AsyncArrowFunction),
++    AsyncArrowFunction(Box<AsyncArrowFunction>),
+
+     /// See [`GeneratorExpression`].
+-    GeneratorExpression(GeneratorExpression),
++    GeneratorExpression(Box<GeneratorExpression>),
+
+     /// See [`AsyncFunctionExpression`].
+-    AsyncFunctionExpression(AsyncFunctionExpression),
++    AsyncFunctionExpression(Box<AsyncFunctionExpression>),
+
+     /// See [`AsyncGeneratorExpression`].
+-    AsyncGeneratorExpression(AsyncGeneratorExpression),
++    AsyncGeneratorExpression(Box<AsyncGeneratorExpression>),
+
+     /// See [`ClassExpression`].
+     ClassExpression(Box<ClassExpression>),
+@@ -144,7 +144,7 @@ pub enum Expression {
+     Optional(Optional),
+
+     /// See [`TaggedTemplate`].
+-    TaggedTemplate(TaggedTemplate),
++    TaggedTemplate(Box<TaggedTemplate>),
+
+     /// The `new.target` pseudo-property expression.
+     NewTarget(NewTarget),
+diff --git a/src/expression/tagged_template.rs b/src/expression/tagged_template.rs
+index a8de694..784bd2a 100644
+--- a/src/expression/tagged_template.rs
++++ b/src/expression/tagged_template.rs
+@@ -112,7 +112,7 @@ impl ToInternedString for TaggedTemplate {
+ impl From<TaggedTemplate> for Expression {
+     #[inline]
+     fn from(template: TaggedTemplate) -> Self {
+-        Self::TaggedTemplate(template)
++        Self::TaggedTemplate(Box::new(template))
+     }
+ }
+
+diff --git a/src/function/arrow_function.rs b/src/function/arrow_function.rs
+index 83d5729..23a71b7 100644
+--- a/src/function/arrow_function.rs
++++ b/src/function/arrow_function.rs
+@@ -133,7 +133,7 @@ impl ToIndentedString for ArrowFunction {
+
+ impl From<ArrowFunction> for Expression {
+     fn from(decl: ArrowFunction) -> Self {
+-        Self::ArrowFunction(decl)
++        Self::ArrowFunction(Box::new(decl))
+     }
+ }
+
+diff --git a/src/function/async_arrow_function.rs b/src/function/async_arrow_function.rs
+index 873e60e..fdd51c5 100644
+--- a/src/function/async_arrow_function.rs
++++ b/src/function/async_arrow_function.rs
+@@ -134,7 +134,7 @@ impl ToIndentedString for AsyncArrowFunction {
+
+ impl From<AsyncArrowFunction> for Expression {
+     fn from(decl: AsyncArrowFunction) -> Self {
+-        Self::AsyncArrowFunction(decl)
++        Self::AsyncArrowFunction(Box::new(decl))
+     }
+ }
+
+diff --git a/src/function/async_function.rs b/src/function/async_function.rs
+index f71f600..55728d6 100644
+--- a/src/function/async_function.rs
++++ b/src/function/async_function.rs
+@@ -282,7 +282,7 @@ impl ToIndentedString for AsyncFunctionExpression {
+ impl From<AsyncFunctionExpression> for Expression {
+     #[inline]
+     fn from(expr: AsyncFunctionExpression) -> Self {
+-        Self::AsyncFunctionExpression(expr)
++        Self::AsyncFunctionExpression(Box::new(expr))
+     }
+ }
+
+diff --git a/src/function/async_generator.rs b/src/function/async_generator.rs
+index 4008492..361c390 100644
+--- a/src/function/async_generator.rs
++++ b/src/function/async_generator.rs
+@@ -279,7 +279,7 @@ impl ToIndentedString for AsyncGeneratorExpression {
+ impl From<AsyncGeneratorExpression> for Expression {
+     #[inline]
+     fn from(expr: AsyncGeneratorExpression) -> Self {
+-        Self::AsyncGeneratorExpression(expr)
++        Self::AsyncGeneratorExpression(Box::new(expr))
+     }
+ }
+
+diff --git a/src/function/generator.rs b/src/function/generator.rs
+index 06177d2..f374240 100644
+--- a/src/function/generator.rs
++++ b/src/function/generator.rs
+@@ -276,7 +276,7 @@ impl ToIndentedString for GeneratorExpression {
+ impl From<GeneratorExpression> for Expression {
+     #[inline]
+     fn from(expr: GeneratorExpression) -> Self {
+-        Self::GeneratorExpression(expr)
++        Self::GeneratorExpression(Box::new(expr))
+     }
+ }
+
+diff --git a/src/function/ordinary_function.rs b/src/function/ordinary_function.rs
+index 09f07e1..7cc0d1b 100644
+--- a/src/function/ordinary_function.rs
++++ b/src/function/ordinary_function.rs
+@@ -311,7 +311,7 @@ impl ToIndentedString for FunctionExpression {
+ impl From<FunctionExpression> for Expression {
+     #[inline]
+     fn from(expr: FunctionExpression) -> Self {
+-        Self::FunctionExpression(expr)
++        Self::FunctionExpression(Box::new(expr))
+     }
+ }
+
+diff --git a/src/statement/iteration/for_in_loop.rs b/src/statement/iteration/for_in_loop.rs
+index 451d966..4abbd4a 100644
+--- a/src/statement/iteration/for_in_loop.rs
++++ b/src/statement/iteration/for_in_loop.rs
+@@ -103,7 +103,7 @@ impl ToIndentedString for ForInLoop {
+ impl From<ForInLoop> for Statement {
+     #[inline]
+     fn from(for_in: ForInLoop) -> Self {
+-        Self::ForInLoop(for_in)
++        Self::ForInLoop(Box::new(for_in))
+     }
+ }
+
+diff --git a/src/statement/iteration/for_of_loop.rs b/src/statement/iteration/for_of_loop.rs
+index b2c5ba2..4da23d1 100644
+--- a/src/statement/iteration/for_of_loop.rs
++++ b/src/statement/iteration/for_of_loop.rs
+@@ -120,7 +120,7 @@ impl ToIndentedString for ForOfLoop {
+ impl From<ForOfLoop> for Statement {
+     #[inline]
+     fn from(for_of: ForOfLoop) -> Self {
+-        Self::ForOfLoop(for_of)
++        Self::ForOfLoop(Box::new(for_of))
+     }
+ }
+
+diff --git a/src/statement/mod.rs b/src/statement/mod.rs
+index 5cbc829..1ce8d6c 100644
+--- a/src/statement/mod.rs
++++ b/src/statement/mod.rs
+@@ -77,13 +77,13 @@ pub enum Statement {
+     ForLoop(ForLoop),
+
+     /// See [`ForInLoop`].
+-    ForInLoop(ForInLoop),
++    ForInLoop(Box<ForInLoop>),
+
+     /// See [`ForOfLoop`].
+-    ForOfLoop(ForOfLoop),
++    ForOfLoop(Box<ForOfLoop>),
+
+     /// See[`Switch`].
+-    Switch(Switch),
++    Switch(Box<Switch>),
+
+     /// See [`Continue`].
+     Continue(Continue),
+@@ -101,7 +101,7 @@ pub enum Statement {
+     Throw(Throw),
+
+     /// See [`Try`].
+-    Try(Try),
++    Try(Box<Try>),
+
+     /// See [`With`].
+     With(With),
+diff --git a/src/statement/switch.rs b/src/statement/switch.rs
+index 888404c..a384315 100644
+--- a/src/statement/switch.rs
++++ b/src/statement/switch.rs
+@@ -205,7 +205,7 @@ impl ToIndentedString for Switch {
+ impl From<Switch> for Statement {
+     #[inline]
+     fn from(switch: Switch) -> Self {
+-        Self::Switch(switch)
++        Self::Switch(Box::new(switch))
+     }
+ }
+
+diff --git a/src/statement/try.rs b/src/statement/try.rs
+index db848c4..4dc9421 100644
+--- a/src/statement/try.rs
++++ b/src/statement/try.rs
+@@ -102,7 +102,7 @@ impl ToIndentedString for Try {
+ impl From<Try> for Statement {
+     #[inline]
+     fn from(try_catch: Try) -> Self {
+-        Self::Try(try_catch)
++        Self::Try(Box::new(try_catch))
+     }
+ }
+
+diff --git a/src/visitor.rs b/src/visitor.rs
+index 396a95b..dd6704c 100644
+--- a/src/visitor.rs
++++ b/src/visitor.rs
+@@ -109,5 +109,19 @@ macro_rules! node_ref {
+                 }
+             }
+         )*
++
++        $(
++            impl<'a> From<&'a Box<$Variant>> for NodeRef<'a> {
++                fn from(node: &'a Box<$Variant>) -> NodeRef<'a> {
++                    Self::$Variant(node)
++                }
++            }
++
++            impl<'a> From<&'a mut Box<$Variant>> for NodeRefMut<'a> {
++                fn from(node: &'a mut Box<$Variant>) -> NodeRefMut<'a> {
++                    Self::$Variant(node)
++                }
++            }
++        )*
+     }
+ }

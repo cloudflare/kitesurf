@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 12 Oct 2026 17:50:07 +0100
+Subject: [PATCH] Keep a rowspan cell's column occupied in its later rows
+
+ColumnCursor stored `rowspan - 1` per column, but `start_row` decrements
+before the next row's cells are placed, so a `rowspan=2` cell freed its
+column for the very row it spans into. The cursor then put that row's
+first cell in the occupied column, while taffy's dense placement puts it
+one column to the right. `num_columns` came out one short and captions
+spanned too few columns: `<td rowspan=2>` + a second-row `<td>` gave a
+250px table with a 100px caption.
+
+Store the rows remaining including the current one. Upstream's
+ColumnCursor has the off-by-one.
+---
+ src/layout/table.rs | 31 +++++++++++++++++++++++++++++--
+ 1 file changed, 29 insertions(+), 2 deletions(-)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index 85791be..892be74 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -126,7 +126,8 @@ struct ColumnCursor {
+     col: u16,
+     /// The total number of columns seen so far
+     num_columns: u16,
+-    /// For each column, the number of further rows it is occupied by a rowspan cell
++    /// For each column, the number of rows, counting the current one, it is occupied by
++    /// a rowspan cell
+     rowspans: Vec<u16>,
+     /// The first row holding table content rather than a caption
+     first_content_row: Option<u16>,
+@@ -160,8 +161,11 @@ impl ColumnCursor {
+         if self.rowspans.len() < end as usize {
+             self.rowspans.resize(end as usize, 0);
+         }
++        // Count the current row too. `start_row` decrements before
++        // the next row's cells are placed, so storing `rowspan - 1` freed a
++        // `rowspan=2` cell's column one row early.
+         for remaining in &mut self.rowspans[self.col as usize..end as usize] {
+-            *remaining = rowspan - 1;
++            *remaining = rowspan;
+         }
+         self.col = end;
+         self.num_columns = self.num_columns.max(end);
+@@ -1026,3 +1030,26 @@ impl taffy::LayoutGridContainer for TableTreeWrapper<'_, '_> {
+         *self.ctx.computed_grid_info.borrow_mut() = Some(detailed_grid_info);
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::ColumnCursor;
++
++    #[test]
++    fn column_cursor_keeps_a_rowspan_column_occupied_in_later_rows() {
++        let mut cursor = ColumnCursor::default();
++        cursor.start_row();
++        assert_eq!(cursor.next_free(), 0);
++        cursor.place(1, 2);
++
++        // Row 2: column 0 still belongs to the rowspan cell.
++        cursor.start_row();
++        assert_eq!(cursor.next_free(), 1);
++        cursor.place(1, 1);
++        assert_eq!(cursor.num_columns, 2);
++
++        // Row 3: the rowspan has ended.
++        cursor.start_row();
++        assert_eq!(cursor.next_free(), 0);
++    }
++}

@@ -1,0 +1,15 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html><html><head>
+        <link rel="stylesheet" href="/__fixtures/slow-css?ms=400">
+      </head><body>
+        <div id="measured"></div>
+        <script>
+          window.measuredAtScriptTime = document.getElementById("measured").clientWidth;
+          window.innerWidthAtScriptTime = window.innerWidth;
+        </script>
+      </body></html>

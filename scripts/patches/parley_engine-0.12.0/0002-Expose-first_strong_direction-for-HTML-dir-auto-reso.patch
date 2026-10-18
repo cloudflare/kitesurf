@@ -1,0 +1,62 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 13:42:31 +0100
+Subject: [PATCH] Expose first_strong_direction for HTML dir=auto resolution
+
+HTML's dir=auto directionality is a DOM-side scan (it excludes bdi/
+script/style/textarea subtrees and dir-attributed descendants),
+which a text-stream resolver cannot express. The embedder walks
+text nodes itself and needs only the per-chunk classification.
+Classifies via the same parley_data properties analyze_text uses:
+strong L is Ltr, strong R or AL is Rtl, and anything else is None, so
+the caller keeps walking.
+
+The classifier lives in parley_engine, which owns the parley_data
+properties; parley re-exports it as parley::first_strong_direction
+(returning parley::BaseDirection) in the parley series.
+---
+ src/bidi.rs | 18 ++++++++++++++++++
+ src/lib.rs  |  1 +
+ 2 files changed, 19 insertions(+)
+
+diff --git a/src/bidi.rs b/src/bidi.rs
+index 0e88be4..bf85bcd 100644
+--- a/src/bidi.rs
++++ b/src/bidi.rs
+@@ -7,6 +7,24 @@ use alloc::vec::Vec;
+ use icu_properties::props::{BidiClass, BidiMirroringGlyph, BidiPairedBracketType};
+ use parlance::{BaseDirection, BidiLevel};
+
++// First-strong scan for HTML's dir=auto directionality.
++// Callers walk DOM text nodes and stop at the first Some, applying
++// the spec's subtree exclusions themselves. This only classifies
++// one text chunk: strong L is Ltr, strong R or AL is Rtl.
++/// Returns the direction of the first strong character in `text`, or `None` if it has none.
++pub fn first_strong_direction(text: &str) -> Option<BaseDirection> {
++    for ch in text.chars() {
++        match parley_data::Properties::get(ch).bidi_class() {
++            BidiClass::LeftToRight => return Some(BaseDirection::Ltr),
++            BidiClass::RightToLeft | BidiClass::ArabicLetter => {
++                return Some(BaseDirection::Rtl);
++            }
++            _ => {}
++        }
++    }
++    None
++}
++
+ /// Resolver for the Unicode bidirectional algorithm.
+ #[derive(Clone, Default)]
+ pub(crate) struct BidiResolver {
+diff --git a/src/lib.rs b/src/lib.rs
+index 647f360..396cf2e 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -120,6 +120,7 @@ pub use parlance::{BaseDirection, NormalizedCoord};
+
+ pub use analysis::{Analysis, AnalysisDataSources, CharInfo};
+ pub use analyzer::{AnalysisOptions, Analyzer, LineBreakConfig};
++pub use bidi::first_strong_direction;
+ pub use glyph::Glyph;
+ pub use shape::atom::{Atom, Atoms, Grapheme, Graphemes, ShapedClusterGlyphs, ShapedSlice};
+ pub use shape::shaped_text::{FontMetrics, ShapedRun, ShapedText};

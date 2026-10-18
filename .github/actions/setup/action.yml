@@ -1,0 +1,54 @@
+name: Set up kitesurf
+description: Install pnpm 9.15.4, Node 22 and, when requested, the Rust toolchain pinned in rust-toolchain.toml and a Bazel cache.
+inputs:
+  rust:
+    description: Install the pinned Rust toolchain and the rust-cache.
+    required: false
+    default: "false"
+  bazel-cache:
+    description: Restore and save Bazel's disk and repository caches under this key prefix.
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Set a git identity
+      shell: bash
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 9.15.4
+        run_install: false
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: pnpm
+    - if: inputs.rust == 'true'
+      shell: bash
+      run: rustup show
+    - if: inputs.rust == 'true'
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-directories: packages/core/target
+    # The runner image ships bazelisk as `bazel`. CI must never rewrite MODULE.bazel.lock: a stale
+    # one is a commit missing its lockfile update.
+    - if: inputs.bazel-cache != ''
+      shell: bash
+      run: |
+        {
+          echo "common --lockfile_mode=error"
+          echo "common --disk_cache=$HOME/.cache/bazel-disk"
+          echo "common --repository_cache=$HOME/.cache/bazel-repo"
+        } >> .bazelrc.user
+    - if: inputs.bazel-cache != ''
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/bazel-disk
+          ~/.cache/bazel-repo
+        key: bazel-${{ inputs.bazel-cache }}-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock', 'Cargo.lock', 'pnpm-lock.yaml') }}-${{ github.sha }}
+        restore-keys: |
+          bazel-${{ inputs.bazel-cache }}-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock', 'Cargo.lock', 'pnpm-lock.yaml') }}-
+          bazel-${{ inputs.bazel-cache }}-${{ runner.os }}-

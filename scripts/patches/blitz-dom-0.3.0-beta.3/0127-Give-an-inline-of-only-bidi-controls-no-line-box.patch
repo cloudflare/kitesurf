@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 26 Sep 2026 00:05:49 +0100
+Subject: [PATCH] Give an inline of only bidi controls no line box
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+An inline with `unicode-bidi: isolate` or `embed` wraps its content in
+bidi control characters at construction, and parley shapes those as
+text. An empty `<span dir="ltr">` (the UA sheet gives `[dir]` isolate)
+therefore built a line box one line-height tall, where CSS 2.1 §9.4.2
+gives a line with no content zero height. tldraw's canvas sits in a
+Radix `<span dir="ltr">`, and every panel after it slid 19px down.
+
+Treat text made only of bidi controls as empty, both for the empty
+inline short-circuit and for the measured height.
+
+Against blitz-dom 0.3.0-beta.3: upstream already gives a line box with
+no inline content zero height (has_inline_content); the bidi-control
+check feeds that and the empty-inline short circuit.
+---
+ src/layout/inline.rs | 27 ++++++++++++++++++++++++---
+ 1 file changed, 24 insertions(+), 3 deletions(-)
+
+diff --git a/src/layout/inline.rs b/src/layout/inline.rs
+index 25a9ff9..77f3a02 100644
+--- a/src/layout/inline.rs
++++ b/src/layout/inline.rs
+@@ -351,9 +351,20 @@ impl LayoutPassState<'_> {
+         let suppresses_baseline = style.contain().suppresses_baseline();
+         drop(style);
+
++        // An inline with `unicode-bidi: isolate` (UA style for `[dir]`) or
++        // `embed` wraps its content in bidi controls at construction, and
++        // those are text to parley: a lone `<span dir=ltr>` became a 19px
++        // line of nothing. They render nothing, so the text is empty for
++        // the line-box rules below. tldraw's canvas sits in Radix's
++        // `<span dir="ltr">` and every panel below it slid down a line.
++        let text_is_only_bidi_controls = inline_layout
++            .text
++            .chars()
++            .all(|c| matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'));
++
+         // Short circuit if inline context contains no text or inline boxes
+         if !has_styles_preventing_being_collapsed_through
+-            && inline_layout.text.is_empty()
++            && text_is_only_bidi_controls
+             && inline_layout.layout.inline_boxes().len() == 0
+         {
+             // Put layout back
+@@ -908,8 +919,18 @@ impl LayoutPassState<'_> {
+         // Parley lays out empty text as a single strut-height line (text-editor semantics),
+         // but a line box containing no text, inline boxes or other in-flow content is a
+         // zero-height line box in CSS (CSS2 §9.4.2).
+-        let has_inline_content =
+-            !inline_layout.text.is_empty() || inline_layout.layout.inline_boxes().len() > 0;
++        let has_inline_content = if !text_is_only_bidi_controls {
++            true
++        } else if inline_layout.text.is_empty() {
++            inline_layout.layout.inline_boxes().len() > 0
++        } else {
++            // On a line of bidi controls an out-of-flow box (tldraw's abspos
++            // canvas) is no content either, but parley sizes the line.
++            inline_layout
++                .layout
++                .inline_boxes()
++                .any(|inline_box| inline_box.kind == parley::InlineBoxKind::InFlow)
++        };
+
+         let mut height = if has_inline_content {
+             inline_layout.layout.height()

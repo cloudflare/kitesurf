@@ -1,0 +1,62 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 12 Aug 2026 16:50:25 +0100
+Subject: [PATCH] clear taffy cache for RELAYOUT damage and force CONSTRUCT_BOX
+ on table roots
+
+Under incremental layout, stylo computes RestyleDamage::RELAYOUT for
+style changes that affect layout but not box structure (e.g. min-height,
+width, height). The damage gate in resolve_layout_children only re-
+collects for CONSTRUCT_FC | CONSTRUCT_BOX, so RELAYOUT-only nodes keep
+their old layout_children but should still have their layout recomputed.
+
+Taffy's cache is keyed on available_space and parent_size, not on style,
+so a style change without cache clearing returns stale layout.
+
+Two fixes:
+1. propagate_damage_flags now clears node.cache for RestyleDamage::RELAYOUT
+   in addition to ONLY_RELAYOUT | CONSTRUCT_BOX.
+2. Table roots cache a TableContext during box construction that includes
+   table styles (min-height, border-spacing, etc.). Under incremental
+   layout this context never updates for RELAYOUT-only changes. Force
+   CONSTRUCT_BOX on table roots with RELAYOUT so build_table_context re-
+   runs and the context stays fresh.
+
+Fixes table-grid-item-dynamic-002 and related incremental layout
+regressions where dynamic style changes on tables were ignored.
+---
+ src/layout/damage.rs | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index 7299caa..2486bc1 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -113,6 +113,18 @@ impl BaseDocument {
+             damage.insert(RestyleDamage::RELAYOUT);
+         }
+
++        // Table roots cache a TableContext during box construction
++        // that includes the table's style (min-height, border-spacing, etc.).
++        // Under incremental layout, RELAYOUT damage does not re-collect, so the
++        // TableContext stays stale and taffy reads old styles. Force box
++        // reconstruction for table roots whenever their layout styles change.
++        if damage.contains(RestyleDamage::RELAYOUT)
++            && !damage.contains(CONSTRUCT_BOX)
++            && self.nodes[node_id].flags.is_table_root()
++        {
++            damage.insert(CONSTRUCT_BOX);
++        }
++
+         // Compute damage to propagate to parent
+         let mut damage_for_parent = damage; // & RestyleDamage::RELAYOUT;
+
+@@ -145,7 +157,7 @@ impl BaseDocument {
+         // If the node or any of it's children have been mutated or their layout styles
+         // have changed, then we should clear it's layout cache.
+         let mut invalidate_anonymous_ancestors = false;
+-        if damage.intersects(ONLY_RELAYOUT | CONSTRUCT_BOX) {
++        if damage.intersects(ONLY_RELAYOUT | CONSTRUCT_BOX | RestyleDamage::RELAYOUT) {
+             node.invalidate_layout_cache();
+             invalidate_anonymous_ancestors = true;
+             damage.remove(ONLY_RELAYOUT);

@@ -1,0 +1,75 @@
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary")
+load("@crates_scene_host//:defs.bzl", "aliases", "all_crate_deps")
+load("@rules_rust//cargo:defs.bzl", "cargo_toml_env_vars")
+load("@rules_rust//rust:defs.bzl", "rust_shared_library")
+load("//bazel:checks.bzl", "node_test")
+load("//bazel:paths.bzl", "bin_relative", "exec_path")
+
+exports_files(
+    ["Cargo.toml"],
+    visibility = ["//:__pkg__"],
+)
+
+cargo_toml_env_vars(
+    name = "cargo_env",
+    src = "Cargo.toml",
+)
+
+rust_shared_library(
+    name = "scene_host_wasm",
+    srcs = glob(["src/**/*.rs"]),
+    aliases = aliases(),
+    compile_data = ["//packages/core:scene_host_srcs"],
+    crate_features = ["default", "native-host"],
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    platform = "//bazel/rust:wasm32_scene_host",
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    rustc_env_files = [":cargo_env"],
+    rustc_flags = ["-Clto=fat"],
+    tags = ["manual"],
+    deps = all_crate_deps(normal = True),
+)
+
+js_binary(
+    name = "build_tool",
+    data = ["//scripts:wasm_build_helpers"],
+    entry_point = "scripts/build.mjs",
+)
+
+js_run_binary(
+    name = "rbi",
+    srcs = [
+        ":scene_host_wasm",
+        "//bazel:wasm_opt",
+        "//bazel:wasm_opt_runtime",
+        "//packages/core:scene_record_rs",
+    ],
+    outs = [
+        "rbi/scene_host.json",
+        "rbi/scene_host.wasm",
+    ],
+    args = [
+        "--postprocess",
+        "../../../$(execpath :scene_host_wasm)",
+        "--scene-record",
+        exec_path("//packages/core:scene_record_rs"),
+        "--out-dir",
+        bin_relative("packages/scene-host-wasm/rbi"),
+    ],
+    env = {"WASM_OPT_BIN": exec_path("//bazel:wasm_opt")},
+    mnemonic = "SceneHostPostprocess",
+    progress_message = "wasm-opt scene_host.wasm and its manifest",
+    tool = ":build_tool",
+    visibility = ["//packages/engine:__pkg__"],
+)
+
+node_test(
+    name = "abi_test",
+    args = ["test/abi.test.mjs"],
+    data = [
+        "test/abi.test.mjs",
+        "//:node_modules/pngjs",
+        "//packages/engine:rbi",
+    ],
+)

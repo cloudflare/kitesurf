@@ -1,0 +1,25 @@
+{
+  "name": "@kitesurf/script-gate",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Shared script-execution gate: SRI, CSP script-src, JS MIME/nosniff and mixed-content checks, plus the Referrer Policy table. Source-exported so both the engine worker and the in-isolate PageScript bundle one copy of the policy.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./sri": "./src/sri.ts",
+    "./csp": "./src/csp.ts",
+    "./mime": "./src/mime.ts",
+    "./gate": "./src/gate.ts",
+    "./gateway-headers": "./src/gateway-headers.ts",
+    "./referrer-policy": "./src/referrer-policy.ts"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.2",
+    "typescript": "^5.6.0"
+  }
+}

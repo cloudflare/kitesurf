@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 24 Sep 2026 00:37:20 +0100
+Subject: [PATCH] Insert a stylesheet before an unknown anchor by appending
+
+The embedder picks the anchor sheet from its own node-to-sheet index,
+which can name a sheet this set never received. The expect() then
+panicked inside the page's appendChild(<style>): the insertion was
+lost and the page's script threw partway through, for example during
+framework hydration. Appending keeps the sheet in the cascade; only its
+position among the others is approximate.
+---
+ stylesheet_set.rs | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/stylesheet_set.rs b/stylesheet_set.rs
+index b23dfba..f3a5991 100644
+--- a/stylesheet_set.rs
++++ b/stylesheet_set.rs
+@@ -267,9 +267,11 @@ where
+     fn insert_before(&mut self, sheet: S, before_sheet: &S) {
+         debug_assert!(!self.contains(&sheet));
+
+-        let index = self
+-            .find_sheet_index(before_sheet)
+-            .expect("`before_sheet` stylesheet not found");
++        // The embedder picks the anchor from its own node->sheet index, which can
++        // name a sheet this set never received; append rather than abort the insertion.
++        let Some(index) = self.find_sheet_index(before_sheet) else {
++            return self.append(sheet);
++        };
+
+         // Inserting stylesheets somewhere but at the end changes the validity
+         // of the cascade data, but not the invalidation data.

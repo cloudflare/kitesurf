@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Tue, 13 Oct 2026 22:14:51 +0100
+Subject: [PATCH] proxy: let an embedder create and recognise its own proxies
+
+A host bridge mints thousands of proxies per render; calling the Proxy
+constructor ran a VM frame (and its stack-limit check) for each, and
+recognising one meant probing it through its traps.
+---
+ src/builtins/proxy/mod.rs | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/src/builtins/proxy/mod.rs b/src/builtins/proxy/mod.rs
+index a86155e..9dfcbc8 100644
+--- a/src/builtins/proxy/mod.rs
++++ b/src/builtins/proxy/mod.rs
+@@ -140,6 +140,25 @@ impl Proxy {
+         }
+     }
+
++    /// The proxy's (target, handler), or `None` once revoked: lets an embedder
++    /// recognise proxies it minted by handler identity without running a trap.
++    #[must_use]
++    pub fn target_and_handler(&self) -> Option<(JsObject, JsObject)> {
++        self.data.clone()
++    }
++
++    /// `ProxyCreate` for an embedder holding object arguments: no `Proxy`
++    /// constructor call, so no VM frame and no stack-limit failure.
++    #[must_use]
++    pub fn from_target_and_handler(target: JsObject, handler: JsObject, context: &mut Context) -> JsObject {
++        JsObject::from_proto_and_data_with_shared_shape(
++            context.root_shape(),
++            context.intrinsics().constructors().object().prototype(),
++            Self::new(target, handler),
++        )
++        .upcast()
++    }
++
+     /// This is an internal method only built for usage in the proxy internal methods.
+     ///
+     /// It returns the (target, handler) of the proxy.

@@ -1,0 +1,22 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<title>settle microtask chain</title>
+<h1 id="h">chain</h1>
+<script>
+  window.addEventListener("load", function () {
+    var p = Promise.resolve();
+    for (var i = 0; i < 12; i++) {
+      p = p.then(function () {
+        return null;
+      });
+    }
+    p.then(function () {
+      document.getElementById("h").setAttribute("data-step", "deep");
+      document.title = "CHAIN_SETTLED";
+    });
+  });
+</script>

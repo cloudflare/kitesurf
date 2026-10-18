@@ -1,0 +1,478 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 12 Oct 2026 12:00:22 +0100
+Subject: [PATCH] vm: keep bytecode packed until its code block first runs
+
+Operands are u32s and nearly all fit in one byte, so bytecode was a
+third of a compiled bundle's retained code, for functions that mostly
+never run (react-dom runs 1 of 755 at load). Store it with u32-sized
+operands as varints and expand it to the executable layout the first
+time it executes: about 40% of the size at rest.
+
+Upstream dropped variable-width operands (boa #4827) because decoding
+them cost the interpreter 5-10%, so the interpreter never sees this
+form. A packed block's executable bytes read as empty, and the dispatch
+loop's existing past-the-end branch expands it, so running code pays no
+extra check per instruction or per call.
+---
+ src/vm/code_block.rs  |   2 +-
+ src/vm/mod.rs         |  20 +++++-
+ src/vm/opcode/args.rs | 142 +++++++++++++++++++++++++++++++++++++++++-
+ src/vm/opcode/mod.rs  | 136 +++++++++++++++++++++++++++++++++++++---
+ 4 files changed, 287 insertions(+), 13 deletions(-)
+
+diff --git a/src/vm/code_block.rs b/src/vm/code_block.rs
+index ef1828a..d791749 100644
+--- a/src/vm/code_block.rs
++++ b/src/vm/code_block.rs
+@@ -1067,7 +1067,7 @@ impl Display for CodeBlock {
+         } else {
+             f.write_char('\n')?;
+
+-            let bytecode_len = self.bytecode.bytes.len() as u32;
++            let bytecode_len = self.bytecode.len() as u32;
+             for (i, handler) in self.source_info().map().entries().windows(2).enumerate() {
+                 let current = handler[0];
+                 let next = handler.get(1);
+diff --git a/src/vm/mod.rs b/src/vm/mod.rs
+index ed0aeb6..2f31130 100644
+--- a/src/vm/mod.rs
++++ b/src/vm/mod.rs
+@@ -998,8 +998,16 @@ impl Context {
+         loop {
+             let frame = self.vm.frame();
+             let pc = frame.pc as usize;
+-            let bytes: &[u8] = &frame.code_block.bytecode.bytes;
++            // SAFETY: only `expand` writes the box, and only while it is empty: this slice is
++            // dead before the cold path below calls it, and a non-empty box is never rewritten.
++            let bytes: &[u8] = unsafe { frame.code_block.bytecode.executable() };
+             let Some(&byte) = bytes.get(pc) else {
++                // A still-packed code block reads as empty, so its first instruction
++                // lands here; expanding on this cold path keeps running code free of the check.
++                if frame.code_block.bytecode.is_packed() {
++                    frame.code_block.bytecode.expand();
++                    continue;
++                }
+                 break;
+             };
+             let bytes: *const [u8] = bytes;
+@@ -1031,8 +1039,16 @@ impl Context {
+             // it with the handler. This walk is hot.
+             let frame = self.vm.frame();
+             let pc = frame.pc as usize;
+-            let bytes: &[u8] = &frame.code_block.bytecode.bytes;
++            // SAFETY: only `expand` writes the box, and only while it is empty: this slice is
++            // dead before the cold path below calls it, and a non-empty box is never rewritten.
++            let bytes: &[u8] = unsafe { frame.code_block.bytecode.executable() };
+             let Some(&byte) = bytes.get(pc) else {
++                // A still-packed code block reads as empty, so its first instruction
++                // lands here; expanding on this cold path keeps running code free of the check.
++                if frame.code_block.bytecode.is_packed() {
++                    frame.code_block.bytecode.expand();
++                    continue;
++                }
+                 break;
+             };
+             let bytes: *const [u8] = bytes;
+diff --git a/src/vm/opcode/args.rs b/src/vm/opcode/args.rs
+index 5b431cd..2e4b06b 100644
+--- a/src/vm/opcode/args.rs
++++ b/src/vm/opcode/args.rs
+@@ -72,6 +72,46 @@ pub(crate) trait Argument: Sized + std::fmt::Debug {
+     /// Decode the argument from a byte slice
+     /// Returns the decoded argument and the new position after reading
+     fn decode(bytes: &[u8], pos: usize) -> (Self, usize);
++
++    /// Re-encode the argument at `bytes[pos..]` into the packed at-rest layout of
++    /// [`super::Bytecode`] (u32-sized operands as varints); returns the position after it.
++    fn pack(bytes: &[u8], pos: usize, out: &mut Vec<u8>) -> usize;
++
++    /// The inverse of [`Argument::pack`], writing the executable layout back out;
++    /// returns the position in `packed` after the argument.
++    fn unpack(packed: &[u8], pos: usize, out: &mut Vec<u8>) -> usize;
++}
++
++#[inline(always)]
++fn pack_varint(bytes: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++    let (mut value, pos) = read::<u32>(bytes, pos);
++    while value >= 0x80 {
++        out.push((value as u8) | 0x80);
++        value >>= 7;
++    }
++    out.push(value as u8);
++    pos
++}
++
++#[inline(always)]
++fn unpack_varint(packed: &[u8], mut pos: usize, out: &mut Vec<u8>) -> usize {
++    let (mut value, mut shift) = (0u32, 0);
++    loop {
++        let byte = packed[pos];
++        pos += 1;
++        value |= u32::from(byte & 0x7f) << shift;
++        if byte < 0x80 {
++            write_u32(out, value);
++            return pos;
++        }
++        shift += 7;
++    }
++}
++
++#[inline(always)]
++fn copy_fixed(bytes: &[u8], pos: usize, len: usize, out: &mut Vec<u8>) -> usize {
++    out.extend_from_slice(&bytes[pos..pos + len]);
++    pos + len
+ }
+
+ #[inline(always)]
+@@ -136,6 +176,25 @@ impl<T: Argument> Argument for ThinVec<T> {
+         }
+         (result, pos)
+     }
++
++    fn pack(bytes: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++        let (len, _) = read::<u32>(bytes, pos);
++        let mut pos = pack_varint(bytes, pos, out);
++        for _ in 0..len {
++            pos = T::pack(bytes, pos, out);
++        }
++        pos
++    }
++
++    fn unpack(packed: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++        let start = out.len();
++        let mut pos = unpack_varint(packed, pos, out);
++        let (len, _) = read::<u32>(out, start);
++        for _ in 0..len {
++            pos = T::unpack(packed, pos, out);
++        }
++        pos
++    }
+ }
+
+ impl Argument for () {
+@@ -144,6 +203,14 @@ impl Argument for () {
+     fn decode(_: &[u8], pos: usize) -> (Self, usize) {
+         ((), pos)
+     }
++
++    fn pack(_: &[u8], pos: usize, _: &mut Vec<u8>) -> usize {
++        pos
++    }
++
++    fn unpack(_: &[u8], pos: usize, _: &mut Vec<u8>) -> usize {
++        pos
++    }
+ }
+
+ impl Argument for IndexOperand {
+@@ -155,6 +222,14 @@ impl Argument for IndexOperand {
+         let (arg1, pos) = read::<u32>(bytes, pos);
+         (arg1.into(), pos)
+     }
++
++    fn pack(bytes: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++        pack_varint(bytes, pos, out)
++    }
++
++    fn unpack(packed: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++        unpack_varint(packed, pos, out)
++    }
+ }
+
+ impl Argument for RegisterOperand {
+@@ -166,6 +241,14 @@ impl Argument for RegisterOperand {
+         let (arg1, pos) = read::<u32>(bytes, pos);
+         (Self::new(arg1), pos)
+     }
++
++    fn pack(bytes: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++        pack_varint(bytes, pos, out)
++    }
++
++    fn unpack(packed: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++        unpack_varint(packed, pos, out)
++    }
+ }
+
+ impl Argument for Address {
+@@ -179,6 +262,14 @@ impl Argument for Address {
+         let (value, pos) = read::<u32>(bytes, pos);
+         (Self::new(value), pos)
+     }
++
++    fn pack(bytes: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++        pack_varint(bytes, pos, out)
++    }
++
++    fn unpack(packed: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++        unpack_varint(packed, pos, out)
++    }
+ }
+
+ macro_rules! impl_argument_for_tuple {
+@@ -195,6 +286,16 @@ macro_rules! impl_argument_for_tuple {
+                 $( let ($i, pos) = $t::decode(bytes, pos); )*
+                 (($($i,)*), pos)
+             }
++
++            fn pack(bytes: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++                $( let pos = $t::pack(bytes, pos, out); )*
++                pos
++            }
++
++            fn unpack(packed: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++                $( let pos = $t::unpack(packed, pos, out); )*
++                pos
++            }
+         }
+     };
+ }
+@@ -220,12 +321,41 @@ macro_rules! impl_argument_for_int {
+             fn decode(bytes: &[u8], pos: usize) -> (Self, usize) {
+                 read::<$t>(bytes, pos)
+             }
++
++            fn pack(bytes: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++                copy_fixed(bytes, pos, size_of::<$t>(), out)
++            }
++
++            fn unpack(packed: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++                copy_fixed(packed, pos, size_of::<$t>(), out)
++            }
+         }
+         )*
+     };
+ }
+
+-impl_argument_for_int!(u8 u16 u32 u64 i8 i16 i32 f32 f64);
++impl_argument_for_int!(u8 u16 u64 i8 i16 i32 f32 f64);
++
++impl Argument for u32 {
++    #[inline(always)]
++    fn encode(self, bytes: &mut Vec<u8>) {
++        write_u32(bytes, self);
++    }
++
++    #[inline(always)]
++    fn decode(bytes: &[u8], pos: usize) -> (Self, usize) {
++        read::<u32>(bytes, pos)
++    }
++
++    fn pack(bytes: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++        pack_varint(bytes, pos, out)
++    }
++
++    fn unpack(packed: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++        unpack_varint(packed, pos, out)
++    }
++}
++
+
+ #[cfg(test)]
+ mod tests {
+@@ -239,6 +369,7 @@ mod tests {
+         let (decoded, pos) = T::decode(&bytes, 0);
+         assert_eq!(decoded, *value);
+         assert_eq!(pos, bytes.len());
++        pack_round_trip::<T>(&bytes);
+     }
+
+     fn round_trip_eq<T: Argument + Clone, F: Fn(&T, &T) -> bool>(value: &T, eq: F) {
+@@ -247,6 +378,15 @@ mod tests {
+         let (decoded, pos) = T::decode(&bytes, 0);
+         assert!(eq(&decoded, value));
+         assert_eq!(pos, bytes.len());
++        pack_round_trip::<T>(&bytes);
++    }
++
++    fn pack_round_trip<T: Argument>(bytes: &[u8]) {
++        let mut packed = Vec::new();
++        assert_eq!(T::pack(bytes, 0, &mut packed), bytes.len());
++        let mut unpacked = Vec::new();
++        assert_eq!(T::unpack(&packed, 0, &mut unpacked), packed.len());
++        assert_eq!(unpacked, bytes);
+     }
+
+     #[test]
+diff --git a/src/vm/opcode/mod.rs b/src/vm/opcode/mod.rs
+index 7a2e714..eb91502 100644
+--- a/src/vm/opcode/mod.rs
++++ b/src/vm/opcode/mod.rs
+@@ -74,6 +74,7 @@ pub(crate) fn null_base_error_by_name(
+     let name = context.vm.frame().code_block().ic_names[ic_index].to_std_string_escaped();
+     null_base_error(value, access, &name)
+ }
++use std::cell::{Cell, UnsafeCell};
+ use std::ops::ControlFlow;
+ use thin_vec::ThinVec;
+
+@@ -201,9 +202,7 @@ impl BytecodeEmitter {
+
+     /// Convert the [`BytecodeEmitter`] into a [`Bytecode`] instance.
+     pub(crate) fn into_bytecode(self) -> Bytecode {
+-        Bytecode {
+-            bytes: self.bytes.into_boxed_slice(),
+-        }
++        Bytecode::pack(&self.bytes)
+     }
+
+     /// Get the location of the next opcode in the bytecode.
+@@ -237,10 +236,115 @@ impl BytecodeEmitter {
+     }
+ }
+
+-#[derive(Clone, Debug, Default)]
+-/// The bytecode representation of a codeblock.
++/// A codeblock's bytecode, kept packed (u32 operands as varints) until it first runs,
++/// which most functions of a bundle never do; it is then expanded once to execute.
+ pub(crate) struct Bytecode {
+-    pub(crate) bytes: Box<[u8]>,
++    bytes: UnsafeCell<Box<[u8]>>,
++    packed: Cell<Box<[u8]>>,
++    len: u32,
++}
++
++impl Default for Bytecode {
++    fn default() -> Self {
++        Self {
++            bytes: UnsafeCell::default(),
++            packed: Cell::default(),
++            len: 0,
++        }
++    }
++}
++
++impl Clone for Bytecode {
++    fn clone(&self) -> Self {
++        let packed = self.packed.take();
++        let clone = Self {
++            // SAFETY: a shared read of the box; see `Self::expand` for the only write.
++            bytes: UnsafeCell::new(unsafe { (&*self.bytes.get()).clone() }),
++            packed: Cell::new(packed.clone()),
++            len: self.len,
++        };
++        self.packed.set(packed);
++        clone
++    }
++}
++
++impl std::fmt::Debug for Bytecode {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        f.debug_struct("Bytecode")
++            .field("len", &self.len)
++            .field("packed", &self.is_packed())
++            .finish()
++    }
++}
++
++impl Bytecode {
++    fn pack(bytes: &[u8]) -> Self {
++        let mut packed = Vec::with_capacity(bytes.len() / 2);
++        let mut pc = 0;
++        while pc < bytes.len() {
++            packed.push(bytes[pc]);
++            pc = Self::pack_operands(Opcode::decode(bytes[pc]), bytes, pc + 1, &mut packed);
++        }
++        Self {
++            bytes: UnsafeCell::default(),
++            packed: Cell::new(packed.into_boxed_slice()),
++            len: bytes.len() as u32,
++        }
++    }
++
++    /// Whether [`Self::executable`] is still empty because the bytecode has not been expanded.
++    /// An empty code block never is: there is nothing to pack.
++    #[inline]
++    pub(crate) fn is_packed(&self) -> bool {
++        // SAFETY: a shared read of the box; see `Self::expand` for the only write.
++        self.len != 0 && unsafe { (&*self.bytes.get()).is_empty() }
++    }
++
++    /// The executable bytecode, expanding the packed form the first time it is asked for.
++    /// Everything but the dispatch loop reads it through here.
++    #[inline]
++    pub(crate) fn bytes(&self) -> &[u8] {
++        if self.is_packed() {
++            self.expand();
++        }
++        // SAFETY: expanded above, and `Self::expand` never writes the box again.
++        unsafe { &*self.bytes.get() }
++    }
++
++    /// Safety: empty while [`Self::is_packed`], and the slice must not outlive a call to
++    /// [`Self::expand`]. The dispatch loop reads it per instruction, its bounds check included.
++    #[inline(always)]
++    pub(crate) unsafe fn executable(&self) -> &[u8] {
++        // SAFETY: guaranteed by the caller.
++        unsafe { &*self.bytes.get() }
++    }
++
++    /// Expands the packed bytecode into [`Self::executable`]; a no-op once that has happened.
++    /// The box is only ever written here, while no reference into its (empty) contents is live.
++    #[cold]
++    #[inline(never)]
++    pub(crate) fn expand(&self) {
++        if !self.is_packed() {
++            return;
++        }
++        let packed = self.packed.take();
++        let mut bytes = Vec::with_capacity(self.len as usize);
++        let mut pos = 0;
++        while pos < packed.len() {
++            bytes.push(packed[pos]);
++            pos = Self::unpack_operands(Opcode::decode(packed[pos]), &packed, pos + 1, &mut bytes);
++        }
++        debug_assert_eq!(bytes.len(), self.len as usize);
++        // SAFETY: `bytes()` expands before handing out a reference and the dispatch loop drops
++        // its slice before expanding, so nothing borrows the empty box being replaced.
++        unsafe { *self.bytes.get() = bytes.into_boxed_slice() };
++    }
++
++    /// Length of the executable bytecode, without expanding it.
++    /// The code block printer uses this.
++    pub(crate) const fn len(&self) -> usize {
++        self.len as usize
++    }
+ }
+
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+@@ -549,9 +653,23 @@ macro_rules! generate_opcodes {
+         }
+
+         impl Bytecode {
++            #[allow(unused_parens)]
++            fn pack_operands(opcode: Opcode, bytes: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++                match opcode {
++                    $( Opcode::$Variant => <($($($FieldType),*)?)>::pack(bytes, pos, out), )*
++                }
++            }
++
++            #[allow(unused_parens)]
++            fn unpack_operands(opcode: Opcode, packed: &[u8], pos: usize, out: &mut Vec<u8>) -> usize {
++                match opcode {
++                    $( Opcode::$Variant => <($($($FieldType),*)?)>::unpack(packed, pos, out), )*
++                }
++            }
++
+             #[allow(unused_parens)]
+             pub(crate) fn next_instruction(&self, pc: usize) -> (Instruction, usize) {
+-                let bytes = &self.bytes;
++                let bytes = self.bytes();
+                 let opcode = Opcode::decode(bytes[pc]);
+
+                 match opcode {
+@@ -602,11 +720,11 @@ impl Iterator for InstructionIterator<'_> {
+     #[inline]
+     fn next(&mut self) -> Option<Self::Item> {
+         let start_pc = self.pc;
+-        if self.pc >= self.bytes.bytes.len() {
++        let bytes = self.bytes.bytes();
++        if self.pc >= bytes.len() {
+             return None;
+         }
+
+-        let bytes = &self.bytes.bytes;
+         let opcode = Opcode::decode(bytes[self.pc]);
+         // Get instruction and determine how much to advance pc
+         let (instruction, read_size) = self.bytes.next_instruction(self.pc);

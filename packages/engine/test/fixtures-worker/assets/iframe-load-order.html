@@ -1,0 +1,27 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<iframe src="/__fixtures/iframe-child.html"></iframe>
+<script>
+  // Sampled INSIDE the window load handler, which is the only place
+  // the ordering is observable: after load, the parent's
+  // installIframeContent has landed either way.
+  window.__atLoad = null;
+  addEventListener("load", function () {
+    var f = document.querySelector("iframe");
+    try {
+      window.__atLoad = f.contentDocument.getElementById("hdr").textContent;
+    } catch (e) {
+      window.__atLoad = "threw: " + e;
+    }
+  });
+</script>
+</body>
+</html>

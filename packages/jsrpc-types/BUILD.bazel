@@ -1,0 +1,24 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@npm//packages/jsrpc-types:typescript/package_json.bzl", tsc = "bin")
+load("//bazel:checks.bzl", "tsc_test", "workspace_configs")
+
+npm_link_all_packages(name = "node_modules")
+
+js_library(
+    name = "pkg",
+    srcs = ["package.json", "tsconfig.json"] + glob(["src/**"]),
+    deps = [":node_modules/devtools-protocol"],
+    visibility = ["//visibility:public"],
+)
+
+tsc_test(
+    name = "types",
+    bin = tsc,
+    data = [
+        ":pkg",
+        "//:node_modules/@cloudflare/workers-types",
+    ],
+)
+
+workspace_configs()

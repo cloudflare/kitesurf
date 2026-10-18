@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 31 Aug 2026 17:53:00 +0100
+Subject: [PATCH] Preserve min-max with incompatible NaN units
+
+A NaN wins min() or max() only when the NaN branches have compatible
+units. Keep the function when relative and absolute units cannot be
+reduced to one leaf.
+---
+ values/generics/calc.rs | 25 +++++++++++++++++++------
+ 1 file changed, 19 insertions(+), 6 deletions(-)
+
+diff --git a/values/generics/calc.rs b/values/generics/calc.rs
+index 56c293b..9454e20 100644
+--- a/values/generics/calc.rs
++++ b/values/generics/calc.rs
+@@ -1988,17 +1988,30 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                     MinMaxOp::Max => cmp::Ordering::Greater,
+                 };
+
+-                if value_or_stop!(children[0].is_nan_leaf()) {
+-                    replace_self_with!(&mut children[0]);
++                let mut nan_index = None;
++                for i in 0..children.len() {
++                    if !value_or_stop!(children[i].is_nan_leaf()) {
++                        continue;
++                    }
++                    if let Some(previous) = nan_index {
++                        let same_unit = match (&children[previous], &children[i]) {
++                            (Self::Leaf(a), Self::Leaf(b)) => a.is_same_unit_as(b),
++                            _ => false,
++                        };
++                        if !same_unit {
++                            return SimplificationResult::Unchanged;
++                        }
++                    }
++                    nan_index = Some(i);
++                }
++
++                if let Some(index) = nan_index {
++                    replace_self_with!(&mut children[index]);
+                     return SimplificationResult::Simplified;
+                 }
+
+                 let mut result = 0;
+                 for i in 1..children.len() {
+-                    if value_or_stop!(children[i].is_nan_leaf()) {
+-                        replace_self_with!(&mut children[i]);
+-                        return SimplificationResult::Simplified;
+-                    }
+                     let o = match children[i].compare(&children[result]) {
+                         // We can't compare all the children, so we can't
+                         // know which one will actually win. Bail out and

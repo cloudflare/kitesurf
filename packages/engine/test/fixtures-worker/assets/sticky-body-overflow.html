@@ -1,0 +1,21 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8" /><title>sticky root overflow</title>
+<style>
+  body { overflow-y: scroll; }
+  body { margin: 0; font: 16px monospace; }
+  #head { position: sticky; top: 25px; height: 30px; background: #ccf; }
+</style>
+</head>
+<body>
+  <div style="height:100px">spacer</div>
+  <div id="head">head</div>
+  <div style="height:2000px">filler</div>
+</body>
+</html>

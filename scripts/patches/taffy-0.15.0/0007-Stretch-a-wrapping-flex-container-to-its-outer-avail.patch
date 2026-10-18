@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 15 Sep 2026 09:22:52 +0100
+Subject: [PATCH] Stretch a wrapping flex container to its outer available
+ space
+
+determine_container_main_size returns an outer main size, but by then
+available_space has been shrunk to the content box, so the stretch-fit
+for a container that wrapped answered one padding-and-border inset short
+of the space its lines actually filled. An inline-flex with 20px side
+padding whose items fill a 300px line came out 260px wide, against 300px
+in both Chrome and Firefox.
+
+This is reachable only where the main size is content-determined. A
+block-level flex container takes its width from the parent and never
+asks.
+---
+ src/compute/flexbox.rs | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/src/compute/flexbox.rs b/src/compute/flexbox.rs
+index 596bd81..48e366d 100644
+--- a/src/compute/flexbox.rs
++++ b/src/compute/flexbox.rs
+@@ -1402,6 +1402,13 @@ fn determine_container_main_size(
+     let outer_main_size: f32 = constants.node_outer_size.main(constants.dir).unwrap_or_else(|| {
+         match available_space.main(dir) {
+             AvailableSpace::Definite(main_axis_available_space) => {
++                // This function returns an outer main size, but `available_space` has already
++                // been shrunk to the container's content box (`determine_available_space`), so
++                // every stretch-fit below has to add the inset back. Without it, a wrapping
++                // container with padding settles one inset short of the space its lines fill:
++                // 260px for a 300px line with 20px of side padding, where Chrome and Firefox
++                // both give 300px.
++                let outer_main_axis_available_space = main_axis_available_space + main_content_box_inset;
+                 let main_axis_gap = constants.gap.main(constants.dir);
+                 let item_main_length = |child: &FlexItem| {
+                     let padding_border_sum = (child.padding + child.border).main_axis_sum(constants.dir);
+@@ -1452,11 +1459,11 @@ fn determine_container_main_size(
+                         index += count;
+                     }
+                     let max_content_size = widest_line_length + main_content_box_inset;
+-                    return f32_max(size, f32_min(max_content_size, main_axis_available_space));
++                    return f32_max(size, f32_min(max_content_size, outer_main_axis_available_space));
+                 }
+
+                 if lines.len() > 1 {
+-                    f32_max(size, main_axis_available_space)
++                    f32_max(size, outer_main_axis_available_space)
+                 } else {
+                     size
+                 }

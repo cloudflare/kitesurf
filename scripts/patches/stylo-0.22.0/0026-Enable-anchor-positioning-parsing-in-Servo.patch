@@ -1,0 +1,139 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Tue, 15 Sep 2026 21:19:03 +0100
+Subject: [PATCH] Enable anchor positioning parsing in Servo
+
+Servo already compiles the anchor value implementations, but preference
+checks reject every anchor() and anchor-size() value. The remaining
+checks are crate::pref!("layout.css.anchor-positioning.enabled",
+gecko = true), which is off by default in servo. Ship the parser
+support unconditionally and generate the remaining anchor properties
+for Servo.
+---
+ properties/longhands.toml    |  3 ---
+ values/specified/calc.rs     |  6 ------
+ values/specified/length.rs   |  9 +--------
+ values/specified/position.rs | 10 ----------
+ 4 files changed, 1 insertion(+), 27 deletions(-)
+
+diff --git a/properties/longhands.toml b/properties/longhands.toml
+index f3c7d46..0f82a7b 100644
+--- a/properties/longhands.toml
++++ b/properties/longhands.toml
+@@ -182,7 +182,6 @@ affects = "layout"
+ type = "AnchorName"
+ initial = "computed::AnchorName::none()"
+ struct = "box"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#propdef-anchor-name"
+ affects = ""
+@@ -1716,7 +1715,6 @@ affects = "layout"
+ type = "PositionAnchor"
+ initial = "computed::PositionAnchor::normal()"
+ struct = "position"
+-engine = "gecko"
+ animation_type = "discrete"
+ rule_types_allowed = ["style", "keyframe", "scope", "position-try"]
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#propdef-position-anchor"
+@@ -1728,7 +1726,6 @@ initial = "computed::PositionArea::none()"
+ struct = "position"
+ animation_type = "discrete"
+ rule_types_allowed = ["style", "keyframe", "scope", "position-try"]
+-servo_pref = "layout.unimplemented"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#typedef-position-area"
+ affects = "layout"
+
+diff --git a/values/specified/calc.rs b/values/specified/calc.rs
+index 4ac4b91..f3ad3f5 100644
+--- a/values/specified/calc.rs
++++ b/values/specified/calc.rs
+@@ -807,9 +807,6 @@ impl GenericAnchorFunction<Box<CalcNode>, Box<GenericAnchorFunctionFallback<Leaf
+         additional_functions: AdditionalFunctions,
+         input: &mut Parser,
+     ) -> Result<Self, ParseError> {
+-        if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) {
+-            return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+-        }
+         input.parse_nested_block(|i| {
+             let target_element = i.try_parse(|i| DashedIdent::parse(context, i)).ok();
+             let side = GenericAnchorSide::parse_in_calc(context, i)?;
+@@ -837,9 +834,6 @@ impl GenericAnchorFunction<Box<CalcNode>, Box<GenericAnchorFunctionFallback<Leaf
+
+ impl GenericAnchorSizeFunction<Box<GenericAnchorFunctionFallback<Leaf>>> {
+     fn parse_in_calc(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+-        if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) {
+-            return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+-        }
+         GenericAnchorSizeFunction::parse_inner(context, input, |i| {
+             parse_anchor_function_fallback(context, AdditionalFunctions::ANCHOR_SIZE, i)
+         })
+diff --git a/values/specified/length.rs b/values/specified/length.rs
+index ef0d322..008397d 100644
+--- a/values/specified/length.rs
++++ b/values/specified/length.rs
+@@ -1868,8 +1868,7 @@ impl Size {
+                                "auto" => Auto);
+         parse_fit_content_function!(Size, input, context, allow_quirks);
+
+-        let allow_anchor = allow_anchor_functions == ParseAnchorFunctions::Yes
+-            && crate::pref!("layout.css.anchor-positioning.enabled", gecko = true);
++        let allow_anchor = allow_anchor_functions == ParseAnchorFunctions::Yes;
+         match input
+             .try_parse(|i| NonNegativeLengthPercentage::parse_quirky(context, i, allow_quirks))
+         {
+@@ -1962,9 +1961,6 @@ impl MaxSize {
+             .try_parse(|i| NonNegativeLengthPercentage::parse_quirky(context, i, allow_quirks))
+         {
+             Ok(length) => return Ok(GenericMaxSize::LengthPercentage(length)),
+-            Err(e) if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) => {
+-                return Err(e.into())
+-            },
+             Err(_) => (),
+         };
+         if let Ok(length) = input.try_parse(|i| {
+@@ -2003,9 +1999,6 @@ impl Margin {
+         }
+         match input.try_parse(|i| i.expect_ident_matching("auto")) {
+             Ok(_) => return Ok(Self::Auto),
+-            Err(e) if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) => {
+-                return Err(e.into())
+-            },
+             Err(_) => (),
+         };
+         if let Ok(l) = input.try_parse(|i| {
+diff --git a/values/specified/position.rs b/values/specified/position.rs
+index a9e3101..0022988 100644
+--- a/values/specified/position.rs
++++ b/values/specified/position.rs
+@@ -2163,9 +2163,6 @@ impl Inset {
+         }
+         match input.try_parse(|i| i.expect_ident_matching("auto")) {
+             Ok(_) => return Ok(Self::Auto),
+-            Err(e) if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) => {
+-                return Err(e.into());
+-            },
+             Err(_) => (),
+         };
+         Self::parse_anchor_functions_quirky(context, input, allow_quirks)
+@@ -2188,10 +2185,6 @@ impl Inset {
+         input: &mut Parser,
+         allow_quirks: AllowQuirks,
+     ) -> Result<Self, ParseError> {
+-        debug_assert!(
+-            crate::pref!("layout.css.anchor-positioning.enabled", gecko = true),
+-            "How are we parsing with pref off?"
+-        );
+         if let Ok(inner) = input.try_parse(|i| AnchorFunction::parse(context, i)) {
+             return Ok(Self::AnchorFunction(Box::new(inner)));
+         }
+@@ -2217,9 +2210,6 @@ pub type AnchorFunction = GenericAnchorFunction<specified::Percentage, Inset>;
+
+ impl Parse for AnchorFunction {
+     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+-        if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) {
+-            return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+-        }
+         input.expect_function_matching("anchor")?;
+         input.parse_nested_block(|i| {
+             let target_element = i.try_parse(|i| DashedIdent::parse(context, i)).ok();

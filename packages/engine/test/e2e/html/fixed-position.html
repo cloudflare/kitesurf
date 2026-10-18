@@ -1,0 +1,43 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8" /><title>fixed position</title>
+<style>
+  body { margin: 0 }
+  #bar { position: fixed; top: 10px; left: 20px; width: 200px; height: 40px; background: #0c0 }
+  /* in-flow child of a fixed box: inherits the viewport anchoring */
+  #inbar { position: relative; top: 5px; left: 5px; width: 50px; height: 10px; background: #00c }
+  /* the visually-hidden pattern nested as radar has it: the containing block is
+     a relative wrapper inside the fixed box, not the fixed box itself */
+  #rel1, #rel2 { position: relative }
+  #churn { width: 10px; height: 2px; background: #0c0 }
+  #sronly { position: absolute; top: 20px; left: 10px; width: 1px; height: 1px;
+            overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%);
+            font: 16px monospace; color: #f0f; white-space: pre }
+  #abs { position: absolute; top: 60px; left: 30px; width: 80px; height: 20px; background: #c00 }
+  #stick { position: sticky; top: 15px; width: 100px; height: 30px; background: #cc0 }
+  #spacer { height: 3000px }
+</style>
+</head>
+<body>
+  <div id="bar"><div id="inbar"></div><div id="churn"></div>
+    <div id="rel1"><div id="rel2"><div><span id="sronly">HIDDEN LABEL TEXT</span></div></div></div>
+  </div>
+  <div id="abs"></div>
+  <div id="stick"></div>
+  <div id="spacer"></div>
+  <script>
+    // Radar re-resolves layout constantly while scrolling; a static document
+    // never does, so nothing exercises the damage-gated incremental path.
+    addEventListener("scroll", () => {
+      document.getElementById("churn").style.width =
+        (10 + (Math.round(window.pageYOffset / 100) % 7)) + "px";
+    });
+  </script>
+</body>
+</html>

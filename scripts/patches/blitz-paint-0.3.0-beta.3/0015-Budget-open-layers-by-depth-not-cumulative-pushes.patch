@@ -1,0 +1,75 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 4 Aug 2026 08:39:20 +0100
+Subject: [PATCH] Budget open layers by depth, not cumulative pushes
+
+LayerManager checked `layers_used` against LAYER_LIMIT, but
+`layers_used` is only ever incremented: `maybe_pop_layer` gives back
+`layer_depth` and never `layers_used`. The check therefore capped the
+total number of clips a paint pass may ever push, not how many are open
+at once, so a heavy page exhausts it partway through and every later
+clip is silently refused. A refused clip does not skip its content; it
+paints it unclipped. On a page scrolled to the bottom, 1x1
+`clip: rect(0,0,0,0)` screen-reader spans inside a fixed header painted
+their text over the page. Fixed subtrees are hoisted and painted last,
+which is why they were the ones left without budget.
+
+Depth is also the quantity worth bounding: each open layer costs the
+rasterizer a scratch buffer, and a pop releases it. 1024 concurrently
+open layers is still far beyond anything real content nests.
+
+Also fix the depth high-water mark, which read
+`layer_depth.max(layer_depth)` (a no-op) instead of writing the
+`layer_depth_used` field that exists for it.
+---
+ src/layers.rs | 21 ++++++++++++++-------
+ 1 file changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/src/layers.rs b/src/layers.rs
+index bd1b4e7..c4c0d67 100644
+--- a/src/layers.rs
++++ b/src/layers.rs
+@@ -7,11 +7,15 @@ const LAYER_LIMIT: u32 = 1024;
+
+ #[derive(Default)]
+ pub(crate) struct LayerManager {
+-    layers_used: Cell<u32>,
+     layer_depth: Cell<u32>,
+-    layers_wanted: Cell<u32>,
+
+-    #[allow(unused)] // Only used for debugging. Enabled as required.
++    // Diagnostics only. layers_wanted minus layers_used is how many layers
++    // LAYER_LIMIT refused; layer_depth_used is the depth high-water mark.
++    #[allow(unused)]
++    layers_used: Cell<u32>,
++    #[allow(unused)]
++    layers_wanted: Cell<u32>,
++    #[allow(unused)]
+     layer_depth_used: Cell<u32>,
+ }
+
+@@ -57,9 +61,11 @@ impl LayerManager {
+         }
+         self.layers_wanted.update(|x| x + 1);
+
+-        // Check if clips are above limit
+-        let layers_available = self.layers_used.get() <= LAYER_LIMIT;
+-        if !layers_available {
++        // Budget concurrently-open layers, not the running total: each open
++        // layer costs the rasterizer a scratch buffer, and pops give that back.
++        // Counting every push ever made exhausts the budget partway through a
++        // heavy page, and a refused clip then paints its content unclipped.
++        if self.layer_depth.get() >= LAYER_LIMIT {
+             return false;
+         }
+
+@@ -81,7 +87,8 @@ impl LayerManager {
+         // Update accounting
+         self.layers_used.update(|x| x + 1);
+         self.layer_depth.update(|x| x + 1);
+-        self.layer_depth.update(|x| x.max(self.layer_depth.get()));
++        self.layer_depth_used
++            .update(|x| x.max(self.layer_depth.get()));
+
+         true
+     }

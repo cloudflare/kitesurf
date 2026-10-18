@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ruskin Constant <ruskin@cloudflare.com>
+Date: Wed, 16 Sep 2026 11:27:57 +0100
+Subject: [PATCH] Enable text-decoration-line: spelling-error/grammar-error in
+ servo
+
+The SPELLING_ERROR and GRAMMAR_ERROR bits already exist unconditionally
+on TextDecorationLine (only the internal gecko-only COLOR_OVERRIDE bit
+is cfg-gated); the engine split only withheld the two keywords from the
+non-gecko parser and serializer's bitflags macro. Merge the two
+per-engine attribute lists into one, so both keywords parse, serialize,
+and round-trip through getComputedStyle in the servo build. Paint never
+reads these bits (only UNDERLINE, OVERLINE and LINE_THROUGH), so this
+changes computed values only, not rendering.
+---
+ values/specified/text.rs | 18 +++++++-----------
+ 1 file changed, 7 insertions(+), 11 deletions(-)
+
+diff --git a/values/specified/text.rs b/values/specified/text.rs
+index 181eede..1c1ff21 100644
+--- a/values/specified/text.rs
++++ b/values/specified/text.rs
+@@ -280,17 +280,13 @@ impl ToCss for TextOverflow {
+     ToShmem,
+     ToTyped,
+ )]
+-#[cfg_attr(
+-    feature = "gecko",
+-    css(bitflags(
+-        single = "none,spelling-error,grammar-error",
+-        mixed = "underline,overline,line-through,blink",
+-    ))
+-)]
+-#[cfg_attr(
+-    not(feature = "gecko"),
+-    css(bitflags(single = "none", mixed = "underline,overline,line-through,blink",))
+-)]
++// spelling-error/grammar-error are mature (css-text-decor-4) and the
++// SPELLING_ERROR/GRAMMAR_ERROR bits below are already unconditional,
++// so expose the keywords to the servo build's parser and serializer too.
++#[css(bitflags(
++    single = "none,spelling-error,grammar-error",
++    mixed = "underline,overline,line-through,blink",
++))]
+ #[repr(C)]
+ /// Specified keyword values for the text-decoration-line property.
+ pub struct TextDecorationLine(u8);

@@ -1,0 +1,7 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html><title>dynamic-app</title><body><div id=a></div><div id=b></div><div id=c></div><script type="module">document.getElementById('a').textContent = 'eval-total:' + eval('6 * 7');var render = new Function('list', 'return "items:" + list.join(",")');document.getElementById('b').textContent = render(['apple','banana','cherry']);var name = 'mod';import('./dynamic-app-' + name + '.js').then(function(m){document.getElementById('c').textContent = 'import:' + m.greet(99);});</script></body>

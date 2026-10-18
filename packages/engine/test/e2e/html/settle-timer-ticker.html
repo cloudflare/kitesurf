@@ -1,0 +1,19 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<title>settle timer ticker</title>
+<h1 id="h">ticker</h1>
+<script>
+  window.addEventListener("load", function () {
+    function tick() {
+      globalThis.__ks_mine++;
+      setTimeout(tick, 0);
+    }
+    globalThis.__ks_mine++;
+    setTimeout(tick, 0);
+    document.title = "TIMER_TICKER_READY";
+  });
+</script>

@@ -1,0 +1,29 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@npm//packages/script-gate:typescript/package_json.bzl", tsc = "bin")
+load("//bazel:checks.bzl", "node_test", "tsc_test", "workspace_configs")
+
+npm_link_all_packages(name = "node_modules")
+
+js_library(
+    name = "pkg",
+    srcs = ["package.json", "tsconfig.json"] + glob(["src/**"]),
+    visibility = ["//visibility:public"],
+)
+
+tsc_test(
+    name = "types",
+    bin = tsc,
+    data = [
+        ":node_modules/@types/node",
+        ":pkg",
+    ] + glob(["test/**"]),
+)
+
+node_test(
+    name = "test",
+    args = ["test/*.test.ts"],
+    data = [":pkg"] + glob(["test/**"]),
+)
+
+workspace_configs()

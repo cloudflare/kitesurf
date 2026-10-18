@@ -1,0 +1,104 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 24 Aug 2026 23:15:05 +0100
+Subject: [PATCH] Let a re-homed abspos escape its flow parent's overflow clip
+
+blitz-dom hoists an abspos box to its containing block for layout but
+leaves paint with the flow parent, so DOM order among a stacking
+context's positioned boxes survives. Paint therefore ran it inside
+whatever clip layer that parent pushed. blitz-dom only hoists when the
+containing block is an ancestor of the flow parent, so that parent is
+never in the box's containing-block chain, and CSS 2.1 section 11.1.1
+says its clip must not apply.
+
+For example: `body{width:996px}` plus `body.fullscreen{overflow:hidden}`
+around an `article{position:absolute;inset:0}`. Layout gave the article
+the full viewport width (its containing block is the initial one, since
+body is static), and then paint kept only its leftmost 996px, cropping
+a canvas app's drawing mid-shape. position:fixed was always fine: those
+boxes are re-parented to the root for paint as well as layout, so no
+intermediate clip wraps them.
+
+Split the child walk only when the element actually clips. The withheld
+boxes paint just outside the clip layer and just inside the effect
+layer, since a filter or opacity is their containing block and does
+apply. They get the element's own clip rect rather than the narrowed
+one, so the cull can't drop a box that sits outside the scrollport, and
+its unscrolled transform, because a box anchored above a scroller
+doesn't move with it.
+
+Not addressed: clip-path on a static ancestor clips them the same way.
+---
+ src/render.rs | 35 ++++++++++++++++++++++++++++++++++-
+ 1 file changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index f38ace5..e5c7e48 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -650,10 +650,15 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                                 cx.draw_text_input_text(scene, content_position);
+                                 cx.draw_inline_layout(scene, content_position);
+                                 cx.draw_marker(scene, content_position);
+-                                cx.draw_children(scene, cx.transform, child_clip_rect);
++                                cx.draw_children(scene, cx.transform, child_clip_rect, should_clip);
+                             },
+                         );
+
++                        if should_clip {
++                            cx.transform = unscrolled_transform;
++                            cx.draw_rehomed_children(scene, cx.transform, clip_rect);
++                        }
++
+                         // Overlay scrollbars, drawn unscrolled above the
+                         // clipped content.
+                         #[cfg(feature = "scrollbars")]
+@@ -1118,6 +1123,7 @@ impl ElementCx<'_, '_> {
+         scene: &mut impl PaintScene,
+         parent_style_transform: Affine,
+         clip_rect: Rect,
++        skip_rehomed: bool,
+     ) {
+         // Negative z_index hoisted nodes
+
+@@ -1143,6 +1149,9 @@ impl ElementCx<'_, '_> {
+                 let child = &self.context.dom.as_ref().tree()[*child_id];
+                 let child_transform = match child.paint_parent_override.get() {
+                     Some(parent) if parent == self.node.id => {
++                        if skip_rehomed {
++                            continue;
++                        }
+                         let translation = child.rehomed_paint_translate(parent);
+                         parent_style_transform.pre_translate(kurbo::Vec2 {
+                             x: translation.x as f64 * self.scale,
+@@ -1186,6 +1195,30 @@ impl ElementCx<'_, '_> {
+         }
+     }
+
++    /// Paint re-homed abspos children outside this flow parent's overflow clip.
++    fn draw_rehomed_children(
++        &self,
++        scene: &mut impl PaintScene,
++        parent_style_transform: Affine,
++        clip_rect: Rect,
++    ) {
++        let Some(children) = &*self.node.paint_children.borrow() else {
++            return;
++        };
++        for child_id in children {
++            let child = &self.context.dom.as_ref().tree()[*child_id];
++            if child.paint_parent_override.get() != Some(self.node.id) {
++                continue;
++            }
++            let translation = child.rehomed_paint_translate(self.node.id);
++            let transform = parent_style_transform.pre_translate(kurbo::Vec2 {
++                x: translation.x as f64 * self.scale,
++                y: translation.y as f64 * self.scale,
++            });
++            self.render_node(scene, *child_id, transform, clip_rect);
++        }
++    }
++
+     #[cfg(feature = "svg")]
+     fn draw_svg(&self, scene: &mut impl PaintScene) {
+         use style::properties::generated::longhands::object_fit::computed_value::T as ObjectFit;

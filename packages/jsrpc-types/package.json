@@ -1,0 +1,24 @@
+{
+  "name": "@kitesurf/jsrpc-types",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Type-only JSRPC contracts between the engine and its loaded-worker isolates: PageScript session methods, queryDom and upstream events, the PageRenderer methods and the render port. Source-exported so both ends of each call check against one copy.",
+  "exports": {
+    "./shared": "./src/shared.ts",
+    "./page-script": "./src/page-script.ts",
+    "./query-dom": "./src/query-dom.ts",
+    "./page-renderer": "./src/page-renderer.ts",
+    "./dedicated-worker": "./src/dedicated-worker.ts"
+  },
+  "scripts": {
+    "types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "devtools-protocol": "^0.0.1669207"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

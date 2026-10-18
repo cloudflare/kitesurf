@@ -1,0 +1,5 @@
+{
+  "name": "@kitesurf/lint-rules",
+  "private": true,
+  "type": "module"
+}

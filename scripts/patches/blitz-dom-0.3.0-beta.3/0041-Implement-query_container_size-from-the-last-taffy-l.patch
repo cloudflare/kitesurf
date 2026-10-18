@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 30 Jul 2026 15:06:55 +0100
+Subject: [PATCH] Implement query_container_size from the last taffy layout
+
+The TElement stub returned no size, so every container-relative
+unit fell back to the small viewport even with an explicit
+container-type ancestor (WPT color-computed-* sign(2cqw - 10px)
+probes). Report the node's content-box from final_layout: blitz
+doesn't interleave style and layout, so a first-pass read sees a
+zeroed layout, but any later restyle (the WPT el.style pattern)
+resolves against the real container size.
+---
+ src/stylo.rs | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/src/stylo.rs b/src/stylo.rs
+index de55c17..75da953 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -1390,8 +1390,17 @@ impl<'a> TElement for BlitzNode<'a> {
+         &self,
+         _display: &style::values::specified::Display,
+     ) -> euclid::default::Size2D<Option<app_units::Au>> {
+-        // FIXME: Implement container queries. For now this effectively disables them without panicking.
+-        Default::default()
++        // Content-box size from the last layout pass (cq units, size
++        // container queries). Blitz doesn't interleave style and
++        // layout, so the first cascade sees a zeroed layout; callers
++        // converge on the next restyle once the container is laid out.
++        let l = self.final_layout();
++        let w = l.size.width - l.padding.left - l.padding.right - l.border.left - l.border.right;
++        let h = l.size.height - l.padding.top - l.padding.bottom - l.border.top - l.border.bottom;
++        euclid::default::Size2D::new(
++            Some(app_units::Au::from_f32_px(w.max(0.0))),
++            Some(app_units::Au::from_f32_px(h.max(0.0))),
++        )
+     }
+
+     fn each_custom_state<F>(&self, _callback: F)

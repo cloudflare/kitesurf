@@ -1,0 +1,27 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<title>msgchannel-modinit</title>
+<script type="module">
+window.__mc = { initCtor: null, initPost: null, initFired: "no", handlerFired: "no" };
+try {
+  const ch = new MessageChannel();
+  window.__mc.initCtor = "ok";
+  ch.port1.onmessage = () => { window.__mc.initFired = "yes"; };
+  try {
+    ch.port2.postMessage(1);
+    window.__mc.initPost = "ok";
+  } catch (e) { window.__mc.initPost = String(e && e.message || e).slice(0, 120); }
+} catch (e) { window.__mc.initCtor = String(e && e.message || e).slice(0, 120); }
+setTimeout(() => {
+  try {
+    const ch2 = new MessageChannel();
+    ch2.port1.onmessage = () => { window.__mc.handlerFired = "yes"; };
+    ch2.port2.postMessage(1);
+  } catch (e) { window.__mc.handlerFired = String(e && e.message || e).slice(0, 120); }
+}, 0);
+</script>

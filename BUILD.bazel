@@ -1,0 +1,181 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+
+npm_link_all_packages(name = "node_modules")
+
+exports_files([
+    "package.json",
+    "pnpm-workspace.yaml",
+])
+
+copy_to_bin(
+    name = "wpt_expectations",
+    srcs = ["tests/wpt-expectations.json"],
+    visibility = ["//visibility:public"],
+)
+
+copy_to_bin(
+    name = "oxlintrc",
+    srcs = [".oxlintrc.json"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+copy_to_bin(
+    name = "rust_toolchain",
+    srcs = ["rust-toolchain.toml"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+copy_to_bin(
+    name = "wpt_revision",
+    srcs = ["tests/wpt-revision.json"],
+    visibility = ["//scripts:__pkg__", "//tests/wpt:__pkg__"],
+)
+
+copy_to_bin(
+    name = "wpt_tests",
+    srcs = ["tests/wpt-tests.json"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+copy_to_bin(
+    name = "pw_expectations",
+    srcs = ["tests/pw-expectations.json"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+copy_to_bin(
+    name = "pw_tests",
+    srcs = ["tests/pw-tests.json"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+_CONFIG_PACKAGES = [
+    "packages/core/pkg",
+    "packages/dom-shim",
+    "packages/engine",
+    "packages/engine/test/e2e",
+    "packages/jsrpc-types",
+    "packages/page-renderer",
+    "packages/page-script",
+    "packages/script-gate",
+    "packages/tty-css-preview",
+    "packages/worker-script",
+]
+
+js_library(
+    name = "workspace_configs",
+    srcs = glob(
+        ["**/package.json", "**/tsconfig*.json"],
+        allow_empty = True,
+        exclude = [
+            "**/dist/**",
+            ".*/**",
+            "bazel-*/**",
+            "vendor/**",
+        ],
+    ),
+    deps = [
+        "//%s:workspace_configs" % path
+        for path in _CONFIG_PACKAGES
+    ] + ["//scripts:workspace_configs"],
+)
+
+_TRACKED_FILES_ENV = {"KITESURF_TRACKED_FILES": "$(rootpath @tracked_files//:files)"}
+
+js_test(
+    name = "no_dts_test",
+    size = "small",
+    data = [
+        "@tracked_files//:files",
+        "//scripts:tracked_files",
+    ],
+    entry_point = "//scripts:check_no_dts",
+    env = _TRACKED_FILES_ENV,
+)
+
+js_test(
+    name = "ts_coverage_test",
+    size = "small",
+    data = [
+        ":node_modules/typescript",
+        ":workspace_configs",
+        "@tracked_files//:files",
+        "//scripts:tracked_files",
+    ],
+    entry_point = "//scripts:check_ts_coverage",
+    env = _TRACKED_FILES_ENV,
+)
+
+js_test(
+    name = "lockfile_test",
+    size = "small",
+    data = [
+        ".npmrc",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        ":workspace_configs",
+        "@pnpm",
+        "@tracked_files//:files",
+        "//scripts:tracked_files",
+    ],
+    entry_point = "//scripts:lockfile_check",
+    env = _TRACKED_FILES_ENV | {"PNPM_BIN": "$(rootpath @pnpm)"},
+)
+
+js_test(
+    name = "cargo_lock_test",
+    size = "small",
+    copy_data_to_bin = False,
+    data = [
+        "Cargo.lock",
+        "Cargo.toml",
+        "//packages/core:Cargo.toml",
+        "//packages/renderer-core:Cargo.toml",
+        "//packages/scene-host-wasm:Cargo.toml",
+        "@cargo_vendor//:vendor",
+        "@cargo_vendor//:vendor.json",
+        "@rules_rust//rust/toolchain:current_cargo_files",
+        "@rules_rust//rust/toolchain:current_rustc_files",
+        "@rules_rust//rust/toolchain:current_rustc_lib_files",
+    ],
+    entry_point = "//scripts:cargo_lock_check",
+    env = {
+        "CARGO": "$(rootpath @rules_rust//rust/toolchain:current_cargo_files)",
+        "CARGO_VENDOR_INDEX": "$(rootpath @cargo_vendor//:vendor.json)",
+        "RUSTC": "$(rootpath @rules_rust//rust/toolchain:current_rustc_files)",
+    },
+)
+
+test_suite(
+    name = "check",
+    tests = [
+        ":cargo_lock_test",
+        ":lockfile_test",
+        ":no_dts_test",
+        ":ts_coverage_test",
+        "//packages/dom-shim:build",
+        "//packages/dom-shim:types",
+        "//packages/dom-shim:types_strict",
+        "//packages/engine:types",
+        "//packages/engine:types_e2e",
+        "//packages/engine:types_e2e_demos",
+        "//packages/engine:types_fixtures_worker",
+        "//packages/jsrpc-types:types",
+        "//packages/page-renderer:build",
+        "//packages/page-renderer:types",
+        "//packages/page-script:build",
+        "//packages/page-script:types",
+        "//packages/scene-host-wasm:abi_test",
+        "//packages/script-gate:test",
+        "//packages/script-gate:types",
+        "//packages/tty-css-preview:checks",
+        "//packages/worker-script:build",
+        "//packages/worker-script:types",
+        "//packages/worker-script:types_strict",
+        "//scripts:helpers_test",
+        "//scripts:lint_test",
+        "//scripts:lint_types",
+    ],
+)

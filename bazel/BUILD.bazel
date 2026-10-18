@@ -1,0 +1,61 @@
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+
+_HOSTS = ["linux_aarch64", "linux_x86_64", "macos_aarch64"]
+
+copy_file(
+    name = "wasm_bindgen",
+    src = select({
+        "//bazel/rust:" + host: "@wasm_bindgen_%s//:wasm-bindgen" % host
+        for host in _HOSTS
+    }),
+    out = "wasm-bindgen",
+    is_executable = True,
+    visibility = [
+        "//packages/core/pkg:__pkg__",
+        "//packages/renderer-core:__pkg__",
+    ],
+)
+
+# wasm-opt keeps the release layout, bin/ beside lib/: the macOS build loads libbinaryen.dylib from
+# @loader_path/../lib, while the Linux builds are static. Actions run //bazel:wasm_opt and list
+# //bazel:wasm_opt_runtime among their inputs.
+copy_file(
+    name = "wasm_opt",
+    src = select({
+        "//bazel/rust:" + host: "@binaryen_%s//:bin/wasm-opt" % host
+        for host in _HOSTS
+    }),
+    out = "binaryen/bin/wasm-opt",
+    is_executable = True,
+    visibility = [
+        "//packages/core/pkg:__pkg__",
+        "//packages/scene-host-wasm:__pkg__",
+    ],
+)
+
+copy_file(
+    name = "wasm_opt_dylib",
+    src = "@binaryen_macos_aarch64//:lib/libbinaryen.dylib",
+    out = "binaryen/lib/libbinaryen.dylib",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+filegroup(
+    name = "wasm_opt_runtime",
+    srcs = select({
+        "//bazel/rust:macos_aarch64": [":wasm_opt_dylib"],
+        "//conditions:default": [],
+    }),
+    visibility = [
+        "//packages/core/pkg:__pkg__",
+        "//packages/scene-host-wasm:__pkg__",
+    ],
+)
+
+copy_to_directory(
+    name = "pyyaml",
+    srcs = ["@pyyaml//:yaml"],
+    include_external_repositories = ["*pyyaml"],
+    visibility = ["//tests/wpt:__pkg__"],
+)

@@ -1,0 +1,100 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Sun, 2 Aug 2026 22:05:42 +0100
+Subject: [PATCH] Bake computed font styling into serialized svg text elements
+
+usvg only sees the serialized snapshot, so host-document CSS on svg
+text (font: 1px/1 monospace on an inline <svg><text>) never reached
+it; text rendered at usvg's defaults regardless of the cascade (WPT
+viewBox-scaling-text-001: 16px glyphs where 1px-scaled-100x was
+expected, on both test and ref). Stamp computed font-size/-family/
+-weight/-style as presentation attributes on text/tspan/textPath at
+serialization time.
+
+So attr-styled svg text stays correct under the stamps, the SVG
+font-size presentation attribute now feeds the cascade as a pres-hint
+(user units = px), making the computed value authoritative for both
+sources. Verbatim serialization (sprite defs) is left unstamped: those
+subtrees re-parent under a different inheritance context.
+---
+ src/node/serialize.rs | 35 +++++++++++++++++++++++++++++++++++
+ src/stylo.rs          | 12 ++++++++++++
+ 2 files changed, 47 insertions(+)
+
+diff --git a/src/node/serialize.rs b/src/node/serialize.rs
+index 7c96205..11790c8 100644
+--- a/src/node/serialize.rs
++++ b/src/node/serialize.rs
+@@ -191,7 +191,33 @@ impl Node {
+                     writer.push('"');
+                 }
+
++                // Svg text reaches usvg as a serialized snapshot, so
++                // CSS-driven font styling must be baked as presentation attrs.
++                // Computed values already include font attrs via the pres-hint
++                // path, so stamping supersedes the originals losslessly.
++                // font-size only: it is the one font property whose CSS
++                // value changes svg text geometry, and usvg resolves the
++                // rest acceptably on its own. Stamping family/weight/style
++                // too fed usvg a CSS-serialized family list it resolved
++                // differently from parley (Ahem became no glyphs at all,
++                // blanking a clipPath built from <text>).
++                let font_stamps: Option<[(&str, String); 1]> = if opts.resolve_current_color
++                    && matches!(&*data.name.local, "text" | "tspan" | "textPath")
++                {
++                    self.primary_styles().map(|style| {
++                        [(
++                            "font-size",
++                            format!("{}", style.clone_font_size().used_size().px()),
++                        )]
++                    })
++                } else {
++                    None
++                };
++
+                 for attr in data.attrs() {
++                    if font_stamps.is_some() && &*attr.name.local == "font-size" {
++                        continue;
++                    }
+                     writer.push(' ');
+                     write_attr_name(&attr.name, writer);
+                     writer.push_str("=\"");
+@@ -206,6 +232,15 @@ impl Node {
+                     }
+                     writer.push('"');
+                 }
++                if let Some(stamps) = &font_stamps {
++                    for (name, value) in stamps {
++                        writer.push(' ');
++                        writer.push_str(name);
++                        writer.push_str("=\"");
++                        encode_quoted_attribute_to_string(value, writer);
++                        writer.push('"');
++                    }
++                }
+                 if !has_children {
+                     writer.push_str(" /");
+                 }
+diff --git a/src/stylo.rs b/src/stylo.rs
+index 75da953..4e03532 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -1358,6 +1358,18 @@ impl<'a> TElement for BlitzNode<'a> {
+                 }
+             }
+
++            // SVG font-size presentation attribute (user units map to px).
++            // Keeps attr-styled svg text correct now that the serializer
++            // stamps computed font-size onto text elements: the attr feeds
++            // the cascade at pres-hint level, so the computed value has it.
++            if *name == local_name!("font-size") && *elem.name.ns == *"http://www.w3.org/2000/svg"
++            {
++                if let Some(size) = parse_svg_size_attr(value) {
++                    use style::values::specified::FontSize;
++                    push_style(PropertyDeclaration::FontSize(FontSize::Length(size)));
++                }
++            }
++
+             if *name == local_name!("bgcolor") {
+                 use style::values::specified::Color;
+                 if let Some((r, g, b, a)) = parse_color_attr(value) {

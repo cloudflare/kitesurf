@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 3 Aug 2026 10:37:25 +0100
+Subject: [PATCH] Explicit height with a ratio counts as an explicit width
+
+The replaced max-size leniency skips explicitly-sized content, but the
+check only looked at the width axis: an element with an explicit height
+and an intrinsic ratio derives a width that is just as author-specified,
+and was still being clamped into a too-narrow container.
+---
+ src/layout/replaced.rs | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/layout/replaced.rs b/src/layout/replaced.rs
+index 45d573b..30f6f9f 100644
+--- a/src/layout/replaced.rs
++++ b/src/layout/replaced.rs
+@@ -256,7 +256,13 @@ pub fn compute_replaced_layout(
+     // width/height attr) must overflow a too-narrow container, CSS2
+     // §10.3.4 has no implicit max-width:100%. The shrink-into-container
+     // leniency is pristine-blitz behavior photo-heavy layouts depend on.
+-    let explicit_width = style_size.width.is_some() || image_context.attr_size.width.is_some();
++
++    // An explicit height counts too when a ratio can derive the width from
++    // it: that width is just as author-specified as a literal one.
++    let explicit_height = style_size.height.is_some() || image_context.attr_size.height.is_some();
++    let explicit_width = style_size.width.is_some()
++        || image_context.attr_size.width.is_some()
++        || (explicit_height && aspect_ratio_opt.is_some());
+     let avail_max = Size {
+         width: if explicit_width {
+             None

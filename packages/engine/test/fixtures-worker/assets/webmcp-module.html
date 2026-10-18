@@ -1,0 +1,25 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>webmcp module fixture</title></head>
+<body>
+<h1>module-scope registration</h1>
+<script type="module">
+document.modelContext.registerTool({
+  name: "mod_two",
+  description: "Registered at module-init scope",
+  execute: () => "two",
+});
+document.modelContext.registerTool({
+  name: "mod_one",
+  description: "Also registered at module-init scope",
+  execute: () => "one",
+});
+</script>
+</body>
+</html>

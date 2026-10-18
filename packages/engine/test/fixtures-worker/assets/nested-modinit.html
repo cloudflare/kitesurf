@@ -1,0 +1,29 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<title>nested-modinit-probe</title>
+<script type="module">
+window.__probe = { logs: [], initSync: null, initAsync: null, postSync: null, postAsync: null, error: null };
+import { initSnapshot, settleInitSnapshot, checkPostInit, settlePostInit } from "./nested-modinit-target.js";
+window.__probe.initSync = initSnapshot.sync;
+window.__probe.logs.push("[A] static import done");
+settleInitSnapshot().then((settled) => {
+  window.__probe.initAsync = settled.async;
+  window.__probe.logs.push("[A] initAsync resolved");
+});
+setTimeout(async () => {
+  try {
+    const snap = checkPostInit();
+    window.__probe.postSync = snap.sync;
+    const settled = await settlePostInit(snap);
+    window.__probe.postAsync = settled.async;
+    window.__probe.logs.push("[A timer] postNavigate captured");
+  } catch (err) {
+    window.__probe.error = String((err && err.stack) || err);
+  }
+}, 50);
+</script>

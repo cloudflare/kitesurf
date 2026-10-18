@@ -1,0 +1,180 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 24 Jul 2026 12:21:47 +0100
+Subject: [PATCH] Wire attach_shadow through the mutator + shadow-aware
+ lifecycle
+
+attach_shadow creates the shadow-root node, parents it to the host
+while keeping it OUT of host.children (parent pointer preserves the
+mark_ancestors_dirty chain across the boundary; absence from children
+keeps light-tree walks blind), and mirrors the host's in-document
+flag so later appends into the root propagate flags correctly via
+add_children_to_parent's existing logic.
+
+Lifecycle holes this also plugs: drop_node_ignoring_parent recurses
+into attached shadow trees (else their slab slots leak and freed ids
+get recycled under live references); deep_clone_node clears the
+cloned host's shadow_root (raw copy would alias the original's tree
+by node id - spec says clones never copy shadow roots); and
+iter_subtree_mut recurses through shadow roots so insertion/removal
+processing (IS_IN_DOCUMENT, id map, stylesheet/image special ops)
+follows the host subtree it rides in.
+
+Known M1 gap, fixed with query boundaries later: shadow-tree ids now
+land in the document-level nodes_to_id map (getElementById can see -
+or be clobbered by - shadow content).
+---
+ src/document.rs  | 44 +++++++++++++++++++++++++++++++++++++++++++-
+ src/mutator.rs   | 23 ++++++++++++++++++++++-
+ src/node/node.rs |  2 +-
+ src/traversal.rs |  7 +++++++
+ 4 files changed, 73 insertions(+), 3 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 94b0fc7..6e1b539 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -6,7 +6,10 @@ use crate::mutator::ViewportMut;
+ use crate::net::{
+     Resource, ResourceHandler, ResourceLoadResponse, StylesheetHandler, StylesheetLoader,
+ };
+-use crate::node::{ImageData, NodeFlags, RasterImageData, SpecialElementData, Status, TextBrush};
++use crate::node::{
++    ImageData, NodeFlags, RasterImageData, ShadowRootData, ShadowRootMode, SpecialElementData,
++    Status, TextBrush,
++};
+ use crate::scrolling::ScrollAnimationState;
+ use crate::selection::TextSelection;
+ use crate::stylo_device::{DeviceChanges, make_device};
+@@ -875,6 +878,35 @@ impl BaseDocument {
+         id
+     }
+
++    /// Attach a shadow root to `host_id` (idempotent: an existing root
++    /// is returned as-is; the JS layer owns spec throwing semantics).
++    pub fn attach_shadow(&mut self, host_id: NodeId, mode: ShadowRootMode) -> NodeId {
++        if let Some(existing) = self.nodes[host_id].attached_shadow_root_id() {
++            return existing;
++        }
++
++        let shadow_root_id = self.create_node(NodeData::ShadowRoot(ShadowRootData {
++            host: host_id,
++            mode,
++        }));
++
++        // parent = host (while staying OUT of host.children) keeps
++        // mark_ancestors_dirty working across the shadow boundary.
++        self.nodes[shadow_root_id].parent = Some(host_id);
++        if self.nodes[host_id].flags.is_in_document() {
++            self.nodes[shadow_root_id]
++                .flags
++                .insert(NodeFlags::IS_IN_DOCUMENT);
++        }
++
++        self.nodes[host_id]
++            .element_data_mut()
++            .expect("shadow host must be an element")
++            .shadow_root = Some(shadow_root_id);
++
++        shadow_root_id
++    }
++
+     /// Remove a node from the node tree, clearing any interaction state
+     /// (hover/active/focus/mousedown/selection/drag/scrollbar) that references
+     /// it so that stale NodeIds are never dereferenced after the slot is freed.
+@@ -994,6 +1026,12 @@ impl BaseDocument {
+             for &anon_id in &node.anonymous_blocks {
+                 self.deallocate_anonymous_block(anon_id);
+             }
++
++            // Shadow trees hang off ElementData::shadow_root rather than
++            // children, so drop them explicitly or their slots leak.
++            if let Some(shadow_root_id) = node.attached_shadow_root_id() {
++                self.drop_node_ignoring_parent(shadow_root_id);
++            }
+         }
+         node
+     }
+@@ -1034,6 +1072,10 @@ impl BaseDocument {
+
+         match &mut data {
+             NodeData::Element(elem) | NodeData::AnonymousBlock(elem) => {
++                // Per spec, cloning never copies shadow roots, and a raw
++                // copy would alias the original's tree by node id.
++                elem.shadow_root = None;
++
+                 if let Some(arc) = elem.style_attribute.as_mut() {
+                     let read_guard = self.guard().read();
+                     let block = arc.read_with(&read_guard);
+diff --git a/src/mutator.rs b/src/mutator.rs
+index ec847c3..c841702 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
+
+ use crate::layout::damage::ALL_DAMAGE;
+ use crate::net::{ImageHandler, ResourceHandler, StylesheetHandler};
+-use crate::node::{CanvasData, NodeFlags, SpecialElementData};
++use crate::node::{CanvasData, NodeFlags, ShadowRootMode, SpecialElementData};
+ use crate::stylo_device::DeviceChanges;
+ use crate::util::ImageType;
+ use crate::{
+@@ -193,6 +193,27 @@ impl DocumentMutator<'_> {
+             .and_then(|element| element.template_contents)
+     }
+
++    /// Attach (or fetch) a shadow root on `host_id` and mark the host
++    /// for restyle so the next paint reflects the new composed tree.
++    pub fn attach_shadow(&mut self, host_id: NodeId, mode: ShadowRootMode) -> NodeId {
++        let shadow_root_id = self.doc.attach_shadow(host_id, mode);
++
++        let host = &mut self.doc.nodes[host_id];
++        host.insert_damage(ALL_DAMAGE);
++        if host.flags.is_in_document() {
++            if let Some(mut data) = host
++                .try_stylo_element_data_mut()
++                .and_then(|data| data.get_mut())
++            {
++                data.hint |= RestyleHint::restyle_subtree();
++            }
++            host.mark_ancestors_dirty();
++        }
++        self.maybe_record_node(host_id);
++
++        shadow_root_id
++    }
++
+     // Node mutation methods
+
+     pub fn set_node_text(&mut self, node_id: NodeId, value: &str) {
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 412c406..b32bec1 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -1053,7 +1053,7 @@ impl Node {
+     }
+
+     pub fn is_shadow_root(&self) -> bool {
+-        matches!(self.data, NodeData::ShadowRoot { .. })
++        matches!(self.data, NodeData::ShadowRoot(_))
+     }
+
+     pub fn shadow_root_data(&self) -> Option<&ShadowRootData> {
+diff --git a/src/traversal.rs b/src/traversal.rs
+index bbab931..82e38b8 100644
+--- a/src/traversal.rs
++++ b/src/traversal.rs
+@@ -161,6 +161,13 @@ impl BaseDocument {
+             node_id: NodeId,
+             cb: &mut impl FnMut(NodeId, &mut BaseDocument),
+         ) {
++            // Recurse into attached shadow trees so document-membership
++            // bookkeeping (flags, id map, special ops) follows the host.
++            if let Some(shadow_root_id) = doc.nodes[node_id].attached_shadow_root_id() {
++                cb(shadow_root_id, doc);
++                iter_subtree_mut_inner(doc, shadow_root_id, cb);
++            }
++
+             let children = std::mem::take(&mut doc.nodes[node_id].children);
+             for child_id in children.iter().cloned() {
+                 cb(child_id, doc);

@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 13 Aug 2026 18:54:43 +0100
+Subject: [PATCH] object: expose a non-rooting WeakJsObject handle
+
+Host-side identity caches, such as an engine bridge mapping host
+objects to boa objects, need to map a key to a JsObject without keeping
+it alive. A strong cache entry roots the object forever. The WeakRef
+builtin already holds a WeakGc<ErasedVTableObject> internally; expose
+the same shape as JsObject::downgrade() and upgrade().
+---
+ src/object/jsobject.rs | 32 +++++++++++++++++++++++++++++++-
+ 1 file changed, 31 insertions(+), 1 deletion(-)
+
+diff --git a/src/object/jsobject.rs b/src/object/jsobject.rs
+index d755236..2333013 100644
+--- a/src/object/jsobject.rs
++++ b/src/object/jsobject.rs
+@@ -20,7 +20,7 @@ use crate::{
+     property::{PropertyDescriptor, PropertyKey},
+     value::PreferredType,
+ };
+-use boa_gc::{self, Finalize, Gc, GcRef, GcRefCell, GcRefMut, Trace};
++use boa_gc::{self, Finalize, Gc, GcRef, GcRefCell, GcRefMut, Trace, WeakGc};
+ use core::ptr::fn_addr_eq;
+ use std::collections::HashSet;
+ use std::{
+@@ -1158,6 +1158,36 @@ impl<T: NativeObject> AsRef<GcRefCell<Object<T>>> for JsObject<T> {
+     }
+ }
+
++impl JsObject {
++    /// Creates a [`WeakJsObject`] referencing this object without keeping it
++    /// alive, for host-side identity caches that must not root.
++    #[inline]
++    #[must_use]
++    pub fn downgrade(&self) -> WeakJsObject {
++        WeakJsObject(WeakGc::new(&self.inner))
++    }
++}
++
++/// A non-rooting handle to a [`JsObject`]. `upgrade` returns `None` once the
++/// referenced object has been collected.
++#[derive(Clone)]
++pub struct WeakJsObject(WeakGc<ErasedVTableObject>);
++
++impl Debug for WeakJsObject {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.debug_struct("WeakJsObject").finish_non_exhaustive()
++    }
++}
++
++impl WeakJsObject {
++    /// Recovers the referenced object, or `None` if it was collected.
++    #[inline]
++    #[must_use]
++    pub fn upgrade(&self) -> Option<JsObject> {
++        self.0.upgrade().map(JsObject::from)
++    }
++}
++
+ impl<T: NativeObject> From<Gc<VTableObject<T>>> for JsObject<T> {
+     #[inline]
+     fn from(inner: Gc<VTableObject<T>>) -> Self {

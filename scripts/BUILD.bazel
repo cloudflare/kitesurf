@@ -1,0 +1,400 @@
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_test")
+load("@npm//:typescript/package_json.bzl", tsc = "bin")
+load("//bazel:checks.bzl", "node_test", "tsc_test", "workspace_configs")
+load("//bazel:executors.bzl", "WPT", "for_test")
+load("//tests/e2e:defs.bzl", "e2e_shard_name")
+load("//tests/e2e:shards.bzl", "E2E_SHARD_STARTS")
+load("//tests/pw:defs.bzl", "PW_SHARDS")
+
+js_library(
+    name = "wpt_shared",
+    srcs = ["wpt-shared.mjs"],
+)
+
+js_library(
+    name = "pw_shared",
+    srcs = ["pw-shared.mjs"],
+)
+
+js_library(
+    name = "wpt_draws",
+    srcs = ["wpt-draws.mjs"],
+)
+
+js_library(
+    name = "engine_launcher",
+    srcs = ["wpt-engine.mjs"],
+    data = ["//packages/engine:package_json"],
+    deps = [
+        "//packages/engine:node_modules/miniflare",
+        "//packages/engine:node_modules/wrangler",
+    ],
+)
+
+js_library(
+    name = "wpt_runner",
+    srcs = [
+        "wpt-batched.mjs",
+        "wpt-bucket.mjs",
+        "wpt-collateral.mjs",
+        "wpt-exec.mjs",
+        "wpt-ref-cache.mjs",
+        "wpt-testdriver.mjs",
+    ],
+    data = ["//packages/engine:package_json"],
+    deps = [
+        ":engine_launcher",
+        ":wpt_shared",
+        "//:node_modules/pngjs",
+        "//:node_modules/puppeteer-core",
+        "//packages/engine:node_modules/miniflare",
+    ],
+)
+
+js_library(
+    name = "pw_runner",
+    srcs = ["pw-run.mjs", "pw-setup.mjs"] + glob(["patches/playwright/*.patch"]),
+    data = [
+        "//:pw_expectations",
+        "//:pw_tests",
+        "//packages/engine:package_json",
+    ],
+    deps = [
+        ":engine_launcher",
+        ":pw_shared",
+        ":wpt_shared",
+        "//packages/engine:node_modules/miniflare",
+        "//packages/engine:node_modules/wrangler",
+    ],
+)
+
+js_library(
+    name = "wasm_build_helpers",
+    srcs = [
+        "get-patched-vendor-crates.mjs",
+        "get-wasm-bindgen.mjs",
+        "wasm-opt.mjs",
+    ],
+    visibility = [
+        "//packages/core/pkg:__pkg__",
+        "//packages/renderer-core:__pkg__",
+        "//packages/scene-host-wasm:__pkg__",
+    ],
+)
+
+js_library(
+    name = "declaration_twin_guard",
+    srcs = ["declaration-twin-guard.mjs"],
+    visibility = ["//visibility:public"],
+)
+
+js_binary(
+    name = "build_wasm",
+    data = [":wasm_build_helpers"],
+    entry_point = "build-wasm.mjs",
+    visibility = ["//packages/core/pkg:__pkg__"],
+)
+
+js_binary(
+    name = "wpt_bucket",
+    data = [":wpt_runner"],
+    entry_point = "wpt-bucket.mjs",
+    visibility = ["//tests/wpt:__pkg__"],
+)
+
+js_binary(
+    name = "wpt_engine",
+    data = [":engine_launcher"],
+    entry_point = "wpt-engine.mjs",
+    visibility = ["//visibility:public"],
+)
+
+js_binary(
+    name = "e2e_fixtures",
+    data = [
+        "//packages/engine:package_json",
+        "//packages/engine:node_modules/wrangler",
+    ],
+    entry_point = "e2e-fixtures.mjs",
+    visibility = ["//packages/engine:__pkg__"],
+)
+
+_LINT_DATA = glob(
+    ["lint/**"],
+    exclude = ["lint/rust-check/target/**"],
+) + [
+    "//:node_modules/@oxlint/plugins",
+    "//:node_modules/oxfmt",
+    "//:node_modules/oxlint",
+    "//:node_modules/typescript",
+    "//:rust_toolchain",
+]
+
+# `bazel run //scripts:lint -- format --check|--write`, `-- lint:js`, `-- lint:rust` or `-- lint`.
+# It checks the workspace it runs from, which may be a host workspace running @kitesurf//scripts:lint,
+# with oxfmt and oxlint from Bazel's npm tree. The Rust half runs cargo through rustup, because
+# clippy also checks the wasm32 targets, whose standard library the Bazel host tools lack.
+js_binary(
+    name = "lint",
+    data = _LINT_DATA,
+    visibility = ["//visibility:public"],
+    entry_point = "lint/run.mjs",
+)
+
+js_binary(
+    name = "lint_complexity",
+    data = _LINT_DATA,
+    visibility = ["//visibility:public"],
+    entry_point = "lint/complexity.mjs",
+)
+
+node_test(
+    name = "lint_test",
+    args = glob(["lint/*.test.mjs", "lint/*.test.ts"]),
+    data = _LINT_DATA + ["//:oxlintrc"],
+)
+
+tsc_test(
+    name = "lint_types",
+    bin = tsc,
+    data = _LINT_DATA + ["//:node_modules/@types/node"],
+    project = "lint/tsconfig.json",
+    project_in_data = True,
+)
+
+js_binary(
+    name = "workspace_checks",
+    data = [
+        "check-license-headers.mjs",
+        "check-public-imports.mjs",
+        "//:node_modules/typescript",
+    ],
+    entry_point = "workspace-checks.mjs",
+)
+
+js_library(
+    name = "e2e_run",
+    srcs = ["e2e-run.mjs"],
+    visibility = ["//packages/engine:__pkg__"],
+)
+
+js_library(
+    name = "stage_dev_build",
+    srcs = ["stage-dev-build.mjs"],
+    visibility = ["//packages/engine:__pkg__"],
+)
+
+js_binary(
+    name = "e2e_shard",
+    data = [
+        "//packages/engine:package_json",
+        "//packages/engine:node_modules/vitest",
+    ],
+    entry_point = "e2e-shard.mjs",
+    visibility = ["//packages/engine/test/e2e:__pkg__"],
+)
+
+js_binary(
+    name = "pw_shard",
+    data = [":pw_runner"],
+    entry_point = "pw-shard.mjs",
+    visibility = ["//tests/pw:__pkg__"],
+)
+
+js_binary(
+    name = "wpt_inventory",
+    data = [":wpt_shared"],
+    entry_point = "wpt-inventory.mjs",
+    visibility = ["//tests/wpt:__pkg__"],
+)
+
+js_binary(
+    name = "wpt_runplan",
+    data = [":wpt_shared"],
+    entry_point = "wpt-runplan.mjs",
+    visibility = ["//tests/wpt:__pkg__"],
+)
+
+js_binary(
+    name = "wpt_merge",
+    data = [
+        ":wpt_shared",
+        "//:wpt_expectations",
+        "//:wpt_revision",
+        "//:wpt_tests",
+    ],
+    entry_point = "wpt-merge-shards.mjs",
+    visibility = ["//tests/wpt:__pkg__"],
+)
+
+js_test(
+    name = "wpt_expectations_test",
+    size = "small",
+    args = [
+        "--results",
+        "$(rootpath //tests/wpt:merged)",
+        "--retries",
+        "$(rootpath //tests/wpt:retry_manifest)",
+    ],
+    data = [
+        ":wpt_draws",
+        ":wpt_shared",
+        "//tests/wpt:merged",
+        "//tests/wpt:retry",
+        "//tests/wpt:retry_manifest",
+    ],
+    entry_point = "wpt-gate.mjs",
+    visibility = ["//tests/wpt:__pkg__"],
+)
+
+js_binary(
+    name = "wpt_update_expectations",
+    args = ["--results", "$(rootpath //tests/wpt:merged)"],
+    data = [
+        ":wpt_shared",
+        "//tests/wpt:merged",
+    ],
+    entry_point = "wpt-update-expectations.mjs",
+    visibility = ["//tests/wpt:__pkg__"],
+)
+
+js_library(
+    name = "node_test_bazel",
+    srcs = ["node-test-bazel.mjs"],
+    visibility = ["//visibility:public"],
+)
+
+js_library(
+    name = "tracked_files",
+    srcs = ["tracked-files.mjs"],
+    visibility = ["//:__pkg__"],
+)
+
+[
+    js_library(
+        name = name,
+        srcs = [source],
+        deps = [":tracked_files"],
+        visibility = ["//:__pkg__"],
+    )
+    for name, source in [
+        ("check_no_dts", "check-no-dts.mjs"),
+        ("check_ts_coverage", "check-ts-coverage.mjs"),
+        ("lockfile_check", "lockfile-check-bazel.mjs"),
+    ]
+]
+
+js_library(
+    name = "cargo_lock_check",
+    srcs = ["cargo-lock-check-bazel.mjs"],
+    visibility = ["//:__pkg__"],
+)
+
+js_library(
+    name = "ts_strict_ratchet",
+    srcs = ["ts-strict-ratchet.mjs"],
+    visibility = ["//visibility:public"],
+)
+
+js_library(
+    name = "vitest_bazel",
+    srcs = ["vitest-bazel.mjs"],
+    visibility = ["//visibility:public"],
+)
+
+_HELPERS_DATA = glob(["*.mjs"]) + [
+    # check-public-imports.mjs parses imports with the TypeScript compiler, and
+    # engine-e2e-config.test.mjs loads the engine's e2e vitest config.
+    "//:node_modules/typescript",
+    "//packages/engine:e2e_config",
+    "//:pw_expectations",
+    "//:pw_tests",
+    "//:wpt_expectations",
+    "//:wpt_revision",
+    "//:wpt_tests",
+]
+
+node_test(
+    name = "helpers_test",
+    args = glob(["*.test.mjs"], exclude = ["wpt-compare.test.mjs"]),
+    data = _HELPERS_DATA,
+)
+
+js_test(
+    name = "webidl_check",
+    size = "small",
+    args = ["--check"],
+    data = [
+        "webidl-ts-types.mjs",
+        "//:node_modules/webidl2",
+        "//:wpt_revision",
+        "//packages/dom-shim:webidl_generated",
+        "//packages/engine/test/e2e:idl_gaps",
+    ],
+    entry_point = "generate-webidl-bindings.mjs",
+    env_inherit = ["KITESURF_WPT_DIR"],
+    exec_properties = for_test(WPT),
+)
+
+_PW_RESULTS = [
+    "//tests/pw:shard_%d/results.json" % index
+    for index in range(1, PW_SHARDS + 1)
+]
+
+_PW_GATE_ARGS = [
+    "--tests",
+    "$(rootpath //:pw_tests)",
+    "--expectations",
+    "$(rootpath //:pw_expectations)",
+] + [
+    arg
+    for result in _PW_RESULTS
+    for arg in ["--results", "$(rootpath %s)" % result]
+]
+
+js_test(
+    name = "pw_expectations_test",
+    size = "small",
+    args = _PW_GATE_ARGS,
+    data = [
+        ":pw_shared",
+        ":wpt_shared",
+        "//:pw_expectations",
+        "//:pw_tests",
+    ] + _PW_RESULTS,
+    entry_point = "pw-gate.mjs",
+    visibility = ["//tests/pw:__pkg__"],
+)
+
+js_binary(
+    name = "pw_update_expectations",
+    args = _PW_GATE_ARGS + ["--update-expectations"],
+    data = [
+        ":pw_shared",
+        ":wpt_shared",
+        "//:pw_expectations",
+        "//:pw_tests",
+    ] + _PW_RESULTS,
+    entry_point = "pw-gate.mjs",
+    visibility = ["//tests/pw:__pkg__"],
+)
+
+_E2E_REPORTS = [
+    "//packages/engine/test/e2e:%s/report.json" % e2e_shard_name(index + 1)
+    for index in range(len(E2E_SHARD_STARTS))
+]
+
+js_test(
+    name = "e2e_gate_test",
+    size = "small",
+    args = [arg for report in _E2E_REPORTS for arg in ["--shard", "$(rootpath %s)" % report]],
+    data = (
+        [":wpt_shared"]
+        + _E2E_REPORTS
+        + [report.replace("/report.json", "/shard.json") for report in _E2E_REPORTS]
+    ),
+    entry_point = "e2e-gate.mjs",
+    visibility = ["//tests/e2e:__pkg__"],
+)
+
+workspace_configs()

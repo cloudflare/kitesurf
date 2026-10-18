@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 23 Sep 2026 17:17:59 +0100
+Subject: [PATCH] keep layout caches for paint-only damage
+
+Stylo's damage levels are cumulative masks: REPAINT,
+REBUILD_STACKING_CONTEXT and RECALCULATE_OVERFLOW are all subsets of
+RELAYOUT. The cache-clear test used intersects(RELAYOUT), so a transform
+or opacity change cleared every ancestor's taffy cache. Each CSS
+animation tick on cloudflare.com re-ran grid track sizing up the tree.
+Only contains(RELAYOUT) means relayout.
+---
+ src/layout/damage.rs | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index 6969fe5..c9cefa5 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -169,8 +169,15 @@ impl BaseDocument {
+
+         // If the node or any of it's children have been mutated or their layout styles
+         // have changed, then we should clear it's layout cache.
++        //
++        // Stylo's damage levels are cumulative masks (REPAINT is a subset of
++        // RELAYOUT), so only `contains` means relayout. `intersects` cleared
++        // every ancestor's cache for a transform or opacity change, and each
++        // CSS animation tick re-ran grid track sizing up the tree.
+         let mut invalidate_anonymous_ancestors = false;
+-        if damage.intersects(ONLY_RELAYOUT | CONSTRUCT_BOX | RestyleDamage::RELAYOUT) {
++        if damage.intersects(ONLY_RELAYOUT | CONSTRUCT_BOX)
++            || damage.contains(RestyleDamage::RELAYOUT)
++        {
+             node.invalidate_layout_cache();
+             invalidate_anonymous_ancestors = true;
+             damage.remove(ONLY_RELAYOUT);

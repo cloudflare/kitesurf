@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 26 Jul 2026 07:08:43 +0100
+Subject: [PATCH] Harden RangeInput layout construction against non-finite
+ parse
+
+Rust str::parse::<f64>() accepts "NaN", "inf", "-inf"; passing
+those into f64::clamp panics (requires min <= max and no NaN).
+A page with <input type=range min=NaN> would take the whole
+layout down. Filter parses through is_finite() before clamping.
+---
+ src/layout/construct.rs | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index d19f0b4..32a1b34 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -481,18 +481,27 @@ fn collect_layout_children_with_wrap(
+                     .downcast_element_mut()
+                     .unwrap();
+                 if !matches!(el.special_data, SpecialElementData::RangeInput(_)) {
++                    // Rust `str::parse::<f64>()` accepts "NaN",
++                    // "inf", "-inf": feeding those into
++                    // f64::clamp panics (requires !NaN and min<=
++                    // max). Untrusted `<input type=range min=NaN>`
++                    // would take the whole layout down; filter to
++                    // finite values before clamping.
++                    fn parse_finite(v: &str) -> Option<f64> {
++                        v.parse::<f64>().ok().filter(|n| n.is_finite())
++                    }
+                     let min = el
+                         .attr(local_name!("min"))
+-                        .and_then(|v| v.parse::<f64>().ok())
++                        .and_then(parse_finite)
+                         .unwrap_or(0.0);
+                     let max = el
+                         .attr(local_name!("max"))
+-                        .and_then(|v| v.parse::<f64>().ok())
++                        .and_then(parse_finite)
+                         .unwrap_or(100.0);
+                     let max = max.max(min);
+                     let value = el
+                         .attr(local_name!("value"))
+-                        .and_then(|v| v.parse::<f64>().ok())
++                        .and_then(parse_finite)
+                         .unwrap_or((min + max) / 2.0)
+                         .clamp(min, max);
+                     el.special_data = SpecialElementData::RangeInput(value);

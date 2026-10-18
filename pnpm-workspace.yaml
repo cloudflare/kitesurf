@@ -1,0 +1,10 @@
+packages:
+  - packages/*
+  - packages/core/pkg # generated wasm-bindgen output; package.json is committed
+
+# Supply-chain guardrail: only these deps may run install/postinstall
+# scripts. pnpm 10 reads it here (not package.json's pnpm.onlyBuiltDependencies).
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd

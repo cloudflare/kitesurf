@@ -1,0 +1,74 @@
+load("@rules_rust//rust/private:lto.bzl", "rust_lto_flag")
+load("@rules_rust//rust:defs.bzl", "rust_shared_library")
+load("@wasm32_unwind_std//:flags.bzl", "RUSTFLAGS")
+load("//bazel:executors.bzl", "RUST")
+load(":wasm32.bzl", "HOSTS", "wasm32_rust")
+
+constraint_setting(name = "panic")
+constraint_value(name = "unwind", constraint_setting = ":panic")
+
+constraint_setting(name = "exec_pool")
+# Public so a module that wraps this one can put its own wasm32 toolchains on the same executor.
+constraint_value(
+    name = "rust_pool",
+    constraint_setting = ":exec_pool",
+    visibility = ["//visibility:public"],
+)
+
+platform(
+    name = "rust_exec",
+    constraint_values = [":rust_pool"],
+    exec_properties = RUST,
+    parents = ["@platforms//host"],
+)
+
+# One config_setting per supported host (wasm32.bzl HOSTS), for selects that need the running
+# host's binaries or its standard library.
+[
+    config_setting(
+        name = host,
+        constraint_values = constraints,
+        visibility = ["//bazel:__subpackages__"],
+    )
+    for host, (_, constraints) in HOSTS.items()
+]
+
+# The running host's prebuilt standard library, which `cargo -Zbuild-std` links the wasm32 std's
+# build scripts against (std.bzl).
+alias(
+    name = "host_std",
+    actual = select({
+        ":" + host: "@rust_tools//:rust_std-" + triple
+        for host, (triple, _) in HOSTS.items()
+    }),
+    visibility = ["//visibility:public"],
+)
+
+rust_lto_flag(
+    name = "lto_manual",
+    build_setting_default = "manual",
+)
+
+wasm32_rust(
+    name = "wasm32_unwind",
+    constraint = ":unwind",
+    rust_std = "@wasm32_unwind_std//:rust_std",
+    rustflags = RUSTFLAGS,
+)
+
+constraint_setting(name = "stock_rustflags")
+constraint_value(name = "scene_host", constraint_setting = ":stock_rustflags")
+
+wasm32_rust(
+    name = "wasm32_scene_host",
+    constraint = ":scene_host",
+    rust_std = "@wasm32_stock_std//:rust_std",
+    rustflags = ["-Ctarget-feature=+simd128"],
+)
+
+rust_shared_library(
+    name = "unwind_smoke",
+    srcs = ["unwind_smoke.rs"],
+    platform = ":wasm32_unwind",
+    tags = ["manual"],
+)

@@ -1,0 +1,118 @@
+load("@crates//:defs.bzl", "aliases", "all_crate_deps")
+load("@rules_rust//cargo:defs.bzl", "cargo_toml_env_vars")
+load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_test")
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//bazel:executors.bzl", "RUST")
+
+exports_files(
+    ["Cargo.toml"],
+    visibility = ["//:__pkg__"],
+)
+exports_files([".cargo/config.toml"])
+
+cargo_toml_env_vars(
+    name = "cargo_env",
+    src = "Cargo.toml",
+    visibility = ["//packages/renderer-core:__pkg__"],
+)
+
+rust_shared_library(
+    name = "kitesurf_core",
+    srcs = glob(["src/**/*.rs"]),
+    aliases = aliases(),
+    crate_features = ["blitz", "console_error_panic_hook", "default", "pdf"],
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    platform = "//bazel/rust:wasm32_unwind",
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    rustc_env_files = [":cargo_env"],
+    rustc_flags = ["--crate-type=rlib"],
+    tags = ["manual"],
+    visibility = ["//packages/core/pkg:__pkg__"],
+    deps = all_crate_deps(normal = True),
+)
+
+filegroup(
+    name = "renderer_shared_srcs",
+    srcs = [
+        "src/ks_tracing.rs",
+        "src/paint/pdf_paint.rs",
+        "src/paint/scene_decode.rs",
+        "src/paint/scene_record.rs",
+        "src/paint/scene_replay.rs",
+        "src/paint/screenshot.rs",
+    ],
+    visibility = ["//packages/renderer-core:__pkg__"],
+)
+
+rust_test(
+    name = "core_test",
+    srcs = glob(["src/**/*.rs"]),
+    aliases = aliases(
+        normal = True,
+        normal_dev = True,
+        proc_macro = True,
+        proc_macro_dev = True,
+    ),
+    compile_data = glob(["tests_data/**"]) + ["//packages/engine:fonts"],
+    crate_features = ["blitz", "console_error_panic_hook", "default", "pdf"],
+    crate_name = "kitesurf_core",
+    crate_root = "src/lib.rs",
+    data = [
+        "//packages/engine:fixture_assets",
+        "//packages/engine:fonts",
+        "//packages/engine:package.json",
+    ],
+    edition = "2021",
+    # CARGO_MANIFEST_DIR below resolves only in the main repository; see src/test_assets.rs.
+    env = {"KITESURF_ENGINE_PACKAGE_JSON": "$(rootpath //packages/engine:package.json)"},
+    exec_properties = RUST,
+    proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
+    rustc_env = {"CARGO_MANIFEST_DIR": package_name()},
+    rustc_env_files = [":cargo_env"],
+    deps = all_crate_deps(normal = True, normal_dev = True),
+)
+
+rust_test(
+    name = "boa_gc_test",
+    crate = "@crates__boa_gc-0.22.0//:boa_gc",
+)
+
+rust_test(
+    name = "boa_interner_test",
+    crate = "@crates__boa_interner-0.22.0//:boa_interner",
+)
+
+build_test(
+    name = "vello_cpu_fallback_test",
+    targets = ["@crates__vello_cpu-0.3.0//:vello_cpu_fallback"],
+)
+
+test_suite(
+    name = "host_tests",
+    tests = [
+        ":boa_gc_test",
+        ":boa_interner_test",
+        ":core_test",
+        ":vello_cpu_fallback_test",
+    ],
+)
+
+filegroup(
+    name = "scene_host_srcs",
+    srcs = [
+        "src/paint/scene_decode.rs",
+        "src/paint/scene_record.rs",
+        "src/paint/scene_replay.rs",
+        "src/paint/screenshot.rs",
+        "src/tty/grid.rs",
+    ],
+    visibility = ["//packages/scene-host-wasm:__pkg__"],
+)
+
+copy_to_bin(
+    name = "scene_record_rs",
+    srcs = ["src/paint/scene_record.rs"],
+    visibility = ["//packages/scene-host-wasm:__pkg__"],
+)

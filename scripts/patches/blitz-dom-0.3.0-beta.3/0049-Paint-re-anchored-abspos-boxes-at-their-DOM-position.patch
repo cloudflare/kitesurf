@@ -1,0 +1,407 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 1 Aug 2026 20:35:52 +0100
+Subject: [PATCH] Paint re-anchored abspos boxes at their DOM position
+
+"Anchor absolute boxes to their CSS containing block" re-parents an
+abspos child of an unpositioned parent onto its containing block so
+taffy resolves the insets against the right box. That move also took
+the box with it in the paint tree, because paint_children is built from
+layout_children: so the box painted after the entire intervening
+subtree instead of at its place in DOM order.
+
+CSS 2.1 Appendix E paints a stacking context's z-index:auto positioned
+boxes in tree order, so a positioned sibling that comes later in the DOM
+must paint on top. todomvc is the everyday casualty: .filters is
+abspos with left/right/bottom set and .footer is static, so .filters
+re-anchors to .todoapp, paints over the whole footer and swallows every
+click on the later .clear-completed button; "Clear completed" did
+nothing on the react, preact, vue and angular builds alike.
+
+Split the two concerns: layout keeps the containing-block anchor; paint
+and hit-testing re-home the box to the flow parent it was skimmed out
+of (paint_parent_override), with rehomed_paint_translate correcting the
+origin from containing-block space back into the flow parent's.
+Ordering within the merged list uses document order explicitly rather
+than leaning on sort stability, which no longer holds once re-homed
+boxes are appended.
+
+Two boundaries the re-home must respect:
+
+ - z-index auto/0 boxes only. A z-indexed box is hoisted into its
+   stacking context by flush_styles_to_layout, with coordinates unwound
+   up the layout recursion; re-homing it feeds that unwind the wrong
+   base (the select-dropdown overlay, z-index 2^31-1, painted
+   displaced). Its paint order is governed by z-index anyway.
+
+ - taffy's bounds cannot cover a re-homed box (it is not a layout child
+   of its flow parent), and both hit-prune and paint-cull trust those
+   bounds: a select's overlay extends below the select, and abspos
+   under a zero-height <body> is outside it entirely, so hits and
+   clipped screenshots dropped them. compute_rehomed_reach, run after
+   taffy layout (the one geometry pass in resolve that is never stale),
+   unions each host's re-homed boxes and propagates the rect up the
+   layout-parent chain; hit-prune and paint-cull widen their bounds by
+   that reach. An earlier flag-based variant simply disabled the
+   shortcuts along flagged chains; on heavy pages the flag reached
+   the root, culling effectively turned off, and the recorded scene
+   ballooned until the renderer's wasm aborted mid-screenshot.
+
+Scope is limited to boxes the abspos-anchoring patch already moves: a
+page with no re-anchored abspos builds exactly the paint tree it did
+before.
+
+Against blitz-dom 0.3.0-beta.3: Taffy now lays out every out-of-flow box
+against its CSS containing block natively (so the earlier re-anchoring
+patches are not needed) and upstream's paint tree lists such a box under
+its containing block, right after the layout child it descends from.
+That still paints it above later positioned boxes inside that child, so
+the re-home moves to layout/paint_tree.rs: a z-index:auto abspos box
+whose containing block is not its flow parent is listed (and hit-tested)
+by its flow parent, with rehomed_paint_translate measured from the box's
+oof_containing_block. compute_rehomed_reach now runs after the
+paint-tree build, which is where re-homes are recorded.
+---
+ src/layout/paint_tree.rs |  50 +++++++++++++++++--
+ src/node/node.rs         |  84 ++++++++++++++++++++++++++++++-
+ src/resolve.rs           | 103 +++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 232 insertions(+), 5 deletions(-)
+
+diff --git a/src/layout/paint_tree.rs b/src/layout/paint_tree.rs
+index c3f0c43..a86aaa6 100644
+--- a/src/layout/paint_tree.rs
++++ b/src/layout/paint_tree.rs
+@@ -274,6 +274,7 @@ impl BaseDocument {
+             entries
+         };
+
++        self.nodes[node_id].rehomed_paint_children.borrow_mut().clear();
+         let children = self.nodes[node_id].layout_children.borrow_mut().take();
+         if let Some(mut children) = children {
+             // Anonymous blocks and pseudo-elements can be removed from the
+@@ -301,15 +302,18 @@ impl BaseDocument {
+             // and listed in tree order, directly after that child (CSS 2.1
+             // Appendix E). Boxes whose layout-parent chain does not lead through
+             // a layout child of this node come after all of them.
++            // Z-index:auto abspos boxes are re-homed to their flow
++            // parent instead (see `Node::paint_parent_override`), which visits
++            // them itself.
+             let mut hoisted_past_parent: Vec<(usize, NodeId)> = self.nodes[node_id]
+                 .hoisted_children
+                 .borrow()
+                 .iter()
+                 .copied()
+                 .filter(|&id| {
+-                    self.nodes
+-                        .get(id)
+-                        .is_some_and(|n| n.layout_parent.get() != Some(node_id))
++                    self.nodes.get(id).is_some_and(|n| {
++                        n.layout_parent.get() != Some(node_id) && !Self::paints_rehomed(n)
++                    })
+                 })
+                 .map(|id| {
+                     let anchor = self
+@@ -331,7 +335,27 @@ impl BaseDocument {
+             paint_children.reserve(children.len() + hoisted_past_parent.len());
+
+             for (index, &child_id) in children.iter().enumerate() {
+-                if owned_here(self, child_id) {
++                if !owned_here(self, child_id) && Self::paints_rehomed(&self.nodes[child_id]) {
++                    // An abspos box laid out by an ancestor containing
++                    // block still paints here, in tree order among this node's
++                    // children (CSS 2.1 Appendix E step 8); see
++                    // `Node::paint_parent_override`.
++                    self.nodes[child_id].paint_parent_override.set(Some(node_id));
++                    self.nodes[node_id]
++                        .rehomed_paint_children
++                        .borrow_mut()
++                        .push(child_id);
++                    let is_sc_root = self.nodes[child_id].is_stacking_context_root(false);
++                    self.build_paint_tree_impl(
++                        child_id,
++                        match is_sc_root {
++                            true => None,
++                            false => Some(&mut entries),
++                        },
++                    );
++                    paint_children.push(child_id);
++                } else if owned_here(self, child_id) {
++                    self.nodes[child_id].paint_parent_override.set(None);
+                     let is_sc_root = self.nodes[child_id].is_stacking_context_root(is_flex_or_grid);
+                     self.build_paint_tree_impl(
+                         child_id,
+@@ -382,6 +406,23 @@ impl BaseDocument {
+         }
+     }
+
++    /// Whether `node` (an out-of-flow box hoisted past its flow
++    /// parent) paints under its flow parent rather than its containing block.
++    /// Only `position: absolute` boxes with `z-index: auto`/`0`: their paint
++    /// order is tree order (CSS 2.1 Appendix E step 8), which painting under
++    /// the containing block destroys (todomvc's abspos `.filters` covered the
++    /// later `.clear-completed` button and swallowed its clicks). A z-indexed
++    /// box is ordered by its stacking context; fixed boxes keep upstream's
++    /// placement.
++    fn paints_rehomed(node: &Node) -> bool {
++        node.taffy_position() == taffy::Position::Absolute
++            && node.z_index() == 0
++            && node
++                .oof_containing_block
++                .get()
++                .is_some_and(|cb| node.layout_parent.get() != Some(cb))
++    }
++
+     /// The layout child of `node_id` whose subtree contains `id`, following
+     /// `layout_parent`.
+     fn layout_child_containing(&self, node_id: NodeId, id: NodeId) -> Option<NodeId> {
+@@ -406,6 +447,7 @@ impl BaseDocument {
+         paint_children: &mut ThinVec<NodeId>,
+         entries: &mut ThinVec<HoistedPaintChild>,
+     ) {
++        self.nodes[child_id].paint_parent_override.set(None);
+         self.build_paint_tree_impl(
+             child_id,
+             match self.nodes[child_id].is_stacking_context_root(false) {
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 9f4d19f..d20bca2 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -123,6 +123,31 @@ pub struct Node {
+     pub anonymous_blocks: ThinVec<NodeId>,
+     /// The same as layout_children, but sorted by z-index
+     pub paint_children: RefCell<Option<ThinVec<NodeId>>>,
++
++    /// Set on a z-index:auto abspos box whose out-of-flow containing block
++    /// is not its flow (layout) parent: the flow parent it paints under.
++    ///
++    /// Layout positions the box against its containing block (that's what
++    /// the insets resolve against), but CSS paints it in DOM order among the
++    /// stacking context's other z-index:auto positioned boxes. Painting it
++    /// under the containing block would put it above the whole intervening
++    /// subtree instead. So it is re-homed here for paint and hit-test, with
++    /// `rehomed_paint_translate` correcting the origin.
++    pub paint_parent_override: Cell<Option<NodeId>>,
++
++    /// Boxes re-homed to this node for paint (the inverse index of
++    /// paint_parent_override), rebuilt with this node's paint children.
++    pub rehomed_paint_children: RefCell<ThinVec<NodeId>>,
++
++    /// Union of re-homed paint boxes reachable through this node, in
++    /// this node's own coordinate space (border-box origin), CSS px.
++    /// (x0, y0, x1, y1); None = no re-homed content below here.
++    ///
++    /// Computed by compute_rehomed_reach after layout and the paint-tree
++    /// build each resolve, so it is never stale. Paint-cull and hit-prune
++    /// widen their bounds by this rect instead of trusting taffy's (which
++    /// cannot cover a re-homed box: it is not laid out by its flow parent).
++    pub rehomed_reach: Cell<Option<(f32, f32, f32, f32)>>,
+     pub stacking_context: Option<Box<StackingContext>>,
+     /// The hoisted entries this node's subtree pushed into the enclosing
+     /// stacking context on its last (non-skipped) paint-tree build. Replayed
+@@ -425,6 +450,9 @@ impl Node {
+             hoisted_children: RefCell::new(ThinVec::new()),
+             anonymous_blocks: ThinVec::new(),
+             paint_children: RefCell::new(None),
++            paint_parent_override: Cell::new(None),
++            rehomed_paint_children: RefCell::new(ThinVec::new()),
++            rehomed_reach: Cell::new(None),
+             stacking_context: None,
+             sc_contribution_cache: RefCell::new(ThinVec::new()),
+
+@@ -1522,6 +1550,40 @@ impl Node {
+     }
+
+     // https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_positioned_layout/Stacking_context#features_creating_stacking_contexts
++    /// Origin correction for a re-homed abspos painted by its flow
++    /// parent. `final_layout.location` is relative to the box's
++    /// out-of-flow containing block, so shift by (containing block -
++    /// flow parent) to land it in the flow parent's coordinate space.
++    ///
++    /// The flow parent is a descendant of the containing block, so the
++    /// delta is minus the offsets accumulated walking up from the flow
++    /// parent to the containing block (same `location - scroll_offset`
++    /// convention as the hoisted-child positions).
++    pub fn rehomed_paint_translate(&self, paint_parent: NodeId) -> taffy::Point<f32> {
++        let mut offset = taffy::Point { x: 0.0, y: 0.0 };
++        let Some(containing_block) = self.oof_containing_block.get() else {
++            return offset;
++        };
++        let tree = self.tree();
++        let mut cur = paint_parent;
++        // Bounded: a malformed layout-parent chain must not spin.
++        for _ in 0..64 {
++            if cur == containing_block {
++                return taffy::Point { x: -offset.x, y: -offset.y };
++            }
++            let Some(node) = tree.get(cur) else { break };
++            offset.x += node.final_layout().location.x - node.scroll_offset().x as f32;
++            offset.y += node.final_layout().location.y - node.scroll_offset().y as f32;
++            match node.layout_parent.get() {
++                Some(next) if next != cur => cur = next,
++                _ => break,
++            }
++        }
++        // Chain didn't reach the containing block: leave the box where
++        // layout put it rather than shifting it somewhere arbitrary.
++        taffy::Point { x: 0.0, y: 0.0 }
++    }
++
+     pub fn is_stacking_context_root(&self, is_flex_or_grid_item: bool) -> bool {
+         let Some(style) = self.primary_styles() else {
+             return false;
+@@ -1679,7 +1741,20 @@ impl Node {
+             && y >= (overflow.y0 / scale) as f32
+             && y <= (overflow.y1 / scale) as f32;
+
+-        if !matches_self && !matches_content && !matches_hoisted_content && !matches_overflow {
++        // Taffy's bounds cannot cover re-homed paint children (they are
++        // not layout children of their flow parent); widen the prune by
++        // the post-layout union of any re-homed boxes reachable below.
++        let matches_rehomed = match self.rehomed_reach.get() {
++            Some((x0, y0, x1, y1)) => x >= x0 && x <= x1 && y >= y0 && y <= y1,
++            None => false,
++        };
++
++        if !matches_self
++            && !matches_content
++            && !matches_hoisted_content
++            && !matches_overflow
++            && !matches_rehomed
++        {
+             return None;
+         }
+
+@@ -1745,6 +1820,13 @@ impl Node {
+                     child_y -= viewport_scroll.y as f32;
+                 }
+             }
++            // A re-homed abspos keeps its containing block's layout
++            // origin, so undo the difference before descending.
++            if child.paint_parent_override.get() == Some(self.id) {
++                let t = child.rehomed_paint_translate(self.id);
++                child_x -= t.x;
++                child_y -= t.y;
++            }
+             if let Some(hit) = child.hit_inner(child_x, child_y, scale, scrollbar) {
+                 return Some(hit);
+             }
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 6c9b970..4dc59dc 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -131,6 +131,12 @@ impl BaseDocument {
+         self.build_paint_tree(root_node_id);
+         timer.record_time("paint_tree");
+
++        // Re-homed paint boxes live outside their flow parent's taffy
++        // bounds; compute the reach rects paint-cull and hit-prune widen
++        // by. Must run AFTER taffy layout (the one geometry pass in resolve
++        // that is never stale) and after the paint tree records re-homes.
++        self.compute_rehomed_reach();
++
+         // Clear all damage and dirty flags, walking only subtrees which are
+         // marked as (potentially) containing damage.
+         let doc_node_id = self.root_node().id;
+@@ -255,5 +261,102 @@ impl BaseDocument {
+     }
+
+     /// Ensure that the layout_children field is populated for all nodes
++    /// Post-layout: for every node that hosts re-homed paint children,
++    /// union their boxes (in the host's coordinate space) and propagate
++    /// the rect up the host's layout-parent chain. Paint-cull and
++    /// hit-prune treat the result as extra reach beyond taffy's bounds,
++    /// which cannot cover a re-homed box (it is not a layout child of
++    /// its flow parent). Direct rects use max(size, content_size), so a
++    /// re-homed box's own descendants are covered through taffy; boxes
++    /// re-homed into a subtree from an outer containing block are
++    /// covered because their flow parent is itself a host.
++    ///
++    /// Simply disabling the cull along flagged chains does not work: on
++    /// heavy pages the flag reaches the root, culling effectively turns
++    /// off, and the recorded scene grows until the renderer's wasm aborts.
++    pub fn compute_rehomed_reach(&mut self) {
++        // Reach is rebuilt from fresh layout every resolve.
++        for (_, node) in self.nodes.iter_mut() {
++            node.rehomed_reach.set(None);
++        }
++
++        let host_ids: Vec<NodeId> = self
++            .nodes
++            .iter()
++            .filter(|(_, n)| !n.rehomed_paint_children.borrow().is_empty())
++            .map(|(id, _)| id)
++            .collect();
++
++        let union =
++            |acc: Option<(f32, f32, f32, f32)>, r: (f32, f32, f32, f32)| match acc {
++                None => Some(r),
++                Some(a) => Some((
++                    a.0.min(r.0),
++                    a.1.min(r.1),
++                    a.2.max(r.2),
++                    a.3.max(r.3),
++                )),
++            };
++
++        for host_id in host_ids {
++            let mut rect: Option<(f32, f32, f32, f32)> = None;
++            let rehomed: Vec<NodeId> = self.nodes[host_id]
++                .rehomed_paint_children
++                .borrow()
++                .iter()
++                .copied()
++                .filter(|id| self.nodes.contains_key(*id))
++                .collect();
++            for child_id in rehomed {
++                let child = &self.nodes[child_id];
++                let t = child.rehomed_paint_translate(host_id);
++                let loc = child.final_layout().location;
++                let size = child.final_layout().size;
++                let overflow = child.final_layout().scrollable_overflow_rect;
++                let x0 = t.x + loc.x;
++                let y0 = t.y + loc.y;
++                let w = size.width.max(overflow.right);
++                let h = size.height.max(overflow.bottom);
++                rect = union(rect, (x0, y0, x0 + w, y0 + h));
++            }
++            let Some(mut rect) = rect else { continue };
++
++            // Union into the host, then propagate up the chain paint and
++            // hit-test descend through (the paint parent of a re-homed box,
++            // otherwise the containing block its location is relative to),
++            // shifting into each ancestor's coordinate space.
++            let mut cur = host_id;
++            for _ in 0..512 {
++                let node = &self.nodes[cur];
++                node.rehomed_reach
++                    .set(union(node.rehomed_reach.get(), rect));
++                let mut loc = node.final_layout().location;
++                let parent = match node.paint_parent_override.get() {
++                    Some(paint_parent) => {
++                        let t = node.rehomed_paint_translate(paint_parent);
++                        loc.x += t.x;
++                        loc.y += t.y;
++                        paint_parent
++                    }
++                    None => {
++                        let Some(parent) = node.containing_block() else { break };
++                        parent
++                    }
++                };
++                if parent == cur || !self.nodes.contains_key(parent) {
++                    break;
++                }
++                let scroll = *node.scroll_offset();
++                rect = (
++                    rect.0 + loc.x - scroll.x as f32,
++                    rect.1 + loc.y - scroll.y as f32,
++                    rect.2 + loc.x - scroll.x as f32,
++                    rect.3 + loc.y - scroll.y as f32,
++                );
++                cur = parent;
++            }
++        }
++    }
++
+     pub fn resolve_layout_children(&mut self) {
+         resolve_layout_children_recursive(self, self.root_node().id);

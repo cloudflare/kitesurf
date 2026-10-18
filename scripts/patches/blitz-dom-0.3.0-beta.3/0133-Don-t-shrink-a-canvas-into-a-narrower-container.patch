@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 28 Sep 2026 18:33:08 +0100
+Subject: [PATCH] Don't shrink a canvas into a narrower container
+
+The available-width fold into max-width is a leniency for natural-size
+content (photos shrinking into narrow columns). A canvas's natural size
+is its bitmap size, which the author sets through width/height content
+attributes: those are not presentational hints, so style_size never
+saw them and a <canvas width=400> in a 200px box laid out at 200x150.
+Chrome and Firefox lay it out at 400x300 and let it overflow.
+---
+ src/layout/mod.rs      | 2 ++
+ src/layout/replaced.rs | 6 +++++-
+ 2 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 7e8623f..5d1598f 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -511,6 +511,8 @@ impl LayoutPassState<'_> {
+                     let replaced_context = ReplacedContext {
+                         intrinsic_sizes,
+                         default_object_size,
++                        natural_size_is_authored: *element_data.name.local
++                            == local_name!("canvas"),
+                     };
+
+                     let mut style = node.layout_style();
+diff --git a/src/layout/replaced.rs b/src/layout/replaced.rs
+index c0a8691..fbcd1cd 100644
+--- a/src/layout/replaced.rs
++++ b/src/layout/replaced.rs
+@@ -35,6 +35,9 @@ pub struct ReplacedContext {
+     /// used to fill in dimensions the intrinsic sizes leave unresolved. 300x150
+     /// for most replaced elements; zero for an image with no loaded resource.
+     pub default_object_size: taffy::Size<f32>,
++    /// A canvas's natural size is its bitmap size, which the author sets; unlike an
++    /// image's, it must overflow a narrower container rather than shrink into it.
++    pub natural_size_is_authored: bool,
+ }
+
+ /// Whether a height/width value is violating it's min- and max- constraints
+@@ -262,7 +265,8 @@ pub fn compute_replaced_layout(
+     // Width/height attributes are already presentational hints in style_size.
+     let explicit_height = style_size.height.is_some();
+     let explicit_width = style_size.width.is_some()
+-        || (explicit_height && aspect_ratio.is_some());
++        || (explicit_height && aspect_ratio.is_some())
++        || context.natural_size_is_authored;
+     let avail_max = Size {
+         width: if explicit_width {
+             None

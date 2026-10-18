@@ -1,0 +1,101 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 14 Oct 2026 10:44:50 +0100
+Subject: [PATCH] expression: build long comma chains balanced
+
+A bundle chunk can be one statement of thousands of comma-joined calls.
+The left-leaning tree that made was that many
+levels deep, and every recursive pass over it (scope analysis, the
+bytecompiler, Drop) overran the 1 MiB wasm stack. The comma operator is
+associative, so a balanced tree evaluates the same operands in the same
+order; chains under 32 operands keep the old shape and identical
+bytecode.
+---
+ src/parser/expression/mod.rs | 46 +++++++++++++++++++++++++++---------
+ 1 file changed, 35 insertions(+), 11 deletions(-)
+
+diff --git a/src/parser/expression/mod.rs b/src/parser/expression/mod.rs
+index 654e8af..144374f 100644
+--- a/src/parser/expression/mod.rs
++++ b/src/parser/expression/mod.rs
+@@ -146,45 +146,69 @@ where
+     type Output = ast::Expression;
+
+     fn parse(self, cursor: &mut Cursor<R>, interner: &mut Interner) -> ParseResult<Self::Output> {
+-        let mut lhs = AssignmentExpression::new(self.allow_in, self.allow_yield, self.allow_await)
++        let first = AssignmentExpression::new(self.allow_in, self.allow_yield, self.allow_await)
+             .parse(cursor, interner)?;
++        let mut rest = Vec::new();
+         while let Some(tok) = cursor.peek(0, interner)? {
+             match *tok.kind() {
+                 TokenKind::Punctuator(Punctuator::Comma) => {
+                     if cursor.peek(1, interner).or_abrupt()?.kind()
+                         == &TokenKind::Punctuator(Punctuator::CloseParen)
+                     {
+-                        return Ok(lhs);
++                        break;
+                     }
+
+                     if cursor.peek(1, interner).or_abrupt()?.kind()
+                         == &TokenKind::Punctuator(Punctuator::Spread)
+                     {
+-                        return Ok(lhs);
++                        break;
+                     }
+
+                     cursor.advance(interner);
+
+-                    lhs = Binary::new(
+-                        Punctuator::Comma
+-                            .as_binary_op()
+-                            .expect("Could not get binary operation."),
+-                        lhs,
++                    rest.push(
+                         AssignmentExpression::new(
+                             self.allow_in,
+                             self.allow_yield,
+                             self.allow_await,
+                         )
+                         .parse(cursor, interner)?,
+-                    )
+-                    .into();
++                    );
+                 }
+                 _ => break,
+             }
+         }
+
+-        Ok(lhs)
++        Ok(comma_chain(first, rest))
++    }
++}
++
++/// Chains shorter than this keep upstream's left-leaning tree, so nearly all code
++/// parses to the same AST and bytecode as upstream.
++const LEFT_LEANING_COMMA_OPERANDS: usize = 32;
++
++/// `a, b, c` runs the same operands in the same order whatever the tree's shape, so long
++/// chains build balanced: scope analysis, bytecompile and drop recurse log2(n) deep, not n.
++fn comma_chain(first: ast::Expression, rest: Vec<ast::Expression>) -> ast::Expression {
++    fn comma(lhs: ast::Expression, rhs: ast::Expression) -> ast::Expression {
++        Binary::new(BinaryOp::Comma, lhs, rhs).into()
++    }
++    fn balanced(items: &mut std::vec::IntoIter<ast::Expression>, n: usize) -> ast::Expression {
++        if n == 1 {
++            return items.next().expect("one operand per slot");
++        }
++        let lhs = balanced(items, n / 2);
++        let rhs = balanced(items, n - n / 2);
++        comma(lhs, rhs)
++    }
++    if rest.len() < LEFT_LEANING_COMMA_OPERANDS {
++        return rest.into_iter().fold(first, comma);
+     }
++    let n = rest.len() + 1;
++    let mut all = Vec::with_capacity(n);
++    all.push(first);
++    all.extend(rest);
++    balanced(&mut all.into_iter(), n)
+ }
+
+ /// Parses a logical expression expression.

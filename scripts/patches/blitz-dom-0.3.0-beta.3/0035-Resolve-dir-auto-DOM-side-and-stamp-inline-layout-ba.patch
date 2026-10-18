@@ -1,0 +1,136 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 13:42:31 +0100
+Subject: [PATCH] Resolve dir=auto DOM-side and stamp inline-layout base
+ direction
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Every inline layout resolved bidi with parley's whole-text
+autodetect, ignoring CSS direction; dir=rtl blocks rendered with
+whatever base the text happened to start with. Stamp the root's
+mode on the tree builder: unicode-bidi:plaintext → AutoPerParagraph
+(pre dir=auto), else the nearest dir-attributed ancestor decides.
+
+dir=auto cannot ride the cascade: its first-strong scan excludes
+bdi/script/style/textarea subtrees and dir-attributed descendants,
+which no selector can express (the dir_auto-contained-* reftests
+probe exactly this). Walk up to the nearest dir attribute; auto
+runs the HTML tree-order scan (parley::first_strong_direction per
+text node) and forces the result, defaulting ltr; ltr/rtl defer to
+computed direction, which the UA [dir] rules already set.
+---
+ src/layout/construct.rs | 85 +++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 78 insertions(+), 7 deletions(-)
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 792aea7..f79a72e 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -4,8 +4,8 @@ use std::sync::Arc;
+
+ use markup5ever::{QualName, local_name, ns};
+ use parley::{
+-    FontContext, InlineBox, InlineBoxKind, LayoutContext, StyleProperty, TreeBuilder,
+-    WhiteSpaceCollapse,
++    BaseDirection, FontContext, InlineBox, InlineBoxKind, LayoutContext, StyleProperty,
++    TreeBuilder, WhiteSpaceCollapse,
+ };
+ use style::{
+     computed_values::position::T as PositionProperty,
+@@ -1349,6 +1349,69 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+     }
+ }
+
++// Nearest dir-attributed ancestor decides. ltr/rtl are
++// already correct in computed direction (UA [dir] rules) → None;
++
++// dir=auto runs HTML's first-strong scan over its own subtree and
++// forces the result (default ltr when no strong char is found).
++fn dir_auto_resolved_direction(nodes: &crate::NodeTree, id: NodeId) -> Option<BaseDirection> {
++    let mut cur = Some(id);
++    while let Some(nid) = cur {
++        let node = &nodes[nid];
++        if let Some(el) = node.data.downcast_element() {
++            if let Some(dir) = el.attr(local_name!("dir")) {
++                if dir.eq_ignore_ascii_case("auto") {
++                    return Some(
++                        html_first_strong_scan(nodes, nid, true)
++                            .unwrap_or(BaseDirection::Ltr),
++                    );
++                }
++                if dir.eq_ignore_ascii_case("ltr") || dir.eq_ignore_ascii_case("rtl") {
++                    return None;
++                }
++            }
++        }
++        cur = node.parent;
++    }
++    None
++}
++
++// HTML §the-dir-attribute: tree-order first-strong scan, excluding
++// bdi/script/style/textarea subtrees and dir-attributed descendants.
++fn html_first_strong_scan(
++    nodes: &crate::NodeTree,
++    id: NodeId,
++    is_scan_root: bool,
++) -> Option<BaseDirection> {
++    let node = &nodes[id];
++    match &node.data {
++        NodeData::Text(t) => parley::first_strong_direction(&t.content),
++        NodeData::Element(el) | NodeData::AnonymousBlock(el) => {
++            if !is_scan_root {
++                let tag = &el.name.local;
++                if *tag == local_name!("bdi")
++                    || *tag == local_name!("script")
++                    || *tag == local_name!("style")
++                    || *tag == local_name!("textarea")
++                {
++                    return None;
++                }
++                if el.attr(local_name!("dir")).is_some_and(|d| {
++                    d.eq_ignore_ascii_case("auto")
++                        || d.eq_ignore_ascii_case("ltr")
++                        || d.eq_ignore_ascii_case("rtl")
++                }) {
++                    return None;
++                }
++            }
++            node.children
++                .iter()
++                .find_map(|child| html_first_strong_scan(nodes, *child, false))
++        }
++        _ => None,
++    }
++}
++
+ pub(crate) fn build_inline_layout_into(
+     nodes: &crate::NodeTree,
+     layout_ctx: &mut LayoutContext<TextBrush>,
+@@ -1375,11 +1438,19 @@ pub(crate) fn build_inline_layout_into(
+
+     // Create a parley tree builder
+     let mut builder = layout_ctx.tree_builder(font_ctx, scale, true, &parley_style);
+-    if let Some(style) = root_node_style.as_deref() {
+-        builder.set_base_direction(stylo_to_parley::base_direction(
+-            style.clone_direction(),
+-            style.clone_unicode_bidi(),
+-        ));
++
++    // Stamp the block's bidi base direction; parley's
++    // default whole-text autodetect ignores CSS direction entirely.
++    // dir=auto can't ride the cascade (its scan excludes subtrees,
++    // which CSS can't express), so resolve it DOM-side per HTML.
++    if let Some(s) = root_node_style.as_deref() {
++        use style::computed_values::unicode_bidi::T as UnicodeBidi;
++        let base_direction = match s.clone_unicode_bidi() {
++            UnicodeBidi::Plaintext => BaseDirection::AutoPerParagraph,
++            bidi => dir_auto_resolved_direction(nodes, inline_context_root_node_id)
++                .unwrap_or_else(|| stylo_to_parley::base_direction(s.clone_direction(), bidi)),
++        };
++        builder.set_base_direction(base_direction);
+     }
+
+     let text_transform = root_node_style

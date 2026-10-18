@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 3 Aug 2026 20:12:16 +0100
+Subject: [PATCH] inset box-shadow: isolate the shadow group so DestOut can't
+ erase the page
+
+vello_cpu's needs_buf() only allocates a layer buffer for non-default
+blend, opacity, mask or filter; a layer with Mix::Normal, opacity 1.0
+and a clip is optimized into a bare clip that draws straight onto the
+backdrop. The inset-shadow construction relied on that outer layer
+isolating its Compose::DestOut child, so the blurred DestOut blob
+composited against the canvas. It erased the element's own background
+(and everything beneath) instead of trimming the shadow fill, so an
+inset shadow stack rendered as a transparent hole with a dark glow.
+Force the isolation buffer with an epsilon opacity, which still
+composites at 255/255 in the u8 pipeline.
+
+Also apply self.scale to the inset shadow offset, matching the outset
+path.
+
+The real upstream fix is an explicit isolation flag in vello's layer
+API, or needs_buf considering nested destructive composes.
+---
+ src/render/box_shadow.rs | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/src/render/box_shadow.rs b/src/render/box_shadow.rs
+index 0e72820..25bc4d5 100644
+--- a/src/render/box_shadow.rs
++++ b/src/render/box_shadow.rs
+@@ -109,14 +109,23 @@ impl ElementCx<'_, '_> {
+             // TODO draw shadows with matching individual radii instead of averaging
+             let radius = self.frame.border_radii.average();
+             let transform = self.transform.then_translate(Vec2 {
+-                x: shadow.base.horizontal.px() as f64,
+-                y: shadow.base.vertical.px() as f64,
++                x: shadow.base.horizontal.px() as f64 * self.scale,
++                y: shadow.base.vertical.px() as f64 * self.scale,
+             });
+
++            // vello_cpu only buffers a layer with non-default blend /
++            // opacity / mask / filter; a bare clip layer draws straight
++            // onto the backdrop, so the nested Compose::DestOut below would
++            // erase the page under the element instead of trimming the
++            // shadow fill, punching a transparent hole through an inset
++            // shadow stack. The epsilon
++            // opacity forces the isolation buffer; the layer still
++            // composites at 255/255 alpha in the u8 pipeline.
++            const ISOLATE_OPACITY: f32 = 0.999_999;
+             scene.push_layer(
+                 Fill::NonZero,
+                 Mix::Normal,
+-                1.0,
++                ISOLATE_OPACITY,
+                 self.transform,
+                 &padding_box,
+                 None,

@@ -1,0 +1,27 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  body { margin: 0; background: #808080; }
+  #cv { position: absolute; left: 40px; top: 30px; }
+</style>
+<script>
+(function () {
+  var cv = document.createElement("canvas");
+  cv.id = "cv";
+  cv.width = 100;
+  cv.height = 100;
+  var ctx = cv.getContext("2d");
+  ctx.fillStyle = "#ff0000";
+  ctx.fillRect(0, 0, 100, 100);
+  setTimeout(function () {
+    document.body.appendChild(cv);
+    setTimeout(function () {
+      document.title = "CANVASDETACHED:" + JSON.stringify({ appended: true });
+    }, 200);
+  }, 200);
+})();
+</script>

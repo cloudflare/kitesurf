@@ -1,0 +1,81 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 5 Sep 2026 14:58:51 +0100
+Subject: [PATCH] Retain table computed styles for calc pointers
+
+Table root and cell Taffy styles store raw calc pointers into
+ComputedValues. Keep those source allocations alive for as long as the
+cached table context can use the pointers after a restyle.
+---
+ src/layout/table.rs | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index a20368b..743ccc5 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -39,6 +39,8 @@ pub struct TableTreeWrapper<'a, 'doc> {
+ #[derive(Debug)]
+ pub struct TableContext {
+     pub style: taffy::Style<Atom>,
++    // Taffy's compact calc values borrow from the computed style.
++    _style_source: ServoArc<ComputedValues>,
+     pub cells: Vec<TableCell>,
+     /// Absolutely positioned descendants of the table's row groups and rows (and of the
+     /// table itself). They take no part in the table grid.
+@@ -108,6 +110,7 @@ pub struct TableCell {
+     /// Index of the column the cell originates in
+     pub column: u16,
+     style: taffy::Style<Atom>,
++    _style_source: ServoArc<ComputedValues>,
+     is_caption: bool,
+ }
+
+@@ -282,6 +285,7 @@ pub(crate) fn build_table_context(
+     };
+
+     let mut style = table_taffy_style(&stylo_styles, wm);
++    let style_source = ServoArc::clone(&*stylo_styles);
+     style.item_is_table = true;
+     // Use `dense` row-flow so that each cell scans the row from its
+     // leftmost column for the first free track. Without `dense`,
+@@ -508,6 +512,7 @@ pub(crate) fn build_table_context(
+     (
+         TableContext {
+             style,
++            _style_source: style_source,
+             cells,
+             oof_children,
+             rows,
+@@ -741,6 +746,7 @@ fn collect_table_cells(
+                 .map(|v| v.clamp(1, 65534))
+                 .unwrap_or(1);
+             let mut style = table_taffy_style(stylo_style, wm);
++            let style_source = ServoArc::clone(&**stylo_style);
+             let col = cursor.next_free();
+
+             // In the collapsed borders model the borders are laid out as gutters between
+@@ -840,6 +846,7 @@ fn collect_table_cells(
+                 row: row.saturating_sub(1),
+                 column: col,
+                 style,
++                _style_source: style_source,
+                 is_caption: false,
+             });
+
+@@ -864,6 +871,7 @@ fn collect_table_cells(
+             }
+             let stylo_style = &node.primary_styles().unwrap();
+             let mut style = table_taffy_style(stylo_style, wm);
++            let style_source = ServoArc::clone(&**stylo_style);
+             let col = cursor.next_free();
+             let is_caption = display.outside() == DisplayOutside::TableCaption;
+             let is_first_content_row = !is_caption && cursor.is_first_content_row(*row);
+@@ -888,6 +896,7 @@ fn collect_table_cells(
+                 row: row.saturating_sub(1),
+                 column: col,
+                 style,
++                _style_source: style_source,
+                 is_caption,
+             });
+             cursor.place(1, 1);

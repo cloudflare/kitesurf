@@ -1,0 +1,21 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html><head><meta charset="utf-8"><title>seam-pending</title></head>
+<body><div id="out"></div>
+<script type="module">
+import "./seam-runtime.js";
+const n = "route";
+import("./seam-" + n + ".js").catch(function (e) {
+  document.title = "SEAM:" + JSON.stringify({ loaded: false, error: String((e && e.message) || e) });
+});
+setTimeout(function () {
+  if (document.title.indexOf("SEAM:") !== 0) {
+    document.title = "SEAM:" + JSON.stringify({ loaded: false, error: "timeout waiting for route chunk" });
+  }
+}, 8000);
+</script></body></html>

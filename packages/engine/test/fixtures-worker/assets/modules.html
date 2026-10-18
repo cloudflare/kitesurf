@@ -1,0 +1,31 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><title>modules</title></head>
+<body>
+  <h1>modules</h1>
+  <script>
+    globalThis.__ks_module_log = [];
+    globalThis.__ks_modlog = (label) => globalThis.__ks_module_log.push(label);
+    __ks_modlog("classic-inline");
+  </script>
+  <script type="module">
+    globalThis.__ks_modlog("module-inline-1");
+    // Top-level await; should resolve before navigate returns.
+    await Promise.resolve();
+    globalThis.__ks_modlog("module-inline-1-after-await");
+    globalThis.__ks_module_FOO = 42;
+  </script>
+  <script src="/__fixtures/external-module.js" type="module"></script>
+  <script type="module">
+    globalThis.__ks_modlog("module-inline-2");
+    // Verify the external module's globalThis side effect ran first.
+    globalThis.__ks_module_BAR_seen = globalThis.__ks_module_BAR;
+  </script>
+</body>
+</html>

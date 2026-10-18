@@ -1,0 +1,97 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 14 Oct 2026 11:28:42 +0100
+Subject: [PATCH] vm: drop a caught throw's stale stack values
+
+0.22 lost 0.20's stack_count truncation at a catch, and handle_throw
+returned to a catching caller without truncating the callee frame it had
+popped. Every throw from a called function that its caller caught left
+that frame, plus any half-built call, on the value stack: try/finally
+returned the wrong value, and loops hit RuntimeLimitError(StackSize).
+
+A catch now truncates to the frame's registers; nothing above them is
+live there. A return value carried into a finally block moves to the
+accumulator first, since a catch inside the finally would drop it, and
+an async iterator close keeps the accumulator across its await.
+---
+ src/bytecompiler/jump_control.rs | 9 +++++++++
+ src/bytecompiler/utils.rs        | 7 +++++++
+ src/vm/mod.rs                    | 8 ++++++++
+ 3 files changed, 24 insertions(+)
+
+diff --git a/src/bytecompiler/jump_control.rs b/src/bytecompiler/jump_control.rs
+index 4fc1020..6ae4225 100644
+--- a/src/bytecompiler/jump_control.rs
++++ b/src/bytecompiler/jump_control.rs
+@@ -101,6 +101,15 @@ impl JumpRecord {
+         while let Some(action) = self.actions.pop() {
+             match action {
+                 JumpRecordAction::Transfer { index } => {
++                    // A catch inside the finally drops whatever sits above the
++                    // registers, so carry a return value in the accumulator through it.
++                    if self.kind == (JumpRecordKind::Return { return_value_on_stack: true }) {
++                        let value = compiler.register_allocator.alloc();
++                        compiler.pop_into_register(&value);
++                        compiler.bytecode.emit_set_accumulator(value.variable());
++                        compiler.register_allocator.dealloc(value);
++                        self.kind = JumpRecordKind::Return { return_value_on_stack: false };
++                    }
+                     self.label = compiler.jump();
+                     compiler.jump_info[index as usize].jumps.push(self);
+
+diff --git a/src/bytecompiler/utils.rs b/src/bytecompiler/utils.rs
+index d914cd8..115d085 100644
+--- a/src/bytecompiler/utils.rs
++++ b/src/bytecompiler/utils.rs
+@@ -23,12 +23,19 @@ impl ByteCompiler<'_> {
+         self.register_allocator.dealloc(called);
+
+         if async_ {
++            // Await writes the accumulator, which can hold a `return` value
++            // carried out of a finally block while the loop's iterator closes.
++            let accumulator = self.register_allocator.alloc();
++            self.bytecode
++                .emit_set_register_from_accumulator(accumulator.variable());
+             self.bytecode.emit_await(value.variable());
+             let resume_kind = self.register_allocator.alloc();
+             self.pop_into_register(&resume_kind);
+             self.pop_into_register(&value);
+             self.generator_next(&value, &resume_kind);
+             self.register_allocator.dealloc(resume_kind);
++            self.bytecode.emit_set_accumulator(accumulator.variable());
++            self.register_allocator.dealloc(accumulator);
+         }
+
+         self.bytecode.emit_is_object(value.variable());
+diff --git a/src/vm/mod.rs b/src/vm/mod.rs
+index 2f31130..aa4a1b5 100644
+--- a/src/vm/mod.rs
++++ b/src/vm/mod.rs
+@@ -663,6 +663,9 @@ impl Vm {
+
+         let catch_address = handler.handler();
+         let environment_sp = frame.env_fp + handler.environment_count;
++        // Nothing above the registers is live at a catch; only half-built calls
++        // push there.
++        let registers_end = frame.rp as usize + frame.code_block().register_count as usize;
+
+         // Go to handler location.
+         frame.pc = u32::from(catch_address);
+@@ -670,6 +673,7 @@ impl Vm {
+         self.frame_mut()
+             .environments
+             .truncate(environment_sp as usize);
++        self.stack.stack.truncate(registers_end);
+
+         true
+     }
+@@ -966,5 +970,9 @@ impl Context {
+             let exit_early = self.vm.frame().exit_early();
+
+             if self.vm.handle_exception_at(pc) {
++                // The callee frame popped above leaves its stack behind when a
++                // caller catches. Without this truncation every caught throw from a call
++                // leaks a frame's worth of slots.
++                self.vm.stack.truncate_to_frame(&frame);
+                 return ControlFlow::Continue(());
+             }

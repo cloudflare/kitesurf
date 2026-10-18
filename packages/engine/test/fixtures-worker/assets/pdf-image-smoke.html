@@ -1,0 +1,20 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html><head><meta charset="utf-8" /><title>kitesurf pdf image smoke fixture</title></head>
+<body style="font-family: sans-serif; padding: 40px">
+<h1>kitesurf /pdf image smoke</h1>
+<p>PNG (httpbin):</p>
+<img src="https://httpbin.org/image/png" width="200" height="200" alt="PNG"/>
+<p>JPEG (httpbin):</p>
+<img src="https://httpbin.org/image/jpeg" width="200" height="200" alt="JPEG"/>
+<p>Inline data: URL (must not be re-fetched):</p>
+<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" width="32" height="32" alt="data"/>
+<p>Non-image URL (must be skipped at mime check):</p>
+<img src="https://httpbin.org/html" width="32" height="32" alt="non-image"/>
+</body>
+</html>

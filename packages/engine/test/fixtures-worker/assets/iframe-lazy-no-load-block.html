@@ -1,0 +1,32 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<!-- loading=lazy: per HTML this frame must NOT delay the window load
+     event, however long its src takes. The src holds headers 1500ms,
+     so if the load gate waits for this frame's install at all, the
+     ordering below inverts and the assertion catches it. -->
+<iframe id="lazy" loading="lazy" src="/__fixtures/slow-iframe-child?ms=1500"></iframe>
+<script>
+  window.__t0 = Date.now();
+  window.__windowLoadAt = null;
+  window.__iframeLoadAt = null;
+  // The whole assertion: sampled INSIDE the iframe's own load handler,
+  // which is the only place the ordering is observable.
+  window.__iframeSawWindowLoaded = null;
+  addEventListener("load", function () {
+    window.__windowLoadAt = Date.now() - window.__t0;
+  });
+  document.getElementById("lazy").addEventListener("load", function () {
+    window.__iframeLoadAt = Date.now() - window.__t0;
+    window.__iframeSawWindowLoaded = window.__windowLoadAt !== null;
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 26 Jul 2026 08:49:53 +0100
+Subject: [PATCH] Decode-bomb guard in kitesurf_materialize_image_data
+
+Sniff container dims (into_dimensions) before load_from_memory and
+drop the image to None when the full-resolution RGBA plane would
+exceed 128 MiB (~32 Mpx): the encoded bytes are page-controlled
+and a tiny file can declare dims that OOM the isolate on decode.
+Mirrors kitesurf-core's scene_replay guard; paint skips a None
+slot, same degradation as undecodable bytes.
+---
+ src/document.rs | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index 1dea9fe..0c70114 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -3850,6 +3850,25 @@ fn kitesurf_materialize_image_data(
+     if !raster.encoded {
+         return false;
+     }
++    // Decode-bomb guard: sniff the container header for dims
++    // before the full decode. A tiny highly-compressed file can
++    // declare huge dims whose RGBA plane OOMs the isolate; page
++    // bytes are attacker-controlled. Mirrors kitesurf-core's
++    // scene_replay decoded_size_ok (128 MiB full-res RGBA cap).
++    const DECODE_SRC_RGBA_BUDGET: u128 = 128 * 1024 * 1024;
++    let dims_ok = image::ImageReader::new(std::io::Cursor::new(raster.data.as_ref()))
++        .with_guessed_format()
++        .ok()
++        .and_then(|r| r.into_dimensions().ok())
++        .is_some_and(|(sw, sh)| {
++            (sw as u128) * (sh as u128) * 4 <= DECODE_SRC_RGBA_BUDGET
++        });
++    if !dims_ok {
++        // Unsniffable or over-budget: treat like undecodable bytes
++        // and drop to None so paint skips the slot.
++        *image = ImageData::None;
++        return true;
++    }
+     let decoded = match image::load_from_memory(raster.data.as_ref()) {
+         Ok(d) => d,
+         // Undecodable bytes: drop to None so paint skips it

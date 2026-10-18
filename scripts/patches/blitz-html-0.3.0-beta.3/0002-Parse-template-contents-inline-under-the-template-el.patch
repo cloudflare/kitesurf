@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 12 Oct 2026 19:40:27 +0100
+Subject: [PATCH] Parse template contents inline under the template element
+
+blitz 0.3.0-beta.3 started parsing a <template>'s children into a
+detached "template contents" node. Kitesurf's DOM shim builds
+HTMLTemplateElement.content itself, by moving the template's tree
+children into a fragment on first access, and it cannot see that node.
+Every parsed template (page markup, innerHTML, declarative shadow roots)
+came up with an empty .content, which broke 20+ WPT tests across
+shadow-dom, selection, xpath and template-element.
+
+Return the template itself from get_template_contents, as beta.2 did.
+---
+ src/html_sink.rs | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/src/html_sink.rs b/src/html_sink.rs
+index 6196776..2534a44 100644
+--- a/src/html_sink.rs
++++ b/src/html_sink.rs
+@@ -325,9 +325,13 @@ impl<'m, 'doc> TreeSink for DocumentHtmlParser<'m, 'doc> {
+     }
+
+     fn get_template_contents(&self, target: &Self::Handle) -> Self::Handle {
+-        // Parse a template element's children into its (detached, inert)
+-        // "template contents" fragment node rather than into the element itself
+-        self.mutr().template_contents(*target)
++        // Parse a template's children inline, under the element,
++        // as blitz 0.3.0-beta.2 did. Kitesurf's DOM shim owns template
++        // semantics: it moves these children into the JS `.content` fragment
++        // on first access. Upstream's detached contents node is invisible to
++        // the shim, and would leave every parsed template (markup, innerHTML,
++        // declarative shadow roots) with an empty `.content`.
++        *target
+     }
+
+     fn same_node(&self, x: &Self::Handle, y: &Self::Handle) -> bool {

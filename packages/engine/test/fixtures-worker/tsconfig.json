@@ -1,0 +1,9 @@
+{
+  // The fixtures worker is its own worker, so it gets its own program and
+  // its own `wrangler types` output (module rules + runtime types; see the
+  // engine's `types` script). In the engine's program its `*.wasm` (Data)
+  // and `*.css` declarations collided with the engine's.
+  "extends": "../../tsconfig.json",
+  "include": ["src/**/*.ts", "worker-configuration.d.ts"],
+  "exclude": []
+}

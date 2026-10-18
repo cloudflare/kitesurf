@@ -1,0 +1,74 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>a11y parity</title></head>
+<body>
+  <!-- display:none has no layout box, so Blink builds no AXObject
+       below it: the boundary is emitted ignored, subtree is pruned. -->
+  <div id="gone" style="display:none">
+    <button>never-emitted-1</button>
+    <a href="/x">never-emitted-2</a>
+    <p>never-emitted-3</p>
+  </div>
+
+  <!-- visibility:hidden keeps its box and is reversible, so the
+       subtree IS walked and a visibility:visible child climbs back. -->
+  <div id="invis" style="visibility:hidden">
+    <button>also-hidden</button>
+    <button id="reshown" style="visibility:visible">climbs-back</button>
+  </div>
+
+  <!-- Layout table: no th/caption/scope/summary, so the whole
+       table/row/cell group demotes to presentationalRole. -->
+  <table id="layout">
+    <tr><td>layout-cell-a</td><td>layout-cell-b</td></tr>
+  </table>
+
+  <!-- Data table: <th> keeps real tabular semantics. -->
+  <table id="data">
+    <caption>Quarterly</caption>
+    <tr><th scope="col">Q</th><th scope="col">Revenue</th></tr>
+    <tr><td>Q1</td><td>100</td></tr>
+  </table>
+
+  <!-- aria-hidden on self vs inherited: distinct ignoredReasons. -->
+  <div id="ah" aria-hidden="true">
+    <button id="ah-child">inherited-hidden</button>
+  </div>
+
+  <!-- haspopup="true" normalises to "menu" per ARIA 1.2. -->
+  <button id="pop" aria-haspopup="true">Open menu</button>
+  <button id="pop-listbox" aria-haspopup="listbox">Choose</button>
+
+  <!-- Unnamed div/span stay in the tree as non-ignored generic. -->
+  <div id="plain"><span id="plainspan">generic text</span></div>
+
+  <!-- Whitespace-only text nodes are skipped; real text becomes
+       a StaticText leaf. -->
+  <p id="para">   <span>real text</span>   </p>
+
+  <!-- url is reported absolute (resolved against the document), and
+       accesskey surfaces as keyshortcuts with a modifier prefix. -->
+  <a id="rel" href="/relative/path?q=1">Relative link</a>
+  <a id="akey" href="/shortcut" accesskey="k">Shortcut link</a>
+  <img id="relimg" src="/img/logo.png" alt="Logo">
+
+  <!-- Chrome reports level on listitems by nesting depth, not just
+       on headings. -->
+  <ul>
+    <li id="outer">Outer item
+      <ul><li id="inner">Inner item</li></ul>
+    </li>
+  </ul>
+
+  <!-- Focusable-area coverage: tabindex promotes a plain div,
+       disabled removes an otherwise-focusable control. -->
+  <div id="tabdiv" tabindex="0">Focusable div</div>
+  <button id="offbtn" disabled>Disabled button</button>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  body { margin: 0; font: 16px monospace; }
+  #port { height: 200px; overflow: auto; }
+  #pinned { position: sticky; top: 20px; height: 30px; background: #cfc; }
+  #cb { height: 120px; overflow: auto; }
+  #clamped { position: sticky; top: 0; height: 30px; background: #fcc; }
+  #page { position: sticky; top: 40px; height: 30px; background: #ccf; }
+  #hport { width: 200px; overflow-x: auto; overflow-y: hidden; }
+  #hrow { display: flex; width: 720px; }
+  #hpin { position: sticky; left: 10px; width: 50px; height: 30px; background: #ffc; flex: none; }
+  #ibport { display: inline-block; width: 150px; height: 100px; overflow: auto; }
+  #ibtall { height: 400px; }
+  #nport { height: 150px; overflow: auto; }
+  #nouter { position: sticky; top: 10px; height: 170px; background: #eef; }
+  #ninner { position: sticky; top: 30px; height: 20px; background: #fec; }
+  #sport { height: 200px; overflow: auto; }
+  #siv { position: sticky; bottom: 0; height: 30px; background: #cfe; }
+</style>
+<div id="port">
+  <div style="height:50px">spacer</div>
+  <div id="pinned">pinned</div>
+  <div style="height:400px">filler</div>
+</div>
+<div id="cb">
+  <div id="clamped">clamped</div>
+  <div style="height:60px">short</div>
+  <div style="height:500px">after</div>
+</div>
+<div style="height:100px"></div>
+<div id="page">page-sticky</div>
+<div style="height:1500px">page filler</div>
+<div id="hport">
+  <div id="hrow">
+    <div style="width:70px; flex:none">.</div>
+    <div id="hpin">h</div>
+    <div style="width:600px; flex:none">.</div>
+  </div>
+</div>
+<div id="ibport"><div id="ibtall">tall</div></div>
+<div id="nport">
+  <div style="height:60px">spacer</div>
+  <div id="nouter">
+    <div id="ninner">i</div>
+    <div style="height:150px">inner filler</div>
+  </div>
+  <div style="height:400px">after</div>
+</div>
+<div id="sport">
+  <div style="height:300px">s1</div>
+  <div id="siv">siv</div>
+  <div style="height:300px">s2</div>
+</div>

@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 31 Jul 2026 17:36:28 +0100
+Subject: [PATCH] Strict selector lists: reject trailing input after a valid
+ prefix
+
+querySelector("::before *") parsed as "::before" and matched:
+parse_selector breaks out of its compound loop at AFTER_PSEUDO with
+input remaining, and parse_until_before silently discards the rest
+of the chunk up to the comma. Forgiving mode already treats a
+non-exhausted chunk as an invalid selector; strict mode returned the
+truncated prefix as if the author had written it. Require exhaustion
+on the strict path so DOM query APIs throw SyntaxError and style
+rules drop, matching Gecko/Blink. WPT css-pseudo parsing files pin
+both the throw and the CSS.supports(selector()) answer.
+---
+ parser.rs | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/parser.rs b/parser.rs
+index 3f835a9..fe2ecba 100644
+--- a/parser.rs
++++ b/parser.rs
+@@ -571,6 +571,12 @@ impl<Impl: SelectorImpl> SelectorList<Impl> {
+                 if forgiving && (selector.is_err() || input.expect_exhausted().is_err()) {
+                     input.expect_no_error_token()?;
+                     selector = Ok(Selector::new_invalid(input.slice_from(start)));
++                } else if selector.is_ok() {
++                    // Strict mode must reject trailing input after a valid
++                    // prefix ("::before *" stops at AFTER_PSEUDO):
++                    // parse_until_before would otherwise silently discard
++                    // the rest of the chunk up to the comma.
++                    input.expect_exhausted()?;
+                 }
+                 selector
+             })?;

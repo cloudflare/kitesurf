@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 23 Sep 2026 00:45:53 +0100
+Subject: [PATCH] a replaced element with display:table stays a replaced box
+
+CSS gives display:table no effect on the box type of a replaced element
+(img, canvas, video, iframe, embed), but construction built a table
+context for any node with table display and children (a <canvas> with
+fallback text, a <video> with <source> children) and stored it as the
+node's TableRoot special data, overwriting its Image/Canvas/SubDocument
+payload. Layout then reached the replaced branch with a TableRoot and
+hit `unreachable!()`. With panic=unwind the panic is survivable, but it
+repeats on every layout query: one retail results page logged 16,640 of
+them and every CDP call against the tab timed out until the task ended.
+
+Construction now leaves replaced elements out of the table arm, and the
+replaced branch sizes an unexpected payload by tag instead of panicking.
+---
+ src/layout/construct.rs | 9 ++++++++-
+ src/layout/mod.rs       | 4 +++-
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index b52de6b..601ded8 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1056,6 +1056,13 @@ fn collect_layout_children_with_wrap(
+         },
+     );
+
++    // Display:table on a replaced element still yields a replaced box;
++    // building a table here overwrote its image/canvas data and layout panicked.
++    let is_replaced = doc.nodes[container_node_id]
++        .data
++        .downcast_element()
++        .is_some_and(|el| super::replaced::is_replaced_element(&el.name.local));
++
+     match container_display.inside() {
+         DisplayInside::None => {}
+         DisplayInside::Contents => {
+@@ -1102,7 +1109,7 @@ fn collect_layout_children_with_wrap(
+             sort_layout_children_by_order(&doc.nodes, &mut out.children);
+         }
+
+-        DisplayInside::Table => {
++        DisplayInside::Table if !is_replaced => {
+             let (table_context, tlayout_children) = build_table_context(doc, container_node_id);
+             #[allow(clippy::arc_with_non_send_sync)]
+             let data = SpecialElementData::TableRoot(Arc::new(table_context));
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 7a90fdd..5fd9521 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -487,7 +487,9 @@ impl LayoutPassState<'_> {
+                                 default_object_size,
+                             )
+                         }
+-                        _ => unreachable!(),
++                        // Any other payload is a construction bug; panicking here
++                        // repeats on every layout query and wedges the page, so size by tag.
++                        _ => tag_intrinsic_sizes(&element_data.name.local, attr_size),
+                     };
+
+                     #[cfg(feature = "writing-mode")]

@@ -1,0 +1,34 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<p id="status">init</p>
+<script>
+  var names = ["ValidityState", "TimeRanges", "MediaError",
+    "CanvasRenderingContext2D", "Storage", "Navigation", "HTMLElement"];
+  var report = {};
+  for (var i = 0; i < names.length; i++) {
+    var n = names[i];
+    var C = globalThis[n];
+    if (typeof C !== "function") { report[n] = { missing: true }; continue; }
+    // Walk the chain: HTMLElement is a Patched subclass whose fresh
+    // prototype INHERITS the tag from the dom-shim prototype.
+    var p = C.prototype;
+    var d = null;
+    while (p && !d) {
+      d = Object.getOwnPropertyDescriptor(p, Symbol.toStringTag);
+      if (!d) p = Object.getPrototypeOf(p);
+    }
+    report[n] = {
+      name: C.name,
+      ctorTag: Object.prototype.toString.call(C),
+      protoTag: Object.prototype.toString.call(C.prototype),
+      tagIsData: !!d && ("value" in d),
+      tagEnumerable: !!d && !!d.enumerable,
+    };
+  }
+  globalThis.__idlReport = JSON.stringify(report);
+  document.getElementById("status").textContent = "done";
+</script>

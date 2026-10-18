@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 30 Jul 2026 14:45:00 +0100
+Subject: [PATCH] Enable container-relative length units in the servo build
+
+cq* units were gecko-gated at tokenization, so any calc() containing
+them failed to parse in the servo build. WPT's sign(2cqw - 10px) probes
+across css-color, css-flexbox, css-fonts, css-lists and css-grid hit
+this. The container-size-query plumbing itself is feature-agnostic and
+falls back to the small viewport when there is no container, so only
+the parse gate needs to go.
+---
+ values/specified/length.rs | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/values/specified/length.rs b/values/specified/length.rs
+index 74908fe..ef0d322 100644
+--- a/values/specified/length.rs
++++ b/values/specified/length.rs
+@@ -188,12 +188,13 @@ impl LengthUnit {
+             "dvi" if !in_page_rule => Self::Dvi,
+             // Container query lengths. Inherit the limitation from viewport units since
+             // we may fall back to them.
+-            "cqw" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqw,
+-            "cqh" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqh,
+-            "cqi" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqi,
+-            "cqb" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqb,
+-            "cqmin" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqmin,
+-            "cqmax" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqmax,
++            // Servo uses the same container-size plumbing and viewport fallback.
++            "cqw" if !in_page_rule => Self::Cqw,
++            "cqh" if !in_page_rule => Self::Cqh,
++            "cqi" if !in_page_rule => Self::Cqi,
++            "cqb" if !in_page_rule => Self::Cqb,
++            "cqmin" if !in_page_rule => Self::Cqmin,
++            "cqmax" if !in_page_rule => Self::Cqmax,
+             _ => return Err(()),
+         })
+     }

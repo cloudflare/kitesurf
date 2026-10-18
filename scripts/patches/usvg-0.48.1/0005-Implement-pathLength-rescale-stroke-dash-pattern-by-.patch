@@ -1,0 +1,191 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Sun, 2 Aug 2026 22:05:42 +0100
+Subject: [PATCH] Implement pathLength: rescale stroke dash pattern by
+ real/asserted length
+
+SVG2 pathLength declares the author's unit basis for measures that walk
+the path: stroke-dasharray and stroke-dashoffset must scale by
+real-length / pathLength. usvg parsed the attribute name but never
+consumed it, so dashes rendered in raw user units. A line with
+pathLength=25 and dasharray '3 1' drew 3px dashes where every browser
+draws 24px (WPT svg/shapes/line-dasharray). The path_length helper
+moves from the feature-gated text module into converter so the
+ungated path pipeline can use it.
+---
+ src/parser/converter.rs | 75 +++++++++++++++++++++++++++++++++++++++++
+ src/parser/text.rs      | 57 +------------------------------
+ 2 files changed, 76 insertions(+), 56 deletions(-)
+
+diff --git a/src/parser/converter.rs b/src/parser/converter.rs
+index f9e8856..ac6c9fd 100644
+--- a/src/parser/converter.rs
++++ b/src/parser/converter.rs
+@@ -982,6 +982,61 @@ pub(crate) fn convert_group(
+     Some(g)
+ }
+
++pub(crate) fn path_length(path: &tiny_skia_path::Path) -> f64 {
++    use kurbo::{ParamCurve, ParamCurveArclen};
++    let mut prev_mx = path.points()[0].x;
++    let mut prev_my = path.points()[0].y;
++    let mut prev_x = prev_mx;
++    let mut prev_y = prev_my;
++
++    fn create_curve_from_line(px: f32, py: f32, x: f32, y: f32) -> kurbo::CubicBez {
++        let line = kurbo::Line::new(
++            kurbo::Point::new(px as f64, py as f64),
++            kurbo::Point::new(x as f64, y as f64),
++        );
++        let p1 = line.eval(0.33);
++        let p2 = line.eval(0.66);
++        kurbo::CubicBez::new(line.p0, p1, p2, line.p1)
++    }
++
++    let mut length = 0.0;
++    for seg in path.segments() {
++        let curve = match seg {
++            tiny_skia_path::PathSegment::MoveTo(p) => {
++                prev_mx = p.x;
++                prev_my = p.y;
++                prev_x = p.x;
++                prev_y = p.y;
++                continue;
++            }
++            tiny_skia_path::PathSegment::LineTo(p) => {
++                create_curve_from_line(prev_x, prev_y, p.x, p.y)
++            }
++            tiny_skia_path::PathSegment::QuadTo(p1, p) => kurbo::QuadBez::new(
++                kurbo::Point::new(prev_x as f64, prev_y as f64),
++                kurbo::Point::new(p1.x as f64, p1.y as f64),
++                kurbo::Point::new(p.x as f64, p.y as f64),
++            )
++            .raise(),
++            tiny_skia_path::PathSegment::CubicTo(p1, p2, p) => kurbo::CubicBez::new(
++                kurbo::Point::new(prev_x as f64, prev_y as f64),
++                kurbo::Point::new(p1.x as f64, p1.y as f64),
++                kurbo::Point::new(p2.x as f64, p2.y as f64),
++                kurbo::Point::new(p.x as f64, p.y as f64),
++            ),
++            tiny_skia_path::PathSegment::Close => {
++                create_curve_from_line(prev_x, prev_y, prev_mx, prev_my)
++            }
++        };
++
++        length += curve.arclen(0.5);
++        prev_x = curve.p3.x as f32;
++        prev_y = curve.p3.y as f32;
++    }
++
++    length
++}
++
+ fn convert_path(
+     node: SvgNode,
+     tiny_skia_path: Arc<tiny_skia_path::Path>,
+@@ -997,6 +1052,26 @@ fn convert_path(
+     let has_bbox = tiny_skia_path.bounds().width() > 0.0 && tiny_skia_path.bounds().height() > 0.0;
+     let mut fill = super::style::resolve_fill(node, has_bbox, state, cache);
+     let mut stroke = super::style::resolve_stroke(node, has_bbox, state, cache);
++
++    // SVG2 pathLength: the author's asserted length rescales every
++    // stroke measure that walks the path: dasharray and dashoffset.
++    if let Some(stroke) = stroke.as_mut() {
++        if stroke.dasharray.is_some() || stroke.dashoffset != 0.0 {
++            let author_len: Option<f32> = node.attribute(AId::PathLength);
++            if let Some(author_len) = author_len.filter(|l| *l > 0.0) {
++                let real_len = path_length(&tiny_skia_path) as f32;
++                if real_len > 0.0 {
++                    let factor = real_len / author_len;
++                    if let Some(dasharray) = stroke.dasharray.as_mut() {
++                        for v in dasharray.iter_mut() {
++                            *v *= factor;
++                        }
++                    }
++                    stroke.dashoffset *= factor;
++                }
++            }
++        }
++    }
+     let visibility: Visibility = node.find_attribute(AId::Visibility).unwrap_or_default();
+     let mut visible = visibility == Visibility::Visible;
+     let rendering_mode: ShapeRendering = node
+diff --git a/src/parser/text.rs b/src/parser/text.rs
+index 1cac7a4..ece9d2d 100644
+--- a/src/parser/text.rs
++++ b/src/parser/text.rs
+@@ -3,7 +3,6 @@
+
+ use std::sync::Arc;
+
+-use kurbo::{ParamCurve, ParamCurveArclen};
+ use svgtypes::{FontFamily, Length, LengthUnit, parse_font_families};
+
+ use super::svgtree::{AId, EId, FromValue, SvgNode};
+@@ -380,7 +379,7 @@ fn resolve_text_flow(node: SvgNode, state: &converter::State) -> Option<TextFlow
+     let start_offset = if start_offset.unit == LengthUnit::Percent {
+         // 'If a percentage is given, then the `startOffset` represents
+         // a percentage distance along the entire path.'
+-        let path_len = path_length(&path);
++        let path_len = super::converter::path_length(&path);
+         (path_len * (start_offset.number / 100.0)) as f32
+     } else {
+         node.resolve_length(AId::StartOffset, state, 0.0)
+@@ -908,57 +907,3 @@ fn convert_writing_mode(text_node: SvgNode) -> WritingMode {
+         WritingMode::LeftToRight
+     }
+ }
+-
+-fn path_length(path: &tiny_skia_path::Path) -> f64 {
+-    let mut prev_mx = path.points()[0].x;
+-    let mut prev_my = path.points()[0].y;
+-    let mut prev_x = prev_mx;
+-    let mut prev_y = prev_my;
+-
+-    fn create_curve_from_line(px: f32, py: f32, x: f32, y: f32) -> kurbo::CubicBez {
+-        let line = kurbo::Line::new(
+-            kurbo::Point::new(px as f64, py as f64),
+-            kurbo::Point::new(x as f64, y as f64),
+-        );
+-        let p1 = line.eval(0.33);
+-        let p2 = line.eval(0.66);
+-        kurbo::CubicBez::new(line.p0, p1, p2, line.p1)
+-    }
+-
+-    let mut length = 0.0;
+-    for seg in path.segments() {
+-        let curve = match seg {
+-            tiny_skia_path::PathSegment::MoveTo(p) => {
+-                prev_mx = p.x;
+-                prev_my = p.y;
+-                prev_x = p.x;
+-                prev_y = p.y;
+-                continue;
+-            }
+-            tiny_skia_path::PathSegment::LineTo(p) => {
+-                create_curve_from_line(prev_x, prev_y, p.x, p.y)
+-            }
+-            tiny_skia_path::PathSegment::QuadTo(p1, p) => kurbo::QuadBez::new(
+-                kurbo::Point::new(prev_x as f64, prev_y as f64),
+-                kurbo::Point::new(p1.x as f64, p1.y as f64),
+-                kurbo::Point::new(p.x as f64, p.y as f64),
+-            )
+-            .raise(),
+-            tiny_skia_path::PathSegment::CubicTo(p1, p2, p) => kurbo::CubicBez::new(
+-                kurbo::Point::new(prev_x as f64, prev_y as f64),
+-                kurbo::Point::new(p1.x as f64, p1.y as f64),
+-                kurbo::Point::new(p2.x as f64, p2.y as f64),
+-                kurbo::Point::new(p.x as f64, p.y as f64),
+-            ),
+-            tiny_skia_path::PathSegment::Close => {
+-                create_curve_from_line(prev_x, prev_y, prev_mx, prev_my)
+-            }
+-        };
+-
+-        length += curve.arclen(0.5);
+-        prev_x = curve.p3.x as f32;
+-        prev_y = curve.p3.y as f32;
+-    }
+-
+-    length
+-}

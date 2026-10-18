@@ -1,0 +1,4 @@
+test_suite(
+    name = "gate",
+    tests = ["//scripts:e2e_gate_test"],
+)

@@ -1,0 +1,184 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 13 Aug 2026 00:48:21 +0100
+Subject: [PATCH] Replace the blurred-rect p-norm with a polynomial in min/max
+
+The corner distance (x^e + y^e)^(1/e) cost three powf calls per vector,
+and f32x8::powf carried a `// TODO: SIMD` and fell back to eight scalar
+libm calls each. wasm has no hardware pow, so that was the dominant cost
+in the whole filler.
+
+Factor it instead: (x^e + y^e)^(1/e) == max * phi(min/max), where
+phi(t) = (1+t^e)^(1/e) is bounded to [1, 2^(1/e)] on t in [0,1] and
+depends only on the rect's exponent. A degree-7 fit covers it, and its
+coefficients are degree-7 polynomials in the exponent, folded once per
+span rather than per pixel. powf goes away entirely.
+
+Also skip the p-norm away from the corners: x1 and y1 are non-negative
+and outside the corner squares one is exactly zero, where the norm is
+just the sum.
+
+Accuracy: the phi fit is 4-11x worse than scalar powf in the worst case
+(~0.35 alpha LSB vs ~0.03), but both are well inside half an LSB. The
+old scalar path was only weakest at the tight-blur-large-radius corner;
+elsewhere the fit and powf agree to ~0.001-0.006 LSB.
+
+The exponent fold lives in `phi_coefficients`, re-exported from `fine`
+as #[doc(hidden)] so kitesurf's box_shadow_blur_accuracy_test can sweep
+the fit against exact pow. The table is generated and otherwise
+unreachable, so without a seam nothing would catch a bad regeneration.
+---
+ src/fine/common/rounded_blurred_rect.rs | 83 ++++++++++++++++++-------
+ src/fine/mod.rs                         |  3 +
+ 2 files changed, 62 insertions(+), 24 deletions(-)
+
+diff --git a/src/fine/common/rounded_blurred_rect.rs b/src/fine/common/rounded_blurred_rect.rs
+index 5a66904..3d81dbf 100644
+--- a/src/fine/common/rounded_blurred_rect.rs
++++ b/src/fine/common/rounded_blurred_rect.rs
+@@ -8,7 +8,7 @@
+ use crate::fine::{NumericVec, PosExt, ShaderResultF32};
+ use crate::kurbo::{Point, Vec2};
+ use vello_common::encode::EncodedBlurredRoundedRectangle;
+-use vello_common::fearless_simd::{Simd, SimdBase, SimdFloat, f32x8, u8x16};
++use vello_common::fearless_simd::{Select, Simd, SimdBase, SimdFloat, f32x8, u8x16};
+
+ #[cfg(not(feature = "std"))]
+ use vello_common::kurbo::common::FloatFuncs as _;
+@@ -176,7 +176,28 @@ impl<S: Simd> Iterator for AlphaCalculator<S> {
+         // Equivalent to r.r1 + x.abs() - (r.w * r.v1)
+         let x0 = r.r1 - r.w.mul_sub(r.v1, x.abs());
+         let x1 = x0.max(r.v0);
+-        let d_pos = (x1.powf(r.exponent) + y1.powf(r.exponent)).powf(r.recip_exponent);
++        // x1,y1 >= 0, and outside the corner squares one of them is exactly 0,
++        // where (a^e + 0)^(1/e) == a, so only corners need the p-norm.
++        let corner = self.simd.simd_gt_f32x8(x1.min(y1), r.v0);
++        let d_pos = if self.simd.any_true_mask32x8(corner) {
++            // (x^e + y^e)^(1/e) factors as max * phi(min/max); phi is bounded to
++            // [1, 2^(1/e)] on [0,1], so a degree-7 fit covers it.
++
++            // A lane with max == 0 divides to NaN; the select drops it.
++            let mx = x1.max(y1);
++            let t = x1.min(y1) / mx;
++            let pnorm = mx * r.phi[7]
++                .mul_add(t, r.phi[6])
++                .mul_add(t, r.phi[5])
++                .mul_add(t, r.phi[4])
++                .mul_add(t, r.phi[3])
++                .mul_add(t, r.phi[2])
++                .mul_add(t, r.phi[1])
++                .mul_add(t, r.phi[0]);
++            corner.select(pnorm, x1 + y1)
++        } else {
++            x1 + y1
++        };
+         let d_neg = x0.max(y0).min(r.v0);
+         let d = d_pos + d_neg - r.r1;
+         let z = r.scale
+@@ -189,10 +210,39 @@ impl<S: Simd> Iterator for AlphaCalculator<S> {
+     }
+ }
+
++// phi(t) = (1+t^e)^(1/e) as a degree-7 polynomial in t.
++// Coefficients are degree-7 polynomials in u = (e-2)/1.478, e in [2, 3.478].
++
++// PHI[k][j] is the u^j term of the t^k coefficient, fitted offline
++// against exact pow. Worst case stays inside half an LSB.
++/// Collapse `exponent` into the eight t-coefficients of phi. Public only so a
++/// host test can sweep the fit against exact pow; PHI is otherwise unreachable.
++pub fn phi_coefficients(exponent: f32) -> [f32; 8] {
++    let u = (exponent - 2.0) / 1.478;
++    core::array::from_fn(|k| {
++        let row = &PHI[k];
++        let mut c = row[7];
++        for j in (0..7).rev() {
++            c = c * u + row[j];
++        }
++        c
++    })
++}
++
++const PHI: [[f32; 8]; 8] = [
++    [0.999999523, 0.000287747884, -0.00145391282, 0.00325703970, -0.00416825246, 0.00321776350, -0.00141784921, 0.000275894592],
++    [0.0000549813849, -0.0471561439, 0.256915241, -0.630659223, 0.894888878, -0.767846942, 0.372579396, -0.0785049349],
++    [0.498794109, -2.01443839, 2.92649627, -0.978838682, -2.44131088, 3.66302776, -2.15749884, 0.496441036],
++    [0.00960323121, 4.57015324, -12.1590319, 9.96781921, 2.75401354, -10.4653912, 7.21364307, -1.76673782],
++    [-0.161359087, -6.13405132, 23.4197960, -25.9309597, 1.87568510, 17.2587509, -13.6561842, 3.50852728],
++    [0.0696837083, 5.55993032, -24.9317474, 32.7130051, -7.60265636, -16.4634781, 14.7194462, -3.92560983],
++    [0.00442494359, -3.00162649, 14.1223030, -20.5818748, 6.76344347, 8.46083069, -8.42855167, 2.31515384],
++    [-0.00698873494, 0.704757929, -3.32011175, 5.17456198, -2.03643107, -1.81569624, 1.99027336, -0.559714437],
++];
++
+ #[derive(Debug)]
+ struct SimdRoundedBlurredRect<S: Simd> {
+-    pub exponent: f32,
+-    pub recip_exponent: f32,
++    pub phi: [f32x8<S>; 8],
+     pub scale: f32x8<S>,
+     pub std_dev_inv: f32x8<S>,
+     pub min_edge: f32x8<S>,
+@@ -215,8 +265,10 @@ impl<S: Simd> SimdRoundedBlurredRect<S> {
+                 let width = f32x8::splat(s, encoded.width);
+                 let height = f32x8::splat(s, encoded.height);
+                 let r1 = f32x8::splat(s, encoded.r1);
+-                let exponent = encoded.exponent;
+-                let recip_exponent = encoded.recip_exponent;
++                // Collapse the exponent into the phi coefficients once per span,
++                // which is ~56 scalar FMAs against a per-pixel pow for every corner.
++                let coeffs = phi_coefficients(encoded.exponent);
++                let phi = core::array::from_fn(|k| f32x8::splat(s, coeffs[k]));
+                 let scale = f32x8::splat(s, encoded.scale);
+                 let min_edge = f32x8::splat(s, encoded.min_edge);
+                 let std_dev_inv = f32x8::splat(s, encoded.std_dev_inv);
+@@ -224,8 +276,7 @@ impl<S: Simd> SimdRoundedBlurredRect<S> {
+                 let v1 = f32x8::splat(s, 0.5);
+
+                 Self {
+-                    exponent,
+-                    recip_exponent,
++                    phi,
+                     scale,
+                     std_dev_inv,
+                     min_edge,
+@@ -247,7 +298,6 @@ trait FloatExt<S: Simd> {
+     // explanation of this approximation to the erf function.
+     /// Approximate the erf function.
+     fn compute_erf7(simd: S, x: Self) -> Self;
+-    fn powf(self, x: f32) -> Self;
+ }
+
+ impl<S: Simd> FloatExt<S> for f32x8<S> {
+@@ -266,19 +316,4 @@ impl<S: Simd> FloatExt<S> for f32x8<S> {
+         let denom = x.mul_add(x, Self::splat(simd, 1.0)).sqrt();
+         x / denom
+     }
+-
+-    #[inline]
+-    fn powf(mut self, x: f32) -> Self {
+-        // TODO: SIMD
+-        self[0] = self[0].powf(x);
+-        self[1] = self[1].powf(x);
+-        self[2] = self[2].powf(x);
+-        self[3] = self[3].powf(x);
+-        self[4] = self[4].powf(x);
+-        self[5] = self[5].powf(x);
+-        self[6] = self[6].powf(x);
+-        self[7] = self[7].powf(x);
+-
+-        self
+-    }
+ }
+diff --git a/src/fine/mod.rs b/src/fine/mod.rs
+index fdbf32b..7e7698c 100644
+--- a/src/fine/mod.rs
++++ b/src/fine/mod.rs
+@@ -21,6 +21,9 @@ pub(crate) use crate::fine::common::gradient::radial::SimdRadialKind;
+ pub(crate) use crate::fine::common::gradient::sweep::SimdSweepKind;
+ use crate::fine::common::image::{FilteredImagePainter, NNImagePainter, PlainNNImagePainter};
+ use crate::fine::common::rounded_blurred_rect::BlurredRoundedRectFiller;
++// Exposed for kitesurf's fit-accuracy test only; not part of the vello_cpu API.
++#[doc(hidden)]
++pub use crate::fine::common::rounded_blurred_rect::phi_coefficients;
+ use crate::peniko::{BlendMode, ImageQuality};
+ use crate::region::Region;
+ use crate::util::EncodedImageExt;

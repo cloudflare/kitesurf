@@ -1,0 +1,302 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 9 Oct 2026 19:27:07 +0100
+Subject: [PATCH] Name throw sites for not-callable and null-base accesses
+
+In a minified bundle the enclosing function name is usually "", so
+"not a callable function" and "cannot convert 'null' or 'undefined' to
+object" locate nothing. The Call* opcodes and to_object/base_class name
+the callee type and the enclosing function, and the by-name and
+by-value property opcodes raise V8-shaped "cannot read/set properties
+of undefined (reading 'k')" errors that name the key. A computed key
+is described without running user code. Every message is built in a
+#[cold] #[inline(never)] helper on the throw path only, so it does not
+enlarge the hot handlers.
+---
+ src/value/mod.rs              | 26 ++++++++++++----
+ src/vm/opcode/call/mod.rs     | 41 ++++++++++++++-----------
+ src/vm/opcode/get/property.rs | 13 ++++++--
+ src/vm/opcode/mod.rs          | 58 +++++++++++++++++++++++++++++++++++
+ src/vm/opcode/set/property.rs | 12 ++++++--
+ 5 files changed, 120 insertions(+), 30 deletions(-)
+
+diff --git a/src/value/mod.rs b/src/value/mod.rs
+index e92d480..3af4a22 100644
+--- a/src/value/mod.rs
++++ b/src/value/mod.rs
+@@ -117,6 +117,24 @@ pub use boa_macros::js_value;
+ #[derive(Finalize, Debug, Clone, Trace)]
+ pub struct JsValue(inner::InnerValue);
+
++// Names the enclosing function, built only on the throw path and kept
++// out of line so the hot primitive arms of to_object/base_class stay small.
++#[cold]
++#[inline(never)]
++fn null_to_object_error(context: &Context) -> crate::JsError {
++    JsNativeError::typ()
++        .with_message(format!(
++            "cannot convert 'null' or 'undefined' to object (in fn '{}')",
++            context
++                .vm
++                .frame()
++                .code_block()
++                .name()
++                .to_std_string_escaped()
++        ))
++        .into()
++}
++
+ impl JsValue {
+     /// Create a new [`JsValue`] from an inner value.
+     #[inline]
+@@ -997,9 +1015,7 @@ impl JsValue {
+     /// See: <https://tc39.es/ecma262/#sec-toobject>
+     pub fn to_object(&self, context: &mut Context) -> JsResult<JsObject> {
+         match self.variant() {
+-            JsVariant::Undefined | JsVariant::Null => Err(JsNativeError::typ()
+-                .with_message("cannot convert 'null' or 'undefined' to object")
+-                .into()),
++            JsVariant::Undefined | JsVariant::Null => Err(null_to_object_error(context)),
+             JsVariant::Boolean(boolean) => Ok(context
+                 .intrinsics()
+                 .templates()
+@@ -1040,9 +1056,7 @@ impl JsValue {
+     pub(crate) fn base_class(&self, context: &Context) -> JsResult<JsObject> {
+         let constructors = context.intrinsics().constructors();
+         match self.variant() {
+-            JsVariant::Undefined | JsVariant::Null => Err(JsNativeError::typ()
+-                .with_message("cannot convert 'null' or 'undefined' to object")
+-                .into()),
++            JsVariant::Undefined | JsVariant::Null => Err(null_to_object_error(context)),
+             JsVariant::Boolean(_) => Ok(constructors.boolean().prototype()),
+             JsVariant::Integer32(_) | JsVariant::Float64(_) => {
+                 Ok(constructors.number().prototype())
+diff --git a/src/vm/opcode/call/mod.rs b/src/vm/opcode/call/mod.rs
+index 851958c..f2fb614 100644
+--- a/src/vm/opcode/call/mod.rs
++++ b/src/vm/opcode/call/mod.rs
+@@ -14,6 +14,25 @@ use crate::{
+     vm::opcode::Operation,
+ };
+
++// Name the callee type and the calling function, built only when a call
++// throws (cold, out of line); minified bundles otherwise give nothing to search for.
++#[cold]
++#[inline(never)]
++fn not_callable(func: &JsValue, context: &Context) -> JsError {
++    JsNativeError::typ()
++        .with_message(format!(
++            "not a callable function (callee={}, in fn '{}')",
++            func.type_of(),
++            context
++                .vm
++                .frame()
++                .code_block()
++                .name()
++                .to_std_string_escaped()
++        ))
++        .into()
++}
++
+ /// `CallEval` implements the Opcode Operation for `Opcode::CallEval`
+ ///
+ /// Operation:
+@@ -33,9 +52,7 @@ impl CallEval {
+             .calling_convention_get_function(argument_count.into());
+
+         let Some(object) = func.as_object() else {
+-            return Err(JsNativeError::typ()
+-                .with_message("not a callable function")
+-                .into());
++            return Err(not_callable(func, context));
+         };
+
+         // Taken from `13.3.6.1 Runtime Semantics: Evaluation`
+@@ -117,9 +134,7 @@ impl CallEvalSpread {
+         let func = context.vm.stack.calling_convention_get_function(0);
+
+         let Some(object) = func.as_object() else {
+-            return Err(JsNativeError::typ()
+-                .with_message("not a callable function")
+-                .into());
++            return Err(not_callable(func, context));
+         };
+         // Taken from `13.3.6.1 Runtime Semantics: Evaluation`
+         //            `CallExpression : CoverCallExpressionAndAsyncArrowHead`
+@@ -190,21 +205,13 @@ impl Call {
+             .calling_convention_get_function(argument_count.into());
+
+         let Some(object) = func.as_object() else {
+-            return Err(Self::handle_not_callable());
++            return Err(not_callable(func, context));
+         };
+
+         object.__call__(argument_count.into()).resolve(context)?;
+
+         Ok(())
+     }
+-
+-    #[cold]
+-    #[inline(never)]
+-    fn handle_not_callable() -> JsError {
+-        JsNativeError::typ()
+-            .with_message("not a callable function")
+-            .into()
+-    }
+ }
+
+ impl Operation for Call {
+@@ -242,9 +249,7 @@ impl CallSpread {
+             .calling_convention_get_function(argument_count);
+
+         let Some(object) = func.as_object() else {
+-            return Err(JsNativeError::typ()
+-                .with_message("not a callable function")
+-                .into());
++            return Err(not_callable(func, context));
+         };
+
+         object.__call__(argument_count).resolve(context)?;
+diff --git a/src/vm/opcode/get/property.rs b/src/vm/opcode/get/property.rs
+index 9e53155..f42c42f 100644
+--- a/src/vm/opcode/get/property.rs
++++ b/src/vm/opcode/get/property.rs
+@@ -4,7 +4,10 @@ use crate::{
+     Context, JsResult, JsValue, js_string,
+     object::{internal_methods::InternalMethodPropertyContext, shape::slot::SlotAttributes},
+     property::PropertyKey,
+-    vm::opcode::{IndexOperand, Operation, RegisterOperand},
++    vm::opcode::{
++        Access, IndexOperand, Operation, RegisterOperand, describe_key, null_base_error,
++        null_base_error_by_name,
++    },
+ };
+
+ fn get_by_name<const LENGTH: bool>(
+@@ -35,7 +38,9 @@ fn get_by_name<const LENGTH: bool>(
+     //
+     //    To prevent the creation of a temporary JsObject, we directly retrieve the prototype that
+     //    `to_object()` would produce, such as `Number.prototype`, `String.prototype`, etc.
+-    let object = object.base_class(context)?;
++    let object = object
++        .base_class(context)
++        .map_err(|_| null_base_error_by_name(object, Access::Read, usize::from(index), context))?;
+
+     let ic = &context.vm.frame().code_block().ic[usize::from(index)];
+     let object_borrowed = object.borrow();
+@@ -91,7 +96,9 @@ fn get_by_value<const PUSH_KEY: bool>(
+ ) -> JsResult<()> {
+     let key_value = context.vm.get_register(key.into()).clone();
+     let base = context.vm.get_register(object.into()).clone();
+-    let object = base.base_class(context)?;
++    let object = base
++        .base_class(context)
++        .map_err(|_| null_base_error(&base, Access::Read, &describe_key(&key_value)))?;
+     let key_value = key_value.to_property_key(context)?;
+
+     // Fast Path
+diff --git a/src/vm/opcode/mod.rs b/src/vm/opcode/mod.rs
+index 3c6771f..042dbc0 100644
+--- a/src/vm/opcode/mod.rs
++++ b/src/vm/opcode/mod.rs
+@@ -18,6 +18,64 @@ use crate::{
+     vm::{completion_record::CompletionRecord, completion_record::IntoCompletionRecord},
+ };
+ use args::{Argument, read};
++
++// Which side of a property access failed on a null/undefined base, so
++// the message can say "read" or "set" the way V8's does.
++#[derive(Debug, Clone, Copy)]
++pub(crate) enum Access {
++    Read,
++    Write,
++}
++
++// V8-shaped "cannot read properties of undefined (reading 'k')". The key
++// is the one token that locates the access in a minified bundle; throw path only.
++#[cold]
++#[inline(never)]
++pub(crate) fn null_base_error(value: &crate::JsValue, access: Access, key: &str) -> crate::JsError {
++    let base = if value.is_null() { "null" } else { "undefined" };
++    let (verb, gerund) = match access {
++        Access::Read => ("read", "reading"),
++        Access::Write => ("set", "setting"),
++    };
++    crate::JsNativeError::typ()
++        .with_message(format!(
++            "cannot {verb} properties of {base} ({gerund} '{key}')"
++        ))
++        .into()
++}
++
++// Describe a computed key without running user code (no getters or
++// toString during error construction): primitives by value, the rest by type.
++#[cold]
++#[inline(never)]
++pub(crate) fn describe_key(key: &crate::JsValue) -> String {
++    use crate::value::JsVariant;
++    match key.variant() {
++        JsVariant::String(s) => s.to_std_string_escaped(),
++        JsVariant::Integer32(i) => i.to_string(),
++        JsVariant::Float64(r) => r.to_string(),
++        JsVariant::Boolean(b) => b.to_string(),
++        JsVariant::Null => "null".to_string(),
++        JsVariant::Undefined => "undefined".to_string(),
++        _ => format!("<{}>", key.type_of()),
++    }
++}
++
++// The named-key error for a by-name access. The key comes from the
++// inline cache, which holds the property name for every by-name site.
++#[cold]
++#[inline(never)]
++pub(crate) fn null_base_error_by_name(
++    value: &crate::JsValue,
++    access: Access,
++    ic_index: usize,
++    context: &Context,
++) -> crate::JsError {
++    let name = context.vm.frame().code_block().ic[ic_index]
++        .name
++        .to_std_string_escaped();
++    null_base_error(value, access, &name)
++}
+ use std::ops::ControlFlow;
+ use thin_vec::ThinVec;
+
+diff --git a/src/vm/opcode/set/property.rs b/src/vm/opcode/set/property.rs
+index 6bf6d66..7d1f42e 100644
+--- a/src/vm/opcode/set/property.rs
++++ b/src/vm/opcode/set/property.rs
+@@ -1,7 +1,9 @@
+ use crate::JsExpect;
+ use crate::JsValue;
+ use crate::value::JsVariant;
+-use crate::vm::opcode::{IndexOperand, RegisterOperand};
++use crate::vm::opcode::{
++    Access, IndexOperand, RegisterOperand, describe_key, null_base_error, null_base_error_by_name,
++};
+ use crate::{
+     Context, JsNativeError, JsResult,
+     builtins::function::set_function_name,
+@@ -20,7 +22,9 @@ fn set_by_name(
+ ) -> JsResult<()> {
+     let value = context.vm.get_register(value.into()).clone();
+
+-    let object = value_object.to_object(context)?;
++    let object = value_object.to_object(context).map_err(|_| {
++        null_base_error_by_name(value_object, Access::Write, usize::from(index), context)
++    })?;
+
+     let ic = &context.vm.frame().code_block().ic[usize::from(index)];
+
+@@ -158,6 +162,8 @@ impl SetPropertyByValue {
+         let key = context.vm.get_register(key.into()).clone();
+         let receiver = context.vm.get_register(receiver.into()).clone();
+         let object = context.vm.get_register(object.into()).clone();
+-        let object = object.to_object(context)?;
++        let object = object
++            .to_object(context)
++            .map_err(|_| null_base_error(&object, Access::Write, &describe_key(&key)))?;
+
+         let key = key.to_property_key(context)?;

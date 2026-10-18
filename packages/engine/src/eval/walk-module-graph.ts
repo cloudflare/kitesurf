@@ -1,0 +1,1485 @@
+// Copyright (c) 2026 Cloudflare, Inc.
+// Licensed under the Apache 2.0 license found in the LICENSE file or at:
+// https://opensource.org/licenses/Apache-2.0
+
+// Resolves and fetches module graphs using import maps and shared script-gate checks.
+
+import { parse as lexerParse } from "es-module-lexer/js";
+import {
+  checkScriptBeforeFetch,
+  checkScriptResponse,
+  type ModuleType,
+  type ScriptGateContext,
+} from "@kitesurf/script-gate";
+import { KITESURF_NOSNIFF_HEADER } from "@kitesurf/script-gate/gateway-headers";
+import type { ParentScriptDescriptor } from "../wasm.ts";
+import type { SandboxOutboundOverride } from "./outbound.ts";
+import { localTraceParentProps } from "../tracing-local.ts";
+import { walkRedirects } from "./redirect-walk.ts";
+
+function inlineModuleUrl(pageUrl: string, index: number): string {
+  if (!pageUrl) return `https://kitesurf-inline.invalid/${index}.js`;
+  try {
+    return new URL(`__kitesurf_inline_${index}.js`, pageUrl).toString();
+  } catch {
+    return `https://kitesurf-inline.invalid/${index}.js`;
+  }
+}
+
+function pageOriginFromUrl(pageUrl: string): string {
+  try {
+    const u = new URL(pageUrl);
+    return u.protocol + "//" + u.host;
+  } catch {
+    return "";
+  }
+}
+
+function resolveAgainstImporter(specifier: string, importer: string): string | null {
+  try {
+    return new URL(specifier, importer).toString();
+  } catch {
+    return null;
+  }
+}
+
+function isUrlLikeSpecifier(specifier: string): boolean {
+  return (
+    specifier.startsWith("/") ||
+    specifier.startsWith("./") ||
+    specifier.startsWith("../") ||
+    /^[A-Za-z][A-Za-z\d+.-]*:/.test(specifier)
+  );
+}
+
+export interface ParsedImportMap {
+  imports: Map<string, string | null>;
+  scopes: Map<string, Map<string, string | null>>;
+}
+
+type ImportMapScope = readonly [string, Map<string, string | null>];
+const sortedScopesByMap = new WeakMap<ParsedImportMap, readonly ImportMapScope[]>();
+
+const SPECIAL_SCHEMES = new Set(["ftp:", "file:", "http:", "https:", "ws:", "wss:"]);
+
+function parseUrlLikeSpecifier(specifier: string, baseUrl: string): URL | null {
+  const baseRelative =
+    specifier.startsWith("/") || specifier.startsWith("./") || specifier.startsWith("../");
+  try {
+    return baseRelative ? new URL(specifier, baseUrl) : new URL(specifier);
+  } catch {
+    return null;
+  }
+}
+
+function parseSpecifierMap(value: unknown, baseUrl: string): Map<string, string | null> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const out = new Map<string, string | null>();
+  for (const [rawKey, rawValue] of Object.entries(value)) {
+    if (rawKey === "") continue;
+    const key = parseUrlLikeSpecifier(rawKey, baseUrl)?.href ?? rawKey;
+    const address =
+      typeof rawValue === "string"
+        ? (parseUrlLikeSpecifier(rawValue, baseUrl)?.href ?? null)
+        : null;
+    out.set(key, address !== null && key.endsWith("/") && !address.endsWith("/") ? null : address);
+  }
+  return out;
+}
+
+export function parseImportMap(source: string, baseUrl: string): ParsedImportMap | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const record = parsed as Record<string, unknown>;
+  const imports =
+    record.imports === undefined ? new Map() : parseSpecifierMap(record.imports, baseUrl);
+  if (imports === null) return null;
+  const scopes = new Map<string, Map<string, string | null>>();
+  if (record.scopes !== undefined) {
+    if (!record.scopes || typeof record.scopes !== "object" || Array.isArray(record.scopes)) {
+      return null;
+    }
+    for (const [rawScope, mappings] of Object.entries(record.scopes)) {
+      const specifierMap = parseSpecifierMap(mappings, baseUrl);
+      if (specifierMap === null) return null;
+      let scope: string;
+      try {
+        scope = new URL(rawScope, baseUrl).href;
+      } catch {
+        continue;
+      }
+      scopes.set(scope, specifierMap);
+    }
+  }
+  return { imports, scopes };
+}
+
+export interface ResolvedModuleRecord {
+  referrer: string;
+  specifier: string;
+  prefixMatchable: boolean;
+}
+
+export function resolvedModuleRecord(specifier: string, referrer: string): ResolvedModuleRecord {
+  const asUrl = parseUrlLikeSpecifier(specifier, referrer);
+  return {
+    referrer,
+    specifier: asUrl?.href ?? specifier,
+    prefixMatchable: asUrl === null || SPECIAL_SCHEMES.has(asUrl.protocol),
+  };
+}
+
+function scopeMatches(scopePrefix: string, referrer: string): boolean {
+  return (
+    scopePrefix === referrer || (scopePrefix.endsWith("/") && referrer.startsWith(scopePrefix))
+  );
+}
+
+function scopesBySpecificity(importMap: ParsedImportMap): readonly ImportMapScope[] {
+  const cached = sortedScopesByMap.get(importMap);
+  if (cached) return cached;
+  const sorted = [...importMap.scopes.entries()].sort(([a], [b]) => b.length - a.length);
+  sortedScopesByMap.set(importMap, sorted);
+  return sorted;
+}
+
+function ruleMatchesRecord(key: string, record: ResolvedModuleRecord): boolean {
+  return (
+    key === record.specifier ||
+    (record.prefixMatchable && key.endsWith("/") && record.specifier.startsWith(key))
+  );
+}
+
+export function mergeImportMap(
+  target: ParsedImportMap,
+  incoming: ParsedImportMap,
+  resolved: readonly ResolvedModuleRecord[] = [],
+): void {
+  sortedScopesByMap.delete(target);
+  for (const [scopePrefix, mappings] of incoming.scopes) {
+    const kept = new Map(mappings);
+    for (const record of resolved) {
+      if (!scopeMatches(scopePrefix, record.referrer)) continue;
+      for (const key of [...kept.keys()]) {
+        if (ruleMatchesRecord(key, record)) kept.delete(key);
+      }
+    }
+    const existing = target.scopes.get(scopePrefix);
+    if (!existing) {
+      target.scopes.set(scopePrefix, kept);
+      continue;
+    }
+    for (const [key, address] of kept) {
+      if (!existing.has(key)) existing.set(key, address);
+    }
+  }
+  for (const [key, address] of incoming.imports) {
+    if (resolved.some((record) => ruleMatchesRecord(key, record))) continue;
+    if (!target.imports.has(key)) target.imports.set(key, address);
+  }
+}
+
+export function parseImportMaps(
+  sources: readonly (string | { source: string; baseUrl: string })[],
+  baseUrl: string,
+): ParsedImportMap {
+  const result: ParsedImportMap = { imports: new Map(), scopes: new Map() };
+  for (const input of sources) {
+    const source = typeof input === "string" ? input : input.source;
+    const sourceBaseUrl = typeof input === "string" ? baseUrl : input.baseUrl;
+    const map = parseImportMap(source, sourceBaseUrl);
+    if (map) mergeImportMap(result, map);
+  }
+  return result;
+}
+
+function resolveInSpecifierMap(
+  normalized: string,
+  asUrl: URL | null,
+  mappings: ReadonlyMap<string, string | null>,
+): string | null | undefined {
+  if (mappings.has(normalized)) return mappings.get(normalized);
+  if (asUrl !== null && !SPECIAL_SCHEMES.has(asUrl.protocol)) return undefined;
+  let bestKey = "";
+  let bestAddress: string | null | undefined;
+  for (const [key, address] of mappings) {
+    if (key.endsWith("/") && normalized.startsWith(key) && key.length > bestKey.length) {
+      bestKey = key;
+      if (address === null) {
+        bestAddress = null;
+        continue;
+      }
+      try {
+        const resolved = new URL(normalized.slice(key.length), address).href;
+        bestAddress = resolved.startsWith(address) ? resolved : null;
+      } catch {
+        bestAddress = null;
+      }
+    }
+  }
+  return bestAddress;
+}
+
+export function importMapModuleSource(
+  importMap: ParsedImportMap,
+  registryNames: ReadonlyMap<string, string> = new Map(),
+): string {
+  const imports = JSON.stringify([...importMap.imports]);
+  const scopes = JSON.stringify(
+    scopesBySpecificity(importMap).map(([scope, mappings]) => [scope, [...mappings]]),
+  );
+  const registryAliases = JSON.stringify([...registryNames]);
+  return `const imports=new Map(${imports});
+ const scopes=${scopes}.map(([scope,mappings])=>[scope,new Map(mappings)]);
+ const registryAliases=new Map(${registryAliases});
+ const special=new Set(["ftp:","file:","http:","https:","ws:","wss:"]);
+ function asUrl(s,base){try{return s.startsWith("/")||s.startsWith("./")||s.startsWith("../")?new URL(s,base):new URL(s)}catch{return null}}
+ function inMap(normalized,url,mappings){if(mappings.has(normalized))return mappings.get(normalized);if(url!==null&&!special.has(url.protocol))return undefined;let best="",answer;for(const [key,address] of mappings){if(!key.endsWith("/")||!normalized.startsWith(key)||key.length<=best.length)continue;best=key;if(address===null){answer=null;continue}try{const resolved=new URL(normalized.slice(key.length),address).href;answer=resolved.startsWith(address)?resolved:null}catch{answer=null}}return answer}
+ export function resolveImportMap(specifier,importer){specifier=String(specifier);const url=asUrl(specifier,importer);const normalized=url?url.href:specifier;for(const [scope,mappings] of scopes){if(scope!==importer&&(!scope.endsWith("/")||!importer.startsWith(scope)))continue;const resolved=inMap(normalized,url,mappings);if(resolved===undefined)continue;if(resolved===null)throw new TypeError("Import map blocked module specifier: "+specifier);return resolved}const mapped=inMap(normalized,url,imports);if(mapped!==undefined){if(mapped===null)throw new TypeError("Import map blocked module specifier: "+specifier);return mapped}if(url===null)throw new TypeError("Bare module specifier requires an import map: "+specifier);return normalized}
+ export function resolveModuleRegistryUrl(url){url=String(url);return registryAliases.get(url)??url}
+ `;
+}
+
+export const FALLBACK_MODULE_RESOLVER_SOURCE = importMapModuleSource({
+  imports: new Map(),
+  scopes: new Map(),
+});
+
+export function resolveImportMapSpecifier(
+  specifier: string,
+  importer: string,
+  importMap: ParsedImportMap,
+): string | null {
+  const asUrl = parseUrlLikeSpecifier(specifier, importer);
+  const normalized = asUrl?.href ?? specifier;
+  for (const [scope, mappings] of scopesBySpecificity(importMap)) {
+    if (!scopeMatches(scope, importer)) continue;
+    const resolved = resolveInSpecifierMap(normalized, asUrl, mappings);
+    if (resolved !== undefined) return resolved;
+  }
+  const mapped = resolveInSpecifierMap(normalized, asUrl, importMap.imports);
+  if (mapped !== undefined) return mapped;
+  return asUrl?.href ?? null;
+}
+
+type LexedImport = ReturnType<typeof lexerParse>[0][number];
+
+function dynamicImportExpression(body: string, imp: LexedImport): string {
+  if (imp.a < 0) return body.slice(imp.d + 1, imp.se - 1);
+  const withSeparator = body.slice(imp.d + 1, imp.a);
+  return withSeparator.slice(0, withSeparator.lastIndexOf(","));
+}
+
+function nativelyResolvesTo(specifier: string, importer: string, target: string): boolean {
+  return resolveAgainstImporter(specifier, importer) === target;
+}
+
+function constSpecifier(raw: string): string | null {
+  const s = raw.trim();
+  if (s.length < 2) return null;
+  const q = s[0];
+  if ((q === '"' || q === "'" || q === "`") && s[s.length - 1] === q) {
+    const inner = s.slice(1, -1);
+    if (inner.includes("${") || inner.includes("\\") || inner.includes(q)) return null;
+    return inner;
+  }
+  return null;
+}
+
+function importMetaResolveEnd(
+  source: string,
+  imp: ReturnType<typeof lexerParse>[0][number],
+): number | null {
+  const match = /^(?:\s*\.\s*resolve\b|\s*\[\s*(["'])resolve\1\s*\])/.exec(source.slice(imp.se));
+  return match ? imp.se + match[0].length : null;
+}
+
+export function rewriteImportMetaResolve(
+  expression: string,
+  importer: string,
+  syntheticImportMeta?: string,
+): string {
+  const replacement = `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${JSON.stringify(importer)}))`;
+  let imports: ReturnType<typeof lexerParse>[0];
+  try {
+    imports = lexerParse(expression)[0];
+  } catch {
+    return expression;
+  }
+  const rewrites: Array<{ start: number; end: number; text: string }> = [];
+  for (const imp of imports) {
+    if (imp.t !== 3) continue;
+    if (syntheticImportMeta) {
+      rewrites.push({ start: imp.ss, end: imp.se, text: syntheticImportMeta });
+      continue;
+    }
+    const end = importMetaResolveEnd(expression, imp);
+    if (end !== null) {
+      rewrites.push({ start: imp.ss, end, text: replacement });
+    }
+  }
+  let rewritten = expression;
+  for (const rewrite of rewrites.reverse()) {
+    rewritten = rewritten.slice(0, rewrite.start) + rewrite.text + rewritten.slice(rewrite.end);
+  }
+  return rewritten;
+}
+
+export function assignModuleRegistryNames(urls: Iterable<string>): Map<string, string> {
+  const allUrls = [...urls];
+  const groups = new Map<string, string[]>();
+  for (const url of allUrls) {
+    let identity = url;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue;
+      parsed.search = "";
+      parsed.hash = "";
+      identity = parsed.href;
+    } catch {
+      continue;
+    }
+    const group = groups.get(identity) ?? [];
+    group.push(url);
+    groups.set(identity, group);
+  }
+
+  const names = new Map<string, string>();
+  const occupied = new Set(allUrls);
+  for (const [identity, group] of groups) {
+    if (group.length < 2) continue;
+    const base = new URL(identity);
+    const match = /^(.*?)(\.[^./]+)$/.exec(base.pathname);
+    const stem = match?.[1] ?? base.pathname;
+    const extension = match?.[2] ?? ".js";
+    for (const [index, url] of group.entries()) {
+      let candidate: string;
+      let suffix = index;
+      do {
+        base.pathname = `${stem}.__ks_query_${suffix}${extension}`;
+        candidate = base.href;
+        suffix++;
+      } while (occupied.has(candidate));
+      occupied.add(candidate);
+      names.set(url, candidate);
+    }
+  }
+  return names;
+}
+
+export function astroIslandModuleUrls(html: string, baseUrl: string): string[] {
+  const urls = new Set<string>();
+  for (const [tag] of html.matchAll(/<astro-island\b[^>]*>/gi)) {
+    for (const [, raw] of tag.matchAll(/\s(?:component|renderer)-url="([^"]+)"/gi)) {
+      if (!raw) continue;
+      const url = resolveAgainstImporter(raw.replace(/&amp;/g, "&"), baseUrl);
+      if (url && /^https?:\/\//.test(url)) urls.add(url);
+    }
+  }
+  return [...urls];
+}
+
+export interface ModulePreloadSeed {
+  url: string;
+  nonce: string | null;
+}
+
+export function modulePreloadSeeds(html: string, baseUrl: string): ModulePreloadSeed[] {
+  const seeds = new Map<string, string | null>();
+  for (const [tag] of html.matchAll(/<link\b[^>]*>/gi)) {
+    const attr = (name: string): string | null => {
+      const m = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(tag);
+      return m ? (m[1] ?? m[2] ?? m[3] ?? "").replace(/&amp;/g, "&") : null;
+    };
+    const rel = attr("rel")?.toLowerCase().split(/\s+/) ?? [];
+    if (!rel.includes("modulepreload") || attr("integrity") !== null) continue;
+    const as = attr("as")?.toLowerCase();
+    if (as && as !== "script") continue;
+    const href = attr("href");
+    const url = href ? resolveAgainstImporter(href, baseUrl) : null;
+    if (url && /^https?:\/\//.test(url) && !seeds.has(url)) {
+      seeds.set(url, attr("nonce"));
+    }
+  }
+  return [...seeds].map(([url, nonce]) => ({ url, nonce }));
+}
+
+export function extractClassicDynamicSeeds(
+  body: string,
+  baseUrl: string,
+  resolveSpecifier: (specifier: string, importer: string) => string | null = (
+    specifier,
+    importer,
+  ) => (isUrlLikeSpecifier(specifier) ? resolveAgainstImporter(specifier, importer) : null),
+): { rewritten: string; seeds: string[] } {
+  if (!/import\s*\(/.test(body)) return { rewritten: body, seeds: [] };
+  let imports: ReturnType<typeof lexerParse>[0];
+  try {
+    imports = lexerParse(body, baseUrl)[0];
+  } catch {
+    return { rewritten: body, seeds: [] };
+  }
+  const dynamics = imports.filter((imp) => imp.t === 2);
+  if (dynamics.length === 0) return { rewritten: body, seeds: [] };
+  const seeds: string[] = [];
+  let b = body;
+  const ref = JSON.stringify(baseUrl);
+  for (const imp of dynamics.sort((a, c) => c.ss - a.ss)) {
+    const spec = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
+    if (spec) {
+      const resolved = resolveSpecifier(spec, baseUrl);
+      if (!resolved) {
+        b = b.slice(0, imp.ss) + `__ks_import(${JSON.stringify(spec)}, ${ref})` + b.slice(imp.se);
+        continue;
+      }
+      if (!/^https?:\/\//.test(resolved) && !resolved.startsWith("data:")) {
+        continue;
+      }
+      if (/^https?:\/\//.test(resolved)) seeds.push(resolved);
+      b = b.slice(0, imp.s) + JSON.stringify(resolved) + b.slice(imp.e);
+      continue;
+    }
+    if (imp.d > -1) {
+      const expr = dynamicImportExpression(body, imp);
+      b = b.slice(0, imp.ss) + `__ks_import(${expr}, ${ref})` + b.slice(imp.se);
+    }
+  }
+  return { rewritten: b, seeds };
+}
+
+function maybeWrapInlineModule(body: string, url: string): string {
+  if (!/\bawait\b/.test(body)) return body;
+
+  let parsed: ReturnType<typeof lexerParse>;
+  try {
+    parsed = lexerParse(body, url);
+  } catch {
+    return body;
+  }
+  const imports = parsed[0];
+  const exports = parsed[1];
+
+  if (exports.length > 0) return body;
+
+  if (imports.length === 0) {
+    return ";(async () => {\n" + body + "\n})();\n";
+  }
+
+  const importStmts: string[] = [];
+  let remainder = "";
+  let cursor = 0;
+  for (const imp of imports) {
+    if (imp.t !== 1) continue;
+    remainder += body.slice(cursor, imp.ss);
+    importStmts.push(body.slice(imp.ss, imp.se));
+    cursor = imp.se;
+    if (body[cursor] === ";") cursor++;
+  }
+  remainder += body.slice(cursor);
+
+  return importStmts.join(";\n") + ";\n;(async () => {\n" + remainder + "\n})();\n";
+}
+
+function isAssetExtension(url: string): boolean {
+  let path = url;
+  const q = path.indexOf("?");
+  if (q >= 0) path = path.slice(0, q);
+  const h = path.indexOf("#");
+  if (h >= 0) path = path.slice(0, h);
+  return /\.(css|svg|png|jpe?g|gif|webp|woff2?|ttf|eot|ico|avif)$/i.test(path);
+}
+
+export type BakedModule = string | { json: unknown };
+
+const MAX_MODULES = 1000;
+
+const BAKE_BUDGET_BYTES = 40 * 1024 * 1024;
+
+const MAX_DYNAMIC_MODULE_BYTES = 4 * 1024 * 1024;
+
+const FETCH_TIMEOUT_MS = 10_000;
+const MODULE_FETCH_RETRY_BASE_DELAY_MS = 150;
+const MODULE_FETCH_RETRY_JITTER_RATIO = 0.5;
+const BYTES_PER_MIB = 1_048_576;
+
+const WALK_CONCURRENCY = 8;
+
+const WALK_DEADLINE_MS = 1_000;
+
+const FANOUT_REGISTRY_THRESHOLD = 8;
+
+export function chunkBaseName(url: string): string | null {
+  let file: string;
+  try {
+    file = new URL(url).pathname.split("/").pop() ?? "";
+  } catch {
+    return null;
+  }
+  const stem = file.replace(/(?:\.chunk)?\.m?js$/i, "");
+  const m = /^(.+)[-.]([A-Za-z0-9_-]{8}|[a-f0-9]{9,32})$/.exec(stem);
+  const hash = m?.[2] ?? "";
+  const hashed = /\d/.test(hash) || (/[a-z]/.test(hash) && /[A-Z]/.test(hash.slice(1)));
+  const name = m?.[1] && hashed ? m[1] : stem;
+  return name.length >= 4 && /[A-Za-z]/.test(name) ? name : null;
+}
+
+const MAX_TOKENIZED_HTML = 4 * 1024 * 1024;
+
+export function documentTokens(html: string): Set<string> {
+  const tokens = new Set<string>();
+  if (html.length > MAX_TOKENIZED_HTML) return tokens;
+  for (const m of html.matchAll(/[A-Za-z_$][\w$-]{3,}/g)) tokens.add(m[0]);
+  return tokens;
+}
+
+export interface WalkResult {
+  descriptors: ParentScriptDescriptor[];
+  additionalModules: Record<string, BakedModule>;
+  importMapModuleSource: string;
+}
+
+interface WalkModuleGraphInput {
+  descriptors: ParentScriptDescriptor[];
+  pageUrl: string;
+  connectionId: string;
+  mainFrameId?: string;
+  mainLoaderId?: string;
+  extraHeaders?: Record<string, string>;
+  cookieKey?: string;
+  options?: {
+    baseUrl?: string;
+    gate?: ScriptGateContext;
+    importMaps?: readonly { source: string; baseUrl: string; scriptDomIndex: number }[];
+    moduleSeeds?: readonly string[];
+    preloadSeeds?: readonly ModulePreloadSeed[];
+    documentHtml?: string;
+  };
+  sandboxOutbound: SandboxOutboundOverride;
+}
+
+export async function walkModuleGraph({
+  descriptors,
+  pageUrl,
+  connectionId,
+  mainFrameId = "",
+  mainLoaderId = "",
+  extraHeaders = {},
+  cookieKey = "",
+  options: opts = {},
+  sandboxOutbound,
+}: WalkModuleGraphInput): Promise<WalkResult> {
+  const out = descriptors.map((d) => ({ ...d }));
+  const moduleEntries = out.filter((d) => d.kind === "module" && !d.blocked);
+
+  const pageOrigin = pageOriginFromUrl(pageUrl);
+  const entryBaseUrl = opts.baseUrl || pageUrl;
+  const gate = opts.gate ?? null;
+  const importMap: ParsedImportMap = { imports: new Map(), scopes: new Map() };
+  const resolveModule = (specifier: string, importer: string): string | null =>
+    resolveImportMapSpecifier(specifier, importer, importMap);
+  const integrityByUrl = new Map<string, string>();
+  const nonceByUrl = new Map<string, string>();
+  const viaTrustedImporter = new Set<string>();
+
+  const classicSeeds = new Set<string>(opts.moduleSeeds);
+  const seedClassic = (
+    d: ParentScriptDescriptor,
+    resolve: (specifier: string, importer: string) => string | null,
+  ): void => {
+    if (d.kind !== "classic" || d.prefetchError || d.blocked) return;
+    const isExternal = !!d.src;
+    const src = isExternal ? (d.prefetchedSource ?? "") : (d.body ?? "");
+    if (!src) return;
+    const base = isExternal
+      ? d.resolvedSrc || (d.src ? resolveAgainstImporter(d.src, entryBaseUrl) : null)
+      : entryBaseUrl;
+    if (!base) return;
+    const { rewritten, seeds } = extractClassicDynamicSeeds(src, base, resolve);
+    if (rewritten === src) return;
+    if (isExternal) d.prefetchedSource = rewritten;
+    else d.body = rewritten;
+    for (const s of seeds) {
+      classicSeeds.add(s);
+      if (d.nonce && !nonceByUrl.has(s)) nonceByUrl.set(s, d.nonce);
+    }
+  };
+
+  const resolvedModules: ResolvedModuleRecord[] = [];
+  const resolveAndRecord = (specifier: string, importer: string): string | null => {
+    resolvedModules.push(resolvedModuleRecord(specifier, importer));
+    return resolveModule(specifier, importer);
+  };
+  const moduleEntryIndex = new Map(moduleEntries.map((d, i) => [d, i] as const));
+  const recordInlineModuleStatics = (d: ParentScriptDescriptor): void => {
+    const body = d.body ?? "";
+    const entryUrl = inlineModuleUrl(entryBaseUrl, moduleEntryIndex.get(d) ?? 0);
+    let imports: ReturnType<typeof lexerParse>[0];
+    try {
+      imports = lexerParse(body, entryUrl)[0];
+    } catch {
+      return;
+    }
+    for (const imp of imports) {
+      if (imp.t === 1 && imp.n) resolveAndRecord(imp.n, entryUrl);
+    }
+  };
+  type DocumentItem =
+    | { index: number; kind: "map"; map: ParsedImportMap }
+    | { index: number; kind: "script"; script: ParentScriptDescriptor };
+  const documentOrder: DocumentItem[] = [];
+  for (const m of opts.importMaps ?? []) {
+    const parsed = parseImportMap(m.source, m.baseUrl);
+    if (parsed) documentOrder.push({ index: m.scriptDomIndex, kind: "map", map: parsed });
+  }
+  for (const d of out) {
+    documentOrder.push({ index: d.scriptDomIndex ?? -1, kind: "script", script: d });
+  }
+  documentOrder.sort((a, b) => a.index - b.index);
+  const lateClassics: ParentScriptDescriptor[] = [];
+  for (const item of documentOrder) {
+    if (item.kind === "map") {
+      mergeImportMap(importMap, item.map, resolvedModules);
+      continue;
+    }
+    const d = item.script;
+    if (d.blocked) continue;
+    if (d.kind === "classic") {
+      if (d.src && (d.async || d.defer)) lateClassics.push(d);
+      else seedClassic(d, resolveAndRecord);
+    } else if (!d.src) {
+      recordInlineModuleStatics(d);
+    }
+  }
+  for (const d of lateClassics) seedClassic(d, resolveModule);
+
+  if (moduleEntries.length === 0 && classicSeeds.size === 0) {
+    return {
+      descriptors: out,
+      additionalModules: {},
+      importMapModuleSource: importMapModuleSource(importMap),
+    };
+  }
+
+  const outbound = sandboxOutbound.parent({
+    ...localTraceParentProps(),
+    pageOrigin,
+    mainFrameId,
+    mainLoaderId,
+    extraHeaders,
+    connectionId,
+    cookieKey,
+  });
+
+  const modules = new Map<string, string>();
+  const failed = new Map<string, string>();
+  interface WalkQueueItem {
+    url: string;
+    importer: string | null;
+    isDynamic: boolean;
+    depth: number;
+    importerDynFanout: number;
+    viaRegistry: boolean;
+    preload?: true;
+  }
+  const queue: WalkQueueItem[] = [];
+  const depthOf = new Map<string, number>();
+  let totalFetches = 0;
+  let bakedBytes = 0;
+  let oversizedDynamicSkipped = 0;
+  const sizeSkipped = new Set<string>();
+  const viaDyn = new Map<string, boolean>();
+  const viaReg = new Map<string, boolean>();
+  const dynamicRoots = new Set<string>();
+  const webpackChunkUrls = new Set<string>();
+  const jsonModules = new Map<string, unknown>();
+  const lexed = new Set<string>();
+  const lexCache = new Map<string, ReturnType<typeof lexerParse>[0]>();
+
+  let docTokens: Set<string> | null = null;
+  const namedByDocument = (url: string): boolean => {
+    const name = chunkBaseName(url);
+    return name !== null && docTokens?.has(name) === true;
+  };
+
+  const crawlImports = (fromUrl: string, body: string): void => {
+    const fromViaDyn = viaDyn.get(fromUrl) ?? false;
+    const fromViaReg = viaReg.get(fromUrl) ?? false;
+    const fromDepth = depthOf.get(fromUrl) ?? 0;
+    let imports: ReturnType<typeof lexerParse>[0];
+    try {
+      imports = lexerParse(body, fromUrl)[0];
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      failed.set(fromUrl, `lex failed for ${fromUrl}: ${msg}`);
+      modules.delete(fromUrl);
+      return;
+    }
+    lexCache.set(fromUrl, imports);
+    let dynFanout = 0;
+    for (const imp of imports) {
+      if (imp.t === 2) dynFanout++;
+    }
+    if (dynFanout > FANOUT_REGISTRY_THRESHOLD && opts.documentHtml && !docTokens) {
+      docTokens = documentTokens(opts.documentHtml);
+    }
+    for (const imp of imports) {
+      if (imp.t !== 1 && imp.t !== 2) continue;
+      const isDynamic = imp.t === 2;
+      const specifier = imp.n ?? (isDynamic ? constSpecifier(body.slice(imp.s, imp.e)) : undefined);
+      if (!specifier) continue;
+      const resolved = resolveModule(specifier, fromUrl);
+      if (!resolved) {
+        if (isDynamic) continue;
+        failed.set(
+          fromUrl,
+          `Failed to resolve module specifier "${specifier}" ` +
+            `(imported from ${fromUrl}): the document's import map ` +
+            `does not remap it to a URL, or blocks it.`,
+        );
+        modules.delete(fromUrl);
+        return;
+      }
+      if (resolved.startsWith("data:")) continue;
+      if (modules.has(resolved) || failed.has(resolved)) continue;
+      if (/\.wasm$/i.test(new URL(resolved).pathname)) {
+        failed.set(
+          resolved,
+          "wasm modules in the ES-module graph are not supported " +
+            "(kitesurf bakes page wasm for the WebAssembly.* APIs, " +
+            "not ESM-integration)",
+        );
+        continue;
+      }
+      const childViaDyn = fromViaDyn || isDynamic;
+      const prev = viaDyn.get(resolved);
+      viaDyn.set(resolved, prev === undefined ? childViaDyn : prev && childViaDyn);
+      const named = isDynamic && docTokens !== null && namedByDocument(resolved);
+      const childViaReg =
+        fromViaReg || (isDynamic && dynFanout > FANOUT_REGISTRY_THRESHOLD && !named);
+      const prevReg = viaReg.get(resolved);
+      viaReg.set(resolved, prevReg === undefined ? childViaReg : prevReg && childViaReg);
+      viaTrustedImporter.add(resolved);
+      const inheritedNonce = nonceByUrl.get(fromUrl);
+      if (inheritedNonce && !nonceByUrl.has(resolved)) {
+        nonceByUrl.set(resolved, inheritedNonce);
+      }
+      if (isDynamic) dynamicRoots.add(resolved);
+      if (!depthOf.has(resolved)) depthOf.set(resolved, fromDepth + 1);
+      queue.push({
+        url: resolved,
+        importer: fromUrl,
+        isDynamic,
+        depth: fromDepth + 1,
+        importerDynFanout: isDynamic && !named ? dynFanout : 0,
+        viaRegistry: childViaReg,
+      });
+    }
+  };
+
+  for (const seedUrl of classicSeeds) {
+    if (!modules.has(seedUrl) && !failed.has(seedUrl)) {
+      viaDyn.set(seedUrl, false);
+      depthOf.set(seedUrl, 0);
+      queue.push({
+        url: seedUrl,
+        importer: null,
+        isDynamic: false,
+        depth: 0,
+        importerDynFanout: 0,
+        viaRegistry: false,
+      });
+    }
+  }
+
+  for (const [i, d] of moduleEntries.entries()) {
+    let entryUrl: string;
+    if (d.src) {
+      const resolved = d.resolvedSrc ?? resolveAgainstImporter(d.src, entryBaseUrl);
+      if (!resolved) {
+        d.prefetchError = "could not resolve module src against page URL: " + d.src;
+        continue;
+      }
+      entryUrl = resolved;
+      d.resolvedSrc = entryUrl;
+      if (d.integrity) integrityByUrl.set(entryUrl, d.integrity);
+      if (d.nonce) nonceByUrl.set(entryUrl, d.nonce);
+      if (!modules.has(entryUrl) && !failed.has(entryUrl)) {
+        viaDyn.set(entryUrl, false);
+        depthOf.set(entryUrl, 0);
+        queue.push({
+          url: entryUrl,
+          importer: null,
+          isDynamic: false,
+          depth: 0,
+          importerDynFanout: 0,
+          viaRegistry: false,
+        });
+      }
+    } else {
+      entryUrl = inlineModuleUrl(entryBaseUrl, i);
+      d.resolvedSrc = entryUrl;
+      if (d.nonce) nonceByUrl.set(entryUrl, d.nonce);
+      viaDyn.set(entryUrl, false);
+      depthOf.set(entryUrl, 0);
+      const rawBody = d.body ?? "";
+      const body = maybeWrapInlineModule(rawBody, entryUrl);
+      modules.set(entryUrl, body);
+      bakedBytes += body.length;
+      d.prefetchedSource = body;
+      lexed.add(entryUrl);
+      crawlImports(entryUrl, body);
+    }
+  }
+
+  for (const { url, nonce } of opts.preloadSeeds ?? []) {
+    if (modules.has(url) || failed.has(url) || depthOf.has(url)) continue;
+    if (nonce && !nonceByUrl.has(url)) nonceByUrl.set(url, nonce);
+    viaDyn.set(url, false);
+    depthOf.set(url, 0);
+    queue.push({
+      url,
+      importer: null,
+      isDynamic: false,
+      depth: 0,
+      importerDynFanout: 0,
+      viaRegistry: false,
+      preload: true,
+    });
+  }
+
+  const MODULE_FETCH_ATTEMPTS = 3;
+  type ModuleFetchResult =
+    | { ok: true; body: string; moduleType: ModuleType }
+    | { ok: false; error: string };
+
+  const isTransientFetchError = (error: string): boolean =>
+    /aborted|abort|connection|network connection lost|reset|HTTP 5\d\d|timed out|timeout/i.test(
+      error,
+    );
+
+  const attemptFetchModuleBody = async (url: string): Promise<ModuleFetchResult> => {
+    if (gate) {
+      const pre = await checkScriptBeforeFetch(gate, {
+        url,
+        integrity: integrityByUrl.get(url) ?? null,
+        nonce: nonceByUrl.get(url) ?? null,
+        runtimeInserted: viaTrustedImporter.has(url),
+        module: true,
+      });
+      if (pre.reportOnly) console.warn(`[kitesurf-csp] ${pre.reportOnly}`);
+      if (!pre.allowed) {
+        return { ok: false, error: pre.message ?? `module blocked: ${url}` };
+      }
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const headers: Record<string, string> = {
+        "x-kitesurf-resource-type": "Script",
+        "x-kitesurf-script-cors": "cors",
+        "x-kitesurf-initiator": "module-graph",
+        "x-kitesurf-page-origin": pageOrigin,
+      };
+      if (connectionId) headers["x-kitesurf-connection-id"] = connectionId;
+      if (mainFrameId) headers["x-kitesurf-frame-id"] = mainFrameId;
+      if (pageOrigin) headers["origin"] = pageOrigin;
+      const walk = await walkRedirects({
+        url,
+        signal: ctrl.signal,
+        headers,
+        taintOriginFrom: pageOrigin || undefined,
+        fetchHop: (hopReq) => outbound.fetch(hopReq),
+      });
+      if (!walk.ok) {
+        return { ok: false, error: `module fetch too many redirects for ${url}` };
+      }
+      const res = walk.response;
+      const blocked = res.headers.get("x-kitesurf-blocked");
+      if (res.status === 403 && blocked) {
+        return {
+          ok: false,
+          error: `module fetch blocked (${blocked}) for ${url}`,
+        };
+      }
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: `module fetch returned HTTP ${res.status} for ${url}`,
+        };
+      }
+      const integrity = integrityByUrl.get(url) ?? null;
+      const bytes = integrity ? new Uint8Array(await res.arrayBuffer()) : null;
+      const body = bytes
+        ? new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(bytes)
+        : await res.text();
+      const verdict = await checkScriptResponse(
+        { url, integrity, module: true },
+        {
+          contentType: res.headers.get("content-type"),
+          contentTypeOptions: res.headers.get(KITESURF_NOSNIFF_HEADER),
+          bytes,
+          opaque: false,
+        },
+      );
+      if (!verdict.allowed) {
+        return {
+          ok: false,
+          error: verdict.message ?? `module blocked by policy: ${url}`,
+        };
+      }
+      return { ok: true, body, moduleType: verdict.moduleType ?? "javascript" };
+    } catch (err) {
+      return {
+        ok: false,
+        error:
+          `module fetch threw for ${url}: ` + (err instanceof Error ? err.message : String(err)),
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  const fetchModuleBody = async (url: string): Promise<ModuleFetchResult> => {
+    let last: ModuleFetchResult = {
+      ok: false,
+      error: `module fetch not attempted for ${url}`,
+    };
+    for (let attempt = 1; attempt <= MODULE_FETCH_ATTEMPTS; attempt++) {
+      last = await attemptFetchModuleBody(url);
+      if (last.ok || !isTransientFetchError(last.error)) return last;
+      if (attempt < MODULE_FETCH_ATTEMPTS) {
+        const base = MODULE_FETCH_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+        const delay = base + Math.random() * base * MODULE_FETCH_RETRY_JITTER_RATIO;
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+    return last;
+  };
+
+  const storeFetched = (
+    url: string,
+    fetched: { body: string; moduleType: ModuleType },
+  ): boolean => {
+    if (fetched.moduleType === "json") {
+      try {
+        jsonModules.set(url, JSON.parse(fetched.body));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        failed.set(url, `JSON module ${url} did not parse: ${msg}`);
+        return false;
+      }
+      modules.set(url, fetched.body);
+      bakedBytes += fetched.body.length;
+      lexed.add(url);
+      return true;
+    }
+    modules.set(url, fetched.body);
+    bakedBytes += fetched.body.length;
+    if (!lexed.has(url)) {
+      lexed.add(url);
+      crawlImports(url, fetched.body);
+    }
+    return true;
+  };
+
+  const walkStartedAt = Date.now();
+  let deadlineHit = false;
+  const pastDeadline = (): boolean => {
+    if (!deadlineHit && Date.now() - walkStartedAt >= WALK_DEADLINE_MS) {
+      deadlineHit = true;
+    }
+    return deadlineHit;
+  };
+  let deadlineSkipped = 0;
+
+  let inflight = 0;
+  const inflightUrls = new Set<string>();
+  let waiters: Array<() => void> = [];
+  const notifyAll = (): void => {
+    const w = waiters;
+    waiters = [];
+    for (const f of w) f();
+  };
+
+  const itemClass = (item: WalkQueueItem): number =>
+    !item.isDynamic ? 0 : item.importerDynFanout > FANOUT_REGISTRY_THRESHOLD ? 2 : 1;
+
+  const nextItem = (): (WalkQueueItem & { sizeCapped: boolean }) | "wait" | "done" => {
+    const keep: WalkQueueItem[] = [];
+    let best: WalkQueueItem | null = null;
+    let bestClass = 3;
+    for (const item of queue) {
+      if (modules.size >= MAX_MODULES) {
+        queue.length = 0;
+        return inflight > 0 ? "wait" : "done";
+      }
+      const url = item.url;
+      if (failed.has(url)) continue;
+      if (inflightUrls.has(url)) {
+        keep.push(item);
+        continue;
+      }
+      if (modules.has(url)) {
+        if (!lexed.has(url)) {
+          lexed.add(url);
+          crawlImports(url, modules.get(url)!);
+        }
+        continue;
+      }
+      if (item.isDynamic && bakedBytes >= BAKE_BUDGET_BYTES) continue;
+      if (item.viaRegistry && pastDeadline()) {
+        deadlineSkipped++;
+        continue;
+      }
+      if (isAssetExtension(url)) {
+        modules.set(url, `/* kitesurf: asset-import side-effect stub for ${url} */\nexport {};\n`);
+        continue;
+      }
+      keep.push(item);
+      const cls = itemClass(item);
+      if (best === null || cls < bestClass || (cls === bestClass && item.depth < best.depth)) {
+        best = item;
+        bestClass = cls;
+      }
+    }
+    queue.length = 0;
+    for (const item of keep) {
+      if (item !== best) queue.push(item);
+    }
+    if (best) {
+      return {
+        ...best,
+        sizeCapped: best.isDynamic || (best.importer === null && classicSeeds.has(best.url)),
+      };
+    }
+    return inflight > 0 ? "wait" : "done";
+  };
+
+  const workerLoop = async (): Promise<void> => {
+    for (;;) {
+      const item = nextItem();
+      if (item === "done") {
+        notifyAll();
+        return;
+      }
+      if (item === "wait") {
+        await new Promise<void>((r) => waiters.push(r));
+        continue;
+      }
+      inflight++;
+      inflightUrls.add(item.url);
+      let result: ModuleFetchResult;
+      try {
+        result = await fetchModuleBody(item.url);
+      } finally {
+        inflightUrls.delete(item.url);
+        inflight--;
+        notifyAll();
+      }
+      totalFetches++;
+      if (!result.ok) {
+        if (!item.preload) failed.set(item.url, result.error);
+      } else if (item.sizeCapped && result.body.length > MAX_DYNAMIC_MODULE_BYTES) {
+        oversizedDynamicSkipped++;
+        sizeSkipped.add(item.url);
+      } else if (!(item.isDynamic && bakedBytes >= BAKE_BUDGET_BYTES)) {
+        storeFetched(item.url, result);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: WALK_CONCURRENCY }, () => workerLoop()));
+
+  {
+    const MAX_WEBPACK_CHUNKS = 300;
+    const MAX_WEBPACK_COMPOSER_SCAN_CHARS = 120_000;
+    let composeBase: string | null = null;
+    let nameMap: Record<string, string> | null = null;
+    let hashMap: Record<string, string> | null = null;
+    for (const [url, body] of modules) {
+      const uIdx = body.search(/\.u\s*=/);
+      if (uIdx < 0) continue;
+      const win = body.slice(uIdx, uIdx + MAX_WEBPACK_COMPOSER_SCAN_CHARS);
+      const end = win.indexOf('".js"');
+      if (end < 0) continue;
+      const expr = win.slice(0, end + 5);
+      const maps: Record<string, string>[] = [];
+      for (const m of expr.matchAll(/\{(?:\d+:"[^"]*",?)+\}/g)) {
+        const obj: Record<string, string> = {};
+        for (const kv of m[0].slice(1, -1).split(",")) {
+          const ci = kv.indexOf(':"');
+          if (ci < 0) continue;
+          obj[kv.slice(0, ci)] = kv.slice(ci + 2, -1);
+        }
+        maps.push(obj);
+      }
+      if (maps.length === 0) continue;
+      nameMap = maps.length >= 2 ? maps[0]! : null;
+      hashMap = maps[maps.length - 1]!;
+      composeBase = url;
+      break;
+    }
+    const webpackBase = composeBase;
+    const webpackHashMap = hashMap;
+    if (webpackBase && webpackHashMap) {
+      const seenIds = new Set<string>();
+      const pendingIds: string[] = [];
+      const pushId = (id: string) => {
+        if (!seenIds.has(id) && webpackHashMap[id] !== undefined) {
+          seenIds.add(id);
+          pendingIds.push(id);
+        }
+      };
+      const scanForIds = (body: string) => {
+        for (const m of body.matchAll(/\.e\((\d+)\)/g)) pushId(m[1]!);
+        for (const m of body.matchAll(/\[(\d{1,6}(?:,\d{1,6})+)\]/g)) {
+          const ids = m[1]!.split(",");
+          if (ids.every((id) => webpackHashMap[id] !== undefined)) {
+            for (const id of ids) pushId(id);
+          }
+        }
+      };
+      for (const body of modules.values()) scanForIds(body);
+      const drainWebpackQueue = async (): Promise<void> => {
+        while (queue.length > 0) {
+          const wave2: typeof queue = [];
+          while (queue.length > 0 && wave2.length < WALK_CONCURRENCY) {
+            const item = queue.shift()!;
+            if (
+              modules.has(item.url) ||
+              failed.has(item.url) ||
+              (item.isDynamic && (bakedBytes >= BAKE_BUDGET_BYTES || pastDeadline()))
+            ) {
+              continue;
+            }
+            wave2.push(item);
+          }
+          if (wave2.length === 0) continue;
+          const drained = await Promise.all(
+            wave2.map(async (item) => {
+              const r = await fetchModuleBody(item.url);
+              totalFetches++;
+              return { item, r };
+            }),
+          );
+          for (const { item, r } of drained) {
+            if (!r.ok) {
+              failed.set(item.url, r.error);
+              continue;
+            }
+            if (!storeFetched(item.url, r)) continue;
+            if (r.moduleType === "javascript") scanForIds(r.body);
+          }
+        }
+      };
+      let bakedChunks = 0;
+      while (pendingIds.length > 0 && bakedChunks < MAX_WEBPACK_CHUNKS && !pastDeadline()) {
+        if (bakedBytes >= BAKE_BUDGET_BYTES) break;
+        const wave = pendingIds
+          .splice(0, WALK_CONCURRENCY)
+          .map((id) => {
+            const hash = webpackHashMap[id];
+            if (hash === undefined) return null;
+            const name = nameMap?.[id] ?? id;
+            const resolved = resolveAgainstImporter(`./${name}.${hash}.js`, webpackBase);
+            return resolved && !modules.has(resolved) && !failed.has(resolved)
+              ? { id, url: resolved }
+              : null;
+          })
+          .filter((x): x is { id: string; url: string } => x !== null);
+        if (wave.length === 0) continue;
+        const results = await Promise.all(
+          wave.map(async ({ url }) => {
+            const r = await fetchModuleBody(url);
+            totalFetches++;
+            return { url, result: r };
+          }),
+        );
+        for (const { url, result } of results) {
+          if (!result.ok) {
+            failed.set(url, result.error);
+            continue;
+          }
+          if (bakedBytes >= BAKE_BUDGET_BYTES) break;
+          if (!storeFetched(url, result)) continue;
+          viaDyn.set(url, true);
+          dynamicRoots.add(url);
+          webpackChunkUrls.add(url);
+          bakedChunks++;
+          if (result.moduleType === "javascript") scanForIds(result.body);
+        }
+        await drainWebpackQueue();
+      }
+      if (bakedChunks > 0) {
+        console.log(
+          `[kitesurf-walk] webpack chunk crawl: ${bakedChunks} chunk(s) baked from ${composeBase}`,
+        );
+      }
+    }
+  }
+
+  let evictedCount = 0;
+  let prunedCount = 0;
+  if (deadlineHit) {
+    const resolveStatic = resolveModule;
+    let completeness = new Map<string, boolean>();
+    const staticDepsComplete = (url: string): boolean => {
+      const memo = completeness.get(url);
+      if (memo !== undefined) return memo;
+      completeness.set(url, true);
+      for (const imp of lexCache.get(url) ?? []) {
+        if (imp.t !== 1 || !imp.n) continue;
+        const resolved = resolveStatic(imp.n, url);
+        if (!resolved) continue;
+        if (!modules.has(resolved) || !staticDepsComplete(resolved)) {
+          completeness.set(url, false);
+          return false;
+        }
+      }
+      return true;
+    };
+    for (let changed = true; changed;) {
+      changed = false;
+      completeness = new Map();
+      for (const root of dynamicRoots) {
+        if (!modules.has(root) || viaDyn.get(root) === false) continue;
+        if (!staticDepsComplete(root)) {
+          modules.delete(root);
+          evictedCount++;
+          changed = true;
+        }
+      }
+    }
+    const reachable = new Set<string>();
+    const stack: string[] = [];
+    const pushRoot = (u: string | null | undefined): void => {
+      if (u && modules.has(u) && !reachable.has(u)) {
+        reachable.add(u);
+        stack.push(u);
+      }
+    };
+    for (const d of moduleEntries) pushRoot(d.resolvedSrc);
+    for (const s of classicSeeds) pushRoot(s);
+    for (const c of webpackChunkUrls) pushRoot(c);
+    while (stack.length > 0) {
+      const url = stack.pop()!;
+      for (const imp of lexCache.get(url) ?? []) {
+        if (imp.t !== 1 && imp.t !== 2) continue;
+        const spec =
+          imp.n ??
+          (imp.t === 2 ? constSpecifier(modules.get(url)!.slice(imp.s, imp.e)) : undefined);
+        if (!spec) continue;
+        const resolved = resolveStatic(spec, url);
+        if (resolved) pushRoot(resolved);
+      }
+    }
+    for (const u of [...modules.keys()]) {
+      if (!reachable.has(u) && viaDyn.get(u) === true) {
+        modules.delete(u);
+        prunedCount++;
+      }
+    }
+  }
+
+  const registryNames = assignModuleRegistryNames(modules.keys());
+  const registryName = (url: string): string => registryNames.get(url) ?? url;
+
+  for (const u of [...sizeSkipped]) if (modules.has(u)) sizeSkipped.delete(u);
+
+  if (registryNames.size > 0 || sizeSkipped.size > 0) {
+    for (const d of out) {
+      if (d.kind === "module") continue;
+      const field = d.src ? "prefetchedSource" : "body";
+      const source = d[field];
+      if (!source || !/import\s*\(/.test(source)) continue;
+      const base = d.src
+        ? d.resolvedSrc || resolveAgainstImporter(d.src, entryBaseUrl)
+        : entryBaseUrl;
+      if (!base) continue;
+      let parsed: ReturnType<typeof lexerParse>[0];
+      try {
+        parsed = lexerParse(source)[0];
+      } catch {
+        continue;
+      }
+      const rewrites: { ss: number; se: number; text: string }[] = [];
+      for (const imp of parsed) {
+        if (imp.t !== 2) continue;
+        const spec = imp.n ?? constSpecifier(source.slice(imp.s, imp.e));
+        if (!spec) continue;
+        let absolute: string;
+        try {
+          absolute = new URL(spec, base).href;
+        } catch {
+          continue;
+        }
+        if (sizeSkipped.has(absolute)) {
+          rewrites.push({
+            ss: imp.ss,
+            se: imp.se,
+            text: `__ks_import(${JSON.stringify(absolute)}, ${JSON.stringify(base)})`,
+          });
+          continue;
+        }
+        const name = registryNames.get(absolute);
+        if (name) rewrites.push({ ss: imp.s, se: imp.e, text: JSON.stringify(name) });
+      }
+      let rewritten = source;
+      for (const rw of rewrites.sort((a, b) => b.ss - a.ss)) {
+        rewritten = rewritten.slice(0, rw.ss) + rw.text + rewritten.slice(rw.se);
+      }
+      d[field] = rewritten;
+    }
+  }
+
+  let deferredCount = 0;
+  const literalRange = (imp: LexedImport): { ss: number; se: number } =>
+    imp.t === 1 ? { ss: imp.s - 1, se: imp.e + 1 } : { ss: imp.s, se: imp.e };
+  for (const [fromUrl, body] of [...modules.entries()]) {
+    if (jsonModules.has(fromUrl)) continue;
+    let imports: ReturnType<typeof lexerParse>[0] | undefined = lexCache.get(fromUrl);
+    if (!imports) {
+      try {
+        imports = lexerParse(body, fromUrl)[0];
+      } catch {
+        continue;
+      }
+    }
+    const ref = JSON.stringify(fromUrl);
+    let syntheticImportMeta: string | undefined;
+    if (registryName(fromUrl) !== fromUrl) {
+      syntheticImportMeta = "__ks_import_meta";
+      while (body.includes(syntheticImportMeta)) syntheticImportMeta += "_";
+    }
+    const rewrites: { ss: number; se: number; text: string }[] = [];
+    const dynamicRanges = imports
+      .filter((imp) => imp.t === 2)
+      .map((imp) => ({ start: imp.ss, end: imp.se }));
+    for (const imp of imports) {
+      if (imp.t === 2) {
+        const spec = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
+        if (!spec && imp.d > -1) {
+          const expr = rewriteImportMetaResolve(
+            dynamicImportExpression(body, imp),
+            fromUrl,
+            syntheticImportMeta,
+          );
+          rewrites.push({ ss: imp.ss, se: imp.se, text: `__ks_import(${expr}, ${ref})` });
+        }
+        if (!spec) continue;
+
+        const resolved = resolveModule(spec, fromUrl);
+        const registryResolved = resolved && modules.has(resolved) ? registryName(resolved) : null;
+        if (registryResolved !== null && !nativelyResolvesTo(spec, fromUrl, registryResolved)) {
+          rewrites.push({ ...literalRange(imp), text: JSON.stringify(registryResolved) });
+        }
+        if (registryResolved !== null) continue;
+
+        rewrites.push({
+          ss: imp.ss,
+          se: imp.se,
+          text: `__ks_import(${JSON.stringify(spec)}, ${ref})`,
+        });
+        deferredCount++;
+        continue;
+      }
+
+      if (imp.t === 3) {
+        if (dynamicRanges.some(({ start, end }) => imp.ss >= start && imp.se <= end)) {
+          continue;
+        }
+        if (syntheticImportMeta) {
+          rewrites.push({ ss: imp.ss, se: imp.se, text: syntheticImportMeta });
+          continue;
+        }
+        const resolveEnd = importMetaResolveEnd(body, imp);
+        if (resolveEnd === null) continue;
+        rewrites.push({
+          ss: imp.ss,
+          se: resolveEnd,
+          text: `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${ref}))`,
+        });
+        continue;
+      }
+
+      if (imp.t !== 1 || !imp.n) continue;
+      const resolved = resolveModule(imp.n, fromUrl);
+      if (!resolved) continue;
+      const registryResolved = registryName(resolved);
+      if (!nativelyResolvesTo(imp.n, fromUrl, registryResolved)) {
+        rewrites.push({ ...literalRange(imp), text: JSON.stringify(registryResolved) });
+      }
+    }
+    if (rewrites.length > 0 || syntheticImportMeta) {
+      let b = body;
+      for (const rw of rewrites.sort((a, c) => c.ss - a.ss)) {
+        b = b.slice(0, rw.ss) + rw.text + b.slice(rw.se);
+      }
+      if (syntheticImportMeta) {
+        b =
+          `const ${syntheticImportMeta}=Object.assign(Object.create(null),` +
+          `{url:${ref},resolve:(specifier)=>globalThis.__ks_resolve_import_map(specifier,${ref})});\n` +
+          b;
+      }
+      modules.set(fromUrl, b);
+    }
+  }
+
+  for (const d of moduleEntries) {
+    if (d.prefetchError) continue;
+    const u = d.resolvedSrc;
+    if (!u) continue;
+    const failure = failed.get(u);
+    if (failure !== undefined) {
+      d.prefetchError = failure;
+      continue;
+    }
+    const body = modules.get(u);
+    if (body == null) {
+      d.prefetchError = `module not in graph after walk: ${u}`;
+      continue;
+    }
+    d.prefetchedSource = body;
+    d.resolvedSrc = registryName(u);
+  }
+
+  if (totalFetches > 0 || moduleEntries.length > 0) {
+    const parts = [
+      `${moduleEntries.length} module entr${moduleEntries.length === 1 ? "y" : "ies"}`,
+      `${modules.size} modules baked`,
+      `${totalFetches} fetches`,
+    ];
+    if (failed.size > 0) parts.push(`${failed.size} failed`);
+    if (deferredCount > 0) parts.push(`${deferredCount} dyn deferred->boa`);
+    if (oversizedDynamicSkipped > 0) {
+      parts.push(`${oversizedDynamicSkipped} oversized dyn skipped`);
+    }
+    parts.push(`${(bakedBytes / BYTES_PER_MIB).toFixed(1)}MiB baked`);
+    if (modules.size >= MAX_MODULES) {
+      parts.push(`hit MAX_MODULES=${MAX_MODULES} cap`);
+    }
+    if (deadlineHit) {
+      parts.push(
+        `hit ${WALK_DEADLINE_MS}ms deadline ` +
+          `(${deadlineSkipped} skipped, ${evictedCount} evicted, ${prunedCount} pruned)`,
+      );
+    }
+    parts.push(`${Date.now() - walkStartedAt}ms`);
+    console.log(`[kitesurf-walk] ${parts.join(", ")}`);
+  }
+
+  const additionalModules: Record<string, BakedModule> = {};
+  for (const [u, body] of modules) {
+    additionalModules[registryName(u)] = jsonModules.has(u) ? { json: jsonModules.get(u) } : body;
+  }
+
+  return {
+    descriptors: out,
+    additionalModules,
+    importMapModuleSource: importMapModuleSource(importMap, registryNames),
+  };
+}

@@ -1,0 +1,134 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 9 Oct 2026 20:29:46 +0100
+Subject: [PATCH] source_text: compact the collected text for storage
+
+0.22 keeps a script's whole source text for Function.prototype.toString,
+as the lexer collected it: a growing Vec<u16>, so up to twice the
+needed capacity at two bytes a character. compact() turns it into an
+exact-size Latin-1 slice when every code unit fits (most bundles) or
+an exact-size UTF-16 slice otherwise. Span reads return Cow so the
+Latin-1 form widens only the slice a caller asks for.
+---
+ src/source_text.rs | 73 ++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 64 insertions(+), 9 deletions(-)
+
+diff --git a/src/source_text.rs b/src/source_text.rs
+index bbd564d..b01f5f1 100644
+--- a/src/source_text.rs
++++ b/src/source_text.rs
+@@ -1,10 +1,22 @@
++use std::borrow::Cow;
++
+ use crate::{LinearPosition, LinearSpan};
+
+ /// Source text.
+ #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+ #[derive(Clone, Debug)]
+ pub struct SourceText {
+-    source_text: Vec<u16>,
++    repr: Repr,
++}
++
++// Collected as UTF-16, then kept for the script's lifetime (toString);
++// `compact` stores it as Latin-1 when it fits and drops the growth slack.
++#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
++#[derive(Clone, Debug)]
++enum Repr {
++    Collecting(Vec<u16>),
++    Latin1(Box<[u8]>),
++    Utf16(Box<[u16]>),
+ }
+
+ impl SourceText {
+@@ -12,32 +24,75 @@ impl SourceText {
+     #[must_use]
+     pub fn with_capacity(capacity: usize) -> Self {
+         Self {
+-            source_text: Vec::with_capacity(capacity),
++            repr: Repr::Collecting(Vec::with_capacity(capacity)),
++        }
++    }
++
++    fn len(&self) -> usize {
++        match &self.repr {
++            Repr::Collecting(v) => v.len(),
++            Repr::Latin1(v) => v.len(),
++            Repr::Utf16(v) => v.len(),
++        }
++    }
++
++    fn slice(&self, start: usize, end: usize) -> Cow<'_, [u16]> {
++        match &self.repr {
++            Repr::Collecting(v) => Cow::Borrowed(&v[start..end]),
++            Repr::Utf16(v) => Cow::Borrowed(&v[start..end]),
++            Repr::Latin1(v) => Cow::Owned(v[start..end].iter().map(|&b| u16::from(b)).collect()),
+         }
+     }
+
+     /// Get current `LinearPosition`.
+     #[must_use]
+     pub fn cur_linear_position(&self) -> LinearPosition {
+-        LinearPosition::new(self.source_text.len())
++        LinearPosition::new(self.len())
+     }
+
+     /// Get code points from `pos` to the current end.
+     #[must_use]
+-    pub fn get_code_points_from_pos(&self, pos: LinearPosition) -> &[u16] {
+-        &self.source_text[pos.pos()..]
++    pub fn get_code_points_from_pos(&self, pos: LinearPosition) -> Cow<'_, [u16]> {
++        self.slice(pos.pos(), self.len())
+     }
+
+     /// Get code points within `span`.
+     #[must_use]
+-    pub fn get_code_points_from_span(&self, span: LinearSpan) -> &[u16] {
+-        &self.source_text[span.start().pos()..span.end().pos()]
++    pub fn get_code_points_from_span(&self, span: LinearSpan) -> Cow<'_, [u16]> {
++        self.slice(span.start().pos(), span.end().pos())
++    }
++
++    /// Shrink the collected text for long-term storage, as Latin-1 when
++    /// every code unit fits (most bundles), else as an exact-size UTF-16 slice.
++    pub fn compact(&mut self) {
++        let Repr::Collecting(v) = &mut self.repr else {
++            return;
++        };
++        let v = std::mem::take(v);
++        self.repr = if v.iter().all(|&c| c <= 0xFF) {
++            Repr::Latin1(v.iter().map(|&c| c as u8).collect())
++        } else {
++            Repr::Utf16(v.into_boxed_slice())
++        };
++    }
++
++    // Collection after `compact` is not expected, but stays correct: re-expand.
++    #[inline]
++    fn collecting(&mut self) -> &mut Vec<u16> {
++        if !matches!(self.repr, Repr::Collecting(_)) {
++            let v = self.slice(0, self.len()).into_owned();
++            self.repr = Repr::Collecting(v);
++        }
++        let Repr::Collecting(v) = &mut self.repr else {
++            unreachable!("just converted to Collecting")
++        };
++        v
+     }
+
+     /// Remove last code point.
+     #[inline]
+     pub fn remove_last_code_point(&mut self) {
+-        self.source_text.pop();
++        self.collecting().pop();
+     }
+
+     /// Collect code point.
+@@ -64,6 +119,6 @@ impl SourceText {
+
+     #[inline]
+     fn push(&mut self, cp: u16) {
+-        self.source_text.push(cp);
++        self.collecting().push(cp);
+     }
+ }

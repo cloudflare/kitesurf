@@ -1,0 +1,163 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 3 Aug 2026 22:49:24 +0100
+Subject: [PATCH] Carry the CSS fetch mode on stylesheet Requests as a ks-cors
+ MIME param
+
+Whether a stylesheet's bytes may ever be handed to page JS depends on
+its fetch mode, and only the DOM knows that: a `<link>` with a
+`crossorigin` attribute fetches in mode "cors", and without one it
+fetches "no-cors"; whose response is opaque even when the server does
+send Access-Control-Allow-Origin. The embedder sits behind NetProvider
+and could not distinguish the two.
+
+Rather than add a field to blitz-traits' Request (which would mean
+patching a second crate), the mode rides on the existing `content_type`
+tag as a MIME parameter: `text/css;ks-cors=cors`.
+
+StylesheetLoader carries the mode so an @import chain inherits what its
+root sheet declared, per CSSOM. An inline `<style>` has no crossorigin
+attribute, so its imports are "no-cors".
+---
+ src/cssom.rs    |  3 +++
+ src/document.rs | 11 +++++++++++
+ src/mutator.rs  | 15 ++++++++++++++-
+ src/net.rs      | 20 +++++++++++++++++++-
+ 4 files changed, 47 insertions(+), 2 deletions(-)
+
+diff --git a/src/cssom.rs b/src/cssom.rs
+index 971fae5..d86bd01 100644
+--- a/src/cssom.rs
++++ b/src/cssom.rs
+@@ -337,6 +337,9 @@ impl BaseDocument {
+             shell_provider: self.shell_provider.clone(),
+             abort_signal: self.abort_signal.clone(),
+             import_depth: 0,
++            // The owning sheet's fetch mode isn't known here; treat
++            // CSSOM-inserted @imports as opaque ("no-cors").
++            cors_mode: Some(String::from("no-cors")),
+         }
+     }
+
+diff --git a/src/document.rs b/src/document.rs
+index 989550c..2e2a82c 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1318,6 +1318,14 @@ impl BaseDocument {
+                                     guard: self.guard.clone(),
+                                     net_provider: self.net_provider.clone(),
+                                     abort_signal: self.abort_signal.clone(),
++                                    // Same crossorigin rule as the
++                                    // initial load in load_linked_stylesheet.
++                                    cors_mode: Some(String::from(
++                                        match element.attr(LocalName::from("crossorigin")) {
++                                            Some(_) => "cors",
++                                            None => "no-cors",
++                                        },
++                                    )),
+                                 },
+                             ),
+                         );
+@@ -1456,6 +1464,9 @@ impl BaseDocument {
+                 shell_provider: self.shell_provider.clone(),
+                 abort_signal: self.abort_signal.clone(),
+                 import_depth: 0,
++                // An inline <style> carries no crossorigin
++                // attribute, so its @imports fetch in mode "no-cors".
++                cors_mode: Some(String::from("no-cors")),
+             }),
+             None,
+             QuirksMode::NoQuirks,
+diff --git a/src/mutator.rs b/src/mutator.rs
+index b2b7d23..663456a 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1301,6 +1301,15 @@ impl<'doc> DocumentMutator<'doc> {
+             return;
+         }
+
++        // A `crossorigin` attribute (any value, including the
++        // empty string) puts the CSS fetch in mode "cors"; its absence
++        // means "no-cors", whose response is opaque even when the server
++        // does send Access-Control-Allow-Origin. HTML §link-type-stylesheet.
++        let cors_mode = match node.attr(LocalName::from("crossorigin")) {
++            Some(_) => "cors",
++            None => "no-cors",
++        };
++
+         let url = self.doc.resolve_url(href);
+         let handler = ResourceHandler::new(
+             self.doc.tx.clone(),
+@@ -1312,6 +1321,7 @@ impl<'doc> DocumentMutator<'doc> {
+                 guard: self.doc.guard.clone(),
+                 net_provider: self.doc.net_provider.clone(),
+                 abort_signal: self.doc.abort_signal.clone(),
++                cors_mode: Some(String::from(cors_mode)),
+             },
+         );
+
+@@ -1327,8 +1337,11 @@ impl<'doc> DocumentMutator<'doc> {
+         // the NetHandler trait object. Blitz's NetProvider trait
+         // doesn't expose the handler type, and Request has no
+         // `kind` field, so content_type is the cleanest signal.
++        //
++        // The `ks-cors` MIME parameter rides along so the embedder can
++        // tell a CORS-mode sheet from an opaque one.
+         let mut req = self.doc.build_request(url);
+-        req.content_type = Some("text/css".to_string());
++        req.content_type = Some(crate::net::css_content_type(Some(cors_mode)));
+         self.doc.net_provider.fetch(self.doc.id(), req, Box::new(handler));
+     }
+
+diff --git a/src/net.rs b/src/net.rs
+index 88301d4..1aa8cb6 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -146,6 +146,20 @@ pub struct StylesheetHandler {
+     pub guard: SharedRwLock,
+     pub net_provider: Arc<dyn NetProvider>,
+     pub abort_signal: Option<AbortSignal>,
++    // The CSS fetch mode this sheet was requested with,
++    // "cors" or "no-cors". Threaded onto nested @import loads, which
++    // inherit the importing sheet's mode per CSSOM.
++    pub cors_mode: Option<String>,
++}
++
++/// Stylesheet `content_type` tag, carrying the fetch mode as
++/// a MIME parameter so the embedder can decide whether the sheet's text
++/// is ever allowed to reach page JS.
++pub(crate) fn css_content_type(cors_mode: Option<&str>) -> String {
++    match cors_mode {
++        Some(mode) => format!("text/css;ks-cors={mode}"),
++        None => String::from("text/css"),
++    }
+ }
+
+ impl NetHandler for ResourceHandler<StylesheetHandler> {
+@@ -174,6 +188,7 @@ impl NetHandler for ResourceHandler<StylesheetHandler> {
+                 shell_provider: self.shell_provider.clone(),
+                 abort_signal: self.data.abort_signal.clone(),
+                 import_depth: 0,
++                cors_mode: self.data.cors_mode.clone(),
+             }),
+             None, // error_reporter
+             QuirksMode::NoQuirks,
+@@ -203,6 +218,9 @@ pub(crate) struct StylesheetLoader {
+     /// Depth of `@import` nesting for the stylesheet this loader is parsing
+     /// (0 for a top-level stylesheet)
+     pub(crate) import_depth: usize,
++    // Fetch mode inherited from the importing sheet, so a
++    // whole @import chain carries the mode its root <link> declared.
++    pub(crate) cors_mode: Option<String>,
+ }
+ impl ServoStylesheetLoader for StylesheetLoader {
+     fn request_stylesheet(
+@@ -239,7 +257,7 @@ impl ServoStylesheetLoader for StylesheetLoader {
+         // an extension-less @import (load.php?…) resolves to a generic
+         // kind, losing the stylesheet handling the top level gets.
+         let mut req = stamped_request(url.as_ref().clone(), self.abort_signal.as_ref());
+-        req.content_type = Some(String::from("text/css"));
++        req.content_type = Some(css_content_type(self.cors_mode.as_deref()));
+         self.net_provider.fetch(
+             self.doc_id,
+             req,

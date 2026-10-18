@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60">
+  <metadata>
+    <link xmlns="http://www.w3.org/1999/xhtml" rel="help" href="https://example.com/"/>
+    <meta xmlns="http://www.w3.org/1999/xhtml" name="assert" content="renders after metadata"/>
+  </metadata>
+  <style>rect{fill:#008000}</style>
+  <rect width="120" height="60"/>
+</svg>

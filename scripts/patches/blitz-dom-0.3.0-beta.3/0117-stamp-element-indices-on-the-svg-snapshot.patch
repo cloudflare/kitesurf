@@ -1,0 +1,207 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Tue, 22 Sep 2026 22:14:04 +0100
+Subject: [PATCH] stamp element indices on the svg snapshot
+
+Elements inside an inline <svg> never get a layout box: the svg is one
+atomic box and its subtree is serialized to a usvg tree at construct
+time. To measure one of them (getBoundingClientRect on a <rect>), the
+engine has to find the DOM node again in that tree, and the only thing
+usvg carries through the parse is the element id.
+
+Add a snapshot-only serializer entry (write_svg_snapshot_html) that
+stamps `id="ks-svg-<n>"` on every descendant without a usable id, where
+n is the element's pre-order index under the snapshot root. An index
+rather than the node id, because parse_svg_image caches trees on the
+exact serialized source and icon systems emit one identical <svg> per
+use site (136 inline svgs, 47 distinct, on one heavy page); node ids
+would have made every copy a separate parse. svg_snapshot_index recovers
+the index for a node the same way, so the two walks must stay in step.
+
+An empty id="" is dropped rather than kept next to the stamp, since a
+duplicate attribute fails the whole XML parse. The snapshot root keeps
+its open tag untouched because rebuild_svg_snapshot pattern-matches on
+it. Plain outer_html is unchanged, so nothing page-visible sees the
+synthetic ids.
+
+Against blitz-dom 0.3.0-beta.3: serialization moved to node/serialize.rs
+and the snapshot source is upstream's svg_source(), so the stamping
+lives there instead of a separate write_svg_snapshot_html entry; the
+public svg_snapshot_id / Node::svg_snapshot_index API is unchanged.
+---
+ src/node/node.rs      | 12 ++++++
+ src/node/serialize.rs | 87 +++++++++++++++++++++++++++++++++++++++----
+ 2 files changed, 92 insertions(+), 7 deletions(-)
+
+diff --git a/src/node/node.rs b/src/node/node.rs
+index c10eea6..d7f1300 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -84,6 +84,18 @@ impl NodeFlags {
+     }
+ }
+
++/// The `id` the svg snapshot serializer stamps on an id-less
++/// element (`Node::svg_source`), and the key a bbox lookup hands to
++/// `usvg::Tree::node_by_id` for the same DOM node. `index` is the element's
++/// 1-based pre-order position among the snapshot root's descendant elements
++/// (not its node id), so two identical icons at different DOM positions
++/// still serialize byte-for-byte the same and share one entry in the
++/// parsed-tree cache (`util::parse_svg_image`). Prefixed so it cannot
++/// collide with an author id or a `url(#…)` ref.
++pub fn svg_snapshot_id(index: u32) -> String {
++    format!("ks-svg-{index}")
++}
++
+ pub struct Node {
+     // The actual tree we belong to. This is unsafe!!
+     tree: *mut crate::NodeTree,
+diff --git a/src/node/serialize.rs b/src/node/serialize.rs
+index 11790c8..6744d2a 100644
+--- a/src/node/serialize.rs
++++ b/src/node/serialize.rs
+@@ -92,15 +92,26 @@ impl Node {
+     }
+
+     pub fn write_outer_html(&self, writer: &mut String) {
+-        self.write_outer_html_in_style(writer, SerializeOpts::html(OutputStyle::Normal), 0);
++        self.write_outer_html_in_style(writer, SerializeOpts::html(OutputStyle::Normal), 0, None);
+     }
+
+     pub fn write_outer_html_pretty(&self, writer: &mut String) {
+-        self.write_outer_html_in_style(writer, SerializeOpts::html(OutputStyle::Pretty), 0);
++        self.write_outer_html_in_style(writer, SerializeOpts::html(OutputStyle::Pretty), 0, None);
+     }
+
+     /// Serializes this `<svg>` subtree as a standalone SVG document for usvg, with
+     /// `currentColor` resolved against each element's computed `color`.
++    ///
++    /// This is the inline-<svg> snapshot usvg parses, so it also
++    /// stamps a synthetic `id` on every id-less descendant
++    /// (`svg_snapshot_id` of its pre-order index). A DOM node can then be
++    /// found again in the usvg tree: usvg keeps element ids on the paths,
++    /// groups, images and text it emits, and nothing else survives the
++    /// parse. getBoundingClientRect on a shape reads its bbox back through
++    /// that id, because svg descendants never get a layout box of their
++    /// own. `svg_snapshot_index` is the walk that recovers a node's index
++    /// for the lookup; keep the two in step. Plain `outer_html` is
++    /// unchanged, so nothing page-visible sees the synthetic ids.
+     #[cfg(feature = "svg")]
+     pub(crate) fn svg_source(&self) -> String {
+         let mut output = String::new();
+@@ -109,11 +120,36 @@ impl Node {
+             resolve_current_color: true,
+             declare_xlink_ns: true,
+         };
+-        self.write_outer_html_in_style(&mut output, opts, 0);
++        let mut next_index = 0u32;
++        self.write_outer_html_in_style(&mut output, opts, 0, Some(&mut next_index));
+         output
+     }
+
+-    // Serialize WITHOUT baking currentColor, for subtrees that
++    // The 1-based pre-order position of `target` among this
++    // node's descendant elements, in the order `svg_source` numbers them.
++    // `None` when `target` is not a descendant element.
++    pub fn svg_snapshot_index(&self, target: crate::NodeId) -> Option<u32> {
++        fn walk(node: &Node, target: crate::NodeId, next: &mut u32) -> Option<u32> {
++            for &child_id in &node.children {
++                let child = &node.tree()[child_id];
++                if !matches!(child.data, NodeData::Element(_)) {
++                    continue;
++                }
++                *next += 1;
++                if child_id == target {
++                    return Some(*next);
++                }
++                if let Some(found) = walk(child, target, next) {
++                    return Some(found);
++                }
++            }
++            None
++        }
++        let mut next = 0u32;
++        walk(self, target, &mut next)
++    }
++
++    // Serialize without baking currentColor, for subtrees that
+     // get re-parented under a different color context (sprite <symbol>s).
+     pub fn write_outer_html_verbatim(&self, writer: &mut String) {
+         let opts = SerializeOpts {
+@@ -121,10 +157,16 @@ impl Node {
+             resolve_current_color: false,
+             declare_xlink_ns: false,
+         };
+-        self.write_outer_html_in_style(writer, opts, 0);
++        self.write_outer_html_in_style(writer, opts, 0, None);
+     }
+
+-    fn write_outer_html_in_style(&self, writer: &mut String, opts: SerializeOpts, nesting: usize) {
++    fn write_outer_html_in_style(
++        &self,
++        writer: &mut String,
++        opts: SerializeOpts,
++        nesting: usize,
++        mut stamp_ids: Option<&mut u32>,
++    ) {
+         const INDENT: &str = "  ";
+         let style = opts.style;
+         let has_children = !self.children.is_empty();
+@@ -214,10 +256,31 @@ impl Node {
+                     None
+                 };
+
++                // The snapshot root keeps its own open tag (the
++                // caller pattern-matches on it); every descendant element
++                // takes the next pre-order index, and the ones without a
++                // usable id get it stamped. An empty `id=""` counts as
++                // absent (usvg ignores it) and is dropped rather than
++                // emitted next to the stamp, which would be a duplicate
++                // attribute and fail the whole XML parse.
++                let stamp_id: Option<u32> = match stamp_ids.as_deref_mut() {
++                    Some(next) if nesting > 0 => {
++                        *next += 1;
++                        let has_id = data
++                            .attrs()
++                            .iter()
++                            .any(|a| &*a.name.local == "id" && !a.value.is_empty());
++                        (!has_id).then_some(*next)
++                    }
++                    _ => None,
++                };
+                 for attr in data.attrs() {
+                     if font_stamps.is_some() && &*attr.name.local == "font-size" {
+                         continue;
+                     }
++                    if stamp_id.is_some() && &*attr.name.local == "id" {
++                        continue;
++                    }
+                     writer.push(' ');
+                     write_attr_name(&attr.name, writer);
+                     writer.push_str("=\"");
+@@ -241,6 +304,11 @@ impl Node {
+                         writer.push('"');
+                     }
+                 }
++                if let Some(index) = stamp_id {
++                    writer.push_str(" id=\"");
++                    writer.push_str(&super::svg_snapshot_id(index));
++                    writer.push('"');
++                }
+                 if !has_children {
+                     writer.push_str(" /");
+                 }
+@@ -251,7 +319,12 @@ impl Node {
+
+                 if has_children {
+                     for &child_id in &self.children {
+-                        self.tree()[child_id].write_outer_html_in_style(writer, opts, nesting + 1);
++                        self.tree()[child_id].write_outer_html_in_style(
++                            writer,
++                            opts,
++                            nesting + 1,
++                            stamp_ids.as_deref_mut(),
++                        );
+                     }
+
+                     if matches!(style, OutputStyle::Pretty) {

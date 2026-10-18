@@ -1,0 +1,81 @@
+/*
+ * Copyright (c) 2026 Cloudflare, Inc.
+ * Licensed under the Apache 2.0 license found in the LICENSE file or at:
+ * https://opensource.org/licenses/Apache-2.0
+ */
+
+:root {
+  color-scheme: light dark;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+body {
+  margin: 0;
+  min-width: 240px;
+  background: #11130f;
+  color: #f0f4e8;
+}
+
+main {
+  padding: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #a4d65e;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0 0 18px;
+  font-size: 17px;
+}
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  color: #b9c3ae;
+  font-size: 11px;
+}
+
+select {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #4a5142;
+  border-radius: 4px;
+  padding: 8px 10px;
+  background: #1b1f18;
+  color: inherit;
+  font: inherit;
+}
+
+select:focus {
+  border-color: #a4d65e;
+  outline: 2px solid #a4d65e55;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  color: #d9dfd2;
+  cursor: pointer;
+}
+
+.toggle input {
+  margin: 0;
+  accent-color: #a4d65e;
+}
+
+.status {
+  margin: 14px 0 0;
+  color: #f1b24a;
+  font-size: 11px;
+}
+
+.status.online {
+  color: #a4d65e;
+}

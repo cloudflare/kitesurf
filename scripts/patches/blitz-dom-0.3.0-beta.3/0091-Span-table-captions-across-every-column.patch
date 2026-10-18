@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Wed, 26 Aug 2026 23:20:19 +0100
+Subject: [PATCH] Span table captions across every column
+
+The synthetic Grid cell for a caption must cover the table instead of
+contributing capmin to only one column.
+
+Against blitz-dom 0.3.0-beta.3: spans upstream's num_columns (column
+cursor, includes rowspan-occupied columns) after the column sizing.
+---
+ src/layout/table.rs | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index 24de420..18dc68a 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -361,6 +361,13 @@ pub(crate) fn build_table_context(
+             }
+         }
+     }
++    let column_count = num_columns.max(1);
++    for caption in cells.iter_mut().filter(|cell| cell.is_caption) {
++        caption.style.grid_column = taffy::Line {
++            start: style_helpers::line(1),
++            end: style_helpers::span(column_count),
++        };
++    }
+
+     style.grid_template_columns = column_sizes.into_iter().map(|dim| dim.into()).collect();
+     // A row's `height` is a minimum: the row grows to fit the content of its cells.

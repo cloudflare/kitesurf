@@ -1,0 +1,39 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  body { margin: 0; background: #808080; }
+  #cv { position: absolute; left: 40px; top: 30px; width: 200px; height: 160px; }
+</style>
+<canvas id="cv" width="100" height="80"></canvas>
+<script>
+(function () {
+  var out = {};
+  var cv = document.getElementById("cv");
+  var ctx = cv.getContext("2d");
+  out.ctxOk = !!ctx;
+  out.sameCtx = cv.getContext("2d") === ctx;
+  out.webglNull = cv.getContext("webgl") === null;
+  if (ctx) {
+    var img = ctx.createImageData(100, 80);
+    var colors = [[255,0,0],[0,128,0],[0,0,255],[255,255,0]];
+    for (var y = 0; y < 80; y++) {
+      for (var x = 0; x < 100; x++) {
+        var q = (y < 40 ? 0 : 2) + (x < 50 ? 0 : 1);
+        var i = (y * 100 + x) * 4;
+        img.data[i] = colors[q][0];
+        img.data[i+1] = colors[q][1];
+        img.data[i+2] = colors[q][2];
+        img.data[i+3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    var back = ctx.getImageData(60, 10, 1, 1);
+    out.roundTrip = back.data[0] + "," + back.data[1] + "," + back.data[2];
+  }
+  document.title = "CANVAS2D:" + JSON.stringify(out);
+})();
+</script>

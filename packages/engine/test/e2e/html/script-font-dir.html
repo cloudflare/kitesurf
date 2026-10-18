@@ -1,0 +1,18 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<meta charset="utf-8">
+<p id="encoded-hebrew">&#x05D0;</p>
+<div id="inherited" dir="rtl"><span id="inherited-child">latin</span></div>
+<div id="auto-pruned" dir="auto"><span dir="ltr">latin</span>اختبر</div>
+<div id="mutable" dir="auto">latin</div>
+<input id="input-auto" dir="auto" value="latin" placeholder="اختبر">
+<textarea id="textarea-auto" dir="auto">latin</textarea>
+<div id="shadow-host" dir="rtl"></div>
+<script>
+  const root = document.getElementById("shadow-host").attachShadow({ mode: "open" });
+  root.innerHTML = '<span id="shadow-child">latin</span>';
+</script>

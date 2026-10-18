@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ruskin Constant <ruskin@cloudflare.com>
+Date: Wed, 16 Sep 2026 11:28:44 +0100
+Subject: [PATCH] Map smooth and high-quality image-rendering to high paint
+ quality
+
+stylo's ImageRendering gains Smooth (un-gated) and HighQuality (new)
+variants for the servo build; this match was exhaustive over the old
+three-variant servo enum and needs the two new arms to compile. Both
+map to peniko's High quality, since the spec defines them as
+behaviorally identical, higher-quality alternatives to the Medium
+default.
+---
+ src/render.rs | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/render.rs b/src/render.rs
+index e5c7e48..7126a29 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -751,6 +751,9 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+ fn to_image_quality(image_rendering: ImageRendering) -> peniko::ImageQuality {
+     match image_rendering {
+         ImageRendering::Auto => peniko::ImageQuality::Medium,
++        // smooth and high-quality are spec-defined to behave identically
++        // (both request the best available sampling).
++        ImageRendering::Smooth | ImageRendering::HighQuality => peniko::ImageQuality::High,
+         ImageRendering::CrispEdges => peniko::ImageQuality::Low,
+         ImageRendering::Pixelated => peniko::ImageQuality::Low,
+     }

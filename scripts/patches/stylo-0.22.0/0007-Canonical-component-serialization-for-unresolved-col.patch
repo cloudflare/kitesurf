@@ -1,0 +1,186 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 30 Jul 2026 14:45:11 +0100
+Subject: [PATCH] Canonical component serialization for unresolved color
+ functions
+
+A color function that stays symbolic (some component is a calc()
+resolvable only at computed-value time) echoed every literal component
+as authored: rgb(.. 0% 0% / 50%) instead of the canonical
+rgb(.. 0 0 / 0.5) that WPT color-valid-* expects. Literal components
+now serialize as numbers in the function's reference scale, with the
+per-slot clamps the spec applies (rgb 0..255, lab/lch lightness 0..100,
+ok* lightness 0..1, chroma and saturation floor 0, alpha 0..1). Hues
+drop their angle unit. Relative colors (origin present) keep echoing
+the authored form, since WPT color-valid-relative-color asserts the
+percent-preserving behavior there.
+---
+ color/color_function.rs | 117 +++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 116 insertions(+), 1 deletion(-)
+
+diff --git a/color/color_function.rs b/color/color_function.rs
+index 0f29984..49ad598 100644
+--- a/color/color_function.rs
++++ b/color/color_function.rs
+@@ -18,6 +18,7 @@ use crate::values::{
+     specified::color::Color as SpecifiedColor,
+ };
+ use cssparser::color::{clamp_floor_256_f32, OPAQUE};
++use style_traits::ToCss;
+
+ /// Represents a specified color function.
+ #[derive(Clone, Debug, MallocSizeOf, PartialEq, ToAnimatedValue, ToShmem)]
+@@ -551,28 +552,100 @@ impl<C: style_traits::ToCss> style_traits::ToCss for ColorFunction<C> {
+             }};
+         }
+
++        let canonical = origin_color.is_none();
++
++        macro_rules! num {
++            ($component:expr, $basis:expr, $min:expr, $max:expr) => {{
++                write_num_or_pct_canonical($component, $basis, $min, $max, dest)?;
++            }};
++        }
++
++        macro_rules! hue {
++            ($component:expr) => {{
++                write_angle_canonical($component, dest)?;
++            }};
++        }
++
+         match self {
++            Self::Rgb(_, c0, c1, c2, _) if canonical => {
++                num!(c0, 255.0, Some(0.0), Some(255.0));
++                dest.write_str(" ")?;
++                num!(c1, 255.0, Some(0.0), Some(255.0));
++                dest.write_str(" ")?;
++                num!(c2, 255.0, Some(0.0), Some(255.0));
++            },
+             Self::Rgb(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Hsl(_, c0, c1, c2, _) if canonical => {
++                hue!(c0);
++                dest.write_str(" ")?;
++                num!(c1, 100.0, Some(0.0), None);
++                dest.write_str(" ")?;
++                num!(c2, 100.0, None, None);
++            },
+             Self::Hsl(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Hwb(_, c0, c1, c2, _) if canonical => {
++                hue!(c0);
++                dest.write_str(" ")?;
++                num!(c1, 100.0, None, None);
++                dest.write_str(" ")?;
++                num!(c2, 100.0, None, None);
++            },
+             Self::Hwb(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Lab(_, c0, c1, c2, _) if canonical => {
++                num!(c0, 100.0, Some(0.0), Some(100.0));
++                dest.write_str(" ")?;
++                num!(c1, 125.0, None, None);
++                dest.write_str(" ")?;
++                num!(c2, 125.0, None, None);
++            },
+             Self::Lab(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Lch(_, c0, c1, c2, _) if canonical => {
++                num!(c0, 100.0, Some(0.0), Some(100.0));
++                dest.write_str(" ")?;
++                num!(c1, 150.0, Some(0.0), None);
++                dest.write_str(" ")?;
++                hue!(c2);
++            },
+             Self::Lch(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Oklab(_, c0, c1, c2, _) if canonical => {
++                num!(c0, 1.0, Some(0.0), Some(1.0));
++                dest.write_str(" ")?;
++                num!(c1, 0.4, None, None);
++                dest.write_str(" ")?;
++                num!(c2, 0.4, None, None);
++            },
+             Self::Oklab(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Oklch(_, c0, c1, c2, _) if canonical => {
++                num!(c0, 1.0, Some(0.0), Some(1.0));
++                dest.write_str(" ")?;
++                num!(c1, 0.4, Some(0.0), None);
++                dest.write_str(" ")?;
++                hue!(c2);
++            },
+             Self::Oklch(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Color(_, c0, c1, c2, _, color_space) if canonical => {
++                color_space.to_css(dest)?;
++                dest.write_str(" ")?;
++                num!(c0, 1.0, None, None);
++                dest.write_str(" ")?;
++                num!(c1, 1.0, None, None);
++                dest.write_str(" ")?;
++                num!(c2, 1.0, None, None);
++            },
+             Self::Color(_, c0, c1, c2, _, color_space) => {
+                 color_space.to_css(dest)?;
+                 dest.write_str(" ")?;
+@@ -591,9 +664,51 @@ impl<C: style_traits::ToCss> style_traits::ToCss for ColorFunction<C> {
+
+         if !omit_alpha {
+             dest.write_str(" / ")?;
+-            alpha.to_css(dest)?;
++            if canonical {
++                write_num_or_pct_canonical(alpha, 1.0, Some(0.0), Some(1.0), dest)?;
++            } else {
++                alpha.to_css(dest)?;
++            }
+         }
+
+         dest.write_str(")")
+     }
+ }
++
++fn write_num_or_pct_canonical<W>(
++    component: &ColorComponent<NumberOrPercentageComponent>,
++    basis: f32,
++    min: Option<f32>,
++    max: Option<f32>,
++    dest: &mut style_traits::CssWriter<W>,
++) -> std::fmt::Result
++where
++    W: std::fmt::Write,
++{
++    match component {
++        ColorComponent::Value(value) => {
++            let mut number = value.to_number(basis);
++            if let Some(min) = min {
++                number = number.max(min);
++            }
++            if let Some(max) = max {
++                number = number.min(max);
++            }
++            number.to_css(dest)
++        },
++        other => other.to_css(dest),
++    }
++}
++
++fn write_angle_canonical<W>(
++    component: &ColorComponent<NumberOrAngleComponent>,
++    dest: &mut style_traits::CssWriter<W>,
++) -> std::fmt::Result
++where
++    W: std::fmt::Write,
++{
++    match component {
++        ColorComponent::Value(value) => value.degrees().to_css(dest),
++        other => other.to_css(dest),
++    }
++}

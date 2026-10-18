@@ -1,0 +1,64 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8" /><title>kitesurf ws boot fixture</title></head>
+<body>
+<script>
+(function () {
+  var out = { events: [] };
+  function finish() { document.title = "WSBOOT:" + JSON.stringify(out); }
+  var ws;
+  try {
+    ws = new WebSocket("ws://" + location.host + "/__fixtures/ws-echo");
+  } catch (e) {
+    out.ctorError = String(e && e.message);
+    finish();
+    return;
+  }
+  out.ctorState = ws.readyState;
+  out.constants = [WebSocket.CONNECTING, WebSocket.OPEN, WebSocket.CLOSING, WebSocket.CLOSED].join(",");
+  ws.binaryType = "arraybuffer";
+  ws.onopen = function () {
+    out.events.push("open");
+    out.openState = ws.readyState;
+    ws.send("hello");
+  };
+  ws.onmessage = function (e) {
+    if (typeof e.data === "string") {
+      out.text = e.data;
+      out.events.push("text");
+      var buf = new Uint8Array([9, 1, 2, 3, 250, 7]);
+      ws.send(buf.subarray(1, 5));
+    } else if (e.data instanceof ArrayBuffer) {
+      out.bin = Array.prototype.join.call(new Uint8Array(e.data), ",");
+      out.events.push("bin");
+      ws.send("close-me");
+    } else {
+      out.events.push("unexpected-" + Object.prototype.toString.call(e.data));
+      ws.send("close-me");
+    }
+  };
+  ws.onerror = function () { out.events.push("error"); };
+  ws.onclose = function (e) {
+    out.events.push("close");
+    out.code = e.code;
+    out.reason = e.reason;
+    out.wasClean = e.wasClean;
+    out.closedState = ws.readyState;
+    finish();
+  };
+  setTimeout(function () {
+    if (out.events.indexOf("close") === -1) {
+      out.timeout = true;
+      finish();
+    }
+  }, 15000);
+})();
+</script>
+</body>
+</html>
