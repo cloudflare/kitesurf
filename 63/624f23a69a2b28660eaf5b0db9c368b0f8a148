@@ -1,0 +1,76 @@
+packages/engine/test/e2e/inline-span-white-space.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_317532d36f8031 56
+packages/engine/public/fonts/Arimo-OFL.txt
+  s_f2f1dbce2d5d5d::t_c3e9ac2cd902a4 1-93
+packages/core/src/fonts.rs
+  s_f2f1dbce2d5d5d::t_94233be1e4f0a0 9-10,1283-1286
+  s_f2f1dbce2d5d5d::t_1a2c53efcc895e 589-592,596
+  s_f2f1dbce2d5d5d::t_6695d9f9970d82 2191-2192,2210-2211,2231-2235
+  s_f2f1dbce2d5d5d::t_d298e7b8f5cdf0 2212-2216
+  s_f2f1dbce2d5d5d::t_7f4c13fe37d998 1138-1206,1221-1224,1228-1235,1242,1245-1260,1263-1265,1267-1268,1270-1271,1273-1274,1282,1287-1295,1298,1301-1307,1309,1315-1340,1355,1367-1373,1472-1475,1477,1481-1483,1485,1488,1498-1507,1511-1523,1528-1529,1537,1571
+  s_f2f1dbce2d5d5d::t_70460a3dbf8934 1836-1837,1839-1840,1843-1845
+  s_f2f1dbce2d5d5d::t_6bcc8534e28e71 610
+  s_f2f1dbce2d5d5d::t_77b3aeb084222f 632,641-643,649,651-655,659-660,663,668,670-683
+  s_f2f1dbce2d5d5d::t_06c4279f283391 693-694,696-704
+  s_f2f1dbce2d5d5d::t_0230b5eea7aa9a 1275-1277,1279-1280,1310-1314,2145-2146
+  s_f2f1dbce2d5d5d::t_c550edfa81e7e9 1054,1390
+  s_f2f1dbce2d5d5d::t_1e8af9ccc2c8f1 1604
+  s_f2f1dbce2d5d5d::t_2614339655d8f0 2100-2101,2103-2104,2114-2119,2122-2131,2136-2138,2142,2148,2151-2161,2176,2181-2185,2195-2196,2201,2207,2209,2217-2223,2226,2228-2230,2236-2241,2244,2377-2381
+  s_f2f1dbce2d5d5d::t_8494528d178a4d 1358-1361,1366,2242-2243,2245
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_ed84b1f95062f3 598
+  s_f2f1dbce2d5d5d::t_a64166dc2509bd 401-403,432-435,453,455,535-537,558-560,573-575,591,606,645,651
+packages/engine/package.json
+  s_f2f1dbce2d5d5d::t_0a787929ee9412 17
+packages/engine/test/e2e/svg-paint-fidelity.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_0ff4dc560c2621 20-21,30-31,44,53
+packages/core/src/tab_expansion_test.rs
+  s_f2f1dbce2d5d5d::t_fd998b25c75171 187,196,203
+packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_8494528d178a4d 61
+packages/page-script/src/wasm-glue.ts
+  s_f2f1dbce2d5d5d::t_79a653dbe984e6 159-161,163
+packages/engine/test/e2e/ua-font-aliases.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_b523846f7b62e1 27,91,100,124-125
+  s_f2f1dbce2d5d5d::t_4f15e5aa5aabe0 18,30-32,70,72,75,80-82,117,134-135
+  s_f2f1dbce2d5d5d::t_184c321b80f42e 128-129,140-145
+  s_f2f1dbce2d5d5d::t_97ca757f444157 1-4,7-17,19-26,28-29,33-69,71,73-74,76-79,83-84,89-90,92-99,101-116,119-121,123,126,130-133,136-139,146-156
+  s_f2f1dbce2d5d5d::t_4a44321215f256 5-6,85-88,118,122,127
+packages/page-script/src/font-loader.ts
+  s_f2f1dbce2d5d5d::t_6e7c81f475c6fa 17,35,41-46,49
+  s_f2f1dbce2d5d5d::t_2f491bc56d8850 36-40,47-48,55-58,65,557-558,564,570
+  s_f2f1dbce2d5d5d::t_e49b90b89dd307 53-54,59-64,66-68,559-561,571,573
+  s_f2f1dbce2d5d5d::t_2c73e849ad4f1b 611,619,643,654,656-658,724-725
+  s_f2f1dbce2d5d5d::t_373e667cbcc629 97
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_f03b00df993dbf 201-204
+docs/FONTS.md
+  s_f2f1dbce2d5d5d::t_30114fd73ac704 24-26,61,97,99-100
+  s_f2f1dbce2d5d5d::t_8494528d178a4d 289-293
+  s_f2f1dbce2d5d5d::t_ba58b86f5f5b3f 8-14,20,267-288,296-303,311-313
+  s_f2f1dbce2d5d5d::t_94233be1e4f0a0 21-23,294-295
+packages/engine/test/e2e/tabs-tab-stops.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_5db34e5646aaa9 27
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_4371540df2c2c2 369-370,372
+packages/engine/public/fonts/Tinos-OFL.txt
+  s_f2f1dbce2d5d5d::t_c3e9ac2cd902a4 1-93
+packages/engine/src/eval/page-script.ts
+  s_f2f1dbce2d5d5d::t_0a787929ee9412 846
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "63624f23a69a2b28660eaf5b0db9c368b0f8a148",
+  "prompts": {},
+  "sessions": {
+    "s_f2f1dbce2d5d5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaf4cb2b5ffeHlvt6Yw56JGX3h",
+        "model": "unknown"
+      },
+      "human_author": "Nuno Pereira <npereira@cloudflare.com>"
+    }
+  }
+}
