@@ -1,0 +1,127 @@
+.oxfmtrc.json
+  s_c6d6a3ac21fe46::t_700badf0afb8b8 47-48
+packages/bench-report/scripts/deploy-data.mjs
+  s_d45e9ba06bd6cb::t_760b74f55821b1 1-2,19-20
+  s_d45e9ba06bd6cb::t_3e3f088dd1d081 10-12,22-24
+scripts/wpt-bazel-retry.test.mjs
+  s_c6d6a3ac21fe46::t_35aea5f502fd04 19-23
+scripts/bazelflare-frontdoor.mjs
+  s_1766deb6deca2f::t_045512d0693bda 1-3
+  s_1766deb6deca2f::t_a6c65bb2dfc451 21-24,28-47,51-54,58-97,102-103,106-108,112-116,119-120,123-125
+bazel/bazelflare/package.json
+  s_d45e9ba06bd6cb::t_3e3f088dd1d081 2-10
+bazel/images/registry/worker.js
+  s_d45e9ba06bd6cb::t_760b74f55821b1 8-12
+scripts/vitest-bazel.mjs
+  s_c6d6a3ac21fe46::t_35aea5f502fd04 15-19
+bazel/bazelflare/wrangler.jsonc
+  s_d45e9ba06bd6cb::t_3e3f088dd1d081 2-63
+scripts/node-test-bazel.mjs
+  s_1766deb6deca2f::t_a6c65bb2dfc451 7-10,12-18
+  s_1766deb6deca2f::t_045512d0693bda 1-2
+scripts/wpt-buckets.mjs
+  s_1766deb6deca2f::t_a6c65bb2dfc451 42-44,59-65,83-88,120-121,127-129
+  s_1766deb6deca2f::t_045512d0693bda 1
+  s_1766deb6deca2f::t_8ba350f0a5ba5b 2
+  s_1766deb6deca2f::t_0c9423a38c39a7 70-76
+scripts/lockfile-check-bazel.mjs
+  s_1766deb6deca2f::t_045512d0693bda 1-2
+scripts/wpt-runplan.mjs
+  s_1766deb6deca2f::t_045512d0693bda 1-2,13-14
+  s_1766deb6deca2f::t_a6c65bb2dfc451 54-58
+  s_1766deb6deca2f::t_0c9423a38c39a7 17-23
+packages/wpt-report/scripts/build.mjs
+  s_d45e9ba06bd6cb::t_760b74f55821b1 43-44
+scripts/pw-shared.mjs
+  s_1766deb6deca2f::t_a6c65bb2dfc451 83-85,91-93
+  s_1766deb6deca2f::t_0c9423a38c39a7 6-13,16,23,28,35-36,48-49,68-69,79,88
+  s_1766deb6deca2f::t_045512d0693bda 46-47
+scripts/e2e-shards.test.mjs
+  s_c6d6a3ac21fe46::t_35aea5f502fd04 11-14,18-21,27-37,41-47
+scripts/wpt-compare.mjs
+  s_1766deb6deca2f::t_045512d0693bda 410
+  s_1766deb6deca2f::t_8ba350f0a5ba5b 409
+scripts/deploy-dir.mjs
+  s_1766deb6deca2f::t_045512d0693bda 120-121,148-149
+  s_1766deb6deca2f::t_a6c65bb2dfc451 5-15,50-53,92-95,106-118,125-128,132-135,140-143,156-160,164-165,168-171,186-188
+scripts/pw-shard.mjs
+  s_1766deb6deca2f::t_a6c65bb2dfc451 5-16,42-43,50-51,58-60,63-66,78-80,105-116,119-124,129-138
+  s_1766deb6deca2f::t_045512d0693bda 49,85-86
+packages/engine-cf/scripts/wrangler-json.ts
+  s_d45e9ba06bd6cb::t_760b74f55821b1 1-4
+  s_d45e9ba06bd6cb::t_3e3f088dd1d081 26-27,30-35,41-44,47-51,58-62,67-68
+scripts/wpt-gate.test.mjs
+  s_c6d6a3ac21fe46::t_35aea5f502fd04 9-15,21-24,31-34,40-44,49-52,55-61,85-89,94-98,105-112,114-117
+scripts/wpt-bucket.mjs
+  s_1766deb6deca2f::t_a6c65bb2dfc451 5-16,51-52,64-70,79-80,84-87,100-106,167-176,204-210,212,221-226,237-242,244-246,258-265,269-272,275-280,283-288,302-304,314,325-328,362-364,374-379,381-385
+  s_1766deb6deca2f::t_045512d0693bda 1-2,37-38,78,123-124,201-202,273-274,338-341
+packages/engine-cf/wrangler.config.ts
+  s_d45e9ba06bd6cb::t_760b74f55821b1 6-9
+scripts/pw-shared.test.mjs
+  s_c6d6a3ac21fe46::t_35aea5f502fd04 22-24,28-31,46-49
+packages/engine-cf/cloudflare.config.ts
+  s_d45e9ba06bd6cb::t_760b74f55821b1 1-2,95-98,119-121,202-205,329-332,346-349
+  s_d45e9ba06bd6cb::t_3e3f088dd1d081 8-16,26-27,30-31,60-61,64-67,69-70,333-340,396-401,404-421
+scripts/bazelflare-images.mjs
+  s_1766deb6deca2f::t_045512d0693bda 84-85,159-160,192-193
+  s_1766deb6deca2f::t_a6c65bb2dfc451 26-35,39-42,46-49,51,55-65,68-71,74-81,87-116,120-130,134-137,141-156,162-174,185-186,191,196-197
+packages/shadow-replay/vitest.config.mts
+  s_d45e9ba06bd6cb::t_760b74f55821b1 1-4
+scripts/cargo-lock-check-bazel.mjs
+  s_1766deb6deca2f::t_045512d0693bda 1-2
+  s_1766deb6deca2f::t_a6c65bb2dfc451 17-18,24-27,42-50,52-54
+scripts/wpt-draws.mjs
+  s_1766deb6deca2f::t_8ba350f0a5ba5b 10-16,23,34
+  s_1766deb6deca2f::t_045512d0693bda 1-2,7-8
+scripts/e2e-fixtures.mjs
+  s_1766deb6deca2f::t_045512d0693bda 1-2
+  s_1766deb6deca2f::t_a6c65bb2dfc451 20-23,26-39
+scripts/e2e-shard.mjs
+  s_1766deb6deca2f::t_a6c65bb2dfc451 31-32,39-40,48-54,63-71,78-84,89-95,98-107
+  s_1766deb6deca2f::t_045512d0693bda 38
+packages/wpt-report/scripts/deploy-data.mjs
+  s_d45e9ba06bd6cb::t_760b74f55821b1 1-2,16-17
+  s_d45e9ba06bd6cb::t_3e3f088dd1d081 28-29
+scripts/wpt-stamp.test.mjs
+  s_c6d6a3ac21fe46::t_35aea5f502fd04 7-40
+scripts/tracked-files.mjs
+  s_1766deb6deca2f::t_a6c65bb2dfc451 7-12,25-27,31-36
+  s_1766deb6deca2f::t_045512d0693bda 1-2
+  s_1766deb6deca2f::t_0c9423a38c39a7 17
+scripts/wpt-engine.mjs
+  s_1766deb6deca2f::t_a6c65bb2dfc451 36-43,68-71,86-88,97-98,106-108,126-127
+  s_1766deb6deca2f::t_0c9423a38c39a7 22-25,65
+  s_1766deb6deca2f::t_045512d0693bda 15-16,89-90,146-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "426ff0e55d997ad7c3fd16ed66caa3598df11eb0",
+  "prompts": {},
+  "sessions": {
+    "s_1766deb6deca2f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb46e6e95ffeuhoNudlBzduupp",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_d45e9ba06bd6cb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb4621b57ffesMpfZYDu1N645c",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

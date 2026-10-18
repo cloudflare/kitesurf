@@ -1,0 +1,743 @@
+packages/website/src/components/Document.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,35
+packages/engine-cf/test/e2e/external-outbound.e2e.test.ts
+  s_14b2d98170d3d4::t_154ad33d1b3e20 31
+  s_14b2d98170d3d4::t_0f31330360b9bf 16,18-30,32-45,48-49,54-55,60-61,65,67-68,70,72,78-80,90-92,108,116,122
+  s_b636996675e2c7::t_da344e3a4387a9 6,14-15
+  s_14b2d98170d3d4::t_b8bfbf4c1856e5 17
+packages/engine-cf/test/lint-agent-language.mjs
+  s_14b2d98170d3d4::t_13abe29447cd83 1
+packages/agent-bench/src/cdp.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 231-232
+packages/jev-playground/src/browser/prompt.ts
+  s_a2d0cb2e67600f::t_4c3f792c829983 1-2
+bench/README.md
+  s_b47052d9eae9bb::t_59d41a3da3b2de 3-4
+packages/agent-mcp/src/cdp.mjs
+  s_a2d0cb2e67600f::t_ff5f5b758e8795 31,82-85,110,117,133,138
+docs/TOOLING.md
+  s_b47052d9eae9bb::t_cdf44f5fcb3196 40,63-72
+  s_b47052d9eae9bb::t_e6645c5c4c1f1a 48-51
+  s_b47052d9eae9bb::t_aa68a710ae294e 59-62
+  s_b47052d9eae9bb::t_59d41a3da3b2de 1-39,41-47,52-58,73-78
+tests/interactivity-flows/explore.ts
+  s_b47052d9eae9bb::t_aa68a710ae294e 74
+  s_b47052d9eae9bb::t_06a851a8443441 5,75-79,141-143
+packages/website/src/components/Icon.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1-2,29,41
+packages/website/src/pages/landing/Terminal.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,27
+.oxlintrc.json
+  s_3043350ce747c7::t_ba9a6125d0e9c7 1-19,22-53
+  s_3043350ce747c7::t_3843c800653637 20-21
+packages/comparison-core/src/lib.rs
+  s_2beea15461286f::t_23a2d1b386b378 71
+  s_2beea15461286f::t_6f299b82b99c01 154
+packages/engine-cf/src/agent/receipts.ts
+  s_06e70006376ca7::t_33e5746c92181a 28-33,85
+packages/website/src/pages/bench/data.ts
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 50-51,118
+docs/ENGINE_TEST_CONTRACTS.md
+  s_14b2d98170d3d4::t_ddc906906769bb 1-26,50-67
+  s_14b2d98170d3d4::t_1c6e61adfac733 27-49
+packages/shadow-replay/test/workerd/channel-token.test.ts
+  s_7ffa3edaa61e8e::t_a95456e87ec128 4-5,20-30,33-35,38-41,44,48-51
+  s_7ffa3edaa61e8e::t_b3e99ea3a44021 14-19
+packages/engine-cf/test/e2e/agent-do.e2e.test.ts
+  s_14b2d98170d3d4::t_e8cd58593bdd74 475,541,569,592,618,644,675,692,718,740
+  s_14b2d98170d3d4::t_a2488e8e3908c2 1350,1377,1410,1439,1457,1493,1536,1552,1568,1603
+  s_14b2d98170d3d4::t_a88ce0577678b7 1621,1654,1676,1702,1742,1793,1827,1865,1939,1970
+  s_14b2d98170d3d4::t_b68367d57e7944 1053,1073,1102,1130,1153,1190,1231,1254,1295,1321
+  s_14b2d98170d3d4::t_13abe29447cd83 1-4,165,504,514-515
+  s_14b2d98170d3d4::t_b62935fca85b7b 29-30,54
+  s_14b2d98170d3d4::t_c14ce95b03f2e9 1845-1846
+  s_14b2d98170d3d4::t_7d52c4be18bf1f 81,121,162,195,244,276,326,368,404,449
+  s_14b2d98170d3d4::t_b8f627a66866bf 2309
+  s_14b2d98170d3d4::t_1ebc4b5a214f90 772,805,828,880,900,918,948,981,1016,1035
+  s_14b2d98170d3d4::t_1fa1ce6d7d5e0d 2029,2097,2135,2164,2179,2197,2220,2242,2263,2290
+packages/wpt-report/src/wpt-routes.ts
+  s_7ffa3edaa61e8e::t_71b8986edcf1b0 1-2
+packages/engine-cf/scripts/devtools-session.mjs
+  s_06e70006376ca7::t_9636ed5b9460e9 1-3,105,111-114,153
+packages/agent-bench/src/overlay.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 1-4,8
+packages/jev-playground/src/client/versus.tsx
+  s_a2d0cb2e67600f::t_85efcd8870007c 3,118
+packages/agent-mcp/src/server.mjs
+  s_a2d0cb2e67600f::t_ff5f5b758e8795 9-11,25,33,39,99
+packages/wpt-report/scripts/not-enrolled.mjs
+  s_7ffa3edaa61e8e::t_71b8986edcf1b0 14,23,26
+packages/jev-playground/src/client/use-sidecar-browser.ts
+  s_a2d0cb2e67600f::t_85efcd8870007c 5,10-13
+packages/engine-cf/src/agent/loop.ts
+  s_50801acb047ac0::t_66fa219c13c9eb 1250-1251,1253,1589,1667-1691,1730,1734-1735,1738,1748-1749
+  s_50801acb047ac0::t_282004a9f99fa1 1537-1540,1542,1546,1548,1550-1553
+  s_50801acb047ac0::t_4c4addc21ff064 1264,1269,1276-1277,1279-1282
+  s_50801acb047ac0::t_302223ec03e355 1529-1536
+  s_50801acb047ac0::t_b7ab98999e9596 1954,2016,2028-2029,2034,2055-2056
+  s_50801acb047ac0::t_d7286840ee1c9a 634-681,683-768,772,781-793,796-805
+  s_50801acb047ac0::t_f62bfb6c22eb8c 806-808,882-889,892-895,901,903-904,1002,1011-1012
+  s_50801acb047ac0::t_0b2f84fa462272 1953,1955-1997
+  s_50801acb047ac0::t_9af7470e8c3f8d 1568-1569
+  s_50801acb047ac0::t_55cc8fa3f0ae49 1010
+  s_50801acb047ac0::t_4aa8bc9c6127a6 429,468,486
+  s_50801acb047ac0::t_e08b995c1f82f5 1165,1259,1453-1466,1468,1593-1595
+  s_50801acb047ac0::t_4add2047e5dc21 2042
+  s_06e70006376ca7::t_aa7246bf61531e 324
+  s_50801acb047ac0::t_298f2c4d90cb6f 1368,1377,1380-1390,1525
+  s_50801acb047ac0::t_0c286492583eb7 950,1008,1898-1952,1998-2015,2017-2027,2030-2033,2035-2041,2043-2054,2057-2058
+  s_50801acb047ac0::t_aa66ac88a420a2 1254-1255,1257,1561,1590-1591,1596,1732-1733,1751-1752,1754-1770,1772-1774,1776,1779-1783,1785,1788
+  s_50801acb047ac0::t_c1487c0c6523fb 370-421,426-428,430-446,450-467,469-485,487-493,496-549,552-566,569-633
+  s_50801acb047ac0::t_ffe73c52a67ea4 550-551,682,842
+  s_06e70006376ca7::t_77957642e5b973 1896-1897,2059-2075,2113-2156
+  s_06e70006376ca7::t_5cf9a797829f26 44,325-330,332-353
+  s_50801acb047ac0::t_77d0b05ab9d346 896-900,902,928-931,952,959,968-997,1001,1003
+  s_06e70006376ca7::t_2eadb832d6639e 1623,1626-1643,1645-1647,1650-1654,1657,1659
+  s_50801acb047ac0::t_a11ebfae9511b4 953,958,1014,2076-2108,2110-2112,2157-2166
+  s_50801acb047ac0::t_c3b2ff119f0731 809-821,823-824,827-836,841,843,880-881
+  s_50801acb047ac0::t_f0b58816243746 1256,1263,1563-1567,1570,1572,1597,1739
+  s_50801acb047ac0::t_bb292290e4fa15 1598,1600
+  s_50801acb047ac0::t_7e9d2c66bbf5aa 1369-1376,1592
+  s_06e70006376ca7::t_bf83286cf808c3 331
+  s_50801acb047ac0::t_e532e97d98472f 822,825-826,844-879
+  s_50801acb047ac0::t_63efe6c2f381c7 890
+  s_06e70006376ca7::t_770925ea4b1414 1017,1621-1622
+  s_06e70006376ca7::t_ee6291dc994dac 2699-2700
+  s_50801acb047ac0::t_0c89e4a0abc26c 891,908-927,932-949,966
+  s_50801acb047ac0::t_87a67fa054e0cf 422-425,447-449,494-495,567-568,769-771,773-780,794-795,837-840,905-907,960,962,998-1000,1007,2109
+  s_50801acb047ac0::t_33e4927d0a9447 951
+  s_50801acb047ac0::t_550f123d9d1458 954-957
+  s_50801acb047ac0::t_9a0db010ef893e 961
+  s_50801acb047ac0::t_1a8e1da03f9dfb 963-965
+  s_50801acb047ac0::t_0501d5a8e55309 967
+  s_50801acb047ac0::t_ef04292e448f0a 1004-1006
+  s_50801acb047ac0::t_258c06b99d65f5 1009
+  s_50801acb047ac0::t_91c46f34361e64 1013
+  s_50801acb047ac0::t_5fb7c1d7717abd 1249
+  s_50801acb047ac0::t_1192a89efd443e 1252
+  s_50801acb047ac0::t_a8fa9e539956f2 1258
+  s_50801acb047ac0::t_c6384d64a95998 1260-1262
+  s_50801acb047ac0::t_a1f57f5fa7a189 1522-1524
+  s_50801acb047ac0::t_6756330200802d 1526-1528
+  s_50801acb047ac0::t_2482072c56771a 1558-1560
+  s_50801acb047ac0::t_b3ab9093fcf01b 1562
+  s_50801acb047ac0::t_fe95afbf9c8cad 1588
+  s_50801acb047ac0::t_d45c5841e15cc3 1664-1666
+  s_50801acb047ac0::t_7744b39af654f3 1729
+  s_50801acb047ac0::t_e2325ceee33c8d 1731
+  s_50801acb047ac0::t_7a6a2c8115247c 1736-1737
+  s_50801acb047ac0::t_f31ad8911a9878 1740-1741
+  s_50801acb047ac0::t_17ebd59eb1e8bd 1747
+  s_50801acb047ac0::t_c0180090210f6d 1750
+  s_50801acb047ac0::t_d929e26a7019a5 1789-1790
+  s_50801acb047ac0::t_657fc40f96dafa 2167
+packages/engine-cf/src/agent/act.ts
+  s_06e70006376ca7::t_5ffed44addd006 12
+packages/shadow-replay/test/workerd/stub-holder-worker.mjs
+  s_7ffa3edaa61e8e::t_dbc6020c2b313c 12
+  s_7ffa3edaa61e8e::t_d0b81620eed6f3 6
+packages/agent-bench/src/run-task.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 51-52
+packages/agent-mcp/src/tools.mjs
+  s_a2d0cb2e67600f::t_ff5f5b758e8795 74,82,87,104,240,267,328,340,356,414
+packages/agent-bench/src/benches/webcanvas.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 1-3
+packages/grafana/test/dashboard.test.ts
+  s_7ffa3edaa61e8e::t_ad9d93db24b3c9 66,74-75,158-159,164,168-169,172
+  s_7ffa3edaa61e8e::t_43c597a23b3216 50-65,67-73,76-116,120-157,160-163,165-167,173,176-177,182-184
+  s_7ffa3edaa61e8e::t_5ac952761bd1c0 117-119,170-171,174-175
+packages/engine-cf/src/agent/generate.ts
+  s_06e70006376ca7::t_81455a91856ce7 68,70,181-182
+docs/CLIENT_SESSIONS.md
+  s_06e70006376ca7::t_2404bc3c6dc805 40
+  s_06e70006376ca7::t_b8b7bc92e2cea9 39
+packages/engine-cf/src/cdp-types.ts
+  s_b636996675e2c7::t_6d88209f2f9861 6-12,14,18-22
+  s_b636996675e2c7::t_da344e3a4387a9 1-5,13,15-17
+packages/shadow-replay/src/do.ts
+  s_c6d6a3ac21fe46::t_439cd613030a47 661,875
+  s_7ffa3edaa61e8e::t_6fc36ce645238d 247,637,641-647,764-789
+  s_c6d6a3ac21fe46::t_48f2a47c0d3fdd 246,248-251,253
+  s_c6d6a3ac21fe46::t_6c146fdd6dfb89 245
+  s_7ffa3edaa61e8e::t_e1ce9766121fd1 648
+  s_7ffa3edaa61e8e::t_e2a7b257df515f 790-791
+packages/website/src/pages/wpt/Overview.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,20
+packages/boa-bench/src/lib.rs
+  s_2beea15461286f::t_33cce66f9a07f7 47-48
+packages/jev-playground/src/tests/jev.test.ts
+  s_a2d0cb2e67600f::t_e417e0e1780096 113,118-120,127
+  s_5654d840522568::t_575d038c850441 114-117
+  s_c6d6a3ac21fe46::t_a15e7ba2d6c9c7 121-126,128
+packages/website/src/routes.tsx
+  s_7ffa3edaa61e8e::t_a0faefa20ff9b6 81-91,95-101,107-108
+  s_7ffa3edaa61e8e::t_00515cdc034598 78-80,92-94
+packages/engine-cf/src/quickactions/index.ts
+  s_06e70006376ca7::t_5cf8a0feb2a063 469-476
+  s_6a411c7352f185::t_20b247219f5aa8 977-984,996-997,1006,1038,1043-1044,1046,1058-1061,1064-1114
+  s_06e70006376ca7::t_2f806bd0176ddf 1157,1159
+  s_6a411c7352f185::t_da9111c772d21e 973-976,998-1005,1007-1017,1020-1031,1037,1039-1042,1115-1121,1127,1168,1171,1173,1254-1255,1257-1264,1273-1274,1283-1286,1288-1324,1337,1349,1351-1358,1366
+  s_6a411c7352f185::t_8e62994d0d892d 1036,1379,1382,1384-1388,1390,1413-1436
+  s_6a411c7352f185::t_cdaff46f706b42 1170,1172,1174,1176,1186-1195
+  s_6a411c7352f185::t_c706604a8d5631 1018-1019,1032-1035,1265-1272,1275-1282
+  s_06e70006376ca7::t_5036aa1759b55b 1381,1383,1389,1391-1411,1437-1453,1455-1456,1461-1471,1474-1482,1484,1486-1494,1496
+tests/interactivity-flows/har-replay-relay.mjs
+  s_b47052d9eae9bb::t_f123edf6a5665a 46-60,80
+docs/REPORT_DATA.md
+  s_7ffa3edaa61e8e::t_e3664610ec2019 44
+  s_7ffa3edaa61e8e::t_688378bfef39b8 46-47
+  s_7ffa3edaa61e8e::t_cf3ca66e89a933 45
+  s_7ffa3edaa61e8e::t_935c79e6fe1891 43,91-92
+packages/agent-mcp/src/content.mjs
+  s_a2d0cb2e67600f::t_ff5f5b758e8795 1-4,9,14
+packages/engine-cf/test/agent-run.test.ts
+  s_14b2d98170d3d4::t_9241561b1b8b75 17-24,28-30,33-36
+  s_75b806519f87e1::t_847fb9da334178 25-27,31
+packages/bench-report/scripts/public-data.mjs
+  s_7ffa3edaa61e8e::t_dbc6020c2b313c 34,55
+clippy.toml
+  s_3043350ce747c7::t_ba9a6125d0e9c7 1
+packages/engine-cf/test/unit/account-rate-limit.test.ts
+  s_14b2d98170d3d4::t_f2996df3c22dca 9-14
+.opencode/skills/kitesurf-deslop/SKILL.md
+  s_4c3e8c042d4228::t_6fd5efba36b61c 63-65,68-70,264-269
+  s_4c3e8c042d4228::t_33b01ad86393c9 283-285
+  s_4c3e8c042d4228::t_bef6e67ffcd938 66-67,91-94,217-221,276-282
+packages/engine-cf/src/agent/wire.ts
+  s_06e70006376ca7::t_81455a91856ce7 1-2
+packages/engine-cf/test/e2e/ra-capture-worker.mjs
+  s_14b2d98170d3d4::t_080439037faf82 6,11
+packages/engine-cf/src/agent/readiness.ts
+  s_06e70006376ca7::t_0f7a9b743036a7 47-48
+packages/engine-cf/scripts/lint-agent-language.mjs
+  s_06e70006376ca7::t_9636ed5b9460e9 1-2
+tests/interactivity-flows/README.md
+  s_b47052d9eae9bb::t_cdf44f5fcb3196 204-206
+  s_b47052d9eae9bb::t_59d41a3da3b2de 9-11
+packages/engine-cf/test/agent-opened.test.ts
+  s_14b2d98170d3d4::t_13abe29447cd83 1-2
+packages/engine-cf/src/unsafe-bindings.ts
+  s_06e70006376ca7::t_a7eeeab5f14592 5
+  s_06e70006376ca7::t_2404bc3c6dc805 1-4,6-9
+packages/engine-cf/src/client-session.ts
+  s_06e70006376ca7::t_536f7191919297 10,153,172-176
+packages/bench-report/worker-env.ts
+  s_7ffa3edaa61e8e::t_b843ed1cb920a0 4
+packages/website/src/pages/wpt/WptPage.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,14
+scripts/gold-screenshot-check.mjs
+  s_b47052d9eae9bb::t_37c6dd0e63881d 1-2
+packages/engine-cf/src/agent/cdp.ts
+  s_06e70006376ca7::t_81455a91856ce7 20,134-135
+tests/interactivity-flows/flows.ts
+  s_b47052d9eae9bb::t_aa68a710ae294e 1837
+  s_b47052d9eae9bb::t_7981745c26cc5e 357-409,424,429,444-446,448,454-458,1838,1841
+packages/wpt-report/src/skipped.ts
+  s_7ffa3edaa61e8e::t_71b8986edcf1b0 1-2
+packages/bench-report/scripts/chrome-acquisition.test.mjs
+  s_7ffa3edaa61e8e::t_6fff0f3f096ec0 45,74-146,148
+  s_7ffa3edaa61e8e::t_76855591febf04 52,73
+packages/website/src/pages/landing/Hero.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,39
+packages/agent-bench/src/container-image.ts
+  s_a2d0cb2e67600f::t_984d1f77808cf0 1-4,412-414
+packages/engine-cf/test/agent-ai-runner.test.ts
+  s_14b2d98170d3d4::t_b06ddb5b087b35 4,17-22,24,27-36,44,61
+  s_14b2d98170d3d4::t_659ac9bcf7439c 62
+scripts/wait-for-main-wasm.mjs
+  s_b47052d9eae9bb::t_65e0baedb558ad 17-19,72-86,118
+scripts/capture-fixture.mjs
+  s_b47052d9eae9bb::t_37c6dd0e63881d 1-3
+packages/agent-bench/container/service.ts
+  s_a2d0cb2e67600f::t_8deff24ea8aa9b 5,10
+  s_a2d0cb2e67600f::t_489c221e10dce3 1-4
+packages/agent-bench/bin/agentbench.ts
+  s_a2d0cb2e67600f::t_984d1f77808cf0 11,14,436-438,639-642
+packages/bench-report/src/bench-runner.ts
+  s_7ffa3edaa61e8e::t_76855591febf04 51,157,165-166
+  s_7ffa3edaa61e8e::t_b843ed1cb920a0 6,40-50,276-285
+packages/engine-cf/src/quickactions/envelope.ts
+  s_06e70006376ca7::t_699f5d4d085a84 237-261,269-270
+  s_06e70006376ca7::t_1a8ca9438a5e28 271-272
+packages/agent-bench/src/drivers/engine-evidence.ts
+  s_a2d0cb2e67600f::t_984d1f77808cf0 8-9
+packages/shadow-replay/test/workerd/stub-relay-worker.mjs
+  s_7ffa3edaa61e8e::t_d0b81620eed6f3 27
+  s_7ffa3edaa61e8e::t_dbc6020c2b313c 6,13,33,38
+scripts/wpt-report-refresh.mjs
+  s_b47052d9eae9bb::t_65e0baedb558ad 1-3,10
+packages/jev-playground/src/tests/system-two.test.ts
+  s_a2d0cb2e67600f::t_318dac6e6518b9 4,11,26,38
+  s_a2d0cb2e67600f::t_41fd585cd2ded7 46-48
+  s_a2d0cb2e67600f::t_798dbd869d58da 49-51
+packages/boa-bench/scripts/fetch-corpus.mjs
+  s_b47052d9eae9bb::t_1ba458a6a3b689 59
+packages/shadow-replay/test/workerd/loader-outbound.test.ts
+  s_7ffa3edaa61e8e::t_b3e99ea3a44021 4-21,23-29
+packages/agent-bench/src/drivers/pi-cdt.ts
+  s_a2d0cb2e67600f::t_984d1f77808cf0 1-4
+packages/jev-playground/src/server.ts
+  s_a2d0cb2e67600f::t_41fd585cd2ded7 121
+  s_a2d0cb2e67600f::t_318dac6e6518b9 32-44,67,71,81-83,105,113,122-123,137,144,172,176-178,274-275
+.opencode/skills/kitesurf-contract-cleanup/SKILL.md
+  s_4c3e8c042d4228::t_6fd5efba36b61c 95-98
+  s_4c3e8c042d4228::t_e77f8ab306e5e5 17-19,88-94
+packages/website/src/pages/wpt/TestPage.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,54
+packages/website/src/components/SiteHeader.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,8
+packages/website/src/pages/landing/Landing.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,28
+packages/bench-report/src/archive-id.mjs
+  s_7ffa3edaa61e8e::t_dbc6020c2b313c 3,10,26
+packages/engine-cf/src/agent/observe.ts
+  s_06e70006376ca7::t_eb9fd18b3f26f3 358-365,567
+  s_37d941ebbac928::t_95299db059b8eb 416-425,434-443
+  s_06e70006376ca7::t_a101bf1920dbb7 368-379,559-560,562-566,627-632,634-641,643
+  s_37d941ebbac928::t_16ed359b613c59 79-92,395-415,426-433,444-463,506-530,542,582,594,598-599
+  s_37d941ebbac928::t_17d6c2b8ff1095 600
+  s_37d941ebbac928::t_504c01e7125204 366,464-505,609-612,615-616,620-625
+packages/boa-bench/scripts/mem.mjs
+  s_b47052d9eae9bb::t_d5e1ec779be25c 2-3
+  s_b47052d9eae9bb::t_1ba458a6a3b689 1
+packages/agent-bench/worker/src/llm-relay.ts
+  s_a2d0cb2e67600f::t_ccb18badcd376f 8-10
+  s_a2d0cb2e67600f::t_984d1f77808cf0 6
+tests/interactivity-flows/run.ts
+  s_b47052d9eae9bb::t_9da676f8bf41a7 358-378,631
+  s_b47052d9eae9bb::t_3d69dfc675d808 638,640
+packages/engine-cf/src/agent/operations.ts
+  s_06e70006376ca7::t_29d72756464b06 27-37,71
+  s_06e70006376ca7::t_1826ec1a78b8db 72-80
+packages/website/src/components/Mark.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1-3
+packages/engine-cf/test/agent-params.test.ts
+  s_14b2d98170d3d4::t_13abe29447cd83 54-55,73-74,80-81
+packages/engine-cf/test/unit/crawl.test.ts
+  s_75b806519f87e1::t_847fb9da334178 13-15,19
+  s_14b2d98170d3d4::t_ddd3670eb3e758 22
+packages/jev-playground/src/client/use-agent-session.ts
+  s_a2d0cb2e67600f::t_85efcd8870007c 10,28-37,117,130,135-137
+scripts/compare-deploys.mjs
+  s_b47052d9eae9bb::t_37c6dd0e63881d 49,105,108
+packages/engine-cf/test/unit/sentry-tail.test.ts
+  s_75b806519f87e1::t_847fb9da334178 20-22
+  s_14b2d98170d3d4::t_0df88ef0833cec 6-8,11-14,17
+packages/website/package.json
+  s_3043350ce747c7::t_ba9a6125d0e9c7 17-18
+packages/boa-bench/scripts/build.mjs
+  s_b47052d9eae9bb::t_1ba458a6a3b689 1-2
+  s_b47052d9eae9bb::t_d5e1ec779be25c 3-4
+packages/agent-bench/src/llm.ts
+  s_a2d0cb2e67600f::t_489c221e10dce3 1-4
+  s_a2d0cb2e67600f::t_4c69316d95fda0 76-84
+packages/website/src/components/SiteFooter.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,23
+bench/harness/run.mjs
+  s_b47052d9eae9bb::t_70a8008942f571 2-3,19-20,172-173,535-544,570
+packages/agent-bench/src/receipts.ts
+  s_a2d0cb2e67600f::t_4c69316d95fda0 98-139
+packages/agent-bench/src/run-overlay.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 1-3
+packages/jev-playground/src/client/cost-badge.tsx
+  s_a2d0cb2e67600f::t_85efcd8870007c 3,8-14
+scripts/wpt-compare.mjs
+  s_b47052d9eae9bb::t_65e0baedb558ad 1-3,53,320-353,396,411
+packages/agent-bench/src/engines.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 223-224
+packages/jev-playground/src/client/chat.tsx
+  s_a2d0cb2e67600f::t_85efcd8870007c 308,378,438,473,541
+  s_a2d0cb2e67600f::t_41fd585cd2ded7 14
+packages/jev-playground/sidecar/model-proxy.ts
+  s_a2d0cb2e67600f::t_4c3f792c829983 51
+packages/engine-cf/test/unit/quickaction.test.ts
+  s_14b2d98170d3d4::t_55a624547afc49 1037-1038
+  s_75b806519f87e1::t_847fb9da334178 1006-1008,1013,1029-1031,1036,1101-1103,1108,1295-1297
+  s_14b2d98170d3d4::t_1947211623dbaa 22
+  s_14b2d98170d3d4::t_b16720aeee4f12 1065,1074
+packages/website/src/pages/bench/Explorer.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 2,34
+scripts/autoresearch-median.mjs
+  s_b47052d9eae9bb::t_37c6dd0e63881d 1-3
+packages/website/src/pages/wpt/Trend.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,158
+packages/website/src/pages/landing/Agents.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 169
+packages/shadow-replay/test/workerd/loader-platform-worker.mjs
+  s_7ffa3edaa61e8e::t_dbc6020c2b313c 12,19,45,52,58,68,74,84
+packages/engine-cf/test/e2e/ready-analytics.e2e.test.ts
+  s_14b2d98170d3d4::t_9b2b20a30aac8c 60,62-66,69-71,81,84,86,90-92,94-95,98,100-102
+  s_b636996675e2c7::t_da344e3a4387a9 5,58-59
+  s_14b2d98170d3d4::t_a6b87da4bc4541 61
+docs/AGENT_RECEIPTS.md
+  s_14b2d98170d3d4::t_ddc906906769bb 6-8
+packages/agent-bench/worker/worker-env.ts
+  s_a2d0cb2e67600f::t_984d1f77808cf0 3
+packages/engine-cf/src/agent/system-one-answers.ts
+  s_06e70006376ca7::t_1697338d4819e5 98-100
+packages/agent-bench/src/benches/webarena-family.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 1-3
+packages/jev-playground/src/client/frames.ts
+  s_a2d0cb2e67600f::t_85efcd8870007c 8-13,16
+scripts/trace-pull.mjs
+  s_b47052d9eae9bb::t_65e0baedb558ad 1,3
+packages/agent-bench/src/runners/container.ts
+  s_a2d0cb2e67600f::t_4c69316d95fda0 1-4
+  s_126f37ee8316ae::t_25d737b8156979 16,46,53-59
+  s_126f37ee8316ae::t_c942907c667977 60
+packages/agent-bench/worker/src/relay-wire.ts
+  s_a2d0cb2e67600f::t_984d1f77808cf0 1-2
+packages/website/src/pages/wpt/NotFound.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,4
+packages/engine-cf/test/e2e/accessibility-tree-quickaction.e2e.test.ts
+  s_14b2d98170d3d4::t_4bde6c9c507c43 96-99,101,104
+packages/agent-bench/src/eval.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 1-3,9
+packages/engine-cf/test/unit/playground-rate-limit.test.ts
+  s_14b2d98170d3d4::t_f2996df3c22dca 8-19,24,35,45-46,48
+packages/engine-cf/src/agent/run.ts
+  s_06e70006376ca7::t_81455a91856ce7 43-44
+tests/interactivity-flows/types/pngjs.ts
+  s_b47052d9eae9bb::t_0395e1a5df3690 19-28
+.opencode/skills/kitesurf-scoped-verification/SKILL.md
+  s_4c3e8c042d4228::t_4fa4cf47480510 31-42
+  s_4c3e8c042d4228::t_4e6fec01fa637b 133-134
+packages/agent-bench/src/benches/real.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 32,158-159
+  s_a2d0cb2e67600f::t_f7d0033816d111 160
+packages/agent-bench/worker/src/index.ts
+  s_a2d0cb2e67600f::t_984d1f77808cf0 10,119-121
+rustfmt.toml
+  s_3043350ce747c7::t_ba9a6125d0e9c7 1-3
+packages/shadow-replay/test/workerd/ra-capture-worker.mjs
+  s_7ffa3edaa61e8e::t_dbc6020c2b313c 6,11
+packages/agent-bench/src/do-metrics.ts
+  s_a2d0cb2e67600f::t_4c69316d95fda0 150
+  s_a2d0cb2e67600f::t_bef27fcdd70f73 151-153
+packages/bench-report/src/index.ts
+  s_7ffa3edaa61e8e::t_b843ed1cb920a0 8,40
+packages/website/src/pages/landing/About.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,5
+scripts/autoresearch-bench.mjs
+  s_b47052d9eae9bb::t_37c6dd0e63881d 1-3
+packages/website/src/components/ThemeToggle.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,11
+packages/shadow-replay/test/workerd/fake-engine-worker.mjs
+  s_7ffa3edaa61e8e::t_8f6bfc7140a739 107-108
+  s_7ffa3edaa61e8e::t_dbc6020c2b313c 70,75,103,149,156
+  s_7ffa3edaa61e8e::t_1c6836323b8c85 3-35,78
+  s_7ffa3edaa61e8e::t_73043283f9662b 105-106,109,112,120,129,140-141
+packages/agent-bench/src/act.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 165-167
+.gitlab/ci/engine.yml
+  s_fc842560a7756f::t_f4b7ae5f9f2d50 586-589
+packages/website/src/pages/wpt/Folder.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,31
+packages/engine-cf/test/fixtures-worker/src/agent-ai.ts
+  s_14b2d98170d3d4::t_13abe29447cd83 1-4,296-297,349-350,455-456
+packages/agent-bench/src/runners/local.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 1-3
+packages/engine-cf/src/agent/progress.ts
+  s_06e70006376ca7::t_533204ec36c077 88
+packages/boa-bench/scripts/insitu.mjs
+  s_b47052d9eae9bb::t_f123edf6a5665a 72-101,137
+tests/interactivity-flows/bbc-hydration-verify.mjs
+  s_b47052d9eae9bb::t_1ba458a6a3b689 11,32-34,44
+packages/engine-cf/test/unit/cdp-client.test.ts
+  s_14b2d98170d3d4::t_b42559a9a6db75 23,56
+  s_75b806519f87e1::t_847fb9da334178 43-45
+  s_14b2d98170d3d4::t_59dc6749a08766 52
+  s_14b2d98170d3d4::t_0fa91f3be04cf8 61
+.oxfmtrc.json
+  s_3043350ce747c7::t_3843c800653637 34-35
+  s_3043350ce747c7::t_ba9a6125d0e9c7 1-33,36-67
+packages/jev-playground/src/browser/tools.ts
+  s_a2d0cb2e67600f::t_d6b092b5017a30 34
+  s_5654d840522568::t_ae2ba825992b4d 85,94-95
+  s_a2d0cb2e67600f::t_aee136c75a1973 16-17,21,25
+  s_a2d0cb2e67600f::t_a1cf35efb29551 5,96,107
+  s_5654d840522568::t_575d038c850441 2,13,15,55-56,81,86,97-98,105
+  s_5654d840522568::t_c75a3818f7fb9c 49
+  s_a2d0cb2e67600f::t_41fd585cd2ded7 29-30
+  s_5654d840522568::t_f65ac601284414 46-48
+docs/SHADOW_REPLAY.md
+  s_7ffa3edaa61e8e::t_49eed50b4e55f4 42
+  s_c6d6a3ac21fe46::t_439cd613030a47 39-41
+scripts/wpt-history-append.mjs
+  s_b47052d9eae9bb::t_65e0baedb558ad 1-3
+packages/agent-bench/src/suite.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 1-3
+packages/agent-bench/src/agent.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 1-2
+packages/ra-schema/test/emit-yaml.test.ts
+  s_7ffa3edaa61e8e::t_1c2fbe9e05d826 143-144
+  s_c6d6a3ac21fe46::t_dc9867d1158968 142
+  s_7ffa3edaa61e8e::t_178957a09b6479 132,139,141
+  s_7ffa3edaa61e8e::t_b8c7e6bb48099e 140
+packages/engine-cf/test/e2e/agent-contract.e2e.test.ts
+  s_14b2d98170d3d4::t_162a573aab80fd 7,21,44,67,100,117,133,152,190,213
+packages/engine-cf/src/agent/candidates.ts
+  s_06e70006376ca7::t_0f7a9b743036a7 17
+packages/agent-mcp/bin/agent-mcp.mjs
+  s_a2d0cb2e67600f::t_ff5f5b758e8795 2-4
+packages/agent-bench/container/runner.ts
+  s_a2d0cb2e67600f::t_984d1f77808cf0 2-4
+tests/interactivity-flows/find-candidates.ts
+  s_b47052d9eae9bb::t_06a851a8443441 9-18,26,42,49,63,65,90-91,193,201,204-205,207-213,241
+  s_b47052d9eae9bb::t_8425dad5b44565 272,306
+packages/agent-bench/src/benches/mind2web.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 1-3
+packages/agent-bench/src/diagnose.ts
+  s_a2d0cb2e67600f::t_4c69316d95fda0 125-146
+packages/website/src/pages/wpt/parts.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,30,54,84,101,122,156,178,216,298,335,364
+packages/jev-playground/env.ts
+  s_5654d840522568::t_575d038c850441 21
+  s_a2d0cb2e67600f::t_318dac6e6518b9 1,17-20,22
+packages/engine-cf/test/e2e/client-egress-probe-worker.mjs
+  s_14b2d98170d3d4::t_080439037faf82 2
+.opencode/skills/kitesurf-complexity-review/SKILL.md
+  s_752e50fbd84ca1::t_e25c87ed8367b2 1-9,14-16,18-20,24-48
+  s_752e50fbd84ca1::t_80d7a02e1ac4a2 10-13,21-23
+  s_752e50fbd84ca1::t_583113b74fc6fc 17
+packages/jev-playground/src/tests/worker.ts
+  s_a2d0cb2e67600f::t_318dac6e6518b9 4
+package.json
+  s_3043350ce747c7::t_ba9a6125d0e9c7 9-12,14,66,69-70
+  s_752e50fbd84ca1::t_c5a04023dc1b08 13
+packages/engine-cf/test/e2e/agent-receipts.e2e.test.ts
+  s_14b2d98170d3d4::t_d92a5e549be44a 9-19,73,99,122,145
+  s_14b2d98170d3d4::t_9eaaa9286808e7 167
+packages/engine-cf/test/e2e/agent-system-one.e2e.test.ts
+  s_14b2d98170d3d4::t_b70fac5b6262bd 27,54,83
+packages/jev-playground/src/tests/cost.test.ts
+  s_a2d0cb2e67600f::t_4c3f792c829983 1-2
+  s_a2d0cb2e67600f::t_842148f00c0967 3-14,18-32,34,36-38,40-50,52,54-56,71-80,83-87,95-100,102,105,109-110
+packages/website/src/components/NewTab.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,12
+tests/interactivity-flows/bbc-hydration-probe.mjs
+  s_b47052d9eae9bb::t_1ba458a6a3b689 1-3,16,47-50,60
+packages/agent-bench/src/drivers/pi-mcp.ts
+  s_a2d0cb2e67600f::t_984d1f77808cf0 1-4,135-136
+packages/agent-bench/src/drivers/pi-do.ts
+  s_a2d0cb2e67600f::t_489c221e10dce3 1-4,16-19
+  s_a2d0cb2e67600f::t_4c69316d95fda0 20-21,29
+docs/LINTING.md
+  s_3043350ce747c7::t_ba9a6125d0e9c7 10-12,27-32,50,52-53
+  s_78e0c9a81f8d6a::t_464326b466497e 85-88
+  s_752e50fbd84ca1::t_f72f0a5e979730 68-77
+  s_fc842560a7756f::t_ec04b9bf9e221c 15-23
+  s_752e50fbd84ca1::t_80935e0d02fc27 113-116
+  s_78e0c9a81f8d6a::t_24a5f4be92fc81 83-84
+  s_fc842560a7756f::t_4733849f2b9ab1 6-9,79
+  s_78e0c9a81f8d6a::t_6e1bb9f139eddf 80-82
+  s_fc842560a7756f::t_f4b7ae5f9f2d50 1-5,13-14,24-26,33-49,51,54-67,78,89-112,117-131
+packages/shadow-replay/test/rasink.test.ts
+  s_7ffa3edaa61e8e::t_b8c7e6bb48099e 139,143-151
+packages/agent-bench/src/container-ops.ts
+  s_a2d0cb2e67600f::t_eb7e072cff76ae 1-3,321-323
+docs/WEBSITE.md
+  s_7ffa3edaa61e8e::t_00515cdc034598 31-33
+packages/bench-report/container/agent.mjs
+  s_7ffa3edaa61e8e::t_0309b43b0f3e54 27-28,419-424,432-438
+  s_7ffa3edaa61e8e::t_9999ea5813f8ff 29,68,70-71,79-92,249,251-254,348-355,410-418,425-427,431
+  s_7ffa3edaa61e8e::t_55f5edf36af25a 428-430
+  s_7ffa3edaa61e8e::t_3fc0ca7c49c05a 439
+packages/engine-cf/src/quickactions/crawl.ts
+  s_06e70006376ca7::t_85857522b27a4e 30-40,269-274,276,279,282,284-303
+packages/agent-bench/src/control-plane.ts
+  s_a2d0cb2e67600f::t_984d1f77808cf0 1-3
+packages/website/src/pages/bench/Benchmarks.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1
+  s_7ffa3edaa61e8e::t_76855591febf04 79-85
+scripts/flows-merge-shards.mjs
+  s_b47052d9eae9bb::t_37c6dd0e63881d 5-7
+packages/bench-report/src/chrome-cold.ts
+  s_7ffa3edaa61e8e::t_b843ed1cb920a0 2
+packages/wpt-report/scripts/build.mjs
+  s_7ffa3edaa61e8e::t_71b8986edcf1b0 149,151
+packages/website/index.ts
+  s_7ffa3edaa61e8e::t_00515cdc034598 1-7
+scripts/bench-trace-report.mjs
+  s_b47052d9eae9bb::t_65e0baedb558ad 2
+packages/shadow-replay/test/workerd/tap-ingest.test.ts
+  s_5654d840522568::t_575d038c850441 88
+  s_7ffa3edaa61e8e::t_76855591febf04 31-36,78-79,122-125
+  s_7ffa3edaa61e8e::t_dbc50d2b3436e2 10-11,15-30,37,44-45,63-65,75-77,83-87,89-121,126-145
+  s_7ffa3edaa61e8e::t_bb6ae46357dd32 146
+packages/jev-playground/src/client/browser-pane.tsx
+  s_a2d0cb2e67600f::t_85efcd8870007c 3,61
+packages/website/src/pages/landing/Showcase.tsx
+  s_7ffa3edaa61e8e::t_1b1ae1a88a3815 1,100
+packages/engine-cf/test/agent-system-one.test.ts
+  s_75b806519f87e1::t_847fb9da334178 156-158
+packages/engine-cf/src/cdp-client.ts
+  s_c6d6a3ac21fe46::t_439cd613030a47 175
+  s_b636996675e2c7::t_da344e3a4387a9 8-22
+  s_06e70006376ca7::t_181512b6fd4326 245,280
+packages/agent-bench/container/worker.ts
+  s_a2d0cb2e67600f::t_984d1f77808cf0 1-4
+packages/engine-cf/src/index.ts
+  s_06e70006376ca7::t_2f54ddf7733f01 55-56
+  s_06e70006376ca7::t_e267a9c7d29715 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "93500020aa476fe11873ede5f9275eb55e3ecb9b",
+  "prompts": {},
+  "sessions": {
+    "s_06e70006376ca7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1995ffet5il8NkKbK354S",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_126f37ee8316ae": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb7f1068dffe5AlCUnCJrf6fI4",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_14b2d98170d3d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee196effe3Q9oo94J2sDy9j",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_2beea15461286f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee19b6ffeSIKrMcXoOdfAC2",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_3043350ce747c7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eba1d8dd2ffe2GeA6ESC1wtpQY",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_37d941ebbac928": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb831356affeC3lEkbOfyO7QsA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4c3e8c042d4228": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb83c03a9ffe53wgDhn2xDUQIN",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_50801acb047ac0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb8313575ffehW3i60n8t8qQUk",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_5654d840522568": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb8603f76ffeDTU1VTPmTV5ybv",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_6a411c7352f185": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb8313563ffeI5CtfWWO3J69IA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_752e50fbd84ca1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb91ded7bffe9Z01R4fG5x1ALO",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_75b806519f87e1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb8051836ffeMu9t3GAJ80hp4I",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_78e0c9a81f8d6a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb91def98ffedagohtgTpEeKqL",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7ffa3edaa61e8e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee191dffePEWrXPeZDwl5mc",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a2d0cb2e67600f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee194fffebkQV0IFSL32RgH",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b47052d9eae9bb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee185fffec7nTJHwIHt6z7Z",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b636996675e2c7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb7fcebcbffeu91gUnUldW3jPl",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_fc842560a7756f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9addf32ffeUKIDRQAlonDa53",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
