@@ -1,0 +1,19 @@
+deps/kitesurf
+  s_4ba79f911c93c4::t_4984e6b34ef8f9 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6f1b168a89a1a5746f2efe8c34ddc3c7a1217e45",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
