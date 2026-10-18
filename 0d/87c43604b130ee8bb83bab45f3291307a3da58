@@ -1,0 +1,71 @@
+packages/dom-shim/src/element/element.ts
+  s_19dcae60277223::t_6b027731284205 218
+  s_19dcae60277223::t_6a2da7caff9238 265-266,1136,1163,1858,2308,2448,2466-2468
+  s_19dcae60277223::t_e8b60e6e50f5ac 1261
+packages/dom-shim/src/detached-wrappers.ts
+  s_83cbebb813e639::t_58f4edaad99b2d 86
+  s_19dcae60277223::t_79190d55789d64 136
+packages/dom-shim/src/parser.ts
+  s_19dcae60277223::t_b508111c9c0698 598,601,620,952-954,959,1113,1119,1155
+  s_19dcae60277223::t_de11a8372152c2 951
+packages/dom-shim/src/element/forms/form.ts
+  s_19dcae60277223::t_6a2da7caff9238 331
+packages/dom-shim/src/element/forms/input-state.ts
+  s_19dcae60277223::t_6a2da7caff9238 101,216-217
+packages/dom-shim/src/collections.ts
+  s_19dcae60277223::t_9da0e5532dbc0f 2837-2838
+  s_19dcae60277223::t_b508111c9c0698 2821,2826
+packages/dom-shim/src/element/forms/selection.ts
+  s_19dcae60277223::t_79190d55789d64 122
+packages/dom-shim/src/element/forms/input.ts
+  s_19dcae60277223::t_6a2da7caff9238 158
+  s_19dcae60277223::t_e8b60e6e50f5ac 346
+packages/dom-shim/src/element/load-events.ts
+  s_19dcae60277223::t_6a2da7caff9238 107
+  s_19dcae60277223::t_e8b60e6e50f5ac 33,98,130-131
+packages/dom-shim/src/record.ts
+  s_19dcae60277223::t_79190d55789d64 24-25
+packages/dom-shim/src/layout/cheap.ts
+  s_19dcae60277223::t_e8b60e6e50f5ac 50,62
+packages/dom-shim/src/window.ts
+  s_19dcae60277223::t_b508111c9c0698 1681
+packages/dom-shim/src/range.ts
+  s_19dcae60277223::t_b508111c9c0698 112,115,1607,1632-1633,1635
+packages/dom-shim/src/document.ts
+  s_19dcae60277223::t_79190d55789d64 949
+packages/dom-shim/src/element/forms/select-options.ts
+  s_19dcae60277223::t_79190d55789d64 94
+packages/dom-shim/src/node-base.ts
+  s_19dcae60277223::t_fb50bfbcfac01b 2674-2675
+  s_19dcae60277223::t_dab02662a6b788 155-158,182-183,2676-2677
+  s_19dcae60277223::t_ec3531ad6cb4d1 153
+  s_83cbebb813e639::t_663415ab3a5bf0 195
+  s_19dcae60277223::t_2892b97aa084d7 2667-2673
+  s_19dcae60277223::t_4774973214f2bf 184-185,213,846,1246,1496,2662,2678-2679,2713,2841
+packages/dom-shim/src/canvas2d.ts
+  s_19dcae60277223::t_da66e036158d07 119,479,507,562,995,1027,1029,1148,1168-1173,1175-1179,1183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0d87c43604b130ee8bb83bab45f3291307a3da58",
+  "prompts": {},
+  "sessions": {
+    "s_19dcae60277223": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb5008010ffetjH3RwXgLAS3XT",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    },
+    "s_83cbebb813e639": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0388623affeMZhtpmKWNkHzTW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
