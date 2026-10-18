@@ -1,0 +1,102 @@
+packages/engine/test/e2e/invalid-selector-throws.e2e.test.ts
+  s_19dcae60277223::t_0883df1c49b7c3 40-59
+packages/dom-shim/src/collections.ts
+  s_19dcae60277223::t_c57b4f8b0eca1c 3769
+  s_19dcae60277223::t_1769ef52b13e07 526-528
+  s_19dcae60277223::t_08dc58705f074e 471-472,480
+  s_19dcae60277223::t_ec5ade88e80a92 833,3294,3708,3722-3725,3727
+  s_19dcae60277223::t_2f84176d30912c 182-185,187-202,3825
+  s_19dcae60277223::t_2befd9dbc07df5 3824
+  s_19dcae60277223::t_e3690e4661fc04 11
+  s_19dcae60277223::t_5b9f79eefe0b00 38,549
+  s_19dcae60277223::t_bcae43a4d0c41f 550
+  s_19dcae60277223::t_55d84b8d1d6277 739-743,3675,3790-3795
+packages/dom-shim/src/element/element.ts
+  s_19dcae60277223::t_a8731fabaa6eb8 20,1215
+  s_19dcae60277223::t_6b48e333910cbb 18-19
+  s_19dcae60277223::t_e0aeffee97f629 1301,1420
+  s_19dcae60277223::t_9cddd5e83a4111 328-330
+  s_19dcae60277223::t_bf461fa11931a8 1874
+  s_19dcae60277223::t_9b874dffdcae95 1309,1313,1871
+packages/dom-shim/src/range.ts
+  s_19dcae60277223::t_930803bb6f058c 12,320,323,326,333-334,337,409-410,414,421-422,425,450-451,454,461-462,465
+  s_19dcae60277223::t_f9e0eb784230bc 13,29,279,289,573,901,909,993-994
+  s_19dcae60277223::t_7b6e6422bc197f 14
+  s_19dcae60277223::t_a8731fabaa6eb8 91,347-348,992
+  s_19dcae60277223::t_aa75df8818c97d 24
+  s_19dcae60277223::t_5b9f79eefe0b00 708
+  s_19dcae60277223::t_49335e9a166fd7 503-505
+packages/dom-shim/src/element/shadow.ts
+  s_19dcae60277223::t_8da581be8a40e6 2-3,23,84
+  s_19dcae60277223::t_17e57b1c047c63 71,75
+packages/dom-shim/src/document.ts
+  s_19dcae60277223::t_7848de5cbb5b4e 14
+  s_19dcae60277223::t_d59bb0a4b0e327 864,963,972,999,1038
+  s_19dcae60277223::t_ac44950bedf2a7 1455,1463-1464
+  s_19dcae60277223::t_460140b6f24c7f 50,602-603,607-608
+  s_19dcae60277223::t_6d789b657b350f 172,563
+  s_19dcae60277223::t_e76675d0e63244 614,618,645,647,661-662,669-670,677-678,685-686,693-694
+packages/dom-shim/src/element/forms/form.ts
+  s_19dcae60277223::t_4b32a6c73496a1 394-395,406-407
+  s_19dcae60277223::t_4d64d1d8b0059b 44
+  s_19dcae60277223::t_6edbefd38e8378 100
+packages/dom-shim/src/element/html-tag.ts
+  s_19dcae60277223::t_460140b6f24c7f 19,24,28
+packages/dom-shim/strict-baseline.json
+  s_19dcae60277223::t_541688eef5c57c 2,8
+packages/dom-shim/src/element/load-events.ts
+  s_19dcae60277223::t_3b2aa394784cae 1
+  s_19dcae60277223::t_6edbefd38e8378 146
+packages/dom-shim/src/fastpath.ts
+  s_19dcae60277223::t_5b9f79eefe0b00 212
+  s_19dcae60277223::t_7b6e6422bc197f 24
+packages/page-script/src/types.ts
+  s_19dcae60277223::t_a9c3a5fe99d93f 30-32
+  s_19dcae60277223::t_775197c1519ddf 51
+  s_19dcae60277223::t_2bb5f7925fa570 40
+  s_19dcae60277223::t_a1b268593765a9 46
+packages/dom-shim/src/state.ts
+  s_19dcae60277223::t_dc80233000ae67 13-18,21-23,26-35,128-131,188-191,408-409,412,415-417,419,435-440,469,484-486,500-501,504,507,540,572-576,580,583,592-594,596-597,599-603
+  s_19dcae60277223::t_21b95ad03ba5fc 418
+  s_19dcae60277223::t_27ee22185f09ad 24,451-468
+  s_19dcae60277223::t_f9e0eb784230bc 428-431
+  s_19dcae60277223::t_541688eef5c57c 20,444-445
+  s_19dcae60277223::t_930803bb6f058c 36-43,45,420-427,432-434
+  s_19dcae60277223::t_7c3aa433848ccd 442-443,446-447,450
+  s_19dcae60277223::t_8da581be8a40e6 25,46,441,448-449
+packages/dom-shim/src/node-base.ts
+  s_19dcae60277223::t_a8731fabaa6eb8 1345
+  s_19dcae60277223::t_7b6e6422bc197f 917,1079-1080,1090-1091,2385-2386
+  s_19dcae60277223::t_7c3aa433848ccd 8,1049,2215,2222-2223,2335,2338
+  s_19dcae60277223::t_21b95ad03ba5fc 1051
+  s_19dcae60277223::t_2ff0af4fc59cfe 38,1028
+packages/dom-shim/src/element/table.ts
+  s_19dcae60277223::t_d2767268f0c61a 27-28,30-33,57,60,68
+  s_19dcae60277223::t_17e57b1c047c63 54
+  s_19dcae60277223::t_dcd1107aebadb2 1,29
+packages/dom-shim/src/registries.ts
+  s_19dcae60277223::t_dc80233000ae67 213,222,226-229,240
+  s_19dcae60277223::t_2c921742b016bc 8-16,218-219
+packages/dom-shim/src/element/forms/listed.ts
+  s_19dcae60277223::t_6edbefd38e8378 41
+packages/dom-shim/src/idl/type-gaps.json
+  s_19dcae60277223::t_d490b8dce9a159 90-94
+packages/dom-shim/src/idl/types.generated.ts
+  s_19dcae60277223::t_8e7a0917dca04a 2752
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7ad88272f1648eb7b8b1a665f76c54f9abc41dde",
+  "prompts": {},
+  "sessions": {
+    "s_19dcae60277223": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb5008010ffetjH3RwXgLAS3XT",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

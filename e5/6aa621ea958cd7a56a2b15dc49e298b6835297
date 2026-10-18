@@ -1,0 +1,23 @@
+packages/engine/src/cdp/page.ts
+  s_51883bcd41804d::t_bd8399d7ea3411 1105-1108,4607-4608
+docs/SCRIPT_GATE.md
+  s_51883bcd41804d::t_bd8399d7ea3411 31,33-39
+packages/engine/test/e2e/source-script-pipeline.e2e.test.ts
+  s_51883bcd41804d::t_c05f671bb2a1e8 5-7,58-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e56aa621ea958cd7a56a2b15dc49e298b6835297",
+  "prompts": {},
+  "sessions": {
+    "s_51883bcd41804d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb0be12b4ffe8DWpP2vehyQw9d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

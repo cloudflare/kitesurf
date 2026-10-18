@@ -1,0 +1,25 @@
+bench/load/quickaction.k6.js
+  s_ff879cea7f8711::t_1cb45c32bbe74d 101
+  s_ff879cea7f8711::t_e314e6defb2b05 12-13,15
+  s_ff879cea7f8711::t_4e7a9c1cce36c0 32
+bench/load/run.mjs
+  s_ff879cea7f8711::t_c0e4a6712e93f6 1-69
+package.json
+  s_ff879cea7f8711::t_894d53d5b5604d 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9a9682ec2f8105f8a2c707d09ae4cb5c324c0b74",
+  "prompts": {},
+  "sessions": {
+    "s_ff879cea7f8711": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb03c0cdfffe3NsKeS3J2RA8VU",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/dom-shim/src/collections.ts
+  s_19dcae60277223::t_8ab0c37050be75 3826-3828,3830-3831
+packages/engine/test/e2e/static-node-list-item.e2e.test.ts
+  s_19dcae60277223::t_846eaa3acea695 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d00a89021af9e2294fdbd5092ad51b35b60588e3",
+  "prompts": {},
+  "sessions": {
+    "s_19dcae60277223": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb5008010ffetjH3RwXgLAS3XT",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

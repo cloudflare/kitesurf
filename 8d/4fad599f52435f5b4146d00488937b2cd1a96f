@@ -1,0 +1,19 @@
+packages/engine/test/e2e/source-script-pipeline.e2e.test.ts
+  s_51883bcd41804d::t_63a3b0ff163399 97-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8d4fad599f52435f5b4146d00488937b2cd1a96f",
+  "prompts": {},
+  "sessions": {
+    "s_51883bcd41804d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb0be12b4ffe8DWpP2vehyQw9d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
