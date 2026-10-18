@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 27 Jul 2026 05:39:20 +0100
+Subject: [PATCH] Add node_has_pending_image for srcset-mutation complete
+ tracking
+
+A src/srcset mutation re-runs load_image, which either applies a
+cached image synchronously (no delivery notification) or starts a
+fetch (delivery notification later). The kitesurf dom-shim marks the
+<img> pending-reload on every mutation, but for the synchronous
+cache-hit path no notification ever clears the flag, so
+HTMLImageElement.complete sticks false forever. That breaks React
+components polling img.complete post-hydration (BBC's Image
+placeholder never unmounts and paints over the real image).
+
+node_has_pending_image lets the JS side ask, right after the
+mutation, whether a fetch is actually underway for the node. The
+shim can't answer this itself: srcset candidate selection lives in
+the mutator (select_image_url) and the shim doesn't know which URL
+blitz picked.
+---
+ src/document.rs | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index 0c70114..06dd1f9 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1629,5 +1629,21 @@ impl BaseDocument {
+             .unwrap_or_default()
+     }
+
++    /// Whether `node_id` is currently waiting on an
++    /// in-flight image fetch (any URL). Complements image_cache_has
++    /// for the srcset case: the JS side can't re-run candidate
++    /// selection, so after a src/srcset mutation it asks whether
++    /// load_image actually started a fetch. Not pending = the
++    /// mutation reached a terminal state synchronously (cache-hit
++    /// apply, or no fetchable candidate) and no delivery
++    /// notification will ever fire.
++    pub fn node_has_pending_image(&self, node_id: NodeId) -> bool {
++        self.pending_images.values().any(|waiting| {
++            waiting
++                .iter()
++                .any(|(id, ty)| *id == node_id && matches!(ty, ImageType::Image))
++        })
++    }
++
+     pub fn load_resource(&mut self, res: ResourceLoadResponse) {
+         self.pending_critical_resources.remove(&res.request_id);

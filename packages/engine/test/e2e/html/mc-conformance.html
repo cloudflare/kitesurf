@@ -1,0 +1,37 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<title>mc-conformance</title>
+<script>
+(function () {
+  var R = {};
+  (function(){ var mc=new MessageChannel(); mc.port2.postMessage("buffered"); mc.port1.onmessage=function(e){R.buffering=e.data;}; })();
+  (function(){ var mc=new MessageChannel(); var got=null; mc.port1.addEventListener("message",function(e){got=e.data;}); mc.port2.postMessage("x");
+    setTimeout(function(){ R.beforeStart=(got===null?"null":String(got)); mc.port1.start(); setTimeout(function(){ R.afterStart=String(got); },30); },30); })();
+  (function(){ var mc=new MessageChannel(); mc.port1.onmessage=function(e){R.clone=(e.data&&e.data.n);}; var o={n:1}; mc.port2.postMessage(o); o.n=999; })();
+  (function(){ var mc=new MessageChannel(); var s=[]; mc.port1.onmessage=function(e){s.push(e.data); R.fifo=s.join(",");}; for(var i=0;i<5;i++) mc.port2.postMessage(i); })();
+  (function(){ var mc=new MessageChannel(); var sync=true; mc.port1.onmessage=function(){sync=false; R.asyncAfter=true;}; mc.port2.postMessage("t"); R.asyncImmediate=sync; })();
+  (function(){ var mc=new MessageChannel(); mc.port1.onmessage=function(e){R.closeGot=e.data;}; mc.port1.close(); mc.port2.postMessage("ac"); setTimeout(function(){ R.closeOk=(R.closeGot===undefined); },40); })();
+  (function(){ var mc=new MessageChannel(); try{ mc.port2.postMessage(function(){}); R.cloneErr="no-throw"; }catch(e){ R.cloneErr=e.name; } })();
+  (function(){ var mc=new MessageChannel(); try{ mc.port2.postMessage(null,[mc.port2]); R.xferErr="no-throw"; }catch(e){ R.xferErr=e.name; } })();
+  (function(){ var mc=new MessageChannel(); mc.port1.addEventListener("message",function(e){R.addEL=e.data;}); mc.port1.start(); mc.port2.postMessage("el"); })();
+  (function(){ try { var mc=new MessageChannel(); mc.port1.onmessage=function(e){R.xferRecvLen=e.data.byteLength;}; var ab=new ArrayBuffer(8); mc.port2.postMessage(ab,[ab]); R.xferSrcDetached=(ab.byteLength===0); } catch(e){ R.xferThrew=e.name+":"+e.message.slice(0,40); } })();
+  (function(){ var mc=new MessageChannel(); R.isMP=(mc.port1 instanceof MessagePort); R.isET=(mc.port1 instanceof EventTarget);
+    R.impl=(typeof mc.port1._enqueue==="function"?"shim":"native"); try { R.ctor=String(MessageChannel).replace(/\s+/g," ").slice(0,40); } catch(e){} })();
+  console.log("[MCIMPL]"+JSON.stringify({impl:R.impl,isMP:R.isMP,isET:R.isET,ctor:R.ctor,typeofMC:typeof MessageChannel}));
+  // Report when the results are COMPLETE, not at a fixed deadline: the
+  // last fields land behind nested 30ms timers, which slip past a 300ms
+
+  // budget when the whole e2e suite is running in parallel. Polling makes
+  // the markup load-independent; the cap keeps a hang from hanging here.
+  var __deadline = Date.now() + 8000;
+  (function report(){
+    var pending = R.beforeStart===undefined || R.afterStart===undefined || R.closeOk===undefined;
+    if (pending && Date.now() < __deadline) { setTimeout(report, 25); return; }
+    try { document.title="MC:"+JSON.stringify(R); } catch(e){ document.title="MCERR:"+e.message; }
+  })();
+})();
+</script>

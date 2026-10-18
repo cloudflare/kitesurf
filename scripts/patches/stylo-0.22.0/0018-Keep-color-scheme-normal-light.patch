@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Sat, 1 Aug 2026 12:30:09 +0100
+Subject: [PATCH] Keep color-scheme: normal light
+
+Upstream resolves light-dark() and the dark system colors against
+color-scheme (Bug 2068247, "Support color-scheme in Servo"), but lets
+`normal` follow the device preference. Keep `normal` light, since dark
+is opt-in per css-color-adjust. A value naming exactly one scheme still
+wins outright, and `light dark` defers to the device's
+prefers-color-scheme.
+---
+ device/servo.rs | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/device/servo.rs b/device/servo.rs
+index a8f94bf..ac9fc4a 100644
+--- a/device/servo.rs
++++ b/device/servo.rs
+@@ -344,9 +344,11 @@ impl Device {
+             return supports_dark_mode;
+         }
+
+-        // If either both or none are supported, then use the preferred color scheme
+-        // to determine whether the user wants dark mode.
+-        return self.color_scheme() == PrefersColorScheme::Dark;
++        // If both are supported, use the preferred color scheme to
++        // determine whether the user wants dark mode. If neither is (`normal`),
++        // stay light: dark is opt-in per
++        // <https://drafts.csswg.org/css-color-adjust/#color-scheme-prop>.
++        supports_dark_mode && self.color_scheme() == PrefersColorScheme::Dark
+     }
+
+     pub(crate) fn system_color(

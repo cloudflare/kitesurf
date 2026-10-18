@@ -1,0 +1,124 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 9 Oct 2026 20:34:21 +0100
+Subject: [PATCH] lexer: size the collected source text from the input length
+
+The lexer collects every code unit into a SourceText that starts at
+4 KiB and doubles, so parsing a large bundle briefly held about three
+times its text during the last reallocation, and up to twice it after.
+ReadChar gains a defaulted len_hint (bytes for UTF-8, code units for
+UTF-16, both upper bounds on what is collected), and the cursor sizes
+the collector from it.
+---
+ src/lexer/cursor.rs |  8 +++++++-
+ src/source/mod.rs   |  9 ++++++++-
+ src/source/utf16.rs |  4 ++++
+ src/source/utf8.rs  | 12 ++++++++++++
+ 4 files changed, 31 insertions(+), 2 deletions(-)
+
+diff --git a/src/lexer/cursor.rs b/src/lexer/cursor.rs
+index 97624b1..cf43904 100644
+--- a/src/lexer/cursor.rs
++++ b/src/lexer/cursor.rs
+@@ -77,13 +77,19 @@ impl<R> Cursor<R> {
+ impl<R: ReadChar> Cursor<R> {
+     /// Creates a new Lexer cursor.
+     pub(super) fn new(inner: R) -> Self {
++        // Sized up front from the input: growing by doubling briefly held about
++        // three times the text while it reallocated.
++        let source_collector = match inner.len_hint() {
++            0 => SourceText::default(),
++            hint => SourceText::with_capacity(hint),
++        };
+         Self {
+             iter: inner,
+             pos: Position::new(1, 1),
+             strict: false,
+             module: false,
+             peeked: [None; 4],
+-            source_collector: SourceText::default(),
++            source_collector,
+         }
+     }
+
+diff --git a/src/source/mod.rs b/src/source/mod.rs
+index 0b684ed..aabca24 100644
+--- a/src/source/mod.rs
++++ b/src/source/mod.rs
+@@ -37,8 +37,9 @@ impl<'bytes> Source<'static, UTF8Input<&'bytes [u8]>> {
+     ///
+     /// [slice]: std::slice
+     pub fn from_bytes<T: AsRef<[u8]> + ?Sized>(source: &'bytes T) -> Self {
++        let bytes = source.as_ref();
+         Self {
+-            reader: UTF8Input::new(source.as_ref()),
++            reader: UTF8Input::with_len_hint(bytes, bytes.len()),
+             path: None,
+         }
+     }
+@@ -143,6 +144,12 @@ pub trait ReadChar {
+     ///
+     /// Returns an error if the next input in the input is not a valid unicode code point.
+     fn next_char(&mut self) -> io::Result<Option<u32>>;
++
++    /// An upper bound on the UTF-16 code units left, or 0 if unknown. The
++    /// lexer sizes the retained source text with it instead of growing by doubling.
++    fn len_hint(&self) -> usize {
++        0
++    }
+ }
+
+ #[cfg(test)]
+diff --git a/src/source/utf16.rs b/src/source/utf16.rs
+index 27ed1db..c0c5ac6 100644
+--- a/src/source/utf16.rs
++++ b/src/source/utf16.rs
+@@ -36,6 +36,10 @@ impl<'a> UTF16Input<'a> {
+ }
+
+ impl ReadChar for UTF16Input<'_> {
++    fn len_hint(&self) -> usize {
++        self.input.len() - self.index
++    }
++
+     /// Retrieves the next unchecked char in u32 code point.
+     fn next_char(&mut self) -> io::Result<Option<u32>> {
+         let Some(u1) = self.input.get(self.index).copied() else {
+diff --git a/src/source/utf8.rs b/src/source/utf8.rs
+index 9b9bb23..fbec03a 100644
+--- a/src/source/utf8.rs
++++ b/src/source/utf8.rs
+@@ -5,14 +5,22 @@ use std::io::{self, Bytes, Read};
+ #[derive(Debug)]
+ pub struct UTF8Input<R> {
+     input: Bytes<R>,
++    len_hint: usize,
+ }
+
+ impl<R: Read> UTF8Input<R> {
+     /// Creates a new `UTF8Input` from a UTF-8 encoded source.
+     pub(crate) fn new(iter: R) -> Self {
++        Self::with_len_hint(iter, 0)
++    }
++
++    /// Like `new`, knowing the source is `len` bytes long, which bounds
++    /// the UTF-16 code units it decodes to (no UTF-8 byte yields more than one).
++    pub(crate) fn with_len_hint(iter: R, len: usize) -> Self {
+         Self {
+             #[allow(clippy::unbuffered_bytes)]
+             input: iter.bytes(),
++            len_hint: len,
+         }
+     }
+ }
+@@ -25,6 +33,10 @@ impl<R: Read> UTF8Input<R> {
+ }
+
+ impl<R: Read> ReadChar for UTF8Input<R> {
++    fn len_hint(&self) -> usize {
++        self.len_hint
++    }
++
+     /// Retrieves the next unchecked char in u32 code point.
+     fn next_char(&mut self) -> io::Result<Option<u32>> {
+         // Decode UTF-8

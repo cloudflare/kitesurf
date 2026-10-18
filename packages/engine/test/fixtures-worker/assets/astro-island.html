@@ -1,0 +1,15 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html><title>astro-island</title><body>
+<astro-island component-url="/__fixtures/astro-island-component.js"></astro-island>
+<script>
+const island = document.querySelector('astro-island');
+import(island.getAttribute('component-url')).then(
+  (m) => { document.body.dataset.native = String(m.native); },
+  (e) => { document.body.dataset.native = 'error: ' + e; },
+);
+</script></body>

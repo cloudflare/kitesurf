@@ -1,0 +1,56 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Sun, 2 Aug 2026 21:36:12 +0100
+Subject: [PATCH] Replaced max-size leniency only applies to natural-size-only
+ content
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The avail-space fold into max-size acted as an implicit max-width:100%
+on every replaced element, so an explicitly sized one (<svg width=8000>,
+<img width=3000>) clamped to its container instead of overflowing it.
+Real browsers never do this; CSS2 §10.3.4 sizes replaced boxes from
+their style/attr/natural dimensions and lets them overflow; page CSS
+opts into shrinking via max-width:100%.
+
+Scroll extents inherited the lie: an 8000px svg contributed nothing to
+body scrollWidth/scrollHeight, so the viewport scroll clamp pinned
+scrollTo/scrollIntoView at 0 (WPT scrollIntoView-svg-shape regression).
+Keep the fold only when neither style nor attr supplies a width; the
+shrink-into-container leniency photo-heavy layouts rely on.
+---
+ src/layout/replaced.rs | 19 +++++++++++++------
+ 1 file changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/src/layout/replaced.rs b/src/layout/replaced.rs
+index 88be53b..45d573b 100644
+--- a/src/layout/replaced.rs
++++ b/src/layout/replaced.rs
+@@ -249,13 +249,20 @@ pub fn compute_replaced_layout(
+         .min_size()
+         .maybe_resolve(parent_size, &resolve_calc_value)
+         .maybe_sub(box_sizing_adjustment);
+-    // Fold available space into max-size on the INLINE axis only.
+-    // The both-axes form turned a `height: 0` ancestor (the classic
+-    // padding-bottom aspect-ratio hack) into max-height 0, and the
+-    // aspect ratio then collapsed the width to 0 as well; real
+-    // browsers never shrink replaced elements to fit the block axis.
++    // Fold available space into max-size on the inline axis only: the
++    // both-axes form collapsed padding-bottom aspect-ratio hacks to 0x0.
++
++    // And only for natural-size-only content: explicit sizing (style or
++    // width/height attr) must overflow a too-narrow container, CSS2
++    // §10.3.4 has no implicit max-width:100%. The shrink-into-container
++    // leniency is pristine-blitz behavior photo-heavy layouts depend on.
++    let explicit_width = style_size.width.is_some() || image_context.attr_size.width.is_some();
+     let avail_max = Size {
+-        width: available_space.into_options().width,
++        width: if explicit_width {
++            None
++        } else {
++            available_space.into_options().width
++        },
+         height: None,
+     };
+     let max_size = style

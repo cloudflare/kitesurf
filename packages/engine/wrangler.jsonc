@@ -1,0 +1,68 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "kitesurf",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-11",
+
+  "compatibility_flags": ["experimental", "global_fetch_strictly_public"],
+
+  "rules": [
+    {
+      "type": "Text",
+      "globs": ["**/*.glue.js", "**/*.css"],
+      "fallthrough": true,
+    },
+  ],
+
+  "observability": {
+    "enabled": true,
+  },
+
+  "limits": {
+    "cpu_ms": 300000,
+    "subrequests": 1000000,
+  },
+
+  "vars": {
+    "KITESURF_ENV": "production",
+    "KITESURF_VERSION": "dev",
+    "KITESURF_RESOURCE_DRAIN_QUIET_TURNS": "",
+    "KITESURF_SIMULATE_PROD_EVAL": "",
+    "KITESURF_DISABLE_PRECISE_TIMERS": "",
+    "KITESURF_DISABLE_PARTIAL_RASTER": "",
+    "KITESURF_PAGE_CPU_MS_CAP": "",
+    "KITESURF_PAGE_WALL_MS_CAP": "",
+    "KITESURF_LAG_WATCHDOG": "",
+    // DevTools frontend for the `/?url=` shortcut and `/json/list`. It must
+    // accept `?wss=<endpoint>` or `?ws=<endpoint>`. Empty disables the web
+    // shortcut; Chrome discovery falls back to its bundled frontend.
+    "KITESURF_INSPECTOR_BASE_URL": "",
+    // Web Bot Auth: origin of the key directory that publishes the public
+    // half of the WEB_BOT_AUTH_JWK secret. Empty disables signing.
+    "WEB_BOT_AUTH_SIGNATURE_AGENT": "",
+  },
+
+  "worker_loaders": [{ "binding": "LOADER" }],
+
+  "assets": {
+    "directory": "./public",
+    "binding": "FONT_ASSETS",
+    "run_worker_first": ["/", "/rbi/*"],
+  },
+
+  "env": {
+    "local": {
+      "vars": {
+        "KITESURF_ENV": "local",
+        "KITESURF_VERSION": "dev",
+        "KITESURF_RESOURCE_DRAIN_QUIET_TURNS": "5",
+        "KITESURF_SIMULATE_PROD_EVAL": "",
+        "KITESURF_LAG_WATCHDOG": "1",
+        "KITESURF_INSPECTOR_BASE_URL": "",
+        "KITESURF_OTLP_ENDPOINT": "http://localhost:4318/v1/traces",
+      },
+      "worker_loaders": [{ "binding": "LOADER" }],
+      "services": [{ "binding": "FIXTURES", "service": "kitesurf-fixtures" }],
+    },
+  },
+}

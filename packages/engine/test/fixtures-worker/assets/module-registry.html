@@ -1,0 +1,73 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<script>
+  // Set by a classic inline script so the TLA module below can tell
+  // whether DOMContentLoaded had already fired when it finished.
+  document.addEventListener("DOMContentLoaded", () => {
+    globalThis.registryDcl = true;
+  });
+</script>
+<script type="module">
+  // Everything on this page is left to workerd's URL resolution: a
+  // cross-origin full-URL specifier, a JSON record with its attribute,
+  // a path-absolute specifier, and two query variants of one module.
+  import { lib } from "https://ks-alt.invalid/__fixtures/module-registry-lib.js";
+  import config from "./module-registry-config.json" with { type: "json" };
+  import { url as queryA } from "/__fixtures/module-registry-meta.js?v=a";
+  import { url as queryB } from "./module-registry-meta.js?v=b";
+  globalThis.registryResult = {
+    lib,
+    config,
+    queryA,
+    queryB,
+    metaUrl: import.meta.url,
+  };
+</script>
+<script type="module">
+  const result = globalThis.registryResult;
+  // Dynamic JSON import keeps its options argument through the bake.
+  result.dynamicConfig = (
+    await import("./module-registry-config.json", { with: { type: "json" } })
+  ).default;
+  // CSS module scripts are unsupported: the runtime rejects the
+  // attribute before resolution, the way a browser without the
+  // feature does.
+  try {
+    await import("./module-registry-sheet.css", { with: { type: "css" } });
+    result.css = "loaded";
+  } catch (e) {
+    result.css = { name: e.constructor.name, message: String(e.message) };
+  }
+  // A bare specifier with no import map throws, as in a browser.
+  try {
+    result.bareResolve = import.meta.resolve("react");
+  } catch (e) {
+    result.bareResolve = { name: e.constructor.name, message: String(e.message) };
+  }
+  // A computed specifier is not crawled, so it goes to boa's loader at
+  // runtime. Boa asks workerd for a baked record first, and only falls
+  // back to fetchGatedModuleSource for a URL nothing baked — so neither
+  // of these two may appear in a static or literal import anywhere on
+  // this page (config.json above IS baked and would resolve natively).
+  // That fallback parses a JSON-MIME body and re-serializes it as an
+  // `export default` literal: pin the value it yields, and that a
+  // malformed body fails the import instead of reaching the parser.
+  const fallbackJson = "fallback";
+  result.fallbackJson = (
+    await import(`./module-registry-${fallbackJson}.json`)
+  ).default;
+  const malformedJson = "malformed";
+  try {
+    await import(`./module-registry-${malformedJson}.json`);
+    result.fallbackMalformed = "loaded";
+  } catch (e) {
+    result.fallbackMalformed = String(e);
+  }
+  result.done = true;
+</script>
+<script type="module" src="/__fixtures/module-registry-tla.js"></script>

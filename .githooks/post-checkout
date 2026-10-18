@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Copyright (c) 2026 Cloudflare, Inc.
+# Licensed under the Apache 2.0 license found in the LICENSE file or at:
+# https://opensource.org/licenses/Apache-2.0
+
+[ "$3" = "1" ] || exit 0
+
+git_dir="$(git rev-parse --git-dir 2>/dev/null)" || exit 0
+marker="$git_dir/.kitesurf-bootstrapped"
+[ -e "$marker" ] && exit 0
+
+common_dir="$(git rev-parse --git-common-dir 2>/dev/null)"
+main_root="$(cd "$common_dir/.." && pwd)"
+if [ ! -f .env ] && [ -f "$main_root/.env" ] && [ "$main_root" != "$(pwd)" ]; then
+  cp "$main_root/.env" .env
+fi
+
+if command -v direnv >/dev/null 2>&1; then
+  direnv allow . >/dev/null 2>&1 || true
+fi
+
+touch "$marker"
+echo "[post-checkout] worktree ready — run 'pnpm install && pnpm run build:wasm' before pnpm dev"

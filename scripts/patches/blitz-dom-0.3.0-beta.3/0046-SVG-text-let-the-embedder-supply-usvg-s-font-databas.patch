@@ -1,0 +1,119 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Sat, 1 Aug 2026 18:01:34 +0100
+Subject: [PATCH] SVG text: let the embedder supply usvg's font database
+
+usvg shapes <text> through its own fontdb, populated here by
+`load_system_fonts()`. On a target with no system fonts (wasm) that
+database stays empty and usvg silently drops every text node, so an
+inline SVG chart painted its series and no axis labels at all.
+
+Expose `register_svg_font`, which takes the same shared font bytes the
+embedder hands its text stack (Arc, not a copy) and optionally points a
+generic family at it. The generic name is read back out of the loaded
+face, so it can't drift from what was actually registered, and the
+sans-serif slot also becomes usvg's `Options::font_family` fallback for
+text that names no usable family.
+---
+ src/util.rs | 80 ++++++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 73 insertions(+), 7 deletions(-)
+
+diff --git a/src/util.rs b/src/util.rs
+index fe358a3..b7f2e3d 100644
+--- a/src/util.rs
++++ b/src/util.rs
+@@ -44,11 +44,70 @@ use std::sync::{Arc, LazyLock};
+ #[cfg(feature = "svg")]
+ use usvg::fontdb;
+ #[cfg(feature = "svg")]
+-pub(crate) static FONT_DB: LazyLock<Arc<fontdb::Database>> = LazyLock::new(|| {
+-    let mut db = fontdb::Database::new();
+-    db.load_system_fonts();
+-    Arc::new(db)
+-});
++pub(crate) static FONT_DB: LazyLock<std::sync::RwLock<Arc<fontdb::Database>>> =
++    LazyLock::new(|| {
++        let mut db = fontdb::Database::new();
++        // No-op under wasm (no filesystem); the embedder pushes faces in
++        // through register_svg_font instead.
++        db.load_system_fonts();
++        std::sync::RwLock::new(Arc::new(db))
++    });
++
++/// Which generic family a registered SVG font should answer for.
++#[cfg(feature = "svg")]
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum SvgGenericSlot {
++    SansSerif,
++    Serif,
++    Monospace,
++}
++
++/// Register a font face for SVG `<text>` shaping, optionally pointing a
++/// generic family (and usvg's default family) at it.
++///
++/// usvg converts text to paths through its own fontdb, which on a
++/// system-font-less target (wasm) stays empty: every `<text>` was silently
++/// dropped, so SVG charts painted their series and no labels. Embedders
++/// that ship their own faces call this with the same bytes they hand the
++/// text stack: `data` is shared, not copied.
++#[cfg(feature = "svg")]
++pub fn register_svg_font(
++    data: Arc<dyn AsRef<[u8]> + Send + Sync>,
++    slot: Option<SvgGenericSlot>,
++) {
++    let Ok(mut db_slot) = FONT_DB.write() else {
++        return;
++    };
++    let mut db = (**db_slot).clone();
++    let ids = db.load_font_source(fontdb::Source::Binary(data));
++    // Generic mapping reads the family name out of the face itself, so it
++    // can't drift from whatever the embedder actually loaded.
++    let family = ids
++        .first()
++        .and_then(|id| db.face(*id))
++        .and_then(|face| face.families.first().map(|(name, _)| name.clone()));
++    if let (Some(slot), Some(family)) = (slot, family) {
++        match slot {
++            SvgGenericSlot::SansSerif => {
++                db.set_sans_serif_family(family.clone());
++                // usvg falls back to Options::font_family for text with no
++                // usable family; point that at the sans face too.
++                if let Ok(mut default) = SVG_DEFAULT_FAMILY.write() {
++                    *default = Some(family);
++                }
++            }
++            SvgGenericSlot::Serif => db.set_serif_family(family),
++            SvgGenericSlot::Monospace => db.set_monospace_family(family),
++        }
++    }
++    *db_slot = Arc::new(db);
++}
++
++/// Family usvg uses when the text names none we know; set by
++/// `register_svg_font` for the sans-serif slot.
++#[cfg(feature = "svg")]
++pub(crate) static SVG_DEFAULT_FAMILY: LazyLock<std::sync::RwLock<Option<String>>> =
++    LazyLock::new(|| std::sync::RwLock::new(None));
+
+ /// Which kind of CSS image layer list (`background-image` or `mask-image`) to
+ /// flush from style to dedicated storage on the node.
+@@ -252,9 +311,16 @@ pub fn apply_svg_view_fragment(source: &str, fragment: &str) -> Option<String> {
+ }
+
+ pub fn parse_svg_image(source: &[u8]) -> Result<crate::node::SvgImageData, usvg::Error> {
+-    let options = usvg::Options {
+-        fontdb: Arc::clone(&*FONT_DB),
++    let mut options = usvg::Options {
++        fontdb: match FONT_DB.read() {
++            Ok(db) => Arc::clone(&*db),
++            Err(_) => Arc::new(fontdb::Database::new()),
++        },
+         ..Default::default()
+     };
++    if let Some(family) = SVG_DEFAULT_FAMILY.read().ok().and_then(|f| f.clone()) {
++        options.font_family = family;
++    }
++
+     crate::node::SvgImageData::from_data(source, &options)
+ }

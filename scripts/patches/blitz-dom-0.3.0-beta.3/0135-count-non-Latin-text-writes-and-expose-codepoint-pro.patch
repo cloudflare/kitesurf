@@ -1,0 +1,70 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 28 Sep 2026 21:23:42 +0100
+Subject: [PATCH] count non-Latin text writes and expose codepoint probes
+
+The embedder picks fallback faces for scripts it finds in the navigate
+HTML. Text a script writes later never reached that scan, so it
+rendered as tofu (example.com inserts Arabic and Chinese from s.js).
+
+note_text_codepoints now counts writes that hold a codepoint past
+Cyrillic, and text_uses_codepoints answers whether the document's text
+touches a set of ranges, building the existing codepoint bitset on
+first use. The embedder polls the counter and probes only when it
+moves.
+---
+ src/document.rs | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index f1e7e21..33c079b 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -448,6 +448,10 @@ pub struct BaseDocument {
+     /// rescanning. Empty = not built yet, and text writes skip it, so a
+     /// page with no range-gated faces pays nothing.
+     pub(crate) used_codepoints: Vec<u64>,
++    /// Text writes that held a codepoint past Cyrillic. The
++    /// embedder loads fallback faces for scripts it finds in the navigate
++    /// HTML; a bump here tells it script-written text may need more.
++    pub(crate) non_latin_text_writes: u32,
+
+     /// Tracks in-flight image requests. When an image is being fetched, additional
+     /// requests for the same URL are queued here instead of starting new fetches.
+@@ -638,6 +642,7 @@ impl BaseDocument {
+             pending_font_faces: Vec::new(),
+             used_font_families: std::collections::HashSet::new(),
+             used_codepoints: Vec::new(),
++            non_latin_text_writes: 0,
+             pending_images: HashMap::new(),
+             pending_style_image_nodes: Vec::new(),
+             pending_critical_resources: HashSet::new(),
+@@ -1773,11 +1778,28 @@ impl BaseDocument {
+     /// that creates or rewrites text content calls this. No-op until
+     /// the bitset is built; the build's full scan covers earlier text.
+     pub(crate) fn note_text_codepoints(&mut self, text: &str) {
++        if !text.is_ascii() && text.chars().any(|c| c >= '\u{0530}') {
++            self.non_latin_text_writes = self.non_latin_text_writes.wrapping_add(1);
++        }
+         if !self.used_codepoints.is_empty() {
+             set_codepoint_bits(&mut self.used_codepoints, text);
+         }
+     }
+
++    /// See `non_latin_text_writes`.
++    pub fn non_latin_text_writes(&self) -> u32 {
++        self.non_latin_text_writes
++    }
++
++    /// Whether some text node holds a codepoint inside one of the
++    /// inclusive `ranges`. Builds the codepoint bitset on first use.
++    pub fn text_uses_codepoints(&mut self, ranges: &[(u32, u32)]) -> bool {
++        if self.used_codepoints.is_empty() {
++            self.build_used_codepoints();
++        }
++        self.face_covers_used_text(Some(ranges))
++    }
++
+     /// True when some text node holds a codepoint inside one of the
+     /// face's `unicode-range`s. A face without the descriptor covers
+     /// everything and is always needed.

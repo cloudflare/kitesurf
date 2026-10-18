@@ -1,0 +1,115 @@
+{
+  "$comment": "Type gaps for webidl-ts-types.mjs: members the shim has but types differently, indexed getters it lacks (\"[index]\"), and parents it doesn't extend. A member the page lacks belongs in the conformance ledger, idl-gaps.json, not here. Each entry says why. Regenerate with pnpm webidl:generate.",
+  "Attr": {
+    "omit": {
+      "baseURI": "the getter fallback returns null when no base URI is available"
+    }
+  },
+  "CSSGroupingRule": {
+    "omit": {
+      "cssRules": "an array with item(), not a CSSRuleList: CSSRuleList isn't exposed"
+    }
+  },
+  "CSSHWB": {
+    "omit": {
+      "h": "may hold a CSSKeywordValue for none, which the pinned IDL's type doesn't allow",
+      "w": "may hold a CSSKeywordValue for none, which the pinned IDL's type doesn't allow",
+      "b": "may hold a CSSKeywordValue for none, which the pinned IDL's type doesn't allow",
+      "alpha": "may hold a CSSKeywordValue for none, which the pinned IDL's type doesn't allow"
+    }
+  },
+  "CSSKeyframesRule": {
+    "omit": {
+      "[index]": "no indexed getter; the keyframes are reachable through cssRules",
+      "cssRules": "an array with item(), not a CSSRuleList: CSSRuleList isn't exposed"
+    }
+  },
+  "CSSStyleSheet": {
+    "omit": {
+      "cssRules": "an array with item(), not a CSSRuleList: CSSRuleList isn't exposed",
+      "rules": "an array with item(), not a CSSRuleList: CSSRuleList isn't exposed"
+    }
+  },
+  "DOMParser": {
+    "omit": {
+      "parseFromString": "returns a ParsedDocument, which doesn't implement Document"
+    }
+  },
+  "DataTransferItemList": {
+    "omit": {
+      "[index]": "no indexed getter; the items are reachable by iteration"
+    }
+  },
+  "Document": {
+    "omit": {
+      "all": "the live document leaves it out: browsers make HTMLAllCollection falsy, which JS can't emulate, and a truthy value sends pages down old-IE paths",
+      "styleSheets": "returns an array of the sheets, not a StyleSheetList",
+      "getElementsByName": "returns an array, not a live NodeList",
+      "createEvent": "may return a BeforeUnloadEvent, whose string returnValue TypeScript can't relate to Event's boolean one"
+    }
+  },
+  "Element": {
+    "omit": {
+      "scrollIntoView": "returns undefined; CSSOM View now specifies a promise"
+    }
+  },
+  "HTMLElement": {
+    "omit": {
+      "innerText": "the shared wrapper also handles SVG and MathML elements, which return undefined",
+      "outerText": "delegates to innerText on the shared wrapper and may return undefined",
+      "dataset": "the shared wrapper also handles other namespaces, which return undefined"
+    }
+  },
+  "HTMLFormElement": {
+    "omit": {
+      "[index]": "no indexed getter; the controls are reachable through elements",
+      "relList": "shared Element accessor returns undefined for form; only a/area/link are supported"
+    }
+  },
+  "HTMLLinkElement": {
+    "omit": {
+      "blocking": "returns an array stub, not a DOMTokenList"
+    }
+  },
+  "HTMLMediaElement": {
+    "omit": {
+      "textTracks": "returns an object stub, not a TextTrackList: a track's cues stay empty and its events never fire",
+      "addTextTrack": "returns an object stub, not a TextTrack",
+      "audioTracks": "returns an empty array stub, not an AudioTrackList",
+      "videoTracks": "returns an empty array stub, not a VideoTrackList"
+    }
+  },
+  "HTMLScriptElement": {
+    "omit": {
+      "blocking": "returns an array stub, not a DOMTokenList"
+    }
+  },
+  "HTMLSelectElement": {
+    "omit": {
+      "[index]": "no indexed getter; the options are reachable through item() and options"
+    }
+  },
+  "HTMLStyleElement": {
+    "omit": {
+      "blocking": "returns an array stub, not a DOMTokenList"
+    }
+  },
+  "MutationRecord": {
+    "omit": {
+      "addedNodes": "an array, not a NodeList: it has length and indexes but no item()",
+      "removedNodes": "an array, not a NodeList: it has length and indexes but no item()"
+    }
+  },
+  "StyleSheet": {
+    "omit": {
+      "ownerNode": "a DOMParser document's sheets are owned by a ParsedElement, which doesn't implement Element"
+    }
+  },
+  "XPathResult": {
+    "omit": {
+      "singleNodeValue": "a DOMParser document's nodes are Parsed* wrappers, which don't implement Node",
+      "iterateNext": "a DOMParser document's nodes are Parsed* wrappers, which don't implement Node",
+      "snapshotItem": "a DOMParser document's nodes are Parsed* wrappers, which don't implement Node"
+    }
+  }
+}

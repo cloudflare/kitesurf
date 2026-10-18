@@ -1,0 +1,58 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<script type="importmap">
+  {"imports":{
+    "react":"https://ks.invalid/__fixtures/__kitesurf_inline_0.js",
+    "react-dom":"https://ks.invalid/__fixtures/__kitesurf_inline_1.js",
+    "https://ks.invalid/__fixtures/__kitesurf_inline_1.js":"https://ks.invalid/__fixtures/__kitesurf_inline_0.js"
+  }}
+</script>
+<script type="module">
+  export default 42;
+</script>
+<script type="module">
+  import answer from "react";
+  export default answer + 1;
+</script>
+<script type="module">
+  import answer from "react-dom";
+  globalThis.importMapResult = {
+    staticAnswer: answer,
+    url: import.meta.url,
+    resolved: import.meta.resolve("./peer.js"),
+  };
+</script>
+<script type="module">
+  const specifier = "react-dom";
+  globalThis.importMapResult.dynamicAnswer =
+    (await import(specifier)).default;
+</script>
+<script type="module">
+  const specifier = "https://ks.invalid/__fixtures/importmap-lazy.js";
+  globalThis.importMapResult.lazyAnswer =
+    (await import(specifier)).default;
+</script>
+<!-- A module's static import resolves where the parser meets it, so the
+     map BELOW may not redirect it (HTML's resolved module set); a rule
+     nothing has resolved yet still lands. -->
+<script type="module">
+  import early from "./importmap-early.js";
+  globalThis.importMapResult.earlyAnswer = early;
+</script>
+<script type="importmap">
+  {"imports":{
+    "https://ks.invalid/__fixtures/importmap-early.js":"https://ks.invalid/__fixtures/importmap-lazy.js",
+    "late":"https://ks.invalid/__fixtures/importmap-early.js"
+  }}
+</script>
+<script type="module">
+  import late from "late";
+  globalThis.importMapResult.lateAnswer = late;
+  globalThis.importMapResult.earlyResolved =
+    import.meta.resolve("./importmap-early.js");
+</script>

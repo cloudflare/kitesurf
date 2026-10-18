@@ -1,0 +1,189 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 17:29:52 +0100
+Subject: [PATCH] Text controls: dir=auto reads the live value; ASCII-ci type
+ gates
+
+Review fixes. (1) HTML computes a text control's auto-
+directionality from its value, but the scan walked DOM children:
+inputs have none and a textarea's children are only the default
+value, so :dir() and the cascade hint disagreed with the rendered
+direction after script value writes (paint was already right via
+unicode-bidi:plaintext). Read the editor's value_override first
+(set_text_input_value restyles the control on every IDL write, so
+no new invalidation is needed), then the value attribute for
+inputs; textareas fall through to child text = the default value.
+
+(2) The input type attribute is an ASCII-case-insensitive
+enumerated attribute whose unknown/empty values fall to the text
+state; and three gates matched lowercase literals only: construct's
+editor gate, the pre-layout value seed, and the taffy leaf-measure
+in layout/mod.rs (whose text-type list also omitted number, so
+type="TEXT"/""/"bogus" rendered as an empty sliver and dropped
+pre-layout .value writes). Normalize all three identically; the
+inline-walk hidden-input checks go case-insensitive too.
+---
+ src/layout/construct.rs | 22 ++++++++++++++++------
+ src/layout/mod.rs       | 17 ++++++++++++++---
+ src/mutator.rs          | 15 +++++++++++----
+ src/node/node.rs        | 25 +++++++++++++++++++++++++
+ 4 files changed, 66 insertions(+), 13 deletions(-)
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 23eab7e..6cae3c9 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -576,16 +576,26 @@ fn collect_layout_children_with_wrap(
+         // Handle text inputs
+         let tag_name = el.name.local.as_ref();
+         if matches!(tag_name, "input" | "textarea") {
+-            let type_attr: Option<&str> = doc.nodes[container_node_id]
++            // Type is an ASCII-ci enumerated attribute and
++            // unknown/empty values fall to the Text state per HTML:
++            // type="TEXT" / type="" / type="foo" must all build an
++            // editor, not silently render nothing.
++            let type_attr: Option<String> = doc.nodes[container_node_id]
+                 .data
+                 .downcast_element()
+-                .and_then(|el| el.attr(local_name!("type")));
++                .and_then(|el| el.attr(local_name!("type")))
++                .map(|t| t.to_ascii_lowercase());
++            let type_attr: Option<&str> = type_attr.as_deref();
+             if tag_name == "textarea" {
+                 create_text_editor(doc, container_node_id, true);
+                 return;
+-            } else if matches!(
++            } else if !matches!(
+                 type_attr,
+-                None | Some("text" | "password" | "email" | "number" | "search" | "tel" | "url")
++                Some(
++                    "checkbox" | "radio" | "range" | "hidden" | "submit" | "button"
++                        | "reset" | "file" | "image" | "color" | "date"
++                        | "datetime-local" | "month" | "week" | "time"
++                )
+             ) {
+                 create_text_editor(doc, container_node_id, false);
+                 return;
+@@ -1291,7 +1301,7 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+             NodeData::Element(element_data) | NodeData::AnonymousBlock(element_data) => {
+                 // if the input type is hidden, hide it
+                 if *element_data.name.local == *"input" {
+-                    if let Some("hidden") = element_data.attr(local_name!("type")) {
++                    if element_data.attr(local_name!("type")).is_some_and(|t| t.eq_ignore_ascii_case("hidden")) {
+                         return;
+                     }
+                 }
+@@ -1511,7 +1521,7 @@ pub(crate) fn build_inline_layout_into(
+             NodeData::Element(element_data) | NodeData::AnonymousBlock(element_data) => {
+                 // if the input type is hidden, hide it
+                 if *element_data.name.local == *"input" {
+-                    if let Some("hidden") = element_data.attr(local_name!("type")) {
++                    if element_data.attr(local_name!("type")).is_some_and(|t| t.eq_ignore_ascii_case("hidden")) {
+                         return;
+                     }
+                 }
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index fa5bbc8..ff930cf 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -327,7 +327,14 @@ impl LayoutPassState<'_> {
+                 }
+
+                 if *element_data.name.local == *"input" {
+-                    match element_data.attr(local_name!("type")) {
++                    // Same ASCII-ci type normalization as
++                    // construct's editor gate: unknown/empty types
++                    // fall to the Text state, so their leaf layout
++                    // must match (else the editor paints in a sliver).
++                    let type_attr = element_data
++                        .attr(local_name!("type"))
++                        .map(|t| t.to_ascii_lowercase());
++                    match type_attr.as_deref() {
+                         // if the input type is hidden, hide it
+                         Some("hidden") => {
+                             return taffy::LayoutOutput::HIDDEN;
+@@ -355,7 +362,12 @@ impl LayoutPassState<'_> {
+                                 },
+                             );
+                         }
+-                        None | Some("text" | "password" | "email" | "tel" | "url" | "search") => {
++                        Some(
++                            "radio" | "range" | "submit" | "button" | "reset" | "file"
++                            | "image" | "color" | "date" | "datetime-local" | "month"
++                            | "week" | "time",
++                        ) => {}
++                        _ => {
+                             return compute_leaf_layout(
+                                 inputs,
+                                 &node.layout_style(),
+@@ -370,7 +382,6 @@ impl LayoutPassState<'_> {
+                                 },
+                             );
+                         }
+-                        _ => {}
+                     }
+                 }
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index c002b81..be8d7cd 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1752,11 +1752,18 @@ impl<'doc> DocumentMutator<'doc> {
+         if element.text_input_data_mut().is_none() {
+             let tag: &str = &element.name.local;
+             let is_multiline = tag == "textarea";
++            // Mirror construct's gate: ASCII-ci type matching with
++            // unknown/empty falling to the Text state per HTML.
++            let ty = element
++                .attr(local_name!("type"))
++                .map(|t| t.to_ascii_lowercase());
+             let is_text_input = tag == "input"
+-                && matches!(
+-                    element.attr(local_name!("type")),
+-                    None | Some(
+-                        "text" | "password" | "email" | "number" | "search" | "tel" | "url"
++                && !matches!(
++                    ty.as_deref(),
++                    Some(
++                        "checkbox" | "radio" | "range" | "hidden" | "submit" | "button"
++                            | "reset" | "file" | "image" | "color" | "date"
++                            | "datetime-local" | "month" | "week" | "time"
+                     )
+                 );
+             if !(is_multiline || is_text_input) {
+diff --git a/src/node/node.rs b/src/node/node.rs
+index f9cfb5e..0d0ae02 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -1401,6 +1401,31 @@ impl Node {
+     // other elements scan light children: a host's shadow tree is
+     // not its descendant. Excluded subtrees match the spec list.
+     pub(crate) fn dir_auto_scan_is_rtl(&self) -> Option<bool> {
++        // HTML: a text control's auto-directionality comes from its
++        // value, not its children. The dirty IDL value lives in the
++        // editor's value_override (set_text_input_value restyles the
++        // control on every write, so the cascade hint stays fresh);
++        // pre-dirty falls back to the value attribute for inputs.
++        // Textareas fall through to child text = the default value.
++        if let Some(el) = self.data.downcast_element() {
++            if let Some(data) = el.text_input_data() {
++                if let Some(v) = &data.value_override {
++                    return match parley::first_strong_direction(v) {
++                        Some(parley::BaseDirection::Rtl) => Some(true),
++                        Some(_) => Some(false),
++                        None => None,
++                    };
++                }
++            }
++            if el.name.local == local_name!("input") {
++                let v = el.attr(local_name!("value")).unwrap_or("");
++                return match parley::first_strong_direction(v) {
++                    Some(parley::BaseDirection::Rtl) => Some(true),
++                    Some(_) => Some(false),
++                    None => None,
++                };
++            }
++        }
+         fn scan(node: &Node, is_scan_root: bool) -> Option<bool> {
+             match &node.data {
+                 NodeData::Text(t) => match parley::first_strong_direction(&t.content) {

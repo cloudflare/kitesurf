@@ -1,0 +1,45 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>a11y</title></head>
+<body>
+  <header><h1>Site Title</h1></header>
+  <nav aria-label="Primary">
+    <ul>
+      <li><a href="/home">Home</a></li>
+      <li><a href="/about" aria-label="About us">About</a></li>
+    </ul>
+  </nav>
+  <main>
+    <h2 id="form-heading">Sign up</h2>
+    <form aria-labelledby="form-heading">
+      <label for="email">Email address</label>
+      <input id="email" type="email" required placeholder="you@example.com">
+      <label for="pw">Password</label>
+      <input id="pw" type="password" required>
+      <label><input type="checkbox" name="tos"> Accept terms</label>
+      <fieldset>
+        <legend>Plan</legend>
+        <label><input type="radio" name="plan" value="free" checked>Free</label>
+        <label><input type="radio" name="plan" value="pro">Pro</label>
+      </fieldset>
+      <input type="range" name="vol" min="0" max="10" value="5">
+      <button type="submit">Create account</button>
+      <button type="button" disabled>Cancel</button>
+    </form>
+    <section aria-label="Gallery">
+      <img src="/x.png" alt="A puppy">
+      <img src="/y.png" alt="">
+      <button aria-pressed="false" aria-label="Like"><img src="/heart.png" alt=""></button>
+    </section>
+    <div role="alert" id="err">Something went wrong</div>
+    <div aria-describedby="err"><button>Retry</button></div>
+  </main>
+  <footer><p>Footer text</p></footer>
+</body>
+</html>

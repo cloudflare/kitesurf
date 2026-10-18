@@ -1,0 +1,30 @@
+name: Set up kitesurf
+description: Install pnpm 9.15.4, Node 22, and, when requested, the Rust toolchain pinned in rust-toolchain.toml.
+inputs:
+  rust:
+    description: Install the pinned Rust toolchain and the rust-cache.
+    required: false
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Set a git identity
+      shell: bash
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 9.15.4
+        run_install: false
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: pnpm
+    - if: inputs.rust == 'true'
+      shell: bash
+      run: rustup show
+    - if: inputs.rust == 'true'
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-directories: packages/core/target

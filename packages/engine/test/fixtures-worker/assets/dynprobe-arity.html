@@ -1,0 +1,25 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html><title>dynprobe-arity</title><body>
+<pre id="results" data-done="0"></pre>
+<script>
+const trim = (e) => String((e && e.message) || e).slice(0, 200);
+import('./graphprobe/' + 'g-arity.js').then(
+  (m) => {
+    try {
+      const direct = m.arity(1, 2, 3, { client: 'x' }, 5);
+      const viaThis = m.holder.method(7, 8, 9, { client: 'y' }, 11);
+      return { direct, viaThis };
+    } catch (e) { return { err: trim(e) }; }
+  },
+  (e) => ({ err: trim(e) }),
+).then((v) => {
+  const el = document.getElementById('results');
+  el.textContent = JSON.stringify(v);
+  el.setAttribute('data-done', '1');
+});
+</script></body>

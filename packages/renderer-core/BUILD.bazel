@@ -1,0 +1,58 @@
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary")
+load("@crates_renderer//:defs.bzl", "aliases", "all_crate_deps")
+load("@rules_rust//cargo:defs.bzl", "cargo_toml_env_vars")
+load("@rules_rust//rust:defs.bzl", "rust_shared_library")
+load("//bazel:paths.bzl", "exec_path")
+
+exports_files(
+    ["Cargo.toml"],
+    visibility = ["//:__pkg__"],
+)
+
+cargo_toml_env_vars(
+    name = "cargo_env",
+    src = "Cargo.toml",
+)
+
+rust_shared_library(
+    name = "renderer_core",
+    srcs = [
+        "src/lib.rs",
+        "src/paint.rs",
+    ],
+    aliases = aliases(),
+    compile_data = ["//packages/core:renderer_shared_srcs"],
+    crate_features = ["console_error_panic_hook", "default", "pdf"],
+    edition = "2021",
+    platform = "//bazel/rust:wasm32_unwind",
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    rustc_env_files = [":cargo_env"],
+    rustc_flags = ["-Clto=fat"],
+    tags = ["manual"],
+    deps = all_crate_deps(normal = True),
+)
+
+js_binary(
+    name = "build_tool",
+    data = ["//scripts:wasm_build_helpers"],
+    entry_point = "scripts/build.mjs",
+)
+
+js_run_binary(
+    name = "wasm_pkg",
+    srcs = [":renderer_core", "//bazel:wasm_bindgen"],
+    outs = [
+        "pkg/renderer_core.d.ts",
+        "pkg/renderer_core.glue.d.ts",
+        "pkg/renderer_core.glue.js",
+        "pkg/renderer_core_bg.wasm",
+        "pkg/renderer_core_bg.wasm.d.ts",
+    ],
+    args = ["--postprocess", "../../../$(execpath :renderer_core)"],
+    env = {"WASM_BINDGEN_BIN": exec_path("//bazel:wasm_bindgen")},
+    mnemonic = "WasmPostprocess",
+    progress_message = "wasm-bindgen renderer_core",
+    tool = ":build_tool",
+    # Workers that wrap the engine through its embed entry bundle this module too.
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sun, 4 Oct 2026 03:22:09 +0100
+Subject: [PATCH] Implement PaintScene::push_clip_path with vello_cpu clip
+ paths
+
+A clip layer composites a separate group, while vello_cpu's clip path
+clips each draw against the clip's strips. The scene replayer uses this
+for whole-pixel rect clips, where both give the same pixels.
+---
+ src/scene.rs | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/src/scene.rs b/src/scene.rs
+index 1b09a33..9866334 100644
+--- a/src/scene.rs
++++ b/src/scene.rs
+@@ -109,6 +109,17 @@ impl PaintScene for VelloCpuScenePainter {
+             .push_clip_layer(&clip.into_path(DEFAULT_TOLERANCE));
+     }
+
++    fn push_clip_path(&mut self, fill: Fill, transform: Affine, clip: &impl Shape) {
++        self.render_ctx.set_transform(transform);
++        self.render_ctx.set_fill_rule(fill);
++        self.render_ctx
++            .push_clip_path(&clip.into_path(DEFAULT_TOLERANCE));
++    }
++
++    fn pop_clip_path(&mut self) {
++        self.render_ctx.pop_clip();
++    }
++
+     fn pop_layer(&mut self) {
+         self.render_ctx.pop_layer();
+     }

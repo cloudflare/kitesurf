@@ -1,0 +1,87 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 14:56:39 +0100
+Subject: [PATCH] servo: parse and plumb the :dir() pseudo-class
+
+The servo selector parser had no Dir variant, so :dir(ltr) failed to
+parse: element.matches(':dir(...)') threw SyntaxError and every UA or
+author rule using it was dropped whole. Store the lowercased ident
+(Selectors 4: any ident parses, unknown values never match) and
+delegate matching to the embedder's match_non_ts_pseudo_class, like
+Lang. With an empty state_flag, needs_cache_revalidation stays true, so
+style sharing can't miscache it; invalidation_map registers a
+dir-attribute dependency for restyles.
+---
+ invalidation/element/invalidation_map.rs |  2 ++
+ servo/selector_parser.rs                 | 17 +++++++++++++++--
+ 2 files changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/invalidation/element/invalidation_map.rs b/invalidation/element/invalidation_map.rs
+index c5a6b0a..498fe8d 100644
+--- a/invalidation/element/invalidation_map.rs
++++ b/invalidation/element/invalidation_map.rs
+@@ -704,6 +704,8 @@ fn on_pseudo_class<C: Collector>(pc: &NonTSPseudoClass, collector: &mut C) -> Re
+             return add_attr_dependency(local_name!("size"), collector);
+         },
+         NonTSPseudoClass::Lang(..) => local_name!("lang"),
++        #[cfg(feature = "servo")]
++        NonTSPseudoClass::Dir(..) => local_name!("dir"),
+         NonTSPseudoClass::CustomState(ref name) => {
+             return add_custom_state_dependency(name.0.clone(), collector);
+         },
+diff --git a/servo/selector_parser.rs b/servo/selector_parser.rs
+index f03d9a1..f08a8c2 100644
+--- a/servo/selector_parser.rs
++++ b/servo/selector_parser.rs
+@@ -380,6 +380,9 @@ pub enum NonTSPseudoClass {
+     CustomState(CustomState),
+     Default,
+     Defined,
++    // :dir(<ident>) stores the lowercased argument;
++    // matching happens in the embedder's match_non_ts_pseudo_class.
++    Dir(Box<str>),
+     Disabled,
+     Enabled,
+     Focus,
+@@ -442,6 +445,11 @@ impl ToCss for NonTSPseudoClass {
+             serialize_identifier(lang, dest)?;
+             return dest.write_char(')');
+         }
++        if let Dir(ref dir) = *self {
++            dest.write_str(":dir(")?;
++            serialize_identifier(dir, dest)?;
++            return dest.write_char(')');
++        }
+
+         dest.write_str(match *self {
+             Self::Active => ":active",
+@@ -484,7 +492,7 @@ impl ToCss for NonTSPseudoClass {
+             Self::UserValid => ":user-valid",
+             Self::Valid => ":valid",
+             Self::Visited => ":visited",
+-            Self::Lang(_) => unreachable!(),
++            Self::Lang(_) | Self::Dir(_) => unreachable!(),
+         })
+     }
+ }
+@@ -528,7 +536,7 @@ impl NonTSPseudoClass {
+             Self::UserValid => ElementState::USER_VALID,
+             Self::Valid => ElementState::VALID,
+             Self::Visited => ElementState::VISITED,
+-            Self::CustomState(_) | Self::Lang(_) | Self::ServoNonZeroBorder => {
++            Self::CustomState(_) | Self::Lang(_) | Self::Dir(_) | Self::ServoNonZeroBorder => {
+                 ElementState::empty()
+             },
+         }
+@@ -679,6 +687,11 @@ impl<'a, 'i> ::selectors::Parser<'i> for SelectorParser<'a> {
+             "lang" if !after_part => {
+                 NonTSPseudoClass::Lang(parser.expect_ident_or_string()?.as_ref().into())
+             },
++            // Selectors 4 :dir() takes any ident; unknown
++            // values parse fine and simply never match.
++            "dir" if !after_part => {
++                NonTSPseudoClass::Dir(parser.expect_ident()?.as_ref().to_ascii_lowercase().into())
++            },
+             "state" => {
+                 let result = AtomIdent::from(parser.expect_ident()?.as_ref());
+                 NonTSPseudoClass::CustomState(CustomState(result))

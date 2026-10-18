@@ -1,0 +1,16 @@
+[package]
+name = "memprof-rewriter"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Build-time wasm-memprof instrumentor that hooks Rust allocator names (__rust_alloc/_dealloc/_realloc/_alloc_zeroed) in the kitesurf-core wasm."
+
+[[bin]]
+name = "memprof-rewriter"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+instrumentor = { path = "../../vendor/wasm-memprof/instrumentor" }
+log = "0.4"
+walrus = "0.23.3"

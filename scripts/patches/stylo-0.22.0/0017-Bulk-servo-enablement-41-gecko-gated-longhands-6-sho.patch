@@ -1,0 +1,496 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 31 Jul 2026 23:30:32 +0100
+Subject: [PATCH] Bulk servo enablement: 41 gecko-gated longhands + 6
+ shorthands
+
+The remaining parse-only property batches, same pattern as the
+accent-color, @page and break-* enablements: drop the engine=gecko
+gates so servo generates them.
+
+- css-text: text-wrap-style, hyphens, hyphenate-character,
+  hyphenate-limit-chars, text-autospace (and the text-wrap shorthand)
+- css-fonts: font-size-adjust, font-palette, font-variant-emoji,
+  font-variant-alternates, font-synthesis-{style,small-caps,position}
+  (and the font-synthesis shorthand)
+- anchor-position: anchor-scope, position-try-order,
+  position-visibility (and the position-try shorthand; its
+  position-try-fallbacks sub-longhand loses the layout.unimplemented
+  servo_pref)
+- css-shapes: shape-outside, shape-margin, shape-image-threshold
+- text-decor: text-emphasis-{style,position,color},
+  text-underline-position, text-decoration-{inset,skip-ink} (and the
+  text-emphasis shorthand)
+- multicol: column-rule-{style,color,width}, column-fill (and the
+  column-rule shorthand)
+- contain-intrinsic-{width,height,block-size,inline-size} (and the
+  contain-intrinsic-size shorthand)
+- others: counter-set, resize, field-sizing, transform-box,
+  image-orientation, text-orientation, text-combine-upright,
+  scrollbar-gutter
+
+The five handwritten shorthand modules in shorthands.rs were
+cfg(gecko)-gated like page-break-*; un-gate them. Servo's font style
+struct derives serde, so the newly reachable font value types
+(FontPalette, GenericFontSizeAdjust, FontSynthesisStyle,
+FontVariantAlternates and VariantAlternates, CustomIdent) gain the
+same cfg_attr(servo) serde derives the sibling types carry.
+
+content-visibility stays gecko-gated: its Animate impl is gecko-only,
+and whether blitz honours 'hidden' is unverified.
+---
+ properties/longhands.toml  | 42 +-------------------------------------
+ properties/shorthands.rs   |  5 -----
+ properties/shorthands.toml |  6 ------
+ values/specified/font.rs   |  2 ++
+ 4 files changed, 3 insertions(+), 52 deletions(-)
+
+diff --git a/properties/longhands.toml b/properties/longhands.toml
+index 39e790a..ec939cc 100644
+--- a/properties/longhands.toml
++++ b/properties/longhands.toml
+@@ -191,7 +191,6 @@ affects = ""
+ type = "ScopedName"
+ initial = "computed::ScopedName::none()"
+ struct = "box"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#propdef-scope"
+ affects = ""
+@@ -589,7 +588,6 @@ affects = "layout"
+ type = "Color"
+ initial = "computed_value::T::currentcolor()"
+ struct = "column"
+-engine = "gecko"
+ ignored_when_colors_disabled = true
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule-color"
+ affects = "paint"
+@@ -598,7 +596,6 @@ affects = "paint"
+ type = "BorderStyle"
+ initial = "computed::BorderStyle::None"
+ struct = "column"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule-style"
+ affects = "paint"
+@@ -607,7 +604,6 @@ affects = "paint"
+ type = "BorderSideWidth"
+ initial = "computed::BorderSideWidth::medium()"
+ struct = "column"
+-engine = "gecko"
+ initial_specified_value = "specified::BorderSideWidth::medium()"
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule-width"
+ affects = "layout"
+@@ -634,7 +630,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ logical = true
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+@@ -644,7 +639,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+ affects = "layout"
+@@ -653,7 +647,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ logical = true
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+@@ -663,7 +656,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+ affects = "layout"
+@@ -697,9 +689,9 @@ affects = "layout"
+
+ [content-visibility]
+ type = "ContentVisibility"
++engine = "gecko"
+ initial = "computed::ContentVisibility::Visible"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-contain/#content-visibility"
+ affects = "layout"
+
+@@ -727,7 +719,6 @@ affects = "layout"
+ type = "CounterSet"
+ initial = "Default::default()"
+ struct = "counters"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-lists-3/#propdef-counter-set"
+ servo_restyle_damage = "rebuild_box"
+@@ -887,7 +878,6 @@ affects = "layout"
+ type = "FontPalette"
+ initial = "computed::FontPalette::normal()"
+ struct = "font"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-fonts/#font-palette-prop"
+ affects = "layout"
+@@ -906,7 +896,6 @@ affects = "layout"
+ type = "FontSizeAdjust"
+ initial = "computed::FontSizeAdjust::None"
+ struct = "font"
+-servo_pref = "layout.unimplemented"
+ spec = "https://drafts.csswg.org/css-fonts/#propdef-font-size-adjust"
+ gecko_ffi_name = "mFont.sizeAdjust"
+ affects = "layout"
+@@ -935,7 +924,6 @@ affects = "layout"
+ type = "FontSynthesis"
+ initial = "computed::FontSynthesis::Auto"
+ struct = "font"
+-engine = "gecko"
+ gecko_ffi_name = "mFont.synthesisPosition"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-fonts-4/#font-synthesis-position"
+@@ -945,7 +933,6 @@ affects = "layout"
+ type = "FontSynthesis"
+ initial = "computed::FontSynthesis::Auto"
+ struct = "font"
+-engine = "gecko"
+ gecko_ffi_name = "mFont.synthesisSmallCaps"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-fonts-4/#font-synthesis-small-caps"
+@@ -955,7 +942,6 @@ affects = "layout"
+ type = "FontSynthesisStyle"
+ initial = "computed::FontSynthesisStyle::Auto"
+ struct = "font"
+-engine = "gecko"
+ gecko_ffi_name = "mFont.synthesisStyle"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-fonts-4/#font-synthesis-style"
+@@ -1748,7 +1734,6 @@ type = "PositionTryFallbacks"
+ initial = "computed::PositionTryFallbacks::none()"
+ struct = "position"
+ animation_type = "discrete"
+-servo_pref = "layout.unimplemented"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#position-try-fallbacks"
+ affects = "layout"
+
+@@ -1756,7 +1741,6 @@ affects = "layout"
+ type = "PositionTryOrder"
+ initial = "computed::PositionTryOrder::normal()"
+ struct = "position"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#position-try-order-property"
+ affects = "layout"
+@@ -1765,7 +1749,6 @@ affects = "layout"
+ type = "PositionVisibility"
+ initial = "computed::PositionVisibility::ANCHORS_VISIBLE"
+ struct = "position"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#propdef-position-visibility"
+ affects = "layout"
+@@ -1793,7 +1776,6 @@ affects = "layout"
+ type = "Resize"
+ initial = "computed::Resize::None"
+ struct = "box"
+-engine = "gecko"
+ animation_type = "discrete"
+ gecko_ffi_name = "mResize"
+ spec = "https://drafts.csswg.org/css-ui/#propdef-resize"
+@@ -1924,7 +1906,6 @@ affects = "paint"
+ type = "ScrollbarGutter"
+ initial = "computed::ScrollbarGutter::AUTO"
+ struct = "box"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-overflow-3/#scrollbar-gutter-property"
+ affects = "layout"
+@@ -1933,7 +1914,6 @@ affects = "layout"
+ type = "Opacity"
+ initial = "0.0"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-shapes/#shape-image-threshold-property"
+ affects = "layout"
+
+@@ -1941,7 +1921,6 @@ affects = "layout"
+ type = "NonNegativeLengthPercentage"
+ initial = "computed::NonNegativeLengthPercentage::zero()"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-shapes/#shape-margin-property"
+ affects = "layout"
+
+@@ -1949,7 +1928,6 @@ affects = "layout"
+ type = "basic_shape::ShapeOutside"
+ initial = "generics::basic_shape::ShapeOutside::None"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-shapes/#shape-outside-property"
+ affects = "layout"
+
+@@ -2108,7 +2086,6 @@ affects = "overflow"
+ type = "TransformBox"
+ initial = "computed::TransformBox::ViewBox"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-transforms/#transform-box"
+ animation_type = "discrete"
+ affects = "overflow"
+@@ -2538,7 +2515,6 @@ affects = "paint"
+ type = "HyphenateCharacter"
+ initial = "computed::HyphenateCharacter::Auto"
+ struct = "inherited_text"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://www.w3.org/TR/css-text-4/#hyphenate-character"
+ affects = "layout"
+@@ -2547,7 +2523,6 @@ affects = "layout"
+ type = "HyphenateLimitChars"
+ initial = "computed::HyphenateLimitChars::auto()"
+ struct = "inherited_text"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-text-4/#hyphenate-char-limits"
+ affects = "layout"
+ boxed = true
+@@ -2582,7 +2557,6 @@ affects = "layout"
+ type = "TextAutospace"
+ initial = "computed::text::TextAutospace::NO_AUTOSPACE"
+ struct = "inherited_text"
+-engine = "gecko"
+ animation_type = "discrete"
+ gecko_pref = "layout.css.text-autospace.enabled"
+ has_effect_on_gecko_scrollbars = false
+@@ -2615,7 +2589,6 @@ affects = "layout"
+ type = "TextDecorationSkipInk"
+ initial = "computed::TextDecorationSkipInk::Auto"
+ struct = "inherited_text"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-text-decor-4/#text-decoration-skip-ink-property"
+ affects = "overflow"
+@@ -2624,7 +2597,6 @@ affects = "overflow"
+ type = "Color"
+ initial = "computed_value::T::currentcolor()"
+ struct = "inherited_text"
+-engine = "gecko"
+ ignored_when_colors_disabled = true
+ spec = "https://drafts.csswg.org/css-text-decor/#propdef-text-emphasis-color"
+ affects = "paint"
+@@ -2633,7 +2605,6 @@ affects = "paint"
+ type = "TextEmphasisPosition"
+ initial = "computed::TextEmphasisPosition::AUTO"
+ struct = "inherited_text"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-text-decor/#propdef-text-emphasis-position"
+ affects = "layout"
+@@ -2642,7 +2613,6 @@ affects = "layout"
+ type = "TextEmphasisStyle"
+ initial = "computed::TextEmphasisStyle::None"
+ struct = "inherited_text"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-text-decor/#propdef-text-emphasis-style"
+ affects = "overflow"
+@@ -2660,7 +2630,6 @@ affects = "overflow"
+ type = "TextUnderlinePosition"
+ initial = "computed::TextUnderlinePosition::AUTO"
+ struct = "inherited_text"
+-servo_pref = "layout.unimplemented"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-text-decor-3/#text-underline-position-property"
+ servo_restyle_damage = "rebuild_stacking_context"
+@@ -2774,7 +2743,6 @@ type = "TextDecorationInset"
+ initial = "computed::text::TextDecorationInset::get_initial_value()"
+ struct = "text"
+ gecko_pref = "layout.css.text-decoration-inset.enabled"
+-servo_pref = "layout.unimplemented"
+ spec = "https://drafts.csswg.org/css-text-decor-4/#text-decoration-inset-property"
+ boxed = true
+ servo_restyle_damage = "rebuild_stacking_context"
+@@ -3747,7 +3715,6 @@ keyword = { values = ["inline", "block", "horizontal", "vertical"] }
+
+ [column-fill]
+ struct = "column"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-fill"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -3784,7 +3751,6 @@ keyword = { values = ["auto", "none", "normal"], gecko_constant_prefix = "NS_FON
+
+ [font-variant-emoji]
+ struct = "font"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-fonts/#propdef-font-variant-emoji"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -3862,7 +3828,6 @@ keyword = { values = ["flex", "legacy"] }
+
+ [text-orientation]
+ struct = "inherited_box"
+-servo_pref = "layout.unimplemented"
+ spec = "https://drafts.csswg.org/css-writing-modes/#propdef-text-orientation"
+ animation_type = "none"
+ affects = "layout"
+@@ -3870,7 +3835,6 @@ keyword = { values = ["mixed", "upright", "sideways"], gecko_aliases = ["sideway
+
+ [image-orientation]
+ struct = "inherited_box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-images/#propdef-image-orientation"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -3940,7 +3904,6 @@ keyword = { values = ["show", "hide"] }
+
+ [hyphens]
+ struct = "inherited_text"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-text/#propdef-hyphens"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -3967,7 +3930,6 @@ keyword = { values = ["space-around", "start", "center", "space-between"] }
+
+ [text-combine-upright]
+ struct = "inherited_text"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-writing-modes-3/#text-combine-upright"
+ animation_type = "none"
+ affects = "layout"
+@@ -3999,7 +3961,6 @@ keyword = { values = ["wrap", "nowrap"] }
+
+ [text-wrap-style]
+ struct = "inherited_text"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-text-4/#text-wrap-style"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -4185,7 +4146,6 @@ keyword = { values = ["auto", "none"] }
+
+ [field-sizing]
+ struct = "ui"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-ui/#field-sizing"
+ animation_type = "discrete"
+ affects = "layout"
+diff --git a/properties/shorthands.rs b/properties/shorthands.rs
+index a40bb1d..dda8273 100644
+--- a/properties/shorthands.rs
++++ b/properties/shorthands.rs
+@@ -813,7 +813,6 @@ pub mod columns {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod column_rule {
+     pub use crate::properties::generated::shorthands::column_rule::*;
+
+@@ -848,7 +847,6 @@ pub mod column_rule {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod text_wrap {
+     pub use crate::properties::generated::shorthands::text_wrap::*;
+
+@@ -1631,7 +1629,6 @@ pub mod grid_area {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod position_try {
+     pub use crate::properties::generated::shorthands::position_try::*;
+
+@@ -2939,7 +2936,6 @@ pub mod font_variant {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod font_synthesis {
+     pub use crate::properties::generated::shorthands::font_synthesis::*;
+
+@@ -3116,7 +3112,6 @@ pub mod text_box {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod text_emphasis {
+     pub use crate::properties::generated::shorthands::text_emphasis::*;
+
+diff --git a/properties/shorthands.toml b/properties/shorthands.toml
+index 0d98180..5827b04 100644
+--- a/properties/shorthands.toml
++++ b/properties/shorthands.toml
+@@ -282,7 +282,6 @@ rule_types_allowed = ["style", "keyframe", "scope", "position-try"]
+ kind = "two_properties"
+
+ [contain-intrinsic-size]
+-engine = "gecko"
+ sub_properties = ["contain-intrinsic-width", "contain-intrinsic-height"]
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+ kind = "two_properties"
+@@ -342,7 +341,6 @@ sub_properties = ["align-items", "justify-items"]
+ spec = "https://drafts.csswg.org/css-align/#place-items-property"
+
+ [position-try]
+-engine = "gecko"
+ sub_properties = ["position-try-order", "position-try-fallbacks"]
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#position-try-prop"
+
+@@ -478,7 +476,6 @@ spec = "https://drafts.csswg.org/css-multicol/#propdef-columns"
+ servo_pref = "layout.columns.enabled"
+
+ [column-rule]
+-engine = "gecko"
+ sub_properties = ["column-rule-width", "column-rule-style", "column-rule-color"]
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule"
+ derive_serialize = true
+@@ -527,7 +524,6 @@ extra_gecko_sub_properties = ["font-variant-emoji"]
+ spec = "https://drafts.csswg.org/css-fonts-3/#propdef-font-variant"
+
+ [font-synthesis]
+-engine = "gecko"
+ sub_properties = ["font-synthesis-weight", "font-synthesis-style", "font-synthesis-small-caps", "font-synthesis-position"]
+ spec = "https://drafts.csswg.org/css-fonts-3/#propdef-font-variant"
+ derive_value_info = false
+@@ -539,13 +535,11 @@ spec = "https://drafts.csswg.org/css-inline/#text-box-shorthand"
+ gecko_pref = "layout.css.text-box.enabled"
+
+ [text-emphasis]
+-engine = "gecko"
+ sub_properties = ["text-emphasis-style", "text-emphasis-color"]
+ spec = "https://drafts.csswg.org/css-text-decor-3/#text-emphasis-property"
+ derive_serialize = true
+
+ [text-wrap]
+-engine = "gecko"
+ sub_properties = ["text-wrap-mode", "text-wrap-style"]
+ spec = "https://www.w3.org/TR/css-text-4/#text-wrap"
+
+diff --git a/values/specified/font.rs b/values/specified/font.rs
+index e63811a..3c090fd 100644
+--- a/values/specified/font.rs
++++ b/values/specified/font.rs
+@@ -1618,6 +1618,7 @@ pub enum FontSynthesis {
+     ToShmem,
+     ToTyped,
+ )]
++#[cfg_attr(feature = "servo", derive(Serialize, Deserialize))]
+ pub enum FontSynthesisStyle {
+     /// This attribute may be synthesized if not supported by a face.
+     Auto,
+@@ -1639,6 +1640,7 @@ pub enum FontSynthesisStyle {
+     ToShmem,
+     ToTyped,
+ )]
++#[cfg_attr(feature = "servo", derive(Serialize, Deserialize))]
+ #[repr(C)]
+ #[typed(todo_derive_fields)]
+ /// Allows authors to choose a palette from those supported by a color font

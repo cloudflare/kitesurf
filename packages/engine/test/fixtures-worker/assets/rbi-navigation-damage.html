@@ -1,0 +1,23 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>RBI navigation damage</title></head>
+<body style="margin:0">
+<div id="box" style="width:40px;height:40px;background:#c00"></div>
+<script>
+  let red = true;
+  setInterval(() => {
+    red = !red;
+    document.getElementById("box").style.backgroundColor = red ? "#c00" : "#00c";
+  }, 150);
+  addEventListener("keydown", (event) => {
+    if (event.key === "r") location.href = location.href;
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 3 Aug 2026 19:15:35 +0100
+Subject: [PATCH] context: expose ks_clear_residual_stack for idle-point
+ recovery
+
+Error unwinds that cross host re-entry boundaries can leak vm.stack
+entries, for example when a host trampoline re-enters a suspended
+context through a raw pointer. The entries accumulate until
+stack_size_limit trips, and from then on every execution fails at once
+with "exceeded maximum call stack length". The context is permanently
+poisoned. One observed case: React hydration-mismatch throws inside
+animation rAF callbacks leaked a few slots per tick, and the context
+died after about 45 seconds.
+
+With no frame other than the VM's permanent dummy frame at index 0
+(frames.len() <= 1), the value stack must be empty too, so draining it
+at an idle point is a sound recovery.
+---
+ src/context/mod.rs | 12 ++++++++++++
+ src/vm/mod.rs      | 12 ++++++++++++
+ 2 files changed, 24 insertions(+)
+
+diff --git a/src/context/mod.rs b/src/context/mod.rs
+index 78453d2..1823d4b 100644
+--- a/src/context/mod.rs
++++ b/src/context/mod.rs
+@@ -494,6 +494,18 @@ impl Context {
+         self.job_executor().enqueue_job(job, self);
+     }
+
++    /// With only the dummy frame left, stack content is residue an unwind
++    /// leaked (it would trip stack_size_limit forever); drop it, returning the count.
++    #[inline]
++    pub fn ks_clear_residual_stack(&mut self) -> usize {
++        if self.vm.frames.len() <= 1 && self.vm.stack.len() > 0 {
++            let n = self.vm.stack.len();
++            self.vm.stack.clear();
++            return n;
++        }
++        0
++    }
++
+     /// Runs all the jobs with the provided job executor.
+     #[inline]
+     pub fn run_jobs(&mut self) -> JsResult<()> {
+diff --git a/src/vm/mod.rs b/src/vm/mod.rs
+index 5f6170b..00a2c09 100644
+--- a/src/vm/mod.rs
++++ b/src/vm/mod.rs
+@@ -133,6 +133,18 @@ impl Stack {
+         }
+     }
+
++    /// Number of live value slots, for the occupancy and residual-stack
++    /// probes on Context (ks_vm_stats, ks_clear_residual_stack).
++    pub(crate) fn len(&self) -> usize {
++        self.stack.len()
++    }
++
++    /// Drop every value slot. Only sound when no frame is executing,
++    /// which ks_clear_residual_stack checks first.
++    pub(crate) fn clear(&mut self) {
++        self.stack.clear();
++    }
++
+     /// Get a register value by index, relative to the given frame's `rp`.
+     pub(crate) fn get_register(&self, frame: &CallFrame, index: usize) -> Option<&JsValue> {
+         self.stack.get(frame.rp as usize + index)

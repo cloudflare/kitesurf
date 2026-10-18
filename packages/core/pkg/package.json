@@ -1,0 +1,17 @@
+{
+  "name": "kitesurf-core",
+  "type": "module",
+  "description": "Wasm core for kitesurf: DOM data plane + Stylo + Blitz render.",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "files": [
+    "kitesurf_core_bg.wasm",
+    "kitesurf_core.js",
+    "kitesurf_core.d.ts"
+  ],
+  "main": "kitesurf_core.js",
+  "types": "kitesurf_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

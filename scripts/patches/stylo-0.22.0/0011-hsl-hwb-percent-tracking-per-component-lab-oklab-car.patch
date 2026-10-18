@@ -1,0 +1,171 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 30 Jul 2026 15:37:02 +0100
+Subject: [PATCH] hsl/hwb percent tracking per component; lab/oklab carry
+ keyword none
+
+Round-trip fixes:
+
+- A single authored-percent flag broke computed round-trips: feeding
+  hsl(270 50 none) back produced hsl(270 50% none). Track the authored
+  form per component (C1/C2_AS_PERCENT) instead, so number inputs stay
+  numbers and percent inputs stay percents.
+- The keyword-none-as-zero rule is per family: Chrome zeroes in lch(),
+  oklch() and color() but carries none through lab() and oklab()
+  keywords (WPT color-computed-relative-color FIXME rows). Revert the
+  Lab and Oklab arms to plain resolution.
+---
+ color/color_function.rs   | 20 ++++++++++++++------
+ color/mix.rs              |  4 +++-
+ color/mod.rs              |  6 ++++--
+ color/to_css.rs           |  8 +++++---
+ values/specified/color.rs |  7 ++++++-
+ 5 files changed, 32 insertions(+), 13 deletions(-)
+
+diff --git a/color/color_function.rs b/color/color_function.rs
+index d2940fc..f7cf9f4 100644
+--- a/color/color_function.rs
++++ b/color/color_function.rs
+@@ -256,13 +256,13 @@ impl<Color> ColorFunction<Color> {
+                 convert!(Hwb, ColorSpace::Hwb, c0, c1, c2, alpha)
+             },
+             ColorFunction::Lab(_, c0, c1, c2, alpha) => {
+-                convert_kw_zero!(Lab, ColorSpace::Lab, c0, c1, c2, alpha)
++                convert!(Lab, ColorSpace::Lab, c0, c1, c2, alpha)
+             },
+             ColorFunction::Lch(_, c0, c1, c2, alpha) => {
+                 convert_kw_zero!(Lch, ColorSpace::Lch, c0, c1, c2, alpha)
+             },
+             ColorFunction::Oklab(_, c0, c1, c2, alpha) => {
+-                convert_kw_zero!(Oklab, ColorSpace::Oklab, c0, c1, c2, alpha)
++                convert!(Oklab, ColorSpace::Oklab, c0, c1, c2, alpha)
+             },
+             ColorFunction::Oklch(_, c0, c1, c2, alpha) => {
+                 convert_kw_zero!(Oklch, ColorSpace::Oklch, c0, c1, c2, alpha)
+@@ -348,6 +348,9 @@ impl ColorFunction<ComputedColor> {
+                 const LIGHTNESS_RANGE: f32 = 100.0;
+                 const SATURATION_RANGE: f32 = 100.0;
+
++                let c1_percent = matches!(s, ColorComponent::Value(NumberOrPercentageComponent::Percentage(_)));
++                let c2_percent = matches!(l, ColorComponent::Value(NumberOrPercentageComponent::Percentage(_)));
++
+                 // If the origin color was *NOT* specified, then we stick with the
+                 // old way of serializing the value to rgb(..). Otherwise we don't
+                 // use the rgb(..) syntax, because we should allow the color to be
+@@ -375,8 +378,9 @@ impl ColorFunction<ComputedColor> {
+
+                 if use_rgb_sytax {
+                     result.flags.insert(ColorFlags::IS_LEGACY_SRGB);
+-                } else if no_origin {
+-                    result.flags.insert(ColorFlags::HSL_HWB_AS_PERCENT);
++                } else {
++                    result.flags.set(ColorFlags::C1_AS_PERCENT, c1_percent);
++                    result.flags.set(ColorFlags::C2_AS_PERCENT, c2_percent);
+                 }
+
+                 result
+@@ -388,6 +392,9 @@ impl ColorFunction<ComputedColor> {
+                 const WHITENESS_RANGE: f32 = 100.0;
+                 const BLACKNESS_RANGE: f32 = 100.0;
+
++                let c1_percent = matches!(w, ColorComponent::Value(NumberOrPercentageComponent::Percentage(_)));
++                let c2_percent = matches!(b, ColorComponent::Value(NumberOrPercentageComponent::Percentage(_)));
++
+                 let h = h.resolve()?.map(|angle| normalize_hue(angle.degrees()));
+                 let w = w.resolve()?.map(|w| {
+                         if no_origin {
+@@ -409,8 +416,9 @@ impl ColorFunction<ComputedColor> {
+
+                 if use_rgb_sytax {
+                     result.flags.insert(ColorFlags::IS_LEGACY_SRGB);
+-                } else if no_origin {
+-                    result.flags.insert(ColorFlags::HSL_HWB_AS_PERCENT);
++                } else {
++                    result.flags.set(ColorFlags::C1_AS_PERCENT, c1_percent);
++                    result.flags.set(ColorFlags::C2_AS_PERCENT, c2_percent);
+                 }
+
+                 result
+diff --git a/color/mix.rs b/color/mix.rs
+index 1a9833f..b9dea56 100644
+--- a/color/mix.rs
++++ b/color/mix.rs
+@@ -267,7 +267,9 @@ pub fn mix_many(
+         alpha,
+     );
+     result.flags = accumulated_color.flags;
+-    result.flags.remove(ColorFlags::HSL_HWB_AS_PERCENT);
++    result
++        .flags
++        .remove(ColorFlags::C1_AS_PERCENT | ColorFlags::C2_AS_PERCENT);
+
+     finalize(result)
+ }
+diff --git a/color/mod.rs b/color/mod.rs
+index 715545f..10c54ca 100644
+--- a/color/mod.rs
++++ b/color/mod.rs
+@@ -238,8 +238,10 @@ bitflags! {
+         /// Marks that this color is in the legacy color format. This flag is
+         /// only valid for the `Srgb` color space.
+         const IS_LEGACY_SRGB = 1 << 4;
+-        /// Serialize directly-authored HSL/HWB missing components as percentages.
+-        const HSL_HWB_AS_PERCENT = 1 << 5;
++        /// Serialize the second HSL/HWB component as a percentage.
++        const C1_AS_PERCENT = 1 << 5;
++        /// Serialize the third HSL/HWB component as a percentage.
++        const C2_AS_PERCENT = 1 << 6;
+     }
+ }
+
+diff --git a/color/to_css.rs b/color/to_css.rs
+index 126fa85..012041b 100644
+--- a/color/to_css.rs
++++ b/color/to_css.rs
+@@ -45,7 +45,8 @@ impl<'a> ToCss for ModernComponent<'a> {
+ pub(crate) fn write_hsl_hwb_functional<W>(
+     color: &AbsoluteColor,
+     dest: &mut CssWriter<W>,
+-    percent: bool,
++    c1_percent: bool,
++    c2_percent: bool,
+ ) -> fmt::Result
+ where
+     W: Write,
+@@ -53,7 +54,7 @@ where
+     debug_assert!(matches!(color.color_space, ColorSpace::Hsl | ColorSpace::Hwb));
+     dest.write_str(if color.color_space == ColorSpace::Hsl { "hsl(" } else { "hwb(" })?;
+     ModernComponent(&color.c0()).to_css(dest)?;
+-    for component in [color.c1(), color.c2()] {
++    for (component, percent) in [(color.c1(), c1_percent), (color.c2(), c2_percent)] {
+         dest.write_char(' ')?;
+         ModernComponent(&component).to_css(dest)?;
+         if percent && matches!(component, Some(value) if value.is_finite()) {
+@@ -128,7 +129,8 @@ impl ToCss for AbsoluteColor {
+                     write_hsl_hwb_functional(
+                         self,
+                         dest,
+-                        self.flags.contains(ColorFlags::HSL_HWB_AS_PERCENT),
++                        self.flags.contains(ColorFlags::C1_AS_PERCENT),
++                        self.flags.contains(ColorFlags::C2_AS_PERCENT),
+                     )
+                 } else {
+                     self.to_color_space(ColorSpace::Srgb).to_css(dest)
+diff --git a/values/specified/color.rs b/values/specified/color.rs
+index bb74bb9..e8a72d8 100644
+--- a/values/specified/color.rs
++++ b/values/specified/color.rs
+@@ -187,7 +187,12 @@ impl ToCss for Absolute {
+                     return color.to_css(dest);
+                 },
+                 ColorSpace::Hsl | ColorSpace::Hwb => {
+-                    return crate::color::to_css::write_hsl_hwb_functional(&self.color, dest, false);
++                    return crate::color::to_css::write_hsl_hwb_functional(
++                        &self.color,
++                        dest,
++                        false,
++                        false,
++                    );
+                 },
+                 _ => {},
+             }

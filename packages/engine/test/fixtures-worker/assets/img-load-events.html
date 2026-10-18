@@ -1,0 +1,56 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>kitesurf img load events fixture</title>
+<style>
+  .frame[data-placeholder-enhanced]:not([data-image-loaded]) .media { opacity: 0; }
+  img { width: 70px; height: 40px; }
+</style>
+</head>
+<body>
+<div class="frame" id="frame"><img id="good" class="media" src="/__fixtures/tiny.png"></div>
+<img id="bad" src="/__fixtures/does-not-exist.png">
+<img id="empty">
+<script>
+  window.__probe = { events: [] };
+  var good = document.getElementById("good");
+  var bad = document.getElementById("bad");
+  var frame = document.getElementById("frame");
+  // blog.cloudflare.com's enhancement flow, verbatim shape:
+  var mark = function () {
+    frame.dataset.imageLoaded = "true";
+    window.__probe.events.push("frame-loaded");
+  };
+  if (good.complete && good.naturalWidth > 0) {
+    mark();
+  } else {
+    frame.dataset.placeholderEnhanced = "true";
+    good.addEventListener("load", mark, { once: true });
+    good.addEventListener("error", mark, { once: true });
+  }
+  good.addEventListener("load", function () {
+    window.__probe.events.push("good-load");
+    window.__probe.loadDims = [good.naturalWidth, good.naturalHeight];
+  }, { once: true });
+  bad.addEventListener("error", function () {
+    window.__probe.events.push("bad-error");
+  }, { once: true });
+  bad.addEventListener("load", function () {
+    window.__probe.events.push("bad-load-UNEXPECTED");
+  }, { once: true });
+  window.__probe.emptyComplete = document.getElementById("empty").complete;
+  good.decode().then(function () {
+    window.__probe.events.push("good-decoded");
+  }, function (e) {
+    window.__probe.events.push("good-decode-rejected:" + (e && e.name));
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Repo-wide nightly pin (rustup walks up from CWD, so this covers
+# every cargo invocation in the repo). Required to compile core and
+# renderer-core with `panic = "unwind"` on wasm32-unknown-unknown:
+# that target lacks a precompiled libstd built with unwinding, so we
+# need `-Zbuild-std` (nightly-only) to rebuild std + panic_unwind
+# ourselves. See packages/core/.cargo/config.toml for the build flags
+# (renderer-core symlinks it; scene-host-wasm has no member
+# config — it builds abort on the plain prebuilt std, just on this
+# same pinned compiler).
+#
+# Why we need this at all: workerd's wasm runtime historically
+# lacked exception-handling support, so
+# `catch_unwind` was a no-op and panics permanently locked the
+# `doc: RefCell<HtmlDocument>` cell. As of workerd v1.20250620.0
+# (June 2025) and the Cloudflare blog post "Making Rust Workers
+# reliable" (April 2026), wasm-bindgen's `panic=unwind` path is
+# now end-to-end functional.
+#
+# Host tool crates (scripts/memprof-rewriter, vendor/wasm-memprof)
+# and the vendored-crate test suites also resolve to this pin now —
+# previously they floated on the machine's default toolchain.
+[toolchain]
+channel = "nightly-2026-05-14"
+components = ["rust-src", "rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]

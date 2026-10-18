@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 23 Jul 2026 22:19:20 +0100
+Subject: [PATCH] Only clamp replaced elements to available inline space
+
+replaced_measure_function folded the available space into max-size
+on both axes. Under a height:0 ancestor (the classic padding-bottom
+aspect-ratio hack)
+the block-axis available space is Definite(0), so the element got
+max-height 0, and the aspect-ratio clamp arm then dragged the width
+to 0 too. A width:100% canvas/img inside such a container laid out
+as 0x0 where every browser renders it at container-width x ratio.
+
+Keep the width-fitting leniency (images shrinking into narrow
+containers predates this change and some layouts depend on it) but
+stop treating the block axis as a constraint: real browsers never
+shrink replaced elements to fit available block space.
+---
+ src/layout/replaced.rs | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/src/layout/replaced.rs b/src/layout/replaced.rs
+index ce8b2b1..c28fe49 100644
+--- a/src/layout/replaced.rs
++++ b/src/layout/replaced.rs
+@@ -250,8 +250,19 @@ pub fn compute_replaced_layout(
+         .min_size()
+         .maybe_resolve(parent_size, &resolve_calc_value)
+         .maybe_sub(box_sizing_adjustment);
++    // Fold available space into max-size on the INLINE axis only.
++    // The both-axes form turned a `height: 0` ancestor (the classic
++    // padding-bottom aspect-ratio hack) into max-height 0, and the
++    // aspect ratio then collapsed the width to 0 as well; real
++    // browsers never shrink replaced elements to fit the block axis.
++    let avail_max = Size {
++        width: available_space.into_options().width,
++        height: None,
++    };
+     let max_size = style
+         .max_size()
+         .maybe_resolve(basis_for_max_and_preferred, &resolve_calc_value)
++        .or(avail_max)
++        .maybe_min(avail_max)
+         .maybe_max(min_size)
+         .maybe_sub(box_sizing_adjustment);

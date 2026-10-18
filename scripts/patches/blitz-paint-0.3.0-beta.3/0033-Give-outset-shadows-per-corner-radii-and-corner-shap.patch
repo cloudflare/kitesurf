@@ -1,0 +1,219 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 28 Sep 2026 19:12:18 +0100
+Subject: [PATCH] Give outset shadows per-corner radii and corner shapes
+
+Every outset shadow was one analytic rounded rect using the average of
+all eight radii, and the spread never grew the radius. A box rounded on
+one corner got a shadow rounded on all four, and on shaped corners the
+round shadow showed past the cut.
+
+The spread shape now keeps each corner's radii, adjusted by the
+css-backgrounds-4 spread formula, and follows corner-shape. Unblurred
+shadows fill that exact path. Blurred ones keep the analytic blur,
+drawing each quadrant with its own corner's radius, joined on the
+straight edges where every radius blurs alike.
+---
+ src/render/box_shadow.rs | 174 ++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 152 insertions(+), 22 deletions(-)
+
+diff --git a/src/render/box_shadow.rs b/src/render/box_shadow.rs
+index 25bc4d5..971c62e 100644
+--- a/src/render/box_shadow.rs
++++ b/src/render/box_shadow.rs
+@@ -1,9 +1,62 @@
+ use super::ElementCx;
+ use crate::color::{Color, ToColorColor as _};
++use crate::kurbo_css::{CssBox, NonUniformRoundedRectRadii};
+ use anyrender::PaintScene;
+-use kurbo::{Rect, Vec2};
++use kurbo::{Affine, Insets, Rect, Vec2};
+ use peniko::{Compose, Fill, Mix};
+
++/// The corner radii of an outset shadow's spread shape (css-backgrounds-4 "shadow shape"): a
++/// radius grows by the spread, less so when it is small next to both the spread and its box.
++fn spread_radii(
++    border_box: Rect,
++    radii: &NonUniformRoundedRectRadii,
++    spread: f64,
++) -> NonUniformRoundedRectRadii {
++    let adjust = |radius: Vec2| {
++        let coverage =
++            (2.0 * radius.x / border_box.width()).min(2.0 * radius.y / border_box.height());
++        let coverage = if coverage.is_finite() { coverage } else { 0.0 };
++        let grow = |r: f64| {
++            if spread <= 0.0 {
++                (r + spread).max(0.0)
++            } else if r > spread || coverage > 1.0 {
++                r + spread
++            } else {
++                r + spread * (1.0 - (1.0 - r / spread).powi(3) * (1.0 - coverage.powi(3)))
++            }
++        };
++        Vec2::new(grow(radius.x), grow(radius.y))
++    };
++    NonUniformRoundedRectRadii {
++        top_left: adjust(radii.top_left),
++        top_right: adjust(radii.top_right),
++        bottom_right: adjust(radii.bottom_right),
++        bottom_left: adjust(radii.bottom_left),
++    }
++}
++
++/// The radius when all four corners share one circular radius, which is all the analytic
++/// box-shadow blur can draw.
++fn uniform_radius(radii: &NonUniformRoundedRectRadii) -> Option<f64> {
++    let r = radii.top_left.x;
++    [
++        radii.top_left,
++        radii.top_right,
++        radii.bottom_right,
++        radii.bottom_left,
++    ]
++    .iter()
++    .all(|c| c.x == r && c.y == r)
++    .then_some(r)
++}
++
++/// Where the device pixel grid sits in `transform`'s space, if it only translates: clips that
++/// abut on the grid cover each pixel once instead of leaving a faint antialiased seam.
++fn pixel_grid(transform: Affine) -> Option<Vec2> {
++    let [a, b, c, d, e, f] = transform.as_coeffs();
++    (a == 1.0 && b == 0.0 && c == 0.0 && d == 1.0).then_some(Vec2::new(e, f))
++}
++
+ impl ElementCx<'_, '_> {
+     pub(super) fn draw_outset_box_shadow(&self, scene: &mut impl PaintScene) {
+         let box_shadow = &self.style.get_effects().box_shadow.0;
+@@ -59,33 +112,110 @@ impl ElementCx<'_, '_> {
+                         });
+
+                         let spread = shadow.spread.px() as f64 * self.scale;
+-                        let blur = shadow.base.blur.px() as f64;
+-
+-                        // Without blur or spread the shadow is exactly the element's shape,
+-                        // so fill the border box path directly (preserving individual radii)
+-                        if blur == 0.0 && spread == 0.0 {
+-                            scene.fill(
+-                                Fill::NonZero,
+-                                transform,
+-                                shadow_color,
+-                                None,
+-                                &self.frame.border_box_path(),
+-                            );
+-                            continue;
+-                        }
+-
+-                        // TODO draw shadows with matching individual radii instead of averaging
+-                        let radius = self.frame.border_radii.average();
+-                        let rect = self.frame.border_box.inflate(spread, spread);
+-
+-                        // Fill the color
+-                        scene.draw_box_shadow(transform, rect, shadow_color, radius, blur);
++                        let std_dev = shadow.base.blur.px() as f64;
++                        self.draw_outset_shadow_shape(
++                            scene,
++                            transform,
++                            shadow_color,
++                            spread,
++                            std_dev,
++                        );
+                     }
+                 }
+             },
+         )
+     }
+
++    /// One outset shadow: the border box grown by `spread`, each corner keeping its own
++    /// radii and `corner-shape` rather than sharing the average of all eight radii.
++    fn draw_outset_shadow_shape(
++        &self,
++        scene: &mut impl PaintScene,
++        transform: Affine,
++        color: Color,
++        spread: f64,
++        std_dev: f64,
++    ) {
++        let rect = self.frame.border_box.inflate(spread, spread);
++        let radii = spread_radii(self.frame.border_box, &self.frame.border_radii, spread);
++        let shaped = self.frame.has_corner_shape();
++        if std_dev == 0.0 {
++            let shape = if shaped {
++                self.frame.shaped_contour(Insets::uniform(-spread))
++            } else {
++                CssBox::new(rect, Insets::ZERO, Insets::ZERO, 0.0, radii).border_box_path()
++            };
++            scene.fill(Fill::NonZero, transform, color, None, &shape);
++            return;
++        }
++        if let Some(radius) = uniform_radius(&radii).filter(|_| !shaped) {
++            scene.draw_box_shadow(transform, rect, color, radius, std_dev);
++            return;
++        }
++
++        // The analytic blur takes one circular radius, so blur each corner's quadrant with that
++        // corner's own; the quadrants meet on straight edges, where every radius blurs alike.
++        let grid = pixel_grid(transform);
++        let straight = |a0: f64, a1: f64, b0: f64, b1: f64, offset: Option<f64>| {
++            let (lo, hi) = (a0.max(b0), a1.min(b1));
++            let mid = if lo <= hi {
++                (lo + hi) / 2.0
++            } else {
++                (a0 + a1 + b0 + b1) / 4.0
++            };
++            offset.map_or(mid, |o| (mid + o).round() - o)
++        };
++        let r = &radii;
++        let split_x = straight(
++            rect.x0 + r.top_left.x,
++            rect.x1 - r.top_right.x,
++            rect.x0 + r.bottom_left.x,
++            rect.x1 - r.bottom_right.x,
++            grid.map(|g| g.x),
++        );
++        let split_y = straight(
++            rect.y0 + r.top_left.y,
++            rect.y1 - r.bottom_left.y,
++            rect.y0 + r.top_right.y,
++            rect.y1 - r.bottom_right.y,
++            grid.map(|g| g.y),
++        );
++        let bounds = rect.inflate(4.0 * std_dev + 1.0, 4.0 * std_dev + 1.0);
++        let quadrants = [
++            (
++                Rect::new(bounds.x0, bounds.y0, split_x, split_y),
++                r.top_left,
++            ),
++            (
++                Rect::new(split_x, bounds.y0, bounds.x1, split_y),
++                r.top_right,
++            ),
++            (
++                Rect::new(split_x, split_y, bounds.x1, bounds.y1),
++                r.bottom_right,
++            ),
++            (
++                Rect::new(bounds.x0, split_y, split_x, bounds.y1),
++                r.bottom_left,
++            ),
++        ];
++        for (quadrant, radius) in quadrants {
++            self.context.layer_manager.maybe_with_layer(
++                scene,
++                true,
++                1.0,
++                transform,
++                &quadrant,
++                None,
++                None,
++                |scene| {
++                    let radius = (radius.x + radius.y) / 2.0;
++                    scene.draw_box_shadow(transform, rect, color, radius, std_dev);
++                },
++            );
++        }
++    }
++
+     pub(super) fn draw_inset_box_shadow(&self, scene: &mut impl PaintScene) {
+         let current_color = self.style.clone_color();
+         let box_shadow = &self.style.get_effects().box_shadow.0;

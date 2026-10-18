@@ -1,0 +1,100 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<div id="d">x</div>
+<p id="status">init</p>
+<script>
+  var report = {};
+  var docFired = 0;
+  document.onclick = function () { docFired++; };
+  document.dispatchEvent(new Event("click"));
+  report.documentHandlerFired = docFired === 1;
+
+  var winFired = 0;
+  window.onstorage = function () { winFired++; };
+  window.dispatchEvent(new Event("storage"));
+  report.windowHandlerFired = winFired === 1;
+  var wd = Object.getOwnPropertyDescriptor(window, "onstorage");
+  report.windowOwnAccessor =
+    !!wd && typeof wd.get === "function" && wd.get.name === "get onstorage";
+  report.windowProtoClean =
+    !Object.prototype.hasOwnProperty.call(Window.prototype, "onclick");
+
+  function holderDesc(name) {
+    var p = HTMLElement.prototype;
+    var d = null;
+    while (p && !d) {
+      d = Object.getOwnPropertyDescriptor(p, name);
+      if (!d) p = Object.getPrototypeOf(p);
+    }
+    return { proto: p, desc: d };
+  }
+  var onclick = holderDesc("onclick");
+  report.elementGetterName =
+    !!onclick.desc && onclick.desc.get.name === "get onclick";
+  var threw = false;
+  try { onclick.desc.get.call(onclick.proto); }
+  catch (e) { threw = e instanceof TypeError; }
+  report.elementBrandThrows = threw;
+  var enter = holderDesc("onmouseenter");
+  report.lenientUndefined = enter.desc.get.call(enter.proto) === undefined;
+
+  var el = document.getElementById("d");
+  var elFired = 0;
+  el.onclick = function () { elFired++; };
+  el.dispatchEvent(new Event("click"));
+  report.elementHandlerFired = elFired === 1;
+
+  var f = function () {};
+  document.body.onafterprint = f;
+  report.bodyForwardsAfterprint = window.onafterprint === f;
+
+  var g = function () {};
+  window.onafterprint = g;
+  report.bodyReadsWindowState = document.body.onafterprint === g;
+
+  // Identity must hold for handler values the window Proxy's
+  // constructor heuristic cannot recognise: arrows (no prototype) and
+  // boa-compiled functions (`new Function`, every on* content
+  // attribute), which used to come back freshly bound on every read.
+  var arrow = () => 0;
+  window.onblur = arrow;
+  report.arrowHandlerIdentity =
+    window.onblur === arrow && document.body.onblur === arrow;
+  var compiled = new Function("event", "return 1");
+  window.onblur = compiled;
+  report.compiledHandlerIdentity = window.onblur === compiled;
+  window.onblur = null;
+  document.body.setAttribute("onresize", "return");
+  report.contentAttrForwardIdentity =
+    typeof window.onresize === "function" &&
+    window.onresize === document.body.onresize &&
+    window.onresize === window.onresize;
+  window.onresize = null;
+  document.body.removeAttribute("onresize");
+
+  // An onerror handler that itself throws must not be reported as a
+  // fresh error event (HTML "in error reporting mode"), or dispatch
+  // re-enters itself until the isolate dies. One report for the
+  // listener that threw, none for the handler's own throw.
+  var onerrorRuns = 0;
+  window.onerror = function () { onerrorRuns++; throw new Error("nested"); };
+  var el2 = document.getElementById("d");
+  el2.addEventListener("click", function () { throw new Error("outer"); });
+  el2.dispatchEvent(new Event("click"));
+  // The legacy path invokes onerror once more with 5 args (a known
+  // double call), so 2 today; an unbounded loop would never get here.
+  report.nestedOnerrorBounded = onerrorRuns <= 2;
+  window.onerror = null;
+
+  var ptrFired = 0;
+  window.onpointerdown = function () { ptrFired++; };
+  window.dispatchEvent(new Event("pointerdown"));
+  report.windowPointerHandlerFired = ptrFired === 1;
+
+  globalThis.__ehReport = JSON.stringify(report);
+  document.getElementById("status").textContent = "done";
+</script>

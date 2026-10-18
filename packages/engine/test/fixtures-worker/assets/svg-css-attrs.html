@@ -1,0 +1,28 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8" /><title>svg css attrs</title>
+<style>
+  body { margin: 0; background: #fff }
+  #host { --ink: rgb(200, 0, 0); --nofill: none; --paint: url(#grad); width: 400px }
+</style>
+</head>
+<body>
+  <div id="host">
+    <svg id="s" viewBox="0 0 200 100" style="width:400px">
+      <defs><linearGradient id="grad"><stop offset="0" stop-color="#0000ff"/><stop offset="1" stop-color="#0000ff"/></linearGradient></defs>
+      <text id="t-var" x="4" y="20" font-size="16" fill="var(--ink)">var-fill</text>
+      <text id="t-arial" x="4" y="44" font-size="16" fill="#000000" font-family="Arial">arial</text>
+      <text id="t-rem" x="4" y="68" font-size="0.5rem" fill="#000000">rem</text>
+      <line x1="120" y1="14" x2="196" y2="14" stroke="var(--ink)" stroke-width="4"/>
+      <rect id="r-none" x="120" y="30" width="30" height="20" fill="var(--nofill)" stroke="#000000"/>
+      <rect id="r-grad" x="160" y="30" width="30" height="20" fill="var(--paint)"/>
+    </svg>
+  </div>
+</body>
+</html>

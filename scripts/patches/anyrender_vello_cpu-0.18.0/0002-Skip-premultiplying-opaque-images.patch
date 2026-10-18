@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sun, 4 Oct 2026 15:02:54 +0100
+Subject: [PATCH] Skip premultiplying opaque images
+
+Opaque pixels premultiply to themselves. A read-only alpha scan skips
+the store pass for opaque canvas frames without changing their bytes.
+---
+ src/image_convert.rs | 37 +++++++++++++++++++++++++++++--------
+ 1 file changed, 29 insertions(+), 8 deletions(-)
+
+diff --git a/src/image_convert.rs b/src/image_convert.rs
+index 798535a..6a7e76d 100644
+--- a/src/image_convert.rs
++++ b/src/image_convert.rs
+@@ -36,14 +36,10 @@ pub(crate) fn convert_image(image: &peniko::ImageData) -> Arc<Pixmap> {
+         format => unimplemented!("Unsupported image format: {format:?}"),
+     }
+
+-    // `Pixmap::from_parts` premultiplies (and computes an exact transparency
+-    // hint for) non-premultiplied data, but trusts the hint for premultiplied data.
+-    let may_have_transparency = match image.alpha_type {
+-        peniko::ImageAlphaType::AlphaPremultiplied => {
+-            bytes.as_chunks::<4>().0.iter().any(|p| p[3] != 255)
+-        }
+-        _ => true,
+-    };
++    // `Pixmap::from_parts` trusts a `false` hint and skips its premultiply
++    // pass. Opaque pixels premultiply to themselves, so a read-only alpha scan
++    // spares opaque straight-alpha images (canvas frames) the store pass.
++    let may_have_transparency = !all_opaque(&bytes);
+
+     Arc::new(Pixmap::from_parts(
+         bytes,
+@@ -53,6 +49,16 @@ pub(crate) fn convert_image(image: &peniko::ImageData) -> Arc<Pixmap> {
+     ))
+ }
+
++/// Whether every RGBA8 pixel in `data` has alpha 255.
++fn all_opaque(data: &[u8]) -> bool {
++    // AND the alphas of a 64-byte block together so the inner loop
++    // vectorizes, and stop at the first block with a translucent pixel.
++    let (body, tail) = data.as_chunks::<64>();
++    body.iter()
++        .all(|block| block.as_chunks::<4>().0.iter().fold(255, |acc, p| acc & p[3]) == 255)
++        && tail.as_chunks::<4>().0.iter().all(|p| p[3] == 255)
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -78,6 +84,21 @@ mod tests {
+         assert_eq!((px.r, px.g, px.b, px.a), (10, 20, 30, 255));
+     }
+
++    // 40 pixels: two 64-byte blocks (32 pixels) and an 8-pixel tail.
++    #[test]
++    fn premultiply_finds_one_translucent_pixel_in_a_block_or_the_tail() {
++        for translucent in [20, 36] {
++            let mut pixels = [[10, 20, 30, 255]; 40];
++            pixels[translucent] = [100, 150, 200, 128];
++            let pixmap = convert_image(&image(&pixels));
++            assert!(pixmap.may_have_transparency(), "pixel {translucent}");
++            let px = pixmap.data()[translucent];
++            assert_eq!((px.r, px.g, px.b, px.a), (50, 75, 100, 128), "pixel {translucent}");
++            let px = pixmap.data()[0];
++            assert_eq!((px.r, px.g, px.b, px.a), (10, 20, 30, 255));
++        }
++    }
++
+     #[test]
+     fn premultiply_bgra_opaque() {
+         let mut img = image(&[[1, 2, 3, 255]; 20]);

@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 3 Aug 2026 20:05:38 +0100
+Subject: [PATCH] Give display:flow-root its own block formatting context
+
+Stylo maps flow-root to taffy's Display::Block, and taffy decides
+whether a block starts a new formatting context from its overflow alone.
+A flow-root box therefore inherited its parent's context and its floats
+escaped into it, leaving the box zero-tall; the failure
+display:flow-root exists to avoid. Withhold the inherited context so the
+box becomes a root, matching how an overflow:hidden container already
+behaves.
+---
+ src/layout/mod.rs | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 6121e64..a992a69 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -12,6 +12,7 @@ use std::ops::{Deref, DerefMut};
+ use std::sync::Arc;
+ use style::Atom;
+ use style::values::computed::CSSPixelLength;
++use style::values::specified::box_::DisplayInside;
+ use style::values::computed::length_percentage::CalcLengthPercentage;
+ use stylo_taffy::TaffyStyloStyle;
+ use taffy::{
+@@ -597,6 +598,15 @@ impl LayoutPassState<'_> {
+                     return output;
+                 }
+
++                // display:flow-root establishes a block formatting context, so it
++                // contains its own floats. taffy infers one from overflow alone,
++                let is_flow_root = node
++                    .primary_styles()
++                    .is_some_and(|styles| styles.clone_display().inside() == DisplayInside::FlowRoot);
++
++                // so withhold the inherited context to make this node a root.
++                let block_ctx = if is_flow_root { None } else { block_ctx };
++
+                 if node.flags.is_inline_root() {
+                     return self.compute_inline_layout(dom_node_id(node_id), inputs, block_ctx);
+                 }

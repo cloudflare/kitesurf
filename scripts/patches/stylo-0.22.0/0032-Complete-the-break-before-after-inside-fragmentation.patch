@@ -1,0 +1,103 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ruskin Constant <ruskin@cloudflare.com>
+Date: Wed, 16 Sep 2026 11:22:17 +0100
+Subject: [PATCH] Complete the break-before/-after/-inside fragmentation
+ grammar
+
+break-before and break-after were missing recto, verso, column,
+avoid-page, avoid-column, avoid-region and region from css-break-3's
+'auto | avoid | avoid-page | page | left | right | recto | verso |
+avoid-column | column | avoid-region | region'; break-inside was
+missing avoid-region. This is not a gecko/servo divergence: the enum's
+grammar was incomplete relative to the property's already-enabled
+longhand. The legacy page-break-* parsers and serializers must stay on
+their original five- and two-value grammars, so their matches grow
+explicit rejecting arms rather than falling through.
+---
+ values/specified/box.rs | 38 ++++++++++++++++++++++++++++++++++----
+ 1 file changed, 34 insertions(+), 4 deletions(-)
+
+diff --git a/values/specified/box.rs b/values/specified/box.rs
+index 350c08e..7bee119 100644
+--- a/values/specified/box.rs
++++ b/values/specified/box.rs
+@@ -1996,6 +1996,13 @@ pub enum BreakBetween {
+     Avoid,
+     Left,
+     Right,
++    Recto,
++    Verso,
++    Column,
++    AvoidPage,
++    AvoidColumn,
++    AvoidRegion,
++    Region,
+ }
+
+ impl BreakBetween {
+@@ -2011,7 +2018,20 @@ impl BreakBetween {
+             BreakBetween::Auto | BreakBetween::Avoid | BreakBetween::Left | BreakBetween::Right => {
+                 Ok(break_value)
+             },
+-            BreakBetween::Page => Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError)),
++            // page-break-{before,after} only ever accepted this legacy
++            // five-value grammar; the fuller css-break-3 keywords this
++            // enum grew (recto/verso/column/avoid-*/region) were never
++            // part of it and must stay rejected here.
++            BreakBetween::Page
++            | BreakBetween::Recto
++            | BreakBetween::Verso
++            | BreakBetween::Column
++            | BreakBetween::AvoidPage
++            | BreakBetween::AvoidColumn
++            | BreakBetween::AvoidRegion
++            | BreakBetween::Region => {
++                Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++            },
+         }
+     }
+
+@@ -2028,7 +2048,16 @@ impl BreakBetween {
+                 self.to_css(dest)
+             },
+             BreakBetween::Page => dest.write_str("always"),
+-            BreakBetween::Always => Ok(()),
++            // Unreachable via parse_legacy (which never produces these),
++            // but the match must stay exhaustive as the enum grows.
++            BreakBetween::Always
++            | BreakBetween::Recto
++            | BreakBetween::Verso
++            | BreakBetween::Column
++            | BreakBetween::AvoidPage
++            | BreakBetween::AvoidColumn
++            | BreakBetween::AvoidRegion
++            | BreakBetween::Region => Ok(()),
+         }
+     }
+ }
+@@ -2059,6 +2088,7 @@ pub enum BreakWithin {
+     Avoid,
+     AvoidPage,
+     AvoidColumn,
++    AvoidRegion,
+ }
+
+ impl BreakWithin {
+@@ -2071,7 +2101,7 @@ impl BreakWithin {
+         let break_value = BreakWithin::parse(input)?;
+         match break_value {
+             BreakWithin::Auto | BreakWithin::Avoid => Ok(break_value),
+-            BreakWithin::AvoidPage | BreakWithin::AvoidColumn => {
++            BreakWithin::AvoidPage | BreakWithin::AvoidColumn | BreakWithin::AvoidRegion => {
+                 Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+             },
+         }
+@@ -2087,7 +2117,7 @@ impl BreakWithin {
+     {
+         match *self {
+             BreakWithin::Auto | BreakWithin::Avoid => self.to_css(dest),
+-            BreakWithin::AvoidPage | BreakWithin::AvoidColumn => Ok(()),
++            BreakWithin::AvoidPage | BreakWithin::AvoidColumn | BreakWithin::AvoidRegion => Ok(()),
+         }
+     }
+ }

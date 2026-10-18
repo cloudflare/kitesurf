@@ -1,0 +1,641 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 23 Jul 2026 20:50:44 +0000
+Subject: [PATCH] Baseline: span decorations, canvas background, SVG tiling
+
+- A per-line pre-pass reads parley's span-fragment sidecar and paints
+  background fills, then borders (top and bottom always, left only if
+  is_first_fragment, right only if is_last_fragment), then
+  rounded-corner clipping on the outermost fragments.
+- Full canvas-background propagation: root and body background-image
+  and gradients paint over the whole canvas, not just the root box.
+- SVG background-repeat tiling: an explicit per-tile render_svg_tree
+  loop with a 4096-tile cap. Raster layers get repeat from the image
+  brush's Extend::Repeat.
+---
+ src/lib.rs                  |   1 +
+ src/render.rs               |  95 +++++++-----
+ src/render/background.rs    |  50 ++++--
+ src/text.rs                 |  59 +------
+ src/text_box_decorations.rs | 296 ++++++++++++++++++++++++++++++++++++
+ 5 files changed, 400 insertions(+), 101 deletions(-)
+ create mode 100644 src/text_box_decorations.rs
+
+diff --git a/src/lib.rs b/src/lib.rs
+index afae3e2..456e528 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -12,6 +12,7 @@ mod layers;
+ mod render;
+ mod sizing;
+ mod text;
++mod text_box_decorations;
+
+ use std::collections::HashMap;
+
+diff --git a/src/render.rs b/src/render.rs
+index f1ff10d..928617f 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -190,41 +190,53 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         let bg_width = (self.width as f32).max(root_element.final_layout().size.width);
+         let bg_height = (self.height as f32).max(root_element.final_layout().size.height);
+
+-        let background_color = {
+-            let html_color = root_element
+-                .primary_styles()
+-                .map(|s| s.clone_background_color())
+-                .unwrap_or(GenericColor::TRANSPARENT_BLACK);
+-            if html_color == GenericColor::TRANSPARENT_BLACK {
+-                root_element
+-                    .children
+-                    .iter()
+-                    .find_map(|id| {
+-                        self.dom
+-                            .as_ref()
+-                            .get_node(*id)
+-                            .filter(|node| node.data.is_element_with_tag_name(&local_name!("body")))
+-                    })
+-                    .and_then(|body| body.primary_styles())
+-                    .map(|style| {
+-                        let current_color = style.clone_color();
+-                        style
+-                            .clone_background_color()
+-                            .resolve_to_absolute(&current_color)
+-                    })
++        // CSS Backgrounds 3 section 2.11.1 canvas-background propagation. Pick
++        // the element whose complete background paints over the canvas, then
++        // use the normal background pipeline so images and gradients propagate
++        // together with the color.
++        let propagation_source = {
++            let root_has_bg = root_element.primary_styles().is_some_and(|style| {
++                style.clone_background_color() != GenericColor::TRANSPARENT_BLACK
++                    || style
++                        .get_background()
++                        .background_image
++                        .0
++                        .iter()
++                        .any(|image| {
++                            !matches!(image, style::values::generics::image::GenericImage::None)
++                        })
++            });
++            if root_has_bg {
++                Some(root_element)
+             } else {
+-                let current_color = root_element.primary_styles().unwrap().clone_color();
+-                Some(html_color.resolve_to_absolute(&current_color))
++                root_element.children.iter().find_map(|id| {
++                    self.dom
++                        .as_ref()
++                        .get_node(*id)
++                        .filter(|node| node.data.is_element_with_tag_name(&local_name!("body")))
++                })
+             }
+         };
+
+-        if let Some(bg_color) = background_color {
+-            let bg_color = bg_color.as_srgb_color();
+-            let rect = Rect::from_origin_size(
+-                (self.initial_x, self.initial_y),
+-                (bg_width as f64, bg_height as f64),
++        if let Some(source) = propagation_source {
++            let canvas_layout = taffy::Layout {
++                location: taffy::Point { x: 0.0, y: 0.0 },
++                size: taffy::Size {
++                    width: bg_width,
++                    height: bg_height,
++                },
++                ..*root_element.final_layout()
++            };
++            let canvas_cx = self.element_cx(
++                source,
++                canvas_layout,
++                Affine::translate(Vec2 {
++                    x: self.initial_x,
++                    y: self.initial_y,
++                }),
++                None,
+             );
+-            scene.fill(Fill::NonZero, Affine::IDENTITY, bg_color, None, &rect);
++            canvas_cx.draw_background(scene);
+         }
+
+         // The root clip rectangle is the viewport (in screen coordinates, with the
+@@ -853,14 +865,11 @@ impl ElementCx<'_, '_> {
+             let transform =
+                 self.transform * Affine::translate((pos.x * self.scale, pos.y * self.scale));
+
+-            // Render inline element backgrounds (e.g. `<span style="background: ...">`)
+-            // behind the text and selection highlight.
+-            crate::text::draw_inline_backgrounds(
++            crate::text_box_decorations::paint_span_fragment_backgrounds(
+                 scene,
+-                text_layout.layout.lines(),
++                &text_layout.layout,
+                 self.context.dom,
+                 transform,
+-                self.node.id,
+             );
+
+             // Render text selection highlight (if any) using cached selection ranges
+@@ -884,6 +893,14 @@ impl ElementCx<'_, '_> {
+                 self.scale,
+                 self.node.id,
+                 &mut draw_text_context,
++                1.0,
++            );
++
++            crate::text_box_decorations::paint_span_fragment_borders(
++                scene,
++                &text_layout.layout,
++                self.context.dom,
++                transform,
+             );
+         }
+     }
+@@ -940,7 +957,11 @@ impl ElementCx<'_, '_> {
+                 };
+             }
+
+-            // Render text
++            let alpha = if input_data.is_showing_placeholder {
++                0.4
++            } else {
++                1.0
++            };
+             let mut draw_text_context = self.context.draw_text_context.borrow_mut();
+             crate::text::stroke_text(
+                 scene,
+@@ -950,6 +971,7 @@ impl ElementCx<'_, '_> {
+                 self.scale,
+                 self.node.id,
+                 &mut draw_text_context,
++                alpha,
+             );
+         }
+     }
+@@ -1005,6 +1027,7 @@ impl ElementCx<'_, '_> {
+                 self.scale,
+                 self.node.id,
+                 &mut draw_text_context,
++                1.0,
+             );
+         }
+     }
+diff --git a/src/render/background.rs b/src/render/background.rs
+index ba7e5b0..f7427f1 100644
+--- a/src/render/background.rs
++++ b/src/render/background.rs
+@@ -384,8 +384,6 @@ impl ElementCx<'_, '_> {
+
+     #[cfg(feature = "svg")]
+     fn draw_svg_image_layer(&self, scene: &mut impl PaintScene, layer: &ImageLayerStyles) {
+-        use kurbo::Affine;
+-
+         let Some(bg_image) = layer.image_data else {
+             return;
+         };
+@@ -446,14 +444,48 @@ impl ElementCx<'_, '_> {
+             frame_h - bg_size.height as f32,
+         );
+
+-        let transform = base_transform
+-            * kurbo::Affine::translate((
+-                origin_rect.x0 + bg_pos.x * self.scale,
+-                origin_rect.y0 + bg_pos.y * self.scale,
+-            ))
+-            * Affine::scale_non_uniform(x_ratio, y_ratio);
++        let bg_pos = (bg_pos.to_vec2() * self.scale).to_point();
++        let bg_size = bg_size * self.scale;
++        let clip_rect = self.box_rect(layer.clip);
++        let BackgroundRepeat(repeat_x, repeat_y) = layer.repeat;
++        let x = gradient_axis_tiling(
++            *repeat_x,
++            origin_rect.x0,
++            origin_rect.width(),
++            clip_rect.x0,
++            clip_rect.width(),
++            bg_pos.x,
++            bg_size.width,
++        );
++        let y = gradient_axis_tiling(
++            *repeat_y,
++            origin_rect.y0,
++            origin_rect.height(),
++            clip_rect.y0,
++            clip_rect.height(),
++            bg_pos.y,
++            bg_size.height,
++        );
+
+-        anyrender_svg::render_svg_tree(scene, &svg.tree, transform);
++        if x.count as u64 * y.count as u64 > 4096 {
++            return;
++        }
++
++        let transform = base_transform
++            .pre_scale_non_uniform(x_ratio, y_ratio)
++            .then_translate(Vec2 {
++                x: x.translate,
++                y: y.translate,
++            });
++        for row in 0..y.count {
++            for column in 0..x.count {
++                let transform = transform.then_translate(Vec2 {
++                    x: column as f64 * x.stride,
++                    y: row as f64 * y.stride,
++                });
++                anyrender_svg::render_svg_tree(scene, &svg.tree, transform);
++            }
++        }
+     }
+
+     fn draw_raster_image_layer(&self, scene: &mut impl PaintScene, layer: &ImageLayerStyles) {
+diff --git a/src/text.rs b/src/text.rs
+index 8887f03..fc004de 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -10,63 +10,9 @@ use style::values::computed::{
+ };
+ use style::values::generics::text::{GenericTextDecorationInset, GenericTextDecorationLength};
+
+-use crate::color::{Color, ToColorColor as _};
++use crate::color::Color;
+ use crate::{FONT_EMBOLDEN_ENABLED, SELECTION_COLOR};
+
+-/// Draw the backgrounds of inline elements (e.g. `<span style="background: ...">`).
+-///
+-/// Each glyph run carries the node id of the innermost inline element it belongs to
+-/// (via its brush). We look up that node's `background-color` and, if non-transparent,
+-/// fill a rectangle covering the run's advance and its font's ascent/descent so that the
+-/// background sits behind the text.
+-///
+-/// The inline root's own background is painted separately (as a normal block box), so
+-/// runs belonging to the root are skipped to avoid drawing it twice.
+-pub(crate) fn draw_inline_backgrounds<'a>(
+-    scene: &mut impl PaintScene,
+-    lines: impl Iterator<Item = Line<'a, TextBrush>>,
+-    doc: &BaseDocument,
+-    transform: Affine,
+-    inline_root_id: NodeId,
+-) {
+-    for line in lines {
+-        for item in line.items() {
+-            let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
+-                continue;
+-            };
+-
+-            let node_id = glyph_run.style().brush.id;
+-            if node_id == inline_root_id {
+-                continue;
+-            }
+-
+-            let Some(styles) = doc.get_node(node_id).and_then(|node| node.primary_styles()) else {
+-                continue;
+-            };
+-
+-            let current_color = styles.clone_color();
+-            let bg_color = styles
+-                .get_background()
+-                .background_color
+-                .resolve_to_absolute(&current_color)
+-                .as_srgb_color();
+-            if bg_color == Color::TRANSPARENT {
+-                continue;
+-            }
+-
+-            let metrics = glyph_run.run().font_metrics();
+-            let x = glyph_run.offset() as f64;
+-            let w = glyph_run.advance() as f64;
+-            let baseline = glyph_run.baseline() as f64;
+-            let y0 = baseline - metrics.ascent as f64;
+-            let y1 = baseline + metrics.descent as f64;
+-            let rect = Rect::new(x, y0, x + w, y1);
+-
+-            scene.fill(Fill::NonZero, transform, bg_color, None, &rect);
+-        }
+-    }
+-}
+-
+ /// Per-font-face cache of the OS/2 `usWinAscent / unitsPerEm` ratio, keyed by the font
+ /// blob's unique id and face index. `None` is cached for fonts without a usable OS/2 or
+ /// head table so they aren't re-parsed either.
+@@ -570,6 +516,7 @@ pub(crate) fn stroke_text<'a>(
+     scale: f64,
+     inline_root_id: NodeId,
+     context: &mut DrawTextContext,
++    alpha: f32,
+ ) {
+     let DrawTextContext {
+         stack,
+@@ -653,7 +600,7 @@ pub(crate) fn stroke_text<'a>(
+                     embolden,
+                     Fill::NonZero,
+                     &anyrender::Paint::from(text_color),
+-                    1.0, // alpha
++                    alpha,
+                     transform,
+                     glyph_xform,
+                     glyph_run.positioned_glyphs().map(|glyph| anyrender::Glyph {
+diff --git a/src/text_box_decorations.rs b/src/text_box_decorations.rs
+new file mode 100644
+index 0000000..5ae4fb3
+--- /dev/null
++++ b/src/text_box_decorations.rs
+@@ -0,0 +1,296 @@
++//! Inline-span box-decoration painting.
++//!
++//! Reads `parley::Layout::span_fragments()` (from the patched
++//! parley) to produce per-line rectangles for
++//! every inline element with non-default CSS box decorations
++//! (padding / border / background / border-radius). Without this
++//! pass, blitz only renders glyphs for inline-flow elements like
++//! `<a>` and `<span>`; the box decorations from the cascade exist
++//! but never make it onto the screen.
++//!
++//! Two entry points:
++//! - [`paint_span_fragment_backgrounds`] runs before glyphs are
++//!   stroked, so the background fills sit under the text.
++//! - [`paint_span_fragment_borders`] runs after glyphs are
++//!   stroked, so the border edges paint over any glyph that
++//!   crosses them (matches CSS spec: borders are above content
++//!   in the inline-fragment paint order).
++//!
++//! Limitations (matching parley's fragment emission):
++//! - Single-line spans only. Spans that wrap to a new line are
++//!   not painted at all (they fall back to plain glyph
++//!   rendering).
++//! - Border-radius is applied as a clip on the background fill;
++//!   borders themselves are square strokes. For symmetric
++//!   single-color borders + matching radius this looks correct;
++//!   for thick asymmetric or multi-color borders the corner
++//!   geometry will be slightly off vs. a real browser.
++//! - Single-color borders are emitted by reading any of the four
++//!   `border-*-color` computed values from the styled node and
++//!   stroking each edge independently. Mixed colors per edge
++//!   work; mitered joins between adjacent differently-colored
++//!   edges are not implemented.
++
++use anyrender::PaintScene;
++use blitz_dom::{BaseDocument, node::TextBrush};
++use kurbo::{Affine, Rect, RoundedRect, RoundedRectRadii};
++use parley::layout::Layout;
++use peniko::{Fill, Mix};
++
++use crate::color::ToColorColor;
++
++/// Paint background fills for every single-line inline-span
++/// fragment whose style has a non-transparent
++/// `background-color`. Call before [`crate::text::stroke_text`]
++/// so glyphs render on top of the fill.
++pub(crate) fn paint_span_fragment_backgrounds(
++    scene: &mut impl PaintScene,
++    layout: &Layout<TextBrush>,
++    doc: &BaseDocument,
++    transform: Affine,
++) {
++    let fragments = layout.span_fragments();
++    if fragments.is_empty() {
++        return;
++    }
++    let styles = layout.styles();
++    // Materialize once to index by fragment.line_index.
++    // Line is Copy and small, so this is cheap.
++    let lines: Vec<parley::layout::Line<'_, TextBrush>> = layout.lines().collect();
++
++    for fragment in fragments {
++        let style = match styles.get(fragment.style_index as usize) {
++            Some(s) => s,
++            None => continue,
++        };
++        let decos = &style.box_decorations;
++        if decos.is_empty() {
++            // Defensive: if a fragment was emitted with empty
++            // decorations, there's nothing to paint. The line
++            // breaker only emits fragments when at least one of
++            // padding/border crossed the threshold, so the trail
++            // path can't have produced one, but the type system
++            // doesn't know that.
++            continue;
++        }
++
++        let line = match lines.get(fragment.line_index as usize) {
++            Some(l) => l,
++            None => continue,
++        };
++        let _ = line.metrics();
++
++        // Look up the styled node so we can resolve the actual
++        // CSS background-color from the cascade (the brush
++        // carries only a node id; per-element colors live on
++        // the node).
++        let node = match doc.get_node(style.brush.id) {
++            Some(n) => n,
++            None => continue,
++        };
++        let primary = match node.primary_styles() {
++            Some(p) => p,
++            None => continue,
++        };
++        let current_color = primary.clone_color();
++        let bg = primary
++            .get_background()
++            .background_color
++            .resolve_to_absolute(&current_color)
++            .as_srgb_color();
++        if bg.components[3] == 0.0 {
++            continue;
++        }
++
++        let rect = fragment_rect(fragment, line);
++        if decos.border_radius.is_zero() {
++            scene.fill(Fill::NonZero, transform, bg, None, &rect);
++        } else {
++            let radii = fragment_radii(decos, fragment);
++            let rounded = RoundedRect::from_rect(rect, radii);
++            scene.fill(Fill::NonZero, transform, bg, None, &rounded);
++        }
++    }
++}
++
++/// Paint border edges for every single-line inline-span fragment
++/// whose style has any `border-*-width > 0` and a non-transparent
++/// matching color. Call after [`crate::text::stroke_text`] so the
++/// borders render over glyphs that overlap the edge band.
++pub(crate) fn paint_span_fragment_borders(
++    scene: &mut impl PaintScene,
++    layout: &Layout<TextBrush>,
++    doc: &BaseDocument,
++    transform: Affine,
++) {
++    let fragments = layout.span_fragments();
++    if fragments.is_empty() {
++        return;
++    }
++    let styles = layout.styles();
++    let lines: Vec<parley::layout::Line<'_, TextBrush>> = layout.lines().collect();
++
++    for fragment in fragments {
++        let style = match styles.get(fragment.style_index as usize) {
++            Some(s) => s,
++            None => continue,
++        };
++        let decos = &style.box_decorations;
++        if decos.is_empty() {
++            continue;
++        }
++
++        let line = match lines.get(fragment.line_index as usize) {
++            Some(l) => l,
++            None => continue,
++        };
++
++        let node = match doc.get_node(style.brush.id) {
++            Some(n) => n,
++            None => continue,
++        };
++        let primary = match node.primary_styles() {
++            Some(p) => p,
++            None => continue,
++        };
++        let current_color = primary.clone_color();
++        let border = primary.get_border();
++        let top_color = border
++            .border_top_color
++            .resolve_to_absolute(&current_color)
++            .as_srgb_color();
++        let right_color = border
++            .border_right_color
++            .resolve_to_absolute(&current_color)
++            .as_srgb_color();
++        let bottom_color = border
++            .border_bottom_color
++            .resolve_to_absolute(&current_color)
++            .as_srgb_color();
++        let left_color = border
++            .border_left_color
++            .resolve_to_absolute(&current_color)
++            .as_srgb_color();
++
++        let outer = fragment_rect(fragment, line);
++
++        // Borders are filled rectangles, one per edge, drawn
++        // inward from the outer rectangle by `border_*_width`.
++        // Top and bottom span the full width; left and right
++        // depend on is_first/is_last_fragment so a wrapped span
++        // doesn't paint internal vertical edges. Only single-line
++        // spans emit fragments today, so both flags are true.
++        let top_w = decos.border_block_start_width as f64;
++        let right_w = decos.border_inline_end_width as f64;
++        let bottom_w = decos.border_block_end_width as f64;
++        let left_w = decos.border_inline_start_width as f64;
++
++        let push_clip = !decos.border_radius.is_zero();
++        let radii = if push_clip {
++            Some(fragment_radii(decos, fragment))
++        } else {
++            None
++        };
++        if let Some(r) = radii {
++            // Clip subsequent border strokes to the rounded
++            // outer rect so corners don't paint outside the
++            // radius.
++            let rounded = RoundedRect::from_rect(outer, r);
++            scene.push_layer(
++                Fill::NonZero,
++                Mix::Normal,
++                1.0,
++                transform,
++                &rounded,
++                None,
++                None,
++            );
++        }
++
++        if top_w > 0.0 && top_color.components[3] > 0.0 {
++            let r = Rect::new(outer.x0, outer.y0, outer.x1, outer.y0 + top_w);
++            scene.fill(Fill::NonZero, transform, top_color, None, &r);
++        }
++        if bottom_w > 0.0 && bottom_color.components[3] > 0.0 {
++            let r = Rect::new(outer.x0, outer.y1 - bottom_w, outer.x1, outer.y1);
++            scene.fill(Fill::NonZero, transform, bottom_color, None, &r);
++        }
++        if fragment.is_first_fragment && left_w > 0.0 && left_color.components[3] > 0.0 {
++            let r = Rect::new(outer.x0, outer.y0, outer.x0 + left_w, outer.y1);
++            scene.fill(Fill::NonZero, transform, left_color, None, &r);
++        }
++        if fragment.is_last_fragment && right_w > 0.0 && right_color.components[3] > 0.0 {
++            let r = Rect::new(outer.x1 - right_w, outer.y0, outer.x1, outer.y1);
++            scene.fill(Fill::NonZero, transform, right_color, None, &r);
++        }
++
++        if push_clip {
++            scene.pop_layer();
++        }
++    }
++}
++
++/// Builds the outer rectangle of a fragment in the painter's
++/// pre-transform coordinate space. The line's `inline_min_coord`
++/// gives the line's left edge; `block_min_coord` /
++/// `block_max_coord` give the line's vertical extents (these
++/// already include leading and have been adjusted by the
++/// breaker). The fragment's `x_start` / `x_end` are
++/// line-relative, so the line's left edge is added.
++///
++/// Alignment: parley's `Layout::align()` shifts each line's
++/// content by writing `metrics.offset`; that offset is what the
++/// glyph iterator adds when emitting positioned glyphs
++/// (`GlyphRunIter::next` composes `inline_min_coord + offset`).
++/// Span fragments are computed before align (during
++/// `BreakLines::Drop`), so `x_start`/`x_end` are line-relative and
++/// pre-alignment. Adding `metrics.offset` here makes a centered or
++/// right-aligned line draw the box decoration at the same x as the
++/// glyphs.
++fn fragment_rect(
++    fragment: &parley::layout::SpanFragment,
++    line: &parley::layout::Line<'_, TextBrush>,
++) -> Rect {
++    let metrics = line.metrics();
++    let x_origin = metrics.inline_min_coord + metrics.offset;
++    let x0 = (x_origin + fragment.x_start) as f64;
++    let x1 = (x_origin + fragment.x_end) as f64;
++    let y0 = metrics.block_min_coord as f64;
++    let y1 = metrics.block_max_coord as f64;
++    Rect::new(x0, y0, x1, y1)
++}
++
++/// Builds non-uniform radii for the rounded outer rect. Only
++/// single-line spans emit fragments, so all four corners belong
++/// to the same fragment and the BoxDecorations radii are copied
++/// directly. Multi-line slicing would need to suppress
++/// interior-line corners here.
++fn fragment_radii(
++    decos: &parley::style::BoxDecorations<TextBrush>,
++    _fragment: &parley::layout::SpanFragment,
++) -> RoundedRectRadii {
++    // kurbo's RoundedRectRadii uses a single radius per corner
++    // (assumes circular). CSS supports per-corner X/Y, hence
++    // BoxDecorations carries 8 values. Average X and Y per
++    // corner: most stylesheets use uniform radii, so this is an
++    // exact match, and elliptical pills render visually close.
++    let avg = |x: f32, y: f32| ((x + y) * 0.5) as f64;
++    RoundedRectRadii {
++        top_left: avg(
++            decos.border_radius.top_left_x,
++            decos.border_radius.top_left_y,
++        ),
++        top_right: avg(
++            decos.border_radius.top_right_x,
++            decos.border_radius.top_right_y,
++        ),
++        bottom_right: avg(
++            decos.border_radius.bottom_right_x,
++            decos.border_radius.bottom_right_y,
++        ),
++        bottom_left: avg(
++            decos.border_radius.bottom_left_x,
++            decos.border_radius.bottom_left_y,
++        ),
++    }
++}

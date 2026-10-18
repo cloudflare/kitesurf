@@ -1,0 +1,287 @@
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary", "js_test")
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@npm//packages/engine:typescript/package_json.bzl", tsc = "bin")
+load("@npm//packages/engine:wrangler/package_json.bzl", wrangler = "bin")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//bazel:checks.bzl", "tsc_test", "workspace_configs")
+load("//bazel:paths.bzl", "bin_relative")
+
+npm_link_all_packages(name = "node_modules")
+
+exports_files(
+    [
+        "package.json",
+        "tsconfig.json",
+        "wrangler.jsonc",
+        "vitest.config.mts",
+        "vitest.e2e.config.mts",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+copy_to_bin(
+    name = "package_json",
+    srcs = ["package.json"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+copy_to_bin(
+    name = "public",
+    srcs = glob(["public/**"], exclude = ["public/rbi/**"]),
+    visibility = [
+        "//packages/engine/test/e2e:__pkg__",
+        "//tests/pw:__pkg__",
+        "//tests/wpt:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "fonts",
+    srcs = glob(["public/fonts/**"]),
+    visibility = ["//packages/core:__pkg__"],
+)
+
+filegroup(
+    name = "fixture_assets",
+    srcs = glob(["test/fixtures-worker/assets/**"]),
+    visibility = ["//packages/core:__pkg__"],
+)
+
+filegroup(
+    name = "overlay_e2e_fixture_assets",
+    srcs = glob(["test/fixtures-worker/assets/**"]),
+    visibility = ["//packages/engine/test/e2e:__pkg__"],
+)
+
+js_library(
+    name = "config",
+    srcs = [":package_json", "tsconfig.json", "wrangler.jsonc"],
+)
+
+js_library(
+    name = "srcs",
+    srcs = glob(["src/**"]),
+    deps = [
+        ":config",
+        ":node_modules/@kitesurf/dom-shim",
+        ":node_modules/@kitesurf/jsrpc-types",
+        ":node_modules/@kitesurf/page-renderer",
+        ":node_modules/@kitesurf/page-script",
+        ":node_modules/@kitesurf/script-gate",
+        ":node_modules/@kitesurf/worker-script",
+        ":node_modules/devtools-protocol",
+        ":node_modules/es-module-lexer",
+        ":node_modules/hono",
+        ":node_modules/kitesurf-core",
+        ":node_modules/nanoid",
+        ":node_modules/web-bot-auth",
+        ":node_modules/zod",
+    ],
+)
+
+alias(
+    name = "embed",
+    actual = ":srcs",
+    visibility = ["//visibility:public"],
+)
+
+# The npm package target rules_js links into workspace dependents, as in the sibling packages.
+alias(
+    name = "pkg",
+    actual = ":srcs",
+    visibility = ["//visibility:public"],
+)
+
+copy_file(
+    name = "rbi_json",
+    src = "//packages/scene-host-wasm:rbi/scene_host.json",
+    out = "public/rbi/scene_host.json",
+)
+
+copy_file(
+    name = "rbi_wasm",
+    src = "//packages/scene-host-wasm:rbi/scene_host.wasm",
+    out = "public/rbi/scene_host.wasm",
+)
+
+filegroup(
+    name = "rbi",
+    srcs = [":rbi_json", ":rbi_wasm"],
+    visibility = ["//packages/scene-host-wasm:__pkg__"],
+)
+
+filegroup(
+    name = "assets",
+    srcs = [":public", ":rbi_json", ":rbi_wasm"],
+    visibility = ["//visibility:public"],
+)
+
+js_run_binary(
+    name = "dist",
+    srcs = [
+        ":assets",
+        ":srcs",
+        "//packages/renderer-core:wasm_pkg",
+    ],
+    out_dirs = ["dist"],
+    args = ["prepare", "--dist", bin_relative("packages/engine/dist")],
+    mnemonic = "EngineDist",
+    progress_message = "Bundling the engine with its public Wrangler config",
+    tool = "//scripts:wpt_engine",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "wpt_dist",
+    actual = ":dist",
+    visibility = ["//visibility:public"],
+)
+
+wrangler.wrangler(
+    name = "worker_configuration",
+    srcs = ["src/index.ts", ":config"],
+    outs = ["worker-configuration.d.ts"],
+    args = ["types", "--include-runtime", "--no-strict-vars"],
+    chdir = package_name(),
+    mnemonic = "WranglerTypes",
+)
+
+wrangler.wrangler(
+    name = "fixtures_worker_configuration",
+    srcs = [
+        "test/fixtures-worker/src/index.ts",
+        "test/fixtures-worker/wrangler.jsonc",
+        ":package_json",
+    ],
+    outs = ["test/fixtures-worker/worker-configuration.d.ts"],
+    args = [
+        "types",
+        "-c",
+        "test/fixtures-worker/wrangler.jsonc",
+        "--include-runtime",
+        "--no-strict-vars",
+        "test/fixtures-worker/worker-configuration.d.ts",
+    ],
+    chdir = package_name(),
+    mnemonic = "WranglerTypes",
+)
+
+js_run_binary(
+    name = "e2e_fixtures_dist",
+    srcs = [
+        ":config",
+        ":node_modules/hono",
+        ":node_modules/zod",
+    ] + glob(["test/fixtures-worker/**"]),
+    out_dirs = ["e2e_fixtures_dist"],
+    args = ["--outdir", bin_relative("packages/engine/e2e_fixtures_dist")],
+    mnemonic = "E2eFixturesDist",
+    progress_message = "Bundling the e2e fixtures Worker",
+    tool = "//scripts:e2e_fixtures",
+    visibility = ["//packages/engine/test/e2e:__pkg__"],
+)
+
+copy_to_bin(
+    name = "tty_stylesheets",
+    srcs = glob(["src/tty/*.css"]),
+    visibility = ["//packages/tty-css-preview:__pkg__"],
+)
+
+filegroup(
+    name = "e2e_public",
+    srcs = [":assets"],
+    visibility = ["//packages/engine/test/e2e:__pkg__"],
+)
+
+js_library(
+    name = "e2e_config",
+    srcs = ["vitest.e2e.config.mts"],
+    deps = [
+        ":config",
+        ":node_modules/@cloudflare/puppeteer",
+        ":node_modules/@cloudflare/vitest-plugin",
+        ":node_modules/miniflare",
+        ":node_modules/vitest",
+        ":node_modules/wrangler",
+        ":node_modules/zod",
+        "//packages/engine/test/e2e:helpers",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+js_test(
+    name = "vitest",
+    size = "medium",
+    chdir = package_name(),
+    data = [
+        "vitest.config.mts",
+        ":node_modules/@cloudflare/vitest-plugin",
+        ":node_modules/vitest",
+        ":srcs",
+        ":assets",
+        "//packages/core/pkg:pkg",
+        "//packages/page-script:srcs",
+        "//packages/renderer-core:wasm_pkg",
+    ] + glob(["test/*.ts"]),
+    entry_point = "//scripts:vitest_bazel",
+    shard_count = 3,
+)
+
+_TYPES_DATA = [
+    "vitest.config.mts",
+    "vitest.e2e.config.mts",
+    ":config",
+    ":fixtures_worker_configuration",
+    ":node_modules/@cloudflare/puppeteer",
+    ":node_modules/@cloudflare/vitest-plugin",
+    ":node_modules/@types/node",
+    ":node_modules/miniflare",
+    ":node_modules/vitest",
+    ":node_modules/wrangler",
+    ":srcs",
+    ":worker_configuration",
+    "//:node_modules/@cloudflare/workers-types",
+    "//packages/core/pkg:pkg",
+    "//packages/engine/test/e2e:ts_srcs",
+    "//packages/page-script:srcs",
+    "//packages/renderer-core:wasm_pkg",
+] + glob(["test/**"], exclude = ["**/worker-configuration.d.ts"])
+
+tsc_test(
+    name = "types",
+    bin = tsc,
+    data = _TYPES_DATA,
+    size = "medium",
+)
+
+tsc_test(
+    name = "types_e2e",
+    bin = tsc,
+    data = _TYPES_DATA,
+    project = "test/e2e/tsconfig.json",
+    project_in_data = True,
+    size = "medium",
+)
+
+tsc_test(
+    name = "types_e2e_demos",
+    bin = tsc,
+    data = _TYPES_DATA,
+    project = "test/e2e/demos/tsconfig.json",
+    project_in_data = True,
+    size = "medium",
+)
+
+tsc_test(
+    name = "types_fixtures_worker",
+    bin = tsc,
+    data = _TYPES_DATA,
+    project = "test/fixtures-worker/tsconfig.json",
+    project_in_data = True,
+    size = "medium",
+)
+
+build_test(name = "build", targets = [":dist"])
+workspace_configs()

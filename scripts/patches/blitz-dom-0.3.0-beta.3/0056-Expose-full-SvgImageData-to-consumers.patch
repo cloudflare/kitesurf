@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Sun, 2 Aug 2026 22:12:46 +0100
+Subject: [PATCH] Expose full SvgImageData to consumers
+
+The painter needs viewBox presence (view_box_aspect) to distinguish a
+real author viewBox from usvg's synthesized natural size; svg_data()
+only surfaced the tree.
+---
+ src/node/element.rs | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/src/node/element.rs b/src/node/element.rs
+index c1860fd..8029dae 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -574,6 +574,16 @@ impl ElementData {
+         }
+     }
+
++    // Full svg metadata (naturals + viewBox presence), so the
++    // painter can tell a real viewBox from usvg's synthesized size.
++    #[cfg(feature = "svg")]
++    pub fn svg_image_data(&self) -> Option<&SvgImageData> {
++        match self.image_data()? {
++            ImageData::Svg(data) => Some(data),
++            _ => None,
++        }
++    }
++
+     pub fn text_input_data(&self) -> Option<&TextInputData> {
+         match &self.special_data {
+             SpecialElementData::TextInput(data) => Some(data),

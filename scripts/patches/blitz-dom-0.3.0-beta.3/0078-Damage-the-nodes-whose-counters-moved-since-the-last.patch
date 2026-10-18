@@ -1,0 +1,103 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 12 Aug 2026 10:17:45 +0100
+Subject: [PATCH] Damage the nodes whose counters moved since the last resolve
+
+resolve_counters rebuilds its side tables every pass, but the only
+readers; flush_pseudo_elements for ::before/::after text and
+
+collect_list_item_children for marker ordinals: run inside box
+construction, which incremental layout performs only for nodes carrying
+
+construction damage. Renumbering is inherently non-local: inserting a
+list item changes the marker on every later sibling, and counter-set
+
+changes a counter() string on elements whose own cascade is untouched.
+Those nodes compute no damage, the gate stays shut, and they keep
+
+painting the previous pass's string.
+
+Diff the fresh tables against the outgoing ones and stamp CONSTRUCT_BOX
+where a value actually moved, attributing an ordinal to the list item's
+
+parent because that is the node whose construction writes it. A document
+whose counters are stable stamps nothing.
+---
+ src/layout/counters.rs | 54 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 54 insertions(+)
+
+diff --git a/src/layout/counters.rs b/src/layout/counters.rs
+index eacc232..45e0236 100644
+--- a/src/layout/counters.rs
++++ b/src/layout/counters.rs
+@@ -14,6 +14,7 @@ use style::counter_style::CounterStyle;
+ use style::values::computed::{Content, ContentItem};
+
+ use crate::BaseDocument;
++use crate::layout::damage::CONSTRUCT_BOX;
+
+ /// Side tables produced by `resolve_counters`, keyed by node id.
+ #[derive(Default)]
+@@ -462,9 +463,62 @@ impl BaseDocument {
+         let mut state = CounterState::default();
+         let root = self.root_element().id;
+         self.resolve_counters_for(root, 0, &mut state, &mut out);
++        self.damage_moved_counters(&out);
+         self.counters = out;
+     }
+
++    /// Stamp construction damage where a counter moved since the last pass.
++    ///
++    /// These side tables are only read during box construction, which
++    /// incremental layout runs for damaged nodes alone. A counter value
++    /// changes the text on a node whose own cascade did not change (a new
++    /// sibling renumbers the ones after it), so without this the gate stays
++    /// shut and the pseudo/marker keeps rendering the previous pass's
++    /// string. Only a real mismatch stamps, so a steady document pays
++    /// two map lookups per entry and nothing else.
++    fn damage_moved_counters(&mut self, new: &CounterOutput) {
++        let mut dirty: Vec<usize> = Vec::new();
++        let old = &self.counters;
++
++        // ::before/::after text reaches the pseudo via flush_pseudo_elements,
++        // which runs inside the owning element's box construction.
++        for (fresh, stale) in [
++            (&new.before_text, &old.before_text),
++            (&new.after_text, &old.after_text),
++        ] {
++            dirty.extend(
++                fresh
++                    .iter()
++                    .filter(|(id, text)| stale.get(id) != Some(*text))
++                    .map(|(&id, _)| id),
++            );
++            dirty.extend(stale.keys().filter(|id| !fresh.contains_key(id)).copied());
++        }
++
++        // A marker ordinal is written by collect_list_item_children, which
++        // walks from the list item's parent: damage the child and it never runs.
++        let ordinals = new
++            .list_item_values
++            .iter()
++            .filter(|(id, value)| old.list_item_values.get(id) != Some(*value))
++            .map(|(&id, _)| id)
++            .chain(
++                old.list_item_values
++                    .keys()
++                    .filter(|id| !new.list_item_values.contains_key(id))
++                    .copied(),
++            );
++        for id in ordinals {
++            dirty.extend(self.nodes.get(id).and_then(|node| node.parent));
++        }
++
++        for id in dirty {
++            if let Some(node) = self.nodes.get_mut(id) {
++                node.insert_damage(CONSTRUCT_BOX);
++            }
++        }
++    }
++
+     fn document_uses_counters(&self) -> bool {
+         for (_, node) in self.tree().iter() {
+             let Some(styles) = node.primary_styles() else {

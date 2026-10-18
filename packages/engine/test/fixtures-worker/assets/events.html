@@ -1,0 +1,56 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>kitesurf events fixture</title>
+</head>
+<body>
+  <h1 id="hdr">events</h1>
+  <button id="btn" type="button">click me</button>
+  <div id="counter">0</div>
+  <script>
+    globalThis.__ks_path = [];
+    const log = (label) => globalThis.__ks_path.push(label);
+
+    const btn = document.querySelector("#btn");
+    const body = document.body;
+
+    // Capture-phase listener on window — fires first per spec.
+    window.addEventListener("click", () => log("window:capture"), true);
+    // Bubble-phase listener on window — fires last per spec.
+    window.addEventListener("click", (e) => {
+      log("window:bubble");
+      log("target=" + (e.target && e.target.id));
+    }, false);
+    // Body listener — fires after capture-window and before bubble-window.
+    body.addEventListener("click", () => log("body:bubble"));
+    // Target listener — fires at phase 2 (AT_TARGET).
+    btn.addEventListener("click", () => log("btn:target"));
+    // Once listener — should fire on the first click but not the second.
+    btn.addEventListener("click", () => log("btn:once"), { once: true });
+    // Default-prevented listener — call e.preventDefault() so the
+    // demo can verify defaultPrevented round-trips through CDP.
+    btn.addEventListener("click", (e) => {
+      log("btn:preventDefault");
+      e.preventDefault();
+    });
+
+    // Element.click() shortcut sanity check: programmatically
+    // invokable from page.evaluate without going through Input domain.
+    globalThis.__ks_clickBtn = () => btn.click();
+
+    // Counter handler exercises mutation from inside an event handler.
+    let n = 0;
+    btn.addEventListener("click", () => {
+      n++;
+      document.querySelector("#counter").textContent = String(n);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 23 Jul 2026 20:50:44 +0000
+Subject: [PATCH] Mark on enqueue to bound the GC worklist
+
+boa's mark-sweep Tracer marked and deduplicated a node only when it was
+dequeued, so the worklist held a node once per incoming edge (and once
+per slot of a large collection's trace). A densely referenced heap,
+such as the Proxy graph that mirrors DOM nodes during a framer-motion
+animation, grew the queue past isize::MAX on wasm32. The RawVec
+capacity-overflow panic left the page blank.
+
+Mark on enqueue instead, as a tri-color grey set: Tracer::enqueue skips
+a node that is already marked and otherwise marks and pushes it.
+Tracer::trace_until_empty then traces every dequeued node; the weak and
+ephemeron phases already traced unconditionally. Each node enters the
+queue at most once.
+---
+ src/trace.rs | 15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/src/trace.rs b/src/trace.rs
+index fb6f7e0..be0cb2c 100644
+--- a/src/trace.rs
++++ b/src/trace.rs
+@@ -32,6 +32,15 @@ impl Tracer {
+     }
+
+     pub(crate) fn enqueue(&mut self, node: GcErasedPointer) {
++        // Mark on enqueue. Marking on dequeue pushes a node once per incoming edge,
++        // and on wasm32 the worklist can outgrow isize::MAX.
++        // SAFETY: `node` is a live GcBox pointer supplied by a Trace impl, so its
++        // header is valid to read and mark.
++        let header = &unsafe { node.as_ref() }.header;
++        if header.is_marked() {
++            return;
++        }
++        header.mark();
+         self.queue.push_back(node);
+     }
+
+@@ -43,10 +52,8 @@ impl Tracer {
+     pub(crate) unsafe fn trace_until_empty(&mut self) {
+         while let Some(node) = self.queue.pop_front() {
+             let node_ref = unsafe { node.as_ref() };
+-            if node_ref.is_marked() {
+-                continue;
+-            }
+-            node_ref.header.mark();
++            // Nodes are marked when enqueued, so each dequeued node is traced
++            // exactly once.
+             let trace_fn = node_ref.trace_fn();
+
+             // SAFETY: The function pointer is appropriate for this node type because we extract it from it's VTable.

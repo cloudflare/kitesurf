@@ -1,0 +1,51 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 26 Jul 2026 00:29:58 +0100
+Subject: [PATCH] Form controls: color from CSS accent-color (default accent
+ blue)
+
+Checkbox, radio and range derive their widget color from the computed
+accent-color, falling back to Chrome's default light-mode accent blue
+on auto instead of the element text color, which painted black widgets
+on most pages. The range track uses the common UA gray.
+---
+ src/render/form_controls.rs | 16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/src/render/form_controls.rs b/src/render/form_controls.rs
+index 15d4ed9..5338912 100644
+--- a/src/render/form_controls.rs
++++ b/src/render/form_controls.rs
+@@ -34,11 +34,21 @@ impl ElementCx<'_, '_> {
+         }
+         let disabled = self.node.attr(local_name!("disabled")).is_some();
+
+-        // TODO this should be coming from css accent-color, but I couldn't find how to retrieve it
++        // CSS accent-color drives the widget color like real
++        // browsers. `auto` falls back to Chrome's default light-mode
++        // accent blue rather than the element text color, which
++        // would paint black checkboxes and sliders on most pages.
++        const DEFAULT_ACCENT: Color = Color::from_rgba8(0, 117, 255, 255);
+         let accent_color = if disabled {
+             Color::from_rgba8(209, 209, 209, 255)
+         } else {
+-            self.style.clone_color().as_srgb_color()
++            match &self.style.get_inherited_ui().accent_color {
++                style::values::computed::ColorOrAuto::Auto => DEFAULT_ACCENT,
++                style::values::computed::ColorOrAuto::Color(c) => {
++                    let current = self.style.clone_color();
++                    c.resolve_to_absolute(&current).as_srgb_color()
++                }
++            }
+         };
+
+         // Range sliders carry their live value in
+@@ -133,7 +143,7 @@ fn draw_range_slider(
+         track_h / 2.0,
+     );
+
+-    const TRACK_GRAY: Color = Color::from_rgba8(209, 209, 209, 255);
++    const TRACK_GRAY: Color = Color::from_rgba8(222, 226, 230, 255);
+     scene.fill(Fill::NonZero, transform, TRACK_GRAY, None, &track);
+     scene.fill(Fill::NonZero, transform, accent_color, None, &filled);
+     scene.fill(

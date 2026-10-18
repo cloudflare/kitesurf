@@ -1,0 +1,124 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 5 Sep 2026 09:40:15 +0100
+Subject: [PATCH] Anchor auto-line grid abspos areas to padding
+
+CSS Grid resolves an auto line of an absolutely positioned item to the
+container padding edge. Preserve the existing scrollbar and RTL handling
+while changing only the fallback edge.
+
+Taffy 0.15 resolves insets against a separate grid area whose auto lines
+already use the padding box, so this now changes only the
+static-position area used when both insets are auto.
+---
+ src/compute/grid/mod.rs | 56 +++++++++++++++++++++++++++++++++++------
+ 1 file changed, 48 insertions(+), 8 deletions(-)
+
+diff --git a/src/compute/grid/mod.rs b/src/compute/grid/mod.rs
+index 4d18846..c590ba5 100644
+--- a/src/compute/grid/mod.rs
++++ b/src/compute/grid/mod.rs
+@@ -806,7 +806,7 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
+                     &rows,
+                     &columns,
+                     direction,
+-                    border,
++                    padding + border,
+                     scrollbar_gutter,
+                     container_border_box,
+                 )
+@@ -960,7 +960,7 @@ fn resolve_static_position_grid_area<S: CheapCloneStr>(
+     rows: &[GridTrack],
+     columns: &[GridTrack],
+     direction: Direction,
+-    border: Rect<f32>,
++    padding_border: Rect<f32>,
+     scrollbar_gutter: Point<f32>,
+     container_border_box: Size<f32>,
+ ) -> Rect<f32> {
+@@ -1023,6 +1023,8 @@ fn resolve_static_position_grid_area<S: CheapCloneStr>(
+         }
+     }
+
++    // An auto grid line resolves the static-position area to the inner edge of the container's
++    // padding (border + padding), as Chrome does.
+     // In RTL the item's physical left edge derives from its logical end line and its
+     // physical right edge from its logical start line.
+     let (grid_area_left, grid_area_right) = if direction.is_rtl() {
+@@ -1030,28 +1032,28 @@ fn resolve_static_position_grid_area<S: CheapCloneStr>(
+             maybe_col_indexes
+                 .end
+                 .map(|index| rtl_line_as_end_edge(columns, index))
+-                .unwrap_or(border.left + scrollbar_gutter.x),
++                .unwrap_or(padding_border.left + scrollbar_gutter.x),
+             maybe_col_indexes
+                 .start
+                 .map(|index| rtl_line_as_start_edge(columns, index))
+-                .unwrap_or(container_border_box.width - border.right),
++                .unwrap_or(container_border_box.width - padding_border.right),
+         )
+     } else {
+         (
+-            maybe_col_indexes.start.map(|index| line_as_start_edge(columns, index)).unwrap_or(border.left),
++            maybe_col_indexes.start.map(|index| line_as_start_edge(columns, index)).unwrap_or(padding_border.left),
+             maybe_col_indexes
+                 .end
+                 .map(|index| line_as_end_edge(columns, index))
+-                .unwrap_or(container_border_box.width - border.right - scrollbar_gutter.x),
++                .unwrap_or(container_border_box.width - padding_border.right - scrollbar_gutter.x),
+         )
+     };
+
+     Rect {
+-        top: maybe_row_indexes.start.map(|index| line_as_start_edge(rows, index)).unwrap_or(border.top),
++        top: maybe_row_indexes.start.map(|index| line_as_start_edge(rows, index)).unwrap_or(padding_border.top),
+         bottom: maybe_row_indexes
+             .end
+             .map(|index| line_as_end_edge(rows, index))
+-            .unwrap_or(container_border_box.height - border.bottom - scrollbar_gutter.y),
++            .unwrap_or(container_border_box.height - padding_border.bottom - scrollbar_gutter.y),
+         left: grid_area_left,
+         right: grid_area_right,
+     }
+@@ -1414,3 +1416,41 @@ impl DetailedGridItemsInfo {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod kitesurf_regression_tests {
++    use crate::prelude::*;
++    use crate::Point;
++
++    #[test]
++    fn auto_line_abspos_area_uses_grid_padding_edge() {
++        let mut tree: TaffyTree<()> = TaffyTree::new();
++        let child = tree
++            .new_leaf(Style {
++                position: Position::Absolute,
++                size: Size { width: length(50.0), height: length(50.0) },
++                ..Default::default()
++            })
++            .unwrap();
++        let grid = tree
++            .new_with_children(
++                Style {
++                    display: Display::Grid,
++                    // Make the grid the abspos child's containing block (taffy 0.15 defaults to static)
++                    position: Position::Relative,
++                    size: Size { width: length(200.0), height: length(200.0) },
++                    padding: Rect::length(20.0),
++                    border: Rect::length(10.0),
++                    grid_template_columns: vec![length(100.0)],
++                    grid_template_rows: vec![length(100.0)],
++                    ..Default::default()
++                },
++                &[child],
++            )
++            .unwrap();
++
++        tree.compute_layout(grid, Size::MAX_CONTENT).unwrap();
++
++        assert_eq!(tree.layout(child).unwrap().location, Point { x: 30.0, y: 30.0 });
++    }
++}

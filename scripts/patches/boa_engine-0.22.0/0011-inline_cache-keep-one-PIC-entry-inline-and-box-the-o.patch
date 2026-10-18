@@ -1,0 +1,246 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 9 Oct 2026 20:19:53 +0100
+Subject: [PATCH] inline_cache: keep one PIC entry inline and box the overflow
+
+Every property-access site carries an InlineCache, and 0.22's
+polymorphic cache stores PIC_CAPACITY entries inline in each one, so
+a site costs four entries' worth of memory whether it runs or not.
+Most sites in a bundle never run, and most that do stay monomorphic:
+compiled react-dom kept ~4x the code memory of 0.20.
+
+Keep the first entry inline (a monomorphic hit costs the same as
+before) and allocate the overflow only when a second shape arrives.
+---
+ src/vm/inline_cache/mod.rs   | 87 +++++++++++++++++++++++++-----------
+ src/vm/inline_cache/tests.rs | 20 ++++-----
+ 2 files changed, 71 insertions(+), 36 deletions(-)
+
+diff --git a/src/vm/inline_cache/mod.rs b/src/vm/inline_cache/mod.rs
+index c55aae8..14dc45c 100644
+--- a/src/vm/inline_cache/mod.rs
++++ b/src/vm/inline_cache/mod.rs
+@@ -27,13 +27,13 @@ pub(crate) struct CacheEntry {
+ /// An inline cache entry for a property access.
+ #[derive(Clone, Debug, Trace, Finalize)]
+ pub(crate) struct InlineCache {
+-    /// The property that is accessed.
+     pub(crate) name: JsString,
+
+-    /// Multiple cached shape-to-slot entries.
+-    pub(crate) entries: GcRefCell<ArrayVec<CacheEntry, PIC_CAPACITY>>,
++    // The first entry inline and the polymorphic overflow boxed, so a site
++    // that never runs or stays monomorphic costs one entry instead of PIC_CAPACITY.
++    first: GcRefCell<Option<CacheEntry>>,
++    rest: GcRefCell<Option<Box<ArrayVec<CacheEntry, { PIC_CAPACITY - 1 }>>>>,
+
+-    /// Whether this access site has seen too many shapes and should no longer be cached.
+     #[unsafe_ignore_trace]
+     pub(crate) megamorphic: Cell<bool>,
+ }
+@@ -46,8 +46,13 @@ impl fmt::Display for InlineCache {
+             return write!(f, "(megamorphic))");
+         }
+
+-        let entries = self.entries.borrow();
+-        let entries = entries.iter().map(|e| e.shape.to_addr_usize()).format(", ");
++        let first = self.first.borrow();
++        let rest = self.rest.borrow();
++        let entries = first
++            .iter()
++            .chain(rest.iter().flat_map(|r| r.iter()))
++            .map(|e| e.shape.to_addr_usize())
++            .format(", ");
+
+         write!(f, "({entries:#x}))")
+     }
+@@ -57,7 +62,8 @@ impl InlineCache {
+     pub(crate) fn new(name: JsString) -> Self {
+         Self {
+             name,
+-            entries: GcRefCell::new(ArrayVec::new()),
++            first: GcRefCell::new(None),
++            rest: GcRefCell::new(None),
+             megamorphic: Cell::new(false),
+         }
+     }
+@@ -66,23 +72,41 @@ impl InlineCache {
+         if self.megamorphic.get() {
+             return;
+         }
+-
+-        let mut entries = self.entries.borrow_mut();
+-
+-        // Add a new entry if there's space.
+-        if entries
+-            .try_push(CacheEntry {
+-                shape: shape.into(),
+-                slot,
+-            })
++        let entry = CacheEntry {
++            shape: shape.into(),
++            slot,
++        };
++
++        let mut first = self.first.borrow_mut();
++        if first.is_none() {
++            *first = Some(entry);
++            return;
++        }
++        let mut rest = self.rest.borrow_mut();
++        // Add a new entry if there's space; a full cache goes megamorphic.
++        if rest
++            .get_or_insert_with(Box::default)
++            .try_push(entry)
+             .is_err()
+         {
+-            // Polymorphic cache is full, transition to megamorphic.
+             self.megamorphic.set(true);
+-            entries.clear();
++            *first = None;
++            *rest = None;
+         }
+     }
+
++    /// Every live entry, first one first (the layout the PIC tests inspect).
++    #[cfg(test)]
++    pub(crate) fn entries(&self) -> Vec<CacheEntry> {
++        let first = self.first.borrow();
++        let rest = self.rest.borrow();
++        first
++            .iter()
++            .chain(rest.iter().flat_map(|r| r.iter()))
++            .cloned()
++            .collect()
++    }
++
+     /// Returns the cached `(Shape, Slot)` if a matching shape exists in the inline cache.
+     ///
+     /// Opportunistically cleans up stale weak shape references during lookup.
+@@ -90,17 +114,29 @@ impl InlineCache {
+         if self.megamorphic.get() {
+             return None;
+         }
+-
+-        let mut entries = self.entries.borrow_mut();
+-        let mut i = 0;
+-        let mut result = None;
+         let shape_addr = shape.to_addr_usize();
+
++        {
++            let mut first = self.first.borrow_mut();
++            if let Some(entry) = first.as_ref() {
++                match entry.shape.upgrade() {
++                    Some(upgraded) if upgraded.to_addr_usize() == shape_addr => {
++                        return Some((upgraded, entry.slot));
++                    }
++                    Some(_) => {}
++                    // Opportunistically clean up a stale weak shape.
++                    None => *first = None,
++                }
++            }
++        }
++
++        let mut rest = self.rest.borrow_mut();
++        let entries = rest.as_mut()?;
++        let mut i = 0;
+         while i < entries.len() {
+             if let Some(upgraded) = entries[i].shape.upgrade() {
+                 if upgraded.to_addr_usize() == shape_addr {
+-                    result = Some((upgraded, entries[i].slot));
+-                    break;
++                    return Some((upgraded, entries[i].slot));
+                 }
+                 i += 1;
+             } else {
+@@ -108,7 +144,6 @@ impl InlineCache {
+                 entries.swap_remove(i);
+             }
+         }
+-
+-        result
++        None
+     }
+ }
+diff --git a/src/vm/inline_cache/tests.rs b/src/vm/inline_cache/tests.rs
+index 1f93754..65135ca 100644
+--- a/src/vm/inline_cache/tests.rs
++++ b/src/vm/inline_cache/tests.rs
+@@ -330,7 +330,7 @@ fn set_property_by_name_set_inline_cache_on_property_load() -> JsResult<()> {
+     let (function, code) = get_codeblock(&function).unwrap();
+
+     assert_eq!(code.ic.len(), 1);
+-    assert_eq!(code.ic[0].entries.borrow().len(), 0);
++    assert_eq!(code.ic[0].entries().len(), 0);
+
+     let o = ObjectInitializer::new(context)
+         .property(js_string!("test"), 0, Attribute::all())
+@@ -339,9 +339,9 @@ fn set_property_by_name_set_inline_cache_on_property_load() -> JsResult<()> {
+
+     function.call(&JsValue::undefined(), &[o.clone().into()], context)?;
+
+-    assert_eq!(code.ic[0].entries.borrow().len(), 1);
++    assert_eq!(code.ic[0].entries().len(), 1);
+     assert_eq!(
+-        code.ic[0].entries.borrow()[0]
++        code.ic[0].entries()[0]
+             .shape
+             .upgrade()
+             .unwrap()
+@@ -359,7 +359,7 @@ fn get_property_by_name_set_inline_cache_on_property_load() -> JsResult<()> {
+     let (function, code) = get_codeblock(&function).unwrap();
+
+     assert_eq!(code.ic.len(), 1);
+-    assert_eq!(code.ic[0].entries.borrow().len(), 0);
++    assert_eq!(code.ic[0].entries().len(), 0);
+
+     let o = ObjectInitializer::new(context)
+         .property(js_string!("test"), 0, Attribute::all())
+@@ -368,9 +368,9 @@ fn get_property_by_name_set_inline_cache_on_property_load() -> JsResult<()> {
+
+     function.call(&JsValue::undefined(), &[o.clone().into()], context)?;
+
+-    assert_eq!(code.ic[0].entries.borrow().len(), 1);
++    assert_eq!(code.ic[0].entries().len(), 1);
+     assert_eq!(
+-        code.ic[0].entries.borrow()[0]
++        code.ic[0].entries()[0]
+             .shape
+             .upgrade()
+             .unwrap()
+@@ -388,7 +388,7 @@ fn test_polymorphic_inline_cache() -> JsResult<()> {
+     let (function, code) = get_codeblock(&function).unwrap();
+
+     assert_eq!(code.ic.len(), 1);
+-    assert_eq!(code.ic[0].entries.borrow().len(), 0);
++    assert_eq!(code.ic[0].entries().len(), 0);
+     assert!(!code.ic[0].megamorphic.get());
+
+     let shapes = vec![
+@@ -413,7 +413,7 @@ fn test_polymorphic_inline_cache() -> JsResult<()> {
+         function.call(&JsValue::undefined(), &[o.clone().into()], context)?;
+     }
+
+-    assert_eq!(code.ic[0].entries.borrow().len(), 4);
++    assert_eq!(code.ic[0].entries().len(), 4);
+     assert!(!code.ic[0].megamorphic.get());
+
+     Ok(())
+@@ -451,7 +451,7 @@ fn test_megamorphic_inline_cache() -> JsResult<()> {
+         function.call(&JsValue::undefined(), &[o.clone().into()], context)?;
+     }
+
+-    assert_eq!(code.ic[0].entries.borrow().len(), 0);
++    assert_eq!(code.ic[0].entries().len(), 0);
+     assert!(code.ic[0].megamorphic.get());
+
+     // Regression check: repeated miss should remain empty
+@@ -460,7 +460,7 @@ fn test_megamorphic_inline_cache() -> JsResult<()> {
+         .property(js_string!("test"), 1, Attribute::all())
+         .build();
+     function.call(&JsValue::undefined(), &[o6.clone().into()], context)?;
+-    assert_eq!(code.ic[0].entries.borrow().len(), 0);
++    assert_eq!(code.ic[0].entries().len(), 0);
+     assert!(code.ic[0].megamorphic.get());
+
+     Ok(())

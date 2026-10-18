@@ -1,0 +1,40 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>kitesurf @font-face unicode-range fixture</title>
+  <style>
+    @font-face {
+      font-family: "RangeFont";
+      src: url("/__fixtures/noto-cyrillic-subset.woff2") format("woff2");
+      unicode-range: U+0400-04FF;
+    }
+    @font-face {
+      font-family: "RangeFont";
+      src: url("/__fixtures/noto-greek-subset.woff2") format("woff2");
+      unicode-range: U+0370-03FF;
+    }
+    @font-face {
+      font-family: "RangeFont";
+      src: url("/__fixtures/bungee.woff2") format("woff2");
+      unicode-range: U+0000-00FF;
+    }
+    body { margin: 0; padding: 16px; }
+    p { font-size: 32px; margin: 0; padding: 0; display: inline-block; }
+    #target  { font-family: "RangeFont", serif; }
+    #control { font-family: serif; }
+    #cyr     { font-family: "RangeFont", serif; }
+  </style>
+</head>
+<body>
+  <p id="target">Hamburgefonstiv</p>
+  <p id="control">Hamburgefonstiv</p>
+  <p id="cyr">Днепропетровск</p>
+</body>
+</html>

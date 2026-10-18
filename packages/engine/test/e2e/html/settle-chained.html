@@ -1,0 +1,25 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<title>settle chained</title>
+<h1 id="h">chained</h1>
+<script>
+  window.addEventListener("load", function () {
+    var el = document.getElementById("h");
+    el.setAttribute("data-step", "1");
+    globalThis.__ks_mine++;
+    setTimeout(function () {
+      el.setAttribute("data-step", "2");
+      Promise.resolve().then(function () {
+        globalThis.__ks_mine++;
+        setTimeout(function () {
+          el.setAttribute("data-step", "3");
+          document.title = "SETTLED:3";
+        }, 0);
+      });
+    }, 0);
+  });
+</script>

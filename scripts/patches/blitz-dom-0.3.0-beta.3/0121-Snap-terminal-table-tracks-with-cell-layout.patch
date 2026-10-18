@@ -1,0 +1,104 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Tue, 1 Sep 2026 19:36:57 +0100
+Subject: [PATCH] Snap terminal table tracks with cell layout
+
+The terminal grid rounds table-cell boxes but left DetailedGridInfo at
+fractional coordinates. Keep collapsed-border gutters at pixel width and
+absorb cumulative grid rounding into adjacent tracks so table painting
+follows the cells.
+
+Against blitz-dom 0.3.0-beta.3: the origin walk climbs
+containing_block(), the box a location is relative to under native
+out-of-flow layout.
+---
+ src/resolve.rs | 67 +++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 66 insertions(+), 1 deletion(-)
+
+diff --git a/src/resolve.rs b/src/resolve.rs
+index cf0d2aa..94361d4 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -31,9 +31,26 @@ use crate::{
+         },
+         damage::{ALL_DAMAGE, CONSTRUCT_BOX, CONSTRUCT_DESCENDENT, CONSTRUCT_FC},
+     },
+-    node::TextBrush,
++    node::{SpecialElementData, TextBrush},
+ };
+
++fn snap_table_tracks(
++    tracks: &mut taffy::DetailedGridTracksInfo<style::Atom>,
++    origin: f32,
++    step: f32,
++) {
++    if step <= 1.0 || tracks.positions.is_empty() {
++        return;
++    }
++
++    let snap = |value: f32| (value / step).round() * step;
++    let snapped_origin = snap(origin);
++    for position in &mut tracks.positions {
++        position.start = snap(origin + position.start, step) - snapped_origin;
++        position.end = snap(origin + position.end, step) - snapped_origin;
++    }
++}
++
+ /// A query container, i.e. an element `@container` rules inside it
+ /// size themselves against. `container-type: normal` elements are not one.
+ fn is_size_container(node: &crate::node::Node) -> bool {
+@@ -755,6 +772,54 @@ impl BaseDocument {
+             taffy::round_layout(&mut state, root_element_id);
+         }
+
++        // Paint reads table tracks rather than the cell layouts rounded above.
++        let (grid_x, grid_y) = self.round_grid;
++        if grid_x > 1.0 || grid_y > 1.0 {
++            for (_, node) in self.nodes.iter() {
++                let Some(element) = node.element_data() else {
++                    continue;
++                };
++                let SpecialElementData::TableRoot(table) = &element.special_data else {
++                    continue;
++                };
++                let Some(grid_info) = &mut *table.computed_grid_info.borrow_mut() else {
++                    continue;
++                };
++<<<<<<< HEAD
++                let layout = node.final_layout();
++                snap_table_tracks(
++                    &mut grid_info.columns,
++                    layout.border.left + layout.padding.left,
++=======
++                let mut table_x = 0.0;
++                let mut table_y = 0.0;
++                let mut ancestor_id = Some(node_id);
++                while let Some(id) = ancestor_id {
++                    let ancestor = &self.nodes[id];
++                    table_x += ancestor.unrounded_layout().location.x;
++                    table_y += ancestor.unrounded_layout().location.y;
++                    ancestor_id = ancestor.containing_block();
++                }
++                snap_table_tracks(
++                    &mut grid_info.columns,
++                    table_x,
++                    (table_x / grid_x).round() * grid_x,
++>>>>>>> 8fd1df8 (fixup! Snap terminal table tracks with cell layout)
++                    grid_x,
++                );
++                snap_table_tracks(
++                    &mut grid_info.rows,
++<<<<<<< HEAD
++                    layout.border.top + layout.padding.top,
++=======
++                    table_y,
++                    (table_y / grid_y).round() * grid_y,
++>>>>>>> 8fd1df8 (fixup! Snap terminal table tracks with cell layout)
++                    grid_y,
++                );
++            }
++        }
++
+         self.restore_clobbered_inline_breaks();
+
+         // println!("\n\n");

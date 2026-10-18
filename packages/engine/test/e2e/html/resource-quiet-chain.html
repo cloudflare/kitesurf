@@ -1,0 +1,24 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<title>resource quiet chain</title>
+<h1 id="h">quiet</h1>
+<script>
+  var el = document.getElementById("h");
+  globalThis.__ks_mine++;
+  setTimeout(function () {
+    el.setAttribute("data-step", "1");
+    globalThis.__ks_mine++;
+    setTimeout(function () {
+      el.setAttribute("data-step", "2");
+      globalThis.__ks_mine++;
+      setTimeout(function () {
+        el.setAttribute("data-step", "3");
+        document.title = "RESOURCE_QUIET_SETTLED";
+      }, 0);
+    }, 0);
+  }, 0);
+</script>

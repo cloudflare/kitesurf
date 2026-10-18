@@ -1,0 +1,184 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 22 Aug 2026 22:59:19 +0100
+Subject: [PATCH] Feature-gate the terminal-capability query behind `query`
+
+rustix is declared unconditionally for cfg(not(windows)), which
+includes wasm32-unknown-unknown, and there its errno dependency
+hard-errors with "The target OS is \"unknown\" or \"none\", so it's
+unsupported by the errno crate". So the crate cannot be built for
+wasm at all, even though halfblocks needs nothing but a Buffer and
+kitty/iterm2 need nothing but base64.
+
+Nothing outside the stdio query wants a terminal: the query owns
+enable_raw_mode, font_size_fallback, query_stdio_capabilities,
+interpret_parser_responses, query_with_timeout and the two Errno
+conversions. Gate exactly those. Picker::from_fontsize, already
+documented as "the only way to create a picker on windows", covers
+every caller that knows its cell size by other means.
+
+The feature is in `default`, so this is not a breaking change for
+anyone building for a real terminal.
+---
+ Cargo.toml    |  7 +++++++
+ src/errors.rs |  2 ++
+ src/picker.rs | 16 ++++++++++++++--
+ 3 files changed, 23 insertions(+), 2 deletions(-)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index e36442d..697874b 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -44,8 +44,13 @@ crossterm = ["ratatui/crossterm"]
+ default = [
+     "image-defaults",
+     "crossterm",
++    "query",
+ ]
+ image-defaults = ["image/default"]
++query = [
++    "dep:rustix",
++    "dep:windows",
++]
+ serde = ["dep:serde"]
+ termion = ["ratatui/termion"]
+ termwiz = ["ratatui/termwiz"]
+@@ -138,6 +143,7 @@ features = [
+
+ [target."cfg(not(windows))".dependencies.rustix]
+ version = "^0.38.4"
++optional = true
+ features = [
+     "stdio",
+     "termios",
+@@ -146,6 +152,7 @@ features = [
+
+ [target."cfg(windows)".dependencies.windows]
+ version = "0.58.0"
++optional = true
+ features = [
+     "std",
+     "Win32_System_Console",
+diff --git a/src/errors.rs b/src/errors.rs
+index a0b6d30..368d88c 100644
+--- a/src/errors.rs
++++ b/src/errors.rs
+@@ -16,6 +16,7 @@ pub enum Errors {
+     Image(#[from] image::error::ImageError),
+ }
+
++#[cfg(feature = "query")]
+ #[cfg(not(windows))]
+ impl From<rustix::io::Errno> for Errors {
+     fn from(errno: rustix::io::Errno) -> Self {
+@@ -23,6 +24,7 @@ impl From<rustix::io::Errno> for Errors {
+     }
+ }
+
++#[cfg(feature = "query")]
+ #[cfg(windows)]
+ impl From<windows::core::Error> for Errors {
+     fn from(err: windows::core::Error) -> Self {
+diff --git a/src/picker.rs b/src/picker.rs
+index 35dc992..8b3fafd 100644
+--- a/src/picker.rs
++++ b/src/picker.rs
+@@ -1,14 +1,16 @@
+ //! Helper module to build a protocol, and swap protocols at runtime
+
++use std::env;
++#[cfg(feature = "query")]
+ use std::{
+-    env,
+     io::{self, Read, Write},
+     time::Duration,
+ };
+
++#[cfg(feature = "query")]
++use crate::errors::Errors;
+ use crate::{
+     FontSize, ImageSource, Resize, Result,
+-    errors::Errors,
+     protocol::{
+         Protocol, StatefulProtocol, StatefulProtocolType,
+         halfblocks::Halfblocks,
+@@ -17,6 +19,7 @@ use crate::{
+         sixel::Sixel,
+     },
+ };
++#[cfg(feature = "query")]
+ use cap_parser::{Parser, QueryStdioOptions, Response};
+ use image::{DynamicImage, Rgba};
+ use rand::random;
+@@ -89,6 +92,7 @@ impl Picker {
+     /// let mut picker = Picker::from_query_stdio();
+     /// ```
+     ///
++    #[cfg(feature = "query")]
+     pub fn from_query_stdio() -> Result<Self> {
+         Picker::from_query_stdio_with_options(QueryStdioOptions {
+             text_sizing_protocol: false,
+@@ -103,6 +107,7 @@ impl Picker {
+     /// The result can be checked by searching for [Capability::TextSizingProtocol] in [Picker::capabilities].
+     ///
+     /// [Text Sizing Protocol] <https://sw.kovidgoyal.net/kitty/text-sizing-protocol//>
++    #[cfg(feature = "query")]
+     pub fn from_query_stdio_with_options(options: QueryStdioOptions) -> Result<Self> {
+         // Detect tmux, and only if positive then take some risky guess for iTerm2 support.
+         let (is_tmux, tmux_proto) = detect_tmux_and_outer_protocol_from_env();
+@@ -314,6 +319,7 @@ fn iterm2_from_env() -> Option<ProtocolType> {
+ }
+
+ #[cfg(not(windows))]
++#[cfg(feature = "query")]
+ fn enable_raw_mode() -> Result<impl FnOnce() -> Result<()>> {
+     use rustix::termios::{self, LocalModes, OptionalActions};
+
+@@ -336,6 +342,7 @@ fn enable_raw_mode() -> Result<impl FnOnce() -> Result<()>> {
+ }
+
+ #[cfg(windows)]
++#[cfg(feature = "query")]
+ fn enable_raw_mode() -> Result<impl FnOnce() -> Result<()>> {
+     use windows::{
+         Win32::{
+@@ -379,6 +386,7 @@ fn enable_raw_mode() -> Result<impl FnOnce() -> Result<()>> {
+ }
+
+ #[cfg(not(windows))]
++#[cfg(feature = "query")]
+ fn font_size_fallback() -> Option<FontSize> {
+     use rustix::termios::{self, Winsize};
+
+@@ -397,6 +405,7 @@ fn font_size_fallback() -> Option<FontSize> {
+ }
+
+ #[cfg(windows)]
++#[cfg(feature = "query")]
+ fn font_size_fallback() -> Option<FontSize> {
+     None
+ }
+@@ -407,6 +416,7 @@ fn font_size_fallback() -> Option<FontSize> {
+ ///
+ /// The returned [ProtocolType] and [FontSize] may be included in the list of [Capability]s,
+ /// but the burden of picking out the right one or a font-size fallback is already resolved here.
++#[cfg(feature = "query")]
+ fn query_stdio_capabilities(
+     is_tmux: bool,
+     options: QueryStdioOptions,
+@@ -441,6 +451,7 @@ fn query_stdio_capabilities(
+     interpret_parser_responses(responses)
+ }
+
++#[cfg(feature = "query")]
+ fn interpret_parser_responses(
+     responses: Vec<Response>,
+ ) -> Result<(Option<ProtocolType>, Option<FontSize>, Vec<Capability>)> {
+@@ -511,6 +522,7 @@ fn interpret_parser_responses(
+     Ok((proto, font_size, capabilities))
+ }
+
++#[cfg(feature = "query")]
+ fn query_with_timeout(
+     is_tmux: bool,
+     timeout: Duration,

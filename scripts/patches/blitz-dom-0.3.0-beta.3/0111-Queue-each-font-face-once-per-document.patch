@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ruskin Constant <ruskin@cloudflare.com>
+Date: Sun, 13 Sep 2026 17:52:06 +0100
+Subject: [PATCH] Queue each @font-face once per document
+
+A <style> whose text is rewritten per rule (the CSSOM insertRule
+mirror, JSS) re-registers its sheet on every mutation, and every
+registration re-collected the sheet's @font-face rules: N pending
+copies, N fetches + decompressions, N UNLOADED entries of which only
+one cleared (so the family stayed blocked for its style). On a
+styled-components page that is hundreds of copies.
+
+queue_font_faces dedupes on the full descriptor (family, url, weight,
+style), matching Chrome's once-per-document font cache. Both entry
+points (add_stylesheet_for_node and @import'ed sheets via
+DocumentEvent::PendingFontFaces) go through it.
+
+(Split out of the old 0119 on blitz-dom beta.1. Its author-sheet cache
+eviction half is now covered by 0127.)
+---
+ src/document.rs | 49 ++++++++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 40 insertions(+), 9 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 7ad9488..2e7f2f2 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -356,6 +356,11 @@ pub struct BaseDocument {
+     /// The cache key currently registered for each style node. Replacing a
+     /// CSS-in-JS sheet must release the previous parse when no node shares it.
+     pub(crate) author_sheet_keys: HashMap<NodeId, u64>,
++    /// `@font-face` descriptors already queued or fetched,
++    /// as (family, url, weight, style). A <style> re-registered on every
++    /// mutation (CSSOM insertRule mirror, JSS) must not re-queue (and
++    /// re-fetch, re-decompress, re-register) faces it already delivered.
++    pub(crate) seen_font_faces: std::collections::HashSet<String>,
+
+     /// Shadow roots whose scoped author styles changed since the last
+     /// resolve; drained (and flushed into CascadeData) by the stylist.
+@@ -559,6 +564,7 @@ impl BaseDocument {
+             ua_stylesheets: HashMap::new(),
+             author_sheet_cache: HashMap::new(),
+             author_sheet_keys: HashMap::new(),
++            seen_font_faces: std::collections::HashSet::new(),
+             dirty_shadow_style_roots: Vec::new(),
+             shadow_roots: HashSet::new(),
+             slot_assignments_dirty: true,
+@@ -1548,10 +1554,7 @@ impl BaseDocument {
+         // page's computed styles actually reference).
+         let faces =
+             crate::net::collect_font_faces(Some(node_id), &stylesheet.0, &self.guard.read());
+-        crate::net::note_unloaded_faces(
+-            faces.iter().map(|f| (f.family_lc.clone(), f.overrides.style)),
+-        );
+-        self.pending_font_faces.extend(faces);
++        self.queue_font_faces(faces);
+
+         // Store data on element
+         let element = &mut self.nodes[node_id].element_data_mut().unwrap();
+@@ -1646,6 +1649,37 @@ impl BaseDocument {
+         host.mark_ancestors_dirty();
+     }
+
++    /// Queue freshly parsed `@font-face` rules for lazy fetch
++    /// (see flush_needed_font_faces), noting each as not-yet-loaded so
++    /// its family blocks the matching style until delivery.
++    ///
++    /// Deduplicated on the full descriptor: a `<style>` whose text is
++    /// rewritten per rule (CSSOM mirror, JSS) re-registers its sheet on
++    /// every mutation, and each registration re-parsed the same
++    /// `@font-face` rules: N copies pending, N fetches, N decompressed
++    /// blobs in the fontique collection, and N UNLOADED entries of which
++    /// only one ever cleared, so the family stayed blocked. Chrome's
++    /// font cache fetches a source once per document.
++    pub(crate) fn queue_font_faces(&mut self, faces: Vec<crate::net::PendingFontFace>) {
++        for face in faces {
++            let key = format!(
++                "{}\0{}\0{:?}\0{:?}",
++                face.family_lc,
++                face.url.as_str(),
++                face.overrides.weight,
++                face.overrides.style
++            );
++            if !self.seen_font_faces.insert(key) {
++                continue;
++            }
++            crate::net::note_unloaded_faces(std::iter::once((
++                face.family_lc.clone(),
++                face.overrides.style,
++            )));
++            self.pending_font_faces.push(face);
++        }
++    }
++
+     /// Fetch pending @font-face sources whose family is
+     /// referenced by some element's computed font-family. Runs
+     /// after every style resolve; O(nodes) only while faces are
+@@ -1709,11 +1743,8 @@ impl BaseDocument {
+             DocumentEvent::NavigateIframe { node_id, url } => self.navigate_iframe(node_id, url),
+             DocumentEvent::PendingFontFaces(faces) => {
+                 // An @import'ed sheet's faces bypass add_stylesheet_for_node,
+-                // so note them here too or the guard never engages for them.
+-                crate::net::note_unloaded_faces(
+-                    faces.iter().map(|f| (f.family_lc.clone(), f.overrides.style)),
+-                );
+-                self.pending_font_faces.extend(faces);
++                // so queue them here too or the guard never engages for them.
++                self.queue_font_faces(faces);
+             }
+         }
+     }

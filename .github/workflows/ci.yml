@@ -1,0 +1,249 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  wasm-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          rust: "true"
+      - run: pnpm install --frozen-lockfile
+      - name: Build the core and page-renderer wasm
+        run: pnpm dlx turbo@2.10.8 run build:scene-host:raw build:renderer-core:raw --output-logs=new-only
+      - name: Fail on generated drift
+        run: git diff --exit-code
+      - name: Install notice collector
+        run: cargo install cargo-about --version 0.9.2 --locked --features cli
+      - name: Pack wasm artifacts
+        run: |
+          mkdir -p .wasm-licenses
+          for PACKAGE in core renderer-core scene-host-wasm; do
+            cargo about generate --locked --fail --config about.toml --manifest-path "packages/$PACKAGE/Cargo.toml" --target wasm32-unknown-unknown --output-file ".wasm-licenses/$PACKAGE.md" scripts/rust-notices.hbs
+          done
+          tar -cf wasm.tar packages/core/pkg packages/renderer-core/pkg packages/engine/public/rbi LICENSE NOTICE licenses .wasm-licenses packages/engine/public/fonts/OFL.txt packages/engine/public/fonts/Inter-OFL.txt scripts/lint/ANTI_SLOP_LICENSE.txt vendor/wasm-memprof/LICENSE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm
+          path: wasm.tar
+          retention-days: 1
+          if-no-files-found: error
+
+  check:
+    needs: wasm-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          rust: "true"
+      - uses: actions/download-artifact@v4
+        with:
+          name: wasm
+      - run: tar -xf wasm.tar
+      - run: pnpm install --frozen-lockfile
+      - name: Check formatting
+        run: pnpm format:check
+      - name: Lint JavaScript and TypeScript
+        run: pnpm lint:js
+      - name: Test lint detectors
+        run: pnpm lint:test
+      - name: Lint Rust
+        run: pnpm lint:rust
+      - run: node --test packages/scene-host-wasm/test/abi.test.mjs
+      - run: pnpm test:script-helpers
+      - run: pnpm check
+      - run: pnpm script-gate:test
+      - run: pnpm tty-css-preview:test
+
+  vitest:
+    needs: wasm-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: wasm
+      - run: tar -xf wasm.tar
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:vitest
+
+  rust-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          rust: "true"
+      - run: pnpm dlx turbo@2.10.8 run cargo:test:raw
+      - run: node scripts/get-patched-vendor-crates.mjs
+      - run: cargo check --manifest-path packages/core/target/vendor-patched/vello_cpu-0.3.0/Cargo.toml --no-default-features --features std,png,text,u8_pipeline
+
+  e2e:
+    needs: wasm-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: wasm
+      - run: tar -xf wasm.tar
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:e2e --shard=${{ matrix.shard }}/4
+
+  playwright:
+    needs: wasm-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      PW_SKIP_BUILD: "1"
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: wasm
+      - run: tar -xf wasm.tar
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:engine-js
+      - run: pnpm run pw:setup
+      - run: node scripts/pw-run.mjs --shard ${{ matrix.shard }}/4
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results-${{ matrix.shard }}
+          path: .playwright/test-results/
+          if-no-files-found: ignore
+
+  wpt:
+    needs: wasm-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    env:
+      PYTHONNOUSERSITE: "1"
+      WPT_CONCURRENCY: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: wasm
+      - run: tar -xf wasm.tar
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libnss-wrapper
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:engine-js
+      - run: pnpm wpt:setup
+      - run: pnpm webidl:check
+      - name: Generate the WPT hosts file
+        run: |
+          set -euo pipefail
+          NSSWRAP="$(dpkg -L libnss-wrapper | grep -m1 'libnss_wrapper\.so$')"
+          echo "NSSWRAP=$NSSWRAP" >> "$GITHUB_ENV"
+          echo "WPT_HOSTS=$PWD/wpt-hosts" >> "$GITHUB_ENV"
+          (cd .wpt && ./wpt make-hosts-file) | grep -E '^[0-9a-fA-F:.]+[[:space:]]' > wpt-hosts
+      - name: Start the WPT server
+        run: |
+          LD_PRELOAD="$NSSWRAP" NSS_WRAPPER_HOSTS="$WPT_HOSTS" nohup pnpm wpt:serve > wpt-serve.log 2>&1 &
+          for _ in $(seq 1 60); do
+            if LD_PRELOAD="$NSSWRAP" NSS_WRAPPER_HOSTS="$WPT_HOSTS" curl -sf http://web-platform.test:8000/ > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "wpt serve did not come up" >&2
+          cat wpt-serve.log >&2
+          exit 1
+      - name: Run the shard
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set +e
+          LD_PRELOAD="$NSSWRAP" NSS_WRAPPER_HOSTS="$WPT_HOSTS" \
+            node scripts/wpt-batched.mjs --skip-expected-timeouts --skip-expected-crashes \
+            --no-build --no-record \
+            --shard "$SHARD/8" -j "$WPT_CONCURRENCY" \
+            --results-out "wpt-results-$SHARD.json" \
+            --full-out "wpt-full-$SHARD.json" \
+            --killers-out "wpt-killers-$SHARD.json" \
+            --stalled-out "wpt-stalled-$SHARD.json" \
+            --engine-log-dir "wpt-engine-logs-$SHARD"
+          RC=$?
+          echo "[wpt] shard $SHARD/8 rc=$RC"
+          test "$RC" != "2"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wpt-shard-${{ matrix.shard }}
+          path: |
+            wpt-results-*.json
+            wpt-full-*.json
+            wpt-killers-*.json
+            wpt-stalled-*.json
+            wpt-engine-logs-*/
+          if-no-files-found: ignore
+
+  wpt-gate:
+    needs: wpt
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wpt-shard-*
+          merge-multiple: true
+      - run: pnpm install --frozen-lockfile
+      - name: Merge the shards
+        run: |
+          node scripts/wpt-merge-shards.mjs \
+            --results-glob 'wpt-results-*.json' --results-out wpt-results.json \
+            --full-glob 'wpt-full-*.json' --full-out wpt-full.json \
+            --killers-glob 'wpt-killers-*.json' --killers-out wpt-killers.json \
+            --stalled-glob 'wpt-stalled-*.json' --stalled-out wpt-stalled.json
+      - name: Gate on the expectations file
+        run: |
+          node -e 'const s = JSON.parse(require("fs").readFileSync("wpt-results.json", "utf8")).summary; console.log(JSON.stringify(s)); process.exit(s.unexpectedFail + s.unexpectedPass > 0 ? 1 : 0)'
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wpt-merged
+          path: |
+            wpt-results.json
+            wpt-full.json
+            wpt-killers.json
+            wpt-stalled.json
+          if-no-files-found: ignore

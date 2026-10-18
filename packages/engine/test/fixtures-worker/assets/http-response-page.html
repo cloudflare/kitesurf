@@ -1,0 +1,32 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kitesurf response fixture</title>
+    <meta property="og:title" content="HTTP response fixture" />
+    <meta property="og:description" content="Rendered response metadata" />
+    <style>
+      body { margin: 0; }
+      #hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <a id="relative" href="/response-shapes-target">relative</a>
+    <a id="absolute" href="https://example.com/absolute">absolute</a>
+    <a id="fragment" href="#local">fragment</a>
+    <a id="email" href="mailto:test@example.com">email</a>
+    <a id="hidden" href="/hidden">hidden</a>
+    <script>
+      const hydrated = document.createElement("p");
+      hydrated.id = "hydrated";
+      hydrated.textContent = "post-script response-shapes content";
+      document.body.appendChild(hydrated);
+    </script>
+  </body>
+</html>

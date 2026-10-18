@@ -1,0 +1,61 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Wed, 26 Aug 2026 23:12:35 +0100
+Subject: [PATCH] Size table captions from their minimum width
+
+CSS tables use capmin when a caption contributes to an auto table's
+intrinsic width. Measuring the caption at max-content made Wikipedia
+thumbnail figures expand to the full unwrapped caption instead of the
+image width.
+---
+ src/layout/table.rs | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index 7f794bb..24de420 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -69,6 +69,7 @@ pub struct TableCell {
+     /// Index of the column the cell originates in
+     pub column: u16,
+     style: taffy::Style<Atom>,
++    is_caption: bool,
+ }
+
+ /// Tracks the current column position while walking the table's cells, so that
+@@ -768,6 +769,7 @@ fn collect_table_cells(
+                 row: row.saturating_sub(1),
+                 column: col,
+                 style,
++                is_caption: false,
+             });
+
+             cursor.place(colspan, rowspan);
+@@ -809,6 +811,7 @@ fn collect_table_cells(
+                 row: row.saturating_sub(1),
+                 column: col,
+                 style,
++                is_caption: display.outside() == DisplayOutside::TableCaption,
+             });
+             cursor.place(1, 1);
+         }
+@@ -880,9 +883,18 @@ impl taffy::LayoutPartialTree for TableTreeWrapper<'_, '_> {
+     fn compute_child_layout(
+         &mut self,
+         node_id: taffy::NodeId,
+-        inputs: taffy::tree::LayoutInput,
++        mut inputs: taffy::tree::LayoutInput,
+     ) -> taffy::LayoutOutput {
+         let cell = &self.ctx.cells[usize::from(node_id)];
++        // CSS 2.2 §17.5.2: captions contribute their minimum width to an
++        // auto-width table, not their unwrapped max-content width.
++        if cell.is_caption
++            && inputs.axis == taffy::RequestedAxis::Horizontal
++            && inputs.known_dimensions.width.is_none()
++            && inputs.available_space.width == taffy::AvailableSpace::MaxContent
++        {
++            inputs.available_space.width = taffy::AvailableSpace::MinContent;
++        }
+         let node_id = crate::taffy_node_id(cell.node_id);
+         self.doc.compute_child_layout(node_id, inputs)
+     }

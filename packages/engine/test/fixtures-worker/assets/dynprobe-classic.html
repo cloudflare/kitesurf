@@ -1,0 +1,56 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html><title>dynprobe-classic</title><body>
+<dyn-probe id="ce" component-url="/__fixtures/dynprobe-ce.js"></dyn-probe>
+<div id="cfg" data-tree="/__fixtures/dynprobe-tree.js"></div>
+<pre id="results" data-done="0"></pre>
+<script>
+const trim = (e) => String((e && e.message) || e).slice(0, 220);
+const wrap = (p) => p.then((m) => ({ ok: true, value: m.value }), (e) => ({ ok: false, err: trim(e) }));
+const timeout = (ms) => new Promise((r) => setTimeout(() => r({ ok: false, err: 'probe timeout ' + ms + 'ms' }), ms));
+const race = (p) => Promise.race([p, timeout(20000)]);
+
+let ceResolve;
+const cePromise = new Promise((r) => { ceResolve = r; });
+customElements.define('dyn-probe', class extends HTMLElement {
+  connectedCallback() {
+    const url = this.getAttribute('component-url');
+    import(url).then(
+      (m) => { m.default(this); ceResolve({ ok: true, hydrated: this.getAttribute('data-hydrated') === '1' }); },
+      (e) => ceResolve({ ok: false, err: trim(e) }),
+    );
+  }
+});
+
+const rel = './dynprobe-';
+const cfg = document.getElementById('cfg');
+const singleton = Promise.all([import(rel + 'user-a.js'), import(rel + 'user-b.js')]).then(
+  ([a, b]) => ({ ok: a.value === b.value, err: a.value === b.value ? undefined : 'tokens differ: ' + a.value + ' vs ' + b.value }),
+  (e) => ({ ok: false, err: trim(e) }),
+);
+const retry = import(new URL('/__fixtures/dynprobe-leaf3.js', location.href).href + '#x').catch(() => {
+  const u = new URL('/__fixtures/dynprobe-leaf3.js', document.baseURI);
+  u.hash = 'astro-retry=' + Date.now();
+  return import(u.toString());
+});
+const cases = {
+  rel_leaf: race(wrap(import(rel + 'leaf.js'))),
+  attr_root_tree: race(wrap(import(cfg.dataset.tree))),
+  abs_url: race(wrap(import(new URL('/__fixtures/dynprobe-leaf2.js', location.href).href))),
+  abs_frag_retry: race(wrap(retry)),
+  shared_singleton: race(singleton),
+  custom_element: race(cePromise),
+};
+const names = Object.keys(cases);
+Promise.all(names.map((n) => cases[n])).then((vals) => {
+  const out = {};
+  names.forEach((n, i) => { out[n] = vals[i]; });
+  const el = document.getElementById('results');
+  el.textContent = JSON.stringify(out);
+  el.setAttribute('data-done', '1');
+});
+</script></body>

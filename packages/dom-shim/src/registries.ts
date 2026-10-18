@@ -1,0 +1,220 @@
+// Copyright (c) 2026 Cloudflare, Inc.
+// Licensed under the Apache 2.0 license found in the LICENSE file or at:
+// https://opensource.org/licenses/Apache-2.0
+
+// Holds the shared node, form, collection, and mutation registries used by the shim.
+
+import type { MutationHint } from "./mutations/seq.js";
+import type { MutationObserverImpl } from "./mutations/observer.js";
+import type { NodeBase } from "./node-base.js";
+import type { Element } from "./element/element.js";
+import type {
+  AttrCls,
+  DocumentFragmentImpl,
+  HtmlCollectionCls,
+  HTMLOptionsCollectionCls,
+} from "./collections.js";
+import type { DetachedDocument, DocumentImpl } from "./document.js";
+import type { ParsedDocument } from "./parser.js";
+
+export interface InputControlState {
+  valueDirty: boolean;
+  value: string;
+  userEdited: boolean;
+  checkedDirty: boolean;
+  checked: boolean;
+  indeterminate?: boolean;
+  defaultValueAttr?: string;
+}
+
+export const cache = new Map<number, NodeBase>();
+
+export const weakWrappers = new Map<number, WeakRef<NodeBase>>();
+
+export function liveWrapper(nodeId: number): NodeBase | undefined {
+  const strong = cache.get(nodeId);
+  if (strong) return strong;
+  const ref = weakWrappers.get(nodeId);
+  if (!ref) return undefined;
+  const w = ref.deref();
+  if (w === undefined) weakWrappers.delete(nodeId);
+  return w;
+}
+
+export function hasLiveWrapper(nodeId: number): boolean {
+  return liveWrapper(nodeId) !== undefined;
+}
+
+export function forgetNodeIds(ids: Iterable<number>): void {
+  for (const id of ids) {
+    weakWrappers.delete(id);
+    formState.delete(id);
+    inputState.delete(id);
+    optionSelected.delete(id);
+    selectionState.delete(id);
+    customValidity.delete(id);
+    elemNs.delete(id);
+    xmlOwned.delete(id);
+    attrInstances.delete(id);
+    elementOwnerIsHtml.delete(id);
+    attrNs.delete(id);
+    fragmentIds.delete(id);
+    templateContentFragment.delete(id);
+    stampedPiIds.delete(id);
+    commentData.delete(id);
+    linkLoadFired.delete(id);
+    nodeIdName.delete(id);
+    elementScrollendSeq.delete(id);
+  }
+}
+
+export const adoptedWrapperIds = new Set<number>();
+
+export const linkLoadFired = new Map<number, string>();
+
+export const formState = new Map<number, { value?: string; checked?: boolean }>();
+
+export const inputState = new Map<number, InputControlState>();
+
+export let selectednessWrites = 0;
+export class SelectednessMap<K, V> extends Map<K, V> {
+  override set(key: K, value: V): this {
+    selectednessWrites++;
+    return super.set(key, value);
+  }
+  override delete(key: K): boolean {
+    selectednessWrites++;
+    return super.delete(key);
+  }
+  override clear(): void {
+    selectednessWrites++;
+    super.clear();
+  }
+}
+export class SelectednessWeakMap<K extends object, V> extends WeakMap<K, V> {
+  override set(key: K, value: V): this {
+    selectednessWrites++;
+    return super.set(key, value);
+  }
+  override delete(key: K): boolean {
+    selectednessWrites++;
+    return super.delete(key);
+  }
+}
+
+export const optionSelected = new SelectednessMap<number, { selected: boolean; dirty: boolean }>();
+
+export const selectionState = new Map<number, { start: number; end: number; direction: string }>();
+
+export const customValidity = new Map<number, string>();
+
+export const elemNs = new Map<number, { qname: string; ns: string | null; viaNS?: boolean }>();
+
+export const xmlOwned = new Set<number>();
+
+export const hostIdToDoc = new Map<number, DetachedDocument>();
+
+export const attrInstances = new Map<number, Map<string, AttrCls>>();
+
+export const elementOwnerIsHtml = new Map<number, boolean>();
+
+export const nodeOwnerDoc = new WeakMap<object, DocumentImpl | DetachedDocument | ParsedDocument>();
+
+export const syntheticParent = new WeakMap<object, DocumentImpl | DetachedDocument>();
+
+export const attrNs = new Map<
+  number,
+  Map<
+    string,
+    { ns: string | null; prefix: string | null; localName: string; qname: string; parsed?: boolean }
+  >
+>();
+
+export const fragmentIds = new Set<number>();
+
+export const templateContentFragment = new Map<number, DocumentFragmentImpl>();
+
+export const stampedPiIds = new Set<number>();
+
+export const commentData = new Map<number, string>();
+
+export const nodeListCache = new WeakMap<object, any>();
+
+export const childrenCache = new WeakMap<object, HtmlCollectionCls>();
+export const optionsCache = new WeakMap<object, HTMLOptionsCollectionCls>();
+
+export const classListCache = new WeakMap<object, any>();
+
+export const relListCache = new WeakMap<object, any>();
+export const htmlForCache = new WeakMap<object, any>();
+export const sandboxCache = new WeakMap<object, any>();
+export const sizesCache = new WeakMap<object, any>();
+
+// Per-instance getter / setter functions for the various
+// collection / proxy types. WeakMap-keyed by the proxy itself.
+export const nodeListGetters = new WeakMap<object, () => NodeBase[]>();
+export const htmlCollectionGetters = new WeakMap<object, () => Element[]>();
+
+export const sheetCache = new Map<number, { wrapper: any; sheet: any }>();
+
+// Canvas node ID to weak wrapper reference. The wrapper holds its
+// context identity; finalization releases the wasm surface without
+// pinning the wrapper. Keep this cache through unrelated DOM resets.
+export const canvas2dCache = new Map<number, { deref(): object | undefined }>();
+
+export const postMutationHooks: Array<(hint?: MutationHint) => void> = [];
+
+export const stampedNames = new Map<string, number>();
+
+export const nodeIdName = new Map<number, string>();
+
+export const moPendingObservers = new Set<MutationObserverImpl>();
+
+export const parsedHandleXml = new WeakSet<object>();
+
+export const boundFromGlobal = new WeakMap<object, Function>();
+
+export const elementScrollendSeq = new Map<number, number>();
+
+export let scrollendSeq = 0;
+export let localScrollX = 0;
+export let localScrollY = 0;
+
+export function bumpScrollendSeq(): number {
+  scrollendSeq++;
+  return scrollendSeq;
+}
+
+export function setLocalScroll(x: number, y: number): void {
+  localScrollX = x;
+  localScrollY = y;
+}
+
+export function resetRegistries(): void {
+  cache.clear();
+  weakWrappers.clear();
+  adoptedWrapperIds.clear();
+  formState.clear();
+  inputState.clear();
+  optionSelected.clear();
+  selectionState.clear();
+  customValidity.clear();
+  elemNs.clear();
+  xmlOwned.clear();
+  hostIdToDoc.clear();
+  attrInstances.clear();
+  elementOwnerIsHtml.clear();
+  attrNs.clear();
+  fragmentIds.clear();
+  templateContentFragment.clear();
+  stampedPiIds.clear();
+  commentData.clear();
+  sheetCache.clear();
+  stampedNames.clear();
+  nodeIdName.clear();
+  moPendingObservers.clear();
+  elementScrollendSeq.clear();
+  scrollendSeq = 0;
+  localScrollX = 0;
+  localScrollY = 0;
+}

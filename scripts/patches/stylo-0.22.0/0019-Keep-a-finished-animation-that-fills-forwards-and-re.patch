@@ -1,0 +1,96 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 4 Aug 2026 19:49:40 +0100
+Subject: [PATCH] Keep a finished animation that fills forwards, and recascade
+ on cancel
+
+`process_animations_for_style` removed every finished animation from
+the element's set. For `animation-fill-mode: forwards` or `both` that
+throws away a contribution the element is still entitled to: the value
+is right in the resolve the animation finishes in, and wrong on the
+next restyle of that element, whatever triggered it. Anything whose
+only visible state came from a fill snapped back to its cascaded value.
+For example, a lazy loader that fades images in over a base
+`opacity: 0` goes transparent again the first time the page writes a
+style.
+
+`get_property_declaration_at_time` already honours the fill, so keeping
+the animation in the set is enough; it is retired the usual way when
+the element stops specifying it. Fold the duplicated fill-mode
+predicate into `Animation::fills_forwards`, since both call sites need
+it.
+
+Cancelling has to mark the set dirty, or the fill can never be removed.
+Dropping `animation-name` sets `AnimationState::Canceled`, but
+`process_animations` only recascades when `ElementAnimationSet::dirty`
+is set, and this loop never set it, while `cancel_active_transitions`
+and `cancel_all_animations` both do. Mark it dirty in the same resolve,
+before `clear_canceled_animations` sweeps the entry and the set
+disappears.
+
+All three hunks should land upstream in servo/stylo.
+---
+ matching.rs        |  8 +++++---
+ servo/animation.rs | 17 +++++++++++++----
+ 2 files changed, 18 insertions(+), 7 deletions(-)
+
+diff --git a/matching.rs b/matching.rs
+index 4aae362..1e7f954 100644
+--- a/matching.rs
++++ b/matching.rs
+@@ -768,9 +768,11 @@ trait PrivateMatchMethods: TElement {
+             .transitions
+             .retain(|transition| transition.state != AnimationState::Finished);
+
+-        animation_set
+-            .animations
+-            .retain(|animation| animation.state != AnimationState::Finished);
++        // A forwards fill outlives the run it belongs to, so that animation is
++        // still the element's authority for its properties. Keep it.
++        animation_set.animations.retain(|animation| {
++            animation.state != AnimationState::Finished || animation.fills_forwards()
++        });
+
+         // If the ElementAnimationSet is empty, and don't store it in order to
+         // save memory and to avoid extra processing later.
+diff --git a/servo/animation.rs b/servo/animation.rs
+index 8376bd7..567efe0 100644
+--- a/servo/animation.rs
++++ b/servo/animation.rs
+@@ -616,6 +616,15 @@ impl Animation {
+         new_ui.animation_duration_mod(index).seconds() == 0.
+     }
+
++    /// Whether this animation keeps applying its final keyframe once it has
++    /// ended, per `animation-fill-mode`.
++    pub fn fills_forwards(&self) -> bool {
++        matches!(
++            self.fill_mode,
++            AnimationFillMode::Forwards | AnimationFillMode::Both
++        )
++    }
++
+     /// Given the current time, advances this animation to the next iteration,
+     /// updates times, and then toggles the direction if appropriate. Otherwise
+     /// does nothing. Returns true if this animation has iterated.
+@@ -862,10 +871,7 @@ impl Animation {
+         {
+             return;
+         }
+-        if self.has_ended(now)
+-            && self.fill_mode != AnimationFillMode::Forwards
+-            && self.fill_mode != AnimationFillMode::Both
+-        {
++        if self.has_ended(now) && !self.fills_forwards() {
+             return;
+         }
+
+@@ -1297,5 +1303,8 @@ impl ElementAnimationSet {
+         for animation in self.animations.iter_mut() {
+             if animation.is_cancelled_in_new_style(new_style) {
+                 animation.state = AnimationState::Canceled;
++                // Cancelling drops this animation's declarations, so the caller
++                // has to recascade, as with `cancel_active_transitions`.
++                self.dirty = true;
+             }
+         }

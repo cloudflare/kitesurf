@@ -1,0 +1,17 @@
+/*
+ * Copyright (c) 2026 Cloudflare, Inc.
+ * Licensed under the Apache 2.0 license found in the LICENSE file or at:
+ * https://opensource.org/licenses/Apache-2.0
+ */
+
+/* A paint-only underline preserves link layout, wrapping and indentation. */
+a[href]:focus {
+  outline: none !important;
+}
+
+/* Text decorations stop at atomic boxes. Focus must also mark labels inside them. */
+a[href]:focus,
+a[href]:focus * {
+  text-decoration: underline solid #f00 2px !important;
+  text-underline-offset: 2px !important;
+}

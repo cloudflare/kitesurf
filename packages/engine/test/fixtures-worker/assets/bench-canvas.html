@@ -1,0 +1,53 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>bench canvas</title>
+<style>
+  body { font-family: sans-serif; margin: 2em auto; max-width: 48em; line-height: 1.5; }
+  canvas { border: 1px solid #333; display: block; margin: 1em 0; width: 400px; height: 300px; }
+</style>
+</head>
+<body>
+<h1>Damage-rect bench: animated canvas over static text</h1>
+<p>The canvas below animates every frame; this paragraph and the
+  heading never change. A correct damage-rect implementation ships
+  partial frames clipped to the canvas box — the text rasterizes
+  once and is never touched again.</p>
+<canvas id="c" width="400" height="300"></canvas>
+<p>More static copy below the canvas to prove the clip does not
+  cover the whole viewport: lorem ipsum dolor sit amet, consectetur
+  adipiscing elit, sed do eiusmod tempor incididunt ut labore.</p>
+<script>
+(function () {
+  var canvas = document.getElementById("c");
+  var ctx = canvas.getContext("2d");
+  var DOT_COUNT = 12, DOT_RADIUS = 18;
+  var ORBIT_X = 120, ORBIT_Y = 90;
+  var frame = 0;
+  function draw() {
+    frame++;
+    ctx.fillStyle = "#101828";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (var i = 0; i < DOT_COUNT; i++) {
+      var angle = frame / 18 + i * 0.5;
+      var x = canvas.width / 2 + Math.cos(angle) * ORBIT_X;
+      var y = canvas.height / 2 + Math.sin(angle * 1.3) * ORBIT_Y;
+      ctx.fillStyle = "hsl(" + ((i * 30 + frame) % 360) + ",70%,55%)";
+      ctx.beginPath();
+      ctx.arc(x, y, DOT_RADIUS, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+/*
+ * Copyright (c) 2026 Cloudflare, Inc.
+ * Licensed under the Apache 2.0 license found in the LICENSE file or at:
+ * https://opensource.org/licenses/Apache-2.0
+ */
+
+*,
+::before,
+::after,
+::placeholder {
+  transform: none !important;
+  filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  background-image: none !important;
+  border-radius: 0 !important;
+  writing-mode: horizontal-tb !important;
+}

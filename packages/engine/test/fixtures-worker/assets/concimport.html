@@ -1,0 +1,24 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html><title>concimport</title><body><div id=out data-status="pending"></div><script type="module">
+const N = 18;
+Promise.all(Array.from({length: N}, (_, i) => import('./concimport-chunk-' + i + '.js')))
+  .then(mods => {
+    let correct = 0;
+    for (let i = 0; i < mods.length; i++) if (mods[i].value === i) correct++;
+    const o = document.getElementById('out');
+    o.setAttribute('data-resolved', String(mods.length));
+    o.setAttribute('data-correct', String(correct));
+    o.setAttribute('data-status', 'done');
+    o.textContent = 'resolved=' + mods.length + ' correct=' + correct;
+  })
+  .catch(e => {
+    const o = document.getElementById('out');
+    o.setAttribute('data-status', 'error');
+    o.setAttribute('data-error', String(e && e.message || e));
+  });
+</script></body>

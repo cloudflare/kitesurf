@@ -1,0 +1,24 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  body { margin: 0; }
+  #cb { width: 800px; padding: 0 50px; box-sizing: border-box; }
+  #cb > div { height: 8px; }
+  #ml { margin-left: 50%; }
+  #mlc { margin-left: calc(50% - 100px); }
+  #mr { margin-right: 50%; }
+  /* The full-bleed idiom: break out of a padded centred column to the
+     viewport edges. Only lands on 0..100vw if 50% uses the content box. */
+  #col { width: 800px; margin: 0 auto; padding: 0 48px; box-sizing: border-box; }
+  #bleed { inline-size: 100vw; margin-inline: calc(50% - 50vw); height: 8px; }
+</style>
+<div id="cb">
+  <div id="ml"></div>
+  <div id="mlc"></div>
+  <div id="mr"></div>
+</div>
+<div id="col"><div id="bleed"></div></div>

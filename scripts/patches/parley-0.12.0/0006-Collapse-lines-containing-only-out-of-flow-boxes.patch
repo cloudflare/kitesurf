@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 21 Sep 2026 18:58:23 +0100
+Subject: [PATCH] Collapse lines containing only out-of-flow boxes
+
+parley 0.12 already gives a line without in-flow content an invisible,
+zero-height line box. Keep one exception: a line that ends in a forced
+break (`<br>`, a preserved newline) keeps its line box, as the forced
+break generates one whether or not anything in-flow lands on it.
+
+The exception is keyed on the line's own break, not the previous
+line's. A line that only follows a forced break and holds nothing but
+out-of-flow boxes is still invisible: Chrome lays `text<br><br><abs>`
+out as two lines, and `text<br><abs><br>x` as three.
+---
+ src/layout/line_break.rs | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/src/layout/line_break.rs b/src/layout/line_break.rs
+index 58f8243..c03d952 100644
+--- a/src/layout/line_break.rs
++++ b/src/layout/line_break.rs
+@@ -918,8 +918,15 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+         // A line containing only empty inline boxes (and no text) is an invisible line box with
+         // zero height; the strut only applies once the line has content. The trailing empty line
+         // after a final newline has no items and keeps the strut so the cursor has a position.
++        //
++        // A forced break (`<br>`, a preserved newline) generates a
++        // line box whether or not anything in-flow lands on it, so a line that
++        // ends in one is never invisible, even when its only content is
++        // out-of-flow (CSS position:absolute/fixed) boxes.
++        let ends_in_forced_break = reason == BreakReason::Explicit;
+         let invisible = !self.state.line.box_metrics.has_content
+-            && !self.lines.lines.last().unwrap().item_range.is_empty();
++            && !self.lines.lines.last().unwrap().item_range.is_empty()
++            && !ends_in_forced_break;
+         let line_height = if invisible {
+             0.
+         } else {

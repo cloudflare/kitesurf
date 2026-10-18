@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 31 Aug 2026 13:19:00 +0100
+Subject: [PATCH] Preserve products around non-distributive math functions
+
+A unit multiplier can only fold through a node when that node supports
+product distribution. Keep the product around min(), max(), and clamp()
+so computed serialization preserves the required 1 * term form.
+---
+ values/generics/calc.rs | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/values/generics/calc.rs b/values/generics/calc.rs
+index 1aace38..56c293b 100644
+--- a/values/generics/calc.rs
++++ b/values/generics/calc.rs
+@@ -979,10 +979,6 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+     pub fn try_product_in_place(&mut self, other: &mut Self) -> bool {
+         if let Ok(resolved) = other.resolve() {
+             if let Some(number) = resolved.as_number() {
+-                if number == 1.0 {
+-                    return true;
+-                }
+-
+                 if self.is_product_distributive() {
+                     if self.map(|v| v * number).is_err() {
+                         return false;
+@@ -994,11 +990,6 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+
+         if let Ok(resolved) = self.resolve() {
+             if let Some(number) = resolved.as_number() {
+-                if number == 1.0 {
+-                    std::mem::swap(self, other);
+-                    return true;
+-                }
+-
+                 if other.is_product_distributive() {
+                     if other.map(|v| v * number).is_err() {
+                         return false;

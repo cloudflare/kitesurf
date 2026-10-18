@@ -1,0 +1,120 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 25 Sep 2026 23:31:25 +0100
+Subject: [PATCH] Match :target in SVG stacks loaded with a URL fragment
+
+An SVG stack hides every icon with `svg>[id]{display:none}` and shows
+the one the URL fragment names with `svg>[id]:target{display:inline}`.
+usvg has no document URL, so the `:target` rule was dropped and every
+icon stayed hidden. tldraw draws all its toolbar and style-panel icons
+as `mask: url(sprite.svg#icon)`, which painted as empty grey squares.
+
+Rewrite `:target` in the sprite's <style> to the id the fragment names
+before the parse. CSS images now pass their URL fragment to the image
+handler as <img> already did.
+---
+ src/layout/damage.rs |  5 ++++-
+ src/net.rs           | 11 +++++++----
+ src/util.rs          | 45 ++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 56 insertions(+), 5 deletions(-)
+
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index c9cefa5..f5a80a9 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -713,7 +713,10 @@ impl BaseDocument {
+                                     ImageHandler::new_dims_only(kind.image_type(idx))
+                                 } else {
+                                     ImageHandler::new(kind.image_type(idx))
+-                                },
++                                }
++                                // `mask: url(sprite.svg#icon)` picks one
++                                // icon out of an SVG stack.
++                                .with_view_fragment(new_url.fragment()),
+                             ),
+                         );
+
+diff --git a/src/net.rs b/src/net.rs
+index 884cef2..96a99e4 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -951,16 +951,19 @@ impl ImageHandler {
+
+         #[cfg(feature = "svg")]
+         let svg_err = {
+-            use crate::util::{apply_svg_view_fragment, parse_svg_image};
++            use crate::util::{apply_svg_target_fragment, apply_svg_view_fragment, parse_svg_image};
+             // `img.svg#viewname`: the named <view>'s viewBox overrides the
+             // root's before the parse; unmatched fragments fall through.
++            // `sprite.svg#icon`: the fragment is also what `:target`
++            // matches in the sprite's own stylesheet.
+             let rewritten: Option<Vec<u8>> = self
+                 .view_fragment
+                 .as_deref()
+                 .and_then(|frag| {
+-                    std::str::from_utf8(&bytes)
+-                        .ok()
+-                        .and_then(|s| apply_svg_view_fragment(s, frag))
++                    let source = std::str::from_utf8(&bytes).ok()?;
++                    let viewed = apply_svg_view_fragment(source, frag);
++                    let base = viewed.as_deref().unwrap_or(source);
++                    apply_svg_target_fragment(base, frag).or(viewed)
+                 })
+                 .map(String::into_bytes);
+             match parse_svg_image(rewritten.as_deref().unwrap_or(&bytes)) {
+diff --git a/src/util.rs b/src/util.rs
+index 5aa3753..43615b5 100644
+--- a/src/util.rs
++++ b/src/util.rs
+@@ -355,6 +355,51 @@ pub fn apply_svg_view_fragment(source: &str, fragment: &str) -> Option<String> {
+     Some(out)
+ }
+
++/// SVG stacks: `sprite.svg#name` shows one icon out of many through
++/// `svg>[id]{display:none} svg>[id]:target{display:inline}` in the
++/// sprite's `<style>` (tldraw's toolbar icons are CSS masks of this
++/// kind). usvg knows no document URL, so it cannot match `:target`,
++/// and simplecss drops the rule: every icon stayed hidden. Rewrite
++/// `:target` inside `<style>` blocks to the id selector it stands for.
++///
++/// Without a fragment nothing is targeted, which is what the dropped
++/// rule already gives, so there is nothing to rewrite.
++pub fn apply_svg_target_fragment(source: &str, fragment: &str) -> Option<String> {
++    // The fragment lands inside a quoted attribute selector; refuse
++    // anything that could close the quote or the style block early.
++    if fragment.is_empty()
++        || fragment
++            .chars()
++            .any(|c| matches!(c, '"' | '\\' | '<' | '>') || c.is_control())
++        || !source.contains(":target")
++    {
++        return None;
++    }
++    let id_selector = format!("[id=\"{fragment}\"]");
++    let mut out = String::with_capacity(source.len() + 64);
++    let mut rest = source;
++    let mut changed = false;
++    while let Some(open) = rest.find("<style") {
++        let Some(body_start) = rest[open..].find('>').map(|i| open + i + 1) else {
++            break;
++        };
++        let Some(close) = rest[body_start..].find("</style").map(|i| body_start + i) else {
++            break;
++        };
++        out.push_str(&rest[..body_start]);
++        let body = &rest[body_start..close];
++        if body.contains(":target") {
++            out.push_str(&body.replace(":target", &id_selector));
++            changed = true;
++        } else {
++            out.push_str(body);
++        }
++        rest = &rest[close..];
++    }
++    out.push_str(rest);
++    changed.then_some(out)
++}
++
+ pub fn parse_svg_image(source: &[u8]) -> Result<crate::node::SvgImageData, usvg::Error> {
+     // Cheap to hand back: SvgImageData is an Arc<Tree> plus three scalars.
+     let cache_key: Option<&str> = std::str::from_utf8(source).ok();

@@ -1,0 +1,25 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><title>cookies</title></head>
+<body>
+  <h1>cookies</h1>
+  <script>
+    // Snapshot the cookies as the page sees them on first read.
+    globalThis.__ks_initial_cookie = document.cookie;
+    console.log("[cookies] initial document.cookie =", document.cookie);
+
+    // Set two more cookies via document.cookie.
+    document.cookie = "page_set=v1; Path=/";
+    document.cookie = "another=v2; Path=/__fixtures/";
+
+    globalThis.__ks_after_set_cookie = document.cookie;
+    console.log("[cookies] after-set document.cookie =", document.cookie);
+  </script>
+</body>
+</html>

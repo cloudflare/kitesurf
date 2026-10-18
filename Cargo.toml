@@ -1,0 +1,116 @@
+# Cargo workspace for the repo's wasm crates. Artifacts include
+# kitesurf-core (engine/PageScript), scene-host-wasm (CLI), and
+# renderer-core (PageRenderer).
+# The slice crates #[path]-include core source files, so
+# [workspace.dependencies] below is what keeps the shared dep versions
+# from drifting between the builds — a drifted version means the shared
+# files compile against different APIs per artifact (this bit for real:
+# a hand-mirrored dep list once missed core's getrandom 0.2).
+#
+# Excluded: host-side tool crates with their own toolchains and locks.
+# The materialised vendor-patched crates under packages/core/target are
+# NOT listed — exclude only matches exact package dirs and those paths
+# are versioned; the materialiser instead stamps an empty [workspace]
+# table into each tree so the walk-up never reaches this manifest.
+[workspace]
+resolver = "2"
+members = ["packages/core", "packages/renderer-core", "packages/scene-host-wasm"]
+exclude = ["scripts/memprof-rewriter", "vendor/wasm-memprof/instrumentor"]
+
+# A module with submodules is `foo.rs` beside `foo/`, never `foo/mod.rs`.
+[workspace.lints.clippy]
+mod_module_files = "warn"
+
+[workspace.dependencies]
+anyrender = { version = "0.14", default-features = false }
+anyrender_vello_cpu = { version = "0.18", default-features = false }
+vello_cpu = { version = "0.3", default-features = false, features = [
+  "std",
+  "text",
+  "u8_pipeline",
+  "poly-pnorm",
+] }
+peniko = { version = "0.6", default-features = false }
+kurbo = { version = "0.13", default-features = false }
+skrifa = "0.44"
+krilla = { version = "0.8", default-features = false, features = ["raster-images", "simple-text"] }
+image = { version = "=0.25.6", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+jpeg-encoder = { version = "=0.7.0", default-features = false }
+png = { version = "0.18", default-features = false }
+wuff = "0.2"
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+smallvec = "1"
+serde_json = "1"
+
+wasm-bindgen = "=0.2.127"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-core = { version = "0.1", default-features = false }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["registry", "std"] }
+tracing-opentelemetry = { version = "0.33", default-features = false }
+opentelemetry = { version = "0.32", default-features = false, features = ["trace"] }
+opentelemetry_sdk = { version = "0.32", default-features = false, features = ["trace"] }
+getrandom = { version = "0.2", features = ["js"] }
+getrandom_03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+# Annex B supplies legacy builtins used by real pages, without Intl/ICU.
+boa_engine = { version = "0.22", default-features = false, features = ["annex-b", "js"] }
+
+[patch.crates-io]
+# Patched to replace the blurred-rounded-rect powf with a polynomial fit,
+# which box-shadow paints through here too (blitz-paint -> draw_box_shadow -> vello_cpu).
+vello_cpu = { path = "packages/core/target/vendor-patched/vello_cpu-0.3.0" }
+parley = { path = "packages/core/target/vendor-patched/parley-0.12.0" }
+# parley 0.12 moved analysis, bidi and shaping into parley_engine, so the
+# base-direction and tab-stop patches carry an engine half here.
+parley_engine = { path = "packages/core/target/vendor-patched/parley_engine-0.12.0" }
+blitz-dom = { path = "packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.3" }
+blitz-paint = { path = "packages/core/target/vendor-patched/blitz-paint-0.3.0-beta.3" }
+# Patched so the XHTML sniff stops at the first non-root start tag: a minified
+# page mentioning "xhtml" anywhere on its one line was parsed as XML.
+blitz-html = { path = "packages/core/target/vendor-patched/blitz-html-0.3.0-beta.3" }
+# Patched to add PaintScene::begin_part/end_part — defaulted no-ops that
+# let blitz-paint say WHICH part of WHICH element it is about to draw, so
+# a consumer does not have to infer it back from geometry. The scene
+# rasterizer crates compile scene_record.rs, which implements the trait.
+anyrender = { path = "packages/core/target/vendor-patched/anyrender-0.14.0" }
+# Patched to implement PaintScene::push_clip_path with vello_cpu's clip
+# paths, which clip each draw instead of compositing a separate layer.
+anyrender_vello_cpu = { path = "packages/core/target/vendor-patched/anyrender_vello_cpu-0.18.0" }
+taffy = { path = "packages/core/target/vendor-patched/taffy-0.15.0" }
+# Patched so sticky insets stop reaching taffy as relative offsets
+# (taffy would blindly shift the box; sticky.rs owns the shift).
+stylo_taffy = { path = "packages/core/target/vendor-patched/stylo_taffy-0.3.0-beta.3" }
+stylo = { path = "packages/core/target/vendor-patched/stylo-0.22.0" }
+selectors = { path = "packages/core/target/vendor-patched/selectors-0.41.0" }
+boa_ast = { path = "packages/core/target/vendor-patched/boa_ast-0.22.0" }
+boa_interner = { path = "packages/core/target/vendor-patched/boa_interner-0.22.0" }
+boa_gc = { path = "packages/core/target/vendor-patched/boa_gc-0.22.0" }
+boa_engine = { path = "packages/core/target/vendor-patched/boa_engine-0.22.0" }
+boa_parser = { path = "packages/core/target/vendor-patched/boa_parser-0.22.0" }
+# Patched for SVG2 geometry properties from CSS (`circle { r: 65px }`),
+# which usvg drops. blitz-dom's usvg resolves here too via this patch.
+usvg = { path = "packages/core/target/vendor-patched/usvg-0.48.1" }
+ratatui-image = { path = "packages/core/target/vendor-patched/ratatui-image-8.1.1" }
+jpeg-encoder = { path = "packages/core/target/vendor-patched/jpeg-encoder-0.7.0" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.release.package.write-fonts]
+opt-level = 0
+
+[profile.release-memprof]
+inherits = "release"
+panic = "abort"
+strip = "none"
+lto = "off"
+codegen-units = 16
+
+[profile.release-test]
+inherits = "release"
+lto = "off"
+codegen-units = 16

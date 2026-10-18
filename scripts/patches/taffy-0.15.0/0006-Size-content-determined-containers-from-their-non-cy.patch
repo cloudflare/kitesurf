@@ -1,0 +1,152 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 14 Sep 2026 23:20:20 +0100
+Subject: [PATCH] Size content-determined containers from their non-cyclic
+ content
+
+Chart figures with an inline SVG ended up 165px wide inside a 155px
+column: the intrinsic passes that size a content-determined container
+answered from content that cannot legitimately contribute to it.
+
+Block: a replaced item whose width is a percentage of the width this
+pass is still computing contributes zero to the min-content probe
+(css-sizing-3 5.2.1), including when an aspect ratio against a definite
+height would otherwise give it a width, because a specified size wins
+over the ratio (css-sizing-4 4.1). The grid algorithm already gates the
+same rule on is_compressible_replaced.
+
+Every other item keeps measuring, and now measures against the
+container's content box instead of Size::NONE. That is the parent size a
+child's percentage height resolves against, and the only way an aspect
+ratio can transfer a width from it. With Size::NONE, the aspect-ratio
+figure in kitesurf's flex-svg-intrinsic test leaves the width band it
+otherwise shares with Chrome. It cannot reintroduce the cycle the rule
+above breaks: the probe only runs while the container's own width is
+unknown, so the width it hands down is None, and the height goes down
+only when the caller marked it definite.
+
+Flexbox: the flex lines were collected before the main size existed,
+i.e. against a min-content probe, which puts every item of a wrapping
+container on its own line and leaves it that way. Recollect them once
+the content-determined main size is known.
+---
+ src/compute/block.rs   | 56 +++++++++++++++++++++++++++---------------
+ src/compute/flexbox.rs | 24 ++++++++++++++++++
+ 2 files changed, 60 insertions(+), 20 deletions(-)
+
+diff --git a/src/compute/block.rs b/src/compute/block.rs
+index 38f5e42..4cc2a61 100644
+--- a/src/compute/block.rs
++++ b/src/compute/block.rs
+@@ -596,8 +596,9 @@ fn compute_inner(
+     // 2. Compute container width
+     let container_outer_width = known_dimensions.width.unwrap_or_else(|| {
+         let available_width = available_space.width.maybe_sub(content_box_inset.horizontal_axis_sum());
+-        let intrinsic_width = determine_content_based_container_width(tree, &items, available_width)
+-            + content_box_inset.horizontal_axis_sum();
++        let intrinsic_width =
++            determine_content_based_container_width(tree, &items, available_width, container_content_box_size)
++                + content_box_inset.horizontal_axis_sum();
+         intrinsic_width.maybe_clamp(min_size.width, max_size.width).maybe_max(Some(padding_border_size.width))
+     });
+
+@@ -1005,6 +1006,7 @@ fn determine_content_based_container_width(
+     tree: &mut impl LayoutPartialTree,
+     items: &[BlockItem],
+     available_width: AvailableSpace,
++    parent_size: Size<Option<f32>>,
+ ) -> f32 {
+     let available_space = Size { width: available_width, height: AvailableSpace::MinContent };
+
+@@ -1018,24 +1020,38 @@ fn determine_content_based_container_width(
+             .margin
+             .resolve_or_zero(available_space.width.into_option(), |val, basis| tree.calc(val, basis))
+             .horizontal_axis_sum();
+-        let width = known_dimensions.width.unwrap_or_else(|| {
+-            let item_available_width =
+-                match resolve_sizing_keyword(item.size_style.width, None, None, |val, basis| tree.calc(val, basis)) {
+-                    Some(SizingKeywordResolution::Measure(available_width)) => available_width,
+-                    Some(SizingKeywordResolution::Exact(width)) => AvailableSpace::Definite(width),
+-                    None => available_space.width.maybe_sub(item_x_margin_sum),
+-                };
+-            tree.measure_child_size(
+-                item.node_id,
+-                known_dimensions,
+-                Size::NONE,
+-                Size { width: item_available_width, height: available_space.height },
+-                SizingMode::InherentSize,
+-                crate::AbsoluteAxis::Horizontal,
+-                // Must match the value passed when laying the item out (see `Cache`)
+-                if item.is_in_same_bfc { Line::TRUE } else { Line::FALSE },
+-            )
+-        });
++        // css-sizing-3 5.2.1: a compressible replaced element's percentage width is cyclic
++        // against the width this pass is computing, so it resolves against zero and the item
++        // contributes nothing. That also beats the width its aspect ratio and definite height
++        // imply (css-sizing-4 4.1: a specified size overrides the ratio), which lets an inline
++        // SVG chart with a viewBox shrink. A non-replaced element treats the same percentage as
++        // `auto` and still contributes its content, so it has to keep measuring.
++        let width = if item.is_compressible_replaced
++            && available_space.width == AvailableSpace::MinContent
++            && item.size_style.width.into_raw().uses_percentage()
++        {
++            0.0
++        } else {
++            known_dimensions.width.unwrap_or_else(|| {
++                let item_available_width =
++                    match resolve_sizing_keyword(item.size_style.width, None, None, |val, basis| tree.calc(val, basis))
++                    {
++                        Some(SizingKeywordResolution::Measure(available_width)) => available_width,
++                        Some(SizingKeywordResolution::Exact(width)) => AvailableSpace::Definite(width),
++                        None => available_space.width.maybe_sub(item_x_margin_sum),
++                    };
++                tree.measure_child_size(
++                    item.node_id,
++                    known_dimensions,
++                    parent_size,
++                    Size { width: item_available_width, height: available_space.height },
++                    SizingMode::InherentSize,
++                    crate::AbsoluteAxis::Horizontal,
++                    // Must match the value passed when laying the item out (see `Cache`)
++                    if item.is_in_same_bfc { Line::TRUE } else { Line::FALSE },
++                )
++            })
++        };
+
+         let width = f32_max(width, item.padding_border_sum.width) + item_x_margin_sum;
+
+diff --git a/src/compute/flexbox.rs b/src/compute/flexbox.rs
+index 4e9ab12..596bd81 100644
+--- a/src/compute/flexbox.rs
++++ b/src/compute/flexbox.rs
+@@ -407,6 +407,30 @@ fn compute_preliminary(tree: &mut impl LayoutFlexboxContainer, node: NodeId, inp
+             .maybe_resolve(inner_container_size, |val, basis| tree.calc(val, basis))
+             .unwrap_or(0.0);
+         constants.gap.set_main(constants.dir, new_gap);
++
++        // The lines above were collected against the container's available space, which
++        // for a content-determined main size is a min-content probe. A wrapping container
++        // then gets one item per line, and every later step would lay it out that way. Recollect against the main size that probe just produced.
++        if constants.is_wrap {
++            let resolved_available_space = available_space.with_main(
++                constants.dir,
++                AvailableSpace::Definite(constants.inner_container_size.main(constants.dir)),
++            );
++            // The lines borrow flex_items, so they have to go before the recollect.
++            drop(flex_lines);
++            #[cfg(feature = "flexbox_balance")]
++            {
++                flex_lines = if constants.is_balance {
++                    collect_balanced_flex_lines(&constants, resolved_available_space, &mut flex_items)
++                } else {
++                    collect_flex_lines(&constants, resolved_available_space, &mut flex_items)
++                };
++            }
++            #[cfg(not(feature = "flexbox_balance"))]
++            {
++                flex_lines = collect_flex_lines(&constants, resolved_available_space, &mut flex_items);
++            }
++        }
+     }
+
+     // If only the container's main size has been requested then we are done, as nothing below changes it. This

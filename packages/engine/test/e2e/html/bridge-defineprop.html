@@ -1,0 +1,28 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<input id="i" value="real" />
+<script>
+  globalThis.__ksObj = {};
+  globalThis.__ksReadFromV8 = function (k) { return globalThis.__ksObj[k]; };
+  globalThis.__ksDescFromV8 = function (k) {
+    var d = Object.getOwnPropertyDescriptor(globalThis.__ksObj, k);
+    if (!d) return "none";
+    return "get:" + typeof d.get + " value:" + typeof d.value +
+      " enum:" + d.enumerable;
+  };
+  globalThis.__ksKeysFromV8 = function () {
+    return Object.keys(globalThis.__ksObj).join(",");
+  };
+  globalThis.__ksHasFromV8 = function (k) { return k in globalThis.__ksObj; };
+  Object.defineProperties(globalThis.__ksObj, {
+    receiver: { value: "v8-object", configurable: true },
+    readReceiver: {
+      value: function () { return this.receiver; },
+      configurable: true,
+    },
+  });
+</script>

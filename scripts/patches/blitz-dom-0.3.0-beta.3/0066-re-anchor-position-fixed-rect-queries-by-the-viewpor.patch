@@ -1,0 +1,60 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Tue, 4 Aug 2026 14:22:46 +0100
+Subject: [PATCH] re-anchor position:fixed rect queries by the viewport scroll
+
+The fixed-position hoist re-parents fixed boxes into the root element's
+layout children, which paint_scene translates by -viewport_scroll; so
+'fixed' boxes scrolled away with the page. The hoist shipped documenting
+the caveat ('correct at scroll 0'), but interactive sessions scroll
+routinely, and a fixed compact header vanished as soon as the page
+scrolled.
+
+Maintain the invariant 'fixed location = taffy location +
+viewport_scroll' (apply_fixed_scroll_anchor, tracked by
+fixed_anchor_scroll): resolve() re-bakes it right after taffy resets
+locations, and set_viewport_scroll applies incremental deltas so
+scroll writes re-anchor immediately; static pages may never resolve
+again, and rect queries / hit tests read layout locations between
+paints. Layout positions are what paint, hit-testing, and rect
+queries all consume, so one adjustment keeps every consumer
+viewport-pinned.
+
+Against blitz-dom 0.3.0-beta.3: fixed boxes are now laid out by Taffy
+against the viewport, and upstream cancels the root and viewport scroll
+for them in paint (hoisted_child_position) and hit-testing. Baking the
+scroll into layout locations as well would cancel it twice, so the
+location re-anchoring is dropped and only rect queries
+(physical_unrounded_geometry, behind getBoundingClientRect) get the same
+cancellation, which upstream lacks.
+---
+ src/document.rs | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index 2e2a82c..b31882a 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -2999,6 +2999,22 @@ impl BaseDocument {
+             pos.x += node.unrounded_layout().location.x - node.scroll_offset().x as f32;
+             pos.y += node.unrounded_layout().location.y - node.scroll_offset().y as f32;
+             current = node.containing_block();
++            // A fixed box contained by the root element is positioned against
++            // the viewport and does not scroll with it: cancel the root and viewport
++            // scroll the walk (and the caller's viewport-relative conversion) applies,
++            // as paint and hit-testing do (`hoisted_child_position`). Otherwise
++            // getBoundingClientRect on a fixed header drifts up by the page scroll.
++            if node.taffy_position() == taffy::Position::Fixed
++                && let Some(cb) = current.and_then(|cb| self.nodes.get(cb))
++                && cb
++                    .containing_block()
++                    .and_then(|id| self.nodes.get(id))
++                    .is_none_or(|parent| matches!(parent.data, NodeData::Document(_)))
++            {
++                let viewport_scroll = self.viewport_scroll();
++                pos.x += cb.scroll_offset().x as f32 + viewport_scroll.x as f32;
++                pos.y += cb.scroll_offset().y as f32 + viewport_scroll.y as f32;
++            }
+         }
+         (pos, *self.nodes[node_id].unrounded_layout())
+     }

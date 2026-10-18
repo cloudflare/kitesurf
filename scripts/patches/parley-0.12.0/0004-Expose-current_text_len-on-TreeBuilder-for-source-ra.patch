@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 16:56:53 +0100
+Subject: [PATCH] Expose current_text_len on TreeBuilder for source-range
+ recording
+
+Embedders need to know where each pushed text chunk lands in the
+final layout string, for example to record per-text-node ranges for
+painting DOM selections. Reports committed + pending length: pending
+collapsible whitespace counts as the single space it collapses to,
+so a chunk's range ends after its trailing space whenever more
+content follows.
+---
+ src/builder.rs | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/builder.rs b/src/builder.rs
+index b45d6b9..c00326c 100644
+--- a/src/builder.rs
++++ b/src/builder.rs
+@@ -296,6 +296,15 @@ impl<'b, B: Brush> TreeBuilder<'b, B> {
+         self.lcx.tree_style_builder.has_pending_whitespace()
+     }
+
++    // Current length of the layout text (committed plus
++    // pending), measured around push_text to record source ranges.
++    // Pending collapsible whitespace collapses to at most one space,
++    // so it counts as one: the range of the text that pushed it ends
++    // after it, as it will if more content follows.
++    pub fn current_text_len(&self) -> usize {
++        self.text().len() + usize::from(self.has_pending_whitespace())
++    }
++
+     pub fn push_inline_box(&mut self, mut inline_box: InlineBox) {
+         if inline_box.kind == InlineBoxKind::InFlow {
+             self.lcx.tree_style_builder.flush_pending_whitespace();

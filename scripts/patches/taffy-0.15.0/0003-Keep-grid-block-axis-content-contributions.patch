@@ -1,0 +1,133 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 5 Sep 2026 09:38:28 +0100
+Subject: [PATCH] Keep grid block-axis content contributions
+
+Scroll-container rows need their limited min-content contribution in
+both intrinsic and definite passes. Otherwise flex ancestors measure a
+content floor that final grid sizing cannot preserve.
+---
+ src/compute/grid/track_sizing.rs | 102 +++++++++++++++----------------
+ 1 file changed, 49 insertions(+), 53 deletions(-)
+
+diff --git a/src/compute/grid/track_sizing.rs b/src/compute/grid/track_sizing.rs
+index a450531..512d3fa 100644
+--- a/src/compute/grid/track_sizing.rs
++++ b/src/compute/grid/track_sizing.rs
+@@ -620,26 +620,24 @@ fn resolve_intrinsic_track_sizes<Tree: LayoutPartialTree>(
+                     // If the container size is indefinite and has not yet been resolved then percentage sized
+                     // tracks are treated as auto
+                     _ if track.min_track_sizing_function.behaves_as_auto(axis_inner_node_size) => {
+-                        let space = match axis_available_grid_space {
+-                            // QUIRK: The spec says that:
+-                            //
+-                            //   If the grid container is being sized under a min- or max-content constraint, use the items’ limited
+-                            //   min-content contributions in place of their minimum contributions here.
+-                            //
+-                            // However, in practice browsers only seem to apply this rule if the item is not a scroll container
+-                            // (note that overflow:hidden counts as a scroll container), giving the automatic minimum size of scroll
+-                            // containers (zero) precedence over the min-content contributions.
+-                            AvailableSpace::MinContent | AvailableSpace::MaxContent
+-                                if !item.overflow.get(axis).is_scroll_container() =>
+-                            {
+-                                let axis_minimum_size = item_sizer.minimum_contribution(item, axis_tracks);
+-                                let axis_min_content_size = item_sizer.min_content_contribution(item, axis_tracks);
+-                                let limit = track
+-                                    .max_track_sizing_function
+-                                    .definite_limit(axis_inner_node_size, |val, basis| item_sizer.calc(val, basis));
+-                                axis_min_content_size.maybe_min(limit).max(axis_minimum_size)
+-                            }
+-                            _ => item_sizer.minimum_contribution(item, axis_tracks),
++                        // Browsers apply the scroll-container automatic-minimum carve-out
++                        // in the inline axis. In the block axis, keep content contributions
++                        // under both intrinsic and definite available space so measurement
++                        // and final row sizing agree.
++                        let use_limited_min_content = axis == AbstractAxis::Block
++                            || (matches!(
++                                axis_available_grid_space,
++                                AvailableSpace::MinContent | AvailableSpace::MaxContent
++                            ) && !item.overflow.get(axis).is_scroll_container());
++                        let space = if use_limited_min_content {
++                            let axis_minimum_size = item_sizer.minimum_contribution(item, axis_tracks);
++                            let axis_min_content_size = item_sizer.min_content_contribution(item, axis_tracks);
++                            let limit = track
++                                .max_track_sizing_function
++                                .definite_limit(axis_inner_node_size, |val, basis| item_sizer.calc(val, basis));
++                            axis_min_content_size.maybe_min(limit).max(axis_minimum_size)
++                        } else {
++                            item_sizer.minimum_contribution(item, axis_tracks)
+                         };
+                         f32_max(track.base_size, space)
+                     }
+@@ -724,40 +722,38 @@ fn resolve_intrinsic_track_sizes<Tree: LayoutPartialTree>(
+             //
+             // However, in practice browsers only seem to apply this rule if the item is not a scroll container (note that overflow:hidden counts as
+             // a scroll container), giving the automatic minimum size of scroll containers (zero) precedence over the min-content contributions.
+-            let space = match axis_available_grid_space {
+-                AvailableSpace::MinContent | AvailableSpace::MaxContent
+-                    if !item.overflow.get(axis).is_scroll_container() =>
+-                {
+-                    let axis_minimum_size = item_sizer.minimum_contribution(item, axis_tracks);
+-                    let axis_min_content_size = item_sizer.min_content_contribution(item, axis_tracks);
+-                    let limit = item.spanned_track_limit(axis, axis_tracks, axis_inner_node_size, &|val, basis| {
+-                        item_sizer.calc(val, basis)
+-                    });
+-                    let limited_min_content = axis_min_content_size.maybe_min(limit).max(axis_minimum_size);
+-
+-                    // For items crossing flexible tracks, browsers hand the content-derived contribution to
+-                    // the flexible tracks only in proportion to the crossed flex factor sum, clamped at one
+-                    // (CSS Grid 2, 12.5: "if the sum is less than one, distribute that proportion of
+-                    // space"). The proportion applies to the space left after covering the spanned
+-                    // inflexible tracks, and the item's minimum contribution acts as a floor on the result:
+-                    // a definite size still spreads over `0fr` tracks in full. This is what lets a `0fr`
+-                    // track holding a `min-height: 0` item collapse to zero, which the
+-                    // `grid-template-rows: 0fr` to `1fr` collapse animation pattern relies on.
+-                    if is_flex {
+-                        let spanned_tracks = &axis_tracks[item.track_range_excluding_lines(axis)];
+-                        let inflexible_sizes: f32 = spanned_tracks
+-                            .iter()
+-                            .filter(|track| !track.is_flexible())
+-                            .map(|track| track.base_size)
+-                            .sum();
+-                        let scale = f32_min(crossed_flex_factor_sum(spanned_tracks), 1.0);
+-                        let excess = f32_max(limited_min_content - inflexible_sizes, 0.0);
+-                        f32_max(axis_minimum_size, inflexible_sizes + excess * scale)
+-                    } else {
+-                        limited_min_content
+-                    }
++            // Kitesurf keeps block-axis content contributions under all availability so measurement and final row sizing agree.
++            let use_limited_min_content = axis == AbstractAxis::Block
++                || (matches!(axis_available_grid_space, AvailableSpace::MinContent | AvailableSpace::MaxContent)
++                    && !item.overflow.get(axis).is_scroll_container());
++            let space = if use_limited_min_content {
++                let axis_minimum_size = item_sizer.minimum_contribution(item, axis_tracks);
++                let axis_min_content_size = item_sizer.min_content_contribution(item, axis_tracks);
++                let limit = item.spanned_track_limit(axis, axis_tracks, axis_inner_node_size, &|val, basis| {
++                    item_sizer.calc(val, basis)
++                });
++                let limited_min_content = axis_min_content_size.maybe_min(limit).max(axis_minimum_size);
++
++                // For items crossing flexible tracks, browsers hand the content-derived contribution to
++                // the flexible tracks only in proportion to the crossed flex factor sum, clamped at one
++                // (CSS Grid 2, 12.5: "if the sum is less than one, distribute that proportion of
++                // space"). The proportion applies to the space left after covering the spanned
++                // inflexible tracks, and the item's minimum contribution acts as a floor on the result:
++                // a definite size still spreads over `0fr` tracks in full. This is what lets a `0fr`
++                // track holding a `min-height: 0` item collapse to zero, which the
++                // `grid-template-rows: 0fr` to `1fr` collapse animation pattern relies on.
++                if is_flex {
++                    let spanned_tracks = &axis_tracks[item.track_range_excluding_lines(axis)];
++                    let inflexible_sizes: f32 =
++                        spanned_tracks.iter().filter(|track| !track.is_flexible()).map(|track| track.base_size).sum();
++                    let scale = f32_min(crossed_flex_factor_sum(spanned_tracks), 1.0);
++                    let excess = f32_max(limited_min_content - inflexible_sizes, 0.0);
++                    f32_max(axis_minimum_size, inflexible_sizes + excess * scale)
++                } else {
++                    limited_min_content
+                 }
+-                _ => item_sizer.minimum_contribution(item, axis_tracks),
++            } else {
++                item_sizer.minimum_contribution(item, axis_tracks)
+             };
+             let tracks = &mut axis_tracks[item.track_range_excluding_lines(axis)];
+             if space > 0.0 {

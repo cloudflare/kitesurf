@@ -1,0 +1,100 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 17 Sep 2026 22:08:03 +0100
+Subject: [PATCH] Preserve supported font source fallbacks
+
+Recognize common format aliases and infer extensions without URL query
+strings or fragments hiding them.
+---
+ src/net.rs | 69 ++++++++++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 52 insertions(+), 17 deletions(-)
+
+diff --git a/src/net.rs b/src/net.rs
+index ba4da33..dc98a27 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -615,27 +615,35 @@ pub(crate) fn collect_font_face_rules<'a>(
+                 .find_map(|url_source| {
+                     let mut format = match &url_source.format_hint {
+                         Some(FontFaceSourceFormat::Keyword(fmt)) => *fmt,
+-                        Some(FontFaceSourceFormat::String(str)) => match str.as_str() {
+-                            "woff2" => FontFaceSourceFormatKeyword::Woff2,
+-                            "ttf" => FontFaceSourceFormatKeyword::Truetype,
+-                            "otf" => FontFaceSourceFormatKeyword::Opentype,
++                        Some(FontFaceSourceFormat::String(str)) => match str.to_ascii_lowercase().as_str() {
++                            "woff" => FontFaceSourceFormatKeyword::Woff,
++                            "woff2" | "woff2-variations" => FontFaceSourceFormatKeyword::Woff2,
++                            "ttf" | "truetype" | "truetype-variations" => FontFaceSourceFormatKeyword::Truetype,
++                            "otf" | "opentype" | "opentype-variations" => FontFaceSourceFormatKeyword::Opentype,
++                            "eot" | "embedded-opentype" => FontFaceSourceFormatKeyword::EmbeddedOpentype,
++                            "svg" => FontFaceSourceFormatKeyword::Svg,
++                            "collection" => FontFaceSourceFormatKeyword::Opentype,
++                            // Keep extension or magic-byte detection for unknown hints.
+                             _ => FontFaceSourceFormatKeyword::None,
+                         },
+                         _ => FontFaceSourceFormatKeyword::None,
+                     };
+-                    // A url with no extension, such as a `data:` url, is
+-                    // sniffed from its bytes once fetched.
+-                    if format == FontFaceSourceFormatKeyword::None
+-                        && let Some((_, end)) = url_source.url.as_str().rsplit_once('.')
+-                    {
+-                        format = match end {
+-                            "woff2" => FontFaceSourceFormatKeyword::Woff2,
+-                            "woff" => FontFaceSourceFormatKeyword::Woff,
+-                            "ttf" => FontFaceSourceFormatKeyword::Truetype,
+-                            "otf" => FontFaceSourceFormatKeyword::Opentype,
+-                            "svg" => FontFaceSourceFormatKeyword::Svg,
+-                            "eot" => FontFaceSourceFormatKeyword::EmbeddedOpentype,
+-                            _ => FontFaceSourceFormatKeyword::None,
++                    // Extension sniff is best-effort: a dot-less URL
++                    // (data: URIs chiefly; base64 has no '.') must
++                    // not skip the source. FontFaceHandler sniffs
++                    // magic bytes at parse time, so None format is fine.
++                    if format == FontFaceSourceFormatKeyword::None {
++                        let path = url_source.url.as_str().split(['?', '#']).next().unwrap_or_default();
++                        if let Some((_, end)) = path.rsplit_once('.') {
++                            format = match end.to_ascii_lowercase().as_str() {
++                                "woff2" => FontFaceSourceFormatKeyword::Woff2,
++                                "woff" => FontFaceSourceFormatKeyword::Woff,
++                                "ttf" => FontFaceSourceFormatKeyword::Truetype,
++                                "otf" => FontFaceSourceFormatKeyword::Opentype,
++                                "svg" => FontFaceSourceFormatKeyword::Svg,
++                                "eot" => FontFaceSourceFormatKeyword::EmbeddedOpentype,
++                                _ => FontFaceSourceFormatKeyword::None,
++                            }
+                         }
+                     }
+
+@@ -1000,4 +1008,31 @@ mod tests {
+             Fq::Oblique(Some(10.0)),
+         );
+     }
++
++    #[test]
++    fn skips_unsupported_font_source_and_uses_next_format() {
++        let lock = SharedRwLock::new();
++        let url = UrlExtraData(Url::parse("https://example.invalid/").unwrap().into());
++        let media = parse_media_attr(None, &url, Origin::Author);
++        let sheet = Stylesheet::from_str(
++            r#"@font-face {
++                font-family: "Test";
++                src: url("https://example.invalid/test.eot?") format("eot"),
++                     url("https://example.invalid/test.woff?") format("woff");
++            }"#,
++            url,
++            Origin::Author,
++            ServoArc::new(lock.wrap(media)),
++            lock.clone(),
++            None,
++            None,
++            QuirksMode::NoQuirks,
++            AllowImportRules::Yes,
++        );
++        let faces = collect_font_faces(None, &sheet, &lock.read());
++
++        assert_eq!(faces.len(), 1);
++        assert_eq!(faces[0].format, FontFaceSourceFormatKeyword::Woff);
++        assert!(faces[0].url.as_str().ends_with("test.woff?"));
++    }
+ }

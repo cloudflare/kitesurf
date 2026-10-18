@@ -1,0 +1,32 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>kitesurf @font-face variable fixture</title>
+  <style>
+    @font-face {
+      font-family: "VarProbe";
+      src: url("/__fixtures/noto-var-latin-subset.woff2") format("woff2");
+      font-weight: 100 900;
+      font-style: normal;
+    }
+    body { margin: 0; padding: 16px; }
+    p { margin: 0; padding: 0; }
+    span { display: inline-block; font-size: 32px; font-family: "VarProbe", sans-serif; }
+    #w100 { font-weight: 100; }
+    #w400 { font-weight: 400; }
+    #w900 { font-weight: 900; }
+  </style>
+</head>
+<body>
+  <p><span id="w100">Hamburgefonstiv</span></p>
+  <p><span id="w400">Hamburgefonstiv</span></p>
+  <p><span id="w900">Hamburgefonstiv</span></p>
+</body>
+</html>

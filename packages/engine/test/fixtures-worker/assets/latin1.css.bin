@@ -1,0 +1,2 @@
+/* Configuração específica (legacy sheet) */
+#legacy { background-color: rgb(9, 87, 65); }

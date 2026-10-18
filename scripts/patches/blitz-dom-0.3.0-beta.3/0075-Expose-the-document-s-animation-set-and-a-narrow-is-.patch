@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 4 Aug 2026 06:34:05 +0100
+Subject: [PATCH] Expose the document's animation set and a narrow is-animating
+ flag
+
+An embedder that drives its own frame clock (rather than a windowing
+loop's vsync) has to answer two questions after every resolve: does
+anything still need a tick, and which transitions changed state so it
+can emit transitionrun/start/end/cancel. Both are already computed in
+resolve_stylist but neither is reachable; `animations` and
+`has_active_animations` are pub(crate), and the public `is_animating`
+folds in canvases, custom widgets and scroll/scrollbar animation,
+which have their own redraw paths and would pin the flag on forever
+for a caller that only wants a restyle clock.
+
+Add `animations()` and a `has_active_animations()` that reports only
+CSS animations/transitions (including subdocuments).
+---
+ src/document.rs | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index 1ca5689..90246a7 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -2771,6 +2771,21 @@ impl BaseDocument {
+             .and_then(|el| el.sub_doc_data_mut())
+     }
+
++    /// The document's live CSS animations and transitions. An embedder that
++    /// drives its own frame clock reads the per-element state from here to
++    /// decide whether to schedule another tick and to emit the DOM events.
++    pub fn animations(&self) -> &DocumentAnimationSet {
++        &self.animations
++    }
++
++    /// Whether any CSS animation or transition still needs a tick. Narrower
++    /// than [`Self::is_animating`], which also reports canvases, custom
++    /// widgets and scroll/scrollbar animation: those have their own redraw
++    /// paths, so a caller gating a restyle clock wants only this.
++    pub fn has_active_animations(&self) -> bool {
++        self.has_active_animations | self.subdoc_is_animating
++    }
++
+     pub fn is_animating(&self) -> bool {
+         #[cfg(feature = "custom-widget")]
+         let custom_widget_is_animating = self.custom_widget_nodes.iter().any(|&node_id| {

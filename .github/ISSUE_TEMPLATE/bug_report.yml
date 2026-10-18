@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a rendering, CDP, or runtime problem.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include secrets, credentials, or private URLs. Replace them with
+        placeholders before you paste a reproduction.
+  - type: input
+    id: version
+    attributes:
+      label: kitesurf commit or release
+    validations:
+      required: true
+  - type: dropdown
+    id: entrypoint
+    attributes:
+      label: Entry point
+      options:
+        - CDP WebSocket (/devtools/browser or /devtools/page)
+        - Scene stream (kitesurf-cli)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Markup or a shareable URL, plus the CDP calls or script that trigger the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the console output, error text, or screenshot where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Node.js version, wrangler version, and whether the engine runs locally or on Workers.

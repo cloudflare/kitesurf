@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 12 Oct 2026 20:36:14 +0100
+Subject: [PATCH] Stop size containers from claiming out-of-flow boxes
+
+blitz 0.3.0-beta.3's out-of-flow hoisting (#922) made container-type:
+size and inline-size establish a containing block for absolute and fixed
+boxes. css-contain-3 dropped layout containment from container-type
+(csswg-drafts#10544), so those boxes propagate to the nearest positioned
+ancestor, as Chrome does. With the claim, an abspos child of a
+zero-height inline-size container painted nothing in the engine (WPT
+container-queries/no-layout-containment-abspos{,-dynamic}).
+---
+ src/convert.rs | 11 ++++-------
+ 1 file changed, 4 insertions(+), 7 deletions(-)
+
+diff --git a/src/convert.rs b/src/convert.rs
+index 199a500..279cda8 100644
+--- a/src/convert.rs
++++ b/src/convert.rs
+@@ -332,7 +332,7 @@ pub fn position(input: stylo::Position) -> taffy::Position {
+ /// <https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_positioned_layout/Containing_block#identifying_the_containing_block>
+ pub fn establishes_fixed_containing_block(style: &stylo::ComputedValues) -> bool {
+     use style::values::computed::{Perspective, Rotate, Scale, Translate};
+-    use style::values::specified::box_::{Contain, ContainerType, WillChangeBits};
++    use style::values::specified::box_::{Contain, WillChangeBits};
+
+     let box_style = style.get_box();
+     if !box_style.transform.0.is_empty()
+@@ -357,12 +357,9 @@ pub fn establishes_fixed_containing_block(style: &stylo::ComputedValues) -> bool
+     {
+         return true;
+     }
+-    if box_style
+-        .container_type
+-        .intersects(ContainerType::SIZE | ContainerType::INLINE_SIZE)
+-    {
+-        return true;
+-    }
++    // Not `container-type`: a size container gets style and size
++    // containment but not layout containment, so out-of-flow boxes
++    // propagate past it (csswg-drafts#10544, css-contain-3 "container-type").
+
+     let effects = style.get_effects();
+     !effects.filter.0.is_empty() || !effects.backdrop_filter.0.is_empty()

@@ -1,0 +1,141 @@
+diff --git a/tests/kitesurf/kitesurfTest.ts b/tests/kitesurf/kitesurfTest.ts
+new file mode 100644
+index 0000000..6ec5406
+--- /dev/null
++++ b/tests/kitesurf/kitesurfTest.ts
+@@ -0,0 +1,56 @@
++// Kitesurf impl of the shared tests/page fixture surface (PWPAGE_IMPL=kitesurf).
++// Drives a running kitesurf engine over CDP; KITESURF_WS points at it.
++
++import { chromium } from 'playwright-core';
++import type { Browser, BrowserContext } from 'playwright-core';
++import { baseTest } from '../config/baseTest';
++import type { PageTestFixtures, PageWorkerFixtures } from '../page/pageTestApi';
++
++export { expect } from '@playwright/test';
++
++type KitesurfWorkerFixtures = PageWorkerFixtures & {
++  kitesurfBrowser: Browser;
++  kitesurfContext: BrowserContext;
++};
++
++export const kitesurfTest = baseTest.extend<PageTestFixtures, KitesurfWorkerFixtures>({
++  kitesurfBrowser: [async ({}, use) => {
++    const ws = process.env.KITESURF_WS;
++    if (!ws)
++      throw new Error('KITESURF_WS must point at a kitesurf /devtools/browser ws endpoint');
++    const browser = await chromium.connectOverCDP(ws);
++    await use(browser);
++    await browser.close();
++  }, { scope: 'worker' }],
++
++  // connectOverCDP surfaces the engine's single default context; kitesurf
++  // fakes createBrowserContext, so all tests share it (and its cookie jar).
++  kitesurfContext: [async ({ kitesurfBrowser }, use) => {
++    await use(kitesurfBrowser.contexts()[0]);
++  }, { scope: 'worker' }],
++
++  browserVersion: [async ({ kitesurfBrowser }, use) => {
++    await use(kitesurfBrowser.version());
++  }, { scope: 'worker' }],
++
++  browserMajorVersion: [async ({ browserVersion }, use) => {
++    await use(Number(browserVersion.split('.')[0]) || 0);
++  }, { scope: 'worker' }],
++
++  isBidi: [false, { scope: 'worker' }],
++  isAndroid: [false, { scope: 'worker' }],
++  isElectron: [false, { scope: 'worker' }],
++  electronMajorVersion: [0, { scope: 'worker' }],
++  isHeadlessShell: [false, { scope: 'worker' }],
++  isFrozenWebkit: [false, { scope: 'worker' }],
++
++  // Fresh page per test, closed after; cookies cleared between tests
++  // (Storage.clearCookies) since the single context persists until
++  // kitesurf grows real browser contexts (TODO-playwright.md 3.7).
++  page: async ({ kitesurfContext }, use) => {
++    const page = await kitesurfContext.newPage();
++    await use(page);
++    await page.close().catch(() => {});
++    await kitesurfContext.clearCookies().catch(() => {});
++  },
++});
+diff --git a/tests/kitesurf/playwright.config.ts b/tests/kitesurf/playwright.config.ts
+new file mode 100644
+index 0000000..8479bac
+--- /dev/null
++++ b/tests/kitesurf/playwright.config.ts
+@@ -0,0 +1,52 @@
++// Config for running the shared tests/page suite against kitesurf over CDP.
++// Invoked by kitesurf's scripts/pw-run.mjs (which owns the engine lifecycle).
++
++import type { Config, PlaywrightTestOptions, PlaywrightWorkerOptions } from '@playwright/test';
++import * as path from 'path';
++import type { ServerWorkerOptions } from '../config/serverFixtures';
++
++process.env.PWTEST_UNDER_TEST = '1';
++process.env.PWPAGE_IMPL = 'kitesurf';
++
++const outputDir = path.join(__dirname, '..', '..', 'test-results');
++const testDir = path.join(__dirname, '..', 'page');
++
++const config: Config<ServerWorkerOptions & PlaywrightWorkerOptions & PlaywrightTestOptions> = {
++  testDir,
++  outputDir,
++  expect: {
++    timeout: 10000,
++  },
++  timeout: 30000,
++  globalTimeout: 5400000,
++  // Serial by owner decision: parallel workers share one dev engine
++  // and the contention flakes redirect/timeout-sensitive specs.
++
++  // Isolation is correct (per-WS BrowserState and real browser contexts),
++  // so this is a stability choice, not a correctness one.
++  workers: 1,
++  retries: 0,
++  forbidOnly: !!process.env.CI,
++  reporter: [
++    ['line'],
++    ['json', { outputFile: process.env.PWTEST_JSON_OUTPUT || path.join(outputDir, 'kitesurf-report.json') }],
++  ],
++  projects: [
++    {
++      name: 'kitesurf-page',
++      use: {
++        browserName: 'chromium',
++      },
++      testDir,
++      metadata: {
++        platform: 'kitesurf',
++        headless: 'headless',
++        browserName: 'chromium',
++        mode: 'default',
++        video: false,
++      },
++    },
++  ],
++};
++
++export default config;
+diff --git a/tests/page/pageTest.ts b/tests/page/pageTest.ts
+index 85c532a..2723681 100644
+--- a/tests/page/pageTest.ts
++++ b/tests/page/pageTest.ts
+@@ -20,6 +20,7 @@ import type { TestModeTestFixtures, TestModeWorkerFixtures, TestModeWorkerOption
+ import { androidTest } from '../android/androidTest';
+ import { browserTest } from '../config/browserTest';
+ import { electronTest } from '../electron/electronTest';
++import { kitesurfTest } from '../kitesurf/kitesurfTest';
+ import { webviewTest } from '../webview/webviewTest';
+ import type { PageTestFixtures, PageWorkerFixtures } from './pageTestApi';
+ import type { ServerFixtures, ServerWorkerOptions } from '../config/serverFixtures';
+@@ -34,6 +35,8 @@ if (process.env.PWPAGE_IMPL === 'electron')
+   impl = electronTest;
+ if (process.env.PWPAGE_IMPL === 'webkit-webview')
+   impl = webviewTest;
++if (process.env.PWPAGE_IMPL === 'kitesurf')
++  impl = kitesurfTest;
+ 
+ export const test = impl;
+ 

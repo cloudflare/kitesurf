@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ruskin Constant <ruskin@cloudflare.com>
+Date: Wed, 16 Sep 2026 11:32:15 +0100
+Subject: [PATCH] Rewrite word-break: break-word to normal + overflow-wrap:
+ anywhere
+
+Pairs with the stylo patch un-gating WordBreak::BreakWord for servo: the
+match here is exhaustive, so the new variant needs an arm, and per
+css-text-3 it isn't a real fourth word-break mode; it's a compat alias
+that behaves as word-break normal together with overflow-wrap anywhere
+regardless of the element's actual overflow-wrap value. Verified against
+css-text/word-break/word-break-break-word-overflow-wrap-interactions.html.
+---
+ src/stylo_to_parley.rs | 19 ++++++++++++++-----
+ 1 file changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/src/stylo_to_parley.rs b/src/stylo_to_parley.rs
+index 847b174..06fdaa4 100644
+--- a/src/stylo_to_parley.rs
++++ b/src/stylo_to_parley.rs
+@@ -639,8 +639,13 @@ pub(crate) fn style(
+         .collect();
+
+     // Wrapping and breaking
++    // `word-break: break-word` is a legacy compat value (css-text-3):
++    // it behaves as `word-break: normal` together with
++    // `overflow-wrap: anywhere`, regardless of the actual overflow-wrap
++    // value. Fold that here rather than threading a third bit through
++    // parley's own WordBreak, which has no break-word variant of its own.
+     let word_break = match itext_styles.word_break {
+-        stylo::WordBreak::Normal => parley::WordBreak::Normal,
++        stylo::WordBreak::Normal | stylo::WordBreak::BreakWord => parley::WordBreak::Normal,
+         stylo::WordBreak::BreakAll => parley::WordBreak::BreakAll,
+         stylo::WordBreak::KeepAll => parley::WordBreak::KeepAll,
+     };
+@@ -650,9 +655,13 @@ pub(crate) fn style(
+         stylo::LineBreak::Auto | stylo::LineBreak::Strict => parley::LineBreak::Strict,
+         stylo::LineBreak::Anywhere => parley::LineBreak::Anywhere,
+     };
+-    let overflow_wrap = match itext_styles.overflow_wrap {
+-        stylo::OverflowWrap::Normal => parley::OverflowWrap::Normal,
+-        stylo::OverflowWrap::BreakWord => parley::OverflowWrap::BreakWord,
+-        stylo::OverflowWrap::Anywhere => parley::OverflowWrap::Anywhere,
++    let overflow_wrap = if itext_styles.word_break == stylo::WordBreak::BreakWord {
++        parley::OverflowWrap::Anywhere
++    } else {
++        match itext_styles.overflow_wrap {
++            stylo::OverflowWrap::Normal => parley::OverflowWrap::Normal,
++            stylo::OverflowWrap::BreakWord => parley::OverflowWrap::BreakWord,
++            stylo::OverflowWrap::Anywhere => parley::OverflowWrap::Anywhere,
++        }
+     };
+     let text_wrap_mode = text_wrap_mode(itext_styles.text_wrap_mode);

@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 5 Sep 2026 09:39:14 +0100
+Subject: [PATCH] Keep block replaced items clear of floats
+
+Upstream (through 0.15.0) avoids stretch-sizing replaced items but still
+leaves block replaced boxes in the shared BFC path. Route them through
+float avoidance so their border boxes do not overlap floats.
+---
+ src/compute/block.rs | 42 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 42 insertions(+)
+
+diff --git a/src/compute/block.rs b/src/compute/block.rs
+index 750ea04..38f5e42 100644
+--- a/src/compute/block.rs
++++ b/src/compute/block.rs
+@@ -911,6 +911,7 @@ fn generate_item_list(
+
+             let is_in_same_bfc: bool = is_block
+                 && !is_table
++                && !is_compressible_replaced
+                 && !position.is_out_of_flow()
+                 && is_not_floated
+                 && !is_scroll_container
+@@ -1829,3 +1830,44 @@ fn perform_final_layout_on_in_flow_children(
+     let content_height = f32_max(0.0, committed_y_offset);
+     (inflow_overflow_rect, content_height, first_child_top_margin_set, last_child_bottom_margin_set, first_baseline)
+ }
++
++#[cfg(test)]
++mod kitesurf_regression_tests {
++    use crate::prelude::*;
++    use crate::{Float, Point};
++
++    #[test]
++    fn block_replaced_item_avoids_floats() {
++        let mut tree: TaffyTree<()> = TaffyTree::new();
++        let floated = tree
++            .new_leaf(Style {
++                display: Display::Block,
++                float: Float::Left,
++                size: Size { width: length(120.0), height: length(100.0) },
++                ..Default::default()
++            })
++            .unwrap();
++        let replaced = tree
++            .new_leaf(Style {
++                display: Display::Block,
++                item_is_replaced: true,
++                size: Size { width: length(80.0), height: length(50.0) },
++                ..Default::default()
++            })
++            .unwrap();
++        let root = tree
++            .new_with_children(
++                Style {
++                    display: Display::Block,
++                    size: Size { width: length(200.0), height: auto() },
++                    ..Default::default()
++                },
++                &[floated, replaced],
++            )
++            .unwrap();
++
++        tree.compute_layout(root, Size::MAX_CONTENT).unwrap();
++
++        assert_eq!(tree.layout(replaced).unwrap().location, Point { x: 120.0, y: 0.0 });
++    }
++}

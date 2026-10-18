@@ -1,0 +1,27 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  body { margin: 0; font: 16px/1 monospace; }
+  .cell { display: table-cell; width: 60px; height: 20px; }
+  #wrap { width: 300px; }
+  #centered { display: table; margin: 0 auto; }
+  #inner { width: 120px; height: 40px; background: #cfc; }
+  #mixed { display: table; }
+  #mixed .r { display: table-row; }
+  #mixed .c { display: table-cell; width: 50px; height: 20px; }
+</style>
+<div id="wrap">
+  <span id="a" class="cell">a</span>
+  <span id="b" class="cell">b</span>
+  <span id="c" class="cell">c</span>
+</div>
+<div id="centered"><div id="inner">centered</div></div>
+<div id="mixed">
+  <div id="stray1" class="c">s1</div>
+  <div id="stray2" class="c">s2</div>
+  <div class="r"><div id="r1c1" class="c">x</div><div id="r1c2" class="c">y</div></div>
+</div>

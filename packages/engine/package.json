@@ -1,0 +1,48 @@
+{
+  "name": "@kitesurf/engine",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./embed": "./src/embed.ts",
+    "./test/e2e/*": "./test/e2e/*.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "prebuild": "pnpm --dir ../.. run prebuild:engine",
+    "dev": "pnpm run prebuild && wrangler dev --env local -c wrangler.jsonc -c test/fixtures-worker/wrangler.jsonc --port ${KITESURF_PORT:-8787} --inspector-port ${KITESURF_INSPECTOR_PORT:-9229}",
+    "dev:wpt": "pnpm run prebuild && wrangler dev --env local -c wrangler.jsonc -c test/fixtures-worker/wrangler.jsonc --port ${KITESURF_PORT:-8787} --inspector-port ${KITESURF_INSPECTOR_PORT:-9229} --var KITESURF_DISABLE_PRECISE_TIMERS:1",
+    "dev:simulate-prod": "pnpm run prebuild && wrangler dev --env local -c wrangler.jsonc -c test/fixtures-worker/wrangler.jsonc --port ${KITESURF_PORT:-8787} --inspector-port ${KITESURF_INSPECTOR_PORT:-9229} --var KITESURF_SIMULATE_PROD_EVAL:1",
+    "build": "pnpm run prebuild",
+    "cf-typegen": "wrangler types -c wrangler.jsonc --include-runtime --no-strict-vars && wrangler types -c test/fixtures-worker/wrangler.jsonc --include-runtime --no-strict-vars test/fixtures-worker/worker-configuration.d.ts",
+    "types": "pnpm run cf-typegen && tsc --noEmit && tsc --noEmit -p test/e2e/tsconfig.json && tsc --noEmit -p test/e2e/demos/tsconfig.json && tsc --noEmit -p test/fixtures-worker/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.mts"
+  },
+  "dependencies": {
+    "@kitesurf/dom-shim": "workspace:*",
+    "@kitesurf/jsrpc-types": "workspace:*",
+    "@kitesurf/page-renderer": "workspace:*",
+    "@kitesurf/worker-script": "workspace:*",
+    "@kitesurf/page-script": "workspace:*",
+    "@kitesurf/script-gate": "workspace:*",
+    "es-module-lexer": "^2.1.0",
+    "hono": "^4.13.12",
+    "kitesurf-core": "workspace:*",
+    "nanoid": "^6.0.1",
+    "web-bot-auth": "^0.1.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@cloudflare/puppeteer": "1.1.0",
+    "@cloudflare/vitest-plugin": "^1.1.9",
+    "@types/node": "^25.6.2",
+    "devtools-protocol": "^0.0.1669207",
+    "miniflare": "5.20260911.1-alpha",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.7",
+    "wrangler": "^4.131.2"
+  }
+}

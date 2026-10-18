@@ -1,0 +1,25 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>inline box model</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 800px; font-size: 16px; }
+  p { margin: 20px 0 0 0; }
+  #padded { padding: 3px 7px; border: 1px solid red; }
+  #blocky { display: inline-block; }
+  #hidden { display: none; }
+</style>
+</head>
+<body>
+  <p>lead text <a id="plain" href="/more">More information</a> trailing</p>
+  <p><a id="padded" href="/padded">Padded link</a></p>
+  <p><a id="blocky" href="/blocky">Blocky link</a></p>
+  <p><a id="hidden" href="/hidden">Hidden link</a></p>
+</body>
+</html>

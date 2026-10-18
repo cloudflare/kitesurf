@@ -1,0 +1,25 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  body { margin: 0; font: 16px monospace; }
+  #toc h3 { margin: 0; }
+  #nested ol, #nested li { list-style: none; }
+  #roman { list-style-type: upper-roman; }
+  #toc { counter-reset: chapter; }
+  #toc h3 { counter-increment: chapter; }
+  #toc h3::before { content: "Ch " counter(chapter) ": "; }
+  #nested { counter-reset: item; }
+  #nested ol { counter-reset: item; }
+  #nested li { counter-increment: item; }
+  #nested li::before { content: counters(item, ".") " "; }
+  #attr::after { content: " [" attr(data-tag) "]"; }
+</style>
+<div id="toc"><h3>Intro</h3><h3>Body</h3><h3>End</h3></div>
+<ol id="nested"><li>a<ol><li>b</li><li>c</li></ol></li><li>d</li></ol>
+<ol id="roman" start="4"><li id="rv">four</li></ol>
+<ol reversed><li>three</li><li>two</li><li>one</li></ol>
+<div id="attr" data-tag="badge">label</div>

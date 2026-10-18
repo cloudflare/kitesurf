@@ -1,0 +1,287 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 30 Jul 2026 14:44:30 +0100
+Subject: [PATCH] Preserve none color components through parse, mix and
+ serialization
+
+rgb(), hsl() and hwb() with none components eagerly resolved into the
+legacy srgb form, which cannot represent none. Computed values came out
+as rgb(0, 0, 0), and color-mix carry-forward never saw the missing
+components. With this patch:
+
+- resolve_to_absolute keeps the none flags. rgb() stays legacy-tagged
+  (specified serialization is still rgb(0, 0, 0) per WPT
+  color-valid-rgb) but the flags survive; hsl() and hwb() skip the
+  legacy tag entirely when any component is none.
+- AbsoluteColor::to_css falls back to the modern form for
+  none-carrying colors: color(srgb ...) for legacy srgb, and functional
+  hsl()/hwb() (percent form) instead of the srgb conversion.
+- The specified serialization differs per WPT: the Absolute wrapper
+  writes legacy-with-zeros for rgb and number-form hsl()/hwb().
+- Bare relative-color channel keywords (r, g, b, ...) carry a none
+  origin channel forward instead of substituting 0; calc() still gets 0.
+- mix_many skips the srgb conversion for none-carrying results, which
+  would lose them.
+
+Covers the none rows of WPT color-{valid,computed}-{rgb,hsl,hwb},
+color-computed-relative-color and color-computed-color-mix-function.
+---
+ color/color_function.rs   | 46 +++++++++++++++++++--------------------
+ color/component.rs        |  9 ++++----
+ color/mix.rs              |  3 ++-
+ color/mod.rs              | 13 ++++++++++-
+ color/to_css.rs           | 30 +++++++++++++++++++++++++
+ values/specified/color.rs | 25 +++++++++++++++++----
+ 6 files changed, 91 insertions(+), 35 deletions(-)
+
+diff --git a/color/color_function.rs b/color/color_function.rs
+index 4e168a1..0f29984 100644
+--- a/color/color_function.rs
++++ b/color/color_function.rs
+@@ -338,27 +338,26 @@ impl ColorFunction<ComputedColor> {
+                 // old way of serializing the value to rgb(..). Otherwise we don't
+                 // use the rgb(..) syntax, because we should allow the color to be
+                 // out of gamut and not clamp.
+-                let use_rgb_sytax = origin_color.is_none();
++                let no_origin = origin_color.is_none();
+
+-                let mut result = AbsoluteColor::new(
+-                    ColorSpace::Hsl,
+-                    h.resolve()?.map(|angle| normalize_hue(angle.degrees())),
+-                    s.resolve()?.map(|s| {
+-                        if use_rgb_sytax {
++                let h = h.resolve()?.map(|angle| normalize_hue(angle.degrees()));
++                let s = s.resolve()?.map(|s| {
++                        if no_origin {
+                             s.to_number(SATURATION_RANGE).clamp(0.0, SATURATION_RANGE)
+                         } else {
+                             s.to_number(SATURATION_RANGE)
+                         }
+-                    }),
+-                    l.resolve()?.map(|l| {
+-                        if use_rgb_sytax {
++                    });
++                let l = l.resolve()?.map(|l| {
++                        if no_origin {
+                             l.to_number(LIGHTNESS_RANGE).clamp(0.0, LIGHTNESS_RANGE)
+                         } else {
+                             l.to_number(LIGHTNESS_RANGE)
+                         }
+-                    }),
+-                    alpha!(alpha),
+-                );
++                    });
++                let alpha = alpha!(alpha);
++                let use_rgb_sytax = no_origin && h.is_some() && s.is_some() && l.is_some() && alpha.is_some();
++                let mut result = AbsoluteColor::new(ColorSpace::Hsl, h, s, l, alpha);
+
+                 if use_rgb_sytax {
+                     result.flags.insert(ColorFlags::IS_LEGACY_SRGB);
+@@ -367,31 +366,30 @@ impl ColorFunction<ComputedColor> {
+                 result
+             },
+             ColorFunction::Hwb(origin_color, h, w, b, alpha) => {
+-                let use_rgb_sytax = origin_color.is_none();
++                let no_origin = origin_color.is_none();
+
+                 // Percent reference range for W and B: 0% = 0.0, 100% = 100.0
+                 const WHITENESS_RANGE: f32 = 100.0;
+                 const BLACKNESS_RANGE: f32 = 100.0;
+
+-                let mut result = AbsoluteColor::new(
+-                    ColorSpace::Hwb,
+-                    h.resolve()?.map(|angle| normalize_hue(angle.degrees())),
+-                    w.resolve()?.map(|w| {
+-                        if use_rgb_sytax {
++                let h = h.resolve()?.map(|angle| normalize_hue(angle.degrees()));
++                let w = w.resolve()?.map(|w| {
++                        if no_origin {
+                             w.to_number(WHITENESS_RANGE).clamp(0.0, WHITENESS_RANGE)
+                         } else {
+                             w.to_number(WHITENESS_RANGE)
+                         }
+-                    }),
+-                    b.resolve()?.map(|b| {
+-                        if use_rgb_sytax {
++                    });
++                let b = b.resolve()?.map(|b| {
++                        if no_origin {
+                             b.to_number(BLACKNESS_RANGE).clamp(0.0, BLACKNESS_RANGE)
+                         } else {
+                             b.to_number(BLACKNESS_RANGE)
+                         }
+-                    }),
+-                    alpha!(alpha),
+-                );
++                    });
++                let alpha = alpha!(alpha);
++                let use_rgb_sytax = no_origin && h.is_some() && w.is_some() && b.is_some() && alpha.is_some();
++                let mut result = AbsoluteColor::new(ColorSpace::Hwb, h, w, b, alpha);
+
+                 if use_rgb_sytax {
+                     result.flags.insert(ColorFlags::IS_LEGACY_SRGB);
+diff --git a/color/component.rs b/color/component.rs
+index 1d6cdc6..2603aa6 100644
+--- a/color/component.rs
++++ b/color/component.rs
+@@ -118,11 +118,10 @@ impl<ValueType: ColorComponentType> ColorComponent<ValueType> {
+             Self::None => Self::None,
+             Self::Value(v) => Self::Value(v.clone()),
+             Self::ChannelKeyword(channel_keyword) => match origin_color {
+-                Some(origin_color) => {
+-                    match origin_color.get_component_by_channel_keyword(*channel_keyword) {
+-                        Ok(value) => Self::Value(ValueType::from_value(value.unwrap_or(0.0))),
+-                        Err(()) => Self::ChannelKeyword(*channel_keyword),
+-                    }
++                Some(origin_color) => match origin_color.get_component_by_channel_keyword(*channel_keyword) {
++                    Ok(Some(value)) => Self::Value(ValueType::from_value(value)),
++                    Ok(None) => Self::None,
++                    Err(()) => Self::ChannelKeyword(*channel_keyword),
+                 },
+                 None => Self::ChannelKeyword(*channel_keyword),
+             },
+diff --git a/color/mix.rs b/color/mix.rs
+index aede32e..8105e7f 100644
+--- a/color/mix.rs
++++ b/color/mix.rs
+@@ -175,9 +175,10 @@ pub fn mix_many(
+     // - legacy srgb when every mixed color used legacy syntax.
+     let finalize = |result: AbsoluteColor| -> AbsoluteColor {
+         if flags.contains(ColorMixFlags::RESULT_IN_MODERN_SYNTAX) {
+-            if result.is_legacy_syntax() {
++            if result.is_legacy_syntax() && !result.has_none_components() {
+                 // If the result *MUST* be in modern syntax, then make sure it is in a color space
+                 // that allows the modern syntax. So hsl and hwb will be converted to srgb.
++                // (unless that conversion would lose `none` components.)
+                 let mut srgb = result.to_color_space(ColorSpace::Srgb);
+                 srgb.flags.remove(ColorFlags::IS_LEGACY_SRGB);
+                 srgb
+diff --git a/color/mod.rs b/color/mod.rs
+index 944f05f..598d71e 100644
+--- a/color/mod.rs
++++ b/color/mod.rs
+@@ -12,7 +12,7 @@ pub mod component;
+ pub mod gamut;
+ pub mod mix;
+ pub mod parsing;
+-mod to_css;
++pub(crate) mod to_css;
+
+ use self::parsing::ChannelKeyword;
+ use crate::derives::*;
+@@ -369,6 +369,17 @@ impl From<ColorComponent<f32>> for ComponentDetails {
+ }
+
+ impl AbsoluteColor {
++    /// Returns whether any color component or alpha is `none`.
++    #[inline]
++    pub fn has_none_components(&self) -> bool {
++        self.flags.intersects(
++            ColorFlags::C0_IS_NONE
++                | ColorFlags::C1_IS_NONE
++                | ColorFlags::C2_IS_NONE
++                | ColorFlags::ALPHA_IS_NONE,
++        )
++    }
++
+     /// A fully transparent color in the legacy syntax.
+     pub const TRANSPARENT_BLACK: Self = Self {
+         components: ColorComponents(0.0, 0.0, 0.0),
+diff --git a/color/to_css.rs b/color/to_css.rs
+index 91f0f5c..87b792b 100644
+--- a/color/to_css.rs
++++ b/color/to_css.rs
+@@ -41,6 +41,29 @@ impl<'a> ToCss for ModernComponent<'a> {
+     }
+ }
+
++/// Write the `hsl()` or `hwb()` functional form while preserving `none`.
++pub(crate) fn write_hsl_hwb_functional<W>(
++    color: &AbsoluteColor,
++    dest: &mut CssWriter<W>,
++    percent: bool,
++) -> fmt::Result
++where
++    W: Write,
++{
++    debug_assert!(matches!(color.color_space, ColorSpace::Hsl | ColorSpace::Hwb));
++    dest.write_str(if color.color_space == ColorSpace::Hsl { "hsl(" } else { "hwb(" })?;
++    ModernComponent(&color.c0()).to_css(dest)?;
++    for component in [color.c1(), color.c2()] {
++        dest.write_char(' ')?;
++        ModernComponent(&component).to_css(dest)?;
++        if percent && matches!(component, Some(value) if value.is_finite()) {
++            dest.write_char('%')?;
++        }
++    }
++    serialize_color_alpha(dest, color.alpha(), false)?;
++    dest.write_char(')')
++}
++
+ impl ToCss for NumberOrPercentageComponent {
+     fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
+     where
+@@ -78,6 +101,11 @@ impl ToCss for AbsoluteColor {
+     {
+         match self.color_space {
+             ColorSpace::Srgb if self.flags.contains(ColorFlags::IS_LEGACY_SRGB) => {
++                if self.has_none_components() {
++                    let mut modern = *self;
++                    modern.flags.remove(ColorFlags::IS_LEGACY_SRGB);
++                    return modern.to_css(dest);
++                }
+                 // The "none" keyword is not supported in the rgb/rgba legacy syntax.
+                 let has_alpha = self.alpha != OPAQUE;
+
+@@ -96,6 +124,8 @@ impl ToCss for AbsoluteColor {
+             ColorSpace::Hsl | ColorSpace::Hwb => {
+                 if self.flags.contains(ColorFlags::IS_LEGACY_SRGB) {
+                     self.into_srgb_legacy().to_css(dest)
++                } else if self.has_none_components() {
++                    write_hsl_hwb_functional(self, dest, true)
+                 } else {
+                     self.to_color_space(ColorSpace::Srgb).to_css(dest)
+                 }
+diff --git a/values/specified/color.rs b/values/specified/color.rs
+index 9e85b87..ff2d780 100644
+--- a/values/specified/color.rs
++++ b/values/specified/color.rs
+@@ -6,7 +6,7 @@
+
+ use super::AllowQuirks;
+ use crate::color::mix::ColorInterpolationMethod;
+-use crate::color::{parsing, AbsoluteColor, ColorFunction, ColorMixItemList, ColorSpace};
++use crate::color::{parsing, AbsoluteColor, ColorFlags, ColorFunction, ColorMixItemList, ColorSpace};
+ use crate::derives::*;
+ use crate::device::Device;
+ use crate::parser::{Parse, ParserContext};
+@@ -171,9 +171,26 @@ impl ToCss for Absolute {
+         W: Write,
+     {
+         if let Some(ref authored) = self.authored {
+-            dest.write_str(authored)
+-        } else {
+-            self.color.to_css(dest)
++            return dest.write_str(authored);
++        }
++        if self.color.has_none_components() {
++            match self.color.color_space {
++                ColorSpace::Srgb if self.color.flags.contains(ColorFlags::IS_LEGACY_SRGB) => {
++                    let mut color = self.color;
++                    color.flags.remove(
++                        ColorFlags::C0_IS_NONE
++                            | ColorFlags::C1_IS_NONE
++                            | ColorFlags::C2_IS_NONE
++                            | ColorFlags::ALPHA_IS_NONE,
++                    );
++                    return color.to_css(dest);
++                },
++                ColorSpace::Hsl | ColorSpace::Hwb => {
++                    return crate::color::to_css::write_hsl_hwb_functional(&self.color, dest, false);
++                },
++                _ => {},
++            }
+         }
++        self.color.to_css(dest)
+     }
+ }

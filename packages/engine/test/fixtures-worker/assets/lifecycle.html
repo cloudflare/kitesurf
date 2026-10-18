@@ -1,0 +1,52 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>kitesurf lifecycle fixture</title>
+  <script>
+    globalThis.__ks_lifecycle_log = [];
+    globalThis.__ks_lifecycle_push = (label) => globalThis.__ks_lifecycle_log.push({
+      label,
+      readyState: document.readyState,
+    });
+    globalThis.__ks_lifecycle_push("inline-1");
+
+    document.addEventListener("DOMContentLoaded", () => globalThis.__ks_lifecycle_push("DOMContentLoaded"));
+    document.addEventListener("readystatechange", () => globalThis.__ks_lifecycle_push("readystatechange:" + document.readyState));
+    window.addEventListener("load", () => globalThis.__ks_lifecycle_push("load"));
+    // Slice 7g: unload-family listeners both push to the in-isolate
+    // log AND console.log a sentinel. Since the next navigate spawns
+    // a NEW isolate, the in-isolate log is unreachable from outside;
+    // the console.log routes through PageScript's console buffer →
+    // Runtime.consoleAPICalled, which the demo reads via puppeteer
+    // page.on("console") to verify these events actually fired.
+    window.addEventListener("beforeunload", () => {
+      globalThis.__ks_lifecycle_push("beforeunload");
+      console.log("[lifecycle] beforeunload fired");
+    });
+    window.addEventListener("unload", () => {
+      globalThis.__ks_lifecycle_push("unload");
+      console.log("[lifecycle] unload fired");
+    });
+    window.addEventListener("pagehide", () => {
+      globalThis.__ks_lifecycle_push("pagehide");
+      console.log("[lifecycle] pagehide fired");
+    });
+    window.addEventListener("pageshow", () => globalThis.__ks_lifecycle_push("pageshow"));
+  </script>
+  <script src="/__fixtures/lifecycle-defer.js" defer></script>
+  <script src="/__fixtures/lifecycle-async.js" async></script>
+  <script>
+    globalThis.__ks_lifecycle_push("inline-2");
+  </script>
+</head>
+<body>
+  <h1 id="hdr">lifecycle</h1>
+</body>
+</html>

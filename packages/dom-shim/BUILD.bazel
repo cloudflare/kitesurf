@@ -1,0 +1,96 @@
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary")
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@npm//packages/dom-shim:typescript/package_json.bzl", tsc = "bin")
+load("//bazel:checks.bzl", "strict_ratchet_test", "tsc_test", "workspace_configs")
+
+npm_link_all_packages(name = "node_modules")
+
+copy_file(
+    name = "editing_implementation",
+    src = "@wpt_editing//:editing/include/implementation.js",
+    out = "src/editing/implementation.js",
+)
+
+js_library(
+    name = "srcs",
+    srcs = [
+        "package.json",
+        "tsconfig.json",
+        ":editing_implementation",
+    ] + glob(["src/**"], exclude = ["src/editing/implementation.js"]),
+    deps = [
+        ":node_modules/@kitesurf/jsrpc-types",
+        ":node_modules/@opentelemetry/api",
+        ":node_modules/webmcp-types",
+    ],
+    visibility = ["//packages/engine/test/e2e:__pkg__"],
+)
+
+js_library(
+    name = "webidl_generated",
+    srcs = [
+        "src/css-typed-om.webidl.generated.ts",
+        "src/idl/model.generated.ts",
+        "src/idl/runtime.generated.ts",
+        "src/idl/type-gaps.json",
+        "src/idl/types.generated.ts",
+    ],
+    visibility = ["//scripts:__pkg__"],
+)
+
+js_binary(
+    name = "build_tool",
+    data = [
+        "scripts/editing-implementation.mjs",
+        ":node_modules/esbuild",
+        ":node_modules/vite",
+        "//scripts:declaration_twin_guard",
+    ],
+    entry_point = "scripts/build.mjs",
+)
+
+js_run_binary(
+    name = "dist",
+    srcs = [":srcs"],
+    out_dirs = ["dist"],
+    chdir = package_name(),
+    env = {"KITESURF_WPT_EDITING_IMPLEMENTATION": "src/editing/implementation.js"},
+    mnemonic = "DomShimBuild",
+    progress_message = "Bundling dom-shim",
+    tool = ":build_tool",
+)
+
+js_library(
+    name = "pkg",
+    srcs = [":dist"],
+    deps = [":srcs"],
+    visibility = ["//visibility:public"],
+)
+
+tsc_test(
+    name = "types",
+    bin = tsc,
+    data = [
+        ":srcs",
+        "//:node_modules/@cloudflare/workers-types",
+        "//packages/core/pkg",
+        "//packages/page-script:internal_state",
+    ],
+)
+
+strict_ratchet_test(
+    name = "types_strict",
+    baseline = "strict-baseline.json",
+    data = [
+        ":node_modules/typescript",
+        ":srcs",
+        "//:node_modules/@cloudflare/workers-types",
+        "//packages/core/pkg",
+        "//packages/page-script:internal_state",
+    ],
+)
+
+build_test(name = "build", targets = [":dist"])
+workspace_configs()

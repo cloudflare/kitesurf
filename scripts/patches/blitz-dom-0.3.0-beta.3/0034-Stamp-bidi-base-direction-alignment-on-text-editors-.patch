@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 12:53:20 +0100
+Subject: [PATCH] Stamp bidi base direction + alignment on text editors from
+ CSS
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+create_text_editor styled the parley editor with font size, line
+height and brush only: no direction, no alignment. Every input and
+textarea rendered with parley's whole-text first-strong autodetect
+and Start alignment, so dir=rtl had no visual effect and dir=auto
+missed the spec's per-paragraph heuristic.
+
+Read computed unicode-bidi + direction and map them to the new
+parley BaseDirection (plaintext → AutoPerParagraph, else forced
+Ltr/Rtl), and map text-align into editor alignment (same keyword
+mapping as inline layout). The UA sheet's -moz-dir-attr-* rules
+never matched (servo stylo has no such pseudo-classes): replace
+them with HTML-spec [dir] attribute rules so computed direction
+and plaintext are actually populated.
+
+Against blitz-dom 0.3.0-beta.3: upstream already maps text-align and
+direction onto the editor and ships the [dir] attribute rules; what
+remains is plaintext -> AutoPerParagraph for editors and the plaintext
+rule for textarea/pre/input[dir=auto].
+---
+ assets/default.css      | 7 +++++--
+ src/layout/construct.rs | 9 ++++++++-
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/assets/default.css b/assets/default.css
+index 03060be..ef832f8 100644
+--- a/assets/default.css
++++ b/assets/default.css
+@@ -246,8 +246,11 @@ bdo:-moz-has-dir-attr {
+     unicode-bidi: isolate-override;
+ }
+
+-textarea:-moz-dir-attr-like-auto,
+-pre:-moz-dir-attr-like-auto {
++/* dir=auto on text-bearing controls means per-paragraph
++   first-strong (plaintext); non-textual inputs never paint text. */
++textarea[dir="auto" i],
++pre[dir="auto" i],
++input[dir="auto" i] {
+     unicode-bidi: plaintext;
+ }
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 27138c5..792aea7 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1105,9 +1105,16 @@ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multi
+         .primary_styles()
+         .map(|s| stylo_to_parley::text_align(s.clone_text_align()))
+         .unwrap_or(parley::layout::Alignment::Start);
++    // `unicode-bidi: plaintext` (the UA sheet's dir=auto rule for
++    // text controls) means per-paragraph first-strong, not whole-text.
+     let base_direction = node
+         .primary_styles()
+-        .map(|s| stylo_to_parley::base_direction(s.clone_direction(), s.clone_unicode_bidi()))
++        .map(|s| match s.clone_unicode_bidi() {
++            style::computed_values::unicode_bidi::T::Plaintext => {
++                parley::BaseDirection::AutoPerParagraph
++            }
++            bidi => stylo_to_parley::base_direction(s.clone_direction(), bidi),
++        })
+         .unwrap_or(parley::BaseDirection::Auto);
+
+     let initial_text = if is_multiline {

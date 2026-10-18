@@ -1,0 +1,114 @@
+load("@aspect_rules_js//js:defs.bzl", "js_run_binary")
+load("@wpt_buckets//:defs.bzl", "BUCKETS")
+load(
+    ":defs.bzl",
+    "retry_int_setting",
+    "retry_string_setting",
+    "retry_tests_setting",
+    "wpt_bucket",
+    "wpt_merge",
+    "wpt_runplan",
+    "wpt_retry",
+)
+load("//bazel:executors.bzl", "WPT")
+load("//bazel:paths.bzl", "bin_relative", "exec_path")
+
+wpt_bucket(
+    name = "smoke",
+    tests = [
+        "/css/css-flexbox/align-content-horiz-001a.html",
+        "/css/css-flexbox/align-content-horiz-001b.html",
+        "/css/css-flexbox/align-content-horiz-002.html",
+        "/css/css-flexbox/align-content-rounding.html",
+        "/css/css-flexbox/align-content-stretch-rounding.html",
+        "/css/css-flexbox/align-content-vert-001a.html",
+        "/css/css-flexbox/align-content-vert-001b.html",
+        "/css/css-flexbox/align-content-vert-002.html",
+        "/css/css-flexbox/align-content-wrap-002.html",
+        "/css/css-flexbox/align-content-wrap-005.html",
+        "/dom/nodes/Node-childNodes-cache-2.html",
+        "/dom/nodes/Node-childNodes-cache.html",
+        "/dom/nodes/Node-childNodes.html",
+        "/dom/nodes/Node-cloneNode-XMLDocument.html",
+        "/dom/nodes/Node-cloneNode-document-with-doctype.html",
+        "/dom/nodes/Node-cloneNode-on-inactive-document-crash.html",
+        "/dom/nodes/Node-cloneNode-svg.html",
+        "/dom/nodes/Node-cloneNode.html",
+        "/dom/nodes/Node-compareDocumentPosition.html",
+        "/dom/nodes/Node-constants.html",
+        "/dom/nodes/Node-contains.html",
+        "/encoding/api-basics.any.html",
+        "/encoding/api-invalid-label.any.html?1-1000",
+        "/encoding/api-invalid-label.any.html?1001-2000",
+        "/encoding/api-invalid-label.any.html?2001-3000",
+        "/encoding/api-invalid-label.any.html?3001-last",
+        "/encoding/api-replacement-encodings.any.html",
+        "/encoding/api-surrogates-utf8.any.html",
+    ],
+)
+
+[wpt_bucket(name = name, tests = tests) for name, tests in BUCKETS.items()]
+
+filegroup(name = "buckets", srcs = [":" + name for name in BUCKETS])
+
+wpt_runplan(name = "runplan", buckets = ["smoke"] + sorted(BUCKETS.keys()))
+
+wpt_merge(
+    name = "merged",
+    buckets = sorted(BUCKETS.keys()),
+    visibility = ["//scripts:__pkg__"],
+)
+
+wpt_merge(
+    name = "merged_full",
+    buckets = sorted(BUCKETS.keys()),
+    full = True,
+)
+
+retry_tests_setting(name = "retry_test", build_setting_default = [])
+retry_int_setting(name = "retry_draws", build_setting_default = 3)
+retry_string_setting(name = "retry_nonce", build_setting_default = "")
+
+wpt_retry(
+    name = "retry",
+    exec_properties = WPT,
+    visibility = ["//scripts:__pkg__"],
+)
+
+filegroup(
+    name = "retry_manifest",
+    srcs = [":retry"],
+    output_group = "manifest",
+    visibility = ["//scripts:__pkg__"],
+)
+
+js_run_binary(
+    name = "inventory",
+    srcs = ["//:wpt_revision", "//bazel:pyyaml"],
+    outs = ["wpt-inventory.json"],
+    args = [
+        "--pythonpath",
+        exec_path("//bazel:pyyaml"),
+        "--out",
+        bin_relative("tests/wpt/wpt-inventory.json"),
+        "--no-reference",
+        "--revision-file",
+        exec_path("//:wpt_revision"),
+    ],
+    # Reads KITESURF_WPT_DIR when passed with --action_env.
+    use_default_shell_env = True,
+    exec_properties = WPT,
+    mnemonic = "WptInventory",
+    progress_message = "Listing the tests in the pinned public WPT corpus",
+    tool = "//scripts:wpt_inventory",
+)
+
+test_suite(
+    name = "expectations_test",
+    tests = ["//scripts:wpt_expectations_test"],
+)
+
+alias(
+    name = "update_expectations",
+    actual = "//scripts:wpt_update_expectations",
+)

@@ -1,0 +1,24 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>body { margin: 0; background: #fff }</style>
+<script>
+  // JS-created canvas ON PURPOSE: the static-HTML sniff cannot
+  // see it, so a Lazy session must take the upgrade path.
+
+  // That means getContext kicks the fetch and the text-op queue
+  // hold keeps fillText out of wasm until outlines exist.
+  var c = document.createElement("canvas");
+  c.id = "c";
+  c.width = 400;
+  c.height = 100;
+  document.body.appendChild(c);
+  var ctx = c.getContext("2d");
+  ctx.fillStyle = "#f00";
+  ctx.font = "32px sans-serif";
+  ctx.fillText("Canvas Text", 10, 60);
+  setTimeout(function () { document.title = "DRAWN"; }, 300);
+</script>

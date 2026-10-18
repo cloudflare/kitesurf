@@ -1,0 +1,106 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 1 Aug 2026 20:36:03 +0100
+Subject: [PATCH] Apply the re-homed abspos translate when painting children
+
+blitz-dom re-homes an abspos box that `resolve` re-anchored to its CSS
+containing block back to its flow parent for painting, so it lands at
+its DOM position in paint order (CSS 2.1 Appendix E tree order).
+
+Its final_layout.location is still in the containing block's coordinate
+space, so descend through the same pre_translate the hoisted-children
+branches already use.
+
+Culling: taffy's bounds cannot cover a re-homed box, since it is not a
+layout child of its flow parent, so the clip-rect cull and the
+zero-area shortcut widen by the node's post-layout rehomed_reach
+instead of trusting them. Without this, a clipped screenshot over
+abspos content under a zero-height <body> came back blank. Widening the
+cull, rather than disabling it along the whole ancestor chain, keeps
+every node without re-homed content on the exact shortcuts it had
+before. Disabling it made recorded scenes grow until the rasterizer's
+wasm aborted.
+---
+ src/render.rs | 54 +++++++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 39 insertions(+), 15 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 246fcd7..a7cd774 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -401,6 +401,18 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             y: -self.initial_y,
+         }) * transform;
+         let screen_bbox = screen_transform.transform_rect_bbox(overflow.union(border_box));
++        let screen_bbox = match node.rehomed_reach.get() {
++            Some((x0, y0, x1, y1)) => {
++                let reach = Rect::new(
++                    box_position.x + x0 as f64 * self.scale,
++                    box_position.y + y0 as f64 * self.scale,
++                    box_position.x + x1 as f64 * self.scale,
++                    box_position.y + y1 as f64 * self.scale,
++                );
++                screen_bbox.union(screen_transform.transform_rect_bbox(reach))
++            }
++            None => screen_bbox,
++        };
+
+         // Cull elements that fall entirely outside the current clip rectangle. In addition to
+         // the viewport, `clip_rect` is narrowed by any ancestor scrollport (see below), so this
+@@ -434,7 +446,11 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         let clip_area = content_box_size.width * content_box_size.height;
+         let overflow_area =
+             node.scrollable_overflow().width() * node.scrollable_overflow().height();
+-        if should_clip && clip_area < 0.01 && overflow_area < 0.01 {
++        if should_clip
++            && clip_area < 0.01
++            && overflow_area < 0.01
++            && node.rehomed_reach.get().is_none()
++        {
+             return;
+         }
+
+@@ -1061,21 +1077,29 @@ impl ElementCx<'_, '_> {
+         // Regular children
+         if let Some(children) = &*self.node.paint_children.borrow() {
+             for child_id in children {
+-                // Fixed-position children of the root element are positioned against
+-                // the viewport and do not scroll with it, so cancel out the viewport
+-                // scroll (applied in `paint_scene`). A fixed box contained by a
+-                // transformed ancestor scrolls with it like any out-of-flow box.
+                 let child = &self.context.dom.as_ref().tree()[*child_id];
+-                let child_transform = if child.taffy_position() == taffy::Position::Fixed
+-                    && Some(self.node.id) == self.context.root_element_id
+-                {
+-                    let scroll = self.context.dom.as_ref().viewport_scroll();
+-                    parent_style_transform.pre_translate(kurbo::Vec2 {
+-                        x: scroll.x * self.scale,
+-                        y: scroll.y * self.scale,
+-                    })
+-                } else {
+-                    parent_style_transform
++                let child_transform = match child.paint_parent_override.get() {
++                    Some(parent) if parent == self.node.id => {
++                        let translation = child.rehomed_paint_translate(parent);
++                        parent_style_transform.pre_translate(kurbo::Vec2 {
++                            x: translation.x as f64 * self.scale,
++                            y: translation.y as f64 * self.scale,
++                        })
++                    }
++                    // Fixed-position children of the root element are positioned against
++                    // the viewport and do not scroll with it, so cancel out the viewport
++                    // scroll (applied in `paint_scene`). A fixed box contained by a
++                    // transformed ancestor scrolls with it like any out-of-flow box.
++                    _ if child.taffy_position() == taffy::Position::Fixed
++                        && Some(self.node.id) == self.context.root_element_id =>
++                    {
++                        let scroll = self.context.dom.as_ref().viewport_scroll();
++                        parent_style_transform.pre_translate(kurbo::Vec2 {
++                            x: scroll.x * self.scale,
++                            y: scroll.y * self.scale,
++                        })
++                    }
++                    _ => parent_style_transform,
+                 };
+                 self.render_node(scene, *child_id, child_transform, clip_rect);
+             }

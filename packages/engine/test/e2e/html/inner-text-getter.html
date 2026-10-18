@@ -1,0 +1,29 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<div id="a">  abc
+   def  </div>
+<div id="b">abc <br> def</div>
+<div id="c"><div>abc</div><p>def</p>ghi</div>
+<div id="d">abc<span style="display:none">hidden</span><span style="visibility:hidden">gone</span>def</div>
+<pre id="e">a  b
+c</pre>
+<table id="f"><tr><td>a</td><td>b</td></tr><tr><td>c</td></tr></table>
+<div id="g" style="display:none">raw  text</div>
+<p id="status">init</p>
+<script>
+  var report = {};
+  function t(id) { return document.getElementById(id).innerText; }
+  report.collapse = t("a") === "abc def";
+  report.hardBreak = t("b") === "abc\ndef";
+  report.blocks = t("c") === "abc\n\ndef\n\nghi";
+  report.hidden = t("d") === "abcdef";
+  report.pre = t("e") === "a  b\nc";
+  report.table = t("f") === "a\tb\nc";
+  report.notRenderedFallsBack = t("g") === "raw  text";
+  globalThis.__itReport = JSON.stringify(report);
+  document.getElementById("status").textContent = "done";
+</script>

@@ -1,0 +1,42 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library", "js_run_binary")
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
+load("//bazel:checks.bzl", "workspace_configs")
+load("//bazel:executors.bzl", "RUST")
+load("//bazel:paths.bzl", "exec_path")
+
+js_run_binary(
+    name = "wasm_pkg",
+    srcs = [
+        "//bazel:wasm_bindgen",
+        "//bazel:wasm_opt",
+        "//packages/core:kitesurf_core",
+    ],
+    outs = [
+        "kitesurf_core.d.ts",
+        "kitesurf_core.glue.d.ts",
+        "kitesurf_core.glue.js",
+        "kitesurf_core.js",
+        "kitesurf_core_bg.wasm",
+        "kitesurf_core_bg.wasm.d.ts",
+    ],
+    args = [
+        "--postprocess",
+        "../../../$(execpath //packages/core:kitesurf_core)",
+    ],
+    env = {
+        "WASM_BINDGEN_BIN": exec_path("//bazel:wasm_bindgen"),
+        "WASM_OPT_BIN": exec_path("//bazel:wasm_opt"),
+    },
+    exec_properties = RUST,
+    mnemonic = "WasmPostprocess",
+    progress_message = "wasm-bindgen + wasm-opt kitesurf_core",
+    tool = "//scripts:build_wasm",
+)
+
+js_library(
+    name = "pkg",
+    srcs = ["package.json", ":wasm_pkg"],
+    visibility = ["//visibility:public"],
+)
+
+workspace_configs()

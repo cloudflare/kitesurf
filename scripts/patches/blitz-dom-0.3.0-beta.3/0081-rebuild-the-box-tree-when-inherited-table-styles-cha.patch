@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 12 Aug 2026 18:57:02 +0100
+Subject: [PATCH] rebuild the box tree when inherited table styles change
+
+border-spacing, border-collapse, caption-side and empty-cells are
+inherited, and an anonymous table wrapper only ever picks them up from
+its parent via style_for_anonymous during box construction.
+
+compute_layout_damage did not look at the InheritedTable struct, so a
+change to any of them fell through to bare RELAYOUT. The parent never
+re-collected, create_anonymous_table never re-ran, and the wrapper kept
+the border-spacing it was created with.
+
+Stylo itself declares all four servo_restyle_damage="rebuild_box"; this
+just stops blitz's hand-rolled damage from dropping that on the floor.
+---
+ src/layout/damage.rs | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index 2486bc1..bd1682d 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -418,6 +418,15 @@ pub(crate) fn compute_layout_damage(old: &ComputedValues, new: &ComputedValues)
+             return true;
+         }
+
++        // border-spacing/-collapse/caption-side/empty-cells are inherited, and reach an
++        // anonymous table wrapper only via style_for_anonymous at box-construction time.
++
++        // Stylo declares them servo_restyle_damage="rebuild_box"; without a rebuild here the
++        // parent never re-collects, so the wrapper keeps the values it was created with.
++        if old.get_inherited_table() != new.get_inherited_table() {
++            return true;
++        }
++
+         if new_box.display.outside() == DisplayOutside::Block
+             && new_box.display.inside() == DisplayInside::Flow
+         {

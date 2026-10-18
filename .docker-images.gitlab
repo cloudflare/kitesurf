@@ -1,0 +1,7 @@
+images:
+  - name: build-image
+    dockerfile: ./.gitlab/build-images/Dockerfile.build
+    context: ./.gitlab/build-images
+    enable_remote_cache: true
+    architectures:
+      - amd64

@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 26 Sep 2026 13:27:43 +0100
+Subject: [PATCH] Treat a null node as past the end of the document in isBefore
+
+getAllContainedNodes, getAllEffectivelyContainedNodes and friends walk
+from the range start while isBefore(node, stop), where stop is the node
+after the range. Once the range ends in the document's last node, stop
+is null, and so is node at the end of the walk. compareDocumentPosition
+throws a TypeError on null, in browsers and in the shim alike, so every
+command threw.
+
+Upstream only runs inside WPT pages, which always have content after
+the editing host, so it never walked off the end. Real pages often end
+in their editor.
+---
+ editing/include/implementation.js | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/editing/include/implementation.js b/editing/include/implementation.js
+index 0eac1ca..516047a 100644
+--- a/editing/include/implementation.js
++++ b/editing/include/implementation.js
+@@ -84,6 +84,10 @@ function isDescendant(descendant, ancestor) {
+  * Returns true if node1 is before node2 in tree order, false otherwise.
+  */
+ function isBefore(node1, node2) {
++    // The contained-node walks pass the node after the range as node2, which
++    // is null once the range ends in the document's last node.
++    if (node2 === null) return node1 !== null;
++    if (node1 === null) return false;
+     return Boolean(node1.compareDocumentPosition(node2) & Node.DOCUMENT_POSITION_FOLLOWING);
+ }
+ 

@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 1 Aug 2026 23:05:54 +0100
+Subject: [PATCH] compare_document_order: pseudo-elements order by box position
+
+Pseudo-element nodes carry a real `parent` but are not in that
+parent's `children`, so the sibling scan at the divergence point never
+found them: the loop met whichever real sibling came first and returned
+an ordering as if the pseudo were on the other side (or fell through to
+Equal). A `.footer::before` compared against a later real child sorted
+after it.
+
+Consumers of document order that can meet pseudo ids (the paint-order
+tiebreak for re-homed abspos boxes being the first) need CSS box
+order: ::before precedes all of the parent's children, ::after follows
+them. Selection/Range code never passes pseudo ids, so this only makes
+previously-arbitrary answers correct.
+
+todomvc again: `.footer::before` (abspos overlay, re-homed alongside
+`.filters`) sorted above `.clear-completed` and swallowed its clicks.
+---
+ src/traversal.rs | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/src/traversal.rs b/src/traversal.rs
+index 40c39e5..3286468 100644
+--- a/src/traversal.rs
++++ b/src/traversal.rs
+@@ -415,6 +415,17 @@ impl BaseDocument {
+         let parent_id = chain_a[common_depth - 1];
+         let parent = &self.nodes[parent_id];
+
++        // Pseudo-element nodes are not in parent.children, so the sibling
++        // scan below would never find them (and fell through to Equal /
++        // whichever real sibling it met first). Box order: ::before
++        // precedes all of the parent's children, ::after follows them.
++        if parent.before() == Some(divergent_a) || parent.after() == Some(divergent_b) {
++            return Ordering::Less;
++        }
++        if parent.after() == Some(divergent_a) || parent.before() == Some(divergent_b) {
++            return Ordering::Greater;
++        }
++
+         for &child_id in &parent.children {
+             if child_id == divergent_a {
+                 return Ordering::Less;

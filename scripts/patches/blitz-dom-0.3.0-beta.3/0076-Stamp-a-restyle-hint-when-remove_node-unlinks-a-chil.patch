@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 5 Aug 2026 00:57:06 +0100
+Subject: [PATCH] Stamp a restyle hint when remove_node unlinks a child
+
+remove_node marked the parent's ancestors dirty and stamped damage, but
+never put a RestyleHint on the parent itself, unlike its sibling
+remove_and_drop_node. The traversal therefore reached the parent's
+subtree without anything asking for a recascade, so every selector that
+reads the parent's child list kept stale style after a removeChild:
+:empty, :nth-child and :has all reproduce.
+
+This is the detach-without-drop path, which is what the DOM shim's
+removeChild and Element.remove call, so page JS hits it directly.
+---
+ src/mutator.rs | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 2b169ef..4e15e46 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -689,6 +689,17 @@ impl DocumentMutator<'_> {
+             self.mutations_occurred |= node_is_in_document;
+             let parent = &mut self.doc.nodes[parent_id];
+             parent.insert_damage(ALL_DAMAGE);
++
++            // Marking ancestors dirty without stamping a hint leaves
++            // nothing to recascade the parent.
++
++            // Any selector reading the parent's child list (`:empty`,
++            // `:nth-child`, `:has`) would keep stale style after removeChild.
++            if parent.flags.is_in_document() {
++                if let Some(mut data) = parent.try_stylo_element_data_mut().and_then(|s| s.get_mut()) {
++                    data.hint |= RestyleHint::restyle_subtree();
++                }
++            }
+             // Mark ancestors dirty so the style traversal visits this subtree.
+             parent.mark_ancestors_dirty();
+             parent.children.retain(|id| *id != node_id);

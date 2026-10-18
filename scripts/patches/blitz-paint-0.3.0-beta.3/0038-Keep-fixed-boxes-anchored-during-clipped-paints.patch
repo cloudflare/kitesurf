@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 21 Sep 2026 20:12:48 +0100
+Subject: [PATCH] Keep fixed boxes anchored during clipped paints
+
+A clipped paint moves the viewport scroll to translate the scene, not
+the page scroll. blitz-dom records the page scroll to keep fixed boxes
+at (set_viewport_scroll_with_fixed_anchor), so cancel that anchor
+instead of the viewport scroll for fixed children of the root element.
+
+This is the paint half of the blitz-dom patch of the same name.
+blitz-dom does not bake the scroll into fixed boxes' layout locations,
+so the cancel happens here.
+---
+ src/render.rs | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 5706926..6d43fa0 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -1178,12 +1178,14 @@ impl ElementCx<'_, '_> {
+                     }
+                     // Fixed-position children of the root element are positioned against
+                     // the viewport and do not scroll with it, so cancel out the viewport
+-                    // scroll (applied in `paint_scene`). A fixed box contained by a
+-                    // transformed ancestor scrolls with it like any out-of-flow box.
++                    // scroll (applied in `paint_scene`), or the fixed anchor a clipped
++                    // paint keeps them at (`set_viewport_scroll_with_fixed_anchor`).
++                    // A fixed box contained by a transformed ancestor scrolls with it
++                    // like any out-of-flow box.
+                     _ if child.taffy_position() == taffy::Position::Fixed
+                         && Some(self.node.id) == self.context.root_element_id =>
+                     {
+-                        let scroll = self.context.dom.as_ref().viewport_scroll();
++                        let scroll = self.context.dom.as_ref().tree().fixed_anchor_scroll();
+                         parent_style_transform.pre_translate(kurbo::Vec2 {
+                             x: scroll.x * self.scale,
+                             y: scroll.y * self.scale,

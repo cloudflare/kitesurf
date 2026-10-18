@@ -1,0 +1,87 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 18 Sep 2026 11:31:28 +0100
+Subject: [PATCH] Apply relative insets to inline floats
+
+Against blitz-dom 0.3.0-beta.3: the inset is read from the float's
+on-the-fly layout style and only applied to position: relative floats,
+as upstream does for relative atomic inlines; it also moves the location
+the float's out-of-flow candidates are translated by.
+---
+ src/layout/inline.rs | 56 ++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 54 insertions(+), 2 deletions(-)
+
+diff --git a/src/layout/inline.rs b/src/layout/inline.rs
+index 75de5f8..0b932cd 100644
+--- a/src/layout/inline.rs
++++ b/src/layout/inline.rs
+@@ -747,6 +747,58 @@ impl LayoutPassState<'_> {
+                         // shadowed the container and sent its cache bust here.
+                         let float_id = NodeId::from_u64(box_break_data.inline_box_id);
+
++                        // Relative insets shift the float from where it was placed.
++                        let relative_inset = {
++                            let container_direction =
++                                self.nodes[node_id].layout_style().direction();
++                            let child_style = self.child_layout_style(&self.nodes[float_id]);
++                            if child_style.position() == taffy::Position::Relative {
++                                let containing_block_size = Size {
++                                    width: width / scale,
++                                    height: known_dimensions
++                                        .height
++                                        .or(node_size.height)
++                                        .map(|height| {
++                                            (height - content_box_inset.vertical_axis_sum())
++                                                .max(0.0)
++                                        })
++                                        .unwrap_or(0.0),
++                                };
++                                let inset_style = child_style.inset();
++                                let left = inset_style
++                                    .left
++                                    .maybe_resolve(containing_block_size.width, resolve_calc_value);
++                                let right = inset_style
++                                    .right
++                                    .maybe_resolve(containing_block_size.width, resolve_calc_value);
++                                Point {
++                                    x: if container_direction == Direction::Rtl {
++                                        right.map(|value| -value).or(left).unwrap_or(0.0)
++                                    } else {
++                                        left.or(right.map(|value| -value)).unwrap_or(0.0)
++                                    },
++                                    y: inset_style
++                                        .top
++                                        .maybe_resolve(
++                                            containing_block_size.height,
++                                            resolve_calc_value,
++                                        )
++                                        .or_else(|| {
++                                            inset_style
++                                                .bottom
++                                                .maybe_resolve(
++                                                    containing_block_size.height,
++                                                    resolve_calc_value,
++                                                )
++                                                .map(|value| -value)
++                                        })
++                                        .unwrap_or(0.0),
++                                }
++                            } else {
++                                Point::ZERO
++                            }
++                        };
++
+                         let (direction, clear, margin) = {
+                             let style = self.child_layout_style(&self.nodes[float_id]);
+                             // We can assume that the box is a float because we only set `break_on_box: true` for floats
+@@ -792,8 +844,8 @@ impl LayoutPassState<'_> {
+                         state.set_line_y((next_slot.y * scale) as f64);
+
+                         let location = taffy::Point {
+-                            x: pos.x + margin.left + container_pb.left,
+-                            y: pos.y + margin.top + container_pb.top,
++                            x: pos.x + margin.left + container_pb.left + relative_inset.x,
++                            y: pos.y + margin.top + container_pb.top + relative_inset.y,
+                         };
+                         let layout = self.nodes[float_id].unrounded_layout_mut();
+                         layout.size = output.size;

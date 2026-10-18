@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sun, 4 Oct 2026 03:16:13 +0100
+Subject: [PATCH] Add PaintScene::push_clip_path/pop_clip_path
+
+A caller that proves per-draw clipping matches a clip layer can avoid
+the group composite. Defaulting to push_clip_layer/pop_layer preserves
+existing backends until they opt in.
+---
+ src/lib.rs | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 8a7d6dc..fc12e41 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -250,5 +250,21 @@ pub trait PaintScene: RenderContext {
+     /// However, the transforms are not saved or modified by the layer stack.
+     fn push_clip_layer(&mut self, fill: Fill, transform: Affine, clip: &impl Shape);
+
++    /// Clips every drawing command until the matching `pop_clip_path`,
++    /// without isolating them in a layer. Only a caller that knows the
++    /// result matches `push_clip_layer` may use it, e.g. for a clip that
++    /// covers whole device pixels.
++    ///
++    /// Defaulted to a clip layer so a backend without layer-free clips
++    /// keeps today's output.
++    fn push_clip_path(&mut self, fill: Fill, transform: Affine, clip: &impl Shape) {
++        self.push_clip_layer(fill, transform, clip);
++    }
++
++    /// Close the most recent `push_clip_path`.
++    fn pop_clip_path(&mut self) {
++        self.pop_layer();
++    }
++
+     /// Pops the current layer.
+     fn pop_layer(&mut self);

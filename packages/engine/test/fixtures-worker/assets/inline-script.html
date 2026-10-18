@@ -1,0 +1,42 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>kitesurf inline script fixture</title>
+</head>
+<body>
+  <h1 id="hdr">kitesurf</h1>
+  <p id="status">init</p>
+  <script>
+    console.log("hello from inline script 1");
+    globalThis.__ks_marker = 1;
+  </script>
+  <script type="application/json">
+    { "this": "should be skipped — not JS" }
+  </script>
+  <script>
+    globalThis.__ks_marker++;
+    console.info("marker is now", globalThis.__ks_marker);
+  </script>
+  <script>
+    // Cross-script function-decl visibility: this helper is
+    // available to subsequent scripts via the shared module-
+    // function scope. (The legacy fixture had a deliberate throw
+    // here to exercise per-script error recovery; that property
+    // doesn't survive the script-bundle architecture, so we
+    // exercise the more useful cross-script-helper property
+    // instead.)
+    function fixtureHelper(n) { return n * 10; }
+  </script>
+  <script>
+    // Calls the helper declared in the previous script.
+    console.warn("helper(3) =", fixtureHelper(3));
+  </script>
+</body>
+</html>

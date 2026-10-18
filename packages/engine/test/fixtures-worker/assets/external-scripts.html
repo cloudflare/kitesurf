@@ -1,0 +1,28 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>kitesurf external scripts fixture</title>
+  <script>
+    // Bootstrap order tracker before any external script loads.
+    globalThis.__ks_order = [];
+    globalThis.__ks_log = (id) => globalThis.__ks_order.push(id);
+    __ks_log("inline-1");
+  </script>
+  <script src="/__fixtures/defer.js" defer></script>
+  <script src="/__fixtures/async.js" async></script>
+  <script src="/__fixtures/regular.js"></script>
+  <script>
+    __ks_log("inline-2");
+  </script>
+</head>
+<body>
+  <h1 id="hdr">external scripts</h1>
+</body>
+</html>

@@ -1,0 +1,43 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 21 Sep 2026 20:20:42 +0100
+Subject: [PATCH] Match Chromium's minimum tab advance
+
+Chromium advances an extra tab stop when the remaining distance is
+less than half a space width. Use the same threshold so proportional
+text near a stop does not render a thin tab sliver.
+---
+ src/style/mod.rs | 17 ++++++++++-------
+ 1 file changed, 10 insertions(+), 7 deletions(-)
+
+diff --git a/src/style/mod.rs b/src/style/mod.rs
+index 8a7d673..366e0f4 100644
+--- a/src/style/mod.rs
++++ b/src/style/mod.rs
+@@ -57,16 +57,19 @@ impl TabSize {
+         }
+     }
+
+-    /// The advance of a tab whose pen sits at `pen` from the line start:
+-    /// the distance to the next tab stop strictly beyond the pen, so a pen
+-    /// already on a stop advances a full stop, matching Chromium. The
+-    /// 0.001 epsilon snaps a pen that drifted a hair below a stop
+-    /// (accumulated f32 glyph advances) back onto it, so a tab after such
+-    /// a run advances a full stop instead of a near-zero sliver.
++    /// The advance of a tab whose pen sits at `pen` from the line start.
++    /// Chromium gives every tab at least half a space of visible width,
++    /// advancing an extra stop when the next one is closer than that. A pen
++    /// exactly on a stop therefore advances a full stop.
+     pub(crate) fn stop_advance(self, pen: f32, space_advance: f32) -> f32 {
+         let spacing = self.stop_spacing(space_advance);
+         if spacing > 0.0 {
+-            (((pen / spacing) + 0.001).floor() + 1.0) * spacing - pen
++            let distance = spacing - (pen % spacing);
++            if distance < space_advance / 2.0 {
++                distance + spacing
++            } else {
++                distance
++            }
+         } else {
+             0.0
+         }

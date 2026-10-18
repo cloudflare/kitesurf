@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 25 Jul 2026 23:34:19 +0100
+Subject: [PATCH] Add DocumentMutator::set_text_input_selection (JS selection
+ -> editor)
+
+Maps HTML selectionStart/selectionEnd (UTF-16 code units) onto the
+parley editor's byte-offset selection so the existing focused-node
+caret/selection paint renders what the shim's Selection API state
+describes.
+---
+ src/mutator.rs | 48 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 48 insertions(+)
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index a39647a..de45cbf 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1757,6 +1757,54 @@ impl<'doc> DocumentMutator<'doc> {
+         true
+     }
+
++    /// JS-side text-selection sync. Maps the HTML
++    /// selectionStart/selectionEnd (UTF-16 code-unit offsets) onto
++    /// the parley editor's byte-offset selection so the paint layer
++    /// (which reads editor.selection_geometry / cursor_geometry for
++    /// focused nodes) renders the caret and highlight the shim's
++    /// Selection API state describes.
++    pub fn set_text_input_selection(
++        &mut self,
++        target_id: NodeId,
++        start_u16: usize,
++        end_u16: usize,
++    ) -> bool {
++        if self.doc.get_node(target_id).is_none() {
++            return false;
++        }
++        let node = &mut self.doc.nodes[target_id];
++        let NodeData::Element(ref mut element) = node.data else {
++            return false;
++        };
++        let Some(input_data) = element.text_input_data_mut() else {
++            return false;
++        };
++        // UTF-16 code units → byte offsets. Inputs are small; the
++        // copy dodges the editor borrow across the driver call.
++        let text: String = input_data.editor.raw_text().to_string();
++        let to_byte = |cu: usize| -> usize {
++            let mut count = 0usize;
++            for (byte_idx, ch) in text.char_indices() {
++                if count >= cu {
++                    return byte_idx;
++                }
++                count += ch.len_utf16();
++            }
++            text.len()
++        };
++        let (sb, eb) = (to_byte(start_u16), to_byte(end_u16));
++        let mut font_ctx = self.doc.font_ctx.lock().unwrap();
++        let mut driver = input_data
++            .editor
++            .driver(&mut font_ctx, &mut self.doc.layout_ctx);
++        if sb == eb {
++            driver.move_to_byte(sb);
++        } else {
++            driver.select_byte_range(sb, eb);
++        }
++        true
++    }
++
+     fn process_button_input(&mut self, target_id: NodeId) {
+         let node = &self.doc.nodes[target_id];
+         let Some(data) = node.element_data() else {

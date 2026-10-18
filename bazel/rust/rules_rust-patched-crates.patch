@@ -1,0 +1,67 @@
+diff --git a/crate_universe/extensions.bzl b/crate_universe/extensions.bzl
+index 36bcbce..0abc366 100644
+--- a/crate_universe/extensions.bzl
++++ b/crate_universe/extensions.bzl
+@@ -529,6 +529,31 @@ def _collect_splicing_config(module, repository):
+ 
+     return config
+ 
++# Kitesurf resolves patched crates from pinned registry sources instead of local paths.
++def _kitesurf_patched_crates(module_ctx, cfg):
++    if not getattr(cfg, "manifests", None):
++        return {}
++    spec = module_ctx.path(cfg.manifests[0]).dirname.get_child("patched.json")
++    return json.decode(module_ctx.read(spec)) if spec.exists else {}
++
++def _kitesurf_registry_lock(module_ctx, lock, patched):
++    lines, in_package, name = [], False, None
++    for line in module_ctx.read(lock).splitlines():
++        lines.append(line)
++        if line.startswith("["):
++            in_package, name = line == "[[package]]", None
++        elif in_package and line.startswith("name = "):
++            name = line[len("name = "):].strip('"')
++        elif in_package and line.startswith("version = "):
++            crate = patched.get("%s %s" % (name, line[len("version = "):].strip('"')))
++            if crate:
++                lines.append('source = "registry+https://github.com/rust-lang/crates.io-index"')
++                lines.append('checksum = "%s"' % crate["sha256"])
++    module_ctx.file(lock, "\n".join(lines) + "\n")
++
+ def _generate_hub_and_spokes(
+         *,
+         module_ctx,
+@@ -656,6 +681,10 @@ def _generate_hub_and_spokes(
+             repository_name = cfg.name,
+         )
+ 
++        patched_crates = _kitesurf_patched_crates(module_ctx, cfg)
++        if patched_crates:
++            _kitesurf_registry_lock(module_ctx, splice_outputs.metadata.dirname.get_child("Cargo.lock"), patched_crates)
++
+         # If a cargo lockfile was not provided, use the splicing lockfile.
+         if cargo_lockfile == None:
+             cargo_lockfile = splice_outputs.cargo_lock
+@@ -730,6 +759,7 @@ def _generate_hub_and_spokes(
+     )
+ 
+     contents = json.decode(module_ctx.read(lockfile))
++    patched_crates = _kitesurf_patched_crates(module_ctx, cfg)
+ 
+     for crate in contents["crates"].values():
+         repo = crate["repository"]
+@@ -749,11 +779,12 @@ def _generate_hub_and_spokes(
+             # Replicates functionality in repo_http.j2.
+             build_file_content = module_ctx.read(crates_dir.get_child("BUILD.%s-%s.bazel" % (name, version)))
+             repo = repo["Http"]
++            patched = patched_crates.get("%s %s" % (name, version))
+             http_archive(
+                 name = crate_repo_name,
+-                patch_args = repo.get("patch_args", None),
++                patch_args = ["-p1"] if patched else repo.get("patch_args", None),
+                 patch_tool = repo.get("patch_tool", None),
+-                patches = repo.get("patches", None),
++                patches = patched["patches"] if patched else repo.get("patches", None),
+                 remote_patch_strip = 1,
+                 sha256 = repo.get("sha256", None),
+                 type = "tar.gz",

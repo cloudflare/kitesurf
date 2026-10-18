@@ -1,0 +1,142 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 9 Oct 2026 20:58:02 +0100
+Subject: [PATCH] vm: walk to the running bytecode once per instruction
+
+The dispatch loop walked frame -> code block -> bytecode to fetch the
+opcode, again to read the pc for the handler, and the handler walked
+it a third time to decode its operands. In wasm that chain is several
+dependent loads, and the loop itself was a fifth of interpretation
+time. Fetch it once and hand the handler a pointer to the bytes, which
+the frame keeps alive until the operation (after decoding) runs.
+
+boa-bench, wasm: compute geomean 1.07x (richards 1.16x, deltablue
+1.11x).
+---
+ src/vm/mod.rs        | 50 +++++++++++++++++++-------------------------
+ src/vm/opcode/mod.rs | 17 +++++++++------
+ 2 files changed, 33 insertions(+), 34 deletions(-)
+
+diff --git a/src/vm/mod.rs b/src/vm/mod.rs
+index 85f3b47..ed0aeb6 100644
+--- a/src/vm/mod.rs
++++ b/src/vm/mod.rs
+@@ -995,22 +995,19 @@ impl Context {
+         let _ks_depth = KsExecDepthGuard::enter();
+         let mut runtime_budget: u32 = budget;
+
+-        while let Some(byte) = self
+-            .vm
+-            .frame()
+-            .code_block
+-            .bytecode
+-            .bytes
+-            .get(self.vm.frame().pc as usize)
+-        {
+-            let opcode = Opcode::decode(*byte);
++        loop {
++            let frame = self.vm.frame();
++            let pc = frame.pc as usize;
++            let bytes: &[u8] = &frame.code_block.bytecode.bytes;
++            let Some(&byte) = bytes.get(pc) else {
++                break;
++            };
++            let bytes: *const [u8] = bytes;
++            let opcode = Opcode::decode(byte);
+
+             match self.execute_one(
+                 |context, opcode| {
+-                    let frame = context.vm.frame();
+-                    let pc = frame.pc as usize;
+-
+-                    OPCODE_HANDLERS_BUDGET[opcode as usize](context, pc, &mut runtime_budget)
++                    OPCODE_HANDLERS_BUDGET[opcode as usize](context, pc, bytes, &mut runtime_budget)
+                 },
+                 opcode,
+             ) {
+@@ -1029,23 +1026,20 @@ impl Context {
+
+     pub(crate) fn run(&mut self) -> CompletionRecord {
+         let _ks_depth = KsExecDepthGuard::enter();
+-        while let Some(byte) = self
+-            .vm
+-            .frame()
+-            .code_block
+-            .bytecode
+-            .bytes
+-            .get(self.vm.frame().pc as usize)
+-        {
+-            let opcode = Opcode::decode(*byte);
++        loop {
++            // Walk frame -> code block -> bytes once per instruction and share
++            // it with the handler. This walk is hot.
++            let frame = self.vm.frame();
++            let pc = frame.pc as usize;
++            let bytes: &[u8] = &frame.code_block.bytecode.bytes;
++            let Some(&byte) = bytes.get(pc) else {
++                break;
++            };
++            let bytes: *const [u8] = bytes;
++            let opcode = Opcode::decode(byte);
+
+             match self.execute_one(
+-                |context, opcode| {
+-                    let frame = context.vm.frame();
+-                    let pc = frame.pc as usize;
+-
+-                    OPCODE_HANDLERS[opcode as usize](context, pc)
+-                },
++                |context, opcode| OPCODE_HANDLERS[opcode as usize](context, pc, bytes),
+                 opcode,
+             ) {
+                 ControlFlow::Continue(()) => {}
+diff --git a/src/vm/opcode/mod.rs b/src/vm/opcode/mod.rs
+index 042dbc0..4dc5793 100644
+--- a/src/vm/opcode/mod.rs
++++ b/src/vm/opcode/mod.rs
+@@ -465,7 +465,9 @@ macro_rules! generate_opcodes {
+             )*
+         }
+
+-        type OpcodeHandler = fn(&mut Context, usize) -> ControlFlow<CompletionRecord>;
++        // The dispatch loop hands over the running frame's bytecode, which it
++        // already loaded, instead of each handler re-walking frame -> code block -> bytes.
++        type OpcodeHandler = fn(&mut Context, usize, *const [u8]) -> ControlFlow<CompletionRecord>;
+
+         pub(crate) const OPCODE_HANDLERS: [OpcodeHandler; 256] = {
+             [
+@@ -475,7 +477,7 @@ macro_rules! generate_opcodes {
+             ]
+         };
+
+-        type OpcodeHandlerBudget = fn(&mut Context, usize, &mut u32) -> ControlFlow<CompletionRecord>;
++        type OpcodeHandlerBudget = fn(&mut Context, usize, *const [u8], &mut u32) -> ControlFlow<CompletionRecord>;
+
+         pub(crate) const OPCODE_HANDLERS_BUDGET: [OpcodeHandlerBudget; 256] = {
+             [
+@@ -489,8 +491,10 @@ macro_rules! generate_opcodes {
+             pastey::paste! {
+                 #[inline(always)]
+                 #[allow(unused_parens)]
+-                fn [<handle_ $Variant:snake>](context: &mut Context, pc: usize) -> ControlFlow<CompletionRecord> {
+-                    let bytes = &context.vm.frame().code_block.bytecode.bytes;
++                fn [<handle_ $Variant:snake>](context: &mut Context, pc: usize, bytes: *const [u8]) -> ControlFlow<CompletionRecord> {
++                    // SAFETY: the running frame's bytecode; the frame keeps its code block
++                    // alive until `operation` runs, and the bytes are only read before it.
++                    let bytes = unsafe { &*bytes };
+                     let (args, next_pc) = <($($($FieldType),*)?)>::decode(bytes, pc + 1);
+                     context.vm.frame_mut().pc = next_pc as u32;
+                     let result = $Variant::operation(args, context);
+@@ -503,9 +507,10 @@ macro_rules! generate_opcodes {
+             pastey::paste! {
+                 #[inline(always)]
+                 #[allow(unused_parens)]
+-                fn [<handle_ $Variant:snake _budget>](context: &mut Context, pc: usize, budget: &mut u32) -> ControlFlow<CompletionRecord> {
++                fn [<handle_ $Variant:snake _budget>](context: &mut Context, pc: usize, bytes: *const [u8], budget: &mut u32) -> ControlFlow<CompletionRecord> {
+                     *budget = budget.saturating_sub(u32::from($Variant::COST));
+-                    let bytes = &context.vm.frame().code_block.bytecode.bytes;
++                    // SAFETY: as in the non-budget handler above.
++                    let bytes = unsafe { &*bytes };
+                     let (args, next_pc) = <($($($FieldType),*)?)>::decode(bytes, pc + 1);
+                     context.vm.frame_mut().pc = next_pc as u32;
+                     let result = $Variant::operation(args, context);

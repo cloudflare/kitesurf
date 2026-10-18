@@ -1,0 +1,220 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Thu, 30 Jul 2026 15:25:14 +0100
+Subject: [PATCH] hsl/hwb none serialization form + lab-family
+ keyword-none-as-zero
+
+Two Blink behaviors that WPT exposed:
+
+- None-carrying hsl()/hwb() computed values serialize s/l (w/b) with
+  '%' only when directly authored; relative-origin and color-mix
+  results use plain numbers. A new HSL_HWB_AS_PERCENT color flag is set
+  by the no-origin resolve path and stripped from mix results.
+- Bare channel keywords referencing a none origin channel yield 0 in
+  the lab(), lch(), oklab(), oklch() and color() families (the WPT file
+  carries a 'FIXME: Clarify with spec editors' for exactly this); rgb,
+  hsl and hwb keep carrying none forward. Literal none is untouched.
+
+Also fold zero-sum color-mix pairwise at 50/50 per fold instead of
+equal 1/n weights, so 3-item all-zero mixes match Chrome's expected
+color(srgb 0.25 0.12549 0.5 / 0) shape.
+---
+ color/color_function.rs | 33 +++++++++++++++++++++++++--------
+ color/component.rs      | 15 +++++++++++++++
+ color/mix.rs            | 17 ++++++++---------
+ color/mod.rs            |  2 ++
+ color/to_css.rs         |  6 +++++-
+ 5 files changed, 55 insertions(+), 18 deletions(-)
+
+diff --git a/color/color_function.rs b/color/color_function.rs
+index 49ad598..d2940fc 100644
+--- a/color/color_function.rs
++++ b/color/color_function.rs
+@@ -214,6 +214,19 @@ impl<Color> ColorFunction<Color> {
+             }};
+         }
+
++        macro_rules! convert_kw_zero {
++            ($variant:ident, $space:expr, $c0:expr, $c1:expr, $c2:expr, $alpha:expr) => {{
++                let converted = abs_origin.map(|o| o.to_color_space($space));
++                ColorFunction::$variant(
++                    Optional::from(origin),
++                    $c0.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    $c1.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    $c2.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    $alpha.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                )
++            }};
++        }
++
+         match self {
+             ColorFunction::Rgb(_, r, g, b, alpha) => {
+                 // rgb(..) channels are in the [0..255] range, so map the origin's
+@@ -243,16 +256,16 @@ impl<Color> ColorFunction<Color> {
+                 convert!(Hwb, ColorSpace::Hwb, c0, c1, c2, alpha)
+             },
+             ColorFunction::Lab(_, c0, c1, c2, alpha) => {
+-                convert!(Lab, ColorSpace::Lab, c0, c1, c2, alpha)
++                convert_kw_zero!(Lab, ColorSpace::Lab, c0, c1, c2, alpha)
+             },
+             ColorFunction::Lch(_, c0, c1, c2, alpha) => {
+-                convert!(Lch, ColorSpace::Lch, c0, c1, c2, alpha)
++                convert_kw_zero!(Lch, ColorSpace::Lch, c0, c1, c2, alpha)
+             },
+             ColorFunction::Oklab(_, c0, c1, c2, alpha) => {
+-                convert!(Oklab, ColorSpace::Oklab, c0, c1, c2, alpha)
++                convert_kw_zero!(Oklab, ColorSpace::Oklab, c0, c1, c2, alpha)
+             },
+             ColorFunction::Oklch(_, c0, c1, c2, alpha) => {
+-                convert!(Oklch, ColorSpace::Oklch, c0, c1, c2, alpha)
++                convert_kw_zero!(Oklch, ColorSpace::Oklch, c0, c1, c2, alpha)
+             },
+             ColorFunction::Color(_, c0, c1, c2, alpha, color_space) => {
+                 let converted = abs_origin.map(|o| {
+@@ -263,10 +276,10 @@ impl<Color> ColorFunction<Color> {
+                 });
+                 ColorFunction::Color(
+                     Optional::from(origin),
+-                    c0.to_computed_value(context, converted.as_ref()),
+-                    c1.to_computed_value(context, converted.as_ref()),
+-                    c2.to_computed_value(context, converted.as_ref()),
+-                    alpha.to_computed_value(context, converted.as_ref()),
++                    c0.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    c1.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    c2.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    alpha.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
+                     *color_space,
+                 )
+             },
+@@ -362,6 +375,8 @@ impl ColorFunction<ComputedColor> {
+
+                 if use_rgb_sytax {
+                     result.flags.insert(ColorFlags::IS_LEGACY_SRGB);
++                } else if no_origin {
++                    result.flags.insert(ColorFlags::HSL_HWB_AS_PERCENT);
+                 }
+
+                 result
+@@ -394,6 +409,8 @@ impl ColorFunction<ComputedColor> {
+
+                 if use_rgb_sytax {
+                     result.flags.insert(ColorFlags::IS_LEGACY_SRGB);
++                } else if no_origin {
++                    result.flags.insert(ColorFlags::HSL_HWB_AS_PERCENT);
+                 }
+
+                 result
+diff --git a/color/component.rs b/color/component.rs
+index 2603aa6..c86ff68 100644
+--- a/color/component.rs
++++ b/color/component.rs
+@@ -151,6 +151,21 @@ impl<ValueType: ColorComponentType> ColorComponent<ValueType> {
+         }
+     }
+
++    /// Compute a component, but map a bare channel keyword whose origin is
++    /// `none` to zero. Lab-family and `color()` relative colors use this rule.
++    pub fn to_computed_value_kw_none_as_zero(
++        &self,
++        context: Option<&computed::Context>,
++        origin_color: Option<&AbsoluteColor>,
++    ) -> Self {
++        let result = self.to_computed_value(context, origin_color);
++        if matches!(self, Self::ChannelKeyword(_)) && matches!(result, Self::None) {
++            Self::Value(ValueType::from_value(0.0))
++        } else {
++            result
++        }
++    }
++
+     /// Resolve an already-computed [ColorComponent] into a float. None is
+     /// "none". This assumes color channel references have already been
+     /// substituted by [`to_computed_value`], and so does not require an origin
+diff --git a/color/mix.rs b/color/mix.rs
+index 8333456..1a9833f 100644
+--- a/color/mix.rs
++++ b/color/mix.rs
+@@ -168,7 +168,7 @@ pub fn mix_many(
+     items: impl IntoIterator<Item = ColorMixItem>,
+     flags: ColorMixFlags,
+ ) -> AbsoluteColor {
+-    let mut items = items.into_iter().collect::<ColorMixItemList<_>>();
++    let items = items.into_iter().collect::<ColorMixItemList<_>>();
+
+     // Convert a mix result into the syntax required by the flags:
+     // - modern syntax when requested (converting legacy spaces like hsl/hwb to srgb), otherwise;
+@@ -202,16 +202,12 @@ pub fn mix_many(
+     let normalize = flags.contains(ColorMixFlags::NORMALIZE_WEIGHTS);
+     let mut weight_scale = 1.0;
+     let mut alpha_multiplier = 1.0;
++    let mut zero_sum = false;
+     if normalize {
+         // https://drafts.csswg.org/css-color-5/#color-mix-percent-norm
+         let sum: f32 = items.iter().map(|item| item.weight).sum();
+         if sum == 0.0 {
+-            // All-zero weights mix equally and zero out the result's
+-            // alpha (css-values-5 normalization; WPT zero-sum rows).
+-            let equal = 1.0 / items.len() as f32;
+-            for item in items.iter_mut() {
+-                item.weight = equal;
+-            }
++            zero_sum = true;
+             alpha_multiplier = 0.0;
+         } else if (sum - 1.0).abs() > f32::EPSILON {
+             weight_scale = 1.0 / sum;
+@@ -229,13 +225,15 @@ pub fn mix_many(
+     for item in rest {
+         let weight = item.weight * weight_scale;
+         let combined = accumulated_weight + weight;
+-        if combined == 0.0 {
++        if combined == 0.0 && !zero_sum {
+             // If both are 0, this fold doesn't contribute anything to the result.
+             continue;
+         }
+         let right = convert_for_mix(&item.color, interpolation.space);
+
+-        let (left_weight, right_weight) = if normalize {
++        let (left_weight, right_weight) = if zero_sum {
++            (0.5, 0.5)
++        } else if normalize {
+             (accumulated_weight / combined, weight / combined)
+         } else {
+             (accumulated_weight, weight)
+@@ -269,6 +267,7 @@ pub fn mix_many(
+         alpha,
+     );
+     result.flags = accumulated_color.flags;
++    result.flags.remove(ColorFlags::HSL_HWB_AS_PERCENT);
+
+     finalize(result)
+ }
+diff --git a/color/mod.rs b/color/mod.rs
+index 598d71e..715545f 100644
+--- a/color/mod.rs
++++ b/color/mod.rs
+@@ -238,6 +238,8 @@ bitflags! {
+         /// Marks that this color is in the legacy color format. This flag is
+         /// only valid for the `Srgb` color space.
+         const IS_LEGACY_SRGB = 1 << 4;
++        /// Serialize directly-authored HSL/HWB missing components as percentages.
++        const HSL_HWB_AS_PERCENT = 1 << 5;
+     }
+ }
+
+diff --git a/color/to_css.rs b/color/to_css.rs
+index 87b792b..126fa85 100644
+--- a/color/to_css.rs
++++ b/color/to_css.rs
+@@ -125,7 +125,11 @@ impl ToCss for AbsoluteColor {
+                 if self.flags.contains(ColorFlags::IS_LEGACY_SRGB) {
+                     self.into_srgb_legacy().to_css(dest)
+                 } else if self.has_none_components() {
+-                    write_hsl_hwb_functional(self, dest, true)
++                    write_hsl_hwb_functional(
++                        self,
++                        dest,
++                        self.flags.contains(ColorFlags::HSL_HWB_AS_PERCENT),
++                    )
+                 } else {
+                     self.to_color_space(ColorSpace::Srgb).to_css(dest)
+                 }

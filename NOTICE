@@ -1,0 +1,144 @@
+kitesurf
+Copyright (c) 2026 Cloudflare, Inc.
+
+The public source tree includes third-party software and data listed below.
+Each component keeps its license text in the location named. Texts under
+licenses/ are reproduced from the cited upstream license sources.
+Not every component is included in every binary or artifact; the generated
+Rust notices list the dependencies resolved for each artifact's target.
+
+Fonts
+  - Noto Sans, Noto Serif, Noto Sans Mono, and script-specific Noto faces in
+    packages/engine/public/fonts/, including their shaping-only derivatives,
+    except for Noto Color Emoji and Noto Sans SC below. The OpenType name
+    records identify The Noto Project Authors: 2022 for most faces, 2024 for
+    Hebrew, and 2025 for Bengali. The family repositories recorded in those
+    name tables are:
+    https://github.com/notofonts/latin-greek-cyrillic,
+    https://github.com/notofonts/arabic, https://github.com/notofonts/armenian,
+    https://github.com/notofonts/bengali, https://github.com/notofonts/devanagari,
+    https://github.com/notofonts/ethiopic, https://github.com/notofonts/georgian,
+    https://github.com/notofonts/gujarati, https://github.com/notofonts/gurmukhi,
+    https://github.com/notofonts/hebrew, https://github.com/notofonts/kannada,
+    https://github.com/notofonts/khmer, https://github.com/notofonts/lao,
+    https://github.com/notofonts/malayalam, https://github.com/notofonts/myanmar,
+    https://github.com/notofonts/sinhala, https://github.com/notofonts/symbols,
+    https://github.com/notofonts/tamil, https://github.com/notofonts/telugu,
+    and https://github.com/notofonts/thai.
+    Seventeen script faces are byte-identical to the hinted TTFs in
+    https://github.com/notofonts/notofonts.github.io at commit
+    5c3913063bb189df4edc94b766584dfb4c04a187 (fonts/NotoSans<Script>/hinted/ttf/).
+    Noto Sans, Noto Sans Italic, Noto Serif, and Noto Sans Mono are the
+    google/fonts ofl/ variable fonts with the wdth axis pinned to 100 and glyph
+    names removed. Noto Sans Devanagari and Noto Sans Symbols2 match upstream
+    by version only; their exact source build is not recorded.
+    SIL Open Font License 1.1, see packages/engine/public/fonts/OFL.txt
+  - Noto Color Emoji
+    (packages/engine/public/fonts/noto-color-emoji.woff2 and
+    packages/engine/public/fonts/noto-color-emoji.shaping.otf)
+    Source: https://github.com/googlefonts/noto-emoji
+    Upstream OFL text: https://github.com/googlefonts/noto-emoji/blob/main/LICENSE
+    Copyright 2013 Google LLC in the upstream OFL text. The stored font's
+    OpenType name record says Copyright 2022 Google Inc. The WOFF2 has its
+    SVG table removed by scripts/strip-emoji-svg.py; the shaping OTF is a
+    derived asset. SIL Open Font License 1.1, see
+    licenses/OFL-1.1-Noto-Color-Emoji.txt
+  - Noto Sans SC CJK
+    (packages/engine/public/fonts/NotoSansCJKsc-Regular.woff2 and
+    packages/engine/public/fonts/NotoSansCJKsc-Regular.shaping.otf)
+    The shaping OTF's OpenType name record identifies Noto Sans SC
+    version 2.004;GOOG;NotoSansSC-Regular;ADOBE, copyright metadata
+    © 2014-2021 Adobe (http://www.adobe.com/), and OFL 1.1. The WOFF2 is a
+    lossless conversion of Sans/SubsetOTF/SC/NotoSansSC-Regular.otf from
+    https://github.com/notofonts/noto-cjk tag Sans2.004 (commit
+    523d033d6cb47f4a80c58a35753646f5c3608a78). The full OFL text,
+    including Adobe's Reserved Font Name notice, is in
+    licenses/OFL-1.1-Noto-SC.txt; upstream license source:
+    https://github.com/google/fonts/blob/main/ofl/notosanssc/OFL.txt
+  - Inter (packages/engine/public/fonts/inter-latin-variable.woff2)
+    Copyright (c) 2016 The Inter Project Authors
+    SIL Open Font License 1.1, see packages/engine/public/fonts/Inter-OFL.txt
+  - Bungee test font
+    (packages/engine/test/fixtures-worker/assets/bungee.woff2)
+    Copyright 2023 The Bungee Project Authors
+    Source: https://github.com/djrrb/Bungee
+    Upstream OFL text: https://github.com/google/fonts/blob/main/ofl/bungee/OFL.txt
+    SIL Open Font License 1.1, see licenses/OFL-1.1-Bungee.txt
+  - Noto test subsets in packages/engine/test/fixtures-worker/assets/:
+    ks-test-mono.woff2, noto-var-latin-subset.woff2,
+    noto-greek-subset.woff2, and noto-cyrillic-subset.woff2.
+    Their embedded copyright is Copyright 2022 The Noto Project Authors
+    (https://github.com/notofonts/latin-greek-cyrillic). The mono face identifies
+    Noto Sans Mono 2.014; the other three identify Noto Sans 2.015. The exact
+    upstream binaries and subset-generation commands are not recorded.
+    SIL Open Font License 1.1, see packages/engine/public/fonts/OFL.txt.
+    The inline font in the webfont.html fixture is identical to ks-test-mono.woff2.
+
+Vendored and adapted tools
+  - wasm-memprof (vendor/wasm-memprof/)
+    Copyright (c) 2024 Yuta Saito
+    MIT License, see vendor/wasm-memprof/LICENSE
+  - Adapted no-chained-type-assertions and no-widen-then-assert lint rules
+    Source: dmmulroy/anti-slop, commit
+    13909c9e07590f5a85d93c62712259fe14a883f7
+    MIT License, see scripts/lint/ANTI_SLOP_LICENSE.txt
+
+TodoMVC snapshot
+  - packages/core/tests_data/angular_snapshot.html is a static snapshot of the
+    Angular example from https://github.com/tastejs/todomvc/tree/master/examples/angular.
+    The TodoMVC repository is MIT-licensed; its copyright notice names Addy
+    Osmani, Sindre Sorhus, Pascal Hartig, and Stephen Sawchuk. See
+    licenses/MIT-TodoMVC.txt; upstream license:
+    https://github.com/tastejs/todomvc/blob/master/license.md
+  - The snapshot includes bundled and inlined CSS from todomvc-app-css,
+    Copyright (c) Sindre Sorhus, under CC BY 4.0
+    (https://creativecommons.org/licenses/by/4.0/). Source:
+    https://github.com/tastejs/todomvc-app-css. See
+    licenses/CC-BY-4.0-TodoMVC-app-css.txt
+  - The Angular example also uses todomvc-common, Copyright (c) TasteJS,
+    under MIT. Source: https://github.com/tastejs/todomvc-common. See
+    licenses/MIT-TodoMVC-common.txt; upstream license:
+    https://github.com/tastejs/todomvc-common/blob/master/license
+
+Generated WebIDL metadata
+  - packages/dom-shim/src/css-typed-om.webidl.generated.ts and
+    packages/dom-shim/src/idl/*.generated.ts are generated from the pinned
+    .wpt/interfaces/*.idl files at WPT revision
+    6efb1b12b95725c026cb1f5a451138345cfca937. The WPT interfaces README says
+    non-tentative IDL files are copied from @webref/idl
+    (https://github.com/w3c/webref). The generated metadata's direct IDL
+    source is Webref; the WPT checkout's repository-wide license is 3-Clause
+    BSD. The pinned WPT tree is at
+    https://github.com/web-platform-tests/wpt/tree/6efb1b12b95725c026cb1f5a451138345cfca937/interfaces.
+    Upstream license texts:
+    https://github.com/web-platform-tests/wpt/blob/6efb1b12b95725c026cb1f5a451138345cfca937/LICENSE.md
+    and https://github.com/w3c/webref/blob/main/LICENSE.
+    Full upstream texts: licenses/BSD-3-Clause-WPT.txt and
+    licenses/MIT-Webref.txt.
+
+WPT-derived corner-shape contours
+  - scripts/patches/blitz-paint-0.3.0-beta.3/0030-Paint-corner-shape-on-backgrounds-and-clips.patch
+    adds src/kurbo_css/corner_shape.rs, a Rust adaptation of WPT's
+    css/css-borders/corner-shape/resources/render-corner-shape.js.
+    Copyright web-platform-tests contributors; 3-Clause BSD.
+    Source: https://github.com/web-platform-tests/wpt/blob/6efb1b12b95725c026cb1f5a451138345cfca937/css/css-borders/corner-shape/resources/render-corner-shape.js
+    See licenses/BSD-3-Clause-WPT.txt. The adaptation is compiled into
+    Kitesurf's painting Wasm; retain this notice with that distribution.
+
+JPEG encoder
+  - jpeg-encoder 0.7.0, used by packages/core, packages/renderer-core, and
+    packages/scene-host-wasm (crates.io package; source:
+    https://github.com/vstroebel/jpeg-encoder; pinned source:
+    https://docs.rs/crate/jpeg-encoder/0.7.0/source/src/fdct.rs). The crate is
+    licensed (MIT OR Apache-2.0) AND IJG; the Apache 2.0 text is in LICENSE,
+    the MIT text is in licenses/MIT-jpeg-encoder-0.7.0.txt; IJG terms are in
+    licenses/IJG-jpeg-encoder-0.7.0.txt. The IJG-derived FDCT code includes
+    Copyright (C) 1991-2020 Thomas G. Lane and Guido Vollbeding, with
+    libjpeg-turbo modifications Copyright (C) 2015, 2020 D. R. Commander.
+    This software is based in part on the work of the Independent JPEG Group.
+
+Patched Rust crates (scripts/patches/)
+  - The patch series modifies upstream crates from crates.io, including
+    blitz, stylo, parley, fontique, taffy, selectors, usvg, vello_cpu,
+    boa, and related crates. Each crate keeps its upstream license. The
+    crates are fetched at the versions pinned in Cargo.lock.

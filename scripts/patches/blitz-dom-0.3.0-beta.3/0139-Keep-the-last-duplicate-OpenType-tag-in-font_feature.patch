@@ -1,0 +1,101 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ruskin Constant <ruskin@cloudflare.com>
+Date: Wed, 16 Sep 2026 12:34:44 +0100
+Subject: [PATCH] Keep the last duplicate OpenType tag in font_features, not
+ the first
+
+font_features() appends font-feature-settings after the font-variant-*
+derived entries specifically so an author override wins
+(css-fonts/#feature-precedence), documented right there in the
+function's own doc comment. But the dedup that was supposed to
+enforce that was backwards: `Vec::dedup_by_key` on an ascending sort
+keeps the first of a run of equal keys, not the last, so
+`font-variant-caps: all-small-caps; font-feature-settings: "smcp" 0`
+silently kept smcp=1 from the variant instead of honoring the
+author's 0.
+
+The existing feature_settings_override_variant_features test never
+caught this: it calls the two sub-functions directly and checks their
+raw concatenated output, never the actual font_features() merge step.
+Extract that merge into dedup_features_keep_last so it's unit-testable
+on its own, and add dedup_keeps_author_override_over_variant_caps,
+which reproduces the exact collision (all-small-caps emits both smcp
+and c2sc; the override only targets smcp, so c2sc must survive).
+Verified the new test fails against the old sort_by_key+dedup_by_key
+body (kept smcp=1) and passes against this fix.
+
+This was latent before this series' font-variant-caps patch too (any
+font-variant-* single-feature emission could collide with an explicit
+font-feature-settings override), but that patch's new all-small-caps/
+all-petite-caps arms (each emitting two tags where only one might be
+targeted by an override) made it far more likely to actually bite.
+
+pnpm run cargo:test / cargo test -p blitz-dom --manifest-path
+packages/core/Cargo.toml; stylo_to_parley::; 10/10 pass.
+---
+ src/stylo_to_parley.rs | 46 +++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 43 insertions(+), 3 deletions(-)
+
+diff --git a/src/stylo_to_parley.rs b/src/stylo_to_parley.rs
+index 06fdaa4..8ba7cce 100644
+--- a/src/stylo_to_parley.rs
++++ b/src/stylo_to_parley.rs
+@@ -296,10 +296,31 @@ pub(crate) fn font_features(font_styles: &stylo::Font) -> Vec<parley::FontFeatur
+
+     self::font_feature_settings(&font_styles.font_feature_settings, &mut features);
+
+-    features.sort_by_key(|feature| feature.tag);
+-    features.dedup_by_key(|feature| feature.tag);
++    dedup_features_keep_last(features)
++}
+
+-    features
++/// Collapse duplicate OpenType tags, keeping the last occurrence of each:
++/// not the first. `font_features` appends `font-feature-settings` after the
++/// `font-variant-*`-derived entries specifically so an explicit author
++/// feature wins per css-fonts/#feature-precedence (e.g.
++/// `font-variant-caps: all-small-caps; font-feature-settings: "smcp" 0`
++/// must turn `smcp` back off, even though all-small-caps also emits it).
++/// `Vec::dedup_by_key` on a plain ascending sort keeps the first of a
++/// run, which silently discarded that override: the existing
++/// `feature_settings_override_variant_features` test below only checked
++/// the two sub-functions' raw output, never this merge step, so it never
++/// caught it. Scan from the end so the first tag we see per key is the
++/// author's (or the highest-precedence variant-derived one), then
++/// restore ascending tag order.
++fn dedup_features_keep_last(features: Vec<parley::FontFeature>) -> Vec<parley::FontFeature> {
++    let mut seen = std::collections::HashSet::new();
++    let mut kept: Vec<_> = features
++        .into_iter()
++        .rev()
++        .filter(|feature| seen.insert(feature.tag))
++        .collect();
++    kept.sort_by_key(|feature| feature.tag);
++    kept
+ }
+
+ pub(crate) fn base_direction(
+@@ -856,4 +877,23 @@ mod tests {
+         let last_tnum = flat.iter().rev().find(|(tag, _)| tag == b"tnum").unwrap();
+         assert_eq!(last_tnum.1, 0);
+     }
++
++    /// Regression for the actual merge step (`font_features`'s dedup), not
++    /// just the raw sub-function output above: an author's explicit
++    /// `font-feature-settings` must survive the dedup and win over a
++    /// `font-variant-caps`-derived feature with the same OpenType tag, even
++    /// when the variant-derived feature emits multiple tags (all-small-caps
++    /// emits both smcp and c2sc) so the override only targets one of them.
++    #[test]
++    fn dedup_keeps_author_override_over_variant_caps() {
++        let mut out = Vec::new();
++        // font-variant-caps: all-small-caps => smcp=1, c2sc=1
++        font_variant_caps(stylo::FontVariantCaps::AllSmallCaps, &mut out);
++        // font-feature-settings: "smcp" 0 (author turns smcp back off;
++        // c2sc is untouched and must survive)
++        font_feature_settings(&feature_settings(&[(b"smcp", 0)]), &mut out);
++
++        let merged = dedup_features_keep_last(out);
++        assert_eq!(pairs(&merged), vec![(*b"c2sc", 1), (*b"smcp", 0)]);
++    }
+ }

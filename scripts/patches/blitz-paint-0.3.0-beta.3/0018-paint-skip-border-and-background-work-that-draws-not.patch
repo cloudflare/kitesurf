@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sun, 9 Aug 2026 03:08:55 +0100
+Subject: [PATCH] paint: skip border and background work that draws nothing
+
+Zero width on every border edge, and a background layer whose image is
+none, are both the overwhelmingly common case, and both still ran the
+full path: four colours resolved per element for the border, and a clip
+path built and a layer pushed per background layer. The solid
+background colour likewise built its box path before finding the
+colour transparent.
+---
+ src/render/background.rs | 12 ++++++------
+ src/render/border.rs     |  5 +++++
+ 2 files changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/src/render/background.rs b/src/render/background.rs
+index b1e7070..6d9c878 100644
+--- a/src/render/background.rs
++++ b/src/render/background.rs
+@@ -144,8 +144,7 @@ impl ElementCx<'_, '_> {
+         // The background color is clipped by the clip of the last layer in the list
+         let last_clip = *get_cyclic(&bg_styles.background_clip.0, layer_count - 1);
+         if last_clip != StyloBackgroundClip::Text {
+-            let background_clip_path = self.box_path(last_clip.into());
+-            self.draw_solid_bg(scene, &background_clip_path);
++            self.draw_solid_bg(scene, last_clip.into());
+         }
+
+         for idx in (0..layer_count).rev() {
+@@ -335,17 +334,18 @@ impl ElementCx<'_, '_> {
+         }
+     }
+
+-    fn draw_solid_bg(&self, scene: &mut impl PaintScene, shape: &BezPath) {
++    fn draw_solid_bg(&self, scene: &mut impl PaintScene, css_box: BoxModelBox) {
+         let current_color = self.style.clone_color();
+         let background_color = &self.style.get_background().background_color;
+         let bg_color = background_color
+             .resolve_to_absolute(&current_color)
+             .as_srgb_color();
+
+-        if bg_color != Color::TRANSPARENT {
+-            // Fill the color
+-            scene.fill(Fill::NonZero, self.transform, bg_color, None, shape);
++        if bg_color == Color::TRANSPARENT {
++            return;
+         }
++        let shape = self.box_path(css_box);
++        scene.fill(Fill::NonZero, self.transform, bg_color, None, &shape);
+     }
+
+     /// Whether the layer is positioned against the viewport
+diff --git a/src/render/border.rs b/src/render/border.rs
+index c7ecb2e..a0147c2 100644
+--- a/src/render/border.rs
++++ b/src/render/border.rs
+@@ -147,6 +147,11 @@ fn sample_points_along_path(path: &BezPath, spacing: f64, count: usize) -> Vec<P
+ impl ElementCx<'_, '_> {
+     /// Draw all borders for a node
+     pub(crate) fn draw_border(&self, scene: &mut impl PaintScene) {
++        let widths = self.frame.border_width;
++        if widths.x0 == 0.0 && widths.y0 == 0.0 && widths.x1 == 0.0 && widths.y1 == 0.0 {
++            return;
++        }
++
+         let style = &*self.style;
+         let border = style.get_border();
+         let current_color = style.clone_color();

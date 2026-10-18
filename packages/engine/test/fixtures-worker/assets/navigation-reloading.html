@@ -1,0 +1,14 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+<!doctype html>
+<title></title>
+<script>
+  // A holding page that replaces itself with the real one after load: blank
+  // until the second document lands.
+  addEventListener("load", () =>
+    setTimeout(() => location.replace("/__fixtures/navigation-landing.html"), 1500),
+  );
+</script>

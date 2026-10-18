@@ -1,0 +1,347 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 14:56:39 +0100
+Subject: [PATCH] HTML directionality: :dir() matching, dir=auto cascade hint,
+ shadow rules
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Implements 'the directionality' per whatwg/html#9796 and wires it
+three ways (the dir-shadow WPT suite pins each edge):
+
+- Node::html_directionality_is_rtl walks the light tree plus the
+  shadow-root→host crossing. Slotted nodes do not take HTML
+  directionality from their assigned slot even though CSS direction
+  inherits through the flat tree (dir-shadow-03: ltr :dir with rtl
+  computed on the same element).
+- The dir=auto first-strong scan uses assigned nodes when the auto
+  element is a slot, light children otherwise; slots met as
+  descendants contribute nothing (assigned nodes must not leak into
+  shadow-side scans (dir-shadow-30/34), shadow trees are not
+  descendants of their host (dir-shadow-33).
+- dir=auto resolves into the cascade as a presentational hint on
+  direction (its scan exclusions are inexpressible in CSS), so
+  getComputedStyle and flat-tree inheritance see the result, and
+  author direction rules override it per spec. construct.rs now
+  trusts computed direction) the layout-time walk is gone.
+- Isolate wrap chars follow computed direction instead of FSI:
+  the isolate direction is the element's resolved directionality,
+  not first-strong of the rendered stream (a host's shadow text
+  must not steer its isolate; dir-shadow-33 ref uses dir=ltr).
+---
+ src/layout/construct.rs | 111 +++++-----------------------------------
+ src/node/node.rs        |  93 +++++++++++++++++++++++++++++++++
+ src/stylo.rs            |  32 ++++++++++++
+ 3 files changed, 139 insertions(+), 97 deletions(-)
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index b941548..100e439 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1349,63 +1349,24 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+     }
+ }
+
+-// Nearest dir-attributed ancestor decides. ltr/rtl are
+-// already correct in computed direction (UA [dir] rules) → None;
+-
+-// dir=auto runs HTML's first-strong scan over its own subtree and
+-// forces the result (default ltr when no strong char is found).
+-fn dir_auto_resolved_direction(nodes: &crate::NodeTree, id: NodeId) -> Option<BaseDirection> {
+-    let mut cur = Some(id);
+-    while let Some(nid) = cur {
+-        let node = &nodes[nid];
+-        if let Some(el) = node.data.downcast_element() {
+-            if let Some(dir) = el.attr(local_name!("dir")) {
+-                if dir.eq_ignore_ascii_case("auto") {
+-                    return Some(
+-                        html_first_strong_scan(nodes, nid, true)
+-                            .unwrap_or(BaseDirection::Ltr),
+-                    );
+-                }
+-                if dir.eq_ignore_ascii_case("ltr") || dir.eq_ignore_ascii_case("rtl") {
+-                    return None;
+-                }
+-            }
+-        }
+-        cur = node.parent;
+-    }
+-    None
+-}
+-
+ // UAX#9 control pair for a computed unicode-bidi value.
+-// Isolates close with PDI, embeds/overrides with PDF; the auto
++// Isolates close with PDI, embeds/overrides with PDF.
+
+-// flag (dir=auto attr, or bdi without a valid dir) picks FSI so
+-// the isolate first-strong-detects its own direction.
++// The isolate direction follows computed direction: dir=auto is
++// already resolved into it by the presentational hint (stylo.rs),
++// with the HTML scan exclusions FSI can't express (dir-shadow-33:
++// shadow text must not steer a host's isolate). Plaintext keeps
++// FSI: it is first-strong-of-content by definition.
+ fn bidi_wrap_chars(
+     ub: style::computed_values::unicode_bidi::T,
+     rtl: bool,
+-    auto: bool,
+ ) -> (&'static str, &'static str) {
+     use style::computed_values::unicode_bidi::T as UnicodeBidi;
+     match ub {
+-        UnicodeBidi::Isolate | UnicodeBidi::Plaintext => {
+-            let open = if auto {
+-                "\u{2068}"
+-            } else if rtl {
+-                "\u{2067}"
+-            } else {
+-                "\u{2066}"
+-            };
+-            (open, "\u{2069}")
+-        }
++        UnicodeBidi::Isolate => (if rtl { "\u{2067}" } else { "\u{2066}" }, "\u{2069}"),
++        UnicodeBidi::Plaintext => ("\u{2068}", "\u{2069}"),
+         UnicodeBidi::IsolateOverride => {
+-            if auto {
+-                if rtl {
+-                    ("\u{2068}\u{202E}", "\u{202C}\u{2069}")
+-                } else {
+-                    ("\u{2068}\u{202D}", "\u{202C}\u{2069}")
+-                }
+-            } else if rtl {
++            if rtl {
+                 ("\u{2067}\u{202E}", "\u{202C}\u{2069}")
+             } else {
+                 ("\u{2066}\u{202D}", "\u{202C}\u{2069}")
+@@ -1417,42 +1378,6 @@ fn bidi_wrap_chars(
+     }
+ }
+
+-// HTML §the-dir-attribute: tree-order first-strong scan, excluding
+-// bdi/script/style/textarea subtrees and dir-attributed descendants.
+-fn html_first_strong_scan(
+-    nodes: &crate::NodeTree,
+-    id: NodeId,
+-    is_scan_root: bool,
+-) -> Option<BaseDirection> {
+-    let node = &nodes[id];
+-    match &node.data {
+-        NodeData::Text(t) => parley::first_strong_direction(&t.content),
+-        NodeData::Element(el) | NodeData::AnonymousBlock(el) => {
+-            if !is_scan_root {
+-                let tag = &el.name.local;
+-                if *tag == local_name!("bdi")
+-                    || *tag == local_name!("script")
+-                    || *tag == local_name!("style")
+-                    || *tag == local_name!("textarea")
+-                {
+-                    return None;
+-                }
+-                if el.attr(local_name!("dir")).is_some_and(|d| {
+-                    d.eq_ignore_ascii_case("auto")
+-                        || d.eq_ignore_ascii_case("ltr")
+-                        || d.eq_ignore_ascii_case("rtl")
+-                }) {
+-                    return None;
+-                }
+-            }
+-            node.children
+-                .iter()
+-                .find_map(|child| html_first_strong_scan(nodes, *child, false))
+-        }
+-        _ => None,
+-    }
+-}
+-
+ pub(crate) fn build_inline_layout_into(
+     nodes: &crate::NodeTree,
+     layout_ctx: &mut LayoutContext<TextBrush>,
+@@ -1482,14 +1407,14 @@ pub(crate) fn build_inline_layout_into(
+
+     // Stamp the block's bidi base direction; parley's
+     // default whole-text autodetect ignores CSS direction entirely.
+-    // dir=auto can't ride the cascade (its scan excludes subtrees,
+-    // which CSS can't express), so resolve it DOM-side per HTML.
++
++    // Computed direction is authoritative: dir=auto resolves into
++    // the cascade via the presentational hint (stylo.rs).
+     if let Some(s) = root_node_style.as_deref() {
+         use style::computed_values::unicode_bidi::T as UnicodeBidi;
+         let base_direction = match s.clone_unicode_bidi() {
+             UnicodeBidi::Plaintext => BaseDirection::AutoPerParagraph,
+-            bidi => dir_auto_resolved_direction(nodes, inline_context_root_node_id)
+-                .unwrap_or_else(|| stylo_to_parley::base_direction(s.clone_direction(), bidi)),
++            bidi => stylo_to_parley::base_direction(s.clone_direction(), bidi),
+         };
+         builder.set_base_direction(base_direction);
+     }
+@@ -1675,15 +1600,7 @@ pub(crate) fn build_inline_layout_into(
+                                     return None;
+                                 }
+                                 let rtl = s.clone_direction() == Direction::Rtl;
+-                                let dir_attr = element_data.attr(local_name!("dir"));
+-                                let has_ltr_rtl = dir_attr.is_some_and(|d| {
+-                                    d.eq_ignore_ascii_case("ltr")
+-                                        || d.eq_ignore_ascii_case("rtl")
+-                                });
+-                                let auto = dir_attr
+-                                    .is_some_and(|d| d.eq_ignore_ascii_case("auto"))
+-                                    || (*element_data.name.local == *"bdi" && !has_ltr_rtl);
+-                                Some(bidi_wrap_chars(ub, rtl, auto))
++                                Some(bidi_wrap_chars(ub, rtl))
+                             });
+
+                             // node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+diff --git a/src/node/node.rs b/src/node/node.rs
+index d8b5aa1..f9cfb5e 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -1354,6 +1354,99 @@ impl Node {
+         out
+     }
+
++    // HTML "the directionality" with whatwg/html#9796's
++    // shadow rules; drives :dir() matching and the dir=auto hint.
++
++    // The upward chain is the light tree plus the shadow-root→host
++    // crossing. Slotted nodes do not take directionality from their
++    // assigned slot (dir-shadow-03/04/31: dir=rtl on the slot gives
++    // ltr :dir but rtl computed; CSS inherits flat, HTML doesn't).
++    pub(crate) fn html_directionality_is_rtl(&self) -> bool {
++        let mut cur = Some(self.id);
++        while let Some(id) = cur {
++            let node = self.with(id);
++            if let Some(el) = node.data.downcast_element() {
++                let dir = el.attr(local_name!("dir"));
++                if let Some(d) = dir {
++                    if d.eq_ignore_ascii_case("rtl") {
++                        return true;
++                    }
++                    if d.eq_ignore_ascii_case("ltr") {
++                        return false;
++                    }
++                }
++                // bdi defaults to auto; an invalid dir value on it
++                // is also auto per HTML's "undefined" attr state.
++                let auto = dir.is_some_and(|d| d.eq_ignore_ascii_case("auto"))
++                    || el.name.local == local_name!("bdi");
++                if auto {
++                    return node.dir_auto_scan_is_rtl().unwrap_or(false);
++                }
++            }
++            cur = node.directionality_flat_parent();
++        }
++        false
++    }
++
++    fn directionality_flat_parent(&self) -> Option<NodeId> {
++        let parent_id = self.parent?;
++        if let NodeData::ShadowRoot(ref data) = self.with(parent_id).data {
++            return Some(data.host);
++        }
++        Some(parent_id)
++    }
++
++    // HTML auto-directionality: tree-order first-strong scan. Slots
++    // scan their assigned nodes (fallback content when unassigned);
++    // other elements scan light children: a host's shadow tree is
++    // not its descendant. Excluded subtrees match the spec list.
++    pub(crate) fn dir_auto_scan_is_rtl(&self) -> Option<bool> {
++        fn scan(node: &Node, is_scan_root: bool) -> Option<bool> {
++            match &node.data {
++                NodeData::Text(t) => match parley::first_strong_direction(&t.content) {
++                    Some(parley::BaseDirection::Rtl) => Some(true),
++                    Some(_) => Some(false),
++                    None => None,
++                },
++                NodeData::Element(el) | NodeData::AnonymousBlock(el) => {
++                    if !is_scan_root {
++                        let tag = &el.name.local;
++                        if *tag == local_name!("bdi")
++                            || *tag == local_name!("script")
++                            || *tag == local_name!("style")
++                            || *tag == local_name!("textarea")
++                        {
++                            return None;
++                        }
++                        // A slot met as a descendant contributes
++                        // nothing: its assigned nodes belong to the
++                        // light tree and must not leak into shadow-
++                        // side scans (WPT dir-shadow-30/34 pin this).
++                        if node.is_slot_element() {
++                            return None;
++                        }
++                        if el.attr(local_name!("dir")).is_some_and(|d| {
++                            d.eq_ignore_ascii_case("auto")
++                                || d.eq_ignore_ascii_case("ltr")
++                                || d.eq_ignore_ascii_case("rtl")
++                        }) {
++                            return None;
++                        }
++                    }
++                    let kids: &[NodeId] = if node.is_slot_element() {
++                        node.flat_children()
++                    } else {
++                        &node.children
++                    };
++                    kids.iter()
++                        .find_map(|child| scan(&node.with(*child), false))
++                }
++                _ => None,
++            }
++        }
++        scan(self, true)
++    }
++
+     fn write_text_content(&self, out: &mut String) {
+         match &self.data {
+             NodeData::Text(data) => {
+diff --git a/src/stylo.rs b/src/stylo.rs
+index e50a5d0..de55c17 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -510,6 +510,16 @@ impl selectors::Element for BlitzNode<'_> {
+     ) -> bool {
+         match *pseudo_class {
+             NonTSPseudoClass::Active => self.element_state().contains(ElementState::ACTIVE),
++            // :dir() matches HTML directionality (not the
++            // CSS direction property): unknown idents never match.
++            NonTSPseudoClass::Dir(ref dir) => {
++                let rtl = self.html_directionality_is_rtl();
++                match &**dir {
++                    "rtl" => rtl,
++                    "ltr" => !rtl,
++                    _ => false,
++                }
++            }
+             NonTSPseudoClass::AnyLink => self
+                 .element_state()
+                 .intersects(ElementState::VISITED_OR_UNVISITED),
+@@ -1038,6 +1048,28 @@ impl<'a> TElement for BlitzNode<'a> {
+             ));
+         };
+
++        // Dir=auto can't ride a stylesheet (its scan skips
++        // subtrees no selector can express): resolve it here so
++        // getComputedStyle().direction and flat-tree inheritance see
++        // the result. ltr/rtl attrs stay on the UA [dir] rules.
++        {
++            use style::properties::longhands::direction::SpecifiedValue as Direction;
++            let dir_attr = elem.attr(local_name!("dir"));
++            let has_fixed = dir_attr.is_some_and(|d| {
++                d.eq_ignore_ascii_case("ltr") || d.eq_ignore_ascii_case("rtl")
++            });
++            let dir_auto = dir_attr.is_some_and(|d| d.eq_ignore_ascii_case("auto"))
++                || (*tag == local_name!("bdi") && !has_fixed);
++            if dir_auto {
++                let rtl = self.dir_auto_scan_is_rtl().unwrap_or(false);
++                push_style(PropertyDeclaration::Direction(if rtl {
++                    Direction::Rtl
++                } else {
++                    Direction::Ltr
++                }));
++            }
++        }
++
+         fn parse_color_attr(value: &str) -> Option<(u8, u8, u8, f32)> {
+             if !value.starts_with('#') {
+                 return None;

@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 3 Aug 2026 16:23:34 +0100
+Subject: [PATCH] module env: drop writes to indirect bindings instead of
+ panicking
+
+Assignment that resolves to an indirect (re-exported) module binding is
+a page-level error that V8 surfaces as a catchable TypeError. boa
+panics here, and the panic unwinds through the whole wasm boundary.
+Real sites trip this intermittently.
+
+ModuleEnvironment::set returns (), and threading JsResult through
+DeclarativeEnvironment::set's many callers would be an invasive change.
+Drop the write instead. The correct upstream fix is to throw a
+TypeError.
+---
+ src/environments/runtime/declarative/module.rs | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/environments/runtime/declarative/module.rs b/src/environments/runtime/declarative/module.rs
+index bd6df7f..56eaf1b 100644
+--- a/src/environments/runtime/declarative/module.rs
++++ b/src/environments/runtime/declarative/module.rs
+@@ -115,8 +115,8 @@ impl ModuleEnvironment {
+
+         match &mut bindings[index as usize] {
+             BindingType::Direct(v) => *v = Some(value),
+-            BindingType::Indirect(_) => {
+-                panic!("cannot modify indirect references to other environments")
+-            }
++            // Writing an indirect (re-exported) binding is a page error V8
++            // reports as a TypeError. Ignore the write rather than panic.
++            BindingType::Indirect(_) => {}
+         }
+     }

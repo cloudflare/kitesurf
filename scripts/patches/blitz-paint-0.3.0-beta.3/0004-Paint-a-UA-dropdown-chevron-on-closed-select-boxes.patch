@@ -1,0 +1,82 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 25 Jul 2026 23:39:26 +0100
+Subject: [PATCH] Paint a UA dropdown chevron on closed <select> boxes
+
+Skipped for multiple and size>1 (inline listboxes). Sized off the box
+height, right-aligned, stroked in the element color.
+---
+ src/render/form_controls.rs | 53 +++++++++++++++++++++++++++++++++++++
+ 1 file changed, 53 insertions(+)
+
+diff --git a/src/render/form_controls.rs b/src/render/form_controls.rs
+index 3ade26f..15d4ed9 100644
+--- a/src/render/form_controls.rs
++++ b/src/render/form_controls.rs
+@@ -8,6 +8,27 @@ use style::dom::TElement as _;
+
+ impl ElementCx<'_, '_> {
+     pub(super) fn draw_input(&self, scene: &mut impl PaintScene) {
++        // A closed <select> gets a UA dropdown chevron on
++        // the right so it reads as a popup control (the label text
++        // is a synthetic child; see set_select_label).
++        if self.node.local_name() == "select" {
++            let multiple = self.node.attr(local_name!("multiple")).is_some();
++            let size_gt_1 = self
++                .node
++                .attr(local_name!("size"))
++                .and_then(|v| v.parse::<i32>().ok())
++                .map(|n| n > 1)
++                .unwrap_or(false);
++            if !multiple && !size_gt_1 {
++                draw_select_chevron(
++                    scene,
++                    self.frame.border_box,
++                    self.transform,
++                    self.style.clone_color().as_srgb_color(),
++                );
++            }
++            return;
++        }
+         if self.node.local_name() != "input" {
+             return;
+         }
+@@ -124,6 +145,38 @@ fn draw_range_slider(
+     );
+ }
+
++/// Downward chevron near the right edge of a closed
++/// <select>, vertically centered, sized off the box height.
++fn draw_select_chevron(
++    scene: &mut impl PaintScene,
++    border_box: kurbo::Rect,
++    transform: Affine,
++    color: Color,
++) {
++    let h = border_box.height();
++    let w = border_box.width();
++    if h <= 4.0 || w <= 14.0 {
++        return;
++    }
++    let size = (h * 0.35).clamp(4.0, 9.0);
++    let cx = border_box.x1 - size - 4.0;
++    let cy = border_box.y0 + h / 2.0;
++    let mut path = BezPath::new();
++    path.move_to((cx - size / 2.0, cy - size / 4.0));
++    path.line_to((cx, cy + size / 4.0));
++    path.line_to((cx + size / 2.0, cy - size / 4.0));
++    let style = Stroke {
++        width: 1.6,
++        join: Join::Round,
++        miter_limit: 10.0,
++        start_cap: Cap::Round,
++        end_cap: Cap::Round,
++        dash_pattern: Default::default(),
++        dash_offset: 0.0,
++    };
++    scene.stroke(&style, transform, color, None, &path);
++}
++
+ fn draw_checkbox(
+     scene: &mut impl PaintScene,
+     checked: bool,

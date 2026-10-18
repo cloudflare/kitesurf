@@ -1,0 +1,35 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><title>keyboard</title></head>
+<body>
+  <h1>keyboard</h1>
+  <input id="i" type="text" />
+  <script>
+    globalThis.__ks_keys = [];
+    const snap = (label, e) => globalThis.__ks_keys.push({
+      label,
+      type: e.type,
+      key: e.key,
+      code: e.code,
+      keyCode: e.keyCode,
+      which: e.which,
+      charCode: e.charCode,
+      shift: e.shiftKey,
+      ctrl: e.ctrlKey,
+      alt: e.altKey,
+      meta: e.metaKey,
+      isKeyboardEvent: e instanceof KeyboardEvent,
+      modShift: typeof e.getModifierState === "function" ? e.getModifierState("Shift") : null,
+    });
+    document.addEventListener("keydown", (e) => snap("doc:keydown", e));
+    document.addEventListener("keyup", (e) => snap("doc:keyup", e));
+    window.addEventListener("keypress", (e) => snap("win:keypress", e));
+  </script>
+</body>
+</html>

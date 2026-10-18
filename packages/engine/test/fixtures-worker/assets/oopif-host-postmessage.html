@@ -1,0 +1,27 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html><head><meta charset="utf-8" /><title>oopif-host-postmessage</title></head>
+<body style="margin:0;background:#ffffff">
+<iframe id="child" src="http://127.0.0.1:8787/__fixtures/oopif-child-postmessage.html" width="400" height="300" style="border:0"></iframe>
+<script>
+window.__fromChild = [];
+window.addEventListener("message", function (e) {
+  window.__fromChild.push({ data: e.data, origin: e.origin, hasSource: !!e.source });
+  if (e.data && e.data.hello === "from-child" && e.source && e.source.postMessage) {
+    e.source.postMessage({ reply: "pong", echo: e.data.n + 1 }, "*");
+  }
+});
+// Self-post sanity: same-window postMessage delivers async with our
+// own origin stamped.
+window.__selfMsg = null;
+window.addEventListener("message", function (e) {
+  if (e.data && e.data.self === true) window.__selfMsg = { data: e.data, origin: e.origin };
+});
+window.postMessage({ self: true }, "*");
+</script>
+</body></html>

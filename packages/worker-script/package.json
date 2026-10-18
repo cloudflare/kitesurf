@@ -1,0 +1,27 @@
+{
+  "name": "@kitesurf/worker-script",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Loaded-worker entrypoint for page-spawned dedicated workers (new Worker()), bundled to a string for Worker Loader injection.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "types": "tsc --noEmit && node ../../scripts/ts-strict-ratchet.mjs --project tsconfig.strict.json --only src"
+  },
+  "dependencies": {
+    "@kitesurf/jsrpc-types": "workspace:*",
+    "@kitesurf/page-script": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.0",
+    "typescript": "^5.6.0"
+  }
+}

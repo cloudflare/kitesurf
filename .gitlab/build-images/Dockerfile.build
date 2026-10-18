@@ -1,0 +1,29 @@
+# CI image for the GitLab pipeline: a Rust base with Node, pnpm, and the
+# nightly toolchain and wasm target pinned in rust-toolchain.toml.
+
+ARG IMAGE_RUST_TRIXIE_AMD64
+ARG IMAGE_RUST_TRIXIE_ARM64
+ARG ARCH
+FROM ${IMAGE_RUST_TRIXIE_AMD64} AS base-amd64
+FROM ${IMAGE_RUST_TRIXIE_ARM64} AS base-arm64
+FROM base-${ARCH}
+
+USER root
+
+# git applies the vendored-crate patch series.
+RUN apt-get update && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y cf-nodejs git && \
+  apt-get clean && rm -rf /var/lib/apt/lists/* && \
+  npm install --global pnpm@9.15.4 && \
+  npm cache clean --force
+
+# Keep in step with rust-toolchain.toml. A mismatch still works, because
+# rustup installs the pinned toolchain on first use, but costs every job a
+# download.
+ARG RUST_TOOLCHAIN=nightly-2026-05-14
+RUN rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal \
+    --component rust-src,rustfmt,clippy --target wasm32-unknown-unknown && \
+  chown -R 1000:100 /usr/local/rustup /usr/local/cargo && \
+  chmod -R 775 /usr/local/rustup /usr/local/cargo
+
+USER 1000:100

@@ -1,0 +1,94 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Tue, 1 Sep 2026 19:46:50 +0100
+Subject: [PATCH] Keep collapsed borders when terminal tracks collapse
+
+Terminal rounding can place adjacent narrow tracks on one grid line and
+reduce their geometry gutter to zero. Paint the authored border width
+against the snapped line instead of treating the adjusted gutter as its
+thickness.
+---
+ src/render/border.rs | 59 +++++++++++++++++++-------------------------
+ 1 file changed, 26 insertions(+), 33 deletions(-)
+
+diff --git a/src/render/border.rs b/src/render/border.rs
+index 8586965..f4dd98f 100644
+--- a/src/render/border.rs
++++ b/src/render/border.rs
+@@ -531,6 +531,16 @@ impl ElementCx<'_, '_> {
+         };
+
+         let outer_border_style = self.style.get_border();
++        let border_width_x = border_style
++            .border_left_width
++            .0
++            .max(border_style.border_right_width.0)
++            .to_f32_px() as f64;
++        let border_width_y = border_style
++            .border_top_width
++            .0
++            .max(border_style.border_bottom_width.0)
++            .to_f32_px() as f64;
+
+         let cols = PhysicalTracks::from_tracks(&grid_info.columns);
+         let rows = PhysicalTracks::from_tracks(&grid_info.rows);
+@@ -609,43 +619,26 @@ impl ElementCx<'_, '_> {
+                 .position(|track| track.end == y1)
+                 .unwrap();
+
+-            let gap_left = physical_c0
+-                .checked_sub(1)
+-                .map(|index| x0 - physical_cols[index].end)
+-                .unwrap_or(0.0);
+-            let gap_right = physical_cols
+-                .get(physical_c1 + 1)
+-                .map(|track| track.start - x1)
+-                .unwrap_or(0.0);
+-            let gap_top = physical_r0
+-                .checked_sub(1)
+-                .map(|index| y0 - physical_rows[index].end)
+-                .unwrap_or(0.0);
+-            let gap_bottom = physical_rows
+-                .get(physical_r1 + 1)
+-                .map(|track| track.start - y1)
+-                .unwrap_or(0.0);
+-
+-            // Edges extend into the perpendicular gutters so the corners where four
+-            // cells meet stay filled, but stop short of the outer border band.
+-            let ex0 = (x0 - gap_left).max(col_start) as f64;
+-            let ex1 = (x1 + gap_right).min(col_end) as f64;
+-            let ey0 = (y0 - gap_top).max(row_start) as f64;
+-            let ey1 = (y1 + gap_bottom).min(row_end) as f64;
++            let has_left = physical_c0 > 0;
++            let has_right = physical_c1 + 1 < physical_cols.len();
++            let has_top = physical_r0 > 0;
++            let has_bottom = physical_r1 + 1 < physical_rows.len();
+             let (x0, x1, y0, y1) = (x0 as f64, x1 as f64, y0 as f64, y1 as f64);
+-            let (gap_left, gap_right) = (gap_left as f64, gap_right as f64);
+-            let (gap_top, gap_bottom) = (gap_top as f64, gap_bottom as f64);
++            let ex0 = if has_left { x0 - border_width_x } else { col_start as f64 };
++            let ex1 = if has_right { x1 } else { col_end as f64 };
++            let ey0 = if has_top { y0 - border_width_y } else { row_start as f64 };
++            let ey1 = if has_bottom { y1 } else { row_end as f64 };
+
+-            if gap_left > 0.0 {
+-                fill(x0 - gap_left, ey0, x0, ey1);
++            if has_left {
++                fill(x0 - border_width_x, ey0, x0, ey1);
+             }
+-            if gap_right > 0.0 {
+-                fill(x1, ey0, x1 + gap_right, ey1);
++            if has_right {
++                fill(x1 - border_width_x, ey0, x1, ey1);
+             }
+-            if gap_top > 0.0 {
+-                fill(ex0, y0 - gap_top, ex1, y0);
++            if has_top {
++                fill(ex0, y0 - border_width_y, ex1, y0);
+             }
+-            if gap_bottom > 0.0 {
+-                fill(ex0, y1, ex1, y1 + gap_bottom);
++            if has_bottom {
++                fill(ex0, y1 - border_width_y, ex1, y1);
+             }
+         }

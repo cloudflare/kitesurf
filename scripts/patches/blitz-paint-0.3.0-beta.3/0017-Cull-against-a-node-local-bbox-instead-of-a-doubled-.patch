@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 7 Aug 2026 15:35:57 +0100
+Subject: [PATCH] Cull against a node-local bbox instead of a doubled one
+
+`transform` already carries Affine::translate(box_position), so the
+rect handed to transform_rect_bbox must be node-local. `overflow` is
+(blitz-dom resolve_transforms builds it at 0,0,w,h), but `border_box`
+was built at box_position, so unioning the two mixed frames and the
+transform applied box_position a second time. The cull bbox landed at
+2*y - scroll, so a box only left the viewport once it had been scrolled
+twice past.
+
+Every frame therefore re-painted everything from scrollY/2 downwards,
+and paint cost grew linearly with scroll depth. On a 76k-tall document
+at scrollY=50000 the painter emitted 679 glyph runs for the ~21 on
+screen, and the raster path went from 13 ms to 44 ms between scrollY 0
+and 60000, crossing the 30 fps budget around 40-50k. A contiguous band
+from y=scrollY/2 to the viewport predicts the measured glyph count
+within 0.2%, while alternation and prefix models miss by 30-60%.
+
+border_box has no other consumer in render_element, so it is redefined
+in place rather than shadowed. The rehomed_reach widening assumed the
+old absolute convention and moves to node-local with it.
+---
+ src/render.rs | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 890e806..a7b2318 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -379,7 +379,8 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         } = *node.final_layout();
+         let box_position = Vec2::new(location.x as f64, location.y as f64) * self.scale;
+         let box_size = Size::new(size.width as f64, size.height as f64);
+-        let border_box = Rect::from_origin_size(box_position.to_point(), box_size);
++        // Node-local: `screen_transform` applies `box_position` below.
++        let border_box = Rect::from_origin_size(kurbo::Point::ORIGIN, box_size);
+         let scaled_pb = (padding + border).map(f64::from);
+         let content_position = kurbo::Point {
+             x: scaled_pb.left,
+@@ -404,10 +405,10 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         let screen_bbox = match node.rehomed_reach.get() {
+             Some((x0, y0, x1, y1)) => {
+                 let reach = Rect::new(
+-                    box_position.x + x0 as f64 * self.scale,
+-                    box_position.y + y0 as f64 * self.scale,
+-                    box_position.x + x1 as f64 * self.scale,
+-                    box_position.y + y1 as f64 * self.scale,
++                    x0 as f64 * self.scale,
++                    y0 as f64 * self.scale,
++                    x1 as f64 * self.scale,
++                    y1 as f64 * self.scale,
+                 );
+                 screen_bbox.union(screen_transform.transform_rect_bbox(reach))
+             }

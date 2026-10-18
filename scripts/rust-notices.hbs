@@ -1,0 +1,33 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+# Resolved Rust dependency notices
+
+Generated with cargo-about from the release target's Cargo.lock. This includes
+normal and build dependencies. It does not grant legal approval or cover fonts,
+JavaScript bundles, or other separately distributed assets.
+
+## Components and declared license expressions
+
+{{#each crates}}
+- {{package.name}} {{package.version}}: {{{license}}}
+{{/each}}
+
+## License texts and package notices
+
+{{#each licenses}}
+### {{name}}
+
+Used by:
+{{#each used_by}}
+- {{crate.name}} {{crate.version}}
+{{/each}}
+
+```text
+{{{text}}}
+```
+
+{{/each}}

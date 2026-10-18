@@ -1,0 +1,31 @@
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+
+copy_file(
+    name = "wasm_bindgen",
+    src = "@wasm_bindgen//:wasm-bindgen",
+    out = "wasm-bindgen",
+    is_executable = True,
+    visibility = [
+        "//packages/core/pkg:__pkg__",
+        "//packages/renderer-core:__pkg__",
+    ],
+)
+
+copy_file(
+    name = "wasm_opt",
+    src = "@binaryen//:bin/wasm-opt",
+    out = "wasm-opt",
+    is_executable = True,
+    visibility = [
+        "//packages/core/pkg:__pkg__",
+        "//packages/scene-host-wasm:__pkg__",
+    ],
+)
+
+copy_to_directory(
+    name = "pyyaml",
+    srcs = ["@pyyaml//:yaml"],
+    include_external_repositories = ["*pyyaml"],
+    visibility = ["//tests/wpt:__pkg__"],
+)

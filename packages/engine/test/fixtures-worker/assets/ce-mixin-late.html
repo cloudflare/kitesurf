@@ -1,0 +1,26 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html><title>ce-mixin-late</title><body>
+<my-mixed-widget></my-mixed-widget>
+<script type="module">
+// Production bundles commonly wrap HTMLElement before defining components.
+let constructingNested = false;
+globalThis.HTMLElement = class WrappedHTMLElement extends HTMLElement {
+  constructor() {
+    if (!constructingNested) {
+      constructingNested = true;
+      try { document.createElement("my-nested-widget"); }
+      finally { constructingNested = false; }
+    }
+    super();
+  }
+};
+setTimeout(() => {
+  import('./ce-mixin-chunk.js').then(() => { window.__chunkLoaded = true; });
+}, 50);
+</script>
+</body>

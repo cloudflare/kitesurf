@@ -1,0 +1,31 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8" /><title>worker at load</title></head>
+<body>
+<script>
+// A blob worker started by a parser script, before the page's isolate is
+// published to the engine. It reports its origin and a relative fetch,
+// which resolves against this document because a blob: URL is no base.
+(function () {
+  var source =
+    "fetch('/__fixtures/xhr-data.txt')" +
+    ".then(function (r) { return r.text(); })" +
+    ".then(function (body) { postMessage({ origin: self.location.origin, body: body.trim() }); });";
+  var worker = new Worker(URL.createObjectURL(new Blob([source])));
+  worker.onmessage = function (e) {
+    document.title = "WORKER:" + JSON.stringify(e.data);
+    worker.terminate();
+  };
+  worker.onerror = function (e) {
+    document.title = "WORKER:" + JSON.stringify({ error: e.message || "error" });
+  };
+})();
+</script>
+</body>
+</html>

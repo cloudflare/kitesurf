@@ -1,0 +1,162 @@
+# GitLab pipeline for merge requests and the default branch. It runs the same
+# lanes as .github/workflows/ci.yml except Playwright and WPT, which need a
+# browser and a WPT checkout on the runner.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - when: never
+  auto_cancel:
+    on_new_commit: interruptible
+
+stages: [pre-build, build, test]
+
+# The runners only accept approved images pinned by digest, so the pipeline
+# builds its own image (.gitlab/build-images) and resolves its digest.
+include:
+  - component: $CI_SERVER_FQDN/cloudflare/ci/docker-image/build-push-image@~latest
+    inputs:
+      stage: pre-build
+      runOnChangesTo:
+        - ".gitlab/build-images/Dockerfile.build"
+        - ".docker-images.gitlab"
+      runOnMR: true
+      runOnBranches: "main"
+      runner: vm-linux-x86-2cpu-4gb
+      EXTRA_DIB_ARGS: "--manifest=.docker-images.gitlab"
+  - component: $CI_SERVER_FQDN/cloudflare/ci/docker-image/get-image-ref@~latest
+    inputs:
+      stage: pre-build
+      runOnMR: true
+      runOnBranches: "main"
+      IMAGE_PATH: "$REGISTRY_HOST/stash/brapi/kitesurf-oss/build-image/$CI_DEFAULT_BRANCH"
+      VARIABLE_NAME: IMAGE_REF
+      needs:
+        - job: "docker-build-push-image"
+          optional: true
+
+.pnpm_cache: &pnpm_cache
+  key:
+    files: [pnpm-lock.yaml]
+    prefix: pnpm
+  paths: [.pnpm-store]
+
+.cargo_cache: &cargo_cache
+  key:
+    files: [Cargo.lock, rust-toolchain.toml]
+    prefix: cargo
+  paths: [.cargo/, .cache/kitesurf/]
+
+.job:
+  image:
+    name: "$IMAGE_REF"
+  tags: [linux-x86-4cpu-8gb]
+  needs: ["docker-get-image-ref"]
+  dependencies: ["docker-get-image-ref"]
+  interruptible: true
+  retry:
+    max: 1
+    when: [runner_system_failure, stuck_or_timeout_failure, scheduler_failure]
+  variables:
+    CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+    XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+    FF_USE_FASTZIP: "true"
+    CACHE_COMPRESSION_LEVEL: "fastest"
+    TURBO_VERSION: "2.10.8"
+  before_script:
+    # CARGO_HOME points at the cache, so keep the image's cargo and rustup on PATH.
+    - export PATH="/usr/local/cargo/bin:$PATH"
+    - git config --global user.name "GitLab CI"
+    - git config --global user.email "ci@localhost"
+    - pnpm config set store-dir "$CI_PROJECT_DIR/.pnpm-store"
+    - rustup show
+
+.with_wasm:
+  extends: .job
+  needs: ["docker-get-image-ref", "wasm-build"]
+  dependencies: ["docker-get-image-ref", "wasm-build"]
+  before_script:
+    - !reference [.job, before_script]
+    - tar -xf wasm.tar
+    - pnpm install --frozen-lockfile
+
+wasm-build:
+  extends: .job
+  stage: build
+  tags: [linux-x86-8cpu-16gb]
+  timeout: 45m
+  cache: [*pnpm_cache, *cargo_cache]
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm dlx "turbo@$TURBO_VERSION" run build:scene-host:raw build:renderer-core:raw --output-logs=new-only
+    # Committed generated files must match a fresh build.
+    - git diff --exit-code
+    - cargo install cargo-about --version 0.9.2 --locked --features cli
+    - mkdir -p .wasm-licenses
+    - |
+      for PACKAGE in core renderer-core scene-host-wasm; do
+        cargo about generate --locked --fail --config about.toml \
+          --manifest-path "packages/$PACKAGE/Cargo.toml" --target wasm32-unknown-unknown \
+          --output-file ".wasm-licenses/$PACKAGE.md" scripts/rust-notices.hbs
+      done
+    - tar -cf wasm.tar packages/core/pkg packages/renderer-core/pkg packages/engine/public/rbi LICENSE NOTICE licenses .wasm-licenses packages/engine/public/fonts/OFL.txt packages/engine/public/fonts/Inter-OFL.txt scripts/lint/ANTI_SLOP_LICENSE.txt vendor/wasm-memprof/LICENSE
+  artifacts:
+    paths: [wasm.tar]
+    expire_in: 1 day
+
+check:
+  extends: .with_wasm
+  stage: test
+  timeout: 45m
+  cache:
+    - <<: *pnpm_cache
+      policy: pull
+    - <<: *cargo_cache
+      policy: pull
+  script:
+    - pnpm format:check
+    - pnpm lint:js
+    - pnpm lint:test
+    - pnpm lint:rust
+    - node --test packages/scene-host-wasm/test/abi.test.mjs
+    - pnpm test:script-helpers
+    - pnpm check
+    - pnpm script-gate:test
+    - pnpm tty-css-preview:test
+
+vitest:
+  extends: .with_wasm
+  stage: test
+  timeout: 30m
+  cache:
+    <<: *pnpm_cache
+    policy: pull
+  script:
+    - pnpm test:vitest
+
+rust-test:
+  extends: .job
+  stage: test
+  tags: [linux-x86-8cpu-16gb]
+  timeout: 60m
+  cache:
+    - <<: *pnpm_cache
+      policy: pull
+    - <<: *cargo_cache
+      policy: pull
+  script:
+    - pnpm dlx "turbo@$TURBO_VERSION" run cargo:test:raw
+    - node scripts/get-patched-vendor-crates.mjs
+    - cargo check --manifest-path packages/core/target/vendor-patched/vello_cpu-0.3.0/Cargo.toml --no-default-features --features std,png,text,u8_pipeline
+
+e2e:
+  extends: .with_wasm
+  stage: test
+  timeout: 60m
+  parallel: 4
+  cache:
+    <<: *pnpm_cache
+    policy: pull
+  script:
+    - pnpm test:e2e --shard=$CI_NODE_INDEX/$CI_NODE_TOTAL

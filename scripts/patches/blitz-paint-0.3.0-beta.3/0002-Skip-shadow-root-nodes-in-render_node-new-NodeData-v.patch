@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 24 Jul 2026 12:21:55 +0100
+Subject: [PATCH] Skip shadow-root nodes in render_node (new NodeData variant)
+
+Shadow roots are containers, not boxes: their children reach paint
+through the host's flattened children. The arm is needed for
+exhaustiveness against blitz-dom's NodeData::ShadowRoot.
+---
+ src/render.rs | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/render.rs b/src/render.rs
+index 928617f..e602786 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -627,5 +627,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             NodeData::Document(_) => {}
+             // NodeData::Doctype => {}
+             NodeData::Comment { .. } => {} // NodeData::ProcessingInstruction { .. } => {}
++            // Shadow roots are containers; their flattened children paint via the host.
++            NodeData::ShadowRoot(_) => {}
+         }
+     }

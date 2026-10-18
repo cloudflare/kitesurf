@@ -1,0 +1,482 @@
+// Copyright (c) 2026 Cloudflare, Inc.
+// Licensed under the Apache 2.0 license found in the LICENSE file or at:
+// https://opensource.org/licenses/Apache-2.0
+
+// Runs the source-based legacy script plan and dispatches document lifecycle events.
+// The normal path bundles classic scripts into one sloppy CJS module; this plan runs only when the
+// parent supplied no bundle, and it is not script-gated.
+
+import { AsyncFunction } from "./eval-helpers.ts";
+import { ksEventCtors, state } from "./state.ts";
+import { trustedFetch } from "./trusted-fetch.ts";
+
+export interface ScriptDescriptor {
+  src: string | null;
+  kind: "classic" | "module";
+  defer: boolean;
+  async: boolean;
+  body: string;
+  _resolvedUrl?: string;
+}
+
+interface FetchResultOk {
+  ok: true;
+  source: string;
+}
+interface FetchResultErr {
+  ok: false;
+  error: string;
+}
+type FetchResult = FetchResultOk | FetchResultErr;
+
+export interface ScriptPlan {
+  regular: ScriptDescriptor[];
+  deferred: ScriptDescriptor[];
+  async_: ScriptDescriptor[];
+  modules: ScriptDescriptor[];
+  sourceCache: Map<string, Promise<FetchResult>>;
+}
+
+export function extractScripts(): ScriptDescriptor[] {
+  const dom = state.dom;
+  if (!dom) return [];
+  let ids: ArrayLike<number>;
+  try {
+    ids = dom.querySelectorAll("script");
+  } catch {
+    return [];
+  }
+  const out: ScriptDescriptor[] = [];
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i];
+    let info: ReturnType<typeof dom.nodeInfo> | null;
+    try {
+      info = dom.nodeInfo(id);
+    } catch {
+      continue;
+    }
+    const flat: unknown[] =
+      (info && ((info as { attributes?: unknown[] }).attributes as unknown[])) || [];
+    const attrs: Record<string, string> = {};
+    for (let j = 0; j + 1 < flat.length; j += 2) {
+      attrs[String(flat[j]).toLowerCase()] = String(flat[j + 1] ?? "");
+    }
+    const rawType = (attrs.type || "").trim().toLowerCase();
+    if (
+      rawType !== "" &&
+      rawType !== "text/javascript" &&
+      rawType !== "application/javascript" &&
+      rawType !== "module"
+    ) {
+      continue;
+    }
+    const src = attrs.src ? String(attrs.src).trim() : "";
+    let body = "";
+    if (!src) {
+      try {
+        body = dom.textContent(id);
+      } catch {
+        body = "";
+      }
+    }
+    if (!src && (!body || !body.trim())) continue;
+    out.push({
+      src: src || null,
+      kind: rawType === "module" ? "module" : "classic",
+      defer: "defer" in attrs,
+      async: "async" in attrs,
+      body,
+    });
+  }
+  return out;
+}
+
+function resolveScriptUrl(src: string | null | undefined): string | null {
+  if (!src) return null;
+  try {
+    return state.pageUrl ? new URL(src, state.pageUrl).toString() : new URL(src).toString();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchScriptSource(url: string): Promise<string> {
+  const response = await trustedFetch(
+    url,
+    { headers: { accept: "*/*" } },
+    { resourceType: "Script", initiator: "parser" },
+  );
+  if (!response.ok) {
+    throw new Error("<script src> fetch returned HTTP " + response.status + " for " + url);
+  }
+  return await response.text();
+}
+
+async function runOneClassic(source: string, label: string): Promise<void> {
+  if (!source) return;
+  try {
+    if (/\bawait\b/.test(source)) {
+      const scriptFunction = new AsyncFunction(source);
+      await scriptFunction();
+    } else {
+      let src = source;
+      const m =
+        /^\s*(?:\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*)*("use strict"|'use strict')\s*;?\s*/.exec(src);
+      if (m) src = src.slice(0, m.index) + src.slice(m.index + m[0].length);
+      // eslint-disable-next-line no-eval
+      (0, eval)(src);
+    }
+  } catch (err) {
+    console.error("[" + label + "]", err);
+  }
+}
+
+export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
+  const regular: ScriptDescriptor[] = [];
+  const deferred: ScriptDescriptor[] = [];
+  const async_: ScriptDescriptor[] = [];
+  const modules: ScriptDescriptor[] = [];
+  for (const script of scripts) {
+    if (script.kind === "module") {
+      modules.push(script);
+      continue;
+    }
+    if (script.async && script.src) {
+      async_.push(script);
+    } else if (script.defer && script.src) {
+      deferred.push(script);
+    } else {
+      regular.push(script);
+    }
+  }
+
+  const sourceCache = new Map<string, Promise<FetchResult>>();
+  const startFetch = (url: string) => {
+    const existing = sourceCache.get(url);
+    if (existing) return existing;
+    const fetchPromise: Promise<FetchResult> = (async () => {
+      try {
+        const source = await fetchScriptSource(url);
+        return { ok: true, source };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    })();
+    sourceCache.set(url, fetchPromise);
+    return fetchPromise;
+  };
+
+  for (const script of [...regular, ...deferred, ...async_, ...modules]) {
+    if (!script.src) continue;
+    const url = resolveScriptUrl(script.src);
+    if (!url) {
+      console.error("[kitesurf] cannot resolve <script src>: " + String(script.src));
+      continue;
+    }
+    script._resolvedUrl = url;
+    startFetch(url);
+  }
+
+  return { regular, deferred, async_, modules, sourceCache };
+}
+
+export async function runRegularPhase(plan: ScriptPlan): Promise<void> {
+  for (const script of plan.regular) {
+    if (script.src) {
+      const url = script._resolvedUrl;
+      if (!url) continue;
+      const fetchResult = await plan.sourceCache.get(url);
+      if (!fetchResult || !fetchResult.ok) {
+        console.error(
+          "[kitesurf] <script src> fetch failed for " + url + ": " + fetchErrorDetail(fetchResult),
+        );
+        continue;
+      }
+      await runOneClassic(fetchResult.source, url);
+    } else {
+      await runOneClassic(script.body, "<inline>");
+    }
+  }
+  for (const script of plan.deferred) {
+    const url = script._resolvedUrl;
+    if (!url) continue;
+    const fetchResult = await plan.sourceCache.get(url);
+    if (!fetchResult || !fetchResult.ok) {
+      console.error(
+        "[kitesurf] deferred <script src> fetch failed for " +
+          url +
+          ": " +
+          fetchErrorDetail(fetchResult),
+      );
+      continue;
+    }
+    await runOneClassic(fetchResult.source, url);
+  }
+}
+
+function fetchErrorDetail(result: FetchResult | undefined): string {
+  if (!result) return "unknown";
+  if (result.ok) return "unknown";
+  return "error" in result ? result.error || "unknown" : "unknown";
+}
+
+export async function runAsyncPhase(plan: ScriptPlan): Promise<void> {
+  await Promise.all(
+    plan.async_.map(async (s) => {
+      const url = s._resolvedUrl;
+      if (!url) return;
+      const fetchResult = await plan.sourceCache.get(url);
+      if (!fetchResult || !fetchResult.ok) {
+        console.error(
+          "[kitesurf] async <script src> fetch failed for " +
+            url +
+            ": " +
+            fetchErrorDetail(fetchResult),
+        );
+        return;
+      }
+      await runOneClassic(fetchResult.source, url);
+    }),
+  );
+}
+
+type ModuleExports = Record<string, unknown>;
+
+const moduleExportsCache = new Map<string, Promise<ModuleExports>>();
+
+async function loadModule(spec: string, baseUrl: string): Promise<ModuleExports> {
+  const url = (() => {
+    try {
+      return new URL(spec, baseUrl).toString();
+    } catch {
+      return null;
+    }
+  })();
+  if (!url) {
+    console.warn("[kitesurf] cannot resolve module specifier:", spec);
+    return {};
+  }
+  const cached = moduleExportsCache.get(url);
+  if (cached) return cached;
+  const modulePromise: Promise<ModuleExports> = (async () => {
+    let source: string;
+    try {
+      source = await fetchScriptSource(url);
+    } catch (err) {
+      console.warn("[kitesurf] module fetch failed for " + url, err);
+      return {};
+    }
+    const exportsObj: ModuleExports = {};
+    const { code, deps } = transpileModule(source);
+    const depEntries = await Promise.all(
+      deps.map(async (d) => [d.local, await loadModule(d.spec, url)] as const),
+    );
+    const depBindings: Record<string, ModuleExports> = {};
+    for (const [name, ns] of depEntries) depBindings[name] = ns;
+    try {
+      const paramNames = ["__ks_exports", "__ks_baseUrl", ...Object.keys(depBindings)];
+      const paramValues: unknown[] = [exportsObj, url, ...Object.values(depBindings)];
+      const moduleFunction = new AsyncFunction(...paramNames, code);
+      await moduleFunction(...paramValues);
+    } catch (err) {
+      console.warn("[kitesurf] module exec failed for " + url, err);
+    }
+    return exportsObj;
+  })();
+  moduleExportsCache.set(url, modulePromise);
+  return modulePromise;
+}
+
+interface ModuleDep {
+  local: string;
+  spec: string;
+}
+
+function transpileModule(source: string): { code: string; deps: ModuleDep[] } {
+  let out = source;
+  const deps: ModuleDep[] = [];
+  let depCounter = 0;
+  const nextDepLocal = () => "__ks_dep_" + ++depCounter;
+
+  out = out.replace(
+    /\bimport\s*\*\s*as\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*from\s*(['"])([^'"\n]+)\2\s*;?/g,
+    (_, ns, _q, spec) => {
+      const local = nextDepLocal();
+      deps.push({ local, spec });
+      return "const " + ns + " = " + local + ";";
+    },
+  );
+
+  out = out.replace(
+    /\bimport\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*,\s*\{([^}]*)\}\s*from\s*(['"])([^'"\n]+)\3\s*;?/g,
+    (_, def, named, _q, spec) => {
+      const local = nextDepLocal();
+      deps.push({ local, spec });
+      return (
+        "const " +
+        def +
+        " = " +
+        local +
+        ".default; " +
+        "const {" +
+        rewriteNamedBindings(named) +
+        "} = " +
+        local +
+        ";"
+      );
+    },
+  );
+
+  out = out.replace(
+    /\bimport\s*\{([^}]*)\}\s*from\s*(['"])([^'"\n]+)\2\s*;?/g,
+    (_, named, _q, spec) => {
+      const local = nextDepLocal();
+      deps.push({ local, spec });
+      return "const {" + rewriteNamedBindings(named) + "} = " + local + ";";
+    },
+  );
+
+  out = out.replace(
+    /\bimport\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*from\s*(['"])([^'"\n]+)\2\s*;?/g,
+    (_, def, _q, spec) => {
+      const local = nextDepLocal();
+      deps.push({ local, spec });
+      return "const " + def + " = " + local + ".default;";
+    },
+  );
+
+  out = out.replace(/\bimport\s*(['"])([^'"\n]+)\1\s*;?/g, (_, _q, spec) => {
+    const local = nextDepLocal();
+    deps.push({ local, spec });
+    return "void " + local + ";";
+  });
+
+  out = out.replace(
+    /\bimport\s*\(\s*(['"])([^'"\n]+)\1\s*\)/g,
+    (_, _q, spec) => "__ks_loadModule(" + JSON.stringify(spec) + ", __ks_baseUrl)",
+  );
+
+  out = out.replace(
+    /\bexport\s+(const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=/g,
+    "$1 $2 = __ks_exports.$2 =",
+  );
+
+  out = out.replace(
+    /\bexport\s+(async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
+    "$1function $2",
+  );
+  const funcExportNames: string[] = [];
+  source.replace(/\bexport\s+(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)/g, (_, name) => {
+    funcExportNames.push(name);
+    return "";
+  });
+  for (const name of funcExportNames) {
+    out += "; __ks_exports." + name + " = " + name + ";";
+  }
+
+  const classExportNames: string[] = [];
+  source.replace(/\bexport\s+class\s+([A-Za-z_$][A-Za-z0-9_$]*)/g, (_, name) => {
+    classExportNames.push(name);
+    return "";
+  });
+  out = out.replace(/\bexport\s+class\s+/g, "class ");
+  for (const name of classExportNames) {
+    out += "; __ks_exports." + name + " = " + name + ";";
+  }
+
+  out = out.replace(/\bexport\s*\{([^}]*)\}\s*;?/g, (_, body) => {
+    const parts = body
+      .split(",")
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+    return parts
+      .map((p: string) => {
+        const m = /^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/.exec(p);
+        if (m) return "__ks_exports." + m[2] + " = " + m[1] + ";";
+        const m2 = /^([A-Za-z_$][A-Za-z0-9_$]*)$/.exec(p);
+        if (m2) return "__ks_exports." + m2[1] + " = " + m2[1] + ";";
+        return "";
+      })
+      .join(" ");
+  });
+
+  out = out.replace(/\bexport\s+default\s+/g, "__ks_exports.default = ");
+
+  return { code: out, deps };
+}
+
+function rewriteNamedBindings(body: string): string {
+  return body
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((p) => {
+      const m = /^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/.exec(p);
+      return m ? m[1] + ": " + m[2] : p;
+    })
+    .join(", ");
+}
+
+export async function runModulePhase(plan: ScriptPlan): Promise<void> {
+  for (const script of plan.modules) {
+    let source = "";
+    let label = "<inline-module>";
+    let baseUrl = state.pageUrl;
+    if (script.src) {
+      const url = script._resolvedUrl;
+      if (!url) {
+        console.error("[kitesurf] cannot resolve module <script src>: " + String(script.src));
+        continue;
+      }
+      label = url;
+      baseUrl = url;
+      const fetchResult = await plan.sourceCache.get(url);
+      if (!fetchResult || !fetchResult.ok) {
+        console.error(
+          "[kitesurf] module <script src> fetch failed for " + url,
+          fetchErrorDetail(fetchResult) || "unknown fetch error",
+        );
+        continue;
+      }
+      source = fetchResult.source;
+    } else {
+      source = script.body || "";
+      if (!source.trim()) continue;
+    }
+    try {
+      const exportsObj: ModuleExports = {};
+      const { code, deps } = transpileModule(source);
+      const depEntries = await Promise.all(
+        deps.map(async (d) => [d.local, await loadModule(d.spec, baseUrl)] as const),
+      );
+      const paramNames = ["__ks_exports", "__ks_baseUrl", ...depEntries.map(([n]) => n)];
+      const paramValues: unknown[] = [exportsObj, baseUrl, ...depEntries.map(([, v]) => v)];
+      const moduleFunction = new AsyncFunction(...paramNames, code);
+      await moduleFunction(...paramValues);
+    } catch (err) {
+      console.error("[" + label + "]", err);
+    }
+  }
+}
+
+export function dispatchLifecycle(
+  target: { dispatchEvent?: (ev: unknown) => boolean } | null,
+  type: string,
+  init?: Record<string, unknown>,
+): void {
+  if (!target || typeof target.dispatchEvent !== "function") return;
+  const EventConstructor = ksEventCtors.Event;
+  if (typeof EventConstructor !== "function") return;
+  try {
+    const event = new (EventConstructor as new (
+      type: string,
+      init?: Record<string, unknown>,
+    ) => unknown)(type, init || {});
+    target.dispatchEvent(event);
+  } catch (err) {
+    console.error("[kitesurf] lifecycle " + type + " dispatch failed", err);
+  }
+}

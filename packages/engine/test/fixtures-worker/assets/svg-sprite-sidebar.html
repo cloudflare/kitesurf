@@ -1,0 +1,36 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>svg sprite sidebar fixture</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #ffffff; }
+    ul { margin: 0; padding: 0; }
+    .sprite { display: none; }
+    li { display: block; width: 300px; list-style: none; }
+    .menu-item { position: relative; display: flex; align-items: center; min-height: 42px; padding-left: 44px; color: rgb(0, 43, 103); font: 14px sans-serif; text-decoration: none; }
+    .menu-item svg {
+      color: rgb(0, 81, 195);
+      fill: currentcolor;
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translate3d(0, -50%, 0);
+    }
+  </style>
+</head>
+<body>
+  <svg class="sprite" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icon-bots" viewBox="0 0 20 20"><path d="M0 0h20v20H0z"/></symbol>
+  </svg>
+  <ul>
+    <li><a class="menu-item" href="#"><svg width="20" height="20" aria-hidden="true"><use href="#icon-bots"></use></svg><span class="label">Bots</span></a></li>
+  </ul>
+</body>
+</html>

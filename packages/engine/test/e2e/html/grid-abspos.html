@@ -1,0 +1,19 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  body { margin: 0; font: 16px monospace; }
+  #g {
+    position: relative; display: grid;
+    grid: 40px 40px / 40px 40px;
+    width: 80px; height: 80px;
+    padding: 6px 10px 14px 2px;
+    border: solid; border-width: 5px 2px 3px 4px;
+  }
+  #auto { position: absolute; width: 10px; height: 10px; background: #f66; }
+  #areaed { position: absolute; grid-area: 2 / 2; width: 10px; height: 10px; background: #66f; }
+</style>
+<div id="g"><div id="auto"></div><div id="areaed"></div></div>

@@ -1,0 +1,305 @@
+"""Public Kitesurf build and test graph."""
+
+module(name = "kitesurf")
+
+bazel_dep(name = "aspect_rules_js", version = "3.5.1")
+bazel_dep(name = "bazel_lib", version = "3.7.2")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_nodejs", version = "6.7.6")
+bazel_dep(name = "rules_rust", version = "0.74.0")
+
+# Patched registry crates are downloaded and patched by Bazel rather than copied from Cargo paths.
+single_version_override(
+    module_name = "rules_rust",
+    patch_strip = 1,
+    patches = ["//bazel/rust:rules_rust-patched-crates.patch"],
+    version = "0.74.0",
+)
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2021",
+    extra_target_triples = [],
+    rustfmt_version = "nightly/2026-05-14",
+    sha256s = {
+        "2026-05-14/cargo-nightly-x86_64-unknown-linux-gnu.tar.xz":
+            "988cfdd39920fbccaf37ee48b4927fce02a566bbbdd687556669258b9679a5f8",
+        "2026-05-14/clippy-nightly-x86_64-unknown-linux-gnu.tar.xz":
+            "e94a424c323a2fdd61b57a15194b7fb8c539b472e2ac855f32d730953004deb9",
+        "2026-05-14/llvm-tools-nightly-x86_64-unknown-linux-gnu.tar.xz":
+            "8cb583a454d08eaa4d8ad0c5c82c45cd9c3f914d38836828fd9ff18bc40283cc",
+        "2026-05-14/rust-std-nightly-x86_64-unknown-linux-gnu.tar.xz":
+            "52c8cff09e19a8c08030d05f9ae26012ad488ad05850637311adb98df562b483",
+        "2026-05-14/rustc-nightly-x86_64-unknown-linux-gnu.tar.xz":
+            "889e0b0b8eefa198c8065b2786879bc451771e538f118e252b09bb1af6293a12",
+        "2026-05-14/rustfmt-nightly-x86_64-unknown-linux-gnu.tar.xz":
+            "426d37ab8a185c3278b13a7dfef7a64149d65f624a9410573bb3003814bfdc43",
+    },
+    versions = ["nightly/2026-05-14"],
+)
+use_repo(
+    rust,
+    "rust_toolchains",
+    rust_tools = "rust_linux_x86_64__x86_64-unknown-linux-gnu__nightly_tools",
+)
+
+register_execution_platforms(
+    "@platforms//host",
+    "//bazel/rust:rust_exec",
+)
+
+register_toolchains(
+    "//bazel/rust:wasm32_unwind_toolchain",
+    "//bazel/rust:wasm32_scene_host_toolchain",
+    "@rust_toolchains//:all",
+)
+
+cargo_workspaces = use_extension("//bazel/rust:crates.bzl", "cargo_workspaces")
+cargo_workspaces.patched(
+    manifest = "//:Cargo.toml",
+    patches_marker = "//scripts:patches/README.md",
+    sha256 = {
+        "anyrender-0.14.0": "1755d0ef8e00e87b6b825dfbe5a35d34d3b302e97e80a48e93f9cd361fbada06",
+        "anyrender_vello_cpu-0.18.0":
+            "a09d9356dd2b2f032345711a350c0e2326a854cb5070f899265bc80fb33884b1",
+        "blitz-dom-0.3.0-beta.3":
+            "53e58a506e20e90b69ab8b03f933c125237361c31b0dae0e7e149c5bcbf9b28a",
+        "blitz-html-0.3.0-beta.3":
+            "0bf860f5757da5c14a2cb986987d2be392e9abc9e2a42d815a699649f08a7cee",
+        "blitz-paint-0.3.0-beta.3":
+            "31dd8929dd745efd8ada25f977a163b4c17fd8e9804cb7f42441df63215d2fdd",
+        "boa_ast-0.22.0": "9221b0a090572b4a118b46c5874c0781fe4bc9546b85f0a615b8bfb609ca4ed7",
+        "boa_engine-0.22.0": "5d6aaf7fdc4299df68adb67e1a5440a51d34630a1f5271b9698fd74bc97b60d9",
+        "boa_gc-0.22.0": "af82119558ab1002d1978c8459b53a3ebb506177d29a3aca37c07c1777b1d966",
+        "boa_interner-0.22.0": "317c631e791f5cb7d0017e43c0a758b0eaffd40c34c4c360e2a6be7752b78cd1",
+        "boa_parser-0.22.0": "641e81b3c8cbb7a2140547fb3ea534e9edf210b4e8c920b5fa864a919e11fbcf",
+        "jpeg-encoder-0.7.0": "0b0b36cbb4e6704f12f5b5d7b01dac593982c6550859ebd5a66fb15c9ea27fd5",
+        "parley-0.12.0": "61bd0c0c1737f0b3d3726dc06b225083af213b61913e4fbae1670613a106c6ce",
+        "parley_engine-0.12.0": "b74c0d373e462e504ad4436710a39f099e18e848e1ee711f70cd2dcd5a69b290",
+        "ratatui-image-8.1.1": "3ecc67e9f7d0ac69e0f712f58b1a9d5a04d8daeeb3628f4d6b67580abb88b7cb",
+        "selectors-0.41.0": "8322aebea94a6cc288ff884e8a49bdbceef60206c400c6c46d22e62fc4fd91a6",
+        "stylo-0.22.0": "7a255e46af2478628c48daab3774090caabd7812b1dd3ca98801c2b9c53491ed",
+        "stylo_taffy-0.3.0-beta.3":
+            "58d910649e40ac76167e51da4692180beadba181581b26d501024a132772f5a3",
+        "taffy-0.15.0": "3c8480887e8803986d96a7173729565520d4bbb721ad6b7ad6941a22897207aa",
+        "usvg-0.48.1": "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91",
+        "vello_cpu-0.3.0": "ed1fec424fbba6acf6cbc78bb526447eb77590d95f40419d598870fe37535212",
+    },
+)
+cargo_workspaces.workspace(
+    name = "cargo_ws_core",
+    lockfile = "//:Cargo.lock",
+    members = {"packages/core": "//packages/core:Cargo.toml"},
+)
+cargo_workspaces.workspace(
+    name = "cargo_ws_renderer",
+    lockfile = "//:Cargo.lock",
+    members = {"packages/renderer-core": "//packages/renderer-core:Cargo.toml"},
+)
+cargo_workspaces.workspace(
+    name = "cargo_ws_scene_host",
+    lockfile = "//:Cargo.lock",
+    members = {"packages/scene-host-wasm": "//packages/scene-host-wasm:Cargo.toml"},
+)
+cargo_workspaces.vendor(
+    name = "cargo_vendor",
+    lockfile = "//:Cargo.lock",
+)
+use_repo(
+    cargo_workspaces,
+    "cargo_vendor",
+    "cargo_ws_core",
+    "cargo_ws_renderer",
+    "cargo_ws_scene_host",
+)
+
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+crate.from_cargo(
+    name = "crates",
+    cargo_lockfile = "@cargo_ws_core//:Cargo.lock",
+    host_tools = "@rust_tools",
+    manifests = ["@cargo_ws_core//:Cargo.toml"],
+    skip_cargo_lockfile_overwrite = True,
+    supported_platform_triples = [
+        "wasm32-unknown-unknown",
+        "x86_64-unknown-linux-gnu",
+    ],
+)
+crate.from_cargo(
+    name = "crates_renderer",
+    cargo_lockfile = "@cargo_ws_renderer//:Cargo.lock",
+    host_tools = "@rust_tools",
+    manifests = ["@cargo_ws_renderer//:Cargo.toml"],
+    skip_cargo_lockfile_overwrite = True,
+    supported_platform_triples = [
+        "wasm32-unknown-unknown",
+        "x86_64-unknown-linux-gnu",
+    ],
+)
+crate.from_cargo(
+    name = "crates_scene_host",
+    cargo_lockfile = "@cargo_ws_scene_host//:Cargo.lock",
+    host_tools = "@rust_tools",
+    manifests = ["@cargo_ws_scene_host//:Cargo.toml"],
+    skip_cargo_lockfile_overwrite = True,
+    supported_platform_triples = [
+        "wasm32-unknown-unknown",
+        "x86_64-unknown-linux-gnu",
+    ],
+)
+
+crate.annotation(
+    crate = "write-fonts",
+    repositories = [
+        "crates",
+        "crates_renderer",
+    ],
+    rustc_flags = [
+        "-Copt-level=0",
+        "-Cdebug-assertions=off",
+    ],
+)
+crate.annotation(
+    build_script_env = {"PYTHON3": "/usr/bin/python3"},
+    crate = "stylo",
+    repositories = ["crates"],
+)
+crate.annotation(
+    additive_build_file_content = """
+rust_library(
+    name = "vello_cpu_fallback",
+    crate_features = ["std", "text", "u8_pipeline"],
+    crate_name = "vello_cpu",
+    crate_root = "src/lib.rs",
+    deps = existing_rule("vello_cpu")["deps"],
+    edition = existing_rule("vello_cpu")["edition"],
+    rustc_env_files = [":cargo_toml_env_vars"],
+    srcs = glob(["src/**/*.rs"]),
+    tags = ["manual"],
+)
+""",
+    crate = "vello_cpu",
+    repositories = ["crates"],
+)
+use_repo(crate, "crates", "crates_renderer", "crates_scene_host")
+use_repo(crate, "crates__boa_gc-0.22.0", "crates__boa_interner-0.22.0", "crates__vello_cpu-0.3.0")
+
+wasm_std_repo = use_repo_rule("//bazel/rust:repos.bzl", "wasm_std_repo")
+wasm_std_repo(
+    name = "wasm32_unwind_std",
+    cargo_config = "//packages/core:.cargo/config.toml",
+    rust_src_sha256 = "7750e3173dcd2bff481518bebeb9118856bd38930445718477cc56bbb858fe9b",
+    rust_src_url = "https://static.rust-lang.org/dist/2026-05-14/rust-src-nightly.tar.xz",
+)
+
+node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
+node.toolchain(node_version = "24.20.0")
+
+npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
+npm.npm_translate_lock(
+    name = "npm",
+    data = [
+        "//:package.json",
+        "//:pnpm-workspace.yaml",
+        "//:packages/core/pkg/package.json",
+        "//:packages/dom-shim/package.json",
+        "//:packages/engine/package.json",
+        "//:packages/jsrpc-types/package.json",
+        "//:packages/kitesurf-cli/package.json",
+        "//:packages/page-renderer/package.json",
+        "//:packages/page-script/package.json",
+        "//:packages/script-gate/package.json",
+        "//:packages/tty-css-preview/package.json",
+        "//:packages/worker-script/package.json",
+    ],
+    npmrc = "//:.npmrc",
+    pnpm_lock = "//:pnpm-lock.yaml",
+    public_hoist_packages = {
+        "buffer": [""],
+        "devtools-protocol@0.0.1669207": [""],
+        "undici": [""],
+        "zod@4.6.5": [""],
+    },
+)
+use_repo(npm, "npm")
+
+pnpm = use_extension("@aspect_rules_js//npm:extensions.bzl", "pnpm")
+pnpm.pnpm(pnpm_version_from = "//:package.json")
+use_repo(pnpm, "pnpm")
+
+tracked_files = use_repo_rule("//bazel:tracked_files.bzl", "tracked_files")
+tracked_files(name = "tracked_files")
+
+wpt_buckets = use_repo_rule("//tests/wpt:buckets_repo.bzl", "wpt_buckets")
+wpt_buckets(
+    name = "wpt_buckets",
+    buckets = "//:tests/wpt-buckets.json",
+    tests = "//:tests/wpt-tests.json",
+)
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+http_archive(
+    name = "wasm_bindgen",
+    build_file_content = 'exports_files(["wasm-bindgen"])',
+    sha256 = "61d4a7dc85acfa0d2354ccc0b8361928c7e52a746d17f28ebaa795ed3dc1614a",
+    strip_prefix = "wasm-bindgen-0.2.127-x86_64-unknown-linux-musl",
+    url = (
+        "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/0.2.127/" +
+        "wasm-bindgen-0.2.127-x86_64-unknown-linux-musl.tar.gz"
+    ),
+)
+http_archive(
+    name = "binaryen",
+    build_file_content = 'exports_files(["bin/wasm-opt"])',
+    sha256 = "7c3bc16599c8274a04d34a504fe4be2047884f900e0e2da2f6fb9cd667183be4",
+    strip_prefix = "binaryen-version_125",
+    url = (
+        "https://github.com/WebAssembly/binaryen/releases/download/version_125/" +
+        "binaryen-version_125-x86_64-linux.tar.gz"
+    ),
+)
+http_archive(
+    name = "pyyaml",
+    build_file_content = """filegroup(
+    name = "yaml",
+    srcs = glob(["yaml/*.py"]),
+    visibility = ["//visibility:public"],
+)
+""",
+    sha256 = "bfdf460b1736c775f2ba9f6a92bca30bc2095067b8a9d77876d1fad6cc3b4a43",
+    strip_prefix = "PyYAML-6.0.1/lib",
+    url = (
+        "https://files.pythonhosted.org/packages/cd/e5/" +
+        "af35f7ea75cf72f2cd079c95ee16797de7cd71f29ea7c68ae5ce7be1eda0/" +
+        "PyYAML-6.0.1.tar.gz"
+    ),
+)
+http_archive(
+    name = "wasm32_stock_std",
+    build_file_content = """
+load("@rules_rust//rust:toolchain.bzl", "rust_stdlib_filegroup")
+
+rust_stdlib_filegroup(
+    name = "rust_std",
+    srcs = glob(["lib/rustlib/wasm32-unknown-unknown/lib/*"]),
+    visibility = ["//visibility:public"],
+)
+""",
+    sha256 = "41cc2e50a6b75503d336d467d794715b5889ead05b11f6cac7826c0d2b52259a",
+    strip_prefix = "rust-std-nightly-wasm32-unknown-unknown/rust-std-wasm32-unknown-unknown",
+    url = (
+        "https://static.rust-lang.org/dist/2026-05-14/" +
+        "rust-std-nightly-wasm32-unknown-unknown.tar.xz"
+    ),
+)
+
+wpt_editing = use_repo_rule("//packages/dom-shim:editing_repo.bzl", "wpt_editing")
+wpt_editing(
+    name = "wpt_editing",
+    script = "//packages/dom-shim:scripts/editing-implementation.mjs",
+)
+
+# Root modules may provide typed string maps for these profiles; empty maps run locally.
+executor_profiles = use_extension("//bazel:executor_profiles.bzl", "executor_profiles")
+use_repo(executor_profiles, "kitesurf_executor_profiles")

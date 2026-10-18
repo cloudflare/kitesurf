@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Sun, 2 Aug 2026 22:42:17 +0100
+Subject: [PATCH] Add live_rehomed_reach: scroll-fresh union of re-homed paint
+ boxes
+
+rehomed_reach is rebuilt at resolve time, but pure-scroll frames skip
+resolve entirely (paint-offset-only bump), so any consumer needing the
+current box of re-homed children under a scrolled ancestor reads a rect
+stale by the scroll delta. rehomed_paint_translate reads scroll offsets
+live: expose a live union for paint-time consumers (the filter effect
+layer clip cut a re-homed abspos box by exactly the scroller's scrollX).
+---
+ src/node/node.rs | 30 ++++++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/src/node/node.rs b/src/node/node.rs
+index d20bca2..8e28f97 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -1584,6 +1584,36 @@ impl Node {
+         taffy::Point { x: 0.0, y: 0.0 }
+     }
+
++    // Live union of re-homed paint-child boxes in this node's own
++    // coordinate space. rehomed_paint_translate reads scroll offsets
++
++    // at call time, unlike the resolve-time rehomed_reach cache, so
++    // this stays correct on pure-scroll frames that skip resolve.
++    pub fn live_rehomed_reach(&self) -> Option<(f32, f32, f32, f32)> {
++        let children = self.rehomed_paint_children.borrow();
++        if children.is_empty() {
++            return None;
++        }
++        let tree = self.tree();
++        let mut rect: Option<(f32, f32, f32, f32)> = None;
++        for &child_id in children.iter() {
++            let Some(child) = tree.get(child_id) else { continue };
++            let t = child.rehomed_paint_translate(self.id);
++            let loc = child.final_layout().location;
++            let size = child.final_layout().size;
++            let overflow = child.final_layout().scrollable_overflow_rect;
++            let x0 = t.x + loc.x;
++            let y0 = t.y + loc.y;
++            let w = size.width.max(overflow.right);
++            let h = size.height.max(overflow.bottom);
++            rect = Some(match rect {
++                None => (x0, y0, x0 + w, y0 + h),
++                Some(a) => (a.0.min(x0), a.1.min(y0), a.2.max(x0 + w), a.3.max(y0 + h)),
++            });
++        }
++        rect
++    }
++
+     pub fn is_stacking_context_root(&self, is_flex_or_grid_item: bool) -> bool {
+         let Some(style) = self.primary_styles() else {
+             return false;

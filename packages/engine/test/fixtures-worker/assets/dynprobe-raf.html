@@ -1,0 +1,25 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html><title>dynprobe-raf</title><body>
+<div id="out" data-status="pending"></div>
+<pre id="results" data-done="0"></pre>
+<script>
+const chunk = './dynprobe-' + 'raf-wrap.js';
+import(chunk).then(
+  (m) => m.default(document.getElementById('out')),
+  (e) => {
+    const o = document.getElementById('out');
+    o.setAttribute('data-status', 'import-error');
+    o.setAttribute('data-error', String((e && e.message) || e).slice(0, 200));
+    return 'import-error';
+  },
+).then((v) => {
+  const el = document.getElementById('results');
+  el.textContent = JSON.stringify({ raf: v ?? null, status: document.getElementById('out').getAttribute('data-status') });
+  el.setAttribute('data-done', '1');
+});
+</script></body>

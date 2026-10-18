@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ruskin Constant <ruskin@cloudflare.com>
+Date: Wed, 16 Sep 2026 11:20:03 +0100
+Subject: [PATCH] Complete image-rendering's grammar for the servo build
+
+image-rendering was missing 'smooth' (gecko-gated) and 'high-quality'
+(never implemented) from the css-images-3 grammar 'auto | smooth |
+high-quality | crisp-edges | pixelated'. Un-gate smooth and add
+high-quality as its own variant, not an alias of Smooth, so it
+serializes back as 'high-quality' rather than 'smooth'. The spec
+defines the two as behaviorally identical but distinct keywords. The
+deprecated optimizeSpeed and optimizeQuality synonyms stay gecko-only;
+no WPT coverage needs them.
+---
+ values/specified/image.rs | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/values/specified/image.rs b/values/specified/image.rs
+index ac10b89..75f63b3 100644
+--- a/values/specified/image.rs
++++ b/values/specified/image.rs
+@@ -1338,8 +1338,12 @@ impl PaintWorklet {
+ #[repr(u8)]
+ pub enum ImageRendering {
+     Auto,
+-    #[cfg(feature = "gecko")]
+     Smooth,
++    /// Currently identical to `smooth` in behavior (the spec reserves
++    /// the two keywords for future divergence); kept as its own
++    /// variant, not an alias, so it round-trips through serialization
++    /// as `high-quality` rather than normalizing to `smooth`.
++    HighQuality,
+     #[parse(aliases = "-moz-crisp-edges")]
+     CrispEdges,
+     Pixelated,

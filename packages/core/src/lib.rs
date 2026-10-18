@@ -1,0 +1,777 @@
+// Copyright (c) 2026 Cloudflare, Inc.
+// Licensed under the Apache 2.0 license found in the LICENSE file or at:
+// https://opensource.org/licenses/Apache-2.0
+
+//! Wasm-facing document core: owns page DOM state and exposes style, layout,
+//! paint, and resource APIs.
+
+use std::cell::RefCell;
+use std::sync::Arc;
+
+use blitz_dom::{BaseDocument, DocumentConfig, NodeData, DEFAULT_CSS as BLITZ_DEFAULT_CSS};
+use blitz_html::{HtmlDocument, HtmlProvider};
+use blitz_traits::NodeId;
+use wasm_bindgen::prelude::*;
+
+use paint::render::{DamageFanout, RbiImageRecency};
+use style::transitions::{AnimationEvent, AnimationStates, TransitionEvent, TransitionStates};
+
+mod dom;
+mod js;
+mod ks_tracing;
+mod layout;
+mod paint;
+mod resources;
+mod style;
+#[cfg(test)]
+mod test_assets;
+mod text_encoding;
+mod tty;
+
+type HandleMap<K, V> = rustc_hash::FxHashMap<K, V>;
+
+pub(crate) struct NodeHandleMap {
+    next_external: u32,
+    internal_by_external: HandleMap<u32, NodeId>,
+    external_by_internal: HandleMap<NodeId, u32>,
+    external_by_opaque: HandleMap<usize, u32>,
+}
+
+impl NodeHandleMap {
+    fn seeded(doc: &BaseDocument) -> Self {
+        let root = doc.root_node().id;
+        let mut map = Self {
+            next_external: 1,
+            internal_by_external: HandleMap::from_iter([(0, root)]),
+            external_by_internal: HandleMap::from_iter([(root, 0)]),
+            external_by_opaque: HandleMap::from_iter([(root.as_u64() as usize, 0)]),
+        };
+        for (id, _) in doc.tree().iter() {
+            if id != root {
+                map.external_for(id);
+            }
+        }
+        map
+    }
+
+    #[inline]
+    pub(crate) fn resolve(&self, external: u32) -> Option<NodeId> {
+        self.internal_by_external.get(&external).copied()
+    }
+
+    #[inline]
+    pub(crate) fn external_for_opaque(&self, opaque: usize) -> Option<u32> {
+        self.external_by_opaque.get(&opaque).copied()
+    }
+
+    fn external_for_live_opaque(&mut self, doc: &BaseDocument, opaque: usize) -> Option<u32> {
+        // OpaqueNode omits the NodeId generation on wasm32; check its slot against the live tree.
+        if let Some(external) = self.external_for_opaque(opaque) {
+            if self.resolve(external).is_some_and(|internal| {
+                internal.as_u64() as usize == opaque && doc.get_node(internal).is_some()
+            }) {
+                return Some(external);
+            }
+        }
+
+        let internal = doc
+            .tree()
+            .iter()
+            .find_map(|(id, _)| (id.as_u64() as usize == opaque).then_some(id))?;
+        Some(self.external_for(internal))
+    }
+
+    #[inline]
+    pub(crate) fn external_for(&mut self, internal: NodeId) -> u32 {
+        if let Some(&external) = self.external_by_internal.get(&internal) {
+            return external;
+        }
+        let external = self.next_external;
+        self.next_external = self
+            .next_external
+            .checked_add(1)
+            .expect("external node handle space exhausted");
+        self.internal_by_external.insert(external, internal);
+        self.external_by_internal.insert(internal, external);
+        self.external_by_opaque
+            .insert(internal.as_u64() as usize, external);
+        external
+    }
+
+    fn retire(&mut self, internal: NodeId) {
+        let Some(external) = self.external_by_internal.remove(&internal) else {
+            return;
+        };
+        self.internal_by_external.remove(&external);
+        let opaque = internal.as_u64() as usize;
+        if self.external_by_opaque.get(&opaque) == Some(&external) {
+            self.external_by_opaque.remove(&opaque);
+        }
+    }
+}
+
+#[cfg(test)]
+fn blitz_node_id(external: u32) -> NodeId {
+    NodeId::from_u64((1u64 << 32) | u64::from(external + 1))
+}
+
+#[cfg(test)]
+fn wasm_node_id(internal: NodeId) -> u32 {
+    (internal.as_u64() as u32) - 1
+}
+
+#[wasm_bindgen(start)]
+pub fn start() {
+    install_panic_hook();
+    ks_tracing::init();
+    style::cssom::init_style_prefs();
+}
+
+fn install_panic_hook() {
+    use std::sync::Once;
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        std::panic::set_hook(Box::new(|info| {
+            let payload = info.payload();
+            let msg: &str = if let Some(s) = payload.downcast_ref::<&str>() {
+                s
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.as_str()
+            } else {
+                ""
+            };
+            let location = info
+                .location()
+                .map(|l| format!("{}:{}", l.file(), l.line()))
+                .unwrap_or_default();
+            let stylo_cascade = location.contains("stylo")
+                || location.contains("data.rs")
+                || msg.contains("primary_styles")
+                || msg.contains("Option::unwrap()` on a `None` value");
+            let refcell_cascade =
+                msg.contains("RefCell already") || msg.contains("already mutably borrowed");
+            if stylo_cascade || refcell_cascade {
+                ks_panic_log(&location, msg);
+                return;
+            }
+            #[cfg(feature = "console_error_panic_hook")]
+            console_error_panic_hook::hook(info);
+        }));
+    });
+}
+
+// Console-error extern + JS `Error` constructor for stack capture.
+// Bare extern matches the technique `console_error_panic_hook` itself
+// uses internally (see registry source); keeps the dep graph unchanged.
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console, js_name = error)]
+    fn console_error(msg: &str);
+
+    #[wasm_bindgen(js_namespace = console, js_name = warn)]
+    fn console_warn(msg: &str);
+}
+
+pub(crate) fn console_warn_str(msg: &str) {
+    #[cfg(target_arch = "wasm32")]
+    console_warn(msg);
+    #[cfg(not(target_arch = "wasm32"))]
+    eprintln!("{msg}");
+}
+
+#[wasm_bindgen]
+extern "C" {
+
+    // FFI: Keep a distinct Rust name because `JsError` is imported; `js_class`
+    // still binds this type to the global JavaScript `Error` constructor.
+    #[wasm_bindgen(js_name = "Error")]
+    type KsPanicError;
+
+    #[wasm_bindgen(constructor, js_class = "Error")]
+    fn new() -> KsPanicError;
+
+    #[wasm_bindgen(structural, method, getter, js_class = "Error")]
+    fn stack(this: &KsPanicError) -> String;
+}
+
+fn ks_panic_log(location: &str, msg: &str) {
+    let err = KsPanicError::new();
+    let stack = err.stack();
+    let head = if location.is_empty() {
+        format!("[cs panic] {}", msg)
+    } else {
+        format!("[cs panic] @{} :: {}", location, msg)
+    };
+    let full = format!("{}\n{}", head, stack);
+    console_error(&full);
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+enum LayoutMode {
+    Full,
+    Off,
+}
+
+#[cfg(test)]
+pub(crate) static STYLE_CASCADE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+static DIMS_ONLY_IMAGES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+thread_local! {
+    static TTY_UA_CSS: std::cell::RefCell<Option<String>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[wasm_bindgen(js_name = "setTtyUaCss")]
+pub fn set_tty_ua_css(css: String) {
+    TTY_UA_CSS.with(|c| {
+        *c.borrow_mut() = if css.trim().is_empty() {
+            None
+        } else {
+            Some(css)
+        };
+    });
+}
+
+thread_local! {
+    static TTY_CELL: std::cell::Cell<Option<(f32, f32)>> = const { std::cell::Cell::new(None) };
+}
+
+#[wasm_bindgen(js_name = "setTtyCellGrid")]
+pub fn set_tty_cell_grid(w: f32, h: f32) {
+    let ok = |v: f32| v.is_finite() && v >= 1.0;
+    TTY_CELL.with(|c| c.set(if ok(w) && ok(h) { Some((w, h)) } else { None }));
+}
+
+fn tty_ua_sheet() -> Option<String> {
+    TTY_UA_CSS.with(|c| c.borrow().clone())
+}
+
+static DARK_COLOR_SCHEME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[wasm_bindgen(js_name = "setDarkColorScheme")]
+pub fn set_dark_color_scheme(dark: bool) {
+    DARK_COLOR_SCHEME.store(dark, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub(crate) fn dark_color_scheme() -> bool {
+    DARK_COLOR_SCHEME.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub(crate) fn emulated_color_scheme() -> blitz_traits::shell::ColorScheme {
+    use blitz_traits::shell::ColorScheme;
+    if dark_color_scheme() {
+        ColorScheme::Dark
+    } else {
+        ColorScheme::Light
+    }
+}
+
+#[wasm_bindgen(js_name = "setDimsOnlyImages")]
+pub fn set_dims_only_images(enabled: bool) {
+    DIMS_ONLY_IMAGES.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub(crate) fn renderer_mode() -> bool {
+    DIMS_ONLY_IMAGES.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+fn now_for_animations() -> f64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let mut now_ms = js_sys::Date::now();
+        if let Ok(v) = js_sys::Reflect::get(
+            &js_sys::global(),
+            &wasm_bindgen::JsValue::from_str("__ks_clock_floor_ms"),
+        ) {
+            if let Some(floor) = v.as_f64() {
+                if floor > now_ms {
+                    now_ms = floor;
+                }
+            }
+        }
+        now_ms / 1000.0
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0)
+    }
+}
+
+/// Holds one page's DOM and associated mutable state behind the Wasm handle.
+/// Dropping the handle releases that state; Boa fast-path references hold only weak links.
+#[wasm_bindgen]
+pub struct DomHandle {
+    // Rc so the boa→blitz fast path (dom_fastpath.rs) can hold a Weak
+    // and never dangle if JS frees the handle: upgrade fails → slow path.
+    doc: std::rc::Rc<RefCell<HtmlDocument>>,
+    /// Maps blitz node IDs to the stable IDs JavaScript and CDP see. Shared with the Boa fast
+    /// path, which mints IDs for nodes it returns.
+    node_handles: std::rc::Rc<RefCell<NodeHandleMap>>,
+    /// The document URL; relative URLs resolve against it.
+    base_url: String,
+    /// Set by DOM and viewport changes; the next geometry read runs a resolve.
+    layout_dirty: std::cell::Cell<bool>,
+    /// A transition or animation was running at the last resolve, so later reads resolve again
+    /// even when the DOM is unchanged.
+    animating: std::cell::Cell<bool>,
+    /// Animation clock of the last resolve. An animating page skips a resolve when the clock has
+    /// not advanced.
+    last_resolve_now: std::cell::Cell<f64>,
+    /// Bumped by every resolve that succeeded (a panicked one leaves it), so a size
+    /// poll can tell "nothing relaid out since I looked" without re-reading geometry.
+    layout_epoch: std::cell::Cell<u32>,
+    /// Per-(node, property) transition state as of the last resolve.
+    /// Diffed against the next one to synthesise the DOM events;
+    /// stylo clears `is_new` before we ever see it.
+    transition_states: RefCell<TransitionStates>,
+    /// Transition events queued for `takeTransitionEvents`.
+    transition_events: RefCell<Vec<TransitionEvent>>,
+    /// Per-animation phase as of the last resolve, diffed like `transition_states`.
+    animation_states: RefCell<AnimationStates>,
+    /// Animation events queued for `takeAnimationEvents`.
+    animation_events: RefCell<Vec<AnimationEvent>>,
+    /// True while the page has an `animation*` listener. Resolves always track animation
+    /// phases, but rank and queue events only while this is set.
+    animation_events_requested: std::cell::Cell<bool>,
+    /// Element.animate effects. Each resolve samples them into stylo's script animations,
+    /// and a running one keeps `animating` set the way a CSS animation does.
+    waapi: RefCell<style::waapi::Waapi>,
+    /// `Off` skips style and layout entirely, for callers that only need the DOM.
+    layout_mode: std::cell::Cell<LayoutMode>,
+    /// `position: sticky` nodes found by the last layout.
+    sticky_nodes: RefCell<Vec<NodeId>>,
+    /// Sticky nodes from the previous layout, so a node that stops being sticky has its pin
+    /// offset cleared.
+    pinned_nodes: RefCell<Vec<NodeId>>,
+    /// Page scroll position that sticky offsets are computed against.
+    page_scroll: std::cell::Cell<layout::sticky::PageScroll>,
+    /// Resolved top, right, bottom, and left sticky insets per node, for computed style.
+    sticky_insets: RefCell<std::collections::HashMap<NodeId, [Option<f32>; 4]>>,
+    /// Queues the document's resource fetches for the host and receives their results.
+    net_provider: Arc<crate::resources::net::KitesurfNetProvider>,
+    /// Backing surfaces for the page's `<canvas>` 2D contexts.
+    canvas2d: RefCell<paint::canvas2d::CanvasRegistry>,
+    // Resources referenced by recorded scenes, kept so the renderer can fetch the ones it lacks
+    // (`getPaintResources`).
+    /// Glyph outline paths by glyph hash.
+    rbi_glyph_cache: RefCell<std::collections::HashMap<u64, Vec<u8>>>,
+    /// Glyphs whose outlines were already extracted, per font.
+    rbi_glyph_seen: RefCell<crate::paint::scene_record::GlyphSeen>,
+    /// Reverse cmap and advance tables per font, reused across recordings.
+    rbi_font_tables: RefCell<crate::paint::scene_record::FontTableCache>,
+    /// Font data and face index by font hash.
+    rbi_font_bytes: RefCell<std::collections::HashMap<u64, (peniko::Blob<u8>, u32)>>,
+    /// Encoded images by image hash.
+    rbi_image_cache: RefCell<std::collections::HashMap<u64, crate::paint::scene_record::ImageInfo>>,
+    /// Last recording that used each image, for evicting stale entries.
+    rbi_image_recency: RefCell<RbiImageRecency>,
+    /// The last scene recorded for the host to copy out of linear memory (`stagedScenePtr`).
+    staged_scene: RefCell<Vec<u8>>,
+    /// Shares blitz's single damage summary between screencast and other readers.
+    damage_fanout: RefCell<DamageFanout>,
+}
+
+// wasm-bindgen requires this marker for exported receivers. The handle is
+// isolate-local, unwinding drops its RefCell guards, and layout recovery clears
+// style snapshots and rebuilds inline trees stranded by a panic.
+impl std::panic::RefUnwindSafe for DomHandle {}
+
+fn estimate_node_capacity(html: &str) -> usize {
+    let bytes = html.as_bytes();
+    let n = bytes.len();
+    let mut open_tags = 0usize;
+    let mut close_tags = 0usize;
+    let mut text_runs = 0usize;
+    let mut i = 0;
+    while i < n {
+        match bytes[i] {
+            b'<' => {
+                if i + 1 < n && bytes[i + 1] == b'/' {
+                    close_tags += 1;
+                } else {
+                    open_tags += 1;
+                }
+            }
+            b'>' if i + 1 < n && bytes[i + 1] != b'<' => text_runs += 1,
+            _ => {}
+        }
+        i += 1;
+    }
+    let parsed = open_tags + text_runs.max(close_tags);
+
+    (parsed + parsed / 6).min(262_144)
+}
+
+#[wasm_bindgen]
+impl DomHandle {
+    #[inline]
+    fn resolve_node_id(&self, external: u32) -> Option<NodeId> {
+        self.node_handles.borrow().resolve(external)
+    }
+
+    #[inline]
+    fn external_node_id(&self, internal: NodeId) -> u32 {
+        self.node_handles.borrow_mut().external_for(internal)
+    }
+
+    #[inline]
+    fn external_node_id_i32(&self, internal: NodeId) -> i32 {
+        self.external_node_id(internal) as i32
+    }
+
+    /// Parse `html` into a page document and use `base_url` for relative resources.
+    /// Invalid URLs and URLs that cannot serve as a base use `https://kitesurf.local/`.
+    #[wasm_bindgen(constructor)]
+    pub fn new(html: &str, base_url: &str) -> DomHandle {
+        use blitz_traits::shell::Viewport;
+        let _ks_span =
+            tracing::info_span!("wasm.parse_document", html_bytes = html.len()).entered();
+
+        let net_provider = Arc::new(crate::resources::net::KitesurfNetProvider::new());
+
+        let resolved_base = match url::Url::parse(base_url) {
+            Ok(u) if !u.cannot_be_a_base() => base_url.to_string(),
+            _ => "https://kitesurf.local/".to_string(),
+        };
+
+        let config = DocumentConfig {
+            base_url: Some(resolved_base.clone()),
+            html_parser_provider: Some(Arc::new(HtmlProvider)),
+            net_provider: Some(net_provider.clone()),
+            viewport: Some(Viewport::new(1280, 720, 1.0, emulated_color_scheme())),
+            font_ctx: Some(crate::resources::fonts::get_or_init_font_context()),
+            node_capacity_hint: Some(estimate_node_capacity(html)),
+            dims_only_images: DIMS_ONLY_IMAGES.load(std::sync::atomic::Ordering::Relaxed),
+            ..Default::default()
+        };
+        let mut doc = HtmlDocument::from_html(html, config);
+        if let Some(css) = tty_ua_sheet() {
+            doc.add_user_agent_stylesheet(&css);
+        }
+        if let Some((cw, ch)) = TTY_CELL.with(|c| c.get()) {
+            let base: &mut BaseDocument = doc.as_mut();
+            base.set_round_grid(cw, ch);
+        }
+        let node_handles = NodeHandleMap::seeded(&doc);
+        DomHandle {
+            doc: std::rc::Rc::new(RefCell::new(doc)),
+            node_handles: std::rc::Rc::new(RefCell::new(node_handles)),
+            base_url: resolved_base,
+            layout_dirty: std::cell::Cell::new(true),
+            animating: std::cell::Cell::new(false),
+            last_resolve_now: std::cell::Cell::new(f64::NEG_INFINITY),
+            layout_epoch: std::cell::Cell::new(0),
+            transition_states: RefCell::new(TransitionStates::default()),
+            transition_events: RefCell::new(Vec::new()),
+            animation_states: RefCell::new(AnimationStates::default()),
+            animation_events: RefCell::new(Vec::new()),
+            animation_events_requested: std::cell::Cell::new(false),
+            waapi: RefCell::new(style::waapi::Waapi::default()),
+            sticky_nodes: RefCell::new(Vec::new()),
+            pinned_nodes: RefCell::new(Vec::new()),
+            page_scroll: std::cell::Cell::new(Default::default()),
+            sticky_insets: RefCell::new(std::collections::HashMap::new()),
+            layout_mode: std::cell::Cell::new(LayoutMode::Full),
+            net_provider,
+            canvas2d: RefCell::new(paint::canvas2d::CanvasRegistry::default()),
+            rbi_glyph_cache: RefCell::new(std::collections::HashMap::new()),
+            rbi_glyph_seen: RefCell::new(Default::default()),
+            rbi_font_tables: RefCell::new(Default::default()),
+            rbi_font_bytes: RefCell::new(std::collections::HashMap::new()),
+            rbi_image_cache: RefCell::new(std::collections::HashMap::new()),
+            rbi_image_recency: RefCell::new(RbiImageRecency::default()),
+            staged_scene: RefCell::new(Vec::new()),
+            damage_fanout: RefCell::new(DamageFanout::default()),
+        }
+    }
+
+    #[wasm_bindgen(js_name = "nodeCount")]
+    pub fn node_count(&self) -> usize {
+        match self.doc.try_borrow() {
+            Ok(d) => d.tree().len(),
+            Err(_) => 0,
+        }
+    }
+
+    #[wasm_bindgen(js_name = "isPoisoned")]
+    pub fn is_poisoned(&self) -> bool {
+        self.doc.try_borrow().is_err()
+    }
+
+    #[wasm_bindgen(js_name = "panicProbe")]
+    pub fn panic_probe(&self, kind: &str) -> i32 {
+        match kind {
+            "borrow-mut-then-panic" => {
+                let _guard = self.doc.borrow_mut();
+                panic!("[panic-probe] deliberate panic with borrow_mut guard live");
+            }
+            "noop" => 0,
+            _ => -1,
+        }
+    }
+
+    #[wasm_bindgen(js_name = "hasPendingCriticalResources")]
+    pub fn has_pending_critical_resources(&self) -> bool {
+        match self.doc.try_borrow() {
+            Ok(d) => d.has_pending_critical_resources(),
+            Err(_) => false,
+        }
+    }
+
+    #[wasm_bindgen(js_name = "forceFullRestyle")]
+    pub fn force_full_restyle(&self) -> u32 {
+        let mut doc = match self.doc.try_borrow_mut() {
+            Ok(d) => d,
+            Err(_) => return 0,
+        };
+        let root_id = doc.root_node().id;
+        let count = std::cell::Cell::new(0u32);
+        let count_ref = &count;
+        doc.iter_subtree_mut(root_id, move |node_id, d| {
+            if let Some(node) = d.get_node_mut(node_id) {
+                if node
+                    .try_stylo_element_data()
+                    .is_some_and(|data| data.get().is_some())
+                {
+                    node.set_restyle_hint(
+                        ::style::invalidation::element::restyle_hints::RestyleHint::restyle_subtree(
+                        ),
+                    );
+                    count_ref.set(count_ref.get().saturating_add(1));
+                }
+            }
+        });
+        self.layout_dirty.set(true);
+        count.get()
+    }
+
+    #[wasm_bindgen(js_name = "documentNodeId")]
+    pub fn document_node_id(&self) -> u32 {
+        0
+    }
+
+    #[wasm_bindgen(js_name = "prepareForPaint")]
+    pub fn prepare_for_paint(&self, width: u32, height: u32) -> u32 {
+        use blitz_traits::shell::Viewport;
+        let _ks_span = tracing::info_span!("wasm.prepare_for_paint", width, height).entered();
+
+        {
+            let mut doc = match self.doc.try_borrow_mut() {
+                Ok(d) => d,
+                Err(_) => return 0,
+            };
+            let current = doc.as_ref().viewport();
+            if current.window_size != (width, height) || current.scale_f64() != 1.0 {
+                doc.as_mut().set_viewport(Viewport::new(
+                    width,
+                    height,
+                    1.0,
+                    emulated_color_scheme(),
+                ));
+            }
+        }
+        self.layout_dirty.set(true);
+
+        let prev = self.layout_mode.get();
+        if prev != LayoutMode::Full {
+            self.layout_mode.set(LayoutMode::Full);
+        }
+
+        let mut doc = match self.doc.try_borrow_mut() {
+            Ok(d) => d,
+            Err(_) => return 0,
+        };
+        clear_unstyled_cascade(&mut doc)
+    }
+
+    fn flush_slot_assignments(&self) {
+        if let Ok(mut doc) = self.doc.try_borrow_mut() {
+            doc.flush_slot_assignments();
+        }
+    }
+
+    fn resolve_until_images_settle(&self) {
+        let count_pending = || match self.doc.try_borrow() {
+            Ok(d) => d.as_ref().pending_images_count(),
+            Err(_) => 0,
+        };
+        const MAX_RESOURCE_SETTLE_PASSES: usize = 3;
+        let mut prev_pending = count_pending();
+        for _ in 0..MAX_RESOURCE_SETTLE_PASSES {
+            self.ensure_layout();
+            let pending = count_pending();
+            if pending == 0 || pending == prev_pending {
+                break;
+            }
+            prev_pending = pending;
+            self.layout_dirty.set(true);
+        }
+    }
+
+    fn ensure_layout(&self) {
+        if self.layout_mode.get() == LayoutMode::Off {
+            return;
+        }
+        let dirty = self.layout_dirty.get();
+        if !dirty && !self.animating.get() {
+            return;
+        }
+        let now = now_for_animations();
+        if !dirty && now <= self.last_resolve_now.get() {
+            return;
+        }
+        let mut doc = match self.doc.try_borrow_mut() {
+            Ok(d) => d,
+            Err(_) => return,
+        };
+        #[cfg(test)]
+        let _cascade_guard = STYLE_CASCADE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let waapi_running = {
+                let mut waapi = self.waapi.borrow_mut();
+                !waapi.is_empty() && waapi.sample(doc.as_mut(), now * 1000.0)
+            };
+            doc.as_mut().resolve(now);
+            // Inside the same borrow: stylo retires a finished
+            // transition during resolve, so the diff has to run before
+            // anything else can touch the document.
+            let animating = doc.as_ref().has_active_animations() || waapi_running;
+            // Mint the external handle while the target's live generation is
+            // still available. TransitionStates then keeps that handle if the
+            // slot is removed and reused before the event is drained.
+            let mut states = self.transition_states.borrow_mut();
+            let mut events = self.transition_events.borrow_mut();
+            let mut node_handles = self.node_handles.borrow_mut();
+            style::transitions::collect_events(
+                doc.as_ref(),
+                now,
+                &mut states,
+                &mut events,
+                |opaque| node_handles.external_for_live_opaque(doc.as_ref(), opaque),
+            );
+            let mut animation_states = self.animation_states.borrow_mut();
+            if self.animation_events_requested.get() {
+                let mut animation_events = self.animation_events.borrow_mut();
+                style::transitions::collect_animation_events(
+                    doc.as_ref(),
+                    now,
+                    &mut animation_states,
+                    true,
+                    &mut animation_events,
+                    |opaque| node_handles.external_for_live_opaque(doc.as_ref(), opaque),
+                );
+            } else {
+                let mut discard = Vec::new();
+                style::transitions::collect_animation_events(
+                    doc.as_ref(),
+                    now,
+                    &mut animation_states,
+                    false,
+                    &mut discard,
+                    |opaque| node_handles.external_for_live_opaque(doc.as_ref(), opaque),
+                );
+            }
+            animating
+        }));
+        drop(doc);
+        match result {
+            Ok(animating) => {
+                self.layout_dirty.set(false);
+                self.animating.set(animating);
+                self.last_resolve_now.set(now);
+                self.layout_epoch
+                    .set(self.layout_epoch.get().wrapping_add(1));
+                self.apply_sticky(true);
+            }
+            Err(_) => {
+                if let Ok(mut d) = self.doc.try_borrow_mut() {
+                    d.as_mut().clear_style_snapshots();
+                    d.as_mut().recover_from_layout_panic();
+                }
+            }
+        }
+    }
+
+    fn connected_node_id(&self, node_id: u32) -> Option<NodeId> {
+        let internal_id = self.resolve_node_id(node_id)?;
+        let Ok(doc) = self.doc.try_borrow() else {
+            return None;
+        };
+        let root_id = doc.root_node().id;
+        let mut current = Some(internal_id);
+        while let Some(id) = current {
+            if id == root_id {
+                return Some(internal_id);
+            }
+            current = doc.get_node(id).and_then(|node| node.parent);
+        }
+        None
+    }
+
+    #[wasm_bindgen(js_name = "resolveLayout")]
+    pub fn resolve_layout(&self) {
+        self.ensure_layout();
+    }
+
+    #[wasm_bindgen(js_name = "isAnimating")]
+    pub fn is_animating(&self) -> bool {
+        self.animating.get()
+    }
+
+    /// Never resolves itself. With layoutClean, a poll whose epoch is
+    /// unchanged knows no box moved, so it can skip its geometry reads.
+    #[wasm_bindgen(js_name = "layoutEpoch")]
+    pub fn layout_epoch(&self) -> u32 {
+        self.layout_epoch.get()
+    }
+
+    /// Deliberately does NOT resolve: IntersectionObserver samples the last committed layout.
+    #[wasm_bindgen(js_name = "layoutClean")]
+    pub fn layout_clean(&self) -> bool {
+        self.layout_mode.get() == LayoutMode::Full && !self.layout_dirty.get()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn doc_for_test(&self) -> &std::cell::RefCell<HtmlDocument> {
+        &self.doc
+    }
+}
+
+fn clear_unstyled_cascade(doc: &mut BaseDocument) -> u32 {
+    let root_id = doc.root_node().id;
+    let count = std::cell::Cell::new(0u32);
+    let count_ref = &count;
+    doc.iter_subtree_mut(root_id, move |node_id, d| {
+        if node_id == root_id {
+            return;
+        }
+        let Some(node) = d.get_node(node_id) else {
+            return;
+        };
+        if !matches!(
+            node.data,
+            NodeData::Element(_) | NodeData::AnonymousBlock(_)
+        ) {
+            return;
+        }
+        let unstyled = node.stylo_element_data().has_data()
+            && node.stylo_element_data().primary_styles().is_none();
+        if !unstyled {
+            return;
+        }
+        // SAFETY: we hold a &mut BaseDocument, and stylo's traversal
+        // is not active — callers run BEFORE the next scene record.
+        unsafe {
+            node.stylo_element_data().clear();
+        }
+        node.mark_ancestors_dirty();
+        count_ref.set(count_ref.get().saturating_add(1));
+    });
+    count.get()
+}

@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 12 Sep 2026 23:52:57 +0100
+Subject: [PATCH] Recover inline roots after layout panics
+
+A panic during recursive inline layout drops the temporarily removed
+parley tree. Mark stranded inline roots for reconstruction so the next
+resolve does not panic on missing layout data.
+---
+ src/resolve.rs | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 46fdd38..f332ecc 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -61,6 +61,21 @@ fn container_sizes(doc: &BaseDocument) -> Vec<(NodeId, taffy::Size<f32>)> {
+ const CONTAINER_QUERY_SETTLE_PASSES: usize = 8;
+
+ impl BaseDocument {
++    /// Restore construction damage after a panic strands an inline root
++    /// without the layout data that `compute_inline_layout_inner` took.
++    pub fn recover_from_layout_panic(&mut self) {
++        for (_, node) in self.nodes.iter_mut() {
++            let missing_inline_layout = node.flags.is_inline_root()
++                && node
++                    .data
++                    .downcast_element()
++                    .is_some_and(|element| element.inline_layout_data.is_none());
++            if missing_inline_layout {
++                node.insert_damage(ALL_DAMAGE);
++            }
++        }
++    }
++
+     /// Restyle the tree and then relayout it
+     pub fn resolve(&mut self, current_time_for_animations: f64) {
+         if TDocument::as_node(&self.root_node())

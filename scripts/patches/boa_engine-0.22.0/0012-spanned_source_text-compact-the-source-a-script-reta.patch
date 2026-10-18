@@ -1,0 +1,75 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 9 Oct 2026 20:29:46 +0100
+Subject: [PATCH] spanned_source_text: compact the source a script retains
+
+Call boa_ast's SourceText::compact when a script or module takes
+ownership of its source, the point after which nothing collects into
+it again. On a react-dom-sized bundle that is about 1.4 MB of the
+2.5 MB the 0.22 upgrade added to the code kept per compiled copy.
+---
+ src/builtins/function/mod.rs | 2 +-
+ src/builtins/json/mod.rs     | 4 ++--
+ src/spanned_source_text.rs   | 7 +++++--
+ 3 files changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/src/builtins/function/mod.rs b/src/builtins/function/mod.rs
+index bb04263..141e50c 100644
+--- a/src/builtins/function/mod.rs
++++ b/src/builtins/function/mod.rs
+@@ -882,7 +882,7 @@ impl BuiltInFunctionObject {
+
+         let code = function.codeblock();
+         if let Some(code_points) = code.source_info().text_spanned().to_code_points() {
+-            return Ok(JsString::from(code_points).into());
++            return Ok(JsString::from(&*code_points).into());
+         }
+
+         Ok(js_string!(
+diff --git a/src/builtins/json/mod.rs b/src/builtins/json/mod.rs
+index 514f7af..be6ba12 100644
+--- a/src/builtins/json/mod.rs
++++ b/src/builtins/json/mod.rs
+@@ -106,7 +106,7 @@ impl<'ast> boa_ast::visitor::Visitor<'ast> for JsonSourceVisitor<'_> {
+     ) -> std::ops::ControlFlow<Self::BreakTy> {
+         let span = node.linear_span();
+         let code_points = self.source_text.get_code_points_from_span(span);
+-        let text = String::from_utf16_lossy(code_points);
++        let text = String::from_utf16_lossy(&code_points);
+         self.stack.push(JsonNode::Primitive(text));
+         std::ops::ControlFlow::Continue(())
+     }
+@@ -177,7 +177,7 @@ impl<'ast> boa_ast::visitor::Visitor<'ast> for JsonSourceVisitor<'_> {
+         {
+             let span = lit.linear_span();
+             let code_points = self.source_text.get_code_points_from_span(span);
+-            let num_text = String::from_utf16_lossy(code_points);
++            let num_text = String::from_utf16_lossy(&code_points);
+             self.stack.push(JsonNode::Primitive(format!("-{num_text}")));
+             return std::ops::ControlFlow::Continue(());
+         }
+diff --git a/src/spanned_source_text.rs b/src/spanned_source_text.rs
+index ab97d39..265801f 100644
+--- a/src/spanned_source_text.rs
++++ b/src/spanned_source_text.rs
+@@ -7,7 +7,10 @@ struct Inner {
+     source_text: boa_ast::SourceText,
+ }
+ impl Inner {
+-    fn new(source_text: boa_ast::SourceText) -> Self {
++    fn new(mut source_text: boa_ast::SourceText) -> Self {
++        // Kept for the script's life, so drop the lexer's growth slack
++        // and store Latin-1 when it fits (half of a bundle's retained source).
++        source_text.compact();
+         Self { source_text }
+     }
+ }
+@@ -94,7 +97,7 @@ impl SpannedSourceText {
+
+     /// Gets inner code points.
+     #[must_use]
+-    pub fn to_code_points(&self) -> Option<&[u16]> {
++    pub fn to_code_points(&self) -> Option<std::borrow::Cow<'_, [u16]>> {
+         if let (Some(source_text), Some(span)) = (self.source_text.inner(), self.span) {
+             Some(source_text.get_code_points_from_span(span))
+         } else {

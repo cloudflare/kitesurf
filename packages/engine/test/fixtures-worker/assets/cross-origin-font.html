@@ -1,0 +1,49 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8" /><title>cross-origin font</title>
+<style>
+  @font-face {
+    font-family: KsCorsFont;
+    src: url(https://ks-fonts.invalid/__fixtures/cors-font.woff2?acao=1);
+  }
+  @font-face {
+    font-family: KsNoCorsFont;
+    src: url(https://ks-fonts.invalid/__fixtures/cors-font.woff2);
+  }
+  body { margin: 0; background: #fff; font-size: 24px; }
+  span { display: inline-block; }
+  #cors { font-family: KsCorsFont; }
+  #nocors { font-family: KsNoCorsFont; }
+</style>
+</head>
+<body>
+  <div><span id="fallback">WebFont123.test</span></div>
+  <div><span id="cors">WebFont123.test</span></div>
+  <div><span id="nocors">WebFont123.test</span></div>
+  <script>
+    document.fonts.ready.then(function () {
+      var r = document.createElement("div");
+      r.id = "fontsready";
+      document.body.appendChild(r);
+    });
+    (function poll(tries) {
+      var c = document.getElementById("cors").getBoundingClientRect().width;
+      var f = document.getElementById("fallback").getBoundingClientRect().width;
+      if (c !== f || tries > 40) {
+        var d = document.createElement("div");
+        d.id = "done";
+        document.body.appendChild(d);
+        document.title = "FONTSETTLED";
+        return;
+      }
+      setTimeout(function () { poll(tries + 1); }, 100);
+    })(0);
+  </script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>css transitions</title>
+<style>
+  #box {
+    width: 100px; height: 100px;
+    background-color: rgb(255, 0, 0);
+    opacity: 1;
+    transition: background-color 2s linear, opacity 2s linear;
+  }
+  #box.go { background-color: rgb(0, 0, 255); opacity: 0; }
+  #plain { width: 10px; height: 10px; background-color: rgb(1, 2, 3); }
+  #plain.go { background-color: rgb(4, 5, 6); }
+  /* transition-property: all — stylo expands this against every
+     animatable longhand, so height rides along without an allow-list. */
+  #all { height: 50px; width: 10px; transition: all 2s linear; }
+  #all.go { height: 150px; }
+</style></head>
+<body>
+  <div id="box"></div>
+  <div id="plain"></div>
+  <div id="all"></div>
+  <script>
+    globalThis.__ksLog = [];
+    globalThis.__ksAllLog = [];
+    var allBox = document.getElementById("all");
+    for (var at of ["transitionrun", "transitionend"]) {
+      allBox.addEventListener(at, function (e) {
+        globalThis.__ksAllLog.push(e.type + ":" + e.propertyName + ":" + e.elapsedTime);
+      });
+    }
+    globalThis.__ksAllGo = function () { allBox.classList.add("go"); };
+    globalThis.__ksAllHeight = function () { return getComputedStyle(allBox).height; };
+    var box = document.getElementById("box");
+    for (var t of ["transitionrun", "transitionstart", "transitionend", "transitioncancel"]) {
+      box.addEventListener(t, function (e) {
+        globalThis.__ksLog.push(e.type + ":" + e.propertyName + ":" + e.elapsedTime);
+      });
+    }
+    globalThis.__ksGo = function () { box.classList.add("go"); };
+    globalThis.__ksRetarget = function () { box.style.backgroundColor = "rgb(0, 255, 0)"; };
+    globalThis.__ksPlainGo = function () { document.getElementById("plain").classList.add("go"); };
+    globalThis.__ksBg = function () { return getComputedStyle(box).backgroundColor; };
+    var sink = document.createElement("div");
+    document.body.appendChild(sink);
+    globalThis.__ksStormStart = function () {
+      globalThis.__ksStormTimer = setInterval(function () {
+        sink.textContent = "t" + (globalThis.__ksStormN = (globalThis.__ksStormN | 0) + 1);
+      }, 4);
+    };
+    globalThis.__ksStormStop = function () { clearInterval(globalThis.__ksStormTimer); };
+  </script>
+</body></html>

@@ -1,0 +1,35 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html><head><meta charset="utf-8" /><title>kitesurf pdf CSS background smoke</title>
+<style>
+  body { margin: 40px; font-family: sans-serif; }
+  .hero {
+    width: 200px; height: 200px;
+    border: 2px solid #333;
+    margin-bottom: 20px;
+    background-size: cover;
+    background-repeat: no-repeat;
+  }
+  .hero-http { background-image: url(https://httpbin.org/image/png); }
+  .hero-data { background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAFElEQVR4nGM8ISfHAANMDEgANwcANHYBDK9qubUAAAAASUVORK5CYII=); }
+  .hero-data-pseudo::before {
+    content: "";
+    display: block;
+    width: 200px; height: 200px;
+    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAFElEQVR4nGM8ISfHAANMDEgANwcANHYBDK9qubUAAAAASUVORK5CYII=);
+    background-size: cover;
+  }
+</style>
+</head>
+<body>
+<h1>kitesurf /pdf CSS background-image smoke</h1>
+<p>HTTP (must go through inliner):</p><div class="hero hero-http"></div>
+<p>data: directly on element:</p><div class="hero hero-data"></div>
+<p>data: via ::before pseudo:</p><div class="hero hero-data-pseudo"></div>
+</body>
+</html>

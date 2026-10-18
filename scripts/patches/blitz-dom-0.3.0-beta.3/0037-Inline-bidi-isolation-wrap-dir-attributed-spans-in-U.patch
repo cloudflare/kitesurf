@@ -1,0 +1,154 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 14:16:47 +0100
+Subject: [PATCH] Inline bidi isolation: wrap dir-attributed spans in UAX#9
+ controls
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The UBA runs over the whole paragraph text and knows nothing about
+markup, so a strong character inside <span dir=rtl> reordered its
+LTR siblings; HTML requires dir-attributed inlines (and bdi/bdo)
+to be directional isolates. Wrap each inline element whose computed
+unicode-bidi is non-normal in the matching controls at layout
+construction: isolate → LRI/RLI (FSI for dir=auto and attr-less
+bdi) …PDI; isolate-override → isolate + LRO/RLO …PDF+PDI; legacy
+embed/bidi-override → LRE/RLE/LRO/RLO …PDF.
+
+Injection is invisible outside the resolver: Cf chars contribute no
+glyphs (parley contributes_to_shaping), TextBrush attribution is
+node-id keyed, and no offset-based consumer crosses into DOM space.
+Default spans (unicode-bidi: normal) inject nothing.
+
+Also fix bdo: the UA rule 'bdo, bdo:-moz-has-dir-attr' died whole
+because one selector fails to parse (CSS drops the entire rule):
+bdo[dir] restores the intended specificity over the [dir] rules.
+---
+ assets/default.css      |  6 ++--
+ src/layout/construct.rs | 73 +++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 76 insertions(+), 3 deletions(-)
+
+diff --git a/assets/default.css b/assets/default.css
+index 8326439..0631aaf 100644
+--- a/assets/default.css
++++ b/assets/default.css
+@@ -239,10 +239,10 @@ output {
+     unicode-bidi: isolate;
+ }
+
+-/* We need the "bdo:-moz-has-dir-attr" bit because "bdo" has lower
+-   specificity than the ":-moz-has-dir-attr" selector above. */
++/* The -moz selector invalidated the whole list (CSS drops a
++   rule when any selector fails to parse): bdo got nothing. */
+ bdo,
+-bdo:-moz-has-dir-attr {
++bdo[dir] {
+     unicode-bidi: isolate-override;
+ }
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index f79a72e..b941548 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1376,6 +1376,47 @@ fn dir_auto_resolved_direction(nodes: &crate::NodeTree, id: NodeId) -> Option<Ba
+     None
+ }
+
++// UAX#9 control pair for a computed unicode-bidi value.
++// Isolates close with PDI, embeds/overrides with PDF; the auto
++
++// flag (dir=auto attr, or bdi without a valid dir) picks FSI so
++// the isolate first-strong-detects its own direction.
++fn bidi_wrap_chars(
++    ub: style::computed_values::unicode_bidi::T,
++    rtl: bool,
++    auto: bool,
++) -> (&'static str, &'static str) {
++    use style::computed_values::unicode_bidi::T as UnicodeBidi;
++    match ub {
++        UnicodeBidi::Isolate | UnicodeBidi::Plaintext => {
++            let open = if auto {
++                "\u{2068}"
++            } else if rtl {
++                "\u{2067}"
++            } else {
++                "\u{2066}"
++            };
++            (open, "\u{2069}")
++        }
++        UnicodeBidi::IsolateOverride => {
++            if auto {
++                if rtl {
++                    ("\u{2068}\u{202E}", "\u{202C}\u{2069}")
++                } else {
++                    ("\u{2068}\u{202D}", "\u{202C}\u{2069}")
++                }
++            } else if rtl {
++                ("\u{2067}\u{202E}", "\u{202C}\u{2069}")
++            } else {
++                ("\u{2066}\u{202D}", "\u{202C}\u{2069}")
++            }
++        }
++        UnicodeBidi::Embed => (if rtl { "\u{202B}" } else { "\u{202A}" }, "\u{202C}"),
++        UnicodeBidi::BidiOverride => (if rtl { "\u{202E}" } else { "\u{202D}" }, "\u{202C}"),
++        UnicodeBidi::Normal => ("", ""),
++    }
++}
++
+ // HTML §the-dir-attribute: tree-order first-strong scan, excluding
+ // bdi/script/style/textarea subtrees and dir-attributed descendants.
+ fn html_first_strong_scan(
+@@ -1621,6 +1662,30 @@ pub(crate) fn build_inline_layout_into(
+                             builder.pop_style_span();
+                             text_transformer.word_break(builder);
+                         } else {
++                            // Inline bidi isolation: wrap the span's
++                            // text in the controls its unicode-bidi implies.
++
++                            // Cf chars shape to nothing and TextBrush spans are
++                            // node-id keyed, so only the resolver sees them.
++                            let bidi_wrap = style.and_then(|s| {
++                                use style::computed_values::direction::T as Direction;
++                                use style::computed_values::unicode_bidi::T as UnicodeBidi;
++                                let ub = s.clone_unicode_bidi();
++                                if matches!(ub, UnicodeBidi::Normal) {
++                                    return None;
++                                }
++                                let rtl = s.clone_direction() == Direction::Rtl;
++                                let dir_attr = element_data.attr(local_name!("dir"));
++                                let has_ltr_rtl = dir_attr.is_some_and(|d| {
++                                    d.eq_ignore_ascii_case("ltr")
++                                        || d.eq_ignore_ascii_case("rtl")
++                                });
++                                let auto = dir_attr
++                                    .is_some_and(|d| d.eq_ignore_ascii_case("auto"))
++                                    || (*element_data.name.local == *"bdi" && !has_ltr_rtl);
++                                Some(bidi_wrap_chars(ub, rtl, auto))
++                            });
++
+                             // node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+                             let style = node
+                                 .primary_styles()
+@@ -1632,6 +1697,10 @@ pub(crate) fn build_inline_layout_into(
+
+                             builder.push_style_span(style);
+
++                            if let Some((open, _)) = bidi_wrap {
++                                builder.push_text(open);
++                            }
++
+                             if let Some(before_id) = node.before() {
+                                 build_inline_layout_recursive(
+                                     builder,
+@@ -1661,6 +1730,10 @@ pub(crate) fn build_inline_layout_into(
+                                 );
+                             }
+
++                            if let Some((_, close)) = bidi_wrap {
++                                builder.push_text(close);
++                            }
++
+                             builder.pop_style_span();
+                         }
+                     }

@@ -1,0 +1,284 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 14 Aug 2026 15:05:02 +0100
+Subject: [PATCH] interner: checkpoint/truncate to rewind dynamically interned
+ strings
+
+The interner is append-only by design: Syms are bare indices, so
+nothing can be evicted without knowing every holder. An embedder that
+drops its ASTs after compilation, and whose compiled artifacts hold
+JsStrings rather than Syms, knows when no dynamic Sym survives. For
+that embedder the interner is dead weight between parse batches: it
+retains every identifier from every script ever parsed.
+
+checkpoint() snapshots the append state (span count, retired-slab
+count, head length) and the per-string latin1_flags cache, which grows
+in lockstep with the dynamic spans. truncate() rewinds to it.
+
+Two details need care. Deduplication means a removed span's string can
+shadow a surviving duplicate (the "" sentinel for utf16-only strings),
+so the cache is rebuilt rather than having keys removed. Surviving
+spans point into checkpoint-era slab memory, so a head that was later
+retired into `full` is restored rather than freed.
+
+Syms minted after the checkpoint dangle: resolve() returns None until
+re-interning reassigns the index. Callers must hold no post-checkpoint
+Sym, and the embedder has to enforce that structurally.
+---
+ src/fixed_string.rs | 11 +++++++
+ src/lib.rs          | 40 ++++++++++++++++++++++-
+ src/raw.rs          | 53 ++++++++++++++++++++++++++++++
+ src/tests.rs        | 78 +++++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 181 insertions(+), 1 deletion(-)
+
+diff --git a/src/fixed_string.rs b/src/fixed_string.rs
+index 7454449..c9eebc3 100644
+--- a/src/fixed_string.rs
++++ b/src/fixed_string.rs
+@@ -33,6 +33,17 @@ impl<Char> FixedString<Char> {
+     pub(super) fn is_empty(&self) -> bool {
+         self.inner.is_empty()
+     }
++
++    /// Gets the current length of the [`FixedString`].
++    pub(super) fn len(&self) -> usize {
++        self.inner.len()
++    }
++
++    /// Rewinds the string to `len` characters. `Vec::truncate` never
++    /// reallocates, so pointers to the surviving prefix stay valid.
++    pub(super) fn truncate(&mut self, len: usize) {
++        self.inner.truncate(len);
++    }
+ }
+
+ impl<Char> FixedString<Char>
+diff --git a/src/lib.rs b/src/lib.rs
+index d5f90e9..e563c4f 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -35,7 +35,7 @@ mod sym;
+ mod tests;
+
+ use alloc::{borrow::Cow, format, string::String, vec::Vec};
+-use raw::RawInterner;
++use raw::{RawCheckpoint, RawInterner};
+
+ pub use sym::*;
+
+@@ -257,6 +257,15 @@ pub struct Interner {
+     latin1_flags: Vec<bool>,
+ }
+
++/// Opaque snapshot of an [`Interner`]'s dynamic state; feed it back to
++/// [`Interner::truncate`] to release everything interned after it.
++#[derive(Debug, Clone, Copy)]
++pub struct InternerCheckpoint {
++    utf8: RawCheckpoint,
++    utf16: RawCheckpoint,
++    latin1_len: usize,
++}
++
+ impl Interner {
+     /// Creates a new [`Interner`].
+     ///
+@@ -332,6 +341,35 @@ impl Interner {
+         COMMON_STRINGS_UTF8.is_empty() && self.utf16_interner.is_empty()
+     }
+
++    /// Returns the number of dynamically interned strings (excluding
++    /// the static common set): the live gauge for checkpoint hygiene.
++    #[inline]
++    #[must_use]
++    pub fn dynamic_len(&self) -> usize {
++        // Both sides append in lockstep (get_or_intern asserts equal
++        // indices), so either interner's len is the dynamic count.
++        self.utf16_interner.len()
++    }
++
++    /// Captures the current state for a later [`Self::truncate`].
++    #[inline]
++    #[must_use]
++    pub fn checkpoint(&self) -> InternerCheckpoint {
++        InternerCheckpoint {
++            utf8: self.utf8_interner.checkpoint(),
++            utf16: self.utf16_interner.checkpoint(),
++            latin1_len: self.latin1_flags.len(),
++        }
++    }
++
++    /// Rewinds to `checkpoint`, releasing later strings. Later-minted
++    /// [`Sym`]s dangle (resolve `None`), so callers must hold none.
++    pub fn truncate(&mut self, checkpoint: &InternerCheckpoint) {
++        self.utf8_interner.truncate(&checkpoint.utf8);
++        self.utf16_interner.truncate(&checkpoint.utf16);
++        self.latin1_flags.truncate(checkpoint.latin1_len);
++    }
++
+     /// Returns the symbol for the given string if any.
+     ///
+     /// Can be used to query if a string has already been interned without interning.
+diff --git a/src/raw.rs b/src/raw.rs
+index fdf9162..dbafad6 100644
+--- a/src/raw.rs
++++ b/src/raw.rs
+@@ -6,6 +6,15 @@ use rustc_hash::FxHasher;
+
+ type Map<T, U> = HashMap<T, U, BuildHasherDefault<FxHasher>>;
+
++/// Snapshot of a [`RawInterner`]'s append-only state, used to rewind
++/// everything interned after it was taken.
++#[derive(Debug, Clone, Copy)]
++pub(super) struct RawCheckpoint {
++    spans_len: usize,
++    full_len: usize,
++    head_len: usize,
++}
++
+ /// Raw string interner, generic by a char type.
+ #[derive(Debug)]
+ pub(super) struct RawInterner<Char> {
+@@ -58,6 +67,15 @@ impl<Char> RawInterner<Char> {
+     pub(super) fn is_empty(&self) -> bool {
+         self.spans.is_empty()
+     }
++
++    /// Captures the current append state for a later [`Self::truncate`].
++    pub(super) fn checkpoint(&self) -> RawCheckpoint {
++        RawCheckpoint {
++            spans_len: self.spans.len(),
++            full_len: self.full.len(),
++            head_len: self.head.len(),
++        }
++    }
+ }
+
+ impl<Char> RawInterner<Char>
+@@ -128,6 +146,41 @@ where
+     }
+ }
+
++impl<Char> RawInterner<Char>
++where
++    Char: Hash + Eq,
++{
++    /// Rewinds to a captured [`RawCheckpoint`]: indices below it stay
++    /// valid, indices at/above resolve `None` until reassigned.
++    pub(super) fn truncate(&mut self, checkpoint: &RawCheckpoint) {
++        if checkpoint.spans_len >= self.spans.len() {
++            return;
++        }
++        self.spans.truncate(checkpoint.spans_len);
++
++        // Rebuild rather than remove keys: a removed `""` sentinel span
++        // may shadow a surviving copy below the checkpoint in the cache.
++        self.symbol_cache.clear();
++        for (index, span) in self.spans.iter().enumerate() {
++            self.symbol_cache.insert(*span, index);
++        }
++
++        // Surviving spans only reference checkpoint-era slabs; a retired
++        // then-head sits at full[full_len], so restore it and drop newer slabs.
++        if self.full.len() > checkpoint.full_len {
++            self.full.truncate(checkpoint.full_len + 1);
++            let mut old_head = self
++                .full
++                .pop()
++                .expect("full.len() > checkpoint.full_len, so pop must succeed");
++            old_head.truncate(checkpoint.head_len);
++            self.head = old_head;
++        } else {
++            self.head.truncate(checkpoint.head_len);
++        }
++    }
++}
++
+ impl<Char> RawInterner<Char>
+ where
+     Char: Hash + Eq + Clone,
+diff --git a/src/tests.rs b/src/tests.rs
+index 247d2bf..db869c1 100644
+--- a/src/tests.rs
++++ b/src/tests.rs
+@@ -164,3 +164,81 @@ fn check_is_latin1() {
+     let static_sym = interner.get_or_intern_static(STATIC_STR, STATIC_UTF16);
+     assert!(interner.is_latin1(static_sym));
+ }
++
++#[test]
++fn truncate_releases_and_recycles() {
++    let mut interner = Interner::default();
++    let kept = interner.get_or_intern("kept_string");
++    let cp = interner.checkpoint();
++    let dead = interner.get_or_intern("dead_string");
++    let dead2 = interner.get_or_intern("dead_string_two");
++    assert_eq!(interner.dynamic_len(), 3);
++
++    interner.truncate(&cp);
++    assert_eq!(interner.dynamic_len(), 1);
++    assert_eq!(interner.resolve_expect(kept).utf8(), Some("kept_string"));
++    assert!(interner.resolve(dead).is_none());
++    assert!(interner.resolve(dead2).is_none());
++    assert!(interner.get("dead_string").is_none());
++    assert_eq!(interner.get("kept_string"), Some(kept));
++
++    // Recycling reuses indices deterministically: the next intern gets
++    // the first freed slot, and resolution follows the new string.
++    let recycled = interner.get_or_intern("recycled_string");
++    assert_eq!(recycled, dead);
++    assert_eq!(interner.resolve_expect(recycled).utf8(), Some("recycled_string"));
++}
++
++#[test]
++fn truncate_across_slab_roll() {
++    let mut interner = Interner::default();
++    let kept = interner.get_or_intern("small_kept");
++    let cp = interner.checkpoint();
++    // Big strings force head rolls into `full` past the checkpoint, so
++    // truncate must restore the checkpoint-era head from `full`.
++    let mut dead_syms = alloc::vec::Vec::new();
++    for i in 0..64 {
++        let big = alloc::format!("{}{}", "x".repeat(1024), i);
++        dead_syms.push(interner.get_or_intern(big.as_str()));
++    }
++    interner.truncate(&cp);
++    assert_eq!(interner.resolve_expect(kept).utf8(), Some("small_kept"));
++    for s in dead_syms {
++        assert!(interner.resolve(s).is_none());
++    }
++    // The surviving prefix must still be appendable and resolvable.
++    let after = interner.get_or_intern("post_roll");
++    assert_eq!(interner.resolve_expect(after).utf8(), Some("post_roll"));
++    assert_eq!(interner.resolve_expect(kept).utf8(), Some("small_kept"));
++}
++
++#[test]
++fn truncate_utf16_sentinel_dedup() {
++    let mut interner = Interner::default();
++    // Unpaired surrogates are utf16-only: each interns the `""` sentinel
++    // into the utf8 side, exercising the duplicate-key cache rebuild.
++    let kept_lone = interner.get_or_intern(&[0xD800u16][..]);
++    let cp = interner.checkpoint();
++    let dead_lone = interner.get_or_intern(&[0xDC00u16][..]);
++    interner.truncate(&cp);
++    assert_eq!(interner.resolve_expect(kept_lone).utf16(), &[0xD800u16][..]);
++    assert!(interner.resolve(dead_lone).is_none());
++    // The surviving sentinel must still dedup new surrogate interns.
++    let again = interner.get_or_intern(&[0xDC00u16][..]);
++    assert_eq!(interner.resolve_expect(again).utf16(), &[0xDC00u16][..]);
++    assert_eq!(interner.get_or_intern(&[0xD800u16][..]), kept_lone);
++}
++
++#[test]
++fn truncate_noop_and_statics() {
++    let mut interner = Interner::default();
++    let cp = interner.checkpoint();
++    interner.truncate(&cp);
++    assert_eq!(interner.dynamic_len(), 0);
++    // Static common strings live outside the dynamic tables and always
++    // survive truncation with stable symbols.
++    let arguments = interner.get_or_intern("arguments");
++    interner.truncate(&cp);
++    assert_eq!(interner.get_or_intern("arguments"), arguments);
++    assert_eq!(interner.resolve_expect(arguments).utf8(), Some("arguments"));
++}

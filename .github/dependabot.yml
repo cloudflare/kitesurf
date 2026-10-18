@@ -1,0 +1,39 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: "vello_cpu"
+      - dependency-name: "parley"
+      - dependency-name: "fontique"
+      - dependency-name: "blitz-dom"
+      - dependency-name: "blitz-paint"
+      - dependency-name: "blitz-html"
+      - dependency-name: "anyrender"
+      - dependency-name: "anyrender_vello_cpu"
+      - dependency-name: "taffy"
+      - dependency-name: "stylo_taffy"
+      - dependency-name: "stylo"
+      - dependency-name: "selectors"
+      - dependency-name: "boa_ast"
+      - dependency-name: "boa_interner"
+      - dependency-name: "boa_gc"
+      - dependency-name: "boa_engine"
+      - dependency-name: "boa_parser"
+      - dependency-name: "usvg"
+      - dependency-name: "ratatui-image"
+      - dependency-name: "jpeg-encoder"
+  - package-ecosystem: cargo
+    directory: /packages/kitesurf-cli
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

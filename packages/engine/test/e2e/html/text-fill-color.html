@@ -1,0 +1,47 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  div { font: 40px/50px monospace; letter-spacing: 0; }
+  /* Row 1: plain red text — the control. */
+  #plain { color: #ff0000; }
+  /* Row 2: color red, fill lime. Glyphs must be LIME. */
+  #filled { color: #ff0000; -webkit-text-fill-color: #00ff00; }
+  /* Row 3: fill transparent. Glyphs must vanish, background stays. */
+  #hidden { color: #ff0000; -webkit-text-fill-color: transparent; }
+  /* Row 4: transparent fill + underline. The underline must still
+     paint in the color property, so the row is NOT blank. */
+  #decorated {
+    color: #0000ff;
+    -webkit-text-fill-color: transparent;
+    text-decoration: underline;
+  }
+  /* Row 5: clip the gradient to the glyphs. */
+  #gradient {
+    color: #f6821f;
+    -webkit-text-fill-color: transparent;
+    background: linear-gradient(to right, #ff6633, #f6821f, #fcb42f);
+    background-clip: text;
+    -webkit-background-clip: text;
+  }
+  /* Row 6: two layers, and only the IMAGE-LESS one is clipped to the
+     glyphs. Nothing is text-clipped that we fail to paint, so the
+     transparent fill must stand and the row shows bare blue. */
+  #multilayer {
+    color: #ff0000;
+    -webkit-text-fill-color: transparent;
+    background-image: none, linear-gradient(#0000ff, #0000ff);
+    background-clip: text, border-box;
+    -webkit-background-clip: text, border-box;
+  }
+</style>
+<div id="plain">MMMM</div>
+<div id="filled">MMMM</div>
+<div id="hidden">MMMM</div>
+<div id="decorated">MMMM</div>
+<div id="gradient">MMMM</div>
+<div id="multilayer">MMMM</div>

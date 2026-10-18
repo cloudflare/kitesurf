@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ruskin Constant <ruskin@cloudflare.com>
+Date: Wed, 16 Sep 2026 11:18:50 +0100
+Subject: [PATCH] Enable clip-rule, flood-color and lighting-color in the servo
+ build
+
+Same pattern as the earlier gecko-gate removals (accent-color, break-*,
+background-clip:text). These three SVG and filter-effects longhands
+have no servo-specific representation issue: clip-rule's FillRule and
+the Color type of flood-color and lighting-color are already compiled
+unconditionally for servo (used by clip-path, path(), fill, stop-color
+and others). Dropping engine = "gecko" lets servo parse and compute
+them. Nothing downstream consumes them for paint, since SVG filter
+primitives aren't implemented, which matches other parse-only
+properties.
+---
+ properties/longhands.toml | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/properties/longhands.toml b/properties/longhands.toml
+index 0f82a7b..3e5758a 100644
+--- a/properties/longhands.toml
++++ b/properties/longhands.toml
+@@ -544,7 +544,6 @@ servo_restyle_damage = "rebuild_stacking_context"
+ type = "FillRule"
+ initial = "Default::default()"
+ struct = "inherited_svg"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://svgwg.org/svg2-draft/masking.html#ClipRuleProperty"
+ affects = "paint"
+@@ -835,7 +834,6 @@ affects = "layout"
+ type = "Color"
+ initial = "computed::Color::BLACK"
+ struct = "svg"
+-engine = "gecko"
+ spec = "https://drafts.fxtf.org/filter-effects-1/#FloodColorProperty"
+ affects = "paint"
+
+@@ -1238,6 +1236,5 @@ affects = "layout"
+ type = "Color"
+ initial = "computed::Color::WHITE"
+ struct = "svg"
+-engine = "gecko"
+ spec = "https://drafts.fxtf.org/filter-effects-1#LightingColorProperty"
+ affects = "paint"

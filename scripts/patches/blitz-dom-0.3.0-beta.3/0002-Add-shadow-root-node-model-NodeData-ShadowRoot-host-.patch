@@ -1,0 +1,205 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 24 Jul 2026 12:10:37 +0100
+Subject: [PATCH] Add shadow-root node model (NodeData::ShadowRoot + host
+ linkage)
+
+Groundwork for native shadow DOM: a shadow root is a slab node that
+lives outside its host's child list (the template_contents pattern),
+carrying host back-pointer + open/closed mode. ElementData gains the
+shadow_root slot pointing at it. No behavior change yet - nothing
+creates these nodes; attach_shadow, flat-tree traversal, and scoped
+styling land in follow-up patches. Match arms added where NodeData
+is matched exhaustively (inline-box scan tolerates a stray shadow
+root rather than panicking the paint; the embedder recovers from
+unwinds, but a poisoned paint helps nobody).
+
+Upstreaming note: DioxusLabs/blitz roadmap #119 lists shadow DOM as
+wanted-but-unstarted; if upstreamed this would grow an opt-in feature
+gate like the bot-proposed PR #478 had.
+---
+ src/layout/construct.rs |  6 ++++++
+ src/layout/mod.rs       |  1 +
+ src/node/element.rs     |  6 ++++++
+ src/node/node.rs        | 46 +++++++++++++++++++++++++++++++++++++++++
+ src/node/serialize.rs   |  1 +
+ src/util.rs             |  2 ++
+ 6 files changed, 62 insertions(+)
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 077121b..a70de08 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1098,6 +1098,9 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+             NodeData::Comment { .. } | NodeData::Text(_) => {
+                 node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+             }
++            // Shadow roots never sit in a child list; tolerate one
++            // showing up here rather than killing the whole paint.
++            NodeData::ShadowRoot(_) => {}
+             NodeData::Document(_) => unreachable!(),
+         }
+     }
+@@ -1380,6 +1383,9 @@ pub(crate) fn build_inline_layout_into(
+             NodeData::Comment { .. } => {
+                 // node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+             }
++            // Shadow roots never sit in a child list; tolerate one
++            // showing up here rather than killing the whole paint.
++            NodeData::ShadowRoot(_) => {}
+             NodeData::Document(_) => unreachable!(),
+         }
+     }
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 0a5fbc1..fa5bbc8 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -918,6 +918,7 @@ impl PrintTree for TaffyDebugTree<'_> {
+             NodeData::Text { .. } => node.node_debug_str().leak(),
+             NodeData::Comment { .. } => "COMMENT",
+             NodeData::AnonymousBlock(_) => "ANONYMOUS BLOCK",
++            NodeData::ShadowRoot(_) => "#shadow-root",
+             NodeData::Element(_) => {
+                 let style = node.layout_style();
+                 let display = match node.taffy_display() {
+diff --git a/src/node/element.rs b/src/node/element.rs
+index 313a073..c3452f2 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -78,6 +78,10 @@ pub struct ElementData {
+
+     /// The element's template contents (\<template\> elements only)
+     pub template_contents: Option<NodeId>,
++
++    /// Node id of this element's attached shadow root, when it is a
++    /// shadow host. The shadow tree hangs off that node, not children.
++    pub shadow_root: Option<NodeId>,
+     // /// Whether the node is a [HTML integration point] (https://html.spec.whatwg.org/multipage/#html-integration-point)
+     // pub mathml_annotation_xml_integration_point: bool,
+
+@@ -309,6 +313,7 @@ impl Clone for ElementData {
+             inline_layout_data: self.inline_layout_data.clone(),
+             list_item_data: self.list_item_data.clone(),
+             template_contents: self.template_contents,
++            shadow_root: None,
+
+             // Runtime state: reset to defaults.
+             stylo_element_data: Default::default(),
+@@ -415,6 +420,7 @@ impl ElementData {
+             list_item_data: None,
+             special_data: SpecialElementData::None,
+             template_contents: None,
++            shadow_root: None,
+             background_images: ThinVec::new(),
+             mask_images: ThinVec::new(),
+
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 66190f4..412c406 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -839,6 +839,26 @@ pub enum NodeKind {
+     AnonymousBlock,
+     Text,
+     Comment,
++    ShadowRoot,
++}
++
++/// Encapsulation mode of a shadow root, mirroring the
++/// DOM spec's ShadowRootMode (open/closed).
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum ShadowRootMode {
++    Open,
++    Closed,
++}
++
++// Shadow roots live in the slab OUT of the host's child list (the
++// ElementData::template_contents pattern), so light walks skip them.
++
++/// Root of a shadow tree; the host element links here via
++/// ElementData::shadow_root and `host` points back at it.
++#[derive(Debug, Clone)]
++pub struct ShadowRootData {
++    pub host: NodeId,
++    pub mode: ShadowRootMode,
+ }
+
+ /// The different kinds of nodes in the DOM.
+@@ -861,6 +881,9 @@ pub enum NodeData {
+         /// The textual content of the comment
+         contents: String,
+     },
++
++    /// The root of a shadow tree attached to a host element.
++    ShadowRoot(ShadowRootData),
+     // /// A `DOCTYPE` with name, public id, and system id. See
+     // /// [document type declaration on wikipedia][https://en.wikipedia.org/wiki/Document_type_declaration]
+     // Doctype { name: String, public_id: String, system_id: String },
+@@ -913,6 +936,14 @@ impl NodeData {
+             NodeData::AnonymousBlock(_) => NodeKind::AnonymousBlock,
+             NodeData::Text(_) => NodeKind::Text,
+             NodeData::Comment { .. } => NodeKind::Comment,
++            NodeData::ShadowRoot(_) => NodeKind::ShadowRoot,
++        }
++    }
++
++    pub fn shadow_root_data(&self) -> Option<&ShadowRootData> {
++        match self {
++            Self::ShadowRoot(data) => Some(data),
++            _ => None,
+         }
+     }
+ }
+@@ -1021,6 +1052,20 @@ impl Node {
+         matches!(self.data, NodeData::AnonymousBlock { .. })
+     }
+
++    pub fn is_shadow_root(&self) -> bool {
++        matches!(self.data, NodeData::ShadowRoot { .. })
++    }
++
++    pub fn shadow_root_data(&self) -> Option<&ShadowRootData> {
++        self.data.shadow_root_data()
++    }
++
++    /// Shadow-root node id when this node is a shadow host.
++    /// None for non-elements and hosts without an attached root.
++    pub fn attached_shadow_root_id(&self) -> Option<NodeId> {
++        self.element_data().and_then(|el| el.shadow_root)
++    }
++
+     pub fn is_text_node(&self) -> bool {
+         matches!(self.data, NodeData::Text { .. })
+     }
+@@ -1072,6 +1117,7 @@ impl Node {
+             }
+             NodeData::Comment { .. } => write!(s, "COMMENT"),
+             NodeData::AnonymousBlock(_) => write!(s, "AnonymousBlock"),
++            NodeData::ShadowRoot(data) => write!(s, "#shadow-root ({:?})", data.mode),
+             NodeData::Element(data) => {
+                 let name = &data.name;
+                 let class = self.attr(local_name!("class")).unwrap_or("");
+diff --git a/src/node/serialize.rs b/src/node/serialize.rs
+index 258abe8..1f556dd 100644
+--- a/src/node/serialize.rs
++++ b/src/node/serialize.rs
+@@ -128,6 +128,7 @@ impl Node {
+             NodeData::Document(_) => {}
+             NodeData::Comment { .. } => {}
+             NodeData::AnonymousBlock(_) => {}
++            NodeData::ShadowRoot(_) => {}
+             // NodeData::Doctype { name, .. } => write!(s, "DOCTYPE {name}"),
+             NodeData::Text(data) => {
+                 if matches!(style, OutputStyle::Pretty) {
+diff --git a/src/util.rs b/src/util.rs
+index 809bc1f..947289c 100644
+--- a/src/util.rs
++++ b/src/util.rs
+@@ -124,6 +124,8 @@ pub fn walk_tree(indent: usize, node: &Node) {
+
+         NodeData::AnonymousBlock(_) => println!("{id} AnonymousBlock"),
+
++        NodeData::ShadowRoot(data) => println!("#shadow-root {id} ({:?})", data.mode),
++
+         NodeData::Element(data) => {
+             print!("<{} {id}", data.name.local);
+             for attr in data.attrs.iter() {

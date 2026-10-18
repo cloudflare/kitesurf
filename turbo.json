@@ -1,0 +1,192 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "remoteCache": {
+    "signature": true
+  },
+  "futureFlags": {
+    "longerSignatureKey": true
+  },
+  "globalPassThroughEnv": [
+    "CARGO_HOME",
+    "CI",
+    "HOME",
+    "KITESURF_REUSE_WASM",
+    "NODE_OPTIONS",
+    "PATH",
+    "RENDERER_CORE_FORCE",
+    "RUSTC_WRAPPER",
+    "RUSTUP_HOME",
+    "SCCACHE_*",
+    "SCENE_CLIENT_FORCE",
+    "USE_SCCACHE",
+    "XDG_CACHE_HOME"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "src/generated/**"]
+    },
+    "@kitesurf/engine#build": {
+      "dependsOn": ["^build"],
+      "env": ["KITESURF_MEMPROF"],
+      "cache": false
+    },
+    "types": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "@kitesurf/engine#types": {
+      "dependsOn": ["^build", "//#build:wasm:raw"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/core/pkg/**",
+        "$TURBO_ROOT$/packages/renderer-core/pkg/**"
+      ],
+      "outputs": ["worker-configuration.d.ts", "test/fixtures-worker/worker-configuration.d.ts"]
+    },
+    "@kitesurf/dom-shim#types": {
+      "dependsOn": ["^build", "//#build:wasm:raw"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/core/pkg/**"],
+      "outputs": []
+    },
+    "@kitesurf/page-script#types": {
+      "dependsOn": ["^build", "//#build:wasm:raw"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/core/pkg/**"],
+      "outputs": []
+    },
+    "@kitesurf/worker-script#types": {
+      "dependsOn": ["^build", "//#build:wasm:raw"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/core/pkg/**"],
+      "outputs": []
+    },
+    "check": {
+      "outputs": []
+    },
+    "@kitesurf/page-script#build": {
+      "dependsOn": ["^build"],
+      "env": ["KITESURF_MEMPROF"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/core/pkg/kitesurf_core_bg.wasm.memprof.json"
+      ],
+      "outputs": ["dist/**"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "@kitesurf/engine#test": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/core/pkg/**",
+        "$TURBO_ROOT$/packages/renderer-core/pkg/**"
+      ],
+      "outputs": []
+    },
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/core/pkg/**",
+        "$TURBO_ROOT$/packages/renderer-core/pkg/**",
+        "$TURBO_ROOT$/packages/engine/public/rbi/scene_host.wasm",
+        "$TURBO_ROOT$/packages/engine/public/rbi/scene_host.json"
+      ],
+      "env": [
+        "KITESURF_BASE",
+        "KITESURF_FIXTURE",
+        "KITESURF_FIXTURE_BASE",
+        "KITESURF_FIXTURE2",
+        "KITESURF_ORIGIN",
+        "KITESURF_PNG_OUT",
+        "KITESURF_URL"
+      ],
+      "outputs": []
+    },
+    "//#build:wasm:raw": {
+      "env": [
+        "CARGO_ENCODED_RUSTFLAGS",
+        "CARGO_INCREMENTAL",
+        "KITESURF_MEMPROF",
+        "RUSTFLAGS",
+        "WASM_BINDGEN_BIN",
+        "WASM_OPT_BIN"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "packages/core/.cargo/**",
+        "packages/core/Cargo.toml",
+        "packages/core/pkg/package.json",
+        "rust-toolchain.toml",
+        "packages/core/src/**",
+        "scripts/build-wasm.mjs",
+        "scripts/get-patched-vendor-crates.mjs",
+        "scripts/get-wasm-bindgen.mjs",
+        "scripts/memprof-rewriter/**",
+        "scripts/patches/**",
+        "vendor/wasm-memprof/instrumentor/**"
+      ],
+      "outputs": ["packages/core/pkg/**"]
+    },
+    "//#build:renderer-core:raw": {
+      "dependsOn": ["//#build:wasm:raw"],
+      "env": ["CARGO_ENCODED_RUSTFLAGS", "CARGO_INCREMENTAL", "WASM_BINDGEN_BIN", "WASM_OPT_BIN"],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "packages/core/.cargo/**",
+        "packages/core/src/**",
+        "packages/renderer-core/.cargo/**",
+        "packages/renderer-core/Cargo.toml",
+        "rust-toolchain.toml",
+        "packages/renderer-core/scripts/build.mjs",
+        "packages/renderer-core/src/**",
+        "scripts/get-patched-vendor-crates.mjs",
+        "scripts/get-wasm-bindgen.mjs",
+        "scripts/patches/**"
+      ],
+      "outputs": ["packages/renderer-core/pkg/**"]
+    },
+    "//#build:scene-host:raw": {
+      "dependsOn": ["//#build:wasm:raw"],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "rust-toolchain.toml",
+        "packages/scene-host-wasm/Cargo.toml",
+        "packages/scene-host-wasm/src/**",
+        "packages/scene-host-wasm/scripts/build.mjs",
+        "packages/core/src/paint/scene_decode.rs",
+        "packages/core/src/paint/scene_record.rs",
+        "packages/core/src/paint/scene_replay.rs",
+        "packages/core/src/paint/screenshot.rs",
+        "packages/core/src/tty/grid.rs",
+        "scripts/get-patched-vendor-crates.mjs",
+        "scripts/patches/**"
+      ],
+      "outputs": [
+        "packages/engine/public/rbi/scene_host.wasm",
+        "packages/engine/public/rbi/scene_host.json"
+      ]
+    },
+    "//#cargo:test:raw": {
+      "env": ["CARGO_ENCODED_RUSTFLAGS", "CARGO_INCREMENTAL", "RUSTFLAGS"],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "packages/core/.cargo/**",
+        "packages/core/Cargo.toml",
+        "rust-toolchain.toml",
+        "packages/core/src/**",
+        "packages/core/tests_data/**",
+        "packages/engine/public/fonts/**",
+        "packages/engine/test/fixtures-worker/src/**",
+        "scripts/get-patched-vendor-crates.mjs",
+        "scripts/patches/**"
+      ],
+      "outputs": []
+    }
+  }
+}

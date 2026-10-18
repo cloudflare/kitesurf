@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Thu, 27 Aug 2026 00:20:12 +0100
+Subject: [PATCH] Finish table occupancy review fixes
+
+Keep auto-layout tracks flexible regardless of caption order and skip
+past occupied spans instead of rescanning overlapping windows.
+
+Against blitz-dom 0.3.0-beta.3: the occupancy half is absorbed by
+upstream's ColumnCursor (next_free resumes from the cursor); only the
+auto-layout column-width change remains.
+---
+ src/layout/table.rs | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index c422105..0a9cf32 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -710,7 +710,7 @@ fn collect_table_cells(
+             let col_needs_width =
+                 (col as usize) >= columns.len() || columns[col as usize].max.is_auto();
+             let is_first_content_row = cursor.is_first_content_row(*row);
+-            if (*row == 1 || (is_fixed && is_first_content_row)) && col_needs_width {
++            if is_fixed && is_first_content_row && col_needs_width {
+                 let column: TrackSizingFunction = match style.size.width.tag() {
+                     taffy::CompactLength::LENGTH_TAG => {
+                         let len = style.size.width.value();
+@@ -814,7 +814,8 @@ fn collect_table_cells(
+             let is_caption = display.outside() == DisplayOutside::TableCaption;
+             let is_first_content_row = !is_caption && cursor.is_first_content_row(*row);
+             if !is_caption
+-                && (*row == 1 || (is_fixed && is_first_content_row))
++                && is_fixed
++                && is_first_content_row
+                 && (col as usize) >= columns.len()
+             {
+                 columns.resize(col as usize, style_helpers::auto());

@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 24 Jul 2026 15:09:25 +0100
+Subject: [PATCH] Keep shadow-tree ids out of the document ID map
+
+process_added_subtree recurses through shadow trees (needed for
+in-document flags and stylesheet ops), which also registered shadow
+ids into nodes_to_id - so getElementById could see shadow internals
+or, worse, a shadow id could clobber a light-DOM entry and silently
+return the wrong element to code that never touches shadow DOM.
+Registration now skips nodes inside shadow trees.
+
+Removal is value-checked (only delete the entry when it points at
+the node being removed) rather than containment-gated: remove_node
+detaches before processing, so a containment walk at removal time
+misreports shadow content as light. The value check also stops
+never-registered duplicates from evicting a live entry.
+---
+ src/mutator.rs | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 2b7965d..a6cf4ff 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1094,7 +1094,9 @@ impl<'doc> DocumentMutator<'doc> {
+
+             // If the node has an "id" attribute, store it in the ID map.
+             if let Some(id_attr) = node.attr(local_name!("id")).map(ToString::to_string) {
+-                doc.add_to_id_map(&id_attr, node_id);
++                if node.containing_shadow_root_id().is_none() {
++                    doc.add_to_id_map(&id_attr, node_id);
++                }
+             }
+
+             let node = &mut doc.nodes[node_id];

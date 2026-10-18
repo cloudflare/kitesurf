@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 5 Sep 2026 08:06:12 +0100
+Subject: [PATCH] Adapt layout paths to the beta APIs
+
+Use versioned node IDs in shadow damage propagation and rely on the
+beta.2 replaced context, where width and height attributes already enter
+through presentational style hints.
+
+Against blitz-dom 0.3.0-beta.3: the damage.rs hunk is dropped with the
+cached-layout-children walk it fixed (upstream always walks DOM
+children).
+---
+ src/layout/replaced.rs | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/layout/replaced.rs b/src/layout/replaced.rs
+index 30f6f9f..c0a8691 100644
+--- a/src/layout/replaced.rs
++++ b/src/layout/replaced.rs
+@@ -259,10 +259,10 @@ pub fn compute_replaced_layout(
+
+     // An explicit height counts too when a ratio can derive the width from
+     // it: that width is just as author-specified as a literal one.
+-    let explicit_height = style_size.height.is_some() || image_context.attr_size.height.is_some();
++    // Width/height attributes are already presentational hints in style_size.
++    let explicit_height = style_size.height.is_some();
+     let explicit_width = style_size.width.is_some()
+-        || image_context.attr_size.width.is_some()
+-        || (explicit_height && aspect_ratio_opt.is_some());
++        || (explicit_height && aspect_ratio.is_some());
+     let avail_max = Size {
+         width: if explicit_width {
+             None
