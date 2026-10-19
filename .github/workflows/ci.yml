@@ -36,7 +36,7 @@ jobs:
             cargo about generate --locked --fail --config about.toml --manifest-path "packages/$PACKAGE/Cargo.toml" --target wasm32-unknown-unknown --output-file ".wasm-licenses/$PACKAGE.md" scripts/rust-notices.hbs
           done
           tar -cf wasm.tar packages/core/pkg packages/renderer-core/pkg packages/engine/public/rbi LICENSE NOTICE licenses .wasm-licenses packages/engine/public/fonts/OFL.txt packages/engine/public/fonts/Inter-OFL.txt scripts/lint/ANTI_SLOP_LICENSE.txt vendor/wasm-memprof/LICENSE
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wasm
           path: wasm.tar
@@ -138,7 +138,7 @@ jobs:
       - run: pnpm run pw:setup
       - run: node scripts/pw-run.mjs --shard ${{ matrix.shard }}/4
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-results-${{ matrix.shard }}
           path: .playwright/test-results/
@@ -204,7 +204,7 @@ jobs:
           echo "[wpt] shard $SHARD/8 rc=$RC"
           test "$RC" != "2"
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wpt-shard-${{ matrix.shard }}
           path: |
@@ -238,7 +238,7 @@ jobs:
         run: |
           node -e 'const s = JSON.parse(require("fs").readFileSync("wpt-results.json", "utf8")).summary; console.log(JSON.stringify(s)); process.exit(s.unexpectedFail + s.unexpectedPass > 0 ? 1 : 0)'
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wpt-merged
           path: |

@@ -48,7 +48,7 @@ jobs:
           cargo about generate --locked --fail --config about.toml --manifest-path packages/kitesurf-cli/Cargo.toml --target "${{ matrix.target }}" --output-file "$PACKAGE/THIRD_PARTY_NOTICES.md" scripts/rust-notices.hbs
           tar -czf "dist/$NAME.tar.gz" -C "$PACKAGE" .
           (cd dist && shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cli-${{ matrix.target }}
           path: dist/*
