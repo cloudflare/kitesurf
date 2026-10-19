@@ -1,0 +1,42 @@
+packages/engine/public/fonts/Gelasio-OFL.txt
+  s_f2f1dbce2d5d5d::t_5720b8b2c5abd1 1-93
+docs/FONTS.md
+  s_f2f1dbce2d5d5d::t_fbb8f5c62af2cb 9,20-25,29-31
+  s_f2f1dbce2d5d5d::t_9fc54d9678a882 10
+  s_f2f1dbce2d5d5d::t_62e08925a833c0 8,283,287-291,299-308
+packages/page-script/src/font-loader.ts
+  s_f2f1dbce2d5d5d::t_850390c48d5b1e 36-41,49-51,65-75,83-85,116,137-142
+packages/engine/test/e2e/ua-font-aliases.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_247597bdfd9d0d 110-111,158-161
+  s_f2f1dbce2d5d5d::t_1f79bfdae52d23 3-7,18-21,35-37,53-55,62-65,116,125,136-139,141,162,181-187
+  s_f2f1dbce2d5d5d::t_130c2838f9969b 188-189
+packages/engine/test/e2e/author-webfont.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_46b25aee337d48 75
+packages/page-script/src/wasm-glue.ts
+  s_f2f1dbce2d5d5d::t_850390c48d5b1e 163-165
+packages/engine/test/e2e/hangul-font.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_46b25aee337d48 64-65
+packages/core/src/fonts.rs
+  s_f2f1dbce2d5d5d::t_46b25aee337d48 10-12
+  s_f2f1dbce2d5d5d::t_ba0f8470b55873 2275-2285,2289-2290,2292,2294-2300,2305-2312,2318-2321,2323-2326
+  s_f2f1dbce2d5d5d::t_292743a7e8aff0 770
+  s_f2f1dbce2d5d5d::t_d63e2761c32b7d 1397,1400-1401
+  s_f2f1dbce2d5d5d::t_96fdc50d82c053 63-66,769,774,989-992,1063-1072,1154-1157,1164-1166,1168-1170,1186,1198-1200,1224-1226,1318-1333,1398-1399,1522-1524,1544-1546,1559-1561,1889-1891
+  s_f2f1dbce2d5d5d::t_ad6d704196fb12 1406,2256-2261,2301-2304,2313-2317,2322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a4c92dfad04e27821fe00e4dfe6df344e6195d6d",
+  "prompts": {},
+  "sessions": {
+    "s_f2f1dbce2d5d5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaf4cb2b5ffeHlvt6Yw56JGX3h",
+        "model": "unknown"
+      },
+      "human_author": "Nuno Pereira <npereira@cloudflare.com>"
+    }
+  }
+}
