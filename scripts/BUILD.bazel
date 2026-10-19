@@ -316,7 +316,7 @@ _HELPERS_DATA = glob(["*.mjs"]) + [
 
 node_test(
     name = "helpers_test",
-    args = glob(["*.test.mjs"], exclude = ["wpt-compare.test.mjs"]),
+    args = glob(["*.test.mjs"]),
     data = _HELPERS_DATA,
 )
 
