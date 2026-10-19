@@ -9744,6 +9744,7 @@ packages/core/tests_data/angular_snapshot.html
   s_4ba79f911c93c4::t_23d8c41de9b0bf 1-25
 packages/engine/src/landing.ts
   s_a6552af1979874::t_9ca2d9a6a6d3de 1-6,8-60,62-74
+  s_a6552af1979874::t_ec8941dfeb3ded 7,61
 ---
 {
   "schema_version": "authorship/3.0.0",
