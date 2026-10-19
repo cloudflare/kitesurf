@@ -1,47 +1,82 @@
+![Kitesurf logo](kitesurf_logo.png)
+
 # Kitesurf
 
 Kitesurf is an experimental browser engine that runs on Cloudflare Workers. It
-parses HTML, applies CSS, lays out and paints pages, and runs page scripts, all
-inside Workers. There is no Chrome and no browser container.
+parses HTML, applies CSS, runs page JavaScript, and renders screenshots without
+Chrome or a browser container.
 
-You drive it with the [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/)
-(CDP), so tools that already speak CDP can use it:
+Kitesurf speaks the [Chrome DevTools Protocol (CDP)](https://chromedevtools.github.io/devtools-protocol/),
+so you can use it with CDP clients such as Puppeteer.
 
-- **Puppeteer** and other CDP clients can navigate, run JavaScript, send input,
-  and capture screenshots, PDFs, and screencast frames.
-- **AI agents** can use it through the Chrome DevTools MCP adapter.
-- **Chrome DevTools** can inspect a live page and show its screencast.
-- **Your terminal** can browse with the [terminal client](packages/kitesurf-cli/README.md).
+> [!IMPORTANT]
+> Kitesurf requires Cloudflare Dynamic Workers to create isolated workers for
+> pages. Dynamic Workers are part of the [Workers Paid plan](https://developers.cloudflare.com/dynamic-workers/pricing/).
+> Local development uses `wrangler dev`. A Cloudflare Workers Paid plan is
+> required to run Kitesurf on Cloudflare.
 
-Kitesurf is a proof of concept with gaps in web compatibility. See
-[what works and what doesn't](#what-works-and-what-doesnt) before you rely on it.
+## Project status
 
-## Quick start
+Kitesurf is a proof of concept. Web compatibility is incomplete, and many browser
+features are not implemented. Do not use it as a general-purpose browser yet.
 
-You need:
+## Requirements
 
-- Node 22 and pnpm 9. Run `corepack enable` to get the pinned pnpm.
-- Rust through [rustup](https://rustup.rs/). The repository pins its nightly
-  toolchain and wasm target in `rust-toolchain.toml`, and rustup fetches both.
-  Put `~/.cargo/bin` before any other Rust install (including Homebrew) on your
-  `PATH`.
+- Node.js 22 or newer
+- pnpm 9.15.4, which the repository pins in `package.json`
+- Rust through [rustup](https://rustup.rs/)
 
-Then build and start the engine:
+The repository pins the Rust nightly toolchain and the
+`wasm32-unknown-unknown` target in `rust-toolchain.toml`. Rustup installs them
+when you build the project.
+
+Install pnpm separately if it is not already available:
 
 ```bash
-git clone https://github.com/cloudflare/kitesurf
-cd kitesurf
-pnpm install
-pnpm run build:wasm   # builds the Rust core; skipped when it is up to date
-pnpm run dev          # serves on http://127.0.0.1:8787
+npm install --global pnpm@9.15.4
 ```
 
-The first wasm build installs a matching `wasm-bindgen-cli` and caches it under
-`~/.cache/kitesurf/`. Open `http://127.0.0.1:8787/health` to check the engine is
-up. There is no web UI: the root URL shows how to open the engine from
-`chrome://inspect`.
+## Build and run locally
 
-Now connect a client. With `puppeteer-core` installed:
+Clone the repository and install its dependencies:
+
+```bash
+git clone https://github.com/cloudflare/kitesurf.git
+cd kitesurf
+pnpm install --frozen-lockfile
+```
+
+Build the Rust and WebAssembly core:
+
+```bash
+pnpm run build:wasm
+```
+
+Start the local engine:
+
+```bash
+pnpm run dev
+```
+
+The engine listens on `http://127.0.0.1:8787`. Visit
+`http://127.0.0.1:8787/health` to confirm that it is running.
+
+The root URL has the same Chrome DevTools instructions as this README. Kitesurf
+speaks CDP and has no web UI.
+
+The first build downloads the pinned `wasm-bindgen` tools. The development
+server builds the remaining JavaScript and renderer bundles before it starts.
+
+Set `KITESURF_PORT` when port `8787` is already in use:
+
+```bash
+KITESURF_PORT=8799 pnpm run dev
+```
+
+## Connect with Puppeteer
+
+Install `puppeteer-core` in the project that will control Kitesurf. Then connect
+to the browser WebSocket endpoint:
 
 ```js
 import puppeteer from "puppeteer-core";
@@ -49,134 +84,87 @@ import puppeteer from "puppeteer-core";
 const browser = await puppeteer.connect({
   browserWSEndpoint: "ws://127.0.0.1:8787/devtools/browser",
 });
+
 const page = await browser.newPage();
 await page.goto("https://example.com/");
 await page.screenshot({ path: "page.png" });
+
 await browser.disconnect();
 ```
 
-Each WebSocket owns a separate browser session; disconnecting ends it. HTTP
-discovery is at `http://127.0.0.1:8787/json/version`.
+Use the port from `KITESURF_PORT` if you selected a different port. HTTP
+discovery is available at `http://127.0.0.1:8787/json/version`.
 
-### MCP tools
+## Use Chrome DevTools
 
-Kitesurf speaks CDP, not MCP. Run
-[Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) as a
-local adapter and point it at the engine:
+1. Open `chrome://inspect/#devices` in Chrome. Type or paste it into the address
+   bar because web pages cannot link to it.
+2. Select **Discover network targets**.
+3. Select **Configure...** and add `127.0.0.1:8787`.
+4. Under **Remote Target**, select **inspect** next to **kitesurf**.
+5. Enter a page URL in the address bar above the screencast.
 
-```json
-{
-  "mcpServers": {
-    "kitesurf": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "chrome-devtools-mcp@1.11.0",
-        "--wsEndpoint=ws://127.0.0.1:8787/devtools/browser",
-        "--no-usage-statistics",
-        "--no-performance-crux"
-      ]
-    }
-  }
-}
-```
+Use the port from `KITESURF_PORT` when you select a different local port. Chrome
+discovers targets with plain HTTP and WebSocket connections. The `chrome://inspect`
+workflow cannot reach an HTTPS engine. Use it with a local engine instead.
 
-The adapter officially supports Chrome. Kitesurf implements part of CDP, so
-profiling, audits, and other Chrome-specific tools may not work.
+Kitesurf provides a CDP endpoint, not a full Chrome implementation. Some Chrome
+DevTools features do not work yet. We are working to add more support over time.
+Puppeteer and other CDP clients can connect to
+`ws://127.0.0.1:8787/devtools/browser`.
 
-### Chrome DevTools
+## Technology stack
 
-1. Open `chrome://inspect/#devices` and enable **Discover network targets**.
-2. Choose **Configure** and add `127.0.0.1:8787`.
-3. Click **inspect** next to **kitesurf**, then enter a URL above the screencast.
+Kitesurf combines several open-source Rust projects:
 
-## Deploying
+- [Blitz](https://github.com/DioxusLabs/blitz) provides HTML parsing, the DOM,
+  layout, and painting. It is licensed under `MIT OR Apache-2.0`.
+- [Stylo](https://github.com/servo/stylo) provides CSS parsing, cascading, and
+  computed styles. It is licensed under `MPL-2.0`.
+- [Boa](https://github.com/boa-dev/boa) runs page JavaScript inside WebAssembly.
+  It is licensed under `Unlicense OR MIT`.
+- [Linebender](https://linebender.org/) libraries provide text layout and 2D
+  graphics, including [Parley](https://github.com/linebender/parley),
+  [Vello](https://github.com/linebender/vello),
+  [Kurbo](https://github.com/linebender/kurbo), and
+  [Peniko](https://github.com/linebender/peniko). These libraries are licensed
+  under `Apache-2.0 OR MIT`.
+- [Krilla](https://github.com/LaurenzV/krilla) generates PDF output. It is
+  licensed under `MIT OR Apache-2.0`.
 
-Self-hosting is not supported yet; run the engine locally with `wrangler dev`.
-When it is, you will need a Workers Paid account, because Kitesurf runs page code
-in [Dynamic Workers](https://developers.cloudflare.com/dynamic-workers/pricing/)
-through the Worker Loader binding.
+Kitesurf patches its Rust dependencies. The patch series are in
+[`scripts/patches/`](scripts/patches/).
 
-## How it works
+## Cloudflare deployment
 
-Each CDP connection gets its own session in the engine Worker. The engine starts
-two loaded Workers for it: **PageScript** runs the page's DOM, layout, and
-scripts, and **PageRenderer** turns recorded paint scenes into images and PDFs.
-Both use Rust compiled to WebAssembly, built on the
-[Blitz](https://github.com/DioxusLabs/blitz) stack. Every page request goes
-through a CORS gateway, and runtime `eval` runs in [boa](https://boajs.dev/), a
-JavaScript engine compiled into the wasm module, never in the engine itself.
+The repository supports local development with Wrangler. A complete self-hosting
+workflow is not available yet.
 
-## What works and what doesn't
+The engine configuration includes a Worker Loader binding. Kitesurf uses this
+binding to start a separate worker for each page and renderer. Cloudflare
+Dynamic Workers provide this capability, and they require the Workers Paid plan.
+See the [Dynamic Workers pricing](https://developers.cloudflare.com/dynamic-workers/pricing/)
+documentation before planning a Cloudflare deployment.
 
-Kitesurf measures itself against a curated set of
-[Web Platform Tests](https://github.com/web-platform-tests/wpt). Current results
-are on the [WPT dashboard](https://kitesurf.dev/wpt).
+## Packages
 
-Known limits:
-
-- **Iframes** take one of two paths. Same-origin frames without scripts render
-  in-process. Cross-origin or scripted frames run in their own isolate, so
-  same-origin scripted frames lose synchronous cross-frame access, and
-  `sandbox` is not enforced.
-- **ES modules** are fetched and bundled at navigation. Import maps must be
-  inline, computed dynamic imports run in boa, and TypeScript, JSX, and CSS
-  modules are not supported.
-- **SVG** renders from snapshots, not a live SVG DOM, and `<foreignObject>` HTML
-  does not render. AVIF is not supported.
-- **Bot challenges** are not bypassed. Outbound requests are plain `fetch()`, so
-  sites behind a bot challenge serve the challenge page.
-- **Sessions end with the WebSocket.** Cookies, page state, timers, and
-  listeners do not survive a disconnect.
-- **Not implemented:** WebGL, WebGPU, Web Audio, WebRTC, and service workers.
-
-## Repository layout
-
-| Path                                                  | What it is                                                                                            |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `packages/engine/`                                    | The engine Worker: CDP, sessions, and rendering. Its e2e suite and fixture Worker live under `test/`. |
-| `packages/page-script/`                               | The per-page Worker that runs the page.                                                               |
-| `packages/page-renderer/`                             | The stateless Worker that rasterizes scenes.                                                          |
-| `packages/dom-shim/`                                  | The page's `window`, `document`, and DOM APIs, in TypeScript.                                         |
-| `packages/core/`                                      | The Rust core: Blitz wrapper, layout, paint, fonts, and boa eval.                                     |
-| `packages/renderer-core/`                             | The smaller Rust module that replays scenes for PageRenderer.                                         |
-| `packages/kitesurf-cli/`, `packages/scene-host-wasm/` | The terminal client and its local rasterizer.                                                         |
-| `packages/script-gate/`                               | Shared script policy: SRI, CSP, and MIME checks.                                                      |
-| `scripts/`, `tests/`                                  | Build and test runners, vendored-crate patches, and the WPT allow-list.                               |
-
-## Building with Bazel
-
-The repository is also a Bazel module, so another Bazel workspace can depend on
-the engine. The pnpm workflow above is the main way to build and test, and it is
-what CI runs. To use Bazel instead, install
-[Bazelisk](https://github.com/bazelbuild/bazelisk); it reads `.bazelversion` and
-fetches the pinned Bazel. Then, from the repository root:
-
-```bash
-bazel build //packages/engine:dist     # builds the engine Worker bundle
-bazel test //packages/engine:types     # type-checks the engine
-bazel test //packages/engine:vitest    # runs the engine's unit tests
-bazel test //packages/core:core_test   # runs the Rust core's tests
-```
-
-Bazel downloads the vendored crates and applies the patch series under
-`scripts/patches/` itself, so `pnpm run build:wasm` is not needed first.
+| Package | Description |
+| --- | --- |
+| [`engine`](packages/engine/) | Cloudflare Worker and CDP server |
+| [`page-script`](packages/page-script/) | Page DOM and JavaScript runtime |
+| [`page-renderer`](packages/page-renderer/) | Renderer for recorded page scenes |
+| [`dom-shim`](packages/dom-shim/) | DOM APIs inside the page worker |
+| [`core`](packages/core/) | Rust layout, paint, and JavaScript engine code |
+| [`renderer-core`](packages/renderer-core/) | Rust scene rasterizer for page rendering |
+| [`scene-host-wasm`](packages/scene-host-wasm/) | Local scene rasterizer for the terminal client |
+| [`kitesurf-cli`](packages/kitesurf-cli/) | Terminal client |
 
 ## Contributing
 
-We welcome bug reports and focused fixes. Open an
-[issue](https://github.com/cloudflare/kitesurf/issues) first and wait for a
-maintainer to agree on the scope: pull requests from contributors who have not
-been vouched for are closed automatically. [CONTRIBUTING.md](CONTRIBUTING.md)
-explains the process, and [AGENTS.md](AGENTS.md) has the development rules.
-
-Report security issues as described in [SECURITY.md](SECURITY.md), not in public
-issues.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request.
+Report security problems as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-Kitesurf's own code is licensed under [Apache 2.0](LICENSE). Bundled fonts, data,
-and dependencies keep their own licenses; see [NOTICE](NOTICE). Keep `LICENSE`,
-`NOTICE`, and the license texts they reference with any artifact you distribute,
-and generate Rust notices for the exact lockfile and target you ship (the
-`cargo about` steps in `.github/workflows/`).
+Kitesurf is licensed under [Apache 2.0](LICENSE). Bundled fonts, data, and
+dependencies keep their own licenses. See [NOTICE](NOTICE).
