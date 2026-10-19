@@ -1,0 +1,109 @@
+docs/engine/WORKERD_ISSUES.md
+  s_4ba79f911c93c4::t_7210fda6ef7751 1-111
+AGENTS.md
+  s_4ba79f911c93c4::t_e3e19bb7ab82d4 59-61,114
+docs/ANALYTICS.md
+  s_4ba79f911c93c4::t_7c371a0f123657 3
+docs/CI.md
+  s_4ba79f911c93c4::t_4657fa881f78f4 5-6,65,74,139,158,245
+docs/ENGINE_CF.md
+  s_4ba79f911c93c4::t_afb7cd3dccc9e5 38,45,138
+docs/RBI.md
+  s_4ba79f911c93c4::t_de5bd860c6bce0 1-228
+docs/TESTING.md
+  s_4ba79f911c93c4::t_27938741a3d477 1-790
+docs/TRACING.md
+  s_4ba79f911c93c4::t_f996ad4f2ce74c 3
+docs/WEB_BOT_AUTH.md
+  s_4ba79f911c93c4::t_aa8fd97c7ca59c 3
+docs/engine/BOA_BRIDGE_V2.md
+  s_4ba79f911c93c4::t_a2bfaafcb493f4 1-341
+docs/engine/BOA_HARDENING.md
+  s_4ba79f911c93c4::t_261a2ae218fb6a 1-163
+docs/engine/BOA_V8_FLOW.md
+  s_4ba79f911c93c4::t_b85b46a0b7a034 1-748
+docs/engine/BOA_V8_FLOW_EXAMPLES.md
+  s_4ba79f911c93c4::t_3a04aab1f5fc1c 1-297
+docs/engine/BUILD_TOOLING.md
+  s_4ba79f911c93c4::t_650d68611d30af 1-600
+docs/engine/CANVAS2D.md
+  s_4ba79f911c93c4::t_5705278b142c57 1-115
+docs/engine/CDP.md
+  s_4ba79f911c93c4::t_e6c9540f165285 1-417
+docs/engine/CORS.md
+  s_4ba79f911c93c4::t_12ceecf9bae24e 1-337
+docs/engine/DEPLOYING.md
+  s_4ba79f911c93c4::t_c7af1ea960e32a 1-80
+docs/engine/DOM_CONTRACTS.md
+  s_4ba79f911c93c4::t_c4b52865b8092a 1-306
+docs/engine/DOM_SHIM.md
+  s_4ba79f911c93c4::t_730e16ad5e39a3 1-1000
+docs/engine/ENGINE_CONTRACTS.md
+  s_4ba79f911c93c4::t_8aa82d4876bf74 1-249
+docs/engine/FONTS.md
+  s_4ba79f911c93c4::t_418634a84daed5 1-279
+docs/engine/FORMS.md
+  s_4ba79f911c93c4::t_e5badd38cd26f2 1-252
+docs/engine/IFRAMES.md
+  s_4ba79f911c93c4::t_a4da8fe0d5a2b7 1-404
+docs/engine/LAYOUT.md
+  s_4ba79f911c93c4::t_8726bcf806fad3 1-160
+docs/engine/MEMPROF.md
+  s_4ba79f911c93c4::t_0e6a76efe97131 1-248
+docs/engine/NETWORKING.md
+  s_4ba79f911c93c4::t_726fd07c7d0feb 1-405
+docs/engine/PAGE_RENDERER.md
+  s_4ba79f911c93c4::t_e6d271217c4efc 1-407
+docs/engine/PAGE_RUNTIME_CONTRACTS.md
+  s_4ba79f911c93c4::t_38cee1110eda11 1-390
+docs/engine/PAGE_SCRIPT_PROTOCOL.md
+  s_4ba79f911c93c4::t_3d32f8df9111bc 1-338
+docs/engine/PLATFORM.md
+  s_4ba79f911c93c4::t_4c38e657f2d344 1-181
+docs/engine/PRINT_AND_PDF.md
+  s_4ba79f911c93c4::t_e11bc105be9301 1-71
+docs/engine/RBI.md
+  s_4ba79f911c93c4::t_8f197c121300b7 1-200
+docs/engine/RENDERING_CONTRACTS.md
+  s_4ba79f911c93c4::t_122cf9f701a66c 1-173
+docs/engine/RUST_DOM_CONTRACTS.md
+  s_4ba79f911c93c4::t_eed66edf79ef26 1-528
+docs/engine/SCRIPT_GATE.md
+  s_4ba79f911c93c4::t_937c7fe5df0c5e 1-194
+docs/engine/SCRIPT_LOADING.md
+  s_4ba79f911c93c4::t_7ba5f845ba5779 1-299
+docs/engine/SELECTION.md
+  s_4ba79f911c93c4::t_a640bb72805f5c 1-101
+docs/engine/SVG.md
+  s_4ba79f911c93c4::t_478bea779b95d6 1-67
+docs/engine/TELEMETRY.md
+  s_4ba79f911c93c4::t_6809163f9fc478 1-104
+docs/engine/TERMINAL.md
+  s_4ba79f911c93c4::t_f659ffbec245a8 1-136
+docs/engine/TESTING.md
+  s_4ba79f911c93c4::t_f032c0e07b64ea 1-308
+docs/engine/TEST_CONTRACTS.md
+  s_4ba79f911c93c4::t_d3c68341e3d490 1-1676
+docs/engine/TRANSITIONS.md
+  s_4ba79f911c93c4::t_a32861d31e7716 1-201
+docs/engine/WEBMCP.md
+  s_4ba79f911c93c4::t_aed90b296703c2 1-246
+docs/engine/WORKERS.md
+  s_4ba79f911c93c4::t_c2a27de8105f51 1-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "450c318452962480cce72ff1271d78118d7d3ba5",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

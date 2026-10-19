@@ -1,0 +1,19 @@
+scripts/flows-workerd-probe.sh
+  s_4ba79f911c93c4::t_8ef5a5f30722ab 3-6,8-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0072cc76d970153650e6b6e3d0b5eae22286a50e",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

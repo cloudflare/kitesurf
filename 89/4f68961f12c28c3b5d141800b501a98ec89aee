@@ -1,0 +1,23 @@
+.gitlab/ci/engine.yml
+  s_4ba79f911c93c4::t_aa53bfcd94adf5 2246,2261-2269
+.gitlab/ci/submodule-update.yml
+  s_4ba79f911c93c4::t_4965ca24635ca6 7,14-22
+docs/CI.md
+  s_4ba79f911c93c4::t_ed810601acc600 73-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "894f68961f12c28c3b5d141800b501a98ec89aee",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

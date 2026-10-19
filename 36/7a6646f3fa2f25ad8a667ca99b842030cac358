@@ -1,0 +1,27 @@
+packages/kitesurf-cli/README.md
+  s_4ba79f911c93c4::t_38f0b7b92f2df7 105-110
+packages/kitesurf-cli/src/access.rs
+  s_4ba79f911c93c4::t_c986dc54c3cf20 4-5,10,18,21-22,45-47,57-59,76,87,91-128,200-202,211-383
+packages/kitesurf-cli/src/cli.rs
+  s_4ba79f911c93c4::t_818e8cc884e77f 17
+packages/kitesurf-cli/src/main.rs
+  s_4ba79f911c93c4::t_3de5e9aa9a6c5a 6-7,123,133-134
+packages/kitesurf-cli/src/oauth.rs
+  s_4ba79f911c93c4::t_df9cc25766477a 335-338,340-341
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "367a6646f3fa2f25ad8a667ca99b842030cac358",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

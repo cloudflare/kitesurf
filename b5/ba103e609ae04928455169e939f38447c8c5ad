@@ -1,0 +1,27 @@
+.gitlab/ci/engine.yml
+  s_4ba79f911c93c4::t_98a2c3fab944c1 181-182,403-404,409,550-551,556
+docs/CI.md
+  s_4ba79f911c93c4::t_6c2eaab3201b28 125-128
+packages/comparison-core/scripts/build.mjs
+  s_4ba79f911c93c4::t_d10e149d81e55b 7
+scripts/pull-sccache.mjs
+  s_4ba79f911c93c4::t_cc837b39c26dd4 1-28
+scripts/pull-sccache.test.mjs
+  s_4ba79f911c93c4::t_e5f0c259cefd94 1-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b5ba103e609ae04928455169e939f38447c8c5ad",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
