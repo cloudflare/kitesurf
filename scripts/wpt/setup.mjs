@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(__dirname, "..");
+const ROOT = resolve(__dirname, "../..");
 const WPT_DIR = resolve(ROOT, ".wpt");
 const WPT_REPO = "https://github.com/web-platform-tests/wpt.git";
 const REVISION_FILE = resolve(ROOT, "tests", "wpt-revision.json");

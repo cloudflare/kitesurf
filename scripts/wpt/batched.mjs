@@ -27,14 +27,14 @@ import {
   yellow,
   dim,
   bold,
-} from "./wpt-shared.mjs";
-import { planRowDisposition } from "./wpt-collateral.mjs";
-import { DEFAULT_DIST, prepare as prepareEngineDist } from "./wpt-engine.mjs";
+} from "./shared.mjs";
+import { planRowDisposition } from "./collateral.mjs";
+import { DEFAULT_DIST, prepare as prepareEngineDist } from "./engine.mjs";
 
 const ENGINE_CWD = resolve(ROOT, "packages/engine");
-const EXEC = resolve(ROOT, "scripts/wpt-exec.mjs");
+const EXEC = resolve(ROOT, "scripts/wpt/exec.mjs");
 
-const HELP = `Usage: pnpm run test:wpt [options]   (node scripts/wpt-batched.mjs)
+const HELP = `Usage: pnpm run test:wpt [options]   (node scripts/wpt/batched.mjs)
 
 Runs the curated WPT list against -j workerd engines this script starts,
 kills and restarts every --batch-size tests. Needs \`pnpm run wpt:serve\`
@@ -373,7 +373,7 @@ function spawnEngine(set, i, port) {
       ? spawn(
           process.execPath,
           [
-            resolve(ROOT, "scripts/wpt-engine.mjs"),
+            resolve(ROOT, "scripts/wpt/engine.mjs"),
             "serve",
             "--port",
             String(port),
@@ -593,7 +593,7 @@ function stopWptServe() {
     } catch {}
   }
   try {
-    spawnSync("pkill", ["-9", "-f", "wpt-serve.mjs"], { stdio: "ignore" });
+    spawnSync("pkill", ["-9", "-f", "wpt/serve.mjs"], { stdio: "ignore" });
   } catch {}
   try {
     spawnSync("pkill", ["-9", "-f", "\\.wpt/"], { stdio: "ignore" });
@@ -752,7 +752,7 @@ function runDiscover() {
       console.error(red(`[batched] Miniflare dist is missing engine-mf.json: ${opts.engineDist}`));
       console.error(
         dim(
-          `[batched] create it with node scripts/wpt-engine.mjs prepare --dist ${opts.engineDist}`,
+          `[batched] create it with node scripts/wpt/engine.mjs prepare --dist ${opts.engineDist}`,
         ),
       );
       process.exit(2);

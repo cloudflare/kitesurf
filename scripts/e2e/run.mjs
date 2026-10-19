@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 
-const ENGINE_DIR = resolve(import.meta.dirname, "../packages/engine");
+const ENGINE_DIR = resolve(import.meta.dirname, "../../packages/engine");
 const require = createRequire(resolve(ENGINE_DIR, "package.json"));
 const manifest = require.resolve("vitest/package.json");
 const vitest = resolve(dirname(manifest), JSON.parse(readFileSync(manifest, "utf8")).bin.vitest);

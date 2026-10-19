@@ -21,9 +21,9 @@ import os from "node:os";
 import { resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
-const ROOT = resolve(import.meta.dirname, "..");
+const ROOT = resolve(import.meta.dirname, "../..");
 const USAGE =
-  "usage: node scripts/wpt-bucket.mjs --tests <json> --expectations <json> --dist <engine dist> --out-dir <dir> [--wpt-dir <dir>] [-j <engines>] [--draw]";
+  "usage: node scripts/wpt/bucket.mjs --tests <json> --expectations <json> --dist <engine dist> --out-dir <dir> [--wpt-dir <dir>] [-j <engines>] [--draw]";
 const WPT_PORTS = [8000, 8443];
 const EXIT_GRACE_MS = 30_000;
 const PORT_RELEASE_MS = 15_000;
@@ -200,7 +200,7 @@ async function startWptServe(options, env, scratch) {
 
 function runBatched(options, env, limitMs) {
   const args = [
-    resolve(ROOT, "scripts/wpt-batched.mjs"),
+    resolve(ROOT, "scripts/wpt/batched.mjs"),
     "--tests-file",
     options.tests,
     "--expectations",

@@ -6,11 +6,11 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { RETRY_CAP, betterFirst, readRetryManifest } from "./wpt-draws.mjs";
-import { isMain } from "./wpt-shared.mjs";
+import { RETRY_CAP, betterFirst, readRetryManifest } from "./draws.mjs";
+import { isMain } from "./shared.mjs";
 
-const USAGE = `usage: node scripts/wpt-gate.mjs --results <merged.json> [--retries <manifest.json>] [--junit <file>]
-       node scripts/wpt-gate.mjs --results <merged.json> --retry-candidates <out.json>`;
+const USAGE = `usage: node scripts/wpt/gate.mjs --results <merged.json> [--retries <manifest.json>] [--junit <file>]
+       node scripts/wpt/gate.mjs --results <merged.json> --retry-candidates <out.json>`;
 const RETRIED = new Set(["TIMEOUT", "CRASH", "ERROR"]);
 const xml = (value) =>
   String(value).replace(

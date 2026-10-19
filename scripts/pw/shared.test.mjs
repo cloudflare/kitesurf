@@ -5,8 +5,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { coverageGaps, deviations, rebaseline } from "./pw-shared.mjs";
-import { junit } from "./pw-gate.mjs";
+import { coverageGaps, deviations, rebaseline } from "./shared.mjs";
+import { junit } from "./gate.mjs";
 
 const specs = [
   { file: "a.spec.ts", only: null },

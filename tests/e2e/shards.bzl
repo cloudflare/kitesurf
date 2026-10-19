@@ -1,4 +1,4 @@
-"""Public engine e2e shard boundaries. Regenerate after measuring with scripts/e2e-shards.mjs."""
+"""Public engine e2e shard boundaries. Regenerate after measuring with scripts/e2e/shards.mjs."""
 
 E2E_SHARD_STARTS = [
     "",

@@ -85,7 +85,7 @@ jobs:
       - run: tar -xf build.tar
       - run: pnpm install --frozen-lockfile
       - run: pnpm run pw:setup
-      - run: node scripts/pw-run.mjs --shard ${{ matrix.shard }}/4
+      - run: node scripts/pw/run.mjs --shard ${{ matrix.shard }}/4
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -140,7 +140,7 @@ jobs:
         run: |
           set +e
           LD_PRELOAD="$NSSWRAP" NSS_WRAPPER_HOSTS="$WPT_HOSTS" \
-            node scripts/wpt-batched.mjs --skip-expected-timeouts --skip-expected-crashes \
+            node scripts/wpt/batched.mjs --skip-expected-timeouts --skip-expected-crashes \
             --no-build --no-record \
             --shard "$SHARD/8" -j "$WPT_CONCURRENCY" \
             --results-out "wpt-results-$SHARD.json" \
@@ -177,7 +177,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Merge the shards
         run: |
-          node scripts/wpt-merge-shards.mjs \
+          node scripts/wpt/merge-shards.mjs \
             --results-glob 'wpt-results-*.json' --results-out wpt-results.json \
             --full-glob 'wpt-full-*.json' --full-out wpt-full.json \
             --killers-glob 'wpt-killers-*.json' --killers-out wpt-killers.json \

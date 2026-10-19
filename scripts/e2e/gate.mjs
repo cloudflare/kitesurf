@@ -6,10 +6,10 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { isMain } from "./wpt-shared.mjs";
+import { isMain } from "../wpt/shared.mjs";
 
 const USAGE =
-  "usage: node scripts/e2e-gate.mjs --shard <dir with report.json and shard.json>... [--junit <file>]";
+  "usage: node scripts/e2e/gate.mjs --shard <dir with report.json and shard.json>... [--junit <file>]";
 const xml = (value) =>
   String(value).replace(
     /[<>&\"']/g,

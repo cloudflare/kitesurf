@@ -19,13 +19,13 @@ import {
   yellow,
   dim,
   bold,
-} from "./wpt-shared.mjs";
+} from "./shared.mjs";
 import {
   TESTDRIVER_HOOK_SOURCE,
   createTestdriverBridge,
   attachTestdriverBinding,
-} from "./wpt-testdriver.mjs";
-import { getCachedRefScreenshot } from "./wpt-ref-cache.mjs";
+} from "./testdriver.mjs";
+import { getCachedRefScreenshot } from "./ref-cache.mjs";
 
 const DEFAULT_WS = process.env.KITESURF_WS ?? "ws://127.0.0.1:8787/devtools/browser";
 const DEFAULT_BASE = DEFAULT_WPT_BASE;
@@ -90,10 +90,10 @@ function parseArgs(arr) {
     else if (a === "--save-diff") out.saveDiff = arr[++i];
     else if (a === "--tests-file") out.testsFile = arr[++i];
     else if (a === "--help" || a === "-h") {
-      console.log(`Usage: node scripts/wpt-exec.mjs [options]
+      console.log(`Usage: node scripts/wpt/exec.mjs [options]
 
 INTERNAL per-batch executor. Use \`pnpm run test:wpt\`
-(scripts/wpt-batched.mjs) — it owns the test list, the engine, the
+(scripts/wpt/batched.mjs) — it owns the test list, the engine, the
 report and the expectations rebaseline.
 
   --ws <url>             CDP endpoint (default: ${DEFAULT_WS}). Repeatable:

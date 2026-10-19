@@ -19,7 +19,7 @@ import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-export const ROOT = resolve(__dirname, "..");
+export const ROOT = resolve(__dirname, "../..");
 export const TESTS_FILE = resolve(ROOT, "tests/wpt-tests.json");
 export const EXPECT_FILE = resolve(ROOT, "tests/wpt-expectations.json");
 export const WPT_ROOT = resolve(ROOT, ".wpt");

@@ -23,10 +23,10 @@ import {
   rebaseline,
   reportGaps,
   summarize,
-} from "./pw-shared.mjs";
+} from "./shared.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(__dirname, "..");
+const ROOT = resolve(__dirname, "../..");
 const ENGINE_DIR = resolve(ROOT, "packages/engine");
 const TESTS_JSON = resolve(ROOT, "tests/pw-tests.json");
 const EXPECTATIONS_JSON = resolve(ROOT, "tests/pw-expectations.json");
@@ -169,7 +169,7 @@ async function startEngine() {
   const cliArgs =
     launcher === "miniflare"
       ? [
-          resolve(ROOT, "scripts/wpt-engine.mjs"),
+          resolve(ROOT, "scripts/wpt/engine.mjs"),
           "serve",
           "--dist",
           engineDist,

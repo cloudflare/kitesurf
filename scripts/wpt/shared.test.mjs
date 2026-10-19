@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { EXPECT_FILE, referenceUrlForVariant, stringifyAsciiJSON } from "./wpt-shared.mjs";
+import { EXPECT_FILE, referenceUrlForVariant, stringifyAsciiJSON } from "./shared.mjs";
 
 test("referenceUrlForVariant appends the test's variant as the WPT manifest does", () => {
   const ref = "http://web-platform.test:8000/css/x/render-ref.html";

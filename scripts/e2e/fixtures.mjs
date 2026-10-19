@@ -9,10 +9,10 @@ import { createRequire } from "node:module";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-const ENGINE_DIR = resolve(import.meta.dirname, "../packages/engine");
+const ENGINE_DIR = resolve(import.meta.dirname, "../../packages/engine");
 const index = process.argv.indexOf("--outdir");
 if (index < 0 || !process.argv[index + 1]) {
-  console.error("usage: node scripts/e2e-fixtures.mjs --outdir <dir>");
+  console.error("usage: node scripts/e2e/fixtures.mjs --outdir <dir>");
   process.exit(2);
 }
 const outdir = resolve(process.argv[index + 1]);

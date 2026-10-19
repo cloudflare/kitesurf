@@ -67,7 +67,7 @@ index 0000000..8479bac
 +++ b/tests/kitesurf/playwright.config.ts
 @@ -0,0 +1,52 @@
 +// Config for running the shared tests/page suite against kitesurf over CDP.
-+// Invoked by kitesurf's scripts/pw-run.mjs (which owns the engine lifecycle).
++// Invoked by kitesurf's scripts/pw/run.mjs (which owns the engine lifecycle).
 +
 +import type { Config, PlaywrightTestOptions, PlaywrightWorkerOptions } from '@playwright/test';
 +import * as path from 'path';

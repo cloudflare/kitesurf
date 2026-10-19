@@ -14,7 +14,7 @@ import {
   dim,
   green,
   yellow,
-} from "./wpt-shared.mjs";
+} from "./shared.mjs";
 
 function parseArgs(arr) {
   const o = {};

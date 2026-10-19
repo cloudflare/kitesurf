@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(__dirname, "..");
+const ROOT = resolve(__dirname, "../..");
 const PW_DIR = resolve(ROOT, ".playwright");
 const PW_REPO = "https://github.com/microsoft/playwright.git";
 const PATCH_DIR = resolve(ROOT, "scripts/patches/playwright");

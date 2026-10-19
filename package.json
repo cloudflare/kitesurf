@@ -33,14 +33,14 @@
     "test:script-helpers": "bazel test //scripts:helpers_test",
     "test:e2e": "bazel run //packages/engine:e2e --",
     "test:e2e:all": "bazel test //tests/e2e:gate",
-    "test:wpt": "node scripts/wpt-batched.mjs",
-    "test:wpt:ci": "node scripts/wpt-batched.mjs --start-server",
-    "test:wpt:fast": "node scripts/wpt-batched.mjs --skip-expected-timeouts --skip-expected-crashes --skip-slow",
-    "test:playwright": "node scripts/pw-run.mjs",
-    "pw:setup": "node scripts/pw-setup.mjs",
-    "wpt:setup": "node scripts/wpt-setup.mjs",
-    "wpt:serve": "node scripts/wpt-serve.mjs",
-    "wpt:inventory": "node scripts/wpt-inventory.mjs"
+    "test:wpt": "node scripts/wpt/batched.mjs",
+    "test:wpt:ci": "node scripts/wpt/batched.mjs --start-server",
+    "test:wpt:fast": "node scripts/wpt/batched.mjs --skip-expected-timeouts --skip-expected-crashes --skip-slow",
+    "test:playwright": "node scripts/pw/run.mjs",
+    "pw:setup": "node scripts/pw/setup.mjs",
+    "wpt:setup": "node scripts/wpt/setup.mjs",
+    "wpt:serve": "node scripts/wpt/serve.mjs",
+    "wpt:inventory": "node scripts/wpt/inventory.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260911.1",

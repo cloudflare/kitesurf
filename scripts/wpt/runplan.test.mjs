@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { EXPECT_FILE } from "./wpt-shared.mjs";
-import { project } from "./wpt-runplan.mjs";
+import { EXPECT_FILE } from "./shared.mjs";
+import { project } from "./runplan.mjs";
 
 const expectations = {
   "/a.html": { expected: "PASS", reason: null },

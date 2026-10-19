@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { applyRetries, retryCandidates } from "./wpt-gate.mjs";
+import { applyRetries, retryCandidates } from "./gate.mjs";
 
 const timeout = { expected: "PASS", outcome: "TIMEOUT", unexpected: true };
 const fail = { expected: "PASS", outcome: "FAIL", unexpected: true, subPass: 1, subTotal: 2 };

@@ -13,9 +13,9 @@ import { dirname, resolve, sep } from "node:path";
 // Under Bazel the shard's inputs (config, test files, node_modules links) sit in the bin tree that
 // js_run_binary runs in, while this script runs from its own runfiles tree. Run vitest from the
 // inputs, so every module resolves through one tree; two trees load vitest twice.
-const ROOT = process.env.BAZEL_BINDIR ? process.cwd() : resolve(import.meta.dirname, "..");
+const ROOT = process.env.BAZEL_BINDIR ? process.cwd() : resolve(import.meta.dirname, "../..");
 const ENGINE_DIR = resolve(ROOT, "packages/engine");
-const USAGE = `usage: node scripts/e2e-shard.mjs --engine-dist <dir> --fixtures-dist <dir> --out-dir <dir>
+const USAGE = `usage: node scripts/e2e/shard.mjs --engine-dist <dir> --fixtures-dist <dir> --out-dir <dir>
        [--max-workers <n>] [--max-wall-ms <ms>] <test file>...`;
 
 function parseArgs(argv) {

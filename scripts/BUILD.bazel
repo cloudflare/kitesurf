@@ -8,22 +8,22 @@ load("//tests/pw:defs.bzl", "PW_SHARDS")
 
 js_library(
     name = "wpt_shared",
-    srcs = ["wpt-shared.mjs"],
+    srcs = ["wpt/shared.mjs"],
 )
 
 js_library(
     name = "pw_shared",
-    srcs = ["pw-shared.mjs"],
+    srcs = ["pw/shared.mjs"],
 )
 
 js_library(
     name = "wpt_draws",
-    srcs = ["wpt-draws.mjs"],
+    srcs = ["wpt/draws.mjs"],
 )
 
 js_library(
     name = "engine_launcher",
-    srcs = ["wpt-engine.mjs"],
+    srcs = ["wpt/engine.mjs"],
     data = ["//packages/engine:package_json"],
     deps = [
         "//packages/engine:node_modules/miniflare",
@@ -34,12 +34,12 @@ js_library(
 js_library(
     name = "wpt_runner",
     srcs = [
-        "wpt-batched.mjs",
-        "wpt-bucket.mjs",
-        "wpt-collateral.mjs",
-        "wpt-exec.mjs",
-        "wpt-ref-cache.mjs",
-        "wpt-testdriver.mjs",
+        "wpt/batched.mjs",
+        "wpt/bucket.mjs",
+        "wpt/collateral.mjs",
+        "wpt/exec.mjs",
+        "wpt/ref-cache.mjs",
+        "wpt/testdriver.mjs",
     ],
     data = ["//packages/engine:package_json"],
     deps = [
@@ -53,7 +53,7 @@ js_library(
 
 js_library(
     name = "pw_runner",
-    srcs = ["pw-run.mjs", "pw-setup.mjs"] + glob(["patches/playwright/*.patch"]),
+    srcs = ["pw/run.mjs", "pw/setup.mjs"] + glob(["patches/playwright/*.patch"]),
     data = [
         "//:pw_expectations",
         "//:pw_tests",
@@ -98,14 +98,14 @@ js_binary(
 js_binary(
     name = "wpt_bucket",
     data = [":wpt_runner"],
-    entry_point = "wpt-bucket.mjs",
+    entry_point = "wpt/bucket.mjs",
     visibility = ["//tests/wpt:__pkg__"],
 )
 
 js_binary(
     name = "wpt_engine",
     data = [":engine_launcher"],
-    entry_point = "wpt-engine.mjs",
+    entry_point = "wpt/engine.mjs",
     visibility = ["//visibility:public"],
 )
 
@@ -115,7 +115,7 @@ js_binary(
         "//packages/engine:package_json",
         "//packages/engine:node_modules/wrangler",
     ],
-    entry_point = "e2e-fixtures.mjs",
+    entry_point = "e2e/fixtures.mjs",
     visibility = ["//packages/engine:__pkg__"],
 )
 
@@ -174,7 +174,7 @@ js_binary(
 
 js_library(
     name = "e2e_run",
-    srcs = ["e2e-run.mjs"],
+    srcs = ["e2e/run.mjs"],
     visibility = ["//packages/engine:__pkg__"],
 )
 
@@ -190,28 +190,28 @@ js_binary(
         "//packages/engine:package_json",
         "//packages/engine:node_modules/vitest",
     ],
-    entry_point = "e2e-shard.mjs",
+    entry_point = "e2e/shard.mjs",
     visibility = ["//packages/engine/test/e2e:__pkg__"],
 )
 
 js_binary(
     name = "pw_shard",
     data = [":pw_runner"],
-    entry_point = "pw-shard.mjs",
+    entry_point = "pw/shard.mjs",
     visibility = ["//tests/pw:__pkg__"],
 )
 
 js_binary(
     name = "wpt_inventory",
     data = [":wpt_shared"],
-    entry_point = "wpt-inventory.mjs",
+    entry_point = "wpt/inventory.mjs",
     visibility = ["//tests/wpt:__pkg__"],
 )
 
 js_binary(
     name = "wpt_runplan",
     data = [":wpt_shared"],
-    entry_point = "wpt-runplan.mjs",
+    entry_point = "wpt/runplan.mjs",
     visibility = ["//tests/wpt:__pkg__"],
 )
 
@@ -223,7 +223,7 @@ js_binary(
         "//:wpt_revision",
         "//:wpt_tests",
     ],
-    entry_point = "wpt-merge-shards.mjs",
+    entry_point = "wpt/merge-shards.mjs",
     visibility = ["//tests/wpt:__pkg__"],
 )
 
@@ -243,7 +243,7 @@ js_test(
         "//tests/wpt:retry",
         "//tests/wpt:retry_manifest",
     ],
-    entry_point = "wpt-gate.mjs",
+    entry_point = "wpt/gate.mjs",
     visibility = ["//tests/wpt:__pkg__"],
 )
 
@@ -254,7 +254,7 @@ js_binary(
         ":wpt_shared",
         "//tests/wpt:merged",
     ],
-    entry_point = "wpt-update-expectations.mjs",
+    entry_point = "wpt/update-expectations.mjs",
     visibility = ["//tests/wpt:__pkg__"],
 )
 
@@ -302,9 +302,9 @@ js_library(
     visibility = ["//visibility:public"],
 )
 
-_HELPERS_DATA = glob(["*.mjs"]) + [
+_HELPERS_DATA = glob(["*.mjs", "e2e/*.mjs", "pw/*.mjs", "wpt/*.mjs"]) + [
     # check-public-imports.mjs parses imports with the TypeScript compiler, and
-    # engine-e2e-config.test.mjs loads the engine's e2e vitest config.
+    # e2e/engine-config.test.mjs loads the engine's e2e vitest config.
     "//:node_modules/typescript",
     "//packages/engine:e2e_config",
     "//:pw_expectations",
@@ -316,7 +316,7 @@ _HELPERS_DATA = glob(["*.mjs"]) + [
 
 node_test(
     name = "helpers_test",
-    args = glob(["*.test.mjs"]),
+    args = glob(["*.test.mjs", "e2e/*.test.mjs", "pw/*.test.mjs", "wpt/*.test.mjs"]),
     data = _HELPERS_DATA,
 )
 
@@ -362,7 +362,7 @@ js_test(
         "//:pw_expectations",
         "//:pw_tests",
     ] + _PW_RESULTS,
-    entry_point = "pw-gate.mjs",
+    entry_point = "pw/gate.mjs",
     visibility = ["//tests/pw:__pkg__"],
 )
 
@@ -375,7 +375,7 @@ js_binary(
         "//:pw_expectations",
         "//:pw_tests",
     ] + _PW_RESULTS,
-    entry_point = "pw-gate.mjs",
+    entry_point = "pw/gate.mjs",
     visibility = ["//tests/pw:__pkg__"],
 )
 
@@ -393,7 +393,7 @@ js_test(
         + _E2E_REPORTS
         + [report.replace("/report.json", "/shard.json") for report in _E2E_REPORTS]
     ),
-    entry_point = "e2e-gate.mjs",
+    entry_point = "e2e/gate.mjs",
     visibility = ["//tests/e2e:__pkg__"],
 )
 

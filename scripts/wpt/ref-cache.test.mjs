@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getCachedRefScreenshot } from "./wpt-ref-cache.mjs";
+import { getCachedRefScreenshot } from "./ref-cache.mjs";
 
 test("a never-ready reference is rendered separately by each waiter", async () => {
   const cache = new Map();

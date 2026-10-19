@@ -10055,7 +10055,7 @@
   },
   "/dom/events/focus-event-document-move.html": {
     "expected": "PASS",
-    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt-testdriver.mjs)"
+    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt/testdriver.mjs)"
   },
   "/dom/events/handler-count.html": {
     "expected": "SKIP",
@@ -10099,7 +10099,7 @@
   },
   "/dom/events/scrolling/iframe-chains.html": {
     "expected": "PASS",
-    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt-testdriver.mjs)"
+    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt/testdriver.mjs)"
   },
   "/dom/events/scrolling/input-text-scroll-event-when-using-arrow-keys.html": {
     "expected": "TIMEOUT",
@@ -10123,7 +10123,7 @@
   },
   "/dom/events/scrolling/scrollIntoView-in-onscroll-to-sticky.html": {
     "expected": "PASS",
-    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt-testdriver.mjs)"
+    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt/testdriver.mjs)"
   },
   "/dom/events/scrolling/scrollend-event-fired-after-instant-scroll-in-microtask.html": {
     "expected": "PASS",
@@ -10199,11 +10199,11 @@
   },
   "/dom/events/scrolling/wheel-event-composed.html": {
     "expected": "PASS",
-    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt-testdriver.mjs)"
+    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt/testdriver.mjs)"
   },
   "/dom/events/scrolling/wheel-event-no-scroll-after-prevent-default.html": {
     "expected": "PASS",
-    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt-testdriver.mjs)"
+    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt/testdriver.mjs)"
   },
   "/dom/events/scrolling/wheel-event-transactions-basic.html": {
     "expected": "FAIL",
@@ -16923,7 +16923,7 @@
   },
   "/html/dom/elements/global-attributes/dir-not-changed-text-input-typing.html": {
     "expected": "PASS",
-    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt-testdriver.mjs)"
+    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt/testdriver.mjs)"
   },
   "/html/dom/elements/global-attributes/dir-shadow-01.html": {
     "expected": "PASS",
@@ -20970,7 +20970,7 @@
   },
   "/uievents/constructors/inputevent-constructor.html": {
     "expected": "PASS",
-    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt-testdriver.mjs)"
+    "reason": "testdriver bridge: test_driver click/send_keys/Actions now dispatch real CDP Input events (scripts/wpt/testdriver.mjs)"
   },
   "/uievents/interface/keyboard-accesskey-click-event.html": {
     "expected": "TIMEOUT",

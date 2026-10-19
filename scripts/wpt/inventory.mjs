@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { REPORT_DIR, WPT_ROOT } from "./wpt-shared.mjs";
+import { REPORT_DIR, WPT_ROOT } from "./shared.mjs";
 
 export const INVENTORY_FILE = resolve(REPORT_DIR, "inventory.json");
 

@@ -6,7 +6,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { isMain, rebaseline, stringifyAsciiJSON } from "./wpt-shared.mjs";
+import { isMain, rebaseline, stringifyAsciiJSON } from "./shared.mjs";
 
 const USAGE = "usage: bazel run //tests/wpt:update_expectations [-- --filter <substring>]";
 

@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { planRowDisposition } from "./wpt-collateral.mjs";
+import { planRowDisposition } from "./collateral.mjs";
 
 const row = (test_, actual, extra = {}) => ({
   test: test_,

@@ -151,7 +151,7 @@ js_binary(
 )
 
 # `bazel run //packages/engine:e2e -- <file-substring>` runs the matching e2e files against the
-# Bazel-built engine; with no filter it runs the whole suite (scripts/e2e-run.mjs).
+# Bazel-built engine; with no filter it runs the whole suite (scripts/e2e/run.mjs).
 js_binary(
     name = "e2e",
     data = [

@@ -20,9 +20,9 @@ import {
 import os from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-const ROOT = resolve(import.meta.dirname, "..");
+const ROOT = resolve(import.meta.dirname, "../..");
 const PATCH_DIR = resolve(ROOT, "scripts/patches/playwright");
-const USAGE = `usage: node scripts/pw-shard.mjs --shard <k>/<n> --dist <engine dist> --out-dir <dir>
+const USAGE = `usage: node scripts/pw/shard.mjs --shard <k>/<n> --dist <engine dist> --out-dir <dir>
        [--pw-base <directory>] [--max-wall-ms <ms>]
 --pw-base defaults to KITESURF_PW_BASE or .playwright. The checkout must be built by pw:setup.`;
 
@@ -53,7 +53,7 @@ function fail(message, log) {
 
 function checkTag(base) {
   const tag = /const PW_TAG = "v?([^"]+)"/.exec(
-    readFileSync(resolve(ROOT, "scripts/pw-setup.mjs"), "utf8"),
+    readFileSync(resolve(ROOT, "scripts/pw/setup.mjs"), "utf8"),
   )?.[1];
   const packageFile = resolve(base, "package.json");
   const version = existsSync(packageFile)
@@ -99,7 +99,7 @@ function main(options) {
   const result = spawnSync(
     process.execPath,
     [
-      resolve(ROOT, "scripts/pw-run.mjs"),
+      resolve(ROOT, "scripts/pw/run.mjs"),
       "--pw-dir",
       playwrightDir,
       "--out-dir",

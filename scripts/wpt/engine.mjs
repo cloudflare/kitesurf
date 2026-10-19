@@ -10,14 +10,14 @@ import { readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ROOT = resolve(import.meta.dirname, "..");
+const ROOT = resolve(import.meta.dirname, "../..");
 const ENGINE_DIR = resolve(ROOT, "packages/engine");
 export const DEFAULT_DIST = resolve(ENGINE_DIR, ".wpt-dist");
 const OPTIONS_FILE = "engine-mf.json";
 const fromEngine = createRequire(resolve(ENGINE_DIR, "package.json"));
 const engineDep = (name) => import(pathToFileURL(fromEngine.resolve(name)).href);
-const USAGE = `usage: node scripts/wpt-engine.mjs prepare [--dist <dir>]
-       node scripts/wpt-engine.mjs serve --port <n> [--dist <dir>] [--assets <dir>]
+const USAGE = `usage: node scripts/wpt/engine.mjs prepare [--dist <dir>]
+       node scripts/wpt/engine.mjs serve --port <n> [--dist <dir>] [--assets <dir>]
                                   [--inspector-port <n>] [--var KEY:VALUE]...`;
 
 const ENGINE_RULES = [

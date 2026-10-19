@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fetchReference, inventoryFromManifest, referenceSubtests } from "./wpt-inventory.mjs";
+import { fetchReference, inventoryFromManifest, referenceSubtests } from "./inventory.mjs";
 
 const manifest = {
   version: 9,
