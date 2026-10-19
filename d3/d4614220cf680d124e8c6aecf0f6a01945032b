@@ -1,0 +1,20 @@
+packages/engine-cf/vitest.config.mts
+  s_4ba79f911c93c4::t_aa755f3aeb3207 1-2,7-23,26-28
+  s_4ba79f911c93c4::t_f16839e1620c97 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d3d4614220cf680d124e8c6aecf0f6a01945032b",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
