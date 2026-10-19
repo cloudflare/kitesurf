@@ -1,0 +1,23 @@
+packages/scene-host-wasm/src/lib.rs
+  s_d0b7ef49ec411f::t_1de84dd6645488 4-6,9,12,15,18
+packages/renderer-core/Cargo.toml
+  s_d0b7ef49ec411f::t_a7c9acdcacf6de 54-58
+packages/renderer-core/src/lib.rs
+  s_d0b7ef49ec411f::t_46c9d40f4c474a 27-29,32,35,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "629e438b410c5a0f45a864b8d1c472931b9f5213",
+  "prompts": {},
+  "sessions": {
+    "s_d0b7ef49ec411f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb7b953deffe6fWRfTT3Ug1jIW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
