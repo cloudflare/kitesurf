@@ -1,0 +1,23 @@
+Cargo.lock
+  s_4ba79f911c93c4::t_e065955e6f685e 3720,3722
+MODULE.bazel.lock
+  s_4ba79f911c93c4::t_88f77090bdff17 1033,1036,1039,1048,1050,1165-1166,1583,1854,6370,6374,6377,6379-6380,6608,6610,6663-6664,6758,6823,6888,8428,8432,8435,8437-8438,8601,8603,8633-8634,8715,8767,8819,9527,9531,9534,9536-9537
+packages/core/src/resources/fonts.rs
+  s_4ba79f911c93c4::t_3e898d5fccfd0a 1466-1499
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "990487e510aa21e1d6048759d7c9f0277b121fef",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
