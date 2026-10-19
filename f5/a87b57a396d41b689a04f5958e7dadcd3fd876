@@ -1,0 +1,23 @@
+.gitlab/ci/engine.yml
+  s_4ba79f911c93c4::t_ededd3b0c8cf13 826-838
+deps/kitesurf
+  s_4ba79f911c93c4::t_77027d75e3182f 1
+package.json
+  s_4ba79f911c93c4::t_51771261e0e017 9-10,12-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f5a87b57a396d41b689a04f5958e7dadcd3fd876",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
