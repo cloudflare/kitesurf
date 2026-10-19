@@ -219,12 +219,6 @@ js_run_binary(
     visibility = ["//packages/engine/test/e2e:__pkg__"],
 )
 
-copy_to_bin(
-    name = "tty_stylesheets",
-    srcs = glob(["src/tty/*.css"]),
-    visibility = ["//packages/tty-css-preview:__pkg__"],
-)
-
 filegroup(
     name = "e2e_public",
     srcs = [":assets"],

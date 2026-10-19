@@ -60,7 +60,6 @@ _CONFIG_PACKAGES = [
     "packages/page-renderer",
     "packages/page-script",
     "packages/script-gate",
-    "packages/tty-css-preview",
     "packages/worker-script",
 ]
 
@@ -170,7 +169,6 @@ test_suite(
         "//packages/scene-host-wasm:abi_test",
         "//packages/script-gate:test",
         "//packages/script-gate:types",
-        "//packages/tty-css-preview:checks",
         "//packages/worker-script:build",
         "//packages/worker-script:types",
         "//packages/worker-script:types_strict",

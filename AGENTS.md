@@ -41,8 +41,6 @@ A pnpm monorepo. One line per package; read the code for details.
 - `packages/scene-host-wasm/`: the CLI's local scene rasterizer, staged into
   `packages/engine/public/rbi/`. The scene protocol is documented in `packages/engine/src/rbi.ts`.
 - `packages/kitesurf-cli/`: the Rust terminal client, with its own Cargo workspace and lockfile.
-- `packages/tty-css-preview/`: a development server and Chrome extension that hot-reload the
-  terminal UA styles.
 - `packages/engine/test/fixtures-worker/`: the fixtures Worker that serves `/__fixtures/*` in dev
   and tests only.
 - `scripts/`: development and CI tooling, including the WPT runners, the lint rules and the

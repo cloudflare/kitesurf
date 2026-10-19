@@ -231,7 +231,6 @@ npm.npm_translate_lock(
         "//:packages/page-renderer/package.json",
         "//:packages/page-script/package.json",
         "//:packages/script-gate/package.json",
-        "//:packages/tty-css-preview/package.json",
         "//:packages/worker-script/package.json",
     ],
     npmrc = "//:.npmrc",
