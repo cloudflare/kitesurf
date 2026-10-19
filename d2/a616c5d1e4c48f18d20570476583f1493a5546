@@ -1,0 +1,19 @@
+MODULE.bazel.lock
+  s_4ba79f911c93c4::t_72c2b4f556a582 1060-1068,1509,1511,1626-1627,2035-2037,2046,2317,6833,6837,6840,6842-6843,7071,7073,7126-7127,7221,7286,7351,8891,8895,8898,8900-8901,9064,9066,9096-9097,9178,9230,9282,9990,9994,9997,9999-10000
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d2a616c5d1e4c48f18d20570476583f1493a5546",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
