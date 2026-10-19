@@ -1,0 +1,27 @@
+packages/engine/test/e2e/cjk-regional-glyphs.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_ef9f3d2c9f26bf 1-72
+docs/FONTS.md
+  s_f2f1dbce2d5d5d::t_654137240e2ddf 19-25,30-31,41-56
+packages/core/src/fonts.rs
+  s_f2f1dbce2d5d5d::t_07f2c26949a073 63-66,774,781-784,874-891,894-932,934-970,980-986,990,1002-1012,1014-1029,1031-1048,1898-1907,1917,2361-2407
+packages/page-script/src/font-loader.ts
+  s_f2f1dbce2d5d5d::t_b0b858dbda2d33 10,117-148,479-500,532,553-555,575-579,605,622,694-696,720,729,796-798,885-892
+packages/page-script/src/wasm-glue.ts
+  s_f2f1dbce2d5d5d::t_93fadbd81fe7f4 176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "447a8039be9941d24255b22bb35755216f6bf658",
+  "prompts": {},
+  "sessions": {
+    "s_f2f1dbce2d5d5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaf4cb2b5ffeHlvt6Yw56JGX3h",
+        "model": "unknown"
+      },
+      "human_author": "Nuno Pereira <npereira@cloudflare.com>"
+    }
+  }
+}
