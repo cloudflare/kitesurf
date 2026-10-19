@@ -10,6 +10,7 @@ import {
   type TelemetryFactory,
 } from "./observability.ts";
 import type { EngineCdpCommandExtension } from "./cdp/dispatch.ts";
+import { landingPage } from "./landing.ts";
 import type { RequestBlocker } from "./request-blocker.ts";
 
 export interface ConnectionOptions {
@@ -67,4 +68,7 @@ export function resolveConnectionOptions(
   };
 }
 
-export const DEFAULT_ENGINE_HOST: EngineHost = Object.freeze({});
+// The standalone engine answers `/` with chrome://inspect instructions; embedders own their root.
+export const DEFAULT_ENGINE_HOST: EngineHost = Object.freeze({
+  serveFallback: async (url: URL) => (url.pathname === "/" ? landingPage(url) : null),
+});

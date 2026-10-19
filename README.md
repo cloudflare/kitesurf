@@ -38,7 +38,8 @@ pnpm run dev          # serves on http://127.0.0.1:8787
 
 The first wasm build installs a matching `wasm-bindgen-cli` and caches it under
 `~/.cache/kitesurf/`. Open `http://127.0.0.1:8787/health` to check the engine is
-up. The root URL returns 404 on purpose: there is no web UI.
+up. There is no web UI: the root URL shows how to open the engine from
+`chrome://inspect`.
 
 Now connect a client. With `puppeteer-core` installed:
 
