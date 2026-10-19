@@ -1,0 +1,19 @@
+scripts/BUILD.bazel
+  s_119421158b98d5::t_3725bbfcac7d55 319
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "20089b230953fc3041fc79e677ea149ebcc7c9d4",
+  "prompts": {},
+  "sessions": {
+    "s_119421158b98d5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaa48ef49ffePnHMYc7dHqQqZe",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
