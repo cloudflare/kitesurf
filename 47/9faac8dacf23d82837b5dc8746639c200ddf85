@@ -1,0 +1,21 @@
+MODULE.bazel.lock
+  s_4ba79f911c93c4::t_531eaebddfcffd 1061-1062,1064-1065,1067-1068,1887,1939,1958,1965-1967,1974-1975,1982,1998,2000-2001,2003-2004,2020-2021,2024,2026,2029-2032,2034,2076,2106,2112,2114-2115,2264,4421-4424,5637,5656
+deps/kitesurf
+  s_4ba79f911c93c4::t_01c66bc41bd0c4 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "479faac8dacf23d82837b5dc8746639c200ddf85",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
