@@ -1,0 +1,37 @@
+packages/engine/src/cdp/page.ts
+  s_4ba79f911c93c4::t_5985d01b945d7f 3988-3996
+packages/engine/src/eval/limit-registry.ts
+  s_4ba79f911c93c4::t_3aeed1d2ccc0c1 5-6,8,14-15
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_4ba79f911c93c4::t_c334ee56566f94 15,109-115,117,119,173-188
+packages/engine/test/e2e/wasm-crash-surface.e2e.test.ts
+  s_4ba79f911c93c4::t_94836c72fa36bb 1-77
+packages/jsrpc-types/src/page-script.ts
+  s_4ba79f911c93c4::t_3786863d2b5060 318-319
+packages/page-script/src/engine-error.ts
+  s_4ba79f911c93c4::t_9df711ff12a62e 27-34,42
+packages/page-script/src/index.ts
+  s_4ba79f911c93c4::t_8b647548866efd 269,3825
+packages/page-script/src/wasm-crash.ts
+  s_4ba79f911c93c4::t_588a68d0879ad7 1-27
+packages/page-script/src/wasm-glue.ts
+  s_4ba79f911c93c4::t_5886dac99d353c 131-134
+scripts/build-wasm.mjs
+  s_4ba79f911c93c4::t_e43c2576830358 291-326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1f7681e2d629a90930db11e7a5bb42ff17381981",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
