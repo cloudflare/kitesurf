@@ -415,6 +415,13 @@ export async function handleWebSocket(
           console.log("[cdp ->]", req.id, req.method, "ok");
         }
         send(response);
+        // Chrome exits after it answers Browser.close, which drops the socket. Clients behind
+        // a proxy wait for that drop, so `browser.close()` hangs unless the engine closes too.
+        if (req.method === "Browser.close" && !("error" in response)) {
+          try {
+            server.close(1000, "Browser.close");
+          } catch {}
+        }
       } catch (err) {
         console.error("[cdp dispatch threw]", req.method, err);
         send({
