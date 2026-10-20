@@ -1,0 +1,27 @@
+packages/shadow-replay/test/workerd/tap-holder-worker.mjs
+  s_4ba79f911c93c4::t_14a32d246d79e6 7
+packages/shadow-replay/src/emitter.ts
+  s_4ba79f911c93c4::t_dc31f435532371 1
+packages/shadow-replay/src/url-redaction.ts
+  s_4ba79f911c93c4::t_bb8de695581529 108,189,202
+packages/shadow-replay/test/url-redaction.test.ts
+  s_4ba79f911c93c4::t_34f4e3d4227437 4,38,47,71,76
+packages/shadow-replay/test/workerd/tap-ingest.test.ts
+  s_4ba79f911c93c4::t_89fb5571d82b66 43,327-328,511,514-562,620,679,1249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "565145094e804a58405d1a2518260d45aa8bc28e",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
