@@ -1,0 +1,21 @@
+packages/shadow-replay/src/do.ts
+  s_4ba79f911c93c4::t_1eeec980b64ed6 709
+packages/shadow-replay/test/workerd/fake-engine-worker.mjs
+  s_4ba79f911c93c4::t_da9f730e4880a4 81-82,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7310a192712ec0b0cd918801d00742cd19de8ec0",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
