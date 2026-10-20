@@ -1,0 +1,19 @@
+docs/FONTS.md
+  s_f2f1dbce2d5d5d::t_5f125a7de64e3f 120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "63475746af96853b95b093b777614afa4b6acb8b",
+  "prompts": {},
+  "sessions": {
+    "s_f2f1dbce2d5d5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaf4cb2b5ffeHlvt6Yw56JGX3h",
+        "model": "unknown"
+      },
+      "human_author": "Nuno Pereira <npereira@cloudflare.com>"
+    }
+  }
+}
