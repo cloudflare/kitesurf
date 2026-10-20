@@ -230,16 +230,15 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
     }
 
     case "DOM.getBoxModel": {
-      const nodeId = numericNodeId(req.params);
-      const rect = nodeId != null && nodeId > 0 ? await pageScriptRect(session, nodeId) : null;
+      const ref = rectNodeRef(req.params);
+      const rect = ref ? await pageScriptRect(session, ref) : null;
       if (!rect) throw new Error("Could not compute box model.");
       return { model: realBoxFor(rect) };
     }
 
     case "DOM.getContentQuads": {
-      const nodeId = numericNodeId(req.params);
-      if (nodeId == null || nodeId <= 0) return { quads: [] };
-      const rect = await pageScriptRect(session, nodeId);
+      const ref = rectNodeRef(req.params);
+      const rect = ref ? await pageScriptRect(session, ref) : null;
       if (!rect) return { quads: [] };
       return { quads: [rectToQuad(rect)] };
     }
@@ -286,11 +285,20 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
   }
 }
 
+// PageScript owns `ps:` handles, so an objectId that is not `node:N` goes there unresolved.
+function rectNodeRef(
+  params: { nodeId?: number; backendNodeId?: number; objectId?: string } | undefined,
+): { nodeId: number } | { objectId: string } | null {
+  const nodeId = numericNodeId(params);
+  if (nodeId != null) return nodeId > 0 ? { nodeId } : null;
+  return typeof params?.objectId === "string" ? { objectId: params.objectId } : null;
+}
+
 async function pageScriptRect(
   session: PageSession,
-  nodeId: number,
+  ref: { nodeId: number } | { objectId: string },
 ): Promise<{ x: number; y: number; width: number; height: number } | null> {
-  const r = await session.callIfLive.getRect({ nodeId });
+  const r = await session.callIfLive.getRect(ref);
   if (!r?.rect) return null;
   if (r.rect.width <= 0 || r.rect.height <= 0) return null;
   return r.rect;

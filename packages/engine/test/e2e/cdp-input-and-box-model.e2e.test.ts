@@ -106,6 +106,33 @@ test("DOM.getContentQuads / getBoxModel on text and comment nodes", async ({
   );
 });
 
+// Playwright measures elements by the Runtime objectId of its handle, never by nodeId.
+test("DOM.getBoxModel / getContentQuads accept a Runtime objectId", async ({
+  page,
+  cdpSession: session,
+}) => {
+  await setContent(
+    page,
+    '<div id="box" style="position:absolute;left:30px;top:40px;width:120px;height:50px"></div>',
+  );
+  const { result } = await session.send("Runtime.evaluate", {
+    expression: 'document.getElementById("box")',
+  });
+  const objectId = result.objectId;
+  if (!objectId) throw new Error(`evaluate returned no objectId: ${JSON.stringify(result)}`);
+
+  const { model } = await session.send("DOM.getBoxModel", { objectId });
+  expect(model.content).toEqual([30, 40, 150, 40, 150, 90, 30, 90]);
+  expect([model.width, model.height]).toEqual([120, 50]);
+
+  const { quads } = await session.send("DOM.getContentQuads", { objectId });
+  expect(quads).toEqual([[30, 40, 150, 40, 150, 90, 30, 90]]);
+
+  await expect(session.send("DOM.getBoxModel", { objectId: "ps:999999" })).rejects.toThrow(
+    /could not compute box model/i,
+  );
+});
+
 test("Input.insertText: inserts strings longer than a few chars", async ({ page }) => {
   await page.goto("https://ks.invalid/__fixtures/keyboard.html", {
     waitUntil: "domcontentloaded",
