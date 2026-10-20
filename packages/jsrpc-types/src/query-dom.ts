@@ -203,7 +203,8 @@ export interface QueryDomMethods {
     result: { ids?: number[]; overflow?: boolean };
   };
   getRect: {
-    args: { nodeId: number };
+    // `objectId` is a PageScript handle (`ps:N`) from Runtime, as Playwright passes it.
+    args: { nodeId: number } | { objectId: string };
     result: { rect?: Protocol.DOM.Rect | null };
   };
   elementFromPoint: {
