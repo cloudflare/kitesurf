@@ -1,0 +1,19 @@
+packages/kitesurf-cli/README.md
+  s_f2f1dbce2d5d5d::t_4ccd14096f8bbe 23-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f3cfc1ed6cd1310899abbcc3ea61dcf612c99d83",
+  "prompts": {},
+  "sessions": {
+    "s_f2f1dbce2d5d5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaf4cb2b5ffeHlvt6Yw56JGX3h",
+        "model": "unknown"
+      },
+      "human_author": "Nuno Pereira <npereira@cloudflare.com>"
+    }
+  }
+}
