@@ -1,0 +1,27 @@
+packages/dom-shim/src/element.ts
+  s_a289420ca7cadf::t_b37217be92b201 8421-8425
+packages/engine/test/e2e/media-text-tracks.e2e.test.ts
+  s_a289420ca7cadf::t_6ee6066fdc2289 1-49
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_a289420ca7cadf::t_42021d77c2b706 1522-1528,2476-2477
+packages/engine/test/e2e/boa-null-base-message.e2e.test.ts
+  s_a289420ca7cadf::t_e70a492f399b2c 1-42
+scripts/patches/boa_engine-0.20.0/0006-property-opcodes-name-the-key-when-the-base-is-null-.patch
+  s_a289420ca7cadf::t_a21dc204dfae53 15,21-25,29-32,35,44,50-51,54,58-60,62-63,66-67,69,71-72,75-76,78,81,84,89,104-118,141,150,156-157,160,164-166,168-169,172-173,175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fa422a9b6a0aa6e997ea190bb2e8b409a23cd319",
+  "prompts": {},
+  "sessions": {
+    "s_a289420ca7cadf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01162ba67ffeuJ7Y6RDOI8aQ1x",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

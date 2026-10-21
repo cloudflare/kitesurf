@@ -1,0 +1,19 @@
+packages/dom-shim/src/mutations/observer.ts
+  s_41d5a40b9168bd::t_ff159ffaf06508 538-539,545-548,550
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "145b33fc4ae39b81445065f898e7697d3017677d",
+  "prompts": {},
+  "sessions": {
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

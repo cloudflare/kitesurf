@@ -1,0 +1,103 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0021-Draw-collapsed-table-borders-per-cell-not-per-gridli.patch
+  s_7981d85a04bb1e::t_c3807c5ef807b4 1-152
+scripts/patches/blitz-paint-0.3.0-beta.1/0022-Offset-collapsed-table-borders-to-the-table-s-conten.patch
+  s_7981d85a04bb1e::t_2aa8be75ceb77e 1-107
+packages/engine/test/e2e/table-collapsed-border-spans.e2e.test.ts
+  s_7981d85a04bb1e::t_38d0b5e70250fd 1-61,65-69,75-90
+Cargo.toml
+  s_ccf5542acfcceb::t_8162a02cfee604 75-80
+scripts/patches/anyrender-0.11.1/0002-Carry-form-control-state-on-ScenePart.patch
+  s_ccf5542acfcceb::t_709c04d21aaa68 1-5,14-35
+  s_ccf5542acfcceb::t_6c2b3fc032ca47 6-13
+scripts/get-patched-vendor-crates.mjs
+  s_ccf5542acfcceb::t_08fcb8263428e4 50
+scripts/patches/anyrender-0.11.1/0001-Add-PaintScene-begin_part-end_part.patch
+  s_ccf5542acfcceb::t_709c04d21aaa68 1-70
+scripts/patches/README.md
+  s_ccf5542acfcceb::t_1804d86af77958 74,105-112
+scripts/patches/blitz-paint-0.3.0-beta.1/0021-Mark-which-part-of-an-element-each-op-paints.patch
+  s_ccf5542acfcceb::t_aca0372b66d565 1-100
+scripts/patches/blitz-paint-0.3.0-beta.1/0022-Paint-checkboxes-and-radios-which-blitz-never-did.patch
+  s_ccf5542acfcceb::t_183d3f81a93f42 6-14
+  s_ccf5542acfcceb::t_aca0372b66d565 1-5,15-107
+packages/core/src/scene_replay.rs
+  s_ccf5542acfcceb::t_316bd48b159493 1024
+packages/core/src/scene_decode.rs
+  s_ccf5542acfcceb::t_316bd48b159493 1241
+  s_ccf5542acfcceb::t_fc05ea0be5e4ae 512-515,842-843,847
+  s_ccf5542acfcceb::t_19e3d51d8624b6 1440
+  s_ccf5542acfcceb::t_a2a1a3046a6462 803,1395-1439,1441-1455
+  s_ccf5542acfcceb::t_ec2937f4d6f2d4 1377-1394,1456-1496
+  s_ccf5542acfcceb::t_d489431017cd0b 390-428,524-532,794-802
+packages/core/src/scene_record.rs
+  s_ccf5542acfcceb::t_365437f4ea798d 2053-2060,2072
+  s_ccf5542acfcceb::t_aa827549caecf2 2043-2045
+  s_ccf5542acfcceb::t_5e069d342bec74 1149,1279-1280
+  s_ccf5542acfcceb::t_a59efc692ab750 2594-2622
+  s_ccf5542acfcceb::t_f7c25df4f1fefa 1786-1800
+  s_ccf5542acfcceb::t_1e1e380376656a 33-48
+  s_ccf5542acfcceb::t_3456fa311c69b2 20-32,280,297-306,1027-1034,1803-1824,1826-1837
+packages/core/src/sketch.rs
+  s_ccf5542acfcceb::t_1b4bb6495dc5a6 1-393
+packages/core/src/screenshot.rs
+  s_ccf5542acfcceb::t_67f6d85323fa30 85
+packages/core/src/lib.rs
+  s_ccf5542acfcceb::t_67f6d85323fa30 65,4347,4783,4956,5357
+  s_ccf5542acfcceb::t_06f6fb7c9eecfd 761,1010,5524,5581
+  s_ccf5542acfcceb::t_449068e93a2d9e 372-373
+  s_ccf5542acfcceb::t_b7ea92bfb2498a 344-371,374-380,819,1032,5531,5596
+packages/core/src/pdf.rs
+  s_ccf5542acfcceb::t_67f6d85323fa30 169
+scripts/patches/blitz-paint-0.3.0-beta.1/0023-Sketch-mode-box-SVG-content-instead-of-painting-the-.patch
+  s_ccf5542acfcceb::t_1b4bb6495dc5a6 1-99
+packages/engine/src/cdp/target.ts
+  s_ccf5542acfcceb::t_874296f5fdeff4 382,559
+packages/engine/src/cdp/kitesurf.ts
+  s_ccf5542acfcceb::t_2091c7f11ea34f 19-24,194-249
+  s_ccf5542acfcceb::t_f863886b4371fc 250
+packages/engine/src/cdp/page.ts
+  s_ccf5542acfcceb::t_1dcb6fdd377a07 3262-3275
+packages/engine/src/cdp/types.ts
+  s_ccf5542acfcceb::t_874296f5fdeff4 136-139,893-898
+packages/page-script/src/index.ts
+  s_ccf5542acfcceb::t_b9ca8663d72d1f 251,6424-6434
+  s_ccf5542acfcceb::t_4617f2ec9cfb04 6435-6436
+  s_ccf5542acfcceb::t_096ba68b55a864 252,1720-1731
+packages/page-script/src/wasm-glue.d.ts
+  s_ccf5542acfcceb::t_b9ca8663d72d1f 178-183
+  s_ccf5542acfcceb::t_ccf18c017af737 184-187
+packages/engine/src/cdp/page-session.ts
+  s_ccf5542acfcceb::t_9feb1ae711b35a 116-119
+packages/engine/src/cdp/connection.ts
+  s_ccf5542acfcceb::t_874296f5fdeff4 425-427
+packages/page-script/src/globals.ts
+  s_ccf5542acfcceb::t_76d9eb56b30b49 2817-2825
+packages/engine/src/eval/page-script.ts
+  s_ccf5542acfcceb::t_096ba68b55a864 330-333
+packages/page-script/src/font-loader.ts
+  s_ccf5542acfcceb::t_7dd2c1bbdcba54 246-268,271-278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "339e8e65c4d95b239d4508b081f5fa7c753e900a",
+  "prompts": {},
+  "sessions": {
+    "s_7981d85a04bb1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd142cefaffez3gql9xA3APsAN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

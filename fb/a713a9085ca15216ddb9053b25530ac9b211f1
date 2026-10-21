@@ -1,0 +1,33 @@
+docs/PLATFORM.md
+  s_c6d6a3ac21fe46::t_3487a90ad1ad2c 83
+scripts/wpt-inventory.mjs
+  s_c6d6a3ac21fe46::t_402bae35017160 5
+packages/engine/test/e2e/demos/document-fonts-ready.e2e.test.ts
+  s_c6d6a3ac21fe46::t_fd51f3bb331719 5
+  s_c6d6a3ac21fe46::t_9eab0ea0aeb22b 12
+docs/PAGE_SCRIPT_PROTOCOL.md
+  s_c6d6a3ac21fe46::t_d6cd309597b1c7 72
+  s_c6d6a3ac21fe46::t_08a6ff50d0510e 71
+packages/engine/test/quickaction.test.ts
+  s_c6d6a3ac21fe46::t_0c8588eb8d46e7 1696
+docs/SCRIPT_GATE.md
+  s_c6d6a3ac21fe46::t_b08e33d929da7f 147
+docs/TESTING.md
+  s_c6d6a3ac21fe46::t_0940af21f31776 158-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fba713a9085ca15216ddb9053b25530ac9b211f1",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

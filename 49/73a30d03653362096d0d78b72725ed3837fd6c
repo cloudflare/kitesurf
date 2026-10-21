@@ -1,0 +1,22 @@
+scripts/flows-workerd-trap.c
+  s_38a0bf52e4dc1d::t_2dd2610aac7f89 130-131,133-136
+  s_38a0bf52e4dc1d::t_7fb2300c7a8616 1-129,132,137-153
+scripts/flows-workerd-probe.sh
+  s_38a0bf52e4dc1d::t_bdec33a33e7df3 9,16-20,32-47,55-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4973a30d03653362096d0d78b72725ed3837fd6c",
+  "prompts": {},
+  "sessions": {
+    "s_38a0bf52e4dc1d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8e4b47a7ffeVSUDRGBOtAte1Z",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

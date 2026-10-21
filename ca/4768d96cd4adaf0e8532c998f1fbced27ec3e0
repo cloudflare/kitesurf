@@ -1,0 +1,20 @@
+packages/page-script/src/font-loader.ts
+  s_4376a60b5dde28::t_103250e20aad21 792-794
+  s_4376a60b5dde28::t_74fa34f5338742 803-810,817-818,830,832-836,838-842,845-850
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ca4768d96cd4adaf0e8532c998f1fbced27ec3e0",
+  "prompts": {},
+  "sessions": {
+    "s_4376a60b5dde28": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f14b8631efferhlYRR5J3BCy65",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

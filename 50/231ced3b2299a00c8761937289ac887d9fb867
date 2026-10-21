@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0144-kitesurf-place-whitespace-only-box-lines-from-the-st.patch
+  s_103b7f1f0713cd::t_41e4bc5025eb70 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "50231ced3b2299a00c8761937289ac887d9fb867",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/page-script/src/resource-fetch.ts
+  s_5ef13aa2ca5d9a::t_63c4a36995a1fe 675-692
+packages/engine/test/e2e/blob-script-insert.e2e.test.ts
+  s_5ef13aa2ca5d9a::t_96bdd6a4a31464 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7f36cf4c8fc79c43d1a21f99db037912611e1ac2",
+  "prompts": {},
+  "sessions": {
+    "s_5ef13aa2ca5d9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed3357cbbffeROEK7xP7OmXTdD",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

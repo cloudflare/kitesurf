@@ -1,0 +1,20 @@
+.gitlab-ci.yml
+  s_3fc265f386e88a::t_f8347fad20fa62 2366-2371,2373-2374,2376-2377
+  s_3fc265f386e88a::t_d7bb7c233f9de8 2378-2381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5756338a3d17cdcd7455b3d2beadbd5f673b5dd5",
+  "prompts": {},
+  "sessions": {
+    "s_3fc265f386e88a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f152787e0ffe51sPhnS0pmtLDd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

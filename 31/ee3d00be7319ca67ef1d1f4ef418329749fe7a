@@ -1,0 +1,20 @@
+packages/engine/vitest.e2e.config.mts
+  s_020f2ad6663cbc::t_ddce213682d80c 241-244
+  s_020f2ad6663cbc::t_bfcc2cbad599a0 245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "31ee3d00be7319ca67ef1d1f4ef418329749fe7a",
+  "prompts": {},
+  "sessions": {
+    "s_020f2ad6663cbc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f019057a6ffea6Myim24tgDt87",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}

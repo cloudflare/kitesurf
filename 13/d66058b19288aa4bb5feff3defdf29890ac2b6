@@ -1,0 +1,29 @@
+packages/engine/test/e2e/table-caption-sizing.e2e.test.ts
+  s_a13b6e3e2039d4::t_11049fa8f19082 45-46,70-73,111-114,138
+  s_a13b6e3e2039d4::t_079d1d67ab4903 4,47-49,69,74-77,84,92-94,115-120,128,139
+  s_a13b6e3e2039d4::t_17e06ddf7ecabe 50-52,78-80,121-127,140
+scripts/patches/blitz-dom-0.3.0-beta.1/0117-Keep-auto-table-tracks-flexible-after-captions.patch
+  s_a13b6e3e2039d4::t_a11968d7b0a4f9 1-43
+scripts/patches/blitz-dom-0.3.0-beta.1/0115-Harden-table-column-occupancy.patch
+  s_a13b6e3e2039d4::t_3d4dc4866a7331 1-72
+scripts/patches/blitz-dom-0.3.0-beta.1/0116-Preserve-first-row-table-sizing-after-captions.patch
+  s_a13b6e3e2039d4::t_30fcfa458e0652 1-100
+scripts/patches/blitz-dom-0.3.0-beta.1/0118-Finish-table-occupancy-review-fixes.patch
+  s_a13b6e3e2039d4::t_e68cba03d277ce 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "13d66058b19288aa4bb5feff3defdf29890ac2b6",
+  "prompts": {},
+  "sessions": {
+    "s_a13b6e3e2039d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbfe61744ffeUjJS5Giydrau9I",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

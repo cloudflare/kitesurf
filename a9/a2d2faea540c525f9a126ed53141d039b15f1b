@@ -1,0 +1,53 @@
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_1b8b55e36dff14 8602
+  s_c1d1c93f383cfd::t_2894414e96d84c 2662-2664
+  s_c1d1c93f383cfd::t_c4fe215ba1e21c 2612-2615
+packages/dom-shim/src/element.ts
+  s_c1d1c93f383cfd::t_4f16e0bc9428ad 9978,9981
+  s_c1d1c93f383cfd::t_5f5dd47bd7aa9a 9967-9969
+  s_c1d1c93f383cfd::t_5a0cf877f0407d 9942-9943
+  s_c1d1c93f383cfd::t_1dbba4e79e2286 10007,10011,10014
+  s_c1d1c93f383cfd::t_360e2d595ff17a 10172
+  s_c1d1c93f383cfd::t_dbeec7c135054e 10190,10193-10200
+  s_c1d1c93f383cfd::t_eeb381a4cd824f 10212
+packages/dom-shim/src/node-base.ts
+  s_c1d1c93f383cfd::t_4adb5db5f99000 158
+  s_c1d1c93f383cfd::t_4517e5aae9078c 6
+  s_c1d1c93f383cfd::t_1a0dfc815e2732 142-145,148-151
+  s_c1d1c93f383cfd::t_21c0c0542b35d2 130
+  s_c1d1c93f383cfd::t_4c6228813ac79d 1139-1140,1142,1145
+packages/dom-shim/src/reclaim.ts
+  s_c1d1c93f383cfd::t_9c83d40d274af8 106-107
+packages/dom-shim/src/collections.ts
+  s_c1d1c93f383cfd::t_578470cde82136 2892,2898,2904-2905,2911-2912
+  s_c1d1c93f383cfd::t_0d86c62019f760 20
+  s_c1d1c93f383cfd::t_f4cc16c1630065 38
+packages/core/src/boa_bridge.rs
+  s_c1d1c93f383cfd::t_5bc762d87045a8 3589-3593
+  s_c1d1c93f383cfd::t_beaacd31840270 2992
+  s_c1d1c93f383cfd::t_73bd66ea81feeb 3208-3210
+  s_c1d1c93f383cfd::t_6f35f2a4b2bef5 3085
+  s_c1d1c93f383cfd::t_d658fadc6c3d76 3107-3108
+  s_c1d1c93f383cfd::t_c9b23b68120759 3414-3415
+  s_c1d1c93f383cfd::t_6c77a0cdbc363a 3555-3556
+packages/page-script/src/index.ts
+  s_c1d1c93f383cfd::t_c4e217c68cbe2b 5095-5096
+scripts/patches/boa_engine-0.20.0/0016-module-add-parse_deferred-to-re-parse-at-link-instea.patch
+  s_c1d1c93f383cfd::t_f1feb19629d6e6 16-18,21,24,27,37,40-46,66,69,74,78,90,103,105,113,123-130,139,144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a9a2d2faea540c525f9a126ed53141d039b15f1b",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/engine/src/eval/oopif-render.ts
+  s_86e5da766eb425::t_58bc9904d6183a 28-38
+  s_86e5da766eb425::t_62ebfb8b3b2a87 289-293,295-296,298,302,305,309,315
+  s_86e5da766eb425::t_1a08dd6200a458 344,346-348,354,356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "123b864f3d0d02842467e6e17da7de1cd326d790",
+  "prompts": {},
+  "sessions": {
+    "s_86e5da766eb425": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0665bed1cffeoMugykK9pn22Wf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

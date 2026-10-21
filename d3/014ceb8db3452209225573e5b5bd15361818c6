@@ -1,0 +1,36 @@
+packages/engine/src/cdp/types.ts
+  s_7d68ec0d965fbd::t_e7b57c47e2d11a 771-772,774-778,781-786
+  s_7d68ec0d965fbd::t_5a9187ad5f6231 762-770,773,779-780
+packages/engine/src/cdp/page.ts
+  s_7d68ec0d965fbd::t_429340e27fc248 103,106,108
+  s_7d68ec0d965fbd::t_dbce083bdc4393 101-102,104-105,107
+  s_7d68ec0d965fbd::t_ee44bb161e8b21 5986-5996,6001-6004,6008-6012
+  s_7d68ec0d965fbd::t_f75e1d59495bf8 5997-6000,6005-6007
+  s_7d68ec0d965fbd::t_11fb92e6bf0a03 3574-3576
+packages/engine/src/cdp/target.ts
+  s_7d68ec0d965fbd::t_f9ddb4c0368760 377,520
+  s_7d68ec0d965fbd::t_d9bd5f161700c6 518-519
+  s_7d68ec0d965fbd::t_e9290b53d58167 375-376
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_7d68ec0d965fbd::t_2ea1706b755730 2247-2248
+  s_7d68ec0d965fbd::t_6bf9c90eae6c6e 1006-1027
+packages/engine/test/e2e/location-assign-navigates.e2e.test.ts
+  s_7d68ec0d965fbd::t_11f0f9452c1fb5 20
+  s_7d68ec0d965fbd::t_a6082dd25e8283 101-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d3014ceb8db3452209225573e5b5bd15361818c6",
+  "prompts": {},
+  "sessions": {
+    "s_7d68ec0d965fbd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0320e2f27ffe0FJnSAurZ7r4fQ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

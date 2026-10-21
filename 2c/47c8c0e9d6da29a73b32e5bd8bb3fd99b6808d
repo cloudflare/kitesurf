@@ -1,0 +1,21 @@
+packages/engine/src/cdp/page.ts
+  s_4ba79f911c93c4::t_7cb2dc755206a0 6525,7984,7988,7992,7996,8234
+packages/engine/test/e2e/demos/screencast-pipeline-order.e2e.test.ts
+  s_4ba79f911c93c4::t_f518a8045a80ab 1,7,52,99,136,161,190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2c47c8c0e9d6da29a73b32e5bd8bb3fd99b6808d",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

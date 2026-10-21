@@ -1,0 +1,638 @@
+packages/engine/src/eval/page-script.ts
+  s_47461e6af773a3::t_f61232cccae89f 732
+  s_47461e6af773a3::t_59508991d05d2c 668-671,704-705,711-712
+packages/dom-shim/src/input-types.ts
+  s_47461e6af773a3::t_228d24457dfbc8 237
+packages/engine/src/quickactions/ax-serialize.ts
+  s_47461e6af773a3::t_5de869259b318f 1-2
+packages/engine/src/quickactions/crawl.ts
+  s_47461e6af773a3::t_5de869259b318f 1
+examples/dynamic-import-bake-demo.mjs
+  s_47461e6af773a3::t_11e6f329e1b4f7 2
+  s_47461e6af773a3::t_be7519a98bd016 1
+packages/engine/src/quickactions/dispatch.ts
+  s_47461e6af773a3::t_5de869259b318f 14
+packages/engine/vitest.e2e.config.mts
+  s_47461e6af773a3::t_8097bde48fe30d 63,68,95-96
+scripts/check-ts-coverage.mjs
+  s_47461e6af773a3::t_4c02f200122270 6
+packages/bench-report/container/Dockerfile
+  s_47461e6af773a3::t_8097bde48fe30d 1,4,28,33
+examples/print-to-pdf-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1,8
+packages/engine/src/cdp/page.ts
+  s_47461e6af773a3::t_cb44a15472d9e0 1364
+packages/engine/src/caller.ts
+  s_47461e6af773a3::t_532d3c40d5eeb0 1,32-33
+  s_47461e6af773a3::t_19c4575f595bce 78
+packages/dom-shim/src/window.ts
+  s_47461e6af773a3::t_31ff1b100960b6 423
+packages/engine/src/eval/walk-module-graph.ts
+  s_47461e6af773a3::t_cb44a15472d9e0 544-545
+packages/engine/test/e2e/bridge-inherit-v8.e2e.test.ts
+  s_47461e6af773a3::t_c0e73013b7d562 1-4,267
+docs/FORMS.md
+  s_47461e6af773a3::t_a3cf2496fb9117 93-94
+  s_47461e6af773a3::t_753a6754a0223f 38
+packages/website/src/routes.tsx
+  s_47461e6af773a3::t_c064e9fc320a37 24,53
+packages/ra-schema/src/emit-yaml.ts
+  s_47461e6af773a3::t_0215b35ce01b51 1-2
+docs/PRINT_AND_PDF.md
+  s_47461e6af773a3::t_753a6754a0223f 17-20
+packages/core/src/lib.rs
+  s_47461e6af773a3::t_ef5ecba2c1ce06 1056
+packages/grafana/src/dashboards/kitesurf-usage.ts
+  s_47461e6af773a3::t_19c4575f595bce 1
+  s_47461e6af773a3::t_293e9510846e4f 2
+docs/DOM_SHIM.md
+  s_47461e6af773a3::t_3cc127b46cc522 78
+  s_47461e6af773a3::t_77c9c04762ea74 20
+packages/core/src/scene_decode.rs
+  s_47461e6af773a3::t_ef5ecba2c1ce06 2067-2069
+docs/SCRIPT_LOADING.md
+  s_47461e6af773a3::t_c0249094931391 30-33
+  s_47461e6af773a3::t_f80ad58ecede4e 173-174
+  s_47461e6af773a3::t_c6c4df2a7147e8 48-52,64-66,81,83-87,89-90,97-98
+scripts/autoresearch-bench.mjs
+  s_47461e6af773a3::t_1b601be9ae0936 35,49
+packages/agent-bench/src/drivers/pi-cdt.mjs
+  s_47461e6af773a3::t_64d5c15a5b1362 1-2
+packages/agent-bench/src/llm.mjs
+  s_47461e6af773a3::t_59508991d05d2c 1-3,48
+docs/RBI.md
+  s_47461e6af773a3::t_2755e6f72dd811 6
+packages/dom-shim/src/index.ts
+  s_47461e6af773a3::t_31ff1b100960b6 1-3
+tests/interactivity-flows/README.md
+  s_47461e6af773a3::t_85a96d2d0cfd7d 117,121-123,128,153,161,172,176-178
+  s_47461e6af773a3::t_d6fbf280d4e930 24,28,33-35,42-44,79
+packages/core/src/paint_damage_layout_cache_test.rs
+  s_47461e6af773a3::t_291fb2f5948e84 3-4
+packages/core/src/sticky.rs
+  s_47461e6af773a3::t_291fb2f5948e84 59-61
+.opencode/skills/kitesurf-package-audit/SKILL.md
+  s_47461e6af773a3::t_31b2c76ba733d6 121-122
+docs/PLATFORM.md
+  s_47461e6af773a3::t_effc563dbcb662 64-66
+  s_47461e6af773a3::t_d63df3cd098432 76-78
+  s_47461e6af773a3::t_53ae67cbb0a688 22-24,27-28,33,35,43-46,57-59,82-85
+  s_47461e6af773a3::t_75553c0a316d4d 48-53
+  s_47461e6af773a3::t_3191e8c2bece19 36-41
+  s_47461e6af773a3::t_a5f3a98f5ed964 1,10
+  s_47461e6af773a3::t_f329920014276e 55,80
+scripts/dev-ports.sh
+  s_47461e6af773a3::t_f03d5fedbf8722 16
+scripts/mr-preview.mjs
+  s_47461e6af773a3::t_cdec65d0395ef1 27
+examples/dom-eval-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1-2,169
+examples/images-bridge-demo.mjs
+  s_47461e6af773a3::t_455c8912e06fa8 1,33,44,55
+packages/engine/test/e2e/cssom-counter-style-rule.e2e.test.ts
+  s_47461e6af773a3::t_c0e73013b7d562 9
+docs/CORS.md
+  s_47461e6af773a3::t_2ae28a38684252 27
+  s_47461e6af773a3::t_40fb52f58709a3 83-101
+  s_47461e6af773a3::t_23f3a9f392b653 32-37,71-75,149-153,215-222
+scripts/compare-deploys.mjs
+  s_47461e6af773a3::t_591bf743b92be0 52
+packages/engine/test/e2e/quickaction-containment.e2e.test.ts
+  s_47461e6af773a3::t_5de869259b318f 45,124-125
+  s_47461e6af773a3::t_625e99902123df 108-110
+  s_47461e6af773a3::t_c0e73013b7d562 1
+.gitlab-ci.yml
+  s_47461e6af773a3::t_fd7f0d9b5cb02a 1029-1033,1059,1063
+  s_47461e6af773a3::t_fd394b704db10f 1078-1079
+  s_47461e6af773a3::t_c0599c6e174ac9 1625-1626,1742,1784-1786,1940-1941,1950-1951,1971-1973
+  s_47461e6af773a3::t_f9b64a2323c12e 616-623,626,628,630-631,651-652,691-692
+  s_47461e6af773a3::t_236f7295eeba64 312
+  s_47461e6af773a3::t_6e9bc209497bd8 58-59,71-72,89,103,132
+  s_47461e6af773a3::t_f68d1a423a839f 1127-1128,1248-1249
+  s_47461e6af773a3::t_2463ab53b8e536 1205-1206,1208,1277,1279-1280,1410,1426,1446-1447,1495,1514-1516,1546
+  s_47461e6af773a3::t_c0c15852bc1f25 328,330-331
+  s_47461e6af773a3::t_354275742b40a5 1173-1175,1214,1242
+  s_47461e6af773a3::t_43dbed91b447b1 1321-1323
+  s_47461e6af773a3::t_fac1e84485e5d5 1089-1090
+  s_47461e6af773a3::t_527cf41d35d9ee 226,242,258,266-267,281-282,284,291,297
+  s_47461e6af773a3::t_a123d4836b68ea 1088,1577-1578,1621,1682,2022-2023,2032-2033,2037-2038
+  s_47461e6af773a3::t_3e1ec128447142 1399-1401,1440,1443-1444,1452,1460-1461
+  s_47461e6af773a3::t_7340248494714d 230-231,573-574,607-608,1038,1735-1737,1797-1798
+  s_47461e6af773a3::t_7029657f03f2d4 1,7,9,13-15,17-18,20-21,38-39,41-42
+  s_47461e6af773a3::t_6a52b40f643813 46-47,1455,1467
+  s_47461e6af773a3::t_d946a05561953b 1843-1849,1854,1859,1891-1892,1894-1895,1920,1929,1958
+  s_47461e6af773a3::t_362e70d4fbf2ee 293-295
+  s_47461e6af773a3::t_f7a7dfc71029c6 1686-1687,1689-1690
+  s_47461e6af773a3::t_5a9d3f06b50081 133,243,251-252,680
+  s_47461e6af773a3::t_435591a101cc98 564-567,571,759-760,773-774,780-781,834,838-839,843-844,1259-1262,1821,1825,1831,1833
+  s_47461e6af773a3::t_6d0554665cfac2 1990-1998,2002,2045
+docs/WEBMCP.md
+  s_47461e6af773a3::t_c5e06d51e94fab 92-96
+packages/dom-shim/src/parser.ts
+  s_47461e6af773a3::t_31ff1b100960b6 1322
+packages/core/src/hoist_incremental_test.rs
+  s_47461e6af773a3::t_291fb2f5948e84 11-12
+packages/core/src/boa_bridge.rs
+  s_47461e6af773a3::t_c0e73013b7d562 88
+packages/engine/test/account-rate-limit.test.ts
+  s_47461e6af773a3::t_5de869259b318f 33
+scripts/wpt-setup.mjs
+  s_47461e6af773a3::t_bbcdacad8cec7d 1,3-4,6-7
+scripts/wpt-collateral.mjs
+  s_47461e6af773a3::t_f03d5fedbf8722 14-16
+docs/NETWORKING.md
+  s_47461e6af773a3::t_33a04084edcf1b 41-47
+  s_47461e6af773a3::t_840c5fe8d10c78 146
+  s_47461e6af773a3::t_effc563dbcb662 187-188
+  s_47461e6af773a3::t_3c1a9924ff9a89 178-180
+packages/engine/wrangler.jsonc
+  s_47461e6af773a3::t_d1329540c1caec 207,214,230-231,233,237,254-255,261
+  s_47461e6af773a3::t_4ea0e185421efc 379-380,432
+  s_47461e6af773a3::t_362e70d4fbf2ee 272
+  s_47461e6af773a3::t_fe803403bc4fa0 7,16,118-120
+  s_47461e6af773a3::t_756b800f9e503b 273,275,285,298-299,301,305,314,321,327
+  s_47461e6af773a3::t_9840a1f6558608 160-161,181
+examples/dom-mutate-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1
+docs/FONTS.md
+  s_47461e6af773a3::t_e8f4c098591a5e 155-159
+  s_47461e6af773a3::t_d94d10a873efa4 30,36-37
+  s_47461e6af773a3::t_7471eab5b9cba1 141-143,183-184
+  s_47461e6af773a3::t_88ab2d3f08ab9e 137,139-140
+  s_47461e6af773a3::t_1be3bcb7a58f55 103-105
+  s_47461e6af773a3::t_73551e17c4e8c9 125-130
+packages/engine/src/cdp/connection.ts
+  s_47461e6af773a3::t_19c4575f595bce 274
+packages/engine/src/cdp/kitesurf.ts
+  s_47461e6af773a3::t_19c4575f595bce 118
+bench/README.md
+  s_47461e6af773a3::t_362e70d4fbf2ee 94
+  s_47461e6af773a3::t_f1a35b10a65785 138,141,143-147,153-156,159,188-189
+  s_47461e6af773a3::t_d99be951b4417e 214
+  s_47461e6af773a3::t_625e99902123df 7,12,16
+  s_47461e6af773a3::t_c57d636b56fb09 268-269,273-274,277-279,282,286-287,291-292,304-305,307-308,315-316,319-320
+  s_47461e6af773a3::t_dc4becc4476b9d 69
+  s_47461e6af773a3::t_45c43665d91f23 95-97,162
+  s_47461e6af773a3::t_9f35859dac8f10 8-10,13-14,22-25,63-64,71-73
+  s_47461e6af773a3::t_57396ac8b68d89 178-179,181,184-185
+  s_47461e6af773a3::t_0c48e04b222a8f 195,197-198,201-203,206-207
+docs/BOA_HARDENING.md
+  s_47461e6af773a3::t_3e0101d4da0b32 39-40,100
+  s_47461e6af773a3::t_11e6f329e1b4f7 54-57
+  s_47461e6af773a3::t_6a4f6fed476a0a 42-43,79
+  s_47461e6af773a3::t_d94d10a873efa4 33-35
+  s_47461e6af773a3::t_ef5ecba2c1ce06 5-7
+  s_47461e6af773a3::t_e6b95e24618997 29
+packages/engine/test/tracing-local.test.ts
+  s_47461e6af773a3::t_59508991d05d2c 1
+packages/engine/test/quickaction.test.ts
+  s_47461e6af773a3::t_5de869259b318f 1476,1479-1481,1548
+packages/core/src/inline_break_index_test.rs
+  s_47461e6af773a3::t_43deeb546e4b4f 1
+  s_47461e6af773a3::t_291fb2f5948e84 4-5
+packages/engine/src/quickactions/brapi.ts
+  s_47461e6af773a3::t_c0e73013b7d562 228
+  s_47461e6af773a3::t_3f8809f423fc7f 1-3,5-6,15,183,215,236,250,283,304
+packages/dom-shim/src/collections.ts
+  s_47461e6af773a3::t_228d24457dfbc8 752
+packages/page-script/src/font-loader.ts
+  s_47461e6af773a3::t_59508991d05d2c 1-3
+packages/kitesurf-cli/Cargo.toml
+  s_47461e6af773a3::t_33382e017b013d 13,19
+packages/core/.cargo/config.toml
+  s_47461e6af773a3::t_33382e017b013d 42
+examples/wikipedia-portal-demo.mjs
+  s_47461e6af773a3::t_61f4648c6e4966 1-2
+examples/cfdocs-search-demo.mjs
+  s_47461e6af773a3::t_069b65725384fc 78,86,95-96
+  s_47461e6af773a3::t_be7519a98bd016 8,92-93
+scripts/build-wasm.mjs
+  s_47461e6af773a3::t_1b601be9ae0936 131
+  s_47461e6af773a3::t_1f0f3c83949556 7-8,118-119,154-156,385-387
+  s_47461e6af773a3::t_eab21bd569c8be 301
+  s_47461e6af773a3::t_a507530edd5909 298-299
+packages/shadow-replay/src/do.ts
+  s_47461e6af773a3::t_c5c8f99043bfde 44,46,223
+  s_47461e6af773a3::t_f80297a3a09fd6 161-162
+examples/layout-compare-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1
+packages/core/src/render_scene_resolve_loop_test.rs
+  s_47461e6af773a3::t_ef5ecba2c1ce06 4-7,9-10
+  s_47461e6af773a3::t_291fb2f5948e84 55-56
+packages/core/src/svg_css_fill_test.rs
+  s_47461e6af773a3::t_291fb2f5948e84 1-3
+packages/engine/src/index.ts
+  s_47461e6af773a3::t_532d3c40d5eeb0 379-381,391
+  s_47461e6af773a3::t_59508991d05d2c 222-223,400
+  s_47461e6af773a3::t_0bb7b8850d56df 214-215
+packages/core/Cargo.toml
+  s_47461e6af773a3::t_33382e017b013d 100,104
+  s_47461e6af773a3::t_f329920014276e 103
+  s_47461e6af773a3::t_ca3d0be678d461 106-107
+packages/shadow-replay/wrangler.jsonc
+  s_47461e6af773a3::t_19c4575f595bce 20
+  s_47461e6af773a3::t_f80297a3a09fd6 41-43,45
+  s_47461e6af773a3::t_76159eef263e45 92
+packages/core/src/scene_record.rs
+  s_47461e6af773a3::t_43deeb546e4b4f 2290
+  s_47461e6af773a3::t_0ead417591f544 2291
+packages/engine/test/e2e/ready-analytics.e2e.test.ts
+  s_47461e6af773a3::t_5de869259b318f 175-176
+  s_47461e6af773a3::t_19c4575f595bce 265,293
+packages/engine/src/rate-limit.ts
+  s_47461e6af773a3::t_5de869259b318f 36-37
+Cargo.toml
+  s_47461e6af773a3::t_ca3d0be678d461 140-141
+  s_47461e6af773a3::t_33382e017b013d 120-121,127-128
+packages/engine/src/quickactions/render-session.ts
+  s_47461e6af773a3::t_5de869259b318f 80
+tests/interactivity-flows/lib/driver.ts
+  s_47461e6af773a3::t_591bf743b92be0 47-48
+docs/TRACING.md
+  s_47461e6af773a3::t_99bf86e78ec1db 13-14,20-22,38,40,45,129-131
+packages/engine/src/quickactions/containment.ts
+  s_47461e6af773a3::t_c0e73013b7d562 1
+packages/engine/src/quickactions/pdf.ts
+  s_47461e6af773a3::t_5de869259b318f 84,189
+packages/core/src/shadow_dom_test.rs
+  s_47461e6af773a3::t_ef5ecba2c1ce06 706-707
+examples/render-after-mutation-demo.mjs
+  s_47461e6af773a3::t_78a148f2a73a98 77-78
+docs/TRANSITIONS.md
+  s_47461e6af773a3::t_b6f44554677d60 124
+  s_47461e6af773a3::t_6311d6d02217fd 93-95,126-127
+  s_47461e6af773a3::t_154547a74419ec 6,13-15,27
+examples/dom-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1
+packages/grafana/src/datasources.ts
+  s_47461e6af773a3::t_19c4575f595bce 1
+scripts/wpt-batched.mjs
+  s_47461e6af773a3::t_46962231b18167 254-256,287-288
+  s_47461e6af773a3::t_1b601be9ae0936 115-116,119,122-124
+  s_47461e6af773a3::t_f03d5fedbf8722 241-242,249-250,824-825,827-829,916-918
+docs/RELEASING.md
+  s_47461e6af773a3::t_9814285db96dd1 1,3-4
+packages/core/src/scene_determinism_test.rs
+  s_47461e6af773a3::t_c72bd7636754cb 14
+packages/page-script/src/index.ts
+  s_47461e6af773a3::t_59508991d05d2c 3060-3061
+tests/interactivity-flows/flows.ts
+  s_47461e6af773a3::t_1deafdc167e50e 16-17
+  s_47461e6af773a3::t_591bf743b92be0 1514
+  s_47461e6af773a3::t_c0e73013b7d562 416-418,1680-1681,1689-1690,1911,1917-1918
+packages/bench-report/src/bench-routes.ts
+  s_47461e6af773a3::t_532d3c40d5eeb0 462-463
+examples/layout-toggle-bench-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1
+packages/engine/src/eval/bench-tail.ts
+  s_47461e6af773a3::t_f61232cccae89f 1,11,23,31
+  s_47461e6af773a3::t_59508991d05d2c 2-3
+examples/top-sites-smoke.mjs
+  s_47461e6af773a3::t_eab21bd569c8be 1-2
+examples/todomvc-react-render-probe.mjs
+  s_47461e6af773a3::t_532d3c40d5eeb0 1,3-4,6-7
+packages/engine/test/e2e/document-types.e2e.test.ts
+  s_47461e6af773a3::t_c0e73013b7d562 4
+packages/core/src/style.rs
+  s_47461e6af773a3::t_33382e017b013d 54-55
+packages/shadow-replay/vitest.config.mts
+  s_47461e6af773a3::t_8097bde48fe30d 24,60
+examples/puppeteer-eval.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1,47
+packages/engine/src/cdp/dispatch.ts
+  s_47461e6af773a3::t_59508991d05d2c 54
+  s_47461e6af773a3::t_66ab1626e4c0f4 66
+scripts/memprof.mjs
+  s_47461e6af773a3::t_f03d5fedbf8722 6
+packages/bench-report/wrangler.jsonc
+  s_47461e6af773a3::t_f80297a3a09fd6 66-67
+  s_47461e6af773a3::t_406fa50ee49bca 21-22
+packages/ra-schema/src/descriptors.ts
+  s_47461e6af773a3::t_19c4575f595bce 1
+examples/todomvc-vanilla-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1
+examples/internal-state-isolation-demo.mjs
+  s_47461e6af773a3::t_ef5ecba2c1ce06 1-2
+packages/engine/test/e2e/boa-ctx-reentry.e2e.test.ts
+  s_47461e6af773a3::t_c0e73013b7d562 1
+examples/github-render-demo.mjs
+  s_47461e6af773a3::t_78a148f2a73a98 1-2
+packages/engine/test/e2e/font-face-unicode-range-gating.e2e.test.ts
+  s_47461e6af773a3::t_fa6a2a07b666cf 1-3
+packages/engine/test/caller.test.ts
+  s_47461e6af773a3::t_5de869259b318f 1-2,44
+examples/todomvc-filter-click-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1,5
+packages/grafana/test/dashboard.test.ts
+  s_47461e6af773a3::t_293e9510846e4f 223,300
+scripts/wpt-exec.mjs
+  s_47461e6af773a3::t_cee6f2e82e62cc 1,27-29,31,50-51,260-261
+tests/interactivity-flows/lib/net-archive.ts
+  s_47461e6af773a3::t_696db30693c4c8 64-65
+rust-toolchain.toml
+  s_47461e6af773a3::t_1f0f3c83949556 11-13,15
+docs/TESTING.md
+  s_47461e6af773a3::t_29df5be7b4a378 128-132
+  s_47461e6af773a3::t_c0249094931391 95-98,121-122
+  s_47461e6af773a3::t_d94d10a873efa4 103
+  s_47461e6af773a3::t_3a614de4f94c07 18-43,134-149,157-158,163-164,173-181,187-189,191-193
+  s_47461e6af773a3::t_0dc9e22774e7fd 133
+tests/interactivity-flows/run.ts
+  s_47461e6af773a3::t_cdec65d0395ef1 39
+  s_47461e6af773a3::t_1deafdc167e50e 72,275-276,280,585
+  s_47461e6af773a3::t_61b943cf25f2d8 398-399
+packages/grafana/test/query.test.ts
+  s_47461e6af773a3::t_293e9510846e4f 151,209,222,271
+docs/ANALYTICS.md
+  s_47461e6af773a3::t_5a8e6b021df0b9 1,3-6,8-9,11,13-15,17,19-21,23,25-28,30-31
+packages/dom-shim/src/document.ts
+  s_47461e6af773a3::t_228d24457dfbc8 531-532,998-999,1846,1848
+scripts/wpt-inventory.mjs
+  s_47461e6af773a3::t_cdec65d0395ef1 5,17-18
+packages/core/src/data_uri_bg_test.rs
+  s_47461e6af773a3::t_33382e017b013d 22-24
+tests/interactivity-flows/lib/dash-auth.ts
+  s_47461e6af773a3::t_591bf743b92be0 83,85,140-141
+docs/SCRIPT_GATE.md
+  s_47461e6af773a3::t_1f7b9393f92886 71,88-89
+  s_47461e6af773a3::t_f329920014276e 87
+examples/devtools-typing-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1
+  s_47461e6af773a3::t_78a148f2a73a98 7-8,12
+packages/core/src/svg_mutation_resnapshot_test.rs
+  s_47461e6af773a3::t_291fb2f5948e84 90
+examples/github-blob-hydration-demo.mjs
+  s_47461e6af773a3::t_78a148f2a73a98 1-2
+packages/grafana/src/query.ts
+  s_47461e6af773a3::t_293e9510846e4f 181,190,194-195,462-463,573
+packages/core/src/taffy_style_source_test.rs
+  s_47461e6af773a3::t_291fb2f5948e84 11
+  s_47461e6af773a3::t_ca3d0be678d461 7-10
+packages/core/src/svg_sprite_use_test.rs
+  s_47461e6af773a3::t_291fb2f5948e84 5-6
+scripts/wpt-shared.mjs
+  s_47461e6af773a3::t_cdec65d0395ef1 29,290
+packages/core/src/boa_eval.rs
+  s_47461e6af773a3::t_fa6a2a07b666cf 1406-1407
+  s_47461e6af773a3::t_f329920014276e 526
+packages/shadow-replay/src/verdict.ts
+  s_47461e6af773a3::t_c0e73013b7d562 1-2
+AGENTS.md
+  s_47461e6af773a3::t_41e395897537b7 302,431
+  s_47461e6af773a3::t_8bdfe540f62374 388,487-488
+  s_47461e6af773a3::t_7ba8669aedcdd5 433-435
+  s_47461e6af773a3::t_cd2480abb31d85 180,228-229,235-236,265,284-286
+  s_47461e6af773a3::t_f020a866a3900a 186-187,289-290
+  s_47461e6af773a3::t_694c68fc8c70b6 309-310,322
+  s_47461e6af773a3::t_edb3f78124f16c 168-169,292-293
+  s_47461e6af773a3::t_b9183a01588ae5 437
+  s_47461e6af773a3::t_e8e505511bda04 427-428
+  s_47461e6af773a3::t_bd55867c56930b 547-549,551,563,575-577
+  s_47461e6af773a3::t_04ed94a3189a5b 40,97,192-194
+  s_47461e6af773a3::t_00396dac16c9d2 363-365
+  s_47461e6af773a3::t_662ef230778b31 325-326,335-336
+  s_47461e6af773a3::t_625e99902123df 78,96
+  s_47461e6af773a3::t_11e6f329e1b4f7 117,119,307,315-317,519-520,524
+  s_47461e6af773a3::t_1ecde08bcc1a53 485,494-495
+docs/WORKERS.md
+  s_47461e6af773a3::t_d94d10a873efa4 51-52
+  s_47461e6af773a3::t_e6b95e24618997 53-54
+packages/website/index.ts
+  s_47461e6af773a3::t_625e99902123df 4
+tests/interactivity-flows/regress.ts
+  s_47461e6af773a3::t_1deafdc167e50e 148-149
+docs/BOA_V8_FLOW_EXAMPLES.md
+  s_47461e6af773a3::t_f369c2b3e6bbff 1,3-6,8,10-14,16,18-21,23,25-28,30-32,34,36-38,40,42-45,47,49-51,53,55-58
+packages/bench-report/worker-env.ts
+  s_47461e6af773a3::t_532d3c40d5eeb0 6-7
+  s_47461e6af773a3::t_59508991d05d2c 3-4
+packages/dom-shim/src/node-base.ts
+  s_47461e6af773a3::t_228d24457dfbc8 990
+  s_47461e6af773a3::t_31ff1b100960b6 1273-1275,1549-1551
+docs/CDP.md
+  s_47461e6af773a3::t_625e99902123df 12
+  s_47461e6af773a3::t_20115634bc06b0 14-16
+packages/core/src/svg_geometry_properties_test.rs
+  s_47461e6af773a3::t_1b601be9ae0936 206-207
+packages/bench-report/src/index.ts
+  s_47461e6af773a3::t_532d3c40d5eeb0 1
+packages/engine/test/e2e/stylo-layout-misc-values.e2e.test.ts
+  s_47461e6af773a3::t_c0e73013b7d562 4-5
+packages/engine/test/e2e/cssom-page-rules.e2e.test.ts
+  s_47461e6af773a3::t_c0e73013b7d562 1,11
+README.md
+  s_47461e6af773a3::t_186850675e44a2 18-20,23,25,31,111
+packages/engine/test/e2e/screenshot-pdf-brapi.e2e.test.ts
+  s_47461e6af773a3::t_5de869259b318f 1
+packages/engine/src/tracing-local.ts
+  s_47461e6af773a3::t_59508991d05d2c 1-2
+packages/engine/test/fixtures-worker/src/util.ts
+  s_47461e6af773a3::t_c0e73013b7d562 33
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_47461e6af773a3::t_c0e73013b7d562 1
+docs/BOA_V8_FLOW.md
+  s_47461e6af773a3::t_fbc7b70b5e93d6 254-258,260-264,276-278,286,291-293,415,417-419
+  s_47461e6af773a3::t_9a22547dea8c76 592-596
+  s_47461e6af773a3::t_e6b95e24618997 305,503-504
+  s_47461e6af773a3::t_f14ee73aaf1b46 320-322,336-337,342-344
+  s_47461e6af773a3::t_f329920014276e 245,318,501,542
+  s_47461e6af773a3::t_70af1266eda3dc 357-358
+  s_47461e6af773a3::t_c0249094931391 243,383,397-399,564
+  s_47461e6af773a3::t_5c5ef0186dd340 241-242,251-252
+  s_47461e6af773a3::t_32ce00228dc616 270,570-575,579-580
+  s_47461e6af773a3::t_8e8906a8570778 253
+packages/core/src/inline_break_restore_test.rs
+  s_47461e6af773a3::t_291fb2f5948e84 4-5
+packages/engine/src/eval/web-bot-auth.ts
+  s_47461e6af773a3::t_532d3c40d5eeb0 3,15
+tests/interactivity-flows/lib/types.ts
+  s_47461e6af773a3::t_1deafdc167e50e 50
+packages/engine/src/cdp-client.ts
+  s_47461e6af773a3::t_19c4575f595bce 111
+packages/dom-shim/src/state.ts
+  s_47461e6af773a3::t_31ff1b100960b6 587
+packages/shadow-replay/test/schema.test.ts
+  s_47461e6af773a3::t_cb7b4bfe03e815 1
+packages/engine/src/fixtures-binding.ts
+  s_47461e6af773a3::t_59508991d05d2c 1
+docs/SVG.md
+  s_47461e6af773a3::t_e7a5653c754d03 8-10,30-31
+packages/core/src/box_shadow_blur_accuracy_test.rs
+  s_47461e6af773a3::t_64d5c15a5b1362 137-138
+  s_47461e6af773a3::t_dfa135132101f9 2-3,20-22,26,136
+packages/shadow-replay/test/workerd/fake-engine-worker.mjs
+  s_47461e6af773a3::t_19c4575f595bce 2
+examples/eval-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1
+packages/grafana/src/cli.ts
+  s_47461e6af773a3::t_cdec65d0395ef1 8
+scripts/wpt-compare.mjs
+  s_47461e6af773a3::t_cdec65d0395ef1 118
+  s_47461e6af773a3::t_696db30693c4c8 6-7,21,23-25,711
+  s_47461e6af773a3::t_d1985205af2c3c 10,13-14
+  s_47461e6af773a3::t_13dad0c348a503 308-310
+packages/engine/test/e2e/opaque-image-render.e2e.test.ts
+  s_47461e6af773a3::t_c0e73013b7d562 5
+examples/todomvc-angular-demo.mjs
+  s_47461e6af773a3::t_78a148f2a73a98 1-2
+  s_47461e6af773a3::t_330627f79a09ce 3-4,28,35,65,126-127,173-174
+tests/interactivity-flows/egress-relay.ts
+  s_47461e6af773a3::t_1deafdc167e50e 20-21,105-106
+  s_47461e6af773a3::t_591bf743b92be0 148,155
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_47461e6af773a3::t_c0e73013b7d562 1
+packages/engine/src/observability.ts
+  s_47461e6af773a3::t_59508991d05d2c 235
+  s_47461e6af773a3::t_19c4575f595bce 1,60
+docs/WEB_BOT_AUTH.md
+  s_47461e6af773a3::t_1edeb7b647727d 21,31,35,39-40,64,66-67,77-78
+packages/engine/src/cdp/protocol-extensions.ts
+  s_47461e6af773a3::t_19c4575f595bce 156
+.opencode/skills/kitesurf-deslop/SKILL.md
+  s_47461e6af773a3::t_31b2c76ba733d6 112-114,466-468,470-472
+examples/navigate-perf.mjs
+  s_47461e6af773a3::t_c2ed33e445e64d 1-2
+examples/focus-typing-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1
+packages/engine/src/cdp/document-kind.ts
+  s_47461e6af773a3::t_ef5ecba2c1ce06 46
+examples/dynamic-behavior-demo.mjs
+  s_47461e6af773a3::t_61f4648c6e4966 29-31
+packages/engine/src/eval/outbound.ts
+  s_47461e6af773a3::t_cb44a15472d9e0 285-286,288,291-292
+  s_47461e6af773a3::t_735d122effbfdb 226-228,232,234-235,237,657-658
+  s_47461e6af773a3::t_78a8405dbb4cac 299-301
+packages/bench-report/container/agent.mjs
+  s_47461e6af773a3::t_5de869259b318f 18
+  s_47461e6af773a3::t_f80297a3a09fd6 334
+docs/PAGE_SCRIPT_PROTOCOL.md
+  s_47461e6af773a3::t_611627dfa72d74 13,17,42,44,57-59
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_47461e6af773a3::t_59508991d05d2c 35
+.githooks/post-checkout
+  s_47461e6af773a3::t_8097bde48fe30d 2-4,13
+packages/bench-report/src/bench-runner.ts
+  s_47461e6af773a3::t_532d3c40d5eeb0 38,51-52,56-57,66-67,92-93,448-449
+examples/todomvc-vue-demo.mjs
+  s_47461e6af773a3::t_61f4648c6e4966 1-2,82
+examples/perf-timing-demo.mjs
+  s_47461e6af773a3::t_78a148f2a73a98 127-128
+scripts/patches/README.md
+  s_47461e6af773a3::t_fb38d748f1e27f 235-236
+docs/BOA_BRIDGE_V2.md
+  s_47461e6af773a3::t_72873a79e7b18d 3-34
+bench/harness/run.mjs
+  s_47461e6af773a3::t_fefb73b57833ad 268-269
+  s_47461e6af773a3::t_591bf743b92be0 64-65,97,99,119,392-394,478-479
+  s_47461e6af773a3::t_f80297a3a09fd6 425
+  s_47461e6af773a3::t_311043366e3a65 45-46,272,406-407,724-725,786-789,942,1042
+packages/engine/test/e2e/fixture-script-escaping.e2e.test.ts
+  s_47461e6af773a3::t_c0e73013b7d562 3
+packages/ra-schema/src/manifest.ts
+  s_47461e6af773a3::t_c5c8f99043bfde 90-91
+  s_47461e6af773a3::t_0215b35ce01b51 3
+  s_47461e6af773a3::t_19c4575f595bce 1,31
+docs/MEMPROF.md
+  s_47461e6af773a3::t_4f05b825ae439b 120-121,193-196
+examples/css-external-sheets-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1-2
+tests/interactivity-flows/lib/cdp-recorder.ts
+  s_47461e6af773a3::t_1deafdc167e50e 4-5
+docs/IFRAMES.md
+  s_47461e6af773a3::t_0b9731a428095b 193
+  s_47461e6af773a3::t_e9aded4f0f0b5f 129,132-133,140,178-180,237
+  s_47461e6af773a3::t_1e05d749dc4ccf 268,311-312
+  s_47461e6af773a3::t_f3f8855075f476 101-106
+  s_47461e6af773a3::t_72c7dc62cca669 109,114-115,119-120
+  s_47461e6af773a3::t_f40ef53ed31a27 165-166
+  s_47461e6af773a3::t_07468d4e862d5b 285-289,297
+  s_47461e6af773a3::t_f329920014276e 130
+  s_47461e6af773a3::t_f08ef7a88855cc 230
+scripts/bench-trace-report.mjs
+  s_47461e6af773a3::t_591bf743b92be0 22,40-41,112-113,299
+  s_47461e6af773a3::t_eab21bd569c8be 62-63
+packages/agent-bench/src/cdp.mjs
+  s_47461e6af773a3::t_eab21bd569c8be 1
+packages/engine/test/e2e/README.md
+  s_47461e6af773a3::t_ac4fe2d0f31352 75,77-78
+examples/cfdocs-demo.mjs
+  s_47461e6af773a3::t_78a148f2a73a98 8-9
+packages/core/src/transform_2d_subset_test.rs
+  s_47461e6af773a3::t_291fb2f5948e84 1-4
+scripts/wpt-history-append.mjs
+  s_47461e6af773a3::t_cdec65d0395ef1 4,7
+packages/bench-report/scripts/engine-version.mjs
+  s_47461e6af773a3::t_532d3c40d5eeb0 1-2
+docs/TERMINAL.md
+  s_47461e6af773a3::t_753a6754a0223f 20
+packages/engine/src/quickactions/index.ts
+  s_47461e6af773a3::t_3f8809f423fc7f 2,41,289,360,371,373,1047,1049-1050,1111,1351,1510
+  s_47461e6af773a3::t_625e99902123df 46
+packages/engine/src/quickactions/content.ts
+  s_47461e6af773a3::t_5de869259b318f 134-135
+packages/dom-shim/src/events/event.ts
+  s_47461e6af773a3::t_31ff1b100960b6 242
+.opencode/skills/kitesurf-idl-class-types/SKILL.md
+  s_47461e6af773a3::t_686bc323b06178 166-167
+  s_47461e6af773a3::t_31b2c76ba733d6 43,170-171
+packages/core/src/radar_grid_repro_test.rs
+  s_47461e6af773a3::t_ca3d0be678d461 1,8-10
+  s_47461e6af773a3::t_291fb2f5948e84 3-4
+packages/engine/test/fixtures-worker/src/dynamic/cors.ts
+  s_47461e6af773a3::t_fa6a2a07b666cf 101
+examples/todomvc-react-demo.mjs
+  s_47461e6af773a3::t_61f4648c6e4966 372-373
+packages/shadow-replay/src/index.ts
+  s_47461e6af773a3::t_81edc3c8c9c742 1-2,7,11,13-14
+  s_47461e6af773a3::t_19c4575f595bce 35
+packages/engine/src/quickactions/snapshot.ts
+  s_47461e6af773a3::t_5de869259b318f 1-2,36
+.gitlab/build-images/Dockerfile.build
+  s_47461e6af773a3::t_8097bde48fe30d 1,13-14,19,30-31
+packages/core/src/tty_modes.rs
+  s_47461e6af773a3::t_1b601be9ae0936 608
+packages/shadow-replay/src/schema.ts
+  s_47461e6af773a3::t_cb7b4bfe03e815 1,8-10,32-33,37-38,43
+packages/engine/src/sentry.ts
+  s_47461e6af773a3::t_59508991d05d2c 1,93
+examples/layout-cheap-demo.mjs
+  s_47461e6af773a3::t_be7519a98bd016 1
+packages/engine/src/quickactions/screenshot.ts
+  s_47461e6af773a3::t_5de869259b318f 155
+packages/wpt-report/wrangler.jsonc
+  s_47461e6af773a3::t_76159eef263e45 11
+scripts/flows-archives.mjs
+  s_47461e6af773a3::t_f03d5fedbf8722 120-122
+  s_47461e6af773a3::t_1deafdc167e50e 9-10
+  s_47461e6af773a3::t_696db30693c4c8 8,24-25
+packages/grafana/README.md
+  s_47461e6af773a3::t_8edb6493695120 17,19-20
+  s_47461e6af773a3::t_c4a586c8f0f48f 11-12,14-15
+.gitignore
+  s_47461e6af773a3::t_89c0b9e4054d27 124-126,130-131
+  s_47461e6af773a3::t_8097bde48fe30d 2,36,55-56,62-63,109
+packages/dom-shim/scripts/build.mjs
+  s_47461e6af773a3::t_228d24457dfbc8 104-105
+packages/agent-bench/src/engines.mjs
+  s_47461e6af773a3::t_59508991d05d2c 114-115,145-146
+scripts/wpt-report-refresh.mjs
+  s_47461e6af773a3::t_cdec65d0395ef1 4-6
+packages/wpt-report/scripts/trend.mjs
+  s_47461e6af773a3::t_c5e06d51e94fab 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8ed81f3594c48857e9afdf936ba3f1a499905416",
+  "prompts": {},
+  "sessions": {
+    "s_47461e6af773a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecfb22472ffeHmFwF7YQFPmr1S",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/tty-css-preview/README.md
+  s_b421a028f30fb3::t_a130c010c7bf0b 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "96b013a065d66d22d2950a1602c3829027675de8",
+  "prompts": {},
+  "sessions": {
+    "s_b421a028f30fb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f036a3268ffeCXpNHPVlSudfaM",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

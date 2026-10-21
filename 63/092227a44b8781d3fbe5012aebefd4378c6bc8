@@ -1,0 +1,28 @@
+packages/dom-shim/src/file-input.ts
+  s_f50b7cd97baf3e::t_e22ddd5a3c1fe3 1-198
+scripts/patches/blitz-dom-0.3.0-beta.1/0019-UA-stylesheet-strip-box-chrome-from-input-type-range.patch
+  s_f50b7cd97baf3e::t_00a7ffd809799d 1-35
+packages/engine/test/e2e/demos/forms-range-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_69a2a0895eff53 87-114
+scripts/patches/blitz-paint-0.3.0-beta.1/0005-Form-controls-color-from-CSS-accent-color-default-ac.patch
+  s_f50b7cd97baf3e::t_00a7ffd809799d 1-15,17-32,34-51
+  s_f50b7cd97baf3e::t_ce52c1b47942cf 16,33
+scripts/patches/stylo-0.19.0/0002-Enable-accent-color-in-the-servo-build.patch
+  s_f50b7cd97baf3e::t_00a7ffd809799d 1-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "63092227a44b8781d3fbe5012aebefd4378c6bc8",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

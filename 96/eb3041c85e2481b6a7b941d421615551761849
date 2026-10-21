@@ -1,0 +1,21 @@
+packages/engine/test/e2e/demos/module-init-shim-demo.e2e.test.ts
+  s_0b62245bd53100::t_c2d5cfc3756793 28-30,107,112-124
+packages/page-script/src/init-shims.ts
+  s_0b62245bd53100::t_0dd363067b029a 58,74-75,159-161,199-200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "96eb3041c85e2481b6a7b941d421615551761849",
+  "prompts": {},
+  "sessions": {
+    "s_0b62245bd53100": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb909e891ffeOysb1haJ2cDJYI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

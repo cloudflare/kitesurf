@@ -1,0 +1,31 @@
+packages/dom-shim/src/registries.ts
+  s_f70b272515436f::t_67c4e29a2d0313 281-282
+  s_f70b272515436f::t_4008b41d9e7b5d 157-162
+packages/dom-shim/src/index.ts
+  s_f70b272515436f::t_a639af14f3c8aa 228-229
+  s_f70b272515436f::t_d63c6b9e3370f7 339-340
+packages/dom-shim/src/element.ts
+  s_f70b272515436f::t_a0f179f8fbd265 1825-1826
+  s_f70b272515436f::t_12b814dbb42342 1810,1814-1816
+  s_f70b272515436f::t_29395f6f47653d 48-49
+  s_f70b272515436f::t_9f51988704f652 5202-5204,5209-5210,5213
+  s_f70b272515436f::t_0d1a3fd03c900d 1811-1812
+packages/engine/test/e2e/children-options-sameobject.e2e.test.ts
+  s_f70b272515436f::t_772072f8c13f09 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3d83702dc68a37a8b9578fdc731776330a97c56a",
+  "prompts": {},
+  "sessions": {
+    "s_f70b272515436f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee3accdeaffe8lRMgSeLfyUGrr",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

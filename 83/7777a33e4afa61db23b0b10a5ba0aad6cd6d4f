@@ -1,0 +1,24 @@
+packages/engine/src/cdp/webmcp.ts
+  s_4ba79f911c93c4::t_7b7bac1073205c 434
+packages/dom-shim/src/model-context.ts
+  s_4ba79f911c93c4::t_871d6b9639d33b 166-174
+  s_4ba79f911c93c4::t_f8a308cddeb646 858,862,880
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_4ba79f911c93c4::t_07d40973411361 411-412,414-418,602,865-871
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "837777a33e4afa61db23b0b10a5ba0aad6cd6d4f",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

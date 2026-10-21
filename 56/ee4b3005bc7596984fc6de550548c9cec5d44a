@@ -1,0 +1,19 @@
+packages/dom-shim/src/element.ts
+  s_389aa8bfb4b14f::t_36cab6d9ac99ed 2939-2941
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "56ee4b3005bc7596984fc6de550548c9cec5d44a",
+  "prompts": {},
+  "sessions": {
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

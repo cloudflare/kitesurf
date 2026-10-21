@@ -1,0 +1,21 @@
+.cloudflare/flamingo/plans/kitesurf-cdp-screenshot-burst.edge-plan
+  s_53806db5ffcdc2::t_a0a8b4263f04e1 9
+.cloudflare/flamingo/scripts/kitesurf/cdp-screenshot-burst.edge-test
+  s_53806db5ffcdc2::t_a0a8b4263f04e1 1-2,6,32,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6e022ee9e3cea1784a7f36049c9b4e53bca43c0c",
+  "prompts": {},
+  "sessions": {
+    "s_53806db5ffcdc2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f91c49fe4ffeXETbByJyRzfnM1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

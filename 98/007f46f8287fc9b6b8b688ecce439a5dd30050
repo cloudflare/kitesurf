@@ -1,0 +1,19 @@
+scripts/patches/blitz-paint-0.3.0-beta.2/0037-Match-CSS-shadow-blurs-and-snap-empty-outer-clips.patch
+  s_de9b73755c1191::t_6707010e2b5199 1-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "98007f46f8287fc9b6b8b688ecce439a5dd30050",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

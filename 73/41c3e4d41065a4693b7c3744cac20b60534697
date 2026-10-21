@@ -1,0 +1,19 @@
+packages/ra-schema/src/descriptors.ts
+  s_36cdb809e94ae1::t_130d1be198954e 66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7341c3e4d41065a4693b7c3744cac20b60534697",
+  "prompts": {},
+  "sessions": {
+    "s_36cdb809e94ae1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03982365ffezVyqdLg6n6lno5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

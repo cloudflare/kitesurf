@@ -1,0 +1,44 @@
+packages/engine/src/cdp/target.ts
+  s_0fb3273840725a::t_068caef90d2077 498-500
+packages/engine/test/page-script-rpc-session.test.ts
+  s_0fb3273840725a::t_896e47a10b0f39 207-237
+  s_0fb3273840725a::t_068caef90d2077 173-206
+packages/engine/test/target-close.test.ts
+  s_0fb3273840725a::t_068caef90d2077 1-26,30-42,44-52
+  s_0fb3273840725a::t_051e8280b953e3 27-29,43
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_0fb3273840725a::t_40653d09beccae 65-69,89-100,348-354
+  s_0fb3273840725a::t_068caef90d2077 153,155,361-362,369,371-377
+  s_0fb3273840725a::t_051e8280b953e3 366
+  s_0fb3273840725a::t_fb753633b5f1b5 101-102
+packages/engine/src/cdp/page-script-generation.ts
+  s_0fb3273840725a::t_3bd29dbad81936 179-182
+  s_0fb3273840725a::t_40653d09beccae 47-49,117-124,199-205
+  s_cd717894bc6073::t_01ef5a7b6192fc 206-208
+packages/engine/test/page-script-generation.test.ts
+  s_0fb3273840725a::t_896e47a10b0f39 110-130,278-284,287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5aa7c892ee0f5fe0ebacce404d5ba3e00e2580c2",
+  "prompts": {},
+  "sessions": {
+    "s_0fb3273840725a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_cd717894bc6073": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f04dbdeffewzdpte1x0TBl9v",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

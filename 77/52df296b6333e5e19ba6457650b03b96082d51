@@ -1,0 +1,23 @@
+examples/render-features-demo.mjs
+  s_0b5a824d53c86e::t_da58baae0ebbe1 72,94-96,140,147,151
+  s_0b5a824d53c86e::t_78f2ca02e32c1f 1-28,34-71,73-93,97-139,141-146,148-150,152-221
+  s_0b5a824d53c86e::t_c5e881f5d1de29 29-33
+packages/engine/src/fixtures.ts
+  s_0b5a824d53c86e::t_ef085767981d6e 459-477,482-483
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7752df296b6333e5e19ba6457650b03b96082d51",
+  "prompts": {},
+  "sessions": {
+    "s_0b5a824d53c86e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_07f01b687ffeF18QkiX2ryB96n",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

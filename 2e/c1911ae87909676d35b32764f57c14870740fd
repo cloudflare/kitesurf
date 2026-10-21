@@ -1,0 +1,25 @@
+packages/page-script/src/fetch-shim.ts
+  s_4ba79f911c93c4::t_98196886550703 113-115
+  s_4ba79f911c93c4::t_b469eecb2fb356 86,89
+  s_4ba79f911c93c4::t_faae70ddcd8899 87-88,90-102,122,125
+packages/engine/test/e2e/fetch-init-headers.e2e.test.ts
+  s_4ba79f911c93c4::t_9aa446026e662a 70-73,82,91
+  s_4ba79f911c93c4::t_4601a05675b1cb 74-81,83-84,92-96
+  s_4ba79f911c93c4::t_c9a7e479e1e511 35-69,85-90,97-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2ec1911ae87909676d35b32764f57c14870740fd",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

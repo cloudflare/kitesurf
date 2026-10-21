@@ -1,0 +1,22 @@
+packages/engine/public/hero-texture.svg
+  s_909163843c9dee::t_e34d508f08c232 8
+  s_909163843c9dee::t_5a31970c1481d0 3,18-19,22
+  s_909163843c9dee::t_d65270bfc66a15 20-21
+  s_909163843c9dee::t_341991ff53771e 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1830e969876082ede78cb5460ff475b94b045050",
+  "prompts": {},
+  "sessions": {
+    "s_909163843c9dee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1b8ee7e2ffe0ZSBgOtK2CgnBd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Brandon Strittmatter <bstrittmatter@cloudflare.com>"
+    }
+  }
+}

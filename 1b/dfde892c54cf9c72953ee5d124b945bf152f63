@@ -1,0 +1,37 @@
+package.json
+  s_48191ea07870ee::t_c9cb2f27b65cf7 40
+vendor/raytrace/VENDORED_FROM.md
+  s_6902c6341bfc35::t_49e1e6df488bf2 70-85
+vendor/raytrace/pnpm-workspace.yaml
+  s_48191ea07870ee::t_1dc547ef0e6d13 1-20
+docs/RELEASING.md
+  s_48191ea07870ee::t_c9cb2f27b65cf7 93-94
+vendor/raytrace/AGENTS.md
+  s_6902c6341bfc35::t_89d273deb7e7ad 22-25
+.gitlab-ci.yml
+  s_48191ea07870ee::t_c9cb2f27b65cf7 1931-1935,1980
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1bdfde892c54cf9c72953ee5d124b945bf152f63",
+  "prompts": {},
+  "sessions": {
+    "s_48191ea07870ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009082396ffeXKnEicNrzluRoG",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_6902c6341bfc35": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00d66f269ffetpAJALW0c2qGN0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+packages/core/src/scene_replay.rs
+  s_c01a45417c1cad::t_92fcda2d60aa64 702,711-712,722
+  s_c01a45417c1cad::t_26a4b34ea29582 642,648,652-654,656,659-662
+  s_c01a45417c1cad::t_1bd97bd6531b44 741,748-749,751
+packages/core/src/scene_decode.rs
+  s_c01a45417c1cad::t_8bfc12a9318169 655,659,676,680
+  s_c01a45417c1cad::t_20c3c1902fcfe2 868-887
+  s_c01a45417c1cad::t_75f9df8832b20a 1128
+  s_c01a45417c1cad::t_4a57a45b1477b1 415,426
+  s_c01a45417c1cad::t_fad2a1664e7ba2 1132
+  s_c01a45417c1cad::t_567d5867326278 1426-1427
+  s_c01a45417c1cad::t_f42ece2ca5ca87 1467-1589
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c01a45417c1cad::t_e6f96c8d80c09f 1502-1539
+  s_c01a45417c1cad::t_0524ea4f4707e8 1012-1013
+packages/engine/test/e2e/demos/conic-gradient.e2e.test.ts
+  s_c01a45417c1cad::t_d8dddcfc1f63d5 82-86,90
+  s_c01a45417c1cad::t_f35d58dc02acba 1-4,6-8,14-16,18,25-42,47,76,87,95,99
+  s_c01a45417c1cad::t_0f8fbba7b2c697 5,9-13,17,19-24,43-46,48-75,77-81,88-89,91-94,96-98
+packages/core/src/scene_record.rs
+  s_c01a45417c1cad::t_831c0f48bb634f 998-1017
+  s_c01a45417c1cad::t_c2349ef756ce44 1626-1631,1637,1654,1667,1676
+  s_c01a45417c1cad::t_6cfe592b4fb09d 143-144,146-148
+  s_c01a45417c1cad::t_19fc836587ebc7 237-250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a408bd6f3aa09ce79bae595c11185896170553bd",
+  "prompts": {},
+  "sessions": {
+    "s_c01a45417c1cad": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05cc33bfdffex5Gj7TIzkpqvc5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/page-script/src/globals.ts
+  s_3b94de117771b1::t_ed41bcbaaae468 4344-4349
+packages/engine/test/e2e/idl-interface-shape.e2e.test.ts
+  s_3b94de117771b1::t_ed41bcbaaae468 27-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e5bc7ccb5d17b73960f189bc9a517f36730743f4",
+  "prompts": {},
+  "sessions": {
+    "s_3b94de117771b1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f86c3919effeBdKzL7Cxlr6FBS",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+packages/dom-shim/src/range.ts
+  s_38b7bb489593d7::t_eebbbf6d770b02 19,86-95,97,2095
+packages/dom-shim/src/index.ts
+  s_38b7bb489593d7::t_eebbbf6d770b02 525-526
+packages/dom-shim/src/collections.ts
+  s_38b7bb489593d7::t_44cee3a2b05ceb 248,252
+  s_38b7bb489593d7::t_eebbbf6d770b02 249
+  s_38b7bb489593d7::t_75d8008a5a6367 4
+packages/page-script/src/index.ts
+  s_38b7bb489593d7::t_75d8008a5a6367 2257
+  s_38b7bb489593d7::t_425a8d5f67dd64 1869-1870,1884
+packages/dom-shim/src/mutations/observer.ts
+  s_38b7bb489593d7::t_75ab47f4545b9c 136,465-466
+  s_38b7bb489593d7::t_1d2f4817a4c436 79,452,463,518,583,587-589,591-595,603
+packages/dom-shim/src/state.ts
+  s_38b7bb489593d7::t_eebbbf6d770b02 339
+packages/page-script/src/internal-state.ts
+  s_38b7bb489593d7::t_44cee3a2b05ceb 23-26
+packages/dom-shim/src/node-base.ts
+  s_38b7bb489593d7::t_eebbbf6d770b02 10,966,2882,2887-2888,2891
+packages/page-script/src/paint.ts
+  s_38b7bb489593d7::t_a85d3240ebad5f 195-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1db25c1189a89a153c0041bc478627a3d92d5b5c",
+  "prompts": {},
+  "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

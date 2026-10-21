@@ -1,0 +1,19 @@
+packages/engine/test/e2e/detached-node-reclaim.e2e.test.ts
+  s_059e99c81ea16a::t_822734863f5524 182-195,197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ae21c6b882eee2d3e0a2a00a98a7aadd18df88f8",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

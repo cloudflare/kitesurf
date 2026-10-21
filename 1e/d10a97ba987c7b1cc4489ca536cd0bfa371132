@@ -1,0 +1,25 @@
+packages/engine/src/eval/script-bundle.ts
+  s_10325f09f363f7::t_2064dfc910ba22 562-572
+  s_10325f09f363f7::t_376f7352c2aeb8 756
+  s_10325f09f363f7::t_e0a2f88f16dc3b 397-406,410
+packages/engine/test/e2e/current-script-microtask.e2e.test.ts
+  s_10325f09f363f7::t_59f5bd168b8cc6 1-80
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_10325f09f363f7::t_d5ac12047f04a8 1887-1931,2522-2523,4348-4351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1ed10a97ba987c7b1cc4489ca536cd0bfa371132",
+  "prompts": {},
+  "sessions": {
+    "s_10325f09f363f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_028d94f7bffeLPzCR3nArdny7w",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+packages/core/src/transitions.rs
+  s_3c8d0649a03a77::t_aba531d7f67e68 46-52,359-360,442
+  s_3c8d0649a03a77::t_4f4c63d09c5515 443
+packages/page-script/src/font-loader.ts
+  s_3c8d0649a03a77::t_b6456fa998eaec 246-247,250-256
+packages/page-script/src/transitions.ts
+  s_3c8d0649a03a77::t_2d0395e3152e01 135,137,139,147
+  s_3c8d0649a03a77::t_aba531d7f67e68 117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "857f548504f5216686fe17d80e3ee66baa7524ae",
+  "prompts": {},
+  "sessions": {
+    "s_3c8d0649a03a77": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f8bccc3ffeToN0qv8Gpk27JT",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

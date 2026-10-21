@@ -1,0 +1,27 @@
+packages/engine/package.json
+  s_e9e98b1128f045::t_1396fa529a1b34 17
+docs/WEB_BOT_AUTH.md
+  s_e9e98b1128f045::t_1396fa529a1b34 85-86
+.gitlab-ci.yml
+  s_e9e98b1128f045::t_1396fa529a1b34 2032-2036,2047,2070-2072,2077,2097-2099
+docs/RELEASING.md
+  s_e9e98b1128f045::t_1396fa529a1b34 74-96
+scripts/mr-preview.mjs
+  s_e9e98b1128f045::t_1396fa529a1b34 2-4,6-10,26,28,34-37,40,42,46,50-74,77,93-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "72e1e31c8822a0eebbff1fa8bf1a4a7c2980326c",
+  "prompts": {},
+  "sessions": {
+    "s_e9e98b1128f045": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebe30cc79ffe4xWgC0WF5M4k71",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+tests/wpt-expectations.json
+  s_991c8660c98c38::t_ce78e933b02506 6389-6390,8950-8951,8954-8955,11932-11933,11936-11937,12262-12263,12286-12287,16638-16639,16670-16671,16702-16703,18412-18413,23376-23377,24268-24269,26216-26217
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "25fdd81f89b38104234f6665de888f525b689655",
+  "prompts": {},
+  "sessions": {
+    "s_991c8660c98c38": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009892ce1ffeHHnJ6vwrpWm3CZ",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

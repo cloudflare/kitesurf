@@ -1,0 +1,33 @@
+scripts/patches/parley-0.11.1/0010-Trim-out-of-flow-line-comments.patch
+  s_ef26f8dd06f5df::t_39d78d41bf7922 1-41
+packages/dom-shim/src/layout/cheap.ts
+  s_ef26f8dd06f5df::t_845a75c9a549c6 435
+docs/BOA_V8_FLOW.md
+  s_ef26f8dd06f5df::t_845a75c9a549c6 384-396
+scripts/patches/blitz-dom-0.3.0-beta.2/0141-Keep-fixed-boxes-anchored-during-clipped-paints.patch
+  s_ef26f8dd06f5df::t_691fe1085b45da 3,7-8,11,14,18-19,32-35,40,44
+packages/core/src/lib.rs
+  s_ef26f8dd06f5df::t_845a75c9a549c6 4879-4880,4893-4894,4944,6944-6945,7175-7176,7190,7208
+docs/FONTS.md
+  s_ef26f8dd06f5df::t_845a75c9a549c6 208-213
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_ef26f8dd06f5df::t_e0038463e89eb8 150-151,194,203,261
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_ef26f8dd06f5df::t_dc4aa189b4753f 117-118,176,193,223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8435c74f498f94b75646319c4f15bdfa48b77994",
+  "prompts": {},
+  "sessions": {
+    "s_ef26f8dd06f5df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3be04914ffe7HHtOkszWCc5pa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

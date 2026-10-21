@@ -1,0 +1,39 @@
+scripts/patches/README.md
+  s_429f7f4b0bfcb7::t_60d11876d0766c 108-109
+scripts/patches/taffy-0.14.0/0006-Fix-float-height-and-placement.patch
+  s_4ba79f911c93c4::t_b103ceac965144 2-38
+  s_4ba79f911c93c4::t_28bea57bd8b395 1
+scripts/patches/parley-0.11.1/0007-Preserve-parent-line-height-for-inline-boxes.patch
+  s_4ba79f911c93c4::t_f292029d03384d 1
+  s_4ba79f911c93c4::t_87b7e757b55d37 2-29
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_c0b8a0c4822068 2934,2936-2940,2944,3228-3234,3291-3317,3321-3322
+packages/core/src/sticky.rs
+  s_4ba79f911c93c4::t_a4e8932132ae32 20-21,38-40,142-275,416-420,520,524,539
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Fix-font-metrics-and-inline-layout-regressions.patch
+  s_4ba79f911c93c4::t_08b146d32bc707 1-586
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a1948cba952449df00a406cba346bc71e7e323d7",
+  "prompts": {},
+  "sessions": {
+    "s_429f7f4b0bfcb7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5d980e3cffejnDq3nmk0ZyNsJ",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

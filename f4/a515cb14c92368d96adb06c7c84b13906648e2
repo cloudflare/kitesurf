@@ -1,0 +1,39 @@
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_c39b250795ef75::t_05b1c45278e96f 23-24
+packages/engine/test/fixtures-worker/assets/module-registry-meta.js
+  s_c39b250795ef75::t_8de637e7a23aca 1
+docs/SCRIPT_LOADING.md
+  s_c39b250795ef75::t_c083be9420b6d5 124-162
+packages/engine/test/fixtures-worker/assets/module-registry-tla.js
+  s_c39b250795ef75::t_8de637e7a23aca 1-10
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c39b250795ef75::t_e81b4b2d167589 1383-1385,1387-1388,1391
+  s_c39b250795ef75::t_6359a107a817be 220-232,632-633,1368-1382,1386,1389-1390,1392-1396,1426-1431,3010-3019
+  s_c39b250795ef75::t_1ae21ab284dbd0 1548-1551,1556-1558
+packages/engine/vitest.e2e.config.mts
+  s_c39b250795ef75::t_05b1c45278e96f 192-194
+packages/engine/test/fixtures-worker/assets/module-registry.html
+  s_c39b250795ef75::t_2f68b8b877e8b4 1-48
+packages/engine/test/fixtures-worker/assets/module-registry-lib.js
+  s_c39b250795ef75::t_8de637e7a23aca 1
+packages/engine/test/fixtures-worker/assets/module-registry-config.json
+  s_c39b250795ef75::t_8de637e7a23aca 1
+packages/engine/test/e2e/module-registry.e2e.test.ts
+  s_c39b250795ef75::t_148144131a6bd8 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f4a515cb14c92368d96adb06c7c84b13906648e2",
+  "prompts": {},
+  "sessions": {
+    "s_c39b250795ef75": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f611d125effePYy5TeTmmwVpWd",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

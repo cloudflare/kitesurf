@@ -1,0 +1,26 @@
+packages/website/src/pages/landing/Showcase.tsx
+  s_909163843c9dee::t_a6bc0c37360581 19
+  s_909163843c9dee::t_79357e9a1531dd 12-18,20-26,34,36-37,97,99-100
+packages/website/src/content/showcase.ts
+  s_909163843c9dee::t_b630abe1b14f54 4,15
+  s_909163843c9dee::t_a6bc0c37360581 118
+packages/website/src/styles/landing.css
+  s_909163843c9dee::t_df303a40a3befe 449
+  s_909163843c9dee::t_79357e9a1531dd 298,329,407,409-412,416,419,424-429,433-438,486,488,491,810
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cd580fbd43d92288db4330c240840b57e0aaa55d",
+  "prompts": {},
+  "sessions": {
+    "s_909163843c9dee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1b8ee7e2ffe0ZSBgOtK2CgnBd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Brandon Strittmatter <bstrittmatter@cloudflare.com>"
+    }
+  }
+}

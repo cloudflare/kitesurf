@@ -1,0 +1,19 @@
+.opencode/skills/slop-removal/SKILL.md
+  s_b0117fe27a64b9::t_9e203d80de138b 174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5715e6eb9b686941bf871e72ad44663a6e10dd18",
+  "prompts": {},
+  "sessions": {
+    "s_b0117fe27a64b9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author follow-up cloudflare/brapi/kitesurf!386",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

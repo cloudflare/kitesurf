@@ -1,0 +1,20 @@
+packages/engine/src/cdp/dom.ts
+  s_33ced4fd01dd18::t_f7950df02ea593 408-421,424,426,428
+  s_33ced4fd01dd18::t_fa027e01c18470 307,316-322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "faf57c1ae3300f460101c4905088a438e60eebed",
+  "prompts": {},
+  "sessions": {
+    "s_33ced4fd01dd18": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06460a98cffeiC4uluWD4Bs6JQ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

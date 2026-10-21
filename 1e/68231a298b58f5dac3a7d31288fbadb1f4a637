@@ -1,0 +1,52 @@
+packages/engine/src/pdf.ts
+  s_d264cf1778372b::t_632d6a1fb11206 55
+  s_d264cf1778372b::t_1ffa35f2ac8428 82-90
+  s_d264cf1778372b::t_3cf8b9094a73c6 98
+packages/engine/src/cdp/page.ts
+  s_d264cf1778372b::t_eaf7aa4aa350b1 944-946
+  s_d264cf1778372b::t_d1e6b1cbdafba0 985
+  s_d264cf1778372b::t_b41857b37d9c71 1127-1130
+  s_d264cf1778372b::t_1f31c93dc3c3fd 947-951
+  s_d264cf1778372b::t_f1fd88fdf6988b 1124-1126
+  s_d264cf1778372b::t_73b08f01d399b0 1249
+packages/engine/src/screenshot.ts
+  s_d264cf1778372b::t_363e3882a0dde7 81-89
+  s_d264cf1778372b::t_599f5de1a397b0 91-95
+packages/engine/src/quickaction.ts
+  s_d264cf1778372b::t_b18cf02214922e 350
+  s_d264cf1778372b::t_c5970944ea626e 593
+packages/core/src/pdf.rs
+  s_d264cf1778372b::t_23d21c6d1df864 80
+  s_d264cf1778372b::t_1bfc34815ae03d 201-208
+packages/page-script/src/index.ts
+  s_d264cf1778372b::t_8f87ea44b787bc 3546
+  s_d264cf1778372b::t_348c1e337facfc 3437
+  s_d264cf1778372b::t_98aa6464e21d0d 3511-3514
+  s_d264cf1778372b::t_4a13d48833c5c5 3346-3350
+packages/core/src/screenshot.rs
+  s_d264cf1778372b::t_acb9899b1b39d9 90-100,103-112,117-129
+  s_d264cf1778372b::t_ddf43976c52eaa 45
+  s_d264cf1778372b::t_60ae1985234fa1 66
+packages/core/src/lib.rs
+  s_d264cf1778372b::t_a08c3b21ffb09a 2565
+  s_d264cf1778372b::t_d95e1d2fa1f2c9 2658
+  s_d264cf1778372b::t_3e0f9b429007e4 2690
+  s_d264cf1778372b::t_dd27a68c25237f 2578
+  s_d264cf1778372b::t_dc33fe8cd91cff 2747
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1e68231a298b58f5dac3a7d31288fbadb1f4a637",
+  "prompts": {},
+  "sessions": {
+    "s_d264cf1778372b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_08d773743ffedu4ERuZ9uK2OxJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

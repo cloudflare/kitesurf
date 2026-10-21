@@ -1,0 +1,25 @@
+packages/engine-cf/src/worker-loader.ts
+  s_4ba79f911c93c4::t_dcb0f1fa014496 1-24
+packages/engine-cf/cloudflare.config.ts
+  s_4ba79f911c93c4::t_177d722bc48717 106-107
+packages/engine-cf/src/index.ts
+  s_4ba79f911c93c4::t_a67e40323a9dc9 38,95-98
+packages/engine-cf/test/unit/worker-loader.test.ts
+  s_4ba79f911c93c4::t_d37d73756ec615 1-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "86eaaa2061a38f46efffeda13c4c29f3e8d46a2a",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

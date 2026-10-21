@@ -1,0 +1,25 @@
+scripts/patches/taffy-0.14.0/0009-Kitesurf-CSS-layout-coverage-table-gutters.patch
+  s_280ef410dd4391::t_34d09a4da8c780 4,9-10
+scripts/patches/blitz-paint-0.3.0-beta.2/0028-Kitesurf-CSS-layout-coverage-collapsed-borders.patch
+  s_280ef410dd4391::t_34d09a4da8c780 4,9-10
+scripts/patches/stylo_taffy-0.3.0-beta.2/0005-Kitesurf-CSS-layout-coverage.patch
+  s_280ef410dd4391::t_34d09a4da8c780 4,9-10
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-Kitesurf-CSS-layout-coverage-table.patch
+  s_280ef410dd4391::t_34d09a4da8c780 4,9-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "38ff31c1fea1bd2bfce632ac6c0f53283ad14679",
+  "prompts": {},
+  "sessions": {
+    "s_280ef410dd4391": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3f8f6783ffeu8A4j6VBSym1ud",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

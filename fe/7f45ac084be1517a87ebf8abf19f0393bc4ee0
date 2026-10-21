@@ -1,0 +1,35 @@
+packages/renderer-core/scripts/build.mjs
+  s_b59a5e4402e532::t_2cbe39984448fd 158-159,161-163
+  s_b59a5e4402e532::t_6121cd3e69798a 10-11,18,87-88,90-93,95,100-102,104,160
+  s_b59a5e4402e532::t_78e59ac1a322ad 42,199
+  s_b59a5e4402e532::t_932a926ece4606 103,109,111
+  s_b59a5e4402e532::t_aeb51e931d1292 175-177
+  s_b59a5e4402e532::t_ee22f00fcd4fd0 35,211
+  s_b59a5e4402e532::t_8ebe51c213dbff 9,12-17,48,59-60,75,77-80,82,112,115-117,131-149,152-157,164-165,168-171,216
+  s_b59a5e4402e532::t_d518d81bb0c74e 150-151
+  s_b59a5e4402e532::t_48ed9cde498e9a 96-99
+  s_b59a5e4402e532::t_5891e43f1dd78a 4-6
+  s_b59a5e4402e532::t_b9884aa4fba4f7 202
+  s_b59a5e4402e532::t_f6e9001af01f92 38-40
+  s_b59a5e4402e532::t_48234b45b7001f 61-63,65,70,72-74,76,81,83-86,89,94,105-108,110,113-114,167,178,181,218,220
+  s_b59a5e4402e532::t_474c5bebc2ceb6 1-2
+  s_b59a5e4402e532::t_be1f7082b3225e 3,71
+package.json
+  s_b59a5e4402e532::t_73b49c07e64d32 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fe7f45ac084be1517a87ebf8abf19f0393bc4ee0",
+  "prompts": {},
+  "sessions": {
+    "s_b59a5e4402e532": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03983a75ffe2QyEFcjNBkwb60",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

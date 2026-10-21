@@ -1,0 +1,42 @@
+packages/engine/src/eval/page-script.ts
+  s_f977f0f910b2b1::t_93bd6c97d0c936 1468-1470,1495
+packages/engine/test/fixtures-worker/assets/oopif-child-color-swap.js
+  s_f977f0f910b2b1::t_bb77e9ff4d0739 6-7
+  s_f977f0f910b2b1::t_dff2053ffabe67 1-5,8-15
+packages/engine/src/cdp/page.ts
+  s_f977f0f910b2b1::t_d55389faae6acd 5247-5248,5283-5284,5319,5365
+  s_f977f0f910b2b1::t_d970eb50acedbb 5361,5363,5366-5370,6423,6429,6442-6444,6446
+  s_f977f0f910b2b1::t_42c8b3ffb93e0b 5275-5276
+packages/engine/src/eval/oopif-render.ts
+  s_f977f0f910b2b1::t_93bd6c97d0c936 29-32,149-153,155-157,159-168,170-179,181-188,273-274,434-437,439-443,446-464,466
+  s_f977f0f910b2b1::t_2abc6390551759 104-105,169,180,192-193,254-255,309,321-322,387,432,438,444
+  s_f977f0f910b2b1::t_59637a0321366e 43-47,154
+packages/engine/test/fixtures-worker/assets/oopif-child-color-swap.html
+  s_f977f0f910b2b1::t_376c5dc16f612d 5
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_f977f0f910b2b1::t_dff2053ffabe67 882,1307-1308
+packages/engine/test/e2e/bridge-array-lazy.e2e.test.ts
+  s_f977f0f910b2b1::t_50a3f985cf11b0 62,102-108
+  s_f977f0f910b2b1::t_03d7f019f27578 109-110
+packages/engine/src/cdp/target.ts
+  s_f977f0f910b2b1::t_d55389faae6acd 463
+  s_f977f0f910b2b1::t_d970eb50acedbb 464-478
+packages/engine/src/cdp/types.ts
+  s_f977f0f910b2b1::t_d55389faae6acd 549-550
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c229960daba3a16e64aab2fb8eed16180ac33d2e",
+  "prompts": {},
+  "sessions": {
+    "s_f977f0f910b2b1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb817b8e3ffemNhmAdrY3UMtPl",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

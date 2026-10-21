@@ -1,0 +1,28 @@
+packages/engine/src/screenshot.ts
+  s_0b5a824d53c86e::t_83a0189f4ce602 45-46,82-230,232-237,240-257,305-310
+packages/engine/src/pdf.ts
+  s_0b5a824d53c86e::t_83a0189f4ce602 54-59,86-94,101-106
+packages/engine/src/quickaction.ts
+  s_0b5a824d53c86e::t_d1dda24dfabf7d 1115-1118,1121-1125
+  s_0b5a824d53c86e::t_aad05a01f7a707 1100
+  s_0b5a824d53c86e::t_83a0189f4ce602 65-69,80-81,83,85-89,92-96,98,100-103,344-350,356-362,507-522,524,526-527,529,531-541,597,605-610,968-997
+  s_0b5a824d53c86e::t_0c07f22a42e911 1151-1172
+  s_0b5a824d53c86e::t_ea104397bf06d3 998-999
+  s_0b5a824d53c86e::t_17a7ab05283564 1126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e714304f892654d7e26032675431420d066ccac7",
+  "prompts": {},
+  "sessions": {
+    "s_0b5a824d53c86e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_07f01b687ffeF18QkiX2ryB96n",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

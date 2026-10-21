@@ -1,0 +1,23 @@
+packages/engine/public/_headers
+  s_909163843c9dee::t_74a404fdcf69bf 1-2
+packages/website/src/styles/base.css
+  s_909163843c9dee::t_e749d7b876cf2d 4,11,18
+packages/website/src/components/Document.tsx
+  s_909163843c9dee::t_74a404fdcf69bf 65-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ff254d85109c3e0c3ef197bb82e92eb12c410020",
+  "prompts": {},
+  "sessions": {
+    "s_909163843c9dee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1b8ee7e2ffe0ZSBgOtK2CgnBd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Brandon Strittmatter <bstrittmatter@cloudflare.com>"
+    }
+  }
+}

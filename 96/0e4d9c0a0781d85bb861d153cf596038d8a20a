@@ -1,0 +1,23 @@
+packages/engine/src/cdp/protocol-extensions.d.ts
+  s_0c9b27c38a42a1::t_b2854f2ecce224 230-231,234-244,246-247,249,251-257,261-266,270-272,275,280-291
+  s_0c9b27c38a42a1::t_de76aed603c0bd 245,248,250
+  s_0c9b27c38a42a1::t_21744d25f0d801 315-320,323,325-329
+  s_0c9b27c38a42a1::t_1efb4f67994ab2 268
+  s_0c9b27c38a42a1::t_279b5b698d215a 346-347,366-382,386-388,394-397
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "960e4d9c0a0781d85bb861d153cf596038d8a20a",
+  "prompts": {},
+  "sessions": {
+    "s_0c9b27c38a42a1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef7e2bd10ffeioh5oQ7RUlZ3aX",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

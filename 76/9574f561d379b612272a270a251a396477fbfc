@@ -1,0 +1,26 @@
+docs/TERMINAL.md
+  s_296f2365729419::t_a11c15e8f98751 6-7
+  s_296f2365729419::t_079dad1f4756fb 8
+packages/engine/src/index.ts
+  s_296f2365729419::t_490ad14a2c6b8f 347-349
+  s_296f2365729419::t_079dad1f4756fb 160-162,344,346
+  s_296f2365729419::t_a11c15e8f98751 343,345
+packages/engine/wrangler.jsonc
+  s_296f2365729419::t_a11c15e8f98751 143-145,388
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "769574f561d379b612272a270a251a396477fbfc",
+  "prompts": {},
+  "sessions": {
+    "s_296f2365729419": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f28b529a3ffeo0w45PqHM10i01",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}

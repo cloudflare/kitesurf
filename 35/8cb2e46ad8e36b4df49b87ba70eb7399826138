@@ -1,0 +1,21 @@
+packages/engine/test/e2e/damage-cascade-scope.e2e.test.ts
+  s_dfd792beae87ba::t_6c17281c12c12a 1-74
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_245025604ef64c 862-875,931-944
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "358cb2e46ad8e36b4df49b87ba70eb7399826138",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

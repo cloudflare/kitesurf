@@ -1,0 +1,31 @@
+packages/core/src/hoist_incremental_test.rs
+  s_9d5f2f11e2b62c::t_6349f9aace5737 79-92,94-107,109-114,116-117,119,121-123
+scripts/patches/blitz-dom-0.3.0-beta.1/0080-Let-a-stable-hoist-close-its-parent-s-box-constructi.patch
+  s_4ac4166a7212ba::t_2b942183e74a07 1-170
+AGENTS.md
+  s_4ac4166a7212ba::t_a0ed63b9eaf7f7 264-269,272-285
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9777788bfc2a776e729666ef36fb5b8471553c04",
+  "prompts": {},
+  "sessions": {
+    "s_4ac4166a7212ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_032e8b63affeTSAvbfFC32TWpR",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_9d5f2f11e2b62c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03315f3b2ffexBhEEkGAJVFQKv",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

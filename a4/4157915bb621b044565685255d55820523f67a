@@ -1,0 +1,37 @@
+packages/engine/test/e2e/clip-regions.e2e.test.ts
+  s_4cd8b5f9750fc5::t_cd2f88a477eb77 46-49
+  s_b194460ac5a659::t_f65474699e263d 20
+  s_b194460ac5a659::t_7be62d8c5eff2e 58
+  s_b194460ac5a659::t_dcd1d49849f7d0 54-57,59-73
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_b194460ac5a659::t_55813a20211958 840,842
+  s_b194460ac5a659::t_817a7bb53d0c1d 850
+  s_b194460ac5a659::t_9ef765af49bdae 841
+  s_4cd8b5f9750fc5::t_56aa1105d2218a 837-839,849
+scripts/patches/blitz-paint-0.3.0-beta.1/0015-Skip-painting-a-subtree-behind-an-empty-clip-region.patch
+  s_b194460ac5a659::t_4c6c500df01263 1-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a44157915bb621b044565685255d55820523f67a",
+  "prompts": {},
+  "sessions": {
+    "s_4cd8b5f9750fc5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_033165567ffecPpsdlMWf0Uflr",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b194460ac5a659": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_032e9224cffeZfl1akIGEZ2npH",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

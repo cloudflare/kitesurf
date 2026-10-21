@@ -1,0 +1,27 @@
+packages/control/src/index.ts
+  a9d18450247e7442 342-343,365-366,567-603
+examples/modules-demo.mjs
+  a9d18450247e7442 1-74
+packages/control/src/eval/page-script-source.ts
+  a9d18450247e7442 634-712,714-715,717-729,731-743,863
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "76158187b04bd10eb6c1ae31049e77a339294efa",
+  "prompts": {
+    "a9d18450247e7442": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21619b405ffeufpXKGNb5AayFK",
+        "model": "anthropic/claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira",
+      "messages": [],
+      "total_additions": 223,
+      "total_deletions": 11,
+      "accepted_lines": 223,
+      "overriden_lines": 0
+    }
+  }
+}

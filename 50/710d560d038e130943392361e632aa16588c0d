@@ -1,0 +1,19 @@
+tests/wpt-expectations.json
+  s_e7dc27bdab5fff::t_1bebdea575215f 8300-8307,8332-8335,8384-8391
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "50710d560d038e130943392361e632aa16588c0d",
+  "prompts": {},
+  "sessions": {
+    "s_e7dc27bdab5fff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00a4f8786ffeFB2n8VkGusS6CL",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

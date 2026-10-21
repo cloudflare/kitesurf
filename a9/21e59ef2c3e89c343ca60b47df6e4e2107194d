@@ -1,0 +1,82 @@
+packages/dom-shim/src/collections.ts
+  s_19dcae60277223::t_d8a4183cd06011 136
+packages/dom-shim/src/element/table.ts
+  s_19dcae60277223::t_ac1b8f5754f910 34-42,58
+  s_19dcae60277223::t_543f27d53db8eb 3,57,91,119
+packages/dom-shim/src/element/forms/form.ts
+  s_19dcae60277223::t_543f27d53db8eb 5,72
+packages/dom-shim/src/element/element.ts
+  s_19dcae60277223::t_d75fa2b7d5f0b2 26,2277
+  s_19dcae60277223::t_543f27d53db8eb 16,1287
+packages/dom-shim/src/window.ts
+  s_19dcae60277223::t_1aea509010bc7a 400-401,404-405,1021-1022
+  s_19dcae60277223::t_b25f2ab281ff72 611-612,620,1362
+  s_19dcae60277223::t_0e7562511c70fc 31-32,396-399,402-403,406-425,602,657-658,688-689,965,1018-1020,1253
+  s_19dcae60277223::t_bfb345fecae8cd 7,1736
+  s_19dcae60277223::t_4661dc48a251bb 125-128,131,148,159,165,176,216,222,426,504,556,623,646,660,683,686,742,921,927,936,945,950,954,959,962,967,982,1001,1315,1496,1500,1534,1540,1609,1652,1686
+  s_19dcae60277223::t_fe335275310d3a 659
+packages/dom-shim/src/element/forms/listed.ts
+  s_19dcae60277223::t_543f27d53db8eb 1,18
+packages/dom-shim/src/node-base.ts
+  s_19dcae60277223::t_d8a4183cd06011 8,39,1104
+  s_19dcae60277223::t_5b57cf065d12bb 1101
+  s_19dcae60277223::t_5599cd37838870 597,613,622
+  s_19dcae60277223::t_2ff20cd4303100 28
+packages/dom-shim/src/element/forms/label.ts
+  s_19dcae60277223::t_543f27d53db8eb 2,14
+packages/dom-shim/src/element/forms/select.ts
+  s_19dcae60277223::t_543f27d53db8eb 6,87
+packages/page-script/src/index.ts
+  s_19dcae60277223::t_be5eb4b65b9858 516
+packages/dom-shim/src/idl/type-gaps.json
+  s_19dcae60277223::t_5b57cf065d12bb 90-94
+packages/dom-shim/src/state.ts
+  s_19dcae60277223::t_58310bd959ea4f 41,446-449
+  s_19dcae60277223::t_543f27d53db8eb 313-318
+  s_19dcae60277223::t_bfb345fecae8cd 21,337,344,352-353
+  s_19dcae60277223::t_d8a4183cd06011 338-343,450
+packages/dom-shim/src/element/forms/input.ts
+  s_19dcae60277223::t_543f27d53db8eb 2,310
+packages/dom-shim/src/element/html-element.ts
+  s_19dcae60277223::t_543f27d53db8eb 2,109
+packages/page-script/src/types.ts
+  s_19dcae60277223::t_be5eb4b65b9858 128
+packages/dom-shim/src/element/forms/labelable.ts
+  s_19dcae60277223::t_543f27d53db8eb 1,28
+packages/dom-shim/src/index.ts
+  s_19dcae60277223::t_0e7562511c70fc 686
+packages/dom-shim/src/mutations/observer.ts
+  s_19dcae60277223::t_623f3f4750f8e4 64
+packages/dom-shim/src/registries.ts
+  s_19dcae60277223::t_5b57cf065d12bb 173-176
+packages/dom-shim/strict-baseline.json
+  s_19dcae60277223::t_e3d748f4b7c236 6
+packages/dom-shim/src/document.ts
+  s_19dcae60277223::t_d75fa2b7d5f0b2 1455,1463-1464,1466
+  s_19dcae60277223::t_d8a4183cd06011 14,206,452
+packages/dom-shim/src/element/forms/input-state.ts
+  s_19dcae60277223::t_543f27d53db8eb 1,192
+packages/dom-shim/src/range.ts
+  s_19dcae60277223::t_4f0ca1f5112dee 724-729,731
+  s_19dcae60277223::t_58310bd959ea4f 13,708-710
+packages/dom-shim/src/select-dropdown.ts
+  s_19dcae60277223::t_bc96c8e5e0e534 18-19,28,36,46-47,88,108
+packages/dom-shim/src/idl/types.generated.ts
+  s_19dcae60277223::t_6ecf63705ff276 2442
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a921e59ef2c3e89c343ca60b47df6e4e2107194d",
+  "prompts": {},
+  "sessions": {
+    "s_19dcae60277223": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb5008010ffetjH3RwXgLAS3XT",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

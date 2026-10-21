@@ -1,0 +1,19 @@
+packages/engine/src/cdp/page.ts
+  s_2291daa1ffc3b0::t_83fc0b86da5010 4377-4380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ed189fa21bc60a1e3b26301e21a9d05e13d24bce",
+  "prompts": {},
+  "sessions": {
+    "s_2291daa1ffc3b0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_058089096ffe3ndKxfnnAV6T3e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": null
+    }
+  }
+}

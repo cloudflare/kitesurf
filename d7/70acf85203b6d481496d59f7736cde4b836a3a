@@ -1,0 +1,66 @@
+packages/dom-shim/src/index.ts
+  s_0b62245bd53100::t_6fbda7e0701262 225,1379
+packages/core/src/animation_clock_test.rs
+  s_0b62245bd53100::t_db5c0901a72497 331,369
+  s_0b62245bd53100::t_05846986136ffa 332-368
+  s_0b62245bd53100::t_9f5e8156705fc1 183-185
+  s_0b62245bd53100::t_31c293bb94d23a 330
+  s_0b62245bd53100::t_29144d3c46f8c1 24,60-64,307-329
+packages/dom-shim/src/events/event.ts
+  s_0b62245bd53100::t_ac39e630c9508d 401-415
+  s_0b62245bd53100::t_5abd63588d5b8a 998
+  s_0b62245bd53100::t_9d4df8285b13f3 739-741
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_0b62245bd53100::t_4a441c89850c24 248-291
+packages/dom-shim/src/events/dispatch.ts
+  s_0b62245bd53100::t_d4f4248ea3dd56 22,155-156,210
+  s_0b62245bd53100::t_cffc4a13190f84 570-573
+packages/core/src/lib.rs
+  s_0b62245bd53100::t_db3faea97c13bb 3843-3848
+  s_0b62245bd53100::t_17c1b048c277a1 2708-2723
+  s_0b62245bd53100::t_53780360f24810 51-53,435-439,836-837
+  s_0b62245bd53100::t_c158579cdd2b5d 3837-3842
+packages/core/src/transitions.rs
+  s_0b62245bd53100::t_9f5e8156705fc1 133,173-177,232,249
+  s_0b62245bd53100::t_df0e90913a5b64 130
+  s_0b62245bd53100::t_9defefae4c31a4 12
+  s_0b62245bd53100::t_6fa60d6d26e13e 25-27,66-77,92-116,118-119,121,123,134-143,145-172,178-231,233-248,250-297
+  s_0b62245bd53100::t_0f721cdeafe720 117,120,122,124-129,131-132,144
+  s_0b62245bd53100::t_3ac8017caee53e 298
+packages/page-script/src/transitions.ts
+  s_0b62245bd53100::t_23e190ecc5b0f1 1-3
+  s_0b62245bd53100::t_82841628bbf4ea 171
+  s_0b62245bd53100::t_7a5921f2a57405 5-6
+  s_0b62245bd53100::t_69ee2ed8f7677e 39,60-61,73,90-91,93-98,105-106,108-111,113,115-118,149-162,172
+  s_0b62245bd53100::t_7a2ac3e3a042b7 41-46
+  s_0b62245bd53100::t_db5c0901a72497 163-170
+  s_0b62245bd53100::t_eaac3d8f73f452 173
+packages/dom-shim/src/transitions.ts
+  s_0b62245bd53100::t_06f208ef9220a1 26,32-34,38-41,47-49
+  s_0b62245bd53100::t_e81fcec35b74c5 1,18-23,36-37
+  s_0b62245bd53100::t_5e5189f2f2e2ba 44-45
+  s_0b62245bd53100::t_0da356c7623287 35
+docs/TRANSITIONS.md
+  s_0b62245bd53100::t_1488862ef15833 3-4,44-46,65-69,88-92,96-98,108-111
+packages/dom-shim/src/state.ts
+  s_0b62245bd53100::t_237a3056cf4574 65,104-106
+packages/page-script/src/globals.ts
+  s_0b62245bd53100::t_88d91347c24b1a 5492
+  s_0b62245bd53100::t_3b2202cf8e6bf8 1559
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d770acf85203b6d481496d59f7736cde4b836a3a",
+  "prompts": {},
+  "sessions": {
+    "s_0b62245bd53100": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb909e891ffeOysb1haJ2cDJYI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

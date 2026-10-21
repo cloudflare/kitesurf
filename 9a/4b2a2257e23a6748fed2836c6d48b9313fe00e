@@ -1,0 +1,23 @@
+packages/engine/test/e2e/demos/page-renderer-relaunch.e2e.test.ts
+  s_c9f68948e839d2::t_5a48bd8a4eacd7 1-6
+packages/engine/src/eval/page-renderer.ts
+  s_c9f68948e839d2::t_5a48bd8a4eacd7 522-530,532
+research/page-renderer-plan.md
+  s_c9f68948e839d2::t_f7fd011f27073f 221-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9a4b2a2257e23a6748fed2836c6d48b9313fe00e",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

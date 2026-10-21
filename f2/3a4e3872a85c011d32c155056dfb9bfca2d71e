@@ -1,0 +1,21 @@
+tests/interactivity-flows/flows.ts
+  s_82c6f22e2b0444::t_8b5bc7b9342113 770,774-775,777-778,782
+  s_82c6f22e2b0444::t_3398a22db91db5 779-781,785-787
+  s_82c6f22e2b0444::t_953d459549d2dc 768-769,771-772
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f23a4e3872a85c011d32c155056dfb9bfca2d71e",
+  "prompts": {},
+  "sessions": {
+    "s_82c6f22e2b0444": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00dc5b66cffesWPaC4oZLhbxGN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

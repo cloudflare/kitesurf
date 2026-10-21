@@ -1,0 +1,39 @@
+packages/engine/src/index.ts
+  s_c6d6a3ac21fe46::t_aade47db61f3ae 24,153,199-201,208-209,212,418-422,438,483-488
+packages/engine/src/internal/index.ts
+  s_c6d6a3ac21fe46::t_eddad7102853c6 1-30
+packages/engine/src/internal/ready-analytics.ts
+  s_c6d6a3ac21fe46::t_3807c3fcab2298 1-27,29-31,33-34,36-38,40-155
+  s_c6d6a3ac21fe46::t_229fda599f16a6 28,32,35,39
+packages/engine/src/host.ts
+  s_c6d6a3ac21fe46::t_d1c52e1533cd14 1-4,6-24
+  s_c6d6a3ac21fe46::t_50efe3ea38db3a 5
+packages/engine/src/cdp/connection.ts
+  s_c6d6a3ac21fe46::t_80148447e21746 65,107-108,276,291-295
+packages/engine/src/eval/external-session.ts
+  s_c6d6a3ac21fe46::t_aade47db61f3ae 156,172
+  s_c6d6a3ac21fe46::t_518dbd9c27b4e4 7
+  s_c6d6a3ac21fe46::t_8c905bcb32269d 8
+packages/engine/src/observability.ts
+  s_c6d6a3ac21fe46::t_f762c6dac6da9c 77
+  s_c6d6a3ac21fe46::t_35d1b8e655f81a 1-3,5,27,81-137,139,149-153,155,161-171,195-196,198,200,206,212,215,221-223
+packages/engine/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_50efe3ea38db3a 4
+  s_c6d6a3ac21fe46::t_fcdebd260e9c88 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "55f53d690666bad66e11d2d0c28ac5016367227e",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

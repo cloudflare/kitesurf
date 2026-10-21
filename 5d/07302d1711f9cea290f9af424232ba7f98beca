@@ -1,0 +1,21 @@
+scripts/patches/blitz-dom-0.3.0-beta.3/0151-kitesurf-keep-the-input-s-font-style-on-placeholder-.patch
+  s_f2f1dbce2d5d5d::t_c283e65c6cda4b 1-37
+packages/engine/test/e2e/input-placeholder-style.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_b5e20e0fa07842 1-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5d07302d1711f9cea290f9af424232ba7f98beca",
+  "prompts": {},
+  "sessions": {
+    "s_f2f1dbce2d5d5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaf4cb2b5ffeHlvt6Yw56JGX3h",
+        "model": "unknown"
+      },
+      "human_author": "Nuno Pereira <npereira@cloudflare.com>"
+    }
+  }
+}

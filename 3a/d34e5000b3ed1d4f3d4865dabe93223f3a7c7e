@@ -1,0 +1,29 @@
+packages/engine/src/quickactions/index.ts
+  s_4efb85c8268621::t_59977e95c2ca33 1343-1365
+packages/engine/test/fixtures-worker/assets/late-hydrate.html
+  s_4efb85c8268621::t_1eff41ad9458c1 1-11,23,32-35
+  s_4efb85c8268621::t_2ed42fce787234 26-31
+  s_4efb85c8268621::t_2da311167b6d8d 12-22,24-25
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_4efb85c8268621::t_03713606ec7504 735-736
+  s_4efb85c8268621::t_b430739faec456 1523-1525
+  s_4efb85c8268621::t_c8c579e972186e 1530-1533
+packages/engine/test/e2e/get-wait-until.e2e.test.ts
+  s_4efb85c8268621::t_c0a8a18d09776e 1-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3ad34e5000b3ed1d4f3d4865dabe93223f3a7c7e",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

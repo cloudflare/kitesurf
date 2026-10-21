@@ -1,0 +1,60 @@
+packages/core/src/hoist_incremental_test.rs
+  s_50d45ac3d4c7e5::t_cf9082e76f6a2f 1-8,19-23,39,79,88-89,92-93
+  s_50d45ac3d4c7e5::t_1fc74914256d32 40-78
+  s_50d45ac3d4c7e5::t_89dcd041a1dd32 9,11-12,14-18,26,30-33,35-37,80-82,85-87,91
+  s_50d45ac3d4c7e5::t_e177c712cb026d 10,13,24-25,27-29,34,38,83-84,90
+packages/core/src/svg_mutation_resnapshot_test.rs
+  s_50d45ac3d4c7e5::t_51048ab76a558d 90-91,93-95
+docs/SVG.md
+  s_50d45ac3d4c7e5::t_0a707f58a81043 32-38
+scripts/patches/blitz-dom-0.3.0-beta.1/0065-kitesurf-replay-hoists-from-parents-a-partial-resolv.patch
+  s_50d45ac3d4c7e5::t_0c4f455d22f85f 1-115
+AGENTS.md
+  s_50d45ac3d4c7e5::t_749945ed800857 255-263
+  s_50d45ac3d4c7e5::t_91edffeee81434 492-494
+  s_50d45ac3d4c7e5::t_5d60a0f5b156e5 82-83
+  s_50d45ac3d4c7e5::t_01a979cd0144d6 238-254,264-272
+scripts/patches/blitz-dom-0.3.0-beta.1/0066-kitesurf-re-break-inline-containers-a-measure-pass-l.patch
+  s_50d45ac3d4c7e5::t_2ddff5d1bbdf18 1-236
+scripts/patches/blitz-dom-0.3.0-beta.1/0061-Implement-CSS-counters-resolution-pass-counter-conte.patch
+  s_50d45ac3d4c7e5::t_59f4da933a828e 1044
+scripts/patches/blitz-dom-0.3.0-beta.1/0063-kitesurf-keep-incremental-layout-from-dropping-the-l.patch
+  s_50d45ac3d4c7e5::t_59f4da933a828e 1-109
+scripts/patches/blitz-dom-0.3.0-beta.1/0067-kitesurf-re-collect-nodes-that-hoisted-a-box-away.patch
+  s_50d45ac3d4c7e5::t_5b8cb6bc472735 1-40
+scripts/patches/blitz-dom-0.3.0-beta.1/0068-kitesurf-re-break-clobbered-inlines-without-rebuildi.patch
+  s_50d45ac3d4c7e5::t_5b8cb6bc472735 1-271
+scripts/patches/blitz-dom-0.3.0-beta.1/0069-kitesurf-bust-the-layout-cache-for-nodes-that-regist.patch
+  s_50d45ac3d4c7e5::t_5b8cb6bc472735 1-83
+packages/core/src/animation_clock_test.rs
+  s_50d45ac3d4c7e5::t_02008cbd450fa7 1-2,4-11
+  s_50d45ac3d4c7e5::t_685ff1857e37ec 37-40
+  s_50d45ac3d4c7e5::t_077371515b5c9e 69-74
+  s_50d45ac3d4c7e5::t_b12d729171fdc0 75
+scripts/patches/blitz-dom-0.3.0-beta.1/0064-kitesurf-rebuild-the-inline-svg-snapshot-when-its-su.patch
+  s_50d45ac3d4c7e5::t_59f4da933a828e 1-84
+scripts/patches/stylo-0.19.0/0024-kitesurf-never-start-a-CSS-transition.patch
+  s_50d45ac3d4c7e5::t_b2a5383b311f2b 1-78
+packages/core/Cargo.toml
+  s_50d45ac3d4c7e5::t_90e76f18ef9263 84
+packages/core/src/radar_grid_repro_test.rs
+  s_50d45ac3d4c7e5::t_73409d5fd9577e 58-89
+  s_50d45ac3d4c7e5::t_ebb05f29d0afda 29-35,38-55
+  s_50d45ac3d4c7e5::t_00ceea24b8d68e 36-37,56-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "efd7675a25860572a6399af620b17a59e789b989",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

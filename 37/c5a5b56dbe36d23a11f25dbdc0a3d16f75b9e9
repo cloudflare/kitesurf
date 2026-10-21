@@ -1,0 +1,25 @@
+packages/engine/src/cookies.ts
+  s_ebc9d43f49867a::t_108065e36224ad 780-784,789
+  s_ebc9d43f49867a::t_5f5b93790f1734 800-838
+packages/engine/test/cookies.test.ts
+  s_ebc9d43f49867a::t_4a124612bfd5f1 14,535-561
+  s_ebc9d43f49867a::t_30b987cd9524ed 562
+packages/engine/src/cdp/network.ts
+  s_ebc9d43f49867a::t_d3cc5a5c8e2cc1 3,125,132,170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "37c5a5b56dbe36d23a11f25dbdc0a3d16f75b9e9",
+  "prompts": {},
+  "sessions": {
+    "s_ebc9d43f49867a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0d62d6bfffeEicn5CQ06c8WIb",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

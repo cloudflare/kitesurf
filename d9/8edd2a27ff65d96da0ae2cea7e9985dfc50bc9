@@ -1,0 +1,22 @@
+packages/engine/scripts/wrangler-json.ts
+  s_d0b7ef49ec411f::t_501c53031ae06c 54-64
+packages/engine/cloudflare.config.ts
+  s_d0b7ef49ec411f::t_2f5643a4795099 231-232
+  s_d0b7ef49ec411f::t_9258587299340c 184-195,203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d98edd2a27ff65d96da0ae2cea7e9985dfc50bc9",
+  "prompts": {},
+  "sessions": {
+    "s_d0b7ef49ec411f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb7b953deffe6fWRfTT3Ug1jIW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

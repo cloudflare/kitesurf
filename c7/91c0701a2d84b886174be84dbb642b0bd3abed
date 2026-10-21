@@ -1,0 +1,41 @@
+packages/dom-shim/src/internal-state.ts
+  s_e5734d2cdd8842::t_38d77cb41a72f5 25
+packages/engine/test/e2e/demos/iframe-bitmap-paint.e2e.test.ts
+  s_e5734d2cdd8842::t_38d77cb41a72f5 34-41,44
+packages/page-script/src/internals.ts
+  s_e5734d2cdd8842::t_38d77cb41a72f5 1-2,7
+packages/page-script/src/internal-state.ts
+  s_e5734d2cdd8842::t_38d77cb41a72f5 265-344,350-351,354
+AGENTS.md
+  s_e5734d2cdd8842::t_38d77cb41a72f5 50
+packages/engine/test/e2e/demos/clock-floor-stamp-demo.e2e.test.ts
+  s_e5734d2cdd8842::t_38d77cb41a72f5 8-15,26,39
+packages/dom-shim/src/internals.ts
+  s_e5734d2cdd8842::t_38d77cb41a72f5 1-4,8
+packages/engine/test/e2e/boa-ctx-reentry.e2e.test.ts
+  s_e5734d2cdd8842::t_38d77cb41a72f5 139-143,146
+packages/engine/test/e2e/demos/document-fonts-ready.e2e.test.ts
+  s_e5734d2cdd8842::t_38d77cb41a72f5 21-24,31-32
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_e5734d2cdd8842::t_38d77cb41a72f5 18,20-22
+packages/engine/test/e2e/demos/font-heavy.e2e.test.ts
+  s_e5734d2cdd8842::t_38d77cb41a72f5 53-56,63-64
+packages/dom-shim/MODULES.md
+  s_e5734d2cdd8842::t_38d77cb41a72f5 128-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c791c0701a2d84b886174be84dbb642b0bd3abed",
+  "prompts": {},
+  "sessions": {
+    "s_e5734d2cdd8842": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb7b5c1b1ffemNY2McWVkjToXQ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

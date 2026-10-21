@@ -1,0 +1,20 @@
+.cloudflare/grafana/kitesurf-usage.json
+  s_56d9f9d4a4eee3::t_738f72f03cf0bf 169
+  s_56d9f9d4a4eee3::t_342912bdd7c9b6 159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3622b90df95c1d4d447d95cfbd1bdacdd5fb5623",
+  "prompts": {},
+  "sessions": {
+    "s_56d9f9d4a4eee3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009ab5a06ffexYbRc4IThTP1Qp",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

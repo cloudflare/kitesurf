@@ -1,0 +1,22 @@
+packages/dom-shim/src/element/load-events.ts
+  s_6c654678aa9595::t_bd09517e2607f4 8-9,11,14,17,25-27,43,51,63-64,91,98,106,114,128,137,143,148,154-155,172,181,188,193
+packages/dom-shim/src/element/reflect.ts
+  s_6c654678aa9595::t_bd09517e2607f4 3,49,58,75,111,116,130,150,197,217
+  s_6c654678aa9595::t_9cd190ba1a35d0 170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fb508a62c60f1e48a410893549bfc954f1a14a6a",
+  "prompts": {},
+  "sessions": {
+    "s_6c654678aa9595": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eef0d955bffekSC4jvs7gzseUB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

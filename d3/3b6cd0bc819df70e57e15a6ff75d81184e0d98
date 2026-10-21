@@ -1,0 +1,52 @@
+packages/engine/src/cdp/target.ts
+  s_e25adfb431bb8a::t_d531c1a456e8b4 436-437,450-467
+  s_e25adfb431bb8a::t_9b4ec2e2586cd1 362,515
+packages/engine/src/cdp/dom.ts
+  s_e25adfb431bb8a::t_8c2b434496b6f9 734-738
+packages/engine/src/cdp/types.ts
+  s_e25adfb431bb8a::t_9293ef54bf3c3e 243,456,723-729
+  s_e25adfb431bb8a::t_ba267da21b429f 244-250
+  s_e25adfb431bb8a::t_a5aa9fb91646f1 457-471
+packages/engine/src/cdp/connection.ts
+  s_e25adfb431bb8a::t_53b23c348bf3ae 21,643-647,669-670
+  s_e25adfb431bb8a::t_bbbc28aec2b368 23,378-380
+docs/IFRAMES.md
+  s_e25adfb431bb8a::t_a3a280867011ba 118-119,127-142,161-166
+  s_e25adfb431bb8a::t_191711a234880c 113-117,120-126,143-160
+packages/engine/src/cdp/page.ts
+  s_e25adfb431bb8a::t_285279f7052b9e 2984-2987
+  s_e25adfb431bb8a::t_53b23c348bf3ae 5436
+  s_e25adfb431bb8a::t_8c2b434496b6f9 2322-2325,2988-2991,7398-7399
+  s_e25adfb431bb8a::t_c0545c7841e447 5110-5116,5142-5153,5199-5204,5237-5242
+  s_e25adfb431bb8a::t_179d56d719f476 4780-4795
+  s_e25adfb431bb8a::t_587b41981207a4 126-128
+  s_e25adfb431bb8a::t_d8da073a6b64ab 5233-5236,5243-5258,5308-5310,5321-5322,5332-5335,5424-5431,5476-5480
+packages/engine/src/eval/page-renderer.ts
+  s_e25adfb431bb8a::t_587b41981207a4 22-25
+  s_e25adfb431bb8a::t_70971e33e008f1 279-283,297,303,310-314,421-422
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_e25adfb431bb8a::t_7fcad167f221c6 2962
+  s_e25adfb431bb8a::t_6026e23e7f324a 2401-2404,2943-2961
+packages/engine/src/eval/worker-budget.ts
+  s_e25adfb431bb8a::t_fda32d61be3f5a 1-57,63-67,69-112,126-129,131-153
+  s_e25adfb431bb8a::t_101fc614944ca3 58-62,68,113-125,130
+packages/engine/test/e2e/demos/oopif-worker-budget.e2e.test.ts
+  s_e25adfb431bb8a::t_f426a521ad0f61 13-16,18-20,29,33,43
+  s_e25adfb431bb8a::t_0502eb3c1ee564 1-12,17,21-28,30-32,34-42,44-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d33b6cd0bc819df70e57e15a6ff75d81184e0d98",
+  "prompts": {},
+  "sessions": {
+    "s_e25adfb431bb8a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02e6b3571ffe4wNdhHJ8ZrZzRn",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

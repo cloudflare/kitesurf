@@ -1,0 +1,21 @@
+packages/engine/test/e2e/window-global-scope.e2e.test.ts
+  s_4ba79f911c93c4::t_dd6cb1d02da110 205-212,232-237
+packages/page-script/src/index.ts
+  s_4ba79f911c93c4::t_ab1b3c0571011e 4311-4318
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3dfbb202673c1712bb7d9c5a9b675605386fec4e",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

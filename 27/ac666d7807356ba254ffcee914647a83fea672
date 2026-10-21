@@ -1,0 +1,21 @@
+packages/engine/src/eval/walk-module-graph.ts
+  s_0440002d6eb722::t_be9da4a3ea6dbd 132-147,155-170
+packages/engine/test/walk-module-graph.test.ts
+  s_0440002d6eb722::t_ee2c1319be941b 238-286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "27ac666d7807356ba254ffcee914647a83fea672",
+  "prompts": {},
+  "sessions": {
+    "s_0440002d6eb722": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3a2558f9ffe4g3Z8G051SjXGQ",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+packages/page-script/src/globals.ts
+  s_1b6c9fae5f95a4::t_fdd666e65b620f 3367,3419,3425-3426
+  s_1b6c9fae5f95a4::t_1eb1f4496e7c3a 3368-3372,3392-3395,3420-3424
+packages/engine/test/fixtures-worker/assets/ce-mixin-late.html
+  s_1b6c9fae5f95a4::t_fdd666e65b620f 4,20
+  s_1b6c9fae5f95a4::t_1eb1f4496e7c3a 5-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "67a14869aa03376f877509a7b2312f830a722a0b",
+  "prompts": {},
+  "sessions": {
+    "s_1b6c9fae5f95a4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f689fc76fffe3zBw7zhMFE1Inb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

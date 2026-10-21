@@ -1,0 +1,21 @@
+packages/core/src/scene_decode.rs
+  s_e1d7461d1a8822::t_31a5cb9563a8ce 623-624,730,733-740,1516,1533,1551,1577
+  s_e1d7461d1a8822::t_2c0b2bb6bb1d7e 625-629
+  s_e1d7461d1a8822::t_0d7d870a30f244 619,622,729,731-732,968,1510-1515,1517-1532,1534-1550,1552-1576,1578
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1f617434c18052221351757962ad393cc2918d8d",
+  "prompts": {},
+  "sessions": {
+    "s_e1d7461d1a8822": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039ac9d0ffeQZMXoLnEhbaNG7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

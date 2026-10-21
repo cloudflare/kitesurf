@@ -1,0 +1,24 @@
+packages/engine/src/quickactions/screenshot.ts
+  s_6cd5593d0618ac::t_492514ffb52058 15-16,117,120-123,139-143
+packages/engine/test/e2e/screenshot-pdf-brapi.e2e.test.ts
+  s_6cd5593d0618ac::t_d78ca465dac01a 99-101
+  s_6cd5593d0618ac::t_d6b6d9bdcc06a9 7,103-104
+  s_6cd5593d0618ac::t_492514ffb52058 82-98,102
+  s_6cd5593d0618ac::t_f00323f3aa2c8a 105-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "46da214aafb3ccaf1be69bddee7357c0b610b7eb",
+  "prompts": {},
+  "sessions": {
+    "s_6cd5593d0618ac": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3658d26dffepgxhovVQonctqb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

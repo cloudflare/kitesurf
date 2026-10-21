@@ -1,0 +1,65 @@
+packages/tty-css-preview/extension/fallback-level2.css
+  s_31b07b58a577cd::t_b1b84d1534db70 1-13
+packages/tty-css-preview/extension/snap.js
+  s_31b07b58a577cd::t_b1b84d1534db70 1-23
+packages/tty-css-preview/src/server.mjs
+  s_31b07b58a577cd::t_b1b84d1534db70 1-94
+packages/tty-css-preview/extension/manifest.json
+  s_31b07b58a577cd::t_b1b84d1534db70 1-27
+package.json
+  s_31b07b58a577cd::t_b1b84d1534db70 11,48
+packages/tty-css-preview/test/scroll.test.mjs
+  s_31b07b58a577cd::t_b1b84d1534db70 1-37
+packages/tty-css-preview/extension/popup.css
+  s_31b07b58a577cd::t_b1b84d1534db70 1-75
+packages/tty-css-preview/test/grid.test.mjs
+  s_31b07b58a577cd::t_b1b84d1534db70 1-32
+packages/tty-css-preview/extension/popup.js
+  s_31b07b58a577cd::t_b1b84d1534db70 1-28
+packages/tty-css-preview/test/update.test.mjs
+  s_31b07b58a577cd::t_b1b84d1534db70 1-108
+packages/tty-css-preview/test/snap.test.mjs
+  s_31b07b58a577cd::t_b1b84d1534db70 1-36
+.gitlab-ci.yml
+  s_31b07b58a577cd::t_b1b84d1534db70 573-574
+packages/tty-css-preview/test/server.test.mjs
+  s_31b07b58a577cd::t_b1b84d1534db70 1-105
+packages/tty-css-preview/extension/background.js
+  s_31b07b58a577cd::t_b1b84d1534db70 1-75
+AGENTS.md
+  s_31b07b58a577cd::t_b1b84d1534db70 83-84
+packages/tty-css-preview/README.md
+  s_31b07b58a577cd::t_b1b84d1534db70 1-44
+packages/tty-css-preview/extension/popup.html
+  s_31b07b58a577cd::t_b1b84d1534db70 1-27
+packages/tty-css-preview/extension/content.js
+  s_31b07b58a577cd::t_b1b84d1534db70 1-446
+packages/tty-css-preview/extension/scroll.js
+  s_31b07b58a577cd::t_b1b84d1534db70 1-31
+packages/engine/wrangler.jsonc
+  s_31b07b58a577cd::t_b1b84d1534db70 71
+packages/tty-css-preview/package.json
+  s_31b07b58a577cd::t_b1b84d1534db70 1-12
+packages/engine/vitest.config.mts
+  s_31b07b58a577cd::t_b1b84d1534db70 61
+packages/tty-css-preview/extension/fallback-level1.css
+  s_31b07b58a577cd::t_b1b84d1534db70 1-263
+packages/tty-css-preview/extension/update.js
+  s_31b07b58a577cd::t_b1b84d1534db70 1-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f512246267c5522c21ec2f6838ac6c998085dbe",
+  "prompts": {},
+  "sessions": {
+    "s_31b07b58a577cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f45bdcab7ffe0H5to78VQLhvQL",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

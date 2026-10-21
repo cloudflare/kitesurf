@@ -1,0 +1,54 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0091-Parse-each-SVG-once-and-cache-the-tree-on-its-source.patch
+  s_dfd792beae87ba::t_3f6eae0f3f502c 3-4,9-13,15-20,22-24,28-29,32,107-131
+scripts/patches/blitz-dom-0.3.0-beta.1/0088-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
+  s_dfd792beae87ba::t_21510336572f95 29,32
+scripts/patches/blitz-dom-0.3.0-beta.1/0092-Time-the-fontface-counters-and-damage-summary-phases.patch
+  s_dfd792beae87ba::t_98ca6c45b3e3d5 16
+scripts/patches/blitz-dom-0.3.0-beta.1/0090-Cut-the-cost-of-an-attribute-write.patch
+  s_dfd792beae87ba::t_f0610cdc625946 3-4,9-10,12-24,26-34,36-45,51-56,59,62,77,95,125,139,162-164,191-202,211-327
+scripts/patches/blitz-dom-0.3.0-beta.1/0089-Stop-an-inline-rebuild-stealing-a-hoisted-box-s-layo.patch
+  s_dfd792beae87ba::t_81ae57edca4a70 34,45,48
+packages/core/src/inline_break_restore_test.rs
+  s_dfd792beae87ba::t_d3519e4a4e9fb7 1-78
+packages/core/Cargo.toml
+  s_dfd792beae87ba::t_41b78ed50bd62f 356-363
+packages/core/src/rehomed_reach_test.rs
+  s_dfd792beae87ba::t_3a0120f9c06df0 1-76
+packages/core/src/sticky_reset_test.rs
+  s_dfd792beae87ba::t_20b32d71b387bb 1-69,74-75,80-81,86,88,91-93,96,104,115,120,125-126
+  s_dfd792beae87ba::t_89b8fae7a59fa9 70-73,76-79,82-85,87,89-90,94-95,97-103,105-114,116-119,121-124
+packages/core/src/inline_break_index_test.rs
+  s_dfd792beae87ba::t_fc20a37695e26d 1-91
+scripts/patches/blitz-dom-0.3.0-beta.1/0086-kitesurf-keep-incremental-layout-from-losing-content.patch
+  s_dfd792beae87ba::t_867f666d0751a1 35-52,55-56,58-62,64-90,92,165-181,193,201,244,262-269,446,577-585,616-637,643,648-652,654-657
+packages/core/src/sticky.rs
+  s_dfd792beae87ba::t_e67a472ee1b30a 11-13,244,247-249,252,357,360,363-365,369-370,406-408
+packages/core/src/damaged_subtree_skip_test.rs
+  s_dfd792beae87ba::t_d966d2e5992b83 1-82
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_d770d15d049ccb 2632-2633,2638-2640
+  s_dfd792beae87ba::t_7a7277faebdccb 2634-2637
+  s_dfd792beae87ba::t_d383f3960ddb6b 129-134,141-146,150-152,2587-2592,2606,2615,2626-2630,2641,6010-6017
+packages/core/src/hoist_incremental_test.rs
+  s_dfd792beae87ba::t_18fa0cac43261b 195-225
+scripts/patches/blitz-dom-0.3.0-beta.1/0094-Gate-per-resolve-work-on-damage.patch
+  s_dfd792beae87ba::t_404ffe5126ed98 3-4,9-10,12-15,17-97,99-110,112-664,666,669-723,725-815,822,987-1085,1087,1090-1112,1122-1179,1187-1502
+packages/core/src/scene_record.rs
+  s_dfd792beae87ba::t_5bf69ca99b21af 314-316,326-331
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7cfa284149ed0185a3c2d6ee0cb158d815b07d9e",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": null
+    }
+  }
+}

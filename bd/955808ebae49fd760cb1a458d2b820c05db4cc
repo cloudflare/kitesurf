@@ -1,0 +1,19 @@
+packages/core/src/boa_bridge.rs
+  s_cc533517acc6cd::t_df197b5b0356ff 2368-2370
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bd955808ebae49fd760cb1a458d2b820c05db4cc",
+  "prompts": {},
+  "sessions": {
+    "s_cc533517acc6cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c00abefffehuQLqoBev19Nzi",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

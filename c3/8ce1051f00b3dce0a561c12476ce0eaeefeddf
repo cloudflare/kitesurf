@@ -1,0 +1,26 @@
+packages/page-script/src/index.ts
+  s_c9f68948e839d2::t_09ed4bdfabef40 1061
+research/page-renderer-plan.md
+  s_c9f68948e839d2::t_472999419384fa 191-200
+  s_c9f68948e839d2::t_09ed4bdfabef40 25
+packages/page-script/src/font-loader.ts
+  s_c9f68948e839d2::t_09ed4bdfabef40 23,243
+packages/core/src/fonts.rs
+  s_c9f68948e839d2::t_09ed4bdfabef40 114,125-126,335
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c38ce1051f00b3dce0a561c12476ce0eaeefeddf",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+packages/website/src/styles/landing.css
+  s_909163843c9dee::t_74a404fdcf69bf 24-28,30-31
+  s_909163843c9dee::t_27fe66c6a712a7 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "65708b4019e0faa00663e517a110b2a27e2f74c5",
+  "prompts": {},
+  "sessions": {
+    "s_909163843c9dee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1b8ee7e2ffe0ZSBgOtK2CgnBd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Brandon Strittmatter <bstrittmatter@cloudflare.com>"
+    }
+  }
+}

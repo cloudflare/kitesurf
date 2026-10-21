@@ -1,0 +1,21 @@
+packages/core/src/has_invalidation_test.rs
+  s_ec767726d83f7d::t_7d903a67076f00 28-30,154-157,180-221
+scripts/patches/blitz-dom-0.3.0-beta.1/0084-Stamp-a-restyle-hint-when-remove_node-unlinks-a-chil.patch
+  s_ec767726d83f7d::t_ae37238d5c75fb 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1241664d721b9a5dd39a32967c5f700eb5e4fd81",
+  "prompts": {},
+  "sessions": {
+    "s_ec767726d83f7d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03236d974ffeJpJa3XPliMqXxm",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

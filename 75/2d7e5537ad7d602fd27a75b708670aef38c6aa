@@ -1,0 +1,19 @@
+.gitlab-ci.yml
+  s_47461e6af773a3::t_28c5461aa01b9c 1940-1941
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "752d7e5537ad7d602fd27a75b708670aef38c6aa",
+  "prompts": {},
+  "sessions": {
+    "s_47461e6af773a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecfb22472ffeHmFwF7YQFPmr1S",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

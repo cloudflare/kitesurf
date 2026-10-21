@@ -1,0 +1,21 @@
+packages/engine/test/e2e/demos/forms-range-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_d65aa4ea913841 115-137
+scripts/patches/blitz-dom-0.3.0-beta.1/0020-CSS-compat-lift-webkit-slider-thumb-colors-into-acce.patch
+  s_f50b7cd97baf3e::t_38694e3268f756 1-269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2bd1ddd38a6a17b6521bae5f8b0e23967dd576b3",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

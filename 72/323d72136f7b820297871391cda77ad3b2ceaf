@@ -1,0 +1,21 @@
+packages/engine/src/cdp/network.ts
+  s_238805be56c310::t_f8f4ebdc6545a2 171-175,183-189
+packages/engine/test/ua-override.test.ts
+  s_238805be56c310::t_268dabe0971330 121-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "72323d72136f7b820297871391cda77ad3b2ceaf",
+  "prompts": {},
+  "sessions": {
+    "s_238805be56c310": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06c8ce359ffeUEgD8HfCgwbaQJ",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

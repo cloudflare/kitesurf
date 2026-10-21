@@ -1,0 +1,25 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0088-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-53
+scripts/patches/blitz-dom-0.3.0-beta.1/0086-kitesurf-keep-incremental-layout-from-losing-content.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-562
+scripts/patches/blitz-dom-0.3.0-beta.1/0087-Give-display-flow-root-its-own-block-formatting-cont.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-48
+scripts/patches/blitz-dom-0.3.0-beta.1/0089-Stop-an-inline-rebuild-stealing-a-hoisted-box-s-layo.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1115ac689137868aa20cfbf44c7e1d270f3a6dac",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

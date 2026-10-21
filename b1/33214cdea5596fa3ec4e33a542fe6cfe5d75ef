@@ -1,0 +1,21 @@
+packages/engine/test/e2e/inline-style-attribute-resync.e2e.test.ts
+  s_30a20fc844c90c::t_ed595c7f9ccc20 1-75
+packages/dom-shim/src/element.ts
+  s_30a20fc844c90c::t_3320c2fd1c36c3 121-130,814-818,968-973,2685-2687,2857-2860,2869-2874,2876-2890
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b133214cdea5596fa3ec4e33a542fe6cfe5d75ef",
+  "prompts": {},
+  "sessions": {
+    "s_30a20fc844c90c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4c39617effeTM9e3L608eW2f4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

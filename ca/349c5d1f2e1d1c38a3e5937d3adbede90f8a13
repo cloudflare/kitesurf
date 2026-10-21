@@ -1,0 +1,25 @@
+packages/engine/test/e2e/wrapper-identity.e2e.test.ts
+  s_10325f09f363f7::t_70bddde77b441e 1-45
+packages/page-script/src/eval-helpers.ts
+  s_10325f09f363f7::t_19f11b62fbd1c6 182-185
+  s_10325f09f363f7::t_c02d8c6a1f6d2e 175-181,186-197
+  s_10325f09f363f7::t_99fab00002729e 261,287
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_10325f09f363f7::t_b0e005aee6a36f 1922-1949,2550-2551
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ca349c5d1f2e1d1c38a3e5937d3adbede90f8a13",
+  "prompts": {},
+  "sessions": {
+    "s_10325f09f363f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_028d94f7bffeLPzCR3nArdny7w",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

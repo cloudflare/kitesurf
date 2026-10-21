@@ -1,0 +1,51 @@
+packages/engine/test/e2e/header-intrinsic-tamper.e2e.test.ts
+  s_2900fbb1a4773e::t_88ef9fbd7886a6 29,38-45,237,240,245
+packages/engine/test/e2e/demos/skip-speculative-raster.e2e.test.ts
+  s_2900fbb1a4773e::t_4586ac93d84a3b 18,32-33,44-45,48-53,55-60,62-74,77-87
+packages/engine/test/e2e/harness.ts
+  s_2900fbb1a4773e::t_33bb791c53b4a5 5-9,19-20,22-31,34-43,45-53,55-59,62-63
+  s_2900fbb1a4773e::t_d2520fc6840718 64
+packages/engine/test/e2e/external-outbound.e2e.test.ts
+  s_2900fbb1a4773e::t_4586ac93d84a3b 346,349-358
+packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
+  s_2900fbb1a4773e::t_5eb6d2927d628b 78-79
+  s_2900fbb1a4773e::t_ce4d5b8481faff 75,81-87
+packages/engine/test/e2e/gateway-font-shaping.e2e.test.ts
+  s_2900fbb1a4773e::t_5eb6d2927d628b 88-89
+  s_2900fbb1a4773e::t_ce4d5b8481faff 87,91-100
+packages/engine/test/e2e/corp-classic-script.e2e.test.ts
+  s_2900fbb1a4773e::t_6b1b5d5422b062 12,18-25,28-29,32-33,40-41,47-50,59-60
+packages/engine/test/e2e/isolate-wall-cap.e2e.test.ts
+  s_2900fbb1a4773e::t_88ef9fbd7886a6 16-30,32-55,57-62
+packages/engine/test/e2e/author-webfont.e2e.test.ts
+  s_2900fbb1a4773e::t_5eb6d2927d628b 121-122
+  s_2900fbb1a4773e::t_ce4d5b8481faff 117,124-130
+packages/engine/test/e2e/pixel-free-shaping-fonts.e2e.test.ts
+  s_2900fbb1a4773e::t_12c55e6fcd1290 78,81-83,86-88,95-96
+  s_2900fbb1a4773e::t_2e70350cd8c0b6 92-93
+packages/engine/test/e2e/style-churn-memory.e2e.test.ts
+  s_2900fbb1a4773e::t_3b9ec655f9080a 80-95,98-122
+  s_2900fbb1a4773e::t_120a72948cf387 16
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_2900fbb1a4773e::t_99b8cb7e38e0ad 1,13-33,36-66,68-96,99-100,102-106,109-112
+packages/engine/test/e2e/keyboard-scroll.e2e.test.ts
+  s_2900fbb1a4773e::t_88ef9fbd7886a6 101-103,106-119
+packages/engine/test/e2e/README.md
+  s_2900fbb1a4773e::t_60458fba9c4790 42-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "aa65d688a7cd260f23891c116b0cbcc687bee542",
+  "prompts": {},
+  "sessions": {
+    "s_2900fbb1a4773e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08d6ecf9ffeleGyhLrUlnAeqh",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

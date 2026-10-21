@@ -1,0 +1,26 @@
+AGENTS.md
+  s_676dd787c85f41::t_9d132c9c09a0cb 222-225
+packages/engine/src/cdp/kitesurf.ts
+  s_676dd787c85f41::t_9d132c9c09a0cb 78-84,107-108,418-420,422-432
+packages/engine/test/e2e/cdp-envelope.e2e.test.ts
+  s_676dd787c85f41::t_9d132c9c09a0cb 68-88
+  s_676dd787c85f41::t_e3c7ec73568f6f 3-4
+packages/engine/src/cdp/types.ts
+  s_676dd787c85f41::t_9d132c9c09a0cb 30-36,42,110-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f90e5139d21a95d2d392bcfd6af7f03213840f72",
+  "prompts": {},
+  "sessions": {
+    "s_676dd787c85f41": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef66c01edffea11S8wJ3LsaG9h",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}

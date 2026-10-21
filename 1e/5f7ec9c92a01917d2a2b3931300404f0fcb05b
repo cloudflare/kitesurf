@@ -1,0 +1,23 @@
+docs/TERMINAL.md
+  s_91836f22884cfe::t_07cb5e17d70e7d 180-194
+packages/core/src/tty_cell_grid_test.rs
+  s_91836f22884cfe::t_abb8afd674e5dc 294-349
+scripts/patches/blitz-dom-0.3.0-beta.1/0112-Tolerate-a-sub-cell-width-change-instead-of-re-break.patch
+  s_91836f22884cfe::t_c23dc3e3f22778 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1e5f7ec9c92a01917d2a2b3931300404f0fcb05b",
+  "prompts": {},
+  "sessions": {
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+scripts/build-wasm.mjs
+  s_5ef13aa2ca5d9a::t_f1b733c1008fee 377-380,393,400
+  s_5ef13aa2ca5d9a::t_054f20385b0063 103
+  s_5ef13aa2ca5d9a::t_d50a54b2ef01d8 94-102,239-245,360-361,363-366,442-443
+turbo.json
+  s_5ef13aa2ca5d9a::t_d50a54b2ef01d8 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a2588f285641a4dad2994ad21b7c73042fe0a160",
+  "prompts": {},
+  "sessions": {
+    "s_5ef13aa2ca5d9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed3357cbbffeROEK7xP7OmXTdD",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

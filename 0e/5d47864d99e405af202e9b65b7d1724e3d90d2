@@ -1,0 +1,100 @@
+packages/website/package.json
+  s_c1a6940130844c::t_d130509ef63a11 26
+  s_c1a6940130844c::t_642cf9dbe6dbb8 5-12
+packages/website/.prettierignore
+  s_c1a6940130844c::t_ee0520a08403e3 2
+packages/bench-report/src/index.ts
+  s_c1a6940130844c::t_9acb9c4825f59d 15-16
+packages/engine/public/cloudflare.svg
+  s_c1a6940130844c::t_8f946207b6df44 1
+packages/engine/package.json
+  s_c1a6940130844c::t_4a4d9a05ba40ba 32
+packages/website/src/routes.tsx
+  s_c1a6940130844c::t_78018ecfa91909 73-76,78-79
+  s_c1a6940130844c::t_ef31a94006650e 16
+  s_c1a6940130844c::t_e8ffebd875d106 68-72,82
+  s_c1a6940130844c::t_773a37320e6edc 23
+  s_c1a6940130844c::t_e7d5a11bdbd593 25-27,29,35,43
+  s_c1a6940130844c::t_58ad3e3cce080b 52
+  s_c1a6940130844c::t_6cf13b3d56e2bc 3
+  s_c1a6940130844c::t_b6bddc344afec9 62,64-65
+  s_c1a6940130844c::t_3dd6c4c630fda9 77,80-81
+packages/engine/public/favicon.svg
+  s_c1a6940130844c::t_8f946207b6df44 1-12
+AGENTS.md
+  s_c1a6940130844c::t_f8843c29c38e18 85-89
+scripts/mr-preview.mjs
+  s_c1a6940130844c::t_34d0cf6d281ffa 11,27-28,32,37-39,73
+packages/bench-report/src/types.ts
+  s_c1a6940130844c::t_9a492a9052bc84 2
+packages/website/scripts/capture-showcase.mjs
+  s_c1a6940130844c::t_7f6667251115f2 3,14
+packages/website/src/components/SiteFooter.tsx
+  s_c1a6940130844c::t_c834109a58ef63 40,43
+packages/wpt-report/src/types.ts
+  s_c1a6940130844c::t_ae0aa1ac22b8e6 2
+packages/website/src/components/SiteHeader.tsx
+  s_c1a6940130844c::t_c834109a58ef63 38,44
+packages/bench-report/scripts/build.mjs
+  s_c1a6940130844c::t_fced779dbfdec4 71
+packages/website/src/css.d.ts
+  s_c1a6940130844c::t_7f6667251115f2 1
+packages/website/scripts/build.mjs
+  s_c1a6940130844c::t_a24ee52fe96948 35-55
+  s_c1a6940130844c::t_09716e1acb7e73 2-5
+  s_c1a6940130844c::t_626eed644d27f9 32
+packages/website/src/pages/landing/About.tsx
+  s_c1a6940130844c::t_c834109a58ef63 20,23
+packages/website/index.d.ts
+  s_c1a6940130844c::t_5c463c17648173 4
+  s_c1a6940130844c::t_70a1728e9bac99 5
+  s_c1a6940130844c::t_312d59eafe7e36 1-3,10
+  s_c1a6940130844c::t_03fbe1a808f848 6-9
+packages/engine/src/index.ts
+  s_c1a6940130844c::t_d52a8ee2649444 30
+  s_c1a6940130844c::t_e8ada9fed5c573 480,483
+  s_c1a6940130844c::t_19f218cef80027 430
+  s_c1a6940130844c::t_cdede19ac97d4c 481-482
+  s_c1a6940130844c::t_39c6d324b94929 452
+  s_c1a6940130844c::t_9bc01fd3bee0a3 484
+README.md
+  s_c1a6940130844c::t_8933814959a143 87-88
+  s_c1a6940130844c::t_480a87dd6cc7fe 100-104
+bench/README.md
+  s_c1a6940130844c::t_089fb1a60c54d1 443-444
+packages/wpt-report/src/index.ts
+  s_c1a6940130844c::t_29b29d2c73f673 6
+packages/engine/wrangler.jsonc
+  s_c1a6940130844c::t_2c99f8433048c8 56,58-60
+  s_c1a6940130844c::t_1c99521978e83e 467-472
+  s_c1a6940130844c::t_674d63e874c6ee 31-32
+  s_c1a6940130844c::t_e523bb248c3b26 188-194,263-265,267-269,295-299,392-396,458-460,486-489
+package.json
+  s_c1a6940130844c::t_91204bf179cece 35-36
+docs/RELEASING.md
+  s_c1a6940130844c::t_a523487c90d0ea 15,21-23
+  s_c1a6940130844c::t_e5ad3bb406fd6f 72
+  s_c1a6940130844c::t_1939b652c49f3f 45-49,53
+packages/website/src/content/showcase.ts
+  s_c1a6940130844c::t_7f6667251115f2 9
+.gitlab-ci.yml
+  s_c1a6940130844c::t_1f676157088ddd 1902-1904
+pnpm-lock.yaml
+  s_c1a6940130844c::t_1f953b7a4b34ac 122-124,170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0e5d47864d99e405af202e9b65b7d1724e3d90d2",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

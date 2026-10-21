@@ -1,0 +1,23 @@
+AGENTS.md
+  s_dfd792beae87ba::t_e9b18cef0f2648 83,244,509
+docs/SVG.md
+  s_dfd792beae87ba::t_9da62dbf93cae6 34
+packages/dom-shim/src/transitions.ts
+  s_dfd792beae87ba::t_109b32bebba2d1 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f068b8cf2a2104a68adcd271101a2436b2c58b74",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

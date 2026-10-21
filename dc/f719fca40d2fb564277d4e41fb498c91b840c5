@@ -1,0 +1,157 @@
+packages/engine/src/cdp/page.ts
+  s_41d5a40b9168bd::t_2389273f514f75 1022,2693-2694,2697,4604
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 161,1980,2822,5641
+  s_41d5a40b9168bd::t_9924cccbde0b07 2355
+  s_41d5a40b9168bd::t_2477cfb4118702 162,1603,1619-1621,1771,1778-1780,5961-5964,5966-5978,5980-5981,5983-5985
+  s_41d5a40b9168bd::t_f84db3e1f5bd22 5979
+packages/engine/src/cdp/types.ts
+  s_41d5a40b9168bd::t_2389273f514f75 132-162,268-270
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 19,169-172,190,208,466-468,558-561
+  s_41d5a40b9168bd::t_9924cccbde0b07 20,166-168
+  s_41d5a40b9168bd::t_2477cfb4118702 295-297
+packages/engine/src/cdp/connection.ts
+  s_41d5a40b9168bd::t_2389273f514f75 1-10,26,68,79,102-122,124,126-130,133,136,138,140-145,147-162,166,168-170,177,185,189,193-201,203-222,231-238,243-256,258-294,299-326,328-330,333-355,357-363,366-367,369-375,377-378,381-384,386-388,390-396,398-409,412-422,425-537,539-548,552-561,566-664,666-720,722-763,766-777,781-825,827-852,860-886,888-893,902-905,911,913,924-926,928-930,934-944,946,954-955,958,981-991,993-996,998-1005,1007-1025,1028-1032,1034-1035,1037-1040,1050-1055,1057-1058,1060-1063,1065-1072,1074-1076,1078-1093,1095-1096,1098-1109,1111-1112,1114,1116,1128,1132-1136,1138,1142-1143,1146-1152,1155,1161-1163,1165,1167,1172-1185,1187-1194,1205-1210,1222,1224-1227,1229-1230,1233-1237,1248-1298,1305
+  s_41d5a40b9168bd::t_2b5bba9efde9e9 257,826,1073,1123
+  s_059e99c81ea16a::t_7049793bcc26fb 665,764-765
+  s_059e99c81ea16a::t_c194812c4e4415 376,423-424
+  s_059e99c81ea16a::t_bd48e9892f8dd7 721
+  s_059e99c81ea16a::t_449fac3c4713d9 411
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 55-58,85-88,223-225,228-230,327,331,364-365,368,379,385,389,397,410
+  s_41d5a40b9168bd::t_9924cccbde0b07 89,226-227,380,778-780
+  s_41d5a40b9168bd::t_5ac88a3da95894 32,239-242,853-859,895-901,906-910,960-980,1043-1049,1056,1059
+  s_41d5a40b9168bd::t_c9cf3a90e2e8a0 887,894
+packages/engine/src/cdp/fetch-interception.ts
+  s_41d5a40b9168bd::t_2389273f514f75 43-45,73,102-117
+packages/engine/src/cdp/dispatch.ts
+  s_41d5a40b9168bd::t_2389273f514f75 3,81-88
+packages/engine/src/cdp/runtime.ts
+  s_41d5a40b9168bd::t_2389273f514f75 560-568,572-574
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 484
+packages/engine/src/cdp/fetch.ts
+  s_41d5a40b9168bd::t_2389273f514f75 29-30,34
+packages/engine/src/cdp/target.ts
+  s_41d5a40b9168bd::t_2389273f514f75 38-45,63-69,149-150,153,156-159,165,188,257-261,285,303,307,329,338,629,654,680,686-687,724,756,897-898,909
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 31-37,214,234,422,528-529,555,563-574,610
+  s_41d5a40b9168bd::t_5ac88a3da95894 46-62
+  s_41d5a40b9168bd::t_2477cfb4118702 21-22,348-350
+packages/engine/test/e2e/connect.ts
+  s_41d5a40b9168bd::t_d03b78c783e99a 45-54,58,62-89
+packages/engine/src/index.ts
+  s_41d5a40b9168bd::t_d03b78c783e99a 49-53,56,60,83,86,204-205,207,210,212-214,266-270
+  s_41d5a40b9168bd::t_5ac88a3da95894 24,55,58-59,204-205,208-209,211,271-277,330,336,341,347,352
+packages/engine/wrangler.jsonc
+  s_41d5a40b9168bd::t_d03b78c783e99a 155-159,167-170,218-220
+  s_059e99c81ea16a::t_32811ee77a1bff 160-166,193-195,290-292,368-369,431-432,492-493,516-575
+AGENTS.md
+  s_41d5a40b9168bd::t_d03b78c783e99a 170-180,188-193,703-704
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 181-187
+packages/engine/test/e2e/stateful-session.e2e.test.ts
+  s_41d5a40b9168bd::t_d03b78c783e99a 1-19,22-42,98-200,571-598
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 20-21,201-330
+  s_41d5a40b9168bd::t_9924cccbde0b07 332-347
+  s_41d5a40b9168bd::t_5ac88a3da95894 43-97,358-359,400-465,559-569
+  s_41d5a40b9168bd::t_2477cfb4118702 466-558
+docs/STATEFUL_SESSIONS.md
+  s_41d5a40b9168bd::t_d03b78c783e99a 1-16,29-32,39-48,68-82,87-117,193-210
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 83-86,118-158
+  s_41d5a40b9168bd::t_9924cccbde0b07 160-192
+  s_059e99c81ea16a::t_32811ee77a1bff 211-214
+  s_41d5a40b9168bd::t_5ac88a3da95894 17-28,33-38,53-54,65-66
+packages/engine/src/stateful.ts
+  s_41d5a40b9168bd::t_d03b78c783e99a 1-6,12-20,33-41,51-86,122-123,128-129,132,134-138,151-153,155,157-162,164-168,187-194,197-207,209-222,224-231,233-239,244-246,249-257,269-271,274-280,290-294,303-307,316-324,366-367,375-435
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 21-32,42-43,47-50,208,232,240-241,247-248,272-273,351-365,368-374
+  s_41d5a40b9168bd::t_9924cccbde0b07 46,242-243
+  s_41d5a40b9168bd::t_5ac88a3da95894 7-11,44-45,94-117,119-122,124-127,130-131,133,139-143,146-148,154,163,169,181-182,185,195-196,223,258-268,281-289,295-302,308-315,325-348
+packages/engine/src/state/outbound-forward.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 1-67
+packages/engine/src/cdp/debugger.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 24,30,61-62
+packages/engine/src/cdp/network-events.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 5-9,61-63,65-66,81-106,134-140,142-147,248,252,291-295,297-306,437,439-442,501,510,522,684,689,709-712,714,719-729,731,734-737,744,753-758,761,763,767-769,772,775-777,784-785,790-792,800-804,808,826-828,830-831
+packages/engine/test/node/network-events-store.test.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 1-74
+packages/engine/src/eval/outbound.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 82,158-164,545-546,555,587-593,2082-2087
+  s_059e99c81ea16a::t_3ebe5e42ac0e3a 77-81
+packages/engine/src/eval/resource-store.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 5-11,49-134,171-175,252-254,265,277-278,286-287
+packages/engine/src/cookies.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 9,102-108,111-112,599
+packages/engine/test/target-close.test.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 12,18
+packages/engine/src/cdp/dom.ts
+  s_41d5a40b9168bd::t_9924cccbde0b07 549
+packages/page-script/src/index.ts
+  s_41d5a40b9168bd::t_d23ce41914fb1d 3
+  s_41d5a40b9168bd::t_9924cccbde0b07 6119-6129
+packages/engine/src/eval/page-script.ts
+  s_41d5a40b9168bd::t_9924cccbde0b07 38,418-420,671-674,753,758,763
+packages/engine/src/eval/page-script-host.ts
+  s_41d5a40b9168bd::t_9924cccbde0b07 1-5,9,22-26,30-31,33-35,39-42,48,51,53-55,61,63-68,77-81,87-90,94,96-98
+docs/RELEASING.md
+  s_059e99c81ea16a::t_32811ee77a1bff 14-15,22-29
+package.json
+  s_059e99c81ea16a::t_32811ee77a1bff 20
+packages/engine/package.json
+  s_059e99c81ea16a::t_32811ee77a1bff 16
+packages/engine/src/inspector.ts
+  s_41d5a40b9168bd::t_5ac88a3da95894 1-20
+packages/engine/src/cdp/screencast-viewers.ts
+  s_41d5a40b9168bd::t_2477cfb4118702 1-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dcf719fca40d2fb564277d4e41fb498c91b840c5",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_5ea4b7f8ec5ae7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee588c4dcffe4AV8d7K8aCpWBR",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_5f6d6aa9a3bb5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eec7a970affeGZH2ZTFceHteAQ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_7331d0016ab792": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc96dd7affeCNAiwESwI8G3IZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_83cbebb813e639": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0388623affeMZhtpmKWNkHzTW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

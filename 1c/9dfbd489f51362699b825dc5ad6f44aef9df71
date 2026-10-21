@@ -1,0 +1,19 @@
+packages/engine/test/e2e/trusted-fetch-intrinsic.e2e.test.ts
+  s_2345a80585d890::t_c40905310f5830 81-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1c9dfbd489f51362699b825dc5ad6f44aef9df71",
+  "prompts": {},
+  "sessions": {
+    "s_2345a80585d890": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd7825cdaffevO3kTYiLE69X7z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

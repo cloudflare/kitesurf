@@ -1,0 +1,19 @@
+tests/interactivity-flows/regress.ts
+  s_49fd263338764b::t_8eabdc8da92d6e 123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "566b448a2cdc6ff000968904d9217ea320e9b46f",
+  "prompts": {},
+  "sessions": {
+    "s_49fd263338764b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-intersection-observer",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

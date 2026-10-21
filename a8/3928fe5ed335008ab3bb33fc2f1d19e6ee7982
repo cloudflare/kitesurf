@@ -1,0 +1,22 @@
+packages/engine/test/e2e/root-element-metrics.e2e.test.ts
+  s_c06dc570d7afc3::t_1ac1f55b53021d 1-9,33,40-41,46
+packages/core/src/sticky_reset_test.rs
+  s_c06dc570d7afc3::t_7a1a71222ec5d5 1-9,42-44,80-87
+  s_c06dc570d7afc3::t_782d78b55179f3 146-147,185-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a83928fe5ed335008ab3bb33fc2f1d19e6ee7982",
+  "prompts": {},
+  "sessions": {
+    "s_c06dc570d7afc3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54fa4034ffepBE1L2SqMCP6u4",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

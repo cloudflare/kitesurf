@@ -1,0 +1,30 @@
+packages/engine/src/rbi-client.ts
+  s_dfd792beae87ba::t_43c858feb9b4e6 242
+  s_dfd792beae87ba::t_41e9c8de57b3e7 1-241,243-598
+packages/engine/test/rbi-wire.test.ts
+  s_dfd792beae87ba::t_450821fa1331cb 1-124
+packages/engine/src/cdp/page-session.ts
+  s_dfd792beae87ba::t_33dbaaa7020f0a 162-166
+packages/engine/src/rbi-wire.ts
+  s_dfd792beae87ba::t_8bb81069850ff6 1-175
+packages/engine/src/rbi.ts
+  s_dfd792beae87ba::t_0dd9b393ea7ce8 23-35,427-431,465-467,472,487-490,649-658,941-942,945-950,964-969
+packages/engine/test/rbi-client-syntax.test.ts
+  s_dfd792beae87ba::t_6bc47268a49b15 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b3393f10a9b753efacb9a0fc8adff4929f46f8a9",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+bench/load/quickaction.k6.js
+  s_ff879cea7f8711::t_979bfa78419780 22-30
+  s_ff879cea7f8711::t_734397d3eb7d35 91-92
+  s_ff879cea7f8711::t_6c669a3fb88d7c 74-77,80-82
+  s_ff879cea7f8711::t_eaedb513bd1ab4 45
+  s_ff879cea7f8711::t_753170fa0df23b 109
+  s_ff879cea7f8711::t_c3079fe2fc0c79 124-141
+  s_ff879cea7f8711::t_001749ed75aa7b 167-168,177-181
+  s_ff879cea7f8711::t_3d6e9898364893 83
+  s_ff879cea7f8711::t_f2b241abcb43b1 182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "440eea6b18ad34e282ed3ec08e2e6af9b5ea8329",
+  "prompts": {},
+  "sessions": {
+    "s_ff879cea7f8711": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb03c0cdfffe3NsKeS3J2RA8VU",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+packages/engine/test/e2e/boa-realm-intrinsics.e2e.test.ts
+  s_072f20f9103bf7::t_1ac41f57dd79d4 42-47,123-190
+packages/core/src/boa_bridge.rs
+  s_072f20f9103bf7::t_1ac41f57dd79d4 7-11,20,527-581,1310-1313,1336,1900-1902,2103-2176,2335
+packages/page-script/src/globals.ts
+  s_072f20f9103bf7::t_1ac41f57dd79d4 567-576
+packages/engine/test/e2e/load-event-propagation.e2e.test.ts
+  s_072f20f9103bf7::t_510b61dc380dd9 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "89e8f12a65036708f541416cc999fcf886eb0c4a",
+  "prompts": {},
+  "sessions": {
+    "s_072f20f9103bf7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f60bf8a49ffen9BKMTnjFv6UQf",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

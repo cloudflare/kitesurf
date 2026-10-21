@@ -1,0 +1,37 @@
+packages/core/src/transitions.rs
+  s_e7dc27bdab5fff::t_89898bf1a7d39c 13,18-21,84,101,131,134,200-214,223,231
+  s_febe8d41b549be::t_99a949c866ea9e 1-12,14-17,22-83,85-100,102-130,132,141-142,144,150,152-153,156-190,192,198-199,215-216,218-222,224-230,232-234
+  s_991c8660c98c38::t_ef9585c4d35829 133,135-140,143,145-149,151,154-155,191,193-197,217
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4d8416eda07f4b7d2a871d7424f34898a5710fab",
+  "prompts": {},
+  "sessions": {
+    "s_991c8660c98c38": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009892ce1ffeHHnJ6vwrpWm3CZ",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_e7dc27bdab5fff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00a4f8786ffeFB2n8VkGusS6CL",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

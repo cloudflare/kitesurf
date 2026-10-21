@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0092-Cut-the-cost-of-an-attribute-write.patch
+  s_dfd792beae87ba::t_f983649169c67d 52,56,139,165-167,173,184,193,263,266,292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "894ecb7cb651e6ff50897c9cccb027b20d4efaff",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

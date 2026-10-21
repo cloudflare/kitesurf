@@ -1,0 +1,30 @@
+packages/grafana/src/dashboards/kitesurf-usage.ts
+  s_c019ca5b2049dd::t_12857828e4c6ef 175-190
+packages/grafana/test/dashboard.test.ts
+  s_c019ca5b2049dd::t_bc91633ae77eb8 367-405
+  s_c019ca5b2049dd::t_6e88fd40a23636 18
+packages/grafana/src/query.ts
+  s_c019ca5b2049dd::t_52e4eab4b33c4f 264-267
+  s_c019ca5b2049dd::t_a5c081bb924714 669-688
+  s_c019ca5b2049dd::t_c13818fa7219fb 666-668
+packages/grafana/test/query.test.ts
+  s_c019ca5b2049dd::t_d1795cc19d5a14 340-372
+.cloudflare/grafana/kitesurf-usage.json
+  s_c019ca5b2049dd::t_80b02a7dfb2a85 758,763-830,878,933,988,1043
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ce94a9f6768eb285093fa52c61ac0d53ad359e0a",
+  "prompts": {},
+  "sessions": {
+    "s_c019ca5b2049dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0098ec9ebffe6pVvwjTfLIJDai",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

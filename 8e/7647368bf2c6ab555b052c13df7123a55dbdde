@@ -1,0 +1,36 @@
+packages/engine/test/e2e/iframe-location-relative.e2e.test.ts
+  s_4ba79f911c93c4::t_0ed845ad6e3f23 1-31
+packages/page-script/src/index.ts
+  s_4ba79f911c93c4::t_f06118da44087d 877-879
+packages/page-script/src/console-buffer.ts
+  s_d357b260f2be6b::t_c0e9e9f504c23b 151-172,195-197
+docs/FORMS.md
+  s_d357b260f2be6b::t_9fec5673d9a1f2 66
+  s_d357b260f2be6b::t_cd8c85fdf6b93a 67-71
+  s_d357b260f2be6b::t_68613c59a545e0 65,72
+  s_d357b260f2be6b::t_c0e9e9f504c23b 62-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8e7647368bf2c6ab555b052c13df7123a55dbdde",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_d357b260f2be6b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_edeb94b8dffeNheYIHpqY8BMkr",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

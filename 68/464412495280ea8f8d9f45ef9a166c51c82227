@@ -1,0 +1,39 @@
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_77e8d6f4044102::t_d4e8d0e11e1a07 117,185,187-188
+packages/core/src/sticky.rs
+  s_77e8d6f4044102::t_4cd9db36d47539 143-150
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_77e8d6f4044102::t_d4e8d0e11e1a07 84-86,88-92,212-219
+  s_77e8d6f4044102::t_4cd9db36d47539 87
+  s_1e3adce13488b2::t_2c87a8887d204b 220
+scripts/patches/blitz-dom-0.3.0-beta.2/0125-Use-natural-font-metrics-for-inline-line-height.patch
+  s_77e8d6f4044102::t_82a0adde0c64a9 8-10,13,16,29,37
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-Fix-inline-box-metrics-and-positioning.patch
+  s_77e8d6f4044102::t_82a0adde0c64a9 7-8,11,14,26,38,53-58,64,68-82,90,93-94,105,116,120-132,134-161,166-167,170,172-175,179,188,203,239-247,263,271,287,301-302,305-315,319-340,345,349,357
+packages/engine/test/e2e/layout-test-helpers.ts
+  s_77e8d6f4044102::t_4cd9db36d47539 6,9-10,17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "68464412495280ea8f8d9f45ef9a166c51c82227",
+  "prompts": {},
+  "sessions": {
+    "s_1e3adce13488b2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4c19630cffeBSmrznuEoZztNL",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

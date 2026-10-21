@@ -1,0 +1,19 @@
+packages/wpt-report/src/wpt-routes.ts
+  s_980fae0f1f42ee::t_3e7bf08cddf523 180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "154e6882af2743d8cd665c761d53c2e61b373a6d",
+  "prompts": {},
+  "sessions": {
+    "s_980fae0f1f42ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f01cc73beffeoFxISmt0a4yJul",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

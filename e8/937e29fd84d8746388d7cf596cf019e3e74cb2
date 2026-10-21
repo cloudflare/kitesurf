@@ -1,0 +1,21 @@
+packages/engine/test/e2e/cssom-counter-style-rule.e2e.test.ts
+  s_d367c9b4e7f5b7::t_757936a54ddf38 7-9,31,47-49,61-62,71-72,90-91,94,99,118,131-132,135,140
+packages/dom-shim/src/collections.ts
+  s_d367c9b4e7f5b7::t_19b7742919e669 1699-1702
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e8937e29fd84d8746388d7cf596cf019e3e74cb2",
+  "prompts": {},
+  "sessions": {
+    "s_d367c9b4e7f5b7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f55f72ef4ffeENoZWBdmQEMyj9",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

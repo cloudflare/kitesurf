@@ -1,0 +1,24 @@
+packages/core/src/hit_test_block_axis_test.rs
+  s_91836f22884cfe::t_8b528161881d57 1-78
+packages/core/src/lib.rs
+  s_91836f22884cfe::t_da72fe83ce74de 175-176
+  s_91836f22884cfe::t_b811dbe1a4b842 174
+scripts/patches/blitz-dom-0.3.0-beta.1/0127-Hit-text-only-on-the-line-that-contains-the-point.patch
+  s_91836f22884cfe::t_61b22aebde7251 1-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "68af5745ee19308f5a794ef9b76227a07df99708",
+  "prompts": {},
+  "sessions": {
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

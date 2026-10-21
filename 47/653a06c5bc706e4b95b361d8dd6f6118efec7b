@@ -1,0 +1,50 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0012-kitesurf-keep-position-fixed-boxes-out-of-the-docume.patch
+  s_50d45ac3d4c7e5::t_c76b6263efd60d 1-52
+packages/dom-shim/src/layout/cheap.ts
+  s_50d45ac3d4c7e5::t_cd579dce260d8a 473,478-481
+packages/page-script/src/types.ts
+  s_50d45ac3d4c7e5::t_d33ee1d6a7c2f4 66-68
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_f02609170a9f78 744-753,761-766,770-772,781,783
+  s_50d45ac3d4c7e5::t_9449b151a8b272 777-778
+  s_50d45ac3d4c7e5::t_74ca2bfa5e1bdd 754-756,758-760
+  s_50d45ac3d4c7e5::t_1bfa29ab63fe6d 767
+  s_50d45ac3d4c7e5::t_084b35ae6df29c 768-769,773-776,779-780
+  s_50d45ac3d4c7e5::t_6e63a2eeb6b0ad 782
+  s_50d45ac3d4c7e5::t_3062b3fdff3f96 1835-1836
+  s_50d45ac3d4c7e5::t_09acaf7c02b8a7 757
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_24f7f52c9983ab 5904-5906
+  s_50d45ac3d4c7e5::t_a988c5d80d193a 5915,6114
+  s_50d45ac3d4c7e5::t_fec4fca7ce63ae 5977-5999
+  s_50d45ac3d4c7e5::t_9add80cf2377a3 2749
+  s_50d45ac3d4c7e5::t_da9a751a131716 2786-2788,2791,2799
+packages/page-script/src/paint.ts
+  s_50d45ac3d4c7e5::t_c3567bf603e45c 116
+  s_50d45ac3d4c7e5::t_cd8874867a2565 114-115
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_50d45ac3d4c7e5::t_113f3d99691844 78
+  s_50d45ac3d4c7e5::t_4b3d87eb5d10b9 107-110
+  s_50d45ac3d4c7e5::t_7934e32f593791 59-77,79-92
+  s_50d45ac3d4c7e5::t_925af56aadf234 4-5
+  s_50d45ac3d4c7e5::t_27600a17ea35db 2,6
+  s_50d45ac3d4c7e5::t_d058a1e870279d 1,3,7-12,14-58
+  s_50d45ac3d4c7e5::t_78744549a1c0d3 13
+  s_50d45ac3d4c7e5::t_a1765fd451825c 93-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "47653a06c5bc706e4b95b361d8dd6f6118efec7b",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": null
+    }
+  }
+}

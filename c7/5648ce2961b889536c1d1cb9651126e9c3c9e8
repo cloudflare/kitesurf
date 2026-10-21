@@ -1,0 +1,104 @@
+pnpm-lock.yaml
+  s_8deef65a89b902::t_e95d71c4aed0d0 61-62,66-79
+  s_8deef65a89b902::t_623a58eb33fa65 63-65
+packages/engine/test/e2e/concurrent-cdp-sessions.e2e.test.ts
+  s_8deef65a89b902::t_ac47e9e6877e71 73-75
+  s_8deef65a89b902::t_3555917b1a15f2 1-72,76-79
+packages/ci-workflow/src/driver.ts
+  s_8deef65a89b902::t_5cf91f6b69ca17 25-27,49-56,108,117,121,126,154
+  s_8deef65a89b902::t_827c059a810a52 105-107,111-116,118-120,122-125,130
+  s_8deef65a89b902::t_36ae691eec72b0 236
+  s_8deef65a89b902::t_e29042fb44fb6f 28-29,104,137-141,143,155
+  s_8deef65a89b902::t_fbd30a4591ec55 36-37
+  s_8deef65a89b902::t_b109e00e2c34e0 189-190,194,255
+  s_8deef65a89b902::t_90e021c9428264 166,174-188,191-193,195-201,218-221,237-254,256-257
+  s_8deef65a89b902::t_0dd3087abf2834 167-173
+  s_8deef65a89b902::t_8dd485f67944e6 258
+  s_8deef65a89b902::t_ffcade1223b9f9 159-165
+  s_8deef65a89b902::t_1fc55afc767deb 38-41,222-232,234-235
+  s_8deef65a89b902::t_d355ee82888603 84-89
+  s_8deef65a89b902::t_5beff47c0f5a8c 1-3,5
+  s_8deef65a89b902::t_fc69a1429246b4 42-45,202-217
+  s_8deef65a89b902::t_14eb1e34ac7c5d 233
+  s_8deef65a89b902::t_9aefec953b78ec 4,6-24,30-35,46-47,57-66,71-73,91-103,109-110,127-129,131-136,142,144-153,156-158
+  s_8deef65a89b902::t_d560966f65d128 67-70,74-83,90
+  s_8deef65a89b902::t_f17de55eedece0 48
+packages/engine/test/e2e/wpt-driver.e2e.test.ts
+  s_8deef65a89b902::t_a2adce0de3dd46 1-81
+packages/ci-workflow/src/shard.ts
+  s_8deef65a89b902::t_ee5fb77b99be2d 73
+  s_8deef65a89b902::t_e84396d30c0920 66
+  s_8deef65a89b902::t_90e021c9428264 7,46-47,54-56,58,60,65,67,69,71
+  s_8deef65a89b902::t_f17de55eedece0 8-9
+  s_8deef65a89b902::t_5beff47c0f5a8c 1-6,10-45,48-53,70,72
+  s_8deef65a89b902::t_b448c0c474a88f 57,59,61-64,68
+tests/unit/driver.test.ts
+  s_8deef65a89b902::t_768a028e8f885f 1-61,75-105
+  s_8deef65a89b902::t_2ae6b21cac4e65 62-74
+packages/ci-workflow/src/index.ts
+  s_8deef65a89b902::t_dbee73cb2d6adc 116-117,124-159,249
+  s_8deef65a89b902::t_110e679ed5f83d 187-193,195-202,204-221,224-226,228,230-231,236-240,244-246
+  s_8deef65a89b902::t_771cb3c1bc8642 8
+  s_8deef65a89b902::t_3cec2e7abd2ed5 80-115
+  s_8deef65a89b902::t_fbbd96ae15bc40 55-56
+  s_8deef65a89b902::t_0b4ded0c7a05e9 54
+  s_8deef65a89b902::t_e0beb1e42a7361 171-173
+  s_8deef65a89b902::t_39f0e68a282a69 7,9-11,160-170,174,241,243,247-248
+  s_8deef65a89b902::t_f988e5c28c27ef 22-29,32,36
+  s_8deef65a89b902::t_3ada3c1b2f6689 2,5-6,12-21,30-31,33-35,37-53,57-61,250-252
+  s_8deef65a89b902::t_3a2b39c7bc6f08 194
+  s_8deef65a89b902::t_515b1d36143ae3 1,3-4
+  s_8deef65a89b902::t_d89cc72761d8fd 232-233,235
+  s_8deef65a89b902::t_fc69a1429246b4 222-223
+  s_8deef65a89b902::t_d4691eafc55119 62-79,118-123,175-186,203,227,229,234,242
+tests/unit/shard-recovery.test.ts
+  s_8deef65a89b902::t_4691e7bc305158 2,35-36,72-73,81-82
+  s_8deef65a89b902::t_d8b445e6690fc1 71
+  s_8deef65a89b902::t_e40edf1cb21c5e 47-49,52,62-63,74,79
+  s_8deef65a89b902::t_d9c28e272bff46 1,8-16,21-24,32-34,37-42,46,50-51,53-61,64-70,75-78,80
+  s_8deef65a89b902::t_0dd3087abf2834 3-7,43-45
+  s_8deef65a89b902::t_291dec8d3dbe8c 17-20,25-31
+packages/ci-workflow/package.json
+  s_8deef65a89b902::t_ae52e4c8168f6a 1-11,13-20
+  s_8deef65a89b902::t_d8812e1dc5dae8 12
+packages/ci-workflow/src/claims.ts
+  s_8deef65a89b902::t_d89cc72761d8fd 1-2,5,7,9-12,15-23,26-59
+  s_8deef65a89b902::t_771cb3c1bc8642 3-4,6,8,13-14,24-25,60-61
+package.json
+  s_8deef65a89b902::t_e7128516b1d335 20
+packages/ci-workflow/wrangler.jsonc
+  s_8deef65a89b902::t_a29b12b23cf1b6 16-20,29-30,46
+  s_8deef65a89b902::t_0201185b622e69 36
+  s_8deef65a89b902::t_b0bc2050a3154e 11-14,24
+  s_8deef65a89b902::t_771cb3c1bc8642 38-43
+  s_8deef65a89b902::t_a58ba85ffc8b50 31-35
+  s_8deef65a89b902::t_1c5fdca81fa71a 1-10,15,21-23,25-28,37,44-45,47
+packages/ci-workflow/src/env.ts
+  s_8deef65a89b902::t_4962f51ccb455f 1,7-9
+  s_8deef65a89b902::t_0b4ded0c7a05e9 2-4
+  s_8deef65a89b902::t_771cb3c1bc8642 5-6
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_8deef65a89b902::t_6304dd7c028e67 1328-1331,1337
+  s_8deef65a89b902::t_3defd885f88851 1315-1316,2392-2401
+  s_8deef65a89b902::t_f9b707d540a9f6 1311-1314,1317-1327,1332-1336,1338-1341
+tests/unit/slice-for.test.ts
+  s_8deef65a89b902::t_b0bc2050a3154e 1-50
+packages/ci-workflow/tsconfig.json
+  s_8deef65a89b902::t_b8818fe7d23a62 1-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c75648ce2961b889536c1d1cb9651126e9c3c9e8",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

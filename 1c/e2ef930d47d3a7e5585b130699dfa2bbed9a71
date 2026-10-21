@@ -1,0 +1,71 @@
+packages/engine/src/quickactions/content.ts
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 75-79
+packages/engine/src/cdp/css.ts
+  s_c6d6a3ac21fe46::t_e95cb46bdfa98f 493
+packages/engine/src/eval/outbound.ts
+  s_c6d6a3ac21fe46::t_e95cb46bdfa98f 97
+  s_c6d6a3ac21fe46::t_5c3765364c64c1 1116-1117
+packages/engine/test/attribution-tail.test.ts
+  s_c6d6a3ac21fe46::t_5d209b9e042a09 1-31
+packages/engine/src/cdp/connection.ts
+  s_c6d6a3ac21fe46::t_e95cb46bdfa98f 97-98
+  s_c6d6a3ac21fe46::t_ae8c0a95561e05 357,671-674,676
+packages/engine/src/cdp/dom.ts
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 541-542
+packages/engine/src/internal/index.ts
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 9,12,19
+packages/engine/src/quickactions/screenshot.ts
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 79-83
+packages/engine/src/host.ts
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 19-23
+packages/engine/src/cdp/types.ts
+  s_c6d6a3ac21fe46::t_ae8c0a95561e05 240
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 241
+packages/engine/src/index.ts
+  s_c6d6a3ac21fe46::t_33785e7ebae27e 312-316
+  s_c6d6a3ac21fe46::t_ea6c54f815566f 284-290,294,300,306,340,418
+packages/engine/src/eval/page-renderer.ts
+  s_c6d6a3ac21fe46::t_519d2436c137a3 158-162,209
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 111,210,235,242,260
+  s_c6d6a3ac21fe46::t_1bbe0e51069d2e 14-17,56
+packages/engine/src/quickactions/forward-headers.ts
+  s_c6d6a3ac21fe46::t_ae8c0a95561e05 23,26-27,29
+packages/engine/src/internal/bench-tail.ts
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 1-6,11-26,31-34,36-81
+  s_c6d6a3ac21fe46::t_ae8c0a95561e05 7-8,27-30,35
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 9-10
+packages/engine/src/cdp/page.ts
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 200,2341,4218-4219
+packages/engine/src/eval/page-script.ts
+  s_c6d6a3ac21fe46::t_519d2436c137a3 131,380,705,782-783
+  s_c6d6a3ac21fe46::t_ae8c0a95561e05 40-43
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 381,784,805
+packages/engine/src/eval/external-outbound.ts
+  s_c6d6a3ac21fe46::t_e95cb46bdfa98f 8
+packages/engine/src/eval/oopif-render.ts
+  s_c6d6a3ac21fe46::t_f5cecab67abdcc 77-78,322,420
+docs/MEMPROF.md
+  s_c6d6a3ac21fe46::t_e5a9318da2b044 239
+packages/engine/src/eval/attribution-tail.ts
+  s_c6d6a3ac21fe46::t_519d2436c137a3 1-25
+packages/engine/src/quickactions/dispatch.ts
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 22
+packages/engine/src/quickactions/pdf.ts
+  s_c6d6a3ac21fe46::t_edcaeeb5ed15bb 106-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1ce2ef930d47d3a7e5585b130699dfa2bbed9a71",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

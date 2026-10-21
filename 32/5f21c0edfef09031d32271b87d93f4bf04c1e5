@@ -1,0 +1,21 @@
+packages/engine/test/e2e/demos/png.ts
+  s_dfd792beae87ba::t_fd13a6aca6b286 17,25-26,29-32,50,53-56,73-76,85,117
+packages/engine/test/e2e/fixed-clip-anchor.e2e.test.ts
+  s_dfd792beae87ba::t_27b85096e1a584 37-38,49-54,60-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "325f21c0edfef09031d32271b87d93f4bf04c1e5",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

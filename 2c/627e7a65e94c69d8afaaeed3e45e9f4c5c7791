@@ -1,0 +1,77 @@
+packages/dom-shim/src/mutations/observer.ts
+  s_f5785bea72e01e::t_8f2bdd931f656a 330-339,347-352
+  s_f5785bea72e01e::t_ad6f676189627f 340-346
+packages/dom-shim/src/node-base.ts
+  s_f5785bea72e01e::t_8f2bdd931f656a 6,29-30,32,66,200,203,219-226,244
+  s_f5785bea72e01e::t_8a29272a64d3ca 197-199
+  s_f5785bea72e01e::t_eb2ee606196458 241-243
+  s_f5785bea72e01e::t_51e15b39e84cdd 245-247
+packages/core/src/lib.rs
+  s_f5785bea72e01e::t_8f2bdd931f656a 1693-1713,7000-7021
+  s_f5785bea72e01e::t_a6e40406bf7ef2 7022-7023
+packages/dom-shim/src/events/slotchange.ts
+  s_f5785bea72e01e::t_c24f174157bcae 7,15-20
+  s_f5785bea72e01e::t_fee78119e0a61c 21
+packages/dom-shim/src/parser.ts
+  s_f5785bea72e01e::t_52c99ad19fdcb4 81,105
+  s_f5785bea72e01e::t_1a7c191907fe91 19
+packages/engine/test/e2e/media-text-tracks.e2e.test.ts
+  s_f5785bea72e01e::t_b194c04a7c9513 65-75
+  s_f5785bea72e01e::t_f18dcdb8dd1fe6 10,51-64
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_f5785bea72e01e::t_76d8bf3dc0fe5b 261-267,270-271,274-308
+  s_f5785bea72e01e::t_76a83fe256d6b0 268-269,272-273,314-315
+  s_f5785bea72e01e::t_5188bd7b597657 160,162,172-174,197,209-210,234-235
+  s_f5785bea72e01e::t_5fb1c11f68ca51 159,161,175-176,211-213,236-238
+  s_f5785bea72e01e::t_1212cd3b8575c9 255-260,309-313
+packages/dom-shim/src/collections.ts
+  s_f5785bea72e01e::t_52c99ad19fdcb4 2458-2459,2733
+packages/core/src/shadow_dom_test.rs
+  s_f5785bea72e01e::t_8dfecb49c4736f 79-92
+  s_f5785bea72e01e::t_8833beafec05ad 78
+packages/dom-shim/src/registries.ts
+  s_f5785bea72e01e::t_52c99ad19fdcb4 255,258,262-265,285
+  s_f5785bea72e01e::t_d3be69deafbb05 18-43,62-87
+  s_f5785bea72e01e::t_b194c04a7c9513 169-171,358,413
+  s_f5785bea72e01e::t_803e449e5c4374 53-58,200,206-209
+  s_f5785bea72e01e::t_5fb1c11f68ca51 198-199,203-204
+  s_f5785bea72e01e::t_99ec097beb46d2 112,336,338-343,348-349,380-382
+  s_f5785bea72e01e::t_8f2bdd931f656a 16,47,51,89,96-97,107-108,116,337,344-347,350-357,359-379,383-384
+  s_f5785bea72e01e::t_2975d6a3d34f31 13-15
+  s_f5785bea72e01e::t_8169341e813fd3 17
+  s_f5785bea72e01e::t_bebf577b71fe17 44-46
+  s_f5785bea72e01e::t_b5f8298519857a 48-50
+  s_f5785bea72e01e::t_d93e60a4d2709a 52
+  s_f5785bea72e01e::t_4994d771763a7c 59-61
+  s_f5785bea72e01e::t_8bdf505be8f560 88
+  s_f5785bea72e01e::t_5d52def680eef2 90-95
+  s_f5785bea72e01e::t_6b35808c3c30ac 98-100,104-106
+  s_f5785bea72e01e::t_ea74918e630630 109-111
+  s_f5785bea72e01e::t_3a28142b6dab01 113-115
+  s_f5785bea72e01e::t_b8a1d6a543814e 117-119
+packages/dom-shim/src/element.ts
+  s_f5785bea72e01e::t_803e449e5c4374 50,1320,1465,7582
+  s_f5785bea72e01e::t_52c99ad19fdcb4 157-162,1750,1752,1807,1811,1820,1835,1855,1871
+  s_f5785bea72e01e::t_e44b91a174bd96 51,307-309,311
+  s_f5785bea72e01e::t_f9c941fb13d32c 7601-7602
+  s_f5785bea72e01e::t_c24f174157bcae 8139-8148
+  s_f5785bea72e01e::t_b194c04a7c9513 38,7587-7592
+packages/dom-shim/src/layout/cheap.ts
+  s_f5785bea72e01e::t_9d21907b443ade 22,57-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2c627e7a65e94c69d8afaaeed3e45e9f4c5c7791",
+  "prompts": {},
+  "sessions": {
+    "s_f5785bea72e01e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f51217a23ffeok4Sc2bqio2KUk",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

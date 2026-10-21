@@ -1,0 +1,95 @@
+packages/mcp/src/tools/args.ts
+  s_58ab9b44c21c3b::t_358341b212a5c3 1-63
+packages/mcp/src/cdp/client.ts
+  s_58ab9b44c21c3b::t_5678f74c04d637 1-16,26-80,82-230
+  s_58ab9b44c21c3b::t_ffe8e60c3dfb13 17-25
+  s_58ab9b44c21c3b::t_a07fe8c30d2338 81
+packages/mcp/src/snapshot.ts
+  s_58ab9b44c21c3b::t_068d8f81f29ede 44-45,47,50
+  s_58ab9b44c21c3b::t_7c01006fb26bec 144-145,149
+  s_58ab9b44c21c3b::t_6dea0e9fb7aff1 37-38
+  s_58ab9b44c21c3b::t_50166be0466a82 170-182
+  s_58ab9b44c21c3b::t_3b35957336bcc3 1-36,39-43,46,48-49,51-143,146-148,150-169,183-194
+packages/mcp/src/session.ts
+  s_58ab9b44c21c3b::t_e38bed66ce7d45 107-124
+  s_58ab9b44c21c3b::t_50340deef444e8 13
+  s_58ab9b44c21c3b::t_8315060ff33cb1 46-51
+  s_58ab9b44c21c3b::t_ed576f4fe7e01e 1-6,8-12,14-45,52-106,125-212
+  s_58ab9b44c21c3b::t_17b9000c2901f8 7
+packages/mcp/package.json
+  s_58ab9b44c21c3b::t_bede93c75d4f08 1-18
+packages/mcp/src/cdp/supported.ts
+  s_58ab9b44c21c3b::t_6dfa5cb80e5913 1-325
+packages/mcp/tsconfig.json
+  s_58ab9b44c21c3b::t_c4115368b7d50c 1-20
+AGENTS.md
+  s_58ab9b44c21c3b::t_8e302b8a2dc84b 64-65
+  s_974ae9c13725a2::t_7850d8a428eb97 66,116
+packages/mcp/src/index.ts
+  s_58ab9b44c21c3b::t_9a91038930de2c 1-24,62-99,107,109-112,114-165
+  s_58ab9b44c21c3b::t_a53a1d82e35813 25-61
+  s_58ab9b44c21c3b::t_de3f9d8174df2a 100-106,108
+  s_58ab9b44c21c3b::t_ed6ebbe4f79f3f 113
+packages/mcp/src/tools/cdp.ts
+  s_58ab9b44c21c3b::t_64c29e019ccfba 11
+  s_58ab9b44c21c3b::t_e738b8dd3a125c 1-10,12-135
+packages/mcp/src/mcp/protocol.ts
+  s_58ab9b44c21c3b::t_faa52f3ccfcd94 10-14,16-41
+  s_58ab9b44c21c3b::t_756eb87a9c9e91 115
+  s_58ab9b44c21c3b::t_87ac2dc4e8dd37 1-9,15,42-114,116-213
+packages/mcp/src/page.ts
+  s_58ab9b44c21c3b::t_dd8e1147715b40 274-279,281-292,294,296
+  s_58ab9b44c21c3b::t_23e72f8b9e7a22 1-186,191-198,207-208,210-216,229-273,280,293,295,297-310
+  s_58ab9b44c21c3b::t_262cc83229782a 187-190,199-206,209,217-228
+packages/mcp/wrangler.jsonc
+  s_58ab9b44c21c3b::t_95102b7c2aa05e 1-72
+packages/mcp/src/tools/index.ts
+  s_58ab9b44c21c3b::t_465674e03ffb94 365-367
+  s_58ab9b44c21c3b::t_e6b3ff128c9d51 1-6,8-67,69-169,171-326,330-364,368-372
+  s_58ab9b44c21c3b::t_39a40db0e2772b 170
+  s_58ab9b44c21c3b::t_16960ea6a5458b 68
+  s_58ab9b44c21c3b::t_785c745f0a7581 7
+  s_58ab9b44c21c3b::t_b569208a733f7b 327-329
+package.json
+  s_58ab9b44c21c3b::t_509fd8fd9d00a7 15
+  s_58ab9b44c21c3b::t_19cf8597a2a8f5 23
+docs/MCP.md
+  s_58ab9b44c21c3b::t_33b4393ee0963f 159-168,175-201
+  s_58ab9b44c21c3b::t_5e6f4228ec60ab 169-174
+  s_58ab9b44c21c3b::t_b0cc245e450498 29-76
+  s_58ab9b44c21c3b::t_5360ae6804ee41 2-28,77-138,144-158,202-212,216-225,228-250,252-256
+  s_58ab9b44c21c3b::t_f1b3ab974be113 140-143
+  s_58ab9b44c21c3b::t_2f8141ca6e3ea6 226-227
+  s_58ab9b44c21c3b::t_b1256833f07767 213-215
+  s_58ab9b44c21c3b::t_0ba5dd3631fe07 139
+  s_58ab9b44c21c3b::t_205913e6a2d869 251
+  s_974ae9c13725a2::t_7850d8a428eb97 1
+packages/mcp/worker-env.d.ts
+  s_58ab9b44c21c3b::t_8fea420022aac8 1-13
+pnpm-lock.yaml
+  s_58ab9b44c21c3b::t_b620e7459aba37 159-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2f2852c3c48e69db2e71e62b910f8a530c0ef2de",
+  "prompts": {},
+  "sessions": {
+    "s_58ab9b44c21c3b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_030f67b4bffewhU4gs1WsQtOzn",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_974ae9c13725a2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00e0f9369ffeR0olxWziUF7mFt",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

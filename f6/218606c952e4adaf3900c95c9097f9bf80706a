@@ -1,0 +1,31 @@
+packages/engine/src/cdp/input.ts
+  s_e752ff6fd075bc::t_6aa131b7c4fc7b 194
+  s_e752ff6fd075bc::t_db71576eca2625 260-261
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_e752ff6fd075bc::t_fb2911c581b43b 8,77-99
+  s_a2feeea1972b1e::t_af5ebe509d7ab9 100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f6218606c952e4adaf3900c95c9097f9bf80706a",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_e752ff6fd075bc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbd167b90ffenoolTk3K48t5Wo",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

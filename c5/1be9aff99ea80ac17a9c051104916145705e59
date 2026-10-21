@@ -1,0 +1,28 @@
+packages/engine/test/e2e/demos/png.ts
+  s_1e75ebe82d3176::t_eb45efc54d66a5 1-98
+packages/engine/test/e2e/demos/canvas-2d-draw-demo.e2e.test.ts
+  s_1e75ebe82d3176::t_edcf1b728fde46 1-68
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_1e75ebe82d3176::t_e76c160c81f209 15
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_1e75ebe82d3176::t_6078db3b255e38 1160-1241,1250-1253,1255,1257-1262
+  s_1e75ebe82d3176::t_1ae36ad8a38182 842-843
+  s_1e75ebe82d3176::t_c5ca44dd1493d1 1242-1249,1254,1256
+  s_1e75ebe82d3176::t_172d51511c9e98 1263-1265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c51be9aff99ea80ac17a9c051104916145705e59",
+  "prompts": {},
+  "sessions": {
+    "s_1e75ebe82d3176": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06ee7c1b5ffe6jnufqj9l35rQ5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

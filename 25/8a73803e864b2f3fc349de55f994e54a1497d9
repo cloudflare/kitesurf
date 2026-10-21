@@ -1,0 +1,23 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0024-Offset-collapsed-table-borders-to-the-table-s-conten.patch
+  s_3d13b96ccbbed6::t_72a0a9dd89214c 1-128
+scripts/patches/blitz-paint-0.3.0-beta.1/0023-Let-a-re-homed-abspos-escape-its-flow-parent-s-overf.patch
+  s_3d13b96ccbbed6::t_72a0a9dd89214c 1-154
+scripts/patches/blitz-paint-0.3.0-beta.1/0022-Lean-synthetic-italic-to-the-right-not-the-left.patch
+  s_3d13b96ccbbed6::t_72a0a9dd89214c 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "258a73803e864b2f3fc349de55f994e54a1497d9",
+  "prompts": {},
+  "sessions": {
+    "s_3d13b96ccbbed6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbfd0d45fffeA5nq4ZiGDKSH9X",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

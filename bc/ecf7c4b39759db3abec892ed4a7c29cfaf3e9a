@@ -1,0 +1,25 @@
+AGENTS.md
+  s_f19c180209e8f6::t_a60b567768fbc9 327-331
+packages/engine/test/e2e/container-queries.e2e.test.ts
+  s_f19c180209e8f6::t_488570f0c8efe8 1-90
+scripts/patches/blitz-dom-0.3.0-beta.2/0123-Restyle-container-queries-against-laid-out-container.patch
+  s_f19c180209e8f6::t_6314adc13320d3 1-133
+scripts/patches/stylo-0.20.0/0030-Enable-container-queries-in-Servo.patch
+  s_f19c180209e8f6::t_927b4da834ac29 1-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bcecf7c4b39759db3abec892ed4a7c29cfaf3e9a",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

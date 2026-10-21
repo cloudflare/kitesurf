@@ -1,0 +1,19 @@
+.opencode/skills/simple-english/references/checklist.md
+  s_b0117fe27a64b9::t_cb1091c9fd581c 54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4ca1c2d077ffb890af5b42b5d1c903d9b7876528",
+  "prompts": {},
+  "sessions": {
+    "s_b0117fe27a64b9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author follow-up cloudflare/brapi/kitesurf!386",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

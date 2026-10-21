@@ -1,0 +1,21 @@
+packages/page-script/src/transitions.ts
+  s_4ba79f911c93c4::t_297cba05b690d1 52
+  s_4ba79f911c93c4::t_25479d1ac0d92d 51
+  s_4ba79f911c93c4::t_5847738c263729 16-17,19,48,112-116,139-140,150,152,154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d8ce47cc9787088114a633a926e94f0b439d7008",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

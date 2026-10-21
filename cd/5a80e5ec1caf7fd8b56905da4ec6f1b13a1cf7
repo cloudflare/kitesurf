@@ -1,0 +1,30 @@
+packages/engine/test/target-close.test.ts
+  s_04ab25d1daf16f::t_fd21d70d5219cf 9,12-33,38,58-83
+  s_4ba79f911c93c4::t_213af1e75377cc 84
+packages/engine/src/cdp/target.ts
+  s_04ab25d1daf16f::t_fd21d70d5219cf 488-493
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cd5a80e5ec1caf7fd8b56905da4ec6f1b13a1cf7",
+  "prompts": {},
+  "sessions": {
+    "s_04ab25d1daf16f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4c1d3090ffeD74k0gwwEQEP1F",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

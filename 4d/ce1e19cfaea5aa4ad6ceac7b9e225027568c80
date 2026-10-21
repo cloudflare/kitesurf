@@ -1,0 +1,44 @@
+packages/engine/src/cdp/page.ts
+  s_41d5a40b9168bd::t_2389273f514f75 1015,2506-2507,2510,4387
+packages/engine/src/cdp/types.ts
+  s_41d5a40b9168bd::t_2389273f514f75 129-159,254-256
+packages/engine/src/cdp/connection.ts
+  s_41d5a40b9168bd::t_2389273f514f75 1-10,26,64,75,94-114,116,118-122,125,128,130,132-137,139-154,158,160-162,169,177,181,185-193,195-236,238-305,307-329,331-347,349-392,395-507,509-518,522-630,632-686,688-729,732-788,790-842,844-854,856,867-869,871-873,877-887,889,897-898,901,903-913,915-918,920-927,929-947,950-954,956-957,959-962,965-977,979-986,988-990,992-1007,1009-1010,1012-1023,1025-1026,1028,1030,1042,1046-1050,1052,1056-1057,1060-1066,1069,1075-1077,1079,1081,1086-1099,1101-1108,1119-1124,1136,1138-1141,1143-1144,1147-1151,1162-1212,1219
+  s_41d5a40b9168bd::t_2b5bba9efde9e9 237,789,843,987,1037
+  s_059e99c81ea16a::t_7049793bcc26fb 631,730-731
+  s_059e99c81ea16a::t_c194812c4e4415 348,393-394
+packages/engine/src/cdp/fetch-interception.ts
+  s_41d5a40b9168bd::t_2389273f514f75 43-45,73,102-117
+packages/engine/src/cdp/dispatch.ts
+  s_41d5a40b9168bd::t_2389273f514f75 3,71-78
+packages/engine/src/cdp/runtime.ts
+  s_41d5a40b9168bd::t_2389273f514f75 560-568,572-574
+packages/engine/src/cdp/fetch.ts
+  s_41d5a40b9168bd::t_2389273f514f75 29-30,34
+packages/engine/src/cdp/target.ts
+  s_41d5a40b9168bd::t_2389273f514f75 36-50,141-142,145,148-151,157,180,247-251,275,293,297,319,328,615,640,666,672-673,710,742,883-884,895
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4dce1e19cfaea5aa4ad6ceac7b9e225027568c80",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

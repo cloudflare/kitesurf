@@ -1,0 +1,19 @@
+packages/engine/src/rbi.ts
+  s_ccf5542acfcceb::t_13e25afd2611e3 271-274,278,359-363,371-377
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5276da6e1aa68c29772b4a00ded607db913ee93b",
+  "prompts": {},
+  "sessions": {
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

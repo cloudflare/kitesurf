@@ -1,0 +1,28 @@
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_aabb6e35c531c3 5066
+  s_dfd792beae87ba::t_1d4f9f517ca35b 2463-2464
+  s_dfd792beae87ba::t_61e988eb9ff8b0 121-122
+  s_dfd792beae87ba::t_e198cf60e31462 2456-2462,2465-2483,4066,4525,4614,5244
+  s_dfd792beae87ba::t_e5e60e47e02826 120
+packages/core/src/render_scene_resolve_loop_test.rs
+  s_dfd792beae87ba::t_73f44775ae3b6b 1-2,5-8,14-16,18-22,37
+  s_dfd792beae87ba::t_597356ab596e13 3-4,9-13,17,23-36,38-66,70-71,75-76,84-89,91-94
+  s_dfd792beae87ba::t_61e988eb9ff8b0 90
+  s_dfd792beae87ba::t_241f75bd36716c 67-69,72-74,77-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3405ca804f0c059c29f160486b9b2bd73f6fec4d",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

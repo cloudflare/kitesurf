@@ -1,0 +1,19 @@
+docs/NETWORKING.md
+  s_57c08728af1561::t_1cec0613b48fbf 200-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "239040ed2238ba3c8637989841d9ed53291fd61a",
+  "prompts": {},
+  "sessions": {
+    "s_57c08728af1561": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f015a8619ffeNQlP8wNaWWCHJG",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

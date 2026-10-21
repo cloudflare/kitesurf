@@ -1,0 +1,28 @@
+packages/engine/test/e2e/mouse-input-fields.e2e.test.ts
+  s_f70b272515436f::t_f92674f102f46a 1-111
+packages/engine/src/cdp/input.ts
+  s_f70b272515436f::t_f92674f102f46a 115-126,133,165-167
+packages/dom-shim/src/events/event.ts
+  s_f70b272515436f::t_f933584f8dcaef 774-775
+  s_f70b272515436f::t_59f71314261669 737-739,743-744
+  s_f70b272515436f::t_e08ed21c1862e4 791-792
+  s_f70b272515436f::t_58c9b000a6a302 761-762
+packages/page-script/src/index.ts
+  s_f70b272515436f::t_f92674f102f46a 408,3433,3439-3440,3442-3445
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "88e86f028b52623c14167db24df88e5a83e73324",
+  "prompts": {},
+  "sessions": {
+    "s_f70b272515436f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee3accdeaffe8lRMgSeLfyUGrr",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

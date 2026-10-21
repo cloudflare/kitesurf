@@ -1,0 +1,60 @@
+packages/engine/test/rbi-resource-batch.test.ts
+  s_50d45ac3d4c7e5::t_80af8614c3d00a 261
+  s_50d45ac3d4c7e5::t_41626c5fd76dec 270,278,290,299,308,317,333-355
+  s_7090a3da6a35b4::t_5a519c18594831 5,319,329
+packages/core/src/scene_replay.rs
+  s_50d45ac3d4c7e5::t_0c38f3eacf5954 1800-1830
+  s_76bfd1a366a51d::t_cb950d5b5f83dd 1799
+packages/engine/src/rbi-protocol.ts
+  s_50d45ac3d4c7e5::t_363b034a02e40f 255
+  s_50d45ac3d4c7e5::t_ee75c7ad506602 219
+  s_50d45ac3d4c7e5::t_fbb4f283f55617 225-226,228-229,231-249,251-254,256-277
+  s_50d45ac3d4c7e5::t_0f48406b17550c 250
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_037adb1bc7fa9d 542
+  s_50d45ac3d4c7e5::t_3e648587a82863 534-541,543-577
+packages/engine/src/rbi.ts
+  s_50d45ac3d4c7e5::t_d4c15e5f8bc14b 988
+  s_50d45ac3d4c7e5::t_3d6622ac150504 17
+  s_14664c5294c6fb::t_4ab1930ae3dd18 798-799
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "41d5491e68228792abc6e2662339253b4d45a770",
+  "prompts": {},
+  "sessions": {
+    "s_14664c5294c6fb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02cd6f0eaffeoplCZKR6ISKMmV",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7090a3da6a35b4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02de2d88cffeBoHJCjIJ5vTbKT",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_76bfd1a366a51d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02cd68253ffeg1kYLSumAjq6rF",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

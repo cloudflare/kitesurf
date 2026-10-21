@@ -1,0 +1,20 @@
+packages/core/src/box_shadow_blur_accuracy_test.rs
+  s_74bdb8d7eb50dd::t_b4c6c9a6cb09d1 32
+  s_74bdb8d7eb50dd::t_6746dae3c9fc15 29-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "641399dff74fdc6dd177b909717dacf5fbf74204",
+  "prompts": {},
+  "sessions": {
+    "s_74bdb8d7eb50dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0047be798ffeo63pr3eHm9deOh",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

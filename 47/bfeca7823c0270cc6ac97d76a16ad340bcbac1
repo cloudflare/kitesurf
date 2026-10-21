@@ -1,0 +1,20 @@
+packages/tty-css-preview/extension/fallback-level1.css
+  s_91836f22884cfe::t_bf516bc57d2555 176-191
+  s_91836f22884cfe::t_f4ffa1afc2a0e6 175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "47bfeca7823c0270cc6ac97d76a16ad340bcbac1",
+  "prompts": {},
+  "sessions": {
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

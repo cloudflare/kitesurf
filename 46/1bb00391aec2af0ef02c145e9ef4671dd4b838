@@ -1,0 +1,19 @@
+packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
+  s_4ba7a10fc24412::t_b1635104bf32b4 1-2,4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "461bb00391aec2af0ef02c145e9ef4671dd4b838",
+  "prompts": {},
+  "sessions": {
+    "s_4ba7a10fc24412": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039850efffeBQSi5xVbdQfKSf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

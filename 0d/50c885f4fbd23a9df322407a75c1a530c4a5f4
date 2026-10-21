@@ -1,0 +1,21 @@
+packages/grafana/src/panel.ts
+  s_edad28f68e11b0::t_fcdb10605d9760 195-197
+packages/grafana/src/query.ts
+  s_edad28f68e11b0::t_0b8b0eac040667 454
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0d50c885f4fbd23a9df322407a75c1a530c4a5f4",
+  "prompts": {},
+  "sessions": {
+    "s_edad28f68e11b0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0062289d9ffeSjoYVfuhpub8tF",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,104 @@
+AGENTS.md
+  s_50d45ac3d4c7e5::t_faab3e1a918220 107,276
+  s_46581e2f222abb::t_2459f6375fc479 107
+  s_46581e2f222abb::t_029b84ddd3d84e 276
+docs/TRANSITIONS.md
+  s_50d45ac3d4c7e5::t_ddddb3b07ced36 1-110
+  s_46581e2f222abb::t_30211c3bcb3382 1-110
+packages/core/src/animation_clock_test.rs
+  s_50d45ac3d4c7e5::t_4a7b0e4afe4237 1,3-10,12-18,24,41-72,77,86-87,89-95,105-106,109-110,112,114-143,152-270
+  s_46581e2f222abb::t_109630d37fe7a4 1,3-10,12-18,24,41-72,77,86-87,89-95,105-106,109-110,112,114-143,152-270
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_88e3ccd707c8ec 51-52,67,373-387,673-676,2448-2464,2486-2494,2498,2500-2501,3551-3589
+  s_46581e2f222abb::t_d72dec4b43aecb 51
+  s_46581e2f222abb::t_d4d3b8d4b582f9 3555-3560
+  s_46581e2f222abb::t_ba401401c47902 67
+  s_46581e2f222abb::t_9f70357063c7d4 3566-3577
+  s_46581e2f222abb::t_10706959e71d5e 2450-2459,2461-2464
+  s_46581e2f222abb::t_69b868a50bef11 3551-3554,3561-3565,3578-3589
+  s_46581e2f222abb::t_47be7fd7732492 373-387
+  s_46581e2f222abb::t_0dd2fd7edb5f82 673-676
+  s_46581e2f222abb::t_7ed1560c78717c 2448-2449,2460
+  s_46581e2f222abb::t_895fb31b984c77 2486-2494,2498,2500-2501
+  s_50d45ac3d4c7e5::t_42127b7e9035d4 52
+packages/core/src/transitions.rs
+  s_50d45ac3d4c7e5::t_292529707a55c9 1-208
+  s_46581e2f222abb::t_f4a4b5f51841fd 5-6,15-16,19,22,33-58,73-99,115,117,123-127,131-132,134-139,143-151,153-161,166-171,174-186,190-207
+  s_46581e2f222abb::t_eb7cdd9d826917 1,3,9-14,17-18,20-21,23-32,59-72,100-114,116,118-122,128-130,133,140-142,152,162-165,172-173,187-189,208
+  s_46581e2f222abb::t_aa597d4ac35cb7 2,4,7-8
+packages/dom-shim/src/events/dispatch.ts
+  s_50d45ac3d4c7e5::t_de4e296d8e3532 133
+  s_46581e2f222abb::t_4a9e935db3f5fb 133
+packages/dom-shim/src/state.ts
+  s_50d45ac3d4c7e5::t_fd5073627aa10f 79-82,420-423
+  s_46581e2f222abb::t_030d157d6d0b07 79-82
+  s_46581e2f222abb::t_6a165edf82175a 420-423
+packages/dom-shim/src/transitions.ts
+  s_50d45ac3d4c7e5::t_be3d6a8cc82f86 1-3,5-7,9-10,19-20,27-29,31-32
+  s_46581e2f222abb::t_280e490211e902 1-3,5-7
+  s_46581e2f222abb::t_04510262b12d6f 27-28
+  s_46581e2f222abb::t_23a8547b1696e0 9-10,19-20,29,31-32
+packages/engine/src/cdp/page.ts
+  s_50d45ac3d4c7e5::t_8b97660695c25d 7188,7195,7203,7209-7215
+  s_46581e2f222abb::t_5ec03d8a813675 7188,7195,7203,7209-7215
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_50d45ac3d4c7e5::t_8b9455a02bf49c 1-13,23-29,32-77,81-116,118-145,147-204
+  s_46581e2f222abb::t_8ece5c5e031239 156-191
+  s_46581e2f222abb::t_d2ff412a541c34 60-61
+  s_46581e2f222abb::t_47cca61028138b 26,28-29
+  s_46581e2f222abb::t_25de5b0ef1eb55 1-25,27,30-59,62-148,150-155,192-208
+  s_46581e2f222abb::t_fbce9e7065765a 149
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_a0038242c6d9d3 5682-5739
+  s_46581e2f222abb::t_0a736fbf408f8a 5682-5702,5707-5710,5712-5713,5723-5739
+  s_46581e2f222abb::t_9424d6a38a5b56 5703-5706,5711,5714-5722
+packages/page-script/src/index.ts
+  s_50d45ac3d4c7e5::t_4793310c0534a9 215,2048-2050,4986-4989,5127-5130,5136-5137
+  s_46581e2f222abb::t_8c2fd7d0319dc5 4986-4989
+  s_46581e2f222abb::t_9cb77d053f3463 215
+  s_46581e2f222abb::t_e91b262940fce0 5127-5130,5136-5137
+  s_46581e2f222abb::t_508fa539cab7b3 2048-2050
+packages/page-script/src/transitions.ts
+  s_50d45ac3d4c7e5::t_f0996a58b8c24b 1-90
+  s_46581e2f222abb::t_e12298bf9c59fb 50-52
+  s_46581e2f222abb::t_a408b35635e0dc 3
+  s_46581e2f222abb::t_9c6e81ec440688 8-16,31-49,53-90
+  s_46581e2f222abb::t_feb23f26265681 17-30
+  s_08646115ade9a2::t_27815cae83c018 1-2,4-7
+scripts/patches/blitz-dom-0.3.0-beta.1/0085-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
+  s_50d45ac3d4c7e5::t_de35ff78ec6c42 3-5,10-18,20-21,25-26,28-33,36-41,43-53
+  s_46581e2f222abb::t_7360c4afd31d6d 3-5,10-18,20-21,25-26,28-33,36-41,43-53
+  s_50d45ac3d4c7e5::t_f7e0c77b4ad932 1-2,6-9,19,22-24,27,34-35,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6f077a4edefee0225fd40874f7dcaac293bb9d28",
+  "prompts": {},
+  "sessions": {
+    "s_08646115ade9a2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_034cdf6dbffeIt75niLifvj7yO",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_46581e2f222abb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_034ccb3baffeLXyWaEfrDSKzki",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

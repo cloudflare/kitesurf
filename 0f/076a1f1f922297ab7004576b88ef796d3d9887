@@ -1,0 +1,31 @@
+packages/core/src/scene_record.rs
+  s_dfd792beae87ba::t_12d26556d1b84c 1102,1654-1665,1681,2365-2396
+packages/core/src/taffy_style_source_test.rs
+  s_dfd792beae87ba::t_7972d8fff7982e 1-51,55-65,68-69
+  s_dfd792beae87ba::t_64ad61ddde55e3 52-54,66-67
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_56cf57f9ecf88e 5949-5951
+  s_dfd792beae87ba::t_8cb7da8c8023ab 123
+  s_dfd792beae87ba::t_4163557810d22f 5952
+  s_dfd792beae87ba::t_1d43a6becc796b 5939-5948,5953-5954,5960-5965
+  s_dfd792beae87ba::t_582024829bc355 125
+  s_dfd792beae87ba::t_8e1aee73c6dd95 5955-5959
+scripts/patches/blitz-dom-0.3.0-beta.1/0096-Rebuild-a-node-s-taffy-style-only-when-its-layout-st.patch
+  s_dfd792beae87ba::t_82e77660eb6e24 15-25,27-29,32,44,65-67,70-76,78,209-230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f076a1f1f922297ab7004576b88ef796d3d9887",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

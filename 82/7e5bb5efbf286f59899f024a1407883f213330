@@ -1,0 +1,22 @@
+packages/engine/src/eval/page-script.ts
+  s_b747a0d9eb94b4::t_8e77707eedb182 604-621
+  s_b747a0d9eb94b4::t_cf4dd4dec6ab65 960-961
+packages/engine/test/script-bundle-runtime.test.ts
+  s_b747a0d9eb94b4::t_a76305320d1f56 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "827e5bb5efbf286f59899f024a1407883f213330",
+  "prompts": {},
+  "sessions": {
+    "s_b747a0d9eb94b4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3bbcd391ffeQBYoWd2meCanzk",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

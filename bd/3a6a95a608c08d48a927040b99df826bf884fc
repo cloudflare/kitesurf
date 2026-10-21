@@ -1,0 +1,24 @@
+packages/dom-shim/scripts/editing-implementation.mjs
+  s_c16766ce08cf1b::t_96eaa7a7988374 11,23,25-27,32-33,75-96,101
+  s_c16766ce08cf1b::t_417b2a54a369da 13-21,36
+packages/dom-shim/patches/wpt-editing/0001-Wrap-the-script-in-a-createEditingEngine-factory.patch
+  s_c16766ce08cf1b::t_26f12c7ff0b178 1-43
+packages/dom-shim/patches/wpt-editing/0002-Treat-a-null-node-as-past-the-end-of-the-document-in.patch
+  s_c16766ce08cf1b::t_26f12c7ff0b178 1-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bd3a6a95a608c08d48a927040b99df826bf884fc",
+  "prompts": {},
+  "sessions": {
+    "s_c16766ce08cf1b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c0ccd4ffeiwrm8Hm466Uzaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

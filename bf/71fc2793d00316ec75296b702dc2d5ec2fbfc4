@@ -1,0 +1,36 @@
+packages/engine/test/e2e/eval-during-navigate.e2e.test.ts
+  s_d3331fe4df3409::t_d8ac9579ceac56 86-89
+  s_d3331fe4df3409::t_6d8e02c2b2aa19 1-85,90-147
+packages/engine/test/page-session.test.ts
+  s_d3331fe4df3409::t_9a2cf186319be7 226-227
+  s_d3331fe4df3409::t_ac843fdffe5e47 223-225
+  s_d3331fe4df3409::t_ca5d8d177c192b 228-230
+packages/engine/src/cdp/dom.ts
+  s_d3331fe4df3409::t_aede35ba853cef 653-661,750-802,804-816,818-826
+packages/engine/src/cdp/page-script-generation.ts
+  s_d3331fe4df3409::t_4e535f7b89b517 188-191
+packages/engine/src/cdp/page-session.ts
+  s_d3331fe4df3409::t_8ab4760523334d 380-390,395,403-432
+packages/engine/src/cdp/page.ts
+  s_d3331fe4df3409::t_f1e3cea17016cf 2456-2490,2509,2511-2523
+packages/engine/src/cdp/runtime.ts
+  s_d3331fe4df3409::t_b56b9b8f35a87a 15,48-61,389-392,478,576,640
+packages/engine/src/cdp/types.ts
+  s_d3331fe4df3409::t_83343e352e43b0 763-773
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bf71fc2793d00316ec75296b702dc2d5ec2fbfc4",
+  "prompts": {},
+  "sessions": {
+    "s_d3331fe4df3409": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f649d4dd3ffeZ9Zfp0qsWRxmBj",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/dom-shim/src/webgl.ts
+  s_f977f0f910b2b1::t_d2d9102b9a0414 167,394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4919f7cb1ce79a4ea4f9a1c9182bbbf47dbf94f5",
+  "prompts": {},
+  "sessions": {
+    "s_f977f0f910b2b1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb817b8e3ffemNhmAdrY3UMtPl",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

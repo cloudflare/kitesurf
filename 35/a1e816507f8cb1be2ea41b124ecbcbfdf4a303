@@ -1,0 +1,21 @@
+docs/WEBMCP.md
+  s_3467633078b381::t_5025cbf36d251a 47-48,75-78,113-114,123-124
+packages/dom-shim/src/model-context.ts
+  s_3467633078b381::t_65df75bf35734c 187-188,449-455,457,869-870,886-891,906-908,955
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "35a1e816507f8cb1be2ea41b124ecbcbfdf4a303",
+  "prompts": {},
+  "sessions": {
+    "s_3467633078b381": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f55946467ffeDtrUharToa0Hy4",
+        "model": "@cf/zai-org/glm-5.3-flash"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

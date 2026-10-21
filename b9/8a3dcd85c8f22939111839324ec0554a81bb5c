@@ -1,0 +1,39 @@
+packages/engine/test/e2e/canvas-image-bytes.e2e.test.ts
+  s_03997f732ec005::t_2873326ffd602f 52
+  s_03997f732ec005::t_4c3aa4d11ee6e7 50,57-58,61-62,70,86,93-94,96-100,102-104,113
+  s_03997f732ec005::t_329c75652403cc 73,79,89
+  s_03997f732ec005::t_4becc879ca8769 63-69,105
+  s_389aa8bfb4b14f::t_45a61486e9d12b 13-27,32-37,46-49,51,53-56,59-60,71-72,74-78,80-85,87-88,90-92,95,101,106-112,116-121,135-148
+packages/dom-shim/src/canvas2d.ts
+  s_03997f732ec005::t_3f7fb7ff068ce2 698
+  s_03997f732ec005::t_978157df63f809 643,656-661,685-688,697,699-700,707-709
+packages/core/src/lib.rs
+  s_03997f732ec005::t_978157df63f809 5608-5616,5621-5622,5628,5630-5640,5650-5657
+  s_03997f732ec005::t_4c3aa4d11ee6e7 5607,5641-5643
+  s_03997f732ec005::t_7dbfefc5a2bdb2 5629
+  s_03997f732ec005::t_612e3ce33750c5 5617-5620,5623-5627,5644-5649
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b98a3dcd85c8f22939111839324ec0554a81bb5c",
+  "prompts": {},
+  "sessions": {
+    "s_03997f732ec005": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0eae1bebffeH0x3Q3vwkoOycu",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

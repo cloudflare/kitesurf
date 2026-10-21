@@ -1,0 +1,24 @@
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_103b7f1f0713cd::t_1d33a4f6dd4141 471,585,588
+  s_103b7f1f0713cd::t_b0a842b9c4c540 554-584,586-587,589-590
+  s_103b7f1f0713cd::t_677f98babc41cc 591-593
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_6fe88f693177c6 2272
+  s_103b7f1f0713cd::t_8906631db4a13c 2268-2271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "723ffa76714e614b7cb448030a0d80fcee6a61b3",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

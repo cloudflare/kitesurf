@@ -1,0 +1,77 @@
+packages/page-script/src/wasm-glue.d.ts
+  s_ccf5542acfcceb::t_62ebf46bd8261f 198-203
+packages/engine/src/tty-stylesheet.ts
+  s_ccf5542acfcceb::t_88d3996e9b16e7 1-84
+  s_ccf5542acfcceb::t_19659cc1e16223 71
+packages/engine/src/cdp/page.ts
+  s_ccf5542acfcceb::t_49908011da70a1 593-633
+  s_ccf5542acfcceb::t_aa25945235f730 12,3056-3070
+packages/core/src/lib.rs
+  s_ccf5542acfcceb::t_1bb6824d03bcc3 431-464,965-971
+packages/engine/src/cdp/types.ts
+  s_ccf5542acfcceb::t_aa25945235f730 226-261
+packages/engine/src/eval/page-script.ts
+  s_ccf5542acfcceb::t_aa25945235f730 338-346
+packages/page-script/src/index.ts
+  s_ccf5542acfcceb::t_62ebf46bd8261f 149,254-255,1747-1757,1778-1815
+Cargo.lock
+  s_ccf5542acfcceb::t_ea350471ef71ba 447,450,453-454
+scripts/patches/blitz-dom-0.3.0-beta.2/0104-kitesurf-bound-shadow-child-damage-lookup.patch
+  s_91836f22884cfe::t_c23dc3e3f22778 1-16,18-19,22-24,26,28-32,36-49,51-57
+scripts/patches/blitz-paint-0.3.0-beta.2/0026-Mark-which-part-of-an-element-each-op-paints.patch
+  s_91836f22884cfe::t_ab3088a625aba2 1-100
+scripts/patches/blitz-dom-0.3.0-beta.2/0102-kitesurf-propagate-damage-through-shadow-roots.patch
+  s_91836f22884cfe::t_c23dc3e3f22778 1-26,28-29,31-32,40-45,48-64,66
+scripts/patches/blitz-paint-0.3.0-beta.2/0023-Let-a-re-homed-abspos-escape-its-flow-parent-s-overf.patch
+  s_91836f22884cfe::t_ab3088a625aba2 1-36,39-40,42-43,47,48,50-51,53-60,62-67,71,73-75,77,80-81,84-97,99,102-105,106-109
+scripts/patches/blitz-paint-0.3.0-beta.2/0027-Paint-checkboxes-and-radios-which-blitz-never-did.patch
+  s_91836f22884cfe::t_ab3088a625aba2 1-4,5-107
+scripts/patches/blitz-paint-0.3.0-beta.2/0022-Lean-synthetic-italic-to-the-right-not-the-left.patch
+  s_91836f22884cfe::t_ab3088a625aba2 1-26,29-30,32-33,35-37,40-43
+scripts/patches/blitz-paint-0.3.0-beta.2/0028-Sketch-mode-box-SVG-content-instead-of-painting-the-.patch
+  s_91836f22884cfe::t_ab3088a625aba2 1-47,49-50,52-65,67-99
+scripts/patches/blitz-dom-0.3.0-beta.2/0103-kitesurf-rebuild-nested-shadow-layout-children.patch
+  s_91836f22884cfe::t_c23dc3e3f22778 1-17,19-20,22-32,34-40,42-44,46-47,50-55
+packages/engine/vitest.e2e.config.mts
+  s_91836f22884cfe::t_5ad62df0c267f1 116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4b7b640b1d28a7cda7d8d9b91c562600172f0943",
+  "prompts": {},
+  "sessions": {
+    "s_748a25868f96d0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fccc0f54affe1bh2BFFK0PXWWe",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_75ec8a9f61c1a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fac679ed1ffecrwrIIAqPO2iog",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

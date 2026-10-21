@@ -1,0 +1,23 @@
+packages/core/src/scene_replay.rs
+  s_4ba79f911c93c4::t_b1b2329d46011b 1266-1268,1273-1275,1282,1287-1289,1319-1326,1489-1497,1500-1501,1504,1506-1524,1595-1602,1628-1632
+  s_4ba79f911c93c4::t_3fb03a51ee8831 1633-1636
+  s_4ba79f911c93c4::t_905903f2c14ff5 1996-2053
+packages/core/src/screenshot.rs
+  s_4ba79f911c93c4::t_7a80273039db58 416-422
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "643ee87dd1d15bf8b52b6fc287ed0ce5220b4551",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

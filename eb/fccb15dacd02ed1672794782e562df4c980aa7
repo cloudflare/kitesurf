@@ -1,0 +1,36 @@
+packages/engine/src/cdp/protocol-extensions.d.ts
+  s_0c9b27c38a42a1::t_d36250e2fb7dd0 52-55
+packages/engine/test/e2e/demos/oopif-elements-panel.e2e.test.ts
+  s_0c9b27c38a42a1::t_38071f6bf37576 46-49,56,60,66
+  s_0c9b27c38a42a1::t_839f1d40326590 113
+  s_0c9b27c38a42a1::t_8ecd2c63e5305d 112,114,120,122
+  s_0c9b27c38a42a1::t_0d62562baccc7e 65,67-70,92,94,96,98
+packages/engine/src/cdp/kitesurf.ts
+  s_0c9b27c38a42a1::t_3663f2c5adaced 309
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_0c9b27c38a42a1::t_0d62562baccc7e 29-31,72-74,77
+  s_0c9b27c38a42a1::t_3663f2c5adaced 22-25,68-71
+packages/engine/test/e2e/demos/page-renderer-pdf.e2e.test.ts
+  s_0c9b27c38a42a1::t_8ecd2c63e5305d 19
+packages/engine/test/e2e/demos/oopif-heap-usage.e2e.test.ts
+  s_0c9b27c38a42a1::t_97ecb78b01be29 95
+  s_0c9b27c38a42a1::t_0d62562baccc7e 36-39,41-42,46-47,49-50,52-53,58,65,71
+packages/engine/test/e2e/demos/font-heavy.e2e.test.ts
+  s_0c9b27c38a42a1::t_8ecd2c63e5305d 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ebfccb15dacd02ed1672794782e562df4c980aa7",
+  "prompts": {},
+  "sessions": {
+    "s_0c9b27c38a42a1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef7e2bd10ffeioh5oQ7RUlZ3aX",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+packages/page-script/src/websocket.ts
+  s_ba35fbf4cf2ff5::t_7797cc793c0703 19-22,42,83,88,98,123,167,249,288
+packages/page-script/src/globals.ts
+  s_ba35fbf4cf2ff5::t_7a2e7c43ba3918 7,16-18,290-291,314,321-322,330-331,337-338,341,353-354,403,424,653,663,665,667,669,781,873,948-949,959,979,981,984-985,1048,1125,1135-1136,1162-1163,2100,2135,2201-2202,2239,2278,2295,2389,2464,2639,2652,2662,2735,2767,2890,2931,2935,2976,4042,4060,4075,4095,4120,4130,4134,4161,4177,4242,4275,4326,4366-4367,4418,4442-4443,4485,4532,4536,4552,4584,4735-4736,4858-4859,4863,4889,4941,4952,4956,4965,4983,5002
+packages/page-script/src/init-shims.ts
+  s_ba35fbf4cf2ff5::t_7797cc793c0703 15-18,86
+packages/page-script/src/index.ts
+  s_ba35fbf4cf2ff5::t_7a2e7c43ba3918 211,258-259,263-264,474,580,590,597,599,668,754,756,764,893-894,989-990,1137,1315,1341-1342,1691,1799,1806,1833,2009,2747,3202,3242-3243,4183,4272,4367,4374,4397,4875,4878,6180,6292,6305
+  s_ba35fbf4cf2ff5::t_7797cc793c0703 10-12
+packages/page-script/src/startup-probe.ts
+  s_ba35fbf4cf2ff5::t_7797cc793c0703 45-46
+  s_ba35fbf4cf2ff5::t_11ef861b11cc94 30-33
+  s_ba35fbf4cf2ff5::t_215f02327bdff0 34
+packages/page-script/src/eval-helpers.ts
+  s_ba35fbf4cf2ff5::t_7797cc793c0703 11,18-20,105,179,244,251,282
+packages/page-script/src/types.ts
+  s_ba35fbf4cf2ff5::t_7a2e7c43ba3918 211-217
+packages/page-script/src/defer-shim.ts
+  s_ba35fbf4cf2ff5::t_7a2e7c43ba3918 2-5,349-352,354,361,368,373,380-382,392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "56248dd58747d518930a3c6a46f1c14d01194e91",
+  "prompts": {},
+  "sessions": {
+    "s_ba35fbf4cf2ff5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009539e58ffe2AW5wz0TMPGefw",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

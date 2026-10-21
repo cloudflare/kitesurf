@@ -1,0 +1,35 @@
+package.json
+  s_4ba7a10fc24412::t_1f51ecfef8753b 64
+packages/scene-client/Cargo.toml
+  s_47c30dc7e2f3aa::t_82374352b6fe1a 11-12,14-16,20
+packages/scene-client/scripts/build.mjs
+  s_4ba7a10fc24412::t_426300264eb313 2,11,15-16,18-19,21,29,43-56,58,62,77,80,84,86,88
+packages/scene-client/src/lib.rs
+  s_4ba7a10fc24412::t_6869cf11d72ae3 1-3,5,10,13-15,27
+packages/scene-client/test/build.test.mjs
+  s_4ba7a10fc24412::t_c121d9c5fef53c 1-347
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "82c9b73a8db261d864fc6af5e46fb96eef3fc50c",
+  "prompts": {},
+  "sessions": {
+    "s_47c30dc7e2f3aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03986894ffeLs3pkWKYkmMCuo",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba7a10fc24412": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039850efffeBQSi5xVbdQfKSf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

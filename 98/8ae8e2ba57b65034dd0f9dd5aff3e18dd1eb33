@@ -1,0 +1,29 @@
+packages/kitesurf-app/scripts/build-engine.sh
+  s_f1929c5c748783::t_1f47281b643c7a 2-9,14-15,18-33
+packages/kitesurf-app/scripts/bundle-macos.sh
+  s_f1929c5c748783::t_1f47281b643c7a 1-62
+packages/kitesurf-app/scripts/engine-config.mjs
+  s_f1929c5c748783::t_1f47281b643c7a 13-16,19,47-67,88,100-106
+packages/kitesurf-app/build.rs
+  s_f1929c5c748783::t_1f47281b643c7a 2-4,6-8,12-20
+packages/kitesurf-app/assets/icon.svg
+  s_f1929c5c748783::t_1f47281b643c7a 1
+packages/kitesurf-app/src/engine.rs
+  s_f1929c5c748783::t_1f47281b643c7a 88-103,140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "988ae8e2ba57b65034dd0f9dd5aff3e18dd1eb33",
+  "prompts": {},
+  "sessions": {
+    "s_f1929c5c748783": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb67e1014ffeeXTE6BiuRnAJLk",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

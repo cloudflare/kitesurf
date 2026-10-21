@@ -1,0 +1,19 @@
+.gitlab/build-images/Dockerfile.build
+  s_4ba79f911c93c4::t_f464288951c100 32,34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dc4a10c8b41ff6c4006ecd99b0f0c036f9509214",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

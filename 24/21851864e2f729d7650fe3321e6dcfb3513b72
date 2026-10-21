@@ -1,0 +1,21 @@
+docs/TRANSITIONS.md
+  s_b923f0960d4142::t_079eff2ca8c8b9 114-115
+packages/engine/test/e2e/layout-resolve-pollers.e2e.test.ts
+  s_b923f0960d4142::t_5803863fb096c9 15-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2421851864e2f729d7650fe3321e6dcfb3513b72",
+  "prompts": {},
+  "sessions": {
+    "s_b923f0960d4142": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebb3d789affe9AqeEWml1PsI7n",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

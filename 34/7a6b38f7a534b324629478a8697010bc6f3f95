@@ -1,0 +1,19 @@
+packages/core/src/container_query_image_flush_test.rs
+  s_4ba79f911c93c4::t_286bb60e1cac8e 1,7,19,53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "347a6b38f7a534b324629478a8697010bc6f3f95",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

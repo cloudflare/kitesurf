@@ -1,0 +1,19 @@
+tests/interactivity-flows/lib/driver.ts
+  s_51ed5497a9ef32::t_3b5f71a677e93a 83-85,87-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fdd9d18b39830bfea588527de27d4628b3a088b2",
+  "prompts": {},
+  "sessions": {
+    "s_51ed5497a9ef32": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f514775d7ffeg9CJ8X6f7RZn0V",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0140-Recompute-hoisted-paint-offsets-after-layout.patch
+  s_6917a4c76239ca::t_a08f621614e83d 1-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c52f3cac2b5cdd69c58ddc47a3320ccbc5075ec1",
+  "prompts": {},
+  "sessions": {
+    "s_6917a4c76239ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4957e992ffeVbjatLtj1w4960",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

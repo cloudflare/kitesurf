@@ -1,0 +1,41 @@
+packages/engine/package.json
+  s_65abc89251632c::t_2991b71b6bfd19 19-20
+packages/engine/src/quickactions/pdf.ts
+  s_65abc89251632c::t_2991b71b6bfd19 136
+packages/engine/src/runtime.ts
+  s_65abc89251632c::t_2991b71b6bfd19 1-4
+packages/engine/test/e2e/html-raw.ts
+  s_65abc89251632c::t_2991b71b6bfd19 1-6
+packages/engine/tsconfig.json
+  s_65abc89251632c::t_2991b71b6bfd19 24-25
+turbo.json
+  s_65abc89251632c::t_2991b71b6bfd19 46
+packages/engine/src/wasm-modules.ts
+  s_65abc89251632c::t_2991b71b6bfd19 1-12
+packages/engine/test/fixtures-worker/tsconfig.json
+  s_65abc89251632c::t_2991b71b6bfd19 1-9
+packages/engine/src/cdp/protocol-extensions.ts
+  s_65abc89251632c::t_2991b71b6bfd19 1-53
+packages/engine/test/e2e/cloudflare-env.ts
+  s_65abc89251632c::t_2991b71b6bfd19 1-7
+packages/engine/src/fixtures-binding.ts
+  s_65abc89251632c::t_2991b71b6bfd19 1-6
+packages/engine/src/ratelimit-binding.ts
+  s_65abc89251632c::t_2991b71b6bfd19 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8533c49844eb09e71af753aeeff6d34946042142",
+  "prompts": {},
+  "sessions": {
+    "s_65abc89251632c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef446c8cfffeC9NogyjHDidIEP",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

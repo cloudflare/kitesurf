@@ -1,0 +1,58 @@
+packages/shadow-replay/src/comparison/accessibility.ts
+  s_212ac4efbe3cd3::t_a3887048bcce53 41-42,73-74
+packages/shadow-replay/test/workerd/loader-platform-worker.mjs
+  s_212ac4efbe3cd3::t_39451d5641570d 52-53
+packages/shadow-replay/test/workerd/loader-outbound.test.ts
+  s_212ac4efbe3cd3::t_6ce3dedc83063b 14,25-27,36-37,44-45,52
+packages/shadow-replay/src/rasink.ts
+  s_212ac4efbe3cd3::t_570938cb70cfb6 120
+  s_212ac4efbe3cd3::t_e59eaed746a8fc 119
+  s_212ac4efbe3cd3::t_dea9b34c0e466f 1-2
+  s_212ac4efbe3cd3::t_5887a714e620c8 99-100
+packages/shadow-replay/src/etld.ts
+  s_212ac4efbe3cd3::t_dea9b34c0e466f 5-7
+  s_212ac4efbe3cd3::t_91b55d06f7a18d 48
+packages/shadow-replay/src/comparison/screenshot.ts
+  s_212ac4efbe3cd3::t_6c7d9448ea4af5 133-135
+  s_212ac4efbe3cd3::t_91b55d06f7a18d 152-154
+packages/shadow-replay/src/verdict.ts
+  s_212ac4efbe3cd3::t_8de7398f1abd9f 17,42-44
+packages/shadow-replay/test/workerd/channel-token.test.ts
+  s_212ac4efbe3cd3::t_e5eb7e3b2ef0f7 22-24,30-32,48
+packages/shadow-replay/src/comparison/pdf.ts
+  s_212ac4efbe3cd3::t_91b55d06f7a18d 56-58,137-138,141-146
+packages/shadow-replay/wrangler.jsonc
+  s_212ac4efbe3cd3::t_dea9b34c0e466f 6
+packages/shadow-replay/src/comparison/response.ts
+  s_212ac4efbe3cd3::t_91b55d06f7a18d 121-123
+packages/shadow-replay/test/workerd/stub-relay-worker.mjs
+  s_212ac4efbe3cd3::t_9b65798d01f1a9 3
+  s_212ac4efbe3cd3::t_e5eb7e3b2ef0f7 18-21
+  s_212ac4efbe3cd3::t_e929b9e94bbc3f 1-2
+  s_212ac4efbe3cd3::t_5b4782ecae958d 30,35
+packages/shadow-replay/test/emitter.test.ts
+  s_212ac4efbe3cd3::t_6ce3dedc83063b 28-29,33,41-43,161,167,169,186
+packages/shadow-replay/src/index.ts
+  s_212ac4efbe3cd3::t_af26e96154c32a 27-28,73,81,89
+packages/shadow-replay/src/comparison/content.ts
+  s_212ac4efbe3cd3::t_a3887048bcce53 98-100
+  s_212ac4efbe3cd3::t_91b55d06f7a18d 101
+packages/shadow-replay/src/comparison/types.ts
+  s_212ac4efbe3cd3::t_6c7d9448ea4af5 25-30,36,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "31c09d00c212f1dfb5d3bb6212aaea81b68a49c2",
+  "prompts": {},
+  "sessions": {
+    "s_212ac4efbe3cd3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03982408ffeQZYyHLGLXe06ND",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

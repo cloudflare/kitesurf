@@ -1,0 +1,21 @@
+scripts/patches/blitz-dom-0.3.0-beta.3/0150-kitesurf-end-a-family-list-without-a-generic-on-seri.patch
+  s_f2f1dbce2d5d5d::t_f464e4fe60e7d8 3,7-15,18
+docs/FONTS.md
+  s_f2f1dbce2d5d5d::t_490fb51ab4560f 320-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9501d13bf63a99c2d96c628a487e50c644e0fe30",
+  "prompts": {},
+  "sessions": {
+    "s_f2f1dbce2d5d5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaf4cb2b5ffeHlvt6Yw56JGX3h",
+        "model": "unknown"
+      },
+      "human_author": "Nuno Pereira <npereira@cloudflare.com>"
+    }
+  }
+}

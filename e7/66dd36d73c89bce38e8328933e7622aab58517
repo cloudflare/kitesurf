@@ -1,0 +1,19 @@
+packages/tty-css-preview/extension/fallback-level1.css
+  s_f1784921d4c778::t_1f9c723732ba98 53-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e766dd36d73c89bce38e8328933e7622aab58517",
+  "prompts": {},
+  "sessions": {
+    "s_f1784921d4c778": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1859fd34ffem9Kd8VtbXwlq4H",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}

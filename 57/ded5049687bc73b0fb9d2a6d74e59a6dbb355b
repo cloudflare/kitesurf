@@ -1,0 +1,33 @@
+packages/website/src/components/SiteHeader.tsx
+  s_c1a6940130844c::t_ae667c7ef6c8dc 18
+  s_c1a6940130844c::t_60e7ebfb966757 3
+packages/website/src/styles/base.css
+  s_c1a6940130844c::t_237a894d563e51 210-212,216
+  s_c1a6940130844c::t_3e89bb43a98bd4 208-209
+  s_c1a6940130844c::t_7f509cd492b064 236
+  s_c1a6940130844c::t_b73de8951873a1 152-160
+  s_c1a6940130844c::t_b21b5773f4cad4 161,166-167
+  s_c1a6940130844c::t_3dd22b9448926e 162-165
+packages/website/src/components/Document.tsx
+  s_c1a6940130844c::t_2596b0f28ab36f 12
+packages/website/src/components/NewTab.tsx
+  s_c1a6940130844c::t_2c599dd4b3ada1 2
+  s_c1a6940130844c::t_93afecd21430cc 16-18
+  s_c1a6940130844c::t_b1a53cfcce4d3c 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "57ded5049687bc73b0fb9d2a6d74e59a6dbb355b",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

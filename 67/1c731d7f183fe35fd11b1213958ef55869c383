@@ -1,0 +1,37 @@
+bazel/checks.bzl
+  s_4ba79f911c93c4::t_54964a121ddbc0 75-77,79,87-92
+  s_4ba79f911c93c4::t_7011dd1af24ce4 5,78,80-86
+  s_4ba79f911c93c4::t_43d1603991f7cb 93
+packages/engine-cf/test/e2e/BUILD.bazel
+  s_4ba79f911c93c4::t_3347916230082d 102
+  s_4ba79f911c93c4::t_f85ca5ea14bb7f 3,98-101
+  s_4ba79f911c93c4::t_1278ab4b1ad332 62
+  s_4ba79f911c93c4::t_9588c739400212 103-104
+BUILD.bazel
+  s_4ba79f911c93c4::t_9c265aeee64239 97
+packages/engine-cf/test/e2e/runfiles-package-links.test.mjs
+  s_4ba79f911c93c4::t_e764b37ccab936 17-25,47,57-58,60-61
+  s_4ba79f911c93c4::t_9b12d0df53dfa5 8,14,31,59
+  s_4ba79f911c93c4::t_df4a8f2ad2daa7 2-7,9-11,26-30,34-36,39-40,43-46,48-56
+  s_4ba79f911c93c4::t_65dc979526c6e4 1,12-13,15-16,32-33,37-38,41-42,62
+  s_4ba79f911c93c4::t_7adbc27d88fd4f 63-68
+packages/engine-cf/BUILD.bazel
+  s_4ba79f911c93c4::t_e50e208e9293c6 7,100-102
+  s_4ba79f911c93c4::t_960f51cf0d1352 103-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "671c731d7f183fe35fd11b1213958ef55869c383",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

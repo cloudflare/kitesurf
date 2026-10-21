@@ -1,0 +1,28 @@
+.cloudflare/flamingo/plans/kitesurf-engine-bench.edge-plan
+  s_8deef65a89b902::t_6137a09cdac6fa 1,8-9,23
+  s_8deef65a89b902::t_e45d80beda0653 2,7,11-13
+  s_8deef65a89b902::t_3a2b39c7bc6f08 3-6
+  s_8deef65a89b902::t_22f08903ce95e7 10
+  s_8deef65a89b902::t_66fc8b1231e648 14-22
+.cloudflare/flamingo/scripts/kitesurf-wpt-slice.edge-test
+  s_8deef65a89b902::t_5f148db2d693d5 23-25,33
+  s_8deef65a89b902::t_3a2b39c7bc6f08 35-37
+  s_8deef65a89b902::t_e45d80beda0653 14-17
+  s_8deef65a89b902::t_4ad0a69cd34efc 1-13,18-22,26-32,34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6fc11f36eaac740e40bbbb2ce8bb8983d43dc96b",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

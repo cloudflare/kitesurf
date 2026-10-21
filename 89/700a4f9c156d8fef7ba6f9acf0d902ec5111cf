@@ -1,0 +1,19 @@
+packages/dom-shim/src/element.ts
+  s_82c859ab00f738::t_b2d3919667aa7d 96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "89700a4f9c156d8fef7ba6f9acf0d902ec5111cf",
+  "prompts": {},
+  "sessions": {
+    "s_82c859ab00f738": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-canvas-memory-mr",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

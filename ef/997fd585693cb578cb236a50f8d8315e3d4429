@@ -1,0 +1,25 @@
+packages/dom-shim/src/window.ts
+  s_976952ea0f77dd::t_cca19b640ee117 1668-1671,1676-1678,1681,1683-1686,1695-1697
+  s_976952ea0f77dd::t_c1b1e9a6dde2ed 1679-1680,1682
+  s_976952ea0f77dd::t_20c8ab13565e58 1667
+  s_976952ea0f77dd::t_cbce3b49376e9a 1663,1672-1673,1675,1718,1839
+packages/engine/test/e2e/named-global-live.e2e.test.ts
+  s_976952ea0f77dd::t_ede3124cb14292 43,45,48,51
+  s_976952ea0f77dd::t_e3c18689a44082 41-42,44,46-47,49-50,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ef997fd585693cb578cb236a50f8d8315e3d4429",
+  "prompts": {},
+  "sessions": {
+    "s_976952ea0f77dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f724de1ffeidXYFNOciC2RDu",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

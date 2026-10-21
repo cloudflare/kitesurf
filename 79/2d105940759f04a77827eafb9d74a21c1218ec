@@ -1,0 +1,28 @@
+packages/dom-shim/src/window.ts
+  s_4ba79f911c93c4::t_c8e7fc13f09058 1488,1492,1494-1505,1647,1658
+  s_4ba79f911c93c4::t_c3cf21b2d1047a 1489,1585,1590-1592,1600
+packages/dom-shim/src/element/element.ts
+  s_4ba79f911c93c4::t_17a5e5d5474fbf 42,256
+packages/dom-shim/src/record.ts
+  s_4ba79f911c93c4::t_54e3067426018d 10,42
+packages/engine/test/e2e/named-global-live.e2e.test.ts
+  s_4ba79f911c93c4::t_70d9a0f683a265 1-41
+  s_4ba79f911c93c4::t_ce4f0f19c0e598 52,57,61-64
+  s_4ba79f911c93c4::t_78d699aed20b81 42-51,53-56,58-60,65-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "792d105940759f04a77827eafb9d74a21c1218ec",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

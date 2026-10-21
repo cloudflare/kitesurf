@@ -1,0 +1,21 @@
+MODULE.bazel.lock
+  s_4ba79f911c93c4::t_99d0c74b8ddf81 1061-1062,1064-1065,1067-1068,2269-2271
+deps/kitesurf
+  s_4ba79f911c93c4::t_72d3fb73908a5a 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "167600551539cb9a4a7825efd8c0bc0aa7a8625a",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

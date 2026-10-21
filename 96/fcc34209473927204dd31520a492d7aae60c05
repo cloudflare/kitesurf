@@ -1,0 +1,24 @@
+.gitlab-ci.yml
+  s_48191ea07870ee::t_798135ca0e2c9b 1939-1940
+  s_48191ea07870ee::t_3143e6f8d19092 1945-1948,1950,1953-1954
+docs/TRACING.md
+  s_48191ea07870ee::t_2656c05266658d 96
+  s_48191ea07870ee::t_c034db029b155c 70-71,77-81
+  s_48191ea07870ee::t_c3da49a0bfcaa0 82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "96fcc34209473927204dd31520a492d7aae60c05",
+  "prompts": {},
+  "sessions": {
+    "s_48191ea07870ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009082396ffeXKnEicNrzluRoG",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

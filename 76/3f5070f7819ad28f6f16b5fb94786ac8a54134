@@ -1,0 +1,25 @@
+packages/dom-shim/src/mutations/observer.ts
+  s_e16455601071f9::t_01b0fec16ff762 13,21-24,136-140,159,346,435-439,595
+packages/dom-shim/src/element.ts
+  s_e16455601071f9::t_01b0fec16ff762 379,553
+packages/dom-shim/src/node-base.ts
+  s_e16455601071f9::t_01b0fec16ff762 635
+packages/dom-shim/src/window.ts
+  s_e16455601071f9::t_01b0fec16ff762 394,475,483
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "763f5070f7819ad28f6f16b5fb94786ac8a54134",
+  "prompts": {},
+  "sessions": {
+    "s_e16455601071f9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03986892ffeEAfnXn425GuW6I",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

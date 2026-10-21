@@ -1,0 +1,19 @@
+packages/ra-schema/test/emit-yaml.test.ts
+  s_2e0a92bb45cc00::t_23028244dcc75d 15-16,67-68,94-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "09dc831a8173ca9fa1f6928a423edb4ab471411d",
+  "prompts": {},
+  "sessions": {
+    "s_2e0a92bb45cc00": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03983ac2ffeXK7Z09mP2CS3qW",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

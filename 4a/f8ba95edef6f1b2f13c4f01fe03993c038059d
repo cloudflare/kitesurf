@@ -1,0 +1,27 @@
+.gitlab-ci.yml
+  s_8deef65a89b902::t_e77c35b779ccef 220,227-229,231
+packages/ci-workflow/wrangler.jsonc
+  s_8deef65a89b902::t_b0bc2050a3154e 11-14,24
+packages/ci-workflow/src/index.ts
+  s_8deef65a89b902::t_515b1d36143ae3 1,3-4
+tests/unit/slice-for.test.ts
+  s_8deef65a89b902::t_b0bc2050a3154e 1-50
+docs/RELEASING.md
+  s_8deef65a89b902::t_9e13aba7414a40 22-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4af8ba95edef6f1b2f13c4f01fe03993c038059d",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

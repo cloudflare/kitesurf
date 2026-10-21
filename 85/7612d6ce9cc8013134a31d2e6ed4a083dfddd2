@@ -1,0 +1,21 @@
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_c1d1c93f383cfd::t_3b5f9938237b42 31-131
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_c1d1c93f383cfd::t_3b5f9938237b42 1-321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "857612d6ce9cc8013134a31d2e6ed4a083dfddd2",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

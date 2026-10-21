@@ -1,0 +1,25 @@
+packages/engine/package.json
+  s_2d0691bf310fb0::t_63fdf67c7fd94e 14
+scripts/mr-preview.mjs
+  s_2d0691bf310fb0::t_a7ef031c791349 1-92
+.gitlab-ci.yml
+  s_2d0691bf310fb0::t_5ab71e814a49e5 711,713
+  s_2d0691bf310fb0::t_c082d67bd51c6a 672-676,683-710,712,714-732
+  s_2d0691bf310fb0::t_3ea2d46d10c432 677-682
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a99e5e98b65b916d09656c2761d3f56309073e5a",
+  "prompts": {},
+  "sessions": {
+    "s_2d0691bf310fb0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06c5b682effe5KyQDNSTfVWTs9",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,26 @@
+packages/page-script/src/font-loader.ts
+  s_f2f1dbce2d5d5d::t_44f3caa05fe7ba 51-54,568-569,571-572,656-661,743-748
+  s_f2f1dbce2d5d5d::t_7269d7e5ba1485 562-566,570,573
+docs/FONTS.md
+  s_f2f1dbce2d5d5d::t_44f3caa05fe7ba 77-78,99,101
+  s_f2f1dbce2d5d5d::t_7269d7e5ba1485 79-80
+  s_f2f1dbce2d5d5d::t_c1dde3ca1a3640 102-104
+packages/core/src/fonts.rs
+  s_f2f1dbce2d5d5d::t_44f3caa05fe7ba 1282-1283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "afac51c3e7fae02aff2099618a4e83eb89928a0e",
+  "prompts": {},
+  "sessions": {
+    "s_f2f1dbce2d5d5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaf4cb2b5ffeHlvt6Yw56JGX3h",
+        "model": "unknown"
+      },
+      "human_author": "Nuno Pereira <npereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+packages/engine-cf/vitest.e2e.config.mts
+  s_4ba79f911c93c4::t_07ad20200a22fc 68-69
+packages/engine-cf/test/e2e/site-routes.e2e.test.ts
+  s_4ba79f911c93c4::t_9fca4e15740dfa 1-24
+  s_4ba79f911c93c4::t_0f493eef3d8b10 25-26
+BUILD.bazel
+  s_4ba79f911c93c4::t_083c4559e17386 96
+packages/engine-cf/BUILD.bazel
+  s_4ba79f911c93c4::t_592d7abdb13894 100-109
+deps/kitesurf
+  s_4ba79f911c93c4::t_d69099680db290 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d41e87c55f4f2752a79d89a31350703f85610b85",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

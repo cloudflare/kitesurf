@@ -1,0 +1,25 @@
+packages/engine/test/e2e/svg-anchor-xlink-href.e2e.test.ts
+  s_4ba79f911c93c4::t_2abf6436abf173 1-17
+packages/page-script/src/eval-helpers.ts
+  s_4ba79f911c93c4::t_6d778de6c75fef 31-42,121,137
+packages/page-script/src/index.ts
+  s_4ba79f911c93c4::t_695ab214ab66af 111,4031
+packages/page-script/src/types.ts
+  s_4ba79f911c93c4::t_291c2ba4a5fe15 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f636a6623a9a25d6bee5eb92fd377c537f9b33f2",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

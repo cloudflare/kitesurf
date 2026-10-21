@@ -1,0 +1,20 @@
+packages/page-script/src/index.ts
+  s_575b5afad79089::t_a98010bd4e3380 3116,3122-3123,3127-3129
+  s_575b5afad79089::t_75b0e729978784 3114-3115,3118-3120,3124-3126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bbafcd94da0d7ecb779251e6c43a0eb8635d2cec",
+  "prompts": {},
+  "sessions": {
+    "s_575b5afad79089": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/screencast-latency",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

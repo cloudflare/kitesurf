@@ -1,0 +1,24 @@
+packages/core/src/transitions.rs
+  s_638b99b03f8b5a::t_c1125d15937179 131-133
+  s_638b99b03f8b5a::t_ef1df99d678266 103-109,111,122,129-130,134-151,153-156,159-173,176,181,187-212
+  s_638b99b03f8b5a::t_6448c6f0b0617c 213
+packages/core/src/animation_clock_test.rs
+  s_638b99b03f8b5a::t_05656232e78561 227-231,233,243-252
+  s_638b99b03f8b5a::t_92fdd06255e198 232,234-242,253-254
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "74155339a553741524b13e161c8e63421ee373ac",
+  "prompts": {},
+  "sessions": {
+    "s_638b99b03f8b5a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0321db69bffeRTm4Ld6wotXjl2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

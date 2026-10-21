@@ -1,0 +1,19 @@
+tests/pw-expectations.json
+  s_33ced4fd01dd18::t_7f558d3d6f4817 22-44,46-54,56-63,65-71,73-74,77-88,90-96,98-100,102-103,106-114,116-119,121-125,127-129,132-135,140,142-145,147-148,152-154,156-164,166-168,170-186,189-193,196-197,199-202,205-206,208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c19234b0f5a32cb7aa41533723f29f9516422576",
+  "prompts": {},
+  "sessions": {
+    "s_33ced4fd01dd18": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06460a98cffeiC4uluWD4Bs6JQ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

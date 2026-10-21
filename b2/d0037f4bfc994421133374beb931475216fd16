@@ -1,0 +1,28 @@
+packages/engine/test/e2e/boa-fn-identity.e2e.test.ts
+  s_10325f09f363f7::t_38a602cb892ad3 1-6,8-53
+  s_10325f09f363f7::t_b36364d1e3eaa9 7
+packages/core/src/boa_bridge.rs
+  s_10325f09f363f7::t_3f5f2ba9186dff 739
+  s_10325f09f363f7::t_486272384ca013 329-416
+  s_10325f09f363f7::t_9285bb8a2b24d4 621-625,628-630,634-636
+  s_10325f09f363f7::t_add37331d2911d 769
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_10325f09f363f7::t_940883d589cb5f 2585-2586
+  s_10325f09f363f7::t_b4e531ac5a0894 1947-1952
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b2d0037f4bfc994421133374beb931475216fd16",
+  "prompts": {},
+  "sessions": {
+    "s_10325f09f363f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_028d94f7bffeLPzCR3nArdny7w",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

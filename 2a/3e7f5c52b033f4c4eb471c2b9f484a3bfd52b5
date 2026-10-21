@@ -1,0 +1,27 @@
+package.json
+  0143a3d1abfa6c4c 29-30
+scripts/regen-vendor-patches.mjs
+  0143a3d1abfa6c4c 1-224
+scripts/patches/README.md
+  0143a3d1abfa6c4c 130,132-135,138-153,156-168,170-176,194-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "2a3e7f5c52b033f4c4eb471c2b9f484a3bfd52b5",
+  "prompts": {
+    "0143a3d1abfa6c4c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1d2495d0effeiCHO4hEKu8upVn",
+        "model": "anthropic/claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira",
+      "messages": [],
+      "total_additions": 271,
+      "total_deletions": 35,
+      "accepted_lines": 271,
+      "overriden_lines": 0
+    }
+  }
+}

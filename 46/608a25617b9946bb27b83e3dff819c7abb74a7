@@ -1,0 +1,21 @@
+scripts/patches/taffy-0.14.0/0014-Fix-float-height-and-placement.patch
+  s_a2feeea1972b1e::t_8848d90ae804b7 1-43
+packages/engine/test/e2e/float-layout-regressions.e2e.test.ts
+  s_a2feeea1972b1e::t_23c5daed775d0f 1-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "46608a25617b9946bb27b83e3dff819c7abb74a7",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

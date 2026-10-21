@@ -1,0 +1,32 @@
+packages/kitesurf-app/Cargo.toml
+  s_f9254de60e80ce::t_7ff4bc1c26ed37 42-47
+packages/kitesurf-app/src/main.rs
+  s_f9254de60e80ce::t_bcb03144ce5b68 13
+packages/kitesurf-app/src/window.rs
+  s_f9254de60e80ce::t_195c887fe5939b 1-70
+packages/kitesurf-app/src/app.rs
+  s_f9254de60e80ce::t_404af1a99cef72 788-790,803,809
+  s_f9254de60e80ce::t_acfa1de888660b 32-34,78-84,115-116,188,389-399,539-553,585-591,836-841,850,891-894
+  s_f9254de60e80ce::t_e5dd57afb37e69 791-797
+  s_f9254de60e80ce::t_06941c48a9f417 592-593
+packages/kitesurf-app/assets/ui.html
+  s_f9254de60e80ce::t_bcb03144ce5b68 148,196-212,214,223
+packages/kitesurf-app/Cargo.lock
+  s_f9254de60e80ce::t_9ca8c8b301724a 1212-1213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b4a0c649e93b9a6bedf685aca5e1013891cd002c",
+  "prompts": {},
+  "sessions": {
+    "s_f9254de60e80ce": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00dc160affeo42rTKL7JKgba7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

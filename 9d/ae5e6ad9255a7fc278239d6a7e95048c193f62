@@ -1,0 +1,21 @@
+packages/dom-shim/src/canvas2d.ts
+  s_4ba79f911c93c4::t_12abb566f3e2db 558,565
+packages/engine/test/e2e/canvas-detached-readback.e2e.test.ts
+  s_4ba79f911c93c4::t_3523bd68eb0286 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9dae5e6ad9255a7fc278239d6a7e95048c193f62",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

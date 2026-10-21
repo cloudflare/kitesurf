@@ -1,0 +1,24 @@
+packages/engine/test/e2e/redirect-per-hop-gating.e2e.test.ts
+  s_faa0a9eb9c1377::t_b973caf4dbe698 13-17,35-39,105-157
+packages/engine/src/eval/redirect-walk.ts
+  s_faa0a9eb9c1377::t_087d0da667f925 148-155
+  s_faa0a9eb9c1377::t_913fb9ea790d54 230-241,246
+  s_faa0a9eb9c1377::t_079f30a8421530 59-61,64-66
+  s_faa0a9eb9c1377::t_1d3e5989a260ed 242-245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "479abcd950a67048e3981bb3715c42521d834447",
+  "prompts": {},
+  "sessions": {
+    "s_faa0a9eb9c1377": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe42e8adcffe1fCcZnrnIZSCl1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

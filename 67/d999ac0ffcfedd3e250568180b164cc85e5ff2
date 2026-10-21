@@ -1,0 +1,61 @@
+packages/page-script/src/eval-helpers.ts
+  s_3b94de117771b1::t_e3f6bde6a40076 22-24,26,1207-1209
+  s_3b94de117771b1::t_45f5bb891491a0 17,642,689-690,761,803-809,1161-1166,1169-1178,1199-1205
+  s_3b94de117771b1::t_dfaef3c6cbf272 603-627,664,697,702-704,729-731,734
+  s_3b94de117771b1::t_a14d1bc67140a0 25,663,720-721,1196
+  s_3b94de117771b1::t_cc9ca4d16cd10d 722,912-924
+packages/page-script/src/trusted-fetch.ts
+  s_3b94de117771b1::t_cc9ca4d16cd10d 33-40
+  s_3b94de117771b1::t_e3f6bde6a40076 58-64,77-83
+  s_c741d5f09ec0c4::t_da496d305cae26 84
+packages/page-script/src/inserted-scripts.ts
+  s_3b94de117771b1::t_cc9ca4d16cd10d 131,175-179
+  s_3b94de117771b1::t_a14d1bc67140a0 146
+  s_3b94de117771b1::t_e3f6bde6a40076 142-145,148,174
+packages/page-script/src/resource-fetch.ts
+  s_3b94de117771b1::t_a14d1bc67140a0 30-34,44-47,49-52,855-857,862,865-866,868,879,881-882,884-885,887
+  s_3b94de117771b1::t_e3f6bde6a40076 36,828-832,835,837,874,889,899
+  s_3b94de117771b1::t_cc9ca4d16cd10d 817,858-861
+  s_3b94de117771b1::t_ed41bcbaaae468 840-846
+  s_3b94de117771b1::t_d21756b1155b1a 48,54-85,818,867,875,880,890,892,900
+  s_3b94de117771b1::t_34de734b790e64 53
+packages/page-script/src/native-http.ts
+  s_3b94de117771b1::t_dfaef3c6cbf272 33-51
+  s_3b94de117771b1::t_a14d1bc67140a0 61,76-86,184-198
+packages/engine/src/eval/outbound.ts
+  s_3b94de117771b1::t_cc9ca4d16cd10d 1065-1099
+  s_3b94de117771b1::t_e3f6bde6a40076 1063-1064,1117,1177,1420
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_3b94de117771b1::t_e3f6bde6a40076 315,326-335
+  s_3b94de117771b1::t_a92efc2a1aa907 343,345-359
+  s_3b94de117771b1::t_45f5bb891491a0 379-380,382-389,403-404,406-418
+  s_3b94de117771b1::t_d20afcfa1d694b 318,336-340
+  s_3b94de117771b1::t_c60067403027b9 341,361-378,399-402,419-439
+  s_3b94de117771b1::t_cc9ca4d16cd10d 342,344,360
+  s_3b94de117771b1::t_ed41bcbaaae468 306-314,316-317,319-325,440-444
+  s_3b94de117771b1::t_d21756b1155b1a 381,390-398,405
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "67d999ac0ffcfedd3e250568180b164cc85e5ff2",
+  "prompts": {},
+  "sessions": {
+    "s_3b94de117771b1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f86c3919effeBdKzL7Cxlr6FBS",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_c741d5f09ec0c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f81e93f63ffeaV9hGY7hKb6FI8",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

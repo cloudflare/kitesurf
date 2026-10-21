@@ -1,0 +1,30 @@
+docs/SCRIPT_LOADING.md
+  s_093fe9238e1c6b::t_2d190a77857fd5 42-67
+packages/page-script/src/index.ts
+  s_b8011a7530370a::t_aa9d288ca639e5 1993
+  s_093fe9238e1c6b::t_0310ed14f24fd1 2000-2002
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "adbec2950aa0bd31cf7cfda4bdf1011d1df5bdd1",
+  "prompts": {},
+  "sessions": {
+    "s_093fe9238e1c6b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03c0fc2eeffej6j2szSHJDYbOe",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_b8011a7530370a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05fbbb548ffeT7rpcQI10MbBge",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

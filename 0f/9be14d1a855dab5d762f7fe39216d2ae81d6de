@@ -1,0 +1,33 @@
+packages/engine/src/eval/walk-module-graph.ts
+  s_11d008ebdd7940::t_15521403fa2499 140-143
+  s_06daabca753f93::t_8816bc1a05ca38 138-139,144
+  s_06daabca753f93::t_d840ddd1363758 145
+docs/SCRIPT_LOADING.md
+  s_11d008ebdd7940::t_0e3b88a4705bf2 171-180
+  s_11d008ebdd7940::t_724dbbf1668858 136-139
+  s_11d008ebdd7940::t_7c52a6aa685590 162-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0f9be14d1a855dab5d762f7fe39216d2ae81d6de",
+  "prompts": {},
+  "sessions": {
+    "s_06daabca753f93": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3ee39a1cffeRHFzTlU8Zso2LJ",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_11d008ebdd7940": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3ca969d8ffeZ7wrzly5eBfLOF",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

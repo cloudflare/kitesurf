@@ -1,0 +1,102 @@
+packages/core/src/webgl/shim.rs
+  s_cf72bc8665a55a::t_c5b1dffb30b37b 1-11,18-84
+  s_cf72bc8665a55a::t_dc1f4762151d15 12-17,85-109,118-153,155
+  s_cf72bc8665a55a::t_39dd468afc37b3 110-117
+  s_cf72bc8665a55a::t_5b70f2a6233134 154
+packages/core/src/webgl/mesh.rs
+  s_cf72bc8665a55a::t_c5b1dffb30b37b 1-4,6-7,11-13,15-31,33-35,37-41
+  s_cf72bc8665a55a::t_2c6bc1705951b4 5,8-10,14,32,36
+packages/core/Cargo.toml
+  s_cf72bc8665a55a::t_a21ee6be6d5bfa 148-156
+packages/core/src/webgl/raster.rs
+  s_cf72bc8665a55a::t_c5b1dffb30b37b 1-144,146-340
+  s_cf72bc8665a55a::t_2c6bc1705951b4 145
+AGENTS.md
+  s_cf72bc8665a55a::t_59996c0e3aec9f 676
+  s_13716c95882f21::t_6bf2bc97c1e11e 154
+  s_cf72bc8665a55a::t_b71726ae9d702d 678-680
+  s_13716c95882f21::t_7a7059ce5aafca 64-65,677
+packages/core/src/lib.rs
+  s_cf72bc8665a55a::t_a21ee6be6d5bfa 86-88
+  s_cf72bc8665a55a::t_e7a1ab397e1dad 91
+  s_cf72bc8665a55a::t_bc02e91524855f 89-90
+  s_cf72bc8665a55a::t_56ab750a3effb5 666-670,1084,5386-5462,5466-5485,5487-5500
+  s_cf72bc8665a55a::t_fbc5b8952321c2 5501
+  s_13716c95882f21::t_0728bd9e216e14 5463-5465,5486
+packages/core/src/webgl/pipeline.rs
+  s_cf72bc8665a55a::t_c5b1dffb30b37b 1-169,171-175,177-371
+  s_cf72bc8665a55a::t_2c6bc1705951b4 170,176
+packages/core/src/webgl/mod.rs
+  s_cf72bc8665a55a::t_9ad37aad5ad4b7 1-27,29-33
+  s_cf72bc8665a55a::t_56ab750a3effb5 28
+packages/core/src/webgl/vm.rs
+  s_cf72bc8665a55a::t_c5b1dffb30b37b 1-92,94-1751
+  s_cf72bc8665a55a::t_9535fb5feb2d81 93
+packages/core/examples/webgl-aquarium.rs
+  s_cf72bc8665a55a::t_ee5a21a1971804 1-91,93-134
+  s_cf72bc8665a55a::t_ca42d0d1b4cdd4 92
+packages/core/examples/webgl-spvir.rs
+  s_cf72bc8665a55a::t_ee5a21a1971804 1-39
+packages/core/src/webgl/exec.rs
+  s_cf72bc8665a55a::t_c5b1dffb30b37b 1-623
+packages/core/examples/webgl-render.rs
+  s_cf72bc8665a55a::t_ee5a21a1971804 1-21,23-44
+  s_cf72bc8665a55a::t_4fd044d366b07c 22
+packages/core/examples/webgl-disasm.rs
+  s_cf72bc8665a55a::t_ee5a21a1971804 1-12
+packages/core/examples/webgl-spvgap.rs
+  s_cf72bc8665a55a::t_ee5a21a1971804 1-64
+docs/WEBGL.md
+  s_cf72bc8665a55a::t_b927f91df079f7 2-6,16-160,163-308,310-362,364-431,483-494,503-530
+  s_cf72bc8665a55a::t_cc9a5348e9ad57 161-162
+  s_cf72bc8665a55a::t_7c79083d08e415 309,363
+  s_13716c95882f21::t_6bf2bc97c1e11e 1
+  s_cf72bc8665a55a::t_1a02a6c7d999cd 7-15,432-482,495-502
+packages/core/src/webgl_test.rs
+  s_cf72bc8665a55a::t_eeaca8212bca36 2-15,24,27-28,33,35,42-43,50-58,60,62-71,75,78-90,96,104-109,111-115,123-126,128
+  s_cf72bc8665a55a::t_0c311ee75972e9 16-23,25-26,29-32,34,61
+  s_cf72bc8665a55a::t_aca3564671048d 129-133
+  s_cf72bc8665a55a::t_46faf050fad456 1,36-41,44-49,72-74,76-77,91-95,97-103,110,116-122,127,134
+  s_cf72bc8665a55a::t_85704078a1c4af 59
+Cargo.lock
+  s_cf72bc8665a55a::t_4f220ec6fca754 126-140,256,290,323,353,370,466-471,473-474,565-570,838-843,1083-1094,1622,1673,1819-1820,1822,1824-1842,1844-1848,1850,1852-1855,1857-1858,1909,2100-2110,2282-2290,2549-2554,2654,2827-2835,2963,3087,3517-3518,3526,3528-3534
+packages/dom-shim/src/webgl.ts
+  s_cf72bc8665a55a::t_e9051c05cb175b 1-356
+packages/core/src/webgl/gl.rs
+  s_cf72bc8665a55a::t_85704078a1c4af 154
+  s_cf72bc8665a55a::t_fb4307907a76b9 1-153,155-670
+packages/engine/test/e2e/html/canvas-2d.html
+  s_cf72bc8665a55a::t_76e3eacef2f63b 13-14
+packages/engine/test/e2e/demos/webgl-paint-demo.e2e.test.ts
+  s_cf72bc8665a55a::t_d30ef654932023 1-59
+packages/dom-shim/src/registries.ts
+  s_cf72bc8665a55a::t_e3369389956baf 202-205
+packages/engine/test/e2e/html/webgl.html
+  s_cf72bc8665a55a::t_c785d245cf7c0f 1-80
+packages/dom-shim/src/element/canvas.ts
+  s_13716c95882f21::t_507ad6c260ef7a 2,4,26-39,44-46,64-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1bff42f8846952b61b5ca30173d068c202f6e0e2",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_cf72bc8665a55a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00382b600ffeKKvCWdmK9ZTiAt",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

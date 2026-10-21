@@ -1,0 +1,21 @@
+packages/core/src/scene_decode.rs
+  s_c9f68948e839d2::t_1d5c45caf564c3 5-9
+packages/core/src/scene_record.rs
+  s_c9f68948e839d2::t_49e509e47dcf8b 1-7,9-12,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "53137cc71fbf35376bfaef6334e51698de2494b5",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

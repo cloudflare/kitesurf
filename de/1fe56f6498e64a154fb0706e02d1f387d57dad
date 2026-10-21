@@ -1,0 +1,27 @@
+scripts/flows-merge-shards.mjs
+  s_d357b6e49ef9b4::t_8bf9949f67b079 85
+  s_d357b6e49ef9b4::t_867a6d0a92f87d 71,73-75
+  s_d357b6e49ef9b4::t_1d98a3b4d4b3e8 55-56,62-65,67-68
+tests/interactivity-flows/README.md
+  s_d357b6e49ef9b4::t_a48a0b3c7fd348 50-54
+tests/interactivity-flows/run.ts
+  s_d357b6e49ef9b4::t_d0f473ae8821cd 404-406
+  s_d357b6e49ef9b4::t_409589ec6ad72e 612-614,618
+  s_d357b6e49ef9b4::t_e9b461d7ec5cfe 365-367
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "de1fe56f6498e64a154fb0706e02d1f387d57dad",
+  "prompts": {},
+  "sessions": {
+    "s_d357b6e49ef9b4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0139c5632ffeTH3XnaduGAHotI",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

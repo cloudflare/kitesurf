@@ -1,0 +1,23 @@
+packages/engine/test/e2e/canvas-image-bytes.e2e.test.ts
+  s_389aa8bfb4b14f::t_12dfecb2d8f9d2 46,65,69-70
+packages/dom-shim/src/canvas2d.ts
+  s_389aa8bfb4b14f::t_12dfecb2d8f9d2 642-643,660-662,689
+docs/CANVAS2D.md
+  s_389aa8bfb4b14f::t_04fc7450b3c406 55-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fd22c5f72a07a008faae189ba69f674f48e09af9",
+  "prompts": {},
+  "sessions": {
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

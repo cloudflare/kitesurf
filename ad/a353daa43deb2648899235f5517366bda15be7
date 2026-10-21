@@ -1,0 +1,19 @@
+.gitlab/ci/engine.yml
+  s_4ba79f911c93c4::t_158a0bf4d169cb 831
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ada353daa43deb2648899235f5517366bda15be7",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

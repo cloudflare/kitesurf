@@ -1,0 +1,36 @@
+docs/BOA_V8_FLOW_EXAMPLES.md
+  s_10325f09f363f7::t_d328c13cb05cfe 85-90
+docs/BOA_V8_FLOW.md
+  s_10325f09f363f7::t_2d49d9f6c42ab2 174
+docs/SCRIPT_LOADING.md
+  s_10325f09f363f7::t_7c8821360792e1 90-91
+  s_10325f09f363f7::t_93707be6c6a483 95
+  s_10325f09f363f7::t_655c8d2735cbfd 77-83,85,94,96
+  s_10325f09f363f7::t_4007659e730e15 84
+  s_10325f09f363f7::t_7232898819c50b 87-89
+  s_5035ec8bee837a::t_f1a25411972e7b 86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a4ef3646102d27b4cc8776e4ae0f11cea5a6d2e8",
+  "prompts": {},
+  "sessions": {
+    "s_10325f09f363f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_028d94f7bffeLPzCR3nArdny7w",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_5035ec8bee837a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0270b8b9bffe7BkWgab8Ik3y7r",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

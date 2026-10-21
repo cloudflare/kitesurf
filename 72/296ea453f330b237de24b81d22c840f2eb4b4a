@@ -1,0 +1,27 @@
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_c1d1c93f383cfd::t_ab543126ef17e0 34-37
+packages/engine/test/e2e/html/canvas-2d.html
+  s_c1d1c93f383cfd::t_ab543126ef17e0 13-19
+packages/dom-shim/src/canvas2d.ts
+  s_c1d1c93f383cfd::t_ab543126ef17e0 65-68,351-360,370
+packages/engine/test/e2e/webgl-unsupported-overlay.e2e.test.ts
+  s_c1d1c93f383cfd::t_ab543126ef17e0 1-49
+packages/dom-shim/src/element.ts
+  s_c1d1c93f383cfd::t_ab543126ef17e0 48,50-51,99-103,129,173,1732,1738,8949-9097,9102-9105,9108,9993-10005,10029-10031,10040-10042,10045,10071-10072,10076,10079,10237-10239,10257-10262,10265,10277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "72296ea453f330b237de24b81d22c840f2eb4b4a",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

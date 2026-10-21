@@ -1,0 +1,58 @@
+packages/engine/src/quickactions/snapshot.ts
+  s_1e83ebd7089354::t_0170a61908040d 147
+  s_1e83ebd7089354::t_3ae15c568be01d 1-146,148-163,165-195
+  s_1e83ebd7089354::t_94644db139ed61 164
+packages/engine/src/quickactions/index.ts
+  s_1e83ebd7089354::t_94644db139ed61 814-816,819,821-822
+  s_1e83ebd7089354::t_3ae15c568be01d 121-129,139-141,143
+  s_1e83ebd7089354::t_fdd313012ac80f 77,82,88,92,98,103,267-274,389-392,403,440,540-556,728,833
+  s_5de5a0b7011c6d::t_e2926c203f47a1 142
+packages/engine/src/quickactions/screenshot.ts
+  s_1e83ebd7089354::t_94644db139ed61 369
+packages/engine/test/quickaction.test.ts
+  s_1e83ebd7089354::t_6733d595fb9a91 163-206,699,721-724
+  s_1e83ebd7089354::t_94644db139ed61 700-701
+packages/engine/src/observability.ts
+  s_1e83ebd7089354::t_3ae15c568be01d 68,88
+packages/engine/src/quickactions/brapi.ts
+  s_1e83ebd7089354::t_94644db139ed61 14
+packages/engine/src/index.ts
+  s_1e83ebd7089354::t_94644db139ed61 556-557
+  s_1e83ebd7089354::t_0170a61908040d 554-555
+  s_1e83ebd7089354::t_3ae15c568be01d 17,271-272,595-597
+  s_4848c5e31d3eef::t_e9e72f09742528 598-599
+packages/engine/test/e2e/snapshot-quickaction.e2e.test.ts
+  s_1e83ebd7089354::t_6733d595fb9a91 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "90d9fb5b0e0e12b5388ce9a5e607272b2751418b",
+  "prompts": {},
+  "sessions": {
+    "s_1e83ebd7089354": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5678e3defferijaeQrvmBvYck",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_4848c5e31d3eef": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f56848f89ffewBkJ48XH56Gcpb",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_5de5a0b7011c6d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f594feed1ffenbEe9zCda9KV19",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

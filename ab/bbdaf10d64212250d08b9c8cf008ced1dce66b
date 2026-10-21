@@ -1,0 +1,19 @@
+packages/engine/test/e2e/demos/page-renderer-screencast.e2e.test.ts
+  s_c9f68948e839d2::t_b1052ae07549f3 1-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "abbbdaf10d64212250d08b9c8cf008ced1dce66b",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

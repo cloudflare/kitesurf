@@ -1,0 +1,36 @@
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_3ec2628d29d336 530,935,2899-2905,2910,4040-4045
+  s_4ba79f911c93c4::t_07f31489b9196a 525
+  s_4ba79f911c93c4::t_19dc256a5a4db1 526
+  s_4ba79f911c93c4::t_61e007aacc0c0e 4046-4047
+packages/core/src/transitions.rs
+  s_4ba79f911c93c4::t_476d809ec61a6b 25,127
+  s_4ba79f911c93c4::t_b0f43e1aba4e70 122,126,152,155
+  s_4ba79f911c93c4::t_8d608f7413ac95 267
+packages/page-script/src/transitions.ts
+  s_4ba79f911c93c4::t_dd5713d3336d36 9,42-48,125,154
+packages/core/src/animation_clock_test.rs
+  s_4ba79f911c93c4::t_3796336a0006c7 385,428,477
+  s_4ba79f911c93c4::t_0e16f3d1d80874 445-468
+  s_4ba79f911c93c4::t_32ccb0dc482c7b 403-427,429-444
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_4ba79f911c93c4::t_6da8ab6893d6f9 261,271,278
+  s_4ba79f911c93c4::t_2e8573e3c9893d 249
+  s_4ba79f911c93c4::t_ad958a4f36480a 255-256,262,264,275-277,279,282-285,287-295,302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4d28aa0f6c184aabb2be07a60ca4691eb466e94c",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

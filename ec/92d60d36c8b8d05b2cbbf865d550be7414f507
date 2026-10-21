@@ -1,0 +1,23 @@
+docs/WORKERD_LIMITS.md
+  s_10983435de8607::t_0ef630cec13bc9 1-344
+AGENTS.md
+  s_10983435de8607::t_8567d9ab311e92 245-252
+docs/PLATFORM.md
+  s_10983435de8607::t_c4b244a3c12c53 6-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ec92d60d36c8b8d05b2cbbf865d550be7414f507",
+  "prompts": {},
+  "sessions": {
+    "s_10983435de8607": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_013e2c995ffeHSUx3p7ZWifSNi",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

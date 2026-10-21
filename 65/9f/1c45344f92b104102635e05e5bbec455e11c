@@ -1,0 +1,25 @@
+packages/core/Cargo.toml
+  s_32c3dba7fedc7c::t_6b03a07221efa1 203,214-217
+packages/core/src/scene_replay.rs
+  s_32c3dba7fedc7c::t_38c47bc83ccb72 122,216,249
+  s_32c3dba7fedc7c::t_04f5c404632483 71-77
+  s_32c3dba7fedc7c::t_6b03a07221efa1 9-11,20-24,1088,1101,1104,1462-1465
+packages/scene-client/Cargo.toml
+  s_32c3dba7fedc7c::t_6b03a07221efa1 33-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "659f1c45344f92b104102635e05e5bbec455e11c",
+  "prompts": {},
+  "sessions": {
+    "s_32c3dba7fedc7c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0431e510effe1Vue1bxbBlApwn",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+packages/core/src/sticky_reset_test.rs
+  s_40a77a88c7e719::t_c681314afe36e6 1-126
+packages/core/src/inline_break_index_test.rs
+  s_40a77a88c7e719::t_c681314afe36e6 1-91
+packages/core/src/inline_break_restore_test.rs
+  s_40a77a88c7e719::t_c681314afe36e6 1-78
+packages/core/src/lib.rs
+  s_40a77a88c7e719::t_c681314afe36e6 132,136-140,147-152,156-158,2593-2598,2612,2621,2632-2636,2638-2647,6053-6058
+  s_40a77a88c7e719::t_af04bdcaaf43d8 133-135
+  s_40a77a88c7e719::t_271a4d2351c428 6059-6060
+  s_40a77a88c7e719::t_20328cb5f40fc4 4747-4755
+packages/core/src/counter_damage_gate_test.rs
+  s_40a77a88c7e719::t_af04bdcaaf43d8 1-6,17-64,79-90
+packages/core/Cargo.toml
+  s_40a77a88c7e719::t_c681314afe36e6 356-363
+packages/core/src/rehomed_reach_test.rs
+  s_40a77a88c7e719::t_c681314afe36e6 1-76
+packages/core/src/sticky.rs
+  s_40a77a88c7e719::t_c681314afe36e6 11-13,244,247-249,252,357,360,363-365,369-370,406-408
+packages/core/src/damaged_subtree_skip_test.rs
+  s_40a77a88c7e719::t_c681314afe36e6 1-82
+packages/core/src/hoist_incremental_test.rs
+  s_40a77a88c7e719::t_c681314afe36e6 275-305
+scripts/patches/blitz-dom-0.3.0-beta.1/0106-Index-the-inline-roots-instead-of-scanning-the-slab-.patch
+  s_40a77a88c7e719::t_09182142ad014a 1-150
+scripts/patches/blitz-dom-0.3.0-beta.1/0107-Gate-per-resolve-work-on-damage.patch
+  s_40a77a88c7e719::t_09182142ad014a 1-62,66-1461
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "51b5222d14af6ab2aead8050ddbcb4b1cd8531f4",
+  "prompts": {},
+  "sessions": {
+    "s_40a77a88c7e719": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00899d021ffeusxbvHVto59doi",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

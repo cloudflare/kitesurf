@@ -1,0 +1,21 @@
+docs/PLATFORM.md
+  s_f78b72afa9dc2e::t_3f22271e647633 91-102
+  s_f78b72afa9dc2e::t_2dfd39c9bfca7b 68-69,77-87,103-118
+  s_f78b72afa9dc2e::t_70a37c79d487bc 88-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0013e37447848ab8a082fe8b2a975c515144f322",
+  "prompts": {},
+  "sessions": {
+    "s_f78b72afa9dc2e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc86de6bbffeYtq7dIp5NO0iTu",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

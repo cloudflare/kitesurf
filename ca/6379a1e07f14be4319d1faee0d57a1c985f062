@@ -1,0 +1,43 @@
+packages/engine/test/e2e/float-layout-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_568e7249fe4ecb 1-141
+packages/engine/test/e2e/global-setup.ts
+  s_4ba79f911c93c4::t_1f2d43fab8a27b 21,41-42
+packages/engine/test/e2e/hover-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_d7997a3f058e16 1-2,4,7-9,11-17,19-49
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_9b43dccbbc0129 1-176
+packages/page-script/src/paint.ts
+  s_4ba79f911c93c4::t_5fd993e9f81dea 33-34,37-38,45-46,100,128,164,201,236
+scripts/patches/README.md
+  s_429f7f4b0bfcb7::t_60d11876d0766c 108-109
+scripts/patches/parley-0.11.1/0007-Preserve-parent-line-height-for-inline-boxes.patch
+  s_4ba79f911c93c4::t_87b7e757b55d37 2-4,9,11-19,22-29
+scripts/patches/taffy-0.14.0/0006-Fix-float-height-and-placement.patch
+  s_4ba79f911c93c4::t_b103ceac965144 2-4,9,13-27,30-38
+tests/wpt-tests.json
+  s_4ba79f911c93c4::t_f57fdc82fa28d4 3709,5870-5872,5874-5877
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ca6379a1e07f14be4319d1faee0d57a1c985f062",
+  "prompts": {},
+  "sessions": {
+    "s_429f7f4b0bfcb7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5d980e3cffejnDq3nmk0ZyNsJ",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

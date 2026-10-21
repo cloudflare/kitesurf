@@ -1,0 +1,21 @@
+packages/dom-shim/src/window.ts
+  s_f19c180209e8f6::t_5bec6ff3a9c4a9 614-616
+packages/engine/test/e2e/navigator-send-beacon.e2e.test.ts
+  s_f19c180209e8f6::t_d8d0c4141693b8 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4ce6917e693dafcbf09fe1480a99aa047f6c95b9",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

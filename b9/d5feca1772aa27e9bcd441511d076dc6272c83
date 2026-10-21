@@ -1,0 +1,37 @@
+packages/engine/test/e2e/demos/absolute-path-transitive-demo.e2e.test.ts
+  s_4d971b01fcd83b::t_f7f64782091495 17-22
+packages/engine/test/e2e/demos/forms-realworld-demo.e2e.test.ts
+  s_4d971b01fcd83b::t_f7f64782091495 6-13,77-78,94,116,120-121,123
+packages/engine/test/e2e/demos/onhashchange-probe.e2e.test.ts
+  s_4d971b01fcd83b::t_f7f64782091495 5-11,17-23
+packages/engine/test/e2e/demos/defer-shim-nested-modinit-demo.e2e.test.ts
+  s_4d971b01fcd83b::t_f7f64782091495 24-38,46
+packages/engine/test/e2e/demos/img-load-events-demo.e2e.test.ts
+  s_4d971b01fcd83b::t_f7f64782091495 25-31,44,58-60,63,72
+packages/engine/test/e2e/demos/tsconfig.json
+  s_4d971b01fcd83b::t_91be680269136d 1-10
+packages/engine/test/e2e/demos/absolute-path-import-demo.e2e.test.ts
+  s_4d971b01fcd83b::t_f7f64782091495 20-25
+packages/engine/test/e2e/tsconfig.json
+  s_4d971b01fcd83b::t_91be680269136d 7,10
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_4d971b01fcd83b::t_4a009fe21bf113 6-13
+packages/engine/test/e2e/demos/forms-activation-demo.e2e.test.ts
+  s_4d971b01fcd83b::t_f7f64782091495 5-11,42,51,53,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b9d5feca1772aa27e9bcd441511d076dc6272c83",
+  "prompts": {},
+  "sessions": {
+    "s_4d971b01fcd83b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee3ae124bffeM1E267Xi90FUc7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

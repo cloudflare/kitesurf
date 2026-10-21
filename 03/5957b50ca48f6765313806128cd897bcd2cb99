@@ -1,0 +1,23 @@
+packages/kitesurf-app/scripts/engine-config.mjs
+  s_f9254de60e80ce::t_4ef962f4e5ad45 78-81
+packages/engine/src/cdp/connection.ts
+  s_f9254de60e80ce::t_4ef962f4e5ad45 408-414
+packages/engine/wrangler.jsonc
+  s_f9254de60e80ce::t_4ef962f4e5ad45 111-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "035957b50ca48f6765313806128cd897bcd2cb99",
+  "prompts": {},
+  "sessions": {
+    "s_f9254de60e80ce": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00dc160affeo42rTKL7JKgba7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
