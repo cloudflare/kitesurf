@@ -24,9 +24,14 @@ let pending: Promise<void> | null = null;
 
 let emojiPending: Promise<void> | null = null;
 
-function needsEmoji(html: string): boolean {
-  if (typeof html !== "string" || html.length === 0) return false;
-  return /[\u{1F000}-\u{1FFFF}\u{FE0F}]/u.test(html);
+// These BMP characters use emoji presentation by default. Most loaded fonts do not contain them.
+// U+FE0F requests emoji presentation for other characters. Keep the escapes for classRanges.
+const EMOJI_BMP_SCAN =
+  /[\u231A-\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD-\u25FE\u2614-\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA-\u26AB\u26BD-\u26BE\u26C4-\u26C5\u26CE\u26D4\u26EA\u26F2-\u26F3\u26F5\u26FA\u26FD\u2705\u270A-\u270B\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B-\u2B1C\u2B50\u2B55\uFE0F]/;
+
+function needsEmoji(text: string): boolean {
+  if (typeof text !== "string" || text.length === 0) return false;
+  return /[\u{1F000}-\u{1FFFF}]/u.test(text) || EMOJI_BMP_SCAN.test(text);
 }
 
 const ASSET_HOST = "http://kitesurf-fonts";
@@ -385,6 +390,7 @@ function classRanges(unicodeRange: RegExp): Uint32Array {
   return Uint32Array.from(out);
 }
 const CJK_RANGES = classRanges(CJK_SCAN);
+const EMOJI_RANGES = Uint32Array.from([...classRanges(EMOJI_BMP_SCAN), 0x1f000, 0x1ffff]);
 const SCRIPT_FACE_RANGES = SCRIPT_FONTS.map((scriptFont) => ({
   scriptFont,
   ranges: classRanges(scriptFont.range),
@@ -402,6 +408,9 @@ export function demandFacesForScriptText(dom: ScriptTextProbe): void {
   const tasks: Promise<void>[] = [];
   if (!cjkPending && dom.textUsesCodepoints(CJK_RANGES)) {
     tasks.push(registerCjkIfNeeded());
+  }
+  if (!emojiPending && dom.textUsesCodepoints(EMOJI_RANGES)) {
+    tasks.push(registerEmojiIfNeeded());
   }
   for (const { scriptFont, ranges } of SCRIPT_FACE_RANGES) {
     if (!scriptPending.has(scriptFont.tag) && dom.textUsesCodepoints(ranges)) {
@@ -438,7 +447,7 @@ function computeFontWants(html?: string): {
   return {
     symbols,
     symbols2: symbols && needsSymbols2(html),
-    emoji: !!html && needsEmoji(html),
+    emoji: needsEmoji(perScriptScan),
     cjk: !!html && needsCjk(html),
     mono: forceMono || (!!html && needsMono(html)),
     serif: !!html && needsSerif(html),
