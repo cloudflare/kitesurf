@@ -1,0 +1,35 @@
+packages/engine/test/e2e/detached-owned-caches.e2e.test.ts
+  s_4ba79f911c93c4::t_deeb654f7ebe92 1-7,11-34,36,38,50-107,109-119,121-122,125-137,164
+  s_4ba79f911c93c4::t_afe19b342a3ece 120,123-124
+  s_4ba79f911c93c4::t_8f9a7f5a76c381 8-10,35,37,39-49,108,138-163
+packages/dom-shim/src/registries.ts
+  s_4ba79f911c93c4::t_ed95391b3bf788 8,150-151,226-227
+docs/DOM_SHIM.md
+  s_4ba79f911c93c4::t_b501255903605f 42-43
+  s_4ba79f911c93c4::t_caf86b7eaea70c 40-41
+packages/dom-shim/src/element/media.ts
+  s_4ba79f911c93c4::t_0dbf5594f9b29d 42
+  s_4ba79f911c93c4::t_7d02c37a017bd7 39,41,44
+packages/dom-shim/src/element/element.ts
+  s_4ba79f911c93c4::t_16a5040bee5ebf 665,902,968,971,1075,1078
+packages/engine/test/e2e/detached-handler-identity.e2e.test.ts
+  s_4ba79f911c93c4::t_82a1fd697d91ad 1-41
+packages/dom-shim/src/collections.ts
+  s_4ba79f911c93c4::t_51a44de6a30aa9 2763,2766-2767,2982
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f7ee7b2636a88293488f20821eb9fbb853120c72",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
