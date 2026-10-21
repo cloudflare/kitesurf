@@ -12,6 +12,17 @@
     ]
   },
   {
+    "file": "elementhandle-screenshot.spec.ts",
+    "only": [
+      "element screenshot › should work with webp",
+      "element screenshot › should fail to screenshot a detached element",
+      "element screenshot › should timeout waiting for visible",
+      "element screenshot › should take screenshot of disabled button",
+      "element screenshot › should prefer type over extension",
+      "element screenshot › should not issue resize event"
+    ]
+  },
+  {
     "file": "eval-on-selector-all.spec.ts",
     "only": ["should work with css selector", "should return complex values"]
   },
@@ -205,10 +216,22 @@
   {
     "file": "page-screenshot.spec.ts",
     "only": [
+      "page screenshot › should not capture blinking caret by default",
+      "page screenshot › should throw on clip outside the viewport",
+      "page screenshot › should throw on a negative clip size",
       "page screenshot › should restore viewport after fullPage screenshot",
+      "page screenshot › quality option should throw for webp when out of range",
+      "page screenshot › path option should throw for unsupported mime type",
+      "page screenshot › quality option should throw for png",
+      "page screenshot › zero quality option should throw for png",
       "page screenshot › quality option should work for jpeg",
       "page screenshot › should prefer type over extension",
-      "page screenshot › should not issue resize event"
+      "page screenshot › should not issue resize event",
+      "page screenshot › should take fullPage screenshots during navigation",
+      "page screenshot › mask option › should work when subframe has stalled navigation",
+      "page screenshot animations › should resume infinite animations",
+      "page screenshot animations › should not capture infinite web animations",
+      "should throw if screenshot size is too large"
     ]
   },
   {
