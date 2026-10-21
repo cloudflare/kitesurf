@@ -1,0 +1,28 @@
+scripts/e2e-shard.test.mjs
+  s_4ba79f911c93c4::t_672a8051e038f1 1-40
+  s_4ba79f911c93c4::t_c875fe67931f22 41-51
+tests/e2e/defs.bzl
+  s_4ba79f911c93c4::t_790d03a0398cf8 59-60
+scripts/e2e-shard.mjs
+  s_4ba79f911c93c4::t_82b83ed55ab87f 13-14,16,19-24,28-29,54,80
+scripts/e2e-global-setup.test.mjs
+  s_4ba79f911c93c4::t_51c860205d21d2 1-49
+packages/engine/test/e2e/global-setup.ts
+  s_4ba79f911c93c4::t_83dc630cf5c6a3 69-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0cec8e13cb0a036d285ac88246df105a9cd3509f",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
