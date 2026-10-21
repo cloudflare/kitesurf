@@ -1,0 +1,3715 @@
+.bazelrc
+  s_4ba79f911c93c4::t_196f1f3fc3319d 1-12
+.bazelversion
+  s_4ba79f911c93c4::t_f382a649a16427 1
+.envrc
+  s_4ba79f911c93c4::t_45a4909e4507cd 1
+.githooks/post-checkout
+  s_4ba79f911c93c4::t_95315dbe940dc0 1-23
+.github/ISSUE_TEMPLATE/bug_report.yml
+  s_4ba79f911c93c4::t_ea7f9c5fcb4939 1-50
+.github/ISSUE_TEMPLATE/config.yml
+  s_4ba79f911c93c4::t_0f5bd1355434eb 1
+.github/ISSUE_TEMPLATE/feature_request.yml
+  s_4ba79f911c93c4::t_2d38708dc39dce 1-21
+.github/PULL_REQUEST_TEMPLATE.md
+  s_4ba79f911c93c4::t_d13053125a2cf2 1-32
+.github/VOUCHED.td
+  s_4ba79f911c93c4::t_5e21e2d81839f2 1-2
+.github/actions/setup/action.yml
+  s_4ba79f911c93c4::t_2b9a8ee0704187 1-54
+.github/vouch-pr-response.md
+  s_4ba79f911c93c4::t_cb495488092cda 1-12
+.github/workflows/ci.yml
+  s_4ba79f911c93c4::t_5d6adbd7b5df5f 1-197
+.github/workflows/dco.yml
+  s_4ba79f911c93c4::t_e6782ee59fcbc6 1-24
+.github/workflows/release.yml
+  s_4ba79f911c93c4::t_7113a418e2c40f 1-73
+.github/workflows/vouch.yml
+  s_4ba79f911c93c4::t_33fb5b52e44c58 1-30
+.gitignore
+  s_4ba79f911c93c4::t_c1a69c106aa986 1-65
+.npmrc
+  s_4ba79f911c93c4::t_bd5ae04e499920 1
+.oxfmtrc.json
+  s_4ba79f911c93c4::t_4cf6ecba13df00 1-61
+.oxlintrc.json
+  s_4ba79f911c93c4::t_89ff93c7ef3a5d 1-82
+AGENTS.md
+  s_4ba79f911c93c4::t_2ec35c051b403e 1-205
+BUILD.bazel
+  s_4ba79f911c93c4::t_738e9096d29fe7 1-181
+CONTRIBUTING.md
+  s_4ba79f911c93c4::t_247ae09e2e36ce 1-158
+Cargo.lock
+  s_4ba79f911c93c4::t_64f3f0a3f05893 1-3884
+Cargo.toml
+  s_4ba79f911c93c4::t_0c2242aa25de47 1-116
+LICENSE
+  s_4ba79f911c93c4::t_79fa98e7eece65 1-202
+MODULE.bazel
+  s_4ba79f911c93c4::t_a4fa4d34c4aacb 1-367
+MODULE.bazel.lock
+  s_4ba79f911c93c4::t_c3c5e9a2f26e3c 1-9772
+NOTICE
+  s_4ba79f911c93c4::t_00d04a8310c481 1-144
+README.md
+  s_4ba79f911c93c4::t_87e88021606652 1-2,5-182,184-185
+REPO.bazel
+  s_4ba79f911c93c4::t_116222ab4f623c 1-6
+SECURITY.md
+  s_4ba79f911c93c4::t_27d11d0753d07e 1-30
+about.toml
+  s_4ba79f911c93c4::t_aa154de1390226 1-29
+bazel/BUILD.bazel
+  s_4ba79f911c93c4::t_9d9ef84047655b 1-61
+bazel/checks.bzl
+  s_4ba79f911c93c4::t_227e44a2b27af1 1-82
+bazel/executor_profiles.bzl
+  s_4ba79f911c93c4::t_f5d8c964fa48b0 1-60
+bazel/executors.bzl
+  s_4ba79f911c93c4::t_e623d989862451 1-11
+bazel/paths.bzl
+  s_4ba79f911c93c4::t_0d73223853a64e 1-17
+bazel/rust/BUILD.bazel
+  s_4ba79f911c93c4::t_ef1b1ae0e102c9 1-74
+bazel/rust/crates.bzl
+  s_4ba79f911c93c4::t_55acf57eb36f4c 1-280
+bazel/rust/repos.bzl
+  s_4ba79f911c93c4::t_d018630a1a8dd3 1-150
+bazel/rust/rules_rust-patched-crates.patch
+  s_4ba79f911c93c4::t_33d8f03215a491 1-67
+bazel/rust/std.bzl
+  s_4ba79f911c93c4::t_ed8515ad28f0fc 1-154
+bazel/rust/unwind_smoke.rs
+  s_4ba79f911c93c4::t_99b3020769547e 1-16
+bazel/rust/wasm32.bzl
+  s_4ba79f911c93c4::t_59845e58d353b9 1-60
+bazel/tracked_files.bzl
+  s_4ba79f911c93c4::t_dab2ad83f9b85e 1-33
+clippy.toml
+  s_4ba79f911c93c4::t_d24f82b423b4c5 1
+docker-compose.dev.yml
+  s_4ba79f911c93c4::t_86170411c5b573 1-8
+kitesurf_logo.svg
+  s_4ba79f911c93c4::t_f6eff33e63db54 1
+licenses/BSD-3-Clause-WPT.txt
+  s_4ba79f911c93c4::t_f24a0dda2bc1e4 1-11
+licenses/CC-BY-4.0-TodoMVC-app-css.txt
+  s_4ba79f911c93c4::t_bcd8aaf7449cb5 1-396
+licenses/IJG-jpeg-encoder-0.7.0.txt
+  s_4ba79f911c93c4::t_b4fc95a4df09cd 1-51
+licenses/MIT-TodoMVC-common.txt
+  s_4ba79f911c93c4::t_1d7f6fe8d9029b 1-9
+licenses/MIT-TodoMVC.txt
+  s_4ba79f911c93c4::t_cd3970aa1fcac5 1-20
+licenses/MIT-Webref.txt
+  s_4ba79f911c93c4::t_2d88fece766446 1-21
+licenses/MIT-jpeg-encoder-0.7.0.txt
+  s_4ba79f911c93c4::t_b046ff13c9863e 1-25
+licenses/OFL-1.1-Bungee.txt
+  s_4ba79f911c93c4::t_31b9eb329b1fd9 1-93
+licenses/OFL-1.1-Noto-Color-Emoji.txt
+  s_4ba79f911c93c4::t_d0814937ace1b0 1-93
+licenses/OFL-1.1-Noto-SC.txt
+  s_4ba79f911c93c4::t_2d3c9e7fdcd905 1-92
+package.json
+  s_4ba79f911c93c4::t_1f6353c22d2f33 1-65
+packages/core/.cargo/config.toml
+  s_4ba79f911c93c4::t_ee8ca164b89863 1-72
+packages/core/BUILD.bazel
+  s_4ba79f911c93c4::t_f33cf574ce7359 1-118
+packages/core/Cargo.toml
+  s_4ba79f911c93c4::t_916a7fa8b71822 1-167
+packages/core/pkg/BUILD.bazel
+  s_4ba79f911c93c4::t_8443c709ac1efa 1-43
+packages/core/pkg/package.json
+  s_4ba79f911c93c4::t_c5d39fcd325199 1-17
+packages/core/src/dom.rs
+  s_4ba79f911c93c4::t_3d6fd3639339b4 1-17
+packages/core/src/dom/cdp.rs
+  s_4ba79f911c93c4::t_7134d7b3d99d09 1-304
+packages/core/src/dom/inner_text.rs
+  s_4ba79f911c93c4::t_479a0243b98a03 1-408
+packages/core/src/dom/input.rs
+  s_4ba79f911c93c4::t_0bff1d024cf40d 1-223
+packages/core/src/dom/mutate.rs
+  s_4ba79f911c93c4::t_13506b23ecdba4 1-563
+packages/core/src/dom/scan.rs
+  s_4ba79f911c93c4::t_7d3921e0f9c82b 1-531
+packages/core/src/dom/shadow.rs
+  s_4ba79f911c93c4::t_9fba9a35210645 1-160
+packages/core/src/dom/tests.rs
+  s_4ba79f911c93c4::t_e78fe77717c1aa 1-10
+packages/core/src/dom/tests/inner_text.rs
+  s_4ba79f911c93c4::t_664b2199068bdb 1-193
+packages/core/src/dom/tests/node_handle.rs
+  s_4ba79f911c93c4::t_5b9cf680812eac 1-165
+packages/core/src/dom/tests/scan.rs
+  s_4ba79f911c93c4::t_0ad19ee980bda9 1-698
+packages/core/src/dom/tests/shadow_dom.rs
+  s_4ba79f911c93c4::t_c27b45abfd49d3 1-801
+packages/core/src/dom/tree.rs
+  s_4ba79f911c93c4::t_2507fe78795a50 1-668
+packages/core/src/js.rs
+  s_4ba79f911c93c4::t_246689829d5c93 1-17
+packages/core/src/js/boa_bridge.rs
+  s_4ba79f911c93c4::t_b0e7687e807835 1-3355
+packages/core/src/js/boa_eval.rs
+  s_4ba79f911c93c4::t_21ae3d3d134ce2 1-1368
+packages/core/src/js/dom_fastpath.rs
+  s_4ba79f911c93c4::t_cfde03cab4469c 1-1005
+packages/core/src/js/exports.rs
+  s_4ba79f911c93c4::t_3474fc0308f268 1-121
+packages/core/src/js/tests.rs
+  s_4ba79f911c93c4::t_03ece24ef36fb1 1-7
+packages/core/src/js/tests/boa_panic_recovery.rs
+  s_4ba79f911c93c4::t_714f18cfe668a3 1-97
+packages/core/src/ks_tracing.rs
+  s_4ba79f911c93c4::t_6266292d1890c5 1-229
+packages/core/src/layout.rs
+  s_4ba79f911c93c4::t_dda9c2b7e09f12 1-14
+packages/core/src/layout/debug.rs
+  s_4ba79f911c93c4::t_5e15f0276ff683 1-523
+packages/core/src/layout/geometry.rs
+  s_4ba79f911c93c4::t_08892635fc6c14 1-1186
+packages/core/src/layout/hit_test.rs
+  s_4ba79f911c93c4::t_150d5bc080c2c0 1-150
+packages/core/src/layout/scroll.rs
+  s_4ba79f911c93c4::t_ba3c06da73e9f0 1-365
+packages/core/src/layout/sticky.rs
+  s_4ba79f911c93c4::t_34791b9bf85d0e 1-389
+packages/core/src/layout/tests.rs
+  s_4ba79f911c93c4::t_4704c8b9f4f6f7 1-32
+packages/core/src/layout/tests/abs_filters_width.rs
+  s_4ba79f911c93c4::t_22350043e4815f 1-153
+packages/core/src/layout/tests/abspos_containing_block.rs
+  s_4ba79f911c93c4::t_4abb8269ed6712 1-183
+packages/core/src/layout/tests/box_decorations.rs
+  s_4ba79f911c93c4::t_a06605272c18e2 1-649
+packages/core/src/layout/tests/float_cache_incremental.rs
+  s_4ba79f911c93c4::t_4a754acd8fb8bd 1-80
+packages/core/src/layout/tests/float_with_trailing_comment.rs
+  s_4ba79f911c93c4::t_bb0cc0cba3e39c 1-133
+packages/core/src/layout/tests/grid_minmax.rs
+  s_4ba79f911c93c4::t_e2e70618bceb5a 1-57
+packages/core/src/layout/tests/hit_test_block_axis.rs
+  s_4ba79f911c93c4::t_64097071457a0a 1-69
+packages/core/src/layout/tests/hit_test_fixed_scroll.rs
+  s_4ba79f911c93c4::t_88f3750c745af4 1-41
+packages/core/src/layout/tests/hit_test_line_ripple.rs
+  s_4ba79f911c93c4::t_43b9fea76f2eab 1-102
+packages/core/src/layout/tests/hit_test_paint_order.rs
+  s_4ba79f911c93c4::t_c4ef83e9d783c5 1-249
+packages/core/src/layout/tests/hit_test_pointer_events.rs
+  s_4ba79f911c93c4::t_a12975d999d0a1 1-135
+packages/core/src/layout/tests/hit_test_transform.rs
+  s_4ba79f911c93c4::t_28f910dec75cdb 1-147
+packages/core/src/layout/tests/hoist_incremental.rs
+  s_4ba79f911c93c4::t_e6a1ff3609b75b 1-291
+packages/core/src/layout/tests/inline_block_baseline.rs
+  s_4ba79f911c93c4::t_d45e62050e168a 1-49
+packages/core/src/layout/tests/inline_break_index.rs
+  s_4ba79f911c93c4::t_a7a6e0d66910e6 1-75
+packages/core/src/layout/tests/inline_break_restore.rs
+  s_4ba79f911c93c4::t_0391bb1b33d8db 1-103
+packages/core/src/layout/tests/inline_flow_rect.rs
+  s_4ba79f911c93c4::t_705118660d8276 1-211
+packages/core/src/layout/tests/nested_inline_abspos.rs
+  s_4ba79f911c93c4::t_cf22616a04cde3 1-108
+packages/core/src/layout/tests/radar_grid_repro.rs
+  s_4ba79f911c93c4::t_d77e4eee43e924 1-117
+packages/core/src/layout/tests/rehomed_reach.rs
+  s_4ba79f911c93c4::t_a271ca644ef17c 1-70
+packages/core/src/layout/tests/sticky_reset.rs
+  s_4ba79f911c93c4::t_817488e2440f32 1-331
+packages/core/src/layout/tests/stylo_extraction.rs
+  s_4ba79f911c93c4::t_6fd16b23251676 1-405
+packages/core/src/layout/tests/svg_descendant_rect.rs
+  s_4ba79f911c93c4::t_582bf90c415d87 1-158
+packages/core/src/layout/tests/svg_natural_size.rs
+  s_4ba79f911c93c4::t_29b0131368a1b6 1-111
+packages/core/src/layout/tests/tab_expansion.rs
+  s_4ba79f911c93c4::t_2cad12c9016b19 1-341
+packages/core/src/layout/tests/text_node_rect.rs
+  s_4ba79f911c93c4::t_b1d8c9dfc8edce 1-100
+packages/core/src/layout/tests/transform_2d_subset.rs
+  s_4ba79f911c93c4::t_7b75fc2f36d451 1-144
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_f226ca4fb6cbee 1-777
+packages/core/src/paint.rs
+  s_4ba79f911c93c4::t_e5e062f7b93967 1-20
+packages/core/src/paint/canvas.rs
+  s_4ba79f911c93c4::t_e72390cdb187d0 1-273
+packages/core/src/paint/canvas2d.rs
+  s_4ba79f911c93c4::t_fbdc6c3c63e65b 1-2038
+packages/core/src/paint/pdf.rs
+  s_4ba79f911c93c4::t_36ba4ffe78aca1 1-287
+packages/core/src/paint/pdf_paint.rs
+  s_4ba79f911c93c4::t_37adfee33b2115 1-610
+packages/core/src/paint/print.rs
+  s_4ba79f911c93c4::t_a4aa2edba32862 1-275
+packages/core/src/paint/render.rs
+  s_4ba79f911c93c4::t_278043f1130660 1-1243
+packages/core/src/paint/scene_decode.rs
+  s_4ba79f911c93c4::t_11df3586d476b9 1-2074
+packages/core/src/paint/scene_record.rs
+  s_4ba79f911c93c4::t_38ee328d1bcc2a 1-1906
+packages/core/src/paint/scene_replay.rs
+  s_4ba79f911c93c4::t_e25d0946d5728c 1-3474
+packages/core/src/paint/screenshot.rs
+  s_4ba79f911c93c4::t_75762ee17852f0 1-807
+packages/core/src/paint/tests.rs
+  s_4ba79f911c93c4::t_6cbe2f0f60bcd3 1-22
+packages/core/src/paint/tests/box_shadow_blur_accuracy.rs
+  s_4ba79f911c93c4::t_7a0b216822d60d 1-166
+packages/core/src/paint/tests/counter_damage_gate.rs
+  s_4ba79f911c93c4::t_f7ea61f5e8a0c3 1-109
+packages/core/src/paint/tests/damaged_subtree_skip.rs
+  s_4ba79f911c93c4::t_5b5637a0c5c696 1-80
+packages/core/src/paint/tests/glyph_cache_panic.rs
+  s_4ba79f911c93c4::t_020489d38bcba8 1-73
+packages/core/src/paint/tests/ink_rect.rs
+  s_4ba79f911c93c4::t_96014b5c0f5265 1-178
+packages/core/src/paint/tests/inline_block_border.rs
+  s_4ba79f911c93c4::t_5546964b52f55b 1-134
+packages/core/src/paint/tests/paint_damage.rs
+  s_4ba79f911c93c4::t_f361197592ebcd 1-105
+packages/core/src/paint/tests/paint_damage_layout_cache.rs
+  s_4ba79f911c93c4::t_bf64e9cbd7dc76 1-98
+packages/core/src/paint/tests/rbi_image_cache.rs
+  s_4ba79f911c93c4::t_5dd92b9f06b9af 1-184
+packages/core/src/paint/tests/render_scene_resolve_loop.rs
+  s_4ba79f911c93c4::t_b59ef1db5a950e 1-67
+packages/core/src/paint/tests/scene_determinism.rs
+  s_4ba79f911c93c4::t_baca7ddd3022ab 1-94
+packages/core/src/paint/tests/svg_geometry_properties.rs
+  s_4ba79f911c93c4::t_935f7eae41c425 1-191
+packages/core/src/paint/tests/svg_mutation_resnapshot.rs
+  s_4ba79f911c93c4::t_c3ebd1ef5515af 1-101
+packages/core/src/paint/tests/svg_sprite_use.rs
+  s_4ba79f911c93c4::t_fa59fb7f0ffb93 1-177
+packages/core/src/paint/tests/svg_view_fragment.rs
+  s_4ba79f911c93c4::t_b0f52b8672d603 1-96
+packages/core/src/paint/tests/svg_zero_viewbox.rs
+  s_4ba79f911c93c4::t_c6e4d95c10d8dd 1-152
+packages/core/src/resources.rs
+  s_4ba79f911c93c4::t_712f372d9e696d 1-12
+packages/core/src/resources/delivery.rs
+  s_4ba79f911c93c4::t_6b10328e6e165b 1-219
+packages/core/src/resources/fonts.rs
+  s_4ba79f911c93c4::t_c6a6083dd74ab3 1-1835
+packages/core/src/resources/net.rs
+  s_4ba79f911c93c4::t_f7f15b41e977df 1-532
+packages/core/src/resources/tests.rs
+  s_4ba79f911c93c4::t_515fe439e357ac 1-10
+packages/core/src/resources/tests/checked_svg.rs
+  s_4ba79f911c93c4::t_44a7cc37e5eced 1-35
+packages/core/src/resources/tests/container_query_image_flush.rs
+  s_4ba79f911c93c4::t_d4791ae76bde59 1-76
+packages/core/src/resources/tests/data_uri_bg.rs
+  s_4ba79f911c93c4::t_43fad530ec762f 1-123
+packages/core/src/resources/tests/stylesheet_load_after_removal.rs
+  s_4ba79f911c93c4::t_81e2d4747b2f54 1-77
+packages/core/src/style.rs
+  s_4ba79f911c93c4::t_36f2fdf7281727 1-14
+packages/core/src/style/animation.rs
+  s_4ba79f911c93c4::t_ecd455fafef3a5 1-151
+packages/core/src/style/computed.rs
+  s_4ba79f911c93c4::t_2f3b6d82e7658e 1-741
+packages/core/src/style/cssom.rs
+  s_4ba79f911c93c4::t_935111154df73b 1-1464
+packages/core/src/style/tests.rs
+  s_4ba79f911c93c4::t_b1a6ec16eb0875 1-17
+packages/core/src/style/tests/animation_clock.rs
+  s_4ba79f911c93c4::t_8e9c67d1c44460 1-912
+packages/core/src/style/tests/animation_fill_mode.rs
+  s_4ba79f911c93c4::t_530cac2be5c0e2 1-148
+packages/core/src/style/tests/calc_resolution.rs
+  s_4ba79f911c93c4::t_131d84b2693a37 1-44
+packages/core/src/style/tests/cascade_panic_recovery.rs
+  s_4ba79f911c93c4::t_bec0cfc60ea49d 1-60
+packages/core/src/style/tests/color_serialization.rs
+  s_4ba79f911c93c4::t_76412b5b2c1ec1 1-514
+packages/core/src/style/tests/focus_pseudoclass.rs
+  s_4ba79f911c93c4::t_782527fcc82a22 1-90
+packages/core/src/style/tests/has_invalidation.rs
+  s_4ba79f911c93c4::t_d1dd292e4f3916 1-329
+packages/core/src/style/tests/resolved_transform.rs
+  s_4ba79f911c93c4::t_d247d72f21508c 1-28
+packages/core/src/style/tests/stylesheet_anchor.rs
+  s_4ba79f911c93c4::t_59fe47dae0a9a7 1-25
+packages/core/src/style/tests/svg_css_fill.rs
+  s_4ba79f911c93c4::t_e4002588c2b53f 1-112
+packages/core/src/style/tests/svg_currentcolor.rs
+  s_4ba79f911c93c4::t_a8a42cc52e1cb3 1-64
+packages/core/src/style/transitions.rs
+  s_4ba79f911c93c4::t_82a612ada8c388 1-520
+packages/core/src/style/waapi.rs
+  s_4ba79f911c93c4::t_64f0344d329abc 1-508
+packages/core/src/test_assets.rs
+  s_4ba79f911c93c4::t_e50e9f32fa789b 1-23
+packages/core/src/text_encoding.rs
+  s_4ba79f911c93c4::t_e868c408fdc8a9 1-173
+packages/core/src/tty.rs
+  s_4ba79f911c93c4::t_3abc453c9e4eef 1-17
+packages/core/src/tty/ansi.rs
+  s_4ba79f911c93c4::t_786a3d83897f5c 1-108
+packages/core/src/tty/grid.rs
+  s_4ba79f911c93c4::t_fc86b8cba413b7 1-2104
+packages/core/src/tty/input.rs
+  s_4ba79f911c93c4::t_d4bcc63c96bd20 1-941
+packages/core/src/tty/modes.rs
+  s_4ba79f911c93c4::t_7c0743feb1c577 1-607
+packages/core/src/tty/omni.rs
+  s_4ba79f911c93c4::t_1507fab0ae9a14 1-1157
+packages/core/src/tty/tests.rs
+  s_4ba79f911c93c4::t_56078e2d81d143 1-7
+packages/core/src/tty/tests/cell_grid.rs
+  s_4ba79f911c93c4::t_68b722a4113d3b 1-781
+packages/core/tests_data/angular_snapshot.html
+  s_4ba79f911c93c4::t_126d32f2c19271 1-25
+packages/core/tests_data/radar-page.html
+  s_4ba79f911c93c4::t_692ec984eaa309 1-818
+packages/dom-shim/BUILD.bazel
+  s_4ba79f911c93c4::t_0f98f968afe739 1-96
+packages/dom-shim/MODULES.md
+  s_4ba79f911c93c4::t_c4418c63a3cb08 1-281
+packages/dom-shim/editing_repo.bzl
+  s_4ba79f911c93c4::t_1bba0b657be897 1-28
+packages/dom-shim/package.json
+  s_4ba79f911c93c4::t_b45671f52da2a8 1-33
+packages/dom-shim/patches/wpt-editing/0001-Wrap-the-script-in-a-createEditingEngine-factory.patch
+  s_4ba79f911c93c4::t_92517820f3820a 1-43
+packages/dom-shim/patches/wpt-editing/0002-Treat-a-null-node-as-past-the-end-of-the-document-in.patch
+  s_4ba79f911c93c4::t_fb3742f0408982 1-34
+packages/dom-shim/scripts/build.mjs
+  s_4ba79f911c93c4::t_0dcd47d9e699fd 1-104
+packages/dom-shim/scripts/editing-implementation.mjs
+  s_4ba79f911c93c4::t_1efb4ad1b34ff6 1-94
+packages/dom-shim/src/animations.ts
+  s_4ba79f911c93c4::t_5dfb55863a3f73 1-1018
+packages/dom-shim/src/canvas2d.ts
+  s_4ba79f911c93c4::t_c35daebc8e6283 1-1380
+packages/dom-shim/src/collections.ts
+  s_4ba79f911c93c4::t_cbc0c12077610c 1-3852
+packages/dom-shim/src/constants.ts
+  s_4ba79f911c93c4::t_d2e5092a9b607b 1-98
+packages/dom-shim/src/contract.ts
+  s_4ba79f911c93c4::t_fdd54dff19ae81 1-30
+packages/dom-shim/src/css-typed-om.ts
+  s_4ba79f911c93c4::t_4830f60b523056 1-3080
+packages/dom-shim/src/css-typed-om.webidl.generated.ts
+  s_4ba79f911c93c4::t_e744621b840af5 1-595
+packages/dom-shim/src/current-script.ts
+  s_4ba79f911c93c4::t_74bd73ff08c603 1-72
+packages/dom-shim/src/detached-wrappers.ts
+  s_4ba79f911c93c4::t_9f64ef92fad6c7 1-189
+packages/dom-shim/src/document.ts
+  s_4ba79f911c93c4::t_1dc23ffdf25ddc 1-2894
+packages/dom-shim/src/editing/implementation.ts
+  s_4ba79f911c93c4::t_f8535391695434 1-21
+packages/dom-shim/src/element/aria.ts
+  s_4ba79f911c93c4::t_e4bb5e71b65259 1-273
+packages/dom-shim/src/element/canvas.ts
+  s_4ba79f911c93c4::t_d132010a0cb81f 1-138
+packages/dom-shim/src/element/element.ts
+  s_4ba79f911c93c4::t_bf05636bfe694f 1-2652
+packages/dom-shim/src/element/embedded.ts
+  s_4ba79f911c93c4::t_1e141c466764de 1-172
+packages/dom-shim/src/element/event-handlers.ts
+  s_4ba79f911c93c4::t_ba3807b92e8eea 1-255
+packages/dom-shim/src/element/forms/button.ts
+  s_4ba79f911c93c4::t_6379d13a83a64e 1-189
+packages/dom-shim/src/element/forms/fieldset.ts
+  s_4ba79f911c93c4::t_524d2f6c412394 1-51
+packages/dom-shim/src/element/forms/form.ts
+  s_4ba79f911c93c4::t_10d0f490bedfe9 1-476
+packages/dom-shim/src/element/forms/input-state.ts
+  s_4ba79f911c93c4::t_1c36097491f157 1-248
+packages/dom-shim/src/element/forms/input.ts
+  s_4ba79f911c93c4::t_dedb7ccf8bd54a 1-448
+packages/dom-shim/src/element/forms/label-activation.ts
+  s_4ba79f911c93c4::t_5767baa1623fbb 1-97
+packages/dom-shim/src/element/forms/label.ts
+  s_4ba79f911c93c4::t_ac6197c448f505 1-38
+packages/dom-shim/src/element/forms/labelable.ts
+  s_4ba79f911c93c4::t_aa522e9f2cdd51 1-62
+packages/dom-shim/src/element/forms/listed.ts
+  s_4ba79f911c93c4::t_3bb6832f2615bf 1-138
+packages/dom-shim/src/element/forms/meter.ts
+  s_4ba79f911c93c4::t_c4e8d6af9a099d 1-106
+packages/dom-shim/src/element/forms/output.ts
+  s_4ba79f911c93c4::t_47ab353f397ac7 1-54
+packages/dom-shim/src/element/forms/select-options.ts
+  s_4ba79f911c93c4::t_1821f9b43b3c13 1-127
+packages/dom-shim/src/element/forms/select.ts
+  s_4ba79f911c93c4::t_e48490754e1ec5 1-338
+packages/dom-shim/src/element/forms/selection.ts
+  s_4ba79f911c93c4::t_befd4881c39cbc 1-292
+packages/dom-shim/src/element/forms/submission.ts
+  s_4ba79f911c93c4::t_b7d059ef57fa90 1-191
+packages/dom-shim/src/element/forms/textarea.ts
+  s_4ba79f911c93c4::t_7d9358a2df7e27 1-180
+packages/dom-shim/src/element/forms/validity.ts
+  s_4ba79f911c93c4::t_c4ebca3ea88fb3 1-383
+packages/dom-shim/src/element/html-classes.ts
+  s_4ba79f911c93c4::t_50d38358abd794 1-106
+packages/dom-shim/src/element/html-element.ts
+  s_4ba79f911c93c4::t_01b31bc00e5310 1-274
+packages/dom-shim/src/element/html-tag.ts
+  s_4ba79f911c93c4::t_3c3a0da17c7013 1-83
+packages/dom-shim/src/element/image.ts
+  s_4ba79f911c93c4::t_8da5b7d2f6fc26 1-211
+packages/dom-shim/src/element/index.ts
+  s_4ba79f911c93c4::t_89d1318d7192e3 1-251
+packages/dom-shim/src/element/load-events.ts
+  s_4ba79f911c93c4::t_c5bebab911df81 1-226
+packages/dom-shim/src/element/media.ts
+  s_4ba79f911c93c4::t_ae1000f7ef514d 1-327
+packages/dom-shim/src/element/rect.ts
+  s_4ba79f911c93c4::t_919d0e1e76f3a1 1-133
+packages/dom-shim/src/element/reflect.ts
+  s_4ba79f911c93c4::t_ca37b4ae5af8eb 1-410
+packages/dom-shim/src/element/resolve.ts
+  s_4ba79f911c93c4::t_6f412c618b4b54 1-230
+packages/dom-shim/src/element/shadow.ts
+  s_4ba79f911c93c4::t_4f5191ac73306b 1-123
+packages/dom-shim/src/element/svg.ts
+  s_4ba79f911c93c4::t_608e8225f2adc8 1-140
+packages/dom-shim/src/element/table.ts
+  s_4ba79f911c93c4::t_8253019cb86b4e 1-230
+packages/dom-shim/src/element/tag-attributes.ts
+  s_4ba79f911c93c4::t_c3d4ada20304f2 1-403
+packages/dom-shim/src/event-handler-names.ts
+  s_4ba79f911c93c4::t_5fbdea846f87ed 1-151
+packages/dom-shim/src/events/dispatch.ts
+  s_4ba79f911c93c4::t_75dd21688eb7a0 1-617
+packages/dom-shim/src/events/event.ts
+  s_4ba79f911c93c4::t_9e77e6253596be 1-1283
+packages/dom-shim/src/events/slotchange.ts
+  s_4ba79f911c93c4::t_93106fbb09264f 1-78
+packages/dom-shim/src/fastpath.ts
+  s_4ba79f911c93c4::t_e758aff66a0889 1-200
+packages/dom-shim/src/file-input.ts
+  s_4ba79f911c93c4::t_1c62167c06a18c 1-360
+packages/dom-shim/src/form-data.ts
+  s_4ba79f911c93c4::t_4bc86cb8844aaf 1-220
+packages/dom-shim/src/html-encoding.ts
+  s_4ba79f911c93c4::t_6085022370a5dc 1-90
+packages/dom-shim/src/idl/model.generated.ts
+  s_4ba79f911c93c4::t_778a045d8e420b 1-302
+packages/dom-shim/src/idl/model.ts
+  s_4ba79f911c93c4::t_a15ccfec7ee348 1-57
+packages/dom-shim/src/idl/runtime.generated.ts
+  s_4ba79f911c93c4::t_8261588a6b633f 1-300
+packages/dom-shim/src/idl/type-gaps.json
+  s_4ba79f911c93c4::t_161dcede6644bb 1-115
+packages/dom-shim/src/idl/types.generated.ts
+  s_4ba79f911c93c4::t_d558ce133162fb 1-4037
+packages/dom-shim/src/index.ts
+  s_4ba79f911c93c4::t_8f6e6998063da6 1-791
+packages/dom-shim/src/input-types.ts
+  s_4ba79f911c93c4::t_a24a5395625903 1-484
+packages/dom-shim/src/internal-state.ts
+  s_4ba79f911c93c4::t_2e381804e2cf11 1-19
+packages/dom-shim/src/layout/cheap.ts
+  s_4ba79f911c93c4::t_292b0bbeac9a23 1-407
+packages/dom-shim/src/layout/scroll.ts
+  s_4ba79f911c93c4::t_104274ef5acac4 1-288
+packages/dom-shim/src/model-context.ts
+  s_4ba79f911c93c4::t_c6efb79ba194e1 1-1261
+packages/dom-shim/src/mutations/attached.ts
+  s_4ba79f911c93c4::t_a13a871772d504 1-73
+packages/dom-shim/src/mutations/observer.ts
+  s_4ba79f911c93c4::t_e44e7ecd6c9b19 1-747
+packages/dom-shim/src/mutations/seq.ts
+  s_4ba79f911c93c4::t_406ea958499f4c 1-53
+packages/dom-shim/src/node-base.ts
+  s_4ba79f911c93c4::t_5df5bf09b8d4e9 1-2345
+packages/dom-shim/src/otel.ts
+  s_4ba79f911c93c4::t_bb46e0fb5fab70 1-289
+packages/dom-shim/src/parser.ts
+  s_4ba79f911c93c4::t_a16f2ebf01a34a 1-1385
+packages/dom-shim/src/range.ts
+  s_4ba79f911c93c4::t_62f6f814d7942d 1-1945
+packages/dom-shim/src/record.ts
+  s_4ba79f911c93c4::t_014114818b02ea 1-131
+packages/dom-shim/src/registries.ts
+  s_4ba79f911c93c4::t_8c1953175542d9 1-220
+packages/dom-shim/src/select-dropdown.ts
+  s_4ba79f911c93c4::t_7d6dcc73793589 1-135
+packages/dom-shim/src/state.ts
+  s_4ba79f911c93c4::t_d7938cd3a3e063 1-490
+packages/dom-shim/src/style-declaration.ts
+  s_4ba79f911c93c4::t_7bd9201a3481aa 1-129
+packages/dom-shim/src/text-encoding.ts
+  s_4ba79f911c93c4::t_71eb5e2ff54c13 1-107
+packages/dom-shim/src/transitions.ts
+  s_4ba79f911c93c4::t_00d80acb5529da 1-50
+packages/dom-shim/src/traversal.ts
+  s_4ba79f911c93c4::t_ff2cfbb73e5182 1-419
+packages/dom-shim/src/trust.ts
+  s_4ba79f911c93c4::t_aee3327af574e8 1-33
+packages/dom-shim/src/user-control.ts
+  s_4ba79f911c93c4::t_eae9787eb04b47 1-64
+packages/dom-shim/src/util/scroll-args.ts
+  s_4ba79f911c93c4::t_4a1cebb113b5e0 1-56
+packages/dom-shim/src/util/strings.ts
+  s_4ba79f911c93c4::t_7d9d7601f02bcb 1-88
+packages/dom-shim/src/util/validation.ts
+  s_4ba79f911c93c4::t_1fdac7779df8bc 1-158
+packages/dom-shim/src/webidl.ts
+  s_4ba79f911c93c4::t_b2e1c2dba49405 1-401
+packages/dom-shim/src/window.ts
+  s_4ba79f911c93c4::t_a91f55a3c7c1f0 1-1442
+packages/dom-shim/src/xpath.ts
+  s_4ba79f911c93c4::t_6a46f670cc172b 1-1396
+packages/dom-shim/strict-baseline.json
+  s_4ba79f911c93c4::t_7a51c73ac62272 1-8
+packages/dom-shim/tsconfig.json
+  s_4ba79f911c93c4::t_8571c7551e1c27 1-20
+packages/dom-shim/tsconfig.strict.json
+  s_4ba79f911c93c4::t_5593aa2ed9c41e 1-7
+packages/engine/BUILD.bazel
+  s_4ba79f911c93c4::t_c894d5e35d7b33 1-327
+packages/engine/package.json
+  s_4ba79f911c93c4::t_f41924e9a1f48a 1-49
+packages/engine/public/_headers
+  s_4ba79f911c93c4::t_9ddb1f93d76ddc 1-2
+packages/engine/public/fonts/Inter-OFL.txt
+  s_4ba79f911c93c4::t_223c2e233cb699 1-92
+packages/engine/public/fonts/OFL.txt
+  s_4ba79f911c93c4::t_4ed80220a851fb 1-93
+packages/engine/src/cdp/accessibility.ts
+  s_4ba79f911c93c4::t_2e0c1021850d37 1-1297
+packages/engine/src/cdp/arrival.ts
+  s_4ba79f911c93c4::t_8253d526d98f61 1-16
+packages/engine/src/cdp/connection.ts
+  s_4ba79f911c93c4::t_efc168267906ca 1-557
+packages/engine/src/cdp/cookie-jar-registry.ts
+  s_4ba79f911c93c4::t_bba2e3fffade17 1-43
+packages/engine/src/cdp/css.ts
+  s_4ba79f911c93c4::t_303c65597d825f 1-1118
+packages/engine/src/cdp/debugger.ts
+  s_4ba79f911c93c4::t_d4a5798c229c37 1-154
+packages/engine/src/cdp/dedicated-workers.ts
+  s_4ba79f911c93c4::t_a23874c6d8f3f9 1-407
+packages/engine/src/cdp/diag-spans.ts
+  s_4ba79f911c93c4::t_86e4f304ad5d25 1-105
+packages/engine/src/cdp/dispatch-env.ts
+  s_4ba79f911c93c4::t_31ed8290256a62 1-27
+packages/engine/src/cdp/dispatch.ts
+  s_4ba79f911c93c4::t_ba74eb5e9dbfa3 1-291
+packages/engine/src/cdp/document-kind.ts
+  s_4ba79f911c93c4::t_a70ca7a2b4c7e7 1-95
+packages/engine/src/cdp/dom-release.ts
+  s_4ba79f911c93c4::t_815843bf94ecb3 1-103
+packages/engine/src/cdp/dom.ts
+  s_4ba79f911c93c4::t_138cefcb53e386 1-699
+packages/engine/src/cdp/fetch-interception.ts
+  s_4ba79f911c93c4::t_bc2f66f97a7bdc 1-226
+packages/engine/src/cdp/fetch.ts
+  s_4ba79f911c93c4::t_9782641da518f1 1-90
+packages/engine/src/cdp/frames.ts
+  s_4ba79f911c93c4::t_2cab28d489a372 1-175
+packages/engine/src/cdp/iframe-events.ts
+  s_4ba79f911c93c4::t_bcb361282d2bf8 1-61
+packages/engine/src/cdp/input.ts
+  s_4ba79f911c93c4::t_502173f4c2dbdb 1-589
+packages/engine/src/cdp/kitesurf.ts
+  s_4ba79f911c93c4::t_1ad09f35c5826f 1-613
+packages/engine/src/cdp/network-events-registry.ts
+  s_4ba79f911c93c4::t_2a2bb3d5ccbcd6 1-25
+packages/engine/src/cdp/network-events.ts
+  s_4ba79f911c93c4::t_2293073501ec44 1-709
+packages/engine/src/cdp/network.ts
+  s_4ba79f911c93c4::t_240ca54a1e77a8 1-168
+packages/engine/src/cdp/outbound-filter-registry.ts
+  s_4ba79f911c93c4::t_b0223716ac1706 1-146
+packages/engine/src/cdp/page-script-generation.ts
+  s_4ba79f911c93c4::t_45397f143843d1 1-181
+packages/engine/src/cdp/page-session.ts
+  s_4ba79f911c93c4::t_1ca36c8a1f74ef 1-211
+packages/engine/src/cdp/page.ts
+  s_4ba79f911c93c4::t_154be0eff603f1 1-5189
+packages/engine/src/cdp/protocol-extensions.ts
+  s_4ba79f911c93c4::t_6567d3f44e2815 1-471
+packages/engine/src/cdp/runtime.ts
+  s_4ba79f911c93c4::t_d223bafdb5a228 1-649
+packages/engine/src/cdp/scene-host.ts
+  s_4ba79f911c93c4::t_9a75cad0ff76bf 1-122
+packages/engine/src/cdp/scene-stream.ts
+  s_4ba79f911c93c4::t_5dc910a0c769eb 1-348
+packages/engine/src/cdp/target.ts
+  s_4ba79f911c93c4::t_4d1e0c885c481e 1-886
+packages/engine/src/cdp/types.ts
+  s_4ba79f911c93c4::t_7ee49a7f23b250 1-320
+packages/engine/src/cdp/viewport.ts
+  s_4ba79f911c93c4::t_a2f00a7e46c9ff 1-28
+packages/engine/src/cdp/webmcp.ts
+  s_4ba79f911c93c4::t_1b9a00f3fe1c29 1-432
+packages/engine/src/cdp/wheel-queue.ts
+  s_4ba79f911c93c4::t_36768136e68347 1-370
+packages/engine/src/cookies.ts
+  s_4ba79f911c93c4::t_6a76cd675b655c 1-525
+packages/engine/src/embed.ts
+  s_4ba79f911c93c4::t_fef0e86295a408 1-50
+packages/engine/src/engine-errors.ts
+  s_4ba79f911c93c4::t_9853cc2dd7dbb1 1-73
+packages/engine/src/engine-wasm-probe.ts
+  s_4ba79f911c93c4::t_77f695c3765061 1-23
+packages/engine/src/eval/attribution-tail.ts
+  s_4ba79f911c93c4::t_674da8092f8855 1-24
+packages/engine/src/eval/carrier-spans.ts
+  s_4ba79f911c93c4::t_2724e030c86571 1-85
+packages/engine/src/eval/cors.ts
+  s_4ba79f911c93c4::t_1ec7a1d8dafa92 1-398
+packages/engine/src/eval/dedicated-worker.ts
+  s_4ba79f911c93c4::t_7c1796110f4453 1-213
+packages/engine/src/eval/denied-outbound.ts
+  s_4ba79f911c93c4::t_d3a000b032e80e 1-20
+packages/engine/src/eval/external-outbound.ts
+  s_4ba79f911c93c4::t_f7261e955efa20 1-18
+packages/engine/src/eval/font-shaping.ts
+  s_4ba79f911c93c4::t_1860afdf3a92a9 1-64
+packages/engine/src/eval/host-clock.ts
+  s_4ba79f911c93c4::t_49ce0eeb68e17a 1-19
+packages/engine/src/eval/image-dims.ts
+  s_4ba79f911c93c4::t_329d60264f8d7c 1-238
+packages/engine/src/eval/isolate-id.ts
+  s_4ba79f911c93c4::t_1a683f1eab8bf1 1-16
+packages/engine/src/eval/learned-scripts.ts
+  s_4ba79f911c93c4::t_2e3d346bfdfe7e 1-135
+packages/engine/src/eval/limit-registry.ts
+  s_4ba79f911c93c4::t_7fbc36fc7b0a27 1-42
+packages/engine/src/eval/next-route-chunks.ts
+  s_4ba79f911c93c4::t_2b11e312f54150 1-122
+packages/engine/src/eval/oopif-render.ts
+  s_4ba79f911c93c4::t_404d7fc31f15cc 1-391
+packages/engine/src/eval/outbound.ts
+  s_4ba79f911c93c4::t_fbe389d7cc150a 1-1443
+packages/engine/src/eval/page-renderer.ts
+  s_4ba79f911c93c4::t_e6815c7d97a018 1-470
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_4ba79f911c93c4::t_52f245a1e92635 1-490
+packages/engine/src/eval/page-script-tail.ts
+  s_4ba79f911c93c4::t_2b176f1d175e14 1-258
+packages/engine/src/eval/page-script.ts
+  s_4ba79f911c93c4::t_a87b9a9e062de5 1-670
+packages/engine/src/eval/prefetch-scripts.ts
+  s_4ba79f911c93c4::t_0cefc316ac2fb6 1-225
+packages/engine/src/eval/prefetch-wasm.ts
+  s_4ba79f911c93c4::t_63a061e11cbe46 1-302
+packages/engine/src/eval/redirect-walk.ts
+  s_4ba79f911c93c4::t_c2ca4c7abb6ee6 1-203
+packages/engine/src/eval/resource-store.ts
+  s_4ba79f911c93c4::t_9cfe2b80a14c0f 1-152
+packages/engine/src/eval/script-bundle.ts
+  s_4ba79f911c93c4::t_19ce05f7c024e1 1-464
+packages/engine/src/eval/script-gate.ts
+  s_4ba79f911c93c4::t_7c38bbf09a6d0b 1-128
+packages/engine/src/eval/span-sink.ts
+  s_4ba79f911c93c4::t_8ef0f43aa31465 1-61
+packages/engine/src/eval/speculative-prefetch.ts
+  s_4ba79f911c93c4::t_1e9e1c3de0326b 1-48
+packages/engine/src/eval/tail-trace-registry.ts
+  s_4ba79f911c93c4::t_d2d73acfae56b5 1-28
+packages/engine/src/eval/walk-module-graph.ts
+  s_4ba79f911c93c4::t_5a4c5bf871ad38 1-1485
+packages/engine/src/eval/web-bot-auth.ts
+  s_4ba79f911c93c4::t_283ace7d64ed53 1-128
+packages/engine/src/eval/worker-budget.ts
+  s_4ba79f911c93c4::t_32f91c67b1eae9 1-108
+packages/engine/src/fixtures-binding.ts
+  s_4ba79f911c93c4::t_bffc627707bebf 1-11
+packages/engine/src/guards.ts
+  s_4ba79f911c93c4::t_453f8c37aa4b0c 1-24
+packages/engine/src/host-bindings.ts
+  s_4ba79f911c93c4::t_e79ff06e9f6c0b 1-17
+packages/engine/src/host.ts
+  s_4ba79f911c93c4::t_18066d2ff09e98 1-74
+packages/engine/src/index.ts
+  s_4ba79f911c93c4::t_fcba80133d3090 1-245
+packages/engine/src/inspector.ts
+  s_4ba79f911c93c4::t_a8f107466018fc 1-15
+packages/engine/src/landing.ts
+  s_4ba79f911c93c4::t_7b9555615b74ab 1-74
+packages/engine/src/observability.ts
+  s_4ba79f911c93c4::t_e635404011a385 1-175
+packages/engine/src/public-suffix.ts
+  s_4ba79f911c93c4::t_9d1e991cc5882e 1-45
+packages/engine/src/rate-limit.ts
+  s_4ba79f911c93c4::t_189deed643a569 1-27
+packages/engine/src/rbi-protocol.ts
+  s_4ba79f911c93c4::t_a77611d91127bd 1-251
+packages/engine/src/rbi.ts
+  s_4ba79f911c93c4::t_0101b12d1cca00 1-444
+packages/engine/src/read-capped.ts
+  s_4ba79f911c93c4::t_4df95a7913bdd8 1-207
+packages/engine/src/request-blocker.ts
+  s_4ba79f911c93c4::t_481301a0ceb8cc 1-110
+packages/engine/src/runtime.ts
+  s_4ba79f911c93c4::t_fca5bbca6877bd 1-15
+packages/engine/src/tracing-local.ts
+  s_4ba79f911c93c4::t_6eda8629921f55 1-643
+packages/engine/src/tracing.ts
+  s_4ba79f911c93c4::t_103b76b4d738f2 1-67
+packages/engine/src/tty/focus.css
+  s_4ba79f911c93c4::t_5c1ecbca58c815 1-17
+packages/engine/src/tty/nav-params.ts
+  s_4ba79f911c93c4::t_bddbd3b72cd005 1-56
+packages/engine/src/tty/stylesheet-level2.css
+  s_4ba79f911c93c4::t_b3a585a9909a29 1-18
+packages/engine/src/tty/stylesheet.css
+  s_4ba79f911c93c4::t_4e4edb71cb23a0 1-248
+packages/engine/src/tty/stylesheet.ts
+  s_4ba79f911c93c4::t_8c0f0422f6ff9c 1-26
+packages/engine/src/wasm-modules.ts
+  s_4ba79f911c93c4::t_2dac776451d667 1-13
+packages/engine/src/wasm.ts
+  s_4ba79f911c93c4::t_335f0c8cf14829 1-223
+packages/engine/test/accessibility-select-default.test.ts
+  s_4ba79f911c93c4::t_e536f473411447 1-109
+packages/engine/test/attribution-tail.test.ts
+  s_4ba79f911c93c4::t_fc8470d21dcbac 1-34
+packages/engine/test/carrier-spans.test.ts
+  s_4ba79f911c93c4::t_eb9f02a277b17f 1-167
+packages/engine/test/cookie-jar-registry.test.ts
+  s_4ba79f911c93c4::t_fae14fc0979096 1-50
+packages/engine/test/cookies.test.ts
+  s_4ba79f911c93c4::t_38054fe5d06110 1-471
+packages/engine/test/cors.test.ts
+  s_4ba79f911c93c4::t_7d2d363c58787f 1-511
+packages/engine/test/css-handler.test.ts
+  s_4ba79f911c93c4::t_4d74852e399838 1-108
+packages/engine/test/dedicated-workers.test.ts
+  s_4ba79f911c93c4::t_7e28013d4f8b7f 1-198
+packages/engine/test/diag-spans.test.ts
+  s_4ba79f911c93c4::t_70d4ed4cea2866 1-90
+packages/engine/test/dispatch-env.test.ts
+  s_4ba79f911c93c4::t_41bdef69050464 1-47
+packages/engine/test/document-kind.test.ts
+  s_4ba79f911c93c4::t_3d600c13fd5948 1-97
+packages/engine/test/e2e/BUILD.bazel
+  s_4ba79f911c93c4::t_5d30dd8088c090 1-85
+packages/engine/test/e2e/README.md
+  s_4ba79f911c93c4::t_3a8f5a592444c6 1-82
+packages/engine/test/e2e/abspos-escapes-overflow-clip.e2e.test.ts
+  s_4ba79f911c93c4::t_5a928f68403428 1-61
+packages/engine/test/e2e/accept-encoding.e2e.test.ts
+  s_4ba79f911c93c4::t_dbede15523a3bf 1-32
+packages/engine/test/e2e/accessibility-live-select-page.ts
+  s_4ba79f911c93c4::t_b544ca0ce2fbe9 1-11
+packages/engine/test/e2e/accessibility-live-select.e2e.test.ts
+  s_4ba79f911c93c4::t_909a9f800b9119 1-113
+packages/engine/test/e2e/accessibility.e2e.test.ts
+  s_4ba79f911c93c4::t_4d10d4eeb5ad29 1-325
+packages/engine/test/e2e/anchor-invalid-url-protocol.e2e.test.ts
+  s_4ba79f911c93c4::t_17e7614e3ce10f 1-21
+packages/engine/test/e2e/anchor-positioning-parsing.e2e.test.ts
+  s_4ba79f911c93c4::t_7de3dc911779da 1-50
+packages/engine/test/e2e/anonymous-block-style-flush.e2e.test.ts
+  s_4ba79f911c93c4::t_0952bf1182ec0c 1-30
+packages/engine/test/e2e/attributes-live-namednodemap.e2e.test.ts
+  s_4ba79f911c93c4::t_b7484b96bd758d 1-69
+packages/engine/test/e2e/author-webfont-custody.e2e.test.ts
+  s_4ba79f911c93c4::t_d7245fbdf575a3 1-71
+packages/engine/test/e2e/author-webfont.e2e.test.ts
+  s_4ba79f911c93c4::t_0887c2cc1dc311 1-113
+packages/engine/test/e2e/awaited-eval-message-channel.e2e.test.ts
+  s_4ba79f911c93c4::t_aedcda653a9f1b 1-89
+packages/engine/test/e2e/awaited-eval-no-deadline.e2e.test.ts
+  s_4ba79f911c93c4::t_f62e8fc8df6739 1-35
+packages/engine/test/e2e/background-reopen-lifecycle.e2e.test.ts
+  s_4ba79f911c93c4::t_88cfd21f2ac78a 1-82
+packages/engine/test/e2e/bg-image-capture.e2e.test.ts
+  s_4ba79f911c93c4::t_220a765799b532 1-22
+packages/engine/test/e2e/blank-page-document.e2e.test.ts
+  s_4ba79f911c93c4::t_0f52c6824c25c4 1-62
+packages/engine/test/e2e/blank-page-fetch.e2e.test.ts
+  s_4ba79f911c93c4::t_e76d1ec1e7178e 1-14
+packages/engine/test/e2e/blob-mime-type.e2e.test.ts
+  s_4ba79f911c93c4::t_77c87e26229f9e 1-100
+packages/engine/test/e2e/boa-accessor-descriptor.e2e.test.ts
+  s_4ba79f911c93c4::t_3aace4407a68df 1-34
+packages/engine/test/e2e/boa-bridge-fidelity.e2e.test.ts
+  s_4ba79f911c93c4::t_6d88ff681ec494 1-38
+packages/engine/test/e2e/boa-call-receiver.e2e.test.ts
+  s_4ba79f911c93c4::t_eee5aca3d39023 1-46
+packages/engine/test/e2e/boa-contextual-class-name.e2e.test.ts
+  s_4ba79f911c93c4::t_dad0982c47b1d3 1-20
+packages/engine/test/e2e/boa-ctx-reentry.e2e.test.ts
+  s_4ba79f911c93c4::t_759ad7b2666b43 1-179
+packages/engine/test/e2e/boa-deep-nesting.e2e.test.ts
+  s_4ba79f911c93c4::t_268f3151b70aa9 1-27
+packages/engine/test/e2e/boa-finally-stack.e2e.test.ts
+  s_4ba79f911c93c4::t_258d52b7f2ff46 1-199
+packages/engine/test/e2e/boa-getter-throws.e2e.test.ts
+  s_4ba79f911c93c4::t_f19a4c7a5b69c6 1-78
+packages/engine/test/e2e/boa-heap-shape.e2e.test.ts
+  s_4ba79f911c93c4::t_aac2dad3dbb161 1-72
+packages/engine/test/e2e/boa-import-meta-url.e2e.test.ts
+  s_4ba79f911c93c4::t_feb85e1f7f8f00 1-38
+packages/engine/test/e2e/boa-interner-reclaim.e2e.test.ts
+  s_4ba79f911c93c4::t_f903bbc6b6e53c 1-109
+packages/engine/test/e2e/boa-long-comma-chain.e2e.test.ts
+  s_4ba79f911c93c4::t_5fd72b5e234f7b 1-19
+packages/engine/test/e2e/boa-null-base-message.e2e.test.ts
+  s_4ba79f911c93c4::t_0447ccfe979c05 1-35
+packages/engine/test/e2e/boa-object-from-page.e2e.test.ts
+  s_4ba79f911c93c4::t_1aca388b40b8dc 1-222
+packages/engine/test/e2e/boa-realm-intrinsics.e2e.test.ts
+  s_4ba79f911c93c4::t_7105d9c6f92ac2 1-93
+packages/engine/test/e2e/boa-typed-array-natives.e2e.test.ts
+  s_4ba79f911c93c4::t_d2159a293d20a4 1-25
+packages/engine/test/e2e/boa-using-identifier.e2e.test.ts
+  s_4ba79f911c93c4::t_df0dbcf3f7cd95 1-82
+packages/engine/test/e2e/bridge-array-lazy.e2e.test.ts
+  s_4ba79f911c93c4::t_e8f601f3158b3f 1-436
+packages/engine/test/e2e/bridge-construct.e2e.test.ts
+  s_4ba79f911c93c4::t_c7bbc1dec75eed 1-52
+packages/engine/test/e2e/bridge-defineproperty.e2e.test.ts
+  s_4ba79f911c93c4::t_18ece1bc61ece6 1-109
+packages/engine/test/e2e/bridge-dom-fastpath.e2e.test.ts
+  s_4ba79f911c93c4::t_44083fa1b61b4a 1-391
+packages/engine/test/e2e/bridge-fn-liveness.e2e.test.ts
+  s_4ba79f911c93c4::t_69c677c0846ef3 1-111
+packages/engine/test/e2e/bridge-heal-at-entry.e2e.test.ts
+  s_4ba79f911c93c4::t_4832e5e396c103 1-51
+packages/engine/test/e2e/bridge-inherit-v8.e2e.test.ts
+  s_4ba79f911c93c4::t_8c65d789622ebf 1-415
+packages/engine/test/e2e/bridge-pin-identity.e2e.test.ts
+  s_4ba79f911c93c4::t_2d529ad1556fcb 1-92
+packages/engine/test/e2e/bridge-pin-stats.e2e.test.ts
+  s_4ba79f911c93c4::t_6a6d86f2cacc7c 1-163
+packages/engine/test/e2e/bridge-proxy-stack-limit.e2e.test.ts
+  s_4ba79f911c93c4::t_277432d3e9a558 1-54
+packages/engine/test/e2e/bridge-v8-defines-on-boa.e2e.test.ts
+  s_4ba79f911c93c4::t_3455f7a3c71e52 1-91
+packages/engine/test/e2e/browser-context.e2e.test.ts
+  s_4ba79f911c93c4::t_12956ba9c5238e 1-194
+packages/engine/test/e2e/button-descendant-submit.e2e.test.ts
+  s_4ba79f911c93c4::t_50981c6be0c45e 1-50
+packages/engine/test/e2e/canvas-context-interface.e2e.test.ts
+  s_4ba79f911c93c4::t_41bdb9db1e8824 1-51
+packages/engine/test/e2e/canvas-image-bytes.e2e.test.ts
+  s_4ba79f911c93c4::t_a17063154b1782 1-147
+packages/engine/test/e2e/canvas-natural-size.e2e.test.ts
+  s_4ba79f911c93c4::t_696b555bf7b64a 1-39
+packages/engine/test/e2e/canvas-raw-renderer.e2e.test.ts
+  s_4ba79f911c93c4::t_d5348ff817d247 1-60
+packages/engine/test/e2e/canvas-text-upgrade.e2e.test.ts
+  s_4ba79f911c93c4::t_eb5d90e8ac62b7 1-29
+packages/engine/test/e2e/caret-after-typing.e2e.test.ts
+  s_4ba79f911c93c4::t_f20ca1eecbb2a1 1-55
+packages/engine/test/e2e/cdp-envelope.e2e.test.ts
+  s_4ba79f911c93c4::t_9b23e1fa8d2f28 1-55
+packages/engine/test/e2e/cdp-input-and-box-model.e2e.test.ts
+  s_4ba79f911c93c4::t_2e9f258c3d48b8 1-127
+packages/engine/test/e2e/cdp-read.ts
+  s_4ba79f911c93c4::t_cdd353d4962331 1-110
+packages/engine/test/e2e/cdp-scene-host.e2e.test.ts
+  s_4ba79f911c93c4::t_91bd9e51c48ec2 1-149
+packages/engine/test/e2e/cdp-scene-stream.e2e.test.ts
+  s_4ba79f911c93c4::t_be16084b08dee0 1-257
+packages/engine/test/e2e/cdp-wire.ts
+  s_4ba79f911c93c4::t_4ff50cc1734db1 1-53
+packages/engine/test/e2e/check-visibility.e2e.test.ts
+  s_4ba79f911c93c4::t_3fa3006e80a38f 1-40
+packages/engine/test/e2e/children-options-sameobject.e2e.test.ts
+  s_4ba79f911c93c4::t_b7cf23e28fbbff 1-48
+packages/engine/test/e2e/classic-computed-import.e2e.test.ts
+  s_4ba79f911c93c4::t_8ec50c2de5087e 1-87
+packages/engine/test/e2e/classic-regex-globals.e2e.test.ts
+  s_4ba79f911c93c4::t_1c08cb069a2a3f 1-63
+packages/engine/test/e2e/classic-seed-walk.e2e.test.ts
+  s_4ba79f911c93c4::t_27562f5ae833ce 1-23
+packages/engine/test/e2e/clip-regions.e2e.test.ts
+  s_4ba79f911c93c4::t_aa1fafd5c8ea43 1-70
+packages/engine/test/e2e/cloudflare-env.ts
+  s_4ba79f911c93c4::t_c27fe9a070b274 1-19
+packages/engine/test/e2e/collection-named-shadowing.e2e.test.ts
+  s_4ba79f911c93c4::t_2ec4e339e16271 1-34
+packages/engine/test/e2e/computed-style-cache.e2e.test.ts
+  s_4ba79f911c93c4::t_d84787f70040d2 1-69
+packages/engine/test/e2e/computed-style-reads.e2e.test.ts
+  s_4ba79f911c93c4::t_c4a8a980047aa1 1-76
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_4ba79f911c93c4::t_b699228156c47c 1-236
+packages/engine/test/e2e/computed-transform-matrix.e2e.test.ts
+  s_4ba79f911c93c4::t_8b259abad58fd4 1-87
+packages/engine/test/e2e/connect.ts
+  s_4ba79f911c93c4::t_4c3052e15d044f 1-57
+packages/engine/test/e2e/constraint-validity.e2e.test.ts
+  s_4ba79f911c93c4::t_3b742cc7067cfd 1-56
+packages/engine/test/e2e/container-queries.e2e.test.ts
+  s_4ba79f911c93c4::t_f8f998c571e86c 1-70
+packages/engine/test/e2e/contenteditable-typing.e2e.test.ts
+  s_4ba79f911c93c4::t_99684765a2c74b 1-200
+packages/engine/test/e2e/context-lifecycle.e2e.test.ts
+  s_4ba79f911c93c4::t_537a592434aa71 1-110
+packages/engine/test/e2e/cookie-redirect-domain.e2e.test.ts
+  s_4ba79f911c93c4::t_239e98a39e919f 1-35
+packages/engine/test/e2e/cookie-samesite-redirect.e2e.test.ts
+  s_4ba79f911c93c4::t_ab21944ede15b1 1-28
+packages/engine/test/e2e/core-wasm-worker.mjs
+  s_4ba79f911c93c4::t_8837d843b06941 1-35
+packages/engine/test/e2e/corner-shape-paint.e2e.test.ts
+  s_4ba79f911c93c4::t_f7849940d7f6f4 1-110
+packages/engine/test/e2e/corp-classic-script.e2e.test.ts
+  s_4ba79f911c93c4::t_76b992d805e4ac 1-39
+packages/engine/test/e2e/cors-bypass-matrix.e2e.test.ts
+  s_4ba79f911c93c4::t_6a979298e4d998 1-76
+packages/engine/test/e2e/cors-stylesheets.e2e.test.ts
+  s_4ba79f911c93c4::t_b646944cfa1584 1-152
+packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
+  s_4ba79f911c93c4::t_9bccaca00dd904 1-77
+packages/engine/test/e2e/cross-origin-redirect-shell.e2e.test.ts
+  s_4ba79f911c93c4::t_b8f44ff1c0dc10 1-84
+packages/engine/test/e2e/css-counters.e2e.test.ts
+  s_4ba79f911c93c4::t_3c7b2582c9b7e8 1-22
+packages/engine/test/e2e/css-highlight-api.e2e.test.ts
+  s_4ba79f911c93c4::t_f31be847ebbcc5 1-41
+packages/engine/test/e2e/css-raw.ts
+  s_4ba79f911c93c4::t_3fc097a43fde4e 1-8
+packages/engine/test/e2e/css-supports-condition.e2e.test.ts
+  s_4ba79f911c93c4::t_99cd2087e9e509 1-89
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_4ba79f911c93c4::t_a8740a45fbc122 1-334
+packages/engine/test/e2e/css-typed-om.e2e.test.ts
+  s_4ba79f911c93c4::t_674e9cc4e27fd8 1-919
+packages/engine/test/e2e/cssom-counter-style-rule.e2e.test.ts
+  s_4ba79f911c93c4::t_0bc704e7fc8bdd 1-125
+packages/engine/test/e2e/cssom-insert-rule-cascade.e2e.test.ts
+  s_4ba79f911c93c4::t_202c4a3a45c5b6 1-47
+packages/engine/test/e2e/cssom-page-rules.e2e.test.ts
+  s_4ba79f911c93c4::t_d44a8b1fa5a55e 1-148
+packages/engine/test/e2e/cssom-rule-interfaces.e2e.test.ts
+  s_4ba79f911c93c4::t_4e6c9bf5b1063a 1-184
+packages/engine/test/e2e/current-script-microtask.e2e.test.ts
+  s_4ba79f911c93c4::t_c7117eb0ef81d2 1-41
+packages/engine/test/e2e/custom-element-attributes.e2e.test.ts
+  s_4ba79f911c93c4::t_1fc8f5d21f8a55 1-51
+packages/engine/test/e2e/custom-element-import-node.e2e.test.ts
+  s_4ba79f911c93c4::t_dcbeba34f2f5ca 1-29
+packages/engine/test/e2e/data-transfer-items-add.e2e.test.ts
+  s_4ba79f911c93c4::t_5bd8de51ebd432 1-45
+packages/engine/test/e2e/dedicated-worker.e2e.test.ts
+  s_4ba79f911c93c4::t_e6005e369a5c85 1-429
+packages/engine/test/e2e/demos/absolute-path-import-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_0e23e19f3d7bb2 1-35
+packages/engine/test/e2e/demos/absolute-path-transitive-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_dd477cd3a6100f 1-54
+packages/engine/test/e2e/demos/auto-navigate-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_1cc9b88a7d1257 1-29
+packages/engine/test/e2e/demos/boa-concurrent-import-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_875a15757aa0c4 1-39
+packages/engine/test/e2e/demos/boa-evalless-phase1.e2e.test.ts
+  s_4ba79f911c93c4::t_50b72c92591a9b 1-63
+packages/engine/test/e2e/demos/boa-evalless-phase10a.e2e.test.ts
+  s_4ba79f911c93c4::t_29818f73fcb93b 1-56
+packages/engine/test/e2e/demos/boa-evalless-phase10b.e2e.test.ts
+  s_4ba79f911c93c4::t_8cb32a76e570b1 1-36
+packages/engine/test/e2e/demos/boa-evalless-phase11.e2e.test.ts
+  s_4ba79f911c93c4::t_684dda30260d4e 1-33
+packages/engine/test/e2e/demos/boa-evalless-phase2.e2e.test.ts
+  s_4ba79f911c93c4::t_c3cd1019192814 1-81
+packages/engine/test/e2e/demos/boa-evalless-phase3.e2e.test.ts
+  s_4ba79f911c93c4::t_623b674dfaaf36 1-103
+packages/engine/test/e2e/demos/boa-evalless-phase4.e2e.test.ts
+  s_4ba79f911c93c4::t_52c418bcff2b85 1-59
+packages/engine/test/e2e/demos/boa-evalless-phase7.e2e.test.ts
+  s_4ba79f911c93c4::t_48853cdf931755 1-61
+packages/engine/test/e2e/demos/boa-evalless-phase9.e2e.test.ts
+  s_4ba79f911c93c4::t_8c28d883f07220 1-44
+packages/engine/test/e2e/demos/boa-seam-collections-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_5e656b36ef27c7 1-40
+packages/engine/test/e2e/demos/boa-seam-identity-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_479f7ddf56b3cd 1-40
+packages/engine/test/e2e/demos/boa-seam-plain-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_7fbd5a9c078b44 1-35
+packages/engine/test/e2e/demos/canvas-2d-draw-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_4307b6d6dcdd4f 1-56
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_cb47b89cbdb9f5 1-104
+packages/engine/test/e2e/demos/canvas-aspect-ratio-hack.e2e.test.ts
+  s_4ba79f911c93c4::t_cdf07c3a5e948f 1-28
+packages/engine/test/e2e/demos/canvas-detached-append.e2e.test.ts
+  s_4ba79f911c93c4::t_733f6a42e57c86 1-28
+packages/engine/test/e2e/demos/ce-upgrade-pipeline.e2e.test.ts
+  s_4ba79f911c93c4::t_892a9201042888 1-52
+packages/engine/test/e2e/demos/click-selector-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_d3baf890f97bb1 1-24
+packages/engine/test/e2e/demos/clock-floor-stamp-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_7c5b5c69e4e06c 1-30
+packages/engine/test/e2e/demos/conic-gradient.e2e.test.ts
+  s_4ba79f911c93c4::t_f288ff60136d68 1-60
+packages/engine/test/e2e/demos/cookie-passthrough-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_cb4b837c8eb95c 1-68
+packages/engine/test/e2e/demos/cookies-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_db40f672dff724 1-52
+packages/engine/test/e2e/demos/cross-origin-nav-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_73ad856e97a1bb 1-45
+packages/engine/test/e2e/demos/css-computed-style-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_29dcaec3d16027 1-134
+packages/engine/test/e2e/demos/css-external-sheets-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_778d560919f426 1-68
+packages/engine/test/e2e/demos/css-getstylesheettext-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_6a1114aeaf5ce3 1-80
+packages/engine/test/e2e/demos/css-inherited-styles-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_86b1e993bf6e7b 1-106
+packages/engine/test/e2e/demos/css-inline-style-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_c657324d069689 1-147
+packages/engine/test/e2e/demos/css-matched-styles-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_ee98e0956b87cf 1-169
+packages/engine/test/e2e/demos/css-stylesheet-added-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_3a7a4fba556588 1-147
+packages/engine/test/e2e/demos/css-ua-styles-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_c0fc300cab8f8d 1-104
+packages/engine/test/e2e/demos/cssom-atrule-mirror.e2e.test.ts
+  s_4ba79f911c93c4::t_eb1e3d7e665537 1-70
+packages/engine/test/e2e/demos/cssom-roundtrip-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_6990d7c2909cdf 1-95
+packages/engine/test/e2e/demos/cssom-stub-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_2feb09e0e72640 1-76
+packages/engine/test/e2e/demos/defer-shim-nested-modinit-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_39db2fed8d6dbf 1-68
+packages/engine/test/e2e/demos/devtools-elements-live-update-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_f859ffdae4895b 1-214
+packages/engine/test/e2e/demos/document-fonts-ready.e2e.test.ts
+  s_4ba79f911c93c4::t_ecd811d850d29e 1-44
+packages/engine/test/e2e/demos/dom-eval-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_0b52edea7ccd26 1-67
+packages/engine/test/e2e/demos/dom-innerhtml-rebuild-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_b966cf49f26625 1-96
+packages/engine/test/e2e/demos/dom-mutate2-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_ec511520e03215 1-92
+packages/engine/test/e2e/demos/dom-mutation-events-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_bd50fbab744d68 1-273
+packages/engine/test/e2e/demos/dom-primitives-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_4a02edae61ee1b 1-65
+packages/engine/test/e2e/demos/dynamic-behavior-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_7a56b3ddfc49ae 1-20
+packages/engine/test/e2e/demos/dynamic-import-bake-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_12df4b745dfb6f 1-29
+packages/engine/test/e2e/demos/element-scroll-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_dc2002b3f7863a 1-162
+packages/engine/test/e2e/demos/entity-parse-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_56aee79cedbfd2 1-43
+packages/engine/test/e2e/demos/event-handler-hydration.e2e.test.ts
+  s_4ba79f911c93c4::t_f8118214140ee7 1-42
+packages/engine/test/e2e/demos/event-listener-fixes-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_64699752670c9d 1-91
+packages/engine/test/e2e/demos/events-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_6ce43940cf8bb6 1-81
+packages/engine/test/e2e/demos/external-scripts-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_2ea801863b937e 1-40
+packages/engine/test/e2e/demos/fixed-in-fixed-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_172e90c101c2c9 1-47
+packages/engine/test/e2e/demos/font-face-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_eec4845c4e15a6 1-105
+packages/engine/test/e2e/demos/font-face-unicode-range-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_28e398b1a583d9 1-60
+packages/engine/test/e2e/demos/font-face-variable-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_2d0880722eaa92 1-67
+packages/engine/test/e2e/demos/font-heavy.e2e.test.ts
+  s_4ba79f911c93c4::t_70ff11ad8e2027 1-81
+packages/engine/test/e2e/demos/forms-activation-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_2509d13e5fec76 1-103
+packages/engine/test/e2e/demos/forms-dir-auto-value.e2e.test.ts
+  s_4ba79f911c93c4::t_ce536dc08381d1 1-62
+packages/engine/test/e2e/demos/forms-file-input-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_908d6f5f070585 1-96
+packages/engine/test/e2e/demos/forms-form-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_33bafc331ae109 1-134
+packages/engine/test/e2e/demos/forms-formdata-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_a690cd304f57e5 1-106
+packages/engine/test/e2e/demos/forms-input-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_693ef51981fa19 1-103
+packages/engine/test/e2e/demos/forms-instanceof-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_d63234223a9698 1-71
+packages/engine/test/e2e/demos/forms-misc-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_036a1cdf5870da 1-65
+packages/engine/test/e2e/demos/forms-post-submit-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_ae0c0fd348f8a5 1-106
+packages/engine/test/e2e/demos/forms-radio-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_6b0013db70e776 1-85
+packages/engine/test/e2e/demos/forms-range-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_24c4c8d5d9dbf4 1-113
+packages/engine/test/e2e/demos/forms-realworld-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_d0abc9e154c250 1-124
+packages/engine/test/e2e/demos/forms-select-cdp-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_34ec5090787935 1-100
+packages/engine/test/e2e/demos/forms-select-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_76f1c91c2966d5 1-107
+packages/engine/test/e2e/demos/forms-select-dropdown-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_8e46012073c0d0 1-68
+packages/engine/test/e2e/demos/forms-selection-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_18114d479f1eb9 1-108
+packages/engine/test/e2e/demos/forms-selection-paint-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_f100ae53fe215b 1-42
+packages/engine/test/e2e/demos/forms-step-numeric-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_eccb6d4c4dac3b 1-134
+packages/engine/test/e2e/demos/forms-textarea-bidi.e2e.test.ts
+  s_4ba79f911c93c4::t_1a004440ef1792 1-45
+packages/engine/test/e2e/demos/forms-textarea-default-paint.e2e.test.ts
+  s_4ba79f911c93c4::t_1286ff1e01f31b 1-50
+packages/engine/test/e2e/demos/forms-validation-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_5b80dd5151ef71 1-216
+packages/engine/test/e2e/demos/forms-value-repaint-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_b4de1221e19073 1-41
+packages/engine/test/e2e/demos/grid-min-content-floor-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_219da054a338ed 1-50
+packages/engine/test/e2e/demos/hello.e2e.test.ts
+  s_4ba79f911c93c4::t_963c4fcee364a7 1-19
+packages/engine/test/e2e/demos/history-shim-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_8275635c9468a6 1-112
+packages/engine/test/e2e/demos/hit-test-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_2cd8bfe7cf9ae0 1-65
+packages/engine/test/e2e/demos/html-instanceof-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_9c707db3c6984c 1-110
+packages/engine/test/e2e/demos/iframe-bitmap-paint.e2e.test.ts
+  s_4ba79f911c93c4::t_c4fdfa47d7b293 1-57
+packages/engine/test/e2e/demos/iframe-content-document-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_94c0b782df2114 1-63
+packages/engine/test/e2e/demos/iframe-dynamic-cdp-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_02ec2f45e806b7 1-82
+packages/engine/test/e2e/demos/iframe-frame-tree-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_ea122591d4d331 1-70
+packages/engine/test/e2e/demos/iframe-nested-frame-tree.e2e.test.ts
+  s_4ba79f911c93c4::t_09ffede71d9f64 1-75
+packages/engine/test/e2e/demos/images-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_3cf077919a22ec 1-96
+packages/engine/test/e2e/demos/img-load-events-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_5074877987a411 1-101
+packages/engine/test/e2e/demos/img-srcset-reload-complete.e2e.test.ts
+  s_4ba79f911c93c4::t_ebeb477e38e804 1-119
+packages/engine/test/e2e/demos/inline-bidi-direction.e2e.test.ts
+  s_4ba79f911c93c4::t_46f426ca2e9176 1-68
+packages/engine/test/e2e/demos/inline-bidi-isolation.e2e.test.ts
+  s_4ba79f911c93c4::t_154200fa67a58d 1-65
+packages/engine/test/e2e/demos/keyboard-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_b4c5dbbb6a1842 1-72
+packages/engine/test/e2e/demos/layout-cheap-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_6720d6857774fe 1-73
+packages/engine/test/e2e/demos/lifecycle-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_ca150e6b6ee4dc 1-86
+packages/engine/test/e2e/demos/location-mutate-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_5dea3b458b656d 1-81
+packages/engine/test/e2e/demos/matchmedia-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_6ad370f138fd45 1-88
+packages/engine/test/e2e/demos/mc-conformance.e2e.test.ts
+  s_4ba79f911c93c4::t_05ba814cb6348d 1-37
+packages/engine/test/e2e/demos/mjs-import-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_8cf8f53abeee00 1-31
+packages/engine/test/e2e/demos/module-init-shim-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_3d8117cc56e2f5 1-182
+packages/engine/test/e2e/demos/modules-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_12cefd898f3199 1-33
+packages/engine/test/e2e/demos/mouse-events-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_c62202eed8af03 1-122
+packages/engine/test/e2e/demos/mouse-move-debounce-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_5c4f52ad4b5a86 1-132
+packages/engine/test/e2e/demos/mutation-settle-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_6d9c887cd28791 1-38
+packages/engine/test/e2e/demos/navigate-style-script-order.e2e.test.ts
+  s_4ba79f911c93c4::t_f62848a919753a 1-41
+packages/engine/test/e2e/demos/network-event-shape-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_db5059da28e625 1-107
+packages/engine/test/e2e/demos/network-extra-headers-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_729f29e3c70f29 1-56
+packages/engine/test/e2e/demos/network-stylesheet-headers-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_ae1293a052c3e6 1-64
+packages/engine/test/e2e/demos/network-ua-override-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_d8fc7401199b98 1-48
+packages/engine/test/e2e/demos/offscreen-canvas-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_9d36c1b0128282 1-63
+packages/engine/test/e2e/demos/onhashchange-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_e975c7c4ebec28 1-48
+packages/engine/test/e2e/demos/oopif-detach-teardown.e2e.test.ts
+  s_4ba79f911c93c4::t_63de1f8fc6f884 1-67
+packages/engine/test/e2e/demos/oopif-elements-panel.e2e.test.ts
+  s_4ba79f911c93c4::t_8a5339f54cf57f 1-95
+packages/engine/test/e2e/demos/oopif-heap-usage.e2e.test.ts
+  s_4ba79f911c93c4::t_6bd5bb3481e97f 1-85
+packages/engine/test/e2e/demos/oopif-late-spawn.e2e.test.ts
+  s_4ba79f911c93c4::t_76808847f02530 1-47
+packages/engine/test/e2e/demos/oopif-postmessage.e2e.test.ts
+  s_4ba79f911c93c4::t_92a543114ff187 1-70
+packages/engine/test/e2e/demos/oopif-prespawn.e2e.test.ts
+  s_4ba79f911c93c4::t_4ae313b5624b25 1-54
+packages/engine/test/e2e/demos/oopif-quads-paint.e2e.test.ts
+  s_4ba79f911c93c4::t_b458523be8ea2e 1-34
+packages/engine/test/e2e/demos/oopif-rerender.e2e.test.ts
+  s_4ba79f911c93c4::t_c3a2f5667bd746 1-34
+packages/engine/test/e2e/demos/oopif-runtime-evaluate.e2e.test.ts
+  s_4ba79f911c93c4::t_856b1a86971360 1-90
+packages/engine/test/e2e/demos/oopif-worker-budget.e2e.test.ts
+  s_4ba79f911c93c4::t_fef9cab557cc30 1-60
+packages/engine/test/e2e/demos/page-renderer-cjk.e2e.test.ts
+  s_4ba79f911c93c4::t_5e2bf4b447487a 1-38
+packages/engine/test/e2e/demos/page-renderer-emoji.e2e.test.ts
+  s_4ba79f911c93c4::t_d938696ea6d34b 1-46
+packages/engine/test/e2e/demos/page-renderer-parity.e2e.test.ts
+  s_4ba79f911c93c4::t_099bb6e0243ee0 1-90
+packages/engine/test/e2e/demos/page-renderer-pdf.e2e.test.ts
+  s_4ba79f911c93c4::t_c3d4a94782fa7f 1-45
+packages/engine/test/e2e/demos/page-renderer-relaunch.e2e.test.ts
+  s_4ba79f911c93c4::t_433030e258dc3c 1-52
+packages/engine/test/e2e/demos/page-renderer-screencast.e2e.test.ts
+  s_4ba79f911c93c4::t_c9cbc7508f001b 1-93
+packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_540267ea495ae9 1-50
+packages/engine/test/e2e/demos/perf-timing-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_7dcd202b412611 1-175
+packages/engine/test/e2e/demos/picture-srcset-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_e64d64f14a97bb 1-114
+packages/engine/test/e2e/demos/png.ts
+  s_4ba79f911c93c4::t_9eefcb4fb32a61 1-141
+packages/engine/test/e2e/demos/print-media-emulation-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_0f8433cdb722ca 1-72
+packages/engine/test/e2e/demos/puppeteer-eval.e2e.test.ts
+  s_4ba79f911c93c4::t_a9091e2d3e2683 1-40
+packages/engine/test/e2e/demos/pushstate-refetch-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_cae75f974ea831 1-67
+packages/engine/test/e2e/demos/range-live-mutation-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_5f3f317aca86c6 1-143
+packages/engine/test/e2e/demos/runtime-compile-script-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_8820e499a09aef 1-112
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_4ba79f911c93c4::t_cebd3149eabec1 1-656
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_4ba79f911c93c4::t_1693ce70b2be1c 1-684
+packages/engine/test/e2e/demos/screencast-pipeline-order.e2e.test.ts
+  s_4ba79f911c93c4::t_8708f6b3e27343 1-243
+packages/engine/test/e2e/demos/screencast-placeholder-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_442f02fa580ac3 1-57
+packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
+  s_4ba79f911c93c4::t_3e3cd34432a4e8 1-223
+packages/engine/test/e2e/demos/screencast-viewport-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_de6488097e3a6f 1-112
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_4ba79f911c93c4::t_f9b259180cb245 1-680
+packages/engine/test/e2e/demos/screenshot-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_22fa51b0c29396 1-65
+packages/engine/test/e2e/demos/script-execution-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_9247953e14d2c7 1-64
+packages/engine/test/e2e/demos/scrollintoview-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_0f1378ff7b3d2a 1-146
+packages/engine/test/e2e/demos/selection-api.e2e.test.ts
+  s_4ba79f911c93c4::t_06b6c10baf13ba 1-93
+packages/engine/test/e2e/demos/selection-paint-bridge.e2e.test.ts
+  s_4ba79f911c93c4::t_3082bbf04d363f 1-83
+packages/engine/test/e2e/demos/shadow-dir-directionality.e2e.test.ts
+  s_4ba79f911c93c4::t_928ae712a026da 1-56
+packages/engine/test/e2e/demos/shadow-scroll-ownership.e2e.test.ts
+  s_4ba79f911c93c4::t_540e7c696c6dd6 1-53
+packages/engine/test/e2e/demos/skip-speculative-raster.e2e.test.ts
+  s_4ba79f911c93c4::t_e69eb98a00f7b1 1-64
+packages/engine/test/e2e/demos/style-media-attr-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_989f89547bd8d7 1-36
+packages/engine/test/e2e/demos/style-property-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_85fb7b590afd66 1-104
+packages/engine/test/e2e/demos/svg-document-render.e2e.test.ts
+  s_4ba79f911c93c4::t_cf73187017487d 1-85
+packages/engine/test/e2e/demos/svg-overflow-clip.e2e.test.ts
+  s_4ba79f911c93c4::t_e956ec92e041a8 1-26
+packages/engine/test/e2e/demos/svg-sprite-sidebar.e2e.test.ts
+  s_4ba79f911c93c4::t_20dc4a6539b5c4 1-34
+packages/engine/test/e2e/demos/text-input-caret-font.e2e.test.ts
+  s_4ba79f911c93c4::t_339a231517577e 1-52
+packages/engine/test/e2e/demos/tla-import-iife-fix-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_5ac068cf6a3cd6 1-100
+packages/engine/test/e2e/demos/top-level-await-fetch-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_0abe6640ee160f 1-103
+packages/engine/test/e2e/demos/transition-settles-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_ef1497fecbefc3 1-57
+packages/engine/test/e2e/demos/tsconfig.json
+  s_4ba79f911c93c4::t_aa49c844bc767d 1-16
+packages/engine/test/e2e/demos/unforgeable-location-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_fbe348d210dfe6 1-322
+packages/engine/test/e2e/demos/vertical-scroll-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_d707d7e1513a77 1-75
+packages/engine/test/e2e/demos/wasm-bake-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_8a0ab139857a24 1-44
+packages/engine/test/e2e/demos/webrtc-stub-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_51d410a422e4b4 1-251
+packages/engine/test/e2e/demos/window-computed-style-probe.e2e.test.ts
+  s_4ba79f911c93c4::t_3ae412911bbf2f 1-117
+packages/engine/test/e2e/demos/ws-boot-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_e3230d70d3c1e6 1-31
+packages/engine/test/e2e/demos/xhr-boot-demo.e2e.test.ts
+  s_4ba79f911c93c4::t_0038329b58850c 1-32
+packages/engine/test/e2e/detached-node-reclaim.e2e.test.ts
+  s_4ba79f911c93c4::t_57f7f819c06bf0 1-235
+packages/engine/test/e2e/document-collections.e2e.test.ts
+  s_4ba79f911c93c4::t_90278b4459ad95 1-37
+packages/engine/test/e2e/document-created-legacy-members.e2e.test.ts
+  s_4ba79f911c93c4::t_e376b6d23d02d1 1-31
+packages/engine/test/e2e/document-legacy-members.e2e.test.ts
+  s_4ba79f911c93c4::t_8e1cc7332b6799 1-34
+packages/engine/test/e2e/document-node-members.e2e.test.ts
+  s_4ba79f911c93c4::t_06dab7e442ead2 1-37
+packages/engine/test/e2e/document-referrer.e2e.test.ts
+  s_4ba79f911c93c4::t_4ad5e17b7768c4 1-30
+packages/engine/test/e2e/document-title-svg.e2e.test.ts
+  s_4ba79f911c93c4::t_d41ac924c6d227 1-39
+packages/engine/test/e2e/document-types.e2e.test.ts
+  s_4ba79f911c93c4::t_46bbae9a77fd2c 1-84
+packages/engine/test/e2e/dom-attribute-namespace-wire.e2e.test.ts
+  s_4ba79f911c93c4::t_eeedf9219edaf0 1-138
+packages/engine/test/e2e/dom-parser-dataset.e2e.test.ts
+  s_4ba79f911c93c4::t_8c5d3245b5ec6b 1-35
+packages/engine/test/e2e/dom-rect.e2e.test.ts
+  s_4ba79f911c93c4::t_3495c99428f823 1-65
+packages/engine/test/e2e/domexception-binding-shape.e2e.test.ts
+  s_4ba79f911c93c4::t_43067727bff95a 1-75
+packages/engine/test/e2e/domparser-fragment-remove-child.e2e.test.ts
+  s_4ba79f911c93c4::t_caa37baec25a44 1-39
+packages/engine/test/e2e/dripping-image-body.e2e.test.ts
+  s_4ba79f911c93c4::t_fe180263b36052 1-41
+packages/engine/test/e2e/element-measurement.e2e.test.ts
+  s_4ba79f911c93c4::t_c95b7a018950e9 1-149
+packages/engine/test/e2e/element-own-properties.e2e.test.ts
+  s_4ba79f911c93c4::t_257fdcd9c439ac 1-54
+packages/engine/test/e2e/engine-memory-accounting.e2e.test.ts
+  s_4ba79f911c93c4::t_461a757899776c 1-44
+packages/engine/test/e2e/engine-routes.e2e.test.ts
+  s_4ba79f911c93c4::t_8ed29aaca38a08 1-147
+packages/engine/test/e2e/eval-across-navigation.e2e.test.ts
+  s_4ba79f911c93c4::t_20227a0f5b7c3f 1-17
+packages/engine/test/e2e/eval-during-navigate.e2e.test.ts
+  s_4ba79f911c93c4::t_f4555ecf4bc888 1-192
+packages/engine/test/e2e/eval-report.ts
+  s_4ba79f911c93c4::t_cc72b0211f1a12 1-43
+packages/engine/test/e2e/event-handler-idl.e2e.test.ts
+  s_4ba79f911c93c4::t_153c7462958a90 1-109
+packages/engine/test/e2e/event-own-properties.e2e.test.ts
+  s_4ba79f911c93c4::t_1ee263276e4062 1-70
+packages/engine/test/e2e/event-target-instance-listeners.e2e.test.ts
+  s_4ba79f911c93c4::t_ea247b669bbe52 1-72
+packages/engine/test/e2e/exec-command.e2e.test.ts
+  s_4ba79f911c93c4::t_fc784c2c908e2d 1-92
+packages/engine/test/e2e/expose-function.e2e.test.ts
+  s_4ba79f911c93c4::t_c4715fca0cb82d 1-101
+packages/engine/test/e2e/fetch-init-headers.e2e.test.ts
+  s_4ba79f911c93c4::t_40d701a39a8056 1-101
+packages/engine/test/e2e/fetch-interception.e2e.test.ts
+  s_4ba79f911c93c4::t_71f53eb7df88ba 1-203
+packages/engine/test/e2e/fetch-slot-order.e2e.test.ts
+  s_4ba79f911c93c4::t_ff5be0edfc8699 1-32
+packages/engine/test/e2e/filereader-event-tasks.e2e.test.ts
+  s_4ba79f911c93c4::t_c53100f9f8e0f8 1-118
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_4ba79f911c93c4::t_4a44d7b11bfb3f 1-78
+packages/engine/test/e2e/fixed-position-viewport.e2e.test.ts
+  s_4ba79f911c93c4::t_cee0c79602ee47 1-81
+packages/engine/test/e2e/fixture-script-escaping.e2e.test.ts
+  s_4ba79f911c93c4::t_f0e3bb8998d2b8 1-30
+packages/engine/test/e2e/flex-svg-intrinsic.e2e.test.ts
+  s_4ba79f911c93c4::t_4a1b56fc76b47b 1-105
+packages/engine/test/e2e/flex-wrap-stretch-fit.e2e.test.ts
+  s_4ba79f911c93c4::t_ca317db8cdd88b 1-52
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_4ba79f911c93c4::t_fb367ac29de7ac 1-74
+packages/engine/test/e2e/float-layout-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_7a472d710c7fd0 1-34
+packages/engine/test/e2e/floating-popup.e2e.test.ts
+  s_4ba79f911c93c4::t_0e154a452c35ec 1-188
+packages/engine/test/e2e/font-face-unicode-range-gating.e2e.test.ts
+  s_4ba79f911c93c4::t_7ae8d2cd755194 1-76
+packages/engine/test/e2e/form-controls-named-item.e2e.test.ts
+  s_4ba79f911c93c4::t_349b47589a6138 1-61
+packages/engine/test/e2e/form-data-blob-entries.e2e.test.ts
+  s_4ba79f911c93c4::t_ec0444fd2e0ed7 1-41
+packages/engine/test/e2e/gateway-font-shaping.e2e.test.ts
+  s_4ba79f911c93c4::t_7437fdf6778483 1-74
+packages/engine/test/e2e/global-setup.ts
+  s_4ba79f911c93c4::t_a01e7951a1f59f 1-106
+packages/engine/test/e2e/grid-abspos-static-position.e2e.test.ts
+  s_4ba79f911c93c4::t_5f3a8b57c2fd20 1-29
+packages/engine/test/e2e/grid-auto-row-content-size.e2e.test.ts
+  s_4ba79f911c93c4::t_9bd8291f56de71 1-30
+packages/engine/test/e2e/harness.ts
+  s_4ba79f911c93c4::t_499996bbd1919f 1-64
+packages/engine/test/e2e/header-intrinsic-tamper.e2e.test.ts
+  s_4ba79f911c93c4::t_2275ebf39acc27 1-212
+packages/engine/test/e2e/hoisted-inline-rebreak.e2e.test.ts
+  s_4ba79f911c93c4::t_a09eae04ec430c 1-48
+packages/engine/test/e2e/hostile-global-timers.e2e.test.ts
+  s_4ba79f911c93c4::t_63ec305ab100e5 1-47
+packages/engine/test/e2e/html-element-chain.e2e.test.ts
+  s_4ba79f911c93c4::t_0691d1901711a8 1-46
+packages/engine/test/e2e/html-raw.ts
+  s_4ba79f911c93c4::t_72f96501520e3c 1-8
+packages/engine/test/e2e/html/bridge-defineprop.html
+  s_4ba79f911c93c4::t_2544c0e0748f81 1-28
+packages/engine/test/e2e/html/canvas-2d-draw.html
+  s_4ba79f911c93c4::t_61a2e5d4479036 1-98
+packages/engine/test/e2e/html/canvas-2d.html
+  s_4ba79f911c93c4::t_6fe153897e147d 1-39
+packages/engine/test/e2e/html/canvas-aspect-ratio-hack.html
+  s_4ba79f911c93c4::t_796929a2a12d0e 1-24
+packages/engine/test/e2e/html/canvas-detached-append.html
+  s_4ba79f911c93c4::t_0a4ee57964df7c 1-27
+packages/engine/test/e2e/html/canvas-text.html
+  s_4ba79f911c93c4::t_f516569f47ece5 1-24
+packages/engine/test/e2e/html/conic-gradient.html
+  s_4ba79f911c93c4::t_b9c816cfda42d6 1-26
+packages/engine/test/e2e/html/counters-ref.html
+  s_4ba79f911c93c4::t_3810afdc88bc2c 1-25
+packages/engine/test/e2e/html/counters.html
+  s_4ba79f911c93c4::t_3fcbbf3469fcea 1-25
+packages/engine/test/e2e/html/css-transitions.html
+  s_4ba79f911c93c4::t_74d0978591d31a 1-58
+packages/engine/test/e2e/html/event-handler-idl.html
+  s_4ba79f911c93c4::t_4d842863cad8fe 1-100
+packages/engine/test/e2e/html/fixed-position.html
+  s_4ba79f911c93c4::t_2a5ce34d7e91ae 1-43
+packages/engine/test/e2e/html/grid-abspos.html
+  s_4ba79f911c93c4::t_79f246fde79618 1-19
+packages/engine/test/e2e/html/grid-auto-row.html
+  s_4ba79f911c93c4::t_09edd690adf0ae 1-24
+packages/engine/test/e2e/html/idl-conformance.html
+  s_4ba79f911c93c4::t_1ca5bacd620454 1-72
+packages/engine/test/e2e/html/idl-interface-shape.html
+  s_4ba79f911c93c4::t_b921a7e3d2bc3b 1-34
+packages/engine/test/e2e/html/inner-text-getter.html
+  s_4ba79f911c93c4::t_1564af04341927 1-29
+packages/engine/test/e2e/html/mc-conformance.html
+  s_4ba79f911c93c4::t_51d916bf98646b 1-37
+packages/engine/test/e2e/html/measurement.html
+  s_4ba79f911c93c4::t_c64d176792ee17 1-28
+packages/engine/test/e2e/html/offset-geometry.html
+  s_4ba79f911c93c4::t_5dee94561e4e82 1-31
+packages/engine/test/e2e/html/percent-margin.html
+  s_4ba79f911c93c4::t_4f43bfdeb9ad21 1-24
+packages/engine/test/e2e/html/resource-quiet-chain.html
+  s_4ba79f911c93c4::t_265be8ad72bca7 1-24
+packages/engine/test/e2e/html/script-font-dir.html
+  s_4ba79f911c93c4::t_b1535fe0fd8321 1-18
+packages/engine/test/e2e/html/settle-chained.html
+  s_4ba79f911c93c4::t_b0aa297bc3d665 1-25
+packages/engine/test/e2e/html/settle-late-timer.html
+  s_4ba79f911c93c4::t_4d2907e1c02c6f 1-16
+packages/engine/test/e2e/html/settle-microtask-chain.html
+  s_4ba79f911c93c4::t_f627a11892e2a2 1-22
+packages/engine/test/e2e/html/settle-mutation-ticker.html
+  s_4ba79f911c93c4::t_4d4570cda0d579 1-22
+packages/engine/test/e2e/html/settle-probe.html
+  s_4ba79f911c93c4::t_80b5f63453cc01 1-17
+packages/engine/test/e2e/html/settle-static.html
+  s_4ba79f911c93c4::t_48fcf329efa067 1-8
+packages/engine/test/e2e/html/settle-timer-ticker.html
+  s_4ba79f911c93c4::t_6fbbcb802a6765 1-19
+packages/engine/test/e2e/html/shadow-dom.html
+  s_4ba79f911c93c4::t_7b7e6aafdb1cce 1-158
+packages/engine/test/e2e/html/sticky.html
+  s_4ba79f911c93c4::t_a0cf133b4cd80e 1-58
+packages/engine/test/e2e/html/svg-dynamic-text.html
+  s_4ba79f911c93c4::t_fa14723ae4e0f5 1-24
+packages/engine/test/e2e/html/table-fixup.html
+  s_4ba79f911c93c4::t_7e636c1d024113 1-27
+packages/engine/test/e2e/html/text-fill-color.html
+  s_4ba79f911c93c4::t_4a00e5604536c6 1-47
+packages/engine/test/e2e/html/text-setters.html
+  s_4ba79f911c93c4::t_3cf31a5f480d49 1-46
+packages/engine/test/e2e/idl-conformance.e2e.test.ts
+  s_4ba79f911c93c4::t_58cbe266f5a64b 1-34
+packages/engine/test/e2e/idl-conformance.ts
+  s_4ba79f911c93c4::t_4a8a9226dce5f5 1-212
+packages/engine/test/e2e/idl-gaps.json
+  s_4ba79f911c93c4::t_5f980f4586a016 1-896
+packages/engine/test/e2e/idl-interface-shape.e2e.test.ts
+  s_4ba79f911c93c4::t_f186a87b50e810 1-39
+packages/engine/test/e2e/iframe-dom-reclaim.e2e.test.ts
+  s_4ba79f911c93c4::t_aafb3ea602b102 1-59
+packages/engine/test/e2e/iframe-legacy-charset.e2e.test.ts
+  s_4ba79f911c93c4::t_3822c8b35bc67a 1-18
+packages/engine/test/e2e/iframe-load-order.e2e.test.ts
+  s_4ba79f911c93c4::t_46e66a95ba6e6e 1-325
+packages/engine/test/e2e/iframe-location-invalid-assignment.e2e.test.ts
+  s_4ba79f911c93c4::t_761bccec61be52 1-56
+packages/engine/test/e2e/iframe-location-relative.e2e.test.ts
+  s_4ba79f911c93c4::t_847c631704989b 1-31
+packages/engine/test/e2e/iframe-referrer.e2e.test.ts
+  s_4ba79f911c93c4::t_988adeb7a839f8 1-132
+packages/engine/test/e2e/iframe-srcdoc.e2e.test.ts
+  s_4ba79f911c93c4::t_8bdaa01453c6af 1-69
+packages/engine/test/e2e/img-data-url-load.e2e.test.ts
+  s_4ba79f911c93c4::t_c7dd91da776f96 1-30
+packages/engine/test/e2e/img-dimensions.e2e.test.ts
+  s_4ba79f911c93c4::t_49f01457facb67 1-29
+packages/engine/test/e2e/img-src-change.e2e.test.ts
+  s_4ba79f911c93c4::t_fbfdfff99876c7 1-26
+packages/engine/test/e2e/import-map.e2e.test.ts
+  s_4ba79f911c93c4::t_88fe260ac51493 1-40
+packages/engine/test/e2e/incremental-shadow-insert.e2e.test.ts
+  s_4ba79f911c93c4::t_37c12771a5664e 1-48
+packages/engine/test/e2e/inline-box-baseline-shift.e2e.test.ts
+  s_4ba79f911c93c4::t_c8685bb570c88d 1-108
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_917719007eee08 1-725
+packages/engine/test/e2e/inline-opacity.e2e.test.ts
+  s_4ba79f911c93c4::t_34b5405c7ff723 1-32
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_7fb7c7ba590a3d 1-206
+packages/engine/test/e2e/inline-span-white-space.e2e.test.ts
+  s_4ba79f911c93c4::t_0c6e66311b9dbb 1-50
+packages/engine/test/e2e/inline-style-attribute-resync.e2e.test.ts
+  s_4ba79f911c93c4::t_156638f55e1969 1-68
+packages/engine/test/e2e/inline-style-flush.e2e.test.ts
+  s_4ba79f911c93c4::t_e5d63f1b41fcb2 1-101
+packages/engine/test/e2e/inline-svg-vertical-align.e2e.test.ts
+  s_4ba79f911c93c4::t_3161caac7fba2d 1-83
+packages/engine/test/e2e/inline-visibility-hidden.e2e.test.ts
+  s_4ba79f911c93c4::t_5cab469728a1cc 1-63
+packages/engine/test/e2e/inline-wasm-bake.e2e.test.ts
+  s_4ba79f911c93c4::t_eb0578a4fb1cdc 1-37
+packages/engine/test/e2e/inner-text-getter.e2e.test.ts
+  s_4ba79f911c93c4::t_732804f8e44457 1-27
+packages/engine/test/e2e/inserted-script-bake.e2e.test.ts
+  s_4ba79f911c93c4::t_11edbc8d647ce5 1-128
+packages/engine/test/e2e/inserted-script-cap.e2e.test.ts
+  s_4ba79f911c93c4::t_905239903ca967 1-38
+packages/engine/test/e2e/inserted-script-globals.e2e.test.ts
+  s_4ba79f911c93c4::t_37a80f6c668415 1-95
+packages/engine/test/e2e/inserted-script.e2e.test.ts
+  s_4ba79f911c93c4::t_d0334336a0a598 1-35
+packages/engine/test/e2e/inset-box-shadow.e2e.test.ts
+  s_4ba79f911c93c4::t_76733cf8f0b51c 1-37
+packages/engine/test/e2e/interception-abandoned-park.e2e.test.ts
+  s_4ba79f911c93c4::t_0a4a3db682da29 1-39
+packages/engine/test/e2e/interface-own-properties.e2e.test.ts
+  s_4ba79f911c93c4::t_de229f24dbd0bb 1-198
+packages/engine/test/e2e/intersection-observer.e2e.test.ts
+  s_4ba79f911c93c4::t_8a62ce30b3d67e 1-609
+packages/engine/test/e2e/intrinsic-sizing.e2e.test.ts
+  s_4ba79f911c93c4::t_b4c37175f3e499 1-100
+packages/engine/test/e2e/invalid-selector-throws.e2e.test.ts
+  s_4ba79f911c93c4::t_fbefb648ab94f0 1-42
+packages/engine/test/e2e/isolate-kill.e2e.test.ts
+  s_4ba79f911c93c4::t_f47b7dc3fad75b 1-31
+packages/engine/test/e2e/isolate-wall-cap.e2e.test.ts
+  s_4ba79f911c93c4::t_38755cbe637971 1-51
+packages/engine/test/e2e/keyboard-scroll.e2e.test.ts
+  s_4ba79f911c93c4::t_152e26430f8626 1-448
+packages/engine/test/e2e/kitesurf-page-ops.e2e.test.ts
+  s_4ba79f911c93c4::t_e39760fb9d77db 1-108
+packages/engine/test/e2e/label-activation-trust.e2e.test.ts
+  s_4ba79f911c93c4::t_06d9d8c5f7d4b0 1-75
+packages/engine/test/e2e/label-svg-content-activation.e2e.test.ts
+  s_4ba79f911c93c4::t_96882aaaf4b8ec 1-37
+packages/engine/test/e2e/late-timer-image-load.e2e.test.ts
+  s_4ba79f911c93c4::t_f3a1df5357002b 1-23
+packages/engine/test/e2e/layer-budget.e2e.test.ts
+  s_4ba79f911c93c4::t_95da72628a9470 1-42
+packages/engine/test/e2e/layout-test-helpers.ts
+  s_4ba79f911c93c4::t_96eba0a371a92a 1-12
+packages/engine/test/e2e/lazy-coalesce.e2e.test.ts
+  s_4ba79f911c93c4::t_08207952d7b5e5 1-24
+packages/engine/test/e2e/lazy-load-event.e2e.test.ts
+  s_4ba79f911c93c4::t_d5f87a0ccca093 1-38
+packages/engine/test/e2e/legacy-charset-sheet.e2e.test.ts
+  s_4ba79f911c93c4::t_82118bf54a2841 1-16
+packages/engine/test/e2e/legacy-charset-url-encoding.e2e.test.ts
+  s_4ba79f911c93c4::t_1af3e859e0d610 1-276
+packages/engine/test/e2e/legacy-event-init.e2e.test.ts
+  s_4ba79f911c93c4::t_f30f0559629e0d 1-44
+packages/engine/test/e2e/light-dark-color-scheme.e2e.test.ts
+  s_4ba79f911c93c4::t_aff029f70fa01a 1-69
+packages/engine/test/e2e/link-media-scope.e2e.test.ts
+  s_4ba79f911c93c4::t_844f1f37c5b622 1-20
+packages/engine/test/e2e/link-onload-media.e2e.test.ts
+  s_4ba79f911c93c4::t_66c3a92c1522c8 1-42
+packages/engine/test/e2e/load-event-propagation.e2e.test.ts
+  s_4ba79f911c93c4::t_d3a9dbdfe929fd 1-42
+packages/engine/test/e2e/local-tracing.e2e.test.ts
+  s_4ba79f911c93c4::t_94c52738d9b138 1-239
+packages/engine/test/e2e/location-assign-navigates.e2e.test.ts
+  s_4ba79f911c93c4::t_2cd3ab139d2dbf 1-112
+packages/engine/test/e2e/media-text-tracks.e2e.test.ts
+  s_4ba79f911c93c4::t_8373458f1a7516 1-42
+packages/engine/test/e2e/message-channel-task-queue.e2e.test.ts
+  s_4ba79f911c93c4::t_a85bda38626889 1-32
+packages/engine/test/e2e/module-registry.e2e.test.ts
+  s_4ba79f911c93c4::t_7bbda1cafb5462 1-53
+packages/engine/test/e2e/mouse-input-fields.e2e.test.ts
+  s_4ba79f911c93c4::t_b200800a52cd2f 1-190
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_4ba79f911c93c4::t_ae1297dfdac2e2 1-325
+packages/engine/test/e2e/native-function-shape.e2e.test.ts
+  s_4ba79f911c93c4::t_ae8e683aaa2224 1-39
+packages/engine/test/e2e/navigation-fidelity.e2e.test.ts
+  s_4ba79f911c93c4::t_be3985e0572281 1-80
+packages/engine/test/e2e/navigator-send-beacon.e2e.test.ts
+  s_4ba79f911c93c4::t_af54a5e9b0b82a 1-57
+packages/engine/test/e2e/navigator-user-agent-data.e2e.test.ts
+  s_4ba79f911c93c4::t_4fe58755f458c6 1-53
+packages/engine/test/e2e/no-cors-opaque.e2e.test.ts
+  s_4ba79f911c93c4::t_923b35c115f106 1-99
+packages/engine/test/e2e/no-set-immediate.e2e.test.ts
+  s_4ba79f911c93c4::t_078f44d67a1dd1 1-22
+packages/engine/test/e2e/offset-geometry.e2e.test.ts
+  s_4ba79f911c93c4::t_1c65d1d1555a97 1-92
+packages/engine/test/e2e/opaque-image-render.e2e.test.ts
+  s_4ba79f911c93c4::t_f7be2913700852 1-203
+packages/engine/test/e2e/options-collection-interface.e2e.test.ts
+  s_4ba79f911c93c4::t_af3103f7f71bdc 1-39
+packages/engine/test/e2e/otlp-capture-worker.mjs
+  s_4ba79f911c93c4::t_22247579ace9d5 1-29
+packages/engine/test/e2e/oversize-body-streams.e2e.test.ts
+  s_4ba79f911c93c4::t_94f27e0351888b 1-78
+packages/engine/test/e2e/oversize-document.e2e.test.ts
+  s_4ba79f911c93c4::t_85f33c96e626cd 1-28
+packages/engine/test/e2e/page-get-layout-metrics.e2e.test.ts
+  s_4ba79f911c93c4::t_f7e7167a2488c5 1-133
+packages/engine/test/e2e/page-wrapped-create-element.e2e.test.ts
+  s_4ba79f911c93c4::t_70bec1c8579a60 1-68
+packages/engine/test/e2e/pdf-break-properties.e2e.test.ts
+  s_4ba79f911c93c4::t_b038ba89abf93f 1-63
+packages/engine/test/e2e/pdf-page-margins.e2e.test.ts
+  s_4ba79f911c93c4::t_fed36abc874016 1-53
+packages/engine/test/e2e/percent-margin-basis.e2e.test.ts
+  s_4ba79f911c93c4::t_ebb5fe27983b1b 1-38
+packages/engine/test/e2e/pixel-free-shaping-fonts.e2e.test.ts
+  s_4ba79f911c93c4::t_9b75d5a177c37b 1-85
+packages/engine/test/e2e/png.ts
+  s_4ba79f911c93c4::t_709a8fa29da3c5 1-159
+packages/engine/test/e2e/positioned-root-hoist.e2e.test.ts
+  s_4ba79f911c93c4::t_680a76a1242461 1-35
+packages/engine/test/e2e/post-load-settle.e2e.test.ts
+  s_4ba79f911c93c4::t_a9a65a27adafdf 1-84
+packages/engine/test/e2e/prefixed-attribute-writes.e2e.test.ts
+  s_4ba79f911c93c4::t_ff03013087c86d 1-59
+packages/engine/test/e2e/pseudo-computed-style.e2e.test.ts
+  s_4ba79f911c93c4::t_1925de5eabdb72 1-51
+packages/engine/test/e2e/pseudo-text-font-arrival.e2e.test.ts
+  s_4ba79f911c93c4::t_f76dac02ce86ea 1-58
+packages/engine/test/e2e/raf-overrun-frame-gap.e2e.test.ts
+  s_4ba79f911c93c4::t_c6eb1fb35e5a53 1-44
+packages/engine/test/e2e/raf-wrap-reentrancy.e2e.test.ts
+  s_4ba79f911c93c4::t_6db13c733a885e 1-26
+packages/engine/test/e2e/range-contextual-fragment.e2e.test.ts
+  s_4ba79f911c93c4::t_a48d75440946a7 1-143
+packages/engine/test/e2e/raw-text-inner-html.e2e.test.ts
+  s_4ba79f911c93c4::t_2920302370bed6 1-39
+packages/engine/test/e2e/redirect-per-hop-gating.e2e.test.ts
+  s_4ba79f911c93c4::t_2995ba24b5bd7b 1-220
+packages/engine/test/e2e/reentrant-new-function-scope.e2e.test.ts
+  s_4ba79f911c93c4::t_5bbc6d97f0da8b 1-44
+packages/engine/test/e2e/rehomed-fixed-paint-parent.e2e.test.ts
+  s_4ba79f911c93c4::t_b19e73975fe447 1-56
+packages/engine/test/e2e/renderer-laziness.e2e.test.ts
+  s_4ba79f911c93c4::t_32cc8bae271abb 1-81
+packages/engine/test/e2e/replaced-display-table.e2e.test.ts
+  s_4ba79f911c93c4::t_3555eddae6ed74 1-21
+packages/engine/test/e2e/resource-type-not-page-settable.e2e.test.ts
+  s_4ba79f911c93c4::t_d4e2ad77e30143 1-247
+packages/engine/test/e2e/root-element-metrics.e2e.test.ts
+  s_4ba79f911c93c4::t_1140d327e0dc77 1-199
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_4ba79f911c93c4::t_1ad6a93aa71681 1-71
+packages/engine/test/e2e/runtime-remote-object-classname.e2e.test.ts
+  s_4ba79f911c93c4::t_c6269d0a5fd2d8 1-61
+packages/engine/test/e2e/runtime-wait-for-selector.e2e.test.ts
+  s_4ba79f911c93c4::t_8a81255d734574 1-23
+packages/engine/test/e2e/scene-host-worker.mjs
+  s_4ba79f911c93c4::t_ed4dbb187838cd 1-34
+packages/engine/test/e2e/scene-stream-idle-frames.e2e.test.ts
+  s_4ba79f911c93c4::t_49a2afdba5d708 1-300
+packages/engine/test/e2e/scene-stream-partials.e2e.test.ts
+  s_4ba79f911c93c4::t_e56f686da87755 1-139
+packages/engine/test/e2e/screencast-partial-image.e2e.test.ts
+  s_4ba79f911c93c4::t_453a815a53658e 1-111
+packages/engine/test/e2e/script-font-dir.e2e.test.ts
+  s_4ba79f911c93c4::t_c496419bba95d3 1-53
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_4ba79f911c93c4::t_f978493e9fdb23 1-252
+packages/engine/test/e2e/script-inserted-text-fonts.e2e.test.ts
+  s_4ba79f911c93c4::t_91cb564c59cc87 1-46
+packages/engine/test/e2e/script-navigation-tab.e2e.test.ts
+  s_4ba79f911c93c4::t_ad3df5fcb43636 1-50
+packages/engine/test/e2e/scrollable-overflow-origin.e2e.test.ts
+  s_4ba79f911c93c4::t_51278ae869e254 1-45
+packages/engine/test/e2e/sealed-outbound-identity.e2e.test.ts
+  s_4ba79f911c93c4::t_80756b6a9160b6 1-80
+packages/engine/test/e2e/select-default-submit.e2e.test.ts
+  s_4ba79f911c93c4::t_39645fdd763848 1-99
+packages/engine/test/e2e/session-deadlines.e2e.test.ts
+  s_4ba79f911c93c4::t_9c94e31e0e5c43 1-67
+packages/engine/test/e2e/session-outbound.e2e.test.ts
+  s_4ba79f911c93c4::t_30f2fd4ac29ebe 1-104
+packages/engine/test/e2e/set-content.ts
+  s_4ba79f911c93c4::t_8cde709ec5f6f2 1-21
+packages/engine/test/e2e/shadow-dom.e2e.test.ts
+  s_4ba79f911c93c4::t_0a73e6c20f01cc 1-111
+packages/engine/test/e2e/size-container-abspos.e2e.test.ts
+  s_4ba79f911c93c4::t_14917d817982bc 1-28
+packages/engine/test/e2e/slow-document-headers.e2e.test.ts
+  s_4ba79f911c93c4::t_22ed4f0dcb70d6 1-32
+packages/engine/test/e2e/smoke.e2e.test.ts
+  s_4ba79f911c93c4::t_ab6d6f4d108f3f 1-21
+packages/engine/test/e2e/source-dimensions.e2e.test.ts
+  s_4ba79f911c93c4::t_575f5691ee08e5 1-28
+packages/engine/test/e2e/stale-node-matches.e2e.test.ts
+  s_4ba79f911c93c4::t_b8c3d9ad347ba8 1-73
+packages/engine/test/e2e/sticky-position.e2e.test.ts
+  s_4ba79f911c93c4::t_50934c142b9724 1-190
+packages/engine/test/e2e/storage-cookies.e2e.test.ts
+  s_4ba79f911c93c4::t_446464a3f3be39 1-37
+packages/engine/test/e2e/style-churn-memory.e2e.test.ts
+  s_4ba79f911c93c4::t_1d5ba4027059c7 1-107
+packages/engine/test/e2e/style-declaration-object-members.e2e.test.ts
+  s_4ba79f911c93c4::t_94feafab4da97c 1-115
+packages/engine/test/e2e/stylo-layout-misc-values.e2e.test.ts
+  s_4ba79f911c93c4::t_76a6cc283415a6 1-52
+packages/engine/test/e2e/subtlecrypto-generatekey-errors.e2e.test.ts
+  s_4ba79f911c93c4::t_fbc5f1b3b16a88 1-36
+packages/engine/test/e2e/svg-anchor-xlink-href.e2e.test.ts
+  s_4ba79f911c93c4::t_39e5a1607def11 1-18
+packages/engine/test/e2e/svg-attribute-case.e2e.test.ts
+  s_4ba79f911c93c4::t_48b091ab2fa479 1-41
+packages/engine/test/e2e/svg-css-attribute-values.e2e.test.ts
+  s_4ba79f911c93c4::t_7c4d5830c3276d 1-40
+packages/engine/test/e2e/svg-dash-stroke.e2e.test.ts
+  s_4ba79f911c93c4::t_881022407f1154 1-52
+packages/engine/test/e2e/svg-dynamic-text-upgrade.e2e.test.ts
+  s_4ba79f911c93c4::t_b763b563ebaa80 1-29
+packages/engine/test/e2e/svg-geometry-length.e2e.test.ts
+  s_4ba79f911c93c4::t_317148518005c3 1-56
+packages/engine/test/e2e/svg-paint-fidelity.e2e.test.ts
+  s_4ba79f911c93c4::t_e962f9234dabc6 1-53
+packages/engine/test/e2e/svg-ratio-sizing.e2e.test.ts
+  s_4ba79f911c93c4::t_66cc34c08b28cd 1-36
+packages/engine/test/e2e/svg-shape-client-rect.e2e.test.ts
+  s_4ba79f911c93c4::t_dbe8ff389fbff4 1-44
+packages/engine/test/e2e/svg-sprite-icons.e2e.test.ts
+  s_4ba79f911c93c4::t_82b34cfb3094f1 1-25
+packages/engine/test/e2e/tab-focus.e2e.test.ts
+  s_4ba79f911c93c4::t_64adb705c768a6 1-100
+packages/engine/test/e2e/table-anonymous-boxes.e2e.test.ts
+  s_4ba79f911c93c4::t_6bd4c19a8a9450 1-49
+packages/engine/test/e2e/table-caption-sizing.e2e.test.ts
+  s_4ba79f911c93c4::t_224cfc97f5443b 1-162
+packages/engine/test/e2e/table-collapsed-border-spans.e2e.test.ts
+  s_4ba79f911c93c4::t_387c68eb073bf9 1-68
+packages/engine/test/e2e/tabs-tab-stops.e2e.test.ts
+  s_4ba79f911c93c4::t_fba7c4ea2aaba7 1-103
+packages/engine/test/e2e/target-dom-reclaim.e2e.test.ts
+  s_4ba79f911c93c4::t_cb7a23b3777640 1-61
+packages/engine/test/e2e/template-content-parse.e2e.test.ts
+  s_4ba79f911c93c4::t_39eeb0c95287cc 1-40
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_4ba79f911c93c4::t_373d63fbd991e0 1-55
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_4ba79f911c93c4::t_a493131f8cbab1 1-300
+packages/engine/test/e2e/text-fill-color.e2e.test.ts
+  s_4ba79f911c93c4::t_20744cef48039b 1-90
+packages/engine/test/e2e/text-setters.e2e.test.ts
+  s_4ba79f911c93c4::t_31ce4faf1033fb 1-24
+packages/engine/test/e2e/theme-flip-repaint.e2e.test.ts
+  s_4ba79f911c93c4::t_17e2040644329f 1-93
+packages/engine/test/e2e/timer-wheel-foreign-clear.e2e.test.ts
+  s_4ba79f911c93c4::t_720ec2569de227 1-37
+packages/engine/test/e2e/timer-wheel.e2e.test.ts
+  s_4ba79f911c93c4::t_16b3cde68883fe 1-197
+packages/engine/test/e2e/tldraw-app-shell.e2e.test.ts
+  s_4ba79f911c93c4::t_c0b7876217fa42 1-182
+packages/engine/test/e2e/transition-reused-node-slot.e2e.test.ts
+  s_4ba79f911c93c4::t_e8ac0486d3683b 1-33
+packages/engine/test/e2e/trusted-events.e2e.test.ts
+  s_4ba79f911c93c4::t_1fe7774f038122 1-308
+packages/engine/test/e2e/trusted-fetch-intrinsic.e2e.test.ts
+  s_4ba79f911c93c4::t_ce7482d7b120e2 1-113
+packages/engine/test/e2e/trusted-fetch-metadata.e2e.test.ts
+  s_4ba79f911c93c4::t_518d92a76da6d9 1-31
+packages/engine/test/e2e/tsconfig.json
+  s_4ba79f911c93c4::t_7fad75766d81fb 1-12
+packages/engine/test/e2e/tty-nav-params-page-initiated.e2e.test.ts
+  s_4ba79f911c93c4::t_9a5c0fb9125396 1-43
+packages/engine/test/e2e/tty-todomvc-controls.e2e.test.ts
+  s_4ba79f911c93c4::t_030f8be27ef63a 1-40
+packages/engine/test/e2e/tty-wheel-grid.e2e.test.ts
+  s_4ba79f911c93c4::t_399cea4045a83c 1-50
+packages/engine/test/e2e/typed-input-value-tracker.e2e.test.ts
+  s_4ba79f911c93c4::t_7f72d66f12366c 1-64
+packages/engine/test/e2e/vendor-prefix-style.e2e.test.ts
+  s_4ba79f911c93c4::t_b2b4a4db5d6b7d 1-80
+packages/engine/test/e2e/viewport-drain.e2e.test.ts
+  s_4ba79f911c93c4::t_ad6e0b1c49ac6a 1-50
+packages/engine/test/e2e/waits.ts
+  s_4ba79f911c93c4::t_5673e0891e2a9a 1-23
+packages/engine/test/e2e/wasm-crash-surface.e2e.test.ts
+  s_4ba79f911c93c4::t_65940eafff75f2 1-77
+packages/engine/test/e2e/wasm-panic-unwind.e2e.test.ts
+  s_4ba79f911c93c4::t_7bfda2cb36b3dd 1-26
+packages/engine/test/e2e/wba-test-key.ts
+  s_4ba79f911c93c4::t_df123fa0312aaf 1-22
+packages/engine/test/e2e/web-animations.e2e.test.ts
+  s_4ba79f911c93c4::t_c46db9990bc593 1-258
+packages/engine/test/e2e/web-bot-auth.e2e.test.ts
+  s_4ba79f911c93c4::t_3ec880ba4153f2 1-137
+packages/engine/test/e2e/webfont-link.e2e.test.ts
+  s_4ba79f911c93c4::t_a9c9a464e48064 1-49
+packages/engine/test/e2e/webkit-box-line-clamp.e2e.test.ts
+  s_4ba79f911c93c4::t_f4cc1289e1cacb 1-50
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_4ba79f911c93c4::t_48482fc8cff033 1-772
+packages/engine/test/e2e/white-space-pre-line.e2e.test.ts
+  s_4ba79f911c93c4::t_52a0bfdf011142 1-23
+packages/engine/test/e2e/window-constructors.e2e.test.ts
+  s_4ba79f911c93c4::t_f0f7bd9d1413eb 1-33
+packages/engine/test/e2e/window-global-scope.e2e.test.ts
+  s_4ba79f911c93c4::t_becd73bf22b890 1-203
+packages/engine/test/e2e/window-page-functions.e2e.test.ts
+  s_4ba79f911c93c4::t_43bd180a75674c 1-32
+packages/engine/test/e2e/wpt-regression-debt.e2e.test.ts
+  s_4ba79f911c93c4::t_5d918d251eb020 1-139
+packages/engine/test/e2e/writing-suggestions.e2e.test.ts
+  s_4ba79f911c93c4::t_464bb181383c74 1-35
+packages/engine/test/e2e/xhtml-doctype-parser-routing.e2e.test.ts
+  s_4ba79f911c93c4::t_f479a6eaef95d2 1-87
+packages/engine/test/e2e/xpath.e2e.test.ts
+  s_4ba79f911c93c4::t_e5a26423322360 1-393
+packages/engine/test/engine-errors.test.ts
+  s_4ba79f911c93c4::t_3fba1d98edfa2c 1-85
+packages/engine/test/external-outbound.test.ts
+  s_4ba79f911c93c4::t_67db813cebe23f 1-51
+packages/engine/test/fetch-slots.test.ts
+  s_4ba79f911c93c4::t_ca0629dc9404cb 1-304
+packages/engine/test/fixtures-worker/assets/abs-chain-dep.js
+  s_4ba79f911c93c4::t_7561f1f4279f31 1-6
+packages/engine/test/fixtures-worker/assets/abs-chain-entry.js
+  s_4ba79f911c93c4::t_3deefb4ac6ca05 1-7
+packages/engine/test/fixtures-worker/assets/abs-chain-root.js
+  s_4ba79f911c93c4::t_9b295405b18951 1-7
+packages/engine/test/fixtures-worker/assets/absolute-path-import.html
+  s_4ba79f911c93c4::t_001b45b5a5acb5 1-13
+packages/engine/test/fixtures-worker/assets/absolute-path-target.js
+  s_4ba79f911c93c4::t_71807f406c0674 1-6
+packages/engine/test/fixtures-worker/assets/absolute-path-transitive.html
+  s_4ba79f911c93c4::t_2c3f4a2ac67909 1-14
+packages/engine/test/fixtures-worker/assets/accessibility-parity.html
+  s_4ba79f911c93c4::t_6a7b8e0a22be46 1-74
+packages/engine/test/fixtures-worker/assets/accessibility.html
+  s_4ba79f911c93c4::t_bd1b5c4c2c15aa 1-45
+packages/engine/test/fixtures-worker/assets/astro-island-component.js
+  s_4ba79f911c93c4::t_ad0ec50ae9f891 1-5
+packages/engine/test/fixtures-worker/assets/astro-island.html
+  s_4ba79f911c93c4::t_5dc59e514efbb5 1-15
+packages/engine/test/fixtures-worker/assets/async.js
+  s_4ba79f911c93c4::t_7b7305c36d0686 1-5
+packages/engine/test/fixtures-worker/assets/bench-canvas.html
+  s_4ba79f911c93c4::t_6aeed97c6eff0c 1-53
+packages/engine/test/fixtures-worker/assets/bench-static.html
+  s_4ba79f911c93c4::t_2cf38bee4db443 1-78
+packages/engine/test/fixtures-worker/assets/bg-image-capture.html
+  s_4ba79f911c93c4::t_ab8e94116004f0 1-18
+packages/engine/test/fixtures-worker/assets/canvas-drawimage.html
+  s_4ba79f911c93c4::t_d936cdac9fd769 1-73
+packages/engine/test/fixtures-worker/assets/ce-mixin-chunk.js
+  s_4ba79f911c93c4::t_6ab6e52a96176c 1-40
+packages/engine/test/fixtures-worker/assets/ce-mixin-late.html
+  s_4ba79f911c93c4::t_574abc08589200 1-26
+packages/engine/test/fixtures-worker/assets/classic-seed-boot.js
+  s_4ba79f911c93c4::t_d3dd79f46b95ce 1-19
+packages/engine/test/fixtures-worker/assets/classic-seed-chunk.js
+  s_4ba79f911c93c4::t_f142b47229700b 1-8
+packages/engine/test/fixtures-worker/assets/classic-seed-dep.js
+  s_4ba79f911c93c4::t_31804bb98952c6 1-5
+packages/engine/test/fixtures-worker/assets/classic-seed.html
+  s_4ba79f911c93c4::t_90fc43361640a0 1-9
+packages/engine/test/fixtures-worker/assets/concimport.html
+  s_4ba79f911c93c4::t_5eb379de74d9fa 1-24
+packages/engine/test/fixtures-worker/assets/cookies.html
+  s_4ba79f911c93c4::t_3d696b781578b4 1-25
+packages/engine/test/fixtures-worker/assets/cors-sheet-clean.html
+  s_4ba79f911c93c4::t_c9c5687c9b8d09 1-16
+packages/engine/test/fixtures-worker/assets/cors-sheet-echo-origin.css
+  s_4ba79f911c93c4::t_15bd3f7dd8864c 1-8
+packages/engine/test/fixtures-worker/assets/cors-sheet-echo-origin.html
+  s_4ba79f911c93c4::t_d4a33eafbc9e3e 1-16
+packages/engine/test/fixtures-worker/assets/cors-sheet-no-acao.html
+  s_4ba79f911c93c4::t_8c893b5fdaa35f 1-16
+packages/engine/test/fixtures-worker/assets/cors-sheet-no-attr.html
+  s_4ba79f911c93c4::t_d48347936a4bed 1-16
+packages/engine/test/fixtures-worker/assets/cors-sheet-redirect.html
+  s_4ba79f911c93c4::t_5e2f2340493cff 1-16
+packages/engine/test/fixtures-worker/assets/cors-sheet-same-origin.html
+  s_4ba79f911c93c4::t_5ded4ed3818cdc 1-16
+packages/engine/test/fixtures-worker/assets/cross-origin-font.html
+  s_4ba79f911c93c4::t_8e376243fe1288 1-49
+packages/engine/test/fixtures-worker/assets/cs-micro-a.js
+  s_4ba79f911c93c4::t_1a24a7d291304a 1-36
+packages/engine/test/fixtures-worker/assets/cs-micro-b.js
+  s_4ba79f911c93c4::t_3f1240e13d958b 1-11
+packages/engine/test/fixtures-worker/assets/cs-microtask.html
+  s_4ba79f911c93c4::t_02b2979ea23721 1-14
+packages/engine/test/fixtures-worker/assets/css-block.html
+  s_4ba79f911c93c4::t_f1ec1773323d98 1-15
+packages/engine/test/fixtures-worker/assets/defer.js
+  s_4ba79f911c93c4::t_36616a702bbe7b 1-5
+packages/engine/test/fixtures-worker/assets/dynamic-app-mod.js
+  s_4ba79f911c93c4::t_346f5a31c81d2e 1-5
+packages/engine/test/fixtures-worker/assets/dynamic-app.html
+  s_4ba79f911c93c4::t_43134509c9118e 1-7
+packages/engine/test/fixtures-worker/assets/dynimport-chunk.js
+  s_4ba79f911c93c4::t_92180b1bd7736c 1-6
+packages/engine/test/fixtures-worker/assets/dynimport-var.html
+  s_4ba79f911c93c4::t_e20ae79f29ec66 1-7
+packages/engine/test/fixtures-worker/assets/dynimport.html
+  s_4ba79f911c93c4::t_0c7e6096d39bee 1-7
+packages/engine/test/fixtures-worker/assets/dynprobe-arity.html
+  s_4ba79f911c93c4::t_a0765448843522 1-25
+packages/engine/test/fixtures-worker/assets/dynprobe-baked.js
+  s_4ba79f911c93c4::t_89bb4561e43fcd 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe-ce.js
+  s_4ba79f911c93c4::t_f6880a0c14c97f 1-5
+packages/engine/test/fixtures-worker/assets/dynprobe-classic.html
+  s_4ba79f911c93c4::t_57b4494bcd7bdc 1-56
+packages/engine/test/fixtures-worker/assets/dynprobe-graph.html
+  s_4ba79f911c93c4::t_c86dcc1f0569a9 1-48
+packages/engine/test/fixtures-worker/assets/dynprobe-imports-baked.js
+  s_4ba79f911c93c4::t_c5510dca4c60cb 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe-leaf.js
+  s_4ba79f911c93c4::t_a094f21af06299 1-5
+packages/engine/test/fixtures-worker/assets/dynprobe-leaf2.js
+  s_4ba79f911c93c4::t_3c0aea0075a685 1-5
+packages/engine/test/fixtures-worker/assets/dynprobe-leaf3.js
+  s_4ba79f911c93c4::t_2cdb662f2d0fe6 1-5
+packages/engine/test/fixtures-worker/assets/dynprobe-raf-wrap.js
+  s_4ba79f911c93c4::t_04b8f761552c1b 1-23
+packages/engine/test/fixtures-worker/assets/dynprobe-raf.html
+  s_4ba79f911c93c4::t_d7c85668a59173 1-25
+packages/engine/test/fixtures-worker/assets/dynprobe-shared.js
+  s_4ba79f911c93c4::t_4d7db38e7902f5 1-5
+packages/engine/test/fixtures-worker/assets/dynprobe-tree-dep.js
+  s_4ba79f911c93c4::t_deea5db60dfdf3 1-5
+packages/engine/test/fixtures-worker/assets/dynprobe-tree.js
+  s_4ba79f911c93c4::t_62f77dc76e0c76 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe-user-a.js
+  s_4ba79f911c93c4::t_ac91752c199e32 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe-user-b.js
+  s_4ba79f911c93c4::t_fa655dcec66a03 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe.html
+  s_4ba79f911c93c4::t_b10f92c3062e21 1-57
+packages/engine/test/fixtures-worker/assets/eager-slow-load.html
+  s_4ba79f911c93c4::t_4dc7c0480070cd 1-13
+packages/engine/test/fixtures-worker/assets/entity-parse.html
+  s_4ba79f911c93c4::t_16a9527c8798fd 1-7
+packages/engine/test/fixtures-worker/assets/euckr-child.html.bin
+  s_4ba79f911c93c4::t_1d29cd55c82f8c 1
+packages/engine/test/fixtures-worker/assets/euckr-form.html
+  s_4ba79f911c93c4::t_dc9b2495de4711 1-16
+packages/engine/test/fixtures-worker/assets/events.html
+  s_4ba79f911c93c4::t_d58a1bf12de81f 1-56
+packages/engine/test/fixtures-worker/assets/external-module.js
+  s_4ba79f911c93c4::t_05d54e4dc3d188 1-5
+packages/engine/test/fixtures-worker/assets/external-scripts.html
+  s_4ba79f911c93c4::t_4250efcac7956a 1-28
+packages/engine/test/fixtures-worker/assets/external-sheet.css
+  s_4ba79f911c93c4::t_c5af6a4c994f2b 1-8
+packages/engine/test/fixtures-worker/assets/external-sheet.html
+  s_4ba79f911c93c4::t_bda016c24a4a92 1-15
+packages/engine/test/fixtures-worker/assets/fetch-priority-probe.html
+  s_4ba79f911c93c4::t_1dfc64e4eb10ca 1-22
+packages/engine/test/fixtures-worker/assets/font-face-unicode-range.html
+  s_4ba79f911c93c4::t_a1197929d19243 1-40
+packages/engine/test/fixtures-worker/assets/font-face-variable.html
+  s_4ba79f911c93c4::t_9b544c7b95d178 1-32
+packages/engine/test/fixtures-worker/assets/font-face.html
+  s_4ba79f911c93c4::t_4b2907cfea73eb 1-29
+packages/engine/test/fixtures-worker/assets/graphprobe/g-arity.js
+  s_4ba79f911c93c4::t_e1652e8f1fe000 1-12
+packages/engine/test/fixtures-worker/assets/graphprobe/g-baked-default.js
+  s_4ba79f911c93c4::t_027bd9ad5855f7 1-5
+packages/engine/test/fixtures-worker/assets/graphprobe/g-baked.js
+  s_4ba79f911c93c4::t_43ea6c724ee45a 1-8
+packages/engine/test/fixtures-worker/assets/graphprobe/g-cycle-a.js
+  s_4ba79f911c93c4::t_58b2e37421caef 1-7
+packages/engine/test/fixtures-worker/assets/graphprobe/g-cycle-b.js
+  s_4ba79f911c93c4::t_3611f2b9017507 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-alias.js
+  s_4ba79f911c93c4::t_2f3c18a77850fd 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-annexb.js
+  s_4ba79f911c93c4::t_b49e4f1f7807b8 1-8
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-default.js
+  s_4ba79f911c93c4::t_43786c08778426 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-fnprops.js
+  s_4ba79f911c93c4::t_9ca98f4dab51c2 1-7
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-named.js
+  s_4ba79f911c93c4::t_a202777c8cc65a 1-5
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-obj.js
+  s_4ba79f911c93c4::t_adb98c9055c987 1-5
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-var.js
+  s_4ba79f911c93c4::t_f363512c42c957 1-7
+packages/engine/test/fixtures-worker/assets/graphprobe/g-mid-reexport.js
+  s_4ba79f911c93c4::t_e1b08484935c2c 1-5
+packages/engine/test/fixtures-worker/assets/graphprobe/g-mid-star.js
+  s_4ba79f911c93c4::t_6edae47314d8a9 1-5
+packages/engine/test/fixtures-worker/assets/graphprobe/g-shared-leaf.js
+  s_4ba79f911c93c4::t_181f5ab4ee3bff 1-5
+packages/engine/test/fixtures-worker/assets/graphprobe/g-shared-mid.js
+  s_4ba79f911c93c4::t_aa67ecbf44c8ce 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g1.js
+  s_4ba79f911c93c4::t_3f0e6441efc1a6 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g10.js
+  s_4ba79f911c93c4::t_26a800855cba9a 1-7
+packages/engine/test/fixtures-worker/assets/graphprobe/g11.js
+  s_4ba79f911c93c4::t_de4698671aac1a 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g12.js
+  s_4ba79f911c93c4::t_11c160fd734536 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g15.js
+  s_4ba79f911c93c4::t_26bfc7f4ab2711 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g16.js
+  s_4ba79f911c93c4::t_b9b11cc137f763 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g17.js
+  s_4ba79f911c93c4::t_274b0a2183f1de 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g18.js
+  s_4ba79f911c93c4::t_3ac94a4f66e6ae 1-10
+packages/engine/test/fixtures-worker/assets/graphprobe/g19.js
+  s_4ba79f911c93c4::t_f45c2d7dc1e5bd 1-5
+packages/engine/test/fixtures-worker/assets/graphprobe/g2.js
+  s_4ba79f911c93c4::t_ce109a03dbfdf1 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g3.js
+  s_4ba79f911c93c4::t_a355a924a4bbf4 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g4.js
+  s_4ba79f911c93c4::t_b7df268e1fa77f 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g5.js
+  s_4ba79f911c93c4::t_2d65ad54133e07 1-7
+packages/engine/test/fixtures-worker/assets/graphprobe/g6.js
+  s_4ba79f911c93c4::t_dbb503c7fc7dc8 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g7.js
+  s_4ba79f911c93c4::t_0e64b830b29ed3 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g8.js
+  s_4ba79f911c93c4::t_7ab0f61e7939d0 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g9.js
+  s_4ba79f911c93c4::t_d1c87463738fcd 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/gc1.js
+  s_4ba79f911c93c4::t_c31fa35c41bb7a 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/gc2.js
+  s_4ba79f911c93c4::t_6222cf7761ccb2 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/gc3.js
+  s_4ba79f911c93c4::t_d2ddf0bbbbc4e4 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/gc4.js
+  s_4ba79f911c93c4::t_bc9c5aa3808bf9 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/gc5.js
+  s_4ba79f911c93c4::t_94b80d9f9bec63 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/gc6.js
+  s_4ba79f911c93c4::t_1fc13e017d8d3f 1-6
+packages/engine/test/fixtures-worker/assets/hostile-timers.html
+  s_4ba79f911c93c4::t_76edc71e64141b 1-10
+packages/engine/test/fixtures-worker/assets/hostile-timers.js
+  s_4ba79f911c93c4::t_848f49f9861dbd 1-15
+packages/engine/test/fixtures-worker/assets/http-response-page.html
+  s_4ba79f911c93c4::t_7ab4e2753327db 1-32
+packages/engine/test/fixtures-worker/assets/icon-sprite.svg
+  s_4ba79f911c93c4::t_5d3c4cb9aa3d82 1-4
+packages/engine/test/fixtures-worker/assets/iframe-bitmap.html
+  s_4ba79f911c93c4::t_0bb3801a59cf0e 1-11
+packages/engine/test/fixtures-worker/assets/iframe-child.html
+  s_4ba79f911c93c4::t_258f874005096d 1-17
+packages/engine/test/fixtures-worker/assets/iframe-cycle.html
+  s_4ba79f911c93c4::t_c22b8987c39d4a 1-12
+packages/engine/test/fixtures-worker/assets/iframe-detach-before-load.html
+  s_4ba79f911c93c4::t_deb141cee44539 1-26
+packages/engine/test/fixtures-worker/assets/iframe-euckr-host.html
+  s_4ba79f911c93c4::t_734658d9ba0c33 1-15
+packages/engine/test/fixtures-worker/assets/iframe-host.html
+  s_4ba79f911c93c4::t_1657ddd9eb6a39 1-14
+packages/engine/test/fixtures-worker/assets/iframe-lazy-no-load-block.html
+  s_4ba79f911c93c4::t_14b0656075ace2 1-32
+packages/engine/test/fixtures-worker/assets/iframe-load-order.html
+  s_4ba79f911c93c4::t_941c4de18cceec 1-27
+packages/engine/test/fixtures-worker/assets/iframe-nested-l1.html
+  s_4ba79f911c93c4::t_c4f5e2fd7610ab 1-12
+packages/engine/test/fixtures-worker/assets/iframe-nested-l2.html
+  s_4ba79f911c93c4::t_6bfa52e575690c 1-12
+packages/engine/test/fixtures-worker/assets/iframe-nested-l3.html
+  s_4ba79f911c93c4::t_4341f466339ff2 1-12
+packages/engine/test/fixtures-worker/assets/iframe-referrer-host.html
+  s_4ba79f911c93c4::t_f27f7d4e52664c 1-13
+packages/engine/test/fixtures-worker/assets/iframe-referrer-nested-host.html
+  s_4ba79f911c93c4::t_3a4c1f5b96bbbc 1-12
+packages/engine/test/fixtures-worker/assets/iframe-referrer-nested.html
+  s_4ba79f911c93c4::t_f8405f25597375 1-12
+packages/engine/test/fixtures-worker/assets/iframe-reinsert.html
+  s_4ba79f911c93c4::t_43dccb68f24ec4 1-23
+packages/engine/test/fixtures-worker/assets/image-paint.html
+  s_4ba79f911c93c4::t_9dc2b0762ee70e 1-7
+packages/engine/test/fixtures-worker/assets/img-dimensions.html
+  s_4ba79f911c93c4::t_d247c05aa0bdac 1-44
+packages/engine/test/fixtures-worker/assets/img-load-events.html
+  s_4ba79f911c93c4::t_2c002bd0fb4aad 1-56
+packages/engine/test/fixtures-worker/assets/importmap-csp.html
+  s_4ba79f911c93c4::t_ff7fa18b6ea8b7 1-23
+packages/engine/test/fixtures-worker/assets/importmap-early.js
+  s_4ba79f911c93c4::t_eee887b3e5c5b7 1-5
+packages/engine/test/fixtures-worker/assets/importmap-lazy.js
+  s_4ba79f911c93c4::t_bbaaea49e7a5b5 1-7
+packages/engine/test/fixtures-worker/assets/importmap.html
+  s_4ba79f911c93c4::t_628c8a6e54b5e9 1-58
+packages/engine/test/fixtures-worker/assets/importmeta-chunk.js
+  s_4ba79f911c93c4::t_7983f8069a932c 1-8
+packages/engine/test/fixtures-worker/assets/inline-box-model.html
+  s_4ba79f911c93c4::t_768da758d0971b 1-25
+packages/engine/test/fixtures-worker/assets/inline-script.html
+  s_4ba79f911c93c4::t_96456f7d4b11cf 1-42
+packages/engine/test/fixtures-worker/assets/inline-wasm.html
+  s_4ba79f911c93c4::t_a35523f204f91b 1-13
+packages/engine/test/fixtures-worker/assets/inline-wasm.js
+  s_4ba79f911c93c4::t_2ae565e42263c6 1-23
+packages/engine/test/fixtures-worker/assets/inserted-bake.html
+  s_4ba79f911c93c4::t_8c501cd87d96e2 1-30
+packages/engine/test/fixtures-worker/assets/inserted-bake.js
+  s_4ba79f911c93c4::t_50b4a41876eceb 1-12
+packages/engine/test/fixtures-worker/assets/inserted-ok.js
+  s_4ba79f911c93c4::t_9d70273168dee2 1-5
+packages/engine/test/fixtures-worker/assets/inserted-script.html
+  s_4ba79f911c93c4::t_efa3c71371cdfc 1-36
+packages/engine/test/fixtures-worker/assets/interner-batch-one.js
+  s_4ba79f911c93c4::t_a2ce7cf2038857 1-13
+packages/engine/test/fixtures-worker/assets/interner-batch-two.js
+  s_4ba79f911c93c4::t_bc45c38d88fd5b 1-13
+packages/engine/test/fixtures-worker/assets/interner-broken.js
+  s_4ba79f911c93c4::t_bb3b523b8ac8a3 1-8
+packages/engine/test/fixtures-worker/assets/keyboard.html
+  s_4ba79f911c93c4::t_9c318f1f70d3a5 1-35
+packages/engine/test/fixtures-worker/assets/late-timer-insert.html
+  s_4ba79f911c93c4::t_0d2a3d4d9520eb 1-25
+packages/engine/test/fixtures-worker/assets/latin1-sheet.html
+  s_4ba79f911c93c4::t_cac681c23aaae8 1-15
+packages/engine/test/fixtures-worker/assets/latin1.css.bin
+  s_4ba79f911c93c4::t_3788b8961ef7f8 1-2
+packages/engine/test/fixtures-worker/assets/lazy-coalesce.html
+  s_4ba79f911c93c4::t_31f4febc80c7ae 1-24
+packages/engine/test/fixtures-worker/assets/lazy-load-event.html
+  s_4ba79f911c93c4::t_a62ef624d1fba6 1-14
+packages/engine/test/fixtures-worker/assets/lifecycle-async.js
+  s_4ba79f911c93c4::t_f1b8cc9967b30d 1-5
+packages/engine/test/fixtures-worker/assets/lifecycle-defer.js
+  s_4ba79f911c93c4::t_f27d436e676501 1-5
+packages/engine/test/fixtures-worker/assets/lifecycle.html
+  s_4ba79f911c93c4::t_8b17422320c5e6 1-52
+packages/engine/test/fixtures-worker/assets/link-media-print.css
+  s_4ba79f911c93c4::t_1afbdc67c97e03 1-7
+packages/engine/test/fixtures-worker/assets/link-media-screen.css
+  s_4ba79f911c93c4::t_e798e7ae139efa 1-7
+packages/engine/test/fixtures-worker/assets/link-media.html
+  s_4ba79f911c93c4::t_443b276e5cbff9 1-16
+packages/engine/test/fixtures-worker/assets/link-onload-media.css
+  s_4ba79f911c93c4::t_bc252c9822fabe 1-7
+packages/engine/test/fixtures-worker/assets/link-onload-media.html
+  s_4ba79f911c93c4::t_b000488cd0aeb8 1-16
+packages/engine/test/fixtures-worker/assets/media-texttracks.html
+  s_4ba79f911c93c4::t_b88fab558c43f3 1-10
+packages/engine/test/fixtures-worker/assets/mjs-import/child.mjs
+  s_4ba79f911c93c4::t_bca9b8094ab52f 1-6
+packages/engine/test/fixtures-worker/assets/mjs-import/index.html
+  s_4ba79f911c93c4::t_6a1a989e7b9fec 1-7
+packages/engine/test/fixtures-worker/assets/module-registry-config.json
+  s_4ba79f911c93c4::t_8a90c7433d50f7 1
+packages/engine/test/fixtures-worker/assets/module-registry-fallback.json
+  s_4ba79f911c93c4::t_cb248066715974 1
+packages/engine/test/fixtures-worker/assets/module-registry-lib.js
+  s_4ba79f911c93c4::t_e2c2e2027b5ba3 1-5
+packages/engine/test/fixtures-worker/assets/module-registry-malformed-json.txt
+  s_4ba79f911c93c4::t_1098ad7cdc5c01 1
+packages/engine/test/fixtures-worker/assets/module-registry-meta.js
+  s_4ba79f911c93c4::t_960b5aa7c0172f 1-5
+packages/engine/test/fixtures-worker/assets/module-registry-sheet.css
+  s_4ba79f911c93c4::t_5937acf3bddb6e 1-7
+packages/engine/test/fixtures-worker/assets/module-registry-tla.js
+  s_4ba79f911c93c4::t_4f300fc87b1b6d 1-14
+packages/engine/test/fixtures-worker/assets/module-registry.html
+  s_4ba79f911c93c4::t_5feca798c4b44a 1-73
+packages/engine/test/fixtures-worker/assets/modules.html
+  s_4ba79f911c93c4::t_9d8b74056a35b6 1-31
+packages/engine/test/fixtures-worker/assets/msgchannel-modinit.html
+  s_4ba79f911c93c4::t_667aa7056bc761 1-27
+packages/engine/test/fixtures-worker/assets/navigation-landing.html
+  s_4ba79f911c93c4::t_2cba7934287a11 1-9
+packages/engine/test/fixtures-worker/assets/navigation-reloading.html
+  s_4ba79f911c93c4::t_22bfee7e132550 1-14
+packages/engine/test/fixtures-worker/assets/nested-modinit-target.js
+  s_4ba79f911c93c4::t_12d707ad67706d 1-58
+packages/engine/test/fixtures-worker/assets/nested-modinit.html
+  s_4ba79f911c93c4::t_e338de4c181e3c 1-29
+packages/engine/test/fixtures-worker/assets/no-acao-inline-svg.html
+  s_4ba79f911c93c4::t_fc1be8b3182c81 1-7
+packages/engine/test/fixtures-worker/assets/oopif-child-blue.html
+  s_4ba79f911c93c4::t_9df4c29e8ba5a9 1-11
+packages/engine/test/fixtures-worker/assets/oopif-child-color-swap.html
+  s_4ba79f911c93c4::t_a56ebe975f84f1 1-22
+packages/engine/test/fixtures-worker/assets/oopif-child-postmessage.html
+  s_4ba79f911c93c4::t_6a8a6ac147b6d4 1-20
+packages/engine/test/fixtures-worker/assets/oopif-child-quads.html
+  s_4ba79f911c93c4::t_91758158638fc2 1-17
+packages/engine/test/fixtures-worker/assets/oopif-child-red.html
+  s_4ba79f911c93c4::t_487c1b0e103a6f 1-11
+packages/engine/test/fixtures-worker/assets/oopif-child-worker.html
+  s_4ba79f911c93c4::t_43953d63d3522a 1-21
+packages/engine/test/fixtures-worker/assets/oopif-dynamic-host.html
+  s_4ba79f911c93c4::t_140fec167fdf77 1-22
+packages/engine/test/fixtures-worker/assets/oopif-host-budget.html
+  s_4ba79f911c93c4::t_7429293e0cd0cc 1-12
+packages/engine/test/fixtures-worker/assets/oopif-host-color-swap.html
+  s_4ba79f911c93c4::t_b3653985132bd9 1-11
+packages/engine/test/fixtures-worker/assets/oopif-host-postmessage.html
+  s_4ba79f911c93c4::t_978b4f131420a4 1-27
+packages/engine/test/fixtures-worker/assets/oopif-host-quads.html
+  s_4ba79f911c93c4::t_da01f644c0218b 1-11
+packages/engine/test/fixtures-worker/assets/oopif-host-worker.html
+  s_4ba79f911c93c4::t_2a27f540fc906c 1-16
+packages/engine/test/fixtures-worker/assets/oopif-host.html
+  s_4ba79f911c93c4::t_9a78e24c7b52b8 1-11
+packages/engine/test/fixtures-worker/assets/pdf-css-bg-smoke.html
+  s_4ba79f911c93c4::t_eeeee0eea84e8e 1-35
+packages/engine/test/fixtures-worker/assets/pdf-image-smoke.html
+  s_4ba79f911c93c4::t_c7e5bdce9be3be 1-20
+packages/engine/test/fixtures-worker/assets/probe-late.css
+  s_4ba79f911c93c4::t_4457866d0b272f 1-7
+packages/engine/test/fixtures-worker/assets/rbi-credit-window.html
+  s_4ba79f911c93c4::t_1ecfb37971387f 1-27
+packages/engine/test/fixtures-worker/assets/rbi-navigation-damage.html
+  s_4ba79f911c93c4::t_a464eb4d6aefff 1-23
+packages/engine/test/fixtures-worker/assets/redirect-gate-deep.html
+  s_4ba79f911c93c4::t_21ef3d17fd31f2 1-7
+packages/engine/test/fixtures-worker/assets/redirect-gate-xo.html
+  s_4ba79f911c93c4::t_97c151fbd20c9e 1-7
+packages/engine/test/fixtures-worker/assets/redirect-gate.html
+  s_4ba79f911c93c4::t_a21f9e39080495 1-7
+packages/engine/test/fixtures-worker/assets/regular.js
+  s_4ba79f911c93c4::t_f0065ec045f137 1-5
+packages/engine/test/fixtures-worker/assets/reload-loop.html
+  s_4ba79f911c93c4::t_6540b250e34dae 1-21
+packages/engine/test/fixtures-worker/assets/render-features.html
+  s_4ba79f911c93c4::t_ad756954ef9c88 1-18
+packages/engine/test/fixtures-worker/assets/screencast-partial-image.html
+  s_4ba79f911c93c4::t_ee079610985861 1-24
+packages/engine/test/fixtures-worker/assets/seam-coll-route.js
+  s_4ba79f911c93c4::t_3e546fbdb0bbcb 1-24
+packages/engine/test/fixtures-worker/assets/seam-coll-runtime.js
+  s_4ba79f911c93c4::t_83f1d010f56633 1-22
+packages/engine/test/fixtures-worker/assets/seam-collections.html
+  s_4ba79f911c93c4::t_1460206c23fef5 1-21
+packages/engine/test/fixtures-worker/assets/seam-deferred.html
+  s_4ba79f911c93c4::t_a983a674f2605e 1-21
+packages/engine/test/fixtures-worker/assets/seam-plain-route.js
+  s_4ba79f911c93c4::t_14af129bbd9d01 1-19
+packages/engine/test/fixtures-worker/assets/seam-plain-runtime.js
+  s_4ba79f911c93c4::t_cdc7a6a92fd784 1-11
+packages/engine/test/fixtures-worker/assets/seam-plain.html
+  s_4ba79f911c93c4::t_4419154d10ba43 1-21
+packages/engine/test/fixtures-worker/assets/seam-route.js
+  s_4ba79f911c93c4::t_be2f11af0e39f1 1-25
+packages/engine/test/fixtures-worker/assets/seam-runtime.js
+  s_4ba79f911c93c4::t_4b8f83f966f46f 1-56
+packages/engine/test/fixtures-worker/assets/shaping-metrics.html
+  s_4ba79f911c93c4::t_3d0716cbd7a055 1-26
+packages/engine/test/fixtures-worker/assets/sprite-icons.html
+  s_4ba79f911c93c4::t_04aed9f35690ce 1-15
+packages/engine/test/fixtures-worker/assets/sticky-body-overflow.html
+  s_4ba79f911c93c4::t_3c345f08c8a2ed 1-21
+packages/engine/test/fixtures-worker/assets/sticky-root-overflow.html
+  s_4ba79f911c93c4::t_9217a3e79ee5a5 1-21
+packages/engine/test/fixtures-worker/assets/svg-css-attrs.html
+  s_4ba79f911c93c4::t_1d9481551bb40e 1-28
+packages/engine/test/fixtures-worker/assets/svg-document-metadata.svg
+  s_4ba79f911c93c4::t_cae2d5f258cb30 1-8
+packages/engine/test/fixtures-worker/assets/svg-document-overflowing.svg
+  s_4ba79f911c93c4::t_1cc881cd20fba4 1-3
+packages/engine/test/fixtures-worker/assets/svg-document-prologue.svg
+  s_4ba79f911c93c4::t_160e591ddf2273 1-5
+packages/engine/test/fixtures-worker/assets/svg-document-sized.svg
+  s_4ba79f911c93c4::t_bd714624b0ee0a 1-4
+packages/engine/test/fixtures-worker/assets/svg-document-styled.svg
+  s_4ba79f911c93c4::t_73eebe074a9988 1-4
+packages/engine/test/fixtures-worker/assets/svg-document-viewbox.svg
+  s_4ba79f911c93c4::t_f51a8054b19838 1-3
+packages/engine/test/fixtures-worker/assets/svg-overflow-clip.html
+  s_4ba79f911c93c4::t_56bce69178a137 1-19
+packages/engine/test/fixtures-worker/assets/svg-sizing.html
+  s_4ba79f911c93c4::t_1a26e5abc081e7 1-20
+packages/engine/test/fixtures-worker/assets/svg-sprite-sidebar.html
+  s_4ba79f911c93c4::t_24220cb180ef5c 1-36
+packages/engine/test/fixtures-worker/assets/tla-import-bug.html
+  s_4ba79f911c93c4::t_885d4ba636357d 1-21
+packages/engine/test/fixtures-worker/assets/tla-import-fix.html
+  s_4ba79f911c93c4::t_8b8e83b85e980f 1-23
+packages/engine/test/fixtures-worker/assets/tla-import-helper.js
+  s_4ba79f911c93c4::t_815849c46b2fc4 1-8
+packages/engine/test/fixtures-worker/assets/tracked.css
+  s_4ba79f911c93c4::t_fbbeef6af02758 1-7
+packages/engine/test/fixtures-worker/assets/viewport-drain.html
+  s_4ba79f911c93c4::t_303cf980041b33 1-18
+packages/engine/test/fixtures-worker/assets/wasm-boot.html
+  s_4ba79f911c93c4::t_411a702c5131f2 1-20
+packages/engine/test/fixtures-worker/assets/wasm-boot.js
+  s_4ba79f911c93c4::t_f0c27418c1f8df 1-50
+packages/engine/test/fixtures-worker/assets/webfont-face.css
+  s_4ba79f911c93c4::t_d3083e806e6784 1-13
+packages/engine/test/fixtures-worker/assets/webfont-link.html
+  s_4ba79f911c93c4::t_4dd0d019ea4276 1-19
+packages/engine/test/fixtures-worker/assets/webfont-probes.html
+  s_4ba79f911c93c4::t_690cc565a47b78 1-14
+packages/engine/test/fixtures-worker/assets/webfont.html
+  s_4ba79f911c93c4::t_6129177387ec3c 1-55
+packages/engine/test/fixtures-worker/assets/webmcp-declarative.html
+  s_4ba79f911c93c4::t_0832d81d9f3ada 1-53
+packages/engine/test/fixtures-worker/assets/webmcp-module.html
+  s_4ba79f911c93c4::t_c1a1734fe73670 1-25
+packages/engine/test/fixtures-worker/assets/webmcp-tools.html
+  s_4ba79f911c93c4::t_a19c68bdde4b76 1-269
+packages/engine/test/fixtures-worker/assets/worker-at-load.html
+  s_4ba79f911c93c4::t_62d3ada452de7a 1-31
+packages/engine/test/fixtures-worker/assets/worker-echo.js
+  s_4ba79f911c93c4::t_a8940e21e562d1 1-23
+packages/engine/test/fixtures-worker/assets/worker-host.html
+  s_4ba79f911c93c4::t_7ae3e62e70f51e 1-11
+packages/engine/test/fixtures-worker/assets/ws-boot.html
+  s_4ba79f911c93c4::t_4cd90def4f4dc3 1-64
+packages/engine/test/fixtures-worker/assets/xhr-boot.html
+  s_4ba79f911c93c4::t_db85b5437dd029 1-13
+packages/engine/test/fixtures-worker/assets/xhr-boot.js
+  s_4ba79f911c93c4::t_9fc2b42b191a68 1-54
+packages/engine/test/fixtures-worker/assets/xhr-data.txt
+  s_4ba79f911c93c4::t_f6b9cada448a89 1
+packages/engine/test/fixtures-worker/src/dynamic/bench.ts
+  s_4ba79f911c93c4::t_881bbb8b6b9e37 1-254
+packages/engine/test/fixtures-worker/src/dynamic/cors.ts
+  s_4ba79f911c93c4::t_ecd4d84763f809 1-137
+packages/engine/test/fixtures-worker/src/dynamic/documents.ts
+  s_4ba79f911c93c4::t_b9b4c15a80f274 1-130
+packages/engine/test/fixtures-worker/src/dynamic/fonts.ts
+  s_4ba79f911c93c4::t_ebbdc41a187960 1-144
+packages/engine/test/fixtures-worker/src/dynamic/frames.ts
+  s_4ba79f911c93c4::t_12eeca092d4b10 1-101
+packages/engine/test/fixtures-worker/src/dynamic/http-responses.ts
+  s_4ba79f911c93c4::t_c12eaa993c6936 1-45
+packages/engine/test/fixtures-worker/src/dynamic/scripts.ts
+  s_4ba79f911c93c4::t_745fd8744803ef 1-99
+packages/engine/test/fixtures-worker/src/dynamic/slow.ts
+  s_4ba79f911c93c4::t_ed48482d6949d2 1-78
+packages/engine/test/fixtures-worker/src/dynamic/ws-echo.ts
+  s_4ba79f911c93c4::t_a6c2842e42775c 1-26
+packages/engine/test/fixtures-worker/src/index.ts
+  s_4ba79f911c93c4::t_3e4555c56fc6bf 1-7
+packages/engine/test/fixtures-worker/src/png.ts
+  s_4ba79f911c93c4::t_96197c47eae9fd 1-119
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_4ba79f911c93c4::t_86ca9c08ac8e2c 1-60
+packages/engine/test/fixtures-worker/src/snapshot.ts
+  s_4ba79f911c93c4::t_c408bafcb20148 1-63
+packages/engine/test/fixtures-worker/src/static.ts
+  s_4ba79f911c93c4::t_058544382db350 1-500
+packages/engine/test/fixtures-worker/src/util.ts
+  s_4ba79f911c93c4::t_04239ec2ac5823 1-54
+packages/engine/test/fixtures-worker/tsconfig.json
+  s_4ba79f911c93c4::t_7cb7a0e9ad4a6c 1-9
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_4ba79f911c93c4::t_1b96d977add240 1-27
+packages/engine/test/frame-domain-and-registry.test.ts
+  s_4ba79f911c93c4::t_0347eca55a7440 1-24
+packages/engine/test/host-clock.test.ts
+  s_4ba79f911c93c4::t_11d0d363af70da 1-45
+packages/engine/test/host-session-options.test.ts
+  s_4ba79f911c93c4::t_9c995502685637 1-66
+packages/engine/test/image-dims.test.ts
+  s_4ba79f911c93c4::t_88099620a8b667 1-217
+packages/engine/test/inspector.test.ts
+  s_4ba79f911c93c4::t_856b4721def2e6 1-24
+packages/engine/test/isolate-id.test.ts
+  s_4ba79f911c93c4::t_8c312efe1e1f3a 1-25
+packages/engine/test/learned-scripts.test.ts
+  s_4ba79f911c93c4::t_650478ed1a973e 1-92
+packages/engine/test/module-eval-scope-probe.test.ts
+  s_4ba79f911c93c4::t_dc0aeddf502a95 1-247
+packages/engine/test/native-functions-walk.test.ts
+  s_4ba79f911c93c4::t_0e4728782c12fd 1-50
+packages/engine/test/network-enable.test.ts
+  s_4ba79f911c93c4::t_3981dc1d746981 1-366
+packages/engine/test/network-events-body-budget.test.ts
+  s_4ba79f911c93c4::t_38deef086190b8 1-182
+packages/engine/test/next-route-chunks.test.ts
+  s_4ba79f911c93c4::t_9c3674d9a1dbc9 1-73
+packages/engine/test/outbound-forward.test.ts
+  s_4ba79f911c93c4::t_22a30ed3ad0511 1-335
+packages/engine/test/page-renderer-timeout.test.ts
+  s_4ba79f911c93c4::t_524b629af3e473 1-117
+packages/engine/test/page-script-cache-key.test.ts
+  s_4ba79f911c93c4::t_d146790ded88a8 1-114
+packages/engine/test/page-script-generation.test.ts
+  s_4ba79f911c93c4::t_1e18687421fbe0 1-275
+packages/engine/test/page-script-rpc-session.test.ts
+  s_4ba79f911c93c4::t_05638ad0309a7a 1-397
+packages/engine/test/page-script-tail.test.ts
+  s_4ba79f911c93c4::t_596c1be9087576 1-138
+packages/engine/test/page-session.test.ts
+  s_4ba79f911c93c4::t_6a8093b450512d 1-337
+packages/engine/test/rbi-heartbeat.test.ts
+  s_4ba79f911c93c4::t_34b705c498a6bc 1-53
+packages/engine/test/rbi-idle.test.ts
+  s_4ba79f911c93c4::t_16713520531c80 1-149
+packages/engine/test/rbi-pacing.test.ts
+  s_4ba79f911c93c4::t_d081e101be6365 1-79
+packages/engine/test/rbi-resource-batch.test.ts
+  s_4ba79f911c93c4::t_163b833681504e 1-325
+packages/engine/test/read-capped.test.ts
+  s_4ba79f911c93c4::t_08a16bafcaba82 1-214
+packages/engine/test/redirect-walk.test.ts
+  s_4ba79f911c93c4::t_fde71a057a5b18 1-322
+packages/engine/test/request-blocker.test.ts
+  s_4ba79f911c93c4::t_a0d8b69fc88b76 1-92
+packages/engine/test/resource-store.test.ts
+  s_4ba79f911c93c4::t_6cf2fd6434e740 1-189
+packages/engine/test/scene-host.test.ts
+  s_4ba79f911c93c4::t_0c1e9e512d2103 1-160
+packages/engine/test/script-bundle-runtime.test.ts
+  s_4ba79f911c93c4::t_aed06a97ceab29 1-344
+packages/engine/test/script-bundle.test.ts
+  s_4ba79f911c93c4::t_23a407d20122b6 1-145
+packages/engine/test/target-close.test.ts
+  s_4ba79f911c93c4::t_f905404335627f 1-90
+packages/engine/test/tracing-local.test.ts
+  s_4ba79f911c93c4::t_2a9b92778e265a 1-391
+packages/engine/test/tty-nav-params.test.ts
+  s_4ba79f911c93c4::t_3ec1bcc7ae2777 1-104
+packages/engine/test/tty-stylesheet.test.ts
+  s_4ba79f911c93c4::t_980e8da5b2c0cb 1-221
+packages/engine/test/ua-override.test.ts
+  s_4ba79f911c93c4::t_b861b47b6ffee0 1-122
+packages/engine/test/walk-module-graph.test.ts
+  s_4ba79f911c93c4::t_5f1e4567110ec4 1-739
+packages/engine/test/web-bot-auth.test.ts
+  s_4ba79f911c93c4::t_efefee7822bf1d 1-201
+packages/engine/test/wheel-queue.test.ts
+  s_4ba79f911c93c4::t_074c42c810f80c 1-446
+packages/engine/test/worker-budget.test.ts
+  s_4ba79f911c93c4::t_01f7da3456d74b 1-57
+packages/engine/tsconfig.json
+  s_4ba79f911c93c4::t_bb2f1f81ef9475 1-26
+packages/engine/vitest.config.mts
+  s_4ba79f911c93c4::t_8cc59e596edeca 1-45
+packages/engine/vitest.e2e.config.mts
+  s_4ba79f911c93c4::t_fe1296fb9b90bd 1-251
+packages/engine/wrangler.jsonc
+  s_4ba79f911c93c4::t_f399766badbe8f 1-67
+packages/jsrpc-types/BUILD.bazel
+  s_4ba79f911c93c4::t_8c3e95e8d11faa 1-24
+packages/jsrpc-types/package.json
+  s_4ba79f911c93c4::t_4bd8a0bce5c2ad 1-24
+packages/jsrpc-types/src/dedicated-worker.ts
+  s_4ba79f911c93c4::t_3131d29426710a 1-75
+packages/jsrpc-types/src/page-renderer.ts
+  s_4ba79f911c93c4::t_a69160f8e4a11d 1-90
+packages/jsrpc-types/src/page-script.ts
+  s_4ba79f911c93c4::t_dc574152686748 1-376
+packages/jsrpc-types/src/query-dom.ts
+  s_4ba79f911c93c4::t_f7d06341205b71 1-435
+packages/jsrpc-types/src/shared.ts
+  s_4ba79f911c93c4::t_40a7572921dccb 1-99
+packages/jsrpc-types/tsconfig.json
+  s_4ba79f911c93c4::t_2d531bee772453 1-23
+packages/kitesurf-cli/.gitignore
+  s_4ba79f911c93c4::t_9c523b5059d584 1
+packages/kitesurf-cli/Cargo.lock
+  s_4ba79f911c93c4::t_da3820cc0b0786 1-2411
+packages/kitesurf-cli/Cargo.toml
+  s_4ba79f911c93c4::t_ff3c73b5ae6743 1-39
+packages/kitesurf-cli/README.md
+  s_4ba79f911c93c4::t_6f02499af959c2 1-110
+packages/kitesurf-cli/architecture.mmd
+  s_4ba79f911c93c4::t_1b2deb1c188209 1-47
+packages/kitesurf-cli/architecture.svg
+  s_4ba79f911c93c4::t_32ff38b1f84553 1
+packages/kitesurf-cli/package.json
+  s_4ba79f911c93c4::t_77e3243562dde5 1-10
+packages/kitesurf-cli/src/access.rs
+  s_4ba79f911c93c4::t_c78e881feec1e7 1-175
+packages/kitesurf-cli/src/cli.rs
+  s_4ba79f911c93c4::t_5284010c28b9bc 1-234
+packages/kitesurf-cli/src/font_cache.rs
+  s_4ba79f911c93c4::t_63f7d802d80d76 1-225
+packages/kitesurf-cli/src/font_cache_tests.rs
+  s_4ba79f911c93c4::t_506e5bfe7ba351 1-333
+packages/kitesurf-cli/src/lib.rs
+  s_4ba79f911c93c4::t_37ce094485b502 1-142
+packages/kitesurf-cli/src/main.rs
+  s_4ba79f911c93c4::t_219ef53d6075c1 1-157
+packages/kitesurf-cli/src/playback.rs
+  s_4ba79f911c93c4::t_3848b0d789a2d5 1-2422
+packages/kitesurf-cli/src/scene_host.rs
+  s_4ba79f911c93c4::t_4475547c69988a 1-164
+packages/kitesurf-cli/src/scene_host_tests.rs
+  s_4ba79f911c93c4::t_0ca28a6604c7a7 1-266
+packages/kitesurf-cli/src/wasm.rs
+  s_4ba79f911c93c4::t_255025c053b5ed 1-268
+packages/page-renderer/BUILD.bazel
+  s_4ba79f911c93c4::t_971088714be7cc 1-48
+packages/page-renderer/package.json
+  s_4ba79f911c93c4::t_7ab786a8da67d7 1-26
+packages/page-renderer/scripts/build.mjs
+  s_4ba79f911c93c4::t_cbe93f5a6eec82 1-70
+packages/page-renderer/src/index.ts
+  s_4ba79f911c93c4::t_fdf740ba81bc09 1-712
+packages/page-renderer/src/shims.ts
+  s_4ba79f911c93c4::t_3a2d91bf2b6750 1-14
+packages/page-renderer/src/wasm-glue.ts
+  s_4ba79f911c93c4::t_d4e1928b2b1980 1-61
+packages/page-renderer/test/types.contract.ts
+  s_4ba79f911c93c4::t_0c0a5b0215b013 1-35
+packages/page-renderer/tsconfig.json
+  s_4ba79f911c93c4::t_8ad816293cda14 1-19
+packages/page-script/BUILD.bazel
+  s_4ba79f911c93c4::t_cd04951bc657f4 1-65
+packages/page-script/package.json
+  s_4ba79f911c93c4::t_00985c321eaf43 1-34
+packages/page-script/scripts/build.mjs
+  s_4ba79f911c93c4::t_c944d2cbd767a1 1-260
+packages/page-script/src/__ks_import_map.ts
+  s_4ba79f911c93c4::t_c8e121a4210597 1-9
+packages/page-script/src/__ks_startup_probe_input.ts
+  s_4ba79f911c93c4::t_71ad114de21ff9 1-37
+packages/page-script/src/__ks_user_classic_async.ts
+  s_4ba79f911c93c4::t_429f08ecb5bc94 1-9
+packages/page-script/src/__ks_user_classic_regular.ts
+  s_4ba79f911c93c4::t_0091bd0f512128 1-9
+packages/page-script/src/__ks_wasm_registry.ts
+  s_4ba79f911c93c4::t_7867d1342e73a6 1-19
+packages/page-script/src/boa-classic.ts
+  s_4ba79f911c93c4::t_2c8e5fa3e6cf61 1-70
+packages/page-script/src/cdp-nodes.ts
+  s_4ba79f911c93c4::t_f45cf53d98618c 1-45
+packages/page-script/src/console-buffer.ts
+  s_4ba79f911c93c4::t_c27369c818b19d 1-200
+packages/page-script/src/contenteditable-input.ts
+  s_4ba79f911c93c4::t_d314ce828cf791 1-129
+packages/page-script/src/dedicated-worker.ts
+  s_4ba79f911c93c4::t_d7c6969f6e6148 1-452
+packages/page-script/src/defer-shim.ts
+  s_4ba79f911c93c4::t_4c58f76554527c 1-368
+packages/page-script/src/dom-shim.ts
+  s_4ba79f911c93c4::t_fa257b480bc95a 1-23
+packages/page-script/src/engine-error.ts
+  s_4ba79f911c93c4::t_14cdf094dad023 1-60
+packages/page-script/src/eval-helpers.ts
+  s_4ba79f911c93c4::t_dec9e02b3a0851 1-300
+packages/page-script/src/eval-results.ts
+  s_4ba79f911c93c4::t_c6896997003c24 1-28
+packages/page-script/src/exception-buffer.ts
+  s_4ba79f911c93c4::t_b93037166dbcc3 1-58
+packages/page-script/src/fetch-shim.ts
+  s_4ba79f911c93c4::t_4fa28a3a938b11 1-1119
+packages/page-script/src/fetch-slots.ts
+  s_4ba79f911c93c4::t_bceabb0230057d 1-216
+packages/page-script/src/font-loader.ts
+  s_4ba79f911c93c4::t_9ba29871d72cad 1-744
+packages/page-script/src/globals.ts
+  s_4ba79f911c93c4::t_706205cc470cde 1-5204
+packages/page-script/src/handles.ts
+  s_4ba79f911c93c4::t_6f352a621397ad 1-42
+packages/page-script/src/index.ts
+  s_4ba79f911c93c4::t_9cb477bde04f15 1-6879
+packages/page-script/src/indexeddb.ts
+  s_4ba79f911c93c4::t_3e34c900327968 1-35
+packages/page-script/src/init-shims.ts
+  s_4ba79f911c93c4::t_16118d9f33fcc0 1-224
+packages/page-script/src/inserted-scripts.ts
+  s_4ba79f911c93c4::t_24b611629b6300 1-225
+packages/page-script/src/internal-state.ts
+  s_4ba79f911c93c4::t_da3f13f953608a 1-188
+packages/page-script/src/intersection-observer.ts
+  s_4ba79f911c93c4::t_7f384a65f475d3 1-680
+packages/page-script/src/lag-monitor.ts
+  s_4ba79f911c93c4::t_4fc43d10405195 1-56
+packages/page-script/src/message-channel.ts
+  s_4ba79f911c93c4::t_7e7cd843707453 1-239
+packages/page-script/src/mime-type.ts
+  s_4ba79f911c93c4::t_6d79818fc0846d 1-186
+packages/page-script/src/native-functions.ts
+  s_4ba79f911c93c4::t_19c239fe83f6ae 1-131
+packages/page-script/src/native-http.ts
+  s_4ba79f911c93c4::t_f2027b848b18fe 1-103
+packages/page-script/src/native-scheduling.ts
+  s_4ba79f911c93c4::t_899ceb43764aa8 1-58
+packages/page-script/src/pack.ts
+  s_4ba79f911c93c4::t_7f70ecc698846e 1-171
+packages/page-script/src/page-tasks.ts
+  s_4ba79f911c93c4::t_304131e56dfa2f 1-732
+packages/page-script/src/paint.ts
+  s_4ba79f911c93c4::t_028202a06712fc 1-295
+packages/page-script/src/resource-fetch.ts
+  s_4ba79f911c93c4::t_7bd09b0d6573ff 1-901
+packages/page-script/src/scheduler.ts
+  s_4ba79f911c93c4::t_fd38bd94954dda 1-53
+packages/page-script/src/script-policy.ts
+  s_4ba79f911c93c4::t_a28619c621f073 1-127
+packages/page-script/src/scripts.ts
+  s_4ba79f911c93c4::t_d930a22770760a 1-482
+packages/page-script/src/selectors.ts
+  s_4ba79f911c93c4::t_5e54bfcfd72441 1-41
+packages/page-script/src/session-methods.ts
+  s_4ba79f911c93c4::t_6758a7388d9657 1-113
+packages/page-script/src/session-outbound.ts
+  s_4ba79f911c93c4::t_a94d1c32746eb8 1-112
+packages/page-script/src/shared-memory.ts
+  s_4ba79f911c93c4::t_7060feb1165b06 1-32
+packages/page-script/src/shims.ts
+  s_4ba79f911c93c4::t_8356c794fc829b 1-16
+packages/page-script/src/startup-probe.ts
+  s_4ba79f911c93c4::t_385c9e7329be21 1-166
+packages/page-script/src/state.ts
+  s_4ba79f911c93c4::t_792b9df5b8e3a7 1-131
+packages/page-script/src/svg-sprites.ts
+  s_4ba79f911c93c4::t_108f63e0becddd 1-174
+packages/page-script/src/transitions.ts
+  s_4ba79f911c93c4::t_c1a811ba3027f4 1-237
+packages/page-script/src/trusted-fetch.ts
+  s_4ba79f911c93c4::t_74d424eb610985 1-41
+packages/page-script/src/types.ts
+  s_4ba79f911c93c4::t_ad62c0e0db4e89 1-117
+packages/page-script/src/wasm-baked.ts
+  s_4ba79f911c93c4::t_cf3fd0de23e74b 1-118
+packages/page-script/src/wasm-crash.ts
+  s_4ba79f911c93c4::t_294279cb2b7631 1-27
+packages/page-script/src/wasm-glue.ts
+  s_4ba79f911c93c4::t_8012edef321457 1-150
+packages/page-script/src/websocket.ts
+  s_4ba79f911c93c4::t_2f4c2a3e76544a 1-272
+packages/page-script/tsconfig.json
+  s_4ba79f911c93c4::t_6d4f284b41c4d3 1-22
+packages/renderer-core/.cargo/config.toml
+  s_4ba79f911c93c4::t_6d05fdbc5aa300 1
+packages/renderer-core/BUILD.bazel
+  s_4ba79f911c93c4::t_76c04246563def 1-58
+packages/renderer-core/Cargo.toml
+  s_4ba79f911c93c4::t_6456a0014f179c 1-45
+packages/renderer-core/scripts/build.mjs
+  s_4ba79f911c93c4::t_20fbaaf9ad373e 1-208
+packages/renderer-core/src/lib.rs
+  s_4ba79f911c93c4::t_37a1f9071541fd 1-28
+packages/renderer-core/src/paint.rs
+  s_4ba79f911c93c4::t_5fe225800a9bb9 1-33
+packages/scene-host-wasm/BUILD.bazel
+  s_4ba79f911c93c4::t_29fdf0508f9d39 1-75
+packages/scene-host-wasm/Cargo.toml
+  s_4ba79f911c93c4::t_d95ca108976a9f 1-35
+packages/scene-host-wasm/scripts/build.mjs
+  s_4ba79f911c93c4::t_6b4085fbd9e4a4 1-85
+packages/scene-host-wasm/src/lib.rs
+  s_4ba79f911c93c4::t_d38e8dafb07448 1-316
+packages/scene-host-wasm/src/paint.rs
+  s_4ba79f911c93c4::t_48017e823a0f4f 1-31
+packages/scene-host-wasm/src/tty.rs
+  s_4ba79f911c93c4::t_186cb23e92358b 1-22
+packages/scene-host-wasm/test/abi.test.mjs
+  s_4ba79f911c93c4::t_14ec0acf6829e5 1-336
+packages/script-gate/BUILD.bazel
+  s_4ba79f911c93c4::t_af95b632ab0a7f 1-29
+packages/script-gate/package.json
+  s_4ba79f911c93c4::t_e9a67d8505340f 1-25
+packages/script-gate/src/classic-scan.ts
+  s_4ba79f911c93c4::t_8055f148fcfddc 1-492
+packages/script-gate/src/csp.ts
+  s_4ba79f911c93c4::t_72f2b9608f21eb 1-280
+packages/script-gate/src/digest.ts
+  s_4ba79f911c93c4::t_a5d3675663271f 1-20
+packages/script-gate/src/gate.ts
+  s_4ba79f911c93c4::t_d1f3e7f2fae593 1-320
+packages/script-gate/src/gateway-headers.ts
+  s_4ba79f911c93c4::t_dfb5e1a87e224b 1-13
+packages/script-gate/src/index.ts
+  s_4ba79f911c93c4::t_a36ec058c466a7 1-55
+packages/script-gate/src/mime.ts
+  s_4ba79f911c93c4::t_10df1bae7a6e3b 1-61
+packages/script-gate/src/referrer-policy.ts
+  s_4ba79f911c93c4::t_0bb0bb3b3b9892 1-80
+packages/script-gate/src/sri.ts
+  s_4ba79f911c93c4::t_9615351aabe75d 1-127
+packages/script-gate/test/classic-scan.test.ts
+  s_4ba79f911c93c4::t_d64119649f494f 1-98
+packages/script-gate/test/digest.test.ts
+  s_4ba79f911c93c4::t_11493f28b66c09 1-21
+packages/script-gate/test/gate.test.ts
+  s_4ba79f911c93c4::t_0ea1954b855e4d 1-514
+packages/script-gate/test/referrer-policy.test.ts
+  s_4ba79f911c93c4::t_d9174d3cce601b 1-64
+packages/script-gate/tsconfig.json
+  s_4ba79f911c93c4::t_d2412dc3b801ae 1-23
+packages/tty-css-preview/BUILD.bazel
+  s_4ba79f911c93c4::t_172af8506ff339 1-43
+packages/tty-css-preview/README.md
+  s_4ba79f911c93c4::t_4f32ed9cc146cf 1-62
+packages/tty-css-preview/extension/background.js
+  s_4ba79f911c93c4::t_0dd964cbac2058 1-75
+packages/tty-css-preview/extension/content.js
+  s_4ba79f911c93c4::t_f96721cd3a9ed7 1-454
+packages/tty-css-preview/extension/fallback-level1.css
+  s_4ba79f911c93c4::t_e77f060895f76f 1-248
+packages/tty-css-preview/extension/fallback-level2.css
+  s_4ba79f911c93c4::t_7715c4bbc55b61 1-18
+packages/tty-css-preview/extension/manifest.json
+  s_4ba79f911c93c4::t_09d68990be6e4b 1-27
+packages/tty-css-preview/extension/popup.css
+  s_4ba79f911c93c4::t_d74951cf5d080e 1-81
+packages/tty-css-preview/extension/popup.html
+  s_4ba79f911c93c4::t_bebfccc52a8d36 1-33
+packages/tty-css-preview/extension/popup.js
+  s_4ba79f911c93c4::t_fa8700471b1aa0 1-29
+packages/tty-css-preview/extension/scroll.js
+  s_4ba79f911c93c4::t_630c068a153299 1-35
+packages/tty-css-preview/extension/snap.js
+  s_4ba79f911c93c4::t_a294b2b59aef6d 1-27
+packages/tty-css-preview/extension/update.js
+  s_4ba79f911c93c4::t_2771ee4720ce44 1-84
+packages/tty-css-preview/package.json
+  s_4ba79f911c93c4::t_f97a808b2208ac 1-13
+packages/tty-css-preview/src/server.mjs
+  s_4ba79f911c93c4::t_8a1bc4f6e89351 1-101
+packages/tty-css-preview/test/content-script-fixture.mjs
+  s_4ba79f911c93c4::t_50b16c8919acae 1-326
+packages/tty-css-preview/test/content.test.mjs
+  s_4ba79f911c93c4::t_3a9552873fd4b6 1-396
+packages/tty-css-preview/test/grid.test.mjs
+  s_4ba79f911c93c4::t_a4eb75268e459b 1-36
+packages/tty-css-preview/test/scroll.test.mjs
+  s_4ba79f911c93c4::t_6c896e2c1ce30e 1-41
+packages/tty-css-preview/test/server.test.mjs
+  s_4ba79f911c93c4::t_05b9a17e07bbbc 1-105
+packages/tty-css-preview/test/snap.test.mjs
+  s_4ba79f911c93c4::t_ec27a9bbaf38ca 1-40
+packages/tty-css-preview/test/update.test.mjs
+  s_4ba79f911c93c4::t_820304c8de7b4b 1-123
+packages/worker-script/BUILD.bazel
+  s_4ba79f911c93c4::t_c2acd09d56e42f 1-63
+packages/worker-script/package.json
+  s_4ba79f911c93c4::t_b906ed9553e6e2 1-27
+packages/worker-script/scripts/build.mjs
+  s_4ba79f911c93c4::t_c1d334ced27957 1-66
+packages/worker-script/src/__ks_worker_script.ts
+  s_4ba79f911c93c4::t_5c8b5b1195f88b 1-9
+packages/worker-script/src/index.ts
+  s_4ba79f911c93c4::t_524ef64379c915 1-143
+packages/worker-script/src/scope.ts
+  s_4ba79f911c93c4::t_4dc9f8ffd09a1d 1-445
+packages/worker-script/src/shims.ts
+  s_4ba79f911c93c4::t_a8704842bf09e2 1-7
+packages/worker-script/tsconfig.json
+  s_4ba79f911c93c4::t_b311bd36e35781 1-21
+packages/worker-script/tsconfig.strict.json
+  s_4ba79f911c93c4::t_8d2bc2806e4294 1-12
+pnpm-lock.yaml
+  s_4ba79f911c93c4::t_431ba391861287 1-3399
+pnpm-workspace.yaml
+  s_4ba79f911c93c4::t_4137e9d283c07f 1-10
+rust-toolchain.toml
+  s_4ba79f911c93c4::t_0f909d951c2fba 1-25
+rustfmt.toml
+  s_4ba79f911c93c4::t_dccac8591e898e 1-3
+scripts/BUILD.bazel
+  s_4ba79f911c93c4::t_a3950607c747c4 1-400
+scripts/ax-dump.mjs
+  s_4ba79f911c93c4::t_fef08012fa502d 1-61
+scripts/bench-scene-record.mjs
+  s_4ba79f911c93c4::t_672cf41996e578 1-230
+scripts/build-wasm.mjs
+  s_4ba79f911c93c4::t_481bed09f7901c 1-342
+scripts/cargo-lock-check-bazel.mjs
+  s_4ba79f911c93c4::t_156769445ff1d8 1-58
+scripts/check-dco.mjs
+  s_4ba79f911c93c4::t_1d58c99b58d498 1-69
+scripts/check-dco.test.mjs
+  s_4ba79f911c93c4::t_9bdf82df7e6e95 1-65
+scripts/check-license-headers.mjs
+  s_4ba79f911c93c4::t_8f194137aa9f0b 1-268
+scripts/check-license-headers.test.mjs
+  s_4ba79f911c93c4::t_7017749ff79d5b 1-131
+scripts/check-no-dts.mjs
+  s_4ba79f911c93c4::t_4b610bf817d126 1-21
+scripts/check-public-imports.mjs
+  s_4ba79f911c93c4::t_ee36fb9380baf0 1-185
+scripts/check-public-imports.test.mjs
+  s_4ba79f911c93c4::t_95977af1324f09 1-180
+scripts/check-ts-coverage.mjs
+  s_4ba79f911c93c4::t_0e420efc6a13dc 1-108
+scripts/declaration-twin-guard.mjs
+  s_4ba79f911c93c4::t_18cc8cb50037e0 1-36
+scripts/dev-ports.sh
+  s_4ba79f911c93c4::t_b694ad1cb22abb 1-29
+scripts/dump-gecko-only-longhands.mjs
+  s_4ba79f911c93c4::t_9233c377a428dd 1-30
+scripts/e2e-fixtures.mjs
+  s_4ba79f911c93c4::t_747957fb9914c0 1-45
+scripts/e2e-gate.mjs
+  s_4ba79f911c93c4::t_2f2a8205b96afe 1-109
+scripts/e2e-perf.mjs
+  s_4ba79f911c93c4::t_e4a5c8874fb697 1-505
+scripts/e2e-run.mjs
+  s_4ba79f911c93c4::t_c1fc996dbff65b 1-31
+scripts/e2e-shard.mjs
+  s_4ba79f911c93c4::t_20785be866c58d 1-126
+scripts/e2e-shards.mjs
+  s_4ba79f911c93c4::t_d39fd254a5f27d 1-108
+scripts/engine-e2e-config.test.mjs
+  s_4ba79f911c93c4::t_8ea272d01bfd20 1-18
+scripts/generate-webidl-bindings.mjs
+  s_4ba79f911c93c4::t_89152ce0de1674 1-491
+scripts/get-patched-vendor-crates.mjs
+  s_4ba79f911c93c4::t_b9d7915a1fe16a 1-271
+scripts/get-wasm-bindgen.mjs
+  s_4ba79f911c93c4::t_3c5a6749ab0a65 1-35
+scripts/lint/ANTI_SLOP_LICENSE.txt
+  s_4ba79f911c93c4::t_2a448715da1888 1-25
+scripts/lint/check-rust-comments.mjs
+  s_4ba79f911c93c4::t_6a9c36c9bc1986 1-22
+scripts/lint/check-rust-nesting.mjs
+  s_4ba79f911c93c4::t_d5001564300f26 1-55
+scripts/lint/comment-policy.mjs
+  s_4ba79f911c93c4::t_88cddc3d0040b3 1-623
+scripts/lint/comment-policy.test.mjs
+  s_4ba79f911c93c4::t_aeb710f6a7e0f1 1-417
+scripts/lint/complexity.mjs
+  s_4ba79f911c93c4::t_3ebe90cab1ea97 1-339
+scripts/lint/complexity.test.mjs
+  s_4ba79f911c93c4::t_36c64bbe0c5ece 1-183
+scripts/lint/index.ts
+  s_4ba79f911c93c4::t_ad8257cecb83ec 1-21
+scripts/lint/package.json
+  s_4ba79f911c93c4::t_ce2bcaba3fe8b3 1-5
+scripts/lint/rules.test.ts
+  s_4ba79f911c93c4::t_e7b4e62cf38e4c 1-360
+scripts/lint/rules/concise-comments.ts
+  s_4ba79f911c93c4::t_2923e4aacc2c18 1-38
+scripts/lint/rules/explicit-boundary-returns.ts
+  s_4ba79f911c93c4::t_33fe05ad32f567 1-515
+scripts/lint/rules/no-chained-type-assertions.ts
+  s_4ba79f911c93c4::t_969ba3f3a2b68e 1-80
+scripts/lint/rules/no-unnecessary-unknown.ts
+  s_4ba79f911c93c4::t_2e29b209b7013b 1-386
+scripts/lint/rules/no-widen-then-assert.ts
+  s_4ba79f911c93c4::t_2dca7a92c1bef0 1-369
+scripts/lint/rules/typescript-contracts.ts
+  s_4ba79f911c93c4::t_d411cf900708f0 1-338
+scripts/lint/run.mjs
+  s_4ba79f911c93c4::t_5f0c35354fa61e 1-134
+scripts/lint/rust-check/Cargo.lock
+  s_4ba79f911c93c4::t_9af37c1dcf2231 1-46
+scripts/lint/rust-check/Cargo.toml
+  s_4ba79f911c93c4::t_23d49ee1d6735b 1-11
+scripts/lint/rust-check/src/main.rs
+  s_4ba79f911c93c4::t_490852dbe29476 1-843
+scripts/lint/rust-comments.mjs
+  s_4ba79f911c93c4::t_ced39f487d5cea 1-166
+scripts/lint/rust.mjs
+  s_4ba79f911c93c4::t_29d07ca3b5c156 1-391
+scripts/lint/scope.mjs
+  s_4ba79f911c93c4::t_61c4382c185ccc 1-114
+scripts/lint/tsconfig.json
+  s_4ba79f911c93c4::t_f4055ef56604bc 1-19
+scripts/lockfile-check-bazel.mjs
+  s_4ba79f911c93c4::t_e5cf7d4dcfeb91 1-41
+scripts/memprof-rewriter/Cargo.lock
+  s_4ba79f911c93c4::t_97559c8f5125e7 1-308
+scripts/memprof-rewriter/Cargo.toml
+  s_4ba79f911c93c4::t_b8df188471d148 1-16
+scripts/memprof-rewriter/src/main.rs
+  s_4ba79f911c93c4::t_b6d23cec7b3caf 1-123
+scripts/memprof.mjs
+  s_4ba79f911c93c4::t_9a7d24ce5eae7d 1-174
+scripts/node-test-bazel.mjs
+  s_4ba79f911c93c4::t_62526020f1cb4a 1-20
+scripts/patches/README.md
+  s_4ba79f911c93c4::t_c98fe3ef07da4f 1-269
+scripts/patches/anyrender-0.14.0/0001-Add-PaintScene-begin_part-end_part.patch
+  s_4ba79f911c93c4::t_bbfe0dcb522580 1-66
+scripts/patches/anyrender-0.14.0/0002-Carry-form-control-state-on-ScenePart.patch
+  s_4ba79f911c93c4::t_96960b3b7da3c2 1-35
+scripts/patches/anyrender-0.14.0/0003-Add-PaintScene-push_clip_path-pop_clip_path.patch
+  s_4ba79f911c93c4::t_42fd76d5c74723 1-38
+scripts/patches/anyrender_vello_cpu-0.18.0/0001-Implement-PaintScene-push_clip_path-with-vello_cpu-c.patch
+  s_4ba79f911c93c4::t_af230ddc70277c 1-35
+scripts/patches/anyrender_vello_cpu-0.18.0/0002-Skip-premultiplying-opaque-images.patch
+  s_4ba79f911c93c4::t_7d578be2cc678a 1-73
+scripts/patches/blitz-dom-0.3.0-beta.3/0001-Baseline-inline-decorations-layout-and-robustness-fi.patch
+  s_4ba79f911c93c4::t_4b33b47ddfd118 1-1619
+scripts/patches/blitz-dom-0.3.0-beta.3/0002-Add-shadow-root-node-model-NodeData-ShadowRoot-host-.patch
+  s_4ba79f911c93c4::t_ae7a8b17db8146 1-205
+scripts/patches/blitz-dom-0.3.0-beta.3/0003-Only-clamp-replaced-elements-to-available-inline-spa.patch
+  s_4ba79f911c93c4::t_0abbccd8cd5c42 1-45
+scripts/patches/blitz-dom-0.3.0-beta.3/0004-Wire-attach_shadow-through-the-mutator-shadow-aware-.patch
+  s_4ba79f911c93c4::t_3836de6a670d42 1-180
+scripts/patches/blitz-dom-0.3.0-beta.3/0005-Implement-stylo-s-shadow-topology-traits-flat-tree-t.patch
+  s_4ba79f911c93c4::t_71d23f1fbb03fb 1-160
+scripts/patches/blitz-dom-0.3.0-beta.3/0006-Treat-canvas-as-a-replaced-element-with-a-JS-fed-fra.patch
+  s_4ba79f911c93c4::t_4895c810c7f73f 1-97
+scripts/patches/blitz-dom-0.3.0-beta.3/0007-Route-layout-construction-through-the-flat-tree-shad.patch
+  s_4ba79f911c93c4::t_ddac986e08f2f4 1-339
+scripts/patches/blitz-dom-0.3.0-beta.3/0008-kitesurf_clear_canvas_image-guard-on-canvas-local-na.patch
+  s_4ba79f911c93c4::t_ef12a6005ac707 1-30
+scripts/patches/blitz-dom-0.3.0-beta.3/0009-Scope-shadow-tree-stylesheets-via-per-root-AuthorSty.patch
+  s_4ba79f911c93c4::t_f587fe4e9ec229 1-462
+scripts/patches/blitz-dom-0.3.0-beta.3/0010-Parse-shadow-root-innerHTML-under-a-temp-host-named-.patch
+  s_4ba79f911c93c4::t_6d126cab13ba80 1-51
+scripts/patches/blitz-dom-0.3.0-beta.3/0011-Implement-slot-assignment-named-slots-fallback-slott.patch
+  s_4ba79f911c93c4::t_94456cf9b8ec0a 1-538
+scripts/patches/blitz-dom-0.3.0-beta.3/0012-Keep-shadow-tree-ids-out-of-the-document-ID-map.patch
+  s_4ba79f911c93c4::t_d25108b198c78e 1-36
+scripts/patches/blitz-dom-0.3.0-beta.3/0013-Skip-slot-assignment-recompute-when-nothing-could-ha.patch
+  s_4ba79f911c93c4::t_81fc7b8d2fdcc3 1-110
+scripts/patches/blitz-dom-0.3.0-beta.3/0014-Dims-only-image-loads-for-out-of-isolate-rendering-r.patch
+  s_4ba79f911c93c4::t_66e6ea4dd82348 1-347
+scripts/patches/blitz-dom-0.3.0-beta.3/0015-Materialize-decodes-at-the-node-s-laid-out-size-mip-.patch
+  s_4ba79f911c93c4::t_bdfd3616a6917c 1-139
+scripts/patches/blitz-dom-0.3.0-beta.3/0016-Expose-invalidate_inline_contexts-for-kitesurf-font-.patch
+  s_4ba79f911c93c4::t_5edf4f59890356 1-34
+scripts/patches/blitz-dom-0.3.0-beta.3/0017-Lazy-font-face-loading-fetch-only-faces-whose-family.patch
+  s_4ba79f911c93c4::t_52cadefd947713 1-409
+scripts/patches/blitz-dom-0.3.0-beta.3/0018-Drop-doc-wide-materialize-inline-context-invalidatio.patch
+  s_4ba79f911c93c4::t_f0a3ae9c530f8a 1-58
+scripts/patches/blitz-dom-0.3.0-beta.3/0019-Decode-bomb-guard-in-kitesurf_materialize_image_data.patch
+  s_4ba79f911c93c4::t_18739368b60d8e 1-45
+scripts/patches/blitz-dom-0.3.0-beta.3/0020-Add-node_has_pending_image-for-srcset-mutation-compl.patch
+  s_4ba79f911c93c4::t_10abb510da2af9 1-50
+scripts/patches/blitz-dom-0.3.0-beta.3/0021-Treat-iframe-as-a-replaced-element-with-a-JS-fed-bit.patch
+  s_4ba79f911c93c4::t_8f25249f94749f 1-110
+scripts/patches/blitz-dom-0.3.0-beta.3/0022-Add-set_text_input_value-IDL-value-override-decouple.patch
+  s_4ba79f911c93c4::t_d73be72c8caec7 1-180
+scripts/patches/blitz-dom-0.3.0-beta.3/0023-Add-SpecialElementData-RangeInput-carrying-the-slide.patch
+  s_4ba79f911c93c4::t_9b464fdee890b3 1-118
+scripts/patches/blitz-dom-0.3.0-beta.3/0024-Add-DocumentMutator-set_text_input_selection-JS-sele.patch
+  s_4ba79f911c93c4::t_2db8ab9c0aac46 1-73
+scripts/patches/blitz-dom-0.3.0-beta.3/0025-Flush-nested-inline-pseudo-elements-child-display-no.patch
+  s_4ba79f911c93c4::t_557c4acc924fcb 1-39
+scripts/patches/blitz-dom-0.3.0-beta.3/0026-UA-stylesheet-strip-box-chrome-from-input-type-range.patch
+  s_4ba79f911c93c4::t_089d0c6d3fc881 1-35
+scripts/patches/blitz-dom-0.3.0-beta.3/0027-CSS-compat-lift-webkit-slider-thumb-colors-into-acce.patch
+  s_4ba79f911c93c4::t_52a793f998d28b 1-264
+scripts/patches/blitz-dom-0.3.0-beta.3/0028-Harden-RangeInput-layout-construction-against-non-fi.patch
+  s_4ba79f911c93c4::t_9854e3f226329e 1-49
+scripts/patches/blitz-dom-0.3.0-beta.3/0029-Honor-the-media-attribute-on-style-elements.patch
+  s_4ba79f911c93c4::t_8bdf60cdad0434 1-128
+scripts/patches/blitz-dom-0.3.0-beta.3/0030-Resolve-use-href-id-against-the-whole-document-for-i.patch
+  s_4ba79f911c93c4::t_03fe12f909ca8e 1-172
+scripts/patches/blitz-dom-0.3.0-beta.3/0031-Stamp-computed-CSS-fill-and-sRGB-legacy-colors-on-se.patch
+  s_4ba79f911c93c4::t_d182f236111269 1-112
+scripts/patches/blitz-dom-0.3.0-beta.3/0032-Seed-TextInputData-so-pre-layout-.value-writes-aren-.patch
+  s_4ba79f911c93c4::t_f48177968af0f2 1-56
+scripts/patches/blitz-dom-0.3.0-beta.3/0033-Honour-SVG-view-fragments-on-image-loads-img.svg-vie.patch
+  s_4ba79f911c93c4::t_859841f3bb3c34 1-222
+scripts/patches/blitz-dom-0.3.0-beta.3/0034-Stamp-bidi-base-direction-alignment-on-text-editors-.patch
+  s_4ba79f911c93c4::t_429f2f3dfc986c 1-72
+scripts/patches/blitz-dom-0.3.0-beta.3/0035-Resolve-dir-auto-DOM-side-and-stamp-inline-layout-ba.patch
+  s_4ba79f911c93c4::t_a437814452900c 1-136
+scripts/patches/blitz-dom-0.3.0-beta.3/0036-UA-stylesheet-overflow-hidden-on-svg-viewport-elemen.patch
+  s_4ba79f911c93c4::t_0c884cfae1e1e4 1-32
+scripts/patches/blitz-dom-0.3.0-beta.3/0037-Inline-bidi-isolation-wrap-dir-attributed-spans-in-U.patch
+  s_4ba79f911c93c4::t_deee4e75a2b939 1-154
+scripts/patches/blitz-dom-0.3.0-beta.3/0038-HTML-directionality-dir-matching-dir-auto-cascade-hi.patch
+  s_4ba79f911c93c4::t_eb5535aa6262b5 1-347
+scripts/patches/blitz-dom-0.3.0-beta.3/0039-DOM-selection-paint-bridge-resolve-DOM-boundaries-on.patch
+  s_4ba79f911c93c4::t_e276261e5b69ad 1-295
+scripts/patches/blitz-dom-0.3.0-beta.3/0040-Text-controls-dir-auto-reads-the-live-value-ASCII-ci.patch
+  s_4ba79f911c93c4::t_0932c5c241ad5d 1-189
+scripts/patches/blitz-dom-0.3.0-beta.3/0041-Implement-query_container_size-from-the-last-taffy-l.patch
+  s_4ba79f911c93c4::t_049ffbe0486a8c 1-40
+scripts/patches/blitz-dom-0.3.0-beta.3/0042-SVG-image-naturals-record-viewBox-aspect-survive-zer.patch
+  s_4ba79f911c93c4::t_75626c839f6650 1-149
+scripts/patches/blitz-dom-0.3.0-beta.3/0043-Replaced-sizing-CSS-naturals-for-SVG-images-no-stret.patch
+  s_4ba79f911c93c4::t_09f332a0d6165b 1-292
+scripts/patches/blitz-dom-0.3.0-beta.3/0044-webkit-box-flex-emulated-layout-line-clamp-line-trun.patch
+  s_4ba79f911c93c4::t_7143a44bf3fae1 1-197
+scripts/patches/blitz-dom-0.3.0-beta.3/0045-Capture-taffy-s-DetailedGridInfo-per-grid-container.patch
+  s_4ba79f911c93c4::t_8ffa472c6e57ae 1-51
+scripts/patches/blitz-dom-0.3.0-beta.3/0046-SVG-text-let-the-embedder-supply-usvg-s-font-databas.patch
+  s_4ba79f911c93c4::t_128d6a817da77f 1-119
+scripts/patches/blitz-dom-0.3.0-beta.3/0047-Resolve-CSS-values-in-SVG-presentation-attributes-be.patch
+  s_4ba79f911c93c4::t_eac9fa65fc710c 1-258
+scripts/patches/blitz-dom-0.3.0-beta.3/0048-SVG-generic-families-fall-back-to-the-registered-san.patch
+  s_4ba79f911c93c4::t_6374d7c33a5a0a 1-41
+scripts/patches/blitz-dom-0.3.0-beta.3/0049-Paint-re-anchored-abspos-boxes-at-their-DOM-position.patch
+  s_4ba79f911c93c4::t_2758381b43267f 1-407
+scripts/patches/blitz-dom-0.3.0-beta.3/0050-compare_document_order-pseudo-elements-order-by-box-.patch
+  s_4ba79f911c93c4::t_a592167f457b0e 1-46
+scripts/patches/blitz-dom-0.3.0-beta.3/0051-Implement-CSS-counters-resolution-pass-counter-conte.patch
+  s_4ba79f911c93c4::t_2445ae0121584a 1-1039
+scripts/patches/blitz-dom-0.3.0-beta.3/0052-Anonymous-table-objects-CSS-2.2-17.2.1-both-directio.patch
+  s_4ba79f911c93c4::t_7d066936c2f9ad 1-484
+scripts/patches/blitz-dom-0.3.0-beta.3/0053-cross-resolve-damage-summary-for-partial-frame-gatin.patch
+  s_4ba79f911c93c4::t_40b96aac65ac1c 1-180
+scripts/patches/blitz-dom-0.3.0-beta.3/0054-Replaced-max-size-leniency-only-applies-to-natural-s.patch
+  s_4ba79f911c93c4::t_0df4565c8efd85 1-56
+scripts/patches/blitz-dom-0.3.0-beta.3/0055-Bake-computed-font-styling-into-serialized-svg-text-.patch
+  s_4ba79f911c93c4::t_603815bb32a5ac 1-100
+scripts/patches/blitz-dom-0.3.0-beta.3/0056-Expose-full-SvgImageData-to-consumers.patch
+  s_4ba79f911c93c4::t_c60d28f7f65f2e 1-33
+scripts/patches/blitz-dom-0.3.0-beta.3/0057-Add-live_rehomed_reach-scroll-fresh-union-of-re-home.patch
+  s_4ba79f911c93c4::t_98610b73f3e39f 1-57
+scripts/patches/blitz-dom-0.3.0-beta.3/0058-Namespace-aware-selector-parsing-for-CSSOM-selectorT.patch
+  s_4ba79f911c93c4::t_e3c83de0f62095 1-61
+scripts/patches/blitz-dom-0.3.0-beta.3/0059-dom_caret_from_point-DOM-caret-text-node-utf16-offse.patch
+  s_4ba79f911c93c4::t_cb678470146621 1-71
+scripts/patches/blitz-dom-0.3.0-beta.3/0060-Explicit-height-with-a-ratio-counts-as-an-explicit-w.patch
+  s_4ba79f911c93c4::t_f9163e73e5341e 1-32
+scripts/patches/blitz-dom-0.3.0-beta.3/0061-fonts_upgraded-re-bind-glyph-runs-re-serialize-inlin.patch
+  s_4ba79f911c93c4::t_4a2d42341e19fc 1-59
+scripts/patches/blitz-dom-0.3.0-beta.3/0062-record-author-font-face-registrations-for-the-embedd.patch
+  s_4ba79f911c93c4::t_e5c31340321653 1-111
+scripts/patches/blitz-dom-0.3.0-beta.3/0063-Let-the-embedder-deliver-a-dims-only-image-with-no-p.patch
+  s_4ba79f911c93c4::t_c5f444edc3e23d 1-161
+scripts/patches/blitz-dom-0.3.0-beta.3/0064-Tag-nested-import-stylesheet-fetches-text-css-like-t.patch
+  s_4ba79f911c93c4::t_c412cd0a165ea4 1-41
+scripts/patches/blitz-dom-0.3.0-beta.3/0065-Carry-the-CSS-fetch-mode-on-stylesheet-Requests-as-a.patch
+  s_4ba79f911c93c4::t_f4d67b134c7155 1-163
+scripts/patches/blitz-dom-0.3.0-beta.3/0066-re-anchor-position-fixed-rect-queries-by-the-viewpor.patch
+  s_4ba79f911c93c4::t_8a2ef6c745d139 1-60
+scripts/patches/blitz-dom-0.3.0-beta.3/0067-Only-force-a-restyle-for-an-animation-set-that-still.patch
+  s_4ba79f911c93c4::t_a542ffe0ad171d 1-57
+scripts/patches/blitz-dom-0.3.0-beta.3/0068-Scope-linked-stylesheets-to-their-link-media-attribu.patch
+  s_4ba79f911c93c4::t_ac9075dbcab29e 1-155
+scripts/patches/blitz-dom-0.3.0-beta.3/0069-Skip-a-font-family-still-waiting-on-a-face-for-the-w.patch
+  s_4ba79f911c93c4::t_3adf6559462d35 1-191
+scripts/patches/blitz-dom-0.3.0-beta.3/0070-Decode-legacy-non-UTF-8-stylesheets-instead-of-dropp.patch
+  s_4ba79f911c93c4::t_8a525f94f0d52d 1-91
+scripts/patches/blitz-dom-0.3.0-beta.3/0071-Drive-stylo-s-relative-selector-invalidator-so-has-i.patch
+  s_4ba79f911c93c4::t_2728158ba68eda 1-211
+scripts/patches/blitz-dom-0.3.0-beta.3/0072-keep-incremental-layout-from-losing-content.patch
+  s_4ba79f911c93c4::t_be3e97cfccc4ab 1-437
+scripts/patches/blitz-dom-0.3.0-beta.3/0073-Give-display-flow-root-its-own-block-formatting-cont.patch
+  s_4ba79f911c93c4::t_d1e0822d4538ee 1-44
+scripts/patches/blitz-dom-0.3.0-beta.3/0074-Re-scope-a-linked-stylesheet-when-its-media-attribut.patch
+  s_4ba79f911c93c4::t_f51ed1264d4e40 1-87
+scripts/patches/blitz-dom-0.3.0-beta.3/0075-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
+  s_4ba79f911c93c4::t_1456a9294f5c75 1-48
+scripts/patches/blitz-dom-0.3.0-beta.3/0076-Stamp-a-restyle-hint-when-remove_node-unlinks-a-chil.patch
+  s_4ba79f911c93c4::t_0f7c0491263962 1-40
+scripts/patches/blitz-dom-0.3.0-beta.3/0077-Drive-the-relative-selector-invalidator-for-tree-mut.patch
+  s_4ba79f911c93c4::t_d1140cebd2c07f 1-237
+scripts/patches/blitz-dom-0.3.0-beta.3/0078-Damage-the-nodes-whose-counters-moved-since-the-last.patch
+  s_4ba79f911c93c4::t_177f0df4ff2538 1-103
+scripts/patches/blitz-dom-0.3.0-beta.3/0079-bust-the-float-container-s-layout-cache-not-the-floa.patch
+  s_4ba79f911c93c4::t_38aa3079e76a2e 1-78
+scripts/patches/blitz-dom-0.3.0-beta.3/0080-clear-taffy-cache-for-RELAYOUT-damage-and-force-CONS.patch
+  s_4ba79f911c93c4::t_9a5fa80a3ea43c 1-62
+scripts/patches/blitz-dom-0.3.0-beta.3/0081-rebuild-the-box-tree-when-inherited-table-styles-cha.patch
+  s_4ba79f911c93c4::t_eee28abfcd8334 1-40
+scripts/patches/blitz-dom-0.3.0-beta.3/0082-Cut-the-cost-of-an-attribute-write.patch
+  s_4ba79f911c93c4::t_90d5c7428f8761 1-318
+scripts/patches/blitz-dom-0.3.0-beta.3/0083-Parse-each-SVG-once-and-cache-the-tree-on-its-source.patch
+  s_4ba79f911c93c4::t_cf4830c2d93c5e 1-114
+scripts/patches/blitz-dom-0.3.0-beta.3/0084-Time-the-fontface-counters-and-damage-summary-phases.patch
+  s_4ba79f911c93c4::t_0050757321a1c3 1-39
+scripts/patches/blitz-dom-0.3.0-beta.3/0085-dom-borrow-the-style-cell-once-per-primary_styles.patch
+  s_4ba79f911c93c4::t_b7deca86c3ebba 1-35
+scripts/patches/blitz-dom-0.3.0-beta.3/0086-Index-the-inline-roots-instead-of-scanning-the-slab-.patch
+  s_4ba79f911c93c4::t_e44b881b2f968a 1-150
+scripts/patches/blitz-dom-0.3.0-beta.3/0087-Gate-per-resolve-work-on-damage.patch
+  s_4ba79f911c93c4::t_e03d11b5df03c6 1-669
+scripts/patches/blitz-dom-0.3.0-beta.3/0088-propagate-damage-through-shadow-roots.patch
+  s_4ba79f911c93c4::t_7dfc8db81ac9bd 1-54
+scripts/patches/blitz-dom-0.3.0-beta.3/0089-rebuild-nested-shadow-layout-children.patch
+  s_4ba79f911c93c4::t_defa61e5881e3f 1-32
+scripts/patches/blitz-dom-0.3.0-beta.3/0090-Size-table-captions-from-their-minimum-width.patch
+  s_4ba79f911c93c4::t_fa6aadf80870d3 1-61
+scripts/patches/blitz-dom-0.3.0-beta.3/0091-Span-table-captions-across-every-column.patch
+  s_4ba79f911c93c4::t_70ff4df9015ce4 1-32
+scripts/patches/blitz-dom-0.3.0-beta.3/0092-Preserve-first-row-table-sizing-after-captions.patch
+  s_4ba79f911c93c4::t_c18ef2e93dd8de 1-74
+scripts/patches/blitz-dom-0.3.0-beta.3/0093-Keep-auto-table-tracks-flexible-after-captions.patch
+  s_4ba79f911c93c4::t_8c7873a3de90aa 1-41
+scripts/patches/blitz-dom-0.3.0-beta.3/0094-Finish-table-occupancy-review-fixes.patch
+  s_4ba79f911c93c4::t_f6e07525c3de8f 1-38
+scripts/patches/blitz-dom-0.3.0-beta.3/0095-Read-CSS-width-height-off-the-root-when-normalizing-.patch
+  s_4ba79f911c93c4::t_c2881aadace559 1-59
+scripts/patches/blitz-dom-0.3.0-beta.3/0096-Adapt-layout-paths-to-the-beta-APIs.patch
+  s_4ba79f911c93c4::t_35e78dda2eb4fa 1-34
+scripts/patches/blitz-dom-0.3.0-beta.3/0097-Span-table-captions-over-outer-border-spacing.patch
+  s_4ba79f911c93c4::t_b0048008a27cef 1-113
+scripts/patches/blitz-dom-0.3.0-beta.3/0098-Treat-shadow-roots-as-transparent-damage-boundaries.patch
+  s_4ba79f911c93c4::t_b2fdb68da704be 1-65
+scripts/patches/blitz-dom-0.3.0-beta.3/0099-Retain-table-computed-styles-for-calc-pointers.patch
+  s_4ba79f911c93c4::t_40db069c5a8e64 1-81
+scripts/patches/blitz-dom-0.3.0-beta.3/0100-Tag-iframe-document-requests-as-HTML.patch
+  s_4ba79f911c93c4::t_cc0dddd1abe6b7 1-31
+scripts/patches/blitz-dom-0.3.0-beta.3/0101-Restyle-container-queries-against-laid-out-container.patch
+  s_4ba79f911c93c4::t_fde670f4ed38bb 1-175
+scripts/patches/blitz-dom-0.3.0-beta.3/0102-Resolve-an-atomic-inline-s-own-intrinsic-width-keywo.patch
+  s_4ba79f911c93c4::t_7aeac2736ef659 1-92
+scripts/patches/blitz-dom-0.3.0-beta.3/0103-memory-manage-cached-author-sheet-lifetimes.patch
+  s_4ba79f911c93c4::t_4ea56915247c4a 1-156
+scripts/patches/blitz-dom-0.3.0-beta.3/0104-memory-support-embedder-managed-node-reclamation.patch
+  s_4ba79f911c93c4::t_b69aa7c2853044 1-54
+scripts/patches/blitz-dom-0.3.0-beta.3/0105-Apply-relative-insets-to-inline-floats.patch
+  s_4ba79f911c93c4::t_501b7ee8acaac1 1-87
+scripts/patches/blitz-dom-0.3.0-beta.3/0106-Resolve-relative-inline-insets-against-used-height.patch
+  s_4ba79f911c93c4::t_47efebd0be6032 1-50
+scripts/patches/blitz-dom-0.3.0-beta.3/0107-Wire-CSS-tab-size-from-stylo-into-parley-TextStyle.patch
+  s_4ba79f911c93c4::t_ca8e681d158230 1-43
+scripts/patches/blitz-dom-0.3.0-beta.3/0108-Preserve-supported-font-source-fallbacks.patch
+  s_4ba79f911c93c4::t_788244e710a86e 1-100
+scripts/patches/blitz-dom-0.3.0-beta.3/0109-Fix-hit-testing-for-padded-inline-roots.patch
+  s_4ba79f911c93c4::t_cdb8d93ee5d0d9 1-96
+scripts/patches/blitz-dom-0.3.0-beta.3/0110-Keep-fixed-boxes-anchored-during-clipped-paints.patch
+  s_4ba79f911c93c4::t_afd8ab79fab0bc 1-99
+scripts/patches/blitz-dom-0.3.0-beta.3/0111-Queue-each-font-face-once-per-document.patch
+  s_4ba79f911c93c4::t_3602890c49305e 1-111
+scripts/patches/blitz-dom-0.3.0-beta.3/0112-a-replaced-element-with-display-table-stays-a-replac.patch
+  s_4ba79f911c93c4::t_b72bb84d6678cd 1-64
+scripts/patches/blitz-dom-0.3.0-beta.3/0113-Gate-font-face-fetches-on-unicode-range-against-the-.patch
+  s_4ba79f911c93c4::t_d1b7368c53c66d 1-274
+scripts/patches/blitz-dom-0.3.0-beta.3/0114-queue-an-img-under-its-latest-request-only.patch
+  s_4ba79f911c93c4::t_97e01984c9c8df 1-40
+scripts/patches/blitz-dom-0.3.0-beta.3/0115-reparse-replaced-style-sheets-once-per-resolve.patch
+  s_4ba79f911c93c4::t_22527b679a5845 1-101
+scripts/patches/blitz-dom-0.3.0-beta.3/0116-Recover-inline-roots-after-layout-panics.patch
+  s_4ba79f911c93c4::t_9609f976771e83 1-38
+scripts/patches/blitz-dom-0.3.0-beta.3/0117-stamp-element-indices-on-the-svg-snapshot.patch
+  s_4ba79f911c93c4::t_37730bd93cff4e 1-207
+scripts/patches/blitz-dom-0.3.0-beta.3/0118-keep-layout-caches-for-paint-only-damage.patch
+  s_4ba79f911c93c4::t_d6d0b9354b0201 1-36
+scripts/patches/blitz-dom-0.3.0-beta.3/0119-Carry-the-layout-rounding-step-on-the-document.patch
+  s_4ba79f911c93c4::t_70f488e1e39d8d 1-66
+scripts/patches/blitz-dom-0.3.0-beta.3/0120-Tolerate-a-sub-cell-width-change-instead-of-re-break.patch
+  s_4ba79f911c93c4::t_01750e8f5a2c64 1-47
+scripts/patches/blitz-dom-0.3.0-beta.3/0121-Snap-terminal-table-tracks-with-cell-layout.patch
+  s_4ba79f911c93c4::t_1c5279939dba70 1-104
+scripts/patches/blitz-dom-0.3.0-beta.3/0122-Account-for-table-ancestors-when-snapping-tracks.patch
+  s_4ba79f911c93c4::t_f748629426d3f3 1-57
+scripts/patches/blitz-dom-0.3.0-beta.3/0123-Retain-raw-table-tracks-across-terminal-reflow.patch
+  s_4ba79f911c93c4::t_e1f6b1b6a4bff9 1-64
+scripts/patches/blitz-dom-0.3.0-beta.3/0124-Align-table-tracks-to-their-final-paint-origin.patch
+  s_4ba79f911c93c4::t_8f8c054a934ec0 1-53
+scripts/patches/blitz-dom-0.3.0-beta.3/0125-Hit-text-only-on-the-line-that-contains-the-point.patch
+  s_4ba79f911c93c4::t_6a91fc217befbe 1-53
+scripts/patches/blitz-dom-0.3.0-beta.3/0126-Match-target-in-SVG-stacks-loaded-with-a-URL-fragmen.patch
+  s_4ba79f911c93c4::t_6f134ed6a7b1a0 1-120
+scripts/patches/blitz-dom-0.3.0-beta.3/0127-Give-an-inline-of-only-bidi-controls-no-line-box.patch
+  s_4ba79f911c93c4::t_b80d83c74b4c9b 1-72
+scripts/patches/blitz-dom-0.3.0-beta.3/0128-Classify-transform-only-damage-as-ink-damage.patch
+  s_4ba79f911c93c4::t_b76bd7de651b25 1-93
+scripts/patches/blitz-dom-0.3.0-beta.3/0129-Damage-a-slot-whose-assigned-nodes-change.patch
+  s_4ba79f911c93c4::t_d746f7dda8d544 1-55
+scripts/patches/blitz-dom-0.3.0-beta.3/0130-Skip-shadow-roots-when-applying-parent-selector-flag.patch
+  s_4ba79f911c93c4::t_61fa9870df38ff 1-30
+scripts/patches/blitz-dom-0.3.0-beta.3/0131-Follow-the-flat-tree-when-marking-changes-in-slotted.patch
+  s_4ba79f911c93c4::t_2e684ae832f6c2 1-124
+scripts/patches/blitz-dom-0.3.0-beta.3/0132-Clear-layout_parent-on-nodes-that-outlive-their-layo.patch
+  s_4ba79f911c93c4::t_54596a5202287b 1-47
+scripts/patches/blitz-dom-0.3.0-beta.3/0133-Don-t-shrink-a-canvas-into-a-narrower-container.patch
+  s_4ba79f911c93c4::t_32d230bc39ad81 1-53
+scripts/patches/blitz-dom-0.3.0-beta.3/0134-resolve-stylo-OpaqueNodes-through-the-slot-index.patch
+  s_4ba79f911c93c4::t_b31669bbfa30e2 1-171
+scripts/patches/blitz-dom-0.3.0-beta.3/0135-count-non-Latin-text-writes-and-expose-codepoint-pro.patch
+  s_4ba79f911c93c4::t_f0f18ebc906d3b 1-70
+scripts/patches/blitz-dom-0.3.0-beta.3/0136-Map-the-new-servo-font-variant-caps-values-to-OpenTy.patch
+  s_4ba79f911c93c4::t_fa5a0f47401eac 1-43
+scripts/patches/blitz-dom-0.3.0-beta.3/0137-Rewrite-word-break-break-word-to-normal-overflow-wra.patch
+  s_4ba79f911c93c4::t_e4355916087c9f 1-53
+scripts/patches/blitz-dom-0.3.0-beta.3/0138-damage-a-pseudo-element-inline-root-when-fonts-chang.patch
+  s_4ba79f911c93c4::t_72eef870583489 1-40
+scripts/patches/blitz-dom-0.3.0-beta.3/0139-Keep-the-last-duplicate-OpenType-tag-in-font_feature.patch
+  s_4ba79f911c93c4::t_e22e15099524c7 1-101
+scripts/patches/blitz-dom-0.3.0-beta.3/0140-pass-vertical-align-shifts-to-inline-boxes.patch
+  s_4ba79f911c93c4::t_580f4a5b4e8418 1-47
+scripts/patches/blitz-dom-0.3.0-beta.3/0141-Cancel-the-viewport-scroll-for-fixed-boxes-of-the-ro.patch
+  s_4ba79f911c93c4::t_5fdb0d3d012b67 1-70
+scripts/patches/blitz-dom-0.3.0-beta.3/0142-Keep-a-rowspan-cell-s-column-occupied-in-its-later-r.patch
+  s_4ba79f911c93c4::t_c3351a36dce5d6 1-73
+scripts/patches/blitz-dom-0.3.0-beta.3/0143-map-re-homed-paint-reach-through-each-box-s-transfor.patch
+  s_4ba79f911c93c4::t_fb31167abeaa33 1-133
+scripts/patches/blitz-dom-0.3.0-beta.3/0144-report-when-body-s-overflow-belongs-to-the-viewport.patch
+  s_4ba79f911c93c4::t_90e2f73af90517 1-83
+scripts/patches/blitz-dom-0.3.0-beta.3/0145-paint-z-index-auto-fixed-boxes-in-tree-order.patch
+  s_4ba79f911c93c4::t_39b9af659c26cd 1-299
+scripts/patches/blitz-dom-0.3.0-beta.3/0146-sort-a-positioned-only-wrapper-with-the-positioned-b.patch
+  s_4ba79f911c93c4::t_09b76dbd978306 1-108
+scripts/patches/blitz-dom-0.3.0-beta.3/0147-Mark-a-has-anchor-s-ancestors-dirty-after-a-tree-mut.patch
+  s_4ba79f911c93c4::t_762c2b870edcdb 1-49
+scripts/patches/blitz-dom-0.3.0-beta.3/0148-place-re-homed-boxes-under-a-scrolled-or-hoisted-pai.patch
+  s_4ba79f911c93c4::t_846b15f71c8d4d 1-95
+scripts/patches/blitz-dom-0.3.0-beta.3/0149-Never-hit-a-box-whose-transform-collapses-an-axis.patch
+  s_4ba79f911c93c4::t_100efdd9ef53f5 1-36
+scripts/patches/blitz-dom-0.3.0-beta.3/0150-Drop-stylesheet-loads-for-removed-link-nodes.patch
+  s_4ba79f911c93c4::t_292e634aa5a64b 1-49
+scripts/patches/blitz-dom-0.3.0-beta.3/0151-Keep-the-event-receiver-when-one-message-panics.patch
+  s_4ba79f911c93c4::t_19b2c411ac1905 1-109
+scripts/patches/blitz-html-0.3.0-beta.3/0001-Stop-the-XHTML-sniff-at-the-first-non-root-start-tag.patch
+  s_4ba79f911c93c4::t_d2b0b34fe5ed6b 1-85
+scripts/patches/blitz-html-0.3.0-beta.3/0002-Parse-template-contents-inline-under-the-template-el.patch
+  s_4ba79f911c93c4::t_2fd22806c9cd1b 1-39
+scripts/patches/blitz-paint-0.3.0-beta.3/0001-Baseline-span-decorations-canvas-background-SVG-tili.patch
+  s_4ba79f911c93c4::t_b3e7f6e8a09539 1-641
+scripts/patches/blitz-paint-0.3.0-beta.3/0002-Skip-shadow-root-nodes-in-render_node-new-NodeData-v.patch
+  s_4ba79f911c93c4::t_f053bafda74b09 1-24
+scripts/patches/blitz-paint-0.3.0-beta.3/0003-Paint-input-type-range-track-filled-span-thumb.patch
+  s_4ba79f911c93c4::t_cb957d69912904 1-128
+scripts/patches/blitz-paint-0.3.0-beta.3/0004-Paint-a-UA-dropdown-chevron-on-closed-select-boxes.patch
+  s_4ba79f911c93c4::t_38c46e4c865b4e 1-82
+scripts/patches/blitz-paint-0.3.0-beta.3/0005-Form-controls-color-from-CSS-accent-color-default-ac.patch
+  s_4ba79f911c93c4::t_4df479e3c0c79b 1-51
+scripts/patches/blitz-paint-0.3.0-beta.3/0006-Clip-replaced-svg-painting-to-the-element-s-content-.patch
+  s_4ba79f911c93c4::t_7933ca6c1d872d 1-67
+scripts/patches/blitz-paint-0.3.0-beta.3/0007-Skip-painting-background-layers-with-clip-text.patch
+  s_4ba79f911c93c4::t_57393319e9ad4b 1-52
+scripts/patches/blitz-paint-0.3.0-beta.3/0008-Apply-the-re-homed-abspos-translate-when-painting-ch.patch
+  s_4ba79f911c93c4::t_eb77ba18e04464 1-106
+scripts/patches/blitz-paint-0.3.0-beta.3/0009-Inline-svg-without-a-viewBox-paints-1-1-not-object-f.patch
+  s_4ba79f911c93c4::t_b3b2726f07bf5e 1-101
+scripts/patches/blitz-paint-0.3.0-beta.3/0010-inset-box-shadow-isolate-the-shadow-group-so-DestOut.patch
+  s_4ba79f911c93c4::t_2cef7f8b5e0a6c 1-57
+scripts/patches/blitz-paint-0.3.0-beta.3/0011-Effect-layer-covers-the-painted-subtree-not-just-the.patch
+  s_4ba79f911c93c4::t_c0c10b391b6371 1-48
+scripts/patches/blitz-paint-0.3.0-beta.3/0012-Expand-the-effect-layer-after-unioning-the-painted-s.patch
+  s_4ba79f911c93c4::t_ccc95f22220126 1-58
+scripts/patches/blitz-paint-0.3.0-beta.3/0013-Paint-glyphs-with-webkit-text-fill-color-when-it-is-.patch
+  s_4ba79f911c93c4::t_d9e40c5bcceb27 1-86
+scripts/patches/blitz-paint-0.3.0-beta.3/0014-Honour-empty-clip-regions.patch
+  s_4ba79f911c93c4::t_ef79b661e53b76 1-41
+scripts/patches/blitz-paint-0.3.0-beta.3/0015-Budget-open-layers-by-depth-not-cumulative-pushes.patch
+  s_4ba79f911c93c4::t_3b6606867b2a00 1-75
+scripts/patches/blitz-paint-0.3.0-beta.3/0016-Skip-painting-a-subtree-behind-an-empty-clip-region.patch
+  s_4ba79f911c93c4::t_28becf60f08f81 1-102
+scripts/patches/blitz-paint-0.3.0-beta.3/0017-Cull-against-a-node-local-bbox-instead-of-a-doubled-.patch
+  s_4ba79f911c93c4::t_15231deac7a84f 1-57
+scripts/patches/blitz-paint-0.3.0-beta.3/0018-paint-skip-border-and-background-work-that-draws-not.patch
+  s_4ba79f911c93c4::t_c77162260afa51 1-69
+scripts/patches/blitz-paint-0.3.0-beta.3/0019-paint-stop-building-clip-BezPaths-nothing-reads.patch
+  s_4ba79f911c93c4::t_b6b6675b8f9f57 1-100
+scripts/patches/blitz-paint-0.3.0-beta.3/0020-paint-stop-resolving-styles-the-common-element-disca.patch
+  s_4ba79f911c93c4::t_34243f67671e71 1-46
+scripts/patches/blitz-paint-0.3.0-beta.3/0021-Draw-collapsed-table-borders-per-cell-not-per-gridli.patch
+  s_4ba79f911c93c4::t_d3645924ca61f8 1-154
+scripts/patches/blitz-paint-0.3.0-beta.3/0022-Lean-synthetic-italic-to-the-right-not-the-left.patch
+  s_4ba79f911c93c4::t_57d27180f63c9c 1-40
+scripts/patches/blitz-paint-0.3.0-beta.3/0023-Let-a-re-homed-abspos-escape-its-flow-parent-s-overf.patch
+  s_4ba79f911c93c4::t_a9e994a1f379f0 1-104
+scripts/patches/blitz-paint-0.3.0-beta.3/0024-Give-the-collapsed-table-s-outer-border-band-a-singl.patch
+  s_4ba79f911c93c4::t_da4b883956c31a 1-83
+scripts/patches/blitz-paint-0.3.0-beta.3/0025-paint-keep-text-visible-when-gradient-clipping-is-un.patch
+  s_4ba79f911c93c4::t_13174b63a40f10 1-59
+scripts/patches/blitz-paint-0.3.0-beta.3/0026-Map-smooth-and-high-quality-image-rendering-to-high-.patch
+  s_4ba79f911c93c4::t_6f3b8a573707e2 1-30
+scripts/patches/blitz-paint-0.3.0-beta.3/0027-Mark-semantic-parts-in-painted-scenes.patch
+  s_4ba79f911c93c4::t_2c104ce346e624 1-149
+scripts/patches/blitz-paint-0.3.0-beta.3/0028-Keep-collapsed-borders-when-terminal-tracks-collapse.patch
+  s_4ba79f911c93c4::t_ef8b0011c832c8 1-94
+scripts/patches/blitz-paint-0.3.0-beta.3/0029-Paint-tables-from-adjusted-track-geometry.patch
+  s_4ba79f911c93c4::t_9d5cb22b7e5ecc 1-26
+scripts/patches/blitz-paint-0.3.0-beta.3/0030-Paint-corner-shape-on-backgrounds-and-clips.patch
+  s_4ba79f911c93c4::t_331a25084335bc 1-617
+scripts/patches/blitz-paint-0.3.0-beta.3/0031-Apply-inline-box-opacity-to-text-and-span-decoration.patch
+  s_4ba79f911c93c4::t_b1e0a342131b7f 1-185
+scripts/patches/blitz-paint-0.3.0-beta.3/0032-Fill-a-corner-shaped-solid-border-as-one-ring.patch
+  s_4ba79f911c93c4::t_8d2fa0f9fe7e59 1-111
+scripts/patches/blitz-paint-0.3.0-beta.3/0033-Give-outset-shadows-per-corner-radii-and-corner-shap.patch
+  s_4ba79f911c93c4::t_af8423b71e8eeb 1-219
+scripts/patches/blitz-paint-0.3.0-beta.3/0034-Shade-only-the-reach-of-each-blurred-shadow-quadrant.patch
+  s_4ba79f911c93c4::t_da0455d6d24c49 1-43
+scripts/patches/blitz-paint-0.3.0-beta.3/0035-Keep-corner-shaped-border-wedges-on-their-own-half-o.patch
+  s_4ba79f911c93c4::t_0f0464f4d94809 1-53
+scripts/patches/blitz-paint-0.3.0-beta.3/0036-Match-CSS-shadow-blurs-and-snap-empty-outer-clips.patch
+  s_4ba79f911c93c4::t_067e24f7bd59b3 1-69
+scripts/patches/blitz-paint-0.3.0-beta.3/0037-Honour-visibility-hidden-on-inline-text.patch
+  s_4ba79f911c93c4::t_756f4d671ee771 1-96
+scripts/patches/blitz-paint-0.3.0-beta.3/0038-Keep-fixed-boxes-anchored-during-clipped-paints.patch
+  s_4ba79f911c93c4::t_d4f83b7dd0e145 1-39
+scripts/patches/blitz-paint-0.3.0-beta.3/0039-Pass-the-scale-to-live_rehomed_reach.patch
+  s_4ba79f911c93c4::t_9df0ecb8f09c8a 1-25
+scripts/patches/blitz-paint-0.3.0-beta.3/0040-Don-t-clip-a-body-whose-overflow-went-to-the-viewpor.patch
+  s_4ba79f911c93c4::t_718fa2628ddb26 1-31
+scripts/patches/blitz-paint-0.3.0-beta.3/0041-Propagate-text-decorations-into-in-flow-block-childr.patch
+  s_4ba79f911c93c4::t_341721f6707714 1-75
+scripts/patches/boa_ast-0.22.0/0001-scope-index-bindings-by-name-instead-of-scanning-the.patch
+  s_4ba79f911c93c4::t_1244a6dd411f78 1-197
+scripts/patches/boa_ast-0.22.0/0002-source_text-compact-the-collected-text-for-storage.patch
+  s_4ba79f911c93c4::t_102d6e09be2e19 1-134
+scripts/patches/boa_ast-0.22.0/0003-operations-borrow-var-scoped-declarations-instead-of.patch
+  s_4ba79f911c93c4::t_f8f134628c1e09 1-175
+scripts/patches/boa_ast-0.22.0/0004-ast-box-the-large-rarely-used-expression-and-stateme.patch
+  s_4ba79f911c93c4::t_57e25ce8ba096c 1-268
+scripts/patches/boa_ast-0.22.0/0005-scope-declare-using-bindings-in-function-script-and-.patch
+  s_4ba79f911c93c4::t_26982daa15d909 1-74
+scripts/patches/boa_engine-0.22.0/0001-Live-module-bindings-and-cycle-safe-module-Debug.patch
+  s_4ba79f911c93c4::t_ef2e417d5c05a8 1-259
+scripts/patches/boa_engine-0.22.0/0002-Name-throw-sites-for-not-callable-and-null-base-acce.patch
+  s_4ba79f911c93c4::t_b31b06eaef3556 1-302
+scripts/patches/boa_engine-0.22.0/0003-module-env-drop-writes-to-indirect-bindings-instead-.patch
+  s_4ba79f911c93c4::t_3ab270c2bd88d7 1-35
+scripts/patches/boa_engine-0.22.0/0004-context-expose-ks_clear_residual_stack-for-idle-poin.patch
+  s_4ba79f911c93c4::t_61f9a2d1b60679 1-69
+scripts/patches/boa_engine-0.22.0/0005-context-ks_vm_stats-occupancy-probe.patch
+  s_4ba79f911c93c4::t_6bddd3877c1ac3 1-44
+scripts/patches/boa_engine-0.22.0/0006-array-sort-tolerate-incoherent-comparators-instead-o.patch
+  s_4ba79f911c93c4::t_794847f8da5dda 1-108
+scripts/patches/boa_engine-0.22.0/0007-object-expose-a-non-rooting-WeakJsObject-handle.patch
+  s_4ba79f911c93c4::t_d29855abc6880d 1-64
+scripts/patches/boa_engine-0.22.0/0008-module-expose-has_pending_source-for-embedder-intern.patch
+  s_4ba79f911c93c4::t_49d9b869a56700 1-57
+scripts/patches/boa_engine-0.22.0/0009-module-resolve-export-entries-to-JsStrings-at-constr.patch
+  s_4ba79f911c93c4::t_fa4b46a446468c 1-410
+scripts/patches/boa_engine-0.22.0/0010-vm-reclaim-the-frames-a-panic-unwind-strands.patch
+  s_4ba79f911c93c4::t_1258612836909a 1-123
+scripts/patches/boa_engine-0.22.0/0011-inline_cache-keep-one-PIC-entry-inline-and-box-the-o.patch
+  s_4ba79f911c93c4::t_bf09c59ff1bb2d 1-246
+scripts/patches/boa_engine-0.22.0/0012-spanned_source_text-compact-the-source-a-script-reta.patch
+  s_4ba79f911c93c4::t_0aaa83b6f25302 1-75
+scripts/patches/boa_engine-0.22.0/0013-vm-walk-to-the-running-bytecode-once-per-instruction.patch
+  s_4ba79f911c93c4::t_415b536d02cd9b 1-142
+scripts/patches/boa_engine-0.22.0/0014-bytecompiler-take-var-scoped-declarations-by-referen.patch
+  s_4ba79f911c93c4::t_ef2cece70d0919 1-70
+scripts/patches/boa_engine-0.22.0/0015-bytecompiler-compile-the-boxed-function-expression-v.patch
+  s_4ba79f911c93c4::t_f0edb409edadb9 1-43
+scripts/patches/boa_engine-0.22.0/0016-bytecompiler-share-one-JsString-per-name-across-a-co.patch
+  s_4ba79f911c93c4::t_7391fa0aaf8673 1-91
+scripts/patches/boa_engine-0.22.0/0017-code_block-build-the-inline-caches-on-first-use.patch
+  s_4ba79f911c93c4::t_5dc4112159e1e8 1-343
+scripts/patches/boa_engine-0.22.0/0018-source_info-delta-encode-the-bytecode-to-source-map.patch
+  s_4ba79f911c93c4::t_c1dedfb58b523a 1-256
+scripts/patches/boa_engine-0.22.0/0019-property_map-start-object-storage-at-two-slots.patch
+  s_4ba79f911c93c4::t_2ba54f44418791 1-30
+scripts/patches/boa_engine-0.22.0/0020-vm-keep-bytecode-packed-until-its-code-block-first-r.patch
+  s_4ba79f911c93c4::t_0b15954c3f55c3 1-478
+scripts/patches/boa_engine-0.22.0/0021-vm-drop-a-caught-throw-s-stale-stack-values.patch
+  s_4ba79f911c93c4::t_e1850f6845efa4 1-97
+scripts/patches/boa_engine-0.22.0/0022-proxy-let-an-embedder-create-and-recognise-its-own-p.patch
+  s_4ba79f911c93c4::t_6f360e90adde57 1-42
+scripts/patches/boa_gc-0.22.0/0001-Mark-on-enqueue-to-bound-the-GC-worklist.patch
+  s_4ba79f911c93c4::t_c7a7f2bd3d60e2 1-54
+scripts/patches/boa_gc-0.22.0/0002-pointers-widen-WeakGc-s-Clone-to-unsized-targets.patch
+  s_4ba79f911c93c4::t_abf2a64950ad4e 1-26
+scripts/patches/boa_gc-0.22.0/0003-expose-heap-occupancy-stats.patch
+  s_4ba79f911c93c4::t_f5600650928032 1-34
+scripts/patches/boa_interner-0.22.0/0001-interner-checkpoint-truncate-to-rewind-dynamically-i.patch
+  s_4ba79f911c93c4::t_fe8bb54ccf111c 1-284
+scripts/patches/boa_parser-0.22.0/0001-class-expression-accept-contextual-keywords-as-class.patch
+  s_4ba79f911c93c4::t_b4d24fada77d8a 1-37
+scripts/patches/boa_parser-0.22.0/0002-lexer-size-the-collected-source-text-from-the-input-.patch
+  s_4ba79f911c93c4::t_7016a57aa872c8 1-124
+scripts/patches/boa_parser-0.22.0/0003-parenthesized-move-the-inner-expression-instead-of-c.patch
+  s_4ba79f911c93c4::t_f0b397b046f385 1-29
+scripts/patches/boa_parser-0.22.0/0004-adapt-to-the-boxed-expression-and-statement-variants.patch
+  s_4ba79f911c93c4::t_436945cd78f93c 1-133
+scripts/patches/boa_parser-0.22.0/0005-parser-accept-using-wherever-an-identifier-may-stand.patch
+  s_4ba79f911c93c4::t_e2f91f7ac66890 1-259
+scripts/patches/boa_parser-0.22.0/0006-expression-build-long-comma-chains-balanced.patch
+  s_4ba79f911c93c4::t_1c52aa8be2376c 1-101
+scripts/patches/boa_parser-0.22.0/0007-expression-parse-binary-operators-in-one-frame-by-pr.patch
+  s_4ba79f911c93c4::t_463c053a790759 1-875
+scripts/patches/boa_parser-0.22.0/0008-assignment-parse-an-assignment-chain-in-a-loop.patch
+  s_4ba79f911c93c4::t_0cfb0064b6368d 1-218
+scripts/patches/jpeg-encoder-0.7.0/0001-Encode-RGBA-images-with-wasm-SIMD128.patch
+  s_4ba79f911c93c4::t_8a2fbcb5367e31 1-841
+scripts/patches/jpeg-encoder-0.7.0/0002-Convert-chroma-for-even-pixels-only-on-4-2-0-rows.patch
+  s_4ba79f911c93c4::t_3b77dd7e34fcb4 1-160
+scripts/patches/parley-0.12.0/0001-Add-inline-span-box-decorations-to-text-layout.patch
+  s_4ba79f911c93c4::t_db08e6000a2d71 1-1448
+scripts/patches/parley-0.12.0/0002-Base-direction-control-per-paragraph-auto-plaintext.patch
+  s_4ba79f911c93c4::t_be3aead5cbcfe6 1-186
+scripts/patches/parley-0.12.0/0003-Expose-first_strong_direction-for-HTML-dir-auto-reso.patch
+  s_4ba79f911c93c4::t_be8271064e0373 1-50
+scripts/patches/parley-0.12.0/0004-Expose-current_text_len-on-TreeBuilder-for-source-ra.patch
+  s_4ba79f911c93c4::t_e5bc2912d8ce7a 1-36
+scripts/patches/parley-0.12.0/0005-Add-Layout-truncate_lines-for-CSS-line-clamp.patch
+  s_4ba79f911c93c4::t_677af84534bfb3 1-43
+scripts/patches/parley-0.12.0/0006-Collapse-lines-containing-only-out-of-flow-boxes.patch
+  s_4ba79f911c93c4::t_2cc696ec2cff6f 1-39
+scripts/patches/parley-0.12.0/0007-Expand-horizontal-tabs-to-CSS-tab-size-stops.patch
+  s_4ba79f911c93c4::t_f70bf8d294e1d9 1-448
+scripts/patches/parley-0.12.0/0008-Make-tab-expansion-pen-aware-throughout-layout.patch
+  s_4ba79f911c93c4::t_5fe040c2847fcb 1-389
+scripts/patches/parley-0.12.0/0009-Match-Chromium-s-minimum-tab-advance.patch
+  s_4ba79f911c93c4::t_bdf293ba1a97cb 1-43
+scripts/patches/parley-0.12.0/0010-Honour-nowrap-between-atomic-inline-boxes.patch
+  s_4ba79f911c93c4::t_c2cdb533e7cfa2 1-38
+scripts/patches/parley-0.12.0/0011-Add-Blink-s-extra-pixel-to-sub-and-super-shifts.patch
+  s_4ba79f911c93c4::t_c0fcddcd0f6841 1-120
+scripts/patches/parley_engine-0.12.0/0001-Base-direction-control-per-paragraph-auto-plaintext.patch
+  s_4ba79f911c93c4::t_3ce9aa21b453ad 1-147
+scripts/patches/parley_engine-0.12.0/0002-Expose-first_strong_direction-for-HTML-dir-auto-reso.patch
+  s_4ba79f911c93c4::t_535d3b66cec9fc 1-62
+scripts/patches/parley_engine-0.12.0/0003-Expand-horizontal-tabs-to-CSS-tab-size-stops.patch
+  s_4ba79f911c93c4::t_3e90a7ae1804c3 1-53
+scripts/patches/playwright/0001-kitesurf-page-fixtures.patch
+  s_4ba79f911c93c4::t_be20d7bd4a438f 1-141
+scripts/patches/ratatui-image-8.1.1/0001-Feature-gate-the-terminal-capability-query-behind-qu.patch
+  s_4ba79f911c93c4::t_7654112d2cdeb6 1-184
+scripts/patches/selectors-0.41.0/0001-Strict-selector-lists-reject-trailing-input-after-a-.patch
+  s_4ba79f911c93c4::t_0b71e73b09f282 1-36
+scripts/patches/stylo-0.22.0/0001-Enable-page-descriptors-tolerate-unstyled-snapshot-s.patch
+  s_4ba79f911c93c4::t_e4eeaa08ba14b6 1-149
+scripts/patches/stylo-0.22.0/0002-Enable-accent-color-in-the-servo-build.patch
+  s_4ba79f911c93c4::t_4e9cac85a433e8 1-26
+scripts/patches/stylo-0.22.0/0003-servo-parse-and-plumb-the-dir-pseudo-class.patch
+  s_4ba79f911c93c4::t_ab45de176bf784 1-87
+scripts/patches/stylo-0.22.0/0004-Preserve-none-color-components-through-parse-mix-and.patch
+  s_4ba79f911c93c4::t_76acafa7c6b5f7 1-287
+scripts/patches/stylo-0.22.0/0005-color-mix-accept-all-zero-percentage-sums.patch
+  s_4ba79f911c93c4::t_8ec7d0124a51c8 1-59
+scripts/patches/stylo-0.22.0/0006-Enable-container-relative-length-units-in-the-servo-.patch
+  s_4ba79f911c93c4::t_b83aadb8ec49f1 1-39
+scripts/patches/stylo-0.22.0/0007-Canonical-component-serialization-for-unresolved-col.patch
+  s_4ba79f911c93c4::t_adfd30df258c67 1-186
+scripts/patches/stylo-0.22.0/0008-Relative-color-origins-with-none-serialize-in-the-le.patch
+  s_4ba79f911c93c4::t_80ae176b14e5a1 1-47
+scripts/patches/stylo-0.22.0/0009-hsl-hwb-none-serialization-form-lab-family-keyword-n.patch
+  s_4ba79f911c93c4::t_739bb4c6f8e7cb 1-220
+scripts/patches/stylo-0.22.0/0010-color-mix-items-with-none-serialize-like-relative-or.patch
+  s_4ba79f911c93c4::t_f20cbd0fae18ec 1-83
+scripts/patches/stylo-0.22.0/0011-hsl-hwb-percent-tracking-per-component-lab-oklab-car.patch
+  s_4ba79f911c93c4::t_7cdd5e84b26c3a 1-171
+scripts/patches/stylo-0.22.0/0012-list-style-serialize-the-position-when-the-type-iden.patch
+  s_4ba79f911c93c4::t_10c431e66b3b46 1-33
+scripts/patches/stylo-0.22.0/0013-Enable-background-clip-text-and-background-attachmen.patch
+  s_4ba79f911c93c4::t_714998fc1c9371 1-52
+scripts/patches/stylo-0.22.0/0014-Enable-webkit-box-webkit-line-clamp-and-box-orient-i.patch
+  s_4ba79f911c93c4::t_81c0ebf983afe4 1-158
+scripts/patches/stylo-0.22.0/0015-Enable-appearance-in-the-servo-build.patch
+  s_4ba79f911c93c4::t_009176c3fc6dd3 1-28
+scripts/patches/stylo-0.22.0/0016-Enable-break-and-box-decoration-break-in-the-servo-b.patch
+  s_4ba79f911c93c4::t_22c6c60d501c71 1-68
+scripts/patches/stylo-0.22.0/0017-Bulk-servo-enablement-41-gecko-gated-longhands-6-sho.patch
+  s_4ba79f911c93c4::t_baffa9416fb206 1-496
+scripts/patches/stylo-0.22.0/0018-Keep-color-scheme-normal-light.patch
+  s_4ba79f911c93c4::t_caa6688129c9eb 1-34
+scripts/patches/stylo-0.22.0/0019-Keep-a-finished-animation-that-fills-forwards-and-re.patch
+  s_4ba79f911c93c4::t_a3f4c7def1ae08 1-96
+scripts/patches/stylo-0.22.0/0020-Generate-webkit-text-fill-color-for-servo-not-gecko-.patch
+  s_4ba79f911c93c4::t_173399e0b01293 1-31
+scripts/patches/stylo-0.22.0/0021-Damage-box-shadow-as-repaint-instead-of-rebuilding-t.patch
+  s_4ba79f911c93c4::t_ec62b23c1fcef9 1-33
+scripts/patches/stylo-0.22.0/0022-Preserve-products-around-non-distributive-math-funct.patch
+  s_4ba79f911c93c4::t_1ec295039e018d 1-39
+scripts/patches/stylo-0.22.0/0023-Preserve-min-max-with-incompatible-NaN-units.patch
+  s_4ba79f911c93c4::t_2f6a00fb8a5874 1-53
+scripts/patches/stylo-0.22.0/0024-Avoid-panics-from-malformed-computed-calc-trees.patch
+  s_4ba79f911c93c4::t_7b22512e4eb624 1-78
+scripts/patches/stylo-0.22.0/0025-Accept-numeric-calc-results-in-length-percentages.patch
+  s_4ba79f911c93c4::t_0ac30d9eb44bbb 1-31
+scripts/patches/stylo-0.22.0/0026-Enable-anchor-positioning-parsing-in-Servo.patch
+  s_4ba79f911c93c4::t_57ae7e0e0e39b8 1-139
+scripts/patches/stylo-0.22.0/0027-Enable-container-queries-in-Servo.patch
+  s_4ba79f911c93c4::t_dbea51bab579b5 1-63
+scripts/patches/stylo-0.22.0/0028-Stop-escalating-a-clip-overflow-axis-to-hidden.patch
+  s_4ba79f911c93c4::t_9b31dba37db731 1-65
+scripts/patches/stylo-0.22.0/0029-perf-reduce-retained-CSS-capacity.patch
+  s_4ba79f911c93c4::t_76632e82dba40d 1-35
+scripts/patches/stylo-0.22.0/0030-Enable-clip-rule-flood-color-and-lighting-color-in-t.patch
+  s_4ba79f911c93c4::t_71a490d363552a 1-46
+scripts/patches/stylo-0.22.0/0031-Complete-image-rendering-s-grammar-for-the-servo-bui.patch
+  s_4ba79f911c93c4::t_20cfdb27948685 1-35
+scripts/patches/stylo-0.22.0/0032-Complete-the-break-before-after-inside-fragmentation.patch
+  s_4ba79f911c93c4::t_cdf56586568c0d 1-103
+scripts/patches/stylo-0.22.0/0033-Add-balance-all-to-column-fill-s-grammar.patch
+  s_4ba79f911c93c4::t_b71f9380257b9d 1-26
+scripts/patches/stylo-0.22.0/0034-Allow-path-for-shape-outside.patch
+  s_4ba79f911c93c4::t_20272ab014b0c6 1-40
+scripts/patches/stylo-0.22.0/0035-Enable-content-box-and-stroke-box-transform-box-keyw.patch
+  s_4ba79f911c93c4::t_4ac85edd8b279d 1-41
+scripts/patches/stylo-0.22.0/0036-Parse-the-SVG-pointer-events-keywords-for-servo.patch
+  s_4ba79f911c93c4::t_5f239ba346278a 1-47
+scripts/patches/stylo-0.22.0/0037-Insert-a-stylesheet-before-an-unknown-anchor-by-appe.patch
+  s_4ba79f911c93c4::t_33aa16c3f316ee 1-34
+scripts/patches/stylo-0.22.0/0038-Enable-word-break-break-word-in-the-servo-build.patch
+  s_4ba79f911c93c4::t_924daff9f750f3 1-25
+scripts/patches/stylo-0.22.0/0039-Enable-text-decoration-line-spelling-error-grammar-e.patch
+  s_4ba79f911c93c4::t_60429908252203 1-47
+scripts/patches/stylo-0.22.0/0040-Enable-additional-font-variant-caps-values-in-the-se.patch
+  s_4ba79f911c93c4::t_cb2378530b1751 1-30
+scripts/patches/stylo-0.22.0/0041-Add-embedder-timed-script-animations-to-the-servo-an.patch
+  s_4ba79f911c93c4::t_adf121076b0683 1-254
+scripts/patches/stylo_taffy-0.3.0-beta.3/0001-Handle-unresolved-anchor-values-without-panicking.patch
+  s_4ba79f911c93c4::t_4e82b0e0061ab1 1-79
+scripts/patches/stylo_taffy-0.3.0-beta.3/0002-Honor-unresolved-anchor-fallbacks-in-Taffy.patch
+  s_4ba79f911c93c4::t_0f1dfa5c8060fb 1-84
+scripts/patches/stylo_taffy-0.3.0-beta.3/0003-Stop-size-containers-from-claiming-out-of-flow-boxes.patch
+  s_4ba79f911c93c4::t_883126b6bf6ea9 1-45
+scripts/patches/taffy-0.15.0/0001-Cache-box-the-entries-so-an-empty-cache-is-pointer-s.patch
+  s_4ba79f911c93c4::t_e0b0addb1bd9c0 1-290
+scripts/patches/taffy-0.15.0/0002-Fix-descendant-float-block-coordinates.patch
+  s_4ba79f911c93c4::t_a06bdec0b768d0 1-35
+scripts/patches/taffy-0.15.0/0003-Keep-grid-block-axis-content-contributions.patch
+  s_4ba79f911c93c4::t_a2d9b219c119ac 1-133
+scripts/patches/taffy-0.15.0/0004-Keep-block-replaced-items-clear-of-floats.patch
+  s_4ba79f911c93c4::t_34345490972323 1-69
+scripts/patches/taffy-0.15.0/0005-Anchor-auto-line-grid-abspos-areas-to-padding.patch
+  s_4ba79f911c93c4::t_12da1e07a44bef 1-124
+scripts/patches/taffy-0.15.0/0006-Size-content-determined-containers-from-their-non-cy.patch
+  s_4ba79f911c93c4::t_7cf7406b621a0b 1-152
+scripts/patches/taffy-0.15.0/0007-Stretch-a-wrapping-flex-container-to-its-outer-avail.patch
+  s_4ba79f911c93c4::t_48eb2b4822d703 1-52
+scripts/patches/taffy-0.15.0/0008-Include-float-content-box-inset-in-BFC-height.patch
+  s_4ba79f911c93c4::t_c4f49e6380b94e 1-26
+scripts/patches/taffy-0.15.0/0009-Let-a-backend-round-layout-to-something-other-than-a.patch
+  s_4ba79f911c93c4::t_ee561fd1f69fe5 1-147
+scripts/patches/taffy-0.15.0/0010-Report-a-block-container-s-last-baseline.patch
+  s_4ba79f911c93c4::t_082eafd6ac57d9 1-112
+scripts/patches/usvg-0.48.1/0001-Apply-SVG2-geometry-properties-from-CSS.patch
+  s_4ba79f911c93c4::t_d79279423aac2e 1-71
+scripts/patches/usvg-0.48.1/0002-Honour-a-zero-viewBox-as-disabling-rendering.patch
+  s_4ba79f911c93c4::t_6cf82d2fa9325c 1-130
+scripts/patches/usvg-0.48.1/0003-Resolve-linear-calc-in-geometry-length-values.patch
+  s_4ba79f911c93c4::t_c92d670025e097 1-267
+scripts/patches/usvg-0.48.1/0004-Zero-disables-rendering-negative-is-an-error-that-ig.patch
+  s_4ba79f911c93c4::t_f6f43e87830069 1-54
+scripts/patches/usvg-0.48.1/0005-Implement-pathLength-rescale-stroke-dash-pattern-by-.patch
+  s_4ba79f911c93c4::t_5daaadb6f0796b 1-191
+scripts/patches/vello_cpu-0.3.0/0001-Replace-the-blurred-rect-p-norm-with-a-polynomial-in.patch
+  s_4ba79f911c93c4::t_5b279fe56b1994 1-184
+scripts/patches/vello_cpu-0.3.0/0002-Add-poly-pnorm-feature-gate-for-the-blurred-rect-p-n.patch
+  s_4ba79f911c93c4::t_a970ce88e5fb92 1-291
+scripts/patches/vello_cpu-0.3.0/0003-Interpolate-the-columns-of-wide-blurred-rounded-rect.patch
+  s_4ba79f911c93c4::t_4afbfbc348f570 1-220
+scripts/patches/vello_cpu-0.3.0/0004-Guarantee-the-blur-store-chunk-size-in-its-type.patch
+  s_4ba79f911c93c4::t_4a59b3b67b3a5a 1-52
+scripts/pw-gate.mjs
+  s_4ba79f911c93c4::t_7f03079aa30b5b 1-136
+scripts/pw-run.mjs
+  s_4ba79f911c93c4::t_808d6982686bb5 1-425
+scripts/pw-setup.mjs
+  s_4ba79f911c93c4::t_ec87a98d3df53d 1-70
+scripts/pw-shard.mjs
+  s_4ba79f911c93c4::t_4913a53158e713 1-140
+scripts/pw-shared.mjs
+  s_4ba79f911c93c4::t_d5862c4f4c843c 1-96
+scripts/pw-shared.test.mjs
+  s_4ba79f911c93c4::t_b5cc7d9d01895a 1-55
+scripts/regen-vendor-patches.mjs
+  s_4ba79f911c93c4::t_70225df35c5a17 1-183
+scripts/rust-notices.hbs
+  s_4ba79f911c93c4::t_bfa3deda0d0034 1-33
+scripts/stage-dev-build.mjs
+  s_4ba79f911c93c4::t_6a3a7b339841f7 1-71
+scripts/strip-emoji-svg.py
+  s_4ba79f911c93c4::t_bf9514f73a7982 1-28
+scripts/tracked-files.mjs
+  s_4ba79f911c93c4::t_a5df80f43d372b 1-42
+scripts/ts-strict-ratchet.mjs
+  s_4ba79f911c93c4::t_8d11e5ed69faef 1-91
+scripts/vitest-bazel.mjs
+  s_4ba79f911c93c4::t_d2e56cca9e58fe 1-27
+scripts/wasm-opt.mjs
+  s_4ba79f911c93c4::t_6f8dbc043ff109 1-49
+scripts/webidl-ts-types.mjs
+  s_4ba79f911c93c4::t_36e8aa34a425a6 1-397
+scripts/webidl-ts-types.test.mjs
+  s_4ba79f911c93c4::t_1a1a6752dee135 1-79
+scripts/workspace-checks.mjs
+  s_4ba79f911c93c4::t_78c683bf3e6fd2 1-18
+scripts/wpt-batched.mjs
+  s_4ba79f911c93c4::t_02ae35f8c13474 1-1116
+scripts/wpt-bucket.mjs
+  s_4ba79f911c93c4::t_153d39be39770d 1-327
+scripts/wpt-buckets.mjs
+  s_4ba79f911c93c4::t_92aa965e2ebb77 1-138
+scripts/wpt-collateral.mjs
+  s_4ba79f911c93c4::t_3ca4fc94b69af6 1-31
+scripts/wpt-collateral.test.mjs
+  s_4ba79f911c93c4::t_ce22e6aa3c5a94 1-108
+scripts/wpt-draws.mjs
+  s_4ba79f911c93c4::t_6f11e6256b821b 1-38
+scripts/wpt-engine.mjs
+  s_4ba79f911c93c4::t_f7b8c8d4bd8a73 1-171
+scripts/wpt-exec.mjs
+  s_4ba79f911c93c4::t_31b26e45b58f5b 1-1588
+scripts/wpt-gate.mjs
+  s_4ba79f911c93c4::t_bd89918a7c31e2 1-152
+scripts/wpt-gate.test.mjs
+  s_4ba79f911c93c4::t_ee9552c0d35dc6 1-62
+scripts/wpt-inventory.mjs
+  s_4ba79f911c93c4::t_3f723c97f54ada 1-215
+scripts/wpt-inventory.test.mjs
+  s_4ba79f911c93c4::t_b26407c9ecd4e7 1-96
+scripts/wpt-merge-shards.mjs
+  s_4ba79f911c93c4::t_fb55bffe0d08b3 1-206
+scripts/wpt-ref-cache.mjs
+  s_4ba79f911c93c4::t_42a810da78e636 1-26
+scripts/wpt-ref-cache.test.mjs
+  s_4ba79f911c93c4::t_7487a1ed8e852b 1-56
+scripts/wpt-runplan.mjs
+  s_4ba79f911c93c4::t_f52f6186cbecdc 1-49
+scripts/wpt-runplan.test.mjs
+  s_4ba79f911c93c4::t_ac92a7ed700223 1-60
+scripts/wpt-serve.mjs
+  s_4ba79f911c93c4::t_e4272230cd10ed 1-42
+scripts/wpt-setup.mjs
+  s_4ba79f911c93c4::t_d4d84da8ce7282 1-118
+scripts/wpt-shared.mjs
+  s_4ba79f911c93c4::t_4187f7b5562a92 1-449
+scripts/wpt-shared.test.mjs
+  s_4ba79f911c93c4::t_6240713d0796b0 1-34
+scripts/wpt-stamp.mjs
+  s_4ba79f911c93c4::t_bd347e6941b300 1-39
+scripts/wpt-stamp.test.mjs
+  s_4ba79f911c93c4::t_1099611d76731c 1-47
+scripts/wpt-testdriver.mjs
+  s_4ba79f911c93c4::t_b05406167b4a70 1-665
+scripts/wpt-update-expectations.mjs
+  s_4ba79f911c93c4::t_dbd5aeee495d75 1-60
+tests/e2e/BUILD.bazel
+  s_4ba79f911c93c4::t_1816addeb647d5 1-4
+tests/e2e/defs.bzl
+  s_4ba79f911c93c4::t_a59135e140f615 1-76
+tests/e2e/shards.bzl
+  s_4ba79f911c93c4::t_8981c633dfafc7 1-10
+tests/pw-expectations.json
+  s_4ba79f911c93c4::t_1a0408bcea7225 1
+tests/pw-tests.json
+  s_4ba79f911c93c4::t_9405ac180e95dd 1-276
+tests/pw/BUILD.bazel
+  s_4ba79f911c93c4::t_eda92cd9fa98cc 1-18
+tests/pw/defs.bzl
+  s_4ba79f911c93c4::t_036f8d2f5bbed6 1-35
+tests/wpt-buckets.json
+  s_4ba79f911c93c4::t_49b82fc5d7f3eb 1-1021
+tests/wpt-expectations.json
+  s_4ba79f911c93c4::t_a287bdfec5774c 1-38980
+tests/wpt-revision.json
+  s_4ba79f911c93c4::t_37b6f783207418 1-5
+tests/wpt-tests.json
+  s_4ba79f911c93c4::t_d509bfc7dd1da1 1-11797
+tests/wpt/BUILD.bazel
+  s_4ba79f911c93c4::t_5796f900beb9cc 1-114
+tests/wpt/buckets_repo.bzl
+  s_4ba79f911c93c4::t_091c3bee5b84f6 1-29
+tests/wpt/defs.bzl
+  s_4ba79f911c93c4::t_df7155c953035f 1-207
+vendor/wasm-memprof/LICENSE
+  s_4ba79f911c93c4::t_a23f7129afba84 1-21
+vendor/wasm-memprof/README.md
+  s_4ba79f911c93c4::t_47648a91a6b3a5 1-6
+vendor/wasm-memprof/VENDORED_FROM.md
+  s_4ba79f911c93c4::t_bd7a8726a3284a 1-40
+vendor/wasm-memprof/instrumentor/.gitignore
+  s_4ba79f911c93c4::t_b3be18b9dc8b47 1
+vendor/wasm-memprof/instrumentor/Cargo.toml
+  s_4ba79f911c93c4::t_1992c4540989b4 1-19
+vendor/wasm-memprof/instrumentor/README.md
+  s_4ba79f911c93c4::t_8f9e17f9a8acb7 1-3
+vendor/wasm-memprof/instrumentor/src/bin/instrumentor.rs
+  s_4ba79f911c93c4::t_a1fc7027320506 1-37
+vendor/wasm-memprof/instrumentor/src/call_graph.rs
+  s_4ba79f911c93c4::t_6d69764dd13750 1-94
+vendor/wasm-memprof/instrumentor/src/lib.rs
+  s_4ba79f911c93c4::t_dadf1d97d23525 1-192
+vendor/wasm-memprof/instrumentor/src/replace.rs
+  s_4ba79f911c93c4::t_4b2d90d24b9a7b 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2d14c09cd7411af1cce164fd7da1f115d397e0dd",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
