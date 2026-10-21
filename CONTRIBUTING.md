@@ -116,7 +116,8 @@ pnpm run test:e2e <file-substring>
 
 Pass a file-name substring to `test:e2e` to run only the files you touched. For
 Rust changes, also run `pnpm run test:rust` and `pnpm run lint:rust`. CI runs
-the full e2e, WPT, and Playwright lanes.
+the build, the checks, the Rust host tests and the vitest suite. It does not run
+the e2e, WPT or Playwright lanes, so run the ones your change touches.
 
 ## Commits
 

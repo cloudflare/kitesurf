@@ -20,15 +20,15 @@ describe("attributionTails", () => {
   };
 
   it("adds no tail when the entry has no AttributionTail export", () => {
-    expect(attributionTails({}, headers, "page")).toEqual({});
+    expect(attributionTails({}, headers, "page")).toEqual([]);
   });
 
   it("adds no tail for a session without attribution headers", () => {
-    expect(attributionTails(exports, {}, "page")).toEqual({});
+    expect(attributionTails(exports, {}, "page")).toEqual([]);
   });
 
   it("passes the headers and script name as tail props", () => {
-    expect(attributionTails(exports, headers, "page")).toEqual({ tails: [tail] });
+    expect(attributionTails(exports, headers, "page")).toEqual([tail]);
     expect(seen).toEqual([{ headers, scriptName: "page" }]);
   });
 });
