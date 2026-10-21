@@ -16,14 +16,14 @@ export const DEFAULT_DIST = resolve(ENGINE_DIR, ".wpt-dist");
 const OPTIONS_FILE = "engine-mf.json";
 const fromEngine = createRequire(resolve(ENGINE_DIR, "package.json"));
 const engineDep = (name) => import(pathToFileURL(fromEngine.resolve(name)).href);
-const USAGE = `usage: node scripts/wpt-engine.mjs prepare [--dist <dir>]
+const USAGE = `usage: node scripts/wpt-engine.mjs prepare [--dist <dir>] [--config <file>]
        node scripts/wpt-engine.mjs serve --port <n> [--dist <dir>] [--assets <dir>]
                                   [--inspector-port <n>] [--var KEY:VALUE]...`;
 
 const ENGINE_RULES = [
   { type: "CompiledWasm", include: ["**/*.wasm"] },
   { type: "Text", include: ["**/*.glue.js", "*.css", "**/*.css"] },
-  { type: "Data", include: ["**/*.woff2"] },
+  { type: "Data", include: ["**/*.woff2", "**/*.bin"] },
 ];
 
 const DROP = new Set([
@@ -44,7 +44,8 @@ function parseArgs(argv) {
       if (!value) throw new Error(`${arg} requires a value`);
       return value;
     };
-    if (arg === "--dist") options.dist = resolve(next());
+    if (arg === "--config") options.config = resolve(next());
+    else if (arg === "--dist") options.dist = resolve(next());
     else if (arg === "--assets") options.assets = resolve(next());
     else if (arg === "--port") options.port = Number(next());
     else if (arg === "--inspector-port") options.inspectorPort = Number(next());
@@ -58,8 +59,8 @@ function parseArgs(argv) {
   return options;
 }
 
-/** @param {string} dist @returns {Promise<object>} */
-export async function prepare(dist = DEFAULT_DIST) {
+/** @param {string} dist @param {string} config @returns {Promise<object>} */
+export async function prepare(dist = DEFAULT_DIST, config = resolve(ENGINE_DIR, "wrangler.jsonc")) {
   const wranglerPackage = fromEngine.resolve("wrangler/package.json");
   const wrangler = resolve(
     dirname(wranglerPackage),
@@ -67,9 +68,9 @@ export async function prepare(dist = DEFAULT_DIST) {
   );
   execFileSync(
     process.execPath,
-    [wrangler, "deploy", "--dry-run", "--config", "wrangler.jsonc", "--outdir", dist],
+    [wrangler, "deploy", "--dry-run", "--config", config, "--outdir", dist],
     {
-      cwd: ENGINE_DIR,
+      cwd: dirname(config),
       stdio: ["ignore", "inherit", "inherit"],
       env: { ...process.env, WRANGLER_SEND_METRICS: "false" },
     },
@@ -79,9 +80,7 @@ export async function prepare(dist = DEFAULT_DIST) {
   const map = JSON.parse(readFileSync(mapFile, "utf8"));
   writeFileSync(mapFile, JSON.stringify({ ...map, sourceRoot: "" }));
   const { unstable_getMiniflareWorkerOptions } = await engineDep("wrangler");
-  const { workerOptions } = unstable_getMiniflareWorkerOptions(
-    resolve(ENGINE_DIR, "wrangler.jsonc"),
-  );
+  const { workerOptions } = unstable_getMiniflareWorkerOptions(config);
   const options = {};
   for (const [key, value] of Object.entries(workerOptions)) {
     if (DROP.has(key) || value === undefined) continue;
@@ -162,7 +161,7 @@ async function serve(options) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [command, ...args] = process.argv.slice(2);
   const options = parseArgs(args);
-  if (command === "prepare") await prepare(options.dist);
+  if (command === "prepare") await prepare(options.dist, options.config);
   else if (command === "serve") await serve(options);
   else {
     console.error(USAGE);
