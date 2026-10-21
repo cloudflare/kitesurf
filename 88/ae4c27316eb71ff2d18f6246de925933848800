@@ -1,0 +1,309 @@
+packages/core/BUILD.bazel
+  s_a0b7a28e71bd8f::t_ea92279c25afa4 3
+  s_a0b7a28e71bd8f::t_f46432c2e518e0 4
+  s_a0b7a28e71bd8f::t_ee2189c30a68ab 1-2,5-57,63-119
+  s_a0b7a28e71bd8f::t_1dcffcb6dc39f4 58-62
+packages/scene-host-wasm/scripts/build.mjs
+  s_e72c45826162e3::t_dda91fd2e85bf7 14-15
+  s_e72c45826162e3::t_7bf2514ac757f6 16-22,32-33,35-49,51
+  s_e72c45826162e3::t_ce72057e45e864 26-31,72
+bazel/tracked_files.bzl
+  s_a0b7a28e71bd8f::t_ab8f1b625fa89a 1-33
+packages/script-gate/BUILD.bazel
+  s_a0b7a28e71bd8f::t_9ad84159107343 1-29
+scripts/check-ts-coverage.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 27-37,53,57
+  s_a0b7a28e71bd8f::t_46f47d78efaf9f 5
+  s_a0b7a28e71bd8f::t_608db84de84744 8,11-26,38,75,85,93
+BUILD.bazel
+  s_a0b7a28e71bd8f::t_5020c2c4d50dcc 1-66,71-167
+  s_a0b7a28e71bd8f::t_7ad03018e3d6f5 67-70
+tests/wpt-buckets.json
+  s_a0b7a28e71bd8f::t_e41021de33272c 1,1021
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 2-1020
+packages/core/pkg/BUILD.bazel
+  s_a0b7a28e71bd8f::t_ee2189c30a68ab 1-41
+packages/dom-shim/BUILD.bazel
+  s_a0b7a28e71bd8f::t_9ad84159107343 1-96
+docs/BUILD_TOOLING.md
+  s_c6d6a3ac21fe46::t_a301551fabb0b9 23-25,165-182,229-230
+scripts/lockfile-check-bazel.mjs
+  s_a0b7a28e71bd8f::t_46f47d78efaf9f 5-22,38,40-41
+  s_e2c82741e7bb67::t_cef7b382eb3ccf 1-4
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 23-37,39
+scripts/e2e-shards.mjs
+  s_a0b7a28e71bd8f::t_160ea2833efc2f 5-17,24-48,53-62,67-81,85-88,90-98,102,106-108
+  s_e2c82741e7bb67::t_1f6bf2fa5b98b4 1-4
+  s_a0b7a28e71bd8f::t_ea92279c25afa4 89
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 18-23,49-52,63-66,82-84,99-101,103-105
+bazel/rust/std.bzl
+  s_a0b7a28e71bd8f::t_a0d41026cce26b 58-60,70-74
+  s_a0b7a28e71bd8f::t_805864ea256a13 33-40,68-69,75,100-103,131-139,141-145
+  s_a0b7a28e71bd8f::t_4dc3136f05611d 1-32,41-57,61-67,76-99,104-130,140,146-148
+scripts/wpt-batched.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 243-245,371-406,757-761
+  s_a0b7a28e71bd8f::t_532035a77ba941 6,17,32,53,83-84,90,187-188,214,217-218,232,242,246-247,370,753-756,762-764,953,1046-1047
+tests/e2e/shards.bzl
+  s_a0b7a28e71bd8f::t_9276f36599ad03 6
+  s_a0b7a28e71bd8f::t_4365ccebbaf1f7 1-5,7-10
+scripts/wpt-inventory.mjs
+  s_a0b7a28e71bd8f::t_988bbbba6694e9 5,103-111,116,119-120,126,141,144-145,147,149,152-155,183-190,194,200
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 117-118,127-140,142-143,191-193
+bazel/rust/repos.bzl
+  s_a0b7a28e71bd8f::t_73bdc52f9f78cb 17-20
+  s_a0b7a28e71bd8f::t_df52efbd488a83 4-12,40-44,60-64,116-118
+  s_a0b7a28e71bd8f::t_6e5ee74c330229 1-3,13-16,21-39,45-59,65-88,90-115,119-142
+  s_a0b7a28e71bd8f::t_562b20e876c817 89
+scripts/wpt-runplan.mjs
+  s_a0b7a28e71bd8f::t_eeccd7001fa331 5-8,10,13-29,31-49
+  s_a0b7a28e71bd8f::t_2bf9e4437e88c2 9,30
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 11-12
+  s_e2c82741e7bb67::t_89d9dbc53a2976 1-4
+packages/engine/vitest.e2e.config.mts
+  s_a0b7a28e71bd8f::t_5d001ecf8e0d50 17-18,260-261
+packages/engine/test/e2e/BUILD.bazel
+  s_a0b7a28e71bd8f::t_4365ccebbaf1f7 1-39
+tests/wpt/defs.bzl
+  s_a0b7a28e71bd8f::t_4d8002b1ffb4bc 1-61,63-144,146-153,158-180,187-205
+  s_a0b7a28e71bd8f::t_7ad03018e3d6f5 154-157,181-186
+  s_c6d6a3ac21fe46::t_a301551fabb0b9 62
+  s_a0b7a28e71bd8f::t_dbfec97ac666c6 145
+scripts/e2e-fixtures.mjs
+  s_e2c82741e7bb67::t_1a2f183b6f02e8 1-4
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 21-41
+  s_a0b7a28e71bd8f::t_160ea2833efc2f 5-20,42-45
+scripts/e2e-shard.mjs
+  s_e2c82741e7bb67::t_c833ccd0032871 1-4
+  s_a0b7a28e71bd8f::t_160ea2833efc2f 5-37,40-48,53-57,69-84,94-95,113-115
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 38-39,49-52,58-68,85-93,96-112
+scripts/wpt-merge-shards.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 76-77,139-140,182-183
+  s_a0b7a28e71bd8f::t_bf568f89ee020c 24-26,48-49,57,75,78,127,178-181,184-186,188
+packages/renderer-core/scripts/build.mjs
+  s_e72c45826162e3::t_511c7242f8b977 31-36,43-48,50-51,132-134,139-147,157,167,169-171,178-181,207
+tests/wpt/BUILD.bazel
+  s_a0b7a28e71bd8f::t_220af13e04d098 1-2,13-112
+  s_a0b7a28e71bd8f::t_7ad03018e3d6f5 3-12
+scripts/wpt-bucket.mjs
+  s_a0b7a28e71bd8f::t_d4b84e6423779c 182-183,188-189,228-235
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 8-18,25-26,42-43,55-59,93-94,98-101,119-127,133-137,184-187,204-211,215-218,220-225,257,265-267,269-272,277-278,302-304,315-320,322-326
+  s_e2c82741e7bb67::t_9b8468c9e89e76 1-4
+  s_a0b7a28e71bd8f::t_9dc4f4fb5a28fe 7,190
+  s_a0b7a28e71bd8f::t_f591eb8c3f470b 67-90,172
+  s_a0b7a28e71bd8f::t_f3de81cea8ffa3 5-6,19-24,27-41,44-54,60-66,91-92,95-97,102-118,128-132,138-171,173-181,191-203,212-214,219,226-227,236-256,258-264,268,273-276,279-301,305-314,321,327
+bazel/BUILD.bazel
+  s_a0b7a28e71bd8f::t_ab8f1b625fa89a 1-31
+scripts/wpt-gate.test.mjs
+  s_a0b7a28e71bd8f::t_f12dc69ebd8cc4 5-13,26-28,38-43,57-60,62
+  s_e2c82741e7bb67::t_474140c9c34e98 1-4
+  s_c6d6a3ac21fe46::t_77f8429287315a 45,51-54,61
+  s_a0b7a28e71bd8f::t_e383468018a933 14-25,29-37,44,46-50,55-56
+scripts/wpt-stamp.test.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 11-44
+  s_a0b7a28e71bd8f::t_eeccd7001fa331 5-10,45-47
+  s_e2c82741e7bb67::t_c8a2a45e096a99 1-4
+bazel/rust/crates.bzl
+  s_a0b7a28e71bd8f::t_686a83472d1c54 1-18,23-46,52-71,76-121,128-134,140-148,154,160-177,183-225,230-239,244-280
+  s_a0b7a28e71bd8f::t_765b665b73060f 19-22,47-51,72-75,122-127,135-139,149-153,155-159,178-182,226-229,240-243
+scripts/BUILD.bazel
+  s_a0b7a28e71bd8f::t_1686d16e17792d 124-127
+  s_a0b7a28e71bd8f::t_6741f1aeb107f8 270-285,289,295,302,308,322-326
+  s_a0b7a28e71bd8f::t_42c29eaef5d413 2
+  s_c6d6a3ac21fe46::t_a301551fabb0b9 3
+  s_a0b7a28e71bd8f::t_1199742a493f7d 1,4-123,128-269,286-288,290-294,296-301,303-307,309-321,327-331
+REPO.bazel
+  s_a0b7a28e71bd8f::t_ab8f1b625fa89a 1-6
+scripts/check-no-dts.mjs
+  s_a0b7a28e71bd8f::t_608db84de84744 5-6
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 8-12
+bazel/rust/wasm32.bzl
+  s_a0b7a28e71bd8f::t_6e5ee74c330229 1-54
+bazel/executors.bzl
+  s_a0b7a28e71bd8f::t_ab8f1b625fa89a 1-11
+scripts/tracked-files.mjs
+  s_a0b7a28e71bd8f::t_608db84de84744 5-11,18-29,33-35,42
+  s_e2c82741e7bb67::t_92087cb66e018c 1-4
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 12-17,30-32,36-41
+bazel/rust/BUILD.bazel
+  s_a0b7a28e71bd8f::t_686a83472d1c54 1-47
+scripts/generate-webidl-bindings.mjs
+  s_a0b7a28e71bd8f::t_bf568f89ee020c 16-25,431,442-445,447,450-452,456-457
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 26-28,453,455
+scripts/wpt-gate.mjs
+  s_a0b7a28e71bd8f::t_59f9f08d282174 5-14,20-30,37-50,54-60,64-70,74,87-92,96,103-124,128-136,141,149-152
+  s_e2c82741e7bb67::t_71fd4c33fe89fe 1-4
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 15-19,31-36,51-53,61-63,71-73,75-86,93-95,97-102,125-127,137-140,142-148
+tests/wpt/buckets_repo.bzl
+  s_a0b7a28e71bd8f::t_4d8002b1ffb4bc 1-15,22-29
+  s_a0b7a28e71bd8f::t_a0d41026cce26b 16-21
+tests/e2e/defs.bzl
+  s_c6d6a3ac21fe46::t_a301551fabb0b9 25-30
+  s_a0b7a28e71bd8f::t_7ad03018e3d6f5 31-34
+  s_a0b7a28e71bd8f::t_4365ccebbaf1f7 1-24,35-71
+scripts/pw-shared.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 14-16,64-66,73-75,90-93
+  s_e2c82741e7bb67::t_09e26282a51555 1-4
+  s_a0b7a28e71bd8f::t_eeccd7001fa331 5-13,17-63,67-72,76-89,94-96
+bazel/rust/rules_rust-patched-crates.patch
+  s_a0b7a28e71bd8f::t_4dc3136f05611d 1-67
+scripts/e2e-gate.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 11-17,19-22,30-36,38-50,59-64,94-95,100-104
+  s_e2c82741e7bb67::t_33f56c6de4f9d0 1-4
+  s_a0b7a28e71bd8f::t_160ea2833efc2f 5-10,18,23-29,37,51-58,65-93,96-99,105-109
+tests/pw/defs.bzl
+  s_a0b7a28e71bd8f::t_4365ccebbaf1f7 1-33
+scripts/cargo-lock-check-bazel.mjs
+  s_a0b7a28e71bd8f::t_46f47d78efaf9f 5-20,23-42,52,56-58
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 21-22,43-51,53-55
+  s_e2c82741e7bb67::t_f95a64ae4d2f1b 1-4
+packages/jsrpc-types/BUILD.bazel
+  s_a0b7a28e71bd8f::t_9ad84159107343 1-24
+bazel/rust/unwind_smoke.rs
+  s_a0b7a28e71bd8f::t_4dc3136f05611d 5-16
+  s_e2c82741e7bb67::t_359426c019fdae 1-4
+scripts/vitest-bazel.mjs
+  s_a0b7a28e71bd8f::t_160ea2833efc2f 5-9,11-17,24,26-27
+  s_a0b7a28e71bd8f::t_ea92279c25afa4 10,25
+  s_e2c82741e7bb67::t_d21db4700c8b28 1-4
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 18-23
+scripts/wpt-engine.mjs
+  s_a0b7a28e71bd8f::t_f076fdd869706e 9
+  s_a0b7a28e71bd8f::t_4977313c142855 5-8,10-28,37-63,77-81,85-87,95-96,99-105,109-127,130-142,152-171
+  s_e2c82741e7bb67::t_e8bb604c54a079 1-4
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 29-36,64-76,82-84,88-94,97-98,106-108,128-129,143-151
+scripts/wpt-draws.mjs
+  s_a0b7a28e71bd8f::t_eeccd7001fa331 5-38
+  s_e2c82741e7bb67::t_c06196b5a56be5 1-4
+scripts/pw-shard.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 8-19,42-43,49-50,55-57,59-65,72-73,76-78,85-86,99-123,127-136
+  s_e2c82741e7bb67::t_588de8b508dbd7 1-4
+  s_a0b7a28e71bd8f::t_4153459d83fa89 5-7,20-41,44-48,51-54,58,66-71,74-75,79-84,87-98,124-126,137-140
+bazel/executor_profiles.bzl
+  s_a0b7a28e71bd8f::t_ab8f1b625fa89a 1-60
+.bazelversion
+  s_a0b7a28e71bd8f::t_ab8f1b625fa89a 1
+scripts/wpt-update-expectations.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 16-20,43-49,55-57
+  s_e2c82741e7bb67::t_ae73e60fb43f3d 1-4
+  s_a0b7a28e71bd8f::t_59f9f08d282174 5-15,21-42,50-54,58-60
+scripts/pw-shared.test.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 26-28,32-35,50-53
+  s_e2c82741e7bb67::t_1ad8bb36fe99fd 1-4
+  s_a0b7a28e71bd8f::t_eeccd7001fa331 5-25,29-31,36-49,54-55
+tests/e2e/BUILD.bazel
+  s_a0b7a28e71bd8f::t_4365ccebbaf1f7 1-4
+MODULE.bazel
+  s_a0b7a28e71bd8f::t_d8468a3bbc4f7b 219,221
+  s_a0b7a28e71bd8f::t_f958cbe946c6ea 303
+  s_a0b7a28e71bd8f::t_0e041d50e36a9e 26-37,41-45,64-71,83-84,108-114,247-250,257-260,264-269,272-276,291-294
+  s_a0b7a28e71bd8f::t_ab8f1b625fa89a 1-25,38-40,46-63,72-82,85-107,115-218,220,222-246,251-256,261-263,270-271,277-290,295-302,304-305
+scripts/build-wasm.mjs
+  s_e72c45826162e3::t_511c7242f8b977 32-36,97,104-107,109-112,114-116,118-119,121-123,131-138,140-145,152-156,176-179,184-185
+  s_e72c45826162e3::t_32df0787f176d2 175
+  s_e72c45826162e3::t_dda91fd2e85bf7 150-151
+packages/engine/test/e2e/engine-routes.e2e.test.ts
+  s_c6d6a3ac21fe46::t_c1f98cb5683e09 72
+packages/renderer-core/BUILD.bazel
+  s_a0b7a28e71bd8f::t_ee2189c30a68ab 1-53
+scripts/wpt-exec.mjs
+  s_a0b7a28e71bd8f::t_988bbbba6694e9 89,146-150,961
+scripts/pw-gate.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 9-17,20-26,32-61,67-72,101-102,104-107,109-111,120-122,128-131
+  s_e2c82741e7bb67::t_2564dce89438b1 1-4
+  s_a0b7a28e71bd8f::t_4153459d83fa89 5-8,18-19,27-31,62-66,73-100,103,108,112-119,123-127,132-136
+scripts/node-test-bazel.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 11-14,16-18
+  s_e2c82741e7bb67::t_62613e54b4669a 1-4
+  s_a0b7a28e71bd8f::t_160ea2833efc2f 5-10,15,19-20
+packages/tty-css-preview/BUILD.bazel
+  s_a0b7a28e71bd8f::t_ee2189c30a68ab 1-26,31-43
+  s_a0b7a28e71bd8f::t_7ad03018e3d6f5 27-30
+packages/worker-script/BUILD.bazel
+  s_a0b7a28e71bd8f::t_9ad84159107343 1-63
+packages/scene-host-wasm/BUILD.bazel
+  s_a0b7a28e71bd8f::t_ee2189c30a68ab 1-73
+packages/engine/test/e2e/global-setup.ts
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 13-15,44-47
+  s_a0b7a28e71bd8f::t_5d001ecf8e0d50 20,43,48-51
+scripts/wpt-runplan.test.mjs
+  s_a0b7a28e71bd8f::t_eeccd7001fa331 5-34,39-41,51-55,60
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 35-38,42-50,56-59
+  s_e2c82741e7bb67::t_c14de50d3a3451 1-4
+packages/page-script/BUILD.bazel
+  s_a0b7a28e71bd8f::t_9ad84159107343 1-65
+scripts/wpt-stamp.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 15-19,22-26,37-38
+  s_e2c82741e7bb67::t_7d3d572d63cf70 1-4
+  s_a0b7a28e71bd8f::t_eeccd7001fa331 5-14,20-21,27-36,39
+tests/pw/BUILD.bazel
+  s_a0b7a28e71bd8f::t_4365ccebbaf1f7 1-18
+scripts/pw-run.mjs
+  s_a0b7a28e71bd8f::t_94faf7dffd1f14 18-26,35-48,75,144,235
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 169-194,368-370,376-378,417-421
+  s_a0b7a28e71bd8f::t_6f8417b3c8ea14 407,409,412-416,422,424-425
+  s_a0b7a28e71bd8f::t_12e94bbe05ff48 318,375,379
+  s_a0b7a28e71bd8f::t_c149deefa21647 136-142,168,200
+scripts/wpt-shared.mjs
+  s_a0b7a28e71bd8f::t_988bbbba6694e9 15,91-113
+  s_a0b7a28e71bd8f::t_414c6c7ae2d6f3 114
+packages/dom-shim/editing_repo.bzl
+  s_a0b7a28e71bd8f::t_9ad84159107343 1-16,21-28
+  s_a0b7a28e71bd8f::t_1dcffcb6dc39f4 17-20
+scripts/wpt-buckets.mjs
+  s_a0b7a28e71bd8f::t_bd15b0f148fa95 44,59-65,87-91,104-105,121-122,126-131,134-136
+  s_a0b7a28e71bd8f::t_bf6530a6e24fb6 5-43,45-58,66-86,92-103,106-120,123-125,132-133,137-138
+  s_e2c82741e7bb67::t_82643105fdfc40 1-4
+packages/page-renderer/BUILD.bazel
+  s_a0b7a28e71bd8f::t_9ad84159107343 1-48
+bazel/checks.bzl
+  s_a0b7a28e71bd8f::t_7ad03018e3d6f5 12-19,44-51
+  s_a0b7a28e71bd8f::t_5020c2c4d50dcc 1-11,20-43,52-82
+packages/engine/BUILD.bazel
+  s_a0b7a28e71bd8f::t_f8de2028b95af4 1-43,45-181,183-260
+  s_a0b7a28e71bd8f::t_9b2fabed1036cc 44
+  s_a0b7a28e71bd8f::t_25c1add1fb421d 182
+.gitignore
+  s_c6d6a3ac21fe46::t_b9ba43444246a7 23-24,27-30
+MODULE.bazel.lock
+  s_c6d6a3ac21fe46::t_f1e242328531cf 1-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "88ae4c27316eb71ff2d18f6246de925933848800",
+  "prompts": {},
+  "sessions": {
+    "s_a0b7a28e71bd8f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb745b377ffeVBZ5Ia9zkhIFEt",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_e2c82741e7bb67": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb5ebc747ffelxCB5Uw0MSYH1u",
+        "model": "@cf/deepseek-ai/deepseek-v4-flash"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_e72c45826162e3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb760dd6affe3hw1tTWpfVBGdl",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

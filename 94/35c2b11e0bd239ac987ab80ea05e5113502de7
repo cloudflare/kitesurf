@@ -1,0 +1,2237 @@
+packages/dom-shim/src/traversal.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13,41,47,60,64-72,75,84-86,107-118,247,250-267,274
+packages/engine/test/e2e/oversize-body-streams.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 53-55,77
+packages/engine/test/proxy-redirect.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 42-46,58-60,68,72-74,77,86-88,98-105,118-125,136-138,152-154,167-169
+scripts/build-tracker-list.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9,12,123-127,129
+packages/engine/src/cdp/cookie-jar-registry.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9
+packages/engine/test/e2e/stale-node-matches.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-9,38-39
+packages/engine/src/cdp/dedicated-workers.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 64,232-242,249-253,259-264,376-381
+packages/engine/test/e2e/storage-cookies.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15-18,25
+packages/engine/test/target-close.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,71
+packages/engine/test/e2e/demos/page-renderer-screencast.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,33,40-42,72-74
+packages/engine/test/e2e/raw-text-inner-html.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,36
+packages/engine/src/cdp/page-session.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 167-170
+  s_c6d6a3ac21fe46::t_e852c8439dff1b 171-172
+  s_c6d6a3ac21fe46::t_ea558918d8467a 17,57,61,90,109-114,200
+packages/engine/test/e2e/author-webfont.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 100-102
+packages/dom-shim/src/element/reflect.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,18-22,25-30,59-63,77-81,98-102,117-122,157,173,179,211,234,259,276,293,311,318,335
+  s_ae8edd3430c571::t_b33c78c67ab9eb 126,180
+  s_7ffa3edaa61e8e::t_486713486b97f6 127-131,158-162,181-186,203,212-215,235-239,251,260-264,279-281,294-298,310,319-323,338-342,370-371
+packages/engine/src/rate-limit.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15
+docs/BOA_BRIDGE_V2.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 52-55,82-87,205,210,218,287-293
+docs/TELEMETRY.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 54,58
+packages/engine/src/eval/tail-trace-registry.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7
+packages/engine/test/e2e/demos/lifecycle-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-30,49-53
+packages/engine/test/e2e/demos/event-listener-fixes-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17-20,23-26,32-39,54-57,63-68,73-77,84-90
+packages/engine/test/e2e/lazy-load-event.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7,23,31,36
+packages/engine/test/e2e/demos/fixed-in-fixed-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 23-28,33-38,42-44
+packages/engine/src/cdp/fetch.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 16,28,83
+packages/tty-css-preview/extension/content.js
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 159,161-162,247-249,268-270,309-311,373-374,382-383,397,402
+packages/dom-shim/src/element/forms/button.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 23-33,44-46,64-66,87-101,106-108,114-115,129-131,133-135,137-144,160-162,166-169,171-180
+  s_c6d6a3ac21fe46::t_42ebbab41180b1 113
+  s_c6d6a3ac21fe46::t_bdb9c8fe83fb34 181
+  s_c6d6a3ac21fe46::t_ea558918d8467a 186
+packages/engine/test/e2e/check-visibility.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 31-38
+packages/engine/test/e2e/shadow-dom.e2e.test.ts
+  s_24e4d13e756d00::t_8a7d8df073e128 47
+packages/engine/test/e2e/scene-host-worker.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-13,27-28
+packages/page-script/src/page-tasks.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7-10,15-16,20-23,77-79,107-109,130-132,138,188-191,219-222,244-246,257-259,266,316-318,327-332,344-345,365-367,390-395,406-409,415,428,457-459,478-480,492-494,499-501,556-558,609,620-624
+  s_c6d6a3ac21fe46::t_bf2d0730c0bb52 6
+packages/core/src/lib.rs
+  s_76a97d8d524aab::t_415aa85ba9bb30 4833
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 24,423-427,445,528-540,543-545,1923,4839,6184,6222-6224,6251-6253,6266-6267,6277-6279,6301,6303,6630-6631,6633,6648,6689,6991,7053,7816,7857
+  s_c6d6a3ac21fe46::t_5d837fade97cf1 541-542
+  s_c6d6a3ac21fe46::t_8fbb10856db99c 1924-1926
+  s_c6d6a3ac21fe46::t_e872b773d387ef 6185-6187
+  s_c6d6a3ac21fe46::t_b860eae9e9035a 6302
+  s_c6d6a3ac21fe46::t_bd3597647be1d1 6304-6306
+  s_c6d6a3ac21fe46::t_e59af2616427d1 6627-6629
+  s_c6d6a3ac21fe46::t_992e04f8f55a61 6632
+  s_c6d6a3ac21fe46::t_d93ba5877cc277 6647
+  s_c6d6a3ac21fe46::t_5462732d748c29 6649-6651
+  s_c6d6a3ac21fe46::t_0f109561131678 6688
+  s_c6d6a3ac21fe46::t_353e07f2878e7e 6690-6691
+  s_c6d6a3ac21fe46::t_a17094ec505b59 7052
+  s_c6d6a3ac21fe46::t_46cb332b55b784 7054
+  s_c6d6a3ac21fe46::t_ff51efb3c6ca8c 7813-7815
+  s_c6d6a3ac21fe46::t_273a4c266a1ff6 7817-7819,7854-7856
+  s_c6d6a3ac21fe46::t_4fd65ce8db7f58 7858-7860
+  s_c6d6a3ac21fe46::t_ea558918d8467a 1034-1035,1376-1379,1927,2424-2425,2731-2738,3303-3307,3533-3535,3537-3542,3705-3713,3968-3975,4271-4277,4292-4298,4806,4819-4824,4834-4838,4902-4908,4923-4929,4947-4953,5793,5853-5861,5864-5871,5873,5875-5889,6188-6189,6286-6288,6343-6348,6440,6444-6449,6512-6515,6652,6664-6665,7058-7060,7722-7725,7761,7787-7791,7793-7804,7806-7812,7820-7853,7861-7872
+packages/engine/test/e2e/navigation-fidelity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 37-39,46-49
+packages/engine/test/e2e/demos/module-init-shim-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 23-26,46-65,76-88,90-93,109-126,128-131,144-157,159-160,167-169,174
+packages/engine/test/fixtures-worker/src/dynamic/bench.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 191-193
+packages/engine/test/e2e/demos/img-srcset-reload-complete.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9,19-22,38-48,52,64,67,72,94-97,114-116
+packages/engine/src/embed.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 28,38,42
+scripts/webidl-ts-types.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 6-17,21-68,79-81,111-114,120-122,128-131,137-140,164-169,212-218,230-232,240-243,248-251,255-258,264-267,269-272,285-295,301-302,312-315,333-335,344-349,354-356,361-363
+  s_c6d6a3ac21fe46::t_ea558918d8467a 370-372
+packages/engine/test/e2e/demos/boa-evalless-phase10a.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 45-47,51-53
+packages/engine/src/eval/span-sink.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,26,34,43,55
+packages/engine/test/e2e/computed-style-cache.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 39-46
+packages/engine/test/e2e/bridge-inherit-v8.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 196-198,282,298-311,313-319,321-327
+README.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 435
+packages/page-script/src/session-methods.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 33,41
+  s_c6d6a3ac21fe46::t_ea558918d8467a 93-95
+packages/core/src/scan.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 215
+packages/engine/test/e2e/corp-classic-script.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14
+packages/engine/test/e2e/inserted-script-bake.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17-24,45-51,53-59,62-64
+packages/engine/test/e2e/light-dark-color-scheme.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17
+packages/engine/test/e2e/table-anonymous-boxes.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17-22,24-31
+packages/engine/test/e2e/demos/page-renderer-pdf.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-14
+packages/dom-shim/src/element/forms/meter.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 24-26,43-45,53-55,61-63,69-71,78-80,87-89,96-101,104
+packages/engine/src/cdp/network-events-registry.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,18
+packages/core/Cargo.toml
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 88-92
+packages/engine/test/e2e/connect.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 27
+packages/engine/test/fixtures-worker/src/png.ts
+  s_24e4d13e756d00::t_7a76b5dd0ab062 72
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 58
+  s_24e4d13e756d00::t_60f52be4dd194e 73
+packages/engine/test/e2e/demos/forms-instanceof-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 24-28,33-34,36-37,40,54,56
+packages/core/src/paint_damage_layout_cache_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 24-31,33-36,48-58,65-68,77-81,83-86,94-97
+packages/engine/test/page-script-rpc-session.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18-24,120,130,191,269-274,296,310,322,352,382-385
+packages/engine/src/cdp/network-events.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 121-124,142,154-155,205,226,272-279,288-295,361-368,371,384,445,466-473,484-491,501-508,518-525,532-539,561-568,592,660,670
+packages/engine/test/e2e/demos/selection-api.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 31-36,46-51
+scripts/wpt-inventory.test.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 52-58,74-79,83-86,88-93
+packages/engine/test/e2e/demos/mjs-import-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 27-30
+packages/engine/test/e2e/demos/entity-parse-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 16-19,31-33
+packages/engine/test/e2e/demos/boa-evalless-phase7.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18-20,25-30,39-41
+scripts/patches/README.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 71-92
+packages/core/src/tty_omni.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 49-54,128-131,276-279,291-294,300-304,306-310,318-322,367-370,375-378,388-390,426-428,522-525,626-635,696-699,715-718,785-788,829-832,1015-1018,1020-1023,1062-1065,1084-1087
+docs/PAGE_SCRIPT_PROTOCOL.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20,34
+packages/engine/package.json
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 2-47
+packages/engine/test/e2e/boa-call-receiver.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,20-21,26-33,37-44
+packages/engine/test/e2e/demos/boa-evalless-phase2.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 37-39,41-43,53-72,77-80
+scripts/pull-sccache.test.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 25-28,30-34,52-55
+packages/engine/test/e2e/layer-budget.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 22,30,33
+packages/engine/test/e2e/demos/cookie-passthrough-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,10-26,28-33,35,38,40-67
+packages/engine/test/e2e/tty-todomvc-controls.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 22-24
+packages/script-gate/test/referrer-policy.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11
+packages/engine/src/index.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 51,84,156-161,205,208-213
+packages/engine/test/e2e/classic-regex-globals.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,19-20,25-29,40-41,43-49,53-55,60-61
+scripts/dump-gecko-only-longhands.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-13,17
+packages/engine/test/e2e/public-agent-commands.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-17
+packages/dom-shim/src/element/load-events.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 34-36,38-40,46-50,55-56,78-83,95-97,123-127,186-188,191-192,210
+  s_ae8edd3430c571::t_2da77aeb4f0a94 180
+  s_ae8edd3430c571::t_a0f365774adc0f 181
+  s_ae8edd3430c571::t_b33c78c67ab9eb 182
+  s_c6d6a3ac21fe46::t_2f3af4bf41055e 128-129
+  s_c6d6a3ac21fe46::t_c8ba3ff93ceb42 193
+  s_c6d6a3ac21fe46::t_ea558918d8467a 155-157,172,215
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-13,18
+packages/engine/src/eval/unsafe-now.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-12
+packages/engine/test/e2e/eval-during-navigate.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 39,52-55,73-76,115-117
+packages/dom-shim/src/state.ts
+  s_6f75a522fdcec1::t_37b24c486bb9fa 200-201
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 141,143-145,147-150,158-160,162,167,207-208,231,299-304,308,395,401-403,405,407,409-410,412,414,418,420,422
+  s_b7f928dc8fbea9::t_45f08c4b11732a 278-279
+  s_b7f928dc8fbea9::t_81a47a6e9cf38e 92,113,136,140,163-164,168,187,209-211,230,232,237-239,293-298,424-426,433
+packages/engine/test/e2e/tldraw-app-shell.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 78-80,132-134,159-163,169-180
+packages/tty-css-preview/test/content-script-fixture.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-16,214-217
+packages/engine/test/e2e/detached-node-reclaim.e2e.test.ts
+  s_2cd935aac36428::t_8a6275d6996c15 133,136
+  s_24e4d13e756d00::t_e41c7265731377 19
+  s_24e4d13e756d00::t_e2689b82d354cc 21-22,86,89,92,102,114-115,118
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 59-63,82-85,87-88,90,94-101,103-111,119-121,123-132,134-135,137-151,153-162,181-189,191-198,209-216
+  s_24e4d13e756d00::t_8c272a23bf0687 91,93,112-113,116-117
+  s_24e4d13e756d00::t_bd952f25ef8176 20
+  s_c6d6a3ac21fe46::t_ea558918d8467a 25-26
+packages/engine/test/e2e/inline-opacity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-11
+packages/engine/test/e2e/demos/oopif-runtime-evaluate.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17-18,23-26,29-31,35,37,49,61,73-75
+pnpm-workspace.yaml
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 3
+packages/engine/test/e2e/demos/oopif-rerender.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-12
+packages/engine/test/e2e/demos/location-mutate-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 21,65,75-76
+packages/engine/test/e2e/demos/forms-formdata-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 69,87-94
+  s_c6d6a3ac21fe46::t_0b639add7fde4e 95
+packages/engine/test/e2e/hoisted-inline-rebreak.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 29-31
+packages/page-script/src/dom-shim.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 23
+scripts/wpt-serve.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 38-40
+packages/core/src/boa_eval.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 239-240,288-292,394-401
+  s_c6d6a3ac21fe46::t_ea558918d8467a 562,627,684-689,691,1316,1360-1364
+packages/engine/test/e2e/demos/print-media-emulation-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,20,22-34,36-37,39,41-42,44-45,47-49,51-60,62-64,66-71
+packages/tty-css-preview/test/update.test.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 51-58,60-63,72-80,89-97,106-115
+packages/engine/test/e2e/constraint-validity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8
+packages/dom-shim/src/fastpath.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 32-52,58-62,66-70,74-85,89-91,94-105,109-198,200
+  s_c6d6a3ac21fe46::t_54ba39e9712c2f 199
+  s_c6d6a3ac21fe46::t_45e183a277901f 201-203
+  s_c6d6a3ac21fe46::t_ea558918d8467a 14-21,204-206
+scripts/wpt-ref-cache.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11
+packages/engine/test/e2e/label-svg-content-activation.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-12,27-28
+packages/core/src/animation_clock_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 323-326,456-460,557-559,581-583,613,639,812-816,856-858,860,875-884
+  s_2beea15461286f::t_66114d744c440b 859
+  s_c6d6a3ac21fe46::t_9c33aae02efffd 861
+packages/engine/test/e2e/window-global-scope.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,37,79,125,145
+packages/engine/test/tty-stylesheet.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 54
+  s_c6d6a3ac21fe46::t_ea558918d8467a 107,110,113,166,188
+packages/page-script/src/script-policy.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 55
+packages/engine/test/e2e/children-options-sameobject.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,13-14
+packages/engine/test/e2e/interception-abandoned-park.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 25
+  s_24e4d13e756d00::t_8a7d8df073e128 36
+packages/engine/test/e2e/demos/click-selector-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-9,11,13-15,17-23
+packages/dom-shim/src/events/dispatch.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 5-14,73-78,82-85,126-131,134,152,168,222-225,227-229,236-238,257-260,297,343-345,349-354,356-358,360-361,406,410,419-421,424,429,436-438,448-450,453-455,457-459,461-463,480,490-492,499-500,593
+  s_c6d6a3ac21fe46::t_9e8d069cb238e0 501
+  s_c6d6a3ac21fe46::t_30b14e331f9a5d 594
+  s_c6d6a3ac21fe46::t_ea558918d8467a 580-581,588,603-607
+packages/engine/test/cors.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 150-152,159-164,168-176,298-304,330-335,358-360,369-372
+packages/engine/test/e2e/demos/iframe-bitmap-paint.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 21-22,38
+packages/engine/src/cdp/debugger.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,19-25,30-36
+packages/engine/test/e2e/demos/oopif-worker-budget.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 26,30-32,52
+packages/engine/test/e2e/demos/ws-boot-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18
+packages/engine/test/e2e/iframe-legacy-charset.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7
+packages/engine/test/e2e/link-onload-media.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13,30
+packages/engine/test/e2e/positioned-root-hoist.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14-18,32
+packages/engine/test/fixtures-worker/src/dynamic/documents.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 83
+packages/engine/test/e2e/demos/images-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-9,12,15-16,18-27,40-45,54-65,70-85,87-95
+packages/engine/test/fixtures-worker/src/dynamic/scripts.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 66-79
+packages/engine/test/tty-nav-params.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7,9-12,28-30,52-58,62-69,83-85,87-89
+packages/core/src/inline_flow_rect_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 150-153
+packages/core/src/tty_modes.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 87-91
+  s_c6d6a3ac21fe46::t_ea558918d8467a 94-98,113-117,338-340
+packages/dom-shim/src/layout/cheap.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17-54,110-111
+  s_c6d6a3ac21fe46::t_ea558918d8467a 221,243,293,298-302
+packages/engine/test/e2e/demos/network-event-shape-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-31,33-48,50-55,57-106
+packages/engine/src/eval/oopif-render.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 121-123,142,166,177,183-190,222,232,234,299,308-312
+  s_c6d6a3ac21fe46::t_2c157d7df3604c 313
+  s_c6d6a3ac21fe46::t_ea558918d8467a 83,346,391
+packages/script-gate/test/gate.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 147,194,199,228,230,236,279,287,298,312,330,384,386,395,494,511
+packages/engine/src/eval/limit-registry.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18,30,36
+packages/engine/src/cdp/page-script-generation.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7,78,89
+packages/engine/test/e2e/demos/top-level-await-fetch-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17,23,33,40-41,43-46,48-51,53-57,59-66,68-70,72-80,82-91,93-96,98-102
+scripts/wpt-testdriver.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 79-100,102-110,115-135,160-165,170-175,180-185,191-196,204-205,219-221,329-338,344-353,384-385,403,466-469,514,534-535,543,570,580-583,606-609,613
+packages/script-gate/src/sri.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 29,38,84
+scripts/regen-vendor-patches.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 48,61,100,109,121
+packages/script-gate/src/csp.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 158,267
+packages/dom-shim/src/animations.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 55-62,69-77,86-88,95-97,123-124,132-133,218-219,241-242,250-253,274-276,279-282,287-291,308-317,321-322,348-349,375-382,389-394,429-433,450-452,460-467,474-475,491-495,500-503,518-521,540-549,590-591,648-652,667-684,692-696,720-724,737-740,769-770,793-795,825-829,926-931,946-949,960-966,971-972,975-977,982-986,1005-1012
+packages/engine/src/rbi-protocol.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 30
+packages/script-gate/src/mime.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 27-29,33,39,44-45,50
+packages/engine/test/e2e/demos/forms-range-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 70,89-90,93-94,110
+packages/engine/test/native-functions-walk.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7-10,32-34
+packages/engine/test/e2e/demos/document-fonts-ready.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14-15,19-21,25-29
+  s_c6d6a3ac21fe46::t_ea558918d8467a 32-34
+packages/page-script/src/init-shims.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 63-68,94-105,123-134,163,187-194,204-207
+  s_17a95d7d09cc74::t_1046a157cdc6eb 8
+  s_c6d6a3ac21fe46::t_35bc416803f352 208-210
+  s_c6d6a3ac21fe46::t_ea558918d8467a 54-55
+packages/engine/test/e2e/classic-seed-walk.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7,13-15,18,21
+packages/core/src/svg_descendant_rect_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18-21,38-47,56-59,63-72,129-144
+packages/engine/test/e2e/demos/cookies-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-47,49-50
+packages/engine/test/e2e/bridge-defineproperty.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9,19-21,40-45,55-57,72-74,76,84-85,105,108
+packages/engine/test/e2e/canvas-natural-size.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,21-23
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 23,69
+docs/TESTING.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 170,174,181,218,228
+packages/dom-shim/src/file-input.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 184,187,221-222,231-236,247-261,293-295,305-312,314-317
+  s_c6d6a3ac21fe46::t_3afb6f746ad384 185-186
+  s_c6d6a3ac21fe46::t_df913fb2264ce2 188-190
+  s_c6d6a3ac21fe46::t_d3ae24466f1eeb 220
+  s_c6d6a3ac21fe46::t_47a8fb40e93615 313
+  s_c6d6a3ac21fe46::t_6ab3383444e69e 318-320
+  s_c6d6a3ac21fe46::t_ea558918d8467a 46,49-51,191-192,207-209,321-322
+packages/page-script/src/intersection-observer.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 174,286-289,292-299,303-308,310,364,367-385,389-390,394-404,413-414,431-435,471-474,553-558,621
+tests/wpt-tests.json
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 2-11796
+packages/engine/src/tty/stylesheet.css
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 36-38
+packages/engine/vitest.e2e.config.mts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14,97
+packages/script-gate/src/classic-scan.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 65,86-96,111,140-143,145-152,163,171,179-180,188-189,192-195,197-198,222-251,268,295-298,300,340,455
+  s_66ca3eaa416fc5::t_ea5e50a090335c 301,325-329,336-339,346-350,416-419,421,428-431
+packages/engine/test/e2e/demos/forms-post-submit-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 41,52,60,68,77,86,100
+packages/engine/test/e2e/inline-style-attribute-resync.e2e.test.ts
+  s_24e4d13e756d00::t_251bf11f2081ce 49
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 48,50
+packages/engine/test/e2e/svg-geometry-length.e2e.test.ts
+  s_2cd935aac36428::t_8a6275d6996c15 23
+  s_2cd935aac36428::t_e99b5270caa033 24
+packages/dom-shim/src/canvas2d.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-21,28-31,34-36,56-58,65-69,105-107,125-129,145,156,188-190,198-223,294-302,319-326,328,356-369,389-396,452-455,491-496,500-504,508-511,521-526,541-544,562-565,585-588,597-600,624-630,673-675,683,713-715,733-737,746-747,752,754-758,762-766,778-789,791-793,801-803,812-814,822-824,832-834,842-844,858-863,872-874,882-884,892-894,902-904,909-911,917-919,924-926,931-933,938-940,943-959,963-973,977-979,982-986,1006-1013,1054-1068,1082-1084,1109-1117,1121-1123,1142-1154,1158-1160,1187-1189,1215-1217,1239-1242,1244-1246,1263-1266,1270-1273,1294,1311-1313,1315-1317,1331-1347,1349-1355,1357-1361
+  s_c6d6a3ac21fe46::t_4213123d74f890 327
+  s_c6d6a3ac21fe46::t_5dba2cf11b5df1 1362-1363
+packages/engine/test/e2e/img-dimensions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-13
+packages/engine/test/e2e/window-constructors.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,24-32
+packages/core/src/stylesheet_anchor_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 22-23
+packages/engine/test/e2e/cdp-scene-stream.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-19,25-28,48-50,55-67,84-86,109,128-130,140-141,143,151-171,178-190,193-195,197-199,202-204,209-211,218-225,227-229,240-252
+packages/dom-shim/src/form-data.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 45-46,50,69,71,76
+  s_c6d6a3ac21fe46::t_cc60e46d131b6f 77-78
+  s_c6d6a3ac21fe46::t_ea558918d8467a 206-208
+packages/engine/test/e2e/demos/cssom-stub-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-13,19-20,26-27
+packages/engine/test/e2e/demos/clock-floor-stamp-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 21
+packages/engine/test/e2e/offset-geometry.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 67-69,73-75
+packages/engine/test/rbi-idle.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13,21-27,29-33,36-43,58-60,70-71,140-148
+packages/dom-shim/src/element/forms/input.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 58-78,90-96,105-107,199-201,214-222,226-228,232-234,238-258,263-265,270-272,277-279,284-286,315-317,362-364,391-396,406-408,425-429
+  s_c6d6a3ac21fe46::t_4178c28515f268 430-432
+  s_c6d6a3ac21fe46::t_ea558918d8467a 445
+packages/engine/test/e2e/boa-realm-intrinsics.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 30,61,83,86-92
+packages/dom-shim/src/element/resolve.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 158-206
+  s_7ffa3edaa61e8e::t_17754a48e3ea64 207,222
+packages/dom-shim/src/events/event.ts
+  s_b7f928dc8fbea9::t_b097811a6c6831 243
+  s_b7f928dc8fbea9::t_b4b86a451bafc2 827,830
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 6-7,19,24-26,80-83,88-89,140-172,176-178,184,240-242,244-245,264-269,280-286,301-309,323-331,341-343,354-356,358-360,382-390,403-411,426-429,436-447,463-474,499-523,560-584,606-607,610-624,633-635,641-646,656-658,661,676-678,691-709,739-752,798-826,828-829,831-854,858-874,897-899,904-906,916-918,928-937,944-947,960-961,963,966-980,1018,1022,1030-1074,1093-1107,1117-1126,1141,1146-1157,1194-1226,1230-1231,1233-1235
+  s_b7f928dc8fbea9::t_45fce2ad379328 962,965
+  s_c6d6a3ac21fe46::t_54879c4c38350f 1232
+  s_c6d6a3ac21fe46::t_4dbf58fa94a611 1236-1238
+  s_c6d6a3ac21fe46::t_ea558918d8467a 964,1239-1241
+packages/dom-shim/src/element/forms/output.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15-22,34-40,42-45,49
+  s_c6d6a3ac21fe46::t_42ebbab41180b1 41
+  s_c6d6a3ac21fe46::t_5a0223895f5ed3 14
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 19,60,193,263,273,294,320,437
+packages/engine/test/e2e/demos/selection-paint-bridge.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 21-24,28,34,40,51,56,80-82
+packages/engine/test/e2e/dom-parser-dataset.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-13
+packages/engine/src/cdp/dispatch.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 5,38,68,101
+scripts/wpt-shared.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 47-52,179,202-204
+  s_c6d6a3ac21fe46::t_ea558918d8467a 218-220,304-308,355-359
+packages/engine/test/e2e/demos/dom-eval-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 54,62-64
+packages/dom-shim/src/select-dropdown.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 37-39,76
+  s_c6d6a3ac21fe46::t_ba38153c8330c4 77-78
+scripts/wpt-collateral.test.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-14,21-24,38-41,51-53,60-62,72-74,78-80,87,89-92,101-104
+packages/engine/test/network-enable.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7,143,221,314,329
+packages/engine/test/e2e/keyboard-scroll.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 31-34,62-64,86-98,101-104,107-110,113-115,126-142,145-146,153-159,161-164,171-174,192-195,198-201,204-206,215-223,230-235,252-255,258-261,264-266,283-291,293-294,299-305,309-320,323-324,327-334,349-351,353-355,365-374,376-379,389-391,409-411,418-421,423-427,432-442
+packages/engine/test/e2e/svg-attribute-case.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 26-29,35-40
+packages/worker-script/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 50-52
+packages/engine/test/e2e/demos/range-live-mutation-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 130-134
+packages/engine/test/e2e/expose-function.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 21,29-32,49-51,70
+packages/engine/test/e2e/demos/oopif-heap-usage.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-11,26,79
+packages/engine/test/e2e/viewport-drain.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,31,39,48
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 37,43-45,47,62,65-69,73,90,92,94,99,101,103,112-116,131-133,137,139,151-153,175-179,190,193,196-200,214,220,229,232,236,279-281,283,288-290,293,304,324,346-348,355-357,361,363-364,370,390-391,399-403,410-411,416-420,427-428,437,444,453-457,463-465,468,525-528,539-540,577,593-595,598-600,606-607,621-623,637-639,659,671,676,687,697,701,714,757
+packages/engine/test/e2e/demos/perf-timing-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 60-62,82,87
+packages/engine/test/e2e/window-page-functions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,17-18,23-25,29-30
+packages/engine/test/e2e/inline-visibility-hidden.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 40-55
+packages/engine/test/cookies.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 40,51,57,179,184-185,191,241,247,268,307,320,325-326,379,410,464-467
+packages/engine/test/rbi-heartbeat.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18-21,31-38
+packages/engine/src/cdp/connection.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,17,31,35-37,45,72,96,114,124,128,132,136,140,185-190,213,258-259,291-293,328,362,395,436,491,493,526
+packages/core/src/rbi_image_cache_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 75-78,87-89,99-100,113-117,176-180
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 81-83,88,119
+  s_c6d6a3ac21fe46::t_603377aa6370b9 120-121
+  s_c6d6a3ac21fe46::t_ea558918d8467a 38,126,136,168,189,223
+packages/core/src/nested_inline_abspos_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 78-81
+packages/engine/test/page-script-generation.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 198,211,256-262
+packages/page-script/src/boa-classic.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 5-9,47-51,56-66
+packages/kitesurf-cli/README.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 71-76,78-79,83-84,86-87
+packages/core/src/waapi.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 205,208-217,276-278,292-295,332-336,390-391,397
+  s_c6d6a3ac21fe46::t_39f8ffc565421e 394-396
+  s_c6d6a3ac21fe46::t_ea558918d8467a 160-162,409-412,484-487,504-507
+scripts/wpt-merge-shards.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7-17,88-94,98-102,121-123,144-146,153-155,160-162
+packages/engine/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7,13-14,18,23,42,50,62,65-67
+packages/engine/test/e2e/dedicated-worker.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 41-49,52-57,77-79,140-145,163-167,181-183,200,234-236,326-329,394-397
+packages/engine/test/e2e/demos/dom-innerhtml-rebuild-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 63,68,72,79
+packages/scene-host-wasm/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 23-31,35-48,58-68
+packages/engine/test/e2e/bridge-pin-identity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 28
+packages/engine/test/fixtures-worker/src/dynamic/fonts.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 141
+packages/dom-shim/src/agent-control.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 40-41,45-48
+packages/engine/test/e2e/png.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-14,64-66,100-116
+scripts/pull-sccache.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15-18
+packages/page-script/src/cdp-nodes.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 26-28
+packages/engine/test/e2e/demos/font-face-variable-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,19
+packages/engine/test/e2e/demos/navigate-style-script-order.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11,20
+packages/engine/test/e2e/inline-span-white-space.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8
+scripts/e2e-perf.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 122-126,147-149,151-153,208-212,215-219,332-334,350-356,361-368,379-380,384-392,399-401,405-406,408-409,415-419,433-435,472-479,482-490
+packages/engine/test/e2e/demos/network-stylesheet-headers-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-10,14,16-23,25-27,29,31-33,35-39,41-55,57-60,62
+  s_c6d6a3ac21fe46::t_0f2edcbfa5b50c 61
+  s_c6d6a3ac21fe46::t_fc4d64a87d63fc 63-65
+packages/engine/test/e2e/form-controls-named-item.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 48-51
+packages/engine/test/e2e/load-event-propagation.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,17-18,20-32
+packages/page-script/src/message-channel.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,15-16,57-62,90-91,99-100,103-106,108-114,121-124,158-162,176-177,191
+  s_28ce1a8e6403a3::t_61181c2ea3b9c8 88-89
+  s_28ce1a8e6403a3::t_75273616b2c0c6 41
+  s_c6d6a3ac21fe46::t_f0c7993ab89fc1 17
+  s_28ce1a8e6403a3::t_281760a64edef4 39-40
+  s_c6d6a3ac21fe46::t_56fea4cf1a2bd3 63
+  s_c6d6a3ac21fe46::t_ea558918d8467a 66-72,199-201,209-211
+scripts/check-license-headers.test.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 31-34,59-62,72-75,104,112,114-121
+packages/core/src/scan_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 102-103
+  s_7ffa3edaa61e8e::t_e2499e48c290e5 104-105,483-487,499-502
+packages/dom-shim/src/event-handler-names.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 6-81,85-102,105,108-123,125-131
+packages/engine/test/e2e/demos/forms-file-input-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 38-42
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 29,46
+packages/engine/src/cdp/outbound-filter-registry.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 34,42,126,129,138,141
+packages/core/src/screenshot.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 730-734
+  s_c6d6a3ac21fe46::t_ea558918d8467a 268-271,273-276,322-330,403-411,498-501,521-524,740-741,750-765
+packages/dom-shim/src/element/shadow.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 37,87-89
+  s_c6d6a3ac21fe46::t_1326c3cb57426f 90-91
+  s_c6d6a3ac21fe46::t_ea558918d8467a 105-107
+packages/engine/test/e2e/demos/font-face-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-11,13-39,41,43-44,48,50-59,61-71,73-74,76-79,81,83-84,86-91,93-99,101-104
+packages/engine/test/e2e/document-title-svg.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,13-14,16-21,26-28,30-38
+scripts/pw-run.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 5-13,40-45,60-63,69-76,78-85,109-111,120-127,142-156,160-165,167-176,180-181,184-191,230-235,263-264,268-270,297-303,312-314,317-320,341-343,350-354,357,359-369,373-375,386-388,408-410
+packages/page-script/src/scripts.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 93,106,111,120,172,190,246,271,276-277,347-351,355,368-371,377-380,393,413,427,449,451-452
+packages/dom-shim/src/detached-wrappers.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 6-12,24-27
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 152-154
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 37
+packages/page-renderer/src/wasm-glue.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11
+packages/dom-shim/src/element/forms/submission.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 33-39,44-49,54,69-72
+  s_c6d6a3ac21fe46::t_ad2378ad293388 73-75
+  s_c6d6a3ac21fe46::t_ea558918d8467a 76,78,81-84,127-128,135-136,175
+packages/engine/test/e2e/demos/oopif-quads-paint.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-12
+packages/dom-shim/src/element/html-element.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 19-41,56-61,81-83,91-93,104-106,118-120,125,128-130,135,159-166,169-175,244,255-260,263-264
+  s_c6d6a3ac21fe46::t_79f6c850a7abcd 265-267
+  s_c6d6a3ac21fe46::t_ea558918d8467a 269-276,278
+packages/core/src/tty_input.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 275-282,301-304,376-379,385,571-573,653-661,716-718,795-800,809-814,865-873
+packages/engine/src/cdp/css.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 5,8,21,37,104,172,184,309,382,393,464,511,547,606,611-614,618-621,662,674-677,681-684,691-698,710-713,717-720,742-743,758-761,765-776,792-793,805-808,816-819,823-834,928-931,935-946,1067,1109
+packages/engine/src/cdp/protocol-extensions.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 206,249,268,359,363,367,371,375
+packages/engine/test/e2e/demos/screenshot-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-13,15,35,37-41,43-49,51-52,54-57,59-64
+packages/engine/test/e2e/gateway-font-shaping.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20
+  s_c6d6a3ac21fe46::t_ea558918d8467a 61-63
+packages/engine/src/tracing-local.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 83,101,162,207,263,382-383,532,574
+  s_6829069e05702d::t_dae05f5a543b42 45
+  s_c6d6a3ac21fe46::t_96420ded26d17a 575
+  s_c6d6a3ac21fe46::t_ea558918d8467a 584
+packages/engine/test/e2e/import-map.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-23,34
+packages/engine/test/e2e/demos/canvas-detached-append.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 25
+packages/dom-shim/src/otel.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-79,83,126-146,163,229-231,275,277-286
+packages/engine/test/e2e/fetch-interception.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 69-71,92-94,117-119,141-143
+  s_c6d6a3ac21fe46::t_ea558918d8467a 165,202-204
+packages/page-script/src/defer-shim.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 39-41,58-62,93-95,114-118,127-131,155,164,185-191,193-208,218-221,225-227,236-238,259-261,336-357,359,361-362
+docs/BOA_V8_FLOW_EXAMPLES.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 6,16,28,49,58,84-85,87-88,96,113,121-122,124,150,154,172,182-183,213,215,238,241,250
+packages/tty-css-preview/extension/popup.js
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10
+packages/engine/test/e2e/script-inserted-text-fonts.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9
+packages/engine/test/external-outbound.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 6,41,48
+packages/engine/test/e2e/demos/boa-evalless-phase4.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 38-40,48-50,54-56
+packages/engine/test/e2e/demos/forms-misc-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 38-39,41-44,55-57
+packages/engine/test/e2e/dom-attribute-namespace-wire.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 74
+packages/engine/test/e2e/demos/forms-radio-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 58-61
+packages/dom-shim/src/element/element.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 195,199-201,247,418-421,423-425,433-436,465,472-474,492,499-501,535-546,562,574,599,615-617,663,686,693-694,696,729-731,743-745,765,782-785,789,799-808,834-840,854-856,861-863,966-969,971,977-980,1048-1051,1172,1178,1312,1326,1404,1439-1440,1473-1474,1492-1494,1522-1524,1543-1545,1615-1616,1618-1619,1624-1625,1629-1633,1673-1677,1684-1685,1699,1771,1812-1816,1841-1845,1893,1900-1902,1920-1922,1931-1940,1950-1956,1970,1975,1980-1984,1998,2024-2027,2037-2040,2089-2094,2108-2109,2125-2129,2186-2188,2229-2231,2234-2239,2326,2343,2362-2373,2386-2388,2398-2400,2409,2421,2440,2506,2514,2532-2533,2542-2543,2564,2568
+  s_ae8edd3430c571::t_637f41d7930989 1763
+  s_ae8edd3430c571::t_e29b1f83b197d0 1218
+  s_ae8edd3430c571::t_ad708db45d63c3 426
+  s_ae8edd3430c571::t_587c780b993114 208
+  s_c6d6a3ac21fe46::t_fa463a1285af6f 192-194
+  s_c6d6a3ac21fe46::t_5d80417d5d2e92 202-204
+  s_c6d6a3ac21fe46::t_6f054a92a3892a 246
+  s_c6d6a3ac21fe46::t_544adde58458e9 248
+  s_c6d6a3ac21fe46::t_c8b9ef9293c6dc 422
+  s_ae8edd3430c571::t_ec659d8052a5d9 427
+  s_c6d6a3ac21fe46::t_cb823d05635dba 466
+  s_c6d6a3ac21fe46::t_c01b0830809ce0 1179-1181
+  s_ae8edd3430c571::t_e819c3fe59e659 1217
+  s_ae8edd3430c571::t_69bbacbeb24164 1219
+  s_c6d6a3ac21fe46::t_212a129157f9d0 1324-1325
+  s_c6d6a3ac21fe46::t_db6ff16da8d625 1401-1403
+  s_c6d6a3ac21fe46::t_b8678c5c2d6e57 1438
+  s_c6d6a3ac21fe46::t_65da821056bf8b 1696-1698
+  s_c6d6a3ac21fe46::t_76ef38fd691ade 1700-1702
+  s_ae8edd3430c571::t_b18713e1ddd128 1760-1762
+  s_c6d6a3ac21fe46::t_d48d6d752ef079 1770
+  s_c6d6a3ac21fe46::t_ff87a5e2c87a35 1772
+  s_c6d6a3ac21fe46::t_ec6051ead1ecee 2503-2505
+  s_c6d6a3ac21fe46::t_1407664afad751 2507-2509,2511-2513
+  s_c6d6a3ac21fe46::t_ed6194bdf58ac8 2515-2517
+  s_c6d6a3ac21fe46::t_a5560831aa626f 2529-2531
+  s_c6d6a3ac21fe46::t_da8e4d5ef8a70e 2534-2536,2539-2541
+  s_c6d6a3ac21fe46::t_a2f55a27ebc137 2561-2563
+  s_c6d6a3ac21fe46::t_4a413c3926de1c 2565-2567
+  s_c6d6a3ac21fe46::t_3e91fe5190b34b 2569-2571
+  s_c6d6a3ac21fe46::t_ea558918d8467a 128,140,145-146,221-226,281-282,314-316,319-320,371-375,392,395,1222,1264,1287,1329,1342,1356-1358,1363-1365,1387,1399,1687-1693,1706-1708,1716-1717,1721-1725,1759,2510,2518-2522,2524-2528,2537-2538,2555-2560,2572-2574,2577-2579,2615-2618,2630
+packages/dom-shim/src/html-encoding.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 36-37,60-62,76-78
+packages/dom-shim/src/range.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 40-45,47-49,145-148,153,192-195,198-201,225-227,229-234,275-279,337-339,379-382,416,466-477,525-530,541-546,550,557,564,571,588,617-622,673,675,678,689-692,695-698,701-704,707-710,721,725-737,753-758,763-768,777-788,793-797,802,861-864,871-874,887-889,903-906,910-913,922-924,950-959,997-1000,1030-1033,1048-1084,1148-1150,1225-1233,1257-1260,1272-1273,1294-1296,1339,1370-1373,1380,1452-1455,1457,1459-1466,1479-1482,1496-1501,1526-1528,1547-1548,1555-1558,1583,1594,1609,1623-1625,1628-1630,1645-1649,1651,1683-1694,1697-1708,1720-1730,1734-1739,1742-1743,1746-1747,1783-1787,1795-1799,1820-1825,1865
+  s_c6d6a3ac21fe46::t_3f8c28b9b196ec 1826
+  s_c6d6a3ac21fe46::t_ea558918d8467a 1845
+packages/dom-shim/src/xpath.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 66-78,80-98,141-142,156-157,161-162,164-166,168-169,180-183,288,304-307,310-313,317-320,326-329,366-370,380-384,388-392,396-400,404-408,412-416,420-424,436-440,445-450,520-525,599-601,649-655,741-743,750-756,765-769,822-827,850-852,915-918,954-955,999-1012,1014-1019,1021-1028,1030-1076,1078-1122,1251-1255,1273-1277,1304-1307,1314-1319,1348-1351,1363-1369,1383-1389
+packages/engine/test/e2e/demos/webrtc-stub-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 123-125,176-178,189-192,194-210,212-219,226-229,234-237,244-246
+docs/NETWORKING.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 358-359
+docs/BOA_HARDENING.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 24
+packages/engine/test/dispatch-env.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-16,21,28,30-33,35-37,42-44
+  s_24e4d13e756d00::t_cdc441fbfb08da 39
+  s_24e4d13e756d00::t_02bb05c9a17fac 38,40-41
+  s_24e4d13e756d00::t_03b72a8d1d201e 29,34
+packages/page-script/src/wasm-baked.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 76-78,85,95,98,110
+scripts/get-patched-vendor-crates.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 127,202,221
+packages/engine/test/e2e/cross-origin-redirect-shell.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 76-78
+packages/dom-shim/src/element/rect.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17-22,27-54,57-64,72-95,110-113,119
+  s_c6d6a3ac21fe46::t_71d33144de4d7a 117-118
+  s_c6d6a3ac21fe46::t_ea558918d8467a 131
+packages/engine/test/e2e/demos/png.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 21,96,128
+packages/dom-shim/src/constants.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44-71,74-86
+packages/engine/test/e2e/idl-conformance.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 5-9,83-88,140,151-152,155-156,167-169,172-173,176-177,184-186,192-197,200-201,204-205
+packages/engine/test/e2e/demos/iframe-dynamic-cdp-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,10-19,21,23,25-29,31-42,44-47,49-53,55,57-62,64-67,69-77,79-81
+packages/engine/test/e2e/demos/forms-form-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44-45,47-51,67-71,74-77,83-86,106-110,115-117,123-126
+packages/engine/test/script-bundle.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 74,96-97,105-114,127
+packages/page-script/src/engine-error.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 22,26-28
+packages/engine/test/e2e/sealed-outbound-identity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 35,39
+packages/page-script/src/fetch-shim.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44,183,218-223,332-346,375-377,380,411-413,432,441-442,446,461-464,476-479,503,511,516-517,600,622-624,634-636,730,768,772-774,783-787,815-817,837,842,844-846,870,884-885,890,902-906,914-915,940,942,950,959-960,998-1001,1004-1008,1094
+  s_28ce1a8e6403a3::t_81d3486c77d3ef 1108-1110,1113-1115
+packages/dom-shim/src/layout/scroll.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 22,25,38,64-66,147-148,151-153,162-168,181-183
+  s_ae8edd3430c571::t_860eaf5e1e1432 184-185,187-190,192,218-220,233-235,253
+packages/dom-shim/src/element/canvas.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15-18,27-29,31-33,43-45,63-67,94-96,102-104,136
+packages/engine/test/e2e/demos/css-inline-style-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,18,20-24,26-27,29-39,41,43-47,49-55,57-74,76-104,106-132,134-146
+packages/engine/test/e2e/demos/forms-realworld-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 70-72,77-78,89-91,99-101,119
+packages/engine/test/e2e/demos/forms-selection-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 29,34,64,68,72-75,79-82,88,91,94-98,100
+packages/engine/test/e2e/floating-popup.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44-47,80-84,115-121
+packages/engine/test/e2e/resource-type-not-page-settable.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15-20
+packages/engine/src/cdp/dom-release.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,75,85
+packages/engine/test/e2e/domparser-fragment-remove-child.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,12
+docs/SCRIPT_GATE.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14-19,87
+packages/dom-shim/src/element/forms/form.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 154-171,185-187,246,260,262,265,269-271,283,428,431,439,442
+  s_c6d6a3ac21fe46::t_bd6db402b2f38d 425-427
+  s_c6d6a3ac21fe46::t_c771717c717eef 430
+  s_c6d6a3ac21fe46::t_a4c1819fb07313 432-434,436-438
+  s_c6d6a3ac21fe46::t_da352f71e6b778 440-441
+  s_c6d6a3ac21fe46::t_229f04160623cc 443-445
+  s_c6d6a3ac21fe46::t_ea558918d8467a 134-136,142-144,279-280,318-320,435,446-448,451
+packages/engine/src/cdp/document-kind.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 67
+packages/engine/test/e2e/demos/boa-evalless-phase11.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17-18,22-25,28-31
+packages/dom-shim/MODULES.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 76-103
+  s_b7f928dc8fbea9::t_fc324fdd8322c3 68-75
+packages/dom-shim/src/text-encoding.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14,28-33,74,94-96
+packages/engine/test/e2e/cdp-input-and-box-model.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 92,104-106
+packages/engine/test/e2e/demos/skip-speculative-raster.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-16,28-30,40,54-56,59
+packages/engine/test/e2e/eval-across-navigation.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-13
+packages/engine/test/e2e/page-wrapped-create-element.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-13,25-26,34-40,43-45,61-67
+packages/engine/test/e2e/scene-stream-partials.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-13,18-19,55-62,64-71,115-124,129-132
+packages/engine/src/cookies.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 83-85,94,187,229-232,267,311,315,377,463,516
+docs/SCRIPT_LOADING.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 204-205
+  s_c6d6a3ac21fe46::t_fe6cdbc2a774f8 206
+  s_c6d6a3ac21fe46::t_ea558918d8467a 47
+packages/engine/src/eval/web-bot-auth.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 26
+packages/engine/test/e2e/float-layout-regressions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 31-33
+packages/engine/test/e2e/blob-mime-type.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 55,83-85
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-13,18-19,52-56,101-103,117,140-143,183-185,203-204,206-207,228-231,285-288,352-355,372-375,390,404-408,432,441,458,487-491,549,551-553,557,568-570,576,593-597,604,628,632,649,662
+packages/engine/test/e2e/demos/xhr-boot-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18,26
+packages/engine/test/e2e/bg-image-capture.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,14,18
+packages/page-script/src/pack.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 6,60,83,92,124-126,130,133,144,159
+packages/engine/test/e2e/bridge-dom-fastpath.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-15,19,21-26,79-81,92-93,95-99,101-104,108,110-111,131-135,138-140,154-157,161,163-165,172-175,179,181-182,189-191,194-196,200-201,204-206,212,215-218,228-230,237,239-241,243-244,283,285-287,290-298,301-304,306-307,312-314,318-320,322-323,329-331,337,339-390
+  s_24e4d13e756d00::t_e41c7265731377 20
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 280-289,358-360,363,442-444,462-464,502-513,538-542,569-583,588-602,657-659
+packages/page-script/src/dedicated-worker.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 28-33,41-46,106-108,110-111,114,117-118,221-227,232-237,253-256,352-354,361-367,370-376,393-399,412-416,419-421
+scripts/check-no-dts.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7-9
+packages/engine/test/e2e/tty-nav-params-page-initiated.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-15
+packages/engine/test/e2e/demos/style-property-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-10,17,19-31,33-49,51-70,72-91,93-103
+packages/engine/test/e2e/cdp-envelope.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 34-40,46-52
+packages/engine/test/e2e/canvas-image-bytes.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 95
+packages/engine/test/host-session-options.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 40,58
+scripts/check-public-imports.test.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 23-25,49-56,66-68,85-88,126
+packages/engine/test/e2e/demos/css-ua-styles-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,13,15-18,20-31,33-36,38-40,42-53,55-64,66-68,70-88,90-103
+packages/engine/test/e2e/engine-routes.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 97
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 40-44,51,94,145,171,173,222,229-231,326,329,478,481,587,605,631,642,670
+packages/engine/test/e2e/trusted-events.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-22,24,35-48,62-68,124-130,189-195,224-230
+packages/page-script/src/globals.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15,31,65-71,102-105,134-136,204-205,210,269-271,278-288,293-299,313-318,330-332,334-336,372,403,436,468-469,471-486,498-515,528-539,545,567-579,646-651,657-659,663-665,685-687,702-707,727-729,743-745,748-750,756,817,822,836,841-844,861-863,871,877-879,892-913,916-940,943-947,949,980-983,988-991,999-1002,1040-1041,1044-1049,1071-1073,1077-1106,1120-1121,1138,1147-1148,1150-1152,1154,1156-1164,1166-1171,1185-1204,1209-1251,1276-1277,1283-1290,1311-1313,1324-1325,1328-1330,1337-1339,1347-1349,1366-1367,1400-1402,1407-1420,1422-1427,1443-1445,1453,1455-1456,1479-1484,1491-1496,1505-1510,1515-1520,1538-1539,1561,1563-1571,1573-1574,1576-1580,1582-1583,1588-1590,1605,1608,1614-1616,1630-1632,1646-1647,1667-1672,1684-1686,1729-1730,1735-1736,1745-1752,1780-1782,1795-1797,1806-1808,1810,1816,1820-1822,1825-1827,1845,1848-1850,1852-1854,1872-1889,1907-1908,1912-1917,1926-1931,1936-1941,1944-1945,1950-1951,1958-1960,1965-1970,1984-1987,2042,2082,2085-2147,2157-2159,2168-2173,2190-2192,2213-2224,2241-2248,2268,2315-2320,2322-2323,2330-2331,2340-2343,2345-2348,2356-2357,2375-2380,2385-2390,2443-2445,2453-2456,2517-2519,2539,2548-2550,2559-2563,2570,2587-2590,2608,2611,2676-2679,2695,2716-2718,2727-2729,2741-2749,2754-2756,2821-2823,2828-2830,2855-2857,2860-2861,2896-2913,2924-2941,2980-2982,2989,2995-2997,3002-3004,3014-3016,3052-3053,3131-3133,3158-3160,3163-3171,3180,3253-3258,3261-3263,3274-3276,3332-3334,3343-3347,3349-3351,3363-3377,3396-3439,3528-3530,3548-3550,3567-3587,3635-3637,3640-3645,3648-3652,3658-3660,3688-3692,3708-3710,3734-3736,3738-3740,3746-3748,3787-3789,3809-3812,3830-3832,3837-3839,3847-3849,3855-3857,3859,3871-3872,3910-3912,3936-3940,3998-4006,4012-4014,4016-4023,4039,4075-4076,4080-4081,4086-4090,4106-4117,4144-4146,4186,4195-4199,4201-4216,4218-4232,4234-4244,4288-4290,4293-4299,4324-4414,4421,4444-4449,4453-4461,4467-4482,4494,4496-4501,4549-4556,4558-4568,4570-4575,4577-4580,4611,4614,4638-4641,4646-4649,4651-4654,4659-4661,4664-4667,4669-4672,4678-4679,4684-4690,4693-4696,4701-4775,4781-4791,4794-4797,4800-4803,4817-4927,4966-4968,4973-4977,4980-4984
+  s_28ce1a8e6403a3::t_fe5ab91a75cff8 1153
+  s_28ce1a8e6403a3::t_da1a654d70c79a 434
+  s_28ce1a8e6403a3::t_dedc58e61bafa2 3229-3230
+  s_c6d6a3ac21fe46::t_8e706b6357814e 345,404-405,433,435,437,448,3172-3174,3178-3179,3204-3206,3228,4928-4965,4969-4972,4978,4985-5017,5019-5038,5057,5127
+packages/engine/test/e2e/demos/tla-import-iife-fix-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,10-18,20-30,32-42,44-47,49-64,66-74,76-99
+packages/script-gate/src/digest.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15
+packages/engine/test/e2e/demos/iframe-nested-frame-tree.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 59
+packages/engine/test/e2e/cdp-wire.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9,13-24,27-29,41
+packages/engine/test/e2e/select-default-submit.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 24-26,38-40,43-44,48-50,53-60,78-85
+packages/engine/test/e2e/sticky-position.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20,118,128-135,137-154,179,181
+docs/RBI.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 16,82,183
+packages/engine/test/e2e/script-navigation-tab.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 27-29,36-38,40-41,44-46
+packages/engine/src/tty/nav-params.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 25-26
+packages/core/src/svg_view_fragment_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 79-81,83-87
+packages/engine/test/e2e/local-tracing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 132
+  s_c6d6a3ac21fe46::t_ca3d1c175fffc4 129-131
+  s_c6d6a3ac21fe46::t_c7098888d9dedf 133-135
+  s_c6d6a3ac21fe46::t_ea558918d8467a 40,43,63,123,136,142,176,178-179,203,213,242
+packages/engine/test/e2e/demos/element-scroll-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,13,15-42,44-71,73-107,109-112,114-128,130-143,145-152,154-161
+packages/engine/test/e2e/root-element-metrics.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 67-72
+scripts/ts-strict-ratchet.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 50-53,62-64,68-71
+packages/engine/src/eval/tracker-blocklist.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 5,28
+packages/dom-shim/src/element/aria.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 46-241,260-262
+packages/dom-shim/src/css-typed-om.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-15,21-81,85-102,209-212,224-228,243-245,264-266,275-278,331-335,379-381,388-393,411-413,418-421,444-447,452-454,458-466,470-472,489-490,497-505,528-530,532-533,536-538,544-547,550-558,564-567,570-578,584-595,602-613,627-629,633-647,674-675,684-687,690-695,698-703,708-713,739-744,749-753,755-759,764-768,777-780,812-817,825-829,833-838,863-864,888-892,905-913,917-920,946-950,953-954,971-974,976-977,981-984,993-996,1002-1003,1005,1007-1010,1017-1020,1027-1031,1034-1038,1041-1045,1063-1065,1069-1072,1074-1105,1110-1113,1115-1146,1151-1154,1156-1163,1169-1189,1193-1196,1199-1228,1230,1235-1237,1240-1243,1246-1275,1277,1282-1284,1313-1318,1332-1334,1342-1350,1355-1360,1362-1365,1384-1388,1393-1394,1399,1421-1422,1424-1429,1440-1441,1451-1454,1459-1463,1513-1515,1521-1523,1547-1549,1553-1555,1568-1569,1576-1577,1583-1584,1591-1595,1633-1636,1645-1648,1694-1762,1773-1778,1782-1787,1790-1792,1795-1797,1800-1806,1808-1823,1829,1834,1838-1843,1882-1903,1907-1912,1920-1931,1935-1937,1940-1942,1945-1962,1964-1965,1969-1973,1978-1987,1990-1993,1995-1999,2002-2025,2030-2033,2038-2040,2045-2047,2050-2052,2055-2072,2075-2077,2081-2085,2090-2108,2110-2112,2114-2115,2120-2122,2127-2136,2138-2146,2150-2159,2161-2169,2173-2180,2187-2189,2196-2201,2210-2211,2214-2220,2230-2232,2241-2261,2272-2274,2297-2299,2304-2305,2326-2328,2331-2334,2348-2353,2358-2362,2364,2367,2371-2373,2375-2381,2395-2398,2400-2404,2411-2415,2419-2446,2451-2458,2520-2521,2531-2534,2546-2547,2560-2561,2563,2582-2586,2598-2600,2602-2604,2623-2625,2641-2643,2645-2659,2672-2675,2686-2690,2694-2698,2703-2706,2712-2715,2724-2732,2738-2739,2747-2749,2756-2759,2794-2798,2802-2804,2808-2810,2833-2834,2839-2842,2847-2850,2856-2858,2863-2866,2871-2874,2879-2882,2887-2890,2899-2907,2913-2923,2932-2933,2938-2941,2945-2946,2958-2962,2981-2983,2988-2991,2994-2997,3036-3048,3050-3065
+  s_d7629e2a4ee839::t_2a8126f72bf1ca 223,467,1229,1276,2363,2365,2644
+  s_c6d6a3ac21fe46::t_e90b4f83ed6207 3066-3068
+  s_c6d6a3ac21fe46::t_ea558918d8467a 2366,3069-3074
+packages/engine/test/e2e/attributes-live-namednodemap.e2e.test.ts
+  s_24e4d13e756d00::t_251bf11f2081ce 50
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 49,51
+packages/dom-shim/src/contract.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 28
+packages/engine/test/e2e/boa-import-meta-url.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 16,19
+packages/engine/test/e2e/container-queries.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 41-43
+packages/engine/test/e2e/bridge-proxy-stack-limit.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-14,26-31,40-44
+packages/engine/test/e2e/boa-contextual-class-name.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,16-17
+packages/engine/test/e2e/demos/transition-settles-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 53
+packages/engine/test/e2e/tabs-tab-stops.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 25-28,89-92,94-97,99-102
+packages/engine/test/e2e/demos/oopif-postmessage.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,13,17-20,23-24
+packages/engine/test/e2e/idl-interface-shape.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 19
+packages/engine/test/e2e/demos/oopif-detach-teardown.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,15,33,49-51,53
+packages/kitesurf-cli/src/cli.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-12,86-88,101-103,116,137-139,182-184,186-191,198-211,219-236
+packages/dom-shim/src/element/forms/labelable.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 27-28
+  s_c6d6a3ac21fe46::t_cfe04ca8658678 29-30
+  s_c6d6a3ac21fe46::t_ea558918d8467a 58
+packages/engine/test/e2e/demos/iframe-frame-tree-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9,49-51
+packages/engine/test/e2e/svg-dash-stroke.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-12
+packages/page-script/src/inserted-scripts.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 35-36,119-121,145,171-172,175-177,184-187,190-193,206-207
+  s_c6d6a3ac21fe46::t_94ddade5a538f7 208
+scripts/build-wasm.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13,37,101,139-142,152,157,178,180,186,223,225,233-234,252,272
+packages/engine/test/engine-errors.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-16,38,53-58
+packages/dom-shim/src/element/forms/validity.ts
+  s_ae8edd3430c571::t_931d2f8a1f29f2 161-163
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 61-67,120-127,165-167,169,199-207,216-221
+  s_ae8edd3430c571::t_511207484f10fb 158-160
+  s_c6d6a3ac21fe46::t_0efcf64e461ed9 222-223
+  s_c6d6a3ac21fe46::t_ea558918d8467a 139-157,164,255-287,300-305,310-312,334-336,340-341
+packages/engine/test/e2e/boa-finally-stack.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-13,31,52,84-92
+scripts/wpt-inventory.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 24-26,46-47,165
+  s_c6d6a3ac21fe46::t_007797e63d8001 164
+  s_c6d6a3ac21fe46::t_757e65bc48044e 166
+  s_c6d6a3ac21fe46::t_ea558918d8467a 70-71,88-91
+packages/page-script/src/eval-helpers.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14-16,18-20,31-32,48-50,52-53,58-59,62-63,70-71,82,89-90,115-116
+  s_17a95d7d09cc74::t_7beca94001606e 132,146-147,178-179,227
+packages/kitesurf-cli/src/access.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 139-143,149-160,163-167,170-174,182-197
+packages/dom-shim/src/util/scroll-args.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20,25-30,32-35,41-42
+packages/engine/src/cdp/network.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,28,142
+packages/engine/test/e2e/boa-getter-throws.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 37-40,48-54,72-73
+Cargo.toml
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17,23-28
+packages/engine/src/eval/cors.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 78-90,106,134,179-182,237,342,349,355,384-385
+packages/engine/src/cdp/runtime.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14,18,36,51,67,90,104,197,212-218,225,229,278,373-375,411,416
+  s_c6d6a3ac21fe46::t_c5adf768137d14 417-419
+  s_c6d6a3ac21fe46::t_ea558918d8467a 420-422,531-537,552
+packages/engine/test/e2e/demos/forms-select-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44,54,72,84-85
+packages/engine/test/e2e/demos/page-renderer-parity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 51
+packages/engine/test/e2e/xpath.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 191-193,271-277,319-322,329-334,354-355,362-370,389-392
+packages/dom-shim/scripts/editing-implementation.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 33,46-48,87
+packages/engine/test/e2e/css-typed-om.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17-20,29-32,57-71,73-92,104-106,140-142,145-148,150-151,153-160,162-169,193-197,201-204,254-278,288-292,307-313,340-341,343-357,366-373,382-389,400-404,408-410,415-420,426-428,443-447,452-456,461-463,466-470,472-475,481-495,518-519,521-522,525-543,550-554,579-586,590-597,605-612,614-628,644-645,656-661,666-670,685-688,701-708,716-717,752-754,757-761,764-768,785-789,793-803,806-812,831-832,838-880,883-887,903-914
+docs/TRACING.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 5
+packages/engine/test/e2e/demos/css-computed-style-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,31,33-39,41-51,53,55-58,60-67,69-70,72-75,77-82,84,86-98,100-133
+packages/dom-shim/src/input-types.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15-21,27-36,39-40,46-53,57-58,68-76,80,91,111-113,121-122,145-146,155-158,166-170,172,187-196,198-201,223,274-283,285-288,304-307,320-322,347,360,362-365,376-379,383-384,404,454-459
+packages/dom-shim/src/element/forms/fieldset.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-18,23-28,30-31,48
+  s_c6d6a3ac21fe46::t_42ebbab41180b1 29
+packages/dom-shim/src/element/forms/selection.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20,49-52,57,72-78,100-106,130-133,141-146,175,198-201,219-222,229,234-235
+  s_c6d6a3ac21fe46::t_ea558918d8467a 238-239,261-262,269-270
+packages/engine/test/e2e/canvas-raw-renderer.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-12,14-16,21-22,25-30,34-41,47-49,51-53
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 40,71-73,82-84,87-88,90-92,105-107,125,202-204,223-224,226-228,236-238,246-248,251-252,254-256,266-268,274-276,280-281,324
+packages/core/src/boa_bridge.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 19,433-437,449-451,601-603,854-856,965-967,1146-1151,1182-1183,1444-1447,1469,1958-1962,2386-2388,2470-2474,2492-2497,2577-2591,2719-2721,2730-2732,2755-2756,2830-2834,2853-2856,2865-2868,2870-2873,2886-2887,2897-2899,2987,3011,3014,3335
+  s_c6d6a3ac21fe46::t_8f3c41667ad107 2900
+  s_c6d6a3ac21fe46::t_adb2ddfb3c8424 2986
+  s_c6d6a3ac21fe46::t_d5c2cd6ea8f463 2988
+  s_c6d6a3ac21fe46::t_7b876fdf50c670 3010
+  s_c6d6a3ac21fe46::t_f83135357af303 3012
+  s_c6d6a3ac21fe46::t_18c6b1d3208a1d 3015-3017
+  s_c6d6a3ac21fe46::t_8b5886e88ca897 3336
+  s_c6d6a3ac21fe46::t_ea558918d8467a 2915-2917,2927-2929,3019-3026,3111-3114,3177-3186,3358
+packages/engine/test/e2e/demos/modules-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-9,11,13-18,20-26,28,30-32
+packages/engine/src/cdp/fetch-interception.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 52,67,91,101,119,125
+packages/engine/test/e2e/incremental-shadow-insert.e2e.test.ts
+  s_24e4d13e756d00::t_251bf11f2081ce 34,41
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 33,35,42-43
+packages/engine/test/e2e/inline-box-baseline-shift.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-15,91-94
+packages/engine/test/e2e/demos/page-renderer-emoji.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15-19,42,45
+packages/engine/test/e2e/inline-style-flush.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 59-68
+packages/page-script/src/font-loader.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 30,34,44,69-102,141,143,174-176,182,246,283,323-324,327,344,346,408,445,457-483,546-547,583,622,638,681-683
+packages/engine/src/eval/walk-module-graph.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 36,73,81,83,126,137,276,296,305,326,390,394,413-416,435,483,582,585,655-661,719,788,790,809,851,902,904,926,933,943,996,1026,1031,1081
+  s_c6d6a3ac21fe46::t_ea558918d8467a 1043,1134,1142,1176,1228,1257,1327,1357-1361,1384,1456
+packages/engine/test/web-bot-auth.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,34,54,59-61,96,108
+packages/page-script/src/paint.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 38-45
+  s_c6d6a3ac21fe46::t_ea558918d8467a 48-53,102,219,250-253,284-288
+packages/page-script/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 24,148-152,193,249
+packages/engine/test/e2e/table-caption-sizing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 134,139
+packages/engine/test/e2e/demos/mouse-move-debounce-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-10,12-19,22,43-44,46-50,52-62,64,66-72,74-80,82-93,95-96,98-99,101-108,110-115,117-131
+packages/engine/test/next-route-chunks.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-19,24-33,39-50,60-70
+packages/renderer-core/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 32-33,43,123,127,192
+scripts/check-ts-coverage.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 30-37,58-60,67-78
+packages/page-script/src/session-outbound.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 5,64,69
+packages/engine/test/fetch-slots.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 47,232,245,282,285-286,301
+scripts/wpt-exec.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 167-168,420,424-427,518-525,532-538,576-581,702,732-737,740-745,751-753,773-778,781-786,800,813,826,828-830,842-846,848,850-858,860-865,867,869-880,882-887,889,891-892,909,993-996,999-1001,1017-1039,1060,1064-1068,1083-1087,1096-1100,1107-1111,1117-1122,1161,1167-1169,1178-1180,1191,1220-1223,1235-1236,1238,1285,1362,1417-1421,1444-1447,1487,1493,1495
+  s_66ca3eaa416fc5::t_7b3613e527ed31 1278
+  s_66ca3eaa416fc5::t_d820e31534ec21 1239,1277,1279-1281,1284,1286,1305-1307,1313-1315,1335-1339,1360-1361,1371-1373,1448-1450,1458-1463,1465-1467,1485-1486,1494,1498-1500,1551-1555,1563-1567,1570-1579,1581
+packages/engine/test/e2e/background-reopen-lifecycle.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-13,64
+packages/engine/test/e2e/dripping-image-body.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 33-35
+turbo.json
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 41-45,69-72,81-85,109-116,156-160,162-167,169-172
+packages/engine/src/eval/prefetch-wasm.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 48,67,71,113,134,183-189,194,196-200,202-222,225-274,281
+  s_c6d6a3ac21fe46::t_93100f71cd8a26 275-280
+  s_c6d6a3ac21fe46::t_6a5c28061fdaf7 282-284
+packages/core/src/stylo_extraction_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 45-48
+packages/page-script/src/mime-type.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 24,28-29,32-33,37-39,54,78-83,114,119
+packages/page-script/src/websocket.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 25-27,59-61,75,81,101-103,110,114,124-125,144,155,161-163,172,176-178,181-186,192-197,233-235,256-259
+  s_28ce1a8e6403a3::t_e9b2be0653545c 94
+packages/page-script/src/svg-sprites.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 80-82,90-92
+packages/engine/src/rbi.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 139-143,151,190-203,205-208,384-392,396-398
+packages/engine/test/e2e/demos/forms-select-cdp-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-14,25-32,37-43,45-51,56-59,64-67,69-75,85-88
+packages/engine/test/e2e/demos/img-load-events-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 74,88
+packages/engine/test/e2e/engine-memory-accounting.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18-21,23,29,33,35,38,40
+packages/engine/test/accessibility-select-default.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 28-37,50-53,61-63,65-68,74-76,82-86,90-93,102-103
+  s_24e4d13e756d00::t_7a7980d8607a98 64
+  s_c6d6a3ac21fe46::t_24b4c94f6d8c5b 104
+packages/engine/test/e2e/invalid-selector-throws.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-14
+packages/jsrpc-types/src/page-script.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12,100,217,268-269,346-350
+packages/dom-shim/src/element/event-handlers.ts
+  s_ae8edd3430c571::t_671f78ec653787 60
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 34-39,57-58,61,85-87,91,93-95,97,104-106,120-122,143-146
+  s_c6d6a3ac21fe46::t_ea558918d8467a 59,68,81-83,155-157,233
+packages/engine/test/e2e/cssom-counter-style-rule.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-15
+scripts/pw-setup.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 48-50
+packages/engine/test/e2e/document-types.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 60-62,65-67
+packages/engine/test/e2e/demos/boa-concurrent-import-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15-16,21-23
+docs/BUILD_TOOLING.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 286,591
+packages/engine/src/cdp/viewport.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 16
+packages/engine/test/e2e/demos/network-extra-headers-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,10-15,17,19-29,31-47,49-55
+packages/engine/test/e2e/raf-overrun-frame-gap.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 35
+  s_24e4d13e756d00::t_afd79532644f20 43
+packages/page-script/src/handles.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 31,37
+packages/dom-shim/src/element/forms/listed.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 33-39,41-48,61-63,89-92,97-101,103-106
+  s_b7f928dc8fbea9::t_5c275e82b40c5b 60
+  s_c6d6a3ac21fe46::t_ce403c29ec6df6 49
+  s_c6d6a3ac21fe46::t_301d34737d0533 107
+packages/engine/test/e2e/demos/runtime-compile-script-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 32-34,49-51
+packages/engine/src/cdp/types.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 80-81,202
+packages/engine/test/e2e/demos/svg-document-render.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14-17,70-71,77
+packages/dom-shim/src/element/forms/label.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-16,24,36
+packages/engine/test/e2e/demos/tsconfig.json
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-13
+packages/page-script/src/transitions.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 109-114,122-124,164-166,206
+packages/engine/test/e2e/awaited-eval-message-channel.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 61,70,73
+packages/core/src/hit_test_line_ripple_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 47-48,50-51,56-59,66-67,79-80,82-85,94-95,97,101
+  s_c6d6a3ac21fe46::t_7f1e7598084a4c 98
+  s_c6d6a3ac21fe46::t_61ba4de3b812dd 102-104
+packages/engine/test/e2e/demos/scrollintoview-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-16,18-43,45,47-55,57-65,67-70,72-74,76-78,80-84,86-91,93-94,96-120,122-145
+packages/engine/test/e2e/replaced-display-table.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,14-15
+packages/dom-shim/src/parser.ts
+  s_6f75a522fdcec1::t_f962e0f502fdd9 319,514
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 19,21,44,100,175-179,181-183,213,238-239,241,252,322-323,357-358,360,364,378,382,396-398,411-413,435-437,444-445,512,527-529,534-536,543-545,584-586,608-612,618-622,625-631,657-665,672,675,693,769-776,855-874,879-891,902-904,927-934,939-941,951-953,958-962,974-978,991-995,1000-1004,1031-1033,1035-1037,1056-1058,1060-1062,1091,1113-1114,1118-1121,1123-1125,1137-1139,1151-1156,1174,1176,1193,1215,1317
+  s_6f75a522fdcec1::t_8e440a8470c66b 501
+  s_6f75a522fdcec1::t_73f3cba59137fd 217,240,734-735,877
+  s_6f75a522fdcec1::t_a6c650e6cb6917 513
+  s_6f75a522fdcec1::t_06eda4fab27672 5-6
+  s_6f75a522fdcec1::t_05f88400997522 361
+  s_6f75a522fdcec1::t_37b24c486bb9fa 736
+  s_c6d6a3ac21fe46::t_717a6e479fe1e9 236-237
+  s_c6d6a3ac21fe46::t_62b8e09b6c73d8 249-251
+  s_6f75a522fdcec1::t_5d3c61de91f325 318
+  s_c6d6a3ac21fe46::t_641862e6e57a22 324
+  s_c6d6a3ac21fe46::t_631c65e26d5d37 359
+  s_c6d6a3ac21fe46::t_025a696a3dc4ee 365-367
+  s_c6d6a3ac21fe46::t_38eaf468e59382 377
+  s_c6d6a3ac21fe46::t_cc1876c271b9bd 379-381
+  s_c6d6a3ac21fe46::t_bf986bf0b73bd8 446
+  s_6f75a522fdcec1::t_a4ab42046cead3 498-500
+  s_6f75a522fdcec1::t_a7010638a6ce09 502
+  s_c6d6a3ac21fe46::t_277e525a2a7d4f 676
+  s_c6d6a3ac21fe46::t_69ac95e294559e 691-692
+  s_c6d6a3ac21fe46::t_02499464bb0fe3 1175
+  s_c6d6a3ac21fe46::t_e208e68873cb72 1194-1195
+  s_c6d6a3ac21fe46::t_0eb436ba8190f4 1212-1214
+  s_c6d6a3ac21fe46::t_1144929c6dd6b0 1315-1316
+  s_c6d6a3ac21fe46::t_ea558918d8467a 214-216,220-224,227-231,300,320-321,343-345,368,475-477,494-497,716-718,875-876,878,1218-1221,1248-1249,1256-1259,1267,1300-1303,1325-1326
+packages/engine/test/learned-scripts.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 21-22,30-31,47-48
+packages/engine/test/e2e/redirect-per-hop-gating.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-15,32,65,71,89,91,114,137,156,200,203,219-221
+packages/engine/test/wheel-queue.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 124-126,149-151,176-178,192-194,217-219,258-260,269-271,290-292,326-328,346-354,359,383,385,396,398,413,415
+  s_c6d6a3ac21fe46::t_bba8b829205b2f 357-358
+  s_c6d6a3ac21fe46::t_6a653a318039c7 384
+  s_c6d6a3ac21fe46::t_4c8f38cd8e0d67 397
+  s_c6d6a3ac21fe46::t_9ecbf5c832438d 414
+packages/dom-shim/src/registries.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 118-123
+  s_c6d6a3ac21fe46::t_931bad64f7425d 124
+  s_c6d6a3ac21fe46::t_ea558918d8467a 98
+packages/engine/src/eval/script-bundle.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7-12,16,19,42,55,102-108,130,135,138-140,142-144,160-163,171,174,255,315-317,321,338,340,397-400,423,430,444-447,458
+packages/engine/src/eval/script-gate.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 32,41
+packages/engine/test/e2e/author-webfont-custody.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 30
+packages/engine/test/e2e/bridge-pin-stats.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 90-92,95-98,102-104,106-108,112-118
+  s_24e4d13e756d00::t_e41c7265731377 105,109-111
+  s_24e4d13e756d00::t_87682c7fe56626 119-120
+packages/engine/src/eval/page-script.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 36,46,50,53,175,214,217-221,226,228,232
+  s_c6d6a3ac21fe46::t_ea558918d8467a 241-242,244,272,280,303,330,370,393-400,510,514,517,552-554,560
+packages/engine/test/e2e/computed-style-reads.e2e.test.ts
+  s_24e4d13e756d00::t_7f9ae9272b7f49 60-61
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 16-17
+  s_24e4d13e756d00::t_c5d2a2b30d59a7 14
+  s_24e4d13e756d00::t_43177a58f81d12 15,18-20,22-23,48-50,73-76
+packages/engine/test/e2e/demos/iframe-content-document-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,28-31
+packages/engine/src/eval/image-dims.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18,26,86,106,127-134,209,216,232
+packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-9,11,13-17,20,22-26,28-29,31-32,34,36,38,40-42,44-49
+packages/engine/test/e2e/demos/text-input-caret-font.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-14,21-22,33
+packages/engine/test/e2e/demos/cross-origin-nav-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-44
+packages/engine/test/e2e/tracker-blocklist.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 34-37,41-43,55,88-90,96-99,103-111
+docs/MEMPROF.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 88-94,150-161
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 75-78,80-81
+  s_c6d6a3ac21fe46::t_78292a6c9af6c0 82-84
+  s_c6d6a3ac21fe46::t_ea558918d8467a 225
+packages/engine/test/rbi-pacing.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-45,47-50,60-71
+packages/dom-shim/src/util/strings.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9,73,77
+packages/engine/test/e2e/browser-context.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 68-69,79,82-84,97,113,122,182-184
+packages/worker-script/src/scope.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20-25,29-34,95-97,118-121,168-171,192-194,242-244,290-298,329-330,336-342,374-375,382-387,390-392,411-422,426-431
+packages/core/.cargo/config.toml
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 66-71
+packages/engine/test/e2e/demos/boa-evalless-phase1.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 31-42,45-47
+packages/engine/test/e2e/demos/dom-mutation-events-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,23-35,38-47,49-55,57-83,85,87-99,101-104,106-120,122-123,125-133,135-136,139-152,154-155,157-218,220-221,223-234,236-272
+packages/engine/test/e2e/module-registry.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18,48-52
+packages/page-script/src/lag-monitor.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44-45,49
+packages/dom-shim/src/element/embedded.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20-22,38-53,65-73,78-81,87-89,96-113,121-123,134-141,169
+packages/page-script/src/state.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 16
+packages/engine/test/e2e/demos/oopif-late-spawn.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,13,32,37,39
+packages/engine/test/e2e/pixel-free-shaping-fonts.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17,40,44,52-53
+  s_c6d6a3ac21fe46::t_303f1f92824392 54
+  s_c6d6a3ac21fe46::t_ea558918d8467a 83
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17-18,22-23,29-30
+packages/engine/test/e2e/demos/network-ua-override-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-9,11-12,14-30,33-35,37-47
+packages/engine/test/e2e/tty-wheel-grid.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-15
+packages/page-script/src/wasm-glue.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 65,117,124,135
+packages/core/src/style.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 6-7,640
+  s_c6d6a3ac21fe46::t_fe4fc015483587 641-643
+  s_c6d6a3ac21fe46::t_ea558918d8467a 644
+packages/engine/src/tracing.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 59
+packages/engine/test/e2e/fetch-init-headers.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 57,61-63,66,74-79
+packages/engine/test/read-capped.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 48,53,164,167,186-191,206-209
+packages/script-gate/src/gate.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 5-7,51,180,182,218,235,252
+packages/engine/test/e2e/demos/wasm-bake-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 42
+packages/script-gate/test/classic-scan.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-24,28-30,41-44,46-49,58-61,65-69,73-81
+packages/engine/test/e2e/demos/matchmedia-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-10,12-51,53-87
+packages/engine/test/e2e/demos/screencast-pipeline-order.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44,78,91,98,129,153-156,191
+  s_24e4d13e756d00::t_7f9ae9272b7f49 70,110
+packages/engine/test/e2e/hostile-global-timers.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-12,38
+packages/engine/src/public-suffix.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 6-16
+packages/engine/test/e2e/context-lifecycle.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17-20,37,41-44,72-75
+  s_c6d6a3ac21fe46::t_ea558918d8467a 102
+packages/engine/test/e2e/demos/onhashchange-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14-27,32-33,35-36,38,40-47
+  s_24e4d13e756d00::t_8a7d8df073e128 29-31
+packages/dom-shim/src/element/forms/input-state.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 36-41,54-56,86-107,117,133,136,143,149,159,161,172-173,186-188
+  s_c6d6a3ac21fe46::t_473e6b7f4e874c 189-191
+  s_c6d6a3ac21fe46::t_ea558918d8467a 192-193,202,207
+packages/dom-shim/src/util/validation.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11,15,24-28,34-43,54,57-71,77-80,84,90,99,144,147,149-150,152-153
+packages/engine/test/e2e/flex-svg-intrinsic.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 26-31,61-66,97-102
+packages/engine/test/e2e/awaited-eval-no-deadline.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 28-31
+packages/engine/test/e2e/lazy-coalesce.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7
+packages/page-script/src/console-buffer.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 38,175,177
+packages/dom-shim/src/element/forms/label-activation.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-25,50-68,89-90
+  s_c6d6a3ac21fe46::t_a2060db8290871 91-93
+packages/engine/test/network-events-body-budget.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7,19
+packages/engine/src/cdp/dispatch-env.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14
+docs/TRANSITIONS.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 107-108,110-111
+packages/engine/test/e2e/boa-object-from-page.e2e.test.ts
+  s_24e4d13e756d00::t_251bf11f2081ce 189
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 27-29,38-39,45-48,60-62,71-74,86-88,101-104,118-120,126-132,149-151,155-160,166-169,178-180,187-188,190-196,200-203,213-215
+packages/engine/test/e2e/wasm-panic-unwind.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20
+packages/engine/test/fixtures-worker/src/dynamic/ws-echo.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 16
+packages/engine/test/e2e/demos/boa-evalless-phase3.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 34-36,41-43,48-50,60-62,75-77,81-83,87-89,98-100
+packages/engine/src/cdp/scene-stream.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-16,70-71,79-89,105,121-125,147-156,207-208,210,213-218,220-225,235-236,238-239,266-269,272-279,305-307,313-314,316-317,324-330,332-333
+packages/engine/test/e2e/demos/keyboard-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-9
+packages/dom-shim/src/element/html-classes.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14-16,41-42
+packages/engine/test/e2e/inserted-script-cap.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 31-35
+packages/engine/test/e2e/boa-using-identifier.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 52-55
+packages/engine/test/e2e/demos/vertical-scroll-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,23,25,28-29,31-41,43-53,59-74
+packages/engine/test/e2e/fetch-slot-order.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14-19
+packages/dom-shim/src/element/html-tag.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 43-46
+  s_c6d6a3ac21fe46::t_ea558918d8467a 74
+packages/engine/test/e2e/demos/pushstate-refetch-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-13,15,17,23-25,36
+scripts/check-public-imports.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 62-66,100,143-153,156,162-168,174-176
+CODE_OF_CONDUCT.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20-23,25,30,32-34,36
+packages/engine/test/e2e/demos/screencast-viewport-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-10,22,24,26-32,34-38,40,42-45,48-54,56-72,74-87,89-100,102-109,111
+packages/engine/test/e2e/inserted-script-globals.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,20-21,27-29,36-37,39-43,46-47,50-52,65-66,68-76,81-86,91-92
+packages/engine/test/e2e/web-bot-auth.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9,25,27,30,48,51,55,78,106
+scripts/get-wasm-bindgen.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13,25-27
+scripts/wpt-ref-cache.test.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-15,38-40
+packages/dom-shim/src/document.ts
+  s_6f75a522fdcec1::t_a453c4cf999fdf 2397
+  s_6f75a522fdcec1::t_e47702556a3195 1600
+  s_b7f928dc8fbea9::t_dc966bd3e259f1 2405
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 19-46,93,119-120,123,133,153-155,191-192,194-198,235-238,246-257,309-311,335-337,340-343,352-366,369-371,375-380,450,455,472,476,480-482,522,680-683,691-694,702-705,713-716,724-727,739-741,768-773,784-789,796-801,817-822,830,840-841,863-865,872-874,920,931,938,942-948,979,984-986,1083,1090,1107-1109,1122-1124,1135-1143,1147-1155,1158-1176,1180-1188,1191-1193,1196-1201,1230-1234,1238-1242,1246-1250,1254-1258,1271-1275,1287-1288,1295-1299,1380-1382,1427,1442,1455,1475,1526,1570,1573,1579,1582,1588-1589,1591-1592,1594,1599,1602-1604,1606-1611,1706-1711,1725-1731,1757,1837,1884-1886,1908,1911,1915,1918,1933,1941,1948-1950,1982,1991-1993,2014-2016,2049-2055,2075,2079,2083-2085,2132-2133,2181-2185,2194-2196,2259,2332-2336,2340-2341,2346-2350,2354-2355,2378,2399,2406-2407,2420-2449,2455-2457,2462-2464,2466-2486,2488-2508,2511-2521,2524-2532,2542-2567,2574,2579-2580,2582-2584,2587-2589,2593-2622,2624-2626,2641-2649,2651-2656,2670-2672,2674-2676,2678-2680,2695,2723,2725
+  s_c6d6a3ac21fe46::t_f70021b5d3e2b3 1525
+  s_c6d6a3ac21fe46::t_63f4c637de848c 1527-1529
+  s_c6d6a3ac21fe46::t_48f6d926694258 1571-1572
+  s_c6d6a3ac21fe46::t_34df0de94b3fcf 1574-1575
+  s_c6d6a3ac21fe46::t_ee550331d3df47 1577-1578
+  s_c6d6a3ac21fe46::t_6639ae7a6376a8 1580-1581
+  s_c6d6a3ac21fe46::t_a30d3c839aa60e 1586-1587
+  s_c6d6a3ac21fe46::t_d124919c9e5550 1590
+  s_c6d6a3ac21fe46::t_334cac2154b776 1593
+  s_c6d6a3ac21fe46::t_bb98cfcac7a5f7 1596-1598
+  s_c6d6a3ac21fe46::t_5925154e0b943b 2720-2722
+  s_c6d6a3ac21fe46::t_170a4bcda6e31a 2724
+  s_c6d6a3ac21fe46::t_b9a418a7bb8633 2726
+  s_c6d6a3ac21fe46::t_ea558918d8467a 1515-1517,1538-1552,1601,2398,2705,2760-2761,2763-2764,2767-2768,2770-2771,2774-2775,2777-2778,2780-2781,2785-2786,2788-2789,2791-2792,2794-2795,2797-2798,2800-2801,2803-2804,2806-2807,2809-2810,2848,2851
+packages/engine/test/e2e/accessibility.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7-10,31-33,62,64-65,67-68,71-72,122,125-127,137-141,200,223,236,247-249,285-289
+packages/engine/test/e2e/demos/auto-navigate-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 23-25
+packages/engine/test/e2e/demos/conic-gradient.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 54,57-59
+packages/core/src/hit_test_transform_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 127-130
+packages/engine/test/e2e/demos/css-stylesheet-added-demo.e2e.test.ts
+  s_24e4d13e756d00::t_8a7d8df073e128 96
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,19,27,29-54,56-64,66-80,82-84,89-95,98-100,104-110,112-114,118-128,130-135,137-146
+packages/dom-shim/src/element/tag-attributes.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 151-173,222-229,283-288,307-311,313-317,328-336,338-343
+  s_c6d6a3ac21fe46::t_8134ed552c6c7e 344-346
+packages/engine/test/e2e/style-churn-memory.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 22,68-70
+packages/page-renderer/src/index.ts
+  s_17a95d7d09cc74::t_aa5b7d91d5669f 54
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 33
+  s_c6d6a3ac21fe46::t_ea558918d8467a 61,66,112,138,184,266,328-330,444,491,493,503-504,510-513,516,519,534,592-594
+packages/dom-shim/src/model-context.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 140,230-234,239-247,301,304-308,381,386-388,441,464,562-567,618,632,687,726,753,761,801-802,807,815,838-842,858-860,952,1013-1019,1022-1025,1148
+  s_c6d6a3ac21fe46::t_73cafa7604005a 1026-1028
+  s_c6d6a3ac21fe46::t_ea558918d8467a 104,174-182,211,1039,1053,1067-1070,1075,1139,1195,1247,1249
+packages/page-script/src/native-functions.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18-22,24-28,35-37,56-59,73-77,79-81,94-96,122-124
+packages/worker-script/src/index.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 43-44,89-91,104-106
+packages/page-script/src/native-http.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 47,80,99
+packages/kitesurf-cli/src/main.rs
+  s_2beea15461286f::t_5a1f43028d7a76 911,930-932
+  s_2beea15461286f::t_827a77428c8de1 1370
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 57-61,65-67,122,214-225,268-272,285-295,311-315,321-323,343-350,355-363,454,584-587,607-608,674-679,686-691,703-710,836-842,850-851,855-862,865-868,884-887,890-894,902-903,906-910,912-929,933-941,945-961,1009-1014,1017-1019,1033-1036,1061-1065,1111-1115,1126,1176-1182,1279-1286,1290-1293,1299-1303,1316-1318,1332-1333,1338-1348,1350-1369,1371-1380,1382-1390,1706-1713,1723-1727,1736-1738,1746-1755,1767-1772,1802-1806,1809-1813,1823-1825,1845-1849,1929-1933,1935-1940,1950-1955,1963-1967,1969-1973,1975-1980,1983-1988,1995-2000,2007-2012,2014-2019,2021-2026,2029-2034,2039-2044,2047-2052,2056-2061,2066-2070,2087-2090,2102-2106,2108-2112,2118-2121,2127-2128,2142-2143,2153-2155,2185-2186,2234-2249,2273-2279,2291-2297,2309-2315,2327-2333,2345-2351,2363-2369,2397-2405,2414-2419,2423-2431,2435-2438,2446-2451,2457-2460,2508-2510,2523,2546
+  s_c6d6a3ac21fe46::t_e6bdcbb58c3e15 2524-2526
+  s_c6d6a3ac21fe46::t_40cab8552e6627 2547-2549
+  s_c6d6a3ac21fe46::t_ea558918d8467a 2527-2528,2550-2551
+packages/engine/test/e2e/classic-computed-import.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 16-18,24
+packages/engine/test/e2e/computed-transform-matrix.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 73-80
+packages/engine/test/e2e/demos/history-shim-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,10-12,14-31,33,39-42,44,53-59,61,69-71,73,86-94,96,101-103,105,111
+packages/tty-css-preview/extension/background.js
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 27,34,54-60,65-70
+AGENTS.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7,92,195-196,208,210
+  s_4c3e8c042d4228::t_e77f8ab306e5e5 527
+packages/engine/test/e2e/late-timer-image-load.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7
+scripts/generate-webidl-bindings.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 56-57,61-62,93-95,111-113,155-157,249-255,281-285,288-290,314-318,329-333,347-350,352-354,356-358,363-364,366-367,374-375,378-379,386-387,426-428,438-444,453-462
+packages/engine/test/e2e/interface-own-properties.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 135-151,154-162,174-184
+packages/engine/test/e2e/text-fill-color.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 23,82
+packages/engine/test/e2e/demos/picture-srcset-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-14,16-18,20-21,23-25,49-51,53-64,66-81,83-87,89-102,104-113
+packages/engine/test/e2e/core-wasm-worker.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 5
+packages/engine/test/e2e/renderer-laziness.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 16,32,53-55,58,65,74,80
+packages/engine/test/image-dims.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 21,24,186,192,203-204,209
+packages/core/src/text_encoding.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 166-168
+  s_c6d6a3ac21fe46::t_591d9015414ceb 169
+packages/engine/test/e2e/bridge-construct.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8
+packages/engine/src/eval/prefetch-scripts.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 54,93-94
+  s_c6d6a3ac21fe46::t_f363bd55749977 95-97
+  s_c6d6a3ac21fe46::t_ea558918d8467a 98-99,165,169,189,198
+packages/engine/test/attribution-tail.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7
+packages/engine/test/e2e/demos/mouse-events-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,33-46,48-49,51-60,62-69,71-74,77-80,82-86,88-90,92-99,101-113,115-120
+  s_2cd935aac36428::t_c0e8c12f8bacbf 75-76,81
+packages/dom-shim/src/element/image.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 30-45,57-74,85-89,123-128,154-158,170-185,190-195,198-202,205,207
+  s_99f052acd0307b::t_d6ee06c35124cd 203-204
+packages/engine/test/e2e/screencast-partial-image.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,25-26,34-38,91,106
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 103-105,223-229,232-238
+packages/dom-shim/src/node-base.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 6-23,78,98-100,113-117,122-126,129-131,135-142,154-158,174-183,188-190,194-199,216-221,233,267-271,298-302,304,311-316,320-324,423-427,430-435,447-452,458,460,471,477-478,498-502,505,515-519,536-540,542-547,568-569,582-583,614-616,620-622,654-659,684-686,713-715,814-818,835-837,849-851,866,871-875,931-933,942-947,959-961,992,1031,1033,1049,1052-1053,1060,1062-1066,1086-1095,1105-1106,1109,1112-1114,1120-1122,1139,1164-1165,1173,1180-1184,1218,1220,1234,1238-1242,1251,1269,1284-1288,1290-1296,1303,1326,1352-1357,1378,1381,1396,1410,1425,1438,1445,1451,1454-1455,1498-1502,1505,1509-1510,1513,1543-1544,1547,1574-1575,1596-1599,1633,1676,1693-1695,1709,1770,1802-1803,1805-1807,1816-1818,1898-1901,1907,1939-1941,1946,1959,1965,1973,1982,1991,2013-2014,2024-2029,2048-2050,2077-2082,2095,2099,2105,2117-2137,2151-2155,2192,2216,2225-2226,2239
+  s_b7f928dc8fbea9::t_76f20d46b43f75 475
+  s_b7f928dc8fbea9::t_9cd80058780ab3 476
+  s_b7f928dc8fbea9::t_de357805af4b52 2012
+  s_c6d6a3ac21fe46::t_506cf9d99a0ca4 456-457
+  s_c6d6a3ac21fe46::t_f6879191ceab58 459
+  s_b7f928dc8fbea9::t_9f241fa5c7649c 2010-2011
+  s_c6d6a3ac21fe46::t_2ac7f73abd254d 2189-2191
+  s_c6d6a3ac21fe46::t_b2485ed252851c 2193
+  s_c6d6a3ac21fe46::t_e2ec5fc18ce2b9 2215
+  s_c6d6a3ac21fe46::t_9606efd7449547 2217-2219,2222-2224
+  s_c6d6a3ac21fe46::t_276e7c266c01d1 2227-2229
+  s_c6d6a3ac21fe46::t_e5f88160b6f907 2238
+  s_c6d6a3ac21fe46::t_295d941def4ed4 2240-2242
+  s_c6d6a3ac21fe46::t_ea558918d8467a 2188,2207,2220-2221,2243
+packages/engine/test/e2e/document-node-members.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 27-30
+packages/engine/test/e2e/oversize-document.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9,16
+packages/engine/src/cdp/dom.ts
+  s_840c60691e5098::t_fdee7f82c15384 458-461,468-469,472-474,476-478
+  s_7158aede64448f::t_c75eab209c2990 582-583
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 18,33,170,218,232,315-322,336-343,347-355,445,454-457,462-467,470-471,475,479-480,489,503,561
+  s_7158aede64448f::t_cff363efb87a59 580-581
+  s_7158aede64448f::t_7eb44af3d41d25 584
+  s_c6d6a3ac21fe46::t_ea558918d8467a 599
+packages/engine/test/e2e/raf-wrap-reentrancy.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-15
+docs/FONTS.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20-36
+packages/engine/src/cdp/webmcp.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 46-49,78-79,137,154,169,188,197,222-223,235-242,245,312-318,341,351-358,420,428
+docs/BOA_V8_FLOW.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13,27,107-113,382,390,398,467,551
+packages/page-script/src/fetch-slots.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 31,171-173,178
+packages/engine/test/e2e/isolate-kill.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14,28-30
+packages/engine/test/e2e/data-transfer-items-add.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 37
+  s_c6d6a3ac21fe46::t_d0efed17a1a5eb 34-36
+  s_c6d6a3ac21fe46::t_ea558918d8467a 42-46
+packages/dom-shim/src/mutations/observer.ts
+  s_b7f928dc8fbea9::t_0b0dd80bd62c0b 136,139
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 59,62,74-75,130-135,137-138,140-156,185-187,212-216,259-263,273-278,287-292,294-296,348-349,360,397,431-433,436-438,445-447,457-459,463-467,470-472,488-493,503-507,510-513,524-528,540-542,545-549,551-554,557-559,561-563,566-568,581-583,619-621,634-636,677
+  s_c6d6a3ac21fe46::t_ea558918d8467a 680,684-687
+packages/engine/test/e2e/demos/forms-activation-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 52-54,57-59,62-64
+packages/engine/test/e2e/isolate-wall-cap.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-14,49
+packages/engine/test/e2e/mouse-input-fields.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 31-34,36-75,79-82,85-90,106-108,142-144,149-161,163-180,183-188
+scripts/wpt-batched.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 116-124,148-151,209-215,221-224,274-276,281-284,290-292,303-307,354-365,398-402,416-426,442-453,455-457,464-465,484-486,493-499,515-517,530-533,535-538,546-548,556-558,560-565,575-578,580-581,600-615,623-625,643-645,665-667,679-681,700-704,718-720,728-737,754-758,763-765,776-781,798-805,813-816,829-834,838-839,848-855,860-864,870-874,879-881,894-901,913-915,921-932,936-940,944-948,952-956,959-962,966-969,976-978,1007-1008
+packages/engine/test/e2e/caret-after-typing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8
+packages/engine/test/e2e/demos/devtools-elements-live-update-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 21,62-64,88,113,147,181,195,203-207
+packages/engine/src/observability.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 37,93,113,162,167
+docs/PAGE_RENDERER.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 98-109,129-132,144-148,179-183,185-186,241-249
+packages/engine/test/e2e/global-setup.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 19-26,46-53,58-67,96-102
+  s_c6d6a3ac21fe46::t_7f98cf0bf0057e 103
+packages/engine/test/e2e/harness.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 35
+packages/core/src/shadow_dom_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 293-296,518-533,540-545,769-771,773-777,797-800
+packages/engine/test/e2e/boa-accessor-descriptor.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,23-24,27-32
+packages/engine/test/e2e/button-descendant-submit.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 23-25,28-29,32-34,39-41,43-44,46-48
+packages/scene-host-wasm/src/lib.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 105-114,116-142,144-150,152-203,205-206,225-227,230-244,248-250,252-254,257-259,262-264,311-312
+  s_c6d6a3ac21fe46::t_0cecad393c7e00 313
+packages/engine/src/cdp/kitesurf.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7,100,174,235,266-267,323,326,339,354-355,378,400,402,424,434,454,462,474
+packages/engine/test/e2e/cssom-rule-interfaces.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-14,65-67,149,170-175
+packages/engine/src/cdp/wheel-queue.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 111,122-123
+packages/engine/test/e2e/text-setters.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10
+packages/engine/test/e2e/demos/forms-step-numeric-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 25,32,41,46,57-58,60-61,100-102,108-110
+  s_24e4d13e756d00::t_8a7d8df073e128 59
+packages/engine/test/e2e/intersection-observer.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 24-26,28-67,72-74,81-86,96-98,109-141,151-168,175-177,179-197,203-224,231-259,284,309-324,328-330,333-356,364-366,368-371,374-385,394-396,398-409,415-438,441-443,445-448,450-456,463-467,470-472,493-507,510-523,525-526,529-532,537-567,574-595
+packages/engine/test/e2e/current-script-microtask.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,20
+packages/engine/test/e2e/pseudo-computed-style.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-14
+packages/engine/test/e2e/bridge-heal-at-entry.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 43
+  s_c6d6a3ac21fe46::t_3360fc991115cd 44-45
+  s_c6d6a3ac21fe46::t_ea558918d8467a 35-36
+packages/engine/test/e2e/demos/forms-input-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 23,32,46,53-54,63,82,88,90-92,95
+packages/engine/tsconfig.json
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 25
+packages/tty-css-preview/test/server.test.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 22-27
+packages/core/src/abspos_containing_block_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 133-136,152-156,165-168
+packages/engine/test/e2e/cookie-redirect-domain.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12,23,30,32
+packages/engine/test/e2e/demos/dom-mutate2-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-9,11,13-27,29-40,42-56,58-78,80-91
+packages/dom-shim/src/current-script.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-11,54
+packages/engine/src/read-capped.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 110,161
+packages/engine/src/eval/resource-store.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 80,84,108,112,116
+packages/dom-shim/src/element/svg.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-15,18,99-102,111-134
+packages/engine/test/e2e/css-highlight-api.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 32-39
+packages/engine/test/e2e/contenteditable-typing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 32-45,56-58,116,118-125,130-134,143-145,157-159,175-176,191-193
+  s_24e4d13e756d00::t_251bf11f2081ce 117,129
+  s_24e4d13e756d00::t_2289c2e9f2100c 126
+packages/engine/test/e2e/demos/font-heavy.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 38-40,45-47,53-54,58-60
+  s_c6d6a3ac21fe46::t_ea558918d8467a 35,64-68,71-73
+packages/engine/test/e2e/demos/script-execution-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-10,12-15,17-20,22-25,27-28,30-37,39-58,60-61
+  s_24e4d13e756d00::t_b6998d059742ad 29,62-67
+packages/engine/src/eval/learned-scripts.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 47-50,84-89
+packages/core/src/ink_rect_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 55-58,70-74,109-113,139-142,147-151,164-167
+packages/engine/test/e2e/cssom-insert-rule-cascade.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14-16
+packages/dom-shim/src/element/media.ts
+  s_ae8edd3430c571::t_b33c78c67ab9eb 115,213
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 36-38,41-43,63-65,68-70,74-76,82-84,91-93,99-102,116-126,162-185,187-189,191-193,195-197,199-201,203-212,214-220,226-228,254-255,266-281,302-305
+  s_7ffa3edaa61e8e::t_8cc1cc0656da3e 307-308,314
+packages/engine/test/e2e/demos/page-renderer-cjk.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 15,34,36-37
+packages/engine/test/e2e/iframe-load-order.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 214,238-239,264
+  s_c6d6a3ac21fe46::t_9d205ae16ba0e5 240-242
+  s_c6d6a3ac21fe46::t_d64d4b5713f771 261-263
+  s_c6d6a3ac21fe46::t_ea558918d8467a 78,102,111-113,207,244,256,260,291-293,297
+packages/engine/test/e2e/native-function-shape.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,26-27
+packages/dom-shim/src/collections.ts
+  s_d7629e2a4ee839::t_8cab357d02a174 1126
+  s_d7629e2a4ee839::t_5232fec159f0d8 1383,1394-1395,1649,1652,1655
+  s_d7629e2a4ee839::t_744c517e8a2152 547,1245,1310,1386,3225-3228,3252,3255,3310,3722,3748
+  s_d7629e2a4ee839::t_ceb78414addee3 1312
+  s_d7629e2a4ee839::t_3b060726ba620c 551-552
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-30,41,64-71,82-84,99,102-137,144-148,221,247-249,266,363-371,419-424,431-442,444-446,462-464,487,498,522-524,533,548,580-582,605,628-631,682,728,1094-1095,1227,1244,1309,1326-1331,1334-1339,1342-1354,1384-1385,1396-1405,1427-1429,1435-1438,1447-1449,1455-1457,1460-1462,1483-1485,1506-1508,1511-1519,1523-1525,1528-1530,1533-1548,1567-1570,1589-1591,1601-1603,1606-1608,1616-1617,1631-1634,1647-1648,1650-1651,1653-1654,1671,1675-1677,1687-1689,1695-1697,1707-1709,1719-1721,1727-1732,1734-1745,1748-1753,1756-1767,1770-1793,1796-1801,1804-1806,1812-1817,1820-1822,1828-1833,1874-1878,1887-1891,1894-1903,1912-1917,1921-1924,1979-1982,1984-1985,2011-2014,2019-2037,2099-2101,2147-2150,2152-2154,2164-2166,2200-2201,2242-2243,2281-2300,2311-2337,2348-2352,2396-2402,2412-2414,2422-2424,2436-2460,2465-2472,2500-2501,2503-2504,2514-2516,2525-2526,2547-2548,2565-2574,2576-2577,2579-2581,2594-2595,2601-2606,2610-2611,2628-2630,2633-2634,2636-2639,2657-2659,2669-2671,2681-2682,2690-2694,2714-2719,2725-2726,2738-2742,2752-2753,2797-2798,2800-2804,2807-2808,2810-2814,2819-2821,2832-2833,2836-2838,2893-2897,2907,3039-3041,3050-3053,3091-3094,3123-3140,3142-3150,3166-3168,3181-3184,3213-3215,3223-3224,3256,3365-3366,3368,3621,3721,3724
+  s_d7629e2a4ee839::t_309f37782ef691 684
+  s_d7629e2a4ee839::t_dfb16006d967ac 1615
+  s_c6d6a3ac21fe46::t_0b31b1d9a54bb9 534
+  s_d7629e2a4ee839::t_0ab5f6e2ffe1c0 546
+  s_c6d6a3ac21fe46::t_267ba4deae55cc 729-730
+  s_c6d6a3ac21fe46::t_93281794017dbb 1093
+  s_c6d6a3ac21fe46::t_945214d14209b9 1096
+  s_c6d6a3ac21fe46::t_90818a71003b0f 1226
+  s_c6d6a3ac21fe46::t_c0efffdf0f519b 1228-1229
+  s_c6d6a3ac21fe46::t_d31d745750bdf6 1243
+  s_d7629e2a4ee839::t_4e86cb614ce692 1246
+  s_d7629e2a4ee839::t_b1708d7ff020ed 1311
+  s_d7629e2a4ee839::t_4af89c2cd70263 1393
+  s_c6d6a3ac21fe46::t_8910270d01730b 1672-1674
+  s_d7629e2a4ee839::t_872585bea811c1 3249-3251
+  s_d7629e2a4ee839::t_867bab3da795a5 3253-3254
+  s_c6d6a3ac21fe46::t_6f006697a34687 3257-3259
+  s_d7629e2a4ee839::t_443500e83dbe8c 3308-3309
+  s_d7629e2a4ee839::t_7f43e61972e2e0 3311
+  s_c6d6a3ac21fe46::t_09b27f91b08cd8 3367
+  s_c6d6a3ac21fe46::t_b596adc5a47f7d 3369-3371
+  s_c6d6a3ac21fe46::t_241089c1f41678 3622-3623
+  s_c6d6a3ac21fe46::t_b4cccb62c9c864 3720
+  s_c6d6a3ac21fe46::t_ea558918d8467a 549-550,745-749,780,790,861,880,1044,1107,1359-1362,3244-3246,3248,3260-3265,3271-3272,3305,3343,3372-3375,3416,3432,3490-3491,3593,3604,3628,3667-3669,3684-3686,3723,3785-3787,3796-3800,3803-3805
+packages/dom-shim/src/webidl.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 73-76,79-82,88,94-97,100-103,123-126,149-152,156-159,191-194,199-202,218-221,236-239,297-300,303-306,350-353,358-361,365-368,386-389
+packages/engine/test/e2e/demos/screencast-placeholder-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,10-11,13-16,18-19,21-22,24-33,35-56
+packages/engine/test/e2e/script-font-dir.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20,22
+packages/engine/test/e2e/demos/window-computed-style-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 29-31,42-43,91-93
+packages/engine/test/e2e/demos/defer-shim-nested-modinit-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 7-9,22-23,25,27-35,38-47,50-63,65-66
+packages/engine/test/e2e/slow-document-headers.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-11,18-32
+packages/page-script/src/contenteditable-input.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 59-66,115-125
+packages/engine/src/cdp/input.ts
+  s_7158aede64448f::t_c75eab209c2990 172
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 91-98,114-124,126-138,163,173-174,192-196,198-199,202-203,213,217-218,235,245,250,256,277,325,406,431,448-459,465-474,526
+packages/engine/test/e2e/intrinsic-sizing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-12
+packages/engine/test/e2e/scene-stream-idle-frames.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-35,37-103,105-109,111-114,129-132,135-137,141-142,158-163,170-172,188-190,195-199,202-204,216-217,219-221,233-238,242-244,249-255,263-264,266-270,273-282,292-295,297-299
+tests/pw-tests.json
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 4,16,20,24,28,32,36,40,44,64,68,81,85,89,105,118,132,136,152,156,168,172,176,180,184,188,192,207,211,215,219,230,234,245,257,261,265
+packages/engine/test/e2e/pdf-page-margins.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 28,50,52
+packages/page-script/src/index.ts
+  s_7f440f61ef8fd7::t_5c6ba2d1b5ba11 4223-4225,4786
+  s_7f440f61ef8fd7::t_5f2b2830f66077 3947
+  s_7f440f61ef8fd7::t_eeb068ae74cbe3 4105-4106,4111-4115,4130,4132
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 125,157,259-262,338-340,349-355,389-390,440-447,462-463,467-468,474-476,479-482,501-506,537-538,602-606,624-628,640,652-656,659,662-674,683-687,721-725,731-735,741-744,763-765,812-823,828-834,871-873,881,907-918,953,989-991,1003-1032,1034-1035,1037-1047,1083,1092,1143-1145,1157-1161,1167-1174,1186-1188,1190-1192,1196-1199,1230-1232,1243-1245,1247-1249,1256-1259,1294,1321,1340-1344,1348-1350,1389-1391,1462,1524-1527,1550-1552,1576-1580,1592-1596,1598,1729,1747,1880-1883,1888-1889,1902-1911,1927-1929,1969-1972,1978-1985,1991,1999,2017-2022,2026,2041-2043,2045-2047,2056-2063,2065-2128,2130-2146,2151-2157,2161-2181,2183,2185-2190,2192-2258,2277-2281,2285-2287,2302,2336-2342,2355,2391-2393,2396-2398,2402,2412,2422-2425,2466,2479-2487,2492-2493,2498,2509-2515,2543-2544,2552-2554,2577,2590-2592,2654,2951,3191-3195,3199-3201,3236,3245-3246,3265,3281-3282,3285-3286,3294-3298,3305-3309,3314-3315,3328-3329,3332-3336,3341-3345,3350-3351,3384-3387,3394-3398,3403-3407,3417-3419,3422-3424,3427-3429,3439-3441,3445-3449,3473-3474,3487,3525,3592-3595,3608,3610-3625,3633-3639,3642-3644,3654-3660,3688,3701-3711,3729,3737-3747,3767-3770,3833-3838,3847-3848,3850-3854,3857,3902,4263-4264,4628,4639,4984,5081,5110,5123,5132,5235,5237,5242,5245,5257,5394-5395,5436,5604,5606,5683,5697,5700,5731,5749,5789,5843,5958,5963,5967
+  s_4b855c30f0651b::t_7a1983535c3e75 1837-1840,1847
+  s_4b855c30f0651b::t_3f6eed43e91873 1841,1844-1846
+  s_4b855c30f0651b::t_61f079961538f7 2935
+  s_7f440f61ef8fd7::t_8f51e5f8983508 4002-4004
+  s_7f440f61ef8fd7::t_7fe771e57e9cf6 4116-4118,4712,4982,5033,5130,5148,5200,5247,5834,5884
+  s_7f440f61ef8fd7::t_ab76de1b75f0b4 3948-3951
+  s_7f440f61ef8fd7::t_de0825c1029e92 4015,4021,4024
+  s_7f440f61ef8fd7::t_953d4b660fade7 1727,3859,4133-4135,4139-4141,4983,5080,5131,5256,5414,5661,5698,5748,5788,5842,5962
+  s_7f440f61ef8fd7::t_1264e65572084e 4217-4218
+  s_7f440f61ef8fd7::t_a5d7b0e55bb630 1396,1505,4025-4029,4035-4039,4049,4369,4383,4391,4445,4474,4503,4545,4558,4560,4562,4604,4610,4625,4634,4671,4879,5025,5883
+  s_c6d6a3ac21fe46::t_7398fff098f90e 1393
+  s_7f440f61ef8fd7::t_383d5fd07640eb 4213
+  s_4b855c30f0651b::t_a53c171e5216d6 1810
+  s_7f440f61ef8fd7::t_beb0a9f09e3e76 4189-4191
+  s_7f440f61ef8fd7::t_ac9c060a23ce69 1508,2924,3894,4226-4228,4268,4292,4390,4561,4598,4624,4670,4861,4865,5872
+  s_4b855c30f0651b::t_697eff12c99f27 1864-1865
+  s_4b855c30f0651b::t_dd243d97a2f2d9 2926-2928
+  s_7f440f61ef8fd7::t_1fc1f3a8a0f80e 2992,3120,4201,4203,4208,4214,4291,4597,4651,4860,5126
+  s_c6d6a3ac21fe46::t_43b2be2a3ca166 1392
+  s_7f440f61ef8fd7::t_564662fbb0de95 1395
+  s_7f440f61ef8fd7::t_e55c9892e7a0d6 1397
+  s_c6d6a3ac21fe46::t_dfc7284884c6c1 1461
+  s_7f440f61ef8fd7::t_b0df65c807d591 1503-1504
+  s_7f440f61ef8fd7::t_b19b3ce4b9d33d 1506-1507
+  s_c6d6a3ac21fe46::t_8a44eb482c3312 1597
+  s_c6d6a3ac21fe46::t_7ffc408436235b 1746
+  s_c6d6a3ac21fe46::t_56be46337e2890 1748
+  s_c6d6a3ac21fe46::t_fcf9c0a223dc28 2655-2657
+  s_7f440f61ef8fd7::t_0b63eab7f4d5d4 2921-2923
+  s_c6d6a3ac21fe46::t_9dc1931856d79d 2949-2950
+  s_7f440f61ef8fd7::t_e719814ed6130b 2990-2991
+  s_7f440f61ef8fd7::t_2cae056366e9b6 3121-3123
+  s_7f440f61ef8fd7::t_6ff8758e1914b4 3891-3893
+  s_7f440f61ef8fd7::t_80b00d21b15c34 3895-3896
+  s_c6d6a3ac21fe46::t_88286b8250e71f 3901
+  s_c6d6a3ac21fe46::t_5df7bcbcd6080c 3903-3904
+  s_c6d6a3ac21fe46::t_bcc172dbae64dc 4265-4266
+  s_7f440f61ef8fd7::t_e24006043c5c19 4269-4271
+  s_7f440f61ef8fd7::t_23f3d04385d492 4384-4386
+  s_7f440f61ef8fd7::t_51c2fafcaa953a 4392
+  s_7f440f61ef8fd7::t_846c64b627f61b 4442-4444
+  s_7f440f61ef8fd7::t_3b0e54f64027cb 4473
+  s_7f440f61ef8fd7::t_2277ccbd0aab1d 4504-4506
+  s_7f440f61ef8fd7::t_da26721762d68c 4543-4544
+  s_7f440f61ef8fd7::t_5a2871ea75baa9 4546
+  s_7f440f61ef8fd7::t_19f2a7d36b01ca 4556-4557
+  s_7f440f61ef8fd7::t_6418dd1fcfe646 4559
+  s_7f440f61ef8fd7::t_15f38f134f3c5d 4596
+  s_7f440f61ef8fd7::t_73d097f8a3b71a 4599
+  s_7f440f61ef8fd7::t_be5af91cb92c10 4605-4607
+  s_c6d6a3ac21fe46::t_8e277f16bafb94 4629-4631
+  s_c6d6a3ac21fe46::t_8b4105bdad4f40 4640
+  s_7f440f61ef8fd7::t_39b00466234865 4649-4650
+  s_7f440f61ef8fd7::t_9b7204c3db812a 4667-4669
+  s_7f440f61ef8fd7::t_48c5b71808f184 4711
+  s_7f440f61ef8fd7::t_39dba8eea2f1c8 4713
+  s_7f440f61ef8fd7::t_be9a63b491dfea 4785
+  s_7f440f61ef8fd7::t_8ca81372189cc6 4787
+  s_7f440f61ef8fd7::t_8f115c125b432d 4859
+  s_7f440f61ef8fd7::t_1cabc638a84d74 4862-4864
+  s_7f440f61ef8fd7::t_2b1aaa17010dab 4866-4868
+  s_7f440f61ef8fd7::t_b47eb4255aef0e 4876-4878
+  s_7f440f61ef8fd7::t_8da46bb63fd4ea 5023-5024
+  s_7f440f61ef8fd7::t_0766f12d968ef3 5026
+  s_7f440f61ef8fd7::t_ad8a900ab0d724 5079
+  s_c6d6a3ac21fe46::t_7a2e880e9723e2 5107-5109
+  s_c6d6a3ac21fe46::t_2e090f31d0964b 5124
+  s_7f440f61ef8fd7::t_e42651136d7892 5129
+  s_7f440f61ef8fd7::t_7b4c68d7d9d51a 5147
+  s_7f440f61ef8fd7::t_c44778f167e9ba 5149-5150
+  s_7f440f61ef8fd7::t_a210d15c2bc611 5199
+  s_c6d6a3ac21fe46::t_0359fbd39ab601 5236
+  s_c6d6a3ac21fe46::t_a3bd1e330b2bf0 5243-5244
+  s_7f440f61ef8fd7::t_d1c0a2f5844f92 5248
+  s_7f440f61ef8fd7::t_735c2613e497b9 5255
+  s_c6d6a3ac21fe46::t_365a0433ce46d1 5391-5393
+  s_7f440f61ef8fd7::t_ddc4026155e5ac 5411-5413
+  s_c6d6a3ac21fe46::t_f51ded22452a1c 5434-5435
+  s_c6d6a3ac21fe46::t_b5c165b75147e3 5437
+  s_c6d6a3ac21fe46::t_3c73e0a2a0eae0 5605
+  s_c6d6a3ac21fe46::t_65754076c09b7b 5607-5608
+  s_7f440f61ef8fd7::t_f9ae56219e7876 5662-5663
+  s_c6d6a3ac21fe46::t_8e018ec8b66200 5681-5682
+  s_c6d6a3ac21fe46::t_1979d8b421546d 5684
+  s_c6d6a3ac21fe46::t_87c7d4bbf8135e 5728-5730
+  s_c6d6a3ac21fe46::t_83624df4a6760d 5732-5734
+  s_7f440f61ef8fd7::t_99df00a59a6073 5745-5747
+  s_c6d6a3ac21fe46::t_a464e22f2b50b9 5750-5751
+  s_c6d6a3ac21fe46::t_fa5fa427e6319a 5790-5791
+  s_7f440f61ef8fd7::t_8b81032ec85e22 5832-5833
+  s_7f440f61ef8fd7::t_8a3fc476a46621 5841
+  s_7f440f61ef8fd7::t_d448bc8c31372a 5873-5874
+  s_7f440f61ef8fd7::t_1efbdbb90bdd01 5885-5886
+  s_c6d6a3ac21fe46::t_098db3e479a65a 5956-5957
+  s_c6d6a3ac21fe46::t_8d853081b247ec 5959-5960
+  s_c6d6a3ac21fe46::t_d0fd6ffce7bfe3 5964-5966
+  s_c6d6a3ac21fe46::t_ea558918d8467a 1418,1622-1623,1686,1691-1693,1728,1799-1800,1802-1803,2616,2704-2706,2726-2731,2751,2943-2945,2976-2978,3034,3053,3072-3074,3111,3858,3890,3943,4272-4273,4282-4285,4287-4288,4377-4378,4387,4406-4409,4425,4441,4460-4462,4469-4471,4514-4521,4533,4566,4570-4573,4626-4627,4632,4635-4638,4701,4749,4763-4764,4838,4841-4844,4886,4896-4897,4913-4917,4931-4934,4941-4943,4948-4949,4976,4987-4988,4998-5000,5003,5010,5075-5076,5083-5086,5117,5119-5121,5161-5164,5171,5246,5270-5272,5276-5278,5296-5297,5301-5304,5311-5318,5345-5348,5352,5359-5361,5370-5374,5376-5379,5387-5390,5397-5401,5410,5418-5422,5426-5429,5450-5452,5506-5513,5539,5541,5568-5570,5627-5631,5688,5692-5695,5699,5702-5705,5710-5712,5726-5727,5735,5742-5744,5775-5777,5784-5786,5849-5851,5856-5858,5864-5866,5879-5881,5905-5907,5913-5917,5923-5928,5969-5971,5985-5986,5991-5992,6008,6042-6044
+packages/page-script/src/trusted-fetch.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 21
+packages/tty-css-preview/extension/fallback-level1.css
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 36-38
+packages/engine/test/e2e/bridge-fn-liveness.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 54-56,59-60,66-67,83-88
+  s_c6d6a3ac21fe46::t_ea558918d8467a 90-91,105-106
+packages/dom-shim/src/window.ts
+  s_b7f928dc8fbea9::t_be6d741d124a8e 111-113
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-31,40,116,175-176,223-226,294-297,304,326,328,340-345,378-380,394-399,403,418-432,437-469,482-484,497-499,503-508,511-513,535,539,555,558-559,571-572,598-602,639-644,652-654,727-728,737-738,764-772,775-783,792-804,820-822,831-834,837-840,847,849-852,892,894,898-902,905,913,915,926-928,937-941,957,965-969,1014-1016,1029-1044,1080-1082,1158-1162,1165-1170,1178-1180,1183-1185,1190-1191,1199,1210-1214,1299-1301,1310,1352-1354,1376
+  s_c6d6a3ac21fe46::t_ea558918d8467a 114-115,1358-1361
+packages/engine/test/e2e/inset-box-shadow.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 32-35
+packages/page-renderer/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 42
+docs/IFRAMES.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 73,143,151,255-256,264-265,337
+packages/core/src/agent_damage_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 27-32,37-46,62-65,75-78
+scripts/check-license-headers.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 61,87,205-208,219-230,239-241
+packages/engine/test/e2e/timer-wheel-foreign-clear.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,22-23
+packages/engine/test/e2e/label-activation-trust.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-11,13-14,32-34,37-38
+packages/core/src/radar_grid_repro_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 100-107
+packages/engine/test/e2e/bridge-array-lazy.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 336
+  s_c6d6a3ac21fe46::t_ea558918d8467a 87,198,201,246-250,273,285,293,318,341-348,361,364-368,395
+packages/engine/test/fixtures-worker/src/dynamic/slow.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 63
+packages/dom-shim/src/element/forms/select.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 36-38,49-60,65-67,72-74,129,136,156-157,159,194-199,228-230,290-292,316-318,322-324
+  s_c6d6a3ac21fe46::t_ea558918d8467a 334
+packages/engine/test/document-kind.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 69-70,74-79
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 45-57
+packages/core/src/tty_cell_grid_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 713-719
+  s_c6d6a3ac21fe46::t_1951ca64631c79 720
+packages/engine/test/e2e/demos/dynamic-behavior-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 19
+packages/page-script/src/native-scheduling.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 47-50
+packages/engine/test/e2e/web-animations.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 35-90,99-106,131-150,161-168,172-183,187-193,197-216
+scripts/wasm-opt.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12,27,45
+packages/engine/src/engine-errors.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,48,66
+packages/engine/test/e2e/demos/css-getstylesheettext-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-10,16,18-31,33-43,45-48,50-53,55-57,61-66,68-71,73-79
+packages/engine/test/e2e/demos/cssom-roundtrip-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 27-29,35-36
+packages/engine/test/e2e/demos/css-matched-styles-demo.e2e.test.ts
+  s_24e4d13e756d00::t_8a7d8df073e128 78
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-13,17-35,37-40,42-52,54-55,57-59,62-63,65,67-68,70-71,73-74,77,79-150,152-153,155,157-158,161-162,165-167
+packages/engine/test/e2e/reentrant-new-function-scope.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14,17,21-38
+  s_24e4d13e756d00::t_251bf11f2081ce 18-20
+packages/engine/src/eval/page-script-tail.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44,53,98,128,134,182,200,218
+packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 16-17,27-28,63-91,101-105,116-119,183-197
+packages/engine/test/e2e/demos/oopif-prespawn.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,38
+packages/engine/src/eval/next-route-chunks.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-16,20-22,56-59,66-73,82-85,97-101
+packages/engine/test/e2e/demos/css-inherited-styles-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10-18,23,25-28,30-40,43-56,58-60,62,64-65,69-70,74-75,77-105
+packages/engine/test/e2e/boa-bridge-fidelity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-13
+packages/engine/test/e2e/session-deadlines.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-14,21,23,44,60
+packages/engine/src/eval/dedicated-worker.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 103-110,121,164-166
+packages/engine/test/e2e/demos/font-face-unicode-range-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,36
+packages/engine/test/e2e/demos/hit-test-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-10,14-16
+packages/engine/test/e2e/element-measurement.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 68-74
+packages/engine/test/e2e/style-declaration-object-members.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 63-66
+packages/core/src/scene_replay.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20-21,349-350,646-647,649-650,653-654,698-701,864-868,870-874,1113-1116,1139-1143,1318-1320,1324-1327,1333-1341,1384-1390,1393-1397,1426-1428,1433-1435,1444-1446,1777-1778,1784-1787,1853-1862,2043-2047,2304-2313,2322-2328,2331-2333,2337-2343,2353-2356,2366-2372,2376-2395,2404-2407,2482,2575,2601,2603,2720,3216,3284
+  s_c6d6a3ac21fe46::t_85d6cd209e6400 2480-2481
+  s_c6d6a3ac21fe46::t_e091b76e897133 2483-2485
+  s_c6d6a3ac21fe46::t_a0af3c4f68b27b 2572-2574
+  s_c6d6a3ac21fe46::t_6c2288abf1322c 2600
+  s_c6d6a3ac21fe46::t_ebb7df40bd7f92 2602
+  s_c6d6a3ac21fe46::t_31df6037524eea 2604
+  s_c6d6a3ac21fe46::t_bd83befce5d216 2719
+  s_c6d6a3ac21fe46::t_ae8ab06b59e5fd 3215
+  s_c6d6a3ac21fe46::t_b9af73c13c86c3 3282-3283
+  s_c6d6a3ac21fe46::t_ea558918d8467a 2415-2421,2438-2439,2451-2461,2571,2733-2736
+packages/jsrpc-types/src/query-dom.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 252,417
+packages/engine/test/e2e/css-supports-condition.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 72-75
+packages/kitesurf-cli/src/wasm.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 40-43,55-57,67-74,77-79,99-101,113-117,137-141,159-163,171-174,214-216,231-233,241-242,253-256
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17,29-30,80-86
+packages/engine/test/script-bundle-runtime.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9,145,323
+  s_c6d6a3ac21fe46::t_fe9c79d46354ea 324-326
+packages/engine/test/e2e/demos/external-scripts-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-9,11,30-32
+packages/engine/test/e2e/iframe-dom-reclaim.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9,28,42,50
+packages/engine/test/e2e/demos/events-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-10,12-20,40-43
+packages/dom-shim/src/element/table.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 20-56,71,94,109,122,137,150,206-207
+  s_c6d6a3ac21fe46::t_61005e76e83861 208-209
+  s_c6d6a3ac21fe46::t_ea558918d8467a 225
+docs/FORMS.md
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 39,211,215-216
+  s_c6d6a3ac21fe46::t_fbb0a5486f281a 217
+packages/dom-shim/src/element/forms/textarea.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 13-17,22-25,29-31,34,50-64,68-70,74-82,87-89,94-96,101-103,114-116,123-125,133,136,142-144,146-150,160-170
+  s_c6d6a3ac21fe46::t_42ebbab41180b1 145
+  s_c6d6a3ac21fe46::t_060acb8ba6d30c 171
+  s_c6d6a3ac21fe46::t_ea558918d8467a 177
+packages/dom-shim/src/mutations/seq.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 39
+  s_c6d6a3ac21fe46::t_6a943a2952961e 36-38
+  s_c6d6a3ac21fe46::t_ea558918d8467a 16-21,33-35,47-49
+packages/engine/src/cdp/target.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11,21-22,26,37,46,51,58
+  s_c6d6a3ac21fe46::t_ea558918d8467a 89,330,375,516,628,632,658,699,839,844
+packages/engine/src/eval/outbound.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 6,23-24,41,52,79-80,108,165,240,269,279,288,296,308,348,358,381,390,407,418,466,486,503-504,516-517,525-530,532,555,562,583-584,597,627-628,639-648,662-666,701,713,755,759,771-773,783,788-796,822,855,867,886,889,897,935
+  s_c6d6a3ac21fe46::t_ea558918d8467a 945,947,969,972,974,977,1042,1052,1071,1175,1281,1288,1329,1460
+packages/dom-shim/src/element/forms/select-options.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 54-55,70-73,83
+  s_c6d6a3ac21fe46::t_983d3c5ec42285 84
+  s_c6d6a3ac21fe46::t_ea558918d8467a 98,113
+packages/engine/test/e2e/demos/forms-validation-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 174-176
+packages/engine/test/module-eval-scope-probe.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8,40,50,59-61,64,66-69,78-80,83,85-88,97-99,102,104-107,116-118,120,122,124-126,129-132,142-144,147,149-152,154,164-166,169,171-173,175-177,186-187,190-192,201-202,204,206-211,213-215,227-229,231,233,235-237,239,241
+  s_c6d6a3ac21fe46::t_1e44f6e3400655 242
+  s_c6d6a3ac21fe46::t_ea558918d8467a 244
+packages/engine/test/e2e/demos/boa-evalless-phase9.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 29-43
+packages/dom-shim/src/style-declaration.ts
+  s_d7629e2a4ee839::t_0abd23867b24e3 65,79
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 38-49,51-59,66-73
+  s_d7629e2a4ee839::t_78b595a591bbca 80-81
+packages/engine/src/cdp/accessibility.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 238-240,447-448,469,538-546,595-598,620-628,633-689,698-728,732-764,766-794,902,927,967-969,976-977,994-996,1076,1146-1160,1163-1178
+  s_c6d6a3ac21fe46::t_64faae5ff0cf1d 1179-1180
+  s_c6d6a3ac21fe46::t_ea558918d8467a 43,127-128,180,235
+packages/engine/src/cdp/page.ts
+  s_7158aede64448f::t_06f749e6a4eca2 1599
+  s_840c60691e5098::t_fdee7f82c15384 1604,1654-1655,1663-1664,1830,1835,4880
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 62-66,100,102,151,159,193,208,236-245,253-254,280,311,324,352,354,356,358,403,444,482-487,508,516-517,541-550,586,597,622,625,641,656,668-669,680-681,726-734,764,771,776,786-790,830-834,837,900-904,928,931,955-975,977-978,985,1000,1003,1009,1014,1052,1061,1136,1166-1167,1182-1191,1193,1236,1238,1274,1297,1299,1303,1307,1312,1328-1329,1352-1353,1379,1409,1437,1471,1498-1499,1558-1559,1569-1570,1577,1583,1589-1590,1593,1605,1617,1632-1643,1650-1653,1662,1827,1838,1840,1849-1865,1894,1899,1911-1943,1958,2002-2005,2025,2056,2105,2213-2219,2255-2258,2498-2502,2507,2518,2531,2541,2550-2561,2617,2642,2648-2649,2663-2669,2694,2786,2810,2824,2831,2873,2889-2892,3047-3050,3061-3065,3071-3072,3079-3083,3089-3090,3109,3126,3144,3205,3223,3287-3290,3304,3321,3325-3326,3355,3383,3385,3389,3397,3430,3432,3445,3505,3520,3535,3553-3554,3580,3591-3596,3602-3607,3611,3658,3674,3707,3743,3824-3831,3881,3920-3921,3928,3934,3969,4015,4046,4060,4062,4065,4079,4138,4140-4141,4184,4189,4198-4199,4310,4334,4386,4403-4408,4438,4442,4444,4450,4467,4511,4537-4539,4633,4666,4668,4744,4749,4752-4775,4778,4780-4787,4789,4791-4805,4807-4809,4811-4816,4824,4830,4839,4842,4852,4873,4897,4912,4923,4926,4937,4949,4952-4953,4970,4972,4981-4982,4991-4992,5002-5003,5011-5013,5029,5033,5036
+  s_c6d6a3ac21fe46::t_746a93937e5537 1500
+  s_c6d6a3ac21fe46::t_8a8b480e7db704 1567-1568
+  s_c6d6a3ac21fe46::t_71184856d676fd 1571-1576
+  s_c6d6a3ac21fe46::t_c707c112ef93ba 1578-1582
+  s_c6d6a3ac21fe46::t_fb75dbfe606326 1584-1586
+  s_c6d6a3ac21fe46::t_95744c1b212500 1591-1592
+  s_c6d6a3ac21fe46::t_ead89815a3ae1b 1606-1608,1614-1616
+  s_c6d6a3ac21fe46::t_39006ca8957486 1618-1620
+  s_c6d6a3ac21fe46::t_bc97e572523f43 1629-1631
+  s_840c60691e5098::t_95e5ff7b8d8187 1831-1834
+  s_c6d6a3ac21fe46::t_7fcae1f9692d9e 1839
+  s_c6d6a3ac21fe46::t_4f86f2834097e1 1841-1843,1846-1848
+  s_c6d6a3ac21fe46::t_12811ad0a44018 4817-4819,4821-4823
+  s_c6d6a3ac21fe46::t_56d0327884db6d 4825-4829
+  s_c6d6a3ac21fe46::t_449238b27052ed 4831-4832
+  s_c6d6a3ac21fe46::t_c8ba9db096d8d7 4836-4838
+  s_c6d6a3ac21fe46::t_2da8005f4194ce 4840-4841
+  s_c6d6a3ac21fe46::t_c89f2daa9745bc 4843-4845,4849-4851
+  s_c6d6a3ac21fe46::t_167361953ec2e3 4853-4855
+  s_840c60691e5098::t_37cc8228042ae7 4881-4883
+  s_c6d6a3ac21fe46::t_540e2e97a03fe6 4894-4896
+  s_c6d6a3ac21fe46::t_12d928aca5c5a3 4898-4900
+  s_c6d6a3ac21fe46::t_1b8d8b32ddc7c1 4911
+  s_c6d6a3ac21fe46::t_7e57d5c71b44b9 4913-4915
+  s_c6d6a3ac21fe46::t_4db084e6a30781 4925
+  s_c6d6a3ac21fe46::t_46e6e6d1d3203f 4936
+  s_c6d6a3ac21fe46::t_7752f6cf650cb8 4938
+  s_c6d6a3ac21fe46::t_9c8cfc89d72083 4946-4948
+  s_c6d6a3ac21fe46::t_f7e47a812acd95 4950-4951
+  s_c6d6a3ac21fe46::t_f5578b94d2fa93 4954-4955
+  s_c6d6a3ac21fe46::t_e1a103560eb904 4967-4969
+  s_c6d6a3ac21fe46::t_cd866cc00f6ae6 4971
+  s_c6d6a3ac21fe46::t_18005795afc5d0 4973-4975
+  s_c6d6a3ac21fe46::t_3a58a0a4a4b4ea 4980
+  s_c6d6a3ac21fe46::t_687ca7a9828082 4988-4990
+  s_c6d6a3ac21fe46::t_5444d93b562af5 4999-5001
+  s_c6d6a3ac21fe46::t_a15d5ff9928973 5004-5006,5008-5010
+  s_c6d6a3ac21fe46::t_2d9d2c1441899f 5014-5016,5026-5028
+  s_c6d6a3ac21fe46::t_7f2aa2325f42fa 5030-5032
+  s_c6d6a3ac21fe46::t_5f95fdc2db1863 5034-5035
+  s_c6d6a3ac21fe46::t_ff46eda95150a7 5037
+  s_c6d6a3ac21fe46::t_ea558918d8467a 1532,1564,1594-1598,1600-1603,1609-1613,1621,1623-1628,1690,1701-1702,1809,1828-1829,1836-1837,1844-1845,4820,4834-4835,4846-4848,4856-4860,4864-4871,4874-4879,4885-4886,4890-4893,4901-4906,4909,4916-4917,4919-4920,4929-4934,4940-4945,4957,4959-4966,4976-4977,4985-4987,4994-4998,5007,5017-5025
+packages/engine/test/e2e/demos/dynamic-import-bake-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14-16,27
+packages/engine/test/e2e/abspos-escapes-overflow-clip.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 50-53
+packages/engine/test/e2e/iframe-location-invalid-assignment.e2e.test.ts
+  s_2cd935aac36428::t_8a6275d6996c15 16
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 8-10
+  s_24e4d13e756d00::t_75338d470e7ab1 18
+  s_24e4d13e756d00::t_d25c562bc939d4 19-20
+  s_c6d6a3ac21fe46::t_ea558918d8467a 17
+packages/page-script/src/resource-fetch.ts
+  s_17a95d7d09cc74::t_21d6d78c337230 306-310
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44,735,743-745,771-773,780-782
+  s_17a95d7d09cc74::t_9e9b0d2b45ea1f 70
+  s_17a95d7d09cc74::t_d124ef543b4e8c 99-103,221-223,326,328,356-363,388,401,437,455-460,476-479,495-500,521,528,566-569,651,701,712-714,719,792,825-830,845-847,856-858
+packages/engine/test/e2e/post-load-settle.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44,52,58,65
+packages/core/src/canvas2d.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 628-630,1275-1283,1479-1483,1859-1862,1865-1868,1880-1885,1893-1898,1900-1901,1928
+  s_2beea15461286f::t_a106c75dac9df2 1484
+  s_2beea15461286f::t_1ca534ef65e018 1498-1502,1505-1509,1902-1910,1925-1927,1970-1973
+packages/engine/test/e2e/cors-stylesheets.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 104
+packages/engine/test/rbi-resource-batch.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 25,39,107,109,161
+packages/kitesurf-cli/Cargo.toml
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 17-26,28-32
+packages/core/src/tty_grid.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9-10,34-41,143,153-156,236-240,251-252,296-298,402,421-428,512-519,528-532,657-660,663-666,734-737,817-824,866-870,994-995,1027-1031,1063-1066,1121-1130,1232-1243,1272-1275,1328-1330,1411-1412,1415-1422,1424-1428,1435-1442,1445-1452,1461-1464,1604-1607,1725-1727,1735-1744,1759-1763,1775-1778,1796-1799,1861-1862,1905-1908,1948-1955,1970-1972,2018-2019,2066-2067,2071
+  s_2beea15461286f::t_4f2b43f26f5bf8 1413,1860,2017
+  s_2beea15461286f::t_de63b85464bd48 1857-1859
+  s_c6d6a3ac21fe46::t_7a3fdd37d35bcb 1973
+  s_2beea15461286f::t_957f14d872652b 2015-2016
+  s_c6d6a3ac21fe46::t_a5ce780d2fa307 2065
+  s_c6d6a3ac21fe46::t_318536f4d5bf66 2068-2070
+  s_c6d6a3ac21fe46::t_7d7e19a6242fc7 2072
+  s_c6d6a3ac21fe46::t_ea558918d8467a 1414,1840-1845,2007-2013,2039-2041,2043-2052
+packages/core/src/transitions.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 112-115,138-139,286-290
+packages/engine/src/eval/page-renderer.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11,23,42,57,100,119,192,257,268,276-290,292-299,312,330,352,380-392,394,396
+  s_c6d6a3ac21fe46::t_0002ad860e739d 393
+  s_c6d6a3ac21fe46::t_aace04b71dc63b 397
+  s_c6d6a3ac21fe46::t_ea558918d8467a 410,440
+packages/engine/test/e2e/demos/inline-bidi-isolation.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 33,62-64
+packages/dom-shim/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 50
+packages/engine/src/eval/worker-budget.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44,90,102
+packages/dom-shim/src/index.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 9,19,34,48,58,118,120,123,179-184,224-230,232-240,242-247,249-250,252-269,271-280,282-293,295,297-300,302-331,333-342,344-346,348-357,359,361,363-373,375-390,393-401,403-415,417-454,458-471,473-476,478,480-488,490-505,507-646,648-763,773,781,783,785
+  s_b7f928dc8fbea9::t_aaa7875e176e59 456,764-769
+  s_c6d6a3ac21fe46::t_b8a85665d07e11 778-780
+  s_c6d6a3ac21fe46::t_ea558918d8467a 455,457,770-772,775,777,798-802
+packages/engine/src/cdp/diag-spans.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11,31,37,44
+packages/engine/test/e2e/accessibility-live-select.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 29-31,36-45,53-55,62-67,83-85,93-96
+  s_24e4d13e756d00::t_5648f9cd9c9dd1 27-28
+  s_24e4d13e756d00::t_22429d64e67b5c 26
+  s_c6d6a3ac21fe46::t_40c486e074db44 97-98
+  s_c6d6a3ac21fe46::t_ea558918d8467a 109-111,114-116
+packages/engine/test/e2e/demos/boa-evalless-phase10b.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 14-16
+packages/engine/test/e2e/demos/unforgeable-location-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11-24,50-52,102-104,133-138,195-197,229-231,240-242,256-257,267-273,293-295,299-301
+packages/engine/test/walk-module-graph.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 44,55,60,68,74,85,90,93,138,177-178,279-290,295-297,411-419,423-425,429,437,439,521-522,528-530,558,560,604-606,628-634
+  s_840c60691e5098::t_cee9f422e6f775 130
+  s_c6d6a3ac21fe46::t_d0a8ec438f7c6f 635-636
+  s_c6d6a3ac21fe46::t_ea558918d8467a 119,676-677,680,685
+packages/scene-host-wasm/test/abi.test.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 11,128-129,189,249-256
+packages/engine/test/e2e/legacy-charset-url-encoding.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 80-105,154,196
+packages/tty-css-preview/test/content.test.mjs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 293-300,346-353,366-373
+packages/dom-shim/src/record.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 10,57-58
+packages/engine/test/e2e/cookie-samesite-redirect.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 19,25,76,88-92,116,150,159,192,197-201,228,246,267-270,277,285,299-302,307,315,320,335-339,392,408-412,472-477,488-489,491-505,507-551,553-563,565-567,577-582,592-593,595-596,598-605,607-625,638-639
+  s_c6d6a3ac21fe46::t_6ef3ed726f0a65 640-641
+packages/engine/test/e2e/tab-focus.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 12-14,31-32,37-40,43-46,51-62,78-85,96-98
+packages/jsrpc-types/src/page-renderer.ts
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 52
+packages/core/src/sticky_reset_test.rs
+  s_c6d6a3ac21fe46::t_8decbf582b9edb 209-212,227-230,259-262
+docs/PAGE_RUNTIME_CONTRACTS.md
+  s_24e4d13e756d00::t_c48f10c93fcdc7 122
+packages/engine/test/css-handler.test.ts
+  s_24e4d13e756d00::t_2a277c70eaefbc 54,93-94
+packages/engine/test/e2e/boa-ctx-reentry.e2e.test.ts
+  s_24e4d13e756d00::t_104f1814914626 51,64,145-151,174-178
+packages/engine/test/e2e/demos/css-external-sheets-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_d10684e0c1cf8c 41-43
+packages/engine/test/e2e/idl-conformance.e2e.test.ts
+  s_2cd935aac36428::t_b6d09e342d92cf 29,31-37
+packages/engine/test/e2e/location-assign-navigates.e2e.test.ts
+  s_24e4d13e756d00::t_7c153b9e171607 70-73,93-95
+packages/engine/test/page-session.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 51-54,94,101-103,174-175
+packages/engine/test/outbound-forward.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 123-125,149,279
+packages/engine/test/diag-spans.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 60
+packages/core/src/scene_record.rs
+  s_c6d6a3ac21fe46::t_ea558918d8467a 894-896
+docs/TEST_CONTRACTS.md
+  s_c6d6a3ac21fe46::t_ea558918d8467a 106,1364
+packages/engine/test/e2e/demos/oopif-elements-panel.e2e.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 17,28-31,47-48,70,81,97-101
+packages/engine/src/wasm.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 35,50,145,196
+packages/engine/test/carrier-spans.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 65,80,155
+packages/script-gate/src/referrer-policy.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 41,51,68
+packages/core/src/pdf_paint.rs
+  s_c6d6a3ac21fe46::t_ea558918d8467a 65-66,101
+packages/engine/src/host.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 26
+packages/page-script/src/startup-probe.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 82,121,140,143
+packages/engine/src/eval/redirect-walk.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 67,80,161
+packages/core/src/scene_decode.rs
+  s_c6d6a3ac21fe46::t_ea558918d8467a 356-357,1330-1333,1380-1384
+scripts/memprof.mjs
+  s_c6d6a3ac21fe46::t_ea558918d8467a 56
+packages/engine/test/e2e/boa-interner-reclaim.e2e.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 93,104
+packages/engine/test/e2e/opaque-image-render.e2e.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 34,55-57,71,210
+packages/engine/test/e2e/iframe-referrer.e2e.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 22,30,40,53,62,87,106
+packages/engine/test/e2e/cdp-read.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 45,50,57,72,86,106
+packages/core/src/dom_fastpath.rs
+  s_c6d6a3ac21fe46::t_ea558918d8467a 454-455,475-477
+packages/engine/test/e2e/exec-command.e2e.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 56-57
+packages/engine/test/e2e/boa-heap-shape.e2e.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 63-65,70
+packages/engine/test/e2e/fixture-script-escaping.e2e.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 28-30
+packages/engine/test/tracing-local.test.ts
+  s_c6d6a3ac21fe46::t_ea558918d8467a 251,282-285,290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9435c2b11e0bd239ac987ab80ea05e5113502de7",
+  "prompts": {},
+  "sessions": {
+    "s_17a95d7d09cc74": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1acaffeMjN5PuJdHUQknK",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_24e4d13e756d00": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1a54ffeTmZwRS7mtf32qb",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_28ce1a8e6403a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1af1ffezrvJJFR5hBgN0w",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_2beea15461286f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee19b6ffeSIKrMcXoOdfAC2",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_2cd935aac36428": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb80bd6d3ffej9apGkF6Lan96e",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4b855c30f0651b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1b06ffehCtHKMHOMRxix4",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4c3e8c042d4228": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb83c03a9ffe53wgDhn2xDUQIN",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_66ca3eaa416fc5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1a24ffeq7iSV8weT5ERHC",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_6829069e05702d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb8dbdaafffeU6BIHy2Ul5Q1S6",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_6f75a522fdcec1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1c22ffeNemWIBd5G7sUb7",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7158aede64448f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1a9effe0SnFyLa9eF3ybJ",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_76a97d8d524aab": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1a00ffeW424gy9YkL266W",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7f440f61ef8fd7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb83134adffe9TCiwV35re1owb",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_7ffa3edaa61e8e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee191dffePEWrXPeZDwl5mc",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_840c60691e5098": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1a6effe1Cfs98RF9B4N81",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_99f052acd0307b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9149f74ffe9xnX7TOhmlUSUM",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_ae8edd3430c571": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1b87ffeGTMHhZh3jRN8O1",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b7f928dc8fbea9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1b10ffegwyNnp119M5jSZ",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_d7629e2a4ee839": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9ee1ba5ffeUWfF6LcBxc4IL1",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

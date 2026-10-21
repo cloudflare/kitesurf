@@ -1,0 +1,30 @@
+packages/engine/test/e2e/filereader-event-tasks.e2e.test.ts
+  s_946a3d35ff94c9::t_96b7a07f54f16b 98
+  s_946a3d35ff94c9::t_8dd9b1e926f867 8-24,56-57,60-97,99-117
+packages/page-script/src/globals.ts
+  s_c6d6a3ac21fe46::t_16ca856498f611 4039-4042
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e85e9f69a9161fbf9b1a18cf79cdfd12b0d59fd5",
+  "prompts": {},
+  "sessions": {
+    "s_946a3d35ff94c9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb9addf39ffeLjfwp0vWlYaMfr",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+.github/workflows/ci.yml
+  s_4ba79f911c93c4::t_010f086b77d080 62
+BUILD.bazel
+  s_4ba79f911c93c4::t_703a727953d291 172
+scripts/BUILD.bazel
+  s_4ba79f911c93c4::t_8cf66f8c2087f3 133-135,139,146
+scripts/lint/scope.mjs
+  s_4ba79f911c93c4::t_f74900a25338cd 52-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e3fe3cc8e423f7963506ebbc30c21d1c945e6baa",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

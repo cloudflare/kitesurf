@@ -1,0 +1,37 @@
+packages/engine/test/page-script-tail.test.ts
+  s_4ba79f911c93c4::t_f889c0b4589b41 8-12,16,27-28,31-46,48-66,87-136
+  s_4ba79f911c93c4::t_d62165024b2459 137-138
+packages/engine/src/eval/page-script-tail.ts
+  s_4ba79f911c93c4::t_6027d8f8d491da 70-76,233
+  s_4ba79f911c93c4::t_9c454cf5c9cc81 92,100,142-163,168,172-187,189-232,234-238,242-243
+packages/engine/package.json
+  s_4ba79f911c93c4::t_8519dd49b054bf 15
+packages/engine/src/eval/attribution-tail.ts
+  s_4ba79f911c93c4::t_8b452ab17222a4 20,22-23
+packages/engine/src/eval/dedicated-worker.ts
+  s_4ba79f911c93c4::t_2bcf5d74f232f9 127,144,152
+packages/engine/src/eval/page-renderer.ts
+  s_4ba79f911c93c4::t_cf8ed99afc143c 92,112,120
+packages/engine/src/eval/page-script.ts
+  s_4ba79f911c93c4::t_ac988b267b7466 352,366,377
+packages/engine/test/module-eval-scope-probe.test.ts
+  s_4ba79f911c93c4::t_c4ac0797c3ea21 18
+packages/engine/wrangler.jsonc
+  s_4ba79f911c93c4::t_a9bc4d2cd3505a 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "09cd72d47e5460aa6a3b1f60d5b17dcf5a2ed6fd",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
