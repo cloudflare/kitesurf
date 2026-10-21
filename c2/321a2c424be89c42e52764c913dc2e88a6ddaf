@@ -1,0 +1,37 @@
+packages/dom-shim/BUILD.bazel
+  s_4ba79f911c93c4::t_46deba67070e2d 1,78-95,101,116
+docs/DOM_SHIM.md
+  s_4ba79f911c93c4::t_caf86b7eaea70c 72-75
+package.json
+  s_4ba79f911c93c4::t_8cace195c4ab61 65
+packages/dom-shim/tsconfig.json
+  s_4ba79f911c93c4::t_12cfed9802b1b9 28
+.gitlab-ci.yml
+  s_4ba79f911c93c4::t_d6e46ccba9238d 670
+packages/dom-shim/package.json
+  s_4ba79f911c93c4::t_5619fd37a6891e 18,31
+packages/dom-shim/test/collections.test.ts
+  s_4ba79f911c93c4::t_e2b613c9271a34 2-34
+  s_4ba79f911c93c4::t_6420e279ac3c7a 1,35-70
+docs/TESTING.md
+  s_4ba79f911c93c4::t_782bc4314cd5d9 561,566
+packages/dom-shim/src/collections.ts
+  s_4ba79f911c93c4::t_dff8749af58386 2119,2123-2132,2134,2140,2148,2150,2160,2162,2168,2173,2175,2188,2203,2216,2224,2236,2243,2257,2259
+  s_4ba79f911c93c4::t_316295503a2cc5 2141-2144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c2321a2c424be89c42e52764c913dc2e88a6ddaf",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
