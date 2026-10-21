@@ -1,0 +1,29 @@
+packages/core/src/boa_live_marker_test.rs
+  s_4ba79f911c93c4::t_4e57a8684df047 1-115
+packages/core/src/font_face_unicode_range_test.rs
+  s_4ba79f911c93c4::t_c193bb745ff7ed 1-198
+packages/core/src/inline_span_background_test.rs
+  s_4ba79f911c93c4::t_a08db4c5bc8ea2 1-20,22-26
+packages/core/src/nowrap_leading_inline_box_test.rs
+  s_4ba79f911c93c4::t_48dbe1e909df28 1,3-10,12-18
+packages/core/src/template_resources_test.rs
+  s_4ba79f911c93c4::t_f0223a7ae8b97e 1-3,5-17,19-102
+packages/core/src/text_selection_test.rs
+  s_4ba79f911c93c4::t_10dcb640ca58c8 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6a8ec647cd5251749edf957805389145b5c87c15",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
