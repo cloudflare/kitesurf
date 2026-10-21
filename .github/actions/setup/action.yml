@@ -6,12 +6,29 @@ inputs:
     required: false
     default: "false"
   bazel-cache:
-    description: Restore and save Bazel's disk and repository caches under this key prefix.
+    description: Restore Bazel's disk and repository caches; the job saves them itself.
     required: false
-    default: ""
+    default: "false"
+outputs:
+  bazel-cache-key:
+    description: The key the job saves the Bazel caches under.
+    value: ${{ steps.bazel-cache.outputs.cache-primary-key }}
+  bazel-cache-hit:
+    description: "'true' when the restore matched the key exactly, so there is nothing new to save."
+    value: ${{ steps.bazel-cache.outputs.cache-hit }}
 runs:
   using: composite
   steps:
+    # A cold Bazel build of every lane fills the runner's root disk. Drop SDKs the jobs never use;
+    # keep /opt/hostedtoolcache, where setup-node finds Node.
+    - if: inputs.bazel-cache == 'true'
+      name: Free disk space
+      shell: bash
+      run: |
+        df -h /
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+          /opt/hostedtoolcache/CodeQL /usr/share/swift
+        df -h /
     - name: Set a git identity
       shell: bash
       run: |
@@ -28,13 +45,17 @@ runs:
     - if: inputs.rust == 'true'
       shell: bash
       run: rustup show
+    # Holds the cargo clippy output of `pnpm run lint`; Bazel never writes packages/core/target.
+    # Only main saves, so PR runs cannot evict main's entries from the 10 GB repository quota.
     - if: inputs.rust == 'true'
       uses: Swatinem/rust-cache@v2
       with:
         cache-directories: packages/core/target
+        save-if: ${{ github.ref == 'refs/heads/main' }}
+        cache-on-failure: "true"
     # The runner image ships bazelisk as `bazel`. CI must never rewrite MODULE.bazel.lock: a stale
     # one is a commit missing its lockfile update.
-    - if: inputs.bazel-cache != ''
+    - if: inputs.bazel-cache == 'true'
       shell: bash
       run: |
         {
@@ -42,13 +63,15 @@ runs:
           echo "common --disk_cache=$HOME/.cache/bazel-disk"
           echo "common --repository_cache=$HOME/.cache/bazel-repo"
         } >> .bazelrc.user
-    - if: inputs.bazel-cache != ''
-      uses: actions/cache@v4
+    # Restore only: the job saves at its end, from main only (see ci.yml).
+    - if: inputs.bazel-cache == 'true'
+      id: bazel-cache
+      uses: actions/cache/restore@v4
       with:
         path: |
           ~/.cache/bazel-disk
           ~/.cache/bazel-repo
-        key: bazel-${{ inputs.bazel-cache }}-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock', 'Cargo.lock', 'pnpm-lock.yaml') }}-${{ github.sha }}
+        key: bazel-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock', 'Cargo.lock', 'pnpm-lock.yaml') }}-${{ github.sha }}
         restore-keys: |
-          bazel-${{ inputs.bazel-cache }}-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock', 'Cargo.lock', 'pnpm-lock.yaml') }}-
-          bazel-${{ inputs.bazel-cache }}-${{ runner.os }}-
+          bazel-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock', 'Cargo.lock', 'pnpm-lock.yaml') }}-
+          bazel-${{ runner.os }}-

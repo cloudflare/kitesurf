@@ -78,8 +78,11 @@ function ensureRegistryExtracted() {
   cargoFetchAttempted = true;
   const cargoToml = resolve(REPO_ROOT, "Cargo.toml");
   const backup = resolve(REPO_ROOT, "Cargo.toml.vendor-bootstrap.bak");
+  const cargoLock = resolve(REPO_ROOT, "Cargo.lock");
   log("cargo registry source missing; running `cargo fetch` to populate it");
   const original = readFileSync(cargoToml, "utf8");
+  // Without the patch block, cargo fetch re-resolves and rewrites the lockfile; restore it too.
+  const originalLock = readFileSync(cargoLock, "utf8");
   writeFileSync(backup, original);
   try {
     // Bootstrap without unresolved patch paths or vendor-only features, then restore the manifest.
@@ -119,6 +122,7 @@ function ensureRegistryExtracted() {
     });
   } finally {
     writeFileSync(cargoToml, original);
+    writeFileSync(cargoLock, originalLock);
     rmSync(backup, { force: true });
   }
 }

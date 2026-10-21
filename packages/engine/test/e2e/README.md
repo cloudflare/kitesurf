@@ -69,7 +69,7 @@ pnpm --filter @kitesurf/engine exec vitest run --config vitest.e2e.config.mts \
   test/e2e/demos/<name>.e2e.test.ts         # one file
 ```
 
-CI runs it as the `e2e` job (hermetic gate). Only the harness (top-level
+CI does not run this suite; run the files you touch locally. Only the harness (top-level
 `*.ts`) is typechecked; the demo bodies under `demos/` are transpiled +
 run (the run is the gate).
 
