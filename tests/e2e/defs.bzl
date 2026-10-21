@@ -56,6 +56,8 @@ def e2e_shards(tests, helpers, starts, helper_deps = [], exec_properties = E2E):
                 name + "/vitest.log",
             ],
             args = [
+                "--engine-dir",
+                bin_relative("packages/engine"),
                 "--engine-dist",
                 bin_relative("packages/engine/dist"),
                 "--fixtures-dist",
