@@ -1,0 +1,37 @@
+packages/engine-cf/BUILD.bazel
+  s_4ba79f911c93c4::t_e1baa7d384b74b 211-226
+.gitlab/ci/engine.yml
+  s_4ba79f911c93c4::t_f88cfe88272783 437-438,509-512,984,987-993,1179-1180,1212-1214,1225
+scripts/flows-engine-id.test.mjs
+  s_4ba79f911c93c4::t_1b4be160d361f6 1-42,49-57
+  s_4ba79f911c93c4::t_5c2497f3fcbe87 43-48
+  s_4ba79f911c93c4::t_ef594e519af96c 58-68
+scripts/ci-wasm-bazel.sh
+  s_4ba79f911c93c4::t_3d95e85566c6bb 15
+tests/interactivity-flows/README.md
+  s_4ba79f911c93c4::t_3f16224a165e5d 552-555
+  s_4ba79f911c93c4::t_76f83ef3b3d05c 556-560
+scripts/flows-engine-id.mjs
+  s_4ba79f911c93c4::t_56ac44797bf746 13,23,53
+  s_4ba79f911c93c4::t_4641bd7fc7acf7 24-27
+  s_4ba79f911c93c4::t_89c3e5d89addb8 45-46
+  s_4ba79f911c93c4::t_b29bf5417caf73 54-56
+.gitignore
+  s_4ba79f911c93c4::t_0c6aeebc010611 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "57a81e7fe248a1cfadcee8ea6889e243f30637f1",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
