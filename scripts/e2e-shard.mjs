@@ -10,20 +10,23 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, resolve, sep } from "node:path";
 
-// Under Bazel the shard's inputs (config, test files, node_modules links) sit in the bin tree that
-// js_run_binary runs in, while this script runs from its own runfiles tree. Run vitest from the
-// inputs, so every module resolves through one tree; two trees load vitest twice.
-const ROOT = process.env.BAZEL_BINDIR ? process.cwd() : resolve(import.meta.dirname, "..");
-const ENGINE_DIR = resolve(ROOT, "packages/engine");
+// Bazel supplies the engine directory in its bin tree, including the external repository prefix.
+// Resolve Vitest and its inputs from that same tree so it is loaded only once.
 const USAGE = `usage: node scripts/e2e-shard.mjs --engine-dist <dir> --fixtures-dist <dir> --out-dir <dir>
-       [--max-workers <n>] [--max-wall-ms <ms>] <test file>...`;
+       [--engine-dir <dir>] [--max-workers <n>] [--max-wall-ms <ms>] <test file>...`;
 
 function parseArgs(argv) {
-  const options = { files: [], maxWorkers: 3, maxWallMs: 900_000 };
+  const options = {
+    files: [],
+    engineDir: resolve(import.meta.dirname, "../packages/engine"),
+    maxWorkers: 3,
+    maxWallMs: 900_000,
+  };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const next = () => argv[++i];
-    if (arg === "--engine-dist") options.engineDist = resolve(next());
+    if (arg === "--engine-dir") options.engineDir = resolve(next());
+    else if (arg === "--engine-dist") options.engineDist = resolve(next());
     else if (arg === "--fixtures-dist") options.fixturesDist = resolve(next());
     else if (arg === "--out-dir") options.outDir = resolve(next());
     else if (arg === "--max-workers") options.maxWorkers = parseInt(next(), 10);
@@ -48,7 +51,7 @@ function main(options) {
   mkdirSync(options.outDir, { recursive: true });
   const report = resolve(options.outDir, "report.json");
   const log = resolve(options.outDir, "vitest.log");
-  const require = createRequire(resolve(ENGINE_DIR, "package.json"));
+  const require = createRequire(resolve(options.engineDir, "package.json"));
   const vitestPackage = require.resolve("vitest/package.json");
   const vitest = resolve(
     dirname(vitestPackage),
@@ -74,7 +77,7 @@ function main(options) {
       ...filters,
     ],
     {
-      cwd: ENGINE_DIR,
+      cwd: options.engineDir,
       stdio: ["ignore", fd, fd],
       timeout: options.maxWallMs,
       killSignal: "SIGKILL",

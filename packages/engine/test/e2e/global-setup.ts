@@ -66,16 +66,20 @@ export default function setup(): void {
     ENGINE_DIR,
   );
   for (const fixtureWorker of fixtureWorkerBuilds()) {
-    runE("pnpm", [
-      "exec",
-      "wrangler",
-      "deploy",
-      "--dry-run",
-      "--config",
-      fixtureWorker.wranglerConfig,
-      "--outdir",
-      fixtureWorker.outdir,
-    ]);
+    runE(
+      "pnpm",
+      [
+        "exec",
+        "wrangler",
+        "deploy",
+        "--dry-run",
+        "--config",
+        fixtureWorker.wranglerConfig,
+        "--outdir",
+        fixtureWorker.outdir,
+      ],
+      ENGINE_DIR,
+    );
   }
   // Outside Bazel the dist is bundled from the source tree, so stage the Bazel-built wasm, bundles
   // and RBI files into it first, as `pnpm run dev` does.
