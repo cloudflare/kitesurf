@@ -46,7 +46,10 @@ filegroup(
 filegroup(
     name = "fixture_assets",
     srcs = glob(["test/fixtures-worker/assets/**"]),
-    visibility = ["//packages/core:__pkg__"],
+    visibility = [
+        "//packages/core:__pkg__",
+        "//packages/engine/test/e2e:__pkg__",  # the e2e shards, for tests that import an asset raw
+    ],
 )
 
 filegroup(
@@ -236,6 +239,7 @@ js_library(
         ":node_modules/@cloudflare/vitest-plugin",
         ":node_modules/miniflare",
         ":node_modules/vitest",
+        ":node_modules/web-bot-auth",
         ":node_modules/wrangler",
         ":node_modules/zod",
         "//packages/engine/test/e2e:helpers",
