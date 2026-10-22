@@ -17632,7 +17632,9 @@
   },
   "/html/dom/reflection-embedded.html": {
     "expected": "PASS",
-    "reason": "Reflection-embedded now 100%: img.border / iframe.marginHeight / marginWidth / object.border now use LegacyNullToEmptyString. <audio/video>.preload missing-default switched to \"metadata\" (in the spec keyword set)."
+    "slow": true,
+    "timeout": 20000,
+    "reason": "slow: 8922 subtests, borderline at the 5000ms default budget: three fresh draws went TIMEOUT, TIMEOUT, PASS 8922/8922, so whichever its bucket draws stays cached. Given headroom rather than pinned. Reflection-embedded is 100% since img.border / iframe.marginHeight / marginWidth / object.border use LegacyNullToEmptyString and <audio/video>.preload defaults to \"metadata\"."
   },
   "/html/dom/reflection-forms-weekmonth.html": {
     "expected": "PASS",
