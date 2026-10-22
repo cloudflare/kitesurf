@@ -34187,8 +34187,8 @@
     "reason": null
   },
   "/html/webappapis/timers/timer-nesting-not-inherited-in-microtask.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "SKIP",
+    "reason": "Flaky: three fresh draws went FAIL 1/2, PASS 2/2, FAIL 1/2, so whichever outcome its bucket draws stays cached. Quarantined until the timer nesting level a microtask sees is deterministic."
   },
   "/streams/readable-streams/cross-realm-crash.window.html": {
     "expected": "PASS",
