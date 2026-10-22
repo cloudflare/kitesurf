@@ -4554,7 +4554,9 @@
   },
   "/css/css-masking/parsing/mask-computed.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-masking): 25/32 subtests pass"
+    "slow": true,
+    "timeout": 20000,
+    "reason": "slow: finishes at 4.9-5.0 s against the 5000ms default budget, so fresh draws alternate FAIL and TIMEOUT. T18 enrollment (css-masking): 25/32 subtests pass"
   },
   "/css/css-masking/parsing/mask-image-computed.html": {
     "expected": "PASS",
@@ -6303,7 +6305,9 @@
   },
   "/css/css-values/attr-security.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 14/30 subtests pass"
+    "slow": true,
+    "timeout": 20000,
+    "reason": "slow: finishes at 4.9-5.0 s against the 5000ms default budget, so fresh draws alternate FAIL and TIMEOUT. T18 enrollment (css-values): 14/30 subtests pass"
   },
   "/css/css-values/attr-serialization.html": {
     "expected": "PASS",
@@ -12633,7 +12637,9 @@
   },
   "/fetch/api/basic/stream-response.any.html": {
     "expected": "FAIL",
-    "reason": "triage: the stale-connection fetch retry lets the subtest finish, so the harness now completes (TIMEOUT -> FAIL)"
+    "slow": true,
+    "timeout": 20000,
+    "reason": "slow: finishes at 4.9-5.0 s against the 5000ms default budget, so fresh draws alternate FAIL and TIMEOUT. triage: the stale-connection fetch retry lets the subtest finish, so the harness now completes (TIMEOUT -> FAIL)"
   },
   "/fetch/api/basic/stream-safe-creation.any.html": {
     "expected": "PASS",
