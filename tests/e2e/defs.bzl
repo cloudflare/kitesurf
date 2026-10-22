@@ -47,7 +47,7 @@ def e2e_shards(tests, helpers, starts, helper_deps = [], exec_properties = E2E):
                 "//packages/core/pkg:pkg",
                 "//packages/engine:e2e_config",
                 "//packages/engine:e2e_fixtures_dist",
-                "//packages/engine:fixture_assets",
+                "//packages/engine:e2e_fixture_assets",
                 "//packages/engine:e2e_public",
                 "//packages/engine:dist",
             ],
