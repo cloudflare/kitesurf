@@ -1,7 +1,7 @@
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_test")
 load("@npm//:typescript/package_json.bzl", tsc = "bin")
 load("//bazel:checks.bzl", "node_test", "tsc_test", "workspace_configs")
-load("//bazel:executors.bzl", "WPT", "for_test")
+load("//bazel:executors.bzl", "PW", "WPT", "for_test")
 load("//tests/e2e:defs.bzl", "e2e_shard_name")
 load("//tests/e2e:shards.bzl", "E2E_SHARD_STARTS")
 load("//tests/pw:defs.bzl", "PW_SHARDS")
@@ -314,10 +314,13 @@ _HELPERS_DATA = glob(["*.mjs"]) + [
     "//:wpt_tests",
 ]
 
+# check-dco.test.mjs builds Git fixtures. The pw profile's image carries git; without a configured
+# profile the test runs locally, as before.
 node_test(
     name = "helpers_test",
     args = glob(["*.test.mjs"], exclude = ["wpt-compare.test.mjs"]),
     data = _HELPERS_DATA,
+    exec_properties = for_test(PW),
 )
 
 js_test(
