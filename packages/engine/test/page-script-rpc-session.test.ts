@@ -143,34 +143,53 @@ describe("PageScriptRpcSession", () => {
     );
   });
 
-  it("acknowledges session close before disposing and killing the isolate", async () => {
-    vi.useFakeTimers();
-    try {
-      let releaseClose = () => {};
-      let killed = false;
-      const fake = makeFake({
-        onClose: () => new Promise<void>((resolve) => (releaseClose = resolve)),
-      });
-      fake.entrypoint.killIsolate = async () => {
-        killed = true;
-      };
-      const s = openPageScriptRpcSession(fake.entrypoint);
-      await s.syncCookies("warm=up");
+  it.each(["resolved", "rejected"] as const)(
+    "acknowledges session close before killing and releases the %s kill RPC",
+    async (outcome) => {
+      vi.useFakeTimers();
+      try {
+        let releaseClose = () => {};
+        let settleKill = () => {};
+        let killed = false;
+        let killRpcHandles = 0;
+        const fake = makeFake({
+          onClose: () => new Promise<void>((resolve) => (releaseClose = resolve)),
+        });
+        fake.entrypoint.killIsolate = () => {
+          killed = true;
+          killRpcHandles += 1;
+          const result = new Promise<void>((resolve, reject) => {
+            settleKill =
+              outcome === "resolved" ? resolve : () => reject(new Error("isolate aborted"));
+          });
+          return Object.assign(result, {
+            [Symbol.dispose]() {
+              killRpcHandles -= 1;
+            },
+          });
+        };
+        const s = openPageScriptRpcSession(fake.entrypoint);
+        await s.syncCookies("warm=up");
 
-      s.close("generation bump");
-      const killing = s.killIsolate?.("generation bump");
-      expect(fake.disposed).toBe(0);
-      expect(killed).toBe(false);
+        s.close("generation bump");
+        const killing = s.killIsolate?.("generation bump");
+        expect(fake.disposed).toBe(0);
+        expect(killed).toBe(false);
 
-      releaseClose();
-      await vi.advanceTimersByTimeAsync(0);
-      await killing;
-      expect(fake.disposed).toBe(1);
-      expect(killed).toBe(true);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
+        releaseClose();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fake.disposed).toBe(1);
+        expect(killed).toBe(true);
+        expect(killRpcHandles).toBe(1);
+
+        settleKill();
+        await killing;
+        expect(killRpcHandles).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it("acknowledges session close when close races session creation", async () => {
     let resolveOpen = (_session: RpcSessionCallable) => {};
@@ -210,10 +229,16 @@ describe("PageScriptRpcSession", () => {
     vi.useFakeTimers();
     try {
       let killed = false;
+      let killRpcHandles = 0;
       const fake = makeFake({ onClose: () => new Promise(() => {}) });
       fake.entrypoint.killIsolate = () => {
         killed = true;
-        return new Promise(() => {});
+        killRpcHandles += 1;
+        return Object.assign(new Promise<void>(() => {}), {
+          [Symbol.dispose]() {
+            killRpcHandles -= 1;
+          },
+        });
       };
       const s = openPageScriptRpcSession(fake.entrypoint);
       await s.syncCookies("warm=up");
@@ -229,9 +254,12 @@ describe("PageScriptRpcSession", () => {
       expect(killed).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
       expect(killed).toBe(true);
+      expect(killRpcHandles).toBe(1);
       expect(settled).toBe(false);
       await vi.advanceTimersByTimeAsync(1_000);
+      await killing;
       expect(settled).toBe(true);
+      expect(killRpcHandles).toBe(0);
     } finally {
       vi.useRealTimers();
     }

@@ -119,8 +119,13 @@ function settleWithin(promise: Promise<unknown>, ms: number): Promise<void> {
   });
 }
 
+// Worker RPC promises are callable stubs, so disposal must accept functions too.
 function hasDisposeSymbol(stub: unknown): stub is object & { [Symbol.dispose]: unknown } {
-  return typeof stub === "object" && stub !== null && Symbol.dispose in stub;
+  return (
+    stub !== null &&
+    (typeof stub === "object" || typeof stub === "function") &&
+    Symbol.dispose in stub
+  );
 }
 
 function disposeStub(stub: unknown): void {
@@ -210,10 +215,15 @@ export function spawnDedicatedWorker(
           }),
           TEARDOWN_GRACE_MS,
         );
-        await settleWithin(
-          Promise.resolve().then(() => entrypoint.killIsolate(reason)),
-          TEARDOWN_GRACE_MS,
-        );
+        let killing: ReturnType<typeof entrypoint.killIsolate> | undefined;
+        try {
+          await settleWithin(
+            Promise.resolve().then(() => (killing = entrypoint.killIsolate(reason))),
+            TEARDOWN_GRACE_MS,
+          );
+        } finally {
+          disposeStub(killing);
+        }
         disposeStub(entrypoint);
       })();
       return terminated;

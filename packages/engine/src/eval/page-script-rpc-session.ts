@@ -418,7 +418,10 @@ export class PageScriptRpcSession implements PageScriptStub {
     // Give the retained close one grace window before the entrypoint kill.
     return settleTeardownWithin(sessionClosed).then(() => {
       try {
-        return settleTeardownWithin(Promise.resolve(ep.killIsolate?.(reason)));
+        // Keep the disposable RPC promise: Promise.resolve drops its pipeline handle,
+        // which can pin the aborted invocation after rejection on the pinned runtime.
+        const killing = ep.killIsolate?.(reason);
+        return settleTeardownWithin(Promise.resolve(killing)).finally(() => disposeStub(killing));
       } catch {}
     });
   }

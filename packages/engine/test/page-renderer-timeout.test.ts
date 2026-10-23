@@ -11,13 +11,21 @@ vi.mock("../src/eval/page-script.ts", () => ({
 import type { RenderPortStub } from "@kitesurf/jsrpc-types/page-renderer";
 import { PageRendererManager, type RendererEnv } from "../src/eval/page-renderer.ts";
 
-function harness(renderFrame: () => Promise<unknown>) {
-  const counts = { loads: 0, kills: 0 };
+function harness(
+  renderFrame: () => Promise<unknown>,
+  killIsolate: () => Promise<void> = () => Promise.resolve(),
+) {
+  const counts = { loads: 0, kills: 0, killRpcHandles: 0 };
   const stub = {
     renderFrame,
     killIsolate: () => {
       counts.kills += 1;
-      return Promise.resolve();
+      counts.killRpcHandles += 1;
+      return Object.assign(killIsolate(), {
+        [Symbol.dispose]() {
+          counts.killRpcHandles -= 1;
+        },
+      });
     },
   };
   const env = {
@@ -78,16 +86,27 @@ describe("renderer retry policy", () => {
     vi.useRealTimers();
   });
 
-  it("does not retry a renderFrame that never returns", async () => {
-    const { counts, render } = harness(() => new Promise(() => {}));
-    const p = render();
-    await vi.advanceTimersByTimeAsync(40_000);
-    const r = await p;
-    expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/timeout/);
-    expect(counts.kills).toBe(1);
-    expect(counts.loads).toBe(1);
-  });
+  it.each(["resolved", "rejected", "hung"] as const)(
+    "does not retry a hung render and releases its %s kill RPC",
+    async (outcome) => {
+      const { counts, render } = harness(
+        () => new Promise(() => {}),
+        () => {
+          if (outcome === "resolved") return Promise.resolve();
+          if (outcome === "rejected") return Promise.reject(new Error("isolate aborted"));
+          return new Promise(() => {});
+        },
+      );
+      const p = render();
+      await vi.advanceTimersByTimeAsync(40_000);
+      const r = await p;
+      expect(r.ok).toBe(false);
+      expect(r.error).toMatch(/timeout/);
+      expect(counts.kills).toBe(1);
+      expect(counts.loads).toBe(1);
+      expect(counts.killRpcHandles).toBe(0);
+    },
+  );
 
   it("still retries a raster-stage failure reply", async () => {
     const { counts, render } = harness(async () => ({

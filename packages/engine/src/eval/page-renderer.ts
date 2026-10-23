@@ -34,6 +34,7 @@ const PAGE_RENDERER_CPU_TIME_MS_CAP = 300_000;
 const RENDER_CALL_TIMEOUT_MS = 15_000;
 const PDF_CALL_TIMEOUT_MS = 30_000;
 const PORT_MINT_TIMEOUT_MS = 5_000;
+const ISOLATE_KILL_GRACE_MS = 1_000;
 const MAX_RENDER_RASTER_ATTEMPTS = 2;
 
 type CtxWithExports = ExecutionContext & {
@@ -56,10 +57,26 @@ type RendererStub = Fetcher<PageRendererEntrypoint>;
 
 class RendererTimeoutError extends Error {}
 
+// RPC promises are disposable stubs at runtime, though their declared type is Promise<T>.
+function hasDisposeSymbol<Value extends object>(
+  value: Value,
+): value is Value & { [Symbol.dispose]: unknown } {
+  return Symbol.dispose in value;
+}
+
+function disposeRendererKill(killing: ReturnType<RendererStub["killIsolate"]>): void {
+  if (!hasDisposeSymbol(killing)) return;
+  const dispose = killing[Symbol.dispose];
+  if (typeof dispose === "function") dispose.call(killing);
+}
+
 function disposeRenderer(stub: RendererStub | null, reason: string): void {
   if (!stub || typeof stub.killIsolate !== "function") return;
   try {
-    Promise.resolve(stub.killIsolate(reason)).catch(() => {});
+    const killing = stub.killIsolate(reason);
+    void withTimeout(Promise.resolve(killing), ISOLATE_KILL_GRACE_MS, "PageRenderer.killIsolate")
+      .finally(() => disposeRendererKill(killing))
+      .catch(() => {});
   } catch {}
 }
 
