@@ -19,12 +19,16 @@ const args = process.argv.slice(2);
 const force = args.includes("--force");
 const skipBuild = args.includes("--skip-build");
 
-function run(cmd, cmdArgs, opts = {}) {
-  const r = spawnSync(cmd, cmdArgs, {
+function spawnOptions(opts) {
+  return {
     stdio: "inherit",
     cwd: opts.cwd ?? ROOT,
     env: { ...process.env, NPM_TOKEN: process.env.NPM_TOKEN ?? "" },
-  });
+  };
+}
+
+function run(cmd, cmdArgs, opts = {}) {
+  const r = spawnSync(cmd, cmdArgs, spawnOptions(opts));
   if (r.status !== 0) {
     console.error(`[pw-setup] ${cmd} ${cmdArgs.join(" ")} failed (code ${r.status})`);
     process.exit(r.status ?? 1);

@@ -19,30 +19,55 @@ function parseArgs(argv) {
   const options = { durations: [], budgetMs: 35_000, maxTests: 96, engines: 2, defaultMs: 1000 };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--durations") options.durations.push(resolve(argv[++i]));
-    else if (arg === "--budget-ms") options.budgetMs = Number(argv[++i]);
-    else if (arg === "--max-tests") options.maxTests = Number(argv[++i]);
-    else if (arg === "--engines") options.engines = Number(argv[++i]);
-    else if (arg === "--default-ms") options.defaultMs = Number(argv[++i]);
-    else if (arg === "--default-only") options.defaultOnly = true;
-    else if (arg === "--check") options.check = true;
-    else {
-      console.error(USAGE);
-      process.exit(2);
+    switch (arg) {
+      case "--durations":
+        options.durations.push(resolve(argv[++i]));
+        break;
+      case "--budget-ms":
+        options.budgetMs = Number(argv[++i]);
+        break;
+      case "--max-tests":
+        options.maxTests = Number(argv[++i]);
+        break;
+      case "--engines":
+        options.engines = Number(argv[++i]);
+        break;
+      case "--default-ms":
+        options.defaultMs = Number(argv[++i]);
+        break;
+      case "--default-only":
+        options.defaultOnly = true;
+        break;
+      case "--check":
+        options.check = true;
+        break;
+      default:
+        console.error(USAGE);
+        process.exit(2);
     }
   }
   return options;
+}
+
+function durationValue(value) {
+  return typeof value === "number" ? value : (value.ms ?? value.durationMs ?? 0);
+}
+
+function loadReportDurations(output, results) {
+  for (const result of results) output.set(result.test, result.durationMs ?? 0);
+}
+
+function loadMapDurations(output, entries) {
+  for (const [test, value] of Object.entries(entries)) output.set(test, durationValue(value));
 }
 
 function loadDurations(path) {
   const document = JSON.parse(readFileSync(path, "utf8"));
   const output = new Map();
   if (Array.isArray(document.results)) {
-    for (const result of document.results) output.set(result.test, result.durationMs ?? 0);
+    loadReportDurations(output, document.results);
   } else {
-    for (const [test, value] of Object.entries(document)) {
-      output.set(test, typeof value === "number" ? value : (value.ms ?? value.durationMs ?? 0));
-    }
+    loadMapDurations(output, document);
   }
   return output;
 }

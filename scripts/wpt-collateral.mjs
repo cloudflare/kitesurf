@@ -9,23 +9,39 @@ const COLLATERAL_OUTCOMES = new Set(["CRASH", "TIMEOUT", "ERROR"]);
  * killedEngine?: boolean
  * }} ResultRow */
 
+function isRetryable(row, sawDeath, lastPass) {
+  return sawDeath && !lastPass && row.unexpected && COLLATERAL_OUTCOMES.has(row.actual);
+}
+
+function wasAlreadyRetried(row, retriedKillers) {
+  return row.killedEngine && retriedKillers.has(row.test);
+}
+
+function shouldRequeue(row, sawDeath, lastPass, retriedKillers) {
+  const retryable = isRetryable(row, sawDeath, lastPass);
+  const alreadyRetried = wasAlreadyRetried(row, retriedKillers);
+  return retryable && !alreadyRetried;
+}
+
+function markRetriedKiller(row, retriedKillers) {
+  if (row.killedEngine) retriedKillers.add(row.test);
+}
+
 /** @template {ResultRow} T
  * @param {{results: T[], sawDeath: boolean, lastPass: boolean, retriedKillers: Set<string>}} args
  * @returns {{accept: T[], requeue: T[]}} */
 export function planRowDisposition({ results, sawDeath, lastPass, retriedKillers }) {
   const accept = [];
   const requeue = [];
-  for (const r of results) {
+  for (const row of results) {
     // Engine loss can taint sibling CRASH/TIMEOUT/ERROR rows, not just the blamed test.
-    const retryable = sawDeath && !lastPass && r.unexpected && COLLATERAL_OUTCOMES.has(r.actual);
     // A blamed killer gets one retry; a repeated engine death must not loop the batch.
-    const alreadyRetried = r.killedEngine && retriedKillers.has(r.test);
-    if (retryable && !alreadyRetried) {
-      if (r.killedEngine) retriedKillers.add(r.test);
-      requeue.push(r);
+    if (shouldRequeue(row, sawDeath, lastPass, retriedKillers)) {
+      markRetriedKiller(row, retriedKillers);
+      requeue.push(row);
       continue;
     }
-    accept.push(r);
+    accept.push(row);
   }
   return { accept, requeue };
 }

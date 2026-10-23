@@ -11,23 +11,38 @@ export const BINARYEN_VERSION = "125";
 
 const CACHE_ROOT = resolve(process.env.XDG_CACHE_HOME || resolve(homedir(), ".cache"), "kitesurf");
 
-/** @returns {string} */
-export function getWasmOpt() {
-  if (process.env.WASM_OPT_BIN) return process.env.WASM_OPT_BIN;
+function bundledWasmOpt() {
   const bundled = resolve(
     process.env.HOME || "",
     ".cache/worker-build/wasm-opt-x86_64-linux-125/bin/wasm-opt",
   );
-  if (existsSync(bundled)) return bundled;
+  return existsSync(bundled) ? bundled : "";
+}
+
+function pathWasmOpt() {
   try {
-    const onPath = execSync("command -v wasm-opt", { encoding: "utf8" }).trim();
-    if (onPath) return onPath;
-  } catch {}
-  if (process.platform !== "linux" || process.arch !== "x64") return "";
-  const cacheDir = resolve(CACHE_ROOT, `binaryen-${BINARYEN_VERSION}`);
-  const binary = resolve(cacheDir, `binaryen-version_${BINARYEN_VERSION}/bin/wasm-opt`);
+    return execSync("command -v wasm-opt", { encoding: "utf8" }).trim();
+  } catch {
+    return "";
+  }
+}
+
+function supportsCachedWasmOpt() {
+  return process.platform === "linux" && process.arch === "x64";
+}
+
+function cachedBinary(cacheDir, binary) {
   const marker = resolve(cacheDir, ".fetched");
   if (existsSync(marker) && existsSync(binary)) return binary;
+  return "";
+}
+
+function errorMessage(error) {
+  return (error && error.message) || error;
+}
+
+function fetchWasmOpt(cacheDir, binary) {
+  const marker = resolve(cacheDir, ".fetched");
   try {
     console.log(`[build-wasm] fetching binaryen ${BINARYEN_VERSION} → ${cacheDir}`);
     rmSync(cacheDir, { recursive: true, force: true });
@@ -43,7 +58,26 @@ export function getWasmOpt() {
       return binary;
     }
   } catch (e) {
-    console.log(`[build-wasm] binaryen fetch failed (${(e && e.message) || e}); skipping wasm-opt`);
+    console.log(`[build-wasm] binaryen fetch failed (${errorMessage(e)}); skipping wasm-opt`);
   }
   return "";
+}
+
+function cachedWasmOpt() {
+  if (!supportsCachedWasmOpt()) return "";
+  const cacheDir = resolve(CACHE_ROOT, `binaryen-${BINARYEN_VERSION}`);
+  const binary = resolve(cacheDir, `binaryen-version_${BINARYEN_VERSION}/bin/wasm-opt`);
+  const cached = cachedBinary(cacheDir, binary);
+  if (cached) return cached;
+  return fetchWasmOpt(cacheDir, binary);
+}
+
+/** @returns {string} */
+export function getWasmOpt() {
+  if (process.env.WASM_OPT_BIN) return process.env.WASM_OPT_BIN;
+  const bundled = bundledWasmOpt();
+  if (bundled) return bundled;
+  const onPath = pathWasmOpt();
+  if (onPath) return onPath;
+  return cachedWasmOpt();
 }

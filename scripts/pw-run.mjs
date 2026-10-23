@@ -55,17 +55,28 @@ const batchSize = batchSizeIdx >= 0 ? Math.max(1, parseInt(args[batchSizeIdx + 1
 const grepIdx = args.indexOf("--grep");
 const userGrep = grepIdx >= 0 ? args[grepIdx + 1] : null;
 const shardIdx = args.indexOf("--shard");
-const shard = (() => {
-  if (shardIdx < 0) return null;
-  const m = /^(\d+)\/(\d+)$/.exec(args[shardIdx + 1] ?? "");
-  const k = m && parseInt(m[1], 10),
-    n = m && parseInt(m[2], 10);
-  if (!m || k < 1 || k > n) {
-    console.error(`[pw-run] bad --shard "${args[shardIdx + 1]}" (want k/n, 1<=k<=n)`);
+function parseShardValue(value) {
+  const match = /^(\d+)\/(\d+)$/.exec(value ?? "");
+  if (!match) return null;
+  return { k: parseInt(match[1], 10), n: parseInt(match[2], 10) };
+}
+
+function validShard(shard) {
+  return shard !== null && shard.k >= 1 && shard.k <= shard.n;
+}
+
+function parseShard(argv, index) {
+  if (index < 0) return null;
+  const value = argv[index + 1];
+  const shard = parseShardValue(value);
+  if (!validShard(shard)) {
+    console.error(`[pw-run] bad --shard "${value}" (want k/n, 1<=k<=n)`);
     process.exit(2);
   }
-  return { k, n };
-})();
+  return shard;
+}
+
+const shard = parseShard(args, shardIdx);
 
 if (!existsSync(join(PW_DIR, "packages/playwright/cli.js"))) {
   console.error("[pw-run] .playwright/ missing or unbuilt — run `pnpm run pw:setup` first");
@@ -140,8 +151,18 @@ const MINIFLARE_VARS = [
   "KITESURF_OTLP_ENDPOINT:http://localhost:4318/v1/traces",
 ];
 
+function shouldBuildBundles() {
+  return process.env.PW_SKIP_BUILD !== "1" && launcher !== "miniflare";
+}
+
+function buildBundle(pkg) {
+  const script = resolve(ROOT, pkg, "scripts/build.mjs");
+  const result = spawnSync(process.execPath, [script], { stdio: "ignore" });
+  if (result.status !== 0) throw new Error(`${pkg} build failed (exit ${result.status})`);
+}
+
 async function buildBundles() {
-  if (process.env.PW_SKIP_BUILD === "1" || launcher === "miniflare") return;
+  if (!shouldBuildBundles()) return;
   const wasm = resolve(ROOT, "packages/core/pkg/kitesurf_core_bg.wasm");
   if (!existsSync(wasm))
     throw new Error("core wasm not built — run `pnpm run build` first (or PW_SKIP_BUILD=1)");
@@ -150,11 +171,8 @@ async function buildBundles() {
     "packages/page-script",
     "packages/page-renderer",
     "packages/worker-script",
-  ]) {
-    const script = resolve(ROOT, pkg, "scripts/build.mjs");
-    const r = spawnSync(process.execPath, [script], { stdio: "ignore" });
-    if (r.status !== 0) throw new Error(`${pkg} build failed (exit ${r.status})`);
-  }
+  ])
+    buildBundle(pkg);
   console.log("[pw-run] built dom-shim + page-script + page-renderer + worker-script bundles");
 }
 
@@ -291,26 +309,44 @@ function runPlaywright(wsEndpoint, specFiles, grep, tag) {
   return collectResults(jsonOut);
 }
 
+function mapStatus(status) {
+  switch (status) {
+    case "passed":
+      return "PASS";
+    case "timedOut":
+      return "TIMEOUT";
+    case "skipped":
+      return "SKIP";
+    default:
+      return "FAIL";
+  }
+}
+
+function collectSpec(spec, titles, out) {
+  const file = spec.file.replace(/\\/g, "/");
+  for (const test of spec.tests ?? []) {
+    const status = test.results?.length
+      ? mapStatus(test.results[test.results.length - 1].status)
+      : "SKIP";
+    const id = `${file}::${[...titles, spec.title].join(" › ")}`;
+    out[id] = status;
+  }
+}
+
+function suiteTitles(suite, titles) {
+  return suite.title ? [...titles, suite.title] : titles;
+}
+
+function collectSuite(suite, titles, out) {
+  const childTitles = suiteTitles(suite, titles);
+  for (const child of suite.suites ?? []) collectSuite(child, childTitles, out);
+  for (const spec of suite.specs ?? []) collectSpec(spec, titles, out);
+}
+
 function collectResults(jsonPath) {
   const report = JSON.parse(readFileSync(jsonPath, "utf8"));
   const out = {};
-  const mapStatus = (s) =>
-    s === "passed" ? "PASS" : s === "timedOut" ? "TIMEOUT" : s === "skipped" ? "SKIP" : "FAIL";
-  const walk = (suite, titles) => {
-    for (const child of suite.suites ?? [])
-      walk(child, suite.title ? [...titles, suite.title] : titles);
-    for (const spec of suite.specs ?? []) {
-      const file = spec.file.replace(/\\/g, "/");
-      for (const t of spec.tests ?? []) {
-        const status = t.results?.length
-          ? mapStatus(t.results[t.results.length - 1].status)
-          : "SKIP";
-        const id = `${file}::${[...titles, spec.title].join(" › ")}`;
-        out[id] = status;
-      }
-    }
-  };
-  for (const suite of report.suites ?? []) walk(suite, []);
+  for (const suite of report.suites ?? []) collectSuite(suite, [], out);
   return out;
 }
 
@@ -318,42 +354,59 @@ function deviations(results) {
   return diffExpectations(results, loadExpectations());
 }
 
+function batchGrep(only) {
+  return only && userGrep ? `(?=.*(?:${userGrep}))${only}` : (userGrep ?? only);
+}
+
+function mergeRetryResults(results, retry) {
+  if (!retry) return;
+  for (const [id, status] of Object.entries(retry)) results[id] = status;
+}
+
+function retryPlan(results, batchIdx) {
+  const devs = deviations(results);
+  if (devs.length === 0) return null;
+  const grep = `(?:${devs.map((d) => idGrep(d.id)).join("|")})`;
+  const files = [...new Set(devs.map((d) => d.id.split("::")[0]).map(fileToSpecArg))];
+  console.log(`[pw-run] batch ${batchIdx}: retrying ${devs.length} deviation(s) on a fresh engine`);
+  return { files, grep };
+}
+
+function stopEngine(engine) {
+  engine?.stop();
+}
+
+function logBatchStart(batchIdx, batchFiles, only, engine) {
+  console.log(
+    `\n[pw-run] batch ${batchIdx}: ${batchFiles.length} file(s)${only ? " (only-selection)" : ""}${engine ? ` on :${engine.port}` : ""}`,
+  );
+}
+
+async function startBatchEngine(externalWs) {
+  if (externalWs) return { engine: null, ws: externalWs };
+  const engine = await startEngine();
+  return { engine, ws: engine.wsEndpoint };
+}
+
+async function retryBatch(results, batchIdx, externalWs, label) {
+  const plan = retryPlan(results, batchIdx);
+  if (!plan) return;
+  const retryState = await startBatchEngine(externalWs);
+  const retry = runPlaywright(retryState.ws, plan.files, plan.grep, `${label}r`);
+  stopEngine(retryState.engine);
+  mergeRetryResults(results, retry);
+}
+
 async function runBatch(batchEntries, batchIdx, externalWs) {
   const label = `b${batchIdx}`;
   const batchFiles = batchEntries.map((e) => e.file);
   const only = onlyGrep(batchEntries);
-  const grep = only && userGrep ? `(?=.*(?:${userGrep}))${only}` : (userGrep ?? only);
-  let eng = null;
-  let ws = externalWs;
-  if (!externalWs) {
-    eng = await startEngine();
-    ws = eng.wsEndpoint;
-  }
-  console.log(
-    `\n[pw-run] batch ${batchIdx}: ${batchFiles.length} file(s)${only ? " (only-selection)" : ""}${eng ? ` on :${eng.port}` : ""}`,
-  );
+  const grep = batchGrep(only);
+  const { engine, ws } = await startBatchEngine(externalWs);
+  logBatchStart(batchIdx, batchFiles, only, engine);
   let results = runPlaywright(ws, batchFiles, grep, label) ?? {};
-  eng?.stop();
-
-  if (!noRetry) {
-    const devs = deviations(results);
-    if (devs.length > 0) {
-      const grep = `(?:${devs.map((d) => idGrep(d.id)).join("|")})`;
-      const files = [...new Set(devs.map((d) => d.id.split("::")[0]).map(fileToSpecArg))];
-      console.log(
-        `[pw-run] batch ${batchIdx}: retrying ${devs.length} deviation(s) on a fresh engine`,
-      );
-      let rEng = null;
-      let rWs = externalWs;
-      if (!externalWs) {
-        rEng = await startEngine();
-        rWs = rEng.wsEndpoint;
-      }
-      const retry = runPlaywright(rWs, files, grep, `${label}r`);
-      rEng?.stop();
-      if (retry) for (const [id, status] of Object.entries(retry)) results[id] = status;
-    }
-  }
+  stopEngine(engine);
+  if (!noRetry) await retryBatch(results, batchIdx, externalWs, label);
   return results;
 }
 

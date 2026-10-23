@@ -12,15 +12,11 @@ export const WASM_BINDGEN_VERSION = "0.2.127";
 
 const CACHE_ROOT = resolve(process.env.XDG_CACHE_HOME || resolve(homedir(), ".cache"), "kitesurf");
 
-/** @param {string} [version=WASM_BINDGEN_VERSION]
- * @returns {string} */
-export function getWasmBindgen(version = WASM_BINDGEN_VERSION) {
-  if (process.env.WASM_BINDGEN_BIN) return process.env.WASM_BINDGEN_BIN;
-  const cacheDir = resolve(CACHE_ROOT, `wasm-bindgen-${version}`);
-  const binary = resolve(cacheDir, "bin/wasm-bindgen");
-  const marker = resolve(cacheDir, ".built");
-  if (existsSync(marker) && existsSync(binary)) return binary;
+function cachedBinary(binary, marker) {
+  return existsSync(marker) && existsSync(binary) ? binary : null;
+}
 
+function installWasmBindgen(version, cacheDir, binary, marker) {
   console.log(`[wasm-bindgen] cargo install wasm-bindgen-cli@${version} → ${cacheDir}`);
   rmSync(cacheDir, { recursive: true, force: true });
   mkdirSync(cacheDir, { recursive: true });
@@ -32,4 +28,14 @@ export function getWasmBindgen(version = WASM_BINDGEN_VERSION) {
   }
   writeFileSync(marker, new Date().toISOString() + "\n");
   return binary;
+}
+
+/** @param {string} [version=WASM_BINDGEN_VERSION]
+ * @returns {string} */
+export function getWasmBindgen(version = WASM_BINDGEN_VERSION) {
+  if (process.env.WASM_BINDGEN_BIN) return process.env.WASM_BINDGEN_BIN;
+  const cacheDir = resolve(CACHE_ROOT, `wasm-bindgen-${version}`);
+  const binary = resolve(cacheDir, "bin/wasm-bindgen");
+  const marker = resolve(cacheDir, ".built");
+  return cachedBinary(binary, marker) ?? installWasmBindgen(version, cacheDir, binary, marker);
 }

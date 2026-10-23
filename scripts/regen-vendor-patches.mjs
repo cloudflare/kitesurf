@@ -63,16 +63,16 @@ function normalizePatchWhitespace(content) {
   return content.replace(/^ $/gm, "");
 }
 
-function regenOne({ name, version }) {
-  const seriesDir = resolve(PATCH_DIR, `${name}-${version}`);
-  const patchedDir = resolve(PATCHED_ROOT, `${name}-${version}`);
+function requireMaterializedRepo(name, version, patchedDir) {
   if (!existsSync(join(patchedDir, ".git"))) {
     throw new Error(
       `no materialised git repo for ${name}-${version} at ${patchedDir}\n` +
         `  Run \`pnpm run vendor:apply\` first.`,
     );
   }
+}
 
+function verifyVendorBase(name, version, patchedDir) {
   try {
     git(["rev-parse", "-q", "--verify", "vendor-base^{commit}"], patchedDir);
   } catch {
@@ -81,7 +81,9 @@ function regenOne({ name, version }) {
         `Re-materialise with \`pnpm run vendor:apply\` after saving your edits.`,
     );
   }
+}
 
+function requireCleanTree(name, version, patchedDir) {
   const dirty = git(["status", "--porcelain"], patchedDir).trim();
   if (dirty) {
     throw new Error(
@@ -95,32 +97,52 @@ function regenOne({ name, version }) {
         `    git -C ${patchedDir} commit`,
     );
   }
+}
 
+function clearPatchFiles(seriesDir) {
+  for (const f of readdirSync(seriesDir)) {
+    if (f.endsWith(".patch")) rmSync(join(seriesDir, f));
+  }
+}
+
+function normalizedPatchContent(patch, oldSeries) {
+  const content = readFileSync(patch, "utf8");
+  const normalized = normalizePatchWhitespace(content);
+  const oldContent = oldSeries.get(basename(patch));
+  return oldContent && normalizePatchWhitespace(oldContent) === normalized
+    ? oldContent
+    : normalized;
+}
+
+function writePatches(name, version, oldSeries) {
+  for (const patch of listSeriesPatches(name, version)) {
+    writeFileSync(patch, normalizedPatchContent(patch, oldSeries));
+  }
+}
+
+function patchCount(output) {
+  return output ? output.split("\n").length : 0;
+}
+
+function regenOne({ name, version }) {
+  const seriesDir = resolve(PATCH_DIR, `${name}-${version}`);
+  const patchedDir = resolve(PATCHED_ROOT, `${name}-${version}`);
+  requireMaterializedRepo(name, version, patchedDir);
+  verifyVendorBase(name, version, patchedDir);
+  requireCleanTree(name, version, patchedDir);
   const oldSeries = new Map(
     listSeriesPatches(name, version).map((patch) => [basename(patch), readFileSync(patch, "utf8")]),
   );
 
   mkdirSync(seriesDir, { recursive: true });
-  for (const f of readdirSync(seriesDir)) {
-    if (f.endsWith(".patch")) rmSync(join(seriesDir, f));
-  }
+  clearPatchFiles(seriesDir);
 
   const out = git(
     ["format-patch", "-N", "--zero-commit", "--no-signature", "-o", seriesDir, "vendor-base..HEAD"],
     patchedDir,
   ).trim();
-  const written = out ? out.split("\n").length : 0;
-  log(`${name}-${version}: wrote ${written} patch(es)`);
-
-  for (const patch of listSeriesPatches(name, version)) {
-    const content = readFileSync(patch, "utf8");
-    const normalized = normalizePatchWhitespace(content);
-    const oldContent = oldSeries.get(basename(patch));
-    writeFileSync(
-      patch,
-      oldContent && normalizePatchWhitespace(oldContent) === normalized ? oldContent : normalized,
-    );
-  }
+  log(`${name}-${version}: wrote ${patchCount(out)} patch(es)`);
+  writePatches(name, version, oldSeries);
 
   verifyRoundTrip({ name, version, patchedDir });
 

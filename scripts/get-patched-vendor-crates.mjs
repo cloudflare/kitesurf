@@ -73,6 +73,45 @@ function git(args, cwd, { inherit = false } = {}) {
 }
 
 let cargoFetchAttempted = false;
+function isPatchBlockEnd(line) {
+  return line.trim() === "" || line.startsWith("[");
+}
+
+function commentPatchLine(line, inBlock) {
+  if (!inBlock) {
+    return line.trim() === "[patch.crates-io]"
+      ? { line: "# " + line, inBlock: true }
+      : { line, inBlock: false };
+  }
+  if (isPatchBlockEnd(line)) return { line, inBlock: false };
+  return { line: "# " + line, inBlock: true };
+}
+
+function commentPatchBlock(original) {
+  const lines = original.split("\n");
+  let inBlock = false;
+  for (let i = 0; i < lines.length; i++) {
+    const result = commentPatchLine(lines[i], inBlock);
+    lines[i] = result.line;
+    inBlock = result.inBlock;
+  }
+  return lines.join("\n");
+}
+
+function stripBootstrapFeature(manifest) {
+  return manifest.replace(
+    /^(\s*vello_cpu\s*=\s*\{[^}\n]*features\s*=\s*\[)([^\]]*)(\])/gm,
+    (_match, pre, features, post) => {
+      const stripped = features
+        .split(",")
+        .map((feature) => feature.trim())
+        .filter((feature) => feature !== '"poly-pnorm"')
+        .join(", ");
+      return pre + stripped + post;
+    },
+  );
+}
+
 function ensureRegistryExtracted() {
   if (cargoFetchAttempted) return;
   cargoFetchAttempted = true;
@@ -86,35 +125,8 @@ function ensureRegistryExtracted() {
   writeFileSync(backup, original);
   try {
     // Bootstrap without unresolved patch paths or vendor-only features, then restore the manifest.
-    const lines = original.split("\n");
-    let inBlock = false;
-    for (let i = 0; i < lines.length; i++) {
-      const ln = lines[i];
-      if (!inBlock) {
-        if (ln.trim() === "[patch.crates-io]") {
-          inBlock = true;
-          lines[i] = "# " + ln;
-        }
-        continue;
-      }
-      if (ln.trim() === "" || ln.startsWith("[")) {
-        inBlock = false;
-        continue;
-      }
-      lines[i] = "# " + ln;
-    }
-    const neutered = lines.join("\n");
-    const bootstrapSafe = neutered.replace(
-      /^(\s*vello_cpu\s*=\s*\{[^}\n]*features\s*=\s*\[)([^\]]*)(\])/gm,
-      (_match, pre, feats, post) => {
-        const stripped = feats
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s !== '"poly-pnorm"')
-          .join(", ");
-        return pre + stripped + post;
-      },
-    );
+    const neutered = commentPatchBlock(original);
+    const bootstrapSafe = stripBootstrapFeature(neutered);
     writeFileSync(cargoToml, bootstrapSafe);
     execSync("cargo fetch", {
       cwd: REPO_ROOT,

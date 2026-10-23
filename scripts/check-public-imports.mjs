@@ -27,6 +27,8 @@ const EXCLUDED_SOURCE_SEGMENTS = new Set([
 ]);
 const DECLARATION_FILE = /\.d(?:\.[^/]+)?\.(?:ts|mts|cts)$/i;
 const GENERATED_FILE = /\.generated\./i;
+const EXPLICITLY_EXCLUDED_FILES = new Set(["packages/dom-shim/src/editing/implementation.js"]);
+const EXPLICITLY_EXCLUDED_PREFIXES = ["packages/engine/test/fixtures-worker/assets/"];
 
 const PACKAGE_SCOPE = "@kitesurf/";
 
@@ -38,22 +40,40 @@ const PACKAGE_SCOPE = "@kitesurf/";
 export function readPublicPackageNames(root = ROOT) {
   const names = new Set();
   for (const dir of readdirSync(resolve(root, "packages"), { withFileTypes: true })) {
-    if (!dir.isDirectory()) continue;
-    const manifest = resolve(root, "packages", dir.name, "package.json");
-    if (!existsSync(manifest)) continue;
-    const { name } = JSON.parse(readFileSync(manifest, "utf8"));
-    if (typeof name === "string") names.add(name);
+    addPublicPackageName(names, root, dir);
   }
   return names;
+}
+
+function addPublicPackageName(names, root, dir) {
+  if (!dir.isDirectory()) return;
+  const manifest = resolve(root, "packages", dir.name, "package.json");
+  if (!existsSync(manifest)) return;
+  const { name } = JSON.parse(readFileSync(manifest, "utf8"));
+  if (typeof name === "string") names.add(name);
+}
+
+function hasExcludedPathSegment(file) {
+  return file.split("/").some((segment) => EXCLUDED_SOURCE_SEGMENTS.has(segment));
+}
+
+function explicitlyExcluded(file) {
+  return (
+    EXPLICITLY_EXCLUDED_FILES.has(file) ||
+    EXPLICITLY_EXCLUDED_PREFIXES.some((prefix) => file.startsWith(prefix))
+  );
 }
 
 function isPublicSourceFile(file) {
   if (file.startsWith("internal/")) return false;
   if (!SOURCE_EXTENSIONS.has(extname(file).toLowerCase())) return false;
-  if (DECLARATION_FILE.test(file) || GENERATED_FILE.test(file)) return false;
-  if (file === "packages/dom-shim/src/editing/implementation.js") return false;
-  if (file.startsWith("packages/engine/test/fixtures-worker/assets/")) return false;
-  return !file.split("/").some((segment) => EXCLUDED_SOURCE_SEGMENTS.has(segment));
+  if (isDeclarationOrGenerated(file)) return false;
+  if (explicitlyExcluded(file)) return false;
+  return !hasExcludedPathSegment(file);
+}
+
+function isDeclarationOrGenerated(file) {
+  return DECLARATION_FILE.test(file) || GENERATED_FILE.test(file);
 }
 
 function isRelativeSpecifier(specifier) {
@@ -85,6 +105,69 @@ function literalSpecifier(node) {
     : undefined;
 }
 
+function recordCallSpecifier(node, record) {
+  const isImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+  const isRequire = ts.isIdentifier(node.expression) && node.expression.text === "require";
+  if (isImport || isRequire) record(node, node.arguments[0]);
+}
+
+function recordImportTypeSpecifier(node, record) {
+  if (!ts.isLiteralTypeNode(node.argument)) return;
+  record(node, node.argument.literal);
+}
+
+function recordImportEqualsSpecifier(node, record) {
+  if (!ts.isImportEqualsDeclaration(node)) return;
+  if (!ts.isExternalModuleReference(node.moduleReference)) return;
+  record(node, node.moduleReference.expression);
+}
+
+function recordModuleSpecifier(node, record) {
+  if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+    record(node, node.moduleSpecifier);
+    return;
+  }
+  if (ts.isImportTypeNode(node)) {
+    recordImportTypeSpecifier(node, record);
+    return;
+  }
+  if (ts.isCallExpression(node)) {
+    recordCallSpecifier(node, record);
+    return;
+  }
+  recordImportEqualsSpecifier(node, record);
+}
+
+function visitImports(source, record) {
+  function visit(node) {
+    recordModuleSpecifier(node, record);
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+}
+
+function recordReference(file, source, violations, position, specifier, isInternal) {
+  if (!isInternal) return;
+  const { line } = source.getLineAndCharacterOfPosition(position);
+  violations.push({ file, line: line + 1, specifier });
+}
+
+function recordSourceReferences(file, source, publicPackageNames, violations) {
+  for (const { pos, fileName } of source.referencedFiles) {
+    recordReference(file, source, violations, pos, fileName, targetsInternalPath(file, fileName));
+  }
+  for (const { pos, fileName } of source.typeReferenceDirectives) {
+    recordReference(
+      file,
+      source,
+      violations,
+      pos,
+      fileName,
+      targetsInternal(file, fileName, publicPackageNames),
+    );
+  }
+}
+
 function scriptKind(file) {
   const extension = extname(file).toLowerCase();
   if (extension === ".tsx") return ts.ScriptKind.TSX;
@@ -102,42 +185,14 @@ export function scanPublicImports(file, text, publicPackageNames) {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, scriptKind(file));
   const violations = [];
 
-  function recordViolation(position, specifier) {
-    const { line } = source.getLineAndCharacterOfPosition(position);
-    violations.push({ file, line: line + 1, specifier });
-  }
-
   function record(node, literal) {
     const specifier = literalSpecifier(literal);
     if (specifier === undefined || !targetsInternal(file, specifier, publicPackageNames)) return;
-    recordViolation(node.getStart(source), specifier);
+    recordReference(file, source, violations, node.getStart(source), specifier, true);
   }
 
-  function visit(node) {
-    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
-      record(node, node.moduleSpecifier);
-    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
-      record(node, node.argument.literal);
-    } else if (ts.isCallExpression(node)) {
-      const isImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
-      const isRequire = ts.isIdentifier(node.expression) && node.expression.text === "require";
-      if (isImport || isRequire) record(node, node.arguments[0]);
-    } else if (
-      ts.isImportEqualsDeclaration(node) &&
-      ts.isExternalModuleReference(node.moduleReference)
-    ) {
-      record(node, node.moduleReference.expression);
-    }
-    ts.forEachChild(node, visit);
-  }
-
-  visit(source);
-  for (const { pos, fileName } of source.referencedFiles) {
-    if (targetsInternalPath(file, fileName)) recordViolation(pos, fileName);
-  }
-  for (const { pos, fileName } of source.typeReferenceDirectives) {
-    if (targetsInternal(file, fileName, publicPackageNames)) recordViolation(pos, fileName);
-  }
+  visitImports(source, record);
+  recordSourceReferences(file, source, publicPackageNames, violations);
   return violations;
 }
 

@@ -15,6 +15,33 @@ export const INVENTORY_TYPES = ["testharness", "reftest", "print-reftest", "cras
 
 const MANIFEST_VERSION = 9;
 
+function manifestUrl(item, path) {
+  return Array.isArray(item) && typeof item[0] === "string" ? item[0] : path;
+}
+
+function countManifestLeaf(leaf, path, urlBase, urls) {
+  let count = 0;
+  for (const item of leaf.slice(1)) {
+    urls.add(urlBase + manifestUrl(item, path));
+    count++;
+  }
+  return count;
+}
+
+function childPath(path, name) {
+  return path ? `${path}/${name}` : name;
+}
+
+function countManifestNode(node, path, urlBase, urls) {
+  if (node == null || typeof node !== "object") return 0;
+  if (Array.isArray(node)) return countManifestLeaf(node, path, urlBase, urls);
+  let count = 0;
+  for (const [name, child] of Object.entries(node)) {
+    count += countManifestNode(child, childPath(path, name), urlBase, urls);
+  }
+  return count;
+}
+
 /**
  * @param {{version: number, url_base?: string, items: Record<string, unknown>}} manifest
  * @returns {{types: Record<string, number>, tests: string[]}}
@@ -30,26 +57,20 @@ export function inventoryFromManifest(manifest, types = INVENTORY_TYPES) {
   /** @type {Record<string, number>} */
   const counts = {};
   for (const type of types) {
-    let count = 0;
-    /** @param {unknown} node @param {string} path */
-    const walk = (node, path) => {
-      if (node == null || typeof node !== "object") return;
-      if (Array.isArray(node)) {
-        // Manifest v9 trie leaves start with a hash; later entries carry URLs and metadata.
-        for (const item of node.slice(1)) {
-          const url = Array.isArray(item) && typeof item[0] === "string" ? item[0] : path;
-          urls.add(urlBase + url);
-          count++;
-        }
-        return;
-      }
-      for (const [name, child] of Object.entries(node))
-        walk(child, path ? `${path}/${name}` : name);
-    };
-    walk(manifest.items[type], "");
-    counts[type] = count;
+    // Manifest v9 trie leaves start with a hash; later entries carry URLs and metadata.
+    counts[type] = countManifestNode(manifest.items[type], "", urlBase, urls);
   }
   return { types: counts, tests: [...urls].sort() };
+}
+
+function summaryCounts(summary, test) {
+  if (!Object.hasOwn(summary, test)) return undefined;
+  return summary[test]?.c;
+}
+
+function subtestCount(counts) {
+  if (!Array.isArray(counts) || typeof counts[1] !== "number") return undefined;
+  return Math.max(1, counts[1]);
 }
 
 /** @param {Record<string, {c?: unknown}>} summary
@@ -59,10 +80,9 @@ export function referenceSubtests(summary, tests) {
   /** @type {Record<string, number>} */
   const subtests = {};
   for (const test of tests) {
-    const counts = Object.hasOwn(summary, test) ? summary[test]?.c : undefined;
+    const count = subtestCount(summaryCounts(summary, test));
     // wpt.fyi reports a test without subtests as [0, 0] whatever its status.
-    if (Array.isArray(counts) && typeof counts[1] === "number")
-      subtests[test] = Math.max(1, counts[1]);
+    if (count !== undefined) subtests[test] = count;
   }
   return subtests;
 }
@@ -110,15 +130,31 @@ function parseArgs(argv) {
     pythonPath: null,
   };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--out") opts.out = resolve(argv[++i]);
-    else if (argv[i] === "--manifest") opts.manifest = resolve(argv[++i]);
-    else if (argv[i] === "--no-reference") opts.reference = false;
-    else if (argv[i] === "--wpt-dir") opts.wptDir = resolve(argv[++i]);
-    else if (argv[i] === "--revision-file")
-      opts.pin = JSON.parse(readFileSync(resolve(argv[++i]), "utf8")).revision;
-    else if (argv[i] === "--add-reference") opts.addReference = resolve(argv[++i]);
-    else if (argv[i] === "--pythonpath") opts.pythonPath = resolve(argv[++i]);
-    else throw new Error(`unknown option: ${argv[i]}`);
+    switch (argv[i]) {
+      case "--out":
+        opts.out = resolve(argv[++i]);
+        break;
+      case "--manifest":
+        opts.manifest = resolve(argv[++i]);
+        break;
+      case "--no-reference":
+        opts.reference = false;
+        break;
+      case "--wpt-dir":
+        opts.wptDir = resolve(argv[++i]);
+        break;
+      case "--revision-file":
+        opts.pin = JSON.parse(readFileSync(resolve(argv[++i]), "utf8")).revision;
+        break;
+      case "--add-reference":
+        opts.addReference = resolve(argv[++i]);
+        break;
+      case "--pythonpath":
+        opts.pythonPath = resolve(argv[++i]);
+        break;
+      default:
+        throw new Error(`unknown option: ${argv[i]}`);
+    }
   }
   return opts;
 }
@@ -178,20 +214,19 @@ async function tryFetchReference(revision, tests) {
   return undefined;
 }
 
-async function main() {
-  const opts = parseArgs(process.argv.slice(2));
-  if (opts.addReference) {
-    const inventory = JSON.parse(readFileSync(opts.addReference, "utf8"));
-    inventory.reference = await tryFetchReference(inventory.revision, inventory.tests);
-    writeFileSync(opts.addReference, JSON.stringify(inventory));
-    return;
+async function addReference(path) {
+  const inventory = JSON.parse(readFileSync(path, "utf8"));
+  inventory.reference = await tryFetchReference(inventory.revision, inventory.tests);
+  writeFileSync(path, JSON.stringify(inventory));
+}
+
+function checkRevision(pin, revision, wptDir) {
+  if (pin && revision !== pin) {
+    throw new Error(`WPT corpus at ${wptDir} is ${revision ?? "unknown"}, expected ${pin}`);
   }
-  const revision = wptRevision(opts.wptDir);
-  if (opts.pin && revision !== opts.pin) {
-    throw new Error(
-      `WPT corpus at ${opts.wptDir} is ${revision ?? "unknown"}, expected ${opts.pin}`,
-    );
-  }
+}
+
+function prepareManifest(opts) {
   let manifestPath = opts.manifest;
   let scratch = null;
   if (!manifestPath) {
@@ -199,14 +234,30 @@ async function main() {
     manifestPath = join(scratch, "MANIFEST.json");
     buildManifest(manifestPath, opts, scratch);
   }
+  return { manifestPath, scratch };
+}
+
+async function writeInventory(opts, revision, manifestPath) {
+  const { types, tests } = inventoryFromManifest(JSON.parse(readFileSync(manifestPath, "utf8")));
+  const reference = opts.reference ? await tryFetchReference(revision, tests) : undefined;
+  mkdirSync(dirname(opts.out), { recursive: true });
+  writeFileSync(opts.out, JSON.stringify({ revision, types, tests, reference }));
+  console.log(
+    `[wpt-inventory] wrote ${tests.length} tests to ${opts.out} ${JSON.stringify(types)}`,
+  );
+}
+
+async function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  if (opts.addReference) {
+    await addReference(opts.addReference);
+    return;
+  }
+  const revision = wptRevision(opts.wptDir);
+  checkRevision(opts.pin, revision, opts.wptDir);
+  const { manifestPath, scratch } = prepareManifest(opts);
   try {
-    const { types, tests } = inventoryFromManifest(JSON.parse(readFileSync(manifestPath, "utf8")));
-    const reference = opts.reference ? await tryFetchReference(revision, tests) : undefined;
-    mkdirSync(dirname(opts.out), { recursive: true });
-    writeFileSync(opts.out, JSON.stringify({ revision, types, tests, reference }));
-    console.log(
-      `[wpt-inventory] wrote ${tests.length} tests to ${opts.out} ${JSON.stringify(types)}`,
-    );
+    await writeInventory(opts, revision, manifestPath);
   } finally {
     if (scratch) rmSync(scratch, { recursive: true, force: true });
   }

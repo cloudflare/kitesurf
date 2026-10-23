@@ -72,14 +72,213 @@ function key(name) {
   return /^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name);
 }
 
+function exposedNames(exposed) {
+  if (!exposed?.rhs) return ["Window"];
+  if (exposed.rhs.type === "*") return ["Window"];
+  return Array.isArray(exposed.rhs.value)
+    ? exposed.rhs.value.map((value) => value.value)
+    : [exposed.rhs.value];
+}
+
 function exposedOnWindow(node) {
   const exposed = (node.extAttrs || []).find((attr) => attr.name === "Exposed");
-  if (!exposed?.rhs) return true;
-  if (exposed.rhs.type === "*") return true;
-  const names = Array.isArray(exposed.rhs.value)
-    ? exposed.rhs.value.map((v) => v.value)
-    : [exposed.rhs.value];
-  return names.includes("Window");
+  return exposedNames(exposed).includes("Window");
+}
+
+const GENERIC_TYPE_RENDERERS = new Map([
+  ["Promise", (args) => `Promise<${args[0] === "undefined" ? "void" : args[0]}>`],
+  ["sequence", (args) => `Array<${args[0]}>`],
+  ["ObservableArray", (args) => `Array<${args[0]}>`],
+  ["FrozenArray", (args) => `ReadonlyArray<${args[0]}>`],
+  ["record", (args) => `Record<string, ${args[1]}>`],
+]);
+const BUILTIN_TYPE_NAMES = new Map([
+  ...[...STRING].map((name) => [name, "string"]),
+  ...[...NUMERIC].map((name) => [name, "number"]),
+  ["boolean", "boolean"],
+  ["bigint", "bigint"],
+  ["any", "any"],
+  ["object", "object"],
+  ["undefined", "undefined"],
+]);
+
+function genericType(generic, args) {
+  const render = GENERIC_TYPE_RENDERERS.get(generic);
+  return render ? render(args) : "unknown";
+}
+
+function namedType(name, known) {
+  const builtin = BUILTIN_TYPE_NAMES.get(name);
+  return builtin ?? (known.has(name) ? name : "unknown");
+}
+
+function unionType(idlType, recurse) {
+  const out = idlType.idlType.map(recurse).join(" | ");
+  return idlType.nullable ? `(${out})` : out;
+}
+
+function idlTypeValue(idlType, known, recurse) {
+  if (idlType.union) return unionType(idlType, recurse);
+  if (idlType.generic) return genericType(idlType.generic, idlType.idlType.map(recurse));
+  return namedType(idlType.idlType, known);
+}
+
+function pushMember(context, name, declaration) {
+  const isGap = context.missing.has(name) || context.typeGaps.has(name);
+  context.lines.push(isGap ? `  // ${declaration}` : `  ${declaration}`);
+}
+
+function renderAttributeMember(member, context) {
+  if (member.special === "static") return;
+  pushMember(
+    context,
+    member.name,
+    `${member.readonly ? "readonly " : ""}${key(member.name)}: ${context.type(member.idlType)};`,
+  );
+  if (member.special === "stringifier") pushMember(context, member.name, "toString(): string;");
+}
+
+function appendIndexSignature(member, context) {
+  if (member.special === "getter" && member.arguments[0]?.idlType.idlType === "unsigned long") {
+    pushMember(
+      context,
+      "[index]",
+      `readonly [index: number]: ${context.returnType(member.idlType)};`,
+    );
+  }
+}
+
+function appendNamedOperation(member, context) {
+  if (member.name) {
+    pushMember(
+      context,
+      member.name,
+      `${key(member.name)}(${context.params(member.arguments)}): ${context.returnType(member.idlType)};`,
+    );
+  } else if (member.special === "stringifier") {
+    pushMember(context, "toString", "toString(): string;");
+  }
+}
+
+function renderOperationMember(member, context) {
+  if (member.special === "static") return;
+  appendIndexSignature(member, context);
+  appendNamedOperation(member, context);
+}
+
+function renderIterableMember(member, context) {
+  const value =
+    member.idlType.length === 2
+      ? `[${context.type(member.idlType[0])}, ${context.type(member.idlType[1])}]`
+      : context.type(member.idlType[0]);
+  const symbol = member.async ? "[Symbol.asyncIterator]" : "[Symbol.iterator]";
+  const iterator = member.async ? "AsyncIterableIterator" : "IterableIterator";
+  pushMember(context, symbol, `${symbol}(): ${iterator}<${value}>;`);
+}
+
+const INTERFACE_MEMBER_RENDERERS = new Map([
+  ["attribute", renderAttributeMember],
+  ["operation", renderOperationMember],
+  ["iterable", renderIterableMember],
+]);
+
+function renderMember(member, context) {
+  const render = INTERFACE_MEMBER_RENDERERS.get(member.type);
+  if (render) render(member, context);
+}
+
+function bucketFor(map, name, init) {
+  if (!map.has(name)) map.set(name, init());
+  return map.get(name);
+}
+
+function collectInterface(definition, buckets) {
+  const entry = bucketFor(buckets.interfaces, definition.name, () => ({
+    parent: null,
+    members: [],
+  }));
+  if (!definition.partial) entry.parent = definition.inheritance || null;
+  entry.members.push(...definition.members.filter(exposedOnWindow));
+}
+
+function collectMixin(definition, buckets) {
+  bucketFor(buckets.mixins, definition.name, () => []).push(
+    ...definition.members.filter(exposedOnWindow),
+  );
+}
+
+function collectCallbackInterface(definition, buckets) {
+  buckets.callbackInterfaces.set(definition.name, definition);
+}
+
+function collectDictionary(definition, buckets) {
+  const entry = bucketFor(buckets.dictionaries, definition.name, () => ({
+    parent: null,
+    members: [],
+  }));
+  if (!definition.partial) entry.parent = definition.inheritance || null;
+  entry.members.push(...definition.members);
+}
+
+function collectEnum(definition, buckets) {
+  buckets.enums.set(
+    definition.name,
+    definition.values.map((value) => value.value),
+  );
+}
+
+function collectTypedef(definition, buckets) {
+  buckets.typedefs.set(definition.name, definition.idlType);
+}
+
+function collectCallback(definition, buckets) {
+  buckets.callbacks.set(definition.name, definition);
+}
+
+function collectInclude(definition, buckets) {
+  buckets.includes.push(definition);
+}
+
+const DEFINITION_COLLECTORS = new Map([
+  ["interface", collectInterface],
+  ["interface mixin", collectMixin],
+  ["callback interface", collectCallbackInterface],
+  ["dictionary", collectDictionary],
+  ["enum", collectEnum],
+  ["typedef", collectTypedef],
+  ["callback", collectCallback],
+  ["includes", collectInclude],
+]);
+
+function collectDefinitions(definitionLists) {
+  const buckets = {
+    interfaces: new Map(),
+    mixins: new Map(),
+    dictionaries: new Map(),
+    enums: new Map(),
+    typedefs: new Map(),
+    callbacks: new Map(),
+    callbackInterfaces: new Map(),
+    includes: [],
+  };
+  for (const definitions of definitionLists) {
+    for (const definition of definitions) {
+      DEFINITION_COLLECTORS.get(definition.type)?.(definition, buckets);
+    }
+  }
+  return buckets;
+}
+
+function applyInclude(interfaces, mixins, statement) {
+  const target = interfaces.get(statement.target);
+  const members = mixins.get(statement.includes);
+  if (target && members) target.members.push(...members);
+}
+
+function applyIncludes(buckets) {
+  for (const statement of buckets.includes) {
+    applyInclude(buckets.interfaces, buckets.mixins, statement);
+  }
 }
 
 // Gap maps record missing members, type differences, and parent overrides from the ledger.
@@ -88,73 +287,9 @@ export function renderTypes(
   definitionLists,
   gaps = { missing: new Map(), omit: new Map(), parent: new Map() },
 ) {
-  const interfaces = new Map();
-  const mixins = new Map();
-  const dictionaries = new Map();
-  const enums = new Map();
-  const typedefs = new Map();
-  const callbacks = new Map();
-  const callbackInterfaces = new Map();
-  const includes = [];
-
-  const bucketFor = (map, name, init) => {
-    if (!map.has(name)) map.set(name, init());
-    return map.get(name);
-  };
-  for (const definitions of definitionLists) {
-    for (const definition of definitions) {
-      switch (definition.type) {
-        case "interface": {
-          const entry = bucketFor(interfaces, definition.name, () => ({
-            parent: null,
-            members: [],
-          }));
-          if (!definition.partial) entry.parent = definition.inheritance || null;
-          entry.members.push(...definition.members.filter(exposedOnWindow));
-          break;
-        }
-        case "interface mixin":
-          bucketFor(mixins, definition.name, () => []).push(
-            ...definition.members.filter(exposedOnWindow),
-          );
-          break;
-        case "callback interface":
-          callbackInterfaces.set(definition.name, definition);
-          break;
-        case "dictionary": {
-          const entry = bucketFor(dictionaries, definition.name, () => ({
-            parent: null,
-            members: [],
-          }));
-          if (!definition.partial) entry.parent = definition.inheritance || null;
-          entry.members.push(...definition.members);
-          break;
-        }
-        case "enum":
-          enums.set(
-            definition.name,
-            definition.values.map((value) => value.value),
-          );
-          break;
-        case "typedef":
-          typedefs.set(definition.name, definition.idlType);
-          break;
-        case "callback":
-          callbacks.set(definition.name, definition);
-          break;
-        case "includes":
-          includes.push(definition);
-          break;
-        default:
-          break;
-      }
-    }
-  }
-  for (const statement of includes) {
-    const target = interfaces.get(statement.target);
-    const members = mixins.get(statement.includes);
-    if (target && members) target.members.push(...members);
-  }
+  const buckets = collectDefinitions(definitionLists);
+  const { interfaces, dictionaries, enums, typedefs, callbacks, callbackInterfaces } = buckets;
+  applyIncludes(buckets);
 
   // Names outside selected IDLs stay unknown; the generator does not infer external shapes.
   const known = new Set([
@@ -167,41 +302,7 @@ export function renderTypes(
   ]);
 
   function type(idlType) {
-    let out;
-    if (idlType.union) {
-      out = idlType.idlType.map(type).join(" | ");
-      if (idlType.nullable) out = `(${out})`;
-    } else if (idlType.generic) {
-      const args = idlType.idlType.map(type);
-      switch (idlType.generic) {
-        case "Promise":
-          out = `Promise<${args[0] === "undefined" ? "void" : args[0]}>`;
-          break;
-        case "sequence":
-        case "ObservableArray":
-          out = `Array<${args[0]}>`;
-          break;
-        case "FrozenArray":
-          out = `ReadonlyArray<${args[0]}>`;
-          break;
-        case "record":
-          out = `Record<string, ${args[1]}>`;
-          break;
-        default:
-          out = "unknown";
-      }
-    } else {
-      const name = idlType.idlType;
-      if (STRING.has(name)) out = "string";
-      else if (NUMERIC.has(name)) out = "number";
-      else if (name === "boolean") out = "boolean";
-      else if (name === "bigint") out = "bigint";
-      else if (name === "any") out = "any";
-      else if (name === "object") out = "object";
-      else if (name === "undefined") out = "undefined";
-      else if (known.has(name)) out = name;
-      else out = "unknown";
-    }
+    const out = idlTypeValue(idlType, known, type);
     return idlType.nullable ? `${out} | null` : out;
   }
 
@@ -223,59 +324,8 @@ export function renderTypes(
   // missing: Set of ledger gaps; typeGaps: the type gaps, keyed by member.
   function interfaceBody(members, missing, typeGaps) {
     const lines = [];
-    const push = (name, declaration) => {
-      lines.push(
-        missing.has(name) || typeGaps.has(name) ? `  // ${declaration}` : `  ${declaration}`,
-      );
-    };
-    for (const member of members) {
-      switch (member.type) {
-        case "const":
-          break;
-        case "attribute":
-          if (member.special === "static") break;
-          push(
-            member.name,
-            `${member.readonly ? "readonly " : ""}${key(member.name)}: ${type(member.idlType)};`,
-          );
-          if (member.special === "stringifier") push(member.name, "toString(): string;");
-          break;
-        case "operation":
-          if (member.special === "static") break;
-          if (
-            member.special === "getter" &&
-            member.arguments[0]?.idlType.idlType === "unsigned long"
-          ) {
-            push("[index]", `readonly [index: number]: ${returnType(member.idlType)};`);
-          }
-          if (member.name) {
-            push(
-              member.name,
-              `${key(member.name)}(${params(member.arguments)}): ${returnType(member.idlType)};`,
-            );
-          } else if (member.special === "stringifier") {
-            push("toString", "toString(): string;");
-          }
-          break;
-        case "iterable": {
-          const value =
-            member.idlType.length === 2
-              ? `[${type(member.idlType[0])}, ${type(member.idlType[1])}]`
-              : type(member.idlType[0]);
-          if (member.async) {
-            push(
-              "[Symbol.asyncIterator]",
-              `[Symbol.asyncIterator](): AsyncIterableIterator<${value}>;`,
-            );
-          } else {
-            push("[Symbol.iterator]", `[Symbol.iterator](): IterableIterator<${value}>;`);
-          }
-          break;
-        }
-        default:
-          break;
-      }
-    }
+    const context = { lines, missing, typeGaps, type, params, returnType };
+    for (const member of members) renderMember(member, context);
     return lines;
   }
 
@@ -290,14 +340,18 @@ export function renderTypes(
         )
         .filter(Boolean),
     );
+  function addInheritedNames(names, parentName, seen) {
+    if (!parentName) return names;
+    for (const inherited of inheritedNames(parentName, seen)) names.add(inherited);
+    return names;
+  }
+
   function inheritedNames(name, seen = new Set()) {
     const entry = interfaces.get(name);
     if (!entry || seen.has(name)) return new Set();
     seen.add(name);
     const names = memberNames(entry.members);
-    const parentName = effectiveParent(name, entry);
-    if (parentName) for (const inherited of inheritedNames(parentName, seen)) names.add(inherited);
-    return names;
+    return addInheritedNames(names, effectiveParent(name, entry), seen);
   }
   function effectiveParent(name, entry) {
     const override = gaps.parent.get(name);
@@ -305,32 +359,50 @@ export function renderTypes(
   }
 
   // Validate type gaps; the TS mapper doesn't render every runtime ledger gap.
-  for (const [name, omitted] of gaps.omit) {
-    const entry = interfaces.get(name);
-    if (!entry) throw new Error(`type gap for unknown interface ${name}`);
-    const declared = memberNames(entry.members);
-    for (const member of entry.members) {
-      if (member.type === "iterable")
-        declared.add(member.async ? "[Symbol.asyncIterator]" : "[Symbol.iterator]");
-      if (member.special === "getter" && member.arguments[0]?.idlType.idlType === "unsigned long")
-        declared.add("[index]");
-    }
-    const parentName = effectiveParent(name, entry);
-    const inherited = parentName ? inheritedNames(parentName) : new Set();
-    for (const member of omitted.keys()) {
-      if (!declared.has(member) && !inherited.has(member)) {
-        throw new Error(`type gap ${name}.${member}: no such member`);
-      }
+  function addIterableName(declared, member) {
+    if (member.type !== "iterable") return;
+    declared.add(member.async ? "[Symbol.asyncIterator]" : "[Symbol.iterator]");
+  }
+
+  function addGetterName(declared, member) {
+    if (member.special === "getter" && member.arguments[0]?.idlType.idlType === "unsigned long") {
+      declared.add("[index]");
     }
   }
 
-  const out = [];
-  const sorted = (map) => [...map.keys()].sort();
-  for (const name of sorted(interfaces)) {
+  function declaredMembers(entry) {
+    const declared = memberNames(entry.members);
+    for (const member of entry.members) {
+      addIterableName(declared, member);
+      addGetterName(declared, member);
+    }
+    return declared;
+  }
+
+  function assertOmittedMember(name, member, declared, inherited) {
+    if (!declared.has(member) && !inherited.has(member)) {
+      throw new Error(`type gap ${name}.${member}: no such member`);
+    }
+  }
+
+  function validateGap(name, omitted) {
     const entry = interfaces.get(name);
-    const typeGaps = gaps.omit.get(name) ?? new Map();
-    const missing = gaps.missing.get(name) ?? new Set();
-    const parentGap = gaps.parent.get(name);
+    if (!entry) throw new Error(`type gap for unknown interface ${name}`);
+    const declared = declaredMembers(entry);
+    const parentName = effectiveParent(name, entry);
+    const inherited = parentName ? inheritedNames(parentName) : new Set();
+    for (const member of omitted.keys()) assertOmittedMember(name, member, declared, inherited);
+  }
+
+  function validateGaps() {
+    for (const [name, omitted] of gaps.omit) validateGap(name, omitted);
+  }
+
+  validateGaps();
+
+  const sorted = (map) => [...map.keys()].sort();
+
+  function interfaceInheritance(name, entry, typeGaps) {
     const parentName = effectiveParent(name, entry);
     let parent = "";
     let inheritedOmissionNotes = [];
@@ -353,45 +425,85 @@ export function renderTypes(
         ? ` extends Omit<${parentName}, ${omittedFromParent.map((member) => JSON.stringify(member)).join(" | ")}>`
         : ` extends ${parentName}`;
     }
+    return { parent, inheritedOmissionNotes };
+  }
+
+  function renderInterface(name) {
+    const entry = interfaces.get(name);
+    const typeGaps = gaps.omit.get(name) ?? new Map();
+    const missing = gaps.missing.get(name) ?? new Set();
+    const parentGap = gaps.parent.get(name);
+    const { parent, inheritedOmissionNotes } = interfaceInheritance(name, entry, typeGaps);
     const notes = parentGap
       ? [`  // Extends ${parentGap.name ?? "nothing"}, not ${entry.parent}: ${parentGap.reason}`]
       : [];
-    out.push(
+    return [
       `export interface ${name}${parent} {`,
       ...notes,
       ...inheritedOmissionNotes,
       ...interfaceBody(entry.members, missing, typeGaps),
       "}",
-    );
+    ];
   }
-  for (const name of sorted(dictionaries)) {
-    const entry = dictionaries.get(name);
-    const parent = entry.parent && dictionaries.has(entry.parent) ? ` extends ${entry.parent}` : "";
-    const fields = entry.members.map(
-      (field) => `  ${key(field.name)}${field.required ? "" : "?"}: ${type(field.idlType)};`,
-    );
-    out.push(`export interface ${name}${parent} {`, ...fields, "}");
+
+  function renderInterfaces() {
+    const out = [];
+    for (const name of sorted(interfaces)) out.push(...renderInterface(name));
+    return out;
   }
-  for (const name of sorted(enums)) {
-    const values = enums.get(name);
-    out.push(
-      `export type ${name} = ${values.length ? values.map((value) => JSON.stringify(value)).join(" | ") : "never"};`,
-    );
+
+  function renderDictionaries() {
+    const out = [];
+    for (const name of sorted(dictionaries)) {
+      const entry = dictionaries.get(name);
+      const parent =
+        entry.parent && dictionaries.has(entry.parent) ? ` extends ${entry.parent}` : "";
+      const fields = entry.members.map(
+        (field) => `  ${key(field.name)}${field.required ? "" : "?"}: ${type(field.idlType)};`,
+      );
+      out.push(`export interface ${name}${parent} {`, ...fields, "}");
+    }
+    return out;
   }
-  for (const name of sorted(typedefs)) {
-    out.push(`export type ${name} = ${type(typedefs.get(name))};`);
+
+  function renderEnums() {
+    const out = [];
+    for (const name of sorted(enums)) {
+      const values = enums.get(name);
+      out.push(
+        `export type ${name} = ${values.length ? values.map((value) => JSON.stringify(value)).join(" | ") : "never"};`,
+      );
+    }
+    return out;
   }
-  for (const name of sorted(callbacks)) {
-    const callback = callbacks.get(name);
-    out.push(
-      `export type ${name} = (${params(callback.arguments)}) => ${returnType(callback.idlType)};`,
-    );
+
+  function renderTypedefs() {
+    return sorted(typedefs).map((name) => `export type ${name} = ${type(typedefs.get(name))};`);
   }
-  for (const name of sorted(callbackInterfaces)) {
-    const definition = callbackInterfaces.get(name);
-    const operation = definition.members.find((member) => member.type === "operation");
-    const signature = `(${params(operation.arguments)}) => ${returnType(operation.idlType)}`;
-    out.push(`export type ${name} = (${signature}) | { ${operation.name}: ${signature} };`);
+
+  function renderCallbacks() {
+    return sorted(callbacks).map((name) => {
+      const callback = callbacks.get(name);
+      return `export type ${name} = (${params(callback.arguments)}) => ${returnType(callback.idlType)};`;
+    });
   }
+
+  function renderCallbackInterfaces() {
+    return sorted(callbackInterfaces).map((name) => {
+      const definition = callbackInterfaces.get(name);
+      const operation = definition.members.find((member) => member.type === "operation");
+      const signature = `(${params(operation.arguments)}) => ${returnType(operation.idlType)}`;
+      return `export type ${name} = (${signature}) | { ${operation.name}: ${signature} };`;
+    });
+  }
+
+  const out = [
+    ...renderInterfaces(),
+    ...renderDictionaries(),
+    ...renderEnums(),
+    ...renderTypedefs(),
+    ...renderCallbacks(),
+    ...renderCallbackInterfaces(),
+  ];
   return `${out.join("\n")}\n`;
 }

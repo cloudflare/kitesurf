@@ -12,16 +12,21 @@ const USAGE =
   "usage: node scripts/wpt-runplan.mjs --expectations <file> <bucket-tests.json>=<projection.json>...";
 export const RUN_OUTCOMES = new Set(["SKIP", "TIMEOUT", "CRASH", "ERROR"]);
 
+function projectEntry(entry) {
+  const projected = {};
+  if (RUN_OUTCOMES.has(entry.expected)) projected.expected = entry.expected;
+  if (entry.timeout) projected.timeout = entry.timeout;
+  if (entry.slow === true) projected.slow = true;
+  return projected;
+}
+
 /** @param {Record<string, object>} expectations @param {string[]} tests @returns {Record<string, object>} */
 export function project(expectations, tests) {
   const output = {};
   for (const test of [...tests].sort()) {
     const entry = expectations[test];
     if (!entry) continue;
-    const projected = {};
-    if (RUN_OUTCOMES.has(entry.expected)) projected.expected = entry.expected;
-    if (entry.timeout) projected.timeout = entry.timeout;
-    if (entry.slow === true) projected.slow = true;
+    const projected = projectEntry(entry);
     if (Object.keys(projected).length) output[test] = projected;
   }
   return output;

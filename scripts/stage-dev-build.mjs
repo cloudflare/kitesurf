@@ -44,6 +44,33 @@ function copyTree(source, target) {
   return files;
 }
 
+function sourceDirectory(source) {
+  const from = join(runfiles, source);
+  if (!existsSync(from)) {
+    console.error(`[dev-build] ${source} is missing from the build outputs`);
+    process.exit(1);
+  }
+  return from;
+}
+
+function prepareDestination(workspace, destination, keep) {
+  const to = join(workspace, destination);
+  mkdirSync(to, { recursive: true });
+  for (const name of readdirSync(to)) {
+    if (!keep.includes(name)) rmSync(join(to, name), { recursive: true, force: true });
+  }
+  return to;
+}
+
+function copyDirectory(from, to, keep) {
+  let copied = 0;
+  for (const name of readdirSync(from)) {
+    if (keep.includes(name)) continue;
+    copied += copyTree(join(from, name), join(to, name));
+  }
+  return copied;
+}
+
 const workspace = process.env.BUILD_WORKSPACE_DIRECTORY;
 if (!workspace) {
   const target = MEMPROF_ONLY ? "//packages/core/pkg:stage_memprof" : "//packages/engine:dev_build";
@@ -52,24 +79,12 @@ if (!workspace) {
 }
 const runfiles = resolve(import.meta.dirname, "..");
 
-const stageDirectory = (source, destination, keep = []) => {
-  const from = join(runfiles, source);
-  if (!existsSync(from)) {
-    console.error(`[dev-build] ${source} is missing from the build outputs`);
-    process.exit(1);
-  }
-  const to = join(workspace, destination);
-  mkdirSync(to, { recursive: true });
-  for (const name of readdirSync(to)) {
-    if (!keep.includes(name)) rmSync(join(to, name), { recursive: true, force: true });
-  }
-  let copied = 0;
-  for (const name of readdirSync(from)) {
-    if (keep.includes(name)) continue;
-    copied += copyTree(join(from, name), join(to, name));
-  }
+function stageDirectory(source, destination, keep = []) {
+  const from = sourceDirectory(source);
+  const to = prepareDestination(workspace, destination, keep);
+  const copied = copyDirectory(from, to, keep);
   console.log(`[dev-build] ${destination}: ${copied} file(s)`);
-};
+}
 
 if (MEMPROF_ONLY) {
   stageDirectory("packages/core/pkg/memprof", "packages/core/pkg", ["package.json", "BUILD.bazel"]);

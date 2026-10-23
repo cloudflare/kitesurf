@@ -19,23 +19,36 @@ const xml = (value) =>
   );
 const drawLabel = (row) => `${row.outcome}${row.subTotal ? ` ${row.subPass}/${row.subTotal}` : ""}`;
 
+function junitFailure(entry, subs) {
+  return entry.unexpected
+    ? `<failure message="${xml(`expected ${entry.expected}, got ${entry.outcome}${subs}`)}" type="${xml(`${entry.expected}->${entry.outcome}`)}"/>`
+    : entry.outcome === "SKIP"
+      ? "<skipped/>"
+      : "";
+}
+
+function junitOutput(entry) {
+  return entry.retried
+    ? `<system-out>${xml(`first run ${entry.retried}; retry draws: ${entry.retryDraws.join(", ")}`)}</system-out>`
+    : "";
+}
+
+function junitClass(test) {
+  return test.split("/")[1] || "root";
+}
+
+function junitCase(test, entry) {
+  const subs = entry.subTotal ? ` (${entry.subPass}/${entry.subTotal} subtests)` : "";
+  const body = junitFailure(entry, subs);
+  const output = junitOutput(entry);
+  return `  <testcase classname="wpt.${xml(junitClass(test))}" name="${xml(test)}">${body}${output}</testcase>`;
+}
+
 /** @param {Record<string, object>} byFile @returns {string} */
 export function junit(byFile) {
   const tests = Object.keys(byFile).sort();
   const failures = tests.filter((test) => byFile[test].unexpected).length;
-  const cases = tests.map((test) => {
-    const entry = byFile[test];
-    const subs = entry.subTotal ? ` (${entry.subPass}/${entry.subTotal} subtests)` : "";
-    const body = entry.unexpected
-      ? `<failure message="${xml(`expected ${entry.expected}, got ${entry.outcome}${subs}`)}" type="${xml(`${entry.expected}->${entry.outcome}`)}"/>`
-      : entry.outcome === "SKIP"
-        ? "<skipped/>"
-        : "";
-    const output = entry.retried
-      ? `<system-out>${xml(`first run ${entry.retried}; retry draws: ${entry.retryDraws.join(", ")}`)}</system-out>`
-      : "";
-    return `  <testcase classname="wpt.${xml(test.split("/")[1] || "root")}" name="${xml(test)}">${body}${output}</testcase>`;
-  });
+  const cases = tests.map((test) => junitCase(test, byFile[test]));
   return `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="wpt" tests="${tests.length}" failures="${failures}">\n${cases.join("\n")}\n</testsuite>\n`;
 }
 
@@ -54,37 +67,49 @@ export function retryCandidates(byFile, cap = RETRY_CAP) {
   return tests.length > cap ? { tests: [], mass: tests.length } : { tests };
 }
 
+function retryMessage(mass, cap) {
+  return `${mass} unexpected TIMEOUT/CRASH/ERROR exceed WPT_COMPARE_RETRY_CAP=${cap}: retry disabled`;
+}
+
+function retryNotes(mass, cap) {
+  return mass ? [retryMessage(mass, cap)] : [];
+}
+
+function retryRow(rows, expected) {
+  return rows.find((candidate) => candidate.outcome === expected) ?? [...rows].sort(betterFirst)[0];
+}
+
+function retryOutcomeNote(test, expected, unexpected) {
+  return unexpected
+    ? `${test}: no draw matched ${expected}`
+    : `${test}: retry passed; treat first result as a flake`;
+}
+
+function applyRetryForTest(test, byFile, draws, output, notes) {
+  const entry = byFile[test];
+  const rows = (draws[test] ?? []).filter(Boolean);
+  if (!rows.length) {
+    notes.push(`${test}: no retry draw attempted it; gate the first result`);
+    return;
+  }
+  const row = retryRow(rows, entry.expected);
+  const unexpected = row.outcome !== entry.expected;
+  output[test] = {
+    ...row,
+    expected: entry.expected,
+    unexpected,
+    retried: entry.outcome,
+    retryDraws: rows.map(drawLabel),
+  };
+  notes.push(retryOutcomeNote(test, entry.expected, unexpected));
+}
+
 /** @param {Record<string, object>} byFile @param {Record<string, object[]>} draws @param {number} [cap] @returns {{byFile: Record<string, object>, notes: string[]}} */
 export function applyRetries(byFile, draws, cap = RETRY_CAP) {
   const { tests, mass } = retryCandidates(byFile, cap);
   const output = { ...byFile };
-  const notes = mass
-    ? [`${mass} unexpected TIMEOUT/CRASH/ERROR exceed WPT_COMPARE_RETRY_CAP=${cap}: retry disabled`]
-    : [];
-  for (const test of tests) {
-    const entry = byFile[test];
-    const rows = (draws[test] ?? []).filter(Boolean);
-    if (!rows.length) {
-      notes.push(`${test}: no retry draw attempted it; gate the first result`);
-      continue;
-    }
-    const row =
-      rows.find((candidate) => candidate.outcome === entry.expected) ??
-      [...rows].sort(betterFirst)[0];
-    const unexpected = row.outcome !== entry.expected;
-    output[test] = {
-      ...row,
-      expected: entry.expected,
-      unexpected,
-      retried: entry.outcome,
-      retryDraws: rows.map(drawLabel),
-    };
-    notes.push(
-      unexpected
-        ? `${test}: no draw matched ${entry.expected}`
-        : `${test}: retry passed; treat first result as a flake`,
-    );
-  }
+  const notes = retryNotes(mass, cap);
+  for (const test of tests) applyRetryForTest(test, byFile, draws, output, notes);
   return { byFile: output, notes };
 }
 
@@ -102,42 +127,63 @@ function summarize(byFile) {
   };
 }
 
-function main(argv) {
+function parseArgs(argv) {
   const options = { junit: process.env.XML_OUTPUT_FILE };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--results") options.results = argv[++i];
-    else if (argv[i] === "--retries") options.retries = argv[++i];
-    else if (argv[i] === "--retry-candidates") options.candidates = argv[++i];
-    else if (argv[i] === "--junit") options.junit = argv[++i];
-    else {
-      console.error(USAGE);
-      process.exit(2);
+    switch (argv[i]) {
+      case "--results":
+        options.results = argv[++i];
+        break;
+      case "--retries":
+        options.retries = argv[++i];
+        break;
+      case "--retry-candidates":
+        options.candidates = argv[++i];
+        break;
+      case "--junit":
+        options.junit = argv[++i];
+        break;
+      default:
+        console.error(USAGE);
+        process.exit(2);
     }
   }
+  return options;
+}
+
+function requireResults(options) {
   if (!options.results) {
     console.error(USAGE);
     process.exit(2);
   }
-  let { byFile } = JSON.parse(readFileSync(resolve(options.results), "utf8"));
-  if (options.candidates) {
-    const { tests, mass } = retryCandidates(byFile);
-    writeFileSync(options.candidates, JSON.stringify(tests, null, 2) + "\n");
-    console.log(
-      `[wpt-gate] ${mass ? `${mass} retry candidates exceed the cap` : `${tests.length} test(s) to retry`}`,
-    );
-    return;
-  }
-  if (options.retries) {
-    const retried = applyRetries(byFile, readRetryManifest(resolve(options.retries)));
-    byFile = retried.byFile;
-    for (const note of retried.notes) console.log(`  ${note}`);
-  }
-  if (options.junit) writeFileSync(options.junit, junit(byFile));
+}
+
+function writeRetryCandidates(path, byFile) {
+  const { tests, mass } = retryCandidates(byFile);
+  writeFileSync(path, JSON.stringify(tests, null, 2) + "\n");
+  console.log(
+    `[wpt-gate] ${mass ? `${mass} retry candidates exceed the cap` : `${tests.length} test(s) to retry`}`,
+  );
+}
+
+function applyRetryManifest(path, byFile) {
+  if (!path) return byFile;
+  const retried = applyRetries(byFile, readRetryManifest(resolve(path)));
+  for (const note of retried.notes) console.log(`  ${note}`);
+  return retried.byFile;
+}
+
+function printDeviations(byFile) {
   const devs = deviations(byFile);
-  for (const [test, entry] of devs)
+  for (const [test, entry] of devs) {
     console.log(
       `  ${entry.expected} → ${entry.outcome}${entry.subTotal ? `  ${entry.subPass}/${entry.subTotal}` : ""}  ${test}`,
     );
+  }
+  return devs;
+}
+
+function printResults(byFile, devs) {
   const summary = summarize(byFile);
   console.log(
     `[wpt-gate] ${summary.total} tests: ${summary.expected} as expected, ${summary.unexpectedFail} unexpected fail, ${summary.unexpectedPass} unexpected pass`,
@@ -146,6 +192,20 @@ function main(argv) {
     console.log(
       "[wpt-gate] rebaseline deliberate changes with: bazel run //tests/wpt:update_expectations",
     );
+}
+
+function main(argv) {
+  const options = parseArgs(argv);
+  requireResults(options);
+  let { byFile } = JSON.parse(readFileSync(resolve(options.results), "utf8"));
+  if (options.candidates) {
+    writeRetryCandidates(options.candidates, byFile);
+    return;
+  }
+  byFile = applyRetryManifest(options.retries, byFile);
+  if (options.junit) writeFileSync(options.junit, junit(byFile));
+  const devs = printDeviations(byFile);
+  printResults(byFile, devs);
   process.exit(devs.length ? 1 : 0);
 }
 

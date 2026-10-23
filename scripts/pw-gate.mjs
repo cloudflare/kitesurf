@@ -63,7 +63,7 @@ export function junit(results, devs, emptyFiles, missingPins, unrun) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="playwright" tests="${cases.length}" failures="${failures}">\n${cases.join("\n")}\n</testsuite>\n`;
 }
 
-function main(argv) {
+function parseArgs(argv) {
   const options = {
     results: [],
     tests: "tests/pw-tests.json",
@@ -71,30 +71,49 @@ function main(argv) {
     junit: process.env.XML_OUTPUT_FILE,
   };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--results") options.results.push(argv[++i]);
-    else if (argv[i] === "--tests") options.tests = argv[++i];
-    else if (argv[i] === "--expectations") options.expectations = argv[++i];
-    else if (argv[i] === "--junit") options.junit = argv[++i];
-    else if (argv[i] === "--update-expectations") options.update = true;
-    else {
-      console.error(USAGE);
-      process.exit(2);
+    switch (argv[i]) {
+      case "--results":
+        options.results.push(argv[++i]);
+        break;
+      case "--tests":
+        options.tests = argv[++i];
+        break;
+      case "--expectations":
+        options.expectations = argv[++i];
+        break;
+      case "--junit":
+        options.junit = argv[++i];
+        break;
+      case "--update-expectations":
+        options.update = true;
+        break;
+      default:
+        console.error(USAGE);
+        process.exit(2);
     }
   }
+  return options;
+}
+
+function requireResults(options) {
   if (!options.results.length) {
     console.error(USAGE);
     process.exit(2);
   }
-  const allowList = loadAllowList(resolve(options.tests));
+}
+
+function loadResults(files) {
   const results = {};
   const ran = new Set();
-  for (const file of options.results) {
+  for (const file of files) {
     const shard = JSON.parse(readFileSync(resolve(file), "utf8"));
     for (const spec of shard.files) ran.add(spec);
     Object.assign(results, shard.results);
   }
-  const unrun = allowList.map((entry) => entry.file).filter((file) => !ran.has(file));
-  if (options.update) return update(options, results);
+  return { results, ran };
+}
+
+function printGateResults(options, results, allowList, unrun) {
   const expectations = loadExpectations(resolve(options.expectations));
   const devs = deviations(results, expectations);
   const { emptyFiles, missingPins } = coverageGaps(results, allowList, expectations);
@@ -112,6 +131,16 @@ function main(argv) {
     process.exit(1);
   }
   console.log("[pw-gate] all results match expectations");
+}
+
+function main(argv) {
+  const options = parseArgs(argv);
+  requireResults(options);
+  const allowList = loadAllowList(resolve(options.tests));
+  const { results, ran } = loadResults(options.results);
+  const unrun = allowList.map((entry) => entry.file).filter((file) => !ran.has(file));
+  if (options.update) return update(options, results);
+  printGateResults(options, results, allowList, unrun);
 }
 
 function update(options, results) {

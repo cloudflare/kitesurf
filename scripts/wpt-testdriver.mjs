@@ -152,16 +152,28 @@ const MODIFIER_BIT = {
  * text: string, shifted: boolean
  * }} ResolvedKey */
 
-/** @param {string} value
- * @returns {ResolvedKey} */
-export function resolveKey(value) {
+function resolvePuaKey(value) {
   const pua = PUA_KEYS[value];
-  if (pua) {
-    const [key, code, keyCode, location] = pua;
-    const text = key === " " ? " " : "";
-    return { key, code, keyCode, location, text, shifted: false };
-  }
-  const ch = value;
+  if (!pua) return null;
+  const [key, code, keyCode, location] = pua;
+  const text = key === " " ? " " : "";
+  return { key, code, keyCode, location, text, shifted: false };
+}
+
+function resolvePunctuationKey(ch) {
+  const punct = PUNCT[ch];
+  if (!punct) return { key: ch, code: "", keyCode: 0, location: 0, text: ch, shifted: false };
+  return {
+    key: ch,
+    code: punct[0],
+    keyCode: punct[1],
+    location: 0,
+    text: ch,
+    shifted: SHIFTED.has(ch),
+  };
+}
+
+function resolveLetterKey(ch) {
   if (ch >= "a" && ch <= "z") {
     return {
       key: ch,
@@ -182,28 +194,33 @@ export function resolveKey(value) {
       shifted: true,
     };
   }
-  if (ch >= "0" && ch <= "9") {
-    return {
-      key: ch,
-      code: `Digit${ch}`,
-      keyCode: ch.charCodeAt(0),
-      location: 0,
-      text: ch,
-      shifted: false,
-    };
-  }
-  const punct = PUNCT[ch];
-  if (punct) {
-    return {
-      key: ch,
-      code: punct[0],
-      keyCode: punct[1],
-      location: 0,
-      text: ch,
-      shifted: SHIFTED.has(ch),
-    };
-  }
-  return { key: ch, code: "", keyCode: 0, location: 0, text: ch, shifted: false };
+  return null;
+}
+
+function resolveDigitKey(ch) {
+  if (ch < "0" || ch > "9") return null;
+  return {
+    key: ch,
+    code: `Digit${ch}`,
+    keyCode: ch.charCodeAt(0),
+    location: 0,
+    text: ch,
+    shifted: false,
+  };
+}
+
+function resolveCharacterKey(ch) {
+  const letter = resolveLetterKey(ch);
+  if (letter) return letter;
+  const digit = resolveDigitKey(ch);
+  if (digit) return digit;
+  return resolvePunctuationKey(ch);
+}
+
+/** @param {string} value
+ * @returns {ResolvedKey} */
+export function resolveKey(value) {
+  return resolvePuaKey(value) ?? resolveCharacterKey(value);
 }
 
 export const TESTDRIVER_BINDING = "__ks_testdriver";
@@ -474,16 +491,7 @@ export function createTestdriverBridge({ page, session }) {
     const k = resolveKey(value);
     const bit = MODIFIER_BIT[k.key];
     state.heldKeys.delete(value);
-    if (bit) {
-      let stillHeld = false;
-      for (const held of state.heldKeys) {
-        if (MODIFIER_BIT[resolveKey(held).key] === bit) {
-          stillHeld = true;
-          break;
-        }
-      }
-      if (!stillHeld) state.modifiers &= ~bit;
-    }
+    if (bit && !modifierStillHeld(bit)) state.modifiers &= ~bit;
     await session.send("Input.dispatchKeyEvent", {
       type: "keyUp",
       key: k.key,
@@ -493,6 +501,13 @@ export function createTestdriverBridge({ page, session }) {
       modifiers: state.modifiers | (k.shifted ? MOD_SHIFT : 0),
       text: "",
     });
+  }
+
+  function modifierStillHeld(bit) {
+    for (const held of state.heldKeys) {
+      if (MODIFIER_BIT[resolveKey(held).key] === bit) return true;
+    }
+    return false;
   }
 
   async function sendKeys(keys) {
@@ -524,54 +539,74 @@ export function createTestdriverBridge({ page, session }) {
     await pointerUp(0);
   }
 
+  function actionValue(value, fallback) {
+    return value ?? fallback;
+  }
+
+  function pointerCoordinate(origin, current, offset) {
+    const value = actionValue(offset, 0);
+    return origin === "pointer" ? current + value : value;
+  }
+
+  function pointerMoveCoordinates(action) {
+    const origin = actionValue(action.origin, "viewport");
+    return {
+      x: pointerCoordinate(origin, state.x, action.x),
+      y: pointerCoordinate(origin, state.y, action.y),
+    };
+  }
+
+  function runPointerMoveAction(action) {
+    const { x, y } = pointerMoveCoordinates(action);
+    return pointerMove(x, y, actionValue(action.duration, 0));
+  }
+
+  const actionHandlers = new Map([
+    ["pause", () => undefined],
+    ["pointerDown", (action) => pointerDown(actionValue(action.button, 0))],
+    ["pointerUp", (action) => pointerUp(actionValue(action.button, 0))],
+    ["pointerMove", runPointerMoveAction],
+    ["keyDown", (action) => keyDown(action.value)],
+    ["keyUp", (action) => keyUp(action.value)],
+    [
+      "scroll",
+      (action) =>
+        wheelScroll(
+          actionValue(action.x, 0),
+          actionValue(action.y, 0),
+          actionValue(action.deltaX, 0),
+          actionValue(action.deltaY, 0),
+        ),
+    ],
+  ]);
+
+  const testdriverHandlers = new Map([
+    ["click", (args) => click(actionValue(args.x, 0), actionValue(args.y, 0))],
+    ["send_keys", (args) => sendKeys(actionValue(args.keys, ""))],
+    ["actions", (args) => runActions(args.sources || [])],
+  ]);
+
   async function runActions(sources) {
     const ticks = sources.reduce((n, s) => Math.max(n, (s.actions || []).length), 0);
     for (let tick = 0; tick < ticks; tick++) {
       for (const source of sources) {
         const action = (source.actions || [])[tick];
         if (!action) continue;
-        await runAction(source, action);
+        await runAction(action);
       }
     }
   }
 
-  async function runAction(source, action) {
-    switch (action.type) {
-      case "pause":
-        return;
-      case "pointerDown":
-        return pointerDown(action.button ?? 0);
-      case "pointerUp":
-        return pointerUp(action.button ?? 0);
-      case "pointerMove": {
-        const origin = action.origin ?? "viewport";
-        const x = origin === "pointer" ? state.x + (action.x ?? 0) : (action.x ?? 0);
-        const y = origin === "pointer" ? state.y + (action.y ?? 0) : (action.y ?? 0);
-        return pointerMove(x, y, action.duration ?? 0);
-      }
-      case "keyDown":
-        return keyDown(action.value);
-      case "keyUp":
-        return keyUp(action.value);
-      case "scroll":
-        return wheelScroll(action.x ?? 0, action.y ?? 0, action.deltaX ?? 0, action.deltaY ?? 0);
-      default:
-        throw new Error(`unsupported action type: ${action.type}`);
-    }
+  async function runAction(action) {
+    const handler = actionHandlers.get(action.type);
+    if (!handler) throw new Error(`unsupported action type: ${action.type}`);
+    return handler(action);
   }
 
   async function perform(item) {
-    const args = item.args || {};
-    switch (item.action) {
-      case "click":
-        return click(args.x ?? 0, args.y ?? 0);
-      case "send_keys":
-        return sendKeys(args.keys ?? "");
-      case "actions":
-        return runActions(args.sources || []);
-      default:
-        throw new Error(`unknown testdriver action: ${item.action}`);
-    }
+    const handler = testdriverHandlers.get(item.action);
+    if (!handler) throw new Error(`unknown testdriver action: ${item.action}`);
+    return handler(item.args || {});
   }
 
   const TAKE_QUEUE = `(() => {
@@ -589,6 +624,48 @@ export function createTestdriverBridge({ page, session }) {
     })()`;
   }
 
+  async function readQueue() {
+    try {
+      return { ok: true, raw: await page.evaluate(TAKE_QUEUE) };
+    } catch {
+      return { ok: false, raw: null };
+    }
+  }
+
+  function parseQueue(raw) {
+    try {
+      return { ok: true, items: JSON.parse(raw) };
+    } catch {
+      return { ok: false, items: [] };
+    }
+  }
+
+  function actionErrorMessage(item, err) {
+    return `testdriver ${item.action} failed: ${String((err && err.message) || err).slice(0, 200)}`;
+  }
+
+  async function settleItem(item) {
+    let error = null;
+    try {
+      await perform(item);
+    } catch (err) {
+      error = actionErrorMessage(item, err);
+    }
+    try {
+      await page.evaluate(settleSource(item.id, error));
+    } catch {}
+  }
+
+  async function drainQueuePass() {
+    const queue = await readQueue();
+    if (!queue.ok) return false;
+    if (!queue.raw) return true;
+    const parsed = parseQueue(queue.raw);
+    if (!parsed.ok) return true;
+    for (const item of parsed.items) await settleItem(item);
+    return true;
+  }
+
   async function drain() {
     // Serialize binding wakes and scrape-poll drains so input state cannot interleave.
     if (draining) {
@@ -599,33 +676,7 @@ export function createTestdriverBridge({ page, session }) {
     try {
       do {
         pendingWake = false;
-        let raw;
-        try {
-          raw = await page.evaluate(TAKE_QUEUE);
-        } catch {
-          return;
-        }
-        if (!raw) continue;
-        let items;
-        try {
-          items = JSON.parse(raw);
-        } catch {
-          continue;
-        }
-        for (const item of items) {
-          let error = null;
-          try {
-            await perform(item);
-          } catch (err) {
-            error = `testdriver ${item.action} failed: ${String((err && err.message) || err).slice(
-              0,
-              200,
-            )}`;
-          }
-          try {
-            await page.evaluate(settleSource(item.id, error));
-          } catch {}
-        }
+        if (!(await drainQueuePass())) return;
       } while (pendingWake);
     } finally {
       draining = false;

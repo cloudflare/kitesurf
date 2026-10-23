@@ -75,22 +75,21 @@ export function summarize(results) {
     .join(" ")} (total ${Object.keys(results).length})`;
 }
 
+function reportItems(tag, title, items, format) {
+  if (!items.length) return;
+  console.error(`[${tag}] ${items.length} ${title}:`);
+  for (const item of items) console.error(format(item));
+}
+
 /** @param {string} tag @param {{devs: object[], emptyFiles: string[], missingPins: string[]}} gaps @returns {boolean} */
 export function reportGaps(tag, { devs, emptyFiles, missingPins }) {
-  if (emptyFiles.length) {
-    console.error(`[${tag}] ${emptyFiles.length} spec file(s) produced NO results:`);
-    for (const file of emptyFiles) console.error(`  ${file}`);
-  }
-  if (missingPins.length) {
-    console.error(`[${tag}] ${missingPins.length} pinned test(s) missing from the report:`);
-    for (const id of missingPins) console.error(`  ${id}`);
-  }
-  if (devs.length) {
-    console.error(`[${tag}] ${devs.length} deviation(s) from expectations:`);
-    for (const deviation of devs)
-      console.error(
-        `  ${deviation.id}\n    expected ${deviation.expected}, got ${deviation.actual}`,
-      );
-  }
+  reportItems(tag, "spec file(s) produced NO results", emptyFiles, (file) => `  ${file}`);
+  reportItems(tag, "pinned test(s) missing from the report", missingPins, (id) => `  ${id}`);
+  reportItems(
+    tag,
+    "deviation(s) from expectations",
+    devs,
+    (deviation) => `  ${deviation.id}\n    expected ${deviation.expected}, got ${deviation.actual}`,
+  );
   return devs.length + emptyFiles.length + missingPins.length > 0;
 }

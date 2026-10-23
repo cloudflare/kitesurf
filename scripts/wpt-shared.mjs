@@ -29,6 +29,14 @@ export const REPORT_DIR = resolve(ROOT, ".wpt-reports");
 export const DEFAULT_WPT_BASE = "http://web-platform.test:8000";
 
 const JSON_UNICODE_ESCAPE_HEX_DIGITS = 4;
+const KNOWN_OUTCOMES = new Set(["PASS", "FAIL", "ERROR", "TIMEOUT", "CRASH", "SKIP"]);
+const SKIP_WPT_DIRECTORIES = new Set(["resources", "support", "crashtests"]);
+const EXCLUDED_WPT_FILE_PATTERNS = [
+  /-ref(-[^/]*)?\.x?html?$/,
+  /-notref\.x?html?$/,
+  /-mismatch\.x?html?$/,
+  /\.(headers|ini|lock|md|yaml|yml|py)$/,
+];
 
 const useColor = process.stdout.isTTY;
 const c = (code, s) => (useColor ? `\u001b[${code}m${s}\u001b[0m` : s);
@@ -93,14 +101,20 @@ export function rebaseline(expectations, results) {
   const next = { ...expectations };
   let skipped = 0;
   for (const result of results) {
-    if (result.actual === "SKIP" && /--skip-slow/.test(result.reason ?? "")) {
-      skipped++;
-      continue;
-    }
-    const previous = expectations[result.test] ?? {};
-    next[result.test] = { ...previous, expected: result.actual, reason: previous.reason ?? null };
+    skipped += Number(rebaselineResult(next, expectations, result));
   }
   return { next, skipped };
+}
+
+function shouldSkipRebaseline(result) {
+  return result.actual === "SKIP" && /--skip-slow/.test(result.reason ?? "");
+}
+
+function rebaselineResult(next, expectations, result) {
+  if (shouldSkipRebaseline(result)) return true;
+  const previous = expectations[result.test] ?? {};
+  next[result.test] = { ...previous, expected: result.actual, reason: previous.reason ?? null };
+  return false;
 }
 
 /** @param {string} url @returns {boolean} */
@@ -130,32 +144,59 @@ export function formatCounts(counts) {
   return ordered.map((k) => `${counts[k]} ${k}`).join(", ");
 }
 
-/** @returns {{pass: number, fail: number, other: number, total: number}} */
-export function tallySubtests(results) {
-  let pass = 0;
-  let fail = 0;
-  let other = 0;
-  for (const r of results) {
-    if (r.subtests && r.subtests.length > 0) {
-      const real = r.subtests.filter(
-        (s) => !(s.name && s.name.includes("synthesized from summary")),
-      );
-      for (const s of real) {
-        if (s.status === "PASS") pass++;
-        else if (s.status === "FAIL") fail++;
-        else other++;
-      }
-      continue;
-    }
-    if (r.counts) {
-      for (const [k, v] of Object.entries(r.counts)) {
-        if (k === "PASS") pass += v;
-        else if (k === "FAIL") fail += v;
-        else other += v;
-      }
+function isRealSubtest(subtest) {
+  return !(subtest.name && subtest.name.includes("synthesized from summary"));
+}
+
+function addSubtestOutcome(totals, status) {
+  switch (status) {
+    case "PASS":
+      totals.pass += 1;
+      break;
+    case "FAIL":
+      totals.fail += 1;
+      break;
+    default:
+      totals.other += 1;
+      break;
+  }
+}
+
+function addSubtestCounts(totals, subtests) {
+  for (const subtest of subtests.filter(isRealSubtest)) {
+    addSubtestOutcome(totals, subtest.status);
+  }
+}
+
+function addCountTotals(totals, counts) {
+  for (const [status, count] of Object.entries(counts)) {
+    switch (status) {
+      case "PASS":
+        totals.pass += count;
+        break;
+      case "FAIL":
+        totals.fail += count;
+        break;
+      default:
+        totals.other += count;
+        break;
     }
   }
-  return { pass, fail, other, total: pass + fail + other };
+}
+
+function tallyResult(totals, result) {
+  if (result.subtests && result.subtests.length > 0) {
+    addSubtestCounts(totals, result.subtests);
+    return;
+  }
+  if (result.counts) addCountTotals(totals, result.counts);
+}
+
+/** @returns {{pass: number, fail: number, other: number, total: number}} */
+export function tallySubtests(results) {
+  const totals = { pass: 0, fail: 0, other: 0 };
+  for (const result of results) tallyResult(totals, result);
+  return { ...totals, total: totals.pass + totals.fail + totals.other };
 }
 
 /** @returns {{
@@ -163,17 +204,15 @@ export function tallySubtests(results) {
  * unexpectedPass: number, byOutcome: Record<string, number>
  * }} */
 export function summarize(results) {
-  const KNOWN = ["PASS", "FAIL", "ERROR", "TIMEOUT", "CRASH", "SKIP"];
   const byOutcome = {};
   let unexpectedFail = 0;
   let unexpectedPass = 0;
   for (const r of results) {
-    const oc = KNOWN.includes(r.actual) ? r.actual : "FAIL";
-    byOutcome[oc] = (byOutcome[oc] || 0) + 1;
-    if (r.unexpected) {
-      if (r.expected !== "PASS" && r.actual === "PASS") unexpectedPass++;
-      else unexpectedFail++;
-    }
+    const outcome = normalizedOutcome(r.actual);
+    byOutcome[outcome] = (byOutcome[outcome] || 0) + 1;
+    const unexpected = unexpectedCounts(r);
+    unexpectedPass += unexpected.pass;
+    unexpectedFail += unexpected.fail;
   }
   const total = results.length;
   return {
@@ -185,93 +224,141 @@ export function summarize(results) {
   };
 }
 
-/** @returns {string} */
-export function renderReportMd({ date, base, ws, summary, results }) {
-  const lines = [];
-  lines.push(`# Kitesurf WPT report — ${date}`);
-  lines.push("");
-  lines.push(`Base: \`${base}\`  ·  CDP: \`${ws}\``);
-  lines.push("");
-  lines.push("## Summary");
-  lines.push("");
+function normalizedOutcome(actual) {
+  return KNOWN_OUTCOMES.has(actual) ? actual : "FAIL";
+}
+
+function unexpectedCounts(result) {
+  if (!result.unexpected) return { pass: 0, fail: 0 };
+  if (result.expected !== "PASS" && result.actual === "PASS") return { pass: 1, fail: 0 };
+  return { pass: 0, fail: 1 };
+}
+
+function statusTag(result) {
+  if (result.unexpected) return "❌";
+  if (result.actual === "PASS") return "✓";
+  return "·";
+}
+
+function resultNotes(result) {
+  if (result.reason) return result.reason;
+  return harnessErrorNote(result) || countsNote(result);
+}
+
+function harnessErrorNote(result) {
+  if (result.harness?.status !== "ERROR" || !result.harness?.message) return "";
+  return `harness ERROR: ${firstLine(result.harness.message)}`;
+}
+
+function countsNote(result) {
+  return result.counts ? formatCounts(result.counts) : "";
+}
+
+function appendReportSummary(lines, summary) {
+  lines.push("## Summary", "");
   lines.push(`- Total tests run: **${summary.total}**`);
   lines.push(`- Matching expectations: **${summary.expected}**`);
   lines.push(`- Unexpected passes: **${summary.unexpectedPass}**`);
   lines.push(`- Unexpected failures/regressions: **${summary.unexpectedFail}**`);
-  lines.push("");
-  lines.push("By outcome:");
-  for (const [k, v] of Object.entries(summary.byOutcome).sort()) {
-    lines.push(`- \`${k}\`: ${v}`);
+  lines.push("", "By outcome:");
+  for (const [outcome, count] of Object.entries(summary.byOutcome).sort()) {
+    lines.push(`- \`${outcome}\`: ${count}`);
   }
   lines.push("");
-  lines.push("## Tests");
+}
+
+function appendTestTable(lines, results) {
+  lines.push(
+    "## Tests",
+    "",
+    "| Status | Test | Expected | Actual | Notes |",
+    "|---|---|---|---|---|",
+  );
+  for (const result of results) {
+    const notes = resultNotes(result).replace(/\|/g, "\\|").replace(/\n/g, " ");
+    lines.push(
+      `| ${statusTag(result)} | \`${result.test}\` | ${result.expected} | ${result.actual} | ${notes} |`,
+    );
+  }
+}
+
+function appendHarnessMessage(lines, message) {
+  if (!message) return;
+  lines.push("- **Harness message**:", "  ```");
+  for (const line of String(message).split("\n").slice(0, 8)) {
+    lines.push(`  ${line}`);
+  }
+  lines.push("  ```");
+}
+
+function appendHarnessDetails(lines, harness) {
+  if (harness?.status) lines.push(`- **Harness**: ${harness.status}`);
+  appendHarnessMessage(lines, harness?.message);
+}
+
+function realSubtests(result) {
+  return (result.subtests || []).filter(
+    (subtest) => !subtest.name?.includes("synthesized from summary"),
+  );
+}
+
+function appendUnavailableSubtestDetails(lines, result) {
+  if (result.counts) {
+    lines.push(
+      `- **Subtest counts**: ${formatCounts(result.counts)} (subtest names unavailable — testharness #results table didn't render)`,
+    );
+  }
   lines.push("");
-  lines.push("| Status | Test | Expected | Actual | Notes |");
-  lines.push("|---|---|---|---|---|");
-  for (const r of results) {
-    const tag = r.unexpected ? "❌" : r.actual === "PASS" ? "✓" : "·";
-    let notes = "";
-    if (r.reason) {
-      notes = r.reason;
-    } else if (r.harness?.status === "ERROR" && r.harness?.message) {
-      notes = `harness ERROR: ${firstLine(r.harness.message)}`;
-    } else if (r.counts) {
-      notes = formatCounts(r.counts);
-    }
-    notes = notes.replace(/\|/g, "\\|").replace(/\n/g, " ");
-    lines.push(`| ${tag} | \`${r.test}\` | ${r.expected} | ${r.actual} | ${notes} |`);
+}
+
+function appendFailingSubtest(lines, subtest) {
+  const message = (subtest.message || "").replace(/\n/g, " ").slice(0, 200);
+  lines.push(`  - **${subtest.status}** — ${subtest.name}${message ? ` — ${message}` : ""}`);
+}
+
+function appendRemainingSubtests(lines, failing) {
+  if (failing.length > 50) lines.push(`  - … and ${failing.length - 50} more`);
+}
+
+function appendFailingSubtests(lines, subtests) {
+  const failing = subtests.filter((subtest) => subtest.status !== "PASS");
+  if (failing.length > 0) {
+    lines.push(`- **Failing subtests** (${failing.length}/${subtests.length}):`);
+    for (const subtest of failing.slice(0, 50)) appendFailingSubtest(lines, subtest);
+    appendRemainingSubtests(lines, failing);
   }
+  lines.push("");
+}
 
-  const nonPass = results.filter((r) => r.actual !== "PASS" && r.actual !== "SKIP");
-  if (nonPass.length > 0) {
-    lines.push("");
-    lines.push("## Test details (non-PASS)");
-    lines.push("");
-    for (const r of nonPass) {
-      lines.push(`### \`${r.test}\``);
-      lines.push("");
-      lines.push(`- **Outcome**: ${r.actual}${r.unexpected ? " (unexpected)" : ""}`);
-      if (r.harness?.status) {
-        lines.push(`- **Harness**: ${r.harness.status}`);
-      }
-      if (r.harness?.message) {
-        lines.push("- **Harness message**:");
-        lines.push("  ```");
-        for (const line of String(r.harness.message).split("\n").slice(0, 8)) {
-          lines.push(`  ${line}`);
-        }
-        lines.push("  ```");
-      }
-      const realSubtests = (r.subtests || []).filter(
-        (s) => !s.name?.includes("synthesized from summary"),
-      );
-      if (realSubtests.length === 0) {
-        if (r.counts) {
-          lines.push(
-            `- **Subtest counts**: ${formatCounts(r.counts)} (subtest names unavailable — testharness #results table didn't render)`,
-          );
-        }
-        lines.push("");
-        continue;
-      }
-
-      const failing = realSubtests.filter((s) => s.status !== "PASS");
-      if (failing.length > 0) {
-        lines.push(`- **Failing subtests** (${failing.length}/${realSubtests.length}):`);
-        for (const s of failing.slice(0, 50)) {
-          const msg = (s.message || "").replace(/\n/g, " ").slice(0, 200);
-          lines.push(`  - **${s.status}** — ${s.name}${msg ? ` — ${msg}` : ""}`);
-        }
-        if (failing.length > 50) {
-          lines.push(`  - … and ${failing.length - 50} more`);
-        }
-      }
-      lines.push("");
-    }
+function appendSubtestDetails(lines, result, subtests) {
+  if (subtests.length === 0) {
+    appendUnavailableSubtestDetails(lines, result);
+    return;
   }
+  appendFailingSubtests(lines, subtests);
+}
 
-  const md = lines.join("\n") + "\n";
-  return md;
+function appendTestDetails(lines, result) {
+  const outcome = `- **Outcome**: ${result.actual}${result.unexpected ? " (unexpected)" : ""}`;
+  lines.push(`### \`${result.test}\``, "", outcome);
+  appendHarnessDetails(lines, result.harness);
+  appendSubtestDetails(lines, result, realSubtests(result));
+}
+
+function appendNonPassDetails(lines, results) {
+  const nonPass = results.filter((result) => result.actual !== "PASS" && result.actual !== "SKIP");
+  if (nonPass.length === 0) return;
+  lines.push("", "## Test details (non-PASS)", "");
+  for (const result of nonPass) appendTestDetails(lines, result);
+}
+
+/** @returns {string} */
+export function renderReportMd({ date, base, ws, summary, results }) {
+  const lines = [`# Kitesurf WPT report — ${date}`, "", `Base: \`${base}\`  ·  CDP: \`${ws}\``, ""];
+  appendReportSummary(lines, summary);
+  appendTestTable(lines, results);
+  appendNonPassDetails(lines, results);
+  return lines.join("\n") + "\n";
 }
 
 /** @typedef {{
@@ -279,18 +366,8 @@ export function renderReportMd({ date, base, ws, summary, results }) {
  * latestMdPath: string | null, latestJsonPath: string | null, historyPath: string | null
  * }} ReportPaths */
 
-/** @returns {ReportPaths} */
-export function writeReport(results, summary, ctx) {
-  mkdirSync(REPORT_DIR, { recursive: true });
-  const date = todayISO();
-  const base = ctx?.base ?? DEFAULT_WPT_BASE;
-  const ws = ctx?.ws ?? "";
-
-  const md = renderReportMd({ date, base, ws, summary, results });
-  const mdPath = resolve(REPORT_DIR, `${date}.md`);
-  writeFileSync(mdPath, md);
-
-  const json = {
+function reportData(date, base, ws, summary, results, ctx) {
+  return {
     date,
     base,
     ws,
@@ -299,31 +376,50 @@ export function writeReport(results, summary, ctx) {
     summary,
     results,
   };
+}
+
+function writeCurrentReports(date, md, json) {
+  const mdPath = resolve(REPORT_DIR, `${date}.md`);
+  writeFileSync(mdPath, md);
   const jsonPath = resolve(REPORT_DIR, `${date}.json`);
   writeFileSync(jsonPath, JSON.stringify(json, null, 2));
+  return { mdPath, jsonPath };
+}
 
-  let latestMdPath = null;
-  let latestJsonPath = null;
-  let historyPath = null;
-  if (ctx?.record) {
-    latestMdPath = resolve(REPORT_DIR, "latest.md");
-    latestJsonPath = resolve(REPORT_DIR, "latest.json");
-    writeFileSync(latestMdPath, md);
-    writeFileSync(latestJsonPath, JSON.stringify(json, null, 2));
+function reportHistoryRow(summary, results, ctx) {
+  return {
+    date: new Date().toISOString(),
+    commit: ctx?.commit ?? null,
+    slice: ctx?.slice ?? null,
+    files: { ...summary.byOutcome },
+    subtests: tallySubtests(results),
+  };
+}
 
-    const subtests = tallySubtests(results);
-    const historyRow = {
-      date: new Date().toISOString(),
-      commit: ctx?.commit ?? null,
-      slice: ctx?.slice ?? null,
-      files: { ...summary.byOutcome },
-      subtests,
-    };
-    historyPath = resolve(REPORT_DIR, "history.jsonl");
-    appendFileSync(historyPath, JSON.stringify(historyRow) + "\n");
+function writeRecordedReports(md, json, summary, results, ctx) {
+  if (!ctx?.record) {
+    return { latestMdPath: null, latestJsonPath: null, historyPath: null };
   }
+  const latestMdPath = resolve(REPORT_DIR, "latest.md");
+  const latestJsonPath = resolve(REPORT_DIR, "latest.json");
+  writeFileSync(latestMdPath, md);
+  writeFileSync(latestJsonPath, JSON.stringify(json, null, 2));
+  const historyPath = resolve(REPORT_DIR, "history.jsonl");
+  appendFileSync(historyPath, JSON.stringify(reportHistoryRow(summary, results, ctx)) + "\n");
+  return { latestMdPath, latestJsonPath, historyPath };
+}
 
-  return { mdPath, jsonPath, latestMdPath, latestJsonPath, historyPath };
+/** @returns {ReportPaths} */
+export function writeReport(results, summary, ctx) {
+  mkdirSync(REPORT_DIR, { recursive: true });
+  const date = todayISO();
+  const base = ctx?.base ?? DEFAULT_WPT_BASE;
+  const ws = ctx?.ws ?? "";
+  const md = renderReportMd({ date, base, ws, summary, results });
+  const json = reportData(date, base, ws, summary, results, ctx);
+  const current = writeCurrentReports(date, md, json);
+  const recorded = writeRecordedReports(md, json, summary, results, ctx);
+  return { ...current, ...recorded };
 }
 
 const WPT_DOCUMENT_DETECTION_PREFIX_BYTES = 16_384;
@@ -345,6 +441,70 @@ function isRunnableWptDocument(fullPath, name) {
   return /rel\s*=\s*["']?(match|mismatch)["']?/i.test(head);
 }
 
+function excludedWptFile(name) {
+  return (
+    name === "META.yml" ||
+    name === ".gitignore" ||
+    EXCLUDED_WPT_FILE_PATTERNS.some((pattern) => pattern.test(name))
+  );
+}
+
+function htmlWptCandidate(fullPath, name) {
+  if (!/\.(html|xhtml|htm)$/.test(name)) return null;
+  if (!isRunnableWptDocument(fullPath, name)) return null;
+  return { urlName: name, variantSource: "html" };
+}
+
+function wptFileCandidate(fullPath, name) {
+  if (excludedWptFile(name)) return null;
+  const html = htmlWptCandidate(fullPath, name);
+  if (html) return html;
+  if (/\.any\.js$/.test(name)) {
+    return { urlName: name.replace(/\.any\.js$/, ".any.html"), variantSource: "js" };
+  }
+  if (/\.window\.js$/.test(name)) {
+    return { urlName: name.replace(/\.window\.js$/, ".window.html"), variantSource: "js" };
+  }
+  return null;
+}
+
+function addDiscoveredFile(out, fullPath, name, directoryPart) {
+  const candidate = wptFileCandidate(fullPath, name);
+  if (!candidate) return;
+  const variants = wptFileVariants(fullPath, candidate.variantSource);
+  if (variants.length) {
+    for (const variant of variants) out.push(directoryPart + candidate.urlName + variant);
+  } else {
+    out.push(directoryPart + candidate.urlName);
+  }
+}
+
+function shouldSkipWptDirectory(name) {
+  return SKIP_WPT_DIRECTORIES.has(name) || name.startsWith(".");
+}
+
+function walkWptEntry(dir, entry, out) {
+  if (entry.isDirectory()) {
+    if (shouldSkipWptDirectory(entry.name)) return;
+    walkWptDirectory(`${dir}/${entry.name}`, out);
+    return;
+  }
+  if (!entry.isFile()) return;
+  const fullPath = `${dir}/${entry.name}`;
+  const directoryPart = fullPath.slice(WPT_ROOT.length, -entry.name.length);
+  addDiscoveredFile(out, fullPath, entry.name, directoryPart);
+}
+
+function walkWptDirectory(dir, out) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) walkWptEntry(dir, entry, out);
+}
+
 /** @returns {string[]} */
 export function discoverWptTests(prefix) {
   const root = resolve(WPT_ROOT, prefix);
@@ -352,55 +512,7 @@ export function discoverWptTests(prefix) {
     throw new Error(`prefix not found: .wpt/${prefix}`);
   }
   const out = [];
-  const skipDir = new Set(["resources", "support", "crashtests"]);
-  function walk(dir) {
-    let entries;
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const ent of entries) {
-      const full = `${dir}/${ent.name}`;
-      if (ent.isDirectory()) {
-        if (skipDir.has(ent.name)) continue;
-        if (ent.name.startsWith(".")) continue;
-        walk(full);
-        continue;
-      }
-      if (!ent.isFile()) continue;
-      const name = ent.name;
-      if (/-ref(-[^/]*)?\.x?html?$/.test(name)) continue;
-      if (/-notref\.x?html?$/.test(name)) continue;
-      if (/-mismatch\.x?html?$/.test(name)) continue;
-      if (name === "META.yml" || name === ".gitignore") continue;
-      if (/\.(headers|ini|lock|md|yaml|yml|py)$/.test(name)) continue;
-      let urlName = null;
-      let variantSource = null;
-      if (/\.html$/.test(name) || /\.xhtml$/.test(name) || /\.htm$/.test(name)) {
-        if (!isRunnableWptDocument(full, name)) continue;
-        urlName = name;
-        variantSource = "html";
-      } else if (/\.any\.js$/.test(name)) {
-        urlName = name.replace(/\.any\.js$/, ".any.html");
-        variantSource = "js";
-      } else if (/\.window\.js$/.test(name)) {
-        urlName = name.replace(/\.window\.js$/, ".window.html");
-        variantSource = "js";
-      } else {
-        continue;
-      }
-      const rel = full.slice(WPT_ROOT.length);
-      const dirPart = rel.slice(0, -name.length);
-      const variants = wptFileVariants(full, variantSource);
-      if (variants.length) {
-        for (const v of variants) out.push(dirPart + urlName + v);
-      } else {
-        out.push(dirPart + urlName);
-      }
-    }
-  }
-  walk(root);
+  walkWptDirectory(root, out);
   return out.sort();
 }
 

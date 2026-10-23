@@ -118,47 +118,69 @@ function defaultConcurrency() {
   );
 }
 
+function readCgroupValue(path) {
+  try {
+    return readFileSync(path, "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+
+function positiveCpuQuota(rawQuota, rawPeriod) {
+  const quota = Number(rawQuota);
+  const period = Number(rawPeriod);
+  if (quota > 0 && period > 0) return quota / period;
+  return null;
+}
+
+function cgroupV2CpuQuota(raw) {
+  if (!raw) return null;
+  const [quota, period] = raw.split(/\s+/);
+  if (quota === "max") return null;
+  return positiveCpuQuota(quota, period);
+}
+
+function cgroupV1CpuQuota() {
+  return positiveCpuQuota(
+    readCgroupValue("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"),
+    readCgroupValue("/sys/fs/cgroup/cpu/cpu.cfs_period_us"),
+  );
+}
+
+function cgroupCpuQuota() {
+  const v2 = readCgroupValue("/sys/fs/cgroup/cpu.max");
+  if (v2) return cgroupV2CpuQuota(v2);
+  return cgroupV1CpuQuota();
+}
+
 function cpuLimit() {
   const host =
     typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length;
-  const read = (p) => {
-    try {
-      return readFileSync(p, "utf8").trim();
-    } catch {
-      return null;
-    }
-  };
-  let quota = null;
-  const v2 = read("/sys/fs/cgroup/cpu.max");
-  if (v2) {
-    const [q, period] = v2.split(/\s+/);
-    if (q !== "max" && Number(q) > 0 && Number(period) > 0) quota = Number(q) / Number(period);
-  } else {
-    const q = Number(read("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"));
-    const period = Number(read("/sys/fs/cgroup/cpu/cpu.cfs_period_us"));
-    if (q > 0 && period > 0) quota = q / period;
-  }
+  const quota = cgroupCpuQuota();
   if (quota === null) return host;
   return Math.max(1, Math.min(host, Math.floor(quota)));
 }
 
 const BYTES_PER_MIB = 1048576;
 
-function memoryLimitMb() {
-  for (const p of ["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]) {
-    try {
-      const raw = readFileSync(p, "utf8").trim();
-      if (raw === "max") continue;
-      const bytes = Number(raw);
-      if (Number.isFinite(bytes) && bytes > 0 && bytes < 2 ** 53) {
-        return Math.min(
-          Math.round(bytes / BYTES_PER_MIB),
-          Math.round(os.totalmem() / BYTES_PER_MIB),
-        );
-      }
-    } catch {}
+function memoryLimitForRaw(raw, hostMemoryMb) {
+  if (raw === "max") return null;
+  const bytes = Number(raw);
+  if (Number.isFinite(bytes) && bytes > 0 && bytes < 2 ** 53) {
+    return Math.min(Math.round(bytes / BYTES_PER_MIB), hostMemoryMb);
   }
-  return Math.round(os.totalmem() / BYTES_PER_MIB);
+  return null;
+}
+
+function memoryLimitMb() {
+  const hostMemoryMb = Math.round(os.totalmem() / BYTES_PER_MIB);
+  for (const path of ["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]) {
+    const raw = readCgroupValue(path);
+    if (raw === null) continue;
+    const limit = memoryLimitForRaw(raw, hostMemoryMb);
+    if (limit !== null) return limit;
+  }
+  return hostMemoryMb;
 }
 
 const MEMORY_BUDGET_FRACTION = 0.18;
@@ -177,8 +199,8 @@ function defaultBatchSize() {
   return Math.min(Math.max(n, MIN_TESTS_PER_BATCH), MAX_TESTS_PER_BATCH);
 }
 
-function parseArgs(arr) {
-  const o = {
+function defaultOptions() {
+  return {
     batchSize: defaultBatchSize(),
     concurrency: defaultConcurrency(),
     start: 0,
@@ -188,63 +210,105 @@ function parseArgs(arr) {
     engineDist: DEFAULT_DIST,
     passthrough: [],
   };
+}
+
+function optionHandlers(o) {
+  const values = new Map(
+    Object.entries({
+      "--batch-size": (value) => (o.batchSize = parseInt(value, 10)),
+      "--port": (value) => (o.port = parseInt(value, 10)),
+      "--inspector-port": (value) => (o.inspectorPort = parseInt(value, 10)),
+      "-j": (value) => (o.concurrency = parseInt(value, 10)),
+      "--concurrency": (value) => (o.concurrency = parseInt(value, 10)),
+      "--filter": (value) => (o.filter = value),
+      "--shard": (value) => (o.shard = value),
+      "--start": (value) => (o.start = parseInt(value, 10)),
+      "--tests-file": (value) => (o.testsFile = value),
+      "--results-out": (value) => (o.resultsOut = value),
+      "--full-out": (value) => (o.fullOut = value),
+      "--killers-out": (value) => (o.killersOut = value),
+      "--stalled-out": (value) => (o.stalledOut = value),
+      "--engine-log-dir": (value) => (o.engineLogDir = value),
+      "--discover": (value) => (o.discover = value),
+      "--discover-pattern": (value) => (o.discoverPattern = value),
+      "--discover-exclude": (value) => (o.discoverExclude = value),
+      "--slice": (value) => (o.slice = value),
+      "--engine-launcher": (value) => (o.engineLauncher = value),
+      "--engine-dist": (value) => (o.engineDist = resolve(value)),
+      "--max-total": (value) => (o.maxTotal = parseInt(value, 10)),
+      "--base": (value) => {
+        o.base = value;
+        o.passthrough.push("--base", o.base);
+      },
+      "--timeout": (value) => o.passthrough.push("--timeout", value),
+      "--save-diff": (value) => o.passthrough.push("--save-diff", value),
+      "--force-run-file": (value) => o.passthrough.push("--force-run-file", value),
+      "--expectations": (value) => o.passthrough.push("--expectations", resolve(value)),
+    }),
+  );
+  const flags = new Map(
+    Object.entries({
+      "--reftests-only": () => (o.reftestsOnly = true),
+      "--discover-dry-run": () => (o.discoverDryRun = true),
+      "--update-expectations": () => (o.updateExpectations = true),
+      "--no-record": () => (o.noRecord = true),
+      "--no-report": () => (o.noReport = true),
+      "--start-server": () => (o.startServer = true),
+      "--no-build": () => (o.build = false),
+      "--bail": () => {
+        o.bail = true;
+        o.passthrough.push("--bail");
+      },
+      "--skip-slow": () => o.passthrough.push("--skip-slow"),
+      "--skip-expected-timeouts": () => o.passthrough.push("--skip-expected-timeouts"),
+      "--skip-expected-crashes": () => o.passthrough.push("--skip-expected-crashes"),
+    }),
+  );
+  return { values, flags };
+}
+
+function isHelpOption(arg) {
+  return arg === "--help" || arg === "-h";
+}
+
+function showHelp() {
+  console.log(HELP);
+  process.exit(0);
+}
+
+function reportUnknownOption(arg) {
+  console.error(red(`[batched] unknown option: ${arg}`));
+  console.error(dim(`[batched] --help for the flag list`));
+  process.exit(2);
+}
+
+function validateEngineLauncher(o) {
+  if (o.engineLauncher === "wrangler" || o.engineLauncher === "miniflare") return;
+  console.error(
+    red(`[batched] --engine-launcher must be wrangler or miniflare, got ${o.engineLauncher}`),
+  );
+  process.exit(2);
+}
+
+function parseArgs(arr) {
+  const o = defaultOptions();
+  const { values, flags } = optionHandlers(o);
   for (let i = 0; i < arr.length; i++) {
     const a = arr[i];
-    if (a === "--batch-size") o.batchSize = parseInt(arr[++i], 10);
-    else if (a === "--port") o.port = parseInt(arr[++i], 10);
-    else if (a === "--inspector-port") o.inspectorPort = parseInt(arr[++i], 10);
-    else if (a === "-j" || a === "--concurrency") o.concurrency = parseInt(arr[++i], 10);
-    else if (a === "--filter") o.filter = arr[++i];
-    else if (a === "--shard") o.shard = arr[++i];
-    else if (a === "--start") o.start = parseInt(arr[++i], 10);
-    else if (a === "--tests-file") o.testsFile = arr[++i];
-    else if (a === "--results-out") o.resultsOut = arr[++i];
-    else if (a === "--full-out") o.fullOut = arr[++i];
-    else if (a === "--killers-out") o.killersOut = arr[++i];
-    else if (a === "--stalled-out") o.stalledOut = arr[++i];
-    else if (a === "--engine-log-dir") o.engineLogDir = arr[++i];
-    else if (a === "--reftests-only") o.reftestsOnly = true;
-    else if (a === "--discover") o.discover = arr[++i];
-    else if (a === "--discover-dry-run") o.discoverDryRun = true;
-    else if (a === "--discover-pattern") o.discoverPattern = arr[++i];
-    else if (a === "--discover-exclude") o.discoverExclude = arr[++i];
-    else if (a === "--update-expectations") o.updateExpectations = true;
-    else if (a === "--slice") o.slice = arr[++i];
-    else if (a === "--no-record") o.noRecord = true;
-    else if (a === "--no-report") o.noReport = true;
-    else if (a === "--start-server") o.startServer = true;
-    else if (a === "--no-build") o.build = false;
-    else if (a === "--engine-launcher") o.engineLauncher = arr[++i];
-    else if (a === "--engine-dist") o.engineDist = resolve(arr[++i]);
-    else if (a === "--max-total") o.maxTotal = parseInt(arr[++i], 10);
-    else if (a === "--bail") {
-      o.bail = true;
-      o.passthrough.push("--bail");
-    } else if (a === "--base") {
-      o.base = arr[++i];
-      o.passthrough.push("--base", o.base);
-    } else if (a === "--timeout") o.passthrough.push("--timeout", arr[++i]);
-    else if (a === "--save-diff") o.passthrough.push("--save-diff", arr[++i]);
-    else if (a === "--skip-slow") o.passthrough.push("--skip-slow");
-    else if (a === "--skip-expected-timeouts") o.passthrough.push("--skip-expected-timeouts");
-    else if (a === "--skip-expected-crashes") o.passthrough.push("--skip-expected-crashes");
-    else if (a === "--force-run-file") o.passthrough.push("--force-run-file", arr[++i]);
-    else if (a === "--expectations") o.passthrough.push("--expectations", resolve(arr[++i]));
-    else if (a === "--help" || a === "-h") {
-      console.log(HELP);
-      process.exit(0);
-    } else {
-      console.error(red(`[batched] unknown option: ${a}`));
-      console.error(dim(`[batched] --help for the flag list`));
-      process.exit(2);
+    if (isHelpOption(a)) showHelp();
+    const valueHandler = values.get(a);
+    if (valueHandler) {
+      valueHandler(arr[++i]);
+      continue;
     }
+    const flagHandler = flags.get(a);
+    if (flagHandler) {
+      flagHandler();
+      continue;
+    }
+    reportUnknownOption(a);
   }
-  if (o.engineLauncher !== "wrangler" && o.engineLauncher !== "miniflare") {
-    console.error(
-      red(`[batched] --engine-launcher must be wrangler or miniflare, got ${o.engineLauncher}`),
-    );
-    process.exit(2);
-  }
+  validateEngineLauncher(o);
   return o;
 }
 const opts = parseArgs(process.argv.slice(2));
@@ -459,37 +523,52 @@ function bootSet(count) {
     retries: 0,
     cancelled: false,
   };
-  set.ready = (async () => {
-    const t0 = Date.now();
-    const freed = await Promise.all(ports.map((p) => waitPortFree(p)));
-    set.freeMs = Date.now() - t0;
-    if (set.cancelled || !freed.every(Boolean) || refuseHeldPorts(ports)) return null;
-    for (const [i, port] of ports.entries()) spawnEngine(set, i, port);
-    const up = await Promise.all(ports.map((port, i) => bootEngine(set, i, port, t0)));
-    set.bootMs = Date.now() - t0;
-    return up.every(Boolean) ? ports : null;
-  })();
+  set.ready = initializeBootSet(set, ports);
   return set;
 }
 
+async function initializeBootSet(set, ports) {
+  const t0 = Date.now();
+  const freed = await Promise.all(ports.map((port) => waitPortFree(port)));
+  set.freeMs = Date.now() - t0;
+  if (!canStartBootSet(set, freed, ports)) return null;
+  for (const [index, port] of ports.entries()) spawnEngine(set, index, port);
+  const up = await Promise.all(ports.map((port, index) => bootEngine(set, index, port, t0)));
+  set.bootMs = Date.now() - t0;
+  return up.every(Boolean) ? ports : null;
+}
+
+function canStartBootSet(set, freed, ports) {
+  return !set.cancelled && freed.every(Boolean) && !refuseHeldPorts(ports);
+}
+
 const BOOT_LOG_TAIL_LINES = 60;
+function bootChildState(child) {
+  if (!child) return "never spawned";
+  if (child.exitCode !== null) return `exited ${child.exitCode}`;
+  if (child.signalCode) return `killed by ${child.signalCode}`;
+  return `still running as pid ${child.pid}`;
+}
+
 function reportBootFailure(port, child, bootMs, attempt) {
-  const state = !child
-    ? "never spawned"
-    : child.exitCode !== null
-      ? `exited ${child.exitCode}`
-      : child.signalCode
-        ? `killed by ${child.signalCode}`
-        : `still running as pid ${child.pid}`;
+  const state = bootChildState(child);
   console.error(
     red(
       `[batched] engine on port ${port} failed health after ${bootMs}ms (wrangler ${state}), attempt ${attempt}/${BOOT_ATTEMPTS}; ${devLogFor(port)}:`,
     ),
   );
-  let text = null;
+  reportBootLog(readBootLog(port));
+}
+
+function readBootLog(port) {
   try {
-    text = readFileSync(devLogFor(port), "utf8");
-  } catch {}
+    return readFileSync(devLogFor(port), "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function reportBootLog(text) {
   if (!text || !text.trim()) {
     console.error(dim("           (log is empty)"));
     return;
@@ -515,23 +594,32 @@ let wptChild = null;
 const WPT_SERVE_STARTUP_BUDGET_MS = 60_000;
 const WPT_SERVE_READY_POLL_INTERVAL_MS = 500;
 async function startWptServe() {
-  if (await probeWpt(1500)) {
-    console.error(
-      red(`[batched] --start-server given but wpt serve already responding at ${WPT_BASE}`),
-    );
-    console.error(red(`          stop it first: pkill -f 'wpt serve'`));
-    process.exit(2);
+  await rejectExistingWptServe();
+  spawnWptServe();
+  await waitForWptServeReady();
+}
+
+async function rejectExistingWptServe() {
+  if (!(await probeWpt(1500))) return;
+  console.error(
+    red(`[batched] --start-server given but wpt serve already responding at ${WPT_BASE}`),
+  );
+  console.error(red(`          stop it first: pkill -f 'wpt serve'`));
+  process.exit(2);
+}
+
+function openWptServeLog() {
+  try {
+    return openSync(WPT_LOG, "w");
+  } catch {
+    return "ignore";
   }
+}
+
+function spawnWptServe() {
   // --start-server force-kills processes using these ports; use only when they are reserved.
   for (const port of WPT_KNOWN_PORTS) killByPort(port);
-
-  const logFd = (() => {
-    try {
-      return openSync(WPT_LOG, "w");
-    } catch {
-      return "ignore";
-    }
-  })();
+  const logFd = openWptServeLog();
   wptChild = spawn("pnpm", ["run", "wpt:serve"], {
     cwd: ROOT,
     stdio: ["ignore", logFd, logFd],
@@ -539,6 +627,9 @@ async function startWptServe() {
     detached: true,
   });
   console.log(dim(`[batched] --start-server: spawned wpt serve (log: ${WPT_LOG})`));
+}
+
+async function waitForWptServeReady() {
   const deadline = Date.now() + WPT_SERVE_STARTUP_BUDGET_MS;
   while (Date.now() < deadline) {
     const [http, https] = await Promise.all([probeWpt(1500), probeTcp(8443)]);
@@ -584,22 +675,65 @@ function killByPort(port) {
   } catch {}
 }
 
-function stopWptServe() {
-  if (!wptChild) return;
-  console.log(dim(`[batched] --start-server: stopping wpt serve`));
-  if (wptChild.pid && wptChild.exitCode === null) {
+function terminateWptServe(child) {
+  if (!child.pid || child.exitCode !== null) return;
+  try {
+    process.kill(-child.pid, "SIGTERM");
+  } catch {}
+}
+
+function killWptServeProcesses() {
+  for (const pattern of ["wpt-serve.mjs", "\\.wpt/"]) {
     try {
-      process.kill(-wptChild.pid, "SIGTERM");
+      spawnSync("pkill", ["-9", "-f", pattern], { stdio: "ignore" });
     } catch {}
   }
-  try {
-    spawnSync("pkill", ["-9", "-f", "wpt-serve.mjs"], { stdio: "ignore" });
-  } catch {}
-  try {
-    spawnSync("pkill", ["-9", "-f", "\\.wpt/"], { stdio: "ignore" });
-  } catch {}
+}
+
+function stopWptServe() {
+  if (!wptChild) return;
+  const child = wptChild;
+  console.log(dim(`[batched] --start-server: stopping wpt serve`));
+  terminateWptServe(child);
+  killWptServeProcesses();
   for (const port of WPT_KNOWN_PORTS) killByPort(port);
   wptChild = null;
+}
+
+function readBatchResults() {
+  try {
+    const doc = JSON.parse(readFileSync(BATCH_RESULTS, "utf8"));
+    return {
+      results: doc.results || [],
+      truncated: !!doc.truncated,
+      killedEngine: doc.killedEngine || [],
+      stalledEngine: doc.stalledEngine || [],
+    };
+  } catch {
+    return { results: [], truncated: false, killedEngine: [], stalledEngine: [] };
+  }
+}
+
+function settleBatch(batchIdx, code, resolveBatch) {
+  const { results, truncated, killedEngine, stalledEngine } = readBatchResults();
+  const unexpected = results
+    .filter((result) => result.unexpected)
+    .map((result) => ({
+      batch: batchIdx,
+      test: result.test,
+      expected: result.expected,
+      actual: result.actual,
+      reason: result.reason,
+    }));
+  resolveBatch({
+    code: code ?? 0,
+    unexpected,
+    ran: results.length,
+    results,
+    truncated,
+    killedEngine,
+    stalledEngine,
+  });
 }
 
 function runBatch(batchIdx, remainingMs, ports) {
@@ -618,37 +752,7 @@ function runBatch(batchIdx, remainingMs, ports) {
       ...opts.passthrough,
     ];
     const child = spawn("node", args, { cwd: ROOT, stdio: ["ignore", "inherit", "inherit"] });
-    child.on("exit", (code) => {
-      let results = [];
-      let truncated = false;
-      let killedEngine = [];
-      let stalledEngine = [];
-      try {
-        const doc = JSON.parse(readFileSync(BATCH_RESULTS, "utf8"));
-        results = doc.results || [];
-        truncated = !!doc.truncated;
-        killedEngine = doc.killedEngine || [];
-        stalledEngine = doc.stalledEngine || [];
-      } catch {}
-      const unexpected = results
-        .filter((x) => x.unexpected)
-        .map((x) => ({
-          batch: batchIdx,
-          test: x.test,
-          expected: x.expected,
-          actual: x.actual,
-          reason: x.reason,
-        }));
-      res({
-        code: code ?? 0,
-        unexpected,
-        ran: results.length,
-        results,
-        truncated,
-        killedEngine,
-        stalledEngine,
-      });
-    });
+    child.on("exit", (code) => settleBatch(batchIdx, code, res));
   });
 }
 
@@ -671,16 +775,16 @@ function applyShard(tests) {
   return picked;
 }
 
-function runDiscover() {
-  const existing = loadJSON(TESTS_FILE, []);
-  const existingSet = new Set(existing);
-  let found;
+function discoverTests(prefix) {
   try {
-    found = discoverWptTests(opts.discover);
+    return discoverWptTests(prefix);
   } catch (e) {
     console.error(red(`[batched] discover failed: ${e.message}`));
     process.exit(2);
   }
+}
+
+function discoveryFilters() {
   let patternRe = null;
   let excludeRe = null;
   try {
@@ -690,16 +794,20 @@ function runDiscover() {
     console.error(red(`[batched] bad --discover-pattern / --discover-exclude regex: ${e.message}`));
     process.exit(2);
   }
+  return { patternRe, excludeRe };
+}
+
+function applyDiscoveryFilters(found, patternRe, excludeRe) {
   const beforeFilter = found.length;
   if (patternRe) found = found.filter((p) => patternRe.test(p));
   if (excludeRe) found = found.filter((p) => !excludeRe.test(p));
   if (patternRe || excludeRe) {
     console.log(dim(`[batched] pattern filter: ${beforeFilter} -> ${found.length}`));
   }
-  const newOnes = found.filter((p) => !existingSet.has(p));
-  console.log(
-    `[batched] --discover ${opts.discover}: ${found.length} candidate(s), ${newOnes.length} new`,
-  );
+  return found;
+}
+
+function writeDiscoveryResults(existing, newOnes) {
   if (newOnes.length === 0) {
     console.log(`[batched] nothing to add.`);
     return;
@@ -717,61 +825,101 @@ function runDiscover() {
   console.log(dim(`[batched] next: pnpm run test:wpt --update-expectations  # to baseline.`));
 }
 
-(async () => {
-  if (opts.discover) {
-    runDiscover();
-    process.exit(0);
-  }
+function runDiscover() {
+  const existing = loadJSON(TESTS_FILE, []);
+  const existingSet = new Set(existing);
+  const found = discoverTests(opts.discover);
+  const { patternRe, excludeRe } = discoveryFilters();
+  const candidates = applyDiscoveryFilters(found, patternRe, excludeRe);
+  const newOnes = candidates.filter((p) => !existingSet.has(p));
+  console.log(
+    `[batched] --discover ${opts.discover}: ${candidates.length} candidate(s), ${newOnes.length} new`,
+  );
+  writeDiscoveryResults(existing, newOnes);
+}
 
-  let tests = loadJSON(opts.testsFile ? resolve(opts.testsFile) : TESTS_FILE, []);
-  if (opts.filter) tests = tests.filter((t) => t.includes(opts.filter));
+function applyTestSelection(tests) {
+  if (opts.filter) tests = tests.filter((test) => test.includes(opts.filter));
   if (opts.shard) tests = applyShard(tests);
   if (opts.reftestsOnly) {
     const before = tests.length;
     tests = tests.filter(isReftestSource);
     console.log(dim(`[batched] --reftests-only: ${before} -> ${tests.length}`));
   }
-  if (tests.length === 0) {
-    console.error(
-      red(
-        `[batched] no tests selected${opts.filter ? ` for filter ${JSON.stringify(opts.filter)}` : ""}`,
-      ),
-    );
-    process.exit(2);
-  }
+  return tests;
+}
 
-  {
-    const footprint = [];
-    for (let i = 0; i < 2 * opts.concurrency; i++) footprint.push(opts.port + i);
-    if (refuseHeldPorts(footprint)) process.exit(2);
+function requireSelectedTests(tests) {
+  if (tests.length > 0) return tests;
+  console.error(
+    red(
+      `[batched] no tests selected${opts.filter ? ` for filter ${JSON.stringify(opts.filter)}` : ""}`,
+    ),
+  );
+  process.exit(2);
+}
+
+function selectTests() {
+  const listPath = opts.testsFile ? resolve(opts.testsFile) : TESTS_FILE;
+  return requireSelectedTests(applyTestSelection(loadJSON(listPath, [])));
+}
+
+function refuseRunPorts() {
+  const footprint = [];
+  for (let i = 0; i < 2 * opts.concurrency; i++) footprint.push(opts.port + i);
+  if (refuseHeldPorts(footprint)) process.exit(2);
+}
+
+function requireMiniflareDist() {
+  if (existsSync(resolve(opts.engineDist, "engine-mf.json"))) return;
+  console.error(red(`[batched] Miniflare dist is missing engine-mf.json: ${opts.engineDist}`));
+  console.error(
+    dim(`[batched] create it with node scripts/wpt-engine.mjs prepare --dist ${opts.engineDist}`),
+  );
+  process.exit(2);
+}
+
+async function prepareMiniflareDist() {
+  if (opts.engineLauncher !== "miniflare") return;
+  if (opts.build) {
+    await prepareEngineDist(opts.engineDist);
+    return;
   }
+  requireMiniflareDist();
+}
+
+function prepareBuild() {
   if (opts.build) runPrebuild();
-  if (opts.engineLauncher === "miniflare") {
-    if (opts.build) await prepareEngineDist(opts.engineDist);
-    else if (!existsSync(resolve(opts.engineDist, "engine-mf.json"))) {
-      console.error(red(`[batched] Miniflare dist is missing engine-mf.json: ${opts.engineDist}`));
-      console.error(
-        dim(
-          `[batched] create it with node scripts/wpt-engine.mjs prepare --dist ${opts.engineDist}`,
-        ),
-      );
-      process.exit(2);
-    }
-  }
-  if (opts.startServer) await startWptServe();
-  if (!(await probeWpt(3000))) {
-    console.error(red(`[batched] cannot reach ${WPT_BASE}`));
-    console.error(red(`          start it with: pnpm run wpt:serve  (or pass --start-server)`));
-    console.error(
-      red(`          and set up hosts: cd .wpt && ./wpt make-hosts-file | sudo tee -a /etc/hosts`),
-    );
-    stopWptServe();
-    process.exit(2);
-  }
+}
 
-  const total = tests.length;
+async function requireWptAvailable() {
+  if (await probeWpt(3000)) return;
+  console.error(red(`[batched] cannot reach ${WPT_BASE}`));
+  console.error(red(`          start it with: pnpm run wpt:serve  (or pass --start-server)`));
+  console.error(
+    red(`          and set up hosts: cd .wpt && ./wpt make-hosts-file | sudo tee -a /etc/hosts`),
+  );
+  stopWptServe();
+  process.exit(2);
+}
+
+async function prepareRunner() {
+  refuseRunPorts();
+  prepareBuild();
+  await prepareMiniflareDist();
+  if (opts.startServer) await startWptServe();
+  await requireWptAvailable();
+}
+
+function makeBatches(tests) {
   const batches = [];
-  for (let i = 0; i < total; i += opts.batchSize) batches.push(tests.slice(i, i + opts.batchSize));
+  for (let i = 0; i < tests.length; i += opts.batchSize) {
+    batches.push(tests.slice(i, i + opts.batchSize));
+  }
+  return batches;
+}
+
+function logBatchPlan(total, batches) {
   console.log(
     `[batched] ${total} tests → ${batches.length} batch(es) of ${opts.batchSize}, engines=${opts.concurrency}, start=${opts.start}`,
   );
@@ -782,252 +930,400 @@ function runDiscover() {
         `~${Math.round(((opts.batchSize * RSS_GROWTH_MB_PER_TEST) / 1024) * 10) / 10} GB peak growth per batch`,
     ),
   );
+}
 
-  const allUnexpected = [];
-  const killedEngine = new Set();
-  const stalledEngine = new Set();
-  const byFile = {};
-  const fullByTest = {};
-  let ranBatches = 0;
-  let totalRan = 0;
-  let aborted = false;
-  let truncated = false;
-  const runStart = Date.now();
-  for (let b = opts.start; b < batches.length; b++) {
-    let remainingMs = null;
-    if (opts.maxTotal != null) {
-      remainingMs = opts.maxTotal - (Date.now() - runStart);
-      if (remainingMs <= 0) {
-        console.log(
-          yellow(
-            `[batched] --max-total ${opts.maxTotal}ms reached; ${batches.length - b} batch(es) not run`,
-          ),
-        );
-        truncated = true;
-        break;
-      }
-    }
+function createRunState() {
+  return {
+    allUnexpected: [],
+    killedEngine: new Set(),
+    stalledEngine: new Set(),
+    byFile: {},
+    fullByTest: {},
+    ranBatches: 0,
+    totalRan: 0,
+    aborted: false,
+    truncated: false,
+    runStart: Date.now(),
+  };
+}
+
+function batchBudget(batches, batchIndex, state) {
+  if (opts.maxTotal == null) return { expired: false, remainingMs: null };
+  const remainingMs = opts.maxTotal - (Date.now() - state.runStart);
+  if (remainingMs <= 0) {
     console.log(
-      `\n========== batch ${b + 1}/${batches.length} (${batches[b].length} tests) ==========`,
+      yellow(
+        `[batched] --max-total ${opts.maxTotal}ms reached; ${batches.length - batchIndex} batch(es) not run`,
+      ),
     );
-    const pending = new Set(batches[b]);
-    let code = 0;
-    let ran = 0;
-    let passesRun = 0;
-    const unexpected = [];
-    const shelved = new Map();
-    const retriedKillers = new Set();
-    for (let pass = 0; pass < MAX_BATCH_PASSES && pending.size > 0; pass++) {
-      passesRun++;
-      if (pass > 0) {
-        console.log(
-          yellow(
-            `[batched] batch ${b + 1} pass ${pass + 1}: ${pending.size} test(s) never ran ` +
-              `— resuming on a fresh workerd`,
-          ),
-        );
-      }
-      const lastPass = pass === MAX_BATCH_PASSES - 1;
-      const bootT0 = Date.now();
-      const set = acquireEngines();
-      const ports = await set.ready;
-      if (!ports) {
-        console.error(`[batched] engine(s) failed health on batch ${b}. Aborting.`);
-        aborted = true;
-        break;
-      }
-      const bootWaitMs = Date.now() - bootT0;
-      writeFileSync(BATCH_FILE, JSON.stringify([...pending]));
-      const execT0 = Date.now();
-      const attempt = await runBatch(b, pass === 0 ? remainingMs : null, ports);
-      const execMs = Date.now() - execT0;
-      killSet(set);
-      console.log(
-        dim(
-          `[batched] batch ${b + 1} pass ${pass + 1}: ${ports.length} engine(s), boot ${set.bootMs}ms ` +
-            `(${set.freeMs}ms freeing ports; waited ${bootWaitMs}ms` +
-            `${set.retries ? `; ${set.retries} reboot(s)` : ""}), exec ${execMs}ms ` +
-            `(${attempt.ran} tests, ${attempt.ran ? Math.round(execMs / attempt.ran) : 0}ms/test wall)`,
-        ),
-      );
-      code = attempt.code;
-      ran += attempt.ran;
-      for (const t of attempt.killedEngine) killedEngine.add(t);
-      for (const t of attempt.stalledEngine) stalledEngine.add(t);
-      const sawDeath = attempt.killedEngine.length > 0;
-      const requeued = new Set();
-      const disposition = planRowDisposition({
-        results: attempt.results,
-        sawDeath,
-        lastPass,
-        retriedKillers,
-      });
-      for (const r of disposition.requeue) {
-        shelved.set(r.test, r);
-        requeued.add(r.test);
-      }
-      for (const r of disposition.accept) {
-        byFile[r.test] = compactRow(r);
-        fullByTest[r.test] = r;
-        pending.delete(r.test);
-      }
-      unexpected.push(...attempt.unexpected.filter((u) => !requeued.has(u.test)));
-      if (requeued.size > 0) {
-        console.log(
-          yellow(
-            `[batched] batch ${b + 1} pass ${pass + 1}: requeueing ${requeued.size} ` +
-              `unexpected CRASH/TIMEOUT/ERROR result(s) as engine-death collateral`,
-          ),
-        );
-      }
-      if (attempt.truncated) truncated = true;
-      if (remainingMs != null || opts.bail) break;
-      if (attempt.results.length === 0 && attempt.code !== 2 && attempt.killedEngine.length > 0)
-        break;
-    }
-    if (pending.size > 0) {
-      let restored = 0;
-      for (const t of [...pending]) {
-        const r = shelved.get(t);
-        if (!r) continue;
-        byFile[t] = compactRow(r);
-        fullByTest[t] = r;
-        if (r.unexpected)
-          unexpected.push({
-            batch: b,
-            test: t,
-            expected: r.expected,
-            actual: r.actual,
-            reason: r.reason,
-          });
-        pending.delete(t);
-        restored++;
-      }
-      if (restored) {
-        console.log(
-          yellow(
-            `[batched] batch ${b + 1}: restored ${restored} shelved row(s) for test(s) that never got a retry`,
-          ),
-        );
-      }
-    }
-    if (aborted) break;
-    if (pending.size > 0) {
-      truncated = true;
-      console.log(
-        red(
-          `[batched] batch ${b + 1}: ${pending.size} test(s) never ran after ${passesRun} pass(es)`,
-        ),
-      );
-    }
-    allUnexpected.push(...unexpected);
-    totalRan += ran;
-    ranBatches++;
-    console.log(
-      `[batched] batch ${b + 1} exit=${code} ran=${ran} unexpected(batch)=${unexpected.length} unexpected(total)=${allUnexpected.length}`,
-    );
-    if (opts.bail && allUnexpected.length > 0) {
-      console.log(yellow(`[batched] --bail: stopping after batch ${b + 1}`));
-      if (b + 1 < batches.length) truncated = true;
+    return { expired: true };
+  }
+  return { expired: false, remainingMs };
+}
+
+function stopAfterBatch(batchIndex, batches, state) {
+  if (!opts.bail || state.allUnexpected.length === 0) return false;
+  console.log(yellow(`[batched] --bail: stopping after batch ${batchIndex + 1}`));
+  if (batchIndex + 1 < batches.length) state.truncated = true;
+  return true;
+}
+
+async function runBatches(batches, state) {
+  for (let batchIndex = opts.start; batchIndex < batches.length; batchIndex++) {
+    const budget = batchBudget(batches, batchIndex, state);
+    if (budget.expired) {
+      state.truncated = true;
       break;
     }
+    await executeBatch(batchIndex, batches[batchIndex], batches.length, budget.remainingMs, state);
+    if (state.aborted) break;
+    if (stopAfterBatch(batchIndex, batches, state)) break;
   }
+}
 
-  const results = Object.values(fullByTest);
-  const summary = summarize(results);
-  if (opts.resultsOut) writeConsolidated(opts.resultsOut, byFile);
-  if (opts.fullOut) writeFull(opts.fullOut, results, summary);
-  // Partial, filtered, resumed, or sharded runs are not full-run trend samples.
-  const isFullRun =
-    !opts.filter &&
-    !opts.testsFile &&
-    !opts.reftestsOnly &&
-    !opts.shard &&
-    opts.start === 0 &&
-    !truncated &&
-    !aborted;
-  if (results.length > 0 && !opts.noReport) {
-    const paths = writeReport(results, summary, {
-      record: isFullRun && !opts.noRecord,
-      base: WPT_BASE,
-      ws: WS,
-      commit: process.env.CI_COMMIT_SHORT_SHA || gitShortSha(),
-      slice: opts.slice ?? null,
+function createBatchState(tests) {
+  return {
+    pending: new Set(tests),
+    code: 0,
+    ran: 0,
+    passesRun: 0,
+    unexpected: [],
+    shelved: new Map(),
+    retriedKillers: new Set(),
+  };
+}
+
+function logBatchHeader(batchIndex, tests, totalBatches) {
+  console.log(
+    `\n========== batch ${batchIndex + 1}/${totalBatches} (${tests.length} tests) ==========`,
+  );
+}
+
+async function executeBatch(batchIndex, tests, totalBatches, remainingMs, state) {
+  logBatchHeader(batchIndex, tests, totalBatches);
+  const batch = createBatchState(tests);
+  await runBatchPasses(batchIndex, batch, remainingMs, state);
+  restoreShelvedRows(batchIndex, batch, state);
+  if (state.aborted) return;
+  reportUnrunTests(batchIndex, batch, state);
+  recordCompletedBatch(batchIndex, batch, state);
+}
+
+async function runBatchPasses(batchIndex, batch, remainingMs, state) {
+  for (let pass = 0; pass < MAX_BATCH_PASSES && batch.pending.size > 0; pass++) {
+    batch.passesRun++;
+    const keepGoing = await runBatchPass(batchIndex, pass, batch, remainingMs, state);
+    if (!keepGoing) break;
+  }
+}
+
+async function runBatchPass(batchIndex, pass, batch, remainingMs, state) {
+  if (pass > 0) {
+    console.log(
+      yellow(
+        `[batched] batch ${batchIndex + 1} pass ${pass + 1}: ${batch.pending.size} test(s) never ran ` +
+          `— resuming on a fresh workerd`,
+      ),
+    );
+  }
+  const bootT0 = Date.now();
+  const set = acquireEngines();
+  const ports = await set.ready;
+  if (!ports) {
+    console.error(`[batched] engine(s) failed health on batch ${batchIndex}. Aborting.`);
+    state.aborted = true;
+    return false;
+  }
+  const bootWaitMs = Date.now() - bootT0;
+  const attempt = await executeEnginePass(
+    batchIndex,
+    pass,
+    batch,
+    remainingMs,
+    set,
+    ports,
+    bootWaitMs,
+  );
+  batch.code = attempt.code;
+  batch.ran += attempt.ran;
+  recordEngineIssues(attempt, state);
+  recordAttemptRows(batchIndex, pass, batch, attempt, state);
+  if (attempt.truncated) state.truncated = true;
+  return shouldRunAnotherPass(remainingMs, attempt);
+}
+
+async function executeEnginePass(batchIndex, pass, batch, remainingMs, set, ports, bootWaitMs) {
+  writeFileSync(BATCH_FILE, JSON.stringify([...batch.pending]));
+  const execT0 = Date.now();
+  const attempt = await runBatch(batchIndex, pass === 0 ? remainingMs : null, ports);
+  const execMs = Date.now() - execT0;
+  killSet(set);
+  logEnginePass(batchIndex, pass, ports, set, bootWaitMs, execMs, attempt);
+  return attempt;
+}
+
+function logEnginePass(batchIndex, pass, ports, set, bootWaitMs, execMs, attempt) {
+  const perTestMs = attempt.ran ? Math.round(execMs / attempt.ran) : 0;
+  console.log(
+    dim(
+      `[batched] batch ${batchIndex + 1} pass ${pass + 1}: ${ports.length} engine(s), boot ${set.bootMs}ms ` +
+        `(${set.freeMs}ms freeing ports; waited ${bootWaitMs}ms` +
+        `${set.retries ? `; ${set.retries} reboot(s)` : ""}), exec ${execMs}ms ` +
+        `(${attempt.ran} tests, ${perTestMs}ms/test wall)`,
+    ),
+  );
+}
+
+function recordEngineIssues(attempt, state) {
+  for (const test of attempt.killedEngine) state.killedEngine.add(test);
+  for (const test of attempt.stalledEngine) state.stalledEngine.add(test);
+}
+
+function recordAttemptRows(batchIndex, pass, batch, attempt, state) {
+  const requeued = new Set();
+  const disposition = planRowDisposition({
+    results: attempt.results,
+    sawDeath: attempt.killedEngine.length > 0,
+    lastPass: pass === MAX_BATCH_PASSES - 1,
+    retriedKillers: batch.retriedKillers,
+  });
+  for (const row of disposition.requeue) {
+    batch.shelved.set(row.test, row);
+    requeued.add(row.test);
+  }
+  for (const row of disposition.accept) {
+    storeAcceptedRow(row, batch, state);
+  }
+  batch.unexpected.push(...attempt.unexpected.filter((row) => !requeued.has(row.test)));
+  if (requeued.size > 0) {
+    console.log(
+      yellow(
+        `[batched] batch ${batchIndex + 1} pass ${pass + 1}: requeueing ${requeued.size} ` +
+          `unexpected CRASH/TIMEOUT/ERROR result(s) as engine-death collateral`,
+      ),
+    );
+  }
+}
+
+function storeAcceptedRow(row, batch, state) {
+  state.byFile[row.test] = compactRow(row);
+  state.fullByTest[row.test] = row;
+  batch.pending.delete(row.test);
+}
+
+function shouldRunAnotherPass(remainingMs, attempt) {
+  return !mustStopForBudgetOrBail(remainingMs) && !mustStopAfterEngineDeath(attempt);
+}
+
+function mustStopForBudgetOrBail(remainingMs) {
+  return remainingMs != null || opts.bail;
+}
+
+function mustStopAfterEngineDeath(attempt) {
+  return attempt.results.length === 0 && attempt.code !== 2 && attempt.killedEngine.length > 0;
+}
+
+function restoreShelvedRow(test, batchIndex, batch, state) {
+  const row = batch.shelved.get(test);
+  if (!row) return false;
+  state.byFile[test] = compactRow(row);
+  state.fullByTest[test] = row;
+  if (row.unexpected) {
+    batch.unexpected.push({
+      batch: batchIndex,
+      test,
+      expected: row.expected,
+      actual: row.actual,
+      reason: row.reason,
     });
-    console.log(dim(`[batched] report → ${paths.mdPath}`));
-    if (paths.historyPath) {
-      const sub = tallySubtests(results);
-      console.log(
-        dim(`[batched] latest.{md,json} + history row (${sub.pass}/${sub.total} subtests)`),
-      );
-    }
   }
-  if (opts.updateExpectations) updateExpectations(results);
+  batch.pending.delete(test);
+  return true;
+}
 
+function restoreShelvedRows(batchIndex, batch, state) {
+  let restored = 0;
+  for (const test of [...batch.pending]) {
+    if (restoreShelvedRow(test, batchIndex, batch, state)) restored++;
+  }
+  if (restored > 0) {
+    console.log(
+      yellow(
+        `[batched] batch ${batchIndex + 1}: restored ${restored} shelved row(s) for test(s) that never got a retry`,
+      ),
+    );
+  }
+}
+
+function reportUnrunTests(batchIndex, batch, state) {
+  if (batch.pending.size === 0) return;
+  state.truncated = true;
+  console.log(
+    red(
+      `[batched] batch ${batchIndex + 1}: ${batch.pending.size} test(s) never ran after ${batch.passesRun} pass(es)`,
+    ),
+  );
+}
+
+function recordCompletedBatch(batchIndex, batch, state) {
+  state.allUnexpected.push(...batch.unexpected);
+  state.totalRan += batch.ran;
+  state.ranBatches++;
+  console.log(
+    `[batched] batch ${batchIndex + 1} exit=${batch.code} ran=${batch.ran} unexpected(batch)=${batch.unexpected.length} unexpected(total)=${state.allUnexpected.length}`,
+  );
+}
+
+function hasPartialSelection() {
+  return Boolean(opts.filter || opts.testsFile || opts.reftestsOnly || opts.shard);
+}
+
+function isFullRun(state) {
+  if (hasPartialSelection()) return false;
+  return opts.start === 0 && !state.truncated && !state.aborted;
+}
+
+function runReportOptions(fullRun) {
+  return {
+    record: fullRun && !opts.noRecord,
+    base: WPT_BASE,
+    ws: WS,
+    commit: process.env.CI_COMMIT_SHORT_SHA || gitShortSha(),
+    slice: opts.slice ?? null,
+  };
+}
+
+function reportHistory(paths, results) {
+  if (!paths.historyPath) return;
+  const subtests = tallySubtests(results);
+  console.log(
+    dim(`[batched] latest.{md,json} + history row (${subtests.pass}/${subtests.total} subtests)`),
+  );
+}
+
+function writeRunReport(results, summary, state) {
+  const fullRun = isFullRun(state);
+  if (results.length === 0 || opts.noReport) return;
+  const paths = writeReport(results, summary, runReportOptions(fullRun));
+  console.log(dim(`[batched] report → ${paths.mdPath}`));
+  reportHistory(paths, results);
+}
+
+function writeRunOutputs(results, summary, state) {
+  if (opts.resultsOut) writeConsolidated(opts.resultsOut, state.byFile);
+  if (opts.fullOut) writeFull(opts.fullOut, results, summary);
+  writeRunReport(results, summary, state);
+  if (opts.updateExpectations) updateExpectations(results);
+}
+
+function printUnexpectedRows(rows) {
+  for (const row of rows) {
+    const reason = row.reason ? `  (${row.reason.slice(0, 70)})` : "";
+    console.log(`  [b${row.batch}] ${row.test}  ${row.expected}→${row.actual}${reason}`);
+  }
+}
+
+function printKilledEngine(state) {
+  if (state.killedEngine.size === 0) return;
+  console.log(
+    red(
+      `[batched] ${state.killedEngine.size} test(s) took the engine down (each costs a workerd restart):`,
+    ),
+  );
+  for (const test of [...state.killedEngine].sort()) console.log(red(`            ${test}`));
+}
+
+function printStalledEngine(state) {
+  if (state.stalledEngine.size === 0) return;
+  console.log(
+    yellow(
+      `[batched] ${state.stalledEngine.size} test(s) stalled the engine past the 2s probe but it recovered:`,
+    ),
+  );
+  for (const test of [...state.stalledEngine].sort()) console.log(yellow(`            ${test}`));
+}
+
+function printBootRetries() {
+  if (bootRetries === 0) return;
+  console.log(
+    yellow(
+      `[batched] ${bootRetries} engine boot(s) failed and were retried (see the attempt reports above)`,
+    ),
+  );
+}
+
+function writeOptionalEngineList(outPath, label, engines) {
+  if (!outPath) return;
+  const tests = [...engines].sort();
+  writeFileSync(resolve(outPath), JSON.stringify(tests, null, 2) + "\n");
+  console.log(`[batched] ${label} → ${outPath} (${engines.size})`);
+}
+
+function printFinalSummary(batches, state, summary) {
   console.log(`\n========== BATCHED SUMMARY ==========`);
   console.log(
-    `[batched] ran ${ranBatches}/${batches.length} batches, ${totalRan} tests; ${allUnexpected.length} unexpected result(s)`,
+    `[batched] ran ${state.ranBatches}/${batches.length} batches, ${state.totalRan} tests; ${state.allUnexpected.length} unexpected result(s)`,
   );
   console.log(
     dim(
-      `[batched] wall clock ${Math.round((Date.now() - runStart) / 1000)}s from first batch to summary`,
+      `[batched] wall clock ${Math.round((Date.now() - state.runStart) / 1000)}s from first batch to summary`,
     ),
   );
-  for (const u of allUnexpected)
-    console.log(
-      `  [b${u.batch}] ${u.test}  ${u.expected}→${u.actual}${u.reason ? "  (" + u.reason.slice(0, 70) + ")" : ""}`,
-    );
-  writeFileSync("/tmp/wpt-batched-unexpected.json", JSON.stringify(allUnexpected, null, 2));
+  printUnexpectedRows(state.allUnexpected);
+  writeFileSync("/tmp/wpt-batched-unexpected.json", JSON.stringify(state.allUnexpected, null, 2));
   console.log(`[batched] full list → /tmp/wpt-batched-unexpected.json`);
-  if (killedEngine.size > 0) {
-    console.log(
-      red(
-        `[batched] ${killedEngine.size} test(s) took the engine down (each costs a workerd restart):`,
-      ),
-    );
-    for (const t of [...killedEngine].sort()) console.log(red(`            ${t}`));
-  }
-  if (stalledEngine.size > 0) {
-    console.log(
-      yellow(
-        `[batched] ${stalledEngine.size} test(s) stalled the engine past the 2s probe but it recovered:`,
-      ),
-    );
-    for (const t of [...stalledEngine].sort()) console.log(yellow(`            ${t}`));
-  }
-  if (bootRetries > 0) {
-    console.log(
-      yellow(
-        `[batched] ${bootRetries} engine boot(s) failed and were retried (see the attempt reports above)`,
-      ),
-    );
-  }
-  if (opts.killersOut) {
-    writeFileSync(
-      resolve(opts.killersOut),
-      JSON.stringify([...killedEngine].sort(), null, 2) + "\n",
-    );
-    console.log(`[batched] engine-killers → ${opts.killersOut} (${killedEngine.size})`);
-  }
-  if (opts.stalledOut) {
-    writeFileSync(
-      resolve(opts.stalledOut),
-      JSON.stringify([...stalledEngine].sort(), null, 2) + "\n",
-    );
-    console.log(`[batched] engine-stallers → ${opts.stalledOut} (${stalledEngine.size})`);
-  }
+  printKilledEngine(state);
+  printStalledEngine(state);
+  printBootRetries();
+  writeOptionalEngineList(opts.killersOut, "engine-killers", state.killedEngine);
+  writeOptionalEngineList(opts.stalledOut, "engine-stallers", state.stalledEngine);
   console.log(bold(`[batched] ${summary.expected}/${summary.total} matched expectations`));
+}
+
+function hasInfrastructureFailure(state) {
+  return state.aborted || state.totalRan === 0;
+}
+
+function completionExitCode(state) {
+  return state.allUnexpected.length > 0 || state.truncated ? 1 : 0;
+}
+
+function exitAfterCleanup(state) {
   killWorkerd();
   stopWptServe();
-  if (aborted || totalRan === 0) {
+  if (hasInfrastructureFailure(state)) {
     console.error(
-      `[batched] ❌ infrastructure failure (aborted=${aborted}, ran ${totalRan} tests) — exiting 2.`,
+      `[batched] ❌ infrastructure failure (aborted=${state.aborted}, ran ${state.totalRan} tests) — exiting 2.`,
     );
     process.exit(2);
   }
-  if (truncated) console.log(yellow(`[batched] partial run — exiting non-zero`));
-  process.exit(allUnexpected.length > 0 || truncated ? 1 : 0);
-})();
+  if (state.truncated) console.log(yellow(`[batched] partial run — exiting non-zero`));
+  process.exit(completionExitCode(state));
+}
+
+function finishRun(batches, state) {
+  const results = Object.values(state.fullByTest);
+  const summary = summarize(results);
+  writeRunOutputs(results, summary, state);
+  printFinalSummary(batches, state, summary);
+  exitAfterCleanup(state);
+}
+
+async function main() {
+  if (opts.discover) {
+    runDiscover();
+    process.exit(0);
+  }
+  const tests = selectTests();
+  await prepareRunner();
+  const batches = makeBatches(tests);
+  logBatchPlan(tests.length, batches);
+  const state = createRunState();
+  await runBatches(batches, state);
+  finishRun(batches, state);
+}
+
+main();
 
 for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   process.on(sig, () => {
@@ -1046,47 +1342,76 @@ function updateExpectations(results) {
     console.log(dim(`[batched] kept ${skipped} --skip-slow expectation(s) unchanged`));
 }
 
-function compactRow(r) {
+function countRealSubtests(real) {
+  let subPass = 0;
+  for (const subtest of real) if (subtest.status === "PASS") subPass++;
+  return { subPass, subTotal: real.length };
+}
+
+function countReportedSubtests(counts) {
   let subPass = 0;
   let subTotal = 0;
-  const real = (r.subtests || []).filter(
+  for (const [status, count] of Object.entries(counts)) {
+    subTotal += count;
+    if (status === "PASS") subPass += count;
+  }
+  return { subPass, subTotal };
+}
+
+function compactSubtestCounts(row) {
+  const real = (row.subtests || []).filter(
     (s) => !(s.name && s.name.includes("synthesized from summary")),
   );
-  if (real.length > 0) {
-    subTotal = real.length;
-    for (const s of real) if (s.status === "PASS") subPass++;
-  } else if (r.counts) {
-    for (const [k, v] of Object.entries(r.counts)) {
-      subTotal += v;
-      if (k === "PASS") subPass += v;
-    }
-  }
+  if (real.length > 0) return countRealSubtests(real);
+  if (row.counts) return countReportedSubtests(row.counts);
+  return { subPass: 0, subTotal: 0 };
+}
+
+function compactRow(row) {
+  const { subPass, subTotal } = compactSubtestCounts(row);
   return {
-    outcome: r.actual,
-    expected: r.expected,
-    unexpected: !!r.unexpected,
+    outcome: row.actual,
+    expected: row.expected,
+    unexpected: !!row.unexpected,
     subPass,
     subTotal,
   };
+}
+
+function countUnexpectedResult(row) {
+  if (!row.unexpected) return { fail: 0, pass: 0 };
+  if (row.expected !== "PASS" && row.outcome === "PASS") return { fail: 0, pass: 1 };
+  return { fail: 1, pass: 0 };
+}
+
+function incrementOutcome(byOutcome, outcome) {
+  byOutcome[outcome] = (byOutcome[outcome] || 0) + 1;
+}
+
+function commitSha() {
+  return (process.env.CI_COMMIT_SHORT_SHA || gitShortSha()).trim();
+}
+
+function currentRef() {
+  return process.env.CI_COMMIT_BRANCH || process.env.CI_COMMIT_REF_NAME || "local";
 }
 
 function writeConsolidated(outPath, byFile) {
   const byOutcome = {};
   let unexpectedFail = 0;
   let unexpectedPass = 0;
-  for (const e of Object.values(byFile)) {
-    byOutcome[e.outcome] = (byOutcome[e.outcome] || 0) + 1;
-    if (e.unexpected) {
-      if (e.expected !== "PASS" && e.outcome === "PASS") unexpectedPass++;
-      else unexpectedFail++;
-    }
+  for (const row of Object.values(byFile)) {
+    incrementOutcome(byOutcome, row.outcome);
+    const unexpected = countUnexpectedResult(row);
+    unexpectedFail += unexpected.fail;
+    unexpectedPass += unexpected.pass;
   }
   const total = Object.keys(byFile).length;
-  const commit = (process.env.CI_COMMIT_SHORT_SHA || gitShortSha()).trim();
+  const commit = commitSha();
   const doc = {
     commit: commit || null,
     date: new Date().toISOString(),
-    ref: process.env.CI_COMMIT_BRANCH || process.env.CI_COMMIT_REF_NAME || "local",
+    ref: currentRef(),
     summary: {
       total,
       expected: total - unexpectedFail - unexpectedPass,
@@ -1101,7 +1426,7 @@ function writeConsolidated(outPath, byFile) {
 }
 
 function writeFull(outPath, results, summary) {
-  const commit = (process.env.CI_COMMIT_SHORT_SHA || gitShortSha()).trim();
+  const commit = commitSha();
   const doc = {
     date: new Date().toISOString(),
     base: WPT_BASE,

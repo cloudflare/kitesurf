@@ -65,13 +65,48 @@ const lastWasMemprof = existsSync(resolve(PKG_DIR, "kitesurf_core_bg.wasm.mempro
 // A staged memprof wasm shares this package path and must not be reused as the normal wasm.
 const force = process.argv.includes("--force") || inCI || memprof || lastWasMemprof;
 
+function collectPatchInputs(inputs, dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) collectPatchInputs(inputs, full);
+    else if (entry.isFile() && entry.name.endsWith(".patch")) inputs.push(full);
+  }
+}
+
+function collectVendorInputs(inputs, dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === ".git") continue;
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) collectVendorInputs(inputs, full);
+    else if (entry.isFile()) inputs.push(full);
+  }
+}
+
+function collectRustInputs(inputs, dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) collectRustInputs(inputs, full);
+    else if (entry.isFile() && entry.name.endsWith(".rs")) inputs.push(full);
+  }
+}
+
+function hasNewerInput(inputs, wasmMtime) {
+  for (const path of inputs) {
+    try {
+      if (statSync(path).mtimeMs > wasmMtime) return true;
+    } catch {
+      return true;
+    }
+  }
+  return false;
+}
+
 function shouldRebuild() {
   if (force) return true;
   for (const out of PKG_OUTPUTS) {
     if (!existsSync(out)) return true;
   }
   const wasmMtime = statSync(WASM_OUT).mtimeMs;
-
   const inputs = [
     resolve(CORE_DIR, "Cargo.toml"),
     resolve(ROOT, "Cargo.toml"),
@@ -81,41 +116,11 @@ function shouldRebuild() {
     SELF,
     resolve(dirname(SELF), "get-patched-vendor-crates.mjs"),
   ];
-  function walkPatches(dir) {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) walkPatches(full);
-      else if (entry.isFile() && entry.name.endsWith(".patch")) inputs.push(full);
-    }
-  }
-  walkPatches(resolve(dirname(SELF), "patches"));
-  function walkVendor(dir) {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === ".git") continue;
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) walkVendor(full);
-      else if (entry.isFile()) inputs.push(full);
-    }
-  }
+  collectPatchInputs(inputs, resolve(dirname(SELF), "patches"));
   const vendorRoot = resolve(CORE_DIR, "target/vendor-patched");
-  if (existsSync(vendorRoot)) walkVendor(vendorRoot);
-  function walk(dir) {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.isFile() && entry.name.endsWith(".rs")) inputs.push(full);
-    }
-  }
-  walk(resolve(CORE_DIR, "src"));
-
-  for (const path of inputs) {
-    try {
-      if (statSync(path).mtimeMs > wasmMtime) return true;
-    } catch {
-      return true;
-    }
-  }
-  return false;
+  if (existsSync(vendorRoot)) collectVendorInputs(inputs, vendorRoot);
+  collectRustInputs(inputs, resolve(CORE_DIR, "src"));
+  return hasNewerInput(inputs, wasmMtime);
 }
 
 if (!postprocessWasm && reuseWasm && existsSync(WASM_OUT)) {

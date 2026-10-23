@@ -161,9 +161,8 @@ function waitForFrame(session, sentinelWallSec, timeoutMs) {
       try {
         await session.send("Page.screencastFrameAck", { sessionId: params.sessionId });
       } catch {}
-      if (done) return;
-      const serverTs = params?.metadata?.timestamp ?? 0;
-      if (sentinelWallSec > 0 && serverTs > 0 && serverTs < sentinelWallSec) return;
+      const serverTs = frameTimestamp(params);
+      if (shouldIgnoreFrame(done, sentinelWallSec, serverTs)) return;
       done = true;
       session.off("Page.screencastFrame", handler);
       resolveFrame({
@@ -183,21 +182,46 @@ function waitForFrame(session, sentinelWallSec, timeoutMs) {
   });
 }
 
+function frameTimestamp(params) {
+  return params?.metadata?.timestamp ?? 0;
+}
+
+function shouldIgnoreFrame(done, sentinelWallSec, serverTs) {
+  return done || (sentinelWallSec > 0 && serverTs > 0 && serverTs < sentinelWallSec);
+}
+
 async function drainOneFrame(session, timeoutMs = 2000) {
   return waitForFrame(session, 0, timeoutMs);
 }
 
-async function resolveClickTarget(session, selector) {
-  const doc = await session.send("DOM.getDocument", {});
-  const rootId = doc?.root?.nodeId ?? 0;
-  const q = await session.send("DOM.querySelector", { nodeId: rootId, selector });
-  const nodeId = q?.nodeId ?? 0;
-  if (!nodeId) throw new Error(`selector matched nothing: ${selector}`);
-  const box = await session.send("DOM.getBoxModel", { nodeId });
+function rootNodeId(document) {
+  return document?.root?.nodeId ?? 0;
+}
+
+function queriedNodeId(query) {
+  return query?.nodeId ?? 0;
+}
+
+function hasContentQuad(quad) {
+  return Array.isArray(quad) && quad.length >= 8;
+}
+
+function contentQuad(box, selector) {
   const quad = box?.model?.content;
-  if (!Array.isArray(quad) || quad.length < 8) {
+  if (!hasContentQuad(quad)) {
     throw new Error(`getBoxModel returned no content quad for ${selector}`);
   }
+  return quad;
+}
+
+async function resolveClickTarget(session, selector) {
+  const doc = await session.send("DOM.getDocument", {});
+  const rootId = rootNodeId(doc);
+  const q = await session.send("DOM.querySelector", { nodeId: rootId, selector });
+  const nodeId = queriedNodeId(q);
+  if (!nodeId) throw new Error(`selector matched nothing: ${selector}`);
+  const box = await session.send("DOM.getBoxModel", { nodeId });
+  const quad = contentQuad(box, selector);
   const x = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
   const y = (quad[1] + quad[3] + quad[5] + quad[7]) / 4;
   return { x, y, nodeId };
@@ -225,14 +249,8 @@ async function dispatchKey(session, key) {
   await session.send("Input.dispatchKeyEvent", { type: "keyUp", key });
 }
 
-async function runOnce(browser) {
-  const page = await browser.newPage();
-  const session = await page.target().createCDPSession();
-  await session.send("Page.enable");
-  await session.send("DOM.enable");
-  await session.send("Runtime.enable");
-
-  const row = {
+function createRow() {
+  return {
     loadMs: NaN,
     firstPaintMs: NaN,
     rpcRttMs: NaN,
@@ -241,8 +259,9 @@ async function runOnce(browser) {
     screenshotMs: NaN,
     phases: null,
   };
+}
 
-  let firstPaintPromise = null;
+async function startScreencast(session) {
   if (!NO_SCREENCAST) {
     await session.send("Page.startScreencast", {
       format: "jpeg",
@@ -253,12 +272,98 @@ async function runOnce(browser) {
     });
     await drainOneFrame(session, 2000);
   }
+}
+
+function firstPaintPromise(session, wallStart) {
+  return NO_SCREENCAST ? null : waitForFrame(session, wallStart / 1000, FIRST_FRAME_TIMEOUT_MS);
+}
+
+async function readNavigatePhases(session, row) {
+  try {
+    const result = await session.send("Kitesurf.getNavigatePhases", {});
+    row.phases = firstNavigatePhases(navigateTargets(result)) ?? null;
+  } catch {}
+}
+
+function navigateTargets(result) {
+  return result?.byTarget ?? {};
+}
+
+function firstNavigatePhases(byTarget) {
+  for (const phases of Object.values(byTarget)) {
+    if (phases && typeof phases === "object") return phases;
+  }
+  return undefined;
+}
+
+function frameDuration(frame, start) {
+  return frame ? frame.tFrame - start : NaN;
+}
+
+async function stopScreencast(session) {
+  if (NO_SCREENCAST) return;
+  try {
+    await session.send("Page.stopScreencast");
+  } catch {}
+}
+
+async function detachSession(session) {
+  await session.detach().catch(() => {});
+}
+
+async function finishWithoutInteraction(session, row) {
+  await stopScreencast(session);
+  await detachSession(session);
+  return row;
+}
+
+async function drainBeforeInteraction(session) {
+  if (!NO_SCREENCAST) await drainOneFrame(session, 500);
+}
+
+function renderAfterPromise(session, wallStart) {
+  return NO_SCREENCAST ? null : waitForFrame(session, wallStart / 1000, RENDER_AFTER_TIMEOUT_MS);
+}
+
+async function dispatchInteraction(session) {
+  try {
+    switch (INTERACTION) {
+      case "click": {
+        const { x, y } = await resolveClickTarget(session, SELECTOR);
+        await dispatchClick(session, x, y);
+        break;
+      }
+      case "key":
+        await dispatchKey(session, KEY);
+        break;
+      default:
+        console.warn(`  unknown --interaction ${INTERACTION}, treating as none`);
+    }
+  } catch (err) {
+    console.warn(`  interaction failed: ${err.message}`);
+  }
+}
+
+async function captureScreenshot(session, row) {
+  const tShot = performance.now();
+  try {
+    await session.send("Page.captureScreenshot", { format: "jpeg", quality: 60 });
+    row.screenshotMs = performance.now() - tShot;
+  } catch {}
+}
+
+async function runOnce(browser) {
+  const page = await browser.newPage();
+  const session = await page.target().createCDPSession();
+  await session.send("Page.enable");
+  await session.send("DOM.enable");
+  await session.send("Runtime.enable");
+  const row = createRow();
+  await startScreencast(session);
 
   const tNavStart = performance.now();
   const dNavStart = Date.now();
-  if (!NO_SCREENCAST) {
-    firstPaintPromise = waitForFrame(session, dNavStart / 1000, FIRST_FRAME_TIMEOUT_MS);
-  }
+  const paintPromise = firstPaintPromise(session, dNavStart);
   try {
     await page.goto(URL, { timeout: 30000, waitUntil: "load" });
   } catch (err) {
@@ -268,72 +373,37 @@ async function runOnce(browser) {
   }
   row.loadMs = performance.now() - tNavStart;
 
-  if (firstPaintPromise) {
-    const frame = await firstPaintPromise;
-    row.firstPaintMs = frame ? frame.tFrame - tNavStart : NaN;
+  if (paintPromise) {
+    const frame = await paintPromise;
+    row.firstPaintMs = frameDuration(frame, tNavStart);
   }
 
-  try {
-    const r = await session.send("Kitesurf.getNavigatePhases", {});
-    const byTarget = r?.byTarget ?? {};
-    for (const phases of Object.values(byTarget)) {
-      if (phases && typeof phases === "object") {
-        row.phases = phases;
-        break;
-      }
-    }
-  } catch {}
+  await readNavigatePhases(session, row);
 
   const tRpc = performance.now();
   await session.send("Runtime.evaluate", { expression: "1", returnByValue: true });
   row.rpcRttMs = performance.now() - tRpc;
 
   if (INTERACTION === "none") {
-    if (!NO_SCREENCAST) await session.send("Page.stopScreencast").catch(() => {});
-    await session.detach().catch(() => {});
-    return row;
+    return finishWithoutInteraction(session, row);
   }
 
-  if (!NO_SCREENCAST) await drainOneFrame(session, 500);
+  await drainBeforeInteraction(session);
 
   const tInteractStart = performance.now();
   const dInteractStart = Date.now();
-  let renderPromise = null;
-  if (!NO_SCREENCAST) {
-    renderPromise = waitForFrame(session, dInteractStart / 1000, RENDER_AFTER_TIMEOUT_MS);
-  }
-
-  try {
-    if (INTERACTION === "click") {
-      const { x, y } = await resolveClickTarget(session, SELECTOR);
-      await dispatchClick(session, x, y);
-    } else if (INTERACTION === "key") {
-      await dispatchKey(session, KEY);
-    } else {
-      console.warn(`  unknown --interaction ${INTERACTION}, treating as none`);
-    }
-  } catch (err) {
-    console.warn(`  interaction failed: ${err.message}`);
-  }
+  const renderPromise = renderAfterPromise(session, dInteractStart);
+  await dispatchInteraction(session);
   row.interactionMs = performance.now() - tInteractStart;
 
   if (renderPromise) {
     const frame = await renderPromise;
-    row.renderAfterMs = frame ? frame.tFrame - tInteractStart : NaN;
+    row.renderAfterMs = frameDuration(frame, tInteractStart);
   }
 
-  const tShot = performance.now();
-  try {
-    await session.send("Page.captureScreenshot", { format: "jpeg", quality: 60 });
-    row.screenshotMs = performance.now() - tShot;
-  } catch {}
-
-  if (!NO_SCREENCAST) {
-    try {
-      await session.send("Page.stopScreencast");
-    } catch {}
-  }
-  await session.detach().catch(() => {});
+  await captureScreenshot(session, row);
+  await stopScreencast(session);
+  await detachSession(session);
   return row;
 }
 
@@ -357,17 +427,7 @@ function printRow(i, row) {
   );
 }
 
-function printSummary(rows) {
-  const cols = [
-    "loadMs",
-    "firstPaintMs",
-    "rpcRttMs",
-    "interactionMs",
-    "renderAfterMs",
-    "screenshotMs",
-  ];
-  console.log("\nSummary (ms):");
-  console.log("  metric            n   min      p50      p95      max      mean     stddev");
+function printMetricSummary(rows, cols) {
   for (const col of cols) {
     const s = stats(rows.map((r) => r[col]));
     if (!s.n) {
@@ -380,7 +440,29 @@ function printSummary(rows) {
         `${fmtMs(s.mean)} ${fmtMs(s.stddev)}`,
     );
   }
+}
 
+function printPhaseSummary(rows, phaseKeys) {
+  if (!rows.some((r) => r.phases)) return;
+  console.log("\nSub-isolate phases (ms):");
+  for (const key of phaseKeys) {
+    const s = stats(rows.map((r) => r.phases?.[key]));
+    if (!s.n) continue;
+    console.log(
+      `  ${key.padEnd(20)} p50=${fmtMs(s.p50)}  p95=${fmtMs(s.p95)}  max=${fmtMs(s.max)}`,
+    );
+  }
+}
+
+function printSummary(rows) {
+  const cols = [
+    "loadMs",
+    "firstPaintMs",
+    "rpcRttMs",
+    "interactionMs",
+    "renderAfterMs",
+    "screenshotMs",
+  ];
   const phaseKeys = [
     "teardownMs",
     "parseMs",
@@ -390,17 +472,10 @@ function printSummary(rows) {
     "asyncScriptsMs",
     "drainMs",
   ];
-  const have = rows.some((r) => r.phases);
-  if (have) {
-    console.log("\nSub-isolate phases (ms):");
-    for (const k of phaseKeys) {
-      const s = stats(rows.map((r) => r.phases?.[k]));
-      if (!s.n) continue;
-      console.log(
-        `  ${k.padEnd(20)} p50=${fmtMs(s.p50)}  p95=${fmtMs(s.p95)}  max=${fmtMs(s.max)}`,
-      );
-    }
-  }
+  console.log("\nSummary (ms):");
+  console.log("  metric            n   min      p50      p95      max      mean     stddev");
+  printMetricSummary(rows, cols);
+  printPhaseSummary(rows, phaseKeys);
   console.log(
     dim(
       `\nNotes: firstPaint & renderAfter floor is ~${SCREENCAST_POLL_FLOOR_MS}ms ` +

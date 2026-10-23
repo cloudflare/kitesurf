@@ -44,23 +44,37 @@ function parseArgs(argv) {
       if (!value) throw new Error(`${arg} requires a value`);
       return value;
     };
-    if (arg === "--config") options.config = resolve(next());
-    else if (arg === "--dist") options.dist = resolve(next());
-    else if (arg === "--assets") options.assets = resolve(next());
-    else if (arg === "--port") options.port = Number(next());
-    else if (arg === "--inspector-port") options.inspectorPort = Number(next());
-    else if (arg === "--var") {
-      const value = next();
-      const at = value.indexOf(":");
-      if (at < 1) throw new Error(`--var wants KEY:VALUE, got ${value}`);
-      options.vars[value.slice(0, at)] = value.slice(at + 1);
-    } else throw new Error(`unknown option: ${arg}`);
+    switch (arg) {
+      case "--config":
+        options.config = resolve(next());
+        break;
+      case "--dist":
+        options.dist = resolve(next());
+        break;
+      case "--assets":
+        options.assets = resolve(next());
+        break;
+      case "--port":
+        options.port = Number(next());
+        break;
+      case "--inspector-port":
+        options.inspectorPort = Number(next());
+        break;
+      case "--var": {
+        const value = next();
+        const at = value.indexOf(":");
+        if (at < 1) throw new Error(`--var wants KEY:VALUE, got ${value}`);
+        options.vars[value.slice(0, at)] = value.slice(at + 1);
+        break;
+      }
+      default:
+        throw new Error(`unknown option: ${arg}`);
+    }
   }
   return options;
 }
 
-/** @param {string} dist @param {string} config @returns {Promise<object>} */
-export async function prepare(dist = DEFAULT_DIST, config = resolve(ENGINE_DIR, "wrangler.jsonc")) {
+function runWrangler(config, dist) {
   const wranglerPackage = fromEngine.resolve("wrangler/package.json");
   const wrangler = resolve(
     dirname(wranglerPackage),
@@ -75,26 +89,48 @@ export async function prepare(dist = DEFAULT_DIST, config = resolve(ENGINE_DIR, 
       env: { ...process.env, WRANGLER_SEND_METRICS: "false" },
     },
   );
+}
+
+function normalizeSourceMap(dist) {
   rmSync(resolve(dist, "README.md"), { force: true });
   const mapFile = resolve(dist, "index.js.map");
   const map = JSON.parse(readFileSync(mapFile, "utf8"));
   writeFileSync(mapFile, JSON.stringify({ ...map, sourceRoot: "" }));
-  const { unstable_getMiniflareWorkerOptions } = await engineDep("wrangler");
-  const { workerOptions } = unstable_getMiniflareWorkerOptions(config);
+}
+
+function shouldDropOption(key, value) {
+  return DROP.has(key) || value === undefined;
+}
+
+function isEmptyOptions(value) {
+  return (
+    value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0
+  );
+}
+
+function copyWorkerOptions(workerOptions) {
   const options = {};
   for (const [key, value] of Object.entries(workerOptions)) {
-    if (DROP.has(key) || value === undefined) continue;
-    if (
-      value &&
-      typeof value === "object" &&
-      !Array.isArray(value) &&
-      Object.keys(value).length === 0
-    )
-      continue;
+    if (shouldDropOption(key, value)) continue;
+    if (isEmptyOptions(value)) continue;
     options[key] = value;
   }
+  return options;
+}
+
+function relativeAssetDirectory(options, dist) {
   if (options.assets)
     options.assets = { ...options.assets, directory: relative(dist, options.assets.directory) };
+}
+
+/** @param {string} dist @param {string} config @returns {Promise<object>} */
+export async function prepare(dist = DEFAULT_DIST, config = resolve(ENGINE_DIR, "wrangler.jsonc")) {
+  runWrangler(config, dist);
+  normalizeSourceMap(dist);
+  const { unstable_getMiniflareWorkerOptions } = await engineDep("wrangler");
+  const { workerOptions } = unstable_getMiniflareWorkerOptions(config);
+  const options = copyWorkerOptions(workerOptions);
+  relativeAssetDirectory(options, dist);
   writeFileSync(resolve(dist, OPTIONS_FILE), JSON.stringify(options, null, 1) + "\n");
   return options;
 }
@@ -120,17 +156,27 @@ function distModules(root, entry, testRegExps, compiledRules) {
   return modules;
 }
 
-async function serve(options) {
-  if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65535) {
+function validateServePort(port) {
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error("serve needs a valid --port");
   }
+}
+
+function assetsForWorker(workerOptions, options) {
+  return (
+    workerOptions.assets && {
+      ...workerOptions.assets,
+      directory: options.assets ?? resolve(options.dist, workerOptions.assets.directory),
+    }
+  );
+}
+
+async function serve(options) {
+  validateServePort(options.port);
   const { Miniflare, compileModuleRules, convertV4MiniflareOptions, testRegExps } =
     await engineDep("miniflare");
   const workerOptions = JSON.parse(readFileSync(resolve(options.dist, OPTIONS_FILE), "utf8"));
-  const assets = workerOptions.assets && {
-    ...workerOptions.assets,
-    directory: options.assets ?? resolve(options.dist, workerOptions.assets.directory),
-  };
+  const assets = assetsForWorker(workerOptions, options);
   const engine = {
     ...workerOptions,
     name: "kitesurf-engine",

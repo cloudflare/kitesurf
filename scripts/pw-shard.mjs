@@ -31,17 +31,35 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const next = () => argv[++i];
-    if (arg === "--shard") options.shard = next();
-    else if (arg === "--dist") options.dist = resolve(next());
-    else if (arg === "--out-dir") options.outDir = resolve(next());
-    else if (arg === "--pw-base") options.base = resolve(next());
-    else if (arg === "--max-wall-ms") options.maxWallMs = parseInt(next(), 10);
-    else fail(`unknown option ${arg}\n${USAGE}`);
+    switch (arg) {
+      case "--shard":
+        options.shard = next();
+        break;
+      case "--dist":
+        options.dist = resolve(next());
+        break;
+      case "--out-dir":
+        options.outDir = resolve(next());
+        break;
+      case "--pw-base":
+        options.base = resolve(next());
+        break;
+      case "--max-wall-ms":
+        options.maxWallMs = parseInt(next(), 10);
+        break;
+      default:
+        fail(`unknown option ${arg}\n${USAGE}`);
+    }
   }
   options.base ??= resolve(process.env.KITESURF_PW_BASE ?? resolve(ROOT, ".playwright"));
-  if (!options.shard || !options.dist || !options.outDir)
-    fail(`--shard, --dist, and --out-dir are required\n${USAGE}`);
+  validateOptions(options);
   return options;
+}
+
+function validateOptions(options) {
+  if (!options.shard || !options.dist || !options.outDir) {
+    fail(`--shard, --dist, and --out-dir are required\n${USAGE}`);
+  }
 }
 
 function fail(message, log) {
@@ -51,49 +69,63 @@ function fail(message, log) {
   process.exit(2);
 }
 
+function readVersion(base) {
+  const packageFile = resolve(base, "package.json");
+  return existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, "utf8")).version : "";
+}
+
+function hasExpectedTag(tag, version) {
+  return Boolean(tag) && version === tag;
+}
+
 function checkTag(base) {
   const tag = /const PW_TAG = "v?([^"]+)"/.exec(
     readFileSync(resolve(ROOT, "scripts/pw-setup.mjs"), "utf8"),
   )?.[1];
-  const packageFile = resolve(base, "package.json");
-  const version = existsSync(packageFile)
-    ? JSON.parse(readFileSync(packageFile, "utf8")).version
-    : "";
-  if (!tag || version !== tag)
+  const version = readVersion(base);
+  if (!hasExpectedTag(tag, version))
     fail(`Playwright checkout at ${base} is ${version || "missing"}, setup pins ${tag}`);
   if (!existsSync(resolve(base, "packages/playwright/cli.js")))
     fail(`${base} is not built; run pnpm run pw:setup`);
 }
 
-function overlay(base) {
-  const directory = mkdtempSync(join(os.tmpdir(), "pw-"));
+function copyBaseEntry(base, directory, name) {
+  if (name === "tests") cpSync(resolve(base, name), resolve(directory, name), { recursive: true });
+  else symlinkSync(resolve(base, name), resolve(directory, name));
+}
+
+function copyBase(base, directory) {
   for (const name of readdirSync(base)) {
     if (name === ".git" || name === "test-results") continue;
-    if (name === "tests")
-      cpSync(resolve(base, name), resolve(directory, name), { recursive: true });
-    else symlinkSync(resolve(base, name), resolve(directory, name));
+    copyBaseEntry(base, directory, name);
   }
+}
+
+function applyPatch(directory, patch) {
+  const result = spawnSync("git", ["apply", "--whitespace=nowarn", resolve(PATCH_DIR, patch)], {
+    cwd: directory,
+    stdio: "inherit",
+    env: { ...process.env, GIT_CEILING_DIRECTORIES: dirname(directory) },
+  });
+  if (result.status !== 0)
+    fail(`git apply ${patch} failed (exit ${result.status ?? result.error})`);
+}
+
+function applyPatches(directory, patches) {
+  for (const patch of patches) applyPatch(directory, patch);
+}
+
+function overlay(base) {
+  const directory = mkdtempSync(join(os.tmpdir(), "pw-"));
+  copyBase(base, directory);
   const patches = readdirSync(PATCH_DIR)
     .filter((file) => file.endsWith(".patch"))
     .sort();
-  for (const patch of patches) {
-    const result = spawnSync("git", ["apply", "--whitespace=nowarn", resolve(PATCH_DIR, patch)], {
-      cwd: directory,
-      stdio: "inherit",
-      env: { ...process.env, GIT_CEILING_DIRECTORIES: dirname(directory) },
-    });
-    if (result.status !== 0)
-      fail(`git apply ${patch} failed (exit ${result.status ?? result.error})`);
-  }
+  applyPatches(directory, patches);
   return directory;
 }
 
-function main(options) {
-  checkTag(options.base);
-  mkdirSync(options.outDir, { recursive: true });
-  const playwrightDir = overlay(options.base);
-  const log = resolve(options.outDir, "pw-run.log");
-  const results = resolve(options.outDir, "results.json");
+function runShard(options, playwrightDir, log, results) {
   const fd = openSync(log, "w");
   const started = Date.now();
   const result = spawnSync(
@@ -124,16 +156,42 @@ function main(options) {
   closeSync(fd);
   rmSync(playwrightDir, { recursive: true, force: true });
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  if (result.error?.code === "ETIMEDOUT" || result.signal)
+  return { result, seconds };
+}
+
+function wasKilled(result) {
+  return result.error?.code === "ETIMEDOUT" || result.signal;
+}
+
+function hasMissingResults(result, results) {
+  return result.status !== 0 || !existsSync(results);
+}
+
+function checkRunResult(result, seconds, log, results) {
+  if (wasKilled(result))
     fail(`pw-run killed after ${seconds}s (${result.signal ?? result.error.code})`, log);
-  if (result.status !== 0 || !existsSync(results))
+  if (hasMissingResults(result, results))
     fail(`pw-run exited ${result.status} after ${seconds}s without results`, log);
+}
+
+function printRunLog(log) {
   console.log(
     readFileSync(log, "utf8")
       .split("\n")
       .filter((line) => line.startsWith("[pw-run]"))
       .join("\n"),
   );
+}
+
+function main(options) {
+  checkTag(options.base);
+  mkdirSync(options.outDir, { recursive: true });
+  const playwrightDir = overlay(options.base);
+  const log = resolve(options.outDir, "pw-run.log");
+  const results = resolve(options.outDir, "results.json");
+  const { result, seconds } = runShard(options, playwrightDir, log, results);
+  checkRunResult(result, seconds, log, results);
+  printRunLog(log);
   console.log(`[pw-shard] shard ${options.shard} done in ${seconds}s`);
 }
 

@@ -11,14 +11,18 @@ import { fileURLToPath } from "node:url";
 
 const TSC_OUTPUT_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
+function missingOption(required) {
+  if (!required) return null;
+  console.error(
+    `usage: ts-strict-ratchet.mjs --project <tsconfig> [--baseline <json>] [--only <dir>] [--update]`,
+  );
+  process.exit(2);
+}
+
 function option(name, { required = true } = {}) {
   const index = process.argv.indexOf(name);
   if (index < 0 || !process.argv[index + 1]) {
-    if (!required) return null;
-    console.error(
-      `usage: ts-strict-ratchet.mjs --project <tsconfig> [--baseline <json>] [--only <dir>] [--update]`,
-    );
-    process.exit(2);
+    return missingOption(required);
   }
   return path.resolve(process.argv[index + 1]);
 }

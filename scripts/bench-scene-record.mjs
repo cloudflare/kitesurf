@@ -81,81 +81,114 @@ function stats1(values) {
 }
 const kb = (b) => (b / 1024).toFixed(1);
 
+function selectTargetReply(reply) {
+  if (!reply || !reply.byTarget) return reply;
+  const values = Object.values(reply.byTarget);
+  return values.find((value) => value && !value.error) ?? values[0] ?? null;
+}
+
 async function measure(cdp, targetId) {
   const t0 = performance.now();
   const params = targetId ? { targetId } : {};
-  let r = await cdp.send("Kitesurf.getSceneStats", params);
+  const reply = await cdp.send("Kitesurf.getSceneStats", params);
   const callMs = performance.now() - t0;
-  if (r && r.byTarget) {
-    const vals = Object.values(r.byTarget);
-    r = vals.find((v) => v && !v.error) ?? vals[0] ?? null;
+  return { callMs, reply: selectTargetReply(reply) };
+}
+
+async function loadScenario(page, scenario) {
+  await page.setViewport({ width: 1280, height: 720 });
+  await page
+    .goto(scenario.url, {
+      timeout: scenario.timeout ?? 20000,
+      waitUntil: "load",
+    })
+    .catch((error) => console.log(`  [goto] ${error.message} (continuing)`));
+  if (scenario.setup) await scenario.setup(page);
+  else await sleep(2000);
+}
+
+function pageTargetId(page) {
+  try {
+    return page.target()._targetId ?? null;
+  } catch {
+    return null;
   }
-  return { callMs, reply: r };
+}
+
+function parseStats(reply) {
+  try {
+    return JSON.parse(reply.statsJson);
+  } catch {
+    return null;
+  }
+}
+
+function recordMeasurementError(state, reply) {
+  state.errors += 1;
+  if (state.errors <= 3 && reply?.error) console.log(`  [err] ${reply.error}`);
+}
+
+function hasStatsPayload(reply) {
+  return Boolean(reply && !reply.error && reply.statsJson);
+}
+
+function recordFrame(state, callMs, reply, stats) {
+  state.frames.push({
+    callMs,
+    prepMs: reply.prepMs ?? 0,
+    recordMs: reply.recordMs ?? 0,
+    seq: reply.seq ?? 0,
+    seqAdvanced: reply.seq > state.prevSeq,
+    sceneBytes: stats.sceneBytes,
+    gzBytes: stats.sceneBytesGzipped,
+    opCount: stats.opCount,
+    imageRgba: stats.imageRgbaBytesTotal,
+    bytesByKind: stats.bytesByKind,
+  });
+  state.prevSeq = reply.seq ?? state.prevSeq;
+}
+
+async function collectMeasurement(cdp, targetId, state) {
+  const { callMs, reply } = await measure(cdp, targetId).catch(() => ({
+    callMs: 0,
+    reply: null,
+  }));
+  if (!hasStatsPayload(reply)) {
+    recordMeasurementError(state, reply);
+    return;
+  }
+  const stats = parseStats(reply);
+  if (!stats) {
+    state.errors += 1;
+    return;
+  }
+  recordFrame(state, callMs, reply, stats);
+}
+
+async function collectFrames(cdp, targetId, state) {
+  const interval = 1000 / HZ;
+  const startedAt = performance.now();
+  let next = startedAt;
+  while (performance.now() - startedAt < DURATION_MS) {
+    await collectMeasurement(cdp, targetId, state);
+    next += interval;
+    const wait = next - performance.now();
+    if (wait > 0) await sleep(wait);
+    else next = performance.now();
+  }
+  return performance.now() - startedAt;
 }
 
 async function runScenario(browser, scenario) {
   console.log(`\n=== ${scenario.name} — ${scenario.url}`);
   const page = await browser.newPage();
-  const frames = [];
-  let errors = 0;
+  const state = { frames: [], errors: 0, prevSeq: -1 };
   try {
-    await page.setViewport({ width: 1280, height: 720 });
-    await page
-      .goto(scenario.url, {
-        timeout: scenario.timeout ?? 20000,
-        waitUntil: "load",
-      })
-      .catch((e) => console.log(`  [goto] ${e.message} (continuing)`));
-    if (scenario.setup) await scenario.setup(page);
-    else await sleep(2000);
-
-    let targetId = null;
-    try {
-      targetId = page.target()._targetId ?? null;
-    } catch {}
+    await loadScenario(page, scenario);
     const cdp = await page.createCDPSession();
-
-    const interval = 1000 / HZ;
-    const tStart = performance.now();
-    let next = tStart;
-    let prevSeq = -1;
-    while (performance.now() - tStart < DURATION_MS) {
-      const { callMs, reply } = await measure(cdp, targetId).catch(() => ({
-        callMs: 0,
-        reply: null,
-      }));
-      if (!reply || reply.error || !reply.statsJson) {
-        errors++;
-        if (errors <= 3 && reply?.error) console.log(`  [err] ${reply.error}`);
-      } else {
-        let stats = null;
-        try {
-          stats = JSON.parse(reply.statsJson);
-        } catch {}
-        if (stats) {
-          frames.push({
-            callMs,
-            prepMs: reply.prepMs ?? 0,
-            recordMs: reply.recordMs ?? 0,
-            seq: reply.seq ?? 0,
-            seqAdvanced: reply.seq > prevSeq,
-            sceneBytes: stats.sceneBytes,
-            gzBytes: stats.sceneBytesGzipped,
-            opCount: stats.opCount,
-            imageRgba: stats.imageRgbaBytesTotal,
-            bytesByKind: stats.bytesByKind,
-          });
-          prevSeq = reply.seq ?? prevSeq;
-        } else errors++;
-      }
-      next += interval;
-      const wait = next - performance.now();
-      if (wait > 0) await sleep(wait);
-      else next = performance.now();
-    }
-    const elapsed = performance.now() - tStart;
-    report(scenario.name, frames, errors, elapsed);
-    return { name: scenario.name, elapsedMs: elapsed, errors, frames };
+    const elapsed = await collectFrames(cdp, pageTargetId(page), state);
+    report(scenario.name, state.frames, state.errors, elapsed);
+    return { name: scenario.name, elapsedMs: elapsed, errors: state.errors, frames: state.frames };
   } finally {
     await page.close().catch(() => {});
   }

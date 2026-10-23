@@ -23,13 +23,22 @@ function parseArgs(argv) {
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--durations") options.durations.push(resolve(argv[++i]));
-    else if (arg === "--target-s") options.targetMs = Number(argv[++i]) * 1000;
-    else if (arg === "--workers") options.workers = parseInt(argv[++i], 10);
-    else if (arg === "--out") options.out = resolve(argv[++i]);
-    else {
-      console.error(USAGE);
-      process.exit(2);
+    switch (arg) {
+      case "--durations":
+        options.durations.push(resolve(argv[++i]));
+        break;
+      case "--target-s":
+        options.targetMs = Number(argv[++i]) * 1000;
+        break;
+      case "--workers":
+        options.workers = parseInt(argv[++i], 10);
+        break;
+      case "--out":
+        options.out = resolve(argv[++i]);
+        break;
+      default:
+        console.error(USAGE);
+        process.exit(2);
     }
   }
   if (!options.durations.length) {
@@ -58,19 +67,27 @@ function readDurations(files) {
   return durations;
 }
 
+function medianDuration(known) {
+  return known.length ? known[Math.floor(known.length / 2)] : 1000;
+}
+
+function shardFits(current, duration, targetMs, workers) {
+  return current && Math.max(current.max, duration, (current.sum + duration) / workers) <= targetMs;
+}
+
 /** @param {string[]} files @param {Record<string, number>} durations @param {number} targetMs @param {number} workers @returns {{start: string, files: string[], sum: number, max: number}[]} */
 export function cut(files, durations, targetMs, workers) {
   const known = files
     .map((file) => durations[file])
     .filter((ms) => ms !== undefined)
     .sort((a, b) => a - b);
-  const median = known.length ? known[Math.floor(known.length / 2)] : 1000;
+  const median = medianDuration(known);
   const shards = [];
   let current = null;
   for (const file of files) {
     const ms = durations[file] ?? median;
-    const fits = current && Math.max(current.max, ms, (current.sum + ms) / workers) <= targetMs;
-    if (!fits) shards.push((current = { start: file, files: [], sum: 0, max: 0 }));
+    if (!shardFits(current, ms, targetMs, workers))
+      shards.push((current = { start: file, files: [], sum: 0, max: 0 }));
     current.files.push(file);
     current.sum += ms;
     current.max = Math.max(current.max, ms);

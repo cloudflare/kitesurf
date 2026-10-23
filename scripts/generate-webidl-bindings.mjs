@@ -65,6 +65,31 @@ function setMinimum(target, name, length) {
   target[name] = Object.hasOwn(target, name) ? Math.min(target[name], length) : length;
 }
 
+function addTypedOmOperation(state, member) {
+  const name = member.special === "stringifier" ? "toString" : member.name;
+  if (!name) return;
+  const target = member.special === "static" ? state.staticMethods : state.methods;
+  setMinimum(target, name, requiredArguments(member.arguments));
+}
+
+function addTypedOmAttribute(state, member) {
+  state.attributes.push(member.name);
+  if (member.readonly) state.readonlyAttributes.push(member.name);
+}
+
+function addTypedOmIterable(state, member) {
+  state.iterable = member.idlType.length === 2 ? "pair" : "value";
+  for (const [name, length] of Object.entries({ entries: 0, keys: 0, values: 0, forEach: 1 })) {
+    setMinimum(state.methods, name, length);
+  }
+}
+
+const TYPED_OM_MEMBER_HANDLERS = new Map([
+  ["operation", addTypedOmOperation],
+  ["attribute", addTypedOmAttribute],
+  ["iterable", addTypedOmIterable],
+]);
+
 function header(inputs, revision) {
   return (
     `// Copyright (c) 2026 Cloudflare, Inc.\n` +
@@ -82,23 +107,9 @@ function typedOmInterface(definition) {
   const staticMethods = {};
   const attributes = [];
   const readonlyAttributes = [];
-  let iterable = null;
-
+  const state = { methods, staticMethods, attributes, readonlyAttributes, iterable: null };
   for (const member of definition.members) {
-    if (member.type === "operation") {
-      const name = member.special === "stringifier" ? "toString" : member.name;
-      if (!name) continue;
-      const target = member.special === "static" ? staticMethods : methods;
-      setMinimum(target, name, requiredArguments(member.arguments));
-    } else if (member.type === "attribute") {
-      attributes.push(member.name);
-      if (member.readonly) readonlyAttributes.push(member.name);
-    } else if (member.type === "iterable") {
-      iterable = member.idlType.length === 2 ? "pair" : "value";
-      for (const [name, length] of Object.entries({ entries: 0, keys: 0, values: 0, forEach: 1 })) {
-        setMinimum(methods, name, length);
-      }
-    }
+    TYPED_OM_MEMBER_HANDLERS.get(member.type)?.(state, member);
   }
 
   return {
@@ -112,7 +123,7 @@ function typedOmInterface(definition) {
     staticMethodLengths: staticMethods,
     attributes,
     readonlyAttributes,
-    iterable,
+    iterable: state.iterable,
   };
 }
 
@@ -185,81 +196,131 @@ function newInterface(definition, spec) {
   };
 }
 
+function extensionFlag(member, attributeName, fieldName) {
+  return extAttr(member, attributeName) ? { [fieldName]: true } : {};
+}
+
+function memberFlags(member, inheritedSecure) {
+  const secureContext = inheritedSecure || !!extAttr(member, "SecureContext");
+  return {
+    ...extensionFlag(member, "LegacyUnforgeable", "unforgeable"),
+    ...(secureContext ? { secureContext: true } : {}),
+  };
+}
+
+function putForwardsFlag(member) {
+  const putForwards = extAttr(member, "PutForwards");
+  return putForwards ? { putForwards: putForwards.rhs.value } : {};
+}
+
+function attributeFlags(member, flags) {
+  return {
+    ...(member.readonly ? { readonly: true } : {}),
+    ...putForwardsFlag(member),
+    ...extensionFlag(member, "Replaceable", "replaceable"),
+    ...extensionFlag(member, "LegacyLenientSetter", "lenientSetter"),
+    ...extensionFlag(member, "LegacyLenientThis", "lenientThis"),
+    ...flags,
+  };
+}
+
+function addAttributeMember(target, member, flags) {
+  const bucket = member.special === "static" ? target.staticAttributes : target.attributes;
+  bucket[member.name] = attributeFlags(member, flags);
+  // A stringifier attribute also defines toString().
+  if (member.special === "stringifier") target.operations.toString = { length: 0, ...flags };
+}
+
+function operationName(member) {
+  return member.special === "stringifier" && !member.name ? "toString" : member.name;
+}
+
+function promiseFlag(member) {
+  return isPromise(member.idlType) ? { promise: true } : {};
+}
+
+function addOperationMember(target, member, flags) {
+  const name = operationName(member);
+  // Anonymous accessors shape indexed/named access but have no named operation.
+  if (!name) return;
+  const bucket = member.special === "static" ? target.staticOperations : target.operations;
+  const length = requiredArguments(member.arguments);
+  const prior = bucket[name];
+  bucket[name] = {
+    length: prior ? Math.min(prior.length, length) : length,
+    ...promiseFlag(member),
+    ...flags,
+  };
+}
+
+function addIterableMember(target, member) {
+  if (member.async || member.type === "async_iterable") target.asyncIterable = true;
+  else target.iterable = member.idlType.length === 2 ? "pair" : "value";
+}
+
+function addConstructorMember(target, member) {
+  target.constructorLengths.push(requiredArguments(member.arguments));
+}
+
+function addConstantMember(target, member) {
+  target.constants[member.name] = constantValue(member.value);
+}
+
+function addSetlikeMember(target, member) {
+  target.setlike = { readonly: !!member.readonly };
+}
+
+function addMaplikeMember(target, member) {
+  target.maplike = { readonly: !!member.readonly };
+}
+
+const ignoreMember = () => {};
+const MEMBER_HANDLERS = new Map([
+  ["constructor", addConstructorMember],
+  ["const", addConstantMember],
+  ["attribute", addAttributeMember],
+  ["operation", addOperationMember],
+  ["iterable", addIterableMember],
+  ["async_iterable", addIterableMember],
+  ["setlike", addSetlikeMember],
+  ["maplike", addMaplikeMember],
+  ["field", ignoreMember],
+]);
+
+function addMember(target, member, flags) {
+  const handler = MEMBER_HANDLERS.get(member.type);
+  if (handler) return handler(target, member, flags);
+  throw new Error(`unsupported member type ${member.type} in ${target.name}`);
+}
+
 function addMembers(target, members, inheritedSecure) {
   for (const member of members) {
     if (!exposedOnWindow(member, true)) continue;
-    const secureContext = inheritedSecure || !!extAttr(member, "SecureContext");
-    const flags = {
-      ...(extAttr(member, "LegacyUnforgeable") ? { unforgeable: true } : {}),
-      ...(secureContext ? { secureContext: true } : {}),
-    };
-    switch (member.type) {
-      case "constructor":
-        target.constructorLengths.push(requiredArguments(member.arguments));
-        break;
-      case "const":
-        target.constants[member.name] = constantValue(member.value);
-        break;
-      case "attribute": {
-        const putForwards = extAttr(member, "PutForwards");
-        const attribute = {
-          ...(member.readonly ? { readonly: true } : {}),
-          ...(putForwards ? { putForwards: putForwards.rhs.value } : {}),
-          ...(extAttr(member, "Replaceable") ? { replaceable: true } : {}),
-          ...(extAttr(member, "LegacyLenientSetter") ? { lenientSetter: true } : {}),
-          ...(extAttr(member, "LegacyLenientThis") ? { lenientThis: true } : {}),
-          ...flags,
-        };
-        const bucket = member.special === "static" ? target.staticAttributes : target.attributes;
-        bucket[member.name] = attribute;
-        // A stringifier attribute also defines toString().
-        if (member.special === "stringifier") target.operations.toString = { length: 0, ...flags };
-        break;
-      }
-      case "operation": {
-        const name = member.special === "stringifier" && !member.name ? "toString" : member.name;
-        // Anonymous accessors shape indexed/named access but have no named operation.
-        if (!name) break;
-        const bucket = member.special === "static" ? target.staticOperations : target.operations;
-        const length = requiredArguments(member.arguments);
-        const prior = bucket[name];
-        bucket[name] = {
-          length: prior ? Math.min(prior.length, length) : length,
-          ...(isPromise(member.idlType) ? { promise: true } : {}),
-          ...flags,
-        };
-        break;
-      }
-      case "iterable":
-      case "async_iterable":
-        if (member.async || member.type === "async_iterable") target.asyncIterable = true;
-        else target.iterable = member.idlType.length === 2 ? "pair" : "value";
-        break;
-      case "setlike":
-        target.setlike = { readonly: !!member.readonly };
-        break;
-      case "maplike":
-        target.maplike = { readonly: !!member.readonly };
-        break;
-      case "field":
-        break;
-      default:
-        throw new Error(`unsupported member type ${member.type} in ${target.name}`);
-    }
+    addMember(target, member, memberFlags(member, inheritedSecure));
   }
 }
 
-function compact(model) {
-  const out = { name: model.name };
+function addCompactParent(out, model) {
   if (model.parent) out.parent = model.parent;
-  out.spec = model.spec;
+}
+
+function addCompactFlags(out, model) {
   for (const key of ["callback", "noInterfaceObject", "global", "secureContext", "asyncIterable"]) {
     if (model[key]) out[key] = true;
   }
+}
+
+function addCompactArrays(out, model) {
   if (model.windowAliases.length) out.windowAliases = model.windowAliases;
   if (model.factoryFunctions.length) out.factoryFunctions = model.factoryFunctions;
+}
+
+function addCompactConstructor(out, model) {
   out.constructible = model.constructorLengths.length > 0;
   out.length = model.constructorLengths.length ? Math.min(...model.constructorLengths) : 0;
+}
+
+function addCompactMaps(out, model) {
   for (const key of [
     "constants",
     "attributes",
@@ -269,110 +330,172 @@ function compact(model) {
   ]) {
     if (Object.keys(model[key]).length) out[key] = model[key];
   }
+}
+
+function addCompactCollections(out, model) {
   for (const key of ["iterable", "setlike", "maplike"]) {
     if (model[key]) out[key] = model[key];
   }
+}
+
+function compact(model) {
+  const out = { name: model.name };
+  addCompactParent(out, model);
+  out.spec = model.spec;
+  addCompactFlags(out, model);
+  addCompactArrays(out, model);
+  addCompactConstructor(out, model);
+  addCompactMaps(out, model);
+  addCompactCollections(out, model);
   return out;
 }
 
-function buildModel() {
-  const interfaces = new Map();
-  const mixins = new Map();
-  const partials = [];
-  const partialMixins = [];
-  const includes = [];
+function modelState() {
+  return {
+    interfaces: new Map(),
+    mixins: new Map(),
+    partials: [],
+    partialMixins: [],
+    includes: [],
+    spec: "",
+  };
+}
 
+function shouldIncludeInterface(definition) {
+  if (definition.type !== "callback interface") return true;
+  return definition.members.some((member) => member.type === "const");
+}
+
+function processInterfaceDefinition(definition, state) {
+  if (definition.partial) {
+    state.partials.push({ definition, spec: state.spec });
+    return;
+  }
+  // Only callback interfaces with constants have runtime interface objects.
+  if (!shouldIncludeInterface(definition)) return;
+  if (!exposedOnWindow(definition, false)) return;
+  if (state.interfaces.has(definition.name)) {
+    throw new Error(
+      `${definition.name} is defined by both ${state.interfaces.get(definition.name).spec} and ${state.spec}`,
+    );
+  }
+  const model = newInterface(definition, state.spec);
+  addMembers(model, definition.members, model.secureContext);
+  state.interfaces.set(definition.name, model);
+}
+
+function processMixinDefinition(definition, state) {
+  if (definition.partial) state.partialMixins.push(definition);
+  else state.mixins.set(definition.name, { members: [...definition.members], definition });
+}
+
+function processIncludeDefinition(definition, state) {
+  state.includes.push(definition);
+}
+
+const MODEL_DEFINITION_HANDLERS = new Map([
+  ["interface", processInterfaceDefinition],
+  ["callback interface", processInterfaceDefinition],
+  ["interface mixin", processMixinDefinition],
+  ["includes", processIncludeDefinition],
+]);
+
+function processDefinition(definition, spec, state) {
+  state.spec = spec;
+  const handler = MODEL_DEFINITION_HANDLERS.get(definition.type);
+  if (handler) handler(definition, state);
+}
+
+function applyPartial(state, definition) {
+  const target = state.interfaces.get(definition.name);
+  if (!target || !exposedOnWindow(definition, true)) return;
+  addMembers(
+    target,
+    definition.members,
+    target.secureContext || !!extAttr(definition, "SecureContext"),
+  );
+}
+
+function applyPartials(state) {
+  // Partial definitions contribute only when their base interface is selected.
+  for (const { definition } of state.partials) applyPartial(state, definition);
+}
+
+function applyPartialMixin(state, definition) {
+  const mixin = state.mixins.get(definition.name);
+  if (!mixin || !exposedOnWindow(definition, true)) return;
+  mixin.members.push(...definition.members);
+}
+
+function applyPartialMixins(state) {
+  for (const definition of state.partialMixins) applyPartialMixin(state, definition);
+}
+
+function applyInclude(state, statement) {
+  const target = state.interfaces.get(statement.target);
+  const mixin = state.mixins.get(statement.includes);
+  if (!target || !mixin || !exposedOnWindow(mixin.definition, true)) return;
+  addMembers(
+    target,
+    mixin.members,
+    target.secureContext || !!extAttr(mixin.definition, "SecureContext"),
+  );
+}
+
+function applyIncludes(state) {
+  for (const statement of state.includes) applyInclude(state, statement);
+}
+
+function buildModel() {
+  const state = modelState();
   for (const spec of MODEL_SPECS) {
     for (const definition of parse(readIdl(`.wpt/interfaces/${spec}.idl`))) {
-      switch (definition.type) {
-        case "interface":
-        case "callback interface": {
-          if (definition.partial) {
-            partials.push({ definition, spec });
-            break;
-          }
-          // Only callback interfaces with constants have runtime interface objects.
-          if (
-            definition.type === "callback interface" &&
-            !definition.members.some((member) => member.type === "const")
-          )
-            break;
-          if (!exposedOnWindow(definition, false)) break;
-          if (interfaces.has(definition.name)) {
-            throw new Error(
-              `${definition.name} is defined by both ${interfaces.get(definition.name).spec} and ${spec}`,
-            );
-          }
-          const model = newInterface(definition, spec);
-          addMembers(model, definition.members, model.secureContext);
-          interfaces.set(definition.name, model);
-          break;
-        }
-        case "interface mixin":
-          if (definition.partial) partialMixins.push(definition);
-          else mixins.set(definition.name, { members: [...definition.members], definition });
-          break;
-        case "includes":
-          includes.push(definition);
-          break;
-        default:
-          break;
-      }
+      processDefinition(definition, spec, state);
     }
   }
-
-  // Partial definitions contribute only when their base interface is selected.
-  for (const { definition } of partials) {
-    const target = interfaces.get(definition.name);
-    if (!target || !exposedOnWindow(definition, true)) continue;
-    addMembers(
-      target,
-      definition.members,
-      target.secureContext || !!extAttr(definition, "SecureContext"),
-    );
-  }
-  for (const definition of partialMixins) {
-    const mixin = mixins.get(definition.name);
-    if (!mixin || !exposedOnWindow(definition, true)) continue;
-    mixin.members.push(...definition.members);
-  }
-  for (const statement of includes) {
-    const target = interfaces.get(statement.target);
-    const mixin = mixins.get(statement.includes);
-    if (!target || !mixin || !exposedOnWindow(mixin.definition, true)) continue;
-    addMembers(
-      target,
-      mixin.members,
-      target.secureContext || !!extAttr(mixin.definition, "SecureContext"),
-    );
-  }
-
-  return [...interfaces.values()]
+  applyPartials(state);
+  applyPartialMixins(state);
+  applyIncludes(state);
+  return [...state.interfaces.values()]
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
     .map(compact);
 }
 
+function addRuntimeParentAndConstants(entry, model) {
+  if (model.parent) entry.parent = model.parent;
+  if (model.constants) entry.constants = model.constants;
+}
+
+function addRuntimeOperationLengths(entry, model) {
+  for (const [key, output] of [
+    ["operations", "methodLengths"],
+    ["staticOperations", "staticMethodLengths"],
+  ]) {
+    if (!model[key]) continue;
+    entry[output] = Object.fromEntries(
+      Object.entries(model[key]).map(([name, operation]) => [name, operation.length]),
+    );
+  }
+}
+
+function addRuntimePromiseOperations(entry, model) {
+  const promiseOps = Object.entries(model.operations || {})
+    .filter(([, operation]) => operation.promise)
+    .map(([name]) => name);
+  if (promiseOps.length) entry.promiseOps = promiseOps;
+}
+
+function runtimeEntry(model) {
+  const entry = { length: model.length };
+  addRuntimeParentAndConstants(entry, model);
+  addRuntimeOperationLengths(entry, model);
+  addRuntimePromiseOperations(entry, model);
+  return entry;
+}
+
 function renderRuntime(interfaces, revision) {
   const body = interfaces
-    .map((model) => {
-      const entry = { length: model.length };
-      if (model.parent) entry.parent = model.parent;
-      if (model.constants) entry.constants = model.constants;
-      for (const [key, out] of [
-        ["operations", "methodLengths"],
-        ["staticOperations", "staticMethodLengths"],
-      ]) {
-        if (!model[key]) continue;
-        entry[out] = Object.fromEntries(
-          Object.entries(model[key]).map(([name, op]) => [name, op.length]),
-        );
-      }
-      const promiseOps = Object.entries(model.operations || {})
-        .filter(([, op]) => op.promise)
-        .map(([name]) => name);
-      if (promiseOps.length) entry.promiseOps = promiseOps;
-      return `  ${JSON.stringify(model.name)}: ${JSON.stringify(entry)},`;
-    })
+    .map((model) => `  ${JSON.stringify(model.name)}: ${JSON.stringify(runtimeEntry(model))},`)
     .join("\n");
   return (
     header(`the merged model in model.generated.ts`, revision) +
@@ -401,29 +524,55 @@ const MISSING_MEMBER =
   /^(\w+)\.prototype(?:\.([\w$]+)(?:\(\))?|(\[Symbol\.\w+\]))?: missing(?: (?:attribute|operation))?$/;
 
 // A member cannot be both runtime-missing and an intentional type gap.
-function loadGaps() {
+function missingMemberName(match) {
+  return match[2] || match[3];
+}
+
+function addMissingGap(missing, entry) {
+  const match = MISSING_MEMBER.exec(entry);
+  if (!match) return;
+  const member = missingMemberName(match);
+  if (!member) return;
+  if (!missing.has(match[1])) missing.set(match[1], new Set());
+  missing.get(match[1]).add(member);
+}
+
+function loadMissingGaps() {
   const missing = new Map();
+  for (const entry of JSON.parse(fs.readFileSync(path.join(root, LEDGER), "utf8"))) {
+    addMissingGap(missing, entry);
+  }
+  return missing;
+}
+
+function addTypeGap(missing, omit, iface, member, reason) {
+  if (missing.get(iface)?.has(member)) {
+    throw new Error(`${TYPE_GAPS}: ${iface}.${member} is already missing in ${LEDGER}`);
+  }
+  if (!omit.has(iface)) omit.set(iface, new Map());
+  omit.get(iface).set(member, reason);
+}
+
+function addInterfaceTypeGaps(missing, omit, iface, spec) {
+  if (iface.startsWith("$")) return;
+  for (const [member, reason] of Object.entries(spec.omit ?? {})) {
+    addTypeGap(missing, omit, iface, member, reason);
+  }
+}
+
+function loadTypeGaps(missing) {
   const omit = new Map();
   const parent = new Map();
-  for (const entry of JSON.parse(fs.readFileSync(path.join(root, LEDGER), "utf8"))) {
-    const match = MISSING_MEMBER.exec(entry);
-    if (!match || !(match[2] || match[3])) continue;
-    if (!missing.has(match[1])) missing.set(match[1], new Set());
-    missing.get(match[1]).add(match[2] || match[3]);
-  }
   const typeGaps = JSON.parse(fs.readFileSync(path.join(root, TYPE_GAPS), "utf8"));
   for (const [iface, spec] of Object.entries(typeGaps)) {
-    if (iface.startsWith("$")) continue;
-    for (const [member, reason] of Object.entries(spec.omit ?? {})) {
-      if (missing.get(iface)?.has(member)) {
-        throw new Error(`${TYPE_GAPS}: ${iface}.${member} is already missing in ${LEDGER}`);
-      }
-      if (!omit.has(iface)) omit.set(iface, new Map());
-      omit.get(iface).set(member, reason);
-    }
+    addInterfaceTypeGaps(missing, omit, iface, spec);
     if (spec.parent) parent.set(iface, spec.parent);
   }
   return { missing, omit, parent };
+}
+
+function loadGaps() {
+  return loadTypeGaps(loadMissingGaps());
 }
 
 // ---- driver ----

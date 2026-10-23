@@ -33,34 +33,81 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const next = () => argv[++i];
-    if (arg === "--tests") options.tests = resolve(next());
-    else if (arg === "--dist") options.dist = resolve(next());
-    else if (arg === "--expectations") options.expectations = resolve(next());
-    else if (arg === "--out-dir") options.outDir = resolve(next());
-    else if (arg === "--wpt-dir") options.wptDir = resolve(next());
-    else if (arg === "--hosts-file") options.hostsFile = resolve(next());
-    else if (arg === "--revision-file")
-      options.revision = JSON.parse(readFileSync(resolve(next()), "utf8")).revision;
-    else if (arg === "-j") options.engines = parseInt(next(), 10);
-    else if (arg === "--port") options.port = parseInt(next(), 10);
-    else if (arg === "--attempt-ms") options.attemptMs = parseInt(next(), 10);
-    else if (arg === "--max-wall-ms") options.maxWallMs = parseInt(next(), 10);
-    else if (arg === "--draw") options.draw = true;
-    else if (arg === "--help" || arg === "-h") {
-      console.log(USAGE);
-      process.exit(0);
-    } else fail(`unknown option ${arg}\n${USAGE}`);
+    switch (arg) {
+      case "--tests":
+        options.tests = resolve(next());
+        break;
+      case "--dist":
+        options.dist = resolve(next());
+        break;
+      case "--expectations":
+        options.expectations = resolve(next());
+        break;
+      case "--out-dir":
+        options.outDir = resolve(next());
+        break;
+      case "--wpt-dir":
+        options.wptDir = resolve(next());
+        break;
+      case "--hosts-file":
+        options.hostsFile = resolve(next());
+        break;
+      case "--revision-file":
+        options.revision = JSON.parse(readFileSync(resolve(next()), "utf8")).revision;
+        break;
+      case "-j":
+        options.engines = parseInt(next(), 10);
+        break;
+      case "--port":
+        options.port = parseInt(next(), 10);
+        break;
+      case "--attempt-ms":
+        options.attemptMs = parseInt(next(), 10);
+        break;
+      case "--max-wall-ms":
+        options.maxWallMs = parseInt(next(), 10);
+        break;
+      case "--draw":
+        options.draw = true;
+        break;
+      case "--help":
+      case "-h":
+        console.log(USAGE);
+        process.exit(0);
+      default:
+        fail(`unknown option ${arg}\n${USAGE}`);
+    }
   }
+  fillOptionDefaults(options);
+  requireOptions(options);
+  return options;
+}
+
+function defaultWptDirectory(options) {
   options.wptDir ??= resolve(process.env.KITESURF_WPT_DIR ?? resolve(ROOT, ".wpt"));
+}
+
+function defaultHostsFileFromEnv(options) {
   options.hostsFile ??= process.env.KITESURF_WPT_HOSTS
     ? resolve(process.env.KITESURF_WPT_HOSTS)
     : undefined;
+}
+
+function findHostsFile(options) {
   if (!options.hostsFile && existsSync(resolve(options.wptDir, ".hosts")))
     options.hostsFile = resolve(options.wptDir, ".hosts");
+}
+
+function fillOptionDefaults(options) {
+  defaultWptDirectory(options);
+  defaultHostsFileFromEnv(options);
+  findHostsFile(options);
+}
+
+function requireOptions(options) {
   if (!options.tests || !options.expectations || !options.dist || !options.outDir) {
     fail(`--tests, --expectations, --dist, and --out-dir are required\n${USAGE}`);
   }
-  return options;
 }
 
 let drawOut;
@@ -111,16 +158,18 @@ function gitHead(dir) {
   return existsSync(ref) ? readFileSync(ref, "utf8").trim() : "";
 }
 
+function corpusRevision(options) {
+  const marker = resolve(options.wptDir, ".revision");
+  const head = resolve(options.wptDir, ".git/HEAD");
+  if (existsSync(marker)) return readFileSync(marker, "utf8").trim();
+  if (existsSync(head)) return gitHead(options.wptDir);
+  return "";
+}
+
 function checkRevision(options) {
   if (!existsSync(resolve(options.wptDir, "wpt"))) fail(`no WPT checkout at ${options.wptDir}`);
   if (!options.revision) return;
-  const marker = resolve(options.wptDir, ".revision");
-  const head = resolve(options.wptDir, ".git/HEAD");
-  const revision = existsSync(marker)
-    ? readFileSync(marker, "utf8").trim()
-    : existsSync(head)
-      ? gitHead(options.wptDir)
-      : "";
+  const revision = corpusRevision(options);
   if (revision !== options.revision)
     fail(
       `WPT corpus at ${options.wptDir} is ${revision || "unknown"}, expected ${options.revision}`,
@@ -168,8 +217,12 @@ async function waitPortsFree(ports, label, stop = () => {}) {
   }
 }
 
+function isRunningChild(child) {
+  return child?.pid && child.exitCode === null && child.signalCode === null;
+}
+
 function stopGroup(child) {
-  if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
+  if (!isRunningChild(child)) return;
   try {
     process.kill(-child.pid, "SIGKILL");
   } catch {}
@@ -259,18 +312,28 @@ function runBatched(options, env, limitMs) {
   });
 }
 
-function complete(options, code, finished) {
-  const listed = JSON.parse(readFileSync(options.tests, "utf8"));
-  const resultPath = resolve(options.outDir, "results.json");
-  const received = existsSync(resultPath)
-    ? JSON.parse(readFileSync(resultPath, "utf8")).byFile
-    : {};
-  const missing = listed.filter((test) => !(test in received));
+function readReceivedResults(resultPath) {
+  return existsSync(resultPath) ? JSON.parse(readFileSync(resultPath, "utf8")).byFile : {};
+}
+
+function reportMissingTests(listed, missing) {
   if (missing.length)
     console.error(
       `[wpt-bucket] ${missing.length} of ${listed.length} tests have no result, e.g. ${missing[0]}`,
     );
+}
+
+function canComplete(code, finished, missing) {
   return (code === 0 || code === 1 || finished) && missing.length === 0;
+}
+
+function complete(options, code, finished) {
+  const listed = JSON.parse(readFileSync(options.tests, "utf8"));
+  const resultPath = resolve(options.outDir, "results.json");
+  const received = readReceivedResults(resultPath);
+  const missing = listed.filter((test) => !(test in received));
+  reportMissingTests(listed, missing);
+  return canComplete(code, finished, missing);
 }
 
 async function attempt(options, env, scratch, limitMs) {

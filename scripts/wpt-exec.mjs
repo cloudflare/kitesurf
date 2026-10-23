@@ -68,29 +68,12 @@ const PROFILE = process.env.WPT_PROFILE === "1";
 
 const FORCE_RUN = new Set(argv.forceRunFile ? loadJSON(resolve(argv.forceRunFile), []) : []);
 
-function parseArgs(arr) {
-  const out = {};
-  for (let i = 0; i < arr.length; i++) {
-    const a = arr[i];
-    if (a === "--ws") (out.ws ??= []).push(arr[++i]);
-    else if (a === "--base") out.base = arr[++i];
-    else if (a === "--timeout") out.timeout = parseInt(arr[++i], 10);
-    else if (a === "--bail") out.bail = true;
-    else if (a === "--json-out") out.jsonOut = arr[++i];
-    else if (a === "--skip-slow") out.skipSlow = true;
-    else if (a === "--max-total") out.maxTotal = parseInt(arr[++i], 10);
-    else if (a === "--concurrency" || a === "-j") out.concurrency = parseInt(arr[++i], 10);
-    else if (a === "--recovery-budget") out.recoveryBudget = parseInt(arr[++i], 10);
-    else if (a === "--stall-budget") out.stallBudget = parseInt(arr[++i], 10);
-    else if (a === "--no-rerun-crashes") out.rerunCrashes = false;
-    else if (a === "--skip-expected-timeouts") out.skipExpectedTimeouts = true;
-    else if (a === "--skip-expected-crashes") out.skipExpectedCrashes = true;
-    else if (a === "--force-run-file") out.forceRunFile = arr[++i];
-    else if (a === "--expectations") out.expectations = arr[++i];
-    else if (a === "--save-diff") out.saveDiff = arr[++i];
-    else if (a === "--tests-file") out.testsFile = arr[++i];
-    else if (a === "--help" || a === "-h") {
-      console.log(`Usage: node scripts/wpt-exec.mjs [options]
+function isHelpOption(arg) {
+  return arg === "--help" || arg === "-h";
+}
+
+function showHelp() {
+  console.log(`Usage: node scripts/wpt-exec.mjs [options]
 
 INTERNAL per-batch executor. Use \`pnpm run test:wpt\`
 (scripts/wpt-batched.mjs) — it owns the test list, the engine, the
@@ -161,8 +144,52 @@ test expected to TIMEOUT gets at least ${HARNESS_TIMEOUT_FLOOR_MS}ms so
 testharness.js reaches its own 10s verdict and publishes the subtests
 that passed before the hang, instead of reporting a bare 0/0.
 `);
-      process.exit(0);
+  process.exit(0);
+}
+
+function argumentHandlers(out) {
+  const values = new Map(
+    Object.entries({
+      "--ws": (value) => (out.ws ??= []).push(value),
+      "--base": (value) => (out.base = value),
+      "--timeout": (value) => (out.timeout = parseInt(value, 10)),
+      "--json-out": (value) => (out.jsonOut = value),
+      "--max-total": (value) => (out.maxTotal = parseInt(value, 10)),
+      "--concurrency": (value) => (out.concurrency = parseInt(value, 10)),
+      "-j": (value) => (out.concurrency = parseInt(value, 10)),
+      "--recovery-budget": (value) => (out.recoveryBudget = parseInt(value, 10)),
+      "--stall-budget": (value) => (out.stallBudget = parseInt(value, 10)),
+      "--force-run-file": (value) => (out.forceRunFile = value),
+      "--expectations": (value) => (out.expectations = value),
+      "--save-diff": (value) => (out.saveDiff = value),
+      "--tests-file": (value) => (out.testsFile = value),
+    }),
+  );
+  const flags = new Map(
+    Object.entries({
+      "--bail": () => (out.bail = true),
+      "--skip-slow": () => (out.skipSlow = true),
+      "--no-rerun-crashes": () => (out.rerunCrashes = false),
+      "--skip-expected-timeouts": () => (out.skipExpectedTimeouts = true),
+      "--skip-expected-crashes": () => (out.skipExpectedCrashes = true),
+    }),
+  );
+  return { values, flags };
+}
+
+function parseArgs(arr) {
+  const out = {};
+  const { values, flags } = argumentHandlers(out);
+  for (let i = 0; i < arr.length; i++) {
+    const arg = arr[i];
+    if (isHelpOption(arg)) showHelp();
+    const valueHandler = values.get(arg);
+    if (valueHandler) {
+      valueHandler(arr[++i]);
+      continue;
     }
+    const flagHandler = flags.get(arg);
+    if (flagHandler) flagHandler();
   }
   return out;
 }
@@ -431,18 +458,23 @@ function normalizeSubtest(s) {
 }
 
 function classifyResult(harnessStatus, subtests, counts) {
-  if (harnessStatus !== "OK") {
-    if (harnessStatus === "TIMEOUT") return "TIMEOUT";
-    return "ERROR";
-  }
-  if (counts && Object.keys(counts).length > 0) {
-    const statuses = Object.keys(counts);
-    return statuses.length === 1 && statuses[0] === "PASS" ? "PASS" : "FAIL";
-  }
-  if (subtests.length === 0) {
-    return "PASS";
-  }
-  return subtests.every((s) => s.status === "PASS") ? "PASS" : "FAIL";
+  if (harnessStatus !== "OK") return classifyHarnessFailure(harnessStatus);
+  if (counts && Object.keys(counts).length > 0) return classifyCounts(counts);
+  if (subtests.length === 0) return "PASS";
+  return classifySubtests(subtests);
+}
+
+function classifyHarnessFailure(harnessStatus) {
+  return harnessStatus === "TIMEOUT" ? "TIMEOUT" : "ERROR";
+}
+
+function classifyCounts(counts) {
+  const statuses = Object.keys(counts);
+  return statuses.length === 1 && statuses[0] === "PASS" ? "PASS" : "FAIL";
+}
+
+function classifySubtests(subtests) {
+  return subtests.every((subtest) => subtest.status === "PASS") ? "PASS" : "FAIL";
 }
 
 function withDeadline(label, ms, work) {
@@ -516,42 +548,44 @@ async function waitForReftestReady(page, deadline) {
   return false;
 }
 
-function parseFuzzy(spec) {
-  if (!spec) return { maxDiff: 0, maxPixels: 0 };
-  spec = String(spec)
-    .replace(/^[^[]*\[/, "")
-    .replace(/\]$/, "")
-    .trim();
-  const fields = spec
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean);
+function fuzzyUpperBound(value) {
+  const range = value.split("-");
+  return parseInt(range[range.length - 1], 10) || 0;
+}
+
+function fuzzyFieldParts(field, firstField, maxDiff) {
+  const equals = field.indexOf("=");
+  if (equals !== -1) {
+    return { key: field.slice(0, equals).trim(), value: field.slice(equals + 1).trim() };
+  }
+  const key = maxDiff === 0 && firstField ? "maxDifference" : "totalPixels";
+  return { key, value: field };
+}
+
+function parseFuzzyFields(fields) {
   let maxDiff = 0;
   let maxPixels = 0;
   for (const field of fields) {
-    const eq = field.indexOf("=");
-    let key, val;
-    if (eq === -1) {
-      if (maxDiff === 0 && fields.indexOf(field) === 0) {
-        key = "maxDifference";
-        val = field;
-      } else {
-        key = "totalPixels";
-        val = field;
-      }
-    } else {
-      key = field.slice(0, eq).trim();
-      val = field.slice(eq + 1).trim();
-    }
-    // WPT fuzzy ranges use their upper bound as the accepted tolerance.
-    const upper = (() => {
-      const range = val.split("-");
-      return parseInt(range[range.length - 1], 10) || 0;
-    })();
-    if (/^maxDifference$/i.test(key)) maxDiff = upper;
-    else if (/^totalPixels$/i.test(key)) maxPixels = upper;
+    const parts = fuzzyFieldParts(field, fields.indexOf(field) === 0, maxDiff);
+    const upper = fuzzyUpperBound(parts.value);
+    if (/^maxDifference$/i.test(parts.key)) maxDiff = upper;
+    else if (/^totalPixels$/i.test(parts.key)) maxPixels = upper;
   }
   return { maxDiff, maxPixels };
+}
+
+function parseFuzzy(spec) {
+  if (!spec) return { maxDiff: 0, maxPixels: 0 };
+  const normalized = String(spec)
+    .replace(/^[^[]*\[/, "")
+    .replace(/\]$/, "")
+    .trim();
+  const fields = normalized
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // WPT fuzzy ranges use their upper bound as the accepted tolerance.
+  return parseFuzzyFields(fields);
 }
 
 async function captureScreenshotPng(page, _timeoutMs) {
@@ -562,38 +596,42 @@ async function captureScreenshotPng(page, _timeoutMs) {
 // Raster quantization needs a one-level floor even when the WPT tolerance is zero.
 const MAX_DIFF_FLOOR = 1;
 
-function comparePngs(testPng, refPng, fuzzy, isMismatch) {
-  if (testPng.equals(refPng)) {
-    return {
-      match: !isMismatch,
-      diffPixels: 0,
-      totalPixels: 0,
-      reason: isMismatch ? "byte-equal but mismatch expected" : "byte-equal",
-    };
-  }
-  let testImg, refImg;
+function byteEqualComparison(isMismatch) {
+  return {
+    match: !isMismatch,
+    diffPixels: 0,
+    totalPixels: 0,
+    reason: isMismatch ? "byte-equal but mismatch expected" : "byte-equal",
+  };
+}
+
+function decodePngPair(testPng, refPng) {
   try {
-    testImg = PNG.sync.read(testPng);
-    refImg = PNG.sync.read(refPng);
+    return { testImg: PNG.sync.read(testPng), refImg: PNG.sync.read(refPng) };
   } catch (e) {
     return {
-      match: false,
-      diffPixels: -1,
-      totalPixels: 0,
-      reason: `png decode failed: ${e.message}`,
+      failure: {
+        match: false,
+        diffPixels: -1,
+        totalPixels: 0,
+        reason: `png decode failed: ${e.message}`,
+      },
     };
   }
-  if (testImg.width !== refImg.width || testImg.height !== refImg.height) {
-    return {
-      match: false,
-      diffPixels: -1,
-      totalPixels: 0,
-      reason: `size mismatch: test=${testImg.width}x${testImg.height} ref=${refImg.width}x${refImg.height}`,
-    };
-  }
+}
+
+function dimensionMismatch(testImg, refImg) {
+  if (testImg.width === refImg.width && testImg.height === refImg.height) return null;
+  return {
+    match: false,
+    diffPixels: -1,
+    totalPixels: 0,
+    reason: `size mismatch: test=${testImg.width}x${testImg.height} ref=${refImg.width}x${refImg.height}`,
+  };
+}
+
+function diffPngPixels(testImg, refImg, maxDiff) {
   const { width, height } = testImg;
-  const totalPixels = width * height;
-  const maxDiff = Math.max(fuzzy.maxDiff, MAX_DIFF_FLOOR);
   const diffData = Buffer.alloc(width * height * 4);
   const a = testImg.data;
   const b = refImg.data;
@@ -618,21 +656,39 @@ function comparePngs(testPng, refPng, fuzzy, isMismatch) {
       diffData[i + 3] = 255;
     }
   }
-  const matchPx = isMismatch ? diffPixels > 0 : diffPixels <= fuzzy.maxPixels;
+  return { width, height, diffData, diffPixels, worstDelta };
+}
+
+function pixelComparison(fuzzy, isMismatch, pixelDiff) {
+  const { width, height, diffData, diffPixels, worstDelta } = pixelDiff;
+  const totalPixels = width * height;
+  const match = isMismatch ? diffPixels > 0 : diffPixels <= fuzzy.maxPixels;
+  const maxDiff = Math.max(fuzzy.maxDiff, MAX_DIFF_FLOOR);
   const floored = maxDiff !== fuzzy.maxDiff ? `, floor=${MAX_DIFF_FLOOR}` : "";
   const detail =
     `pixel-diff=${diffPixels}/${totalPixels} worstDelta=${worstDelta} ` +
     `fuzzy(maxDiff=${fuzzy.maxDiff}${floored}, maxPixels=${fuzzy.maxPixels})` +
     `${isMismatch ? " [mismatch]" : ""}`;
   return {
-    match: matchPx,
+    match,
     diffPixels,
     totalPixels,
     width,
     height,
     diffData,
-    reason: matchPx ? `${detail} within tolerance` : `${detail} exceeds tolerance`,
+    reason: match ? `${detail} within tolerance` : `${detail} exceeds tolerance`,
   };
+}
+
+function comparePngs(testPng, refPng, fuzzy, isMismatch) {
+  if (testPng.equals(refPng)) return byteEqualComparison(isMismatch);
+  const decoded = decodePngPair(testPng, refPng);
+  if (decoded.failure) return decoded.failure;
+  const { testImg, refImg } = decoded;
+  const sizeFailure = dimensionMismatch(testImg, refImg);
+  if (sizeFailure) return sizeFailure;
+  const maxDiff = Math.max(fuzzy.maxDiff, MAX_DIFF_FLOOR);
+  return pixelComparison(fuzzy, isMismatch, diffPngPixels(testImg, refImg, maxDiff));
 }
 
 const refShotCache = new Map();
@@ -644,66 +700,18 @@ async function runReftest(page, testInfo, timeoutMs, deadline, lap = () => {}) {
   // Print and screen references differ, so media belongs in the reference-cache key.
   const cacheKey = `${testInfo.media ?? ""}\n${testInfo.href}`;
 
-  if (testInfo.waiting) await waitForReftestReady(page, deadline);
-  lap("refWaitMs");
-  let testPng;
-  try {
-    testPng = await captureScreenshotPng(page, timeoutMs);
-  } catch (e) {
-    return { actual: "ERROR", reason: `test screenshot failed: ${e.message}`, subtests: [] };
-  }
+  const testCapture = await captureReftestTestPng(page, testInfo, timeoutMs, deadline, lap);
+  if (testCapture.failure) return testCapture.failure;
   lap("refShot1Ms");
-
-  const renderRef = async () => {
-    try {
-      await page.goto(testInfo.href, { timeout: timeoutMs });
-    } catch (e) {
-      throw { actual: "ERROR", reason: `ref goto failed: ${e.message}`, subtests: [] };
-    }
-    lap("refGotoMs");
-    // If a reference stays in reftest-wait, capture its current frame but do not cache it.
-    const cacheable = await waitForReftestReady(page, Date.now() + timeoutMs);
-    lap("refWaitMs");
-    let png;
-    try {
-      png = await captureScreenshotPng(page, timeoutMs);
-    } catch (e) {
-      throw { actual: "ERROR", reason: `ref screenshot failed: ${e.message}`, subtests: [] };
-    }
-    lap("refShot2Ms");
-    return { png, cacheable };
-  };
-  let refPng;
-  let refCached;
-  try {
-    ({ png: refPng, cached: refCached } = await getCachedRefScreenshot(
-      refShotCache,
-      cacheKey,
-      renderRef,
-    ));
-    if (refCached) {
-      refShotHits++;
-      lap("refCacheWaitMs");
-    }
-  } catch (err) {
-    if (err && typeof err === "object" && err.actual) return err;
-    throw err;
-  }
-
-  const cmp = comparePngs(testPng, refPng, fuzzy, isMismatch);
+  const refCapture = await loadReferenceScreenshot(page, testInfo, cacheKey, timeoutMs, lap);
+  if (refCapture.failure) return refCapture.failure;
+  const cmp = comparePngs(testCapture.png, refCapture.png, fuzzy, isMismatch);
   lap("refCompareMs");
-  if (!cmp.match && argv.saveDiff && cmp.diffData) {
-    try {
-      mkdirSync(argv.saveDiff, { recursive: true });
-      const safe = testInfo.testPath.replace(/^\//, "").replace(/[\/]/g, "_");
-      writeFileSync(resolve(argv.saveDiff, `${safe}.test.png`), testPng);
-      writeFileSync(resolve(argv.saveDiff, `${safe}.ref.png`), refPng);
-      const diffPng = new PNG({ width: cmp.width, height: cmp.height });
-      cmp.diffData.copy(diffPng.data);
-      const out = PNG.sync.write(diffPng);
-      writeFileSync(resolve(argv.saveDiff, `${safe}.diff.png`), out);
-    } catch {}
-  }
+  saveReftestDiff(cmp, testInfo, testCapture.png, refCapture.png);
+  return reftestResult(testInfo, fuzzy, cmp, refCapture.cached);
+}
+
+function reftestResult(testInfo, fuzzy, cmp, refCached) {
   return {
     actual: cmp.match ? "PASS" : "FAIL",
     reason: `reftest [${testInfo.rel}] ${cmp.reason}${refCached ? " (ref cached)" : ""}`,
@@ -720,6 +728,72 @@ async function runReftest(page, testInfo, timeoutMs, deadline, lap = () => {}) {
   };
 }
 
+async function captureReftestTestPng(page, testInfo, timeoutMs, deadline, lap) {
+  if (testInfo.waiting) await waitForReftestReady(page, deadline);
+  lap("refWaitMs");
+  try {
+    return { png: await captureScreenshotPng(page, timeoutMs) };
+  } catch (e) {
+    return {
+      failure: { actual: "ERROR", reason: `test screenshot failed: ${e.message}`, subtests: [] },
+    };
+  }
+}
+
+async function renderReferenceScreenshot(page, testInfo, timeoutMs, lap) {
+  try {
+    await page.goto(testInfo.href, { timeout: timeoutMs });
+  } catch (e) {
+    throw { actual: "ERROR", reason: `ref goto failed: ${e.message}`, subtests: [] };
+  }
+  lap("refGotoMs");
+  // If a reference stays in reftest-wait, capture its current frame but do not cache it.
+  const cacheable = await waitForReftestReady(page, Date.now() + timeoutMs);
+  lap("refWaitMs");
+  let png;
+  try {
+    png = await captureScreenshotPng(page, timeoutMs);
+  } catch (e) {
+    throw { actual: "ERROR", reason: `ref screenshot failed: ${e.message}`, subtests: [] };
+  }
+  lap("refShot2Ms");
+  return { png, cacheable };
+}
+
+function isReftestFailure(err) {
+  return Boolean(err && typeof err === "object" && err.actual);
+}
+
+async function loadReferenceScreenshot(page, testInfo, cacheKey, timeoutMs, lap) {
+  try {
+    const reference = await getCachedRefScreenshot(refShotCache, cacheKey, () =>
+      renderReferenceScreenshot(page, testInfo, timeoutMs, lap),
+    );
+    if (reference.cached) {
+      refShotHits++;
+      lap("refCacheWaitMs");
+    }
+    return reference;
+  } catch (err) {
+    if (isReftestFailure(err)) return { failure: err };
+    throw err;
+  }
+}
+
+function saveReftestDiff(cmp, testInfo, testPng, refPng) {
+  if (cmp.match || !argv.saveDiff || !cmp.diffData) return;
+  try {
+    mkdirSync(argv.saveDiff, { recursive: true });
+    const safe = testInfo.testPath.replace(/^\//, "").replace(/[\/]/g, "_");
+    writeFileSync(resolve(argv.saveDiff, `${safe}.test.png`), testPng);
+    writeFileSync(resolve(argv.saveDiff, `${safe}.ref.png`), refPng);
+    const diffPng = new PNG({ width: cmp.width, height: cmp.height });
+    cmp.diffData.copy(diffPng.data);
+    const out = PNG.sync.write(diffPng);
+    writeFileSync(resolve(argv.saveDiff, `${safe}.diff.png`), out);
+  } catch {}
+}
+
 async function runCrashTest(page, testPath, deadline) {
   const probe = `(() => {
     const de = document.documentElement;
@@ -729,26 +803,44 @@ async function runCrashTest(page, testPath, deadline) {
   const testUrlPath = new URL(`${WPT_BASE}${testPath}`).pathname;
   let last = null;
   while (Date.now() < deadline) {
-    try {
-      last = await page.evaluate(probe);
-    } catch (e) {
-      return {
+    const result = await probeCrashPage(page, probe);
+    if (result.failure) return result.failure;
+    last = result.value;
+    if (crashTestLoaded(last, testUrlPath)) return crashTestPass();
+    await sleep(CRASHTEST_POLL_INTERVAL_MS);
+  }
+  return crashTestTimeout(last);
+}
+
+async function probeCrashPage(page, probe) {
+  try {
+    return { value: await page.evaluate(probe) };
+  } catch (e) {
+    return {
+      failure: {
         actual: "CRASH",
         reason: `page unreachable: ${e.message}`,
         subtests: [],
         source: "crashtest",
-      };
-    }
-    if (last && last.path === testUrlPath && !last.waiting) {
-      return {
-        actual: "PASS",
-        reason: "crashtest: loaded without crashing",
-        subtests: [],
-        source: "crashtest",
-      };
-    }
-    await sleep(CRASHTEST_POLL_INTERVAL_MS);
+      },
+    };
   }
+}
+
+function crashTestLoaded(last, testUrlPath) {
+  return last && last.path === testUrlPath && !last.waiting;
+}
+
+function crashTestPass() {
+  return {
+    actual: "PASS",
+    reason: "crashtest: loaded without crashing",
+    subtests: [],
+    source: "crashtest",
+  };
+}
+
+function crashTestTimeout(last) {
   return {
     actual: "TIMEOUT",
     reason: last?.waiting
@@ -759,189 +851,242 @@ async function runCrashTest(page, testPath, deadline) {
   };
 }
 
-async function runOne(page, testPath, expected, perTestTimeoutMs, bridge, profSession) {
-  if (expected === "SKIP") {
-    return { actual: "SKIP", reason: "marked SKIP in expectations", subtests: [] };
-  }
-  const prof = PROFILE ? { phases: {}, scrapeIters: 0 } : null;
+function createProfile() {
+  return PROFILE ? { phases: {}, scrapeIters: 0 } : null;
+}
+
+function createLap(prof) {
   let lapT = Date.now();
-  const lap = (name) => {
+  return (name) => {
     if (!prof) return;
     const now = Date.now();
     prof.phases[name] = (prof.phases[name] ?? 0) + (now - lapT);
     lapT = now;
   };
-  const withProf = (r) => (prof ? { ...r, profile: prof } : r);
-  if (expected === "TIMEOUT" && argv.skipExpectedTimeouts && !FORCE_RUN.has(testPath)) {
-    return {
-      actual: "TIMEOUT",
-      reason: "expected TIMEOUT (--skip-expected-timeouts)",
-      subtests: [],
-      synthetic: true,
-    };
-  }
-  if (expected === "CRASH" && argv.skipExpectedCrashes && !FORCE_RUN.has(testPath)) {
-    return {
-      actual: "CRASH",
-      reason: "expected CRASH (--skip-expected-crashes)",
-      subtests: [],
-      synthetic: true,
-    };
-  }
+}
 
-  const url = `${WPT_BASE}${testPath}`;
-  const timeoutMs = budgetFor({ timeout: perTestTimeoutMs, expected });
+function withProfile(prof, result) {
+  return prof ? { ...result, profile: prof } : result;
+}
 
-  const HARD_DEADLINE_MS = timeoutMs + TEST_HARD_DEADLINE_GRACE_MS;
-  const t0 = Date.now();
-
-  const wantsPrintMedia =
-    /-print(?:-ref)?(?:\.tentative)?\.html$/.test(testPath) ||
-    testPath.startsWith("/css/printing/");
-
-  const isCrashTest =
-    /-crash(?:\.[\w-]+)*\.x?html?$/.test(testPath) || testPath.includes("/crashtests/");
-
-  const expectedUrl = new URL(url);
-  const expectedUrlPath = expectedUrl.pathname;
-  const expectedUrlLocation = expectedUrl.pathname + expectedUrl.search;
-  let pageError = null;
-  const onPageError = (error) => {
-    try {
-      const liveUrl = new URL(page.url());
-      if (liveUrl.pathname + liveUrl.search !== expectedUrlLocation) return;
-    } catch {
-      return;
-    }
-    if (!pageError) pageError = String((error && error.stack) || error);
+function skipExpectedTimeout(testPath, expected) {
+  if (expected !== "TIMEOUT" || !argv.skipExpectedTimeouts || FORCE_RUN.has(testPath)) return null;
+  return {
+    actual: "TIMEOUT",
+    reason: "expected TIMEOUT (--skip-expected-timeouts)",
+    subtests: [],
+    synthetic: true,
   };
-  page.on("pageerror", onPageError);
-  let outcome;
+}
+
+function skipExpectedCrash(testPath, expected) {
+  if (expected !== "CRASH" || !argv.skipExpectedCrashes || FORCE_RUN.has(testPath)) return null;
+  return {
+    actual: "CRASH",
+    reason: "expected CRASH (--skip-expected-crashes)",
+    subtests: [],
+    synthetic: true,
+  };
+}
+
+function wantsPrintMedia(testPath) {
+  return (
+    /-print(?:-ref)?(?:\.tentative)?\.html$/.test(testPath) || testPath.startsWith("/css/printing/")
+  );
+}
+
+function isCrashTest(testPath) {
+  return /-crash(?:\.[\w-]+)*\.x?html?$/.test(testPath) || testPath.includes("/crashtests/");
+}
+
+function isExpectedPageLocation(page, expectedUrlLocation) {
   try {
-    outcome = await withDeadline("test", HARD_DEADLINE_MS, async () => {
-      try {
-        const session = await page.target().createCDPSession();
-        // Apply print media before navigation so its rules affect the first render.
-        await session.send("Emulation.setEmulatedMedia", {
-          media: wantsPrintMedia ? "print" : "",
-        });
-        await session.detach();
-      } catch {}
-      lap("mediaMs");
-      try {
-        bridge?.reset();
-      } catch {}
-      await page.goto(url, { timeout: timeoutMs }).catch(() => {});
-      lap("gotoMs");
-      if (prof && profSession) {
-        try {
-          const r = await profSession.send("Kitesurf.getNavigatePhases", {});
-          const byTarget = r?.byTarget ?? {};
-          prof.engine = Object.values(byTarget).find((p) => p && typeof p === "object") ?? null;
-        } catch {}
-        lap("profOverheadMs");
-      }
-
-      if (isCrashTest) {
-        const crashTestResult = await runCrashTest(page, testPath, t0 + timeoutMs);
-        lap("crashPollMs");
-        return { crashTestResult };
-      }
-
-      let reftest = null;
-      try {
-        reftest = await detectReftest(page);
-      } catch {}
-      lap("detectMs");
-      if (reftest) {
-        reftest.testPath = testPath;
-        reftest.href = referenceUrlForVariant(reftest.href, testPath);
-        reftest.media = wantsPrintMedia ? "print" : "";
-        const reftestResult = await runReftest(page, reftest, timeoutMs, t0 + timeoutMs, lap);
-        return { reftestResult };
-      }
-
-      const scrapeDeadline = t0 + timeoutMs;
-      const testUrlPath = expectedUrlPath;
-      while (Date.now() < scrapeDeadline) {
-        let scraped = null;
-        if (prof) prof.scrapeIters++;
-        try {
-          scraped = await page.evaluate(SCRAPER_SOURCE);
-        } catch {}
-        lap("scrapeEvalMs");
-        if (scraped && scraped.value) {
-          let livePath = null;
-          try {
-            livePath = await page.evaluate(`location.pathname`);
-          } catch {}
-          lap("pathCheckMs");
-          // Reused pages may retain an old #log; reject readable pathname mismatches only.
-          if (livePath && livePath !== testUrlPath) {
-          } else {
-            return { payload: scraped.value, source: scraped.source };
-          }
-        }
-        try {
-          await bridge?.drain();
-        } catch {}
-        lap("drainMs");
-        await sleep(TESTHARNESS_SCRAPE_POLL_INTERVAL_MS);
-        lap("scrapeSleepMs");
-      }
-      let errInfo = null;
-      try {
-        errInfo = await page.evaluate(`globalThis.__ks_wpt_error`);
-      } catch {}
-      return { payload: null, errInfo };
-    });
-  } finally {
-    page.off("pageerror", onPageError);
+    const liveUrl = new URL(page.url());
+    return liveUrl.pathname + liveUrl.search === expectedUrlLocation;
+  } catch {
+    return false;
   }
+}
 
-  if (outcome.kind === "deadline") {
-    return withProf({
-      actual: "TIMEOUT",
-      reason: `hard deadline after ${HARD_DEADLINE_MS}ms (likely goto or evaluate hung)`,
-      subtests: [],
-    });
-  }
-  if (outcome.kind === "err") {
-    return withProf({
-      actual: "CRASH",
-      reason: String((outcome.err && outcome.err.message) || outcome.err),
-      subtests: [],
-    });
-  }
+function createPageErrorHandler(page, expectedUrlLocation, reportError) {
+  return (error) => {
+    if (!isExpectedPageLocation(page, expectedUrlLocation)) return;
+    reportError(error);
+  };
+}
 
-  if (outcome.value && outcome.value.reftestResult) {
-    return withProf(outcome.value.reftestResult);
-  }
-  if (outcome.value && outcome.value.crashTestResult) {
-    return withProf(outcome.value.crashTestResult);
-  }
+async function applyPrintMedia(page, printMedia, lap) {
+  try {
+    const session = await page.target().createCDPSession();
+    // Apply print media before navigation so its rules affect the first render.
+    await session.send("Emulation.setEmulatedMedia", { media: printMedia ? "print" : "" });
+    await session.detach();
+  } catch {}
+  lap("mediaMs");
+}
 
-  const { payload, source, errInfo } = outcome.value;
-  if (!payload) {
-    const error = pageError || errInfo;
-    return withProf({
-      actual: error ? "ERROR" : "TIMEOUT",
-      reason: error
-        ? `no testharness results scraped (page error: ${error})`
-        : `no testharness results scraped within ${timeoutMs}ms`,
-      subtests: [],
-    });
-  }
+function resetTestdriverBridge(bridge) {
+  try {
+    bridge?.reset();
+  } catch {}
+}
 
+async function navigateTest(page, url, timeoutMs, lap) {
+  await page.goto(url, { timeout: timeoutMs }).catch(() => {});
+  lap("gotoMs");
+}
+
+function firstNavigateProfile(result) {
+  const byTarget = result?.byTarget ?? {};
+  return Object.values(byTarget).find((entry) => entry && typeof entry === "object") ?? null;
+}
+
+async function recordNavigateProfile(prof, profSession, lap) {
+  if (!(prof && profSession)) return;
+  try {
+    const result = await profSession.send("Kitesurf.getNavigatePhases", {});
+    prof.engine = firstNavigateProfile(result);
+  } catch {}
+  lap("profOverheadMs");
+}
+
+async function runCrashTestIfNeeded(context) {
+  if (!context.crashTest) return null;
+  const result = await runCrashTest(context.page, context.testPath, context.t0 + context.timeoutMs);
+  context.lap("crashPollMs");
+  return { crashTestResult: result };
+}
+
+async function runReftestIfPresent(context) {
+  let reftest = null;
+  try {
+    reftest = await detectReftest(context.page);
+  } catch {}
+  context.lap("detectMs");
+  if (!reftest) return null;
+  reftest.testPath = context.testPath;
+  reftest.href = referenceUrlForVariant(reftest.href, context.testPath);
+  reftest.media = context.printMedia ? "print" : "";
+  return {
+    reftestResult: await runReftest(
+      context.page,
+      reftest,
+      context.timeoutMs,
+      context.t0 + context.timeoutMs,
+      context.lap,
+    ),
+  };
+}
+
+async function readTestHarness(page, prof, lap) {
+  if (prof) prof.scrapeIters++;
+  let scraped = null;
+  try {
+    scraped = await page.evaluate(SCRAPER_SOURCE);
+  } catch {}
+  lap("scrapeEvalMs");
+  return scraped;
+}
+
+async function hasExpectedPagePath(page, testUrlPath, lap) {
+  let livePath = null;
+  try {
+    livePath = await page.evaluate(`location.pathname`);
+  } catch {}
+  lap("pathCheckMs");
+  // Reused pages may retain an old #log; reject readable pathname mismatches only.
+  return !livePath || livePath === testUrlPath;
+}
+
+async function drainTestdriverBridge(bridge, lap) {
+  try {
+    await bridge?.drain();
+  } catch {}
+  lap("drainMs");
+}
+
+async function readWptError(page) {
+  try {
+    return await page.evaluate(`globalThis.__ks_wpt_error`);
+  } catch {
+    return null;
+  }
+}
+
+async function collectTestHarness(context) {
+  const scrapeDeadline = context.t0 + context.timeoutMs;
+  while (Date.now() < scrapeDeadline) {
+    const scraped = await readTestHarness(context.page, context.prof, context.lap);
+    if (
+      scraped &&
+      scraped.value &&
+      (await hasExpectedPagePath(context.page, context.testUrlPath, context.lap))
+    ) {
+      return { payload: scraped.value, source: scraped.source };
+    }
+    await drainTestdriverBridge(context.bridge, context.lap);
+    await sleep(TESTHARNESS_SCRAPE_POLL_INTERVAL_MS);
+    context.lap("scrapeSleepMs");
+  }
+  return { payload: null, errInfo: await readWptError(context.page) };
+}
+
+async function executePageTest(context) {
+  await applyPrintMedia(context.page, context.printMedia, context.lap);
+  resetTestdriverBridge(context.bridge);
+  await navigateTest(context.page, context.url, context.timeoutMs, context.lap);
+  await recordNavigateProfile(context.prof, context.profSession, context.lap);
+  const crashResult = await runCrashTestIfNeeded(context);
+  if (crashResult) return crashResult;
+  const reftestResult = await runReftestIfPresent(context);
+  if (reftestResult) return reftestResult;
+  return collectTestHarness(context);
+}
+
+function testDeadlineResult(outcome, deadlineMs, prof) {
+  if (outcome.kind !== "deadline") return null;
+  return withProfile(prof, {
+    actual: "TIMEOUT",
+    reason: `hard deadline after ${deadlineMs}ms (likely goto or evaluate hung)`,
+    subtests: [],
+  });
+}
+
+function testErrorResult(outcome, prof) {
+  if (outcome.kind !== "err") return null;
+  return withProfile(prof, {
+    actual: "CRASH",
+    reason: String((outcome.err && outcome.err.message) || outcome.err),
+    subtests: [],
+  });
+}
+
+function specialTestResult(value) {
+  if (value && value.reftestResult) return value.reftestResult;
+  if (value && value.crashTestResult) return value.crashTestResult;
+  return null;
+}
+
+function noHarnessResult(errInfo, pageError, timeoutMs, prof) {
+  const error = pageError || errInfo;
+  return withProfile(prof, {
+    actual: error ? "ERROR" : "TIMEOUT",
+    reason: error
+      ? `no testharness results scraped (page error: ${error})`
+      : `no testharness results scraped within ${timeoutMs}ms`,
+    subtests: [],
+  });
+}
+
+function harnessResult(payload, source, prof) {
   const harnessStatus = normalizeHarness(payload.harness.status);
-  const subtests = payload.subtests.map((s) => ({
-    name: s.name,
-    status: normalizeSubtest(s.status),
-    message: s.message,
+  const subtests = payload.subtests.map((subtest) => ({
+    name: subtest.name,
+    status: normalizeSubtest(subtest.status),
+    message: subtest.message,
   }));
   const counts = payload.counts ?? null;
-
-  return withProf({
+  return withProfile(prof, {
     actual: classifyResult(harnessStatus, subtests, counts),
     reason: null,
     source,
@@ -951,7 +1096,73 @@ async function runOne(page, testPath, expected, perTestTimeoutMs, bridge, profSe
   });
 }
 
-async function main() {
+function payloadResult(value, pageError, timeoutMs, prof) {
+  const { payload, source, errInfo } = value;
+  if (!payload) return noHarnessResult(errInfo, pageError, timeoutMs, prof);
+  return harnessResult(payload, source, prof);
+}
+
+function resultFromOutcome(outcome, pageError, timeoutMs, deadlineMs, prof) {
+  const deadlineResult = testDeadlineResult(outcome, deadlineMs, prof);
+  if (deadlineResult) return deadlineResult;
+  const errorResult = testErrorResult(outcome, prof);
+  if (errorResult) return errorResult;
+  const specialResult = specialTestResult(outcome.value);
+  if (specialResult) return withProfile(prof, specialResult);
+  return payloadResult(outcome.value, pageError, timeoutMs, prof);
+}
+
+async function runOne(page, testPath, expected, perTestTimeoutMs, bridge, profSession) {
+  if (expected === "SKIP") {
+    return { actual: "SKIP", reason: "marked SKIP in expectations", subtests: [] };
+  }
+  const prof = createProfile();
+  const lap = createLap(prof);
+  const timeoutResult = skipExpectedTimeout(testPath, expected);
+  if (timeoutResult) return timeoutResult;
+  const crashResult = skipExpectedCrash(testPath, expected);
+  if (crashResult) return crashResult;
+
+  const url = `${WPT_BASE}${testPath}`;
+  const timeoutMs = budgetFor({ timeout: perTestTimeoutMs, expected });
+  const deadlineMs = timeoutMs + TEST_HARD_DEADLINE_GRACE_MS;
+  const t0 = Date.now();
+  const printMedia = wantsPrintMedia(testPath);
+  const crashTest = isCrashTest(testPath);
+  const expectedUrl = new URL(url);
+  const testContext = {
+    page,
+    testPath,
+    url,
+    timeoutMs,
+    t0,
+    printMedia,
+    crashTest,
+    testUrlPath: expectedUrl.pathname,
+    prof,
+    profSession,
+    bridge,
+    lap,
+  };
+  let pageError = null;
+  const onPageError = createPageErrorHandler(
+    page,
+    expectedUrl.pathname + expectedUrl.search,
+    (error) => {
+      if (!pageError) pageError = String((error && error.stack) || error);
+    },
+  );
+  page.on("pageerror", onPageError);
+  let outcome;
+  try {
+    outcome = await withDeadline("test", deadlineMs, () => executePageTest(testContext));
+  } finally {
+    page.off("pageerror", onPageError);
+  }
+  return resultFromOutcome(outcome, pageError, timeoutMs, deadlineMs, prof);
+}
+
+function loadRunInput() {
   const listFile = argv.testsFile ? resolve(argv.testsFile) : TESTS_FILE;
   if (!existsSync(listFile)) {
     console.error(red(`[wpt-exec] ${listFile} not found.`));
@@ -963,72 +1174,100 @@ async function main() {
     console.error(red(`[wpt-exec] ${listFile} lists no tests`));
     process.exit(2);
   }
+  return { filtered, expectations };
+}
 
-  async function probeHealth(engine, timeoutMs = 2500) {
+function connectionFailureCode(code) {
+  return code === "ECONNREFUSED" || code === "ECONNRESET" || code === "ENOTFOUND";
+}
+
+function healthErrorCode(error) {
+  return error?.cause?.code ?? error?.code;
+}
+
+function healthStateForError(error) {
+  return connectionFailureCode(healthErrorCode(error)) ? "refused" : "stalled";
+}
+
+async function probeHealth(engine, timeoutMs = 2500) {
+  try {
+    const response = await fetch(engine.healthUrl, { signal: AbortSignal.timeout(timeoutMs) });
+    return response.ok ? "ok" : "stalled";
+  } catch (error) {
+    return healthStateForError(error);
+  }
+}
+
+async function probeKitesurf(engine, timeoutMs = 2500) {
+  return (await probeHealth(engine, timeoutMs)) === "ok";
+}
+
+const RECONNECT_ATTEMPTS = 4;
+const RECONNECT_HEALTH_WAIT_BUDGET_MS = 10_000;
+const RECONNECT_HEALTH_POLL_INTERVAL_MS = 500;
+const RECONNECT_RETRY_BASE_DELAY_MS = 250;
+const RECONNECT_RETRY_JITTER_MS = 500;
+const RECONNECT_BUDGET_MS = 5000;
+
+async function waitForReconnectHealth(engine) {
+  const startedAt = Date.now();
+  while (
+    Date.now() - startedAt < RECONNECT_HEALTH_WAIT_BUDGET_MS &&
+    !(await probeKitesurf(engine, 2000))
+  ) {
+    await sleep(RECONNECT_HEALTH_POLL_INTERVAL_MS);
+  }
+}
+
+function reconnectRetryDelay(attempt) {
+  return RECONNECT_RETRY_BASE_DELAY_MS * attempt + Math.random() * RECONNECT_RETRY_JITTER_MS;
+}
+
+async function retryReconnect(engine, once) {
+  let lastErr;
+  for (let attempt = 1; attempt <= RECONNECT_ATTEMPTS; attempt++) {
     try {
-      const r = await fetch(engine.healthUrl, { signal: AbortSignal.timeout(timeoutMs) });
-      return r.ok ? "ok" : "stalled";
+      return await once();
     } catch (err) {
-      const code = err?.cause?.code ?? err?.code;
-      if (code === "ECONNREFUSED" || code === "ECONNRESET" || code === "ENOTFOUND") {
-        return "refused";
-      }
-      return "stalled";
-    }
-  }
-  async function probeKitesurf(engine, timeoutMs = 2500) {
-    return (await probeHealth(engine, timeoutMs)) === "ok";
-  }
-  async function retryReconnect(engine, once) {
-    const ATTEMPTS = 4;
-    const RECONNECT_HEALTH_WAIT_BUDGET_MS = 10_000;
-    const RECONNECT_HEALTH_POLL_INTERVAL_MS = 500;
-    const RECONNECT_RETRY_BASE_DELAY_MS = 250;
-    const RECONNECT_RETRY_JITTER_MS = 500;
-    let lastErr;
-    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
-      try {
-        return await once();
-      } catch (err) {
-        lastErr = err;
-        if (attempt < ATTEMPTS) {
-          const t0 = Date.now();
-          while (
-            Date.now() - t0 < RECONNECT_HEALTH_WAIT_BUDGET_MS &&
-            !(await probeKitesurf(engine, 2000))
-          ) {
-            await sleep(RECONNECT_HEALTH_POLL_INTERVAL_MS);
-          }
-          await sleep(
-            RECONNECT_RETRY_BASE_DELAY_MS * attempt + Math.random() * RECONNECT_RETRY_JITTER_MS,
-          );
-        }
+      lastErr = err;
+      if (attempt < RECONNECT_ATTEMPTS) {
+        await waitForReconnectHealth(engine);
+        await sleep(reconnectRetryDelay(attempt));
       }
     }
-    throw lastErr;
   }
+  throw lastErr;
+}
 
-  for (const engine of ENGINES) {
-    if (!(await probeKitesurf(engine, 3000))) {
-      console.error(red(`[wpt-exec] cannot reach kitesurf health at ${engine.healthUrl}`));
-      console.error(red(`         start it with: pnpm run dev`));
-      console.error(red(`         (or wait — workerd may be restarting after a crash)`));
-      process.exit(2);
-    }
-  }
+async function verifyEngineHealth(engine) {
+  if (await probeKitesurf(engine, 3000)) return;
+  console.error(red(`[wpt-exec] cannot reach kitesurf health at ${engine.healthUrl}`));
+  console.error(red(`         start it with: pnpm run dev`));
+  console.error(red(`         (or wait — workerd may be restarting after a crash)`));
+  process.exit(2);
+}
 
-  const STALL_BUDGET_MS =
+async function verifyAllEngineHealth() {
+  for (const engine of ENGINES) await verifyEngineHealth(engine);
+}
+
+function stallBudgetFor(filtered, expectations) {
+  return (
     argv.stallBudget ??
     filtered.reduce(
-      (mx, t) => Math.max(mx, budgetFor(expectations[t]) + TEST_HARD_DEADLINE_GRACE_MS),
+      (maximum, test) =>
+        Math.max(maximum, budgetFor(expectations[test]) + TEST_HARD_DEADLINE_GRACE_MS),
       0,
-    ) + STALL_BUDGET_EXTRA_GRACE_MS;
+    ) + STALL_BUDGET_EXTRA_GRACE_MS
+  );
+}
 
+function printRunConfiguration(filtered, stallBudgetMs) {
   console.log(
     dim(
       ENGINES.length === 1
         ? `[wpt-exec] connecting to ${WS}`
-        : `[wpt-exec] connecting to ${ENGINES.length} engines: ${ENGINES.map((e) => e.ws).join(", ")}`,
+        : `[wpt-exec] connecting to ${ENGINES.length} engines: ${ENGINES.map((engine) => engine.ws).join(", ")}`,
     ),
   );
   console.log(
@@ -1038,550 +1277,766 @@ async function main() {
   );
   console.log(
     dim(
-      `[wpt-exec] health budgets: ${RECOVERY_BUDGET_MS}ms if the port is refused, ${STALL_BUDGET_MS}ms if it is merely starved`,
+      `[wpt-exec] health budgets: ${RECOVERY_BUDGET_MS}ms if the port is refused, ${stallBudgetMs}ms if it is merely starved`,
     ),
   );
   if (SKIP_SLOW) console.log(dim(`[wpt-exec] --skip-slow: skipping tests marked slow`));
   if (MAX_TOTAL_MS > 0) console.log(dim(`[wpt-exec] --max-total: ${MAX_TOTAL_MS}ms hard ceiling`));
   console.log("");
+}
 
-  const results = new Array(filtered.length).fill(null);
-  const inFlight = new Map();
-  const enginePossiblyKilled = new Set();
-  const engineStalled = new Set();
-  let unexpectedFail = 0;
-  let unexpectedPass = 0;
-  const byOutcome = {};
-  const runStart = Date.now();
-  let truncated = false;
-  let aborted = false;
-  let bailRequested = false;
-
-  let queueCursor = 0;
-  function nextTest() {
-    if (aborted || bailRequested) return null;
-    if (MAX_TOTAL_MS > 0 && Date.now() - runStart >= MAX_TOTAL_MS) {
-      if (!truncated) {
-        truncated = true;
-        console.log("");
-        console.log(
-          dim(
-            `[wpt-exec] --max-total ${MAX_TOTAL_MS}ms reached; ${filtered.length - queueCursor} test(s) not run`,
-          ),
-        );
-      }
-      return null;
-    }
-    if (queueCursor >= filtered.length) return null;
-    const idx = queueCursor++;
-    return { idx, testPath: filtered[idx] };
-  }
-
-  const isRecovering = (engine) => engine.recoveryInFlight !== null;
-  const engineTag = (engine) => (ENGINES.length > 1 ? `engine ${engine.index} ` : "");
-  async function recoverWorker(engine, triggerLaneTag) {
-    if (engine.recoveryInFlight) return engine.recoveryInFlight;
-    engine.recoveryInFlight = (async () => {
-      console.log("");
-      console.log(
-        yellow(
-          `[wpt-exec] ${triggerLaneTag}: kitesurf ${engineTag(engine)}health probe failed; waiting for recovery...`,
-        ),
-      );
-      const t0 = Date.now();
-      let budget = RECOVERY_BUDGET_MS;
-      let sawStall = false;
-      while (Date.now() - t0 < budget) {
-        const state = await probeHealth(engine, 2000);
-        if (state === "ok") {
-          const took = Date.now() - t0;
-          const how = sawStall ? " (was starved, never dead)" : "";
-          console.log(
-            green(
-              `[wpt-exec] kitesurf ${engineTag(engine)}recovered after ${took}ms${how} — resuming`,
-            ),
-          );
-          return true;
-        }
-        // A probe timeout is not proof of death; give stalled responses the longer budget.
-        if (state === "stalled" && !sawStall) {
-          sawStall = true;
-          budget = STALL_BUDGET_MS;
-          console.log(
-            yellow(
-              `[wpt-exec] /health accepted the socket but did not answer — ${engineTag(engine)}is starved, not dead; extending to ${Math.round(budget / 1000)}s`,
-            ),
-          );
-        }
-        await sleep(ENGINE_RECOVERY_POLL_INTERVAL_MS);
-      }
-      engine.dead = true;
-      const alive = ENGINES.filter((e) => !e.dead).length;
-      console.log(
-        red(
-          `[wpt-exec] kitesurf ${engineTag(engine)}did not recover within ${Math.round(budget / 1000)}s — ` +
-            (alive > 0 ? `dropping its lane(s); ${alive} engine(s) still up` : `aborting batch`),
-        ),
-      );
-      return false;
-    })();
-    const ok = await engine.recoveryInFlight;
-    engine.recoveryInFlight = null;
-    return ok;
-  }
-
-  function formatResultLine(laneTag, testPath, ms, r, expected, matched, skippedAsSlow) {
-    const tag = laneTag ? `${dim(laneTag)} ` : "";
-    const path = testPath.padEnd(60);
-    if (!matched) {
-      if (expected !== "PASS" && r.actual === "PASS") {
-        return `  ${tag}${path} ${yellow("?PASS")} ${dim(`${ms}ms`)}  ${dim(`expected ${expected}, got PASS`)}`;
-      }
-      const reason = r.reason ? ` — ${r.reason.slice(0, 60)}` : "";
-      return `  ${tag}${path} ${red("✗")} ${dim(`${ms}ms`)}  ${red(r.actual)} ${dim(`(expected ${expected})${reason}`)}`;
-    }
-    if (skippedAsSlow) {
-      return `  ${tag}${path} ${dim("⤵")} ${dim(`${ms}ms`)}  ${dim("SKIP (slow)")}`;
-    }
-    const okTag = r.actual === "PASS" ? green("✓") : dim("·");
-    const detail = r.counts ? dim(` (${formatCounts(r.counts)})`) : "";
-    return `  ${tag}${path} ${okTag} ${dim(`${ms}ms`)}  ${dim(r.actual)}${detail}`;
-  }
-
-  async function runLane(laneId) {
-    const laneTag = CONCURRENCY > 1 ? `[w${laneId}]` : "";
-    const engine = ENGINES[laneId % ENGINES.length];
-    let browser, page, bridge, profSession;
-
-    async function installBridge() {
-      bridge = null;
-      profSession = null;
-      try {
-        const session = await page.createCDPSession();
-        bridge = createTestdriverBridge({ page, session });
-        await attachTestdriverBinding(session, bridge);
-        if (PROFILE) profSession = session;
-      } catch {}
-    }
-
-    async function connect() {
-      browser = await puppeteer.connect({ browserWSEndpoint: engine.ws });
-      page = await browser.newPage();
-      try {
-        await page.evaluateOnNewDocument(HOOK_SOURCE);
-      } catch {}
-      await installBridge();
-    }
-
-    async function reconnect() {
-      return retryReconnect(engine, reconnectOnce);
-    }
-
-    async function reconnectOnce() {
-      try {
-        await browser?.disconnect();
-      } catch {}
-      const RECONNECT_BUDGET_MS = 5000;
-      const t0 = Date.now();
-      const remaining = () => Math.max(0, RECONNECT_BUDGET_MS - (Date.now() - t0));
-      const withTimeout = (p, label) =>
-        Promise.race([
-          p,
-          new Promise((_, rej) =>
-            setTimeout(() => rej(new Error(`reconnect ${label} timed out`)), remaining()),
-          ),
-        ]);
-      browser = await withTimeout(puppeteer.connect({ browserWSEndpoint: engine.ws }), "connect");
-      page = await withTimeout(browser.newPage(), "newPage");
-      try {
-        await withTimeout(page.evaluateOnNewDocument(HOOK_SOURCE), "hook-install");
-      } catch {}
-      await installBridge();
-    }
-
-    try {
-      await connect();
-    } catch (err) {
-      console.log(red(`  ${laneTag} lane failed to connect: ${err?.message || err}`));
-      return;
-    }
-
-    while (true) {
-      const item = nextTest();
-      if (!item) break;
-      const { idx, testPath } = item;
-
-      const expEntry = expectations[testPath];
-      const expected = expEntry?.expected ?? "PASS";
-      const perTestTimeout = expEntry?.timeout ?? null;
-      const isSlow = expEntry?.slow === true;
-
-      const t0 = Date.now();
-      inFlight.set(laneTag, { testPath, idx, startedAt: t0, engine });
-      let r;
-      try {
-        r =
-          SKIP_SLOW && isSlow
-            ? { actual: "SKIP", reason: "slow (--skip-slow)", subtests: [] }
-            : await runOne(page, testPath, expected, perTestTimeout, bridge, profSession);
-      } finally {
-        inFlight.delete(laneTag);
-      }
-      const ms = Date.now() - t0;
-
-      byOutcome[r.actual] = (byOutcome[r.actual] ?? 0) + 1;
-      const skippedAsSlow = SKIP_SLOW && isSlow && r.actual === "SKIP";
-      const matched = r.actual === expected || skippedAsSlow;
-      let unexpected = false;
-      if (!matched) {
-        if (expected !== "PASS" && r.actual === "PASS") {
-          unexpectedPass++;
-          unexpected = true;
-        } else {
-          unexpectedFail++;
-          unexpected = true;
-        }
-      }
-
-      console.log(formatResultLine(laneTag, testPath, ms, r, expected, matched, skippedAsSlow));
-
-      results[idx] = {
-        test: testPath,
-        expected,
-        actual: r.actual,
-        reason: r.reason,
-        subtests: r.subtests,
-        counts: r.counts ?? null,
-        harness: r.harness ?? null,
-        durationMs: ms,
-        unexpected,
-        ...(r.profile ? { profile: r.profile } : {}),
-      };
-
-      if (argv.bail && unexpected) {
-        bailRequested = true;
-        break;
-      }
-
-      if ((r.actual === "TIMEOUT" || r.actual === "CRASH") && !r.synthetic) {
-        const alive = await probeKitesurf(engine, 2000);
-        if (!alive) {
-          const iAmFirstDetector = !isRecovering(engine);
-          // The lane that notices may be a bystander; blame the oldest test still in flight.
-          const culprit = [...inFlight.values()]
-            .filter((v) => v.engine === engine)
-            .sort((a, b) => a.startedAt - b.startedAt)[0];
-          const blame = culprit ?? { testPath, idx };
-          const recovered = await recoverWorker(engine, laneTag || "lane");
-          if (iAmFirstDetector) {
-            const via = blame.testPath === testPath ? "" : ` (noticed by ${testPath})`;
-            const reason = recovered
-              ? `starved the engine past the 2s health probe${via} — recovered, not a killer`
-              : `took the engine down with it${via}`;
-            (recovered ? engineStalled : enginePossiblyKilled).add(blame.testPath);
-            console.log((recovered ? yellow : red)(`  ${laneTag} ⚠ ${blame.testPath} ${reason}`));
-          }
-          if (!recovered && ENGINES.every((e) => e.dead)) aborted = true;
-          if (!recovered) break;
-        }
-        const rt0 = Date.now();
-        try {
-          await reconnect();
-          if (CONCURRENCY === 1) {
-            console.log(dim(`  ${laneTag} [reconnected in ${Date.now() - rt0}ms]`));
-          }
-          if (PROFILE && results[idx]) {
-            results[idx].profile ??= { phases: {} };
-            results[idx].profile.phases.postTimeoutRecoverMs = Date.now() - t0 - ms;
-          }
-        } catch (err) {
-          console.log(
-            dim(`  ${laneTag} [reconnect failed in ${Date.now() - rt0}ms: ${err?.message || err}]`),
-          );
-          break;
-        }
-      }
-    }
-
-    try {
-      await browser?.disconnect();
-    } catch {}
-  }
-
-  const lanes = [];
-  for (let i = 0; i < CONCURRENCY; i++) lanes.push(runLane(i));
-  await Promise.all(lanes);
-
-  if (RERUN_CRASHES && !aborted && !bailRequested) {
-    const candidates = [];
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i];
-      if (!r) continue;
-      if (!r.unexpected) continue;
-      if (r.actual === "CRASH" || r.actual === "TIMEOUT" || r.actual === "ERROR") {
-        candidates.push(i);
-      }
-    }
-
-    if (candidates.length > 0) {
-      const rerunPass = async () => {
-        console.log("");
-        console.log(
-          dim(
-            `[wpt-exec] rerunning ${candidates.length} CRASH/TIMEOUT/ERROR test(s) serially to filter collateral damage`,
-          ),
-        );
-
-        let promoted = 0;
-        let confirmed = 0;
-        let browser, page, bridge, profSession;
-        const engine = ENGINES.find((e) => !e.dead) ?? ENGINES[0];
-
-        async function rerunInstallBridge() {
-          bridge = null;
-          profSession = null;
-          try {
-            const session = await page.createCDPSession();
-            bridge = createTestdriverBridge({ page, session });
-            await attachTestdriverBinding(session, bridge);
-            if (PROFILE) profSession = session;
-          } catch {}
-        }
-
-        async function rerunConnect() {
-          browser = await puppeteer.connect({ browserWSEndpoint: engine.ws });
-          page = await browser.newPage();
-          try {
-            await page.evaluateOnNewDocument(HOOK_SOURCE);
-          } catch {}
-          await rerunInstallBridge();
-        }
-
-        async function rerunReconnect() {
-          return retryReconnect(engine, rerunReconnectOnce);
-        }
-
-        async function rerunReconnectOnce() {
-          try {
-            await browser?.disconnect();
-          } catch {}
-          const RECONNECT_BUDGET_MS = 5000;
-          const t0 = Date.now();
-          const remaining = () => Math.max(0, RECONNECT_BUDGET_MS - (Date.now() - t0));
-          const withTimeout = (p, label) =>
-            Promise.race([
-              p,
-              new Promise((_, rej) =>
-                setTimeout(() => rej(new Error(`reconnect ${label} timed out`)), remaining()),
-              ),
-            ]);
-          browser = await withTimeout(
-            puppeteer.connect({ browserWSEndpoint: engine.ws }),
-            "connect",
-          );
-          page = await withTimeout(browser.newPage(), "newPage");
-          try {
-            await withTimeout(page.evaluateOnNewDocument(HOOK_SOURCE), "hook-install");
-          } catch {}
-          await rerunInstallBridge();
-        }
-
-        try {
-          if (!(await probeKitesurf(engine, 2000))) {
-            const ok = await recoverWorker(engine, "rerun");
-            if (!ok) {
-              console.log(red(`[wpt-exec] rerun: worker did not recover — skipping rerun pass`));
-            }
-          }
-          await rerunConnect();
-
-          for (const idx of candidates) {
-            const old = results[idx];
-            const testPath = old.test;
-            const expected = old.expected;
-            const expEntry = expectations[testPath];
-            const perTestTimeout = expEntry?.timeout ?? null;
-
-            if (!(await probeKitesurf(engine, 2000))) {
-              const ok = await recoverWorker(engine, "rerun");
-              if (!ok) {
-                console.log(red(`[wpt-exec] rerun aborted — worker unrecoverable`));
-                break;
-              }
-              try {
-                await rerunReconnect();
-              } catch (err) {
-                console.log(
-                  red(
-                    `[wpt-exec] rerun: reconnect failed (${err?.message || err}) — aborting rerun pass`,
-                  ),
-                );
-                break;
-              }
-            }
-
-            const t0 = Date.now();
-            let r;
-            try {
-              r = await runOne(page, testPath, expected, perTestTimeout, bridge, profSession);
-            } catch (err) {
-              r = { actual: "CRASH", reason: `rerun threw: ${err?.message || err}`, subtests: [] };
-            }
-            const ms = Date.now() - t0;
-
-            byOutcome[old.actual] = Math.max(0, (byOutcome[old.actual] ?? 0) - 1);
-            byOutcome[r.actual] = (byOutcome[r.actual] ?? 0) + 1;
-            if (old.unexpected) {
-              if (old.expected !== "PASS" && old.actual === "PASS") unexpectedPass--;
-              else unexpectedFail--;
-            }
-            const matched = r.actual === expected;
-            let unexpected = false;
-            if (!matched) {
-              if (expected !== "PASS" && r.actual === "PASS") {
-                unexpectedPass++;
-                unexpected = true;
-              } else {
-                unexpectedFail++;
-                unexpected = true;
-              }
-            }
-
-            const stillBad = r.actual === "CRASH" || r.actual === "TIMEOUT" || r.actual === "ERROR";
-            if (stillBad && !matched) confirmed++;
-            else promoted++;
-
-            const verdict = !matched
-              ? stillBad
-                ? red(`still ${r.actual}`)
-                : red(`${r.actual}`)
-              : r.actual === "PASS"
-                ? green("→ PASS (was collateral)")
-                : dim(`→ ${r.actual} (matched)`);
-            const reason = r.reason ? ` — ${r.reason.slice(0, 60)}` : "";
-            console.log(
-              `  ${dim("[rerun]")} ${testPath.padEnd(60)} ${verdict} ${dim(`${ms}ms`)}${dim(reason)}`,
-            );
-
-            results[idx] = {
-              test: testPath,
-              expected,
-              actual: r.actual,
-              reason: r.reason,
-              subtests: r.subtests,
-              counts: r.counts ?? null,
-              harness: r.harness ?? null,
-              durationMs: ms,
-              unexpected,
-              rerun: true,
-              originalActual: old.actual,
-              ...(r.profile ? { profile: r.profile } : {}),
-            };
-
-            if (r.actual === "CRASH" || r.actual === "TIMEOUT") {
-              try {
-                await rerunReconnect();
-              } catch {}
-            }
-          }
-        } catch (err) {
-          console.log(red(`[wpt-exec] rerun pass crashed: ${err?.message || err}`));
-        } finally {
-          try {
-            await browser?.disconnect();
-          } catch {}
-        }
-
-        console.log(
-          dim(
-            `[wpt-exec] rerun complete: ${promoted} promoted (collateral), ${confirmed} confirmed`,
-          ),
-        );
-      };
-      await rerunPass();
-    }
-  }
-
-  const denseResults = results.filter((r) => r != null);
-  results.length = 0;
-  results.push(...denseResults);
-
-  if (aborted) truncated = true;
-
-  const total = results.length;
-  const unrun = filtered.length - total;
-  if (unrun > 0) truncated = true;
-  const expectedCount = total - unexpectedFail - unexpectedPass;
-  const summary = {
-    total,
-    expected: expectedCount,
-    unexpectedFail,
-    unexpectedPass,
-    byOutcome,
+function createRunState(filtered, expectations, stallBudgetMs) {
+  return {
+    filtered,
+    expectations,
+    stallBudgetMs,
+    results: new Array(filtered.length).fill(null),
+    inFlight: new Map(),
+    enginePossiblyKilled: new Set(),
+    engineStalled: new Set(),
+    unexpectedFail: 0,
+    unexpectedPass: 0,
+    byOutcome: {},
+    runStart: Date.now(),
+    truncated: false,
+    aborted: false,
+    bailRequested: false,
+    queueCursor: 0,
   };
+}
 
-  for (const row of results) {
-    if (!row) continue;
-    if (enginePossiblyKilled.has(row.test)) row.killedEngine = true;
-    if (engineStalled.has(row.test)) row.stalledEngine = true;
-  }
+function maxTotalExpired(state) {
+  return MAX_TOTAL_MS > 0 && Date.now() - state.runStart >= MAX_TOTAL_MS;
+}
 
-  if (JSON_OUT) {
-    const outPath = resolve(JSON_OUT);
-    mkdirSync(dirname(outPath), { recursive: true });
-    writeFileSync(
-      outPath,
-      JSON.stringify(
-        {
-          summary,
-          truncated,
-          requested: filtered.length,
-          killedEngine: [...enginePossiblyKilled],
-          stalledEngine: [...engineStalled],
-          results,
-        },
-        null,
-        2,
-      ),
-    );
-  }
-
+function reportMaxTotalReached(state) {
+  if (state.truncated) return;
+  state.truncated = true;
   console.log("");
-  console.log(bold(`[wpt-exec] ${expectedCount}/${total} matched expectations`));
-  if (refShotHits > 0) {
+  console.log(
+    dim(
+      `[wpt-exec] --max-total ${MAX_TOTAL_MS}ms reached; ${state.filtered.length - state.queueCursor} test(s) not run`,
+    ),
+  );
+}
+
+function takeQueuedTest(state) {
+  if (state.queueCursor >= state.filtered.length) return null;
+  const idx = state.queueCursor++;
+  return { idx, testPath: state.filtered[idx] };
+}
+
+function nextTest(state) {
+  if (state.aborted || state.bailRequested) return null;
+  if (maxTotalExpired(state)) {
+    reportMaxTotalReached(state);
+    return null;
+  }
+  return takeQueuedTest(state);
+}
+
+function engineTag(engine) {
+  return ENGINES.length > 1 ? `engine ${engine.index} ` : "";
+}
+
+function isRecovering(engine) {
+  return engine.recoveryInFlight !== null;
+}
+
+function reportRecoveryStart(engine, triggerLaneTag) {
+  console.log("");
+  console.log(
+    yellow(
+      `[wpt-exec] ${triggerLaneTag}: kitesurf ${engineTag(engine)}health probe failed; waiting for recovery...`,
+    ),
+  );
+}
+
+function reportRecoverySuccess(engine, took, sawStall) {
+  const how = sawStall ? " (was starved, never dead)" : "";
+  console.log(
+    green(`[wpt-exec] kitesurf ${engineTag(engine)}recovered after ${took}ms${how} — resuming`),
+  );
+}
+
+function shouldExtendRecoveryBudget(probeState, sawStall) {
+  return probeState === "stalled" && !sawStall;
+}
+
+function extendRecoveryBudget(engine, stallBudgetMs) {
+  console.log(
+    yellow(
+      `[wpt-exec] /health accepted the socket but did not answer — ${engineTag(engine)}is starved, not dead; extending to ${Math.round(stallBudgetMs / 1000)}s`,
+    ),
+  );
+  return stallBudgetMs;
+}
+
+function reportRecoveryFailure(engine, budget) {
+  engine.dead = true;
+  const alive = ENGINES.filter((candidate) => !candidate.dead).length;
+  console.log(
+    red(
+      `[wpt-exec] kitesurf ${engineTag(engine)}did not recover within ${Math.round(budget / 1000)}s — ` +
+        (alive > 0 ? `dropping its lane(s); ${alive} engine(s) still up` : `aborting batch`),
+    ),
+  );
+  return false;
+}
+
+async function recoverEngine(state, engine, triggerLaneTag) {
+  reportRecoveryStart(engine, triggerLaneTag);
+  const startedAt = Date.now();
+  let budget = RECOVERY_BUDGET_MS;
+  let sawStall = false;
+  while (Date.now() - startedAt < budget) {
+    const probeState = await probeHealth(engine, 2000);
+    if (probeState === "ok") {
+      reportRecoverySuccess(engine, Date.now() - startedAt, sawStall);
+      return true;
+    }
+    if (shouldExtendRecoveryBudget(probeState, sawStall)) {
+      sawStall = true;
+      budget = extendRecoveryBudget(engine, state.stallBudgetMs);
+    }
+    await sleep(ENGINE_RECOVERY_POLL_INTERVAL_MS);
+  }
+  return reportRecoveryFailure(engine, budget);
+}
+
+async function recoverWorker(state, engine, triggerLaneTag) {
+  if (engine.recoveryInFlight) return engine.recoveryInFlight;
+  engine.recoveryInFlight = recoverEngine(state, engine, triggerLaneTag);
+  const recovered = await engine.recoveryInFlight;
+  engine.recoveryInFlight = null;
+  return recovered;
+}
+
+function formatUnexpectedResultLine(tag, path, ms, result, expected) {
+  if (expected !== "PASS" && result.actual === "PASS") {
+    return `  ${tag}${path} ${yellow("?PASS")} ${dim(`${ms}ms`)}  ${dim(`expected ${expected}, got PASS`)}`;
+  }
+  const reason = result.reason ? ` — ${result.reason.slice(0, 60)}` : "";
+  return `  ${tag}${path} ${red("✗")} ${dim(`${ms}ms`)}  ${red(result.actual)} ${dim(`(expected ${expected})${reason}`)}`;
+}
+
+function formatExpectedResultLine(tag, path, ms, result, skippedAsSlow) {
+  if (skippedAsSlow) return `  ${tag}${path} ${dim("⤵")} ${dim(`${ms}ms`)}  ${dim("SKIP (slow)")}`;
+  const okTag = result.actual === "PASS" ? green("✓") : dim("·");
+  const detail = result.counts ? dim(` (${formatCounts(result.counts)})`) : "";
+  return `  ${tag}${path} ${okTag} ${dim(`${ms}ms`)}  ${dim(result.actual)}${detail}`;
+}
+
+function formatResultLine(laneTag, testPath, ms, result, expected, matched, skippedAsSlow) {
+  const tag = laneTag ? `${dim(laneTag)} ` : "";
+  const path = testPath.padEnd(60);
+  if (!matched) return formatUnexpectedResultLine(tag, path, ms, result, expected);
+  return formatExpectedResultLine(tag, path, ms, result, skippedAsSlow);
+}
+
+function createClient(engine, laneTag) {
+  return { engine, laneTag, browser: null, page: null, bridge: null, profSession: null };
+}
+
+function createLane(laneId) {
+  const laneTag = CONCURRENCY > 1 ? `[w${laneId}]` : "";
+  return createClient(ENGINES[laneId % ENGINES.length], laneTag);
+}
+
+async function installClientBridge(client) {
+  client.bridge = null;
+  client.profSession = null;
+  try {
+    const session = await client.page.createCDPSession();
+    client.bridge = createTestdriverBridge({ page: client.page, session });
+    await attachTestdriverBinding(session, client.bridge);
+    if (PROFILE) client.profSession = session;
+  } catch {}
+}
+
+async function installClientHook(page) {
+  try {
+    await page.evaluateOnNewDocument(HOOK_SOURCE);
+  } catch {}
+}
+
+async function connectClient(client) {
+  client.browser = await puppeteer.connect({ browserWSEndpoint: client.engine.ws });
+  client.page = await client.browser.newPage();
+  await installClientHook(client.page);
+  await installClientBridge(client);
+}
+
+async function disconnectClient(client) {
+  try {
+    await client.browser?.disconnect();
+  } catch {}
+}
+
+function withReconnectTimeout(promise, label, remaining) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`reconnect ${label} timed out`)), remaining()),
+    ),
+  ]);
+}
+
+async function installReconnectHook(page, withTimeout) {
+  try {
+    await withTimeout(page.evaluateOnNewDocument(HOOK_SOURCE), "hook-install");
+  } catch {}
+}
+
+async function reconnectClientOnce(client) {
+  await disconnectClient(client);
+  const startedAt = Date.now();
+  const remaining = () => Math.max(0, RECONNECT_BUDGET_MS - (Date.now() - startedAt));
+  const withTimeout = (promise, label) => withReconnectTimeout(promise, label, remaining);
+  client.browser = await withTimeout(
+    puppeteer.connect({ browserWSEndpoint: client.engine.ws }),
+    "connect",
+  );
+  client.page = await withTimeout(client.browser.newPage(), "newPage");
+  await installReconnectHook(client.page, withTimeout);
+  await installClientBridge(client);
+}
+
+async function reconnectClient(client) {
+  return retryReconnect(client.engine, () => reconnectClientOnce(client));
+}
+
+function shouldSkipSlowTest(isSlow) {
+  return SKIP_SLOW && isSlow;
+}
+
+async function executeLaneTestResult(client, testPath, expected, timeout, isSlow) {
+  if (shouldSkipSlowTest(isSlow)) {
+    return { actual: "SKIP", reason: "slow (--skip-slow)", subtests: [] };
+  }
+  return runOne(client.page, testPath, expected, timeout, client.bridge, client.profSession);
+}
+
+function skippedAsSlow(isSlow, result) {
+  return SKIP_SLOW && isSlow && result.actual === "SKIP";
+}
+
+function updateUnexpectedCounts(state, expected, result, matched) {
+  if (matched) return false;
+  if (expected !== "PASS" && result.actual === "PASS") {
+    state.unexpectedPass++;
+    return true;
+  }
+  state.unexpectedFail++;
+  return true;
+}
+
+function laneResultRow(testPath, expected, result, ms, unexpected) {
+  return {
+    test: testPath,
+    expected,
+    actual: result.actual,
+    reason: result.reason,
+    subtests: result.subtests,
+    counts: result.counts ?? null,
+    harness: result.harness ?? null,
+    durationMs: ms,
+    unexpected,
+    ...(result.profile ? { profile: result.profile } : {}),
+  };
+}
+
+function recordLaneResult(client, state, item, expected, isSlow, startedAt, result) {
+  const ms = Date.now() - startedAt;
+  state.byOutcome[result.actual] = (state.byOutcome[result.actual] ?? 0) + 1;
+  const wasSkippedAsSlow = skippedAsSlow(isSlow, result);
+  const matched = result.actual === expected || wasSkippedAsSlow;
+  const unexpected = updateUnexpectedCounts(state, expected, result, matched);
+  console.log(
+    formatResultLine(
+      client.laneTag,
+      item.testPath,
+      ms,
+      result,
+      expected,
+      matched,
+      wasSkippedAsSlow,
+    ),
+  );
+  state.results[item.idx] = laneResultRow(item.testPath, expected, result, ms, unexpected);
+  return { ms, unexpected };
+}
+
+function requestBail(state, unexpected) {
+  if (!argv.bail || !unexpected) return false;
+  state.bailRequested = true;
+  return true;
+}
+
+function recoverableResult(result) {
+  return (result.actual === "TIMEOUT" || result.actual === "CRASH") && !result.synthetic;
+}
+
+function oldestTestOnEngine(state, engine) {
+  return [...state.inFlight.values()]
+    .filter((flight) => flight.engine === engine)
+    .sort((left, right) => left.startedAt - right.startedAt)[0];
+}
+
+function reportEngineBlame(client, current, blame, recovered, state) {
+  const via = blame.testPath === current.testPath ? "" : ` (noticed by ${current.testPath})`;
+  const reason = recovered
+    ? `starved the engine past the 2s health probe${via} — recovered, not a killer`
+    : `took the engine down with it${via}`;
+  (recovered ? state.engineStalled : state.enginePossiblyKilled).add(blame.testPath);
+  console.log(redOrYellow(recovered)(`  ${client.laneTag} ⚠ ${blame.testPath} ${reason}`));
+}
+
+function redOrYellow(recovered) {
+  return recovered ? yellow : red;
+}
+
+async function recoverLaneEngine(client, state, item) {
+  const firstDetector = !isRecovering(client.engine);
+  const blame = oldestTestOnEngine(state, client.engine) ?? item;
+  const recovered = await recoverWorker(state, client.engine, recoveryLaneTag(client));
+  if (firstDetector) reportEngineBlame(client, item, blame, recovered, state);
+  if (!recovered && ENGINES.every((engine) => engine.dead)) state.aborted = true;
+  return recovered;
+}
+
+function recoveryLaneTag(client) {
+  return client.laneTag || "lane";
+}
+
+function recordPostTimeoutRecovery(state, item, startedAt, durationMs) {
+  if (PROFILE && state.results[item.idx]) {
+    state.results[item.idx].profile ??= { phases: {} };
+    state.results[item.idx].profile.phases.postTimeoutRecoverMs =
+      Date.now() - startedAt - durationMs;
+  }
+}
+
+async function reconnectAfterTest(client, state, item, startedAt, durationMs) {
+  const reconnectStartedAt = Date.now();
+  try {
+    await reconnectClient(client);
+    if (CONCURRENCY === 1) {
+      console.log(dim(`  ${client.laneTag} [reconnected in ${Date.now() - reconnectStartedAt}ms]`));
+    }
+    recordPostTimeoutRecovery(state, item, startedAt, durationMs);
+    return true;
+  } catch (err) {
     console.log(
       dim(
-        `           ${refShotHits} reference screenshot(s) served from cache (${refShotCache.size} distinct refs rendered)`,
+        `  ${client.laneTag} [reconnect failed in ${Date.now() - reconnectStartedAt}ms: ${err?.message || err}]`,
       ),
     );
+    return false;
   }
-  if (unexpectedFail > 0) console.log(red(`           ${unexpectedFail} regression(s)`));
-  if (enginePossiblyKilled.size > 0) {
-    console.log(red(`           ${enginePossiblyKilled.size} test(s) took the engine down:`));
-    for (const t of enginePossiblyKilled) console.log(red(`             ${t}`));
+}
+
+async function handleLaneRecovery(client, state, item, result, startedAt, durationMs) {
+  if (!recoverableResult(result)) return true;
+  if (!(await probeKitesurf(client.engine, 2000))) {
+    const recovered = await recoverLaneEngine(client, state, item);
+    if (!recovered) return false;
   }
-  if (engineStalled.size > 0) {
+  return reconnectAfterTest(client, state, item, startedAt, durationMs);
+}
+
+async function runLaneTest(client, state, item) {
+  const expEntry = state.expectations[item.testPath];
+  const expected = expectedOutcome(expEntry);
+  const perTestTimeout = timeoutOverride(expEntry);
+  const isSlow = markedSlow(expEntry);
+  const startedAt = Date.now();
+  state.inFlight.set(client.laneTag, {
+    testPath: item.testPath,
+    idx: item.idx,
+    startedAt,
+    engine: client.engine,
+  });
+  let result;
+  try {
+    result = await executeLaneTestResult(client, item.testPath, expected, perTestTimeout, isSlow);
+  } finally {
+    state.inFlight.delete(client.laneTag);
+  }
+  const { ms, unexpected } = recordLaneResult(
+    client,
+    state,
+    item,
+    expected,
+    isSlow,
+    startedAt,
+    result,
+  );
+  if (requestBail(state, unexpected)) return false;
+  return handleLaneRecovery(client, state, item, result, startedAt, ms);
+}
+
+function expectedOutcome(entry) {
+  return entry?.expected ?? "PASS";
+}
+
+function timeoutOverride(entry) {
+  return entry?.timeout ?? null;
+}
+
+function markedSlow(entry) {
+  return entry?.slow === true;
+}
+
+async function runLaneQueue(client, state) {
+  while (true) {
+    const item = nextTest(state);
+    if (!item) break;
+    if (!(await runLaneTest(client, state, item))) break;
+  }
+}
+
+async function connectLane(client) {
+  try {
+    await connectClient(client);
+    return true;
+  } catch (err) {
+    console.log(red(`  ${client.laneTag} lane failed to connect: ${err?.message || err}`));
+    return false;
+  }
+}
+
+async function runLane(laneId, state) {
+  const client = createLane(laneId);
+  if (!(await connectLane(client))) return;
+  await runLaneQueue(client, state);
+  await disconnectClient(client);
+}
+
+async function runAllLanes(state) {
+  const lanes = [];
+  for (let laneId = 0; laneId < CONCURRENCY; laneId++) lanes.push(runLane(laneId, state));
+  await Promise.all(lanes);
+}
+
+function isRerunCandidate(result) {
+  return result && result.unexpected && ["CRASH", "TIMEOUT", "ERROR"].includes(result.actual);
+}
+
+function rerunCandidates(results) {
+  const candidates = [];
+  for (let index = 0; index < results.length; index++) {
+    if (isRerunCandidate(results[index])) candidates.push(index);
+  }
+  return candidates;
+}
+
+function shouldRerunCrashes(state) {
+  return RERUN_CRASHES && !state.aborted && !state.bailRequested;
+}
+
+async function rerunCrashes(state) {
+  if (!shouldRerunCrashes(state)) return;
+  const candidates = rerunCandidates(state.results);
+  if (candidates.length === 0) return;
+  await runRerunPass(candidates, state);
+}
+
+function createRerunClient() {
+  const engine = ENGINES.find((candidate) => !candidate.dead) ?? ENGINES[0];
+  return createClient(engine, "");
+}
+
+async function prepareRerunClient(client, state) {
+  if (!(await probeKitesurf(client.engine, 2000))) {
+    const recovered = await recoverWorker(state, client.engine, "rerun");
+    if (!recovered) {
+      console.log(red(`[wpt-exec] rerun: worker did not recover — skipping rerun pass`));
+    }
+  }
+  await connectClient(client);
+}
+
+async function recoverRerunEngine(client, state) {
+  const recovered = await recoverWorker(state, client.engine, "rerun");
+  if (!recovered) console.log(red(`[wpt-exec] rerun aborted — worker unrecoverable`));
+  return recovered;
+}
+
+async function reconnectRerunClient(client) {
+  try {
+    await reconnectClient(client);
+    return true;
+  } catch (err) {
     console.log(
-      yellow(
-        `           ${engineStalled.size} test(s) stalled the engine but it recovered (slow, not fatal):`,
-      ),
+      red(`[wpt-exec] rerun: reconnect failed (${err?.message || err}) — aborting rerun pass`),
     );
-    for (const t of engineStalled) console.log(yellow(`             ${t}`));
+    return false;
   }
-  if (unexpectedPass > 0)
-    console.log(yellow(`           ${unexpectedPass} unexpected pass(es) — tighten expectations`));
-  if (truncated && MAX_TOTAL_MS > 0)
+}
+
+async function ensureRerunEngine(client, state) {
+  if (await probeKitesurf(client.engine, 2000)) return true;
+  if (!(await recoverRerunEngine(client, state))) return false;
+  return reconnectRerunClient(client);
+}
+
+async function runRerunTest(client, testPath, expected, perTestTimeout) {
+  const startedAt = Date.now();
+  let result;
+  try {
+    result = await runOne(
+      client.page,
+      testPath,
+      expected,
+      perTestTimeout,
+      client.bridge,
+      client.profSession,
+    );
+  } catch (err) {
+    result = { actual: "CRASH", reason: `rerun threw: ${err?.message || err}`, subtests: [] };
+  }
+  return { result, ms: Date.now() - startedAt };
+}
+
+function removeOldUnexpected(state, old) {
+  if (!old.unexpected) return;
+  if (old.expected !== "PASS" && old.actual === "PASS") state.unexpectedPass--;
+  else state.unexpectedFail--;
+}
+
+function stillBadResult(result) {
+  return result.actual === "CRASH" || result.actual === "TIMEOUT" || result.actual === "ERROR";
+}
+
+function updateRerunCounts(state, old, result) {
+  state.byOutcome[old.actual] = Math.max(0, (state.byOutcome[old.actual] ?? 0) - 1);
+  state.byOutcome[result.actual] = (state.byOutcome[result.actual] ?? 0) + 1;
+  removeOldUnexpected(state, old);
+  const matched = result.actual === old.expected;
+  const unexpected = updateUnexpectedCounts(state, old.expected, result, matched);
+  return { matched, unexpected, stillBad: stillBadResult(result) };
+}
+
+function rerunVerdict(result, matched, stillBad) {
+  return !matched
+    ? stillBad
+      ? red(`still ${result.actual}`)
+      : red(`${result.actual}`)
+    : result.actual === "PASS"
+      ? green("→ PASS (was collateral)")
+      : dim(`→ ${result.actual} (matched)`);
+}
+
+function logRerunResult(testPath, result, ms, matched, stillBad) {
+  const verdict = rerunVerdict(result, matched, stillBad);
+  const reason = result.reason ? ` — ${result.reason.slice(0, 60)}` : "";
+  console.log(
+    `  ${dim("[rerun]")} ${testPath.padEnd(60)} ${verdict} ${dim(`${ms}ms`)}${dim(reason)}`,
+  );
+}
+
+function rerunResultRow(old, result, ms, unexpected) {
+  return {
+    test: old.test,
+    expected: old.expected,
+    actual: result.actual,
+    reason: result.reason,
+    subtests: result.subtests,
+    counts: result.counts ?? null,
+    harness: result.harness ?? null,
+    durationMs: ms,
+    unexpected,
+    rerun: true,
+    originalActual: old.actual,
+    ...(result.profile ? { profile: result.profile } : {}),
+  };
+}
+
+function recordRerunTotals(counters, matched, stillBad) {
+  if (stillBad && !matched) counters.confirmed++;
+  else counters.promoted++;
+}
+
+async function reconnectAfterRerun(client, result) {
+  if (result.actual !== "CRASH" && result.actual !== "TIMEOUT") return;
+  try {
+    await reconnectClient(client);
+  } catch {}
+}
+
+async function rerunOneCandidate(client, index, state, counters) {
+  const old = state.results[index];
+  const testPath = old.test;
+  const entry = state.expectations[testPath];
+  const perTestTimeout = entry?.timeout ?? null;
+  if (!(await ensureRerunEngine(client, state))) return false;
+  const { result, ms } = await runRerunTest(client, testPath, old.expected, perTestTimeout);
+  const outcome = updateRerunCounts(state, old, result);
+  recordRerunTotals(counters, outcome.matched, outcome.stillBad);
+  logRerunResult(testPath, result, ms, outcome.matched, outcome.stillBad);
+  state.results[index] = rerunResultRow(old, result, ms, outcome.unexpected);
+  await reconnectAfterRerun(client, result);
+  return true;
+}
+
+async function runRerunPass(candidates, state) {
+  console.log("");
+  console.log(
+    dim(
+      `[wpt-exec] rerunning ${candidates.length} CRASH/TIMEOUT/ERROR test(s) serially to filter collateral damage`,
+    ),
+  );
+  const counters = { promoted: 0, confirmed: 0 };
+  const client = createRerunClient();
+  try {
+    await prepareRerunClient(client, state);
+    await runRerunCandidates(client, candidates, state, counters);
+  } catch (err) {
+    console.log(red(`[wpt-exec] rerun pass crashed: ${err?.message || err}`));
+  } finally {
+    await disconnectClient(client);
+  }
+  console.log(
+    dim(
+      `[wpt-exec] rerun complete: ${counters.promoted} promoted (collateral), ${counters.confirmed} confirmed`,
+    ),
+  );
+}
+
+async function runRerunCandidates(client, candidates, state, counters) {
+  for (const index of candidates) {
+    if (!(await rerunOneCandidate(client, index, state, counters))) break;
+  }
+}
+
+function compactResultRows(state) {
+  const denseResults = state.results.filter((result) => result != null);
+  state.results.length = 0;
+  state.results.push(...denseResults);
+}
+
+function annotateEngineOutcomes(state) {
+  for (const row of state.results) {
+    if (!row) continue;
+    if (state.enginePossiblyKilled.has(row.test)) row.killedEngine = true;
+    if (state.engineStalled.has(row.test)) row.stalledEngine = true;
+  }
+}
+
+function summaryForResults(state) {
+  const total = state.results.length;
+  return {
+    total,
+    expected: total - state.unexpectedFail - state.unexpectedPass,
+    unexpectedFail: state.unexpectedFail,
+    unexpectedPass: state.unexpectedPass,
+    byOutcome: state.byOutcome,
+  };
+}
+
+function writeJsonOutput(state, summary) {
+  if (!JSON_OUT) return;
+  const outPath = resolve(JSON_OUT);
+  mkdirSync(dirname(outPath), { recursive: true });
+  writeFileSync(
+    outPath,
+    JSON.stringify(
+      {
+        summary,
+        truncated: state.truncated,
+        requested: state.filtered.length,
+        killedEngine: [...state.enginePossiblyKilled],
+        stalledEngine: [...state.engineStalled],
+        results: state.results,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+function printReferenceCacheSummary() {
+  if (refShotHits === 0) return;
+  console.log(
+    dim(
+      `           ${refShotHits} reference screenshot(s) served from cache (${refShotCache.size} distinct refs rendered)`,
+    ),
+  );
+}
+
+function printKilledEngines(state) {
+  if (state.enginePossiblyKilled.size === 0) return;
+  console.log(red(`           ${state.enginePossiblyKilled.size} test(s) took the engine down:`));
+  for (const test of state.enginePossiblyKilled) console.log(red(`             ${test}`));
+}
+
+function printStalledEngines(state) {
+  if (state.engineStalled.size === 0) return;
+  console.log(
+    yellow(
+      `           ${state.engineStalled.size} test(s) stalled the engine but it recovered (slow, not fatal):`,
+    ),
+  );
+  for (const test of state.engineStalled) console.log(yellow(`             ${test}`));
+}
+
+function printPartialRunStatus(state, unrun) {
+  if (state.truncated && MAX_TOTAL_MS > 0) {
     console.log(
       yellow(`           run truncated by --max-total ${MAX_TOTAL_MS}ms — partial results`),
     );
-  if (unrun > 0)
+  }
+  if (unrun > 0) {
     console.log(
       red(`           ${unrun} test(s) never ran (dead lanes) — PARTIAL RUN, exit non-zero`),
     );
-
-  process.exit(unexpectedFail === 0 && unexpectedPass === 0 && !truncated ? 0 : 1);
+  }
 }
 
+function printFinalSummary(state, summary, unrun) {
+  console.log("");
+  console.log(bold(`[wpt-exec] ${summary.expected}/${summary.total} matched expectations`));
+  printReferenceCacheSummary();
+  if (state.unexpectedFail > 0)
+    console.log(red(`           ${state.unexpectedFail} regression(s)`));
+  printKilledEngines(state);
+  printStalledEngines(state);
+  if (state.unexpectedPass > 0) {
+    console.log(
+      yellow(`           ${state.unexpectedPass} unexpected pass(es) — tighten expectations`),
+    );
+  }
+  printPartialRunStatus(state, unrun);
+}
+
+function runExitCode(state) {
+  return state.unexpectedFail === 0 && state.unexpectedPass === 0 && !state.truncated ? 0 : 1;
+}
+
+function finalizeRun(state) {
+  compactResultRows(state);
+  if (state.aborted) state.truncated = true;
+  const total = state.results.length;
+  const unrun = state.filtered.length - total;
+  if (unrun > 0) state.truncated = true;
+  const summary = summaryForResults(state);
+  annotateEngineOutcomes(state);
+  writeJsonOutput(state, summary);
+  printFinalSummary(state, summary, unrun);
+  process.exit(runExitCode(state));
+}
+
+async function main() {
+  const { filtered, expectations } = loadRunInput();
+  await verifyAllEngineHealth();
+  const stallBudgetMs = stallBudgetFor(filtered, expectations);
+  printRunConfiguration(filtered, stallBudgetMs);
+  const state = createRunState(filtered, expectations, stallBudgetMs);
+  await runAllLanes(state);
+  await rerunCrashes(state);
+  finalizeRun(state);
+}
 main().catch((err) => {
   console.error(red("[wpt-exec] fatal:"), err);
   process.exit(2);

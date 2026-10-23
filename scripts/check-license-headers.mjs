@@ -32,6 +32,11 @@ const SOURCE_EXTENSIONS = new Set([
 const VENDORED_MEMPROF = "vendor/wasm-memprof/instrumentor/src/";
 const MEMPROF_MODIFIED = `${VENDORED_MEMPROF}lib.rs`;
 const TODOMVC_SNAPSHOT = "packages/core/tests_data/angular_snapshot.html";
+const TYPESCRIPT_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts"]);
+const JAVASCRIPT_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".cjs"]);
+const HTML_EXTENSIONS = new Set([".html", ".htm", ".xhtml"]);
+const BLOCK_COMMENT_EXTENSIONS = new Set([".css", ".c", ".h"]);
+const HASH_COMMENT_EXTENSIONS = new Set([".py", ".sh"]);
 const GENERATED_WEBIDL = new Set([
   "packages/dom-shim/src/css-typed-om.webidl.generated.ts",
   "packages/dom-shim/src/idl/model.generated.ts",
@@ -125,87 +130,136 @@ export function renderCopyrightHeader(file, newline = "\n") {
 export function headerInsertionOffset(file, text) {
   const extension = extname(file).toLowerCase();
   let offset = text.startsWith("\uFEFF") ? 1 : 0;
-  const consumeLine = (pattern) => {
-    const end = text.indexOf("\n", offset);
-    const line = text.slice(offset, end === -1 ? text.length : end).replace(/\r$/, "");
-    if (!pattern.test(line)) return false;
-    offset = end === -1 ? text.length : end + 1;
-    return true;
-  };
+  offset = consumeLine(text, offset, /^#!/);
+  offset = consumeConditionalLine(text, offset, extension === ".py", /^\s*#.*coding[:=]/);
+  offset = consumeLine(text, offset, /^\s*<\?xml\b/);
+  offset = consumeConditionalLine(
+    text,
+    offset,
+    BLOCK_COMMENT_EXTENSIONS.has(extension),
+    /^\s*@charset\b/i,
+  );
+  offset = consumeRepeatedLines(
+    text,
+    offset,
+    TYPESCRIPT_EXTENSIONS.has(extension),
+    /^\s*\/\/\/?\s*<(?:reference|reference types)\b/i,
+  );
+  offset = consumeRepeatedLines(
+    text,
+    offset,
+    JAVASCRIPT_EXTENSIONS.has(extension),
+    /^\s*\/\/\s*@ts-(?:check|nocheck)\b/i,
+  );
+  return consumeBlankLines(text, offset);
+}
 
-  consumeLine(/^#!/);
-  if (extension === ".py") consumeLine(/^\s*#.*coding[:=]/);
-  consumeLine(/^\s*<\?xml\b/);
-  if (commentStyle(file) === "block") consumeLine(/^\s*@charset\b/i);
-  if (extension === ".ts" || extension === ".tsx" || extension === ".mts" || extension === ".cts") {
-    while (consumeLine(/^\s*\/\/\/?\s*<(?:reference|reference types)\b/i)) {}
+function commentStyle(file) {
+  const extension = extname(file).toLowerCase();
+  if (HTML_EXTENSIONS.has(extension)) return "html";
+  if (BLOCK_COMMENT_EXTENSIONS.has(extension)) return "block";
+  if (HASH_COMMENT_EXTENSIONS.has(extension) || file === ".githooks/post-checkout") return "hash";
+  return "line";
+}
+
+function consumeLine(text, offset, pattern) {
+  const end = text.indexOf("\n", offset);
+  const line = text.slice(offset, end === -1 ? text.length : end).replace(/\r$/, "");
+  if (!pattern.test(line)) return offset;
+  return end === -1 ? text.length : end + 1;
+}
+
+function consumeConditionalLine(text, offset, enabled, pattern) {
+  return enabled ? consumeLine(text, offset, pattern) : offset;
+}
+
+function consumeRepeatedLines(text, offset, enabled, pattern) {
+  while (enabled) {
+    const nextOffset = consumeLine(text, offset, pattern);
+    if (nextOffset === offset) return offset;
+    offset = nextOffset;
   }
-  if (extension === ".js" || extension === ".jsx" || extension === ".mjs" || extension === ".cjs") {
-    while (consumeLine(/^\s*\/\/\s*@ts-(?:check|nocheck)\b/i)) {}
-  }
+  return offset;
+}
+
+function consumeBlankLines(text, offset) {
   while (text.slice(offset).startsWith("\n") || text.slice(offset).startsWith("\r\n")) {
     offset += text.slice(offset).startsWith("\r\n") ? 2 : 1;
   }
   return offset;
 }
 
-function commentStyle(file) {
-  const extension = extname(file).toLowerCase();
-  if (extension === ".html" || extension === ".htm" || extension === ".xhtml") {
-    return "html";
-  }
-  if (extension === ".css" || extension === ".c" || extension === ".h") {
-    return "block";
-  }
-  if (extension === ".py" || extension === ".sh" || file === ".githooks/post-checkout") {
-    return "hash";
-  }
-  return "line";
+function skipOptionalLine(lines, start, pattern, enabled = true) {
+  return enabled && pattern.test(lines[start] ?? "") ? start + 1 : start;
 }
 
-function initialCommentBlock(file, text) {
-  const style = commentStyle(file);
-  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
-  let start = 0;
-  if (lines[start]?.startsWith("#!")) start += 1;
-  if (extname(file).toLowerCase() === ".py" && /^\s*#.*coding[:=]/.test(lines[start] ?? "")) {
-    start += 1;
-  }
-  if (/^\s*<\?xml\b/.test(lines[start] ?? "")) start += 1;
-  if (style === "block" && /^\s*@charset\b/i.test(lines[start] ?? "")) start += 1;
-  if ([".ts", ".tsx", ".mts", ".cts"].includes(extname(file).toLowerCase())) {
-    while (/^\s*\/\/\/?\s*<(?:reference|reference types)\b/i.test(lines[start] ?? "")) start += 1;
-  }
-  if ([".js", ".jsx", ".mjs", ".cjs"].includes(extname(file).toLowerCase())) {
-    while (/^\s*\/\/\s*@ts-(?:check|nocheck)\b/i.test(lines[start] ?? "")) start += 1;
-  }
+function skipRepeatedLines(lines, start, pattern, enabled) {
+  while (enabled && pattern.test(lines[start] ?? "")) start += 1;
+  return start;
+}
+
+function skipBlankLines(lines, start) {
   while (lines[start] === "") start += 1;
+  return start;
+}
 
-  if (style === "html") {
-    if (!lines[start]?.trimStart().startsWith("<!--")) return "";
-    const block = [];
-    for (let i = start; i < lines.length; i += 1) {
-      block.push(lines[i]);
-      if (lines[i].includes("-->")) break;
-    }
-    return block.join("\n");
-  }
-  if (style === "block") {
-    if (!lines[start]?.trimStart().startsWith("/*")) return "";
-    const block = [];
-    for (let i = start; i < lines.length; i += 1) {
-      block.push(lines[i]);
-      if (lines[i].includes("*/")) break;
-    }
-    return block.join("\n");
-  }
+function commentStart(file, lines) {
+  const extension = extname(file).toLowerCase();
+  let start = skipOptionalLine(lines, 0, /^#!/);
+  start = skipOptionalLine(lines, start, /^\s*#.*coding[:=]/, extension === ".py");
+  start = skipOptionalLine(lines, start, /^\s*<\?xml\b/);
+  start = skipOptionalLine(
+    lines,
+    start,
+    /^\s*@charset\b/i,
+    BLOCK_COMMENT_EXTENSIONS.has(extension),
+  );
+  start = skipRepeatedLines(
+    lines,
+    start,
+    /^\s*\/\/\/?\s*<(?:reference|reference types)\b/i,
+    TYPESCRIPT_EXTENSIONS.has(extension),
+  );
+  start = skipRepeatedLines(
+    lines,
+    start,
+    /^\s*\/\/\s*@ts-(?:check|nocheck)\b/i,
+    JAVASCRIPT_EXTENSIONS.has(extension),
+  );
+  return skipBlankLines(lines, start);
+}
 
+function delimitedCommentBlock(lines, start, opening, closing) {
+  if (!lines[start]?.trimStart().startsWith(opening)) return "";
+  const block = [];
+  for (let i = start; i < lines.length; i += 1) {
+    block.push(lines[i]);
+    if (lines[i].includes(closing)) break;
+  }
+  return block.join("\n");
+}
+
+function lineCommentBlock(lines, start, style) {
   const marker = style === "hash" ? /^\s*#/ : /^\s*\/\//;
   const block = [];
   for (let i = start; i < lines.length && marker.test(lines[i]); i += 1) {
     block.push(lines[i]);
   }
   return block.join("\n");
+}
+
+function initialCommentBlock(file, text) {
+  const style = commentStyle(file);
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const start = commentStart(file, lines);
+  switch (style) {
+    case "html":
+      return delimitedCommentBlock(lines, start, "<!--", "-->");
+    case "block":
+      return delimitedCommentBlock(lines, start, "/*", "*/");
+    default:
+      return lineCommentBlock(lines, start, style);
+  }
 }
 
 /** @param {string} file @returns {boolean} */
