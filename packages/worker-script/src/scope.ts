@@ -60,26 +60,52 @@ interface ListenerRecord {
 const listeners = new Map<string, ListenerRecord[]>();
 const handlers = new Map<string, Listener | null>();
 
-function addListener(type: string, listener: unknown, options: unknown): void {
-  let fn: Listener | null = null;
+function listenerCallback(listener: unknown): Listener | null {
   if (isListener(listener)) {
-    fn = listener;
-  } else if (hasHandleEvent(listener)) {
-    fn = function (event: unknown) {
-      return listener.handleEvent(event);
-    };
+    return listener;
   }
-  if (!fn) return;
-  const opts: { once?: unknown; signal?: unknown } =
-    options && typeof options === "object" ? options : {};
-  const signal = opts.signal instanceof AbortSignal ? opts.signal : undefined;
+  if (!hasHandleEvent(listener)) return null;
+  return function (event: unknown) {
+    return listener.handleEvent(event);
+  };
+}
+
+function listenerOptions(options: unknown): { once?: unknown; signal?: unknown } {
+  return options && typeof options === "object" ? options : {};
+}
+
+function listenerSignal(options: { once?: unknown; signal?: unknown }): AbortSignal | undefined {
+  return options.signal instanceof AbortSignal ? options.signal : undefined;
+}
+
+function listenerList(type: string): ListenerRecord[] {
+  return listeners.get(type) ?? [];
+}
+
+function addAbortRemoval(signal: AbortSignal | undefined, type: string, listener: unknown): void {
+  signal?.addEventListener?.("abort", () => removeListener(type, listener), { once: true });
+}
+
+function registerListener(
+  type: string,
+  listener: unknown,
+  fn: Listener,
+  opts: { once?: unknown; signal?: unknown },
+): void {
+  const signal = listenerSignal(opts);
   if (signal?.aborted) return;
-  const list = listeners.get(type) ?? [];
+  const list = listenerList(type);
   if (list.some((r) => r.src === listener)) return;
   const record: ListenerRecord = { fn, src: listener, once: !!opts.once, removed: false };
   list.push(record);
   listeners.set(type, list);
-  signal?.addEventListener?.("abort", () => removeListener(type, listener), { once: true });
+  addAbortRemoval(signal, type, listener);
+}
+
+function addListener(type: string, listener: unknown, options: unknown): void {
+  const fn = listenerCallback(listener);
+  if (!fn) return;
+  registerListener(type, listener, fn, listenerOptions(options));
 }
 
 function removeListener(type: string, listener: unknown): void {
@@ -100,37 +126,74 @@ function defineEventTarget(event: Event): void {
   }
 }
 
+interface ScopeListenerCall {
+  fn: Listener;
+  record: ListenerRecord | null;
+}
+
+function scopeListeners(type: string, handler: Listener | null | undefined): ScopeListenerCall[] {
+  const records = (listeners.get(type) ?? []).slice();
+  const list: ScopeListenerCall[] = records.map((record) => ({ fn: record.fn, record }));
+  if (handler) list.unshift({ fn: handler, record: null });
+  return list;
+}
+
+function shouldDispatchRecord(type: string, record: ListenerRecord | null): boolean {
+  if (!record) return true;
+  if (record.removed) return false;
+  if (record.once) removeListener(type, record.src);
+  return true;
+}
+
+function isErrorEventHandler(
+  type: string,
+  event: Event,
+  fn: Listener,
+  handler: Listener | null | undefined,
+): event is ErrorEventClass {
+  return fn === handler && type === "error" && event instanceof ErrorEventClass;
+}
+
+function invokeErrorEventHandler(fn: Listener, event: ErrorEventClass): boolean {
+  return (
+    fn.call(scope, event.message, event.filename, event.lineno, event.colno, event.error) === true
+  );
+}
+
+function invokeScopeListener(
+  type: string,
+  event: Event,
+  fn: Listener,
+  handler: Listener | null | undefined,
+): boolean {
+  try {
+    if (isErrorEventHandler(type, event, fn, handler)) {
+      return invokeErrorEventHandler(fn, event);
+    }
+    fn.call(scope, event);
+  } catch (error) {
+    if (type !== "error") reportException(error);
+  }
+  return false;
+}
+
 export function dispatchOnScope(type: string, event: Event): boolean {
   defineEventTarget(event);
   let handled = false;
   const handler = handlers.get(type);
-  const records = (listeners.get(type) ?? []).slice();
-  const list: Array<{ fn: Listener; record: ListenerRecord | null }> = records.map((record) => ({
-    fn: record.fn,
-    record,
-  }));
-  if (handler) list.unshift({ fn: handler, record: null });
-  for (const { fn, record } of list) {
-    if (record) {
-      if (record.removed) continue;
-      if (record.once) removeListener(type, record.src);
-    }
-    try {
-      if (fn === handler && type === "error" && event instanceof ErrorEventClass) {
-        if (
-          fn.call(scope, event.message, event.filename, event.lineno, event.colno, event.error) ===
-          true
-        ) {
-          handled = true;
-        }
-        continue;
-      }
-      fn.call(scope, event);
-    } catch (error) {
-      if (type !== "error") reportException(error);
-    }
+  for (const { fn, record } of scopeListeners(type, handler)) {
+    if (!shouldDispatchRecord(type, record)) continue;
+    handled = invokeScopeListener(type, event, fn, handler) || handled;
   }
   return handled || event.defaultPrevented;
+}
+
+function errorText(value: unknown): string {
+  return String(value ?? "");
+}
+
+function errorNumber(value: unknown): number {
+  return Number(value ?? 0) | 0;
 }
 
 export class ErrorEventClass extends NativeEvent {
@@ -141,10 +204,10 @@ export class ErrorEventClass extends NativeEvent {
   error: unknown;
   constructor(type: string, init: Partial<WorkerErrorInfo> & { error?: unknown } = {}) {
     super(type, { cancelable: true });
-    this.message = String(init.message ?? "");
-    this.filename = String(init.filename ?? "");
-    this.lineno = Number(init.lineno ?? 0) | 0;
-    this.colno = Number(init.colno ?? 0) | 0;
+    this.message = errorText(init.message);
+    this.filename = errorText(init.filename);
+    this.lineno = errorNumber(init.lineno);
+    this.colno = errorNumber(init.colno);
     this.error = init.error;
   }
 }
@@ -165,20 +228,33 @@ export class MessageEventClass extends NativeEvent {
   }
 }
 
+function errorName(errorObject: object): string {
+  return String(("name" in errorObject ? errorObject.name : undefined) ?? "Error");
+}
+
+function errorMessage(errorObject: object | null, error: unknown): string {
+  if (errorObject === null || !("message" in errorObject)) return `Uncaught ${String(error)}`;
+  return `Uncaught ${errorName(errorObject)}: ${String(errorObject.message)}`;
+}
+
+function errorStack(errorObject: object | null): string {
+  if (errorObject === null || !("stack" in errorObject)) return "";
+  return typeof errorObject.stack === "string" ? errorObject.stack : "";
+}
+
+function workerErrorPosition(stack: string): { lineno: number; colno: number } {
+  const match = /__ks_worker_script\.js:(\d+):(\d+)/.exec(stack);
+  if (!match) return { lineno: 0, colno: 0 };
+  return {
+    lineno: Math.max(0, Number(match[1]) - SCRIPT_LINE_OFFSET),
+    colno: Number(match[2]),
+  };
+}
+
 export function errorInfo(error: unknown, scriptUrl: string): WorkerErrorInfo {
   const e = typeof error === "object" && error !== null ? error : null;
-  const message =
-    e && "message" in e
-      ? `Uncaught ${String(("name" in e ? e.name : undefined) ?? "Error")}: ${String(e.message)}`
-      : `Uncaught ${String(error)}`;
-  let lineno = 0;
-  let colno = 0;
-  const stack = e && "stack" in e && typeof e.stack === "string" ? e.stack : "";
-  const match = /__ks_worker_script\.js:(\d+):(\d+)/.exec(stack);
-  if (match) {
-    lineno = Math.max(0, Number(match[1]) - SCRIPT_LINE_OFFSET);
-    colno = Number(match[2]);
-  }
+  const message = errorMessage(e, error);
+  const { lineno, colno } = workerErrorPosition(errorStack(e));
   return { message, filename: scriptUrl, lineno, colno };
 }
 
@@ -212,38 +288,50 @@ function workerPostMessage(message: unknown, transferOrOptions?: unknown): void 
   hooks.send({ event: "worker.message", params: { data } });
 }
 
-export function cloneForPost(message: unknown, transferOrOptions?: unknown): unknown {
-  let transfer: unknown[] = [];
-  if (transferOrOptions !== undefined && transferOrOptions !== null) {
-    if (typeof transferOrOptions !== "object") {
-      throw new TypeError("Transfer list must be an object");
-    }
-    if (isIterable(transferOrOptions)) {
-      transfer = Array.from(transferOrOptions);
-    } else if ("transfer" in transferOrOptions && transferOrOptions.transfer !== undefined) {
-      const list = transferOrOptions.transfer;
-      if (!isIterable(list)) throw new TypeError("Transfer list must be iterable");
-      transfer = Array.from(list);
-    }
+function transferItems(options: unknown): unknown[] {
+  if (options === undefined || options === null) return [];
+  if (typeof options !== "object") throw new TypeError("Transfer list must be an object");
+  if (isIterable(options)) return Array.from(options);
+  return transferItemsFromOptions(options);
+}
+
+function transferItemsFromOptions(options: object): unknown[] {
+  if (!("transfer" in options) || options.transfer === undefined) return [];
+  const transfer = options.transfer;
+  if (!isIterable(transfer)) throw new TypeError("Transfer list must be iterable");
+  return Array.from(transfer);
+}
+
+function transferredBuffer(item: unknown): ArrayBuffer {
+  if ((typeof item !== "object" && typeof item !== "function") || item === null) {
+    throw new TypeError(
+      "Failed to execute 'postMessage' on 'DedicatedWorkerGlobalScope': Transfer list items must be objects",
+    );
   }
+  if (!(item instanceof ArrayBuffer)) {
+    throw new DOMException(
+      "Only ArrayBuffers can be transferred to or from a worker",
+      "DataCloneError",
+    );
+  }
+  return item;
+}
+
+function transferBuffers(items: unknown[]): ArrayBuffer[] {
   const buffers: ArrayBuffer[] = [];
-  for (const item of transfer) {
-    if ((typeof item !== "object" && typeof item !== "function") || item === null) {
-      throw new TypeError(
-        "Failed to execute 'postMessage' on 'DedicatedWorkerGlobalScope': Transfer list items must be objects",
-      );
-    }
-    if (!(item instanceof ArrayBuffer)) {
-      throw new DOMException(
-        "Only ArrayBuffers can be transferred to or from a worker",
-        "DataCloneError",
-      );
-    }
-    buffers.push(item);
-  }
-  const data = buffers.length
+  for (const item of items) buffers.push(transferredBuffer(item));
+  return buffers;
+}
+
+function structuredCloneWithTransfers(message: unknown, buffers: ArrayBuffer[]): unknown {
+  return buffers.length
     ? structuredClone(message, { transfer: buffers })
     : structuredClone(message);
+}
+
+export function cloneForPost(message: unknown, transferOrOptions?: unknown): unknown {
+  const buffers = transferBuffers(transferItems(transferOrOptions));
+  const data = structuredCloneWithTransfers(message, buffers);
   if (holdsSharedMemory(data)) {
     throw new DOMException(
       "Failed to execute 'postMessage' on 'DedicatedWorkerGlobalScope': SharedArrayBuffer transfer requires self.crossOriginIsolated.",
@@ -373,12 +461,29 @@ function installWorkerClock(createdAt: number): void {
   const nowFn = perf.now;
   if (typeof nowFn !== "function") return;
   const nativeNow = (): number => Number(Reflect.apply(nowFn, perf, []));
-  const nativeOrigin =
-    "timeOrigin" in perf && typeof perf.timeOrigin === "number" ? perf.timeOrigin : 0;
+  const nativeOrigin = performanceTimeOrigin(perf);
   const current = nativeNow();
-  const requested = Number.isFinite(createdAt) ? createdAt - nativeOrigin : current;
-  const startedAt = Math.min(requested, current);
+  const startedAt = workerStartOffset(createdAt, nativeOrigin, current);
   const timeOrigin = nativeOrigin + startedAt;
+  installPerformanceClock(perf, nativeNow, startedAt, timeOrigin);
+}
+
+function performanceTimeOrigin(perf: object): number {
+  if (!("timeOrigin" in perf) || typeof perf.timeOrigin !== "number") return 0;
+  return perf.timeOrigin;
+}
+
+function workerStartOffset(createdAt: number, nativeOrigin: number, current: number): number {
+  const requested = Number.isFinite(createdAt) ? createdAt - nativeOrigin : current;
+  return Math.min(requested, current);
+}
+
+function installPerformanceClock(
+  perf: object,
+  nativeNow: () => number,
+  startedAt: number,
+  timeOrigin: number,
+): void {
   try {
     Object.defineProperty(perf, "now", {
       value: function now() {
