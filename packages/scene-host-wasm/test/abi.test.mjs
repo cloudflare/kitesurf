@@ -42,6 +42,10 @@ async function freshHost() {
   return { instance: await WebAssembly.instantiate(wasmModule) };
 }
 
+function shouldFreeInput(inputAllocated, inputLength) {
+  return inputAllocated || inputLength === 0;
+}
+
 function callHost(host, operation, input = Buffer.alloc(0)) {
   const { memory, ks_alloc, ks_call, ks_free } = host.instance.exports;
   const inputLength = input.byteLength;
@@ -78,7 +82,7 @@ function callHost(host, operation, input = Buffer.alloc(0)) {
       ks_free(outputPointer, outputLength);
     }
   } finally {
-    if (inputAllocated || inputLength === 0) {
+    if (shouldFreeInput(inputAllocated, inputLength)) {
       ks_free(inputPointer, inputLength);
     }
   }
