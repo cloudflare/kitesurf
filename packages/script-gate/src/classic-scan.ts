@@ -12,404 +12,587 @@ export interface TopLevelDeclScan {
 }
 
 type TopLevelKeyword = "var" | "let" | "const" | "function" | "class";
+type StringDelimiter = "" | '"' | "'" | "`";
+
+const DECLARATION_KEYWORDS: ReadonlyMap<string, TopLevelKeyword> = new Map([
+  ["var", "var"],
+  ["let", "let"],
+  ["const", "const"],
+  ["function", "function"],
+  ["class", "class"],
+]);
+
+const REGEX_AFTER_WORD = new Set([
+  "return",
+  "typeof",
+  "instanceof",
+  "in",
+  "new",
+  "delete",
+  "void",
+  "throw",
+  "case",
+  "do",
+  "else",
+]);
+const REGEX_CANNOT_FOLLOW = new Set([")", "]", '"', "'", "`"]);
+
+interface InitializerState {
+  position: number;
+  braceDepth: number;
+  parenDepth: number;
+  bracketDepth: number;
+  stringDelimiter: StringDelimiter;
+  stopped: boolean;
+}
 
 // This bounded scan recognizes common top-level declarations; it is not a JavaScript parser.
-export function extractTopLevelDecls(source: string): TopLevelDeclScan {
-  const names: string[] = [];
-  const seen = new Set<string>();
-  const varSites: number[] = [];
-  const varNames: string[] = [];
-  const varSeen = new Set<string>();
-  const varSiteNames: string[][] = [];
-  const sourceLength = source.length;
-  let sourceOffset = 0;
-  let braceDepth = 0;
-  let parenDepth = 0;
-  let bracketDepth = 0;
-  let stringDelimiter: "" | '"' | "'" | "`" = "";
-  let inLineComment = false;
-  let inBlockComment = false;
-  const identifierPattern = /[a-zA-Z_$][\w$]*/y;
-  const ASCII_LOWERCASE_START_CHAR_CODE = 0x61;
-  const ASCII_LOWERCASE_END_CHAR_CODE = 0x7a;
-  const ASCII_UPPERCASE_START_CHAR_CODE = 0x41;
-  const ASCII_UPPERCASE_END_CHAR_CODE = 0x5a;
-  const ASCII_DIGIT_START_CHAR_CODE = 0x30;
-  const ASCII_DIGIT_END_CHAR_CODE = 0x39;
-  const ASCII_UNDERSCORE_CHAR_CODE = 0x5f;
-  const ASCII_DOLLAR_SIGN_CHAR_CODE = 0x24;
+class DeclarationScanner {
+  private readonly source: string;
+  private readonly sourceLength: number;
+  private readonly names: string[] = [];
+  private readonly seen = new Set<string>();
+  private readonly varSites: number[] = [];
+  private readonly varNames: string[] = [];
+  private readonly varSeen = new Set<string>();
+  private readonly varSiteNames: string[][] = [];
+  private readonly identifierPattern = /[a-zA-Z_$][\w$]*/y;
+  private sourceOffset = 0;
+  private braceDepth = 0;
+  private parenDepth = 0;
+  private bracketDepth = 0;
+  private stringDelimiter: StringDelimiter = "";
+  private inLineComment = false;
+  private inBlockComment = false;
 
-  function isAtTopLevel() {
-    return braceDepth === 0 && parenDepth === 0 && bracketDepth === 0;
+  constructor(source: string) {
+    this.source = source;
+    this.sourceLength = source.length;
   }
-  function isAtomStart(sourceIndex: number): boolean {
-    if (sourceIndex === 0) return true;
-    const previousCharCode = source.charCodeAt(sourceIndex - 1);
-    return !(
-      (previousCharCode >= ASCII_LOWERCASE_START_CHAR_CODE &&
-        previousCharCode <= ASCII_LOWERCASE_END_CHAR_CODE) ||
-      (previousCharCode >= ASCII_UPPERCASE_START_CHAR_CODE &&
-        previousCharCode <= ASCII_UPPERCASE_END_CHAR_CODE) ||
-      (previousCharCode >= ASCII_DIGIT_START_CHAR_CODE &&
-        previousCharCode <= ASCII_DIGIT_END_CHAR_CODE) ||
-      previousCharCode === ASCII_UNDERSCORE_CHAR_CODE ||
-      previousCharCode === ASCII_DOLLAR_SIGN_CHAR_CODE
-    );
+
+  scan(): TopLevelDeclScan {
+    while (this.sourceOffset < this.sourceLength) this.advanceSource();
+    return {
+      names: this.names,
+      varSites: this.varSites,
+      varNames: this.varNames,
+      varSiteNames: this.varSiteNames,
+    };
   }
-  function readIdentifier(startIndex: number): { name: string; end: number } | null {
-    identifierPattern.lastIndex = startIndex;
-    const match = identifierPattern.exec(source);
+
+  private advanceSource(): void {
+    if (this.advanceNonCode()) return;
+    if (this.advanceRegex()) return;
+    if (this.advanceDelimiter()) return;
+    if (this.advanceTopLevelDeclaration()) return;
+    this.sourceOffset++;
+  }
+
+  private advanceNonCode(): boolean {
+    if (this.advanceExistingNonCode()) return true;
+    return this.advanceNonCodeStart();
+  }
+
+  private advanceExistingNonCode(): boolean {
+    if (this.inLineComment) {
+      if (this.source[this.sourceOffset] === "\n") this.inLineComment = false;
+      this.sourceOffset++;
+      return true;
+    }
+    if (this.inBlockComment) {
+      this.advanceBlockComment();
+      return true;
+    }
+    return this.advanceExistingString();
+  }
+
+  private advanceBlockComment(): void {
+    if (this.source[this.sourceOffset] === "*" && this.source[this.sourceOffset + 1] === "/") {
+      this.inBlockComment = false;
+      this.sourceOffset += 2;
+      return;
+    }
+    this.sourceOffset++;
+  }
+
+  private advanceExistingString(): boolean {
+    if (!this.stringDelimiter) return false;
+    const currentChar = this.source[this.sourceOffset];
+    if (currentChar === "\\") {
+      this.sourceOffset += 2;
+      return true;
+    }
+    if (currentChar === this.stringDelimiter) this.stringDelimiter = "";
+    this.sourceOffset++;
+    return true;
+  }
+
+  private advanceNonCodeStart(): boolean {
+    if (this.startStringLiteral()) return true;
+    return this.startComment();
+  }
+
+  private startStringLiteral(): boolean {
+    const character = this.source[this.sourceOffset];
+    if (!isStringDelimiter(character)) return false;
+    this.stringDelimiter = character;
+    this.sourceOffset++;
+    return true;
+  }
+
+  private startComment(): boolean {
+    if (this.source[this.sourceOffset] !== "/") return false;
+    if (this.source[this.sourceOffset + 1] === "/") {
+      this.inLineComment = true;
+      this.sourceOffset += 2;
+      return true;
+    }
+    if (this.source[this.sourceOffset + 1] === "*") {
+      this.inBlockComment = true;
+      this.sourceOffset += 2;
+      return true;
+    }
+    return false;
+  }
+
+  private advanceRegex(): boolean {
+    if (this.source[this.sourceOffset] !== "/") return false;
+    const end = this.regexEnd(this.sourceOffset);
+    if (end < 0) return false;
+    this.sourceOffset = end;
+    return true;
+  }
+
+  private advanceDelimiter(): boolean {
+    switch (this.source[this.sourceOffset]) {
+      case "{":
+        this.braceDepth++;
+        break;
+      case "}":
+        if (this.braceDepth > 0) this.braceDepth--;
+        break;
+      case "(":
+        this.parenDepth++;
+        break;
+      case ")":
+        if (this.parenDepth > 0) this.parenDepth--;
+        break;
+      case "[":
+        this.bracketDepth++;
+        break;
+      case "]":
+        if (this.bracketDepth > 0) this.bracketDepth--;
+        break;
+      default:
+        return false;
+    }
+    this.sourceOffset++;
+    return true;
+  }
+
+  private advanceTopLevelDeclaration(): boolean {
+    if (!this.isAtTopLevel()) return false;
+    const keyword = this.declarationKeywordAt(this.sourceOffset);
+    if (keyword === null) return false;
+    const declarationEnd = this.consumeDeclaration(keyword, this.sourceOffset);
+    if (declarationEnd === null) return false;
+    this.sourceOffset = declarationEnd;
+    return true;
+  }
+
+  private isAtTopLevel(): boolean {
+    return this.braceDepth === 0 && this.parenDepth === 0 && this.bracketDepth === 0;
+  }
+
+  private isAtomStart(sourceIndex: number): boolean {
+    return sourceIndex === 0 || !/[\w$]/.test(this.source.charAt(sourceIndex - 1));
+  }
+
+  private readIdentifier(startIndex: number): { name: string; end: number } | null {
+    this.identifierPattern.lastIndex = startIndex;
+    const match = this.identifierPattern.exec(this.source);
     if (!match || match.index !== startIndex) return null;
     return { name: match[0], end: startIndex + match[0].length };
   }
-  function skipDeclarationTrivia(startIndex: number): number {
+
+  private skipDeclarationTrivia(startIndex: number): number {
     let position = startIndex;
-    while (position < sourceLength) {
-      const character = source[position];
-      if (character === " " || character === "\t" || character === "\n" || character === "\r") {
+    while (position < this.sourceLength) {
+      if (isDeclarationWhitespace(this.source[position])) {
         position++;
         continue;
       }
-      if (character === "/" && source[position + 1] === "*") {
-        const commentEnd = source.indexOf("*/", position + 2);
-        if (commentEnd < 0) return sourceLength;
-        position = commentEnd + 2;
-        continue;
-      }
-      if (character === "/" && source[position + 1] === "/") {
-        const newlineIndex = source.indexOf("\n", position);
-        if (newlineIndex < 0) return sourceLength;
-        position = newlineIndex + 1;
-        continue;
-      }
-      break;
+      const commentEnd = skipDeclarationComment(this.source, position, this.sourceLength);
+      if (commentEnd === null) break;
+      position = commentEnd;
     }
     return position;
   }
-  const REGEX_AFTER_WORD = new Set([
-    "return",
-    "typeof",
-    "instanceof",
-    "in",
-    "new",
-    "delete",
-    "void",
-    "throw",
-    "case",
-    "do",
-    "else",
-  ]);
-  function isPropertyName(wordStart: number): boolean {
-    if (source.charAt(wordStart - 1) === "#") return true;
+
+  private isPropertyName(wordStart: number): boolean {
+    if (this.source.charAt(wordStart - 1) === "#") return true;
     let previousIndex = wordStart - 1;
-    while (previousIndex >= 0 && /\s/.test(source.charAt(previousIndex))) previousIndex--;
-    return source.charAt(previousIndex) === "." && source.charAt(previousIndex - 1) !== ".";
+    while (previousIndex >= 0 && /\s/.test(this.source.charAt(previousIndex))) previousIndex--;
+    return (
+      this.source.charAt(previousIndex) === "." && this.source.charAt(previousIndex - 1) !== "."
+    );
   }
-  function regexEnd(slashIndex: number): number {
+
+  private regexCanFollowWord(previousIndex: number): boolean {
+    let previousWordStart = previousIndex;
+    while (previousWordStart > 0 && /[\w$]/.test(this.source.charAt(previousWordStart - 1))) {
+      previousWordStart--;
+    }
+    return (
+      REGEX_AFTER_WORD.has(this.source.slice(previousWordStart, previousIndex + 1)) &&
+      !this.isPropertyName(previousWordStart)
+    );
+  }
+
+  private canStartRegex(slashIndex: number): boolean {
     let previousIndex = slashIndex - 1;
-    while (previousIndex >= 0 && /\s/.test(source.charAt(previousIndex))) previousIndex--;
-    if (previousIndex >= 0) {
-      const previousCharacter = source.charAt(previousIndex);
-      if (/[\w$]/.test(previousCharacter)) {
-        let previousWordStart = previousIndex;
-        while (previousWordStart > 0 && /[\w$]/.test(source.charAt(previousWordStart - 1))) {
-          previousWordStart--;
-        }
-        if (
-          !REGEX_AFTER_WORD.has(source.slice(previousWordStart, previousIndex + 1)) ||
-          isPropertyName(previousWordStart)
-        ) {
-          return -1;
-        }
-      } else if (
-        previousCharacter === ")" ||
-        previousCharacter === "]" ||
-        previousCharacter === '"' ||
-        previousCharacter === "'" ||
-        previousCharacter === "`"
-      ) {
-        return -1;
-      } else if (
-        (previousCharacter === "+" || previousCharacter === "-") &&
-        source.charAt(previousIndex - 1) === previousCharacter
-      ) {
-        return -1;
-      }
+    while (previousIndex >= 0 && /\s/.test(this.source.charAt(previousIndex))) previousIndex--;
+    if (previousIndex < 0) return true;
+    const previousCharacter = this.source.charAt(previousIndex);
+    if (/[\w$]/.test(previousCharacter)) return this.regexCanFollowWord(previousIndex);
+    return !isRegexForbiddenAfterCharacter(this.source, previousCharacter, previousIndex);
+  }
+
+  private regexEnd(slashIndex: number): number {
+    if (!this.canStartRegex(slashIndex)) return -1;
+    const bodyEnd = this.scanRegexBody(slashIndex);
+    if (bodyEnd < 0) return -1;
+    return skipRegexFlags(this.source, bodyEnd, this.sourceLength);
+  }
+
+  private scanRegexBody(slashIndex: number): number {
+    const state: RegexState = {
+      position: slashIndex + 1,
+      insideCharacterClass: false,
+      hasClosingSlash: false,
+    };
+    while (state.position < this.sourceLength) {
+      if (!this.advanceRegexCharacter(state)) return -1;
+      if (state.hasClosingSlash) return state.position;
     }
-    let position = slashIndex + 1;
-    let insideCharacterClass = false;
-    let hasClosingSlash = false;
-    while (position < sourceLength) {
-      const character = source.charAt(position);
-      if (character === "\\") {
-        position += 2;
-        continue;
+    return -1;
+  }
+
+  private advanceRegexCharacter(state: RegexState): boolean {
+    if (this.advanceRegexEscape(state)) return true;
+    if (this.source.charAt(state.position) === "\n") return false;
+    if (state.insideCharacterClass) return this.advanceRegexCharacterClass(state);
+    return this.advanceRegexOutsideCharacterClass(state);
+  }
+
+  private advanceRegexEscape(state: RegexState): boolean {
+    if (this.source.charAt(state.position) !== "\\") return false;
+    state.position += 2;
+    return true;
+  }
+
+  private advanceRegexCharacterClass(state: RegexState): boolean {
+    if (this.source.charAt(state.position) === "]") state.insideCharacterClass = false;
+    state.position++;
+    return true;
+  }
+
+  private advanceRegexOutsideCharacterClass(state: RegexState): boolean {
+    switch (this.source.charAt(state.position)) {
+      case "[":
+        state.insideCharacterClass = true;
+        state.position++;
+        return true;
+      case "/":
+        state.position++;
+        state.hasClosingSlash = true;
+        return true;
+      default:
+        state.position++;
+        return true;
+    }
+  }
+
+  private consumeKeywordAt(sourceIndex: number, keyword: string): boolean {
+    if (this.source.slice(sourceIndex, sourceIndex + keyword.length) !== keyword) return false;
+    if (!this.isAtomStart(sourceIndex)) return false;
+    return !/[\w$]/.test(this.source.charAt(sourceIndex + keyword.length));
+  }
+
+  private addName(name: string): void {
+    if (this.seen.has(name)) return;
+    this.seen.add(name);
+    this.names.push(name);
+  }
+
+  private skipInitializer(startIndex: number): number {
+    const state: InitializerState = {
+      position: startIndex,
+      braceDepth: 0,
+      parenDepth: 0,
+      bracketDepth: 0,
+      stringDelimiter: "",
+      stopped: false,
+    };
+    while (state.position < this.sourceLength && !state.stopped) {
+      if (!this.advanceInitializer(state)) break;
+    }
+    return state.position;
+  }
+
+  private advanceInitializer(state: InitializerState): boolean {
+    if (this.advanceInitializerString(state)) return true;
+    if (this.advanceInitializerTrivia(state)) return true;
+    if (this.advanceInitializerRegex(state)) return true;
+    const depth = this.advanceInitializerDepth(state);
+    if (depth !== null) return depth;
+    state.position++;
+    return true;
+  }
+
+  private advanceInitializerString(state: InitializerState): boolean {
+    if (state.stringDelimiter) {
+      if (this.source[state.position] === "\\") {
+        state.position += 2;
+        return true;
       }
-      if (character === "\n") return -1;
-      if (insideCharacterClass) {
-        if (character === "]") insideCharacterClass = false;
-      } else if (character === "[") insideCharacterClass = true;
-      else if (character === "/") {
-        position++;
-        hasClosingSlash = true;
+      if (this.source[state.position] === state.stringDelimiter) state.stringDelimiter = "";
+      state.position++;
+      return true;
+    }
+    const character = this.source[state.position];
+    if (!isStringDelimiter(character)) return false;
+    state.stringDelimiter = character;
+    state.position++;
+    return true;
+  }
+
+  private advanceInitializerTrivia(state: InitializerState): boolean {
+    if (this.source[state.position] !== "/") return false;
+    const commentEnd = skipInitializerComment(this.source, state.position, this.sourceLength);
+    if (commentEnd === null) return false;
+    state.position = commentEnd;
+    return true;
+  }
+
+  private advanceInitializerRegex(state: InitializerState): boolean {
+    if (this.source[state.position] !== "/") return false;
+    const regexEndPosition = this.regexEnd(state.position);
+    if (regexEndPosition <= 0) return false;
+    state.position = regexEndPosition;
+    return true;
+  }
+
+  private advanceInitializerDepth(state: InitializerState): boolean | null {
+    switch (this.source[state.position]) {
+      case "{":
+        state.braceDepth++;
         break;
-      }
-      position++;
-    }
-    if (!hasClosingSlash) return -1;
-    while (position < sourceLength && /[a-z]/.test(source.charAt(position))) position++;
-    return position;
-  }
-  function consumeKeywordAt(sourceIndex: number, keyword: string): boolean {
-    if (source.slice(sourceIndex, sourceIndex + keyword.length) !== keyword) return false;
-    if (!isAtomStart(sourceIndex)) return false;
-    const nextCharacterCode = source.charCodeAt(sourceIndex + keyword.length);
-    const nextIsIdentifierCharacter =
-      (nextCharacterCode >= ASCII_LOWERCASE_START_CHAR_CODE &&
-        nextCharacterCode <= ASCII_LOWERCASE_END_CHAR_CODE) ||
-      (nextCharacterCode >= ASCII_UPPERCASE_START_CHAR_CODE &&
-        nextCharacterCode <= ASCII_UPPERCASE_END_CHAR_CODE) ||
-      (nextCharacterCode >= ASCII_DIGIT_START_CHAR_CODE &&
-        nextCharacterCode <= ASCII_DIGIT_END_CHAR_CODE) ||
-      nextCharacterCode === ASCII_UNDERSCORE_CHAR_CODE ||
-      nextCharacterCode === ASCII_DOLLAR_SIGN_CHAR_CODE;
-    return !nextIsIdentifierCharacter;
-  }
-
-  function addName(name: string): void {
-    if (seen.has(name)) return;
-    seen.add(name);
-    names.push(name);
-  }
-
-  function skipInitializer(startIndex: number): number {
-    let position = startIndex;
-    let initializerBraceDepth = 0;
-    let initializerParenDepth = 0;
-    let initializerBracketDepth = 0;
-    let initializerStringDelimiter: "" | '"' | "'" | "`" = "";
-    while (position < sourceLength) {
-      const character = source[position];
-      if (initializerStringDelimiter) {
-        if (character === "\\") {
-          position += 2;
-          continue;
+      case "}":
+        if (state.braceDepth === 0) {
+          state.stopped = true;
+          return true;
         }
-        if (character === initializerStringDelimiter) initializerStringDelimiter = "";
-        position++;
-        continue;
-      }
-      if (character === '"' || character === "'" || character === "`") {
-        initializerStringDelimiter = character;
-        position++;
-        continue;
-      }
-      if (character === "/" && source[position + 1] === "/") {
-        const newlineIndex = source.indexOf("\n", position);
-        position = newlineIndex < 0 ? sourceLength : newlineIndex + 1;
-        continue;
-      }
-      if (character === "/" && source[position + 1] === "*") {
-        const commentEnd = source.indexOf("*/", position + 2);
-        position = commentEnd < 0 ? sourceLength : commentEnd + 2;
-        continue;
-      }
-      if (character === "/") {
-        const regexEndPosition = regexEnd(position);
-        if (regexEndPosition > 0) {
-          position = regexEndPosition;
-          continue;
-        }
-      }
-      if (character === "{") {
-        initializerBraceDepth++;
-        position++;
-        continue;
-      }
-      if (character === "}") {
-        if (initializerBraceDepth > 0) initializerBraceDepth--;
-        else break;
-        position++;
-        continue;
-      }
-      if (character === "(") {
-        initializerParenDepth++;
-        position++;
-        continue;
-      }
-      if (character === ")") {
-        if (initializerParenDepth > 0) initializerParenDepth--;
-        position++;
-        continue;
-      }
-      if (character === "[") {
-        initializerBracketDepth++;
-        position++;
-        continue;
-      }
-      if (character === "]") {
-        if (initializerBracketDepth > 0) initializerBracketDepth--;
-        position++;
-        continue;
-      }
-      if (
-        initializerBraceDepth === 0 &&
-        initializerParenDepth === 0 &&
-        initializerBracketDepth === 0 &&
-        (character === "," || character === ";" || character === "\n")
-      ) {
+        state.braceDepth--;
         break;
-      }
-      position++;
+      case "(":
+        state.parenDepth++;
+        break;
+      case ")":
+        state.parenDepth = decrementDepth(state.parenDepth);
+        break;
+      case "[":
+        state.bracketDepth++;
+        break;
+      case "]":
+        state.bracketDepth = decrementDepth(state.bracketDepth);
+        break;
+      default:
+        if (isInitializerSeparator(state, this.source[state.position])) return false;
+        return null;
     }
-    return position;
+    state.position++;
+    return true;
   }
 
-  function scanVariableDeclaration(
+  private scanVariableDeclaration(
     keyword: "var" | "let" | "const",
     keywordStart: number,
     startIndex: number,
   ): number {
-    const canStripVarDeclaration = keyword === "var" && readIdentifier(startIndex) !== null;
+    const canStripVarDeclaration = this.canStripVarDeclaration(keyword, startIndex);
     const namesAtVarSite: string[] = [];
     if (canStripVarDeclaration) {
-      varSites.push(keywordStart);
-      varSiteNames.push(namesAtVarSite);
+      this.varSites.push(keywordStart);
+      this.varSiteNames.push(namesAtVarSite);
     }
     let position = startIndex;
-    while (position < sourceLength) {
-      position = skipDeclarationTrivia(position);
-      const identifier = readIdentifier(position);
+    while (position < this.sourceLength) {
+      position = this.skipDeclarationTrivia(position);
+      const identifier = this.readIdentifier(position);
       if (!identifier) break;
-      addName(identifier.name);
-      if (canStripVarDeclaration) {
-        namesAtVarSite.push(identifier.name);
-        if (!varSeen.has(identifier.name)) {
-          varSeen.add(identifier.name);
-          varNames.push(identifier.name);
-        }
-      }
-      position = skipInitializer(identifier.end);
-      if (source[position] !== ",") break;
+      this.addName(identifier.name);
+      this.recordVarName(identifier.name, canStripVarDeclaration, namesAtVarSite);
+      position = this.skipInitializer(identifier.end);
+      if (this.source[position] !== ",") break;
       position++;
     }
     return position;
   }
 
-  function declarationKeywordAt(sourceIndex: number): TopLevelKeyword | null {
-    if (consumeKeywordAt(sourceIndex, "var")) return "var";
-    if (consumeKeywordAt(sourceIndex, "let")) return "let";
-    if (consumeKeywordAt(sourceIndex, "const")) return "const";
-    if (consumeKeywordAt(sourceIndex, "function")) return "function";
-    if (consumeKeywordAt(sourceIndex, "class")) return "class";
+  private canStripVarDeclaration(keyword: "var" | "let" | "const", startIndex: number): boolean {
+    return keyword === "var" && this.readIdentifier(startIndex) !== null;
+  }
+
+  private recordVarName(
+    name: string,
+    canStripVarDeclaration: boolean,
+    namesAtVarSite: string[],
+  ): void {
+    if (!canStripVarDeclaration) return;
+    namesAtVarSite.push(name);
+    if (this.varSeen.has(name)) return;
+    this.varSeen.add(name);
+    this.varNames.push(name);
+  }
+
+  private declarationKeywordAt(sourceIndex: number): TopLevelKeyword | null {
+    for (const [keyword, kind] of DECLARATION_KEYWORDS) {
+      if (this.consumeKeywordAt(sourceIndex, keyword)) return kind;
+    }
     return null;
   }
 
-  function consumeDeclaration(keyword: TopLevelKeyword, keywordStart: number): number | null {
-    let position = skipDeclarationTrivia(keywordStart + keyword.length);
-    if (keyword === "function" && source[position] === "*") {
-      position++;
-      position = skipDeclarationTrivia(position);
-    }
-    if (keyword === "var" || keyword === "let" || keyword === "const") {
-      return scanVariableDeclaration(keyword, keywordStart, position);
-    }
-    const identifier = readIdentifier(position);
+  private consumeDeclaration(keyword: TopLevelKeyword, keywordStart: number): number | null {
+    const position = this.declarationStart(keyword, keywordStart);
+    if (isVariableKeyword(keyword))
+      return this.scanVariableDeclaration(keyword, keywordStart, position);
+    const identifier = this.readIdentifier(position);
     if (!identifier) return null;
-    addName(identifier.name);
+    this.addName(identifier.name);
     return identifier.end;
   }
 
-  while (sourceOffset < sourceLength) {
-    const currentChar = source[sourceOffset];
-    if (inLineComment) {
-      if (currentChar === "\n") inLineComment = false;
-      sourceOffset++;
-      continue;
-    }
-    if (inBlockComment) {
-      if (currentChar === "*" && source[sourceOffset + 1] === "/") {
-        inBlockComment = false;
-        sourceOffset += 2;
-        continue;
-      }
-      sourceOffset++;
-      continue;
-    }
-    if (stringDelimiter) {
-      if (currentChar === "\\") {
-        sourceOffset += 2;
-        continue;
-      }
-      if (currentChar === stringDelimiter) stringDelimiter = "";
-      sourceOffset++;
-      continue;
-    }
-    if (currentChar === '"' || currentChar === "'" || currentChar === "`") {
-      stringDelimiter = currentChar;
-      sourceOffset++;
-      continue;
-    }
-    if (currentChar === "/" && source[sourceOffset + 1] === "/") {
-      inLineComment = true;
-      sourceOffset += 2;
-      continue;
-    }
-    if (currentChar === "/" && source[sourceOffset + 1] === "*") {
-      inBlockComment = true;
-      sourceOffset += 2;
-      continue;
-    }
-    if (currentChar === "/") {
-      const regexEndPosition = regexEnd(sourceOffset);
-      if (regexEndPosition > 0) {
-        sourceOffset = regexEndPosition;
-        continue;
-      }
-    }
-    if (currentChar === "{") {
-      braceDepth++;
-      sourceOffset++;
-      continue;
-    }
-    if (currentChar === "}") {
-      if (braceDepth > 0) braceDepth--;
-      sourceOffset++;
-      continue;
-    }
-    if (currentChar === "(") {
-      parenDepth++;
-      sourceOffset++;
-      continue;
-    }
-    if (currentChar === ")") {
-      if (parenDepth > 0) parenDepth--;
-      sourceOffset++;
-      continue;
-    }
-    if (currentChar === "[") {
-      bracketDepth++;
-      sourceOffset++;
-      continue;
-    }
-    if (currentChar === "]") {
-      if (bracketDepth > 0) bracketDepth--;
-      sourceOffset++;
-      continue;
-    }
-    if (isAtTopLevel()) {
-      const keyword = declarationKeywordAt(sourceOffset);
-      if (keyword !== null) {
-        const declarationEnd = consumeDeclaration(keyword, sourceOffset);
-        if (declarationEnd !== null) {
-          sourceOffset = declarationEnd;
-          continue;
-        }
-      }
-    }
-    sourceOffset++;
+  private declarationStart(keyword: TopLevelKeyword, keywordStart: number): number {
+    let position = this.skipDeclarationTrivia(keywordStart + keyword.length);
+    if (keyword !== "function" || this.source[position] !== "*") return position;
+    position++;
+    return this.skipDeclarationTrivia(position);
   }
-  return { names, varSites, varNames, varSiteNames };
+}
+
+interface RegexState {
+  position: number;
+  insideCharacterClass: boolean;
+  hasClosingSlash: boolean;
+}
+
+function isDeclarationWhitespace(character: string | undefined): boolean {
+  return character === " " || character === "\t" || character === "\n" || character === "\r";
+}
+
+function skipDeclarationComment(
+  source: string,
+  position: number,
+  sourceLength: number,
+): number | null {
+  if (source[position] !== "/") return null;
+  return readDeclarationCommentEnd(source, position, sourceLength);
+}
+
+function readDeclarationCommentEnd(
+  source: string,
+  position: number,
+  sourceLength: number,
+): number | null {
+  if (source[position + 1] === "*") {
+    const commentEnd = source.indexOf("*/", position + 2);
+    return commentEnd < 0 ? sourceLength : commentEnd + 2;
+  }
+  if (source[position + 1] === "/") {
+    const newlineIndex = source.indexOf("\n", position);
+    return newlineIndex < 0 ? sourceLength : newlineIndex + 1;
+  }
+  return null;
+}
+
+function isRepeatedSign(source: string, previousIndex: number): boolean {
+  const previousCharacter = source.charAt(previousIndex);
+  return (
+    (previousCharacter === "+" || previousCharacter === "-") &&
+    source.charAt(previousIndex - 1) === previousCharacter
+  );
+}
+
+function isRegexForbiddenAfterCharacter(
+  source: string,
+  previousCharacter: string,
+  previousIndex: number,
+): boolean {
+  return REGEX_CANNOT_FOLLOW.has(previousCharacter) || isRepeatedSign(source, previousIndex);
+}
+
+function skipRegexFlags(source: string, position: number, sourceLength: number): number {
+  while (position < sourceLength && /[a-z]/.test(source.charAt(position))) position++;
+  return position;
+}
+
+function isVariableKeyword(keyword: TopLevelKeyword): keyword is "var" | "let" | "const" {
+  return keyword === "var" || keyword === "let" || keyword === "const";
+}
+
+function skipInitializerComment(
+  source: string,
+  position: number,
+  sourceLength: number,
+): number | null {
+  if (source[position + 1] === "/")
+    return skipInitializerLineComment(source, position, sourceLength);
+  if (source[position + 1] === "*")
+    return skipInitializerBlockComment(source, position, sourceLength);
+  return null;
+}
+
+function skipInitializerLineComment(
+  source: string,
+  position: number,
+  sourceLength: number,
+): number {
+  const newlineIndex = source.indexOf("\n", position);
+  return newlineIndex < 0 ? sourceLength : newlineIndex + 1;
+}
+
+function skipInitializerBlockComment(
+  source: string,
+  position: number,
+  sourceLength: number,
+): number {
+  const commentEnd = source.indexOf("*/", position + 2);
+  return commentEnd < 0 ? sourceLength : commentEnd + 2;
+}
+
+function isStringDelimiter(character: string | undefined): character is '"' | "'" | "`" {
+  return character === '"' || character === "'" || character === "`";
+}
+
+function isInitializerSeparator(state: InitializerState, character: string | undefined): boolean {
+  return isAtInitializerTopLevel(state) && isInitializerSeparatorCharacter(character);
+}
+
+function isAtInitializerTopLevel(state: InitializerState): boolean {
+  return state.braceDepth === 0 && state.parenDepth === 0 && state.bracketDepth === 0;
+}
+
+function isInitializerSeparatorCharacter(character: string | undefined): boolean {
+  return character === "," || character === ";" || character === "\n";
+}
+
+function decrementDepth(depth: number): number {
+  return depth > 0 ? depth - 1 : depth;
+}
+
+export function extractTopLevelDecls(source: string): TopLevelDeclScan {
+  return new DeclarationScanner(source).scan();
 }
 
 export function predeclareVarsHead(names: readonly string[], global: string): string {
@@ -417,67 +600,122 @@ export function predeclareVarsHead(names: readonly string[], global: string): st
   return `(function (names) { for (var gi = 0; gi < names.length; gi++) { try { var gn = names[gi]; var gd = Object.getOwnPropertyDescriptor(${global}, gn); if (!gd) { if (!(gn in ${global})) ${global}[gn] = undefined; continue; } var gSwallows = (gd.get || gd.set) ? !gd.set : gd.writable === false; if (gSwallows && gd.configurable) Object.defineProperty(${global}, gn, { value: ${global}[gn], writable: true, enumerable: true, configurable: true }); } catch (ge) {} } })(${JSON.stringify(names)});`;
 }
 
+interface DirectiveScanState {
+  position: number;
+  newline: boolean;
+}
+
+function isDirectiveLineTerminator(character: string): boolean {
+  return (
+    character === "\n" || character === "\r" || character === "\u2028" || character === "\u2029"
+  );
+}
+
+function advanceDirectiveWhitespace(source: string, state: DirectiveScanState): boolean {
+  const character = source.charAt(state.position);
+  if (isDirectiveLineTerminator(character)) {
+    state.newline = true;
+    state.position++;
+    return true;
+  }
+  if (!/\s/.test(character)) return false;
+  state.position++;
+  return true;
+}
+
+function skipDirectiveLineComment(source: string, state: DirectiveScanState): void {
+  while (
+    state.position < source.length &&
+    !isDirectiveLineTerminator(source.charAt(state.position))
+  ) {
+    state.position++;
+  }
+}
+
+function skipDirectiveBlockComment(source: string, state: DirectiveScanState): void {
+  const commentEnd = source.indexOf("*/", state.position + 2);
+  if (commentEnd < 0) {
+    state.position = source.length;
+    return;
+  }
+  if (/[\n\r\u2028\u2029]/.test(source.slice(state.position + 2, commentEnd))) state.newline = true;
+  state.position = commentEnd + 2;
+}
+
+function skipDirectiveComment(source: string, state: DirectiveScanState): boolean {
+  if (source.charAt(state.position) !== "/") return false;
+  if (source.charAt(state.position + 1) === "/") {
+    skipDirectiveLineComment(source, state);
+    return true;
+  }
+  if (source.charAt(state.position + 1) === "*") {
+    skipDirectiveBlockComment(source, state);
+    return true;
+  }
+  return false;
+}
+
+function skipDirectiveTrivia(source: string, state: DirectiveScanState): void {
+  state.newline = false;
+  while (state.position < source.length) {
+    if (advanceDirectiveWhitespace(source, state)) continue;
+    if (skipDirectiveComment(source, state)) continue;
+    break;
+  }
+}
+
+function nextDirectiveStringEnd(source: string, quote: string, start: number): number | null {
+  let position = start;
+  while (position < source.length && source.charAt(position) !== quote) {
+    const next = advanceDirectiveStringCharacter(source, position);
+    if (next === null) return null;
+    position = next;
+  }
+  return position;
+}
+
+function advanceDirectiveStringCharacter(source: string, position: number): number | null {
+  const character = source.charAt(position);
+  if (character === "\n" || character === "\r") return null;
+  return character === "\\" ? position + 2 : position + 1;
+}
+
+function readDirectiveString(source: string, state: DirectiveScanState): string | null {
+  const quote = source.charAt(state.position);
+  if (quote !== '"' && quote !== "'") return null;
+  const stringEndIndex = nextDirectiveStringEnd(source, quote, state.position + 1);
+  if (stringEndIndex === null || stringEndIndex >= source.length) return null;
+  const directive = source.slice(state.position + 1, stringEndIndex);
+  state.position = stringEndIndex + 1;
+  return directive;
+}
+
+function finishDirectiveStatement(source: string, state: DirectiveScanState): boolean {
+  skipDirectiveTrivia(source, state);
+  if (source.charAt(state.position) === ";") {
+    state.position++;
+    return true;
+  }
+  return (
+    state.position >= source.length ||
+    (state.newline && !continuesExpression(source, state.position))
+  );
+}
+
+function nextDirective(source: string, state: DirectiveScanState): string | null {
+  skipDirectiveTrivia(source, state);
+  const directive = readDirectiveString(source, state);
+  if (directive === null) return null;
+  if (!finishDirectiveStatement(source, state)) return null;
+  return directive;
+}
+
 export function hasUseStrictDirective(source: string): boolean {
-  const sourceLength = source.length;
-  let position = 0;
-  let newline = false;
-  const skipTrivia = (): void => {
-    newline = false;
-    while (position < sourceLength) {
-      const character = source.charAt(position);
-      if (
-        character === "\n" ||
-        character === "\r" ||
-        character === "\u2028" ||
-        character === "\u2029"
-      ) {
-        newline = true;
-        position++;
-        continue;
-      }
-      if (/\s/.test(character)) {
-        position++;
-        continue;
-      }
-      if (character === "/" && source.charAt(position + 1) === "/") {
-        while (position < sourceLength && !/[\n\r\u2028\u2029]/.test(source.charAt(position))) {
-          position++;
-        }
-        continue;
-      }
-      if (character === "/" && source.charAt(position + 1) === "*") {
-        const commentEnd = source.indexOf("*/", position + 2);
-        if (commentEnd < 0) {
-          position = sourceLength;
-          return;
-        }
-        if (/[\n\r\u2028\u2029]/.test(source.slice(position + 2, commentEnd))) newline = true;
-        position = commentEnd + 2;
-        continue;
-      }
-      return;
-    }
-  };
+  const state = { position: 0, newline: false };
   for (;;) {
-    skipTrivia();
-    const quote = source.charAt(position);
-    if (quote !== '"' && quote !== "'") return false;
-    let stringEndIndex = position + 1;
-    while (stringEndIndex < sourceLength && source.charAt(stringEndIndex) !== quote) {
-      const character = source.charAt(stringEndIndex);
-      if (character === "\n" || character === "\r") return false;
-      stringEndIndex += character === "\\" ? 2 : 1;
-    }
-    if (stringEndIndex >= sourceLength) return false;
-    const directive = source.slice(position + 1, stringEndIndex) === "use strict";
-    position = stringEndIndex + 1;
-    skipTrivia();
-    const nextCharacter = source.charAt(position);
-    if (nextCharacter === ";") position++;
-    else if (position < sourceLength && !(newline && !continuesExpression(source, position))) {
-      return false;
-    }
-    if (directive) return true;
+    const directive = nextDirective(source, state);
+    if (directive === null) return false;
+    if (directive === "use strict") return true;
   }
 }
 

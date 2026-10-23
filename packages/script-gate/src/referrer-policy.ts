@@ -15,6 +15,7 @@ const POLICIES = new Set([
   "strict-origin-when-cross-origin",
   "unsafe-url",
 ]);
+const TRUSTWORTHY_SCHEMES = new Set(["data:", "file:", "https:", "wss:"]);
 
 // A Referrer-Policy header may list several tokens; the last one the UA
 // recognises wins, and an empty or unknown list means the default.
@@ -31,50 +32,99 @@ export function parseReferrerPolicy(header: string | null | undefined): string {
 // and hosts a frame can navigate to here.
 function isPotentiallyTrustworthy(url: URL): boolean {
   if (url.href === "about:blank" || url.href === "about:srcdoc") return true;
-  if (url.protocol === "data:" || url.protocol === "file:") return true;
-  if (url.protocol === "https:" || url.protocol === "wss:") return true;
-  const host = url.hostname;
+  if (TRUSTWORTHY_SCHEMES.has(url.protocol)) return true;
+  return isLocalHost(url.hostname);
+}
+
+function isLocalHost(host: string): boolean {
   return (
     host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1" || host === "[::1]"
   );
 }
 
-/** Returns the policy-selected referrer, or an empty string when none is sent. */
-export function determineReferrer(sourceUrl: string, targetUrl: string, policy: string): string {
-  let source: URL;
-  let target: URL;
+interface ReferrerUrls {
+  source: URL;
+  target: URL;
+}
+
+function parseReferrerUrls(sourceUrl: string, targetUrl: string): ReferrerUrls | null {
   try {
-    source = new URL(sourceUrl);
-    target = new URL(targetUrl);
+    return { source: new URL(sourceUrl), target: new URL(targetUrl) };
   } catch {
-    return "";
+    return null;
   }
-  // A local-scheme source (about:, data:, blob:) has no URL to send.
-  if (source.protocol !== "http:" && source.protocol !== "https:") return "";
-  source.hash = "";
-  source.username = "";
-  source.password = "";
-  const full = source.href;
-  const originOnly = source.origin + "/";
-  const sameOrigin = target.origin !== "null" && target.origin === source.origin;
-  const downgrade = source.protocol === "https:" && !isPotentiallyTrustworthy(target);
+}
+
+function referrerForDowngrade(downgrade: boolean, value: string): string {
+  return downgrade ? "" : value;
+}
+
+function defaultReferrer(
+  sameOrigin: boolean,
+  downgrade: boolean,
+  full: string,
+  originOnly: string,
+): string {
+  if (sameOrigin) return full;
+  return referrerForDowngrade(downgrade, originOnly);
+}
+
+function referrerForPolicy(
+  policy: string,
+  sameOrigin: boolean,
+  downgrade: boolean,
+  full: string,
+  originOnly: string,
+): string {
   switch (policy) {
     case "no-referrer":
       return "";
     case "no-referrer-when-downgrade":
-      return downgrade ? "" : full;
+      return referrerForDowngrade(downgrade, full);
     case "same-origin":
       return sameOrigin ? full : "";
     case "origin":
       return originOnly;
     case "strict-origin":
-      return downgrade ? "" : originOnly;
+      return referrerForDowngrade(downgrade, originOnly);
     case "origin-when-cross-origin":
       return sameOrigin ? full : originOnly;
     case "unsafe-url":
       return full;
     default:
-      if (sameOrigin) return full;
-      return downgrade ? "" : originOnly;
+      return defaultReferrer(sameOrigin, downgrade, full, originOnly);
   }
+}
+
+function hasHttpSource(source: URL): boolean {
+  return source.protocol === "http:" || source.protocol === "https:";
+}
+
+function sameOrigin(source: URL, target: URL): boolean {
+  return target.origin !== "null" && target.origin === source.origin;
+}
+
+function isDowngrade(source: URL, target: URL): boolean {
+  return source.protocol === "https:" && !isPotentiallyTrustworthy(target);
+}
+
+/** Returns the policy-selected referrer, or an empty string when none is sent. */
+export function determineReferrer(sourceUrl: string, targetUrl: string, policy: string): string {
+  const urls = parseReferrerUrls(sourceUrl, targetUrl);
+  if (urls === null) return "";
+  const { source, target } = urls;
+  // A local-scheme source (about:, data:, blob:) has no URL to send.
+  if (!hasHttpSource(source)) return "";
+  source.hash = "";
+  source.username = "";
+  source.password = "";
+  const full = source.href;
+  const originOnly = source.origin + "/";
+  return referrerForPolicy(
+    policy,
+    sameOrigin(source, target),
+    isDowngrade(source, target),
+    full,
+    originOnly,
+  );
 }

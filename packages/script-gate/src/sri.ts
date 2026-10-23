@@ -13,6 +13,26 @@ export interface SriMetadataEntry {
 
 const ALGORITHM_STRENGTH: readonly SriAlgorithm[] = ["sha256", "sha384", "sha512"];
 
+function parseIntegrityToken(token: string): SriMetadataEntry | null {
+  const noOptions = token.split("?")[0] ?? "";
+  const dash = noOptions.indexOf("-");
+  if (dash <= 0) return null;
+  const normalizedAlgorithm = noOptions.slice(0, dash).toLowerCase();
+  const algorithm = ALGORITHM_STRENGTH.find((candidate) => candidate === normalizedAlgorithm);
+  const digest = noOptions.slice(dash + 1);
+  if (!algorithm || !digest) return null;
+  return { algorithm, digest };
+}
+
+function strongestAlgorithm(entries: readonly SriMetadataEntry[]): SriAlgorithm | undefined {
+  let strongestRank = 0;
+  for (const entry of entries) {
+    const rank = ALGORITHM_STRENGTH.indexOf(entry.algorithm);
+    if (rank > strongestRank) strongestRank = rank;
+  }
+  return ALGORITHM_STRENGTH[strongestRank];
+}
+
 interface SubtleDigest {
   digest(algorithm: string, data: Uint8Array): Promise<ArrayBuffer>;
 }
@@ -32,25 +52,13 @@ export function parseIntegrity(attribute: string | null | undefined): SriMetadat
   if (!attribute) return [];
   const entries: SriMetadataEntry[] = [];
   for (const token of attribute.split(/\s+/)) {
-    if (!token) continue;
-    const noOptions = token.split("?")[0] ?? "";
-    const dash = noOptions.indexOf("-");
-    if (dash <= 0) continue;
-    const normalizedAlgorithm = noOptions.slice(0, dash).toLowerCase();
-    const algorithm = ALGORITHM_STRENGTH.find((candidate) => candidate === normalizedAlgorithm);
-    const digest = noOptions.slice(dash + 1);
-    if (!algorithm || !digest) continue;
-    entries.push({ algorithm, digest });
+    const entry = parseIntegrityToken(token);
+    if (entry !== null) entries.push(entry);
   }
   if (entries.length === 0) return [];
-  let strongestRank = 0;
-  for (const entry of entries) {
-    const rank = ALGORITHM_STRENGTH.indexOf(entry.algorithm);
-    if (rank > strongestRank) strongestRank = rank;
-  }
-  const strongestAlgorithm = ALGORITHM_STRENGTH[strongestRank];
+  const algorithm = strongestAlgorithm(entries);
   // A weaker digest must not authorize bytes when stronger metadata is present.
-  return entries.filter((entry) => entry.algorithm === strongestAlgorithm);
+  return entries.filter((entry) => entry.algorithm === algorithm);
 }
 
 function decodeBase64(value: string): Uint8Array | null {
@@ -104,11 +112,12 @@ export async function integrityMatches(
   if (!strongest) return true;
   const actual = await digestBytes(bytes, strongest.algorithm);
   if (actual === null) return false;
-  for (const entry of metadata) {
-    const expected = decodeBase64(entry.digest);
-    if (expected && bytesEqual(actual, expected)) return true;
-  }
-  return false;
+  return metadata.some((entry) => matchesDigest(actual, entry));
+}
+
+function matchesDigest(actual: Uint8Array, entry: SriMetadataEntry): boolean {
+  const expected = decodeBase64(entry.digest);
+  return expected !== null && bytesEqual(actual, expected);
 }
 
 export async function digestBase64(

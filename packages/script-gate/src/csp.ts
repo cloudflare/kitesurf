@@ -11,6 +11,32 @@ export interface CspPolicy {
   text: string;
 }
 
+function parseCspPolicy(raw: string): CspPolicy | null {
+  const text = raw.trim();
+  if (!text) return null;
+  const directives = new Map<string, string[]>();
+  for (const chunk of text.split(";")) {
+    addDirectiveChunk(directives, chunk);
+  }
+  if (directives.size === 0) return null;
+  return { directives, text };
+}
+
+function addDirectiveChunk(directives: Map<string, string[]>, chunk: string): void {
+  const tokens = chunk.trim().split(/\s+/).filter(Boolean);
+  const name = tokens[0]?.toLowerCase();
+  if (name === undefined || directives.has(name)) return;
+  directives.set(name, tokens.slice(1));
+}
+
+function addHeaderPolicies(value: string, splitOnComma: boolean, policies: CspPolicy[]): void {
+  const rawPolicies = splitOnComma ? value.split(",") : [value];
+  for (const raw of rawPolicies) {
+    const policy = parseCspPolicy(raw);
+    if (policy !== null) policies.push(policy);
+  }
+}
+
 export function parseCspPolicies(
   values: readonly (string | null | undefined)[],
   splitOnComma = true,
@@ -18,19 +44,7 @@ export function parseCspPolicies(
   const policies: CspPolicy[] = [];
   for (const value of values) {
     if (!value) continue;
-    for (const raw of splitOnComma ? value.split(",") : [value]) {
-      const text = raw.trim();
-      if (!text) continue;
-      const directives = new Map<string, string[]>();
-      for (const chunk of text.split(";")) {
-        const tokens = chunk.trim().split(/\s+/).filter(Boolean);
-        const name = tokens[0]?.toLowerCase();
-        if (name === undefined) continue;
-        if (directives.has(name)) continue;
-        directives.set(name, tokens.slice(1));
-      }
-      if (directives.size > 0) policies.push({ directives, text });
-    }
+    addHeaderPolicies(value, splitOnComma, policies);
   }
   return policies;
 }
@@ -71,14 +85,16 @@ function portOf(url: URL): string {
   return url.port || defaultPortForScheme(url.protocol);
 }
 
+const SCHEME_UPGRADES: ReadonlyMap<string, readonly string[]> = new Map([
+  ["http:", ["https:"]],
+  ["ws:", ["wss:", "http:", "https:"]],
+  ["wss:", ["https:"]],
+]);
+
 function schemeMatches(sourceScheme: string, urlScheme: string): boolean {
-  if (sourceScheme === urlScheme) return true;
-  if (sourceScheme === "http:" && urlScheme === "https:") return true;
-  if (sourceScheme === "ws:" && urlScheme === "wss:") return true;
-  if (sourceScheme === "ws:" && urlScheme === "http:") return true;
-  if (sourceScheme === "ws:" && urlScheme === "https:") return true;
-  if (sourceScheme === "wss:" && urlScheme === "https:") return true;
-  return false;
+  return (
+    sourceScheme === urlScheme || SCHEME_UPGRADES.get(sourceScheme)?.includes(urlScheme) === true
+  );
 }
 
 function hostMatches(sourceHost: string, urlHost: string): boolean {
@@ -108,20 +124,26 @@ function safeDecode(value: string): string {
   }
 }
 
-function sourceExpressionMatches(source: string, url: URL): boolean {
-  if (/^[a-z][a-z0-9+.-]*:$/i.test(source)) {
-    return schemeMatches(source.toLowerCase(), url.protocol);
-  }
-  if (source === "*") {
-    return (
-      url.protocol === "http:" ||
-      url.protocol === "https:" ||
-      url.protocol === "ws:" ||
-      url.protocol === "wss:" ||
-      url.protocol === "ftp:"
-    );
-  }
+interface HostSource {
+  scheme: string;
+  host: string;
+  port: string;
+  path: string;
+}
 
+function parseSourceHostAndPort(remainingSource: string): { host: string; port: string } | null {
+  if (remainingSource.startsWith("[")) return null;
+  let sourcePort = "";
+  const portSeparator = remainingSource.lastIndexOf(":");
+  if (portSeparator >= 0) {
+    sourcePort = remainingSource.slice(portSeparator + 1);
+    remainingSource = remainingSource.slice(0, portSeparator);
+  }
+  if (!remainingSource) return null;
+  return { host: remainingSource, port: sourcePort };
+}
+
+function parseHostSource(source: string): HostSource | null {
   let remainingSource = source;
   let sourceScheme = "";
   const schemeSeparator = remainingSource.indexOf("://");
@@ -135,33 +157,52 @@ function sourceExpressionMatches(source: string, url: URL): boolean {
     path = remainingSource.slice(pathStart);
     remainingSource = remainingSource.slice(0, pathStart);
   }
-  if (remainingSource.startsWith("[")) return false;
-  let sourcePort = "";
-  const portSeparator = remainingSource.lastIndexOf(":");
-  if (portSeparator >= 0) {
-    sourcePort = remainingSource.slice(portSeparator + 1);
-    remainingSource = remainingSource.slice(0, portSeparator);
-  }
-  const sourceHost = remainingSource;
-  if (!sourceHost) return false;
+  const hostAndPort = parseSourceHostAndPort(remainingSource);
+  if (hostAndPort === null) return null;
+  return { scheme: sourceScheme, ...hostAndPort, path };
+}
 
-  if (sourceScheme) {
-    if (!schemeMatches(sourceScheme, url.protocol)) return false;
-  } else if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return false;
+function schemePortMatches(sourceScheme: string, url: URL): boolean {
+  if (portOf(url) === defaultPortForScheme(sourceScheme)) return true;
+  return sourceScheme === "http:" && url.protocol === "https:" && portOf(url) === "443";
+}
+
+function sourcePortMatches(sourcePort: string, sourceScheme: string, url: URL): boolean {
+  if (sourcePort === "*") return true;
+  if (sourcePort) return sourcePort === portOf(url);
+  if (!sourceScheme) return portOf(url) === defaultPortForScheme(url.protocol);
+  return schemePortMatches(sourceScheme, url);
+}
+
+function sourceSchemeMatches(sourceScheme: string, url: URL): boolean {
+  if (sourceScheme) return schemeMatches(sourceScheme, url.protocol);
+  return url.protocol === "http:" || url.protocol === "https:";
+}
+
+function hostSourceMatches(source: HostSource, url: URL): boolean {
+  if (!sourceSchemeMatches(source.scheme, url)) return false;
+  if (!hostMatches(source.host, url.hostname)) return false;
+  if (!sourcePortMatches(source.port, source.scheme, url)) return false;
+  return pathMatches(source.path, url.pathname);
+}
+
+function isWebScheme(url: URL): boolean {
+  return (
+    url.protocol === "http:" ||
+    url.protocol === "https:" ||
+    url.protocol === "ws:" ||
+    url.protocol === "wss:" ||
+    url.protocol === "ftp:"
+  );
+}
+
+function sourceExpressionMatches(source: string, url: URL): boolean {
+  if (/^[a-z][a-z0-9+.-]*:$/i.test(source)) {
+    return schemeMatches(source.toLowerCase(), url.protocol);
   }
-  if (!hostMatches(sourceHost, url.hostname)) return false;
-  if (sourcePort === "*") return pathMatches(path, url.pathname);
-  if (sourcePort) {
-    if (sourcePort !== portOf(url)) return false;
-  } else if (!sourceScheme) {
-    if (portOf(url) !== defaultPortForScheme(url.protocol)) return false;
-  } else if (portOf(url) !== defaultPortForScheme(sourceScheme)) {
-    if (!(sourceScheme === "http:" && url.protocol === "https:" && portOf(url) === "443")) {
-      return false;
-    }
-  }
-  return pathMatches(path, url.pathname);
+  if (source === "*") return isWebScheme(url);
+  const hostSource = parseHostSource(source);
+  return hostSource !== null && hostSourceMatches(hostSource, url);
 }
 
 export interface CspScriptRequest {
@@ -180,14 +221,12 @@ export interface CspVerdict {
 const NONCE_PREFIX = "'nonce-";
 const HASH_RE = /^'(sha256|sha384|sha512)-([A-Za-z0-9+/\-_=]+)'$/;
 
-function sourceListAllows(
-  sourceList: readonly string[],
-  request: CspScriptRequest,
-  inlineHashes: readonly string[],
-): boolean {
-  const lowercaseSources = sourceList.map((source) => source.toLowerCase());
-  if (lowercaseSources.length === 1 && lowercaseSources[0] === "'none'") return false;
+interface NonceAndHashSources {
+  nonces: string[];
+  hashes: string[];
+}
 
+function nonceAndHashSources(sourceList: readonly string[]): NonceAndHashSources {
   const nonces: string[] = [];
   const hashes: string[] = [];
   for (const source of sourceList) {
@@ -198,53 +237,106 @@ function sourceListAllows(
       hashes.push(source.slice(1, -1));
     }
   }
+  return { nonces, hashes };
+}
 
+function inlineSourceListAllows(
+  lowercaseSources: readonly string[],
+  nonces: readonly string[],
+  hashes: readonly string[],
+  inlineHashes: readonly string[],
+): boolean {
+  if (nonces.length === 0 && hashes.length === 0) {
+    return lowercaseSources.includes("'unsafe-inline'");
+  }
+  for (const inlineHash of inlineHashes) {
+    if (hashes.includes(inlineHash)) return true;
+  }
+  return false;
+}
+
+function isSoleNoneSource(lowercaseSources: readonly string[]): boolean {
+  return lowercaseSources.length === 1 && lowercaseSources[0] === "'none'";
+}
+
+function nonceMatches(request: CspScriptRequest, nonces: readonly string[]): boolean {
   const nonce = request.nonce ?? "";
-  if (nonce && nonces.includes(nonce)) return true;
+  return nonce !== "" && nonces.includes(nonce);
+}
 
+function parseCspUrl(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+function selfSourceMatches(url: URL, documentUrl: string): boolean {
+  const document = parseCspUrl(documentUrl);
+  return (
+    document !== null &&
+    url.hostname.toLowerCase() === document.hostname.toLowerCase() &&
+    portOf(url) === portOf(document) &&
+    schemeMatches(document.protocol, url.protocol)
+  );
+}
+
+function externalSourceAllows(source: string, documentUrl: string, url: URL): boolean {
+  const lowercaseSource = source.toLowerCase();
+  if (lowercaseSource === "'self'") return selfSourceMatches(url, documentUrl);
+  if (lowercaseSource.startsWith("'")) return false;
+  return sourceExpressionMatches(source, url);
+}
+
+function externalSourceListAllows(
+  sourceList: readonly string[],
+  documentUrl: string,
+  url: URL,
+): boolean {
+  for (const source of sourceList) {
+    if (externalSourceAllows(source, documentUrl, url)) return true;
+  }
+  return false;
+}
+
+function requestSourceListAllows(
+  lowercaseSources: readonly string[],
+  sourceList: readonly string[],
+  request: CspScriptRequest,
+  nonces: readonly string[],
+  hashes: readonly string[],
+  inlineHashes: readonly string[],
+): boolean {
   if (request.url === null) {
     // CSP ignores unsafe-inline once a nonce or hash source is present.
-    if (nonces.length === 0 && hashes.length === 0) {
-      return lowercaseSources.includes("'unsafe-inline'");
-    }
-    for (const inlineHash of inlineHashes) {
-      if (hashes.includes(inlineHash)) return true;
-    }
-    return false;
+    return inlineSourceListAllows(lowercaseSources, nonces, hashes, inlineHashes);
   }
-
   if (lowercaseSources.includes("'strict-dynamic'")) {
     return request.runtimeInserted === true;
   }
+  const url = parseCspUrl(request.url);
+  if (url === null) return false;
+  return externalSourceListAllows(sourceList, request.documentUrl, url);
+}
 
-  let url: URL;
-  try {
-    url = new URL(request.url);
-  } catch {
-    return false;
-  }
-  for (const source of sourceList) {
-    const lowercaseSource = source.toLowerCase();
-    if (lowercaseSource === "'self'") {
-      let documentUrl: URL;
-      try {
-        documentUrl = new URL(request.documentUrl);
-      } catch {
-        continue;
-      }
-      if (
-        url.hostname.toLowerCase() === documentUrl.hostname.toLowerCase() &&
-        portOf(url) === portOf(documentUrl) &&
-        schemeMatches(documentUrl.protocol, url.protocol)
-      ) {
-        return true;
-      }
-      continue;
-    }
-    if (lowercaseSource.startsWith("'")) continue;
-    if (sourceExpressionMatches(source, url)) return true;
-  }
-  return false;
+function sourceListAllows(
+  sourceList: readonly string[],
+  request: CspScriptRequest,
+  inlineHashes: readonly string[],
+): boolean {
+  const lowercaseSources = sourceList.map((source) => source.toLowerCase());
+  if (isSoleNoneSource(lowercaseSources)) return false;
+  const { nonces, hashes } = nonceAndHashSources(sourceList);
+  if (nonceMatches(request, nonces)) return true;
+  return requestSourceListAllows(
+    lowercaseSources,
+    sourceList,
+    request,
+    nonces,
+    hashes,
+    inlineHashes,
+  );
 }
 
 export function cspAllowsScript(
