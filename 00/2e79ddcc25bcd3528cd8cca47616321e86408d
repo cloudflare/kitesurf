@@ -1,0 +1,19 @@
+packages/engine/test/attribution-tail.test.ts
+  s_1abf46ee8e60f8::t_39b942578ab2f1 23,27,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "002e79ddcc25bcd3528cd8cca47616321e86408d",
+  "prompts": {},
+  "sessions": {
+    "s_1abf46ee8e60f8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea5cfe6f8ffeLsjlLqkpVBGxiG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

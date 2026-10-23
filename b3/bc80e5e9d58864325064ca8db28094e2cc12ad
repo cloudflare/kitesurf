@@ -1,0 +1,19 @@
+.github/workflows/ci.yml
+  s_1abf46ee8e60f8::t_5aab219fcbbef3 34-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b3bc80e5e9d58864325064ca8db28094e2cc12ad",
+  "prompts": {},
+  "sessions": {
+    "s_1abf46ee8e60f8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea5cfe6f8ffeLsjlLqkpVBGxiG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
