@@ -97,11 +97,17 @@ class HTMLElement extends Element implements Idl.HTMLElement {
     const v = this.getAttribute("contenteditable");
     if (v == null) return "inherit";
     const lc = String(v).toLowerCase();
-    if (lc === "" || lc === "true") return "true";
-    if (lc === "false") return "false";
-    if (lc === "plaintext-only") return "plaintext-only";
-    if (lc === "inherit") return "inherit";
-    return "inherit";
+    switch (lc) {
+      case "":
+      case "true":
+        return "true";
+      case "false":
+        return "false";
+      case "plaintext-only":
+        return "plaintext-only";
+      default:
+        return "inherit";
+    }
   }
   set contentEditable(v: string) {
     this.setAttribute("contenteditable", String(v));
@@ -123,33 +129,55 @@ class HTMLElement extends Element implements Idl.HTMLElement {
   set outerText(v: string) {
     // Non-HTML elements have no outerText IDL attribute and receive an expando.
     // https://html.spec.whatwg.org/#dom-outertext
-    const ns = this.namespaceURI;
-    if (ns === SVG_NS || ns === MATHML_NS) {
-      Object.defineProperty(this, "outerText", {
-        value: v === null ? "" : String(v),
-        writable: true,
-        enumerable: true,
-        configurable: true,
-      });
-      return;
-    }
-    if (!this.parentNode) {
-      throw new DOMException("The element has no parent.", "NoModificationAllowedError");
-    }
-    const value = v === null ? "" : String(v);
-    const doc = this.ownerDocument || document;
-    const next = this.nextSibling;
-    const previous = this.previousSibling;
-    const nodes = renderedTextFragmentNodes(value, doc);
-    if (nodes.length === 0) nodes.push(doc.createTextNode(""));
-    this.replaceWith(...nodes);
-    if (next && next.previousSibling && next.previousSibling.nodeType === TEXT_NODE) {
-      mergeWithNextTextNode(next.previousSibling);
-    }
-    if (previous && previous.nodeType === TEXT_NODE) {
-      mergeWithNextTextNode(previous);
-    }
+    setOuterText(this, v);
   }
+}
+
+function setOuterText(element: HTMLElement, value: string): void {
+  const namespace = element.namespaceURI;
+  if (isNonHtmlOuterTextNamespace(namespace)) {
+    setNonHtmlOuterText(element, value);
+    return;
+  }
+  if (!element.parentNode) {
+    throw new DOMException("The element has no parent.", "NoModificationAllowedError");
+  }
+  replaceElementWithOuterText(element, value);
+}
+
+function isNonHtmlOuterTextNamespace(namespace: string | null): boolean {
+  return namespace === SVG_NS || namespace === MATHML_NS;
+}
+
+function setNonHtmlOuterText(element: HTMLElement, value: string): void {
+  Object.defineProperty(element, "outerText", {
+    value: value === null ? "" : String(value),
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+}
+
+function replaceElementWithOuterText(element: HTMLElement, rawValue: string): void {
+  const value = rawValue === null ? "" : String(rawValue);
+  const doc = element.ownerDocument || document;
+  const next = element.nextSibling;
+  const previous = element.previousSibling;
+  const nodes = renderedTextFragmentNodes(value, doc);
+  if (nodes.length === 0) nodes.push(doc.createTextNode(""));
+  element.replaceWith(...nodes);
+  mergeTextBeforeNextSibling(next);
+  mergePreviousTextNode(previous);
+}
+
+function mergeTextBeforeNextSibling(next: NodeBase | null): void {
+  if (next && next.previousSibling && next.previousSibling.nodeType === TEXT_NODE) {
+    mergeWithNextTextNode(next.previousSibling);
+  }
+}
+
+function mergePreviousTextNode(previous: NodeBase | null): void {
+  if (previous && previous.nodeType === TEXT_NODE) mergeWithNextTextNode(previous);
 }
 const HTMLElementProto = HTMLElement.prototype;
 defineReflectedString(HTMLElementProto, "title", "title");

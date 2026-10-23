@@ -436,38 +436,36 @@ export function setCollectionsClasses(
   if (ownerSym) OPTIONS_OWNER_SYM = ownerSym;
 }
 
+function callbackOrNull<T>(value: T | undefined): T | null {
+  return typeof value === "function" ? value : null;
+}
+
+function callbackOr<T>(value: T | undefined, fallback: T): T {
+  return typeof value === "function" ? value : fallback;
+}
+
 export function initState(d: DomHandle, url: string, cookies: string, o?: BuildDocumentOpts): void {
   dom = d;
   pageUrl = url;
   initialCookieString = cookies;
   opts = o;
 
-  getCurrentUrl = o && typeof o.getCurrentUrl === "function" ? o.getCurrentUrl : () => url;
-  setCurrentUrl = o && typeof o.setCurrentUrl === "function" ? o.setCurrentUrl : null;
-  getRectByAuthId = o && typeof o.getRectByAuthId === "function" ? o.getRectByAuthId : null;
-  getScrollInfoByAuthId =
-    o && typeof o.getScrollInfoByAuthId === "function" ? o.getScrollInfoByAuthId : null;
-  getOffsetMetricsByAuthId =
-    o && typeof o.getOffsetMetricsByAuthId === "function" ? o.getOffsetMetricsByAuthId : null;
-  getStickyShiftByAuthId =
-    o && typeof o.getStickyShiftByAuthId === "function" ? o.getStickyShiftByAuthId : null;
-  hitTestViaPaint = o && typeof o.hitTestViaPaint === "function" ? o.hitTestViaPaint : null;
-  getComputedStyleForAuthId =
-    o && typeof o.getComputedStyleForAuthId === "function" ? o.getComputedStyleForAuthId : null;
-  getComputedStyleValueForAuthId =
-    o && typeof o.getComputedStyleValueForAuthId === "function"
-      ? o.getComputedStyleValueForAuthId
-      : null;
-  armTransitionDrain =
-    o && typeof o.armTransitionDrain === "function" ? o.armTransitionDrain : null;
-  getInlinePropertyValue =
-    o && typeof o.getInlinePropertyValue === "function" ? o.getInlinePropertyValue : null;
-  parseCounterStyleRule =
-    o && typeof o.parseCounterStyleRule === "function" ? o.parseCounterStyleRule : null;
-  getExternalSheetRules =
-    o && typeof o.getExternalSheetRules === "function" ? o.getExternalSheetRules : null;
-  getScrollOffset = o && typeof o.getScrollOffset === "function" ? o.getScrollOffset : null;
-  setScrollOffset = o && typeof o.setScrollOffset === "function" ? o.setScrollOffset : null;
+  const options: Partial<BuildDocumentOpts> = o ?? {};
+  getCurrentUrl = callbackOr(options.getCurrentUrl, () => url);
+  setCurrentUrl = callbackOrNull(options.setCurrentUrl);
+  getRectByAuthId = callbackOrNull(options.getRectByAuthId);
+  getScrollInfoByAuthId = callbackOrNull(options.getScrollInfoByAuthId);
+  getOffsetMetricsByAuthId = callbackOrNull(options.getOffsetMetricsByAuthId);
+  getStickyShiftByAuthId = callbackOrNull(options.getStickyShiftByAuthId);
+  hitTestViaPaint = callbackOrNull(options.hitTestViaPaint);
+  getComputedStyleForAuthId = callbackOrNull(options.getComputedStyleForAuthId);
+  getComputedStyleValueForAuthId = callbackOrNull(options.getComputedStyleValueForAuthId);
+  armTransitionDrain = callbackOrNull(options.armTransitionDrain);
+  getInlinePropertyValue = callbackOrNull(options.getInlinePropertyValue);
+  parseCounterStyleRule = callbackOrNull(options.parseCounterStyleRule);
+  getExternalSheetRules = callbackOrNull(options.getExternalSheetRules);
+  getScrollOffset = callbackOrNull(options.getScrollOffset);
+  setScrollOffset = callbackOrNull(options.setScrollOffset);
 
   ops.length = 0;
   cdpMutations.length = 0;

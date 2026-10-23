@@ -25,23 +25,49 @@ export function decodeHtmlBytes(
     return { html: decoder.decode(body), charset: decoder.encoding };
   };
 
-  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
-    return decode("utf-8", bytes.subarray(3));
-  }
-  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
-    return decode("utf-16le", bytes.subarray(2));
-  }
-  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
-    return decode("utf-16be", bytes.subarray(2));
-  }
+  const bom = decodeBom(bytes, decode);
+  if (bom) return bom;
 
-  const headerLabel = parseCharsetFromContentType(contentType);
-  const encoding =
-    (headerLabel === null ? null : getEncoding(headerLabel)) ?? sniffMetaEncoding(bytes) ?? "utf-8";
+  const encoding = preferredEncoding(contentType, bytes);
   if (encoding === "replacement") {
     return { html: bytes.length === 0 ? "" : "\uFFFD", charset: encoding };
   }
   return decode(encoding, bytes);
+}
+
+function decodeBom(
+  bytes: Uint8Array,
+  decode: (label: string, body: Uint8Array) => { html: string; charset: string },
+): { html: string; charset: string } | null {
+  if (hasUtf8Bom(bytes)) {
+    return decode("utf-8", bytes.subarray(3));
+  }
+  if (hasUtf16LeBom(bytes)) {
+    return decode("utf-16le", bytes.subarray(2));
+  }
+  if (hasUtf16BeBom(bytes)) {
+    return decode("utf-16be", bytes.subarray(2));
+  }
+  return null;
+}
+
+function hasUtf8Bom(bytes: Uint8Array): boolean {
+  return bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+}
+
+function hasUtf16LeBom(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe;
+}
+
+function hasUtf16BeBom(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff;
+}
+
+function preferredEncoding(contentType: string, bytes: Uint8Array): string {
+  const headerLabel = parseCharsetFromContentType(contentType);
+  return (
+    (headerLabel === null ? null : getEncoding(headerLabel)) ?? sniffMetaEncoding(bytes) ?? "utf-8"
+  );
 }
 
 function getEncoding(label: string): string | null {
@@ -65,26 +91,75 @@ function sniffMetaEncoding(bytes: Uint8Array): string | null {
   );
   for (const tag of prefix.matchAll(/<meta(?=[\s/])([^>]*)/gi)) {
     const label = metaCharsetLabel(tag[1] ?? "");
-    const encoding = label === null ? null : getEncoding(label);
+    const encoding = normalizeMetaEncoding(label);
     if (encoding === null) continue;
-    if (encoding === "utf-16le" || encoding === "utf-16be") return "utf-8";
-    if (encoding === "x-user-defined") return "windows-1252";
     return encoding;
   }
   return null;
 }
 
+function normalizeMetaEncoding(label: string | null): string | null {
+  const encoding = getMetaEncoding(label);
+  if (encoding === null) return null;
+  if (isUtf16Encoding(encoding)) return "utf-8";
+  if (encoding === "x-user-defined") return "windows-1252";
+  return encoding;
+}
+
+function getMetaEncoding(label: string | null): string | null {
+  if (label === null) return null;
+  return getEncoding(label);
+}
+
+function isUtf16Encoding(encoding: string): boolean {
+  return encoding === "utf-16le" || encoding === "utf-16be";
+}
+
 function metaCharsetLabel(attributes: string): string | null {
+  return charsetFromMetaAttributes(parseMetaAttributes(attributes));
+}
+
+function parseMetaAttributes(attributes: string): Map<string, string> {
   const attrs = new Map<string, string>();
   for (const m of attributes.matchAll(
     /([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g,
   )) {
-    const name = (m[1] ?? "").toLowerCase();
-    if (!attrs.has(name)) attrs.set(name, m[2] ?? m[3] ?? m[4] ?? "");
+    addFirstMetaAttribute(attrs, m);
   }
+  return attrs;
+}
+
+function addFirstMetaAttribute(attrs: Map<string, string>, match: RegExpMatchArray): void {
+  const name = metaAttributeName(match);
+  if (attrs.has(name)) return;
+  attrs.set(name, metaAttributeValue(match));
+}
+
+function metaAttributeName(match: RegExpMatchArray): string {
+  return (match[1] ?? "").toLowerCase();
+}
+
+function metaAttributeValue(match: RegExpMatchArray): string {
+  return match[2] ?? match[3] ?? match[4] ?? "";
+}
+
+function charsetFromMetaAttributes(attrs: Map<string, string>): string | null {
   const charset = attrs.get("charset");
   if (charset !== undefined) return charset;
-  if (attrs.get("http-equiv")?.toLowerCase() !== "content-type") return null;
-  const pragma = attrs.get("content")?.match(/charset\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s;"']+))/i);
-  return pragma ? (pragma[1] ?? pragma[2] ?? pragma[3] ?? null) : null;
+  if (!hasContentTypePragma(attrs)) return null;
+  return charsetFromPragma(attrs.get("content"));
+}
+
+function hasContentTypePragma(attrs: Map<string, string>): boolean {
+  return attrs.get("http-equiv")?.toLowerCase() === "content-type";
+}
+
+function charsetFromPragma(content: string | undefined): string | null {
+  const pragma = content?.match(/charset\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s;"']+))/i);
+  return charsetFromMatch(pragma);
+}
+
+function charsetFromMatch(pragma: RegExpMatchArray | null | undefined): string | null {
+  if (!pragma) return null;
+  return pragma[1] ?? pragma[2] ?? pragma[3] ?? null;
 }

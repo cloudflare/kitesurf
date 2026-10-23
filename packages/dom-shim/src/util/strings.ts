@@ -64,11 +64,16 @@ export function serializeStyleData(data: Record<string, unknown>): string {
   const parts: string[] = [];
   for (const k of Object.keys(data)) {
     const v = data[k];
-    if (v == null || v === "") continue;
-    if (typeof k === "string" && k.startsWith("__")) continue;
+    if (!shouldSerializeStyleValue(k, v)) continue;
     parts.push(cssPropCamelToKebab(k) + ": " + v + ";");
   }
   return parts.join(" ");
+}
+
+function shouldSerializeStyleValue(key: string, value: unknown): boolean {
+  if (value == null || value === "") return false;
+  if (typeof key === "string" && key.startsWith("__")) return false;
+  return true;
 }
 
 export function escapeHtmlText(s: unknown): string {

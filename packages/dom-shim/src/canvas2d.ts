@@ -23,21 +23,29 @@ const CtxWeakRef: any =
   };
 
 const detachedDirty = new Set<{ deref(): any }>();
-postMutationHooks.push(() => {
-  if (detachedDirty.size === 0) return;
-  for (const ref of [...detachedDirty]) {
-    const c = ref.deref();
-    if (!c) {
-      detachedDirty.delete(ref);
-      continue;
-    }
-    if (!c.isConnected) continue;
+function pushConnectedCanvas(canvas: any): void {
+  try {
+    canvas.__ks2dCtx?.__ksConnectedPush?.();
+  } catch {}
+}
+
+function pushDetachedCanvas(ref: { deref(): any }): void {
+  const canvas = ref.deref();
+  if (!canvas) {
     detachedDirty.delete(ref);
-    try {
-      c.__ks2dCtx?.__ksConnectedPush?.();
-    } catch {}
+    return;
   }
-});
+  if (!canvas.isConnected) return;
+  detachedDirty.delete(ref);
+  pushConnectedCanvas(canvas);
+}
+
+function flushDetachedCanvases(): void {
+  if (detachedDirty.size === 0) return;
+  for (const ref of [...detachedDirty]) pushDetachedCanvas(ref);
+}
+
+postMutationHooks.push(flushDetachedCanvases);
 
 const PUSH_MIN_INTERVAL_MS = 66;
 
@@ -52,26 +60,30 @@ const OP_QUEUE_FONT_HOLD_LIMIT_FACTOR = 4;
 let fontHold: Promise<void> | null = null;
 const heldPushes: Set<() => void> = new Set();
 
+function releaseFontHeldPushes(): void {
+  fontHold = null;
+  const retries = [...heldPushes];
+  heldPushes.clear();
+  for (const fn of retries) {
+    try {
+      fn();
+    } catch {}
+  }
+}
+
 function noteOutlineDemand(): void {
   if (fontHold) return;
   let p: any = null;
   try {
     p = ksGlobal.__ksFontOutlineDemand?.();
   } catch {}
-  if (p && typeof p.then === "function") {
-    fontHold = p;
-    const release = () => {
-      fontHold = null;
-      const retries = [...heldPushes];
-      heldPushes.clear();
-      for (const fn of retries) {
-        try {
-          fn();
-        } catch {}
-      }
-    };
-    p.then(release, release);
-  }
+  if (!isThenable(p)) return;
+  fontHold = p;
+  p.then(releaseFontHeldPushes, releaseFontHeldPushes);
+}
+
+function isThenable(value: any): value is Promise<void> {
+  return !!value && typeof value.then === "function";
 }
 
 function batchHasTextOp(ops: CanvasOp[]): boolean {
@@ -95,6 +107,24 @@ function bumpPaintNeutral(nodeId?: number): void {
 
 const MAX_IMAGE_DATA_PIXELS = 4096 * 4096;
 
+function canvasErrorDetail(error: any): any {
+  return error?.message ?? String(error);
+}
+
+function tryMakeNativeImageData(
+  constructor: any,
+  bytes: Uint8ClampedArray,
+  width: number,
+  height: number,
+): any | null {
+  if (typeof constructor !== "function") return null;
+  try {
+    return new constructor(bytes, width, height);
+  } catch {
+    return null;
+  }
+}
+
 function makeImageData(w: number, h: number, data?: Uint8ClampedArray): any {
   const width = Math.max(1, w | 0);
   const height = Math.max(1, h | 0);
@@ -103,12 +133,14 @@ function makeImageData(w: number, h: number, data?: Uint8ClampedArray): any {
   }
   const bytes = data ?? new Uint8ClampedArray(width * height * 4);
   const ID = ksGlobal.ImageData;
-  if (typeof ID === "function") {
-    try {
-      return new ID(bytes, width, height);
-    } catch {}
-  }
-  return { width, height, data: bytes, colorSpace: "srgb" };
+  return (
+    tryMakeNativeImageData(ID, bytes, width, height) ?? {
+      width,
+      height,
+      data: bytes,
+      colorSpace: "srgb",
+    }
+  );
 }
 
 function domExc(message: string, name: string): Error {
@@ -291,6 +323,71 @@ function fillRule(v: unknown): "evenodd" | "nonzero" {
   return v === "evenodd" ? "evenodd" : "nonzero";
 }
 
+function roundRectRadii(radii: unknown): unknown[] {
+  if (radii === undefined) return [0];
+  return Array.isArray(radii) ? radii : [radii];
+}
+
+function nonNegativeRadius(value: number): number {
+  if (value < 0) throw new RangeError("negative radius");
+  return value;
+}
+
+function roundRectRadiusComponent(radius: object, axis: "x" | "y"): number {
+  const value = Number((axis in radius ? Reflect.get(radius, axis) : undefined) ?? 0);
+  return nonNegativeRadius(value);
+}
+
+function roundRectRadiusPair(radius: unknown): number[] {
+  if (typeof radius !== "object" || radius === null) {
+    const value = nonNegativeRadius(Number(radius));
+    return [value, value];
+  }
+  return [roundRectRadiusComponent(radius, "x"), roundRectRadiusComponent(radius, "y")];
+}
+
+function expandedRoundRectCorners(pairs: number[][]): number[][] {
+  switch (pairs.length) {
+    case 1:
+      return [pairs[0], pairs[0], pairs[0], pairs[0]];
+    case 2:
+      return [pairs[0], pairs[1], pairs[0], pairs[1]];
+    case 3:
+      return [pairs[0], pairs[1], pairs[2], pairs[1]];
+    default:
+      return pairs;
+  }
+}
+
+function roundRectArguments(
+  x: unknown,
+  y: unknown,
+  w: unknown,
+  h: unknown,
+  corners: number[][],
+): number[] {
+  return [
+    Number(x),
+    Number(y),
+    Number(w),
+    Number(h),
+    corners[0][0],
+    corners[0][1],
+    corners[1][0],
+    corners[1][1],
+    corners[2][0],
+    corners[2][1],
+    corners[3][0],
+    corners[3][1],
+  ];
+}
+
+const IDENTITY_TRANSFORM = [1, 0, 0, 1, 0, 0] as const;
+
+function isIdentityTransform(matrix: number[]): boolean {
+  return matrix.every((value, index) => value === IDENTITY_TRANSFORM[index]);
+}
+
 function pathBuilders(emit: (op: CanvasOp) => void) {
   return {
     closePath() {
@@ -336,40 +433,13 @@ function pathBuilders(emit: (op: CanvasOp) => void) {
       emit({ o: "rect", a: [Number(x), Number(y), Number(w), Number(h)] });
     },
     roundRect(x: unknown, y: unknown, w: unknown, h: unknown, radii?: unknown) {
-      const list: unknown[] = radii === undefined ? [0] : Array.isArray(radii) ? radii : [radii];
+      const list = roundRectRadii(radii);
       if (list.length < 1 || list.length > 4) {
         throw new RangeError("roundRect: 1-4 radii required");
       }
-      const pairs = list.map((r) => {
-        if (typeof r === "object" && r !== null) {
-          const rx = Number(("x" in r ? r.x : undefined) ?? 0);
-          const ry = Number(("y" in r ? r.y : undefined) ?? 0);
-          if (rx < 0 || ry < 0) throw new RangeError("negative radius");
-          return [rx, ry];
-        }
-        const n = Number(r);
-        if (n < 0) throw new RangeError("negative radius");
-        return [n, n];
-      });
-      let c: number[][];
-      if (pairs.length === 1) c = [pairs[0], pairs[0], pairs[0], pairs[0]];
-      else if (pairs.length === 2) c = [pairs[0], pairs[1], pairs[0], pairs[1]];
-      else if (pairs.length === 3) c = [pairs[0], pairs[1], pairs[2], pairs[1]];
-      else c = pairs;
-      const a = [
-        Number(x),
-        Number(y),
-        Number(w),
-        Number(h),
-        c[0][0],
-        c[0][1],
-        c[1][0],
-        c[1][1],
-        c[2][0],
-        c[2][1],
-        c[3][0],
-        c[3][1],
-      ];
+      const pairs = list.map(roundRectRadiusPair);
+      const corners = expandedRoundRectCorners(pairs);
+      const a = roundRectArguments(x, y, w, h, corners);
       if (a.some((v) => !Number.isFinite(v))) return;
       emit({ o: "roundRect", a });
     },
@@ -445,6 +515,69 @@ type ContextImpl = Record<PropertyKey, unknown>;
 
 type CanvasHost = { _id: number; width?: number; height?: number; isConnected?: boolean };
 
+function canvasPropertyDescriptor(
+  canvas: object,
+  property: string,
+): PropertyDescriptor | undefined {
+  let proto: object | null = canvas;
+  let descriptor: PropertyDescriptor | undefined;
+  while (proto && !descriptor) {
+    descriptor = Object.getOwnPropertyDescriptor(proto, property);
+    proto = Object.getPrototypeOf(proto);
+  }
+  return descriptor;
+}
+
+function installCanvasDimension(canvas: object, property: string, resetAll: () => void): void {
+  const descriptor = canvasPropertyDescriptor(canvas, property);
+  const set = descriptor?.set;
+  if (typeof set !== "function") return;
+  try {
+    Object.defineProperty(canvas, property, {
+      configurable: true,
+      enumerable: true,
+      get: descriptor?.get,
+      set(value: unknown) {
+        set.call(this, value);
+        resetAll();
+      },
+    });
+  } catch {}
+}
+
+function installCanvasDimensions(canvas: object, resetAll: () => void): void {
+  for (const property of ["width", "height"]) {
+    installCanvasDimension(canvas, property, resetAll);
+  }
+}
+
+function resetsCanvasSize(attributeName: string): boolean {
+  return attributeName === "width" || attributeName === "height";
+}
+
+function installCanvasAttributeMethod(canvas: object, method: string, resetAll: () => void): void {
+  const originalMethod = (canvas as any)[method];
+  if (typeof originalMethod !== "function") return;
+  try {
+    Object.defineProperty(canvas, method, {
+      configurable: true,
+      writable: true,
+      enumerable: false,
+      value: function (name: any, ...rest: any[]) {
+        const result = originalMethod.call(this, name, ...rest);
+        if (resetsCanvasSize(String(name).toLowerCase())) resetAll();
+        return result;
+      },
+    });
+  } catch {}
+}
+
+function installCanvasAttributeMethods(canvas: object, resetAll: () => void): void {
+  for (const method of ["setAttribute", "removeAttribute", "toggleAttribute"]) {
+    installCanvasAttributeMethod(canvas, method, resetAll);
+  }
+}
+
 // installContextForwarders defines the interface members on this prototype.
 export interface CanvasRenderingContext2DImpl extends Idl.CanvasRenderingContext2D {
   __ksFlushForRead(): void;
@@ -507,48 +640,52 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     return Math.max(1, Number(canvas.height) || 150) | 0;
   }
 
-  function sendPendingPut(): void {
-    if (!pendingFullPut) return;
-    if (!isLive()) {
-      pendingFullPut = null;
-      dbg.last = "stale";
-      return;
-    }
-    const p = pendingFullPut;
-    pendingFullPut = null;
+  function applyPendingPut(put: { w: number; h: number; data: Uint8ClampedArray }): void {
     const d = dom as any;
     if (typeof d?.canvasPutImageData !== "function") {
       dbg.last = "no-wasm-entry";
       return;
     }
     try {
-      const bytes = new Uint8Array(p.data.buffer, p.data.byteOffset, p.data.byteLength);
-      d.canvasPutImageData(canvas._id, 0, 0, p.w, p.h, bytes);
+      const bytes = new Uint8Array(put.data.buffer, put.data.byteOffset, put.data.byteLength);
+      d.canvasPutImageData(canvas._id, 0, 0, put.w, put.h, bytes);
     } catch (e) {
-      dbg.last = "put threw: " + ((e as any)?.message ?? String(e));
+      dbg.last = "put threw: " + canvasErrorDetail(e);
     }
   }
 
-  function flushOps(): void {
+  function sendPendingPut(): void {
+    const put = pendingFullPut;
+    if (!put) return;
     if (!isLive()) {
-      q = [];
       pendingFullPut = null;
       dbg.last = "stale";
       return;
     }
-    sendPendingPut();
-    if (q.length === 0) return;
-    if (
-      fontHold &&
+    pendingFullPut = null;
+    applyPendingPut(put);
+  }
+
+  function clearStaleQueue(): void {
+    q = [];
+    pendingFullPut = null;
+    dbg.last = "stale";
+  }
+
+  function shouldHoldTextOps(): boolean {
+    return (
+      !!fontHold &&
       q.length < OP_QUEUE_HIGH_WATER * OP_QUEUE_FONT_HOLD_LIMIT_FACTOR &&
       batchHasTextOp(q)
-    ) {
-      heldPushes.add(pushNow);
-      dbg.last = "font-hold";
-      return;
-    }
-    const batch = q;
-    q = [];
+    );
+  }
+
+  function holdCanvasPush(): void {
+    heldPushes.add(pushNow);
+    dbg.last = "font-hold";
+  }
+
+  function applyOps(batch: CanvasOp[]): void {
     const d = dom as any;
     if (typeof d?.canvasApplyOps !== "function") {
       dbg.last = "no-wasm-entry";
@@ -559,8 +696,24 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       dbg.opsSent += batch.length;
       dbg.last = "ops rc=" + rc;
     } catch (e) {
-      dbg.last = "ops threw: " + ((e as any)?.message ?? String(e));
+      dbg.last = "ops threw: " + canvasErrorDetail(e);
     }
+  }
+
+  function flushOps(): void {
+    if (!isLive()) {
+      clearStaleQueue();
+      return;
+    }
+    sendPendingPut();
+    if (q.length === 0) return;
+    if (shouldHoldTextOps()) {
+      holdCanvasPush();
+      return;
+    }
+    const batch = q;
+    q = [];
+    applyOps(batch);
   }
 
   function ensureSize(): void {
@@ -584,11 +737,44 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     schedulePush();
   }
 
-  function withPath2D(path: Path2D, op: CanvasOp): void {
+  function pushPathOps(path: Path2D, method: string): void {
     enqueue({ o: "pathPush" });
-    for (const pathOp of opsOf(path, op.o)) enqueue(pathOp);
+    for (const pathOp of opsOf(path, method)) enqueue(pathOp);
+  }
+
+  function withPath2D(path: Path2D, op: CanvasOp): void {
+    pushPathOps(path, op.o);
     enqueue(op);
     enqueue({ o: "pathPop" });
+  }
+
+  function markCanvasDetached(): void {
+    dbg.last = "detached";
+    detachedDirty.add(selfRef);
+    lastPushTs = Date.now();
+  }
+
+  function recordCanvasFlush(rc: number): void {
+    dbg.last = "flush rc=" + rc;
+    if (rc >= 0 && rc !== 2) {
+      dbg.pushes++;
+      bumpPaintNeutral(canvas._id);
+    }
+  }
+
+  function flushConnectedCanvas(): void {
+    const d = dom as any;
+    if (typeof d?.canvasFlush !== "function") {
+      dbg.last = "no-wasm-entry";
+      return;
+    }
+    try {
+      const rc = d.canvasFlush(canvas._id);
+      recordCanvasFlush(rc);
+    } catch (e) {
+      dbg.last = "flush threw: " + canvasErrorDetail(e);
+    }
+    lastPushTs = Date.now();
   }
 
   function pushNow(): void {
@@ -600,28 +786,11 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     }
     // Avoid allocating a surface for a detached probe; explicit readback still flushes.
     if (!canvas.isConnected) {
-      dbg.last = "detached";
-      detachedDirty.add(selfRef);
-      lastPushTs = Date.now();
+      markCanvasDetached();
       return;
     }
     flushOps();
-    const d = dom as any;
-    if (typeof d?.canvasFlush !== "function") {
-      dbg.last = "no-wasm-entry";
-      return;
-    }
-    try {
-      const rc = d.canvasFlush(canvas._id);
-      dbg.last = "flush rc=" + rc;
-      if (rc >= 0 && rc !== 2) {
-        dbg.pushes++;
-        bumpPaintNeutral(canvas._id);
-      }
-    } catch (e) {
-      dbg.last = "flush threw: " + ((e as any)?.message ?? String(e));
-    }
-    lastPushTs = Date.now();
+    flushConnectedCanvas();
   }
 
   function schedulePush(): void {
@@ -656,57 +825,24 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     q.push({ o: "resize", a: [curW(), curH()] });
     schedulePush();
   }
-  for (const prop of ["width", "height"]) {
-    let proto = canvas;
-    let desc: any = null;
-    while (proto && !desc) {
-      desc = Object.getOwnPropertyDescriptor(proto, prop);
-      proto = Object.getPrototypeOf(proto);
-    }
-    if (desc && desc.set) {
-      try {
-        Object.defineProperty(canvas, prop, {
-          configurable: true,
-          enumerable: true,
-          get: desc.get,
-          set(v: any) {
-            desc.set.call(this, v);
-            resetAll();
-          },
-        });
-      } catch {}
-    }
+  installCanvasDimensions(canvas, resetAll);
+  installCanvasAttributeMethods(canvas, resetAll);
+
+  function gradientStyleSpec(value: unknown): CanvasStyleSpec | null {
+    if (!(value instanceof CanvasGradientShim)) return null;
+    const gradient = gradientSpecs.get(value);
+    return gradient ? { ...gradient, stops: gradient.stops.slice() } : null;
   }
 
-  for (const meth of ["setAttribute", "removeAttribute", "toggleAttribute"]) {
-    const originalMethod = (canvas as any)[meth];
-    if (typeof originalMethod !== "function") continue;
-    try {
-      Object.defineProperty(canvas, meth, {
-        configurable: true,
-        writable: true,
-        enumerable: false,
-        value: function (name: any, ...rest: any[]) {
-          const result = originalMethod.call(this, name, ...rest);
-          const attributeName = String(name).toLowerCase();
-          if (attributeName === "width" || attributeName === "height") resetAll();
-          return result;
-        },
-      });
-    } catch {}
+  function patternStyleSpec(value: unknown): CanvasStyleSpec | null {
+    if (!(value instanceof CanvasPatternShim)) return null;
+    const pattern = patternSpecs.get(value);
+    return pattern ? { ...pattern } : null;
   }
 
   function styleSpec(v: unknown): CanvasStyleSpec | null {
     if (typeof v === "string") return { k: "color", c: v };
-    if (v instanceof CanvasGradientShim) {
-      const g = gradientSpecs.get(v);
-      return g ? { ...g, stops: g.stops.slice() } : null;
-    }
-    if (v instanceof CanvasPatternShim) {
-      const p = patternSpecs.get(v);
-      return p ? { ...p } : null;
-    }
-    return null;
+    return gradientStyleSpec(v) ?? patternStyleSpec(v);
   }
 
   function setStyle(which: "fillStyle" | "strokeStyle", v: any): void {
@@ -737,51 +873,399 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     ];
   }
 
-  function imageSource(img: any): CanvasImageSource | null {
-    if (!img || typeof img !== "object") return null;
-    // Resolve source type and URL from wasm instead of trusting page-writable wrapper attributes.
-    const id = img._id;
-    if (typeof id !== "number" || id < 0) return null;
-    let info: { kind: string; src: string } | null;
+  type MatrixInput = { [K in keyof Idl.DOMMatrix2DInit]?: unknown };
+
+  function matrixMember(
+    matrix: MatrixInput,
+    short: keyof MatrixInput,
+    long: keyof MatrixInput,
+    fallback: number,
+  ): unknown {
+    return matrix[short] ?? matrix[long] ?? fallback;
+  }
+
+  function transformObjectMatrix(matrix: MatrixInput): number[] {
+    return [
+      matrixMember(matrix, "a", "m11", 1),
+      matrixMember(matrix, "b", "m12", 0),
+      matrixMember(matrix, "c", "m21", 0),
+      matrixMember(matrix, "d", "m22", 1),
+      matrixMember(matrix, "e", "m41", 0),
+      matrixMember(matrix, "f", "m42", 0),
+    ].map(Number);
+  }
+
+  function transformMatrix(
+    a: unknown,
+    b: unknown,
+    c: unknown,
+    d: unknown,
+    e: unknown,
+    f: unknown,
+  ): number[] {
+    if (typeof a === "object" && a) return transformObjectMatrix(a);
+    return [a, b, c, d, e, f].map(Number);
+  }
+
+  function isFiniteMatrix(matrix: number[]): boolean {
+    return matrix.every(Number.isFinite);
+  }
+
+  function imageId(image: any): number | null {
+    const id = image._id;
+    return typeof id === "number" && id >= 0 ? id : null;
+  }
+
+  function readCanvasSourceInfo(id: number): { kind: string; src: string } | null {
     try {
-      info = dom.canvasSourceInfo(id);
+      return dom.canvasSourceInfo(id);
     } catch {
       return null;
     }
-    if (!info) return null;
+  }
+
+  function sourceFromInfo(
+    id: number,
+    info: { kind: string; src: string },
+  ): CanvasImageSource | null {
     if (info.kind === "canvas") return { id, kind: "canvas" };
-    if (info.kind === "img") {
-      return { id, kind: "img", oc: isImgOriginClean(info.src) };
-    }
+    if (info.kind === "img") return { id, kind: "img", oc: isImgOriginClean(info.src) };
     return null;
+  }
+
+  function imageSource(img: any): CanvasImageSource | null {
+    if (!img || typeof img !== "object") return null;
+    // Resolve source type and URL from wasm instead of trusting page-writable wrapper attributes.
+    const id = imageId(img);
+    if (id === null) return null;
+    const info = readCanvasSourceInfo(id);
+    if (!info) return null;
+    return sourceFromInfo(id, info);
   }
 
   let imageOrigin: { src: string; baseHref: string; docOrigin: string; clean: boolean } | null =
     null;
+  function imageBaseHref(global: typeof ksGlobal): string {
+    return (
+      (global.document && global.document.baseURI) || (global.location ? global.location.href : "")
+    );
+  }
+
+  function imageDocumentOrigin(global: typeof ksGlobal): string {
+    return (global.location && global.location.origin) || "";
+  }
+
+  function cachedImageOriginClean(
+    src: string,
+    baseHref: string,
+    docOrigin: string,
+  ): boolean | null {
+    if (
+      imageOrigin?.src === src &&
+      imageOrigin.baseHref === baseHref &&
+      imageOrigin.docOrigin === docOrigin
+    ) {
+      return imageOrigin.clean;
+    }
+    return null;
+  }
+
+  function resolveImageOriginClean(src: string, baseHref: string, docOrigin: string): boolean {
+    const absolute = new URL(src, baseHref);
+    return (
+      absolute.protocol === "data:" ||
+      absolute.protocol === "blob:" ||
+      !docOrigin ||
+      absolute.origin === docOrigin
+    );
+  }
+
   function isImgOriginClean(src: string): boolean {
     try {
       if (!src) return true;
-      const g = ksGlobal;
-      const baseHref = (g.document && g.document.baseURI) || (g.location ? g.location.href : "");
-      const docOrigin = (g.location && g.location.origin) || "";
-      if (
-        imageOrigin?.src === src &&
-        imageOrigin.baseHref === baseHref &&
-        imageOrigin.docOrigin === docOrigin
-      ) {
-        return imageOrigin.clean;
-      }
-      const abs = new URL(src, baseHref);
-      const clean =
-        abs.protocol === "data:" ||
-        abs.protocol === "blob:" ||
-        !docOrigin ||
-        abs.origin === docOrigin;
+      const baseHref = imageBaseHref(ksGlobal);
+      const docOrigin = imageDocumentOrigin(ksGlobal);
+      const cached = cachedImageOriginClean(src, baseHref, docOrigin);
+      if (cached !== null) return cached;
+      const clean = resolveImageOriginClean(src, baseHref, docOrigin);
       imageOrigin = { src, baseHref, docOrigin, clean };
       return clean;
     } catch {
       return false;
     }
+  }
+
+  function pointPathArguments(
+    pathOrX: unknown,
+    xOrY: unknown,
+    yOrRule: unknown,
+    maybeRule: unknown,
+  ): [Path2D | null, unknown, unknown, unknown] {
+    const path = pathOrX instanceof Path2D ? pathOrX : null;
+    const [x, y, rule] = path ? [xOrY, yOrRule, maybeRule] : [pathOrX, xOrY, yOrRule];
+    return [path, x, y, rule];
+  }
+
+  function hasCanvasPathHitTest(d: any): boolean {
+    return typeof d?.canvasIsPointInPath === "function";
+  }
+
+  function queryCanvasPath(d: any, x: unknown, y: unknown, rule: unknown): boolean {
+    try {
+      return !!d.canvasIsPointInPath(
+        canvas._id,
+        Number(x),
+        Number(y),
+        fillRule(rule) === "evenodd",
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function fontDemandReady(): boolean {
+    try {
+      return (globalThis as { __ks_fontDemand?: () => boolean }).__ks_fontDemand?.() ?? true;
+    } catch {
+      return true;
+    }
+  }
+
+  function emptyTextMetrics() {
+    return {
+      width: 0,
+      actualBoundingBoxLeft: 0,
+      actualBoundingBoxRight: 0,
+      actualBoundingBoxAscent: 0,
+      actualBoundingBoxDescent: 0,
+      fontBoundingBoxAscent: 0,
+      fontBoundingBoxDescent: 0,
+    };
+  }
+
+  function readCanvasTextMetrics(
+    d: any,
+    text: unknown,
+    fallback: ReturnType<typeof emptyTextMetrics>,
+  ) {
+    try {
+      return JSON.parse(d.canvasMeasureText(String(text ?? ""), st.font));
+    } catch {
+      return fallback;
+    }
+  }
+
+  function patternRepetition(repetition: any): string {
+    const value = repetition == null || repetition === "" ? "repeat" : String(repetition);
+    if (["repeat", "repeat-x", "repeat-y", "no-repeat"].indexOf(value) < 0) {
+      throw domExc("invalid repetition", "SyntaxError");
+    }
+    return value;
+  }
+
+  function hasCanvasContext(image: any): boolean {
+    return Boolean(image && image.__ks2dCtx);
+  }
+
+  function flushImageContext(image: any): void {
+    try {
+      image.__ks2dCtx.__ksFlushForRead?.();
+    } catch {}
+  }
+
+  function flushCanvasSourceForRead(image: any, source: CanvasImageSource): void {
+    if (source.kind !== "canvas") return;
+    if (!hasCanvasContext(image)) return;
+    flushImageContext(image);
+  }
+
+  function imagePatternReady(image: any): boolean {
+    if (!image.complete) return false;
+    if (!(Number(image.naturalWidth) > 0)) {
+      throw domExc("broken image", "InvalidStateError");
+    }
+    return true;
+  }
+
+  function patternSourceReady(image: any, source: CanvasImageSource): boolean {
+    return source.kind !== "img" || imagePatternReady(image);
+  }
+
+  function makePatternSpec(source: CanvasImageSource, repetition: string): CanvasPatternSpec {
+    const spec: CanvasPatternSpec = {
+      k: "pattern",
+      id: source.id,
+      rep: source.kind + ":" + repetition,
+    };
+    if (source.kind === "img" && !source.oc) spec.oc = false;
+    return spec;
+  }
+
+  function drawImageArguments(args: any[]): number[] {
+    if (args.length >= 8) return args.slice(0, 8).map(Number);
+    if (args.length >= 4) {
+      return [0, 0, -1, -1, Number(args[0]), Number(args[1]), Number(args[2]), Number(args[3])];
+    }
+    return [0, 0, -1, -1, Number(args[0]), Number(args[1]), -1, -1];
+  }
+
+  function drawImageOperation(source: CanvasImageSource, args: number[]): CanvasOp {
+    const op: CanvasOp = { o: "drawImage", s: source.kind, id: source.id, a: args };
+    if (source.kind === "img" && !source.oc) op.oc = false;
+    return op;
+  }
+
+  function hasImageData(image: any): boolean {
+    return !!image && !!image.data && !!image.width && !!image.height;
+  }
+
+  function isFullCanvasPut(x: number, y: number, width: number, height: number): boolean {
+    return x === 0 && y === 0 && width === curW() && height === curH();
+  }
+
+  function isExactImageData(data: any, tag: string, byteLength: number): boolean {
+    return (
+      data.length === byteLength &&
+      (tag === "[object Uint8ClampedArray]" || tag === "[object Uint8Array]")
+    );
+  }
+
+  function imageDataStaging(byteLength: number): Uint8ClampedArray {
+    if (!putStaging || putStaging.length !== byteLength) {
+      putStaging = new Uint8ClampedArray(byteLength);
+    }
+    return putStaging;
+  }
+
+  function queueFullImagePut(image: any, width: number, height: number): void {
+    if (!isLive()) {
+      dbg.last = "stale";
+      return;
+    }
+    ensureSize();
+    if (q.length > 0) flushOps();
+    const byteLength = width * height * 4;
+    const data = image.data;
+    const tag = Object.prototype.toString.call(data);
+    if (isExactImageData(data, tag, byteLength)) {
+      const staging = imageDataStaging(byteLength);
+      staging.set(data);
+      pendingFullPut = { w: width, h: height, data: staging };
+    } else {
+      pendingFullPut = { w: width, h: height, data: data.slice(0, byteLength) };
+    }
+    schedulePush();
+  }
+
+  function applyPartialImagePut(
+    image: any,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): void {
+    const d = dom as any;
+    if (typeof d?.canvasPutImageData !== "function") {
+      dbg.last = "no-wasm-entry";
+      return;
+    }
+    try {
+      const data: Uint8ClampedArray = image.data;
+      const bytes = new Uint8Array(data.buffer, data.byteOffset, width * height * 4);
+      d.canvasPutImageData(canvas._id, x, y, width, height, bytes);
+    } catch (e) {
+      dbg.last = "put threw: " + canvasErrorDetail(e);
+    }
+  }
+
+  function queuePartialImagePut(
+    image: any,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): void {
+    if (!isLive()) {
+      dbg.last = "stale";
+      return;
+    }
+    ensureSize();
+    flushOps();
+    applyPartialImagePut(image, x, y, width, height);
+    schedulePush();
+  }
+
+  function putImageDataImpl(image: any, dx: number, dy: number): void {
+    if (!hasImageData(image)) return;
+    const x = dx | 0;
+    const y = dy | 0;
+    const width = image.width | 0;
+    const height = image.height | 0;
+    if (isFullCanvasPut(x, y, width, height)) {
+      queueFullImagePut(image, width, height);
+      return;
+    }
+    queuePartialImagePut(image, x, y, width, height);
+  }
+
+  function throwIfCanvasTainted(d: any): void {
+    if (!d.canvasIsOriginClean(canvas._id)) {
+      throw domExc("The canvas has been tainted by cross-origin data.", "SecurityError");
+    }
+  }
+
+  function rethrowCanvasSecurityError(error: unknown): void {
+    if ((error as any)?.name === "SecurityError") throw error;
+  }
+
+  function assertCanvasOriginClean(d: any): void {
+    if (typeof d?.canvasIsOriginClean !== "function") return;
+    try {
+      throwIfCanvasTainted(d);
+    } catch (error) {
+      rethrowCanvasSecurityError(error);
+    }
+  }
+
+  function copyCanvasImageData(
+    d: any,
+    sx: number,
+    sy: number,
+    width: number,
+    height: number,
+    out: ReturnType<typeof makeImageData>,
+  ): void {
+    const bytes: Uint8Array = d.canvasGetImageData(canvas._id, sx | 0, sy | 0, width, height);
+    if (bytes && bytes.length === width * height * 4) out.data.set(bytes);
+  }
+
+  function readCanvasImageData(
+    d: any,
+    sx: number,
+    sy: number,
+    width: number,
+    height: number,
+    out: ReturnType<typeof makeImageData>,
+  ) {
+    if (typeof d?.canvasGetImageData !== "function") return out;
+    try {
+      copyCanvasImageData(d, sx, sy, width, height, out);
+    } catch (error) {
+      dbg.last = "get threw: " + canvasErrorDetail(error);
+    }
+    return out;
+  }
+
+  function getImageDataImpl(sx: number, sy: number, sw: number, sh: number) {
+    const width = sw | 0;
+    const height = sh | 0;
+    if (width <= 0 || height <= 0) throw domExc("zero-size", "IndexSizeError");
+    if (!isLive()) return makeImageData(width, height);
+    flushOps();
+    const d = dom as any;
+    assertCanvasOriginClean(d);
+    const out = makeImageData(width, height);
+    return readCanvasImageData(d, sx, sy, width, height, out);
   }
 
   const ctx: any = {
@@ -1014,26 +1498,14 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     },
 
     setTransform(a: any, b?: any, c?: any, d?: any, e?: any, f?: any) {
-      let m: number[];
-      if (typeof a === "object" && a) {
-        m = [
-          a.a ?? a.m11 ?? 1,
-          a.b ?? a.m12 ?? 0,
-          a.c ?? a.m21 ?? 0,
-          a.d ?? a.m22 ?? 1,
-          a.e ?? a.m41 ?? 0,
-          a.f ?? a.m42 ?? 0,
-        ].map(Number);
-      } else {
-        m = [a, b, c, d, e, f].map(Number);
-      }
-      if (m.some((v) => !Number.isFinite(v))) return;
+      const m = transformMatrix(a, b, c, d, e, f);
+      if (!isFiniteMatrix(m)) return;
       st.transform = m;
       enqueue({ o: "setTransform", a: m });
     },
     transform(a: any, b: any, c: any, d: any, e: any, f: any) {
       const m = [a, b, c, d, e, f].map(Number);
-      if (m.some((v) => !Number.isFinite(v))) return;
+      if (!isFiniteMatrix(m)) return;
       st.transform = matMul(mat(), m);
       enqueue({ o: "transform", a: m });
     },
@@ -1043,7 +1515,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     },
     translate(x: any, y: any) {
       const m = [Number(x), Number(y)];
-      if (m.some((v) => !Number.isFinite(v))) return;
+      if (!isFiniteMatrix(m)) return;
       st.transform = matMul(mat(), [1, 0, 0, 1, m[0], m[1]]);
       enqueue({ o: "translate", a: m });
     },
@@ -1077,8 +1549,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
         m41: m[4],
         m42: m[5],
         is2D: true,
-        isIdentity:
-          m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1 && m[4] === 0 && m[5] === 0,
+        isIdentity: isIdentityTransform(m),
       };
     },
 
@@ -1109,24 +1580,13 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       else enqueue({ o: "clip", s: fillRule(pathOrRule) });
     },
     isPointInPath(pathOrX: unknown, xOrY?: unknown, yOrRule?: unknown, maybeRule?: unknown) {
-      const path = pathOrX instanceof Path2D ? pathOrX : null;
-      const [x, y, rule] = path ? [xOrY, yOrRule, maybeRule] : [pathOrX, xOrY, yOrRule];
+      const [path, x, y, rule] = pointPathArguments(pathOrX, xOrY, yOrRule, maybeRule);
       const d = dom as any;
-      if (typeof d?.canvasIsPointInPath !== "function") return false;
-      if (path) {
-        enqueue({ o: "pathPush" });
-        for (const pathOp of opsOf(path, "isPointInPath")) enqueue(pathOp);
-      }
+      if (!hasCanvasPathHitTest(d)) return false;
+      if (path) pushPathOps(path, "isPointInPath");
       flushOps();
       try {
-        return !!d.canvasIsPointInPath(
-          canvas._id,
-          Number(x),
-          Number(y),
-          fillRule(rule) === "evenodd",
-        );
-      } catch {
-        return false;
+        return queryCanvasPath(d, x, y, rule);
       } finally {
         if (path) enqueue({ o: "pathPop" });
       }
@@ -1149,28 +1609,9 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     },
     measureText(text: any) {
       const d = dom as any;
-      let fontsReady = true;
-      try {
-        fontsReady =
-          (globalThis as { __ks_fontDemand?: () => boolean }).__ks_fontDemand?.() ?? true;
-      } catch {
-        fontsReady = true;
-      }
-      const fallback = {
-        width: 0,
-        actualBoundingBoxLeft: 0,
-        actualBoundingBoxRight: 0,
-        actualBoundingBoxAscent: 0,
-        actualBoundingBoxDescent: 0,
-        fontBoundingBoxAscent: 0,
-        fontBoundingBoxDescent: 0,
-      };
-      if (!fontsReady || typeof d?.canvasMeasureText !== "function") return fallback;
-      try {
-        return JSON.parse(d.canvasMeasureText(String(text ?? ""), st.font));
-      } catch {
-        return fallback;
-      }
+      const fallback = emptyTextMetrics();
+      if (!fontDemandReady() || typeof d?.canvasMeasureText !== "function") return fallback;
+      return readCanvasTextMetrics(d, text, fallback);
     },
 
     createLinearGradient(x0: any, y0: any, x1: any, y1: any) {
@@ -1190,48 +1631,21 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       return new CanvasGradientShim(CANVAS_STYLE_TOKEN, { k: "conic", v, stops: [] });
     },
     createPattern(image: any, repetition: any) {
-      const rep = repetition == null || repetition === "" ? "repeat" : String(repetition);
-      if (["repeat", "repeat-x", "repeat-y", "no-repeat"].indexOf(rep) < 0) {
-        throw domExc("invalid repetition", "SyntaxError");
-      }
+      const rep = patternRepetition(repetition);
       const src = imageSource(image);
       if (!src) return null;
-      if (src.kind === "canvas" && image && image.__ks2dCtx) {
-        try {
-          image.__ks2dCtx.__ksFlushForRead?.();
-        } catch {}
-      }
-      if (src.kind === "img") {
-        if (!image.complete) return null;
-        if (!(Number(image.naturalWidth) > 0)) {
-          throw domExc("broken image", "InvalidStateError");
-        }
-      }
-      const spec: CanvasPatternSpec = { k: "pattern", id: src.id, rep: src.kind + ":" + rep };
-      if (src.kind === "img" && !src.oc) spec.oc = false;
-      return new CanvasPatternShim(CANVAS_STYLE_TOKEN, spec);
+      flushCanvasSourceForRead(image, src);
+      if (!patternSourceReady(image, src)) return null;
+      return new CanvasPatternShim(CANVAS_STYLE_TOKEN, makePatternSpec(src, rep));
     },
 
     drawImage(img: any, ...args: any[]) {
       const src = imageSource(img);
       if (!src) return;
-      let a: number[];
-      if (args.length >= 8) {
-        a = args.slice(0, 8).map(Number);
-      } else if (args.length >= 4) {
-        a = [0, 0, -1, -1, Number(args[0]), Number(args[1]), Number(args[2]), Number(args[3])];
-      } else {
-        a = [0, 0, -1, -1, Number(args[0]), Number(args[1]), -1, -1];
-      }
-      if (a.some((n) => !Number.isFinite(n))) return;
-      if (src.kind === "canvas" && img && img.__ks2dCtx) {
-        try {
-          img.__ks2dCtx.__ksFlushForRead?.();
-        } catch {}
-      }
-      const op: CanvasOp = { o: "drawImage", s: src.kind, id: src.id, a };
-      if (src.kind === "img" && !src.oc) op.oc = false;
-      enqueue(op);
+      const drawArgs = drawImageArguments(args);
+      if (drawArgs.some((n) => !Number.isFinite(n))) return;
+      flushCanvasSourceForRead(img, src);
+      enqueue(drawImageOperation(src, drawArgs));
       flushOps();
     },
 
@@ -1243,82 +1657,11 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     },
 
     putImageData(img: any, dx: number, dy: number) {
-      if (!img || !img.data || !img.width || !img.height) return;
-      const x0 = dx | 0;
-      const y0 = dy | 0;
-      const iw = img.width | 0;
-      const ih = img.height | 0;
-      if (x0 === 0 && y0 === 0 && iw === curW() && ih === curH()) {
-        if (!isLive()) {
-          dbg.last = "stale";
-          return;
-        }
-        ensureSize();
-        if (q.length > 0) {
-          flushOps();
-        }
-        const byteLength = iw * ih * 4;
-        const data = img.data;
-        const tag = Object.prototype.toString.call(data);
-        if (
-          data.length === byteLength &&
-          (tag === "[object Uint8ClampedArray]" || tag === "[object Uint8Array]")
-        ) {
-          if (putStaging?.length !== byteLength) putStaging = new Uint8ClampedArray(byteLength);
-          putStaging.set(data);
-          pendingFullPut = { w: iw, h: ih, data: putStaging };
-        } else {
-          pendingFullPut = { w: iw, h: ih, data: data.slice(0, byteLength) };
-        }
-        schedulePush();
-        return;
-      }
-      if (!isLive()) {
-        dbg.last = "stale";
-        return;
-      }
-      ensureSize();
-      flushOps();
-      const d = dom as any;
-      if (typeof d?.canvasPutImageData !== "function") {
-        dbg.last = "no-wasm-entry";
-        return;
-      }
-      try {
-        const data: Uint8ClampedArray = img.data;
-        const bytes = new Uint8Array(data.buffer, data.byteOffset, iw * ih * 4);
-        d.canvasPutImageData(canvas._id, x0, y0, iw, ih, bytes);
-      } catch (e) {
-        dbg.last = "put threw: " + ((e as any)?.message ?? String(e));
-      }
-      schedulePush();
+      putImageDataImpl(img, dx, dy);
     },
 
     getImageData(sx: number, sy: number, sw: number, sh: number) {
-      const w = sw | 0;
-      const h = sh | 0;
-      if (w <= 0 || h <= 0) throw domExc("zero-size", "IndexSizeError");
-      if (!isLive()) return makeImageData(w, h);
-      flushOps();
-      const d = dom as any;
-      if (typeof d?.canvasIsOriginClean === "function") {
-        try {
-          if (!d.canvasIsOriginClean(canvas._id)) {
-            throw domExc("The canvas has been tainted by cross-origin data.", "SecurityError");
-          }
-        } catch (e) {
-          if ((e as any)?.name === "SecurityError") throw e;
-        }
-      }
-      const out = makeImageData(w, h);
-      if (typeof d?.canvasGetImageData !== "function") return out;
-      try {
-        const bytes: Uint8Array = d.canvasGetImageData(canvas._id, sx | 0, sy | 0, w, h);
-        if (bytes && bytes.length === w * h * 4) out.data.set(bytes);
-      } catch (e) {
-        dbg.last = "get threw: " + ((e as any)?.message ?? String(e));
-      }
-      return out;
+      return getImageDataImpl(sx, sy, sw, sh);
     },
 
     __ksFlushForRead() {

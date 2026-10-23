@@ -66,22 +66,128 @@ const DEPS: Array<[number, number[]]> = [
 function closeOverDeps(mask: number): number {
   let out = mask;
   for (let pass = 0; pass < MAX_DEPENDENCY_CLOSURE_PASSES; pass++) {
-    let next = out;
-    for (const [dep, dependents] of DEPS) {
-      if (next & (1 << dep)) {
-        for (const d of dependents) next |= 1 << d;
-      }
-    }
+    const next = expandDependencies(out);
     if (next === out) break;
     out = next;
   }
   return out >>> 0;
 }
 
+function expandDependencies(mask: number): number {
+  let next = mask;
+  for (const [dep, dependents] of DEPS) {
+    if (next & (1 << dep)) {
+      for (const dependent of dependents) next |= 1 << dependent;
+    }
+  }
+  return next;
+}
+
 interface Baseline {
   holder: object;
   kind: "data" | "accessor";
   fn: unknown;
+}
+
+type WatchedProp = [number, string, object];
+type WatchedPropsForOp = Array<Array<WatchedProp>>;
+type FoundProperty = { holder: object; desc: PropertyDescriptor };
+
+function captureBaselines(watched: WatchedProp[], base: Map<number, Baseline>): number {
+  let installMask = 0;
+  for (const [bit, prop, root] of watched) {
+    const found = findHolder(prop, root);
+    if (!found) {
+      installMask |= 1 << bit;
+      continue;
+    }
+    base.set(bit, {
+      holder: found.holder,
+      kind: found.desc.get ? "accessor" : "data",
+      fn: found.desc.get ?? found.desc.value,
+    });
+  }
+  return installMask;
+}
+
+function buildNeeds(watched: WatchedProp[]): WatchedPropsForOp {
+  const needs: WatchedPropsForOp = [];
+  for (let op = 0; op < 32; op++) {
+    needs.push(watched.filter(([bit]) => (closeOverDeps(1 << bit) & (1 << op)) !== 0));
+  }
+  return needs;
+}
+
+function revalidateFastpath(
+  op: number | undefined,
+  installMask: number,
+  watched: WatchedProp[],
+  needs: WatchedPropsForOp,
+  base: Map<number, Baseline>,
+): number {
+  let mask = installMask;
+  const selected = op === undefined ? watched : (needs[op] ?? watched);
+  try {
+    mask = changedWatchedMask(mask, selected, base);
+  } catch {
+    return 0xffffffff;
+  }
+  return closeOverDeps(mask);
+}
+
+function changedWatchedMask(
+  mask: number,
+  watched: WatchedProp[],
+  base: Map<number, Baseline>,
+): number {
+  for (const [bit, prop, root] of watched) {
+    const baseline = base.get(bit);
+    if (!baseline) continue;
+    const found = findHolder(prop, root);
+    if (!matchesBaseline(found, baseline)) mask |= 1 << bit;
+  }
+  return mask;
+}
+
+function matchesBaseline(found: FoundProperty | null, baseline: Baseline): boolean {
+  if (!found) return false;
+  if (found.holder !== baseline.holder) return false;
+  if (propertyKind(found.desc) !== baseline.kind) return false;
+  return propertyFunction(found.desc) === baseline.fn;
+}
+
+function propertyKind(desc: PropertyDescriptor): Baseline["kind"] {
+  return desc.get ? "accessor" : "data";
+}
+
+function propertyFunction(desc: PropertyDescriptor): unknown {
+  return desc.get ?? desc.value;
+}
+
+interface FastpathElement {
+  _id?: unknown;
+  nodeType?: unknown;
+  ownerDocument?: unknown;
+}
+
+function candidateElementId(element: FastpathElement): number | null {
+  const id = element._id;
+  if (typeof id !== "number" || !Number.isInteger(id) || id < 0) return null;
+  return id;
+}
+
+function brandElement(obj: unknown, document: object): number {
+  const element = obj as FastpathElement | null;
+  if (!element) return -1;
+  const id = candidateElementId(element);
+  if (id === null) return -1;
+  if (nodeFor(id) !== obj) return -1;
+  if (!isElementInDocument(element, document)) return -1;
+  return id;
+}
+
+function isElementInDocument(element: FastpathElement, document: object): boolean {
+  return element.nodeType === ELEMENT_NODE && element.ownerDocument === document;
 }
 
 function findHolder(
@@ -103,36 +209,18 @@ export function installFastpath(document: object): void {
   if (!d || typeof d.fastpathBind !== "function") return;
 
   const base = new Map<number, Baseline>();
-  let installMask = 0;
-  const watched: Array<[number, string, object]> = [
+  const watched: WatchedProp[] = [
     ...WATCHED.map(([bit, prop]): [number, string, object] => [bit, prop, Element.prototype]),
     ...WATCHED_DOC.map(([bit, prop]): [number, string, object] => [bit, prop, document]),
   ];
-  for (const [bit, prop, root] of watched) {
-    const found = findHolder(prop, root);
-    if (!found) {
-      installMask |= 1 << bit;
-      continue;
-    }
-    base.set(bit, {
-      holder: found.holder,
-      kind: found.desc.get ? "accessor" : "data",
-      fn: found.desc.get ?? found.desc.value,
-    });
-  }
+  const installMask = captureBaselines(watched, base);
 
   const brand = (obj: unknown): number => {
     // The document brands as its own id; wasm offers it only the document
     // ops, since every node op bails on it (it is marked special below).
     if (obj === document) return DOCUMENT_ID;
     try {
-      const el = obj as { _id?: unknown; nodeType?: unknown; ownerDocument?: unknown } | null;
-      const id = el?._id;
-      if (typeof id !== "number" || !Number.isInteger(id) || id < 0) return -1;
-      if (nodeFor(id) !== obj) return -1;
-      if (el!.nodeType !== ELEMENT_NODE) return -1;
-      if (el!.ownerDocument !== document) return -1;
-      return id;
+      return brandElement(obj, document);
     } catch {
       return -1;
     }
@@ -140,34 +228,12 @@ export function installFastpath(document: object): void {
 
   // Per op, the watched props its answer depends on: its own and every prop whose
   // dependency closure reaches it (firstChild needs childNodes). Built at install.
-  const needs: Array<Array<[number, string, object]>> = [];
-  for (let op = 0; op < 32; op++) {
-    needs.push(watched.filter(([bit]) => (closeOverDeps(1 << bit) & (1 << op)) !== 0));
-  }
+  const needs = buildNeeds(watched);
 
   // SAFETY: with_v8_quiet cannot re-arm the V8 boundary; use captured intrinsics
   // and never invoke page code from this callback.
-  const revalidate = (op?: number): number => {
-    let mask = installMask;
-    try {
-      for (const [bit, prop, root] of op === undefined ? watched : (needs[op] ?? watched)) {
-        const b = base.get(bit);
-        if (!b) continue; // already in installMask
-        const found = findHolder(prop, root);
-        if (
-          !found ||
-          found.holder !== b.holder ||
-          (found.desc.get ? "accessor" : "data") !== b.kind ||
-          (found.desc.get ?? found.desc.value) !== b.fn
-        ) {
-          mask |= 1 << bit;
-        }
-      }
-    } catch {
-      return 0xffffffff;
-    }
-    return closeOverDeps(mask);
-  };
+  const revalidate = (op?: number): number =>
+    revalidateFastpath(op, installMask, watched, needs, base);
 
   const wrapperForNodeId = (nid: number): unknown => {
     try {

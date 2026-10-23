@@ -23,6 +23,15 @@ export type SteppableType =
   | "datetime-local";
 
 const MONTH_VALUE_EPOCH_YEAR = 1970;
+const STEPPABLE_TYPES = new Set([
+  "number",
+  "range",
+  "date",
+  "month",
+  "week",
+  "time",
+  "datetime-local",
+]);
 
 export function stepDefault(type: string): number {
   switch (type) {
@@ -67,15 +76,7 @@ export function stepBaseDefault(type: string): number {
 }
 
 export function isSteppable(type: string): type is SteppableType {
-  return (
-    type === "number" ||
-    type === "range" ||
-    type === "date" ||
-    type === "month" ||
-    type === "week" ||
-    type === "time" ||
-    type === "datetime-local"
-  );
+  return STEPPABLE_TYPES.has(type);
 }
 
 export function acceptsValueAsDate(type: string): boolean {
@@ -102,9 +103,17 @@ function daysInMonth(year: number, month1: number): number {
 
 function isValidYMD(y: number, m: number, d: number): boolean {
   if (y < 1) return false;
-  if (m < 1 || m > 12) return false;
-  if (d < 1 || d > daysInMonth(y, m)) return false;
+  if (!isValidMonth(m)) return false;
+  if (!isValidDay(y, m, d)) return false;
   return true;
+}
+
+function isValidMonth(month: number): boolean {
+  return month >= 1 && month <= 12;
+}
+
+function isValidDay(year: number, month: number, day: number): boolean {
+  return day >= 1 && day <= daysInMonth(year, month);
 }
 
 export function parseDate(value: string): number | null {
@@ -122,15 +131,23 @@ export function parseMonth(value: string): number | null {
   if (!m) return null;
   const y = +m[1],
     mo = +m[2];
-  if (m[1].length < 4 || y < 1 || mo < 1 || mo > 12) return null;
+  if (!isValidMonthParts(m[1].length, y, mo)) return null;
   return (y - MONTH_VALUE_EPOCH_YEAR) * 12 + (mo - 1);
+}
+
+function isValidMonthParts(yearLength: number, year: number, month: number): boolean {
+  if (yearLength < 4 || year < 1) return false;
+  return isValidMonth(month);
 }
 
 function weeksInISOYear(year: number): number {
   const jan1 = new Date(utcMs(year, 0, 1)).getUTCDay();
   const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  if (jan1 === 4 || (isLeap && jan1 === 3)) return 53;
-  return 52;
+  return has53IsoWeeks(jan1, isLeap) ? 53 : 52;
+}
+
+function has53IsoWeeks(jan1: number, isLeap: boolean): boolean {
+  return jan1 === 4 || (isLeap && jan1 === 3);
 }
 
 function isoWeekMondayUTC(year: number, week: number): number {
@@ -146,9 +163,14 @@ export function parseWeek(value: string): number | null {
   if (!m) return null;
   const y = +m[1],
     w = +m[2];
-  if (m[1].length < 4 || y < 1) return null;
-  if (w < 1 || w > weeksInISOYear(y)) return null;
+  if (!isValidWeekParts(m[1].length, y, w)) return null;
   return isoWeekMondayUTC(y, w);
+}
+
+function isValidWeekParts(yearLength: number, year: number, week: number): boolean {
+  if (yearLength < 4 || year < 1) return false;
+  if (week < 1) return false;
+  return week <= weeksInISOYear(year);
 }
 
 export function parseTime(value: string): number | null {
@@ -156,10 +178,22 @@ export function parseTime(value: string): number | null {
   if (!m) return null;
   const h = +m[1],
     mi = +m[2],
-    s = m[3] ? +m[3] : 0;
-  const ms = m[4] ? +m[4].padEnd(3, "0") : 0;
-  if (h > 23 || mi > 59 || s > 59) return null;
+    s = parseOptionalNumber(m[3]);
+  const ms = parseFractionalMilliseconds(m[4]);
+  if (!isValidTime(h, mi, s)) return null;
   return h * MS_PER_HOUR + mi * MS_PER_MINUTE + s * MS_PER_SECOND + ms;
+}
+
+function parseOptionalNumber(value: string | undefined): number {
+  return value ? +value : 0;
+}
+
+function parseFractionalMilliseconds(value: string | undefined): number {
+  return value ? +value.padEnd(3, "0") : 0;
+}
+
+function isValidTime(hour: number, minute: number, second: number): boolean {
+  return hour <= 23 && minute <= 59 && second <= 59;
 }
 
 export function parseDateTimeLocal(value: string): number | null {
@@ -170,11 +204,15 @@ export function parseDateTimeLocal(value: string): number | null {
     d = +m[3],
     h = +m[4],
     mi = +m[5];
-  const s = m[6] ? +m[6] : 0;
-  const ms = m[7] ? +m[7].padEnd(3, "0") : 0;
-  if (m[1].length < 4 || !isValidYMD(y, mo, d)) return null;
-  if (h > 23 || mi > 59 || s > 59) return null;
+  const s = parseOptionalNumber(m[6]);
+  const ms = parseFractionalMilliseconds(m[7]);
+  if (!isValidDateParts(m[1].length, y, mo, d)) return null;
+  if (!isValidTime(h, mi, s)) return null;
   return utcMs(y, mo - 1, d, h, mi, s, ms);
+}
+
+function isValidDateParts(yearLength: number, year: number, month: number, day: number): boolean {
+  return yearLength >= 4 && isValidYMD(year, month, day);
 }
 
 export function parseNumber(value: string): number | null {
@@ -301,21 +339,42 @@ export function valueAsDateFromString(type: string, value: string): Date | null 
 
 export function valueAsDateToString(type: string, d: Date | null): string | null {
   if (!acceptsValueAsDate(type)) return null;
-  if (d === null) return "";
-  if (!(d instanceof Date) || isNaN(d.getTime())) return "";
-  const out =
-    type === "month"
-      ? serializeMonth((d.getUTCFullYear() - MONTH_VALUE_EPOCH_YEAR) * 12 + d.getUTCMonth())
-      : serializeByType(type, d.getTime());
-  return parseByType(type, out) == null ? "" : out;
+  if (d === null || !isUsableDate(d)) return "";
+  const out = dateValueString(type, d);
+  return validDateValueString(type, out) ? out : "";
+}
+
+function isUsableDate(date: Date | null): date is Date {
+  return date instanceof Date && !isNaN(date.getTime());
+}
+
+function validDateValueString(type: string, value: string): boolean {
+  return parseByType(type, value) != null;
+}
+
+function dateValueString(type: string, date: Date): string {
+  if (type === "month") {
+    return serializeMonth(
+      (date.getUTCFullYear() - MONTH_VALUE_EPOCH_YEAR) * 12 + date.getUTCMonth(),
+    );
+  }
+  return serializeByType(type, date.getTime());
 }
 
 export function resolvedStep(type: string, stepAttr: string | null): number | null {
   if (stepAttr === "any") return null;
-  if (stepAttr == null || stepAttr === "") return stepDefault(type);
+  if (isMissingStep(stepAttr)) return stepDefault(type);
   const n = +stepAttr;
-  if (!Number.isFinite(n) || n <= 0) return stepDefault(type);
+  if (isInvalidStep(n)) return stepDefault(type);
   return n * stepScale(type);
+}
+
+function isMissingStep(stepAttr: string | null): stepAttr is null | "" {
+  return stepAttr == null || stepAttr === "";
+}
+
+function isInvalidStep(step: number): boolean {
+  return !Number.isFinite(step) || step <= 0;
 }
 
 export function resolvedStepBase(
@@ -323,15 +382,16 @@ export function resolvedStepBase(
   minAttr: string | null,
   valueAttr?: string | null,
 ): number {
-  if (minAttr != null && minAttr !== "") {
-    const m = parseByType(type, minAttr);
-    if (m != null) return m;
-  }
-  if (valueAttr != null && valueAttr !== "") {
-    const v = parseByType(type, valueAttr);
-    if (v != null) return v;
-  }
+  const min = parsedStepBase(type, minAttr);
+  if (min != null) return min;
+  const value = parsedStepBase(type, valueAttr);
+  if (value != null) return value;
   return stepBaseDefault(type);
+}
+
+function parsedStepBase(type: string, value: string | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  return parseByType(type, value);
 }
 
 export function rangeDefaults(type: string): { min: number; max: number } | null {
@@ -369,57 +429,123 @@ export function sanitizeValue(type: string, value: string, opts?: SanitizeOpts):
     case "url":
       return stripHtmlWhitespace(stripNewlines(value));
     case "email":
-      if (opts?.multiple) {
-        return value.split(",").map(stripHtmlWhitespace).join(",");
-      }
-      return stripHtmlWhitespace(stripNewlines(value));
+      return sanitizeEmail(value, opts);
     case "number":
-      return parseNumber(value) == null ? "" : value;
+      return sanitizeNumberInput(value);
     case "date":
     case "month":
     case "week":
     case "time":
     case "datetime-local":
-      return parseByType(type, value) == null ? "" : value;
-    case "range": {
-      let min = 0,
-        max = 100;
-      if (opts?.minAttr != null && opts.minAttr !== "") {
-        const m = parseNumber(opts.minAttr);
-        if (m != null) min = m;
-      }
-      if (opts?.maxAttr != null && opts.maxAttr !== "") {
-        const m = parseNumber(opts.maxAttr);
-        if (m != null) max = m;
-      }
-      let n = parseNumber(value);
-      if (n == null) n = max < min ? min : min + (max - min) / 2;
-      if (n > max) n = max;
-      if (n < min) n = min;
-      const step = resolvedStep(type, opts?.stepAttr ?? null);
-      if (step != null && max >= min) {
-        const base = resolvedStepBase(type, opts?.minAttr ?? null);
-        const off = (n - base) / step;
-        if (Math.abs(off - Math.round(off)) > STEP_ALIGNMENT_EPSILON) {
-          const low = base + Math.floor(off) * step;
-          const high = base + Math.ceil(off) * step;
-          let cand = n - low < high - n ? low : high;
-          if (cand > max) cand = low;
-          if (cand < min) cand = high;
-          if (cand >= min && cand <= max) {
-            n = Number(cand.toPrecision(15));
-          }
-        }
-      }
-      return serializeNumber(n);
-    }
+      return sanitizeTypedDateTime(type, value);
+    case "range":
+      return sanitizeRange(value, opts);
     case "color": {
-      const s = stripNewlines(value);
-      return /^#[0-9a-fA-F]{6}$/.test(s) ? s.toLowerCase() : "#000000";
+      return sanitizeColor(value);
     }
     default:
       return value;
   }
+}
+
+function sanitizeEmail(value: string, opts?: SanitizeOpts): string {
+  if (opts?.multiple) return value.split(",").map(stripHtmlWhitespace).join(",");
+  return stripHtmlWhitespace(stripNewlines(value));
+}
+
+function sanitizeNumberInput(value: string): string {
+  return parseNumber(value) == null ? "" : value;
+}
+
+function sanitizeTypedDateTime(type: string, value: string): string {
+  return parseByType(type, value) == null ? "" : value;
+}
+
+function sanitizeColor(value: string): string {
+  const stripped = stripNewlines(value);
+  return /^#[0-9a-fA-F]{6}$/.test(stripped) ? stripped.toLowerCase() : "#000000";
+}
+
+function sanitizeRange(value: string, opts?: SanitizeOpts): string {
+  const min = rangeMin(opts);
+  const max = rangeMax(opts);
+  const parsed = parseNumber(value);
+  const clamped = rangeValue(parsed, min, max);
+  return serializeNumber(snapRangeValue(clamped, min, max, opts));
+}
+
+function rangeMin(opts?: SanitizeOpts): number {
+  let min = 0;
+  if (opts?.minAttr != null && opts.minAttr !== "") {
+    const parsed = parseNumber(opts.minAttr);
+    if (parsed != null) min = parsed;
+  }
+  return min;
+}
+
+function rangeMax(opts?: SanitizeOpts): number {
+  let max = 100;
+  if (opts?.maxAttr != null && opts.maxAttr !== "") {
+    const parsed = parseNumber(opts.maxAttr);
+    if (parsed != null) max = parsed;
+  }
+  return max;
+}
+
+function rangeValue(parsed: number | null, min: number, max: number): number {
+  let value = parsed;
+  if (value == null) value = max < min ? min : min + (max - min) / 2;
+  if (value > max) value = max;
+  if (value < min) value = min;
+  return value;
+}
+
+function snapRangeValue(value: number, min: number, max: number, opts?: SanitizeOpts): number {
+  const step = rangeStep(opts);
+  if (step != null && max >= min) {
+    return snapRangeStep(value, min, max, step, opts);
+  }
+  return value;
+}
+
+function rangeStep(opts?: SanitizeOpts): number | null {
+  return resolvedStep("range", opts?.stepAttr ?? null);
+}
+
+function snapRangeStep(
+  value: number,
+  min: number,
+  max: number,
+  step: number,
+  opts?: SanitizeOpts,
+): number {
+  const base = resolvedStepBase("range", opts?.minAttr ?? null);
+  const offset = (value - base) / step;
+  if (Math.abs(offset - Math.round(offset)) > STEP_ALIGNMENT_EPSILON) {
+    return nearestRangeStep(value, min, max, base, offset, step);
+  }
+  return value;
+}
+
+function nearestRangeStep(
+  value: number,
+  min: number,
+  max: number,
+  base: number,
+  offset: number,
+  step: number,
+): number {
+  const low = base + Math.floor(offset) * step;
+  const high = base + Math.ceil(offset) * step;
+  let candidate = value - low < high - value ? low : high;
+  if (candidate > max) candidate = low;
+  if (candidate < min) candidate = high;
+  if (isWithinRange(candidate, min, max)) return Number(candidate.toPrecision(15));
+  return value;
+}
+
+function isWithinRange(value: number, min: number, max: number): boolean {
+  return value >= min && value <= max;
 }
 
 export function computeStep(
@@ -435,34 +561,80 @@ export function computeStep(
   const step = resolvedStep(type, stepAttr);
   if (step == null) return { error: "InvalidStateError" };
   const base = resolvedStepBase(type, minAttr, valueAttr);
+  const { min, max } = readStepBounds(type, minAttr, maxAttr);
+  const current = initialStepValue(type, currentValue, min, max);
+  let next = steppedValue(current, base, step, n);
+  next = adjustStepBounds(next, min, max, step);
+  next = roundStepValue(type, next);
+  if (isOutsideStepBounds(next, min, max)) return { noop: true };
+  if (stepsAgainstDirection(n, current, next)) return { noop: true };
+  return { value: serializeByType(type, next) };
+}
+
+interface StepBounds {
+  min: number | null;
+  max: number | null;
+}
+
+function readStepBounds(type: string, minAttr: string | null, maxAttr: string | null): StepBounds {
   const defaults = rangeDefaults(type);
-  let min: number | null = null;
-  let max: number | null = null;
-  if (minAttr != null && minAttr !== "") min = parseByType(type, minAttr);
-  if (maxAttr != null && maxAttr !== "") max = parseByType(type, maxAttr);
-  if (min == null && defaults) min = defaults.min;
-  if (max == null && defaults) max = defaults.max;
+  const min = parseStepBound(type, minAttr, defaults, "min");
+  const max = parseStepBound(type, maxAttr, defaults, "max");
+  return { min, max };
+}
 
-  let current = parseByType(type, currentValue);
-  if (current == null) {
-    current = 0;
-    if (min != null && current < min) current = min;
-    if (max != null && current > max) current = max;
+function parseStepBound(
+  type: string,
+  attr: string | null,
+  defaults: { min: number; max: number } | null,
+  bound: "min" | "max",
+): number | null {
+  if (attr != null && attr !== "") {
+    const parsed = parseByType(type, attr);
+    if (parsed != null) return parsed;
   }
+  return defaults ? defaults[bound] : null;
+}
 
+function initialStepValue(
+  type: string,
+  value: string,
+  min: number | null,
+  max: number | null,
+): number {
+  let current = parseByType(type, value);
+  if (current == null) return initialInvalidStepValue(min, max);
+  return current;
+}
+
+function initialInvalidStepValue(min: number | null, max: number | null): number {
+  let current = 0;
+  if (min != null && current < min) current = min;
+  if (max != null && current > max) current = max;
+  return current;
+}
+
+function steppedValue(current: number, base: number, step: number, n: number): number {
   const offset = (current - base) / step;
-  let next;
   if (Math.abs(offset - Math.round(offset)) > STEP_ALIGNMENT_EPSILON) {
-    next =
+    return (
       base +
       (n >= 0
         ? Math.ceil(offset - STEP_ALIGNMENT_EPSILON)
         : Math.floor(offset + STEP_ALIGNMENT_EPSILON)) *
-        step;
-  } else {
-    next = current + n * step;
+        step
+    );
   }
+  return current + n * step;
+}
 
+function adjustStepBounds(
+  value: number,
+  min: number | null,
+  max: number | null,
+  step: number,
+): number {
+  let next = value;
   if (max != null && next > max) {
     const overshoot = Math.ceil((next - max) / step);
     next = next - overshoot * step;
@@ -471,14 +643,18 @@ export function computeStep(
     const undershoot = Math.ceil((min - next) / step);
     next = next + undershoot * step;
   }
+  return next;
+}
 
-  if (type !== "number" && type !== "range") {
-    next = Math.round(next);
-  }
-  if ((min != null && next < min) || (max != null && next > max)) {
-    return { noop: true };
-  }
-  if (n > 0 && next < current) return { noop: true };
-  if (n < 0 && next > current) return { noop: true };
-  return { value: serializeByType(type, next) };
+function roundStepValue(type: string, value: number): number {
+  if (type !== "number" && type !== "range") return Math.round(value);
+  return value;
+}
+
+function isOutsideStepBounds(value: number, min: number | null, max: number | null): boolean {
+  return (min != null && value < min) || (max != null && value > max);
+}
+
+function stepsAgainstDirection(n: number, current: number, next: number): boolean {
+  return (n > 0 && next < current) || (n < 0 && next > current);
 }

@@ -6,6 +6,7 @@
 
 import { dom, getRectByAuthId } from "../state.js";
 import { getInternalState } from "../internal-state.js";
+import type { AuthRectSnapshot } from "../state.js";
 import {
   DEFAULT_VIEWPORT_HEIGHT_CSS_PX,
   DEFAULT_VIEWPORT_WIDTH_CSS_PX,
@@ -77,15 +78,19 @@ function cheapViewport(): { w: number; h: number } {
   try {
     const v = dom.viewportSize && dom.viewportSize();
     if (v && v.length >= 2) {
-      return {
-        w: Number(v[0]) || DEFAULT_VIEWPORT_WIDTH_CSS_PX,
-        h: Number(v[1]) || DEFAULT_VIEWPORT_HEIGHT_CSS_PX,
-      };
+      return viewportFromSize(v);
     }
   } catch {}
   return {
     w: DEFAULT_VIEWPORT_WIDTH_CSS_PX,
     h: DEFAULT_VIEWPORT_HEIGHT_CSS_PX,
+  };
+}
+
+function viewportFromSize(size: ReturnType<typeof dom.viewportSize>): { w: number; h: number } {
+  return {
+    w: Number(size[0]) || DEFAULT_VIEWPORT_WIDTH_CSS_PX,
+    h: Number(size[1]) || DEFAULT_VIEWPORT_HEIGHT_CSS_PX,
   };
 }
 
@@ -100,10 +105,14 @@ function cheapChildIds(id: number): number[] {
 
 function cheapDisplayFromStyle(style: string) {
   const value = style.toLowerCase();
-  if (value.includes("display:none") || value.includes("display: none")) return "none";
-  if (value.includes("display:block") || value.includes("display: block")) return "block";
-  if (value.includes("display:inline") || value.includes("display: inline")) return "inline";
+  if (includesStyleValue(value, "display:none", "display: none")) return "none";
+  if (includesStyleValue(value, "display:block", "display: block")) return "block";
+  if (includesStyleValue(value, "display:inline", "display: inline")) return "inline";
   return null;
+}
+
+function includesStyleValue(value: string, compact: string, spaced: string): boolean {
+  return value.includes(compact) || value.includes(spaced);
 }
 
 function cheapDimension(value: string) {
@@ -111,40 +120,69 @@ function cheapDimension(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function cheapInfo(id: number): {
+interface CheapInfo {
   type: number;
   tag: string;
   text: string;
   display: "block" | "inline" | "none" | "";
   widthAttr: number;
   heightAttr: number;
-} {
+}
+
+function cheapInfo(id: number): CheapInfo {
   try {
-    const info = dom.nodeInfo(id);
-    const type = (info && info.nodeType) | 0;
-    const tag = info && typeof info.localName === "string" ? info.localName.toLowerCase() : "";
-    const text = info && typeof info.nodeValue === "string" ? info.nodeValue : "";
-    let display: "block" | "inline" | "none" | "" = "";
-    let widthAttr = 0;
-    let heightAttr = 0;
-    const attrs = info && info.attributes;
-    if (Array.isArray(attrs)) {
-      for (let i = 0; i < attrs.length - 1; i += 2) {
-        const k = attrs[i];
-        const v = attrs[i + 1];
-        if (typeof k !== "string" || typeof v !== "string") continue;
-        if (k === "style") {
-          display = cheapDisplayFromStyle(v) ?? display;
-        } else if (k === "width") {
-          widthAttr = cheapDimension(v) ?? widthAttr;
-        } else if (k === "height") {
-          heightAttr = cheapDimension(v) ?? heightAttr;
-        }
-      }
-    }
-    return { type, tag, text, display, widthAttr, heightAttr };
+    return cheapInfoFromNode(dom.nodeInfo(id));
   } catch {
-    return { type: 0, tag: "", text: "", display: "", widthAttr: 0, heightAttr: 0 };
+    return emptyCheapInfo();
+  }
+}
+
+function emptyCheapInfo(): CheapInfo {
+  return { type: 0, tag: "", text: "", display: "", widthAttr: 0, heightAttr: 0 };
+}
+
+function cheapInfoFromNode(info: ReturnType<typeof dom.nodeInfo>): CheapInfo {
+  const result: CheapInfo = {
+    type: (info && info.nodeType) | 0,
+    tag: nodeTag(info),
+    text: nodeText(info),
+    display: "",
+    widthAttr: 0,
+    heightAttr: 0,
+  };
+  const attrs = info && info.attributes;
+  if (Array.isArray(attrs)) readCheapAttributes(result, attrs);
+  return result;
+}
+
+function nodeTag(info: ReturnType<typeof dom.nodeInfo>): string {
+  return info && typeof info.localName === "string" ? info.localName.toLowerCase() : "";
+}
+
+function nodeText(info: ReturnType<typeof dom.nodeInfo>): string {
+  return info && typeof info.nodeValue === "string" ? info.nodeValue : "";
+}
+
+function readCheapAttributes(info: CheapInfo, attrs: unknown[]): void {
+  for (let i = 0; i < attrs.length - 1; i += 2) {
+    const name = attrs[i];
+    const value = attrs[i + 1];
+    if (typeof name !== "string" || typeof value !== "string") continue;
+    applyCheapAttribute(info, name, value);
+  }
+}
+
+function applyCheapAttribute(info: CheapInfo, name: string, value: string): void {
+  switch (name) {
+    case "style":
+      info.display = cheapDisplayFromStyle(value) ?? info.display;
+      break;
+    case "width":
+      info.widthAttr = cheapDimension(value) ?? info.widthAttr;
+      break;
+    case "height":
+      info.heightAttr = cheapDimension(value) ?? info.heightAttr;
+      break;
   }
 }
 
@@ -152,147 +190,229 @@ function cheapLayoutOne(id: number, x: number, y: number, w: number): number {
   const info = cheapInfo(id);
   const childIds = cheapChildIds(id);
 
+  if (info.type === TEXT_NODE) return layoutTextNode(id, info, x, y, w);
+  if (!isElementOrDocument(info)) return layoutEmptyNode(id, x, y);
+  const specialHeight = layoutHiddenOrImageNode(id, info, x, y);
+  if (specialHeight !== null) return specialHeight;
+  if (!isCheapBlock(info)) return layoutInlineContainer(id, childIds, x, y, w);
+  return layoutBlockContainer(id, childIds, x, y, w);
+}
+
+function layoutHiddenOrImageNode(id: number, info: CheapInfo, x: number, y: number): number | null {
+  if (info.display === "none") return layoutEmptyNode(id, x, y);
+  if (info.tag === "img") return layoutImageNode(id, info, x, y);
+  return null;
+}
+
+function isElementOrDocument(info: CheapInfo): boolean {
+  return info.type === ELEMENT_NODE || info.type === DOCUMENT_NODE;
+}
+
+function layoutEmptyNode(id: number, x: number, y: number): number {
+  cheapRects.set(id, { x, y, w: 0, h: 0 });
+  return 0;
+}
+
+function layoutTextNode(id: number, info: CheapInfo, x: number, y: number, w: number): number {
+  const textWidth = info.text.length * CHEAP_CHAR_W;
+  const lines = w > 0 ? Math.max(1, Math.ceil(textWidth / Math.max(1, w))) : 1;
+  const height = lines * CHEAP_LINE_H;
+  cheapRects.set(id, { x, y, w: Math.min(textWidth, w), h: height });
+  return height;
+}
+
+function isCheapBlock(info: CheapInfo): boolean {
+  if (info.type === DOCUMENT_NODE) return true;
+  if (info.display === "block") return true;
+  if (info.display === "inline") return false;
+  return blockTags.has(info.tag);
+}
+
+function layoutImageNode(id: number, info: CheapInfo, x: number, y: number): number {
+  const width = info.widthAttr > 0 ? info.widthAttr : CHEAP_IMG_W;
+  const height = info.heightAttr > 0 ? info.heightAttr : CHEAP_IMG_H;
+  cheapRects.set(id, { x, y, w: width, h: height });
+  return height;
+}
+
+interface InlineFlowState {
+  lineX: number;
+  lineMaxH: number;
+  currentY: number;
+  widest: number;
+}
+
+interface InlineChildLayout {
+  info: CheapInfo;
+  width: number;
+  height: number;
+}
+
+function layoutInlineContainer(
+  id: number,
+  childIds: number[],
+  x: number,
+  y: number,
+  width: number,
+): number {
+  const state: InlineFlowState = { lineX: 0, lineMaxH: CHEAP_LINE_H, currentY: y, widest: 0 };
+  for (const childId of childIds) layoutInlineChild(childId, x, width, state);
+  const height = state.currentY - y + state.lineMaxH;
+  cheapRects.set(id, {
+    x,
+    y,
+    w: Math.min(Math.max(state.widest, state.lineX), width),
+    h: height,
+  });
+  return height;
+}
+
+function inlineChildLayout(
+  childId: number,
+  x: number,
+  width: number,
+  state: InlineFlowState,
+): InlineChildLayout {
+  const info = cheapInfo(childId);
+  let childWidth = 0;
+  let childHeight = CHEAP_LINE_H;
   if (info.type === TEXT_NODE) {
-    const tw = info.text.length * CHEAP_CHAR_W;
-    const lines = w > 0 ? Math.max(1, Math.ceil(tw / Math.max(1, w))) : 1;
-    const h = lines * CHEAP_LINE_H;
-    cheapRects.set(id, { x, y, w: Math.min(tw, w), h });
-    return h;
-  }
-
-  if (info.type !== ELEMENT_NODE && info.type !== DOCUMENT_NODE) {
-    cheapRects.set(id, { x, y, w: 0, h: 0 });
-    return 0;
-  }
-
-  if (info.display === "none") {
-    cheapRects.set(id, { x, y, w: 0, h: 0 });
-    return 0;
-  }
-
-  let isBlock: boolean;
-  if (info.type === DOCUMENT_NODE) {
-    isBlock = true;
-  } else if (info.display === "block") {
-    isBlock = true;
-  } else if (info.display === "inline") {
-    isBlock = false;
+    childWidth = info.text.length * CHEAP_CHAR_W;
+  } else if (info.tag === "img") {
+    childWidth = CHEAP_IMG_W;
+    childHeight = CHEAP_IMG_H;
   } else {
-    isBlock = blockTags.has(info.tag);
+    childHeight = cheapLayoutOne(childId, x + state.lineX, state.currentY, width);
+    childWidth = cheapChildRectWidth(childId);
   }
+  return { info, width: childWidth, height: childHeight };
+}
 
-  if (info.tag === "img") {
-    const iw = info.widthAttr > 0 ? info.widthAttr : CHEAP_IMG_W;
-    const ih = info.heightAttr > 0 ? info.heightAttr : CHEAP_IMG_H;
-    cheapRects.set(id, { x, y, w: iw, h: ih });
-    return ih;
+function layoutInlineChild(
+  childId: number,
+  x: number,
+  width: number,
+  state: InlineFlowState,
+): void {
+  const child = inlineChildLayout(childId, x, width, state);
+  if (state.lineX + child.width > width && state.lineX > 0) {
+    state.currentY += state.lineMaxH;
+    state.lineX = 0;
+    state.lineMaxH = CHEAP_LINE_H;
   }
-
-  if (!isBlock) {
-    let lineX = 0;
-    let lineMaxH = CHEAP_LINE_H;
-    let curY = y;
-    let widest = 0;
-    for (const childId of childIds) {
-      const childInfo = cheapInfo(childId);
-      let childW = 0;
-      let childH = CHEAP_LINE_H;
-      if (childInfo.type === TEXT_NODE) {
-        childW = childInfo.text.length * CHEAP_CHAR_W;
-      } else if (childInfo.tag === "img") {
-        childW = CHEAP_IMG_W;
-        childH = CHEAP_IMG_H;
-      } else {
-        childH = cheapLayoutOne(childId, x + lineX, curY, w);
-        const childRect = cheapRects.get(childId);
-        childW = childRect ? childRect.w : 0;
-      }
-      if (lineX + childW > w && lineX > 0) {
-        curY += lineMaxH;
-        lineX = 0;
-        lineMaxH = CHEAP_LINE_H;
-      }
-      if (childInfo.type === TEXT_NODE) {
-        cheapRects.set(childId, {
-          x: x + lineX,
-          y: curY,
-          w: Math.min(childW, w),
-          h: childH,
-        });
-      }
-      lineX += childW;
-      if (childW > widest) widest = childW;
-      if (childH > lineMaxH) lineMaxH = childH;
-    }
-    const totalH = curY - y + lineMaxH;
-    cheapRects.set(id, {
-      x,
-      y,
-      w: Math.min(Math.max(widest, lineX), w),
-      h: totalH,
+  if (child.info.type === TEXT_NODE) {
+    cheapRects.set(childId, {
+      x: x + state.lineX,
+      y: state.currentY,
+      w: Math.min(child.width, width),
+      h: child.height,
     });
-    return totalH;
   }
+  state.lineX += child.width;
+  updateInlineMaximums(child, state);
+}
 
-  let cursorY = y;
-  let lineX = 0;
-  let lineH = 0;
-  const flushInlineLine = () => {
-    if (lineX > 0 || lineH > 0) {
-      cursorY += lineH || CHEAP_LINE_H;
-      lineX = 0;
-      lineH = 0;
-    }
-  };
-  for (const childId of childIds) {
-    const childInfo = cheapInfo(childId);
-    const childIsBlock = childInfo.type === ELEMENT_NODE && blockTags.has(childInfo.tag);
-    if (childIsBlock) {
-      flushInlineLine();
-      const ch = cheapLayoutOne(childId, x, cursorY, w);
-      cursorY += ch;
-    } else if (childInfo.type === TEXT_NODE) {
-      const tw = childInfo.text.length * CHEAP_CHAR_W;
-      if (lineX + tw > w && lineX > 0) {
-        cursorY += CHEAP_LINE_H;
-        lineX = 0;
-      }
-      cheapRects.set(childId, {
-        x: x + lineX,
-        y: cursorY,
-        w: Math.min(tw, w),
-        h: CHEAP_LINE_H,
-      });
-      lineX += tw;
-      if (CHEAP_LINE_H > lineH) lineH = CHEAP_LINE_H;
-      if (lineX >= w) {
-        cursorY += CHEAP_LINE_H;
-        lineX = 0;
-        lineH = 0;
-      }
-    } else if (childInfo.type === ELEMENT_NODE) {
-      const ch = cheapLayoutOne(childId, x + lineX, cursorY, w - lineX);
-      const childRect = cheapRects.get(childId);
-      const cw = childRect ? childRect.w : 0;
-      if (lineX + cw > w && lineX > 0) {
-        cursorY += lineH || CHEAP_LINE_H;
-        lineX = 0;
-        lineH = 0;
-        cheapLayoutOne(childId, x, cursorY, w);
-        const r2 = cheapRects.get(childId);
-        const cw2 = r2 ? r2.w : 0;
-        lineX += cw2;
-        if (ch > lineH) lineH = ch;
-      } else {
-        lineX += cw;
-        if (ch > lineH) lineH = ch;
-      }
-    }
+function updateInlineMaximums(child: InlineChildLayout, state: InlineFlowState): void {
+  if (child.width > state.widest) state.widest = child.width;
+  if (child.height > state.lineMaxH) state.lineMaxH = child.height;
+}
+
+interface BlockFlowState {
+  cursorY: number;
+  lineX: number;
+  lineH: number;
+}
+
+function layoutBlockContainer(
+  id: number,
+  childIds: number[],
+  x: number,
+  y: number,
+  width: number,
+): number {
+  const state: BlockFlowState = { cursorY: y, lineX: 0, lineH: 0 };
+  for (const childId of childIds) applyBlockChild(childId, x, width, state);
+  flushBlockInlineLine(state);
+  const height = Math.max(state.cursorY - y, CHEAP_LINE_H);
+  cheapRects.set(id, { x, y, w: width, h: height });
+  return height;
+}
+
+function applyBlockChild(childId: number, x: number, width: number, state: BlockFlowState): void {
+  const info = cheapInfo(childId);
+  if (info.type === ELEMENT_NODE && blockTags.has(info.tag)) {
+    flushBlockInlineLine(state);
+    state.cursorY += cheapLayoutOne(childId, x, state.cursorY, width);
+    return;
   }
-  flushInlineLine();
-  const totalH = Math.max(cursorY - y, CHEAP_LINE_H);
-  cheapRects.set(id, { x, y, w, h: totalH });
-  return totalH;
+  if (info.type === TEXT_NODE) {
+    layoutBlockTextChild(childId, info, x, width, state);
+    return;
+  }
+  if (info.type === ELEMENT_NODE) layoutBlockElementChild(childId, x, width, state);
+}
+
+function layoutBlockTextChild(
+  childId: number,
+  info: CheapInfo,
+  x: number,
+  width: number,
+  state: BlockFlowState,
+): void {
+  const textWidth = info.text.length * CHEAP_CHAR_W;
+  if (state.lineX + textWidth > width && state.lineX > 0) {
+    state.cursorY += CHEAP_LINE_H;
+    state.lineX = 0;
+  }
+  cheapRects.set(childId, {
+    x: x + state.lineX,
+    y: state.cursorY,
+    w: Math.min(textWidth, width),
+    h: CHEAP_LINE_H,
+  });
+  state.lineX += textWidth;
+  if (CHEAP_LINE_H > state.lineH) state.lineH = CHEAP_LINE_H;
+  if (state.lineX >= width) {
+    state.cursorY += CHEAP_LINE_H;
+    state.lineX = 0;
+    state.lineH = 0;
+  }
+}
+
+function layoutBlockElementChild(
+  childId: number,
+  x: number,
+  width: number,
+  state: BlockFlowState,
+): void {
+  const height = cheapLayoutOne(childId, x + state.lineX, state.cursorY, width - state.lineX);
+  const childWidth = cheapChildRectWidth(childId);
+  if (state.lineX + childWidth > width && state.lineX > 0) {
+    flushBlockInlineLine(state);
+    cheapLayoutOne(childId, x, state.cursorY, width);
+    state.lineX += cheapChildRectWidth(childId);
+    increaseBlockLineHeight(state, height);
+  } else {
+    state.lineX += childWidth;
+    increaseBlockLineHeight(state, height);
+  }
+}
+
+function cheapChildRectWidth(childId: number): number {
+  const rect = cheapRects.get(childId);
+  return rect ? rect.w : 0;
+}
+
+function increaseBlockLineHeight(state: BlockFlowState, height: number): void {
+  if (height > state.lineH) state.lineH = height;
+}
+
+function flushBlockInlineLine(state: BlockFlowState): void {
+  if (state.lineX > 0 || state.lineH > 0) {
+    state.cursorY += state.lineH || CHEAP_LINE_H;
+    state.lineX = 0;
+    state.lineH = 0;
+  }
 }
 
 export function cheapLayoutEnsure(): void {
@@ -322,10 +442,10 @@ export function cheapHit(x: number, y: number): number {
   let bestId = -1;
   let bestArea = Infinity;
   cheapRects.forEach((r, id) => {
-    if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) return;
-    if (r.w <= 0 || r.h <= 0) return;
+    if (!containsCheapPoint(r, x, y)) return;
+    if (!hasPositiveCheapArea(r)) return;
     const info = cheapInfo(id);
-    if (info.type !== ELEMENT_NODE && info.type !== DOCUMENT_NODE) return;
+    if (!isElementOrDocument(info)) return;
     const area = r.w * r.h;
     if (area < bestArea) {
       bestArea = area;
@@ -335,73 +455,147 @@ export function cheapHit(x: number, y: number): number {
   return bestId;
 }
 
+function containsCheapPoint(
+  rect: { x: number; y: number; w: number; h: number },
+  x: number,
+  y: number,
+): boolean {
+  return !(x < rect.x || x >= rect.x + rect.w || y < rect.y || y >= rect.y + rect.h);
+}
+
+function hasPositiveCheapArea(rect: { w: number; h: number }): boolean {
+  return rect.w > 0 && rect.h > 0;
+}
+
 export function hasLayoutBox(nodeId: number): boolean {
-  if (typeof nodeId !== "number" || nodeId < 0) return true;
+  if (isInvalidLayoutNodeId(nodeId)) return true;
   try {
-    const rect = getRectByAuthId
-      ? getRectByAuthId(nodeId)
-      : (dom as any).getBoundingClientRect(nodeId);
-    if (rect && (rect.width < 0 || rect.height < 0)) return false;
+    const rect = readLayoutRect(nodeId, getRectByAuthId);
+    if (hasNegativeRect(rect)) return false;
   } catch {}
   return true;
 }
 
-export function getRect(nodeId: number): { x: number; y: number; width: number; height: number } {
-  if (typeof nodeId !== "number" || nodeId < 0) {
-    return { x: 0, y: 0, width: 0, height: 0 };
-  }
-  if (getRectByAuthId) {
-    try {
-      const rect = getRectByAuthId(nodeId);
-      if (rect && (rect.width < 0 || rect.height < 0)) {
-        return { x: 0, y: 0, width: 0, height: 0 };
-      }
-      if (rect && (rect.hasBox === true || rect.width > 0 || rect.height > 0)) {
-        return {
-          x: rect.x ?? 0,
-          y: rect.y ?? 0,
-          width: rect.width ?? 0,
-          height: rect.height ?? 0,
-        };
-      }
-    } catch {}
-    try {
-      cheapLayoutEnsure();
-      const rect = cheapRects.get(nodeId);
-      if (rect) return { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
-    } catch {}
-    return { x: 0, y: 0, width: 0, height: 0 };
-  }
-  const scroll = scrollOffset();
-  const toViewport = (rect: { x: number; y: number; width: number; height: number }) => ({
+type AuthRect = AuthRectSnapshot | null | undefined;
+type RectCallback = NonNullable<typeof getRectByAuthId>;
+type ViewportRect = { x: number; y: number; width: number; height: number };
+type ScrollOffset = { x: number; y: number };
+
+interface WasmRectLike {
+  x: number | null | undefined;
+  y: number | null | undefined;
+  width: number | null | undefined;
+  height: number | null | undefined;
+}
+
+function isInvalidLayoutNodeId(nodeId: number): boolean {
+  return typeof nodeId !== "number" || nodeId < 0;
+}
+
+function readLayoutRect(nodeId: number, getAuthRect: typeof getRectByAuthId): AuthRect {
+  return getAuthRect ? getAuthRect(nodeId) : (dom as any).getBoundingClientRect(nodeId);
+}
+
+function hasNegativeRect(rect: AuthRect): boolean {
+  return !!rect && (rect.width < 0 || rect.height < 0);
+}
+
+function hasAuthRectBox(rect: AuthRect): rect is AuthRectSnapshot {
+  return !!rect && (rect.hasBox === true || rect.width > 0 || rect.height > 0);
+}
+
+function emptyRect(): ViewportRect {
+  return { x: 0, y: 0, width: 0, height: 0 };
+}
+
+function normalizeAuthRect(rect: AuthRectSnapshot): ViewportRect {
+  return {
+    x: rect.x ?? 0,
+    y: rect.y ?? 0,
+    width: rect.width ?? 0,
+    height: rect.height ?? 0,
+  };
+}
+
+function normalizeWasmRect(rect: WasmRectLike): ViewportRect {
+  return {
+    x: rect.x ?? 0,
+    y: rect.y ?? 0,
+    width: rect.width ?? 0,
+    height: rect.height ?? 0,
+  };
+}
+
+function viewportRect(rect: ViewportRect, scroll: ScrollOffset): ViewportRect {
+  return {
     x: rect.x - scroll.x,
     y: rect.y - scroll.y,
     width: rect.width,
     height: rect.height,
-  });
-  if (layoutMode() === "off") {
-    cheapLayoutEnsure();
-    const rect = cheapRects.get(nodeId);
-    if (rect) return toViewport({ x: rect.x, y: rect.y, width: rect.w, height: rect.h });
-    return { x: 0, y: 0, width: 0, height: 0 };
+  };
+}
+
+function readAuthorizedRect(nodeId: number, getAuthRect: RectCallback): ViewportRect | null {
+  try {
+    const rect = getAuthRect(nodeId);
+    if (hasNegativeRect(rect)) return emptyRect();
+    if (hasAuthRectBox(rect)) return normalizeAuthRect(rect);
+  } catch {}
+  return null;
+}
+
+function authorizedRectOrFallback(nodeId: number, getAuthRect: RectCallback): ViewportRect {
+  const rect = readAuthorizedRect(nodeId, getAuthRect);
+  if (rect) return rect;
+  return cheapRectOrEmpty(nodeId);
+}
+
+function readCheapRect(nodeId: number): ViewportRect | null {
+  cheapLayoutEnsure();
+  const rect = cheapRects.get(nodeId);
+  if (!rect) return null;
+  return { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
+}
+
+function cheapRectOrEmpty(nodeId: number): ViewportRect {
+  try {
+    const rect = readCheapRect(nodeId);
+    if (rect) return rect;
+  } catch {}
+  return emptyRect();
+}
+
+function cheapViewportRect(nodeId: number, scroll: ScrollOffset): ViewportRect {
+  const rect = readCheapRect(nodeId);
+  return rect ? viewportRect(rect, scroll) : emptyRect();
+}
+
+function cheapViewportRectOrEmpty(nodeId: number, scroll: ScrollOffset): ViewportRect {
+  try {
+    return cheapViewportRect(nodeId, scroll);
+  } catch {
+    return emptyRect();
   }
+}
+
+function localRect(nodeId: number): ViewportRect {
+  const scroll = scrollOffset();
+  if (layoutMode() === "off") return cheapViewportRect(nodeId, scroll);
+  return wasmRectOrFallback(nodeId, scroll);
+}
+
+function wasmRectOrFallback(nodeId: number, scroll: ScrollOffset): ViewportRect {
   try {
     const rect = (dom as any).getBoundingClientRect(nodeId);
-    if (rect && (rect.width < 0 || rect.height < 0)) {
-      return { x: 0, y: 0, width: 0, height: 0 };
-    }
-    return toViewport({
-      x: rect.x ?? 0,
-      y: rect.y ?? 0,
-      width: rect.width ?? 0,
-      height: rect.height ?? 0,
-    });
+    if (hasNegativeRect(rect)) return emptyRect();
+    return viewportRect(normalizeWasmRect(rect), scroll);
   } catch {
-    try {
-      cheapLayoutEnsure();
-      const rect = cheapRects.get(nodeId);
-      if (rect) return toViewport({ x: rect.x, y: rect.y, width: rect.w, height: rect.h });
-    } catch {}
-    return { x: 0, y: 0, width: 0, height: 0 };
+    return cheapViewportRectOrEmpty(nodeId, scroll);
   }
+}
+
+export function getRect(nodeId: number): ViewportRect {
+  if (isInvalidLayoutNodeId(nodeId)) return emptyRect();
+  if (getRectByAuthId) return authorizedRectOrFallback(nodeId, getRectByAuthId);
+  return localRect(nodeId);
 }

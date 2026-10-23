@@ -41,38 +41,50 @@ function scanPendingRoots(): void {
   scheduled = false;
   const roots = Array.from(pendingRoots);
   pendingRoots.clear();
-  for (const rootId of roots) {
-    let slotIds: number[];
-    try {
-      slotIds = Array.from(dom.querySelectorAllInSubtree(rootId, "slot"));
-    } catch {
-      continue;
-    }
-    for (const slotId of slotIds) {
-      let assigned: number[];
-      try {
-        assigned = Array.from(dom.assignedNodesOf(slotId));
-      } catch {
-        continue;
-      }
-      const key = assigned.join(",");
-      const prev = snapshots.get(slotId) ?? "";
-      if (key === prev) continue;
-      snapshots.set(slotId, key);
-      const slot = nodeFor(slotId);
-      if (!slot || typeof slot.dispatchEvent !== "function") {
-        snapshots.delete(slotId);
-        continue;
-      }
-      try {
-        dispatchTrustedOnKey(
-          slotId,
-          new KsEvent("slotchange", {
-            bubbles: true,
-            cancelable: false,
-          }),
-        );
-      } catch {}
-    }
+  for (const rootId of roots) scanRoot(rootId);
+}
+
+function scanRoot(rootId: number): void {
+  let slotIds: number[];
+  try {
+    slotIds = Array.from(dom.querySelectorAllInSubtree(rootId, "slot"));
+  } catch {
+    return;
   }
+  for (const slotId of slotIds) scanSlot(slotId);
+}
+
+function scanSlot(slotId: number): void {
+  let assigned: number[];
+  try {
+    assigned = Array.from(dom.assignedNodesOf(slotId));
+  } catch {
+    return;
+  }
+  const key = assigned.join(",");
+  const prev = snapshots.get(slotId) ?? "";
+  if (key === prev) return;
+  snapshots.set(slotId, key);
+  const slot = nodeFor(slotId);
+  if (isInvalidSlot(slot)) {
+    snapshots.delete(slotId);
+    return;
+  }
+  dispatchSlotchange(slotId);
+}
+
+function isInvalidSlot(slot: ReturnType<typeof nodeFor>): boolean {
+  return !slot || typeof slot.dispatchEvent !== "function";
+}
+
+function dispatchSlotchange(slotId: number): void {
+  try {
+    dispatchTrustedOnKey(
+      slotId,
+      new KsEvent("slotchange", {
+        bubbles: true,
+        cancelable: false,
+      }),
+    );
+  } catch {}
 }

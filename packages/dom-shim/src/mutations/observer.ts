@@ -58,48 +58,70 @@ type LinkishNode = {
   querySelectorAll?: (sel: string) => ArrayLike<LinkishNode>;
 };
 
-function notifyLinkInserts(insertedNode: LinkishNode, nested: LinkishNode[]): void {
-  const fire = (el: LinkishNode): void => {
-    try {
-      const rel = (typeof el.getAttribute === "function" && el.getAttribute("rel")) || "";
-      if (!REL_LOADABLE.test(String(rel))) return;
-      let id = NaN;
-      let href = "";
-      try {
-        id = Number(el._id);
-        href = String(el.href ?? "");
-      } catch {}
-      if (
-        String(rel).toLowerCase().split(/\s+/).includes("stylesheet") &&
-        !(typeof el.getAttribute === "function" && el.getAttribute("media")) &&
-        /^https?:/i.test(href)
-      )
-        return;
-      if (Number.isFinite(id)) linkLoadFired.set(id, href);
-      queueMicrotask(() => {
-        let live = false;
-        let nowHref = "";
-        try {
-          live = el.isConnected === true;
-          nowHref = String(el.href ?? "");
-        } catch {}
-        if (!live || nowHref !== href) {
-          if (Number.isFinite(id) && linkLoadFired.get(id) === href) {
-            linkLoadFired.delete(id);
-          }
-          return;
-        }
-        try {
-          if (typeof el.dispatchEvent === "function") {
-            el.dispatchEvent(new KsEvent("load"));
-          }
-        } catch {}
-      });
-    } catch {}
-  };
+function linkIdentity(el: LinkishNode): { id: number; href: string } {
+  let id = NaN;
+  let href = "";
   try {
-    if (String(insertedNode.tagName ?? "").toUpperCase() === "LINK") fire(insertedNode);
-    for (const el of nested) fire(el);
+    id = Number(el._id);
+    href = String(el.href ?? "");
+  } catch {}
+  return { id, href };
+}
+
+function loadableLinkRelation(el: LinkishNode): unknown | null {
+  const rel = (typeof el.getAttribute === "function" && el.getAttribute("rel")) || "";
+  return REL_LOADABLE.test(String(rel)) ? rel : null;
+}
+
+function isSkippedExternalStylesheet(el: LinkishNode, rel: unknown, href: string): boolean {
+  return (
+    String(rel).toLowerCase().split(/\s+/).includes("stylesheet") &&
+    !(typeof el.getAttribute === "function" && el.getAttribute("media")) &&
+    /^https?:/i.test(href)
+  );
+}
+
+function clearStaleLinkLoad(id: number, href: string): void {
+  if (Number.isFinite(id) && linkLoadFired.get(id) === href) linkLoadFired.delete(id);
+}
+
+function dispatchLinkLoad(el: LinkishNode): void {
+  try {
+    if (typeof el.dispatchEvent === "function") el.dispatchEvent(new KsEvent("load"));
+  } catch {}
+}
+
+function deliverLinkLoad(el: LinkishNode, id: number, href: string): void {
+  let live = false;
+  let nowHref = "";
+  try {
+    live = el.isConnected === true;
+    nowHref = String(el.href ?? "");
+  } catch {}
+  if (!live || nowHref !== href) {
+    clearStaleLinkLoad(id, href);
+    return;
+  }
+  dispatchLinkLoad(el);
+}
+
+function notifyLoadableLink(el: LinkishNode): void {
+  try {
+    const rel = loadableLinkRelation(el);
+    if (rel === null) return;
+    const { id, href } = linkIdentity(el);
+    if (isSkippedExternalStylesheet(el, rel, href)) return;
+    if (Number.isFinite(id)) linkLoadFired.set(id, href);
+    queueMicrotask(() => deliverLinkLoad(el, id, href));
+  } catch {}
+}
+
+function notifyLinkInserts(insertedNode: LinkishNode, nested: LinkishNode[]): void {
+  try {
+    if (String(insertedNode.tagName ?? "").toUpperCase() === "LINK") {
+      notifyLoadableLink(insertedNode);
+    }
+    for (const el of nested) notifyLoadableLink(el);
   } catch {}
 }
 
@@ -121,13 +143,13 @@ export class MutationRecord implements Idl.MutationRecord {
     if (token !== RECORD_TOKEN) throw new TypeError("Illegal constructor");
     this.#type = type;
     this.#target = target;
-    this.#addedNodes = extras.addedNodes || [];
-    this.#removedNodes = extras.removedNodes || [];
-    this.#previousSibling = extras.previousSibling || null;
-    this.#nextSibling = extras.nextSibling || null;
-    this.#attributeName = extras.attributeName ?? null;
-    this.#attributeNamespace = extras.attributeNamespace ?? null;
-    this.#oldValue = extras.oldValue ?? null;
+    this.#addedNodes = nodeListOrEmpty(extras.addedNodes);
+    this.#removedNodes = nodeListOrEmpty(extras.removedNodes);
+    this.#previousSibling = siblingOrNull(extras.previousSibling);
+    this.#nextSibling = siblingOrNull(extras.nextSibling);
+    this.#attributeName = stringOrNull(extras.attributeName);
+    this.#attributeNamespace = stringOrNull(extras.attributeNamespace);
+    this.#oldValue = stringOrNull(extras.oldValue);
   }
   get type() {
     return this.#type;
@@ -158,6 +180,18 @@ export class MutationRecord implements Idl.MutationRecord {
   }
 }
 
+function nodeListOrEmpty(nodes?: NodeBase[]): NodeBase[] {
+  return nodes || [];
+}
+
+function siblingOrNull(node?: NodeBase | null): NodeBase | null {
+  return node || null;
+}
+
+function stringOrNull(value?: string | null): string | null {
+  return value ?? null;
+}
+
 function makeRecord(
   type: MutationKind,
   target: NodeBase,
@@ -168,28 +202,31 @@ function makeRecord(
 
 let moDeliveryScheduled = false;
 
-function scheduleMoDelivery() {
-  if (moDeliveryScheduled) return;
-  moDeliveryScheduled = true;
-  const fire = () => {
-    moDeliveryScheduled = false;
-    // Clear before callbacks so callback mutations schedule a later delivery.
-    const observers = Array.from(moPendingObservers);
-    moPendingObservers.clear();
-    for (const obs of observers) {
-      // Transient registrations survive until this batch's removal records are collected.
-      const records = takeQueuedRecords(obs);
-      clearTransientObservers(obs);
-      if (records.length === 0) continue;
-      try {
-        invokeObserverCallback(obs, records);
-      } catch (e) {
-        try {
-          (ksGlobal.console || console).error("MO callback threw:", e);
-        } catch {}
-      }
+function reportObserverCallbackError(error: unknown): void {
+  try {
+    (ksGlobal.console || console).error("MO callback threw:", error);
+  } catch {}
+}
+
+function deliverObserverBatch(): void {
+  moDeliveryScheduled = false;
+  // Clear before callbacks so callback mutations schedule a later delivery.
+  const observers = Array.from(moPendingObservers);
+  moPendingObservers.clear();
+  for (const obs of observers) {
+    // Transient registrations survive until this batch's removal records are collected.
+    const records = takeQueuedRecords(obs);
+    clearTransientObservers(obs);
+    if (records.length === 0) continue;
+    try {
+      invokeObserverCallback(obs, records);
+    } catch (error) {
+      reportObserverCallbackError(error);
     }
-  };
+  }
+}
+
+function enqueueObserverBatch(fire: () => void): void {
   if (typeof queueMicrotask === "function") {
     queueMicrotask(fire);
   } else {
@@ -197,9 +234,36 @@ function scheduleMoDelivery() {
   }
 }
 
+function scheduleMoDelivery(): void {
+  if (moDeliveryScheduled) return;
+  moDeliveryScheduled = true;
+  enqueueObserverBatch(deliverObserverBatch);
+}
+
 const mutationObservers: ObserverRegistration[] = [];
 const transientSourcesByTarget = new Map<number, Set<ObserverRegistration>>();
 const transientTargetsBySource = new Map<ObserverRegistration, Set<number>>();
+
+function observerParentId(targetId: number): number {
+  try {
+    return (dom as any).parentId(targetId);
+  } catch {
+    return -1;
+  }
+}
+
+function visitTransientSourcesAt(
+  targetId: number,
+  visit: (source: ObserverRegistration) => void,
+): void {
+  const sources = transientSourcesByTarget.get(targetId);
+  if (!sources) return;
+  for (const source of sources) visit(source);
+}
+
+function invalidObserverParent(parentId: number, targetId: number): boolean {
+  return parentId < 0 || parentId === targetId;
+}
 
 function forEachMatchingTransientSource(
   targetId: number,
@@ -208,28 +272,25 @@ function forEachMatchingTransientSource(
   let cur = targetId;
   let safety = 0;
   while (safety <= OBSERVER_ANCESTOR_HOP_LIMIT) {
-    const sources = transientSourcesByTarget.get(cur);
-    if (sources) for (const source of sources) visit(source);
-    let parent;
-    try {
-      parent = (dom as any).parentId(cur);
-    } catch {
-      return;
-    }
-    if (parent < 0 || parent === cur) return;
+    visitTransientSourcesAt(cur, visit);
+    const parent = observerParentId(cur);
+    if (invalidObserverParent(parent, cur)) return;
     cur = parent;
     safety++;
   }
 }
 
+function removeTransientTarget(source: ObserverRegistration, targetId: number): void {
+  const sources = transientSourcesByTarget.get(targetId);
+  if (!sources) return;
+  sources.delete(source);
+  if (sources.size === 0) transientSourcesByTarget.delete(targetId);
+}
+
 function clearTransientSource(source: ObserverRegistration): void {
   const targetIds = transientTargetsBySource.get(source);
   if (!targetIds) return;
-  for (const targetId of targetIds) {
-    const sources = transientSourcesByTarget.get(targetId);
-    sources?.delete(source);
-    if (sources?.size === 0) transientSourcesByTarget.delete(targetId);
-  }
+  for (const targetId of targetIds) removeTransientTarget(source, targetId);
   transientTargetsBySource.delete(source);
 }
 
@@ -253,20 +314,16 @@ function targetMatchesRegistration(
   subtree: boolean,
 ): boolean {
   if (registeredTargetId === targetId) return true;
-  if (!subtree) return false;
+  return subtree && hasRegisteredAncestor(targetId, registeredTargetId);
+}
+
+function hasRegisteredAncestor(targetId: number, registeredTargetId: number): boolean {
   let cur = targetId;
-  let safety = 0;
-  while (safety < OBSERVER_ANCESTOR_HOP_LIMIT) {
-    let parent;
-    try {
-      parent = (dom as any).parentId(cur);
-    } catch {
-      return false;
-    }
-    if (parent < 0 || parent === cur) return false;
+  for (let safety = 0; safety < OBSERVER_ANCESTOR_HOP_LIMIT; safety++) {
+    const parent = observerParentId(cur);
+    if (invalidObserverParent(parent, cur)) return false;
     if (parent === registeredTargetId) return true;
     cur = parent;
-    safety++;
   }
   return false;
 }
@@ -299,33 +356,40 @@ export function hasSubtreeObserver(targetId: number): boolean {
   return matched;
 }
 
-export function registerTransientObservers(rootId: number): void {
+function isNewTransientSource(entry: ObserverRegistration, rootId: number): boolean {
+  return entry.options.subtree && entry.targetId !== rootId && observerMatchesTarget(entry, rootId);
+}
+
+function collectTransientSources(rootId: number): Set<ObserverRegistration> {
   const sources = new Set<ObserverRegistration>();
   for (const entry of mutationObservers) {
-    if (
-      entry.options.subtree &&
-      entry.targetId !== rootId &&
-      observerMatchesTarget(entry, rootId)
-    ) {
-      sources.add(entry);
-    }
+    if (isNewTransientSource(entry, rootId)) sources.add(entry);
   }
   forEachMatchingTransientSource(rootId, (source) => sources.add(source));
+  return sources;
+}
+
+function registerTransientSource(rootId: number, source: ObserverRegistration): void {
+  let targetSources = transientSourcesByTarget.get(rootId);
+  if (!targetSources) {
+    targetSources = new Set();
+    transientSourcesByTarget.set(rootId, targetSources);
+  }
+  if (targetSources.has(source)) return;
+  targetSources.add(source);
+  moPendingObservers.add(source.observer);
+  let sourceTargets = transientTargetsBySource.get(source);
+  if (!sourceTargets) {
+    sourceTargets = new Set();
+    transientTargetsBySource.set(source, sourceTargets);
+  }
+  sourceTargets.add(rootId);
+}
+
+export function registerTransientObservers(rootId: number): void {
+  const sources = collectTransientSources(rootId);
   for (const source of sources) {
-    let targetSources = transientSourcesByTarget.get(rootId);
-    if (!targetSources) {
-      targetSources = new Set();
-      transientSourcesByTarget.set(rootId, targetSources);
-    }
-    if (targetSources.has(source)) continue;
-    targetSources.add(source);
-    moPendingObservers.add(source.observer);
-    let sourceTargets = transientTargetsBySource.get(source);
-    if (!sourceTargets) {
-      sourceTargets = new Set();
-      transientTargetsBySource.set(source, sourceTargets);
-    }
-    sourceTargets.add(rootId);
+    registerTransientSource(rootId, source);
   }
   if (moPendingObservers.size > 0) scheduleMoDelivery();
 }
@@ -333,50 +397,99 @@ export function registerTransientObservers(rootId: number): void {
 // An observer can match several ancestor registrations; queue one record, keeping the old
 // value if any matching registration requests it, including a removed subtree's transient ones.
 // https://dom.spec.whatwg.org/#queue-a-mutation-record
+function observesMutation(
+  options: NormalizedObserverOptions,
+  kind: MutationKind,
+  extras: MutationRecordExtras,
+): boolean {
+  switch (kind) {
+    case "attributes":
+      return (
+        options.attributes &&
+        (!Array.isArray(options.attributeFilter) ||
+          options.attributeFilter.includes(extras.attributeName))
+      );
+    case "characterData":
+      return options.characterData;
+    case "childList":
+      return options.childList;
+  }
+}
+
+function requestsOldValue(options: NormalizedObserverOptions, kind: MutationKind): boolean {
+  return (
+    (kind === "attributes" && options.attributeOldValue) ||
+    (kind === "characterData" && options.characterDataOldValue)
+  );
+}
+
+function considerObserverMutation(
+  interested: Map<MutationObserverImpl, boolean>,
+  entry: ObserverRegistration,
+  kind: MutationKind,
+  extras: MutationRecordExtras,
+  matches: boolean,
+): void {
+  if (!matches || !observesMutation(entry.options, kind, extras)) return;
+  const wantsOldValue = requestsOldValue(entry.options, kind);
+  interested.set(entry.observer, interested.get(entry.observer) === true || wantsOldValue);
+}
+
+function observerMutationInterests(
+  targetId: number,
+  kind: MutationKind,
+  extras: MutationRecordExtras,
+): Map<MutationObserverImpl, boolean> {
+  const interested = new Map<MutationObserverImpl, boolean>();
+  for (const entry of mutationObservers) {
+    considerObserverMutation(
+      interested,
+      entry,
+      kind,
+      extras,
+      observerMatchesTarget(entry, targetId),
+    );
+  }
+  forEachMatchingTransientSource(targetId, (source) => {
+    considerObserverMutation(interested, source, kind, extras, true);
+  });
+  return interested;
+}
+
+function queueObserverMutationRecord(
+  observer: MutationObserverImpl,
+  wantsOldValue: boolean,
+  kind: MutationKind,
+  target: NodeBase,
+  extras: MutationRecordExtras,
+): void {
+  const recordExtras = { ...extras };
+  if ((kind === "attributes" || kind === "characterData") && !wantsOldValue) {
+    recordExtras.oldValue = null;
+  }
+  queueObserverRecord(observer, makeRecord(kind, target, recordExtras));
+  moPendingObservers.add(observer);
+}
+
 function queueMutationRecord(
   kind: MutationKind,
   target: NodeBase,
   extras: MutationRecordExtras,
 ): void {
-  if (mutationObservers.length === 0) return;
-  if (!target || typeof target._id !== "number") return;
+  if (!canQueueMutationRecord(target)) return;
   const targetId = target._id;
-  const interested = new Map<MutationObserverImpl, boolean>();
-  const consider = (entry: ObserverRegistration, matches: boolean): void => {
-    if (!matches) return;
-    const opts = entry.options;
-    if (kind === "attributes") {
-      if (!opts.attributes) return;
-      if (
-        Array.isArray(opts.attributeFilter) &&
-        !opts.attributeFilter.includes(extras.attributeName)
-      )
-        return;
-    } else if (kind === "characterData") {
-      if (!opts.characterData) return;
-    } else if (kind === "childList") {
-      if (!opts.childList) return;
-    } else {
-      return;
-    }
-    const wantsOldValue =
-      (kind === "attributes" && opts.attributeOldValue) ||
-      (kind === "characterData" && opts.characterDataOldValue);
-    interested.set(entry.observer, interested.get(entry.observer) === true || wantsOldValue);
-  };
-  for (const entry of mutationObservers) {
-    consider(entry, observerMatchesTarget(entry, targetId));
-  }
-  forEachMatchingTransientSource(targetId, (source) => consider(source, true));
+  const interested = observerMutationInterests(targetId, kind, extras);
   for (const [observer, wantsOldValue] of interested) {
-    const recExtras = { ...extras };
-    if ((kind === "attributes" || kind === "characterData") && !wantsOldValue) {
-      recExtras.oldValue = null;
-    }
-    const rec = makeRecord(kind, target, recExtras);
-    queueObserverRecord(observer, rec);
-    moPendingObservers.add(observer);
+    queueObserverMutationRecord(observer, wantsOldValue, kind, target, extras);
   }
+  scheduleMoDeliveryIfNeeded();
+}
+
+function canQueueMutationRecord(target: NodeBase): boolean {
+  return mutationObservers.length > 0 && Boolean(target) && typeof target._id === "number";
+}
+
+function scheduleMoDeliveryIfNeeded(): void {
   if (moPendingObservers.size > 0) scheduleMoDelivery();
 }
 
@@ -416,9 +529,7 @@ export function recordChildListMutation(
   previousSibling: NodeBase | null,
   nextSibling: NodeBase | null,
 ): void {
-  if (mutationObservers.length === 0) return;
-  if (!parent) return;
-  if (suppressedChildListTargets.has(parent)) return;
+  if (!shouldRecordChildListMutation(parent)) return;
   queueMutationRecord("childList", parent, {
     addedNodes,
     removedNodes,
@@ -427,35 +538,64 @@ export function recordChildListMutation(
   });
 }
 
+function shouldRecordChildListMutation(parent: NodeBase): boolean {
+  return mutationObservers.length > 0 && Boolean(parent) && !suppressedChildListTargets.has(parent);
+}
+
+function invokeIframeHook(hook: (element: unknown) => void, element: unknown): void {
+  try {
+    hook(element);
+  } catch {}
+}
+
+function notifyDirectIframeInsert(
+  hook: (element: unknown) => void,
+  insertedNode: LinkishNode,
+): void {
+  if (String(insertedNode.tagName ?? "").toUpperCase() === "IFRAME") {
+    invokeIframeHook(hook, insertedNode);
+  }
+}
+
 function notifyIframeInserts(insertedNode: LinkishNode, nested: LinkishNode[]): void {
   const hook = getInternalState().afterIframeInsert;
   if (typeof hook !== "function") return;
   try {
-    const tag = String(insertedNode.tagName ?? "").toUpperCase();
-    if (tag === "IFRAME") {
-      try {
-        hook(insertedNode);
-      } catch {}
-    }
-    for (const el of nested) {
-      try {
-        hook(el);
-      } catch {}
-    }
+    notifyDirectIframeInsert(hook, insertedNode);
+    for (const el of nested) invokeIframeHook(hook, el);
   } catch {}
 }
 
 interface RemovedNode {
+  readonly nodeName?: string;
   readonly tagName?: string;
   readonly querySelectorAll?: (
     selectors: string,
   ) => Iterable<unknown> & { readonly length: number };
 }
 
-function notifyIframeRemove(hook: (element: unknown) => void, element: unknown) {
+function queryRemovedIframes(
+  removedNode: RemovedNode,
+): (Iterable<unknown> & { readonly length: number }) | null {
+  if (typeof removedNode.querySelectorAll !== "function") return null;
   try {
-    hook(element);
-  } catch {}
+    return removedNode.querySelectorAll("iframe");
+  } catch {
+    return null;
+  }
+}
+
+function notifyNestedIframeRemoves(
+  hook: (element: unknown) => void,
+  removedNode: RemovedNode,
+): void {
+  const nested = queryRemovedIframes(removedNode);
+  if (!nested || !nested.length) return;
+  for (const element of nested) invokeIframeHook(hook, element);
+}
+
+function isIframeTag(tagName: string | undefined): boolean {
+  return (tagName || "").toUpperCase() === "IFRAME";
 }
 
 export function notifyIframeRemoves(removedNode: RemovedNode | null | undefined): void {
@@ -463,152 +603,269 @@ export function notifyIframeRemoves(removedNode: RemovedNode | null | undefined)
   const hook = getInternalState().afterIframeRemove;
   if (typeof hook !== "function") return;
   try {
-    const tag = (removedNode.tagName || "").toUpperCase();
-    if (tag === "IFRAME") {
-      notifyIframeRemove(hook, removedNode);
-    }
-    if (typeof removedNode.querySelectorAll === "function") {
-      let nested;
-      try {
-        nested = removedNode.querySelectorAll("iframe");
-      } catch {
-        nested = null;
-      }
-      if (nested && nested.length) {
-        for (const el of nested) notifyIframeRemove(hook, el);
-      }
-    }
+    if (isIframeTag(removedNode.tagName)) invokeIframeHook(hook, removedNode);
+    notifyNestedIframeRemoves(hook, removedNode);
   } catch {}
 }
 
 const runtimeCreatedScriptIds = new Set<number>();
 const executedScriptIds = new Set<number>();
 
+interface ScriptIds {
+  readonly source: number;
+  readonly clone: number;
+}
+
+interface ScriptInsertDetails {
+  readonly id: number;
+  readonly src: string;
+  readonly type: string;
+  readonly source: string;
+  readonly integrity: string;
+  readonly nonce: string;
+  readonly crossOrigin: string | null;
+}
+
+interface ResourceDescendants {
+  readonly iframes: LinkishNode[];
+  readonly scripts: LinkishNode[];
+  readonly links: LinkishNode[];
+}
+
 export function markRuntimeCreatedScript(id: number): void {
   if (typeof id === "number" && id >= 0) runtimeCreatedScriptIds.add(id);
 }
 
-export function copyScriptStartedFlag(src: LinkishNode, clone: LinkishNode): void {
+function readScriptIds(src: LinkishNode, clone: LinkishNode): ScriptIds | null {
   let srcId: unknown, cloneId: unknown;
   try {
     srcId = src._id;
     cloneId = clone._id;
   } catch {
-    return;
+    return null;
   }
-  if (typeof srcId !== "number" || typeof cloneId !== "number" || cloneId < 0) return;
-  let started = executedScriptIds.has(srcId);
-  if (!started && !runtimeCreatedScriptIds.has(srcId)) {
-    let inFragment = false;
-    try {
-      const root = src.getRootNode?.() as { nodeType?: unknown } | null | undefined;
-      inFragment = root?.nodeType === DOCUMENT_FRAGMENT_NODE;
-    } catch {}
-    let type = "";
-    try {
-      type = String(src.getAttribute?.("type") || "")
-        .trim()
-        .toLowerCase();
-    } catch {}
-    started =
-      !inFragment &&
-      (type === "" ||
-        type === "text/javascript" ||
-        type === "application/javascript" ||
-        type === "module" ||
-        type === "importmap");
+  if (!isNumber(srcId) || !isNonNegativeNumber(cloneId)) return null;
+  return { source: srcId, clone: cloneId };
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === "number";
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === "number" && value >= 0;
+}
+
+function scriptIsInFragment(script: LinkishNode): boolean {
+  try {
+    const root = script.getRootNode?.() as { nodeType?: unknown } | null | undefined;
+    return root?.nodeType === DOCUMENT_FRAGMENT_NODE;
+  } catch {
+    return false;
   }
-  if (started) executedScriptIds.add(cloneId);
+}
+
+function scriptType(script: LinkishNode): string {
+  try {
+    return String(script.getAttribute?.("type") || "")
+      .trim()
+      .toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function isExecutableScriptType(type: string): boolean {
+  return (
+    type === "" ||
+    type === "text/javascript" ||
+    type === "application/javascript" ||
+    type === "module"
+  );
+}
+
+function isCopyableScriptType(type: string): boolean {
+  return isExecutableScriptType(type) || type === "importmap";
+}
+
+function scriptWasStarted(sourceId: number, script: LinkishNode): boolean {
+  if (executedScriptIds.has(sourceId)) return true;
+  if (runtimeCreatedScriptIds.has(sourceId)) return false;
+  return !scriptIsInFragment(script) && isCopyableScriptType(scriptType(script));
+}
+
+export function copyScriptStartedFlag(src: LinkishNode, clone: LinkishNode): void {
+  const ids = readScriptIds(src, clone);
+  if (!ids) return;
+  if (scriptWasStarted(ids.source, src)) executedScriptIds.add(ids.clone);
+}
+
+function scriptId(script: LinkishNode): number | null {
+  try {
+    const id = script._id;
+    return isNonNegativeNumber(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function isRuntimeScriptPending(id: number): boolean {
+  return runtimeCreatedScriptIds.has(id) && !executedScriptIds.has(id);
+}
+
+function isScriptRootedInDocument(script: LinkishNode): boolean {
+  try {
+    return (
+      typeof script.getRootNode === "function" &&
+      script.getRootNode({ composed: true }) === ksGlobal.document
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isConnectedScript(script: LinkishNode): boolean {
+  try {
+    return script.isConnected === true;
+  } catch {
+    return false;
+  }
+}
+
+function isLiveScript(script: LinkishNode): boolean {
+  return isScriptRootedInDocument(script) && isConnectedScript(script);
+}
+
+function readScriptSource(script: LinkishNode): string {
+  try {
+    return String(script.getAttribute?.("src") || "");
+  } catch {
+    return "";
+  }
+}
+
+function readScriptText(script: LinkishNode): string {
+  try {
+    return String(script.textContent || "");
+  } catch {
+    return "";
+  }
+}
+
+function readScriptIntegrity(script: LinkishNode): string {
+  try {
+    return String(script.getAttribute?.("integrity") || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function readScriptNonce(script: LinkishNode): string {
+  try {
+    const idl = script.nonce;
+    return String(typeof idl === "string" ? idl : script.getAttribute?.("nonce") || "");
+  } catch {
+    return "";
+  }
+}
+
+function scriptCrossOriginValue(script: LinkishNode): string {
+  return String(script.getAttribute?.("crossorigin") || "");
+}
+
+function readScriptCrossOrigin(script: LinkishNode): string | null {
+  try {
+    if (!script.hasAttribute?.("crossorigin")) return null;
+    return scriptCrossOriginValue(script);
+  } catch {
+    return null;
+  }
+}
+
+function scriptInsertDetails(script: LinkishNode, id: number): ScriptInsertDetails | null {
+  const type = scriptType(script);
+  if (!isExecutableScriptType(type)) return null;
+  const src = readScriptSource(script);
+  const source = readScriptText(script);
+  if (!src && source === "") return null;
+  return {
+    id,
+    src,
+    type,
+    source,
+    integrity: readScriptIntegrity(script),
+    nonce: readScriptNonce(script),
+    crossOrigin: readScriptCrossOrigin(script),
+  };
+}
+
+function scriptInsertCandidate(script: LinkishNode): number | null {
+  const id = scriptId(script);
+  if (id === null || !isRuntimeScriptPending(id) || !isLiveScript(script)) return null;
+  return id;
+}
+
+function considerScriptInsert(
+  script: LinkishNode,
+  hook: (details: ScriptInsertDetails) => void,
+): void {
+  const id = scriptInsertCandidate(script);
+  if (id === null) return;
+  const details = scriptInsertDetails(script, id);
+  if (!details) return;
+  executedScriptIds.add(id);
+  try {
+    hook(details);
+  } catch {}
+}
+
+function notifyDirectScriptInsert(
+  insertedNode: LinkishNode,
+  hook: (details: ScriptInsertDetails) => void,
+): void {
+  if (String(insertedNode.tagName ?? "").toUpperCase() === "SCRIPT") {
+    considerScriptInsert(insertedNode, hook);
+  }
+}
+
+function notifyNestedScriptInserts(
+  nested: LinkishNode[],
+  hook: (details: ScriptInsertDetails) => void,
+): void {
+  for (const script of nested) considerScriptInsert(script, hook);
 }
 
 function notifyScriptInserts(insertedNode: LinkishNode, nested: LinkishNode[]): void {
   const hook = getInternalState().afterScriptInsert;
   if (typeof hook !== "function") return;
-  const consider = (el: LinkishNode) => {
-    let id;
-    try {
-      id = el._id;
-    } catch {
-      return;
-    }
-    if (typeof id !== "number" || id < 0) return;
-    if (!runtimeCreatedScriptIds.has(id)) return;
-    if (executedScriptIds.has(id)) return;
-    let rooted = false;
-    try {
-      rooted =
-        typeof el.getRootNode === "function" &&
-        el.getRootNode({ composed: true }) === ksGlobal.document;
-    } catch {}
-    if (!rooted) return;
-    let connected = false;
-    try {
-      connected = el.isConnected === true;
-    } catch {}
-    if (!connected) return;
-    let type = "";
-    try {
-      type = String(el.getAttribute?.("type") || "")
-        .trim()
-        .toLowerCase();
-    } catch {}
-    const isJs =
-      type === "" ||
-      type === "text/javascript" ||
-      type === "application/javascript" ||
-      type === "module";
-    if (!isJs) return;
-    let src = "";
-    try {
-      src = String(el.getAttribute?.("src") || "");
-    } catch {}
-    let source = "";
-    try {
-      source = String(el.textContent || "");
-    } catch {}
-    if (!src && source === "") return;
-    let integrity = "";
-    try {
-      integrity = String(el.getAttribute?.("integrity") || "").trim();
-    } catch {}
-    let nonce = "";
-    try {
-      const idl = el.nonce;
-      nonce = String(typeof idl === "string" ? idl : el.getAttribute?.("nonce") || "");
-    } catch {}
-    let crossOrigin: string | null = null;
-    try {
-      crossOrigin = el.hasAttribute?.("crossorigin")
-        ? String(el.getAttribute?.("crossorigin") || "")
-        : null;
-    } catch {}
-    executedScriptIds.add(id);
-    try {
-      hook({ id, src, type, source, integrity, nonce, crossOrigin });
-    } catch {}
-  };
   try {
-    const tag = String(insertedNode.tagName ?? "").toUpperCase();
-    if (tag === "SCRIPT") consider(insertedNode);
-    for (const el of nested) consider(el);
+    notifyDirectScriptInsert(insertedNode, hook);
+    notifyNestedScriptInserts(nested, hook);
   } catch {}
+}
+
+function addResourceDescendant(el: LinkishNode, groups: ResourceDescendants): void {
+  const tag = String(el.localName ?? "").toLowerCase();
+  if (tag === "iframe") groups.iframes.push(el);
+  else if (tag === "script") groups.scripts.push(el);
+  else if (tag === "link") groups.links.push(el);
+}
+
+function collectResourceDescendants(insertedNode: LinkishNode): ResourceDescendants {
+  const groups: ResourceDescendants = { iframes: [], scripts: [], links: [] };
+  try {
+    if (typeof insertedNode.querySelectorAll === "function") {
+      for (const el of Array.from(insertedNode.querySelectorAll("iframe,script,link"))) {
+        addResourceDescendant(el, groups);
+      }
+    }
+  } catch {}
+  return groups;
 }
 
 export function notifySubtreeInserts(insertedNode: LinkishNode): void {
   // Snapshot resource descendants before insertion hooks can mutate the subtree.
-  const iframes: LinkishNode[] = [];
-  const scripts: LinkishNode[] = [];
-  const links: LinkishNode[] = [];
-  try {
-    if (typeof insertedNode.querySelectorAll === "function") {
-      for (const el of Array.from(insertedNode.querySelectorAll("iframe,script,link"))) {
-        const tag = String(el.localName ?? "").toLowerCase();
-        if (tag === "iframe") iframes.push(el);
-        else if (tag === "script") scripts.push(el);
-        else if (tag === "link") links.push(el);
-      }
-    }
-  } catch {}
+  const { iframes, scripts, links } = collectResourceDescendants(insertedNode);
   notifyIframeInserts(insertedNode, iframes);
   notifyScriptInserts(insertedNode, scripts);
   notifyLinkInserts(insertedNode, links);
@@ -624,6 +881,134 @@ function isObservable(value: unknown): value is { readonly _id: number } {
   return (
     typeof value === "object" && value !== null && "_id" in value && typeof value._id === "number"
   );
+}
+
+function inferredAttributeOption(
+  value: boolean,
+  explicit: boolean,
+  hasOldValue: boolean,
+  hasFilter: boolean,
+): boolean {
+  return value || (!explicit && (hasOldValue || hasFilter));
+}
+
+function inferredCharacterDataOption(
+  value: boolean,
+  explicit: boolean,
+  hasOldValue: boolean,
+): boolean {
+  return value || (!explicit && hasOldValue);
+}
+
+function validateAttributeOldValue(options: Idl.MutationObserverInit, present: boolean): void {
+  if (present && options.attributeOldValue === true) {
+    throw new TypeError("MutationObserver.observe: attributeOldValue requires attributes:true");
+  }
+}
+
+function validateAttributeFilter(present: boolean): void {
+  if (present)
+    throw new TypeError("MutationObserver.observe: attributeFilter requires attributes:true");
+}
+
+function validateAttributeOptions(
+  options: Idl.MutationObserverInit,
+  explicit: boolean,
+  hasOldValue: boolean,
+  hasFilter: boolean,
+): void {
+  if (!explicit || options.attributes !== false) return;
+  validateAttributeOldValue(options, hasOldValue);
+  validateAttributeFilter(hasFilter);
+}
+
+function characterDataNeedsOldValue(
+  options: Idl.MutationObserverInit,
+  explicit: boolean,
+  hasOldValue: boolean,
+): boolean {
+  return (
+    explicit &&
+    options.characterData === false &&
+    hasOldValue &&
+    options.characterDataOldValue === true
+  );
+}
+
+function validateCharacterDataOptions(
+  options: Idl.MutationObserverInit,
+  explicit: boolean,
+  hasOldValue: boolean,
+): void {
+  if (characterDataNeedsOldValue(options, explicit, hasOldValue)) {
+    throw new TypeError(
+      "MutationObserver.observe: characterDataOldValue requires characterData:true",
+    );
+  }
+}
+
+function validateObservedKinds(
+  attributes: boolean,
+  childList: boolean,
+  characterData: boolean,
+): void {
+  if (!attributes && !childList && !characterData) {
+    throw new TypeError(
+      "MutationObserver.observe: at least one of attributes/childList/characterData must be true",
+    );
+  }
+}
+
+function normalizedObserverOptions(options: Idl.MutationObserverInit): NormalizedObserverOptions {
+  // Keep dictionary property reads in the WebIDL conversion order.
+  const attributesExplicit = "attributes" in options;
+  const characterDataExplicit = "characterData" in options;
+  const hasAttrOldValue = "attributeOldValue" in options;
+  const hasAttrFilter = "attributeFilter" in options;
+  const hasCharOldValue = "characterDataOldValue" in options;
+  const attributes = inferredAttributeOption(
+    !!options.attributes,
+    attributesExplicit,
+    hasAttrOldValue,
+    hasAttrFilter,
+  );
+  const characterData = inferredCharacterDataOption(
+    !!options.characterData,
+    characterDataExplicit,
+    hasCharOldValue,
+  );
+  const childList = !!options.childList;
+  const subtree = !!options.subtree;
+
+  validateAttributeOptions(options, attributesExplicit, hasAttrOldValue, hasAttrFilter);
+  validateCharacterDataOptions(options, characterDataExplicit, hasCharOldValue);
+  validateObservedKinds(attributes, childList, characterData);
+
+  return {
+    attributes,
+    childList,
+    characterData,
+    subtree,
+    attributeOldValue: !!options.attributeOldValue,
+    characterDataOldValue: !!options.characterDataOldValue,
+    attributeFilter: Array.isArray(options.attributeFilter)
+      ? options.attributeFilter.slice()
+      : undefined,
+  };
+}
+
+function updateObserverRegistration(
+  observer: MutationObserverImpl,
+  targetId: number,
+  options: NormalizedObserverOptions,
+): boolean {
+  for (const entry of mutationObservers) {
+    if (entry.observer !== observer || entry.targetId !== targetId) continue;
+    clearTransientSource(entry);
+    entry.options = options;
+    return true;
+  }
+  return false;
 }
 
 type MutationCallback = (records: MutationRecord[], observer: MutationObserverImpl) => void;
@@ -664,67 +1049,8 @@ export class MutationObserverImpl implements Idl.MutationObserver {
     }
     const opts = options || {};
     // Option defaults and checks: https://dom.spec.whatwg.org/#dom-mutationobserver-observe
-    const attributesExplicit = "attributes" in opts;
-    const characterDataExplicit = "characterData" in opts;
-    const hasAttrOldValue = "attributeOldValue" in opts;
-    const hasAttrFilter = "attributeFilter" in opts;
-    const hasCharOldValue = "characterDataOldValue" in opts;
-
-    let attributes = !!opts.attributes;
-    if (!attributesExplicit && (hasAttrOldValue || hasAttrFilter)) {
-      attributes = true;
-    }
-    let characterData = !!opts.characterData;
-    if (!characterDataExplicit && hasCharOldValue) {
-      characterData = true;
-    }
-    const childList = !!opts.childList;
-    const subtree = !!opts.subtree;
-
-    if (attributesExplicit && opts.attributes === false) {
-      if (hasAttrOldValue && opts.attributeOldValue === true) {
-        throw new TypeError("MutationObserver.observe: attributeOldValue requires attributes:true");
-      }
-      if (hasAttrFilter) {
-        throw new TypeError("MutationObserver.observe: attributeFilter requires attributes:true");
-      }
-    }
-    if (
-      characterDataExplicit &&
-      opts.characterData === false &&
-      hasCharOldValue &&
-      opts.characterDataOldValue === true
-    ) {
-      throw new TypeError(
-        "MutationObserver.observe: characterDataOldValue requires characterData:true",
-      );
-    }
-    if (!attributes && !childList && !characterData) {
-      throw new TypeError(
-        "MutationObserver.observe: at least one of attributes/childList/characterData must be true",
-      );
-    }
-
-    const normalized: NormalizedObserverOptions = {
-      attributes,
-      childList,
-      characterData,
-      subtree,
-      attributeOldValue: !!opts.attributeOldValue,
-      characterDataOldValue: !!opts.characterDataOldValue,
-      attributeFilter: Array.isArray(opts.attributeFilter)
-        ? opts.attributeFilter.slice()
-        : undefined,
-    };
-    // An existing registration for this target only gets new options.
-    for (let i = 0; i < mutationObservers.length; i++) {
-      const e = mutationObservers[i];
-      if (e.observer === this && e.targetId === target._id) {
-        clearTransientSource(e);
-        e.options = normalized;
-        return;
-      }
-    }
+    const normalized = normalizedObserverOptions(opts);
+    if (updateObserverRegistration(this, target._id, normalized)) return;
     mutationObservers.push({
       observer: this,
       targetId: target._id,

@@ -30,13 +30,21 @@ const FileCtor: typeof File = ksGlobal.File;
 
 function entryValue(value: unknown, filename: string | undefined): string | File {
   if (!(value instanceof BlobCtor)) return String(value);
-  const isFile = value instanceof FileCtor;
-  if (isFile && filename === undefined) return value;
-  const name = filename !== undefined ? filename : isFile ? value.name : "blob";
-  return new FileCtor([value], name, {
+  if (value instanceof FileCtor) return entryFileValue(value, filename);
+  return entryBlobValue(value, filename);
+}
+
+function entryFileValue(value: File, filename: string | undefined): File {
+  if (filename === undefined) return value;
+  return new FileCtor([value], filename, {
     type: value.type,
-    lastModified: isFile ? value.lastModified : undefined,
+    lastModified: value.lastModified,
   });
+}
+
+function entryBlobValue(value: Blob, filename: string | undefined): File {
+  const name = filename !== undefined ? filename : "blob";
+  return new FileCtor([value], name, { type: value.type, lastModified: undefined });
 }
 
 // The two-argument append and set take a USVString; with a filename, the
@@ -61,6 +69,171 @@ function appendFileEntries(entries: FormDataEntry[], name: string, files: File[]
   for (const file of files) entries.push({ name, value: file });
 }
 
+type FormControl = NonNullable<HTMLFormElement["elements"][number]>;
+type Submitter = HTMLInputElement | HTMLButtonElement;
+
+function isAbsent(value: unknown): boolean {
+  return value === undefined || value === null;
+}
+
+function isSubmitButton(value: unknown): value is HTMLButtonElement {
+  return value instanceof HTMLButtonElement && value.type === "submit";
+}
+
+function isSubmitInput(value: unknown): value is HTMLInputElement {
+  if (!(value instanceof HTMLInputElement)) return false;
+  const type = inputTypeOf(value);
+  return type === "submit" || inputTypeOf(value) === "image";
+}
+
+function resolveSubmitter(form: HTMLFormElement, value: unknown): Submitter | null {
+  if (isAbsent(value)) return null;
+  if (!isSubmitButton(value) && !isSubmitInput(value)) {
+    throwInvalidSubmitter();
+  }
+  if (value.form !== form) {
+    throwInvalidSubmitter();
+  }
+  return value;
+}
+
+function throwInvalidSubmitter(): never {
+  throw new (ksGlobal.DOMException || Error)("FormData: invalid submitter", "TypeError");
+}
+
+function dispatchFormData(form: HTMLFormElement, formData: FormData): void {
+  try {
+    // FormDataEvent's pinned IDL omits the shim's formData property.
+    const fdEv = new KsEvent("formdata", { bubbles: true, cancelable: false }) as KsEvent & {
+      formData: FormData;
+    };
+    fdEv.formData = formData;
+    form.dispatchEvent(fdEv);
+  } catch {}
+}
+
+function collectFormEntries(
+  form: HTMLFormElement,
+  submitter: Submitter | null,
+  entries: FormDataEntry[],
+): void {
+  const els = form.elements;
+  for (let i = 0; i < els.length; i++) {
+    appendControlEntries(entries, els[i], submitter);
+  }
+}
+
+function successfulControlName(el: FormControl): string | null {
+  const name = el.getAttribute && el.getAttribute("name");
+  if (!name) return null;
+  if (isDisabledInFormContext(el)) return null;
+  if (isExcludedFormControl(el)) return null;
+  return name;
+}
+
+function isExcludedFormControl(el: FormControl): boolean {
+  return el instanceof HTMLFieldSetElement || el instanceof HTMLObjectElement;
+}
+
+function appendControlEntries(
+  entries: FormDataEntry[],
+  el: FormControl,
+  submitter: Submitter | null,
+): void {
+  const name = successfulControlName(el);
+  if (!name) return;
+  if (el instanceof HTMLInputElement) {
+    appendInputEntry(entries, name, el, submitter);
+    return;
+  }
+  if (el instanceof HTMLTextAreaElement) {
+    entries.push({ name, value: el.value });
+    return;
+  }
+  appendRemainingControlEntries(entries, name, el, submitter);
+}
+
+function appendRemainingControlEntries(
+  entries: FormDataEntry[],
+  name: string,
+  el: FormControl,
+  submitter: Submitter | null,
+): void {
+  if (el instanceof HTMLSelectElement) {
+    appendSelectEntries(entries, name, el);
+    return;
+  }
+  if (el instanceof HTMLButtonElement) {
+    if (el !== submitter) return;
+    entries.push({ name, value: el.value });
+    return;
+  }
+  if (el instanceof HTMLOutputElement) return;
+}
+
+function appendInputEntry(
+  entries: FormDataEntry[],
+  name: string,
+  el: HTMLInputElement,
+  submitter: Submitter | null,
+): void {
+  const type = inputTypeOf(el);
+  switch (type) {
+    case "checkbox":
+    case "radio":
+      if (el.checked) entries.push({ name, value: el.value });
+      return;
+    case "submit":
+    case "image":
+    case "reset":
+    case "button":
+      if (el === submitter) entries.push({ name, value: el.value });
+      return;
+    case "hidden":
+      if (name.toLowerCase() === "_charset_") {
+        entries.push({ name, value: "UTF-8" });
+        return;
+      }
+      break;
+    case "file":
+      appendFileInputEntries(entries, name, el);
+      return;
+  }
+  entries.push({ name, value: el.value });
+}
+
+function appendFileInputEntries(
+  entries: FormDataEntry[],
+  name: string,
+  el: HTMLInputElement,
+): void {
+  appendFileEntries(entries, name, fileInputFiles.get(el._id) || []);
+}
+
+function appendSelectEntries(entries: FormDataEntry[], name: string, el: HTMLSelectElement): void {
+  const options: HTMLOptionElement[] = selectOptions(el);
+  for (const option of options) {
+    if (option.selected && !option.disabled) entries.push({ name, value: option.value });
+  }
+}
+
+function replaceEntry(entries: FormDataEntry[], entry: FormDataEntry): FormDataEntry[] {
+  const out: FormDataEntry[] = [];
+  let replaced = false;
+  for (const current of entries) {
+    if (current.name === entry.name) {
+      if (!replaced) {
+        out.push(entry);
+        replaced = true;
+      }
+    } else {
+      out.push(current);
+    }
+  }
+  if (!replaced) out.push(entry);
+  return out;
+}
+
 class FormData implements Idl.FormData {
   #entries: FormDataEntry[] = [];
   /**
@@ -75,73 +248,9 @@ class FormData implements Idl.FormData {
         "TypeError",
       );
     }
-    let submitterEl: HTMLInputElement | HTMLButtonElement | null = null;
-    if (submitter !== undefined && submitter !== null) {
-      const ok =
-        (submitter instanceof HTMLButtonElement && submitter.type === "submit") ||
-        (submitter instanceof HTMLInputElement &&
-          (inputTypeOf(submitter) === "submit" || inputTypeOf(submitter) === "image"));
-      if (!ok || submitter.form !== form) {
-        throw new (ksGlobal.DOMException || Error)("FormData: invalid submitter", "TypeError");
-      }
-      submitterEl = submitter;
-    }
-    try {
-      // FormDataEvent's pinned IDL omits the shim's formData property.
-      const fdEv = new KsEvent("formdata", { bubbles: true, cancelable: false }) as KsEvent & {
-        formData: FormData;
-      };
-      fdEv.formData = this;
-      form.dispatchEvent(fdEv);
-    } catch {}
-
-    const els = form.elements;
-    for (let i = 0; i < els.length; i++) {
-      const el = els[i];
-      const name = el.getAttribute && el.getAttribute("name");
-      if (!name) continue;
-      if (isDisabledInFormContext(el)) continue;
-      if (el instanceof HTMLFieldSetElement) continue;
-      if (el instanceof HTMLObjectElement) continue;
-      if (el instanceof HTMLInputElement) {
-        const t = inputTypeOf(el);
-        if (t === "checkbox" || t === "radio") {
-          if (!el.checked) continue;
-          this.#entries.push({ name, value: el.value });
-        } else if (t === "submit" || t === "image" || t === "reset" || t === "button") {
-          if (el !== submitterEl) continue;
-          this.#entries.push({ name, value: el.value });
-        } else if (t === "hidden" && name.toLowerCase() === "_charset_") {
-          this.#entries.push({ name, value: "UTF-8" });
-        } else if (t === "file") {
-          appendFileEntries(this.#entries, name, fileInputFiles.get(el._id) || []);
-        } else {
-          this.#entries.push({ name, value: el.value });
-        }
-        continue;
-      }
-      if (el instanceof HTMLTextAreaElement) {
-        this.#entries.push({ name, value: el.value });
-        continue;
-      }
-      if (el instanceof HTMLSelectElement) {
-        const opts: HTMLOptionElement[] = selectOptions(el);
-        for (const o of opts) {
-          if (o.selected && !o.disabled) {
-            this.#entries.push({ name, value: o.value });
-          }
-        }
-        continue;
-      }
-      if (el instanceof HTMLButtonElement) {
-        if (el !== submitterEl) continue;
-        this.#entries.push({ name, value: el.value });
-        continue;
-      }
-      if (el instanceof HTMLOutputElement) {
-        continue;
-      }
-    }
+    const submitterEl = resolveSubmitter(form, submitter);
+    dispatchFormData(form, this);
+    collectFormEntries(form, submitterEl, this.#entries);
   }
   append(name: string, value: unknown, filename?: string) {
     if (arguments.length >= 3) requireBlobWithFilename(value, "append");
@@ -174,20 +283,7 @@ class FormData implements Idl.FormData {
     const n = String(name);
     const fname = filename !== undefined ? String(filename) : undefined;
     const e: FormDataEntry = { name: n, value: entryValue(value, fname) };
-    const out: FormDataEntry[] = [];
-    let replaced = false;
-    for (const cur of this.#entries) {
-      if (cur.name === n) {
-        if (!replaced) {
-          out.push(e);
-          replaced = true;
-        }
-      } else {
-        out.push(cur);
-      }
-    }
-    if (!replaced) out.push(e);
-    this.#entries = out;
+    this.#entries = replaceEntry(this.#entries, e);
   }
   *keys(): IterableIterator<string> {
     for (const e of this.#entries) yield e.name;

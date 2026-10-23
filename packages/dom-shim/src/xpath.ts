@@ -99,8 +99,12 @@ const REVERSE_AXES = new Set<Axis>([
   "preceding",
   "preceding-sibling",
 ]);
+const OPERATOR_PREFIX_PUNCTUATION = new Set(["@", "::", "(", "[", ","]);
 const NODE_TYPES = new Set(["comment", "text", "processing-instruction", "node"]);
 const OPERATOR_NAMES = new Set(["and", "or", "mod", "div"]);
+const FILTER_START_TYPES = new Set<Tok["t"]>(["var", "str", "num", "fn"]);
+const STEP_START_TYPES = new Set<Tok["t"]>(["name", "type", "axis"]);
+const STEP_START_PUNCTUATION = new Set(["@", ".", ".."]);
 
 type NodeTest =
   | { k: "name"; ns: string | null; local: string }
@@ -139,197 +143,313 @@ function syntaxError(src: string): DOMException {
   return new DOMException(`The string '${src}' is not a valid XPath expression.`, "SyntaxError");
 }
 
+const NAME_START_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x41, 0x5a],
+  [0x61, 0x7a],
+  [0xc0, 0xd6],
+  [0xd8, 0xf6],
+  [0xf8, 0x2ff],
+  [0x370, 0x37d],
+  [0x37f, 0x1fff],
+  [0x200c, 0x200d],
+  [0x2070, 0x218f],
+  [0x2c00, 0x2fef],
+  [0x3001, 0xd7ff],
+  [0xf900, 0xfdcf],
+  [0xfdf0, 0xfffd],
+  [0x10000, 0xeffff],
+];
+const NAME_CHAR_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x30, 0x39],
+  [0x300, 0x36f],
+  [0x203f, 0x2040],
+];
+const NAME_CHAR_POINTS = new Set([0x2d, 0x2e, 0xb7]);
+
+function inCodePointRange(codePoint: number, [start, end]: readonly [number, number]): boolean {
+  return codePoint >= start && codePoint <= end;
+}
+
 function isNameStart(codePoint: number): boolean {
   return (
-    codePoint === 0x5f ||
-    (codePoint >= 0x41 && codePoint <= 0x5a) ||
-    (codePoint >= 0x61 && codePoint <= 0x7a) ||
-    (codePoint >= 0xc0 && codePoint <= 0xd6) ||
-    (codePoint >= 0xd8 && codePoint <= 0xf6) ||
-    (codePoint >= 0xf8 && codePoint <= 0x2ff) ||
-    (codePoint >= 0x370 && codePoint <= 0x37d) ||
-    (codePoint >= 0x37f && codePoint <= 0x1fff) ||
-    (codePoint >= 0x200c && codePoint <= 0x200d) ||
-    (codePoint >= 0x2070 && codePoint <= 0x218f) ||
-    (codePoint >= 0x2c00 && codePoint <= 0x2fef) ||
-    (codePoint >= 0x3001 && codePoint <= 0xd7ff) ||
-    (codePoint >= 0xf900 && codePoint <= 0xfdcf) ||
-    (codePoint >= 0xfdf0 && codePoint <= 0xfffd) ||
-    (codePoint >= 0x10000 && codePoint <= 0xeffff)
+    codePoint === 0x5f || NAME_START_RANGES.some((range) => inCodePointRange(codePoint, range))
+  );
+}
+
+function isNameCharExtra(codePoint: number): boolean {
+  return (
+    NAME_CHAR_POINTS.has(codePoint) ||
+    NAME_CHAR_RANGES.some((range) => inCodePointRange(codePoint, range))
   );
 }
 
 function isNameChar(codePoint: number): boolean {
-  return (
-    isNameStart(codePoint) ||
-    (codePoint >= 0x30 && codePoint <= 0x39) ||
-    codePoint === 0x2d ||
-    codePoint === 0x2e ||
-    codePoint === 0xb7 ||
-    (codePoint >= 0x300 && codePoint <= 0x36f) ||
-    (codePoint >= 0x203f && codePoint <= 0x2040)
-  );
+  return isNameStart(codePoint) || isNameCharExtra(codePoint);
+}
+
+function isNumberStart(source: string, index: number, current: string): boolean {
+  return /[0-9]/.test(current) || (current === "." && /[0-9]/.test(source[index + 1] ?? ""));
+}
+
+function isDoubleOperator(value: string): boolean {
+  return value === "//" || value === "!=" || value === "<=" || value === ">=";
+}
+
+function isOperatorPrefix(token: Tok): boolean {
+  return token.t === "punct" && OPERATOR_PREFIX_PUNCTUATION.has(token.v);
+}
+
+function isXPathQuote(value: string): boolean {
+  return value === '"' || value === "'";
+}
+
+function singleTokenType(value: string): "punct" | "op" | null {
+  if ("().[]@,".includes(value)) return "punct";
+  if ("/|+-=<>".includes(value)) return "op";
+  return null;
+}
+
+class XPathLexer {
+  private index = 0;
+  private readonly tokens: Tok[] = [];
+
+  constructor(private readonly source: string) {}
+
+  tokenize(): Tok[] {
+    while (this.index < this.source.length) this.readToken();
+    this.tokens.push(EOF_TOKEN);
+    return this.tokens;
+  }
+
+  private readToken(): void {
+    const current = this.source.charAt(this.index);
+    if (" \t\r\n".includes(current)) {
+      this.index++;
+      return;
+    }
+    if (isXPathQuote(current)) {
+      this.readString(current);
+      return;
+    }
+    if (isNumberStart(this.source, this.index, current)) {
+      this.readNumber();
+      return;
+    }
+    if (this.readPunctuationOrOperator(current)) return;
+    this.readNameOrVariable(current);
+  }
+
+  private readNameOrVariable(current: string): void {
+    if (current === "$") this.readVariable();
+    else this.readNameOrOperator();
+  }
+
+  private readString(quote: string): void {
+    const end = this.source.indexOf(quote, this.index + 1);
+    if (end < 0) throw syntaxError(this.source);
+    this.tokens.push({ t: "str", v: this.source.slice(this.index + 1, end) });
+    this.index = end + 1;
+  }
+
+  private readNumber(): void {
+    const match = /^(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)/.exec(this.source.slice(this.index));
+    if (!match) throw syntaxError(this.source);
+    this.tokens.push({ t: "num", v: match[0] });
+    this.index += match[0].length;
+  }
+
+  private operatorMayFollow(): boolean {
+    const previous = this.tokens[this.tokens.length - 1];
+    if (!previous || previous.t === "op") return false;
+    return !isOperatorPrefix(previous);
+  }
+
+  private readDoublePunctuation(value: string): boolean {
+    if (value !== ".." && value !== "::") return false;
+    this.tokens.push({ t: "punct", v: value });
+    this.index += 2;
+    return true;
+  }
+
+  private readAsterisk(): void {
+    const token = this.operatorMayFollow()
+      ? { t: "op" as const, v: "*" }
+      : { t: "name" as const, v: "*" };
+    this.tokens.push(token);
+    this.index++;
+  }
+
+  private readPunctuationOrOperator(current: string): boolean {
+    const two = this.source.slice(this.index, this.index + 2);
+    if (this.readDoublePunctuation(two)) return true;
+    if (isDoubleOperator(two)) {
+      this.tokens.push({ t: "op", v: two });
+      this.index += 2;
+      return true;
+    }
+    const tokenType = singleTokenType(current);
+    if (tokenType !== null) {
+      this.tokens.push({ t: tokenType, v: current });
+      this.index++;
+      return true;
+    }
+    if (current === "*") {
+      this.readAsterisk();
+      return true;
+    }
+    return false;
+  }
+
+  private readCodePoint(): number {
+    return this.source.codePointAt(this.index) ?? -1;
+  }
+
+  private advanceCodePoint(codePoint: number): void {
+    this.index += codePoint > 0xffff ? 2 : 1;
+  }
+
+  private readNcName(): string {
+    const start = this.index;
+    const first = this.readCodePoint();
+    if (!isNameStart(first)) throw syntaxError(this.source);
+    this.advanceCodePoint(first);
+    while (this.index < this.source.length) {
+      const next = this.readCodePoint();
+      if (!isNameChar(next)) break;
+      this.advanceCodePoint(next);
+    }
+    return this.source.slice(start, this.index);
+  }
+
+  private readVariable(): void {
+    this.index++;
+    let name = this.readNcName();
+    if (this.source[this.index] === ":" && this.source[this.index + 1] !== ":") {
+      this.index++;
+      name += ":" + this.readNcName();
+    }
+    this.tokens.push({ t: "var", v: name });
+  }
+
+  private readQualifiedName(name: string): string | null {
+    if (this.source[this.index] !== ":" || this.source[this.index + 1] === ":") return name;
+    this.index++;
+    if (this.source[this.index] !== "*") return name + ":" + this.readNcName();
+    this.index++;
+    this.tokens.push({ t: "name", v: `${name}:*` });
+    return null;
+  }
+
+  private readNameOrOperator(): void {
+    let name = this.readNcName();
+    if (this.operatorMayFollow()) {
+      if (!OPERATOR_NAMES.has(name)) throw syntaxError(this.source);
+      this.tokens.push({ t: "op", v: name });
+      return;
+    }
+    name = this.readQualifiedName(name) ?? "";
+    if (name) this.pushClassifiedName(name);
+  }
+
+  private pushClassifiedName(name: string): void {
+    const next = this.peekNonSpace(this.index);
+    if (this.source[next] === "(") {
+      this.tokens.push({ t: NODE_TYPES.has(name) ? "type" : "fn", v: name });
+      return;
+    }
+    if (this.source.slice(next, next + 2) === "::") {
+      if (!AXES.has(name)) throw syntaxError(this.source);
+      this.tokens.push({ t: "axis", v: name });
+      return;
+    }
+    this.tokens.push({ t: "name", v: name });
+  }
+
+  private peekNonSpace(from: number): number {
+    let index = from;
+    while (index < this.source.length && " \t\r\n".includes(this.source.charAt(index))) index++;
+    return index;
+  }
 }
 
 function lex(src: string): Tok[] {
-  const toks: Tok[] = [];
-  const n = src.length;
-  let i = 0;
-  const operatorMayFollow = (): boolean => {
-    const p = toks[toks.length - 1];
-    if (!p) return false;
-    if (p.t === "op") return false;
-    return !(
-      p.t === "punct" &&
-      (p.v === "@" || p.v === "::" || p.v === "(" || p.v === "[" || p.v === ",")
-    );
-  };
-  const readNcName = (): string => {
-    const start = i;
-    const first = src.codePointAt(i) ?? -1;
-    if (!isNameStart(first)) throw syntaxError(src);
-    i += first > 0xffff ? 2 : 1;
-    while (i < n) {
-      const next = src.codePointAt(i) ?? -1;
-      if (!isNameChar(next)) break;
-      i += next > 0xffff ? 2 : 1;
-    }
-    return src.slice(start, i);
-  };
-  const peekNonSpace = (from: number): number => {
-    let j = from;
-    while (j < n && " \t\r\n".includes(src.charAt(j))) j++;
-    return j;
-  };
-  while (i < n) {
-    const c = src.charAt(i);
-    if (" \t\r\n".includes(c)) {
-      i++;
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      const end = src.indexOf(c, i + 1);
-      if (end < 0) throw syntaxError(src);
-      toks.push({ t: "str", v: src.slice(i + 1, end) });
-      i = end + 1;
-      continue;
-    }
-    if (/[0-9]/.test(c) || (c === "." && /[0-9]/.test(src[i + 1] ?? ""))) {
-      const m = /^(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)/.exec(src.slice(i));
-      if (!m) throw syntaxError(src);
-      toks.push({ t: "num", v: m[0] });
-      i += m[0].length;
-      continue;
-    }
-    const two = src.slice(i, i + 2);
-    if (two === ".." || two === "::") {
-      toks.push({ t: "punct", v: two });
-      i += 2;
-      continue;
-    }
-    if ("().[]@,".includes(c)) {
-      toks.push({ t: "punct", v: c });
-      i++;
-      continue;
-    }
-    if (two === "//" || two === "!=" || two === "<=" || two === ">=") {
-      toks.push({ t: "op", v: two });
-      i += 2;
-      continue;
-    }
-    if ("/|+-=<>".includes(c)) {
-      toks.push({ t: "op", v: c });
-      i++;
-      continue;
-    }
-    if (c === "*") {
-      toks.push(operatorMayFollow() ? { t: "op", v: "*" } : { t: "name", v: "*" });
-      i++;
-      continue;
-    }
-    if (c === "$") {
-      i++;
-      let name = readNcName();
-      if (src[i] === ":" && src[i + 1] !== ":") {
-        i++;
-        name += ":" + readNcName();
-      }
-      toks.push({ t: "var", v: name });
-      continue;
-    }
-    if (!isNameStart(src.codePointAt(i) ?? -1)) throw syntaxError(src);
-    let name = readNcName();
-    if (operatorMayFollow()) {
-      if (!OPERATOR_NAMES.has(name)) throw syntaxError(src);
-      toks.push({ t: "op", v: name });
-      continue;
-    }
-    if (src[i] === ":" && src[i + 1] !== ":") {
-      i++;
-      if (src[i] === "*") {
-        i++;
-        toks.push({ t: "name", v: `${name}:*` });
-        continue;
-      }
-      name += ":" + readNcName();
-    }
-    const next = peekNonSpace(i);
-    if (src[next] === "(") {
-      toks.push({ t: NODE_TYPES.has(name) ? "type" : "fn", v: name });
-    } else if (src.slice(next, next + 2) === "::") {
-      if (!AXES.has(name)) throw syntaxError(src);
-      toks.push({ t: "axis", v: name });
-    } else {
-      toks.push({ t: "name", v: name });
-    }
-  }
-  toks.push(EOF_TOKEN);
-  return toks;
+  return new XPathLexer(src).tokenize();
 }
 
 type Resolver = ((prefix: string) => unknown) | { lookupNamespaceURI: unknown } | null;
 
-function resolvePrefix(resolver: Resolver, prefix: string): string {
-  let ns: unknown = null;
+function namespacePrefixError(prefix: string): DOMException {
+  return new DOMException(
+    `The string '${prefix}' is not a valid namespace prefix.`,
+    "NamespaceError",
+  );
+}
+
+function callNamespaceResolver(resolver: Resolver, prefix: string): unknown {
+  if (typeof resolver === "function") return resolver(prefix);
+  if (resolver === null) return null;
+  const lookupNamespaceURI = resolver.lookupNamespaceURI;
+  if (typeof lookupNamespaceURI !== "function") {
+    throw new TypeError("XPathNSResolver.lookupNamespaceURI is not callable");
+  }
+  return lookupNamespaceURI.call(resolver, prefix);
+}
+
+function stringifyNamespace(namespace: unknown, prefix: string): string {
   try {
-    if (typeof resolver === "function") {
-      ns = resolver(prefix);
-    } else if (resolver !== null) {
-      const lookupNamespaceURI = resolver.lookupNamespaceURI;
-      if (typeof lookupNamespaceURI !== "function") {
-        throw new TypeError("XPathNSResolver.lookupNamespaceURI is not callable");
-      }
-      ns = lookupNamespaceURI.call(resolver, prefix);
-    }
+    return String(namespace);
   } catch (error) {
     reportException(error);
-    throw new DOMException(
-      `The string '${prefix}' is not a valid namespace prefix.`,
-      "NamespaceError",
-    );
+    throw namespacePrefixError(prefix);
+  }
+}
+
+function resolvePrefix(resolver: Resolver, prefix: string): string {
+  let ns: unknown;
+  try {
+    ns = callNamespaceResolver(resolver, prefix);
+  } catch (error) {
+    reportException(error);
+    throw namespacePrefixError(prefix);
   }
   if (ns === null || ns === undefined) {
-    throw new DOMException(
-      `The string '${prefix}' is not a valid namespace prefix.`,
-      "NamespaceError",
-    );
+    throw namespacePrefixError(prefix);
   }
   if (typeof ns === "symbol") {
     reportException(new TypeError("XPathNSResolver.lookupNamespaceURI returned a Symbol"));
-    throw new DOMException(
-      `The string '${prefix}' is not a valid namespace prefix.`,
-      "NamespaceError",
-    );
+    throw namespacePrefixError(prefix);
   }
-  try {
-    return String(ns);
-  } catch (error) {
-    reportException(error);
-    throw new DOMException(
-      `The string '${prefix}' is not a valid namespace prefix.`,
-      "NamespaceError",
-    );
-  }
+  return stringifyNamespace(ns, prefix);
+}
+
+function startsFilterExpression(token: Tok): boolean {
+  return FILTER_START_TYPES.has(token.t) || (token.t === "punct" && token.v === "(");
+}
+
+function startsStepToken(token: Tok): boolean {
+  return (
+    STEP_START_TYPES.has(token.t) || (token.t === "punct" && STEP_START_PUNCTUATION.has(token.v))
+  );
+}
+
+function filterExpression(primary: Expr, predicates: Expr[]): Expr {
+  return predicates.length ? { t: "filter", e: primary, preds: predicates } : primary;
+}
+
+function isLiteralPrimary(token: Tok): token is Tok & { t: "num" | "str" } {
+  return token.t === "num" || token.t === "str";
+}
+
+function literalPrimary(token: Tok & { t: "num" | "str" }): Expr {
+  if (token.t === "num") return { t: "num", v: Number(token.v) };
+  return { t: "str", v: token.v };
+}
+
+function nodeTypeTestResult(name: string, target: string | null): NodeTest {
+  if (name === "node") return { k: "node" };
+  if (name === "text") return { k: "text" };
+  if (name === "comment") return { k: "comment" };
+  return { k: "pi", target };
 }
 
 class Parser {
@@ -444,16 +564,10 @@ class Parser {
 
   private pathExpr(): Expr {
     const p = this.peek();
-    const startsFilter =
-      p.t === "var" ||
-      p.t === "str" ||
-      p.t === "num" ||
-      p.t === "fn" ||
-      (p.t === "punct" && p.v === "(");
-    if (!startsFilter) return this.locationPath();
+    if (!startsFilterExpression(p)) return this.locationPath();
     const primary = this.primaryExpr();
     const preds = this.predicates();
-    let e: Expr = preds.length ? { t: "filter", e: primary, preds } : primary;
+    let e: Expr = filterExpression(primary, preds);
     if (this.is("op", "/") || this.is("op", "//")) {
       const steps: Step[] = [];
       this.relativePath(steps, true);
@@ -464,32 +578,39 @@ class Parser {
 
   private primaryExpr(): Expr {
     const p = this.next();
-    if (p.t === "num") return { t: "num", v: Number(p.v) };
-    if (p.t === "str") return { t: "str", v: p.v };
+    if (isLiteralPrimary(p)) return literalPrimary(p);
     if (p.t === "var") throw new DOMException(`Variable '$${p.v}' is not defined.`, "SyntaxError");
-    if (p.t === "punct" && p.v === "(") {
-      const e = this.orExpr();
-      this.expect("punct", ")");
-      return e;
-    }
-    if (p.t === "fn") {
-      const fn = FUNCTIONS.get(p.v);
-      if (!fn) throw syntaxError(this.src);
-      this.expect("punct", "(");
-      const args: Expr[] = [];
-      if (!this.is("punct", ")")) {
-        args.push(this.orExpr());
-        while (this.is("punct", ",")) {
-          this.next();
-          args.push(this.orExpr());
-        }
-      }
-      this.expect("punct", ")");
-      const [min, max] = fn.arity;
-      if (args.length < min || args.length > max) throw syntaxError(this.src);
-      return { t: "fn", name: p.v, args };
-    }
+    if (p.t === "punct") return this.parenthesizedPrimary(p);
+    if (p.t === "fn") return this.functionPrimary(p);
     throw syntaxError(this.src);
+  }
+
+  private parenthesizedPrimary(token: Tok): Expr {
+    if (token.v !== "(") throw syntaxError(this.src);
+    const expression = this.orExpr();
+    this.expect("punct", ")");
+    return expression;
+  }
+
+  private functionArguments(): Expr[] {
+    if (this.is("punct", ")")) return [];
+    const args = [this.orExpr()];
+    while (this.is("punct", ",")) {
+      this.next();
+      args.push(this.orExpr());
+    }
+    return args;
+  }
+
+  private functionPrimary(token: Tok): Expr {
+    const fn = FUNCTIONS.get(token.v);
+    if (!fn) throw syntaxError(this.src);
+    this.expect("punct", "(");
+    const args = this.functionArguments();
+    this.expect("punct", ")");
+    const [min, max] = fn.arity;
+    if (args.length < min || args.length > max) throw syntaxError(this.src);
+    return { t: "fn", name: token.v, args };
   }
 
   private predicates(): Expr[] {
@@ -518,13 +639,7 @@ class Parser {
   }
 
   private startsStep(): boolean {
-    const p = this.peek();
-    return (
-      p.t === "name" ||
-      p.t === "type" ||
-      p.t === "axis" ||
-      (p.t === "punct" && (p.v === "@" || p.v === "." || p.v === ".."))
-    );
+    return startsStepToken(this.peek());
   }
 
   private relativePath(steps: Step[], leadingSeparator: boolean): void {
@@ -564,22 +679,29 @@ class Parser {
 
   private nodeTest(): NodeTest {
     const p = this.next();
-    if (p.t === "type") {
-      this.expect("punct", "(");
-      let target: string | null = null;
-      if (p.v === "processing-instruction" && this.is("str")) target = this.next().v;
-      this.expect("punct", ")");
-      if (p.v === "node") return { k: "node" };
-      if (p.v === "text") return { k: "text" };
-      if (p.v === "comment") return { k: "comment" };
-      return { k: "pi", target };
-    }
+    if (p.t === "type") return this.typeNodeTest(p);
     if (p.t !== "name") throw syntaxError(this.src);
-    if (p.v === "*") return { k: "any", ns: null };
-    const colon = p.v.indexOf(":");
-    if (colon < 0) return { k: "name", ns: null, local: p.v };
-    const ns = resolvePrefix(this.resolver, p.v.slice(0, colon));
-    const local = p.v.slice(colon + 1);
+    return this.nameNodeTest(p.v);
+  }
+
+  private typeNodeTest(token: Tok): NodeTest {
+    this.expect("punct", "(");
+    const target = this.processingInstructionTarget(token);
+    this.expect("punct", ")");
+    return nodeTypeTestResult(token.v, target);
+  }
+
+  private processingInstructionTarget(token: Tok): string | null {
+    if (token.v !== "processing-instruction" || !this.is("str")) return null;
+    return this.next().v;
+  }
+
+  private nameNodeTest(name: string): NodeTest {
+    if (name === "*") return { k: "any", ns: null };
+    const colon = name.indexOf(":");
+    if (colon < 0) return { k: "name", ns: null, local: name };
+    const ns = resolvePrefix(this.resolver, name.slice(0, colon));
+    const local = name.slice(colon + 1);
     return local === "*" ? { k: "any", ns } : { k: "name", ns, local };
   }
 }
@@ -641,88 +763,135 @@ function descendantsReversed(n: XNode, out: XNode[]): void {
   }
 }
 
+function isXmlnsNamespace(attribute: XNode): boolean {
+  return attribute.namespaceURI === XMLNS_NS;
+}
+
+function isXmlnsName(attribute: XNode): boolean {
+  return attribute.name === "xmlns" || String(attribute.name).startsWith("xmlns:");
+}
+
+function isNamespaceDeclaration(attribute: XNode): boolean {
+  return isXmlnsNamespace(attribute) || isXmlnsName(attribute);
+}
+
+function appendAttributes(list: ArrayLike<XNode | null>, out: XNode[]): void {
+  for (let i = 0; i < list.length; i++) {
+    const attribute = list[i];
+    if (!attribute || isNamespaceDeclaration(attribute)) continue;
+    out.push(attribute);
+  }
+}
+
 function attributesOf(n: XNode): XNode[] {
   if (n?.nodeType !== ELEMENT_NODE) return [];
   const list = n.attributes;
   const out: XNode[] = [];
   if (!list) return out;
-  for (let i = 0; i < list.length; i++) {
-    const a = list[i];
-    if (
-      !a ||
-      a.namespaceURI === XMLNS_NS ||
-      a.name === "xmlns" ||
-      String(a.name).startsWith("xmlns:")
-    )
-      continue;
-    out.push(a);
+  appendAttributes(list, out);
+  return out;
+}
+
+function childAxis(node: XNode): XNode[] {
+  const out: XNode[] = [];
+  for (let child = firstChild(node); child; child = nextSibling(child)) out.push(child);
+  return out;
+}
+
+function descendantAxis(node: XNode): XNode[] {
+  const out: XNode[] = [];
+  descendants(node, out);
+  return out;
+}
+
+function descendantOrSelfAxis(node: XNode): XNode[] {
+  const out = [node];
+  descendants(node, out);
+  return out;
+}
+
+function parentAxis(node: XNode): XNode[] {
+  const parent = parentOf(node);
+  return parent ? [parent] : [];
+}
+
+function ancestorAxis(node: XNode, includeSelf: boolean): XNode[] {
+  const out: XNode[] = [];
+  if (includeSelf) out.push(node);
+  for (let parent = parentOf(node); parent; parent = parentOf(parent)) out.push(parent);
+  return out;
+}
+
+function followingSiblingAxis(node: XNode): XNode[] {
+  const out: XNode[] = [];
+  for (let sibling = nextSibling(node); sibling; sibling = nextSibling(sibling)) out.push(sibling);
+  return out;
+}
+
+function precedingSiblingAxis(node: XNode): XNode[] {
+  const out: XNode[] = [];
+  for (let sibling = previousSibling(node); sibling; sibling = previousSibling(sibling))
+    out.push(sibling);
+  return out;
+}
+
+function addFollowingSiblings(node: XNode, out: XNode[]): void {
+  for (let sibling = nextSibling(node); sibling; sibling = nextSibling(sibling)) {
+    out.push(sibling);
+    descendants(sibling, out);
+  }
+}
+
+function followingAxis(node: XNode): XNode[] {
+  const out: XNode[] = [];
+  let ancestor: XNode | null | undefined = node;
+  if (isAttr(node)) {
+    ancestor = node.ownerElement;
+    if (!ancestor) return out;
+    descendants(ancestor, out);
+  }
+  for (; ancestor; ancestor = parentOf(ancestor)) addFollowingSiblings(ancestor, out);
+  return out;
+}
+
+function addPrecedingSiblings(node: XNode, out: XNode[]): void {
+  for (let sibling = previousSibling(node); sibling; sibling = previousSibling(sibling)) {
+    descendantsReversed(sibling, out);
+    out.push(sibling);
+  }
+}
+
+function precedingAxis(node: XNode): XNode[] {
+  const out: XNode[] = [];
+  const start = isAttr(node) ? node.ownerElement : node;
+  for (let ancestor = start; ancestor; ancestor = parentOf(ancestor)) {
+    addPrecedingSiblings(ancestor, out);
   }
   return out;
 }
 
-function axisNodes(axis: Axis, n: XNode): XNode[] {
-  const out: XNode[] = [];
-  switch (axis) {
-    case "self":
-      out.push(n);
-      break;
-    case "child":
-      for (let c = firstChild(n); c; c = nextSibling(c)) out.push(c);
-      break;
-    case "descendant":
-      descendants(n, out);
-      break;
-    case "descendant-or-self":
-      out.push(n);
-      descendants(n, out);
-      break;
-    case "parent": {
-      const p = parentOf(n);
-      if (p) out.push(p);
-      break;
-    }
-    case "ancestor":
-    case "ancestor-or-self":
-      if (axis === "ancestor-or-self") out.push(n);
-      for (let p = parentOf(n); p; p = parentOf(p)) out.push(p);
-      break;
-    case "following-sibling":
-      for (let s = nextSibling(n); s; s = nextSibling(s)) out.push(s);
-      break;
-    case "preceding-sibling":
-      for (let s = previousSibling(n); s; s = previousSibling(s)) out.push(s);
-      break;
-    case "following": {
-      let a: XNode | null | undefined = n;
-      if (isAttr(n)) {
-        a = n.ownerElement;
-        if (!a) break;
-        descendants(a, out);
-      }
-      for (; a; a = parentOf(a)) {
-        for (let s = nextSibling(a); s; s = nextSibling(s)) {
-          out.push(s);
-          descendants(s, out);
-        }
-      }
-      break;
-    }
-    case "preceding": {
-      for (let a = isAttr(n) ? n.ownerElement : n; a; a = parentOf(a)) {
-        for (let s = previousSibling(a); s; s = previousSibling(s)) {
-          descendantsReversed(s, out);
-          out.push(s);
-        }
-      }
-      break;
-    }
-    case "attribute":
-      out.push(...attributesOf(n));
-      break;
-    case "namespace":
-      break;
-  }
-  return out;
+function attributeAxis(node: XNode): XNode[] {
+  return attributesOf(node);
+}
+
+const AXIS_HANDLERS: Record<Axis, (node: XNode) => XNode[]> = {
+  self: (node) => [node],
+  child: childAxis,
+  descendant: descendantAxis,
+  "descendant-or-self": descendantOrSelfAxis,
+  parent: parentAxis,
+  ancestor: (node) => ancestorAxis(node, false),
+  "ancestor-or-self": (node) => ancestorAxis(node, true),
+  "following-sibling": followingSiblingAxis,
+  "preceding-sibling": precedingSiblingAxis,
+  following: followingAxis,
+  preceding: precedingAxis,
+  attribute: attributeAxis,
+  namespace: () => [],
+};
+
+function axisNodes(axis: Axis, node: XNode): XNode[] {
+  return AXIS_HANDLERS[axis](node);
 }
 
 function isHtmlDocumentNode(el: XNode | null | undefined): boolean {
@@ -730,48 +899,100 @@ function isHtmlDocumentNode(el: XNode | null | undefined): boolean {
   return !!doc && doc.contentType === "text/html";
 }
 
-function matches(test: NodeTest, axis: Axis, n: XNode): boolean {
-  const t = n.nodeType;
-  switch (test.k) {
-    case "node":
-      return true;
-    case "text":
-      return t === TEXT_NODE || t === CDATA_SECTION_NODE;
-    case "comment":
-      return t === COMMENT_NODE;
-    case "pi":
-      return (
-        t === PROCESSING_INSTRUCTION_NODE && (test.target === null || n.target === test.target)
-      );
+type NamedNodeTest = Extract<NodeTest, { k: "name" | "any" }>;
+type SpecialNodeTest = Exclude<NodeTest, NamedNodeTest>;
+
+function isNamedNodeTest(test: NodeTest): test is NamedNodeTest {
+  return test.k === "name" || test.k === "any";
+}
+
+function matchesProcessingInstruction(test: Extract<NodeTest, { k: "pi" }>, node: XNode): boolean {
+  return (
+    node.nodeType === PROCESSING_INSTRUCTION_NODE &&
+    (test.target === null || node.target === test.target)
+  );
+}
+
+function matchesSpecialNodeTest(test: SpecialNodeTest, node: XNode): boolean {
+  if (test.k === "node") return true;
+  if (test.k === "text") return node.nodeType === TEXT_NODE || node.nodeType === CDATA_SECTION_NODE;
+  if (test.k === "comment") return node.nodeType === COMMENT_NODE;
+  return matchesProcessingInstruction(test, node);
+}
+
+function matchesNamespace(test: NamedNodeTest, namespace: string | null): boolean {
+  return test.ns === null || namespace === test.ns;
+}
+
+function matchesExactName(
+  test: Extract<NodeTest, { k: "name" }>,
+  node: XNode,
+  ns: string | null,
+): boolean {
+  return node.localName === test.local && ns === test.ns;
+}
+
+function matchesHtmlAttributeOwner(
+  test: Extract<NodeTest, { k: "name" }>,
+  namespace: string | null,
+  owner: XNode | null | undefined,
+): boolean {
+  return isUnprefixedAttributeName(test, namespace) && isHtmlAttributeOwner(owner);
+}
+
+function isUnprefixedAttributeName(
+  test: Extract<NodeTest, { k: "name" }>,
+  namespace: string | null,
+): boolean {
+  return test.ns === null && namespace === null;
+}
+
+function isHtmlAttributeOwner(owner: XNode | null | undefined): boolean {
+  return Boolean(owner) && owner?.namespaceURI === HTML_NS && isHtmlDocumentNode(owner);
+}
+
+function matchesAttributeName(test: NamedNodeTest, node: XNode, namespace: string | null): boolean {
+  if (test.k === "any") return matchesNamespace(test, namespace);
+  if (matchesHtmlAttributeOwner(test, namespace, node.ownerElement)) {
+    return asciiLowercase(String(node.localName)) === asciiLowercase(test.local);
   }
-  if (axis === "attribute") {
-    if (t !== ATTRIBUTE_NODE) return false;
-    const ns = n.namespaceURI ?? null;
-    if (test.k === "any") return test.ns === null || ns === test.ns;
-    const owner = n.ownerElement;
-    if (
-      test.ns === null &&
-      ns === null &&
-      owner &&
-      owner.namespaceURI === HTML_NS &&
-      isHtmlDocumentNode(owner)
-    ) {
-      return asciiLowercase(String(n.localName)) === asciiLowercase(test.local);
-    }
-    return n.localName === test.local && ns === test.ns;
+  return matchesExactName(test, node, namespace);
+}
+
+function matchesAttributeTest(test: NamedNodeTest, node: XNode): boolean {
+  if (node.nodeType !== ATTRIBUTE_NODE) return false;
+  return matchesAttributeName(test, node, node.namespaceURI ?? null);
+}
+
+function matchesHtmlElementName(
+  test: Extract<NodeTest, { k: "name" }>,
+  node: XNode,
+  namespace: string | null,
+): boolean {
+  if (namespace !== HTML_NS) {
+    return node.localName === test.local && test.ns !== null && namespace === test.ns;
   }
-  if (t !== ELEMENT_NODE) return false;
-  const ns = n.namespaceURI ?? null;
-  if (test.k === "any") return test.ns === null || ns === test.ns;
-  if (isHtmlDocumentNode(n)) {
-    if (ns === HTML_NS)
-      return (
-        asciiLowercase(String(n.localName)) === asciiLowercase(test.local) &&
-        (test.ns === null || test.ns === ns)
-      );
-    return n.localName === test.local && test.ns !== null && ns === test.ns;
-  }
-  return n.localName === test.local && ns === test.ns;
+  return (
+    asciiLowercase(String(node.localName)) === asciiLowercase(test.local) &&
+    matchesNamespace(test, namespace)
+  );
+}
+
+function matchesElementName(test: NamedNodeTest, node: XNode, namespace: string | null): boolean {
+  if (test.k === "any") return matchesNamespace(test, namespace);
+  if (!isHtmlDocumentNode(node)) return matchesExactName(test, node, namespace);
+  return matchesHtmlElementName(test, node, namespace);
+}
+
+function matchesElementTest(test: NamedNodeTest, node: XNode): boolean {
+  if (node.nodeType !== ELEMENT_NODE) return false;
+  return matchesElementName(test, node, node.namespaceURI ?? null);
+}
+
+function matches(test: NodeTest, axis: Axis, node: XNode): boolean {
+  if (!isNamedNodeTest(test)) return matchesSpecialNodeTest(test, node);
+  if (axis === "attribute") return matchesAttributeTest(test, node);
+  return matchesElementTest(test, node);
 }
 
 class Evaluation {
@@ -813,28 +1034,43 @@ function rootOf(node: XNode): XNode {
   return root;
 }
 
-export function stringValue(n: XNode): string {
-  switch (n.nodeType) {
-    case ELEMENT_NODE:
-    case DOCUMENT_FRAGMENT_NODE:
-      return String(n.textContent ?? "");
-    case DOCUMENT_NODE: {
-      let s = "";
-      for (let c = firstChild(n); c; c = nextSibling(c)) {
-        if (
-          c.nodeType === ELEMENT_NODE ||
-          c.nodeType === TEXT_NODE ||
-          c.nodeType === CDATA_SECTION_NODE
-        )
-          s += c.textContent ?? "";
-      }
-      return s;
-    }
-    case ATTRIBUTE_NODE:
-      return String(n.value ?? "");
-    default:
-      return String(n.nodeValue ?? n.data ?? "");
+function isDocumentTextNode(node: XNode): boolean {
+  return (
+    node.nodeType === ELEMENT_NODE ||
+    node.nodeType === TEXT_NODE ||
+    node.nodeType === CDATA_SECTION_NODE
+  );
+}
+
+function documentStringValue(node: XNode): string {
+  let value = "";
+  for (let child = firstChild(node); child; child = nextSibling(child)) {
+    if (isDocumentTextNode(child)) value += child.textContent ?? "";
   }
+  return value;
+}
+
+function isTextContentContainer(node: XNode): boolean {
+  return node.nodeType === ELEMENT_NODE || node.nodeType === DOCUMENT_FRAGMENT_NODE;
+}
+
+function textContentStringValue(node: XNode): string {
+  return String(node.textContent ?? "");
+}
+
+function attributeStringValue(node: XNode): string {
+  return String(node.value ?? "");
+}
+
+function nodeStringValue(node: XNode): string {
+  return String(node.nodeValue ?? node.data ?? "");
+}
+
+export function stringValue(n: XNode): string {
+  if (isTextContentContainer(n)) return textContentStringValue(n);
+  if (n.nodeType === DOCUMENT_NODE) return documentStringValue(n);
+  if (n.nodeType === ATTRIBUTE_NODE) return attributeStringValue(n);
+  return nodeStringValue(n);
 }
 
 function isNodeSet(v: Value): v is NodeSet {
@@ -862,13 +1098,23 @@ function toNumber(v: Value): number {
 }
 
 function numberToString(x: number): string {
-  if (Number.isNaN(x)) return "NaN";
-  if (x === Infinity) return "Infinity";
-  if (x === -Infinity) return "-Infinity";
-  if (x === 0) return "0";
-  const s = String(x);
-  if (!/e/i.test(s)) return s;
-  const [mant, expStr] = s.toLowerCase().split("e") as [string, string];
+  const special = specialNumberString(x);
+  if (special !== null) return special;
+  const string = String(x);
+  if (!/e/i.test(string)) return string;
+  return expandExponentialNumber(string);
+}
+
+function specialNumberString(value: number): string | null {
+  if (Number.isNaN(value)) return "NaN";
+  if (value === Infinity) return "Infinity";
+  if (value === -Infinity) return "-Infinity";
+  if (value === 0) return "0";
+  return null;
+}
+
+function expandExponentialNumber(string: string): string {
+  const [mant, expStr] = string.toLowerCase().split("e") as [string, string];
   const neg = mant.startsWith("-");
   const digits = mant.replace(/^-/, "").replace(".", "");
   const intLen = (mant.replace(/^-/, "").split(".")[0] ?? "").length;
@@ -881,48 +1127,81 @@ function numberToString(x: number): string {
 }
 
 function toStringValue(v: Value): string {
-  if (isNodeSet(v)) return v.length ? stringValue(v[0]) : "";
+  if (isNodeSet(v)) return nodeSetStringValue(v);
   if (typeof v === "number") return numberToString(v);
   if (typeof v === "boolean") return v ? "true" : "false";
   return v;
 }
 
+function nodeSetStringValue(nodes: NodeSet): string {
+  return nodes.length ? stringValue(nodes[0]) : "";
+}
+
+function equalAtoms(a: Value, b: Value): boolean {
+  if (typeof a === "boolean" || typeof b === "boolean") return toBoolean(a) === toBoolean(b);
+  if (typeof a === "number" || typeof b === "number") return toNumber(a) === toNumber(b);
+  return toStringValue(a) === toStringValue(b);
+}
+
+function compareEquality(op: string, a: Value, b: Value): boolean {
+  const equal = equalAtoms(a, b);
+  return op === "=" ? equal : !equal;
+}
+
+function compareOrdered(op: string, a: Value, b: Value): boolean {
+  const left = toNumber(a);
+  const right = toNumber(b);
+  if (op === "<") return left < right;
+  if (op === "<=") return left <= right;
+  if (op === ">") return left > right;
+  return left >= right;
+}
+
 function compareAtoms(op: string, a: Value, b: Value): boolean {
-  if (op === "=" || op === "!=") {
-    let eq: boolean;
-    if (typeof a === "boolean" || typeof b === "boolean") eq = toBoolean(a) === toBoolean(b);
-    else if (typeof a === "number" || typeof b === "number") eq = toNumber(a) === toNumber(b);
-    else eq = toStringValue(a) === toStringValue(b);
-    return op === "=" ? eq : !eq;
+  if (op === "=" || op === "!=") return compareEquality(op, a, b);
+  return compareOrdered(op, a, b);
+}
+
+function compareNodeSets(op: string, left: NodeSet, right: NodeSet): boolean {
+  const rightValues = right.map(stringValue);
+  return left.some((node) => {
+    const leftValue = stringValue(node);
+    return rightValues.some((value) => compareAtoms(op, leftValue, value));
+  });
+}
+
+function compareNodeSetValueAtom(
+  op: string,
+  node: XNode,
+  other: number | string,
+  setOnLeft: boolean,
+): boolean {
+  const nodeValue =
+    typeof other === "number" ? stringToNumber(stringValue(node)) : stringValue(node);
+  return setOnLeft ? compareAtoms(op, nodeValue, other) : compareAtoms(op, other, nodeValue);
+}
+
+function compareNodeSetAndValue(
+  op: string,
+  nodes: NodeSet,
+  other: number | string | boolean,
+  setOnLeft: boolean,
+): boolean {
+  if (typeof other === "boolean") {
+    const nodeSetValue = toBoolean(nodes);
+    return setOnLeft
+      ? compareAtoms(op, nodeSetValue, other)
+      : compareAtoms(op, other, nodeSetValue);
   }
-  const x = toNumber(a);
-  const y = toNumber(b);
-  if (op === "<") return x < y;
-  if (op === "<=") return x <= y;
-  if (op === ">") return x > y;
-  return x >= y;
+  return nodes.some((node) => compareNodeSetValueAtom(op, node, other, setOnLeft));
 }
 
 function compare(op: string, a: Value, b: Value): boolean {
-  if (isNodeSet(a) && isNodeSet(b)) {
-    const bs = b.map(stringValue);
-    return a.some((n) => {
-      const s = stringValue(n);
-      return bs.some((t) => compareAtoms(op, s, t));
-    });
+  if (isNodeSet(a)) {
+    if (isNodeSet(b)) return compareNodeSets(op, a, b);
+    return compareNodeSetAndValue(op, a, b, true);
   }
-  if (isNodeSet(a) || isNodeSet(b)) {
-    const set = (isNodeSet(a) ? a : b) as NodeSet;
-    const other = (isNodeSet(a) ? b : a) as number | string | boolean;
-    if (typeof other === "boolean")
-      return isNodeSet(a)
-        ? compareAtoms(op, toBoolean(set), other)
-        : compareAtoms(op, other, toBoolean(set));
-    return set.some((n) => {
-      const s = typeof other === "number" ? stringToNumber(stringValue(n)) : stringValue(n);
-      return isNodeSet(a) ? compareAtoms(op, s, other) : compareAtoms(op, other, s);
-    });
-  }
+  if (isNodeSet(b)) return compareNodeSetAndValue(op, b, a, false);
   return compareAtoms(op, a, b);
 }
 
@@ -945,18 +1224,23 @@ function xpathRound(x: number): number {
 }
 
 function localNameOf(n: XNode): string {
-  const t = n.nodeType;
-  if (t === ELEMENT_NODE || t === ATTRIBUTE_NODE) return String(n.localName ?? "");
-  if (t === PROCESSING_INSTRUCTION_NODE) return String(n.target ?? "");
+  if (isNameBearingNode(n)) return String(n.localName ?? "");
+  if (n.nodeType === PROCESSING_INSTRUCTION_NODE) return String(n.target ?? "");
   return "";
 }
 
 function qualifiedNameOf(n: XNode): string {
-  const t = n.nodeType;
-  if (t === ELEMENT_NODE || t === ATTRIBUTE_NODE)
-    return n.prefix ? `${n.prefix}:${n.localName}` : String(n.localName ?? "");
-  if (t === PROCESSING_INSTRUCTION_NODE) return String(n.target ?? "");
+  if (isNameBearingNode(n)) return qualifiedNameOfNameBearingNode(n);
+  if (n.nodeType === PROCESSING_INSTRUCTION_NODE) return String(n.target ?? "");
   return "";
+}
+
+function isNameBearingNode(node: XNode): boolean {
+  return node.nodeType === ELEMENT_NODE || node.nodeType === ATTRIBUTE_NODE;
+}
+
+function qualifiedNameOfNameBearingNode(node: XNode): string {
+  return node.prefix ? `${node.prefix}:${node.localName}` : String(node.localName ?? "");
 }
 
 function firstOf(c: Ctx, args: Expr[]): XNode | null {
@@ -965,22 +1249,37 @@ function firstOf(c: Ctx, args: Expr[]): XNode | null {
   return set[0] ?? null;
 }
 
+function addWantedId(
+  id: string | null | undefined,
+  node: XNode,
+  wanted: Set<string>,
+  found: XNode[],
+): void {
+  if (id === null) return;
+  if (id === undefined) return;
+  if (!wanted.has(id)) return;
+  found.push(node);
+  wanted.delete(id);
+}
+
+function addIdMatch(node: XNode, wanted: Set<string>, found: XNode[]): void {
+  if (node.nodeType !== ELEMENT_NODE) return;
+  addWantedId(node.getAttribute?.("id"), node, wanted, found);
+}
+
+function findIdMatches(node: XNode, wanted: Set<string>, found: XNode[]): void {
+  addIdMatch(node, wanted, found);
+  for (let child = firstChild(node); child && wanted.size; child = nextSibling(child)) {
+    findIdMatches(child, wanted, found);
+  }
+}
+
 function idLookup(c: Ctx, ids: string[]): NodeSet {
   const root = c.ev.root;
   const found: XNode[] = [];
   const wanted = new Set(ids.filter(Boolean));
   if (!wanted.size) return found;
-  const walk = (n: XNode): void => {
-    if (n.nodeType === ELEMENT_NODE) {
-      const id = n.getAttribute?.("id");
-      if (id !== null && id !== undefined && wanted.has(id)) {
-        found.push(n);
-        wanted.delete(id);
-      }
-    }
-    for (let k = firstChild(n); k && wanted.size; k = nextSibling(k)) walk(k);
-  };
-  walk(root);
+  findIdMatches(root, wanted, found);
   return c.ev.sort(found);
 }
 
@@ -997,6 +1296,33 @@ function arg(args: Expr[], i: number): Expr {
 
 const str = (c: Ctx, args: Expr[], i: number): string => toStringValue(evaluate(arg(args, i), c));
 const num = (c: Ctx, args: Expr[], i: number): number => toNumber(evaluate(arg(args, i), c));
+
+function readElementLanguage(node: XNode): string | null | undefined {
+  return node.getAttributeNS?.(XML_NS, "lang") ?? node.getAttribute?.("xml:lang");
+}
+
+function hasElementLanguage(language: string | null | undefined): language is string {
+  return language !== null && language !== undefined;
+}
+
+function languageAtElement(node: XNode): string | null {
+  if (node.nodeType !== ELEMENT_NODE) return null;
+  const language = readElementLanguage(node);
+  if (!hasElementLanguage(language)) return null;
+  return String(language).toLowerCase();
+}
+
+function languageAncestorValue(context: XNode): string | null {
+  for (let node = isAttr(context) ? context.ownerElement : context; node; node = parentOf(node)) {
+    const language = languageAtElement(node);
+    if (language !== null) return language;
+  }
+  return null;
+}
+
+function matchesLanguage(language: string, wanted: string): boolean {
+  return language === wanted || language.startsWith(wanted + "-");
+}
 
 const FUNCTIONS = new Map<string, Fn>(
   Object.entries<Fn>({
@@ -1098,14 +1424,8 @@ const FUNCTIONS = new Map<string, Fn>(
       arity: [1, 1],
       run: (c, a) => {
         const want = str(c, a, 0).toLowerCase();
-        for (let n = isAttr(c.node) ? c.node.ownerElement : c.node; n; n = parentOf(n)) {
-          if (n.nodeType !== ELEMENT_NODE) continue;
-          const lang = n.getAttributeNS?.(XML_NS, "lang") ?? n.getAttribute?.("xml:lang");
-          if (lang === null || lang === undefined) continue;
-          const l = String(lang).toLowerCase();
-          return l === want || l.startsWith(want + "-");
-        }
-        return false;
+        const language = languageAncestorValue(c.node);
+        return language !== null && matchesLanguage(language, want);
       },
     },
     number: {
@@ -1145,47 +1465,90 @@ function applyStep(step: Step, contexts: XNode[], ev: Evaluation): XNode[] {
   return ev.sort(out);
 }
 
-function evaluate(e: Expr, c: Ctx): Value {
-  switch (e.t) {
-    case "num":
-      return e.v;
-    case "str":
-      return e.v;
-    case "fn": {
-      const fn = FUNCTIONS.get(e.name);
-      if (!fn) throw syntaxError(e.name);
-      return fn.run(c, e.args);
-    }
-    case "or":
-      return toBoolean(evaluate(e.l, c)) || toBoolean(evaluate(e.r, c));
-    case "and":
-      return toBoolean(evaluate(e.l, c)) && toBoolean(evaluate(e.r, c));
-    case "cmp":
-      return compare(e.op, evaluate(e.l, c), evaluate(e.r, c));
-    case "arith": {
-      const x = toNumber(evaluate(e.l, c));
-      const y = toNumber(evaluate(e.r, c));
-      if (e.op === "+") return x + y;
-      if (e.op === "-") return x - y;
-      if (e.op === "*") return x * y;
-      if (e.op === "div") return x / y;
-      return x % y;
-    }
-    case "neg":
-      return -toNumber(evaluate(e.e, c));
-    case "union":
-      return c.ev.sort([...nodeSetOf(evaluate(e.l, c)), ...nodeSetOf(evaluate(e.r, c))]);
-    case "filter":
-      return filterByPredicates(c.ev.sort(nodeSetOf(evaluate(e.e, c))), e.preds, c.ev);
-    case "path": {
-      let nodes: XNode[];
-      if (e.start === "root") nodes = [c.ev.root];
-      else if (e.start === "context") nodes = [c.node];
-      else nodes = c.ev.sort(nodeSetOf(evaluate(e.start, c)));
-      for (const step of e.steps) nodes = applyStep(step, nodes, c.ev);
-      return nodes;
-    }
+type LogicalExpr = Extract<Expr, { t: "or" | "and" }>;
+type ArithmeticExpr = Extract<Expr, { t: "cmp" | "arith" | "neg" }>;
+type SetPathExpr = Extract<Expr, { t: "union" | "filter" | "path" }>;
+type CompoundExpr = Exclude<Expr, { t: "num" | "str" }>;
+
+function evaluateFunction(expression: Extract<Expr, { t: "fn" }>, context: Ctx): Value {
+  const fn = FUNCTIONS.get(expression.name);
+  if (!fn) throw syntaxError(expression.name);
+  return fn.run(context, expression.args);
+}
+
+function isLogicalExpr(expression: CompoundExpr): expression is LogicalExpr {
+  return expression.t === "or" || expression.t === "and";
+}
+
+function evaluateLogical(expression: LogicalExpr, context: Ctx): boolean {
+  if (expression.t === "or") {
+    return toBoolean(evaluate(expression.l, context)) || toBoolean(evaluate(expression.r, context));
   }
+  return toBoolean(evaluate(expression.l, context)) && toBoolean(evaluate(expression.r, context));
+}
+
+function isArithmeticExpr(expression: CompoundExpr): expression is ArithmeticExpr {
+  return expression.t === "cmp" || expression.t === "arith" || expression.t === "neg";
+}
+
+function evaluateArithmeticOperation(
+  expression: Extract<Expr, { t: "arith" }>,
+  context: Ctx,
+): number {
+  const left = toNumber(evaluate(expression.l, context));
+  const right = toNumber(evaluate(expression.r, context));
+  if (expression.op === "+") return left + right;
+  if (expression.op === "-") return left - right;
+  if (expression.op === "*") return left * right;
+  if (expression.op === "div") return left / right;
+  return left % right;
+}
+
+function evaluateArithmetic(expression: ArithmeticExpr, context: Ctx): Value {
+  if (expression.t === "cmp") {
+    return compare(expression.op, evaluate(expression.l, context), evaluate(expression.r, context));
+  }
+  if (expression.t === "arith") return evaluateArithmeticOperation(expression, context);
+  return -toNumber(evaluate(expression.e, context));
+}
+
+function evaluatePath(expression: Extract<Expr, { t: "path" }>, context: Ctx): NodeSet {
+  let nodes: XNode[];
+  if (expression.start === "root") nodes = [context.ev.root];
+  else if (expression.start === "context") nodes = [context.node];
+  else nodes = context.ev.sort(nodeSetOf(evaluate(expression.start, context)));
+  for (const step of expression.steps) nodes = applyStep(step, nodes, context.ev);
+  return nodes;
+}
+
+function evaluateSetPath(expression: SetPathExpr, context: Ctx): NodeSet {
+  if (expression.t === "union") {
+    return context.ev.sort([
+      ...nodeSetOf(evaluate(expression.l, context)),
+      ...nodeSetOf(evaluate(expression.r, context)),
+    ]);
+  }
+  if (expression.t === "filter") {
+    return filterByPredicates(
+      context.ev.sort(nodeSetOf(evaluate(expression.e, context))),
+      expression.preds,
+      context.ev,
+    );
+  }
+  return evaluatePath(expression, context);
+}
+
+function evaluateCompound(expression: CompoundExpr, context: Ctx): Value {
+  if (expression.t === "fn") return evaluateFunction(expression, context);
+  if (isLogicalExpr(expression)) return evaluateLogical(expression, context);
+  if (isArithmeticExpr(expression)) return evaluateArithmetic(expression, context);
+  return evaluateSetPath(expression, context);
+}
+
+function evaluate(expression: Expr, context: Ctx): Value {
+  if (expression.t === "num") return expression.v;
+  if (expression.t === "str") return expression.v;
+  return evaluateCompound(expression, context);
 }
 
 function isNode(v: unknown): v is XNode {
@@ -1297,35 +1660,45 @@ function toXPathResultType(value: number): number {
   return (modulo + 0x1_0000) % 0x1_0000;
 }
 
+function inferredResultType(value: Value): number {
+  if (isNodeSet(value)) return RESULT_TYPES.UNORDERED_NODE_ITERATOR_TYPE;
+  if (typeof value === "number") return RESULT_TYPES.NUMBER_TYPE;
+  if (typeof value === "string") return RESULT_TYPES.STRING_TYPE;
+  return RESULT_TYPES.BOOLEAN_TYPE;
+}
+
+function ensureSupportedNodeResultType(type: number): void {
+  if (type < 0 || type > RESULT_TYPES.FIRST_ORDERED_NODE_TYPE) {
+    throw new DOMException("The result type is not supported.", "NotSupportedError");
+  }
+}
+
+function nodeSetResultValue(value: Value): NodeSet {
+  if (!isNodeSet(value)) {
+    throw new TypeError(
+      "The result is not a node set, and therefore cannot be converted to the desired type.",
+    );
+  }
+  return value;
+}
+
+function convertedResultValue(value: Value, type: number): Value {
+  if (type === RESULT_TYPES.NUMBER_TYPE) return toNumber(value);
+  if (type === RESULT_TYPES.STRING_TYPE) return toStringValue(value);
+  if (type === RESULT_TYPES.BOOLEAN_TYPE) return toBoolean(value);
+  ensureSupportedNodeResultType(type);
+  return nodeSetResultValue(value);
+}
+
 function makeResult(value: Value, type: number, reuse: XPathResult | null = null): XPathResult {
-  let t = toXPathResultType(type);
-  if (t === RESULT_TYPES.ANY_TYPE) {
-    t = isNodeSet(value)
-      ? RESULT_TYPES.UNORDERED_NODE_ITERATOR_TYPE
-      : typeof value === "number"
-        ? RESULT_TYPES.NUMBER_TYPE
-        : typeof value === "string"
-          ? RESULT_TYPES.STRING_TYPE
-          : RESULT_TYPES.BOOLEAN_TYPE;
-  }
-  let resultValue: Value;
-  if (t === RESULT_TYPES.NUMBER_TYPE) resultValue = toNumber(value);
-  else if (t === RESULT_TYPES.STRING_TYPE) resultValue = toStringValue(value);
-  else if (t === RESULT_TYPES.BOOLEAN_TYPE) resultValue = toBoolean(value);
-  else {
-    if (t < 0 || t > RESULT_TYPES.FIRST_ORDERED_NODE_TYPE)
-      throw new DOMException("The result type is not supported.", "NotSupportedError");
-    if (!isNodeSet(value))
-      throw new TypeError(
-        "The result is not a node set, and therefore cannot be converted to the desired type.",
-      );
-    resultValue = value;
-  }
+  let resultType = toXPathResultType(type);
+  if (resultType === RESULT_TYPES.ANY_TYPE) resultType = inferredResultType(value);
+  const resultValue = convertedResultValue(value, resultType);
   if (reuse) {
-    reuse[INTERNAL_REFILL](t, resultValue);
+    reuse[INTERNAL_REFILL](resultType, resultValue);
     return reuse;
   }
-  return new XPathResult(INTERNAL_CONSTRUCT, t, resultValue);
+  return new XPathResult(INTERNAL_CONSTRUCT, resultType, resultValue);
 }
 
 function isXPathResult(value: unknown): value is XPathResult {

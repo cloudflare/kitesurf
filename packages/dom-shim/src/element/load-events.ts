@@ -30,19 +30,27 @@ function bumpImageRequestGen(id) {
   return next;
 }
 
-function queueImageTerminalEvent(id, gen, pumpDecodes = false) {
+function queueImageTerminalEvent(id, gen, pumpDecodes = false): void {
   try {
-    setTimeout(() => {
-      if (imageRequestGen.get(id) !== gen) return;
-      if (pumpDecodes) {
-        try {
-          dom.pumpResourceMessages?.();
-        } catch {}
-      }
-      try {
-        notifyImageResults([id], true);
-      } catch {}
-    }, 0);
+    setTimeout(() => dispatchQueuedImageTerminalEvent(id, gen, pumpDecodes), 0);
+  } catch {}
+}
+
+function dispatchQueuedImageTerminalEvent(id: number, gen: number, pumpDecodes: boolean): void {
+  if (imageRequestGen.get(id) !== gen) return;
+  if (pumpDecodes) pumpImageDecodes();
+  notifyImageTerminalResult(id);
+}
+
+function pumpImageDecodes(): void {
+  try {
+    dom.pumpResourceMessages?.();
+  } catch {}
+}
+
+function notifyImageTerminalResult(id: number): void {
+  try {
+    notifyImageResults([id], true);
   } catch {}
 }
 
@@ -77,66 +85,142 @@ function invalidateImageLoadStateFor(el: HTMLImageElement): void {
     const id = el._id;
     imageLoadResults.delete(id);
     const gen = bumpImageRequestGen(id);
-    let src: string | null = null;
-    let srcset: string | null = null;
-    try {
-      src = el.getAttribute("src");
-    } catch {}
-    try {
-      srcset = el.getAttribute("srcset");
-    } catch {}
-    if ((src === null || src === "") && (srcset === null || srcset === "")) {
-      pendingImageReloads.delete(id);
-      return;
-    }
-    if (src !== null && src !== "" && (srcset === null || srcset === "")) {
-      const resolved = resolveImageUrl(src, el);
-      if (!isFetchableImageUrl(resolved)) {
-        pendingImageReloads.delete(id);
-        try {
-          setTimeout(() => {
-            if (imageRequestGen.get(id) !== gen) return;
-            try {
-              notifyImageResults([id], false);
-            } catch {}
-          }, 0);
-        } catch {}
-        return;
-      }
-      if (resolved.startsWith("data:")) {
-        pendingImageReloads.delete(id);
-        queueImageTerminalEvent(id, gen, true);
-        return;
-      }
-      try {
-        if (dom.imageCacheHas?.(resolved)) {
-          pendingImageReloads.delete(id);
-          queueImageTerminalEvent(id, gen);
-          return;
-        }
-      } catch {}
-    }
-    try {
-      if (typeof dom.imageIsPending === "function" && !dom.imageIsPending(id)) {
-        pendingImageReloads.delete(id);
-        queueImageTerminalEvent(id, gen);
-        return;
-      }
-    } catch {}
-    const srcUnusable =
-      src === null || src === "" || !isFetchableImageUrl(resolveImageUrl(src, el));
-    if (
-      srcUnusable &&
-      srcset !== null &&
-      srcset !== "" &&
-      srcsetHasNoFetchableCandidate(srcset, el)
-    ) {
-      pendingImageReloads.delete(id);
-      queueImageTerminalEvent(id, gen);
-      return;
-    }
-    pendingImageReloads.add(id);
+    const sources = imageSourceAttributes(el);
+    updateImageLoadState(el, id, gen, sources);
   } catch {}
+}
+
+function updateImageLoadState(
+  el: HTMLImageElement,
+  id: number,
+  gen: number,
+  sources: ImageSourceAttributes,
+): void {
+  if (clearPendingForEmptyImageSources(id, sources)) return;
+  if (handleSingleImageSource(el, id, gen, sources)) return;
+  if (handleNonPendingImageRequest(id, gen)) return;
+  if (handleUnusableImageSourceset(el, id, gen, sources)) return;
+  pendingImageReloads.add(id);
+}
+
+type ImageSourceAttributes = { src: string | null; srcset: string | null };
+
+function imageSourceAttributes(el: HTMLImageElement): ImageSourceAttributes {
+  let src: string | null = null;
+  let srcset: string | null = null;
+  try {
+    src = el.getAttribute("src");
+  } catch {}
+  try {
+    srcset = el.getAttribute("srcset");
+  } catch {}
+  return { src, srcset };
+}
+
+function clearPendingForEmptyImageSources(id: number, sources: ImageSourceAttributes): boolean {
+  if (!hasNoImageSource(sources)) return false;
+  pendingImageReloads.delete(id);
+  return true;
+}
+
+function hasNoImageSource(sources: ImageSourceAttributes): boolean {
+  return (
+    (sources.src === null || sources.src === "") &&
+    (sources.srcset === null || sources.srcset === "")
+  );
+}
+
+function handleSingleImageSource(
+  el: HTMLImageElement,
+  id: number,
+  gen: number,
+  sources: ImageSourceAttributes,
+): boolean {
+  if (!hasOnlyImageSrc(sources)) return false;
+  const resolved = resolveImageUrl(sources.src as string, el);
+  if (!isFetchableImageUrl(resolved)) {
+    pendingImageReloads.delete(id);
+    queueImageErrorResult(id, gen);
+    return true;
+  }
+  if (resolved.startsWith("data:")) {
+    pendingImageReloads.delete(id);
+    queueImageTerminalEvent(id, gen, true);
+    return true;
+  }
+  if (isImageCached(resolved)) {
+    pendingImageReloads.delete(id);
+    queueImageTerminalEvent(id, gen);
+    return true;
+  }
+  return false;
+}
+
+function hasOnlyImageSrc(sources: ImageSourceAttributes): boolean {
+  return (
+    sources.src !== null && sources.src !== "" && (sources.srcset === null || sources.srcset === "")
+  );
+}
+
+function queueImageErrorResult(id: number, gen: number): void {
+  try {
+    setTimeout(() => {
+      if (imageRequestGen.get(id) !== gen) return;
+      try {
+        notifyImageResults([id], false);
+      } catch {}
+    }, 0);
+  } catch {}
+}
+
+function isImageCached(url: string): boolean {
+  try {
+    return Boolean(dom.imageCacheHas?.(url));
+  } catch {
+    return false;
+  }
+}
+
+function handleNonPendingImageRequest(id: number, gen: number): boolean {
+  if (!imageRequestIsNotPending(id)) return false;
+  pendingImageReloads.delete(id);
+  queueImageTerminalEvent(id, gen);
+  return true;
+}
+
+function imageRequestIsNotPending(id: number): boolean {
+  try {
+    return typeof dom.imageIsPending === "function" && !dom.imageIsPending(id);
+  } catch {
+    return false;
+  }
+}
+
+function handleUnusableImageSourceset(
+  el: HTMLImageElement,
+  id: number,
+  gen: number,
+  sources: ImageSourceAttributes,
+): boolean {
+  if (!hasOnlyUnusableImageSourceset(el, sources)) return false;
+  pendingImageReloads.delete(id);
+  queueImageTerminalEvent(id, gen);
+  return true;
+}
+
+function hasOnlyUnusableImageSourceset(
+  el: HTMLImageElement,
+  sources: ImageSourceAttributes,
+): boolean {
+  return isImageSrcUnusable(el, sources.src) && hasUnusableImageSourceset(el, sources.srcset);
+}
+
+function isImageSrcUnusable(el: HTMLImageElement, src: string | null): boolean {
+  return src === null || src === "" || !isFetchableImageUrl(resolveImageUrl(src, el));
+}
+
+function hasUnusableImageSourceset(el: HTMLImageElement, srcset: string | null): boolean {
+  return srcset !== null && srcset !== "" && srcsetHasNoFetchableCandidate(srcset, el);
 }
 
 // Read the decoded size from wasm so cache hits are included.
@@ -153,74 +237,122 @@ export function notifyImageResults(
   ok: boolean,
 ): void {
   if (!nodeIds) return;
-  for (const rawId of nodeIds) {
-    const id = Number(rawId);
-    if (!Number.isFinite(id)) continue;
-    if (imageLoadResults.has(id)) continue;
-    pendingImageReloads.delete(id);
-    let el: Element | null = null;
-    try {
-      el = nodeFor(id);
-    } catch {}
-    const applied = ok && el ? imageNaturalSizeFor(el) !== null : ok;
-    imageLoadResults.set(id, applied);
-    if (!el) continue;
-    const type = applied ? "load" : "error";
-    const attrName = applied ? "onload" : "onerror";
-    try {
-      if (typeof el[attrName] !== "function") {
-        const source = el.getAttribute?.(attrName);
-        if (typeof source === "string" && source.length > 0) {
-          installAttrEventHandler(el, attrName, source);
-        }
-      }
-    } catch {}
-    try {
-      el.dispatchEvent(new KsEvent(type, { bubbles: false, cancelable: false }));
-    } catch {}
+  for (const rawId of nodeIds) notifyImageResult(rawId, ok);
+}
+
+function notifyImageResult(rawId: unknown, ok: boolean): void {
+  const id = Number(rawId);
+  if (!Number.isFinite(id)) return;
+  notifyFiniteImageResult(id, ok);
+}
+
+function notifyFiniteImageResult(id: number, ok: boolean): void {
+  if (imageLoadResults.has(id)) return;
+  pendingImageReloads.delete(id);
+  const el = imageElementFor(id);
+  const applied = imageResultApplied(ok, el);
+  imageLoadResults.set(id, applied);
+  if (!el) return;
+  dispatchImageResultEvent(el, applied);
+}
+
+function imageElementFor(id: number): Element | null {
+  let el: Element | null = null;
+  try {
+    el = nodeFor(id);
+  } catch {}
+  return el;
+}
+
+function imageResultApplied(ok: boolean, el: Element | null): boolean {
+  return ok && el ? imageNaturalSizeFor(el) !== null : ok;
+}
+
+type LoadErrorAttribute = "onload" | "onerror";
+
+function dispatchImageResultEvent(el: Element, applied: boolean): void {
+  const type = applied ? "load" : "error";
+  const attrName: LoadErrorAttribute = applied ? "onload" : "onerror";
+  installLoadErrorAttributeHandler(el, attrName);
+  try {
+    el.dispatchEvent(new KsEvent(type, { bubbles: false, cancelable: false }));
+  } catch {}
+}
+
+function installLoadErrorAttributeHandler(el: Element, attrName: LoadErrorAttribute): void {
+  try {
+    if (typeof el[attrName] !== "function") {
+      installLoadErrorAttributeSource(el, attrName);
+    }
+  } catch {}
+}
+
+function installLoadErrorAttributeSource(el: Element, attrName: LoadErrorAttribute): void {
+  const source = el.getAttribute?.(attrName);
+  if (typeof source === "string" && source.length > 0) {
+    installAttrEventHandler(el, attrName, source);
   }
 }
 
 export function notifyStylesheetResults(url: unknown, ok: boolean): void {
   if (!url) return;
-  let links: Idl.NodeList | null = null;
-  try {
-    links = liveDocument().querySelectorAll("link");
-  } catch {
-    return;
-  }
+  const links = stylesheetLinks();
   if (!links) return;
-  for (const node of Array.from(links)) {
-    if (!isElementWrapper(node)) continue;
-    const el = node;
-    let rel = "";
-    try {
-      rel = String(el.getAttribute("rel") || "");
-    } catch {}
-    if (!rel.split(/\s+/).includes("stylesheet")) continue;
-    let href = "";
-    try {
-      href = String(el.href || "");
-    } catch {}
-    if (href !== String(url)) continue;
-    const id = Number(el._id);
-    if (!Number.isFinite(id)) continue;
-    if (linkLoadFired.get(id) === href) continue;
-    linkLoadFired.set(id, href);
-    const type = ok ? "load" : "error";
-    const attrName = ok ? "onload" : "onerror";
-    try {
-      if (typeof el[attrName] !== "function") {
-        const source = el.getAttribute?.(attrName);
-        if (typeof source === "string" && source.length > 0) {
-          installAttrEventHandler(el, attrName, source);
-        }
-      }
-    } catch {}
-    try {
-      el.dispatchEvent(new KsEvent(type, { bubbles: false, cancelable: false }));
-    } catch {}
+  for (const node of Array.from(links)) notifyStylesheetNode(node, url, ok);
+}
+
+function stylesheetLinks(): Idl.NodeList | null {
+  try {
+    return liveDocument().querySelectorAll("link");
+  } catch {
+    return null;
   }
+}
+
+function notifyStylesheetNode(node: Idl.Node | null, url: unknown, ok: boolean): void {
+  if (!isElementWrapper(node)) return;
+  notifyStylesheetElement(node, url, ok);
+}
+
+function notifyStylesheetElement(el: Element, url: unknown, ok: boolean): void {
+  const rel = stylesheetRel(el);
+  if (!rel.split(/\s+/).includes("stylesheet")) return;
+  const href = stylesheetHref(el);
+  if (href !== String(url)) return;
+  notifyStylesheetElementResult(el, href, ok);
+}
+
+function stylesheetRel(el: Element): string {
+  let rel = "";
+  try {
+    rel = String(el.getAttribute("rel") || "");
+  } catch {}
+  return rel;
+}
+
+function stylesheetHref(el: Element): string {
+  let href = "";
+  try {
+    href = String(el.href || "");
+  } catch {}
+  return href;
+}
+
+function notifyStylesheetElementResult(el: Element, href: string, ok: boolean): void {
+  const id = Number(el._id);
+  if (!Number.isFinite(id)) return;
+  if (linkLoadFired.get(id) === href) return;
+  linkLoadFired.set(id, href);
+  dispatchStylesheetResultEvent(el, ok);
+}
+
+function dispatchStylesheetResultEvent(el: Element, ok: boolean): void {
+  const type = ok ? "load" : "error";
+  const attrName: LoadErrorAttribute = ok ? "onload" : "onerror";
+  installLoadErrorAttributeHandler(el, attrName);
+  try {
+    el.dispatchEvent(new KsEvent(type, { bubbles: false, cancelable: false }));
+  } catch {}
 }
 
 export { imageLoadResults, imageNaturalSizeFor, invalidateImageLoadStateFor, pendingImageReloads };

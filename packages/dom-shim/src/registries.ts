@@ -186,6 +186,10 @@ export function forgetIdGlobal(nodeId: number): void {
   entry.nodeIds.delete(nodeId);
   if (entry.nodeIds.size > 0) return;
   stampedNames.delete(name);
+  deleteNamedGlobal(name, entry);
+}
+
+function deleteNamedGlobal(name: string, entry: NamedGlobalEntry): void {
   // Do not delete a page-defined replacement or execute its getter during GC cleanup.
   if (Object.getOwnPropertyDescriptor(namedGlobalObject, name)?.get === entry.getter) {
     Reflect.deleteProperty(namedGlobalObject, name);

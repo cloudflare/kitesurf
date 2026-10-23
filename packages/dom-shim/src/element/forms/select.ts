@@ -94,19 +94,7 @@ class HTMLSelectElement extends HTMLElement implements Idl.HTMLSelectElement {
     return this.options.length;
   }
   set length(n) {
-    const target = Math.max(0, Math.min(100_000, Math.floor(Number(n) || 0)));
-    const opts = selectOptions(this);
-    for (let i = opts.length - 1; i >= target; i--) {
-      const o = opts[i];
-      if (o && o.parentNode) o.parentNode.removeChild(o);
-    }
-    if (opts.length < target) {
-      const doc = this.ownerDocument || document;
-      for (let i = opts.length; i < target; i++) {
-        this.appendChild(doc.createElement("option"));
-      }
-    }
-    resyncSelectLabel(this);
+    resizeSelectOptions(this, n);
   }
   item(index: number) {
     const opts = selectOptions(this);
@@ -160,40 +148,17 @@ class HTMLSelectElement extends HTMLElement implements Idl.HTMLSelectElement {
     item: Idl.HTMLOptionElement | Idl.HTMLOptGroupElement,
     before?: Idl.HTMLElement | number | null,
   ) {
-    if (!(item instanceof HTMLOptionElement) && !(item instanceof HTMLOptGroupElement)) {
-      throw new (ksGlobal.DOMException || Error)(
-        "HTMLSelectElement.add: argument must be Option or OptGroup",
-        "TypeError",
-      );
-    }
-    let refNode: NodeBase | null = null;
-    if (before == null) {
-      refNode = null;
-    } else if (typeof before === "number") {
-      const opts = selectOptions(this);
-      refNode = before >= 0 && before < opts.length ? opts[before] : null;
-    } else if (before instanceof NodeBase) {
-      refNode = before;
-    } else {
-      throw new TypeError("insertBefore: second argument is not a Node");
-    }
-    this.insertBefore(item, refNode);
+    assertOptionOrOptGroup(item);
+    const refNode = selectInsertReference(this, before);
+    const select: Idl.HTMLSelectElement = this;
+    select.insertBefore(item, refNode);
     resyncSelectLabel(this);
   }
   remove(): void;
   remove(index: number): void;
   remove(index?: number): void {
-    if (index === undefined) {
-      if (this.parentNode) this.parentNode.removeChild(this);
-      return;
-    }
-    const opts = selectOptions(this);
-    const i = Number(index) | 0;
-    if (i >= 0 && i < opts.length) {
-      const o = opts[i];
-      if (o.parentNode) o.parentNode.removeChild(o);
-      resyncSelectLabel(this);
-    }
+    if (index === undefined) return removeSelectElement(this);
+    removeSelectOptionAt(this, index);
   }
   get form(): HTMLFormElement | null {
     return resolveFormOwner(this);
@@ -245,25 +210,7 @@ class HTMLOptionElement extends HTMLElement implements Idl.HTMLOptionElement {
     return explicitlySelected(this);
   }
   set selected(v) {
-    const bool = !!v;
-    const owner = ownerSelectOf(this);
-    if (owner) selectClearedWith.delete(owner);
-    optionSelected.set(this._id, { selected: bool, dirty: true });
-    let p = this.parentNode;
-    while (p && !(p instanceof HTMLSelectElement)) {
-      p = p.parentNode;
-    }
-    if (p) {
-      if (bool && !p.multiple) {
-        const siblings = selectOptions(p);
-        for (const o of siblings) {
-          if (o !== this) {
-            optionSelected.set(o._id, { selected: false, dirty: true });
-          }
-        }
-      }
-      resyncSelectLabel(p);
-    }
+    setOptionSelectedness(this, v);
   }
   __ksSetSelectednessUndirty(bool: unknown): void {
     optionSelected.set(this._id, {
@@ -299,20 +246,130 @@ class HTMLOptionElement extends HTMLElement implements Idl.HTMLOptionElement {
     if (localName !== "selected") return;
     // An option's selected attribute updates its selected state until script changes it.
     // https://html.spec.whatwg.org/#concept-option-dirtiness
-    const state = optionSelected.get(this._id);
-    if (state && state.dirty) return;
-    optionSelected.set(this._id, { selected: value !== null, dirty: false });
-    if (value === null) return;
-    // A select without multiple clears the other options.
-    // https://html.spec.whatwg.org/#the-select-element
-    const owner = ownerSelectOf(this);
-    if (owner && !owner.multiple) {
-      for (const o of selectOptions(owner)) {
-        if (o === this) continue;
-        const dirty = optionSelected.get(o._id)?.dirty ?? false;
-        optionSelected.set(o._id, { selected: false, dirty });
-      }
+    synchronizeSelectedAttribute(this, value);
+  }
+}
+
+function resizeSelectOptions(select: HTMLSelectElement, length: number): void {
+  const target = Math.max(0, Math.min(100_000, Math.floor(Number(length) || 0)));
+  const options = selectOptions(select);
+  removeOptionsBeyondTarget(options, target);
+  appendOptionsUntilTarget(select, options, target);
+  resyncSelectLabel(select);
+}
+
+function removeOptionsBeyondTarget(options: HTMLOptionElement[], target: number): void {
+  for (let i = options.length - 1; i >= target; i--) {
+    const option = options[i];
+    if (option && option.parentNode) option.parentNode.removeChild(option);
+  }
+}
+
+function appendOptionsUntilTarget(
+  select: HTMLSelectElement,
+  options: HTMLOptionElement[],
+  target: number,
+): void {
+  if (options.length < target) {
+    const doc = select.ownerDocument || document;
+    for (let i = options.length; i < target; i++) {
+      select.appendChild(doc.createElement("option"));
     }
+  }
+}
+
+function assertOptionOrOptGroup(item: Idl.HTMLOptionElement | Idl.HTMLOptGroupElement): void {
+  if (!(item instanceof HTMLOptionElement) && !(item instanceof HTMLOptGroupElement)) {
+    throw new (ksGlobal.DOMException || Error)(
+      "HTMLSelectElement.add: argument must be Option or OptGroup",
+      "TypeError",
+    );
+  }
+}
+
+function selectInsertReference(
+  select: HTMLSelectElement,
+  before: Idl.HTMLElement | number | null | undefined,
+): NodeBase | null {
+  if (before == null) return null;
+  if (typeof before === "number") return optionReferenceAt(select, before);
+  return nodeInsertReference(before);
+}
+
+function optionReferenceAt(select: HTMLSelectElement, index: number): NodeBase | null {
+  const options = selectOptions(select);
+  return index >= 0 && index < options.length ? options[index] : null;
+}
+
+function nodeInsertReference(before: Idl.HTMLElement): NodeBase {
+  if (before instanceof NodeBase) return before;
+  throw new TypeError("insertBefore: second argument is not a Node");
+}
+
+function removeSelectElement(select: HTMLSelectElement): void {
+  if (select.parentNode) select.parentNode.removeChild(select);
+}
+
+function removeSelectOptionAt(select: HTMLSelectElement, index: number): void {
+  const options = selectOptions(select);
+  const optionIndex = Number(index) | 0;
+  if (optionIndex < 0 || optionIndex >= options.length) return;
+  const option = options[optionIndex];
+  if (option.parentNode) option.parentNode.removeChild(option);
+  resyncSelectLabel(select);
+}
+
+function setOptionSelectedness(option: HTMLOptionElement, value: unknown): void {
+  const selected = !!value;
+  const owner = ownerSelectOf(option);
+  if (owner) selectClearedWith.delete(owner);
+  optionSelected.set(option._id, { selected, dirty: true });
+  const select = optionSelectAncestor(option);
+  if (select) synchronizeOptionSiblings(option, select, selected);
+}
+
+function optionSelectAncestor(option: HTMLOptionElement): HTMLSelectElement | null {
+  let parent = option.parentNode;
+  while (parent && !(parent instanceof HTMLSelectElement)) parent = parent.parentNode;
+  return parent;
+}
+
+function synchronizeOptionSiblings(
+  option: HTMLOptionElement,
+  select: HTMLSelectElement,
+  selected: boolean,
+): void {
+  if (selected && !select.multiple) unselectOptionSiblings(option, select);
+  resyncSelectLabel(select);
+}
+
+function unselectOptionSiblings(option: HTMLOptionElement, select: HTMLSelectElement): void {
+  for (const sibling of selectOptions(select)) {
+    if (sibling !== option) {
+      optionSelected.set(sibling._id, { selected: false, dirty: true });
+    }
+  }
+}
+
+function synchronizeSelectedAttribute(option: HTMLOptionElement, value: string | null): void {
+  const state = optionSelected.get(option._id);
+  if (state && state.dirty) return;
+  optionSelected.set(option._id, { selected: value !== null, dirty: false });
+  if (value === null) return;
+  clearOtherSelectedOptions(option);
+}
+
+function clearOtherSelectedOptions(option: HTMLOptionElement): void {
+  const owner = ownerSelectOf(option);
+  if (!owner || owner.multiple) return;
+  clearSelectedSiblings(option, owner);
+}
+
+function clearSelectedSiblings(option: HTMLOptionElement, owner: HTMLSelectElement): void {
+  for (const sibling of selectOptions(owner)) {
+    if (sibling === option) continue;
+    const dirty = optionSelected.get(sibling._id)?.dirty ?? false;
+    optionSelected.set(sibling._id, { selected: false, dirty });
   }
 }
 

@@ -21,6 +21,14 @@ import { HTMLInputElement } from "./input.js";
 import type { HTMLFormElement } from "./form.js";
 
 const BUTTON_TYPES = new Set(["submit", "reset", "button"]);
+const BUTTON_COMMANDS = new Set([
+  "show-modal",
+  "close",
+  "request-close",
+  "toggle-popover",
+  "show-popover",
+  "hide-popover",
+]);
 
 // installValidityMixin and the loops below the class install these.
 interface HTMLButtonElement extends Pick<
@@ -52,17 +60,7 @@ class HTMLButtonElement extends HTMLElement implements Idl.HTMLButtonElement {
     if (raw == null) return "";
     if (raw.startsWith("--")) return raw;
     const lower = raw.toLowerCase();
-    if (
-      lower === "show-modal" ||
-      lower === "close" ||
-      lower === "request-close" ||
-      lower === "toggle-popover" ||
-      lower === "show-popover" ||
-      lower === "hide-popover"
-    ) {
-      return lower;
-    }
-    return "";
+    return BUTTON_COMMANDS.has(lower) ? lower : "";
   }
   set command(v) {
     this.setAttribute("command", String(v));
@@ -70,12 +68,7 @@ class HTMLButtonElement extends HTMLElement implements Idl.HTMLButtonElement {
   get commandForElement() {
     const ref = this.getAttribute("commandfor");
     if (!ref) return null;
-    const doc = this.ownerDocument;
-    try {
-      return doc?.getElementById?.(ref) || null;
-    } catch {
-      return null;
-    }
+    return commandTargetById(this.ownerDocument, ref);
   }
   // The value is not checked to be an Element, only to have getAttribute.
   set commandForElement(v: Idl.Element | null) {
@@ -124,6 +117,17 @@ class HTMLButtonElement extends HTMLElement implements Idl.HTMLButtonElement {
     if (type === "submit" || type === "reset") activateFormButton(this, type);
   }
 }
+
+function commandTargetById(
+  doc: Idl.HTMLButtonElement["ownerDocument"],
+  ref: string,
+): Idl.Element | null {
+  try {
+    return doc?.getElementById?.(ref) || null;
+  } catch {
+    return null;
+  }
+}
 installValidityMixin(HTMLButtonElement);
 
 const popoverTargets = new WeakMap<object, Idl.Element | null>();
@@ -149,16 +153,7 @@ for (const cls of [HTMLInputElement, HTMLButtonElement]) {
   defineAttribute(cls.prototype, "formAction", {
     get() {
       const v = this.getAttribute("formaction");
-      if (v == null || v === "") {
-        const doc = this.ownerDocument;
-        if (doc && typeof doc.URL === "string" && doc.URL) return doc.URL;
-        return "";
-      }
-      try {
-        return new URL(v, this.baseURI || undefined).toString();
-      } catch {
-        return v;
-      }
+      return formActionValue(this, v);
     },
     set(value) {
       this.setAttribute("formaction", String(value));
@@ -184,6 +179,27 @@ for (const cls of [HTMLInputElement, HTMLButtonElement]) {
   );
   defineReflectedString(cls.prototype, "formTarget", "formtarget");
   defineReflectedBoolean(cls.prototype, "formNoValidate", "formnovalidate");
+}
+
+function formActionValue(
+  element: Pick<Idl.Element, "ownerDocument" | "baseURI">,
+  value: string | null,
+): string {
+  if (value == null || value === "") return documentFormAction(element.ownerDocument);
+  return resolveFormActionUrl(value, element);
+}
+
+function documentFormAction(doc: Idl.Element["ownerDocument"]): string {
+  if (doc && typeof doc.URL === "string" && doc.URL) return doc.URL;
+  return "";
+}
+
+function resolveFormActionUrl(value: string, element: Pick<Idl.Element, "baseURI">): string {
+  try {
+    return new URL(value, element.baseURI || undefined).toString();
+  } catch {
+    return value;
+  }
 }
 
 export { HTMLButtonElement };

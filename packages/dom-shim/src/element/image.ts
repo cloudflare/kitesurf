@@ -94,24 +94,7 @@ class HTMLImageElement extends HTMLElement implements Idl.HTMLImageElement {
   }
   decode(): Promise<void> {
     // Reuse the synthetic load result because the shim has no decoder promise.
-    const reloading = pendingImageReloads.has(this._id);
-    if (!reloading && imageNaturalSizeFor(this)) return Promise.resolve();
-    if (!reloading && imageLoadResults.get(this._id) === false) {
-      return Promise.reject(decodeError());
-    }
-    if (!hasImageSource(this)) return Promise.reject(decodeError());
-    return new Promise((resolve, reject) => {
-      const onLoad = () => {
-        this.removeEventListener("error", onError);
-        resolve();
-      };
-      const onError = () => {
-        this.removeEventListener("load", onLoad);
-        reject(decodeError());
-      };
-      this.addEventListener("load", onLoad, { once: true });
-      this.addEventListener("error", onError, { once: true });
-    });
+    return decodeImage(this);
   }
   [attributeChangeSteps](localName: string, value: string | null): void {
     super[attributeChangeSteps](localName, value);
@@ -122,15 +105,52 @@ class HTMLImageElement extends HTMLElement implements Idl.HTMLImageElement {
 }
 
 function hasImageSource(el: HTMLImageElement): boolean {
-  let src: string | null = null;
-  let srcset: string | null = null;
+  const src = readImageSourceAttribute(el, "src");
+  const srcset = readImageSourceAttribute(el, "srcset");
+  return imageAttributeHasValue(src) || imageAttributeHasValue(srcset);
+}
+
+function readImageSourceAttribute(el: HTMLImageElement, name: "src" | "srcset"): string | null {
   try {
-    src = el.getAttribute("src");
-  } catch {}
-  try {
-    srcset = el.getAttribute("srcset");
-  } catch {}
-  return (src !== null && src !== "") || (srcset !== null && srcset !== "");
+    return el.getAttribute(name);
+  } catch {
+    return null;
+  }
+}
+
+function imageAttributeHasValue(value: string | null): boolean {
+  return value !== null && value !== "";
+}
+
+function decodeImage(image: HTMLImageElement): Promise<void> {
+  const reloading = pendingImageReloads.has(image._id);
+  if (imageHasDecoded(reloading, image)) return Promise.resolve();
+  if (imageHasFailed(reloading, image)) return Promise.reject(decodeError());
+  if (!hasImageSource(image)) return Promise.reject(decodeError());
+  return waitForImageDecode(image);
+}
+
+function imageHasDecoded(reloading: boolean, image: HTMLImageElement): boolean {
+  return !reloading && imageNaturalSizeFor(image) !== null;
+}
+
+function imageHasFailed(reloading: boolean, image: HTMLImageElement): boolean {
+  return !reloading && imageLoadResults.get(image._id) === false;
+}
+
+function waitForImageDecode(image: HTMLImageElement): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onLoad = () => {
+      image.removeEventListener("error", onError);
+      resolve();
+    };
+    const onError = () => {
+      image.removeEventListener("load", onLoad);
+      reject(decodeError());
+    };
+    image.addEventListener("load", onLoad, { once: true });
+    image.addEventListener("error", onError, { once: true });
+  });
 }
 
 function decodeError(): Error {
@@ -145,15 +165,26 @@ function decodeError(): Error {
 // https://html.spec.whatwg.org/#dom-img-width
 function imageDimension(el: HTMLImageElement, attrName: "width" | "height", axis: 0 | 1): number {
   const info = nodeScrollInfoSafe(el._id);
-  if (info && info.hasBox) {
-    return Math.round(axis === 0 ? info.contentWidth : info.contentHeight);
-  }
+  const layoutDimension = imageLayoutDimension(info, axis);
+  if (layoutDimension !== null) return layoutDimension;
   const raw = el.getAttribute(attrName);
-  if (raw != null) {
-    const n = htmlParseInteger(raw);
-    if (n != null && n >= 0) return n;
-  }
+  const attributeDimension = imageAttributeDimension(raw);
+  if (attributeDimension !== null) return attributeDimension;
   return imageNaturalSizeFor(el)?.[axis] ?? 0;
+}
+
+function imageLayoutDimension(
+  info: ReturnType<typeof nodeScrollInfoSafe>,
+  axis: 0 | 1,
+): number | null {
+  if (!info || !info.hasBox) return null;
+  return Math.round(axis === 0 ? info.contentWidth : info.contentHeight);
+}
+
+function imageAttributeDimension(raw: string | null): number | null {
+  if (raw == null) return null;
+  const value = htmlParseInteger(raw);
+  return value !== null && value >= 0 ? value : null;
 }
 function setImageDimension(
   el: HTMLImageElement,

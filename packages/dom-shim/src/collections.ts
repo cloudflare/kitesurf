@@ -57,6 +57,10 @@ import type { ParsedElement } from "./parser.js";
 import { dropUnwrappedSubtrees } from "./node-base.js";
 import { makeStylePropertyMap } from "./css-typed-om.js";
 
+function appendIdlNode(parent: Idl.Node, child: Idl.Node): void {
+  parent.appendChild(child);
+}
+
 function ksState() {
   return getInternalState();
 }
@@ -151,13 +155,7 @@ class AttrCls implements Idl.Attr {
   get baseURI(): string | null {
     const owner = this._ownerElement;
     if (owner && typeof owner.baseURI === "string") return owner.baseURI;
-    try {
-      if (typeof windowObj !== "undefined" && windowObj.document) {
-        const u = windowObj.document.baseURI;
-        if (typeof u === "string") return u;
-      }
-    } catch {}
-    return null;
+    return windowDocumentBaseURI();
   }
   cloneNode(_deep) {
     const a = Object.create(AttrCls.prototype);
@@ -185,6 +183,16 @@ class AttrCls implements Idl.Attr {
     const ns = namespace === "" ? null : namespace;
     return this.lookupNamespaceURI(null) === ns;
   }
+}
+
+function windowDocumentBaseURI(): string | null {
+  try {
+    if (typeof windowObj !== "undefined" && windowObj.document) {
+      const u = windowObj.document.baseURI;
+      if (typeof u === "string") return u;
+    }
+  } catch {}
+  return null;
 }
 
 // ----- NodeList -----------------------------------------------------------
@@ -359,7 +367,7 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
     if (deep) {
       for (const child of Array.from<Idl.Node>(this.childNodes)) {
         if (child && typeof child.cloneNode === "function") {
-          clone.appendChild(child.cloneNode(true));
+          appendIdlNode(clone, child.cloneNode(true));
         }
       }
     }
@@ -370,15 +378,19 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
     if (key === "") return null;
     try {
       const matches = scopedQuerySelectorAll(this._id, `[id="${cssEscape(key)}"]`);
-      for (const n of matches) {
-        if (n && n.nodeType === ELEMENT_NODE) {
-          // SAFETY: the wasm selector returns only element IDs.
-          return n as Idl.Element;
-        }
-      }
+      return firstElementMatch(matches);
     } catch {}
     return null;
   }
+}
+
+function firstElementMatch(matches: Iterable<Idl.Node>): Idl.Element | null {
+  for (const node of matches) {
+    if (!node || node.nodeType !== ELEMENT_NODE) continue;
+    // SAFETY: the wasm selector returns only element IDs.
+    return node as Idl.Element;
+  }
+  return null;
 }
 
 // A shadow root backed by the wasm ShadowRoot node (attachShadow). It
@@ -488,14 +500,7 @@ class HtmlCollectionCls implements Idl.HTMLCollection {
     const key = String(name);
     if (key === "") return null;
     const list = htmlCollectionFn(this, "namedItem")();
-    for (const el of list) {
-      if (el.getAttribute && el.getAttribute("id") === key) return el;
-    }
-    for (const el of list) {
-      if (!htmlCollectionExposesName(el)) continue;
-      if (el.getAttribute && el.getAttribute("name") === key) return el;
-    }
-    return null;
+    return firstElementById(list, key) ?? firstElementByName(list, key);
   }
   get length() {
     return htmlCollectionFn(this, "length")().length;
@@ -507,22 +512,41 @@ class HtmlCollectionCls implements Idl.HTMLCollection {
     return "HTMLCollection";
   }
 }
+
+function firstElementById(list: Element[], key: string): Element | null {
+  for (const element of list) {
+    if (element.getAttribute && element.getAttribute("id") === key) return element;
+  }
+  return null;
+}
+
+function firstElementByName(list: Element[], key: string): Element | null {
+  for (const element of list) {
+    if (!htmlCollectionExposesName(element)) continue;
+    if (element.getAttribute && element.getAttribute("name") === key) return element;
+  }
+  return null;
+}
+
 // The elements whose id, or name where the element exposes one, is key,
 // in tree order.
 function namedMatches(list: Element[], key: string): Element[] {
   const out: Element[] = [];
   const seen = new Set<Element>();
   for (const el of list) {
-    if (!el || !el.getAttribute) continue;
-    const isMatch =
-      el.getAttribute("id") === key ||
-      (htmlCollectionExposesName(el) && el.getAttribute("name") === key);
-    if (isMatch && !seen.has(el)) {
-      seen.add(el);
-      out.push(el);
-    }
+    if (!isNamedMatch(el, key) || seen.has(el)) continue;
+    seen.add(el);
+    out.push(el);
   }
   return out;
+}
+
+function isNamedMatch(element: Element | null | undefined, key: string): element is Element {
+  if (!element || !element.getAttribute) return false;
+  return (
+    element.getAttribute("id") === key ||
+    (htmlCollectionExposesName(element) && element.getAttribute("name") === key)
+  );
 }
 
 // Repeated form-control names produce a live RadioNodeList whose value reads
@@ -588,47 +612,14 @@ class HTMLOptionsCollectionCls extends HtmlCollectionCls implements Idl.HTMLOpti
     if (!select) {
       throw new TypeError("HTMLOptionsCollection.add: missing owner select");
     }
-    const tag = item && typeof item.tagName === "string" ? item.tagName.toLowerCase() : "";
-    if (tag !== "option" && tag !== "optgroup") {
-      throw new TypeError(
-        "HTMLOptionsCollection.add: argument must be HTMLOptionElement or HTMLOptGroupElement",
-      );
-    }
+    assertOptionCollectionItem(item);
     if (before === item) return;
-    let refNode: Idl.Element | null = null;
-    if (before == null) {
-      refNode = null;
-    } else if (typeof before === "number") {
-      let idx = Number(before) | 0;
-      const list = htmlCollectionGetters.get(this)?.();
-      if (Array.isArray(list) && idx >= 0 && idx < list.length) {
-        refNode = list[idx];
-      }
-    } else {
-      refNode = before;
-    }
+    const refNode = optionsReference(this, before);
     if (refNode) {
-      let p = refNode.parentNode;
-      let isDesc = false;
-      while (p) {
-        if (p === select) {
-          isDesc = true;
-          break;
-        }
-        p = p.parentNode;
-      }
-      if (!isDesc) {
-        const DEx = ksGlobal.DOMException || Error;
-        throw new DEx(
-          "HTMLOptionsCollection.add: before is not a descendant of the select",
-          "NotFoundError",
-        );
-      }
-      // SAFETY: the ancestor walk validates normal nodes; keep the second read
-      // so page-overridden parentNode getters retain their behavior.
-      (refNode.parentNode as Idl.Node).insertBefore(item, refNode);
+      assertOptionsReferenceDescendant(select, refNode);
+      insertOptionBefore(refNode, item);
     } else {
-      select.appendChild(item);
+      appendIdlNode(select, item);
     }
   }
   remove(index: number): void {
@@ -636,11 +627,65 @@ class HTMLOptionsCollectionCls extends HtmlCollectionCls implements Idl.HTMLOpti
     if (!select) return;
     const i = Number(index) | 0;
     const list = htmlCollectionGetters.get(this)?.();
-    if (Array.isArray(list) && i >= 0 && i < list.length) {
-      const o = list[i];
-      if (o && o.parentNode) o.parentNode.removeChild(o);
-    }
+    removeOptionAtIndex(list, i);
   }
+}
+
+function assertOptionCollectionItem(item: Idl.HTMLOptionElement | Idl.HTMLOptGroupElement): void {
+  const tag = item && typeof item.tagName === "string" ? item.tagName.toLowerCase() : "";
+  if (tag !== "option" && tag !== "optgroup") {
+    throw new TypeError(
+      "HTMLOptionsCollection.add: argument must be HTMLOptionElement or HTMLOptGroupElement",
+    );
+  }
+}
+
+function optionsReference(
+  collection: object,
+  before: Idl.HTMLElement | number | null | undefined,
+): Idl.Element | null {
+  if (before == null) return null;
+  if (typeof before !== "number") return before;
+  return optionReferenceAtIndex(collection, before);
+}
+
+function optionReferenceAtIndex(collection: object, before: number): Idl.Element | null {
+  const index = Number(before) | 0;
+  const list = htmlCollectionGetters.get(collection)?.();
+  if (!Array.isArray(list)) return null;
+  if (index < 0 || index >= list.length) return null;
+  return list[index];
+}
+
+function assertOptionsReferenceDescendant(select: HTMLSelectElement, refNode: Idl.Element): void {
+  let parent = refNode.parentNode;
+  while (parent) {
+    if (parent === select) return;
+    parent = parent.parentNode;
+  }
+  const DOMExceptionImpl = ksGlobal.DOMException || Error;
+  throw new DOMExceptionImpl(
+    "HTMLOptionsCollection.add: before is not a descendant of the select",
+    "NotFoundError",
+  );
+}
+
+function insertOptionBefore(
+  refNode: Idl.Element,
+  item: Idl.HTMLOptionElement | Idl.HTMLOptGroupElement,
+): void {
+  // SAFETY: the ancestor walk validates normal nodes; keep the second read
+  // so page-overridden parentNode getters retain their behavior.
+  (refNode.parentNode as Idl.Node).insertBefore(item, refNode);
+}
+
+function removeOptionAtIndex(list: Element[] | undefined, index: number): void {
+  if (!Array.isArray(list) || index < 0 || index >= list.length) return;
+  removeOption(list[index]);
+}
+
+function removeOption(option: Element | undefined): void {
+  if (option && option.parentNode) option.parentNode.removeChild(option);
 }
 
 const OPTIONS_COLLECTION_MAX = 100_000;
@@ -651,45 +696,91 @@ function optionsCollectionSet(
   list: Element[],
 ) {
   const doc = select.ownerDocument || ksGlobal.document;
-  if (prop === "length") {
-    const n = Math.min(OPTIONS_COLLECTION_MAX, Number(value) >>> 0);
-    const cur = list.length;
-    if (n > cur) {
-      for (let i = cur; i < n; i++) {
-        select.appendChild(doc.createElement("option"));
-      }
-    } else if (n < cur) {
-      for (let i = cur - 1; i >= n; i--) {
-        const o = list[i];
-        if (o && o.parentNode) o.parentNode.removeChild(o);
-      }
-    }
-    return true;
+  if (prop === "length") return setOptionsCollectionLength(select, doc, value, list);
+  return setOptionCollectionIndex(select, doc, prop, value, list);
+}
+
+function setOptionsCollectionLength(
+  select: HTMLSelectElement,
+  doc: typeof ksGlobal.document,
+  value: unknown,
+  list: Element[],
+): boolean {
+  const length = Math.min(OPTIONS_COLLECTION_MAX, Number(value) >>> 0);
+  const currentLength = list.length;
+  if (length > currentLength) appendOptionsToLength(select, doc, currentLength, length);
+  else if (length < currentLength) removeOptionsFromLength(select, list, length, currentLength);
+  return true;
+}
+
+function appendOptionsToLength(
+  select: HTMLSelectElement,
+  doc: typeof ksGlobal.document,
+  currentLength: number,
+  length: number,
+): void {
+  for (let index = currentLength; index < length; index++) {
+    select.appendChild(doc.createElement("option"));
   }
-  const idx = Number(prop) >>> 0;
+}
+
+function removeOptionsFromLength(
+  select: HTMLSelectElement,
+  list: Element[],
+  length: number,
+  currentLength: number,
+): void {
+  for (let index = currentLength - 1; index >= length; index--) {
+    const option = list[index];
+    if (option && option.parentNode) option.parentNode.removeChild(option);
+  }
+}
+
+function setOptionCollectionIndex(
+  select: HTMLSelectElement,
+  doc: typeof ksGlobal.document,
+  property: string,
+  value: unknown,
+  list: Element[],
+): boolean {
+  const idx = Number(property) >>> 0;
   if (value === null || value === undefined) {
-    const o = list[idx];
-    if (o && o.parentNode) o.parentNode.removeChild(o);
+    removeOptionAtIndex(list, idx);
     return true;
   }
+  const option = optionFromCollectionValue(value);
+  if (idx < list.length) replaceOptionAtIndex(list, idx, option);
+  else appendOptionAtIndex(select, doc, list, idx, option);
+  return true;
+}
+
+function optionFromCollectionValue(value: unknown): Idl.HTMLOptionElement {
   const tagName: unknown = value ? Reflect.get(Object(value), "tagName") : undefined;
   const tag = typeof tagName === "string" ? tagName.toLowerCase() : "";
   if (tag !== "option") {
     throw new TypeError("HTMLOptionsCollection: indexed value must be an HTMLOptionElement");
   }
   // SAFETY: the existing tag-name check accepts option-shaped values without branding them.
-  const option = value as Idl.HTMLOptionElement;
-  if (idx < list.length) {
-    const o = list[idx];
-    if (o && o.parentNode) o.parentNode.replaceChild(option, o);
-  } else {
-    const capped = Math.min(OPTIONS_COLLECTION_MAX, idx);
-    for (let i = list.length; i < capped; i++) {
-      select.appendChild(doc.createElement("option"));
-    }
-    if (idx <= OPTIONS_COLLECTION_MAX) select.appendChild(option);
+  return value as Idl.HTMLOptionElement;
+}
+
+function replaceOptionAtIndex(list: Element[], index: number, option: Idl.HTMLOptionElement): void {
+  const current = list[index];
+  if (current && current.parentNode) current.parentNode.replaceChild(option, current);
+}
+
+function appendOptionAtIndex(
+  select: HTMLSelectElement,
+  doc: typeof ksGlobal.document,
+  list: Element[],
+  index: number,
+  option: Idl.HTMLOptionElement,
+): void {
+  const capped = Math.min(OPTIONS_COLLECTION_MAX, index);
+  for (let i = list.length; i < capped; i++) {
+    select.appendChild(doc.createElement("option"));
   }
-  return true;
+  if (index <= OPTIONS_COLLECTION_MAX) appendIdlNode(select, option);
 }
 
 // RadioNodeList is returned for repeated form-control names. Its value reads
@@ -700,26 +791,43 @@ function isRadio(node: Idl.Node): node is HTMLInputElement {
 
 class RadioNodeListCls extends NodeListCls implements Idl.RadioNodeList {
   get value() {
-    try {
-      for (const node of this) {
-        if (isRadio(node) && node.checked) return node.value || "on";
-      }
-    } catch {}
-    return "";
+    return radioNodeListValue(this);
   }
   set value(v: string) {
-    try {
-      for (const node of this) {
-        if (isRadio(node) && (node.value || "on") === String(v)) {
-          node.checked = true;
-          return;
-        }
-      }
-    } catch {}
+    setRadioNodeListValue(this, v);
   }
   get [Symbol.toStringTag](): "RadioNodeList" {
     return "RadioNodeList";
   }
+}
+
+function radioNodeListValue(nodes: Iterable<Idl.Node>): string {
+  try {
+    for (const node of nodes) {
+      const value = checkedRadioValue(node);
+      if (value !== null) return value;
+    }
+  } catch {}
+  return "";
+}
+
+function checkedRadioValue(node: Idl.Node): string | null {
+  if (!isRadio(node) || !node.checked) return null;
+  return node.value || "on";
+}
+
+function setRadioNodeListValue(nodes: Iterable<Idl.Node>, value: string): void {
+  try {
+    for (const node of nodes) {
+      if (setMatchingRadio(node, value)) return;
+    }
+  } catch {}
+}
+
+function setMatchingRadio(node: Idl.Node, value: string): boolean {
+  if (!isRadio(node) || (node.value || "on") !== String(value)) return false;
+  node.checked = true;
+  return true;
 }
 
 function htmlCollectionExposesName(el) {
@@ -731,6 +839,7 @@ function htmlCollectionExposesName(el) {
 type HtmlCollectionProxyTarget = HtmlCollectionCls & {
   [OPTIONS_OWNER_SYM]?: HTMLSelectElement;
 };
+const NO_HTML_COLLECTION_PROPERTY = Symbol("noHtmlCollectionProperty");
 type HtmlCollectionConstructor =
   | typeof HTMLFormControlsCollectionCls
   | typeof HTMLOptionsCollectionCls;
@@ -795,23 +904,23 @@ function makeHtmlCollection(
 
   function exposedNames(list) {
     const names: string[] = [];
-    const seen = new Set();
-    for (const el of list) {
-      if (!el || !el.getAttribute) continue;
-      const id = el.getAttribute("id");
-      if (id && !seen.has(id)) {
-        seen.add(id);
-        names.push(id);
-      }
-      if (htmlCollectionExposesName(el)) {
-        const nm = el.getAttribute("name");
-        if (nm && !seen.has(nm)) {
-          seen.add(nm);
-          names.push(nm);
-        }
-      }
-    }
+    const seen = new Set<string>();
+    for (const el of list) appendExposedNames(el, seen, names);
     return names;
+  }
+
+  function appendExposedNames(el: Element, seen: Set<string>, names: string[]): void {
+    if (!el || !el.getAttribute) return;
+    appendUniqueExposedName(el.getAttribute("id"), seen, names);
+    if (htmlCollectionExposesName(el)) {
+      appendUniqueExposedName(el.getAttribute("name"), seen, names);
+    }
+  }
+
+  function appendUniqueExposedName(name: string | null, seen: Set<string>, names: string[]): void {
+    if (!name || seen.has(name)) return;
+    seen.add(name);
+    names.push(name);
   }
 
   // A supported name's value, the same for a read and for reflection:
@@ -819,103 +928,223 @@ function makeHtmlCollection(
   // first id match wins, then the first name match.
   function namedValue(t: object, name: string, list: Element[]) {
     if (protoCls === HTMLFormControlsCollectionCls) return formControlsNamedItem.call(t, name);
-    for (const el of list) {
-      if (el.getAttribute && el.getAttribute("id") === name) return el;
-    }
-    for (const el of list) {
-      if (!htmlCollectionExposesName(el)) continue;
-      if (el.getAttribute && el.getAttribute("name") === name) return el;
-    }
-    return null;
+    return firstElementById(list, name) ?? firstElementByName(list, name);
   }
   // Supported names exclude indexes and own/prototype properties, as WebIDL
   // specifies for named-property visibility:
   // https://webidl.spec.whatwg.org/#legacy-platform-object-named-property-visibility
   function isVisibleName(t: object, prop: PropertyKey): prop is string {
     if (typeof prop !== "string") return false;
-    if (/^\d+$/.test(prop) && Number(prop) < 4294967295) return false;
-    if (Object.prototype.hasOwnProperty.call(shadow, prop) || prop in t) return false;
+    if (isCollectionIndexName(prop)) return false;
+    if (Object.prototype.hasOwnProperty.call(shadow, prop)) return false;
+    if (prop in t) return false;
     return memoExposedNames(memoGetList()).includes(prop);
+  }
+
+  function isCollectionIndexName(prop: string): boolean {
+    return /^\d+$/.test(prop) && Number(prop) < 4294967295;
+  }
+
+  function ownHtmlCollectionValue(t: object, prop: PropertyKey): unknown {
+    if (Object.prototype.hasOwnProperty.call(shadow, prop)) return shadow[prop];
+    if (prop === "length") return memoGetList().length;
+    const indexValue = liveHtmlCollectionIndex(prop);
+    if (indexValue !== NO_HTML_COLLECTION_PROPERTY) return indexValue;
+    return ownTargetHtmlCollectionValue(t, prop);
+  }
+
+  function ownTargetHtmlCollectionValue(t: object, prop: PropertyKey): unknown {
+    if (typeof prop === "symbol") return NO_HTML_COLLECTION_PROPERTY;
+    if (!Object.prototype.hasOwnProperty.call(t, prop)) return NO_HTML_COLLECTION_PROPERTY;
+    return Reflect.get(t, prop, proxy);
+  }
+
+  function liveHtmlCollectionIndex(prop: PropertyKey): unknown {
+    if (typeof prop !== "string" || !/^\d+$/.test(prop)) return NO_HTML_COLLECTION_PROPERTY;
+    return htmlCollectionIndexValue(Number(prop));
+  }
+
+  function htmlCollectionIndexValue(index: number): unknown {
+    if (index >= 4294967295) return NO_HTML_COLLECTION_PROPERTY;
+    const list = memoGetList();
+    return index < list.length ? list[index] : undefined;
+  }
+
+  function getHtmlCollectionProperty(t: object, prop: PropertyKey, receiver: unknown): unknown {
+    if (receiver === proxy) {
+      const ownValue = ownHtmlCollectionValue(t, prop);
+      if (ownValue !== NO_HTML_COLLECTION_PROPERTY) return ownValue;
+    }
+    if (isVisibleName(t, prop)) {
+      const named = namedValue(t, prop, memoGetList());
+      if (named) return named;
+    }
+    return Reflect.get(t, prop, receiver);
+  }
+
+  function setHtmlCollectionProperty(
+    t: HtmlCollectionProxyTarget,
+    prop: PropertyKey,
+    value: unknown,
+    receiver: unknown,
+  ): boolean {
+    if (receiver !== proxy) return Reflect.set(t, prop, value, receiver);
+    const owner = t[OPTIONS_OWNER_SYM];
+    if (!owner) return setHtmlCollectionExpando(prop, value);
+    return setOwnedHtmlCollectionProperty(t, owner, prop, value, receiver);
+  }
+
+  function setOwnedHtmlCollectionProperty(
+    t: HtmlCollectionProxyTarget,
+    owner: HTMLSelectElement,
+    prop: PropertyKey,
+    value: unknown,
+    receiver: unknown,
+  ): boolean {
+    if (isOptionsCollectionIndex(prop)) {
+      return optionsCollectionSet(owner, String(prop), value, memoGetList());
+    }
+    if (prop === "selectedIndex") return Reflect.set(t, prop, value, receiver);
+    return setHtmlCollectionExpando(prop, value);
+  }
+
+  function setHtmlCollectionExpando(prop: PropertyKey, value: unknown): boolean {
+    if (typeof prop === "string" && /^\d+$/.test(prop)) return false;
+    if (isVisibleStringName(prop)) return false;
+    shadow[prop] = value;
+    return true;
+  }
+
+  function isVisibleStringName(prop: PropertyKey): prop is string {
+    return typeof prop === "string" && memoExposedNames(memoGetList()).includes(prop);
+  }
+
+  function isOptionsCollectionIndex(prop: PropertyKey): boolean {
+    return prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop));
+  }
+
+  function hasHtmlCollectionProperty(t: object, prop: PropertyKey): boolean {
+    if (Object.prototype.hasOwnProperty.call(shadow, prop)) return true;
+    if (prop === "length") return true;
+    if (isNumericCollectionProperty(prop)) return +prop < memoGetList().length;
+    return hasLiveIndexOrName(prop) || prop in t;
+  }
+
+  function isNumericCollectionProperty(prop: PropertyKey): prop is string {
+    return typeof prop === "string" && /^\d+$/.test(prop);
+  }
+
+  function hasLiveIndexOrName(prop: PropertyKey): boolean {
+    if (typeof prop !== "string") return false;
+    if (/^\d+$/.test(prop)) return +prop < memoGetList().length;
+    return memoExposedNames(memoGetList()).includes(prop);
+  }
+
+  function deleteHtmlCollectionProperty(t: object, prop: PropertyKey): boolean {
+    if (deleteShadowProperty(prop)) return true;
+    if (isLiveHtmlCollectionIndex(prop)) return false;
+    if (isVisibleName(t, prop)) return false;
+    return Reflect.deleteProperty(t, prop);
+  }
+
+  function deleteShadowProperty(prop: PropertyKey): boolean {
+    if (!Object.prototype.hasOwnProperty.call(shadow, prop)) return false;
+    delete shadow[prop];
+    return true;
+  }
+
+  function isLiveHtmlCollectionIndex(prop: PropertyKey): boolean {
+    return typeof prop === "string" && /^\d+$/.test(prop) && +prop < memoGetList().length;
+  }
+
+  function htmlCollectionOwnKeys(t: object, list: Element[]): (string | symbol)[] {
+    const keys: (string | symbol)[] = [];
+    for (let i = 0; i < list.length; i++) keys.push(String(i));
+    for (const name of memoExposedNames(list)) {
+      if (isVisibleName(t, name)) keys.push(name);
+    }
+    appendHtmlCollectionExpandos(t, keys);
+    return keys;
+  }
+
+  function appendHtmlCollectionExpandos(t: object, keys: (string | symbol)[]): void {
+    const seen = new Set(keys);
+    for (const key of [...Object.keys(shadow), ...Object.getOwnPropertyNames(t)]) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+      keys.push(key);
+    }
+  }
+
+  function htmlCollectionPropertyDescriptor(
+    t: object,
+    prop: PropertyKey,
+  ): PropertyDescriptor | undefined {
+    if (Object.prototype.hasOwnProperty.call(shadow, prop)) {
+      return {
+        value: shadow[prop],
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      };
+    }
+    if (prop === "length") return htmlCollectionLengthDescriptor();
+    const indexDescriptor = htmlCollectionIndexDescriptor(prop);
+    if (indexDescriptor) return indexDescriptor;
+    const namedDescriptor = htmlCollectionNamedDescriptor(t, prop);
+    return namedDescriptor ?? Reflect.getOwnPropertyDescriptor(t, prop);
+  }
+
+  function htmlCollectionLengthDescriptor(): PropertyDescriptor {
+    return {
+      value: memoGetList().length,
+      writable: false,
+      enumerable: false,
+      configurable: true,
+    };
+  }
+
+  function htmlCollectionIndexDescriptor(prop: PropertyKey): PropertyDescriptor | undefined {
+    if (typeof prop !== "string" || !/^\d+$/.test(prop)) return undefined;
+    const index = +prop;
+    const list = memoGetList();
+    if (index >= list.length) return undefined;
+    return {
+      value: list[index],
+      writable: false,
+      enumerable: true,
+      configurable: true,
+    };
+  }
+
+  function htmlCollectionNamedDescriptor(
+    t: object,
+    prop: PropertyKey,
+  ): PropertyDescriptor | undefined {
+    if (typeof prop !== "string" || !isVisibleName(t, prop)) return undefined;
+    const named = namedValue(t, prop, memoGetList());
+    if (!named) return undefined;
+    return {
+      value: named,
+      writable: false,
+      enumerable: false,
+      configurable: true,
+    };
   }
 
   let proxy: HtmlCollectionProxyTarget;
   proxy = new Proxy(target, {
     get(t, prop, receiver) {
-      const isOwn = receiver === proxy;
-      if (isOwn && Object.prototype.hasOwnProperty.call(shadow, prop)) {
-        return shadow[prop];
-      }
-      if (isOwn) {
-        if (prop === "length") return memoGetList().length;
-        if (typeof prop === "string" && /^\d+$/.test(prop)) {
-          const i = Number(prop);
-          if (i >= 0 && i < 4294967295) {
-            const list = memoGetList();
-            return i < list.length ? list[i] : undefined;
-          }
-        }
-      }
-      if (isOwn && typeof prop !== "symbol" && Object.prototype.hasOwnProperty.call(t, prop)) {
-        return Reflect.get(t, prop, receiver);
-      }
-      // Named lookup: visible names act as own properties, and they also
-      // answer reads through a derived object (`Object.create(coll).named`,
-      // WPT HTMLCollection-as-prototype). Anything else falls through to the
-      // prototype.
-      if (isVisibleName(t, prop)) {
-        const found = namedValue(t, prop, memoGetList());
-        if (found) return found;
-      }
-      const v = Reflect.get(t, prop, receiver);
-      return v;
+      return getHtmlCollectionProperty(t, prop, receiver);
     },
     set(t, prop, value, receiver) {
-      if (receiver !== proxy) {
-        return Reflect.set(t, prop, value, receiver);
-      }
-      const optionsOwner = t[OPTIONS_OWNER_SYM];
-      if (optionsOwner && (prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop)))) {
-        return optionsCollectionSet(optionsOwner, prop, value, memoGetList());
-      }
-      // selectedIndex is the prototype's setter, not an expando.
-      if (optionsOwner && prop === "selectedIndex") {
-        return Reflect.set(t, prop, value, receiver);
-      }
-      // Numeric indexes are read-only. Returning false causes strict-mode
-      // assignment to throw and sloppy-mode assignment to fail silently.
-      // Other names may shadow unless they resolve to a named property,
-      // whose WebIDL descriptor is non-configurable.
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        return false;
-      }
-      if (typeof prop === "string" && memoExposedNames(memoGetList()).includes(prop)) {
-        return false;
-      }
-      shadow[prop] = value;
-      return true;
+      return setHtmlCollectionProperty(t, prop, value, receiver);
     },
     has(t, prop) {
-      if (Object.prototype.hasOwnProperty.call(shadow, prop)) return true;
-      if (prop === "length") return true;
-      if (typeof prop === "string") {
-        if (/^\d+$/.test(prop)) return +prop < memoGetList().length;
-        if (memoExposedNames(memoGetList()).includes(prop)) return true;
-      }
-      return prop in t;
+      return hasHtmlCollectionProperty(t, prop);
     },
     deleteProperty(t, prop) {
-      if (Object.prototype.hasOwnProperty.call(shadow, prop)) {
-        delete shadow[prop];
-        return true;
-      }
-      if (typeof prop === "string") {
-        if (/^\d+$/.test(prop)) {
-          const i = +prop;
-          if (i < memoGetList().length) return false;
-        }
-      }
-      if (isVisibleName(t, prop)) return false;
-      return Reflect.deleteProperty(t, prop);
+      return deleteHtmlCollectionProperty(t, prop);
     },
     defineProperty(t, prop, desc) {
       if (typeof prop === "string") {
@@ -930,64 +1159,10 @@ function makeHtmlCollection(
       // Expose indexes, visible names, and string expandos, but omit `length`,
       // prototype methods, and hidden symbols. Live-key descriptors stay
       // configurable so the proxy can report the current collection.
-      const list = memoGetList();
-      const keys: (string | symbol)[] = [];
-      for (let i = 0; i < list.length; i++) keys.push(String(i));
-      for (const n of memoExposedNames(list)) {
-        if (isVisibleName(t, n)) keys.push(n);
-      }
-      const seen = new Set(keys);
-      for (const k of [...Object.keys(shadow), ...Object.getOwnPropertyNames(t)]) {
-        if (!seen.has(k)) {
-          seen.add(k);
-          keys.push(k);
-        }
-      }
-      return keys;
+      return htmlCollectionOwnKeys(t, memoGetList());
     },
     getOwnPropertyDescriptor(t, prop) {
-      if (Object.prototype.hasOwnProperty.call(shadow, prop)) {
-        return {
-          value: shadow[prop],
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        };
-      }
-      if (prop === "length") {
-        return {
-          value: memoGetList().length,
-          writable: false,
-          enumerable: false,
-          configurable: true,
-        };
-      }
-      if (typeof prop === "string") {
-        if (/^\d+$/.test(prop)) {
-          const i = +prop;
-          const list = memoGetList();
-          if (i < list.length) {
-            return {
-              value: list[i],
-              writable: false,
-              enumerable: true,
-              configurable: true,
-            };
-          }
-        }
-        if (isVisibleName(t, prop)) {
-          const named = namedValue(t, prop, memoGetList());
-          if (named) {
-            return {
-              value: named,
-              writable: false,
-              enumerable: false,
-              configurable: true,
-            };
-          }
-        }
-      }
-      return Reflect.getOwnPropertyDescriptor(t, prop);
+      return htmlCollectionPropertyDescriptor(t, prop);
     },
   });
   htmlCollectionGetters.set(proxy, getList);
@@ -1075,37 +1250,19 @@ class DOMTokenListCls implements Idl.DOMTokenList {
     const cur = parseTokens(state.read());
     const has = cur.includes(v);
     const want = typeof force === "boolean" ? force : !has;
-    if (want && !has) {
-      cur.push(v);
-      writeTokens(state, cur);
-    } else if (!want && has) {
-      writeTokens(
-        state,
-        cur.filter((t) => t !== v),
-      );
-    }
+    updateToggledToken(state, cur, v, has, want);
     return want;
   }
   replace(token: string, newToken: string) {
     const state = tokenListState(this);
     // Both tokens are checked for emptiness before either is checked for
     // whitespace, so replace(" ", "") throws SyntaxError.
-    const o = String(token);
-    const n = String(newToken);
-    if (o.length === 0 || n.length === 0) {
-      throw new DOMException("replace: tokens cannot be the empty string", "SyntaxError");
-    }
-    if (ASCII_WHITESPACE.test(o) || ASCII_WHITESPACE.test(n)) {
-      throw new DOMException(
-        "replace: tokens cannot contain ASCII whitespace",
-        "InvalidCharacterError",
-      );
-    }
+    const { oldToken, newToken: replacement } = validateReplacementTokens(token, newToken);
     const cur = parseTokens(state.read());
-    const idx = cur.indexOf(o);
+    const idx = cur.indexOf(oldToken);
     if (idx < 0) return false;
     // Replace in place; a later copy of newToken is dropped.
-    cur[idx] = n;
+    cur[idx] = replacement;
     writeTokens(state, [...new Set(cur)]);
     return true;
   }
@@ -1120,6 +1277,43 @@ class DOMTokenListCls implements Idl.DOMTokenList {
     return tokenListState(this).read() || "";
   }
 }
+
+function updateToggledToken(
+  state: TokenListState,
+  tokens: string[],
+  token: string,
+  hasToken: boolean,
+  shouldHaveToken: boolean,
+): void {
+  if (shouldHaveToken && !hasToken) {
+    tokens.push(token);
+    writeTokens(state, tokens);
+  } else if (!shouldHaveToken && hasToken) {
+    writeTokens(
+      state,
+      tokens.filter((item) => item !== token),
+    );
+  }
+}
+
+function validateReplacementTokens(
+  token: string,
+  newToken: string,
+): { oldToken: string; newToken: string } {
+  const oldToken = String(token);
+  const replacement = String(newToken);
+  if (oldToken.length === 0 || replacement.length === 0) {
+    throw new DOMException("replace: tokens cannot be the empty string", "SyntaxError");
+  }
+  if (ASCII_WHITESPACE.test(oldToken) || ASCII_WHITESPACE.test(replacement)) {
+    throw new DOMException(
+      "replace: tokens cannot contain ASCII whitespace",
+      "InvalidCharacterError",
+    );
+  }
+  return { oldToken, newToken: replacement };
+}
+
 // WebIDL iterable<DOMString>: WPT DOMTokenList-iteration checks that
 // @@iterator is Array.prototype's. finalizeInterface does not wrap symbols.
 DOMTokenListCls.prototype[Symbol.iterator] = Array.prototype[Symbol.iterator];
@@ -1201,57 +1395,113 @@ interface SelectorCanonicalizer {
   canonicalizeSelector(selector: string): string | undefined;
   canonicalizeSelectorNs?(selector: string, prefixes: Record<string, string>): string | undefined;
 }
+interface SupportsParenState {
+  depth: number;
+  quote: string | null;
+  closeIndex: number;
+}
+
 function matchingSupportsParen(raw: string, open: number): number {
-  let depth = 0;
-  let quote: string | null = null;
-  for (let i = open; i < raw.length; i++) {
-    const c = raw[i];
-    if (quote) {
-      if (c === "\\") i++;
-      else if (c === quote) quote = null;
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      quote = c;
-      continue;
-    }
-    if (c === "(") depth++;
-    else if (c === ")") {
-      depth--;
-      if (depth === 0) return i;
-    }
+  const state: SupportsParenState = { depth: 0, quote: null, closeIndex: -1 };
+  for (let i = open; i < raw.length;) {
+    i = scanSupportsParenCharacter(raw, i, state);
+    if (state.closeIndex >= 0) return state.closeIndex;
   }
   return -1;
 }
 
-function extractImportSupports(raw: string): { rest: string; supportsText: string | null } {
-  let quote: string | null = null;
-  for (let i = 0; i < raw.length; i++) {
-    const c = raw[i];
-    if (quote) {
-      if (c === "\\") i++;
-      else if (c === quote) quote = null;
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      quote = c;
-      continue;
-    }
-    if ((c === "s" || c === "S") && /^supports\(/i.test(raw.slice(i, i + 9))) {
-      const prev = i > 0 ? raw[i - 1] : " ";
-      if (!/[\s)]/.test(prev)) continue;
-      const open = i + 8;
-      const close = matchingSupportsParen(raw, open);
-      if (close >= 0) {
-        return {
-          rest: raw.slice(0, i) + raw.slice(close + 1),
-          supportsText: raw.slice(open + 1, close).trim(),
-        };
-      }
-      return { rest: raw, supportsText: null };
-    }
+function scanSupportsParenCharacter(raw: string, index: number, state: SupportsParenState): number {
+  const character = raw[index];
+  if (state.quote) return scanQuotedSupportsCharacter(character, index, state);
+  if (character === '"' || character === "'") {
+    state.quote = character;
+    return index + 1;
   }
-  return { rest: raw, supportsText: null };
+  return scanUnquotedSupportsCharacter(character, index, state);
+}
+
+function scanQuotedSupportsCharacter(
+  character: string,
+  index: number,
+  state: SupportsParenState,
+): number {
+  if (character === "\\") return index + 2;
+  if (character === state.quote) state.quote = null;
+  return index + 1;
+}
+
+function scanUnquotedSupportsCharacter(
+  character: string,
+  index: number,
+  state: SupportsParenState,
+): number {
+  if (character === "(") state.depth++;
+  else if (character === ")") {
+    state.depth--;
+    if (state.depth === 0) state.closeIndex = index;
+  }
+  return index + 1;
+}
+
+interface ImportSupportsScanState {
+  quote: string | null;
+  skipNext: boolean;
+}
+
+function extractImportSupports(raw: string): { rest: string; supportsText: string | null } {
+  const index = importSupportsStart(raw);
+  if (index < 0) return { rest: raw, supportsText: null };
+  const open = index + 8;
+  const close = matchingSupportsParen(raw, open);
+  if (close < 0) return { rest: raw, supportsText: null };
+  return {
+    rest: raw.slice(0, index) + raw.slice(close + 1),
+    supportsText: raw.slice(open + 1, close).trim(),
+  };
+}
+
+function importSupportsStart(raw: string): number {
+  const state: ImportSupportsScanState = { quote: null, skipNext: false };
+  for (let i = 0; i < raw.length; i++) {
+    const supportsIndex = scanImportSupportsCharacter(raw, i, state);
+    if (supportsIndex >= 0) return supportsIndex;
+  }
+  return -1;
+}
+
+function scanImportSupportsCharacter(
+  raw: string,
+  index: number,
+  state: ImportSupportsScanState,
+): number {
+  const character = raw[index];
+  if (state.quote) {
+    skipQuotedImportCharacter(character, state);
+    return -1;
+  }
+  if (character === '"' || character === "'") {
+    state.quote = character;
+    return -1;
+  }
+  return isImportSupportsStart(raw, index) ? index : -1;
+}
+
+function skipQuotedImportCharacter(character: string, state: ImportSupportsScanState): void {
+  if (state.skipNext) {
+    state.skipNext = false;
+    return;
+  }
+  if (character === "\\") {
+    state.skipNext = true;
+    return;
+  }
+  if (character === state.quote) state.quote = null;
+}
+
+function isImportSupportsStart(raw: string, index: number): boolean {
+  if (!/^supports\(/i.test(raw.slice(index, index + 9))) return false;
+  const previous = index > 0 ? raw[index - 1] : " ";
+  return /[\s)]/.test(previous);
 }
 
 function selectorCanonicalizer(d: unknown): SelectorCanonicalizer | null {
@@ -1265,48 +1515,87 @@ function sheetNamespacePrefixes(sheet: unknown): Record<string, string> | null {
   try {
     const rules = (sheet as { cssRules?: { length: number; item(i: number): unknown } })?.cssRules;
     if (!rules) return null;
-    let out: Record<string, string> | null = null;
-    for (let i = 0; i < rules.length; i++) {
-      const rule = rules.item(i) as { type?: number; prefix?: string; namespaceURI?: string };
-      if (rule && rule.type === 10 && typeof rule.namespaceURI === "string") {
-        out = out || {};
-        out[typeof rule.prefix === "string" ? rule.prefix : ""] = rule.namespaceURI;
-      }
-    }
-    return out;
+    return namespacePrefixesFromRules(rules);
   } catch {
     return null;
   }
 }
+
+function namespacePrefixesFromRules(rules: {
+  length: number;
+  item(i: number): unknown;
+}): Record<string, string> | null {
+  let prefixes: Record<string, string> | null = null;
+  for (let i = 0; i < rules.length; i++) {
+    const rule = rules.item(i) as { type?: number; prefix?: string; namespaceURI?: string };
+    if (!isNamespaceRule(rule)) continue;
+    prefixes = addNamespacePrefix(prefixes, rule);
+  }
+  return prefixes;
+}
+
+function isNamespaceRule(
+  rule: { type?: number; namespaceURI?: string } | null | undefined,
+): rule is { type: number; prefix?: string; namespaceURI: string } {
+  return !!rule && rule.type === 10 && typeof rule.namespaceURI === "string";
+}
+
+function addNamespacePrefix(
+  prefixes: Record<string, string> | null,
+  rule: { prefix?: string; namespaceURI: string },
+): Record<string, string> {
+  const result = prefixes || {};
+  const prefix = typeof rule.prefix === "string" ? rule.prefix : "";
+  result[prefix] = rule.namespaceURI;
+  return result;
+}
+
 function canonicalizeSelectorOrNull(sel: unknown, sheet?: unknown): string | null {
   const s = String(sel);
   try {
     const cap = selectorCanonicalizer(dom);
-    if (cap) {
-      const prefixes = sheet ? sheetNamespacePrefixes(sheet) : null;
-      if (prefixes && typeof cap.canonicalizeSelectorNs === "function") {
-        const v = cap.canonicalizeSelectorNs(s, prefixes);
-        return typeof v === "string" ? v : null;
-      }
-      const v = cap.canonicalizeSelector(s);
-      return typeof v === "string" ? v : null;
-    }
+    if (!cap) return s;
+    return canonicalizeSelectorWith(cap, s, sheet);
   } catch {
     return null;
   }
-  return s;
+}
+
+function canonicalizeSelectorWith(
+  canonicalizer: SelectorCanonicalizer,
+  selector: string,
+  sheet: unknown,
+): string | null {
+  const prefixes = sheet ? sheetNamespacePrefixes(sheet) : null;
+  if (prefixes && typeof canonicalizer.canonicalizeSelectorNs === "function") {
+    return canonicalizedSelector(canonicalizer.canonicalizeSelectorNs(selector, prefixes));
+  }
+  return canonicalizedSelector(canonicalizer.canonicalizeSelector(selector));
+}
+
+function canonicalizedSelector(value: string | undefined): string | null {
+  return typeof value === "string" ? value : null;
 }
 
 function canonicalizePageSelectorListOrNull(prelude: unknown): string | null {
   const s = String(prelude == null ? "" : prelude);
-  const cap =
-    opts && typeof opts.canonicalizePageSelectors === "function"
-      ? opts.canonicalizePageSelectors
-      : null;
+  const cap = pageSelectorCanonicalizer();
   if (!cap) return null;
+  return canonicalizePageSelector(cap, s);
+}
+
+function pageSelectorCanonicalizer(): ((selector: string) => string | undefined) | null {
+  return opts && typeof opts.canonicalizePageSelectors === "function"
+    ? opts.canonicalizePageSelectors
+    : null;
+}
+
+function canonicalizePageSelector(
+  canonicalize: (selector: string) => string | undefined,
+  selector: string,
+): string | null {
   try {
-    const v = cap(s);
-    return typeof v === "string" ? v : null;
+    return canonicalizedSelector(canonicalize(selector));
   } catch {
     return null;
   }
@@ -1445,27 +1734,38 @@ function makeRuleList(arr: AnyCssRule[]): RuleList {
   return arr as RuleList;
 }
 
+function assertInsertRuleArgument(argumentCount: number): void {
+  if (argumentCount === 0) {
+    throw new TypeError("Failed to execute 'insertRule': 1 argument required, but only 0 present.");
+  }
+}
+
+function ruleInsertionIndex(index: unknown, rules: RuleList): number {
+  const insertionIndex = index === undefined ? 0 : Number(index) >>> 0;
+  if (insertionIndex > rules.length) {
+    throw new DOMException("Index out of bounds", "IndexSizeError");
+  }
+  return insertionIndex;
+}
+
+function assertGroupingRuleAllowed(kind: string): void {
+  if (kind === "import" || kind === "namespace") {
+    throw new DOMException("Rule not allowed inside a grouping rule", "HierarchyRequestError");
+  }
+}
+
 class CSSGroupingRuleCls extends CSSRuleInterface implements Idl.CSSGroupingRule {
   get cssRules(): RuleList | undefined {
     return rs<"childRules">(this).childRules;
   }
   insertRule(text?: unknown, index?: unknown) {
-    if (arguments.length === 0) {
-      throw new TypeError(
-        "Failed to execute 'insertRule': 1 argument required, but only 0 present.",
-      );
-    }
+    assertInsertRuleArgument(arguments.length);
     const s = rs<"childRules">(this);
     const rules = s.childRules;
-    const i = index === undefined ? 0 : Number(index) >>> 0;
-    if (i > rules.length) {
-      throw new DOMException("Index out of bounds", "IndexSizeError");
-    }
+    const i = ruleInsertionIndex(index, rules);
     const parsed = parseSingleRuleOrThrow(text);
     const kind = classifyRuleKind(parsed);
-    if (kind === "import" || kind === "namespace") {
-      throw new DOMException("Rule not allowed inside a grouping rule", "HierarchyRequestError");
-    }
+    assertGroupingRuleAllowed(kind);
     const rule = constructRule(parsed, s.parentSheet, this, s.onMutate);
     if (!rule) throw ruleSyntaxError(text);
     rules.splice(i, 0, rule);
@@ -1545,32 +1845,55 @@ const MARGIN_RULE_NAMES = new Set([
 function atKeywordNameOf(text: unknown): string | null {
   const s = String(text || "").trim();
   if (s[0] !== "@") return null;
+  return decodeAtKeywordName(s);
+}
+
+function decodeAtKeywordName(text: string): string | null {
   let name = "";
-  for (let i = 1; i < s.length;) {
-    const ch = s[i];
-    if (/[a-zA-Z0-9_-]/.test(ch)) {
-      name += ch;
-      i++;
-      continue;
-    }
-    if (ch !== "\\" || i + 1 >= s.length || /[\n\r\f]/.test(s[i + 1])) return null;
-    i++;
-    const hex = s.slice(i).match(/^[0-9a-fA-F]{1,6}/)?.[0];
-    if (hex) {
-      const cp = Number.parseInt(hex, 16);
-      name +=
-        cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)
-          ? "\ufffd"
-          : String.fromCodePoint(cp);
-      i += hex.length;
-      if (/[\t\n\f\r ]/.test(s[i] || "")) {
-        i += s[i] === "\r" && s[i + 1] === "\n" ? 2 : 1;
-      }
-    } else {
-      name += s[i++];
-    }
+  for (let i = 1; i < text.length;) {
+    const decoded = decodeAtKeywordCharacter(text, i);
+    if (!decoded) return null;
+    name += decoded.value;
+    i = decoded.nextIndex;
   }
   return name ? name.toLowerCase() : null;
+}
+
+interface DecodedAtKeywordCharacter {
+  value: string;
+  nextIndex: number;
+}
+
+function decodeAtKeywordCharacter(text: string, index: number): DecodedAtKeywordCharacter | null {
+  const character = text[index];
+  if (/[a-zA-Z0-9_-]/.test(character)) {
+    return { value: character, nextIndex: index + 1 };
+  }
+  if (!isValidAtKeywordEscape(text, index)) return null;
+  return decodeAtKeywordEscape(text, index);
+}
+
+function isValidAtKeywordEscape(text: string, index: number): boolean {
+  return text[index] === "\\" && index + 1 < text.length && !/[\n\r\f]/.test(text[index + 1]);
+}
+
+function decodeAtKeywordEscape(text: string, index: number): DecodedAtKeywordCharacter {
+  const escapeIndex = index + 1;
+  const hex = text.slice(escapeIndex).match(/^[0-9a-fA-F]{1,6}/)?.[0];
+  if (!hex) return { value: text[escapeIndex], nextIndex: escapeIndex + 1 };
+  const codePoint = Number.parseInt(hex, 16);
+  const value = isInvalidCssEscapeCodePoint(codePoint) ? "\ufffd" : String.fromCodePoint(codePoint);
+  const afterHexIndex = escapeIndex + hex.length;
+  return { value, nextIndex: skipCssEscapeWhitespace(text, afterHexIndex) };
+}
+
+function isInvalidCssEscapeCodePoint(codePoint: number): boolean {
+  return codePoint === 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff);
+}
+
+function skipCssEscapeWhitespace(text: string, index: number): number {
+  if (!/[\t\n\f\r ]/.test(text[index] || "")) return index;
+  return text[index] === "\r" && text[index + 1] === "\n" ? index + 2 : index + 1;
 }
 
 function marginRuleNameOf(selectorText: unknown): string | null {
@@ -1605,33 +1928,31 @@ class CSSPageRuleCls extends CSSGroupingRuleCls implements Idl.CSSPageRule {
   // implements, so this overrides rather than extends it. Duplicates
   // are allowed and document order is kept (WPT cssom/margin-003.html).
   insertRule(text?: unknown, index?: unknown) {
-    if (arguments.length === 0) {
-      throw new TypeError(
-        "Failed to execute 'insertRule': 1 argument required, but only 0 present.",
-      );
-    }
+    assertInsertRuleArgument(arguments.length);
     const s = rs<"childRules">(this);
     const rules = s.childRules;
-    const i = index === undefined ? 0 : Number(index) >>> 0;
-    if (i > rules.length) {
-      throw new DOMException("Index out of bounds", "IndexSizeError");
-    }
-    const split = splitStylesheetRules(text);
-    if (split.unbalanced || split.length !== 1 || split.trailingGarbage) {
-      throw ruleSyntaxError(text);
-    }
-    const name = marginRuleNameOf(split[0].selectorText);
+    const i = ruleInsertionIndex(index, rules);
+    const parsed = parsePageMarginRule(text);
+    const name = marginRuleNameOf(parsed.selectorText);
     if (!name) {
       throw new DOMException(
         "Only margin at-rules may be inserted into a @page rule",
         "SyntaxError",
       );
     }
-    const rule = constructMarginRule(split[0], name, s.parentSheet, this, s.onMutate);
+    const rule = constructMarginRule(parsed, name, s.parentSheet, this, s.onMutate);
     rules.splice(i, 0, rule);
     if (s.onMutate) s.onMutate();
     return i;
   }
+}
+
+function parsePageMarginRule(text: unknown): ParsedRuleChunk {
+  const split = splitStylesheetRules(text);
+  if (split.unbalanced || split.length !== 1 || split.trailingGarbage) {
+    throw ruleSyntaxError(text);
+  }
+  return split[0];
 }
 
 // One @top-left / @bottom-center / … margin at-rule nested in a
@@ -1861,19 +2182,22 @@ interface CounterStyleRuleDto {
 }
 
 function counterStyleDto(value: unknown): CounterStyleRuleDto | null {
-  if (!value || typeof value !== "object") return null;
-  const dto = value as Partial<CounterStyleRuleDto>;
-  if (typeof dto.name !== "string" || !Array.isArray(dto.descriptors)) return null;
-  for (const descriptor of dto.descriptors) {
-    if (
-      !descriptor ||
-      typeof descriptor.name !== "string" ||
-      typeof descriptor.value !== "string"
-    ) {
-      return null;
-    }
-  }
-  return dto as CounterStyleRuleDto;
+  return isCounterStyleRuleDto(value) ? value : null;
+}
+
+function isCounterStyleRuleDto(value: unknown): value is CounterStyleRuleDto {
+  if (!isObjectRecord(value)) return false;
+  if (typeof value.name !== "string" || !Array.isArray(value.descriptors)) return false;
+  return value.descriptors.every(isCounterStyleDescriptor);
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isCounterStyleDescriptor(value: unknown): value is { name: string; value: string } {
+  if (!isObjectRecord(value)) return false;
+  return typeof value.name === "string" && typeof value.value === "string";
 }
 
 function parseCounterStyle(css: string, field = "", value = ""): CounterStyleRuleDto | null {
@@ -1918,17 +2242,7 @@ function defineCounterStyleAttribute(
     set: setter,
   });
 }
-defineCounterStyleAttribute(
-  "name",
-  (self) => rs(self).name || "",
-  (self, v) => {
-    const st = rs(self);
-    const parsed = parseCounterStyle(st.serialize(), "name", String(v));
-    if (!parsed) return;
-    st.name = parsed.name;
-    if (st.onMutate) st.onMutate();
-  },
-);
+defineCounterStyleAttribute("name", (self) => rs(self).name || "", setCounterStyleName);
 for (const idlName of Object.keys(COUNTER_STYLE_IDL_TO_DESC)) {
   const descName = COUNTER_STYLE_IDL_TO_DESC[idlName];
   defineCounterStyleAttribute(
@@ -1938,21 +2252,51 @@ for (const idlName of Object.keys(COUNTER_STYLE_IDL_TO_DESC)) {
       if (!descriptors) throw new TypeError("Illegal invocation");
       return descriptors.get(descName) || "";
     },
-    (self, v) => {
-      const st = rs(self);
-      const descriptors = st.descriptors;
-      if (!descriptors) throw new TypeError("Illegal invocation");
-      const parsed = parseCounterStyle(st.serialize(), descName, String(v));
-      if (!parsed) return;
-      const next = parsed.descriptors.find((descriptor) => descriptor.name === descName);
-      if (!next) return;
-      descriptors.clear();
-      for (const descriptor of parsed.descriptors) {
-        descriptors.set(descriptor.name, descriptor.value);
-      }
-      if (st.onMutate) st.onMutate();
-    },
+    (self, value) => setCounterStyleDescriptor(self, descName, value),
   );
+}
+
+function setCounterStyleName(self: CSSCounterStyleRuleCls, value: unknown): void {
+  const state = rs(self);
+  const parsed = parseCounterStyle(state.serialize(), "name", String(value));
+  if (!parsed) return;
+  state.name = parsed.name;
+  if (state.onMutate) state.onMutate();
+}
+
+function setCounterStyleDescriptor(
+  self: CSSCounterStyleRuleCls,
+  descriptorName: string,
+  value: unknown,
+): void {
+  const state = rs(self);
+  const descriptors = state.descriptors;
+  if (!descriptors) throw new TypeError("Illegal invocation");
+  const parsedDescriptors = parsedCounterStyleDescriptors(state, descriptorName, value);
+  if (!parsedDescriptors) return;
+  replaceCounterStyleDescriptors(descriptors, parsedDescriptors);
+  if (state.onMutate) state.onMutate();
+}
+
+function parsedCounterStyleDescriptors(
+  state: RuleState,
+  descriptorName: string,
+  value: unknown,
+): CounterStyleRuleDto["descriptors"] | null {
+  const parsed = parseCounterStyle(state.serialize(), descriptorName, String(value));
+  if (!parsed) return null;
+  const descriptor = parsed.descriptors.find((item) => item.name === descriptorName);
+  return descriptor ? parsed.descriptors : null;
+}
+
+function replaceCounterStyleDescriptors(
+  target: Map<string, string>,
+  descriptors: CounterStyleRuleDto["descriptors"],
+): void {
+  target.clear();
+  for (const descriptor of descriptors) {
+    target.set(descriptor.name, descriptor.value);
+  }
 }
 
 function constructCounterStyleRule(
@@ -1965,11 +2309,28 @@ function constructCounterStyleRule(
   if (!parsedRule) return null;
 
   const rule = Object.create(CSSCounterStyleRuleCls.prototype) as CSSCounterStyleRuleCls;
-  const descriptors = new Map<string, string>();
-  for (const descriptor of parsedRule.descriptors) {
-    descriptors.set(descriptor.name, descriptor.value);
-  }
-  const st: RuleState = {
+  const descriptors = counterStyleDescriptorMap(parsedRule.descriptors);
+  const st = counterStyleRuleState(parsedRule, parentSheet, parentRule, onMutate, descriptors);
+  ruleState.set(rule, st);
+  return rule;
+}
+
+function counterStyleDescriptorMap(
+  descriptors: CounterStyleRuleDto["descriptors"],
+): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const descriptor of descriptors) result.set(descriptor.name, descriptor.value);
+  return result;
+}
+
+function counterStyleRuleState(
+  parsedRule: CounterStyleRuleDto,
+  parentSheet: CSSStyleSheetCtor | null,
+  parentRule: CSSRuleInterface | null,
+  onMutate: (() => void) | null,
+  descriptors: Map<string, string>,
+): RuleState {
+  const state: RuleState = {
     kind: "counter-style",
     typeNum: 11,
     parentRule: parentRule || null,
@@ -1980,113 +2341,152 @@ function constructCounterStyleRule(
     serialize() {
       const parts: string[] = [];
       for (const [k, v] of descriptors) parts.push(k + ": " + v + ";");
-      return "@counter-style " + st.name + (parts.length ? " { " + parts.join(" ") + " }" : " { }");
+      return (
+        "@counter-style " + state.name + (parts.length ? " { " + parts.join(" ") + " }" : " { }")
+      );
     },
   };
-  ruleState.set(rule, st);
-  return rule;
+  return state;
 }
+interface StylesheetRuleScanState {
+  text: string;
+  out: ParsedRuleList;
+  index: number;
+  chunkStart: number;
+  depth: number;
+  parenDepth: number;
+  braceOpenAt: number;
+  inStr: string;
+}
+
 function splitStylesheetRules(src: unknown): ParsedRuleList {
-  const out = Object.assign([] as ParsedRuleChunk[], {
-    trailingGarbage: "",
-    unbalanced: false,
-  });
   const text = String(src).replace(/\/\*[\s\S]*?\*\//g, "");
-  const n = text.length;
-  let i = 0;
-  let chunkStart = 0;
-  let depth = 0;
-  let parenDepth = 0;
-  let braceOpenAt = -1;
-  let inStr = "";
-  while (i < n) {
-    const ch = text[i];
-    if (inStr) {
-      if (ch === "\\") {
-        i += 2;
-        continue;
-      }
-      if (ch === inStr) inStr = "";
-      i++;
-      continue;
-    }
-    if (ch === "\\") {
-      i += 2;
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      inStr = ch;
-      i++;
-      continue;
-    }
-    if (ch === "(") {
-      parenDepth++;
-      i++;
-      continue;
-    }
-    if (ch === ")" && parenDepth > 0) {
-      parenDepth--;
-      i++;
-      continue;
-    }
-    if (ch === "{") {
-      if (depth === 0) braceOpenAt = i;
-      depth++;
-      i++;
-      continue;
-    }
-    if (ch === "}") {
-      depth--;
-      if (depth === 0 && braceOpenAt >= 0) {
-        const selectorText = text.slice(chunkStart, braceOpenAt).trim();
-        const declText = text.slice(braceOpenAt + 1, i).trim();
-        const cssText = selectorText
-          ? selectorText + " { " + declText + " }"
-          : text.slice(chunkStart, i + 1).trim();
-        out.push({ cssText, selectorText, declText });
-        chunkStart = i + 1;
-        braceOpenAt = -1;
-      }
-      i++;
-      continue;
-    }
-    if (depth === 0 && parenDepth === 0 && ch === ";") {
-      const raw = text.slice(chunkStart, i + 1).trim();
-      if (raw) out.push({ cssText: raw, selectorText: "", declText: "" });
-      chunkStart = i + 1;
-    }
-    i++;
+  const state: StylesheetRuleScanState = {
+    text,
+    out: Object.assign([] as ParsedRuleChunk[], { trailingGarbage: "", unbalanced: false }),
+    index: 0,
+    chunkStart: 0,
+    depth: 0,
+    parenDepth: 0,
+    braceOpenAt: -1,
+    inStr: "",
+  };
+  while (state.index < text.length) {
+    state.index = scanStylesheetCharacter(state);
   }
-  const tail = text.slice(chunkStart).trim();
-  out.trailingGarbage = tail.length > 0 ? tail : "";
-  out.unbalanced = depth !== 0 || parenDepth !== 0 || inStr !== "";
-  return out;
+  finishStylesheetRuleScan(state);
+  return state.out;
+}
+
+function scanStylesheetCharacter(state: StylesheetRuleScanState): number {
+  const character = state.text[state.index];
+  if (state.inStr) return scanQuotedStylesheetCharacter(state, character);
+  if (character === "\\") return state.index + 2;
+  if (character === '"' || character === "'") {
+    state.inStr = character;
+    return state.index + 1;
+  }
+  return scanStylesheetSyntaxCharacter(state, character);
+}
+
+function scanQuotedStylesheetCharacter(state: StylesheetRuleScanState, character: string): number {
+  if (character === "\\") return state.index + 2;
+  if (character === state.inStr) state.inStr = "";
+  return state.index + 1;
+}
+
+function scanStylesheetSyntaxCharacter(state: StylesheetRuleScanState, character: string): number {
+  if (character === "(" || character === ")") {
+    updateStylesheetParenDepth(state, character);
+    return state.index + 1;
+  }
+  if (character === "{") return openStylesheetBrace(state);
+  if (character === "}") return closeStylesheetBrace(state);
+  return appendStylesheetStatement(state, character);
+}
+
+function updateStylesheetParenDepth(state: StylesheetRuleScanState, character: string): void {
+  if (character === "(") state.parenDepth++;
+  else if (state.parenDepth > 0) state.parenDepth--;
+}
+
+function openStylesheetBrace(state: StylesheetRuleScanState): number {
+  if (state.depth === 0) state.braceOpenAt = state.index;
+  state.depth++;
+  return state.index + 1;
+}
+
+function closeStylesheetBrace(state: StylesheetRuleScanState): number {
+  state.depth--;
+  if (state.depth === 0 && state.braceOpenAt >= 0) appendStylesheetBlockRule(state);
+  return state.index + 1;
+}
+
+function appendStylesheetBlockRule(state: StylesheetRuleScanState): void {
+  const selectorText = state.text.slice(state.chunkStart, state.braceOpenAt).trim();
+  const declText = state.text.slice(state.braceOpenAt + 1, state.index).trim();
+  const cssText = selectorText
+    ? selectorText + " { " + declText + " }"
+    : state.text.slice(state.chunkStart, state.index + 1).trim();
+  state.out.push({ cssText, selectorText, declText });
+  state.chunkStart = state.index + 1;
+  state.braceOpenAt = -1;
+}
+
+function appendStylesheetStatement(state: StylesheetRuleScanState, character: string): number {
+  if (state.depth === 0 && state.parenDepth === 0 && character === ";") {
+    const raw = state.text.slice(state.chunkStart, state.index + 1).trim();
+    if (raw) state.out.push({ cssText: raw, selectorText: "", declText: "" });
+    state.chunkStart = state.index + 1;
+  }
+  return state.index + 1;
+}
+
+function finishStylesheetRuleScan(state: StylesheetRuleScanState): void {
+  const tail = state.text.slice(state.chunkStart).trim();
+  state.out.trailingGarbage = tail.length > 0 ? tail : "";
+  state.out.unbalanced = state.depth !== 0 || state.parenDepth !== 0 || state.inStr !== "";
 }
 
 function parseSingleRuleOrThrow(text: unknown): ParsedRuleChunk {
   const t = String(text == null ? "" : text);
   const split = splitStylesheetRules(t);
-  if (split.unbalanced || split.length !== 1 || split.trailingGarbage) {
-    throw ruleSyntaxError(t);
-  }
+  assertSingleRule(split, t);
   const parsed = split[0];
   const kind = classifyRuleKind(parsed);
-  if (kind === "charset" || kind === "invalid" || kind === "margin") {
-    throw ruleSyntaxError(t);
+  assertSupportedRuleKind(kind, t);
+  assertValidRuleSelector(parsed, kind);
+  return parsed;
+}
+
+function assertSingleRule(split: ParsedRuleList, text: string): void {
+  if (split.unbalanced || split.length !== 1 || split.trailingGarbage) {
+    throw ruleSyntaxError(text);
   }
+}
+
+function assertSupportedRuleKind(kind: string, text: string): void {
+  if (kind === "charset" || kind === "invalid" || kind === "margin") {
+    throw ruleSyntaxError(text);
+  }
+}
+
+function assertValidRuleSelector(parsed: ParsedRuleChunk, kind: string): void {
   if (kind === "style" && canonicalizeSelectorOrNull(parsed.selectorText) === null) {
     throw new DOMException(
       "Failed to parse CSS rule: invalid selector '" + parsed.selectorText + "'",
       "SyntaxError",
     );
   }
-  if (kind === "page" && canonicalizePageSelectorListOrNull(pagePreludeOf(parsed)) === null) {
-    throw new DOMException(
-      "Failed to parse CSS rule: invalid @page selector '" + parsed.selectorText + "'",
-      "SyntaxError",
-    );
-  }
-  return parsed;
+  assertValidPageSelector(parsed, kind);
+}
+
+function assertValidPageSelector(parsed: ParsedRuleChunk, kind: string): void {
+  if (kind !== "page" || canonicalizePageSelectorListOrNull(pagePreludeOf(parsed)) !== null) return;
+  throw new DOMException(
+    "Failed to parse CSS rule: invalid @page selector '" + parsed.selectorText + "'",
+    "SyntaxError",
+  );
 }
 
 function pagePreludeOf(parsed: ParsedRuleChunk): string {
@@ -2122,6 +2522,83 @@ function ruleStyleCascadeText(style: RuleStyleDecl): string {
   return ruleStyleHooksOf(style).cascadeText();
 }
 
+function ruleStyleDeclarationFactory() {
+  return opts && typeof opts.createRuleStyleDeclaration === "function"
+    ? opts.createRuleStyleDeclaration
+    : null;
+}
+
+type RuleStyleDeclarationFactory = NonNullable<ReturnType<typeof ruleStyleDeclarationFactory>>;
+
+function createRuleStyleStore(
+  factory: RuleStyleDeclarationFactory | null,
+  context: "style" | "keyframe" | "font-face" | "page",
+  initialDeclText: unknown,
+  baseUrl: string,
+): RuleStyleDeclarationStore | null {
+  if (!factory) return null;
+  try {
+    return factory(context, String(initialDeclText || ""), baseUrl);
+  } catch {
+    return null;
+  }
+}
+
+function initializeRuleStyleData(
+  pending: boolean,
+  initialDeclText: unknown,
+  data: Record<string, string>,
+): void {
+  if (!pending && initialDeclText) parseCssTextInto(initialDeclText, data);
+}
+
+function setRuleStyleStoreProperty(
+  store: RuleStyleDeclarationStore,
+  name: unknown,
+  value: unknown,
+  priority: unknown,
+  notify: () => void,
+): void {
+  const changed = store.setProperty(
+    String(name),
+    value == null ? "" : String(value),
+    String(priority),
+  );
+  if (changed) notify();
+}
+
+function setFallbackRuleStyleProperty(
+  data: Record<string, string>,
+  name: unknown,
+  value: unknown,
+  notify: () => void,
+): void {
+  const key = cssPropToCamel(String(name));
+  const text = value == null ? "" : String(value);
+  if (text === "") delete data[key];
+  else data[key] = text;
+  notify();
+}
+
+function setRuleStyleValue(
+  key: string,
+  value: unknown,
+  data: Record<string, string>,
+  storeFor: () => RuleStyleDeclarationStore | null,
+  notify: () => void,
+): boolean {
+  const text = value == null ? "" : String(value);
+  const store = storeFor();
+  if (store) {
+    if (store.setProperty(cssPropCamelToKebab(key), text, "")) notify();
+    return true;
+  }
+  if (text === "") delete data[key];
+  else data[key] = text;
+  notify();
+  return true;
+}
+
 function makeRuleStyleDeclaration(
   initialDeclText,
   context: "style" | "keyframe" | "font-face" | "page" = "style",
@@ -2132,24 +2609,17 @@ function makeRuleStyleDeclaration(
   // alive while detached rules remain readable through `.style`; never free it
   // eagerly in deleteRule. Creation waits for the first read or write.
   let made: RuleStyleDeclarationStore | null = null;
-  const createStore =
-    opts && typeof opts.createRuleStyleDeclaration === "function"
-      ? opts.createRuleStyleDeclaration
-      : null;
+  const createStore = ruleStyleDeclarationFactory();
   let pending = createStore !== null;
   function storeFor(): RuleStyleDeclarationStore | null {
     if (pending) {
       pending = false;
-      if (createStore) {
-        try {
-          made = createStore(context, String(initialDeclText || ""), baseUrl);
-        } catch {}
-      }
+      made = createRuleStyleStore(createStore, context, initialDeclText, baseUrl);
       if (!made && initialDeclText) parseCssTextInto(initialDeclText, data);
     }
     return made;
   }
-  if (!pending && initialDeclText) parseCssTextInto(initialDeclText, data);
+  initializeRuleStyleData(pending, initialDeclText, data);
   // Hooks live beside the data bag, not in it: bag keys serialize as CSS
   // declarations and count toward length, item and iteration.
   const hooks: RuleStyleHooks = {
@@ -2194,16 +2664,10 @@ function makeRuleStyleDeclaration(
     setProperty(name, value, priority = "") {
       const store = storeFor();
       if (store) {
-        if (store.setProperty(String(name), value == null ? "" : String(value), String(priority))) {
-          notify();
-        }
+        setRuleStyleStoreProperty(store, name, value, priority, notify);
         return;
       }
-      const key = cssPropToCamel(String(name));
-      const v = value == null ? "" : String(value);
-      if (v === "") delete data[key];
-      else data[key] = v;
-      notify();
+      setFallbackRuleStyleProperty(data, name, value, notify);
     },
     removeProperty(name) {
       const store = storeFor();
@@ -2241,16 +2705,7 @@ function makeRuleStyleDeclaration(
     set(_t, prop, value) {
       const key = styleDeclKey(prop);
       if (typeof key !== "string") return false;
-      const v = value == null ? "" : String(value);
-      const store = storeFor();
-      if (store) {
-        if (store.setProperty(cssPropCamelToKebab(key), v, "")) notify();
-        return true;
-      }
-      if (v === "") delete data[key];
-      else data[key] = v;
-      notify();
-      return true;
+      return setRuleStyleValue(key, value, data, storeFor, notify);
     },
     has(_t, prop) {
       const key = styleDeclKey(prop);
@@ -2310,42 +2765,44 @@ const KNOWN_AT_RULES = new Set([
   "document",
 ]);
 
+const CLASSIFIED_AT_RULE_KINDS = new Map<string, string>([
+  ["media", "media"],
+  ["supports", "supports"],
+  ["import", "import"],
+  ["namespace", "namespace"],
+  ["font-face", "font-face"],
+  ["font-palette-values", "font-palette-values"],
+  ["font-feature-values", "font-feature-values"],
+  ["keyframes", "keyframes"],
+  ["-webkit-keyframes", "keyframes"],
+  ["page", "page"],
+  ["charset", "charset"],
+  ["counter-style", "counter-style"],
+]);
+
 function classifyRuleKind(parsed: ParsedRuleChunk): string {
   const sel = String(parsed.selectorText || "");
   const raw = String(parsed.cssText || "");
   if (marginRuleNameOf(sel)) return "margin";
-  const at = (sel || raw).match(/^@([a-zA-Z-]+)/);
-  if (!at) return sel ? "style" : "invalid";
-  const name = at[1].toLowerCase();
-  switch (name) {
-    case "media":
-      return "media";
-    case "supports":
-      return "supports";
-    case "layer":
-      return sel ? "layer-block" : "layer-statement";
-    case "import":
-      return "import";
-    case "namespace":
-      return "namespace";
-    case "font-face":
-      return "font-face";
-    case "font-palette-values":
-      return "font-palette-values";
-    case "font-feature-values":
-      return "font-feature-values";
-    case "keyframes":
-    case "-webkit-keyframes":
-      return "keyframes";
-    case "page":
-      return "page";
-    case "charset":
-      return "charset";
-    case "counter-style":
-      return "counter-style";
-    default:
-      return KNOWN_AT_RULES.has(name) ? "unknown" : "invalid";
-  }
+  return classifyRulePrelude(sel, raw);
+}
+
+function classifyRulePrelude(selectorText: string, rawText: string): string {
+  const name = atRuleName(selectorText || rawText);
+  if (!name) return selectorText ? "style" : "invalid";
+  return classifyAtRuleName(name, selectorText);
+}
+
+function atRuleName(text: string): string | null {
+  const match = text.match(/^@([a-zA-Z-]+)/);
+  return match ? match[1].toLowerCase() : null;
+}
+
+function classifyAtRuleName(name: string, selectorText: string): string {
+  if (name === "layer") return selectorText ? "layer-block" : "layer-statement";
+  const kind = CLASSIFIED_AT_RULE_KINDS.get(name);
+  if (kind) return kind;
+  return KNOWN_AT_RULES.has(name) ? "unknown" : "invalid";
 }
 
 function ruleTextForCascade(rule: AnyCssRule): string {
@@ -2382,12 +2839,29 @@ function isConstructibleRuleKind(kind: string): boolean {
 }
 
 function ruleStyleBaseUrl(parentSheet: CSSStyleSheetCtor | null): string {
+  return parentStyleSheetHref(parentSheet) || documentBaseUrl() || opts?.pageUrl || "about:blank";
+}
+
+function parentStyleSheetHref(parentSheet: CSSStyleSheetCtor | null): string | null {
   const href = parentSheet && (parentSheet as { href?: unknown }).href;
-  if (typeof href === "string" && href) return href;
-  const documentBase = ksGlobal.document && ksGlobal.document.baseURI;
-  return typeof documentBase === "string" && documentBase
-    ? documentBase
-    : opts?.pageUrl || "about:blank";
+  return typeof href === "string" && href ? href : null;
+}
+
+function documentBaseUrl(): string | null {
+  const base = ksGlobal.document && ksGlobal.document.baseURI;
+  return typeof base === "string" && base ? base : null;
+}
+
+function ruleParentFields(
+  parentSheet: CSSStyleSheetCtor | null,
+  parentRule: CSSRuleInterface | null,
+  onMutate: (() => void) | null,
+): Pick<RuleState, "parentRule" | "parentSheet" | "onMutate"> {
+  return {
+    parentRule: parentRule || null,
+    parentSheet: parentSheet || null,
+    onMutate: onMutate || null,
+  };
 }
 
 function constructKeyframe(
@@ -2405,9 +2879,7 @@ function constructKeyframe(
   const st: RuleState = {
     kind: "keyframe",
     typeNum: 8,
-    parentRule: parentRule || null,
-    parentSheet: parentSheet || null,
-    onMutate: onMutate || null,
+    ...ruleParentFields(parentSheet, parentRule, onMutate),
     keyText: String(parsed.selectorText || "").trim(),
     style,
     serialize() {
@@ -2481,6 +2953,35 @@ const FEATURE_TYPES = [
   "styleset",
 ];
 
+type RuleConstructionBase = Pick<RuleState, "kind" | "parentRule" | "parentSheet" | "onMutate">;
+interface RuleConstructionContext {
+  parsed: ParsedRuleChunk;
+  parentSheet: CSSStyleSheetCtor | null;
+  parentRule: CSSRuleInterface | null;
+  onMutate: (() => void) | null;
+  kind: string;
+  selectorText: string;
+  rawText: string;
+  base: RuleConstructionBase;
+}
+type RuleBuilder = (context: RuleConstructionContext) => AnyCssRule | null | undefined;
+
+const RULE_BUILDERS = new Map<string, RuleBuilder>([
+  ["style", buildStyleRule],
+  ["media", buildGroupingRule],
+  ["supports", buildGroupingRule],
+  ["layer-block", buildLayerBlockRule],
+  ["layer-statement", buildLayerStatementRule],
+  ["import", buildImportRule],
+  ["namespace", buildNamespaceRule],
+  ["font-face", buildFontFaceRule],
+  ["font-palette-values", buildFontPaletteValuesRule],
+  ["font-feature-values", buildFontFeatureValuesRule],
+  ["keyframes", buildKeyframesRule],
+  ["page", buildPageRule],
+  ["counter-style", buildCounterStyleRuleFromContext],
+]);
+
 function constructRule(
   parsed: ParsedRuleChunk,
   parentSheet: CSSStyleSheetCtor | null,
@@ -2488,371 +2989,538 @@ function constructRule(
   onMutate: (() => void) | null,
 ): AnyCssRule | null {
   const kind = classifyRuleKind(parsed);
-  const sel = String(parsed.selectorText || "");
-  const raw = String(parsed.cssText || "");
-  const base = {
+  const context: RuleConstructionContext = {
+    parsed,
+    parentSheet,
+    parentRule,
+    onMutate,
     kind,
-    parentRule: parentRule || null,
-    parentSheet: parentSheet || null,
-    onMutate: onMutate || null,
+    selectorText: String(parsed.selectorText || ""),
+    rawText: String(parsed.cssText || ""),
+    base: { kind, ...ruleParentFields(parentSheet, parentRule, onMutate) },
   };
-  const mk = <T extends object>(cls: { prototype: T }): T => Object.create(cls.prototype);
+  const result = RULE_BUILDERS.get(kind)?.(context);
+  return result === undefined ? buildUnknownRule(context) : result;
+}
 
-  if (kind === "style") {
-    const rule = mk(CSSStyleRuleCls);
-    const style = makeRuleStyleDeclaration(
-      parsed.declText || "",
-      "style",
-      ruleStyleBaseUrl(parentSheet),
-    );
-    const canon = canonicalizeSelectorOrNull(sel);
-    const st: RuleState = {
-      ...base,
-      typeNum: 1,
-      selectorText: canon !== null ? canon : sel,
-      style,
-      childRules: makeRuleList([]),
-      serialize() {
-        const d = style.cssText;
-        return st.selectorText + (d ? " { " + d + " }" : " { }");
-      },
-      serializeForCascade() {
-        const d = ruleStyleCascadeText(style);
-        return st.selectorText + (d ? " { " + d + " }" : " { }");
-      },
-    };
-    attachRuleStyle(style, rule, () => {
-      if (st.onMutate) st.onMutate();
-    });
-    ruleState.set(rule, st);
-    return rule;
-  }
+function createCssRule<T extends object>(constructor: { prototype: T }): T {
+  return Object.create(constructor.prototype);
+}
 
-  if (kind === "media" || kind === "supports") {
-    const rule = mk(kind === "media" ? CSSMediaRuleCls : CSSSupportsRuleCls);
-    const cond = sel.replace(/^@(media|supports)/i, "").trim();
-    const st: RuleState = {
-      ...base,
-      typeNum: kind === "media" ? 4 : 12,
-      conditionText: cond,
-      media: kind === "media" ? makeMediaList(cond, onMutate) : undefined,
-      childRules: undefined,
-      serialize() {
-        const c = st.media ? st.media.mediaText : st.conditionText;
-        return "@" + kind + (c ? " " + c : "") + serializeChildBlock(st.childRules);
-      },
-      serializeForCascade() {
-        const c = st.media ? st.media.mediaText : st.conditionText;
-        return "@" + kind + (c ? " " + c : "") + serializeChildBlock(st.childRules, true);
-      },
-    };
-    ruleState.set(rule, st);
-    st.childRules = parseChildRules(parsed.declText, parentSheet, rule, onMutate);
-    return rule;
-  }
+function notifyRuleMutation(state: RuleState): void {
+  if (state.onMutate) state.onMutate();
+}
 
-  if (kind === "layer-block") {
-    const rule = mk(CSSLayerBlockRuleCls);
-    const st: RuleState = {
-      ...base,
-      typeNum: 0,
-      name: sel.replace(/^@layer/i, "").trim(),
-      childRules: undefined,
-      serialize() {
-        return "@layer" + (st.name ? " " + st.name : "") + serializeChildBlock(st.childRules);
-      },
-      serializeForCascade() {
-        return "@layer" + (st.name ? " " + st.name : "") + serializeChildBlock(st.childRules, true);
-      },
-    };
-    ruleState.set(rule, st);
-    st.childRules = parseChildRules(parsed.declText, parentSheet, rule, onMutate);
-    return rule;
-  }
-
-  if (kind === "layer-statement") {
-    const rule = mk(CSSLayerStatementRuleCls);
-    const names = raw
-      .replace(/^@layer/i, "")
-      .replace(/;\s*$/, "")
-      .trim();
-    const list = names
-      ? names
-          .split(",")
-          .map((s: string) => s.trim())
-          .filter(Boolean)
-      : [];
-    const st: RuleState = {
-      ...base,
-      typeNum: 0,
-      nameList: Object.freeze(list.slice()),
-      serialize() {
-        return "@layer " + list.join(", ") + ";";
-      },
-    };
-    ruleState.set(rule, st);
-    return rule;
-  }
-
-  if (kind === "import") {
-    const sup = extractImportSupports(raw);
-    const m = sup.rest.match(
-      /^@import\s+(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"']*))\s*\)|"([^"]*)"|'([^']*)')\s*(layer(?:\(([^)]*)\))?)?\s*(?:supports\(([\s\S]*?)\))?\s*([^;]*);?\s*$/i,
-    );
-    if (m) {
-      const rule = mk(CSSImportRuleCls);
-      const href =
-        m[1] ?? m[2] ?? (m[3] !== undefined ? m[3].trim() : undefined) ?? m[4] ?? m[5] ?? "";
-      const layerName = m[6] ? (m[7] !== undefined ? m[7].trim() : "") : null;
-      const supportsText = sup.supportsText ?? (m[8] !== undefined ? m[8].trim() : null);
-      const media = makeMediaList((m[9] || "").trim(), onMutate);
-      const importedSheet = new CSSStyleSheetCtor();
-      const st: RuleState = {
-        ...base,
-        typeNum: 3,
-        href,
-        layerName,
-        supportsText,
-        media,
-        styleSheet: importedSheet,
-        serialize() {
-          let out = '@import url("' + href + '")';
-          if (st.layerName !== null)
-            out += st.layerName === "" ? " layer" : " layer(" + st.layerName + ")";
-          if (st.supportsText !== null) out += " supports(" + st.supportsText + ")";
-          const mt = media.mediaText;
-          if (mt) out += " " + mt;
-          return out + ";";
-        },
-      };
-      ruleState.set(rule, st);
-      const imported = styleSheetFields(importedSheet);
-      imported.ownerRule = rule;
-      imported.href = href;
-      imported.parentStyleSheet = parentSheet || null;
-      return rule;
-    }
-  }
-
-  if (kind === "namespace") {
-    const m = raw.match(
-      /^@namespace\s+(?:([a-zA-Z_][\w-]*)\s+)?(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"']*))\s*\)|"([^"]*)"|'([^']*)')\s*;?\s*$/i,
-    );
-    if (m) {
-      const rule = mk(CSSNamespaceRuleCls);
-      const uri =
-        m[2] ?? m[3] ?? (m[4] !== undefined ? m[4].trim() : undefined) ?? m[5] ?? m[6] ?? "";
-      const st: RuleState = {
-        ...base,
-        typeNum: 10,
-        prefix: m[1] || "",
-        namespaceURI: uri,
-        serialize() {
-          return "@namespace " + (st.prefix ? st.prefix + " " : "") + 'url("' + uri + '");';
-        },
-      };
-      ruleState.set(rule, st);
-      return rule;
-    }
-  }
-
-  if (kind === "font-face") {
-    const rule = mk(CSSFontFaceRuleCls);
-    const style = makeRuleStyleDeclaration(
-      parsed.declText || "",
-      "font-face",
-      ruleStyleBaseUrl(parentSheet),
-    );
-    const st: RuleState = {
-      ...base,
-      typeNum: 5,
-      style,
-      serialize() {
-        const d = style.cssText;
-        return "@font-face" + (d ? " { " + d + " }" : " { }");
-      },
-      serializeForCascade() {
-        const d = ruleStyleCascadeText(style);
-        return "@font-face" + (d ? " { " + d + " }" : " { }");
-      },
-    };
-    attachRuleStyle(style, rule, () => {
-      if (st.onMutate) st.onMutate();
-    });
-    ruleState.set(rule, st);
-    return rule;
-  }
-
-  if (kind === "font-palette-values") {
-    const rule = mk(CSSFontPaletteValuesRuleCls);
-    const declBag: Record<string, string> = Object.create(null);
-    parseCssTextInto(parsed.declText || "", declBag);
-    const st: RuleState = {
-      ...base,
-      typeNum: 0,
-      name: sel.replace(/^@font-palette-values/i, "").trim(),
-      declBag,
-      serialize() {
-        const parts: string[] = [];
-        for (const k of Object.keys(declBag)) {
-          parts.push(cssPropCamelToKebab(k) + ": " + declBag[k] + ";");
-        }
-        return (
-          "@font-palette-values " +
-          st.name +
-          (parts.length ? " { " + parts.join(" ") + " }" : " { }")
-        );
-      },
-    };
-    ruleState.set(rule, st);
-    return rule;
-  }
-
-  if (kind === "font-feature-values") {
-    const rule = mk(CSSFontFeatureValuesRuleCls);
-    const onMutateRef: { fn: (() => void) | null } = { fn: null };
-    const features: Record<string, FeatureValuesMap> = {};
-    for (const t of FEATURE_TYPES) features[t] = makeFeatureValuesMap(onMutateRef).api;
-    for (const p of splitStylesheetRules(String(parsed.declText || ""))) {
-      const fm = String(p.selectorText || "").match(/^@([a-zA-Z-]+)$/);
-      if (!fm || !FEATURE_TYPES.includes(fm[1].toLowerCase())) continue;
-      const target = features[fm[1].toLowerCase()];
-      for (const decl of String(p.declText || "").split(";")) {
-        const colon = decl.indexOf(":");
-        if (colon <= 0) continue;
-        const name = decl.slice(0, colon).trim();
-        const nums = decl
-          .slice(colon + 1)
-          .trim()
-          .split(/\s+/)
-          .map(Number)
-          .filter((n: number) => !Number.isNaN(n));
-        if (name && nums.length) target.set(name, nums);
-      }
-    }
-    onMutateRef.fn = onMutate || null;
-    const st: RuleState = {
-      ...base,
-      typeNum: 14,
-      name: sel.replace(/^@font-feature-values/i, "").trim(),
-      features,
-      serialize() {
-        const blocks: string[] = [];
-        for (const t of FEATURE_TYPES) {
-          const map = features[t];
-          if (!map.size) continue;
-          const entries: string[] = [];
-          map.forEach((v: number[], k: string) => entries.push(k + ": " + v.join(" ") + ";"));
-          blocks.push("@" + t + " { " + entries.join(" ") + " }");
-        }
-        return (
-          "@font-feature-values " +
-          st.name +
-          (blocks.length ? " { " + blocks.join(" ") + " }" : " { }")
-        );
-      },
-    };
-    ruleState.set(rule, st);
-    return rule;
-  }
-
-  if (kind === "keyframes") {
-    const rule = mk(CSSKeyframesRuleCls);
-    const st: RuleStateWith<"childRules"> = {
-      ...base,
-      typeNum: 7,
-      name: sel.replace(/^@(-webkit-)?keyframes/i, "").trim(),
-      childRules: makeRuleList([]),
-      serialize() {
-        return "@keyframes " + st.name + serializeChildBlock(st.childRules);
-      },
-      serializeForCascade() {
-        return "@keyframes " + st.name + serializeChildBlock(st.childRules, true);
-      },
-    };
-    ruleState.set(rule, st);
-    for (const p of splitStylesheetRules(String(parsed.declText || ""))) {
-      if (!p.selectorText) continue;
-      st.childRules.push(constructKeyframe(p, parentSheet, rule, onMutate));
-    }
-    return rule;
-  }
-
-  if (kind === "page") {
-    const canonSel = canonicalizePageSelectorListOrNull(pagePreludeOf(parsed));
-    if (canonSel === null) return null;
-    const rule = mk(CSSPageRuleCls);
-    const declParts: string[] = [];
-    const childRules = makeRuleList([]);
-    const pageBody = splitStylesheetRules(parsed.declText || "");
-    for (const part of pageBody) {
-      const marginName = marginRuleNameOf(part.selectorText);
-      if (marginName) {
-        childRules.push(constructMarginRule(part, marginName, parentSheet, rule, onMutate));
-      } else if (!part.selectorText && !/^@/.test(String(part.cssText || "").trim())) {
-        declParts.push(String(part.cssText));
-      }
-    }
-    if (pageBody.trailingGarbage && !/^@/.test(pageBody.trailingGarbage)) {
-      declParts.push(pageBody.trailingGarbage);
-    }
-    const style = makeRuleStyleDeclaration(
-      declParts.join(" "),
-      "page",
-      ruleStyleBaseUrl(parentSheet),
-    );
-    const pageText = (declText: string, forCascade: boolean): string => {
-      const parts: string[] = [];
-      if (declText) parts.push(declText);
-      for (const c of childRules)
-        parts.push(forCascade ? ruleTextForCascade(c) : String(c.cssText));
-      const body = parts.join(" ");
-      return (
-        "@page" +
-        (st.selectorText ? " " + st.selectorText : "") +
-        (body ? " { " + body + " }" : " { }")
-      );
-    };
-    const st: RuleState = {
-      ...base,
-      typeNum: 6,
-      selectorText: canonSel,
-      style,
-      childRules,
-      serialize() {
-        return pageText(style.cssText, false);
-      },
-      serializeForCascade() {
-        return pageText(ruleStyleCascadeText(style), true);
-      },
-    };
-    attachRuleStyle(style, rule, () => {
-      if (st.onMutate) st.onMutate();
-    });
-    ruleState.set(rule, st);
-    return rule;
-  }
-
-  if (kind === "counter-style") {
-    return constructCounterStyleRule(parsed, parentSheet, parentRule, onMutate);
-  }
-
-  const rule = mk(CSSUnknownRuleCls);
-  const st: RuleState = {
-    ...base,
-    typeNum: 0,
+function buildStyleRule(context: RuleConstructionContext): CSSStyleRuleCls {
+  const rule = createCssRule(CSSStyleRuleCls);
+  const style = makeRuleStyleDeclaration(
+    context.parsed.declText || "",
+    "style",
+    ruleStyleBaseUrl(context.parentSheet),
+  );
+  const canonical = canonicalizeSelectorOrNull(context.selectorText);
+  const state: RuleState = {
+    ...context.base,
+    typeNum: 1,
+    selectorText: canonical !== null ? canonical : context.selectorText,
+    style,
+    childRules: makeRuleList([]),
     serialize() {
-      if (sel) {
-        const d = String(parsed.declText || "")
-          .replace(/\s+/g, " ")
-          .trim();
-        return sel + (d ? " { " + d + " }" : " { }");
-      }
-      return raw.replace(/\s+/g, " ").trim();
+      const declarations = style.cssText;
+      return state.selectorText + (declarations ? " { " + declarations + " }" : " { }");
+    },
+    serializeForCascade() {
+      const declarations = ruleStyleCascadeText(style);
+      return state.selectorText + (declarations ? " { " + declarations + " }" : " { }");
     },
   };
-  ruleState.set(rule, st);
+  attachRuleStyle(style, rule, () => notifyRuleMutation(state));
+  ruleState.set(rule, state);
   return rule;
+}
+
+function buildGroupingRule(context: RuleConstructionContext): CSSMediaRuleCls | CSSSupportsRuleCls {
+  const constructor = context.kind === "media" ? CSSMediaRuleCls : CSSSupportsRuleCls;
+  const rule = createCssRule(constructor);
+  const condition = context.selectorText.replace(/^@(media|supports)/i, "").trim();
+  const state: RuleState = {
+    ...context.base,
+    typeNum: context.kind === "media" ? 4 : 12,
+    conditionText: condition,
+    media: context.kind === "media" ? makeMediaList(condition, context.onMutate) : undefined,
+    childRules: undefined,
+    serialize() {
+      const text = state.media ? state.media.mediaText : state.conditionText;
+      return "@" + context.kind + (text ? " " + text : "") + serializeChildBlock(state.childRules);
+    },
+    serializeForCascade() {
+      const text = state.media ? state.media.mediaText : state.conditionText;
+      return (
+        "@" + context.kind + (text ? " " + text : "") + serializeChildBlock(state.childRules, true)
+      );
+    },
+  };
+  ruleState.set(rule, state);
+  state.childRules = parseChildRules(
+    context.parsed.declText,
+    context.parentSheet,
+    rule,
+    context.onMutate,
+  );
+  return rule;
+}
+
+function buildLayerBlockRule(context: RuleConstructionContext): CSSLayerBlockRuleCls {
+  const rule = createCssRule(CSSLayerBlockRuleCls);
+  const state: RuleState = {
+    ...context.base,
+    typeNum: 0,
+    name: context.selectorText.replace(/^@layer/i, "").trim(),
+    childRules: undefined,
+    serialize() {
+      return (
+        "@layer" + (state.name ? " " + state.name : "") + serializeChildBlock(state.childRules)
+      );
+    },
+    serializeForCascade() {
+      return (
+        "@layer" +
+        (state.name ? " " + state.name : "") +
+        serializeChildBlock(state.childRules, true)
+      );
+    },
+  };
+  ruleState.set(rule, state);
+  state.childRules = parseChildRules(
+    context.parsed.declText,
+    context.parentSheet,
+    rule,
+    context.onMutate,
+  );
+  return rule;
+}
+
+function buildLayerStatementRule(context: RuleConstructionContext): CSSLayerStatementRuleCls {
+  const rule = createCssRule(CSSLayerStatementRuleCls);
+  const names = context.rawText
+    .replace(/^@layer/i, "")
+    .replace(/;\s*$/, "")
+    .trim();
+  const list = names
+    ? names
+        .split(",")
+        .map((name) => name.trim())
+        .filter(Boolean)
+    : [];
+  const state: RuleState = {
+    ...context.base,
+    typeNum: 0,
+    nameList: Object.freeze(list.slice()),
+    serialize() {
+      return "@layer " + list.join(", ") + ";";
+    },
+  };
+  ruleState.set(rule, state);
+  return rule;
+}
+
+function buildImportRule(context: RuleConstructionContext): AnyCssRule | undefined {
+  const supports = extractImportSupports(context.rawText);
+  const match = supports.rest.match(
+    /^@import\s+(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"']*))\s*\)|"([^"]*)"|'([^']*)')\s*(layer(?:\(([^)]*)\))?)?\s*(?:supports\(([\s\S]*?)\))?\s*([^;]*);?\s*$/i,
+  );
+  if (!match) return undefined;
+  return constructImportRule(context, supports, match);
+}
+
+function constructImportRule(
+  context: RuleConstructionContext,
+  supports: { rest: string; supportsText: string | null },
+  match: RegExpMatchArray,
+): CSSImportRuleCls {
+  const rule = createCssRule(CSSImportRuleCls);
+  const href = importHref(match);
+  const layerName = importLayerName(match);
+  const supportsText = importSupportsText(supports, match);
+  const media = makeMediaList((match[9] || "").trim(), context.onMutate);
+  const importedSheet = new CSSStyleSheetCtor();
+  const state: RuleState = {
+    ...context.base,
+    typeNum: 3,
+    href,
+    layerName,
+    supportsText,
+    media,
+    styleSheet: importedSheet,
+    serialize() {
+      return serializeImportRule(state, href, media);
+    },
+  };
+  ruleState.set(rule, state);
+  const imported = styleSheetFields(importedSheet);
+  imported.ownerRule = rule;
+  imported.href = href;
+  imported.parentStyleSheet = context.parentSheet || null;
+  return rule;
+}
+
+function importHref(match: RegExpMatchArray): string {
+  const quoted = firstDefinedCapture(match[1], match[2]);
+  if (quoted !== undefined) return quoted;
+  if (match[3] !== undefined) return match[3].trim();
+  return firstDefinedCapture(match[4], match[5]) ?? "";
+}
+
+function firstDefinedCapture(
+  first: string | undefined,
+  second: string | undefined,
+): string | undefined {
+  return first !== undefined ? first : second;
+}
+
+function importLayerName(match: RegExpMatchArray): string | null {
+  if (!match[6]) return null;
+  return match[7] !== undefined ? match[7].trim() : "";
+}
+
+function importSupportsText(
+  supports: { supportsText: string | null },
+  match: RegExpMatchArray,
+): string | null {
+  if (supports.supportsText !== null) return supports.supportsText;
+  return match[8] !== undefined ? match[8].trim() : null;
+}
+
+function serializeImportRule(state: RuleState, href: string, media: MediaListCls): string {
+  let text = '@import url("' + href + '")';
+  if (state.layerName !== null) {
+    text += state.layerName === "" ? " layer" : " layer(" + state.layerName + ")";
+  }
+  if (state.supportsText !== null) text += " supports(" + state.supportsText + ")";
+  const mediaText = media.mediaText;
+  if (mediaText) text += " " + mediaText;
+  return text + ";";
+}
+
+function buildNamespaceRule(context: RuleConstructionContext): AnyCssRule | undefined {
+  const match = context.rawText.match(
+    /^@namespace\s+(?:([a-zA-Z_][\w-]*)\s+)?(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"']*))\s*\)|"([^"]*)"|'([^']*)')\s*;?\s*$/i,
+  );
+  if (!match) return undefined;
+  return constructNamespaceRule(context, match);
+}
+
+function constructNamespaceRule(
+  context: RuleConstructionContext,
+  match: RegExpMatchArray,
+): CSSNamespaceRuleCls {
+  const rule = createCssRule(CSSNamespaceRuleCls);
+  const uri = namespaceUri(match);
+  const state: RuleState = {
+    ...context.base,
+    typeNum: 10,
+    prefix: match[1] || "",
+    namespaceURI: uri,
+    serialize() {
+      return "@namespace " + (state.prefix ? state.prefix + " " : "") + 'url("' + uri + '");';
+    },
+  };
+  ruleState.set(rule, state);
+  return rule;
+}
+
+function namespaceUri(match: RegExpMatchArray): string {
+  const quoted = firstDefinedCapture(match[2], match[3]);
+  if (quoted !== undefined) return quoted;
+  if (match[4] !== undefined) return match[4].trim();
+  return firstDefinedCapture(match[5], match[6]) ?? "";
+}
+
+function buildFontFaceRule(context: RuleConstructionContext): CSSFontFaceRuleCls {
+  const rule = createCssRule(CSSFontFaceRuleCls);
+  const style = makeRuleStyleDeclaration(
+    context.parsed.declText || "",
+    "font-face",
+    ruleStyleBaseUrl(context.parentSheet),
+  );
+  const state: RuleState = {
+    ...context.base,
+    typeNum: 5,
+    style,
+    serialize() {
+      const declarations = style.cssText;
+      return "@font-face" + (declarations ? " { " + declarations + " }" : " { }");
+    },
+    serializeForCascade() {
+      const declarations = ruleStyleCascadeText(style);
+      return "@font-face" + (declarations ? " { " + declarations + " }" : " { }");
+    },
+  };
+  attachRuleStyle(style, rule, () => notifyRuleMutation(state));
+  ruleState.set(rule, state);
+  return rule;
+}
+
+function buildFontPaletteValuesRule(context: RuleConstructionContext): CSSFontPaletteValuesRuleCls {
+  const rule = createCssRule(CSSFontPaletteValuesRuleCls);
+  const declarations: Record<string, string> = Object.create(null);
+  parseCssTextInto(context.parsed.declText || "", declarations);
+  const state: RuleState = {
+    ...context.base,
+    typeNum: 0,
+    name: context.selectorText.replace(/^@font-palette-values/i, "").trim(),
+    declBag: declarations,
+    serialize() {
+      return serializeFontPaletteValues(state, declarations);
+    },
+  };
+  ruleState.set(rule, state);
+  return rule;
+}
+
+function serializeFontPaletteValues(
+  state: RuleState,
+  declarations: Record<string, string>,
+): string {
+  const parts: string[] = [];
+  for (const key of Object.keys(declarations)) {
+    parts.push(cssPropCamelToKebab(key) + ": " + declarations[key] + ";");
+  }
+  return (
+    "@font-palette-values " + state.name + (parts.length ? " { " + parts.join(" ") + " }" : " { }")
+  );
+}
+
+function buildFontFeatureValuesRule(context: RuleConstructionContext): CSSFontFeatureValuesRuleCls {
+  const rule = createCssRule(CSSFontFeatureValuesRuleCls);
+  const onMutateRef: { fn: (() => void) | null } = { fn: null };
+  const features = createFeatureValueMaps(onMutateRef);
+  addFeatureValuesFromText(String(context.parsed.declText || ""), features);
+  onMutateRef.fn = context.onMutate || null;
+  const state: RuleState = {
+    ...context.base,
+    typeNum: 14,
+    name: context.selectorText.replace(/^@font-feature-values/i, "").trim(),
+    features,
+    serialize() {
+      return serializeFontFeatureValues(state, features);
+    },
+  };
+  ruleState.set(rule, state);
+  return rule;
+}
+
+function createFeatureValueMaps(onMutateRef: {
+  fn: (() => void) | null;
+}): Record<string, FeatureValuesMap> {
+  const features: Record<string, FeatureValuesMap> = {};
+  for (const type of FEATURE_TYPES) features[type] = makeFeatureValuesMap(onMutateRef).api;
+  return features;
+}
+
+function addFeatureValuesFromText(text: string, features: Record<string, FeatureValuesMap>): void {
+  for (const rule of splitStylesheetRules(text)) addFeatureValuesFromRule(rule, features);
+}
+
+function addFeatureValuesFromRule(
+  rule: ParsedRuleChunk,
+  features: Record<string, FeatureValuesMap>,
+): void {
+  const type = featureTypeFromPrelude(String(rule.selectorText || ""));
+  if (!type) return;
+  const target = features[type];
+  for (const declaration of String(rule.declText || "").split(";")) {
+    addFeatureValue(target, declaration);
+  }
+}
+
+function featureTypeFromPrelude(prelude: string): string | null {
+  const match = prelude.match(/^@([a-zA-Z-]+)$/);
+  if (!match) return null;
+  const type = match[1].toLowerCase();
+  return FEATURE_TYPES.includes(type) ? type : null;
+}
+
+function addFeatureValue(target: FeatureValuesMap, declaration: string): void {
+  const colon = declaration.indexOf(":");
+  if (colon <= 0) return;
+  const name = declaration.slice(0, colon).trim();
+  const values = declaration
+    .slice(colon + 1)
+    .trim()
+    .split(/\s+/)
+    .map(Number)
+    .filter((value) => !Number.isNaN(value));
+  if (name && values.length) target.set(name, values);
+}
+
+function serializeFontFeatureValues(
+  state: RuleState,
+  features: Record<string, FeatureValuesMap>,
+): string {
+  const blocks: string[] = [];
+  for (const type of FEATURE_TYPES) appendFeatureBlock(blocks, type, features[type]);
+  return (
+    "@font-feature-values " +
+    state.name +
+    (blocks.length ? " { " + blocks.join(" ") + " }" : " { }")
+  );
+}
+
+function appendFeatureBlock(blocks: string[], type: string, map: FeatureValuesMap): void {
+  if (!map.size) return;
+  const entries: string[] = [];
+  map.forEach((values, name) => entries.push(name + ": " + values.join(" ") + ";"));
+  blocks.push("@" + type + " { " + entries.join(" ") + " }");
+}
+
+function buildKeyframesRule(context: RuleConstructionContext): CSSKeyframesRuleCls {
+  const rule = createCssRule(CSSKeyframesRuleCls);
+  const state: RuleStateWith<"childRules"> = {
+    ...context.base,
+    typeNum: 7,
+    name: context.selectorText.replace(/^@(-webkit-)?keyframes/i, "").trim(),
+    childRules: makeRuleList([]),
+    serialize() {
+      return "@keyframes " + state.name + serializeChildBlock(state.childRules);
+    },
+    serializeForCascade() {
+      return "@keyframes " + state.name + serializeChildBlock(state.childRules, true);
+    },
+  };
+  ruleState.set(rule, state);
+  appendKeyframeRules(state.childRules, context, rule);
+  return rule;
+}
+
+function appendKeyframeRules(
+  rules: RuleList,
+  context: RuleConstructionContext,
+  parentRule: CSSKeyframesRuleCls,
+): void {
+  for (const parsed of splitStylesheetRules(String(context.parsed.declText || ""))) {
+    if (!parsed.selectorText) continue;
+    rules.push(constructKeyframe(parsed, context.parentSheet, parentRule, context.onMutate));
+  }
+}
+
+function buildPageRule(context: RuleConstructionContext): CSSPageRuleCls | null {
+  const canonicalSelector = canonicalizePageSelectorListOrNull(pagePreludeOf(context.parsed));
+  if (canonicalSelector === null) return null;
+  return createPageRule(context, canonicalSelector);
+}
+
+function createPageRule(
+  context: RuleConstructionContext,
+  canonicalSelector: string,
+): CSSPageRuleCls {
+  const rule = createCssRule(CSSPageRuleCls);
+  const declarations: string[] = [];
+  const childRules = makeRuleList([]);
+  const pageBody = splitStylesheetRules(context.parsed.declText || "");
+  for (const part of pageBody) {
+    appendPageRulePart(part, declarations, childRules, rule, context);
+  }
+  appendPageRuleTrailingGarbage(pageBody, declarations);
+  const style = makeRuleStyleDeclaration(
+    declarations.join(" "),
+    "page",
+    ruleStyleBaseUrl(context.parentSheet),
+  );
+  const state: RuleState = {
+    ...context.base,
+    typeNum: 6,
+    selectorText: canonicalSelector,
+    style,
+    childRules,
+    serialize() {
+      return serializePageRule(state, style.cssText, childRules, false);
+    },
+    serializeForCascade() {
+      return serializePageRule(state, ruleStyleCascadeText(style), childRules, true);
+    },
+  };
+  attachRuleStyle(style, rule, () => notifyRuleMutation(state));
+  ruleState.set(rule, state);
+  return rule;
+}
+
+function appendPageRulePart(
+  part: ParsedRuleChunk,
+  declarations: string[],
+  childRules: RuleList,
+  rule: CSSPageRuleCls,
+  context: RuleConstructionContext,
+): void {
+  const marginName = marginRuleNameOf(part.selectorText);
+  if (marginName) {
+    childRules.push(
+      constructMarginRule(part, marginName, context.parentSheet, rule, context.onMutate),
+    );
+  } else if (!part.selectorText && !/^@/.test(String(part.cssText || "").trim())) {
+    declarations.push(String(part.cssText));
+  }
+}
+
+function appendPageRuleTrailingGarbage(pageBody: ParsedRuleList, declarations: string[]): void {
+  if (pageBody.trailingGarbage && !/^@/.test(pageBody.trailingGarbage)) {
+    declarations.push(pageBody.trailingGarbage);
+  }
+}
+
+function serializePageRule(
+  state: RuleState,
+  declarationText: string,
+  childRules: RuleList,
+  forCascade: boolean,
+): string {
+  const parts: string[] = [];
+  if (declarationText) parts.push(declarationText);
+  for (const rule of childRules) parts.push(pageChildRuleText(rule, forCascade));
+  const body = parts.join(" ");
+  return (
+    "@page" +
+    (state.selectorText ? " " + state.selectorText : "") +
+    (body ? " { " + body + " }" : " { }")
+  );
+}
+
+function pageChildRuleText(rule: AnyCssRule, forCascade: boolean): string {
+  return forCascade ? ruleTextForCascade(rule) : String(rule.cssText);
+}
+
+function buildCounterStyleRuleFromContext(
+  context: RuleConstructionContext,
+): CSSCounterStyleRuleCls | null {
+  return constructCounterStyleRule(
+    context.parsed,
+    context.parentSheet,
+    context.parentRule,
+    context.onMutate,
+  );
+}
+
+function buildUnknownRule(context: RuleConstructionContext): CSSUnknownRuleCls {
+  const rule = createCssRule(CSSUnknownRuleCls);
+  const state: RuleState = {
+    ...context.base,
+    typeNum: 0,
+    serialize() {
+      return serializeUnknownRule(context);
+    },
+  };
+  ruleState.set(rule, state);
+  return rule;
+}
+
+function serializeUnknownRule(context: RuleConstructionContext): string {
+  if (context.selectorText) {
+    const declarations = String(context.parsed.declText || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return context.selectorText + (declarations ? " { " + declarations + " }" : " { }");
+  }
+  return context.rawText.replace(/\s+/g, " ").trim();
 }
 
 function makeMediaList(initialText?: unknown, onMutate?: (() => void) | null): MediaListCls {
@@ -2872,202 +3540,359 @@ function securityError(message: string): Error {
   }
 }
 
-function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyleSheetCtor {
-  const id = ownerNode && typeof ownerNode._id === "number" ? ownerNode._id : -1;
+interface DocumentStyleSheetRuntime {
+  ownerNode: Element | ParsedElement | null;
+  id: number;
+  isStyleEl: boolean;
+  isLinkEl: boolean;
+  rules: RuleList;
+  lastParsedText: string | null;
+  mirrorTextId: number;
+  linkRulesLoaded: boolean;
+  href: string | null;
+  sheet: CSSStyleSheetCtor;
+}
+
+function styleSheetNodeId(ownerNode: Element | ParsedElement | null): number {
+  return ownerNode && typeof ownerNode._id === "number" ? ownerNode._id : -1;
+}
+
+function cachedStyleSheetForNode(
+  ownerNode: Element | ParsedElement | null,
+  id: number,
+): CSSStyleSheetCtor | null {
   if (ownerNode && id >= 0) {
     const cached = sheetCache.get(ownerNode);
     if (cached) return cached;
   }
-  const isStyleEl = !!(ownerNode && ownerNode.tagName === "STYLE");
-  const isLinkEl = !!(ownerNode && ownerNode.tagName === "LINK");
+  return null;
+}
+
+function rememberStyleSheetForNode(
+  ownerNode: Element | ParsedElement | null,
+  id: number,
+  sheet: CSSStyleSheetCtor,
+): void {
+  if (ownerNode && id >= 0) sheetCache.set(ownerNode, sheet);
+}
+
+function isStyleSheetElement(ownerNode: Element | ParsedElement | null): boolean {
+  return Boolean(ownerNode && ownerNode.tagName === "STYLE");
+}
+
+function isLinkStyleSheetElement(ownerNode: Element | ParsedElement | null): boolean {
+  return Boolean(ownerNode && ownerNode.tagName === "LINK");
+}
+
+function makeStyleSheetRuleList(): RuleList {
   const rules: AnyCssRule[] = [];
   Object.defineProperty(rules, "item", {
     value: function item(index: unknown) {
-      const i = typeof index === "number" ? index : 0;
-      return rules[i] || null;
+      const ruleIndex = typeof index === "number" ? index : 0;
+      return rules[ruleIndex] || null;
     },
     configurable: true,
     enumerable: false,
     writable: true,
   });
-  // SAFETY: the non-enumerable item method above completes this Array's RuleList view.
-  const cssRules = rules as RuleList;
+  // SAFETY: this non-enumerable item method completes the same Array's RuleList view.
+  return rules as RuleList;
+}
 
-  let lastParsedText: string | null = null;
-  let mirrorTextId = -1;
-  function readNodeText() {
-    if (!isStyleEl || id < 0 || !dom.textContent) return "";
-    try {
-      return String(dom.textContent(id) || "");
-    } catch {
-      return "";
-    }
+function stylesheetBaseUrl(): string {
+  const global = ksGlobal;
+  const documentBase = global.document && global.document.baseURI;
+  if (documentBase) return documentBase;
+  return global.location ? global.location.href : "";
+}
+
+function isLinkNodeWithGetAttribute(
+  ownerNode: Element | ParsedElement | null,
+  isLinkEl: boolean,
+): ownerNode is Element | ParsedElement {
+  return isLinkEl && ownerNode !== null && typeof ownerNode.getAttribute === "function";
+}
+
+function resolveStyleSheetHref(rawHref: string): string {
+  try {
+    const base = stylesheetBaseUrl();
+    return new URL(rawHref, base || undefined).href;
+  } catch {
+    return rawHref;
   }
-  // Stylo reads <style> text, so CSSOM edits must be mirrored into the wasm child.
-  function remirror() {
-    if (!(isStyleEl && id >= 0)) return;
-    try {
-      const joined = rules.map(ruleTextForCascade).join("\n");
-      writeMirrorText(joined);
-      lastParsedText = joined;
-      bumpMutationSeq();
-    } catch {}
+}
+
+function styleSheetHref(
+  ownerNode: Element | ParsedElement | null,
+  isLinkEl: boolean,
+): string | null {
+  if (!isLinkNodeWithGetAttribute(ownerNode, isLinkEl)) return null;
+  const raw = ownerNode.getAttribute("href");
+  if (!raw) return null;
+  return resolveStyleSheetHref(raw);
+}
+
+function styleSheetTitle(ownerNode: Element | ParsedElement | null): string | null {
+  return ownerNode && typeof ownerNode.getAttribute === "function"
+    ? ownerNode.getAttribute("title") || null
+    : null;
+}
+
+function createDocumentStyleSheetRuntime(
+  ownerNode: Element | ParsedElement | null,
+  id: number,
+  isStyleEl: boolean,
+  isLinkEl: boolean,
+  rules: RuleList,
+  href: string | null,
+  sheet: CSSStyleSheetCtor,
+): DocumentStyleSheetRuntime {
+  return {
+    ownerNode,
+    id,
+    isStyleEl,
+    isLinkEl,
+    rules,
+    lastParsedText: null,
+    mirrorTextId: -1,
+    linkRulesLoaded: false,
+    href,
+    sheet,
+  };
+}
+
+function canReadStyleNodeText(state: DocumentStyleSheetRuntime): boolean {
+  return state.isStyleEl && state.id >= 0 && Boolean(dom.textContent);
+}
+
+function readStyleNodeText(state: DocumentStyleSheetRuntime): string {
+  if (!canReadStyleNodeText(state)) return "";
+  try {
+    return String(dom.textContent(state.id) || "");
+  } catch {
+    return "";
   }
-  function writeMirrorText(text: string) {
-    // Reuse the unwrapped mirror node to avoid leaving detached nodes in Blitz's slab.
-    const children = dom.childIds ? dom.childIds(id) : null;
-    const reusable =
-      mirrorTextId >= 0 &&
-      children !== null &&
-      children.length === 1 &&
-      children[0] === mirrorTextId &&
-      !hasLiveWrapper(mirrorTextId) &&
-      typeof dom.setNodeText === "function";
-    if (reusable) {
-      if (text) {
-        dom.setNodeText(mirrorTextId, text);
-      } else {
-        dom.removeNode(mirrorTextId);
-        dropUnwrappedSubtrees([mirrorTextId]);
-        mirrorTextId = -1;
-      }
-      return;
-    }
-    if (children) {
-      for (const cid of children) dom.removeNode(cid);
-      dropUnwrappedSubtrees(children);
-    }
-    mirrorTextId = -1;
-    if (text) {
-      mirrorTextId = dom.createTextNode(text);
-      dom.appendChildNode(id, mirrorTextId);
-    }
+}
+
+function canMirrorStyleSheetToDom(state: DocumentStyleSheetRuntime): boolean {
+  return state.isStyleEl && state.id >= 0;
+}
+
+function remirrorStyleSheet(state: DocumentStyleSheetRuntime): void {
+  if (!canMirrorStyleSheetToDom(state)) return;
+  try {
+    const text = state.rules.map(ruleTextForCascade).join("\n");
+    writeStyleSheetMirror(state, text);
+    state.lastParsedText = text;
+    bumpMutationSeq();
+  } catch {}
+}
+
+type StyleSheetChildIds = NonNullable<ReturnType<NonNullable<typeof dom.childIds>>>;
+
+function mirrorHasOnlyTextChild(
+  children: StyleSheetChildIds | null,
+  mirrorTextId: number,
+): boolean {
+  return children !== null && children.length === 1 && children[0] === mirrorTextId;
+}
+
+function canReuseStyleSheetMirror(
+  state: DocumentStyleSheetRuntime,
+  children: StyleSheetChildIds | null,
+): boolean {
+  if (state.mirrorTextId < 0) return false;
+  if (!mirrorHasOnlyTextChild(children, state.mirrorTextId)) return false;
+  if (hasLiveWrapper(state.mirrorTextId)) return false;
+  return typeof dom.setNodeText === "function";
+}
+
+function updateReusableStyleSheetMirror(state: DocumentStyleSheetRuntime, text: string): void {
+  if (text) {
+    dom.setNodeText(state.mirrorTextId, text);
+  } else {
+    dom.removeNode(state.mirrorTextId);
+    dropUnwrappedSubtrees([state.mirrorTextId]);
+    state.mirrorTextId = -1;
   }
-  function reparseFromText(text) {
-    rules.length = 0;
-    for (const p of splitStylesheetRules(text)) {
-      if (!isConstructibleRuleKind(classifyRuleKind(p))) continue;
-      const rule = constructRule(p, sheet, null, remirror);
-      if (rule) rules.push(rule);
-    }
-    lastParsedText = text;
+}
+
+function removeStyleSheetMirrorChildren(children: StyleSheetChildIds | null): void {
+  if (!children) return;
+  for (const childId of children) dom.removeNode(childId);
+  dropUnwrappedSubtrees(children);
+}
+
+function appendStyleSheetMirrorText(state: DocumentStyleSheetRuntime, text: string): void {
+  if (!text) return;
+  state.mirrorTextId = dom.createTextNode(text);
+  dom.appendChildNode(state.id, state.mirrorTextId);
+}
+
+function writeStyleSheetMirror(state: DocumentStyleSheetRuntime, text: string): void {
+  // Reuse the unwrapped mirror node to avoid leaving detached nodes in Blitz's slab.
+  const children = dom.childIds ? dom.childIds(state.id) : null;
+  if (canReuseStyleSheetMirror(state, children)) {
+    updateReusableStyleSheetMirror(state, text);
+    return;
   }
-  let linkRulesLoaded = false;
-  function syncFromLink(strict) {
-    if (linkRulesLoaded || id < 0 || !getExternalSheetRules) return;
-    let res;
-    try {
-      res = getExternalSheetRules(id);
-    } catch {
-      return;
-    }
-    if (!res) return;
-    if (res.state === "denied") {
-      if (strict) {
-        throw securityError(
-          "Failed to access rules of 'CSSStyleSheet': the stylesheet is " +
-            "cross-origin and was not fetched with CORS",
-        );
-      }
-      return;
-    }
-    if (res.state !== "clean") return;
-    reparseFromText(String(res.text || ""));
-    linkRulesLoaded = true;
+  removeStyleSheetMirrorChildren(children);
+  state.mirrorTextId = -1;
+  appendStyleSheetMirrorText(state, text);
+}
+
+function reparseStyleSheetFromText(state: DocumentStyleSheetRuntime, text: string): void {
+  state.rules.length = 0;
+  for (const parsed of splitStylesheetRules(text)) {
+    if (!isConstructibleRuleKind(classifyRuleKind(parsed))) continue;
+    const rule = constructRule(parsed, state.sheet, null, () => remirrorStyleSheet(state));
+    if (rule) state.rules.push(rule);
   }
-  function syncFromDom(strict = false) {
-    if (isLinkEl) return syncFromLink(strict);
-    if (!isStyleEl) return;
-    const cur = readNodeText();
-    if (cur !== lastParsedText) reparseFromText(cur);
+  state.lastParsedText = text;
+}
+
+function canSyncLinkStyleSheet(state: DocumentStyleSheetRuntime): boolean {
+  return !state.linkRulesLoaded && state.id >= 0 && Boolean(getExternalSheetRules);
+}
+
+function readExternalStyleSheetRules(
+  id: number,
+): ReturnType<NonNullable<typeof getExternalSheetRules>> | null {
+  if (!getExternalSheetRules) return null;
+  try {
+    return getExternalSheetRules(id);
+  } catch {
+    return null;
   }
-  // href is the <link>'s resolved URL, or the raw attribute when it doesn't
-  // resolve; an inline <style> has none.
-  const href = (() => {
-    if (!isLinkEl || typeof ownerNode.getAttribute !== "function") return null;
-    const raw = ownerNode.getAttribute("href");
-    if (!raw) return null;
-    try {
-      const g = ksGlobal;
-      const base = (g.document && g.document.baseURI) || (g.location ? g.location.href : "");
-      return new URL(raw, base || undefined).href;
-    } catch {
-      return raw;
+}
+
+function applyExternalStyleSheetRules(
+  state: DocumentStyleSheetRuntime,
+  response: ReturnType<NonNullable<typeof getExternalSheetRules>>,
+  strict: boolean,
+): void {
+  if (response.state === "denied") {
+    if (strict) {
+      throw securityError(
+        "Failed to access rules of 'CSSStyleSheet': the stylesheet is " +
+          "cross-origin and was not fetched with CORS",
+      );
     }
-  })();
-  // Mutators mirror all rules into `<style>` text; `<link>` remains network-backed.
-  // Sync first to see direct style-text edits and preserve SecurityError for
-  // opaque linked sheets.
+    return;
+  }
+  if (response.state !== "clean") return;
+  reparseStyleSheetFromText(state, String(response.text || ""));
+  state.linkRulesLoaded = true;
+}
+
+function syncLinkStyleSheet(state: DocumentStyleSheetRuntime, strict: boolean): void {
+  if (!canSyncLinkStyleSheet(state)) return;
+  const response = readExternalStyleSheetRules(state.id);
+  if (!response) return;
+  applyExternalStyleSheetRules(state, response, strict);
+}
+
+function syncDocumentStyleSheet(state: DocumentStyleSheetRuntime, strict = false): void {
+  if (state.isLinkEl) return syncLinkStyleSheet(state, strict);
+  if (!state.isStyleEl) return;
+  const text = readStyleNodeText(state);
+  if (text !== state.lastParsedText) reparseStyleSheetFromText(state, text);
+}
+
+function documentStyleSheetFields(
+  ownerNode: Element | ParsedElement | null,
+  href: string | null,
+): StyleSheetFields {
+  return {
+    ownerNode: ownerNode || null,
+    href,
+    title: styleSheetTitle(ownerNode),
+    media: makeEmptyMediaList(),
+    disabled: false,
+    ownerRule: null,
+    parentStyleSheet: null,
+  };
+}
+
+function createDocumentStyleSheetBackend(state: DocumentStyleSheetRuntime): CSSStyleSheetBackend {
+  const remirror = () => remirrorStyleSheet(state);
   const backend: CSSStyleSheetBackend = {
     cssRules() {
-      syncFromDom();
-      return cssRules;
+      syncDocumentStyleSheet(state);
+      return state.rules;
     },
     insertRule(text, index) {
       // Check bounds before parsing, then insert exactly one rule and refresh the DOM mirror.
       // Synchronizing first also preserves SecurityError for opaque linked sheets.
       // https://drafts.csswg.org/cssom/#insert-a-css-rule
-      syncFromDom(true);
-      // index defaults to 0, not the length.
-      const i = index === undefined ? 0 : Number(index) >>> 0;
-      if (i > rules.length) {
+      syncDocumentStyleSheet(state, true);
+      const ruleIndex = index === undefined ? 0 : Number(index) >>> 0;
+      if (ruleIndex > state.rules.length) {
         throw new DOMException("Index out of bounds", "IndexSizeError");
       }
       const parsed = parseSingleRuleOrThrow(text);
-      const rule = constructRule(parsed, sheet, null, remirror);
+      const rule = constructRule(parsed, state.sheet, null, remirror);
       if (!rule) throw ruleSyntaxError(text);
-      rules.splice(i, 0, rule);
+      state.rules.splice(ruleIndex, 0, rule);
       remirror();
-      return i;
+      return ruleIndex;
     },
     deleteRule(index) {
-      syncFromDom(true);
-      const i = Number(index) >>> 0;
-      if (i >= rules.length) {
+      syncDocumentStyleSheet(state, true);
+      const ruleIndex = Number(index) >>> 0;
+      if (ruleIndex >= state.rules.length) {
         throw new DOMException("Index out of bounds", "IndexSizeError");
       }
-      rules.splice(i, 1);
+      state.rules.splice(ruleIndex, 1);
       remirror();
     },
     replaceSync(text) {
-      syncFromDom(true);
-      const t = String(text == null ? "" : text);
-      reparseFromText(t);
-      if (isStyleEl && id >= 0) {
+      syncDocumentStyleSheet(state, true);
+      const replacement = String(text == null ? "" : text);
+      reparseStyleSheetFromText(state, replacement);
+      if (state.isStyleEl && state.id >= 0) {
         try {
-          writeMirrorText(t);
-          lastParsedText = t;
+          writeStyleSheetMirror(state, replacement);
+          state.lastParsedText = replacement;
           bumpMutationSeq();
         } catch {}
       }
     },
-    // A document sheet's replace() resolves even when the replacement
-    // fails.
+    // A document sheet's replace() resolves even when the replacement fails.
     replace(text) {
       try {
         backend.replaceSync(text);
       } catch {}
-      return Promise.resolve(sheet);
+      return Promise.resolve(state.sheet);
     },
   };
+  return backend;
+}
+
+function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyleSheetCtor {
+  const id = styleSheetNodeId(ownerNode);
+  const cached = cachedStyleSheetForNode(ownerNode, id);
+  if (cached) return cached;
+  const isStyleEl = isStyleSheetElement(ownerNode);
+  const isLinkEl = isLinkStyleSheetElement(ownerNode);
+  const rules = makeStyleSheetRuleList();
+  const href = styleSheetHref(ownerNode, isLinkEl);
   // The backing state is in sheetRecords; this stub uses the public prototype.
   const sheet = Object.create(CSSStyleSheetCtor.prototype) as CSSStyleSheetCtor;
-  sheetRecords.set(sheet, {
-    fields: {
-      ownerNode: ownerNode || null,
-      href,
-      title:
-        ownerNode && typeof ownerNode.getAttribute === "function"
-          ? ownerNode.getAttribute("title") || null
-          : null,
-      media: makeEmptyMediaList(),
-      disabled: false,
-      ownerRule: null,
-      parentStyleSheet: null,
-    },
-    backend,
-  });
-  if (ownerNode && id >= 0) sheetCache.set(ownerNode, sheet);
+  const runtime = createDocumentStyleSheetRuntime(
+    ownerNode,
+    id,
+    isStyleEl,
+    isLinkEl,
+    rules,
+    href,
+    sheet,
+  );
+  // Mutators mirror all rules into `<style>` text; `<link>` remains network-backed.
+  // Sync first to see direct style-text edits and preserve SecurityError for opaque linked sheets.
+  const backend = createDocumentStyleSheetBackend(runtime);
+  sheetRecords.set(sheet, { fields: documentStyleSheetFields(ownerNode, href), backend });
+  rememberStyleSheetForNode(ownerNode, id, sheet);
   return sheet;
 }
 
@@ -3202,16 +4027,7 @@ class CSSStyleSheetCtor extends StyleSheetCls implements Idl.CSSStyleSheet {
         rerender();
       },
       replaceSync: (text) => {
-        rules.length = 0;
-        for (const p of splitStylesheetRules(String(text == null ? "" : text))) {
-          const k = classifyRuleKind(p);
-          // @import is disallowed in constructed sheets; drop it (and
-          // non-rules) during replace instead of throwing mid-way.
-          if (k === "import" || !isConstructibleRuleKind(k)) continue;
-          const rule = constructRule(p, this, null, rerender);
-          if (rule) rules.push(rule);
-        }
-        rerender();
+        replaceConstructedRules(rules, this, rerender, text);
       },
       replace: (text) => {
         try {
@@ -3282,6 +4098,31 @@ class CSSStyleSheetCtor extends StyleSheetCls implements Idl.CSSStyleSheet {
   }
 }
 
+function replaceConstructedRules(
+  rules: RuleList,
+  sheet: CSSStyleSheetCtor,
+  rerender: () => void,
+  text: unknown,
+): void {
+  rules.length = 0;
+  const parsedRules = splitStylesheetRules(String(text == null ? "" : text));
+  for (const parsed of parsedRules) appendConstructibleRule(rules, sheet, rerender, parsed);
+  rerender();
+}
+
+function appendConstructibleRule(
+  rules: RuleList,
+  sheet: CSSStyleSheetCtor,
+  rerender: () => void,
+  parsed: ParsedRuleChunk,
+): void {
+  const kind = classifyRuleKind(parsed);
+  // @import and non-rules are dropped instead of throwing mid-replacement.
+  if (kind === "import" || !isConstructibleRuleKind(kind)) return;
+  const rule = constructRule(parsed, sheet, null, rerender);
+  if (rule) rules.push(rule);
+}
+
 const CSSOM_GLOBALS = {
   CSSRule: CSSRuleInterface,
   CSSGroupingRule: CSSGroupingRuleCls,
@@ -3323,14 +4164,9 @@ function makeAdoptedStyleSheets() {
   const arr: Idl.CSSStyleSheet[] = [];
   const mirrors = new WeakMap<object, Element>();
   function ensureMirror(sheet: Idl.CSSStyleSheet) {
-    if (!sheet || typeof sheet !== "object") return;
-    if (mirrors.has(sheet)) return;
+    if (!shouldCreateSheetMirror(sheet, mirrors)) return;
     try {
-      const styleEl = createElementInternal("style");
-      styleEl.setAttribute("data-ks-adopted", "");
-      const doc = liveDocument();
-      const head = doc.head || doc.documentElement;
-      if (head) head.appendChild(styleEl);
+      const styleEl = createAdoptedSheetMirror();
       mirrors.set(sheet, styleEl);
       attachSheetMirror(sheet, styleEl);
     } catch {}
@@ -3393,21 +4229,42 @@ function makeAdoptedStyleSheets() {
   });
   return proxy;
 }
+
+function shouldCreateSheetMirror(
+  sheet: Idl.CSSStyleSheet,
+  mirrors: WeakMap<object, Element>,
+): boolean {
+  return !!sheet && typeof sheet === "object" && !mirrors.has(sheet);
+}
+
+function createAdoptedSheetMirror(): Element {
+  const styleEl = createElementInternal("style");
+  styleEl.setAttribute("data-ks-adopted", "");
+  const doc = liveDocument();
+  const head = doc.head || doc.documentElement;
+  if (head) head.appendChild(styleEl);
+  return styleEl;
+}
+
 export const adoptedStyleSheets = makeAdoptedStyleSheets();
+
+function isStylesheetLink(node: Element): boolean {
+  const rel = (node.getAttribute("rel") || "").toLowerCase();
+  return rel.split(/\s+/).includes("stylesheet");
+}
+
+function appendStyleSheetNode(list: CSSStyleSheetCtor[], nodeId: number): void {
+  const node = nodeFor(nodeId);
+  if (!node) return;
+  if (node.tagName === "LINK" && !isStylesheetLink(node)) return;
+  list.push(makeStyleSheetStub(node));
+}
 
 function makeStyleSheetList(): ItemList<CSSStyleSheetCtor> {
   const list: CSSStyleSheetCtor[] = [];
   try {
-    const ids = Array.from(dom.querySelectorAll("style, link"));
-    for (const nid of ids) {
-      const node = nodeFor(nid);
-      if (!node) continue;
-      if (node.tagName === "LINK") {
-        const rel = (node.getAttribute("rel") || "").toLowerCase();
-        if (!rel.split(/\s+/).includes("stylesheet")) continue;
-      }
-      list.push(makeStyleSheetStub(node));
-    }
+    const ids = Array.from<number>(dom.querySelectorAll("style, link"));
+    for (const nodeId of ids) appendStyleSheetNode(list, nodeId);
   } catch {}
   Object.defineProperty(list, "item", {
     value: function item(index: unknown) {
@@ -3441,14 +4298,67 @@ function parseTokens(serialized: string | null): string[] {
   if (typeof serialized !== "string" || serialized.length === 0) return [];
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const t of serialized.split(/[\u0009\u000a\u000c\u000d\u0020]+/)) {
-    if (t.length === 0) continue;
-    if (seen.has(t)) continue;
-    seen.add(t);
-    out.push(t);
+  for (const token of serialized.split(/[\u0009\u000a\u000c\u000d\u0020]+/)) {
+    appendUniqueToken(token, out, seen);
   }
   return out;
 }
+
+function appendUniqueToken(token: string, out: string[], seen: Set<string>): void {
+  if (token.length === 0 || seen.has(token)) return;
+  seen.add(token);
+  out.push(token);
+}
+
+function tokenListIndex(prop: PropertyKey): number | null {
+  if (typeof prop !== "string" || !/^\d+$/.test(prop)) return null;
+  return +prop;
+}
+
+function tokenListIteratorMethod(prop: PropertyKey) {
+  switch (prop) {
+    case "values":
+      return Array.prototype.values;
+    case "keys":
+      return Array.prototype.keys;
+    case "entries":
+      return Array.prototype.entries;
+    case "forEach":
+      return Array.prototype.forEach;
+    default:
+      return undefined;
+  }
+}
+
+function getTokenListProperty(
+  target: DOMTokenListCls,
+  prop: PropertyKey,
+  receiver: unknown,
+  getter: () => string[],
+): unknown {
+  if (prop === "length") return getter().length;
+  const index = tokenListIndex(prop);
+  if (index !== null) {
+    const tokens = getter();
+    return index < tokens.length ? tokens[index] : undefined;
+  }
+  const iterator = tokenListIteratorMethod(prop);
+  if (iterator !== undefined) return iterator;
+  return Reflect.get(target, prop, receiver);
+}
+
+function hasTokenListProperty(
+  target: DOMTokenListCls,
+  prop: PropertyKey,
+  getter: () => string[],
+): boolean {
+  if (prop === "length") return true;
+  const index = tokenListIndex(prop);
+  if (index !== null) return index < getter().length;
+  if (tokenListIteratorMethod(prop) !== undefined) return true;
+  return prop in target;
+}
+
 function makeDOMTokenList(
   read: () => string | null,
   write: (value: string) => void,
@@ -3458,34 +4368,15 @@ function makeDOMTokenList(
   const getter = () => parseTokens(read());
   const proxy = new Proxy(target, {
     get(t, prop, receiver) {
-      if (prop === "length") return getter().length;
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        const i = +prop;
-        const tokens = getter();
-        return i < tokens.length ? tokens[i] : undefined;
-      }
-      // WebIDL iterable<DOMString>: WPT DOMTokenList-iteration checks that
-      // these are Array.prototype's own functions. finalizeInterface would
-      // wrap them on the prototype, so the proxy serves them.
-      if (prop === "values") return Array.prototype.values;
-      if (prop === "keys") return Array.prototype.keys;
-      if (prop === "entries") return Array.prototype.entries;
-      if (prop === "forEach") return Array.prototype.forEach;
-      return Reflect.get(t, prop, receiver);
+      return getTokenListProperty(t, prop, receiver, getter);
     },
     set(t, prop, value) {
       // Indexed writes are rejected.
-      if (typeof prop === "string" && /^\d+$/.test(prop)) return false;
+      if (tokenListIndex(prop) !== null) return false;
       return Reflect.set(t, prop, value);
     },
     has(t, prop) {
-      if (prop === "length") return true;
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        return +prop < getter().length;
-      }
-      if (prop === "values" || prop === "keys" || prop === "entries" || prop === "forEach")
-        return true;
-      return prop in t;
+      return hasTokenListProperty(t, prop, getter);
     },
     ownKeys() {
       const tokens = getter();
@@ -3566,15 +4457,38 @@ function forgetAttr(state: NamedNodeMapState, attr: AttrCls): void {
   if (state.byName[attr.name] === attr) delete state.byName[attr.name];
 }
 
+function isHtmlElementNamespace(entry: { ns: string | null } | null | undefined): boolean {
+  return !entry || entry.ns === HTML_NS;
+}
+
+function isHtmlDocumentOwner(owner: Element | null | undefined): boolean {
+  return !owner || elementOwnerIsHtml.get(owner._id) !== false;
+}
+
 // The supported property names skip names with uppercase letters only
 // for an HTML element in an HTML document.
 // https://dom.spec.whatwg.org/#ref-for-dfn-supported-property-names
 function hidesUppercaseNames(list: AttrCls[]): boolean {
-  const owner = list[0] && list[0]._ownerElement;
+  const owner = list[0]?._ownerElement;
   const ownerNsEntry = owner && elemNs.get(owner._id);
-  const isHtmlElement = !ownerNsEntry || ownerNsEntry.ns === "http://www.w3.org/1999/xhtml";
-  const isHtmlDoc = !owner || elementOwnerIsHtml.get(owner._id) !== false;
-  return isHtmlElement && isHtmlDoc;
+  return isHtmlElementNamespace(ownerNsEntry) && isHtmlDocumentOwner(owner);
+}
+
+function normalizedAttributeNamespace(ns: string | null): string | null {
+  if (ns === null || ns === undefined || ns === "") return null;
+  return String(ns);
+}
+
+function findNamedItemInNamespace(
+  list: AttrCls[],
+  targetNamespace: string | null,
+  localName: string,
+): AttrCls | null {
+  for (const attr of list) {
+    const namespace = attr.namespaceURI || null;
+    if (namespace === targetNamespace && attr.localName === localName) return attr;
+  }
+  return null;
 }
 
 // The proxy in makeNamedNodeMap serves the indexed and named reads.
@@ -3594,12 +4508,7 @@ class NamedNodeMapCls implements Idl.NamedNodeMap {
   getNamedItemNS(ns: string | null, localName: string) {
     const list = syncedNamedNodeMap(this)?.list;
     if (!list || typeof localName !== "string") return null;
-    const targetNs = ns === null || ns === undefined || ns === "" ? null : String(ns);
-    for (const a of list) {
-      const aNs = a.namespaceURI || null;
-      if (aNs === targetNs && a.localName === localName) return a;
-    }
-    return null;
+    return findNamedItemInNamespace(list, normalizedAttributeNamespace(ns), localName);
   }
   // The owner element does the work; the snapshot is then patched so a
   // held map sees the change without a re-read (WPT attributes.html).
@@ -3655,26 +4564,14 @@ function makeNamedNodeMap(
 ): NamedNodeMapCls {
   const target: NamedNodeMapCls = Object.create(NamedNodeMapCls.prototype);
   // Without an explicit owner, take the first attribute's owner element.
-  if (!owner && list.length > 0 && list[0]._ownerElement) {
-    owner = list[0]._ownerElement;
-  }
+  owner = inferredNamedNodeMapOwner(owner, list);
   const state: NamedNodeMapState = { list, byName, owner, refresh };
   const sync = () => {
     refresh?.();
   };
   const proxy = new Proxy(target, {
     get(t, prop, receiver) {
-      sync();
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        const i = +prop;
-        return i < list.length ? list[i] : undefined;
-      }
-      // An attribute named like a prototype member (`item`, `length`,
-      // `toString`) doesn't shadow it (WPT attributes-namednodemap.html).
-      if (typeof prop === "string" && byName[prop] !== undefined && !(prop in t)) {
-        return byName[prop];
-      }
-      return Reflect.get(t, prop, receiver);
+      return getNamedNodeMapProperty(t, prop, receiver, list, byName, sync);
     },
     set() {
       return false;
@@ -3700,31 +4597,7 @@ function makeNamedNodeMap(
     },
     getOwnPropertyDescriptor(t, prop) {
       sync();
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        const i = +prop;
-        if (i < list.length) {
-          return {
-            value: list[i],
-            writable: false,
-            enumerable: true,
-            configurable: true,
-          };
-        }
-      }
-      // Agree with ownKeys on which names are own.
-      if (
-        typeof prop === "string" &&
-        byName[prop] !== undefined &&
-        !(hidesUppercaseNames(list) && /[A-Z]/.test(prop))
-      ) {
-        return {
-          value: byName[prop],
-          writable: false,
-          enumerable: false,
-          configurable: true,
-        };
-      }
-      return Reflect.getOwnPropertyDescriptor(t, prop);
+      return namedNodeMapOwnPropertyDescriptor(t, prop, list, byName);
     },
   });
   // Prototype methods run with the proxy as `this`; internal code may
@@ -3734,20 +4607,89 @@ function makeNamedNodeMap(
   return proxy;
 }
 
+function inferredNamedNodeMapOwner(owner: Element | null, list: AttrCls[]): Element | null {
+  if (owner || list.length === 0) return owner;
+  return list[0]._ownerElement;
+}
+
+function hasNamedNodeMapName(prop: PropertyKey, byName: Record<string, AttrCls>): prop is string {
+  return typeof prop === "string" && byName[prop] !== undefined;
+}
+
+function getNamedNodeMapProperty(
+  target: NamedNodeMapCls,
+  prop: PropertyKey,
+  receiver: unknown,
+  list: AttrCls[],
+  byName: Record<string, AttrCls>,
+  sync: () => void,
+): unknown {
+  sync();
+  const index = tokenListIndex(prop);
+  if (index !== null) return index < list.length ? list[index] : undefined;
+  // Prototype-named attributes do not shadow methods on property reads.
+  if (hasNamedNodeMapName(prop, byName) && !(prop in target)) return byName[prop];
+  return Reflect.get(target, prop, receiver);
+}
+
+function namedNodeMapIndexDescriptor(
+  index: number,
+  list: AttrCls[],
+): PropertyDescriptor | undefined {
+  if (index >= list.length) return undefined;
+  return {
+    value: list[index],
+    writable: false,
+    enumerable: true,
+    configurable: true,
+  };
+}
+
+function namedNodeMapAttributeDescriptor(
+  prop: PropertyKey,
+  list: AttrCls[],
+  byName: Record<string, AttrCls>,
+): PropertyDescriptor | undefined {
+  if (!hasNamedNodeMapName(prop, byName)) return undefined;
+  if (hidesUppercaseNames(list) && /[A-Z]/.test(prop)) return undefined;
+  return {
+    value: byName[prop],
+    writable: false,
+    enumerable: false,
+    configurable: true,
+  };
+}
+
+function namedNodeMapOwnPropertyDescriptor(
+  target: NamedNodeMapCls,
+  prop: PropertyKey,
+  list: AttrCls[],
+  byName: Record<string, AttrCls>,
+): PropertyDescriptor | undefined {
+  const index = tokenListIndex(prop);
+  if (index !== null) {
+    const descriptor = namedNodeMapIndexDescriptor(index, list);
+    if (descriptor) return descriptor;
+  }
+  // Agree with ownKeys on which names are own.
+  const descriptor = namedNodeMapAttributeDescriptor(prop, list, byName);
+  return descriptor ?? Reflect.getOwnPropertyDescriptor(target, prop);
+}
+
 function filterByQualifiedName(candidates: Element[], qname: string): Element[] {
   const asciiLower = qname.replace(/[A-Z]/g, (c) => c.toLowerCase());
   const out: Element[] = [];
-  for (const el of candidates) {
-    const ns = el.namespaceURI || HTML_NS;
-    const elNsEntry = elemNs.get(el._id);
-    const elQname = elNsEntry ? elNsEntry.qname : el.localName || "";
-    if (ns === HTML_NS) {
-      if (elQname === asciiLower) out.push(el);
-    } else {
-      if (elQname === qname) out.push(el);
-    }
+  for (const element of candidates) {
+    if (matchesQualifiedName(element, qname, asciiLower)) out.push(element);
   }
   return out;
+}
+
+function matchesQualifiedName(element: Element, qname: string, asciiLower: string): boolean {
+  const namespace = element.namespaceURI || HTML_NS;
+  const namespaceEntry = elemNs.get(element._id);
+  const elementName = namespaceEntry ? namespaceEntry.qname : element.localName || "";
+  return namespace === HTML_NS ? elementName === asciiLower : elementName === qname;
 }
 
 function scopedQuerySelector(rootId: number, selector: string): Idl.Element | null {
@@ -3762,10 +4704,10 @@ export function selectorHasPseudoElement(selector: string): boolean {
   return pseudoElementRegex.test(selector);
 }
 
-function scopedQuerySelectorAll(rootId: number, selector: string): NodeListCls | [] {
+function normalizeSelector(selector: string): string {
   if (typeof selector !== "string") {
     try {
-      selector = String(selector);
+      return String(selector);
     } catch {
       throw new DOMException(
         "Failed to execute 'querySelectorAll': selector argument is not a valid string",
@@ -3773,36 +4715,53 @@ function scopedQuerySelectorAll(rootId: number, selector: string): NodeListCls |
       );
     }
   }
-  if (selectorHasPseudoElement(selector)) {
-    try {
-      dom.querySelectorAll(selector);
-    } catch (err) {
-      throw new DOMException(
-        "Failed to execute 'querySelectorAll': '" +
-          selector +
-          "' is not a valid selector. " +
-          (err && (err as any).message ? (err as any).message : String(err)),
-        "SyntaxError",
-      );
-    }
-    return [];
-  }
-  let ids: number[];
+  return selector;
+}
+
+function selectorFailureDetail(error: unknown): string {
+  if (!error) return String(error);
+  const firstMessage = Reflect.get(Object(error), "message", error);
+  if (!firstMessage) return String(error);
+  return "" + Reflect.get(Object(error), "message", error);
+}
+
+function invalidSelectorError(selector: string, error: unknown): DOMException {
+  return new DOMException(
+    "Failed to execute 'querySelectorAll': '" +
+      selector +
+      "' is not a valid selector. " +
+      selectorFailureDetail(error),
+    "SyntaxError",
+  );
+}
+
+function validatePseudoElementSelector(selector: string): [] {
   try {
-    ids = Array.from<number>(
+    dom.querySelectorAll(selector);
+  } catch (error) {
+    throw invalidSelectorError(selector, error);
+  }
+  return [];
+}
+
+function queryScopedSelectorIds(rootId: number, selector: string): number[] {
+  try {
+    return Array.from<number>(
       rootId === DOCUMENT_ID
         ? dom.querySelectorAll(selector)
         : dom.querySelectorAllInSubtree(rootId, selector),
     );
-  } catch (err) {
-    throw new DOMException(
-      "Failed to execute 'querySelectorAll': '" +
-        selector +
-        "' is not a valid selector. " +
-        (err && (err as Error).message ? (err as Error).message : String(err)),
-      "SyntaxError",
-    );
+  } catch (error) {
+    throw invalidSelectorError(selector, error);
   }
+}
+
+function scopedQuerySelectorAll(rootId: number, selector: string): NodeListCls | [] {
+  const normalizedSelector = normalizeSelector(selector);
+  if (selectorHasPseudoElement(normalizedSelector)) {
+    return validatePseudoElementSelector(normalizedSelector);
+  }
+  const ids = queryScopedSelectorIds(rootId, normalizedSelector);
   return makeStaticNodeList(ids.map((id) => nodeFor(id)).filter(Boolean));
 }
 

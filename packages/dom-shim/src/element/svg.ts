@@ -21,68 +21,107 @@ const isSvgNsElement = (el: Element): boolean => String(el?.namespaceURI || "") 
 // Installed on every Element: there are no SVG element classes (see
 // page-script's SVG constructor stubs), so the receiver is checked here.
 Reflect.set(Element.prototype, "getTotalLength", function getTotalLength(this: Element) {
-  if (
-    !isSvgNsElement(this) ||
-    !SVG_GEOMETRY_LOCALS.has(String(this.localName || "").toLowerCase())
-  ) {
+  return svgTotalLength(this);
+});
+
+function svgTotalLength(element: Element): number {
+  if (!isSvgGeometryElement(element)) {
     throw new TypeError("getTotalLength is only defined on SVG geometry elements");
   }
-  const num = (name: string, fallback = 0): number => {
-    const raw = this.getAttribute(name);
-    if (raw === null) return fallback;
-    const value = parseFloat(raw);
-    return Number.isFinite(value) ? value : fallback;
-  };
-  const points = (): Array<[number, number]> => {
-    const raw = String(this.getAttribute("points") || "").trim();
-    if (raw === "") return [];
-    const parts = raw.split(/[\s,]+/).map((v: string) => parseFloat(v));
-    const out: Array<[number, number]> = [];
-    for (let i = 0; i + 1 < parts.length; i += 2) {
-      const x = parts[i];
-      const y = parts[i + 1];
-      if (Number.isFinite(x) && Number.isFinite(y)) out.push([x, y]);
-    }
-    return out;
-  };
-  const polylineLength = (pts: Array<[number, number]>, close: boolean): number => {
-    let total = 0;
-    for (let i = 1; i < pts.length; i++) {
-      total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-    }
-    if (close && pts.length > 2) {
-      total += Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]);
-    }
-    return total;
-  };
+  return svgLengthForElement(element);
+}
 
-  switch (String(this.localName).toLowerCase()) {
+function isSvgGeometryElement(element: Element): boolean {
+  return (
+    isSvgNsElement(element) &&
+    SVG_GEOMETRY_LOCALS.has(String(element.localName || "").toLowerCase())
+  );
+}
+
+function svgLengthForElement(element: Element): number {
+  switch (String(element.localName).toLowerCase()) {
     case "circle": {
-      const radius = num("r");
-      return radius > 0 ? 2 * Math.PI * radius : 0;
+      return circleLength(element);
     }
     case "ellipse": {
-      const rx = num("rx");
-      const ry = num("ry");
-      if (rx <= 0 || ry <= 0) return 0;
-      const h = ((rx - ry) * (rx - ry)) / ((rx + ry) * (rx + ry));
-      return Math.PI * (rx + ry) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+      return ellipseLength(element);
     }
     case "line":
-      return Math.hypot(num("x2") - num("x1"), num("y2") - num("y1"));
+      return lineLength(element);
     case "rect": {
-      const width = num("width");
-      const height = num("height");
-      return width > 0 && height > 0 ? 2 * (width + height) : 0;
+      return rectLength(element);
     }
     case "polyline":
-      return polylineLength(points(), false);
+      return polylineLength(parseSvgPoints(svgPointsAttribute(element)), false);
     case "polygon":
-      return polylineLength(points(), true);
+      return polylineLength(parseSvgPoints(svgPointsAttribute(element)), true);
     default:
       return 0;
   }
-});
+}
+
+function svgNumber(element: Element, name: string, fallback = 0): number {
+  const raw = element.getAttribute(name);
+  if (raw === null) return fallback;
+  const value = parseFloat(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function circleLength(element: Element): number {
+  const radius = svgNumber(element, "r");
+  return radius > 0 ? 2 * Math.PI * radius : 0;
+}
+
+function ellipseLength(element: Element): number {
+  const rx = svgNumber(element, "rx");
+  const ry = svgNumber(element, "ry");
+  if (rx <= 0 || ry <= 0) return 0;
+  const h = ((rx - ry) * (rx - ry)) / ((rx + ry) * (rx + ry));
+  return Math.PI * (rx + ry) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+}
+
+function lineLength(element: Element): number {
+  return Math.hypot(
+    svgNumber(element, "x2") - svgNumber(element, "x1"),
+    svgNumber(element, "y2") - svgNumber(element, "y1"),
+  );
+}
+
+function rectLength(element: Element): number {
+  const width = svgNumber(element, "width");
+  const height = svgNumber(element, "height");
+  return width > 0 && height > 0 ? 2 * (width + height) : 0;
+}
+
+function svgPointsAttribute(element: Element): string {
+  return String(element.getAttribute("points") || "").trim();
+}
+
+function parseSvgPoints(raw: string): Array<[number, number]> {
+  if (raw === "") return [];
+  const parts = raw.split(/[\s,]+/).map((value: string) => parseFloat(value));
+  const points: Array<[number, number]> = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const x = parts[i];
+    const y = parts[i + 1];
+    if (Number.isFinite(x) && Number.isFinite(y)) points.push([x, y]);
+  }
+  return points;
+}
+
+function polylineLength(points: Array<[number, number]>, close: boolean): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    total += Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]);
+  }
+  if (close && points.length > 2) {
+    total += Math.hypot(
+      points[0][0] - points[points.length - 1][0],
+      points[0][1] - points[points.length - 1][1],
+    );
+  }
+  return total;
+}
 
 const SVG_VIEWBOX_LOCALS = new Set(["svg", "symbol", "marker", "pattern", "view"]);
 Object.defineProperty(Element.prototype, "viewBox", {

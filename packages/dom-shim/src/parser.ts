@@ -57,20 +57,25 @@ function getOrCreateParsedNode(
   return parsedNodeFor(handle, id, ownerDoc);
 }
 
+function cachedParsedNode(
+  inner: Map<number, ParsedElement> | undefined,
+  id: number,
+  ownerDoc: ParsedOwnerDocumentValue | undefined,
+): ParsedElement | null {
+  if (!inner) return null;
+  const cached = inner.get(id);
+  if (!cached) return null;
+  return !ownerDoc || cached.ownerDocument === ownerDoc ? cached : null;
+}
+
 function parsedNodeFor(
   handle: DomHandle,
   id: number,
   ownerDoc: ParsedOwnerDocumentValue | undefined,
 ): ParsedElement {
   let inner = parsedNodeCache.get(handle);
-  if (inner) {
-    const cached = inner.get(id);
-    if (cached) {
-      if (!ownerDoc || cached.ownerDocument === ownerDoc) {
-        return cached;
-      }
-    }
-  }
+  const cached = cachedParsedNode(inner, id, ownerDoc);
+  if (cached) return cached;
   const el = new ParsedElement(handle, id, ownerDoc);
   if (!inner) {
     inner = new Map();
@@ -96,37 +101,93 @@ function hasParsedGetAttribute(
   return typeof value.getAttribute === "function";
 }
 
+type ParsedNamespaceElement = Record<string, unknown> & { nodeType: number };
+
+function isParsedElement(value: unknown): value is ParsedNamespaceElement {
+  return isParsedNamespaceNode(value) && value.nodeType === ELEMENT_NODE;
+}
+
+function parsedElementRoot(node: unknown): ParsedNamespaceElement | null {
+  let element = node;
+  while (isParsedNamespaceNode(element) && element.nodeType !== ELEMENT_NODE) {
+    element = element.nodeType === DOCUMENT_NODE ? element.documentElement : element.parentNode;
+  }
+  return isParsedElement(element) ? element : null;
+}
+
+function namespaceForPrefix(prefix: string | null): string | null {
+  if (prefix === "xml") return XML_NS;
+  if (prefix === "xmlns") return XMLNS_NS;
+  return null;
+}
+
+function parsedElementPrefix(element: ParsedNamespaceElement): unknown {
+  return element.prefix === undefined ? null : element.prefix;
+}
+
+function parsedElementNamespaceValue(element: ParsedNamespaceElement): string | null {
+  return typeof element.namespaceURI === "string" ? element.namespaceURI : null;
+}
+
+function parsedDeclarationName(prefix: string | null): string {
+  return prefix === null ? "xmlns" : `xmlns:${prefix}`;
+}
+
+function isMissingNamespaceDeclaration(value: unknown): boolean {
+  return value === null || value === undefined;
+}
+
+function matchesParsedNamespace(
+  namespace: string | null,
+  elementPrefix: unknown,
+  prefix: string | null,
+): boolean {
+  return !!namespace && elementPrefix === prefix;
+}
+
+function namespaceForParsedElement(
+  element: ParsedNamespaceElement,
+  prefix: string | null,
+): string | null | undefined {
+  const elementPrefix = parsedElementPrefix(element);
+  const elementNamespace = parsedElementNamespaceValue(element);
+  if (matchesParsedNamespace(elementNamespace, elementPrefix, prefix)) return elementNamespace;
+
+  if (!hasParsedGetAttribute(element)) return undefined;
+  const declaration = element.getAttribute(parsedDeclarationName(prefix));
+  if (isMissingNamespaceDeclaration(declaration)) return undefined;
+  return declaration === "" ? null : String(declaration);
+}
+
+function findParsedNamespace(
+  element: ParsedNamespaceElement,
+  prefix: string | null,
+): string | null | undefined {
+  let current: ParsedNamespaceElement | null = element;
+  while (current) {
+    const namespace = namespaceForParsedElement(current, prefix);
+    if (namespace !== undefined) return namespace;
+    const parent: unknown = current.parentNode;
+    current = isParsedElement(parent) ? parent : null;
+  }
+  return undefined;
+}
+
 function lookupParsedNamespaceURI(node: unknown, prefix: unknown): string | null {
+  const p = normalizeParsedPrefix(prefix);
+  const element = parsedElementRoot(node);
+  if (!element) return null;
+  const knownNamespace = namespaceForPrefix(p);
+  if (knownNamespace) return knownNamespace;
+  return findParsedNamespace(element, p) ?? null;
+}
+
+function normalizeParsedPrefix(prefix: unknown): string | null {
   if (typeof prefix === "symbol") {
     throw new TypeError("Cannot convert a Symbol value to a string");
   }
   const prefixString = prefix === null || prefix === undefined ? null : String(prefix);
-  const p = prefixString === "" ? null : prefixString;
-  let element: unknown = node;
-  while (isParsedNamespaceNode(element) && element.nodeType !== ELEMENT_NODE) {
-    element = element.nodeType === DOCUMENT_NODE ? element.documentElement : element.parentNode;
-  }
-  if (!isParsedNamespaceNode(element) || element.nodeType !== ELEMENT_NODE) return null;
-  if (p === "xml") return XML_NS;
-  if (p === "xmlns") return XMLNS_NS;
-
-  while (isParsedNamespaceNode(element) && element.nodeType === ELEMENT_NODE) {
-    const elementPrefix = element.prefix === undefined ? null : element.prefix;
-    const elementNamespace = typeof element.namespaceURI === "string" ? element.namespaceURI : null;
-    if (elementNamespace && elementPrefix === p) return elementNamespace;
-
-    const declarationName = p === null ? "xmlns" : `xmlns:${p}`;
-    let declaration: unknown = null;
-    if (hasParsedGetAttribute(element)) {
-      declaration = element.getAttribute(declarationName);
-    }
-    if (declaration !== null && declaration !== undefined) {
-      return declaration === "" ? null : String(declaration);
-    }
-    const parent = element.parentNode;
-    element = isParsedNamespaceNode(parent) && parent.nodeType === ELEMENT_NODE ? parent : null;
-  }
-  return null;
+  return prefixString === "" ? null : prefixString;
 }
 
 function removeParsedChild(parent: Record<string, unknown>, child: unknown): void {
@@ -137,24 +198,24 @@ function removeParsedChild(parent: Record<string, unknown>, child: unknown): voi
   Reflect.apply(removeChild, parent, [child]);
 }
 
-function normalizeParsedText(
+type ParsedTextNode = Record<string, unknown> & { nodeType: typeof TEXT_NODE };
+
+function isParsedTextNode(child: unknown): child is ParsedTextNode {
+  return isParsedObject(child) && child.nodeType === TEXT_NODE;
+}
+
+function mergeFollowingParsedText(
   parent: Record<string, unknown>,
   children: unknown[],
   index: number,
   child: Record<string, unknown>,
+  data: string,
 ): number {
-  const data = String(child.nodeValue ?? "");
-  if (data === "") {
-    removeParsedChild(parent, child);
-    children[index] = null;
-    return index;
-  }
-
   let merged = data;
   let nextIndex = index + 1;
   while (nextIndex < children.length) {
     const nextChild = children[nextIndex];
-    if (!isParsedObject(nextChild) || nextChild.nodeType !== TEXT_NODE) break;
+    if (!isParsedTextNode(nextChild)) break;
     merged += String(nextChild.nodeValue ?? "");
     removeParsedChild(parent, nextChild);
     children[nextIndex] = null;
@@ -164,22 +225,357 @@ function normalizeParsedText(
   return nextIndex - 1;
 }
 
+function normalizeParsedText(
+  parent: Record<string, unknown>,
+  children: unknown[],
+  index: number,
+  child: Record<string, unknown>,
+): number {
+  const data = String(child.nodeValue ?? "");
+  if (data !== "") {
+    return mergeFollowingParsedText(parent, children, index, child, data);
+  }
+  removeParsedChild(parent, child);
+  children[index] = null;
+  return index;
+}
+
+function parsedChildren(
+  current: unknown,
+): { parent: Record<string, unknown>; children: unknown[] } | null {
+  if (!isParsedObject(current) || !Array.isArray(current.childNodes)) return null;
+  return { parent: current, children: [...current.childNodes] };
+}
+
+function normalizeParsedChild(
+  current: Record<string, unknown>,
+  children: unknown[],
+  index: number,
+  child: unknown,
+  parents: unknown[],
+): number {
+  if (!isParsedObject(child)) return index;
+  if (isParsedTextNode(child)) return normalizeParsedText(current, children, index, child);
+  if (child.nodeType === ELEMENT_NODE) parents.push(child);
+  return index;
+}
+
 function normalizeParsedSubtree(parent: unknown): void {
   const parents: unknown[] = [parent];
   while (parents.length > 0) {
     const current = parents.pop();
-    if (!isParsedObject(current) || !Array.isArray(current.childNodes)) continue;
-    const children: unknown[] = [...current.childNodes];
-    for (let i = 0; i < children.length; i++) {
-      const child = children[i];
-      if (!isParsedObject(child)) continue;
-      if (child.nodeType === TEXT_NODE) {
-        i = normalizeParsedText(current, children, i, child);
-      } else if (child.nodeType === ELEMENT_NODE) {
-        parents.push(child);
-      }
+    const parsed = parsedChildren(current);
+    if (!parsed) continue;
+    for (let i = 0; i < parsed.children.length; i++) {
+      i = normalizeParsedChild(parsed.parent, parsed.children, i, parsed.children[i], parents);
     }
   }
+}
+
+function parsedInfo(handle: DomHandle, id: number) {
+  try {
+    return handle.nodeInfo(id);
+  } catch {
+    return null;
+  }
+}
+
+function parsedNodeType(info: ReturnType<DomHandle["nodeInfo"]>): number {
+  return info ? info.nodeType : ELEMENT_NODE;
+}
+
+function parsedLocalName(info: ReturnType<DomHandle["nodeInfo"]>): string {
+  return info ? info.localName || "" : "";
+}
+
+function parsedNodeName(info: ReturnType<DomHandle["nodeInfo"]>): string {
+  return info ? info.nodeName : "";
+}
+
+function parsedOwnerContentType(ownerDoc: ParsedOwnerDocumentValue): string | null {
+  return ownerDoc && ownerDoc._contentType ? String(ownerDoc._contentType) : null;
+}
+
+function isParsedHtmlDocument(ownerContentType: string | null): boolean {
+  return ownerContentType === "text/html" || ownerContentType == null;
+}
+
+function parsedXmlNamespace(handle: DomHandle, id: number): string | null {
+  try {
+    const attrs = parsedAttrs(handle, id);
+    for (const attr of attrs) if (attr.name === "xmlns") return attr.value;
+  } catch {}
+  return null;
+}
+
+function parsedElementNamespace(handle: DomHandle, id: number, nodeType: number): string | null {
+  if (nodeType !== ELEMENT_NODE) return null;
+  return parsedHandleXml.has(handle) ? parsedXmlNamespace(handle, id) : HTML_NS;
+}
+
+function parsedCharacterDataInfo(element: ParsedElement) {
+  if (element.nodeType !== TEXT_NODE && element.nodeType !== COMMENT_NODE) return null;
+  return parsedInfo(element._dom, element._id);
+}
+
+function isParsedCharacterData(element: ParsedElement): boolean {
+  return element.nodeType === TEXT_NODE || element.nodeType === COMMENT_NODE;
+}
+
+function parsedCharacterDataMutable(element: ParsedElement): boolean {
+  return !!element.ownerDocument?._mutable;
+}
+
+function updateParsedCharacterData(element: ParsedElement, text: string): boolean {
+  return element.nodeType === COMMENT_NODE
+    ? element._dom.setCommentData(element._id, text)
+    : element._dom.setNodeText(element._id, text);
+}
+
+function setParsedCharacterData(element: ParsedElement, value: unknown): void {
+  if (!isParsedCharacterData(element)) return;
+  if (!parsedCharacterDataMutable(element)) {
+    throw notSupported("CharacterData.nodeValue on DOMParser result (read-only)");
+  }
+  const text = String(value ?? "");
+  const updated = updateParsedCharacterData(element, text);
+  if (!updated) throw new Error("CharacterData.nodeValue: stale parsed node");
+}
+
+function parsedParentId(element: ParsedElement): number | null {
+  try {
+    const parentId = element._dom.parentId(element._id);
+    return parentId < 0 ? null : parentId;
+  } catch {
+    return null;
+  }
+}
+
+function parsedParentFromInfo(
+  element: ParsedElement,
+  parentId: number,
+  info: ReturnType<DomHandle["nodeInfo"]>,
+): ParsedOwnerDocumentValue | ParsedElement | null {
+  if (!info) return null;
+  if (info.nodeType === DOCUMENT_NODE) return element.ownerDocument || null;
+  return getOrCreateParsedNode(element._dom, parentId, element.ownerDocument);
+}
+
+function parsedParentNode(element: ParsedElement): ParsedOwnerDocumentValue | ParsedElement | null {
+  const parentId = parsedParentId(element);
+  if (parentId === null) return null;
+  const info = parsedInfo(element._dom, parentId);
+  return parsedParentFromInfo(element, parentId, info);
+}
+
+function parsedContainsDescendant(element: ParsedElement, other: ParsedElement): boolean {
+  let descendants;
+  try {
+    descendants = Array.from(element._dom.descendantsOf(element._id));
+  } catch {
+    return false;
+  }
+  return descendants.indexOf(other._id) >= 0;
+}
+
+function parsedSelectorError(
+  method: string,
+  target: string,
+  selector: string,
+  error: unknown,
+): DOMException {
+  return new DOMException(
+    "Failed to execute '" +
+      method +
+      "' on " +
+      (target === "Element" ? "'Element'" : target) +
+      ": '" +
+      selector +
+      "' is not a valid selector. " +
+      errorMessage(error),
+    "SyntaxError",
+  );
+}
+
+function queryParsedSelector(
+  handle: DomHandle,
+  rootId: number,
+  selector: string,
+  method: string,
+  target: string,
+): number[] {
+  try {
+    return Array.from<number>(handle.querySelectorAllInSubtree(rootId, selector));
+  } catch (error) {
+    throw parsedSelectorError(method, target, selector, error);
+  }
+}
+
+function scopedSelectorString(selector: unknown): string {
+  if (typeof selector === "string") return selector;
+  try {
+    return String(selector);
+  } catch {
+    throw new DOMException(
+      "Failed to execute 'querySelector' on parsed document: selector argument is not a valid string",
+      "SyntaxError",
+    );
+  }
+}
+
+interface ParsedAppendParent {
+  _dom: DomHandle;
+  _id: number;
+  ownerDocument: ParsedOwnerDocumentValue;
+}
+
+interface ParsedAppendCandidate {
+  _dom?: DomHandle;
+  _id?: number;
+  parentNode?: unknown;
+  ownerDocument?: unknown;
+}
+
+function assertParsedMutable(ownerDocument: ParsedOwnerDocumentValue, message: string): void {
+  if (!ownerDocument || !ownerDocument._mutable) throw notSupported(message);
+}
+
+function assertParsedCandidatePresent(candidate: ParsedAppendCandidate): void {
+  if (!candidate) throw notSupported("appendChild: null/undefined child");
+}
+
+function adoptParsedCandidate(parent: ParsedAppendParent, candidate: ParsedAppendCandidate): void {
+  if (candidate._dom && candidate._dom !== parent._dom) {
+    adoptIntoDom(parent._dom, candidate, parent.ownerDocument);
+  }
+}
+
+function validateParsedAppendCandidate(
+  candidate: ParsedAppendCandidate,
+): asserts candidate is ParsedAppendCandidate & { _id: number } {
+  if (typeof candidate._id !== "number" || candidate._id < 0) {
+    throw notSupported("appendChild: unsupported child shape");
+  }
+}
+
+function appendParsedCandidate(
+  parent: ParsedAppendParent,
+  candidate: ParsedAppendCandidate & { _id: number },
+): void {
+  try {
+    parent._dom.appendChildNode(parent._id, candidate._id);
+  } catch {}
+  try {
+    candidate.parentNode = parent;
+  } catch {}
+  try {
+    candidate.ownerDocument = parent.ownerDocument;
+  } catch {}
+}
+
+function appendParsedChild<T>(parent: ParsedAppendParent, child: T, readOnlyMessage: string): T {
+  assertParsedMutable(parent.ownerDocument, readOnlyMessage);
+  const candidate = child as any;
+  assertParsedCandidatePresent(candidate);
+  adoptParsedCandidate(parent, candidate);
+  validateParsedAppendCandidate(candidate);
+  appendParsedCandidate(parent, candidate);
+  return child;
+}
+
+function removeParsedElementChild(handle: DomHandle, child: ParsedAppendCandidate): void {
+  if (!child || typeof child._id !== "number") {
+    throw notSupported("removeChild: invalid child");
+  }
+  try {
+    handle.removeNode(child._id);
+  } catch {}
+}
+
+type ParsedFragmentChild = Record<string, unknown> & { _dom: DomHandle; _id: number };
+
+function isParsedFragmentChild(handle: DomHandle, child: unknown): child is ParsedFragmentChild {
+  return isParsedObject(child) && child._dom === handle && typeof child._id === "number";
+}
+
+function removeParsedFragmentChild(
+  handle: DomHandle,
+  fragmentId: number,
+  child: ParsedFragmentChild,
+): void {
+  if (handle.parentId(child._id) !== fragmentId || !handle.removeNode(child._id)) {
+    throw new DOMException("removeChild: child is not a child of parent", "NotFoundError");
+  }
+}
+
+function parsedDeepCloneId(handle: DomHandle, id: number): number {
+  let newId = -1;
+  try {
+    if (typeof handle.deepCloneNode === "function") newId = handle.deepCloneNode(id);
+  } catch {}
+  return newId;
+}
+
+function parsedCloneFallbackId(handle: DomHandle, tagName: string): number {
+  try {
+    return handle.createElement((tagName || "div").toLowerCase());
+  } catch {
+    throw notSupported("cloneNode: wasm trap");
+  }
+}
+
+function cloneParsedElement(element: ParsedElement): ParsedElement | null {
+  const handle = element._dom;
+  const id = element._id;
+  let newId = parsedDeepCloneId(handle, id);
+  if (newId < 0) newId = parsedCloneFallbackId(handle, element.tagName);
+  return getOrCreateParsedNode(handle, newId, element.ownerDocument);
+}
+
+function fragmentChildIds(handle: DomHandle, fragmentId: number): number[] {
+  try {
+    return Array.from(handle.childIds(fragmentId));
+  } catch {
+    return [];
+  }
+}
+
+function parsedElementChildren(
+  handle: DomHandle,
+  ids: number[],
+  ownerDoc: ParsedOwnerDocumentValue,
+): Array<ParsedElement | null> {
+  const out: Array<ParsedElement | null> = [];
+  for (const id of ids) {
+    let info;
+    try {
+      info = handle.nodeInfo(id);
+    } catch {
+      continue;
+    }
+    if (info && info.nodeType === ELEMENT_NODE) {
+      out.push(getOrCreateParsedNode(handle, id, ownerDoc));
+    }
+  }
+  return out;
+}
+
+function parsedNodeList(
+  handle: DomHandle,
+  ids: number[],
+  ownerDoc: ParsedOwnerDocumentValue,
+): ReadonlyArray<ParsedElement | null> {
+  const nodes = ids.map((id) => getOrCreateParsedNode(handle, id, ownerDoc));
+  Object.setPrototypeOf(nodes, NodeListCls.prototype);
+  Object.freeze(nodes);
+  return nodes;
+}
+
+function emptyParsedNodeList(): ReadonlyArray<ParsedElement | null> {
+  const empty: Array<ParsedElement | null> = [];
+  Object.setPrototypeOf(empty, NodeListCls.prototype);
+  Object.freeze(empty);
+  return empty;
 }
 
 class ParsedElement {
@@ -196,42 +592,23 @@ class ParsedElement {
   constructor(handle: DomHandle, id: number, ownerDoc?: ParsedOwnerDocumentValue) {
     this._dom = handle;
     this._id = id;
-    let info;
-    try {
-      info = handle.nodeInfo(id);
-    } catch {
-      info = null;
-    }
-    this.nodeType = info ? info.nodeType : ELEMENT_NODE;
-    this.localName = info ? info.localName || "" : "";
-    const ownerCt: string | null =
-      ownerDoc && ownerDoc._contentType ? String(ownerDoc._contentType) : null;
-    const isHtmlDoc = ownerCt === "text/html" || ownerCt == null;
+    const info = parsedInfo(handle, id);
+    this.nodeType = parsedNodeType(info);
+    this.localName = parsedLocalName(info);
+    const ownerCt = parsedOwnerContentType(ownerDoc || null);
+    const isHtmlDoc = isParsedHtmlDocument(ownerCt);
     if (this.nodeType !== ELEMENT_NODE) {
-      this.nodeName = info ? info.nodeName : "";
+      this.nodeName = parsedNodeName(info);
       this.tagName = "";
     } else if (isHtmlDoc) {
-      this.nodeName = info ? info.nodeName : "";
+      this.nodeName = parsedNodeName(info);
       this.tagName = this.nodeName;
     } else {
       this.nodeName = this.localName;
       this.tagName = this.localName;
     }
     this.ownerDocument = ownerDoc || null;
-    if (this.nodeType !== ELEMENT_NODE) {
-      this.namespaceURI = null;
-    } else if (parsedHandleXml.has(handle)) {
-      const xmlnsAttr = (() => {
-        try {
-          const attrs = parsedAttrs(handle, id);
-          for (const a of attrs) if (a.name === "xmlns") return a.value;
-        } catch {}
-        return null;
-      })();
-      this.namespaceURI = xmlnsAttr;
-    } else {
-      this.namespaceURI = HTML_NS;
-    }
+    this.namespaceURI = parsedElementNamespace(handle, id, this.nodeType);
     this.prefix = null;
   }
   get textContent(): string {
@@ -256,28 +633,11 @@ class ParsedElement {
     }
   }
   get nodeValue(): string | null {
-    if (this.nodeType !== TEXT_NODE && this.nodeType !== COMMENT_NODE) return null;
-    let info;
-    try {
-      info = this._dom.nodeInfo(this._id);
-    } catch {
-      return null;
-    }
+    const info = parsedCharacterDataInfo(this);
     return info ? info.nodeValue || "" : null;
   }
   set nodeValue(value) {
-    if (this.nodeType !== TEXT_NODE && this.nodeType !== COMMENT_NODE) return;
-    if (!this.ownerDocument?._mutable) {
-      throw notSupported("CharacterData.nodeValue on DOMParser result (read-only)");
-    }
-    const text = String(value ?? "");
-    const updated =
-      this.nodeType === COMMENT_NODE
-        ? this._dom.setCommentData(this._id, text)
-        : this._dom.setNodeText(this._id, text);
-    if (!updated) {
-      throw new Error("CharacterData.nodeValue: stale parsed node");
-    }
+    setParsedCharacterData(this, value);
   }
   getAttribute(name: string): string | null {
     if (this.nodeType !== ELEMENT_NODE) return null;
@@ -297,7 +657,7 @@ class ParsedElement {
   get attributes(): ParsedAttribute[] {
     const list = parsedAttrs(this._dom, this._id);
     Object.defineProperty(list, "getNamedItem", {
-      value: (name) => list.find((a) => a.name === name) || null,
+      value: (name: string) => list.find((a) => a.name === name) || null,
     });
     return list;
   }
@@ -379,22 +739,7 @@ class ParsedElement {
     return kids.length > 0 ? kids[kids.length - 1] : null;
   }
   get parentNode(): ParsedOwnerDocumentValue | ParsedElement | null {
-    let pid;
-    try {
-      pid = this._dom.parentId(this._id);
-    } catch {
-      return null;
-    }
-    if (pid < 0) return null;
-    let info;
-    try {
-      info = this._dom.nodeInfo(pid);
-    } catch {
-      return null;
-    }
-    if (!info) return null;
-    if (info.nodeType === DOCUMENT_NODE) return this.ownerDocument || null;
-    return getOrCreateParsedNode(this._dom, pid, this.ownerDocument);
+    return parsedParentNode(this);
   }
   get parentElement(): ParsedOwnerDocumentValue | ParsedElement {
     const p = this.parentNode;
@@ -453,18 +798,7 @@ class ParsedElement {
     }
     const pid = this._dom.parentId(this._id);
     const rootId = pid >= 0 ? pid : this._id;
-    let ids;
-    try {
-      ids = Array.from(this._dom.querySelectorAllInSubtree(rootId, selector));
-    } catch (err) {
-      throw new DOMException(
-        "Failed to execute 'matches' on 'Element': '" +
-          selector +
-          "' is not a valid selector. " +
-          (err && (err as Error).message ? (err as Error).message : String(err)),
-        "SyntaxError",
-      );
-    }
+    const ids = queryParsedSelector(this._dom, rootId, selector, "matches", "Element");
     return ids.indexOf(this._id) >= 0;
   }
   webkitMatchesSelector(selector: string): boolean {
@@ -474,74 +808,28 @@ class ParsedElement {
     if (!other || !(other instanceof ParsedElement)) return false;
     if (other._dom !== this._dom) return false;
     if (other._id === this._id) return true;
-    let descendants;
-    try {
-      descendants = Array.from(this._dom.descendantsOf(this._id));
-    } catch {
-      return false;
-    }
-    return descendants.indexOf(other._id) >= 0;
+    return parsedContainsDescendant(this, other);
   }
-  _scopedQS(selector): number[] {
-    if (typeof selector !== "string") {
-      try {
-        selector = String(selector);
-      } catch {
-        throw new DOMException(
-          "Failed to execute 'querySelector' on parsed document: selector argument is not a valid string",
-          "SyntaxError",
-        );
-      }
-    }
-    if (selectorHasPseudoElement(selector)) return [];
-    try {
-      return Array.from<number>(this._dom.querySelectorAllInSubtree(this._id, selector));
-    } catch (err) {
-      throw new DOMException(
-        "Failed to execute 'querySelector' on parsed document: '" +
-          selector +
-          "' is not a valid selector. " +
-          (err && (err as Error).message ? (err as Error).message : String(err)),
-        "SyntaxError",
-      );
-    }
+  _scopedQS(selector: unknown): number[] {
+    const normalizedSelector = scopedSelectorString(selector);
+    if (selectorHasPseudoElement(normalizedSelector)) return [];
+    return queryParsedSelector(
+      this._dom,
+      this._id,
+      normalizedSelector,
+      "querySelector",
+      "parsed document",
+    );
   }
   // Page-owned wrappers use dynamic slots across live and parser-owned handles.
   appendChild<T>(child: T): T {
-    if (!this.ownerDocument || !this.ownerDocument._mutable) {
-      throw notSupported("appendChild on DOMParser result (read-only)");
-    }
-    const candidate = child as any;
-    if (!candidate) throw notSupported("appendChild: null/undefined child");
-    if (candidate._dom && candidate._dom !== this._dom) {
-      adoptIntoDom(this._dom, candidate, this.ownerDocument);
-    }
-    if (typeof candidate._id !== "number" || candidate._id < 0) {
-      throw notSupported("appendChild: unsupported child shape");
-    }
-    try {
-      this._dom.appendChildNode(this._id, candidate._id);
-    } catch {}
-    try {
-      candidate.parentNode = this;
-    } catch {}
-    try {
-      candidate.ownerDocument = this.ownerDocument;
-    } catch {}
-    return child;
+    return appendParsedChild(this, child, "appendChild on DOMParser result (read-only)");
   }
   // Page-owned wrappers may carry dynamic handle metadata.
   removeChild<T>(child: T): T {
-    if (!this.ownerDocument || !this.ownerDocument._mutable) {
-      throw notSupported("removeChild on DOMParser result (read-only)");
-    }
+    assertParsedMutable(this.ownerDocument, "removeChild on DOMParser result (read-only)");
     const candidate = child as any;
-    if (!candidate || typeof candidate._id !== "number") {
-      throw notSupported("removeChild: invalid child");
-    }
-    try {
-      this._dom.removeNode(candidate._id);
-    } catch {}
+    removeParsedElementChild(this._dom, candidate);
     return child;
   }
   // Node wrappers stay dynamic; a non-null reference remains unsupported.
@@ -585,21 +873,7 @@ class ParsedElement {
     this.removeAttribute(String(localName));
   }
   cloneNode(_deep?: unknown): ParsedElement | null {
-    let newId = -1;
-    try {
-      if (typeof this._dom.deepCloneNode === "function") {
-        newId = this._dom.deepCloneNode(this._id);
-      }
-    } catch {}
-    if (newId < 0) {
-      try {
-        const tag = (this.tagName || "div").toLowerCase();
-        newId = this._dom.createElement(tag);
-      } catch {
-        throw notSupported("cloneNode: wasm trap");
-      }
-    }
-    return getOrCreateParsedNode(this._dom, newId, this.ownerDocument);
+    return cloneParsedElement(this);
   }
   removeAttribute(name: unknown): void {
     if (!this.ownerDocument || !this.ownerDocument._mutable) {
@@ -637,31 +911,18 @@ class ParsedFragment {
   get childNodes(): Array<ParsedElement | null> {
     let kids;
     try {
-      kids = Array.from(this._dom.childIds(this._id));
+      kids = Array.from<number>(this._dom.childIds(this._id));
     } catch {
       return [];
     }
     return kids.map((cid) => getOrCreateParsedNode(this._dom, cid, this.ownerDocument));
   }
   get children(): Array<ParsedElement | null> {
-    const out: Array<ParsedElement | null> = [];
-    let kids;
-    try {
-      kids = Array.from(this._dom.childIds(this._id));
-    } catch {
-      return out;
-    }
-    for (const cid of kids) {
-      let info;
-      try {
-        info = this._dom.nodeInfo(cid);
-      } catch {
-        continue;
-      }
-      if (info && info.nodeType === ELEMENT_NODE)
-        out.push(getOrCreateParsedNode(this._dom, cid, this.ownerDocument));
-    }
-    return out;
+    return parsedElementChildren(
+      this._dom,
+      fragmentChildIds(this._dom, this._id),
+      this.ownerDocument,
+    );
   }
   get firstChild(): ParsedElement | null {
     const k = this.childNodes;
@@ -676,38 +937,14 @@ class ParsedFragment {
   }
   // Page-owned wrappers use dynamic slots across live and parser-owned handles.
   appendChild<T>(child: T): T {
-    if (!this.ownerDocument || !this.ownerDocument._mutable) {
-      throw notSupported("appendChild on read-only fragment");
-    }
-    const candidate = child as any;
-    if (!candidate) throw notSupported("appendChild: null/undefined child");
-    if (candidate._dom && candidate._dom !== this._dom) {
-      adoptIntoDom(this._dom, candidate, this.ownerDocument);
-    }
-    if (typeof candidate._id !== "number" || candidate._id < 0) {
-      throw notSupported("appendChild: unsupported child shape");
-    }
-    try {
-      this._dom.appendChildNode(this._id, candidate._id);
-    } catch {}
-    try {
-      candidate.parentNode = this;
-    } catch {}
-    try {
-      candidate.ownerDocument = this.ownerDocument;
-    } catch {}
-    return child;
+    return appendParsedChild(this, child, "appendChild on read-only fragment");
   }
   removeChild<T>(child: T): T {
-    if (!this.ownerDocument || !this.ownerDocument._mutable) {
-      throw notSupported("removeChild on read-only fragment");
-    }
-    if (!isParsedObject(child) || child._dom !== this._dom || typeof child._id !== "number") {
+    assertParsedMutable(this.ownerDocument, "removeChild on read-only fragment");
+    if (!isParsedFragmentChild(this._dom, child)) {
       throw notSupported("removeChild: unsupported fragment child");
     }
-    if (this._dom.parentId(child._id) !== this._id || !this._dom.removeNode(child._id)) {
-      throw new DOMException("removeChild: child is not a child of parent", "NotFoundError");
-    }
+    removeParsedFragmentChild(this._dom, this._id, child);
     return child;
   }
   querySelector(selector: unknown): ParsedElement | null {
@@ -716,18 +953,7 @@ class ParsedFragment {
     }
     const sel = String(selector);
     if (selectorHasPseudoElement(sel)) return null;
-    let ids;
-    try {
-      ids = Array.from(this._dom.querySelectorAllInSubtree(this._id, sel));
-    } catch (err) {
-      throw new DOMException(
-        "Failed to execute 'querySelector' on DocumentFragment: '" +
-          sel +
-          "' is not a valid selector. " +
-          (err && (err as Error).message ? (err as Error).message : String(err)),
-        "SyntaxError",
-      );
-    }
+    const ids = queryParsedSelector(this._dom, this._id, sel, "querySelector", "DocumentFragment");
     return ids.length > 0 ? getOrCreateParsedNode(this._dom, ids[0], this.ownerDocument) : null;
   }
   querySelectorAll(selector: unknown): ReadonlyArray<ParsedElement | null> {
@@ -736,27 +962,16 @@ class ParsedFragment {
     }
     const sel = String(selector);
     if (selectorHasPseudoElement(sel)) {
-      const empty: Array<ParsedElement | null> = [];
-      Object.setPrototypeOf(empty, NodeListCls.prototype);
-      Object.freeze(empty);
-      return empty;
+      return emptyParsedNodeList();
     }
-    let ids;
-    try {
-      ids = Array.from(this._dom.querySelectorAllInSubtree(this._id, sel));
-    } catch (err) {
-      throw new DOMException(
-        "Failed to execute 'querySelectorAll' on DocumentFragment: '" +
-          sel +
-          "' is not a valid selector. " +
-          (err && (err as Error).message ? (err as Error).message : String(err)),
-        "SyntaxError",
-      );
-    }
-    const arr = ids.map((id) => getOrCreateParsedNode(this._dom, id, this.ownerDocument));
-    Object.setPrototypeOf(arr, NodeListCls.prototype);
-    Object.freeze(arr);
-    return arr;
+    const ids = queryParsedSelector(
+      this._dom,
+      this._id,
+      sel,
+      "querySelectorAll",
+      "DocumentFragment",
+    );
+    return parsedNodeList(this._dom, ids, this.ownerDocument);
   }
   getElementById(id: unknown): ParsedElement | null {
     const ids = this.querySelectorAll("#" + String(id).replace(/[^a-zA-Z0-9_-]/g, "\\$&"));
@@ -817,31 +1032,191 @@ interface DoctypeInfo {
 // The source's leading `<!DOCTYPE name [PUBLIC "p" ["s"] | SYSTEM "s"]>`,
 // or null when it has none. Approximates the tokenizer's doctype state:
 // enough to answer document.doctype, not to validate it.
-function leadingDoctype(source: string, html: boolean): DoctypeInfo | null {
-  const m = /^<!doctype(?:\s+([^\s>]+))?([^>]*)>/i.exec(source);
-  if (!m) return null;
-  const rest = m[2] ?? "";
-  const quoted = (s: string) => /^\s*("([^"]*)"|'([^']*)')/.exec(s);
+function quotedDoctypeId(source: string): RegExpExecArray | null {
+  return /^\s*("([^"]*)"|'([^']*)')/.exec(source);
+}
+
+function doctypeIdValue(match: RegExpExecArray): string {
+  return match[2] ?? match[3] ?? "";
+}
+
+function isPublicDoctypeKeyword(keyword: RegExpExecArray): boolean {
+  return (keyword[1] ?? "").toLowerCase() === "public";
+}
+
+function isElementNodeInfo(info: ReturnType<DomHandle["nodeInfo"]>): boolean {
+  return !!info && info.nodeType === ELEMENT_NODE;
+}
+
+function doctypeIdentifiers(rest: string): Pick<DoctypeInfo, "publicId" | "systemId"> {
   let publicId = "";
   let systemId = "";
   const kw = /^\s*(public|system)/i.exec(rest);
-  if (kw) {
-    let after = rest.slice(kw[0].length);
-    const first = quoted(after);
-    if (first) {
-      const value = first[2] ?? first[3] ?? "";
-      after = after.slice(first[0].length);
-      if ((kw[1] ?? "").toLowerCase() === "public") {
-        publicId = value;
-        const second = quoted(after);
-        if (second) systemId = second[2] ?? second[3] ?? "";
-      } else {
-        systemId = value;
-      }
-    }
+  if (!kw) return { publicId, systemId };
+  const afterKeyword = rest.slice(kw[0].length);
+  const first = quotedDoctypeId(afterKeyword);
+  if (!first) return { publicId, systemId };
+  const value = doctypeIdValue(first);
+  const afterFirst = afterKeyword.slice(first[0].length);
+  if (!isPublicDoctypeKeyword(kw)) {
+    return { publicId, systemId: value };
   }
-  const name = m[1] ?? "";
-  return { name: html ? name.toLowerCase() : name, publicId, systemId };
+  publicId = value;
+  const second = quotedDoctypeId(afterFirst);
+  systemId = second ? doctypeIdValue(second) : "";
+  return { publicId, systemId };
+}
+
+function leadingDoctype(source: string, html: boolean): DoctypeInfo | null {
+  const match = /^<!doctype(?:\s+([^\s>]+))?([^>]*)>/i.exec(source);
+  if (!match) return null;
+  const name = match[1] ?? "";
+  return {
+    name: html ? name.toLowerCase() : name,
+    ...doctypeIdentifiers(match[2] ?? ""),
+  };
+}
+
+function parsedStyleSheetIds(handle: DomHandle): number[] {
+  return Array.from<number>(
+    typeof handle.querySelectorAllInSubtree === "function"
+      ? handle.querySelectorAllInSubtree(handle.documentNodeId(), "style, link[rel='stylesheet']")
+      : handle.querySelectorAll("style, link[rel='stylesheet']"),
+  );
+}
+
+function parsedStyleSheet(
+  handle: DomHandle,
+  id: number,
+  document: ParsedDocument,
+): InstanceType<typeof CSSStyleSheetCtor> {
+  const sheet = new CSSStyleSheetCtor();
+  let text = "";
+  try {
+    text = handle.textContent(id) || "";
+  } catch {}
+  if (text) sheet.replaceSync(text);
+  try {
+    styleSheetFields(sheet).ownerNode = getOrCreateParsedNode(handle, id, document);
+  } catch {}
+  return sheet;
+}
+
+function parsedStyleSheets(handle: DomHandle, document: ParsedDocument) {
+  const list: Array<InstanceType<typeof CSSStyleSheetCtor>> = [];
+  try {
+    for (const id of parsedStyleSheetIds(handle)) {
+      list.push(parsedStyleSheet(handle, id, document));
+    }
+  } catch {}
+  Object.defineProperty(list, "item", {
+    value: (i: number): InstanceType<typeof CSSStyleSheetCtor> | null => list[i] || null,
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
+  return list;
+}
+
+function parsedDocumentElement(handle: DomHandle, document: ParsedDocument): ParsedElement | null {
+  const rootId = handle.documentNodeId();
+  let children: number[];
+  try {
+    children = Array.from(handle.childIds(rootId));
+  } catch {
+    return null;
+  }
+  for (const id of children) {
+    let info;
+    try {
+      info = handle.nodeInfo(id);
+    } catch {
+      continue;
+    }
+    if (isElementNodeInfo(info)) return getOrCreateParsedNode(handle, id, document);
+  }
+  return null;
+}
+
+function parsedDocumentQuerySelector(handle: DomHandle, selector: string): number {
+  try {
+    return handle.querySelector(selector);
+  } catch (error) {
+    throw parsedSelectorError("querySelector", "Document", selector, error);
+  }
+}
+
+function parsedDocumentQuerySelectorAll(handle: DomHandle, selector: string): number[] {
+  try {
+    return Array.from(handle.querySelectorAll(selector));
+  } catch (error) {
+    throw parsedSelectorError("querySelectorAll", "Document", selector, error);
+  }
+}
+
+function parsedWasmTrapMessage(operation: string, error: unknown): string {
+  return operation + ": wasm trap: " + (error instanceof Error ? error.message : String(error));
+}
+
+function createParsedElementId(
+  document: ParsedDocument,
+  tag: string,
+  namespace: string | null,
+  isHtmlDocument: boolean,
+): number {
+  try {
+    if (!isHtmlDocument && typeof document._dom.createElementVerbatim === "function") {
+      return document._dom.createElementVerbatim(tag, namespace || "");
+    }
+    return document._dom.createElement(tag);
+  } catch (error) {
+    throw new Error(parsedWasmTrapMessage("createElement", error));
+  }
+}
+
+function createParsedElementNsId(
+  document: ParsedDocument,
+  namespace: string | null,
+  qualifiedName: string,
+): number {
+  try {
+    return typeof document._dom.createElementNS === "function"
+      ? document._dom.createElementNS(namespace || "", qualifiedName)
+      : document._dom.createElement(qualifiedName.split(":").pop() || qualifiedName);
+  } catch (error) {
+    throw new Error(parsedWasmTrapMessage("createElementNS", error));
+  }
+}
+
+function parsedCreateElement(
+  document: ParsedDocument,
+  tagName: unknown,
+  contentType: string,
+): ParsedElement {
+  const isHtmlDocument = contentType === "text/html";
+  const namespace = isHtmlDocument || contentType === "application/xhtml+xml" ? HTML_NS : null;
+  const tag = String(tagName);
+  validateXMLName(isHtmlDocument ? tag.toLowerCase() : tag);
+  const id = createParsedElementId(document, tag, namespace, isHtmlDocument);
+  const element = parsedNodeFor(document._dom, id, document);
+  element.ownerDocument = document;
+  element.namespaceURI = namespace;
+  return element;
+}
+
+function parsedCreateElementNS(
+  document: ParsedDocument,
+  namespaceURI: unknown,
+  qualifiedName: unknown,
+): ParsedElement {
+  const namespace = namespaceURI == null || namespaceURI === "" ? null : String(namespaceURI);
+  const name = qualifiedName == null ? String(qualifiedName) : String(qualifiedName);
+  const [, prefix] = validateAndExtract(namespace, name);
+  const id = createParsedElementNsId(document, namespace, name);
+  const element = parsedNodeFor(document._dom, id, document);
+  element.namespaceURI = namespace;
+  element.prefix = prefix;
+  return element;
 }
 
 // XML qualified-name matcher: browser-permissive, NOT strict XML 1.0
@@ -955,37 +1330,7 @@ class ParsedDocument {
   }
   // Parsed sheets are a snapshot of inline text; later edits are not reflected.
   get styleSheets(): Array<InstanceType<typeof CSSStyleSheetCtor>> {
-    const list: Array<InstanceType<typeof CSSStyleSheetCtor>> = [];
-    try {
-      const ids = Array.from<number>(
-        typeof this._dom.querySelectorAllInSubtree === "function"
-          ? this._dom.querySelectorAllInSubtree(
-              this._dom.documentNodeId(),
-              "style, link[rel='stylesheet']",
-            )
-          : this._dom.querySelectorAll("style, link[rel='stylesheet']"),
-      );
-      for (const id of ids) {
-        const sheet = new CSSStyleSheetCtor();
-        // Read the <style> text content and parse it into rules.
-        let text = "";
-        try {
-          text = this._dom.textContent(id) || "";
-        } catch {}
-        if (text) sheet.replaceSync(text);
-        try {
-          styleSheetFields(sheet).ownerNode = getOrCreateParsedNode(this._dom, id, this);
-        } catch {}
-        list.push(sheet);
-      }
-    } catch {}
-    Object.defineProperty(list, "item", {
-      value: (i: number): InstanceType<typeof CSSStyleSheetCtor> | null => list[i] || null,
-      enumerable: false,
-      configurable: true,
-      writable: true,
-    });
-    return list;
+    return parsedStyleSheets(this._dom, this);
   }
   get title(): string {
     try {
@@ -995,25 +1340,7 @@ class ParsedDocument {
     }
   }
   get documentElement(): ParsedElement | null {
-    const rootId = this._dom.documentNodeId();
-    let kids;
-    try {
-      kids = Array.from(this._dom.childIds(rootId));
-    } catch {
-      return null;
-    }
-    for (const id of kids) {
-      let info;
-      try {
-        info = this._dom.nodeInfo(id);
-      } catch {
-        continue;
-      }
-      if (info && info.nodeType === ELEMENT_NODE) {
-        return getOrCreateParsedNode(this._dom, id, this);
-      }
-    }
-    return null;
+    return parsedDocumentElement(this._dom, this);
   }
   lookupNamespaceURI(prefix: unknown): string | null {
     const root = this.documentElement;
@@ -1022,7 +1349,7 @@ class ParsedDocument {
   get body(): ParsedElement | null {
     let ids;
     try {
-      ids = Array.from(this._dom.querySelectorAll("body"));
+      ids = Array.from<number>(this._dom.querySelectorAll("body"));
     } catch {
       return null;
     }
@@ -1031,7 +1358,7 @@ class ParsedDocument {
   get head(): ParsedElement | null {
     let ids;
     try {
-      ids = Array.from(this._dom.querySelectorAll("head"));
+      ids = Array.from<number>(this._dom.querySelectorAll("head"));
     } catch {
       return null;
     }
@@ -1060,18 +1387,7 @@ class ParsedDocument {
     }
     const sel = String(selector);
     if (selectorHasPseudoElement(sel)) return null;
-    let id;
-    try {
-      id = this._dom.querySelector(sel);
-    } catch (err) {
-      throw new DOMException(
-        "Failed to execute 'querySelector' on Document: '" +
-          sel +
-          "' is not a valid selector. " +
-          (err && (err as Error).message ? (err as Error).message : String(err)),
-        "SyntaxError",
-      );
-    }
+    const id = parsedDocumentQuerySelector(this._dom, sel);
     return id >= 0 ? getOrCreateParsedNode(this._dom, id, this) : null;
   }
   querySelectorAll(selector: unknown): ReadonlyArray<ParsedElement | null> {
@@ -1080,27 +1396,10 @@ class ParsedDocument {
     }
     const sel = String(selector);
     if (selectorHasPseudoElement(sel)) {
-      const empty: Array<ParsedElement | null> = [];
-      Object.setPrototypeOf(empty, NodeListCls.prototype);
-      Object.freeze(empty);
-      return empty;
+      return emptyParsedNodeList();
     }
-    let ids;
-    try {
-      ids = Array.from(this._dom.querySelectorAll(sel));
-    } catch (err) {
-      throw new DOMException(
-        "Failed to execute 'querySelectorAll' on Document: '" +
-          sel +
-          "' is not a valid selector. " +
-          (err && (err as Error).message ? (err as Error).message : String(err)),
-        "SyntaxError",
-      );
-    }
-    const arr = ids.map((id) => getOrCreateParsedNode(this._dom, id, this));
-    Object.setPrototypeOf(arr, NodeListCls.prototype);
-    Object.freeze(arr);
-    return arr;
+    const ids = parsedDocumentQuerySelectorAll(this._dom, sel);
+    return parsedNodeList(this._dom, ids, this);
   }
   getElementById(id: unknown): ParsedElement | null {
     if (typeof id !== "string" || id === "") return null;
@@ -1119,48 +1418,14 @@ class ParsedDocument {
     if (!this._mutable) {
       throw notSupported("Document.createElement on DOMParser result");
     }
-    const ct = this._contentType;
-    const isHtmlDoc = ct === "text/html";
-    const ns = isHtmlDoc || ct === "application/xhtml+xml" ? HTML_NS : null;
-    const tag = String(tagName);
-    validateXMLName(isHtmlDoc ? tag.toLowerCase() : tag);
-    let id;
-    try {
-      if (!isHtmlDoc && typeof this._dom.createElementVerbatim === "function") {
-        id = this._dom.createElementVerbatim(tag, ns || "");
-      } else {
-        id = this._dom.createElement(tag);
-      }
-    } catch (e) {
-      throw new Error("createElement: wasm trap: " + (e instanceof Error ? e.message : String(e)));
-    }
-    const el = parsedNodeFor(this._dom, id, this);
-    el.ownerDocument = this;
-    el.namespaceURI = ns;
-    return el;
+    const contentType = this._contentType;
+    return parsedCreateElement(this, tagName, contentType);
   }
   createElementNS(namespaceURI: unknown, qualifiedName: unknown): ParsedElement {
     if (!this._mutable) {
       throw notSupported("Document.createElementNS on DOMParser result");
     }
-    const ns = namespaceURI == null || namespaceURI === "" ? null : String(namespaceURI);
-    const qn = qualifiedName == null ? String(qualifiedName) : String(qualifiedName);
-    const [, prefix] = validateAndExtract(ns, qn);
-    let id;
-    try {
-      id =
-        typeof this._dom.createElementNS === "function"
-          ? this._dom.createElementNS(ns || "", qn)
-          : this._dom.createElement(qn.split(":").pop() || qn);
-    } catch (e) {
-      throw new Error(
-        "createElementNS: wasm trap: " + (e instanceof Error ? e.message : String(e)),
-      );
-    }
-    const el = parsedNodeFor(this._dom, id, this);
-    el.namespaceURI = ns;
-    el.prefix = prefix;
-    return el;
+    return parsedCreateElementNS(this, namespaceURI, qualifiedName);
   }
   createTextNode(text: unknown): ParsedElement {
     if (!this._mutable) {
@@ -1303,55 +1568,71 @@ const XML_MIME_TYPES = new Set([
 const errorMessage = (err: unknown): string =>
   err && (err as Error).message ? (err as Error).message : String(err);
 
-function parseDocument(input: string, type: unknown): ParsedDocument {
-  const mime = (typeof type === "string" ? type : "text/html").toLowerCase().split(";")[0].trim();
-  const baseUrl = opts && typeof opts.getCurrentUrl === "function" ? opts.getCurrentUrl() : pageUrl;
-  if (mime === "text/html") {
-    let handle;
-    try {
-      // In HTML, a leading `<?` is a bogus comment token, not an XML PI.
-      // Canonicalize it because the parser backend drops the document tree.
-      let html = input;
-      if (input.startsWith("<?")) {
-        const end = input.indexOf(">");
-        const data = input.slice(1, end < 0 ? undefined : end);
-        html = `<!--${data}-->${end < 0 ? "" : input.slice(end + 1)}`;
-      }
-      handle = DomHandleCtor(html, baseUrl);
-    } catch (err) {
-      return makeParseErrorDocument("DOMParser: HTML parse failed: " + errorMessage(err), baseUrl);
-    }
-    // Only an exact `<!DOCTYPE html>` gives no-quirks mode. This regex
-    // approximates the parser's doctype rules.
-    const trimmed = input.replace(/^\uFEFF/, "").trim();
-    const compat = /^<!doctype\s+html\s*>/i.test(trimmed) ? "CSS1Compat" : "BackCompat";
-    const doc = new ParsedDocument(handle, baseUrl, "text/html", compat);
-    doc._doctypeInfo = leadingDoctype(trimmed, true);
-    return doc;
+function parsedDocumentMime(type: unknown): string {
+  return (typeof type === "string" ? type : "text/html").toLowerCase().split(";")[0].trim();
+}
+
+function parsedDocumentBaseUrl(): string {
+  return opts && typeof opts.getCurrentUrl === "function" ? opts.getCurrentUrl() : pageUrl;
+}
+
+function canonicalizeHtmlParserInput(input: string): string {
+  let html = input;
+  if (input.startsWith("<?")) {
+    const end = input.indexOf(">");
+    const data = input.slice(1, end < 0 ? undefined : end);
+    html = `<!--${data}-->${end < 0 ? "" : input.slice(end + 1)}`;
   }
-  if (XML_MIME_TYPES.has(mime)) {
+  return html;
+}
+
+function parseHtmlDocument(input: string, baseUrl: string): ParsedDocument {
+  let handle: DomHandle;
+  try {
+    // In HTML, a leading `<?` is a bogus comment token, not an XML PI.
+    // Canonicalize it because the parser backend drops the document tree.
+    handle = DomHandleCtor(canonicalizeHtmlParserInput(input), baseUrl);
+  } catch (error) {
+    return makeParseErrorDocument("DOMParser: HTML parse failed: " + errorMessage(error), baseUrl);
+  }
+  // Only an exact `<!DOCTYPE html>` gives no-quirks mode. This regex
+  // approximates the parser's doctype rules.
+  const trimmed = input.replace(/^\uFEFF/, "").trim();
+  const compat = /^<!doctype\s+html\s*>/i.test(trimmed) ? "CSS1Compat" : "BackCompat";
+  const document = new ParsedDocument(handle, baseUrl, "text/html", compat);
+  document._doctypeInfo = leadingDoctype(trimmed, true);
+  return document;
+}
+
+function parseXmlDocument(input: string, mime: string, baseUrl: string): ParsedDocument {
+  try {
     // There is no XML parser, so XML, XHTML and SVG go through the
     // forgiving HTML parser. The handle is tagged so its elements default
     // to the null namespace. XML documents are always no-quirks.
-    try {
-      const handle = DomHandleCtor(input, baseUrl);
-      parsedHandleXml.add(handle);
-      const doc = new ParsedDocument(handle, baseUrl, mime, "CSS1Compat");
-      doc._doctypeInfo = leadingDoctype(
-        input
-          .replace(/^\uFEFF/, "")
-          .replace(/^\s*<\?xml[^>]*\?>/, "")
-          .trim(),
-        false,
-      );
-      return doc;
-    } catch (err) {
-      return makeParseErrorDocument(
-        "DOMParser: XML/SVG via HTML-parser fallback failed: " + errorMessage(err),
-        baseUrl,
-      );
-    }
+    const handle = DomHandleCtor(input, baseUrl);
+    parsedHandleXml.add(handle);
+    const document = new ParsedDocument(handle, baseUrl, mime, "CSS1Compat");
+    document._doctypeInfo = leadingDoctype(
+      input
+        .replace(/^\uFEFF/, "")
+        .replace(/^\s*<\?xml[^>]*\?>/, "")
+        .trim(),
+      false,
+    );
+    return document;
+  } catch (error) {
+    return makeParseErrorDocument(
+      "DOMParser: XML/SVG via HTML-parser fallback failed: " + errorMessage(error),
+      baseUrl,
+    );
   }
+}
+
+function parseDocument(input: string, type: unknown): ParsedDocument {
+  const mime = parsedDocumentMime(type);
+  const baseUrl = parsedDocumentBaseUrl();
+  if (mime === "text/html") return parseHtmlDocument(input, baseUrl);
+  if (XML_MIME_TYPES.has(mime)) return parseXmlDocument(input, mime, baseUrl);
   throw new TypeError(
     "Failed to execute 'parseFromString' on 'DOMParser': The provided value '" +
       mime +

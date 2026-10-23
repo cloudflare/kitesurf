@@ -17,6 +17,8 @@ import { parseByType } from "../../input-types.js";
 import { KsEvent } from "../../events/event.js";
 import { inputTypeOf, inputStateOf } from "./input-state.js";
 import type { HTMLInputElement } from "./input.js";
+import type { HTMLTextAreaElement } from "./textarea.js";
+import type { HTMLSelectElement } from "./select.js";
 import { isHtmlTag } from "../html-tag.js";
 import { HTMLDataListElement } from "../html-classes.js";
 import type { Element } from "../element.js";
@@ -66,14 +68,19 @@ function applyTypeMismatch(
   value: string,
 ) {
   if (!value) return;
-  if (type === "email") {
-    if (control.multiple) {
-      const parts = value.split(",").map(stripAsciiWhitespace);
-      if (parts.some((part) => !isValidEmail(part))) flags.typeMismatch = true;
-    } else if (!isValidEmail(stripAsciiWhitespace(value))) {
-      flags.typeMismatch = true;
-    }
-  } else if (type === "url" && !isValidUrl(stripAsciiWhitespace(value))) {
+  if (type === "email") return applyEmailTypeMismatch(control, flags, value);
+  if (type === "url" && !isValidUrl(stripAsciiWhitespace(value))) flags.typeMismatch = true;
+}
+
+function applyEmailTypeMismatch(
+  control: HTMLInputElement,
+  flags: ValidityFlags,
+  value: string,
+): void {
+  if (control.multiple) {
+    const parts = value.split(",").map(stripAsciiWhitespace);
+    if (parts.some((part) => !isValidEmail(part))) flags.typeMismatch = true;
+  } else if (!isValidEmail(stripAsciiWhitespace(value))) {
     flags.typeMismatch = true;
   }
 }
@@ -85,38 +92,70 @@ function applyPatternMismatch(
   value: string,
   pattern: string,
 ) {
-  let validPattern = false;
-  try {
-    new RegExp(pattern, "v");
-    validPattern = true;
-  } catch {}
-  if (!validPattern) return;
+  if (!isValidPattern(pattern)) return;
   try {
     const re = new RegExp(`^(?:${pattern})$`, "v");
-    const mismatch =
-      type === "email" && control.multiple
-        ? value
-            .split(",")
-            .map(stripAsciiWhitespace)
-            .some((part) => !re.test(part))
-        : !re.test(value);
-    if (mismatch) flags.patternMismatch = true;
+    if (patternMismatches(control, type, value, re)) flags.patternMismatch = true;
   } catch {}
 }
 
-function inputStep(type: string, stepRaw: string | null) {
-  if (stepRaw == null || stepRaw === "") {
-    if (type === "date") return MS_PER_DAY;
-    if (type === "week") return MS_PER_WEEK;
-    if (type === "time" || type === "datetime-local") return MS_PER_MINUTE;
-    return 1;
+function isValidPattern(pattern: string): boolean {
+  try {
+    new RegExp(pattern, "v");
+    return true;
+  } catch {
+    return false;
   }
+}
+
+function patternMismatches(
+  control: HTMLInputElement,
+  type: string,
+  value: string,
+  pattern: RegExp,
+): boolean {
+  if (type === "email" && control.multiple) {
+    return value
+      .split(",")
+      .map(stripAsciiWhitespace)
+      .some((part) => !pattern.test(part));
+  }
+  return !pattern.test(value);
+}
+
+function inputStep(type: string, stepRaw: string | null) {
+  if (stepRaw == null || stepRaw === "") return defaultInputStep(type);
   const step = +stepRaw;
   if (!Number.isFinite(step) || step <= 0) return null;
-  if (type === "date") return step * MS_PER_DAY;
-  if (type === "week") return step * MS_PER_WEEK;
-  if (type === "time" || type === "datetime-local") return step * MS_PER_SECOND;
-  return step;
+  return scaledInputStep(type, step);
+}
+
+function defaultInputStep(type: string): number {
+  switch (type) {
+    case "date":
+      return MS_PER_DAY;
+    case "week":
+      return MS_PER_WEEK;
+    case "time":
+    case "datetime-local":
+      return MS_PER_MINUTE;
+    default:
+      return 1;
+  }
+}
+
+function scaledInputStep(type: string, step: number): number {
+  switch (type) {
+    case "date":
+      return step * MS_PER_DAY;
+    case "week":
+      return step * MS_PER_WEEK;
+    case "time":
+    case "datetime-local":
+      return step * MS_PER_SECOND;
+    default:
+      return step;
+  }
 }
 
 function applyNumericValidity(control: Element, flags: ValidityFlags, type: string, value: string) {
@@ -130,18 +169,50 @@ function applyNumericValidity(control: Element, flags: ValidityFlags, type: stri
   const stepRaw = control.getAttribute("step");
   const minN = minRaw != null ? parseByType(type, minRaw) : null;
   const maxN = maxRaw != null ? parseByType(type, maxRaw) : null;
-  if (minN != null && num < minN) flags.rangeUnderflow = true;
-  if (maxN != null && num > maxN) flags.rangeOverflow = true;
+  applyNumericRangeValidity(flags, num, minN, maxN);
   if (stepRaw === "any") return;
+  applyNumericStepValidity(flags, type, num, minN, stepRaw);
+}
+
+function applyNumericRangeValidity(
+  flags: ValidityFlags,
+  value: number,
+  min: number | null,
+  max: number | null,
+): void {
+  if (min != null && value < min) flags.rangeUnderflow = true;
+  if (max != null && value > max) flags.rangeOverflow = true;
+}
+
+function applyNumericStepValidity(
+  flags: ValidityFlags,
+  type: string,
+  value: number,
+  min: number | null,
+  stepRaw: string | null,
+): void {
   const step = inputStep(type, stepRaw);
   if (step == null || step <= 0) return;
-  const base = minN != null ? minN : type === "week" ? -3 * MS_PER_DAY : 0;
-  const diff = (num - base) / step;
+  const base = inputStepBase(type, min);
+  const diff = (value - base) / step;
   if (Math.abs(diff - Math.round(diff)) > STEP_ALIGNMENT_EPSILON) flags.stepMismatch = true;
 }
 
+function inputStepBase(type: string, min: number | null): number {
+  return min != null ? min : type === "week" ? -3 * MS_PER_DAY : 0;
+}
+
 function computeValidity(control: Element): ValidityFlags {
-  const flags: ValidityFlags = {
+  const flags = emptyValidityFlags();
+  const custom = customValidity.get(control._id);
+  if (custom) flags.customError = true;
+  computeControlValidity(control, flags);
+  flags.valid = noValidityErrors(flags);
+  return flags;
+}
+
+function emptyValidityFlags(): ValidityFlags {
+  return {
     valueMissing: false,
     typeMismatch: false,
     patternMismatch: false,
@@ -154,111 +225,184 @@ function computeValidity(control: Element): ValidityFlags {
     customError: false,
     valid: true,
   };
-  const custom = customValidity.get(control._id);
-  if (custom) flags.customError = true;
+}
 
-  if (isHtmlTag(control, "input")) {
-    const type = inputTypeOf(control);
-    const value = control.value;
-    const required = control.required;
-    if (
-      required &&
-      type !== "submit" &&
-      type !== "reset" &&
-      type !== "button" &&
-      type !== "image"
-    ) {
-      if (type === "checkbox" || type === "radio") {
-        if (!control.checked) flags.valueMissing = true;
-      } else if (!value) {
-        flags.valueMissing = true;
-      }
-    }
-    applyTypeMismatch(control, flags, type, value);
-    const pattern = control.getAttribute("pattern");
-    if (value && pattern) applyPatternMismatch(control, flags, type, value, pattern);
-    const userEdited = inputStateOf(control).userEdited;
-    if (userEdited) {
-      const ml = control.maxLength;
-      if (ml >= 0 && value.length > ml) flags.tooLong = true;
-      const mn = control.minLength;
-      if (mn >= 0 && value && value.length < mn) flags.tooShort = true;
-    }
-    const numericLike =
-      type === "number" ||
-      type === "range" ||
-      type === "date" ||
-      type === "month" ||
-      type === "week" ||
-      type === "time" ||
-      type === "datetime-local";
-    if (numericLike && value) applyNumericValidity(control, flags, type, value);
-  } else if (isHtmlTag(control, "textarea")) {
-    const value = control.value;
-    const required = control.required;
-    if (required && !value) flags.valueMissing = true;
-    const userEdited = inputStateOf(control).userEdited;
-    if (userEdited) {
-      const ml = control.maxLength;
-      if (ml >= 0 && value.length > ml) flags.tooLong = true;
-      const mn = control.minLength;
-      if (mn >= 0 && value && value.length < mn) flags.tooShort = true;
-    }
-  } else if (isHtmlTag(control, "select")) {
-    const required = control.required;
-    if (required) {
-      if (control.value === "") flags.valueMissing = true;
-    }
-  }
+function noValidityErrors(flags: ValidityFlags): boolean {
+  return !hasPrimaryValidityError(flags) && !hasNumericValidityError(flags);
+}
 
-  flags.valid = !(
+function hasPrimaryValidityError(flags: ValidityFlags): boolean {
+  return (
     flags.valueMissing ||
     flags.typeMismatch ||
     flags.patternMismatch ||
     flags.tooLong ||
-    flags.tooShort ||
+    flags.tooShort
+  );
+}
+
+function hasNumericValidityError(flags: ValidityFlags): boolean {
+  return (
     flags.rangeUnderflow ||
     flags.rangeOverflow ||
     flags.stepMismatch ||
     flags.badInput ||
     flags.customError
   );
-  return flags;
+}
+
+function computeControlValidity(control: Element, flags: ValidityFlags): void {
+  if (isHtmlTag(control, "input")) return computeInputValidity(control, flags);
+  if (isHtmlTag(control, "textarea")) return computeTextareaValidity(control, flags);
+  if (isHtmlTag(control, "select")) computeSelectValidity(control, flags);
+}
+
+function computeInputValidity(control: HTMLInputElement, flags: ValidityFlags): void {
+  const type = inputTypeOf(control);
+  const value = control.value;
+  const required = control.required;
+  applyInputRequiredValidity(control, flags, type, value, required);
+  applyTypeMismatch(control, flags, type, value);
+  const pattern = control.getAttribute("pattern");
+  if (value && pattern) applyPatternMismatch(control, flags, type, value, pattern);
+  applyEditedInputLengthValidity(control, flags, value);
+  applyNumericInputValidity(control, flags, type, value);
+}
+
+function applyInputRequiredValidity(
+  control: HTMLInputElement,
+  flags: ValidityFlags,
+  type: string,
+  value: string,
+  required: boolean,
+): void {
+  if (!inputTypeSupportsRequired(type, required)) return;
+  if (isCheckableInputType(type)) {
+    if (!control.checked) flags.valueMissing = true;
+    return;
+  }
+  if (!value) flags.valueMissing = true;
+}
+
+function inputTypeSupportsRequired(type: string, required: boolean): boolean {
+  return required && type !== "submit" && type !== "reset" && type !== "button" && type !== "image";
+}
+
+function isCheckableInputType(type: string): boolean {
+  return type === "checkbox" || type === "radio";
+}
+
+type LengthConstrainedControl = Element & Pick<Idl.HTMLInputElement, "maxLength" | "minLength">;
+
+function applyEditedInputLengthValidity(
+  control: LengthConstrainedControl,
+  flags: ValidityFlags,
+  value: string,
+): void {
+  if (!inputStateOf(control).userEdited) return;
+  const maxLength = control.maxLength;
+  if (isTooLong(maxLength, value)) flags.tooLong = true;
+  const minLength = control.minLength;
+  if (isTooShort(minLength, value)) flags.tooShort = true;
+}
+
+function isTooLong(maxLength: number, value: string): boolean {
+  return maxLength >= 0 && value.length > maxLength;
+}
+
+function isTooShort(minLength: number, value: string): boolean {
+  return minLength >= 0 && !!value && value.length < minLength;
+}
+
+function applyNumericInputValidity(
+  control: HTMLInputElement,
+  flags: ValidityFlags,
+  type: string,
+  value: string,
+): void {
+  if (isNumericInputType(type) && value) applyNumericValidity(control, flags, type, value);
+}
+
+function isNumericInputType(type: string): boolean {
+  switch (type) {
+    case "number":
+    case "range":
+    case "date":
+    case "month":
+    case "week":
+    case "time":
+    case "datetime-local":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function computeTextareaValidity(control: HTMLTextAreaElement, flags: ValidityFlags): void {
+  const value = control.value;
+  if (control.required && !value) flags.valueMissing = true;
+  applyEditedInputLengthValidity(control, flags, value);
+}
+
+function computeSelectValidity(control: HTMLSelectElement, flags: ValidityFlags): void {
+  const required = control.required;
+  if (required && control.value === "") flags.valueMissing = true;
 }
 
 function willValidate(control: Element): boolean {
-  if (isHtmlTag(control, "input")) {
-    const type = inputTypeOf(control);
-    if (
-      type === "hidden" ||
-      type === "reset" ||
-      type === "submit" ||
-      type === "button" ||
-      type === "image"
-    )
+  if (!controlTypeCanValidate(control)) return false;
+  return !hasDisabledValidationAncestor(control);
+}
+
+function controlTypeCanValidate(control: Element): boolean {
+  if (isHtmlTag(control, "input")) return inputCanValidate(control);
+  return nonInputControlCanValidate(control);
+}
+
+function inputCanValidate(control: HTMLInputElement): boolean {
+  if (!inputTypeCanValidate(inputTypeOf(control))) return false;
+  return !control.disabled && !control.readOnly;
+}
+
+function inputTypeCanValidate(type: string): boolean {
+  switch (type) {
+    case "hidden":
+    case "reset":
+    case "submit":
+    case "button":
+    case "image":
       return false;
-    if (control.disabled || control.readOnly) return false;
-  } else if (isHtmlTag(control, "textarea")) {
-    if (control.disabled || control.readOnly) return false;
-  } else if (isHtmlTag(control, "select")) {
-    if (control.disabled) return false;
-  } else if (isHtmlTag(control, "button")) {
-    if (control.disabled) return false;
-    if (control.type !== "submit") return false;
-  } else if (isHtmlTag(control, "fieldset")) {
-    return false;
-  } else if (isHtmlTag(control, "output")) {
-    return false;
-  } else {
-    return false;
+    default:
+      return true;
   }
+}
+
+function nonInputControlCanValidate(control: Element): boolean {
+  if (isHtmlTag(control, "textarea")) return !control.disabled && !control.readOnly;
+  if (isHtmlTag(control, "select")) return !control.disabled;
+  return buttonOrUnsupportedControlCanValidate(control);
+}
+
+function buttonOrUnsupportedControlCanValidate(control: Element): boolean {
+  if (isHtmlTag(control, "button")) return !control.disabled && control.type === "submit";
+  if (isHtmlTag(control, "fieldset")) return false;
+  if (isHtmlTag(control, "output")) return false;
+  return false;
+}
+
+function hasDisabledValidationAncestor(control: Element): boolean {
   let p = control.parentNode;
   while (p) {
-    if (isHtmlTag(p, "fieldset") && p.disabled) return false;
-    if (p instanceof HTMLDataListElement) return false;
+    if (isInvalidValidationAncestor(p)) return true;
     p = p.parentNode;
   }
-  return true;
+  return false;
+}
+
+function isInvalidValidationAncestor(parent: Element): boolean {
+  return (
+    (isHtmlTag(parent, "fieldset") && parent.disabled) || parent instanceof HTMLDataListElement
+  );
 }
 
 const ValidityStateToken = Symbol("kitesurfValidityState");
@@ -331,19 +475,7 @@ function installValidityMixin(Cls: { prototype: ValidityHost }): void {
     get() {
       if (!willValidate(this)) return "";
       const flags = computeValidity(this);
-      if (flags.valid) return "";
-      const custom = customValidity.get(this._id);
-      if (custom && flags.customError) return custom;
-      if (flags.valueMissing) return "Please fill out this field.";
-      if (flags.typeMismatch) return "Please enter a valid value.";
-      if (flags.patternMismatch) return "Please match the requested format.";
-      if (flags.tooLong) return "Please shorten this text.";
-      if (flags.tooShort) return "Please lengthen this text.";
-      if (flags.rangeUnderflow) return "Value is below the minimum.";
-      if (flags.rangeOverflow) return "Value is above the maximum.";
-      if (flags.stepMismatch) return "Please enter a valid value.";
-      if (flags.badInput) return "Please enter a valid value.";
-      return "";
+      return validityMessage(this, flags);
     },
   });
   defineAttribute(Cls.prototype, "willValidate", {
@@ -369,6 +501,34 @@ function installValidityMixin(Cls: { prototype: ValidityHost }): void {
   Cls.prototype.reportValidity = function () {
     return this.checkValidity();
   };
+}
+
+function validityMessage(control: Element, flags: ValidityFlags): string {
+  if (flags.valid) return "";
+  const custom = customValidity.get(control._id);
+  if (custom && flags.customError) return custom;
+  return primaryValidityMessage(flags);
+}
+
+function primaryValidityMessage(flags: ValidityFlags): string {
+  if (flags.valueMissing) return "Please fill out this field.";
+  if (flags.typeMismatch) return "Please enter a valid value.";
+  if (flags.patternMismatch) return "Please match the requested format.";
+  return lengthValidityMessage(flags);
+}
+
+function lengthValidityMessage(flags: ValidityFlags): string {
+  if (flags.tooLong) return "Please shorten this text.";
+  if (flags.tooShort) return "Please lengthen this text.";
+  return rangeValidityMessage(flags);
+}
+
+function rangeValidityMessage(flags: ValidityFlags): string {
+  if (flags.rangeUnderflow) return "Value is below the minimum.";
+  if (flags.rangeOverflow) return "Value is above the maximum.";
+  if (flags.stepMismatch) return "Please enter a valid value.";
+  if (flags.badInput) return "Please enter a valid value.";
+  return "";
 }
 
 export {

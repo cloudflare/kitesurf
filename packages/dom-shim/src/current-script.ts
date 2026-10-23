@@ -54,19 +54,41 @@ export function installCurrentScriptHook(): void {
   const cs = getInternalState();
   if (typeof cs.setCurrentScript === "function") return;
   cs.setCurrentScript = (src: unknown, domIndex?: unknown, bodyKey?: unknown, rawSrc?: unknown) => {
-    if (src === null || src === undefined) {
-      cs.currentScriptSrc = undefined;
-      cs.currentScriptDomIndex = undefined;
-      cs.currentScriptBodyKey = undefined;
-      cs.currentScriptRawSrc = undefined;
-    } else {
-      cs.currentScriptSrc = String(src);
-      cs.currentScriptDomIndex =
-        typeof domIndex === "number" && domIndex >= 0 ? domIndex : undefined;
-      cs.currentScriptBodyKey =
-        typeof bodyKey === "string" && bodyKey.length > 0 ? bodyKey : undefined;
-      cs.currentScriptRawSrc =
-        typeof rawSrc === "string" && rawSrc.length > 0 ? String(rawSrc) : undefined;
-    }
+    if (src === null || src === undefined) clearCurrentScript(cs);
+    else setCurrentScript(cs, src, domIndex, bodyKey, rawSrc);
   };
+}
+
+type CurrentScriptState = ReturnType<typeof getInternalState>;
+
+function clearCurrentScript(cs: CurrentScriptState): void {
+  cs.currentScriptSrc = undefined;
+  cs.currentScriptDomIndex = undefined;
+  cs.currentScriptBodyKey = undefined;
+  cs.currentScriptRawSrc = undefined;
+}
+
+function setCurrentScript(
+  cs: CurrentScriptState,
+  src: unknown,
+  domIndex: unknown,
+  bodyKey: unknown,
+  rawSrc: unknown,
+): void {
+  cs.currentScriptSrc = String(src);
+  cs.currentScriptDomIndex = currentScriptDomIndex(domIndex);
+  cs.currentScriptBodyKey = currentScriptBodyKey(bodyKey);
+  cs.currentScriptRawSrc = currentScriptRawSrc(rawSrc);
+}
+
+function currentScriptDomIndex(value: unknown): number | undefined {
+  return typeof value === "number" && value >= 0 ? value : undefined;
+}
+
+function currentScriptBodyKey(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function currentScriptRawSrc(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? String(value) : undefined;
 }

@@ -18,21 +18,27 @@ class HTMLLabelElement extends HTMLElement implements Idl.HTMLLabelElement {
   }
   get control() {
     const forId = this.getAttribute("for");
-    if (forId) {
-      const doc = this.ownerDocument || document;
-      const el = doc.getElementById(forId);
-      return isLabelable(el) ? el : null;
-    }
-    const all = this.querySelectorAll("button, input, select, textarea, output, progress, meter");
-    for (const c of all) {
-      if (isLabelable(c)) return c;
-    }
-    return null;
+    if (forId) return controlForId(this, forId);
+    return firstLabelableDescendant(this);
   }
   get form() {
     const c = this.control;
     return c ? c.form : null;
   }
+}
+
+function controlForId(label: HTMLLabelElement, id: string): HTMLElement | null {
+  const doc = label.ownerDocument || document;
+  const element = doc.getElementById(id);
+  return isLabelable(element) ? element : null;
+}
+
+function firstLabelableDescendant(label: HTMLLabelElement): HTMLElement | null {
+  const all = label.querySelectorAll("button, input, select, textarea, output, progress, meter");
+  for (const control of all) {
+    if (isLabelable(control)) return control;
+  }
+  return null;
 }
 
 export { HTMLLabelElement };

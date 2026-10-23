@@ -54,18 +54,42 @@ function ksSetSelectionRange(
   end: number,
   direction: string | undefined,
 ) {
-  const len = (control.value || "").length;
-  const b = Math.min(end, len);
-  const a = Math.min(start, b);
-  const dir = direction === "forward" || direction === "backward" ? direction : "none";
+  const range = clampSelectionRange(control, start, end, direction);
   const s = selectionStateOf(control);
-  const changed = s.start !== a || s.end !== b || s.direction !== dir;
-  s.start = a;
-  s.end = b;
-  s.direction = dir;
+  const changed = selectionRangeChanged(s, range);
+  s.start = range.start;
+  s.end = range.end;
+  s.direction = range.direction;
   if (!changed) return;
   ksPushSelectionToWasm(control);
   ksFireControlSelectionchange(control);
+  queueSelectEvent(control);
+}
+
+function clampSelectionRange(
+  control: TextControl,
+  start: number,
+  end: number,
+  direction: string | undefined,
+): SelectionState {
+  const len = (control.value || "").length;
+  const endPosition = Math.min(end, len);
+  const startPosition = Math.min(start, endPosition);
+  const resolvedDirection =
+    direction === "forward" || direction === "backward" ? direction : "none";
+  return { start: startPosition, end: endPosition, direction: resolvedDirection };
+}
+
+function selectionRangeChanged(
+  state: SelectionState,
+  range: Pick<SelectionState, "start" | "end" | "direction">,
+): boolean {
+  return (
+    state.start !== range.start || state.end !== range.end || state.direction !== range.direction
+  );
+}
+
+function queueSelectEvent(control: TextControl): void {
   const id = control._id;
   if (pendingSelectEvent.has(id)) return;
   pendingSelectEvent.add(id);
@@ -92,13 +116,7 @@ function ksFireControlSelectionchange(control: TextControl) {
   pendingSelectionchange.add(id);
   setTimeout(() => {
     pendingSelectionchange.delete(id);
-    let target: TextControl | typeof document = control;
-    try {
-      const root = control.getRootNode ? control.getRootNode() : null;
-      if (root && root.nodeType === DOCUMENT_FRAGMENT_NODE && Reflect.get(root, "host")) {
-        target = document;
-      }
-    } catch {}
+    const target = selectionchangeTarget(control);
     try {
       dispatchTrustedEvent(
         target,
@@ -109,6 +127,18 @@ function ksFireControlSelectionchange(control: TextControl) {
       );
     } catch {}
   }, 0);
+}
+
+function selectionchangeTarget(control: TextControl): TextControl | typeof document {
+  try {
+    const root = control.getRootNode ? control.getRootNode() : null;
+    if (isShadowRootWithHost(root)) return document;
+  } catch {}
+  return control;
+}
+
+function isShadowRootWithHost(root: ReturnType<TextControl["getRootNode"]> | null): boolean {
+  return Boolean(root && root.nodeType === DOCUMENT_FRAGMENT_NODE && Reflect.get(root, "host"));
 }
 
 function ksCollapseSelectionTo(control: TextControl, offset: number) {
@@ -150,6 +180,9 @@ type SelectionMember =
 type SelectionPrototype = TextControl & {
   __ksCollapseSelectionTo?: (offset: number) => void;
 };
+
+type SelectionRange = { start: number; end: number };
+
 function installSelectionMixin(Cls: { prototype: SelectionPrototype }): void {
   defineAttribute(Cls.prototype, "selectionStart", {
     get() {
@@ -225,62 +258,130 @@ function installSelectionMixin(Cls: { prototype: SelectionPrototype }): void {
     end?: number,
     selectMode?: Idl.SelectionMode,
   ) {
-    if (arguments.length === 0) {
-      throw new TypeError("setRangeText: 1 argument required");
-    }
-    if (!supportsSelection(this)) {
-      throw new DOMException("setRangeText: not supported on this element", "InvalidStateError");
-    }
-    const value = this.value || "";
-    const len = value.length;
-    const s = selectionStateOf(this);
-    const oldStart = s.start,
-      oldEnd = s.end;
-    let a, b;
-    if (arguments.length < 2) {
-      a = oldStart;
-      b = oldEnd;
-    } else {
-      a = ksToUint32(start);
-      b = ksToUint32(end);
-      if (a > b) {
-        throw new DOMException("setRangeText: start > end", "IndexSizeError");
-      }
-      a = Math.min(len, a);
-      b = Math.min(len, b);
-    }
-    const repl = replacement == null ? "" : String(replacement);
-    const newValue = value.slice(0, a) + repl + value.slice(b);
-    // Coalesce the value and range updates into one selectionchange after the final range is set.
-    suppressControlSelectionchange++;
-    try {
-      this.value = newValue;
-    } finally {
-      suppressControlSelectionchange--;
-    }
-    const mode = selectMode || "preserve";
-    let ns, ne;
-    if (mode === "select") {
-      ns = a;
-      ne = a + repl.length;
-    } else if (mode === "start") {
-      ns = ne = a;
-    } else if (mode === "end") {
-      ns = ne = a + repl.length;
-    } else {
-      const delta = repl.length - (b - a);
-      ns = oldStart > b ? oldStart + delta : oldStart > a ? a : oldStart;
-      ne = oldEnd > b ? oldEnd + delta : oldEnd > a ? a + repl.length : oldEnd;
-    }
-    const finalChanged = ns !== oldStart || ne !== oldEnd;
-    suppressControlSelectionchange++;
-    try {
-      ksSetSelectionRange(this, ns, ne, s.direction);
-    } finally {
-      suppressControlSelectionchange--;
-    }
-    if (finalChanged) ksFireControlSelectionchange(this);
+    setRangeTextImplementation(this, arguments.length, replacement, start, end, selectMode);
   };
+}
+
+function setRangeTextImplementation(
+  control: TextControl,
+  argumentCount: number,
+  replacement: string,
+  start: number | undefined,
+  end: number | undefined,
+  selectMode: Idl.SelectionMode | undefined,
+): void {
+  validateRangeTextCall(control, argumentCount);
+  const value = control.value || "";
+  const selection = selectionStateOf(control);
+  const oldStart = selection.start;
+  const oldEnd = selection.end;
+  const bounds = rangeTextBounds(argumentCount, start, end, oldStart, oldEnd, value.length);
+  const replacementText = normalizeRangeTextReplacement(replacement);
+  const newValue = value.slice(0, bounds.start) + replacementText + value.slice(bounds.end);
+  // Coalesce the value and range updates into one selectionchange after the final range is set.
+  setSuppressedInputValue(control, newValue);
+  const mode = selectMode || "preserve";
+  const range = rangeAfterReplacement(mode, bounds, replacementText.length, oldStart, oldEnd);
+  const finalChanged = rangeTextSelectionChanged(range, oldStart, oldEnd);
+  setSuppressedSelectionRange(control, range, selection.direction);
+  if (finalChanged) ksFireControlSelectionchange(control);
+}
+
+function normalizeRangeTextReplacement(replacement: string): string {
+  return replacement == null ? "" : String(replacement);
+}
+
+function rangeTextSelectionChanged(
+  range: SelectionRange,
+  oldStart: number,
+  oldEnd: number,
+): boolean {
+  return range.start !== oldStart || range.end !== oldEnd;
+}
+
+function validateRangeTextCall(control: TextControl, argumentCount: number): void {
+  if (argumentCount === 0) throw new TypeError("setRangeText: 1 argument required");
+  if (!supportsSelection(control)) {
+    throw new DOMException("setRangeText: not supported on this element", "InvalidStateError");
+  }
+}
+
+function rangeTextBounds(
+  argumentCount: number,
+  start: number | undefined,
+  end: number | undefined,
+  oldStart: number,
+  oldEnd: number,
+  length: number,
+): SelectionRange {
+  if (argumentCount < 2) return { start: oldStart, end: oldEnd };
+  const startOffset = ksToUint32(start);
+  const endOffset = ksToUint32(end);
+  if (startOffset > endOffset) {
+    throw new DOMException("setRangeText: start > end", "IndexSizeError");
+  }
+  return {
+    start: Math.min(length, startOffset),
+    end: Math.min(length, endOffset),
+  };
+}
+
+function setSuppressedInputValue(control: TextControl, value: string): void {
+  suppressControlSelectionchange++;
+  try {
+    control.value = value;
+  } finally {
+    suppressControlSelectionchange--;
+  }
+}
+
+function rangeAfterReplacement(
+  mode: Idl.SelectionMode | "preserve",
+  bounds: SelectionRange,
+  replacementLength: number,
+  oldStart: number,
+  oldEnd: number,
+): SelectionRange {
+  if (mode === "select") {
+    return { start: bounds.start, end: bounds.start + replacementLength };
+  }
+  if (mode === "start") return { start: bounds.start, end: bounds.start };
+  if (mode === "end") {
+    return { start: bounds.start + replacementLength, end: bounds.start + replacementLength };
+  }
+  return preservedRange(bounds, replacementLength, oldStart, oldEnd);
+}
+
+function preservedRange(
+  bounds: SelectionRange,
+  replacementLength: number,
+  oldStart: number,
+  oldEnd: number,
+): SelectionRange {
+  const delta = replacementLength - (bounds.end - bounds.start);
+  return {
+    start:
+      oldStart > bounds.end ? oldStart + delta : oldStart > bounds.start ? bounds.start : oldStart,
+    end:
+      oldEnd > bounds.end
+        ? oldEnd + delta
+        : oldEnd > bounds.start
+          ? bounds.start + replacementLength
+          : oldEnd,
+  };
+}
+
+function setSuppressedSelectionRange(
+  control: TextControl,
+  range: SelectionRange,
+  direction: string,
+): void {
+  suppressControlSelectionchange++;
+  try {
+    ksSetSelectionRange(control, range.start, range.end, direction);
+  } finally {
+    suppressControlSelectionchange--;
+  }
 }
 
 export {

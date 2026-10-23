@@ -244,18 +244,37 @@ const ariaSpecs: Array<[AriaAttribute, AriaSpec]> = [
 ];
 function reflectAriaEnum(this: Element, spec: AriaSpec): string | null {
   if (!spec.keywords) {
-    return this.hasAttribute(spec.attr) ? this.getAttribute(spec.attr) : null;
+    return reflectAriaString.call(this, spec);
   }
   if (!this.hasAttribute(spec.attr)) return spec.defaultVal ?? null;
   const raw = String(this.getAttribute(spec.attr) ?? "");
-  if (spec.nonCanon && Object.prototype.hasOwnProperty.call(spec.nonCanon, raw)) {
-    return spec.nonCanon[raw];
-  }
+  return reflectAriaKeyword(spec, raw, spec.keywords);
+}
+
+function reflectAriaString(this: Element, spec: AriaSpec): string | null {
+  return this.hasAttribute(spec.attr) ? this.getAttribute(spec.attr) : null;
+}
+
+function reflectAriaKeyword(spec: AriaSpec, raw: string, keywords: string[]): string | null {
+  const nonCanonical = ariaNonCanonicalValue(spec, raw);
+  if (nonCanonical !== undefined) return nonCanonical;
   const lower = raw.toLowerCase();
-  for (const kw of spec.keywords) {
-    if (kw === lower) return kw;
+  const match = matchingAriaKeyword(keywords, lower);
+  return match ?? spec.invalidVal ?? null;
+}
+
+function matchingAriaKeyword(keywords: string[], value: string): string | undefined {
+  for (const keyword of keywords) {
+    if (keyword === value) return keyword;
   }
-  return spec.invalidVal ?? null;
+  return undefined;
+}
+
+function ariaNonCanonicalValue(spec: AriaSpec, raw: string): string | null | undefined {
+  if (!spec.nonCanon || !Object.prototype.hasOwnProperty.call(spec.nonCanon, raw)) {
+    return undefined;
+  }
+  return spec.nonCanon[raw];
 }
 for (const [idl, spec] of ariaSpecs) {
   defineAttribute(Element.prototype, idl, {

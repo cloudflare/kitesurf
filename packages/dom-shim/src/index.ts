@@ -212,168 +212,245 @@ const peekMapGet = Map.prototype.get;
 const peekHasOwn = Object.prototype.hasOwnProperty;
 const peekApply = Reflect.apply;
 const peekGopd = Object.getOwnPropertyDescriptor;
+const CHILD_NODE_METHODS = ["before", "after", "replaceWith", "remove"];
+const PARENT_NODE_METHODS = ["append", "prepend", "replaceChildren"];
+const BRANDED_NODE = { brandOps: true, brandDuck: true, brandAttrs: true };
 
-const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocumentOpts) {
-  initState(dom, opts.pageUrl, opts.initialCookieString, opts);
-  installDetachedWrapperHooks(dom);
-  installCurrentScriptHook();
-  const getCurrentUrl =
-    typeof opts.getCurrentUrl === "function" ? opts.getCurrentUrl : () => opts.pageUrl;
-  ksState().lastMutationAt = Date.now();
+type NodeInfo = NonNullable<ReturnType<DomHandle["nodeInfo"]>>;
 
-  function makeNamedAccessProxy(node, localName) {
-    const isForm = localName === "form";
-    return new Proxy(node, {
-      get(t, prop, receiver) {
-        if (typeof prop === "symbol" || prop in t) {
-          return Reflect.get(t, prop, receiver);
-        }
-        if (typeof prop !== "string" || prop === "" || prop.startsWith("__")) {
-          return undefined;
-        }
-        try {
-          if (/^\d+$/.test(prop)) {
-            const list = isForm
-              ? Reflect.get(t, "elements", receiver)
-              : Reflect.get(t, "options", receiver);
-            return list ? list[prop] : undefined;
-          }
-          if (isForm) {
-            const m = Reflect.get(t, "namedItem", receiver);
-            if (typeof m === "function") {
-              return m.call(receiver, prop) ?? undefined;
-            }
-          }
-        } catch {}
-        return undefined;
-      },
-    });
+function currentUrlGetter(opts: BuildDocumentOpts): () => string {
+  return typeof opts.getCurrentUrl === "function" ? opts.getCurrentUrl : () => opts.pageUrl;
+}
+
+function currentOrigin(getUrl: () => string): string {
+  try {
+    return new URL(getUrl()).origin;
+  } catch {
+    return "";
   }
+}
 
-  function evictCachedNode(nodeId: number): void {
-    cache.delete(nodeId);
-    weakWrappers.delete(nodeId);
-    inputState.delete(nodeId);
-    optionSelected.delete(nodeId);
-    selectionState.delete(nodeId);
-    customValidity.delete(nodeId);
-    fileInputFiles.delete(nodeId);
-    fileInputLists.delete(nodeId);
+function isEligibleNamedAccess(prop: PropertyKey): prop is string {
+  return typeof prop === "string" && prop !== "" && !prop.startsWith("__");
+}
+
+function namedListItem(node: NodeBase, prop: string, receiver: unknown, isForm: boolean): unknown {
+  const list = Reflect.get(node, isForm ? "elements" : "options", receiver);
+  return list ? list[prop] : undefined;
+}
+
+function namedFormItem(node: NodeBase, prop: string, receiver: unknown): unknown {
+  const method = Reflect.get(node, "namedItem", receiver);
+  if (typeof method === "function") return method.call(receiver, prop) ?? undefined;
+  return undefined;
+}
+
+function readNamedFallback(
+  node: NodeBase,
+  prop: string,
+  receiver: unknown,
+  isForm: boolean,
+): unknown {
+  try {
+    if (/^\d+$/.test(prop)) return namedListItem(node, prop, receiver, isForm);
+    if (!isForm) return undefined;
+    return namedFormItem(node, prop, receiver);
+  } catch {}
+  return undefined;
+}
+
+function namedAccessProperty(
+  node: NodeBase,
+  prop: PropertyKey,
+  receiver: unknown,
+  isForm: boolean,
+): unknown {
+  if (typeof prop === "symbol" || prop in node) return Reflect.get(node, prop, receiver);
+  if (!isEligibleNamedAccess(prop)) return undefined;
+  return readNamedFallback(node, prop, receiver, isForm);
+}
+
+function makeNamedAccessProxy(node: NodeBase, localName: string): NodeBase {
+  const isForm = localName === "form";
+  return new Proxy(node, {
+    get(target, prop, receiver) {
+      return namedAccessProperty(target, prop, receiver, isForm);
+    },
+  });
+}
+
+function evictCachedNode(nodeId: number): void {
+  cache.delete(nodeId);
+  weakWrappers.delete(nodeId);
+  inputState.delete(nodeId);
+  optionSelected.delete(nodeId);
+  selectionState.delete(nodeId);
+  customValidity.delete(nodeId);
+  fileInputFiles.delete(nodeId);
+  fileInputLists.delete(nodeId);
+}
+
+function isInvalidNodeId(nodeId: number): boolean {
+  return nodeId == null || nodeId < 0;
+}
+
+function cachedWrapperIsCurrent(
+  domHandle: DomHandle,
+  nodeId: number,
+  documentId: () => number,
+  cached: NodeBase,
+): boolean {
+  const currentSeq = ksState().mutationSeq | 0;
+  if (cached._typeCheckSeq === currentSeq) return true;
+  if (nodeId === documentId()) return true;
+  try {
+    if (domHandle.parentId(nodeId) >= 0) return true;
+  } catch {}
+  return false;
+}
+
+function currentCachedNode(
+  domHandle: DomHandle,
+  nodeId: number,
+  documentId: () => number,
+  cached: NodeBase | undefined,
+): NodeBase | undefined {
+  return cached && cachedWrapperIsCurrent(domHandle, nodeId, documentId, cached)
+    ? cached
+    : undefined;
+}
+
+function readNodeInfo(domHandle: DomHandle, nodeId: number): NodeInfo | null {
+  try {
+    const info = domHandle.nodeInfo(nodeId);
+    return info || null;
+  } catch {
+    evictCachedNode(nodeId);
+    return null;
   }
+}
 
-  function nodeFor(nodeId) {
-    if (nodeId == null || nodeId < 0) return null;
+function cachedNodeMatchesInfo(cached: NodeBase, info: NodeInfo): boolean {
+  const cachedType = cached._info && cached._info.nodeType;
+  const tagStable =
+    info.nodeType !== ELEMENT_NODE || !cached._info || cached._info.localName === info.localName;
+  return cachedType === info.nodeType && tagStable;
+}
+
+function refreshCachedNode(cached: NodeBase, nodeId: number, info: NodeInfo): NodeBase | null {
+  if (cachedNodeMatchesInfo(cached, info)) {
+    cached._info = info;
+    cached._typeCheckSeq = ksState().mutationSeq | 0;
+    cached._attrFlatCache = null;
+    return cached;
+  }
+  evictCachedNode(nodeId);
+  return null;
+}
+
+function refreshCachedNodeIfPresent(
+  cached: NodeBase | undefined,
+  nodeId: number,
+  info: NodeInfo,
+): NodeBase | null {
+  return cached ? refreshCachedNode(cached, nodeId, info) : null;
+}
+
+function shouldUseNamedAccess(localName: string, namespace: string | null): boolean {
+  return namespace === HTML_NS && (localName === "form" || localName === "select");
+}
+
+function createElementNode(nodeId: number, info: NodeInfo): NodeBase {
+  if (fragmentIds.has(nodeId)) return new DocumentFragmentImpl(nodeId, info);
+  const elemNsEntry = elemNs.get(nodeId);
+  const elemNsValue = elemNsEntry ? elemNsEntry.ns : HTML_NS;
+  const Cls = resolveElementClass(info.localName, elemNsValue);
+  const node = new Cls(nodeId, info, InternalElementCtorToken);
+  return shouldUseNamedAccess(info.localName, elemNsValue)
+    ? makeNamedAccessProxy(node, info.localName)
+    : node;
+}
+
+function createNonElementNode(nodeId: number, info: NodeInfo): NodeBase {
+  switch (info.nodeType) {
+    case TEXT_NODE:
+      return new TextNode(nodeId, info);
+    case COMMENT_NODE:
+      return new CommentNode(nodeId, info);
+    case DOCTYPE_NODE:
+      return new DocumentTypeNode(nodeId, info);
+    case DOCUMENT_FRAGMENT_NODE:
+      return mintShadowRoot(nodeId, info);
+    default:
+      return new GenericNode(nodeId, info);
+  }
+}
+
+function createNodeFromInfo(nodeId: number, info: NodeInfo): NodeBase {
+  return info.nodeType === ELEMENT_NODE
+    ? createElementNode(nodeId, info)
+    : createNonElementNode(nodeId, info);
+}
+
+function createNodeFor(
+  domHandle: DomHandle,
+  documentId: () => number,
+): (nodeId: number) => NodeBase | null {
+  const nodeFor = function nodeFor(nodeId: number): NodeBase | null {
+    if (isInvalidNodeId(nodeId)) return null;
     const cached = liveWrapper(nodeId);
-    if (cached) {
-      const curSeq = ksState().mutationSeq | 0;
-      if (cached._typeCheckSeq === curSeq) {
-        return cached;
-      }
-      if (nodeId === DOCUMENT_ID) return cached;
-      try {
-        if (dom.parentId(nodeId) >= 0) return cached;
-      } catch {}
-    }
-    let info;
-    try {
-      info = dom.nodeInfo(nodeId);
-    } catch {
-      evictCachedNode(nodeId);
-      return null;
-    }
-    if (!info) {
-      evictCachedNode(nodeId);
-      return null;
-    }
-    if (cached) {
-      const cachedType = cached._info && cached._info.nodeType;
-      const tagStable =
-        info.nodeType !== ELEMENT_NODE ||
-        !cached._info ||
-        cached._info.localName === info.localName;
-      if (cachedType === info.nodeType && tagStable) {
-        cached._info = info;
-        cached._typeCheckSeq = ksState().mutationSeq | 0;
-        cached._attrFlatCache = null;
-        return cached;
-      }
-      evictCachedNode(nodeId);
-    }
-    let node;
-    if (info.nodeType === ELEMENT_NODE) {
-      if (fragmentIds.has(nodeId)) {
-        node = new DocumentFragmentImpl(nodeId, info);
-      } else {
-        const elemNsEntry = elemNs.get(nodeId);
-        const elemNsValue = elemNsEntry ? elemNsEntry.ns : HTML_NS;
-        const Cls = resolveElementClass(info.localName, elemNsValue);
-        node = new Cls(nodeId, info, InternalElementCtorToken);
-        if (elemNsValue === HTML_NS && (info.localName === "form" || info.localName === "select")) {
-          node = makeNamedAccessProxy(node, info.localName);
-        }
-      }
-    } else if (info.nodeType === TEXT_NODE) {
-      node = new TextNode(nodeId, info);
-    } else if (info.nodeType === COMMENT_NODE) {
-      node = new CommentNode(nodeId, info);
-    } else if (info.nodeType === DOCTYPE_NODE) {
-      node = new DocumentTypeNode(nodeId, info);
-    } else if (info.nodeType === DOCUMENT_FRAGMENT_NODE) {
-      node = mintShadowRoot(nodeId, info);
-    } else {
-      node = new GenericNode(nodeId, info);
-    }
+    const current = currentCachedNode(domHandle, nodeId, documentId, cached);
+    if (current) return current;
+    const info = readNodeInfo(domHandle, nodeId);
+    if (!info) return null;
+    const refreshed = refreshCachedNodeIfPresent(cached, nodeId, info);
+    if (refreshed) return refreshed;
+    const node = createNodeFromInfo(nodeId, info);
     node._typeCheckSeq = ksState().mutationSeq | 0;
     cache.set(nodeId, node);
     return node;
+  };
+  return nodeFor;
+}
+
+function makeEnumerableOwnDescriptor(source: PropertyDescriptor): PropertyDescriptor {
+  const descriptor: PropertyDescriptor = { configurable: true, enumerable: true };
+  if (source.get || source.set) {
+    descriptor.get = source.get;
+    descriptor.set = source.set;
+  } else {
+    descriptor.value = source.value;
+    descriptor.writable = true;
   }
-  setNodeFor(nodeFor);
-  // nodeFor's first branch only. The stamp is read as an own data property so a
-  // page-defined _typeCheckSeq accessor (or Object.prototype.value) never runs.
-  setNodePeek((nodeId) => {
-    const cached = peekApply(peekMapGet, cache, [nodeId]);
-    if (!cached) return null;
-    const stamp = peekGopd(cached, "_typeCheckSeq");
-    if (!stamp || !peekApply(peekHasOwn, stamp, ["value"])) return null;
-    return stamp.value === (ksState().mutationSeq | 0) ? cached : null;
-  });
+  return descriptor;
+}
 
-  const DOCUMENT_ID = dom.documentNodeId();
+function makeExistingMemberEnumerable(proto: any, name: string): void {
+  const descriptor = Object.getOwnPropertyDescriptor(proto, name);
+  if (!descriptor || descriptor.enumerable !== false || descriptor.configurable === false) return;
+  try {
+    Object.defineProperty(proto, name, { ...descriptor, enumerable: true });
+  } catch {}
+}
 
-  installIdlHandlersOn(DocumentImpl.prototype);
-
-  function installAsOwn(target: any, sourceProto: any, names: string[]) {
-    if (!target || !target.prototype || !sourceProto) return;
-    for (const name of names) {
-      if (Object.prototype.hasOwnProperty.call(target.prototype, name)) {
-        const existing = Object.getOwnPropertyDescriptor(target.prototype, name);
-        if (existing && existing.enumerable === false && existing.configurable !== false) {
-          try {
-            Object.defineProperty(target.prototype, name, { ...existing, enumerable: true });
-          } catch {}
-        }
-        continue;
-      }
-      const desc = Object.getOwnPropertyDescriptor(sourceProto, name);
-      if (!desc) continue;
-      try {
-        const newDesc: PropertyDescriptor = {
-          configurable: true,
-          enumerable: true,
-        };
-        if (desc.get || desc.set) {
-          newDesc.get = desc.get;
-          newDesc.set = desc.set;
-        } else {
-          newDesc.value = desc.value;
-          newDesc.writable = true;
-        }
-        Object.defineProperty(target.prototype, name, newDesc);
-      } catch {}
-    }
+function installOwnMember(targetProto: any, sourceProto: any, name: string): void {
+  if (Object.prototype.hasOwnProperty.call(targetProto, name)) {
+    makeExistingMemberEnumerable(targetProto, name);
+    return;
   }
-  const CHILD_NODE_METHODS = ["before", "after", "replaceWith", "remove"];
-  const PARENT_NODE_METHODS = ["append", "prepend", "replaceChildren"];
+  const source = Object.getOwnPropertyDescriptor(sourceProto, name);
+  if (!source) return;
+  try {
+    Object.defineProperty(targetProto, name, makeEnumerableOwnDescriptor(source));
+  } catch {}
+}
+
+function installAsOwn(target: any, sourceProto: any, names: string[]): void {
+  if (!target || !target.prototype || !sourceProto) return;
+  for (const name of names) installOwnMember(target.prototype, sourceProto, name);
+}
+
+function installNodeMethodsAsOwn(): void {
   for (const cls of [Element, CharacterDataNode, DocumentTypeNode]) {
     installAsOwn(cls, NodeBase.prototype, CHILD_NODE_METHODS);
   }
@@ -381,21 +458,36 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     installAsOwn(cls, NodeBase.prototype, PARENT_NODE_METHODS);
   }
   installAsOwn(HTMLElement, Element.prototype, ["click", "focus", "blur"]);
+}
 
-  function forceEnumerableProtoOwnProps(klass: any) {
-    if (!klass || !klass.prototype) return;
-    const proto = klass.prototype;
-    for (const name of Object.getOwnPropertyNames(proto)) {
-      if (name === "constructor") continue;
-      const desc = Object.getOwnPropertyDescriptor(proto, name);
-      if (!desc) continue;
-      if (desc.enumerable === true) continue;
-      if (desc.configurable === false) continue;
-      try {
-        Object.defineProperty(proto, name, { ...desc, enumerable: true });
-      } catch {}
-    }
+function shouldMakePrototypeMemberEnumerable(
+  name: string,
+  descriptor: PropertyDescriptor | undefined,
+): descriptor is PropertyDescriptor {
+  return (
+    name !== "constructor" &&
+    descriptor !== undefined &&
+    !descriptor.enumerable &&
+    descriptor.configurable !== false
+  );
+}
+
+function makeEnumerablePrototypeMember(proto: object, name: string): void {
+  const descriptor = Object.getOwnPropertyDescriptor(proto, name);
+  if (!shouldMakePrototypeMemberEnumerable(name, descriptor)) return;
+  try {
+    Object.defineProperty(proto, name, { ...descriptor, enumerable: true });
+  } catch {}
+}
+
+function forceEnumerableProtoOwnProps(klass: any): void {
+  if (!klass || !klass.prototype) return;
+  for (const name of Object.getOwnPropertyNames(klass.prototype)) {
+    makeEnumerablePrototypeMember(klass.prototype, name);
   }
+}
+
+function finalizeEnumerableInterfaces(): void {
   for (const cls of [
     NodeBase,
     Element,
@@ -433,16 +525,75 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   ]) {
     forceEnumerableProtoOwnProps(cls);
   }
-  if (!Object.prototype.hasOwnProperty.call(Element.prototype, "webkitMatchesSelector")) {
-    Object.defineProperty(Element.prototype, "webkitMatchesSelector", {
-      value: function (selector: string) {
-        return this.matches(selector);
-      },
-      writable: true,
-      configurable: true,
-      enumerable: true,
-    });
+}
+
+function installWebkitMatchesSelector(): void {
+  if (Object.prototype.hasOwnProperty.call(Element.prototype, "webkitMatchesSelector")) return;
+  Object.defineProperty(Element.prototype, "webkitMatchesSelector", {
+    value: function (selector: string) {
+      return this.matches(selector);
+    },
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
+}
+
+function finalizeCssomInterfaces(): void {
+  for (const name of [
+    "CSSRule",
+    "CSSGroupingRule",
+    "CSSStyleRule",
+    "CSSImportRule",
+    "CSSPageRule",
+    "CSSMarginRule",
+    "CSSNamespaceRule",
+    "CSSKeyframeRule",
+    "CSSKeyframesRule",
+    "MediaList",
+    "CSSStyleDeclaration",
+    "StyleSheet",
+    "CSSStyleSheet",
+  ] as const) {
+    finalizeInterface(
+      CSSOM_GLOBALS[name],
+      idlInterfaceMeta(name, { brandOps: true, brandAttrs: true }),
+    );
   }
+}
+
+function finalizeHtmlElementInterfaces(): void {
+  for (const name of Object.keys(
+    HTML_ELEMENT_INTERFACES,
+  ) as (keyof typeof HTML_ELEMENT_INTERFACES)[]) {
+    finalizeInterface(HTML_ELEMENT_INTERFACES[name], idlInterfaceMeta(name, BRANDED_NODE));
+  }
+}
+
+const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocumentOpts) {
+  initState(dom, opts.pageUrl, opts.initialCookieString, opts);
+  installDetachedWrapperHooks(dom);
+  installCurrentScriptHook();
+  const getCurrentUrl = currentUrlGetter(opts);
+  ksState().lastMutationAt = Date.now();
+  const nodeFor = createNodeFor(dom, () => DOCUMENT_ID);
+  setNodeFor(nodeFor);
+  // nodeFor's first branch only. The stamp is read as an own data property so a
+  // page-defined _typeCheckSeq accessor (or Object.prototype.value) never runs.
+  setNodePeek((nodeId) => {
+    const cached = peekApply(peekMapGet, cache, [nodeId]);
+    if (!cached) return null;
+    const stamp = peekGopd(cached, "_typeCheckSeq");
+    if (!stamp || !peekApply(peekHasOwn, stamp, ["value"])) return null;
+    return stamp.value === (ksState().mutationSeq | 0) ? cached : null;
+  });
+
+  const DOCUMENT_ID = dom.documentNodeId();
+
+  installIdlHandlersOn(DocumentImpl.prototype);
+  installNodeMethodsAsOwn();
+  finalizeEnumerableInterfaces();
+  installWebkitMatchesSelector();
   setMakeNodeList(makeNodeList);
   setMakeHtmlCollection(makeHtmlCollection);
   setMakeDOMTokenList(makeDOMTokenList);
@@ -462,13 +613,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   createModelContext({
     getWindow: () => window,
     getDocument: () => document,
-    getOrigin: () => {
-      try {
-        return new URL(getCurrentUrl()).origin;
-      } catch {
-        return "";
-      }
-    },
+    getOrigin: () => currentOrigin(getCurrentUrl),
   });
   {
     const mcDescriptor = Object.getOwnPropertyDescriptor(
@@ -486,7 +631,6 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     Object.defineProperty(ParsedDocument.prototype, "modelContext", mcDescriptor);
   }
 
-  const BRANDED_NODE = { brandOps: true, brandDuck: true, brandAttrs: true };
   finalizeInterface(KsEventTarget, idlInterfaceMeta("EventTarget", { brandOps: true }));
   finalizeInterface(NodeBase, idlInterfaceMeta("Node", BRANDED_NODE));
   finalizeInterface(Element, idlInterfaceMeta("Element", BRANDED_NODE));
@@ -595,26 +739,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   );
   // The CSSOM interfaces in the pinned IDL. Their members already throw on a
   // foreign receiver; this pins arity, enumerability and accessor names.
-  for (const name of [
-    "CSSRule",
-    "CSSGroupingRule",
-    "CSSStyleRule",
-    "CSSImportRule",
-    "CSSPageRule",
-    "CSSMarginRule",
-    "CSSNamespaceRule",
-    "CSSKeyframeRule",
-    "CSSKeyframesRule",
-    "MediaList",
-    "CSSStyleDeclaration",
-    "StyleSheet",
-    "CSSStyleSheet",
-  ] as const) {
-    finalizeInterface(
-      CSSOM_GLOBALS[name],
-      idlInterfaceMeta(name, { brandOps: true, brandAttrs: true }),
-    );
-  }
+  finalizeCssomInterfaces();
   finalizeInterface(CanvasGradientShim, idlInterfaceMeta("CanvasGradient", { brandOps: true }));
   finalizeInterface(CanvasPatternShim, idlInterfaceMeta("CanvasPattern", { brandOps: true }));
   // The forwarders already check the receiver (canvas2d.ts); this pins
@@ -756,11 +881,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
 
   finalizeGeneratedInterfaces(bag, CSS_TYPED_OM_WEBIDL);
 
-  for (const name of Object.keys(
-    HTML_ELEMENT_INTERFACES,
-  ) as (keyof typeof HTML_ELEMENT_INTERFACES)[]) {
-    finalizeInterface(HTML_ELEMENT_INTERFACES[name], idlInterfaceMeta(name, BRANDED_NODE));
-  }
+  finalizeHtmlElementInterfaces();
 
   installFastpath(document);
 

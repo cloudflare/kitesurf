@@ -10,6 +10,7 @@ import type { KsMouseEvent } from "../../events/event.js";
 import { isElementWrapper, isHtmlTag } from "../html-tag.js";
 import { inputTypeOf } from "./input-state.js";
 import type { Element } from "../element.js";
+import type { HTMLLabelElement } from "./label.js";
 
 export type ForwardedClick = {
   trusted: boolean;
@@ -73,25 +74,43 @@ function isInteractiveContent(el: Element): boolean {
 // An unprevented click on a label, or on non-interactive content in it, is a click on its control.
 // Without it a styled checkbox under its label never ticked.
 export function labelControlFor(target: unknown): Element | null {
-  let n: unknown = target;
-  for (; isElementWrapper(n); n = n.parentNode) {
-    if (isHtmlTag(n, "label")) break;
-    if (isInteractiveContent(n)) return null;
-  }
-  if (!isHtmlTag(n, "label")) return null;
+  const label = containingLabel(target);
+  if (!label) return null;
   // label.control only returns a labelable element, which is always a wrapper.
-  const control = n.control;
+  const control = label.control;
   // Both click paths pass the shim Element that received the click.
-  if (!control || control === target || control.contains(target as Element)) return null;
+  if (excludeForwardedClickControl(control, target)) return null;
   return control;
+}
+
+function containingLabel(target: unknown): HTMLLabelElement | null {
+  let node: unknown = target;
+  for (; isElementWrapper(node); node = node.parentNode) {
+    if (isHtmlTag(node, "label")) return node;
+    if (isInteractiveContent(node)) return null;
+  }
+  return null;
+}
+
+function excludeForwardedClickControl(control: Element | null, target: unknown): boolean {
+  return !control || control === target || control.contains(target as Element);
 }
 
 export function focusForwardedTextControl(control: Element): void {
   const kind = (control.nodeName || "").toUpperCase();
-  const takesText =
-    kind === "TEXTAREA" ||
-    kind === "SELECT" ||
-    (kind === "INPUT" &&
-      !["checkbox", "radio", "submit", "reset", "button", "image"].includes(inputTypeOf(control)));
-  if (takesText) control.focus();
+  if (takesTextFocus(kind, control)) control.focus();
+}
+
+function takesTextFocus(kind: string, control: Element): boolean {
+  switch (kind) {
+    case "TEXTAREA":
+    case "SELECT":
+      return true;
+    case "INPUT":
+      return !["checkbox", "radio", "submit", "reset", "button", "image"].includes(
+        inputTypeOf(control),
+      );
+    default:
+      return false;
+  }
 }

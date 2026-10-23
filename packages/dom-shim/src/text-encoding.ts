@@ -40,15 +40,19 @@ export function outputEncoding(encoding: string): string {
 }
 
 export function characterSetOf(node: unknown): string {
-  if (typeof node !== "object" || node === null || !("ownerDocument" in node)) {
-    return "UTF-8";
-  }
+  if (!hasOwnerDocument(node)) return "UTF-8";
   const doc = node.ownerDocument;
-  if (typeof doc !== "object" || doc === null || !("characterSet" in doc)) {
-    return "UTF-8";
-  }
+  if (!hasCharacterSet(doc)) return "UTF-8";
   const cs = doc.characterSet;
   return typeof cs === "string" && cs ? cs : "UTF-8";
+}
+
+function hasOwnerDocument(node: unknown): node is { ownerDocument: unknown } {
+  return typeof node === "object" && node !== null && "ownerDocument" in node;
+}
+
+function hasCharacterSet(doc: unknown): doc is { characterSet: unknown } {
+  return typeof doc === "object" && doc !== null && "characterSet" in doc;
 }
 
 export function encodingParseUrl(
@@ -57,20 +61,50 @@ export function encodingParseUrl(
   encoding: string,
 ): URL {
   const url = new URL(input, base);
-  if (encodesAsUtf8(encoding) || !needsEncoder(input, encoding)) return url;
-  if (!ENCODED_QUERY_PROTOCOLS.has(url.protocol)) return url;
-  const encode = opts?.percentEncodeAfterEncoding;
+  const encode = queryEncoder(url, input, encoding);
   if (!encode) return url;
   const clean = input.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, "").replace(/[\t\n\r]/g, "");
-  const q = clean.indexOf("?");
-  if (q < 0) return url;
-  const hash = clean.indexOf("#");
-  if (hash >= 0 && hash < q) return url;
-  const end = hash < 0 ? clean.length : hash;
-  const query = clean.slice(q + 1, end);
-  if (!needsEncoder(query, encoding)) return url;
+  const queryRange = queryRangeOf(clean);
+  if (!queryRange) return url;
+  const query = encodableQuery(clean, queryRange, encoding);
+  if (query === null) return url;
   const encoded = encode(encoding, query, SPECIAL_QUERY_SET, false);
-  return new URL(clean.slice(0, q + 1) + encoded + clean.slice(end), base);
+  return new URL(
+    clean.slice(0, queryRange.start + 1) + encoded + clean.slice(queryRange.end),
+    base,
+  );
+}
+
+function canEncodeUrlQuery(url: URL, input: string, encoding: string): boolean {
+  if (encodesAsUtf8(encoding) || !needsEncoder(input, encoding)) return false;
+  return ENCODED_QUERY_PROTOCOLS.has(url.protocol);
+}
+
+function queryEncoder(
+  url: URL,
+  input: string,
+  encoding: string,
+): NonNullable<NonNullable<typeof opts>["percentEncodeAfterEncoding"]> | null {
+  if (!canEncodeUrlQuery(url, input, encoding)) return null;
+  return opts?.percentEncodeAfterEncoding ?? null;
+}
+
+function queryRangeOf(clean: string): { start: number; end: number } | null {
+  const start = clean.indexOf("?");
+  if (start < 0) return null;
+  const hash = clean.indexOf("#");
+  if (hash >= 0 && hash < start) return null;
+  return { start, end: hash < 0 ? clean.length : hash };
+}
+
+function encodableQuery(
+  clean: string,
+  range: { start: number; end: number },
+  encoding: string,
+): string | null {
+  const query = clean.slice(range.start + 1, range.end);
+  if (!needsEncoder(query, encoding)) return null;
+  return query;
 }
 
 export function parseUrlForNode(node: unknown, input: string, base: string | URL | undefined): URL {
@@ -86,10 +120,22 @@ export function urlencodedSerialize(
 ): string {
   const encode = opts?.percentEncodeAfterEncoding;
   if (encodesAsUtf8(encoding) || !encode) {
-    const params = new URLSearchParams();
-    for (const [n, v] of entries) params.append(n, v);
-    return params.toString();
+    return serializeWithUrlSearchParams(entries);
   }
+  return serializeWithEncoding(entries, encoding, encode);
+}
+
+function serializeWithUrlSearchParams(entries: ReadonlyArray<readonly [string, string]>): string {
+  const params = new URLSearchParams();
+  for (const [n, v] of entries) params.append(n, v);
+  return params.toString();
+}
+
+function serializeWithEncoding(
+  entries: ReadonlyArray<readonly [string, string]>,
+  encoding: string,
+  encode: NonNullable<NonNullable<typeof opts>["percentEncodeAfterEncoding"]>,
+): string {
   let out = "";
   for (const [n, v] of entries) {
     if (out) out += "&";

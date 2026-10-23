@@ -68,6 +68,46 @@ export function locUrl(): URL | null {
   }
 }
 
+type LocationMutation = { url: string; kind: "hash" | "navigate" };
+
+function hrefMutation(cur: URL, value: string): LocationMutation {
+  const next = new URL(value, cur.toString());
+  const sameDocument =
+    next.toString() !== cur.toString() &&
+    next.toString().split("#")[0] === cur.toString().split("#")[0];
+  return { url: next.toString(), kind: sameDocument ? "hash" : "navigate" };
+}
+
+function componentMutation(cur: URL, component: "hash" | "pathname" | "search", value: string) {
+  const next = new URL(cur.toString());
+  switch (component) {
+    case "hash":
+      next.hash = value.startsWith("#") ? value.slice(1) : value;
+      return { url: next.toString(), kind: "hash" } as const;
+    case "pathname":
+      next.pathname = value;
+      return { url: next.toString(), kind: "navigate" } as const;
+    case "search":
+      next.search = value;
+      return { url: next.toString(), kind: "navigate" } as const;
+    default:
+      return null;
+  }
+}
+
+function resolveLocationMutation(
+  cur: URL,
+  component: "hash" | "pathname" | "search" | "href",
+  value: string,
+): LocationMutation | null {
+  try {
+    if (component === "href") return hrefMutation(cur, value);
+    return componentMutation(cur, component, value);
+  } catch {
+    return null;
+  }
+}
+
 export function locationMutate(
   component: "hash" | "pathname" | "search" | "href",
   value: string,
@@ -75,35 +115,8 @@ export function locationMutate(
   if (!setCurrentUrl) return;
   const cur = locUrl();
   if (!cur) return;
-  let next: URL;
-  let kind: "hash" | "navigate";
-  try {
-    if (component === "href") {
-      next = new URL(value, cur.toString());
-      const sameDocument =
-        next.toString() !== cur.toString() &&
-        next.toString().split("#")[0] === cur.toString().split("#")[0];
-      kind = sameDocument ? "hash" : "navigate";
-    } else {
-      next = new URL(cur.toString());
-      if (component === "hash") {
-        const stripped = value.startsWith("#") ? value.slice(1) : value;
-        next.hash = stripped;
-        kind = "hash";
-      } else if (component === "pathname") {
-        next.pathname = value;
-        kind = "navigate";
-      } else if (component === "search") {
-        next.search = value;
-        kind = "navigate";
-      } else {
-        return;
-      }
-    }
-  } catch {
-    return;
-  }
-  setCurrentUrl(next.toString(), kind);
+  const mutation = resolveLocationMutation(cur, component, value);
+  if (mutation) setCurrentUrl(mutation.url, mutation.kind);
 }
 
 type LocationSurface = Pick<
@@ -208,84 +221,169 @@ Object.defineProperty(location, Symbol.toPrimitive, {
   configurable: false,
 });
 
+const COOKIE_NAME_FORBIDDEN_CODES = new Set([
+  0x22, 0x28, 0x29, 0x2c, 0x2f, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f, 0x40, 0x5b, 0x5c, 0x5d, 0x7b,
+  0x7d,
+]);
+const COOKIE_VALUE_FORBIDDEN_CODES = new Set([0x22, 0x2c, 0x3b, 0x5c]);
+
+function isVisibleCookieCode(code: number): boolean {
+  return code >= 0x21 && code <= 0x7e;
+}
+
+function isValidCookieNameCode(code: number): boolean {
+  return isVisibleCookieCode(code) && !COOKIE_NAME_FORBIDDEN_CODES.has(code);
+}
+
 function isValidCookieName(s: string): boolean {
   if (!s) return false;
   for (let i = 0; i < s.length; i++) {
-    const ch = s.charCodeAt(i);
-    if (ch < 0x21 || ch > 0x7e) return false;
-    if (ch === 0x28 || ch === 0x29 || ch === 0x2c || ch === 0x2f) return false;
-    if (ch >= 0x3a && ch <= 0x40) return false;
-    if (ch === 0x5b || ch === 0x5c || ch === 0x5d) return false;
-    if (ch === 0x7b || ch === 0x7d) return false;
-    if (ch === 0x22) return false;
+    if (!isValidCookieNameCode(s.charCodeAt(i))) return false;
   }
   return true;
 }
-function isValidCookieValue(s: string): boolean {
-  let v = s;
-  if (v.length >= 2 && v.charCodeAt(0) === 0x22 && v.charCodeAt(v.length - 1) === 0x22) {
-    v = v.slice(1, -1);
+
+function unquoteCookieValue(value: string): string {
+  if (
+    value.length >= 2 &&
+    value.charCodeAt(0) === 0x22 &&
+    value.charCodeAt(value.length - 1) === 0x22
+  ) {
+    return value.slice(1, -1);
   }
-  for (let i = 0; i < v.length; i++) {
-    const ch = v.charCodeAt(i);
-    if (ch < 0x21 || ch > 0x7e) return false;
-    if (ch === 0x22 || ch === 0x2c || ch === 0x3b || ch === 0x5c) return false;
+  return value;
+}
+
+function isValidCookieValueCode(code: number): boolean {
+  return isVisibleCookieCode(code) && !COOKIE_VALUE_FORBIDDEN_CODES.has(code);
+}
+
+function isValidCookieValue(value: string): boolean {
+  const unquoted = unquoteCookieValue(value);
+  for (let i = 0; i < unquoted.length; i++) {
+    if (!isValidCookieValueCode(unquoted.charCodeAt(i))) return false;
   }
   return true;
+}
+
+interface LocalCookieWrite {
+  name: string;
+  value: string;
+  expiresAt: number | null;
+}
+
+function cookieMaxAgeExpiry(value: string, current: number | null): number | null {
+  const seconds = Number(value);
+  return Number.isFinite(seconds) ? Date.now() + seconds * MS_PER_SECOND : current;
+}
+
+function cookieExpiresExpiry(value: string, current: number | null): number | null {
+  if (current != null) return current;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : current;
+}
+
+function cookieExpiryForAttribute(
+  name: string,
+  value: string,
+  current: number | null,
+): number | null {
+  if (name === "max-age") return cookieMaxAgeExpiry(value, current);
+  if (name === "expires") {
+    return cookieExpiresExpiry(value, current);
+  }
+  return current;
+}
+
+function cookieExpiryFromSegments(segments: string[]): number | null {
+  let expiresAt: number | null = null;
+  for (let i = 1; i < segments.length; i++) {
+    const segment = segments[i];
+    const equals = segment.indexOf("=");
+    if (equals < 0) continue;
+    const name = segment.slice(0, equals).trim().toLowerCase();
+    const value = segment.slice(equals + 1).trim();
+    expiresAt = cookieExpiryForAttribute(name, value, expiresAt);
+  }
+  return expiresAt;
+}
+
+function parseLocalCookiePair(first: string): { name: string; value: string } | null {
+  const equals = first.indexOf("=");
+  if (equals < 0) return null;
+  const name = first.slice(0, equals).trim();
+  const value = first.slice(equals + 1).trim();
+  if (!name || !isValidCookieName(name) || !isValidCookieValue(value)) return null;
+  return { name, value };
+}
+
+function parseLocalCookieWrite(raw: unknown): LocalCookieWrite | null {
+  const segments = localCookieWriteSegments(raw);
+  if (!segments) return null;
+  const assignment = parseLocalCookiePair(segments[0]);
+  if (!assignment) return null;
+  return { ...assignment, expiresAt: cookieExpiryFromSegments(segments) };
+}
+
+function replaceMatchingCookiePart(
+  parts: string[],
+  name: string,
+  value: string,
+  isDelete: boolean,
+): boolean {
+  for (let i = 0; i < parts.length; i++) {
+    if (cookieNameFromPair(parts[i]) !== name) continue;
+    if (isDelete) parts.splice(i, 1);
+    else parts[i] = name + "=" + value;
+    return true;
+  }
+  return false;
+}
+
+function appendNewCookiePart(
+  parts: string[],
+  name: string,
+  value: string,
+  replaced: boolean,
+  isDelete: boolean,
+): void {
+  if (!replaced && !isDelete) parts.push(name + "=" + value);
+}
+
+function updateLocalCookieParts(
+  parts: string[],
+  name: string,
+  value: string,
+  isDelete: boolean,
+): string[] {
+  const replaced = replaceMatchingCookiePart(parts, name, value, isDelete);
+  appendNewCookiePart(parts, name, value, replaced, isDelete);
+  return parts;
+}
+
+function localCookieWriteSegments(raw: unknown): string[] | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const segments = trimmed
+    .split(";")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  return segments.length > 0 ? segments : null;
+}
+
+function cookieNameFromPair(pair: string): string {
+  const equals = pair.indexOf("=");
+  return equals < 0 ? pair : pair.slice(0, equals);
 }
 
 export function applyLocalCookieWrite(raw: unknown): void {
-  if (typeof raw !== "string") return;
-  const trimmed = raw.trim();
-  if (!trimmed) return;
-  const segs = trimmed
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (segs.length === 0) return;
-  const first = segs[0];
-  const eq = first.indexOf("=");
-  if (eq < 0) return;
-  const name = first.slice(0, eq).trim();
-  const value = first.slice(eq + 1).trim();
-  if (!name) return;
-  if (!isValidCookieName(name)) return;
-  if (!isValidCookieValue(value)) return;
-
-  let expiresAt: number | null = null;
-  for (let i = 1; i < segs.length; i++) {
-    const seg = segs[i];
-    const seqEq = seg.indexOf("=");
-    if (seqEq < 0) continue;
-    const attrName = seg.slice(0, seqEq).trim().toLowerCase();
-    const attrVal = seg.slice(seqEq + 1).trim();
-    if (attrName === "max-age") {
-      const ma = Number(attrVal);
-      if (Number.isFinite(ma)) expiresAt = Date.now() + ma * MS_PER_SECOND;
-    } else if (attrName === "expires" && expiresAt == null) {
-      const t = Date.parse(attrVal);
-      if (Number.isFinite(t)) expiresAt = t;
-    }
-  }
-  const isDelete = expiresAt != null && expiresAt <= Date.now();
-
+  const write = parseLocalCookieWrite(raw);
+  if (!write) return;
+  const isDelete = write.expiresAt != null && write.expiresAt <= Date.now();
   const parts = cookieString ? cookieString.split("; ").filter(Boolean) : [];
-  let replaced = false;
-  for (let i = 0; i < parts.length; i++) {
-    const peq = parts[i].indexOf("=");
-    const pname = peq < 0 ? parts[i] : parts[i].slice(0, peq);
-    if (pname === name) {
-      if (isDelete) {
-        parts.splice(i, 1);
-      } else {
-        parts[i] = name + "=" + value;
-      }
-      replaced = true;
-      break;
-    }
-  }
-  if (!replaced && !isDelete) parts.push(name + "=" + value);
-  setCookieString(parts.join("; "));
+  const updated = updateLocalCookieParts(parts, write.name, write.value, isDelete);
+  setCookieString(updated.join("; "));
 }
 
 const RAF_FALLBACK_DELAY_MS = 16;
@@ -309,6 +407,201 @@ function viewportDims(): { w: number; h: number } {
   };
 }
 
+function resolveWindowDocument(): any {
+  const doc = documentImpl as any;
+  return doc?.get?.() ?? doc;
+}
+
+function countDocumentFrames(doc: any): number {
+  return doc?.querySelectorAll?.("iframe")?.length ?? 0;
+}
+
+function windowFrameCount(): number {
+  try {
+    return countDocumentFrames(resolveWindowDocument());
+  } catch {
+    return 0;
+  }
+}
+
+const COMPUTED_STYLE_PSEUDOS = new Set(["before", "after", "marker", "selection", "first-letter"]);
+
+function computedStyleNodeId(element: any): number {
+  return element && typeof element === "object" && typeof element._id === "number"
+    ? element._id
+    : -1;
+}
+
+function normalizePseudoSelector(pseudoArg: any): string {
+  if (pseudoArg == null || pseudoArg === "") return "";
+  const pseudo = String(pseudoArg).trim().replace(/^:+/, "").toLowerCase();
+  return COMPUTED_STYLE_PSEUDOS.has(pseudo) ? "::" + pseudo : "";
+}
+
+function hasComputedStyleNode(nodeId: number): boolean {
+  return nodeId >= 0 && !!getComputedStyleForAuthId;
+}
+
+function canUseSingleComputedStyle(
+  hasNodeId: boolean,
+  pseudo: string,
+  computedValuesOnly: boolean,
+  valueForAuthId: typeof getComputedStyleValueForAuthId,
+): boolean {
+  return hasNodeId && !pseudo && !computedValuesOnly && !!valueForAuthId;
+}
+
+function windowOpenUrl(url: any): string {
+  return url == null || url === "" ? "about:blank" : String(url);
+}
+
+function windowOpenBase(windowObj: any): string | undefined {
+  return typeof windowObj.document !== "undefined" &&
+    windowObj.document &&
+    typeof windowObj.document.baseURI === "string"
+    ? windowObj.document.baseURI
+    : undefined;
+}
+
+function validateWindowOpenUrl(raw: string, base: string | undefined): void {
+  try {
+    new URL(raw, base);
+  } catch {
+    throw new ksGlobal.DOMException(
+      "Failed to execute 'open' on 'Window': '" + raw + "' is not a valid URL.",
+      "SyntaxError",
+    );
+  }
+}
+
+function createOpenedWindowStub(raw: string): any {
+  const stub: any = {
+    closed: false,
+    document: null,
+    location: {
+      href: raw,
+      toString() {
+        return raw;
+      },
+    },
+    focus() {},
+    blur() {},
+    print() {},
+    postMessage() {},
+    close() {
+      stub.closed = true;
+    },
+  };
+  return stub;
+}
+
+type HistoryEntry = { url: string; state: unknown };
+type HistoryMethod = "pushState" | "replaceState";
+
+function parseHistoryTarget(rawUrl: string, currentUrl: string, method: HistoryMethod): URL {
+  try {
+    return new URL(String(rawUrl), currentUrl || undefined);
+  } catch {
+    throw new ksGlobal.DOMException(
+      `Failed to execute '${method}' on 'History': '${rawUrl}' could not be parsed as a URL.`,
+      "SecurityError",
+    );
+  }
+}
+
+function historyOriginsMatch(target: URL, current: URL): boolean {
+  const sameOrigin = target.origin !== "null" && target.origin === current.origin;
+  const bothOpaqueAndSameScheme =
+    target.origin === "null" && current.origin === "null" && target.protocol === current.protocol;
+  return sameOrigin || bothOpaqueAndSameScheme;
+}
+
+function historyLocation(): { current: URL | null; url: string } {
+  const current = locUrl();
+  return { current, url: current ? current.toString() : "" };
+}
+
+function historyStackCurrentUrl(
+  historyStack: HistoryEntry[],
+  historyIndex: number,
+  fallback: string,
+): string {
+  const entry = historyStack[historyIndex];
+  return entry ? entry.url : fallback;
+}
+
+function assertHistoryTargetOrigin(
+  target: URL,
+  current: URL | null,
+  currentUrl: string,
+  method: HistoryMethod,
+): void {
+  if (!current) return;
+  if (historyOriginsMatch(target, current)) return;
+  throw new ksGlobal.DOMException(
+    `Failed to execute '${method}' on 'History': A history state object with URL '${target.toString()}' cannot be created in a document with origin '${current.origin}' and URL '${currentUrl}'.`,
+    "SecurityError",
+  );
+}
+
+function resolveHistoryUrl(
+  rawUrl: string | null | undefined,
+  method: HistoryMethod,
+  historyStack: HistoryEntry[],
+  historyIndex: number,
+): string {
+  const { current, url: currentUrl } = historyLocation();
+  if (rawUrl == null) return historyStackCurrentUrl(historyStack, historyIndex, currentUrl);
+  const target = parseHistoryTarget(rawUrl, currentUrl, method);
+  assertHistoryTargetOrigin(target, current, currentUrl, method);
+  return target.toString();
+}
+
+function historyDelta(value?: number): number {
+  return value == null ? 0 : Number(value) | 0;
+}
+
+function historyEntryUrl(entry: HistoryEntry | undefined): string {
+  return entry ? entry.url : "";
+}
+
+function historyEntryState(entry: HistoryEntry | undefined): unknown {
+  return entry ? entry.state : null;
+}
+
+function historyTargetIndex(index: number, delta: number, length: number): number | null {
+  const target = index + delta;
+  return target < 0 || target >= length ? null : target;
+}
+
+function setHistoryUrl(previousUrl: string, nextUrl: string): void {
+  if (!setCurrentUrl) return;
+  const sameDocument = previousUrl.split("#")[0] === nextUrl.split("#")[0];
+  setCurrentUrl(nextUrl, sameDocument ? "hash" : "historyApi");
+}
+
+function queueHistoryPopstate(state: unknown): void {
+  const queue = (callback: () => void) => {
+    try {
+      ksGlobal.setTimeout(callback, 0);
+    } catch {
+      try {
+        callback();
+      } catch {}
+    }
+  };
+  queue(() => {
+    try {
+      const event: any = new KsPopStateEvent("popstate", {
+        bubbles: false,
+        cancelable: false,
+        state,
+      });
+      dispatchTrustedOnKey(WINDOW_KEY, event);
+    } catch {}
+  });
+}
+
 export function installWindow(
   document: any,
   dom: any,
@@ -318,42 +611,9 @@ export function installWindow(
   Window: any;
 } {
   void dom;
-  type HistoryEntry = { url: string; state: unknown };
 
   const historyStack: HistoryEntry[] = [{ url: getCurrentUrl() || "", state: null }];
   let historyIndex = 0;
-
-  const resolveHistoryUrl = (
-    rawUrl: string | null | undefined,
-    method: "pushState" | "replaceState",
-  ): string => {
-    const cur = locUrl();
-    const curStr = cur?.toString() ?? "";
-    if (rawUrl === undefined || rawUrl === null) {
-      return historyStack[historyIndex]?.url ?? curStr;
-    }
-    let target: URL;
-    try {
-      target = new URL(String(rawUrl), curStr || undefined);
-    } catch {
-      throw new ksGlobal.DOMException(
-        `Failed to execute '${method}' on 'History': '${rawUrl}' could not be parsed as a URL.`,
-        "SecurityError",
-      );
-    }
-    if (cur) {
-      const sameOrigin = target.origin !== "null" && target.origin === cur.origin;
-      const bothOpaqueAndSameScheme =
-        target.origin === "null" && cur.origin === "null" && target.protocol === cur.protocol;
-      if (!sameOrigin && !bothOpaqueAndSameScheme) {
-        throw new ksGlobal.DOMException(
-          `Failed to execute '${method}' on 'History': A history state object with URL '${target.toString()}' cannot be created in a document with origin '${cur.origin}' and URL '${curStr}'.`,
-          "SecurityError",
-        );
-      }
-    }
-    return target.toString();
-  };
 
   const history: any = {
     get state() {
@@ -364,51 +624,28 @@ export function installWindow(
     },
     scrollRestoration: "auto" as "auto" | "manual",
     pushState(state: unknown, _title: string, url?: string | null) {
-      const target = resolveHistoryUrl(url, "pushState");
+      const target = resolveHistoryUrl(url, "pushState", historyStack, historyIndex);
       historyStack.length = historyIndex + 1;
       historyStack.push({ url: target, state: state ?? null });
       historyIndex = historyStack.length - 1;
       if (setCurrentUrl) setCurrentUrl(target, "pushState");
     },
     replaceState(state: unknown, _title: string, url?: string | null) {
-      const target = resolveHistoryUrl(url, "replaceState");
+      const target = resolveHistoryUrl(url, "replaceState", historyStack, historyIndex);
       historyStack[historyIndex] = { url: target, state: state ?? null };
       if (setCurrentUrl) setCurrentUrl(target, "replaceState");
     },
     go(n?: number) {
-      const delta = n == null ? 0 : Number(n) | 0;
+      const delta = historyDelta(n);
       if (delta === 0) return;
-      const target = historyIndex + delta;
-      if (target < 0 || target >= historyStack.length) return;
-      const prevEntry = historyStack[historyIndex];
-      const prevUrl = prevEntry?.url ?? "";
+      const target = historyTargetIndex(historyIndex, delta, historyStack.length);
+      if (target === null) return;
+      const previousUrl = historyEntryUrl(historyStack[historyIndex]);
       historyIndex = target;
       const nextEntry = historyStack[historyIndex];
-      const nextUrl = nextEntry?.url ?? "";
-      const sameDoc = prevUrl.split("#")[0] === nextUrl.split("#")[0];
-      if (setCurrentUrl) {
-        setCurrentUrl(nextUrl, sameDoc ? "hash" : "historyApi");
-      }
-      const stateForPopstate = nextEntry?.state ?? null;
-      const queuePopstate = (cb: () => void) => {
-        try {
-          ksGlobal.setTimeout(cb, 0);
-        } catch {
-          try {
-            cb();
-          } catch {}
-        }
-      };
-      queuePopstate(() => {
-        try {
-          const ev: any = new KsPopStateEvent("popstate", {
-            bubbles: false,
-            cancelable: false,
-            state: stateForPopstate,
-          });
-          dispatchTrustedOnKey(WINDOW_KEY, ev);
-        } catch {}
-      });
+      const nextUrl = historyEntryUrl(nextEntry);
+      setHistoryUrl(previousUrl, nextUrl);
+      queueHistoryPopstate(historyEntryState(nextEntry));
     },
     back() {
       history.go(-1);
@@ -450,12 +687,7 @@ export function installWindow(
       return window;
     },
     get length() {
-      try {
-        const doc = (documentImpl as any)?.get?.() ?? documentImpl;
-        return doc?.querySelectorAll?.("iframe")?.length ?? 0;
-      } catch {
-        return 0;
-      }
+      return windowFrameCount();
     },
     get opener() {
       return null;
@@ -538,73 +770,93 @@ export function installWindow(
       return windowObj[GET_COMPUTED_STYLE_INTERNAL](element, pseudoArg, false);
     },
     [GET_COMPUTED_STYLE_INTERNAL](element: any, pseudoArg?: any, computedValuesOnly = false) {
-      const nodeId =
-        element && typeof element === "object" && typeof element._id === "number"
-          ? element._id
-          : -1;
-      const pseudoNorm = (() => {
-        if (pseudoArg == null || pseudoArg === "") return "";
-        const p = String(pseudoArg).trim().replace(/^:+/, "").toLowerCase();
-        return ["before", "after", "marker", "selection", "first-letter"].includes(p)
-          ? "::" + p
-          : "";
-      })();
-      const hasNodeId = nodeId >= 0 && !!getComputedStyleForAuthId;
+      const nodeId = computedStyleNodeId(element);
+      const pseudoNorm = normalizePseudoSelector(pseudoArg);
+      const hasNodeId = hasComputedStyleNode(nodeId);
       let cachedSeq = -1;
       let cachedMap: Map<string, string> | null = null;
       let cachedUnresolved: Map<string, string> | null = null;
       let cachedCssText: string | null = null;
       const valueForAuthId = getComputedStyleValueForAuthId;
-      const singleOk = hasNodeId && !pseudoNorm && !computedValuesOnly && !!valueForAuthId;
+      const singleOk = canUseSingleComputedStyle(
+        hasNodeId,
+        pseudoNorm,
+        computedValuesOnly,
+        valueForAuthId,
+      );
       let singleSeq = -1;
       let singleValues: Map<string, string> | null = null;
-      function single(dash: string): string | null {
-        const curSeq = ksState().mutationSeq | 0;
-        if (cachedMap !== null && cachedSeq === curSeq) return null;
-        if (singleSeq !== curSeq) {
-          singleSeq = curSeq;
-          singleValues = null;
-        }
-        const hit = singleValues?.get(dash);
-        if (hit !== undefined) return hit;
+      const isCachedAtSequence = (sequence: number) => cachedMap !== null && cachedSeq === sequence;
+      const resetSingleValues = (sequence: number) => {
+        if (singleSeq === sequence) return;
+        singleSeq = sequence;
+        singleValues = null;
+      };
+      const readSingleValue = (dash: string): string | null => {
         if (!valueForAuthId) return null;
         const value = valueForAuthId(nodeId, dash);
         if (typeof value !== "string") return null;
         (singleValues ??= new Map()).set(dash, value);
         return value;
-      }
-      function resolve(): Map<string, string> | null {
+      };
+      const single = (dash: string): string | null => {
+        const curSeq = ksState().mutationSeq | 0;
+        if (isCachedAtSequence(curSeq)) return null;
+        resetSingleValues(curSeq);
+        const hit = singleValues?.get(dash);
+        if (hit !== undefined) return hit;
+        return readSingleValue(dash);
+      };
+      const clearResolvedCache = (sequence: number) => {
+        cachedMap = null;
+        cachedUnresolved = null;
+        cachedCssText = null;
+        cachedSeq = sequence;
+      };
+      const isComputedStyleProperty = (property: any): boolean =>
+        !!property && typeof property.name === "string";
+      const computedStyleValue = (property: any): unknown =>
+        computedValuesOnly && typeof property.computed === "string"
+          ? property.computed
+          : property.value;
+      const unresolvedStyleValue = (property: any): string | null => {
+        if (computedValuesOnly) return null;
+        return typeof property.unresolved === "string" ? property.unresolved : null;
+      };
+      const addComputedStyleProperty = (
+        property: any,
+        map: Map<string, string>,
+        unresolved: Map<string, string>,
+      ) => {
+        if (!isComputedStyleProperty(property)) return;
+        map.set(property.name, String(computedStyleValue(property) ?? ""));
+        const unresolvedValue = unresolvedStyleValue(property);
+        if (unresolvedValue !== null) unresolved.set(property.name, unresolvedValue);
+      };
+      const buildComputedStyleMaps = (props: any[]) => {
+        const map = new Map<string, string>();
+        const unresolved = new Map<string, string>();
+        for (const property of props) addComputedStyleProperty(property, map, unresolved);
+        return { map, unresolved };
+      };
+      const resolve = (): Map<string, string> | null => {
         if (!hasNodeId) return null;
         const curSeq = ksState().mutationSeq | 0;
-        if (cachedMap !== null && cachedSeq === curSeq) return cachedMap;
+        if (isCachedAtSequence(curSeq)) return cachedMap;
         const props = ksSpan("dom.getComputedStyle", null, () =>
           (getComputedStyleForAuthId as any)(nodeId, pseudoNorm || undefined),
         );
         if (!Array.isArray(props)) {
-          cachedMap = null;
-          cachedUnresolved = null;
-          cachedCssText = null;
-          cachedSeq = curSeq;
+          clearResolvedCache(curSeq);
           return null;
         }
-        const map = new Map<string, string>();
-        const unresolved = new Map<string, string>();
-        for (const p of props) {
-          if (p && typeof p.name === "string") {
-            const value =
-              computedValuesOnly && typeof p.computed === "string" ? p.computed : p.value;
-            map.set(p.name, String(value ?? ""));
-            if (!computedValuesOnly && typeof p.unresolved === "string") {
-              unresolved.set(p.name, p.unresolved);
-            }
-          }
-        }
-        cachedMap = map;
-        cachedUnresolved = unresolved;
+        const maps = buildComputedStyleMaps(props);
+        cachedMap = maps.map;
+        cachedUnresolved = maps.unresolved;
         cachedCssText = null;
         cachedSeq = curSeq;
-        return map;
-      }
+        return maps.map;
+      };
       function getCssText(map: Map<string, string>): string {
         if (cachedCssText !== null) return cachedCssText;
         const parts: string[] = [];
@@ -624,18 +876,18 @@ export function installWindow(
           return "";
         }
       }
-      function lookup(prop: string): string {
-        const dash = prop.indexOf("-") >= 0 ? prop : cssPropCamelToKebab(prop);
-        if (singleOk) {
-          const value = single(dash);
-          if (value !== null) return value;
-        }
-        const map = resolve();
+      const lookupResolved = (dash: string, map: Map<string, string> | null): string => {
         if (!map) return "";
         const direct = map.get(dash);
         if (direct !== undefined) return direct;
         return lookupViaStylo(map, dash);
-      }
+      };
+      const lookup = (prop: string): string => {
+        const dash = prop.indexOf("-") >= 0 ? prop : cssPropCamelToKebab(prop);
+        const singleValue = singleOk ? single(dash) : null;
+        if (singleValue !== null) return singleValue;
+        return lookupResolved(dash, resolve());
+      };
       function readOnlyThrow(name: string): never {
         throw new (ksGlobal.DOMException || Error)(
           "Cannot modify a computed style declaration (" + name + ")",
@@ -794,39 +1046,9 @@ export function installWindow(
       throw notSupported("prompt");
     },
     open: (url?: any, _target?: any, _features?: any) => {
-      const raw = url == null || url === "" ? "about:blank" : String(url);
-      const base =
-        typeof windowObj.document !== "undefined" &&
-        windowObj.document &&
-        typeof windowObj.document.baseURI === "string"
-          ? windowObj.document.baseURI
-          : undefined;
-      try {
-        new URL(raw, base);
-      } catch {
-        throw new ksGlobal.DOMException(
-          "Failed to execute 'open' on 'Window': '" + raw + "' is not a valid URL.",
-          "SyntaxError",
-        );
-      }
-      const stub: any = {
-        closed: false,
-        document: null,
-        location: {
-          href: raw,
-          toString() {
-            return raw;
-          },
-        },
-        focus() {},
-        blur() {},
-        print() {},
-        postMessage() {},
-        close() {
-          stub.closed = true;
-        },
-      };
-      return stub;
+      const raw = windowOpenUrl(url);
+      validateWindowOpenUrl(raw, windowOpenBase(windowObj));
+      return createOpenedWindowStub(raw);
     },
   };
 
@@ -881,41 +1103,55 @@ export function installWindow(
     ...WINDOW_EVENT_HANDLERS,
     ...EXTRA_EVENT_HANDLERS,
   ]);
-  for (const propName of windowHandlerNames) {
-    const eventType = propName.slice(2);
-    const assertWindowThis = assertWindowReceiver;
-    const getter = nameWinAccessor(function (this: unknown) {
-      assertWindowThis(this);
-      return winHandlerSlots.get(eventType)?.fn ?? null;
-    }, "get " + propName);
-    const setter = nameWinAccessor(function (this: unknown, value: unknown) {
-      assertWindowThis(this);
-      const prev = winHandlerSlots.get(eventType);
-      if (prev) {
-        windowObj.removeEventListener(eventType, prev.wrapper, false);
-        winHandlerSlots.delete(eventType);
-      }
-      if (typeof value !== "function") return;
-      const wrapper = function (this: unknown, event: unknown) {
-        const fn = winHandlerSlots.get(eventType)?.fn;
-        if (typeof fn !== "function") return undefined;
-        return fn.call(this, event);
-      };
-      winHandlerSlots.set(eventType, { fn: value, wrapper });
-      windowObj.addEventListener(eventType, wrapper, false);
-    }, "set " + propName);
-    Object.defineProperty(windowObj, propName, {
-      configurable: true,
-      enumerable: true,
-      get: getter,
-      set: setter,
-    });
-  }
+  const installWindowEventHandlers = function (): void {
+    for (const propName of windowHandlerNames) {
+      const eventType = propName.slice(2);
+      const assertWindowThis = assertWindowReceiver;
+      const getter = nameWinAccessor(function (this: unknown) {
+        assertWindowThis(this);
+        return winHandlerSlots.get(eventType)?.fn ?? null;
+      }, "get " + propName);
+      const setter = nameWinAccessor(function (this: unknown, value: unknown) {
+        assertWindowThis(this);
+        const prev = winHandlerSlots.get(eventType);
+        if (prev) {
+          windowObj.removeEventListener(eventType, prev.wrapper, false);
+          winHandlerSlots.delete(eventType);
+        }
+        if (typeof value !== "function") return;
+        const wrapper = function (this: unknown, event: unknown) {
+          const fn = winHandlerSlots.get(eventType)?.fn;
+          if (typeof fn !== "function") return undefined;
+          return fn.call(this, event);
+        };
+        winHandlerSlots.set(eventType, { fn: value, wrapper });
+        windowObj.addEventListener(eventType, wrapper, false);
+      }, "set " + propName);
+      Object.defineProperty(windowObj, propName, {
+        configurable: true,
+        enumerable: true,
+        get: getter,
+        set: setter,
+      });
+    }
+  };
+  installWindowEventHandlers();
 
-  for (const m of ["blur", "close", "focus", "print", "stop", "captureEvents", "releaseEvents"]) {
-    if (typeof Reflect.get(windowObj, m) === "function") continue;
-    Reflect.set(windowObj, m, { [m]: function () {} }[m]);
-  }
+  const installWindowMethodStubs = function (): void {
+    for (const method of [
+      "blur",
+      "close",
+      "focus",
+      "print",
+      "stop",
+      "captureEvents",
+      "releaseEvents",
+    ]) {
+      if (typeof Reflect.get(windowObj, method) === "function") continue;
+      Reflect.set(windowObj, method, { [method]: function () {} }[method]);
+    }
+  };
+  installWindowMethodStubs();
 
   const ownOrigin = (() => {
     try {
@@ -955,27 +1191,50 @@ export function installWindow(
       );
     }
   };
-  const pmConvertTransfer = (raw: unknown): object[] => {
-    if (raw === undefined) return [];
-    if (
-      raw === null ||
-      typeof raw !== "object" ||
-      typeof (raw as Partial<Iterable<unknown>>)[Symbol.iterator] !== "function"
-    ) {
+  const isTransferSequence = (raw: unknown): raw is Iterable<unknown> =>
+    raw !== null &&
+    typeof raw === "object" &&
+    typeof (raw as Partial<Iterable<unknown>>)[Symbol.iterator] === "function";
+  const transferSequence = (raw: unknown): Iterable<unknown> => {
+    if (!isTransferSequence(raw)) {
       throw new TypeError(
         "Failed to execute 'postMessage' on 'Window': The provided value cannot be converted to a sequence.",
       );
     }
+    return raw;
+  };
+  const isTransferableObject = (value: unknown): value is object =>
+    value !== null && (typeof value === "object" || typeof value === "function");
+  const pmConvertTransfer = (raw: unknown): object[] => {
+    if (raw === undefined) return [];
     const out: object[] = [];
-    for (const v of raw as Iterable<unknown>) {
-      if (v === null || (typeof v !== "object" && typeof v !== "function")) {
+    for (const v of transferSequence(raw)) {
+      if (!isTransferableObject(v)) {
         throw new TypeError(
           "Failed to execute 'postMessage' on 'Window': Transferable entry is not an object.",
         );
       }
-      out.push(v as object);
+      out.push(v);
     }
     return out;
+  };
+  const postMessageUsesOptions = (args: readonly unknown[]): boolean => {
+    const target = args[1];
+    if (args.length >= 3 || target === undefined) return false;
+    return target === null || typeof target === "object";
+  };
+  const postMessageInput = (args: readonly unknown[]) => {
+    let targetOrigin: unknown = args[1];
+    let rawTransfer: unknown = args.length >= 3 ? args[2] : undefined;
+    if (postMessageUsesOptions(args)) {
+      const options = (targetOrigin ?? {}) as {
+        targetOrigin?: unknown;
+        transfer?: unknown;
+      };
+      rawTransfer = options.transfer;
+      targetOrigin = options.targetOrigin;
+    }
+    return { targetOrigin, rawTransfer };
   };
   const pmParseArgs = (args: readonly unknown[]): { target: string; transfer: object[] } => {
     if (args.length === 0) {
@@ -983,97 +1242,106 @@ export function installWindow(
         "Failed to execute 'postMessage' on 'Window': 1 argument required, but only 0 present.",
       );
     }
-    let targetOrigin: unknown = args[1];
-    let rawTransfer: unknown = args.length >= 3 ? args[2] : undefined;
-    if (
-      args.length < 3 &&
-      targetOrigin !== undefined &&
-      (targetOrigin === null || typeof targetOrigin === "object")
-    ) {
-      const opts = (targetOrigin ?? {}) as {
-        targetOrigin?: unknown;
-        transfer?: unknown;
-      };
-      rawTransfer = opts.transfer;
-      targetOrigin = opts.targetOrigin;
-    }
+    const { targetOrigin, rawTransfer } = postMessageInput(args);
     return {
       target: pmCheckTargetOrigin(targetOrigin),
       transfer: pmConvertTransfer(rawTransfer),
     };
   };
+  const isMessagePortTransfer = (
+    value: object,
+    MessagePortCtor: unknown,
+  ): value is PmTransferablePort =>
+    typeof MessagePortCtor === "function" && value instanceof MessagePortCtor;
+  const assertTransferPortIsAttached = (port: PmTransferablePort): void => {
+    if (port._closed || port._detached) {
+      throw pmDataCloneError("MessagePort is already detached.");
+    }
+  };
+  const addPostMessageTransfer = (
+    value: object,
+    MessagePortCtor: unknown,
+    seen: Set<object>,
+    buffers: ArrayBuffer[],
+    ports: PmTransferablePort[],
+  ): void => {
+    if (seen.has(value)) throw pmDataCloneError("Duplicate transferable in transfer list.");
+    seen.add(value);
+    if (isMessagePortTransfer(value, MessagePortCtor)) {
+      assertTransferPortIsAttached(value);
+      ports.push(value);
+      return;
+    }
+    if (value instanceof ArrayBuffer) {
+      buffers.push(value);
+      return;
+    }
+    throw pmDataCloneError("Value is not transferable.");
+  };
+  const clonePostMessageValue = (message: unknown, buffers: ArrayBuffer[]): unknown => {
+    const clone = (globalThis as { structuredClone?: PmStructuredClone }).structuredClone;
+    if (typeof clone === "function") {
+      return buffers.length ? clone(message, { transfer: buffers }) : clone(message);
+    }
+    return JSON.parse(pmSerialize(message)) as unknown;
+  };
+  const transferPostMessagePorts = (ports: PmTransferablePort[]): Idl.MessagePort[] =>
+    ports.map(
+      (port) =>
+        (typeof port.__ksTransfer === "function" ? port.__ksTransfer() : port) as Idl.MessagePort,
+    );
   const pmSerializeWithTransfer = (
     message: unknown,
     transfer: readonly object[],
   ): { cloned: unknown; ports: Idl.MessagePort[] } => {
-    const MP = (globalThis as { MessagePort?: unknown }).MessagePort;
+    const MessagePortCtor = (globalThis as { MessagePort?: unknown }).MessagePort;
     const seen = new Set<object>();
     const buffers: ArrayBuffer[] = [];
     const ports: PmTransferablePort[] = [];
-    for (const t of transfer) {
-      if (seen.has(t)) {
-        throw pmDataCloneError("Duplicate transferable in transfer list.");
-      }
-      seen.add(t);
-      if (typeof MP === "function" && t instanceof MP) {
-        const port = t as PmTransferablePort;
-        if (port._closed || port._detached) {
-          throw pmDataCloneError("MessagePort is already detached.");
-        }
-        ports.push(port);
-      } else if (t instanceof ArrayBuffer) {
-        buffers.push(t);
-      } else {
-        throw pmDataCloneError("Value is not transferable.");
-      }
+    for (const value of transfer) {
+      addPostMessageTransfer(value, MessagePortCtor, seen, buffers, ports);
     }
-    const SC = (globalThis as { structuredClone?: PmStructuredClone }).structuredClone;
-    let cloned: unknown;
-    if (typeof SC === "function") {
-      cloned = buffers.length ? SC(message, { transfer: buffers }) : SC(message);
-    } else {
-      cloned = JSON.parse(pmSerialize(message)) as unknown;
-    }
-    const outPorts = ports.map(
-      (p) => (typeof p.__ksTransfer === "function" ? p.__ksTransfer() : p) as Idl.MessagePort,
-    );
-    return { cloned, ports: outPorts };
+    return {
+      cloned: clonePostMessageValue(message, buffers),
+      ports: transferPostMessagePorts(ports),
+    };
   };
   const frameContext = getInternalState().frameContext;
-  const parentWindowStub: any = frameContext
-    ? {
-        closed: false,
-        location: { href: "", toString: () => "" },
-        frames: [],
-        postMessage(...args: unknown[]) {
-          const { target, transfer } = pmParseArgs(args);
-          const dataJson = pmSerialize(args[0]);
-          pmSerializeWithTransfer(undefined, transfer);
-          sendUpstreamEvent({
-            event: "kitesurf.postMessage",
-            params: {
-              toParent: true,
-              dataJson,
-              targetOrigin: target,
-              sourceOrigin: ownOrigin,
-            },
-          });
-        },
-        focus() {},
-        blur() {},
-        addEventListener() {},
-        removeEventListener() {},
-        dispatchEvent() {
-          return true;
-        },
-      }
-    : null;
-  if (parentWindowStub) {
-    parentWindowStub.self = parentWindowStub;
-    parentWindowStub.window = parentWindowStub;
-    parentWindowStub.parent = parentWindowStub;
-    parentWindowStub.top = parentWindowStub;
-  }
+  const createParentWindowStub = function (): any {
+    if (!frameContext) return null;
+    const stub: any = {
+      closed: false,
+      location: { href: "", toString: () => "" },
+      frames: [],
+      postMessage(...args: unknown[]) {
+        const { target, transfer } = pmParseArgs(args);
+        const dataJson = pmSerialize(args[0]);
+        pmSerializeWithTransfer(undefined, transfer);
+        sendUpstreamEvent({
+          event: "kitesurf.postMessage",
+          params: {
+            toParent: true,
+            dataJson,
+            targetOrigin: target,
+            sourceOrigin: ownOrigin,
+          },
+        });
+      },
+      focus() {},
+      blur() {},
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent() {
+        return true;
+      },
+    };
+    stub.self = stub;
+    stub.window = stub;
+    stub.parent = stub;
+    stub.top = stub;
+    return stub;
+  };
+  const parentWindowStub = createParentWindowStub();
   windowObj.postMessage = function (...args: unknown[]) {
     const { target, transfer } = pmParseArgs(args);
     const { cloned, ports } = pmSerializeWithTransfer(args[0], transfer);
@@ -1120,7 +1388,142 @@ export function installWindow(
     },
   });
 
-  const pageDefinedGetters = new Set<string | symbol>();
+  const pageDefinedGetters = new Set<PropertyKey>();
+  const windowFunctionNeedsNoBinding = (fn: Function, prop: PropertyKey): boolean => {
+    if (Reflect.get(fn, KS_NO_BIND) || pageAssigned.has(fn)) return true;
+    return typeof prop === "string" && windowHandlerNames.has(prop);
+  };
+  const isWindowConstructor = (fn: Function): boolean => {
+    try {
+      return !!fn.prototype && fn.prototype.constructor === fn;
+    } catch {
+      return false;
+    }
+  };
+  const isGlobalConstructor = (fn: Function): boolean => {
+    try {
+      return Object.prototype.hasOwnProperty.call(fn, "prototype") && fn.prototype != null;
+    } catch {
+      return false;
+    }
+  };
+  const bindAndCacheFunction = (
+    fn: Function,
+    receiver: unknown,
+    cache: WeakMap<Function, Function>,
+    prop: PropertyKey,
+  ): Function => {
+    const cached = cache.get(fn);
+    if (cached) return cached;
+    const bound = bindKeepingIdlShape(fn, receiver);
+    getInternalState().markNative?.(bound, typeof prop === "string" ? prop : "");
+    cache.set(fn, bound);
+    return bound;
+  };
+  const bindWindowFunction = (fn: Function, prop: PropertyKey): Function => {
+    if (windowFunctionNeedsNoBinding(fn, prop) || isWindowConstructor(fn)) return fn;
+    return bindAndCacheFunction(fn, windowObj, boundFromWindow, prop);
+  };
+  const bindGlobalFunction = (fn: Function, prop: PropertyKey): Function => {
+    if (pageAssigned.has(fn) || isGlobalConstructor(fn) || !isRuntimeNative(fn)) return fn;
+    return bindAndCacheFunction(fn, globalThis, boundFromGlobal, prop);
+  };
+  const readOwnWindowValue = (prop: PropertyKey): unknown => {
+    const value = windowObj[prop];
+    return typeof value === "function" ? bindWindowFunction(value, prop) : value;
+  };
+  const readGlobalValue = (prop: PropertyKey): unknown => {
+    const value = ksGlobal[prop];
+    if (value === undefined && !(prop in globalThis)) return namedAccess(prop);
+    return typeof value === "function" ? bindGlobalFunction(value, prop) : value;
+  };
+  const isAccessorDescriptor = (descriptor: PropertyDescriptor): boolean =>
+    descriptor.get !== undefined || descriptor.set !== undefined;
+  const accessorDescriptorBlocksWrite = (
+    descriptor: PropertyDescriptor,
+    prop: PropertyKey,
+  ): boolean => {
+    if (!isAccessorDescriptor(descriptor) || descriptor.set !== undefined) return false;
+    return descriptor.configurable === false || pageDefinedGetters.has(prop);
+  };
+  const dataDescriptorBlocksWrite = (descriptor: PropertyDescriptor, value: unknown): boolean =>
+    descriptor.configurable === false &&
+    !isAccessorDescriptor(descriptor) &&
+    !descriptor.writable &&
+    !Object.is(descriptor.value, value);
+  const canWriteWindowValue = (
+    descriptor: PropertyDescriptor | undefined,
+    prop: PropertyKey,
+    value: unknown,
+  ): boolean => {
+    if (!descriptor) return true;
+    if (accessorDescriptorBlocksWrite(descriptor, prop)) return false;
+    if (dataDescriptorBlocksWrite(descriptor, value)) return false;
+    return true;
+  };
+  const writeWindowObjectValue = (prop: PropertyKey, value: unknown): void => {
+    try {
+      windowObj[prop] = value;
+    } catch {}
+  };
+  const writeGlobalValue = (prop: PropertyKey, value: unknown): void => {
+    try {
+      ksGlobal[prop] = value;
+    } catch {}
+  };
+  const shouldWriteGlobalValue = (onGlobal: boolean, onWindow: boolean): boolean =>
+    onGlobal || !onWindow;
+  const writeWindowValue = (prop: PropertyKey, value: unknown): void => {
+    if (typeof value === "function") pageAssigned.add(value);
+    const onWindow = prop in windowObj;
+    const onGlobal = prop in ksGlobal;
+    if (onWindow) writeWindowObjectValue(prop, value);
+    if (shouldWriteGlobalValue(onGlobal, onWindow)) writeGlobalValue(prop, value);
+  };
+  const descriptorHasValueOrAccessors = (descriptor: PropertyDescriptor): boolean =>
+    "value" in descriptor || descriptor.get !== undefined || descriptor.set !== undefined;
+  const shouldMirrorDescriptor = (prop: PropertyKey, descriptor: PropertyDescriptor): boolean => {
+    if (typeof prop !== "string") return false;
+    if (!descriptorHasValueOrAccessors(descriptor)) return false;
+    if (Object.prototype.hasOwnProperty.call(windowObj, prop)) return false;
+    return !(prop in ksGlobal);
+  };
+  const markPageAssignedDescriptor = (descriptor: PropertyDescriptor): void => {
+    if (typeof descriptor.value === "function") pageAssigned.add(descriptor.value);
+  };
+  const updatePageGetterTracking = (prop: PropertyKey, descriptor: PropertyDescriptor): void => {
+    const isGetterOnly = descriptor.get !== undefined && descriptor.set === undefined;
+    if (isGetterOnly) pageDefinedGetters.add(prop);
+    else pageDefinedGetters.delete(prop);
+  };
+  const descriptorGetter = (prop: PropertyKey, descriptor: PropertyDescriptor) =>
+    descriptor.get ? () => windowObj[prop] : undefined;
+  const descriptorSetter = (prop: PropertyKey, descriptor: PropertyDescriptor) =>
+    descriptor.set
+      ? (value: unknown) => {
+          windowObj[prop] = value;
+        }
+      : undefined;
+  const mirrorAccessorDescriptorToGlobal = (
+    prop: PropertyKey,
+    descriptor: PropertyDescriptor,
+  ): void => {
+    Reflect.defineProperty(ksGlobal, prop, {
+      get: descriptorGetter(prop, descriptor),
+      set: descriptorSetter(prop, descriptor),
+      enumerable: descriptor.enumerable ?? false,
+      configurable: true,
+    });
+  };
+  const mirrorDescriptorToGlobal = (prop: PropertyKey, descriptor: PropertyDescriptor): void => {
+    try {
+      if ("value" in descriptor) {
+        ksGlobal[prop] = descriptor.value;
+        return;
+      }
+      mirrorAccessorDescriptorToGlobal(prop, descriptor);
+    } catch {}
+  };
   // Preserve target descriptors before global fallback to satisfy Window's Proxy invariants.
   const window = new Proxy(windowObj, {
     has(_t, prop) {
@@ -1128,42 +1531,8 @@ export function installWindow(
       return namedAccess(prop) !== undefined;
     },
     get(_t, prop) {
-      if (prop in windowObj) {
-        const v = windowObj[prop];
-        if (typeof v !== "function") return v;
-        if (Reflect.get(v, KS_NO_BIND) || pageAssigned.has(v)) return v;
-        if (typeof prop === "string" && windowHandlerNames.has(prop)) return v;
-        try {
-          if (v.prototype && v.prototype.constructor === v) return v;
-        } catch {}
-        const cachedOwn = boundFromWindow.get(v);
-        if (cachedOwn) return cachedOwn;
-        const own = bindKeepingIdlShape(v, windowObj);
-        getInternalState().markNative?.(own, typeof prop === "string" ? prop : "");
-        boundFromWindow.set(v, own);
-        return own;
-      }
-      const v = ksGlobal[prop];
-      if (v === undefined && !(prop in globalThis)) {
-        const named = namedAccess(prop);
-        if (named !== undefined) return named;
-        return undefined;
-      }
-      if (typeof v !== "function") return v;
-      if (pageAssigned.has(v)) return v;
-      try {
-        if (Object.prototype.hasOwnProperty.call(v, "prototype") && v.prototype != null) {
-          return v;
-        }
-      } catch {}
-      const cached = boundFromGlobal.get(v);
-      if (cached) return cached;
-      if (!isRuntimeNative(v)) return v;
-      // Preserve globalThis as receiver for runtime-native functions exposed through this fallback.
-      const bound = bindKeepingIdlShape(v, globalThis);
-      getInternalState().markNative?.(bound, typeof prop === "string" ? prop : "");
-      boundFromGlobal.set(v, bound);
-      return bound;
+      if (prop in windowObj) return readOwnWindowValue(prop);
+      return readGlobalValue(prop);
     },
     getOwnPropertyDescriptor(t, prop) {
       const own = Object.getOwnPropertyDescriptor(t, prop);
@@ -1176,71 +1545,17 @@ export function installWindow(
     },
     set(_t, prop, value) {
       const guard = Reflect.getOwnPropertyDescriptor(windowObj, prop);
-      if (guard) {
-        const isAccessor = guard.get !== undefined || guard.set !== undefined;
-        if (
-          isAccessor &&
-          guard.set === undefined &&
-          (guard.configurable === false || pageDefinedGetters.has(prop))
-        ) {
-          return false;
-        }
-        if (
-          guard.configurable === false &&
-          !isAccessor &&
-          !guard.writable &&
-          !Object.is(guard.value, value)
-        ) {
-          return false;
-        }
-      }
-      const onWindow = prop in windowObj;
-      const onGlobal = prop in ksGlobal;
-      if (typeof value === "function") pageAssigned.add(value);
-      if (onWindow) {
-        try {
-          windowObj[prop] = value;
-        } catch {}
-      }
-      if (onGlobal || !onWindow) {
-        try {
-          ksGlobal[prop] = value;
-        } catch {}
-      }
+      if (!canWriteWindowValue(guard, prop, value)) return false;
+      writeWindowValue(prop, value);
       return true;
     },
     defineProperty(_t, prop, desc) {
-      const mirror =
-        typeof prop === "string" &&
-        desc &&
-        ("value" in desc || desc.get !== undefined || desc.set !== undefined) &&
-        !Object.prototype.hasOwnProperty.call(windowObj, prop) &&
-        !(prop in ksGlobal);
-      if (desc && typeof desc.value === "function") pageAssigned.add(desc.value);
+      const mirror = shouldMirrorDescriptor(prop, desc);
+      markPageAssignedDescriptor(desc);
       const ok = Reflect.defineProperty(windowObj, prop, desc);
-      if (ok) {
-        const isGetterOnly = desc !== undefined && desc.get !== undefined && desc.set === undefined;
-        if (isGetterOnly) pageDefinedGetters.add(prop);
-        else pageDefinedGetters.delete(prop);
-      }
-      if (ok && mirror) {
-        try {
-          if ("value" in desc) {
-            ksGlobal[prop] = (desc as any).value;
-          } else {
-            Reflect.defineProperty(ksGlobal, prop, {
-              get: desc.get ? () => windowObj[prop] : undefined,
-              set: desc.set
-                ? (v: any) => {
-                    windowObj[prop] = v;
-                  }
-                : undefined,
-              enumerable: desc.enumerable ?? false,
-              configurable: true,
-            });
-          }
-        } catch {}
-      }
+      if (!ok) return false;
+      updatePageGetterTracking(prop, desc);
+      if (mirror) mirrorDescriptorToGlobal(prop, desc);
       return ok;
     },
   });
@@ -1258,20 +1573,20 @@ export function stampNamedGlobal(nodeId: number, name: string): void {
   recordNamedGlobal(nodeId, name, isConnectedNode(nodeId));
 }
 
-function recordNamedGlobal(nodeId: number, name: string, connected: boolean): void {
-  if (nodeIdName.get(nodeId) !== name) forgetIdGlobal(nodeId);
-  if (typeof name !== "string" || name.length === 0) return;
-  if (/^[0-9_$]/.test(name)) return;
-  nodeIdName.set(nodeId, name);
+function isRecordableNamedGlobal(name: string): boolean {
+  return typeof name === "string" && name.length > 0 && !/^[0-9_$]/.test(name);
+}
+
+function namedGlobalEntry(name: string) {
   let entry = stampedNames.get(name);
   if (!entry) {
     entry = { getter: () => namedGlobalValue(name), nodeIds: new Set() };
     stampedNames.set(name, entry);
   }
-  entry.nodeIds.add(nodeId);
-  // An own property here is a real global or the page's own; a named property never shadows it.
-  if (!connected || isReservedGlobalName(name)) return;
-  const getter = entry.getter;
+  return entry;
+}
+
+function installNamedGlobalAccessor(name: string, getter: () => unknown): void {
   try {
     Object.defineProperty(ksGlobal, name, {
       configurable: true,
@@ -1288,6 +1603,17 @@ function recordNamedGlobal(nodeId: number, name: string, connected: boolean): vo
       },
     });
   } catch {}
+}
+
+function recordNamedGlobal(nodeId: number, name: string, connected: boolean): void {
+  if (nodeIdName.get(nodeId) !== name) forgetIdGlobal(nodeId);
+  if (!isRecordableNamedGlobal(name)) return;
+  nodeIdName.set(nodeId, name);
+  const entry = namedGlobalEntry(name);
+  entry.nodeIds.add(nodeId);
+  // An own property here is a real global or the page's own; a named property never shadows it.
+  if (!connected || isReservedGlobalName(name)) return;
+  installNamedGlobalAccessor(name, entry.getter);
 }
 
 function isConnectedNode(nodeId: number): boolean {
@@ -1330,15 +1656,21 @@ function stampSubtreeIds(rootId: number, connected: boolean) {
 // The accessor behind a bare ID, resolved through blitz's ID map. Frame names without a
 // matching ID go through the window proxy instead, which scans every iframe and would make
 // each bare read O(document).
+function isNamedIframeElement(element: any, name: string): boolean {
+  return element.localName === "iframe" && element.getAttribute("name") === name;
+}
+
+function namedGlobalElementValue(element: any, name: string): unknown {
+  if (!element) return undefined;
+  if (!isNamedIframeElement(element, name)) return element;
+  const frame: NamedIframe = element;
+  return frame.contentWindow ?? undefined;
+}
+
 function namedGlobalValue(name: string): unknown {
   try {
     const el = documentImpl?.getElementById(name);
-    if (!el) return undefined;
-    if (el.localName === "iframe" && el.getAttribute("name") === name) {
-      const frame: NamedIframe = el;
-      return frame.contentWindow ?? undefined;
-    }
-    return el;
+    return namedGlobalElementValue(el, name);
   } catch {
     return undefined;
   }
@@ -1366,54 +1698,73 @@ function documentIframes(doc: IframeRoot): NamedIframe[] {
 
 type NamedIframeAccess = { matched: false } | { matched: true; value: unknown };
 
+function iframeNamedAccess(iframe: NamedIframe, prop: string): NamedIframeAccess | null {
+  try {
+    if (iframe.getAttribute?.("name") === prop) {
+      return { matched: true, value: iframe.contentWindow ?? undefined };
+    }
+  } catch {}
+  return null;
+}
+
 function namedIframeAccess(doc: IframeRoot, prop: string): NamedIframeAccess {
   for (const iframe of documentIframes(doc)) {
-    try {
-      if (iframe.getAttribute?.("name") === prop) {
-        return { matched: true, value: iframe.contentWindow ?? undefined };
-      }
-    } catch {}
+    const access = iframeNamedAccess(iframe, prop);
+    if (access) return access;
   }
   return { matched: false };
 }
 
-function namedAccess(prop: any) {
-  if (typeof prop !== "string" || prop.length === 0) return undefined;
-  if (/^\d+$/.test(prop)) {
-    try {
-      const doc = documentImpl;
-      const iframes = doc?.querySelectorAll ? documentIframes(doc) : undefined;
-      const el = iframes ? iframes[Number(prop)] : undefined;
-      return el ? (el.contentWindow ?? undefined) : undefined;
-    } catch {
-      return undefined;
-    }
+function indexedNamedFrameAt(doc: IframeRoot | null | undefined, index: number): unknown {
+  if (!doc?.querySelectorAll) return undefined;
+  return documentIframes(doc)[index]?.contentWindow ?? undefined;
+}
+
+function indexedNamedFrameAccess(prop: string): unknown {
+  try {
+    return indexedNamedFrameAt(documentImpl, Number(prop));
+  } catch {
+    return undefined;
   }
-  if (/^[_$]/.test(prop)) return undefined;
+}
+
+function namedFrameAccess(doc: IframeRoot | null, prop: string): NamedIframeAccess {
+  if (!doc?.querySelectorAll) return { matched: false };
+  return namedIframeAccess(doc, prop);
+}
+
+function namedElementById(doc: typeof documentImpl, prop: string): unknown {
+  if (!doc || typeof doc.getElementById !== "function") return undefined;
+  const element = doc.getElementById(prop);
+  return element ? element : undefined;
+}
+
+function namedAccessByName(prop: string): unknown {
   try {
     const doc = documentImpl;
-    if (doc?.querySelectorAll) {
-      // A frame name resolves to its window before element lookup; an iframe ID alone still
-      // resolves to the element, as in Chrome.
-      const iframe = namedIframeAccess(doc, prop);
-      if (iframe.matched) return iframe.value;
-    }
-    if (doc && typeof doc.getElementById === "function") {
-      const el = doc.getElementById(prop);
-      if (el) return el;
-    }
+    const iframe = namedFrameAccess(doc, prop);
+    if (iframe.matched) return iframe.value;
+    return namedElementById(doc, prop);
   } catch {}
   return undefined;
+}
+
+function namedAccess(prop: any) {
+  if (typeof prop !== "string" || prop.length === 0) return undefined;
+  if (/^\d+$/.test(prop)) return indexedNamedFrameAccess(prop);
+  if (/^[_$]/.test(prop)) return undefined;
+  return namedAccessByName(prop);
+}
+
+function stampNamedGlobalElement(node: Element): void {
+  const id = node && node.getAttribute && node.getAttribute("id");
+  if (typeof id === "string" && id.length > 0) stampNamedGlobal(node._id, id);
 }
 
 export function stampSubtreeNamedGlobals(el: Element): void {
   try {
     const withIds = el.querySelectorAll("[id]");
-    for (let i = 0; i < withIds.length; i++) {
-      const node = withIds[i];
-      const id = node && node.getAttribute && node.getAttribute("id");
-      if (typeof id === "string" && id.length > 0) stampNamedGlobal(node._id, id);
-    }
+    for (let i = 0; i < withIds.length; i++) stampNamedGlobalElement(withIds[i]);
   } catch {}
 }
 
@@ -1441,16 +1792,21 @@ function markNoBind<F extends object>(fn: F, idlName?: string): F {
   return fn;
 }
 
+function isNullishWindowReceiver(self: unknown): boolean {
+  return self === null || self === undefined;
+}
+
+function isAllowedWindowReceiver(self: unknown): boolean {
+  return self === stateWindowObj || self === windowProxy || self === globalThis;
+}
+
 function assertWindowReceiver(self: unknown) {
-  if (self === null || self === undefined) return;
-  if (self === stateWindowObj || self === windowProxy || self === globalThis) return;
+  if (isNullishWindowReceiver(self)) return;
+  if (isAllowedWindowReceiver(self)) return;
   throw new TypeError("Illegal invocation");
 }
 
-function idFromNodeInfo(info: unknown) {
-  // nodeInfo is wasm-owned; this scan only needs its dynamic attributes field.
-  const attributes: unknown = info && (info as { attributes?: unknown }).attributes;
-  if (!Array.isArray(attributes)) return null;
+function findIdAttribute(attributes: unknown[]): string | null {
   for (let i = 0; i < attributes.length - 1; i += 2) {
     if (attributes[i] !== "id") continue;
     const id = attributes[i + 1];
@@ -1459,19 +1815,31 @@ function idFromNodeInfo(info: unknown) {
   return null;
 }
 
-export function stampInitialNamedGlobals(): void {
-  let ids: Int32Array | null;
+function idFromNodeInfo(info: unknown) {
+  // nodeInfo is wasm-owned; this scan only needs its dynamic attributes field.
+  const attributes: unknown = info && (info as { attributes?: unknown }).attributes;
+  if (!Array.isArray(attributes)) return null;
+  return findIdAttribute(attributes);
+}
+
+function initialNamedNodeIds(): Int32Array | null {
   try {
-    ids = typeof dom.querySelectorAll === "function" ? dom.querySelectorAll("[id]") : null;
+    if (typeof dom.querySelectorAll !== "function") return null;
+    return dom.querySelectorAll("[id]");
   } catch {
-    return;
+    return null;
   }
+}
+
+function stampInitialNamedGlobalId(nodeId: number): void {
+  if (typeof nodeId !== "number" || nodeId <= 0) return;
+  const id = idAttributeOf(nodeId);
+  // A document-scoped query only returns connected nodes.
+  if (id !== null) recordNamedGlobal(nodeId, id, true);
+}
+
+export function stampInitialNamedGlobals(): void {
+  const ids = initialNamedNodeIds();
   if (!ids || typeof ids !== "object") return;
-  for (let i = 0; i < ids.length; i++) {
-    const nodeId = ids[i];
-    if (typeof nodeId !== "number" || nodeId <= 0) continue;
-    const id = idAttributeOf(nodeId);
-    // A document-scoped query only returns connected nodes.
-    if (id !== null) recordNamedGlobal(nodeId, id, true);
-  }
+  for (let i = 0; i < ids.length; i++) stampInitialNamedGlobalId(ids[i]);
 }

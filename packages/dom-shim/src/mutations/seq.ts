@@ -20,28 +20,54 @@ export function bumpMutationSeq(hint?: MutationHint, attrsUnchanged = false): vo
   const cs = getInternalState();
   const v = (cs.mutationSeq | 0) + 1;
   cs.mutationSeq = v;
-  if (hint === "paint") cs.paintNeutralSeq = (cs.paintNeutralSeq | 0) + 1;
-  else cs.treeSeq = (cs.treeSeq | 0) + 1;
-  if (typeof hint === "object" && typeof hint.node === "number") {
-    const wrapper = liveWrapper(hint.node);
-    if (wrapper) wrapper._attrFlatCache = null;
-    else if (adoptedWrapperIds.has(hint.node)) cs.attrSeq = (cs.attrSeq | 0) + 1;
-  } else if (
-    hint !== "text" &&
-    hint !== "data" &&
-    hint !== "paint" &&
-    hint !== "style" &&
-    !attrsUnchanged
-  ) {
-    cs.attrSeq = (cs.attrSeq | 0) + 1;
-  }
-  if (typeof hint !== "object" && hint !== "data" && hint !== "paint" && hint !== "style") {
-    cs.childSeq = (cs.childSeq | 0) + 1;
-  }
+  advanceMutationTreeSeq(cs, hint);
+  if (isNumericNodeHint(hint)) updateNodeAttributeCache(cs, hint);
+  else if (shouldAdvanceAttributeSeq(hint, attrsUnchanged)) cs.attrSeq = (cs.attrSeq | 0) + 1;
+  if (shouldAdvanceChildSeq(hint)) cs.childSeq = (cs.childSeq | 0) + 1;
   cs.lastMutationAt = Date.now();
-  for (const h of postMutationHooks) {
+  runPostMutationHooks(hint);
+}
+
+function advanceMutationTreeSeq(
+  state: ReturnType<typeof getInternalState>,
+  hint: MutationHint | undefined,
+): void {
+  if (hint === "paint") state.paintNeutralSeq = (state.paintNeutralSeq | 0) + 1;
+  else state.treeSeq = (state.treeSeq | 0) + 1;
+}
+
+function isNumericNodeHint(
+  hint: MutationHint | undefined,
+): hint is { attribute: string; node: number } {
+  return typeof hint === "object" && typeof hint.node === "number";
+}
+
+function updateNodeAttributeCache(
+  state: ReturnType<typeof getInternalState>,
+  hint: { attribute: string; node: number },
+): void {
+  const wrapper = liveWrapper(hint.node);
+  if (wrapper) wrapper._attrFlatCache = null;
+  else if (adoptedWrapperIds.has(hint.node)) state.attrSeq = (state.attrSeq | 0) + 1;
+}
+
+function shouldAdvanceAttributeSeq(
+  hint: MutationHint | undefined,
+  attrsUnchanged: boolean,
+): boolean {
+  return (
+    hint !== "text" && hint !== "data" && hint !== "paint" && hint !== "style" && !attrsUnchanged
+  );
+}
+
+function shouldAdvanceChildSeq(hint: MutationHint | undefined): boolean {
+  return typeof hint !== "object" && hint !== "data" && hint !== "paint" && hint !== "style";
+}
+
+function runPostMutationHooks(hint: MutationHint | undefined): void {
+  for (const hook of postMutationHooks) {
     try {
-      h(hint);
+      hook(hint);
     } catch {}
   }
 }

@@ -148,10 +148,16 @@ function htmlParseInteger(raw: string): number | null {
   const m = /^[\t\n\f\r ]*([+-]?\d+)/.exec(raw);
   if (!m) return null;
   const n = parseInt(m[1], 10);
-  if (!Number.isFinite(n) || n < -2147483648 || n > 2147483647) {
-    return null;
-  }
-  return n === 0 ? 0 : n;
+  if (!isValidHtmlLong(n)) return null;
+  return canonicalizeZero(n);
+}
+
+function isValidHtmlLong(value: number): boolean {
+  return Number.isFinite(value) && value >= -2147483648 && value <= 2147483647;
+}
+
+function canonicalizeZero(value: number): number {
+  return value === 0 ? 0 : value;
 }
 function defineReflectedLong<P extends Element>(
   proto: P,
@@ -189,14 +195,9 @@ function defineClampedLong<P extends Element>(
     get(this: Element) {
       const raw = this.getAttribute(attrName);
       if (raw == null) return def;
-      const m = /^[\t\n\f\r ]*([+-]?\d+)/.exec(raw);
-      if (!m) return def;
-      let n = parseInt(m[1], 10);
-      if (!Number.isFinite(n)) return def;
-      if (n === 0) n = 0;
-      if (n < min) return def;
-      if (n > max) return max;
-      return n;
+      const value = parseClampedLong(raw);
+      if (value === null) return def;
+      return clampParsedLong(value, min, max, def);
     },
     set(this: Element, value) {
       const u = value >>> 0;
@@ -204,6 +205,20 @@ function defineClampedLong<P extends Element>(
       this.setAttribute(attrName, String(n));
     },
   });
+}
+
+function parseClampedLong(raw: string): number | null {
+  const match = /^[\t\n\f\r ]*([+-]?\d+)/.exec(raw);
+  if (!match) return null;
+  const value = parseInt(match[1], 10);
+  if (!Number.isFinite(value)) return null;
+  return canonicalizeZero(value);
+}
+
+function clampParsedLong(value: number, min: number, max: number, fallback: number): number {
+  if (value < min) return fallback;
+  if (value > max) return max;
+  return value;
 }
 // URL getters resolve against baseURI but preserve invalid raw values.
 // https://html.spec.whatwg.org/#reflecting-content-attributes-in-idl-attributes

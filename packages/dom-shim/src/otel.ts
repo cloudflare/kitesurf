@@ -151,6 +151,105 @@ const NOOP_SPAN = {
   recordException: () => {},
 } satisfies Span;
 
+type ActiveSpanCallback = (span: Span) => unknown;
+type ActiveSpanOptions = { attributes?: Attributes };
+type SpanBridge = {
+  enter: typeof ksGlobal.__ksJsSpanEnter;
+  exit: typeof ksGlobal.__ksJsSpanExit;
+};
+
+function activeSpanCallback(rest: unknown[]): ActiveSpanCallback | undefined {
+  return rest.find((arg) => typeof arg === "function") as ActiveSpanCallback | undefined;
+}
+
+function activeSpanOptions(rest: unknown[]): ActiveSpanOptions | undefined {
+  const candidate = rest[0];
+  return typeof candidate === "object" && candidate !== null
+    ? (candidate as ActiveSpanOptions)
+    : undefined;
+}
+
+function spanBridge(): SpanBridge | null {
+  const enter = ksGlobal.__ksJsSpanEnter;
+  const exit = ksGlobal.__ksJsSpanExit;
+  return typeof enter === "function" && typeof exit === "function" ? { enter, exit } : null;
+}
+
+function bridgeDetails(attributes?: Attributes): { bytes: number; detail: string } {
+  let bytes = -1;
+  let detail = "";
+  if (attributes) {
+    for (const key of Object.keys(attributes)) {
+      const value = attributes[key];
+      bytes = bridgeByteValue(bytes, value);
+      detail = bridgeDetailValue(detail, value);
+    }
+  }
+  return { bytes, detail };
+}
+
+function bridgeByteValue(current: number, value: Attributes[string]): number {
+  if (typeof value !== "number" || current >= 0) return current;
+  return value;
+}
+
+function bridgeDetailValue(current: string, value: Attributes[string]): string {
+  if (typeof value !== "string" || current) return current;
+  return value;
+}
+
+function enterBridgeSpan(bridge: SpanBridge, name: string, bytes: number, detail: string): number {
+  try {
+    return bridge.enter(name, bytes, detail);
+  } catch {
+    return -1;
+  }
+}
+
+function exitBridgeSpan(bridge: SpanBridge, slot: number): void {
+  try {
+    bridge.exit(slot);
+  } catch {}
+}
+
+function runBridgeCallback(
+  callback: ActiveSpanCallback,
+  slot: number,
+  bridge: SpanBridge,
+): unknown {
+  try {
+    return callback(NOOP_SPAN);
+  } finally {
+    if (slot >= 0) exitBridgeSpan(bridge, slot);
+  }
+}
+
+function startBridgedSpan(
+  name: string,
+  callback: ActiveSpanCallback,
+  attributes: Attributes | undefined,
+  bridge: SpanBridge,
+): unknown {
+  const { bytes, detail } = bridgeDetails(attributes);
+  const slot = enterBridgeSpan(bridge, name, bytes, detail);
+  return runBridgeCallback(callback, slot, bridge);
+}
+
+function startUnbridgedSpan(
+  name: string,
+  options: ActiveSpanOptions | undefined,
+  callback: ActiveSpanCallback | undefined,
+): unknown {
+  const span = new KsSpan(name, options?.attributes);
+  if (!callback) return span as any;
+  stack.push(span);
+  try {
+    return callback(span);
+  } finally {
+    stack.pop();
+  }
+}
+
 class KsSpan implements Span {
   private _name: string;
   private _ctx: SpanContext;
@@ -228,45 +327,13 @@ const ksTracer: Tracer = {
     return new KsSpan(name, options?.attributes);
   },
   startActiveSpan(name: string, ...rest: unknown[]): any {
-    const fn = rest.find((a) => typeof a === "function") as ((span: Span) => unknown) | undefined;
-    const opts = (typeof rest[0] === "object" && rest[0] !== null ? rest[0] : undefined) as
-      | { attributes?: Attributes }
-      | undefined;
-    const enter = ksGlobal.__ksJsSpanEnter;
-    const exit = ksGlobal.__ksJsSpanExit;
-    if (fn && typeof enter === "function" && typeof exit === "function") {
-      let bytes = -1;
-      let detail = "";
-      const attrs = opts?.attributes;
-      if (attrs) {
-        for (const k of Object.keys(attrs)) {
-          const v = attrs[k];
-          if (typeof v === "number" && bytes < 0) bytes = v;
-          else if (typeof v === "string" && !detail) detail = v;
-        }
-      }
-      let slot = -1;
-      try {
-        slot = enter(name, bytes, detail);
-      } catch {}
-      try {
-        return fn(NOOP_SPAN);
-      } finally {
-        if (slot >= 0) {
-          try {
-            exit(slot);
-          } catch {}
-        }
-      }
+    const callback = activeSpanCallback(rest);
+    const options = activeSpanOptions(rest);
+    const bridge = spanBridge();
+    if (callback && bridge) {
+      return startBridgedSpan(name, callback, options?.attributes, bridge);
     }
-    const span = new KsSpan(name, opts?.attributes);
-    if (!fn) return span as any;
-    stack.push(span as KsSpan);
-    try {
-      return fn(span);
-    } finally {
-      stack.pop();
-    }
+    return startUnbridgedSpan(name, options, callback);
   },
 } as Tracer;
 

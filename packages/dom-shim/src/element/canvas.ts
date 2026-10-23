@@ -39,18 +39,25 @@ const NativeWeakRef: typeof WeakRef | undefined = ksGlobal.WeakRef;
 const canvasRef = (canvas: HTMLCanvasElement): CanvasCacheEntry =>
   NativeWeakRef ? new NativeWeakRef(canvas) : { deref: () => canvas };
 
-function flushCanvasCtx(canvas: HTMLCanvasElement): void {
+function cachedCanvas(canvas: HTMLCanvasElement): CanvasCacheEntry | undefined {
   const cached = canvas2dCache.get(canvas._id);
-  if (!cached || cached.deref() !== canvas) return;
+  return cached?.deref() === canvas ? cached : undefined;
+}
+
+function flushCanvasCtx(canvas: HTMLCanvasElement): void {
+  if (!cachedCanvas(canvas)) return;
   try {
     canvas.__ks2dCtx?.__ksFlushForRead?.();
   } catch {}
 }
 function canvasPngBytes(canvas: HTMLCanvasElement): Uint8Array | null {
-  const cached = canvas2dCache.get(canvas._id);
-  if (!cached || cached.deref() !== canvas) return null;
+  if (!cachedCanvas(canvas)) return null;
+  return encodeCanvasPng(canvas._id);
+}
+
+function encodeCanvasPng(id: number): Uint8Array | null {
   try {
-    const bytes = dom?.canvasEncodePng(canvas._id);
+    const bytes = dom?.canvasEncodePng(id);
     if (bytes && bytes.length > 0) return bytes;
   } catch {}
   return null;
@@ -61,17 +68,22 @@ function canvasPngBytes(canvas: HTMLCanvasElement): Uint8Array | null {
 function ensureCanvasOriginClean(canvas: HTMLCanvasElement): void {
   const isClean = dom?.canvasIsOriginClean;
   if (typeof isClean !== "function") return;
-  let clean = true;
-  try {
-    clean = !!isClean.call(dom, canvas._id);
-  } catch {
-    clean = true;
-  }
-  if (!clean) {
+  if (!canvasIsOriginClean(isClean, canvas._id)) {
     throw new (ksGlobal.DOMException || Error)(
       "The canvas has been tainted by cross-origin data.",
       "SecurityError",
     );
+  }
+}
+
+function canvasIsOriginClean(
+  isClean: NonNullable<typeof dom>["canvasIsOriginClean"],
+  id: number,
+): boolean {
+  try {
+    return !!isClean.call(dom, id);
+  } catch {
+    return true;
   }
 }
 // The reflections below the class install these.
@@ -88,23 +100,7 @@ class HTMLCanvasElement extends HTMLElement implements Idl.HTMLCanvasElement {
   getContext(contextType?: string, _attributes?: unknown): Idl.RenderingContext | null {
     const kind = String(contextType ?? "").toLowerCase();
     if (kind !== "2d") return null;
-    const id = this._id;
-    const cached = canvas2dCache.get(id);
-    const cachedWrapper = cached?.deref();
-    if (cachedWrapper === this && this.__ks2dCtx) return this.__ks2dCtx;
-    if (cached && cachedWrapper !== this) {
-      try {
-        dom?.clearCanvasPixels(id);
-      } catch {}
-    }
-    const ctx = makeCanvas2DContext(this);
-    Object.defineProperty(this, "__ks2dCtx", { value: ctx, configurable: true });
-    const entry = canvasRef(this);
-    canvas2dCache.set(id, entry);
-    try {
-      canvasSurfaceReaper?.register(this, { id, entry });
-    } catch {}
-    return ctx;
+    return getOrCreateCanvasContext(this);
   }
   toDataURL(_type?: string, _quality?: unknown): string {
     flushCanvasCtx(this);
@@ -130,6 +126,46 @@ class HTMLCanvasElement extends HTMLElement implements Idl.HTMLCanvasElement {
       } catch {}
     }, 0);
   }
+}
+
+function getOrCreateCanvasContext(canvas: HTMLCanvasElement): Idl.RenderingContext {
+  const id = canvas._id;
+  const context = existingCanvasContext(canvas, id);
+  if (context) return context;
+  clearReplacedCanvasPixels(canvas, id);
+  const ctx = makeCanvas2DContext(canvas);
+  Object.defineProperty(canvas, "__ks2dCtx", { value: ctx, configurable: true });
+  const entry = canvasRef(canvas);
+  canvas2dCache.set(id, entry);
+  registerCanvasSurface(canvas, id, entry);
+  return ctx;
+}
+
+function existingCanvasContext(
+  canvas: HTMLCanvasElement,
+  id: number,
+): ReturnType<typeof makeCanvas2DContext> | null {
+  const cached = canvas2dCache.get(id);
+  const cachedWrapper = cached?.deref();
+  return cachedWrapper === canvas && canvas.__ks2dCtx ? canvas.__ks2dCtx : null;
+}
+
+function clearReplacedCanvasPixels(canvas: HTMLCanvasElement, id: number): void {
+  const cached = canvas2dCache.get(id);
+  if (!cached || cached.deref() === canvas) return;
+  try {
+    dom?.clearCanvasPixels(id);
+  } catch {}
+}
+
+function registerCanvasSurface(
+  canvas: HTMLCanvasElement,
+  id: number,
+  entry: CanvasCacheEntry,
+): void {
+  try {
+    canvasSurfaceReaper?.register(canvas, { id, entry });
+  } catch {}
 }
 
 defineReflectedUnsignedLong(HTMLCanvasElement.prototype, "width", "width", 300);

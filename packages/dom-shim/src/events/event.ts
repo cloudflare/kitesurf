@@ -12,24 +12,37 @@ import { MAX_SHADOW_ROOT_HOPS } from "../constants.js";
 
 function rootChainOf(nodeId: number): Set<number> {
   const chain = new Set<number>();
-  if (nodeId == null || nodeId < 0) return chain;
+  if (isInvalidShadowNodeId(nodeId)) return chain;
   let cur = nodeId;
-  let safety = 0;
-  while (safety++ < MAX_SHADOW_ROOT_HOPS) {
-    let rootId = -1;
-    try {
-      rootId = dom.shadowHostId(cur) >= 0 ? cur : dom.containingShadowRootId(cur);
-    } catch {}
+  for (let safety = 0; safety < MAX_SHADOW_ROOT_HOPS; safety++) {
+    const rootId = shadowRootFor(cur);
     if (rootId < 0) break;
     chain.add(rootId);
-    let host = -1;
-    try {
-      host = dom.shadowHostId(rootId);
-    } catch {}
+    const host = shadowHostFor(rootId);
     if (host < 0) break;
     cur = host;
   }
   return chain;
+}
+
+function isInvalidShadowNodeId(nodeId: number): boolean {
+  return nodeId == null || nodeId < 0;
+}
+
+function shadowRootFor(nodeId: number): number {
+  try {
+    return dom.shadowHostId(nodeId) >= 0 ? nodeId : dom.containingShadowRootId(nodeId);
+  } catch {
+    return -1;
+  }
+}
+
+function shadowHostFor(nodeId: number): number {
+  try {
+    return dom.shadowHostId(nodeId);
+  } catch {
+    return -1;
+  }
 }
 
 export interface EventState {
@@ -420,20 +433,11 @@ export class KsDeviceMotionEvent extends KsEvent implements Idl.DeviceMotionEven
   readonly #interval: number = 0;
   constructor(type: string, init?: Idl.DeviceMotionEventInit | null) {
     super(type, init);
-    const i = init || {};
-    if (i.acceleration != null) {
-      this.#acceleration = new KsDeviceMotionEventAcceleration(INTERNAL_CONSTRUCT, i.acceleration);
-    }
-    if (i.accelerationIncludingGravity != null) {
-      this.#accelerationIncludingGravity = new KsDeviceMotionEventAcceleration(
-        INTERNAL_CONSTRUCT,
-        i.accelerationIncludingGravity,
-      );
-    }
-    if (i.rotationRate != null) {
-      this.#rotationRate = new KsDeviceMotionEventRotationRate(INTERNAL_CONSTRUCT, i.rotationRate);
-    }
-    if (typeof i.interval === "number") this.#interval = i.interval;
+    const values = deviceMotionEventValues(init);
+    this.#acceleration = values.acceleration;
+    this.#accelerationIncludingGravity = values.accelerationIncludingGravity;
+    this.#rotationRate = values.rotationRate;
+    this.#interval = values.interval;
   }
   get acceleration() {
     return this.#acceleration;
@@ -447,6 +451,25 @@ export class KsDeviceMotionEvent extends KsEvent implements Idl.DeviceMotionEven
   get interval() {
     return this.#interval;
   }
+}
+
+function deviceMotionEventValues(init?: Idl.DeviceMotionEventInit | null) {
+  const i = init || {};
+  return {
+    acceleration:
+      i.acceleration == null
+        ? null
+        : new KsDeviceMotionEventAcceleration(INTERNAL_CONSTRUCT, i.acceleration),
+    accelerationIncludingGravity:
+      i.accelerationIncludingGravity == null
+        ? null
+        : new KsDeviceMotionEventAcceleration(INTERNAL_CONSTRUCT, i.accelerationIncludingGravity),
+    rotationRate:
+      i.rotationRate == null
+        ? null
+        : new KsDeviceMotionEventRotationRate(INTERNAL_CONSTRUCT, i.rotationRate),
+    interval: eventNumberFromInit(i, "interval", 0),
+  };
 }
 
 export class KsDeviceOrientationEvent extends KsEvent implements Idl.DeviceOrientationEvent {
@@ -491,12 +514,12 @@ export class KsMessageEvent extends KsEvent implements Idl.MessageEvent {
   }
   constructor(type: string, init?: Idl.MessageEventInit | null) {
     super(type, init);
-    const i = init || {};
-    this.#data = i.data === undefined ? null : i.data;
-    this.#origin = i.origin ? String(i.origin) : "";
-    this.#lastEventId = i.lastEventId ? String(i.lastEventId) : "";
-    this.#source = i.source === undefined ? null : i.source;
-    this.#ports = Array.isArray(i.ports) ? i.ports.slice() : [];
+    const values = messageEventValues(init || {});
+    this.#data = values.data;
+    this.#origin = values.origin;
+    this.#lastEventId = values.lastEventId;
+    this.#source = values.source;
+    this.#ports = values.ports;
   }
   get data() {
     return this.#data;
@@ -534,6 +557,20 @@ export class KsMessageEvent extends KsEvent implements Idl.MessageEvent {
   }
 }
 
+function messageEventValues(i: Idl.MessageEventInit) {
+  return {
+    data: i.data === undefined ? null : i.data,
+    origin: i.origin ? String(i.origin) : "",
+    lastEventId: i.lastEventId ? String(i.lastEventId) : "",
+    source: i.source === undefined ? null : i.source,
+    ports: messageEventPorts(i),
+  };
+}
+
+function messageEventPorts(i: Idl.MessageEventInit): Idl.MessagePort[] {
+  return Array.isArray(i.ports) ? i.ports.slice() : [];
+}
+
 export function postMessageEvent(
   data: unknown,
   origin: string,
@@ -553,12 +590,12 @@ export class KsStorageEvent extends KsEvent implements Idl.StorageEvent {
   #storageArea: Idl.Storage | null;
   constructor(type: string, init?: Idl.StorageEventInit | null) {
     super(type, init);
-    const i = init || {};
-    this.#key = i.key === undefined ? null : i.key;
-    this.#oldValue = i.oldValue === undefined ? null : i.oldValue;
-    this.#newValue = i.newValue === undefined ? null : i.newValue;
-    this.#url = i.url ? String(i.url) : "";
-    this.#storageArea = i.storageArea === undefined ? null : i.storageArea;
+    const values = storageEventValues(init || {});
+    this.#key = values.key;
+    this.#oldValue = values.oldValue;
+    this.#newValue = values.newValue;
+    this.#url = values.url;
+    this.#storageArea = values.storageArea;
   }
   get key() {
     return this.#key;
@@ -596,6 +633,20 @@ export class KsStorageEvent extends KsEvent implements Idl.StorageEvent {
   }
 }
 
+function storageEventValues(i: Idl.StorageEventInit) {
+  return {
+    key: i.key === undefined ? null : i.key,
+    oldValue: i.oldValue === undefined ? null : i.oldValue,
+    newValue: i.newValue === undefined ? null : i.newValue,
+    url: i.url ? String(i.url) : "",
+    storageArea: storageAreaFromInit(i),
+  };
+}
+
+function storageAreaFromInit(i: Idl.StorageEventInit): Idl.Storage | null {
+  return i.storageArea === undefined ? null : i.storageArea;
+}
+
 export class KsErrorEvent extends KsEvent implements Idl.ErrorEvent {
   readonly #message: string;
   readonly #filename: string;
@@ -604,12 +655,12 @@ export class KsErrorEvent extends KsEvent implements Idl.ErrorEvent {
   readonly #error: unknown;
   constructor(type: string, init?: Idl.ErrorEventInit | null) {
     super(type, init);
-    const i = init || {};
-    this.#message = typeof i.message === "string" ? i.message : "";
-    this.#filename = typeof i.filename === "string" ? i.filename : "";
-    this.#lineno = (i.lineno as number) | 0 || 0;
-    this.#colno = (i.colno as number) | 0 || 0;
-    this.#error = i.error === undefined ? null : i.error;
+    const values = errorEventValues(init || {});
+    this.#message = values.message;
+    this.#filename = values.filename;
+    this.#lineno = values.lineno;
+    this.#colno = values.colno;
+    this.#error = values.error;
   }
   get message() {
     return this.#message;
@@ -626,6 +677,20 @@ export class KsErrorEvent extends KsEvent implements Idl.ErrorEvent {
   get error() {
     return this.#error;
   }
+}
+
+function errorEventValues(i: Idl.ErrorEventInit) {
+  return {
+    message: typeof i.message === "string" ? i.message : "",
+    filename: typeof i.filename === "string" ? i.filename : "",
+    lineno: (i.lineno as number) | 0 || 0,
+    colno: (i.colno as number) | 0 || 0,
+    error: errorFromInit(i),
+  };
+}
+
+function errorFromInit(i: Idl.ErrorEventInit): unknown {
+  return i.error === undefined ? null : i.error;
 }
 
 export class KsPromiseRejectionEvent extends KsEvent implements Idl.PromiseRejectionEvent {
@@ -684,13 +749,11 @@ export class KsUIEvent extends KsEvent implements Idl.UIEvent {
   constructor(type: string, init?: (Idl.UIEventInit & { sourceCapabilities?: unknown }) | null) {
     super(type, init);
     const i = init || {};
-    if (i.view != null && typeof i.view !== "object") {
-      throw new TypeError("UIEvent: view must be a Window or null");
-    }
+    validateUIEventView(i);
     this.#view = i.view ?? null;
-    this.#detail = typeof i.detail === "number" ? i.detail : 0;
+    this.#detail = eventNumberFromInit(i, "detail", 0);
     this.#sourceCapabilities = i.sourceCapabilities ?? null;
-    this.#which = typeof i.which === "number" ? i.which : 0;
+    this.#which = eventNumberFromInit(i, "which", 0);
   }
   get sourceCapabilities(): unknown {
     return this.#sourceCapabilities;
@@ -715,6 +778,12 @@ export class KsUIEvent extends KsEvent implements Idl.UIEvent {
     this.initEvent(type, bubbles, cancelable);
     this.#view = view ?? null;
     this.#detail = typeof detail === "number" ? detail : 0;
+  }
+}
+
+function validateUIEventView(i: Idl.UIEventInit & { sourceCapabilities?: unknown }): void {
+  if (i.view != null && typeof i.view !== "object") {
+    throw new TypeError("UIEvent: view must be a Window or null");
   }
 }
 
@@ -767,6 +836,19 @@ type MouseEventShimInit = Idl.MouseEventInit & {
   movementY?: number;
   pseudoTarget?: unknown;
 };
+
+function eventStringFromInit<T extends object, K extends keyof T>(init: T, key: K): string {
+  return typeof init[key] === "string" ? init[key] : "";
+}
+
+function eventNumberFromInit<T extends object, K extends keyof T>(
+  init: T,
+  key: K,
+  fallback: number,
+): number {
+  return typeof init[key] === "number" ? init[key] : fallback;
+}
+
 export class KsMouseEvent extends KsUIEvent implements Idl.MouseEvent {
   // pseudoTarget is not in the pinned IDL. PageScript sets it after
   // hit-testing the constructed event, so it keeps a setter.
@@ -785,16 +867,16 @@ export class KsMouseEvent extends KsUIEvent implements Idl.MouseEvent {
   constructor(type: string, init?: MouseEventShimInit | null) {
     super(type, init);
     const i: MouseEventShimInit = init || {};
-    this.#button = typeof i.button === "number" ? i.button : 0;
-    this.#buttons = typeof i.buttons === "number" ? i.buttons : 0;
-    this.#screenX = typeof i.screenX === "number" ? i.screenX : 0;
-    this.#screenY = typeof i.screenY === "number" ? i.screenY : 0;
-    this.#clientX = typeof i.clientX === "number" ? i.clientX : 0;
-    this.#clientY = typeof i.clientY === "number" ? i.clientY : 0;
-    this.#pageX = typeof i.pageX === "number" ? i.pageX : this.#clientX;
-    this.#pageY = typeof i.pageY === "number" ? i.pageY : this.#clientY;
-    this.#movementX = typeof i.movementX === "number" ? i.movementX : 0;
-    this.#movementY = typeof i.movementY === "number" ? i.movementY : 0;
+    this.#button = eventNumberFromInit(i, "button", 0);
+    this.#buttons = eventNumberFromInit(i, "buttons", 0);
+    this.#screenX = eventNumberFromInit(i, "screenX", 0);
+    this.#screenY = eventNumberFromInit(i, "screenY", 0);
+    this.#clientX = eventNumberFromInit(i, "clientX", 0);
+    this.#clientY = eventNumberFromInit(i, "clientY", 0);
+    this.#pageX = eventNumberFromInit(i, "pageX", this.#clientX);
+    this.#pageY = eventNumberFromInit(i, "pageY", this.#clientY);
+    this.#movementX = eventNumberFromInit(i, "movementX", 0);
+    this.#movementY = eventNumberFromInit(i, "movementY", 0);
     this.#modifiers = readModifierInit(i);
     eventState(this).relatedTarget = i.relatedTarget == null ? null : i.relatedTarget;
     this.#pseudoTarget = i.pseudoTarget == null ? null : i.pseudoTarget;
@@ -880,16 +962,19 @@ export class KsMouseEvent extends KsUIEvent implements Idl.MouseEvent {
     const state = eventState(this);
     if (state.dispatched) return;
     this.initUIEvent(type, bubbles, cancelable, view, detail);
-    this.#screenX = typeof screenX === "number" ? screenX : 0;
-    this.#screenY = typeof screenY === "number" ? screenY : 0;
-    this.#clientX = typeof clientX === "number" ? clientX : 0;
-    this.#clientY = typeof clientY === "number" ? clientY : 0;
+    this.#setCoordinates(screenX, screenY, clientX, clientY);
     this.#modifiers.Control = !!ctrlKey;
     this.#modifiers.Alt = !!altKey;
     this.#modifiers.Shift = !!shiftKey;
     this.#modifiers.Meta = !!metaKey;
     this.#button = typeof button === "number" ? button : 0;
     state.relatedTarget = relatedTarget ?? null;
+  }
+  #setCoordinates(screenX?: number, screenY?: number, clientX?: number, clientY?: number): void {
+    this.#screenX = typeof screenX === "number" ? screenX : 0;
+    this.#screenY = typeof screenY === "number" ? screenY : 0;
+    this.#clientX = typeof clientX === "number" ? clientX : 0;
+    this.#clientY = typeof clientY === "number" ? clientY : 0;
   }
 }
 
@@ -1008,19 +1093,19 @@ export class KsPointerEvent extends KsMouseEvent implements Idl.PointerEvent {
   constructor(type: string, init?: (Idl.PointerEventInit & MouseEventShimInit) | null) {
     super(type, init);
     const i = init || {};
-    this.#pointerId = typeof i.pointerId === "number" ? i.pointerId : 0;
-    this.#width = typeof i.width === "number" ? i.width : 1;
-    this.#height = typeof i.height === "number" ? i.height : 1;
-    this.#pressure = typeof i.pressure === "number" ? i.pressure : 0;
-    this.#tangentialPressure = typeof i.tangentialPressure === "number" ? i.tangentialPressure : 0;
-    this.#tiltX = typeof i.tiltX === "number" ? i.tiltX : 0;
-    this.#tiltY = typeof i.tiltY === "number" ? i.tiltY : 0;
-    this.#twist = typeof i.twist === "number" ? i.twist : 0;
-    this.#altitudeAngle = typeof i.altitudeAngle === "number" ? i.altitudeAngle : Math.PI / 2;
-    this.#azimuthAngle = typeof i.azimuthAngle === "number" ? i.azimuthAngle : 0;
-    this.#pointerType = typeof i.pointerType === "string" ? i.pointerType : "";
+    this.#pointerId = eventNumberFromInit(i, "pointerId", 0);
+    this.#width = eventNumberFromInit(i, "width", 1);
+    this.#height = eventNumberFromInit(i, "height", 1);
+    this.#pressure = eventNumberFromInit(i, "pressure", 0);
+    this.#tangentialPressure = eventNumberFromInit(i, "tangentialPressure", 0);
+    this.#tiltX = eventNumberFromInit(i, "tiltX", 0);
+    this.#tiltY = eventNumberFromInit(i, "tiltY", 0);
+    this.#twist = eventNumberFromInit(i, "twist", 0);
+    this.#altitudeAngle = eventNumberFromInit(i, "altitudeAngle", Math.PI / 2);
+    this.#azimuthAngle = eventNumberFromInit(i, "azimuthAngle", 0);
+    this.#pointerType = eventStringFromInit(i, "pointerType");
     this.#isPrimary = !!i.isPrimary;
-    this.#persistentDeviceId = typeof i.persistentDeviceId === "number" ? i.persistentDeviceId : 0;
+    this.#persistentDeviceId = eventNumberFromInit(i, "persistentDeviceId", 0);
     this.#coalesced = Array.isArray(i.coalescedEvents) ? [...i.coalescedEvents] : [];
     this.#predicted = Array.isArray(i.predictedEvents) ? [...i.predictedEvents] : [];
   }
@@ -1081,10 +1166,10 @@ export class KsWheelEvent extends KsMouseEvent implements Idl.WheelEvent {
   constructor(type: string, init?: (Idl.WheelEventInit & MouseEventShimInit) | null) {
     super(type, init);
     const i = init || {};
-    this.#deltaX = typeof i.deltaX === "number" ? i.deltaX : 0;
-    this.#deltaY = typeof i.deltaY === "number" ? i.deltaY : 0;
-    this.#deltaZ = typeof i.deltaZ === "number" ? i.deltaZ : 0;
-    this.#deltaMode = typeof i.deltaMode === "number" ? i.deltaMode : 0;
+    this.#deltaX = eventNumberFromInit(i, "deltaX", 0);
+    this.#deltaY = eventNumberFromInit(i, "deltaY", 0);
+    this.#deltaZ = eventNumberFromInit(i, "deltaZ", 0);
+    this.#deltaMode = eventNumberFromInit(i, "deltaMode", 0);
     this.#momentum = !!i.momentum;
   }
   get deltaX() {
@@ -1135,9 +1220,9 @@ export class KsInputEvent extends KsUIEvent implements Idl.InputEvent {
   constructor(type: string, init?: (Idl.InputEventInit & { targetRanges?: unknown[] }) | null) {
     super(type, init);
     const i = init || {};
-    this.#data = i.data === undefined ? null : i.data === null ? null : String(i.data);
+    this.#data = inputEventDataFromInit(i);
     this.#isComposing = !!i.isComposing;
-    this.#inputType = typeof i.inputType === "string" ? i.inputType : "";
+    this.#inputType = eventStringFromInit(i, "inputType");
     this.#targetRanges = Array.isArray(i.targetRanges) ? [...i.targetRanges] : [];
   }
   get data() {
@@ -1152,6 +1237,10 @@ export class KsInputEvent extends KsUIEvent implements Idl.InputEvent {
   getTargetRanges(): unknown[] {
     return [...this.#targetRanges];
   }
+}
+
+function inputEventDataFromInit(init: Idl.InputEventInit): string | null {
+  return init.data === undefined ? null : init.data === null ? null : String(init.data);
 }
 
 export class KsKeyboardEvent extends KsUIEvent implements Idl.KeyboardEvent {
@@ -1172,21 +1261,9 @@ export class KsKeyboardEvent extends KsUIEvent implements Idl.KeyboardEvent {
     this.#repeat = !!i.repeat;
     this.#isComposing = !!i.isComposing;
     this.#modifiers = readModifierInit(i);
-    if (typeof i.keyCode === "number") {
-      this.#keyCode = i.keyCode;
-    } else if (this.#key && this.#key.length === 1) {
-      this.#keyCode = this.#key.toUpperCase().charCodeAt(0);
-    } else {
-      this.#keyCode = 0;
-    }
-    setUIEventWhich(this, typeof i.which === "number" ? i.which : this.#keyCode);
-    if (typeof i.charCode === "number") {
-      this.#charCode = i.charCode;
-    } else if (type === "keypress" && this.#key && this.#key.length === 1) {
-      this.#charCode = this.#key.charCodeAt(0);
-    } else {
-      this.#charCode = 0;
-    }
+    this.#keyCode = keyboardKeyCode(i, this.#key);
+    setUIEventWhich(this, keyboardWhich(i, this.#keyCode));
+    this.#charCode = keyboardCharCode(i, type, this.#key);
   }
   get key() {
     return this.#key;
@@ -1246,6 +1323,26 @@ export class KsKeyboardEvent extends KsUIEvent implements Idl.KeyboardEvent {
     this.#modifiers.Shift = !!shiftKey;
     this.#modifiers.Meta = !!metaKey;
   }
+}
+
+function keyboardKeyCode(i: Idl.KeyboardEventInit & { which?: number }, key: string): number {
+  if (typeof i.keyCode === "number") return i.keyCode;
+  if (key && key.length === 1) return key.toUpperCase().charCodeAt(0);
+  return 0;
+}
+
+function keyboardCharCode(
+  i: Idl.KeyboardEventInit & { which?: number },
+  type: string,
+  key: string,
+): number {
+  if (typeof i.charCode === "number") return i.charCode;
+  if (type === "keypress" && key && key.length === 1) return key.charCodeAt(0);
+  return 0;
+}
+
+function keyboardWhich(i: Idl.KeyboardEventInit & { which?: number }, keyCode: number): number {
+  return typeof i.which === "number" ? i.which : keyCode;
 }
 
 const EVENT_IFACES: Array<[Function, IdlInterfaceName]> = [

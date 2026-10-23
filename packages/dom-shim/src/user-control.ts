@@ -35,6 +35,66 @@ function optionEnabled(opt: ControlOption): boolean {
   return !(group && String(group.localName ?? "") === "optgroup" && group.disabled === true);
 }
 
+function isToggleControl(tag: string, type: string): boolean {
+  return tag === "input" && (type === "checkbox" || type === "radio");
+}
+
+function isEntryControl(tag: string, type: string, toggle: boolean): boolean {
+  return tag === "textarea" || (tag === "input" && !toggle && !NO_USER_VALUE.has(type));
+}
+
+function isUserSettableControl(tag: string, toggle: boolean, entry: boolean): boolean {
+  return tag === "select" || toggle || entry;
+}
+
+function hasReadonlyEntry(control: UserSettableControl, entry: boolean): boolean {
+  return entry && control.readOnly === true;
+}
+
+function isSelectValueOffered(control: UserSettableControl, value: unknown): boolean {
+  const wanted =
+    control.multiple === true && Array.isArray(value)
+      ? value.map(String)
+      : [value == null ? "" : String(value)];
+  const options = Array.from(control.options ?? []);
+  const offered = new Set(
+    options.filter(optionEnabled).map((option) => String(option.value ?? "")),
+  );
+  return wanted.every((item) => offered.has(item));
+}
+
+function selectValueError(
+  control: UserSettableControl,
+  value: unknown,
+  tag: string,
+): string | null {
+  if (tag !== "select") return null;
+  return isSelectValueOffered(control, value) ? null : "no such option";
+}
+
+function controlError(
+  control: UserSettableControl,
+  value: unknown,
+  tag: string,
+  toggle: boolean,
+  entry: boolean,
+): string | null {
+  if (!isUserSettableControl(tag, toggle, entry)) return "not a form control a user can set";
+  if (isDisabledInFormContext(control)) return "control is disabled";
+  if (hasReadonlyEntry(control, entry)) return "control is read-only";
+  const selectionError = selectValueError(control, value, tag);
+  if (selectionError) return selectionError;
+  return null;
+}
+
+function controlTag(control: UserSettableControl): string {
+  return String(control?.localName ?? "").toLowerCase();
+}
+
+function controlType(control: UserSettableControl): string {
+  return String(control?.type ?? "").toLowerCase();
+}
+
 /**
  * Unsupported or ineligible controls return an error instead of changing.
  * Changed values use the shared trusted input/change dispatch path.
@@ -43,22 +103,11 @@ export function setControlValueAsUser(
   control: UserSettableControl,
   value: unknown,
 ): ControlSetResult {
-  const tag = String(control?.localName ?? "").toLowerCase();
-  const type = String(control?.type ?? "").toLowerCase();
-  const toggle = tag === "input" && (type === "checkbox" || type === "radio");
-  const entry = tag === "textarea" || (tag === "input" && !toggle && !NO_USER_VALUE.has(type));
-  if (tag !== "select" && !toggle && !entry)
-    return { changed: false, error: "not a form control a user can set" };
-  if (isDisabledInFormContext(control)) return { changed: false, error: "control is disabled" };
-  if (entry && control.readOnly === true) return { changed: false, error: "control is read-only" };
-  if (tag === "select") {
-    const wanted =
-      control.multiple === true && Array.isArray(value)
-        ? value.map(String)
-        : [value == null ? "" : String(value)];
-    const options = Array.from(control.options ?? []);
-    const offered = new Set(options.filter(optionEnabled).map((o) => String(o.value ?? "")));
-    if (!wanted.every((w) => offered.has(w))) return { changed: false, error: "no such option" };
-  }
+  const tag = controlTag(control);
+  const type = controlType(control);
+  const toggle = isToggleControl(tag, type);
+  const entry = isEntryControl(tag, type, toggle);
+  const error = controlError(control, value, tag, toggle, entry);
+  if (error) return { changed: false, error };
   return { changed: setControlValue(control, value) };
 }

@@ -150,16 +150,26 @@ function upgradeIfCustomElement(node: unknown, tag: string): void {
   } catch {}
 }
 
-// adoptNode and importNode must reject a shadow root but accept a plain
-// DocumentFragment. The input is page-controlled, so every property read is
-// narrowed first. blitz's shadowHostId is >= 0 only for real shadow roots.
+function isObjectLike(value: unknown): value is object {
+  return value !== null && (typeof value === "object" || typeof value === "function");
+}
+
+// adoptNode and importNode reject shadow roots but accept plain DocumentFragments.
+function isDocumentFragmentNode(node: object): boolean {
+  return "nodeType" in node && node.nodeType === DOCUMENT_FRAGMENT_NODE;
+}
+
+function shadowRootNodeId(node: object): number | null {
+  if (!("_id" in node) || typeof node._id !== "number" || node._id < 0) return null;
+  return node._id;
+}
+
+// blitz's shadowHostId is >= 0 only for real shadow roots.
 function isShadowRootNode(node: unknown): boolean {
   if (node === null || typeof node !== "object") return false;
-  if (!("nodeType" in node) || node.nodeType !== DOCUMENT_FRAGMENT_NODE) return false;
-  if (!("_id" in node) || typeof node._id !== "number" || node._id < 0) {
-    return false;
-  }
-  return dom.shadowHostId(node._id) >= 0;
+  if (!isDocumentFragmentNode(node)) return false;
+  const id = shadowRootNodeId(node);
+  return id !== null && dom.shadowHostId(id) >= 0;
 }
 
 // Resolve the mutable <base href> against the caller's fallback URL.
@@ -175,22 +185,36 @@ function computeDocBaseURI(fallback: string): string {
 }
 function resolveDocBaseURI(fallback: string): string {
   try {
-    const baseId = dom ? dom.querySelector("base[href]") : -1;
-    if (baseId && baseId > 0) {
-      // DomHandle has no getAttribute, so read through the Element wrapper.
-      const node = nodeFor(baseId);
-      const href =
-        node && typeof node.getAttribute === "function" ? node.getAttribute("href") : null;
-      if (href != null && href !== "") {
-        try {
-          return new URL(String(href), fallback).toString();
-        } catch {
-          /* malformed: the spec falls back to the fallback URL */
-        }
-      }
-    }
+    const href = documentBaseHref();
+    return resolveBaseHref(href, fallback) || fallback;
   } catch {}
   return fallback;
+}
+
+function documentBaseElementId(): number {
+  return dom ? dom.querySelector("base[href]") : -1;
+}
+
+function documentBaseHref(): string | null {
+  const baseId = documentBaseElementId();
+  if (!(baseId && baseId > 0)) return null;
+  // DomHandle has no getAttribute, so read through the Element wrapper.
+  const node = nodeFor(baseId);
+  return baseElementHrefAttribute(node);
+}
+
+function baseElementHrefAttribute(node: Element | null): string | null {
+  return node && typeof node.getAttribute === "function" ? node.getAttribute("href") : null;
+}
+
+function resolveBaseHref(href: string | null, fallback: string): string | null {
+  if (href == null || href === "") return null;
+  try {
+    return new URL(String(href), fallback).toString();
+  } catch {
+    // Malformed URLs fall back to the caller's base URL.
+    return null;
+  }
 }
 
 const NODE_CONSTANTS = {
@@ -252,14 +276,1209 @@ function copyImportedAttributes(source: Element, destination: Element): void {
   const attrs = source.attributes;
   if (!attrs || typeof attrs.length !== "number") return;
   for (let i = 0; i < attrs.length; i++) {
-    const attribute = attrs[i];
-    if (!attribute) continue;
-    if (attribute.namespaceURI) {
-      destination.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value);
-    } else {
-      destination.setAttribute(attribute.name, attribute.value);
+    copyImportedAttribute(attrs[i], destination);
+  }
+}
+
+function processingInstructionData(data: string): string {
+  return String(data ?? "");
+}
+
+function processingInstructionTarget(target: string): string {
+  return String(target ?? "");
+}
+
+function defineProcessingInstructionNames(
+  node: NodeBase,
+  target: string,
+  configurable: boolean,
+): void {
+  Object.defineProperty(node, "nodeName", {
+    value: processingInstructionTarget(target),
+    enumerable: false,
+    configurable,
+  });
+  Object.defineProperty(node, "target", {
+    value: processingInstructionTarget(target),
+    configurable,
+  });
+}
+
+function markProcessingInstructionNode(node: NodeBase): void {
+  if (node && node._id != null && node._id >= 0) stampedPiIds.add(node._id);
+}
+
+function writeDocumentMarkup(document: DocumentImpl, args: string[]): void {
+  const markup = args.join("");
+  if (!markup) return;
+  const host = document.body || document.documentElement;
+  if (!host) return;
+  const temporary = document.createElement("div");
+  temporary.innerHTML = markup;
+  while (temporary.firstChild) host.appendChild(temporary.firstChild);
+}
+
+type PaintedPointHit = { found: false } | { found: true; element: Element | null };
+type DomPointHit = { kind: "hit"; element: Element | null } | { kind: "miss" } | { kind: "panic" };
+type CompletedDomPointHit = { completed: true; element: Element | null } | { completed: false };
+
+function normalizedHitTestCoordinate(value: number): number {
+  return Number(value) || 0;
+}
+
+function paintedElementAtPoint(x: number, y: number): PaintedPointHit {
+  if (!hitTestViaPaint) return { found: false };
+  try {
+    const id = hitTestViaPaint(x, y);
+    if (id >= 0) return { found: true, element: nodeFor(id) };
+  } catch {}
+  return { found: false };
+}
+
+function domElementAtPoint(x: number, y: number): DomPointHit {
+  try {
+    const id = dom.elementFromPoint(x, y);
+    if (id >= 0) return { kind: "hit", element: nodeFor(id) };
+    return { kind: "miss" };
+  } catch {
+    return { kind: "panic" };
+  }
+}
+
+function completedDomPointHit(hit: DomPointHit): CompletedDomPointHit {
+  if (hit.kind === "panic") return { completed: false };
+  return { completed: true, element: hit.kind === "hit" ? hit.element : null };
+}
+
+function cheapElementAtPoint(x: number, y: number): Element | null {
+  const id = cheapHit(x, y);
+  return id >= 0 ? nodeFor(id) : null;
+}
+
+function fallbackCheapElementAtPoint(x: number, y: number): Element | null {
+  try {
+    return cheapElementAtPoint(x, y);
+  } catch {
+    return null;
+  }
+}
+
+function assertCreateDocumentHasArguments(argumentCount: number): void {
+  if (argumentCount < 2) {
+    throw new TypeError("DOMImplementation.createDocument requires at least 2 arguments");
+  }
+}
+
+function isDocumentTypeArgument(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value !== "object") return false;
+  return (value as { nodeType?: unknown }).nodeType === DOCTYPE_NODE;
+}
+
+function assertDocumentTypeArgument(value: unknown): void {
+  if (!isDocumentTypeArgument(value)) {
+    throw new TypeError("DOMImplementation.createDocument: doctype must be a DocumentType or null");
+  }
+}
+
+function normalizedDocumentNamespace(namespaceURI: unknown): string | null {
+  return namespaceURI == null || namespaceURI === "" ? null : String(namespaceURI);
+}
+
+function appendProvidedDocumentType(doc: XMLDocument, doctype: unknown): void {
+  if (doctype != null && typeof doctype === "object") {
+    doc._topChildren.push(doctype);
+    syntheticParent.set(doctype, doc);
+    nodeOwnerDoc.set(doctype, doc);
+  }
+}
+
+function appendDocumentRoot(doc: XMLDocument, namespaceURI: unknown, qualifiedName: unknown): void {
+  const qnameValue = qualifiedName === null ? null : String(qualifiedName);
+  if (qnameValue !== null && qnameValue !== "") {
+    // createElementNS does its own conversion of the raw namespace.
+    const root = createElementNSInternal(namespaceURI as string | null, qnameValue);
+    // createDocument always makes an XML document, even in the HTML
+    // namespace, so tagName keeps its case.
+    xmlOwned.add(root._id);
+    fastpathMarkSpecial(root._id);
+    doc._host.appendChild(root);
+    doc._topChildren.push(root);
+    nodeOwnerDoc.set(root, doc);
+  }
+}
+
+function validateDocumentTypeName(name: string): void {
+  for (let index = 0; index < name.length; index++) {
+    const code = name.charCodeAt(index);
+    if (code <= 0x1f || code === 0x20 || code === 0x3e) {
+      throw new DOMException(
+        "createDocumentType: '" + name + "' is not a valid qualified name",
+        "InvalidCharacterError",
+      );
     }
   }
+}
+
+function constructDocumentType(
+  name: string,
+  publicId: unknown,
+  systemId: unknown,
+  ownerDocument: DocumentImpl | DetachedDocument | ParsedDocument | undefined,
+): DocumentTypeNode {
+  const synthetic = Object.create(DocumentTypeNode.prototype);
+  Object.defineProperty(synthetic, "_info", {
+    value: {
+      nodeType: DOCTYPE_NODE,
+      nodeName: name,
+      localName: "",
+      nodeValue: "",
+    },
+    enumerable: false,
+  });
+  Object.defineProperty(synthetic, "_id", {
+    value: nextSyntheticId(),
+    enumerable: false,
+  });
+  Object.defineProperty(synthetic, "name", { value: name });
+  Object.defineProperty(synthetic, "publicId", { value: String(publicId ?? "") });
+  Object.defineProperty(synthetic, "systemId", { value: String(systemId ?? "") });
+  // The doctype belongs to the implementation's document, not the page's.
+  if (ownerDocument) nodeOwnerDoc.set(synthetic, ownerDocument);
+  return synthetic;
+}
+
+const DOCUMENT_INSERTABLE_NODE_TYPES = new Set([
+  DOCUMENT_FRAGMENT_NODE,
+  DOCTYPE_NODE,
+  ELEMENT_NODE,
+  TEXT_NODE,
+  PROCESSING_INSTRUCTION_NODE,
+  COMMENT_NODE,
+]);
+
+interface DocumentChildSurvey {
+  elementChild: NodeBase | null;
+  doctypeChild: NodeBase | null;
+}
+
+function assertAllowedDocumentPreInsertionNode(
+  node: NodeBase | null,
+  document: object,
+  operation: string,
+): asserts node is NodeBase {
+  if (!node) throw new TypeError(operation + ": first argument is not a Node");
+  const nodeType = node.nodeType;
+  if ((node as unknown) === document) {
+    throw new DOMException(
+      operation + ": cannot insert a document into itself",
+      "HierarchyRequestError",
+    );
+  }
+  if (!DOCUMENT_INSERTABLE_NODE_TYPES.has(nodeType)) {
+    throw new DOMException(
+      operation + ": node type " + nodeType + " cannot be inserted",
+      "HierarchyRequestError",
+    );
+  }
+  if (nodeType === TEXT_NODE) {
+    throw new DOMException(
+      operation + ": cannot insert a Text node directly under a document",
+      "HierarchyRequestError",
+    );
+  }
+}
+
+function shouldSkipReplacedDocumentChild(
+  node: NodeBase,
+  child: NodeBase | null,
+  isReplace: boolean,
+): boolean {
+  return isReplace && node === child;
+}
+
+function rememberDocumentChild(survey: DocumentChildSurvey, node: NodeBase): void {
+  if (node.nodeType === ELEMENT_NODE && !survey.elementChild) survey.elementChild = node;
+  if (node.nodeType === DOCTYPE_NODE && !survey.doctypeChild) survey.doctypeChild = node;
+}
+
+function surveyDocumentChildren(
+  children: NodeBase[],
+  child: NodeBase | null,
+  isReplace: boolean,
+): DocumentChildSurvey {
+  const survey: DocumentChildSurvey = { elementChild: null, doctypeChild: null };
+  for (const node of children) {
+    if (shouldSkipReplacedDocumentChild(node, child, isReplace)) continue;
+    rememberDocumentChild(survey, node);
+  }
+  return survey;
+}
+
+function documentInsertionIndex(children: NodeBase[], child: NodeBase | null): number {
+  return child == null ? children.length : children.indexOf(child);
+}
+
+function documentElementBeforePosition(
+  children: NodeBase[],
+  childIndex: number,
+  child: NodeBase | null,
+  isReplace: boolean,
+): boolean {
+  for (let index = 0; index < childIndex; index++) {
+    const node = children[index];
+    if (shouldSkipReplacedDocumentChild(node, child, isReplace)) continue;
+    if (node.nodeType === ELEMENT_NODE) return true;
+  }
+  return false;
+}
+
+function documentDoctypeAfterPosition(
+  children: NodeBase[],
+  childIndex: number,
+  child: NodeBase | null,
+  isReplace: boolean,
+): boolean {
+  for (let index = childIndex + 1; index < children.length; index++) {
+    const node = children[index];
+    if (shouldSkipReplacedDocumentChild(node, child, isReplace)) continue;
+    if (node.nodeType === DOCTYPE_NODE) return true;
+  }
+  return false;
+}
+
+function fragmentInsertionContents(fragment: NodeBase): { elementCount: number; hasText: boolean } {
+  let elementCount = 0;
+  let hasText = false;
+  for (let index = 0; index < fragment.childNodes.length; index++) {
+    const child = fragment.childNodes[index];
+    if (child.nodeType === ELEMENT_NODE) elementCount++;
+    else if (child.nodeType === TEXT_NODE) hasText = true;
+  }
+  return { elementCount, hasText };
+}
+
+function assertElementReferenceIsNotDoctype(
+  child: NodeBase | null,
+  isReplace: boolean,
+  operation: string,
+): void {
+  if (child == null) return;
+  if (isReplace) return;
+  if (child.nodeType === DOCTYPE_NODE) {
+    throw new DOMException(
+      operation + ": cannot insert an element before the doctype",
+      "HierarchyRequestError",
+    );
+  }
+}
+
+function assertDocumentElementInsertionAllowed(
+  operation: string,
+  child: NodeBase | null,
+  isReplace: boolean,
+  hasElement: boolean,
+  children: NodeBase[],
+  childIndex: number,
+): void {
+  if (hasElement) {
+    throw new DOMException(
+      operation + ": document already has a document element",
+      "HierarchyRequestError",
+    );
+  }
+  assertElementReferenceIsNotDoctype(child, isReplace, operation);
+  if (
+    child != null &&
+    !isReplace &&
+    documentDoctypeAfterPosition(children, childIndex, child, isReplace)
+  ) {
+    throw new DOMException(
+      operation + ": cannot insert an element before an existing doctype",
+      "HierarchyRequestError",
+    );
+  }
+}
+
+function assertDocumentFragmentContentsAllowed(
+  fragment: NodeBase,
+  operation: string,
+  child: NodeBase | null,
+  isReplace: boolean,
+  hasElement: boolean,
+  children: NodeBase[],
+  childIndex: number,
+): void {
+  const contents = fragmentInsertionContents(fragment);
+  if (contents.elementCount > 1 || contents.hasText) {
+    throw new DOMException(
+      operation + ": DocumentFragment has multiple elements or contains text",
+      "HierarchyRequestError",
+    );
+  }
+  if (contents.elementCount === 1) {
+    assertDocumentElementInsertionAllowed(
+      operation,
+      child,
+      isReplace,
+      hasElement,
+      children,
+      childIndex,
+    );
+  }
+}
+
+function assertDocumentDoctypeInsertionAllowed(
+  operation: string,
+  child: NodeBase | null,
+  hasDoctype: boolean,
+  hasElement: boolean,
+  children: NodeBase[],
+  childIndex: number,
+  isReplace: boolean,
+): void {
+  if (hasDoctype) {
+    throw new DOMException(operation + ": document already has a doctype", "HierarchyRequestError");
+  }
+  if (child != null) {
+    if (documentElementBeforePosition(children, childIndex, child, isReplace)) {
+      throw new DOMException(
+        operation + ": cannot insert a doctype after the document element",
+        "HierarchyRequestError",
+      );
+    }
+  } else if (hasElement) {
+    throw new DOMException(
+      operation + ": cannot append a doctype after the document element",
+      "HierarchyRequestError",
+    );
+  }
+}
+
+function isHostBackedDocumentChild(node: NodeBase | null | undefined): node is NodeBase {
+  return Boolean(
+    node && node.nodeType !== DOCTYPE_NODE && typeof node._id === "number" && node._id >= 0,
+  );
+}
+
+function detachDocumentNodeForInsertion(document: DetachedDocument, node: NodeBase): number | null {
+  const currentParent = node.parentNode;
+  if (!currentParent) return null;
+  if (currentParent !== document) {
+    try {
+      currentParent.removeChild(node);
+    } catch {}
+    return null;
+  }
+  const existingIndex = document._topChildren.indexOf(node);
+  if (existingIndex < 0) return null;
+  rangeBeforeRemove(document, existingIndex, node);
+  document._topChildren.splice(existingIndex, 1);
+  return existingIndex;
+}
+
+function insertHostDocumentNodeAtIndex(
+  document: DetachedDocument,
+  node: NodeBase,
+  index: number,
+): void {
+  const anchor = document._hostAnchorForInsertion(index + 1);
+  if (anchor) document._host.insertBefore(node, anchor);
+  else document._host.appendChild(node);
+}
+
+function assertInsertBeforeArgumentCount(argumentCount: number): void {
+  if (argumentCount < 2) {
+    throw new TypeError(
+      "insertBefore: 2 arguments required, but only " + argumentCount + " present",
+    );
+  }
+}
+
+function assertInsertBeforeReferenceIsNode(ref: NodeBase | null): void {
+  if (ref != null && (typeof ref !== "object" || typeof ref.nodeType !== "number")) {
+    throw new TypeError("insertBefore: reference is not a Node");
+  }
+}
+
+function assertInsertBeforeNodeIsValid(node: NodeBase): asserts node is NodeBase {
+  if (node == null || typeof node !== "object" || typeof node.nodeType !== "number") {
+    throw new TypeError("insertBefore: first argument is not a Node");
+  }
+}
+
+function assertInsertBeforeReferenceIsChild(
+  document: DetachedDocument,
+  ref: NodeBase | null,
+): void {
+  if (ref != null && document._topChildren.indexOf(ref) < 0) {
+    throw new DOMException(
+      "insertBefore: reference child is not a child of this document",
+      "NotFoundError",
+    );
+  }
+}
+
+function insertDocumentFragmentBefore(
+  document: DetachedDocument,
+  fragment: NodeBase,
+  ref: NodeBase | null,
+): NodeBase {
+  document._validateDocumentPreInsertion(fragment, ref, "insertBefore", false);
+  const children = Array.from<NodeBase>(fragment.childNodes);
+  let insertIndex = documentInsertionIndex(document._topChildren, ref);
+  for (const child of children) {
+    document._insertOneAtIndex(child, insertIndex);
+    insertIndex++;
+  }
+  return fragment;
+}
+
+function assertOldDocumentChild(document: DetachedDocument, oldNode: NodeBase): void {
+  if (oldNode == null || document._topChildren.indexOf(oldNode) < 0) {
+    throw new DOMException(
+      "replaceChild: old child is not a child of this document",
+      "NotFoundError",
+    );
+  }
+}
+
+function validateDocumentReplacement(
+  document: DetachedDocument,
+  newNode: NodeBase,
+  oldNode: NodeBase,
+): void {
+  if (newNode && newNode.nodeType === DOCUMENT_FRAGMENT_NODE) {
+    document._validateDocumentPreInsertion(newNode, oldNode, "replaceChild", true);
+  } else {
+    document._validateDocumentPreInsertion(newNode, oldNode, "replaceChild", true);
+  }
+}
+
+function removeReplacedDocumentChild(
+  document: DetachedDocument,
+  oldNode: NodeBase,
+  oldIndex: number,
+): void {
+  rangeBeforeRemove(document, oldIndex, oldNode);
+  document._topChildren.splice(oldIndex, 1);
+  if (oldNode.nodeType !== DOCTYPE_NODE) {
+    try {
+      document._host.removeChild(oldNode);
+    } catch {}
+  }
+}
+
+function insertDocumentReplacement(
+  document: DetachedDocument,
+  newNode: NodeBase,
+  oldIndex: number,
+): void {
+  if (newNode.nodeType === DOCUMENT_FRAGMENT_NODE) {
+    const children = Array.from<NodeBase>(newNode.childNodes);
+    let insertIndex = oldIndex;
+    for (const child of children) {
+      document._insertOneAtIndex(child, insertIndex);
+      insertIndex++;
+    }
+  } else {
+    document._insertOneAtIndex(newNode, oldIndex);
+  }
+}
+
+function findDocumentDescendant(root: Element, tagName: string): Element | null {
+  try {
+    return root.querySelector ? root.querySelector(tagName) : null;
+  } catch {
+    return null;
+  }
+}
+
+function documentTitleText(root: Element | null): string {
+  if (!root) return "";
+  try {
+    return titleTextForRoot(root);
+  } catch {
+    return "";
+  }
+}
+
+function titleTextForRoot(root: Element): string {
+  const title = root.querySelector ? root.querySelector("title") : null;
+  if (!title) return "";
+  return normalizedTitleText(title.textContent);
+}
+
+function normalizedTitleText(text: string | null): string {
+  return (text || "").replace(/[\s]+/g, " ").trim();
+}
+
+function createDocumentTitle(
+  root: Element,
+  createElement: (tagName: string) => Element,
+): Element | null {
+  try {
+    const title = createElement("title");
+    const head = findDocumentDescendant(root, "head");
+    (head || root).appendChild(title);
+    return title;
+  } catch {
+    return null;
+  }
+}
+
+function setDocumentTitle(
+  root: Element | null,
+  value: unknown,
+  createElement: (tagName: string) => Element,
+): void {
+  if (!root) return;
+  let title = findDocumentDescendant(root, "title");
+  if (!title) title = createDocumentTitle(root, createElement);
+  if (title) title.textContent = value == null ? "" : String(value);
+}
+
+function equalDocumentChild(left: Idl.Node | null, right: Idl.Node | null): boolean {
+  if (!left || !right) return left === right;
+  if (typeof left.isEqualNode !== "function") return false;
+  return left.isEqualNode(right);
+}
+
+function equalDocumentChildLists(left: Idl.NodeList, right: Idl.NodeList): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index++) {
+    if (!equalDocumentChild(left[index], right[index])) return false;
+  }
+  return true;
+}
+
+function copyDetachedDocumentMetadata(
+  source: DetachedDocument,
+  destination: DetachedDocument,
+): void {
+  if (source._contentType) {
+    Object.defineProperty(destination, "_contentType", {
+      value: source._contentType,
+      enumerable: false,
+    });
+  }
+  if (source._baseUrl) {
+    Object.defineProperty(destination, "_baseUrl", {
+      value: source._baseUrl,
+      enumerable: false,
+    });
+  }
+}
+
+function copyDetachedDocumentChildren(
+  source: DetachedDocument,
+  destination: DetachedDocument,
+): void {
+  for (const child of source.childNodes) {
+    if (child && typeof child.cloneNode === "function") destination.append(child.cloneNode(true));
+  }
+}
+
+function cloneDetachedDocument(
+  source: DetachedDocument,
+  deep: boolean | undefined,
+): DetachedDocument {
+  const clone = new DetachedDocument();
+  copyDetachedDocumentMetadata(source, clone);
+  if (deep) copyDetachedDocumentChildren(source, clone);
+  return clone;
+}
+
+function documentChildListContains(children: readonly unknown[], node: unknown): boolean {
+  return Boolean(children && children.indexOf(node) >= 0);
+}
+
+function documentNodeId(node: unknown): number | null {
+  const id = (node as { _id?: unknown })._id;
+  return typeof id === "number" ? id : null;
+}
+
+function safeDocumentParentId(nodeId: number): number {
+  try {
+    return dom.parentId(nodeId);
+  } catch {
+    return -1;
+  }
+}
+
+function isTerminalDocumentParent(parentId: number, nodeId: number): boolean {
+  return parentId < 0 || parentId === nodeId;
+}
+
+function hostContainsNode(hostId: number, nodeId: number): boolean {
+  if (nodeId === hostId) return true;
+  let currentId = nodeId;
+  let safety = 0;
+  while (safety < MAX_NODE_ANCESTOR_HOPS) {
+    const parentId = safeDocumentParentId(currentId);
+    if (isTerminalDocumentParent(parentId, currentId)) return false;
+    if (parentId === hostId) return true;
+    currentId = parentId;
+    safety++;
+  }
+  return false;
+}
+
+function detachedDocumentContainsNode(document: DetachedDocument, node: unknown): boolean {
+  if (node == null) return false;
+  if (documentChildListContains(document._topChildren, node)) return true;
+  const nodeId = documentNodeId(node);
+  if (nodeId === null) return false;
+  return hostContainsNode(document._hostId, nodeId);
+}
+
+function copyImportedAttribute(
+  attribute: Element["attributes"][number] | undefined,
+  destination: Element,
+): void {
+  if (!attribute) return;
+  if (attribute.namespaceURI) {
+    destination.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value);
+  } else {
+    destination.setAttribute(attribute.name, attribute.value);
+  }
+}
+
+function assertObjectAdoptionNode(node: NodeBase, operation: string): void {
+  if (node == null || typeof node !== "object") {
+    throw new TypeError(operation + ": argument must be a Node");
+  }
+}
+
+function assertNotDocumentAdoptionNode(node: NodeBase, operation: string): void {
+  if (node.nodeType === DOCUMENT_NODE) {
+    throw new DOMException(operation + ": cannot adopt a Document", "NotSupportedError");
+  }
+}
+
+function assertNotShadowRootAdoptionNode(node: NodeBase, operation: string): void {
+  if (isShadowRootNode(node)) {
+    throw new DOMException(operation + ": cannot adopt a ShadowRoot", "HierarchyRequestError");
+  }
+}
+
+function assertAdoptableNode(node: NodeBase, operation: string): void {
+  assertObjectAdoptionNode(node, operation);
+  assertNotDocumentAdoptionNode(node, operation);
+  assertNotShadowRootAdoptionNode(node, operation);
+}
+
+function removeAdoptedNodeFromParent(node: NodeBase): void {
+  const parent = node.parentNode;
+  if (!parent) return;
+  try {
+    parent.removeChild(node);
+  } catch {}
+}
+
+function setAdoptedNodeOwner(node: NodeBase, document: DocumentImpl, isLive: boolean): void {
+  if (isLive) nodeOwnerDoc.delete(node);
+  else nodeOwnerDoc.set(node, document);
+}
+
+function clearAdoptedNodeState(node: NodeBase, isLive: boolean): void {
+  if (node.nodeType === DOCTYPE_NODE) syntheticParent.delete(node);
+  clearLiveDocumentXmlOwnership(node, isLive);
+}
+
+function clearLiveDocumentXmlOwnership(node: NodeBase, isLive: boolean): void {
+  if (!isLive) return;
+  if (node.nodeType !== ELEMENT_NODE) return;
+  if (typeof node._id !== "number") return;
+  if (node._id < 0) return;
+  xmlOwned.delete(node._id);
+}
+
+function stampAdoptedNode(node: NodeBase | null, document: DocumentImpl, isLive: boolean): void {
+  if (!node || typeof node !== "object") return;
+  setAdoptedNodeOwner(node, document, isLive);
+  clearAdoptedNodeState(node, isLive);
+  stampAdoptedNodeChildren(node, document, isLive);
+}
+
+function stampAdoptedNodeChildren(node: NodeBase, document: DocumentImpl, isLive: boolean): void {
+  try {
+    const children = node.childNodes;
+    if (children) {
+      for (let i = 0; i < children.length; i++) stampAdoptedNode(children[i], document, isLive);
+    }
+  } catch {}
+}
+
+function stampDetachedAdoptedXmlState(node: NodeBase, targetIsXml: boolean): void {
+  if (node.nodeType !== ELEMENT_NODE) return;
+  if (typeof node._id !== "number") return;
+  if (node._id < 0) return;
+  if (targetIsXml) {
+    xmlOwned.add(node._id);
+    fastpathMarkSpecial(node._id);
+  } else {
+    xmlOwned.delete(node._id);
+  }
+}
+
+function stampDetachedAdoptedNode(
+  node: NodeBase | null,
+  document: DetachedDocument,
+  targetIsXml: boolean,
+): void {
+  if (!node || typeof node !== "object") return;
+  nodeOwnerDoc.set(node, document);
+  if (node.nodeType === DOCTYPE_NODE) syntheticParent.delete(node);
+  stampDetachedAdoptedXmlState(node, targetIsXml);
+  stampDetachedAdoptedChildren(node, document, targetIsXml);
+}
+
+function stampDetachedAdoptedChildren(
+  node: NodeBase,
+  document: DetachedDocument,
+  targetIsXml: boolean,
+): void {
+  try {
+    const children = node.childNodes;
+    if (children) {
+      for (let index = 0; index < children.length; index++) {
+        stampDetachedAdoptedNode(children[index], document, targetIsXml);
+      }
+    }
+  } catch {}
+}
+
+function stampOwnerDocumentSubtree(node: NodeBase | null, document: DetachedDocument): void {
+  if (!node || typeof node !== "object") return;
+  nodeOwnerDoc.set(node, document);
+  stampOwnerDocumentChildren(node, document);
+}
+
+function stampOwnerDocumentChildren(node: NodeBase, document: DetachedDocument): void {
+  try {
+    const children = node.childNodes;
+    if (children) {
+      for (let index = 0; index < children.length; index++) {
+        stampOwnerDocumentSubtree(children[index], document);
+      }
+    }
+  } catch {}
+}
+
+function assertImportNodeIsPresent(node: NodeBase | null): asserts node is NodeBase {
+  if (!node) throw notSupported("importNode: node is null/undefined");
+}
+
+function assertImportNodeIsNotShadowRoot(node: NodeBase): void {
+  if (isShadowRootNode(node)) {
+    throw new DOMException("importNode: cannot import a ShadowRoot", "NotSupportedError");
+  }
+}
+
+function assertDetachedImportNodeIsObject(node: unknown): asserts node is object {
+  if (node === null || typeof node !== "object") {
+    throw new TypeError("importNode: node must be a Node");
+  }
+}
+
+function assertDetachedImportNodeIsNotDocument(node: object): void {
+  if ("nodeType" in node && node.nodeType === DOCUMENT_NODE) {
+    throw new DOMException("importNode: cannot import a Document", "NotSupportedError");
+  }
+}
+
+function cloneDetachedImportNode(node: object, deep: unknown): unknown {
+  if ("cloneNode" in node && typeof node.cloneNode === "function") {
+    return node.cloneNode(Boolean(deep));
+  }
+  throw new TypeError("importNode: node must be a Node");
+}
+
+function importDetachedNode(node: unknown, deep: unknown): unknown {
+  assertDetachedImportNodeIsObject(node);
+  assertDetachedImportNodeIsNotDocument(node);
+  if (isShadowRootNode(node)) {
+    throw new DOMException("importNode: cannot import a ShadowRoot", "NotSupportedError");
+  }
+  return cloneDetachedImportNode(node, deep);
+}
+
+function importDocumentNode(
+  document: DocumentImpl,
+  node: NodeBase,
+  deep: boolean | Idl.ImportNodeOptions | undefined,
+) {
+  if (node.nodeType === ELEMENT_NODE) return importElementNode(document, node as Element, deep);
+  const textOrComment = importTextOrCommentNode(document, node);
+  if (textOrComment) return textOrComment;
+  if (node.nodeType === ATTRIBUTE_NODE) return importAttributeNode(node);
+  if (node.nodeType === DOCUMENT_FRAGMENT_NODE) return importDocumentFragment(document, node, deep);
+  return null;
+}
+
+function importElementNode(
+  document: DocumentImpl,
+  source: Element,
+  deep: boolean | Idl.ImportNodeOptions | undefined,
+): Element {
+  const namespace = importedElementNamespace(source);
+  const qualifiedName = importedElementQualifiedName(source);
+  const clone = document.createElementNS(namespace, qualifiedName);
+  copyImportedAttributesSafely(source, clone);
+  appendImportedChildren(document, source, clone, deep);
+  return clone;
+}
+
+function importedElementNamespace(source: Element): string {
+  return source.namespaceURI || HTML_NS;
+}
+
+function importedElementQualifiedName(source: Element): string {
+  const localName = importedElementLocalName(source);
+  const prefix = importedElementPrefix(source);
+  return prefix ? `${prefix}:${localName}` : localName;
+}
+
+function importedElementLocalName(source: Element): string {
+  return source.localName || source._info?.localName || "";
+}
+
+function importedElementPrefix(source: Element): string | null {
+  return source.prefix || null;
+}
+
+function copyImportedAttributesSafely(source: Element, destination: Element): void {
+  try {
+    copyImportedAttributes(source, destination);
+  } catch {}
+}
+
+function importTextOrCommentNode(document: DocumentImpl, node: NodeBase) {
+  if (node.nodeType === TEXT_NODE) return document.createTextNode(importedTextData(node));
+  if (node.nodeType === COMMENT_NODE) return document.createComment(importedCommentData(node));
+  return null;
+}
+
+function importedTextData(node: NodeBase): string {
+  return node.nodeValue || node.textContent || "";
+}
+
+function importedCommentData(node: NodeBase): string {
+  return node.nodeValue || "";
+}
+
+function importAttributeNode(node: NodeBase) {
+  return typeof node.cloneNode === "function" ? node.cloneNode(true) : null;
+}
+
+function importDocumentFragment(
+  document: DocumentImpl,
+  source: NodeBase,
+  deep: boolean | Idl.ImportNodeOptions | undefined,
+): DocumentFragmentImpl {
+  const fragment = document.createDocumentFragment();
+  appendImportedChildren(document, source, fragment, deep);
+  return fragment;
+}
+
+function appendImportedChildren(
+  document: DocumentImpl,
+  source: NodeBase,
+  destination: NodeBase,
+  deep: boolean | Idl.ImportNodeOptions | undefined,
+): void {
+  if (deep && source.childNodes) {
+    for (let i = 0; i < source.childNodes.length; i++) {
+      const childClone = document.importNode(source.childNodes[i], true);
+      if (childClone) destination.appendChild(childClone);
+    }
+  }
+}
+
+function normalizedElementNamespace(namespaceURI: string | null): string | null {
+  return namespaceURI == null || namespaceURI === "" ? null : String(namespaceURI);
+}
+
+function normalizedElementQualifiedName(qualifiedName: string): string {
+  return String(qualifiedName === undefined ? "undefined" : qualifiedName);
+}
+
+function splitQualifiedElementName(qualifiedName: string): {
+  prefix: string | null;
+  local: string;
+} {
+  const colon = qualifiedName.indexOf(":");
+  return {
+    prefix: colon >= 0 ? qualifiedName.slice(0, colon) : null,
+    local: colon >= 0 ? qualifiedName.slice(colon + 1) : qualifiedName,
+  };
+}
+
+function isElementNameStartCharacter(character: string): boolean {
+  const code = character.charCodeAt(0);
+  return code >= 0x80 || /^[A-Za-z_:]$/u.test(character);
+}
+
+function hasBlockedElementNameCharacter(name: string): boolean {
+  for (let index = 0; index < name.length; index++) {
+    const code = name.charCodeAt(index);
+    // Control chars, space and `>` fail anywhere. `<` fails only as the
+    // first local char (the NameStartChar check), so "f<oo" is valid.
+    if (code <= 0x20 || code === 0x3e) return true;
+  }
+  return false;
+}
+
+function hasInvalidQualifiedElementNameParts(
+  qualifiedName: string,
+  prefix: string | null,
+  localName: string,
+): boolean {
+  return (
+    hasInvalidQualifiedElementNameLength(qualifiedName, prefix, localName) ||
+    hasInvalidQualifiedElementNameCharacters(qualifiedName, localName)
+  );
+}
+
+function hasInvalidQualifiedElementNameLength(
+  qualifiedName: string,
+  prefix: string | null,
+  localName: string,
+): boolean {
+  return qualifiedName.length === 0 || localName.length === 0 || prefix === "";
+}
+
+function hasInvalidQualifiedElementNameCharacters(
+  qualifiedName: string,
+  localName: string,
+): boolean {
+  return (
+    hasBlockedElementNameCharacter(qualifiedName) || !isElementNameStartCharacter(localName[0])
+  );
+}
+
+function assertValidQualifiedElementName(
+  qualifiedName: string,
+  prefix: string | null,
+  localName: string,
+): void {
+  if (hasInvalidQualifiedElementNameParts(qualifiedName, prefix, localName)) {
+    throw new DOMException(
+      "createElementNS: '" + qualifiedName + "' is not a valid qualified name",
+      "InvalidCharacterError",
+    );
+  }
+}
+
+function assertElementPrefixHasNamespace(prefix: string | null, namespace: string | null): void {
+  if (prefix && !namespace) {
+    throw new DOMException(
+      "createElementNS: prefix '" + prefix + "' requires a non-null namespace",
+      "NamespaceError",
+    );
+  }
+}
+
+function assertXmlElementPrefix(prefix: string | null, namespace: string | null): void {
+  if (prefix === "xml" && namespace !== XML_NS) {
+    throw new DOMException(
+      "createElementNS: 'xml' prefix is reserved for the XML namespace",
+      "NamespaceError",
+    );
+  }
+}
+
+function assertXmlnsElementName(
+  qualifiedName: string,
+  prefix: string | null,
+  namespace: string | null,
+): void {
+  if ((qualifiedName === "xmlns" || prefix === "xmlns") && namespace !== XMLNS_NS) {
+    throw new DOMException(
+      "createElementNS: 'xmlns' qualifies only the XMLNS namespace",
+      "NamespaceError",
+    );
+  }
+}
+
+function assertXmlnsElementNamespace(
+  qualifiedName: string,
+  prefix: string | null,
+  namespace: string | null,
+): void {
+  if (namespace === XMLNS_NS && qualifiedName !== "xmlns" && prefix !== "xmlns") {
+    throw new DOMException(
+      "createElementNS: XMLNS namespace requires the 'xmlns' qname or prefix",
+      "NamespaceError",
+    );
+  }
+}
+
+function assertValidElementNamespaceName(
+  qualifiedName: string,
+  prefix: string | null,
+  namespace: string | null,
+): void {
+  assertElementPrefixHasNamespace(prefix, namespace);
+  assertXmlElementPrefix(prefix, namespace);
+  assertXmlnsElementName(qualifiedName, prefix, namespace);
+  assertXmlnsElementNamespace(qualifiedName, prefix, namespace);
+}
+
+function elementLocalNameForWasm(namespace: string | null, localName: string): string {
+  return namespace === HTML_NS
+    ? localName.replace(/[A-Z]/g, (character) => character.toLowerCase())
+    : localName;
+}
+
+function elementNamespaceForWasm(namespace: string | null): string {
+  return namespace == null ? "" : String(namespace);
+}
+
+function requestSvgTextFontOutline(namespace: string | null, localName: string): void {
+  if (namespace !== SVG_NS || localName !== "text") return;
+  try {
+    ksGlobal.__ksFontOutlineDemand?.();
+  } catch {}
+}
+
+function createElementInNamespace(namespace: string, localName: string): number {
+  return typeof (dom as any).createElementNS === "function"
+    ? (dom as any).createElementNS(namespace, localName)
+    : dom.createElement(localName);
+}
+
+type CurrentScriptList = {
+  readonly length: number;
+  readonly [index: number]: Element | null | undefined;
+};
+
+function shouldSearchInlineCurrentScript(src: string, bodyKey: unknown): bodyKey is string {
+  return (
+    src === "" &&
+    typeof bodyKey === "string" &&
+    bodyKey.length > CURRENT_SCRIPT_BODY_KEY_MATCH_THRESHOLD
+  );
+}
+
+function currentScriptList(document: DocumentImpl): CurrentScriptList {
+  return document.querySelectorAll("script");
+}
+
+function isInlineScript(script: Element | null | undefined): script is Element {
+  return !!script && !(script.getAttribute && script.getAttribute("src"));
+}
+
+function scriptContainsBodyKey(script: Element, bodyKey: string): boolean {
+  return (script.textContent || "").includes(bodyKey);
+}
+
+function findInlineCurrentScript(document: DocumentImpl, bodyKey: string): Element | null {
+  try {
+    const scripts = currentScriptList(document);
+    for (let index = 0; index < scripts.length; index++) {
+      const script = scripts[index];
+      if (!isInlineScript(script)) continue;
+      if (scriptContainsBodyKey(script, bodyKey)) return script;
+    }
+  } catch {}
+  return null;
+}
+
+function isScriptElement(script: Element | null | undefined): script is Element {
+  return (
+    !!script && typeof script.tagName === "string" && script.tagName.toUpperCase() === "SCRIPT"
+  );
+}
+
+function scriptSourceMatches(source: unknown, rawSrc: unknown, src: string): boolean {
+  return source === rawSrc || source === src;
+}
+
+function hasMatchingScriptSource(script: Element, rawSrc: unknown, src: string): boolean {
+  const source = script.getAttribute ? script.getAttribute("src") : null;
+  return source != null && scriptSourceMatches(source, rawSrc, src);
+}
+
+function matchesCurrentScriptSource(
+  script: Element | null | undefined,
+  rawSrc: unknown,
+  src: string,
+): script is Element {
+  return isScriptElement(script) && hasMatchingScriptSource(script, rawSrc, src);
+}
+
+function indexedCurrentScript(
+  scripts: CurrentScriptList,
+  domIndex: unknown,
+  rawSrc: unknown,
+  src: string,
+): Element | null | undefined {
+  if (
+    typeof domIndex === "number" &&
+    domIndex >= 0 &&
+    matchesCurrentScriptSource(scripts && scripts[domIndex], rawSrc, src)
+  ) {
+    return scripts[domIndex];
+  }
+  return null;
+}
+
+function firstCurrentScriptWithSource(
+  scripts: CurrentScriptList,
+  rawSrc: unknown,
+  src: string,
+): Element | null {
+  for (let index = 0; index < scripts.length; index++) {
+    if (matchesCurrentScriptSource(scripts[index], rawSrc, src)) return scripts[index] ?? null;
+  }
+  return null;
+}
+
+function findCurrentScriptBySource(
+  document: DocumentImpl,
+  domIndex: unknown,
+  rawSrc: unknown,
+  src: string,
+): Element | null {
+  try {
+    const scripts = currentScriptList(document);
+    const indexed = indexedCurrentScript(scripts, domIndex, rawSrc, src);
+    if (indexed) return indexed;
+    return firstCurrentScriptWithSource(scripts, rawSrc, src);
+  } catch {}
+  return null;
+}
+
+type CrossDocumentMethodName = "querySelector" | "querySelectorAll" | "getElementById";
+
+function isCrossDocumentMethodReceiver(
+  receiver: unknown,
+  methodName: CrossDocumentMethodName,
+  ownMethod: unknown,
+): boolean {
+  if (!isObjectLike(receiver)) return false;
+  if (!Reflect.get(receiver, "_dom")) return false;
+  if (typeof Reflect.get(receiver, methodName) !== "function") return false;
+  return Reflect.get(receiver, methodName) !== ownMethod;
+}
+
+function matchesNamespaceAndLocalName(
+  element: Element,
+  namespace: string | null,
+  localName: string,
+): boolean {
+  const elementNamespace = element.namespaceURI || null;
+  return namespaceMatches(elementNamespace, namespace) && localNameMatches(element, localName);
+}
+
+function namespaceMatches(elementNamespace: string | null, namespace: string | null): boolean {
+  return namespace === "*" || elementNamespace === namespace;
+}
+
+function localNameMatches(element: Element, localName: string): boolean {
+  return localName === "*" || (element.localName || "") === localName;
 }
 
 interface DocumentImpl
@@ -448,7 +1667,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       const self = this;
       const id = this._id;
       const list = makeNodeList(() => {
-        const ids = Array.from(dom.childIds(id));
+        const ids = Array.from<number>(dom.childIds(id));
         const wasmKids = ids.map((cid) => nodeFor(cid)).filter(Boolean);
         // Keep the marker at its source position; leading comments alter Blitz's XHTML sniff.
         let doctypeIdx = self._doctypeMarker
@@ -477,109 +1696,23 @@ class DocumentImpl extends NodeBase implements Idl.Document {
 
   // Reject document roots before changing node ownership.
   adoptNode(node: NodeBase) {
-    if (node == null || typeof node !== "object") {
-      throw new TypeError("adoptNode: argument must be a Node");
-    }
-    if (node.nodeType === DOCUMENT_NODE) {
-      throw new DOMException("adoptNode: cannot adopt a Document", "NotSupportedError");
-    }
-    // Adopting a shadow root is a HierarchyRequestError.
-    if (isShadowRootNode(node)) {
-      throw new DOMException("adoptNode: cannot adopt a ShadowRoot", "HierarchyRequestError");
-    }
-    const parent = node.parentNode;
-    if (parent) {
-      try {
-        parent.removeChild(node);
-      } catch {}
-    }
+    assertAdoptableNode(node, "adoptNode");
+    removeAdoptedNodeFromParent(node);
     // nodeOwnerDoc has no entry for nodes of the live document, so adopting
     // into it deletes entries and adopting into a detached document sets them.
     const isLive = this === windowObj.document;
-    const stamp = (n: NodeBase | null) => {
-      if (!n || typeof n !== "object") return;
-      if (isLive) {
-        nodeOwnerDoc.delete(n);
-      } else {
-        nodeOwnerDoc.set(n, this);
-      }
-      // An adopted doctype has no parent.
-      if (n.nodeType === DOCTYPE_NODE) {
-        if (isLive) {
-          syntheticParent.delete(n);
-        } else {
-          syntheticParent.delete(n);
-        }
-      }
-      // Into the live HTML document: drop the XML flag so tagName upper-cases.
-      // DetachedDocument.adoptNode handles HTML to XML.
-      if (isLive && n.nodeType === ELEMENT_NODE && typeof n._id === "number" && n._id >= 0) {
-        xmlOwned.delete(n._id);
-      }
-      try {
-        const kids = n.childNodes;
-        if (kids) for (let i = 0; i < kids.length; i++) stamp(kids[i]);
-      } catch {}
-    };
-    stamp(node);
+    stampAdoptedNode(node, this, isLive);
     return node;
   }
 
   // Partial importNode: elements, text, comments, attrs and fragments.
   // The clone is not in xmlOwned, so tagName follows HTML rules.
   importNode(node: NodeBase, deep?: boolean | Idl.ImportNodeOptions) {
-    if (!node) throw notSupported("importNode: node is null/undefined");
+    assertImportNodeIsPresent(node);
     // Importing a shadow root is a NotSupportedError.
-    if (isShadowRootNode(node)) {
-      throw new DOMException("importNode: cannot import a ShadowRoot", "NotSupportedError");
-    }
-    if (node.nodeType === ELEMENT_NODE) {
-      // An element clones through createElementNS, which records its
-      // namespace and qualified name; only attribute names and values are
-      // copied.
-      const el = node as Element;
-      const ns = el.namespaceURI || HTML_NS;
-      const localName = el.localName || el._info?.localName || "";
-      const prefix = el.prefix || null;
-      const qname = prefix ? `${prefix}:${localName}` : localName;
-      const clone = this.createElementNS(ns, qname);
-      try {
-        copyImportedAttributes(el, clone);
-      } catch {}
-      if (deep && node.childNodes) {
-        for (let i = 0; i < node.childNodes.length; i++) {
-          const child = node.childNodes[i];
-          const childClone = this.importNode(child, true);
-          if (childClone) clone.appendChild(childClone);
-        }
-      }
-      return clone;
-    }
-    if (node.nodeType === TEXT_NODE) {
-      return this.createTextNode(node.nodeValue || node.textContent || "");
-    }
-    if (node.nodeType === COMMENT_NODE) {
-      return this.createComment(node.nodeValue || "");
-    }
-    if (node.nodeType === ATTRIBUTE_NODE) {
-      // Attr. AttrCls.cloneNode copies namespace, prefix, localName and value
-      // and leaves ownerElement null, as importNode requires.
-      if (typeof node.cloneNode === "function") {
-        return node.cloneNode(true);
-      }
-    }
-    if (node.nodeType === DOCUMENT_FRAGMENT_NODE) {
-      const frag = this.createDocumentFragment();
-      if (deep && node.childNodes) {
-        for (let i = 0; i < node.childNodes.length; i++) {
-          const childClone = this.importNode(node.childNodes[i], true);
-          if (childClone) frag.appendChild(childClone);
-        }
-      }
-      return frag;
-    }
+    assertImportNodeIsNotShadowRoot(node);
     // Limitation: other node types return null.
-    return null;
+    return importDocumentNode(this, node, deep);
   }
 
   get documentElement() {
@@ -767,10 +1900,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     }
     // Cross-doc receiver, see getElementsByTagName.
     if (
-      this &&
-      (this as any)._dom &&
-      typeof (this as any).querySelector === "function" &&
-      (this as any).querySelector !== DocumentImpl.prototype.querySelector
+      isCrossDocumentMethodReceiver(this, "querySelector", DocumentImpl.prototype.querySelector)
     ) {
       return (this as any).querySelector(selector);
     }
@@ -783,10 +1913,11 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       );
     }
     if (
-      this &&
-      (this as any)._dom &&
-      typeof (this as any).querySelectorAll === "function" &&
-      (this as any).querySelectorAll !== DocumentImpl.prototype.querySelectorAll
+      isCrossDocumentMethodReceiver(
+        this,
+        "querySelectorAll",
+        DocumentImpl.prototype.querySelectorAll,
+      )
     ) {
       return (this as any).querySelectorAll(selector);
     }
@@ -795,10 +1926,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   getElementById(id: string) {
     // Cross-doc receiver, see getElementsByTagName.
     if (
-      this &&
-      (this as any)._dom &&
-      typeof (this as any).getElementById === "function" &&
-      (this as any).getElementById !== DocumentImpl.prototype.getElementById
+      isCrossDocumentMethodReceiver(this, "getElementById", DocumentImpl.prototype.getElementById)
     ) {
       return (this as any).getElementById(id);
     }
@@ -839,12 +1967,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     return makeHtmlCollection(() => {
       try {
         const cand = Array.from<Element>(scopedQuerySelectorAll(DOCUMENT_ID, "*"));
-        return cand.filter((el) => {
-          const elNs = el.namespaceURI || null;
-          if (ns !== "*" && elNs !== ns) return false;
-          if (ln === "*") return true;
-          return (el.localName || "") === ln;
-        });
+        return cand.filter((element) => matchesNamespaceAndLocalName(element, ns, ln));
       } catch {
         return [];
       }
@@ -856,7 +1979,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     const t = String(name);
     if (t === "") return [];
     try {
-      return Array.from(dom.querySelectorAll('[name="' + t.replace(/"/g, '\\"') + '"]'))
+      return Array.from<number>(dom.querySelectorAll('[name="' + t.replace(/"/g, '\\"') + '"]'))
         .map((id) => nodeFor(id))
         .filter(Boolean);
     } catch {
@@ -915,78 +2038,21 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     options?: string | Idl.ElementCreationOptions,
   ): Element;
   createElementNS(namespaceURI: string | null, qualifiedName: string): Element {
-    const ns = namespaceURI == null || namespaceURI === "" ? null : String(namespaceURI);
-    const qn = String(qualifiedName === undefined ? "undefined" : qualifiedName);
+    const ns = normalizedElementNamespace(namespaceURI);
+    const qn = normalizedElementQualifiedName(qualifiedName);
     // Split on the first colon; later colons stay in the local part. The
     // local part must start with a NameStartChar, and all non-ASCII counts,
     // as in browsers. A prefix must be non-empty but may start with a digit.
-    const colon = qn.indexOf(":");
-    const prefix = colon >= 0 ? qn.slice(0, colon) : null;
-    const local = colon >= 0 ? qn.slice(colon + 1) : qn;
-    function isNameStartChar(ch: string) {
-      const c = ch.charCodeAt(0);
-      if (c >= 0x80) return true;
-      return (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a) || c === 0x5f || c === 0x3a;
-    }
-    function hasBlockedChar(s: string) {
-      for (let i = 0; i < s.length; i++) {
-        const c = s.charCodeAt(i);
-        // Control chars, space and `>` fail anywhere. `<` fails only as the
-        // first local char (the NameStartChar check), so "f<oo" is valid.
-        if (c <= 0x20 || c === 0x3e) return true;
-      }
-      return false;
-    }
-    if (
-      qn.length === 0 ||
-      local.length === 0 ||
-      prefix === "" ||
-      hasBlockedChar(qn) ||
-      !isNameStartChar(local[0])
-    ) {
-      throw new DOMException(
-        "createElementNS: '" + qn + "' is not a valid qualified name",
-        "InvalidCharacterError",
-      );
-    }
-    if (prefix && !ns) {
-      throw new DOMException(
-        "createElementNS: prefix '" + prefix + "' requires a non-null namespace",
-        "NamespaceError",
-      );
-    }
-    if (prefix === "xml" && ns !== XML_NS) {
-      throw new DOMException(
-        "createElementNS: 'xml' prefix is reserved for the XML namespace",
-        "NamespaceError",
-      );
-    }
-    if ((qn === "xmlns" || prefix === "xmlns") && ns !== XMLNS_NS) {
-      throw new DOMException(
-        "createElementNS: 'xmlns' qualifies only the XMLNS namespace",
-        "NamespaceError",
-      );
-    }
-    if (ns === XMLNS_NS && qn !== "xmlns" && prefix !== "xmlns") {
-      throw new DOMException(
-        "createElementNS: XMLNS namespace requires the 'xmlns' qname or prefix",
-        "NamespaceError",
-      );
-    }
+    const { prefix, local } = splitQualifiedElementName(qn);
+    assertValidQualifiedElementName(qn, prefix, local);
+    assertValidElementNamespaceName(qn, prefix, ns);
     const isHtmlNs = ns === HTML_NS;
-    const localForWasm = isHtmlNs ? local.replace(/[A-Z]/g, (c) => c.toLowerCase()) : local;
+    const localForWasm = elementLocalNameForWasm(ns, local);
     // Stylo's namespace selectors (`|div`, `*|div`) need the real namespace,
     // including "no namespace".
-    const nsForWasm = ns == null ? "" : String(ns);
-    if (ns === SVG_NS && local === "text") {
-      try {
-        ksGlobal.__ksFontOutlineDemand?.();
-      } catch {}
-    }
-    const id =
-      typeof (dom as any).createElementNS === "function"
-        ? (dom as any).createElementNS(nsForWasm, localForWasm)
-        : dom.createElement(localForWasm);
+    const nsForWasm = elementNamespaceForWasm(ns);
+    requestSvgTextFontOutline(ns, local);
+    const id = createElementInNamespace(nsForWasm, localForWasm);
     // Keyed by node id so the namespace survives a new wrapper.
     elemNs.set(id, {
       qname: qn,
@@ -1036,20 +2102,12 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   // nodeType 7, nodeName and target. DetachedDocument does the same.
   createProcessingInstruction(target: string, data: string): Idl.ProcessingInstruction {
     validatePIArgs(target, data);
-    const t = this.createTextNode(String(data ?? ""));
+    const t = this.createTextNode(processingInstructionData(data));
     Object.defineProperty(t, "nodeType", { value: 7, enumerable: false, configurable: true });
-    Object.defineProperty(t, "nodeName", {
-      value: String(target ?? ""),
-      enumerable: false,
-      configurable: true,
-    });
-    Object.defineProperty(t, "target", {
-      value: String(target ?? ""),
-      configurable: true,
-    });
+    defineProcessingInstructionNames(t, target, true);
     // Element.textContent skips stamped PI ids. The id stays live because
     // setting textContent detaches nodes without dropping them.
-    if (t && t._id != null && t._id >= 0) stampedPiIds.add(t._id);
+    markProcessingInstructionNode(t);
     return t;
   }
   // A Text node stamped with nodeType 4. Limitation: the spec throws for
@@ -1093,13 +2151,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   // classic-script bucket.
   write(...args: string[]) {
     try {
-      const markup = args.join("");
-      if (!markup) return;
-      const host = this.body || this.documentElement;
-      if (!host) return;
-      const tmp = this.createElement("div");
-      tmp.innerHTML = markup;
-      while (tmp.firstChild) host.appendChild(tmp.firstChild);
+      writeDocumentMarkup(this, args);
     } catch {}
   }
   writeln(...args: string[]) {
@@ -1258,79 +2310,34 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     if (typeof src !== "string") return null;
     const st = ksState();
     const bodyKey = st.currentScriptBodyKey;
-    if (
-      src === "" &&
-      typeof bodyKey === "string" &&
-      bodyKey.length > CURRENT_SCRIPT_BODY_KEY_MATCH_THRESHOLD
-    ) {
-      try {
-        const scripts = this.querySelectorAll("script");
-        for (let i = 0; i < scripts.length; i++) {
-          const s = scripts[i];
-          if (!s || (s.getAttribute && s.getAttribute("src"))) continue;
-          if ((s.textContent || "").includes(bodyKey)) return s;
-        }
-      } catch {}
+    if (shouldSearchInlineCurrentScript(src, bodyKey)) {
+      const inlineScript = findInlineCurrentScript(this, bodyKey);
+      if (inlineScript) return inlineScript;
     }
     const rawSrc = st.currentScriptRawSrc;
-    const matchNode = (node: any): boolean => {
-      if (!node || typeof node.tagName !== "string" || node.tagName.toUpperCase() !== "SCRIPT")
-        return false;
-      const a = node.getAttribute ? node.getAttribute("src") : null;
-      return a != null && (a === rawSrc || a === src);
-    };
     const domIndex = st.currentScriptDomIndex;
-    try {
-      const scripts = this.querySelectorAll("script");
-      if (
-        typeof domIndex === "number" &&
-        domIndex >= 0 &&
-        matchNode(scripts && scripts[domIndex])
-      ) {
-        return scripts[domIndex];
-      }
-      for (let i = 0; i < scripts.length; i++) {
-        if (matchNode(scripts[i])) return scripts[i];
-      }
-    } catch {}
+    const sourceScript = findCurrentScriptBySource(this, domIndex, rawSrc, src);
+    if (sourceScript) return sourceScript;
     // No live node matched. The synthetic node's src attribute is the
     // authored value, as on a real node.
     return getOrMakeSyntheticScript(src, rawSrc);
   }
 
   elementFromPoint(x: number, y: number): Element | null {
-    const px = Number(x) || 0;
-    const py = Number(y) || 0;
-    if (hitTestViaPaint) {
-      try {
-        const id = hitTestViaPaint(px, py);
-        if (id >= 0) return nodeFor(id);
-      } catch {}
-    }
+    const px = normalizedHitTestCoordinate(x);
+    const py = normalizedHitTestCoordinate(y);
+    const painted = paintedElementAtPoint(px, py);
+    if (painted.found) return painted.element;
     const scroll = scrollOffset();
     const dx = px + scroll.x;
     const dy = py + scroll.y;
-    if (layoutMode() === "off") {
-      const id = cheapHit(dx, dy);
-      if (id < 0) return null;
-      return nodeFor(id);
-    }
+    if (layoutMode() === "off") return cheapElementAtPoint(dx, dy);
     // A wasm panic unwinds and the DOM survives, so fall back to the cheap walker.
     // Returning null would route the click to body and the input would
     // never focus.
-    try {
-      const id = dom.elementFromPoint(dx, dy);
-      if (id >= 0) return nodeFor(id);
-      // A clean miss: the cheap walker would just guess body.
-      return null;
-    } catch {
-      // wasm panic.
-    }
-    try {
-      const id = cheapHit(dx, dy);
-      if (id >= 0) return nodeFor(id);
-    } catch {}
-    return null;
+    const domHit = completedDomPointHit(domElementAtPoint(dx, dy));
+    if (domHit.completed) return domHit.element;
+    return fallbackCheapElementAtPoint(dx, dy);
   }
   elementsFromPoint(x: number, y: number): Element[] {
     // The current hit test returns only the topmost match.
@@ -1400,15 +2407,7 @@ class DOMImplementationCls implements Idl.DOMImplementation {
     nodeOwnerDoc.set(dt, doc);
     // The subtree was created through the page document, so re-stamp
     // every node's ownerDocument.
-    function stamp(node: NodeBase | null) {
-      if (!node || typeof node !== "object") return;
-      nodeOwnerDoc.set(node, doc);
-      try {
-        const kids = node.childNodes;
-        if (kids) for (let i = 0; i < kids.length; i++) stamp(kids[i]);
-      } catch {}
-    }
-    stamp(html);
+    stampOwnerDocumentSubtree(html, doc);
     return doc;
   }
   createDocument(
@@ -1417,90 +2416,30 @@ class DOMImplementationCls implements Idl.DOMImplementation {
     doctype?: Idl.DocumentType | null,
   ): XMLDocument;
   createDocument(namespaceURI: unknown, qualifiedName: unknown, doctype?: unknown): XMLDocument {
-    if (arguments.length < 2) {
-      throw new TypeError("DOMImplementation.createDocument requires at least 2 arguments");
-    }
+    assertCreateDocumentHasArguments(arguments.length);
     // WebIDL nullable DocumentType conversion.
-    if (
-      doctype !== undefined &&
-      doctype !== null &&
-      (typeof doctype !== "object" || (doctype as { nodeType?: unknown }).nodeType !== DOCTYPE_NODE)
-    ) {
-      throw new TypeError(
-        "DOMImplementation.createDocument: doctype must be a DocumentType or null",
-      );
-    }
+    assertDocumentTypeArgument(doctype);
     const doc = new XMLDocument();
     // Later doc.createElement calls use this namespace; a null or empty
     // namespace means no namespace.
-    const requestedNs = namespaceURI == null || namespaceURI === "" ? null : String(namespaceURI);
+    const requestedNs = normalizedDocumentNamespace(namespaceURI);
     Object.defineProperty(doc, "_createElementNs", {
       value: requestedNs,
       writable: false,
       enumerable: false,
     });
-    if (doctype != null && typeof doctype === "object") {
-      doc._topChildren.push(doctype);
-      syntheticParent.set(doctype, doc);
-      nodeOwnerDoc.set(doctype, doc);
-    }
+    appendProvidedDocumentType(doc, doctype);
     // DOMString?: null and "" create no root element, undefined creates
     // <undefined>.
-    const qnameValue = qualifiedName === null ? null : String(qualifiedName);
-    if (qnameValue !== null && qnameValue !== "") {
-      // createElementNS does its own conversion of the raw namespace.
-      const root = createElementNSInternal(namespaceURI as string | null, qnameValue);
-      // createDocument always makes an XML document, even in the HTML
-      // namespace, so tagName keeps its case.
-      xmlOwned.add(root._id);
-      fastpathMarkSpecial(root._id);
-      doc._host.appendChild(root);
-      doc._topChildren.push(root);
-      nodeOwnerDoc.set(root, doc);
-    }
+    appendDocumentRoot(doc, namespaceURI, qualifiedName);
     return doc;
   }
   createDocumentType(qname: unknown, publicId: unknown, systemId: unknown): DocumentTypeNode {
     // The spec validates qname as a QName, but browsers only reject a
     // space, ">" or a C0 control character.
     const name = String(qname ?? "");
-    for (let i = 0; i < name.length; i++) {
-      const c = name.charCodeAt(i);
-      if (c <= 0x1f || c === 0x20 || c === 0x3e) {
-        throw new DOMException(
-          "createDocumentType: '" + name + "' is not a valid qualified name",
-          "InvalidCharacterError",
-        );
-      }
-    }
-    const synth = Object.create(DocumentTypeNode.prototype);
-    Object.defineProperty(synth, "_info", {
-      value: {
-        nodeType: DOCTYPE_NODE,
-        nodeName: name,
-        localName: "",
-        nodeValue: "",
-      },
-      enumerable: false,
-    });
-    Object.defineProperty(synth, "_id", {
-      value: nextSyntheticId(),
-      enumerable: false,
-    });
-    Object.defineProperty(synth, "name", {
-      value: name,
-    });
-    Object.defineProperty(synth, "publicId", {
-      value: String(publicId ?? ""),
-    });
-    Object.defineProperty(synth, "systemId", {
-      value: String(systemId ?? ""),
-    });
-    // The doctype belongs to the implementation's document, not the page's.
-    if (this.#ownerDocument) {
-      nodeOwnerDoc.set(synth, this.#ownerDocument);
-    }
-    return synth;
+    validateDocumentTypeName(name);
+    return constructDocumentType(name, publicId, systemId, this.#ownerDocument);
   }
 }
 
@@ -1699,148 +2638,47 @@ class DetachedDocument implements Idl.Document {
     op: string,
     isReplace: boolean,
   ): void {
-    if (!node) {
-      throw new TypeError(op + ": first argument is not a Node");
-    }
+    assertAllowedDocumentPreInsertionNode(node, this, op);
     const nt = node.nodeType;
-    // Step 2: a document has no ancestors, but inserting it into itself
-    // still fails.
-    if ((node as unknown) === this) {
-      throw new DOMException(
-        op + ": cannot insert a document into itself",
-        "HierarchyRequestError",
-      );
-    }
-    // Step 4: fragment, doctype, element, text, PI or comment.
-    const okTypes =
-      nt === DOCUMENT_FRAGMENT_NODE ||
-      nt === DOCTYPE_NODE ||
-      nt === ELEMENT_NODE ||
-      nt === TEXT_NODE ||
-      nt === PROCESSING_INSTRUCTION_NODE ||
-      nt === COMMENT_NODE;
-    if (!okTypes) {
-      throw new DOMException(
-        op + ": node type " + nt + " cannot be inserted",
-        "HierarchyRequestError",
-      );
-    }
-    // Step 5: no Text under a Document.
-    if (nt === TEXT_NODE) {
-      throw new DOMException(
-        op + ": cannot insert a Text node directly under a document",
-        "HierarchyRequestError",
-      );
-    }
     // Step 6 also keeps the doctype before the document element.
     const top = this._topChildren;
     // The existing element and doctype children, ignoring `child` on replace.
-    let elementChild = null;
-    let doctypeChild = null;
-    for (let i = 0; i < top.length; i++) {
-      const c = top[i];
-      if (isReplace && c === child) continue;
-      if (c.nodeType === ELEMENT_NODE && !elementChild) elementChild = c;
-      if (c.nodeType === DOCTYPE_NODE && !doctypeChild) doctypeChild = c;
-    }
+    const survey = surveyDocumentChildren(top, child, isReplace);
     // A null child (append) sits past the end.
-    const childIdx = child == null ? top.length : top.indexOf(child);
-    function elementBeforeChildPosition() {
-      for (let i = 0; i < childIdx; i++) {
-        const c = top[i];
-        if (isReplace && c === child) continue;
-        if (c.nodeType === ELEMENT_NODE) return true;
-      }
-      return false;
-    }
-    function doctypeAfterChildPosition() {
-      for (let i = childIdx + 1; i < top.length; i++) {
-        const c = top[i];
-        if (isReplace && c === child) continue;
-        if (c.nodeType === DOCTYPE_NODE) return true;
-      }
-      return false;
-    }
+    const childIdx = documentInsertionIndex(top, child);
     if (nt === DOCUMENT_FRAGMENT_NODE) {
-      let elemCount = 0;
-      let hasText = false;
-      for (let i = 0; i < node.childNodes.length; i++) {
-        const c = node.childNodes[i];
-        if (c.nodeType === ELEMENT_NODE) elemCount++;
-        else if (c.nodeType === TEXT_NODE) hasText = true;
-      }
-      if (elemCount > 1 || hasText) {
-        throw new DOMException(
-          op + ": DocumentFragment has multiple elements or contains text",
-          "HierarchyRequestError",
-        );
-      }
-      if (elemCount === 1) {
-        if (elementChild) {
-          throw new DOMException(
-            op + ": document already has a document element",
-            "HierarchyRequestError",
-          );
-        }
-        if (child != null && !isReplace) {
-          if (child.nodeType === DOCTYPE_NODE) {
-            throw new DOMException(
-              op + ": cannot insert an element before the doctype",
-              "HierarchyRequestError",
-            );
-          }
-          if (doctypeAfterChildPosition()) {
-            throw new DOMException(
-              op + ": cannot insert an element before an existing doctype",
-              "HierarchyRequestError",
-            );
-          }
-        }
-      }
+      assertDocumentFragmentContentsAllowed(
+        node,
+        op,
+        child,
+        isReplace,
+        survey.elementChild !== null,
+        top,
+        childIdx,
+      );
       return;
     }
     if (nt === ELEMENT_NODE) {
-      if (elementChild) {
-        throw new DOMException(
-          op + ": document already has a document element",
-          "HierarchyRequestError",
-        );
-      }
-      if (child != null && !isReplace) {
-        if (child.nodeType === DOCTYPE_NODE) {
-          throw new DOMException(
-            op + ": cannot insert an element before the doctype",
-            "HierarchyRequestError",
-          );
-        }
-        if (doctypeAfterChildPosition()) {
-          throw new DOMException(
-            op + ": cannot insert an element before an existing doctype",
-            "HierarchyRequestError",
-          );
-        }
-      }
+      assertDocumentElementInsertionAllowed(
+        op,
+        child,
+        isReplace,
+        survey.elementChild !== null,
+        top,
+        childIdx,
+      );
       return;
     }
     if (nt === DOCTYPE_NODE) {
-      if (doctypeChild) {
-        throw new DOMException(op + ": document already has a doctype", "HierarchyRequestError");
-      }
-      if (child != null) {
-        if (elementBeforeChildPosition()) {
-          throw new DOMException(
-            op + ": cannot insert a doctype after the document element",
-            "HierarchyRequestError",
-          );
-        }
-      } else if (elementChild) {
-        // Appending would put the doctype after the element.
-        throw new DOMException(
-          op + ": cannot append a doctype after the document element",
-          "HierarchyRequestError",
-        );
-      }
-      return;
+      assertDocumentDoctypeInsertionAllowed(
+        op,
+        child,
+        survey.doctypeChild !== null,
+        survey.elementChild !== null,
+        top,
+        childIdx,
+        isReplace,
+      );
     }
   }
   // The host child to insert before so host order matches _topChildren:
@@ -1850,9 +2688,7 @@ class DetachedDocument implements Idl.Document {
     for (let i = refIndex; i < top.length; i++) {
       const c = top[i];
       // Synthetic doctypes are not in the host tree.
-      if (c && c.nodeType !== DOCTYPE_NODE && typeof c._id === "number" && c._id >= 0) {
-        return c;
-      }
+      if (isHostBackedDocumentChild(c)) return c;
     }
     return null;
   }
@@ -1869,19 +2705,8 @@ class DetachedDocument implements Idl.Document {
     return node;
   }
   _appendOne(node: NodeBase): void {
-    const curParent = node.parentNode;
-    if (curParent && curParent !== this) {
-      try {
-        curParent.removeChild(node);
-      } catch {}
-    } else if (curParent === this) {
-      // Re-appending a child moves it to the end.
-      const idx = this._topChildren.indexOf(node);
-      if (idx >= 0) {
-        rangeBeforeRemove(this, idx, node);
-        this._topChildren.splice(idx, 1);
-      }
-    }
+    // Re-appending a child moves it to the end.
+    detachDocumentNodeForInsertion(this, node);
     // A doctype has no wasm parent, so syntheticParent gives it one.
     nodeOwnerDoc.set(node, this);
     if (node.nodeType === DOCTYPE_NODE) {
@@ -1896,70 +2721,29 @@ class DetachedDocument implements Idl.Document {
   }
   insertBefore(node: NodeBase, ref: NodeBase | null) {
     // WebIDL: insertBefore(Node, Node?). Two args required.
-    if (arguments.length < 2) {
-      throw new TypeError(
-        "insertBefore: 2 arguments required, but only " + arguments.length + " present",
-      );
-    }
+    assertInsertBeforeArgumentCount(arguments.length);
     // The reference must be a Node or null.
-    if (ref != null && (typeof ref !== "object" || typeof ref.nodeType !== "number")) {
-      throw new TypeError("insertBefore: reference is not a Node");
-    }
-    if (node == null || typeof node !== "object" || typeof node.nodeType !== "number") {
-      throw new TypeError("insertBefore: first argument is not a Node");
-    }
+    assertInsertBeforeReferenceIsNode(ref);
+    assertInsertBeforeNodeIsValid(node);
     // Step 3's NotFoundError comes before the hierarchy checks of steps 4-6.
-    if (ref != null && this._topChildren.indexOf(ref) < 0) {
-      throw new DOMException(
-        "insertBefore: reference child is not a child of this document",
-        "NotFoundError",
-      );
-    }
+    assertInsertBeforeReferenceIsChild(this, ref);
     if (node.nodeType === DOCUMENT_FRAGMENT_NODE) {
-      this._validateDocumentPreInsertion(node, ref, "insertBefore", false);
-      const kids = Array.from<NodeBase>(node.childNodes);
-      // Compute insertion index at validation time so subsequent
-      // splices stay anchored to the original ref position.
-      let insertIdx = ref == null ? this._topChildren.length : this._topChildren.indexOf(ref);
-      for (const k of kids) {
-        this._insertOneAtIndex(k, insertIdx);
-        insertIdx++;
-      }
-      return node;
+      // Compute the insertion index at validation time so splices stay anchored.
+      return insertDocumentFragmentBefore(this, node, ref);
     }
     this._validateDocumentPreInsertion(node, ref, "insertBefore", false);
-    let insertIdx = ref == null ? this._topChildren.length : this._topChildren.indexOf(ref);
+    const insertIdx = documentInsertionIndex(this._topChildren, ref);
     this._insertOneAtIndex(node, insertIdx);
     return node;
   }
   _insertOneAtIndex(node: NodeBase, idx: number): void {
-    const curParent = node.parentNode;
-    if (curParent && curParent !== this) {
-      try {
-        curParent.removeChild(node);
-      } catch {}
-    } else if (curParent === this) {
-      const existing = this._topChildren.indexOf(node);
-      if (existing >= 0) {
-        rangeBeforeRemove(this, existing, node);
-        this._topChildren.splice(existing, 1);
-        if (existing < idx) idx--;
-      }
-    }
+    const existingIndex = detachDocumentNodeForInsertion(this, node);
+    if (existingIndex !== null && existingIndex < idx) idx--;
     // A doctype has no wasm parent, so syntheticParent gives it one.
     nodeOwnerDoc.set(node, this);
-    if (node.nodeType === DOCTYPE_NODE) {
-      this._topChildren.splice(idx, 0, node);
-      syntheticParent.set(node, this);
-    } else {
-      this._topChildren.splice(idx, 0, node);
-      const hostAnchor = this._hostAnchorForInsertion(idx + 1);
-      if (hostAnchor) {
-        this._host.insertBefore(node, hostAnchor);
-      } else {
-        this._host.appendChild(node);
-      }
-    }
+    this._topChildren.splice(idx, 0, node);
+    if (node.nodeType === DOCTYPE_NODE) syntheticParent.set(node, this);
+    else insertHostDocumentNodeAtIndex(this, node, idx);
     // Live range boundaries after idx shift right by one.
     rangeAfterInsert(this, idx, 1);
   }
@@ -1985,36 +2769,12 @@ class DetachedDocument implements Idl.Document {
     return node;
   }
   replaceChild(newNode: NodeBase, oldNode: NodeBase) {
-    if (oldNode == null || this._topChildren.indexOf(oldNode) < 0) {
-      throw new DOMException(
-        "replaceChild: old child is not a child of this document",
-        "NotFoundError",
-      );
-    }
-    if (newNode && newNode.nodeType === DOCUMENT_FRAGMENT_NODE) {
-      this._validateDocumentPreInsertion(newNode, oldNode, "replaceChild", true);
-    } else {
-      this._validateDocumentPreInsertion(newNode, oldNode, "replaceChild", true);
-    }
+    assertOldDocumentChild(this, oldNode);
+    validateDocumentReplacement(this, newNode, oldNode);
     if (newNode === oldNode) return oldNode;
     const oldIdx = this._topChildren.indexOf(oldNode);
-    rangeBeforeRemove(this, oldIdx, oldNode);
-    this._topChildren.splice(oldIdx, 1);
-    if (oldNode.nodeType !== DOCTYPE_NODE) {
-      try {
-        this._host.removeChild(oldNode);
-      } catch {}
-    }
-    if (newNode.nodeType === DOCUMENT_FRAGMENT_NODE) {
-      const kids = Array.from<NodeBase>(newNode.childNodes);
-      let insertIdx = oldIdx;
-      for (const k of kids) {
-        this._insertOneAtIndex(k, insertIdx);
-        insertIdx++;
-      }
-    } else {
-      this._insertOneAtIndex(newNode, oldIdx);
-    }
+    removeReplacedDocumentChild(this, oldNode, oldIdx);
+    insertDocumentReplacement(this, newNode, oldIdx);
     return oldNode;
   }
   // Document children may contain one Element and one DocumentType, with
@@ -2022,12 +2782,12 @@ class DetachedDocument implements Idl.Document {
   // host converts string arguments, then mirror accepted nodes into
   // _topChildren because childNodes reads that list.
   append(...nodes: Array<NodeBase | string>) {
-    assertDocumentInsertAllowed(this, nodes, "append", /*atFront*/ false);
+    assertDocumentInsertAllowed(this, nodes, "append", false);
     this._host.append(...nodes);
     for (const n of nodes) this._topChildren.push(n);
   }
   prepend(...nodes: Array<NodeBase | string>) {
-    assertDocumentInsertAllowed(this, nodes, "prepend", /*atFront*/ true);
+    assertDocumentInsertAllowed(this, nodes, "prepend", true);
     this._host.prepend(...nodes);
     for (let i = nodes.length - 1; i >= 0; i--) {
       this._topChildren.unshift(nodes[i]);
@@ -2036,13 +2796,7 @@ class DetachedDocument implements Idl.Document {
   replaceChildren(...nodes: Array<NodeBase | string>) {
     // Validate against the current children before removing them, as
     // required by the ensure-pre-insertion-validity steps.
-    assertDocumentInsertAllowed(
-      this,
-      nodes,
-      "replaceChildren",
-      /*atFront*/ false,
-      /*ignoreExisting*/ false,
-    );
+    assertDocumentInsertAllowed(this, nodes, "replaceChildren", false, false);
     this._host.replaceChildren(...nodes);
     this._topChildren.length = 0;
     for (const n of nodes) this._topChildren.push(n);
@@ -2054,49 +2808,16 @@ class DetachedDocument implements Idl.Document {
     return this === other;
   }
   compareDocumentPosition(other: Idl.Node) {
+    if (!other) throw new TypeError("compareDocumentPosition: argument required");
+    if (other === this) return 0;
     return compareDocumentPosition(this, other);
   }
   // Adoption targets this detached document rather than the live page Document.
   adoptNode(node: NodeBase) {
-    if (node == null || typeof node !== "object") {
-      throw new TypeError("adoptNode: argument must be a Node");
-    }
-    if (node.nodeType === DOCUMENT_NODE) {
-      throw new DOMException("adoptNode: cannot adopt a Document", "NotSupportedError");
-    }
-    // Adopting a shadow root is a HierarchyRequestError.
-    if (isShadowRootNode(node)) {
-      throw new DOMException("adoptNode: cannot adopt a ShadowRoot", "HierarchyRequestError");
-    }
-    const parent = node.parentNode;
-    if (parent) {
-      try {
-        parent.removeChild(node);
-      } catch {}
-    }
+    assertAdoptableNode(node, "adoptNode");
+    removeAdoptedNodeFromParent(node);
     const targetIsXml = !this._isHtml;
-    const stamp = (n: NodeBase | null) => {
-      if (!n || typeof n !== "object") return;
-      nodeOwnerDoc.set(n, this);
-      if (n.nodeType === DOCTYPE_NODE) {
-        syntheticParent.delete(n);
-      }
-      if (n.nodeType === ELEMENT_NODE && typeof n._id === "number" && n._id >= 0) {
-        if (targetIsXml) {
-          xmlOwned.add(n._id);
-          // XML tagName casing lives in xmlOwned, so the node must never
-          // take the fast path (fastpath.ts).
-          fastpathMarkSpecial(n._id);
-        } else {
-          xmlOwned.delete(n._id);
-        }
-      }
-      try {
-        const kids = n.childNodes;
-        if (kids) for (let i = 0; i < kids.length; i++) stamp(kids[i]);
-      } catch {}
-    };
-    stamp(node);
+    stampDetachedAdoptedNode(node, this, targetIsXml);
     return node;
   }
   // A Document delegates namespace lookup to its documentElement.
@@ -2115,71 +2836,16 @@ class DetachedDocument implements Idl.Document {
   isEqualNode(other: Idl.Node | null) {
     if (!other || other.nodeType !== DOCUMENT_NODE) return false;
     // Documents compare by children only, not by URL or other metadata.
-    const a = this.childNodes;
-    const b = other.childNodes;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      const ai = a[i],
-        bi = b[i];
-      if (!ai || !bi) return ai === bi;
-      if (typeof ai.isEqualNode !== "function") return false;
-      if (!ai.isEqualNode(bi)) return false;
-    }
-    return true;
+    return equalDocumentChildLists(this.childNodes, other.childNodes);
   }
   cloneNode(deep?: boolean) {
-    const c = new DetachedDocument();
-    if (this._contentType) {
-      Object.defineProperty(c, "_contentType", {
-        value: this._contentType,
-        enumerable: false,
-      });
-    }
-    if (this._baseUrl) {
-      Object.defineProperty(c, "_baseUrl", {
-        value: this._baseUrl,
-        enumerable: false,
-      });
-    }
-    if (deep) {
-      for (const child of this.childNodes) {
-        if (child && typeof child.cloneNode === "function") {
-          c.append(child.cloneNode(true));
-        }
-      }
-    }
-    return c;
+    return cloneDetachedDocument(this, deep);
   }
   // Inclusive descendant check. The document itself is not in the host's
   // parent chain, so self needs its own check.
   contains(other: unknown) {
     if (other === this) return true;
-    if (other == null) return false;
-    // A synthetic doctype is not in the wasm parent chain.
-    if (this._topChildren && this._topChildren.indexOf(other) >= 0) {
-      return true;
-    }
-    // Wasm-backed descendants reach _hostId through their parent chain.
-    const otherId = (other as { _id?: unknown })._id;
-    if (typeof otherId !== "number") return false;
-    try {
-      if (otherId === this._hostId) return true;
-      let cur = otherId;
-      let safety = 0;
-      while (safety < MAX_NODE_ANCESTOR_HOPS) {
-        let p;
-        try {
-          p = dom.parentId(cur);
-        } catch {
-          return false;
-        }
-        if (p < 0 || p === cur) return false;
-        if (p === this._hostId) return true;
-        cur = p;
-        safety++;
-      }
-    } catch {}
-    return false;
+    return detachedDocumentContainsNode(this, other);
   }
   hasChildNodes() {
     return this._host.hasChildNodes();
@@ -2285,17 +2951,11 @@ class DetachedDocument implements Idl.Document {
   // Limitation: a PI is a Text node stamped with nodeType 7 and target.
   createProcessingInstruction(target: string, data: string): Idl.ProcessingInstruction {
     validatePIArgs(target, data);
-    const t = createTextNodeInternal(String(data ?? ""));
+    const t = createTextNodeInternal(processingInstructionData(data));
     Object.defineProperty(t, "nodeType", { value: 7, enumerable: false });
-    Object.defineProperty(t, "nodeName", {
-      value: String(target ?? ""),
-      enumerable: false,
-    });
-    Object.defineProperty(t, "target", {
-      value: String(target ?? ""),
-    });
+    defineProcessingInstructionNames(t, target, false);
     // Mark id as a PI so Element.textContent skips its data.
-    if (t && t._id != null && t._id >= 0) stampedPiIds.add(t._id);
+    markProcessingInstructionNode(t);
     nodeOwnerDoc.set(t, this);
     return t;
   }
@@ -2378,33 +3038,11 @@ class DetachedDocument implements Idl.Document {
   }
   // The first <title>'s text with whitespace collapsed, or "".
   get title() {
-    const root = this.documentElement;
-    if (!root) return "";
-    try {
-      const t = root.querySelector ? root.querySelector("title") : null;
-      if (t) return (t.textContent || "").replace(/[\s]+/g, " ").trim();
-    } catch {}
-    return "";
+    return documentTitleText(this.documentElement);
   }
   set title(v) {
-    const root = this.documentElement;
-    if (!root) return;
-    let t: any = null;
-    try {
-      t = root.querySelector ? root.querySelector("title") : null;
-    } catch {}
-    if (!t) {
-      // No <title>: create one in <head>, or in documentElement without one.
-      try {
-        t = this.createElement("title");
-        let head: any = null;
-        try {
-          head = root.querySelector ? root.querySelector("head") : null;
-        } catch {}
-        (head || root).appendChild(t);
-      } catch {}
-    }
-    if (t) t.textContent = v == null ? "" : String(v);
+    // No <title>: create one in <head>, or in documentElement without one.
+    setDocumentTitle(this.documentElement, v, (tagName) => this.createElement(tagName));
   }
   // The live document is a DocumentImpl, so `document instanceof Document`
   // needs this: anything with nodeType 9 counts.
@@ -2566,6 +3204,74 @@ type SharedDocumentMember =
 interface SharedDocumentTypeGaps {
   createEvent(interfaceName: string): KsEvent | KsBeforeUnloadEvent;
 }
+
+interface QualifiedAttributeName {
+  prefix: string | null;
+  localName: string;
+}
+
+function splitQualifiedAttributeName(qualifiedName: string): QualifiedAttributeName {
+  const colon = qualifiedName.indexOf(":");
+  return {
+    prefix: colon >= 0 ? qualifiedName.slice(0, colon) : null,
+    localName: colon >= 0 ? qualifiedName.slice(colon + 1) : qualifiedName,
+  };
+}
+
+function assertAttributePrefixNamespace(prefix: string | null, namespace: string | null): void {
+  if (prefix && !namespace) {
+    throw new DOMException("createAttributeNS: prefix without namespace", "NamespaceError");
+  }
+}
+
+function assertXmlAttributePrefixNamespace(prefix: string | null, namespace: string | null): void {
+  if (prefix === "xml" && namespace !== XML_NS) {
+    throw new DOMException(
+      "createAttributeNS: xml prefix requires XML namespace",
+      "NamespaceError",
+    );
+  }
+}
+
+function assertXmlnsAttributeNamespace(
+  qualifiedName: string,
+  prefix: string | null,
+  namespace: string | null,
+): void {
+  const isXmlnsNamespace = namespace === XMLNS_NS;
+  if ((qualifiedName === "xmlns" || prefix === "xmlns") !== isXmlnsNamespace) {
+    throw new DOMException("createAttributeNS: xmlns qname/prefix mismatch", "NamespaceError");
+  }
+}
+
+function assertValidAttributeNamespaceName(
+  qualifiedName: string,
+  prefix: string | null,
+  namespace: string | null,
+): void {
+  assertAttributePrefixNamespace(prefix, namespace);
+  assertXmlAttributePrefixNamespace(prefix, namespace);
+  assertXmlnsAttributeNamespace(qualifiedName, prefix, namespace);
+}
+
+function createNamespacedAttribute(
+  qualifiedName: string,
+  namespace: string | null,
+  prefix: string | null,
+  localName: string,
+) {
+  const attribute = Object.create(AttrCls.prototype);
+  attribute._name = qualifiedName;
+  attribute._value = "";
+  attribute._nodeValue = "";
+  attribute._textContent = "";
+  attribute._namespaceURI = namespace;
+  attribute._prefix = prefix;
+  attribute._localName = localName;
+  attribute._ownerElement = null;
+  return attribute;
+}
+
 function bodyColor(body: Idl.HTMLElement | null, attribute: string): string {
   return body ? body.getAttribute(attribute) || "" : "";
 }
@@ -2684,32 +3390,9 @@ const sharedDocumentMembers: Pick<Idl.Document, SharedDocumentMember> &
     const qn = String(qualifiedName ?? "");
     validateAttrName(qn);
     // The NamespaceError checks setAttributeNS also makes.
-    const colon = qn.indexOf(":");
-    const prefix = colon >= 0 ? qn.slice(0, colon) : null;
-    const local = colon >= 0 ? qn.slice(colon + 1) : qn;
-    if (prefix && !ns) {
-      throw new DOMException("createAttributeNS: prefix without namespace", "NamespaceError");
-    }
-    if (prefix === "xml" && ns !== XML_NS) {
-      throw new DOMException(
-        "createAttributeNS: xml prefix requires XML namespace",
-        "NamespaceError",
-      );
-    }
-    const isXmlnsNs = ns === XMLNS_NS;
-    if ((qn === "xmlns" || prefix === "xmlns") !== isXmlnsNs) {
-      throw new DOMException("createAttributeNS: xmlns qname/prefix mismatch", "NamespaceError");
-    }
-    const attr = Object.create(AttrCls.prototype);
-    attr._name = qn;
-    attr._value = "";
-    attr._nodeValue = "";
-    attr._textContent = "";
-    attr._namespaceURI = ns;
-    attr._prefix = prefix;
-    attr._localName = local;
-    attr._ownerElement = null;
-    return attr;
+    const { prefix, localName } = splitQualifiedAttributeName(qn);
+    assertValidAttributeNamespaceName(qn, prefix, ns);
+    return createNamespacedAttribute(qn, ns, prefix, localName);
   },
   // XPathEvaluatorBase (DOM §8). Maps' startup reads its preload link
   // through document.evaluate.
@@ -2835,19 +3518,7 @@ class XMLDocument extends DetachedDocument implements Idl.XMLDocument {
 
 Object.defineProperty(DetachedDocument.prototype, "importNode", {
   value: function importNode(node: unknown, deep?: unknown) {
-    if (node === null || typeof node !== "object") {
-      throw new TypeError("importNode: node must be a Node");
-    }
-    if ("nodeType" in node && node.nodeType === DOCUMENT_NODE) {
-      throw new DOMException("importNode: cannot import a Document", "NotSupportedError");
-    }
-    if (isShadowRootNode(node)) {
-      throw new DOMException("importNode: cannot import a ShadowRoot", "NotSupportedError");
-    }
-    if ("cloneNode" in node && typeof node.cloneNode === "function") {
-      return node.cloneNode(Boolean(deep));
-    }
-    throw new TypeError("importNode: node must be a Node");
+    return importDetachedNode(node, deep);
   },
   writable: true,
   configurable: true,

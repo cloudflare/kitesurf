@@ -1,8 +1,7 @@
 {
-  "src/collections.ts": 17,
+  "src/collections.ts": 15,
   "src/element/load-events.ts": 7,
-  "src/index.ts": 10,
-  "src/node-base.ts": 79,
-  "src/parser.ts": 2,
-  "src/range.ts": 92
+  "src/index.ts": 7,
+  "src/node-base.ts": 36,
+  "src/range.ts": 69
 }

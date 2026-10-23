@@ -219,6 +219,10 @@ const VALID_CUSTOM_NAME_RE = /^[a-z][a-z0-9._-]*-[a-z0-9._-]*$/;
 function resolveElementClass(localName: string, namespaceURI: string | null): ElementClass {
   const tag = htmlInterfaceTag(localName, namespaceURI);
   if (tag === null) return HTMLElement;
+  return resolveHtmlElementClass(tag, localName);
+}
+
+function resolveHtmlElementClass(tag: string, localName: string): ElementClass {
   const raw = String(localName || "");
   const mapped = TAG_TO_CLASS[tag];
   if (mapped) return mapped;

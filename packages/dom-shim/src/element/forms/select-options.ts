@@ -16,14 +16,21 @@ import type { HTMLOptionElement, HTMLSelectElement } from "./select.js";
 
 function isOptionEffectivelyDisabled(option: HTMLOptionElement | null | undefined): boolean {
   if (!option) return true;
-  if (option.disabled) return true;
+  return option.disabled || hasDisabledOptionAncestor(option);
+}
+
+function hasDisabledOptionAncestor(option: HTMLOptionElement): boolean {
   let p = option.parentNode;
   while (p) {
-    if (p.localName === "optgroup" && p.disabled) return true;
+    if (isDisabledOptgroup(p)) return true;
     if (p.localName === "select") break;
     p = p.parentNode;
   }
   return false;
+}
+
+function isDisabledOptgroup(node: Element): boolean {
+  return node.localName === "optgroup" && node.disabled;
 }
 function selectOptions(select: Element): HTMLOptionElement[] {
   const out: HTMLOptionElement[] = [];
@@ -56,16 +63,33 @@ function singleSelectChoice(
   select: HTMLSelectElement,
   opts: HTMLOptionElement[] = selectOptions(select),
 ): HTMLOptionElement | null {
-  let last: HTMLOptionElement | null = null;
-  for (const o of opts) if (explicitlySelected(o)) last = o;
+  const last = lastExplicitlySelected(opts);
   if (last || select.size > 1) return last;
   // Preserve an explicit empty selection until the option list changes.
+  if (hasPreservedEmptySelection(select, opts)) return null;
+  return firstEnabledOption(opts);
+}
+
+function lastExplicitlySelected(opts: HTMLOptionElement[]): HTMLOptionElement | null {
+  let last: HTMLOptionElement | null = null;
+  for (const option of opts) if (explicitlySelected(option)) last = option;
+  return last;
+}
+
+function hasPreservedEmptySelection(select: HTMLSelectElement, opts: HTMLOptionElement[]): boolean {
   const cleared = selectClearedWith.get(select);
-  if (cleared) {
-    if (cleared.length === opts.length && cleared.every((o, i) => o === opts[i])) return null;
-    selectClearedWith.delete(select);
+  if (!cleared) return false;
+  if (cleared.length === opts.length && cleared.every((option, index) => option === opts[index])) {
+    return true;
   }
-  for (const o of opts) if (!isOptionEffectivelyDisabled(o)) return o;
+  selectClearedWith.delete(select);
+  return false;
+}
+
+function firstEnabledOption(opts: HTMLOptionElement[]): HTMLOptionElement | null {
+  for (const option of opts) {
+    if (!isOptionEffectivelyDisabled(option)) return option;
+  }
   return null;
 }
 // Selectedness writes do not advance mutationSeq, so cache invalidation also tracks them.
@@ -94,20 +118,53 @@ function resyncSelectLabel(select: Element | null): void {
   if (!isHtmlTag(select, "select")) return;
   if (typeof dom.setSelectLabel !== "function") return;
   const opts = selectOptions(select);
-  let chosen: HTMLOptionElement | null = null;
-  chosen = selectedOptionsOf(select, opts)[0] ?? null;
-  if (!chosen && opts.length > 0) chosen = opts[0];
-  const text = chosen ? chosen.textContent || "" : null;
-  let removedLabelId = -1;
-  if (!text && typeof dom.childIds === "function") {
-    const ids = Array.from<number>(dom.childIds(select._id));
-    const lastId = ids.at(-1);
-    if (lastId !== undefined) {
-      try {
-        if (dom.nodeInfo(lastId)?.nodeType === TEXT_NODE) removedLabelId = lastId;
-      } catch {}
-    }
-  }
+  const text = selectLabelText(select, opts);
+  const removedLabelId = removedSelectLabelTextId(select, text);
+  setSelectLabel(select, text, removedLabelId);
+}
+
+function selectLabelText(select: HTMLSelectElement, opts: HTMLOptionElement[]): string | null {
+  const selected = selectedOptionsOf(select, opts)[0] ?? null;
+  const chosen = fallbackLabelOption(selected, opts);
+  return textOfLabelOption(chosen);
+}
+
+function fallbackLabelOption(
+  selected: HTMLOptionElement | null,
+  opts: HTMLOptionElement[],
+): HTMLOptionElement | null {
+  if (!selected && opts.length > 0) return opts[0];
+  return selected;
+}
+
+function textOfLabelOption(option: HTMLOptionElement | null): string | null {
+  return option ? option.textContent || "" : null;
+}
+
+function removedSelectLabelTextId(select: HTMLSelectElement, text: string | null): number {
+  if (text || typeof dom.childIds !== "function") return -1;
+  const lastId = lastChildNodeId(select);
+  if (lastId === undefined) return -1;
+  return isTextNodeId(lastId) ? lastId : -1;
+}
+
+function lastChildNodeId(select: HTMLSelectElement): number | undefined {
+  const ids = Array.from<number>(dom.childIds(select._id));
+  return ids.at(-1);
+}
+
+function isTextNodeId(id: number): boolean {
+  try {
+    return dom.nodeInfo(id)?.nodeType === TEXT_NODE;
+  } catch {}
+  return false;
+}
+
+function setSelectLabel(
+  select: HTMLSelectElement,
+  text: string | null,
+  removedLabelId: number,
+): void {
   try {
     dom.setSelectLabel(select._id, text);
     if (removedLabelId >= 0) dropUnwrappedSubtrees([removedLabelId]);

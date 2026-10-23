@@ -40,71 +40,114 @@ export function setWrapperSweepScheduler(scheduler: Scheduler): void {
   schedule = scheduler;
 }
 
-postMutationHooks.push((hint) => {
+postMutationHooks.push((hint) => scheduleSweepForMutation(hint));
+
+function scheduleSweepForMutation(hint: unknown): void {
   // Attribute writes, character data and Web Animations style changes cannot detach
   // a node, so none of them needs a wrapper sweep.
-  if (typeof hint === "object" || hint === "data" || hint === "style") return;
-  if (!registry || !schedule || sweepArmed) return;
+  if (!mutationMayDetach(hint)) return;
+  const scheduler = schedule;
+  if (!registry || !scheduler || sweepArmed) return;
+  armSweep(scheduler);
+}
+
+function mutationMayDetach(hint: unknown): boolean {
+  return typeof hint !== "object" && hint !== "data" && hint !== "style";
+}
+
+function armSweep(scheduler: Scheduler): void {
   sweepArmed = true;
   try {
-    schedule(() => {
+    scheduler(() => {
       sweepArmed = false;
       sweepDetachedWrappers();
     }, SWEEP_DELAY_MS);
   } catch {
     sweepArmed = false;
   }
-});
+}
 
 function rootsOf(ids: number[]): number[] {
   return Array.from(dom.detachedRoots(Uint32Array.from(ids)));
 }
 
 export function sweepDetachedWrappers(): number {
-  if (!registry || typeof dom.detachedRoots !== "function") return 0;
+  if (!canSweepDetachedWrappers()) return 0;
+  const ids = sweepCandidateIds();
+  if (ids.length === 0) return 0;
+  const roots = rootsForSweep(ids);
+  if (!roots) return 0;
+  stats.sweeps++;
+  const groups = new Map<number, Group>();
+  const loading = pendingImageRoots(ids, roots);
+  let moved = 0;
+  for (let i = 0; i < ids.length; i++) {
+    moved += demoteWrapper(ids[i], roots[i], loading, groups);
+  }
+  stats.demoted += moved;
+  return moved;
+}
+
+function canSweepDetachedWrappers(): boolean {
+  return !!registry && typeof dom.detachedRoots === "function";
+}
+
+function sweepCandidateIds(): number[] {
   const ids: number[] = [];
   for (const id of cache.keys()) {
     if (id >= 0 && id !== DOCUMENT_ID && !adoptedWrapperIds.has(id)) ids.push(id);
   }
-  if (ids.length === 0) return 0;
-  let roots: number[];
+  return ids;
+}
+
+function rootsForSweep(ids: number[]): number[] | null {
   try {
-    roots = rootsOf(ids);
+    return rootsOf(ids);
   } catch {
     stats.failures++;
-    return 0;
+    return null;
   }
-  stats.sweeps++;
-  const groups = new Map<number, Group>();
+}
+
+function pendingImageRoots(ids: number[], roots: number[]): Set<number> {
   // A pending image request keeps its entire detached tree out of the weak-wrapper sweep.
   const loading = new Set<number>();
   for (let i = 0; i < ids.length; i++) {
     if (roots[i] >= 0 && imageLoading(ids[i], cache.get(ids[i]))) loading.add(roots[i]);
   }
-  let moved = 0;
-  for (let i = 0; i < ids.length; i++) {
-    const root = roots[i];
-    if (root < 0 || loading.has(root)) continue;
-    // DetachedDocument owns this host even though it has no parent in the main tree.
-    if (hostIdToDoc.has(root)) continue;
-    const id = ids[i];
-    const w = cache.get(id);
-    if (!w) continue;
-    let g = groups.get(root);
-    if (!g) {
-      g = { root, members: new Set() };
-      groups.set(root, g);
-      registry.register(g, root);
-      demotedRoots.add(root);
-    }
-    g.members.add(w);
-    groupOf.set(w, g);
-    cache.delete(id);
-    weakWrappers.set(id, new WeakRef(w));
-    moved++;
+  return loading;
+}
+
+function demoteWrapper(
+  id: number,
+  root: number,
+  loading: Set<number>,
+  groups: Map<number, Group>,
+): number {
+  if (shouldSkipRoot(root, loading) || hostIdToDoc.has(root)) return 0;
+  const wrapper = cache.get(id);
+  if (!wrapper) return 0;
+  const group = groupForRoot(root, groups);
+  group.members.add(wrapper);
+  groupOf.set(wrapper, group);
+  cache.delete(id);
+  weakWrappers.set(id, new WeakRef(wrapper));
+  return 1;
+}
+
+function shouldSkipRoot(root: number, loading: Set<number>): boolean {
+  return root < 0 || loading.has(root);
+}
+
+function groupForRoot(root: number, groups: Map<number, Group>): Group {
+  let group = groups.get(root);
+  if (!group) {
+    group = { root, members: new Set() };
+    groups.set(root, group);
+    registry?.register(group, root);
+    demotedRoots.add(root);
   }
-  stats.demoted += moved;
-  return moved;
+  return group;
 }
 
 function imageLoading(id: number, w?: object): boolean {
@@ -131,26 +174,31 @@ function reclaim(root: number): void {
 
 function revive(nodeId: number): void {
   demotedRoots.delete(nodeId);
-  const strongIds = [nodeId];
+  for (const id of revivedIds(nodeId)) reviveWrapper(id);
+}
+
+function revivedIds(nodeId: number): number[] {
+  const ids = [nodeId];
   try {
-    for (const id of dom.descendantsOf(nodeId)) strongIds.push(id);
+    for (const id of dom.descendantsOf(nodeId)) ids.push(id);
   } catch {
     stats.failures++;
   }
-  for (const id of strongIds) {
-    const ref = weakWrappers.get(id);
-    if (!ref) continue;
-    weakWrappers.delete(id);
-    const w = ref.deref();
-    if (w === undefined) continue;
-    cache.set(id, w);
-    stats.revived++;
-    const g = groupOf.get(w);
-    if (g) {
-      g.members.delete(w);
-      groupOf.delete(w);
-    }
-  }
+  return ids;
+}
+
+function reviveWrapper(id: number): void {
+  const ref = weakWrappers.get(id);
+  if (!ref) return;
+  weakWrappers.delete(id);
+  const wrapper = ref.deref();
+  if (wrapper === undefined) return;
+  cache.set(id, wrapper);
+  stats.revived++;
+  const group = groupOf.get(wrapper);
+  if (!group) return;
+  group.members.delete(wrapper);
+  groupOf.delete(wrapper);
 }
 
 function mayHoldWeak(nodeId: number): boolean {

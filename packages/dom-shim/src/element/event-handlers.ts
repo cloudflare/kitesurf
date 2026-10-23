@@ -70,54 +70,99 @@ function markHandlerExplicitlySet(target: object, eventType: string) {
   } catch {}
 }
 
-setContentAttrHydrator((rawTarget: unknown, type: string) => {
+setContentAttrHydrator(hydrateContentAttrHandler);
+
+function hydrateContentAttrHandler(rawTarget: unknown, type: string): void {
   const propName = "on" + type;
   if (!idlEventHandlerNameSet.has(propName)) return;
-  let target = rawTarget;
-  if (
+  const target = contentAttrTargetWithWindowFallback(rawTarget, propName);
+  if (!isContentAttrTarget(target)) return;
+  hydrateAttrHandler(target, propName, type);
+}
+
+function contentAttrTargetWithWindowFallback(target: unknown, propName: string): unknown {
+  if (!needsWindowBodyFallback(target, propName)) return target;
+  return windowBodyFallbackTarget(target) ?? target;
+}
+
+function needsWindowBodyFallback(target: unknown, propName: string): target is object {
+  return (
     isObjectLike(target) &&
     typeof Reflect.get(target, "getAttribute") !== "function" &&
     windowForwardedEventNames.has(propName)
-  ) {
-    try {
-      if (Reflect.get(target, "window") === target && document && document.body) {
-        target = document.body;
-      }
-    } catch {}
-  }
-  if (!isContentAttrTarget(target)) return;
+  );
+}
+
+function windowBodyFallbackTarget(target: object): unknown {
+  try {
+    if (Reflect.get(target, "window") === target && document && document.body) {
+      return document.body;
+    }
+  } catch {}
+  return undefined;
+}
+
+function hydrateAttrHandler(target: ContentAttrTarget, propName: string, type: string): void {
+  if (markAttrHandlerHydrated(target, type)) return;
+  if (hasIdlHandler(target, type)) return;
+  installContentAttrHandler(target, propName);
+}
+
+function installContentAttrHandler(target: ContentAttrTarget, propName: string): void {
+  const source = readContentAttr(target, propName);
+  if (typeof source !== "string" || !source) return;
+  try {
+    installAttrEventHandler(target, propName, source);
+  } catch {}
+}
+
+function markAttrHandlerHydrated(target: object, type: string): boolean {
   let done = hydratedAttrHandlers.get(target);
-  if (done && done.has(type)) return;
+  if (done?.has(type)) return true;
   if (!done) {
     done = new Set();
     hydratedAttrHandlers.set(target, done);
   }
   done.add(type);
+  return false;
+}
+
+function hasIdlHandler(target: ContentAttrTarget, type: string): boolean {
   const slots = target[idlHandlerSym];
-  if (slots && slots[type]) return;
-  let val: unknown = null;
+  return Boolean(slots && slots[type]);
+}
+
+function readContentAttr(target: ContentAttrTarget, name: string): unknown {
   try {
-    val = target.getAttribute(propName);
-  } catch {}
-  if (typeof val === "string" && val) {
-    try {
-      installAttrEventHandler(target, propName, val);
-    } catch {}
+    return target.getAttribute(name);
+  } catch {
+    return null;
   }
-});
+}
 
 function installAttrEventHandler(
   element: { tagName?: unknown },
   name: string,
   source: string,
 ): void {
+  const forwardsToWindow = shouldForwardAttrHandler(element, name);
+  const fn = compileAttrEventHandler(source);
+  if (!fn) return;
+  try {
+    Reflect.set(element, name, fn);
+  } catch {}
+  if (forwardsToWindow) forwardHandlerToWindow(name, fn);
+}
+
+function shouldForwardAttrHandler(element: { tagName?: unknown }, name: string): boolean {
   let tag = "";
   try {
     tag = String(element.tagName || "").toLowerCase();
   } catch {}
-  const forwardsToWindow =
-    (tag === "body" || tag === "frameset") && windowForwardedEventNames.has(name);
-  let fn;
+  return (tag === "body" || tag === "frameset") && windowForwardedEventNames.has(name);
+}
+
+function compileAttrEventHandler(source: string): Function | null {
   try {
     const Ctor = Function;
     const wrapped =
@@ -126,15 +171,9 @@ function installAttrEventHandler(
       "with(this){" +
       source +
       "}}}";
-    fn = new Ctor("event", wrapped);
+    return new Ctor("event", wrapped);
   } catch {
-    return;
-  }
-  try {
-    Reflect.set(element, name, fn);
-  } catch {}
-  if (forwardsToWindow) {
-    forwardHandlerToWindow(name, fn);
+    return null;
   }
 }
 
@@ -188,6 +227,84 @@ function windowHandlerValue(propName: string): unknown {
   return null;
 }
 
+function getIdlHandler(
+  receiver: unknown,
+  propName: string,
+  eventType: string,
+  lenient: boolean,
+): unknown {
+  const target = requireHandlerReceiver(receiver, lenient);
+  if (!target) return undefined;
+  if (isWindowForwardedReceiver(target, propName)) return windowHandlerValue(propName);
+  const slots = target[idlHandlerSym];
+  if (!slots) return null;
+  const entry = slots[eventType];
+  return entry ? entry.fn : null;
+}
+
+function requireHandlerReceiver(receiver: unknown, lenient: boolean): HandlerReceiver | undefined {
+  if (handlerReceiverOk(receiver)) return receiver;
+  if (lenient) return undefined;
+  throw new TypeError("Illegal invocation");
+}
+
+function setIdlHandler(
+  receiver: unknown,
+  propName: string,
+  eventType: string,
+  lenient: boolean,
+  value: unknown,
+): void {
+  const target = requireHandlerReceiver(receiver, lenient);
+  if (!target) return;
+  markHandlerExplicitlySet(target, eventType);
+  if (isWindowForwardedReceiver(target, propName)) {
+    forwardHandlerToWindow(propName, value);
+    return;
+  }
+  const slots = getOrCreateHandlerSlots(target);
+  removeIdlHandler(target, slots, eventType);
+  if (typeof value !== "function") return;
+  addIdlHandler(target, slots, eventType, value);
+}
+
+function getOrCreateHandlerSlots(target: HandlerReceiver): HandlerSlots {
+  const existingSlots = target[idlHandlerSym];
+  const slots: HandlerSlots = existingSlots || Object.create(null);
+  if (!existingSlots) {
+    Object.defineProperty(target, idlHandlerSym, {
+      value: slots,
+      enumerable: false,
+      configurable: true,
+      writable: false,
+    });
+  }
+  return slots;
+}
+
+function removeIdlHandler(target: HandlerReceiver, slots: HandlerSlots, eventType: string): void {
+  const prev = slots[eventType];
+  if (!prev) return;
+  target.removeEventListener?.(eventType, prev.wrapper, false);
+  delete slots[eventType];
+}
+
+function addIdlHandler(
+  target: HandlerReceiver,
+  slots: HandlerSlots,
+  eventType: string,
+  value: Function,
+): void {
+  const wrapper: HandlerWrapper = function (event) {
+    const slot = (this[idlHandlerSym] || {})[eventType];
+    const fn = slot && slot.fn;
+    if (typeof fn !== "function") return undefined;
+    return fn.call(this, event);
+  };
+  slots[eventType] = { fn: value, wrapper };
+  target.addEventListener?.(eventType, wrapper, false);
+}
+
 function installIdlHandlersOn(
   proto: object,
   names: readonly EventHandlerName[] = idlEventHandlerNames,
@@ -196,52 +313,10 @@ function installIdlHandlersOn(
     const eventType = propName.slice(2);
     const lenient = LEGACY_LENIENT_THIS.has(propName);
     const getter = nameHandlerAccessor(function (this: unknown) {
-      if (!handlerReceiverOk(this)) {
-        if (lenient) return undefined;
-        throw new TypeError("Illegal invocation");
-      }
-      if (isWindowForwardedReceiver(this, propName)) {
-        return windowHandlerValue(propName);
-      }
-      const slots = this[idlHandlerSym];
-      if (!slots) return null;
-      const entry = slots[eventType];
-      return entry ? entry.fn : null;
+      return getIdlHandler(this, propName, eventType, lenient);
     }, "get " + propName);
     const setter = nameHandlerAccessor(function (this: unknown, value: unknown) {
-      if (!handlerReceiverOk(this)) {
-        if (lenient) return;
-        throw new TypeError("Illegal invocation");
-      }
-      markHandlerExplicitlySet(this, eventType);
-      if (isWindowForwardedReceiver(this, propName)) {
-        forwardHandlerToWindow(propName, value);
-        return;
-      }
-      const existingSlots = this[idlHandlerSym];
-      const slots: HandlerSlots = existingSlots || Object.create(null);
-      if (!existingSlots) {
-        Object.defineProperty(this, idlHandlerSym, {
-          value: slots,
-          enumerable: false,
-          configurable: true,
-          writable: false,
-        });
-      }
-      const prev = slots[eventType];
-      if (prev) {
-        this.removeEventListener?.(eventType, prev.wrapper, false);
-        delete slots[eventType];
-      }
-      if (typeof value !== "function") return;
-      const wrapper: HandlerWrapper = function (event) {
-        const slot = (this[idlHandlerSym] || {})[eventType];
-        const fn = slot && slot.fn;
-        if (typeof fn !== "function") return undefined;
-        return fn.call(this, event);
-      };
-      slots[eventType] = { fn: value, wrapper };
-      this.addEventListener?.(eventType, wrapper, false);
+      setIdlHandler(this, propName, eventType, lenient, value);
     }, "set " + propName);
     Object.defineProperty(proto, propName, {
       configurable: true,

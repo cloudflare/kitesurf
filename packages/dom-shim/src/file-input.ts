@@ -113,20 +113,26 @@ function snapshotBits(bits: unknown): string | null {
   if (!isIterable(bits)) return "";
   let out = "";
   for (const part of bits) {
-    if (typeof part === "string") {
-      out += binaryString(encoder.encode(part));
-    } else if (part instanceof ArrayBuffer) {
-      out += binaryString(new Uint8Array(part));
-    } else if (ArrayBuffer.isView(part)) {
-      out += binaryString(new Uint8Array(part.buffer, part.byteOffset, part.byteLength));
-    } else {
-      // Wrapped KsFile instances carry their synchronous snapshot under this key.
-      const nested = part ? (part as { __ksBits?: unknown }).__ksBits : undefined;
-      if (typeof nested !== "string") return null;
-      out += nested;
-    }
+    const snapshot = snapshotPart(part);
+    if (snapshot === null) return null;
+    out += snapshot;
   }
   return out;
+}
+
+function snapshotPart(part: unknown): string | null {
+  if (typeof part === "string") return binaryString(encoder.encode(part));
+  if (part instanceof ArrayBuffer) return binaryString(new Uint8Array(part));
+  return snapshotViewOrNestedPart(part);
+}
+
+function snapshotViewOrNestedPart(part: unknown): string | null {
+  if (ArrayBuffer.isView(part)) {
+    return binaryString(new Uint8Array(part.buffer, part.byteOffset, part.byteLength));
+  }
+  // Wrapped KsFile instances carry their synchronous snapshot under this key.
+  const nested = part ? (part as { __ksBits?: unknown }).__ksBits : undefined;
+  return typeof nested === "string" ? nested : null;
 }
 
 const BINARY_STRING_CHUNK = 32 * 1024;
@@ -258,17 +264,11 @@ export class KsDataTransfer implements Idl.DataTransfer {
     this.#effectAllowed = v;
   }
   get files(): KsFileList {
-    const files: File[] = [];
-    for (const item of this.#items) {
-      const file = item.getAsFile();
-      if (file) files.push(file);
-    }
+    const files = collectFiles(this.#items);
     // WPT files.html reads dt.files more than once and assigns it to
     // input.files, so the list keeps its identity while the files match.
     const cached = this.#filesCache;
-    if (cached && cached.length === files.length && files.every((f, i) => cached[i] === f)) {
-      return cached;
-    }
+    if (cached && sameFiles(cached, files)) return cached;
     return (this.#filesCache = makeFileList(files));
   }
   get types(): string[] {
@@ -291,6 +291,19 @@ export class KsDataTransfer implements Idl.DataTransfer {
   setDragImage(_image: Idl.Element, _x: number, _y: number) {
     /* no drag UI */
   }
+}
+
+function collectFiles(items: KsDataTransferItemList): File[] {
+  const files: File[] = [];
+  for (const item of items) {
+    const file = item.getAsFile();
+    if (file) files.push(file);
+  }
+  return files;
+}
+
+function sameFiles(cached: KsFileList, files: File[]): boolean {
+  return cached.length === files.length && files.every((file, index) => cached[index] === file);
 }
 
 function normalizeFormat(format: string): string {

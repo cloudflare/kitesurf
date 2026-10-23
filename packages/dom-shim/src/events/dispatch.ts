@@ -68,16 +68,19 @@ const nodeListenerRegistry = new WeakMap<object, Map<string, ListenerEntry[]>>()
 
 export function listenersFor(key: any, type: string, create: boolean): ListenerEntry[] | null {
   if (typeof key === "number") {
-    const wrapper = liveWrapper(key) ?? (create ? nodeFor(key) : undefined);
-    if (!wrapper) return null;
-    return listenersIn(nodeListenerRegistry, wrapper, type, create);
+    return listenersForNode(key, type, create);
   }
-  return listenersIn(
-    isObjectKey(key) ? objectListenerRegistry : listenerRegistry,
-    key,
-    type,
-    create,
-  );
+  return listenersIn(registryForKey(key), key, type, create);
+}
+
+function listenersForNode(key: number, type: string, create: boolean): ListenerEntry[] | null {
+  const wrapper = liveWrapper(key) ?? (create ? nodeFor(key) : undefined);
+  if (!wrapper) return null;
+  return listenersIn(nodeListenerRegistry, wrapper, type, create);
+}
+
+function registryForKey(key: any) {
+  return isObjectKey(key) ? objectListenerRegistry : listenerRegistry;
 }
 
 function listenersIn<K>(
@@ -136,52 +139,86 @@ export function listenerOptionsHadPassive(options: unknown): boolean {
 export function addListener(key: any, type: string, listener: any, options: unknown): void {
   if (typeof type !== "string") return;
   const opts = normalizeListenerOptions(options);
-  if (listener == null) return;
-  if (typeof listener !== "function" && typeof listener !== "object") return;
-  let passive = opts.passive;
-  if (!listenerOptionsHadPassive(options)) {
-    passive = defaultPassiveFor(key, type);
-  }
+  if (!isListener(listener)) return;
+  const passive = passiveForListener(key, type, options, opts.passive);
   const list = listenersFor(key, type, true)!;
-  for (const entry of list) {
-    if (entry.listener === listener && entry.capture === opts.capture) return;
-  }
+  if (hasListener(list, listener, opts.capture)) return;
   list.push({ listener, capture: opts.capture, once: opts.once, passive });
   noteListenerType(type);
 }
 
-export function defaultPassiveFor(key: any, type: string): boolean {
-  if (type !== "touchstart" && type !== "touchmove" && type !== "wheel" && type !== "mousewheel") {
-    return false;
+function isListener(listener: any): boolean {
+  return listener != null && (typeof listener === "function" || typeof listener === "object");
+}
+
+function passiveForListener(key: any, type: string, options: unknown, passive: boolean): boolean {
+  return listenerOptionsHadPassive(options) ? passive : defaultPassiveFor(key, type);
+}
+
+function hasListener(list: ListenerEntry[], listener: any, capture: boolean): boolean {
+  for (const entry of list) {
+    if (entry.listener === listener && entry.capture === capture) return true;
   }
+  return false;
+}
+
+export function defaultPassiveFor(key: any, type: string): boolean {
+  if (!isDefaultPassiveEventType(type)) return false;
   if (key === WINDOW_KEY) return true;
   try {
-    const doc: any = (windowObj && (windowObj as any).document) || documentImpl;
-    if (!doc) return false;
-    if (key === doc._id) return true;
-    const html = doc.documentElement;
-    if (html && key === html._id) return true;
-    const body = doc.body;
-    if (body && key === body._id) return true;
-  } catch {}
-  return false;
+    const doc: any = defaultPassiveDocument();
+    return isDefaultPassiveDocumentTarget(doc, key);
+  } catch {
+    return false;
+  }
+}
+
+function defaultPassiveDocument() {
+  return (windowObj && (windowObj as any).document) || documentImpl;
+}
+
+function isDefaultPassiveEventType(type: string): boolean {
+  return type === "touchstart" || type === "touchmove" || type === "wheel" || type === "mousewheel";
+}
+
+function isDefaultPassiveDocumentTarget(doc: any, key: any): boolean {
+  if (!doc) return false;
+  if (key === doc._id) return true;
+  return (
+    isDefaultPassiveElementTarget(doc.documentElement, key) ||
+    isDefaultPassiveElementTarget(doc.body, key)
+  );
+}
+
+function isDefaultPassiveElementTarget(element: any, key: any): boolean {
+  return !!element && key === element._id;
 }
 
 export function removeListener(key: any, type: string, listener: any, options: unknown): void {
   if (typeof type !== "string") return;
-  let capture = false;
-  if (options !== null && options !== undefined) {
-    if (typeof options === "object" || typeof options === "function") {
-      capture = !!(options as any).capture;
-    } else {
-      capture = !!options;
-    }
-  }
+  const capture = captureForRemoveOptions(options);
   const list = listenersFor(key, type, false);
   if (!list) return;
+  removeMatchingListener(list, type, listener, capture);
+}
+
+function captureForRemoveOptions(options: unknown): boolean {
+  if (options === null || options === undefined) return false;
+  if (typeof options === "object" || typeof options === "function") {
+    return !!(options as any).capture;
+  }
+  return !!options;
+}
+
+function removeMatchingListener(
+  list: ListenerEntry[],
+  type: string,
+  listener: any,
+  capture: boolean,
+): void {
   for (let i = 0; i < list.length; i++) {
-    const e = list[i];
-    if (e.listener === listener && e.capture === capture) {
+    const entry = list[i];
+    if (entry.listener === listener && entry.capture === capture) {
       list.splice(i, 1);
       noteListenerRemoved(type);
       return;
@@ -190,10 +227,20 @@ export function removeListener(key: any, type: string, listener: any, options: u
 }
 
 function flatParentId(nodeId: number): number {
+  const slot = assignedSlotId(nodeId);
+  if (slot >= 0) return slot;
+  return parentId(nodeId);
+}
+
+function assignedSlotId(nodeId: number): number {
   try {
-    const slot = (dom as any).assignedSlotOf(nodeId);
-    if (slot >= 0) return slot;
-  } catch {}
+    return (dom as any).assignedSlotOf(nodeId);
+  } catch {
+    return -1;
+  }
+}
+
+function parentId(nodeId: number): number {
   try {
     const parent = (dom as any).parentId(nodeId);
     return parent >= 0 && parent !== nodeId ? parent : -1;
@@ -204,44 +251,51 @@ function flatParentId(nodeId: number): number {
 
 function retargetId(aId: number, bKey: any): number {
   let a = aId;
-  let safety = 0;
-  while (safety++ < MAX_SHADOW_ROOT_HOPS) {
-    let rootA = -1;
-    try {
-      rootA = (dom as any).shadowHostId(a) >= 0 ? a : (dom as any).containingShadowRootId(a);
-    } catch {}
+  for (let safety = 0; safety < MAX_SHADOW_ROOT_HOPS; safety++) {
+    const rootA = shadowRootFor(a);
     if (rootA < 0) return a;
-    let contains = false;
-    if (typeof bKey === "number") {
-      let b = bKey;
-      let s2 = 0;
-      while (s2++ < MAX_SHADOW_ROOT_HOPS) {
-        let rootB = -1;
-        try {
-          rootB = (dom as any).shadowHostId(b) >= 0 ? b : (dom as any).containingShadowRootId(b);
-        } catch {}
-        if (rootB < 0) break;
-        if (rootB === rootA) {
-          contains = true;
-          break;
-        }
-        let host = -1;
-        try {
-          host = (dom as any).shadowHostId(rootB);
-        } catch {}
-        if (host < 0) break;
-        b = host;
-      }
-    }
-    if (contains) return a;
-    let host = -1;
-    try {
-      host = (dom as any).shadowHostId(rootA);
-    } catch {}
+    if (containsShadowRoot(bKey, rootA)) return a;
+    const host = shadowHostId(rootA);
     if (host < 0) return a;
     a = host;
   }
   return a;
+}
+
+function shadowRootFor(nodeId: number): number {
+  try {
+    return (dom as any).shadowHostId(nodeId) >= 0
+      ? nodeId
+      : (dom as any).containingShadowRootId(nodeId);
+  } catch {
+    return -1;
+  }
+}
+
+function containsShadowRoot(key: any, rootId: number): boolean {
+  if (typeof key !== "number") return false;
+  return hasShadowRootOnPath(key, rootId);
+}
+
+function hasShadowRootOnPath(startNodeId: number, rootId: number): boolean {
+  let nodeId = startNodeId;
+  for (let safety = 0; safety < MAX_SHADOW_ROOT_HOPS; safety++) {
+    const root = shadowRootFor(nodeId);
+    if (root < 0) break;
+    if (root === rootId) return true;
+    const host = shadowHostId(root);
+    if (host < 0) break;
+    nodeId = host;
+  }
+  return false;
+}
+
+function shadowHostId(nodeId: number): number {
+  try {
+    return (dom as any).shadowHostId(nodeId);
+  } catch {
+    return -1;
+  }
 }
 
 export function propagationPath(
@@ -249,20 +303,27 @@ export function propagationPath(
   composed?: boolean,
   eventType?: string,
 ): PropagationEntry[] {
+  const initial = initialPropagationPath(targetKey);
+  if (initial) return initial;
+  const stopAtRoot = stopAtShadowRoot(targetKey, composed);
+  const path = collectNodePath(targetKey, stopAtRoot);
+  if (eventType !== "load") appendWindowEntry(path, targetKey);
+  return path;
+}
+
+function initialPropagationPath(targetKey: any): PropagationEntry[] | null {
   if (targetKey === WINDOW_KEY) return [{ key: WINDOW_KEY, target: WINDOW_KEY }];
   if (isObjectKey(targetKey)) return [{ key: targetKey, target: targetKey }];
   if (typeof targetKey !== "number") return [{ key: WINDOW_KEY, target: WINDOW_KEY }];
+  return null;
+}
 
-  let stopAtRoot = -1;
-  if (composed === false) {
-    try {
-      stopAtRoot =
-        (dom as any).shadowHostId(targetKey) >= 0
-          ? targetKey
-          : (dom as any).containingShadowRootId(targetKey);
-    } catch {}
-  }
+function stopAtShadowRoot(targetKey: number, composed: boolean | undefined): number {
+  if (composed !== false) return -1;
+  return shadowRootFor(targetKey);
+}
 
+function collectNodePath(targetKey: number, stopAtRoot: number): PropagationEntry[] {
   const path: PropagationEntry[] = [];
   let cur = targetKey;
   let safety = 0;
@@ -272,10 +333,11 @@ export function propagationPath(
     cur = flatParentId(cur);
     safety++;
   }
-  if (eventType !== "load") {
-    path.push({ key: WINDOW_KEY, target: retargetId(targetKey, WINDOW_KEY) });
-  }
   return path;
+}
+
+function appendWindowEntry(path: PropagationEntry[], targetKey: number): void {
+  path.push({ key: WINDOW_KEY, target: retargetId(targetKey, WINDOW_KEY) });
 }
 
 function setEventRelatedTarget(
@@ -306,12 +368,14 @@ function applyRetargeting(
 export function targetForKey(key: unknown): Idl.EventTarget | null {
   if (key === WINDOW_KEY) return windowProxy;
   if (isObjectKey(key)) return key;
-  if (typeof key === "number") {
-    const hostDoc = hostIdToDoc.get(key);
-    if (hostDoc) return hostDoc;
-    return nodeFor ? nodeFor(key) : null;
-  }
+  if (typeof key === "number") return targetForNodeId(key);
   return null;
+}
+
+function targetForNodeId(key: number): Idl.EventTarget | null {
+  const hostDoc = hostIdToDoc.get(key);
+  if (hostDoc) return hostDoc;
+  return nodeFor ? nodeFor(key) : null;
 }
 
 function isDispatchObject(value: unknown): value is object {
@@ -322,47 +386,58 @@ export function reportException(thrown: unknown): void {
   if (inErrorReportingMode) return;
   inErrorReportingMode = true;
   try {
-    const messageValue: unknown = thrown
-      ? Reflect.get(Object(thrown), "message", thrown)
-      : undefined;
-    let message = "Uncaught " + String(thrown);
-    if (messageValue) {
-      if (typeof messageValue === "symbol") {
-        throw new TypeError("Cannot convert a Symbol value to a string");
-      }
-      message = "Uncaught Error: " + String(messageValue);
-    }
+    const message = exceptionMessage(thrown);
     const event = new KsErrorEvent("error", {
       message,
       error: thrown,
       cancelable: true,
       bubbles: false,
     });
-    const windowValue: unknown = ksGlobal.window || globalThis;
-    const win = isDispatchObject(windowValue) ? windowValue : globalThis;
-    const dispatchEvent: unknown = Reflect.get(win, "dispatchEvent", win);
-    if (typeof dispatchEvent === "function") {
-      try {
-        Reflect.apply(dispatchEvent, win, [event]);
-      } catch {}
-    }
-    const winHandler: unknown = Reflect.get(win, "onerror", win) || null;
-    const globalHandler: unknown = ksGlobal.onerror || null;
-    const handler =
-      typeof winHandler === "function"
-        ? winHandler
-        : typeof globalHandler === "function"
-          ? globalHandler
-          : null;
-    if (handler) {
-      try {
-        Reflect.apply(handler, win, [message, "", 0, 0, thrown]);
-      } catch {}
-    }
+    const win = currentWindowForErrorReporting();
+    dispatchErrorEvent(win, event);
+    invokeErrorHandler(win, message, thrown);
   } catch {
   } finally {
     inErrorReportingMode = false;
   }
+}
+
+function exceptionMessage(thrown: unknown): string {
+  const messageValue: unknown = thrown ? Reflect.get(Object(thrown), "message", thrown) : undefined;
+  if (!messageValue) return "Uncaught " + String(thrown);
+  if (typeof messageValue === "symbol") {
+    throw new TypeError("Cannot convert a Symbol value to a string");
+  }
+  return "Uncaught Error: " + String(messageValue);
+}
+
+function dispatchErrorEvent(win: object, event: KsErrorEvent): void {
+  const dispatchEvent: unknown = Reflect.get(win, "dispatchEvent", win);
+  if (typeof dispatchEvent !== "function") return;
+  try {
+    Reflect.apply(dispatchEvent, win, [event]);
+  } catch {}
+}
+
+function currentWindowForErrorReporting(): object {
+  const windowValue: unknown = ksGlobal.window || globalThis;
+  return isDispatchObject(windowValue) ? windowValue : globalThis;
+}
+
+function invokeErrorHandler(win: object, message: string, thrown: unknown): void {
+  const winHandler: unknown = Reflect.get(win, "onerror", win) || null;
+  const globalHandler: unknown = ksGlobal.onerror || null;
+  const handler = selectErrorHandler(winHandler, globalHandler);
+  if (!handler) return;
+  try {
+    Reflect.apply(handler, win, [message, "", 0, 0, thrown]);
+  } catch {}
+}
+
+function selectErrorHandler(winHandler: unknown, globalHandler: unknown): Function | null {
+  if (typeof winHandler === "function") return winHandler;
+  if (typeof globalHandler === "function") return globalHandler;
+  return null;
 }
 
 export function dispatchOnKey(targetKey: any, event: any): boolean {
@@ -382,15 +457,21 @@ export function dispatchTrustedOnKey(targetKey: any, event: any): boolean {
  * Invalid node targets throw `TypeError`.
  */
 export function dispatchTrustedEvent(target: any, event: any): boolean {
-  return dispatchLocked(event, true, () => {
-    if (target === windowProxy) return WINDOW_KEY;
-    // Only the canonical wrapper may dispatch a trusted event for a node ID.
-    const candidates = [target?._id, target?._hostId];
-    for (const key of candidates) {
-      if (targetForKey(key) === target) return key;
-    }
-    throw new TypeError("Invalid trusted event target");
-  });
+  return dispatchLocked(event, true, () => resolveTrustedTargetKey(target));
+}
+
+function resolveTrustedTargetKey(target: any): any {
+  if (target === windowProxy) return WINDOW_KEY;
+  // Only the canonical wrapper may dispatch a trusted event for a node ID.
+  const candidates = trustedTargetCandidates(target);
+  for (const key of candidates) {
+    if (targetForKey(key) === target) return key;
+  }
+  throw new TypeError("Invalid trusted event target");
+}
+
+function trustedTargetCandidates(target: any): unknown[] {
+  return [target?._id, target?._hostId];
 }
 
 function assertEvent(event: any): void {
@@ -419,60 +500,138 @@ function dispatchLocked(event: any, trusted: boolean, resolveTargetKey: () => an
     throw new DOMException("Event is already being dispatched", "InvalidStateError");
   }
   eventsInFlight.add(event);
-  let targetKey: any;
-  let origRelated: any;
-  let origRelatedId = -1;
-  let relatedCaptured = false;
-  let prevGlobalEvent: any;
-  let prevWindowEvent: any;
   try {
-    prevGlobalEvent = ksGlobal.event;
-  } catch {}
-  if (windowObj) {
-    try {
-      prevWindowEvent = "event" in (windowObj as any) ? (windowObj as any).event : undefined;
-    } catch {}
-  }
-  try {
-    if (!state.initialized) {
-      throw new DOMException("Event is uninitialized", "InvalidStateError");
-    }
-    targetKey = resolveTargetKey();
-    const metadata = snapshotDispatchMetadata(state);
-    __ks_setEventTrusted(event, trusted);
-    origRelated = (event as any).relatedTarget;
-    relatedCaptured = true;
-    origRelatedId = origRelated && typeof origRelated._id === "number" ? origRelated._id : -1;
-    return ksSpan("dom.dispatchEvent", { event_type: safeEventType(metadata.type) }, () =>
-      dispatchOnKeyInnerUnsafe(targetKey, event, state, metadata, origRelated, origRelatedId),
-    );
+    return dispatchEventWithRestore(event, state, trusted, resolveTargetKey);
   } finally {
-    state.currentTarget = null;
-    state.eventPhase = 0;
-    state.stopPropagation = false;
-    state.stopImmediatePropagation = false;
-    state.path = null;
-    state.inPassiveListener = false;
-    if (targetKey !== undefined) {
-      try {
-        setEventTarget(event, targetForKey(targetKey));
-      } catch {}
-    }
-    if (relatedCaptured) {
-      try {
-        setEventRelatedTarget(event, origRelated);
-      } catch {}
-    }
-    try {
-      ksGlobal.event = prevGlobalEvent;
-    } catch {}
-    if (windowObj) {
-      try {
-        (windowObj as any).event = prevWindowEvent;
-      } catch {}
-    }
     eventsInFlight.delete(event);
   }
+}
+
+interface DispatchRestoreState {
+  targetKey?: unknown;
+  origRelated?: any;
+  relatedCaptured: boolean;
+}
+
+interface PreviousDispatchGlobals {
+  globalEvent: unknown;
+  windowEvent: unknown;
+}
+
+function dispatchEventWithRestore(
+  event: any,
+  state: EventState,
+  trusted: boolean,
+  resolveTargetKey: () => any,
+): boolean {
+  const previousGlobals = captureDispatchGlobals();
+  const restore: DispatchRestoreState = { relatedCaptured: false };
+  try {
+    return dispatchEventBody(event, state, trusted, resolveTargetKey, restore);
+  } finally {
+    resetEventDispatchState(state);
+    restoreEventTargets(event, restore);
+    restoreDispatchGlobals(previousGlobals);
+  }
+}
+
+function captureDispatchGlobals(): PreviousDispatchGlobals {
+  return {
+    globalEvent: readGlobalEvent(),
+    windowEvent: readWindowEvent(),
+  };
+}
+
+function readGlobalEvent(): unknown {
+  try {
+    return ksGlobal.event;
+  } catch {
+    return undefined;
+  }
+}
+
+function readWindowEvent(): unknown {
+  if (!windowObj) return undefined;
+  try {
+    return "event" in (windowObj as any) ? (windowObj as any).event : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function dispatchEventBody(
+  event: any,
+  state: EventState,
+  trusted: boolean,
+  resolveTargetKey: () => any,
+  restore: DispatchRestoreState,
+): boolean {
+  if (!state.initialized) {
+    throw new DOMException("Event is uninitialized", "InvalidStateError");
+  }
+  restore.targetKey = resolveTargetKey();
+  const metadata = snapshotDispatchMetadata(state);
+  __ks_setEventTrusted(event, trusted);
+  restore.origRelated = (event as any).relatedTarget;
+  restore.relatedCaptured = true;
+  const origRelatedId =
+    restore.origRelated && typeof restore.origRelated._id === "number"
+      ? restore.origRelated._id
+      : -1;
+  return ksSpan("dom.dispatchEvent", { event_type: safeEventType(metadata.type) }, () =>
+    dispatchOnKeyInnerUnsafe(
+      restore.targetKey,
+      event,
+      state,
+      metadata,
+      restore.origRelated,
+      origRelatedId,
+    ),
+  );
+}
+
+function resetEventDispatchState(state: EventState): void {
+  state.currentTarget = null;
+  state.eventPhase = 0;
+  state.stopPropagation = false;
+  state.stopImmediatePropagation = false;
+  state.path = null;
+  state.inPassiveListener = false;
+}
+
+function restoreEventTargets(event: any, restore: DispatchRestoreState): void {
+  if (restore.targetKey !== undefined) restoreEventTarget(event, restore.targetKey);
+  if (restore.relatedCaptured) restoreEventRelatedTarget(event, restore.origRelated);
+}
+
+function restoreEventTarget(event: any, targetKey: unknown): void {
+  try {
+    setEventTarget(event, targetForKey(targetKey));
+  } catch {}
+}
+
+function restoreEventRelatedTarget(event: any, relatedTarget: any): void {
+  try {
+    setEventRelatedTarget(event, relatedTarget);
+  } catch {}
+}
+
+function restoreDispatchGlobals(previous: PreviousDispatchGlobals): void {
+  restoreGlobalEvent(previous.globalEvent);
+  restoreWindowEvent(previous.windowEvent);
+}
+
+function restoreGlobalEvent(value: unknown): void {
+  try {
+    ksGlobal.event = value;
+  } catch {}
+}
+
+function restoreWindowEvent(value: unknown): void {
+  if (!windowObj) return;
+  try {
+    (windowObj as any).event = value;
+  } catch {}
 }
 
 function dispatchOnKeyInnerUnsafe(
@@ -483,15 +642,34 @@ function dispatchOnKeyInnerUnsafe(
   origRelated: any,
   origRelatedId: number,
 ): boolean {
+  exposeLegacyEventHandler(metadata.type);
+  state.dispatched = true;
+  setEventTarget(event, targetForKey(targetKey));
+  exposeEventGlobally(event);
+  const path = propagationPath(targetKey, metadata.composed, metadata.type);
+  hydrateContentAttributes(path, metadata.type);
+  state.path = path
+    .map((entry) => targetForKey(entry.key))
+    .filter((target): target is Idl.EventTarget => target != null);
+
+  dispatchCapturePhase(path, event, state, targetKey, metadata, origRelatedId);
+  dispatchAtTarget(path, event, state, targetKey, metadata, origRelatedId);
+  dispatchBubblePhase(path, event, state, targetKey, metadata, origRelatedId);
+
+  return !(metadata.cancelable && isEventDefaultPrevented(event));
+}
+
+function exposeLegacyEventHandler(type: string): void {
   try {
-    const handlerName = "on" + metadata.type;
+    const handlerName = "on" + type;
     const bare = ksGlobal[handlerName];
     if (typeof bare === "function" && windowProxy && windowProxy[handlerName] == null) {
       windowProxy[handlerName] = bare;
     }
   } catch {}
-  state.dispatched = true;
-  setEventTarget(event, targetForKey(targetKey));
+}
+
+function exposeEventGlobally(event: any): void {
   try {
     ksGlobal.event = event;
   } catch {}
@@ -500,58 +678,96 @@ function dispatchOnKeyInnerUnsafe(
       (windowObj as any).event = event;
     } catch {}
   }
-  const path = propagationPath(targetKey, metadata.composed, metadata.type);
+}
+
+function hydrateContentAttributes(path: PropagationEntry[], type: string): void {
   if (contentAttrHydrator) {
     for (const entry of path) {
       const t = targetForKey(entry.key);
       if (t) {
         try {
-          contentAttrHydrator(t, metadata.type);
+          contentAttrHydrator(t, type);
         } catch {}
       }
     }
   }
-  state.path = path
-    .map((entry) => targetForKey(entry.key))
-    .filter((target): target is Idl.EventTarget => target != null);
+}
 
+function dispatchCapturePhase(
+  path: PropagationEntry[],
+  event: any,
+  state: EventState,
+  targetKey: any,
+  metadata: DispatchMetadata,
+  origRelatedId: number,
+): void {
   state.eventPhase = 1;
   for (let i = path.length - 1; i > 0; i--) {
     if (state.stopPropagation) break;
     const entry = path[i];
     const list = listenersFor(entry.key, metadata.type, false);
-    if (!list || list.length === 0) continue;
+    if (!hasListeners(list)) continue;
     if (!applyRetargeting(event, entry, targetKey, origRelatedId)) continue;
     setEventCurrentTarget(event, targetForKey(entry.key));
     invokeListeners(list, event, true);
   }
+}
 
-  if (!state.stopPropagation) {
-    state.eventPhase = 2;
-    const list = listenersFor(targetKey, metadata.type, false);
-    if (list && list.length > 0 && applyRetargeting(event, path[0], targetKey, origRelatedId)) {
-      setEventCurrentTarget(event, targetForKey(targetKey));
-      invokeListeners(list, event, true);
-      if (!state.stopImmediatePropagation && !state.stopPropagation) {
-        invokeListeners(list, event, false);
-      }
-    }
+function dispatchAtTarget(
+  path: PropagationEntry[],
+  event: any,
+  state: EventState,
+  targetKey: any,
+  metadata: DispatchMetadata,
+  origRelatedId: number,
+): void {
+  if (state.stopPropagation) return;
+  state.eventPhase = 2;
+  const list = listenersFor(targetKey, metadata.type, false);
+  if (!canDispatchPathEntry(list, event, path[0], targetKey, origRelatedId)) return;
+  setEventCurrentTarget(event, targetForKey(targetKey));
+  invokeListeners(list, event, true);
+  if (!state.stopImmediatePropagation && !state.stopPropagation) {
+    invokeListeners(list, event, false);
   }
+}
 
-  if (!state.stopPropagation && metadata.bubbles) {
-    state.eventPhase = 3;
-    for (let i = 1; i < path.length; i++) {
-      if (state.stopPropagation) break;
-      const entry = path[i];
-      const list = listenersFor(entry.key, metadata.type, false);
-      if (!list || list.length === 0) continue;
-      if (!applyRetargeting(event, entry, targetKey, origRelatedId)) continue;
-      setEventCurrentTarget(event, targetForKey(entry.key));
-      invokeListeners(list, event, false);
-    }
+function dispatchBubblePhase(
+  path: PropagationEntry[],
+  event: any,
+  state: EventState,
+  targetKey: any,
+  metadata: DispatchMetadata,
+  origRelatedId: number,
+): void {
+  if (!shouldBubble(state, metadata)) return;
+  state.eventPhase = 3;
+  for (let i = 1; i < path.length; i++) {
+    if (state.stopPropagation) break;
+    const entry = path[i];
+    const list = listenersFor(entry.key, metadata.type, false);
+    if (!canDispatchPathEntry(list, event, entry, targetKey, origRelatedId)) continue;
+    setEventCurrentTarget(event, targetForKey(entry.key));
+    invokeListeners(list, event, false);
   }
+}
 
-  return !(metadata.cancelable && isEventDefaultPrevented(event));
+function canDispatchPathEntry(
+  list: ListenerEntry[] | null,
+  event: any,
+  entry: PropagationEntry,
+  targetKey: any,
+  origRelatedId: number,
+): list is ListenerEntry[] {
+  return hasListeners(list) && applyRetargeting(event, entry, targetKey, origRelatedId);
+}
+
+function hasListeners(list: ListenerEntry[] | null): list is ListenerEntry[] {
+  return !!list && list.length > 0;
+}
+
+function shouldBubble(state: EventState, metadata: DispatchMetadata): boolean {
+  return !state.stopPropagation && metadata.bubbles;
 }
 
 function invokeListenerCallback(listener: ListenerEntry["listener"], event: any) {
@@ -577,41 +793,57 @@ export function invokeListeners(
   const state = eventState(event);
   for (const entry of snapshot) {
     if (state.stopImmediatePropagation) return;
-    if (captureOnly !== null && captureOnly !== entry.capture) continue;
+    if (!matchesCapture(entry, captureOnly)) continue;
     if (list.indexOf(entry) < 0) continue;
-    // Remove once-listeners before page code so reentrant dispatch cannot invoke them again.
-    if (entry.once) {
-      const idx = list.indexOf(entry);
-      if (idx >= 0) {
-        list.splice(idx, 1);
-        noteListenerRemoved(event.type);
-      }
-    }
-    let thrown: any = null;
-    let threw = false;
-    const prevPassive = isEventInPassiveListener(event);
-    setEventInPassiveListener(event, !!entry.passive);
-    try {
-      invokeListenerCallback(entry.listener, event);
-    } catch (err) {
-      thrown = err;
-      threw = true;
-    }
-    if (threw) {
-      reportException(thrown);
-      try {
-        console.error(
-          "[kitesurf] event listener for",
-          event.type,
-          "threw:",
-          thrown && thrown.stack
-            ? thrown.stack
-            : thrown && thrown.message
-              ? thrown.message
-              : String(thrown),
-        );
-      } catch {}
-    }
-    setEventInPassiveListener(event, prevPassive);
+    removeOnceListener(list, event, entry);
+    invokeListenerSafely(entry, event);
   }
+}
+
+function matchesCapture(entry: ListenerEntry, captureOnly: boolean | null): boolean {
+  return captureOnly === null || captureOnly === entry.capture;
+}
+
+function removeOnceListener(list: ListenerEntry[], event: any, entry: ListenerEntry): void {
+  if (!entry.once) return;
+  const idx = list.indexOf(entry);
+  if (idx >= 0) {
+    list.splice(idx, 1);
+    noteListenerRemoved(event.type);
+  }
+}
+
+function invokeListenerSafely(entry: ListenerEntry, event: any): void {
+  const prevPassive = isEventInPassiveListener(event);
+  setEventInPassiveListener(event, !!entry.passive);
+  let thrown: any = null;
+  let threw = false;
+  try {
+    invokeListenerCallback(entry.listener, event);
+  } catch (err) {
+    thrown = err;
+    threw = true;
+  }
+  if (threw) {
+    reportException(thrown);
+    logListenerException(event, thrown);
+  }
+  setEventInPassiveListener(event, prevPassive);
+}
+
+function logListenerException(event: any, thrown: any): void {
+  try {
+    console.error(
+      "[kitesurf] event listener for",
+      event.type,
+      "threw:",
+      listenerExceptionDetails(thrown),
+    );
+  } catch {}
+}
+
+function listenerExceptionDetails(thrown: any): string {
+  if (thrown && thrown.stack) return thrown.stack;
+  if (thrown && thrown.message) return thrown.message;
+  return String(thrown);
 }

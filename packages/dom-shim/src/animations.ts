@@ -109,50 +109,87 @@ function enumValue<T extends string>(value: unknown, allowed: readonly T[], type
   return member;
 }
 
+type TimingReader = (member: string) => unknown;
+
+function isTimingDictionary(input: unknown): input is object {
+  return typeof input === "object" || typeof input === "function";
+}
+
+function applyDelay(state: TimingState, read: TimingReader): void {
+  const value = read("delay");
+  if (value !== undefined) state.delay = finiteDouble(value, "delay");
+}
+
+function applyDirection(state: TimingState, read: TimingReader): void {
+  const value = read("direction");
+  if (value !== undefined) state.direction = enumValue(value, DIRECTIONS, "PlaybackDirection");
+}
+
+function durationValue(duration: unknown): number | "auto" {
+  if (typeof duration === "string") {
+    if (duration === "auto") return "auto";
+    throw new TypeError(`Invalid duration '${duration}'.`);
+  }
+  const n = Number(duration);
+  if (Number.isNaN(n) || n < 0) {
+    throw new TypeError("Effect duration must be a non-negative number or 'auto'.");
+  }
+  return n;
+}
+
+function applyDuration(state: TimingState, read: TimingReader): void {
+  const duration = read("duration");
+  if (duration !== undefined) state.duration = durationValue(duration);
+}
+
+function applyEasing(state: TimingState, read: TimingReader): void {
+  const easing = read("easing");
+  if (easing !== undefined) state.easing = String(easing);
+}
+
+function applyEndDelay(state: TimingState, read: TimingReader): void {
+  const value = read("endDelay");
+  if (value !== undefined) state.endDelay = finiteDouble(value, "endDelay");
+}
+
+function applyFill(state: TimingState, read: TimingReader): void {
+  const value = read("fill");
+  if (value !== undefined) state.fill = enumValue(value, FILLS, "FillMode");
+}
+
+function applyIterationStart(state: TimingState, read: TimingReader): void {
+  const value = read("iterationStart");
+  if (value === undefined) return;
+  const n = finiteDouble(value, "iterationStart");
+  if (n < 0) throw new TypeError("iterationStart must be non-negative.");
+  state.iterationStart = n;
+}
+
+function applyIterations(state: TimingState, read: TimingReader): void {
+  const value = read("iterations");
+  if (value === undefined) return;
+  const n = Number(value);
+  if (Number.isNaN(n) || n < 0) throw new TypeError("iterations must be non-negative.");
+  state.iterations = n;
+}
+
 // Members are read in IDL dictionary order (alphabetical), then validated together so a
 // bad member leaves the timing untouched, as updateTiming() requires.
 function applyTiming(state: TimingState, input: unknown): void {
   if (input === undefined || input === null) return;
-  if (typeof input !== "object" && typeof input !== "function") {
+  if (!isTimingDictionary(input)) {
     throw new TypeError("Failed to convert value to 'OptionalEffectTiming'.");
   }
   const read = (member: string): unknown => Reflect.get(input, member);
   const next = { ...state };
-  const delay = read("delay");
-  if (delay !== undefined) next.delay = finiteDouble(delay, "delay");
-  const direction = read("direction");
-  if (direction !== undefined)
-    next.direction = enumValue(direction, DIRECTIONS, "PlaybackDirection");
-  const duration = read("duration");
-  if (duration !== undefined) {
-    if (typeof duration === "string") {
-      if (duration !== "auto") throw new TypeError(`Invalid duration '${duration}'.`);
-      next.duration = "auto";
-    } else {
-      const n = Number(duration);
-      if (Number.isNaN(n) || n < 0)
-        throw new TypeError("Effect duration must be a non-negative number or 'auto'.");
-      next.duration = n;
-    }
-  }
-  const easing = read("easing");
-  if (easing !== undefined) next.easing = String(easing);
-  const endDelay = read("endDelay");
-  if (endDelay !== undefined) next.endDelay = finiteDouble(endDelay, "endDelay");
-  const fill = read("fill");
-  if (fill !== undefined) next.fill = enumValue(fill, FILLS, "FillMode");
-  const iterationStart = read("iterationStart");
-  if (iterationStart !== undefined) {
-    const n = finiteDouble(iterationStart, "iterationStart");
-    if (n < 0) throw new TypeError("iterationStart must be non-negative.");
-    next.iterationStart = n;
-  }
-  const iterations = read("iterations");
-  if (iterations !== undefined) {
-    const n = Number(iterations);
-    if (Number.isNaN(n) || n < 0) throw new TypeError("iterations must be non-negative.");
-    next.iterations = n;
-  }
+  applyDelay(next, read);
+  applyDirection(next, read);
+  applyDuration(next, read);
+  applyEasing(next, read);
+  applyEndDelay(next, read);
+  applyFill(next, read);
+  applyIterationStart(next, read);
+  applyIterations(next, read);
   if (next.easing !== state.easing) checkEasing(next.easing);
   Object.assign(state, next);
 }
@@ -167,13 +204,26 @@ interface Keyframe {
 
 // IDL attribute names only: `backgroundColor`, `cssFloat`, `--custom`. Chrome ignores the
 // hyphenated CSS spelling as a keyframe key, so `background-color` maps to nothing.
-function cssPropertyName(key: string): string | null {
-  if (key.startsWith("--")) return key;
-  if (key === "cssFloat") return "float";
-  if (key === "cssOffset") return "offset";
-  if (key.includes("-") || key === "float") return null;
+const CSS_PROPERTY_ALIASES = new Map([
+  ["cssFloat", "float"],
+  ["cssOffset", "offset"],
+]);
+
+function isUnsupportedCssPropertyName(key: string): boolean {
+  return key.includes("-") || key === "float";
+}
+
+function kebabCaseCssProperty(key: string): string {
   const css = key.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
   return css.startsWith("webkit-") ? "-" + css : css;
+}
+
+function cssPropertyName(key: string): string | null {
+  if (key.startsWith("--")) return key;
+  const alias = CSS_PROPERTY_ALIASES.get(key);
+  if (alias !== undefined) return alias;
+  if (isUnsupportedCssPropertyName(key)) return null;
+  return kebabCaseCssProperty(key);
 }
 
 function keyframeOffset(value: unknown): number | null {
@@ -194,115 +244,214 @@ function toList(value: unknown): unknown[] {
 
 // web-animations-1 §5.3.3 "compute missing keyframe offsets": the ends default to 0
 // and 1, and the keyframes between two known offsets spread evenly across them.
-function computeMissingOffsets(frames: Keyframe[]): void {
-  if (frames.length === 0) return;
-  for (const f of frames) f.computedOffset = f.offset ?? NaN;
-  if (frames.length > 1 && Number.isNaN(frames[0].computedOffset)) frames[0].computedOffset = 0;
+function defaultFirstOffset(frames: Keyframe[]): void {
+  if (frames.length > 1 && Number.isNaN(frames[0].computedOffset)) {
+    frames[0].computedOffset = 0;
+  }
+}
+
+function defaultLastOffset(frames: Keyframe[]): void {
   const last = frames[frames.length - 1];
   if (Number.isNaN(last.computedOffset)) last.computedOffset = 1;
+}
+
+function interpolateMissingOffsetGap(frames: Keyframe[], previous: number, next: number): void {
+  const span = next - previous;
+  const startOffset = frames[previous].computedOffset;
+  const endOffset = frames[next].computedOffset;
+  for (let j = previous + 1; j < next; j++) {
+    frames[j].computedOffset = startOffset + ((endOffset - startOffset) * (j - previous)) / span;
+  }
+}
+
+function spreadMissingOffsets(frames: Keyframe[]): void {
   let prev = 0;
   for (let i = 1; i < frames.length; i++) {
     if (Number.isNaN(frames[i].computedOffset)) continue;
-    const span = i - prev;
-    for (let j = prev + 1; j < i; j++) {
-      const a = frames[prev].computedOffset;
-      frames[j].computedOffset = a + ((frames[i].computedOffset - a) * (j - prev)) / span;
-    }
+    interpolateMissingOffsetGap(frames, prev, i);
     prev = i;
   }
 }
 
+function validateOffset(offset: number | null, floor: number): number {
+  if (offset === null) return floor;
+  if (offset < 0 || offset > 1) {
+    throw new TypeError("Offsets must be null or in the range [0,1].");
+  }
+  if (offset < floor) throw new TypeError("Offsets must be monotonically non-decreasing.");
+  return offset;
+}
+
 function validateOffsets(frames: Keyframe[]): void {
   let floor = -Infinity;
-  for (const f of frames) {
-    if (f.offset === null) continue;
-    if (f.offset < 0 || f.offset > 1)
-      throw new TypeError("Offsets must be null or in the range [0,1].");
-    if (f.offset < floor) throw new TypeError("Offsets must be monotonically non-decreasing.");
-    floor = f.offset;
+  for (const frame of frames) floor = validateOffset(frame.offset, floor);
+}
+
+function computeMissingOffsets(frames: Keyframe[]): void {
+  if (frames.length === 0) return;
+  for (const frame of frames) frame.computedOffset = frame.offset ?? NaN;
+  defaultFirstOffset(frames);
+  defaultLastOffset(frames);
+  spreadMissingOffsets(frames);
+}
+
+function checkFrameEasings(frames: Keyframe[]): void {
+  for (const frame of frames) checkEasing(frame.easing);
+}
+
+function finalizeKeyframes(frames: Keyframe[], computeOffsets: boolean): Keyframe[] {
+  validateOffsets(frames);
+  if (computeOffsets) computeMissingOffsets(frames);
+  checkFrameEasings(frames);
+  return frames;
+}
+
+function isKeyframeProperty(key: string): boolean {
+  return !RESERVED_KEYFRAME_KEYS.has(key) && !!cssPropertyName(key);
+}
+
+function keyframeObject(entry: unknown): object {
+  let keyframe: object;
+  if (entry === undefined || entry === null) keyframe = {};
+  else if (typeof entry === "object") keyframe = entry;
+  else throw new TypeError("Keyframes must be objects.");
+  return keyframe;
+}
+
+function keyframeProperties(keyframe: object): Map<string, string> {
+  const props = new Map<string, string>();
+  for (const key of Object.keys(keyframe)) {
+    if (isKeyframeProperty(key)) props.set(key, String(Reflect.get(keyframe, key)));
   }
+  return props;
+}
+
+function keyframeComposite(composite: unknown): Composite {
+  if (composite === undefined || composite === null) return "auto";
+  return enumValue(composite, COMPOSITES, "CompositeOperationOrAuto");
+}
+
+function keyframeFromEntry(entry: unknown): Keyframe {
+  const keyframe = keyframeObject(entry);
+  const props = keyframeProperties(keyframe);
+  const easing: unknown = Reflect.get(keyframe, "easing");
+  const composite: unknown = Reflect.get(keyframe, "composite");
+  return {
+    offset: keyframeOffset(Reflect.get(keyframe, "offset")),
+    computedOffset: NaN,
+    easing: easing === undefined ? "linear" : String(easing),
+    composite: keyframeComposite(composite),
+    props,
+  };
+}
+
+function processIterableKeyframes(input: unknown): Keyframe[] {
+  if (!isIterable(input)) throw new TypeError("Keyframes argument is not iterable.");
+  const entries = Array.from(input);
+  const frames: Keyframe[] = [];
+  for (const entry of entries) frames.push(keyframeFromEntry(entry));
+  return finalizeKeyframes(frames, true);
+}
+
+function addPropertyKeyframes(
+  byOffset: Map<number, Map<string, string>>,
+  key: string,
+  input: object,
+): void {
+  if (!isKeyframeProperty(key)) return;
+  const values = toList(Reflect.get(input, key)).map(String);
+  values.forEach((value, i) => {
+    const at = values.length === 1 ? 1 : i / (values.length - 1);
+    let props = byOffset.get(at);
+    if (!props) byOffset.set(at, (props = new Map()));
+    props.set(key, value);
+  });
+}
+
+function propertyKeyframesByOffset(input: object): Map<number, Map<string, string>> {
+  const byOffset = new Map<number, Map<string, string>>();
+  for (const key of Object.keys(input).sort()) addPropertyKeyframes(byOffset, key, input);
+  return byOffset;
+}
+
+function keyframesFromOffsets(byOffset: Map<number, Map<string, string>>): Keyframe[] {
+  const frames: Keyframe[] = [];
+  const entries = [...byOffset.entries()].sort((a, b) => a[0] - b[0]);
+  for (const [offset, props] of entries) {
+    frames.push({
+      offset: null,
+      computedOffset: offset,
+      easing: "linear",
+      composite: "auto",
+      props,
+    });
+  }
+  return frames;
+}
+
+function frameValues(input: object, name: string): unknown[] {
+  const value: unknown = Reflect.get(input, name);
+  return value === undefined ? [] : toList(value);
+}
+
+function applyPropertyOffsets(frames: Keyframe[], input: object): unknown[] {
+  const offsets = frameValues(input, "offset");
+  offsets.slice(0, frames.length).forEach((offset, index) => {
+    frames[index].offset = keyframeOffset(offset);
+  });
+  return offsets;
+}
+
+function applyPropertyEasings(frames: Keyframe[], input: object): void {
+  const easings = frameValues(input, "easing").map(String);
+  if (easings.length === 0) return;
+  frames.forEach((frame, index) => {
+    frame.easing = easings[index % easings.length];
+  });
+}
+
+function applyPropertyComposites(frames: Keyframe[], input: object): void {
+  const composites = frameValues(input, "composite");
+  if (composites.length === 0) return;
+  frames.forEach((frame, index) => {
+    frame.composite = enumValue(
+      composites[index % composites.length],
+      COMPOSITES,
+      "CompositeOperationOrAuto",
+    );
+  });
+}
+
+function finalizePropertyKeyframes(frames: Keyframe[], offsets: unknown[]): Keyframe[] {
+  if (offsets.length === 0) {
+    for (const frame of frames) frame.offset = null;
+    return finalizeKeyframes(frames, false);
+  }
+  return finalizeKeyframes(frames, true);
+}
+
+function processPropertyKeyframes(input: object): Keyframe[] {
+  const frames = keyframesFromOffsets(propertyKeyframesByOffset(input));
+  const offsets = applyPropertyOffsets(frames, input);
+  applyPropertyEasings(frames, input);
+  applyPropertyComposites(frames, input);
+  return finalizePropertyKeyframes(frames, offsets);
+}
+
+function isMissingKeyframeInput(input: unknown): boolean {
+  return input === undefined || input === null;
+}
+
+function processKeyframeDictionary(input: object): Keyframe[] {
+  const iterator = Reflect.get(input, Symbol.iterator);
+  if (iterator !== undefined && iterator !== null) return processIterableKeyframes(input);
+  return processPropertyKeyframes(input);
 }
 
 function processKeyframes(input: unknown): Keyframe[] {
-  if (input === undefined || input === null) return [];
-  if (typeof input !== "object" && typeof input !== "function") {
-    throw new TypeError("Keyframes argument must be an object.");
-  }
-  const method: unknown = Reflect.get(input, Symbol.iterator);
-  const frames: Keyframe[] = [];
-  if (method !== undefined && method !== null) {
-    if (!isIterable(input)) throw new TypeError("Keyframes argument is not iterable.");
-    for (const entry of Array.from(input)) {
-      let k: object;
-      if (entry === undefined || entry === null) k = {};
-      else if (typeof entry === "object") k = entry;
-      else throw new TypeError("Keyframes must be objects.");
-      const props = new Map<string, string>();
-      for (const key of Object.keys(k)) {
-        if (!RESERVED_KEYFRAME_KEYS.has(key) && cssPropertyName(key))
-          props.set(key, String(Reflect.get(k, key)));
-      }
-      const easing: unknown = Reflect.get(k, "easing");
-      const composite: unknown = Reflect.get(k, "composite");
-      frames.push({
-        offset: keyframeOffset(Reflect.get(k, "offset")),
-        computedOffset: NaN,
-        easing: easing === undefined ? "linear" : String(easing),
-        composite:
-          composite === undefined || composite === null
-            ? "auto"
-            : enumValue(composite, COMPOSITES, "CompositeOperationOrAuto"),
-        props,
-      });
-    }
-  } else {
-    const byOffset = new Map<number, Map<string, string>>();
-    for (const key of Object.keys(input).sort()) {
-      if (RESERVED_KEYFRAME_KEYS.has(key) || !cssPropertyName(key)) continue;
-      const values = toList(Reflect.get(input, key)).map(String);
-      values.forEach((value, i) => {
-        const at = values.length === 1 ? 1 : i / (values.length - 1);
-        let props = byOffset.get(at);
-        if (!props) byOffset.set(at, (props = new Map()));
-        props.set(key, value);
-      });
-    }
-    for (const [at, props] of [...byOffset.entries()].sort((a, b) => a[0] - b[0])) {
-      frames.push({ offset: null, computedOffset: at, easing: "linear", composite: "auto", props });
-    }
-    const offset: unknown = Reflect.get(input, "offset");
-    const offsets = offset === undefined ? [] : toList(offset);
-    offsets.slice(0, frames.length).forEach((o, i) => {
-      frames[i].offset = keyframeOffset(o);
-    });
-    const easing: unknown = Reflect.get(input, "easing");
-    const easings = easing === undefined ? [] : toList(easing).map(String);
-    if (easings.length)
-      frames.forEach((f, i) => {
-        f.easing = easings[i % easings.length];
-      });
-    const composite: unknown = Reflect.get(input, "composite");
-    const composites = composite === undefined ? [] : toList(composite);
-    if (composites.length) {
-      frames.forEach((f, i) => {
-        f.composite = enumValue(
-          composites[i % composites.length],
-          COMPOSITES,
-          "CompositeOperationOrAuto",
-        );
-      });
-    }
-    if (offsets.length === 0) {
-      for (const f of frames) f.offset = null;
-      validateOffsets(frames);
-      for (const f of frames) checkEasing(f.easing);
-      return frames;
-    }
-  }
-  validateOffsets(frames);
-  computeMissingOffsets(frames);
-  for (const f of frames) checkEasing(f.easing);
-  return frames;
+  if (isMissingKeyframeInput(input)) return [];
+  if (!isTimingDictionary(input)) throw new TypeError("Keyframes argument must be an object.");
+  return processKeyframeDictionary(input);
 }
 
 function keyframesJson(frames: Keyframe[]): string {
@@ -386,23 +535,22 @@ export class KsAnimationEffect implements Idl.AnimationEffect {
   getComputedTiming(): Idl.ComputedEffectTiming & Record<string, unknown> {
     const t = this._timing;
     const anim = this._animation;
-    const localTime = anim ? anim.currentTime : null;
+    const localTime = computedEffectLocalTime(anim);
     const out = dom.waapiComputedTiming(
       new Float64Array(timingArray(t)),
       t.easing,
       localTime ?? undefined,
-      anim ? anim.playbackRate : 1,
+      computedEffectPlaybackRate(anim),
     );
-    const orNull = (n: number) => (Number.isNaN(n) ? null : n);
     return {
       ...this.getTiming(),
-      fill: t.fill === "auto" ? "none" : t.fill,
-      duration: t.duration === "auto" ? 0 : t.duration,
+      fill: computedTimingFill(t.fill),
+      duration: computedTimingDuration(t.duration),
       activeDuration: out[1],
       endTime: out[2],
       localTime,
-      progress: orNull(out[3]),
-      currentIteration: orNull(out[4]),
+      progress: nullableTimingValue(out[3]),
+      currentIteration: nullableTimingValue(out[4]),
     };
   }
   updateTiming(timing?: Idl.OptionalEffectTiming): void {
@@ -434,6 +582,32 @@ function isStyleDeclaration(value: unknown): value is Idl.CSSStyleDeclaration {
   );
 }
 
+function computedEffectLocalTime(animation: KsAnimation | null): number | null {
+  return animation ? animation.currentTime : null;
+}
+
+function computedEffectPlaybackRate(animation: KsAnimation | null): number {
+  return animation ? animation.playbackRate : 1;
+}
+
+function computedTimingFill(fill: Fill): Fill {
+  return fill === "auto" ? "none" : fill;
+}
+
+function computedTimingDuration(duration: number | "auto"): number {
+  return duration === "auto" ? 0 : duration;
+}
+
+function nullableTimingValue(value: number): number | null {
+  return Number.isNaN(value) ? null : value;
+}
+
+const KEYFRAME_EFFECT_COMPOSITES = ["replace", "add", "accumulate"] as const;
+
+function keyframeEffectComposite(value: unknown): "replace" | "add" | "accumulate" {
+  return enumValue(value, KEYFRAME_EFFECT_COMPOSITES, "CompositeOperation");
+}
+
 export class KsKeyframeEffect extends KsAnimationEffect implements Idl.KeyframeEffect {
   #target: Idl.Element | null = null;
   #composite: "replace" | "add" | "accumulate" = "replace";
@@ -441,12 +615,18 @@ export class KsKeyframeEffect extends KsAnimationEffect implements Idl.KeyframeE
   constructor(target: unknown, keyframes?: unknown, options?: unknown) {
     super(ILLEGAL);
     if (target instanceof KsKeyframeEffect) {
-      this.#target = target.#target;
-      this.#composite = target.#composite;
-      this._keyframes = target._keyframes.map((f) => ({ ...f, props: new Map(f.props) }));
-      this._timing = { ...target._timing };
+      this.#copyFrom(target);
       return;
     }
+    this.#initialize(target, keyframes, options);
+  }
+  #copyFrom(target: KsKeyframeEffect): void {
+    this.#target = target.#target;
+    this.#composite = target.#composite;
+    this._keyframes = target._keyframes.map((f) => ({ ...f, props: new Map(f.props) }));
+    this._timing = { ...target._timing };
+  }
+  #initialize(target: unknown, keyframes: unknown, options: unknown): void {
     if (target !== null && !isTargetElement(target)) {
       throw new TypeError(
         "Failed to construct 'KeyframeEffect': parameter 1 is not of type 'Element'.",
@@ -454,19 +634,23 @@ export class KsKeyframeEffect extends KsAnimationEffect implements Idl.KeyframeE
     }
     this.#target = target;
     this._keyframes = processKeyframes(keyframes);
+    this.#applyOptions(options);
+  }
+  #applyOptions(options: unknown): void {
     if (typeof options === "number") {
       applyTiming(this._timing, { duration: options });
-    } else if (options !== undefined && options !== null) {
-      applyTiming(this._timing, options);
-      const composite: unknown =
-        typeof options === "object" ? Reflect.get(options, "composite") : undefined;
-      if (composite !== undefined)
-        this.#composite = enumValue(
-          composite,
-          ["replace", "add", "accumulate"] as const,
-          "CompositeOperation",
-        );
+      return;
     }
+    if (options === undefined || options === null) return;
+    applyTiming(this._timing, options);
+    this.#applyCompositeOption(options);
+  }
+  #applyCompositeOption(options: unknown): void {
+    const composite =
+      typeof options === "object" && options !== null
+        ? Reflect.get(options, "composite")
+        : undefined;
+    if (composite !== undefined) this.#composite = keyframeEffectComposite(composite);
   }
   get target(): Idl.Element | null {
     return this.#target;
@@ -549,6 +733,284 @@ const released =
       })
     : null;
 
+function animationEffectEndTime(effect: KsAnimationEffect | null): number {
+  return effect?._endTime() ?? 0;
+}
+
+function animationCurrentTime(
+  holdTime: number | null,
+  timelineTime: number | null,
+  startTime: number | null,
+  rate: number,
+): number | null {
+  if (holdTime !== null) return holdTime;
+  if (timelineTime === null || startTime === null) return null;
+  return (timelineTime - startTime) * rate;
+}
+
+function validatedAnimationStartTime(value: number | null): number | null {
+  return value === null ? null : finiteDouble(value, "startTime");
+}
+
+function shouldClearHoldTimeForStart(time: number | null, timelineTime: number | null): boolean {
+  return timelineTime === null && time !== null;
+}
+
+function holdTimeForStart(
+  time: number | null,
+  rate: number,
+  previous: number | null,
+): number | null {
+  if (time === null) return previous;
+  return rate !== 0 ? null : previous;
+}
+
+function playbackStartTime(now: number, holdTime: number, rate: number): number {
+  return rate === 0 ? now : now - holdTime / rate;
+}
+
+function isAnimationFinishedAt(current: number | null, rate: number, end: number): boolean {
+  return current !== null && ((rate > 0 && current >= end) || (rate < 0 && current <= 0));
+}
+
+function needsForwardPlaySeek(current: number | null, end: number): boolean {
+  return current === null || current < 0 || current >= end;
+}
+
+function needsReversePlaySeek(current: number | null, end: number): boolean {
+  return current === null || current <= 0 || current > end;
+}
+
+function forwardPlaySeekTime(current: number | null, end: number): number | null {
+  return needsForwardPlaySeek(current, end) ? 0 : null;
+}
+
+function reversePlaySeekTime(current: number | null, end: number): number | null {
+  if (!needsReversePlaySeek(current, end)) return null;
+  if (end === Infinity) {
+    throw domException(
+      "Cannot play reversed Animation with infinite target effect end.",
+      "InvalidStateError",
+    );
+  }
+  return end;
+}
+
+function playSeekTime(rate: number, current: number | null, end: number): number | null {
+  if (rate > 0) return forwardPlaySeekTime(current, end);
+  if (rate < 0) return reversePlaySeekTime(current, end);
+  return current === null ? 0 : null;
+}
+
+function pausedAnimationTime(current: number | null, rate: number, end: number): number {
+  if (current !== null) return current;
+  if (rate >= 0) return 0;
+  if (end === Infinity) {
+    throw domException(
+      "Cannot pause reversed Animation with infinite target effect end.",
+      "InvalidStateError",
+    );
+  }
+  return end;
+}
+
+function assertAnimationCanFinish(rate: number, end: number): void {
+  if (rate === 0 || (rate > 0 && end === Infinity)) {
+    throw domException(
+      "Cannot finish Animation with a playbackRate of 0 or an infinite target effect end.",
+      "InvalidStateError",
+    );
+  }
+}
+
+function animationFinishLimit(rate: number, end: number): number {
+  return rate > 0 ? end : 0;
+}
+
+function keyframeEffectWithTarget(
+  effect: KsAnimationEffect | null,
+): { effect: KsKeyframeEffect; target: Idl.Element } | null {
+  if (!(effect instanceof KsKeyframeEffect)) return null;
+  const target = effect.target;
+  if (!target) return null;
+  return { effect, target };
+}
+
+function commitKeyframeStyles(
+  effect: KsKeyframeEffect,
+  target: Idl.Element,
+  style: Idl.CSSStyleDeclaration,
+): void {
+  const computed = ksGlobal.getComputedStyle(target);
+  const names = new Set(
+    effect._keyframes.flatMap((frame) =>
+      [...frame.props.keys()].map((key) => cssPropertyName(key) ?? ""),
+    ),
+  );
+  for (const name of names) {
+    if (name) style.setProperty(name, computed.getPropertyValue(name));
+  }
+}
+
+function assertAnimationEffect(value: KsAnimationEffect | null): void {
+  if (value !== null && !(value instanceof KsAnimationEffect)) {
+    throw new TypeError("effect must be an AnimationEffect or null.");
+  }
+}
+
+function detachAnimationEffectOwner(value: KsAnimationEffect | null): void {
+  if (value?._animation) value._animation.effect = null;
+}
+
+function shouldHoldAnimationTime(
+  holdTime: number | null,
+  startTime: number | null,
+  timelineTime: number | null,
+  rate: number,
+): boolean {
+  return holdTime !== null || startTime === null || timelineTime === null || rate === 0;
+}
+
+function shouldRecomputeUnconstrainedTime(
+  didSeek: boolean,
+  holdTime: number | null,
+  startTime: number | null,
+): boolean {
+  return !didSeek && holdTime !== null && startTime !== null;
+}
+
+function usableUnconstrainedTime(value: number | null, startTime: number | null): number | null {
+  if (value === null || startTime === null) return null;
+  return value;
+}
+
+function reachedPositiveEnd(rate: number, current: number, end: number): boolean {
+  return rate > 0 && current >= end;
+}
+
+function reachedNegativeStart(rate: number, current: number): boolean {
+  return rate < 0 && current <= 0;
+}
+
+function positiveFinishedHoldTime(
+  didSeek: boolean,
+  current: number,
+  previous: number | null,
+  end: number,
+): number {
+  return didSeek ? current : Math.max(previous ?? end, end);
+}
+
+function negativeFinishedHoldTime(
+  didSeek: boolean,
+  current: number,
+  previous: number | null,
+): number {
+  return didSeek ? current : Math.min(previous ?? 0, 0);
+}
+
+function remainingFinishDelay(rate: number, current: number, end: number): number {
+  return rate > 0 ? (end - current) / rate : current / -rate;
+}
+
+function activeAnimationTimeline(
+  rate: number,
+  timeline: KsAnimationTimeline | null,
+): KsAnimationTimeline | null {
+  if (rate === 0 || timeline === null || timeline.currentTime == null) return null;
+  return timeline;
+}
+
+function shouldRebaseAnimationStart(didSeek: boolean, holdTime: number | null): boolean {
+  return didSeek && holdTime !== null;
+}
+
+function animationFillsForwards(effect: KsAnimationEffect | null): boolean {
+  const fill = effect?._timing.fill;
+  return fill === "forwards" || fill === "both";
+}
+
+function isKeyframeEffectWithTarget(effect: KsAnimationEffect | null): effect is KsKeyframeEffect {
+  return effect instanceof KsKeyframeEffect && !!effect.target;
+}
+
+function playbackStateDraws(state: string, fills: boolean, rate: number): boolean {
+  return state !== "idle" && (state !== "finished" || fills || rate < 0);
+}
+
+function animationDraws(
+  effect: KsAnimationEffect | null,
+  state: string,
+  fills: boolean,
+  rate: number,
+): effect is KsKeyframeEffect {
+  return isKeyframeEffectWithTarget(effect) && playbackStateDraws(state, fills, rate);
+}
+
+function playbackEpochStart(
+  origin: number | undefined,
+  startTime: number | null,
+): number | undefined {
+  return startTime !== null && origin !== undefined ? origin + startTime : undefined;
+}
+
+function containsMethod(root: unknown): unknown {
+  if (typeof root !== "object" || root === null) return undefined;
+  return Reflect.get(root, "contains");
+}
+
+function rootContainsTarget(root: unknown, target: Idl.Element): boolean {
+  const contains = containsMethod(root);
+  if (typeof contains !== "function") return false;
+  return Reflect.apply(contains, root, [target]) === true;
+}
+
+function activeAnimationTarget(animation: KsAnimation): Idl.Element | null {
+  const effect = animation.effect;
+  if (!(effect instanceof KsKeyframeEffect)) return null;
+  const target = effect.target;
+  if (!target || animation.playState === "idle") return null;
+  return target;
+}
+
+function animationMatchesRoot(animation: KsAnimation, root: unknown, subtree: boolean): boolean {
+  const target = activeAnimationTarget(animation);
+  if (!target) return false;
+  if (target === root) return true;
+  if (!subtree) return false;
+  return rootContainsTarget(root, target);
+}
+
+function isMissingAnimationListener(callback: unknown): boolean {
+  return callback === null || callback === undefined;
+}
+
+function hasAnimationListener(list: ListenerEntry[], callback: unknown): boolean {
+  return list.some((listener) => listener.callback === callback && !listener.handler);
+}
+
+function animationListenerIsOnce(options: boolean | { once?: boolean } | undefined): boolean {
+  return typeof options === "object" && !!options?.once;
+}
+
+function invokeAnimationListener(callback: unknown, target: KsAnimation, event: Idl.Event): void {
+  if (typeof callback === "function") {
+    callback.call(target, event);
+    return;
+  }
+  if (typeof callback !== "object" || callback === null) return;
+  const handleEvent: unknown = Reflect.get(callback, "handleEvent");
+  if (typeof handleEvent === "function") Reflect.apply(handleEvent, callback, [event]);
+}
+
+function reportAnimationListenerError(error: unknown): void {
+  try {
+    console.error("[kitesurf] animation listener threw:", error);
+  } catch {
+    /* console clobbered */
+  }
+}
+
 export class KsAnimation implements Idl.Animation {
   readonly _ksId = nextAnimationId++;
   #id = "";
@@ -577,6 +1039,39 @@ export class KsAnimation implements Idl.Animation {
     released?.register(this, this._ksId);
   }
 
+  #timelineCurrentTime(): number | null {
+    return this.#timeline?.currentTime ?? null;
+  }
+
+  #setStartTime(value: number | null): void {
+    const time = validatedAnimationStartTime(value);
+    const timelineTime = this.#timelineCurrentTime();
+    if (shouldClearHoldTimeForStart(time, timelineTime)) this.#holdTime = null;
+    const previous = this.currentTime;
+    this.#startTime = time;
+    this.#holdTime = holdTimeForStart(time, this.#rate, previous);
+    this.#updateFinishedState(true, false);
+  }
+
+  #resumeFromHoldTime(): void {
+    const holdTime = this.#holdTime;
+    if (holdTime === null) return;
+    const now = this.#timelineCurrentTime();
+    if (now === null) {
+      this.#startTime = null;
+      return;
+    }
+    this.#startTime = playbackStartTime(now, holdTime, this.#rate);
+    if (this.#rate !== 0) this.#holdTime = null;
+  }
+
+  #startAtFinish(limit: number, now: number | null): void {
+    if (this.#startTime === null && now !== null) {
+      this.#startTime = now - limit / this.#rate;
+      this.#holdTime = null;
+    }
+  }
+
   get id(): string {
     return this.#id;
   }
@@ -588,10 +1083,9 @@ export class KsAnimation implements Idl.Animation {
   }
   set effect(value: KsAnimationEffect | null) {
     if (value === this.#effect) return;
-    if (value !== null && !(value instanceof KsAnimationEffect))
-      throw new TypeError("effect must be an AnimationEffect or null.");
+    assertAnimationEffect(value);
     if (this.#effect) this.#effect._animation = null;
-    if (value?._animation) value._animation.effect = null;
+    detachAnimationEffectOwner(value);
     this.#effect = value;
     if (value) value._animation = this;
     this._effectChanged();
@@ -609,20 +1103,15 @@ export class KsAnimation implements Idl.Animation {
     return this.#startTime;
   }
   set startTime(value: number | null) {
-    const time = value === null ? null : finiteDouble(value, "startTime");
-    const timelineTime = this.#timeline?.currentTime ?? null;
-    if (timelineTime === null && time !== null) this.#holdTime = null;
-    const previous = this.currentTime;
-    this.#startTime = time;
-    if (time !== null) this.#holdTime = this.#rate !== 0 ? null : previous;
-    else this.#holdTime = previous;
-    this.#updateFinishedState(true, false);
+    this.#setStartTime(value);
   }
   get currentTime(): number | null {
-    if (this.#holdTime !== null) return this.#holdTime;
-    const timelineTime = this.#timeline?.currentTime ?? null;
-    if (timelineTime === null || this.#startTime === null) return null;
-    return (timelineTime - this.#startTime) * this.#rate;
+    return animationCurrentTime(
+      this.#holdTime,
+      this.#timelineCurrentTime(),
+      this.#startTime,
+      this.#rate,
+    );
   }
   set currentTime(value: number | null) {
     if (value === null) {
@@ -645,13 +1134,9 @@ export class KsAnimation implements Idl.Animation {
     const current = this.currentTime;
     if (current === null && this.#startTime === null) return "idle";
     if (this.#startTime === null) return "paused";
-    const end = this.#effect?._endTime() ?? 0;
-    if (
-      current !== null &&
-      ((this.#rate > 0 && current >= end) || (this.#rate < 0 && current <= 0))
-    )
-      return "finished";
-    return "running";
+    return isAnimationFinishedAt(current, this.#rate, animationEffectEndTime(this.#effect))
+      ? "finished"
+      : "running";
   }
   get replaceState(): "active" {
     return "active";
@@ -685,68 +1170,32 @@ export class KsAnimation implements Idl.Animation {
   }
 
   play(): void {
-    const end = this.#effect?._endTime() ?? 0;
-    const current = this.currentTime;
-    let seek: number | null = null;
-    if (this.#rate > 0 && (current === null || current < 0 || current >= end)) seek = 0;
-    else if (this.#rate < 0 && (current === null || current <= 0 || current > end)) {
-      if (end === Infinity)
-        throw domException(
-          "Cannot play reversed Animation with infinite target effect end.",
-          "InvalidStateError",
-        );
-      seek = end;
-    } else if (this.#rate === 0 && current === null) seek = 0;
+    const end = animationEffectEndTime(this.#effect);
+    const seek = playSeekTime(this.#rate, this.currentTime, end);
     if (seek !== null) this.#holdTime = seek;
-    if (this.#holdTime !== null) {
-      const now = this.#timeline?.currentTime ?? null;
-      if (now !== null) {
-        this.#startTime = this.#rate === 0 ? now : now - this.#holdTime / this.#rate;
-        if (this.#rate !== 0) this.#holdTime = null;
-      } else {
-        this.#startTime = null;
-      }
-    }
+    this.#resumeFromHoldTime();
     this.#ready = Promise.resolve(this);
     relevantAnimations.add(this);
     this.#updateFinishedState(false, false);
   }
   pause(): void {
     if (this.playState === "paused") return;
-    let current = this.currentTime;
-    if (current === null) {
-      if (this.#rate >= 0) current = 0;
-      else {
-        const end = this.#effect?._endTime() ?? 0;
-        if (end === Infinity)
-          throw domException(
-            "Cannot pause reversed Animation with infinite target effect end.",
-            "InvalidStateError",
-          );
-        current = end;
-      }
-    }
-    this.#holdTime = current;
+    this.#holdTime = pausedAnimationTime(
+      this.currentTime,
+      this.#rate,
+      animationEffectEndTime(this.#effect),
+    );
     this.#startTime = null;
     this.#ready = Promise.resolve(this);
     relevantAnimations.add(this);
     this.#updateFinishedState(false, false);
   }
   finish(): void {
-    const end = this.#effect?._endTime() ?? 0;
-    if (this.#rate === 0 || (this.#rate > 0 && end === Infinity)) {
-      throw domException(
-        "Cannot finish Animation with a playbackRate of 0 or an infinite target effect end.",
-        "InvalidStateError",
-      );
-    }
-    const limit = this.#rate > 0 ? end : 0;
+    const end = animationEffectEndTime(this.#effect);
+    assertAnimationCanFinish(this.#rate, end);
+    const limit = animationFinishLimit(this.#rate, end);
     this.#silentlySetCurrentTime(limit);
-    const now = this.#timeline?.currentTime ?? null;
-    if (this.#startTime === null && now !== null) {
-      this.#startTime = now - limit / this.#rate;
-      this.#holdTime = null;
-    }
+    this.#startAtFinish(limit, this.#timelineCurrentTime());
     this.#updateFinishedState(true, true);
   }
   cancel(): void {
@@ -786,22 +1235,18 @@ export class KsAnimation implements Idl.Animation {
   }
   persist(): void {}
   commitStyles(): void {
-    const effect = this.#effect;
-    if (!(effect instanceof KsKeyframeEffect) || !effect.target) return;
-    const style: unknown = Reflect.get(effect.target, "style");
+    const entry = keyframeEffectWithTarget(this.#effect);
+    if (!entry) return;
+    const style: unknown = Reflect.get(entry.target, "style");
     if (!isStyleDeclaration(style)) return;
-    const computed = ksGlobal.getComputedStyle(effect.target);
-    const names = new Set(
-      effect._keyframes.flatMap((f) => [...f.props.keys()].map((k) => cssPropertyName(k) ?? "")),
-    );
-    for (const name of names) if (name) style.setProperty(name, computed.getPropertyValue(name));
+    commitKeyframeStyles(entry.effect, entry.target, style);
   }
 
   addEventListener(type: string, callback: unknown, options?: boolean | { once?: boolean }): void {
-    if (callback === null || callback === undefined) return;
+    if (isMissingAnimationListener(callback)) return;
     const list = this.#listeners.get(type) ?? [];
-    if (list.some((l) => l.callback === callback && !l.handler)) return;
-    list.push({ callback, once: typeof options === "object" && !!options?.once });
+    if (hasAnimationListener(list, callback)) return;
+    list.push({ callback, once: animationListenerIsOnce(options) });
     this.#listeners.set(type, list);
   }
   removeEventListener(type: string, callback: unknown): void {
@@ -813,25 +1258,19 @@ export class KsAnimation implements Idl.Animation {
     const list = this.#listeners.get(event.type);
     setEventTarget(event, this);
     setEventCurrentTarget(event, this);
-    for (const entry of list ? list.slice() : []) {
-      if (entry.once) this.removeEventListener(event.type, entry.callback);
-      const cb = entry.handler ? this.#handlers.get(entry.handler) : entry.callback;
-      try {
-        if (typeof cb === "function") cb.call(this, event);
-        else if (typeof cb === "object" && cb !== null) {
-          const handleEvent: unknown = Reflect.get(cb, "handleEvent");
-          if (typeof handleEvent === "function") Reflect.apply(handleEvent, cb, [event]);
-        }
-      } catch (err) {
-        try {
-          console.error("[kitesurf] animation listener threw:", err);
-        } catch {
-          /* console clobbered */
-        }
-      }
-    }
+    for (const entry of list?.slice() ?? []) this.#dispatchListener(event, entry);
     setEventCurrentTarget(event, null);
     return !event.defaultPrevented;
+  }
+
+  #dispatchListener(event: Idl.Event, entry: ListenerEntry): void {
+    if (entry.once) this.removeEventListener(event.type, entry.callback);
+    const callback = entry.handler ? this.#handlers.get(entry.handler) : entry.callback;
+    try {
+      invokeAnimationListener(callback, this, event);
+    } catch (error) {
+      reportAnimationListenerError(error);
+    }
   }
 
   #handler(type: string): Idl.EventHandler {
@@ -842,14 +1281,24 @@ export class KsAnimation implements Idl.Animation {
     const fn = isEventHandler(value) ? value : null;
     const list = this.#listeners.get(type) ?? [];
     const at = list.findIndex((l) => l.handler === type);
-    if (fn === null) {
-      this.#handlers.delete(type);
-      if (at >= 0) list.splice(at, 1);
-    } else {
-      this.#handlers.set(type, fn);
-      if (at < 0) list.push({ callback: null, once: false, handler: type });
-    }
+    if (fn === null) this.#removeHandler(type, list, at);
+    else this.#installHandler(type, fn, list, at);
     this.#listeners.set(type, list);
+  }
+
+  #removeHandler(type: string, list: ListenerEntry[], at: number): void {
+    this.#handlers.delete(type);
+    if (at >= 0) list.splice(at, 1);
+  }
+
+  #installHandler(
+    type: string,
+    handler: Idl.EventHandlerNonNull,
+    list: ListenerEntry[],
+    at: number,
+  ): void {
+    this.#handlers.set(type, handler);
+    if (at < 0) list.push({ callback: null, once: false, handler: type });
   }
 
   #fire(type: string, currentTime: number | null, timelineTime: number | null): void {
@@ -865,64 +1314,97 @@ export class KsAnimation implements Idl.Animation {
   }
 
   #silentlySetCurrentTime(seek: number): void {
-    const now = this.#timeline?.currentTime ?? null;
-    if (this.#holdTime !== null || this.#startTime === null || now === null || this.#rate === 0) {
-      this.#holdTime = seek;
-    } else {
+    const now = this.#timelineCurrentTime();
+    const shouldHold = shouldHoldAnimationTime(this.#holdTime, this.#startTime, now, this.#rate);
+    if (shouldHold) this.#holdTime = seek;
+    if (now === null) {
+      this.#startTime = null;
+    } else if (!shouldHold) {
       this.#startTime = now - seek / this.#rate;
     }
-    if (now === null) this.#startTime = null;
     this.#previousCurrentTime = null;
   }
 
   // web-animations-1 §4.4.14. A natural finish freezes current time at the end via the hold
   // time; the timer stands in for the per-frame update a browser would run to notice it.
   #updateFinishedState(didSeek: boolean, synchronously: boolean): void {
-    const end = this.#effect?._endTime() ?? 0;
-    let unconstrained = this.currentTime;
-    if (!didSeek && this.#holdTime !== null && this.#startTime !== null) {
-      const now = this.#timeline?.currentTime ?? null;
-      unconstrained = now === null ? null : (now - this.#startTime) * this.#rate;
-    }
-    if (unconstrained !== null && this.#startTime !== null) {
-      if (this.#rate > 0 && unconstrained >= end) {
-        this.#holdTime = didSeek ? unconstrained : Math.max(this.#previousCurrentTime ?? end, end);
-      } else if (this.#rate < 0 && unconstrained <= 0) {
-        this.#holdTime = didSeek ? unconstrained : Math.min(this.#previousCurrentTime ?? 0, 0);
-      } else if (this.#rate !== 0 && this.#timeline?.currentTime != null) {
-        if (didSeek && this.#holdTime !== null) {
-          this.#startTime = this.#timeline.currentTime - this.#holdTime / this.#rate;
-        }
-        this.#holdTime = null;
-      }
-    }
+    const end = animationEffectEndTime(this.#effect);
+    const unconstrained = this.#unconstrainedCurrentTime(didSeek);
+    this.#applyFinishedHoldTime(unconstrained, end, didSeek);
     this.#previousCurrentTime = this.currentTime;
     const finished = this.playState === "finished";
+    this.#updateFinishedPromise(finished, synchronously);
+    this.#armFinishTimer();
+    this.#sync();
+  }
+
+  #unconstrainedCurrentTime(didSeek: boolean): number | null {
+    if (!shouldRecomputeUnconstrainedTime(didSeek, this.#holdTime, this.#startTime)) {
+      return this.currentTime;
+    }
+    const startTime = this.#startTime;
+    if (startTime === null) return null;
+    const now = this.#timelineCurrentTime();
+    return now === null ? null : (now - startTime) * this.#rate;
+  }
+
+  #applyFinishedHoldTime(unconstrained: number | null, end: number, didSeek: boolean): void {
+    const current = usableUnconstrainedTime(unconstrained, this.#startTime);
+    if (current === null) return;
+    if (reachedPositiveEnd(this.#rate, current, end)) {
+      this.#holdTime = positiveFinishedHoldTime(didSeek, current, this.#previousCurrentTime, end);
+      return;
+    }
+    if (reachedNegativeStart(this.#rate, current)) {
+      this.#holdTime = negativeFinishedHoldTime(didSeek, current, this.#previousCurrentTime);
+      return;
+    }
+    this.#clearFinishedHoldTime(didSeek);
+  }
+
+  #clearFinishedHoldTime(didSeek: boolean): void {
+    const timeline = activeAnimationTimeline(this.#rate, this.#timeline);
+    if (!timeline) return;
+    const holdTime = this.#holdTime;
+    if (holdTime !== null && shouldRebaseAnimationStart(didSeek, holdTime)) {
+      this.#startTime = Number(timeline.currentTime) - holdTime / this.#rate;
+    }
+    this.#holdTime = null;
+  }
+
+  #updateFinishedPromise(finished: boolean, synchronously: boolean): void {
     if (finished && !this.#finishedSettled) {
-      const notify = () => {
-        if (this.playState !== "finished" || this.#finishedSettled) return;
-        this.#finishedSettled = true;
-        this.#resolveFinished(this);
-        const current = this.currentTime;
-        const timelineTime = this.#timeline?.currentTime ?? null;
-        scheduleTask(() => this.#fire("finish", current, timelineTime), 0);
-        this.#sync();
-      };
-      if (synchronously) notify();
-      else queueMicrotask(notify);
+      this.#queueFinishNotification(synchronously);
     } else if (!finished && this.#finishedSettled) {
       this.#newFinishedPromise();
     }
-    this.#armFinishTimer();
+  }
+
+  #queueFinishNotification(synchronously: boolean): void {
+    const notify = () => this.#notifyFinished();
+    if (synchronously) notify();
+    else queueMicrotask(notify);
+  }
+
+  #notifyFinished(): void {
+    if (this.playState !== "finished" || this.#finishedSettled) return;
+    this.#finishedSettled = true;
+    this.#resolveFinished(this);
+    const current = this.currentTime;
+    const timelineTime = this.#timelineCurrentTime();
+    scheduleTask(() => this.#fire("finish", current, timelineTime), 0);
     this.#sync();
   }
 
   #armFinishTimer(): void {
     const generation = ++this.#finishTimer;
-    if (this.playState !== "running") return;
+    if (this.playState === "running") this.#scheduleFinishCheck(generation);
+  }
+
+  #scheduleFinishCheck(generation: number): void {
     const current = this.currentTime ?? 0;
-    const end = this.#effect?._endTime() ?? 0;
-    const remaining = this.#rate > 0 ? (end - current) / this.#rate : current / -this.#rate;
+    const end = animationEffectEndTime(this.#effect);
+    const remaining = remainingFinishDelay(this.#rate, current, end);
     if (!Number.isFinite(remaining)) return;
     scheduleTask(
       () => {
@@ -942,41 +1424,41 @@ export class KsAnimation implements Idl.Animation {
   #sync(): void {
     const effect = this.#effect;
     const state = this.playState;
-    const fill = effect?._timing.fill;
-    const fills = fill === "forwards" || fill === "both";
-    const draws =
-      effect instanceof KsKeyframeEffect &&
-      !!effect.target &&
-      state !== "idle" &&
-      (state !== "finished" || fills || this.#rate < 0);
+    const fills = animationFillsForwards(effect);
     try {
-      if (!draws) {
-        if (this.#pushedEffect) dom.waapiRemove(this._ksId);
-        this.#pushedEffect = false;
-        this.#effectStale = false;
-        if (state === "finished" && !fills) relevantAnimations.delete(this);
-      } else {
-        if (!this.#pushedEffect || this.#effectStale) {
-          const t = effect._timing;
-          dom.waapiSetEffect(
-            this._ksId,
-            nodeIdOf(effect.target),
-            keyframesJson(effect._keyframes),
-            new Float64Array(timingArray(t)),
-            t.easing,
-          );
-          this.#pushedEffect = true;
-          this.#effectStale = false;
-        }
-        const origin = this.#timeline?._originEpoch;
-        const start =
-          this.#startTime !== null && origin !== undefined ? origin + this.#startTime : undefined;
-        dom.waapiSetPlayback(this._ksId, start, this.#holdTime ?? undefined, this.#rate);
-      }
+      if (animationDraws(effect, state, fills, this.#rate)) this.#syncDrawingEffect(effect);
+      else this.#removeDrawingEffect(state, fills);
     } catch {
       /* the handle is gone with its navigate */
     }
     bumpMutationSeq("style");
+  }
+
+  #syncDrawingEffect(effect: KsKeyframeEffect): void {
+    if (!this.#pushedEffect || this.#effectStale) this.#pushEffect(effect);
+    const origin = this.#timeline?._originEpoch;
+    const start = playbackEpochStart(origin, this.#startTime);
+    dom.waapiSetPlayback(this._ksId, start, this.#holdTime ?? undefined, this.#rate);
+  }
+
+  #pushEffect(effect: KsKeyframeEffect): void {
+    const timing = effect._timing;
+    dom.waapiSetEffect(
+      this._ksId,
+      nodeIdOf(effect.target),
+      keyframesJson(effect._keyframes),
+      new Float64Array(timingArray(timing)),
+      timing.easing,
+    );
+    this.#pushedEffect = true;
+    this.#effectStale = false;
+  }
+
+  #removeDrawingEffect(state: string, fills: boolean): void {
+    if (this.#pushedEffect) dom.waapiRemove(this._ksId);
+    this.#pushedEffect = false;
+    this.#effectStale = false;
+    if (state === "finished" && !fills) relevantAnimations.delete(this);
   }
 }
 
@@ -1000,19 +1482,7 @@ export function animateElement(
 export function animationsFor(root: unknown, subtree: boolean): KsAnimation[] {
   const out: KsAnimation[] = [];
   for (const animation of relevantAnimations) {
-    const effect = animation.effect;
-    const target = effect instanceof KsKeyframeEffect ? effect.target : null;
-    if (!target || animation.playState === "idle") continue;
-    const contains: unknown =
-      subtree && typeof root === "object" && root !== null
-        ? Reflect.get(root, "contains")
-        : undefined;
-    if (
-      target === root ||
-      (typeof contains === "function" && Reflect.apply(contains, root, [target]) === true)
-    ) {
-      out.push(animation);
-    }
+    if (animationMatchesRoot(animation, root, subtree)) out.push(animation);
   }
   return out.sort((a, b) => a._ksId - b._ksId);
 }

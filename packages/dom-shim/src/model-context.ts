@@ -16,6 +16,14 @@ import type { MutationHint } from "./mutations/seq.js";
 import { DOCUMENT_NODE } from "./constants.js";
 
 const DECLARATIVE_ATTRIBUTES = new Set(["toolname", "tooldescription"]);
+const IGNORED_DECLARATIVE_CONTROL_TYPES = new Set([
+  "submit",
+  "reset",
+  "button",
+  "image",
+  "hidden",
+  "file",
+]);
 const MAX_MODEL_CONTEXT_TOOL_NAME_LENGTH = 128;
 
 interface ToolDefinition {
@@ -161,104 +169,250 @@ function declarativeSchema(form: DeclarativeForm): Record<string, unknown> {
   const required = new Set<string>();
   const elements = form?.elements;
   for (let i = 0; elements && i < elements.length; i++) {
-    const control = elements[i];
-    const name = String(control?.name ?? "");
-    if (!name || control?.disabled === true) continue;
-    const tag = String(control?.localName ?? "").toLowerCase();
-    const type = String(control?.type ?? "").toLowerCase();
-    if (
-      tag === "button" ||
-      type === "submit" ||
-      type === "reset" ||
-      type === "button" ||
-      type === "image" ||
-      type === "hidden"
-    )
-      continue;
-
-    if (type === "file") continue;
-
-    let property: Record<string, unknown> = { type: "string" };
-    if (type === "checkbox") {
-      property = { type: "boolean" };
-    } else if (type === "number" || type === "range") {
-      property = { type: "number" };
-      if (control.min !== "" && Number.isFinite(Number(control.min))) {
-        property.minimum = Number(control.min);
-      }
-      if (control.max !== "" && Number.isFinite(Number(control.max))) {
-        property.maximum = Number(control.max);
-      }
-    } else if (type === "radio") {
-      const current = properties[name];
-      const values = Array.isArray(current?.enum) ? current.enum.slice() : [];
-      const value = String(control.value ?? "on");
-      if (!values.includes(value)) values.push(value);
-      property = { type: "string", enum: values };
-    } else if (tag === "select") {
-      const values: string[] = [];
-      const options = control.options;
-      for (let j = 0; options && j < options.length; j++) {
-        if (options[j]?.disabled !== true) values.push(String(options[j]?.value ?? ""));
-      }
-      const item: Record<string, unknown> = { type: "string" };
-      if (values.length > 0) item.enum = values;
-      property = control.multiple === true ? { type: "array", items: item } : item;
-    } else if (type === "email") {
-      property.format = "email";
-    }
-
-    const description = control?.getAttribute?.("toolparamdescription");
-    if (description) property.description = description;
-    properties[name] = property;
-    if (control?.required === true) required.add(name);
+    addDeclarativeControlSchema(elements[i], properties, required);
   }
   const schema: Record<string, unknown> = { type: "object", properties };
   if (required.size > 0) schema.required = Array.from(required);
   return schema;
 }
 
-function scanDeclarativeTools(): Map<string, DeclarativeTool> {
-  const found = new Map<string, DeclarativeTool>();
+function isIgnoredDeclarativeControl(tag: string, type: string): boolean {
+  return tag === "button" || IGNORED_DECLARATIVE_CONTROL_TYPES.has(type);
+}
+
+function isNumericControlType(type: string): boolean {
+  return type === "number" || type === "range";
+}
+
+function numericBound(value: unknown): number | null {
+  if (value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function numericControlSchema(control: DeclarativeControl): Record<string, unknown> {
+  const property: Record<string, unknown> = { type: "number" };
+  const minimum = numericBound(control.min);
+  const maximum = numericBound(control.max);
+  if (minimum !== null) property.minimum = minimum;
+  if (maximum !== null) property.maximum = maximum;
+  return property;
+}
+
+function radioControlSchema(
+  control: DeclarativeControl,
+  name: string,
+  properties: Record<string, Record<string, unknown>>,
+): Record<string, unknown> {
+  const current = properties[name];
+  const values = Array.isArray(current?.enum) ? current.enum.slice() : [];
+  const value = String(control.value ?? "on");
+  if (!values.includes(value)) values.push(value);
+  return { type: "string", enum: values };
+}
+
+function selectOptionValues(options: ArrayLike<DeclarativeOption> | undefined): string[] {
+  const values: string[] = [];
+  if (!options) return values;
+  for (let i = 0; i < options.length; i++) appendSelectOptionValue(values, options[i]);
+  return values;
+}
+
+function appendSelectOptionValue(values: string[], option: DeclarativeOption): void {
+  if (option?.disabled !== true) values.push(String(option?.value ?? ""));
+}
+
+function selectControlSchema(control: DeclarativeControl): Record<string, unknown> {
+  const values = selectOptionValues(control.options);
+  const item: Record<string, unknown> = { type: "string" };
+  if (values.length > 0) item.enum = values;
+  if (control.multiple !== true) return item;
+  return { type: "array", items: item };
+}
+
+function scalarControlSchema(type: string): Record<string, unknown> {
+  const property: Record<string, unknown> = { type: "string" };
+  if (type === "email") property.format = "email";
+  return property;
+}
+
+function controlSchemaProperty(
+  control: DeclarativeControl,
+  tag: string,
+  type: string,
+  name: string,
+  properties: Record<string, Record<string, unknown>>,
+): Record<string, unknown> {
+  if (type === "checkbox") return { type: "boolean" };
+  if (isNumericControlType(type)) return numericControlSchema(control);
+  if (type === "radio") return radioControlSchema(control, name, properties);
+  if (tag === "select") return selectControlSchema(control);
+  return scalarControlSchema(type);
+}
+
+interface DeclarativeControlDetails {
+  name: string;
+  tag: string;
+  type: string;
+}
+
+function declarativeControlName(control: DeclarativeControl): string {
+  return String(control?.name ?? "");
+}
+
+function declarativeControlTag(control: DeclarativeControl): string {
+  return String(control?.localName ?? "").toLowerCase();
+}
+
+function declarativeControlType(control: DeclarativeControl): string {
+  return String(control?.type ?? "").toLowerCase();
+}
+
+function isDeclarativeControlDisabled(control: DeclarativeControl): boolean {
+  return control?.disabled === true;
+}
+
+function declarativeControlDetails(control: DeclarativeControl): DeclarativeControlDetails | null {
+  const name = declarativeControlName(control);
+  if (!name || isDeclarativeControlDisabled(control)) return null;
+  const tag = declarativeControlTag(control);
+  const type = declarativeControlType(control);
+  if (isIgnoredDeclarativeControl(tag, type)) return null;
+  return { name, tag, type };
+}
+
+function addDeclarativeControlSchema(
+  control: DeclarativeControl,
+  properties: Record<string, Record<string, unknown>>,
+  required: Set<string>,
+): void {
+  const details = declarativeControlDetails(control);
+  if (!details) return;
+  const property = controlSchemaProperty(
+    control,
+    details.tag,
+    details.type,
+    details.name,
+    properties,
+  );
+  addDeclarativeControlDetails(control, details.name, property, properties, required);
+}
+
+function declarativeControlDescription(control: DeclarativeControl): string | null | undefined {
+  return control?.getAttribute?.("toolparamdescription");
+}
+
+function declarativeControlRequired(control: DeclarativeControl): boolean {
+  return control?.required === true;
+}
+
+function addDeclarativeControlDetails(
+  control: DeclarativeControl,
+  name: string,
+  property: Record<string, unknown>,
+  properties: Record<string, Record<string, unknown>>,
+  required: Set<string>,
+): void {
+  const description = declarativeControlDescription(control);
+  if (description) property.description = description;
+  properties[name] = property;
+  if (declarativeControlRequired(control)) required.add(name);
+}
+
+function declarativeForms(): DeclarativeForm[] {
   // The host injects the live DOM shim Document through this internal callback.
   const doc = getDocument() as DeclarativeDocument | null | undefined;
-  let forms: DeclarativeForm[] = [];
   try {
-    forms = Array.from(doc?.querySelectorAll?.("form[toolname][tooldescription]") ?? []);
+    return Array.from(doc?.querySelectorAll?.("form[toolname][tooldescription]") ?? []);
   } catch {
-    return found;
+    return [];
   }
+}
+
+function validDeclarativeToolIdentity(
+  name: string,
+  description: string,
+  found: Map<string, DeclarativeTool>,
+): boolean {
+  if (!hasDeclarativeToolIdentity(name, description)) return false;
+  if (!isValidDeclarativeToolName(name)) return false;
+  return !tools.has(name) && !found.has(name);
+}
+
+function hasDeclarativeToolIdentity(name: string, description: string): boolean {
+  return name !== "" && description !== "";
+}
+
+function isValidDeclarativeToolName(name: string): boolean {
+  return name.length <= MAX_MODEL_CONTEXT_TOOL_NAME_LENGTH && NAME_OK.test(name);
+}
+
+function readDeclarativeToolIdentity(
+  form: DeclarativeForm,
+  found: Map<string, DeclarativeTool>,
+): { name: string; description: string } | null {
+  const name = declarativeFormAttribute(form, "toolname");
+  const description = declarativeFormAttribute(form, "tooldescription");
+  if (!validDeclarativeToolIdentity(name, description, found)) return null;
+  return { name, description };
+}
+
+function declarativeFormAttribute(form: DeclarativeForm, name: string): string {
+  return String(form?.getAttribute?.(name) ?? "");
+}
+
+function declarativeAutosubmit(form: DeclarativeForm): boolean {
+  return form?.getAttribute?.("toolautosubmit") != null;
+}
+
+function declarativeBackendNodeId(form: DeclarativeForm): number | undefined {
+  const id = form?._id;
+  return typeof id === "number" && id > 0 ? id : undefined;
+}
+
+function declarativeToolDescriptor(
+  form: DeclarativeForm,
+  name: string,
+  description: string,
+  autosubmit: boolean,
+): CdpTool {
+  const descriptor: CdpTool = { name, description, inputSchema: declarativeSchema(form) };
+  if (autosubmit) descriptor.annotations = { autosubmit: true };
+  const backendNodeId = declarativeBackendNodeId(form);
+  if (backendNodeId !== undefined) descriptor.backendNodeId = backendNodeId;
+  return descriptor;
+}
+
+function makeDeclarativeTool(
+  form: DeclarativeForm,
+  found: Map<string, DeclarativeTool>,
+): DeclarativeTool | null {
+  const identity = readDeclarativeToolIdentity(form, found);
+  if (!identity) return null;
+  const autosubmit = declarativeAutosubmit(form);
+  const descriptor = declarativeToolDescriptor(
+    form,
+    identity.name,
+    identity.description,
+    autosubmit,
+  );
+  const title = String(form?.getAttribute?.("tooltitle") ?? "");
+  return {
+    descriptor,
+    form,
+    title,
+    autosubmit,
+    sig: JSON.stringify([descriptor, title, autosubmit]),
+  };
+}
+
+function scanDeclarativeTools(): Map<string, DeclarativeTool> {
+  const found = new Map<string, DeclarativeTool>();
+  const forms = declarativeForms();
   declarativeCandidates = forms.length;
   for (const form of forms) {
-    const name = String(form?.getAttribute?.("toolname") ?? "");
-    const description = String(form?.getAttribute?.("tooldescription") ?? "");
-    if (
-      !name ||
-      !description ||
-      name.length > MAX_MODEL_CONTEXT_TOOL_NAME_LENGTH ||
-      !NAME_OK.test(name) ||
-      tools.has(name) ||
-      found.has(name)
-    )
-      continue;
-    const autosubmit = form?.getAttribute?.("toolautosubmit") != null;
-    const descriptor: CdpTool = {
-      name,
-      description,
-      inputSchema: declarativeSchema(form),
-    };
-    if (autosubmit) descriptor.annotations = { autosubmit: true };
-    if (typeof form?._id === "number" && form._id > 0) {
-      descriptor.backendNodeId = form._id;
-    }
-    const title = String(form?.getAttribute?.("tooltitle") ?? "");
-    found.set(name, {
-      descriptor,
-      form,
-      title,
-      autosubmit,
-      sig: JSON.stringify([descriptor, title, autosubmit]),
-    });
+    const entry = makeDeclarativeTool(form, found);
+    if (entry) found.set(entry.descriptor.name, entry);
   }
   return found;
 }
@@ -269,11 +423,26 @@ function refreshDeclarativeTools(notify: boolean): void {
   declarativeTools = next;
   // The first page or CDP read seeds existing forms instead of reporting additions.
   if (!notify) return;
+  notifyDeclarativeChanges(previous, next);
+}
+
+function removedDeclarativeNames(
+  previous: Map<string, DeclarativeTool>,
+  next: Map<string, DeclarativeTool>,
+): string[] {
   const removed: string[] = [];
-  const added: CdpTool[] = [];
   for (const name of previous.keys()) {
     if (!next.has(name)) removed.push(name);
   }
+  return removed;
+}
+
+function addedDeclarativeTools(
+  previous: Map<string, DeclarativeTool>,
+  next: Map<string, DeclarativeTool>,
+  removed: string[],
+): CdpTool[] {
+  const added: CdpTool[] = [];
   for (const [name, entry] of next) {
     const before = previous.get(name);
     if (!before || before.sig !== entry.sig) {
@@ -281,35 +450,55 @@ function refreshDeclarativeTools(notify: boolean): void {
       added.push(entry.descriptor);
     }
   }
-  if (removed.length === 0 && added.length === 0) return;
-  if (declarativeWatchActive) {
-    if (removed.length > 0) {
-      sendDelta({ event: "kitesurf.modelContextToolsRemoved", params: { names: removed } });
-    }
-    if (added.length > 0) {
-      sendDelta({ event: "kitesurf.modelContextToolsAdded", params: { tools: added } });
-    }
+  return added;
+}
+
+function sendDeclarativeDeltas(removed: string[], added: CdpTool[]): void {
+  if (!declarativeWatchActive) return;
+  if (removed.length > 0) {
+    sendDelta({ event: "kitesurf.modelContextToolsRemoved", params: { names: removed } });
   }
+  if (added.length > 0) {
+    sendDelta({ event: "kitesurf.modelContextToolsAdded", params: { tools: added } });
+  }
+}
+
+function notifyDeclarativeChanges(
+  previous: Map<string, DeclarativeTool>,
+  next: Map<string, DeclarativeTool>,
+): void {
+  const removed = removedDeclarativeNames(previous, next);
+  const added = addedDeclarativeTools(previous, next, removed);
+  if (removed.length === 0 && added.length === 0) return;
+  sendDeclarativeDeltas(removed, added);
   if (mainContext) notifyChanged(mainContext);
 }
 
 function scheduleDeclarativeRefresh(hint?: MutationHint): void {
-  if ((!declarativeWatchActive && !pageDeclarativeInterest) || declarativeRefreshQueued) {
-    return;
-  }
-  if (
-    declarativeCandidates === 0 &&
-    hint !== undefined &&
-    (typeof hint === "string" || !DECLARATIVE_ATTRIBUTES.has(hint.attribute.toLowerCase()))
-  ) {
-    return;
-  }
+  if (!declarativeRefreshNeeded()) return;
+  if (!declarativeHintMayAddCandidate(hint)) return;
   declarativeRefreshQueued = true;
   queueMicrotask(() => {
     declarativeRefreshQueued = false;
-    if (!declarativeWatchActive && !pageDeclarativeInterest) return;
+    if (!declarativeInterestActive()) return;
     refreshDeclarativeTools(true);
   });
+}
+
+function declarativeInterestActive(): boolean {
+  return declarativeWatchActive || pageDeclarativeInterest;
+}
+
+function declarativeRefreshNeeded(): boolean {
+  return declarativeInterestActive() && !declarativeRefreshQueued;
+}
+
+function declarativeHintMayAddCandidate(hint?: MutationHint): boolean {
+  return !(
+    declarativeCandidates === 0 &&
+    hint !== undefined &&
+    (typeof hint === "string" || !DECLARATIVE_ATTRIBUTES.has(hint.attribute.toLowerCase()))
+  );
 }
 
 export function stopModelContextToolWatch(watchRevision: unknown): void {
@@ -358,16 +547,26 @@ class ToolEventTarget {
   }
 
   dispatchEvent(event: unknown): boolean {
-    const ev = event as { type?: string };
-    const list = this._listeners.get(String(ev?.type ?? ""));
-    for (const listener of list ? list.slice() : []) {
-      try {
-        listener.call(this, event);
-      } catch (err) {
-        reportListenerError(err);
-      }
-    }
+    const list = this._listeners.get(toolEventType(event));
+    for (const listener of list?.slice() ?? []) dispatchToolListener(this, event, listener);
     return true;
+  }
+}
+
+function toolEventType(event: unknown): string {
+  const ev = event as { type?: string };
+  return String(ev?.type ?? "");
+}
+
+function dispatchToolListener(
+  target: ToolEventTarget,
+  event: unknown,
+  listener: (event: unknown) => void,
+): void {
+  try {
+    listener.call(target, event);
+  } catch (error) {
+    reportListenerError(error);
   }
 }
 
@@ -407,18 +606,26 @@ function isTrustworthyOrigin(input: string): boolean {
   }
   if (u.origin === "null") return false;
   const scheme = u.protocol.toLowerCase();
-  if (scheme === "https:" || scheme === "wss:") return true;
-  if (scheme === "http:" || scheme === "ws:") {
-    const host = u.hostname.toLowerCase();
-    return (
-      host === "localhost" ||
-      host === "127.0.0.1" ||
-      host === "[::1]" ||
-      host === "::1" ||
-      host.endsWith(".localhost")
-    );
-  }
-  return false;
+  return isSecureOriginScheme(scheme) || isLocalHttpOrigin(u, scheme);
+}
+
+function isSecureOriginScheme(scheme: string): boolean {
+  return scheme === "https:" || scheme === "wss:";
+}
+
+function isLocalHttpOrigin(url: URL, scheme: string): boolean {
+  if (scheme !== "http:" && scheme !== "ws:") return false;
+  return isLoopbackHostname(url.hostname.toLowerCase());
+}
+
+function isLoopbackHostname(host: string): boolean {
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "[::1]" ||
+    host === "::1" ||
+    host.endsWith(".localhost")
+  );
 }
 
 function toUSVString(s: string): string {
@@ -456,6 +663,403 @@ function createExecutionController(): AbortControllerLike {
 function executionOptions(signal?: AbortSignal): WebMCP.ToolExecuteCallbackOptions {
   const executionSignal = signal ?? createExecutionController().signal;
   return { signal: executionSignal };
+}
+
+type ToolValidationResult =
+  | { ok: true; definition: ToolDefinition }
+  | { ok: false; error: unknown };
+type RegisterOptionsResult =
+  | { ok: true; signal: AbortSignalLike | undefined }
+  | { ok: false; error: unknown };
+
+function tryValidateTool(
+  tool: unknown,
+  registry: Map<string, ToolDefinition>,
+): ToolValidationResult {
+  try {
+    return { ok: true, definition: validate(tool, registry) };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+function untrustworthyOriginError(
+  origins: unknown[],
+  messageForOrigin: (origin: unknown) => string,
+): Error | null {
+  for (const origin of origins) {
+    if (typeof origin !== "string" || !isTrustworthyOrigin(origin)) {
+      return domError(messageForOrigin(origin), "SecurityError");
+    }
+  }
+  return null;
+}
+
+function exposedToError(exposedTo: unknown): Error | null {
+  if (exposedTo === undefined) return null;
+  if (!Array.isArray(exposedTo)) {
+    return new TypeError("registerTool: exposedTo must be a sequence");
+  }
+  return untrustworthyOriginError(
+    exposedTo,
+    (origin) =>
+      `registerTool: exposedTo origin "${String(origin)}" is not a potentially-trustworthy origin`,
+  );
+}
+
+function optionsRecord(options: unknown): Record<string, unknown> {
+  return isObjectLike(options) ? options : {};
+}
+
+function optionAbortSignal(options: unknown): AbortSignalLike | undefined {
+  const opts = optionsRecord(options);
+  return isAbortSignalLike(opts.signal) ? opts.signal : undefined;
+}
+
+function abortSignalReason(signal: AbortSignalLike | undefined): unknown | null {
+  if (!signal || signal.aborted !== true) return null;
+  return signal.reason ?? domError("aborted", "AbortError");
+}
+
+function registerOptionsResult(options: unknown): RegisterOptionsResult {
+  const signal = optionAbortSignal(options);
+  const aborted = abortSignalReason(signal);
+  if (aborted !== null) return { ok: false, error: aborted };
+  const error = exposedToError(optionsRecord(options).exposedTo);
+  if (error) return { ok: false, error };
+  return { ok: true, signal };
+}
+
+function notifyToolRegistrationAdded(context: ModelContext, definition: ToolDefinition): void {
+  if (context._isMain) {
+    sendDelta({
+      event: "kitesurf.modelContextToolsAdded",
+      params: { tools: [toCdpTool(definition)] },
+    });
+  }
+}
+
+function removeAbortedRegistration(
+  context: ModelContext,
+  registry: Map<string, ToolDefinition>,
+  definition: ToolDefinition,
+  signal: AbortSignalLike,
+  reject: (reason: unknown) => void,
+): void {
+  if (registry.get(definition.name) === definition) {
+    registry.delete(definition.name);
+    if (context._isMain) {
+      sendDelta({
+        event: "kitesurf.modelContextToolsRemoved",
+        params: { names: [definition.name] },
+      });
+    }
+    notifyChanged(context);
+  }
+  reject(signal.reason ?? domError("aborted", "AbortError"));
+}
+
+function waitForToolRegistration(
+  context: ModelContext,
+  registry: Map<string, ToolDefinition>,
+  definition: ToolDefinition,
+  signal: AbortSignalLike | undefined,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal && signal.addEventListener) {
+      signal.addEventListener("abort", () =>
+        removeAbortedRegistration(context, registry, definition, signal, reject),
+      );
+    }
+    // Queue toolchange before resolving so awaiters observe the notification first.
+    notifyChanged(context);
+    queueMicrotask(() => resolve(undefined));
+  });
+}
+
+type ExecuteRequestResult = { ok: true; name: string } | { ok: false; error: Error };
+
+type ExecuteRequestFieldsResult =
+  | { ok: true; name: string; origin: string }
+  | { ok: false; error: Error };
+
+function executeRequestFields(tool: unknown): ExecuteRequestFieldsResult {
+  if (!isObjectLike(tool)) {
+    return { ok: false, error: new TypeError("executeTool: tool must be a dictionary") };
+  }
+  if (typeof tool.origin !== "string") {
+    return { ok: false, error: new TypeError("executeTool: tool.origin is required") };
+  }
+  if (typeof tool.name !== "string" || tool.name === "") {
+    return { ok: false, error: new TypeError("executeTool: tool.name is required") };
+  }
+  return { ok: true, origin: tool.origin, name: tool.name };
+}
+
+function isSupportedToolOrigin(origin: string): boolean {
+  try {
+    return new URL(origin).origin !== "null";
+  } catch {
+    return false;
+  }
+}
+
+function executeRequestResult(tool: unknown, isFullyActive: () => boolean): ExecuteRequestResult {
+  const fields = executeRequestFields(tool);
+  if (!fields.ok) return fields;
+  if (!isFullyActive()) return { ok: false, error: inactiveDocumentError("executeTool") };
+  if (!isSupportedToolOrigin(fields.origin)) {
+    return {
+      ok: false,
+      error: domError(
+        `executeTool: tool origin "${fields.origin}" is not a supported origin`,
+        "NotSupportedError",
+      ),
+    };
+  }
+  return { ok: true, name: fields.name };
+}
+
+type ExecutionArgsResult =
+  | { ok: true; args: Record<string, unknown> }
+  | { ok: false; error: unknown };
+type SerializedExecutionInput = { ok: true; json: string } | { ok: false; error: unknown };
+
+function isExecutionInputContainer(input: unknown): boolean {
+  return typeof input === "object" || typeof input === "function";
+}
+
+function primitiveExecutionInputJson(input: unknown): string {
+  return typeof input === "string" ? input : String(input);
+}
+
+function serializeContainerExecutionInput(input: unknown): SerializedExecutionInput {
+  let json: string | undefined;
+  try {
+    json = JSON.stringify(input);
+  } catch (error) {
+    return { ok: false, error };
+  }
+  if (json === undefined) {
+    return {
+      ok: false,
+      error: new TypeError("executeTool: inputObject is not JSON-serializable"),
+    };
+  }
+  return { ok: true, json };
+}
+
+function serializeExecutionInput(input: unknown): SerializedExecutionInput {
+  if (!isExecutionInputContainer(input)) {
+    return { ok: true, json: primitiveExecutionInputJson(input) };
+  }
+  return serializeContainerExecutionInput(input);
+}
+
+function parseExecutionJson(json: string): ExecutionArgsResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      error: domError(`executeTool: invalid JSON args: ${message}`, "UnknownError"),
+    };
+  }
+  if (!isObjectLike(parsed)) {
+    return {
+      ok: false,
+      error: domError("executeTool: args must be a JSON object", "UnknownError"),
+    };
+  }
+  return { ok: true, args: parsed };
+}
+
+function parseExecutionArgs(input: unknown): ExecutionArgsResult {
+  if (input === undefined || input === null) return { ok: true, args: {} };
+  const serialized = serializeExecutionInput(input);
+  if (!serialized.ok) return serialized;
+  return parseExecutionJson(serialized.json);
+}
+
+type ExecutionSignalResult =
+  | { ok: true; signal: AbortSignalLike | undefined }
+  | { ok: false; error: unknown };
+
+function executionSignalResult(options: unknown): ExecutionSignalResult {
+  const signal = optionAbortSignal(options);
+  const aborted = abortSignalReason(signal);
+  if (aborted !== null) return { ok: false, error: aborted };
+  return { ok: true, signal };
+}
+
+function resolveToolExecutor(
+  context: ModelContext,
+  name: string,
+): WebMCP.ToolExecuteCallback | null {
+  const definition = context._tools.get(name);
+  let execute = definition ? definition.execute : null;
+  if (!execute && context._isMain) {
+    markDeclarativeInterest();
+    // A form can appear before its queued mutation refresh, so rescan before fallback lookup.
+    refreshDeclarativeTools(true);
+    const entry = declarativeTools.get(name);
+    if (entry) execute = makeDeclarativeExec(entry);
+  }
+  return execute;
+}
+
+interface ToolExecutionState {
+  readonly signal: AbortSignalLike | undefined;
+  readonly controller: AbortControllerLike;
+  readonly window: unknown;
+  readonly toolName: string;
+  readonly resolve: (value: string) => void;
+  readonly reject: (reason: unknown) => void;
+  settled: boolean;
+  callbackSettled: boolean;
+  onAbort: (() => void) | null;
+}
+
+type ToolOutput = { kind: "resolve"; value: string } | { kind: "unserializable" };
+
+function detachToolAbortListener(state: ToolExecutionState): void {
+  if (state.onAbort && state.signal && state.signal.removeEventListener) {
+    state.signal.removeEventListener("abort", state.onAbort);
+  }
+  state.onAbort = null;
+}
+
+function settleToolOutput(state: ToolExecutionState, output: ToolOutput): void {
+  if (state.settled) return;
+  state.settled = true;
+  detachToolAbortListener(state);
+  if (output.kind === "resolve") state.resolve(output.value);
+  else {
+    state.reject(domError("executeTool: tool result is not JSON-serializable", "UnknownError"));
+  }
+}
+
+function serializeToolOutput(value: unknown): ToolOutput {
+  if (value === undefined) return { kind: "resolve", value: "" };
+  if (typeof value === "string") return { kind: "resolve", value };
+  let json: string | undefined;
+  try {
+    json = JSON.stringify(value);
+  } catch {
+    json = undefined;
+  }
+  return json === undefined ? { kind: "unserializable" } : { kind: "resolve", value: json };
+}
+
+function handleToolOutput(state: ToolExecutionState, value: unknown): void {
+  state.callbackSettled = true;
+  if (state.settled) return;
+  const output = serializeToolOutput(value);
+  queueTask(() => settleToolOutput(state, output));
+}
+
+function handleToolError(state: ToolExecutionState, error: unknown): void {
+  state.callbackSettled = true;
+  if (state.settled) return;
+  const message = error instanceof Error ? error.message : String(error);
+  queueTask(() => {
+    if (state.settled) return;
+    state.settled = true;
+    detachToolAbortListener(state);
+    state.reject(domError(`executeTool: ${message}`, "UnknownError"));
+  });
+}
+
+function fireToolCancellation(state: ToolExecutionState): void {
+  if (state.callbackSettled) return;
+  try {
+    state.controller.abort();
+  } catch {}
+  dispatchWindowToolEvent(state.window, "toolcancel", state.toolName);
+}
+
+function handleToolAbort(state: ToolExecutionState): void {
+  if (state.settled) return;
+  state.settled = true;
+  detachToolAbortListener(state);
+  state.reject(state.signal?.reason ?? domError("aborted", "AbortError"));
+  if (!state.callbackSettled) queueTask(() => fireToolCancellation(state));
+}
+
+function attachToolAbortListener(state: ToolExecutionState): void {
+  if (!state.signal || !state.signal.addEventListener) return;
+  state.onAbort = () => handleToolAbort(state);
+  state.signal.addEventListener("abort", state.onAbort);
+}
+
+function invokeToolCallback(
+  execute: WebMCP.ToolExecuteCallback,
+  args: Record<string, unknown>,
+  state: ToolExecutionState,
+): unknown {
+  const result = execute(args, { signal: state.controller.signal });
+  dispatchWindowToolEvent(state.window, "toolactivated", state.toolName);
+  return result;
+}
+
+function startToolCallback(
+  execute: WebMCP.ToolExecuteCallback,
+  args: Record<string, unknown>,
+  state: ToolExecutionState,
+): void {
+  Promise.resolve()
+    .then(() => invokeToolCallback(execute, args, state))
+    .then(
+      (value) => handleToolOutput(state, value),
+      (error) => handleToolError(state, error),
+    );
+}
+
+function runToolExecution(
+  execute: WebMCP.ToolExecuteCallback,
+  args: Record<string, unknown>,
+  signal: AbortSignalLike | undefined,
+  window: unknown,
+  toolName: string,
+): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const state: ToolExecutionState = {
+      signal,
+      controller: createExecutionController(),
+      window,
+      toolName,
+      resolve,
+      reject,
+      settled: false,
+      callbackSettled: false,
+      onAbort: null,
+    };
+    attachToolAbortListener(state);
+    startToolCallback(execute, args, state);
+  });
+}
+
+function fromOriginsError(options: unknown): Error | null {
+  const fromOrigins = optionsRecord(options).fromOrigins;
+  if (fromOrigins === undefined) return null;
+  if (!Array.isArray(fromOrigins)) return new TypeError("getTools: fromOrigins must be a sequence");
+  return untrustworthyOriginError(
+    fromOrigins,
+    (origin) =>
+      `getTools: fromOrigins entry "${String(origin)}" is not a potentially-trustworthy origin`,
+  );
+}
+
+function contextTools(context: ModelContext): SerializedTool[] {
+  const out = snapshot(context._tools);
+  if (!context._isMain) return out;
+  markDeclarativeInterest();
+  refreshDeclarativeTools(true);
+  for (const entry of declarativeTools.values()) out.push(serializeDeclarative(entry));
+  out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  return out;
 }
 
 let allowConstruct = false;
@@ -504,272 +1108,47 @@ export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
     if (!this._isFullyActive()) {
       return Promise.reject(inactiveDocumentError("registerTool"));
     }
-    let def: ToolDefinition;
-    try {
-      def = validate(tool, this._tools);
-    } catch (err) {
-      return Promise.reject(err);
-    }
-
-    const opts = isObjectLike(options) ? options : {};
-    const signal = isAbortSignalLike(opts.signal) ? opts.signal : undefined;
-    if (signal && signal.aborted === true) {
-      return Promise.reject(signal.reason ?? domError("aborted", "AbortError"));
-    }
-    const exposedTo = opts.exposedTo;
-    if (exposedTo !== undefined) {
-      if (!Array.isArray(exposedTo)) {
-        return Promise.reject(new TypeError("registerTool: exposedTo must be a sequence"));
-      }
-      for (const origin of exposedTo) {
-        if (typeof origin !== "string" || !isTrustworthyOrigin(origin)) {
-          return Promise.reject(
-            domError(
-              `registerTool: exposedTo origin "${String(origin)}" is not a potentially-trustworthy origin`,
-              "SecurityError",
-            ),
-          );
-        }
-      }
-    }
-
+    const validation = tryValidateTool(tool, this._tools);
+    if (!validation.ok) return Promise.reject(validation.error);
+    const parsedOptions = registerOptionsResult(options);
+    if (!parsedOptions.ok) return Promise.reject(parsedOptions.error);
+    const def = validation.definition;
     const registry = this._tools;
     registry.set(def.name, def);
-    if (this._isMain) {
-      sendDelta({ event: "kitesurf.modelContextToolsAdded", params: { tools: [toCdpTool(def)] } });
-    }
-
-    const context = this;
-    return new Promise<void>((resolve, reject) => {
-      if (signal && signal.addEventListener) {
-        signal.addEventListener("abort", () => {
-          if (registry.get(def.name) === def) {
-            registry.delete(def.name);
-            if (context._isMain) {
-              sendDelta({
-                event: "kitesurf.modelContextToolsRemoved",
-                params: {
-                  names: [def.name],
-                },
-              });
-            }
-            notifyChanged(context);
-          }
-          reject(signal.reason ?? domError("aborted", "AbortError"));
-        });
-      }
-      // Queue toolchange before resolving so awaiters observe the notification first.
-      notifyChanged(context);
-      queueMicrotask(() => resolve(undefined));
-    });
+    notifyToolRegistrationAdded(this, def);
+    return waitForToolRegistration(this, registry, def, parsedOptions.signal);
   }
 
   executeTool(tool: unknown, inputObject?: unknown, options?: unknown): Promise<string> {
-    if (!isObjectLike(tool)) {
-      return Promise.reject(new TypeError("executeTool: tool must be a dictionary"));
-    }
-    if (typeof tool.origin !== "string") {
-      return Promise.reject(new TypeError("executeTool: tool.origin is required"));
-    }
-    if (typeof tool.name !== "string" || tool.name === "") {
-      return Promise.reject(new TypeError("executeTool: tool.name is required"));
-    }
-    if (!this._isFullyActive()) {
-      return Promise.reject(inactiveDocumentError("executeTool"));
-    }
-    let originOk = false;
-    try {
-      originOk = new URL(tool.origin).origin !== "null";
-    } catch {
-      originOk = false;
-    }
-    if (!originOk) {
+    const request = executeRequestResult(tool, () => this._isFullyActive());
+    if (!request.ok) return Promise.reject(request.error);
+    const execute = resolveToolExecutor(this, request.name);
+    if (!execute) {
       return Promise.reject(
-        domError(
-          `executeTool: tool origin "${tool.origin}" is not a supported origin`,
-          "NotSupportedError",
-        ),
+        domError(`executeTool: no tool named "${request.name}"`, "UnknownError"),
       );
     }
-    const toolName = tool.name;
-    const def = this._tools.get(toolName);
-    let execFn: WebMCP.ToolExecuteCallback | null = def ? def.execute : null;
-    if (!execFn && this._isMain) {
-      markDeclarativeInterest();
-      // A form can appear before its queued mutation refresh, so rescan before fallback lookup.
-      refreshDeclarativeTools(true);
-      const entry = declarativeTools.get(toolName);
-      if (entry) execFn = makeDeclarativeExec(entry);
-    }
-    if (!execFn) {
-      return Promise.reject(domError(`executeTool: no tool named "${toolName}"`, "UnknownError"));
-    }
-    const exec = execFn;
-    let args: Record<string, unknown> = {};
-    if (inputObject !== undefined && inputObject !== null) {
-      let raw: string;
-      if (typeof inputObject === "object" || typeof inputObject === "function") {
-        let json: string | undefined;
-        try {
-          json = JSON.stringify(inputObject);
-        } catch (err) {
-          return Promise.reject(err);
-        }
-        if (json === undefined) {
-          return Promise.reject(new TypeError("executeTool: inputObject is not JSON-serializable"));
-        }
-        raw = json;
-      } else {
-        raw = typeof inputObject === "string" ? inputObject : String(inputObject);
-      }
-      let parsedArgs: unknown;
-      try {
-        parsedArgs = JSON.parse(raw);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return Promise.reject(domError(`executeTool: invalid JSON args: ${msg}`, "UnknownError"));
-      }
-      if (!isObjectLike(parsedArgs)) {
-        return Promise.reject(domError("executeTool: args must be a JSON object", "UnknownError"));
-      }
-      args = parsedArgs;
-    }
-    const opts = isObjectLike(options) ? options : {};
-    const signal = isAbortSignalLike(opts.signal) ? opts.signal : undefined;
-    if (signal && signal.aborted === true) {
-      return Promise.reject(signal.reason ?? domError("aborted", "AbortError"));
-    }
-    const win = this._getWindow();
-    return new Promise<string>((resolve, reject) => {
-      let settled = false;
-      let callbackSettled = false;
-      const execController = createExecutionController();
-      let onAbort: (() => void) | null = null;
-      const detach = () => {
-        if (onAbort && signal && signal.removeEventListener) {
-          signal.removeEventListener("abort", onAbort);
-        }
-        onAbort = null;
-      };
-      if (signal && signal.addEventListener) {
-        onAbort = () => {
-          if (settled) return;
-          settled = true;
-          detach();
-          reject(signal.reason ?? domError("aborted", "AbortError"));
-          if (!callbackSettled) {
-            const fire = () => {
-              if (callbackSettled) return;
-              try {
-                execController.abort();
-              } catch {}
-              dispatchWindowToolEvent(win, "toolcancel", toolName);
-            };
-            queueTask(fire);
-          }
-        };
-        signal.addEventListener("abort", onAbort);
-      }
-      Promise.resolve()
-        .then(() => {
-          const p = exec(args, {
-            signal: execController.signal,
-          });
-          dispatchWindowToolEvent(win, "toolactivated", toolName);
-          return p;
-        })
-        .then(
-          (v) => {
-            callbackSettled = true;
-            if (settled) return;
-            if (v === undefined) {
-              queueTask(() => {
-                if (settled) return;
-                settled = true;
-                detach();
-                resolve("");
-              });
-              return;
-            }
-            if (typeof v === "string") {
-              queueTask(() => {
-                if (settled) return;
-                settled = true;
-                detach();
-                resolve(v);
-              });
-              return;
-            }
-            let json: string | undefined;
-            try {
-              json = JSON.stringify(v);
-            } catch {
-              json = undefined;
-            }
-            if (json === undefined) {
-              queueTask(() => {
-                if (settled) return;
-                settled = true;
-                detach();
-                reject(
-                  domError("executeTool: tool result is not JSON-serializable", "UnknownError"),
-                );
-              });
-              return;
-            }
-            queueTask(() => {
-              if (settled) return;
-              settled = true;
-              detach();
-              resolve(json);
-            });
-          },
-          (e) => {
-            callbackSettled = true;
-            if (settled) return;
-            const msg = e instanceof Error ? e.message : String(e);
-            queueTask(() => {
-              if (settled) return;
-              settled = true;
-              detach();
-              reject(domError(`executeTool: ${msg}`, "UnknownError"));
-            });
-          },
-        );
-    });
+    const parsedArgs = parseExecutionArgs(inputObject);
+    if (!parsedArgs.ok) return Promise.reject(parsedArgs.error);
+    const parsedOptions = executionSignalResult(options);
+    if (!parsedOptions.ok) return Promise.reject(parsedOptions.error);
+    return runToolExecution(
+      execute,
+      parsedArgs.args,
+      parsedOptions.signal,
+      this._getWindow(),
+      request.name,
+    );
   }
 
   getTools(options?: WebMCP.ModelContextGetToolOptions): Promise<WebMCP.RegisteredTool[]> {
     if (!this._isFullyActive()) {
       return Promise.reject(inactiveDocumentError("getTools"));
     }
-    const opts = isObjectLike(options) ? options : {};
-    const fromOrigins = opts.fromOrigins;
-    if (fromOrigins !== undefined) {
-      if (!Array.isArray(fromOrigins)) {
-        return Promise.reject(new TypeError("getTools: fromOrigins must be a sequence"));
-      }
-      for (const origin of fromOrigins) {
-        if (typeof origin !== "string" || !isTrustworthyOrigin(origin)) {
-          return Promise.reject(
-            domError(
-              `getTools: fromOrigins entry "${String(origin)}" is not a potentially-trustworthy origin`,
-              "SecurityError",
-            ),
-          );
-        }
-      }
-    }
+    const error = fromOriginsError(options);
+    if (error) return Promise.reject(error);
     const win = this._getWindow() as WebMCP.RegisteredTool["window"];
-    const out = snapshot(this._tools);
-    if (this._isMain) {
-      markDeclarativeInterest();
-      refreshDeclarativeTools(true);
-      for (const entry of declarativeTools.values()) {
-        out.push(serializeDeclarative(entry));
-      }
-      out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-    }
+    const out = contextTools(this);
     return Promise.resolve(out.map((tool) => ({ ...tool, window: win })));
   }
 }
@@ -795,7 +1174,7 @@ function serializeDeclarative(entry: DeclarativeTool): SerializedTool {
 
 function dispatchWindowToolEvent(win: unknown, type: string, toolName: string): void {
   try {
-    if (win === null || (typeof win !== "object" && typeof win !== "function")) return;
+    if (!isWindowEventTarget(win)) return;
     // `win` is page-owned; narrow only the EventTarget method this bridge needs.
     const dispatcher = win as Pick<Idl.EventTarget, "dispatchEvent">;
     if (typeof dispatcher.dispatchEvent !== "function") return;
@@ -805,6 +1184,10 @@ function dispatchWindowToolEvent(win: unknown, type: string, toolName: string): 
     event.detail = toolName;
     dispatcher.dispatchEvent(event);
   } catch {}
+}
+
+function isWindowEventTarget(win: unknown): win is object {
+  return win !== null && (typeof win === "object" || typeof win === "function");
 }
 
 const activeToolForms = new Set<object>();
@@ -821,35 +1204,14 @@ export function isToolSubmitActive(el: unknown): boolean {
 }
 
 function dispatchToolSubmit(form: DeclarativeForm): unknown {
-  let submitter: DeclarativeControl | null = null;
-  const elements = form.elements;
-  for (let i = 0; elements && i < elements.length; i++) {
-    const control = elements[i];
-    const tag = String(control?.localName ?? "").toLowerCase();
-    const type = String(control?.type ?? "").toLowerCase();
-    if (
-      control?.disabled !== true &&
-      ((tag === "button" && type === "submit") ||
-        (tag === "input" && (type === "submit" || type === "image")))
-    ) {
-      submitter = control;
-      break;
-    }
-  }
+  const submitter = findDeclarativeSubmitter(form.elements);
   const ev = new KsSubmitEvent("submit", {
     bubbles: true,
     cancelable: true,
     agentInvoked: true,
     submitter,
   });
-  if (typeof form.dispatchEvent === "function") {
-    const fire = () => {
-      dispatchTrustedEvent(form, ev);
-    };
-    // Reuse the form guard so a handler's requestSubmit cannot redispatch submit.
-    if (typeof form.__ksFiringSubmit === "function") form.__ksFiringSubmit(fire);
-    else fire();
-  }
+  dispatchDeclarativeSubmit(form, ev);
   if (!ev.defaultPrevented) {
     form.__ksPerformSubmission?.(submitter);
   }
@@ -860,88 +1222,195 @@ function dispatchToolSubmit(form: DeclarativeForm): unknown {
   return "";
 }
 
-function makeDeclarativeExec(entry: DeclarativeTool): WebMCP.ToolExecuteCallback {
-  return (args: Record<string, unknown>, options) => {
-    fillDeclarativeControls(entry.form, args);
-    if (entry.autosubmit) {
-      const submitted = dispatchToolSubmit(entry.form);
-      const signal = options?.signal;
-      if (!signal?.addEventListener) return submitted;
-      return new Promise<unknown>((resolve, reject) => {
-        let settled = false;
-        const cleanup = () => {
-          signal.removeEventListener?.("abort", onAbort);
-        };
-        const onAbort = () => {
-          if (settled) return;
-          settled = true;
-          cleanup();
-          reject(signal.reason ?? domError("aborted", "AbortError"));
-        };
-        signal.addEventListener?.("abort", onAbort);
-        Promise.resolve(submitted).then(
-          (value) => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            resolve(value);
-          },
-          (err) => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            reject(err);
-          },
-        );
-      });
+function isDeclarativeSubmitter(control: DeclarativeControl): boolean {
+  const tag = declarativeControlTag(control);
+  const type = declarativeControlType(control);
+  return (
+    isEnabledDeclarativeSubmitter(control) &&
+    (isSubmitButton(tag, type) || isSubmitInput(tag, type))
+  );
+}
+
+function isEnabledDeclarativeSubmitter(control: DeclarativeControl): boolean {
+  return control?.disabled !== true;
+}
+
+function isSubmitButton(tag: string, type: string): boolean {
+  return tag === "button" && type === "submit";
+}
+
+function isSubmitInput(tag: string, type: string): boolean {
+  return tag === "input" && (type === "submit" || type === "image");
+}
+
+function findDeclarativeSubmitter(
+  elements: ArrayLike<DeclarativeControl> | undefined,
+): DeclarativeControl | null {
+  let submitter: DeclarativeControl | null = null;
+  for (let i = 0; elements && i < elements.length; i++) {
+    const control = elements[i];
+    if (isDeclarativeSubmitter(control)) {
+      submitter = control;
+      break;
     }
-    return new Promise<unknown>((resolve, reject) => {
-      const form = entry.form;
-      activeToolForms.add(entry.form);
-      const signal = options?.signal;
-      let onAbort: (() => void) | null = null;
-      const cleanup = () => {
-        activeToolForms.delete(entry.form);
-        if (onSubmit && form.removeEventListener) {
-          form.removeEventListener("submit", onSubmit);
-        }
-        if (onAbort && signal?.removeEventListener) {
-          signal.removeEventListener("abort", onAbort);
-        }
-      };
-      let onSubmit: ((e: unknown) => void) | null = (ev: unknown) => {
+  }
+  return submitter;
+}
+
+function dispatchDeclarativeSubmit(form: DeclarativeForm, event: KsSubmitEvent): void {
+  if (typeof form.dispatchEvent === "function") {
+    const fire = () => {
+      dispatchTrustedEvent(form, event);
+    };
+    // Reuse the form guard so a handler's requestSubmit cannot redispatch submit.
+    if (typeof form.__ksFiringSubmit === "function") form.__ksFiringSubmit(fire);
+    else fire();
+  }
+}
+
+function makeDeclarativeExec(entry: DeclarativeTool): WebMCP.ToolExecuteCallback {
+  return (args, options) => executeDeclarativeTool(entry, args, options);
+}
+
+function executeDeclarativeTool(
+  entry: DeclarativeTool,
+  args: Record<string, unknown>,
+  options: WebMCP.ToolExecuteCallbackOptions,
+): unknown {
+  fillDeclarativeControls(entry.form, args);
+  if (entry.autosubmit) return waitForAutomaticSubmission(entry, options);
+  return waitForManualSubmission(entry, options);
+}
+
+interface SubmissionWaitState {
+  signal: AbortSignal;
+  onAbort: () => void;
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
+  settled: boolean;
+}
+
+function finishSubmissionWait(
+  state: SubmissionWaitState,
+  outcome: { ok: true; value: unknown } | { ok: false; reason: unknown },
+): void {
+  if (state.settled) return;
+  state.settled = true;
+  state.signal.removeEventListener("abort", state.onAbort);
+  if (outcome.ok) state.resolve(outcome.value);
+  else state.reject(outcome.reason);
+}
+
+function waitForAutomaticSubmission(
+  entry: DeclarativeTool,
+  options: WebMCP.ToolExecuteCallbackOptions,
+): unknown {
+  const submitted = dispatchToolSubmit(entry.form);
+  const signal = options?.signal;
+  if (!signal || !signal.addEventListener) return submitted;
+  return new Promise<unknown>((resolve, reject) => {
+    const state: SubmissionWaitState = {
+      signal,
+      onAbort: () => {},
+      resolve,
+      reject,
+      settled: false,
+    };
+    state.onAbort = () =>
+      finishSubmissionWait(state, {
+        ok: false,
+        reason: signal.reason ?? domError("aborted", "AbortError"),
+      });
+    signal.addEventListener("abort", state.onAbort);
+    Promise.resolve(submitted).then(
+      (value) => finishSubmissionWait(state, { ok: true, value }),
+      (reason) => finishSubmissionWait(state, { ok: false, reason }),
+    );
+  });
+}
+
+function manualSubmissionCleanup(
+  entry: DeclarativeTool,
+  form: DeclarativeForm,
+  signal: AbortSignal | undefined,
+  onSubmit: ((event: unknown) => void) | null,
+  onAbort: (() => void) | null,
+): void {
+  activeToolForms.delete(entry.form);
+  removeManualSubmitListener(form, onSubmit);
+  removeManualAbortListener(signal, onAbort);
+}
+
+function removeManualSubmitListener(
+  form: DeclarativeForm,
+  listener: ((event: unknown) => void) | null,
+): void {
+  if (listener && form.removeEventListener) form.removeEventListener("submit", listener);
+}
+
+function removeManualAbortListener(
+  signal: AbortSignal | undefined,
+  listener: (() => void) | null,
+): void {
+  if (listener && signal?.removeEventListener) signal.removeEventListener("abort", listener);
+}
+
+function resolveManualSubmission(event: unknown, resolve: (value: unknown) => void): void {
+  const responded = submitEventResponse(event);
+  if (responded && typeof responded.then === "function") resolve(responded);
+  else resolve("");
+}
+
+function waitForManualSubmission(
+  entry: DeclarativeTool,
+  options: WebMCP.ToolExecuteCallbackOptions,
+): Promise<unknown> {
+  return new Promise<unknown>((resolve, reject) => {
+    const form = entry.form;
+    activeToolForms.add(form);
+    const signal = options?.signal;
+    let onAbort: (() => void) | null = null;
+    let onSubmit: ((event: unknown) => void) | null = (event: unknown) => {
+      manualSubmissionCleanup(entry, form, signal, onSubmit, onAbort);
+      resolveManualSubmission(event, resolve);
+    };
+    const cleanup = () => manualSubmissionCleanup(entry, form, signal, onSubmit, onAbort);
+    if (form.addEventListener) {
+      form.addEventListener("submit", onSubmit);
+    } else {
+      onSubmit = null;
+    }
+    if (signal?.addEventListener) {
+      onAbort = () => {
         cleanup();
-        const responded = submitEventResponse(ev);
-        if (responded && typeof responded.then === "function") {
-          resolve(responded);
-        } else {
-          resolve("");
-        }
+        reject(signal.reason ?? domError("aborted", "AbortError"));
       };
-      if (form.addEventListener) {
-        form.addEventListener("submit", onSubmit);
-      } else {
-        onSubmit = null;
-      }
-      if (signal?.addEventListener) {
-        onAbort = () => {
-          cleanup();
-          reject(signal.reason ?? domError("aborted", "AbortError"));
-        };
-        signal.addEventListener("abort", onAbort);
-      }
-    });
-  };
+      signal.addEventListener("abort", onAbort);
+    }
+  });
 }
 
 function fillDeclarativeControls(form: DeclarativeForm, args: Record<string, unknown>): void {
   const elements = form?.elements;
   for (let i = 0; elements && i < elements.length; i++) {
-    const control = elements[i];
-    const field = String(control?.name ?? "");
-    if (!field || !(field in args) || control?.disabled === true) continue;
-    setControlValue(control, args[field]);
+    fillDeclarativeControl(elements[i], args);
   }
+}
+
+function fillDeclarativeControl(control: DeclarativeControl, args: Record<string, unknown>): void {
+  const field = String(control?.name ?? "");
+  if (!canFillDeclarativeControl(control, field, args)) return;
+  setControlValue(control, args[field]);
+}
+
+function canFillDeclarativeControl(
+  control: DeclarativeControl,
+  field: string,
+  args: Record<string, unknown>,
+): boolean {
+  if (!field) return false;
+  if (!(field in args)) return false;
+  return control?.disabled !== true;
 }
 
 interface SettableControl {
@@ -954,46 +1423,92 @@ interface SettableControl {
 }
 
 export function setControlValue(control: SettableControl, value: unknown): boolean {
-  const tag = String(control?.localName ?? "").toLowerCase();
-  const type = String(control?.type ?? "").toLowerCase();
-  if (type === "file") return false;
-  let changed = false;
+  const kind = settableControlKind(control);
+  if (kind.type === "file") return false;
+  const changed = applyControlValueSafely(control, kind.tag, kind.type, value);
+  if (!changed) return false;
+  dispatchControlChangeEvents(control);
+  return true;
+}
+
+function settableControlKind(control: SettableControl): { tag: string; type: string } {
+  return {
+    tag: String(control?.localName ?? "").toLowerCase(),
+    type: String(control?.type ?? "").toLowerCase(),
+  };
+}
+
+function applyControlValueSafely(
+  control: SettableControl,
+  tag: string,
+  type: string,
+  value: unknown,
+): boolean {
   try {
-    if (type === "checkbox") {
-      const want = value === true;
-      if (control.checked !== want) {
-        control.checked = want;
-        changed = true;
-      }
-    } else if (type === "radio") {
-      const want = String(control.value ?? "on") === String(value);
-      if (control.checked !== want) {
-        control.checked = want;
-        changed = true;
-      }
-    } else if (tag === "select" && control.multiple === true && Array.isArray(value)) {
-      const selected = new Set(value.map(String));
-      const options = control.options;
-      if (!options) return false;
-      for (let j = 0; j < options.length; j++) {
-        const opt = options[j];
-        const want = selected.has(String(opt.value));
-        if (opt.selected !== want) {
-          opt.selected = want;
-          changed = true;
-        }
-      }
-    } else {
-      const want = value == null ? "" : String(value);
-      if (String(control.value ?? "") !== want) {
-        control.value = want;
-        changed = true;
-      }
-    }
+    return updateControlValue(control, tag, type, value);
   } catch {
     return false;
   }
-  if (!changed) return false;
+}
+
+function updateControlValue(
+  control: SettableControl,
+  tag: string,
+  type: string,
+  value: unknown,
+): boolean {
+  if (type === "checkbox") return setCheckboxValue(control, value);
+  if (type === "radio") return setRadioValue(control, value);
+  if (isMultipleSelectValue(control, tag, value)) return setMultipleSelectValue(control, value);
+  return setScalarControlValue(control, value);
+}
+
+function setCheckboxValue(control: SettableControl, value: unknown): boolean {
+  const want = value === true;
+  if (control.checked === want) return false;
+  control.checked = want;
+  return true;
+}
+
+function setRadioValue(control: SettableControl, value: unknown): boolean {
+  const want = String(control.value ?? "on") === String(value);
+  if (control.checked === want) return false;
+  control.checked = want;
+  return true;
+}
+
+function isMultipleSelectValue(
+  control: SettableControl,
+  tag: string,
+  value: unknown,
+): value is unknown[] {
+  return tag === "select" && control.multiple === true && Array.isArray(value);
+}
+
+function setMultipleSelectValue(control: SettableControl, value: unknown[]): boolean {
+  const selected = new Set(value.map(String));
+  const options = control.options;
+  if (!options) return false;
+  let changed = false;
+  for (let i = 0; i < options.length; i++) {
+    const option = options[i];
+    const want = selected.has(String(option.value));
+    if (option.selected !== want) {
+      option.selected = want;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function setScalarControlValue(control: SettableControl, value: unknown): boolean {
+  const want = value == null ? "" : String(value);
+  if (String(control.value ?? "") === want) return false;
+  control.value = want;
+  return true;
+}
+
+function dispatchControlChangeEvents(control: SettableControl): void {
   try {
     dispatchTrustedEvent(
       control,
@@ -1012,13 +1527,71 @@ export function setControlValue(control: SettableControl, value: unknown): boole
       }),
     );
   } catch {}
-  return true;
 }
 
 function markDeclarativeInterest(): void {
   if (pageDeclarativeInterest) return;
   pageDeclarativeInterest = true;
   refreshDeclarativeTools(false);
+}
+
+function validateToolName(name: string): void {
+  if (name.length > MAX_MODEL_CONTEXT_TOOL_NAME_LENGTH || !NAME_OK.test(name)) {
+    throw domError(`registerTool: invalid tool name "${name}"`, "InvalidStateError");
+  }
+}
+
+function validateToolRequiredFields(name: string, description: string): void {
+  if (name === "" || description === "") {
+    throw domError(
+      "registerTool: name and description are required and must be non-empty",
+      "InvalidStateError",
+    );
+  }
+}
+
+function validateToolAvailable(name: string, registry: Map<string, ToolDefinition>): void {
+  if (registry.has(name)) {
+    throw domError(
+      `registerTool: a tool named "${name}" is already registered`,
+      "InvalidStateError",
+    );
+  }
+}
+
+function validateToolExecutor(
+  name: string,
+  execute: unknown,
+): asserts execute is WebMCP.ToolExecuteCallback {
+  if (typeof execute !== "function") {
+    throw new TypeError(`registerTool: tool "${name}" has no execute()`);
+  }
+}
+
+function isSchemaObject(value: unknown): boolean {
+  return value !== null && (typeof value === "object" || typeof value === "function");
+}
+
+function serializedInputSchema(name: string, schema: unknown): string {
+  if (schema === undefined) return "";
+  if (!isSchemaObject(schema)) {
+    throw new TypeError(`registerTool: tool "${name}" inputSchema must be an object`);
+  }
+  const json = JSON.stringify(schema);
+  if (json === undefined) {
+    throw new TypeError(`registerTool: tool "${name}" has an unserializable inputSchema`);
+  }
+  return json;
+}
+
+function parseToolAnnotations(raw: unknown): ToolAnnotations | null {
+  return isObjectLike(raw)
+    ? {
+        readOnlyHint: raw.readOnlyHint === true,
+        untrustedContentHint: raw.untrustedContentHint === true,
+        consequentialHint: raw.consequentialHint === true,
+      }
+    : null;
 }
 
 function validate(tool: unknown, registry: Map<string, ToolDefinition>): ToolDefinition {
@@ -1028,48 +1601,12 @@ function validate(tool: unknown, registry: Map<string, ToolDefinition>): ToolDef
   const t = tool;
   const name = typeof t.name === "string" ? t.name : "";
   const description = typeof t.description === "string" ? t.description : "";
-  if (name === "" || description === "") {
-    throw domError(
-      "registerTool: name and description are required and must be non-empty",
-      "InvalidStateError",
-    );
-  }
-  if (name.length > MAX_MODEL_CONTEXT_TOOL_NAME_LENGTH || !NAME_OK.test(name)) {
-    throw domError(`registerTool: invalid tool name "${name}"`, "InvalidStateError");
-  }
-  if (registry.has(name)) {
-    throw domError(
-      `registerTool: a tool named "${name}" is already registered`,
-      "InvalidStateError",
-    );
-  }
-  if (typeof t.execute !== "function") {
-    throw new TypeError(`registerTool: tool "${name}" has no execute()`);
-  }
-
-  let inputSchema = "";
-  if (t.inputSchema !== undefined) {
-    if (
-      t.inputSchema === null ||
-      (typeof t.inputSchema !== "object" && typeof t.inputSchema !== "function")
-    ) {
-      throw new TypeError(`registerTool: tool "${name}" inputSchema must be an object`);
-    }
-    const json = JSON.stringify(t.inputSchema);
-    if (json === undefined) {
-      throw new TypeError(`registerTool: tool "${name}" has an unserializable inputSchema`);
-    }
-    inputSchema = json;
-  }
-
-  const rawAnnotations = t.annotations;
-  const annotations = isObjectLike(rawAnnotations)
-    ? {
-        readOnlyHint: rawAnnotations.readOnlyHint === true,
-        untrustedContentHint: rawAnnotations.untrustedContentHint === true,
-        consequentialHint: rawAnnotations.consequentialHint === true,
-      }
-    : null;
+  validateToolRequiredFields(name, description);
+  validateToolName(name);
+  validateToolAvailable(name, registry);
+  validateToolExecutor(name, t.execute);
+  const inputSchema = serializedInputSchema(name, t.inputSchema);
+  const annotations = parseToolAnnotations(t.annotations);
 
   return {
     name,
@@ -1119,7 +1656,7 @@ let mainContext: ModelContext | null = null;
 let docContexts = new WeakMap<object, ModelContext>();
 
 export function acquireModelContext(doc: unknown): ModelContext {
-  if (!isObjectLike(doc) || doc.nodeType !== DOCUMENT_NODE) {
+  if (!isDocumentContextReceiver(doc)) {
     throw new TypeError("Document.prototype.modelContext getter called on a non-Document receiver");
   }
   const d = doc;
@@ -1137,15 +1674,22 @@ export function acquireModelContext(doc: unknown): ModelContext {
   return context;
 }
 
+function isDocumentContextReceiver(doc: unknown): doc is Record<string, unknown> {
+  return isObjectLike(doc) && doc.nodeType === DOCUMENT_NODE;
+}
+
+function childFrameElement(doc: unknown): Record<string, unknown> | null {
+  if (!isObjectLike(doc)) return null;
+  const view = doc.defaultView;
+  if (!isObjectLike(view)) return null;
+  const element = view.frameElement;
+  return isObjectLike(element) ? element : null;
+}
+
 function isChildDocumentFullyActive(doc: object): boolean {
   try {
-    const document = isObjectLike(doc) ? doc : null;
-    if (!document) return false;
-    const view = document.defaultView;
-    if (!isObjectLike(view)) return false;
-    const el = view.frameElement;
-    if (!isObjectLike(el)) return false;
-    return el.isConnected === true && el.contentDocument === doc;
+    const element = childFrameElement(doc);
+    return element !== null && element.isConnected === true && element.contentDocument === doc;
   } catch {
     return false;
   }
@@ -1165,6 +1709,10 @@ function normalizeResult(out: unknown): ToolCallResult {
   if (typeof out === "string") {
     return { content: [{ type: "text", text: out }], isError: false };
   }
+  return normalizeStructuredResult(out);
+}
+
+function normalizeStructuredResult(out: unknown): ToolCallResult {
   // Tool callbacks return page-owned values; inspect only the result envelope fields.
   const obj = out as { content?: unknown; isError?: unknown };
   if (Array.isArray(obj.content)) {
@@ -1197,6 +1745,64 @@ function declarativeResult(out: unknown): ToolCallResult {
   };
 }
 
+interface CallToolExecutor {
+  execute: WebMCP.ToolExecuteCallback;
+  declarative: boolean;
+}
+
+function resolveCallToolExecutor(name: string): CallToolExecutor | null {
+  const definition = tools.get(name);
+  if (definition) return { execute: definition.execute, declarative: false };
+  refreshDeclarativeTools(false);
+  const entry = declarativeTools.get(name);
+  if (!entry) return null;
+  return { execute: makeDeclarativeExec(entry), declarative: true };
+}
+
+function createInvocationController(id: string): AbortControllerLike | null {
+  return id === "" ? null : createExecutionController();
+}
+
+function addInvocationController(id: string, controller: AbortControllerLike | null): void {
+  if (controller) activeToolExecutions.set(id, controller);
+}
+
+function removeInvocationController(id: string, controller: AbortControllerLike | null): void {
+  if (controller && activeToolExecutions.get(id) === controller) activeToolExecutions.delete(id);
+}
+
+function modelContextToolResult(executor: CallToolExecutor, output: unknown): ToolCallResult {
+  return executor.declarative ? declarativeResult(output) : normalizeResult(output);
+}
+
+function modelContextToolFailure(error: unknown): ToolCallResult {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    content: [{ type: "text", text: message }],
+    isError: true,
+    error: message,
+    threw: true,
+  };
+}
+
+async function runModelContextToolCall(
+  executor: CallToolExecutor,
+  input: unknown,
+  id: string,
+): Promise<ToolCallResult> {
+  const controller = createInvocationController(id);
+  addInvocationController(id, controller);
+  try {
+    const args = isObjectLike(input) ? input : {};
+    const output = await executor.execute(args, executionOptions(controller?.signal));
+    return modelContextToolResult(executor, output);
+  } catch (error) {
+    return modelContextToolFailure(error);
+  } finally {
+    removeInvocationController(id, controller);
+  }
+}
+
 /** Returns missing-tool and callback failures in ToolCallResult instead of throwing. */
 export async function callModelContextTool(
   name: unknown,
@@ -1204,18 +1810,8 @@ export async function callModelContextTool(
   invocationId?: unknown,
 ): Promise<ToolCallResult> {
   const key = typeof name === "string" ? name : String(name ?? "");
-  const def = tools.get(key);
-  let execute = def?.execute;
-  let returnsDeclarativeOutput = false;
-  if (!execute) {
-    refreshDeclarativeTools(false);
-    const declarative = declarativeTools.get(key);
-    if (declarative) {
-      execute = makeDeclarativeExec(declarative);
-      returnsDeclarativeOutput = true;
-    }
-  }
-  if (!execute) {
+  const executor = resolveCallToolExecutor(key);
+  if (!executor) {
     return {
       content: [],
       isError: true,
@@ -1224,27 +1820,7 @@ export async function callModelContextTool(
     };
   }
   const id = typeof invocationId === "string" ? invocationId : "";
-  const controller = id === "" ? null : createExecutionController();
-  if (controller) {
-    activeToolExecutions.set(id, controller);
-  }
-  try {
-    const args = isObjectLike(input) ? input : {};
-    const result = await execute(args, executionOptions(controller?.signal));
-    return returnsDeclarativeOutput ? declarativeResult(result) : normalizeResult(result);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      content: [{ type: "text", text: message }],
-      isError: true,
-      error: message,
-      threw: true,
-    };
-  } finally {
-    if (controller && activeToolExecutions.get(id) === controller) {
-      activeToolExecutions.delete(id);
-    }
-  }
+  return runModelContextToolCall(executor, input, id);
 }
 
 /** Signals abort for a running invocation; returns false for an unknown or inactive ID. */

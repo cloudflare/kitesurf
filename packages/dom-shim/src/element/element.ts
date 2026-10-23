@@ -96,7 +96,7 @@ import {
   camelToDash,
 } from "../util/strings.js";
 import { validateAttrName, XML_NS, XMLNS_NS } from "../util/validation.js";
-import { normalizeScrollArgs } from "../util/scroll-args.js";
+import { normalizeScrollArgs, type NormalizedScrollArgs } from "../util/scroll-args.js";
 import { bumpMutationSeq, markDamageNode } from "../mutations/seq.js";
 import {
   mutationObserverCount,
@@ -151,25 +151,72 @@ function isAttributeNamespaceRecord(value: unknown): value is Record<string, unk
   return typeof value === "object" && value !== null;
 }
 
-function syncParsedAttributeNamespaces(el: { _id: number; _info?: unknown }): void {
-  const info = el._info;
-  const parsed = isAttributeNamespaceRecord(info) ? info.attributeNamespaces : undefined;
-  let nsMap = attrNs.get(el._id);
-  if (!nsMap && (!Array.isArray(parsed) || parsed.length === 0)) return;
-  const attrSeq = ksState().attrSeq | 0;
-  const previousSync = parsedAttributeNamespaceSync.get(el);
-  if (previousSync !== undefined && previousSync.info === info && previousSync.attrSeq === attrSeq)
-    return;
-
-  if (nsMap) {
-    for (const [name, info] of nsMap) {
-      if (info.parsed) nsMap.delete(name);
-    }
-    if (nsMap.size === 0) {
-      attrNs.delete(el._id);
-      nsMap = undefined;
-    }
+function clearParsedAttributeNamespaces(
+  el: { _id: number },
+  nsMap: NonNullable<ReturnType<typeof attrNs.get>>,
+) {
+  for (const [name, info] of nsMap) {
+    if (info.parsed) nsMap.delete(name);
   }
+  if (nsMap.size === 0) {
+    attrNs.delete(el._id);
+    return undefined;
+  }
+  return nsMap;
+}
+
+function isParsedNamespaceEntry(info: Record<string, unknown>): info is Record<string, unknown> & {
+  qualifiedName: string;
+  namespaceURI: string;
+  localName: string;
+} {
+  return (
+    typeof info?.qualifiedName === "string" &&
+    typeof info.namespaceURI === "string" &&
+    typeof info.localName === "string"
+  );
+}
+
+function addParsedNamespaceEntry(
+  nsMap: NonNullable<ReturnType<typeof attrNs.get>>,
+  info: Record<string, unknown> & {
+    qualifiedName: string;
+    namespaceURI: string;
+    localName: string;
+  },
+): void {
+  const existing = nsMap.get(info.qualifiedName);
+  if (existing && !existing.parsed) return;
+  nsMap.set(info.qualifiedName, {
+    ns: info.namespaceURI,
+    prefix: typeof info.prefix === "string" ? info.prefix : null,
+    localName: info.localName,
+    qname: info.qualifiedName,
+    parsed: true,
+  });
+}
+
+function addParsedAttributeNamespaces(
+  el: { _id: number },
+  parsed: unknown[],
+  nsMap: NonNullable<ReturnType<typeof attrNs.get>>,
+) {
+  for (const rawInfo of parsed) {
+    if (!isAttributeNamespaceRecord(rawInfo)) continue;
+    if (!isParsedNamespaceEntry(rawInfo)) continue;
+    addParsedNamespaceEntry(nsMap, rawInfo);
+  }
+  fastpathMarkSpecial(el._id);
+}
+
+function updateParsedNamespaceMap(
+  el: { _id: number; _info?: unknown },
+  info: unknown,
+  parsed: unknown,
+  nsMap: ReturnType<typeof attrNs.get>,
+  attrSeq: number,
+): void {
+  if (nsMap) nsMap = clearParsedAttributeNamespaces(el, nsMap);
   if (!Array.isArray(parsed) || parsed.length === 0) {
     parsedAttributeNamespaceSync.set(el, { info, attrSeq });
     return;
@@ -178,29 +225,102 @@ function syncParsedAttributeNamespaces(el: { _id: number; _info?: unknown }): vo
     nsMap = new Map();
     attrNs.set(el._id, nsMap);
   }
-  const entries: unknown[] = parsed;
-  for (const rawInfo of entries) {
-    if (!isAttributeNamespaceRecord(rawInfo)) continue;
-    const info = rawInfo;
-    if (
-      typeof info?.qualifiedName !== "string" ||
-      typeof info.namespaceURI !== "string" ||
-      typeof info.localName !== "string"
-    ) {
-      continue;
-    }
-    const existing = nsMap.get(info.qualifiedName);
-    if (existing && !existing.parsed) continue;
-    nsMap.set(info.qualifiedName, {
-      ns: info.namespaceURI,
-      prefix: typeof info.prefix === "string" ? info.prefix : null,
-      localName: info.localName,
-      qname: info.qualifiedName,
-      parsed: true,
-    });
-  }
-  fastpathMarkSpecial(el._id);
+  addParsedAttributeNamespaces(el, parsed, nsMap);
   parsedAttributeNamespaceSync.set(el, { info, attrSeq });
+}
+
+function hasNoParsedNamespaces(parsed: unknown): boolean {
+  return !Array.isArray(parsed) || parsed.length === 0;
+}
+
+function alreadySyncedParsedNamespaces(
+  previousSync: { info: unknown; attrSeq: number } | undefined,
+  info: unknown,
+  attrSeq: number,
+): boolean {
+  return (
+    previousSync !== undefined && previousSync.info === info && previousSync.attrSeq === attrSeq
+  );
+}
+
+function syncParsedAttributeNamespaces(el: { _id: number; _info?: unknown }): void {
+  const info = el._info;
+  const parsed = isAttributeNamespaceRecord(info) ? info.attributeNamespaces : undefined;
+  const nsMap = attrNs.get(el._id);
+  if (!nsMap && hasNoParsedNamespaces(parsed)) return;
+  const attrSeq = ksState().attrSeq | 0;
+  const previousSync = parsedAttributeNamespaceSync.get(el);
+  if (alreadySyncedParsedNamespaces(previousSync, info, attrSeq)) return;
+
+  updateParsedNamespaceMap(el, info, parsed, nsMap, attrSeq);
+}
+
+function sameSequenceAttrFlat(el: Element, seq: number): string[] | null {
+  if (el._attrFlatCache !== null && el._attrFlatCacheSeq === seq) {
+    syncParsedAttributeNamespaces(el);
+    return el._attrFlatCache;
+  }
+  return null;
+}
+
+function invalidatedAttrFlat(el: Element, seq: number): string[] | null {
+  if (el._attrFlatCache !== null && el._attrFlatCacheSeq !== seq) el._attrFlatCache = null;
+  if (el._attrFlatCache !== null) {
+    syncParsedAttributeNamespaces(el);
+    return el._attrFlatCache;
+  }
+  return null;
+}
+
+function sameMutationAttrFlat(el: Element, mutationSeq: number, attrSeq: number): string[] | null {
+  if (el._typeCheckSeq === mutationSeq && el._info && el._info.attributes) {
+    const arr = el._info.attributes;
+    el._attrFlatCache = arr;
+    el._attrFlatCacheSeq = attrSeq;
+    syncParsedAttributeNamespaces(el);
+    return arr;
+  }
+  return null;
+}
+
+function freshAttrFlat(el: Element, attrSeq: number): string[] {
+  try {
+    const fresh = dom.nodeInfo(el._id);
+    const arr = (fresh && fresh.attributes) || [];
+    el._attrFlatCache = arr;
+    el._attrFlatCacheSeq = attrSeq;
+    if (fresh) el._info = fresh;
+    syncParsedAttributeNamespaces(el);
+    return arr;
+  } catch {
+    return [];
+  }
+}
+
+function localPartOfName(qname: string): string {
+  const colon = qname.indexOf(":");
+  return colon >= 0 ? qname.slice(colon + 1) : qname;
+}
+
+function matchesElementNamespaceName(liveName: string, qname: string, local: string): boolean {
+  return !liveName || liveName === qname || liveName === local;
+}
+
+function liveElementName(el: Element): string {
+  return String(el._info?.nodeName || "").toLowerCase();
+}
+
+function nullableElementNamespace(
+  el: Element,
+  entry: ReturnType<typeof elemNs.get>,
+): { found: true; ns: string | null } | { found: false } {
+  if (entry !== undefined && entry.ns == null) {
+    const liveName = liveElementName(el);
+    const qname = entry.qname.toLowerCase();
+    const local = localPartOfName(qname);
+    if (matchesElementNamespaceName(liveName, qname, local)) return { found: true, ns: entry.ns };
+  }
+  return { found: false };
 }
 
 function getFormState(id: number) {
@@ -229,6 +349,30 @@ function reflectedTokenList(
   return list;
 }
 
+function htmlRelListTag(local: string): boolean {
+  return local === "a" || local === "area" || local === "link";
+}
+
+function supportsRelList(ns: string | null, local: string): boolean {
+  return (
+    (ns === HTML_NS && htmlRelListTag(local)) ||
+    ((ns === SVG_NS || ns === MATHML_NS) && local === "a")
+  );
+}
+
+function syncCheckedInputs(
+  inputs: Iterable<number>,
+  checked: Set<number>,
+  domHandle: typeof dom,
+): void {
+  if (typeof domHandle.setCheckboxChecked !== "function") return;
+  for (const id of inputs) {
+    try {
+      domHandle.setCheckboxChecked(id, checked.has(id));
+    } catch {}
+  }
+}
+
 function syncCheckedFromAttrs(root: { _id: number }): void {
   if (!root || typeof root._id !== "number") return;
   let inputs: Iterable<number>;
@@ -245,20 +389,19 @@ function syncCheckedFromAttrs(root: { _id: number }): void {
     return;
   }
   const domHandle = dom;
-  if (typeof domHandle.setCheckboxChecked !== "function") return;
-  for (const id of inputs) {
-    try {
-      domHandle.setCheckboxChecked(id, checked.has(id));
-    } catch {}
-  }
+  syncCheckedInputs(inputs, checked, domHandle);
 }
 
-function demandSvgTextOutlines(html: string, contextNs: string | null) {
-  if (
+function needsSvgTextOutlines(html: string, contextNs: string | null): boolean {
+  return (
     html.length !== 0 &&
     /<text[\s/>]/i.test(html) &&
     (/<svg[\s/>]/i.test(html) || contextNs === SVG_NS)
-  ) {
+  );
+}
+
+function demandSvgTextOutlines(html: string, contextNs: string | null) {
+  if (needsSvgTextOutlines(html, contextNs)) {
     try {
       ksGlobal.__ksFontOutlineDemand?.();
     } catch {}
@@ -298,12 +441,989 @@ function ensureDomAttrFns() {
   domRemoveAttr = typeof d.removeAttribute === "function" ? d.removeAttribute.bind(d) : null;
 }
 
+function exposedAttributeName(nsMap: ReturnType<typeof attrNs.get>, wasmKey: string): string {
+  if (nsMap) {
+    const info = nsMap.get(wasmKey);
+    if (info && info.qname) return info.qname;
+  }
+  return wasmKey;
+}
+
+function attributeLookupName(el: Element, name: string, lower: string): string {
+  return lower === name || el.namespaceURI === HTML_NS ? lower : name;
+}
+
+function normalizedAttributeNamespace(namespace: string | null): string | null {
+  return namespace ? String(namespace) : null;
+}
+
+function findAttributeKey(flat: string[], nsMap: ReturnType<typeof attrNs.get>, lookup: string) {
+  for (let i = 0; i < flat.length; i += 2) {
+    const k = flat[i];
+    if (exposedAttributeName(nsMap, k) === lookup) return k;
+  }
+  return null;
+}
+
+function attributeValueByKey(flat: string[], wasmKey: string): string | null {
+  for (let i = 0; i < flat.length; i += 2) {
+    if (flat[i] === wasmKey) return flat[i + 1];
+  }
+  return null;
+}
+
+function unnamespacedAttributeValue(
+  flat: string[],
+  localName: string,
+  nsMap: ReturnType<typeof attrNs.get>,
+): string | null {
+  for (let i = 0; i < flat.length; i += 2) {
+    if (flat[i] === localName && (!nsMap || !nsMap.has(localName))) return flat[i + 1];
+  }
+  return null;
+}
+
+function customAttributeChangedHook(el: Element, name: string) {
+  return ksGlobal.__ks_customElementObservesAttribute?.(el, name) &&
+    typeof ksGlobal.__ks_notifyCustomElementAttributeChanged === "function"
+    ? ksGlobal.__ks_notifyCustomElementAttributeChanged
+    : null;
+}
+
+function notifyCustomAttributeChange(
+  hook: ReturnType<typeof customAttributeChangedHook>,
+  el: Element,
+  name: string,
+  oldValue: string | null,
+  newValue: string | null,
+  ns: string | null,
+): void {
+  if (hook) hook(el, name, oldValue, newValue, ns);
+}
+
+function notifyRemovedCustomAttributeChange(
+  hook: ReturnType<typeof customAttributeChangedHook>,
+  el: Element,
+  removingNs: { localName: string } | undefined,
+  lookup: string,
+  oldValue: string | null,
+  exposedNs: string | null,
+): void {
+  if (hook) hook(el, removingNs ? removingNs.localName : lookup, oldValue, null, exposedNs);
+}
+
+function removedAttributeOldValue(
+  el: Element,
+  wasmKey: string,
+  hook: ReturnType<typeof customAttributeChangedHook>,
+): string | null {
+  return mutationObserverCount() === 0 && !hook
+    ? null
+    : attributeValueByKey(el._attrFlat(), wasmKey);
+}
+
+function observedAttributeOldValue(
+  el: Element,
+  name: string,
+  hook: ReturnType<typeof customAttributeChangedHook>,
+): string | null {
+  return mutationObserverCount() === 0 && !hook ? null : el.getAttribute(name);
+}
+
+function finishAttributeRemoval(
+  el: Element,
+  lookup: string,
+  removingNs: { qname: string; ns: string | null; localName: string } | undefined,
+  oldValue: string | null,
+  hook: ReturnType<typeof customAttributeChangedHook>,
+  isHtmlElement: boolean,
+  resanitize: { needed: boolean; oldInputType: string | null },
+): void {
+  const exposedName = removingNs ? removingNs.qname : lookup;
+  const exposedNs = removingNs ? removingNs.ns : null;
+  recordAttributeMutation(el._id, exposedName, exposedNs, oldValue);
+  notifyRemovedCustomAttributeChange(hook, el, removingNs, lookup, oldValue, exposedNs);
+  resyncInlineStyle(el, exposedName, null);
+  afterIframeAttributeChange(el, isHtmlElement, lookup);
+  if (isHtmlElement) el[attributeChangeSteps](lookup, null);
+  scheduleAttributeSlotchange(el, lookup);
+  if (resanitize.needed) resanitizeAttribute(el, resanitize.oldInputType);
+}
+
+function removedAttributeLookup(name: string, isHtmlElement: boolean): string {
+  return isHtmlElement ? asciiLowercase(name) : name;
+}
+
+function removeAttrIsHtmlElement(id: number): boolean {
+  const elNs = elemNs.get(id);
+  return !elNs || elNs.ns === HTML_NS;
+}
+
+function toggleForcedAttribute(el: Element, name: string, has: boolean, force: boolean): boolean {
+  if (force === true) {
+    if (!has) el.setAttribute(name, "");
+    return true;
+  }
+  if (has) el.removeAttribute(name);
+  return false;
+}
+
+function validateAttributeNodeOwner(el: Element, attr: AttrImpl): void {
+  if (invalidAttributeNode(attr)) {
+    throw new (ksGlobal.DOMException || Error)(
+      "setAttributeNode: argument must be an Attr",
+      "TypeError",
+    );
+  }
+  const owner = attr._ownerElement;
+  if (owner && owner !== el) {
+    throw new DOMException(
+      "setAttributeNode: attribute is already in use by another element",
+      "InUseAttributeError",
+    );
+  }
+}
+
+function invalidAttributeNode(attr: AttrImpl): boolean {
+  return !attr || typeof attr !== "object";
+}
+
+function resyncInlineStyle(el: Element, name: string, value: string | null): void {
+  if (name === "style") {
+    const resync = inlineStyleResync.get(el);
+    if (resync) resync(value);
+  }
+}
+
+function attributeOldInputType(el: Element, name: string, needsResanitize: boolean) {
+  return needsResanitize && name === "type" ? inputTypeOf(el) : null;
+}
+
+function maybeInstallAttributeHandler(el: Element, name: string, value: string): void {
+  if (
+    name.length > 2 &&
+    name.charCodeAt(0) === 111 &&
+    name.charCodeAt(1) === 110 &&
+    idlEventHandlerNameSet.has(name)
+  ) {
+    installAttrEventHandler(el, name, value);
+  }
+}
+
+function resanitizeAttribute(el: Element, oldInputType: string | null): void {
+  if (oldInputType != null) ksHandleInputTypeChange(el, oldInputType);
+  else ksResanitizeInputValue(el);
+}
+
+function scheduleAttributeSlotchange(el: Element, name: string): void {
+  if (name === "slot") {
+    try {
+      maybeScheduleSlotchange(dom.parentId(el._id));
+    } catch {}
+  } else if (name === "name") {
+    maybeScheduleSlotchange(el._id);
+  }
+}
+
+function afterIframeAttributeChange(el: Element, isHtmlElement: boolean, name: string): void {
+  if (isConnectedIframeSrcChange(el, isHtmlElement, name)) {
+    const iframeSrcHook = getInternalState().afterIframeSrcChange;
+    if (typeof iframeSrcHook === "function") {
+      try {
+        iframeSrcHook(el);
+      } catch {}
+    }
+  }
+}
+
+function isConnectedIframeSrcChange(el: Element, isHtmlElement: boolean, name: string): boolean {
+  return (
+    isHtmlElement &&
+    (name === "src" || name === "srcdoc") &&
+    el.localName === "iframe" &&
+    el.isConnected
+  );
+}
+
+function setWasmAttribute(el: Element, finalName: string, strValue: string): void {
+  ensureDomAttrFns();
+  if (domSetAttr) {
+    if (domSetAttr(el._id, finalName, strValue)) {
+      bumpMutationSeq({ attribute: finalName, node: el._id });
+      if (finalName === "id") stampNamedGlobal(el._id, strValue);
+      if (ksGlobal.__ks_cdpDomActive) {
+        cdpMutations.push({
+          kind: "attributeModified",
+          nodeId: el._id,
+          name: finalName,
+          value: strValue,
+        });
+      }
+    }
+  } else {
+    recordOp({ kind: "setAttribute", node: el._id, name: finalName, value: strValue });
+  }
+}
+
+function removeWasmAttribute(el: Element, wasmKey: string): void {
+  ensureDomAttrFns();
+  if (domRemoveAttr) {
+    if (domRemoveAttr(el._id, wasmKey)) {
+      bumpMutationSeq({ attribute: wasmKey, node: el._id });
+      if (wasmKey === "id") stampNamedGlobal(el._id, "");
+      if (ksGlobal.__ks_cdpDomActive) {
+        cdpMutations.push({ kind: "attributeRemoved", nodeId: el._id, name: wasmKey });
+      }
+    }
+  } else {
+    recordOp({ kind: "removeAttribute", node: el._id, name: wasmKey });
+  }
+}
+
+function detachCachedAttr(el: Element, wasmKey: string): void {
+  const cache = attrInstances.get(el);
+  const attr = cache?.get(wasmKey);
+  if (attr) {
+    attr._ownerElement = null;
+    cache?.delete(wasmKey);
+  }
+}
+
+function validateQualifiedAttrName(qn: string): void {
+  validateAttrName(qn);
+  const colonCount = (qn.match(/:/g) || []).length;
+  if (colonCount > 0) {
+    const ci = qn.indexOf(":");
+    if (invalidQualifiedColon(colonCount, ci, qn.length)) {
+      throw new DOMException(
+        "'" + qn + "' is not a valid qualified attribute name",
+        "InvalidCharacterError",
+      );
+    }
+  }
+}
+
+function invalidQualifiedColon(count: number, index: number, length: number): boolean {
+  return count > 1 || index === 0 || index === length - 1;
+}
+
+function validateAttributeNamespace(
+  qualifiedName: string,
+  prefix: string | null,
+  ns: string | null,
+): void {
+  if (prefix && !ns) {
+    throw new DOMException(
+      "setAttributeNS: prefix '" + prefix + "' requires a non-null namespace",
+      "NamespaceError",
+    );
+  }
+  if (prefix === "xml" && ns !== XML_NS) {
+    throw new DOMException(
+      "setAttributeNS: 'xml' prefix is reserved for the XML namespace",
+      "NamespaceError",
+    );
+  }
+  validateXmlnsAttributeNamespace(qualifiedName, prefix, ns);
+}
+
+function validateXmlnsAttributeNamespace(
+  qualifiedName: string,
+  prefix: string | null,
+  ns: string | null,
+): void {
+  if ((qualifiedName === "xmlns" || prefix === "xmlns") && ns !== XMLNS_NS) {
+    throw new DOMException(
+      "setAttributeNS: 'xmlns' qualifies only the XMLNS namespace",
+      "NamespaceError",
+    );
+  }
+  validateXmlnsNamespaceRequiresName(qualifiedName, prefix, ns);
+}
+
+function validateXmlnsNamespaceRequiresName(
+  qualifiedName: string,
+  prefix: string | null,
+  ns: string | null,
+): void {
+  if (ns === XMLNS_NS && qualifiedName !== "xmlns" && prefix !== "xmlns") {
+    throw new DOMException(
+      "setAttributeNS: XMLNS namespace requires the 'xmlns' qname or prefix",
+      "NamespaceError",
+    );
+  }
+}
+
+function existingNsAttributeKey(
+  nsMap: NonNullable<ReturnType<typeof attrNs.get>>,
+  ns: string | null,
+  localName: string,
+): string | null {
+  for (const [k, info] of nsMap) {
+    if (info.ns === ns && info.localName === localName) return k;
+  }
+  return null;
+}
+
+function nsAttributeKey(
+  nsMap: NonNullable<ReturnType<typeof attrNs.get>>,
+  flat: string[],
+  qualifiedName: string,
+  ns: string | null,
+  existingKey: string | null,
+): string {
+  if (existingKey) return existingKey;
+  if (nsMap.has(qualifiedName)) return namespacedCollisionKey(ns, qualifiedName);
+  for (let i = 0; i < flat.length; i += 2) {
+    if (flat[i] === qualifiedName) return namespacedCollisionKey(ns, qualifiedName);
+  }
+  return qualifiedName;
+}
+
+function splitQualifiedAttrName(qualifiedName: string) {
+  const colon = qualifiedName.indexOf(":");
+  const prefix = colon >= 0 ? qualifiedName.slice(0, colon) : null;
+  const localName = colon >= 0 ? qualifiedName.slice(colon + 1) : qualifiedName;
+  return { prefix, localName };
+}
+
+function existingAttributeValue(flat: string[], existingKey: string | null): string | null {
+  return existingKey ? attributeValueByKey(flat, existingKey) : null;
+}
+
+function namespacedAttributeValue(
+  el: Element,
+  nsMap: NonNullable<ReturnType<typeof attrNs.get>>,
+  ns: string | null,
+  localName: string,
+): { found: boolean; value: string | null } {
+  for (const [qname, info] of nsMap) {
+    if (info.ns !== ns || info.localName !== localName) continue;
+    return { found: true, value: attributeValueByKey(el._attrFlat(), qname) };
+  }
+  return { found: false, value: null };
+}
+
+function namespacedCollisionKey(ns: string | null, qualifiedName: string): string {
+  return "\u0000" + (ns || "") + "\u0000" + qualifiedName;
+}
+
+function removeNamespacedAttribute(
+  el: Element,
+  nsMap: NonNullable<ReturnType<typeof attrNs.get>>,
+  cache: ReturnType<typeof attrInstances.get>,
+  wasmKey: string,
+  localName: string,
+  ns: string | null,
+  customAttributeHook: ReturnType<typeof customAttributeChangedHook>,
+): void {
+  const attr = cache?.get(wasmKey);
+  if (attr) {
+    attr._ownerElement = null;
+    cache?.delete(wasmKey);
+  }
+  const oldValue = attributeValueByKey(el._attrFlat(), wasmKey);
+  el._attrFlatCache = null;
+  recordOp({ kind: "removeAttribute", node: el._id, name: wasmKey });
+  nsMap.delete(wasmKey);
+  recordAttributeMutation(el._id, localName, ns, oldValue);
+  if (customAttributeHook) customAttributeHook(el, localName, oldValue, null, ns);
+}
+
+function removeUnnamespacedAttribute(
+  el: Element,
+  cache: ReturnType<typeof attrInstances.get>,
+  flat: string[],
+  index: number,
+  localName: string,
+  customAttributeHook: ReturnType<typeof customAttributeChangedHook>,
+): void {
+  const attr = cache?.get(localName);
+  if (attr) {
+    attr._ownerElement = null;
+    cache?.delete(localName);
+  }
+  const oldValue = flat[index + 1];
+  el._attrFlatCache = null;
+  recordOp({ kind: "removeAttribute", node: el._id, name: localName });
+  recordAttributeMutation(el._id, localName, null, oldValue);
+  if (customAttributeHook) customAttributeHook(el, localName, oldValue, null, null);
+}
+
+function removeMatchingNamespacedAttribute(
+  el: Element,
+  nsMap: NonNullable<ReturnType<typeof attrNs.get>>,
+  cache: ReturnType<typeof attrInstances.get>,
+  ns: string | null,
+  localName: string,
+  hook: ReturnType<typeof customAttributeChangedHook>,
+): boolean {
+  for (const [wasmKey, info] of nsMap) {
+    if (info.ns !== ns || info.localName !== localName) continue;
+    removeNamespacedAttribute(el, nsMap, cache, wasmKey, localName, ns, hook);
+    return true;
+  }
+  return false;
+}
+
+function removeMatchingUnnamespacedAttribute(
+  el: Element,
+  nsMap: ReturnType<typeof attrNs.get>,
+  cache: ReturnType<typeof attrInstances.get>,
+  localName: string,
+  hook: ReturnType<typeof customAttributeChangedHook>,
+): void {
+  const flat = el._attrFlat();
+  for (let i = 0; i < flat.length; i += 2) {
+    if (flat[i] !== localName || (nsMap && nsMap.has(localName))) continue;
+    removeUnnamespacedAttribute(el, cache, flat, i, localName, hook);
+    return;
+  }
+}
+
+function removeNSAttributeWithMap(
+  el: Element,
+  nsMap: ReturnType<typeof attrNs.get>,
+  cache: ReturnType<typeof attrInstances.get>,
+  ns: string | null,
+  localName: string,
+  hook: ReturnType<typeof customAttributeChangedHook>,
+): void {
+  if (nsMap && removeMatchingNamespacedAttribute(el, nsMap, cache, ns, localName, hook)) return;
+  if (ns === null) removeMatchingUnnamespacedAttribute(el, nsMap, cache, localName, hook);
+}
+
+function attrMetadataForKey(nsInfo: ReturnType<typeof attrInfoForKey>, wasmKey: string) {
+  // setAttribute uses the whole name as the local name, even with a colon.
+  // https://dom.spec.whatwg.org/#dom-element-setattribute
+  const namespaceURI = nsInfo ? nsInfo.ns : null;
+  const prefix = nsInfo ? nsInfo.prefix : null;
+  const localName = nsInfo ? nsInfo.localName : wasmKey;
+  const exposedName = nameForAttrInfo(nsInfo, wasmKey);
+  return { namespaceURI, prefix, localName, exposedName };
+}
+
+function makeAttrForKey(el: Element, metadata: ReturnType<typeof attrMetadataForKey>): AttrImpl {
+  const createdAttr: AttrImpl = Object.create(AttrCls.prototype);
+  createdAttr._name = metadata.exposedName;
+  createdAttr._namespaceURI = metadata.namespaceURI;
+  createdAttr._prefix = metadata.prefix;
+  createdAttr._localName = metadata.localName;
+  createdAttr._ownerElement = el;
+  return createdAttr;
+}
+
+function attrInfoForKey(nsMap: ReturnType<typeof attrNs.get>, wasmKey: string) {
+  return nsMap && nsMap.get(wasmKey);
+}
+
+function nameForAttrInfo(nsInfo: ReturnType<typeof attrInfoForKey>, wasmKey: string): string {
+  return nsInfo ? nsInfo.qname || wasmKey : wasmKey;
+}
+
+function pruneAttrCache(
+  cache: NonNullable<ReturnType<typeof attrInstances.get>>,
+  seenNames: Set<string>,
+) {
+  for (const cachedName of Array.from(cache.keys())) {
+    if (!seenNames.has(cachedName)) {
+      const stale = cache.get(cachedName);
+      if (stale) stale._ownerElement = null;
+      cache.delete(cachedName);
+    }
+  }
+}
+
+function clearAttrNames(byName: Record<string, AttrImpl>): void {
+  for (const key in byName) delete byName[key];
+}
+
+function setAttributeFromNode(el: Element, attr: AttrImpl, ns: string | null): void {
+  if (ns) el.setAttributeNS(ns, attr.name, attr.value || "");
+  else el.setAttribute(attr.name, attr.value || "");
+}
+
+function registerInnerHtmlTransientObservers(
+  oldChildIds: number[],
+  observed: boolean,
+  transientlyObserved: boolean,
+): void {
+  if (transientlyObserved) {
+    for (const childId of oldChildIds) {
+      if (observed || subtreeHasCachedWrapper(childId)) registerTransientObservers(childId);
+    }
+  }
+}
+
+function recordInnerHtmlChildChanges(target: Element, oldChildren: NodeBase[] | null): void {
+  if (oldChildren) {
+    const newChildren = Array.from<NodeBase>(target.childNodes);
+    if (oldChildren.length > 0 || newChildren.length > 0) {
+      recordChildListMutation(target, newChildren, oldChildren, null, null);
+    }
+  }
+}
+
+function replaceInnerHtmlChildren(target: Element, htmlText: string): void {
+  const observed = hasChildListObserver(target._id);
+  const transientlyObserved = hasSubtreeObserver(target._id);
+  const oldChildIds = dom.childIds ? Array.from(dom.childIds(target._id)) : [];
+  const oldChildren = observed ? Array.from<NodeBase>(target.childNodes) : null;
+  registerInnerHtmlTransientObservers(oldChildIds, observed, transientlyObserved);
+  recordOp({ kind: "setInnerHtml", node: target._id, html: htmlText });
+  if (!observed) dropUnwrappedSubtrees(oldChildIds);
+  recordInnerHtmlChildChanges(target, oldChildren);
+  syncCheckedFromAttrs(target);
+  if (htmlText.indexOf("id") !== -1) stampSubtreeNamedGlobals(target);
+}
+
+function insertOuterHtmlChildren(parent: NodeBase, moved: NodeBase[], refId: number): void {
+  for (const k of moved) {
+    if (typeof k._id !== "number" || k._id < 0) continue;
+    try {
+      dom.removeNode(k._id);
+    } catch {}
+    dom.insertBeforeNode(parent._id, k._id, refId);
+  }
+}
+
+function recordOuterHtmlInsertions(
+  parent: NodeBase,
+  moved: NodeBase[],
+  prevSibling: NodeBase | null,
+) {
+  let prevForCdp = prevSibling ? prevSibling._id : 0;
+  for (const k of moved) {
+    if (typeof k._id !== "number" || k._id < 0) continue;
+    recordCdpMutation({
+      kind: "childNodeInserted",
+      parentNodeId: parent._id,
+      previousNodeId: prevForCdp,
+      nodeId: k._id,
+    });
+    prevForCdp = k._id;
+  }
+}
+
+function outerHtmlSiblings(el: Element) {
+  const prevSibling = el.previousSibling || null;
+  const nextSibling = el.nextSibling || null;
+  return { prevSibling, nextSibling };
+}
+
+function throwOuterHtmlWithoutParent(): never {
+  throw new (ksGlobal.DOMException || Error)(
+    "Cannot set outerHTML on an element with no parent",
+    "NoModificationAllowedError",
+  );
+}
+
+function throwOuterHtmlInvalidParent(): never {
+  throw new (ksGlobal.DOMException || Error)(
+    "Cannot set outerHTML when parent is not an Element or DocumentFragment",
+    "NoModificationAllowedError",
+  );
+}
+
+function renderedInnerText(el: Element): string | null {
+  try {
+    const s: unknown = dom.innerTextRendered?.(el._id);
+    if (typeof s === "string") return s;
+  } catch {}
+  return null;
+}
+
+function replaceWithRenderedText(el: Element, text: string): void {
+  const nodes = renderedTextFragmentNodes(text, el.ownerDocument || document);
+  el.textContent = "";
+  for (const n of nodes) el.appendChild(n);
+}
+
+function matchesQualifiedTagNamespace(el: Element, ns: string | null, ln: string): boolean {
+  const elNs = elementNamespaceOrNull(el);
+  if (ns !== "*" && elNs !== ns) return false;
+  if (ln === "*") return true;
+  return (el.localName || "") === ln;
+}
+
+function elementNamespaceOrNull(el: Element): string | null {
+  return el.namespaceURI || null;
+}
+
+function legacyOffsetMetrics(
+  read: (getMetrics: ((id: number) => unknown) | null) => OffsetMetrics | null,
+) {
+  try {
+    // Older wasm bundles may not expose the optional legacy offsetMetrics method.
+    const offsetMetrics: unknown = Reflect.get(dom, "offsetMetrics");
+    if (typeof offsetMetrics === "function") {
+      const metrics = read((id) => Reflect.apply(offsetMetrics, dom, [id]));
+      if (metrics) return metrics;
+    }
+  } catch {}
+  return null;
+}
+
+function scrollIntoViewModes(arg?: boolean | Idl.ScrollIntoViewOptions) {
+  if (arg === false) return { block: "end", inline: "nearest" };
+  if (arg === true || arg == null) return { block: "start", inline: "nearest" };
+  if (typeof arg === "object") return scrollIntoViewObjectModes(arg);
+  return { block: "start", inline: "nearest" };
+}
+
+function scrollIntoViewObjectModes(arg: Idl.ScrollIntoViewOptions) {
+  return { block: String(arg.block ?? "start"), inline: String(arg.inline ?? "nearest") };
+}
+
+function nearestScrollAxis(elPos: number, elSize: number, viewSize: number, curScroll: number) {
+  if (elPos >= curScroll && elPos + elSize <= curScroll + viewSize) return curScroll;
+  if (elPos < curScroll) return elPos;
+  return elPos + elSize - viewSize;
+}
+
+function computeScrollAxis(
+  elPos: number,
+  elSize: number,
+  viewSize: number,
+  curScroll: number,
+  mode: string,
+): number {
+  switch (mode) {
+    case "start":
+      return elPos;
+    case "end":
+      return elPos + elSize - viewSize;
+    case "center":
+      return elPos + elSize / 2 - viewSize / 2;
+    case "nearest":
+      return nearestScrollAxis(elPos, elSize, viewSize, curScroll);
+    default:
+      return elPos;
+  }
+}
+
+function unshiftStickyViewport(el: Element, x: number, y: number) {
+  try {
+    const sh = getStickyShiftByAuthId && getStickyShiftByAuthId(el._id);
+    if (sh && sh.length >= 2) {
+      x -= stickyOffsetValue(sh[0]);
+      y -= stickyOffsetValue(sh[1]);
+    }
+  } catch {}
+  return { x, y };
+}
+
+function stickyOffsetValue(value: unknown): number {
+  return Number(value) || 0;
+}
+
+function scrollAncestorIntoView(
+  cur: number,
+  info: NonNullable<ReturnType<typeof nodeScrollInfoSafe>>,
+  viewport: { x: number; y: number },
+  targetSize: { w: number; h: number },
+  block: string,
+  inline: string,
+): void {
+  const containerVr = getRect(cur);
+  const elInContentX = viewport.x - containerVr.x + info.scrollLeft;
+  const elInContentY = viewport.y - containerVr.y + info.scrollTop;
+  const targetScrollY = info.overflowsY
+    ? Math.max(
+        0,
+        Math.min(
+          computeScrollAxis(elInContentY, targetSize.h, info.clientHeight, info.scrollTop, block),
+          info.scrollHeight,
+        ),
+      )
+    : info.scrollTop;
+  const targetScrollX = info.overflowsX
+    ? Math.max(
+        0,
+        Math.min(
+          computeScrollAxis(elInContentX, targetSize.w, info.clientWidth, info.scrollLeft, inline),
+          info.scrollWidth,
+        ),
+      )
+    : info.scrollLeft;
+  if (needsAncestorScroll(info, targetScrollX, targetScrollY)) {
+    if (setElementScrollOffset(cur, targetScrollX, targetScrollY)) {
+      viewport.y += info.scrollTop - targetScrollY;
+      viewport.x += info.scrollLeft - targetScrollX;
+    }
+  }
+}
+
+function needsAncestorScroll(
+  info: NonNullable<ReturnType<typeof nodeScrollInfoSafe>>,
+  targetScrollX: number,
+  targetScrollY: number,
+): boolean {
+  return targetScrollY !== info.scrollTop || targetScrollX !== info.scrollLeft;
+}
+
+function scrollAncestorsIntoView(
+  el: Element,
+  htmlId: number,
+  viewport: { x: number; y: number },
+  targetSize: { w: number; h: number },
+  block: string,
+  inline: string,
+): void {
+  let cur = el._id;
+  let safety = 0;
+  try {
+    cur = dom.parentId(cur);
+  } catch {
+    cur = -1;
+  }
+  while (hasScrollAncestor(cur, htmlId, safety)) {
+    safety++;
+    const info = nodeScrollInfoSafe(cur);
+    if (scrollsInEitherAxis(info)) {
+      scrollAncestorIntoView(cur, info, viewport, targetSize, block, inline);
+    }
+    try {
+      cur = dom.parentId(cur);
+    } catch {
+      break;
+    }
+  }
+}
+
+function scrollsInEitherAxis(
+  info: ReturnType<typeof nodeScrollInfoSafe>,
+): info is NonNullable<ReturnType<typeof nodeScrollInfoSafe>> {
+  return !!info && (info.overflowsX || info.overflowsY);
+}
+
+function hasScrollAncestor(cur: number, htmlId: number, safety: number): boolean {
+  return cur != null && cur >= 0 && cur !== htmlId && safety < MAX_SCROLL_CHAIN_HOPS;
+}
+
+function commitElementScroll(el: Element, left: number, top: number): void {
+  let offset: unknown = null;
+  try {
+    offset = dom.setNodeScrollOffset(el._id, left, top);
+  } catch {
+    return;
+  }
+  if (!offset) return;
+  markDamageNode(el._id);
+  bumpMutationSeq();
+  fireElementScroll(el);
+}
+
+function scrollCoordinate(value: number | null, fallback: number): number {
+  return value == null ? fallback : value;
+}
+
+function isRootScrollNode(el: Element, htmlId: number, bodyId: number): boolean {
+  return el._id === htmlId || el._id === bodyId;
+}
+
+function currentScrollInfoPosition(info: ReturnType<typeof nodeScrollInfoSafe>) {
+  const curX = info ? info.scrollLeft : 0;
+  const curY = info ? info.scrollTop : 0;
+  return { curX, curY };
+}
+
+function scrollToNormalized(el: Element, norm: NormalizedScrollArgs): void {
+  const info = nodeScrollInfoSafe(el._id);
+  const { curX, curY } = currentScrollInfoPosition(info);
+  const left = scrollCoordinate(norm.left, curX);
+  const top = scrollCoordinate(norm.top, curY);
+  const htmlId = dom.querySelector("html");
+  const bodyId = dom.querySelector("body");
+  if (isRootScrollNode(el, htmlId, bodyId)) {
+    setScrollOffset(Math.max(0, left), Math.max(0, top));
+    return;
+  }
+  if (!info) return;
+  const nx = Math.max(0, Math.min(left, info.scrollWidth));
+  const ny = Math.max(0, Math.min(top, info.scrollHeight));
+  if (scrollPositionUnchanged(nx, ny, info)) return;
+  commitElementScroll(el, nx, ny);
+}
+
+function scrollPositionUnchanged(
+  nx: number,
+  ny: number,
+  info: NonNullable<ReturnType<typeof nodeScrollInfoSafe>>,
+): boolean {
+  return nx === info.scrollLeft && ny === info.scrollTop;
+}
+
+function nextElementScrollCoordinate(v: unknown, limit: number): number {
+  return Math.max(0, Math.min(Number(v) || 0, limit));
+}
+
+function setRootScrollTop(v: unknown): void {
+  const cur = scrollOffset();
+  setScrollOffset(cur.x, Number(v) || 0);
+}
+
+function setRootScrollLeft(v: unknown): void {
+  const cur = scrollOffset();
+  setScrollOffset(Number(v) || 0, cur.y);
+}
+
+function scrollByNormalized(el: Element, norm: NormalizedScrollArgs) {
+  const dx = norm.left == null ? 0 : norm.left;
+  const dy = norm.top == null ? 0 : norm.top;
+  const htmlId = dom.querySelector("html");
+  const bodyId = dom.querySelector("body");
+  if (isRootScrollNode(el, htmlId, bodyId)) {
+    const off = scrollOffset();
+    setScrollOffset(Math.max(0, off.x + dx), Math.max(0, off.y + dy));
+    return null;
+  }
+  const info = nodeScrollInfoSafe(el._id);
+  if (!info) return null;
+  return { left: info.scrollLeft + dx, top: info.scrollTop + dy };
+}
+
+function inlineStyleCanon() {
+  return opts && typeof opts.canonicalizeInlineStyle === "function"
+    ? opts.canonicalizeInlineStyle
+    : null;
+}
+
+function inlineStyleSerializer() {
+  return opts && typeof opts.serializeInlineStyle === "function" ? opts.serializeInlineStyle : null;
+}
+
+function inlineStylePropertyReader() {
+  return opts && typeof opts.getInlinePropertyValue === "function"
+    ? opts.getInlinePropertyValue
+    : null;
+}
+
+function canSetDomFocus(el: Element): boolean {
+  return typeof el._id === "number" && el._id >= 0 && typeof dom.setFocus === "function";
+}
+
+function syncElementFocus(el: Element, old: Element | null): void {
+  try {
+    if (canSetDomFocus(el)) {
+      dom.setFocus(el._id);
+      if (old) markDamageNode(old._id);
+      markDamageNode(el._id);
+      bumpMutationSeq();
+    }
+  } catch {}
+}
+
+function syncCheckedInput(el: Element, next: boolean, tag: string): void {
+  if (tag === "INPUT") {
+    try {
+      const domHandle = dom;
+      if (typeof domHandle.setCheckboxChecked === "function") {
+        domHandle.setCheckboxChecked(el._id, next);
+      }
+    } catch {}
+  }
+}
+
+function datasetBacking(): object {
+  const DSM = ksGlobal.DOMStringMap;
+  return Object.create(DSM && DSM.prototype ? DSM.prototype : Object.prototype);
+}
+
+function dispatchFocusLoss(el: Element, relatedTarget: Element | null): void {
+  try {
+    el.dispatchEvent(
+      new KsFocusEvent("blur", {
+        bubbles: false,
+        cancelable: false,
+        composed: true,
+        relatedTarget,
+      }),
+    );
+  } catch {}
+  try {
+    el.dispatchEvent(
+      new KsFocusEvent("focusout", {
+        bubbles: true,
+        cancelable: false,
+        composed: true,
+        relatedTarget,
+      }),
+    );
+  } catch {}
+}
+
+function dispatchFocusGain(el: Element, old: Element | null): void {
+  try {
+    el.dispatchEvent(
+      new KsFocusEvent("focus", {
+        bubbles: false,
+        cancelable: false,
+        composed: true,
+        relatedTarget: old || null,
+      }),
+    );
+  } catch {}
+  try {
+    el.dispatchEvent(
+      new KsFocusEvent("focusin", {
+        bubbles: true,
+        cancelable: false,
+        composed: true,
+        relatedTarget: old || null,
+      }),
+    );
+  } catch {}
+}
+
+function clearDomFocus(el: Element): void {
+  try {
+    if (typeof dom.clearFocus === "function") {
+      dom.clearFocus();
+      markDamageNode(el._id);
+      bumpMutationSeq();
+    }
+  } catch {}
+}
+
 type CheckVisibilityOptions = {
   checkOpacity?: boolean;
   opacityProperty?: boolean;
   checkVisibilityCSS?: boolean;
   visibilityProperty?: boolean;
 };
+function hasVisibleLayoutBox(el: Element): boolean {
+  return el.isConnected && hasLayoutBox(el._id);
+}
+
+function checkAncestorOpacity(el: Element): boolean {
+  for (let cur: Element | null = el; cur; cur = flatTreeParentElement(cur)) {
+    if (ksGlobal.getComputedStyle(cur).opacity === "0") return false;
+  }
+  return true;
+}
+
+function requestsOpacityCheck(options: CheckVisibilityOptions | undefined): boolean | undefined {
+  return options?.checkOpacity || options?.opacityProperty;
+}
+
+function requestsVisibilityCheck(options: CheckVisibilityOptions | undefined): boolean | undefined {
+  return options?.checkVisibilityCSS || options?.visibilityProperty;
+}
+
+function checkVisibilityStyles(el: Element, options: CheckVisibilityOptions | undefined): boolean {
+  if (requestsOpacityCheck(options) && !checkAncestorOpacity(el)) return false;
+  if (requestsVisibilityCheck(options) && ksGlobal.getComputedStyle(el).visibility !== "visible")
+    return false;
+  return true;
+}
+
+function selectorFailureReason(err: unknown): unknown {
+  // Selector failures may be Error objects or plain objects with a message.
+  const e = err as { message?: unknown } | null | undefined;
+  return e && e.message ? e.message : String(e);
+}
+
 function flatTreeParentElement(el: Element): Element | null {
   const slot: unknown = Reflect.get(el, "assignedSlot");
   if (slot instanceof Element) return slot;
@@ -323,6 +1443,13 @@ function pseudoCachePut(key: string, value: PseudoElementStub): void {
     if (!oldest.done) pseudoElementCache.delete(oldest.value);
   }
   pseudoElementCache.set(key, value);
+}
+
+function normalizedPseudoType(type: string): string {
+  let t = String(type);
+  if (t.startsWith("::")) t = t.slice(2);
+  else if (t.startsWith(":")) t = t.slice(1);
+  return t.toLowerCase();
 }
 
 function setElementScrollOffset(nodeId: number, left: number, top: number) {
@@ -360,44 +1487,150 @@ interface Element extends InstalledElementMembers {}
 export const attributeChangeSteps = Symbol("kitesurf.attributeChangeSteps");
 export const activationBehavior = Symbol("kitesurf.activationBehavior");
 
-// The forwarded click runs this same algorithm directly, not a page-replaceable control.click().
-// Forwarding data stays on the call stack so reentrant or later scripted clicks cannot inherit it.
-function runClickSteps(el: Element, forwarded: ForwardedClick | null): void {
-  const tag = (el.nodeName || "").toUpperCase();
-  const type = tag === "INPUT" ? String(el.type || "").toLowerCase() : "";
-  const isCheckable = tag === "INPUT" && (type === "checkbox" || type === "radio");
-
-  // Disabled controls skip click. Limitation: a disabled fieldset ancestor does not.
-  if (el.disabled === true) {
-    return;
-  }
-
-  const setCheckedRaw = (val: boolean | undefined) => {
-    let proto = Object.getPrototypeOf(el);
-    while (proto) {
-      const desc = Object.getOwnPropertyDescriptor(proto, "checked");
-      if (desc && typeof desc.set === "function") {
-        desc.set.call(el, val);
-        return;
-      }
-      proto = Object.getPrototypeOf(proto);
+function setCheckedRaw(el: Element, val: boolean | undefined): void {
+  let proto = Object.getPrototypeOf(el);
+  while (proto) {
+    const desc = Object.getOwnPropertyDescriptor(proto, "checked");
+    if (desc && typeof desc.set === "function") {
+      desc.set.call(el, val);
+      return;
     }
-    el.checked = val;
-  };
-
-  let preChecked;
-  let preIndeterminate;
-  // Legacy pre-activation sets the checked state before dispatch; cancel restores it.
-  // Limitation: radios also clear indeterminate, and cancel does not restore
-  // the radio that was checked before the click.
-  // https://html.spec.whatwg.org/#the-input-element
-  if (isCheckable) {
-    preChecked = !!el.checked;
-    preIndeterminate = !!Reflect.get(el, "indeterminate");
-    setCheckedRaw(type === "checkbox" ? !preChecked : true);
-    Reflect.set(el, "indeterminate", false);
+    proto = Object.getPrototypeOf(proto);
   }
+  el.checked = val;
+}
 
+function finishCheckableClick(
+  el: Element,
+  ev: KsPointerEvent,
+  preChecked: boolean | undefined,
+  preIndeterminate: boolean | undefined,
+): boolean {
+  if (ev.defaultPrevented) {
+    setCheckedRaw(el, preChecked);
+    Reflect.set(el, "indeterminate", preIndeterminate);
+    return true;
+  }
+  // Activation fires input and then change, only while connected.
+  // Limitation: HTML also sets composed on input.
+  // https://html.spec.whatwg.org/#checkbox-state-(type=checkbox)
+  if (el.isConnected) {
+    try {
+      dispatchTrustedEvent(el, new KsInputEvent("input", { bubbles: true, cancelable: false }));
+    } catch {}
+    try {
+      dispatchTrustedEvent(el, new KsEvent("change", { bubbles: true, cancelable: false }));
+    } catch {}
+  }
+  return false;
+}
+
+function clickHref(el: Element) {
+  return el.getAttribute && el.getAttribute("href");
+}
+
+function navigateToClickHref(rawHref: string): void {
+  try {
+    if (windowObj && windowObj.location) {
+      windowObj.location.href = rawHref;
+    }
+  } catch {}
+}
+
+function followClickHref(el: Element): void {
+  const rawHref = clickHref(el);
+  if (typeof rawHref === "string" && rawHref.length > 0) {
+    navigateToClickHref(rawHref);
+  }
+}
+
+function isFirstSummaryCandidate(c: NodeBase | undefined): c is NodeBase {
+  return !!c && (c.nodeName || "").toUpperCase() === "SUMMARY";
+}
+
+function firstSummaryOf(detailsElement: Element): NodeBase | null {
+  const kids: ArrayLike<NodeBase> = detailsElement.childNodes || [];
+  for (let i = 0; i < kids.length; i++) {
+    const c = kids[i];
+    if (isFirstSummaryCandidate(c)) return c;
+  }
+  return null;
+}
+
+function summaryAncestor(el: Element): NodeBase | null {
+  let summaryEl: NodeBase | null = el;
+  while (
+    summaryEl &&
+    summaryEl.nodeType === ELEMENT_NODE &&
+    (summaryEl.nodeName || "").toUpperCase() !== "SUMMARY"
+  )
+    summaryEl = summaryEl.parentNode;
+  return summaryEl;
+}
+
+function toggleFirstSummary(detailsElement: Element, summaryEl: NodeBase | null): void {
+  if (firstSummaryOf(detailsElement) !== summaryEl) return;
+  if (detailsElement.hasAttribute("open")) detailsElement.removeAttribute("open");
+  else detailsElement.setAttribute("open", "");
+  try {
+    dispatchTrustedEvent(
+      detailsElement,
+      new KsEvent("toggle", { bubbles: false, cancelable: false }),
+    );
+  } catch {}
+}
+
+function parentDetailsOfSummary(summaryEl: NodeBase | null): NodeBase | null {
+  return summaryEl && (summaryEl.nodeName || "").toUpperCase() === "SUMMARY"
+    ? summaryEl.parentNode
+    : null;
+}
+
+function activateSummary(el: Element): void {
+  const summaryEl = summaryAncestor(el);
+  const details = parentDetailsOfSummary(summaryEl);
+  if (details && (details.nodeName || "").toUpperCase() === "DETAILS") {
+    // A DETAILS nodeName identifies an element wrapper; NodeBase types parentNode broadly.
+    const detailsElement = details as Element;
+    toggleFirstSummary(detailsElement, summaryEl);
+  }
+}
+
+function maybeFollowClickHref(el: Element, ev: KsPointerEvent, tag: string): void {
+  if (!ev.defaultPrevented && tag === "A") followClickHref(el);
+}
+
+function afterClickDispatch(el: Element, ev: KsPointerEvent, tag: string): void {
+  maybeFollowClickHref(el, ev, tag);
+  if (!ev.defaultPrevented) el[activationBehavior]();
+  // Only the first summary child toggles its details. Limitation: HTML queues a
+  // ToggleEvent after the open attribute changes; this fires a plain event at once.
+  // https://html.spec.whatwg.org/#the-summary-element
+  if (!ev.defaultPrevented) activateSummary(el);
+  if (!ev.defaultPrevented) activateLabel(el);
+}
+
+function clickInputType(el: Element, tag: string): string {
+  return tag === "INPUT" ? String(el.type || "").toLowerCase() : "";
+}
+
+function clickTag(el: Element): string {
+  return (el.nodeName || "").toUpperCase();
+}
+
+function isCheckableInput(tag: string, type: string): boolean {
+  return tag === "INPUT" && (type === "checkbox" || type === "radio");
+}
+
+function beginCheckableClick(el: Element, type: string) {
+  const preChecked = !!el.checked;
+  const preIndeterminate = !!Reflect.get(el, "indeterminate");
+  setCheckedRaw(el, type === "checkbox" ? !preChecked : true);
+  Reflect.set(el, "indeterminate", false);
+  return { preChecked, preIndeterminate };
+}
+
+function dispatchClick(el: Element, forwarded: ForwardedClick | null): KsPointerEvent {
   // A click not caused by a pointing device has pointerId -1 and no pointerType.
   // https://w3c.github.io/pointerevents/#click-auxclick-and-contextmenu
   const ev = new KsPointerEvent("click", {
@@ -410,79 +1643,36 @@ function runClickSteps(el: Element, forwarded: ForwardedClick | null): void {
   });
   if (forwarded && forwarded.trusted) dispatchTrustedEvent(el, ev);
   else el.dispatchEvent(ev);
+  return ev;
+}
 
+// The forwarded click runs this same algorithm directly, not a page-replaceable control.click().
+// Forwarding data stays on the call stack so reentrant or later scripted clicks cannot inherit it.
+function runClickSteps(el: Element, forwarded: ForwardedClick | null): void {
+  const tag = clickTag(el);
+  const type = clickInputType(el, tag);
+  const isCheckable = isCheckableInput(tag, type);
+
+  // Disabled controls skip click. Limitation: a disabled fieldset ancestor does not.
+  if (el.disabled === true) {
+    return;
+  }
+
+  let preChecked: boolean | undefined;
+  let preIndeterminate: boolean | undefined;
+  // Legacy pre-activation sets the checked state before dispatch; cancel restores it.
+  // Limitation: radios also clear indeterminate, and cancel does not restore
+  // the radio that was checked before the click.
+  // https://html.spec.whatwg.org/#the-input-element
   if (isCheckable) {
-    if (ev.defaultPrevented) {
-      setCheckedRaw(preChecked);
-      Reflect.set(el, "indeterminate", preIndeterminate);
-      return;
-    }
-    // Activation fires input and then change, only while connected.
-    // Limitation: HTML also sets composed on input.
-    // https://html.spec.whatwg.org/#checkbox-state-(type=checkbox)
-    if (el.isConnected) {
-      try {
-        dispatchTrustedEvent(el, new KsInputEvent("input", { bubbles: true, cancelable: false }));
-      } catch {}
-      try {
-        dispatchTrustedEvent(el, new KsEvent("change", { bubbles: true, cancelable: false }));
-      } catch {}
-    }
+    ({ preChecked, preIndeterminate } = beginCheckableClick(el, type));
   }
 
-  if (!ev.defaultPrevented && tag === "A") {
-    const rawHref = el.getAttribute && el.getAttribute("href");
-    if (typeof rawHref === "string" && rawHref.length > 0) {
-      try {
-        if (windowObj && windowObj.location) {
-          windowObj.location.href = rawHref;
-        }
-      } catch {}
-    }
-  }
+  const ev = dispatchClick(el, forwarded);
 
-  if (!ev.defaultPrevented) el[activationBehavior]();
+  if (isCheckable && finishCheckableClick(el, ev, preChecked, preIndeterminate)) return;
 
-  // Only the first summary child toggles its details. Limitation: HTML queues a
-  // ToggleEvent after the open attribute changes; this fires a plain event at once.
-  // https://html.spec.whatwg.org/#the-summary-element
-  if (!ev.defaultPrevented) {
-    let summaryEl: NodeBase | null = el;
-    while (
-      summaryEl &&
-      summaryEl.nodeType === ELEMENT_NODE &&
-      (summaryEl.nodeName || "").toUpperCase() !== "SUMMARY"
-    )
-      summaryEl = summaryEl.parentNode;
-    const details =
-      summaryEl && (summaryEl.nodeName || "").toUpperCase() === "SUMMARY"
-        ? summaryEl.parentNode
-        : null;
-    if (details && (details.nodeName || "").toUpperCase() === "DETAILS") {
-      // A DETAILS nodeName identifies an element wrapper; NodeBase types parentNode broadly.
-      const detailsElement = details as Element;
-      let firstSummary: NodeBase | null = null;
-      const kids: ArrayLike<NodeBase> = detailsElement.childNodes || [];
-      for (let i = 0; i < kids.length; i++) {
-        const c = kids[i];
-        if (c && (c.nodeName || "").toUpperCase() === "SUMMARY") {
-          firstSummary = c;
-          break;
-        }
-      }
-      if (firstSummary === summaryEl) {
-        if (detailsElement.hasAttribute("open")) detailsElement.removeAttribute("open");
-        else detailsElement.setAttribute("open", "");
-        try {
-          dispatchTrustedEvent(
-            detailsElement,
-            new KsEvent("toggle", { bubbles: false, cancelable: false }),
-          );
-        } catch {}
-      }
-    }
-  }
-  if (!ev.defaultPrevented) activateLabel(el);
+  afterClickDispatch(el, ev, tag);
 }
 
 // PageScript receives this function in buildDocument's private result, not on the page global.
@@ -550,15 +1740,8 @@ class Element extends NodeBase implements Idl.Element {
     const wasmNs = this._info?.namespaceURI;
     if (typeof wasmNs === "string" && wasmNs) return wasmNs;
     const entry = elemNs.get(this._id);
-    if (entry !== undefined && entry.ns == null) {
-      const liveName = String(this._info?.nodeName || "").toLowerCase();
-      const qname = entry.qname.toLowerCase();
-      const colon = qname.indexOf(":");
-      const local = colon >= 0 ? qname.slice(colon + 1) : qname;
-      if (!liveName || liveName === qname || liveName === local) {
-        return entry.ns;
-      }
-    }
+    const nullableNs = nullableElementNamespace(this, entry);
+    if (nullableNs.found) return nullableNs.ns;
     return HTML_NS;
   }
   get prefix() {
@@ -596,36 +1779,14 @@ class Element extends NodeBase implements Idl.Element {
 
   _attrFlat(): string[] {
     const curSeqEarly = ksState().attrSeq | 0;
-    if (this._attrFlatCache !== null && this._attrFlatCacheSeq === curSeqEarly) {
-      syncParsedAttributeNamespaces(this);
-      return this._attrFlatCache;
-    }
-    if (this._attrFlatCache !== null && this._attrFlatCacheSeq !== curSeqEarly) {
-      this._attrFlatCache = null;
-    }
-    if (this._attrFlatCache !== null) {
-      syncParsedAttributeNamespaces(this);
-      return this._attrFlatCache;
-    }
+    const cached = sameSequenceAttrFlat(this, curSeqEarly);
+    if (cached !== null) return cached;
+    const invalidated = invalidatedAttrFlat(this, curSeqEarly);
+    if (invalidated !== null) return invalidated;
     const curSeq = ksState().mutationSeq | 0;
-    if (this._typeCheckSeq === curSeq && this._info && this._info.attributes) {
-      const arr = this._info.attributes;
-      this._attrFlatCache = arr;
-      this._attrFlatCacheSeq = curSeqEarly;
-      syncParsedAttributeNamespaces(this);
-      return arr;
-    }
-    try {
-      const fresh = dom.nodeInfo(this._id);
-      const arr = (fresh && fresh.attributes) || [];
-      this._attrFlatCache = arr;
-      this._attrFlatCacheSeq = curSeqEarly;
-      if (fresh) this._info = fresh;
-      syncParsedAttributeNamespaces(this);
-      return arr;
-    } catch {
-      return [];
-    }
+    const sameMutation = sameMutationAttrFlat(this, curSeq, curSeqEarly);
+    if (sameMutation !== null) return sameMutation;
+    return freshAttrFlat(this, curSeqEarly);
   }
 
   get classList() {
@@ -645,13 +1806,7 @@ class Element extends NodeBase implements Idl.Element {
   get relList(): Idl.DOMTokenList | undefined {
     const ns = this.namespaceURI;
     const local = this.localName;
-    const isHtml = ns === HTML_NS;
-    const isSvg = ns === SVG_NS;
-    const isMathMl = ns === MATHML_NS;
-    const ok =
-      (isHtml && (local === "a" || local === "area" || local === "link")) ||
-      ((isSvg || isMathMl) && local === "a");
-    if (!ok) return undefined;
+    if (!supportsRelList(ns, local)) return undefined;
     return reflectedTokenList(this, relListCache, "rel", REL_SUPPORTED);
   }
   set relList(v) {
@@ -696,17 +1851,11 @@ class Element extends NodeBase implements Idl.Element {
     // Limitation: the document is not checked to be an HTML document.
     // https://dom.spec.whatwg.org/#dom-element-getattribute
     const lower = asciiLowercase(name);
-    const lookup = lower === name || this.namespaceURI === HTML_NS ? lower : name;
+    const lookup = attributeLookupName(this, name, lower);
     const flat = this._attrFlat();
     const nsMap = attrNs.get(this._id);
     for (let i = 0; i < flat.length; i += 2) {
-      const wasmKey = flat[i];
-      let exposed = wasmKey;
-      if (nsMap) {
-        const info = nsMap.get(wasmKey);
-        if (info && info.qname) exposed = info.qname;
-      }
-      if (exposed === lookup) return flat[i + 1];
+      if (exposedAttributeName(nsMap, flat[i]) === lookup) return flat[i + 1];
     }
     return null;
   }
@@ -721,204 +1870,49 @@ class Element extends NodeBase implements Idl.Element {
     validateAttrName(nm);
     const isHtmlElement = this.namespaceURI === HTML_NS;
     const finalName = isHtmlElement ? asciiLowercase(nm) : nm;
-    const customAttributeHook =
-      ksGlobal.__ks_customElementObservesAttribute?.(this, finalName) &&
-      typeof ksGlobal.__ks_notifyCustomElementAttributeChanged === "function"
-        ? ksGlobal.__ks_notifyCustomElementAttributeChanged
-        : null;
-    const oldValue =
-      mutationObserverCount() === 0 && !customAttributeHook ? null : this.getAttribute(finalName);
+    const customAttributeHook = customAttributeChangedHook(this, finalName);
+    const oldValue = observedAttributeOldValue(this, finalName, customAttributeHook);
     const needsResanitize = ksAttrNeedsResanitize(this, finalName);
-    const oldInputType = needsResanitize && finalName === "type" ? inputTypeOf(this) : null;
+    const oldInputType = attributeOldInputType(this, finalName, needsResanitize);
     this._attrFlatCache = null;
     const strValue = String(value);
-    ensureDomAttrFns();
-    if (domSetAttr) {
-      if (domSetAttr(this._id, finalName, strValue)) {
-        bumpMutationSeq({ attribute: finalName, node: this._id });
-        if (finalName === "id") stampNamedGlobal(this._id, strValue);
-        if (ksGlobal.__ks_cdpDomActive) {
-          cdpMutations.push({
-            kind: "attributeModified",
-            nodeId: this._id,
-            name: finalName,
-            value: strValue,
-          });
-        }
-      }
-    } else {
-      recordOp({
-        kind: "setAttribute",
-        node: this._id,
-        name: finalName,
-        value: strValue,
-      });
-    }
+    setWasmAttribute(this, finalName, strValue);
     recordAttributeMutation(this._id, finalName, null, oldValue);
-    if (customAttributeHook) {
-      customAttributeHook(this, finalName, oldValue, strValue, null);
-    }
-    if (finalName === "style") {
-      const resync = inlineStyleResync.get(this);
-      if (resync) resync(strValue);
-    }
-    if (finalName === "slot") {
-      try {
-        maybeScheduleSlotchange(dom.parentId(this._id));
-      } catch {}
-    } else if (finalName === "name") {
-      maybeScheduleSlotchange(this._id);
-    }
-    if (
-      isHtmlElement &&
-      (finalName === "src" || finalName === "srcdoc") &&
-      this.localName === "iframe" &&
-      this.isConnected
-    ) {
-      const iframeSrcHook = getInternalState().afterIframeSrcChange;
-      if (typeof iframeSrcHook === "function") {
-        try {
-          iframeSrcHook(this);
-        } catch {}
-      }
-    }
+    notifyCustomAttributeChange(customAttributeHook, this, finalName, oldValue, strValue, null);
+    resyncInlineStyle(this, finalName, strValue);
+    scheduleAttributeSlotchange(this, finalName);
+    afterIframeAttributeChange(this, isHtmlElement, finalName);
     if (isHtmlElement) this[attributeChangeSteps](finalName, strValue);
-    if (
-      finalName.length > 2 &&
-      finalName.charCodeAt(0) === 111 &&
-      finalName.charCodeAt(1) === 110 &&
-      idlEventHandlerNameSet.has(finalName)
-    ) {
-      installAttrEventHandler(this, finalName, strValue);
-    }
-    if (needsResanitize) {
-      if (oldInputType != null) ksHandleInputTypeChange(this, oldInputType);
-      else ksResanitizeInputValue(this);
-    }
+    maybeInstallAttributeHandler(this, finalName, strValue);
+    if (needsResanitize) resanitizeAttribute(this, oldInputType);
   }
   removeAttribute(name: string) {
     if (typeof name !== "string" || name.length === 0) return;
-    const elNs = elemNs.get(this._id);
-    const isHtmlElement = !elNs || elNs.ns === HTML_NS;
-    const lookup = isHtmlElement ? asciiLowercase(name) : name;
-    const customAttributeHook =
-      ksGlobal.__ks_customElementObservesAttribute?.(this, lookup) &&
-      typeof ksGlobal.__ks_notifyCustomElementAttributeChanged === "function"
-        ? ksGlobal.__ks_notifyCustomElementAttributeChanged
-        : null;
+    const isHtmlElement = removeAttrIsHtmlElement(this._id);
+    const lookup = removedAttributeLookup(name, isHtmlElement);
+    const customAttributeHook = customAttributeChangedHook(this, lookup);
     const flat = this._attrFlat();
     const nsMap = attrNs.get(this._id);
-    let wasmKey: string | null = null;
-    for (let i = 0; i < flat.length; i += 2) {
-      const k = flat[i];
-      let exposed = k;
-      if (nsMap) {
-        const info = nsMap.get(k);
-        if (info && info.qname) exposed = info.qname;
-      }
-      if (exposed === lookup) {
-        wasmKey = k;
-        break;
-      }
-    }
+    const wasmKey = findAttributeKey(flat, nsMap, lookup);
     if (wasmKey === null) return;
     const needsResanitize = ksAttrNeedsResanitize(this, lookup);
-    const oldInputType = needsResanitize && lookup === "type" ? inputTypeOf(this) : null;
-    const cache = attrInstances.get(this);
-    if (cache) {
-      const attr = cache.get(wasmKey);
-      if (attr) {
-        attr._ownerElement = null;
-        cache.delete(wasmKey);
-      }
-    }
-    const removingNs = nsMap && nsMap.get(wasmKey);
-    const oldValue =
-      mutationObserverCount() === 0 && !customAttributeHook
-        ? null
-        : (() => {
-            const flat2 = this._attrFlat();
-            for (let j = 0; j < flat2.length; j += 2) {
-              if (flat2[j] === wasmKey) return flat2[j + 1];
-            }
-            return null;
-          })();
+    const oldInputType = attributeOldInputType(this, lookup, needsResanitize);
+    detachCachedAttr(this, wasmKey);
+    const removingNs = attrInfoForKey(nsMap, wasmKey);
+    const oldValue = removedAttributeOldValue(this, wasmKey, customAttributeHook);
     if (nsMap) nsMap.delete(wasmKey);
     this._attrFlatCache = null;
-    ensureDomAttrFns();
-    if (domRemoveAttr) {
-      if (domRemoveAttr(this._id, wasmKey)) {
-        bumpMutationSeq({ attribute: wasmKey, node: this._id });
-        if (wasmKey === "id") stampNamedGlobal(this._id, "");
-        if (ksGlobal.__ks_cdpDomActive) {
-          cdpMutations.push({
-            kind: "attributeRemoved",
-            nodeId: this._id,
-            name: wasmKey,
-          });
-        }
-      }
-    } else {
-      recordOp({
-        kind: "removeAttribute",
-        node: this._id,
-        name: wasmKey,
-      });
-    }
-    const exposedName = removingNs ? removingNs.qname : lookup;
-    const exposedNs = removingNs ? removingNs.ns : null;
-    recordAttributeMutation(this._id, exposedName, exposedNs, oldValue);
-    if (customAttributeHook) {
-      customAttributeHook(
-        this,
-        removingNs ? removingNs.localName : lookup,
-        oldValue,
-        null,
-        exposedNs,
-      );
-    }
-    if (exposedName === "style") {
-      const resync = inlineStyleResync.get(this);
-      if (resync) resync(null);
-    }
-    if (
-      isHtmlElement &&
-      (lookup === "src" || lookup === "srcdoc") &&
-      this.localName === "iframe" &&
-      this.isConnected
-    ) {
-      const iframeSrcHook = getInternalState().afterIframeSrcChange;
-      if (typeof iframeSrcHook === "function") {
-        try {
-          iframeSrcHook(this);
-        } catch {}
-      }
-    }
-    if (isHtmlElement) this[attributeChangeSteps](lookup, null);
-    if (lookup === "slot") {
-      try {
-        maybeScheduleSlotchange(dom.parentId(this._id));
-      } catch {}
-    } else if (lookup === "name") {
-      maybeScheduleSlotchange(this._id);
-    }
-    if (needsResanitize) {
-      if (oldInputType != null) ksHandleInputTypeChange(this, oldInputType);
-      else ksResanitizeInputValue(this);
-    }
+    removeWasmAttribute(this, wasmKey);
+    finishAttributeRemoval(this, lookup, removingNs, oldValue, customAttributeHook, isHtmlElement, {
+      needed: needsResanitize,
+      oldInputType,
+    });
   }
   toggleAttribute(name: string, force?: boolean) {
     validateAttrName(String(name ?? ""));
     const lower = asciiLowercase(String(name));
     const has = this.getAttribute(lower) !== null;
-    if (force === true) {
-      if (!has) this.setAttribute(lower, "");
-      return true;
-    }
-    if (force === false) {
-      if (has) this.removeAttribute(lower);
-      return false;
-    }
+    if (force === true || force === false) return toggleForcedAttribute(this, lower, has, force);
     if (has) {
       this.removeAttribute(lower);
       return false;
@@ -931,51 +1925,12 @@ class Element extends NodeBase implements Idl.Element {
     // This rejects it.
     // https://dom.spec.whatwg.org/#validate-and-extract
     const qn = String(qualifiedName ?? "");
-    validateAttrName(qn);
-    const colonCount = (qn.match(/:/g) || []).length;
-    if (colonCount > 0) {
-      const ci = qn.indexOf(":");
-      if (colonCount > 1 || ci === 0 || ci === qn.length - 1) {
-        throw new DOMException(
-          "'" + qn + "' is not a valid qualified attribute name",
-          "InvalidCharacterError",
-        );
-      }
-    }
+    validateQualifiedAttrName(qn);
     qualifiedName = qn;
-    const ns = namespace ? String(namespace) : null;
-    const colon = qualifiedName.indexOf(":");
-    const prefix = colon >= 0 ? qualifiedName.slice(0, colon) : null;
-    const localName = colon >= 0 ? qualifiedName.slice(colon + 1) : qualifiedName;
-    const customAttributeHook =
-      ksGlobal.__ks_customElementObservesAttribute?.(this, localName) &&
-      typeof ksGlobal.__ks_notifyCustomElementAttributeChanged === "function"
-        ? ksGlobal.__ks_notifyCustomElementAttributeChanged
-        : null;
-    if (prefix && !ns) {
-      throw new DOMException(
-        "setAttributeNS: prefix '" + prefix + "' requires a non-null namespace",
-        "NamespaceError",
-      );
-    }
-    if (prefix === "xml" && ns !== XML_NS) {
-      throw new DOMException(
-        "setAttributeNS: 'xml' prefix is reserved for the XML namespace",
-        "NamespaceError",
-      );
-    }
-    if ((qualifiedName === "xmlns" || prefix === "xmlns") && ns !== XMLNS_NS) {
-      throw new DOMException(
-        "setAttributeNS: 'xmlns' qualifies only the XMLNS namespace",
-        "NamespaceError",
-      );
-    }
-    if (ns === XMLNS_NS && qualifiedName !== "xmlns" && prefix !== "xmlns") {
-      throw new DOMException(
-        "setAttributeNS: XMLNS namespace requires the 'xmlns' qname or prefix",
-        "NamespaceError",
-      );
-    }
+    const ns = normalizedAttributeNamespace(namespace);
+    const { prefix, localName } = splitQualifiedAttrName(qualifiedName);
+    const customAttributeHook = customAttributeChangedHook(this, localName);
+    validateAttributeNamespace(qualifiedName, prefix, ns);
     const flat = this._attrFlat();
     // Wasm keeps only qualified names, so namespace identity lives in this side table.
     // Nodes using it stay off the Rust fast path, which sees only the flattened key.
@@ -985,39 +1940,9 @@ class Element extends NodeBase implements Idl.Element {
       attrNs.set(this._id, nsMap);
       fastpathMarkSpecial(this._id);
     }
-    let existingKey: string | null = null;
-    for (const [k, info] of nsMap) {
-      if (info.ns === ns && info.localName === localName) {
-        existingKey = k;
-        break;
-      }
-    }
-    let finalKey: string;
-    if (existingKey) {
-      finalKey = existingKey;
-    } else {
-      if (nsMap.has(qualifiedName)) {
-        finalKey = "\u0000" + (ns || "") + "\u0000" + qualifiedName;
-      } else {
-        let collides = false;
-        for (let i = 0; i < flat.length; i += 2) {
-          if (flat[i] === qualifiedName) {
-            collides = true;
-            break;
-          }
-        }
-        finalKey = collides ? "\u0000" + (ns || "") + "\u0000" + qualifiedName : qualifiedName;
-      }
-    }
-    let oldValue: string | null = null;
-    if (existingKey) {
-      for (let i = 0; i < flat.length; i += 2) {
-        if (flat[i] === existingKey) {
-          oldValue = flat[i + 1];
-          break;
-        }
-      }
-    }
+    const existingKey = existingNsAttributeKey(nsMap, ns, localName);
+    const finalKey = nsAttributeKey(nsMap, flat, qualifiedName, ns, existingKey);
+    const oldValue = existingAttributeValue(flat, existingKey);
     nsMap.set(finalKey, { ns, prefix, localName, qname: qualifiedName });
     this._attrFlatCache = null;
     const strValue = String(value);
@@ -1028,31 +1953,18 @@ class Element extends NodeBase implements Idl.Element {
       value: strValue,
     });
     recordAttributeMutation(this._id, localName, ns, oldValue);
-    if (customAttributeHook) {
-      customAttributeHook(this, localName, oldValue, strValue, ns);
-    }
+    notifyCustomAttributeChange(customAttributeHook, this, localName, oldValue, strValue, ns);
   }
   getAttributeNS(namespace: string | null, localName: string) {
     if (typeof localName !== "string") return null;
-    const ns = namespace ? String(namespace) : null;
+    const ns = normalizedAttributeNamespace(namespace);
     const nsMap = attrNs.get(this._id);
     if (nsMap) {
-      for (const [qname, info] of nsMap) {
-        if (info.ns !== ns || info.localName !== localName) continue;
-        const flat = this._attrFlat();
-        for (let i = 0; i < flat.length; i += 2) {
-          if (flat[i] === qname) return flat[i + 1];
-        }
-        return null;
-      }
+      const matched = namespacedAttributeValue(this, nsMap, ns, localName);
+      if (matched.found) return matched.value;
     }
     if (ns === null) {
-      const flat = this._attrFlat();
-      for (let i = 0; i < flat.length; i += 2) {
-        if (flat[i] === localName && (!nsMap || !nsMap.has(localName))) {
-          return flat[i + 1];
-        }
-      }
+      return unnamespacedAttributeValue(this._attrFlat(), localName, nsMap);
     }
     return null;
   }
@@ -1061,110 +1973,33 @@ class Element extends NodeBase implements Idl.Element {
   }
   removeAttributeNS(namespace: string | null, localName: string) {
     if (typeof localName !== "string" || localName.length === 0) return;
-    const ns = namespace ? String(namespace) : null;
-    const customAttributeHook =
-      ksGlobal.__ks_customElementObservesAttribute?.(this, localName) &&
-      typeof ksGlobal.__ks_notifyCustomElementAttributeChanged === "function"
-        ? ksGlobal.__ks_notifyCustomElementAttributeChanged
-        : null;
+    const ns = normalizedAttributeNamespace(namespace);
+    const customAttributeHook = customAttributeChangedHook(this, localName);
     const nsMap = attrNs.get(this._id);
     const cache = attrInstances.get(this);
-    if (nsMap) {
-      for (const [wasmKey, info] of nsMap) {
-        if (info.ns !== ns || info.localName !== localName) continue;
-        const attr = cache?.get(wasmKey);
-        if (attr) {
-          attr._ownerElement = null;
-          cache?.delete(wasmKey);
-        }
-        let oldValue: string | null = null;
-        const flat = this._attrFlat();
-        for (let i = 0; i < flat.length; i += 2) {
-          if (flat[i] === wasmKey) {
-            oldValue = flat[i + 1];
-            break;
-          }
-        }
-        this._attrFlatCache = null;
-        recordOp({
-          kind: "removeAttribute",
-          node: this._id,
-          name: wasmKey,
-        });
-        nsMap.delete(wasmKey);
-        recordAttributeMutation(this._id, localName, ns, oldValue);
-        if (customAttributeHook) {
-          customAttributeHook(this, localName, oldValue, null, ns);
-        }
-        return;
-      }
-    }
-    if (ns === null) {
-      const flat = this._attrFlat();
-      for (let i = 0; i < flat.length; i += 2) {
-        if (flat[i] !== localName || (nsMap && nsMap.has(localName))) continue;
-        const attr = cache?.get(localName);
-        if (attr) {
-          attr._ownerElement = null;
-          cache?.delete(localName);
-        }
-        const oldValue = flat[i + 1];
-        this._attrFlatCache = null;
-        recordOp({
-          kind: "removeAttribute",
-          node: this._id,
-          name: localName,
-        });
-        recordAttributeMutation(this._id, localName, null, oldValue);
-        if (customAttributeHook) {
-          customAttributeHook(this, localName, oldValue, null, null);
-        }
-        return;
-      }
-    }
+    removeNSAttributeWithMap(this, nsMap, cache, ns, localName, customAttributeHook);
   }
 
   _syncAttrEntries(list: AttrImpl[], byName: Record<string, AttrImpl>): void {
     const flat = this._attrFlat();
-    const ownerElement = this;
     list.length = 0;
-    for (const key in byName) delete byName[key];
+    clearAttrNames(byName);
     const nsMap = attrNs.get(this._id);
     let cache = attrInstances.get(this);
     if (!cache) {
       cache = new Map();
       attrInstances.set(this, cache);
     }
-    const seenNames = new Set();
+    const seenNames = new Set<string>();
     for (let i = 0; i < flat.length; i += 2) {
       const wasmKey = flat[i];
       const value = flat[i + 1];
       seenNames.add(wasmKey);
-      let namespaceURI: string | null = null;
-      let prefix: string | null = null;
-      let localName = wasmKey;
-      let exposedName = wasmKey;
-      const nsInfo = nsMap && nsMap.get(wasmKey);
-      if (nsInfo) {
-        namespaceURI = nsInfo.ns;
-        prefix = nsInfo.prefix;
-        localName = nsInfo.localName;
-        exposedName = nsInfo.qname || wasmKey;
-      } else {
-        // setAttribute uses the whole name as the local name, even with a colon.
-        // https://dom.spec.whatwg.org/#dom-element-setattribute
-        prefix = null;
-        localName = wasmKey;
-        exposedName = wasmKey;
-      }
+      const nsInfo = attrInfoForKey(nsMap, wasmKey);
+      const metadata = attrMetadataForKey(nsInfo, wasmKey);
       let attr = cache.get(wasmKey);
       if (!attr) {
-        const createdAttr: AttrImpl = Object.create(AttrCls.prototype);
-        createdAttr._name = exposedName;
-        createdAttr._namespaceURI = namespaceURI;
-        createdAttr._prefix = prefix;
-        createdAttr._localName = localName;
-        createdAttr._ownerElement = ownerElement;
+        const createdAttr = makeAttrForKey(this, metadata);
         cache.set(wasmKey, createdAttr);
         attr = createdAttr;
       }
@@ -1172,15 +2007,9 @@ class Element extends NodeBase implements Idl.Element {
       attr._nodeValue = value;
       attr._textContent = value;
       list.push(attr);
-      if (!(exposedName in byName)) byName[exposedName] = attr;
+      if (!(metadata.exposedName in byName)) byName[metadata.exposedName] = attr;
     }
-    for (const cachedName of Array.from(cache.keys())) {
-      if (!seenNames.has(cachedName)) {
-        const stale = cache.get(cachedName);
-        if (stale) stale._ownerElement = null;
-        cache.delete(cachedName);
-      }
-    }
+    pruneAttrCache(cache, seenNames);
   }
 
   get attributes() {
@@ -1214,29 +2043,13 @@ class Element extends NodeBase implements Idl.Element {
     return named || null;
   }
   setAttributeNode(attr: AttrImpl) {
-    if (!attr || typeof attr !== "object") {
-      throw new (ksGlobal.DOMException || Error)(
-        "setAttributeNode: argument must be an Attr",
-        "TypeError",
-      );
-    }
-    const owner = attr._ownerElement;
-    if (owner && owner !== this) {
-      throw new DOMException(
-        "setAttributeNode: attribute is already in use by another element",
-        "InUseAttributeError",
-      );
-    }
+    validateAttributeNodeOwner(this, attr);
     const previous = this.getAttributeNode(attr.name);
     if (previous && previous !== attr) {
       previous._ownerElement = null;
     }
     const ns = attr.namespaceURI;
-    if (ns) {
-      this.setAttributeNS(ns, attr.name, attr.value || "");
-    } else {
-      this.setAttribute(attr.name, attr.value || "");
-    }
+    setAttributeFromNode(this, attr, ns);
     let cache = attrInstances.get(this);
     if (!cache) {
       cache = new Map();
@@ -1300,50 +2113,10 @@ class Element extends NodeBase implements Idl.Element {
     // Keep old child wrappers for childList records that expose them in removedNodes.
     if (isTemplateElement(this._id)) {
       const frag = ensureTemplateContent(this._id);
-      const observed = hasChildListObserver(frag._id);
-      const transientlyObserved = hasSubtreeObserver(frag._id);
-      const oldChildIds = dom.childIds ? Array.from(dom.childIds(frag._id)) : [];
-      const oldChildren = observed ? Array.from<NodeBase>(frag.childNodes) : null;
-      if (transientlyObserved) {
-        for (const childId of oldChildIds) {
-          if (observed || subtreeHasCachedWrapper(childId)) {
-            registerTransientObservers(childId);
-          }
-        }
-      }
-      recordOp({ kind: "setInnerHtml", node: frag._id, html: htmlText });
-      if (!observed) dropUnwrappedSubtrees(oldChildIds);
-      if (oldChildren) {
-        const newChildren = Array.from<NodeBase>(frag.childNodes);
-        if (oldChildren.length > 0 || newChildren.length > 0) {
-          recordChildListMutation(frag, newChildren, oldChildren, null, null);
-        }
-      }
-      syncCheckedFromAttrs(frag);
-      if (htmlText.indexOf("id") !== -1) stampSubtreeNamedGlobals(frag);
+      replaceInnerHtmlChildren(frag, htmlText);
       return;
     }
-    const observed = hasChildListObserver(this._id);
-    const transientlyObserved = hasSubtreeObserver(this._id);
-    const oldChildIds = dom.childIds ? Array.from(dom.childIds(this._id)) : [];
-    const oldChildren = observed ? Array.from<NodeBase>(this.childNodes) : null;
-    if (transientlyObserved) {
-      for (const childId of oldChildIds) {
-        if (observed || subtreeHasCachedWrapper(childId)) {
-          registerTransientObservers(childId);
-        }
-      }
-    }
-    recordOp({ kind: "setInnerHtml", node: this._id, html: htmlText });
-    if (!observed) dropUnwrappedSubtrees(oldChildIds);
-    if (oldChildren) {
-      const newChildren = Array.from<NodeBase>(this.childNodes);
-      if (oldChildren.length > 0 || newChildren.length > 0) {
-        recordChildListMutation(this, newChildren, oldChildren, null, null);
-      }
-    }
-    syncCheckedFromAttrs(this);
-    if (htmlText.indexOf("id") !== -1) stampSubtreeNamedGlobals(this);
+    replaceInnerHtmlChildren(this, htmlText);
   }
   get content(): ReturnType<typeof ensureTemplateContent> | undefined {
     if (!isTemplateElement(this._id)) return undefined;
@@ -1361,48 +2134,23 @@ class Element extends NodeBase implements Idl.Element {
   // https://html.spec.whatwg.org/#dom-element-outerhtml
   __setOuterHTML(htmlText: string): void {
     const parent = this.parentNode;
-    if (!parent) {
-      throw new (ksGlobal.DOMException || Error)(
-        "Cannot set outerHTML on an element with no parent",
-        "NoModificationAllowedError",
-      );
-    }
+    if (!parent) throwOuterHtmlWithoutParent();
     if (parent.nodeType !== ELEMENT_NODE && parent.nodeType !== DOCUMENT_FRAGMENT_NODE) {
-      throw new (ksGlobal.DOMException || Error)(
-        "Cannot set outerHTML when parent is not an Element or DocumentFragment",
-        "NoModificationAllowedError",
-      );
+      throwOuterHtmlInvalidParent();
     }
     const tmp: Element = createElementInternal("div");
     tmp.innerHTML = htmlText;
     const moved: NodeBase[] = Array.from<NodeBase>(tmp.childNodes);
-    const prevSibling = this.previousSibling || null;
-    const nextSibling = this.nextSibling || null;
+    const { prevSibling, nextSibling } = outerHtmlSiblings(this);
     const refId = this._id;
-    for (const k of moved) {
-      if (typeof k._id !== "number" || k._id < 0) continue;
-      try {
-        dom.removeNode(k._id);
-      } catch {}
-      dom.insertBeforeNode(parent._id, k._id, refId);
-    }
+    insertOuterHtmlChildren(parent, moved, refId);
     const removedSelfId = this._id;
     runIteratorPreRemove(this);
     try {
       dom.removeNode(this._id);
     } catch {}
     bumpMutationSeq();
-    let prevForCdp = prevSibling ? prevSibling._id : 0;
-    for (const k of moved) {
-      if (typeof k._id !== "number" || k._id < 0) continue;
-      recordCdpMutation({
-        kind: "childNodeInserted",
-        parentNodeId: parent._id,
-        previousNodeId: prevForCdp,
-        nodeId: k._id,
-      });
-      prevForCdp = k._id;
-    }
+    recordOuterHtmlInsertions(parent, moved, prevSibling);
     recordCdpMutation({
       kind: "childNodeRemoved",
       parentNodeId: parent._id,
@@ -1416,10 +2164,8 @@ class Element extends NodeBase implements Idl.Element {
       // SVG and MathML wrappers share HTMLElement's class but have no innerText value.
       return undefined;
     }
-    try {
-      const s: unknown = dom.innerTextRendered?.(this._id);
-      if (typeof s === "string") return s;
-    } catch {}
+    const rendered = renderedInnerText(this);
+    if (rendered !== null) return rendered;
     return this.textContent;
   }
   set innerText(value) {
@@ -1434,9 +2180,7 @@ class Element extends NodeBase implements Idl.Element {
       });
       return;
     }
-    const nodes = renderedTextFragmentNodes(v, this.ownerDocument || document);
-    this.textContent = "";
-    for (const n of nodes) this.appendChild(n);
+    replaceWithRenderedText(this, v);
   }
 
   get children() {
@@ -1505,12 +2249,7 @@ class Element extends NodeBase implements Idl.Element {
     return makeHtmlCollection(() => {
       try {
         const cand = Array.from<Element>(scopedQuerySelectorAll(id, "*"));
-        return cand.filter((el) => {
-          const elNs = el.namespaceURI || null;
-          if (ns !== "*" && elNs !== ns) return false;
-          if (ln === "*") return true;
-          return (el.localName || "") === ln;
-        });
+        return cand.filter((el) => matchesQualifiedTagNamespace(el, ns, ln));
       } catch {
         return [];
       }
@@ -1546,13 +2285,11 @@ class Element extends NodeBase implements Idl.Element {
     try {
       return !!dom.matchesInSubtree(this._id, sel);
     } catch (err) {
-      // Selector failures may be Error objects or plain objects with a message.
-      const e = err as { message?: unknown } | null | undefined;
       throw new DOMException(
         "Failed to execute 'matches' on 'Element': '" +
           sel +
           "' is not a valid selector. " +
-          (e && e.message ? e.message : String(e)),
+          selectorFailureReason(err),
         "SyntaxError",
       );
     }
@@ -1568,13 +2305,11 @@ class Element extends NodeBase implements Idl.Element {
       const matchedId = dom.closestInTree(this._id, sel);
       return matchedId >= 0 ? nodeFor(matchedId) : null;
     } catch (err) {
-      // Selector failures may be Error objects or plain objects with a message.
-      const e = err as { message?: unknown } | null | undefined;
       throw new DOMException(
         "Failed to execute 'closest' on 'Element': '" +
           sel +
           "' is not a valid selector. " +
-          (e && e.message ? e.message : String(e)),
+          selectorFailureReason(err),
         "SyntaxError",
       );
     }
@@ -1597,17 +2332,8 @@ class Element extends NodeBase implements Idl.Element {
     return makeDomRect(rect.x, rect.y, rect.width, rect.height);
   }
   checkVisibility(options?: CheckVisibilityOptions) {
-    if (!this.isConnected || !hasLayoutBox(this._id)) return false;
-    const gcs = (el: Element) => ksGlobal.getComputedStyle(el);
-    if (options?.checkOpacity || options?.opacityProperty) {
-      for (let el: Element | null = this; el; el = flatTreeParentElement(el)) {
-        if (gcs(el).opacity === "0") return false;
-      }
-    }
-    if (options?.checkVisibilityCSS || options?.visibilityProperty) {
-      if (gcs(this).visibility !== "visible") return false;
-    }
-    return true;
+    if (!hasVisibleLayoutBox(this)) return false;
+    return checkVisibilityStyles(this, options);
   }
   animate(keyframes: object | null, options?: number | Idl.KeyframeAnimationOptions): KsAnimation {
     return animateElement(this, keyframes, options);
@@ -1621,10 +2347,7 @@ class Element extends NodeBase implements Idl.Element {
   // null there; this accepts it.
   // https://drafts.csswg.org/css-pseudo-4/#dom-element-pseudo
   pseudo(type: string): PseudoElementStub | null {
-    let t = String(type);
-    if (t.startsWith("::")) t = t.slice(2);
-    else if (t.startsWith(":")) t = t.slice(1);
-    t = t.toLowerCase();
+    const t = normalizedPseudoType(type);
     if (t !== "before" && t !== "after" && t !== "marker") return null;
     const key = this._id + ":" + t;
     const cached = pseudoElementCache.get(key);
@@ -1640,118 +2363,25 @@ class Element extends NodeBase implements Idl.Element {
     this.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
   scrollIntoView(arg?: boolean | Idl.ScrollIntoViewOptions): void {
-    let block: string, inline: string;
-    if (arg === false) {
-      block = "end";
-      inline = "nearest";
-    } else if (arg === true || arg == null) {
-      block = "start";
-      inline = "nearest";
-    } else if (typeof arg === "object") {
-      block = String(arg.block ?? "start");
-      inline = String(arg.inline ?? "nearest");
-    } else {
-      block = "start";
-      inline = "nearest";
-    }
-
-    const computeAxis = (
-      elPos: number,
-      elSize: number,
-      viewSize: number,
-      curScroll: number,
-      mode: string,
-    ) => {
-      switch (mode) {
-        case "start":
-          return elPos;
-        case "end":
-          return elPos + elSize - viewSize;
-        case "center":
-          return elPos + elSize / 2 - viewSize / 2;
-        case "nearest": {
-          if (elPos >= curScroll && elPos + elSize <= curScroll + viewSize) {
-            return curScroll;
-          }
-          if (elPos < curScroll) return elPos;
-          return elPos + elSize - viewSize;
-        }
-        default:
-          return elPos;
-      }
-    };
+    const { block, inline } = scrollIntoViewModes(arg);
 
     const htmlId = dom.querySelector("html");
     const targetVr = getRect(this._id);
     const targetSize = { w: targetVr.width, h: targetVr.height };
 
-    let elViewportX = targetVr.x;
-    let elViewportY = targetVr.y;
     // Limitation: css-position-3 targets a sticky box at its offset position.
     // This subtracts the shift and targets the unshifted position.
     // https://drafts.csswg.org/css-position-3/#stickypos-scroll
-    try {
-      const sh = getStickyShiftByAuthId && getStickyShiftByAuthId(this._id);
-      if (sh && sh.length >= 2) {
-        elViewportX -= Number(sh[0]) || 0;
-        elViewportY -= Number(sh[1]) || 0;
-      }
-    } catch {}
-
-    let cur = this._id;
-    let safety = 0;
-    try {
-      cur = dom.parentId(cur);
-    } catch {
-      cur = -1;
-    }
-
-    while (cur != null && cur >= 0 && cur !== htmlId && safety < MAX_SCROLL_CHAIN_HOPS) {
-      safety++;
-      const info = nodeScrollInfoSafe(cur);
-      if (info && (info.overflowsX || info.overflowsY)) {
-        const containerVr = getRect(cur);
-        const elInContentX = elViewportX - containerVr.x + info.scrollLeft;
-        const elInContentY = elViewportY - containerVr.y + info.scrollTop;
-        const targetScrollY = info.overflowsY
-          ? Math.max(
-              0,
-              Math.min(
-                computeAxis(elInContentY, targetSize.h, info.clientHeight, info.scrollTop, block),
-                info.scrollHeight,
-              ),
-            )
-          : info.scrollTop;
-        const targetScrollX = info.overflowsX
-          ? Math.max(
-              0,
-              Math.min(
-                computeAxis(elInContentX, targetSize.w, info.clientWidth, info.scrollLeft, inline),
-                info.scrollWidth,
-              ),
-            )
-          : info.scrollLeft;
-        if (targetScrollY !== info.scrollTop || targetScrollX !== info.scrollLeft) {
-          if (setElementScrollOffset(cur, targetScrollX, targetScrollY)) {
-            elViewportY += info.scrollTop - targetScrollY;
-            elViewportX += info.scrollLeft - targetScrollX;
-          }
-        }
-      }
-      try {
-        cur = dom.parentId(cur);
-      } catch {
-        break;
-      }
-    }
+    const viewport = unshiftStickyViewport(this, targetVr.x, targetVr.y);
+    scrollAncestorsIntoView(this, htmlId, viewport, targetSize, block, inline);
 
     const cur2 = scrollOffset();
     const viewportH = Number(ksGlobal.innerHeight) || DEFAULT_VIEWPORT_HEIGHT_CSS_PX;
     const viewportW = Number(ksGlobal.innerWidth) || DEFAULT_VIEWPORT_WIDTH_CSS_PX;
-    const docTop = elViewportY + cur2.y;
-    const docLeft = elViewportX + cur2.x;
-    const targetY = computeAxis(docTop, targetSize.h, viewportH, cur2.y, block);
-    const targetX = computeAxis(docLeft, targetSize.w, viewportW, cur2.x, inline);
+    const docTop = viewport.y + cur2.y;
+    const docLeft = viewport.x + cur2.x;
+    const targetY = computeScrollAxis(docTop, targetSize.h, viewportH, cur2.y, block);
+    const targetX = computeScrollAxis(docLeft, targetSize.w, viewportW, cur2.x, inline);
     setScrollOffset(Math.max(0, targetX), Math.max(0, targetY));
   }
   scrollTo(_xOrOptions?: unknown, _y?: unknown): Promise<void> {
@@ -1760,31 +2390,7 @@ class Element extends NodeBase implements Idl.Element {
     return (async () => {
       const norm = normalizeScrollArgs(args, "scrollTo");
       if (norm === null) return;
-      const info = nodeScrollInfoSafe(self._id);
-      const curX = info ? info.scrollLeft : 0;
-      const curY = info ? info.scrollTop : 0;
-      const left = norm.left == null ? curX : norm.left;
-      const top = norm.top == null ? curY : norm.top;
-      const htmlId = dom.querySelector("html");
-      const bodyId = dom.querySelector("body");
-      if (self._id === htmlId || self._id === bodyId) {
-        setScrollOffset(Math.max(0, left), Math.max(0, top));
-        return;
-      }
-      if (!info) return;
-      const nx = Math.max(0, Math.min(left, info.scrollWidth));
-      const ny = Math.max(0, Math.min(top, info.scrollHeight));
-      if (nx === info.scrollLeft && ny === info.scrollTop) return;
-      let offset: unknown = null;
-      try {
-        offset = dom.setNodeScrollOffset(self._id, nx, ny);
-      } catch {
-        return;
-      }
-      if (!offset) return;
-      markDamageNode(self._id);
-      bumpMutationSeq();
-      fireElementScroll(self);
+      scrollToNormalized(self, norm);
     })();
   }
   scroll(_options?: Idl.ScrollToOptions): Promise<void>;
@@ -1800,18 +2406,8 @@ class Element extends NodeBase implements Idl.Element {
     return (async () => {
       const norm = normalizeScrollArgs(args, "scrollBy");
       if (norm === null) return;
-      const dx = norm.left == null ? 0 : norm.left;
-      const dy = norm.top == null ? 0 : norm.top;
-      const htmlId = dom.querySelector("html");
-      const bodyId = dom.querySelector("body");
-      if (self._id === htmlId || self._id === bodyId) {
-        const off = scrollOffset();
-        setScrollOffset(Math.max(0, off.x + dx), Math.max(0, off.y + dy));
-        return;
-      }
-      const info = nodeScrollInfoSafe(self._id);
-      if (!info) return;
-      await self.scrollTo(info.scrollLeft + dx, info.scrollTop + dy);
+      const target = scrollByNormalized(self, norm);
+      if (target) await self.scrollTo(target.left, target.top);
     })();
   }
   get scrollTop() {
@@ -1823,25 +2419,15 @@ class Element extends NodeBase implements Idl.Element {
   set scrollTop(v) {
     const htmlId = dom.querySelector("html");
     if (this._id === htmlId) {
-      const cur = scrollOffset();
-      setScrollOffset(cur.x, Number(v) || 0);
+      setRootScrollTop(v);
       return;
     }
     const info = nodeScrollInfoSafe(this._id);
     if (!info) return;
     if (!info.overflowsY) return;
-    const next = Math.max(0, Math.min(Number(v) || 0, info.scrollHeight));
+    const next = nextElementScrollCoordinate(v, info.scrollHeight);
     if (next === info.scrollTop) return;
-    let offset: unknown = null;
-    try {
-      offset = dom.setNodeScrollOffset(this._id, info.scrollLeft, next);
-    } catch {
-      return;
-    }
-    if (!offset) return;
-    markDamageNode(this._id);
-    bumpMutationSeq();
-    fireElementScroll(this);
+    commitElementScroll(this, info.scrollLeft, next);
   }
   get scrollLeft() {
     const htmlId = dom.querySelector("html");
@@ -1852,25 +2438,15 @@ class Element extends NodeBase implements Idl.Element {
   set scrollLeft(v) {
     const htmlId = dom.querySelector("html");
     if (this._id === htmlId) {
-      const cur = scrollOffset();
-      setScrollOffset(Number(v) || 0, cur.y);
+      setRootScrollLeft(v);
       return;
     }
     const info = nodeScrollInfoSafe(this._id);
     if (!info) return;
     if (!info.overflowsX) return;
-    const next = Math.max(0, Math.min(Number(v) || 0, info.scrollWidth));
+    const next = nextElementScrollCoordinate(v, info.scrollWidth);
     if (next === info.scrollLeft) return;
-    let offset: unknown = null;
-    try {
-      offset = dom.setNodeScrollOffset(this._id, next, info.scrollTop);
-    } catch {
-      return;
-    }
-    if (!offset) return;
-    markDamageNode(this._id);
-    bumpMutationSeq();
-    fireElementScroll(this);
+    commitElementScroll(this, next, info.scrollTop);
   }
   get scrollWidth() {
     const info = nodeScrollInfoSafe(this._id);
@@ -1920,14 +2496,8 @@ class Element extends NodeBase implements Idl.Element {
       const metrics = read(getOffsetMetricsByAuthId);
       if (metrics) return metrics;
     } catch {}
-    try {
-      // Older wasm bundles may not expose the optional legacy offsetMetrics method.
-      const offsetMetrics: unknown = Reflect.get(dom, "offsetMetrics");
-      if (typeof offsetMetrics === "function") {
-        const metrics = read((id) => Reflect.apply(offsetMetrics, dom, [id]));
-        if (metrics) return metrics;
-      }
-    } catch {}
+    const legacyMetrics = legacyOffsetMetrics(read);
+    if (legacyMetrics) return legacyMetrics;
     const rect = getRect(this._id);
     const scroll = scrollOffset();
     return { parent: -1, top: rect.y + scroll.y, left: rect.x + scroll.x };
@@ -1955,16 +2525,9 @@ class Element extends NodeBase implements Idl.Element {
       const target = this;
       const data: Record<string, string> = Object.create(null);
 
-      const canon =
-        opts && typeof opts.canonicalizeInlineStyle === "function"
-          ? opts.canonicalizeInlineStyle
-          : null;
-      const serializeCanon =
-        opts && typeof opts.serializeInlineStyle === "function" ? opts.serializeInlineStyle : null;
-      const getCanonValue =
-        opts && typeof opts.getInlinePropertyValue === "function"
-          ? opts.getInlinePropertyValue
-          : null;
+      const canon = inlineStyleCanon();
+      const serializeCanon = inlineStyleSerializer();
+      const getCanonValue = inlineStylePropertyReader();
 
       const rawValues: Record<string, string> = Object.create(null);
 
@@ -1981,55 +2544,79 @@ class Element extends NodeBase implements Idl.Element {
           declarations: Array<{ name: string; value: string; important?: boolean }>;
         }
       >();
-      function recanonicalize() {
-        if (!canon) return;
+      const parseInlineCanon = (dashName: string, rawVal: string) => {
+        if (!canon) return [];
+        try {
+          return canon(`${dashName}: ${rawVal}`);
+        } catch {
+          return [];
+        }
+      };
+      const parseInlineDeclaration = (k: string, rawVal: string, dashName: string) => {
+        const cached = parsedValues.get(k);
+        if (cached?.value === rawVal) return cached.declarations;
+        const parsed = parseInlineCanon(dashName, rawVal);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          delete shorthandValues[k];
+          delete rawValues[k];
+          parsedValues.delete(k);
+          return null;
+        }
+        parsedValues.set(k, { value: rawVal, declarations: parsed });
+        return parsed;
+      };
+      const isSvgGeometryStyle = (k: string) =>
+        SVG_GEOMETRY_STYLE_PROPS.has(k) && String(target.namespaceURI || "") === SVG_NS;
+      const applyInlineDeclaration = (decl: {
+        name: string;
+        value: string;
+        important?: boolean;
+      }) => {
+        if (!decl || typeof decl.name !== "string") return;
+        const longKey = cssPropToCamel(decl.name);
+        data[longKey] = decl.important ? `${decl.value} !important` : decl.value;
+      };
+      const applyInlineDeclarations = (
+        k: string,
+        rawVal: string,
+        parsed: Array<{ name: string; value: string; important?: boolean }>,
+      ) => {
+        for (const decl of parsed) applyInlineDeclaration(decl);
+        const isLonghandWrite = parsed.length === 1 && cssPropToCamel(parsed[0].name) === k;
+        if (isLonghandWrite) delete shorthandValues[k];
+        else shorthandValues[k] = rawVal;
+      };
+      const recanonicalizeKey = (k: string, rawVal: string) => {
+        if (rawVal == null || rawVal === "") return;
+        if (isSvgGeometryStyle(k)) {
+          data[k] = rawVal;
+          return;
+        }
+        const dashName = cssPropCamelToKebab(k);
+        const parsed = parseInlineDeclaration(k, rawVal, dashName);
+        if (!parsed) return;
+        applyInlineDeclarations(k, rawVal, parsed);
+      };
+      const pruneParsedValues = () => {
         for (const k of parsedValues.keys()) {
           if (data[k] === undefined) parsedValues.delete(k);
         }
+      };
+      const takeInlineData = () => {
         const preKeys = Object.keys(data);
         const preValues: Record<string, string> = {};
         for (const k of preKeys) preValues[k] = String(data[k]);
         for (const k of preKeys) delete data[k];
-
+        return { preKeys, preValues };
+      };
+      const recanonicalize = () => {
+        if (!canon) return;
+        pruneParsedValues();
+        const { preKeys, preValues } = takeInlineData();
         for (const k of preKeys) {
-          const rawVal = preValues[k];
-          if (rawVal == null || rawVal === "") continue;
-          if (SVG_GEOMETRY_STYLE_PROPS.has(k) && String(target.namespaceURI || "") === SVG_NS) {
-            data[k] = rawVal;
-            continue;
-          }
-          const dashName = cssPropCamelToKebab(k);
-          let parsed: Array<{ name: string; value: string; important?: boolean }>;
-          const cached = parsedValues.get(k);
-          if (cached?.value === rawVal) {
-            parsed = cached.declarations;
-          } else {
-            try {
-              parsed = canon(`${dashName}: ${rawVal}`);
-            } catch {
-              parsed = [];
-            }
-            if (!Array.isArray(parsed) || parsed.length === 0) {
-              delete shorthandValues[k];
-              delete rawValues[k];
-              parsedValues.delete(k);
-              continue;
-            }
-            parsedValues.set(k, { value: rawVal, declarations: parsed });
-          }
-          for (const decl of parsed) {
-            if (!decl || typeof decl.name !== "string") continue;
-            const longKey = cssPropToCamel(decl.name);
-            data[longKey] = decl.important ? `${decl.value} !important` : decl.value;
-          }
-          const isLonghandWrite = parsed.length === 1 && cssPropToCamel(parsed[0].name) === k;
-          if (isLonghandWrite) {
-            delete shorthandValues[k];
-          } else {
-            shorthandValues[k] = rawVal;
-          }
+          recanonicalizeKey(k, preValues[k]);
         }
-      }
+      };
       const serializeBlock = (): string => {
         const raw = serializeStyleData(data);
         if (!serializeCanon || !raw) return raw;
@@ -2040,38 +2627,61 @@ class Element extends NodeBase implements Idl.Element {
           return raw;
         }
       };
+      const scanRawComment = (v: string, i: number, state: { comment: boolean }) => {
+        if (v[i] === "*" && v[i + 1] === "/") {
+          state.comment = false;
+          return i + 1;
+        }
+        return i;
+      };
+      const scanRawQuote = (c: string, i: number, state: { quote: string | null }) => {
+        if (c === "\\") return i + 1;
+        if (c === state.quote) state.quote = null;
+        return i;
+      };
+      const scanRawDelimiter = (c: string, stack: string[], closers: Record<string, string>) => {
+        if (closers[c]) stack.push(closers[c]);
+        else if (c === stack[stack.length - 1]) stack.pop();
+      };
+      const isRawCommentStart = (v: string, i: number) => v[i] === "/" && v[i + 1] === "*";
+      const scanRawUnquoted = (
+        v: string,
+        i: number,
+        state: { comment: boolean; quote: string | null; stack: string[] },
+        closers: Record<string, string>,
+      ) => {
+        const c = v[i];
+        if (c === "\\") return i + 1;
+        if (c === '"' || c === "'") state.quote = c;
+        else if (isRawCommentStart(v, i)) {
+          state.comment = true;
+          return i + 1;
+        } else scanRawDelimiter(c, state.stack, closers);
+        return i;
+      };
+      const finishClosedRawValue = (
+        v: string,
+        state: { comment: boolean; quote: string | null; stack: string[] },
+      ) => {
+        let out = v;
+        if (state.comment) out += "*/";
+        if (state.quote) out += state.quote;
+        while (state.stack.length) out += state.stack.pop();
+        return out;
+      };
       const closeRawValue = (v: string): string => {
         const closers: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
-        const stack: string[] = [];
-        let quote: string | null = null;
-        let comment = false;
+        const state: { stack: string[]; quote: string | null; comment: boolean } = {
+          stack: [],
+          quote: null,
+          comment: false,
+        };
         for (let i = 0; i < v.length; i++) {
-          const c = v[i];
-          if (comment) {
-            if (c === "*" && v[i + 1] === "/") {
-              comment = false;
-              i++;
-            }
-            continue;
-          }
-          if (quote) {
-            if (c === "\\") i++;
-            else if (c === quote) quote = null;
-            continue;
-          }
-          if (c === "\\") i++;
-          else if (c === '"' || c === "'") quote = c;
-          else if (c === "/" && v[i + 1] === "*") {
-            comment = true;
-            i++;
-          } else if (closers[c]) stack.push(closers[c]);
-          else if (c === stack[stack.length - 1]) stack.pop();
+          if (state.comment) i = scanRawComment(v, i, state);
+          else if (state.quote) i = scanRawQuote(v[i], i, state);
+          else i = scanRawUnquoted(v, i, state, closers);
         }
-        let out = v;
-        if (comment) out += "*/";
-        if (quote) out += quote;
-        while (stack.length) out += stack.pop();
-        return out;
+        return finishClosedRawValue(v, state);
       };
       const serializeRawAttr = (): string => {
         const parts: string[] = [];
@@ -2093,49 +2703,78 @@ class Element extends NodeBase implements Idl.Element {
           flushing = false;
         }
       };
-      inlineStyleResync.set(target, (text: string | null) => {
-        if (flushing) return;
+      const clearInlineStyleMaps = () => {
         for (const k of Object.keys(data)) delete data[k];
         for (const k of Object.keys(rawValues)) delete rawValues[k];
         for (const k of Object.keys(shorthandValues)) delete shorthandValues[k];
+      };
+      inlineStyleResync.set(target, (text: string | null) => {
+        if (flushing) return;
+        clearInlineStyleMaps();
         if (text) {
           parseCssTextInto(text, data);
           parseCssTextInto(text, rawValues);
         }
       });
+      const expandedRawValue = (
+        dv: string | undefined,
+        d: { value: string; important?: boolean },
+      ) => (dv !== undefined ? String(dv) : d.important ? `${d.value} !important` : d.value);
+      const appendExpandedRawDeclaration = (
+        d: { name: string; value: string; important?: boolean },
+        removedDash: string,
+      ) => {
+        if (!d || typeof d.name !== "string" || d.name === removedDash) return;
+        const camel = cssPropToCamel(d.name);
+        const dv = data[camel];
+        rawValues[camel] = expandedRawValue(dv, d);
+      };
+      const expandRawDeclaration = (
+        k: string,
+        removedDash: string,
+        parsed: Array<{ name: string; value: string; important?: boolean }>,
+      ) => {
+        const entries = Object.entries(rawValues);
+        for (const kk of Object.keys(rawValues)) delete rawValues[kk];
+        for (const [kk, vv] of entries) {
+          if (kk !== k) {
+            rawValues[kk] = vv;
+            continue;
+          }
+          for (const d of parsed) {
+            appendExpandedRawDeclaration(d, removedDash);
+          }
+        }
+      };
+      const rawDeclarationFor = (k: string) => {
+        let parsed: Array<{ name: string; value: string; important?: boolean }>;
+        try {
+          parsed = canon?.(`${cssPropCamelToKebab(k)}: ${rawValues[k]}`) || [];
+        } catch {
+          parsed = [];
+        }
+        return parsed;
+      };
+      const coveringRawDeclaration = (k: string, removedDash: string) => {
+        const parsed = rawDeclarationFor(k);
+        if (parsed.length <= 1) return null;
+        if (!parsed.some((d) => d && d.name === removedDash)) return null;
+        return parsed;
+      };
+      const resetRawValuesWithoutCanon = () => {
+        for (const k of Object.keys(rawValues)) delete rawValues[k];
+        for (const k of Object.keys(data)) rawValues[k] = String(data[k]);
+      };
       const expandCoveringRawKeys = (removedKey: string) => {
         if (!canon) {
-          for (const k of Object.keys(rawValues)) delete rawValues[k];
-          for (const k of Object.keys(data)) rawValues[k] = String(data[k]);
+          resetRawValuesWithoutCanon();
           return;
         }
         const removedDash = cssPropCamelToKebab(removedKey);
         for (const k of Object.keys(rawValues)) {
           if (k === removedKey) continue;
-          const dashName = cssPropCamelToKebab(k);
-          let parsed: Array<{ name: string; value: string; important?: boolean }>;
-          try {
-            parsed = canon(`${dashName}: ${rawValues[k]}`) || [];
-          } catch {
-            parsed = [];
-          }
-          if (parsed.length <= 1) continue;
-          if (!parsed.some((d) => d && d.name === removedDash)) continue;
-          const entries = Object.entries(rawValues);
-          for (const kk of Object.keys(rawValues)) delete rawValues[kk];
-          for (const [kk, vv] of entries) {
-            if (kk !== k) {
-              rawValues[kk] = vv;
-              continue;
-            }
-            for (const d of parsed) {
-              if (!d || typeof d.name !== "string" || d.name === removedDash) continue;
-              const camel = cssPropToCamel(d.name);
-              const dv = data[camel];
-              rawValues[camel] =
-                dv !== undefined ? String(dv) : d.important ? `${d.value} !important` : d.value;
-            }
-          }
+          const parsed = coveringRawDeclaration(k, removedDash);
+          if (parsed) expandRawDeclaration(k, removedDash, parsed);
         }
       };
       const dropRawKey = (key: string, hadInData: boolean) => {
@@ -2144,28 +2783,30 @@ class Element extends NodeBase implements Idl.Element {
         if (!hadInData && !hadRaw) return;
         expandCoveringRawKeys(key);
       };
+      const parsedLonghandNames = (parsed: Array<{ name: string }>) => {
+        const keys: string[] = [];
+        for (const d of parsed) {
+          if (d && typeof d.name === "string") keys.push(cssPropToCamel(d.name));
+        }
+        return keys;
+      };
+      const parseLonghandCss = (canonicalize: NonNullable<typeof canon>, key: string) => {
+        try {
+          return canonicalize(`${cssPropCamelToKebab(key)}: inherit`) || [];
+        } catch {
+          return [];
+        }
+      };
       const longhandKeysOf = (key: string): string[] => {
         if (!canon || key.startsWith("--")) return [];
         let keys = longhandKeysCache.get(key);
         if (keys) return keys;
-        let parsed: Array<{ name: string }>;
-        try {
-          parsed = canon(`${cssPropCamelToKebab(key)}: inherit`) || [];
-        } catch {
-          parsed = [];
-        }
-        keys = [];
-        for (const d of parsed) {
-          if (d && typeof d.name === "string") keys.push(cssPropToCamel(d.name));
-        }
+        const parsed = parseLonghandCss(canon, key);
+        keys = parsedLonghandNames(parsed);
         longhandKeysCache.set(key, keys);
         return keys;
       };
-      const removeKey = (key: string) => {
-        const had = data[key] !== undefined;
-        delete data[key];
-        delete shorthandValues[key];
-        dropRawKey(key, had);
+      const removeLonghands = (key: string, had: boolean) => {
         let touched = had;
         for (const lh of longhandKeysOf(key)) {
           if (lh === key || data[lh] === undefined) continue;
@@ -2173,15 +2814,30 @@ class Element extends NodeBase implements Idl.Element {
           dropRawKey(lh, true);
           touched = true;
         }
-        if (!touched) return;
+        return touched;
+      };
+      const pruneShorthandValues = () => {
         for (const s of Object.keys(shorthandValues)) {
           if (longhandKeysOf(s).some((lh) => data[lh] === undefined)) delete shorthandValues[s];
         }
+      };
+      const removeKey = (key: string) => {
+        const had = data[key] !== undefined;
+        delete data[key];
+        delete shorthandValues[key];
+        dropRawKey(key, had);
+        const touched = removeLonghands(key, had);
+        if (!touched) return;
+        pruneShorthandValues();
       };
       const setRawKey = (key: string, v: string) => {
         delete rawValues[key];
         rawValues[key] = v;
       };
+      const inlineWriteDropped = (key: string) =>
+        data[key] === undefined &&
+        rawValues[key] === undefined &&
+        shorthandValues[key] === undefined;
       const writeWithRestore = (key: string, v: string) => {
         const prevData = data[key];
         const prevRaw = rawValues[key];
@@ -2189,10 +2845,7 @@ class Element extends NodeBase implements Idl.Element {
         setRawKey(key, v);
         flush();
         if (prevData === undefined) return;
-        const dropped =
-          data[key] === undefined &&
-          rawValues[key] === undefined &&
-          shorthandValues[key] === undefined;
+        const dropped = inlineWriteDropped(key);
         if (!dropped) return;
         data[key] = prevData;
         if (prevRaw !== undefined) setRawKey(key, prevRaw);
@@ -2202,19 +2855,23 @@ class Element extends NodeBase implements Idl.Element {
       // getPropertyValue and the property reads share this: the declared
       // value without !important, else Stylo's shorthand assembly, else the
       // authored shorthand text.
-      const readProperty = (key: string, dashName: string): string => {
-        if (data[key] != null) return String(data[key]).replace(/\s*!important\s*$/i, "");
-        if (getCanonValue) {
-          const raw = serializeStyleData(data);
-          if (raw) {
-            try {
-              const v = getCanonValue(raw, dashName);
-              if (v) return v;
-            } catch {
-              /* fall through */
-            }
+      const readCanonProperty = (dashName: string) => {
+        if (!getCanonValue) return null;
+        const raw = serializeStyleData(data);
+        if (raw) {
+          try {
+            const v = getCanonValue(raw, dashName);
+            if (v) return v;
+          } catch {
+            /* fall through */
           }
         }
+        return null;
+      };
+      const readProperty = (key: string, dashName: string): string => {
+        if (data[key] != null) return String(data[key]).replace(/\s*!important\s*$/i, "");
+        const canonValue = readCanonProperty(dashName);
+        if (canonValue) return canonValue;
         if (shorthandValues[key] != null) return shorthandValues[key];
         return "";
       };
@@ -2273,6 +2930,14 @@ class Element extends NodeBase implements Idl.Element {
           for (const key of Object.keys(data)) yield cssPropCamelToKebab(key);
         },
       };
+      const isLegacyCamelProp = (prop: PropertyKey) =>
+        typeof prop === "string" && !prop.includes("-") && /^(?:moz|ms|o)[A-Z]/.test(prop);
+      const hasStyleProperty = (key: string, prop: PropertyKey) => {
+        if (key.startsWith("--") || /^(?:webkit|moz|ms|o)-/.test(String(prop))) return false;
+        if (key in data) return true;
+        if (isLegacyCamelProp(prop)) return false;
+        return longhandKeysOf(key).length > 0;
+      };
 
       // The CSS properties, camelCase or kebab-case.
       st = makeStyleDeclaration(backend, {
@@ -2290,12 +2955,7 @@ class Element extends NodeBase implements Idl.Element {
         has(_t, prop) {
           const key = styleDeclKey(prop);
           if (typeof key !== "string") return false;
-          if (key.startsWith("--") || /^(?:webkit|moz|ms|o)-/.test(String(prop))) return false;
-          if (key in data) return true;
-          if (typeof prop === "string" && !prop.includes("-") && /^(?:moz|ms|o)[A-Z]/.test(prop)) {
-            return false;
-          }
-          return longhandKeysOf(key).length > 0;
+          return hasStyleProperty(key, prop);
         },
         deleteProperty(_t, prop) {
           const key = styleDeclKey(prop);
@@ -2368,14 +3028,7 @@ class Element extends NodeBase implements Idl.Element {
     if (s.checked === next) return;
     s.checked = next;
     const tag = typeof this.tagName === "string" ? this.tagName.toUpperCase() : "";
-    if (tag === "INPUT") {
-      try {
-        const domHandle = dom;
-        if (typeof domHandle.setCheckboxChecked === "function") {
-          domHandle.setCheckboxChecked(this._id, next);
-        }
-      } catch {}
-    }
+    syncCheckedInput(this, next, tag);
     markDamageNode(this._id);
     bumpMutationSeq();
   }
@@ -2442,19 +3095,25 @@ class Element extends NodeBase implements Idl.Element {
       if (/[A-Z]/.test(suffix)) return null;
       return suffix.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
     }
+    const dataAttributeName = (a: Idl.Attr | null) => {
+      if (!a) return null;
+      const nm = a.name || a.nodeName;
+      if (typeof nm !== "string" || !nm.startsWith("data-")) return null;
+      return dashToCamel(nm.slice(5));
+    };
+    const appendDataName = (out: string[], seen: Set<string>, camel: string | null) => {
+      if (camel === null) return;
+      if (seen.has(camel)) return;
+      seen.add(camel);
+      out.push(camel);
+    };
     function listDataAttrs() {
       const out: string[] = [];
-      const seen = new Set();
+      const seen = new Set<string>();
       try {
         for (const a of target.attributes || []) {
-          if (!a) continue;
-          const nm = a.name || a.nodeName;
-          if (typeof nm !== "string" || !nm.startsWith("data-")) continue;
-          const camel = dashToCamel(nm.slice(5));
-          if (camel === null) continue;
-          if (seen.has(camel)) continue;
-          seen.add(camel);
-          out.push(camel);
+          const camel = dataAttributeName(a);
+          appendDataName(out, seen, camel);
         }
       } catch {}
       return out;
@@ -2464,8 +3123,7 @@ class Element extends NodeBase implements Idl.Element {
     function isInvalidDatasetName(name: string) {
       return /-[a-z]/.test(name);
     }
-    const DSM = ksGlobal.DOMStringMap;
-    const backing = Object.create(DSM && DSM.prototype ? DSM.prototype : Object.prototype);
+    const backing = datasetBacking();
     return new Proxy(backing, {
       get(t, prop, receiver) {
         if (typeof prop === "string" && !isInvalidDatasetName(prop)) {
@@ -2519,87 +3177,15 @@ class Element extends NodeBase implements Idl.Element {
     const old = activeElement;
     if (old === this) return;
     setActiveElement(this);
-    try {
-      if (typeof this._id === "number" && this._id >= 0 && typeof dom.setFocus === "function") {
-        dom.setFocus(this._id);
-        if (old) markDamageNode(old._id);
-        markDamageNode(this._id);
-        bumpMutationSeq();
-      }
-    } catch {}
-    if (old) {
-      try {
-        old.dispatchEvent(
-          new KsFocusEvent("blur", {
-            bubbles: false,
-            cancelable: false,
-            composed: true,
-            relatedTarget: this,
-          }),
-        );
-      } catch {}
-      try {
-        old.dispatchEvent(
-          new KsFocusEvent("focusout", {
-            bubbles: true,
-            cancelable: false,
-            composed: true,
-            relatedTarget: this,
-          }),
-        );
-      } catch {}
-    }
-    try {
-      this.dispatchEvent(
-        new KsFocusEvent("focus", {
-          bubbles: false,
-          cancelable: false,
-          composed: true,
-          relatedTarget: old || null,
-        }),
-      );
-    } catch {}
-    try {
-      this.dispatchEvent(
-        new KsFocusEvent("focusin", {
-          bubbles: true,
-          cancelable: false,
-          composed: true,
-          relatedTarget: old || null,
-        }),
-      );
-    } catch {}
+    syncElementFocus(this, old);
+    if (old) dispatchFocusLoss(old, this);
+    dispatchFocusGain(this, old);
   }
   blur(): void {
     if (activeElement !== this) return;
     setActiveElement(null);
-    try {
-      if (typeof dom.clearFocus === "function") {
-        dom.clearFocus();
-        markDamageNode(this._id);
-        bumpMutationSeq();
-      }
-    } catch {}
-    try {
-      this.dispatchEvent(
-        new KsFocusEvent("blur", {
-          bubbles: false,
-          cancelable: false,
-          composed: true,
-          relatedTarget: null,
-        }),
-      );
-    } catch {}
-    try {
-      this.dispatchEvent(
-        new KsFocusEvent("focusout", {
-          bubbles: true,
-          cancelable: false,
-          composed: true,
-          relatedTarget: null,
-        }),
-      );
-    } catch {}
+    clearDomFocus(this);
+    dispatchFocusLoss(this, null);
   }
   // Limitation: pointer capture does not persist between input events.
   hasPointerCapture(_pointerId: number) {
@@ -2630,6 +3216,17 @@ type TextFragmentDocument = {
   createTextNode(data: string): NodeBase;
   createElement(localName: string): Element;
 };
+function appendRenderedLineBreak(
+  ch: string,
+  next: string | undefined,
+  run: string,
+  doc: TextFragmentDocument,
+  nodes: NodeBase[],
+): number {
+  if (run) nodes.push(doc.createTextNode(run));
+  nodes.push(doc.createElement("br"));
+  return ch === "\r" && next === "\n" ? 2 : 1;
+}
 // Each CRLF, CR or LF becomes a <br>. Text between them becomes a Text node.
 // https://html.spec.whatwg.org/#rendered-text-fragment
 function renderedTextFragmentNodes(value: unknown, doc: TextFragmentDocument): NodeBase[] {
@@ -2640,12 +3237,8 @@ function renderedTextFragmentNodes(value: unknown, doc: TextFragmentDocument): N
   while (i < s.length) {
     const ch = s[i];
     if (ch === "\r" || ch === "\n") {
-      if (run) {
-        nodes.push(doc.createTextNode(run));
-        run = "";
-      }
-      nodes.push(doc.createElement("br"));
-      i += ch === "\r" && s[i + 1] === "\n" ? 2 : 1;
+      i += appendRenderedLineBreak(ch, s[i + 1], run, doc, nodes);
+      run = "";
     } else {
       run += ch;
       i += 1;

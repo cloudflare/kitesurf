@@ -19,12 +19,18 @@ import type { HTMLTextAreaElement } from "./textarea.js";
 
 function resolveFormOwner(control: Element): HTMLFormElement | null {
   const ref = control.getAttribute("form");
-  if (ref) {
-    const doc = control.ownerDocument || document;
-    const owner = doc.getElementById(ref);
-    if (isHtmlTag(owner, "form")) return owner;
-  }
-  let n = control.parentNode;
+  if (ref) return formOwnerById(control, ref);
+  return ancestorForm(control.parentNode);
+}
+
+function formOwnerById(control: Element, id: string): HTMLFormElement | null {
+  const doc = control.ownerDocument || document;
+  const owner = doc.getElementById(id);
+  return isHtmlTag(owner, "form") ? owner : null;
+}
+
+function ancestorForm(node: Idl.Node | null): HTMLFormElement | null {
+  let n = node;
   while (n) {
     if (isHtmlTag(n, "form")) return n;
     n = n.parentNode;
@@ -56,19 +62,27 @@ function isFormListed(el: unknown): el is ListedElement {
 }
 
 function isInsideExemptLegend(control: Element, disabledFieldset: HTMLFieldSetElement): boolean {
-  let firstLegend: HTMLLegendElement | null = null;
-  const kids = disabledFieldset.children;
-  if (kids) {
-    for (let i = 0; i < kids.length; i++) {
-      const child = kids[i];
-      if (isHtmlTag(child, "legend")) {
-        firstLegend = child;
-        break;
-      }
-    }
-  }
+  const firstLegend = firstLegendChild(disabledFieldset);
   if (!firstLegend) return false;
-  let p = control.parentNode;
+  return hasLegendAncestor(control.parentNode, disabledFieldset, firstLegend);
+}
+
+function firstLegendChild(disabledFieldset: HTMLFieldSetElement): HTMLLegendElement | null {
+  const kids = disabledFieldset.children;
+  if (!kids) return null;
+  for (let i = 0; i < kids.length; i++) {
+    const child = kids[i];
+    if (isHtmlTag(child, "legend")) return child;
+  }
+  return null;
+}
+
+function hasLegendAncestor(
+  node: Idl.Node | null,
+  disabledFieldset: HTMLFieldSetElement,
+  firstLegend: HTMLLegendElement,
+): boolean {
+  let p = node;
   while (p && p !== disabledFieldset) {
     if (p === firstLegend) return true;
     p = p.parentNode;
@@ -81,12 +95,15 @@ function isDisabledInFormContext(input: object): boolean {
   if (control.disabled) return true;
   let p = control.parentNode;
   while (p) {
-    if (isHtmlTag(p, "fieldset") && p.disabled) {
-      if (!isInsideExemptLegend(control, p)) return true;
-    }
+    if (isDisabledFieldsetAncestor(control, p)) return true;
     p = p.parentNode;
   }
   return false;
+}
+
+function isDisabledFieldsetAncestor(control: Element, ancestor: Idl.Node): boolean {
+  if (!isHtmlTag(ancestor, "fieldset") || !ancestor.disabled) return false;
+  return !isInsideExemptLegend(control, ancestor);
 }
 
 // A submit or reset button's activation behavior.
@@ -98,18 +115,26 @@ function activateFormButton(
   if (control.disabled) return;
   const form = control.form;
   if (!form) return;
-  if (kind === "submit") {
-    try {
-      form.__ksRequestSubmit(control);
-    } catch {
-      /* spec'd throw paths */
-    }
-  } else {
-    try {
-      form.reset();
-    } catch {
-      /* unlikely */
-    }
+  if (kind === "submit") submitFormFromButton(form, control);
+  else resetFormFromButton(form);
+}
+
+function submitFormFromButton(
+  form: HTMLFormElement,
+  control: HTMLButtonElement | HTMLInputElement,
+): void {
+  try {
+    form.__ksRequestSubmit(control);
+  } catch {
+    /* spec'd throw paths */
+  }
+}
+
+function resetFormFromButton(form: HTMLFormElement): void {
+  try {
+    form.reset();
+  } catch {
+    /* unlikely */
   }
 }
 

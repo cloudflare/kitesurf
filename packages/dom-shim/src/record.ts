@@ -26,106 +26,151 @@ function bindAttrFns() {
 function recordOpImpl(op: DomOperation): void {
   bindAttrFns();
   if (op.kind === "setAttribute" && domSetAttr) {
-    const value = op.value ?? "";
-    if (!domSetAttr(op.node, op.name, value)) return;
-    bumpMutationSeq({ attribute: op.name, node: op.node });
-    if (op.name === "id") stampNamedGlobal(op.node, String(value));
-    if (ksGlobal.__ks_cdpDomActive) {
-      cdpMutations.push({
-        kind: "attributeModified",
-        nodeId: op.node,
-        name: op.name,
-        value,
-      });
-    }
+    recordSetAttribute(op, domSetAttr);
     return;
   }
   if (op.kind === "removeAttribute" && domRemoveAttr) {
-    if (!domRemoveAttr(op.node, op.name)) return;
-    bumpMutationSeq({ attribute: op.name, node: op.node });
-    if (op.name === "id") stampNamedGlobal(op.node, "");
-    if (ksGlobal.__ks_cdpDomActive) {
-      cdpMutations.push({
-        kind: "attributeRemoved",
-        nodeId: op.node,
-        name: op.name,
-      });
-    }
+    recordRemoveAttribute(op, domRemoveAttr);
     return;
   }
+  applyGenericOperation(op);
+}
+
+function recordSetAttribute(
+  op: Extract<DomOperation, { kind: "setAttribute" }>,
+  setAttribute: DomHandle["setAttribute"],
+): void {
+  const value = op.value ?? "";
+  if (!setAttribute(op.node, op.name, value)) return;
+  bumpMutationSeq({ attribute: op.name, node: op.node });
+  if (op.name === "id") stampNamedGlobal(op.node, String(value));
+  if (ksGlobal.__ks_cdpDomActive) {
+    cdpMutations.push({ kind: "attributeModified", nodeId: op.node, name: op.name, value });
+  }
+}
+
+function recordRemoveAttribute(
+  op: Extract<DomOperation, { kind: "removeAttribute" }>,
+  removeAttribute: DomHandle["removeAttribute"],
+): void {
+  if (!removeAttribute(op.node, op.name)) return;
+  bumpMutationSeq({ attribute: op.name, node: op.node });
+  if (op.name === "id") stampNamedGlobal(op.node, "");
+  if (ksGlobal.__ks_cdpDomActive) {
+    cdpMutations.push({ kind: "attributeRemoved", nodeId: op.node, name: op.name });
+  }
+}
+
+function applyGenericOperation(op: DomOperation): void {
   let applied = 0;
   try {
     applied = dom.applyOps(JSON.stringify([op]));
   } catch (err) {
-    const message =
-      typeof err === "object" && err !== null && "message" in err ? err.message : undefined;
-    const msg = message ? String(message) : String(err);
-    throw new TypeError("kitesurf: mutation rejected: " + msg);
+    throw mutationRejected(err);
   }
   if (applied > 0) {
     ops.push(op);
     bumpMutationSeq();
-    switch (op.kind) {
-      case "setAttribute":
-        recordCdpMutationImpl({
-          kind: "attributeModified",
-          nodeId: op.node,
-          name: op.name,
-          value: op.value ?? "",
-        });
-        break;
-      case "removeAttribute":
-        recordCdpMutationImpl({
-          kind: "attributeRemoved",
-          nodeId: op.node,
-          name: op.name,
-        });
-        break;
-      case "setNodeText":
-        recordCdpMutationImpl({
-          kind: "characterDataModified",
-          nodeId: op.node,
-          characterData: op.text ?? "",
-        });
-        break;
-      case "appendChildHtml":
-      case "setInnerHtml":
-        const parentId = op.kind === "appendChildHtml" ? op.parent : op.node;
-        recordCdpMutationImpl({
-          kind: "childNodeCountUpdated",
-          nodeId: parentId,
-          childNodeCount: safeChildNodeCount(parentId),
-        });
-        break;
-    }
+    recordAppliedOperation(op);
   }
+}
+
+function mutationRejected(err: unknown): TypeError {
+  const message =
+    typeof err === "object" && err !== null && "message" in err ? err.message : undefined;
+  const msg = message ? String(message) : String(err);
+  return new TypeError("kitesurf: mutation rejected: " + msg);
+}
+
+function recordAppliedOperation(op: DomOperation): void {
+  switch (op.kind) {
+    case "setAttribute":
+      recordCdpMutationImpl({
+        kind: "attributeModified",
+        nodeId: op.node,
+        name: op.name,
+        value: op.value ?? "",
+      });
+      break;
+    case "removeAttribute":
+      recordCdpMutationImpl({ kind: "attributeRemoved", nodeId: op.node, name: op.name });
+      break;
+    case "setNodeText":
+      recordCdpMutationImpl({
+        kind: "characterDataModified",
+        nodeId: op.node,
+        characterData: op.text ?? "",
+      });
+      break;
+    case "appendChildHtml":
+    case "setInnerHtml":
+      recordChildNodeCount(op);
+      break;
+  }
+}
+
+function recordChildNodeCount(
+  op: Extract<DomOperation, { kind: "appendChildHtml" | "setInnerHtml" }>,
+): void {
+  const parentId = op.kind === "appendChildHtml" ? op.parent : op.node;
+  recordCdpMutationImpl({
+    kind: "childNodeCountUpdated",
+    nodeId: parentId,
+    childNodeCount: safeChildNodeCount(parentId),
+  });
 }
 /** Appends CDP mutations when enabled; structural events require an attached node. */
 function recordCdpMutationImpl(event: RawCdpMutation): void {
   if (!ksGlobal.__ks_cdpDomActive) return;
-  const kind = event.kind;
-  if (
-    kind === "attributeModified" ||
-    kind === "attributeRemoved" ||
-    kind === "characterDataModified"
-  ) {
+  if (isSimpleMutation(event)) {
     cdpMutations.push(event);
     return;
   }
-  let probeId: number | null = null;
-  if (kind === "childNodeInserted") {
-    probeId = event.nodeId;
-  } else if (kind === "childNodeRemoved" || kind === "childNodeCountUpdated") {
-    probeId = (event as { parentNodeId?: number }).parentNodeId ?? event.nodeId;
-  } else if (kind === "shadowRootPushed" || (kind as string) === "shadowRootPopped") {
-    probeId = event.hostId;
-  } else {
-    probeId = (event as { nodeId: number }).nodeId;
-  }
+  const probeId = mutationProbeId(event);
   if (typeof probeId !== "number" || !isAttachedToDocument(probeId)) {
     return;
   }
   cdpMutations.push(event);
+}
+
+function isSimpleMutation(
+  event: RawCdpMutation,
+): event is Extract<
+  RawCdpMutation,
+  { kind: "attributeModified" | "attributeRemoved" | "characterDataModified" }
+> {
+  return (
+    event.kind === "attributeModified" ||
+    event.kind === "attributeRemoved" ||
+    event.kind === "characterDataModified"
+  );
+}
+
+function mutationProbeId(event: RawCdpMutation): number | null {
+  if (event.kind === "childNodeInserted") return event.nodeId;
+  if (isChildNodeRemoval(event)) return childMutationProbeId(event);
+  const hostId = shadowRootMutationHostId(event);
+  if (hostId !== null) return hostId;
+  return (event as { nodeId: number }).nodeId;
+}
+
+function isChildNodeRemoval(
+  event: RawCdpMutation,
+): event is Extract<RawCdpMutation, { kind: "childNodeRemoved" | "childNodeCountUpdated" }> {
+  return event.kind === "childNodeRemoved" || event.kind === "childNodeCountUpdated";
+}
+
+function childMutationProbeId(
+  event: Extract<RawCdpMutation, { kind: "childNodeRemoved" | "childNodeCountUpdated" }>,
+): number {
+  return (event as { parentNodeId?: number }).parentNodeId ?? event.nodeId;
+}
+
+function shadowRootMutationHostId(event: RawCdpMutation): number | null {
+  if (event.kind === "shadowRootPushed") return event.hostId;
+  if ((event.kind as string) !== "shadowRootPopped") return null;
+  const hostId: unknown = Reflect.get(event, "hostId");
+  return typeof hostId === "number" ? hostId : null;
 }
 
 export { recordOpImpl as recordOp, recordCdpMutationImpl as recordCdpMutation };

@@ -28,11 +28,22 @@ const NodeFilter = Object.freeze({
 });
 
 function traversalFilterThrow(node: Idl.Node | null, whatToShow: number, filter: unknown): number {
+  const shown = traversalTypeResult(node, whatToShow);
+  if (shown !== NodeFilter.FILTER_ACCEPT) return shown;
+  if (node === null) return NodeFilter.FILTER_REJECT;
+  return invokeTraversalFilter(node, filter);
+}
+
+function traversalTypeResult(node: Idl.Node | null, whatToShow: number): number {
   if (!node) return NodeFilter.FILTER_REJECT;
   const nt = node.nodeType;
   if (nt == null) return NodeFilter.FILTER_REJECT;
   const bit = 1 << (nt - 1);
   if ((whatToShow & bit) === 0) return NodeFilter.FILTER_SKIP;
+  return NodeFilter.FILTER_ACCEPT;
+}
+
+function invokeTraversalFilter(node: Idl.Node, filter: unknown): number {
   if (filter == null) return NodeFilter.FILTER_ACCEPT;
   let result: unknown;
   if (typeof filter === "function") {
@@ -50,6 +61,33 @@ function traversalFilterThrow(node: Idl.Node | null, whatToShow: number, filter:
 }
 
 type StoredFilter = Idl.NodeFilter | null;
+
+function isTraversalBoundary(parent: Idl.Node | null, root: Idl.Node, stopAt: Idl.Node): boolean {
+  return parent == null || parent === root || parent === stopAt;
+}
+
+function hasSiblingTraversalParent(
+  parent: Idl.Node | null | undefined,
+  root: Idl.Node,
+): parent is Idl.Node {
+  return parent != null && parent !== root;
+}
+
+function hasPreviousTraversalParent(parent: Idl.Node | null, root: Idl.Node): parent is Idl.Node {
+  return parent !== null && parent !== root;
+}
+
+function shouldAdjustIteratorReference(
+  removedNode: Idl.Node,
+  root: Idl.Node,
+  reference: Idl.Node,
+): boolean {
+  return (
+    removedNode !== root &&
+    isInclusiveAncestor(removedNode, reference) &&
+    !isInclusiveAncestor(removedNode, root)
+  );
+}
 
 class TreeWalker implements Idl.TreeWalker {
   readonly #root: Idl.Node;
@@ -97,7 +135,7 @@ class TreeWalker implements Idl.TreeWalker {
     let node: Idl.Node | null = this.#current;
     while (node !== null && node !== this.#root) {
       node = node.parentNode;
-      if (node === null || node === undefined) return null;
+      if (node == null) return null;
       if (this.#accept(node) === NodeFilter.FILTER_ACCEPT) {
         this.#current = node;
         return node;
@@ -121,81 +159,86 @@ class TreeWalker implements Idl.TreeWalker {
 
   #traverseChildren(dir: "first" | "last"): Idl.Node | null {
     const startCurrent = this.#current;
-    let node = dir === "first" ? startCurrent.firstChild : startCurrent.lastChild;
-    while (node !== null && node !== undefined) {
+    let node = this.#childAt(startCurrent, dir);
+    while (node != null) {
       const result = this.#accept(node);
       if (result === NodeFilter.FILTER_ACCEPT) {
         this.#current = node;
         return node;
       }
       if (result === NodeFilter.FILTER_SKIP) {
-        const child = dir === "first" ? node.firstChild : node.lastChild;
-        if (child !== null && child !== undefined) {
+        const child = this.#childAt(node, dir);
+        if (child != null) {
           node = child;
           continue;
         }
       }
-      while (node !== null && node !== undefined) {
-        const sib: Idl.Node | null = dir === "first" ? node.nextSibling : node.previousSibling;
-        if (sib !== null && sib !== undefined) {
-          node = sib;
-          break;
-        }
-        const parent: Idl.Node | null = node.parentNode;
-        if (parent === null || parent === this.#root || parent === startCurrent) {
-          return null;
-        }
-        node = parent;
-      }
+      node = this.#nextChildTraversalNode(node, startCurrent, dir);
+    }
+    return null;
+  }
+
+  #childAt(node: Idl.Node, dir: "first" | "last"): Idl.Node | null {
+    return dir === "first" ? node.firstChild : node.lastChild;
+  }
+
+  #nextChildTraversalNode(
+    start: Idl.Node,
+    stopAt: Idl.Node,
+    dir: "first" | "last",
+  ): Idl.Node | null {
+    let node: Idl.Node | null = start;
+    while (node != null) {
+      const sibling = dir === "first" ? node.nextSibling : node.previousSibling;
+      if (sibling != null) return sibling;
+      const parent: Idl.Node | null = node.parentNode;
+      if (isTraversalBoundary(parent, this.#root, stopAt)) return null;
+      node = parent;
     }
     return null;
   }
 
   #traverseSiblings(dir: "next" | "prev"): Idl.Node | null {
-    let node: Idl.Node | null = this.#current;
-    if (node === this.#root) return null;
-    while (true) {
-      let sibling: Idl.Node | null = dir === "next" ? node.nextSibling : node.previousSibling;
-      while (sibling !== null && sibling !== undefined) {
-        node = sibling;
-        const result = this.#accept(node);
-        if (result === NodeFilter.FILTER_ACCEPT) {
-          this.#current = node;
-          return node;
-        }
-        sibling = dir === "next" ? node.firstChild : node.lastChild;
-        if (result === NodeFilter.FILTER_REJECT || sibling === null || sibling === undefined) {
-          sibling = dir === "next" ? node.nextSibling : node.previousSibling;
-        }
+    let node = this.#current;
+    while (node !== this.#root) {
+      const sibling = this.#acceptedSibling(node, dir);
+      if (sibling) {
+        this.#current = sibling;
+        return sibling;
       }
-      node = node.parentNode;
-      if (node === null || node === this.#root) return null;
-      if (this.#accept(node) === NodeFilter.FILTER_ACCEPT) return null;
+      const parent = node.parentNode;
+      if (!hasSiblingTraversalParent(parent, this.#root)) return null;
+      if (this.#accept(parent) === NodeFilter.FILTER_ACCEPT) return null;
+      node = parent;
     }
+    return null;
+  }
+
+  #acceptedSibling(node: Idl.Node, dir: "next" | "prev"): Idl.Node | null {
+    let sibling = dir === "next" ? node.nextSibling : node.previousSibling;
+    while (sibling != null) {
+      const result = this.#accept(sibling);
+      if (result === NodeFilter.FILTER_ACCEPT) return sibling;
+      sibling = this.#nextSiblingCandidate(sibling, result, dir);
+    }
+    return null;
+  }
+
+  #nextSiblingCandidate(node: Idl.Node, result: number, dir: "next" | "prev"): Idl.Node | null {
+    const child = dir === "next" ? node.firstChild : node.lastChild;
+    if (result !== NodeFilter.FILTER_REJECT && child != null) return child;
+    return dir === "next" ? node.nextSibling : node.previousSibling;
   }
 
   nextNode() {
     let node: Idl.Node = this.#current;
     let result: number = NodeFilter.FILTER_ACCEPT;
     while (true) {
-      while (result !== NodeFilter.FILTER_REJECT && node.firstChild) {
-        node = node.firstChild;
-        result = this.#accept(node);
-        if (result === NodeFilter.FILTER_ACCEPT) {
-          this.#current = node;
-          return node;
-        }
-      }
-      let temporary: Idl.Node | null = node;
-      let sibling: Idl.Node | null = null;
-      while (temporary !== null) {
-        if (temporary === this.#root) return null;
-        sibling = temporary.nextSibling;
-        if (sibling !== null && sibling !== undefined) break;
-        temporary = temporary.parentNode;
-      }
-      if (sibling === null || sibling === undefined) return null;
-      node = sibling;
+      const descent = this.#descendAcceptedNode(node, result);
+      if (descent.accepted) return descent.accepted;
+      const next = this.#nextSiblingOutsideSubtree(descent.node);
+      if (next === null) return null;
+      node = next;
       result = this.#accept(node);
       if (result === NodeFilter.FILTER_ACCEPT) {
         this.#current = node;
@@ -204,30 +247,63 @@ class TreeWalker implements Idl.TreeWalker {
     }
   }
 
+  #descendAcceptedNode(
+    start: Idl.Node,
+    startResult: number,
+  ): { node: Idl.Node; result: number; accepted: Idl.Node | null } {
+    let node = start;
+    let result = startResult;
+    while (result !== NodeFilter.FILTER_REJECT && node.firstChild) {
+      node = node.firstChild;
+      result = this.#accept(node);
+      if (result === NodeFilter.FILTER_ACCEPT) {
+        this.#current = node;
+        return { node, result, accepted: node };
+      }
+    }
+    return { node, result, accepted: null };
+  }
+
+  #nextSiblingOutsideSubtree(start: Idl.Node): Idl.Node | null {
+    let node: Idl.Node | null = start;
+    while (node !== null) {
+      if (node === this.#root) return null;
+      if (node.nextSibling) return node.nextSibling;
+      node = node.parentNode;
+    }
+    return null;
+  }
+
   previousNode() {
     let node: Idl.Node = this.#current;
     while (node !== this.#root) {
-      let sibling: Idl.Node | null = node.previousSibling;
-      while (sibling !== null && sibling !== undefined) {
-        node = sibling;
-        let result = this.#accept(node);
-        while (result !== NodeFilter.FILTER_REJECT && node.lastChild) {
-          node = node.lastChild;
-          result = this.#accept(node);
-        }
-        if (result === NodeFilter.FILTER_ACCEPT) {
-          this.#current = node;
-          return node;
-        }
-        sibling = node.previousSibling;
+      const previous = this.#previousAcceptedSibling(node);
+      if (previous) {
+        this.#current = previous;
+        return previous;
       }
-      if (node === this.#root || node.parentNode === null) return null;
-      node = node.parentNode;
-      if (node === this.#root) return null;
+      const parent = node.parentNode;
+      if (!hasPreviousTraversalParent(parent, this.#root)) return null;
+      node = parent;
       if (this.#accept(node) === NodeFilter.FILTER_ACCEPT) {
         this.#current = node;
         return node;
       }
+    }
+    return null;
+  }
+
+  #previousAcceptedSibling(node: Idl.Node): Idl.Node | null {
+    let sibling: Idl.Node | null = node.previousSibling;
+    while (sibling != null) {
+      let candidate = sibling;
+      let result = this.#accept(candidate);
+      while (result !== NodeFilter.FILTER_REJECT && candidate.lastChild) {
+        candidate = candidate.lastChild;
+        result = this.#accept(candidate);
+      }
+      if (result === NodeFilter.FILTER_ACCEPT) return candidate;
+      sibling = candidate.previousSibling;
     }
     return null;
   }
@@ -325,14 +401,16 @@ class NodeIterator implements Idl.NodeIterator {
 
   // Reposition before detach while the removed subtree's old neighbors are still available.
   #preRemove(removedNode: Idl.Node): void {
-    if (removedNode === this.#root) return;
-    if (!isInclusiveAncestor(removedNode, this.#reference)) return;
-    if (isInclusiveAncestor(removedNode, this.#root)) return;
+    if (!shouldAdjustIteratorReference(removedNode, this.#root, this.#reference)) return;
     if (!this.#pointerBefore) {
       const p = previousNodeFlat(removedNode);
       if (p) this.#reference = p;
       return;
     }
+    this.#moveReferenceBeforeRemovedNode(removedNode);
+  }
+
+  #moveReferenceBeforeRemovedNode(removedNode: Idl.Node): void {
     const next = nextNodeAfterDescendants(removedNode);
     if (next) {
       this.#reference = next;

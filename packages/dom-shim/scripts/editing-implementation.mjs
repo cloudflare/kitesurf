@@ -38,24 +38,32 @@ async function download() {
   let lastErr;
   for (let attempt = 1; attempt <= MAX_DOWNLOAD_ATTEMPTS; attempt++) {
     try {
-      const res = await fetch(UPSTREAM_URL, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const got = sha256(text);
-      if (got !== UPSTREAM_SHA256) {
-        throw Object.assign(new Error(`sha256 mismatch: expected ${UPSTREAM_SHA256}, got ${got}`), {
-          fatal: true,
-        });
-      }
-      await mkdir(dirname(CACHE_FILE), { recursive: true });
-      await writeFile(CACHE_FILE, text);
-      return text;
+      return await downloadOnce();
     } catch (err) {
       if (err.fatal) throw err;
       lastErr = err;
     }
   }
-  throw new Error(`[dom-shim] could not download ${UPSTREAM_URL}: ${lastErr?.message ?? lastErr}`);
+  throw downloadError(lastErr);
+}
+
+function downloadError(lastErr) {
+  return new Error(`[dom-shim] could not download ${UPSTREAM_URL}: ${lastErr?.message ?? lastErr}`);
+}
+
+async function downloadOnce() {
+  const res = await fetch(UPSTREAM_URL, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  const got = sha256(text);
+  if (got !== UPSTREAM_SHA256) {
+    throw Object.assign(new Error(`sha256 mismatch: expected ${UPSTREAM_SHA256}, got ${got}`), {
+      fatal: true,
+    });
+  }
+  await mkdir(dirname(CACHE_FILE), { recursive: true });
+  await writeFile(CACHE_FILE, text);
+  return text;
 }
 
 async function applySeries(upstream) {

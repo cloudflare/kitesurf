@@ -25,29 +25,48 @@ function computeLabelsForControl(control: Element): Element[] {
   if (inputTypeOf(control) === "hidden") return [];
   const seen = new Set<Element>();
   const out: Element[] = [];
+  addAncestorLabels(control, seen, out);
+  addExplicitLabels(control, seen, out);
+  return out;
+}
+
+function addAncestorLabels(control: Element, seen: Set<Element>, out: Element[]): void {
   let p = control.parentNode;
   while (p) {
-    if (isHtmlTag(p, "label")) {
-      if (!seen.has(p)) {
-        seen.add(p);
-        out.push(p);
-      }
+    if (isHtmlTag(p, "label") && !seen.has(p)) {
+      seen.add(p);
+      out.push(p);
     }
     p = p.parentNode;
   }
-  if (control.id) {
-    const doc = control.ownerDocument || document;
-    try {
-      const all = doc.querySelectorAll("label[for]");
-      for (const l of all) {
-        if (l.getAttribute("for") === control.id && !seen.has(l)) {
-          seen.add(l);
-          out.push(l);
-        }
-      }
-    } catch {}
+}
+
+function addExplicitLabels(control: Element, seen: Set<Element>, out: Element[]): void {
+  if (!control.id) return;
+  const doc = control.ownerDocument || document;
+  try {
+    addLabelsForControl(doc.querySelectorAll("label[for]"), control, seen, out);
+  } catch {}
+}
+
+function addLabelsForControl(
+  labels: Iterable<Element>,
+  control: Element,
+  seen: Set<Element>,
+  out: Element[],
+): void {
+  for (const label of labels) {
+    if (isNewLabelForControl(label, control, seen)) addLabel(label, seen, out);
   }
-  return out;
+}
+
+function isNewLabelForControl(label: Element, control: Element, seen: Set<Element>): boolean {
+  return label.getAttribute("for") === control.id && !seen.has(label);
+}
+
+function addLabel(label: Element, seen: Set<Element>, out: Element[]): void {
+  seen.add(label);
+  out.push(label);
 }
 
 function labelsForControl(control: Element): NodeListCls {

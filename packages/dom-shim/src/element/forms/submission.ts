@@ -19,6 +19,9 @@ import { selectedOptionsOf, isOptionEffectivelyDisabled } from "./select-options
 import type { Element } from "../element.js";
 import type { HTMLFormElement } from "./form.js";
 import type { HTMLInputElement } from "./input.js";
+import type { HTMLButtonElement } from "./button.js";
+import type { HTMLSelectElement } from "./select.js";
+import type { HTMLTextAreaElement } from "./textarea.js";
 import { isHtmlTag } from "../html-tag.js";
 
 type SubmissionFile = File & { __ksBits?: string };
@@ -32,19 +35,40 @@ function appendInputEntries(
   encoding: string,
 ) {
   const type = inputTypeOf(input);
-  if (type === "checkbox" || type === "radio") {
-    if (input.checked) entries.push([name, input.value]);
-  } else if (type === "submit" || type === "image" || type === "reset" || type === "button") {
-    if (input === submitter) entries.push([name, input.value]);
-  } else if (type === "hidden" && name.toLowerCase() === "_charset_") {
-    entries.push([name, encoding]);
-  } else if (type === "file") {
-    const files = fileInputFiles.get(input._id) || [];
-    if (files.length === 0) entries.push([name, new ksGlobal.File([], "")]);
-    else for (const file of files) entries.push([name, file]);
-  } else {
-    entries.push([name, input.value]);
+  switch (type) {
+    case "checkbox":
+    case "radio":
+      if (input.checked) entries.push([name, input.value]);
+      return;
+    case "submit":
+    case "image":
+    case "reset":
+    case "button":
+      if (input === submitter) entries.push([name, input.value]);
+      return;
+    case "hidden":
+      if (name.toLowerCase() === "_charset_") {
+        entries.push([name, encoding]);
+        return;
+      }
+      entries.push([name, input.value]);
+      return;
+    case "file":
+      appendFileInputEntries(entries, name, input);
+      return;
+    default:
+      entries.push([name, input.value]);
   }
+}
+
+function appendFileInputEntries(
+  entries: SubmissionEntry[],
+  name: string,
+  input: HTMLInputElement,
+): void {
+  const files = fileInputFiles.get(input._id) || [];
+  if (files.length === 0) entries.push([name, new ksGlobal.File([], "")]);
+  else for (const file of files) entries.push([name, file]);
 }
 
 function collectFormEntries(
@@ -56,40 +80,88 @@ function collectFormEntries(
   const els = form.elements;
   for (let i = 0; i < els.length; i++) {
     const el: unknown = els[i];
-    if (
-      !isHtmlTag(el, "input") &&
-      !isHtmlTag(el, "textarea") &&
-      !isHtmlTag(el, "select") &&
-      !isHtmlTag(el, "button")
-    )
-      continue;
+    if (!isSuccessfulFormControl(el)) continue;
     const name = el.getAttribute("name");
-    if (typeof name !== "string" || !name || isDisabledInFormContext(el)) continue;
-    if (isHtmlTag(el, "input")) {
-      appendInputEntries(entries, name, el, submitter, encoding);
-      continue;
-    } else if (isHtmlTag(el, "textarea")) {
-      entries.push([name, el.value]);
-    } else if (isHtmlTag(el, "select")) {
-      for (const o of selectedOptionsOf(el)) {
-        if (!isOptionEffectivelyDisabled(o)) entries.push([name, o.value]);
-      }
-    } else if (isHtmlTag(el, "button")) {
-      if (el === submitter) entries.push([name, el.value]);
-    }
+    if (!isSuccessfulControlName(name, el)) continue;
+    appendControlEntry(entries, el, name, submitter, encoding);
   }
   return entries;
 }
 
+function isSuccessfulFormControl(
+  element: unknown,
+): element is HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement {
+  return (
+    isHtmlTag(element, "input") ||
+    isHtmlTag(element, "textarea") ||
+    isHtmlTag(element, "select") ||
+    isHtmlTag(element, "button")
+  );
+}
+
+function isSuccessfulControlName(name: unknown, element: Element): name is string {
+  return typeof name === "string" && !!name && !isDisabledInFormContext(element);
+}
+
+function appendControlEntry(
+  entries: SubmissionEntry[],
+  el: Element,
+  name: string,
+  submitter: unknown,
+  encoding: string,
+): void {
+  if (isHtmlTag(el, "input")) {
+    appendInputEntries(entries, name, el, submitter, encoding);
+    return;
+  }
+  if (isHtmlTag(el, "textarea")) {
+    entries.push([name, el.value]);
+    return;
+  }
+  if (isHtmlTag(el, "select")) {
+    appendSelectEntries(entries, name, el);
+    return;
+  }
+  if (isHtmlTag(el, "button")) appendButtonEntry(entries, name, el, submitter);
+}
+
+function appendSelectEntries(
+  entries: SubmissionEntry[],
+  name: string,
+  select: Parameters<typeof selectedOptionsOf>[0],
+): void {
+  for (const option of selectedOptionsOf(select)) {
+    if (!isOptionEffectivelyDisabled(option)) entries.push([name, option.value]);
+  }
+}
+
+function appendButtonEntry(
+  entries: SubmissionEntry[],
+  name: string,
+  button: HTMLButtonElement,
+  submitter: unknown,
+): void {
+  if (button === submitter) entries.push([name, button.value]);
+}
+
 const isFileEntry = (v: unknown): v is SubmissionFile =>
-  typeof v === "object" &&
-  v !== null &&
-  "name" in v &&
-  typeof v.name === "string" &&
-  "size" in v &&
-  typeof v.size === "number" &&
-  "arrayBuffer" in v &&
-  typeof v.arrayBuffer === "function";
+  isObjectLike(v) && hasStringFileName(v) && hasNumericFileSize(v) && hasArrayBufferMethod(v);
+
+function isObjectLike(v: unknown): v is object {
+  return typeof v === "object" && v !== null;
+}
+
+function hasStringFileName(v: object): boolean {
+  return "name" in v && typeof v.name === "string";
+}
+
+function hasNumericFileSize(v: object): boolean {
+  return "size" in v && typeof v.size === "number";
+}
+
+function hasArrayBufferMethod(v: object): boolean {
+  return "arrayBuffer" in v && typeof v.arrayBuffer === "function";
+}
 function multipartEscape(s: unknown) {
   return String(s).replace(/\r/g, "%0D").replace(/\n/g, "%0A").replace(/"/g, "%22");
 }
@@ -123,43 +195,74 @@ function encodeFormBody(
   encoding: string,
 ): { body: string; contentType: string } {
   // The parent decodes this JSON string one code unit at a time to recover request bytes.
-  const toLatin1Wire = (s: string): string =>
-    binaryString(encodeHtmlBytes(encoding, s) ?? _MPEncoder.encode(s));
-  if (enctype === "text/plain") {
-    let body = "";
-    for (const [n, v] of entries) {
-      body += toLatin1Wire(`${n}=${isFileEntry(v) ? v.name : v}\r\n`);
-    }
-    return { body, contentType: "text/plain" };
-  }
-  if (enctype === "multipart/form-data") {
-    const boundary = generateMultipartBoundary();
-    let body = "";
-    for (const [n, v] of entries) {
-      if (isFileEntry(v)) {
-        const bits = typeof v.__ksBits === "string" ? v.__ksBits : "";
-        body += toLatin1Wire(
-          `--${boundary}\r\n` +
-            `Content-Disposition: form-data; name="${multipartEscape(n)}"; filename="${multipartEscape(v.name)}"\r\n` +
-            `Content-Type: ${sanitizeMimeType(v.type)}\r\n\r\n`,
-        );
-        body += bits;
-        body += toLatin1Wire("\r\n");
-      } else {
-        body += toLatin1Wire(
-          `--${boundary}\r\n` +
-            `Content-Disposition: form-data; name="${multipartEscape(n)}"\r\n\r\n` +
-            `${v}\r\n`,
-        );
-      }
-    }
-    body += toLatin1Wire(`--${boundary}--\r\n`);
-    return { body, contentType: `multipart/form-data; boundary=${boundary}` };
-  }
+  if (enctype === "text/plain") return encodeTextPlain(entries, encoding);
+  if (enctype === "multipart/form-data") return encodeMultipart(entries, encoding);
   return {
     body: urlencodedSerialize(formStringEntries(entries), encoding),
     contentType: "application/x-www-form-urlencoded",
   };
+}
+
+function toLatin1Wire(value: string, encoding: string): string {
+  return binaryString(encodeHtmlBytes(encoding, value) ?? _MPEncoder.encode(value));
+}
+
+function encodeTextPlain(
+  entries: readonly SubmissionEntry[],
+  encoding: string,
+): { body: string; contentType: string } {
+  let body = "";
+  for (const [name, value] of entries) {
+    body += toLatin1Wire(`${name}=${isFileEntry(value) ? value.name : value}\r\n`, encoding);
+  }
+  return { body, contentType: "text/plain" };
+}
+
+function encodeMultipart(
+  entries: readonly SubmissionEntry[],
+  encoding: string,
+): { body: string; contentType: string } {
+  const boundary = generateMultipartBoundary();
+  let body = "";
+  for (const [name, value] of entries) {
+    body += isFileEntry(value)
+      ? encodeMultipartFile(name, value, boundary, encoding)
+      : encodeMultipartString(name, value, boundary, encoding);
+  }
+  body += toLatin1Wire(`--${boundary}--\r\n`, encoding);
+  return { body, contentType: `multipart/form-data; boundary=${boundary}` };
+}
+
+function encodeMultipartFile(
+  name: string,
+  file: SubmissionFile,
+  boundary: string,
+  encoding: string,
+): string {
+  const bits = typeof file.__ksBits === "string" ? file.__ksBits : "";
+  let body = toLatin1Wire(
+    `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="${multipartEscape(name)}"; filename="${multipartEscape(file.name)}"\r\n` +
+      `Content-Type: ${sanitizeMimeType(file.type)}\r\n\r\n`,
+    encoding,
+  );
+  body += bits;
+  body += toLatin1Wire("\r\n", encoding);
+  return body;
+}
+
+function encodeMultipartString(
+  name: string,
+  value: string,
+  boundary: string,
+  encoding: string,
+): string {
+  return toLatin1Wire(
+    `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="${multipartEscape(name)}"\r\n\r\n` +
+      `${value}\r\n`,
+    encoding,
+  );
 }
 
 function formStringEntries(entries: readonly SubmissionEntry[]): Array<[string, string]> {

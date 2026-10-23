@@ -65,35 +65,42 @@ function hasReportValidity(element: Idl.Element): element is ElementWithReportVa
   return typeof Reflect.get(element, "reportValidity") === "function";
 }
 
-interface SubmitterLike {
-  hasAttribute(name: string): boolean;
-  getAttribute(name: string): string | null;
-}
-
 function resetInput(input: HTMLInputElement) {
   const type = inputTypeOf(input);
-  if (type === "checkbox" || type === "radio") {
-    const state = inputStateOf(input);
-    state.checkedDirty = false;
-    state.checked = false;
-    try {
-      const domHandle = dom;
-      if (typeof domHandle.setCheckboxChecked === "function") {
-        domHandle.setCheckboxChecked(input._id, input.hasAttribute("checked"));
-      }
-    } catch {}
-  } else if (type !== "submit" && type !== "reset" && type !== "button" && type !== "image") {
-    if (type === "file") {
-      fileInputFiles.delete(input._id);
-      fileInputLists.delete(input._id);
+  if (isCheckableType(type)) return resetCheckedInput(input);
+  if (isButtonType(type)) return;
+  resetInputValue(input, type);
+}
+
+function isCheckableType(type: string): boolean {
+  return type === "checkbox" || type === "radio";
+}
+
+function isButtonType(type: string): boolean {
+  return type === "submit" || type === "reset" || type === "button" || type === "image";
+}
+
+function resetCheckedInput(input: HTMLInputElement): void {
+  const state = inputStateOf(input);
+  state.checkedDirty = false;
+  state.checked = false;
+  try {
+    const domHandle = dom;
+    if (typeof domHandle.setCheckboxChecked === "function") {
+      domHandle.setCheckboxChecked(input._id, input.hasAttribute("checked"));
     }
-    const state = inputStateOf(input);
-    state.valueDirty = false;
-    state.value = "";
-    if (state.defaultValueAttr !== undefined) {
-      ksPushInputText(input, state.defaultValueAttr);
-    }
+  } catch {}
+}
+
+function resetInputValue(input: HTMLInputElement, type: string): void {
+  if (type === "file") {
+    fileInputFiles.delete(input._id);
+    fileInputLists.delete(input._id);
   }
+  const state = inputStateOf(input);
+  state.valueDirty = false;
+  state.value = "";
+  if (state.defaultValueAttr !== undefined) ksPushInputText(input, state.defaultValueAttr);
 }
 
 function resetTextArea(textarea: HTMLTextAreaElement) {
@@ -107,29 +114,364 @@ function resetTextArea(textarea: HTMLTextAreaElement) {
 
 function resetSelect(select: HTMLSelectElement) {
   const options = selectOptions(select);
+  resetOptionSelection(options);
+  if (!select.multiple && !hasSelectedOption(options)) selectFirstEnabledOption(options);
+  resyncSelectLabel(select);
+}
+
+function resetOptionSelection(options: ReturnType<typeof selectOptions>): void {
   for (const option of options) {
     optionSelected.set(option._id, {
       selected: option.defaultSelected,
       dirty: false,
     });
   }
-  if (!select.multiple) {
-    let anySelected = false;
-    for (const option of options) {
-      if (optionSelected.get(option._id)?.selected) {
-        anySelected = true;
-        break;
-      }
-    }
-    if (!anySelected) {
-      for (const option of options) {
-        if (option.disabled) continue;
-        optionSelected.set(option._id, { selected: true, dirty: false });
-        break;
-      }
+}
+
+function hasSelectedOption(options: ReturnType<typeof selectOptions>): boolean {
+  for (const option of options) {
+    if (optionSelected.get(option._id)?.selected) return true;
+  }
+  return false;
+}
+
+function selectFirstEnabledOption(options: ReturnType<typeof selectOptions>): void {
+  for (const option of options) {
+    if (option.disabled) continue;
+    optionSelected.set(option._id, { selected: true, dirty: false });
+    break;
+  }
+}
+
+function collectFormElements(form: HTMLFormElement): Element[] {
+  const out: Element[] = [];
+  const seen = new Set<Element>();
+  appendDescendantFormElements(form, out, seen);
+  appendExternalFormElements(form, out, seen);
+  return out;
+}
+
+function appendDescendantFormElements(
+  form: HTMLFormElement,
+  out: Element[],
+  seen: Set<Element>,
+): void {
+  for (const control of formListedDescendants(form)) {
+    if (control.form === form) {
+      out.push(control);
+      seen.add(control);
     }
   }
-  resyncSelectLabel(select);
+}
+
+function appendExternalFormElements(
+  form: HTMLFormElement,
+  out: Element[],
+  seen: Set<Element>,
+): void {
+  if (!form.id) return;
+  const doc = form.ownerDocument || document;
+  try {
+    const externals = doc.querySelectorAll(`[form="${form.id}"]`);
+    appendExternalElements(externals, form, out, seen);
+  } catch {}
+}
+
+function appendExternalElements(
+  externals: Iterable<Element>,
+  form: HTMLFormElement,
+  out: Element[],
+  seen: Set<Element>,
+): void {
+  for (const element of externals) {
+    if (!isNewExternalFormElement(element, form, seen)) continue;
+    out.push(element);
+    seen.add(element);
+  }
+}
+
+function isNewExternalFormElement(
+  element: Element,
+  form: HTMLFormElement,
+  seen: Set<Element>,
+): boolean {
+  return !seen.has(element) && isFormListed(element) && element.form === form;
+}
+
+function currentFormAction(): string {
+  try {
+    const doc = ksGlobal.document;
+    return String(doc?.URL || "");
+  } catch {
+    return "";
+  }
+}
+
+function resolveFormActionUrl(raw: string, form: HTMLFormElement): string {
+  try {
+    return new URL(raw, form.baseURI || undefined).toString();
+  } catch {
+    return raw;
+  }
+}
+
+function isMissingFormAction(raw: string | null): raw is null | "" {
+  return raw == null || raw === "";
+}
+
+function isSubmitButton(
+  submitter: Idl.HTMLElement,
+): submitter is HTMLButtonElement | HTMLInputElement {
+  return (
+    (submitter instanceof HTMLButtonElement && submitter.type === "submit") ||
+    (submitter instanceof HTMLInputElement &&
+      (inputTypeOf(submitter) === "submit" || inputTypeOf(submitter) === "image"))
+  );
+}
+
+function validateSubmitter(
+  form: HTMLFormElement,
+  submitter: Idl.HTMLElement | null | undefined,
+): void {
+  if (submitter === null || submitter === undefined) return;
+  assertValidSubmitter(form, submitter);
+}
+
+function assertValidSubmitter(form: HTMLFormElement, submitter: Idl.HTMLElement): void {
+  if (!isSubmitButton(submitter)) {
+    throw new (ksGlobal.DOMException || Error)(
+      "requestSubmit: submitter must be a submit button",
+      "TypeError",
+    );
+  }
+  if (submitter.form !== form) {
+    throw new DOMException(
+      "requestSubmit: submitter is not associated with this form",
+      "NotFoundError",
+    );
+  }
+}
+
+function dispatchFormSubmit(
+  form: HTMLFormElement,
+  submitter: Idl.HTMLElement | null | undefined,
+): string | null {
+  const ev = new KsSubmitEvent("submit", {
+    bubbles: true,
+    cancelable: true,
+    submitter: submitter || null,
+  });
+  form.__ksFiringSubmit(() => form.dispatchEvent(ev));
+  if (ev.defaultPrevented) return null;
+  return form.__ksPerformSubmission(submitter || null);
+}
+
+type SubmissionTargetResolution =
+  | { cancelled: true }
+  | { cancelled: false; targetFrame: Element | null };
+
+function resolveSubmissionTarget(
+  form: HTMLFormElement,
+  submitter: Idl.HTMLElement | null,
+): SubmissionTargetResolution {
+  try {
+    const targetAttr = submitterTargetAttribute(form, submitter);
+    const keyword = targetAttr.toLowerCase();
+    if (isDefaultTarget(targetAttr, keyword)) {
+      return { cancelled: false, targetFrame: null };
+    }
+    if (keyword === "_blank") return { cancelled: true };
+    const targetFrame = namedTargetIframe(form, targetAttr);
+    if (!targetFrame) return { cancelled: true };
+    return { cancelled: false, targetFrame };
+  } catch (error) {
+    warnTargetResolution(error);
+    return { cancelled: false, targetFrame: null };
+  }
+}
+
+function submitterTargetAttribute(
+  form: HTMLFormElement,
+  submitter: Idl.HTMLElement | null,
+): string {
+  if (!submitterHasTargetAttribute(submitter)) return form.getAttribute("target") || "";
+  return submitter.getAttribute("formtarget") || "";
+}
+
+function submitterHasTargetAttribute(
+  submitter: Idl.HTMLElement | null,
+): submitter is Idl.HTMLElement {
+  return !!(submitter && submitter.hasAttribute && submitter.hasAttribute("formtarget"));
+}
+
+function isDefaultTarget(targetAttr: string, keyword: string): boolean {
+  return !targetAttr || keyword === "_self" || keyword === "_top" || keyword === "_parent";
+}
+
+function warnTargetResolution(error: unknown): void {
+  try {
+    console.warn("[kitesurf-form] target resolution failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  } catch {}
+}
+
+function submitterHasAttribute(submitter: Idl.HTMLElement | null, attr: string): boolean {
+  return !!(submitter && submitter.hasAttribute && submitter.hasAttribute("form" + attr));
+}
+
+function submitterAttribute(submitter: Idl.HTMLElement | null, attr: string): string | null {
+  return submitter && submitter.getAttribute ? submitter.getAttribute("form" + attr) : null;
+}
+
+function resolveFormMethod(raw: string | null): string {
+  const method = (raw || "").toLowerCase();
+  return method === "get" || method === "post" || method === "dialog" ? method : "get";
+}
+
+function resolveFormEnctype(raw: string | null): string {
+  const enctype = (raw || "").toLowerCase();
+  return enctype === "multipart/form-data" || enctype === "text/plain"
+    ? enctype
+    : "application/x-www-form-urlencoded";
+}
+
+function submissionMethod(form: HTMLFormElement, submitter: Idl.HTMLElement | null): string {
+  return submitterHasAttribute(submitter, "method")
+    ? resolveFormMethod(submitterAttribute(submitter, "method"))
+    : resolveFormMethod(form.getAttribute("method"));
+}
+
+function submissionEnctype(form: HTMLFormElement, submitter: Idl.HTMLElement | null): string {
+  return submitterHasAttribute(submitter, "enctype")
+    ? resolveFormEnctype(submitterAttribute(submitter, "enctype"))
+    : resolveFormEnctype(form.getAttribute("enctype"));
+}
+
+function submissionAction(form: HTMLFormElement, submitter: Idl.HTMLElement | null): string | null {
+  return submitterHasAttribute(submitter, "action")
+    ? submitterAttribute(submitter, "action")
+    : form.getAttribute("action");
+}
+
+function submissionBase(): string | undefined {
+  return (windowObj && windowObj.location && windowObj.location.href) || undefined;
+}
+
+function submissionUrl(
+  form: HTMLFormElement,
+  submitter: Idl.HTMLElement | null,
+  base: string | undefined,
+): URL {
+  const actionAttr = submissionAction(form, submitter);
+  return parseUrlForNode(
+    form,
+    actionAttr && actionAttr.length ? actionAttr : base || "about:blank",
+    base,
+  );
+}
+
+type FormNavigationRequest =
+  | { url: string; postData: string; postContentType: string }
+  | { url: string };
+
+type FormNavigationPlan = { request: FormNavigationRequest; post: IframePost | undefined };
+
+function formNavigationPlan(
+  form: HTMLFormElement,
+  submitter: Idl.HTMLElement | null,
+  method: string,
+  url: URL,
+  entries: ReturnType<typeof collectFormEntries>,
+  encoding: string,
+): FormNavigationPlan {
+  if (method === "post") {
+    const post = encodeFormBody(submissionEnctype(form, submitter), entries, encoding);
+    return {
+      request: { url: url.toString(), postData: post.body, postContentType: post.contentType },
+      post,
+    };
+  }
+  url.search = urlencodedSerialize(formStringEntries(entries), encoding);
+  return { request: { url: url.toString() }, post: undefined };
+}
+
+function dispatchFormNavigation(
+  targetFrame: Element | null,
+  plan: FormNavigationPlan,
+  method: string,
+): string | null {
+  if (targetFrame) {
+    navigateFormInFrame(targetFrame, plan);
+    return null;
+  }
+  const state = getInternalState();
+  if (state.dispatchingUserEvent) {
+    // Defer navigation until the trusted user event finishes, preserving default-action order.
+    state.pendingSubmitNav = plan.request;
+  } else if (typeof ksSendUpstreamEvent === "function") {
+    ksSendUpstreamEvent({ event: "kitesurf.formSubmitNavigate", params: plan.request });
+  }
+  return formSubmissionReturnValue(method, plan.request.url);
+}
+
+function navigateFormInFrame(targetFrame: Element, plan: FormNavigationPlan): void {
+  getInternalState().navigateIframe?.(targetFrame, plan.request.url, plan.post);
+}
+
+function formSubmissionReturnValue(method: string, url: string): string | null {
+  return method === "post" ? null : url;
+}
+
+function performFormSubmission(
+  form: HTMLFormElement,
+  submitter: Idl.HTMLElement | null,
+  targetFrame: Element | null,
+): string | null {
+  try {
+    const method = submissionMethod(form, submitter);
+    if (method === "dialog") return null;
+    const base = submissionBase();
+    const url = submissionUrl(form, submitter, base);
+    const encoding = formEncoding(form);
+    const entries = collectFormEntries(form, submitter || null, encoding);
+    const plan = formNavigationPlan(form, submitter, method, url, entries, encoding);
+    return dispatchFormNavigation(targetFrame, plan, method);
+  } catch {
+    return null;
+  }
+}
+
+function formNodeInfo(id: number): { nodeName?: unknown } | null {
+  let info: { nodeName?: unknown } | null = null;
+  try {
+    info = dom.nodeInfo(id);
+  } catch {}
+  return info;
+}
+
+function assertFormNode(id: number, info: { nodeName?: unknown } | null): void {
+  const namespace = elemNs.get(id);
+  if (!info) throw new TypeError("Illegal invocation");
+  if (!isFormNodeInfo(info)) throw new TypeError("Illegal invocation");
+  if (hasNonHtmlFormNamespace(namespace)) throw new TypeError("Illegal invocation");
+}
+
+function isFormNodeInfo(info: { nodeName?: unknown }): boolean {
+  return String(info.nodeName || "").toUpperCase() === "FORM";
+}
+
+function hasNonHtmlFormNamespace(namespace: ReturnType<typeof elemNs.get>): boolean {
+  return Boolean(namespace && namespace.ns !== HTML_NS);
+}
+
+function resetFormControls(elements: HTMLFormControlsCollection): void {
+  for (let i = 0; i < elements.length; i++) {
+    const element = elements[i];
+    if (element instanceof HTMLInputElement) resetInput(element);
+    else if (element instanceof HTMLTextAreaElement) resetTextArea(element);
+    else if (element instanceof HTMLSelectElement) resetSelect(element);
+  }
 }
 
 interface HTMLFormElement extends Pick<Idl.HTMLFormElement, "rel"> {}
@@ -139,29 +481,10 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
     const cached = elementsCollections.get(this);
     if (cached) return cached;
     const form = this;
-    const coll = makeHtmlCollection<HTMLFormControlsCollection>(() => {
-      const out: Element[] = [];
-      const seen = new Set<Element>();
-      for (const control of formListedDescendants(form)) {
-        if (control.form === form) {
-          out.push(control);
-          seen.add(control);
-        }
-      }
-      if (form.id) {
-        const doc = form.ownerDocument || document;
-        try {
-          const externals = doc.querySelectorAll(`[form="${form.id}"]`);
-          for (const e of externals) {
-            if (!seen.has(e) && isFormListed(e) && e.form === form) {
-              out.push(e);
-              seen.add(e);
-            }
-          }
-        } catch {}
-      }
-      return out;
-    }, HTMLFormControlsCollectionCls);
+    const coll = makeHtmlCollection<HTMLFormControlsCollection>(
+      () => collectFormElements(form),
+      HTMLFormControlsCollectionCls,
+    );
     elementsCollections.set(this, coll);
     return coll;
   }
@@ -178,13 +501,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
   namedItem(name: string): Element | NodeListCls | null {
     if (!name) return null;
     const els = this.elements;
-    const matches: Element[] = [];
-    for (let i = 0; i < els.length; i++) {
-      const e = els[i];
-      if (e.id === name || e.getAttribute("name") === name) {
-        matches.push(e);
-      }
-    }
+    const matches = namedFormElements(els, name);
     if (matches.length === 0) return null;
     if (matches.length === 1) return matches[0];
     return makeNodeList(() => matches);
@@ -196,19 +513,8 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
   }
   get action() {
     const raw = this.getAttribute("action");
-    if (raw == null || raw === "") {
-      try {
-        const doc = ksGlobal.document;
-        return String(doc?.URL || "");
-      } catch {
-        return "";
-      }
-    }
-    try {
-      return new URL(raw, this.baseURI || undefined).toString();
-    } catch {
-      return raw;
-    }
+    if (isMissingFormAction(raw)) return currentFormAction();
+    return resolveFormActionUrl(raw, this);
   }
   set action(v) {
     this.setAttribute("action", String(v));
@@ -283,142 +589,25 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
       formsFiringSubmit.delete(this);
     }
   }
-  __ksRequestSubmit(submitter?: SubmitterLike | null): string | null {
+  __ksRequestSubmit(submitter?: Idl.HTMLElement | null): string | null {
     if (formsFiringSubmit.has(this)) {
       return this.__ksPerformSubmission(submitter ?? null);
     }
-    if (submitter !== null && submitter !== undefined) {
-      const isButtonLike =
-        (submitter instanceof HTMLButtonElement && submitter.type === "submit") ||
-        (submitter instanceof HTMLInputElement &&
-          (inputTypeOf(submitter) === "submit" || inputTypeOf(submitter) === "image"));
-      if (!isButtonLike) {
-        throw new (ksGlobal.DOMException || Error)(
-          "requestSubmit: submitter must be a submit button",
-          "TypeError",
-        );
-      }
-      if (submitter.form !== this) {
-        throw new DOMException(
-          "requestSubmit: submitter is not associated with this form",
-          "NotFoundError",
-        );
-      }
-    }
-    const ev = new KsSubmitEvent("submit", {
-      bubbles: true,
-      cancelable: true,
-      submitter: submitter || null,
-    });
-    this.__ksFiringSubmit(() => this.dispatchEvent(ev));
-    if (ev.defaultPrevented) return null;
-    return this.__ksPerformSubmission(submitter || null);
+    validateSubmitter(this, submitter);
+    return dispatchFormSubmit(this, submitter);
   }
-  __ksPerformSubmission(submitter: SubmitterLike | null): string | null {
-    let targetFrame: Element | null = null;
-    try {
-      const targetAttr =
-        submitter && submitter.hasAttribute && submitter.hasAttribute("formtarget")
-          ? submitter.getAttribute("formtarget") || ""
-          : this.getAttribute("target") || "";
-      const keyword = targetAttr.toLowerCase();
-      if (targetAttr && keyword !== "_self" && keyword !== "_top" && keyword !== "_parent") {
-        if (keyword === "_blank") return null;
-        targetFrame = namedTargetIframe(this, targetAttr);
-        if (!targetFrame) return null;
-      }
-    } catch (error) {
-      try {
-        console.warn("[kitesurf-form] target resolution failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      } catch {}
-    }
-    try {
-      const submitterHas = (attr: string) =>
-        !!(submitter && submitter.hasAttribute && submitter.hasAttribute("form" + attr));
-      const submitterAttr = (attr: string) =>
-        submitter && submitter.getAttribute ? submitter.getAttribute("form" + attr) : null;
-      const resolveMethod = (raw: string | null) => {
-        const m = (raw || "").toLowerCase();
-        return m === "get" || m === "post" || m === "dialog" ? m : "get";
-      };
-      const resolveEnctype = (raw: string | null) => {
-        const e = (raw || "").toLowerCase();
-        return e === "multipart/form-data" || e === "text/plain"
-          ? e
-          : "application/x-www-form-urlencoded";
-      };
-      const method = submitterHas("method")
-        ? resolveMethod(submitterAttr("method"))
-        : resolveMethod(this.getAttribute("method"));
-      if (method === "dialog") return null;
-      const base = (windowObj && windowObj.location && windowObj.location.href) || undefined;
-      const actionAttr = submitterHas("action")
-        ? submitterAttr("action")
-        : this.getAttribute("action");
-      const url = parseUrlForNode(
-        this,
-        actionAttr && actionAttr.length ? actionAttr : base || "about:blank",
-        base,
-      );
-      const encoding = formEncoding(this);
-      const entries = collectFormEntries(this, submitter || null, encoding);
-      let navReq;
-      let post: IframePost | undefined;
-      if (method === "post") {
-        const enctype = submitterHas("enctype")
-          ? resolveEnctype(submitterAttr("enctype"))
-          : resolveEnctype(this.getAttribute("enctype"));
-        post = encodeFormBody(enctype, entries, encoding);
-        navReq = { url: url.toString(), postData: post.body, postContentType: post.contentType };
-      } else {
-        url.search = urlencodedSerialize(formStringEntries(entries), encoding);
-        navReq = { url: url.toString() };
-      }
-      if (targetFrame) {
-        getInternalState().navigateIframe?.(targetFrame, navReq.url, post);
-        return null;
-      }
-      const cs = getInternalState();
-      if (cs.dispatchingUserEvent) {
-        // Defer navigation until the trusted user event finishes, preserving default-action order.
-        cs.pendingSubmitNav = navReq;
-      } else if (typeof ksSendUpstreamEvent === "function") {
-        ksSendUpstreamEvent({ event: "kitesurf.formSubmitNavigate", params: navReq });
-      }
-      return method === "post" ? null : navReq.url;
-    } catch {
-      return null;
-    }
+  __ksPerformSubmission(submitter: Idl.HTMLElement | null): string | null {
+    const target = resolveSubmissionTarget(this, submitter);
+    if (target.cancelled) return null;
+    return performFormSubmission(this, submitter, target.targetFrame);
   }
   reset() {
-    let info: { nodeName?: unknown } | null = null;
-    try {
-      info = dom.nodeInfo(this._id);
-    } catch {}
-    const namespace = elemNs.get(this._id);
-    if (
-      !info ||
-      String(info.nodeName || "").toUpperCase() !== "FORM" ||
-      (namespace && namespace.ns !== HTML_NS)
-    ) {
-      throw new TypeError("Illegal invocation");
-    }
+    const info = formNodeInfo(this._id);
+    assertFormNode(this._id, info);
     const ev = new KsEvent("reset", { bubbles: true, cancelable: true });
     dispatchTrustedEvent(this, ev);
     if (ev.defaultPrevented) return;
-    const els = this.elements;
-    for (let i = 0; i < els.length; i++) {
-      const e = els[i];
-      if (e instanceof HTMLInputElement) {
-        resetInput(e);
-      } else if (e instanceof HTMLTextAreaElement) {
-        resetTextArea(e);
-      } else if (e instanceof HTMLSelectElement) {
-        resetSelect(e);
-      }
-    }
+    resetFormControls(this.elements);
   }
   checkValidity() {
     const els = this.elements;
@@ -442,6 +631,15 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
     }
     return allValid;
   }
+}
+
+function namedFormElements(els: HTMLFormControlsCollection, name: string): Element[] {
+  const matches: Element[] = [];
+  for (let i = 0; i < els.length; i++) {
+    const element = els[i];
+    if (element.id === name || element.getAttribute("name") === name) matches.push(element);
+  }
+  return matches;
 }
 
 defineReflectedString(HTMLFormElement.prototype, "rel", "rel");
