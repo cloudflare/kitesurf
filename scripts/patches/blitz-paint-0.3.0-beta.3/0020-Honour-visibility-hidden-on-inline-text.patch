@@ -1,0 +1,96 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 3 Oct 2026 16:53:55 +0100
+Subject: [PATCH] Honour visibility:hidden on inline text
+
+render.rs skips a box whose visibility is not visible, but inline text
+paints from the inline root, run by run, with no visibility check. A
+hidden <span> or ::after still painted its glyphs, text decorations and
+span background. For example, a math editor that sizes an empty cursor
+with a hidden ::after "c" showed a stray c in every empty expression.
+
+visibility inherits, so each run checks its own node. A hidden run
+keeps its advance and paints nothing. A visible child inside a hidden
+span still paints.
+---
+ src/text.rs                 | 19 +++++++++++++++++++
+ src/text_box_decorations.rs |  8 ++++----
+ 2 files changed, 23 insertions(+), 4 deletions(-)
+
+diff --git a/src/text.rs b/src/text.rs
+index 5f0ffe2..45cd167 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -104,6 +104,17 @@ struct DecorationStackEntry {
+     /// once. Multiplying per run matches group
+     /// opacity everywhere except where glyphs of one span overlap.
+     opacity: f32,
++    /// `visibility` is inherited, so the run's own node decides whether its
++    /// glyphs paint. render.rs only checks it per box, so without this a
++    /// hidden inline span or ::before still paints its text.
++    visible: bool,
++}
++
++/// Whether a node's inline content paints. Anything but `visible`
++/// (`hidden`, `collapse`) hides it.
++pub(crate) fn is_visible(styles: &style::properties::ComputedValues) -> bool {
++    use style::properties::generated::longhands::visibility::computed_value::T as Visibility;
++    styles.get_inherited_box().visibility == Visibility::Visible
+ }
+
+ /// Resolve the cached style values for a single node into a [`DecorationStackEntry`].
+@@ -114,6 +125,7 @@ fn resolve_decoration_entry(doc: &BaseDocument, node_id: NodeId) -> DecorationSt
+             text_fill_color: Color::BLACK,
+             decoration: None,
+             opacity: 1.0,
++            visible: true,
+         };
+     };
+
+@@ -190,6 +202,7 @@ fn resolve_decoration_entry(doc: &BaseDocument, node_id: NodeId) -> DecorationSt
+         text_fill_color,
+         decoration,
+         opacity: styles.get_effects().opacity,
++        visible: is_visible(&styles),
+     }
+ }
+
+@@ -656,6 +669,12 @@ pub(crate) fn stroke_text<'a>(
+
+                 // The glyph colour comes from the run's own node (the stack top): `color`
+                 // inherits, so the innermost inline element already carries the right value.
++                // A hidden run keeps its advance but paints neither its glyphs
++                // nor the decorations it would carry.
++                if !stack.last().is_none_or(|entry| entry.visible) {
++                    continue;
++                }
++
+                 let text_fill_color = stack
+                     .last()
+                     .map(|entry| entry.text_fill_color.multiply_alpha(entry.opacity))
+diff --git a/src/text_box_decorations.rs b/src/text_box_decorations.rs
+index bbe8273..ef02026 100644
+--- a/src/text_box_decorations.rs
++++ b/src/text_box_decorations.rs
+@@ -90,8 +90,8 @@ pub(crate) fn paint_span_fragment_backgrounds(
+             None => continue,
+         };
+         let primary = match node.primary_styles() {
+-            Some(p) => p,
+-            None => continue,
++            Some(p) if crate::text::is_visible(&p) => p,
++            _ => continue,
+         };
+         let current_color = primary.clone_color();
+         let bg = primary
+@@ -158,8 +158,8 @@ pub(crate) fn paint_span_fragment_borders(
+             None => continue,
+         };
+         let primary = match node.primary_styles() {
+-            Some(p) => p,
+-            None => continue,
++            Some(p) if crate::text::is_visible(&p) => p,
++            _ => continue,
+         };
+         let current_color = primary.clone_color();
+         let opacity = crate::text::inline_opacity(doc, node.id, inline_root_id);

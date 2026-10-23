@@ -6,7 +6,6 @@
   "AbortController: name is \"LazyAbortController\"",
   "AbortSignal.any(): length is 0, expected 1",
   "AbortSignal.prototype: does not inherit from EventTarget.prototype",
-  "AbortSignal.timeout(): length is 0, expected 1",
   "AbortSignal: interface object does not inherit from EventTarget",
   "AudioTrack.prototype.enabled: missing attribute",
   "AudioTrack.prototype.id: missing attribute",

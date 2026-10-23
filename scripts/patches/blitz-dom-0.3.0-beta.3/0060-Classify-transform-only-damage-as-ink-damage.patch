@@ -1,0 +1,90 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sun, 27 Sep 2026 20:16:03 +0100
+Subject: [PATCH] Classify transform-only damage as ink damage
+
+The damage summary split damage into paint-only and layout-class, and
+anything past REPAINT counted as layout, so every transform animation
+forced the embedder into full frames. RECALCULATE_OVERFLOW and
+REBUILD_STACKING_CONTEXT (transform, z-index, text-decoration) keep
+every box where it was; only the painted subtree moves.
+
+Report those nodes in a separate ink_nodes list so the embedder can
+repaint the subtree's old and new bounds instead of the whole frame.
+---
+ src/document.rs | 38 +++++++++++++++++++++++++++++---------
+ 1 file changed, 29 insertions(+), 9 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 4aefe60..b25d827 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -4922,14 +4922,27 @@ fn kitesurf_mip_dims(header_w: u32, header_h: u32, hint_w: u32, hint_h: u32, cei
+ /// frame's changes are safe to rasterize as a partial clip.
+ #[derive(Debug, Default, Clone)]
+ pub struct DamageSummary {
+-    /// Nodes whose damage exceeded REPAINT (layout may have moved).
++    /// Nodes whose damage exceeded RECALCULATE_OVERFLOW (layout may have moved).
+     pub layout_nodes: Vec<NodeId>,
+     /// Nodes whose damage was repaint-only (box unchanged).
+     pub paint_nodes: Vec<NodeId>,
++    /// Nodes whose damage stopped at RECALCULATE_OVERFLOW: transform,
++    /// z-index or text-decoration changes. Boxes keep their layout, but
++    /// the painted subtree may move, so the embedder must repaint both
++    /// the old and the new ink area.
++    pub ink_nodes: Vec<NodeId>,
+     /// The respective list hit DAMAGE_SUMMARY_CAP; treat as "damage
+     /// everywhere" (the embedder should fall back to a full frame).
+     pub layout_overflow: bool,
+     pub paint_overflow: bool,
++    pub ink_overflow: bool,
++}
++
++#[derive(Clone, Copy)]
++enum DamageClass {
++    Paint,
++    Ink,
++    Layout,
+ }
+
+ /// Cap on each summary list; past it the overflow flag trips. Keeps
+@@ -4944,7 +4957,8 @@ impl BaseDocument {
+         use crate::node::NodeFlags;
+         use style::selector_parser::RestyleDamage;
+         let repaint_bits = RestyleDamage::REPAINT.bits();
+-        let mut found: Vec<(NodeId, bool)> = Vec::new();
++        let overflow_bits = RestyleDamage::RECALCULATE_OVERFLOW.bits();
++        let mut found: Vec<(NodeId, DamageClass)> = Vec::new();
+         let mut any_construct = false;
+         for (id, node) in self.nodes.iter() {
+             if !node.flags.contains(NodeFlags::IS_IN_DOCUMENT) {
+@@ -4957,16 +4971,22 @@ impl BaseDocument {
+             if damage.intersects(CONSTRUCT_BOX | CONSTRUCT_FC | CONSTRUCT_DESCENDENT) {
+                 any_construct = true;
+             }
+-            let layout_class = (damage.bits() & !repaint_bits) != 0;
+-            found.push((id, layout_class));
++            let class = if damage.bits() & !repaint_bits == 0 {
++                DamageClass::Paint
++            } else if damage.bits() & !overflow_bits == 0 {
++                DamageClass::Ink
++            } else {
++                DamageClass::Layout
++            };
++            found.push((id, class));
+         }
+         self.any_construct_damage = any_construct;
+         let s = &mut self.damage_summary;
+-        for (id, layout_class) in found {
+-            let (list, overflow) = if layout_class {
+-                (&mut s.layout_nodes, &mut s.layout_overflow)
+-            } else {
+-                (&mut s.paint_nodes, &mut s.paint_overflow)
++        for (id, class) in found {
++            let (list, overflow) = match class {
++                DamageClass::Layout => (&mut s.layout_nodes, &mut s.layout_overflow),
++                DamageClass::Ink => (&mut s.ink_nodes, &mut s.ink_overflow),
++                DamageClass::Paint => (&mut s.paint_nodes, &mut s.paint_overflow),
+             };
+             if list.contains(&id) {
+                 continue;

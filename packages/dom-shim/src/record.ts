@@ -7,7 +7,7 @@
 import type { RawCdpMutation } from "@kitesurf/jsrpc-types/shared";
 import type { DomHandle } from "../../core/pkg/kitesurf_core";
 import { ksGlobal, dom, ops, cdpMutations, type DomOperation } from "./state.js";
-import { updateIdGlobal } from "./window.js";
+import { stampNamedGlobal } from "./window.js";
 import { bumpMutationSeq } from "./mutations/seq.js";
 import { isAttachedToDocument, safeChildNodeCount } from "./mutations/attached.js";
 
@@ -29,7 +29,7 @@ function recordOpImpl(op: DomOperation): void {
     const value = op.value ?? "";
     if (!domSetAttr(op.node, op.name, value)) return;
     bumpMutationSeq({ attribute: op.name, node: op.node });
-    if (op.name === "id") updateIdGlobal(op.node, String(value));
+    if (op.name === "id") stampNamedGlobal(op.node, String(value));
     if (ksGlobal.__ks_cdpDomActive) {
       cdpMutations.push({
         kind: "attributeModified",
@@ -43,7 +43,7 @@ function recordOpImpl(op: DomOperation): void {
   if (op.kind === "removeAttribute" && domRemoveAttr) {
     if (!domRemoveAttr(op.node, op.name)) return;
     bumpMutationSeq({ attribute: op.name, node: op.node });
-    if (op.name === "id") updateIdGlobal(op.node, "");
+    if (op.name === "id") stampNamedGlobal(op.node, "");
     if (ksGlobal.__ks_cdpDomActive) {
       cdpMutations.push({
         kind: "attributeRemoved",

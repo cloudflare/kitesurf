@@ -170,13 +170,14 @@ fn v8_namespace_to_synthetic(url: &str, ns: &wasm_bindgen::JsValue, ctx: &mut Co
     let keys = js_sys::Object::get_own_property_names(obj);
     for k in keys.iter() {
         if let Some(name) = k.as_string() {
-            let val = js_sys::Reflect::get(obj, &k).unwrap_or(JsValue::UNDEFINED);
             let js_name = JsString::from(name.as_str());
-            let boa_val = if val.is_undefined() {
-                boa_engine::module::make_live_binding(ns_handle as f64, js_name.clone(), ctx)
-            } else {
-                crate::js::boa_bridge::v8_to_boa(val, ctx)
-            };
+            let raw_value_handle =
+                crate::js::boa_bridge::pin_v8_value(wasm_bindgen::JsValue::UNDEFINED);
+            let boa_val = boa_engine::module::make_live_binding(
+                ns_handle as f64,
+                js_name.clone(),
+                raw_value_handle,
+            );
             names.push(js_name.clone());
             pairs.push((js_name, boa_val));
         }
@@ -550,12 +551,12 @@ thread_local! {
 type PersistentModuleCache = Rc<RefCell<HashMap<String, Module>>>;
 
 fn maybe_truncate_interner(ctx: &mut Context) {
-    let Some(cp) = PERSIST_CP.with(|c| *c.borrow()) else {
-        return;
-    };
     if ctx.interner().dynamic_len() <= PERSIST_CP_LEN.with(Cell::get) {
         return;
     }
+    let Some(cp) = PERSIST_CP.with(|c| c.borrow().clone()) else {
+        return;
+    };
     let queue_idle = PERSIST_QUEUE.with(|q| q.borrow().as_ref().is_some_and(|q| q.is_idle()));
     if !queue_idle {
         return;

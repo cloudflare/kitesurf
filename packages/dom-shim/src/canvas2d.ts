@@ -598,13 +598,14 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       dbg.last = "stale";
       return;
     }
-    flushOps();
+    // Avoid allocating a surface for a detached probe; explicit readback still flushes.
     if (!canvas.isConnected) {
       dbg.last = "detached";
       detachedDirty.add(selfRef);
       lastPushTs = Date.now();
       return;
     }
+    flushOps();
     const d = dom as any;
     if (typeof d?.canvasFlush !== "function") {
       dbg.last = "no-wasm-entry";

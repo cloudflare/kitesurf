@@ -77,6 +77,24 @@ fn oklch_color_still_yields_parseable_stamp() {
 }
 
 #[test]
+fn modern_svg_fill_attributes_are_resolved_before_usvg() {
+    for fill in ["lch(100% 0 0)", "lab(100% 0 0)", "color(srgb 1 1 1)"] {
+        let html = format!(
+            r#"<html><body>
+                <svg class="icon" width="20" height="20" viewBox="0 0 20 20">
+                    <path fill="{fill}" d="M0 0h20v20H0z"/>
+                </svg>
+            </body></html>"#
+        );
+        let (r, g, b) = first_fill_rgb(&icon_tree(&html)).expect("filled path");
+        assert!(
+            r > 240 && g > 240 && b > 240,
+            "expected white from {fill}, got rgb({r},{g},{b})"
+        );
+    }
+}
+
+#[test]
 fn semi_transparent_fill_stamps_parseable_rgba() {
     let tree = icon_tree(
         r##"<html><head><style>

@@ -1,0 +1,83 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 4 Oct 2026 12:07:03 +0100
+Subject: [PATCH] report when body's overflow belongs to the viewport
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+CSS Overflow 3 §3.3: when the root html element is overflow: visible in
+both axes, the first body child that is not display: none hands its
+overflow to the viewport and itself uses visible. Paint only knew the
+root half of that rule, so a body with overflow: hidden clipped its
+content to its own box.
+
+Scroll locks (Base UI, Radix, MUI) set exactly that on body while a
+modal popup is open, and on a page shorter than the window every
+portalled popup was cut off at the body's height.
+propagates_overflow_to_viewport answers the question for blitz-paint.
+---
+ src/document.rs | 50 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 50 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index c81e7f5..3155682 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1045,6 +1045,56 @@ impl BaseDocument {
+             .unwrap()
+     }
+
++    /// Whether `node_id`'s overflow belongs to the viewport rather than its
++    /// own box. CSS Overflow 3 §3.3: when the root `html` element is
++    /// `overflow: visible` in both axes, the first `<body>` child that is not
++    /// `display: none` hands its overflow to the viewport and itself uses
++    /// `visible`. Scroll locks (Base UI, Radix, MUI) set `overflow: hidden`
++    /// on body while a modal popup is open, and clipping body to its own box
++    /// cut every portalled popup off at the body's height.
++    pub fn propagates_overflow_to_viewport(&self, node_id: NodeId) -> bool {
++        use style::values::computed::Overflow;
++        // Paint asks this of every element, so turn away non-body first.
++        let Some(node) = self.nodes.get(node_id) else {
++            return false;
++        };
++        if !node
++            .element_data()
++            .is_some_and(|el| el.name.local == local_name!("body"))
++        {
++            return false;
++        }
++        let Some(root) = node.parent.and_then(|id| self.nodes.get(id)) else {
++            return false;
++        };
++        if !root
++            .element_data()
++            .is_some_and(|el| el.name.local == local_name!("html"))
++            || self.try_root_element().is_none_or(|el| el.id != root.id)
++        {
++            return false;
++        }
++        let root_visible = root.primary_styles().is_some_and(|styles| {
++            let b = styles.get_box();
++            matches!(b.overflow_x, Overflow::Visible) && matches!(b.overflow_y, Overflow::Visible)
++        });
++        if !root_visible {
++            return false;
++        }
++        root.children
++            .iter()
++            .filter_map(|&id| self.nodes.get(id))
++            .find(|child| {
++                child
++                    .element_data()
++                    .is_some_and(|el| el.name.local == local_name!("body"))
++                    && child
++                        .primary_styles()
++                        .is_some_and(|styles| !styles.clone_display().is_none())
++            })
++            .is_some_and(|body| body.id == node_id)
++    }
++
+     pub fn create_node(&mut self, node_data: NodeData) -> NodeId {
+         let tree_ptr = self.nodes.as_mut() as *mut NodeTree;
+         let guard = self.guard.clone();

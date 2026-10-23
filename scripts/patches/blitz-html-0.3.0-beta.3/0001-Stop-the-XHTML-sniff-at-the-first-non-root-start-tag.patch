@@ -12,74 +12,328 @@ script text was painted as page content.
 
 The sniff now reads the first line only up to the first start tag other
 than <html>: the doctype, internal subset included, and the root tag's
-xmlns still decide, text after them does not. Comments, and quoted
-literals inside declarations and the root tag, are text to the window,
-so a `<svg>` inside `<!DOCTYPE html><!-- <svg> --><html xmlns=...>`
-cannot cut it before the root's xmlns. Across the 817 XHTML documents in
-kitesurf's WPT allow-list this routes every one exactly as before; only
-the doctype alone would have sent the internal-subset tests
-(<!DOCTYPE html [<!--x-->]><html xmlns=...>) to html5ever.
+xmlns still decide, text after them does not. A root tag on a later line
+than the doctype stays HTML, as before: text/html pages commonly put
+<html xmlns="http://www.w3.org/1999/xhtml"> on the line after
+<!DOCTYPE html>. Comments, and quoted literals inside declarations and
+the root tag, are text to the window, so a `<svg>` inside
+`<!DOCTYPE html><!-- <svg> --><html xmlns=...>` cannot cut it before the
+root's xmlns. Across the 817 XHTML documents in the WPT allow-list this
+routes every one exactly as before; only the doctype alone would have
+sent the internal-subset tests (<!DOCTYPE html [<!--x-->]><html
+xmlns=...>) to html5ever.
 ---
- src/html_sink.rs | 43 ++++++++++++++++++++++++++++++++++++++++++-
- 1 file changed, 42 insertions(+), 1 deletion(-)
+ src/html_sink.rs | 278 +++++++++++++++++++++++++++++++++++++++++++----
+ src/lib.rs       |   1 +
+ 2 files changed, 257 insertions(+), 22 deletions(-)
 
 diff --git a/src/html_sink.rs b/src/html_sink.rs
-index f0a77ba..6196776 100644
+index f0a77ba..c764e04 100644
 --- a/src/html_sink.rs
 +++ b/src/html_sink.rs
-@@ -64,6 +64,46 @@ impl<'m, 'doc> DocumentHtmlParser<'m, 'doc> {
+@@ -64,6 +64,214 @@ impl<'m, 'doc> DocumentHtmlParser<'m, 'doc> {
      }
  }
 
-+/// The doctype sniff reads only the declarations: the doctype and the root tag's xmlns.
-+/// A minified page is one line, and "xhtml" in its scripts used to force the XML parser.
-+fn prolog_end(line: &str) -> usize {
-+    let bytes = line.as_bytes();
-+    // Open `<!…>`, `<?…>` and root-tag markup: a `<tag` in their quoted literals, like
-+    // one in any comment, is text, and must not end the window before the root's xmlns.
-+    let mut depth = 0usize;
-+    let mut i = 0;
-+    while i < bytes.len() {
-+        match bytes[i] {
-+            b'<' if bytes[i..].starts_with(b"<!--") => match line[i + 4..].find("-->") {
-+                Some(end) => i += 4 + end + 3,
-+                None => return bytes.len(),
-+            },
-+            q @ (b'"' | b'\'') if depth > 0 => match bytes[i + 1..].iter().position(|&c| c == q) {
-+                Some(end) => i += end + 2,
-+                None => return bytes.len(),
-+            },
-+            b'<' => {
-+                let rest = &bytes[i + 1..];
-+                let is_start_tag = rest.first().is_some_and(|c| c.is_ascii_alphabetic());
-+                let is_root = rest.len() >= 4 && rest[..4].eq_ignore_ascii_case(b"html");
-+                if is_start_tag && !is_root {
-+                    return i;
-+                }
-+                if is_start_tag || matches!(rest.first(), Some(b'!' | b'?')) {
-+                    depth += 1;
-+                }
-+                i += 1;
++const XHTML_NAMESPACE: &[u8] = b"http://www.w3.org/1999/xhtml";
++
++fn contains_xhtml_marker(source: &[u8]) -> bool {
++    source
++        .windows(5)
++        .any(|window| window == b"XHTML" || window == b"xhtml")
++}
++
++fn doctype_info(source: &[u8]) -> Option<(usize, bool)> {
++    const DOCTYPE: &[u8] = b"<!DOCTYPE";
++    if !source.starts_with(DOCTYPE) {
++        return None;
++    }
++    let mut i = DOCTYPE.len();
++    let mut segment_start = i;
++    let mut subset_depth = 0usize;
++    let mut quote = None;
++    let mut mentions_xhtml = false;
++
++    while i < source.len() {
++        if let Some(quote_char) = quote {
++            if source[i] == quote_char {
++                quote = None;
 +            }
-+            b'>' => {
-+                depth = depth.saturating_sub(1);
-+                i += 1;
++            i += 1;
++            continue;
++        }
++        // Comment text is not evidence that the doctype identifies XHTML.
++        if source[i..].starts_with(b"<!--") {
++            mentions_xhtml |= contains_xhtml_marker(&source[segment_start..i]);
++            i = skip_past(source, i + 4, b"-->")?;
++            segment_start = i;
++            continue;
++        }
++
++        match source[i] {
++            b'"' | b'\'' => quote = Some(source[i]),
++            // `>` inside an internal subset does not end the doctype.
++            b'[' => subset_depth += 1,
++            b']' => subset_depth = subset_depth.saturating_sub(1),
++            b'>' if subset_depth == 0 => {
++                mentions_xhtml |= contains_xhtml_marker(&source[segment_start..i]);
++                return Some((i + 1, mentions_xhtml));
 +            }
-+            _ => i += 1,
++            _ => {}
++        }
++        i += 1;
++    }
++    None
++}
++
++fn is_xml_whitespace(byte: u8) -> bool {
++    matches!(byte, b' ' | b'\t' | b'\n' | b'\r')
++}
++
++fn skip_xml_whitespace(bytes: &[u8], mut i: usize) -> usize {
++    while bytes.get(i).is_some_and(|byte| is_xml_whitespace(*byte)) {
++        i += 1;
++    }
++    i
++}
++
++/// The index just past the first `terminator` at or after `from`.
++fn skip_past(bytes: &[u8], from: usize, terminator: &[u8]) -> Option<usize> {
++    let end = bytes
++        .get(from..)?
++        .windows(terminator.len())
++        .position(|window| window == terminator)?;
++    Some(from + end + terminator.len())
++}
++
++fn find_html_root_tag(source: &str, start: usize) -> Option<&str> {
++    let bytes = source.as_bytes();
++    let tag_start = skip_prolog_misc(source, start)?;
++    if bytes.get(tag_start) != Some(&b'<') {
++        return None;
++    }
++
++    let name_start = tag_start + 1;
++    let mut name_end = name_start;
++    while bytes
++        .get(name_end)
++        .is_some_and(|byte| !is_xml_whitespace(*byte) && !matches!(byte, b'/' | b'>'))
++    {
++        name_end += 1;
++    }
++    if !bytes[name_start..name_end].eq_ignore_ascii_case(b"html") {
++        return None;
++    }
++
++    let mut quote = None;
++    for (i, &byte) in bytes.iter().enumerate().skip(name_end) {
++        if let Some(quote_char) = quote {
++            if byte == quote_char {
++                quote = None;
++            }
++        } else {
++            match byte {
++                b'"' | b'\'' => quote = Some(byte),
++                b'>' => return Some(&source[tag_start..i + 1]),
++                _ => {}
++            }
 +        }
 +    }
-+    bytes.len()
++    None
++}
++
++fn html_root_tag_has_xhtml_namespace(tag: &str) -> bool {
++    let bytes = tag.as_bytes();
++    let mut i = 5;
++
++    while i < bytes.len() {
++        i = skip_xml_whitespace(bytes, i);
++        if matches!(bytes.get(i), Some(b'>' | b'/')) {
++            i += 1;
++            continue;
++        }
++
++        let name_start = i;
++        while bytes
++            .get(i)
++            .is_some_and(|byte| !is_xml_whitespace(*byte) && !matches!(byte, b'=' | b'/' | b'>'))
++        {
++            i += 1;
++        }
++        if name_start == i {
++            return false;
++        }
++        let name = &bytes[name_start..i];
++
++        i = skip_xml_whitespace(bytes, i);
++        let mut value = None;
++        if bytes.get(i) == Some(&b'=') {
++            i += 1;
++            i = skip_xml_whitespace(bytes, i);
++            let Some(&quote @ (b'"' | b'\'')) = bytes.get(i) else {
++                return false;
++            };
++            i += 1;
++            let value_start = i;
++            while bytes.get(i).is_some_and(|byte| *byte != quote) {
++                i += 1;
++            }
++            if bytes.get(i) != Some(&quote) {
++                return false;
++            }
++            value = Some(&bytes[value_start..i]);
++            i += 1;
++        }
++
++        if name == b"xmlns" && value == Some(XHTML_NAMESPACE) {
++            return true;
++        }
++    }
++    false
++}
++
++fn root_element_has_xhtml_namespace(source: &str, start: usize) -> bool {
++    find_html_root_tag(source, start).is_some_and(html_root_tag_has_xhtml_namespace)
++}
++
++fn skip_prolog_misc(source: &str, mut i: usize) -> Option<usize> {
++    let bytes = source.as_bytes();
++    loop {
++        i = skip_xml_whitespace(bytes, i);
++        if source.get(i..)?.starts_with("<!--") {
++            i = skip_past(bytes, i + 4, b"-->")?;
++        } else if source.get(i..)?.starts_with("<?") {
++            i = skip_past(bytes, i + 2, b"?>")?;
++        } else {
++            return Some(i);
++        }
++    }
++}
++
++/// Returns whether the source should use the XML parser based on its XML declaration,
++/// doctype text, or the default namespace on its root `<html>` tag.
++pub fn is_xhtml_document(html: &str) -> bool {
++    let html = html.strip_prefix('\u{feff}').unwrap_or(html);
++    let is_xml_declaration = html
++        .strip_prefix("<?xml")
++        .and_then(|rest| rest.as_bytes().first())
++        .is_some_and(|byte| byte.is_ascii_whitespace() || *byte == b'?');
++    if is_xml_declaration {
++        return true;
++    }
++
++    let Some(prolog_start) = skip_prolog_misc(html, 0) else {
++        return false;
++    };
++    if html[prolog_start..].starts_with("<!DOCTYPE") {
++        let Some((doctype_end, mentions_xhtml)) = doctype_info(&html.as_bytes()[prolog_start..])
++        else {
++            return false;
++        };
++        // Text/html pages often put `<html xmlns=...>` on the line after
++        // `<!DOCTYPE html>`; only a root on the doctype's line routes to XML.
++        let root_search_start = prolog_start + doctype_end;
++        let root_on_doctype_line = skip_prolog_misc(html, root_search_start)
++            .is_some_and(|root_start| !html[root_search_start..root_start].contains('\n'));
++        return mentions_xhtml
++            || (root_on_doctype_line
++                && root_element_has_xhtml_namespace(html, root_search_start));
++    }
++
++    root_element_has_xhtml_namespace(html, prolog_start)
 +}
 +
  impl<'m, 'doc> DocumentHtmlParser<'m, 'doc> {
      pub fn new(mutr: &'m mut DocumentMutator<'doc>) -> DocumentHtmlParser<'m, 'doc> {
          DocumentHtmlParser {
-@@ -92,6 +132,7 @@ impl<'m, 'doc> DocumentHtmlParser<'m, 'doc> {
-         let is_xhtml_doc = html.starts_with("<?xml")
-             || html.starts_with("<!DOCTYPE") && {
-                 let first_line = html.lines().next().unwrap();
+@@ -74,29 +282,8 @@ impl<'m, 'doc> DocumentHtmlParser<'m, 'doc> {
+         }
+     }
+
+-    /// Detects documents without an XML or DOCTYPE declaration whose root `<html>` element
+-    /// declares the XHTML namespace (e.g. `<html xmlns="http://www.w3.org/1999/xhtml">`)
+-    fn root_element_has_xhtml_namespace(html: &str) -> bool {
+-        let rest = html.trim_start_matches('\u{feff}').trim_start();
+-        let Some(rest) = rest.strip_prefix("<html") else {
+-            return false;
+-        };
+-        let Some(tag_end) = rest.find('>') else {
+-            return false;
+-        };
+-        rest[..tag_end].contains("xmlns=\"http://www.w3.org/1999/xhtml\"")
+-            || rest[..tag_end].contains("xmlns='http://www.w3.org/1999/xhtml'")
+-    }
+-
+     pub fn parse_into_mutator<'a, 'd>(mutr: &'a mut DocumentMutator<'d>, html: &str) {
+-        let is_xhtml_doc = html.starts_with("<?xml")
+-            || html.starts_with("<!DOCTYPE") && {
+-                let first_line = html.lines().next().unwrap();
 -                first_line.contains("XHTML") || first_line.contains("xhtml")
-+                let prolog = &first_line[..prolog_end(first_line)];
-+                prolog.contains("XHTML") || prolog.contains("xhtml")
-             }
-             || Self::root_element_has_xhtml_namespace(html);
+-            }
+-            || Self::root_element_has_xhtml_namespace(html);
+-
+-        if is_xhtml_doc {
++        if is_xhtml_document(html) {
+             Self::parse_xml_into_mutator(mutr, html);
+         } else {
+             // Parse as HTML
+@@ -331,3 +518,50 @@ fn parses_some_html() {
+
+     // Now our tree should have some nodes in it
+ }
++
++#[test]
++fn xhtml_sniff_uses_only_the_doctype_and_root_namespace() {
++    const XHTML_NAMESPACE: &str = "http://www.w3.org/1999/xhtml";
++
++    for html in [
++        "<!DOCTYPE html><!-- XHTML --><html></html>",
++        "<!DOCTYPE html [<!-- XHTML -->]><html></html>",
++        "<!DOCTYPE html><htmlish xmlns=\"http://www.w3.org/1999/xhtml\"></htmlish>",
++        "<!DOCTYPE html><html data-note=\"xhtml\"></html>",
++        "<!DOCTYPE html><html>text says xhtml<head></head></html>",
++        "<!-- XHTML --><html></html>",
++        "<htmlish xmlns=\"http://www.w3.org/1999/xhtml\"></htmlish>",
++        "<html data-note=\"xhtml\"></html>",
++        "<!DOCTYPE html><html\u{000c}xmlns=\"http://www.w3.org/1999/xhtml\"></html>",
++        "<!DOCTYPE html>\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><p>&nbsp;</p></html>",
++        "<!DOCTYPE html>\r\n<!-- root follows --><html xmlns='http://www.w3.org/1999/xhtml'></html>",
++    ] {
++        assert!(!is_xhtml_document(html), "misrouted as XML: {html}");
++    }
++    assert!(!is_xhtml_document(
++        "<?xml-stylesheet href=\"theme.css\"?><html></html>"
++    ));
++
++    assert!(is_xhtml_document(
++        "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\"><html></html>"
++    ));
++    assert!(is_xhtml_document(
++        "<!DOCTYPE html [<!ENTITY marker \"xhtml\">]><html></html>"
++    ));
++    assert!(is_xhtml_document(&format!(
++        "<!DOCTYPE html><!-- XHTML --><html xmlns='{XHTML_NAMESPACE}'></html>"
++    )));
++    assert!(is_xhtml_document(&format!(
++        "<!DOCTYPE html><!-- root follows --><html data-x=\"<b>\" xmlns=\"{XHTML_NAMESPACE}\"></html>"
++    )));
++    assert!(is_xhtml_document(&format!(
++        "<!-- root follows --><html xmlns='{XHTML_NAMESPACE}'></html>"
++    )));
++    assert!(is_xhtml_document(
++        "\u{feff}<?xml version=\"1.0\"?><html></html>"
++    ));
++    assert!(is_xhtml_document(
++        "\u{feff}<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \
++         \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"><html></html>"
++    ));
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index e40ec63..c0e1bb8 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -6,3 +6,4 @@ mod html_sink;
+ pub use html_document::HtmlDocument;
+ pub use html_sink::DocumentHtmlParser;
+ pub use html_sink::HtmlProvider;
++pub use html_sink::is_xhtml_document;

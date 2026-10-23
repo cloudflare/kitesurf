@@ -1,0 +1,82 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 27 Jul 2026 05:39:20 +0100
+Subject: [PATCH] Track which request an <img> is waiting on
+
+A src/srcset mutation re-runs load_image, which either applies a cached
+image synchronously (no delivery notification) or starts a fetch
+(delivery notification later). An embedder DOM may mark the <img>
+pending-reload on every mutation, but for the synchronous cache-hit path
+no notification ever clears the flag, so HTMLImageElement.complete
+sticks false forever. That breaks React components polling img.complete
+post-hydration (BBC's Image placeholder never unmounts and paints over
+the real image).
+
+node_has_pending_image lets the JS side ask, right after the mutation,
+whether a fetch is actually underway for the node. The embedder can't
+answer this itself: srcset candidate selection lives in the mutator
+(select_image_url) and the embedder doesn't know which URL blitz picked.
+
+load_image added the node to the new URL's pending list but never took
+it off the previous one. Both responses then targeted it, and the first
+to land won: a stale success painted the old image over the new src, and
+a stale 404 reported the node broken. An embedder that keeps the first
+terminal state per node also lost the real load event to that 404 (WPT
+img.complete.html "async src complete test").
+
+Drop the node's Image entries from every pending list before queueing
+the new request. The old fetch stays in flight and still fills the image
+cache.
+---
+ src/document.rs | 16 ++++++++++++++++
+ src/mutator.rs  | 10 ++++++++++
+ 2 files changed, 26 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index 4780ad6..45f8e57 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1643,6 +1643,22 @@ impl BaseDocument {
+             .unwrap_or_default()
+     }
+
++    /// Whether `node_id` is currently waiting on an
++    /// in-flight image fetch (any URL). Complements image_cache_has
++    /// for the srcset case: the JS side can't re-run candidate
++    /// selection, so after a src/srcset mutation it asks whether
++    /// load_image actually started a fetch. Not pending = the
++    /// mutation reached a terminal state synchronously (cache-hit
++    /// apply, or no fetchable candidate) and no delivery
++    /// notification will ever fire.
++    pub fn node_has_pending_image(&self, node_id: NodeId) -> bool {
++        self.pending_images.values().any(|waiting| {
++            waiting
++                .iter()
++                .any(|(id, ty)| *id == node_id && matches!(ty, ImageType::Image))
++        })
++    }
++
+     pub fn load_resource(&mut self, res: ResourceLoadResponse) {
+         self.pending_critical_resources.remove(&res.request_id);
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 2c83b80..7ac9223 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1453,6 +1453,16 @@ impl<'doc> DocumentMutator<'doc> {
+     }
+
+     fn load_image(&mut self, target_id: NodeId) {
++        // An <img> waits on its latest request only. Changing
++        // src left the node queued under the previous URL too, so
++        // whichever response landed first won: a stale success painted
++        // the old image, and a stale 404 reported the node broken (the
++        // shim keeps the first terminal state), swallowing the real
++        // load event (WPT img.complete.html "async src complete test").
++        // The old fetch stays in flight and still fills the cache.
++        for waiting in self.doc.pending_images.values_mut() {
++            waiting.retain(|(id, ty)| !(*id == target_id && matches!(ty, ImageType::Image)));
++        }
+         if let Some(raw_src) = self.select_image_url(target_id) {
+             if !raw_src.is_empty() {
+                 // Fallible resolve. `img.src = "http://"`

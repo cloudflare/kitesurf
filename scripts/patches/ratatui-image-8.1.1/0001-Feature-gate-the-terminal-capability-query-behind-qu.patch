@@ -22,8 +22,8 @@ anyone building for a real terminal.
 ---
  Cargo.toml    |  7 +++++++
  src/errors.rs |  2 ++
- src/picker.rs | 16 ++++++++++++++--
- 3 files changed, 23 insertions(+), 2 deletions(-)
+ src/picker.rs | 24 +++++++++++++++++++++---
+ 3 files changed, 30 insertions(+), 3 deletions(-)
 
 diff --git a/Cargo.toml b/Cargo.toml
 index e36442d..697874b 100644
@@ -80,7 +80,7 @@ index a0b6d30..368d88c 100644
  impl From<windows::core::Error> for Errors {
      fn from(err: windows::core::Error) -> Self {
 diff --git a/src/picker.rs b/src/picker.rs
-index 35dc992..8b3fafd 100644
+index 35dc992..7692229 100644
 --- a/src/picker.rs
 +++ b/src/picker.rs
 @@ -1,14 +1,16 @@
@@ -182,3 +182,38 @@ index 35dc992..8b3fafd 100644
  fn query_with_timeout(
      is_tmux: bool,
      timeout: Duration,
+@@ -538,8 +550,11 @@ fn query_with_timeout(
+ mod tests {
+     use std::assert_eq;
+
+-    use crate::picker::{Capability, Picker, ProtocolType};
++    #[cfg(feature = "query")]
++    use crate::picker::{Capability, Picker};
++    use crate::picker::ProtocolType;
+
++    #[cfg(feature = "query")]
+     use super::{cap_parser::Response, interpret_parser_responses};
+
+     #[test]
+@@ -555,11 +570,13 @@ mod tests {
+         assert_eq!(proto, ProtocolType::Halfblocks);
+     }
+
++    #[cfg(feature = "query")]
+     #[test]
+     fn test_from_query_stdio_no_hang() {
+         let _ = Picker::from_query_stdio();
+     }
+
++    #[cfg(feature = "query")]
+     #[test]
+     fn test_interpret_parser_responses_text_sizing_protocol() {
+         let (_, _, caps) = interpret_parser_responses(vec![
+@@ -572,6 +589,7 @@ mod tests {
+         assert!(caps.contains(&Capability::TextSizingProtocol));
+     }
+
++    #[cfg(feature = "query")]
+     #[test]
+     fn test_interpret_parser_responses_text_sizing_protocol_incomplete() {
+         let (_, _, caps) = interpret_parser_responses(vec![

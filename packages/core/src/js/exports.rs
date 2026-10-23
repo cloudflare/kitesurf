@@ -39,6 +39,18 @@ pub fn ks_bridge_pins() -> String {
     )
 }
 
+/// Runs one epoch of the cross-heap cycle collector and returns its wall time in ms. With
+/// `idle_skip`, an epoch whose inputs are unchanged is skipped and returns 0.
+#[wasm_bindgen]
+pub fn ks_cycle_collect(idle_skip: bool) -> f64 {
+    super::boa_bridge::cycle_collect(idle_skip)
+}
+
+#[wasm_bindgen]
+pub fn ks_cycle_stats() -> String {
+    super::boa_bridge::cycle_stats()
+}
+
 #[wasm_bindgen]
 pub fn ks_is_bridged(v: JsValue) -> bool {
     super::boa_bridge::is_our_wrapper(&v)

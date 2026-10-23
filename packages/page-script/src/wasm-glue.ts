@@ -32,6 +32,8 @@ export declare function ks_import(specifier: string, referrerUrl: string): Promi
 export declare function ks_set_boa_strict(v: boolean): void;
 
 export declare function ks_bridge_pins(): string;
+export declare function ks_cycle_collect(idleSkip: boolean): number;
+export declare function ks_cycle_stats(): string;
 export declare function ks_boa_force_collect(): string;
 export declare function ks_is_bridged(v: unknown): boolean;
 export declare function ks_bridge_buffer_bytes(v: unknown): Uint8Array | undefined;

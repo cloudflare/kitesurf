@@ -2130,31 +2130,44 @@ function makeRuleStyleDeclaration(
   const data: Record<string, string> = Object.create(null);
   // wasm-bindgen's FinalizationRegistry owns the store. The handler keeps it
   // alive while detached rules remain readable through `.style`; never free it
-  // eagerly in deleteRule.
-  let store: RuleStyleDeclarationStore | null = null;
+  // eagerly in deleteRule. Creation waits for the first read or write.
+  let made: RuleStyleDeclarationStore | null = null;
   const createStore =
     opts && typeof opts.createRuleStyleDeclaration === "function"
       ? opts.createRuleStyleDeclaration
       : null;
-  if (createStore) {
-    try {
-      store = createStore(context, String(initialDeclText || ""), baseUrl);
-    } catch {}
+  let pending = createStore !== null;
+  function storeFor(): RuleStyleDeclarationStore | null {
+    if (pending) {
+      pending = false;
+      if (createStore) {
+        try {
+          made = createStore(context, String(initialDeclText || ""), baseUrl);
+        } catch {}
+      }
+      if (!made && initialDeclText) parseCssTextInto(initialDeclText, data);
+    }
+    return made;
   }
-  if (!store && initialDeclText) parseCssTextInto(initialDeclText, data);
+  if (!pending && initialDeclText) parseCssTextInto(initialDeclText, data);
   // Hooks live beside the data bag, not in it: bag keys serialize as CSS
   // declarations and count toward length, item and iteration.
   const hooks: RuleStyleHooks = {
     onChange: null,
     parentRule: null,
-    cascadeText: () => (store ? store.cascadeText() : serializeStyleData(data)),
+    // Untouched rules keep their author text without allocating a declaration store.
+    cascadeText() {
+      if (pending) return String(initialDeclText || "");
+      return storeFor()?.cascadeText() ?? serializeStyleData(data);
+    },
   };
   function notify() {
     if (hooks.onChange) hooks.onChange();
   }
   const backend: StyleDeclarationBackend = {
-    cssText: () => (store ? store.cssText() : serializeStyleData(data)),
+    cssText: () => storeFor()?.cssText() ?? serializeStyleData(data),
     setCssText(text) {
+      const store = storeFor();
       if (store) {
         store.setCssText(String(text == null ? "" : text));
         notify();
@@ -2164,19 +2177,22 @@ function makeRuleStyleDeclaration(
       parseCssTextInto(String(text == null ? "" : text), data);
       notify();
     },
-    length: () => (store ? store.length() : Object.keys(data).length),
+    length: () => storeFor()?.length() ?? Object.keys(data).length,
     item(idx) {
+      const store = storeFor();
       if (store) return store.item(idx);
       const k = Object.keys(data)[idx];
       return k != null ? cssPropCamelToKebab(k) : "";
     },
     getPropertyValue(name) {
+      const store = storeFor();
       if (store) return store.getPropertyValue(String(name));
       const key = cssPropToCamel(String(name));
       return data[key] != null ? String(data[key]) : "";
     },
-    getPropertyPriority: (name) => (store ? store.getPropertyPriority(String(name)) : ""),
+    getPropertyPriority: (name) => storeFor()?.getPropertyPriority(String(name)) ?? "",
     setProperty(name, value, priority = "") {
+      const store = storeFor();
       if (store) {
         if (store.setProperty(String(name), value == null ? "" : String(value), String(priority))) {
           notify();
@@ -2190,6 +2206,7 @@ function makeRuleStyleDeclaration(
       notify();
     },
     removeProperty(name) {
+      const store = storeFor();
       if (store) {
         const had = store.hasProperty(String(name));
         const prev = store.removeProperty(String(name));
@@ -2204,6 +2221,7 @@ function makeRuleStyleDeclaration(
     },
     parentRule: () => hooks.parentRule,
     *names() {
+      const store = storeFor();
       if (store) {
         for (let i = 0; i < store.length(); i++) yield store.item(i);
         return;
@@ -2216,6 +2234,7 @@ function makeRuleStyleDeclaration(
     get(_t, prop) {
       const key = styleDeclKey(prop);
       if (typeof key !== "string") return undefined;
+      const store = storeFor();
       if (store) return store.getPropertyValue(cssPropCamelToKebab(key));
       return data[key] !== undefined ? data[key] : "";
     },
@@ -2223,6 +2242,7 @@ function makeRuleStyleDeclaration(
       const key = styleDeclKey(prop);
       if (typeof key !== "string") return false;
       const v = value == null ? "" : String(value);
+      const store = storeFor();
       if (store) {
         if (store.setProperty(cssPropCamelToKebab(key), v, "")) notify();
         return true;
@@ -2235,12 +2255,14 @@ function makeRuleStyleDeclaration(
     has(_t, prop) {
       const key = styleDeclKey(prop);
       if (typeof key !== "string") return false;
+      const store = storeFor();
       if (store) return store.hasProperty(cssPropCamelToKebab(key));
       return key in data;
     },
     deleteProperty(_t, prop) {
       const key = styleDeclKey(prop);
       if (typeof key !== "string") return Reflect.deleteProperty(_t, prop);
+      const store = storeFor();
       if (store) {
         const name = cssPropCamelToKebab(key);
         const had = store.hasProperty(name);
@@ -2254,9 +2276,9 @@ function makeRuleStyleDeclaration(
       return true;
     },
     // The bag's keys stay the declaration's own keys.
-    ownKeys: () => (store ? [] : Object.keys(data)),
+    ownKeys: () => (storeFor() ? [] : Object.keys(data)),
     getOwnPropertyDescriptor(_t, prop) {
-      if (store || typeof prop !== "string" || !(prop in data)) return undefined;
+      if (storeFor() || typeof prop !== "string" || !(prop in data)) return undefined;
       return { value: data[prop], writable: true, enumerable: true, configurable: true };
     },
   };
@@ -2852,13 +2874,9 @@ function securityError(message: string): Error {
 
 function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyleSheetCtor {
   const id = ownerNode && typeof ownerNode._id === "number" ? ownerNode._id : -1;
-  if (id >= 0) {
-    const cached = sheetCache.get(id);
-    // IDs are per-DomHandle; the same number does not establish stylesheet identity.
-    // Reuse the cached sheet only while this wrapper owns it.
-    if (cached && cached.wrapper === ownerNode) {
-      return cached.sheet;
-    }
+  if (ownerNode && id >= 0) {
+    const cached = sheetCache.get(ownerNode);
+    if (cached) return cached;
   }
   const isStyleEl = !!(ownerNode && ownerNode.tagName === "STYLE");
   const isLinkEl = !!(ownerNode && ownerNode.tagName === "LINK");
@@ -3049,9 +3067,7 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
     },
     backend,
   });
-  if (id >= 0) {
-    sheetCache.set(id, { wrapper: ownerNode, sheet });
-  }
+  if (ownerNode && id >= 0) sheetCache.set(ownerNode, sheet);
   return sheet;
 }
 

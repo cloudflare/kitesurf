@@ -4,4 +4,6 @@
 
 //! Tests for the js stage; they use crate internals.
 
+mod boa_cc_graph;
 mod boa_panic_recovery;
+mod boa_live_marker;

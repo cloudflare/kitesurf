@@ -152,10 +152,10 @@ index b01bf35..f05a27b 100644
              }
          }
 diff --git a/src/scope_analyzer.rs b/src/scope_analyzer.rs
-index b9dd8a6..4c67333 100644
+index f4fd8d1..b978306 100644
 --- a/src/scope_analyzer.rs
 +++ b/src/scope_analyzer.rs
-@@ -2409,7 +2409,7 @@ pub(crate) fn eval_declaration_instantiation_scope(
+@@ -2429,7 +2429,7 @@ pub(crate) fn eval_declaration_instantiation_scope(
              declared_function_names.push(name.sym());
 
              // 3. Insert d as the first element of functionsToInitialize.
@@ -164,7 +164,7 @@ index b9dd8a6..4c67333 100644
          }
      }
 
-@@ -2453,7 +2453,7 @@ pub(crate) fn eval_declaration_instantiation_scope(
+@@ -2473,7 +2473,7 @@ pub(crate) fn eval_declaration_instantiation_scope(
          };
 
          // a.i. For each String vn of the BoundNames of d, do

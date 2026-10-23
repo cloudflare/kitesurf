@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sat, 8 Aug 2026 23:32:18 +0100
+Subject: [PATCH] Time the fontface, counters and damage-summary phases
+
+resolve's phase breakdown jumped straight from "style" to "damage",
+folding three separate passes into the style bucket. Counters alone
+turned out to be 54us of a 315us resolve and was invisible here.
+
+Zero cost without the log-phase-times feature.
+---
+ src/resolve.rs | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/resolve.rs b/src/resolve.rs
+index a5a55b8..8b2f134 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -90,10 +90,12 @@ impl BaseDocument {
+         // @font-face whose family just became used (lazy web-font
+         // loading; see flush_needed_font_faces).
+         self.flush_needed_font_faces();
++        timer.record_time("fontface");
+
+         // CSS counters: list-item values + counter()/attr() pseudo content.
+         // Needs computed styles; box construction consumes the side tables.
+         self.resolve_counters();
++        timer.record_time("counters");
+
+         // Fold this resolve's per-node damage (mutations +
+         // restyle diffs) into the cross-resolve summary BEFORE anyone
+@@ -101,6 +103,7 @@ impl BaseDocument {
+         // everything damaged). Cheap slab walk; consumed by the
+         // embedder via take_damage_summary (partial-frame gating).
+         self.accumulate_damage_summary();
++        timer.record_time("dmgsummary");
+
+         // Non-incremental mode is "every node is damaged every frame": mark the
+         // whole tree and let the same damage pipeline reconstruct and relayout

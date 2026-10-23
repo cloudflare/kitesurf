@@ -21,6 +21,7 @@ mod inline_break_index;
 mod inline_break_restore;
 mod inline_flow_rect;
 mod nested_inline_abspos;
+mod nowrap_leading_inline_box;
 mod radar_grid_repro;
 mod rehomed_reach;
 mod sticky_reset;

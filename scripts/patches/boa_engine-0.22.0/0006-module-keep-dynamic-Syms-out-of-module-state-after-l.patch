@@ -1,0 +1,449 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 14 Aug 2026 15:20:59 +0100
+Subject: [PATCH] module: keep dynamic Syms out of module state after link
+
+An embedder that truncates the interner between parse batches must know
+when a registered module still holds its AST. Those ASTs hold
+post-checkpoint Syms and make truncation unsafe. 0.22 drops the AST
+itself once a module links, so the source is pending exactly in the
+Unlinked and Linking states.
+
+ResolveExport and GetExportedNames run at namespace-access time, at any
+point in a module's life, and resolved their entry names through the
+context interner on every call. That made the retained entry lists the
+one place a dynamic Sym outlived its parse batch, which an embedder
+truncating the interner trips over as a namespace-get panic ("binding is
+a ResolvedBinding Record: NotFound").
+
+Convert the local/indirect export entries to owned JsString names at
+SourceTextModule construction, where the interner is in hand; star
+entries already were. Import entries stay Sym-based: they are only read
+during link, while the module still holds its AST (which is what gates
+the embedder's truncation). The interner parameter disappears from the
+whole resolve_export/get_exported_names call graph, so nothing can
+quietly reintroduce a runtime Sym read.
+
+A re-export entry also carries import attributes, so it holds its
+resolved ModuleRequest instead of rebuilding it from Syms on every
+resolve.
+---
+ src/module/mod.rs       |  28 ++++----
+ src/module/namespace.rs |  19 ++---
+ src/module/source.rs    | 150 ++++++++++++++++++++++++----------------
+ 3 files changed, 111 insertions(+), 86 deletions(-)
+
+diff --git a/src/module/mod.rs b/src/module/mod.rs
+index 852eccd..95fc74a 100644
+--- a/src/module/mod.rs
++++ b/src/module/mod.rs
+@@ -442,6 +442,16 @@ impl Module {
+         &self.inner.host_defined
+     }
+
++    /// Whether this module still retains its parsed AST, i.e. it has not yet
++    /// passed initialize_environment so embedders can tell when its interner is unused.
++    #[must_use]
++    pub fn has_pending_source(&self) -> bool {
++        match self.kind() {
++            ModuleKind::SourceText(src) => src.has_pending_source(),
++            ModuleKind::Synthetic(_) => false,
++        }
++    }
++
+     /// Gets the kind of this `Module`.
+     pub(crate) fn kind(&self) -> &ModuleKind {
+         &self.inner.kind
+@@ -551,13 +561,9 @@ impl Module {
+     /// This must only be called if the [`JsPromise`] returned by [`Module::load`] has fulfilled.
+     ///
+     /// [spec]: https://tc39.es/ecma262/#table-abstract-methods-of-module-records
+-    fn get_exported_names(
+-        &self,
+-        export_star_set: &mut Vec<Module>,
+-        interner: &Interner,
+-    ) -> FxHashSet<JsString> {
++    fn get_exported_names(&self, export_star_set: &mut Vec<Module>) -> FxHashSet<JsString> {
+         match self.kind() {
+-            ModuleKind::SourceText(src) => src.get_exported_names(self, export_star_set, interner),
++            ModuleKind::SourceText(src) => src.get_exported_names(self, export_star_set),
+             ModuleKind::Synthetic(synth) => synth.get_exported_names(),
+         }
+     }
+@@ -578,12 +584,9 @@ impl Module {
+         &self,
+         export_name: &JsString,
+         resolve_set: &mut FxHashSet<(Self, JsString)>,
+-        interner: &Interner,
+     ) -> Result<ResolvedBinding, ResolveExportError> {
+         match self.kind() {
+-            ModuleKind::SourceText(src) => {
+-                src.resolve_export(self, export_name, resolve_set, interner)
+-            }
++            ModuleKind::SourceText(src) => src.resolve_export(self, export_name, resolve_set),
+             ModuleKind::Synthetic(synth) => synth.resolve_export(self, export_name),
+         }
+     }
+@@ -760,8 +763,7 @@ impl Module {
+             .borrow_mut()
+             .get_or_insert_with(|| {
+                 // a. Let exportedNames be module.GetExportedNames().
+-                let exported_names =
+-                    self.get_exported_names(&mut Vec::default(), context.interner());
++                let exported_names = self.get_exported_names(&mut Vec::default());
+
+                 // b. Let unambiguousNames be a new empty List.
+                 let unambiguous_names = exported_names
+@@ -770,7 +772,7 @@ impl Module {
+                     .filter_map(|name| {
+                         // i. Let resolution be module.ResolveExport(name).
+                         // ii. If resolution is a ResolvedBinding Record, append name to unambiguousNames.
+-                        self.resolve_export(&name, &mut HashSet::default(), context.interner())
++                        self.resolve_export(&name, &mut HashSet::default())
+                             .ok()
+                             .map(|_| name)
+                     })
+diff --git a/src/module/namespace.rs b/src/module/namespace.rs
+index 8fda85e..80f048c 100644
+--- a/src/module/namespace.rs
++++ b/src/module/namespace.rs
+@@ -79,11 +79,8 @@ impl ModuleNamespace {
+         // so we can safely cache them to avoid repeated graph traversals.
+         let mut resolved_bindings = FxHashMap::default();
+         for name in &exports {
+-            if let Ok(binding) = module.resolve_export(
+-                name,
+-                &mut rustc_hash::FxHashSet::default(),
+-                context.interner(),
+-            ) {
++            if let Ok(binding) = module.resolve_export(name, &mut rustc_hash::FxHashSet::default())
++            {
+                 resolved_bindings.insert(name.clone(), binding);
+             }
+         }
+@@ -324,11 +321,7 @@ fn module_namespace_exotic_try_get(
+         b
+     } else {
+         fallback = module
+-            .resolve_export(
+-                &export_name,
+-                &mut rustc_hash::FxHashSet::default(),
+-                context.interner(),
+-            )
++            .resolve_export(&export_name, &mut rustc_hash::FxHashSet::default())
+             .expect("6. Assert: binding is a ResolvedBinding Record.");
+         &fallback
+     };
+@@ -413,11 +406,7 @@ fn module_namespace_exotic_get(
+         b
+     } else {
+         fallback = module
+-            .resolve_export(
+-                &export_name,
+-                &mut rustc_hash::FxHashSet::default(),
+-                context.interner(),
+-            )
++            .resolve_export(&export_name, &mut rustc_hash::FxHashSet::default())
+             .expect("6. Assert: binding is a ResolvedBinding Record.");
+         &fallback
+     };
+diff --git a/src/module/source.rs b/src/module/source.rs
+index f19bdf1..0444f00 100644
+--- a/src/module/source.rs
++++ b/src/module/source.rs
+@@ -8,10 +8,7 @@ use std::{
+ };
+
+ use boa_ast::{
+-    declaration::{
+-        ExportEntry, ImportEntry, ImportName, IndirectExportEntry, LocalExportEntry,
+-        ReExportImportName,
+-    },
++    declaration::{ExportEntry, ImportEntry, ImportName, ReExportImportName},
+     operations::{
+         ContainsSymbol, LexicallyScopedDeclaration, bound_names, contains,
+         lexically_scoped_declarations, var_scoped_declarations,
+@@ -270,14 +267,35 @@ impl std::fmt::Debug for SourceTextModule {
+     }
+ }
+
++// Export entries as JsStrings: namespace gets and re-export walks run any time, and a
++// Sym read there dangles once the interner rewinds (import entries are read at link only).
++#[derive(Debug)]
++enum KsReExportName {
++    Star,
++    Name(JsString),
++}
++
++#[derive(Debug)]
++struct KsIndirectExport {
++    module_request: super::ModuleRequest,
++    import_name: KsReExportName,
++    export_name: JsString,
++}
++
++#[derive(Debug)]
++struct KsLocalExport {
++    local_name: JsString,
++    export_name: JsString,
++}
++
+ #[derive(Debug)]
+ struct ModuleCode {
+     has_tla: bool,
+     requested_modules: IndexSet<super::ModuleRequest, BuildHasherDefault<FxHasher>>,
+     path: Option<PathBuf>,
+     import_entries: Vec<ImportEntry>,
+-    local_export_entries: Vec<LocalExportEntry>,
+-    indirect_export_entries: Vec<IndirectExportEntry>,
++    local_export_entries: Vec<KsLocalExport>,
++    indirect_export_entries: Vec<KsIndirectExport>,
+     star_export_entries: Vec<super::ModuleRequest>,
+ }
+
+@@ -331,6 +349,15 @@ impl<'ast> boa_ast::visitor::Visitor<'ast> for ModuleRequestsVisitor<'_> {
+ }
+
+ impl SourceTextModule {
++    /// True while the parsed AST is still held (pre-link, or a failed link kept it
++    /// for retry): post-checkpoint Syms may be live, so the interner must not rewind.
++    pub(crate) fn has_pending_source(&self) -> bool {
++        matches!(
++            &*self.status.borrow(),
++            ModuleStatus::Unlinked { .. } | ModuleStatus::Linking { .. }
++        )
++    }
++
+     /// Creates a new `SourceTextModule` from a parsed `ModuleSource`.
+     ///
+     /// Contains part of the abstract operation [`ParseModule`][parse].
+@@ -401,12 +428,15 @@ impl SourceTextModule {
+                                 //        [[LocalName]]: null,
+                                 //        [[ExportName]]: ee.[[ExportName]]
+                                 //    } to indirectExportEntries.
+-                                indirect_export_entries.push(IndirectExportEntry::new(
+-                                    ie.module_request(),
+-                                    ReExportImportName::Star,
+-                                    entry.export_name(),
+-                                    ie.attributes().to_vec().into_boxed_slice(),
+-                                ));
++                                indirect_export_entries.push(KsIndirectExport {
++                                    module_request: super::ModuleRequest::from_ast(
++                                        ie.module_request().to_js_string(interner),
++                                        ie.attributes(),
++                                        interner,
++                                    ),
++                                    import_name: KsReExportName::Star,
++                                    export_name: entry.export_name().to_js_string(interner),
++                                });
+                             }
+                             // 4. Else,
+                             ImportName::Name(import) => {
+@@ -417,18 +447,26 @@ impl SourceTextModule {
+                                 //        [[LocalName]]: null,
+                                 //        [[ExportName]]: ee.[[ExportName]]
+                                 //    } to indirectExportEntries.
+-                                indirect_export_entries.push(IndirectExportEntry::new(
+-                                    ie.module_request(),
+-                                    ReExportImportName::Name(import),
+-                                    entry.export_name(),
+-                                    ie.attributes().to_vec().into_boxed_slice(),
+-                                ));
++                                indirect_export_entries.push(KsIndirectExport {
++                                    module_request: super::ModuleRequest::from_ast(
++                                        ie.module_request().to_js_string(interner),
++                                        ie.attributes(),
++                                        interner,
++                                    ),
++                                    import_name: KsReExportName::Name(
++                                        import.to_js_string(interner),
++                                    ),
++                                    export_name: entry.export_name().to_js_string(interner),
++                                });
+                             }
+                         }
+                     } else {
+                         // i. If importedBoundNames does not contain ee.[[LocalName]], then
+                         //    1. Append ee to localExportEntries.
+-                        local_export_entries.push(entry);
++                        local_export_entries.push(KsLocalExport {
++                            local_name: entry.local_name().to_js_string(interner),
++                            export_name: entry.export_name().to_js_string(interner),
++                        });
+                     }
+                 }
+                 // b. Else if ee.[[ImportName]] is all-but-default, then
+@@ -447,7 +485,20 @@ impl SourceTextModule {
+                 }
+                 // c. Else,
+                 //    i. Append ee to indirectExportEntries.
+-                ExportEntry::ReExport(entry) => indirect_export_entries.push(entry),
++                ExportEntry::ReExport(entry) => indirect_export_entries.push(KsIndirectExport {
++                    module_request: super::ModuleRequest::from_ast(
++                        entry.module_request().to_js_string(interner),
++                        entry.attributes(),
++                        interner,
++                    ),
++                    import_name: match entry.import_name() {
++                        ReExportImportName::Star => KsReExportName::Star,
++                        ReExportImportName::Name(name) => {
++                            KsReExportName::Name(name.to_js_string(interner))
++                        }
++                    },
++                    export_name: entry.export_name().to_js_string(interner),
++                }),
+             }
+         }
+
+@@ -632,7 +683,6 @@ impl SourceTextModule {
+         &self,
+         module_self: &Module,
+         export_star_set: &mut Vec<Module>,
+-        interner: &Interner,
+     ) -> FxHashSet<JsString> {
+         // 1. Assert: module.[[Status]] is not new.
+         // 2. If exportStarSet is not present, set exportStarSet to a new empty List.
+@@ -654,16 +704,14 @@ impl SourceTextModule {
+         for e in &self.code.local_export_entries {
+             // a. Assert: module provides the direct binding for this export.
+             // b. Append e.[[ExportName]] to exportedNames.
+-            let name = e.export_name().to_js_string(interner);
+-            exported_names.insert(name);
++            exported_names.insert(e.export_name.clone());
+         }
+
+         // 7. For each ExportEntry Record e of module.[[IndirectExportEntries]], do
+         for e in &self.code.indirect_export_entries {
+             // a. Assert: module imports a specific binding for this export.
+             // b. Append e.[[ExportName]] to exportedNames.
+-            let name = e.export_name().to_js_string(interner);
+-            exported_names.insert(name);
++            exported_names.insert(e.export_name.clone());
+         }
+
+         // 8. For each ExportEntry Record e of module.[[StarExportEntries]], do
+@@ -673,7 +721,7 @@ impl SourceTextModule {
+
+             // b. Let starNames be requestedModule.GetExportedNames(exportStarSet).
+             // c. For each element n of starNames, do
+-            for n in requested_module.get_exported_names(export_star_set, interner) {
++            for n in requested_module.get_exported_names(export_star_set) {
+                 // i. If SameValue(n, "default") is false, then
+                 if n != js_str!("default") {
+                     // 1. If exportedNames does not contain n, then
+@@ -696,7 +744,6 @@ impl SourceTextModule {
+         module_self: &Module,
+         export_name: &JsString,
+         resolve_set: &mut FxHashSet<(Module, JsString)>,
+-        interner: &Interner,
+     ) -> Result<ResolvedBinding, ResolveExportError> {
+         // 1. Assert: module.[[Status]] is not new.
+         // 2. If resolveSet is not present, set resolveSet to a new empty List.
+@@ -715,12 +762,12 @@ impl SourceTextModule {
+         // 5. For each ExportEntry Record e of module.[[LocalExportEntries]], do
+         for e in &self.code.local_export_entries {
+             // a. If SameValue(exportName, e.[[ExportName]]) is true, then
+-            if export_name == &e.export_name().to_js_string(interner) {
++            if export_name == &e.export_name {
+                 // i. Assert: module provides the direct binding for this export.
+                 // ii. Return ResolvedBinding Record { [[Module]]: module, [[BindingName]]: e.[[LocalName]] }.
+                 return Ok(ResolvedBinding {
+                     module: module_self.clone(),
+-                    binding_name: BindingName::Name(e.local_name().to_js_string(interner)),
++                    binding_name: BindingName::Name(e.local_name.clone()),
+                 });
+             }
+         }
+@@ -728,29 +775,21 @@ impl SourceTextModule {
+         // 6. For each ExportEntry Record e of module.[[IndirectExportEntries]], do
+         for e in &self.code.indirect_export_entries {
+             // a. If SameValue(exportName, e.[[ExportName]]) is true, then
+-            if export_name == &e.export_name().to_js_string(interner) {
++            if export_name == &e.export_name {
+                 // i. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
+-                let module_request = super::ModuleRequest::from_ast(
+-                    e.module_request().to_js_string(interner),
+-                    e.attributes(),
+-                    interner,
+-                );
+-                let imported_module = self.loaded_modules.borrow()[&module_request].clone();
+-                return match e.import_name() {
++                let imported_module = self.loaded_modules.borrow()[&e.module_request].clone();
++                return match &e.import_name {
+                     // ii. If e.[[ImportName]] is all, then
+                     //    1. Assert: module does not provide the direct binding for this export.
+                     //    2. Return ResolvedBinding Record { [[Module]]: importedModule, [[BindingName]]: namespace }.
+-                    ReExportImportName::Star => Ok(ResolvedBinding {
++                    KsReExportName::Star => Ok(ResolvedBinding {
+                         module: imported_module,
+                         binding_name: BindingName::Namespace,
+                     }),
+                     // iii. Else,
+                     //    1. Assert: module imports a specific binding for this export.
+                     //    2. Return importedModule.ResolveExport(e.[[ImportName]], resolveSet).
+-                    ReExportImportName::Name(name) => {
+-                        let name = name.to_js_string(interner);
+-                        imported_module.resolve_export(&name, resolve_set, interner)
+-                    }
++                    KsReExportName::Name(name) => imported_module.resolve_export(name, resolve_set),
+                 };
+             }
+         }
+@@ -771,14 +810,13 @@ impl SourceTextModule {
+             // a. Let importedModule be GetImportedModule(module, e.[[ModuleRequest]]).
+             let imported_module = self.loaded_modules.borrow()[e].clone();
+             // b. Let resolution be importedModule.ResolveExport(exportName, resolveSet).
+-            let resolution =
+-                match imported_module.resolve_export(export_name, resolve_set, interner) {
+-                    // d. If resolution is not null, then
+-                    Ok(resolution) => resolution,
+-                    // c. If resolution is ambiguous, return ambiguous.
+-                    Err(e @ ResolveExportError::Ambiguous) => return Err(e),
+-                    Err(ResolveExportError::NotFound) => continue,
+-                };
++            let resolution = match imported_module.resolve_export(export_name, resolve_set) {
++                // d. If resolution is not null, then
++                Ok(resolution) => resolution,
++                // c. If resolution is ambiguous, return ambiguous.
++                Err(e @ ResolveExportError::Ambiguous) => return Err(e),
++                Err(ResolveExportError::NotFound) => continue,
++            };
+
+             // i. Assert: resolution is a ResolvedBinding Record.
+             if let Some(star_resolution) = &star_resolution {
+@@ -1606,23 +1644,19 @@ impl SourceTextModule {
+             for e in &self.code.indirect_export_entries {
+                 // a. Let resolution be module.ResolveExport(e.[[ExportName]]).
+                 module_self
+-                    .resolve_export(
+-                        &e.export_name().to_js_string(context.interner()),
+-                        &mut HashSet::default(),
+-                        context.interner(),
+-                    )
++                    .resolve_export(&e.export_name, &mut HashSet::default())
+                     // b. If resolution is either null or ambiguous, throw a SyntaxError exception.
+                     .map_err(|err| match err {
+                         ResolveExportError::NotFound => {
+                             JsNativeError::syntax().with_message(format!(
+                                 "could not find export `{}`",
+-                                context.interner().resolve_expect(e.export_name())
++                                e.export_name.to_std_string_escaped()
+                             ))
+                         }
+                         ResolveExportError::Ambiguous => {
+                             JsNativeError::syntax().with_message(format!(
+                                 "could not resolve ambiguous export `{}`",
+-                                context.interner().resolve_expect(e.export_name())
++                                e.export_name.to_std_string_escaped()
+                             ))
+                         }
+                     })?;
+@@ -1679,7 +1713,7 @@ impl SourceTextModule {
+                     // c. Else,
+                     //    i. Let resolution be importedModule.ResolveExport(in.[[ImportName]]).
+                     let resolution = imported_module
+-                        .resolve_export(&name, &mut HashSet::default(), compiler.interner())
++                        .resolve_export(&name, &mut HashSet::default())
+                         // ii. If resolution is either null or ambiguous, throw a SyntaxError exception.
+                         .map_err(|err| match err {
+                             ResolveExportError::NotFound => JsNativeError::syntax().with_message(

@@ -55,7 +55,8 @@ const __memprofInUse = new Map();
 let __memprofTotalAllocs = 0;
 let __memprofTotalFrees = 0;
 let __memprofSampledAllocs = 0;
-let __memprofStart = Date.now();
+// workerd holds Date.now() at 0 while modules evaluate, so the first allocation stamps the start.
+let __memprofStart = 0;
 function __memprofCaptureStack() {
   const e = new Error();
   const orig = Error.prepareStackTrace;
@@ -77,6 +78,7 @@ function __memprofCaptureStack() {
 }
 function __memprofRecordAlloc(ptr, size) {
   __memprofTotalAllocs++;
+  if (__memprofStart === 0) __memprofStart = Date.now();
   if (ptr === 0 || size === 0) return;
   __memprofNextSample -= size;
   if (__memprofNextSample > 0) return;
@@ -127,7 +129,7 @@ globalThis.__memprof_dump = function() {
     sampled_allocs: __memprofSampledAllocs,
     in_use_count: __memprofInUse.size,
     in_use_bytes: inUseBytes,
-    elapsed_ms: Date.now() - __memprofStart,
+    elapsed_ms: __memprofStart ? Date.now() - __memprofStart : 0,
     samples,
   });
 };

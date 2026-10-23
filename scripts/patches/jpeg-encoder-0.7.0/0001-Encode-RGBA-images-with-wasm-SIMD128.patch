@@ -13,6 +13,12 @@ On wasm32 with simd128, RGBA input takes a vectorized path:
 - rows the encoder only reads luma from (4:2:0 chroma skips every other
   row) skip chroma conversion via a hidden, defaulted
   `ImageBuffer::fill_buffers_first_only`;
+- horizontally subsampled chroma reads only the even columns of a row,
+  so rows that feed chroma convert Cb/Cr for the even pixels of each
+  16-pixel chunk and copy each value into the odd pixel after it,
+  through a hidden, defaulted `ImageBuffer::fill_buffers_even_others`.
+  The scalar remainder still converts every pixel, so the last column
+  keeps its own chroma whenever the width needs padding;
 - a block whose 64 samples are all equal has an islow DCT of exactly
   64*v at DC and zero elsewhere, so only its DC is quantized. Page
   frames are mostly such blocks (backgrounds, chroma under gray text).
@@ -32,17 +38,17 @@ dashboard and synthetic frames). wasm32 simd128 under V8, 1280x720
 page frames at q80: the flat-block skip alone took encoding from 2.7
 to 2.1 ms (text) and from 2.25 to 1.55 ms (dashboard).
 ---
- src/encoder.rs      |  86 ++++++---
- src/image_buffer.rs |   9 +
+ src/encoder.rs      |  94 ++++++---
+ src/image_buffer.rs |  19 ++
  src/lib.rs          |  10 +-
  src/quantization.rs |   8 +
- src/wasm_simd.rs    | 456 ++++++++++++++++++++++++++++++++++++++++++++
+ src/wasm_simd.rs    | 492 ++++++++++++++++++++++++++++++++++++++++++++
  src/writer.rs       |  61 ++++--
- 6 files changed, 587 insertions(+), 43 deletions(-)
+ 6 files changed, 641 insertions(+), 43 deletions(-)
  create mode 100644 src/wasm_simd.rs
 
 diff --git a/src/encoder.rs b/src/encoder.rs
-index 778fe69..80c099e 100644
+index 778fe69..a5d739a 100644
 --- a/src/encoder.rs
 +++ b/src/encoder.rs
 @@ -469,6 +469,15 @@ impl<W: JfifWrite> Encoder<W> {
@@ -72,7 +78,7 @@ index 778fe69..80c099e 100644
          self.encode_image_internal::<_, DefaultOperations>(image)
      }
 
-@@ -702,20 +715,42 @@ impl<W: JfifWrite> Encoder<W> {
+@@ -702,20 +715,50 @@ impl<W: JfifWrite> Encoder<W> {
 
          let mut prev_dc = [0i16; 4];
 
@@ -90,6 +96,12 @@ index 778fe69..80c099e 100644
 +                })
 +            })
 +            .collect();
++
++        // Horizontally subsampled components (4:2:0 and 4:2:2 chroma) read
++        // even columns only.
++        let even_others = self.components.iter().skip(1).all(|c| {
++            (max_h_sampling / usize::from(c.horizontal_sampling_factor)) % 2 == 0
++        }) && self.components.len() > 1;
 +
          let restart_interval = self.restart_interval.unwrap_or(0);
          let mut restarts = 0;
@@ -112,13 +124,15 @@ index 778fe69..80c099e 100644
 -                image.fill_buffers(y, &mut row);
 +                if first_only {
 +                    image.fill_buffers_first_only(y, &mut row);
++                } else if even_others {
++                    image.fill_buffers_even_others(y, &mut row);
 +                } else {
 +                    image.fill_buffers(y, &mut row);
 +                }
 
                  for _ in usize::from(width)..buffer_width {
                      for channel in &mut row {
-@@ -741,23 +776,15 @@ impl<W: JfifWrite> Encoder<W> {
+@@ -741,23 +784,15 @@ impl<W: JfifWrite> Encoder<W> {
                  for (i, component) in self.components.iter().enumerate() {
                      for v_offset in 0..component.vertical_sampling_factor as usize {
                          for h_offset in 0..component.horizontal_sampling_factor as usize {
@@ -144,7 +158,7 @@ index 778fe69..80c099e 100644
                              );
 
                              self.writer.write_block(
-@@ -1011,23 +1038,17 @@ impl<W: JfifWrite> Encoder<W> {
+@@ -1011,23 +1046,17 @@ impl<W: JfifWrite> Encoder<W> {
 
              for block_y in 0..rows {
                  for block_x in 0..cols {
@@ -172,7 +186,7 @@ index 778fe69..80c099e 100644
                      );
 
                      blocks[i].push(q_block);
-@@ -1255,6 +1276,25 @@ pub(crate) trait Operations {
+@@ -1255,6 +1284,25 @@ pub(crate) trait Operations {
              q_block[i] = table.quantize(block[z], z);
          }
      }
@@ -199,10 +213,10 @@ index 778fe69..80c099e 100644
 
  pub(crate) struct DefaultOperations;
 diff --git a/src/image_buffer.rs b/src/image_buffer.rs
-index 2da8273..c586e8e 100644
+index 2da8273..0ff22e6 100644
 --- a/src/image_buffer.rs
 +++ b/src/image_buffer.rs
-@@ -95,6 +95,15 @@ pub trait ImageBuffer {
+@@ -95,6 +95,25 @@ pub trait ImageBuffer {
 
      /// Add color values for the row to color component buffers
      fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]);
@@ -213,6 +227,16 @@ index 2da8273..c586e8e 100644
 +    /// `fill_buffers` would.
 +    #[doc(hidden)]
 +    fn fill_buffers_first_only(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
++        self.fill_buffers(y, buffers);
++    }
++
++    /// Like [`fill_buffers`](Self::fill_buffers), for a row whose values
++    /// the encoder reads from the other buffers only at even columns and
++    /// at the last column (which edge padding repeats). Implementations
++    /// may append any bytes elsewhere, but must append as many as
++    /// `fill_buffers` would.
++    #[doc(hidden)]
++    fn fill_buffers_even_others(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
 +        self.fill_buffers(y, buffers);
 +    }
  }
@@ -267,10 +291,10 @@ index 93055e6..377c8e8 100644
          (self.table[index].get() >> 3) as u8
 diff --git a/src/wasm_simd.rs b/src/wasm_simd.rs
 new file mode 100644
-index 0000000..e9ac2a6
+index 0000000..68cd927
 --- /dev/null
 +++ b/src/wasm_simd.rs
-@@ -0,0 +1,456 @@
+@@ -0,0 +1,492 @@
 +//! WebAssembly SIMD128 versions of the per-block encoder stages.
 +//!
 +//! Every routine here is bit-exact with its scalar counterpart: the DCT
@@ -656,9 +680,15 @@ index 0000000..e9ac2a6
 +impl RgbaImageSimd128<'_> {
 +    /// Converts row `y`. Without `CHROMA` only luma is computed and the
 +    /// chroma buffers get zeros of the same length, for rows the encoder
-+    /// never reads chroma from.
++    /// never reads chroma from. With `EVEN`, chroma is computed for even
++    /// pixels and copied into the odd ones after them, for rows the
++    /// encoder reads chroma from only at even columns. The last pixel
++    /// still gets its own chroma, because edge padding repeats it: a
++    /// 16-pixel chunk ends on an odd pixel, but a width that is a multiple
++    /// of 16 needs no padding, and any other width ends in the scalar
++    /// remainder below.
 +    #[inline(always)]
-+    fn fill_row<const CHROMA: bool>(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
++    fn fill_row<const CHROMA: bool, const EVEN: bool>(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
 +        let width = usize::from(self.1);
 +        let start = usize::from(y) * width * 4;
 +        let line = &self.0[start..start + width * 4];
@@ -666,24 +696,50 @@ index 0000000..e9ac2a6
 +
 +        let mut chunks = line.chunks_exact(64);
 +        for chunk in &mut chunks {
-+            let mut ys = [i32x4_splat(0); 4];
-+            let mut cbs = ys;
-+            let mut crs = ys;
++            let mut pxs = [i32x4_splat(0); 4];
++            let mut ys = pxs;
++            let mut cbs = pxs;
++            let mut crs = pxs;
 +            for i in 0..4 {
 +                let src: &[u8; 16] = chunk[i * 16..i * 16 + 16].try_into().unwrap();
 +                // SAFETY: `src` is exactly 16 readable bytes.
 +                let px = unsafe { v128_load(src.as_ptr() as *const v128) };
++                pxs[i] = px;
 +                let r = v128_and(px, byte);
 +                let g = v128_and(u32x4_shr(px, 8), byte);
 +                let b = v128_and(u32x4_shr(px, 16), byte);
 +                ys[i] = ycbcr_channel(r, g, b, 19595, 38470, 7471, 0);
-+                if CHROMA {
++                if CHROMA && !EVEN {
 +                    cbs[i] = ycbcr_channel(r, g, b, -11059, -21709, 32768, 128 << 16);
 +                    crs[i] = ycbcr_channel(r, g, b, 32768, -27439, -5329, 128 << 16);
 +                }
 +            }
 +            buffers[0].extend_from_slice(&narrow_u8(ys));
-+            if CHROMA {
++            if CHROMA && EVEN {
++                for i in 0..2 {
++                    let px = i32x4_shuffle::<0, 2, 4, 6>(pxs[2 * i], pxs[2 * i + 1]);
++                    let r = v128_and(px, byte);
++                    let g = v128_and(u32x4_shr(px, 8), byte);
++                    let b = v128_and(u32x4_shr(px, 16), byte);
++                    cbs[i] = ycbcr_channel(r, g, b, -11059, -21709, 32768, 128 << 16);
++                    crs[i] = ycbcr_channel(r, g, b, 32768, -27439, -5329, 128 << 16);
++                }
++                // Bytes 0..8 are the even pixels' Cb, 8..16 their Cr.
++                let both = u8x16_narrow_i16x8(
++                    i16x8_narrow_i32x4(cbs[0], cbs[1]),
++                    i16x8_narrow_i32x4(crs[0], crs[1]),
++                );
++                let cb = i8x16_shuffle::<0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7>(both, both);
++                let cr = i8x16_shuffle::<8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15>(
++                    both, both,
++                );
++                for (buffer, v) in buffers[1..3].iter_mut().zip([cb, cr]) {
++                    let mut out = [0u8; 16];
++                    // SAFETY: `out` is exactly 16 writable bytes.
++                    unsafe { v128_store(out.as_mut_ptr() as *mut v128, v) };
++                    buffer.extend_from_slice(&out);
++                }
++            } else if CHROMA {
 +                buffers[1].extend_from_slice(&narrow_u8(cbs));
 +                buffers[2].extend_from_slice(&narrow_u8(crs));
 +            }
@@ -720,11 +776,15 @@ index 0000000..e9ac2a6
 +    }
 +
 +    fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
-+        self.fill_row::<true>(y, buffers);
++        self.fill_row::<true, false>(y, buffers);
 +    }
 +
 +    fn fill_buffers_first_only(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
-+        self.fill_row::<false>(y, buffers);
++        self.fill_row::<false, false>(y, buffers);
++    }
++
++    fn fill_buffers_even_others(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
++        self.fill_row::<true, true>(y, buffers);
 +    }
 +}
 diff --git a/src/writer.rs b/src/writer.rs

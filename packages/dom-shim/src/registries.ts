@@ -10,6 +10,7 @@ import type { NodeBase } from "./node-base.js";
 import type { Element } from "./element/element.js";
 import type {
   AttrCls,
+  CSSStyleSheetCtor,
   DocumentFragmentImpl,
   HtmlCollectionCls,
   HTMLOptionsCollectionCls,
@@ -55,7 +56,6 @@ export function forgetNodeIds(ids: Iterable<number>): void {
     customValidity.delete(id);
     elemNs.delete(id);
     xmlOwned.delete(id);
-    attrInstances.delete(id);
     elementOwnerIsHtml.delete(id);
     attrNs.delete(id);
     fragmentIds.delete(id);
@@ -63,7 +63,7 @@ export function forgetNodeIds(ids: Iterable<number>): void {
     stampedPiIds.delete(id);
     commentData.delete(id);
     linkLoadFired.delete(id);
-    nodeIdName.delete(id);
+    forgetIdGlobal(id);
     elementScrollendSeq.delete(id);
   }
 }
@@ -114,7 +114,8 @@ export const xmlOwned = new Set<number>();
 
 export const hostIdToDoc = new Map<number, DetachedDocument>();
 
-export const attrInstances = new Map<number, Map<string, AttrCls>>();
+// Attrs hold their owner; wrapper keys preserve identity without rooting removed trees.
+export const attrInstances = new WeakMap<Element, Map<string, AttrCls>>();
 
 export const elementOwnerIsHtml = new Map<number, boolean>();
 
@@ -155,7 +156,8 @@ export const sizesCache = new WeakMap<object, any>();
 export const nodeListGetters = new WeakMap<object, () => NodeBase[]>();
 export const htmlCollectionGetters = new WeakMap<object, () => Element[]>();
 
-export const sheetCache = new Map<number, { wrapper: any; sheet: any }>();
+// A sheet holds its owner, so its cache must not outlive the owner's wrapper.
+export const sheetCache = new WeakMap<object, CSSStyleSheetCtor>();
 
 // Canvas node ID to weak wrapper reference. The wrapper holds its
 // context identity; finalization releases the wasm surface without
@@ -164,9 +166,31 @@ export const canvas2dCache = new Map<number, { deref(): object | undefined }>();
 
 export const postMutationHooks: Array<(hint?: MutationHint) => void> = [];
 
-export const stampedNames = new Map<string, number>();
+interface NamedGlobalEntry {
+  getter: () => unknown;
+  nodeIds: Set<number>;
+}
+
+// Scalar owner IDs bound accessor metadata to the nodes that introduced each name.
+export const stampedNames = new Map<string, NamedGlobalEntry>();
 
 export const nodeIdName = new Map<number, string>();
+const namedGlobalObject = globalThis;
+
+export function forgetIdGlobal(nodeId: number): void {
+  const name = nodeIdName.get(nodeId);
+  if (name === undefined) return;
+  nodeIdName.delete(nodeId);
+  const entry = stampedNames.get(name);
+  if (!entry) return;
+  entry.nodeIds.delete(nodeId);
+  if (entry.nodeIds.size > 0) return;
+  stampedNames.delete(name);
+  // Do not delete a page-defined replacement or execute its getter during GC cleanup.
+  if (Object.getOwnPropertyDescriptor(namedGlobalObject, name)?.get === entry.getter) {
+    Reflect.deleteProperty(namedGlobalObject, name);
+  }
+}
 
 export const moPendingObservers = new Set<MutationObserverImpl>();
 
@@ -202,14 +226,12 @@ export function resetRegistries(): void {
   elemNs.clear();
   xmlOwned.clear();
   hostIdToDoc.clear();
-  attrInstances.clear();
   elementOwnerIsHtml.clear();
   attrNs.clear();
   fragmentIds.clear();
   templateContentFragment.clear();
   stampedPiIds.clear();
   commentData.clear();
-  sheetCache.clear();
   stampedNames.clear();
   nodeIdName.clear();
   moPendingObservers.clear();

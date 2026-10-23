@@ -1,0 +1,204 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 12:42:24 +0100
+Subject: [PATCH] Add per-paragraph auto base direction and first-strong lookup
+
+parley can force a base direction (BaseDirection::Ltr/Rtl) but always
+resolved Auto with a single whole-text first-strong detection. HTML's
+unicode-bidi:plaintext (textarea/pre dir=auto) re-runs first-strong
+per UAX#9 paragraph.
+
+parley::BaseDirection { Auto, AutoPerParagraph, Ltr, Rtl } is a
+superset of parlance's, set through the builders and PlainEditor as
+before. AutoPerParagraph maps to Auto plus parley_engine's
+AnalysisOptions::auto_per_paragraph, which splits at class-B
+separators (CRLF = one separator), resolves each segment on a scratch
+resolver, and splices levels back; the first paragraph donates the
+layout-wide base_level, which only alignment uses; reordering is
+per run.
+
+HTML's dir=auto directionality is a DOM-side scan (it excludes bdi/
+script/style/textarea subtrees and dir-attributed descendants), which
+a text-stream resolver cannot express. The embedder walks text nodes
+itself and needs only the per-chunk classification, so
+parley::first_strong_direction exposes it: strong L is Ltr, strong R
+or AL is Rtl, and anything else is None, so the caller keeps walking.
+It classifies via the same parley_data properties analyze_text uses.
+
+The analysis half and the classifier live in the parley_engine series,
+so parley does not depend on parley_data.
+---
+ src/analysis.rs            |  4 ++-
+ src/bidi.rs                | 54 ++++++++++++++++++++++++++++++++++++++
+ src/builder.rs             |  2 +-
+ src/lib.rs                 |  3 ++-
+ src/tests/test_analysis.rs | 32 ++++++++++++++++++++++
+ 5 files changed, 92 insertions(+), 3 deletions(-)
+ create mode 100644 src/bidi.rs
+
+diff --git a/src/analysis.rs b/src/analysis.rs
+index b8ba1a9..adbb7a9 100644
+--- a/src/analysis.rs
++++ b/src/analysis.rs
+@@ -7,7 +7,7 @@ use parley_engine::break_overrides::LineBreakOverrideFn;
+
+ use parley_engine::{AnalysisOptions, LineBreakConfig};
+
+-use parlance::BaseDirection;
++use crate::bidi::BaseDirection;
+
+ pub(crate) fn analyze_text<B: Brush>(
+     lcx: &mut LayoutContext<B>,
+@@ -50,8 +50,10 @@ pub(crate) fn analyze_text<B: Brush>(
+         }
+     }
+
++    let (base_direction, auto_per_paragraph) = base_direction.to_engine();
+     let options = AnalysisOptions {
+         base_direction,
++        auto_per_paragraph,
+         line_break: &lcx.line_break,
+         break_spaces: &lcx.break_spaces,
+         line_break_override,
+diff --git a/src/bidi.rs b/src/bidi.rs
+new file mode 100644
+index 0000000..6e3a057
+--- /dev/null
++++ b/src/bidi.rs
+@@ -0,0 +1,54 @@
++// Copyright 2026 the Parley Authors
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++
++//! Bidirectional text configuration.
++
++/// The paragraph's base direction.
++///
++/// A superset of [`parlance::BaseDirection`] (which `parley_engine` takes) adding
++/// [`Self::AutoPerParagraph`], the CSS `unicode-bidi: plaintext` behavior.
++#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
++pub enum BaseDirection {
++    /// Choose direction automatically, by a single first-strong detection over the whole text.
++    #[default]
++    Auto,
++    /// Choose direction automatically per UAX #9 paragraph: first-strong detection re-runs after
++    /// every paragraph separator (CRLF counts as one).
++    AutoPerParagraph,
++    /// Left-to-right.
++    Ltr,
++    /// Right-to-left.
++    Rtl,
++}
++
++impl From<parlance::BaseDirection> for BaseDirection {
++    fn from(value: parlance::BaseDirection) -> Self {
++        match value {
++            parlance::BaseDirection::Auto => Self::Auto,
++            parlance::BaseDirection::Ltr => Self::Ltr,
++            parlance::BaseDirection::Rtl => Self::Rtl,
++        }
++    }
++}
++
++impl BaseDirection {
++    /// The direction to pass to `parley_engine`, and whether its automatic detection runs per
++    /// paragraph (`AnalysisOptions::auto_per_paragraph`).
++    pub(crate) fn to_engine(self) -> (parlance::BaseDirection, bool) {
++        match self {
++            Self::Auto => (parlance::BaseDirection::Auto, false),
++            Self::AutoPerParagraph => (parlance::BaseDirection::Auto, true),
++            Self::Ltr => (parlance::BaseDirection::Ltr, false),
++            Self::Rtl => (parlance::BaseDirection::Rtl, false),
++        }
++    }
++}
++
++// First-strong scan for HTML's dir=auto directionality.
++// Callers walk DOM text nodes and stop at the first Some, applying
++// the spec's subtree exclusions themselves. This only classifies
++// one text chunk: strong L is Ltr, strong R or AL is Rtl.
++/// Returns the direction of the first strong character in `text`, or `None` if it has none.
++pub fn first_strong_direction(text: &str) -> Option<BaseDirection> {
++    parley_engine::first_strong_direction(text).map(BaseDirection::from)
++}
+diff --git a/src/builder.rs b/src/builder.rs
+index 51cf612..c895d49 100644
+--- a/src/builder.rs
++++ b/src/builder.rs
+@@ -12,10 +12,10 @@ use super::layout::SpanBoundary;
+
+ use alloc::string::String;
+ use core::ops::{Bound, Range, RangeBounds};
+-use parlance::BaseDirection;
+ use parley_engine::break_overrides::LineBreakOverrideFn;
+
+ use crate::InlineBoxKind;
++use crate::bidi::BaseDirection;
+ use crate::inline_box::{InlineBox, LayoutInlineBox};
+ use crate::resolve::{ResolvedStyle, StyleRun};
+
+diff --git a/src/lib.rs b/src/lib.rs
+index e967f50..31986b9 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -109,6 +109,7 @@ extern crate std;
+ pub use fontique;
+
+ mod analysis;
++mod bidi;
+ mod builder;
+ mod context;
+ mod font;
+@@ -126,12 +127,12 @@ pub mod style;
+ mod tests;
+
+ pub use linebender_resource_handle::FontData;
+-pub use parlance::BaseDirection;
+ pub use parley_engine::break_overrides::{
+     AsciiLineBreakTable, AsciiLineBreakTableBuilder, CHROMIUM_LINE_BREAK_OVERRIDE,
+     LineBreakContext, LineBreakOverrideFn,
+ };
+
++pub use bidi::{BaseDirection, first_strong_direction};
+ pub use builder::{RangedBuilder, StyleRunBuilder, TreeBuilder};
+ pub use context::LayoutContext;
+ pub use font::FontContext;
+diff --git a/src/tests/test_analysis.rs b/src/tests/test_analysis.rs
+index bd7beb3..9e1d759 100644
+--- a/src/tests/test_analysis.rs
++++ b/src/tests/test_analysis.rs
+@@ -1275,3 +1275,35 @@ fn test_line_break_mixed_runs() {
+     })
+     .expect_soft_wrap_opportunity_list(vec![false, true, false, false, true, true]);
+ }
++
++// BaseDirection::AutoPerParagraph tests for the plaintext
++// per-paragraph first-strong splitter (see parley_engine's analysis).
++
++#[test]
++fn test_base_direction_auto_matches_legacy() {
++    // No configuration: whole-text first-strong (Hebrew) → base 1,
++    // the LTR run after the newline stays inside the one paragraph.
++    verify_analysis("\u{5d0}\u{5d1}\nab", |_| {})
++        .expect_bidi_embed_level_list(&[1, 1, 1, 2, 2]);
++}
++
++#[test]
++fn test_base_direction_auto_per_paragraph() {
++    use crate::BaseDirection;
++    // plaintext: each paragraph re-detects. Para 1 (Hebrew) base 1
++    // with its separator at the paragraph level; para 2 (Latin) 0.
++    verify_analysis("\u{5d0}\u{5d1}\nab", |builder| {
++        builder.set_base_direction(BaseDirection::AutoPerParagraph);
++    })
++    .expect_bidi_embed_level_list(&[1, 1, 1, 0, 0]);
++}
++
++#[test]
++fn test_base_direction_per_paragraph_crlf() {
++    use crate::BaseDirection;
++    // CRLF is one separator: both chars stay in the RTL paragraph.
++    verify_analysis("\u{5d0}\u{5d1}\r\nab", |builder| {
++        builder.set_base_direction(BaseDirection::AutoPerParagraph);
++    })
++    .expect_bidi_embed_level_list(&[1, 1, 1, 1, 0, 0]);
++}

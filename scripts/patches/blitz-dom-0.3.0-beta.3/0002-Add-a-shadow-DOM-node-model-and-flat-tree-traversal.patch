@@ -1,0 +1,590 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 24 Jul 2026 12:21:47 +0100
+Subject: [PATCH] Add a shadow DOM node model and flat-tree traversal
+
+Groundwork for native shadow DOM: a shadow root is a slab node that
+lives outside its host's child list (the template_contents pattern),
+carrying host back-pointer + open/closed mode. ElementData gains the
+shadow_root slot pointing at it. Match arms added where NodeData is
+matched exhaustively (inline-box scan tolerates a stray shadow root
+rather than panicking the paint; the embedder recovers from unwinds, but
+a poisoned paint helps nobody).
+
+DioxusLabs/blitz roadmap #119 lists shadow DOM as wanted but unstarted.
+Upstream would likely want this behind an opt-in feature gate, as PR
+#478 proposed.
+
+attach_shadow creates the shadow-root node, parents it to the host while
+keeping it OUT of host.children (parent pointer preserves the
+mark_ancestors_dirty chain across the boundary; absence from children
+keeps light-tree walks blind), and mirrors the host's in-document flag
+so later appends into the root propagate flags correctly via
+add_children_to_parent's existing logic.
+
+Lifecycle holes this also plugs: drop_node_ignoring_parent recurses into
+attached shadow trees (else their slab slots leak and freed ids get
+recycled under live references); deep_clone_node clears the cloned
+host's shadow_root (raw copy would alias the original's tree by node id
+- spec says clones never copy shadow roots); and iter_subtree_mut
+recurses through shadow roots so insertion/removal processing
+(IS_IN_DOCUMENT, id map, stylesheet/image special ops) follows the host
+subtree it rides in.
+
+Fill the TShadowRoot/TNode/TElement/selectors::Element shadow stubs so
+stylo sees the flat tree: a host's traversal children are its shadow
+root's children (unslotted light children vanish until slot assignment
+lands), traversal_parent and inheritance_parent cross the transparent
+shadow-root node to the host, while parent_element deliberately stops at
+the boundary so selector matching stays inside the current tree (gecko's
+split: matching is per-scope, inheritance is flat).
+
+The inheritance_parent override is load-bearing: its default is
+parent_element, which now stops at the root - without the override
+shadow content computes from initial values (observed as black text)
+instead of inheriting through the host.
+
+TShadowRoot::style_data stays None for now: scoped stylesheet collection
+lands with the author-styles patch; a topology-only root styles like an
+empty one (UA rules + inheritance).
+
+html5ever's parse_fragment_for_element calls the sink's elem_name on the
+context handle, which expects an element and panics for a shadow root
+(nodeType 11 lives in the tree as a non-element container).
+set_inner_html now parses into a throwaway element cloned from the
+host's tag name - matching the context a browser would use - then adopts
+the children into the root and drops the temp. Everything else (scoped
+<style> registration, damage) rides the normal append path.
+
+process_added_subtree recurses through shadow trees (needed for
+in-document flags and stylesheet ops), which would also register shadow
+ids into nodes_to_id, so getElementById could see shadow internals or,
+worse, a shadow id could clobber a light-DOM entry and silently return
+the wrong element to code that never touches shadow DOM. Registration
+now skips nodes inside shadow trees.
+
+Removal is value-checked (only delete the entry when it points at the
+node being removed) rather than containment-gated: remove_node detaches
+before processing, so a containment walk at removal time misreports
+shadow content as light. The value check also stops never-registered
+duplicates from evicting a live entry.
+
+:nth-child and friends deposit for_parent() flags on the parent node,
+and for a shadow root's direct child that parent is the ShadowRoot,
+which carries no selector_flags: the accessor panicked mid-cascade. The
+document got a flags field for the same reason; a shadow root does not
+need one, because nothing reads parent flags and mutations under a root
+restyle through the host's subtree hint.
+---
+ src/document.rs         | 44 ++++++++++++++++++++++++++-
+ src/layout/construct.rs |  6 ++++
+ src/layout/mod.rs       |  1 +
+ src/mutator.rs          | 51 +++++++++++++++++++++++++++++--
+ src/node/element.rs     |  6 ++++
+ src/node/node.rs        | 46 ++++++++++++++++++++++++++++
+ src/node/serialize.rs   |  1 +
+ src/stylo.rs            | 66 +++++++++++++++++++++++++++++++----------
+ src/traversal.rs        |  7 +++++
+ src/util.rs             |  2 ++
+ 10 files changed, 212 insertions(+), 18 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 94b0fc7..6e1b539 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -6,7 +6,10 @@ use crate::mutator::ViewportMut;
+ use crate::net::{
+     Resource, ResourceHandler, ResourceLoadResponse, StylesheetHandler, StylesheetLoader,
+ };
+-use crate::node::{ImageData, NodeFlags, RasterImageData, SpecialElementData, Status, TextBrush};
++use crate::node::{
++    ImageData, NodeFlags, RasterImageData, ShadowRootData, ShadowRootMode, SpecialElementData,
++    Status, TextBrush,
++};
+ use crate::scrolling::ScrollAnimationState;
+ use crate::selection::TextSelection;
+ use crate::stylo_device::{DeviceChanges, make_device};
+@@ -875,6 +878,35 @@ impl BaseDocument {
+         id
+     }
+
++    /// Attach a shadow root to `host_id` (idempotent: an existing root
++    /// is returned as-is; the JS layer owns spec throwing semantics).
++    pub fn attach_shadow(&mut self, host_id: NodeId, mode: ShadowRootMode) -> NodeId {
++        if let Some(existing) = self.nodes[host_id].attached_shadow_root_id() {
++            return existing;
++        }
++
++        let shadow_root_id = self.create_node(NodeData::ShadowRoot(ShadowRootData {
++            host: host_id,
++            mode,
++        }));
++
++        // parent = host (while staying OUT of host.children) keeps
++        // mark_ancestors_dirty working across the shadow boundary.
++        self.nodes[shadow_root_id].parent = Some(host_id);
++        if self.nodes[host_id].flags.is_in_document() {
++            self.nodes[shadow_root_id]
++                .flags
++                .insert(NodeFlags::IS_IN_DOCUMENT);
++        }
++
++        self.nodes[host_id]
++            .element_data_mut()
++            .expect("shadow host must be an element")
++            .shadow_root = Some(shadow_root_id);
++
++        shadow_root_id
++    }
++
+     /// Remove a node from the node tree, clearing any interaction state
+     /// (hover/active/focus/mousedown/selection/drag/scrollbar) that references
+     /// it so that stale NodeIds are never dereferenced after the slot is freed.
+@@ -994,6 +1026,12 @@ impl BaseDocument {
+             for &anon_id in &node.anonymous_blocks {
+                 self.deallocate_anonymous_block(anon_id);
+             }
++
++            // Shadow trees hang off ElementData::shadow_root rather than
++            // children, so drop them explicitly or their slots leak.
++            if let Some(shadow_root_id) = node.attached_shadow_root_id() {
++                self.drop_node_ignoring_parent(shadow_root_id);
++            }
+         }
+         node
+     }
+@@ -1034,6 +1072,10 @@ impl BaseDocument {
+
+         match &mut data {
+             NodeData::Element(elem) | NodeData::AnonymousBlock(elem) => {
++                // Per spec, cloning never copies shadow roots, and a raw
++                // copy would alias the original's tree by node id.
++                elem.shadow_root = None;
++
+                 if let Some(arc) = elem.style_attribute.as_mut() {
+                     let read_guard = self.guard().read();
+                     let block = arc.read_with(&read_guard);
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 077121b..a70de08 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1098,6 +1098,9 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+             NodeData::Comment { .. } | NodeData::Text(_) => {
+                 node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+             }
++            // Shadow roots never sit in a child list; tolerate one
++            // showing up here rather than killing the whole paint.
++            NodeData::ShadowRoot(_) => {}
+             NodeData::Document(_) => unreachable!(),
+         }
+     }
+@@ -1380,6 +1383,9 @@ pub(crate) fn build_inline_layout_into(
+             NodeData::Comment { .. } => {
+                 // node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+             }
++            // Shadow roots never sit in a child list; tolerate one
++            // showing up here rather than killing the whole paint.
++            NodeData::ShadowRoot(_) => {}
+             NodeData::Document(_) => unreachable!(),
+         }
+     }
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 0a5fbc1..fa5bbc8 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -918,6 +918,7 @@ impl PrintTree for TaffyDebugTree<'_> {
+             NodeData::Text { .. } => node.node_debug_str().leak(),
+             NodeData::Comment { .. } => "COMMENT",
+             NodeData::AnonymousBlock(_) => "ANONYMOUS BLOCK",
++            NodeData::ShadowRoot(_) => "#shadow-root",
+             NodeData::Element(_) => {
+                 let style = node.layout_style();
+                 let display = match node.taffy_display() {
+diff --git a/src/mutator.rs b/src/mutator.rs
+index ec847c3..cedb754 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
+
+ use crate::layout::damage::ALL_DAMAGE;
+ use crate::net::{ImageHandler, ResourceHandler, StylesheetHandler};
+-use crate::node::{CanvasData, NodeFlags, SpecialElementData};
++use crate::node::{CanvasData, NodeFlags, ShadowRootMode, SpecialElementData};
+ use crate::stylo_device::DeviceChanges;
+ use crate::util::ImageType;
+ use crate::{
+@@ -193,6 +193,27 @@ impl DocumentMutator<'_> {
+             .and_then(|element| element.template_contents)
+     }
+
++    /// Attach (or fetch) a shadow root on `host_id` and mark the host
++    /// for restyle so the next paint reflects the new composed tree.
++    pub fn attach_shadow(&mut self, host_id: NodeId, mode: ShadowRootMode) -> NodeId {
++        let shadow_root_id = self.doc.attach_shadow(host_id, mode);
++
++        let host = &mut self.doc.nodes[host_id];
++        host.insert_damage(ALL_DAMAGE);
++        if host.flags.is_in_document() {
++            if let Some(mut data) = host
++                .try_stylo_element_data_mut()
++                .and_then(|data| data.get_mut())
++            {
++                data.hint |= RestyleHint::restyle_subtree();
++            }
++            host.mark_ancestors_dirty();
++        }
++        self.maybe_record_node(host_id);
++
++        shadow_root_id
++    }
++
+     // Node mutation methods
+
+     pub fn set_node_text(&mut self, node_id: NodeId, value: &str) {
+@@ -987,6 +1008,30 @@ impl<'doc> DocumentMutator<'doc> {
+
+     pub fn set_inner_html(&mut self, node_id: NodeId, html: &str) {
+         self.remove_and_drop_all_children(node_id);
++
++        // html5ever's fragment parser needs an element context (its
++        // elem_name callback panics otherwise). Shadow roots parse
++        // under a temp element named like the host, then adopt.
++        let shadow_host = self.doc.nodes[node_id]
++            .shadow_root_data()
++            .map(|data| data.host);
++        if let Some(host_id) = shadow_host {
++            let host_name = self.doc.nodes[host_id]
++                .element_data()
++                .expect("shadow host must be an element")
++                .name
++                .clone();
++            let tmp_id = self.create_element(host_name, Vec::new());
++            self.doc
++                .html_parser_provider
++                .clone()
++                .parse_inner_html(self, tmp_id, html);
++            let child_ids = self.child_ids(tmp_id);
++            self.append_children(node_id, &child_ids);
++            self.remove_and_drop_node(tmp_id);
++            return;
++        }
++
+         self.doc
+             .html_parser_provider
+             .clone()
+@@ -1021,7 +1066,9 @@ impl<'doc> DocumentMutator<'doc> {
+
+             // If the node has an "id" attribute, store it in the ID map.
+             if let Some(id_attr) = node.attr(local_name!("id")).map(ToString::to_string) {
+-                doc.add_to_id_map(&id_attr, node_id);
++                if node.containing_shadow_root_id().is_none() {
++                    doc.add_to_id_map(&id_attr, node_id);
++                }
+             }
+
+             let node = &mut doc.nodes[node_id];
+diff --git a/src/node/element.rs b/src/node/element.rs
+index 313a073..c3452f2 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -78,6 +78,10 @@ pub struct ElementData {
+
+     /// The element's template contents (\<template\> elements only)
+     pub template_contents: Option<NodeId>,
++
++    /// Node id of this element's attached shadow root, when it is a
++    /// shadow host. The shadow tree hangs off that node, not children.
++    pub shadow_root: Option<NodeId>,
+     // /// Whether the node is a [HTML integration point] (https://html.spec.whatwg.org/multipage/#html-integration-point)
+     // pub mathml_annotation_xml_integration_point: bool,
+
+@@ -309,6 +313,7 @@ impl Clone for ElementData {
+             inline_layout_data: self.inline_layout_data.clone(),
+             list_item_data: self.list_item_data.clone(),
+             template_contents: self.template_contents,
++            shadow_root: None,
+
+             // Runtime state: reset to defaults.
+             stylo_element_data: Default::default(),
+@@ -415,6 +420,7 @@ impl ElementData {
+             list_item_data: None,
+             special_data: SpecialElementData::None,
+             template_contents: None,
++            shadow_root: None,
+             background_images: ThinVec::new(),
+             mask_images: ThinVec::new(),
+
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 66190f4..b32bec1 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -839,6 +839,26 @@ pub enum NodeKind {
+     AnonymousBlock,
+     Text,
+     Comment,
++    ShadowRoot,
++}
++
++/// Encapsulation mode of a shadow root, mirroring the
++/// DOM spec's ShadowRootMode (open/closed).
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum ShadowRootMode {
++    Open,
++    Closed,
++}
++
++// Shadow roots live in the slab OUT of the host's child list (the
++// ElementData::template_contents pattern), so light walks skip them.
++
++/// Root of a shadow tree; the host element links here via
++/// ElementData::shadow_root and `host` points back at it.
++#[derive(Debug, Clone)]
++pub struct ShadowRootData {
++    pub host: NodeId,
++    pub mode: ShadowRootMode,
+ }
+
+ /// The different kinds of nodes in the DOM.
+@@ -861,6 +881,9 @@ pub enum NodeData {
+         /// The textual content of the comment
+         contents: String,
+     },
++
++    /// The root of a shadow tree attached to a host element.
++    ShadowRoot(ShadowRootData),
+     // /// A `DOCTYPE` with name, public id, and system id. See
+     // /// [document type declaration on wikipedia][https://en.wikipedia.org/wiki/Document_type_declaration]
+     // Doctype { name: String, public_id: String, system_id: String },
+@@ -913,6 +936,14 @@ impl NodeData {
+             NodeData::AnonymousBlock(_) => NodeKind::AnonymousBlock,
+             NodeData::Text(_) => NodeKind::Text,
+             NodeData::Comment { .. } => NodeKind::Comment,
++            NodeData::ShadowRoot(_) => NodeKind::ShadowRoot,
++        }
++    }
++
++    pub fn shadow_root_data(&self) -> Option<&ShadowRootData> {
++        match self {
++            Self::ShadowRoot(data) => Some(data),
++            _ => None,
+         }
+     }
+ }
+@@ -1021,6 +1052,20 @@ impl Node {
+         matches!(self.data, NodeData::AnonymousBlock { .. })
+     }
+
++    pub fn is_shadow_root(&self) -> bool {
++        matches!(self.data, NodeData::ShadowRoot(_))
++    }
++
++    pub fn shadow_root_data(&self) -> Option<&ShadowRootData> {
++        self.data.shadow_root_data()
++    }
++
++    /// Shadow-root node id when this node is a shadow host.
++    /// None for non-elements and hosts without an attached root.
++    pub fn attached_shadow_root_id(&self) -> Option<NodeId> {
++        self.element_data().and_then(|el| el.shadow_root)
++    }
++
+     pub fn is_text_node(&self) -> bool {
+         matches!(self.data, NodeData::Text { .. })
+     }
+@@ -1072,6 +1117,7 @@ impl Node {
+             }
+             NodeData::Comment { .. } => write!(s, "COMMENT"),
+             NodeData::AnonymousBlock(_) => write!(s, "AnonymousBlock"),
++            NodeData::ShadowRoot(data) => write!(s, "#shadow-root ({:?})", data.mode),
+             NodeData::Element(data) => {
+                 let name = &data.name;
+                 let class = self.attr(local_name!("class")).unwrap_or("");
+diff --git a/src/node/serialize.rs b/src/node/serialize.rs
+index 258abe8..1f556dd 100644
+--- a/src/node/serialize.rs
++++ b/src/node/serialize.rs
+@@ -128,6 +128,7 @@ impl Node {
+             NodeData::Document(_) => {}
+             NodeData::Comment { .. } => {}
+             NodeData::AnonymousBlock(_) => {}
++            NodeData::ShadowRoot(_) => {}
+             // NodeData::Doctype { name, .. } => write!(s, "DOCTYPE {name}"),
+             NodeData::Text(data) => {
+                 if matches!(style, OutputStyle::Pretty) {
+diff --git a/src/stylo.rs b/src/stylo.rs
+index 89e1bbd..e7b6427 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -273,14 +273,20 @@ impl<'a> TShadowRoot for BlitzNode<'a> {
+     }
+
+     fn host(&self) -> <Self::ConcreteNode as TNode>::ConcreteElement {
+-        todo!("Shadow roots not implemented")
++        let host_id = self
++            .shadow_root_data()
++            .expect("host() called on a non-shadow-root node")
++            .host;
++        self.with(host_id)
+     }
+
+     fn style_data<'b>(&self) -> Option<&'b style::stylist::CascadeData>
+     where
+         Self: 'b,
+     {
+-        todo!("Shadow roots not implemented")
++        // Topology-only for now: scoped stylesheet collection lands
++        // with the author-styles patch; None styles like an empty root.
++        None
+     }
+ }
+
+@@ -323,12 +329,14 @@ impl<'a> TNode for BlitzNode<'a> {
+         true
+     }
+
+-    // I think this is the same as parent_node only in the cases when the direct parent is not a real element, forcing us
+-    // to travel upwards
+-    //
+-    // For the sake of this demo, we're just going to return the parent node ann
++    // Flat-tree parent: the shadow-root node is transparent, so its
++    // children inherit (and traverse) from the HOST element.
+     fn traversal_parent(&self) -> Option<Self::ConcreteElement> {
+-        self.parent_node().and_then(|node| node.as_element())
++        let parent = self.parent_node()?;
++        match &parent.data {
++            NodeData::ShadowRoot(data) => Some(parent.with(data.host)),
++            _ => parent.as_element(),
++        }
+     }
+
+     fn opaque(&self) -> OpaqueNode {
+@@ -354,8 +362,10 @@ impl<'a> TNode for BlitzNode<'a> {
+     }
+
+     fn as_shadow_root(&self) -> Option<Self::ConcreteShadowRoot> {
+-        // TODO: implement shadow DOM
+-        None
++        match self.data {
++            NodeData::ShadowRoot { .. } => Some(self),
++            _ => None,
++        }
+     }
+ }
+
+@@ -375,16 +385,19 @@ impl selectors::Element for BlitzNode<'_> {
+         OpaqueElement::from_non_null_ptr(non_null)
+     }
+
++    // Selector matching stays inside the current tree: shadow-tree
++    // top-levels have a null parentElement (traversal_parent crosses).
+     fn parent_element(&self) -> Option<Self> {
+-        TElement::traversal_parent(self)
++        self.parent_node().and_then(|node| node.as_element())
+     }
+
+     fn parent_node_is_shadow_root(&self) -> bool {
+-        false
++        self.parent
++            .is_some_and(|id| self.with(id).is_shadow_root())
+     }
+
+     fn containing_shadow_host(&self) -> Option<Self> {
+-        None
++        TElement::containing_shadow(self).map(|root| TShadowRoot::host(&root))
+     }
+
+     fn is_pseudo_element(&self) -> bool {
+@@ -611,7 +624,9 @@ impl selectors::Element for BlitzNode<'_> {
+         // Handle flags that apply to the parent.
+         let parent_flags = flags.for_parent();
+         if !parent_flags.is_empty() {
+-            if let Some(parent) = self.parent_node() {
++            // Shadow roots hold no selector flags, and nothing here reads parent
++            // flags: mutations under a root restyle through the host's subtree hint.
++            if let Some(parent) = self.parent_node().filter(|p| !p.is_shadow_root()) {
+                 parent
+                     .selector_flags()
+                     .set(parent.selector_flags().get() | parent_flags);
+@@ -718,10 +733,16 @@ impl<'a> TElement for BlitzNode<'a> {
+         todo!();
+     }
+
++    // Flat tree: a shadow host's traversal children are its shadow
++    // root's children; unslotted light children vanish (slots later).
+     fn traversal_children(&self) -> style::dom::LayoutIterator<Self::TraversalChildrenIterator> {
++        let parent = match self.attached_shadow_root_id() {
++            Some(shadow_root_id) => self.with(shadow_root_id),
++            None => self,
++        };
+         LayoutIterator(Traverser {
+             // dom: self.tree(),
+-            parent: self,
++            parent,
+             child_index: 0,
+         })
+     }
+@@ -740,6 +761,12 @@ impl<'a> TElement for BlitzNode<'a> {
+         false
+     }
+
++    // Style inheritance follows the flat tree (parent_element stops
++    // at the shadow root by design; inheritance must cross to host).
++    fn inheritance_parent(&self) -> Option<Self> {
++        TElement::traversal_parent(self)
++    }
++
+     fn style_attribute(&self) -> Option<ArcBorrow<'_, Locked<PropertyDeclarationBlock>>> {
+         self.element_data()
+             .expect("Not an element")
+@@ -904,10 +931,19 @@ impl<'a> TElement for BlitzNode<'a> {
+     }
+
+     fn shadow_root(&self) -> Option<<Self::ConcreteNode as TNode>::ConcreteShadowRoot> {
+-        None
++        self.attached_shadow_root_id().map(|id| self.with(id))
+     }
+
++    // Walking Node::parent terminates: a shadow subtree's chain hits
++    // its shadow-root node before ever reaching the host's ancestors.
+     fn containing_shadow(&self) -> Option<<Self::ConcreteNode as TNode>::ConcreteShadowRoot> {
++        let mut current = self.parent_node();
++        while let Some(node) = current {
++            if node.is_shadow_root() {
++                return Some(node);
++            }
++            current = node.parent_node();
++        }
+         None
+     }
+
+diff --git a/src/traversal.rs b/src/traversal.rs
+index bbab931..82e38b8 100644
+--- a/src/traversal.rs
++++ b/src/traversal.rs
+@@ -161,6 +161,13 @@ impl BaseDocument {
+             node_id: NodeId,
+             cb: &mut impl FnMut(NodeId, &mut BaseDocument),
+         ) {
++            // Recurse into attached shadow trees so document-membership
++            // bookkeeping (flags, id map, special ops) follows the host.
++            if let Some(shadow_root_id) = doc.nodes[node_id].attached_shadow_root_id() {
++                cb(shadow_root_id, doc);
++                iter_subtree_mut_inner(doc, shadow_root_id, cb);
++            }
++
+             let children = std::mem::take(&mut doc.nodes[node_id].children);
+             for child_id in children.iter().cloned() {
+                 cb(child_id, doc);
+diff --git a/src/util.rs b/src/util.rs
+index 809bc1f..947289c 100644
+--- a/src/util.rs
++++ b/src/util.rs
+@@ -124,6 +124,8 @@ pub fn walk_tree(indent: usize, node: &Node) {
+
+         NodeData::AnonymousBlock(_) => println!("{id} AnonymousBlock"),
+
++        NodeData::ShadowRoot(data) => println!("#shadow-root {id} ({:?})", data.mode),
++
+         NodeData::Element(data) => {
+             print!("<{} {id}", data.name.local);
+             for attr in data.attrs.iter() {

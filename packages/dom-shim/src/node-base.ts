@@ -34,6 +34,7 @@ import {
 } from "./range.js";
 import { runIteratorPreRemove } from "./traversal.js";
 import { ksSpan } from "./otel.js";
+import { stampConnectedNamedGlobals } from "./window.js";
 import {
   cache,
   hasLiveWrapper,
@@ -551,10 +552,13 @@ function isTemplateElement(id): boolean {
   return true;
 }
 
+const TEMPLATE_CONTENT_FRAGMENT_TAG = "#document-fragment";
+
 function ensureTemplateContent(templateId: number): DocumentFragmentImpl {
   let frag = templateContentFragment.get(templateId);
   if (frag) return frag;
-  const fragId = dom.createElement("div");
+  // The backing tag lets Rust keep template contents inert, unlike other detached elements.
+  const fragId = dom.createElement(TEMPLATE_CONTENT_FRAGMENT_TAG);
   fragmentIds.add(fragId);
   frag = nodeFor(fragId) as DocumentFragmentImpl;
   templateContentFragment.set(templateId, frag);
@@ -1002,6 +1006,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       recordChildListMutation(child, [], kids, null, null);
       recordChildListMutation(this, kids, [], prevSiblingForAdd, null);
       for (const k of kids) {
+        stampConnectedNamedGlobals(k._id);
         notifySubtreeInserts(k);
         notifyConnectedCallbacks(k);
       }
@@ -1057,6 +1062,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
         recordChildListMutation(oldParent, [], [child], oldPrevSibling, oldNextSibling);
       }
       recordChildListMutation(this, [child], [], prevSiblingForAdd, null);
+      stampConnectedNamedGlobals(child._id);
       notifySubtreeInserts(child);
       notifyConnectedCallbacks(child);
       return child;
@@ -1156,6 +1162,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       recordChildListMutation(newChild, [], kids, null, null);
       recordChildListMutation(this, kids, [], prevSiblingForAdd, nextSiblingForAdd);
       for (const k of kids) {
+        stampConnectedNamedGlobals(k._id);
         notifySubtreeInserts(k);
         notifyConnectedCallbacks(k);
       }
@@ -1236,6 +1243,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       recordChildListMutation(oldParent, [], [newChild], oldPrevSibling, oldNextSibling);
     }
     recordChildListMutation(this, [newChild], [], prevSiblingForAdd, nextSiblingForAdd);
+    stampConnectedNamedGlobals(newChild._id);
     notifySubtreeInserts(newChild);
     notifyConnectedCallbacks(newChild);
     return newChild;
@@ -1397,6 +1405,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     }
     const swapRemoved = isSelfReplace ? [] : [oldChild];
     recordChildListMutation(this, [newChild], swapRemoved, swapPrev, swapNext);
+    stampConnectedNamedGlobals(newChild._id);
     return oldChild;
   }
   before(...nodes): void {

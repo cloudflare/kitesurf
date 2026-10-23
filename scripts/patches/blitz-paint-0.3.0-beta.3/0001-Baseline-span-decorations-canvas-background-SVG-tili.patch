@@ -339,7 +339,7 @@ index 8887f03..fc004de 100644
                      glyph_run.positioned_glyphs().map(|glyph| anyrender::Glyph {
 diff --git a/src/text_box_decorations.rs b/src/text_box_decorations.rs
 new file mode 100644
-index 0000000..5ae4fb3
+index 0000000..5259bcd
 --- /dev/null
 +++ b/src/text_box_decorations.rs
 @@ -0,0 +1,296 @@
@@ -473,7 +473,7 @@ index 0000000..5ae4fb3
 +        return;
 +    }
 +    let styles = layout.styles();
-+    let lines: Vec<parley::layout::Line<'_, TextBrush>> = layout.lines().collect();
++    let mut lines: Option<Vec<parley::layout::Line<'_, TextBrush>>> = None;
 +
 +    for fragment in fragments {
 +        let style = match styles.get(fragment.style_index as usize) {
@@ -481,10 +481,15 @@ index 0000000..5ae4fb3
 +            None => continue,
 +        };
 +        let decos = &style.box_decorations;
-+        if decos.is_empty() {
++        let top_w = decos.border_block_start_width as f64;
++        let right_w = decos.border_inline_end_width as f64;
++        let bottom_w = decos.border_block_end_width as f64;
++        let left_w = decos.border_inline_start_width as f64;
++        if !(top_w > 0.0 || right_w > 0.0 || bottom_w > 0.0 || left_w > 0.0) {
 +            continue;
 +        }
 +
++        let lines = lines.get_or_insert_with(|| layout.lines().collect());
 +        let line = match lines.get(fragment.line_index as usize) {
 +            Some(l) => l,
 +            None => continue,
@@ -525,11 +530,6 @@ index 0000000..5ae4fb3
 +        // depend on is_first/is_last_fragment so a wrapped span
 +        // doesn't paint internal vertical edges. Only single-line
 +        // spans emit fragments today, so both flags are true.
-+        let top_w = decos.border_block_start_width as f64;
-+        let right_w = decos.border_inline_end_width as f64;
-+        let bottom_w = decos.border_block_end_width as f64;
-+        let left_w = decos.border_inline_start_width as f64;
-+
 +        let push_clip = !decos.border_radius.is_zero();
 +        let radii = if push_clip {
 +            Some(fragment_radii(decos, fragment))

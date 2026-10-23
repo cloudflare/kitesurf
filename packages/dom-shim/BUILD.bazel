@@ -1,4 +1,4 @@
-load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary", "js_test")
 load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
@@ -69,11 +69,30 @@ js_library(
     visibility = ["//visibility:public"],
 )
 
+js_library(
+    name = "test_srcs",
+    srcs = glob(["test/**"]),
+    deps = [
+        ":node_modules/vitest",
+        ":srcs",
+        "//packages/page-script:internal_state",
+    ],
+)
+
+js_test(
+    name = "vitest",
+    size = "small",
+    chdir = package_name(),
+    data = [":test_srcs"],
+    entry_point = "//scripts:vitest_bazel",
+)
+
 tsc_test(
     name = "types",
     bin = tsc,
     data = [
         ":srcs",
+        ":test_srcs",
         "//:node_modules/@cloudflare/workers-types",
         "//packages/core/pkg",
         "//packages/page-script:internal_state",
@@ -86,6 +105,7 @@ strict_ratchet_test(
     data = [
         ":node_modules/typescript",
         ":srcs",
+        ":test_srcs",
         "//:node_modules/@cloudflare/workers-types",
         "//packages/core/pkg",
         "//packages/page-script:internal_state",

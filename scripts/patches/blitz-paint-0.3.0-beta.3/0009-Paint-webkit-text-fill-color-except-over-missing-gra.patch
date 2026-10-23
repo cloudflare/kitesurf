@@ -1,0 +1,128 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 14 Sep 2026 12:50:20 +0100
+Subject: [PATCH] Paint -webkit-text-fill-color, except over missing gradient
+ text
+
+The property overrides `color` for the glyph fill only. Overlay code
+editors use it to hide a textarea's own text while keeping the caret and
+letting a highlighted <pre> underneath show through. Without it the raw
+textarea text painted over the highlighted output.
+
+The initial value is currentcolor, and as_absolute() reports that as
+None, so this is inert until authored. Decorations still resolve
+currentColor against `color`: text-decoration-color's initial value is
+currentColor, so falling back to the fill color would let a transparent
+fill erase underlines too.
+
+A background layer clipped to the text is not painted, so
+`-webkit-text-fill-color: transparent` (the half of the gradient-text
+idiom that hides the glyphs and lets the gradient show through) left
+nothing on screen. Fall back to `color` for the glyph fill when a
+skipped layer is the one clipped to the text.
+
+Which layer it is matters. background-image sets the layer count and a
+shorter background-clip list cycles to match it, so each image is paired
+with its own clip: `none, linear-gradient(...)` with `text, border-box`
+clips no image to the text, nothing is missing from the paint, and the
+author's transparent glyphs stay transparent.
+
+Co-authored-by: Rui Figueira <rfigueira@cloudflare.com>
+---
+ src/text.rs | 48 +++++++++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 41 insertions(+), 7 deletions(-)
+
+diff --git a/src/text.rs b/src/text.rs
+index fc004de..3ea60c9 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -91,9 +91,8 @@ struct ResolvedDecoration {
+ /// consecutive runs doesn't re-resolve them.
+ struct DecorationStackEntry {
+     node_id: NodeId,
+-    /// This node's (inherited) text colour, used for the glyphs of runs whose
+-    /// innermost node is this one.
+-    text_color: Color,
++    /// The glyph fill, which may override `color` without affecting decorations.
++    text_fill_color: Color,
+     /// The decoration this node introduces as a decorating box, if any.
+     decoration: Option<ResolvedDecoration>,
+ }
+@@ -103,7 +102,7 @@ fn resolve_decoration_entry(doc: &BaseDocument, node_id: NodeId) -> DecorationSt
+     let Some(styles) = doc.get_node(node_id).and_then(|node| node.primary_styles()) else {
+         return DecorationStackEntry {
+             node_id,
+-            text_color: Color::BLACK,
++            text_fill_color: Color::BLACK,
+             decoration: None,
+         };
+     };
+@@ -111,6 +110,38 @@ fn resolve_decoration_entry(doc: &BaseDocument, node_id: NodeId) -> DecorationSt
+     let itext = styles.get_inherited_text();
+     let text = styles.get_text();
+     let text_color = itext.color.as_color_color();
++    let text_fill_color = itext
++        ._webkit_text_fill_color
++        .as_absolute()
++        .map(ToColorColor::as_color_color)
++        .unwrap_or(text_color);
++    let has_text_clipped_background = {
++        let background = styles.get_background();
++        // background-image decides the layer count and the shorter background-clip list
++        // cycles to match it, so a layer's clip is only the clip of its own image. Checking
++        // the two lists independently would take `none, linear-gradient(...)` with
++        // `text, border-box` for a text-clipped gradient and reveal glyphs the author
++        // deliberately made transparent.
++        background
++            .background_image
++            .0
++            .iter()
++            .zip(background.background_clip.0.iter().cycle())
++            .any(|(image, clip)| {
++                !matches!(image, style::values::generics::image::GenericImage::None)
++                    && matches!(
++                        clip,
++                        style::properties::generated::longhands::background_clip::single_value::computed_value::T::Text
++                    )
++            })
++    };
++    let text_fill_color = if text_fill_color == Color::TRANSPARENT && has_text_clipped_background {
++        // Text-clipped backgrounds are skipped by the background painter, so a transparent fill
++        // would erase the glyphs instead of leaving a usable fallback color.
++        text_color
++    } else {
++        text_fill_color
++    };
+
+     let drawn_lines = TextDecorationLine::UNDERLINE
+         | TextDecorationLine::OVERLINE
+@@ -146,7 +177,7 @@ fn resolve_decoration_entry(doc: &BaseDocument, node_id: NodeId) -> DecorationSt
+
+     DecorationStackEntry {
+         node_id,
+-        text_color,
++        text_fill_color,
+         decoration,
+     }
+ }
+@@ -582,7 +613,10 @@ pub(crate) fn stroke_text<'a>(
+
+                 // The glyph colour comes from the run's own node (the stack top): `color`
+                 // inherits, so the innermost inline element already carries the right value.
+-                let text_color = stack.last().map(|e| e.text_color).unwrap_or(Color::BLACK);
++                let text_fill_color = stack
++                    .last()
++                    .map(|entry| entry.text_fill_color)
++                    .unwrap_or(Color::BLACK);
+
+                 let embolden = if FONT_EMBOLDEN_ENABLED {
+                     let fs = font_size as f64 / scale;
+@@ -599,7 +633,7 @@ pub(crate) fn stroke_text<'a>(
+                     normalized_coords,
+                     embolden,
+                     Fill::NonZero,
+-                    &anyrender::Paint::from(text_color),
++                    &anyrender::Paint::from(text_fill_color),
+                     alpha,
+                     transform,
+                     glyph_xform,

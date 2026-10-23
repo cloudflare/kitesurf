@@ -5,6 +5,9 @@
 //! Tests for the dom stage; they use crate internals.
 
 mod inner_text;
+mod font_face_unicode_range;
 mod node_handle;
 mod scan;
 mod shadow_dom;
+mod template_resources;
+mod text_selection;

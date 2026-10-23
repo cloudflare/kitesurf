@@ -1,0 +1,211 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 23 Aug 2026 16:16:15 +0100
+Subject: [PATCH] Draw collapsed table borders per cell, not per gridline
+
+The inner-border pass swept one rect down every column gutter and across
+every row gutter, for the full width and height of the table. That
+ignores spans entirely, so a `colspan="2"` cell got a border painted
+through its middle. An infobox table whose header, images and section
+bars all use `colspan="2"` showed a gridline running the whole height of
+the box. It looked like colspan was not honoured, even though layout had
+the spans right.
+
+Paint each cell's own four collapsed edges instead, using the resolved
+1-indexed grid lines taffy already returns in `DetailedGridInfo::items`.
+A gridline shared by two cells is painted twice in the same colour,
+which costs nothing; a gridline that a span crosses is painted by
+nobody, which is the point. Edges extend into the perpendicular gutters
+so the corners where four cells meet stay filled, but stop short of the
+outermost gutter, since that band belongs to the outer border and may be
+`hidden`.
+
+Take the outer frame from taffy's used border and padding rather than
+the computed style: under `border-collapse` the reserved band is the
+collapsed border, so the layout values are the ones the tracks were
+placed against. That band gets a single owner keyed on the table's
+border-style. `hidden` suppresses it outright; `none` means the
+collapsed border came from the cells and only this routine can draw it;
+anything else belongs to `draw_border`, which runs immediately after and
+paints the real style in the real per-side colours. Filling the band
+here first would back it solid, which is how `border-style: double` lost
+the gap between its two lines.
+
+Each edge is painted at its authored border width against its grid line
+rather than at the gutter's width. Terminal rounding can place adjacent
+narrow tracks on one line and leave a zero-width gutter, which would
+otherwise drop the border.
+
+Painting reads the per-resolve paint copy of the table tracks, so
+collapsed borders stay aligned without destroying Taffy's raw metadata.
+Row backgrounds do not read the tracks: upstream paints them per cell
+from the cells' own layout.
+---
+ src/render/border.rs | 130 ++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 103 insertions(+), 27 deletions(-)
+
+diff --git a/src/render/border.rs b/src/render/border.rs
+index 196f4d7..74b75f2 100644
+--- a/src/render/border.rs
++++ b/src/render/border.rs
+@@ -523,7 +523,7 @@ impl ElementCx<'_, '_> {
+             return;
+         }
+
+-        let Some(grid_info) = &mut *table.computed_grid_info.borrow_mut() else {
++        let Some(grid_info) = &*table.paint_grid_info.borrow() else {
+             return;
+         };
+         let Some(border_style) = table.border_style.as_deref() else {
+@@ -531,6 +531,16 @@ impl ElementCx<'_, '_> {
+         };
+
+         let outer_border_style = self.style.get_border();
++        let border_width_x = border_style
++            .border_left_width
++            .0
++            .max(border_style.border_right_width.0)
++            .to_f32_px() as f64;
++        let border_width_y = border_style
++            .border_top_width
++            .0
++            .max(border_style.border_bottom_width.0)
++            .to_f32_px() as f64;
+
+         let cols = PhysicalTracks::from_tracks(&grid_info.columns);
+         let rows = PhysicalTracks::from_tracks(&grid_info.rows);
+@@ -553,42 +563,108 @@ impl ElementCx<'_, '_> {
+             return;
+         }
+
++        let layout = self.node.final_layout();
++
+         // The borders are laid out as the gutters between the tracks, and as the border
+         // of the table around them. Track positions are relative to the table's border box.
+-        let border_width = table.style.gap.map(|gap| gap.into_raw().value() as f64);
+-        let left = cols.origin() as f64 - border_width.width;
+-        let right = (cols.origin() + cols.span()) as f64 + border_width.width;
+-        let top = rows.origin() as f64 - border_width.height;
+-        let bottom = (rows.origin() + rows.span()) as f64 + border_width.height;
+-
+         let mut fill = |x0: f64, y0: f64, x1: f64, y1: f64| {
+             let shape = Rect::new(x0, y0, x1, y1).scale_from_origin(self.scale);
+             scene.fill(Fill::NonZero, self.transform, border_color, None, &shape);
+         };
+
+-        // Horizontal borders: the outer edges, then the gutters between adjacent row tracks.
+-        // The vertical borders are drawn between them so that no corner is painted twice.
+-        if outer_border_style.border_top_style != BorderStyle::Hidden {
+-            fill(left, top, right, top + border_width.height);
+-        }
+-        if outer_border_style.border_bottom_style != BorderStyle::Hidden {
+-            fill(left, bottom - border_width.height, right, bottom);
+-        }
+-        for (prev, next) in rows.iter().zip(rows.iter().skip(1)) {
+-            fill(left, prev.end as f64, right, next.start as f64);
+-        }
++        // Paint each cell's own edges. Sweeping every grid line through the
++        // table paints borders across colspan and rowspan cells.
++        let (col_start, col_end) = (cols.origin(), cols.origin() + cols.span());
++        let (row_start, row_end) = (rows.origin(), rows.origin() + rows.span());
++        let physical_cols: Vec<_> = cols.iter().collect();
++        let physical_rows: Vec<_> = rows.iter().collect();
++        let column_positions = grid_info.columns.positions.as_slice();
++        let row_positions = grid_info.rows.positions.as_slice();
++        for item in &grid_info.items {
++            let c0 = item.column_start.saturating_sub(1) as usize;
++            let c1 = item.column_end.saturating_sub(1) as usize;
++            let r0 = item.row_start.saturating_sub(1) as usize;
++            let r1 = item.row_end.saturating_sub(1) as usize;
++            if c0 >= column_positions.len()
++                || c1 <= c0
++                || c1 > column_positions.len()
++                || r0 >= row_positions.len()
++                || r1 <= r0
++                || r1 > row_positions.len()
++            {
++                continue;
++            }
+
+-        // Vertical borders, one segment per row
+-        for row in rows.iter() {
+-            let (y0, y1) = (row.start as f64, row.end as f64);
+-            if outer_border_style.border_left_style != BorderStyle::Hidden {
+-                fill(left, y0, left + border_width.width, y1);
++            let start_col = column_positions[c0];
++            let end_col = column_positions[c1 - 1];
++            let x0 = start_col.start.min(end_col.start);
++            let x1 = start_col.end.max(end_col.end);
++            let y0 = row_positions[r0].start;
++            let y1 = row_positions[r1 - 1].end;
++
++            let physical_c0 = physical_cols
++                .iter()
++                .position(|track| track.start == x0)
++                .unwrap();
++            let physical_c1 = physical_cols
++                .iter()
++                .position(|track| track.end == x1)
++                .unwrap();
++            let physical_r0 = physical_rows
++                .iter()
++                .position(|track| track.start == y0)
++                .unwrap();
++            let physical_r1 = physical_rows
++                .iter()
++                .position(|track| track.end == y1)
++                .unwrap();
++
++            let has_left = physical_c0 > 0;
++            let has_right = physical_c1 + 1 < physical_cols.len();
++            let has_top = physical_r0 > 0;
++            let has_bottom = physical_r1 + 1 < physical_rows.len();
++            let (x0, x1, y0, y1) = (x0 as f64, x1 as f64, y0 as f64, y1 as f64);
++            let ex0 = if has_left { x0 - border_width_x } else { col_start as f64 };
++            let ex1 = if has_right { x1 } else { col_end as f64 };
++            let ey0 = if has_top { y0 - border_width_y } else { row_start as f64 };
++            let ey1 = if has_bottom { y1 } else { row_end as f64 };
++
++            if has_left {
++                fill(x0 - border_width_x, ey0, x0, ey1);
+             }
+-            if outer_border_style.border_right_style != BorderStyle::Hidden {
+-                fill(right - border_width.width, y0, right, y1);
++            if has_right {
++                fill(x1 - border_width_x, ey0, x1, ey1);
+             }
+-            for (prev, next) in cols.iter().zip(cols.iter().skip(1)) {
+-                fill(prev.end as f64, y0, next.start as f64, y1);
++            if has_top {
++                fill(ex0, y0 - border_width_y, ex1, y0);
+             }
++            if has_bottom {
++                fill(ex0, y1 - border_width_y, ex1, y1);
++            }
++        }
++
++        // The table's own border band: only drawn here when the table's border-style is
++        // `none` (the band came from the cells). Otherwise `draw_border` owns it.
++        let ours = |style: BorderStyle| style == BorderStyle::None;
++        let x0 = 0.0;
++        let y0 = 0.0;
++        let x1 = (layout.border.left + layout.padding.left) as f64
++            + cols.span() as f64
++            + (layout.padding.right + layout.border.right) as f64;
++        let y1 = (layout.border.top + layout.padding.top) as f64
++            + rows.span() as f64
++            + (layout.padding.bottom + layout.border.bottom) as f64;
++
++        if ours(outer_border_style.border_top_style) {
++            fill(x0, y0, x1, y0 + layout.border.top as f64);
++        }
++        if ours(outer_border_style.border_bottom_style) {
++            fill(x0, y1 - layout.border.bottom as f64, x1, y1);
++        }
++        if ours(outer_border_style.border_left_style) {
++            fill(x0, y0, x0 + layout.border.left as f64, y1);
++        }
++        if ours(outer_border_style.border_right_style) {
++            fill(x1 - layout.border.right as f64, y0, x1, y1);
+         }
+     }

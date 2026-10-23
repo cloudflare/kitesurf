@@ -39,7 +39,7 @@ const GREEN: (u8, u8, u8) = (0, 128, 0);
 
 #[test]
 fn zero_viewbox_on_the_root_disables_rendering() {
-    for vb in ["0 0 0 100", "0 0 100 0", "0 0 0 0"] {
+    for vb in ["0 0 0 100", "0 0 100 0", "0 0 0 0", "0, 0, 0, 100"] {
         let tree = tree_of(&format!(
             r##"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="{vb}">
                   <rect width="100" height="100" fill="green"/>
@@ -51,6 +51,19 @@ fn zero_viewbox_on_the_root_disables_rendering() {
             "viewBox=\"{vb}\" still rendered content"
         );
     }
+}
+
+#[test]
+fn repeated_comma_viewbox_is_ignored_instead_of_disabling_rendering() {
+    let tree = tree_of(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0,,0,0,100">
+              <rect width="100" height="100" fill="green"/>
+            </svg>"##,
+    );
+    assert!(
+        paints_fill(&tree, GREEN),
+        "a malformed viewBox with repeated commas disabled rendering"
+    );
 }
 
 #[test]

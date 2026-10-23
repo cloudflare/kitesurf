@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 13 Aug 2026 17:11:33 +0100
+Subject: [PATCH] Propagate damage through shadow roots
+
+propagate_damage_flags bailed on any node without stylo_element_data. A
+shadow root has none, so the walk returned before traversing the shadow
+subtree: box-construction damage and layout-cache clears for content
+inside a shadow tree never ran, and the nodes could not get boxes no
+matter what damage they carried. caniuse renders every feature card into
+ciu-feature-list's shadow tree, so search results stopped painting once
+incremental layout landed.
+
+Handle a shadow root before the element-only damage processing: it
+returns the union of its children's damage, so construction damage
+bubbles through it to the flat-tree host without reading element-only
+fields.
+---
+ src/layout/damage.rs | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index 6485ad8..671622c 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -54,6 +54,19 @@ impl BaseDocument {
+     /// without revisiting their DOM children. Damage inside an anonymous box
+     /// also invalidates its cache by walking `layout_parent` upward.
+     pub(crate) fn propagate_damage_flags(&mut self, node_id: NodeId) -> RestyleDamage {
++        // Shadow roots are transparent flat-tree boundaries, not layout nodes.
++        // Walk their real children and bubble that damage to the host without
++        // touching the element-only layout accessors.
++        if self.nodes[node_id].is_shadow_root() {
++            let children = std::mem::take(&mut self.nodes[node_id].children);
++            let mut damage = RestyleDamage::empty();
++            for child in children.iter() {
++                damage |= self.propagate_damage_flags(*child);
++            }
++            self.nodes[node_id].children = children;
++            return damage;
++        }
++
+         let own_damage = if let Some(data) = self.nodes[node_id]
+             .try_stylo_element_data_mut()
+             .and_then(|s| s.get_mut())

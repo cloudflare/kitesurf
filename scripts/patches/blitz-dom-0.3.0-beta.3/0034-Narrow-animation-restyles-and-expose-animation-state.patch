@@ -1,0 +1,94 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 4 Aug 2026 06:34:05 +0100
+Subject: [PATCH] Narrow animation restyles and expose animation state
+
+`resolve_stylist` stamped RESTYLE_SELF on every element holding an
+`ElementAnimationSet`, every resolve. An animation that is Finished (or
+Paused) contributes a value that cannot change until something restyles
+the element for its own reasons, so that hint buys nothing and costs a
+full recascade of the element plus the `mark_ancestors_dirty` walk
+needed to reach it. `needs_animation_ticks()` is exactly the "could
+still change" predicate (Running or Pending) and it is already what
+`has_active_animations` uses to decide whether to keep redrawing.
+
+This became load-bearing once a finished `animation-fill-mode: forwards`
+animation started outliving its run: those sets are retained for the
+element's lifetime, so the unconditional hint meant every faded-in image
+on a page recascaded on every resolve, forever. Measured on a
+400-element nested document, one unrelated attribute write per resolve:
+28.5ms -> 2.7ms, with the retained-animation overhead going from +25.9ms
+to +0.15ms against an animation-free control.
+
+The predicate is read before the state-advancement loops below, so an
+animation that ends during *this* resolve is still Running here and
+still gets the hint it needs to apply its last keyframe. Nothing can
+reach Canceled without a restyle of its own element either
+(`update_animations_for_new_style`, the transition paths, and
+`cancel_all_animations_for_key`, whose only caller is
+`process_animations_for_pseudo`), so a set cannot be stranded holding an
+entry that never gets released.
+
+An embedder that drives its own frame clock (rather than a windowing
+loop's vsync) has to answer two questions after every resolve: does
+anything still need a tick, and which transitions changed state so it
+can emit transitionrun/start/end/cancel. Both are already computed in
+resolve_stylist but neither is reachable; `animations` and
+`has_active_animations` are pub(crate), and the public `is_animating`
+folds in canvases, custom widgets and scroll/scrollbar animation, which
+have their own redraw paths and would pin the flag on forever for a
+caller that only wants a restyle clock.
+
+Add `animations()` and a `has_active_animations()` that reports only CSS
+animations/transitions (including subdocuments).
+---
+ src/document.rs | 15 +++++++++++++++
+ src/stylo.rs    |  9 ++++++++-
+ 2 files changed, 23 insertions(+), 1 deletion(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index d6db0e5..338b299 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -2803,6 +2803,21 @@ impl BaseDocument {
+             .and_then(|el| el.sub_doc_data_mut())
+     }
+
++    /// The document's live CSS animations and transitions. An embedder that
++    /// drives its own frame clock reads the per-element state from here to
++    /// decide whether to schedule another tick and to emit the DOM events.
++    pub fn animations(&self) -> &DocumentAnimationSet {
++        &self.animations
++    }
++
++    /// Whether any CSS animation or transition still needs a tick. Narrower
++    /// than [`Self::is_animating`], which also reports canvases, custom
++    /// widgets and scroll/scrollbar animation: those have their own redraw
++    /// paths, so a caller gating a restyle clock wants only this.
++    pub fn has_active_animations(&self) -> bool {
++        self.has_active_animations | self.subdoc_is_animating
++    }
++
+     pub fn is_animating(&self) -> bool {
+         #[cfg(feature = "custom-widget")]
+         let custom_widget_is_animating = self.custom_widget_nodes.iter().any(|&node_id| {
+diff --git a/src/stylo.rs b/src/stylo.rs
+index dad5ea3..1fb0261 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -121,7 +121,14 @@ impl crate::document::BaseDocument {
+                 continue;
+             }
+
+-            self.nodes[node_id].set_restyle_hint(RestyleHint::RESTYLE_SELF);
++            // Only a set with something left to tick can change what it
++            // contributes; a finished fill or a paused animation cannot.
++
++            // The hint also walks the ancestor chain, so an idle set costs a
++            // recascade of itself plus that walk, on every single resolve.
++            if set.needs_animation_ticks() {
++                self.nodes[node_id].set_restyle_hint(RestyleHint::RESTYLE_SELF);
++            }
+
+             for animation in set.animations.iter_mut() {
+                 if animation.state == AnimationState::Pending && animation.started_at <= now {

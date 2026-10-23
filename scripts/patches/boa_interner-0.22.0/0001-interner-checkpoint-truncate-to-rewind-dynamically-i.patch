@@ -25,11 +25,11 @@ Syms minted after the checkpoint dangle: resolve() returns None until
 re-interning reassigns the index. Callers must hold no post-checkpoint
 Sym, and the embedder has to enforce that structurally.
 ---
- src/fixed_string.rs | 11 +++++++
- src/lib.rs          | 40 ++++++++++++++++++++++-
- src/raw.rs          | 53 ++++++++++++++++++++++++++++++
- src/tests.rs        | 78 +++++++++++++++++++++++++++++++++++++++++++++
- 4 files changed, 181 insertions(+), 1 deletion(-)
+ src/fixed_string.rs |  11 +++++
+ src/lib.rs          |  55 +++++++++++++++++++++++-
+ src/raw.rs          |  53 +++++++++++++++++++++++
+ src/tests.rs        | 100 ++++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 217 insertions(+), 2 deletions(-)
 
 diff --git a/src/fixed_string.rs b/src/fixed_string.rs
 index 7454449..c9eebc3 100644
@@ -54,35 +54,47 @@ index 7454449..c9eebc3 100644
 
  impl<Char> FixedString<Char>
 diff --git a/src/lib.rs b/src/lib.rs
-index d5f90e9..e563c4f 100644
+index d5f90e9..d4adca9 100644
 --- a/src/lib.rs
 +++ b/src/lib.rs
-@@ -35,7 +35,7 @@ mod sym;
+@@ -34,8 +34,8 @@ mod sym;
+ #[cfg(test)]
  mod tests;
 
- use alloc::{borrow::Cow, format, string::String, vec::Vec};
+-use alloc::{borrow::Cow, format, string::String, vec::Vec};
 -use raw::RawInterner;
++use alloc::{borrow::Cow, format, string::String, sync::Arc, vec::Vec};
 +use raw::{RawCheckpoint, RawInterner};
 
  pub use sym::*;
 
-@@ -257,6 +257,15 @@ pub struct Interner {
+@@ -255,6 +255,17 @@ pub struct Interner {
+     utf16_interner: RawInterner<u16>,
+     /// Latin1-encodability cache for dynamically-interned strings (all code units ≤ 0xFF).
      latin1_flags: Vec<bool>,
- }
-
++    identity: Arc<()>,
++}
++
 +/// Opaque snapshot of an [`Interner`]'s dynamic state; feed it back to
 +/// [`Interner::truncate`] to release everything interned after it.
-+#[derive(Debug, Clone, Copy)]
++#[derive(Debug, Clone)]
 +pub struct InternerCheckpoint {
++    owner: Arc<()>,
 +    utf8: RawCheckpoint,
 +    utf16: RawCheckpoint,
 +    latin1_len: usize,
-+}
-+
+ }
+
  impl Interner {
-     /// Creates a new [`Interner`].
-     ///
-@@ -332,6 +341,35 @@ impl Interner {
+@@ -293,6 +304,7 @@ impl Interner {
+             utf8_interner: RawInterner::with_capacity(capacity),
+             utf16_interner: RawInterner::with_capacity(capacity),
+             latin1_flags: Vec::with_capacity(capacity),
++            identity: Arc::new(()),
+         }
+     }
+
+@@ -332,6 +344,45 @@ impl Interner {
          COMMON_STRINGS_UTF8.is_empty() && self.utf16_interner.is_empty()
      }
 
@@ -101,6 +113,7 @@ index d5f90e9..e563c4f 100644
 +    #[must_use]
 +    pub fn checkpoint(&self) -> InternerCheckpoint {
 +        InternerCheckpoint {
++            owner: self.identity.clone(),
 +            utf8: self.utf8_interner.checkpoint(),
 +            utf16: self.utf16_interner.checkpoint(),
 +            latin1_len: self.latin1_flags.len(),
@@ -109,7 +122,16 @@ index d5f90e9..e563c4f 100644
 +
 +    /// Rewinds to `checkpoint`, releasing later strings. Later-minted
 +    /// [`Sym`]s dangle (resolve `None`), so callers must hold none.
++    ///
++    /// # Panics
++    ///
++    /// Panics if `checkpoint` was created by a different interner.
++    #[track_caller]
 +    pub fn truncate(&mut self, checkpoint: &InternerCheckpoint) {
++        assert!(
++            Arc::ptr_eq(&self.identity, &checkpoint.owner),
++            "checkpoint belongs to another interner"
++        );
 +        self.utf8_interner.truncate(&checkpoint.utf8);
 +        self.utf16_interner.truncate(&checkpoint.utf16);
 +        self.latin1_flags.truncate(checkpoint.latin1_len);
@@ -197,10 +219,10 @@ index fdf9162..dbafad6 100644
  where
      Char: Hash + Eq + Clone,
 diff --git a/src/tests.rs b/src/tests.rs
-index 247d2bf..db869c1 100644
+index 247d2bf..7a2f2db 100644
 --- a/src/tests.rs
 +++ b/src/tests.rs
-@@ -164,3 +164,81 @@ fn check_is_latin1() {
+@@ -164,3 +164,103 @@ fn check_is_latin1() {
      let static_sym = interner.get_or_intern_static(STATIC_STR, STATIC_UTF16);
      assert!(interner.is_latin1(static_sym));
  }
@@ -226,7 +248,10 @@ index 247d2bf..db869c1 100644
 +    // the first freed slot, and resolution follows the new string.
 +    let recycled = interner.get_or_intern("recycled_string");
 +    assert_eq!(recycled, dead);
-+    assert_eq!(interner.resolve_expect(recycled).utf8(), Some("recycled_string"));
++    assert_eq!(
++        interner.resolve_expect(recycled).utf8(),
++        Some("recycled_string")
++    );
 +}
 +
 +#[test]
@@ -281,4 +306,23 @@ index 247d2bf..db869c1 100644
 +    interner.truncate(&cp);
 +    assert_eq!(interner.get_or_intern("arguments"), arguments);
 +    assert_eq!(interner.resolve_expect(arguments).utf8(), Some("arguments"));
++}
++
++#[test]
++#[should_panic(expected = "checkpoint belongs to another interner")]
++fn truncate_rejects_foreign_checkpoint() {
++    let mut owner = Interner::with_capacity(256);
++    for index in 0..16 {
++        let short = alloc::format!("owner-{index:02}");
++        owner.get_or_intern(short.as_str());
++    }
++    let checkpoint = owner.checkpoint();
++
++    let mut other = Interner::default();
++    // The foreign checkpoint keeps spans whose slabs it would free.
++    for index in 0..17 {
++        let long = alloc::format!("{}-{index}", "x".repeat(4096));
++        other.get_or_intern(long.as_str());
++    }
++    other.truncate(&checkpoint);
 +}

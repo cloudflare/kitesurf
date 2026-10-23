@@ -1,0 +1,329 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Tue, 13 Oct 2026 16:53:52 +0100
+Subject: [PATCH] Retain forwards-filling animations and add script animations
+
+`process_animations_for_style` removed every finished animation from the
+element's set. For `animation-fill-mode: forwards` or `both` that throws
+away a contribution the element is still entitled to: the value is right
+in the resolve the animation finishes in, and wrong on the next restyle
+of that element, whatever triggered it. Anything whose only visible
+state came from a fill snapped back to its cascaded value. For example,
+a lazy loader that fades images in over a base `opacity: 0` goes
+transparent again the first time the page writes a style.
+
+`get_property_declaration_at_time` already honours the fill, so keeping
+the animation in the set is enough; it is retired the usual way when the
+element stops specifying it. Fold the duplicated fill-mode predicate
+into `Animation::fills_forwards`, since both call sites need it.
+
+Cancelling has to mark the set dirty, or the fill can never be removed.
+Dropping `animation-name` sets `AnimationState::Canceled`, but
+`process_animations` only recascades when `ElementAnimationSet::dirty`
+is set, and this loop never set it, while `cancel_active_transitions`
+and `cancel_all_animations` both do. Mark it dirty in the same resolve,
+before `clear_canceled_animations` sweeps the entry and the set
+disappears.
+
+Web Animations (Element.animate) need the same cascade as CSS
+animations: keyframes computed against the element's style, implicit end
+keyframes, per-keyframe easing, and interpolation into the Animations
+level. The servo build only knows CSS animations, which it times itself
+from the animation-* properties. A ScriptAnimation carries keyframes and
+a progress the embedder sets. stylo builds its computed keyframes during
+the traversal (rebuilding when the element's non-animation rules change)
+and samples it after the element's CSS animations, which is their
+composite order.
+
+The keyframe easing epsilon matches Blink's kBezierEpsilon: solving more
+tightly shifts the sixth digit pages read back from getComputedStyle.
+
+Co-authored-by: bpereira <bpereira@cloudflare.com>
+---
+ matching.rs        |  25 ++++++-
+ servo/animation.rs | 173 +++++++++++++++++++++++++++++++++++++++++++--
+ 2 files changed, 189 insertions(+), 9 deletions(-)
+
+diff --git a/matching.rs b/matching.rs
+index 4aae362..3a43487 100644
+--- a/matching.rs
++++ b/matching.rs
+@@ -755,6 +755,23 @@ trait PrivateMatchMethods: TElement {
+             );
+         }
+
++        // Script animations change nothing stylo watches, so needs_animations_update
++        // misses them; their build is a no-op until the element's base rules change.
++        if !animation_set.script_animations.is_empty() {
++            let mut resolver = StyleResolverForElement::new(
++                *self,
++                context,
++                RuleInclusion::All,
++                PseudoElementResolution::IfApplicable,
++            );
++            animation_set.build_script_animations::<Self>(
++                *self,
++                &shared_context,
++                &new_values,
++                &mut resolver,
++            );
++        }
++
+         animation_set.update_transitions_for_new_style(
+             might_need_transitions_update,
+             &shared_context,
+@@ -768,9 +785,11 @@ trait PrivateMatchMethods: TElement {
+             .transitions
+             .retain(|transition| transition.state != AnimationState::Finished);
+
+-        animation_set
+-            .animations
+-            .retain(|animation| animation.state != AnimationState::Finished);
++        // A forwards fill outlives the run it belongs to, so that animation is
++        // still the element's authority for its properties. Keep it.
++        animation_set.animations.retain(|animation| {
++            animation.state != AnimationState::Finished || animation.fills_forwards()
++        });
+
+         // If the ElementAnimationSet is empty, and don't store it in order to
+         // save memory and to avoid extra processing later.
+diff --git a/servo/animation.rs b/servo/animation.rs
+index 8376bd7..615004b 100644
+--- a/servo/animation.rs
++++ b/servo/animation.rs
+@@ -20,7 +20,7 @@ use crate::properties::{
+     ComputedValues, Importance, LonghandId, PropertyDeclarationBlock, PropertyDeclarationId,
+     PropertyDeclarationIdSet,
+ };
+-use crate::rule_tree::{CascadeLevel, CascadeOrigin, RuleCascadeFlags};
++use crate::rule_tree::{CascadeLevel, CascadeOrigin, RuleCascadeFlags, StrongRuleNode};
+ use crate::selector_parser::PseudoElement;
+ use crate::shared_lock::{Locked, SharedRwLock};
+ use crate::style_resolver::StyleResolverForElement;
+@@ -616,6 +616,15 @@ impl Animation {
+         new_ui.animation_duration_mod(index).seconds() == 0.
+     }
+
++    /// Whether this animation keeps applying its final keyframe once it has
++    /// ended, per `animation-fill-mode`.
++    pub fn fills_forwards(&self) -> bool {
++        matches!(
++            self.fill_mode,
++            AnimationFillMode::Forwards | AnimationFillMode::Both
++        )
++    }
++
+     /// Given the current time, advances this animation to the next iteration,
+     /// updates times, and then toggles the direction if appropriate. Otherwise
+     /// does nothing. Returns true if this animation has iterated.
+@@ -862,10 +871,7 @@ impl Animation {
+         {
+             return;
+         }
+-        if self.has_ended(now)
+-            && self.fill_mode != AnimationFillMode::Forwards
+-            && self.fill_mode != AnimationFillMode::Both
+-        {
++        if self.has_ended(now) && !self.fills_forwards() {
+             return;
+         }
+
+@@ -1013,6 +1019,123 @@ impl Animation {
+     }
+ }
+
++/// Only sets the keyframe-easing bezier epsilon, 1 / (200 * duration) = 1e-7: Blink's
++/// kBezierEpsilon. Solving tighter than Blink shifts the sixth digit pages read back.
++const SCRIPT_ANIMATION_EASING_DURATION: f64 = 5e4;
++
++/// A Web Animations effect (`Element.animate`) on an element. Its keyframes cascade like a
++/// CSS animation's, but the embedder owns its timing and hands over the progress to sample.
++#[derive(Clone, MallocSizeOf)]
++pub struct ScriptAnimation {
++    id: u64,
++    #[ignore_malloc_size_of = "Arc"]
++    keyframes: Arc<KeyframesAnimation>,
++    progress: Option<f64>,
++    /// Keyframes computed against the element's style, and the non-animation rules
++    /// they were computed for.
++    #[ignore_malloc_size_of = "rule nodes are shared"]
++    built: Option<(Animation, StrongRuleNode)>,
++}
++
++impl ScriptAnimation {
++    /// An effect whose keyframes were parsed against the document's shared lock. Script
++    /// animations composite above CSS animations, in the order the embedder lists them.
++    pub fn new(id: u64, keyframes: Arc<KeyframesAnimation>) -> Self {
++        ScriptAnimation {
++            id,
++            keyframes,
++            progress: None,
++            built: None,
++        }
++    }
++
++    /// The embedder's id for this effect, which it uses to find the effect again
++    /// when the effect's timing changes.
++    pub fn id(&self) -> u64 {
++        self.id
++    }
++
++    /// Set the iteration progress to sample (after direction and effect easing), or
++    /// `None` while the effect is not in effect. Returns whether anything changed.
++    pub fn set_progress(&mut self, progress: Option<f64>) -> bool {
++        if self.progress == progress {
++            return false;
++        }
++        self.progress = progress;
++        if let (Some(progress), Some((animation, _))) = (progress, self.built.as_mut()) {
++            animation.state = AnimationState::Paused(progress);
++        }
++        true
++    }
++
++    fn build<E>(
++        &mut self,
++        element: E,
++        context: &SharedStyleContext,
++        new_style: &Arc<ComputedValues>,
++        base_rules: &StrongRuleNode,
++        resolver: &mut StyleResolverForElement<E>,
++    ) -> bool
++    where
++        E: TElement,
++    {
++        if self.built.as_ref().is_some_and(|(_, rules)| rules == base_rules) {
++            return false;
++        }
++        let mut animating_properties = PropertyDeclarationIdSet::default();
++        let mut number_of_animating_properties = 0;
++        for property in self.keyframes.properties_changed.iter() {
++            if animating_properties.insert(property.to_physical(new_style.writing_mode)) {
++                number_of_animating_properties += 1;
++            }
++        }
++        let computed_steps = ComputedKeyframe::generate_for_keyframes(
++            element,
++            &self.keyframes,
++            context,
++            new_style,
++            TimingFunction::Keyword(crate::values::generics::easing::TimingKeyword::Linear),
++            AnimationComposition::Replace,
++            resolver,
++            animating_properties,
++            number_of_animating_properties,
++        );
++        let animation = Animation {
++            name: Atom::from(""),
++            properties_changed: self.keyframes.properties_changed.clone(),
++            computed_steps,
++            started_at: 0.,
++            duration: SCRIPT_ANIMATION_EASING_DURATION,
++            delay: 0.,
++            fill_mode: AnimationFillMode::Both,
++            iteration_state: KeyframesIterationState::Finite(0., 1.),
++            state: AnimationState::Paused(self.progress.unwrap_or(0.)),
++            direction: AnimationDirection::Normal,
++            current_direction: AnimationDirection::Normal,
++            number_of_animating_properties,
++            is_new: false,
++        };
++        self.built = Some((animation, base_rules.clone()));
++        true
++    }
++
++    fn add_values(&self, map: &mut AnimationValueMap) {
++        if let (Some(_), Some((animation, _))) = (self.progress, self.built.as_ref()) {
++            animation.get_property_declaration_at_time(0., map);
++        }
++    }
++}
++
++impl fmt::Debug for ScriptAnimation {
++    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
++        f.debug_struct("ScriptAnimation")
++            .field("id", &self.id)
++            .field("progress", &self.progress)
++            .field("built", &self.built.is_some())
++            .finish()
++    }
++}
++
+ impl fmt::Debug for Animation {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_struct("Animation")
+@@ -1184,6 +1307,10 @@ pub struct ElementAnimationSet {
+     /// The transitions for this element.
+     pub transitions: Vec<Transition>,
+
++    /// The Web Animations effects on this element. The embedder owns and times them;
++    /// stylo only computes their keyframes and samples them.
++    pub script_animations: Vec<ScriptAnimation>,
++
+     /// Whether or not this ElementAnimationSet has had animations or transitions
+     /// which have been added, removed, or had their state changed.
+     pub dirty: bool,
+@@ -1241,7 +1368,9 @@ impl ElementAnimationSet {
+     /// Whether this `ElementAnimationSet` is empty, which means it doesn't
+     /// hold any animations in any state.
+     pub fn is_empty(&self) -> bool {
+-        self.animations.is_empty() && self.transitions.is_empty()
++        self.animations.is_empty()
++            && self.transitions.is_empty()
++            && self.script_animations.is_empty()
+     }
+
+     /// Whether or not this state needs animation ticks for its transitions
+@@ -1274,6 +1403,32 @@ impl ElementAnimationSet {
+         self.animations
+             .iter()
+             .any(|animation| animation.state != AnimationState::Canceled)
++            || self
++                .script_animations
++                .iter()
++                .any(|animation| animation.progress.is_some())
++    }
++
++    /// Compute the keyframes of any script animation that has none yet, or whose
++    /// element's non-animation rules changed since they were computed.
++    pub fn build_script_animations<E>(
++        &mut self,
++        element: E,
++        context: &SharedStyleContext,
++        new_style: &Arc<ComputedValues>,
++        resolver: &mut StyleResolverForElement<E>,
++    ) where
++        E: TElement,
++    {
++        if self.script_animations.is_empty() {
++            return;
++        }
++        let base_rules = context.stylist.rule_tree().remove_animation_rules(new_style.rules());
++        for animation in self.script_animations.iter_mut() {
++            if animation.build(element, context, new_style, &base_rules, resolver) {
++                self.dirty = true;
++            }
++        }
+     }
+
+     /// If this `ElementAnimationSet` has any any active transitions.
+@@ -1297,6 +1452,9 @@ impl ElementAnimationSet {
+         for animation in self.animations.iter_mut() {
+             if animation.is_cancelled_in_new_style(new_style) {
+                 animation.state = AnimationState::Canceled;
++                // Cancelling drops this animation's declarations, so the caller
++                // has to recascade, as with `cancel_active_transitions`.
++                self.dirty = true;
+             }
+         }
+
+@@ -1606,6 +1764,9 @@ impl ElementAnimationSet {
+         for animation in &self.animations {
+             animation.get_property_declaration_at_time(now, &mut map);
+         }
++        for animation in &self.script_animations {
++            animation.add_values(&mut map);
++        }
+
+         Some(map)
+     }

@@ -74,51 +74,6 @@ enum Capture {
     },
 }
 
-fn is_xhtml_document(html: &str) -> bool {
-    html.starts_with("<?xml")
-        || (html.starts_with("<!DOCTYPE") && {
-            let first_line = html.lines().next().unwrap_or("");
-            let prolog = &first_line[..prolog_end(first_line)];
-            prolog.contains("XHTML") || prolog.contains("xhtml")
-        })
-}
-
-fn prolog_end(line: &str) -> usize {
-    let bytes = line.as_bytes();
-    let mut depth = 0usize;
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'<' if bytes[i..].starts_with(b"<!--") => match line[i + 4..].find("-->") {
-                Some(end) => i += 4 + end + 3,
-                None => return bytes.len(),
-            },
-            q @ (b'"' | b'\'') if depth > 0 => match bytes[i + 1..].iter().position(|&c| c == q) {
-                Some(end) => i += end + 2,
-                None => return bytes.len(),
-            },
-            b'<' => {
-                let rest = &bytes[i + 1..];
-                let is_start_tag = rest.first().is_some_and(|c| c.is_ascii_alphabetic());
-                let is_root = rest.len() >= 4 && rest[..4].eq_ignore_ascii_case(b"html");
-                if is_start_tag && !is_root {
-                    return i;
-                }
-                if is_start_tag || matches!(rest.first(), Some(b'!' | b'?')) {
-                    depth += 1;
-                }
-                i += 1;
-            }
-            b'>' => {
-                depth = depth.saturating_sub(1);
-                i += 1;
-            }
-            _ => i += 1,
-        }
-    }
-    bytes.len()
-}
-
 fn decode_xml_refs(text: &str) -> String {
     if !text.contains('&') {
         return text.to_string();
@@ -502,7 +457,7 @@ fn capture_meta_csp(state: &mut ScanState, tag: &Tag) {
 pub(crate) fn scan_document(html: &str) -> ScanResult {
     let sink = ScanSink {
         state: RefCell::new(ScanState {
-            is_xhtml: is_xhtml_document(html),
+            is_xhtml: blitz_html::is_xhtml_document(html),
             ..ScanState::default()
         }),
     };

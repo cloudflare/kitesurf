@@ -453,6 +453,29 @@ impl Waapi {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::query_selector_id;
+
+    // Animates `selector`'s opacity 0 -> 1 over 1 s and seeks it to 250 ms.
+    fn animated_dom(html: &str, selector: &str) -> (crate::DomHandle, u32) {
+        let dom = crate::DomHandle::new(html, "https://test.example/");
+        dom.resolve_layout();
+        let node_id = query_selector_id(&dom, selector);
+        let keyframes = r#"[
+            {"offset":0,"props":[["opacity","0"]]},
+            {"offset":1,"props":[["opacity","1"]]}
+        ]"#;
+        let timing = [0.0, 0.0, 1000.0, 1.0, 0.0, 0.0, 0.0];
+        dom.waapi_set_effect(1, node_id, keyframes, &timing, "linear")
+            .expect("valid effect");
+        dom.waapi_set_playback(1, None, Some(250.0), 1.0);
+        dom.resolve_layout();
+        (dom, node_id)
+    }
+
+    fn opacity(dom: &crate::DomHandle, node_id: u32) -> String {
+        dom.computed_style_value(node_id, "opacity")
+            .expect("computed opacity")
+    }
 
     fn timing(fill: Fill, direction: Direction, iterations: f64, delay: f64) -> Timing {
         Timing {
@@ -504,5 +527,60 @@ mod tests {
             (at.phase, at.progress, at.active_duration),
             (Phase::Active, Some(0.5), f64::INFINITY)
         );
+    }
+
+    #[test]
+    fn progress_changes_reapply_script_animation_values() {
+        let (dom, node_id) = animated_dom("<div id=t></div>", "#t");
+        assert_eq!(opacity(&dom, node_id), "0.25");
+
+        dom.waapi_set_playback(1, None, Some(750.0), 1.0);
+        dom.resolve_layout();
+
+        assert_eq!(opacity(&dom, node_id), "0.75");
+    }
+
+    #[test]
+    fn script_animation_does_not_reach_a_reused_wasm32_slot() {
+        let (dom, old) = animated_dom(
+            "<div id=host><div id=old></div><div id=dummy></div></div>",
+            "#old",
+        );
+        let host = query_selector_id(&dom, "#host");
+        let dummy = query_selector_id(&dom, "#dummy");
+        assert_eq!(opacity(&dom, old), "0.25");
+
+        let old_internal = dom.resolve_node_id(old).expect("mapped old child");
+        // wasm32's OpaqueNode is the slot index alone; forge that key form on the 64-bit host.
+        let truncated_key =
+            AnimationSetKey::new_for_non_pseudo(OpaqueNode(old_internal.as_u64() as u32 as usize));
+        let doc = dom.doc.borrow();
+        let mut sets = doc.animations().sets.write();
+        let old_set = sets
+            .remove(&set_key(old_internal))
+            .expect("old child has an animation set");
+        assert_eq!(old_set.script_animations.len(), 1);
+        sets.insert(truncated_key.clone(), old_set);
+        drop(sets);
+        drop(doc);
+
+        assert!(dom.drop_node(old), "old child dropped explicitly");
+        let doc = dom.doc.borrow();
+        assert!(
+            !doc.animations().sets.read().contains_key(&truncated_key),
+            "the truncated animation set must be gone before the slot is reused"
+        );
+        drop(doc);
+        assert!(dom.drop_node(dummy), "reuse spacer dropped explicitly");
+        let ops =
+            format!(r#"[{{"kind":"setInnerHtml","node":{host},"html":"<div id=new></div>"}}]"#);
+        assert_eq!(dom.apply_ops(&ops).expect("innerHTML applied"), 1);
+        dom.resolve_layout();
+
+        let new = query_selector_id(&dom, "#new");
+        let new_internal = dom.resolve_node_id(new).expect("mapped new child");
+        assert_ne!(old_internal, new_internal);
+        assert_eq!(old_internal.as_u64() as u32, new_internal.as_u64() as u32);
+        assert_eq!(opacity(&dom, new), "1");
     }
 }

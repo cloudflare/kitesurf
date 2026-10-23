@@ -25,6 +25,8 @@ mod resources;
 mod style;
 #[cfg(test)]
 mod test_assets;
+#[cfg(test)]
+mod test_support;
 mod text_encoding;
 mod tty;
 
@@ -276,9 +278,22 @@ pub(crate) fn renderer_mode() -> bool {
     DIMS_ONLY_IMAGES.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static ANIMATION_CLOCK: std::cell::Cell<Option<f64>> = const { std::cell::Cell::new(None) };
+}
+
 fn now_for_animations() -> f64 {
     #[cfg(target_arch = "wasm32")]
     {
+        if let Some(now) = ANIMATION_CLOCK.get() {
+            return now;
+        }
+        // Local workerd advances Date.now() during synchronous script execution, so layout flushes
+        // share one sample until the script yields.
+        wasm_bindgen_futures::spawn_local(async {
+            ANIMATION_CLOCK.set(None);
+        });
         let mut now_ms = js_sys::Date::now();
         if let Ok(v) = js_sys::Reflect::get(
             &js_sys::global(),
@@ -290,7 +305,9 @@ fn now_for_animations() -> f64 {
                 }
             }
         }
-        now_ms / 1000.0
+        let now = now_ms / 1000.0;
+        ANIMATION_CLOCK.set(Some(now));
+        now
     }
     #[cfg(not(target_arch = "wasm32"))]
     {

@@ -25,6 +25,11 @@ test("module graph resolves through the new module registry", async ({ page }) =
   );
   expect(result).toEqual({
     lib: `lib:${ALT_ORIGIN}/__fixtures/module-registry-lib.js`,
+    mutableExports: {
+      incrementedCount: 1,
+      firstInitializedValue: "first",
+      secondInitializedValue: "second",
+    },
     config: { greeting: "hello" },
     dynamicConfig: { greeting: "hello" },
     queryA: `${ORIGIN}/__fixtures/module-registry-meta.js?v=a`,
@@ -42,6 +47,7 @@ test("module graph resolves through the new module registry", async ({ page }) =
     fallbackMalformed: expect.stringMatching(
       /module refused for \S+\/module-registry-malformed\.json.*SyntaxError/s,
     ),
+    boaLiveCount: [1, 2, 2],
     done: true,
   });
 

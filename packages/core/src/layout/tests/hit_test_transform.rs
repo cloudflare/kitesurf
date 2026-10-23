@@ -145,3 +145,55 @@ fn transform_written_after_first_layout_moves_the_hit_target() {
         "translated popup must no longer hit at its layout origin",
     );
 }
+
+#[test]
+fn tiny_invertible_transform_remains_hit_testable() {
+    assert_hits(
+        r#"
+        <!doctype html>
+        <html>
+          <head>
+            <style>
+              #target {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100px;
+                height: 100px;
+                transform-origin: 0 0;
+                transform: scale(0.000001);
+              }
+            </style>
+          </head>
+          <body style="margin: 0"><div id="target"></div></body>
+        </html>
+        "#,
+        "#target",
+        0.0000005,
+        0.0000005,
+    );
+    assert_hits(
+        r#"
+        <!doctype html>
+        <html>
+          <head>
+            <style>
+              #target {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100px;
+                height: 100px;
+                transform-origin: 0 0;
+                transform: scale(0.00000001);
+              }
+            </style>
+          </head>
+          <body style="margin: 0"><div id="target"></div></body>
+        </html>
+        "#,
+        "#target",
+        0.0000005,
+        0.0000005,
+    );
+}

@@ -15,7 +15,7 @@ use blitz_traits::NodeId;
 use boa_engine::{
     js_string,
     native_function::NativeFunction,
-    object::{FunctionObjectBuilder, JsObject},
+    object::{FunctionObjectBuilder, JsObject, WeakJsObject},
     Context, JsValue as BoaValue,
 };
 
@@ -133,7 +133,8 @@ thread_local! {
     // (createElementNS entries, NS-mangled attrs, detached-doc hosts).
     static SPECIAL: RefCell<HashSet<u32>> = RefCell::new(HashSet::new());
     static NID_BY_HANDLE: RefCell<HashMap<u64, i32>> = RefCell::new(HashMap::new());
-    static FASTFN_CACHE: RefCell<HashMap<(u32, u8), JsObject>> = RefCell::new(HashMap::new());
+    // Weak because each method holds its receiver, so a strong entry would pin the node.
+    static FASTFN_CACHE: RefCell<HashMap<(u32, u8), WeakJsObject>> = RefCell::new(HashMap::new());
     static STAT_HITS: Cell<u64> = const { Cell::new(0) };
     // Per-op hit attribution (indexed by the OP_* bits) — answers
     // "which surfaces does this page's boa code actually touch".
@@ -194,9 +195,29 @@ fn ensure_valid(op: u8, ctx: &mut Context) {
 }
 
 pub(crate) fn evict_handle(handle: u64) {
-    NID_BY_HANDLE.with(|m| {
-        m.borrow_mut().remove(&handle);
-    });
+    let nid = NID_BY_HANDLE.with(|m| m.borrow_mut().remove(&handle));
+    if let Some(nid) = nid.filter(|n| *n >= 0) {
+        let nid = nid as u32;
+        FASTFN_CACHE.with(|m| {
+            let mut m = m.borrow_mut();
+            for op in [
+                OP_GET_ATTRIBUTE,
+                OP_HAS_ATTRIBUTE,
+                OP_CONTAINS,
+                OP_QUERY_SELECTOR,
+                OP_QUERY_SELECTOR_ALL,
+                OP_MATCHES,
+                OP_CLOSEST,
+                OP_DOC_GET_ELEMENT_BY_ID,
+                OP_DOC_QUERY_SELECTOR,
+                OP_DOC_QUERY_SELECTOR_ALL,
+            ] {
+                if m.get(&(nid, op)).is_some_and(|f| f.upgrade().is_none()) {
+                    m.remove(&(nid, op));
+                }
+            }
+        });
+    }
 }
 
 pub(crate) fn stats_json() -> String {
@@ -527,45 +548,52 @@ fn slow_method_call_on(
     }
 }
 
-fn make_attr_method(nid: u32, handle: u64, op: u8, ctx: &mut Context) -> JsObject {
-    let nf = NativeFunction::from_copy_closure(move |this, args, ctx: &mut Context| {
-        let method = if op == OP_GET_ATTRIBUTE {
-            "getAttribute"
-        } else {
-            "hasAttribute"
-        };
-        if foreign_receiver(this, nid, handle, ctx) {
-            return foreign_method_call(this, nid, handle, method, args, ctx);
-        }
-        let name_arg = args.first().cloned().unwrap_or_default();
-        // Non-string args, post-mint deopt, or a node gone special
-        // all route to the real method — never approximate.
-        let fast_name = match name_arg.as_string() {
-            Some(s) if !deopted(op) && !is_special(nid) => Some(s.to_std_string_escaped()),
-            _ => None,
-        };
-        let Some(name) = fast_name else {
-            STAT_FALLBACKS.with(|c| c.set(c.get() + 1));
-            return slow_method_call(this, nid, handle, method, args, ctx);
-        };
-        match with_node(nid, |doc, internal| attr_lookup(doc, internal, &name)) {
-            Some(found) => {
-                count_hit(op);
-                Ok(if op == OP_GET_ATTRIBUTE {
-                    match found {
-                        Some(v) => BoaValue::from(js_string!(v)),
-                        None => BoaValue::null(),
-                    }
-                } else {
-                    BoaValue::from(found.is_some())
-                })
+fn make_attr_method(
+    nid: u32,
+    handle: u64,
+    op: u8,
+    receiver: &JsObject,
+    ctx: &mut Context,
+) -> JsObject {
+    let nf = NativeFunction::from_copy_closure_with_captures(
+        move |this, args, _receiver: &JsObject, ctx: &mut Context| {
+            let method = if op == OP_GET_ATTRIBUTE {
+                "getAttribute"
+            } else {
+                "hasAttribute"
+            };
+            if foreign_receiver(this, nid, handle, ctx) {
+                return foreign_method_call(this, nid, handle, method, args, ctx);
             }
-            None => {
+            let name_arg = args.first().cloned().unwrap_or_default();
+            let fast_name = match name_arg.as_string() {
+                Some(s) if !deopted(op) && !is_special(nid) => Some(s.to_std_string_escaped()),
+                _ => None,
+            };
+            let Some(name) = fast_name else {
                 STAT_FALLBACKS.with(|c| c.set(c.get() + 1));
-                slow_method_call(this, nid, handle, method, args, ctx)
+                return slow_method_call(this, nid, handle, method, args, ctx);
+            };
+            match with_node(nid, |doc, internal| attr_lookup(doc, internal, &name)) {
+                Some(found) => {
+                    count_hit(op);
+                    Ok(if op == OP_GET_ATTRIBUTE {
+                        match found {
+                            Some(v) => BoaValue::from(js_string!(v)),
+                            None => BoaValue::null(),
+                        }
+                    } else {
+                        BoaValue::from(found.is_some())
+                    })
+                }
+                None => {
+                    STAT_FALLBACKS.with(|c| c.set(c.get() + 1));
+                    slow_method_call(this, nid, handle, method, args, ctx)
+                }
             }
-        }
-    });
+        },
+        receiver.clone(),
+    );
     let name = if op == OP_GET_ATTRIBUTE {
         "getAttribute"
     } else {
@@ -578,53 +606,56 @@ fn make_attr_method(nid: u32, handle: u64, op: u8, ctx: &mut Context) -> JsObjec
         .into()
 }
 
-fn make_contains_method(nid: u32, handle: u64, ctx: &mut Context) -> JsObject {
-    let nf = NativeFunction::from_copy_closure(move |this, args, ctx: &mut Context| {
-        if foreign_receiver(this, nid, handle, ctx) {
-            return foreign_method_call(this, nid, handle, "contains", args, ctx);
-        }
-        let arg = args.first().cloned().unwrap_or_default();
-        if !deopted(OP_CONTAINS) {
-            if arg.is_null() || arg.is_undefined() {
-                count_hit(OP_CONTAINS);
-                return Ok(BoaValue::from(false));
+fn make_contains_method(nid: u32, handle: u64, receiver: &JsObject, ctx: &mut Context) -> JsObject {
+    let nf = NativeFunction::from_copy_closure_with_captures(
+        move |this, args, _receiver: &JsObject, ctx: &mut Context| {
+            if foreign_receiver(this, nid, handle, ctx) {
+                return foreign_method_call(this, nid, handle, "contains", args, ctx);
             }
-            if let Some(other_handle) = handle_of_boa_value(&arg, ctx) {
-                let other_nid = match NID_BY_HANDLE.with(|m| m.borrow().get(&other_handle).copied())
-                {
-                    Some(v) => v,
-                    None => brand_check(other_handle, ctx),
-                };
-                if other_nid >= 0 {
-                    let Some(target) = resolve_node_id(nid) else {
-                        STAT_FALLBACKS.with(|c| c.set(c.get() + 1));
-                        return slow_method_call(this, nid, handle, "contains", args, ctx);
-                    };
-                    let verdict = with_node(other_nid as u32, |doc, mut cur| {
-                        for _ in 0..4096 {
-                            if cur == target {
-                                return Some(true);
+            let arg = args.first().cloned().unwrap_or_default();
+            if !deopted(OP_CONTAINS) {
+                if arg.is_null() || arg.is_undefined() {
+                    count_hit(OP_CONTAINS);
+                    return Ok(BoaValue::from(false));
+                }
+                if let Some(other_handle) = handle_of_boa_value(&arg, ctx) {
+                    let other_nid =
+                        match NID_BY_HANDLE.with(|m| m.borrow().get(&other_handle).copied()) {
+                            Some(v) => v,
+                            None => brand_check(other_handle, ctx),
+                        };
+                    if other_nid >= 0 {
+                        let Some(target) = resolve_node_id(nid) else {
+                            STAT_FALLBACKS.with(|c| c.set(c.get() + 1));
+                            return slow_method_call(this, nid, handle, "contains", args, ctx);
+                        };
+                        let verdict = with_node(other_nid as u32, |doc, mut cur| {
+                            for _ in 0..4096 {
+                                if cur == target {
+                                    return Some(true);
+                                }
+                                let Some(p) = parent_of(doc, cur)? else {
+                                    return Some(false);
+                                };
+                                if p == cur {
+                                    return Some(false);
+                                }
+                                cur = p;
                             }
-                            let Some(p) = parent_of(doc, cur)? else {
-                                return Some(false);
-                            };
-                            if p == cur {
-                                return Some(false);
-                            }
-                            cur = p;
+                            None
+                        });
+                        if let Some(v) = verdict {
+                            count_hit(OP_CONTAINS);
+                            return Ok(BoaValue::from(v));
                         }
-                        None
-                    });
-                    if let Some(v) = verdict {
-                        count_hit(OP_CONTAINS);
-                        return Ok(BoaValue::from(v));
                     }
                 }
             }
-        }
-        STAT_FALLBACKS.with(|c| c.set(c.get() + 1));
-        slow_method_call(this, nid, handle, "contains", args, ctx)
-    });
+            STAT_FALLBACKS.with(|c| c.set(c.get() + 1));
+            slow_method_call(this, nid, handle, "contains", args, ctx)
+        },
+        receiver.clone(),
+    );
     FunctionObjectBuilder::new(ctx.realm(), nf)
         .name(js_string!("contains"))
         .length(1)
@@ -765,74 +796,83 @@ fn node_or_null(id: Option<u32>, ctx: &mut Context) -> Option<BoaValue> {
 
 // querySelector(All) / matches / closest / getElementById as boa methods closed
 // over the receiver, deciding at CALL time like the attribute methods above.
-fn make_query_method(nid: u32, handle: u64, op: u8, ctx: &mut Context) -> JsObject {
-    let nf = NativeFunction::from_copy_closure(move |this, args, ctx: &mut Context| {
-        let method = method_name(op);
-        if foreign_receiver(this, nid, handle, ctx) {
-            return foreign_method_call(this, nid, handle, method, args, ctx);
-        }
-        let live = !deopted(op) && (nid == DOCUMENT_NID || !is_special(nid));
-        // Only a string argument: anything else needs ToString, which can run
-        // page code, and the shim's coercion and error messages own that path.
-        let arg = match args.first().and_then(|a| a.as_string()) {
-            Some(s) if live => s.to_std_string().ok(),
-            _ => None,
-        };
-        let out = arg.and_then(|arg| match op {
-            OP_DOC_GET_ELEMENT_BY_ID => {
-                if arg.is_empty() {
-                    return Some(BoaValue::null());
-                }
-                let hit = with_doc(|doc| {
-                    let node = doc.get_node(doc.get_element_by_id(&arg)?)?;
-                    Some(
-                        (node.attr(blitz_dom::local_name!("id")) == Some(arg.as_str()))
-                            .then_some(node.id),
-                    )
-                })
-                .flatten();
-                node_or_null(
-                    match hit {
-                        Some(id) => Some(external_node_id(id)?),
-                        None => None,
-                    },
-                    ctx,
-                )
+fn make_query_method(
+    nid: u32,
+    handle: u64,
+    op: u8,
+    receiver: &JsObject,
+    ctx: &mut Context,
+) -> JsObject {
+    let nf = NativeFunction::from_copy_closure_with_captures(
+        move |this, args, _receiver: &JsObject, ctx: &mut Context| {
+            let method = method_name(op);
+            if foreign_receiver(this, nid, handle, ctx) {
+                return foreign_method_call(this, nid, handle, method, args, ctx);
             }
-            _ if !selector_is_plain(&arg) => None,
-            OP_QUERY_SELECTOR | OP_DOC_QUERY_SELECTOR => {
-                match run_query(nid, &arg, Query::First)? {
+            let live = !deopted(op) && (nid == DOCUMENT_NID || !is_special(nid));
+            // Only a string argument: anything else needs ToString, which can run
+            // page code, and the shim's coercion and error messages own that path.
+            let arg = match args.first().and_then(|a| a.as_string()) {
+                Some(s) if live => s.to_std_string().ok(),
+                _ => None,
+            };
+            let out = arg.and_then(|arg| match op {
+                OP_DOC_GET_ELEMENT_BY_ID => {
+                    if arg.is_empty() {
+                        return Some(BoaValue::null());
+                    }
+                    let hit = with_doc(|doc| {
+                        let node = doc.get_node(doc.get_element_by_id(&arg)?)?;
+                        Some(
+                            (node.attr(blitz_dom::local_name!("id")) == Some(arg.as_str()))
+                                .then_some(node.id),
+                        )
+                    })
+                    .flatten();
+                    node_or_null(
+                        match hit {
+                            Some(id) => Some(external_node_id(id)?),
+                            None => None,
+                        },
+                        ctx,
+                    )
+                }
+                _ if !selector_is_plain(&arg) => None,
+                OP_QUERY_SELECTOR | OP_DOC_QUERY_SELECTOR => {
+                    match run_query(nid, &arg, Query::First)? {
+                        QueryOut::Node(id) => node_or_null(id, ctx),
+                        _ => None,
+                    }
+                }
+                OP_CLOSEST => match run_query(nid, &arg, Query::Closest)? {
                     QueryOut::Node(id) => node_or_null(id, ctx),
                     _ => None,
-                }
-            }
-            OP_CLOSEST => match run_query(nid, &arg, Query::Closest)? {
-                QueryOut::Node(id) => node_or_null(id, ctx),
-                _ => None,
-            },
-            OP_MATCHES => match run_query(nid, &arg, Query::Matches)? {
-                QueryOut::Bool(b) => Some(BoaValue::from(b)),
-                _ => None,
-            },
-            OP_QUERY_SELECTOR_ALL | OP_DOC_QUERY_SELECTOR_ALL => {
-                match run_query(nid, &arg, Query::All)? {
-                    QueryOut::Nodes(ids) => mint_node_list(&ids, ctx),
+                },
+                OP_MATCHES => match run_query(nid, &arg, Query::Matches)? {
+                    QueryOut::Bool(b) => Some(BoaValue::from(b)),
                     _ => None,
+                },
+                OP_QUERY_SELECTOR_ALL | OP_DOC_QUERY_SELECTOR_ALL => {
+                    match run_query(nid, &arg, Query::All)? {
+                        QueryOut::Nodes(ids) => mint_node_list(&ids, ctx),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            });
+            match out {
+                Some(v) => {
+                    count_hit(op);
+                    Ok(v)
+                }
+                None => {
+                    STAT_FALLBACKS.with(|c| c.set(c.get() + 1));
+                    slow_method_call(this, nid, handle, method, args, ctx)
                 }
             }
-            _ => None,
-        });
-        match out {
-            Some(v) => {
-                count_hit(op);
-                Ok(v)
-            }
-            None => {
-                STAT_FALLBACKS.with(|c| c.set(c.get() + 1));
-                slow_method_call(this, nid, handle, method, args, ctx)
-            }
-        }
-    });
+        },
+        receiver.clone(),
+    );
     FunctionObjectBuilder::new(ctx.realm(), nf)
         .name(js_string!(method_name(op)))
         .length(1)
@@ -840,10 +880,15 @@ fn make_query_method(nid: u32, handle: u64, op: u8, ctx: &mut Context) -> JsObje
         .into()
 }
 
-// The trap_get ladder. None = not ours, caller proceeds to the slow
-// path unchanged. Some(v) = answered from blitz (or from the method
-// cache) without crossing.
-pub(crate) fn try_fast_get(handle: u64, key: &str, ctx: &mut Context) -> Option<BoaValue> {
+// Answers a trap_get from blitz or the method cache, or returns None for the slow path.
+// `receiver` is the node proxy's target. Minted methods capture it, so a method boa keeps
+// also keeps the node's V8 pin, and with it the node.
+pub(crate) fn try_fast_get(
+    handle: u64,
+    key: &str,
+    receiver: &JsObject,
+    ctx: &mut Context,
+) -> Option<BoaValue> {
     if !is_fast_key(key) {
         return None;
     }
@@ -877,19 +922,20 @@ pub(crate) fn try_fast_get(handle: u64, key: &str, ctx: &mut Context) -> Option<
         | OP_DOC_GET_ELEMENT_BY_ID
         | OP_DOC_QUERY_SELECTOR
         | OP_DOC_QUERY_SELECTOR_ALL => {
-            let cached = FASTFN_CACHE.with(|m| m.borrow().get(&(nid, op)).cloned());
+            let cached =
+                FASTFN_CACHE.with(|m| m.borrow().get(&(nid, op)).and_then(WeakJsObject::upgrade));
             let f = match cached {
                 Some(f) => f,
                 None => {
                     let f = match op {
-                        OP_CONTAINS => make_contains_method(nid, handle, ctx),
+                        OP_CONTAINS => make_contains_method(nid, handle, receiver, ctx),
                         OP_GET_ATTRIBUTE | OP_HAS_ATTRIBUTE => {
-                            make_attr_method(nid, handle, op, ctx)
+                            make_attr_method(nid, handle, op, receiver, ctx)
                         }
-                        _ => make_query_method(nid, handle, op, ctx),
+                        _ => make_query_method(nid, handle, op, receiver, ctx),
                     };
                     FASTFN_CACHE.with(|m| {
-                        m.borrow_mut().insert((nid, op), f.clone());
+                        m.borrow_mut().insert((nid, op), f.downgrade());
                     });
                     f
                 }

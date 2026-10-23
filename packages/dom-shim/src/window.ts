@@ -26,9 +26,9 @@ import {
   pageUrl,
   cookieString,
   setCookieString,
-  nodeFor,
 } from "./state.js";
-import { stampedNames, nodeIdName, boundFromGlobal } from "./registries.js";
+import { stampedNames, nodeIdName, forgetIdGlobal, boundFromGlobal } from "./registries.js";
+import { getDocId } from "./mutations/attached.js";
 import {
   DEFAULT_VIEWPORT_HEIGHT_CSS_PX,
   DEFAULT_VIEWPORT_WIDTH_CSS_PX,
@@ -1251,43 +1251,96 @@ export function installWindow(
   return { window, windowObj, Window };
 }
 
-function stampNamedGlobal(name: string, el: any) {
+// Every owner is recorded, so reclaiming one node keeps the accessor for a connected same-ID node.
+// The accessor is installed only once an owner is in the document: a detached-only ID must leave
+// `name in window` false and a bare read a ReferenceError.
+export function stampNamedGlobal(nodeId: number, name: string): void {
+  recordNamedGlobal(nodeId, name, isConnectedNode(nodeId));
+}
+
+function recordNamedGlobal(nodeId: number, name: string, connected: boolean): void {
+  if (nodeIdName.get(nodeId) !== name) forgetIdGlobal(nodeId);
   if (typeof name !== "string" || name.length === 0) return;
   if (/^[0-9_$]/.test(name)) return;
-  if (isReservedGlobalName(name) && !stampedNames.has(name)) return;
-  try {
-    ksGlobal[name] = el;
-    stampedNames.set(name, el?._id ?? 0);
-  } catch {}
-}
-
-function unstampNamedGlobal(name: string) {
-  if (typeof name !== "string" || name.length === 0) return;
-  if (!stampedNames.has(name)) return;
-  try {
-    delete ksGlobal[name];
-    stampedNames.delete(name);
-  } catch {}
-}
-
-export function updateIdGlobal(nodeId: number, newId: string): void {
-  const oldId = nodeIdName.get(nodeId) || "";
-  if (oldId === newId) return;
-  // A duplicate ID must not clear the global stamp owned by another node.
-  if (oldId && stampedNames.get(oldId) === nodeId) {
-    unstampNamedGlobal(oldId);
+  nodeIdName.set(nodeId, name);
+  let entry = stampedNames.get(name);
+  if (!entry) {
+    entry = { getter: () => namedGlobalValue(name), nodeIds: new Set() };
+    stampedNames.set(name, entry);
   }
-  if (newId) {
-    nodeIdName.set(nodeId, newId);
-    try {
-      const doc = documentImpl;
-      if (doc && typeof doc.getElementById === "function") {
-        const el = doc.getElementById(newId);
-        if (el) stampNamedGlobal(newId, el);
-      }
-    } catch {}
-  } else {
-    nodeIdName.delete(nodeId);
+  entry.nodeIds.add(nodeId);
+  // An own property here is a real global or the page's own; a named property never shadows it.
+  if (!connected || isReservedGlobalName(name)) return;
+  const getter = entry.getter;
+  try {
+    Object.defineProperty(ksGlobal, name, {
+      configurable: true,
+      enumerable: true,
+      get: getter,
+      set(value: unknown) {
+        stampedNames.delete(name);
+        Object.defineProperty(ksGlobal, name, {
+          value,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+      },
+    });
+  } catch {}
+}
+
+function isConnectedNode(nodeId: number): boolean {
+  const docId = getDocId();
+  if (docId < 0) return false;
+  try {
+    return dom.isInclusiveAncestor(docId, nodeId);
+  } catch {
+    return false;
+  }
+}
+
+// Insertion is when a detached owner's name becomes visible. Read IDs from
+// wasm so a page-replaced querySelectorAll or getAttribute is never called.
+export function stampConnectedNamedGlobals(rootId: number): void {
+  if (!isConnectedNode(rootId)) return;
+  const rootIdAttr = idAttributeOf(rootId);
+  if (rootIdAttr !== null) recordNamedGlobal(rootId, rootIdAttr, true);
+  stampSubtreeIds(rootId, true);
+}
+
+function idAttributeOf(nodeId: number): string | null {
+  try {
+    return idFromNodeInfo(dom.nodeInfo(nodeId));
+  } catch {
+    return null;
+  }
+}
+
+// Descendants only: the selector engine scopes to the root and skips it.
+function stampSubtreeIds(rootId: number, connected: boolean) {
+  try {
+    for (const nodeId of dom.querySelectorAllInSubtree(rootId, "[id]")) {
+      const id = idAttributeOf(nodeId);
+      if (id !== null) recordNamedGlobal(nodeId, id, connected);
+    }
+  } catch {}
+}
+
+// The accessor behind a bare ID, resolved through blitz's ID map. Frame names without a
+// matching ID go through the window proxy instead, which scans every iframe and would make
+// each bare read O(document).
+function namedGlobalValue(name: string): unknown {
+  try {
+    const el = documentImpl?.getElementById(name);
+    if (!el) return undefined;
+    if (el.localName === "iframe" && el.getAttribute("name") === name) {
+      const frame: NamedIframe = el;
+      return frame.contentWindow ?? undefined;
+    }
+    return el;
+  } catch {
+    return undefined;
   }
 }
 
@@ -1316,7 +1369,7 @@ type NamedIframeAccess = { matched: false } | { matched: true; value: unknown };
 function namedIframeAccess(doc: IframeRoot, prop: string): NamedIframeAccess {
   for (const iframe of documentIframes(doc)) {
     try {
-      if (iframe.getAttribute?.("name") === prop || iframe.getAttribute?.("id") === prop) {
+      if (iframe.getAttribute?.("name") === prop) {
         return { matched: true, value: iframe.contentWindow ?? undefined };
       }
     } catch {}
@@ -1340,7 +1393,8 @@ function namedAccess(prop: any) {
   try {
     const doc = documentImpl;
     if (doc?.querySelectorAll) {
-      // Frame name/ID access takes precedence over ordinary element IDs on Window.
+      // A frame name resolves to its window before element lookup; an iframe ID alone still
+      // resolves to the element, as in Chrome.
       const iframe = namedIframeAccess(doc, prop);
       if (iframe.matched) return iframe.value;
     }
@@ -1358,24 +1412,15 @@ export function stampSubtreeNamedGlobals(el: Element): void {
     for (let i = 0; i < withIds.length; i++) {
       const node = withIds[i];
       const id = node && node.getAttribute && node.getAttribute("id");
-      if (typeof id === "string" && id.length > 0) updateIdGlobal(node._id, id);
+      if (typeof id === "string" && id.length > 0) stampNamedGlobal(node._id, id);
     }
   } catch {}
 }
 
-export function recordDetachedSubtreeIds(rootId: number): void {
-  try {
-    for (const nodeId of dom.querySelectorAllInSubtree(rootId, "[id]")) {
-      const attrs = dom.nodeInfo(nodeId)?.attributes;
-      if (!Array.isArray(attrs)) continue;
-      for (let j = 0; j < attrs.length - 1; j += 2) {
-        if (attrs[j] !== "id") continue;
-        const id = attrs[j + 1];
-        if (typeof id === "string" && id.length > 0) nodeIdName.set(nodeId, id);
-        break;
-      }
-    }
-  } catch {}
+// Parse-created fragments bypass setAttribute. Record their owners without
+// page-replaceable DOM calls; insertion installs the accessors.
+export function stampDetachedSubtreeNamedGlobals(rootId: number): void {
+  stampSubtreeIds(rootId, isConnectedNode(rootId));
 }
 
 const KS_NO_BIND = Symbol("ks-no-bind");
@@ -1414,18 +1459,6 @@ function idFromNodeInfo(info: unknown) {
   return null;
 }
 
-function stampInitialNamedGlobal(nodeId: number, stamped: Set<string>) {
-  try {
-    const id = idFromNodeInfo(dom.nodeInfo(nodeId));
-    if (id === null) return;
-    nodeIdName.set(nodeId, id);
-    if (stamped.has(id)) return;
-    stamped.add(id);
-    const element = nodeFor(nodeId);
-    if (element) stampNamedGlobal(id, element);
-  } catch {}
-}
-
 export function stampInitialNamedGlobals(): void {
   let ids: Int32Array | null;
   try {
@@ -1434,9 +1467,11 @@ export function stampInitialNamedGlobals(): void {
     return;
   }
   if (!ids || typeof ids !== "object") return;
-  const stamped = new Set<string>();
   for (let i = 0; i < ids.length; i++) {
     const nodeId = ids[i];
-    if (typeof nodeId === "number" && nodeId > 0) stampInitialNamedGlobal(nodeId, stamped);
+    if (typeof nodeId !== "number" || nodeId <= 0) continue;
+    const id = idAttributeOf(nodeId);
+    // A document-scoped query only returns connected nodes.
+    if (id !== null) recordNamedGlobal(nodeId, id, true);
   }
 }
