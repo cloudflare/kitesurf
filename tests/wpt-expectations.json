@@ -3911,8 +3911,8 @@
     "subtestSlack": 17
   },
   "/css/css-masking/animations/clip-path-interpolation-shape-control-points.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-masking): 177/306 subtests pass \u2014 the animation matrix runs 2-4s on a healthy CI node, and a 2.4x-slower node turned two of its siblings from FAIL into TIMEOUT at the default 5s scrape budget",
+    "expected": "PASS",
+    "reason": "slow: the animation matrix runs 2-4s on a healthy CI node, and a 2.4x-slower node turned two of its siblings from FAIL into TIMEOUT at the default 5s scrape budget",
     "timeout": 15000
   },
   "/css/css-masking/animations/clip-path-interpolation-shape.html": {
