@@ -71,28 +71,46 @@ function oldestMtime(filePaths) {
   }
   return earliestMtime;
 }
-function resolveCommand(command, workingDirectory) {
-  if (command.includes("/") || command.includes("\\")) {
-    return resolve(workingDirectory, command);
-  }
+function commandSuffixes(command) {
+  return process.platform === "win32" && !extname(command)
+    ? (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(delimiter)
+    : [""];
+}
 
-  const suffixes =
-    process.platform === "win32" && !extname(command)
-      ? (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(delimiter)
-      : [""];
+function isExecutableFile(candidate) {
+  try {
+    if (!statSync(candidate).isFile()) return false;
+    accessSync(candidate, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function findCommandInPath(command, workingDirectory) {
+  const suffixes = commandSuffixes(command);
   for (const directory of (process.env.PATH || "").split(delimiter)) {
     for (const suffix of suffixes) {
       const candidate = resolve(workingDirectory, directory, `${command}${suffix}`);
-      try {
-        if (statSync(candidate).isFile()) {
-          accessSync(candidate, constants.X_OK);
-          return candidate;
-        }
-      } catch {}
+      if (isExecutableFile(candidate)) return candidate;
     }
   }
   return null;
 }
+
+function resolveCommand(command, workingDirectory) {
+  if (command.includes("/") || command.includes("\\")) {
+    return resolve(workingDirectory, command);
+  }
+  return findCommandInPath(command, workingDirectory);
+}
+
+function existingToolIdentity(absolutePath) {
+  if (!existsSync(absolutePath)) return { path: absolutePath, missing: true };
+  const { dev: device, ino: inode, size, mtimeMs } = statSync(absolutePath);
+  return { path: absolutePath, dev: device, ino: inode, size, mtimeMs };
+}
+
 function toolIdentity(command, workingDirectory, resolveFromPath = false) {
   const absolutePath = resolveFromPath
     ? resolveCommand(command, workingDirectory)
@@ -100,9 +118,7 @@ function toolIdentity(command, workingDirectory, resolveFromPath = false) {
   if (!absolutePath) {
     return { command, searchPath: process.env.PATH || "", missing: true };
   }
-  if (!existsSync(absolutePath)) return { path: absolutePath, missing: true };
-  const { dev: device, ino: inode, size, mtimeMs } = statSync(absolutePath);
-  return { path: absolutePath, dev: device, ino: inode, size, mtimeMs };
+  return existingToolIdentity(absolutePath);
 }
 
 const buildInputs = [
