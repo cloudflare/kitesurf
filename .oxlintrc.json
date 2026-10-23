@@ -20,6 +20,7 @@
     "valid-typeof": "error",
     "eqeqeq": ["error", "smart"],
     "no-unused-vars": "error",
+    "complexity": ["error", { "max": 5, "variant": "modified" }],
     "max-depth": ["error", 4],
     "max-params": ["error", { "max": 7, "countThis": "never" }],
     "oxc/no-accumulating-spread": "error",
