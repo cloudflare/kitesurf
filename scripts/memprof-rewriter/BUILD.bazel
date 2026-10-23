@@ -1,0 +1,15 @@
+load("@crates_memprof//:defs.bzl", "all_crate_deps")
+load("@rules_rust//rust:defs.bzl", "rust_binary")
+
+exports_files([
+    "Cargo.lock",
+    "Cargo.toml",
+])
+
+rust_binary(
+    name = "memprof-rewriter",
+    srcs = ["src/main.rs"],
+    edition = "2021",
+    visibility = ["//packages/core/pkg:__pkg__"],
+    deps = all_crate_deps(normal = True) + ["//vendor/wasm-memprof/instrumentor"],
+)

@@ -1,0 +1,13 @@
+load("@crates_memprof//:defs.bzl", "all_crate_deps")
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+exports_files(["Cargo.toml"])
+
+rust_library(
+    name = "instrumentor",
+    srcs = glob(["src/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    visibility = ["//scripts/memprof-rewriter:__pkg__"],
+    deps = all_crate_deps(normal = True),
+)

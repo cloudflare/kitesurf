@@ -103,13 +103,6 @@ codegen-units = 1
 [profile.release.package.write-fonts]
 opt-level = 0
 
-[profile.release-memprof]
-inherits = "release"
-panic = "abort"
-strip = "none"
-lto = "off"
-codegen-units = 16
-
 [profile.release-test]
 inherits = "release"
 lto = "off"

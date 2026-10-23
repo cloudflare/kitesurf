@@ -8,6 +8,8 @@ mod font_cache;
 mod playback;
 mod scene_host;
 mod wasm;
+#[cfg(test)]
+mod tls;
 
 use std::{error::Error, fmt, time::Duration};
 use tokio::net::TcpStream;

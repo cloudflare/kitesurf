@@ -202,6 +202,32 @@ _cargo_vendor = repository_rule(
     },
 )
 
+def _without_dev_dependencies(manifest):
+    lines, skip = [], False
+    for line in manifest.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("["):
+            skip = stripped.startswith("[dev-dependencies") or (stripped.startswith("[target.") and ".dev-dependencies" in stripped)
+        if not skip:
+            lines.append(line)
+    return "\n".join(lines) + "\n"
+
+def _standalone_workspace_impl(rctx):
+    for path, label in rctx.attr.members.items():
+        _manifest_stub(rctx, rctx.path(label).dirname, path)
+        rctx.file(path + "/Cargo.toml", _without_dev_dependencies(rctx.read(label)), executable = False)
+    rctx.file("Cargo.toml", "[workspace]\nresolver = \"2\"\nmembers = %s\n" % json.encode(sorted(rctx.attr.members.keys())), executable = False)
+    rctx.file("Cargo.lock", rctx.read(rctx.attr.lockfile), executable = False)
+    rctx.file("BUILD.bazel", 'exports_files(["Cargo.toml", "Cargo.lock"])\n')
+
+_standalone_workspace = repository_rule(
+    implementation = _standalone_workspace_impl,
+    attrs = {
+        "lockfile": attr.label(mandatory = True, allow_single_file = True),
+        "members": attr.string_keyed_label_dict(mandatory = True),
+    },
+)
+
 def _patched_dirs(manifest):
     dirs = []
     in_patch = False
@@ -216,48 +242,58 @@ def _patched_dirs(manifest):
     return dirs
 
 def _cargo_workspaces_impl(mctx):
-    for mod in mctx.modules:
-        for tag in mod.tags.patched:
-            pinned = dict(tag.sha256)
-            patched = {}
-            keys = {}
-            for name, key in _patched_dirs(mctx.read(tag.manifest)):
-                if key not in pinned:
-                    fail(
-                        "%s is patched in %s but has no sha256 in MODULE.bazel" %
-                        (key, tag.manifest),
-                    )
-                _patched_crate(
-                    name = "patched_" + key,
-                    crate = name,
-                    version = key[len(name) + 1:],
-                    sha256 = pinned.pop(key),
-                    patches_marker = tag.patches_marker,
-                )
-                patched[name] = "@patched_%s//:BUILD.bazel" % key
-                keys[name] = key
-            if pinned:
+    tags = [tag for mod in mctx.modules for tag in mod.tags.patched]
+    if len(tags) > 1:
+        fail("cargo_workspaces.patched is declared %d times; one module owns them" % len(tags))
+    patched = {}
+    keys = {}
+    for tag in tags:
+        pinned = dict(tag.sha256)
+        for name, key in _patched_dirs(mctx.read(tag.manifest)):
+            if key not in pinned:
                 fail(
-                    "MODULE.bazel pins crates no longer patched in %s: %s" %
-                    (tag.manifest, pinned.keys()),
+                    "%s is patched in %s but has no sha256 in MODULE.bazel" %
+                    (key, tag.manifest),
                 )
-            for vendor in mod.tags.vendor:
-                _cargo_vendor(
-                    name = vendor.name,
-                    lockfile = vendor.lockfile,
-                    patched = {keys[name]: label for name, label in patched.items()},
-                )
-            for workspace in mod.tags.workspace:
-                _cargo_workspace(
-                    name = workspace.name,
-                    manifest = tag.manifest,
-                    lockfile = workspace.lockfile,
-                    members = workspace.members,
-                    keys = keys,
-                    patched = patched,
-                    patches_marker = tag.patches_marker,
-                    sha256 = tag.sha256,
-                )
+            _patched_crate(
+                name = "patched_" + key,
+                crate = name,
+                version = key[len(name) + 1:],
+                sha256 = pinned.pop(key),
+                patches_marker = tag.patches_marker,
+            )
+            patched[name] = "@patched_%s//:BUILD.bazel" % key
+            keys[name] = key
+        if pinned:
+            fail(
+                "MODULE.bazel pins crates no longer patched in %s: %s" %
+                (tag.manifest, pinned.keys()),
+            )
+
+    # Workspaces and vendor trees from any module, so a dependent module can build its own crates
+    # against the same patched sources.
+    for mod in mctx.modules:
+        for ws in mod.tags.standalone:
+            _standalone_workspace(name = ws.name, lockfile = ws.lockfile, members = ws.members)
+        if not tags:
+            continue
+        for vendor in mod.tags.vendor:
+            _cargo_vendor(
+                name = vendor.name,
+                lockfile = vendor.lockfile,
+                patched = {keys[name]: label for name, label in patched.items()},
+            )
+        for workspace in mod.tags.workspace:
+            _cargo_workspace(
+                name = workspace.name,
+                manifest = tags[0].manifest,
+                lockfile = workspace.lockfile,
+                members = workspace.members,
+                keys = keys,
+                patched = patched,
+                patches_marker = tags[0].patches_marker,
+                sha256 = tags[0].sha256,
+            )
 
 cargo_workspaces = module_extension(
     implementation = _cargo_workspaces_impl,
@@ -266,6 +302,11 @@ cargo_workspaces = module_extension(
             "manifest": attr.label(mandatory = True),
             "patches_marker": attr.label(mandatory = True),
             "sha256": attr.string_dict(mandatory = True),
+        }),
+        "standalone": tag_class(attrs = {
+            "lockfile": attr.label(mandatory = True),
+            "members": attr.string_keyed_label_dict(mandatory = True),
+            "name": attr.string(mandatory = True),
         }),
         "vendor": tag_class(attrs = {
             "lockfile": attr.label(mandatory = True),

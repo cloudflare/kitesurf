@@ -98,12 +98,14 @@ copy_file(
     name = "rbi_json",
     src = "//packages/scene-host-wasm:rbi/scene_host.json",
     out = "public/rbi/scene_host.json",
+    visibility = ["//packages/kitesurf-cli:__pkg__"],
 )
 
 copy_file(
     name = "rbi_wasm",
     src = "//packages/scene-host-wasm:rbi/scene_host.wasm",
     out = "public/rbi/scene_host.wasm",
+    visibility = ["//packages/kitesurf-cli:__pkg__"],
 )
 
 filegroup(

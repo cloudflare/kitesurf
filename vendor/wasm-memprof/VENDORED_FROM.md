@@ -29,11 +29,11 @@ Upstream provides four things; we only vendor the first:
 kitesurf's production wasm is built with `panic = "unwind"`, which
 emits the modern Wasm exception-handling instructions (`try_table`,
 `throw_ref`). walrus 0.23.3 — the parser this instrumentor depends on —
-does NOT support those ops (it `unimplemented!()`s on them). So the
-memprof build path in `scripts/build-wasm.mjs` overrides the crate to
-`panic = "abort"` (no EH instructions) via the `release-memprof`
-profile + cargo `--config` rustflags. A diagnostic build doesn't need
-unwinding, so this is harmless.
+does NOT support those ops (it `unimplemented!()`s on them). The
+memprof build therefore uses `panic = "abort"` on the stock standard
+library through `//bazel/rust:wasm32_memprof`. A diagnostic build
+doesn't need unwinding, so this is harmless. Bazel builds this crate as
+a library (`BUILD.bazel`) for `//scripts/memprof-rewriter`.
 
 To re-vendor: `rm -rf vendor/wasm-memprof && cd vendor && git clone \
   --depth 1 https://github.com/kateinoigakukun/wasm-memprof.git && \

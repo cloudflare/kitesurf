@@ -6,6 +6,7 @@
 
 mod access;
 mod cli;
+mod tls;
 
 use kitesurf_playback::{play, FontSource, PlaybackOptions};
 use std::{error::Error, time::Duration};

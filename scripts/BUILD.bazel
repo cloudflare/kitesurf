@@ -181,7 +181,7 @@ js_library(
 js_library(
     name = "stage_dev_build",
     srcs = ["stage-dev-build.mjs"],
-    visibility = ["//packages/engine:__pkg__"],
+    visibility = ["//packages/core/pkg:__pkg__", "//packages/engine:__pkg__"],
 )
 
 js_binary(

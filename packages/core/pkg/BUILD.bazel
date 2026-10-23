@@ -1,8 +1,8 @@
-load("@aspect_rules_js//js:defs.bzl", "js_library", "js_run_binary")
-load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//bazel:checks.bzl", "workspace_configs")
 load("//bazel:executors.bzl", "RUST")
-load("//bazel:paths.bzl", "exec_path")
+load("//bazel:paths.bzl", "bin_relative", "exec_path")
 
 js_run_binary(
     name = "wasm_pkg",
@@ -32,6 +32,53 @@ js_run_binary(
     mnemonic = "WasmPostprocess",
     progress_message = "wasm-bindgen + wasm-opt kitesurf_core",
     tool = "//scripts:build_wasm",
+)
+
+# Build the diagnostic wasm separately so it never replaces the normal package output in Bazel.
+js_run_binary(
+    name = "wasm_pkg_memprof",
+    srcs = [
+        "//bazel:wasm_bindgen",
+        "//packages/core:kitesurf_core_memprof",
+        "//scripts/memprof-rewriter",
+    ],
+    outs = ["memprof/" + name for name in [
+        "kitesurf_core.d.ts",
+        "kitesurf_core.glue.d.ts",
+        "kitesurf_core.glue.js",
+        "kitesurf_core.js",
+        "kitesurf_core_bg.wasm",
+        "kitesurf_core_bg.wasm.d.ts",
+        "kitesurf_core_bg.wasm.memprof.json",
+    ]],
+    args = [
+        "--postprocess",
+        "../../../$(execpath //packages/core:kitesurf_core_memprof)",
+        "--out-dir",
+        bin_relative("packages/core/pkg/memprof"),
+        "--memprof",
+    ],
+    env = {
+        "MEMPROF_REWRITER_BIN": exec_path("//scripts/memprof-rewriter"),
+        "WASM_BINDGEN_BIN": exec_path("//bazel:wasm_bindgen"),
+    },
+    exec_properties = RUST,
+    mnemonic = "WasmPostprocess",
+    progress_message = "wasm-bindgen + memprof-rewriter kitesurf_core",
+    tool = "//scripts:build_wasm",
+)
+
+# Catch regressions in a diagnostic build that is never shipped.
+build_test(
+    name = "memprof_build",
+    targets = [":wasm_pkg_memprof"],
+)
+
+js_binary(
+    name = "stage_memprof",
+    args = ["--memprof"],
+    data = [":wasm_pkg_memprof"],
+    entry_point = "//scripts:stage_dev_build",
 )
 
 js_library(

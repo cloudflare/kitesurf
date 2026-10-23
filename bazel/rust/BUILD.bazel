@@ -58,12 +58,21 @@ wasm32_rust(
 
 constraint_setting(name = "stock_rustflags")
 constraint_value(name = "scene_host", constraint_setting = ":stock_rustflags")
+constraint_value(name = "memprof", constraint_setting = ":stock_rustflags")
 
 wasm32_rust(
     name = "wasm32_scene_host",
     constraint = ":scene_host",
     rust_std = "@wasm32_stock_std//:rust_std",
     rustflags = ["-Ctarget-feature=+simd128"],
+)
+
+wasm32_rust(
+    name = "wasm32_memprof",
+    codegen_units = 16,
+    constraint = ":memprof",
+    rust_std = "@wasm32_stock_std//:rust_std",
+    rustflags = [("panic=abort" if flag == "panic=unwind" else flag) for flag in RUSTFLAGS],
 )
 
 rust_shared_library(
