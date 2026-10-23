@@ -1,0 +1,19 @@
+packages/engine/test/e2e/tldraw-app-shell.e2e.test.ts
+  s_d540f8cedf08dc::t_17cda7e4f6ffb2 34,48-49,117,120,157,182,186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "08d0637b6659a672409091ba9014a4b3e2508758",
+  "prompts": {},
+  "sessions": {
+    "s_d540f8cedf08dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25735613ffeEW7maT59wy26a8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

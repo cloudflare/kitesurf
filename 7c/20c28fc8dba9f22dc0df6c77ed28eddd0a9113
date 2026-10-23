@@ -1,0 +1,20 @@
+packages/engine/test/e2e/accessibility-tree-quickaction.e2e.test.ts
+  s_a75fa05553ff55::t_a1da49a0abf5a3 366,374,384,406
+  s_a75fa05553ff55::t_ffb8c5386167a7 191-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7c20c28fc8dba9f22dc0df6c77ed28eddd0a9113",
+  "prompts": {},
+  "sessions": {
+    "s_a75fa05553ff55": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_056baad8fffe4Zn5Jf0262lNuZ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

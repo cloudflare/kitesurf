@@ -1,0 +1,25 @@
+packages/engine/src/state/session-store.ts
+  s_059e99c81ea16a::t_40496f90f26726 187,189,197-201,367-379,386,399-403,481
+packages/engine/src/stateful.ts
+  s_059e99c81ea16a::t_55bc4734519a8a 251-258
+packages/engine/test/node/node-sql.ts
+  s_059e99c81ea16a::t_55bc4734519a8a 29-39
+packages/engine/test/node/session-store.test.ts
+  s_059e99c81ea16a::t_8ef7daec8c50a7 19,129-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "18988873b072c53575adec02b0ae875fe706f2e6",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

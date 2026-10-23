@@ -1,0 +1,19 @@
+packages/core/src/tty_omni.rs
+  s_296f2365729419::t_d05a28161b584a 52-53,58-59,61,683,752,769-770,844,1267,1271-1273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1decb3c3a1ded9478255e210c9b2bfe215459efa",
+  "prompts": {},
+  "sessions": {
+    "s_296f2365729419": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f28b529a3ffeo0w45PqHM10i01",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

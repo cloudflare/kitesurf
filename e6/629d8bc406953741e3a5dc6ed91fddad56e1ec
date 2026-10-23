@@ -1,0 +1,25 @@
+packages/engine/src/rbi-protocol.ts
+  s_50d45ac3d4c7e5::t_eda6d608563221 23-88
+packages/engine/src/rbi.ts
+  s_50d45ac3d4c7e5::t_99cee025a371e8 18,26,775-778,780,895-897,958-965,1340-1345
+  s_50d45ac3d4c7e5::t_b1743ba5377733 1204,1242-1252
+packages/engine/test/rbi-resource-batch.test.ts
+  s_50d45ac3d4c7e5::t_3623a074ee742e 1-9,17-24,27-54,63-76,78,80-95,101-104,108-109,112-113,115-125,130-151
+  s_50d45ac3d4c7e5::t_60ed0ab42edc75 55-62,77,79,105-107,110-111,126-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e6629d8bc406953741e3a5dc6ed91fddad56e1ec",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

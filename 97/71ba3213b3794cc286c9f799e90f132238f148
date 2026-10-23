@@ -1,0 +1,52 @@
+packages/engine/src/cdp/connection.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 54-57,84-87,221-226,315,319,352-353,356,367,372,376,384,397
+packages/engine/src/cdp/target.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 33-39,199,219,415,521-522,545,553-564,600
+packages/engine/src/state/outbound-forward.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 1-67
+packages/engine/src/cdp/debugger.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 24,30,61-62
+packages/engine/src/cdp/types.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 19,165-168,186,204,459-461,551-554
+packages/engine/src/cdp/page.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 161,1986,2827,5646
+packages/engine/src/cdp/network-events.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 5-9,61-63,65-66,81-106,134-140,142-147,248,252,291-295,297-306,437,439-442,501,510,522,684,689,709-712,714,719-729,731,734-737,744,753-758,761,763,767-769,772,775-777,784-785,790-792,800-804,808,826-828,830-831
+packages/engine/test/node/network-events-store.test.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 1-74
+packages/engine/src/eval/outbound.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 82,158-164,545-546,555,587-593,2082-2087
+  s_059e99c81ea16a::t_3ebe5e42ac0e3a 77-81
+docs/STATEFUL_SESSIONS.md
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 47-50,82-122
+packages/engine/src/cdp/runtime.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 484
+packages/engine/src/eval/resource-store.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 5-11,49-134,171-175,252-254,265,277-278,286-287
+packages/engine/src/stateful.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 18-29,39-44,146,170,178-179,183-184,197-198,230-244,247-253
+packages/engine/test/e2e/stateful-session.e2e.test.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 20-21,146-275
+packages/engine/src/cookies.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 9,102-108,111-112,599
+packages/engine/test/target-close.test.ts
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 12,18
+AGENTS.md
+  s_059e99c81ea16a::t_f79e2e2dc6f0ea 181-187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9771ba3213b3794cc286c9f799e90f132238f148",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

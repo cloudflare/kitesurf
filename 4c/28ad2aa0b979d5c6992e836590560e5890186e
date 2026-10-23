@@ -1,0 +1,19 @@
+packages/wpt-report/src/wpt-routes.ts
+  s_8f4be35e7cb4a4::t_9ac9dfafa41f53 85-86,88-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4c28ad2aa0b979d5c6992e836590560e5890186e",
+  "prompts": {},
+  "sessions": {
+    "s_8f4be35e7cb4a4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_04d5d7ba5ffe3bacaEiy5ojcQb",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

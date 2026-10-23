@@ -1,0 +1,24 @@
+scripts/patches/taffy-0.12.2/0007-Block-layout-resolve-child-percentage-margins-agains.patch
+  s_38e5d113e77939::t_2b7a06453da213 1-55
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_38e5d113e77939::t_e948b03964f733 1613-1614
+  s_38e5d113e77939::t_aead974425dcfd 748-775
+packages/engine/test/e2e/percent-margin-basis.e2e.test.ts
+  s_38e5d113e77939::t_a17f5f77c65560 1-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "434a0abf72770376f29c5b25bb09db0ec147973e",
+  "prompts": {},
+  "sessions": {
+    "s_38e5d113e77939": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03c410cf0ffeYAbz22unE6l59y",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/engine/src/quickactions/index.ts
+  s_2607304cda0fbe::t_41ce6af86e86d1 262-280
+packages/engine/test/quickaction.test.ts
+  s_2607304cda0fbe::t_83c34acaecd9eb 298-312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d6d80f82247f4ad69bb9fc5421199ed98c60a687",
+  "prompts": {},
+  "sessions": {
+    "s_2607304cda0fbe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03396bd34ffetyAlPmf1h4jlHJ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

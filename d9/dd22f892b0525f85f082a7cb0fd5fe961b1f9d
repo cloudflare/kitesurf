@@ -1,0 +1,30 @@
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_86ff8b90f979d1 2028,2050,8649-8651,8655-8657,8746,8752-8765,8767-8770
+  s_4ba79f911c93c4::t_7fe6223d35b06d 8771
+packages/engine/test/e2e/prefixed-attribute-writes.e2e.test.ts
+  s_4ba79f911c93c4::t_2394a32aa03bd6 1-59
+packages/engine/test/e2e/svg-anchor-xlink-href.e2e.test.ts
+  s_4ba79f911c93c4::t_2abf6436abf173 1-17
+packages/page-script/src/eval-helpers.ts
+  s_4ba79f911c93c4::t_6d778de6c75fef 31-42,121,137
+packages/page-script/src/index.ts
+  s_4ba79f911c93c4::t_695ab214ab66af 111,4031
+packages/page-script/src/types.ts
+  s_4ba79f911c93c4::t_291c2ba4a5fe15 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d9dd22f892b0525f85f082a7cb0fd5fe961b1f9d",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

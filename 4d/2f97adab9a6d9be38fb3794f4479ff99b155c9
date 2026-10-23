@@ -1,0 +1,24 @@
+scripts/patches/parley-0.11.1/0009-Expand-horizontal-tabs-to-CSS-tab-size-stops.patch
+  s_4ba79f911c93c4::t_c7cae8ed0c53d1 83,105,118
+packages/engine/test/e2e/tabs-tab-stops.e2e.test.ts
+  s_4ba79f911c93c4::t_802a5996b31137 11-16,18
+  s_4ba79f911c93c4::t_02b4cb2b1152ce 1-10,17,19-21
+scripts/patches/parley-0.11.1/0010-kitesurf-gate-tab-expansion-on-runs-containing-tabs-.patch
+  s_4ba79f911c93c4::t_c7cae8ed0c53d1 1-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4d2f97adab9a6d9be38fb3794f4479ff99b155c9",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}

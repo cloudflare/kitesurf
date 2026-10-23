@@ -1,0 +1,23 @@
+packages/engine/src/cdp/page.ts
+  s_4ba79f911c93c4::t_a84dca70f9d2cc 2185-2216,2289,7922-7924,7951
+packages/engine/src/rbi.ts
+  s_4ba79f911c93c4::t_d3877cad85962b 256,263-264
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_4ba79f911c93c4::t_66ab43a7625f0f 143-246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8c214d6cc5337e0202b35df5f230329ae704eb07",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

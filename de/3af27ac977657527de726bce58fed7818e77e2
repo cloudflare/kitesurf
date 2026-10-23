@@ -1,0 +1,22 @@
+packages/engine/src/term-session.ts
+  s_f5821b001b13e0::t_6f08c8b5021ac8 1258-1264
+packages/core/src/tty_splash.rs
+  s_f5821b001b13e0::t_5692d6b0ad5285 23,153-160,166,243-246,279-291,408,421-436
+  s_f5821b001b13e0::t_33cb9d17bd8f8c 437-438
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "de3af27ac977657527de726bce58fed7818e77e2",
+  "prompts": {},
+  "sessions": {
+    "s_f5821b001b13e0": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0c8e5-73d9-7204-8271-c9a2c75543ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

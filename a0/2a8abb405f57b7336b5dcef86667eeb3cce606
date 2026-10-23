@@ -1,0 +1,28 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0009-Clip-the-element-away-when-inset-leaves-an-empty-reg.patch
+  s_50d45ac3d4c7e5::t_03613f025cf0a8 1-45
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_6106acfd2127ed 1600-1601
+  s_50d45ac3d4c7e5::t_51cfa3c2f104eb 580-601
+packages/engine/test/e2e/clip-regions.e2e.test.ts
+  s_50d45ac3d4c7e5::t_a3173df9756b46 8-11
+  s_50d45ac3d4c7e5::t_b3e713a9aa36d1 15
+  s_50d45ac3d4c7e5::t_0c97c7ab00462d 1-2
+  s_50d45ac3d4c7e5::t_300c432cccc1c4 3-7,12-14,16-26,29-40
+  s_50d45ac3d4c7e5::t_ce7925367de220 27-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a02a8abb405f57b7336b5dcef86667eeb3cce606",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

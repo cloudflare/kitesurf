@@ -1,0 +1,19 @@
+CODEOWNERS
+  s_597c702c4ff67c::t_94d6c30e39aa5e 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "71b83963b7fd3e16205ce3e5ed66c3f845904c3d",
+  "prompts": {},
+  "sessions": {
+    "s_597c702c4ff67c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fa375c1caffe1Gqele7kbjOpjK",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

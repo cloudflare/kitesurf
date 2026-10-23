@@ -1,0 +1,67 @@
+packages/engine-cf/BUILD.bazel
+  s_4ba79f911c93c4::t_e1baa7d384b74b 218-224,227-232,245-246
+  s_4ba79f911c93c4::t_6bf4f7acf371dc 225-226
+  s_4ba79f911c93c4::t_c302c1c52150f7 9,233-244
+  s_4ba79f911c93c4::t_e50e208e9293c6 7,100-102
+  s_4ba79f911c93c4::t_960f51cf0d1352 103-105
+.gitlab/ci/engine.yml
+  s_4ba79f911c93c4::t_f88cfe88272783 437-438,509-512,984,987-993,1179-1180,1212-1214,1225
+scripts/flows-engine-id.test.mjs
+  s_4ba79f911c93c4::t_1b4be160d361f6 1-42,49-57
+  s_4ba79f911c93c4::t_5c2497f3fcbe87 43-48
+  s_4ba79f911c93c4::t_ef594e519af96c 58-68
+scripts/ci-wasm-bazel.sh
+  s_4ba79f911c93c4::t_3d95e85566c6bb 15
+tests/interactivity-flows/README.md
+  s_4ba79f911c93c4::t_3f16224a165e5d 552-555
+  s_4ba79f911c93c4::t_76f83ef3b3d05c 556-560
+scripts/flows-engine-id.mjs
+  s_4ba79f911c93c4::t_56ac44797bf746 13,23,53
+  s_4ba79f911c93c4::t_4641bd7fc7acf7 24-27
+  s_4ba79f911c93c4::t_89c3e5d89addb8 45-46
+  s_4ba79f911c93c4::t_b29bf5417caf73 54-56
+.gitignore
+  s_4ba79f911c93c4::t_0c6aeebc010611 15
+scripts/BUILD.bazel
+  s_4ba79f911c93c4::t_f8e093962e582d 57-58,68-73
+  s_4ba79f911c93c4::t_3ae50887c01ba7 75
+  s_4ba79f911c93c4::t_0d9dbe8f989ad1 55,64-65
+  s_4ba79f911c93c4::t_438d1da6ce70c2 54,62-63
+bazel/runtime-inputs-test.bzl
+  s_4ba79f911c93c4::t_83103e38664cef 1-2,4-12,15-30
+  s_4ba79f911c93c4::t_b7f8b131487093 3,13-14
+BUILD.bazel
+  s_4ba79f911c93c4::t_3484453c0338f1 96
+  s_4ba79f911c93c4::t_9c265aeee64239 97
+bazel/checks.bzl
+  s_4ba79f911c93c4::t_54964a121ddbc0 75-77,79,87-92
+  s_4ba79f911c93c4::t_7011dd1af24ce4 5,78,80-86
+  s_4ba79f911c93c4::t_43d1603991f7cb 93
+packages/engine-cf/test/e2e/BUILD.bazel
+  s_4ba79f911c93c4::t_3347916230082d 102
+  s_4ba79f911c93c4::t_f85ca5ea14bb7f 3,98-101
+  s_4ba79f911c93c4::t_1278ab4b1ad332 62
+  s_4ba79f911c93c4::t_9588c739400212 103-104
+packages/engine-cf/test/e2e/runfiles-package-links.test.mjs
+  s_4ba79f911c93c4::t_e764b37ccab936 17-25,47,57-58,60-61
+  s_4ba79f911c93c4::t_9b12d0df53dfa5 8,14,31,59
+  s_4ba79f911c93c4::t_df4a8f2ad2daa7 2-7,9-11,26-30,34-36,39-40,43-46,48-56
+  s_4ba79f911c93c4::t_65dc979526c6e4 1,12-13,15-16,32-33,37-38,41-42,62
+  s_4ba79f911c93c4::t_7adbc27d88fd4f 63-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7d68f623c77fbcd71e1b50c08ecd2730d9cf586c",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

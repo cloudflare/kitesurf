@@ -1,0 +1,20 @@
+packages/engine/test/e2e/root-element-metrics.e2e.test.ts
+  s_a2feeea1972b1e::t_0d12c6c2f6a667 68,72,79-84,90-91
+  s_a2feeea1972b1e::t_191b6986cbcad1 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5932df9bb98edb74e9bc5ae6c1507cd941f93998",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

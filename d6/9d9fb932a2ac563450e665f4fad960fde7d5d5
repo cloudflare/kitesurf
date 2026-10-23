@@ -1,0 +1,23 @@
+scripts/patches/taffy-0.14.0/0009-Let-the-tree-override-an-abspos-child-s-containing-b.patch
+  s_b011b4890692e8::t_5f47f2b9db91eb 1-78
+packages/engine/test/e2e/fixed-position-viewport.e2e.test.ts
+  s_b011b4890692e8::t_0545f0e4c8e3f4 1-82
+scripts/patches/blitz-dom-0.3.0-beta.2/0172-kitesurf-size-hoisted-fixed-boxes-against-the-viewpo.patch
+  s_b011b4890692e8::t_5f47f2b9db91eb 1-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d69d9fb932a2ac563450e665f4fad960fde7d5d5",
+  "prompts": {},
+  "sessions": {
+    "s_b011b4890692e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efe2ab1cfffeVYQW8LR11yml5y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

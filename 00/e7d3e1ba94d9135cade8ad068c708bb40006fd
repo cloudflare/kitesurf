@@ -1,0 +1,23 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-memory-support-embedder-managed-node-reclamation.patch
+  s_f5785bea72e01e::t_0de43534a4ec3c 18
+  s_f5785bea72e01e::t_ea6c80bc7da241 3-7,9-11,13-17,19-27,29,31,49
+scripts/patches/blitz-dom-0.3.0-beta.2/0125-memory-manage-cached-author-sheet-lifetimes.patch
+  s_f5785bea72e01e::t_0de43534a4ec3c 3,9,13-15,18,82,95,97,100,105-107,112-115,117-121,126-130
+  s_f5785bea72e01e::t_ea6c80bc7da241 4,21-39,58-81,116,141-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "00e7d3e1ba94d9135cade8ad068c708bb40006fd",
+  "prompts": {},
+  "sessions": {
+    "s_f5785bea72e01e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f51217a23ffeok4Sc2bqio2KUk",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

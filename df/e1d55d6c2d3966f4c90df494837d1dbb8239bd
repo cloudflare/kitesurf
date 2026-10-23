@@ -1,0 +1,22 @@
+packages/engine/test/e2e/data-transfer-items-add.e2e.test.ts
+  s_89db36e0a74dbd::t_d15cdec4d9e23c 1-4,13,15-16,18,24,30,33-35
+  s_89db36e0a74dbd::t_26683dacc3b171 5-12,14,17,19-23,25-29,31-32,36-38
+packages/dom-shim/src/file-input.ts
+  s_89db36e0a74dbd::t_ac23c56b17480f 177-178,180,182,184,186-187,197-208,236-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dfe1d55d6c2d3966f4c90df494837d1dbb8239bd",
+  "prompts": {},
+  "sessions": {
+    "s_89db36e0a74dbd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec8081742ffeOUo1byYY6GJ5h5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+packages/engine/src/eval/outbound.ts
+  s_d9ecccdb16496d::t_091e1b1e6dc42f 58,1276
+  s_d9ecccdb16496d::t_54d14e51b9fa6a 55-57,59
+  s_d9ecccdb16496d::t_c86bcfaeb20657 121-127,1235-1239,1242-1248,1251-1266,1273-1275,1277-1283,1350,1356,1359,1361,1391,1394,1396
+packages/engine/src/eval/resource-store.ts
+  s_d9ecccdb16496d::t_017d536fbe91c0 31-32,37-46,73,79,95-97,99-101,103-112,114
+  s_d9ecccdb16496d::t_54d14e51b9fa6a 27
+  s_d9ecccdb16496d::t_259113e1145d7b 1-26,28-30,33-36,47-72,74-78,80-94,98,102,113,115-123
+packages/engine/src/eval/page-renderer.ts
+  s_d9ecccdb16496d::t_23cb99f5861e85 326-338,340-341,461
+  s_d9ecccdb16496d::t_b210d746b65405 339
+  s_d9ecccdb16496d::t_e24ad12841c45d 20,95,101
+  s_d9ecccdb16496d::t_2dc86e211b9b67 564
+packages/engine/src/cdp/target.ts
+  s_d9ecccdb16496d::t_4c619aa1c4842e 13
+  s_d9ecccdb16496d::t_771fbe2dec00d7 703-704,711-715,723-725
+packages/page-script/src/index.ts
+  s_d9ecccdb16496d::t_24185a21752e5d 5082-5085,5093
+docs/PAGE_RENDERER.md
+  s_d9ecccdb16496d::t_f5e55930a27094 70-89
+packages/core/src/lib.rs
+  s_d9ecccdb16496d::t_8ce2aaf5f87c59 4625-4629,4636,4723-4733,4738,4748-4759,4789,4792-4797,4801,4805-4807,4871-4873
+packages/engine/src/cdp/page.ts
+  s_d9ecccdb16496d::t_632bd3e58a61de 2236-2237
+  s_d9ecccdb16496d::t_091e1b1e6dc42f 54,2238
+packages/engine/src/eval/page-script.ts
+  s_d9ecccdb16496d::t_e1cc21b76de39e 1198-1200
+packages/core/src/scene_replay.rs
+  s_d9ecccdb16496d::t_0fe89387ccfb8e 46-50,152-159,163,215-247
+  s_d9ecccdb16496d::t_a10b8e7ef773fd 1159-1181
+packages/core/src/scene_record.rs
+  s_d9ecccdb16496d::t_0e7109df51d06c 406-416
+packages/page-renderer/src/index.ts
+  s_d9ecccdb16496d::t_cc55664092f50e 105-112,174-180,250,253-256,276,292-309
+  s_d9ecccdb16496d::t_2ffe2c2647a4b3 434,438,448,502,550,554,564,614
+packages/page-renderer/src/wasm-glue.d.ts
+  s_d9ecccdb16496d::t_c4d2718b734dfb 24-27
+packages/engine/test/resource-store.test.ts
+  s_d9ecccdb16496d::t_5df12bb3e2d248 1-138
+packages/engine/src/cdp/connection.ts
+  s_d9ecccdb16496d::t_4c619aa1c4842e 678-679
+  s_d9ecccdb16496d::t_0cc8e5183e2575 32
+  s_d9ecccdb16496d::t_de759a7a929c59 569-571
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7386236a921ca7e692949efda78c674e85e87eba",
+  "prompts": {},
+  "sessions": {
+    "s_d9ecccdb16496d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03b959d9effev00SNORc7M35W1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

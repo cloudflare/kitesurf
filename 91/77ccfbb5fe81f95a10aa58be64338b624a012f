@@ -1,0 +1,56 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0109-Apply-computed-font-family-to-text-editors.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 11,14-15
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Tag-iframe-document-requests-as-HTML.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-34
+scripts/patches/blitz-dom-0.3.0-beta.2/0121-Retain-table-computed-styles-for-calc-pointers.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-93
+scripts/patches/blitz-dom-0.3.0-beta.2/0118-Treat-shadow-roots-as-transparent-damage-boundaries.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-48
+packages/core/src/transitions.rs
+  s_51ed5497a9ef32::t_f252d886a74f3f 237
+  s_51ed5497a9ef32::t_ad934a2a9b5daa 454
+  s_51ed5497a9ef32::t_4ae3519e3db4ff 453,455-458
+scripts/patches/blitz-dom-0.3.0-beta.2/0116-Skip-unstyled-nodes-in-the-damage-scan.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-37
+scripts/patches/blitz-dom-0.3.0-beta.2/0114-Read-CSS-width-height-off-the-root-when-normalizing-.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-63
+scripts/patches/blitz-dom-0.3.0-beta.2/0117-Span-table-captions-over-outer-border-spacing.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-113
+packages/core/src/animation_clock_test.rs
+  s_51ed5497a9ef32::t_4ae3519e3db4ff 989-1017
+scripts/patches/blitz-dom-0.3.0-beta.2/0110-Harden-table-column-occupancy.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-72
+packages/page-script/src/transitions.ts
+  s_51ed5497a9ef32::t_08acc57aa873d3 16-19,44-45,63-65,77,82-84,89,112-114,128-145
+  s_51ed5497a9ef32::t_077a1bac6ec670 146
+scripts/patches/blitz-dom-0.3.0-beta.2/0115-Adapt-rebased-layout-paths-to-beta.2-APIs.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-47
+scripts/patches/blitz-dom-0.3.0-beta.2/0119-Stage-pseudo-element-damage-writes.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-28
+scripts/patches/blitz-dom-0.3.0-beta.2/0111-Preserve-first-row-table-sizing-after-captions.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-101
+scripts/patches/blitz-dom-0.3.0-beta.2/0120-Stage-every-pseudo-style-replacement.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-31
+packages/core/src/lib.rs
+  s_51ed5497a9ef32::t_f252d886a74f3f 4076-4077
+scripts/patches/blitz-dom-0.3.0-beta.2/0112-Keep-auto-table-tracks-flexible-after-captions.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-43
+scripts/patches/blitz-dom-0.3.0-beta.2/0113-Finish-table-occupancy-review-fixes.patch
+  s_51ed5497a9ef32::t_0c37c50713ec3a 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9177ccfbb5fe81f95a10aa58be64338b624a012f",
+  "prompts": {},
+  "sessions": {
+    "s_51ed5497a9ef32": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f514775d7ffeg9CJ8X6f7RZn0V",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

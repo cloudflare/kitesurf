@@ -1,0 +1,35 @@
+packages/engine/test/fixtures-worker/src/dynamic/frames.ts
+  s_bd5dcac1223dfa::t_3c35c530508c5e 3,83-89
+packages/engine/test/fixtures-worker/assets/iframe-referrer-host.html
+  s_bd5dcac1223dfa::t_3c35c530508c5e 1-7
+packages/engine/test/fixtures-worker/src/dynamic/cors.ts
+  s_bd5dcac1223dfa::t_3c35c530508c5e 99-107
+packages/engine/test/e2e/iframe-referrer.e2e.test.ts
+  s_bd5dcac1223dfa::t_3c35c530508c5e 11-77
+packages/page-script/src/startup-probe.ts
+  s_bd5dcac1223dfa::t_3c35c530508c5e 22,80
+packages/engine/src/eval/page-script.ts
+  s_bd5dcac1223dfa::t_3c35c530508c5e 474-477,525
+packages/engine/src/cdp/page.ts
+  s_bd5dcac1223dfa::t_3c35c530508c5e 5300-5303,5307-5310
+packages/page-script/src/__ks_startup_probe_input.ts
+  s_bd5dcac1223dfa::t_3c35c530508c5e 26-27
+packages/page-script/src/index.ts
+  s_bd5dcac1223dfa::t_3c35c530508c5e 82,1296-1303,1318-1336,1344-1346,1352,1354,1358,1501,1535,3344,3348-3350,3358-3365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "87bfc1d3d94912d8d2e98ecb82e16c62e20b7cca",
+  "prompts": {},
+  "sessions": {
+    "s_bd5dcac1223dfa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec569f0c7ffeag1ZZubqa8cs27",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

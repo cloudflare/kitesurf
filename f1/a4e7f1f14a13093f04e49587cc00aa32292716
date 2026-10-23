@@ -1,0 +1,56 @@
+packages/engine/test/e2e/demos/canvas-detached-append.e2e.test.ts
+  s_20c85428a42056::t_b01fb5019b115b 8-10,14-15,17-18
+packages/engine/test/e2e/demos/conic-gradient.e2e.test.ts
+  s_20c85428a42056::t_0aca6d068e749f 9,18-19
+  s_20c85428a42056::t_d09cf49a3c85c8 27-28
+packages/engine/test/e2e/html/svg-dynamic-text.html
+  s_20c85428a42056::t_91e9b52114f1b2 1-18
+packages/engine/test/e2e/demos/canvas-2d-draw-demo.e2e.test.ts
+  s_20c85428a42056::t_a73ed8082c90a7 10-16,20-21,23-24
+packages/engine/test/e2e/canvas-text-upgrade.e2e.test.ts
+  s_20c85428a42056::t_196eef54680136 10-12,14-30,32-46
+packages/engine/test/e2e/html/conic-gradient.html
+  s_20c85428a42056::t_dd5d7b8cb5eb0e 1-20
+packages/engine/test/e2e/svg-dash-stroke.e2e.test.ts
+  s_20c85428a42056::t_26fd314a1a4a4d 9-11,13-15,38-48,50-53,55-61
+packages/engine/test/e2e/html/canvas-2d-draw.html
+  s_20c85428a42056::t_f7293798ccb3a2 1-92
+packages/engine/test/e2e/html/canvas-text.html
+  s_20c85428a42056::t_b5649a2608fb72 1-18
+packages/engine/test/e2e/text-fill-color.e2e.test.ts
+  s_20c85428a42056::t_b2385dada5ab6b 44
+  s_20c85428a42056::t_c0a3b4ecc4b848 14-17,21,23
+packages/engine/test/e2e/svg-paint-fidelity.e2e.test.ts
+  s_20c85428a42056::t_452e4a6de00aaa 14-16,18-20,22-31,33-44,46-47,49-61,63-69
+packages/engine/test/e2e/html/canvas-2d.html
+  s_20c85428a42056::t_ab992e01312aa6 1-33
+packages/engine/test/e2e/html/canvas-detached-append.html
+  s_20c85428a42056::t_7b85bd46d8e4bf 1-21
+packages/engine/test/e2e/html/text-fill-color.html
+  s_20c85428a42056::t_58e03025a178f7 1-21
+packages/engine/test/e2e/html/canvas-aspect-ratio-hack.html
+  s_20c85428a42056::t_56f9e1353ff434 1-18
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_20c85428a42056::t_9e9595215695fb 7,15,19-20,22-23
+  s_20c85428a42056::t_f5e4e4da103323 13-14
+packages/engine/test/e2e/demos/canvas-aspect-ratio-hack.e2e.test.ts
+  s_20c85428a42056::t_0f4a7f50952135 8-10,14-15,17-18
+packages/engine/test/e2e/svg-dynamic-text-upgrade.e2e.test.ts
+  s_20c85428a42056::t_0591d5266d8f9f 4,9,11-12,14-25,27-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f1a4e7f1f14a13093f04e49587cc00aa32292716",
+  "prompts": {},
+  "sessions": {
+    "s_20c85428a42056": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00ccc440dffeUSPUQ7y5ZMuOUy",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/core/src/screenshot.rs
+  s_4ba79f911c93c4::t_dec6008347f824 326-334
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "86df31ebf2ca4e844a5f8aba843b95d61b21145e",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

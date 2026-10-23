@@ -1,0 +1,42 @@
+packages/dom-shim/src/element/canvas.ts
+  s_4416da8af6d192::t_7847120368e26c 69
+packages/dom-shim/strict-baseline.json
+  s_4416da8af6d192::t_8c6895ac94da26 4
+  s_4416da8af6d192::t_387d24ffc0f42a 2-3,13-16
+packages/dom-shim/tsconfig.json
+  s_4416da8af6d192::t_cc093b1993596e 11
+  s_4416da8af6d192::t_def1b2c4093da5 9
+packages/page-script/tsconfig.json
+  s_4416da8af6d192::t_64f47122f38e61 14
+  s_4416da8af6d192::t_0ed1a715ff9285 9
+packages/page-script/src/index.ts
+  s_4416da8af6d192::t_e281d94c87e31d 2840,2848,2908
+packages/dom-shim/src/element/forms/form.ts
+  s_4416da8af6d192::t_7847120368e26c 202,298
+packages/page-script/src/session-methods.ts
+  s_4416da8af6d192::t_e281d94c87e31d 90-91
+packages/dom-shim/src/element/forms/select.ts
+  s_4416da8af6d192::t_7847120368e26c 144
+packages/dom-shim/src/element/element.ts
+  s_4416da8af6d192::t_7847120368e26c 1037,1203,1209
+packages/page-script/src/globals.ts
+  s_4416da8af6d192::t_d1cd9f6294eb1b 1719,3675
+packages/dom-shim/src/form-data.ts
+  s_4416da8af6d192::t_7847120368e26c 49,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3e61bb29983c5d2e9e8c0f38964ee14d368ce2f0",
+  "prompts": {},
+  "sessions": {
+    "s_4416da8af6d192": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee37cab46ffexOAxPtgtRZ3gOW",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

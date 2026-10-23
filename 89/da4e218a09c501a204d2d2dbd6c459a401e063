@@ -1,0 +1,19 @@
+scripts/webidl-ts-types.mjs
+  s_b514fd270dac16::t_e44e3936e461ff 3-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "89da4e218a09c501a204d2d2dbd6c459a401e063",
+  "prompts": {},
+  "sessions": {
+    "s_b514fd270dac16": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef65ae599ffeTuHV0242fvcrkf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

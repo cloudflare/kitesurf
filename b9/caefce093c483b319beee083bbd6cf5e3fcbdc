@@ -1,0 +1,61 @@
+scripts/patches/taffy-0.12.2.patch
+  s_19069b86731766::t_3c3b8667767ca5 1-203
+packages/core/src/svg_currentcolor_test.rs
+  s_19069b86731766::t_d31982258b3a99 29,38,63,73
+scripts/get-patched-vendor-crates.mjs
+  s_19069b86731766::t_24daadce60b637 69-72
+packages/core/Cargo.toml
+  s_19069b86731766::t_d4a5a36938c5c0 19-20
+  s_19069b86731766::t_90aba06dc92861 212-215
+  s_19069b86731766::t_cf12aad032d918 74-77
+  s_19069b86731766::t_4c46f933c5a2c1 22-23
+scripts/patches/stylo-0.19.0.patch
+  s_19069b86731766::t_3c3b8667767ca5 1-89
+packages/core/src/lib.rs
+  s_19069b86731766::t_bcf6108cd99003 3324-3327
+  s_19069b86731766::t_994f2c639fdc66 2245-2270
+  s_19069b86731766::t_3bc0aad20a5ffc 3158-3159
+  s_19069b86731766::t_e9e49ca1632695 3218-3234,3236-3238,3247,3254-3259
+  s_19069b86731766::t_d39bc1b49af246 3210
+  s_19069b86731766::t_ceb62f103293b9 3299-3301
+scripts/patches/blitz-paint-0.3.0-beta.1.patch
+  s_19069b86731766::t_3c3b8667767ca5 1-647
+scripts/patches/blitz-dom-0.3.0-beta.1.patch
+  s_19069b86731766::t_3c3b8667767ca5 1-1322,1357-1377,1379-1434,1436-1821
+  s_dfe9872d3f263e::t_59f0a82299133d 1342,1349-1350,1378
+packages/core/src/checked_svg_test.rs
+  s_19069b86731766::t_d31982258b3a99 16,27
+packages/core/src/pdf_paint.rs
+  s_19069b86731766::t_ff1ad83fdbacf1 572-573
+scripts/patches/README.md
+  s_19069b86731766::t_05c3d4ef394607 91-94
+  s_19069b86731766::t_48299fe8ce6b60 169
+  s_19069b86731766::t_aadde029c62a62 236
+  s_19069b86731766::t_4aafee2fc6ce04 112,117-132,136-151
+packages/core/Cargo.lock
+  s_19069b86731766::t_534b89d888a888 129,169,171,181,192,200,202,204,2116,2118,2354,2409,2411,2419,2421,2432,2434,2442,2444,2460,2462,2469,2471,2480,2482,2546,2698,2700
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b9caefce093c483b319beee083bbd6cf5e3fcbdc",
+  "prompts": {},
+  "sessions": {
+    "s_19069b86731766": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0790dbe40ffekNMt6TgsspoV1c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_dfe9872d3f263e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0756acc38ffeqz5UKWJC9rkSBs",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

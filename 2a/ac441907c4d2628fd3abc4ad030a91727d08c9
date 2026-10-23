@@ -1,0 +1,25 @@
+packages/core/src/boa_eval.rs
+  s_e5734d2cdd8842::t_b2142bd8efd908 98-100,1293-1294
+packages/page-script/src/internals.ts
+  s_e5734d2cdd8842::t_6281ed78a637b1 24-26,28
+packages/core/src/lib.rs
+  s_e5734d2cdd8842::t_6281ed78a637b1 53-54
+packages/page-script/src/page-tasks.ts
+  s_e5734d2cdd8842::t_6281ed78a637b1 671-682
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2aac441907c4d2628fd3abc4ad030a91727d08c9",
+  "prompts": {},
+  "sessions": {
+    "s_e5734d2cdd8842": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb7b5c1b1ffemNY2McWVkjToXQ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

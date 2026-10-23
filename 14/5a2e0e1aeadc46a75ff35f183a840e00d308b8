@@ -1,0 +1,85 @@
+MODULE.bazel
+  s_4ba79f911c93c4::t_bc2c93ca6b4025 141
+BUILD.bazel
+  s_4ba79f911c93c4::t_65b87b7dfa8c08 40,108
+package.json
+  s_4ba79f911c93c4::t_b4c3de007b5984 19
+AGENTS.md
+  s_4ba79f911c93c4::t_4e1f527baff4b6 46-47
+packages/tty-css-preview/test/server.test.mjs
+  s_4ba79f911c93c4::t_ec43f683b84a88 16
+  s_4ba79f911c93c4::t_656c9992facc74 1-15,17-108
+packages/tty-css-preview/README.md
+  s_4ba79f911c93c4::t_8e51640553d281 7-18
+  s_4ba79f911c93c4::t_3a0b1efb0d5581 4-6
+  s_4ba79f911c93c4::t_e71644d39db193 19-21
+deps/BUILD.bazel
+  s_4ba79f911c93c4::t_b8aacb0595dffe 63-64,66-67,69-72
+  s_4ba79f911c93c4::t_267644ff5cbc11 65
+  s_4ba79f911c93c4::t_7787a4998445b2 68
+scripts/ci-wasm-bazel.sh
+  s_4ba79f911c93c4::t_5e96701f0e16ea 59
+packages/tty-css-preview/src/server.mjs
+  s_4ba79f911c93c4::t_59030e97bb5670 14-17
+  s_4ba79f911c93c4::t_7e5e50f1035377 1-13,18-104
+pnpm-workspace.yaml
+  s_4ba79f911c93c4::t_f076107f8e4e26 10-11
+packages/tty-css-preview/BUILD.bazel
+  s_4ba79f911c93c4::t_fcf7ca86ddfbdd 39
+  s_4ba79f911c93c4::t_f8139460de3f03 36-38
+  s_4ba79f911c93c4::t_2c7fafc87dffeb 40-42
+packages/tty-css-preview/extension/background.js
+  s_4ba79f911c93c4::t_a27c1b88cb1ce9 1-75
+packages/tty-css-preview/extension/content.js
+  s_4ba79f911c93c4::t_c38335c15f0c0e 1-454
+packages/tty-css-preview/extension/fallback-level1.css
+  s_4ba79f911c93c4::t_8d23071bc304c8 1-248
+packages/tty-css-preview/extension/fallback-level2.css
+  s_4ba79f911c93c4::t_bbb3db9b0941a6 1-18
+packages/tty-css-preview/extension/manifest.json
+  s_4ba79f911c93c4::t_e72a025e345973 1-27
+packages/tty-css-preview/extension/popup.css
+  s_4ba79f911c93c4::t_dc21ad0756430e 1-81
+packages/tty-css-preview/extension/popup.html
+  s_4ba79f911c93c4::t_cf39ed30e1a078 1-33
+packages/tty-css-preview/extension/popup.js
+  s_4ba79f911c93c4::t_8d210110dbc51c 1-29
+packages/tty-css-preview/extension/scroll.js
+  s_4ba79f911c93c4::t_76bb40dcb8b748 1-35
+packages/tty-css-preview/extension/snap.js
+  s_4ba79f911c93c4::t_962b8036ac66f1 1-27
+packages/tty-css-preview/extension/update.js
+  s_4ba79f911c93c4::t_e8b5ebfb64a53f 1-84
+packages/tty-css-preview/package.json
+  s_4ba79f911c93c4::t_43aeb4f1c5d156 1-13
+packages/tty-css-preview/test/content-script-fixture.mjs
+  s_4ba79f911c93c4::t_dabeb8c5c7189d 1-326
+packages/tty-css-preview/test/content.test.mjs
+  s_4ba79f911c93c4::t_0b59673ae10aca 1-396
+packages/tty-css-preview/test/grid.test.mjs
+  s_4ba79f911c93c4::t_f3ce8c7c6c5158 1-36
+packages/tty-css-preview/test/scroll.test.mjs
+  s_4ba79f911c93c4::t_fa6b9ad9958d14 1-41
+packages/tty-css-preview/test/snap.test.mjs
+  s_4ba79f911c93c4::t_abfac396e255e8 1-40
+packages/tty-css-preview/test/update.test.mjs
+  s_4ba79f911c93c4::t_1a24f41a6b081e 1-123
+pnpm-lock.yaml
+  s_4ba79f911c93c4::t_6375448381b83b 497-498
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "145a2e0e1aeadc46a75ff35f183a840e00d308b8",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

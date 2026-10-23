@@ -1,0 +1,75 @@
+packages/engine/src/cdp/runtime.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 48-68,312
+packages/engine/test/e2e/retention-gauges.e2e.test.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 1-110
+packages/dom-shim/src/events/dispatch.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 241-251
+packages/dom-shim/src/registries.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 21-169,175-204,320-322,326,330-349,441-530,537-538,549-550,558
+packages/dom-shim/src/fastpath.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 49-53,58-62
+packages/dom-shim/src/contract.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 18-24,26
+packages/dom-shim/src/mutations/observer.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 12-16,349-387,560-565
+  s_c1d1c93f383cfd::t_044d014d56f72b 566
+packages/dom-shim/src/state.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 15,224-358,411-427,498-514
+packages/dom-shim/src/layout/cheap.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 23,59-64
+  s_c1d1c93f383cfd::t_62054320952644 65
+packages/engine/src/cdp/kitesurf.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 32,453-463,498
+packages/engine/test/e2e/route-churn-memory.e2e.test.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 1-162
+packages/dom-shim/src/events/slotchange.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 7,15-25
+  s_c1d1c93f383cfd::t_c2d8450b88562f 26
+packages/engine/test/e2e/detached-subtree-reclaim.e2e.test.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 1-503
+packages/dom-shim/src/node-base.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 6,30-36,128-131,136-268,430-441,491,526,556,742,744,803-805,1080-1081,1114,1117-1154,1159,1163,1167,1215-1217,1304,1311,1318,1329,1393,1411,1413,1489,1498,1637,1663,1674,1776,1783,1906,2021-2023,2025,2217,2247,2249,2254,2321,2359,2396,2434,2778-2779,2843
+packages/dom-shim/src/index.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 199-203,265-272,279-296,306-321,565-568,581,585,625,674-677
+packages/engine/src/cdp/page-session.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 185,213-285
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 23,32-39
+packages/engine/src/cdp/target.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 1130-1132
+packages/page-script/src/dom-shim.d.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 19-25,30
+packages/engine/test/e2e/reclaim-pending-stylesheet.e2e.test.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 1-125
+packages/dom-shim/src/file-input.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 15,105-116
+  s_c1d1c93f383cfd::t_e63b596096c675 117
+packages/page-script/src/handles.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 52-64
+packages/dom-shim/src/reclaim.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 1-434
+packages/page-script/src/index.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 128,135,152,229-234,236-238,294-300,6861-6867,6884-6939,6946-6949
+packages/engine/test/e2e/idl-handler-rekey.e2e.test.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 1-90
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 1,8,17,27-32,34-35,40,45,47-57,59,65-113,117-129,136-137,141,145,162,166-167,169-170,182-184,197,205,212,214-215
+packages/page-script/src/defer-shim.ts
+  s_c1d1c93f383cfd::t_bde4e2e1fdadcc 101-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3aa52c3541b81a2ae6a061ee0ea9004d7b2b8bd6",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

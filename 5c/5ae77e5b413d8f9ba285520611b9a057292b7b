@@ -1,0 +1,92 @@
+scripts/e2e/gate.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-109
+tests/e2e/shards.bzl
+  s_119421158b98d5::t_147de7b0f127a5 1
+scripts/pw/gate.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-136
+packages/engine/BUILD.bazel
+  s_119421158b98d5::t_147de7b0f127a5 154
+scripts/e2e/engine-config.test.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-18
+scripts/wpt/inventory.test.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-96
+scripts/BUILD.bazel
+  s_119421158b98d5::t_147de7b0f127a5 11,16,21,26,37-42,56,101,108,118,177,193,200,207,214,226,246,257,307,365,378,396
+  s_119421158b98d5::t_8d433b96264af8 305,319
+scripts/wpt/batched.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-1116
+.github/workflows/ci.yml
+  s_119421158b98d5::t_147de7b0f127a5 88,143,180
+scripts/wpt/bucket.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-327
+scripts/wpt/collateral.test.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-108
+scripts/wpt/shared.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-449
+scripts/wpt/update-expectations.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-60
+scripts/wpt/gate.test.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-62
+scripts/wpt/runplan.test.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-60
+scripts/wpt/gate.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-152
+scripts/wpt/setup.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-118
+scripts/pw/run.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-425
+scripts/wpt/ref-cache.test.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-56
+scripts/e2e/run.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-31
+scripts/wpt/engine.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-171
+scripts/pw/shard.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-140
+scripts/e2e/shards.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-108
+scripts/wpt/serve.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-42
+scripts/patches/playwright/0001-kitesurf-page-fixtures.patch
+  s_119421158b98d5::t_147de7b0f127a5 70
+scripts/wpt/runplan.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-49
+scripts/wpt/merge-shards.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-206
+scripts/e2e/shard.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-126
+scripts/wpt/shared.test.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-34
+scripts/wpt/buckets.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-138
+tests/wpt-expectations.json
+  s_119421158b98d5::t_147de7b0f127a5 10058,10102,10126,10202,10206,16926,20973
+scripts/pw/setup.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-70
+scripts/e2e/fixtures.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-45
+package.json
+  s_119421158b98d5::t_147de7b0f127a5 38-45
+scripts/wpt/inventory.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-215
+scripts/pw/shared.test.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-55
+scripts/wpt/exec.mjs
+  s_119421158b98d5::t_147de7b0f127a5 1-1588
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5c5ae77e5b413d8f9ba285520611b9a057292b7b",
+  "prompts": {},
+  "sessions": {
+    "s_119421158b98d5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaa48ef49ffePnHMYc7dHqQqZe",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+scripts/patches/parley-0.10.0.patch
+  s_75d678c932972d::t_9f053292ffde39 942-977,992-993,996,1072
+  s_75d678c932972d::t_220633e1e04ac9 1-23,354-379,405,429,432,442,452-465,576-591,728-735,738,747
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f30d572068dca1108c06a6828091f63d7d60fa85",
+  "prompts": {},
+  "sessions": {
+    "s_75d678c932972d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_084579337ffepy28AOdVrayge7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

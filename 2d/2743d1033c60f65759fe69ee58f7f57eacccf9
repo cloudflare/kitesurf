@@ -1,0 +1,19 @@
+packages/core/src/scene_replay.rs
+  s_4ba79f911c93c4::t_56f0e2b28ffcd8 1462-1465,1474-1477,1509-1513
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2d2743d1033c60f65759fe69ee58f7f57eacccf9",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

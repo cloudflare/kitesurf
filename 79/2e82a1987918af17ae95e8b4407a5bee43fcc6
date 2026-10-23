@@ -1,0 +1,21 @@
+.cloudflare/flamingo/plans/kitesurf-engine-bench.edge-plan
+  s_8deef65a89b902::t_c65f67d1a0e9ef 12
+.gitlab-ci.yml
+  s_8deef65a89b902::t_c65f67d1a0e9ef 227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "792e82a1987918af17ae95e8b4407a5bee43fcc6",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

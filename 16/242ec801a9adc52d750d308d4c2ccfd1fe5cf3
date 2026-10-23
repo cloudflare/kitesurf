@@ -1,0 +1,64 @@
+packages/engine/src/cdp/kitesurf.ts
+  s_83cbebb813e639::t_68cc5f344bb2b3 9-14,73-79,380-389,395-396,401-402
+  s_83cbebb813e639::t_885767435dc4b1 403
+packages/engine/src/state/storage-state.ts
+  s_83cbebb813e639::t_e9666c1792516b 1-98,107-111,113,118-119,121,123-230
+packages/engine/src/cdp/target.ts
+  s_83cbebb813e639::t_68cc5f344bb2b3 134-144
+packages/engine/src/cdp/types.ts
+  s_83cbebb813e639::t_68cc5f344bb2b3 138-142,144-145,438
+packages/engine/test/e2e/storage-state.e2e.test.ts
+  s_83cbebb813e639::t_3fffce0faa5990 1-36,39-55,58-75,103,105-128,131-142
+  s_83cbebb813e639::t_8d8bf2f4fa19cc 37-38,56-57,104,129-130
+packages/engine/test/storage-state.test.ts
+  s_83cbebb813e639::t_68cc5f344bb2b3 66,89
+  s_83cbebb813e639::t_e9666c1792516b 1-65,67-88,90-93,138-157
+packages/page-script/src/globals.ts
+  s_83cbebb813e639::t_7b2ad8a3462d0d 7-9,11,2404
+  s_83cbebb813e639::t_55dab61d72b120 10,12,2385-2388
+packages/page-script/src/web-storage.ts
+  s_83cbebb813e639::t_55dab61d72b120 4-8,10-17,30-34,36-37,39-40,43-57,156-207
+packages/page-script/src/shims.d.ts
+  s_83cbebb813e639::t_7b2ad8a3462d0d 31-32,35-41,43-44
+  s_83cbebb813e639::t_7f3f42a614e7e3 45
+AGENTS.md
+  s_83cbebb813e639::t_55dab61d72b120 651-655
+  s_83cbebb813e639::t_6c14900f33b204 169-170
+docs/STATEFUL_SESSIONS.md
+  s_83cbebb813e639::t_7b2ad8a3462d0d 236-250,262-268,284-285
+  s_83cbebb813e639::t_6c14900f33b204 195,251-261
+  s_83cbebb813e639::t_f39bf985a3d7df 14,16,32-36,106-107,111,114-128,133-135
+  s_83cbebb813e639::t_a30b7274d3c743 108-110,112-113,291-292
+  s_83cbebb813e639::t_7b3e4bec1204ca 136
+packages/engine/test/e2e/stateful-session.e2e.test.ts
+  s_83cbebb813e639::t_b05eaa6436b2e5 662,664-665,669,676-678,681
+  s_83cbebb813e639::t_7b2ad8a3462d0d 12,645-661,663,666-668,670-675,679-680,682-688,713-723,725-726
+  s_83cbebb813e639::t_24f8b0afdad360 724,727
+  s_83cbebb813e639::t_6c14900f33b204 689-712
+  s_83cbebb813e639::t_f39bf985a3d7df 728-876
+packages/page-script/src/index.ts
+  s_83cbebb813e639::t_7b2ad8a3462d0d 5339-5344,5350
+packages/engine/src/stateful.ts
+  s_83cbebb813e639::t_f39bf985a3d7df 14-16,58-64,93-94,116-117,121,135-137,177,192,200-209,215-222,238-239,334-336,340,346,348-349,351,355-364,427-430,474,543-567
+  s_83cbebb813e639::t_89834f4291aac8 568
+packages/engine/src/index.ts
+  s_83cbebb813e639::t_f39bf985a3d7df 310-312,317-319
+packages/engine/test/e2e/connect.ts
+  s_83cbebb813e639::t_f39bf985a3d7df 62,66,70-72,77-79,81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "16242ec801a9adc52d750d308d4c2ccfd1fe5cf3",
+  "prompts": {},
+  "sessions": {
+    "s_83cbebb813e639": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0388623affeMZhtpmKWNkHzTW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

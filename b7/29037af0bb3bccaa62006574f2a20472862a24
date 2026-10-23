@@ -1,0 +1,33 @@
+packages/engine/test/e2e/theme-flip-repaint.e2e.test.ts
+  s_4d67dfa0f79f1a::t_8b59864a73fad6 1-2
+packages/engine/test/e2e/svg-geometry-length.e2e.test.ts
+  s_4d67dfa0f79f1a::t_8b59864a73fad6 1
+packages/engine/test/e2e/dom-parser-dataset.e2e.test.ts
+  s_4d67dfa0f79f1a::t_8b59864a73fad6 1
+packages/dom-shim/src/parser.ts
+  s_4d67dfa0f79f1a::t_8b59864a73fad6 257
+packages/engine/test/e2e/boa-finally-stack.e2e.test.ts
+  s_4d67dfa0f79f1a::t_8b59864a73fad6 1
+  s_4d67dfa0f79f1a::t_8304b60812419e 25,27,38,49,62,74,76
+packages/dom-shim/src/element.ts
+  s_4d67dfa0f79f1a::t_8b59864a73fad6 7532,7585,7592
+scripts/patches/blitz-dom-0.3.0-beta.2/0141-kitesurf-refresh-incremental-SVG-snapshots.patch
+  s_4d67dfa0f79f1a::t_79589792547333 1-6,8,11-12,14-15,17-55,58-122,124-421
+  s_4d67dfa0f79f1a::t_365e05e89e70fb 7,9-10,13,16,56-57,123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b729037af0bb3bccaa62006574f2a20472862a24",
+  "prompts": {},
+  "sessions": {
+    "s_4d67dfa0f79f1a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3d719fa4ffeAnKGoak8x1Ln0w",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

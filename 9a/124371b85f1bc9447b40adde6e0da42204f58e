@@ -1,0 +1,22 @@
+packages/core/src/canvas2d.rs
+  s_f70b272515436f::t_93765ccf6c1fd8 2155-2170
+  s_f70b272515436f::t_c9470a0231fd6a 2171-2174,2179
+  s_f70b272515436f::t_5ec3ece4ff856d 2140-2154,2175-2178,2180-2201
+  s_f70b272515436f::t_48ec5835a656a5 9,367-368,1506-1511,1517-1520,1699-1723,1725-1743
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9a124371b85f1bc9447b40adde6e0da42204f58e",
+  "prompts": {},
+  "sessions": {
+    "s_f70b272515436f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee3accdeaffe8lRMgSeLfyUGrr",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

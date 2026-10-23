@@ -1,0 +1,72 @@
+packages/engine/test/e2e/detached-subtree-liveness.e2e.test.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 1-263
+packages/page-script/src/index.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 283,5526-5533,5543
+packages/dom-shim/src/contract.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 20
+docs/DOM_SHIM.md
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 27-39
+packages/dom-shim/src/layout/cheap.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 10,39-42
+  s_a3b42a28f6acb3::t_b7120e9cb54948 38
+packages/dom-shim/src/mutations/seq.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 14,35-38
+packages/dom-shim/src/file-input.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 15,105-109
+packages/engine/test/e2e/bridge-dom-fastpath.e2e.test.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 151-155,165
+packages/core/src/node_handle_test.rs
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 168-352
+packages/dom-shim/src/element.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 52,126-127,164-176,182,1638,1669,1747,1749,1754,1822-1824,1826,1884,1907-1916,1951,8099-8107,8182,8189,8378,8746-8763
+  s_a3b42a28f6acb3::t_b7120e9cb54948 55
+packages/dom-shim/src/node-base.ts
+  s_a3b42a28f6acb3::t_b7120e9cb54948 6
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 30-39,129-243,311-316,318,320-323,341,345-355,409-462,512,544,574,759,761,808-810,812,814,829-831,1044,1097-1098,1100,1108-1145,1150,1154,1158,1206-1208,1223-1225,1231,1238,1369,1384,1386,1459,1468,1525,1601,1613,1627,1638,1709,1737,1744,1863,1974-1976,1978,2063,2070,2072,2090,2118,2169,2199,2201,2206,2273,2311,2330,2357,2686-2687,2751,2956,3043,3046,3048-3053,3055,3058,3086
+packages/engine/src/cdp/page-session.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 234-247
+packages/engine/test/e2e/detached-listener-liveness.e2e.test.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 1-86
+packages/dom-shim/src/index.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 78,203-207,269-271,278-295,304,396-399,424,428,447,496-498
+packages/core/src/lib.rs
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 1695-1729,1744-1747,1834-1857,2563-2572,2590-2594,2596-2661,8537-8593
+packages/engine/src/cdp/kitesurf.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 278-279
+packages/dom-shim/src/mutations/observer.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 10-14,344-382,550-554
+packages/dom-shim/src/document.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 507-516
+packages/dom-shim/src/registries.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 21-22,32-167,292-296,299,303-322,409-464,471-472,490
+packages/page-script/src/dom-shim.d.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 15
+scripts/patches/blitz-dom-0.3.0-beta.2/0173-kitesurf-skip-stale-scroll-marks-after-node-drop.patch
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 1-40
+packages/dom-shim/src/events/slotchange.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 7,15-25
+packages/dom-shim/src/state.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 15,251-394,458-474,546
+packages/dom-shim/src/reclaim.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 1-256
+packages/dom-shim/src/events/dispatch.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 18,79,81,85-87,91-92,258-268,676-682,685,722-725,736,745
+packages/dom-shim/src/fastpath.ts
+  s_a3b42a28f6acb3::t_b5b6423d7cb655 49-50,55-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9ff35dcf712338853a44ae1e501dd72137cdc9ee",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,124 @@
+packages/dom-shim/src/index.ts
+  s_d158d8db780134::t_dff8b40e743868 132
+  s_d158d8db780134::t_aa982ae2d4c7ca 709
+packages/dom-shim/src/fastpath.ts
+  s_d158d8db780134::t_dff8b40e743868 24
+packages/dom-shim/src/element/load-events.ts
+  s_d158d8db780134::t_2b47944185449e 1-295
+packages/dom-shim/src/element/index.ts
+  s_d158d8db780134::t_353c9aa6ca826c 5,7-8,16,22-24,33,36,38-47,50-52,62-67,77-78,80,89,93-94,113,115,196-260
+  s_d158d8db780134::t_bd312aad77c709 117-119
+  s_d158d8db780134::t_ef217eef35a2c7 1-4,6,9-15,17-21,25-32,34,37,48-49,53-61,68-76,79,81-88,90-92,95-112,116,120-195
+  s_d158d8db780134::t_2b47944185449e 35,114
+packages/dom-shim/src/element/shadow.ts
+  s_d158d8db780134::t_7188e0cdbf5642 4
+  s_d158d8db780134::t_ef217eef35a2c7 1-3,5-121
+packages/dom-shim/src/element/html-element.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-3,5-293
+  s_d158d8db780134::t_7188e0cdbf5642 4
+packages/dom-shim/src/element/forms/selection.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-323
+packages/dom-shim/src/element/canvas.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-134
+packages/dom-shim/src/element/forms/submission.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-203
+packages/dom-shim/src/element/html-classes.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-142
+packages/dom-shim/src/element/tag-attributes.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-2,11-24,26-449
+  s_d158d8db780134::t_2b47944185449e 25
+  s_d158d8db780134::t_aa7f58cd0b8f13 3-10
+docs/DOM_SHIM.md
+  s_d158d8db780134::t_aa982ae2d4c7ca 156
+packages/dom-shim/src/element/reflect.ts
+  s_d158d8db780134::t_92b9e15d8d3bbe 5,16-17
+  s_d158d8db780134::t_ef217eef35a2c7 1-4,6-15,18-405
+packages/dom-shim/src/element/table.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-213
+packages/dom-shim/src/element/svg.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-115
+packages/dom-shim/strict-baseline.json
+  s_d158d8db780134::t_e3e8c4b3b364ca 4-24
+packages/dom-shim/src/element/image.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-13,15-159
+  s_d158d8db780134::t_2b47944185449e 14
+packages/dom-shim/src/element/embedded.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-90
+packages/dom-shim/src/element/forms/listed.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-107
+packages/dom-shim/src/element/forms/labelable.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-92
+packages/dom-shim/src/element/resolve.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-222
+packages/dom-shim/src/element/element.ts
+  s_d158d8db780134::t_2b47944185449e 105
+  s_d158d8db780134::t_ef217eef35a2c7 1-104,106-3485
+packages/dom-shim/src/element/interfaces.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-34
+packages/dom-shim/src/element/forms/label.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-7,11-44
+  s_d158d8db780134::t_d8746acb39c706 8-10
+packages/dom-shim/src/element/forms/textarea.ts
+  s_d158d8db780134::t_f687a5108e1696 134
+  s_d158d8db780134::t_ef217eef35a2c7 1-133,135-158
+packages/dom-shim/src/element/media.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-275
+packages/dom-shim/src/element/forms/output.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-51
+packages/dom-shim/src/element/forms/fieldset.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-59
+packages/dom-shim/src/element/forms/button.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-159,162-231
+  s_d158d8db780134::t_f687a5108e1696 160-161
+packages/dom-shim/src/element/event-handlers.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-253
+packages/dom-shim/src/element/forms/input-state.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-322
+packages/dom-shim/src/element/forms/select-options.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-3,5-26,30-161
+  s_d158d8db780134::t_d8746acb39c706 27-29
+  s_d158d8db780134::t_7188e0cdbf5642 4
+packages/dom-shim/src/element/forms/input.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-495
+packages/dom-shim/src/element/rect.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-72
+packages/dom-shim/src/agent-control.ts
+  s_d158d8db780134::t_dff8b40e743868 1
+packages/dom-shim/src/form-data.ts
+  s_d158d8db780134::t_dff8b40e743868 18
+docs/FORMS.md
+  s_d158d8db780134::t_aa982ae2d4c7ca 26
+packages/dom-shim/src/element/forms/form.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-42,47-532
+  s_d158d8db780134::t_d8746acb39c706 43-46
+packages/dom-shim/src/element/forms/meter.ts
+  s_d158d8db780134::t_ef217eef35a2c7 2-106
+  s_d158d8db780134::t_901f072a69d4b5 1
+packages/dom-shim/src/collections.ts
+  s_d158d8db780134::t_dff8b40e743868 37,3984
+packages/dom-shim/MODULES.md
+  s_d158d8db780134::t_bcfa20fd69d870 17-19,21,92-100,112-114,147-156
+packages/dom-shim/src/element/forms/validity.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-389
+packages/dom-shim/src/element/forms/select.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-25,41-382
+  s_d158d8db780134::t_d8746acb39c706 26-40
+packages/dom-shim/src/element/aria.ts
+  s_d158d8db780134::t_ef217eef35a2c7 1-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f410bac135aec04941a2594382c261b1043be4e2",
+  "prompts": {},
+  "sessions": {
+    "s_d158d8db780134": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef1a2ea3cffe2FMCWJ3xrcxKUU",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

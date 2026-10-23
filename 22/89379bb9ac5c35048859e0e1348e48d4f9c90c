@@ -1,0 +1,19 @@
+packages/page-script/src/eval-helpers.ts
+  s_a75ea28c7345c6::t_4d2fd920e875c6 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2289379bb9ac5c35048859e0e1348e48d4f9c90c",
+  "prompts": {},
+  "sessions": {
+    "s_a75ea28c7345c6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6ba347d1ffeBXm6VNFbnPDneO",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

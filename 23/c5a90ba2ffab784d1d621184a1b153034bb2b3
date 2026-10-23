@@ -1,0 +1,19 @@
+tests/wpt-tests.json
+  s_51597f9c906ac8::t_3960d26c1c46ba 1101-1102,3008
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "23c5a90ba2ffab784d1d621184a1b153034bb2b3",
+  "prompts": {},
+  "sessions": {
+    "s_51597f9c906ac8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f561712e0ffeoYtRTsUciKgcoe",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/engine-cf/test/fixtures-worker/assets/request-blocker.html
+  s_4ba79f911c93c4::t_ce1d43890eb308 1-18
+packages/engine-cf/test/fixtures-worker/assets/request-blocker-iframes.html
+  s_4ba79f911c93c4::t_ce1d43890eb308 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "532280e6bcb82674bd3cb319af4cad5bd9c14385",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

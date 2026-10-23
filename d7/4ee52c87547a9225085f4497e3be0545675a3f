@@ -1,0 +1,21 @@
+scripts/wpt-inventory.mjs
+  s_c6d6a3ac21fe46::t_668c2f9994fa0b 26
+scripts/wpt-shared.mjs
+  s_c6d6a3ac21fe46::t_7444f166e7bc64 289-291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d74ee52c87547a9225085f4497e3be0545675a3f",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

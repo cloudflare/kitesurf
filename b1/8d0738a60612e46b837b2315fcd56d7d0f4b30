@@ -1,0 +1,22 @@
+packages/engine/src/cdp/runtime.ts
+  s_c9f68948e839d2::t_f8e04a471fad36 86-93,104-107
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_c9f68948e839d2::t_47f9d401491fc1 29-34,38-48
+  s_c9f68948e839d2::t_fdbcb3671de8c8 35-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b18d0738a60612e46b837b2315fcd56d7d0f4b30",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

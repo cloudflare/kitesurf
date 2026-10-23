@@ -1,0 +1,19 @@
+packages/engine/test/e2e/global-setup.ts
+  s_a2feeea1972b1e::t_8c9fc7d0e530df 16,21,41-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9a5f25caa33726bbadca386b0d7760e486a69492",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

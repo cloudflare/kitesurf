@@ -1,0 +1,25 @@
+packages/engine/test/e2e/iframe-srcdoc.e2e.test.ts
+  s_4ba79f911c93c4::t_af51011f3cec74 1-68
+packages/page-script/src/types.ts
+  s_4ba79f911c93c4::t_70ec3f2e6b672c 92-93
+packages/dom-shim/src/element/element.ts
+  s_4ba79f911c93c4::t_d1c18210cbaefa 635,767
+packages/page-script/src/index.ts
+  s_4ba79f911c93c4::t_7e70f2fd79a75e 1072-1076,1088-1089,1095-1100,1107-1115,1127-1128,1132-1134,1168-1171,1214,1225,1229-1236,1284,1286-1287,1359,1370-1374,1376-1397,1441,1443
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c8150e054b24bb540950c9d9c57d74f568a75ff6",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

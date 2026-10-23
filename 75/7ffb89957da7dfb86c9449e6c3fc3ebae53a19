@@ -1,0 +1,31 @@
+packages/engine/cloudflare.config.ts
+  s_728b93cd05a14e::t_c2ab93d45a7604 257-259
+packages/engine/package.json
+  s_728b93cd05a14e::t_e2360ca2d7b4d3 17
+docs/FONTS.md
+  s_728b93cd05a14e::t_5bb029b1fb1301 262-266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "757ffb89957da7dfb86c9449e6c3fc3ebae53a19",
+  "prompts": {},
+  "sessions": {
+    "s_728b93cd05a14e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebb6bda9cffe4Psu9UCXZfQ9fT",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_e7962f6bea340c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee044ef47ffeWCppXX2LIGL4y0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+AGENTS.md
+  s_4ba79f911c93c4::t_0949609d94741e 103-104
+deps/kitesurf
+  s_4ba79f911c93c4::t_3abdf113ab7073 1
+docs/ANALYTICS.md
+  s_4ba79f911c93c4::t_329a0617d75899 108,166
+docs/ENGINE_CF.md
+  s_4ba79f911c93c4::t_a6af33cdf9cba3 7-10,244,247,263-265,284-285
+docs/TESTING.md
+  s_4ba79f911c93c4::t_23886a77e86018 41-43
+docs/TRACING.md
+  s_4ba79f911c93c4::t_b52f731b1e41e6 4
+docs/engine/TELEMETRY.md
+  s_4ba79f911c93c4::t_7817c3e6ec4288 26
+docs/engine/TESTING.md
+  s_4ba79f911c93c4::t_a9b8d4d7e33a09 28-30
+docs/engine/TEST_CONTRACTS.md
+  s_4ba79f911c93c4::t_421e5dc40aa253 1026,1031,1033,1434
+docs/engine/TRACING.md
+  s_4ba79f911c93c4::t_8f78542815b12d 13-14,20-22,26,28,30,36,41,45,89-90,104,125
+packages/engine-cf/cloudflare.config.ts
+  s_4ba79f911c93c4::t_5983f08a94232a 32-33,58,168-169,251-252,287-288,321,363
+packages/engine-cf/src/index.ts
+  s_4ba79f911c93c4::t_e92780c76e5006 57,141,154
+packages/engine-cf/src/quickactions/forward-headers.ts
+  s_4ba79f911c93c4::t_5879373f9ffc87 1-5,12,16-17
+packages/engine-cf/test/e2e/cloudflare-env.ts
+  s_4ba79f911c93c4::t_4cdef7eb079f50 19
+packages/engine-cf/test/e2e/egress-tripwire-worker.mjs
+  s_4ba79f911c93c4::t_499fd038e3cf4e 1-17
+packages/engine-cf/test/e2e/external-outbound.e2e.test.ts
+  s_4ba79f911c93c4::t_ae8f1ad7573fb1 296-297
+packages/engine-cf/test/e2e/replay-stub-worker.mjs
+  s_4ba79f911c93c4::t_783713eea77f32 1-81
+packages/engine-cf/test/unit/caller.test.ts
+  s_4ba79f911c93c4::t_e9867e006a9b0b 72-79
+packages/engine-cf/vitest.e2e.config.mts
+  s_4ba79f911c93c4::t_f79e48f6c4fa69 37-55,64-71,83-87
+packages/engine-cf/wrangler.jsonc
+  s_4ba79f911c93c4::t_4d2fb0cf7e8ab5 130-131,134,229,231,296,298,362,400
+scripts/trace-pull.mjs
+  s_4ba79f911c93c4::t_75def4c907f6f6 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cf1a77b8350bd2dadb919a597f76b68d16352da7",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+packages/website/src/styles/landing.css
+  s_c1a6940130844c::t_bda24bfeeb060b 634-638
+packages/website/src/styles/wpt.css
+  s_c1a6940130844c::t_41d3dad563d96b 486,490
+packages/website/src/styles/dashboard.css
+  s_c1a6940130844c::t_2287613719cd70 30-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "140c88646348acdd182b1210b1995d552ab4a102",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

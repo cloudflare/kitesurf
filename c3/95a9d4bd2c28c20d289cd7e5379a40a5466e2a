@@ -1,0 +1,21 @@
+packages/engine/src/cdp/accessibility.ts
+  s_a75fa05553ff55::t_779697e364c22a 73-77,80,82
+scripts/ax-dump.mjs
+  s_a75fa05553ff55::t_6fe7e17d5b516c 15-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c395a9d4bd2c28c20d289cd7e5379a40a5466e2a",
+  "prompts": {},
+  "sessions": {
+    "s_a75fa05553ff55": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_056baad8fffe4Zn5Jf0262lNuZ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

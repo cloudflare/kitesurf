@@ -1,0 +1,19 @@
+packages/core/src/scene_record.rs
+  s_dfd792beae87ba::t_0afa034167c5a2 466-469,528-529,1131-1133,1148-1151,1176,1209-1210,1212,1830-1833,1835,1908,1952
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "68fb2c9231f60e6c7d06fbf4efe86bf6de564d41",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

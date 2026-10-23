@@ -1,0 +1,23 @@
+tests/wpt-tests.json
+  s_d5d592cf7079c9::t_13c8623d8ebb41 3656
+  s_d5d592cf7079c9::t_bc179410d5598b 3655
+  s_d5d592cf7079c9::t_444230e1467a62 936
+  s_d5d592cf7079c9::t_5400593c08ad35 3625-3627
+  s_d5d592cf7079c9::t_93950ff915f44a 3642
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9b4657f62e0147f4b97fadcb18b8eb73a8226b89",
+  "prompts": {},
+  "sessions": {
+    "s_d5d592cf7079c9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03238e5eeffeUFJ6V7CtVbOdbY",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

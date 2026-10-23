@@ -1,0 +1,21 @@
+tests/pw-tests.json
+  s_ed42c140dc5554::t_2738e2fd3fd9d5 2-46
+tests/pw-expectations.json
+  s_ed42c140dc5554::t_56d1451abedda5 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "895116cf677cd04f3bea8565bc879dad92d7d323",
+  "prompts": {},
+  "sessions": {
+    "s_ed42c140dc5554": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00431c173ffeNb2EcjlYLbALXc",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+packages/dom-shim/src/element/resolve.ts
+  s_a5be006b524ec3::t_2b85949789f6d9 170-171
+  s_a5be006b524ec3::t_649c4b59903c78 2
+packages/dom-shim/src/element/html-tag.ts
+  s_a5be006b524ec3::t_f457c1280594a7 1-5,7-46,49-51,53-65
+  s_a5be006b524ec3::t_5f50168562d990 47-48,52
+  s_a5be006b524ec3::t_4fa903a34a69a5 6
+packages/dom-shim/src/collections.ts
+  s_a5be006b524ec3::t_637eb40f6fae4d 697
+  s_a5be006b524ec3::t_5955af9f6da646 37
+packages/dom-shim/src/element/forms/input-state.ts
+  s_a5be006b524ec3::t_5df76bee47b5ec 8
+  s_a5be006b524ec3::t_3228ff72d61a6f 211
+packages/dom-shim/src/element/forms/selection.ts
+  s_a5be006b524ec3::t_93edd02f0531f3 8
+  s_a5be006b524ec3::t_3b84e8bd06f36b 20-21
+packages/dom-shim/src/element/forms/validity.ts
+  s_a5be006b524ec3::t_c3f302bb7d5c78 46,189
+  s_a5be006b524ec3::t_a371da86e8fb43 157,194
+  s_a5be006b524ec3::t_20dd5f3ff8f0c1 210
+  s_a5be006b524ec3::t_bf92de50396484 168,196
+  s_a5be006b524ec3::t_80ca2a9b4562f1 6
+  s_a5be006b524ec3::t_f8b2bcbc443092 198
+  s_a5be006b524ec3::t_c6be689c76bafb 201,203
+packages/dom-shim/src/element/forms/submission.ts
+  s_a5be006b524ec3::t_be4ac2e64b7299 32-35,38
+  s_a5be006b524ec3::t_a394218e8a3abf 15
+  s_a5be006b524ec3::t_3cceb56065fd4c 55
+  s_a5be006b524ec3::t_458d38977083a6 49,51
+packages/dom-shim/MODULES.md
+  s_a5be006b524ec3::t_4357ba1d789caa 97
+  s_a5be006b524ec3::t_41851ee4dffdf6 161-163
+  s_a5be006b524ec3::t_845c7b5986ecb1 113
+  s_a5be006b524ec3::t_9373de6429bb9a 158-160
+packages/dom-shim/src/select-dropdown.ts
+  s_a5be006b524ec3::t_5354a8eb8c42a1 21
+  s_a5be006b524ec3::t_63b7a3f6ead102 126
+packages/dom-shim/src/element/forms/labelable.ts
+  s_a5be006b524ec3::t_549b754796cb42 3
+  s_a5be006b524ec3::t_953ed9f9b7cfec 22
+  s_a5be006b524ec3::t_5f2579b66cffc2 6-7,9-11
+packages/dom-shim/src/element/forms/listed.ts
+  s_a5be006b524ec3::t_793bf67b3c2a69 2,20,24,33-34,36-37,45,61
+packages/dom-shim/src/element/forms/select-options.ts
+  s_a5be006b524ec3::t_5e8312ee629b91 30,32
+  s_a5be006b524ec3::t_ac9c1498c97b5f 47-48
+  s_a5be006b524ec3::t_5daae630661795 6
+  s_a5be006b524ec3::t_36d90f495dbd57 86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8b0c17582a869f8c6c0f2eca7183ebb2b53caa3e",
+  "prompts": {},
+  "sessions": {
+    "s_a5be006b524ec3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec234855cffeknO6MfTaS6L3Tl",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,95 @@
+packages/engine-cf/test/fixtures-worker/assets/request-blocker-iframes.html
+  s_4ba79f911c93c4::t_a8c3c305103bdd 1
+packages/engine-cf/src/request-blocker/index.ts
+  s_4ba79f911c93c4::t_473509ee7242c0 13-17,19-21,29-30
+  s_4ba79f911c93c4::t_40ee022e37e0db 8,12,18,28
+  s_4ba79f911c93c4::t_7025a1763846c9 1-7,9-11,22-27,31-37
+packages/engine-cf/src/index.ts
+  s_4ba79f911c93c4::t_7025a1763846c9 37,72
+packages/engine-cf/wrangler.jsonc
+  s_4ba79f911c93c4::t_7025a1763846c9 61-66
+packages/engine-cf/src/request-blocker/filter-rule.ts
+  s_4ba79f911c93c4::t_0f32e9ef76d2b5 50,62-63
+  s_4ba79f911c93c4::t_9dc35c286a3b55 38-42,111,129-130,141-143,157-159,174-176
+  s_4ba79f911c93c4::t_ccf7a9370dad3e 101-104
+  s_4ba79f911c93c4::t_f7b07a2e64406c 1-37,43-49,51-61,64-100,105-110,112-128,131-140,144-156,160-173,177-258
+packages/engine-cf/test/fixtures-worker/src/index.ts
+  s_4ba79f911c93c4::t_a8c3c305103bdd 2-3,10-15,22-24
+packages/engine-cf/src/request-blocker/compact-hash-set.ts
+  s_4ba79f911c93c4::t_5d199ba6fde348 1-4
+  s_4ba79f911c93c4::t_fb7efddd086f77 5-33,36-37,41-48,52-128,131-132,135-138,142-147
+  s_4ba79f911c93c4::t_8a774dfa0ceeaf 34-35,38-40,49-51,129-130,133-134,139-141
+packages/engine-cf/wrangler.config.ts
+  s_4ba79f911c93c4::t_7025a1763846c9 9-13
+docs/REQUEST_BLOCKING.md
+  s_4ba79f911c93c4::t_c8563e18716f34 86-88,91-92
+  s_4ba79f911c93c4::t_65c889240f32be 52-58
+  s_4ba79f911c93c4::t_3af00ba4046dcd 1-19,30-51,59-83,90,93
+  s_4ba79f911c93c4::t_8a774dfa0ceeaf 20-29,84-85,89
+packages/engine-cf/test/e2e/request-blocker.e2e.test.ts
+  s_4ba79f911c93c4::t_22d3eac34ceebc 1-44,50-54,59-81,85-87,92-112
+  s_4ba79f911c93c4::t_8a774dfa0ceeaf 45-49,55-58,82-84,88-91
+packages/engine-cf/src/request-blocker/hash.ts
+  s_4ba79f911c93c4::t_2e5d486a25e9df 13-14
+  s_4ba79f911c93c4::t_6aeb1512d4675c 1-12,15-66
+packages/engine-cf/src/request-blocker/compact-hash-set-encode.ts
+  s_4ba79f911c93c4::t_8a774dfa0ceeaf 55-56
+  s_4ba79f911c93c4::t_473509ee7242c0 13
+  s_4ba79f911c93c4::t_c79d5a29f93c5d 1-12,14-54,57-112
+packages/engine-cf/vitest.config.mts
+  s_4ba79f911c93c4::t_2e5d486a25e9df 1,8-20
+packages/engine-cf/scripts/build-request-blocklist.ts
+  s_4ba79f911c93c4::t_5fe19bd98eab0e 28-30
+  s_4ba79f911c93c4::t_2bdca997d17b37 59
+  s_4ba79f911c93c4::t_108c407a174ad3 1,5-9,14,16-22,40-44,46-50,53-54,58,60-81,84-93,97-98,100,102,104-105,107-109,111-118,120-136
+  s_4ba79f911c93c4::t_8a774dfa0ceeaf 10-13,51-52,55-57,94-96
+  s_4ba79f911c93c4::t_5d199ba6fde348 2-4,15
+  s_4ba79f911c93c4::t_b05395d2559630 45,82,99,101,103,106,110,119
+  s_4ba79f911c93c4::t_57fc280abf4027 23-27,31-39,83
+packages/engine-cf/test/fixtures-worker/assets/request-blocker.html
+  s_4ba79f911c93c4::t_a8c3c305103bdd 1
+packages/engine-cf/src/request-blocker/easylist-blocker.ts
+  s_4ba79f911c93c4::t_9dc35c286a3b55 82-83,93,104,107
+  s_4ba79f911c93c4::t_8a774dfa0ceeaf 3,105-106,153-154
+  s_4ba79f911c93c4::t_40ee022e37e0db 16-17,30-31,150,152,155
+  s_4ba79f911c93c4::t_0f32e9ef76d2b5 18-19,135-140,168-169,175
+  s_4ba79f911c93c4::t_473509ee7242c0 32-35,124-132,141,143-145,148,151,156-157,159
+  s_4ba79f911c93c4::t_f0cf09e3ee5479 1-2,4-15,20-29,36-81,84-92,94-103,108-123,133-134,142,146-147,149,158,160-167,170-174,176-179
+packages/engine-cf/test/unit/request-blocker.test.ts
+  s_4ba79f911c93c4::t_a1082f2f98b50f 1-36,42-45,49-93,97-117,121-136,144-170,174-178,182,189-210,239-244,249-263,267,271-274,281-293,305-326,328-342,349-350,355-362,367-373,377-379
+  s_4ba79f911c93c4::t_8a774dfa0ceeaf 94-96,118-120,137-143,171-173,179-181,183-188,217-233,235,246-248,264-266,268-270,275-280,351-354,363-366,374-376
+  s_4ba79f911c93c4::t_473509ee7242c0 40-41,47-48
+  s_4ba79f911c93c4::t_ae17aac3f81026 211-216,234,236-238,245,327
+  s_4ba79f911c93c4::t_184a4e0eccfa6d 294-304,343-348
+  s_4ba79f911c93c4::t_40ee022e37e0db 37-39,46
+packages/engine-cf/src/request-blocker/compile-blocklist.ts
+  s_4ba79f911c93c4::t_0f32e9ef76d2b5 54-65,68-71,76-77,100-113,119-122,124-125,129-138,140-146,148-151,159,168,173-174,177,179-180,183,185-192,196-200,213-214,229-232
+  s_4ba79f911c93c4::t_57fc280abf4027 24-28,72-75,114-118
+  s_4ba79f911c93c4::t_b05395d2559630 1-5,18-23,29-39,41-53,78-87,90-99,126-128,158,160-167,169-172,182,194-195,201,204-212,215,223-228,233-239
+  s_4ba79f911c93c4::t_40ee022e37e0db 6,13-17,66-67,123,139,147,216
+  s_4ba79f911c93c4::t_3d963421d75a14 175-176,178,181,184
+  s_4ba79f911c93c4::t_5d199ba6fde348 40
+  s_4ba79f911c93c4::t_8a774dfa0ceeaf 7-12,88-89,152-157,193,202-203,217-222
+AGENTS.md
+  s_4ba79f911c93c4::t_fd56a22700c6b8 76-77
+docs/ENGINE_CF.md
+  s_4ba79f911c93c4::t_e5ad22c5390512 47-49
+packages/engine-cf/src/request-blocker/easylist.generated.ts
+  s_4ba79f911c93c4::t_188b310251f954 1-928
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8a5a46e3adc896f3c8900871fc301536601d9eea",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/core/src/webgl/gl.rs
+  s_5ef13aa2ca5d9a::t_e958f04650ad64 1935,1938,1944-1960
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3ab602e89527bf082d806309ea606076a9cb1210",
+  "prompts": {},
+  "sessions": {
+    "s_5ef13aa2ca5d9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed3357cbbffeROEK7xP7OmXTdD",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

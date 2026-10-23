@@ -1,0 +1,32 @@
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_f5785bea72e01e::t_bbf4a5774d4b01 85
+  s_f5785bea72e01e::t_c33face29212db 60-84,86-103
+packages/dom-shim/src/element.ts
+  s_f5785bea72e01e::t_f320ccd9b2ac8a 116,1529-1531,1535,1550-1552,1556
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-fix-key-author-sheets-by-node-id.patch
+  s_f5785bea72e01e::t_71ee64b77e539c 1-22
+packages/dom-shim/src/node-base.ts
+  s_f5785bea72e01e::t_f320ccd9b2ac8a 197,210,212-225
+  s_f5785bea72e01e::t_17a1c0defb71de 198-209,211
+  s_f5785bea72e01e::t_b5628c956cc7a0 876
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-safety-preserve-replaced-nodes-for-embedders.patch
+  s_f5785bea72e01e::t_140511ddbe0e5a 1-37
+packages/core/src/lib.rs
+  s_f5785bea72e01e::t_9a6bb1afc48fa1 2399-2404,2409,2413
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8d15b595af0016659088b0bdd1e5ed14fd73abc4",
+  "prompts": {},
+  "sessions": {
+    "s_f5785bea72e01e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f51217a23ffeok4Sc2bqio2KUk",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

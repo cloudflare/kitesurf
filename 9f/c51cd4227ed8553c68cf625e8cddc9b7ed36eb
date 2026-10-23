@@ -1,0 +1,22 @@
+packages/terminal-client/tests/input_decode.rs
+  s_63365f51c8df96::t_0919cca368cde0 233-241,243,246-251,253,256-268,270-275,277-282,285-287,295
+  s_63365f51c8df96::t_6ce04d4feaf87c 242,244-245,252,254-255,269,276,283-284,288-294
+packages/core/src/tty_input.rs
+  s_63365f51c8df96::t_0919cca368cde0 119-126,137-141,438-450
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9fc51cd4227ed8553c68cf625e8cddc9b7ed36eb",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

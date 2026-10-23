@@ -1,0 +1,53 @@
+docs/CLIENT_SESSIONS.md
+  s_dca5301507494d::t_aa5dd13fd31680 38-41
+packages/engine-cf/src/client-session.ts
+  s_dca5301507494d::t_5ac1fbb7be6f31 30-45,61,67-72,103-105,110,118,123
+  s_dca5301507494d::t_2ccafa963180b9 63-65,91-93,106-109,111,120-122
+  s_dca5301507494d::t_56ff1955aada6f 115-117
+  s_c6d6a3ac21fe46::t_2fbd5e08f1074a 112
+packages/engine-cf/test/e2e/client-egress.e2e.test.ts
+  s_453bea9a55258a::t_78e53ea8c2b7ea 220
+  s_453bea9a55258a::t_703f000eecb7f0 5,221-223,237,239-243,248
+  s_453bea9a55258a::t_a79a7f272dbb90 224-227,229-236,238
+  s_dca5301507494d::t_df042c11cb2402 170-219,228,244-247,249-273
+packages/engine-cf/test/e2e/client-egress-probe-worker.mjs
+  s_453bea9a55258a::t_703f000eecb7f0 1-7
+packages/engine-cf/vitest.e2e.config.mts
+  s_453bea9a55258a::t_703f000eecb7f0 17-31,41,48-51
+packages/engine-cf/test/e2e/cloudflare-env.ts
+  s_453bea9a55258a::t_703f000eecb7f0 22
+packages/engine-cf/src/index.ts
+  s_dca5301507494d::t_5ac1fbb7be6f31 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "79389f541da726f2bcfec5952197d62e86d8b420",
+  "prompts": {},
+  "sessions": {
+    "s_453bea9a55258a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebbe66500ffeFhzAJjIG0c1Xzs",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_dca5301507494d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebc0d54dfffeC8UXV92fLxxgFF",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/core/src/lib.rs
+  s_49fd263338764b::t_a7336755956029 3335-3342,3345-3350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "45b3ef27319c04858e899bedb76a064618c11582",
+  "prompts": {},
+  "sessions": {
+    "s_49fd263338764b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-intersection-observer",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

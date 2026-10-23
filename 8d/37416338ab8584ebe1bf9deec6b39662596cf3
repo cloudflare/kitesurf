@@ -1,0 +1,19 @@
+packages/core/src/boa_bridge.rs
+  s_13716c95882f21::t_09f748fd6efcc9 1346,1348,2377-2378,2380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8d37416338ab8584ebe1bf9deec6b39662596cf3",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

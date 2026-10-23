@@ -1,0 +1,21 @@
+packages/engine/src/cdp/page.ts
+  s_38b7bb489593d7::t_de9d1f04a44bd0 3567-3583
+packages/engine/test/e2e/demos/devtools-elements-live-update-demo.e2e.test.ts
+  s_38b7bb489593d7::t_5416c40d1f8243 261-291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7b4840afecb40d372dc281bedeb21f217b367062",
+  "prompts": {},
+  "sessions": {
+    "s_38b7bb489593d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b60a2ecffeLa4y8bvfwp7LQw",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

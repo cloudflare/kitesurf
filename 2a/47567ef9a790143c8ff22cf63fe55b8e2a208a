@@ -1,0 +1,23 @@
+packages/engine/src/index.ts
+  s_0d774ef1069d39::t_65cb4ed4698927 744-882
+packages/engine/src/cdp/kitesurf.ts
+  s_0d774ef1069d39::t_ec67b0034a3da8 361-426
+packages/page-script/src/index.ts
+  s_0d774ef1069d39::t_88eb6c7d3bf1a1 3989-4046
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2a47567ef9a790143c8ff22cf63fe55b8e2a208a",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+.opencode/skills/kitesurf-deslop/SKILL.md
+  s_625d0d713b1395::t_bf00b759c0d689 306
+  s_625d0d713b1395::t_919e4134b5d94b 303-304,307-308
+  s_625d0d713b1395::t_a51c5aaa977977 300-302,305
+  s_625d0d713b1395::t_78b9ed3d556297 309-312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dbf9b1d6e4d2647ffb741f7a68ca493be48a32ed",
+  "prompts": {},
+  "sessions": {
+    "s_625d0d713b1395": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef050a9d5ffer1HWVwW2csQFgQ",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

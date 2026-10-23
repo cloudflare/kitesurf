@@ -1,0 +1,21 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_971f20d9c84b2b::t_265bbdd601dc1f 2305-2323
+packages/engine/test/e2e/cookie-redirect-domain.e2e.test.ts
+  s_971f20d9c84b2b::t_d739da60f32b8e 1-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4502d4906f5a4943523a8689458ddd82cfd8e66e",
+  "prompts": {},
+  "sessions": {
+    "s_971f20d9c84b2b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fea612eb5ffeSycXWkmalHV3jO",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

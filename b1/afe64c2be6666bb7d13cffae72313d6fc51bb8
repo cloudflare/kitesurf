@@ -1,0 +1,55 @@
+packages/dom-shim/src/window.ts
+  s_238805be56c310::t_7b81de840813c3 593-599
+packages/engine/src/eval/page-script.ts
+  s_238805be56c310::t_90f17ae75ef17f 587-589
+  s_238805be56c310::t_c57c8948a6235f 682-685
+  s_238805be56c310::t_8140e41b487c9d 723
+packages/engine/test/e2e/demos/network-ua-override-demo.e2e.test.ts
+  s_238805be56c310::t_6f97428157d958 1-52
+packages/dom-shim/src/state.ts
+  s_238805be56c310::t_641417b497af58 32-34
+packages/engine/src/cdp/network.ts
+  s_238805be56c310::t_d34cbba8175899 167-186
+  s_238805be56c310::t_f499d052c3761f 68
+  s_238805be56c310::t_be4141696ea28b 27-38
+  s_238805be56c310::t_0711e8e2f19f8f 39
+packages/engine/src/cdp/dispatch.ts
+  s_238805be56c310::t_60bce8ec712b90 204-208
+  s_238805be56c310::t_748ba236a2ad0f 300-311
+packages/engine/src/cdp/types.ts
+  s_238805be56c310::t_17b9793b396196 683-693
+packages/engine/src/cdp/page.ts
+  s_238805be56c310::t_05d080185242c5 536,540
+  s_238805be56c310::t_6f8a3d6253ad5b 2037-2039
+  s_238805be56c310::t_9eb709265c6bf6 2048-2052
+  s_238805be56c310::t_10ce20f933306b 2552,2558-2562
+  s_238805be56c310::t_d4bad0297bf813 467-473
+  s_238805be56c310::t_a66d346b3ec742 2553-2557
+  s_238805be56c310::t_89759a8b071467 1908,1917
+packages/page-script/src/wasm.d.ts
+  s_238805be56c310::t_82f52765a68176 67-69
+packages/engine/src/cdp/target.ts
+  s_238805be56c310::t_e4cbb8142e4277 252,312
+packages/page-script/src/startup-probe.ts
+  s_238805be56c310::t_271a63707d8d49 23
+  s_238805be56c310::t_f7ec77c235e866 80
+packages/page-script/src/index.ts
+  s_238805be56c310::t_7394b4cf87ea15 32
+  s_238805be56c310::t_62b5f534ba782d 1029-1031
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b1afe64c2be6666bb7d13cffae72313d6fc51bb8",
+  "prompts": {},
+  "sessions": {
+    "s_238805be56c310": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06c8ce359ffeUEgD8HfCgwbaQJ",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

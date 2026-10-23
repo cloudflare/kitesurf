@@ -1,0 +1,48 @@
+internal/scripts/bench-trace-report.mjs
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 1-511
+docs/RELEASING.md
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 65,84
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 115,121-122
+package.json
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 12,16,66-68
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 49
+  s_c6d6a3ac21fe46::t_0e504e24a0a8dd 63
+.gitignore
+  s_c6d6a3ac21fe46::t_5f28aa28c5f442 126-127,130-132
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 136-137
+tests/interactivity-flows/README.md
+  s_c6d6a3ac21fe46::t_6b99bd7dbf1041 96
+docs/TRACING.md
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 65,134,142-143,145
+scripts/check-no-dts.mjs
+  s_c6d6a3ac21fe46::t_2077d8bef613ea 2,12
+bench/harness/run.mjs
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 368,1104
+.gitlab-ci.yml
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 404,843,1330,1635,1659,1718,1778,2099
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 2116,2146,2167
+bench/README.md
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 300-302,305
+scripts/check-ts-coverage.mjs
+  s_c6d6a3ac21fe46::t_2077d8bef613ea 37,62,65
+internal/scripts/trace-pull.mjs
+  s_c6d6a3ac21fe46::t_836b9ed8b7495c 1-54
+internal/scripts/flows-archives.mjs
+  s_c6d6a3ac21fe46::t_1005fa46bc5efa 1-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d056a9da69a08a67af778f9b1d14ce8dd414c0e6",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

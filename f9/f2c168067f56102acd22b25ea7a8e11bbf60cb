@@ -1,0 +1,21 @@
+packages/engine/test/e2e/named-global-live.e2e.test.ts
+  s_4ba79f911c93c4::t_f8e9165f10b446 30-54
+packages/dom-shim/src/window.ts
+  s_4ba79f911c93c4::t_4229cf574b1368 1562-1563,1566
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f9f2c168067f56102acd22b25ea7a8e11bbf60cb",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

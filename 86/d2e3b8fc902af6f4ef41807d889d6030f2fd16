@@ -1,0 +1,29 @@
+packages/core/src/tty_logo.rs
+  s_91836f22884cfe::t_1b11700097bf82 382-385,472-475,479-482
+  s_91836f22884cfe::t_fa1292c4df8b0e 476-478
+  s_6d0ca96e2dd664::t_6083cee7dfab4e 483
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "86d2e3b8fc902af6f4ef41807d889d6030f2fd16",
+  "prompts": {},
+  "sessions": {
+    "s_6d0ca96e2dd664": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f991deab6ffeSaiB4VVMWxK8LM",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

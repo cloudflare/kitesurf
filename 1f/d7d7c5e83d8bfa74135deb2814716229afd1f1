@@ -1,0 +1,24 @@
+packages/engine/src/cookies.ts
+  s_971f20d9c84b2b::t_e54605a9cbe83d 334
+  s_971f20d9c84b2b::t_c5e6cf5a216747 55-56
+  s_971f20d9c84b2b::t_93defdc34e1bd6 398-402,407-410
+  s_971f20d9c84b2b::t_3b8216528a47bc 416
+packages/engine/test/cookies.test.ts
+  s_971f20d9c84b2b::t_f6502c7980479d 86-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1fd7d7c5e83d8bfa74135deb2814716229afd1f1",
+  "prompts": {},
+  "sessions": {
+    "s_971f20d9c84b2b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fea612eb5ffeSycXWkmalHV3jO",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

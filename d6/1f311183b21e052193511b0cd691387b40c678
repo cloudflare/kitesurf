@@ -1,0 +1,27 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_bddc26501dd4e8::t_c3a50c648d52f3 5440-5443,5446-5449
+  s_bddc26501dd4e8::t_445f74a9613399 1812-1814
+  s_bddc26501dd4e8::t_224467db59efaa 5444-5445
+  s_bddc26501dd4e8::t_e81f332ac9dcee 1843-1845,1852-1853
+packages/engine/test/e2e/classic-computed-import.e2e.test.ts
+  s_bddc26501dd4e8::t_993b91adcaf903 26
+  s_bddc26501dd4e8::t_b4da7a2339bf37 66-67
+  s_bddc26501dd4e8::t_ed300fdbe039b8 82-86
+  s_bddc26501dd4e8::t_994378b0db7b4e 11,15-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d61f311183b21e052193511b0cd691387b40c678",
+  "prompts": {},
+  "sessions": {
+    "s_bddc26501dd4e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03128cdf5ffemSFgXi7EKA5ERa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

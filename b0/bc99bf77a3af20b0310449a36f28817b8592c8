@@ -1,0 +1,33 @@
+packages/engine/src/eval/page-script.ts
+  s_a75ea28c7345c6::t_4d2fd920e875c6 305-307,311,314-320
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_a75ea28c7345c6::t_4d2fd920e875c6 41,125,127-131,139,149-154,160,162,168,423
+packages/page-script/src/internal-state.ts
+  s_a75ea28c7345c6::t_4d2fd920e875c6 128,221-239,243
+packages/page-script/src/index.ts
+  s_41e060d4f5adf2::t_7a3c258b1bd87b 2499-2501,2505
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b0bc99bf77a3af20b0310449a36f28817b8592c8",
+  "prompts": {},
+  "sessions": {
+    "s_41e060d4f5adf2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f62b43221ffeZO12irvkqx00of",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_a75ea28c7345c6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6ba347d1ffeBXm6VNFbnPDneO",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

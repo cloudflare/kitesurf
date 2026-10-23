@@ -1,0 +1,40 @@
+docs/CORS.md
+  s_d9ecccdb16496d::t_9f71a5e7958f71 65-79,104-113
+packages/engine/src/eval/image-dims.ts
+  s_d9ecccdb16496d::t_71c79e1614cee4 198-200,202-238,240
+  s_d9ecccdb16496d::t_36c1332b3518b3 241-260,262-297
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_d9ecccdb16496d::t_b4dc03bf4517df 4028-4071,4073-4075
+packages/engine/test/image-dims.test.ts
+  s_d9ecccdb16496d::t_69c66c116eb29b 214-220,228-247
+  s_d9ecccdb16496d::t_637005718bfd48 248
+packages/engine/src/eval/outbound.ts
+  s_d9ecccdb16496d::t_ecc161baec8585 50
+  s_d9ecccdb16496d::t_cfcce8053fc225 740-765,767
+  s_d9ecccdb16496d::t_8ccb7d62e2139c 1362-1372,1378,1381-1390,1394-1397,1399-1407,1411-1415
+  s_d9ecccdb16496d::t_c60f16ecba72dc 1594-1658
+  s_d9ecccdb16496d::t_71c79e1614cee4 1373
+  s_d9ecccdb16496d::t_96c8c463de93a7 1446-1455,1470
+  s_d9ecccdb16496d::t_e46f571a4031e9 1659
+packages/engine/test/e2e/cors-bypass-matrix.e2e.test.ts
+  s_d9ecccdb16496d::t_ece2b3f6cc7342 177-269
+packages/engine/test/e2e/no-cors-opaque.e2e.test.ts
+  s_d9ecccdb16496d::t_a9a4791d8a4e61 104-106,120
+  s_d9ecccdb16496d::t_47f7ce9d79cf8f 100-103,107-119,121-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6a7e404b241d9672de256032e430509b586c5288",
+  "prompts": {},
+  "sessions": {
+    "s_d9ecccdb16496d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03b959d9effev00SNORc7M35W1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

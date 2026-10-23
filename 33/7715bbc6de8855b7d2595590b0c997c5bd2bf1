@@ -1,0 +1,23 @@
+packages/dom-shim/src/node-base.ts
+  s_d3331fe4df3409::t_145eb9437cc5b7 194,202,206-208,884-885,889-890,893-898,908-909,911-916,922-927,929,934,938
+packages/engine/test/e2e/style-churn-memory.e2e.test.ts
+  s_d3331fe4df3409::t_6a7be0f5245de8 82-86,97,101-102,104,106-136
+packages/core/src/lib.rs
+  s_d3331fe4df3409::t_33ecfc6af93828 2499-2500,2507-2510,2512-2513,2515,2519-2523
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "337715bbc6de8855b7d2595590b0c997c5bd2bf1",
+  "prompts": {},
+  "sessions": {
+    "s_d3331fe4df3409": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f649d4dd3ffeZ9Zfp0qsWRxmBj",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

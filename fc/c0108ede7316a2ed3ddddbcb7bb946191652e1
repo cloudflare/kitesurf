@@ -1,0 +1,27 @@
+packages/engine/test/e2e/demos/skip-speculative-raster.e2e.test.ts
+  s_ce0cd87401626e::t_d4bbee1eca7099 57
+  s_ce0cd87401626e::t_7f8051f317d590 41-46
+  s_ce0cd87401626e::t_59cbb8402f32cc 19
+packages/engine/test/e2e/renderer-laziness.e2e.test.ts
+  s_ce0cd87401626e::t_b028bdc33a18dd 1-63,66-109,111-119
+  s_ce0cd87401626e::t_219703e6e5b680 64-65
+  s_ce0cd87401626e::t_7d946f8b431942 110
+packages/engine/test/e2e/cdp-read.ts
+  s_ce0cd87401626e::t_5c34193bb49313 75-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fcc0108ede7316a2ed3ddddbcb7bb946191652e1",
+  "prompts": {},
+  "sessions": {
+    "s_ce0cd87401626e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_04a09baa6ffexh4ik2fVtcPSSA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+packages/core/src/scene_decode.rs
+  s_0d774ef1069d39::t_38b138894ed94b 740
+  s_0d774ef1069d39::t_af3a1646c5a12b 1061-1065
+  s_0d774ef1069d39::t_fef3ec20392bb7 459-465
+  s_0d774ef1069d39::t_a9ad05efc3c60c 980-987
+  s_0d774ef1069d39::t_afdc0e73f3f98a 595
+packages/core/src/scene_record.rs
+  s_0d774ef1069d39::t_bc68a38096b4ab 611,614-626
+  s_0d774ef1069d39::t_c71ad901910658 660-675
+  s_0d774ef1069d39::t_6eca1198c71307 612-613,627-641
+  s_0d774ef1069d39::t_54ffee68d729b1 702-713
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f2a2cb1ed278b628f5127167d4dbfccd5d2369b7",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

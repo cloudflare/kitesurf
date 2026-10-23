@@ -1,0 +1,32 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0027-Avoid-painting-checkable-inputs-twice.patch
+  s_ccf5542acfcceb::t_b00853520add87 1-32
+scripts/patches/blitz-paint-0.3.0-beta.1/0024-Paint-checkboxes-and-radios-which-blitz-never-did.patch
+  s_ccf5542acfcceb::t_ccc6bf60364a31 1-110
+scripts/patches/blitz-paint-0.3.0-beta.1/0025-Sketch-mode-box-SVG-content-instead-of-painting-the-.patch
+  s_ccf5542acfcceb::t_ccc6bf60364a31 1-99
+scripts/patches/blitz-paint-0.3.0-beta.1/0022-Mark-which-part-of-an-element-each-op-paints.patch
+  s_ccf5542acfcceb::t_ccc6bf60364a31 1-100
+scripts/patches/blitz-paint-0.3.0-beta.1/0026-Respect-appearance-none-for-checkable-inputs.patch
+  s_ccf5542acfcceb::t_ccc6bf60364a31 1-53
+packages/core/src/tty_grid.rs
+  s_ccf5542acfcceb::t_ecd1c5f469fce7 2083-2096
+  s_ccf5542acfcceb::t_65492cfa89801a 2082
+scripts/patches/blitz-paint-0.3.0-beta.1/0023-Offset-collapsed-table-borders-to-the-table-s-conten.patch
+  s_ccf5542acfcceb::t_ccc6bf60364a31 1-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "44266e9d0bc2e38c7a7b43e4a097738e49104748",
+  "prompts": {},
+  "sessions": {
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+packages/core/src/webgl/gl.rs
+  s_5ef13aa2ca5d9a::t_e965e91da20c3c 90-109,123-129,215-229,267-279,379-381,414-419,476-499,629-633,851-918,942-944,975-976,1160-1171,1226-1228,1233-1237,1256-1261,1576-1594,1711-1769,1853-1868
+  s_5ef13aa2ca5d9a::t_a4fbaa7a1ed594 1250
+  s_5ef13aa2ca5d9a::t_b7fce9b1c6d485 1770-1771,1869
+packages/dom-shim/src/webgl.ts
+  s_5ef13aa2ca5d9a::t_7a7fd3904f875b 77-114,186-197
+  s_5ef13aa2ca5d9a::t_452dff685bef02 9,120-185,198-316,383-386,559-593,599,601-602,615-616,620-624,629-645,650-651,661-664,681-683,696-699,706-707,711-720,737-818,821-825,853-854,875,882,907-908,911-912,914-927,945-950,952-977,979-982,985,989-991,993-1005,1007-1048,1059-1067,1082-1083,1086-1095,1115-1119
+docs/WEBGL.md
+  s_5ef13aa2ca5d9a::t_d4a02b8491986c 934-935,937-939,942-981
+  s_5ef13aa2ca5d9a::t_328e7a98ec6cac 982
+packages/engine/test/e2e/webgl2-context.e2e.test.ts
+  s_5ef13aa2ca5d9a::t_08117d083b9d7b 60-65,67-138
+  s_5ef13aa2ca5d9a::t_1724a89980cd08 66
+packages/core/src/webgl_test.rs
+  s_5ef13aa2ca5d9a::t_6ddd8df19b13a5 1574-1653
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a1dfb7f9021c49f12491a18eac0db3c50902714",
+  "prompts": {},
+  "sessions": {
+    "s_5ef13aa2ca5d9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed3357cbbffeROEK7xP7OmXTdD",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

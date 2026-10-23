@@ -1,0 +1,21 @@
+internal/docs/TRACING.md
+  s_c6d6a3ac21fe46::t_3a74b537fca894 1-85
+docs/TRACING.md
+  s_c6d6a3ac21fe46::t_3a74b537fca894 14,20-21,46-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f815bee9abda058ccffb7ce9a15de588305073e1",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+tests/playwright/playwright.config.ts
+  s_33ced4fd01dd18::t_1fa106dc68ea1a 64-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cc5ba63228d6943862c1f586296779506d841c0c",
+  "prompts": {},
+  "sessions": {
+    "s_33ced4fd01dd18": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06460a98cffeiC4uluWD4Bs6JQ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

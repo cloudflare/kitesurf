@@ -1,0 +1,19 @@
+packages/engine/src/eval/tracker-blocklist.ts
+  s_346c09415ea3ff::t_cb393ae27f9f00 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c575695cae3b9933ec5067a80df58fd5a78d9891",
+  "prompts": {},
+  "sessions": {
+    "s_346c09415ea3ff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_02c694f17ffe0QnaOvUjK0GYiA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

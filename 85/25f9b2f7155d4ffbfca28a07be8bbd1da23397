@@ -1,0 +1,19 @@
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_4ba79f911c93c4::t_83982f04948bc9 168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8525f9b2f7155d4ffbfca28a07be8bbd1da23397",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

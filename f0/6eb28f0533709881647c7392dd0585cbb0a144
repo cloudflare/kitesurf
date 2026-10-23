@@ -1,0 +1,41 @@
+packages/engine/src/wasm.ts
+  s_e5734d2cdd8842::t_23e0ab8d10d2bb 34,39
+packages/page-script/src/startup-probe.ts
+  s_e5734d2cdd8842::t_23e0ab8d10d2bb 27,34-35
+scripts/autoresearch-bench.mjs
+  s_e5734d2cdd8842::t_88a2f0f40d7e33 243
+packages/page-script/scripts/build.mjs
+  s_e5734d2cdd8842::t_23e0ab8d10d2bb 86-88,131-133,173
+packages/page-script/src/index.ts
+  s_e5734d2cdd8842::t_23e0ab8d10d2bb 6000,6011
+packages/page-script/src/internals.ts
+  s_e5734d2cdd8842::t_23e0ab8d10d2bb 29-33
+scripts/bench-scene-record.mjs
+  s_e5734d2cdd8842::t_f3bc230d098262 36
+packages/dom-shim/src/internals.ts
+  s_e5734d2cdd8842::t_f3bc230d098262 57-59
+docs/MEMPROF.md
+  s_e5734d2cdd8842::t_23e0ab8d10d2bb 91-95,104
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_e5734d2cdd8842::t_f3bc230d098262 24
+packages/dom-shim/src/canvas2d.ts
+  s_e5734d2cdd8842::t_f3bc230d098262 32,36
+docs/CANVAS2D.md
+  s_e5734d2cdd8842::t_f3bc230d098262 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f06eb28f0533709881647c7392dd0585cbb0a144",
+  "prompts": {},
+  "sessions": {
+    "s_e5734d2cdd8842": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb7b5c1b1ffemNY2McWVkjToXQ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

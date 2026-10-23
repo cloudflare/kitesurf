@@ -1,0 +1,21 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0101-kitesurf-force-CONSTRUCT_BOX-on-anonymous-children-w.patch
+  s_991c8660c98c38::t_cbe1d267f3761f 1-56
+tests/wpt-expectations.json
+  s_991c8660c98c38::t_2d3fa5e38deba2 26216-26217
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5f4cb5e9ecaada7d59781a92d99e940f52b34ddb",
+  "prompts": {},
+  "sessions": {
+    "s_991c8660c98c38": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009892ce1ffeHHnJ6vwrpWm3CZ",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

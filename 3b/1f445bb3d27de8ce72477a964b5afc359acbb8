@@ -1,0 +1,23 @@
+.github/actions/setup/action.yml
+  s_1abf46ee8e60f8::t_601d9760d409d1 11-14,16-18,24,48-49,54-55,58,66-69,74,76-77
+  s_1abf46ee8e60f8::t_9b70b5f05e4440 15
+  s_1abf46ee8e60f8::t_aa272ff6c9d729 9
+.github/workflows/ci.yml
+  s_1abf46ee8e60f8::t_334d95f0ad4714 19-21,23,26-27,30,32,41-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3b1f445bb3d27de8ce72477a964b5afc359acbb8",
+  "prompts": {},
+  "sessions": {
+    "s_1abf46ee8e60f8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea5cfe6f8ffeLsjlLqkpVBGxiG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_5164e6fbf947ef 5164-5171
+  s_50d45ac3d4c7e5::t_ab044806d1a773 5140-5148,5150-5155
+  s_50d45ac3d4c7e5::t_099458cf747510 5172-5173,5176,5185-5187
+packages/engine/src/rbi-protocol.ts
+  s_50d45ac3d4c7e5::t_d22b19031dccb0 225-240,243-249,251-253
+  s_50d45ac3d4c7e5::t_2a3003efa080c3 241-242
+  s_50d45ac3d4c7e5::t_8c9477bc634b07 250
+packages/engine/src/rbi.ts
+  s_50d45ac3d4c7e5::t_63669fdb0f60bc 430-436
+  s_50d45ac3d4c7e5::t_22b4ec2ab1feb7 975-982,985
+  s_50d45ac3d4c7e5::t_5c6b46398c4923 983-984
+  s_50d45ac3d4c7e5::t_e1344b5bc686ea 20
+packages/engine/test/rbi-resource-batch.test.ts
+  s_50d45ac3d4c7e5::t_1b6f2924688c01 5
+  s_50d45ac3d4c7e5::t_621a514664395e 323-342
+packages/page-script/src/index.ts
+  s_50d45ac3d4c7e5::t_c2339567fd5b62 1398-1399
+  s_50d45ac3d4c7e5::t_8157de5885cd30 1396-1397
+  s_50d45ac3d4c7e5::t_24bbb9028bc6b1 5486-5495
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d34a9fefee4660cbfe2e249adede83957290adee",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

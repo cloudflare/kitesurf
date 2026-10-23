@@ -1,0 +1,111 @@
+packages/dom-shim/src/node-base.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 6,30-36,128-131,136-268,430-441,491,526,556,742,744,803-805,1080-1081,1114,1117-1154,1159,1163,1167,1215-1217,1304,1311,1318,1329,1393,1411,1413,1489,1498,1637,1663,1674,1776,1783,1906,2021-2023,2025,2217,2247,2249,2254,2321,2359,2396,2434,2778-2779,2843
+packages/engine/test/e2e/webgl-unsupported-overlay.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 1-49
+packages/page-script/src/dom-shim.d.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 19-25,30
+packages/page-script/src/index.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 128,135,152,229-234,236-238,294-300,6861-6867,6884-6939,6946-6949
+packages/dom-shim/src/contract.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 18-24,26
+packages/engine/src/cdp/runtime.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 48-68,312
+packages/dom-shim/src/events/slotchange.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 7,15-25
+  s_c1d1c93f383cfd::t_d5dba3a7a9a049 26
+packages/engine/test/e2e/detached-subtree-reclaim.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 1-503
+packages/dom-shim/src/reclaim.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 1-434
+packages/core/src/node_handle_test.rs
+  s_c1d1c93f383cfd::t_2615144b6f094d 137-281
+packages/dom-shim/src/collections.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 5,38,249-259,332-337,2862-2867,2878,2887-2891,2893,2905,2911-2914,4216,4237-4240
+packages/dom-shim/src/file-input.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 15,105-116
+  s_c1d1c93f383cfd::t_a4369cccdb5808 117
+packages/dom-shim/src/index.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 199-203,265-272,279-296,306-321,565-568,581,585,625,674-677
+packages/core/src/fonts.rs
+  s_c1d1c93f383cfd::t_2615144b6f094d 690-697,701,704,707-713,770,783-785,788,804-806,820-825,1229,1232-1233,1432-1436,1596-1599,1601,2560-2690
+packages/dom-shim/src/layout/cheap.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 23,59-64
+  s_c1d1c93f383cfd::t_a106eb11e9bf2e 65
+packages/dom-shim/src/mutations/observer.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 12-16,349-387,560-565
+  s_c1d1c93f383cfd::t_1f2d8789bf8636 566
+packages/engine/src/cdp/kitesurf.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 32,453-463,498
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 34-37
+packages/engine/test/e2e/full-mode-symbol-fonts.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 1-62
+packages/engine/test/e2e/reclaim-pending-stylesheet.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 1-125
+packages/core/src/canvas2d.rs
+  s_c1d1c93f383cfd::t_2615144b6f094d 1554-1590,1668-1684,2063-2132
+  s_c1d1c93f383cfd::t_587e0814820c77 2133
+packages/page-script/src/defer-shim.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 101-122
+packages/dom-shim/src/registries.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 21-169,175-204,320-322,326,330-349,441-530,537-538,549-550,558
+packages/page-script/src/handles.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 52-64
+packages/engine/test/e2e/html/canvas-2d.html
+  s_c1d1c93f383cfd::t_2615144b6f094d 13-19
+packages/engine/test/e2e/pixel-free-shaping-fonts.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 135-139
+packages/engine/test/e2e/idl-handler-rekey.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 1-90
+packages/page-script/src/font-loader.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 326-340,344-346,374-385,387-392,394,440-443
+packages/engine/src/cdp/target.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 1130-1132
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 1,8,17,27-32,34-35,40,45,47-57,59,65-113,117-129,136-137,141,145,162,166-167,169-170,182-184,197,205,212,214-215
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 23,32-39
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_2615144b6f094d 1758-1797,2516-2524,2542-2546,2548-2614,5371-5472,7678-7749
+  s_c1d1c93f383cfd::t_d260563ad7cef9 7750
+packages/engine/test/e2e/canvas-memory-stats.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 1-224
+packages/engine/test/e2e/html/full-mode-symbols.html
+  s_c1d1c93f383cfd::t_2615144b6f094d 1-32
+packages/engine/src/cdp/page-session.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 185,213-285
+packages/dom-shim/src/document.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 484-493
+packages/dom-shim/src/fastpath.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 49-53,58-62
+AGENTS.md
+  s_c1d1c93f383cfd::t_2615144b6f094d 528-532
+packages/dom-shim/src/canvas2d.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 65-68,351-360,370
+packages/dom-shim/src/element.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 48,50-51,99-103,129,173,1732,1738,8949-9097,9102-9105,9108,9993-10005,10029-10031,10040-10042,10045,10071-10072,10076,10079,10237-10239,10257-10262,10265,10277
+packages/dom-shim/src/state.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 15,224-358,411-427,498-514
+packages/engine/test/e2e/retention-gauges.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 1-110
+packages/engine/test/e2e/route-churn-memory.e2e.test.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 1-162
+packages/dom-shim/src/events/dispatch.ts
+  s_c1d1c93f383cfd::t_2615144b6f094d 241-251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0551a0a3074ad599740faab4381f263dd15e1d28",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

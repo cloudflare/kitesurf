@@ -1,0 +1,20 @@
+packages/core/src/canvas2d.rs
+  s_8f2876ddc9923d::t_312a407621960c 191-195,238,321,1438-1460
+  s_8f2876ddc9923d::t_31c25a8ab37c5a 1849-1907
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b98da19ff0875f067dcefab7958e06a7a3ed26da",
+  "prompts": {},
+  "sessions": {
+    "s_8f2876ddc9923d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd73a0956ffe0L2bWk0EeOISK4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

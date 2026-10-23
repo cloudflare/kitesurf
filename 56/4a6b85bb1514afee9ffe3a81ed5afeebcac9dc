@@ -1,0 +1,210 @@
+packages/engine/test/e2e/anchor-positioning-parsing.e2e.test.ts
+  s_c06dc570d7afc3::t_0c437a391b156f 22
+  s_c06dc570d7afc3::t_29264a683a313c 17
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_c06dc570d7afc3::t_063098f91706fa 101
+  s_4ba79f911c93c4::t_b42ef530c81784 153,160,167,174,181
+  s_c06dc570d7afc3::t_e8d2744800d2ec 103-111,113,126
+  s_77e8d6f4044102::t_cc732eeb7c223f 127
+  s_c06dc570d7afc3::t_1ae3ee5351e92f 112
+  s_4ba79f911c93c4::t_9b43dccbbc0129 1-4,6-95,154,161,168,175
+  s_c06dc570d7afc3::t_0b6da78d98afcd 98-100,102,114-116,118-119,121,123-125,182,184
+  s_77e8d6f4044102::t_8f74d663c5195a 128-145,191-203
+  s_4ba79f911c93c4::t_84569a9bb4f440 5
+  s_09a7b167251a3d::t_00b840ce8efc04 204
+  s_c06dc570d7afc3::t_e21151f9747125 96-97,183
+  s_77e8d6f4044102::t_d4e8d0e11e1a07 117,185,187-188
+  s_c06dc570d7afc3::t_f696732ea339a9 120,122,186,189
+  s_4ba79f911c93c4::t_8d3e91de918c03 148-152,157-159,164-166,171-173,178-180
+  s_c06dc570d7afc3::t_bc938655f2f7cc 190
+  s_4ba79f911c93c4::t_e3ce941a5db499 146-147,155-156,162-163,169-170,176-177
+scripts/patches/README.md
+  s_429f7f4b0bfcb7::t_60d11876d0766c 108-109
+packages/engine/test/e2e/layout-test-helpers.ts
+  s_4ba79f911c93c4::t_7c72087cace41d 1-5,7-8,11,13,15-16,18,24-25
+  s_77e8d6f4044102::t_8bda2e0b1fa5d9 12,14,19-23
+  s_77e8d6f4044102::t_4cd9db36d47539 6,9-10,17
+packages/page-script/src/paint.ts
+  s_77e8d6f4044102::t_562fbd33ac0edd 133-135,139-145,147-149,163-165,169-174,176-178
+  s_77e8d6f4044102::t_1401f1bb3ef11b 153-154
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Fix-hit-testing-for-padded-inline-roots.patch
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0125-Use-natural-font-metrics-for-inline-line-height.patch
+  s_77e8d6f4044102::t_82a0adde0c64a9 151
+  s_77e8d6f4044102::t_b7867d10184cc3 8-13,15-43,45,48-61,65,71-132,137,143,146-150,189,193-195,200,203,212,215-231,251-257,268-299
+  s_77e8d6f4044102::t_6d10a9c72b90b5 1-7,14,44,46-47,62-64,66-70,133-136,138-142,144-145,152-188,190-192,196-199,201-202,204-211,213-214,232-250,258-267
+scripts/patches/blitz-dom-0.3.0-beta.2/0131-Preserve-supported-font-source-fallbacks.patch
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-78
+packages/core/src/sticky_reset_test.rs
+  s_4ba79f911c93c4::t_ff1b45ff38cf2e 298-304
+  s_4ba79f911c93c4::t_1136a065047202 296
+  s_4ba79f911c93c4::t_d4ad3711a561e9 306-310
+  s_4ba79f911c93c4::t_d2e771322f6073 217,219-224,227,250,259-261,263-271,279-280,288,290-295,297,311-312,321,323-328,330,346-347
+  s_4ba79f911c93c4::t_40be29df7107fb 313
+  s_77e8d6f4044102::t_77eb676887f51e 234
+  s_4ba79f911c93c4::t_3c1fca57c996d5 282
+  s_4ba79f911c93c4::t_528567b5e79260 210
+  s_4ba79f911c93c4::t_27c1dc54a98667 286-287
+  s_4ba79f911c93c4::t_805f08608ef026 329
+  s_4ba79f911c93c4::t_fd0b7ab59e512e 322
+  s_4ba79f911c93c4::t_766c5c4e18c507 209,211-213,228-229,231-233,252-258,262,272-278,281,283-285,305,314,316-319,340
+  s_4ba79f911c93c4::t_80b74f8761ca44 225-226
+  s_4ba79f911c93c4::t_7a0536486c864d 320
+  s_4ba79f911c93c4::t_48a4ee27d3720c 208
+  s_4ba79f911c93c4::t_518b295caca35e 214-216
+  s_4ba79f911c93c4::t_733cd8bff67942 251
+  s_c06dc570d7afc3::t_dddb803edecc4e 230,235-249
+  s_4ba79f911c93c4::t_ae0ec6063e010e 341-345
+  s_4ba79f911c93c4::t_b804725e055187 315
+  s_4ba79f911c93c4::t_8612e4bbcc1dc8 331-339
+  s_4ba79f911c93c4::t_7bac6962b92e74 289
+  s_4ba79f911c93c4::t_6de7e7d55f1e41 218
+scripts/patches/parley-0.11.1/0008-Preserve-parent-line-height-for-inline-boxes.patch
+  s_77e8d6f4044102::t_932a0b28d10260 1-2,4-5,7-11,13-26
+  s_77e8d6f4044102::t_6d10a9c72b90b5 3,6
+  s_77e8d6f4044102::t_b23a4a76e212ae 12
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-Preserve-parent-line-metrics-for-inline-boxes.patch
+  s_77e8d6f4044102::t_6daad13afb7ae0 235-237,265
+  s_77e8d6f4044102::t_62a238218f57d3 118,177-182,184-186,221,241
+  s_77e8d6f4044102::t_b7867d10184cc3 38,51-55,96,107
+  s_77e8d6f4044102::t_fd05627b655a7f 42-48,67-84,88,126-137,143,145-160,183,196
+  s_77e8d6f4044102::t_17887437bfda02 164-170,172-173,176,187-195,197-203,226-227,258,261-264,266,268-281
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-2,4-6,9-10,12-37,39-41,49-50,56-66,85-87,89-95,97-106,108-117,119-125,138-142,144,161-163,171,174-175,204-220,222-225,228-234,238-240,242-256,259-260
+  s_77e8d6f4044102::t_d170e83fcf03d2 3,7-8,11,257,267
+packages/engine/test/e2e/float-layout-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_b42ef530c81784 30
+  s_4ba79f911c93c4::t_e3ce941a5db499 4,27-28
+  s_4ba79f911c93c4::t_8d3e91de918c03 29
+  s_4ba79f911c93c4::t_568e7249fe4ecb 1-3,5-26
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-Fix-absolute-inline-box-positioning.patch
+  s_77e8d6f4044102::t_62a238218f57d3 14,22
+  s_77e8d6f4044102::t_d170e83fcf03d2 11,36
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-6,9-10,12-13,15-21,23-35,37-47
+  s_77e8d6f4044102::t_17887437bfda02 7-8
+packages/core/src/lib.rs
+  s_77e8d6f4044102::t_55ccd55852008d 3211,3279-3331
+  s_4ba79f911c93c4::t_c0b8a0c4822068 3335
+  s_4ba79f911c93c4::t_8e2c403733b10d 3336
+packages/engine/test/e2e/root-element-metrics.e2e.test.ts
+  s_77e8d6f4044102::t_1a3e24bf6868c2 100,104,168-179
+  s_77e8d6f4044102::t_a59d92e205011b 96,105,119
+  s_77e8d6f4044102::t_89c5f18eaa92cf 102-103
+  s_77e8d6f4044102::t_8f74d663c5195a 60,83-84,120-144,146,167,180
+  s_c06dc570d7afc3::t_0bc1e96bdeb4f8 108
+  s_77e8d6f4044102::t_a19675e49ee375 58-59
+  s_c06dc570d7afc3::t_1e29da0aaa6d4f 85,93-94,97-99,106-107,109-115,118,149,151,155,157-159,162,164-166,183-211
+  s_77e8d6f4044102::t_eadb017b6c61b2 61-82,101
+  s_c06dc570d7afc3::t_cc1b04ea7617bf 86-92
+  s_77e8d6f4044102::t_20dabfb617e071 145
+  s_c06dc570d7afc3::t_8c3202af09fa0a 116-117
+  s_77e8d6f4044102::t_aa0c2a40e8c0b0 95,147-148,150,152-154,156,160-161,163,181-182
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-Resolve-fixed-percentage-sizes-against-the-viewport.patch
+  s_77e8d6f4044102::t_6d10a9c72b90b5 1-10,12-13,15-34
+  s_77e8d6f4044102::t_b7867d10184cc3 11,14
+scripts/patches/taffy-0.14.0/0008-Include-float-content-box-inset-in-BFC-height.patch
+  s_77e8d6f4044102::t_9cbdc1f60e65a1 1-2,4-5,7-25
+  s_77e8d6f4044102::t_6d10a9c72b90b5 3,6
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Resolve-relative-inline-insets-against-used-height.patch
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-10,12-13,15-52,54-61
+  s_77e8d6f4044102::t_62a238218f57d3 14,53
+  s_77e8d6f4044102::t_d170e83fcf03d2 11
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_77e8d6f4044102::t_6dfde87a0f785a 93-108,277-284,288-294,296
+  s_fb5aeef4788b54::t_7350b6e28e5548 309
+  s_6646632b4d228c::t_9b62120816070b 59-66,208-216
+  s_fb5aeef4788b54::t_25c5003d68df36 125-140,310-322
+  s_1e3adce13488b2::t_2c87a8887d204b 276
+  s_c06dc570d7afc3::t_a083f2102512ba 238-239
+  s_77e8d6f4044102::t_4cd0eab7d0eab0 141-148,323-336
+  s_77e8d6f4044102::t_d4e8d0e11e1a07 84-86,88-92,268-275
+  s_77e8d6f4044102::t_e0cc45a24f5a69 109-124,297-308
+  s_fb5aeef4788b54::t_2207eff4b388c0 337
+  s_4ba79f911c93c4::t_8d3e91de918c03 151-157,162-168,173-187,192-205,219-226,242-254,259,263
+  s_4ba79f911c93c4::t_96d0d8162ecd73 1-3
+  s_77e8d6f4044102::t_4a2697c45a5223 286
+  s_4ba79f911c93c4::t_6dac4480356d25 256-258
+  s_4ba79f911c93c4::t_e3ce941a5db499 4-24,33-58,67-83,149-150,159-161,170-172,189-191,207,217-218,228,240-241
+  s_c06dc570d7afc3::t_dddb803edecc4e 25-32,229-237,260
+  s_77e8d6f4044102::t_4cd9db36d47539 87
+  s_4ba79f911c93c4::t_b42ef530c81784 158,169,188,206,227,255,267
+  s_1e3adce13488b2::t_7f8add303eb992 261-262
+  s_77e8d6f4044102::t_9f518118ae0816 285,287,295
+  s_4ba79f911c93c4::t_8b138d7863446c 264-266
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-Apply-relative-insets-to-inline-floats.patch
+  s_77e8d6f4044102::t_62a238218f57d3 85
+  s_77e8d6f4044102::t_c49e98d0dd3878 1-10,12-13,15-21,23-71,73-84,86-92
+  s_77e8d6f4044102::t_b7867d10184cc3 14,22,72
+  s_77e8d6f4044102::t_d170e83fcf03d2 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "564a6b85bb1514afee9ffe3a81ed5afeebcac9dc",
+  "prompts": {},
+  "sessions": {
+    "s_09a7b167251a3d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f86001bffe8Jb7WRamidiJbL",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_1e3adce13488b2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4c19630cffeBSmrznuEoZztNL",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_429f7f4b0bfcb7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5d980e3cffejnDq3nmk0ZyNsJ",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_6646632b4d228c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54f92cc6ffeiduS3xYxEFL6rA",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    },
+    "s_c06dc570d7afc3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54fa4034ffepBE1L2SqMCP6u4",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_fb5aeef4788b54": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4b7e383affeoGAlIOLVNl70TD",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

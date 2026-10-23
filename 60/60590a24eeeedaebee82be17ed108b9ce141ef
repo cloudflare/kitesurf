@@ -1,0 +1,19 @@
+scripts/patches/blitz-paint-0.3.0-beta.2/0038-Snap-blurred-shadow-quadrants-to-whole-pixels.patch
+  s_de9b73755c1191::t_65bba4f870f883 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6060590a24eeeedaebee82be17ed108b9ce141ef",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

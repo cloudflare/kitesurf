@@ -1,0 +1,20 @@
+scripts/patches/blitz-paint-0.3.0-alpha.5.patch
+  s_75d678c932972d::t_a6b2a221109f6f 249-250
+  s_75d678c932972d::t_dcb81042c06f57 182-248,251-297
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "313bb6f9ea3dbfc6d22ac08e72b35c1397a15764",
+  "prompts": {},
+  "sessions": {
+    "s_75d678c932972d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_084579337ffepy28AOdVrayge7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

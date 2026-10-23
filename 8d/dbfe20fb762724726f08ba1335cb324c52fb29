@@ -1,0 +1,51 @@
+scripts/pw-run.mjs
+  s_33ced4fd01dd18::t_9cf77d3391e685 121-124
+  s_33ced4fd01dd18::t_907bf1a9cbe87f 1-120,125-135
+tests/playwright/fixtures.ts
+  s_33ced4fd01dd18::t_fa3c143b7a5758 1-33
+.gitignore
+  s_33ced4fd01dd18::t_1d8cb3ad298d12 37-42
+scripts/pw-setup.mjs
+  s_33ced4fd01dd18::t_d94b51d2eae477 63-83
+  s_33ced4fd01dd18::t_223495c8f39f33 1-25,27-62,84-89
+  s_33ced4fd01dd18::t_b2f38c98b23334 26
+tests/playwright/tsconfig.json
+  s_33ced4fd01dd18::t_998677d2a90a43 1-14
+tests/pw-allowlist.json
+  s_33ced4fd01dd18::t_623d2f80320405 1-20
+tests/playwright/package.json
+  s_33ced4fd01dd18::t_d1773b87312741 1-3
+tests/playwright/playwright.config.ts
+  s_33ced4fd01dd18::t_a47c0973c06440 1-2,4-7,9-21,23-33,39-44,48-50,70,74
+  s_33ced4fd01dd18::t_f77fb9cdcf1e8c 3,8,22,34-38,45-47,51,61-69,71-73,75-76
+  s_33ced4fd01dd18::t_8788a0e632420a 52-60
+.gitlab-ci.yml
+  s_33ced4fd01dd18::t_7c3284c9ceda77 364-401
+package.json
+  s_33ced4fd01dd18::t_e888202c056ad7 47-50
+  s_33ced4fd01dd18::t_6ee2f68207dbc8 53
+tests/pw-expectations.json
+  s_33ced4fd01dd18::t_160c603bef70e8 1-10,210
+  s_33ced4fd01dd18::t_ddca4e5848fe3e 21,76,126,128
+  s_33ced4fd01dd18::t_a1e7dd7dc597e5 11-20,22-75,77-125,127,129-209
+tests/playwright/README.md
+  s_33ced4fd01dd18::t_05b5add0333df0 1-41
+pnpm-lock.yaml
+  s_33ced4fd01dd18::t_ded7cc487db5f0 11-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8ddbfe20fb762724726f08ba1335cb324c52fb29",
+  "prompts": {},
+  "sessions": {
+    "s_33ced4fd01dd18": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06460a98cffeiC4uluWD4Bs6JQ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

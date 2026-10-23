@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Gate-natural-font-metric-queries.patch
+  s_a2feeea1972b1e::t_5ed19b93a20dd6 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c27cc9859d3c23a049cb8a0aad744fd4b5af330a",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

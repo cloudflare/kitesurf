@@ -1,0 +1,22 @@
+packages/engine/src/eval/script-bundle.ts
+  s_10325f09f363f7::t_fd8f8fb961d7c7 207-244,249,251
+  s_10325f09f363f7::t_908dcc5312e742 245-248,250,252-258,357-360,423-426
+packages/engine/test/script-bundle.test.ts
+  s_10325f09f363f7::t_23d96cf184bc4f 154-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "80eb7defcefbb11c2ab1bf7ded6a58f2fc0a2644",
+  "prompts": {},
+  "sessions": {
+    "s_10325f09f363f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_028d94f7bffeLPzCR3nArdny7w",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

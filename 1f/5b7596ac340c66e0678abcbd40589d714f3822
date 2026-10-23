@@ -1,0 +1,21 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c9f68948e839d2::t_939bf00f6acfe8 1171-1194,1221-1227,1233-1255,1260-1266,1278,2019-2022
+  s_c9f68948e839d2::t_b8202ab2f41f54 1195-1220,1228-1232,1256-1259,1267-1277,1279-1290
+  s_c9f68948e839d2::t_af7e1411992cae 2010-2018,2023-2055
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1f5b7596ac340c66e0678abcbd40589d714f3822",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

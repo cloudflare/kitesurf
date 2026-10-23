@@ -1,0 +1,21 @@
+packages/engine/src/eval/egress-ledger.ts
+  s_a75ea28c7345c6::t_f43ed10439750c 38-54
+docs/NETWORKING.md
+  s_a75ea28c7345c6::t_b12dbeed777201 52-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "89f575faf0b0634cca3a9f5fd202d7316948f848",
+  "prompts": {},
+  "sessions": {
+    "s_a75ea28c7345c6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6ba347d1ffeBXm6VNFbnPDneO",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

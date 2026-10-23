@@ -1,0 +1,61 @@
+.opencode/skills/kitesurf-scoped-verification/SKILL.md
+  s_4ba79f911c93c4::t_1ab3c62f36e8b4 89,111
+packages/engine-cf/src/external-session.ts
+  s_4ba79f911c93c4::t_04bdb9e5eef943 155-156
+docs/ANALYTICS.md
+  s_4ba79f911c93c4::t_1ab3c62f36e8b4 1,114
+docs/RELEASING.md
+  s_4ba79f911c93c4::t_1ab3c62f36e8b4 195
+docs/WEB_BOT_AUTH.md
+  s_4ba79f911c93c4::t_1ab3c62f36e8b4 4
+docs/AGENT_BENCH.md
+  s_4ba79f911c93c4::t_04bdb9e5eef943 59
+packages/grafana/src/dashboards/kitesurf-sessions.ts
+  s_4ba79f911c93c4::t_80dd149626f499 145
+packages/engine-cf/test/fixtures-worker/assets/request-blocker-iframes.html
+  s_4ba79f911c93c4::t_ce1d43890eb308 1-17
+.gitlab/build-images/Dockerfile.build
+  s_4ba79f911c93c4::t_98b4cebd12dbd7 33
+.opencode/skills/kitesurf-contract-cleanup/SKILL.md
+  s_4ba79f911c93c4::t_1ab3c62f36e8b4 77,83
+packages/engine-cf/src/agent/act.ts
+  s_4ba79f911c93c4::t_1ab3c62f36e8b4 251
+.opencode/skills/kitesurf-type-safety/SKILL.md
+  s_4ba79f911c93c4::t_1ab3c62f36e8b4 83
+packages/engine-cf/src/agent/cdp.ts
+  s_4ba79f911c93c4::t_04bdb9e5eef943 280-281
+packages/engine-cf/wrangler.jsonc
+  s_4ba79f911c93c4::t_1ab3c62f36e8b4 110
+tests/interactivity-flows/bbc-hydration-probe.mjs
+  s_4ba79f911c93c4::t_80dd149626f499 341-342
+packages/engine-cf/test/fixtures-worker/assets/request-blocker.html
+  s_4ba79f911c93c4::t_ce1d43890eb308 1-18
+packages/engine-cf/cloudflare.config.ts
+  s_4ba79f911c93c4::t_80dd149626f499 366
+packages/agent-bench/src/runners/local.ts
+  s_4ba79f911c93c4::t_80dd149626f499 3
+packages/engine-cf/src/client-session.ts
+  s_4ba79f911c93c4::t_80dd149626f499 23-24
+tests/interactivity-flows/README.md
+  s_4ba79f911c93c4::t_1ab3c62f36e8b4 252
+docs/TESTING.md
+  s_4ba79f911c93c4::t_1ab3c62f36e8b4 110,112,168
+.cloudflare/grafana/kitesurf-sessions.json
+  s_4ba79f911c93c4::t_cce4b56c90c7f3 614
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "56007abbfa1a33e00c8737477b1385a545b320b2",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

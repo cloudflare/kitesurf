@@ -1,0 +1,27 @@
+packages/core/src/inline_flow_rect_test.rs
+  s_b53babca4e4ca8::t_c51be5d3703f9c 121-177
+packages/engine/src/cdp/dom.ts
+  s_b53babca4e4ca8::t_3f5314dd0b5733 500-505
+  s_b53babca4e4ca8::t_f682499809d9a2 335-341,343-346
+packages/core/src/lib.rs
+  s_b53babca4e4ca8::t_93db222bab57b5 4985-5017
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_b53babca4e4ca8::t_e61e4ce9226986 1143-1144
+  s_b53babca4e4ca8::t_275a80f84ba079 93-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0dd2da0bc29d09da734219319b445b47044bcfbc",
+  "prompts": {},
+  "sessions": {
+    "s_b53babca4e4ca8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_052eb64beffeDFt2W7tlQM9H0Q",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}

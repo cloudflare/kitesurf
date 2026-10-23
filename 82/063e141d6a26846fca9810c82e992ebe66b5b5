@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-alpha.5.patch
+  s_75d678c932972d::t_084128a31304df 763,922-954
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "82063e141d6a26846fca9810c82e992ebe66b5b5",
+  "prompts": {},
+  "sessions": {
+    "s_75d678c932972d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_084579337ffepy28AOdVrayge7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

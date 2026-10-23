@@ -1,0 +1,23 @@
+AGENTS.md
+  s_c1d1c93f383cfd::t_c73540510f49a3 528-532
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_cc3a00ac3b6885 1758-1797,2516-2524,2542-2546,2548-2614,5371-5472,7678-7750
+packages/core/src/node_handle_test.rs
+  s_c1d1c93f383cfd::t_c340d8f25dbb4a 137-281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "20acd670b95fbe612361b56ef2b6c20e37f523f9",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

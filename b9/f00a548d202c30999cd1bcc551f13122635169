@@ -1,0 +1,42 @@
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_53b640c1e93ca2 2654
+packages/dom-shim/src/element.ts
+  s_c1d1c93f383cfd::t_4f16e0bc9428ad 9920,9923
+  s_c1d1c93f383cfd::t_5f5dd47bd7aa9a 9909-9911
+  s_c1d1c93f383cfd::t_5a0cf877f0407d 9884-9885
+  s_c1d1c93f383cfd::t_1dbba4e79e2286 9949,9953,9956
+  s_c1d1c93f383cfd::t_360e2d595ff17a 10114
+  s_c1d1c93f383cfd::t_dbeec7c135054e 10132,10135-10142
+  s_c1d1c93f383cfd::t_eeb381a4cd824f 10154
+packages/dom-shim/src/node-base.ts
+  s_c1d1c93f383cfd::t_21c0c0542b35d2 119
+  s_c1d1c93f383cfd::t_4c6228813ac79d 969
+packages/dom-shim/src/collections.ts
+  s_c1d1c93f383cfd::t_578470cde82136 2876,2882,2888-2889,2895-2896
+  s_c1d1c93f383cfd::t_0d86c62019f760 20
+  s_c1d1c93f383cfd::t_f4cc16c1630065 38
+packages/core/src/boa_bridge.rs
+  s_c1d1c93f383cfd::t_5bc762d87045a8 3069-3073
+  s_c1d1c93f383cfd::t_beaacd31840270 2472
+  s_c1d1c93f383cfd::t_73bd66ea81feeb 2688-2690
+  s_c1d1c93f383cfd::t_6f35f2a4b2bef5 2565
+  s_c1d1c93f383cfd::t_d658fadc6c3d76 2587-2588
+  s_c1d1c93f383cfd::t_c9b23b68120759 2894-2895
+  s_c1d1c93f383cfd::t_6c77a0cdbc363a 3035-3036
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b9f00a548d202c30999cd1bcc551f13122635169",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

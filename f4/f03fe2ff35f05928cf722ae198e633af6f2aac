@@ -1,0 +1,35 @@
+packages/engine/test/e2e/layer-budget.e2e.test.ts
+  s_50d45ac3d4c7e5::t_535aab18d43b8b 1-46
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_50d45ac3d4c7e5::t_535aab18d43b8b 1-110
+packages/page-script/src/types.ts
+  s_50d45ac3d4c7e5::t_535aab18d43b8b 66-68
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_535aab18d43b8b 869-933,2021-2024
+scripts/patches/blitz-paint-0.3.0-beta.1/0012-kitesurf-keep-position-fixed-boxes-out-of-the-docume.patch
+  s_50d45ac3d4c7e5::t_535aab18d43b8b 1-52
+packages/dom-shim/src/layout/cheap.ts
+  s_50d45ac3d4c7e5::t_535aab18d43b8b 473,478-481
+packages/page-script/src/paint.ts
+  s_50d45ac3d4c7e5::t_535aab18d43b8b 93-95
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_535aab18d43b8b 2666,2703-2705,2708,2716,5865-5867,5876,5938-5960,6075
+scripts/patches/blitz-paint-0.3.0-beta.1/0013-kitesurf-budget-open-layers-by-depth-not-cumulative-.patch
+  s_50d45ac3d4c7e5::t_535aab18d43b8b 1-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f4f03fe2ff35f05928cf722ae198e633af6f2aac",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

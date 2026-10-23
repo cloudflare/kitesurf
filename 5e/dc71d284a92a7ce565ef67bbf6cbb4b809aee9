@@ -1,0 +1,63 @@
+packages/bench-report/src/bench-routes.ts
+  s_dae2a321c55580::t_ad5e3cd256ca16 451
+packages/bench-report/src/bench-tail.ts
+  s_dae2a321c55580::t_5506d259ded00d 30-34,46,49,151-153,155-167,170
+  s_dae2a321c55580::t_2b2b4d5e0ecee9 35-43,45,48,50-52,149-150,154,168-169,171-192
+  s_dae2a321c55580::t_ad5e3cd256ca16 15
+  s_dae2a321c55580::t_7acef6c1ff0ebf 129-137
+  s_dae2a321c55580::t_e7e4ba7a0ecefd 44,47,144-148
+  s_d38b2fdae6f29d::t_f294311e376d7c 193
+packages/bench-report/scripts/chrome-acquisition.test.mjs
+  s_dae2a321c55580::t_9bdaf421f634e7 17,23-35,37-39,41-44
+  s_dae2a321c55580::t_a4009c14f090c2 36,40
+  s_b59a5e4402e532::t_109218f76d141f 45
+packages/bench-report/src/bench-runner.ts
+  s_dae2a321c55580::t_a4009c14f090c2 356-360
+  s_dae2a321c55580::t_7cd0107d1ac464 7,355
+  s_dae2a321c55580::t_ad5e3cd256ca16 354
+packages/bench-report/src/chrome-cold-report.ts
+  s_dae2a321c55580::t_ad5e3cd256ca16 1-2
+  s_dae2a321c55580::t_7cd0107d1ac464 3-55
+packages/bench-report/src/index.ts
+  s_dae2a321c55580::t_81dfd4bea65a8d 9,58
+packages/bench-report/scripts/tail-attribution.test.mjs
+  s_dae2a321c55580::t_a4009c14f090c2 84
+  s_dae2a321c55580::t_37118eaf53e474 85,91
+  s_dae2a321c55580::t_7acef6c1ff0ebf 144-150
+  s_dae2a321c55580::t_3749471fb5efc5 3-7,44-45,48-62,76-79,93-120
+  s_dae2a321c55580::t_15f829751eb591 80-82,86-90
+  s_dae2a321c55580::t_e7e4ba7a0ecefd 46-47,63-75,83,92
+  s_b59a5e4402e532::t_b2a1540ea9204a 121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5edc71d284a92a7ce565ef67bbf6cbb4b809aee9",
+  "prompts": {},
+  "sessions": {
+    "s_b59a5e4402e532": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03983a75ffe2QyEFcjNBkwb60",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_d38b2fdae6f29d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0163e38effesUo139Jom0ZHYI",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_dae2a321c55580": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039868a3ffelpQrAvKruzw0dY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

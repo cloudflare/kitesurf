@@ -1,0 +1,27 @@
+packages/page-script/src/intersection-observer.ts
+  s_103b7f1f0713cd::t_07aa5cb040091a 337,432,434-435,437-438
+  s_103b7f1f0713cd::t_53020c52eb7a3f 436,462
+  s_103b7f1f0713cd::t_f7790d94caed26 332,340,439
+  s_103b7f1f0713cd::t_36e4eecebc046f 461
+  s_103b7f1f0713cd::t_52b6af139222ee 442
+  s_103b7f1f0713cd::t_dc76cf81061799 441
+packages/engine/test/e2e/intersection-observer.e2e.test.ts
+  s_103b7f1f0713cd::t_92621d1a0f3044 374,389,393
+  s_103b7f1f0713cd::t_c79d7f76891d44 391-392,394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6077414455dda63168f7d6f08aaf37f20065dc27",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

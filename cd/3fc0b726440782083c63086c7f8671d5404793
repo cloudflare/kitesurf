@@ -1,0 +1,22 @@
+packages/engine/test/e2e/demos/canvas-fps-bench.e2e.test.ts
+  s_9919a0fbc98ecc::t_dd155a1f1f731e 1-77
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_9919a0fbc98ecc::t_bf1173ddfcd0b0 1572-1687
+  s_9919a0fbc98ecc::t_d3d45a56af6a10 1018-1021
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cd3fc0b726440782083c63086c7f8671d5404793",
+  "prompts": {},
+  "sessions": {
+    "s_9919a0fbc98ecc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05e1c181affeaShBfvui60bKjb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

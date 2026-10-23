@@ -1,0 +1,23 @@
+packages/engine/test/e2e/browser-close.e2e.test.ts
+  s_fcb804b303a058::t_6242908f9e42fb 33-38
+  s_fcb804b303a058::t_08c398bb5a3336 1-32,39-43
+packages/engine/src/cdp/connection.ts
+  s_fcb804b303a058::t_0a3b34e60619ec 417-418,420-423
+  s_fcb804b303a058::t_f91d8f252b32ba 419
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "df35ae21666f189a6e1911592244b9f9917cf8a8",
+  "prompts": {},
+  "sessions": {
+    "s_fcb804b303a058": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea4f465b4ffeXuCHRYNvdM10o3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+docs/TESTING.md
+  s_c6d6a3ac21fe46::t_ef253eafd6790f 96-97
+  s_c6d6a3ac21fe46::t_7036cc32498c2b 46-48
+internal/docs/TESTING.md
+  s_c6d6a3ac21fe46::t_7036cc32498c2b 64-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "80b7eeec59a73ed2e1ba3da7bd8eec7a87762cfa",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

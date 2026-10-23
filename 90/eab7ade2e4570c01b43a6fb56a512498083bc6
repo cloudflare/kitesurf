@@ -1,0 +1,21 @@
+packages/engine-cf/test/e2e/BUILD.bazel
+  s_4ba79f911c93c4::t_ee3ab6405b8e0c 52-57
+packages/engine-cf/vitest.e2e.config.mts
+  s_4ba79f911c93c4::t_3df996d2b7d6e0 8-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "90eab7ade2e4570c01b43a6fb56a512498083bc6",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+packages/website/src/pages/landing/Hero.tsx
+  s_c1a6940130844c::t_c6461b1c83fb0f 55
+  s_c1a6940130844c::t_cc10d3b5b4536b 48-54,56-71
+  s_c1a6940130844c::t_21a7ae9289be3a 128
+  s_c1a6940130844c::t_63b3ee73b2a643 113
+packages/website/src/client/landing.ts
+  s_c1a6940130844c::t_cb6be59412feaf 111-114,116-127
+  s_c1a6940130844c::t_06388b5e3c0bec 115
+packages/website/src/styles/landing.css
+  s_c1a6940130844c::t_1dfb89c3b59014 309-340,342-343,345-346,348-377
+  s_c1a6940130844c::t_06388b5e3c0bec 341,344,347
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1f099a5e6be5bc37d8db3796d1757b4d687bf82b",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

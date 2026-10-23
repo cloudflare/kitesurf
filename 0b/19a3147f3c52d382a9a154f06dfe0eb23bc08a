@@ -1,0 +1,19 @@
+packages/engine/src/quickactions/capture.ts
+  s_74342d9e960e22::t_fc3149a239328b 75-78,85-87,93,102,107-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b19a3147f3c52d382a9a154f06dfe0eb23bc08a",
+  "prompts": {},
+  "sessions": {
+    "s_74342d9e960e22": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4fed3e5bffewP1cMVcURSsfKq",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

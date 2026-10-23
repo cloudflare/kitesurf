@@ -1,0 +1,28 @@
+package.json
+  s_4ba79f911c93c4::t_33f4ba661ac689 17
+scripts/prebuild-engine.mjs
+  s_4ba79f911c93c4::t_19cfe341fc59c9 1-17,19-20,22-45
+  s_4ba79f911c93c4::t_32de8b00781618 21
+  s_4ba79f911c93c4::t_62c39e176c3e47 18
+scripts/prebuild-engine.test.mjs
+  s_4ba79f911c93c4::t_22b6ecdcb2f472 1-2,12-32,34-75,81-84,86-100
+  s_4ba79f911c93c4::t_e81fdf2b4faa6f 85
+  s_4ba79f911c93c4::t_28b76eae682989 3-11,33
+  s_4ba79f911c93c4::t_1ccbd19b2fedd4 76-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5c9cd2096426788baf0e5691001280965eab2fc0",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+packages/dom-shim/src/style-declaration.ts
+  s_1db1ff95925c36::t_56fb6cb259c1d9 60-67,73,75,90-94,96-110
+packages/engine/test/e2e/style-declaration-object-members.e2e.test.ts
+  s_1db1ff95925c36::t_3ab476fb9e2af1 26-38,40-70
+  s_1db1ff95925c36::t_30a73e6c774d5f 39
+packages/dom-shim/src/collections.ts
+  s_1db1ff95925c36::t_ba817430bc7236 1486-1491
+packages/engine/test/e2e/interface-own-properties.e2e.test.ts
+  s_1db1ff95925c36::t_716c49ef41acdf 102,143-145
+  s_1db1ff95925c36::t_ba817430bc7236 103-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a1045b8b4e62935d29e0bc248f5469f385f1c9b1",
+  "prompts": {},
+  "sessions": {
+    "s_1db1ff95925c36": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec51c5826ffemXbNFrFL368zkL",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

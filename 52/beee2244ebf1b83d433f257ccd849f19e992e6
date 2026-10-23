@@ -1,0 +1,250 @@
+packages/engine/test/e2e/demos/wasm-native-demo.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1,20
+docs/TESTING.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 265,362,406
+packages/engine/test/e2e/README.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 48,52-53,58,72
+docs/SCRIPT_GATE.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 11,15-17,19-21,44-45
+packages/engine/test/e2e/native-module-graph.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-21
+examples/todomvc-react-screenshot-demo.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 27
+packages/engine/test/fixtures-worker/assets/module-registry-tla.js
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-3
+AGENTS.md
+  s_4a0765e9f35327::t_227b8d831597ac 63-64
+  s_4a0765e9f35327::t_0225c41dffa5b1 122,134,139,144-145,259,289,292-293,425,427-429
+packages/engine/test/e2e/demos/native-concurrent-import-demo.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-2,7
+packages/dom-shim/src/document.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 20
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 33,220-221,223-226,387,395-396,401-402,408,412,418-419,425,428,445-449,457-459,464-465,493-494,1370-1372,1394,1431,1440-1441,1461-1465,1549-1550,1559-1560,1587-1588,1697-1699
+  s_4a0765e9f35327::t_b54f49d841fc9d 1458
+packages/engine/src/cdp/runtime.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 744
+packages/engine/src/eval/script-gate.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 8-9
+packages/engine/src/eval/page-script.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-2,6,28-29,785,803,865,893,912,929-930,932-934,954,962-963,1020
+  s_4a0765e9f35327::t_b54f49d841fc9d 1228-1235
+docs/CORS.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 127-130,232-235,297
+packages/engine/test/e2e/classic-computed-import.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-7,48
+turbo.json
+  s_4a0765e9f35327::t_0225c41dffa5b1 96
+packages/page-script/src/native-scheduling.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 69
+examples/todomvc-react-render-probe.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 9
+packages/engine/test/e2e/module-registry.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 2-14,44-46,53-56
+packages/engine/test/e2e/demos/ce-upgrade-pipeline.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 7
+packages/engine/test/e2e/smoke.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 15
+docs/NETWORKING.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 1,8-11,165-171
+packages/page-script/src/internal-state.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 71-72,118
+packages/engine/src/read-capped.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 8-10
+scripts/wpt-exec.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 1302
+examples/manifest.json
+  s_4a0765e9f35327::t_0225c41dffa5b1 94
+packages/engine/src/cdp/page.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 35,72-75,2682-2686,2768-2769,2775-2777,2779,2794,2815,2837-2845,2850,2852-2854,2857-2865,2868,2874,2885,2888,2894,2909,2917,3193,3519,3522,3533-3539,3542-3544,3546-3547,3560
+packages/engine/test/e2e/global-setup.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 16,19-24,43,47,66-67
+packages/page-script/src/eval-helpers.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 31,36,1587,1613
+docs/WEBMCP.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 12
+tests/interactivity-flows/flows.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 430-431,1060-1061,1174,1637,1848,1882
+packages/engine/test/e2e/awaited-eval-no-deadline.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 7
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_4a0765e9f35327::t_0225c41dffa5b1 32,34
+packages/core/src/ks_tracing.rs
+  s_4a0765e9f35327::t_0225c41dffa5b1 42,121
+packages/shadow-replay/test/workerd/fake-engine-worker.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 57
+packages/engine/src/eval/page-script-compat.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 22-26
+packages/engine/test/e2e/demos/absolute-path-import-demo.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1,5-6
+packages/page-script/src/font-loader.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 203,909
+packages/engine/wrangler.jsonc
+  s_4a0765e9f35327::t_0225c41dffa5b1 228-229
+packages/engine/test/e2e/workerd-native-browser.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 10-13,29,34,83-92,95,97-98,102-148,164-178,224-226,268-272,337,339,354-357,361,364,371,374,379
+packages/page-script/src/startup-probe.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1,132,223-225,232
+scripts/wpt-testdriver.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 20
+packages/dom-shim/src/mutations/observer.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 527
+packages/engine/test/native-module-source.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-37
+packages/engine/test/fixtures-worker/assets/nested-modinit-target.js
+  s_4a0765e9f35327::t_0225c41dffa5b1 30-39
+packages/page-script/src/eval-mode.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 19-23
+packages/dom-shim/src/element.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 5
+packages/engine/test/e2e/idl-interface-shape.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 10
+packages/engine/src/cdp/page-session.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 192
+packages/engine/test/e2e/raf-wrap-reentrancy.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 7-8,17
+packages/page-script/src/index.ts
+  s_4a0765e9f35327::t_828d356346e886 262,1065,1282-1286,1348-1357,1766-1779,1818-1820,1873-1891,1908-1944,1982,2584,2678-2685,2846,2876,4966
+  s_4a0765e9f35327::t_2183c8e74c8ac4 2743
+packages/engine/test/e2e/demos/mouse-move-debounce-probe.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 35
+packages/engine/package.json
+  s_4a0765e9f35327::t_0225c41dffa5b1 8
+packages/page-script/src/inserted-scripts.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 12,31,37,176-180
+packages/engine/test/e2e/expose-function.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 116,134,137
+package.json
+  s_4a0765e9f35327::t_0225c41dffa5b1 56
+packages/engine/test/e2e/timer-wheel-foreign-clear.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 2-9
+packages/scene-client/Cargo.toml
+  s_4a0765e9f35327::t_0225c41dffa5b1 15
+packages/page-script/src/__ks_startup_probe_input.d.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 5
+docs/CANVAS2D.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 72-73
+packages/engine/test/e2e/blob-file-shape.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-35
+packages/engine/test/fixtures-worker/assets/dynprobe.html
+  s_4a0765e9f35327::t_0225c41dffa5b1 6,30-31,40,51
+packages/engine/test/e2e/header-intrinsic-tamper.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 93-94,163,228,234
+docs/PLATFORM.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 103,105-108
+packages/page-script/src/native-http.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 23-24,30-31
+docs/SCRIPT_LOADING.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-60,93-96
+packages/engine/src/cdp/types.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1120-1123,1128
+packages/engine/test/e2e/demos/top-level-await-fetch-probe.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 10-12
+docs/NATIVE_V8.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-31
+packages/dom-shim/src/collections.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 2914,2941,2987
+packages/page-script/tsconfig.json
+  s_4a0765e9f35327::t_0225c41dffa5b1 13-14
+examples/dynamic-import-demo.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-2,4-5,37
+packages/engine/test/e2e/inline-wasm-native.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-3,9
+packages/engine/src/wasm.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 396,405,419,422,436,441,452
+packages/core/Cargo.toml
+  s_4a0765e9f35327::t_0225c41dffa5b1 220,234
+packages/engine/test/e2e/demos/absolute-path-transitive-demo.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 3-5
+docs/PAGE_SCRIPT_PROTOCOL.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 89-91
+packages/engine/src/cdp/target.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 13-17,478-482
+packages/page-script/src/session-methods.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 60
+packages/dom-shim/src/file-input.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 305
+packages/page-script/src/globals.ts
+  s_4a0765e9f35327::t_2183c8e74c8ac4 5025,5039
+  s_4a0765e9f35327::t_0225c41dffa5b1 17,54-55,78,81-82,92,196,402,416-424,426,429,500-501,556,578-579,584-593,611-619,640-652,654-660,675,1030,3393-3394,4693-4694,4982,5056
+packages/page-script/src/websocket.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 119-120
+docs/MEMPROF.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 152
+scripts/patches/README.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 238
+packages/engine/src/eval/outbound.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 79-82,285-286,295-311,327-329,803-806,814,875-879,949,952-956,970-980
+packages/engine/test/e2e/cors-stylesheets.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 13,157,166,200
+packages/engine/src/cdp/debugger.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 160-161,163
+packages/engine/test/fixtures-worker/assets/dynprobe-graph.html
+  s_4a0765e9f35327::t_0225c41dffa5b1 4-6,35
+packages/page-script/scripts/build.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 196,213,250-251
+packages/engine/test/fixtures-worker/assets/module-registry.html
+  s_4a0765e9f35327::t_0225c41dffa5b1 10-12,20-21,27-28
+examples/wikipedia-portal-demo.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 9-10
+packages/engine/test/e2e/native-import-meta-url.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-2,10
+packages/renderer-core/Cargo.toml
+  s_4a0765e9f35327::t_0225c41dffa5b1 16
+packages/engine/test/page-script-compat.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 3,12-16,18-20,23,32
+tests/interactivity-flows/README.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 4,18-19,387,389-391,395,398
+examples/top-sites-smoke.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 2,4-6
+README.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 239-249,307,315,318,344-347,373-376
+scripts/build-wasm.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 104,277,323,497-498
+packages/engine/src/index.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 89,720
+examples/dynamic-behavior-demo.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 3,5,7,22,30-31
+packages/dom-shim/src/otel.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 201
+packages/dom-shim/src/node-base.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 6
+packages/page-script/src/wasm-glue.d.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 164
+packages/engine/src/eval/native-module-source.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-79
+tests/interactivity-flows/findings.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 4-5
+scripts/get-patched-vendor-crates.mjs
+  s_4a0765e9f35327::t_0225c41dffa5b1 247
+docs/ANALYTICS.md
+  s_4a0765e9f35327::t_0225c41dffa5b1 111-112
+packages/dom-shim/src/current-script.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 72-73
+packages/engine/test/e2e/demos/offscreen-canvas-demo.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 34
+packages/dom-shim/src/model-context.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1519
+packages/dom-shim/src/window.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 568,995
+packages/engine/test/e2e/demos/tla-import-iife-fix-probe.e2e.test.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1,14-15,28,37
+packages/page-script/src/scripts.ts
+  s_4a0765e9f35327::t_0225c41dffa5b1 1-2,9,45-79,139,160,163,173-174,183,250,253-255,351,358-360,364,366,372
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "52beee2244ebf1b83d433f257ccd849f19e992e6",
+  "prompts": {},
+  "sessions": {
+    "s_4a0765e9f35327": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22de99daffe33APq8G4JKs5uV",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

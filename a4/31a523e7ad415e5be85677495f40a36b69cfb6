@@ -1,0 +1,32 @@
+docs/PLATFORM.md
+  s_bddc26501dd4e8::t_150eca9ac3ee46 72-76
+packages/engine/src/cdp/page.ts
+  s_bddc26501dd4e8::t_bd56ac7b7ebddf 2063
+  s_bddc26501dd4e8::t_73aebe70a02b50 6563
+  s_bddc26501dd4e8::t_337292d8a0be14 6564-6573
+  s_bddc26501dd4e8::t_0f9727fdf82480 6574,6577,6579-6580
+  s_bddc26501dd4e8::t_e1fb9561c5d29b 1972
+  s_bddc26501dd4e8::t_6951b92f7a35d5 1882-1884
+  s_bddc26501dd4e8::t_2e36a2a8659d79 6402
+packages/engine/test/e2e/screencast-ack-stall.e2e.test.ts
+  s_bddc26501dd4e8::t_76174ff664e35b 1-76
+packages/engine/src/cdp/types.ts
+  s_bddc26501dd4e8::t_4ca14d9bca48c4 347
+  s_bddc26501dd4e8::t_58f9247cf47b2d 346,349-352
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a431a523e7ad415e5be85677495f40a36b69cfb6",
+  "prompts": {},
+  "sessions": {
+    "s_bddc26501dd4e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03128cdf5ffemSFgXi7EKA5ERa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

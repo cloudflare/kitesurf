@@ -1,0 +1,23 @@
+packages/website/src/styles/base.css
+  s_909163843c9dee::t_cae7d49c519113 2-3,6,16,21
+packages/engine/public/fonts/Inter-OFL.txt
+  s_909163843c9dee::t_cae7d49c519113 1-92
+packages/website/src/components/Document.tsx
+  s_909163843c9dee::t_cae7d49c519113 67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0d884c07c2091cd285a957dda118d69d4ed3c544",
+  "prompts": {},
+  "sessions": {
+    "s_909163843c9dee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1b8ee7e2ffe0ZSBgOtK2CgnBd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Brandon Strittmatter <bstrittmatter@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,89 @@
+packages/wpt-report/tsconfig.json
+  s_ad7f344c430b32::t_45c4a180d9ee7b 9-10,21
+packages/wpt-report/src/index.ts
+  s_ad7f344c430b32::t_9a568511c30f53 76
+  s_ad7f344c430b32::t_ac30544629241a 91-92
+  s_ad7f344c430b32::t_88c726ad9a2503 1-2
+  s_ad7f344c430b32::t_27937e8616ad0d 75
+  s_ad7f344c430b32::t_d1afc4f8b4ba9c 19-26,28
+packages/wpt-report/scripts/public-data.mjs
+  s_ad7f344c430b32::t_96685b1f40d5e0 1-2
+  s_ad7f344c430b32::t_c8b04f1570e6b3 25-27,30,38,44-47,50-52,59
+  s_ad7f344c430b32::t_021c470ab9e6e0 24,29
+  s_ad7f344c430b32::t_6cfe6d32f96d73 9-11,34
+  s_ad7f344c430b32::t_45c4a180d9ee7b 4-8,12-14,19,32-33,35-36
+  s_ad7f344c430b32::t_5c76a9113e2399 28
+packages/wpt-report/scripts/trend.mjs
+  s_ad7f344c430b32::t_e7a9f2a52a0b07 25-31,33,38-39,50,63-64,66-68,85-87,97-100,103-106,110,170,176-177,180-182,190
+  s_ad7f344c430b32::t_f0b4270f0cf66c 3,6
+  s_ad7f344c430b32::t_6f47722cba0a8a 21-22,32,34-37,117-119,127
+  s_ad7f344c430b32::t_855de372bc5836 2
+  s_ad7f344c430b32::t_3cfa910de32aa4 158
+  s_ad7f344c430b32::t_f4284508745414 1,80
+  s_51c59ee8765d18::t_3062d551b0edc7 4
+packages/wpt-report/scripts/backfill.mjs
+  s_ad7f344c430b32::t_31d4d10e38d17e 78
+  s_51c59ee8765d18::t_73648cf11f3984 13,16
+  s_ad7f344c430b32::t_7458e54d352a07 1-2
+  s_ad7f344c430b32::t_88c726ad9a2503 23
+packages/wpt-report/src/data.ts
+  s_ad7f344c430b32::t_f4284508745414 91
+  s_ad7f344c430b32::t_cda97e9c2cf4bf 26-27,30-31,41-49,60-63,65-67,69,72,78-79,90,94-97,100-103,105,107
+packages/wpt-report/scripts/public-data.test.mjs
+  s_ad7f344c430b32::t_d945e2d52c88d9 29,38-40
+packages/wpt-report/scripts/build.mjs
+  s_51c59ee8765d18::t_73648cf11f3984 287
+  s_ad7f344c430b32::t_3268a6ced3b8be 84-85,87,104,106-110,112,115-116,118-124,166-168,170,173-174,176-177,185,189-190,195-196,199-203,215,226-227,240-241
+  s_ad7f344c430b32::t_45c4a180d9ee7b 1-3,6-9,25-34,36-37,43,54,56,77,81,89,130-131,136,143,145,148,163,169,175,183,188,206,235,251,262,264,266,268,270-271,278,282,284,289,291-292,295,303-304,344-346,348
+  s_ad7f344c430b32::t_2c70f89e4ccc5e 285-286,288,316-318,321,323,325,347,349-351,366-369
+  s_ad7f344c430b32::t_798e2fc8bbc2ed 150-152,158,160,198,211-214,222-225,228-231
+  s_ad7f344c430b32::t_4eac33d5bbe8b9 4-5
+  s_ad7f344c430b32::t_feaf4f09efd58e 50
+  s_ad7f344c430b32::t_81d82bacc35da2 218
+  s_ad7f344c430b32::t_56cea8fe7df601 103
+  s_ad7f344c430b32::t_e4cfb03e176af8 95-100
+  s_ad7f344c430b32::t_5b4e3d77564b3a 283,290,293-294,298
+  s_ad7f344c430b32::t_3c7d3a105b3cf5 237-238,245-246,253
+  s_ad7f344c430b32::t_2c026706261472 11,38,355
+  s_ad7f344c430b32::t_8ad1c3456e4418 65
+  s_ad7f344c430b32::t_3b63b4640737f1 277,279
+  s_ad7f344c430b32::t_da600500d05cd3 35,39-42,66,141,197,275-276,280
+  s_51c59ee8765d18::t_13308f254823db 53
+  s_389aa8bfb4b14f::t_3e8c61903271a7 10,44
+packages/wpt-report/wrangler.jsonc
+  s_ad7f344c430b32::t_88c726ad9a2503 15
+  s_ad7f344c430b32::t_4eac33d5bbe8b9 11-12
+  s_51c59ee8765d18::t_ebf18e92afa29d 13-14,22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d9359afe5f56d1f2bf85ec4787bd70d9f08dda9a",
+  "prompts": {},
+  "sessions": {
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_51c59ee8765d18": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f02066b96ffeHiaI80FZkLkPrO",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_ad7f344c430b32": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f036b15c8ffeJXPOvv3SG49G2P",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

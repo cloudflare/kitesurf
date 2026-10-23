@@ -1,0 +1,21 @@
+packages/dom-shim/src/mutations/observer.ts
+  s_41d5a40b9168bd::t_9abfcd87504450 518-521,529-555,592-596
+packages/dom-shim/src/element/forms/input-state.ts
+  s_41d5a40b9168bd::t_8729846ed497a9 5,30-36,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b7a70ab3326e21ad69b8bb8d4a035a882ca0866b",
+  "prompts": {},
+  "sessions": {
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

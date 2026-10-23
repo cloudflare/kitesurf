@@ -1,0 +1,30 @@
+docs/TRANSITIONS.md
+  s_9edeb0b442dcde::t_cf3849d0ba873a 128-135
+packages/page-script/src/transitions.ts
+  s_9edeb0b442dcde::t_af033f409ebe00 49-53,56-65,68,70-89,103-105
+  s_9edeb0b442dcde::t_43595753fb0e9b 8
+docs/PLATFORM.md
+  s_9edeb0b442dcde::t_74256282f3e7e0 113-118
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_9edeb0b442dcde::t_9909be61536a82 304,312-316,318-319
+  s_9edeb0b442dcde::t_7a0c7f79957c08 279-303,305-311,317,320-334
+packages/page-script/src/defer-shim.ts
+  s_9edeb0b442dcde::t_eb490f3ffcbe03 117
+  s_9edeb0b442dcde::t_60251bc8d3ac6b 118-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0e5d76130d14184e52bf5c8ea262c1554c6afb7f",
+  "prompts": {},
+  "sessions": {
+    "s_9edeb0b442dcde": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3602cc93ffeT6YkaO0WaR4xqA",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

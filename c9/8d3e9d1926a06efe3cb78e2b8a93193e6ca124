@@ -1,0 +1,24 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_38e5d113e77939::t_e80b61a5fe3632 776-791
+  s_38e5d113e77939::t_ad044f31ba64ae 1631-1632
+packages/engine/test/e2e/scrollable-overflow-origin.e2e.test.ts
+  s_38e5d113e77939::t_aac03bb92e14fd 1-58
+scripts/patches/taffy-0.12.2/0008-Measure-content-size-from-the-content-origin-not-the.patch
+  s_38e5d113e77939::t_d6c507e48b1907 1-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c98d3e9d1926a06efe3cb78e2b8a93193e6ca124",
+  "prompts": {},
+  "sessions": {
+    "s_38e5d113e77939": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03c410cf0ffeYAbz22unE6l59y",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

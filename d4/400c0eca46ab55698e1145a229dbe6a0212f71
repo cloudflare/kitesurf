@@ -1,0 +1,45 @@
+packages/engine/wrangler.jsonc
+  s_c39b250795ef75::t_246baf8feb8100 5,23-25
+packages/bench-report/package.json
+  s_c39b250795ef75::t_a4b1c06decedf9 19
+packages/shadow-replay/package.json
+  s_c39b250795ef75::t_a4b1c06decedf9 28
+packages/engine/package.json
+  s_c39b250795ef75::t_096b5ea4fdbd14 42,45,48
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_c39b250795ef75::t_246baf8feb8100 5-6
+packages/engine/src/cdp/page.ts
+  s_c39b250795ef75::t_1e01e4ab05fc23 2329
+packages/engine/src/eval/page-script.ts
+  s_c39b250795ef75::t_1e01e4ab05fc23 603-606,944-959
+packages/engine/vitest.config.mts
+  s_c39b250795ef75::t_eb986a49c202e7 46-47
+packages/engine/src/eval/page-renderer.ts
+  s_c39b250795ef75::t_3095991ad2c521 34-37,174-179
+packages/wpt-report/package.json
+  s_c39b250795ef75::t_a4b1c06decedf9 19
+packages/engine/src/cdp/connection.ts
+  s_c39b250795ef75::t_4e57ff1bb58887 486-490
+packages/engine/test/script-bundle-runtime.test.ts
+  s_c39b250795ef75::t_1e01e4ab05fc23 160-168
+packages/engine/vitest.e2e.config.mts
+  s_c39b250795ef75::t_eb986a49c202e7 143,152,163,173,206-207,217-218
+pnpm-lock.yaml
+  s_c39b250795ef75::t_879ee216693401 70-71,121,145-146,154-155,163-164,269-270,284-285,433-434,453-454,465-466,477-478,489-490,501-502,556-558,896-897,908-909,914-915,924-925,934-935,944-945,954-955,964-965,974-975,984-985,994-995,1004-1005,1014-1015,1025-1026,1037-1038,1049-1050,1061-1062,1073-1074,1085-1086,1097-1098,1109-1110,1120-1121,1124-1125,1135-1136,1147-1148,1159-1160,2058-2059,2228-2229,2231-2235,2495-2496,2510-2511,2515,2860,2864,2866,2872,2874,2878,2900,2906,2912,2918,2924,3034-3038,3222,3224,3232,3234,3237,3239,3245,3251,3257,3263,3269,3275,3281,3287,3293,3299,3307,3309,3317,3319,3327,3329,3337,3339,3347,3349,3357,3359,3367,3369,3377,3379,3387,3389,3392,3394,3400,3406,3412,3593,3600,4238,4241,4243,4247,4464,4470-4495,4732,4734-4738,4757,4760,4763,4766,4771,4775,4778,4781,4784,4789-4806
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d4400c0eca46ab55698e1145a229dbe6a0212f71",
+  "prompts": {},
+  "sessions": {
+    "s_c39b250795ef75": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f611d125effePYy5TeTmmwVpWd",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

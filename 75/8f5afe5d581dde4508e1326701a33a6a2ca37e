@@ -1,0 +1,59 @@
+packages/core/src/scene_decode.rs
+  s_c9f68948e839d2::t_ec82a61fe7aadf 145-148
+  s_c9f68948e839d2::t_4cdb9ce11574a6 565-576,582-583
+research/page-renderer-plan.md
+  s_c9f68948e839d2::t_462234c11ab949 199-211
+packages/core/src/scene_record.rs
+  s_c9f68948e839d2::t_1ca449a26ac9fb 2006
+  s_c9f68948e839d2::t_73ae354922ceb3 346-349
+  s_c9f68948e839d2::t_02d1afcba609af 622-623,625-628
+  s_c9f68948e839d2::t_fefd0bd331c311 1375-1376,1384,1386-1389,1391-1392
+  s_c9f68948e839d2::t_58f7b12b32f9d9 448-453
+  s_c9f68948e839d2::t_b317d47d662b78 403-409
+  s_c9f68948e839d2::t_4a014a730fdec6 366-372
+  s_c9f68948e839d2::t_0304c0c10e8409 230-234
+  s_c9f68948e839d2::t_af02ac6d8533bd 566-567
+  s_c9f68948e839d2::t_ad1751781fdc49 1583
+  s_c9f68948e839d2::t_7869a8371f978a 489-490,494-500
+  s_c9f68948e839d2::t_971df922c9ce2c 693-696,700
+  s_c9f68948e839d2::t_05bb25a2a15f1f 1551-1555
+  s_c9f68948e839d2::t_db46744dd6b1d9 1947,1953,1961-1966
+  s_c9f68948e839d2::t_a1abec0d0a271b 501-502
+packages/core/src/lib.rs
+  s_c9f68948e839d2::t_9352579f78a7e7 3063
+  s_c9f68948e839d2::t_44b89f312cf873 3293-3304
+  s_c9f68948e839d2::t_edf3d709e35334 3125-3127,3130,3134-3136
+  s_c9f68948e839d2::t_305bfa1c599c2b 3154-3155
+  s_c9f68948e839d2::t_99640874f2b9d4 3253-3256,3261-3275
+  s_c9f68948e839d2::t_1eee3064a82174 3239
+  s_c9f68948e839d2::t_2ac4db0136e877 3277,3332-3345
+  s_c9f68948e839d2::t_cc0815141ca82b 57
+  s_c9f68948e839d2::t_8e326be04c9d70 324-327
+  s_c9f68948e839d2::t_942802ad2e42be 3208
+  s_c9f68948e839d2::t_361aabbdf9fda5 3276
+packages/core/src/fonts.rs
+  s_c9f68948e839d2::t_e0f8d40cde9a11 109-135
+  s_c9f68948e839d2::t_791a286a7a887d 298-300
+  s_c9f68948e839d2::t_4bf7075b996129 712-715
+  s_c9f68948e839d2::t_f14c07bf7820ac 212-215
+  s_c9f68948e839d2::t_5fd3f0c87fc09d 768-778
+packages/core/src/scene_replay.rs
+  s_c9f68948e839d2::t_5fd9ba5c391271 1-647,654-1030
+  s_c9f68948e839d2::t_ddc02dfd8ef02b 648-653
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "758f5afe5d581dde4508e1326701a33a6a2ca37e",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

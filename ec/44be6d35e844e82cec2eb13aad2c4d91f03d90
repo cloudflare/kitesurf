@@ -1,0 +1,21 @@
+docs/SVG.md
+  s_638b99b03f8b5a::t_b83c08de779c12 33-39
+AGENTS.md
+  s_638b99b03f8b5a::t_1043a1648a4bda 502-505
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ec44be6d35e844e82cec2eb13aad2c4d91f03d90",
+  "prompts": {},
+  "sessions": {
+    "s_638b99b03f8b5a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0321db69bffeRTm4Ld6wotXjl2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

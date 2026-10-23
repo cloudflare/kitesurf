@@ -1,0 +1,19 @@
+packages/engine/wrangler.jsonc
+  s_6d2bd321e74cd3::t_992ab2a222dc31 138,209,228,262,290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b5a95dd954f052c71702ac7b428df8b5e272d3eb",
+  "prompts": {},
+  "sessions": {
+    "s_6d2bd321e74cd3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05593a336ffenHUE13Z3AsPOgn",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

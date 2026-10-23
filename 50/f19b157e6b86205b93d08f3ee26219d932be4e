@@ -1,0 +1,19 @@
+.gitlab-ci.yml
+  s_48191ea07870ee::t_9ce61fd03dc027 1929,1937-1942,1947-1949,1951,1955-1957
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "50f19b157e6b86205b93d08f3ee26219d932be4e",
+  "prompts": {},
+  "sessions": {
+    "s_48191ea07870ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009082396ffeXKnEicNrzluRoG",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,68 @@
+scripts/patches/parley-0.11.1/0009-Collapse-lines-containing-only-out-of-flow-boxes.patch
+  s_ef26f8dd06f5df::t_38c8ee91598cb9 1-58
+docs/FONTS.md
+  s_a0007800c501bb::t_98f80ed4c73d81 207-221
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_219a4b5f7a43ea::t_fed6170f558730 150-192,194,304-365,369-370
+  s_a0007800c501bb::t_ee677378f3835f 279-280
+  s_ef26f8dd06f5df::t_0043164ef6bf96 193,366-368
+  s_a0007800c501bb::t_dbb246fe5c835d 195-201,203-221,233-278,281-303
+  s_ef26f8dd06f5df::t_754aeabb4533d7 202
+  s_a0007800c501bb::t_2cea13757b2cf8 222-232
+packages/dom-shim/src/layout/cheap.ts
+  s_a0007800c501bb::t_9306295092f517 435-439
+packages/core/src/lib.rs
+  s_a0007800c501bb::t_288585ce860830 3323
+  s_a0007800c501bb::t_ddbf7486633c89 3278
+  s_a0007800c501bb::t_ba7f1b546ec290 7190-7206,7213-7214,7217-7219,7235-7238
+  s_a0007800c501bb::t_946ebd53d693f6 7329
+  s_219a4b5f7a43ea::t_cd9f3fa98f4cf3 4948-4950
+  s_a0007800c501bb::t_4420b5381ff5e7 6949-6960,6969,6971-6982
+  s_a0007800c501bb::t_148efec256b225 7084-7089
+  s_219a4b5f7a43ea::t_73b09d13d5f06f 4879-4881,4894-4906
+  s_a6f2ecbc0ba789::t_713fcf3012edfd 7239-7240
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_219a4b5f7a43ea::t_a94f345e978128 117-232
+scripts/patches/blitz-dom-0.3.0-beta.2/0138-Keep-fixed-boxes-anchored-during-clipped-paints.patch
+  s_ef26f8dd06f5df::t_38c8ee91598cb9 1-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6b59054658a47d62f948f307ce0370690892f00c",
+  "prompts": {},
+  "sessions": {
+    "s_219a4b5f7a43ea": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3ae9a30effeFbfG3AeGzksgvy",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a0007800c501bb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3ab9e69cffe7MMIjFZzXa79lE",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a6f2ecbc0ba789": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3ab96185ffehpCfOP3HRlhozj",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_ef26f8dd06f5df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3be04914ffe7HHtOkszWCc5pa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

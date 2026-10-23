@@ -1,0 +1,19 @@
+packages/dom-shim/src/layout/scroll.ts
+  s_6363d2f8998ad4::t_97d1f624e07366 184-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "61249f205ed59ca6eff03f05565cd58f3faad351",
+  "prompts": {},
+  "sessions": {
+    "s_6363d2f8998ad4": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0c902-6967-730a-8939-2a694d501a09",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

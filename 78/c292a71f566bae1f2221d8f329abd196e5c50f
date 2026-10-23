@@ -1,0 +1,23 @@
+packages/worker-script/src/scope.ts
+  s_13716c95882f21::t_6496b0bd17f3cc 156-188,384-387
+docs/WORKERS.md
+  s_13716c95882f21::t_eee0b046d4f3fb 31-34
+packages/engine/test/e2e/dedicated-worker.e2e.test.ts
+  s_13716c95882f21::t_91e5af7ec48c37 25-26,45-48,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "78c292a71f566bae1f2221d8f329abd196e5c50f",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

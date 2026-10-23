@@ -1,0 +1,19 @@
+docs/SCRIPT_LOADING.md
+  s_10325f09f363f7::t_45c7b9e57ef69a 87-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ab981ae18a9166c1790828b6c5b60ab2a4b464e3",
+  "prompts": {},
+  "sessions": {
+    "s_10325f09f363f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_028d94f7bffeLPzCR3nArdny7w",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+packages/shadow-replay/src/do.ts
+  s_4ba79f911c93c4::t_1eeec980b64ed6 709
+packages/shadow-replay/test/workerd/fake-engine-worker.mjs
+  s_4ba79f911c93c4::t_da9f730e4880a4 81-82,97
+.gitignore
+  s_4ba79f911c93c4::t_77c262c2e01125 2-6
+package.json
+  s_4ba79f911c93c4::t_6247e74e2d1c09 66,70,79-81
+pnpm-lock.yaml
+  s_4ba79f911c93c4::t_81fca694993eb4 14-16,26-28,53-55,59-61
+packages/kitesurf-cli/README.md
+  s_4ba79f911c93c4::t_38f0b7b92f2df7 105-110
+packages/kitesurf-cli/src/access.rs
+  s_4ba79f911c93c4::t_c986dc54c3cf20 4-5,10,18,21-22,45-47,57-59,76,87,91-128,200-202,211-383
+packages/kitesurf-cli/src/cli.rs
+  s_4ba79f911c93c4::t_818e8cc884e77f 17
+packages/kitesurf-cli/src/main.rs
+  s_4ba79f911c93c4::t_3de5e9aa9a6c5a 6-7,123,133-134
+packages/kitesurf-cli/src/oauth.rs
+  s_4ba79f911c93c4::t_df9cc25766477a 335-338,340-341
+AGENTS.md
+  s_4ba79f911c93c4::t_8b6ece0921e1b1 55-56
+docs/engine/WORKERD_ISSUES.md
+  s_4ba79f911c93c4::t_5c071cc4a9c0c4 1-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "50aab683f3dcba43165193d5e097106e26c5e685",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

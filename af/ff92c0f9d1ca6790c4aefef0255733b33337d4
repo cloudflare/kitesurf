@@ -1,0 +1,26 @@
+packages/engine/src/cdp/webmcp.ts
+  s_26d7853eb84c08::t_43ed2e1f1574a4 51,321-322,324-332,334-363,365,428,442-445
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_26d7853eb84c08::t_98f12c329df051 189,217-218,236-238
+  s_26d7853eb84c08::t_43ed2e1f1574a4 166-188,190-208,210-213,222-235,239-249
+  s_26d7853eb84c08::t_3e3a77d6f32f1b 219-221
+  s_26d7853eb84c08::t_96f7284968bedb 209,214-216
+docs/WEBMCP.md
+  s_26d7853eb84c08::t_43ed2e1f1574a4 49-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "afff92c0f9d1ca6790c4aefef0255733b33337d4",
+  "prompts": {},
+  "sessions": {
+    "s_26d7853eb84c08": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc26e11a5ffelOxVnXxWAvFTJh",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

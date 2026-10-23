@@ -1,0 +1,66 @@
+packages/engine/test/cdp-client.test.ts
+  s_0bbeacee395aec::t_a29aef033b343a 1-70
+packages/engine/test/page-script-generation.test.ts
+  s_0bbeacee395aec::t_3cfde110ded01f 242-260,264,267,269,273,277,281,283,286,290
+  s_0bbeacee395aec::t_d29ca79fd2dc5a 261-263
+  s_0bbeacee395aec::t_0f0e4745b23934 265-266
+  s_0bbeacee395aec::t_b3392846111903 268
+  s_0bbeacee395aec::t_12e4f95742e1ba 270-272
+  s_0bbeacee395aec::t_ddfc6182946991 274-276
+  s_0bbeacee395aec::t_01712656d6b3e5 278-280
+  s_0bbeacee395aec::t_babf146da278c1 282
+  s_0bbeacee395aec::t_4d1e36d74f09d5 284-285
+  s_0bbeacee395aec::t_ea088c809cfb26 287-289
+packages/engine/src/cdp/connection.ts
+  s_0bbeacee395aec::t_5534b4b0e2ae14 813
+packages/engine/src/cdp-client.ts
+  s_0bbeacee395aec::t_67ffb1356bb63a 437-444
+  s_0bbeacee395aec::t_1246bd5702b5e5 340,413-414
+  s_0bbeacee395aec::t_01fbb74558c468 269-272,275,277-282
+  s_0bbeacee395aec::t_dcac2e429bdc7d 168-169,215
+  s_0bbeacee395aec::t_975c0c56d2f0ad 508-513,515-528,534
+packages/page-script/src/index.ts
+  s_0bbeacee395aec::t_e7a9c1f42863b5 3157-3160,3164
+  s_0bbeacee395aec::t_a6bd7707135737 157-163
+  s_0bbeacee395aec::t_ba9028ea78ebbd 2735,2815,2820-2823
+  s_0bbeacee395aec::t_b7f99ae640be41 3128-3138
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_0bbeacee395aec::t_a4e560675078df 32,43,93-94,330,332-353,362-376
+docs/PAGE_SCRIPT_PROTOCOL.md
+  s_0bbeacee395aec::t_5534b4b0e2ae14 49-54
+packages/engine/test/e2e/isolate-kill.e2e.test.ts
+  s_0fb3273840725a::t_d6b965eb2d4330 1-3,29,38-39,43-45
+packages/engine/src/eval/page-script.ts
+  s_0fb3273840725a::t_c32a2f483b7a30 288-290,295-296,298
+packages/engine/src/cdp/page-script-generation.ts
+  s_0bbeacee395aec::t_5534b4b0e2ae14 59-61,82-84,89,103,112,114,116,119-136,139-140,150,169-170
+packages/engine/test/page-script-rpc-session.test.ts
+  s_0bbeacee395aec::t_b95b17931ec99a 15,25,42,55-57,75-77
+  s_0bbeacee395aec::t_d96d8e9c39c6ba 151-197
+packages/engine/src/cdp/target.ts
+  s_0bbeacee395aec::t_9f9527d5185cdf 211,213,252,438,441,460-463,465-471,500-512,523-529,548
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "edec43427cf0c0dcd9543e3cb3d8fd6ad3bd7435",
+  "prompts": {},
+  "sessions": {
+    "s_0bbeacee395aec": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f513021a6ffejoIEquArpBp04o",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_0fb3273840725a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

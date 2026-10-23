@@ -1,0 +1,33 @@
+packages/dom-shim/src/fastpath.ts
+  s_c1d1c93f383cfd::t_da3da0866b9cb6 49-50
+packages/engine/test/e2e/idl-handler-rekey.e2e.test.ts
+  s_c1d1c93f383cfd::t_da3da0866b9cb6 17,19,26
+packages/engine/test/e2e/reclaim-pending-stylesheet.e2e.test.ts
+  s_c1d1c93f383cfd::t_da3da0866b9cb6 4
+packages/dom-shim/src/reclaim.ts
+  s_c1d1c93f383cfd::t_da3da0866b9cb6 18,180-181
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_8be9ec3b3d9734 1763-1765
+  s_c1d1c93f383cfd::t_6c7deff86f5529 7558-7560
+packages/core/src/fonts.rs
+  s_c1d1c93f383cfd::t_fcb14c3e425d5f 784-785,804
+  s_c1d1c93f383cfd::t_924fc2bb91d0ba 1432,1593-1594,2659-2660
+packages/dom-shim/src/node-base.ts
+  s_c1d1c93f383cfd::t_da3da0866b9cb6 127-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "beb7a657626d855780685f178da9373ffa8c8a56",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

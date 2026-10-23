@@ -1,0 +1,27 @@
+AGENTS.md
+  s_50d45ac3d4c7e5::t_dff81b90c960c0 453-456,459-464
+docs/TESTING.md
+  s_50d45ac3d4c7e5::t_fab76a519106fd 38,191
+scripts/build-wasm.mjs
+  s_50d45ac3d4c7e5::t_784840165c115a 65-72,178-185
+scripts/wpt-batched.mjs
+  s_50d45ac3d4c7e5::t_bfe27e362525a6 46,405
+scripts/wpt-compare.mjs
+  s_50d45ac3d4c7e5::t_2b688fe280a40a 419
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2427bec5f3b31b267f92c8d2552a625b227d772a",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

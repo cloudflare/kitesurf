@@ -1,0 +1,19 @@
+packages/core/src/boa_eval.rs
+  s_4ba79f911c93c4::t_407a6168c1fde5 623-627
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d16514acb94e20f2ee29b9570fc277d3983fa547",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

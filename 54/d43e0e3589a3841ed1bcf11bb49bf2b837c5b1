@@ -1,0 +1,25 @@
+MODULE.bazel.lock
+  s_4ba79f911c93c4::t_05b5a6cede191b 1034-1035,1037-1038,1040-1041,1808-1810
+packages/engine/test/e2e/boa-deep-nesting.e2e.test.ts
+  s_4ba79f911c93c4::t_b9adb443229168 1-27
+scripts/patches/boa_parser-0.22.0/0007-expression-parse-binary-operators-in-one-frame-by-pr.patch
+  s_4ba79f911c93c4::t_7103c465194f1f 1-875
+scripts/patches/boa_parser-0.22.0/0008-assignment-parse-an-assignment-chain-in-a-loop.patch
+  s_4ba79f911c93c4::t_ada31726aca4bc 1-218
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "54d43e0e3589a3841ed1bcf11bb49bf2b837c5b1",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

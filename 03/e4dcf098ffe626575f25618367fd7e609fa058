@@ -1,0 +1,21 @@
+packages/engine/test/e2e/svg-geometry-length.e2e.test.ts
+  s_4ba79f911c93c4::t_8583d362ee4e5a 1-68
+packages/dom-shim/src/element.ts
+  s_4ba79f911c93c4::t_e9c39eb9b2fc96 7443-7452,7467-7525
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "03e4dcf098ffe626575f25618367fd7e609fa058",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+AGENTS.md
+  s_a6287b5e06af60::t_2cd26dd9a676e7 40-41
+docs/TERMINAL.md
+  s_a6287b5e06af60::t_eea6744b8c4003 20-283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "182824dd0a825976986000e2121835de8a960497",
+  "prompts": {},
+  "sessions": {
+    "s_a6287b5e06af60": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef2d5b5aeffe42dLIqBD97UFc1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

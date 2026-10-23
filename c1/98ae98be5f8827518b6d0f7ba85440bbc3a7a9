@@ -1,0 +1,28 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_db4c0639a5dd57 746-772
+  s_50d45ac3d4c7e5::t_613d7314e24e18 744-745
+  s_50d45ac3d4c7e5::t_9fbde913144dd4 1824-1825
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_50d45ac3d4c7e5::t_7ff3f6518fa146 30
+  s_50d45ac3d4c7e5::t_17ff445b31e031 1-2
+  s_50d45ac3d4c7e5::t_a6d6f3ff44d6c0 3-18,20-29,31-51
+  s_50d45ac3d4c7e5::t_6d4d5b276ea2c4 19
+scripts/patches/taffy-0.12.2/0006-Clear-past-every-float-on-the-cleared-sides-not-the-.patch
+  s_50d45ac3d4c7e5::t_7c7b5e48697a3b 1-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c198ae98be5f8827518b6d0f7ba85440bbc3a7a9",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

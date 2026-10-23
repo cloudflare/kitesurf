@@ -1,0 +1,38 @@
+packages/engine/test/e2e/layout-resolve-pollers.e2e.test.ts
+  s_13716c95882f21::t_fe543a6561ec12 54-92
+  s_13716c95882f21::t_7c31249a03326d 3-6
+packages/core/src/lib.rs
+  s_13716c95882f21::t_37240d35773380 3579-3581
+  s_13716c95882f21::t_cc3ea8e75d7cfb 3673
+  s_13716c95882f21::t_e0ccdfb189378f 9247-9274
+  s_13716c95882f21::t_d4cc0d867d3150 3572-3578,3582-3621
+  s_13716c95882f21::t_1c99aae3f05951 9275-9276
+packages/page-script/src/globals.ts
+  s_13716c95882f21::t_0dc945e5226fbf 22,1544-1547,1551-1552,1556,1571,1587,1589-1590,1599-1602,1604-1605,1608-1609,1624-1630,1634,1641-1644,1653,1655-1656,1660,1666-1670,1713-1715,1723,1743-1745
+  s_79b514ed72f0d7::t_cc96843afe9db6 1572,1577,1581-1585,1591-1594,1612
+  s_79b514ed72f0d7::t_992b499e86c418 1568-1569,1573-1574,1578,1645-1648,1654,1661-1665
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7a04ffb2804f8b8e035feb78a7a34fae5d72ebe6",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_79b514ed72f0d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed34042e8ffetjAofbwkhZe692",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

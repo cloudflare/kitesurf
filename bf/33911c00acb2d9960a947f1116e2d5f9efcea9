@@ -1,0 +1,30 @@
+packages/dom-shim/src/element.ts
+  s_4ba79f911c93c4::t_c858c1460da666 3405-3417
+  s_4ba79f911c93c4::t_0e180e37b76a91 5448-5454,5490,5551
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_52f4ec79903fa6 235-236
+  s_4ba79f911c93c4::t_484cebfb53daa9 234
+packages/engine/test/e2e/caret-after-typing.e2e.test.ts
+  s_4ba79f911c93c4::t_2ceabc0c5262ba 69-120
+packages/dom-shim/src/registries.ts
+  s_4ba79f911c93c4::t_6a1b8d1c8a4ebc 51
+packages/core/src/input_caret_test.rs
+  s_4ba79f911c93c4::t_34d2a8814b547c 4-12,18-19,21,32,35-40,44-45,54
+  s_4ba79f911c93c4::t_7f88089473271a 1-3,13-17,20,22-31,33-34,41-43,46-53,55-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bf33911c00acb2d9960a947f1116e2d5f9efcea9",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

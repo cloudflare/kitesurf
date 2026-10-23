@@ -1,0 +1,26 @@
+tests/interactivity-flows/run.ts
+  s_8487a09e89ac2f::t_3999ec914015a2 419-426
+  s_8487a09e89ac2f::t_af12702161a6a2 275-278,440,466-469,487-492,495
+tests/interactivity-flows/regress.ts
+  s_8487a09e89ac2f::t_201c8f93a87b9c 30-32,41,107-109,114-116,142,148-150,160,172,192-193,214,222,226-227
+tests/interactivity-flows/comment.ts
+  s_8487a09e89ac2f::t_7a52be9e17a6d1 57,108,111,151-152,154-156
+tests/interactivity-flows/README.md
+  s_8487a09e89ac2f::t_7a52be9e17a6d1 296-302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e31e703b1c329b395680ce18a0729b04514aa03b",
+  "prompts": {},
+  "sessions": {
+    "s_8487a09e89ac2f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4fd91da8ffeneEFBDpRKIlgRB",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+docs/BOA_REMOVAL_BENCHMARKS.md
+  s_4a0765e9f35327::t_2661fc68e2f23b 1-77,80-120
+  s_4a0765e9f35327::t_ff86e8a92b0b68 78-79
+scripts/bench-js-dom-runtime.mjs
+  s_4a0765e9f35327::t_2661fc68e2f23b 1-291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c1be5689cd28f962e50d26e1fde8a570310b2c24",
+  "prompts": {},
+  "sessions": {
+    "s_4a0765e9f35327": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22de99daffe33APq8G4JKs5uV",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

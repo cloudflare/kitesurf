@@ -1,0 +1,26 @@
+scripts/wpt-engine.test.mjs
+  s_4ba79f911c93c4::t_8427c84efb7927 8
+  s_4ba79f911c93c4::t_9daa2e9244ba1f 6-7,11,16-18,20-46,55-69
+  s_4ba79f911c93c4::t_be095ddfd95309 9,47-54
+  s_4ba79f911c93c4::t_926ce703d32b39 1-5,10,12-15,19
+  s_4ba79f911c93c4::t_83055bf2f5bb3e 70-98
+scripts/wpt-engine.mjs
+  s_4ba79f911c93c4::t_d398908095e824 19,47-48,62-63,71,73,83,164
+  s_4ba79f911c93c4::t_0c0da75895e63c 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4b42d8e939e6782805d2546cac7d08570d4811d7",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

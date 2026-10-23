@@ -1,0 +1,54 @@
+packages/engine/src/cdp/connection.ts
+  s_bf847f99fe8063::t_b194a8a58d73f2 500-501,692
+packages/engine/test/e2e/stateful-session.e2e.test.ts
+  s_bf847f99fe8063::t_2ae899b094d586 90-94,96,662-663,666-668,673,680,682-688,690
+  s_bf847f99fe8063::t_45f867e2f26216 628-661,664-665,669-672,674-679,681,689,691-717
+packages/page-script/src/session-storage.ts
+  s_bf847f99fe8063::t_36bfa7f3a66845 28,51-68
+  s_bf847f99fe8063::t_0041ab21126fbb 69-70
+packages/engine/src/cdp/types.ts
+  s_bf847f99fe8063::t_b194a8a58d73f2 436-442
+  s_bf847f99fe8063::t_525c00df2d4c16 435
+packages/engine/src/cdp/dispatch.ts
+  s_bf847f99fe8063::t_b194a8a58d73f2 13,134-137
+  s_bf847f99fe8063::t_82ff19f845a7f2 138
+packages/engine/test/node/session-store.test.ts
+  s_bf847f99fe8063::t_c6c6549ac3275d 8-13,79-89
+  s_bf847f99fe8063::t_5515d1e78c85e3 90-91
+packages/engine/src/state/session-store.ts
+  s_bf847f99fe8063::t_4db98c907271f9 41-52,57-61,91-104,117-129,242-266
+  s_bf847f99fe8063::t_2c7f1e0f8938c8 267-268
+packages/page-script/src/index.ts
+  s_bf847f99fe8063::t_36bfa7f3a66845 4,5411-5414
+  s_bf847f99fe8063::t_bce41cd4a7a396 5415
+packages/engine/src/cdp/sqlite-memory.ts
+  s_bf847f99fe8063::t_3fa6e4ed20d363 1-36
+packages/page-script/src/shims.d.ts
+  s_bf847f99fe8063::t_36bfa7f3a66845 42
+packages/engine/src/cdp/target.ts
+  s_bf847f99fe8063::t_b194a8a58d73f2 18,189-190,239-241,331-335,431-433,915-979
+  s_bf847f99fe8063::t_beeacad510fd9e 980
+packages/engine/src/eval/page-script-host.ts
+  s_bf847f99fe8063::t_36bfa7f3a66845 38-39,44-54,60-62,66,95-96,112-123
+  s_bf847f99fe8063::t_e51724623bcf13 124
+packages/engine/src/cdp/kitesurf.ts
+  s_bf847f99fe8063::t_b194a8a58d73f2 25,537-539,544,559
+docs/STATEFUL_SESSIONS.md
+  s_bf847f99fe8063::t_1fa38a7e7dd6f2 148-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e956db2184146dcdf086bfa549c080f0abd5937b",
+  "prompts": {},
+  "sessions": {
+    "s_bf847f99fe8063": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f177050d8ffefiikrogdFB3Zzv",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,114 @@
+packages/engine/test/e2e/invalid-selector-throws.e2e.test.ts
+  s_19dcae60277223::t_0883df1c49b7c3 40-59
+packages/dom-shim/src/collections.ts
+  s_19dcae60277223::t_c57b4f8b0eca1c 3769
+  s_19dcae60277223::t_1769ef52b13e07 526-528
+  s_19dcae60277223::t_08dc58705f074e 471-472,480
+  s_19dcae60277223::t_ec5ade88e80a92 833,3294,3708,3722-3725,3727
+  s_19dcae60277223::t_2f84176d30912c 182-185,187-202,3825
+  s_19dcae60277223::t_2befd9dbc07df5 3824
+  s_19dcae60277223::t_e3690e4661fc04 11
+  s_19dcae60277223::t_5b9f79eefe0b00 38,549
+  s_19dcae60277223::t_bcae43a4d0c41f 550
+  s_19dcae60277223::t_55d84b8d1d6277 739-743,3675,3790-3795
+packages/dom-shim/src/element/element.ts
+  s_19dcae60277223::t_a8731fabaa6eb8 20,1216
+  s_19dcae60277223::t_6b48e333910cbb 18-19
+  s_19dcae60277223::t_e0aeffee97f629 1302,1421
+  s_19dcae60277223::t_9cddd5e83a4111 329-331
+  s_19dcae60277223::t_bf461fa11931a8 1875
+  s_19dcae60277223::t_9b874dffdcae95 1310,1314,1872
+packages/dom-shim/src/range.ts
+  s_19dcae60277223::t_930803bb6f058c 12,320,323,326,333-334,337,409-410,414,421-422,425,450-451,454,461-462,465
+  s_19dcae60277223::t_f9e0eb784230bc 13,29,279,289,573,901,909,993-994
+  s_19dcae60277223::t_7b6e6422bc197f 14
+  s_19dcae60277223::t_a8731fabaa6eb8 91,347-348,992
+  s_19dcae60277223::t_aa75df8818c97d 24
+  s_19dcae60277223::t_5b9f79eefe0b00 708
+  s_19dcae60277223::t_49335e9a166fd7 503-505
+  s_9dfd70098e6253::t_366d3dcbbb5ef6 1001-1003
+packages/dom-shim/src/element/shadow.ts
+  s_19dcae60277223::t_8da581be8a40e6 2-3,23,84
+  s_19dcae60277223::t_17e57b1c047c63 71,75
+  s_9dfd70098e6253::t_366d3dcbbb5ef6 72-74
+packages/dom-shim/src/document.ts
+  s_19dcae60277223::t_d59bb0a4b0e327 865,964,973,1000,1039
+  s_19dcae60277223::t_ac44950bedf2a7 1454,1462-1463
+  s_19dcae60277223::t_460140b6f24c7f 50,603-604,608-609
+  s_19dcae60277223::t_6d789b657b350f 173,564
+  s_19dcae60277223::t_e76675d0e63244 615,619,646,648,662-663,670-671,678-679,686-687,694-695
+  s_9dfd70098e6253::t_78e9626b3156c5 14
+packages/dom-shim/src/element/forms/form.ts
+  s_19dcae60277223::t_4b32a6c73496a1 394-395,406-407
+  s_19dcae60277223::t_4d64d1d8b0059b 44
+  s_19dcae60277223::t_6edbefd38e8378 100
+packages/dom-shim/src/element/html-tag.ts
+  s_19dcae60277223::t_460140b6f24c7f 19,24,28
+packages/dom-shim/strict-baseline.json
+  s_19dcae60277223::t_541688eef5c57c 2,8
+packages/dom-shim/src/element/load-events.ts
+  s_19dcae60277223::t_3b2aa394784cae 1
+  s_19dcae60277223::t_6edbefd38e8378 146
+packages/dom-shim/src/fastpath.ts
+  s_19dcae60277223::t_5b9f79eefe0b00 212
+  s_19dcae60277223::t_7b6e6422bc197f 24
+packages/page-script/src/types.ts
+  s_19dcae60277223::t_a9c3a5fe99d93f 32-34
+  s_19dcae60277223::t_775197c1519ddf 53
+  s_19dcae60277223::t_2bb5f7925fa570 42
+  s_19dcae60277223::t_a1b268593765a9 48
+packages/dom-shim/src/state.ts
+  s_19dcae60277223::t_dc80233000ae67 13-18,21-23,26-35,129-132,189-192,409-410,413,416-418,420,436-441,470,485-487,501-502,505,508,541,573-577,581,584,593-595,597-598,600-604
+  s_19dcae60277223::t_21b95ad03ba5fc 419
+  s_19dcae60277223::t_27ee22185f09ad 24,452-469
+  s_19dcae60277223::t_f9e0eb784230bc 429-432
+  s_19dcae60277223::t_541688eef5c57c 20,445-446
+  s_19dcae60277223::t_930803bb6f058c 36-43,45,421-428,433-435
+  s_19dcae60277223::t_7c3aa433848ccd 443-444,447-448,451
+  s_19dcae60277223::t_8da581be8a40e6 25,46,442,449-450
+packages/dom-shim/src/node-base.ts
+  s_19dcae60277223::t_a8731fabaa6eb8 1346
+  s_19dcae60277223::t_7b6e6422bc197f 918,1080-1081,1091-1092,2386-2387
+  s_19dcae60277223::t_7c3aa433848ccd 8,1050,2216,2223-2224,2336,2339
+  s_19dcae60277223::t_21b95ad03ba5fc 1052
+  s_19dcae60277223::t_2ff0af4fc59cfe 38,1029
+packages/dom-shim/src/element/table.ts
+  s_19dcae60277223::t_d2767268f0c61a 27-28,30-33,57,60,68
+  s_19dcae60277223::t_17e57b1c047c63 54
+  s_19dcae60277223::t_dcd1107aebadb2 1,29
+packages/dom-shim/src/registries.ts
+  s_19dcae60277223::t_dc80233000ae67 213,222,226-229,240
+  s_19dcae60277223::t_2c921742b016bc 8-16,218-219
+packages/dom-shim/src/element/forms/listed.ts
+  s_19dcae60277223::t_6edbefd38e8378 41
+packages/dom-shim/src/idl/type-gaps.json
+  s_19dcae60277223::t_d490b8dce9a159 90-94
+packages/dom-shim/src/idl/types.generated.ts
+  s_19dcae60277223::t_8e7a0917dca04a 2752
+packages/dom-shim/src/element/forms/select-options.ts
+  s_9dfd70098e6253::t_366d3dcbbb5ef6 1,17-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "48b458f8b86b177ad43c8aa90e7ee270356aa611",
+  "prompts": {},
+  "sessions": {
+    "s_19dcae60277223": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb5008010ffetjH3RwXgLAS3XT",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_9dfd70098e6253": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eac07b0abffeZGgpW9LtWY7xPB",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

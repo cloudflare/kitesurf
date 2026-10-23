@@ -1,0 +1,56 @@
+packages/dom-shim/src/mutations/observer.ts
+  s_315423d64a6ddb::t_0a4cb0deb0ffb1 295-310,314
+scripts/patches/stylo-0.19.0/0027-Preserve-products-around-non-distributive-math-funct.patch
+  s_315423d64a6ddb::t_51d0120cc4d2d6 9-13
+  s_315423d64a6ddb::t_73247a8d585230 1-8,14-44
+packages/page-script/src/globals.ts
+  s_315423d64a6ddb::t_0a4cb0deb0ffb1 4864
+  s_315423d64a6ddb::t_c297c5f870d891 4865
+scripts/patches/stylo-0.19.0/0028-Preserve-min-max-with-incompatible-NaN-units.patch
+  s_315423d64a6ddb::t_05bdb60966bb69 1-8,14-59
+  s_315423d64a6ddb::t_161d7443617623 9-13
+tests/wpt-expectations.json
+  s_315423d64a6ddb::t_c80ea400fd3c26 6118-6119,9953-9954,10427-10428,10508-10509,28369-28370,28373,28381
+  s_315423d64a6ddb::t_d5b5fc2d4f3b51 2045-2046
+scripts/patches/stylo-0.19.0/0029-Reject-mixed-units-outside-length-percentage-context.patch
+  s_315423d64a6ddb::t_00a6d27ab9597e 1-75
+packages/engine/test/e2e/wpt-regression-debt.e2e.test.ts
+  s_315423d64a6ddb::t_5dbcb4fba8b636 63-74,86,103-107
+  s_315423d64a6ddb::t_c202539e7cf358 24,26-45,77-79,93-94
+  s_315423d64a6ddb::t_07bb1b34562842 117
+  s_315423d64a6ddb::t_985d9f45026704 1-23,25,46-62,75-76,80-85,87-92,95-102,108-116,118-122,126-128,137
+  s_315423d64a6ddb::t_c297c5f870d891 123-124,129,131-136
+  s_315423d64a6ddb::t_4e40c56d882bd4 125,130
+packages/dom-shim/src/model-context.ts
+  s_315423d64a6ddb::t_d2d3df1e430ba3 656
+  s_315423d64a6ddb::t_0a4cb0deb0ffb1 29,36,291-302,407,441,443,463-466,471,479,485-499,574,583
+  s_315423d64a6ddb::t_c297c5f870d891 472-478,657-663
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_315423d64a6ddb::t_985d9f45026704 250-348
+packages/dom-shim/src/node-base.ts
+  s_315423d64a6ddb::t_4e40c56d882bd4 457-458,1928-1938,1944-1954
+  s_315423d64a6ddb::t_c297c5f870d891 1939-1943,1955-1960,1968-1971
+  s_315423d64a6ddb::t_0a4cb0deb0ffb1 54,1964-1967,2504-2515,2531-2533,2539
+packages/dom-shim/src/element.ts
+  s_315423d64a6ddb::t_0a4cb0deb0ffb1 641,643
+packages/page-script/src/defer-shim.ts
+  s_315423d64a6ddb::t_c297c5f870d891 425,429-439
+  s_315423d64a6ddb::t_0a4cb0deb0ffb1 418,420-424,440-443
+  s_315423d64a6ddb::t_4e40c56d882bd4 426-428
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8feed55312c156387c0ab196577a2a8f0a485be2",
+  "prompts": {},
+  "sessions": {
+    "s_315423d64a6ddb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fa89773b8ffeAqoEf6QScTTJQa",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

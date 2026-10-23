@@ -1,0 +1,25 @@
+packages/engine/test/e2e/grid-auto-row-content-size.e2e.test.ts
+  s_38e5d113e77939::t_bcc3c231ea47a5 1-51
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_38e5d113e77939::t_344aca33ac07f6 720-747
+  s_38e5d113e77939::t_68179a3b2eb4fb 1583-1584
+scripts/patches/taffy-0.12.2/0006-Cache-don-t-answer-block-axis-queries-with-horizonta.patch
+  s_38e5d113e77939::t_54feb7c9fb13c4 1-2,4-37,40-72
+  s_38e5d113e77939::t_b2740efda13240 3,38-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e27d886e8e048046daf420265f0e28237a70458b",
+  "prompts": {},
+  "sessions": {
+    "s_38e5d113e77939": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03c410cf0ffeYAbz22unE6l59y",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

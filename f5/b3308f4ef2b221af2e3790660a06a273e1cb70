@@ -1,0 +1,21 @@
+packages/dom-shim/src/document.ts
+  s_db62237ce9a445::t_dbaf2d16e34b28 1346-1355
+packages/engine/test/e2e/custom-element-attributes.e2e.test.ts
+  s_db62237ce9a445::t_591b5fbffda866 50-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f5b3308f4ef2b221af2e3790660a06a273e1cb70",
+  "prompts": {},
+  "sessions": {
+    "s_db62237ce9a445": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25d89749ffe1DHFSv3WId84ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

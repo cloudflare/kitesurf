@@ -1,0 +1,21 @@
+packages/engine/test/node/cookie-expiry.test.ts
+  s_059e99c81ea16a::t_76f19a818e93d2 1-59
+packages/engine/src/cookies.ts
+  s_059e99c81ea16a::t_c1507ad5f71538 17-18,429-430,432-438,441
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1007fdf1f6514d6b45bfd5f0c14472b0428db570",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

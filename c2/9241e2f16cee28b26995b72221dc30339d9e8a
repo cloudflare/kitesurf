@@ -1,0 +1,25 @@
+AGENTS.md
+  s_c95c49f27b7dd9::t_7083f34953f06c 43,64,137
+packages/engine/src/cdp-client.ts
+  s_c95c49f27b7dd9::t_5b6daf62d108e8 38,46-52,56,58,60,64,109-110
+packages/engine/src/cdp/types.ts
+  s_c95c49f27b7dd9::t_1470c8b0649641 17-63
+packages/engine/src/term-session.ts
+  s_c95c49f27b7dd9::t_d7aba59a0959e1 747-748,752,766,840,1030,1033,1210-1211,1216,1228,1230-1231,1251-1252,1258,1267,1270-1271,1301,1313,1317,1353,1360,1387,1422,1459,1472,1475,1491,1499-1501,1555,1568,1570,1596,1608
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c29241e2f16cee28b26995b72221dc30339d9e8a",
+  "prompts": {},
+  "sessions": {
+    "s_c95c49f27b7dd9": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "mr-workflow-author-cloudflare-brapi-kitesurf-303",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

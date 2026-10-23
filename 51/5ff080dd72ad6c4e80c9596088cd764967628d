@@ -1,0 +1,21 @@
+packages/website/src/pages/landing/Agents.tsx
+  s_c1a6940130844c::t_12400dad91a70a 22,70,87,112,136
+packages/engine/public/index.html
+  s_c1a6940130844c::t_12400dad91a70a 632,638,648-649,655,660,669,674
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "515ff080dd72ad6c4e80c9596088cd764967628d",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

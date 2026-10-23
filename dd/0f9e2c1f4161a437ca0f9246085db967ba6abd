@@ -1,0 +1,67 @@
+packages/core/src/tty_grid.rs
+  s_97e369e531e75f::t_23e6be192a2b14 154-727
+  s_1a92efd19a388c::t_25e03f5c08c364 1-153,728-1922
+packages/engine/src/cdp/page.ts
+  s_1a92efd19a388c::t_f355da03e8f3a5 12
+  s_1a92efd19a388c::t_80b17ae708241b 603-643,3259-3273
+packages/engine/src/tty/stylesheet.ts
+  s_1a92efd19a388c::t_f355da03e8f3a5 1-84
+Cargo.lock
+  s_1a92efd19a388c::t_cfc559d130cb9b 118-127,287,324,409,430-444,480-493,568,583-594,607-620,629-640,642,695,706,914,1326,1351-1356,1433-1454,1547-1548,1565,1665-1673,1681,1767,1817,1860,1876,1879-1884,2037,2050,2260-2291,2554,2728-2742,2749-2761,2771,2811-2812,2845,2848,2953-2963,2972,3007-3015,3022-3033,3044,3156,3159,3319-3329,3336-3347,3430,3455-3460,3528,3704,3716,3737,3757,3804,3815
+Cargo.toml
+  s_1a92efd19a388c::t_9f326bed7b3faa 94-100
+packages/core/Cargo.toml
+  s_1a92efd19a388c::t_b2a186c3bb8a45 17-35
+packages/core/src/fonts.rs
+  s_1a92efd19a388c::t_3ae92bcaba3e89 1449-1453,1659-1699
+packages/core/src/lib.rs
+  s_1a92efd19a388c::t_122e2fc5777a0b 69-78,473-543,961,1019,1034-1040,1225,1241-1246,6498,6501-6506,6555,6570
+packages/core/src/scene_replay.rs
+  s_1a92efd19a388c::t_42a2ae8a5670df 92-113,137,291,388,513
+packages/core/src/tty_ansi.rs
+  s_1a92efd19a388c::t_3eb63bb8de4416 1-149
+packages/core/src/tty_modes.rs
+  s_1a92efd19a388c::t_8f16b4c861e3d6 1-835
+packages/engine/src/cdp/types.ts
+  s_1a92efd19a388c::t_afc5d9414fb584 223-258
+packages/engine/src/eval/page-script.ts
+  s_1a92efd19a388c::t_4db117034d044d 335-347
+packages/page-script/src/font-loader.ts
+  s_1a92efd19a388c::t_10394110003964 519-543,568
+packages/page-script/src/globals.ts
+  s_1a92efd19a388c::t_fc5736c1f258e9 3157-3165
+packages/page-script/src/index.ts
+  s_1a92efd19a388c::t_ca970e07661e1b 136,235-237,1365-1387,1402-1439
+packages/page-script/src/wasm-glue.d.ts
+  s_1a92efd19a388c::t_45d10dac877f0f 217-231
+scripts/get-patched-vendor-crates.mjs
+  s_1a92efd19a388c::t_aad9c720d9d4f8 61
+scripts/patches/README.md
+  s_1a92efd19a388c::t_031c5228a5c564 88,126-129
+scripts/patches/ratatui-image-8.1.1/0001-Feature-gate-the-terminal-capability-query-behind-qu.patch
+  s_1a92efd19a388c::t_cec1abeca8fdf4 1-187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dd0f9e2c1f4161a437ca0f9246085db967ba6abd",
+  "prompts": {},
+  "sessions": {
+    "s_1a92efd19a388c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f34aa71c2ffepIc2qyDMMRcI4N",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    },
+    "s_97e369e531e75f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35286b34ffehIQ06dVcNrY6VD",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+packages/engine/test/e2e/incremental-shadow-insert.e2e.test.ts
+  s_74bdb8d7eb50dd::t_bbaa87faaea584 1-50
+scripts/patches/blitz-dom-0.3.0-beta.2/0102-kitesurf-propagate-damage-through-shadow-roots.patch
+  s_74bdb8d7eb50dd::t_7a681bacf8f824 1-26,28-29,31-32,40-45,48-64,66
+packages/engine/test/e2e/demos/absolute-path-transitive-demo.e2e.test.ts
+  s_4efb85c8268621::t_76466677c54f75 23-31,50
+packages/engine/src/eval/walk-module-graph.ts
+  s_4efb85c8268621::t_8e4a7778443e29 1125-1130
+  s_4efb85c8268621::t_76466677c54f75 1003,1044-1051,1124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6f31359e3e9c74c9708fa4ba943d8f2597066ba8",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_55a8e0ddb72b43": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fdc0043a3ffeAuozU0SOnYw1DO",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_74bdb8d7eb50dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0047be798ffeo63pr3eHm9deOh",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

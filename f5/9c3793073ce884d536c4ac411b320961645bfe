@@ -1,0 +1,19 @@
+docs/DOM_SHIM.md
+  s_02150bead85cd9::t_9d7d31bbede268 67-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f59c3793073ce884d536c4ac411b320961645bfe",
+  "prompts": {},
+  "sessions": {
+    "s_02150bead85cd9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2c0a441cffeNWhALKFxzso34h",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

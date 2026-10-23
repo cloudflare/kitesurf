@@ -1,0 +1,97 @@
+packages/page-script/src/state.ts
+  s_75d678c932972d::t_9fecc2b1e292bf 67-72,125
+packages/page-script/src/index.ts
+  s_75d678c932972d::t_9fecc2b1e292bf 1265
+  s_75d678c932972d::t_669444d0daa188 4016-4017,4037-4041,4046-4050,4052-4054,4066,4075,4091,4121-4124,4136
+packages/dom-shim/src/element.ts
+  s_75d678c932972d::t_cd64c48bc77e16 7477
+  s_75d678c932972d::t_9fecc2b1e292bf 715-722,835-840,6672-6844,6846-6929
+  s_75d678c932972d::t_7b05add372e0db 6930
+  s_75d678c932972d::t_d3c6d06d91fb99 7467,7478-7513,7525-7568
+  s_75d678c932972d::t_b331f9902b90f4 7569
+  s_75d678c932972d::t_1828c1cee5aea8 7514-7524
+packages/dom-shim/src/index.ts
+  s_75d678c932972d::t_9fecc2b1e292bf 150,1219-1224
+packages/page-script/src/resource-fetch.ts
+  s_75d678c932972d::t_9fecc2b1e292bf 208-233,239,243,299,308-317
+packages/core/src/lib.rs
+  s_75d678c932972d::t_9fecc2b1e292bf 3414-3435,3478-3518,3521-3530
+  s_75d678c932972d::t_bf9eea98f4ff7b 3453-3454,3463-3467
+  s_d264cf1778372b::t_ca423360f27581 2914-2921
+tests/wpt-tests.json
+  s_75d678c932972d::t_9fecc2b1e292bf 3086,3087
+packages/dom-shim/src/events/dispatch.ts
+  s_75d678c932972d::t_9fecc2b1e292bf 286-305
+scripts/patches/blitz-dom-0.3.0-beta.1/0001-Kitesurf-baseline-inline-decorations-layout-and-robu.patch
+  s_75d678c932972d::t_9fecc2b1e292bf 43-44,58-59,168-197,335-336,375-376,453-454,605-609,648-649,653,654-670,678-679,681-682,1013-1023,1308,1314,1382,1385,1388-1389,1561-1562,1583-1584,1707-1708
+  s_75d678c932972d::t_084128a31304df 610-633,635,637-638,643-645
+  s_75d678c932972d::t_ea6388bffde128 198,318-324,326-332,390,395,397-420
+tests/wpt-expectations.json
+  s_75d678c932972d::t_9fecc2b1e292bf 11307-11318
+  s_75d678c932972d::t_b8828caf3300bb 9749,9753,9757
+scripts/patches/parley-0.10.0/0001-Add-inline-span-box-decorations-to-text-layout.patch
+  s_75d678c932972d::t_9f053292ffde39 1063-1081,1083-1096
+  s_75d678c932972d::t_220633e1e04ac9 38-39,41-42,44-56,58-59,415-429,431-438,464,513-524,676-687
+  s_75d678c932972d::t_ea6388bffde128 327-328,330-343,594-595,597-608,658-674,890-900
+scripts/patches/blitz-paint-0.3.0-beta.1/0001-Kitesurf-baseline-span-decorations-canvas-background.patch
+  s_75d678c932972d::t_a6b2a221109f6f 282-283
+  s_75d678c932972d::t_dcb81042c06f57 215-216,218-224,226-245,247-279,284-320,322-330
+packages/engine/src/cdp/page.ts
+  s_75d678c932972d::t_794bc6d000ab31 1002-1006,1018,1033-1034,1037
+  s_75d678c932972d::t_601aa28beb1721 1331,1355
+scripts/patches/taffy-0.12.2/0001-Fix-BFC-float-coordinates-propagate-block-first-base.patch
+  s_75d678c932972d::t_8b39d1ac197c01 206-207,209-233
+  s_75d678c932972d::t_ea6388bffde128 32-33,36,38-44,47-48,50-60,62-69,71-79,184-190,192-193,196-203
+research/rbi-scene-streaming-plan.md
+  s_73a272ea435601::t_316e71965ef067 1-3,5-6,8-264
+  s_0d774ef1069d39::t_248541b378baeb 4
+  s_0d774ef1069d39::t_c7c494683dec76 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a18c3e6670c587c964d1d9549744a42453c07483",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_73a272ea435601": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_087771c76ffehEIwtVGP4yDXHt",
+        "model": "claude-fable-5"
+      },
+      "human_author": null
+    },
+    "s_75d678c932972d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_084579337ffepy28AOdVrayge7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_d264cf1778372b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_08d773743ffedu4ERuZ9uK2OxJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_d34d2db4ddfc87": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_09285590bffemRF4ADpyaoiQYK",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

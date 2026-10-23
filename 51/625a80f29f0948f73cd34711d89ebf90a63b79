@@ -1,0 +1,35 @@
+scripts/patches/taffy-0.14.0/0014-Fix-absolute-auto-margins-after-max-size-clamp.patch
+  s_0b62245bd53100::t_171deb29f3da2e 1-36
+packages/core/src/transform_2d_subset_test.rs
+  s_0b62245bd53100::t_032ba2a0e3bfcb 60-63
+  s_0b62245bd53100::t_442f0372cb28b8 48
+  s_0b62245bd53100::t_2ac3dc9e9ef31c 49-59,64-65
+packages/core/src/lib.rs
+  s_0b62245bd53100::t_0174724d6dcbea 6634
+  s_0b62245bd53100::t_5f75d2cb149a0e 6632
+  s_0b62245bd53100::t_9fab078d9913db 6578,6608-6609,6614,6624-6625
+  s_0b62245bd53100::t_adfb8f98a34a4c 6689-6693
+  s_0b62245bd53100::t_0518025f049bc6 6657,6661-6662,6664-6665
+  s_0b62245bd53100::t_e9708e5d1e0c2d 6607,6610-6613,6615-6623,6626-6631
+  s_0b62245bd53100::t_2ac3dc9e9ef31c 6633,6635-6656,6658-6660,6663,6666-6688,6694,6698
+  s_0b62245bd53100::t_de4747c1e9d8a4 3176-3178,4028,6579-6580,6695-6697
+packages/core/src/abspos_containing_block_test.rs
+  s_0b62245bd53100::t_c37ccb29b269cd 101
+  s_0b62245bd53100::t_db5c0901a72497 102-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "51625a80f29f0948f73cd34711d89ebf90a63b79",
+  "prompts": {},
+  "sessions": {
+    "s_0b62245bd53100": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb909e891ffeOysb1haJ2cDJYI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

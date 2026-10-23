@@ -1,0 +1,37 @@
+.envrc
+  s_8e99f83297903a::t_833fea1ee5f8a6 1-6
+.githooks/post-checkout
+  s_8e99f83297903a::t_d514e3df715674 1,6,8-13,15-20,22-26
+  s_8e99f83297903a::t_07632ab53ab046 2-5,7,14,21,27
+packages/engine/package.json
+  s_8e99f83297903a::t_6dbc4378318ed2 8-10
+packages/wpt-report/package.json
+  s_8e99f83297903a::t_6d8baa5421953a 8
+scripts/dev-ports.sh
+  s_8e99f83297903a::t_447ec84eb7a68a 1-42
+package.json
+  s_8e99f83297903a::t_df1fbafb06e506 8
+tests/interactivity-flows/spawn-relay.mjs
+  s_8e99f83297903a::t_2671d738162821 21
+  s_8e99f83297903a::t_34a9bb6fcd8d66 48
+  s_8e99f83297903a::t_3d12ac94273168 12-16
+  s_8e99f83297903a::t_83228c6de87c46 31
+packages/bench-report/package.json
+  s_8e99f83297903a::t_599d0b58e78d17 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fac889909f95764272fc4e73634fd6bf063cf38f",
+  "prompts": {},
+  "sessions": {
+    "s_8e99f83297903a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0588efc5affeYx90eKdzztJ0rK",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

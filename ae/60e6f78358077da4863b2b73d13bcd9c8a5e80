@@ -1,0 +1,23 @@
+packages/engine/test/rbi-resource-batch.test.ts
+  s_8dc62bd8441313::t_3da53316dc4106 2,16
+packages/engine/src/eval/resource-store.ts
+  s_8dc62bd8441313::t_1d249579e8a98e 33
+packages/engine/src/rbi-protocol.ts
+  s_8dc62bd8441313::t_b100cf88a635bb 44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ae60e6f78358077da4863b2b73d13bcd9c8a5e80",
+  "prompts": {},
+  "sessions": {
+    "s_8dc62bd8441313": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_004487024ffeR4XvwRtJw9vlsH",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

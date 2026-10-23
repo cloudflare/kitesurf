@@ -1,0 +1,23 @@
+packages/engine/test/e2e/native-import-map.e2e.test.ts
+  s_a75ea28c7345c6::t_7c71dcfb8d9aa4 1-84
+packages/engine/test/fixtures-worker/assets/importmap.html
+  s_a75ea28c7345c6::t_343d49ff5a18fe 1-120
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_a75ea28c7345c6::t_a7423f8feefe44 678-679,1395-1396,1433-1438,3115-3143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "207ac039a2abefa16e9b49191d9478afa6f4ba3f",
+  "prompts": {},
+  "sessions": {
+    "s_a75ea28c7345c6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6ba347d1ffeBXm6VNFbnPDneO",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

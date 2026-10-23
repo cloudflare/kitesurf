@@ -1,0 +1,77 @@
+packages/engine/test/e2e/stateful-session.e2e.test.ts
+  s_bf847f99fe8063::t_99b1ee5a243601 146-152,157-235,272-273
+  s_bf847f99fe8063::t_8d337c2e9df7d1 153-156
+  s_bf847f99fe8063::t_677ba313a3f562 20-21,236-271,274-275
+  s_bf847f99fe8063::t_4c741647c34d28 276
+AGENTS.md
+  s_bf847f99fe8063::t_c728bdc0c533a1 167-173
+packages/engine/src/cdp/runtime.ts
+  s_bf847f99fe8063::t_3b2fc5606e0bcb 635
+packages/engine/src/cdp/types.ts
+  s_bf847f99fe8063::t_3969944b13967d 16,219,268
+  s_bf847f99fe8063::t_3b2fc5606e0bcb 838-840,1055-1058
+  s_bf847f99fe8063::t_20555dc05e67f7 190-193
+packages/engine/src/cdp/network-events.ts
+  s_bf847f99fe8063::t_4ac01184acf323 208-214,1043-1046,1074-1077,1097,1122,1138-1142,1175-1177,1179-1180
+  s_bf847f99fe8063::t_978ccdb98e929e 87-89,91-92,134-161,200-206,378,382,453-454,458-460,658-661,739,761,994,1019-1021,1023,1037,1040,1057,1072-1073,1080,1082,1086-1090,1093,1096,1098,1116-1117,1124,1146
+  s_bf847f99fe8063::t_908cbb3fac13a2 12-16
+  s_bf847f99fe8063::t_bf7107d039c961 457,656,725,989,1018,1028-1036,1123
+  s_bf847f99fe8063::t_e8fa812750428d 445-449,451-452,455-456
+  s_bf847f99fe8063::t_ca64b0ddd3c016 1038
+packages/engine/src/state/outbound-forward.ts
+  s_bf847f99fe8063::t_00b981a0e48442 1-42,46-59,61-67
+  s_bf847f99fe8063::t_ffae4e33713c25 43-45,60
+packages/engine/src/eval/outbound.ts
+  s_bf847f99fe8063::t_1678cce059d7e3 151-156,551-552,561,593-599
+  s_bf847f99fe8063::t_948b91ecba7d8f 2202-2210
+  s_bf847f99fe8063::t_f249d5ee95cfa6 74
+  s_bf847f99fe8063::t_60cf0d92f99281 150
+packages/engine/src/cdp/debugger.ts
+  s_bf847f99fe8063::t_3b2fc5606e0bcb 36,43,80-81
+packages/engine/src/cdp/page.ts
+  s_bf847f99fe8063::t_7fc88368438b03 141
+  s_bf847f99fe8063::t_edbdccfcb1c6c0 3765
+  s_bf847f99fe8063::t_3969944b13967d 7902
+  s_bf847f99fe8063::t_3b2fc5606e0bcb 2775,3775
+packages/engine/src/cookies.ts
+  s_bf847f99fe8063::t_07c64847862ab8 54,162-168,171-172,705,736
+packages/engine/test/target-close.test.ts
+  s_bf847f99fe8063::t_87897f27bc2692 11,17
+docs/STATEFUL_SESSIONS.md
+  s_bf847f99fe8063::t_c728bdc0c533a1 47-50,82-122
+  s_bf847f99fe8063::t_d280f3ab2c0ba1 123
+packages/engine/test/node/network-events-store.test.ts
+  s_bf847f99fe8063::t_fb54ec19e2a2ef 1-74
+packages/engine/src/cdp/connection.ts
+  s_bf847f99fe8063::t_f249d5ee95cfa6 279-281,431
+  s_bf847f99fe8063::t_3969944b13967d 442,455
+  s_bf847f99fe8063::t_56955ae9fa1e26 51-54,412-413
+  s_bf847f99fe8063::t_891c2de32cd5e0 416
+  s_bf847f99fe8063::t_20555dc05e67f7 81-84,276-278,375,379,426
+packages/engine/src/cdp/target.ts
+  s_bf847f99fe8063::t_3b2fc5606e0bcb 30-36,465,594-595,623,631-634,642,684
+  s_bf847f99fe8063::t_ffae4e33713c25 635-641
+  s_bf847f99fe8063::t_891c2de32cd5e0 230,247
+packages/engine/src/eval/resource-store.ts
+  s_bf847f99fe8063::t_56955ae9fa1e26 25-32,119-204,259-263,370-372,383,395-396,409-410
+packages/engine/src/stateful.ts
+  s_bf847f99fe8063::t_edaa1343e12bcb 23-29,184,247-253
+  s_bf847f99fe8063::t_14134823deed59 18-22,39-44,146,170,178-179,183,197-198,230-242
+  s_bf847f99fe8063::t_e77ec5399983cc 243-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1e7a3f223dfe8a53eec9ab4ed979a35b5dcd383b",
+  "prompts": {},
+  "sessions": {
+    "s_bf847f99fe8063": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f177050d8ffefiikrogdFB3Zzv",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

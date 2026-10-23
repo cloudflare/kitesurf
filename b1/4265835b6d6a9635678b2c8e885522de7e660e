@@ -1,0 +1,28 @@
+packages/page-script/src/__ks_startup_probe_input.d.ts
+  s_a0b8912ece8d4a::t_ed68eccce27192 54
+packages/engine/src/cdp/page.ts
+  s_a0b8912ece8d4a::t_e97d22d19544c5 2820-2822
+  s_a0b8912ece8d4a::t_ed68eccce27192 2823-2824
+packages/engine/src/eval/page-script.ts
+  s_a0b8912ece8d4a::t_ed68eccce27192 779-784,787-796,989-991,1015
+packages/page-script/src/startup-probe.ts
+  s_a0b8912ece8d4a::t_ed68eccce27192 13,91
+docs/SCRIPT_GATE.md
+  s_a0b8912ece8d4a::t_cb95f8971fde2f 88-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b14265835b6d6a9635678b2c8e885522de7e660e",
+  "prompts": {},
+  "sessions": {
+    "s_a0b8912ece8d4a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fda1f59d5ffeO6vEx11OvHt0jo",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+docs/PLATFORM.md
+  s_10983435de8607::t_c4b244a3c12c53 6-10
+docs/WORKERD_LIMITS.md
+  s_10983435de8607::t_c7cb861d4e06e8 1
+  s_10983435de8607::t_6a4183853cc697 120-122
+  s_10983435de8607::t_058b8d98fbb7d6 16
+  s_10983435de8607::t_0ef630cec13bc9 2-15,17-119,123-126,137-139,146-333
+  s_10983435de8607::t_a0a9f87ba87001 127-136,140-145
+AGENTS.md
+  s_10983435de8607::t_75024b3f8c0fa7 246
+  s_10983435de8607::t_8567d9ab311e92 245,247-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0ea13d7cd9ef17d345c7e6075a17ede8d1890ca3",
+  "prompts": {},
+  "sessions": {
+    "s_10983435de8607": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_013e2c995ffeHSUx3p7ZWifSNi",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}

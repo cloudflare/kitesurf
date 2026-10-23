@@ -1,0 +1,19 @@
+.gitlab/ci/kitesurf-oss.gitlab-ci.yml
+  s_4ba79f911c93c4::t_a50329b6743819 1-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eac5998427798a49705b2b90796200c79b6e4031",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

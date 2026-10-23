@@ -1,0 +1,41 @@
+packages/core/src/tty_cell_grid_test.rs
+  s_1c957943e307aa::t_66c22285b98c2a 44-45,59-63,114-118,161-164,194-203,255-259,268-272,281-284,318,366-369,374,410-412,416-418,421-430,438-440,444-446,454-648,655,666,672-675,678,746-878
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-Honor-vertical-alignment-inside-table-cells.patch
+  s_1c957943e307aa::t_a08daf87cae61c 1-120
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Align-table-tracks-to-their-final-paint-origin.patch
+  s_1c957943e307aa::t_a08daf87cae61c 1-70
+scripts/patches/blitz-paint-0.3.0-beta.2/0032-Align-table-row-backgrounds-with-paint-tracks.patch
+  s_1c957943e307aa::t_a08daf87cae61c 1-44
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Account-for-table-ancestors-when-snapping-tracks.patch
+  s_1c957943e307aa::t_a08daf87cae61c 1-71
+scripts/patches/blitz-dom-0.3.0-beta.2/0131-Retain-raw-table-tracks-across-terminal-reflow.patch
+  s_1c957943e307aa::t_a08daf87cae61c 1-68
+scripts/patches/blitz-paint-0.3.0-beta.2/0030-Keep-collapsed-borders-when-terminal-tracks-collapse.patch
+  s_1c957943e307aa::t_a08daf87cae61c 1-89
+packages/core/src/tty_grid.rs
+  s_1c957943e307aa::t_66c22285b98c2a 189-192,233,455-463,486,507,512-538,543-564,652,825-829,882,901,914,946-949,963,986-990,1718-1815,1874-1915
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-Snap-terminal-table-tracks-with-cell-layout.patch
+  s_1c957943e307aa::t_a08daf87cae61c 1-100
+scripts/patches/blitz-paint-0.3.0-beta.2/0031-Paint-tables-from-adjusted-track-geometry.patch
+  s_1c957943e307aa::t_a08daf87cae61c 1-42
+scripts/patches/blitz-paint-0.3.0-beta.2/0033-Cover-the-leading-table-track-gutter.patch
+  s_1c957943e307aa::t_a08daf87cae61c 1-36
+scripts/patches/blitz-paint-0.3.0-beta.2/0029-Paint-table-cell-text-at-its-aligned-offset.patch
+  s_1c957943e307aa::t_a08daf87cae61c 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6fee65efd72652e4008d432e745b8414d2da089a",
+  "prompts": {},
+  "sessions": {
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

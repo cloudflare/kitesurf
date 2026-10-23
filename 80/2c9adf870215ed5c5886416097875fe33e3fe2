@@ -1,0 +1,19 @@
+packages/engine/test/e2e/intersection-observer.e2e.test.ts
+  s_4ba79f911c93c4::t_825dce1f7c6ba0 75-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "802c9adf870215ed5c5886416097875fe33e3fe2",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

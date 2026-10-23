@@ -1,0 +1,21 @@
+opencode.json
+  s_df9367b63ba15b::t_562da20a8699fa 1-11
+AGENTS.md
+  s_df9367b63ba15b::t_723a5e7bac2783 499-507
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "32b9559e97171a6a6c5f865b811aad3100202fcb",
+  "prompts": {},
+  "sessions": {
+    "s_df9367b63ba15b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06fb4be9dffeFQ12et1a0XBVG8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

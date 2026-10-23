@@ -1,0 +1,19 @@
+packages/engine/test/e2e/bridge-fn-name.e2e.test.ts
+  s_9e39f1f9c12a70::t_ff0c2e18c87fe7 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e0ab7e24969343734c6c0dcc3c3af777f103d033",
+  "prompts": {},
+  "sessions": {
+    "s_9e39f1f9c12a70": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff31f83bcffeJEBTKL5xdq6pMC",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

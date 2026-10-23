@@ -1,0 +1,25 @@
+packages/page-script/src/eval-helpers.ts
+  s_2888e303774634::t_3024295eaac54a 663,774-775,805
+packages/engine/src/eval/cors.ts
+  s_2888e303774634::t_3024295eaac54a 456,458-459,461-465
+  s_2888e303774634::t_7e9a9800283a99 457,460
+packages/engine/test/cors.test.ts
+  s_2888e303774634::t_7e9a9800283a99 394-396,398
+  s_2888e303774634::t_cedd90b5555300 393,397,399-414
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c04db9d60c4cb3bc78e4331f8d98a1cf2eed69b2",
+  "prompts": {},
+  "sessions": {
+    "s_2888e303774634": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_04ac509e6ffeBxuy850Iz6Abx0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

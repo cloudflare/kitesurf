@@ -1,0 +1,28 @@
+packages/engine-cf/src/index.ts
+  s_4ba79f911c93c4::t_ceb3ba2fd05b5c 13-18,61-67,69
+packages/engine-cf/src/ready-analytics.ts
+  s_4ba79f911c93c4::t_6cd5e7ad1f73e7 113
+packages/engine-cf/test/unit/ready-analytics.test.ts
+  s_4ba79f911c93c4::t_f317ab236fcfe4 1-81
+  s_4ba79f911c93c4::t_27d6bfc7ce1b66 82-92
+packages/engine-cf/src/sentry.ts
+  s_4ba79f911c93c4::t_923510b34f252b 139-142,181-185,207-208,230-233,238-241
+packages/engine-cf/test/unit/sentry-tail.test.ts
+  s_4ba79f911c93c4::t_e8ffa16f77e597 121-135,140,153-157,159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d44c1287775c9ff25e126845f728561076cd687f",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

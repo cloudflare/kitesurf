@@ -1,0 +1,61 @@
+packages/core/src/lib.rs
+  s_0d774ef1069d39::t_8913deb105d793 303-309,311-315,317-321
+  s_0d774ef1069d39::t_ac92bdd5782b46 530
+  s_0d774ef1069d39::t_8d77e3f03afed3 3283-3287,3307-3315,3323-3326,3328-3369,3372-3381
+  s_0d774ef1069d39::t_f7fd513affa4dd 3464-3470
+packages/core/src/scene_decode.rs
+  s_0d774ef1069d39::t_e82abc2d1f45f7 1038,1124,1194,1255
+packages/rbi-client/src/wire.ts
+  s_0d774ef1069d39::t_00553dd13e39fc 14
+  s_0d774ef1069d39::t_714f9658ae3fc7 134,152,169-170,174-204
+  s_0d774ef1069d39::t_fe90e4dd8f03eb 102-106
+packages/page-script/src/index.ts
+  s_0d774ef1069d39::t_2990396adca388 4446-4453,4455-4456,4459,4462,4466,4469-4470,4474,4476,4478,4480,4482
+packages/rbi-client/src/frame.ts
+  s_0d774ef1069d39::t_f86160e20ecc97 1-9,11-26
+packages/core/src/scene_record.rs
+  s_0d774ef1069d39::t_d05d66d68987f4 23-49,65
+  s_0d774ef1069d39::t_c862c4046883c0 216-220
+  s_0d774ef1069d39::t_09c2ce79972f7a 365-371,373-384,386-387,389,392-393,417,421,436-440,455-475
+  s_0d774ef1069d39::t_fae4c9a0adf336 189-194
+  s_0d774ef1069d39::t_d91c8a6608ef65 476-478
+packages/engine/src/cdp/kitesurf.ts
+  s_0d774ef1069d39::t_8edb4b7698e579 615-623,632,634-642
+packages/rbi-client/src/painter.ts
+  s_0d774ef1069d39::t_26df382d4c51db 67
+  s_0d774ef1069d39::t_07b84749e0be3a 11
+  s_0d774ef1069d39::t_22945ee8e97b65 335-339,350-369
+  s_0d774ef1069d39::t_663c941cf7426d 14-23
+  s_0d774ef1069d39::t_acd65bbc049c83 69-86,88,92-165,167-169,171-174,176-177,179,181-202,211-214,216-217
+  s_0d774ef1069d39::t_93fd2ecc236954 24
+  s_0d774ef1069d39::t_b325bdd2e0dfda 68
+packages/rbi-client/src/index.ts
+  s_0d774ef1069d39::t_ca91e3fe98e82f 12-13
+  s_0d774ef1069d39::t_8840b04ccb1a39 55-67
+packages/engine/src/rbi.ts
+  s_0d774ef1069d39::t_0863f57f22d7b6 35
+  s_0d774ef1069d39::t_f9dfa47d6bc959 157,160-163,165-166,169-172,176-177,179,183-185
+  s_0d774ef1069d39::t_4b621f2c4e9155 186,442-443,445-448,450-453,455,459,461,464-468,472-512
+  s_0d774ef1069d39::t_78ddf0d5ee01cb 64-66
+  s_0d774ef1069d39::t_aaa4555c69d593 218-219,221
+  s_0d774ef1069d39::t_33f623e7fc89f4 2-3,9-10,14-34,36-44
+  s_0d774ef1069d39::t_4faa0230b964eb 245
+  s_0d774ef1069d39::t_baff27ea34dce0 323-326
+  s_0d774ef1069d39::t_9d77ba11821791 513-514
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1c914a3e8961d9c6a3d8163c206a98892e238dcd",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+packages/engine/test/e2e/layout-test-helpers.ts
+  s_4ba79f911c93c4::t_7c72087cace41d 1-20
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_9b43dccbbc0129 1-4,6-95,104,111,118,125
+  s_4ba79f911c93c4::t_b42ef530c81784 103,110,117,124,131
+  s_4ba79f911c93c4::t_8d3e91de918c03 98-102,107-109,114-116,121-123,128-130
+  s_4ba79f911c93c4::t_e3ce941a5db499 96-97,105-106,112-113,119-120,126-127
+  s_4ba79f911c93c4::t_84569a9bb4f440 5
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_e3ce941a5db499 4-61,70-72,81-83,100-102,118-120,130-132
+  s_4ba79f911c93c4::t_8d3e91de918c03 62-68,73-79,84-98,103-116,121-128,133-145
+  s_4ba79f911c93c4::t_b42ef530c81784 69,80,99,117,129,146
+  s_4ba79f911c93c4::t_96d0d8162ecd73 1-3
+packages/engine/test/e2e/float-layout-regressions.e2e.test.ts
+  s_4ba79f911c93c4::t_568e7249fe4ecb 1-3,5-63
+  s_4ba79f911c93c4::t_8d3e91de918c03 66-78,83-88,93-98,103
+  s_4ba79f911c93c4::t_e3ce941a5db499 4,64-65,80-82,90-92,100-102
+  s_4ba79f911c93c4::t_b42ef530c81784 79,89,99,104
+packages/core/src/sticky_reset_test.rs
+  s_4ba79f911c93c4::t_ee0b94466bf66c 1
+packages/engine/test/e2e/global-setup.ts
+  s_4ba79f911c93c4::t_1f2d43fab8a27b 21,41-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1bdb82f0468c66e0835ba79fd12ed0462644bd51",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

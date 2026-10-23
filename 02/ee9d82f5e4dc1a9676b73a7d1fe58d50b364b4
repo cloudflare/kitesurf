@@ -1,0 +1,19 @@
+packages/page-script/src/globals.ts
+  s_b8011a7530370a::t_8d38ef18f4399b 2394-2413
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "02ee9d82f5e4dc1a9676b73a7d1fe58d50b364b4",
+  "prompts": {},
+  "sessions": {
+    "s_b8011a7530370a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05fbbb548ffeT7rpcQI10MbBge",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

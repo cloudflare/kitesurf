@@ -1,0 +1,37 @@
+turbo.json
+  s_c13e10de15d2aa::t_fdd56e6807b1fe 16-17
+package.json
+  s_c13e10de15d2aa::t_b7073926cdf5fd 34
+packages/scene-client/scripts/build.mjs
+  s_c13e10de15d2aa::t_833514f8558f2f 59-61,108
+  s_c13e10de15d2aa::t_e6163d70777015 89
+  s_c13e10de15d2aa::t_961261d7ff1386 73,86-87,102,105-107,110,125,129
+  s_c13e10de15d2aa::t_b7073926cdf5fd 53-57,88,91-101,126-127,145,164-166
+  s_ef26f8dd06f5df::t_06c6b5467b2193 90
+.gitlab-ci.yml
+  s_c13e10de15d2aa::t_3b36eecbf7d063 756-758
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "91a8bca37c95920eca69aee9f85e48ea44351296",
+  "prompts": {},
+  "sessions": {
+    "s_c13e10de15d2aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3b3bd5f4ffe5IhgOyyuxAdZ7g",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_ef26f8dd06f5df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3be04914ffe7HHtOkszWCc5pa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

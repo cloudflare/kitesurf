@@ -1,0 +1,78 @@
+packages/engine/test/e2e/text-fill-color.e2e.test.ts
+  s_f19c180209e8f6::t_2cdafe4553cd6b 33,44,80,102-103
+scripts/patches/blitz-paint-0.3.0-beta.2/0025-paint-keep-text-visible-when-gradient-clipping-is-un.patch
+  s_f19c180209e8f6::t_4d4db5087fa278 1-44
+scripts/patches/parley-0.11.1/0007-Support-middle-aligned-inline-boxes-beep-boop.patch
+  s_f19c180209e8f6::t_0cb50da40e2d55 1-123
+packages/engine/test/e2e/navigator-send-beacon.e2e.test.ts
+  s_f19c180209e8f6::t_dabf95a74713d6 1-24
+scripts/patches/taffy-0.14.0/0006-Block-omit-cyclic-percentage-content-contributions-b.patch
+  s_f19c180209e8f6::t_b675d6c4e845ea 1-86
+scripts/patches/blitz-dom-0.3.0-beta.2/0123-Restyle-after-container-layout-beep-boop.patch
+  s_f19c180209e8f6::t_c8c4321e825e59 1-52
+packages/engine/test/e2e/container-queries.e2e.test.ts
+  s_f19c180209e8f6::t_a6135f7711e79d 1-48
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Pass-inline-alignment-and-x-height-to-Parley-beep-bo.patch
+  s_f19c180209e8f6::t_4cb0097d356759 1-221
+scripts/patches/taffy-0.14.0/0007-Flexbox-recollect-lines-after-content-sizing-beep-bo.patch
+  s_f19c180209e8f6::t_e9692f956f95e6 1-91
+packages/engine/test/e2e/inline-svg-vertical-align.e2e.test.ts
+  s_f19c180209e8f6::t_cb2c7942df27f3 1-10,12,17,22-24,30-31,36
+  s_f19c180209e8f6::t_3738c505da13b3 20
+  s_f19c180209e8f6::t_0b017a66153538 16,21,25
+  s_f19c180209e8f6::t_23f8494a9c9676 35
+  s_f19c180209e8f6::t_70a2ab770f9f97 11,13-15,18-19,26-29,32-34
+scripts/patches/stylo-0.20.0/0030-Enable-container-queries-in-Servo-beep-boop.patch
+  s_f19c180209e8f6::t_b2f82c0cb3e15f 1-68
+packages/engine/test/e2e/html/text-fill-color.html
+  s_f19c180209e8f6::t_5a4460d72395c3 17-24
+  s_f19c180209e8f6::t_2cdafe4553cd6b 30
+packages/engine/test/e2e/flex-svg-intrinsic.e2e.test.ts
+  s_f19c180209e8f6::t_0d3b6469931a02 91,94,96,98
+  s_f19c180209e8f6::t_4948f63dc14edc 90,105
+  s_f19c180209e8f6::t_a8cb1d99528159 31-39,111-116
+  s_f19c180209e8f6::t_b0f7986c0f016f 106-107
+  s_f19c180209e8f6::t_6349584659c022 44-54,61-65,68-70,72,77-80
+  s_f19c180209e8f6::t_2189639b6fb557 55
+  s_f19c180209e8f6::t_f3f5287740149a 1-20,22-30,40-43
+  s_f19c180209e8f6::t_3c9a4caf90059b 59
+  s_f19c180209e8f6::t_6677dc9e86364e 60
+  s_f19c180209e8f6::t_8b691e5a4c5339 95,100
+  s_f19c180209e8f6::t_97dde4494a47ef 56-58
+  s_f19c180209e8f6::t_dbf59e01e7e74d 81-89,92-93,99,101-104,108-110,117-120
+  s_f19c180209e8f6::t_2e9f263369395f 21
+  s_f19c180209e8f6::t_e56d7247ee5e0e 66-67
+  s_f19c180209e8f6::t_a0c41f5bdaa768 71
+  s_f19c180209e8f6::t_6a275847a896d7 73-76
+  s_f19c180209e8f6::t_34dd81451481ac 97
+packages/dom-shim/src/window.ts
+  s_f19c180209e8f6::t_cb4033a4204807 619
+  s_f19c180209e8f6::t_dabf95a74713d6 617-618
+packages/core/src/radar_grid_repro_test.rs
+  s_f19c180209e8f6::t_c34864e59ce782 134
+  s_f19c180209e8f6::t_3a5f8243c2a3e3 27-30,116-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dc3270db7b0d25c922adf9ece51b3b0503343517",
+  "prompts": {},
+  "sessions": {
+    "s_b293447b6a89d5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f60896286ffe4DwWsp8rOJfbPw",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

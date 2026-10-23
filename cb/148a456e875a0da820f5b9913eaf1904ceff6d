@@ -1,0 +1,20 @@
+packages/engine/test/e2e/inline-visibility-hidden.e2e.test.ts
+  s_e9182bdddd53f2::t_e031abf1061226 48-52
+  s_e9182bdddd53f2::t_a3a984bc4362bb 27-31,35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cb148a456e875a0da820f5b9913eaf1904ceff6d",
+  "prompts": {},
+  "sessions": {
+    "s_e9182bdddd53f2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee38bf00affe3IUdl0t5xAGtRi",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

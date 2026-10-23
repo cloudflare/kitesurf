@@ -1,0 +1,35 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_dfd792beae87ba::t_0b743bdbb0cea4 4719-4720,4723
+  s_dfd792beae87ba::t_5146bd365ab199 4710-4718,4721-4722,4724-4725
+  s_dfd792beae87ba::t_6e748ef520309a 2455-2456
+packages/engine/test/e2e/fixed-clip-anchor.e2e.test.ts
+  s_dfd792beae87ba::t_83ac660e1f2662 1-9,16-22,27-29,32-33,35-36,47-50,58,64
+  s_dfd792beae87ba::t_c3b0cdf83fcb4f 10-15,23-26,30-31,34,37-46,51-57,59-63
+packages/core/src/lib.rs
+  s_dfd792beae87ba::t_9a0ace1ff7176f 4058-4063,4065-4066
+  s_dfd792beae87ba::t_abd0132cbd81a3 4100-4111
+AGENTS.md
+  s_dfd792beae87ba::t_599c23b02d28a6 108
+docs/RBI.md
+  s_dfd792beae87ba::t_e4bd3b1d6f458c 112-146
+scripts/patches/blitz-paint-0.3.0-beta.1/0014-Add-paint_scene_at-a-signed-initial-paint-offset.patch
+  s_dfd792beae87ba::t_8f5a9886133917 1-70
+scripts/patches/blitz-paint-0.3.0-beta.1/0015-Cull-in-the-paint-frame-not-the-initial-subtracted-o.patch
+  s_dfd792beae87ba::t_e3dc90eb5bbc47 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "792c71ad9866e256e61ca5fa5410f2c77ae39157",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

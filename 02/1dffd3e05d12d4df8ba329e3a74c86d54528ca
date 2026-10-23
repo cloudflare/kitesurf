@@ -1,0 +1,37 @@
+packages/engine/test/e2e/quickaction-containment.e2e.test.ts
+  s_7305d4f61f0ece::t_8e0accec4ed4e0 10
+AGENTS.md
+  s_7305d4f61f0ece::t_8b73381b67f394 175,178
+  s_7305d4f61f0ece::t_8e0accec4ed4e0 176-177
+packages/engine/src/index.ts
+  s_7305d4f61f0ece::t_ef34e7d92630e5 342-343
+  s_7305d4f61f0ece::t_8e0accec4ed4e0 419
+  s_7305d4f61f0ece::t_8b73381b67f394 302,420
+README.md
+  s_7305d4f61f0ece::t_8e0accec4ed4e0 165-166
+packages/engine/src/quickactions/containment.ts
+  s_7305d4f61f0ece::t_8e0accec4ed4e0 40-41
+examples/auto-navigate-demo.mjs
+  s_7305d4f61f0ece::t_8b73381b67f394 6-7,55,62,119
+packages/engine/wrangler.jsonc
+  s_7305d4f61f0ece::t_8e0accec4ed4e0 147-150
+  s_7305d4f61f0ece::t_8b73381b67f394 145
+  s_7305d4f61f0ece::t_ef34e7d92630e5 29-30,41,143-144
+  s_7305d4f61f0ece::t_c5f37e9eee480c 151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "021dffd3e05d12d4df8ba329e3a74c86d54528ca",
+  "prompts": {},
+  "sessions": {
+    "s_7305d4f61f0ece": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc2770a99ffe2yOkc6nygvGC8f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

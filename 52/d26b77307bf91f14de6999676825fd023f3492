@@ -1,0 +1,21 @@
+packages/rbi-client/src/painter.ts
+  s_ef6ce202359404::t_c9bae8ad28c767 818-834
+  s_ef6ce202359404::t_f61d09f1637ef0 858-866,868
+  s_ef6ce202359404::t_dc758ce6036735 908-923
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "52d26b77307bf91f14de6999676825fd023f3492",
+  "prompts": {},
+  "sessions": {
+    "s_ef6ce202359404": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_081c17b83ffeQNYGKFcf1ZdpzC",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

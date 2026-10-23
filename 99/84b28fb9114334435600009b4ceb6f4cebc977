@@ -1,0 +1,34 @@
+packages/dom-shim/src/collections.ts
+  s_c1d1c93f383cfd::t_b96bd0e4c1e1a3 254
+packages/dom-shim/src/mutations/observer.ts
+  s_c1d1c93f383cfd::t_b96bd0e4c1e1a3 363
+packages/dom-shim/src/node-base.ts
+  s_c1d1c93f383cfd::t_b96bd0e4c1e1a3 1187,1201
+  s_c1d1c93f383cfd::t_537a50336ead16 3146
+  s_c1d1c93f383cfd::t_69e77cc7b9b75a 488-490,493-494
+packages/dom-shim/src/document.ts
+  s_c1d1c93f383cfd::t_1c7a0fa0a7cc92 491-492
+packages/dom-shim/src/state.ts
+  s_c1d1c93f383cfd::t_b96bd0e4c1e1a3 293,519-520
+  s_c1d1c93f383cfd::t_fde8e4668f2dbe 521
+packages/dom-shim/src/registries.ts
+  s_c1d1c93f383cfd::t_b96bd0e4c1e1a3 167-170
+packages/dom-shim/src/element.ts
+  s_c1d1c93f383cfd::t_b96bd0e4c1e1a3 9930-9933
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9984b28fb9114334435600009b4ceb6f4cebc977",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

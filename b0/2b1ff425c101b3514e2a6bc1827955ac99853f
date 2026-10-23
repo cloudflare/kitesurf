@@ -1,0 +1,176 @@
+packages/engine/src/eval/page-script.ts
+  s_99df759127b8fa::t_58a02e07765434 779-786,978,1001
+  s_99df759127b8fa::t_b9f4704776e9c0 778
+packages/script-gate/src/mime.ts
+  s_99df759127b8fa::t_fe8ce3cf4dee2e 1-77
+packages/script-gate/package.json
+  s_99df759127b8fa::t_ba0b2569ab728c 1-11,14-23
+  s_99df759127b8fa::t_a5d5ba501b8ded 12-13
+packages/page-script/src/resource-fetch.ts
+  s_99df759127b8fa::t_7747498e1c8c5b 759-771,801-818,823,825-832,838
+  s_99df759127b8fa::t_367e1edcd7ef58 13-17,819-822
+  s_99df759127b8fa::t_6deca0289701c9 754-758,780,784
+  s_99df759127b8fa::t_e184f443db06a7 787-794
+  s_99df759127b8fa::t_0a9bbff7984377 839
+packages/engine/src/cdp/page.ts
+  s_99df759127b8fa::t_3a4fded24735c9 977-986
+  s_99df759127b8fa::t_153f6052a1cd06 591-599
+  s_99df759127b8fa::t_dedf9ea49fa2bb 2536-2559
+  s_99df759127b8fa::t_fac473302205ae 19-23
+  s_99df759127b8fa::t_5dca2544a0d0e0 2576,2584
+  s_99df759127b8fa::t_3cd60f15b037c6 2818-2824
+  s_99df759127b8fa::t_8b99f748231868 1401-1406
+  s_99df759127b8fa::t_ec31f0536346ce 2600
+  s_99df759127b8fa::t_b6b36d26af9d87 2531
+packages/engine/src/wasm.ts
+  s_99df759127b8fa::t_7917d14c911416 374-385
+  s_99df759127b8fa::t_158ad8418d1416 157-160,178-183
+  s_99df759127b8fa::t_f1703e2564708d 386-390
+  s_99df759127b8fa::t_0e12a413584fb1 173-176
+  s_99df759127b8fa::t_859500ecfa3542 471-475
+packages/core/src/scan_test.rs
+  s_99df759127b8fa::t_3339ae45712545 100
+  s_99df759127b8fa::t_e54691ebf5d75e 183-199,203
+  s_99df759127b8fa::t_447786cc984a48 639-671
+  s_99df759127b8fa::t_fb860d83cf4894 144-147
+packages/script-gate/src/gate.ts
+  s_99df759127b8fa::t_754dbf5aeb9d41 220-223
+  s_99df759127b8fa::t_2599195a1efb2b 22,27-32,36,54-60,97-101,145-152,227-231,244,257-291,295-303,305-308,344-358
+  s_99df759127b8fa::t_026641bbf6f4d9 116-133
+  s_99df759127b8fa::t_7442b09b34c7cd 1-21,23-26,33-35,37-53,61-96,102-115,134-144,153-219,224-226,232-243,245-256,292-294,304,309-343,359-406
+packages/engine/src/eval/script-bundle.ts
+  s_99df759127b8fa::t_02bad9fedb1732 402-408,716-718,767-773
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_99df759127b8fa::t_7b17ab7961f3ed 1964-2017
+packages/page-script/src/__ks_startup_probe_input.d.ts
+  s_99df759127b8fa::t_6eb6fdede53e3b 50-53
+packages/page-script/src/startup-probe.ts
+  s_99df759127b8fa::t_f1805479fd26bc 12,89
+AGENTS.md
+  s_99df759127b8fa::t_a02c08a0a7f2b7 68-71,123
+packages/script-gate/test/gate.test.ts
+  s_99df759127b8fa::t_bfdb14d8e45883 324-350,352-413
+  s_99df759127b8fa::t_46ca6cf015c9ec 1-323,414-452
+  s_99df759127b8fa::t_ba217cd0c57fd2 351
+packages/script-gate/src/sri.ts
+  s_99df759127b8fa::t_e9c77a153d11c4 36-38
+  s_99df759127b8fa::t_b07573136cc269 1-30,46-135,137-168,170-183
+  s_99df759127b8fa::t_add67161d3a71b 31-35,39-45,136,169
+packages/page-script/package.json
+  s_99df759127b8fa::t_debfe07a3a04dd 19-20
+docs/SCRIPT_GATE.md
+  s_99df759127b8fa::t_8ead6211ed9bc3 1-17,20,40-55,65-154
+  s_99df759127b8fa::t_c53a887733ae5c 18-19,21-39,56-64
+packages/script-gate/tsconfig.json
+  s_99df759127b8fa::t_a5d5ba501b8ded 9-10
+  s_99df759127b8fa::t_39c58fe9e891b8 1-8,11-21
+packages/script-gate/src/gateway-headers.ts
+  s_99df759127b8fa::t_a7fc1a43339ea9 1-35
+packages/core/src/scan.rs
+  s_99df759127b8fa::t_6eac45e4e1ada0 227
+  s_99df759127b8fa::t_960187baca8859 76-81
+  s_99df759127b8fa::t_fff0bf8eb773a4 311-320
+  s_99df759127b8fa::t_50f82cec7fdced 524-544
+  s_99df759127b8fa::t_3bcd744f994c29 582
+  s_99df759127b8fa::t_c5da09252c34d3 99-103
+  s_99df759127b8fa::t_5b41b446da8026 593-594
+packages/core/src/boa_eval.rs
+  s_99df759127b8fa::t_9155e92b6e4f0c 65-90,93-95
+packages/page-script/src/index.ts
+  s_99df759127b8fa::t_6db82f40254167 58,2181,2188
+  s_99df759127b8fa::t_10712b005fc33b 2139,2143-2144,2150-2153,2158,2164-2171,2192,2194
+  s_99df759127b8fa::t_6199e1ab63d9d2 54-57,59,2159-2162,2172-2180,2182-2184,2186-2187,2189-2191,2193
+packages/engine/src/eval/script-gate.ts
+  s_99df759127b8fa::t_026641bbf6f4d9 17,103-106
+  s_99df759127b8fa::t_0c6347b9ad6698 1-16,18-102,107,141-142
+  s_99df759127b8fa::t_ae93f18a043a65 108-140
+packages/engine/src/eval/prefetch-scripts.ts
+  s_99df759127b8fa::t_367e1edcd7ef58 55-59,353-357
+  s_99df759127b8fa::t_c32cbf8cd83a09 32-46,54,92,95-96
+  s_99df759127b8fa::t_cd019ce3f19408 84-90,213-216,218,238-241,251-253
+  s_99df759127b8fa::t_30a755f0f07bff 219
+  s_99df759127b8fa::t_20479dc429470f 347-352,358-365,367-383,385
+  s_99df759127b8fa::t_ef5dcb6b340446 366
+  s_99df759127b8fa::t_add67161d3a71b 384
+packages/dom-shim/src/mutations/observer.ts
+  s_99df759127b8fa::t_54eaa0706ede40 430-437
+  s_99df759127b8fa::t_6deca0289701c9 438-446,448
+packages/page-script/src/globals.ts
+  s_99df759127b8fa::t_0e0ad3eda37f30 22
+  s_99df759127b8fa::t_5c609ee783bd0e 385-395
+packages/script-gate/src/index.ts
+  s_99df759127b8fa::t_708ca262bbda08 1-4,6-14,16-28,34-39
+  s_99df759127b8fa::t_026641bbf6f4d9 5
+  s_99df759127b8fa::t_12304b2a181d46 15
+  s_99df759127b8fa::t_a5d5ba501b8ded 29-33
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_99df759127b8fa::t_d0fe039ff7646d 32-34,65-69,75,79,91,96-107,111-112,125-126,128-130,145,157,173,182,203,219-221,226-237,248-251,266-272,275-279,282,285,288,298-301,306-307
+  s_99df759127b8fa::t_e3e8572f350b07 71,138,168,193,213,244,261,296
+  s_99df759127b8fa::t_f7b25de4b1cbf5 142-144,146-147,154-156,158-159,216-218,222-223
+  s_99df759127b8fa::t_3852a8eb1e4a85 1-31,35-64,70,72-74,76-78,80-90,92-95,132-137,139-141,148-153,160-167,169-172,174-181,183-192,194-202,204-212,214-215,224-225,238-243,245-247,252-260,262-265,273-274,280-281,283-284,286-287,289-295,297,302-305,308-315
+  s_99df759127b8fa::t_c53a887733ae5c 108-110,113-124,127,131
+package.json
+  s_99df759127b8fa::t_038bd1d13a464c 42
+packages/page-script/src/script-policy.ts
+  s_99df759127b8fa::t_158a78398c928b 22,100-105,112-128,165-176
+  s_99df759127b8fa::t_0e0ad3eda37f30 57-59,155
+  s_99df759127b8fa::t_1a7b8fc72be610 1-19,23-56,60-73,75-82,140-154,156-164,177-178
+  s_99df759127b8fa::t_7e244aac311671 83-98,106-107,109-111,129-139
+  s_99df759127b8fa::t_134160b9e101f2 108
+  s_99df759127b8fa::t_026641bbf6f4d9 21,74,99
+  s_99df759127b8fa::t_4ecd169364408d 20
+packages/page-script/src/inserted-scripts.ts
+  s_99df759127b8fa::t_6db82f40254167 31,162
+  s_99df759127b8fa::t_0e0ad3eda37f30 84-118
+  s_99df759127b8fa::t_ac4dbdb8b0ae30 27-30,32,76-81,140-145,157-161,163-170,180-192
+  s_99df759127b8fa::t_074f43edb3f03c 82-83
+packages/engine/src/eval/walk-module-graph.ts
+  s_99df759127b8fa::t_567a5346bbf575 498-504,701-704,755,840
+  s_99df759127b8fa::t_03ea7783789cfc 505-512,700,841-842,844,891
+  s_99df759127b8fa::t_764d8a6206bea1 885-890,892-893,895-908
+  s_99df759127b8fa::t_b1f3da78bf23fc 64-68,474-483,486-489,492-497,524,745-746,754
+  s_99df759127b8fa::t_ef5dcb6b340446 894
+  s_99df759127b8fa::t_367e1edcd7ef58 69
+  s_99df759127b8fa::t_9400ada40b0f2a 529-531,537-542
+  s_99df759127b8fa::t_f2504343fa1d64 832-839,843,845-848
+  s_99df759127b8fa::t_ec31f0536346ce 772,774
+packages/script-gate/src/csp.ts
+  s_99df759127b8fa::t_9046b45f393462 382-385,387-390,394-397,399
+  s_99df759127b8fa::t_67b88547aee7b9 37-43,48,115-118,120-123,197-201,283-286
+  s_99df759127b8fa::t_a3e0120fdaabf0 1-36,44-47,49-114,119,124-196,202-282,287-381,386,391-393,398,400
+packages/engine/src/eval/outbound.ts
+  s_99df759127b8fa::t_2dbb801c4d44e4 1832,1836-1852,1908
+  s_99df759127b8fa::t_17a7bbade1ebdd 1853,1859
+  s_99df759127b8fa::t_9fa965639b7937 1861-1875,1880-1889,1891-1898
+  s_99df759127b8fa::t_ef5dcb6b340446 2063-2071
+  s_99df759127b8fa::t_9074e63fe1ba07 68-71,1856-1858,1907,2057-2060,2062
+  s_99df759127b8fa::t_0e9358d8012738 1905
+  s_99df759127b8fa::t_b556aaa652ddaa 2061
+  s_99df759127b8fa::t_3a977082515d7e 1824-1830,1854-1855,1906
+  s_99df759127b8fa::t_a9f7f1b90ba578 2171-2181
+  s_99df759127b8fa::t_64baa81634de3d 1860
+packages/engine/src/cdp/types.ts
+  s_99df759127b8fa::t_428673298003bb 736-744
+.gitlab-ci.yml
+  s_99df759127b8fa::t_038bd1d13a464c 570-573
+packages/engine/package.json
+  s_99df759127b8fa::t_debfe07a3a04dd 30
+pnpm-lock.yaml
+  s_99df759127b8fa::t_82f12c8a8f1c3c 99-101,179-181,199-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b02b1ff425c101b3514e2a6bc1827955ac99853f",
+  "prompts": {},
+  "sessions": {
+    "s_99df759127b8fa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe42dfb77ffehybNx77BTFFv36",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

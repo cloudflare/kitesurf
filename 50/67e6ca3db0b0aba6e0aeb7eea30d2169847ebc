@@ -1,0 +1,27 @@
+packages/page-script/src/globals.ts
+  s_1eeadfc3cf234c::t_2a2f9c79aa6f91 1332
+packages/dom-shim/src/range.ts
+  s_1eeadfc3cf234c::t_2a2f9c79aa6f91 18-21,221,224,229-230,258-259,272,274,283-284,294-295,310-313,334-335,474-477,522-560,578-579,584-585,588,597,599,601-602,604-605,612,614,616-617,619-620,669-670,672-673,687-690,695-698,703-706,730,771,780-781,784-785,788-789,792-793,806,814-815,823,836-837,848,858-859,866-867,949-950,989-990,1335,1342-1344,1357-1359,1372,1375-1376,1401,1406,1411,1416,1439-1442,1444-1447,1457-1458,1462,1492-1495,1499-1500,1502-1503,1506-1509,1513-1514,1516-1517,1548,1551,1576-1579,1581-1584,1610,1676-1677,1688-1689,1720,1723,1783-1784,1788-1789,1880-1881,1917,1931-1932,1934-1935,1951,1954-1958,1960-1964,1977-1981,1985-1989,2005-2009,2011-2015,2018-2019,2021-2022,2032
+packages/dom-shim/src/index.ts
+  s_1eeadfc3cf234c::t_2a2f9c79aa6f91 134,763,950
+packages/dom-shim/strict-baseline.json
+  s_1eeadfc3cf234c::t_bcd73b0aeb59d3 10
+packages/engine/test/e2e/interface-own-properties.e2e.test.ts
+  s_1eeadfc3cf234c::t_4549bc5fffe08a 18-19,45-47,59-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5067e6ca3db0b0aba6e0aeb7eea30d2169847ebc",
+  "prompts": {},
+  "sessions": {
+    "s_1eeadfc3cf234c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef96c93d9ffejoSx8lQT0uXgHZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

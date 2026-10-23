@@ -1,0 +1,24 @@
+packages/core/src/animation_clock_test.rs
+  s_4ba79f911c93c4::t_118d6624464067 444-447,460-475
+  s_4ba79f911c93c4::t_f399b0e0727be8 385,411,442-443,449,456,476-489,491-502,508-515
+  s_4ba79f911c93c4::t_276ac1ff5f86de 503-504,506-507
+packages/core/src/transitions.rs
+  s_4ba79f911c93c4::t_9a46ba6be4661f 255-262,264-266
+  s_4ba79f911c93c4::t_ef06b4479d91a3 179-182,185,189-193,201-205,207-213,234-235,238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "de563fb234e3ea5fe99cc0e84115a915a724ca84",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

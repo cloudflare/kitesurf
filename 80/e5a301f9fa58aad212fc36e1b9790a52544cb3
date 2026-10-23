@@ -1,0 +1,175 @@
+packages/page-script/src/index.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 263-265,284,790-813,816,818,822-825,827-839,842-844,846-876,954,979-988,1005,1041,1106,1121,1138,1605-1615,1894-1899,2115-2123,3865-3869
+packages/website/src/pages/wpt/parts.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 8-9,11-13,15-18,29-32,121-124,128-130,159-160,162,177,179-180
+packages/core/src/text_encoding.rs
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-190
+packages/engine/src/cdp/page.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 64,504,835-837,1081,2398,5127,5357,6193-6200
+  s_ae1ba390236c92::t_cd44e7cfea2a70 6201
+packages/dom-shim/src/contract.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 17
+packages/renderer-core/src/lib.rs
+  s_ae1ba390236c92::t_6155f8cbfb874c 3,9-10,17,23-24,40
+packages/website/src/pages/bench/state.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 56,62,65-66,68-69,74-76,78,81-82,87,89-90,92,97-100,105-110,112-116,119-123,127-131
+packages/website/src/pages/landing/Agents.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 209,211,214-218,220-221,227,229,232-235,243-244,250
+packages/core/src/lib.rs
+  s_ae1ba390236c92::t_6155f8cbfb874c 84
+packages/dom-shim/src/state.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 113-123
+packages/tty-css-preview/test/server.test.mjs
+  s_ae1ba390236c92::t_6155f8cbfb874c 14-15,54-55
+packages/grafana/src/query.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 22,27-40,55-57,66,109-111,117,122,134,169,176-178,181,190,194-195,211,229,236,241,245,248,254,266,364-365,428,438,462-463,468,573-577,579,591,599,608,615-616
+docs/FORMS.md
+  s_ae1ba390236c92::t_6155f8cbfb874c 54-80
+packages/page-script/src/globals.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 33-62,3672-3679
+packages/renderer-core/scripts/build.mjs
+  s_ae1ba390236c92::t_5a27128ddee505 137,143-145
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-6,9-18,35,38-40,42,48,59-63,65,70-103,105-117,131-136,138-142,146-168,170-174,178-181,184,202,205,214,219,221,223
+packages/website/src/components/Mark.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 20,25,28,30,35,39
+packages/dom-shim/src/form-data.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 83-85
+packages/website/src/pages/wpt/TestPage.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 55,139-141,143-146,148
+packages/website/src/respond.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 38
+packages/grafana/test/dashboard.test.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1,27-36,44-48,54-56,69-91,112-120,124-125,128,135,138,140,151,156,167,169-177,208-233,238,250-252,254,264-266,268,282-284,286,295-296,299-300,313,338,346,349,353,364,368,396,400,406,409
+packages/website/src/css.d.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1
+packages/grafana/README.md
+  s_ae1ba390236c92::t_6155f8cbfb874c 3-5,11,16,20,22-28
+packages/tty-css-preview/test/content.test.mjs
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-386
+docs/NETWORKING.md
+  s_ae1ba390236c92::t_6155f8cbfb874c 200-202
+packages/dom-shim/src/element.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 8-14,3300-3301,3306,3316,6498-6504,6508-6514,6519,6547-6551,6555,6564,6590-6591,6593-6599,6635,6640-6668,6977-6979,6981-6990,6992-6998,7027-7033,7036,7040,7044,7047-7050,9353,9363,9410
+  s_ae1ba390236c92::t_989fc041c80855 7
+packages/engine/src/cdp/frames.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 42-51
+packages/tty-css-preview/extension/popup.js
+  s_ae1ba390236c92::t_6155f8cbfb874c 15
+packages/website/src/client/landing.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 4-5,13-14,28-29,41-43,45,48,50-51,53-54,109,111
+tests/wpt-expectations.json
+  s_ae1ba390236c92::t_6155f8cbfb874c 12313,12349,12485,18043,18487-18488,18491-18492,18495-18496,18499-18500,18547-18548,18563,30613-30614,30617-30618,35291-38598
+packages/website/src/pages/landing/Terminal.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 43-45,47-48,54-57
+packages/page-script/src/wasm-glue.d.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 115-125
+packages/tty-css-preview/extension/content.js
+  s_ae1ba390236c92::t_6155f8cbfb874c 20-23,71-72,90,95-105,108,113-135,143-144,163-166,197-198,235,267-282,291,295,302,313-315,323-324,344,348-349,380-381,468
+packages/engine/test/fixtures-worker/src/dynamic/documents.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 7,141-145
+  s_ae1ba390236c92::t_2a73214ef7c4c5 146
+packages/website/src/content/actions.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-16
+packages/website/src/components/Document.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 5-6,77,85
+packages/page-script/src/dom-shim.d.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 12
+packages/dom-shim/src/text-encoding.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-122
+packages/dom-shim/src/index.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1425
+packages/website/src/pages/bench/data.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 60-61,66-67,80,82,84-86,89-92,95,97,104-106,114-120,124-129,132-133
+packages/grafana/src/dashboard.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 12-17,22-23,41,58,60-63,67-72,74,76,87-88,98-99,101,117
+packages/website/src/pages/bench/state.test.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 22-28,46-47
+packages/website/src/components/ThemeToggle.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 2,4-8,14-27
+packages/website/src/pages/wpt/Overview.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 11-12,61-63
+packages/website/src/content/theme.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-6
+packages/engine/test/e2e/legacy-charset-url-encoding.e2e.test.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-171
+packages/page-script/src/internal-state.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 120-124,207
+packages/grafana/src/panel.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1,30,32,43,45,79,90,93,96,99,103,107,129,141,165,207-208,217,227,233
+packages/website/src/client/wpt.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 11-12,14-15,17-19,28-34,48,50-51,53-57,59-61,63-64,66-67,70-75,77,81-82,88-92,101,104
+packages/renderer-core/Cargo.toml
+  s_ae1ba390236c92::t_6155f8cbfb874c 12-15,17-19,51-52
+packages/tty-css-preview/README.md
+  s_ae1ba390236c92::t_6155f8cbfb874c 30,32
+packages/website/src/client/site.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-84
+packages/website/src/pages/landing/Hero.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 2,30
+packages/website/src/pages/wpt/format.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 25-26,28
+packages/dom-shim/src/document.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 102,359-361
+packages/engine/test/fixtures-worker/assets/euckr-form.html
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-10
+packages/grafana/test/query.test.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1,134,143,151-152,159,173,209,222,231,271,283,286,302,316,319,329,334,340,350
+packages/grafana/package.json
+  s_ae1ba390236c92::t_6155f8cbfb874c 5
+packages/engine/src/cdp/types.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 582-583
+packages/website/scripts/capture-showcase.mjs
+  s_ae1ba390236c92::t_6155f8cbfb874c 16-19,36-38,42-44,50-51,53-55
+packages/website/src/client/bench.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 9-17
+packages/website/src/client/theme-init.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-14
+packages/website/src/pages/bench/Explorer.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 36,47-49,56,60,63-66,68,77-78,80-82,84,97,99-101,104-109,112,115-116,118,121,123-125,129,134-135,141-143,145,157-158,179-180,191-192,195,198-204,209,211,213,222,224,227-232,234,236-238,242-246,254,259,277-280,288,290-292,294,316,324-327,331-332,336-341,355-356,361-362,364,367-368,378,432-433,435-437,441-451,454-458,460,463,476-478,480-481,483-484,491,509,536
+tests/wpt-tests.json
+  s_ae1ba390236c92::t_6155f8cbfb874c 6845-6848,6904-7011,7029-7128,7194-7341,7523-7776,7861-8063,8067,8069,8089-8096
+packages/tty-css-preview/test/content-script-fixture.mjs
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-285
+packages/grafana/src/cli.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 8
+packages/website/scripts/build.mjs
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-3,13-19,36-37
+packages/website/src/routes.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 26-30,34-35,42-43,55-56,66-67
+packages/website/src/pages/wpt/Folder.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 9,34-35,37-38,40,70-72
+packages/website/src/pages/landing/Showcase.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 1,17,72
+packages/tty-css-preview/src/server.mjs
+  s_ae1ba390236c92::t_6155f8cbfb874c 6-8,10
+packages/grafana/src/datasources.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1
+packages/website/src/pages/bench/Benchmarks.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 10-11,23,26-29,42-45,51-55,59,62-68
+packages/website/src/pages/wpt/Trend.tsx
+  s_ae1ba390236c92::t_6155f8cbfb874c 19,23-26,30-34,37-40,42-47,58-60,63-67,69-74,76,78,89,115-116,118,123,127,132-133,135,138,153,166,169-178
+packages/website/src/content/showcase.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-2,112
+packages/grafana/src/dashboards/kitesurf-usage.ts
+  s_ae1ba390236c92::t_6155f8cbfb874c 1-2,50,61,82,95
+packages/core/Cargo.toml
+  s_ae1ba390236c92::t_6155f8cbfb874c 61-62
+Cargo.lock
+  s_ae1ba390236c92::t_685e1e1e556be9 1563
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "80e5a301f9fa58aad212fc36e1b9790a52544cb3",
+  "prompts": {},
+  "sessions": {
+    "s_ae1ba390236c92": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f00dbc716ffeCNa36CStCv1WEf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

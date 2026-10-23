@@ -1,0 +1,21 @@
+package.json
+  s_4ba79f911c93c4::t_6247e74e2d1c09 65,69,78-80
+pnpm-lock.yaml
+  s_4ba79f911c93c4::t_81fca694993eb4 14-16,26-28,53-55,59-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "667314066305e1ebdaad57a062992a5e94ee4c18",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

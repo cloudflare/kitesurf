@@ -1,0 +1,27 @@
+packages/core/src/lib.rs
+  s_86e5da766eb425::t_ae9b640cad0a84 3405-3457
+packages/engine/test/e2e/demos/iframe-bitmap-paint.e2e.test.ts
+  s_86e5da766eb425::t_645cc0b233d20d 1-88
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_86e5da766eb425::t_7575f7b3f300ce 976-977
+  s_86e5da766eb425::t_484a1f50215160 1154
+  s_86e5da766eb425::t_f8057a98855a8c 1143-1153,1155-1157
+scripts/patches/blitz-dom-0.3.0-beta.1/0020-Treat-iframe-as-a-replaced-element-with-a-JS-fed-bit.patch
+  s_86e5da766eb425::t_a748e1160dc089 1-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e86d12af689e15e43a31742d536aa1ba4011aff4",
+  "prompts": {},
+  "sessions": {
+    "s_86e5da766eb425": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0665bed1cffeoMugykK9pn22Wf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

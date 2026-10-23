@@ -1,0 +1,23 @@
+packages/engine/src/eval/page-renderer.ts
+  s_4efb85c8268621::t_5477936cf986ff 132-135
+packages/engine/src/eval/walk-module-graph.ts
+  s_4efb85c8268621::t_5477936cf986ff 1129-1131,1133-1134
+packages/engine/src/cdp/types.ts
+  s_4efb85c8268621::t_5477936cf986ff 529
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "94a06f1102ac555528ca2a363407feb6e61b72d2",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

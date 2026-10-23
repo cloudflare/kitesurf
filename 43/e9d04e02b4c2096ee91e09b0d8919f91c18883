@@ -1,0 +1,140 @@
+packages/engine/src/cdp/dedicated-workers.ts
+  s_13716c95882f21::t_e063335044bd94 1-8,12-15,17,19,25-27,36-38,43,45,54-57,60-64,66-67,69-70,72-103,106,111-113,139-150,152-158,160-163,165-166,168-171,174,176-179,183-184,186-189,191,205-215,220-222,226-228,231-232,234-235,239-244,246-247,249-251,253,255-256,259,262-263,282-290,292-296,298-299,301-319,321-324,326-327,338-359,361-364,366-367,376-378,381-389,391-393,397-398,401-403,405-406
+  s_13716c95882f21::t_858ba1362e1f58 20,68,264,266-268,270-271,297,394-395
+  s_13716c95882f21::t_bce44e19eab448 21-24,58-59,257-258,260-261,396
+  s_13716c95882f21::t_18fef7551c056c 41,151
+  s_13716c95882f21::t_50ded500f9732e 172,180,190,230,245,254,300
+  s_13716c95882f21::t_b656f775ad14a5 18,107-110,159,175,185,192,248,252,360,390
+  s_13716c95882f21::t_325b4726e6dc95 9-11,16,28-35,39-40,42,44,46-53,65,71,104-105,114-138,164,167,173,181-182,193-204,216-219,223-225,229,233,236-238,265,269,272-281,291,320,325,328-337,365,368-375,379-380,399-400,404
+packages/engine/test/e2e/global-setup.ts
+  s_13716c95882f21::t_d95edf7e38cb20 45
+docs/WORKERS.md
+  s_13716c95882f21::t_b0809b720b0239 1-65,68,90-92,101,108-124
+  s_13716c95882f21::t_ddbf1fd649c9d4 66-67,69-89,93-100,102-107
+packages/worker-script/tsconfig.json
+  s_13716c95882f21::t_fa91c2efa58644 1-23
+packages/page-script/src/globals.ts
+  s_13716c95882f21::t_5838c207da4498 18,3226,4249,4251-4253
+packages/engine/src/cdp/page.ts
+  s_13716c95882f21::t_8c56b27c23e8a5 102,1086-1088,2342,4209-4225,4704-4705,4708-4714,4741-4743,4763-4764,5963-5964
+  s_13716c95882f21::t_cfaaf36cfeb981 4545,4555,4562-4565,5162,5223
+  s_13716c95882f21::t_5c099f26ddf32e 507,4740
+packages/jsrpc-types/src/dedicated-worker.ts
+  s_13716c95882f21::t_e044e82dc90c6b 1-89
+packages/engine/src/cdp/connection.ts
+  s_13716c95882f21::t_b6d13dd531791c 32
+  s_13716c95882f21::t_91c2dc251914d3 302,340-341,578-579
+package.json
+  s_13716c95882f21::t_fa91c2efa58644 34
+packages/worker-script/src/shims.ts
+  s_13716c95882f21::t_07dbe7fbb1494d 1-9
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_13716c95882f21::t_4d4c5ab0b6a0c1 483-488
+packages/engine/src/eval/oopif-render.ts
+  s_13716c95882f21::t_bce44e19eab448 69-74,199-211,331,429
+packages/engine/test/fixtures-worker/assets/worker-echo.js
+  s_13716c95882f21::t_b9ef6dfba0df1f 1-19
+packages/engine/test/target-close.test.ts
+  s_13716c95882f21::t_f44a799a632ac5 11,19-21
+packages/page-script/package.json
+  s_13716c95882f21::t_e91314bf0d3214 14
+  s_13716c95882f21::t_22996aecd8b7ee 12-13,15-16
+packages/engine/package.json
+  s_13716c95882f21::t_fa91c2efa58644 29
+packages/engine/test/fixtures-worker/assets/worker-host.html
+  s_13716c95882f21::t_b9ef6dfba0df1f 1-5
+packages/page-script/src/session-methods.ts
+  s_13716c95882f21::t_0a4e0c310876ae 79
+packages/engine/src/eval/limit-registry.ts
+  s_13716c95882f21::t_bce44e19eab448 33-39
+docs/IFRAMES.md
+  s_13716c95882f21::t_06f7711e88f4a9 245-249,251-252
+packages/worker-script/scripts/build.mjs
+  s_13716c95882f21::t_fa91c2efa58644 1-63
+packages/engine/test/fixtures-worker/assets/oopif-host-worker.html
+  s_13716c95882f21::t_646dc233028225 1-10
+packages/engine/src/eval/page-script.ts
+  s_13716c95882f21::t_858ba1362e1f58 193
+packages/engine/src/cdp/target.ts
+  s_13716c95882f21::t_8e1cbb3ed669e7 411-412
+packages/engine/test/fixtures-worker/assets/worker-at-load.html
+  s_13716c95882f21::t_646dc233028225 1-25
+packages/engine/test/fixtures-worker/assets/oopif-child-worker.html
+  s_13716c95882f21::t_646dc233028225 1-15
+packages/worker-script/package.json
+  s_13716c95882f21::t_1800d51fe2edac 1-26
+scripts/pw-run.mjs
+  s_13716c95882f21::t_fa91c2efa58644 121,126
+packages/page-script/src/index.ts
+  s_13716c95882f21::t_0a4e0c310876ae 3107-3110
+  s_13716c95882f21::t_7d7ab7c6fca916 35-36
+  s_13716c95882f21::t_1019c7b84df742 3111-3112
+packages/worker-script/src/scope.ts
+  s_13716c95882f21::t_07dbe7fbb1494d 356-358,360,363
+  s_13716c95882f21::t_fb18863b129a6b 30,33-40,43-50,52-61,63,69-74,90-100,306-307
+  s_13716c95882f21::t_4d8fee7954ae15 21-22,105-106,335,338-346,349-355,359,361-362,364-379
+  s_13716c95882f21::t_e91314bf0d3214 11,199-201,238-242,336-337,347-348
+  s_13716c95882f21::t_b0128252fb4040 23-24
+  s_13716c95882f21::t_5498eab53204bb 1-10,12-20,25-29,31-32,41-42,51,62,64-68,75-89,101-104,107-198,202-237,243-305,308-334,380-385
+packages/engine/test/e2e/dedicated-worker.e2e.test.ts
+  s_13716c95882f21::t_404c6eddcf4cf1 51-53,56-58,65
+  s_13716c95882f21::t_790f58f313bf35 5,276-293,296,300-330
+  s_13716c95882f21::t_a3db378c6e8f91 151-156,167
+  s_13716c95882f21::t_793ad207820c9e 260-275,331
+  s_13716c95882f21::t_dde1893dabe189 89-91,93-126,128-129,131-133
+  s_13716c95882f21::t_b93dd190d7afd9 1-4,6-50,54-55,59-64,66-88,92,127,130,134-150,157-166,168-259
+  s_13716c95882f21::t_9656acdc76205d 294-295,297-299
+packages/jsrpc-types/src/page-script.ts
+  s_13716c95882f21::t_bae4e529a00078 16,259-261,308
+  s_13716c95882f21::t_689ffbb8682d35 395-406
+packages/worker-script/src/__ks_worker_script.ts
+  s_13716c95882f21::t_1800d51fe2edac 1-8
+packages/worker-script/src/index.ts
+  s_13716c95882f21::t_fb18863b129a6b 82-84
+  s_13716c95882f21::t_91cb8e4a905cc5 1-81,85-115
+packages/engine/src/cdp/types.ts
+  s_13716c95882f21::t_b6d13dd531791c 13,213-216
+packages/page-script/src/dedicated-worker.ts
+  s_13716c95882f21::t_7b4e9cd1ac55cf 1-7,9-16,18,21-26,28-34,37-103,105-134,139,150-190,195-228,231-271,273,275,278-280,282-300,302-303,305-313,317-367,369-376
+  s_13716c95882f21::t_5c8a89b9969124 135-138,140-149,368
+  s_13716c95882f21::t_5b209ee1738391 8
+  s_13716c95882f21::t_c7d4560a777ad7 17,19-20,27,35-36,104,191-194,229-230,272,274,276-277,281,301,304,314-316
+packages/jsrpc-types/package.json
+  s_13716c95882f21::t_bae4e529a00078 11-12
+AGENTS.md
+  s_13716c95882f21::t_06f7711e88f4a9 74-76,155,657-659
+packages/engine/test/fixtures-worker/src/static.ts
+  s_13716c95882f21::t_b9ef6dfba0df1f 244-245,625-627
+  s_13716c95882f21::t_646dc233028225 243,628-632
+  s_13716c95882f21::t_d94cf99ae112b7 188
+  s_13716c95882f21::t_0b1aca51fbd892 196
+packages/engine/test/dedicated-workers.test.ts
+  s_13716c95882f21::t_eccb5e567158dc 1-2,13,15,17-25,27,29-30,32-34,46-49,51-58,65-68,73,75-78,80-81,85-94,96-98,101-117,120-121,124-126,153-166,182,190-194
+  s_13716c95882f21::t_87ab127a60bea8 8-10,12,16,26,28,31,35-45,50,59-64,69-72,74,79,82-84,95,99-100,118-119,122-123,127-148,152,167-181,183-189
+  s_13716c95882f21::t_5f93b9d097fa8d 3-7,11,14,149-151
+packages/engine/src/eval/dedicated-worker.ts
+  s_13716c95882f21::t_4d4c5ab0b6a0c1 38-50,184,201,207
+  s_13716c95882f21::t_689211c6054e3f 87,117,183
+  s_13716c95882f21::t_858ba1362e1f58 21-25,69-71,182
+  s_13716c95882f21::t_1ac39299a7e8e1 1-20,26-37,51-68,72-86,88-116,118-181,185-200,202-206,208-237
+packages/engine/src/cdp/dom.ts
+  s_13716c95882f21::t_8c56b27c23e8a5 542
+pnpm-lock.yaml
+  s_13716c95882f21::t_55d39cdb5b12ac 131-133,345-360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "43e9d04e02b4c2096ee91e09b0d8919f91c18883",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

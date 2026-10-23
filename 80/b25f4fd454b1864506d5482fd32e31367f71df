@@ -1,0 +1,36 @@
+packages/page-script/src/index.ts
+  s_f1784921d4c778::t_38bfd09b5eccba 416,420,422
+  s_f1784921d4c778::t_f5f5a5dfd18158 452-454
+  s_f1784921d4c778::t_4d279c209fc254 450-451
+  s_f1784921d4c778::t_c015009cc821aa 224,433-434,437,441,443,445-446,448,455-456,472,474,478-486,527,529-530
+packages/engine/test/e2e/tab-focus.e2e.test.ts
+  s_f1784921d4c778::t_4d279c209fc254 15,40
+  s_f1784921d4c778::t_28be74aa5ab11c 13-14,16
+  s_f1784921d4c778::t_cb1114742c2330 47-49,52,57-60,64-68,72
+packages/engine/src/tty/stylesheet.ts
+  s_f1784921d4c778::t_f5f5a5dfd18158 20
+packages/page-script/src/types.ts
+  s_f1784921d4c778::t_c015009cc821aa 39,41,90,103
+packages/engine/test/e2e/keyboard-scroll.e2e.test.ts
+  s_f1784921d4c778::t_28be74aa5ab11c 82-83,86-89
+  s_f1784921d4c778::t_52ede165586e5f 106
+  s_f1784921d4c778::t_cb1114742c2330 21-25,59,69,81,84-85
+  s_f1784921d4c778::t_6c8f34e6764b1f 53-57,61-65,74-78
+  s_f1784921d4c778::t_38bfd09b5eccba 121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "80b25f4fd454b1864506d5482fd32e31367f71df",
+  "prompts": {},
+  "sessions": {
+    "s_f1784921d4c778": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1859fd34ffem9Kd8VtbXwlq4H",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Celso Martinho <celso@cloudflare.com>"
+    }
+  }
+}

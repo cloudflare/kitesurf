@@ -1,0 +1,35 @@
+packages/engine/src/eval/page-renderer.ts
+  s_a550ca7b183bee::t_0418a0cd06f7ce 1-5,8,28-29,42,44,46,93,97,100-103,105,114-115,117,119,121,127,135,148-149,155-156,163,169-170,172,179,183,232-233,281,284,298,303-304,315-316,328-329,333,343,380,391-395,401,421-423,431,435,456,492,506-507,516-520,525,539,547,551,566,597-598
+packages/page-renderer/package.json
+  s_a550ca7b183bee::t_1f8d202a550a64 5
+packages/page-renderer/scripts/build.mjs
+  s_a550ca7b183bee::t_afc4da4d07a87d 1-2,63
+packages/page-renderer/src/core_bg.d.wasm.ts
+  s_a550ca7b183bee::t_73f161f351de81 1-2
+packages/page-renderer/src/index.ts
+  s_a550ca7b183bee::t_b584db937d24a2 1-6,9-15,31,33,48,73-78,81,84-88,92-94,98-99,102,116,122-132,143,153,155-164,173,176-178,180-187,189-194,196-224,228,240,244,248,260,262-271,273,282,286,288,291,301,303,315,317,324-325,335,339,344-345,355-356,362-363,379-380,399-406,422,429,440,447,457,466-467,469,479,489-491,503,515-517,530,532,545,547,555-558,561,564,572,577,585-589,591-594,606-608,612-619,623-635,639,664,680,685,691,703,715-727,729-732,734,736,744,746,751,754,800
+packages/page-renderer/src/shims.d.ts
+  s_a550ca7b183bee::t_f72db498cf32a5 1-2,7,13-14
+packages/page-renderer/src/wasm-glue.d.ts
+  s_a550ca7b183bee::t_5c3617447bd366 1,5,8-10,12-13,20,41,49,58,63
+packages/page-renderer/test/types.contract.ts
+  s_a550ca7b183bee::t_96f9eb6409f5e1 1-29
+packages/page-renderer/tsconfig.json
+  s_a550ca7b183bee::t_76a18896c65418 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "67bd0cf641d6a3076052506dfbfcdacf88ecfae8",
+  "prompts": {},
+  "sessions": {
+    "s_a550ca7b183bee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039850caffeBC6VMe935Aso0J",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

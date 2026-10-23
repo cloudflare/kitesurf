@@ -1,0 +1,23 @@
+scripts/e2e-perf.mjs
+  s_c6d6a3ac21fe46::t_e35be8c3c86361 123
+scripts/patches/README.md
+  s_c6d6a3ac21fe46::t_e35be8c3c86361 173,232-233
+scripts/wpt-exec.mjs
+  s_c6d6a3ac21fe46::t_d743c4cc0311d3 564-565,1434-1435
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "21abadd0a5794d6a7a17545da849443b35238383",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
