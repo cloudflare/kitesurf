@@ -67,26 +67,45 @@ const SIMPLE_MANIFESTS = [
 let activeChild = null;
 let receivedSignal = null;
 
+function rememberSignal(signal) {
+  receivedSignal ??= signal;
+  process.exitCode = SIGNAL_EXIT_CODES[receivedSignal] ?? 1;
+}
+
+function terminateActiveChild(signal) {
+  const child = activeChild;
+  if (child !== null && child.exitCode === null && child.signalCode === null) child.kill(signal);
+}
+
 for (const signal of Object.keys(SIGNAL_EXIT_CODES)) {
   process.on(signal, () => {
-    receivedSignal ??= signal;
-    process.exitCode = SIGNAL_EXIT_CODES[receivedSignal] ?? 1;
-    if (activeChild !== null && activeChild.exitCode === null && activeChild.signalCode === null) {
-      activeChild.kill(signal);
-    }
+    rememberSignal(signal);
+    terminateActiveChild(signal);
   });
 }
 
+const SINGLE_ARGUMENT_MODES = new Map([
+  ["-h", "help"],
+  ["--help", "help"],
+  ["lint", "lint"],
+]);
+const FORMAT_MODES = new Map([
+  ["--check", "format-check"],
+  ["--write", "format-write"],
+]);
+
+function parseSingleArgumentMode(args) {
+  if (args.length !== 1) return null;
+  return SINGLE_ARGUMENT_MODES.get(args[0]) ?? null;
+}
+
+function parseFormatMode(args) {
+  if (args.length !== 2 || args[0] !== "format") return null;
+  return FORMAT_MODES.get(args[1]) ?? null;
+}
+
 function parseMode(args) {
-  if (args.length === 1 && ["-h", "--help"].includes(args[0])) return "help";
-  if (args.length === 2 && args[0] === "format" && args[1] === "--check") {
-    return "format-check";
-  }
-  if (args.length === 2 && args[0] === "format" && args[1] === "--write") {
-    return "format-write";
-  }
-  if (args.length === 1 && args[0] === "lint") return "lint";
-  return null;
+  return parseSingleArgumentMode(args) ?? parseFormatMode(args);
 }
 
 function cargoEnvironment(rustflags) {
@@ -106,21 +125,26 @@ function cargoEnvironment(rustflags) {
   return env;
 }
 
-function rootWorkspaceMembers() {
-  const manifestPath = resolve(ROOT, "Cargo.toml");
-  if (!existsSync(manifestPath)) return null;
-
-  const source = readFileSync(manifestPath, "utf8");
+function workspaceMemberText(source) {
   const workspaceHeader = /^\[workspace\]\s*$/mu.exec(source);
   if (workspaceHeader === null || workspaceHeader.index === undefined) return null;
 
   const sectionStart = workspaceHeader.index + workspaceHeader[0].length;
-  const remaining = source.slice(sectionStart);
-  const nextSection = /^\s*\[[^\]]+\]\s*$/mu.exec(remaining);
-  const section =
-    nextSection?.index === undefined ? remaining : remaining.slice(0, nextSection.index);
+  const section = workspaceSectionBody(source.slice(sectionStart));
   const memberList = /^\s*members\s*=\s*\[([\s\S]*?)\]/mu.exec(section)?.[1];
-  if (memberList === undefined) return [];
+  return memberList ?? "";
+}
+
+function workspaceSectionBody(remaining) {
+  const nextSection = /^\s*\[[^\]]+\]\s*$/mu.exec(remaining);
+  return nextSection?.index === undefined ? remaining : remaining.slice(0, nextSection.index);
+}
+
+function rootWorkspaceMembers() {
+  const manifestPath = resolve(ROOT, "Cargo.toml");
+  if (!existsSync(manifestPath)) return null;
+  const memberList = workspaceMemberText(readFileSync(manifestPath, "utf8"));
+  if (memberList === null) return null;
 
   return [...memberList.matchAll(/"([^"]+)"/gu)].flatMap((match) =>
     match[1] === undefined ? [] : [match[1]],
@@ -143,23 +167,25 @@ function workspaceMemberMatches(pattern, candidate) {
   return new RegExp(`${source}$`, "u").test(candidate);
 }
 
+function isWorkspaceMember(members, path) {
+  return members?.some((pattern) => workspaceMemberMatches(pattern, path)) ?? false;
+}
+
+function selectPackageSpec(spec, members, workspace, standalone) {
+  const manifest = resolve(ROOT, spec.path, "Cargo.toml");
+  if (!existsSync(manifest)) return;
+  if (isWorkspaceMember(members, spec.path)) {
+    workspace.push(spec);
+    return;
+  }
+  if (spec.standalone === true) standalone.push({ ...spec, manifest });
+}
+
 function selectPackages() {
   const members = rootWorkspaceMembers();
   const workspace = [];
   const standalone = [];
-
-  for (const spec of PACKAGE_SPECS) {
-    const manifest = resolve(ROOT, spec.path, "Cargo.toml");
-    if (!existsSync(manifest)) continue;
-
-    const isMember =
-      members?.some((pattern) => workspaceMemberMatches(pattern, spec.path)) ?? false;
-    if (isMember) {
-      workspace.push(spec);
-    } else if (spec.standalone === true) {
-      standalone.push({ ...spec, manifest });
-    }
-  }
+  for (const spec of PACKAGE_SPECS) selectPackageSpec(spec, members, workspace, standalone);
 
   return { workspace, standalone };
 }
@@ -235,56 +261,87 @@ function wasmLintArgs(manifest, packageName, feature) {
   ];
 }
 
-function lintCommands(selected) {
-  const hostCommands = selected.workspace.map((spec) => ({
+function workspaceHostCommands(specs) {
+  return specs.map((spec) => ({
     label: `host ${spec.path} (${spec.hostTargets === "lib" ? "library" : "all targets"})`,
     cwd: ROOT,
     args: hostLintArgs(spec.hostTargets, "Cargo.toml", spec.name),
   }));
-  for (const { label, manifest, cwd } of standaloneManifests()) {
-    hostCommands.push({
-      label: `host ${label} (all targets)`,
-      cwd,
-      args: hostLintArgs("all", manifest),
-    });
-  }
-  for (const spec of selected.standalone) {
-    hostCommands.push({
-      label: `host ${spec.path} (all targets)`,
-      cwd: resolve(ROOT, spec.path),
-      args: hostLintArgs("all", spec.manifest),
-    });
-  }
+}
 
-  const wasmCommands = [];
-  for (const spec of selected.workspace) {
-    const cwd = spec.wasmCwd === "member" ? resolve(ROOT, spec.path) : ROOT;
-    const manifest = "Cargo.toml";
-    const packageName = spec.wasmCwd === "member" ? undefined : spec.name;
-    const features = spec.wasmFeatures ?? [null];
-    for (const feature of features) {
-      wasmCommands.push({
-        label: `wasm ${spec.path}${feature === null ? "" : ` (${feature})`}`,
-        cwd,
-        args: wasmLintArgs(manifest, packageName, feature),
-        ...(spec.wasmRustflags === undefined ? {} : { rustflags: spec.wasmRustflags }),
-      });
-    }
-  }
-  for (const spec of selected.standalone) {
-    const cwd = spec.wasmCwd === "member" ? resolve(ROOT, spec.path) : ROOT;
-    const features = spec.wasmFeatures ?? [null];
-    for (const feature of features) {
-      wasmCommands.push({
-        label: `wasm ${spec.path}${feature === null ? "" : ` (${feature})`}`,
-        cwd,
-        args: wasmLintArgs(spec.manifest, undefined, feature),
-        ...(spec.wasmRustflags === undefined ? {} : { rustflags: spec.wasmRustflags }),
-      });
-    }
-  }
+function fixedManifestHostCommands() {
+  return standaloneManifests().map(({ label, manifest, cwd }) => ({
+    label: `host ${label} (all targets)`,
+    cwd,
+    args: hostLintArgs("all", manifest),
+  }));
+}
 
-  return [...hostCommands, ...wasmCommands];
+function standaloneHostCommands(specs) {
+  return specs.map((spec) => ({
+    label: `host ${spec.path} (all targets)`,
+    cwd: resolve(ROOT, spec.path),
+    args: hostLintArgs("all", spec.manifest),
+  }));
+}
+
+function hostLintCommands(selected) {
+  return [
+    ...workspaceHostCommands(selected.workspace),
+    ...fixedManifestHostCommands(),
+    ...standaloneHostCommands(selected.standalone),
+  ];
+}
+
+function wasmWorkingDirectory(spec) {
+  return spec.wasmCwd === "member" ? resolve(ROOT, spec.path) : ROOT;
+}
+
+function wasmFeatures(spec) {
+  return spec.wasmFeatures ?? [null];
+}
+
+function wasmRustflags(spec) {
+  return spec.wasmRustflags === undefined ? {} : { rustflags: spec.wasmRustflags };
+}
+
+function wasmCommand(spec, cwd, manifest, packageName, feature) {
+  return {
+    label: `wasm ${spec.path}${feature === null ? "" : ` (${feature})`}`,
+    cwd,
+    args: wasmLintArgs(manifest, packageName, feature),
+    ...wasmRustflags(spec),
+  };
+}
+
+function workspaceWasmCommands(specs) {
+  return specs.flatMap((spec) =>
+    wasmFeatures(spec).map((feature) =>
+      wasmCommand(
+        spec,
+        wasmWorkingDirectory(spec),
+        "Cargo.toml",
+        spec.wasmCwd === "member" ? undefined : spec.name,
+        feature,
+      ),
+    ),
+  );
+}
+
+function standaloneWasmCommands(specs) {
+  return specs.flatMap((spec) =>
+    wasmFeatures(spec).map((feature) =>
+      wasmCommand(spec, wasmWorkingDirectory(spec), spec.manifest, undefined, feature),
+    ),
+  );
+}
+
+function lintCommands(selected) {
+  return [
+    ...hostLintCommands(selected),
+    ...workspaceWasmCommands(selected.workspace),
+    ...standaloneWasmCommands(selected.standalone),
+  ];
 }
 
 function runChild(program, args, cwd, rustflags) {
@@ -312,56 +369,96 @@ function runChild(program, args, cwd, rustflags) {
   });
 }
 
-async function runCommands(commands, operation) {
-  const failures = [];
-  for (const { label, cwd, args, rustflags } of commands) {
-    if (receivedSignal !== null) break;
-    process.stdout.write(`[rust] ${operation}: ${label}\n`);
-    const result = await runChild("rustup", ["run", TOOLCHAIN, "cargo", ...args], cwd, rustflags);
-    if (result.status !== 0 || result.signal !== null) {
-      failures.push({ ...result, label });
-      const outcome = result.signal ? `signal ${result.signal}` : `exit status ${result.status}`;
-      process.stderr.write(`[rust] ${label} failed with ${outcome}\n`);
-    }
-  }
+function commandSucceeded(result) {
+  return result.status === 0 && result.signal === null;
+}
 
-  if (failures.length > 0) {
-    process.stderr.write(`[rust] ${failures.length} ${operation} command(s) failed\n`);
-    for (const failure of failures) {
-      process.stderr.write(
-        `[rust] ${failure.label}: ${failure.command} (cwd ${failure.cwd}, ` +
-          `${failure.signal ? `signal ${failure.signal}` : `status ${failure.status}`})\n`,
-      );
-    }
-    process.exitCode =
-      failures[0].status ??
-      (failures[0].signal === null ? 1 : (SIGNAL_EXIT_CODES[failures[0].signal] ?? 1));
+function commandFailureOutcome(result) {
+  return result.signal ? `signal ${result.signal}` : `exit status ${result.status}`;
+}
+
+async function runCommand(command, operation) {
+  const { label, cwd, args, rustflags } = command;
+  process.stdout.write(`[rust] ${operation}: ${label}\n`);
+  const result = await runChild("rustup", ["run", TOOLCHAIN, "cargo", ...args], cwd, rustflags);
+  if (commandSucceeded(result)) return null;
+  process.stderr.write(`[rust] ${label} failed with ${commandFailureOutcome(result)}\n`);
+  return { ...result, label };
+}
+
+async function collectCommandFailures(commands, operation) {
+  const failures = [];
+  for (const command of commands) {
+    if (receivedSignal !== null) break;
+    const failure = await runCommand(command, operation);
+    if (failure !== null) failures.push(failure);
   }
+  return failures;
+}
+
+function commandResultExitCode(result) {
+  if (result.status !== null) return result.status;
+  if (result.signal === null) return 1;
+  return SIGNAL_EXIT_CODES[result.signal] ?? 1;
+}
+
+function failedCommandExitCode(failure) {
+  return commandResultExitCode(failure);
+}
+
+function printCommandFailures(failures, operation) {
+  process.stderr.write(`[rust] ${failures.length} ${operation} command(s) failed\n`);
+  for (const failure of failures) {
+    process.stderr.write(
+      `[rust] ${failure.label}: ${failure.command} (cwd ${failure.cwd}, ` +
+        `${failure.signal ? `signal ${failure.signal}` : `status ${failure.status}`})\n`,
+    );
+  }
+  process.exitCode = failedCommandExitCode(failures[0]);
+}
+
+async function runCommands(commands, operation) {
+  const failures = await collectCommandFailures(commands, operation);
+  if (failures.length > 0) printCommandFailures(failures, operation);
   if (receivedSignal !== null) process.exitCode = SIGNAL_EXIT_CODES[receivedSignal] ?? 1;
+}
+
+function shouldMaterializeVendorSources(manifestPath, script) {
+  return (
+    existsSync(manifestPath) &&
+    existsSync(script) &&
+    /^\[patch\.crates-io\]\s*$/mu.test(readFileSync(manifestPath, "utf8"))
+  );
+}
+
+function vendorFailureExitCode(result) {
+  if (receivedSignal !== null) return SIGNAL_EXIT_CODES[receivedSignal] ?? 1;
+  return commandResultExitCode(result);
+}
+
+function reportVendorFailure(result) {
+  const outcome = commandFailureOutcome(result);
+  process.stderr.write(`[rust] vendor materialization failed with ${outcome}\n`);
+  process.exitCode = vendorFailureExitCode(result);
 }
 
 async function materializeVendorSources() {
   const manifestPath = resolve(ROOT, "Cargo.toml");
   const script = resolve(ROOT, "scripts/get-patched-vendor-crates.mjs");
-  if (
-    !existsSync(manifestPath) ||
-    !existsSync(script) ||
-    !/^\[patch\.crates-io\]\s*$/mu.test(readFileSync(manifestPath, "utf8"))
-  ) {
-    return true;
-  }
+  if (!shouldMaterializeVendorSources(manifestPath, script)) return true;
 
   const result = await runChild(process.execPath, [script], ROOT);
-  if (result.status !== 0 || result.signal !== null) {
-    const outcome = result.signal ? `signal ${result.signal}` : `exit status ${result.status}`;
-    process.stderr.write(`[rust] vendor materialization failed with ${outcome}\n`);
-    process.exitCode =
-      receivedSignal === null
-        ? (result.status ?? (result.signal === null ? 1 : (SIGNAL_EXIT_CODES[result.signal] ?? 1)))
-        : (SIGNAL_EXIT_CODES[receivedSignal] ?? 1);
-    return false;
+  if (commandSucceeded(result)) return true;
+  reportVendorFailure(result);
+  return false;
+}
+
+async function executeMode(mode, selected) {
+  if (mode === "lint") {
+    await runCommands(lintCommands(selected), "Clippy");
+    return;
   }
-  return true;
+  await runCommands(formatCommands(mode === "format-check", selected), "rustfmt");
 }
 
 async function main() {
@@ -377,12 +474,7 @@ async function main() {
   }
 
   if (mode === "lint" && !(await materializeVendorSources())) return;
-  const selected = selectPackages();
-  if (mode === "lint") {
-    await runCommands(lintCommands(selected), "Clippy");
-    return;
-  }
-  await runCommands(formatCommands(mode === "format-check", selected), "rustfmt");
+  await executeMode(mode, selectPackages());
 }
 
 main().catch((error) => {

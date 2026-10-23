@@ -3,9 +3,14 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { defineRule } from "@oxlint/plugins";
-import type { ESTree, Variable } from "@oxlint/plugins";
+import type { Context, ESTree, Variable } from "@oxlint/plugins";
 
 type TypeAssertion = ESTree.TSAsExpression | ESTree.TSTypeAssertion;
+type LocalUnknownCandidate = ESTree.VariableDeclarator & {
+  readonly id: ESTree.BindingIdentifier;
+  readonly init: ESTree.Expression;
+  readonly parent: ESTree.VariableDeclaration & { readonly kind: "const" };
+};
 
 function rangeKey(start: number, end: number): string {
   return `${start}:${end}`;
@@ -60,56 +65,70 @@ function hasBroadAssertion(expression: ESTree.Expression): boolean {
 }
 
 function hasAssertionParent(node: TypeAssertion): boolean {
-  let current: ESTree.Node = node;
+  const current = outermostExpressionParent(node);
   let parent = current.parent;
-  while (
-    parent !== null &&
+  return parent !== null && isTypeAssertion(parent) && parent.expression === current;
+}
+
+function isTransparentExpressionParent(parent: ESTree.Node, current: ESTree.Node): boolean {
+  return (
     (parent.type === "ParenthesizedExpression" || parent.type === "TSNonNullExpression") &&
     parent.expression === current
-  ) {
+  );
+}
+
+function outermostExpressionParent(node: ESTree.Node): ESTree.Node {
+  let current = node;
+  let parent = current.parent;
+  while (parent !== null && isTransparentExpressionParent(parent, current)) {
     current = parent;
     parent = parent.parent;
   }
-  return isTypeAssertion(parent) && parent.expression === current;
+  return current;
 }
 
-function hasAssertionChild(node: TypeAssertion): boolean {
-  let current = node.expression;
-  while (current.type === "ParenthesizedExpression" || current.type === "TSNonNullExpression") {
-    current = current.expression;
-  }
-  return isTypeAssertion(current);
-}
-
-function hasAssertionChain(expression: ESTree.Expression): boolean {
+function unwrapParenthesesAndNonNull(expression: ESTree.Expression): ESTree.Expression {
   let current = expression;
   while (current.type === "ParenthesizedExpression" || current.type === "TSNonNullExpression") {
     current = current.expression;
   }
+  return current;
+}
+
+function hasAssertionChild(node: TypeAssertion): boolean {
+  const current = unwrapParenthesesAndNonNull(node.expression);
+  return isTypeAssertion(current);
+}
+
+function hasAssertionChain(expression: ESTree.Expression): boolean {
+  const current = unwrapParenthesesAndNonNull(expression);
   return isTypeAssertion(current) && (hasAssertionParent(current) || hasAssertionChild(current));
+}
+
+function isConciseArrowReturn(parent: ESTree.Node, current: ESTree.Node): boolean {
+  return (
+    parent.type === "ArrowFunctionExpression" &&
+    parent.body.type !== "BlockStatement" &&
+    parent.body === current
+  );
+}
+
+function isFunctionBoundary(node: ESTree.Node): boolean {
+  return (
+    node.type === "ArrowFunctionExpression" ||
+    node.type === "FunctionDeclaration" ||
+    node.type === "FunctionExpression" ||
+    node.type === "TSDeclareFunction" ||
+    node.type === "TSEmptyBodyFunctionExpression"
+  );
 }
 
 function isReturnExpression(node: ESTree.Node): boolean {
   let current = node;
   let parent = current.parent;
   while (parent !== null) {
-    if (parent.type === "ReturnStatement") return true;
-    if (
-      parent.type === "ArrowFunctionExpression" &&
-      parent.body.type !== "BlockStatement" &&
-      parent.body === current
-    ) {
-      return true;
-    }
-    if (
-      parent.type === "ArrowFunctionExpression" ||
-      parent.type === "FunctionDeclaration" ||
-      parent.type === "FunctionExpression" ||
-      parent.type === "TSDeclareFunction" ||
-      parent.type === "TSEmptyBodyFunctionExpression"
-    ) {
-      return false;
-    }
+    if (parent.type === "ReturnStatement" || isConciseArrowReturn(parent, current)) return true;
+    if (isFunctionBoundary(parent)) return false;
     current = parent;
     parent = parent.parent;
   }
@@ -117,16 +136,8 @@ function isReturnExpression(node: ESTree.Node): boolean {
 }
 
 function isParameterDefaultValue(node: ESTree.Node): boolean {
-  let current = node;
-  let parent = current.parent;
-  while (
-    parent !== null &&
-    (parent.type === "ParenthesizedExpression" || parent.type === "TSNonNullExpression") &&
-    parent.expression === current
-  ) {
-    current = parent;
-    parent = parent.parent;
-  }
+  const current = outermostExpressionParent(node);
+  const parent = current.parent;
   return parent?.type === "AssignmentPattern" && parent.right === current;
 }
 
@@ -160,46 +171,82 @@ function variableDeclarator(variable: Variable): ESTree.VariableDeclarator | nul
     : null;
 }
 
+function hasUncertainAssertion(expression: ESTree.Expression): boolean {
+  return hasBroadAssertion(expression) || hasAssertionChain(expression);
+}
+
+function hasKnownLiteralEvidence(expression: ESTree.Expression): boolean {
+  return isKnownLiteral(expression) || isKnownObjectOrArray(expression);
+}
+
+function isConstInitializedIdentifier(
+  declarator: ESTree.VariableDeclarator,
+): declarator is LocalUnknownCandidate {
+  return (
+    declarator.parent.type === "VariableDeclaration" &&
+    declarator.parent.kind === "const" &&
+    declarator.id.type === "Identifier" &&
+    declarator.init !== null
+  );
+}
+
+function hasNonInitializationWrite(variable: Variable): boolean {
+  return variable.references.some((reference) => reference.isWrite() && !reference.init);
+}
+
+function hasDisqualifyingAnnotation(annotation: ESTree.TSType | null | undefined): boolean {
+  return (
+    annotation !== null &&
+    annotation !== undefined &&
+    (containsTopLevelAnyOrUnknown(annotation) || unwrapType(annotation).type === "TSTypeReference")
+  );
+}
+
+function hasDisqualifyingDeclaratorAnnotation(declarator: LocalUnknownCandidate): boolean {
+  return hasDisqualifyingAnnotation(declarator.id.typeAnnotation?.typeAnnotation);
+}
+
+function knownEvidenceDeclarator(variable: Variable): ESTree.VariableDeclarator | null {
+  const declarator = variableDeclarator(variable);
+  if (declarator === null) return null;
+  if (!isConstInitializedIdentifier(declarator)) return null;
+  if (hasNonInitializationWrite(variable)) return null;
+  if (hasDisqualifyingDeclaratorAnnotation(declarator)) return null;
+  return declarator;
+}
+
+function knownEvidenceForVariable(
+  variable: Variable,
+  variables: ReadonlyMap<string, Variable>,
+  visited: ReadonlySet<Variable>,
+): boolean {
+  const declarator = knownEvidenceDeclarator(variable);
+  if (declarator === null) return false;
+  if (declarator.init === null) return false;
+  const nextVisited = new Set(visited);
+  nextVisited.add(variable);
+  return knownValueEvidence(declarator.init, variables, nextVisited);
+}
+
+function knownEvidenceForIdentifier(
+  expression: ESTree.Expression,
+  variables: ReadonlyMap<string, Variable>,
+  visited: ReadonlySet<Variable>,
+): boolean {
+  if (expression.type !== "Identifier") return false;
+  const variable = variables.get(rangeKey(expression.start, expression.end));
+  if (variable === undefined || visited.has(variable)) return false;
+  return knownEvidenceForVariable(variable, variables, visited);
+}
+
 function knownValueEvidence(
   expression: ESTree.Expression,
   variables: ReadonlyMap<string, Variable>,
   visited: ReadonlySet<Variable> = new Set(),
 ): boolean {
-  if (hasBroadAssertion(expression) || hasAssertionChain(expression)) return false;
-  if (isKnownLiteral(expression) || isKnownObjectOrArray(expression)) return true;
-
-  const unwrapped = unwrapExpression(expression);
-  if (unwrapped.type !== "Identifier") return false;
-  const variable = variables.get(rangeKey(unwrapped.start, unwrapped.end));
-  if (variable === undefined || visited.has(variable)) return false;
-
-  const declarator = variableDeclarator(variable);
-  if (
-    declarator === null ||
-    declarator.parent.type !== "VariableDeclaration" ||
-    declarator.parent.kind !== "const" ||
-    declarator.id.type !== "Identifier" ||
-    declarator.init === null ||
-    variable.references.some((reference) => reference.isWrite() && !reference.init)
-  ) {
-    return false;
-  }
-
-  const annotation = declarator.id.typeAnnotation?.typeAnnotation;
-  if (annotation !== null && annotation !== undefined && containsTopLevelAnyOrUnknown(annotation)) {
-    return false;
-  }
-  if (
-    annotation !== null &&
-    annotation !== undefined &&
-    unwrapType(annotation).type === "TSTypeReference"
-  ) {
-    return false;
-  }
-
-  const nextVisited = new Set(visited);
-  nextVisited.add(variable);
-  return knownValueEvidence(declarator.init, variables, nextVisited);
+  if (hasUncertainAssertion(expression)) return false;
+  if (hasKnownLiteralEvidence(expression)) return true;
+  return knownEvidenceForIdentifier(unwrapExpression(expression), variables, visited);
 }
 
 function addExportedVariableNames(
@@ -216,12 +263,22 @@ function addExportSpecifierNames(
   statement: ESTree.ExportNamedDeclaration,
   names: Set<string>,
 ): void {
-  if (statement.exportKind === "type" || statement.source !== null) return;
+  if (!isLocalValueExport(statement)) return;
   for (const specifier of statement.specifiers) {
-    if (specifier.exportKind !== "type" && specifier.local.type === "Identifier") {
-      names.add(specifier.local.name);
-    }
+    const name = runtimeExportName(specifier);
+    if (name !== null) names.add(name);
   }
+}
+
+function isLocalValueExport(statement: ESTree.ExportNamedDeclaration): boolean {
+  return statement.exportKind !== "type" && statement.source === null;
+}
+
+function runtimeExportName(
+  specifier: ESTree.ExportNamedDeclaration["specifiers"][number],
+): string | null {
+  if (specifier.exportKind === "type" || specifier.local.type !== "Identifier") return null;
+  return specifier.local.name;
 }
 
 function exportedNames(program: ESTree.Program): ReadonlySet<string> {
@@ -248,39 +305,71 @@ function isExportedModuleBinding(
     return false;
   }
   const owner = declarator.parent.parent;
-  if (owner.type === "ExportNamedDeclaration" || owner.type === "ExportDefaultDeclaration") {
-    return true;
+  return isDirectlyExported(owner) || isNamedProgramExport(owner, declarator.id.name, names);
+}
+
+function isDirectlyExported(owner: ESTree.Node): boolean {
+  return owner.type === "ExportNamedDeclaration" || owner.type === "ExportDefaultDeclaration";
+}
+
+function isNamedProgramExport(
+  owner: ESTree.Node,
+  name: string,
+  names: ReadonlySet<string>,
+): boolean {
+  return owner.type === "Program" && names.has(name);
+}
+
+function isMutableVariableDeclarationFlow(
+  parent: ESTree.Node | null,
+  current: ESTree.Node,
+): boolean {
+  return (
+    parent?.type === "VariableDeclarator" &&
+    parent.init === current &&
+    isMutableVariableDeclarator(parent)
+  );
+}
+
+function isMutableVariableDeclarator(declarator: ESTree.VariableDeclarator): boolean {
+  return declarator.parent.type === "VariableDeclaration" && declarator.parent.kind !== "const";
+}
+
+function assignmentIdentifier(
+  parent: ESTree.Node | null,
+  current: ESTree.Node,
+): ESTree.IdentifierReference | null {
+  if (
+    parent?.type !== "AssignmentExpression" ||
+    parent.right !== current ||
+    parent.left.type !== "Identifier"
+  ) {
+    return null;
   }
-  return owner.type === "Program" && names.has(declarator.id.name);
+  return parent.left;
+}
+
+function isMutableAssignmentFlow(
+  parent: ESTree.Node | null,
+  current: ESTree.Node,
+  variables: ReadonlyMap<string, Variable>,
+): boolean {
+  const identifier = assignmentIdentifier(parent, current);
+  if (identifier === null) return false;
+  const variable = variables.get(rangeKey(identifier.start, identifier.end));
+  const declarator = variable === undefined ? null : variableDeclarator(variable);
+  return declarator !== null && isMutableVariableDeclarator(declarator);
 }
 
 function isMutableVariableFlow(
   node: TypeAssertion,
   variables: ReadonlyMap<string, Variable>,
 ): boolean {
-  let current: ESTree.Node = node;
-  let parent = current.parent;
-  while (
-    parent !== null &&
-    (parent.type === "ParenthesizedExpression" || parent.type === "TSNonNullExpression") &&
-    parent.expression === current
-  ) {
-    current = parent;
-    parent = parent.parent;
-  }
-
-  if (parent?.type === "VariableDeclarator" && parent.init === current) {
-    return parent.parent.type === "VariableDeclaration" && parent.parent.kind !== "const";
-  }
-  if (parent?.type !== "AssignmentExpression" || parent.right !== current) return false;
-  if (parent.left.type !== "Identifier") return false;
-
-  const variable = variables.get(rangeKey(parent.left.start, parent.left.end));
-  const declarator = variable === undefined ? null : variableDeclarator(variable);
+  const current = outermostExpressionParent(node);
+  const parent = current.parent;
   return (
-    declarator !== null &&
-    declarator.parent.type === "VariableDeclaration" &&
-    declarator.parent.kind !== "const"
+    isMutableVariableDeclarationFlow(parent, current) ||
+    isMutableAssignmentFlow(parent, current, variables)
   );
 }
 
@@ -290,18 +379,81 @@ function isInsideExportedBinding(node: ESTree.Node, names: ReadonlySet<string>):
     if (current.type === "VariableDeclarator") {
       return isExportedModuleBinding(current, names);
     }
-    if (
-      current.type === "ArrowFunctionExpression" ||
-      current.type === "FunctionDeclaration" ||
-      current.type === "FunctionExpression" ||
-      current.type === "TSDeclareFunction" ||
-      current.type === "TSEmptyBodyFunctionExpression"
-    ) {
-      return false;
-    }
+    if (isFunctionBoundary(current)) return false;
     current = current.parent;
   }
   return false;
+}
+
+function isLocalUnknownCandidate(
+  node: ESTree.VariableDeclarator,
+  exported: ReadonlySet<string>,
+): node is LocalUnknownCandidate {
+  if (node.id.type !== "Identifier") return false;
+  if (node.init === null) return false;
+  if (node.parent.type !== "VariableDeclaration") return false;
+  if (node.parent.kind !== "const") return false;
+  return !isExportedModuleBinding(node, exported);
+}
+
+function isNonLocalAssertionFlow(
+  node: TypeAssertion,
+  variables: ReadonlyMap<string, Variable>,
+): boolean {
+  return (
+    isMutableVariableFlow(node, variables) ||
+    isParameterDefaultValue(node) ||
+    isReturnExpression(node)
+  );
+}
+
+function isProtectedAssertion(
+  node: TypeAssertion,
+  variables: ReadonlyMap<string, Variable>,
+  exported: ReadonlySet<string>,
+): boolean {
+  return (
+    hasAssertionChain(node) ||
+    isNonLocalAssertionFlow(node, variables) ||
+    isInsideExportedBinding(node, exported)
+  );
+}
+
+function reportUnknownVariable(
+  context: Context,
+  node: ESTree.VariableDeclarator,
+  variables: ReadonlyMap<string, Variable>,
+  exported: ReadonlySet<string>,
+): void {
+  if (!isLocalUnknownCandidate(node, exported)) return;
+  const annotation = node.id.typeAnnotation?.typeAnnotation;
+  if (annotation == null) return;
+  if (!hasUnknownTypeEvidence(annotation, node.init, variables)) return;
+  context.report({
+    node: unwrapType(annotation),
+    messageId: "widening",
+    data: { name: node.id.name },
+  });
+}
+
+function hasUnknownTypeEvidence(
+  annotation: ESTree.TSType,
+  initializer: ESTree.Expression,
+  variables: ReadonlyMap<string, Variable>,
+): boolean {
+  return isBareUnknown(annotation) && knownValueEvidence(initializer, variables);
+}
+
+function reportUnknownAssertion(
+  context: Context,
+  node: TypeAssertion,
+  variables: ReadonlyMap<string, Variable>,
+  exported: ReadonlySet<string>,
+): void {
+  if (!isBareUnknown(node.typeAnnotation)) return;
+  if (isProtectedAssertion(node, variables, exported)) return;
+  if (!knownValueEvidence(node.expression, variables)) return;
+  context.report({ node: unwrapType(node.typeAnnotation), messageId: "assertion" });
 }
 
 export const noUnnecessaryUnknownRule = defineRule({
@@ -335,43 +487,11 @@ export const noUnnecessaryUnknownRule = defineRule({
       }
     };
 
-    const reportVariable = (node: ESTree.VariableDeclarator): void => {
-      if (
-        node.id.type !== "Identifier" ||
-        node.init === null ||
-        node.parent.type !== "VariableDeclaration" ||
-        node.parent.kind !== "const" ||
-        isExportedModuleBinding(node, exported)
-      ) {
-        return;
-      }
-      const annotation = node.id.typeAnnotation?.typeAnnotation;
-      if (annotation === null || annotation === undefined) return;
-      if (!isBareUnknown(annotation) || !knownValueEvidence(node.init, variables)) return;
+    const reportVariable = (node: ESTree.VariableDeclarator): void =>
+      reportUnknownVariable(context, node, variables, exported);
 
-      context.report({
-        node: unwrapType(annotation),
-        messageId: "widening",
-        data: { name: node.id.name },
-      });
-    };
-
-    const reportAssertion = (node: TypeAssertion): void => {
-      if (
-        !isBareUnknown(node.typeAnnotation) ||
-        hasAssertionParent(node) ||
-        hasAssertionChild(node) ||
-        isMutableVariableFlow(node, variables) ||
-        isParameterDefaultValue(node) ||
-        isReturnExpression(node) ||
-        isInsideExportedBinding(node, exported) ||
-        !knownValueEvidence(node.expression, variables)
-      ) {
-        return;
-      }
-
-      context.report({ node: unwrapType(node.typeAnnotation), messageId: "assertion" });
-    };
+    const reportAssertion = (node: TypeAssertion): void =>
+      reportUnknownAssertion(context, node, variables, exported);
 
     return {
       Program(program) {

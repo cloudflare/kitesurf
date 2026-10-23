@@ -18,6 +18,12 @@ export type TypeScriptContracts = {
   ): boolean;
 };
 
+type ProjectConfiguration = {
+  readonly configPath: string;
+  readonly configText: string;
+  readonly parsed: ts.ParsedCommandLine;
+};
+
 type SourceIndex = {
   readonly fileName: string;
   readonly classes: readonly ts.ClassLikeDeclaration[];
@@ -39,7 +45,7 @@ type CachedProgram = {
 let cachedProgram: CachedProgram | null = null;
 
 export function hasJSDocReturnContract(commentValue: string): boolean {
-  if (!commentValue.includes("@return") && !commentValue.includes("@type")) return false;
+  if (!hasRelevantJSDocTag(commentValue)) return false;
   const sourceFile = ts.createSourceFile(
     "inline-jsdoc.js",
     `/**${commentValue}*/\nfunction __jsdocContract__() {}`,
@@ -49,20 +55,43 @@ export function hasJSDocReturnContract(commentValue: string): boolean {
   );
   const declaration = sourceFile.statements.find(ts.isFunctionDeclaration);
   if (declaration === undefined) return false;
+  return (
+    hasJSDocReturnTagContract(sourceFile, declaration) ||
+    hasJSDocFunctionTypeTag(sourceFile, declaration)
+  );
+}
 
+function hasRelevantJSDocTag(commentValue: string): boolean {
+  return commentValue.includes("@return") || commentValue.includes("@type");
+}
+
+function hasJSDocReturnTagContract(
+  sourceFile: ts.SourceFile,
+  declaration: ts.FunctionDeclaration,
+): boolean {
   const returnTag = ts.getJSDocReturnTag(declaration);
-  if (
+  return (
     returnTag?.typeExpression !== undefined &&
     !ts.isJSDocUnknownType(returnTag.typeExpression.type) &&
     completeJSDocType(sourceFile, returnTag.typeExpression)
-  ) {
-    return true;
-  }
-  const typeTag = ts.getJSDocTypeTag(declaration);
-  if (typeTag === undefined || !completeJSDocType(sourceFile, typeTag.typeExpression)) return false;
-  const type = typeTag.typeExpression.type;
+  );
+}
+
+function isCallableJSDocType(type: ts.TypeNode): boolean {
   return (
     ts.isFunctionTypeNode(type) || ts.isJSDocFunctionType(type) || ts.isConstructorTypeNode(type)
+  );
+}
+
+function hasJSDocFunctionTypeTag(
+  sourceFile: ts.SourceFile,
+  declaration: ts.FunctionDeclaration,
+): boolean {
+  const typeTag = ts.getJSDocTypeTag(declaration);
+  return (
+    typeTag !== undefined &&
+    completeJSDocType(sourceFile, typeTag.typeExpression) &&
+    isCallableJSDocType(typeTag.typeExpression.type)
   );
 }
 
@@ -84,20 +113,114 @@ function rootsKey(fileNames: readonly string[]): string {
   return fileNames.map(canonicalPath).sort().join("\n");
 }
 
+function sourceModifiedTime(fileName: string): number {
+  return ts.sys.getModifiedTime?.(fileName)?.getTime() ?? -1;
+}
+
+function sourceFileSize(fileName: string): number {
+  return ts.sys.getFileSize?.(fileName) ?? -1;
+}
+
+function sourceFileSignature(fileName: string): string {
+  return `${fileName}\0${sourceModifiedTime(fileName)}\0${sourceFileSize(fileName)}`;
+}
+
 function sourceSignature(program: ts.Program): string {
   return [...new Set(program.getSourceFiles().map((file) => canonicalPath(file.fileName)))]
     .sort()
-    .map((fileName) => {
-      const modified = ts.sys.getModifiedTime?.(fileName)?.getTime() ?? -1;
-      const size = ts.sys.getFileSize?.(fileName) ?? -1;
-      return `${fileName}\0${modified}\0${size}`;
-    })
+    .map(sourceFileSignature)
     .join("\n");
 }
 
 function sourceFileFor(program: ts.Program, fileName: string): ts.SourceFile | undefined {
   const key = canonicalPath(fileName);
   return program.getSourceFiles().find((file) => canonicalPath(file.fileName) === key);
+}
+
+function classContainsPosition(
+  candidate: ts.ClassLikeDeclaration,
+  start: number,
+  position: number,
+): boolean {
+  return start <= position && candidate.end >= position;
+}
+
+function candidateIsCloserClass(
+  candidate: ts.ClassLikeDeclaration,
+  start: number,
+  closest: ts.ClassLikeDeclaration | undefined,
+  sourceFile: ts.SourceFile,
+): boolean {
+  return (
+    closest === undefined || candidate.end - start < closest.end - closest.getStart(sourceFile)
+  );
+}
+
+function findClassAt(
+  classes: readonly ts.ClassLikeDeclaration[],
+  sourceFile: ts.SourceFile,
+  position: number,
+): ts.ClassLikeDeclaration | undefined {
+  let closest: ts.ClassLikeDeclaration | undefined;
+  for (const candidate of classes) {
+    const start = candidate.getStart(sourceFile);
+    if (
+      classContainsPosition(candidate, start, position) &&
+      candidateIsCloserClass(candidate, start, closest, sourceFile)
+    ) {
+      closest = candidate;
+    }
+  }
+  return closest;
+}
+
+function shouldSkipStaticHeritage(heritage: ts.HeritageClause, isStatic: boolean): boolean {
+  return isStatic && heritage.token === ts.SyntaxKind.ImplementsKeyword;
+}
+
+function inheritedOwnerType(
+  checker: ts.TypeChecker,
+  heritage: ts.HeritageClause,
+  owner: ts.ExpressionWithTypeArguments,
+  isStatic: boolean,
+): ts.Type {
+  return isStatic && heritage.token === ts.SyntaxKind.ExtendsKeyword
+    ? checker.getTypeAtLocation(owner.expression)
+    : checker.getTypeFromTypeNode(owner);
+}
+
+function heritageHasMemberContract(
+  checker: ts.TypeChecker,
+  heritage: ts.HeritageClause,
+  name: string,
+  kind: ContractMemberKind,
+  isStatic: boolean,
+): boolean {
+  for (const owner of heritage.types) {
+    if (shouldSkipStaticHeritage(heritage, isStatic)) continue;
+    if (
+      memberContract(checker, inheritedOwnerType(checker, heritage, owner, isStatic), name, kind)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function classHasMemberContract(
+  checker: ts.TypeChecker,
+  classes: readonly ts.ClassLikeDeclaration[],
+  sourceFile: ts.SourceFile,
+  memberStart: number,
+  name: string,
+  kind: ContractMemberKind,
+  isStatic: boolean,
+): boolean {
+  const declaration = findClassAt(classes, sourceFile, memberStart);
+  for (const heritage of declaration?.heritageClauses ?? []) {
+    if (heritageHasMemberContract(checker, heritage, name, kind, isStatic)) return true;
+  }
+  return false;
 }
 
 function createHost(
@@ -140,19 +263,27 @@ function indexSourceFile(sourceFile: ts.SourceFile): SourceIndex {
   return { fileName: sourceFile.fileName, classes, types };
 }
 
-function memberName(name: ts.PropertyName): string | null {
-  if (
+function hasDirectMemberText(
+  name: ts.PropertyName,
+): name is
+  | ts.Identifier
+  | ts.PrivateIdentifier
+  | ts.StringLiteral
+  | ts.NoSubstitutionTemplateLiteral
+  | ts.NumericLiteral {
+  return (
     ts.isIdentifier(name) ||
     ts.isPrivateIdentifier(name) ||
     ts.isStringLiteral(name) ||
     ts.isNoSubstitutionTemplateLiteral(name) ||
     ts.isNumericLiteral(name)
-  ) {
-    return name.text;
-  }
-  return ts.isComputedPropertyName(name) && ts.isStringLiteral(name.expression)
-    ? name.expression.text
-    : null;
+  );
+}
+
+function memberName(name: ts.PropertyName): string | null {
+  if (hasDirectMemberText(name)) return name.text;
+  if (!ts.isComputedPropertyName(name)) return null;
+  return ts.isStringLiteral(name.expression) ? name.expression.text : null;
 }
 
 function explicitReturn(signature: ts.Signature): boolean {
@@ -170,32 +301,59 @@ function explicitCallableType(checker: ts.TypeChecker, node: ts.TypeNode): boole
   );
 }
 
+type ContractMemberDeclaration =
+  | ts.MethodSignature
+  | ts.MethodDeclaration
+  | ts.GetAccessorDeclaration
+  | ts.PropertySignature
+  | ts.PropertyDeclaration;
+
+function isContractMemberDeclaration(
+  declaration: ts.Declaration,
+): declaration is ContractMemberDeclaration {
+  return (
+    ts.isMethodSignature(declaration) ||
+    ts.isMethodDeclaration(declaration) ||
+    ts.isGetAccessorDeclaration(declaration) ||
+    ts.isPropertySignature(declaration) ||
+    ts.isPropertyDeclaration(declaration)
+  );
+}
+
+function hasMatchingMemberNameAndType(
+  declaration: ContractMemberDeclaration,
+  name: string,
+): boolean {
+  return memberName(declaration.name) === name && declaration.type !== undefined;
+}
+
+function isGetterContractDeclaration(declaration: ContractMemberDeclaration): boolean {
+  return (
+    ts.isGetAccessorDeclaration(declaration) ||
+    ts.isPropertySignature(declaration) ||
+    ts.isPropertyDeclaration(declaration)
+  );
+}
+
+function isMethodContractDeclaration(
+  checker: ts.TypeChecker,
+  declaration: ContractMemberDeclaration,
+): boolean {
+  if (ts.isMethodSignature(declaration) || ts.isMethodDeclaration(declaration)) return true;
+  return declaration.type !== undefined && explicitCallableType(checker, declaration.type);
+}
+
 function declarationHasMemberContract(
   checker: ts.TypeChecker,
   declaration: ts.Declaration,
   name: string,
   kind: ContractMemberKind,
 ): boolean {
-  if (
-    !ts.isMethodSignature(declaration) &&
-    !ts.isMethodDeclaration(declaration) &&
-    !ts.isGetAccessorDeclaration(declaration) &&
-    !ts.isPropertySignature(declaration) &&
-    !ts.isPropertyDeclaration(declaration)
-  ) {
-    return false;
-  }
-  if (memberName(declaration.name) !== name || declaration.type === undefined) return false;
-  if (kind === "get") {
-    return (
-      ts.isGetAccessorDeclaration(declaration) ||
-      ts.isPropertySignature(declaration) ||
-      ts.isPropertyDeclaration(declaration)
-    );
-  }
-  return ts.isMethodSignature(declaration) || ts.isMethodDeclaration(declaration)
-    ? true
-    : explicitCallableType(checker, declaration.type);
+  if (!isContractMemberDeclaration(declaration)) return false;
+  if (!hasMatchingMemberNameAndType(declaration, name)) return false;
+  return kind === "get"
+    ? isGetterContractDeclaration(declaration)
+    : isMethodContractDeclaration(checker, declaration);
 }
 
 function memberContract(
@@ -222,22 +380,6 @@ function sessionFor(cached: CachedProgram, sourceFile: ts.SourceFile): TypeScrip
   const checker = cached.program.getTypeChecker();
   const typeAt = (start: number, end: number): ts.TypeNode | undefined =>
     index.types.get(keyRange(start, end));
-  const classAt = (position: number): ts.ClassLikeDeclaration | undefined => {
-    let closest: ts.ClassLikeDeclaration | undefined;
-    for (const candidate of index.classes) {
-      const start = candidate.getStart(sourceFile);
-      if (
-        start <= position &&
-        candidate.end >= position &&
-        (closest === undefined ||
-          candidate.end - start < closest.end - closest.getStart(sourceFile))
-      ) {
-        closest = candidate;
-      }
-    }
-    return closest;
-  };
-
   return {
     hasCallableType(start, end) {
       const node = typeAt(start, end);
@@ -250,28 +392,20 @@ function sessionFor(cached: CachedProgram, sourceFile: ts.SourceFile): TypeScrip
       );
     },
     hasClassMember(memberStart, name, kind, isStatic) {
-      const declaration = classAt(memberStart);
-      for (const heritage of declaration?.heritageClauses ?? []) {
-        for (const owner of heritage.types) {
-          if (isStatic && heritage.token === ts.SyntaxKind.ImplementsKeyword) continue;
-          const ownerType =
-            isStatic && heritage.token === ts.SyntaxKind.ExtendsKeyword
-              ? checker.getTypeAtLocation(owner.expression)
-              : checker.getTypeFromTypeNode(owner);
-          if (memberContract(checker, ownerType, name, kind)) return true;
-        }
-      }
-      return false;
+      return classHasMemberContract(
+        checker,
+        index.classes,
+        sourceFile,
+        memberStart,
+        name,
+        kind,
+        isStatic,
+      );
     },
   };
 }
 
-export function createTypeScriptContracts(
-  filename: string,
-  cwd: string,
-  sourceText: string,
-): TypeScriptContracts | null {
-  const absoluteFilename = resolve(cwd, filename);
+function readProjectConfiguration(absoluteFilename: string): ProjectConfiguration | null {
   const configPath = ts.findConfigFile(dirname(absoluteFilename), ts.sys.fileExists);
   if (configPath === undefined) return null;
   const configText = ts.sys.readFile(configPath);
@@ -286,47 +420,123 @@ export function createTypeScriptContracts(
     configPath,
   );
   if (parsed.errors.length > 0) return null;
+  return { configPath, configText, parsed };
+}
 
-  const rootNames = parsed.fileNames.map((fileName) => resolve(fileName));
-  if (!rootNames.some((fileName) => canonicalPath(fileName) === canonicalPath(absoluteFilename))) {
-    rootNames.push(absoluteFilename);
-  }
-  const projectRootKey = rootsKey(rootNames);
-  const sourceOverride = ts.sys.readFile(absoluteFilename) === sourceText ? null : sourceText;
-  const existing = cachedProgram;
+function projectRootNames(project: ProjectConfiguration, absoluteFilename: string): string[] {
+  const rootNames = project.parsed.fileNames.map((fileName) => resolve(fileName));
+  const absoluteKey = canonicalPath(absoluteFilename);
+  const includesSource = rootNames.some((fileName) => canonicalPath(fileName) === absoluteKey);
+  if (!includesSource) rootNames.push(absoluteFilename);
+  return rootNames;
+}
+
+function cachedSettingsMatch(
+  existing: CachedProgram,
+  project: ProjectConfiguration,
+  optionsKey: string,
+  rootNamesKey: string,
+): boolean {
+  return (
+    canonicalPath(existing.configPath) === canonicalPath(project.configPath) &&
+    existing.configText === project.configText &&
+    existing.optionsKey === optionsKey &&
+    existing.rootNamesKey === rootNamesKey
+  );
+}
+
+function cachedNoOverrideMatch(existing: CachedProgram, sourceOverride: string | null): boolean {
+  return existing.overridePath === null && sourceOverride === null;
+}
+
+function cachedSourceOverrideMatch(
+  existing: CachedProgram,
+  absoluteFilename: string,
+  sourceOverride: string | null,
+): boolean {
+  return (
+    existing.overridePath !== null &&
+    canonicalPath(existing.overridePath) === canonicalPath(absoluteFilename) &&
+    existing.overrideText === sourceOverride
+  );
+}
+
+function cachedOverrideMatch(
+  existing: CachedProgram,
+  absoluteFilename: string,
+  sourceOverride: string | null,
+): boolean {
+  return (
+    cachedNoOverrideMatch(existing, sourceOverride) ||
+    cachedSourceOverrideMatch(existing, absoluteFilename, sourceOverride)
+  );
+}
+
+function cachedProgramMatch(
+  existing: CachedProgram,
+  project: ProjectConfiguration,
+  optionsKey: string,
+  rootNamesKey: string,
+  absoluteFilename: string,
+  sourceOverride: string | null,
+): boolean {
+  if (!cachedSettingsMatch(existing, project, optionsKey, rootNamesKey)) return false;
+  if (existing.fileSignature !== sourceSignature(existing.program)) return false;
+  return cachedOverrideMatch(existing, absoluteFilename, sourceOverride);
+}
+
+function reusableProjectContracts(
+  existing: CachedProgram,
+  project: ProjectConfiguration,
+  optionsKey: string,
+  rootNamesKey: string,
+  absoluteFilename: string,
+  sourceOverride: string | null,
+  sourceText: string,
+): TypeScriptContracts | null {
   if (
-    existing !== null &&
-    canonicalPath(existing.configPath) === canonicalPath(configPath) &&
-    existing.configText === configText &&
-    existing.optionsKey === JSON.stringify(parsed.options) &&
-    existing.rootNamesKey === projectRootKey &&
-    existing.fileSignature === sourceSignature(existing.program) &&
-    ((existing.overridePath === null && sourceOverride === null) ||
-      (existing.overridePath !== null &&
-        canonicalPath(existing.overridePath) === canonicalPath(absoluteFilename) &&
-        existing.overrideText === sourceOverride))
+    !cachedProgramMatch(
+      existing,
+      project,
+      optionsKey,
+      rootNamesKey,
+      absoluteFilename,
+      sourceOverride,
+    )
   ) {
-    const sourceFile = sourceFileFor(existing.program, absoluteFilename);
-    if (sourceFile?.text === sourceText) return sessionFor(existing, sourceFile);
+    return null;
   }
+  const sourceFile = sourceFileFor(existing.program, absoluteFilename);
+  if (sourceFile?.text !== sourceText) return null;
+  return sessionFor(existing, sourceFile);
+}
 
-  const host = createHost(absoluteFilename, sourceText, parsed.options);
+function createProgramContracts(
+  absoluteFilename: string,
+  sourceText: string,
+  project: ProjectConfiguration,
+  rootNames: string[],
+  rootNamesKey: string,
+  sourceOverride: string | null,
+  optionsKey: string,
+): TypeScriptContracts | null {
+  const host = createHost(absoluteFilename, sourceText, project.parsed.options);
   const program = ts.createProgram({
     rootNames,
-    options: parsed.options,
-    ...(parsed.projectReferences === undefined
+    options: project.parsed.options,
+    ...(project.parsed.projectReferences === undefined
       ? {}
-      : { projectReferences: parsed.projectReferences }),
+      : { projectReferences: project.parsed.projectReferences }),
     host,
   });
   const sourceFile = sourceFileFor(program, absoluteFilename);
   if (sourceFile?.text !== sourceText) return null;
 
   const entry: CachedProgram = {
-    configPath,
-    configText,
-    optionsKey: JSON.stringify(parsed.options),
-    rootNamesKey: projectRootKey,
+    configPath: project.configPath,
+    configText: project.configText,
+    optionsKey,
+    rootNamesKey,
     fileSignature: sourceSignature(program),
     overridePath: sourceOverride === null ? null : absoluteFilename,
     overrideText: sourceOverride,
@@ -335,4 +545,40 @@ export function createTypeScriptContracts(
   };
   cachedProgram = entry;
   return sessionFor(entry, sourceFile);
+}
+
+export function createTypeScriptContracts(
+  filename: string,
+  cwd: string,
+  sourceText: string,
+): TypeScriptContracts | null {
+  const absoluteFilename = resolve(cwd, filename);
+  const project = readProjectConfiguration(absoluteFilename);
+  if (project === null) return null;
+  const rootNames = projectRootNames(project, absoluteFilename);
+  const projectRootKey = rootsKey(rootNames);
+  const sourceOverride = ts.sys.readFile(absoluteFilename) === sourceText ? null : sourceText;
+  const optionsKey = JSON.stringify(project.parsed.options);
+  const existing = cachedProgram;
+  if (existing !== null) {
+    const reusable = reusableProjectContracts(
+      existing,
+      project,
+      optionsKey,
+      projectRootKey,
+      absoluteFilename,
+      sourceOverride,
+      sourceText,
+    );
+    if (reusable !== null) return reusable;
+  }
+  return createProgramContracts(
+    absoluteFilename,
+    sourceText,
+    project,
+    rootNames,
+    projectRootKey,
+    sourceOverride,
+    optionsKey,
+  );
 }

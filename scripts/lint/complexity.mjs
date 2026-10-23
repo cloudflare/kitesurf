@@ -32,6 +32,7 @@ const MAX_DIAGNOSTIC_MESSAGE_CHARACTERS = 600;
  * @typedef {{ok: true, findings: ComplexityFinding[]} | {
  *   ok: false, exitCode: number, reason: string, nativeErrors: NativeError[]
  * }} ComplexityAnalysis
+ * @typedef {{ok: true, report: OxlintReport} | {ok: false, reason: string}} OxlintParseResult
  */
 
 /**
@@ -55,6 +56,20 @@ function isUnknownArray(value) {
   return Array.isArray(value);
 }
 
+/** @param {unknown} value @returns {boolean} */
+function isDiagnosticSeverity(value) {
+  return value === "warning" || value === "error";
+}
+
+/** @param {Record<string, unknown>} value @returns {boolean} */
+function hasDiagnosticTextFields(value) {
+  return (
+    typeof value.filename === "string" &&
+    typeof value.code === "string" &&
+    typeof value.message === "string"
+  );
+}
+
 /** @param {string} ruleId */
 function isComplexityRule(ruleId) {
   return ruleId === "eslint(complexity)";
@@ -74,12 +89,15 @@ function isOxlintReport(value) {
 function isOxlintDiagnostic(value) {
   return (
     isRecord(value) &&
-    typeof value.filename === "string" &&
-    typeof value.code === "string" &&
-    typeof value.message === "string" &&
-    (value.severity === "warning" || value.severity === "error") &&
+    hasDiagnosticTextFields(value) &&
+    isDiagnosticSeverity(value.severity) &&
     isUnknownArray(value.labels)
   );
+}
+
+/** @param {unknown} value @returns {number | null} */
+function safeDiagnosticCoordinate(value) {
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : null;
 }
 
 /** @param {unknown[]} labels @returns {DiagnosticLocation} */
@@ -87,9 +105,8 @@ function diagnosticLocation(labels) {
   const firstLabel = labels[0];
   const span = isRecord(firstLabel) && isRecord(firstLabel.span) ? firstLabel.span : undefined;
   return {
-    line: typeof span?.line === "number" && Number.isSafeInteger(span.line) ? span.line : null,
-    column:
-      typeof span?.column === "number" && Number.isSafeInteger(span.column) ? span.column : null,
+    line: safeDiagnosticCoordinate(span?.line),
+    column: safeDiagnosticCoordinate(span?.column),
   };
 }
 
@@ -99,6 +116,46 @@ function complexityScore(message) {
   if (scoreMatch === null) return null;
   const score = Number(scoreMatch[1]);
   return Number.isSafeInteger(score) ? score : null;
+}
+
+/** @param {unknown} diagnostic */
+function assertOxlintDiagnostic(diagnostic) {
+  if (!isOxlintDiagnostic(diagnostic)) {
+    throw new Error("Oxlint JSON output contained an invalid diagnostic.");
+  }
+}
+
+/** @param {OxlintDiagnostic} diagnostic @param {string} file @param {DiagnosticLocation} location @returns {NativeError | null} */
+function nativeErrorFromDiagnostic(diagnostic, file, location) {
+  if (diagnostic.severity !== "error") return null;
+  return {
+    file,
+    line: location.line,
+    column: location.column,
+    ruleId: diagnostic.code,
+    message: diagnostic.message,
+  };
+}
+
+/** @param {OxlintDiagnostic} diagnostic @param {string} file @param {DiagnosticLocation} location @returns {ComplexityFinding | null} */
+function complexityFindingFromDiagnostic(diagnostic, file, location) {
+  if (!isComplexityRule(diagnostic.code)) return null;
+  const score = complexityScore(diagnostic.message);
+  if (score === null || location.line === null || location.column === null) {
+    throw new Error("An Oxlint complexity diagnostic did not include a score and location.");
+  }
+  return { file, line: location.line, column: location.column, score };
+}
+
+/** @param {unknown} diagnostic @param {string} root @returns {{finding: ComplexityFinding | null, nativeError: NativeError | null}} */
+function parseOxlintDiagnostic(diagnostic, root) {
+  assertOxlintDiagnostic(diagnostic);
+  const file = displayPath(diagnostic.filename, root);
+  const location = diagnosticLocation(diagnostic.labels);
+  return {
+    finding: complexityFindingFromDiagnostic(diagnostic, file, location),
+    nativeError: nativeErrorFromDiagnostic(diagnostic, file, location),
+  };
 }
 
 /**
@@ -119,28 +176,9 @@ function parseOxlintReport(stdout, root) {
   const nativeErrors = [];
 
   for (const diagnostic of output.diagnostics) {
-    if (!isOxlintDiagnostic(diagnostic)) {
-      throw new Error("Oxlint JSON output contained an invalid diagnostic.");
-    }
-    const file = displayPath(diagnostic.filename, root);
-    const { line, column } = diagnosticLocation(diagnostic.labels);
-
-    if (diagnostic.severity === "error") {
-      nativeErrors.push({
-        file,
-        line,
-        column,
-        ruleId: diagnostic.code,
-        message: diagnostic.message,
-      });
-    }
-    if (!isComplexityRule(diagnostic.code)) continue;
-
-    const score = complexityScore(diagnostic.message);
-    if (score === null || line === null || column === null) {
-      throw new Error("An Oxlint complexity diagnostic did not include a score and location.");
-    }
-    findings.push({ file, line, column, score });
+    const parsed = parseOxlintDiagnostic(diagnostic, root);
+    if (parsed.nativeError !== null) nativeErrors.push(parsed.nativeError);
+    if (parsed.finding !== null) findings.push(parsed.finding);
   }
 
   return { findings, nativeErrors };
@@ -151,6 +189,76 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** @param {string} stdout @param {string} root @returns {OxlintParseResult} */
+function tryParseOxlintReport(stdout, root) {
+  try {
+    return { ok: true, report: parseOxlintReport(stdout, root) };
+  } catch (error) {
+    return { ok: false, reason: errorMessage(error) };
+  }
+}
+
+/** @param {number | null} status @returns {number} */
+function processExitCode(status) {
+  return status ?? 1;
+}
+
+/** @param {number | null} status @returns {string | number} */
+function processStatusLabel(status) {
+  return status ?? "unknown";
+}
+
+/** @param {ReturnType<typeof spawnSync>} result @returns {{exitCode: number, reason: string} | null} */
+function oxlintExecutionFailure(result) {
+  if (result.error !== undefined) {
+    return { exitCode: 1, reason: `Oxlint did not complete: ${result.error.message}` };
+  }
+  if (result.signal !== null) {
+    return { exitCode: 1, reason: `Oxlint terminated after signal ${result.signal}.` };
+  }
+  if (result.status !== 0) {
+    const status = result.status;
+    return {
+      exitCode: processExitCode(status),
+      reason: `Oxlint exited with status ${processStatusLabel(status)}.`,
+    };
+  }
+  return null;
+}
+
+/** @param {NativeError[]} nativeErrors @returns {{exitCode: number, reason: string} | null} */
+function nativeDiagnosticFailure(nativeErrors) {
+  if (nativeErrors.length > 0) {
+    return {
+      exitCode: 1,
+      reason: `Oxlint reported ${nativeErrors.length} error(s) with a successful exit status.`,
+    };
+  }
+  return null;
+}
+
+/** @param {ReturnType<typeof spawnSync>} result @param {NativeError[]} nativeErrors @returns {{exitCode: number, reason: string} | null} */
+function processFailure(result, nativeErrors) {
+  return oxlintExecutionFailure(result) ?? nativeDiagnosticFailure(nativeErrors);
+}
+
+/** @param {string} reason @param {number} exitCode @param {NativeError[]} nativeErrors @returns {ComplexityAnalysis} */
+function failedAnalysis(reason, exitCode, nativeErrors) {
+  return { ok: false, exitCode, reason, nativeErrors };
+}
+
+/** @param {ReturnType<typeof spawnSync>} result @param {OxlintParseResult} parsed @param {NativeError[]} nativeErrors @returns {ComplexityAnalysis} */
+function analyzeParsedReport(result, parsed, nativeErrors) {
+  const processError = processFailure(result, nativeErrors);
+  if (processError !== null) {
+    return failedAnalysis(processError.reason, processError.exitCode, nativeErrors);
+  }
+  if (!parsed.ok) {
+    return failedAnalysis(`Could not read Oxlint's JSON report: ${parsed.reason}`, 1, nativeErrors);
+  }
+  return { ok: true, findings: parsed.report.findings };
+}
+
 /**
  * @param {{status: number | null, signal: string | null, error?: Error,
  *   stdout?: string | null, stderr?: string | null}} result
@@ -159,57 +267,9 @@ function errorMessage(error) {
  */
 export function analyzeOxlintResult(result, root = ROOT) {
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
-  let report;
-  let parseFailure;
-  try {
-    report = parseOxlintReport(stdout, root);
-  } catch (error) {
-    parseFailure = errorMessage(error);
-  }
-  const nativeErrors = report?.nativeErrors ?? [];
-
-  if (result.error !== undefined) {
-    return {
-      ok: false,
-      exitCode: 1,
-      reason: `Oxlint did not complete: ${result.error.message}`,
-      nativeErrors,
-    };
-  }
-  if (result.signal !== null) {
-    return {
-      ok: false,
-      exitCode: 1,
-      reason: `Oxlint terminated after signal ${result.signal}.`,
-      nativeErrors,
-    };
-  }
-  if (result.status !== 0) {
-    return {
-      ok: false,
-      exitCode: result.status ?? 1,
-      reason: `Oxlint exited with status ${result.status ?? "unknown"}.`,
-      nativeErrors,
-    };
-  }
-  if (parseFailure !== undefined) {
-    return {
-      ok: false,
-      exitCode: 1,
-      reason: `Could not read Oxlint's JSON report: ${parseFailure}`,
-      nativeErrors,
-    };
-  }
-  if (nativeErrors.length > 0) {
-    return {
-      ok: false,
-      exitCode: 1,
-      reason: `Oxlint reported ${nativeErrors.length} error(s) with a successful exit status.`,
-      nativeErrors,
-    };
-  }
-
-  return { ok: true, findings: report.findings };
+  const parsed = tryParseOxlintReport(stdout, root);
+  const nativeErrors = parsed.ok ? parsed.report.nativeErrors : [];
+  return analyzeParsedReport(result, parsed, nativeErrors);
 }
 
 /**

@@ -57,60 +57,87 @@ function rustCommands() {
   ];
 }
 
-function commandsFor(operation, mode) {
-  if (operation === "format" && (mode === "--check" || mode === "--write")) {
-    const files = sourceFiles(FORMAT_EXTENSIONS, ".oxfmtrc.json");
-    const commands =
-      files.length === 0
-        ? []
-        : [
+function formatCommands(mode) {
+  if (mode !== "--check" && mode !== "--write") return null;
+  const files = sourceFiles(FORMAT_EXTENSIONS, ".oxfmtrc.json");
+  const [oxfmt, oxfmtArgs] = packageBin("oxfmt");
+  const commands =
+    files.length === 0
+      ? []
+      : [
+          [
+            oxfmt,
             [
-              packageBin("oxfmt")[0],
-              [
-                ...packageBin("oxfmt")[1],
-                "--config",
-                resolve(ROOT, ".oxfmtrc.json"),
-                "--disable-nested-config",
-                mode,
-                ...files,
-              ],
+              ...oxfmtArgs,
+              "--config",
+              resolve(ROOT, ".oxfmtrc.json"),
+              "--disable-nested-config",
+              mode,
+              ...files,
             ],
-          ];
-    commands.push([
-      process.execPath,
-      [resolve(TOOLING_ROOT, "scripts/lint/rust.mjs"), "format", mode],
-    ]);
-    return commands;
+          ],
+        ];
+  commands.push([
+    process.execPath,
+    [resolve(TOOLING_ROOT, "scripts/lint/rust.mjs"), "format", mode],
+  ]);
+  return commands;
+}
+
+function javascriptCommands() {
+  const command = oxlintCommand();
+  return command === null ? [] : [command];
+}
+
+function allLintCommands() {
+  return [...javascriptCommands(), ...rustCommands()];
+}
+
+const lintCommandBuilders = new Map([
+  ["lint:js", javascriptCommands],
+  ["lint:rust", rustCommands],
+  ["lint", allLintCommands],
+]);
+
+function commandsFor(operation, mode) {
+  if (operation === "format") return formatCommands(mode);
+  if (mode !== undefined) return null;
+  return lintCommandBuilders.get(operation)?.() ?? null;
+}
+
+function reportLaunchFailure(command, result) {
+  if (result.error !== undefined) {
+    console.error(`[lint] Could not start ${command}: ${result.error.message}`);
+    process.exitCode = 1;
+    return true;
   }
-  if (operation === "lint:js" && mode === undefined) {
-    const command = oxlintCommand();
-    return command === null ? [] : [command];
+  if (result.signal !== null) {
+    console.error(`[lint] ${command} terminated after signal ${result.signal}`);
+    process.exitCode = result.status ?? 1;
+    return true;
   }
-  if (operation === "lint:rust" && mode === undefined) return rustCommands();
-  if (operation === "lint" && mode === undefined) {
-    const command = oxlintCommand();
-    return [...(command === null ? [] : [command]), ...rustCommands()];
-  }
-  return null;
+  return false;
+}
+
+function reportExitFailure(result) {
+  if (result.status === 0) return false;
+  process.exitCode = result.status ?? 1;
+  return true;
+}
+
+function reportCommandFailure(command, result) {
+  if (reportLaunchFailure(command, result)) return true;
+  return reportExitFailure(result);
+}
+
+function runCommand(command, args) {
+  const result = spawnSync(command, args, { cwd: ROOT, stdio: "inherit" });
+  return !reportCommandFailure(command, result);
 }
 
 function runCommands(commands) {
   for (const [command, args] of commands) {
-    const result = spawnSync(command, args, { cwd: ROOT, stdio: "inherit" });
-    if (result.error !== undefined) {
-      console.error(`[lint] Could not start ${command}: ${result.error.message}`);
-      process.exitCode = 1;
-      return;
-    }
-    if (result.signal !== null) {
-      console.error(`[lint] ${command} terminated after signal ${result.signal}`);
-      process.exitCode = result.status ?? 1;
-      return;
-    }
-    if (result.status !== 0) {
-      process.exitCode = result.status ?? 1;
-      return;
-    }
+    if (!runCommand(command, args)) return;
   }
 }
 
