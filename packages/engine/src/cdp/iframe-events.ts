@@ -21,41 +21,70 @@ export function emitChildFrameAttachAndStart(
   for (const frame of frames) {
     const parentFrameId = frame.parentFrameId;
     if (parentFrameId === null) continue;
-
-    for (const sessionId of sessions) {
-      ctx.emit({
-        method: "Page.frameAttached",
-        params: { frameId: frame.frameId, parentFrameId },
-        sessionId,
-      });
-    }
-
+    emitFrameAttached(ctx, frame, parentFrameId, sessions);
     emitFrameTarget(ctx, frame);
+    emitFrameStartedLoading(ctx, frame, sessions);
+    emitFrameNavigated(ctx, frame, sessions);
+    emitFrameLifecycleInit(ctx, frame, sessions, timestamp);
+  }
+}
 
-    for (const sessionId of sessions) {
-      ctx.emit({
-        method: "Page.frameStartedLoading",
-        params: { frameId: frame.frameId },
-        sessionId,
-      });
-    }
+function emitFrameAttached(
+  ctx: DispatchCtx,
+  frame: FrameState,
+  parentFrameId: string,
+  sessions: readonly (string | undefined)[],
+): void {
+  for (const sessionId of sessions) {
+    ctx.emit({
+      method: "Page.frameAttached",
+      params: { frameId: frame.frameId, parentFrameId },
+      sessionId,
+    });
+  }
+}
 
-    const navigated: Protocol.Page.FrameNavigatedEvent = {
-      frame: makeFrameInfo(frame),
-      type: "Navigation",
-    };
-    for (const sessionId of sessions) {
-      ctx.emit({ method: "Page.frameNavigated", params: navigated, sessionId });
-    }
+function emitFrameStartedLoading(
+  ctx: DispatchCtx,
+  frame: FrameState,
+  sessions: readonly (string | undefined)[],
+): void {
+  for (const sessionId of sessions) {
+    ctx.emit({
+      method: "Page.frameStartedLoading",
+      params: { frameId: frame.frameId },
+      sessionId,
+    });
+  }
+}
 
-    const init: Protocol.Page.LifecycleEventEvent = {
-      frameId: frame.frameId,
-      loaderId: frame.loaderId,
-      name: "init",
-      timestamp,
-    };
-    for (const sessionId of sessions) {
-      ctx.emit({ method: "Page.lifecycleEvent", params: init, sessionId });
-    }
+function emitFrameNavigated(
+  ctx: DispatchCtx,
+  frame: FrameState,
+  sessions: readonly (string | undefined)[],
+): void {
+  const navigated: Protocol.Page.FrameNavigatedEvent = {
+    frame: makeFrameInfo(frame),
+    type: "Navigation",
+  };
+  for (const sessionId of sessions) {
+    ctx.emit({ method: "Page.frameNavigated", params: navigated, sessionId });
+  }
+}
+
+function emitFrameLifecycleInit(
+  ctx: DispatchCtx,
+  frame: FrameState,
+  sessions: readonly (string | undefined)[],
+  timestamp: number,
+): void {
+  const init: Protocol.Page.LifecycleEventEvent = {
+    frameId: frame.frameId,
+    loaderId: frame.loaderId,
+    name: "init",
+    timestamp,
+  };
+  for (const sessionId of sessions) {
+    ctx.emit({ method: "Page.lifecycleEvent", params: init, sessionId });
   }
 }

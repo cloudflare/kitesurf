@@ -4,6 +4,89 @@
 
 import { expect, test } from "../harness";
 
+type ScrollDimensions = { cw: number; ch: number; sw: number; sh: number; st: number; sl: number };
+type ScrollWrites = {
+  at: { st: number; sl: number };
+  clampedHi: { st: number; sl: number };
+  clampedLo: { st: number; sl: number };
+};
+type ScrollEvents = {
+  evs: Array<{ type: string; target: string; isTrusted: boolean }>;
+  winSaw: boolean;
+};
+type WheelPosition = { st: number; win: number };
+
+function assertScrollDimensions(dims: ScrollDimensions): void {
+  assertClientDimensions(dims);
+  assertOverflowDimensions(dims);
+  expect(dims.st === 0 && dims.sl === 0, "initial scrollTop/Left are 0").toBeTruthy();
+}
+
+function assertClientDimensions(dims: ScrollDimensions): void {
+  expect(
+    dims.cw > 0 && dims.cw <= 302,
+    `clientWidth reflects padding-box (got ${dims.cw})`,
+  ).toBeTruthy();
+  expect(
+    dims.ch > 0 && dims.ch <= 302,
+    `clientHeight reflects padding-box (got ${dims.ch})`,
+  ).toBeTruthy();
+}
+
+function assertOverflowDimensions(dims: ScrollDimensions): void {
+  expect(
+    dims.sw >= 998 && dims.sw <= 1002,
+    `scrollWidth includes overflow content (got ${dims.sw}, content is 1000)`,
+  ).toBeTruthy();
+  expect(
+    dims.sh >= 1498 && dims.sh <= 1502,
+    `scrollHeight includes overflow content (got ${dims.sh}, content is 1500)`,
+  ).toBeTruthy();
+}
+
+function assertScrollWrites(writes: ScrollWrites): void {
+  expect(
+    writes.at.st === 200 && writes.at.sl === 100,
+    "Element.scrollTop/Left writes round-trip",
+  ).toBeTruthy();
+  expect(
+    writes.clampedHi.st > 0 && writes.clampedHi.st < 9999,
+    `out-of-range scrollTop clamps (got ${writes.clampedHi.st})`,
+  ).toBeTruthy();
+  expect(
+    writes.clampedLo.st === 0 && writes.clampedLo.sl === 0,
+    "negative scrollTop/Left clamps to 0",
+  ).toBeTruthy();
+}
+
+function assertScrollEvents(events: ScrollEvents): void {
+  expect(
+    events.evs.some((event) => event.type === "scroll" && event.target === "outer"),
+    "scroll event fires on the element",
+  ).toBeTruthy();
+  expect(
+    events.evs.some((event) => event.type === "scrollend" && event.target === "outer"),
+    "scrollend fires after settle",
+  ).toBeTruthy();
+  expect(
+    events.evs.every((event) => event.isTrusted === true),
+    "element scroll events are trusted",
+  ).toBeTruthy();
+  expect(
+    !events.winSaw,
+    "element-only scroll doesn't fire window listener (target stays on element)",
+  ).toBeTruthy();
+}
+
+function assertWheelPosition(
+  position: WheelPosition,
+  expectedTop: number,
+  expectedWindow: number,
+  message: string,
+): void {
+  expect(position.st === expectedTop && position.win === expectedWindow, message).toBeTruthy();
+}
+
 test("element-scroll-demo", async ({ page }) => {
   const html = `<!doctype html><html><body style='margin:0;height:5000px'>
   <div id='outer' style='width:300px;height:300px;overflow:scroll;border:1px solid red;margin-top:100px'>
@@ -23,23 +106,7 @@ test("element-scroll-demo", async ({ page }) => {
       sl: o.scrollLeft,
     };
   });
-  expect(
-    dims.cw > 0 && dims.cw <= 302,
-    `clientWidth reflects padding-box (got ${dims.cw})`,
-  ).toBeTruthy();
-  expect(
-    dims.ch > 0 && dims.ch <= 302,
-    `clientHeight reflects padding-box (got ${dims.ch})`,
-  ).toBeTruthy();
-  expect(
-    dims.sw >= 998 && dims.sw <= 1002,
-    `scrollWidth includes overflow content (got ${dims.sw}, content is 1000)`,
-  ).toBeTruthy();
-  expect(
-    dims.sh >= 1498 && dims.sh <= 1502,
-    `scrollHeight includes overflow content (got ${dims.sh}, content is 1500)`,
-  ).toBeTruthy();
-  expect(dims.st === 0 && dims.sl === 0, "initial scrollTop/Left are 0").toBeTruthy();
+  assertScrollDimensions(dims);
 
   const writes = await page.evaluate(async () => {
     const o = document.getElementById("outer");
@@ -57,18 +124,7 @@ test("element-scroll-demo", async ({ page }) => {
     const clampedLo = { st: o.scrollTop, sl: o.scrollLeft };
     return { at, clampedHi, clampedLo };
   });
-  expect(
-    writes.at.st === 200 && writes.at.sl === 100,
-    "Element.scrollTop/Left writes round-trip",
-  ).toBeTruthy();
-  expect(
-    writes.clampedHi.st > 0 && writes.clampedHi.st < 9999,
-    `out-of-range scrollTop clamps (got ${writes.clampedHi.st})`,
-  ).toBeTruthy();
-  expect(
-    writes.clampedLo.st === 0 && writes.clampedLo.sl === 0,
-    "negative scrollTop/Left clamps to 0",
-  ).toBeTruthy();
+  assertScrollWrites(writes);
 
   const events = await page.evaluate(async () => {
     const o = document.getElementById("outer");
@@ -89,22 +145,7 @@ test("element-scroll-demo", async ({ page }) => {
     window.removeEventListener("scroll", onWinScroll);
     return { evs, winSaw };
   });
-  expect(
-    events.evs.some((e) => e.type === "scroll" && e.target === "outer"),
-    "scroll event fires on the element",
-  ).toBeTruthy();
-  expect(
-    events.evs.some((e) => e.type === "scrollend" && e.target === "outer"),
-    "scrollend fires after settle",
-  ).toBeTruthy();
-  expect(
-    events.evs.every((e) => e.isTrusted === true),
-    "element scroll events are trusted",
-  ).toBeTruthy();
-  expect(
-    !events.winSaw,
-    "element-only scroll doesn't fire window listener (target stays on element)",
-  ).toBeTruthy();
+  assertScrollEvents(events);
 
   const outerRect = await page.evaluate(() => {
     const r = document.getElementById("outer").getBoundingClientRect();
@@ -122,10 +163,12 @@ test("element-scroll-demo", async ({ page }) => {
     st: document.getElementById("outer").scrollTop,
     win: window.scrollY,
   }));
-  expect(
-    w1.st === 200 && w1.win === 0,
+  assertWheelPosition(
+    w1,
+    200,
+    0,
     `wheel over container scrolls container, not viewport (st=${w1.st}, win=${w1.win})`,
-  ).toBeTruthy();
+  );
 
   await page.evaluate(() => {
     document.getElementById("outer").scrollTop = 9999;
@@ -137,10 +180,12 @@ test("element-scroll-demo", async ({ page }) => {
     st: document.getElementById("outer").scrollTop,
     win: window.scrollY,
   }));
-  expect(
-    w2.st === max && w2.win === 400,
+  assertWheelPosition(
+    w2,
+    max,
+    400,
     `wheel past container's bottom bubbles to viewport (st stayed ${w2.st}, win=${w2.win})`,
-  ).toBeTruthy();
+  );
 
   await page.evaluate(() => {
     document.getElementById("outer").scrollTop = 500;

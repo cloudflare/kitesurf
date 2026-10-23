@@ -38,15 +38,33 @@ export function documentKind(headers: Headers): DocumentKind {
   if (isAttachment(headers.get("content-disposition"))) return "blocked";
   // No sniffing yet: a missing type keeps the historical HTML default.
   const mime = mimeEssence(headers.get("content-type") ?? "");
-  if (mime === "" || mime === "text/html" || mime === "application/xhtml+xml") {
-    return "html";
-  }
-  if (mime === "application/json" || mime.endsWith("+json")) return "json";
-  if (mime === "image/svg+xml") return "svg";
+  return kindForMime(mime);
+}
+
+const EXACT_MIME_KINDS = new Map<string, DocumentKind>([
+  ["", "html"],
+  ["text/html", "html"],
+  ["application/xhtml+xml", "html"],
+  ["application/json", "json"],
+  ["image/svg+xml", "svg"],
+]);
+
+function kindForMime(mime: string): DocumentKind {
+  const exact = EXACT_MIME_KINDS.get(mime);
+  if (exact) return exact;
+  if (mime.endsWith("+json")) return "json";
   if (RASTER_MIMES.has(mime)) return "image";
-  if (mime.startsWith("text/") || TEXT_APPLICATION_MIMES.has(mime)) return "text";
-  if (mime === "application/xml" || mime.endsWith("+xml")) return "text";
+  if (isTextMime(mime)) return "text";
   return "blocked";
+}
+
+function isTextMime(mime: string): boolean {
+  return (
+    mime.startsWith("text/") ||
+    TEXT_APPLICATION_MIMES.has(mime) ||
+    mime === "application/xml" ||
+    mime.endsWith("+xml")
+  );
 }
 
 function escapeText(s: string): string {
@@ -54,23 +72,33 @@ function escapeText(s: string): string {
 }
 
 function imageDocumentTitle(url: string, bytes: Uint8Array): string {
-  let name = "";
-  try {
-    const u = new URL(url);
-    if (u.protocol === "http:" || u.protocol === "https:") {
-      const last = u.pathname.split("/").filter(Boolean).pop() ?? "";
-      try {
-        name = decodeURIComponent(last);
-      } catch {
-        name = last;
-      }
-      if (!name) name = u.hostname;
-    }
-  } catch {}
+  const name = imageDocumentName(url);
   const dims = sniffImageDims(bytes);
   const size = dims ? `${dims.width}\u00d7${dims.height}` : "";
   if (name && size) return `${name} (${size})`;
   return name || size;
+}
+
+function imageDocumentName(url: string): string {
+  try {
+    return imageDocumentNameFromUrl(new URL(url));
+  } catch {
+    return "";
+  }
+}
+
+function imageDocumentNameFromUrl(url: URL): string {
+  if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+  const last = url.pathname.split("/").filter(Boolean).pop() ?? "";
+  return decodeImageName(last) || url.hostname;
+}
+
+function decodeImageName(name: string): string {
+  try {
+    return decodeURIComponent(name);
+  } catch {
+    return name;
+  }
 }
 
 export function imageDocumentHtml(

@@ -55,9 +55,10 @@ test("DOM.getDocument omits internal namespace metadata in shadow roots", async 
     const { root } = (await session.send("DOM.getDocument", { depth: -1 })) as {
       root: CdpNode;
     };
+    const childrenOf = (node: CdpNode) => [...(node.children ?? []), ...(node.shadowRoots ?? [])];
     const findPath = (node: CdpNode): CdpNode | null => {
       if (node.nodeName.toLowerCase() === "path") return node;
-      for (const child of [...(node.children ?? []), ...(node.shadowRoots ?? [])]) {
+      for (const child of childrenOf(node)) {
         const match = findPath(child);
         if (match) return match;
       }

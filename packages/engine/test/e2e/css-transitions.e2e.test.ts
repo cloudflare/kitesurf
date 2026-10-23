@@ -12,6 +12,31 @@ function rgb(value: string): number[] {
   return m[1].split(",").map((p) => Number(p.trim()));
 }
 
+function channelValues(channels: number[][], index: number): number[] {
+  return channels[index] ?? [];
+}
+
+function isIntermediateColor(red: number, blue: number): boolean {
+  return red > 0 && red < 255 && blue > 0 && blue < 255;
+}
+
+function assertRampSample(values: string[], channels: number[][], index: number): void {
+  const [r = -1, g = -1, b = -1] = channelValues(channels, index);
+  const [prevR = -1] = channelValues(channels, index - 1);
+  expect(g, `green stays 0 across red -> blue: ${values[index]}`).toBe(0);
+  expect(
+    isIntermediateColor(r, b),
+    `sample ${index} must be mid-flight, got ${values[index]}`,
+  ).toBe(true);
+  expect(r < prevR, `the ramp must advance: ${values[index - 1]} -> ${values[index]}`).toBe(true);
+}
+
+function assertTransitionRamp(values: string[], channels: number[][]): void {
+  expect(channels[0], `first sample: ${values[0]}`).toEqual([255, 0, 0]);
+
+  for (let i = 1; i < channels.length; i++) assertRampSample(values, channels, i);
+}
+
 test.for(["transition", "animation"])(
   "%s keeps its sampled time across synchronous style changes",
   async (kind, { page }) => {
@@ -66,19 +91,7 @@ test("a transition interpolates instead of jumping to its target", async ({ page
 
   const values = JSON.parse(String(samples)) as string[];
   const channels = values.map(rgb);
-
-  expect(channels[0], `first sample: ${values[0]}`).toEqual([255, 0, 0]);
-
-  for (let i = 1; i < channels.length; i++) {
-    const [r = -1, g = -1, b = -1] = channels[i] ?? [];
-    const [prevR = -1] = channels[i - 1] ?? [];
-    expect(g, `green stays 0 across red -> blue: ${values[i]}`).toBe(0);
-    expect(
-      r > 0 && r < 255 && b > 0 && b < 255,
-      `sample ${i} must be mid-flight, got ${values[i]}`,
-    ).toBe(true);
-    expect(r < prevR, `the ramp must advance: ${values[i - 1]} -> ${values[i]}`).toBe(true);
-  }
+  assertTransitionRamp(values, channels);
 }, 120_000);
 
 test("transition events fire on the clock, not all at once", async ({ page }) => {

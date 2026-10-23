@@ -21,6 +21,56 @@ interface OtlpSpan {
   }>;
 }
 
+type CdpReply = { id?: number; result?: unknown; error?: unknown };
+const invalidCdpReply = Symbol("invalid CDP reply JSON");
+
+function parseCdpReply(event: { data: string | ArrayBuffer }): CdpReply | typeof invalidCdpReply {
+  const text = typeof event.data === "string" ? event.data : new TextDecoder().decode(event.data);
+  try {
+    return JSON.parse(text) as CdpReply;
+  } catch {
+    return invalidCdpReply;
+  }
+}
+
+function cdpReplyBody(message: CdpReply): Record<string, unknown> {
+  return (message.result ?? message.error ?? {}) as Record<string, unknown>;
+}
+
+function settleCdpReply(
+  message: CdpReply,
+  pending: Map<number, (reply: Record<string, unknown>) => void>,
+): void {
+  if (typeof message.id !== "number") return;
+  const resolve = pending.get(message.id);
+  if (!resolve) return;
+  pending.delete(message.id);
+  resolve(cdpReplyBody(message));
+}
+
+function carrierRecordCount(span: OtlpSpan): number {
+  return span.events?.length ?? 0;
+}
+
+function carrierByteLength(span: OtlpSpan): number {
+  return (span.events ?? [])
+    .flatMap((event) => event.attributes)
+    .reduce(
+      (total, attribute) =>
+        total + attribute.key.length + (attribute.value.stringValue?.length ?? 0),
+      0,
+    );
+}
+
+function expectCarrierWithinCaps(carrier: OtlpSpan): void {
+  const attributes = carrier.attributes;
+  if (!attributes) throw new Error("child.spans has no attributes");
+  const byName = new Map(attributes.map((attribute) => [attribute.key, attribute.value]));
+  expect(byName.has("span_error")).toBe(false);
+  expect(byName.get("records")?.doubleValue).toBe(carrierRecordCount(carrier));
+  expect(carrierByteLength(carrier)).toBeLessThanOrEqual(64 * 1024);
+}
+
 function capture(): Cloudflare.Env["OTLP_CAPTURE"] {
   return env.OTLP_CAPTURE;
 }
@@ -60,18 +110,9 @@ async function openRawCdp(headers: Record<string, string> = {}): Promise<{
   let nextId = 1;
   const pending = new Map<number, (r: Record<string, unknown>) => void>();
   ws.addEventListener("message", (ev: { data: string | ArrayBuffer }) => {
-    const text = typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data);
-    let msg: { id?: number; result?: unknown; error?: unknown };
-    try {
-      msg = JSON.parse(text) as typeof msg;
-    } catch {
-      return;
-    }
-    if (typeof msg.id !== "number") return;
-    const resolve = pending.get(msg.id);
-    if (!resolve) return;
-    pending.delete(msg.id);
-    resolve((msg.result ?? msg.error ?? {}) as Record<string, unknown>);
+    const message = parseCdpReply(ev);
+    if (message === invalidCdpReply) return;
+    settleCdpReply(message, pending);
   });
   return {
     send(method, params) {
@@ -124,17 +165,7 @@ test("heavy record volume chunks carriers under the binding caps", async () => {
 
     const carriers = spans.filter((s) => s.name === "child.spans");
     expect(carriers.length).toBeGreaterThan(1);
-    for (const c of carriers) {
-      const attributes = c.attributes;
-      if (!attributes) throw new Error("child.spans has no attributes");
-      const attrs = new Map(attributes.map((a) => [a.key, a.value]));
-      expect(attrs.has("span_error")).toBe(false);
-      expect(attrs.get("records")?.doubleValue).toBe(c.events?.length ?? 0);
-      const bytes = (c.events ?? [])
-        .flatMap((e) => e.attributes)
-        .reduce((n, a) => n + a.key.length + (a.value.stringValue?.length ?? 0), 0);
-      expect(bytes).toBeLessThanOrEqual(64 * 1024);
-    }
+    for (const carrier of carriers) expectCarrierWithinCaps(carrier);
   } finally {
     cdp.close();
   }

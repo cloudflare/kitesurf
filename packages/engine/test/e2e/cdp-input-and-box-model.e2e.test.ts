@@ -81,21 +81,29 @@ test("DOM.getContentQuads / getBoxModel on text and comment nodes", async ({
   // DOM nodeType values; the test runs in workerd, which has no Node.
   const TEXT_NODE = 3;
   const COMMENT_NODE = 8;
-  const tail = kids.find((k) => k.nodeType === TEXT_NODE);
-  const comment = kids.find((k) => k.nodeType === COMMENT_NODE);
-  if (!tail || !comment) throw new Error("#p must have a text and a comment child");
+  const textAndComment = (children: DomNode[]) => {
+    const tail = children.find((child) => child.nodeType === TEXT_NODE);
+    const comment = children.find((child) => child.nodeType === COMMENT_NODE);
+    if (!tail || !comment) throw new Error("#p must have a text and a comment child");
+    return { tail, comment };
+  };
+  const { tail, comment } = textAndComment(kids);
 
   const { quads } = await session.send("DOM.getContentQuads", { nodeId: tail.nodeId });
   expect(quads).toHaveLength(1);
   // A quad is four corners from the top-left, clockwise.
   const [left, , right] = quads[0] ?? [];
   const bold = await page.evaluate(`document.querySelector("b").getBoundingClientRect().right`);
-  if (typeof left !== "number" || typeof right !== "number" || typeof bold !== "number") {
-    throw new Error(`unexpected quad ${JSON.stringify(quads)} or <b> edge ${String(bold)}`);
-  }
+  const edges = (left: unknown, right: unknown, bold: unknown) => {
+    if (typeof left !== "number" || typeof right !== "number" || typeof bold !== "number") {
+      throw new Error(`unexpected quad ${JSON.stringify(quads)} or <b> edge ${String(bold)}`);
+    }
+    return { left, right, bold };
+  };
+  const numericEdges = edges(left, right, bold);
   // Right of "bold", on the paragraph's first line.
-  expect(left).toBeGreaterThanOrEqual(bold - 0.5);
-  expect(right - left).toBeGreaterThan(0);
+  expect(numericEdges.left).toBeGreaterThanOrEqual(numericEdges.bold - 0.5);
+  expect(numericEdges.right - numericEdges.left).toBeGreaterThan(0);
   const { model } = await session.send("DOM.getBoxModel", { nodeId: tail.nodeId });
   expect(model.height).toBeGreaterThan(0);
 

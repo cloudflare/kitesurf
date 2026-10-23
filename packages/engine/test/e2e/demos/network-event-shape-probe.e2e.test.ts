@@ -4,6 +4,21 @@
 
 import { expect, test } from "../harness";
 
+function logEventOrder(ordered: string[]): void {
+  console.log("[probe] event order (" + ordered.length + " events):");
+  for (let i = 0; i < ordered.length; i++) {
+    console.log("  " + i + ". " + ordered[i]);
+  }
+}
+
+function eventOrderIsValid(firstIndex: number, secondIndex: number, allowSame = false): boolean {
+  return (
+    firstIndex >= 0 &&
+    secondIndex >= 0 &&
+    (allowSame ? firstIndex <= secondIndex : firstIndex < secondIndex)
+  );
+}
+
 test("network-event-shape-probe", async ({ page }) => {
   const URL_TO_NAV =
     process.env.KITESURF_FIXTURE ?? "http://127.0.0.1:8787/__fixtures/lifecycle.html";
@@ -43,35 +58,36 @@ test("network-event-shape-probe", async ({ page }) => {
   } catch {}
 
   const ordered = events.map((e) => e.method);
-  console.log("[probe] event order (" + ordered.length + " events):");
-  for (let i = 0; i < ordered.length; i++) {
-    console.log("  " + i + ". " + ordered[i]);
-  }
+  logEventOrder(ordered);
+
+  const isDocumentResponse = (event) => (event.params && event.params.type) === "Document";
+  const hasRequestId = (event) => event.params && event.params.requestId;
+  const checkDocumentResponseIds = (documentResponses) => {
+    for (const event of documentResponses) {
+      const params = event.params || {};
+      expect(
+        !!(params.requestId && params.frameId && params.loaderId),
+        "document responseReceived has requestId + frameId + loaderId",
+      ).toBeTruthy();
+    }
+  };
+  const checkSubresourceRequestIds = (subresources) => {
+    if (subresources.length > 0) {
+      const subOk = subresources.filter(hasRequestId).length;
+      expect(subOk, "all subresource responseReceived events have requestId").toBe(
+        subresources.length,
+      );
+    }
+  };
 
   const responseReceiveds = events.filter((e) => e.method === "Network.responseReceived");
   expect(responseReceiveds.length, "captured Network.responseReceived events").toBeGreaterThan(0);
 
-  const documentResponses = responseReceiveds.filter(
-    (e) => (e.params && e.params.type) === "Document",
-  );
+  const documentResponses = responseReceiveds.filter(isDocumentResponse);
   expect(documentResponses.length, "captured a Document-type responseReceived").toBeGreaterThan(0);
-  for (const ev of documentResponses) {
-    const p = ev.params || {};
-    expect(
-      !!(p.requestId && p.frameId && p.loaderId),
-      "document responseReceived has requestId + frameId + loaderId",
-    ).toBeTruthy();
-  }
-  const subresources = responseReceiveds.filter((e) => (e.params && e.params.type) !== "Document");
-  if (subresources.length > 0) {
-    let subOk = 0;
-    for (const ev of subresources) {
-      if (ev.params && ev.params.requestId) subOk++;
-    }
-    expect(subOk, "all subresource responseReceived events have requestId").toBe(
-      subresources.length,
-    );
-  }
+  checkDocumentResponseIds(documentResponses);
+  const subresources = responseReceiveds.filter((event) => !isDocumentResponse(event));
+  checkSubresourceRequestIds(subresources);
 
   const indexOf = (m) => ordered.indexOf(m);
   const indexOfLast = (m) => ordered.lastIndexOf(m);
@@ -84,24 +100,22 @@ test("network-event-shape-probe", async ({ page }) => {
   const lastFrameStopped = indexOfLast("Page.frameStoppedLoading");
 
   expect(
-    startedLoading >= 0 && firstReqWillBeSent >= 0 && startedLoading < firstReqWillBeSent,
+    eventOrderIsValid(startedLoading, firstReqWillBeSent),
     "frameStartedLoading fires BEFORE requestWillBeSent",
   ).toBeTruthy();
 
   expect(
-    firstResponseReceived >= 0 &&
-      firstFrameNavigated >= 0 &&
-      firstResponseReceived < firstFrameNavigated,
+    eventOrderIsValid(firstResponseReceived, firstFrameNavigated),
     "responseReceived fires BEFORE frameNavigated",
   ).toBeTruthy();
 
   expect(
-    firstFrameNavigated >= 0 && lastLoadEvent >= 0 && firstFrameNavigated < lastLoadEvent,
+    eventOrderIsValid(firstFrameNavigated, lastLoadEvent),
     "frameNavigated fires BEFORE loadEventFired",
   ).toBeTruthy();
 
   expect(
-    lastLoadEvent >= 0 && lastFrameStopped >= 0 && lastLoadEvent <= lastFrameStopped,
+    eventOrderIsValid(lastLoadEvent, lastFrameStopped, true),
     "loadEventFired ≤ frameStoppedLoading",
   ).toBeTruthy();
 });

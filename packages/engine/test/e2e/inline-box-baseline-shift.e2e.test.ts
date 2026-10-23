@@ -58,6 +58,8 @@ const rects = (ids: string[]) =>
     return { top: r.top, height: r.height };
   });
 
+const topOf = (rect: { top: number } | undefined) => rect?.top ?? 0;
+
 test("a line without a shifted box keeps its tight line-height", async ({ page }) => {
   await setContent(
     page,
@@ -73,8 +75,8 @@ test("a raised inline-block on a box-only line stays inside its line box", async
     `<body style="margin:0;font:16px/20px sans-serif"><div id="line">${box("ref")}${box("up", "30px")}</div>`,
   );
   const [line, ref, up] = await page.evaluate(rects, ["line", "ref", "up"]);
-  expect((up?.top ?? 0) - (line?.top ?? 0)).toBe(0);
-  expect((ref?.top ?? 0) - (line?.top ?? 0)).toBe(30);
+  expect(topOf(up) - topOf(line)).toBe(0);
+  expect(topOf(ref) - topOf(line)).toBe(30);
 });
 
 test("a lowered tall inline-block reserves only its shifted extents", async ({ page }) => {
@@ -84,7 +86,7 @@ test("a lowered tall inline-block reserves only its shifted extents", async ({ p
   );
   const [d, b] = await page.evaluate(rects, ["d", "b"]);
   expect(d?.height).toBe(40);
-  expect((b?.top ?? 0) - (d?.top ?? 0)).toBe(0);
+  expect(topOf(b) - topOf(d)).toBe(0);
 });
 
 test("changing vertical-align after layout moves the inline-block", async ({ page }) => {

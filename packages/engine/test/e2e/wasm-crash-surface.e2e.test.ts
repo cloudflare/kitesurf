@@ -8,6 +8,19 @@ import type { CDPSession, Page } from "@cloudflare/puppeteer";
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
 
+interface ConsoleEvent {
+  type: string;
+  args?: Array<{ value?: unknown }>;
+}
+
+function eventText(event: ConsoleEvent): string {
+  return String(event.args?.[0]?.value ?? "");
+}
+
+function isCrashNotice(event: ConsoleEvent, text: string): boolean {
+  return event.type === "error" && text.includes("engine crashed");
+}
+
 // Overflows boa's recursive-descent parser on the 1 MiB wasm stack, where ~230 levels fit. If
 // the parser ever stops recursing per level, this needs another way to trap the module.
 function overflowingChain(depth = 3000): string {
@@ -23,8 +36,8 @@ function watchCrash(page: Page, cdp: CDPSession) {
   page.on("error", () => {}); // puppeteer turns Inspector.targetCrashed into "Page crashed!"
   const notice = new Promise<string>((resolve) => {
     cdp.on("Runtime.consoleAPICalled", (ev) => {
-      const text = String(ev.args?.[0]?.value ?? "");
-      if (ev.type === "error" && text.includes("engine crashed")) resolve(text);
+      const text = eventText(ev);
+      if (isCrashNotice(ev, text)) resolve(text);
     });
   });
   return { crashed, notice };

@@ -6,6 +6,28 @@ import type { Protocol } from "devtools-protocol";
 
 import { expect, test } from "../harness";
 
+type Rect = { x: number; y: number; width: number; height: number };
+
+function hasNonzeroSize(rect: Rect): boolean {
+  return rect.width > 0 && rect.height > 0;
+}
+
+function hasDistinctVerticalPositions(rects: Record<string, Rect>): boolean {
+  return (
+    rects.hdr.y !== rects.btn1.y &&
+    rects.btn1.y !== rects.target.y &&
+    rects.target.y !== rects.btn3.y
+  );
+}
+
+function sharesBlockLayoutX(rects: Record<string, Rect>): boolean {
+  return rects.hdr.x === rects.btn1.x && rects.btn1.x === rects.target.x;
+}
+
+function boxModelHasContent(model: Protocol.DOM.BoxModel | null | undefined): boolean {
+  return model !== undefined && model !== null && Array.isArray(model.content);
+}
+
 test("mouse-events-demo", async ({ page }) => {
   const PAGE_HTML = `<!doctype html>
 <html><head><meta charset="utf-8"><title>mouse</title>
@@ -46,24 +68,20 @@ test("mouse-events-demo", async ({ page }) => {
   console.log("[mouse] rects:", JSON.stringify(rects, null, 2));
 
   for (const [id, r] of Object.entries(rects)) {
-    expect(r.width > 0 && r.height > 0, `${id}-has-nonzero-size`).toBeTruthy();
+    expect(hasNonzeroSize(r), `${id}-has-nonzero-size`).toBeTruthy();
   }
-  expect(
-    rects.hdr.y !== rects.btn1.y &&
-      rects.btn1.y !== rects.target.y &&
-      rects.target.y !== rects.btn3.y,
-    "rects-are-distinct",
-  ).toBeTruthy();
-  expect(
-    rects.hdr.x === rects.btn1.x && rects.btn1.x === rects.target.x,
-    "non-synthetic-x (block layout shares x)",
-  ).toBeTruthy();
+  expect(hasDistinctVerticalPositions(rects), "rects-are-distinct").toBeTruthy();
+  expect(sharesBlockLayoutX(rects), "non-synthetic-x (block layout shares x)").toBeTruthy();
 
   const fromPoint = await page.evaluate((tr) => {
     const cx = tr.x + tr.width / 2;
     const cy = tr.y + tr.height / 2;
     const el = document.elementFromPoint(cx, cy);
-    return { id: el ? el.id : null, tag: el ? el.tagName : null };
+    const describe = (element: Element | null) => ({
+      id: element ? element.id : null,
+      tag: element ? element.tagName : null,
+    });
+    return describe(el);
   }, rects.target);
   console.log("[mouse] elementFromPoint(target center):", fromPoint);
   expect(fromPoint.id, "elementFromPoint-returns-target").toBe("target");
@@ -103,10 +121,7 @@ test("mouse-events-demo", async ({ page }) => {
     nodeId: targetNode.nodeId,
   });
   console.log("[mouse] DOM.getBoxModel:", JSON.stringify(boxModel));
-  expect(
-    boxModel.model && Array.isArray(boxModel.model.content),
-    "getBoxModel-has-content",
-  ).toBeTruthy();
+  expect(boxModelHasContent(boxModel.model), "getBoxModel-has-content").toBeTruthy();
   const c = boxModel.model.content;
   const bx = (c[0] + c[4]) / 2;
   const by = (c[1] + c[5]) / 2;

@@ -8,6 +8,7 @@ import { INTERNAL_STATE_SOURCE } from "@kitesurf/page-script";
 import { buildScriptBundle } from "../src/eval/script-bundle.ts";
 import { PAGE_SCRIPT_COMPAT_DATE, PAGE_SCRIPT_COMPAT_FLAGS } from "../src/eval/page-script.ts";
 import type { ParentScriptDescriptor } from "../src/wasm.ts";
+import type { BakedModule } from "../src/eval/walk-module-graph.ts";
 
 function classic(body: string, opts: Partial<ParentScriptDescriptor> = {}): ParentScriptDescriptor {
   return { src: null, kind: "classic", defer: false, async: false, body, ...opts };
@@ -15,6 +16,24 @@ function classic(body: string, opts: Partial<ParentScriptDescriptor> = {}): Pare
 
 function module_(body: string, opts: Partial<ParentScriptDescriptor> = {}): ParentScriptDescriptor {
   return { src: null, kind: "module", defer: false, async: false, body, ...opts };
+}
+
+function addOptionalCjsModule(
+  modules: Record<string, string | { cjs: string } | { json: unknown }>,
+  name: string,
+  source: string | null,
+): void {
+  if (source) modules[name] = { cjs: source };
+}
+
+function addAdditionalModules(
+  modules: Record<string, string | { cjs: string } | { json: unknown }>,
+  additionalModules: Record<string, BakedModule>,
+): void {
+  for (const [url, body] of Object.entries(additionalModules)) {
+    if (modules[url] !== undefined) continue;
+    modules[url] = body;
+  }
 }
 
 async function bootBundleAndCollectGlobals(
@@ -110,16 +129,9 @@ export default class TestProbe extends WorkerEntrypoint {
     "page.js": pageJsSource,
     "internal-state.js": INTERNAL_STATE_SOURCE,
   };
-  if (bundle.classicRegularSource) {
-    modules["__ks_user_classic_regular.js"] = { cjs: bundle.classicRegularSource };
-  }
-  if (bundle.classicAsyncSource) {
-    modules["__ks_user_classic_async.js"] = { cjs: bundle.classicAsyncSource };
-  }
-  for (const [url, body] of Object.entries(bundle.additionalModules)) {
-    if (modules[url] !== undefined) continue;
-    modules[url] = body;
-  }
+  addOptionalCjsModule(modules, "__ks_user_classic_regular.js", bundle.classicRegularSource);
+  addOptionalCjsModule(modules, "__ks_user_classic_async.js", bundle.classicAsyncSource);
+  addAdditionalModules(modules, bundle.additionalModules);
 
   const name = "test-bundle-" + crypto.randomUUID();
   const stub = env.LOADER.get(name, () => ({

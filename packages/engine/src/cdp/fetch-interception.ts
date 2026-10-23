@@ -116,14 +116,7 @@ export function registerParked(
 ): ParkedRequest {
   const interceptionId = `interception-job-${st.nextId++}`;
   if (st.parked.size >= MAX_PARKED) {
-    const oldest = st.parked.values().next().value as ParkedRequest | undefined;
-    if (oldest) {
-      // Awaiters keep this object, so resolve it before evicting the map entry.
-      oldest.verdict ??= { kind: "continue" };
-      st.parked.delete(oldest.interceptionId);
-      const evictedId = oldest.interceptionId;
-      st.pendingEmits = st.pendingEmits.filter((e) => e.requestId !== evictedId);
-    }
+    evictOldestParked(st);
   }
   const entry: ParkedRequest = { interceptionId };
   st.parked.set(interceptionId, entry);
@@ -141,10 +134,23 @@ export function registerParked(
     resourceType: info.resourceType as Protocol.Network.ResourceType,
     networkId: info.networkId,
   });
-  if (st.pendingEmits.length > MAX_PENDING_EMITS) {
-    st.pendingEmits.splice(0, st.pendingEmits.length - MAX_PENDING_EMITS);
-  }
+  trimPendingEmits(st);
   return entry;
+}
+
+function evictOldestParked(st: FetchInterceptionState): void {
+  const oldest = st.parked.values().next().value as ParkedRequest | undefined;
+  if (!oldest) return;
+  // Awaiters keep this object, so resolve it before evicting the map entry.
+  oldest.verdict ??= { kind: "continue" };
+  st.parked.delete(oldest.interceptionId);
+  const evictedId = oldest.interceptionId;
+  st.pendingEmits = st.pendingEmits.filter((e) => e.requestId !== evictedId);
+}
+
+function trimPendingEmits(st: FetchInterceptionState): void {
+  if (st.pendingEmits.length <= MAX_PENDING_EMITS) return;
+  st.pendingEmits.splice(0, st.pendingEmits.length - MAX_PENDING_EMITS);
 }
 
 export function drainInterception(connectionId: string): void {

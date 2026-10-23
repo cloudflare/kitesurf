@@ -162,62 +162,135 @@ export interface ParentScriptDescriptor {
   scriptDomIndex?: number;
 }
 
+const EXECUTABLE_SCRIPT_TYPES = new Set([
+  "",
+  "text/javascript",
+  "application/javascript",
+  "module",
+]);
+
+function scriptInfo(dom: DomHandle, id: number): { attributes?: string[] } | null {
+  try {
+    return dom.nodeInfo(id) as { attributes?: string[] } | null;
+  } catch {
+    return null;
+  }
+}
+
+function scriptAttributes(flat: string[]): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  for (let j = 0; j + 1 < flat.length; j += 2) {
+    const key = flat[j];
+    const value = flat[j + 1];
+    if (typeof key !== "string" || typeof value !== "string") continue;
+    attrs[key.toLowerCase()] = value;
+  }
+  return attrs;
+}
+
+function scriptBody(dom: DomHandle, id: number, src: string): string {
+  if (src) return "";
+  try {
+    return dom.textContent(id) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function isEmptyInlineScript(src: string, body: string): boolean {
+  return !src && (!body || !body.trim());
+}
+
+function normalizedScriptType(attrs: Record<string, string>): string {
+  return (attrs.type || "").trim().toLowerCase();
+}
+
+function normalizedScriptSource(attrs: Record<string, string>): string {
+  return attrs.src ? String(attrs.src).trim() : "";
+}
+
+function scriptKind(rawType: string): "classic" | "module" {
+  return rawType === "module" ? "module" : "classic";
+}
+
+function nullableScriptSource(src: string): string | null {
+  return src || null;
+}
+
+function scriptCrossOrigin(attrs: Record<string, string>): string | null {
+  return "crossorigin" in attrs ? String(attrs.crossorigin ?? "") : null;
+}
+
+function scriptIntegrity(attrs: Record<string, string>): string | null {
+  return attrs.integrity?.trim() ? attrs.integrity.trim() : null;
+}
+
+function scriptNonce(attrs: Record<string, string>): string | null {
+  return attrs.nonce ? attrs.nonce : null;
+}
+
+function scriptDescriptorFields(
+  attrs: Record<string, string>,
+  rawType: string,
+  src: string,
+  body: string,
+  index: number,
+): ParentScriptDescriptor {
+  return {
+    src: nullableScriptSource(src),
+    kind: scriptKind(rawType),
+    defer: "defer" in attrs,
+    async: "async" in attrs,
+    body,
+    crossOrigin: scriptCrossOrigin(attrs),
+    integrity: scriptIntegrity(attrs),
+    nonce: scriptNonce(attrs),
+    scriptDomIndex: index,
+  };
+}
+
+function scriptDescriptor(
+  dom: DomHandle,
+  id: number,
+  index: number,
+): ParentScriptDescriptor | null {
+  const info = scriptInfo(dom, id);
+  if (!info) return null;
+  const attrs = scriptAttributes(info.attributes || []);
+  const rawType = normalizedScriptType(attrs);
+  if (!EXECUTABLE_SCRIPT_TYPES.has(rawType)) return null;
+  const src = normalizedScriptSource(attrs);
+  const body = scriptBody(dom, id, src);
+  if (isEmptyInlineScript(src, body)) return null;
+  return scriptDescriptorFields(attrs, rawType, src, body, index);
+}
+
+function queryScriptIds(dom: DomHandle): Int32Array | number[] | null {
+  try {
+    return dom.querySelectorAll("script");
+  } catch {
+    return null;
+  }
+}
+
+function appendScriptDescriptor(
+  out: ParentScriptDescriptor[],
+  dom: DomHandle,
+  id: number | undefined,
+  index: number,
+): void {
+  if (typeof id !== "number") return;
+  const descriptor = scriptDescriptor(dom, id, index);
+  if (descriptor) out.push(descriptor);
+}
+
 export function extractScriptDescriptorsFromDom(dom: DomHandle | null): ParentScriptDescriptor[] {
   if (!dom) return [];
-  let ids: Int32Array | number[];
-  try {
-    ids = dom.querySelectorAll("script");
-  } catch {
-    return [];
-  }
+  const ids = queryScriptIds(dom);
+  if (ids === null) return [];
   const out: ParentScriptDescriptor[] = [];
   for (let i = 0; i < ids.length; i++) {
-    const id = ids[i];
-    if (typeof id !== "number") continue;
-    let info: { attributes?: string[] } | null = null;
-    try {
-      info = dom.nodeInfo(id) as { attributes?: string[] } | null;
-    } catch {
-      continue;
-    }
-    const flat = (info && info.attributes) || [];
-    const attrs: Record<string, string> = {};
-    for (let j = 0; j + 1 < flat.length; j += 2) {
-      const k = flat[j];
-      const v = flat[j + 1];
-      if (typeof k !== "string" || typeof v !== "string") continue;
-      attrs[k.toLowerCase()] = v;
-    }
-    const rawType = (attrs.type || "").trim().toLowerCase();
-    if (
-      rawType !== "" &&
-      rawType !== "text/javascript" &&
-      rawType !== "application/javascript" &&
-      rawType !== "module"
-    ) {
-      continue;
-    }
-    const src = attrs.src ? String(attrs.src).trim() : "";
-    let body = "";
-    if (!src) {
-      try {
-        body = dom.textContent(id) ?? "";
-      } catch {
-        body = "";
-      }
-    }
-    if (!src && (!body || !body.trim())) continue;
-    out.push({
-      src: src || null,
-      kind: rawType === "module" ? "module" : "classic",
-      defer: "defer" in attrs,
-      async: "async" in attrs,
-      body,
-      crossOrigin: "crossorigin" in attrs ? String(attrs.crossorigin ?? "") : null,
-      integrity: attrs.integrity?.trim() ? attrs.integrity.trim() : null,
-      nonce: attrs.nonce ? attrs.nonce : null,
-      scriptDomIndex: i,
-    });
+    appendScriptDescriptor(out, dom, ids[i], i);
   }
   return out;
 }

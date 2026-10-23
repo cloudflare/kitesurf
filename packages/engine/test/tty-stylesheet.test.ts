@@ -10,6 +10,26 @@ import { ttyUaStylesheet } from "../src/tty/stylesheet.ts";
 const CELL_H = 19;
 const CELL_W = 9;
 
+function expectVerticalBorderRule(css: string): void {
+  const rule = css.match(/(\*:not\(table\)[^{]+)\{([^}]+)\}/);
+  for (const tag of [
+    "table",
+    "caption",
+    "colgroup",
+    "col",
+    "thead",
+    "tbody",
+    "tfoot",
+    "tr",
+    "td",
+    "th",
+  ]) {
+    expect(rule?.[1]).toMatch(new RegExp(`:not\\(\\s*${tag}\\s*\\)`));
+  }
+  expect(rule?.[2]).toContain("border-left-width: 0 !important");
+  expect(rule?.[2]).toContain("border-right-width: 0 !important");
+}
+
 describe("ttyUaStylesheet", () => {
   it("ships valid defaults for loading directly in a browser", () => {
     expect(baseCss).toContain("--ks-tty-font-px: 13.3333px !important");
@@ -161,23 +181,7 @@ describe("ttyUaStylesheet", () => {
       expect(css).toContain("border-spacing: 0 !important");
       const cellRule = css.match(/td,\s*th\s*\{([^}]+)\}/)?.[1];
       expect(cellRule).toContain("padding-block: 0 !important");
-      const verticalBorderRule = css.match(/(\*:not\(table\)[^{]+)\{([^}]+)\}/);
-      for (const tag of [
-        "table",
-        "caption",
-        "colgroup",
-        "col",
-        "thead",
-        "tbody",
-        "tfoot",
-        "tr",
-        "td",
-        "th",
-      ]) {
-        expect(verticalBorderRule?.[1]).toMatch(new RegExp(`:not\\(\\s*${tag}\\s*\\)`));
-      }
-      expect(verticalBorderRule?.[2]).toContain("border-left-width: 0 !important");
-      expect(verticalBorderRule?.[2]).toContain("border-right-width: 0 !important");
+      expectVerticalBorderRule(css);
       expect(css).toContain("th br {");
       expect(css.slice(css.indexOf("th br {"))).toContain("display: inline-block !important");
       expect(css.slice(css.indexOf("th br {"))).toContain("width: 1ch !important");

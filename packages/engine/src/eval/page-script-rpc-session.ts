@@ -16,6 +16,7 @@ import type {
   RetainedPageScriptSession,
   RetainedPageScriptSessionStub,
   SessionOutbound,
+  UpstreamMessage,
   WireMeta,
 } from "@kitesurf/jsrpc-types/page-script";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
@@ -52,6 +53,41 @@ interface InflightCall {
   timer: ReturnType<typeof setTimeout> | null;
   method: string;
   settled: boolean;
+}
+
+interface PageScriptSessionSettings {
+  defaultTimeoutMs: number;
+  getTraceParent: (() => string | null) | undefined;
+  now: () => number;
+  scriptName: string | null;
+  wallCapMs: number;
+}
+
+function pageScriptSessionSettings(opts: PageScriptRpcSessionOptions): PageScriptSessionSettings {
+  return {
+    defaultTimeoutMs: opts.defaultTimeoutMs ?? 60_000,
+    getTraceParent: opts.getTraceParent,
+    now: opts.now ?? (() => Date.now()),
+    scriptName: opts.scriptName ?? null,
+    wallCapMs: opts.wallCapMs ?? 0,
+  };
+}
+
+function upstreamParams(message: UpstreamMessage): ReceivedUpstreamParams | null {
+  if (!message || typeof message.event !== "string") return null;
+  return message.params && typeof message.params === "object" ? message.params : {};
+}
+
+function upstreamErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function rpcErrorMessage(error: unknown): string {
+  return (error as Error)?.message ?? String(error);
+}
+
+function shouldIgnoreTransportDeath(dead: boolean, raw: string): boolean {
+  return dead || !/execution context which hosts this/i.test(raw);
 }
 
 function disposeStub(stub: unknown): void {
@@ -93,58 +129,70 @@ export class PageScriptRpcSession implements PageScriptStub {
 
   constructor(entrypoint: RpcSessionEntrypoint, opts: PageScriptRpcSessionOptions = {}) {
     this.entrypoint = entrypoint;
-    this.defaultTimeoutMs = opts.defaultTimeoutMs ?? 60_000;
-    this.getTraceParent = opts.getTraceParent;
-    this.now = opts.now ?? (() => Date.now());
-    this.scriptName = opts.scriptName ?? null;
-    const wallCapMs = opts.wallCapMs ?? 0;
-    if (wallCapMs > 0) {
-      this.wallCapTimer = setTimeout(() => this.fireWallCap(wallCapMs), wallCapMs);
-    }
+    const settings = pageScriptSessionSettings(opts);
+    this.defaultTimeoutMs = settings.defaultTimeoutMs;
+    this.getTraceParent = settings.getTraceParent;
+    this.now = settings.now;
+    this.scriptName = settings.scriptName;
+    this.armWallCap(settings.wallCapMs);
     const outbound = opts.outbound;
-    const doOpen = () =>
-      entrypoint.openSession({
-        ...(outbound ? { outbound } : {}),
-        upstream: (e) => {
-          if (!e || typeof e.event !== "string") return;
-          const params: ReceivedUpstreamParams =
-            e.params && typeof e.params === "object" ? e.params : {};
-          if (e.event === "kitesurf.wasmTerminated") {
-            this.fireWasmTerminated(params);
-            return;
-          }
-          const h = this.upstreamHandler;
-          if (!h) return;
-          try {
-            h(e.event, params);
-          } catch (err) {
-            console.warn(
-              `[kitesurf-iframe] upstream handler threw for ${e.event}:`,
-              err instanceof Error ? err.message : String(err),
-            );
-          }
-        },
-      });
-    this.sessionReady = (opts.wrapOpen ? opts.wrapOpen(doOpen) : doOpen()).then(
-      (session) => {
-        if (this.dead) {
-          if (!this.closeReady) disposeStub(session);
-          return session;
-        }
-        this.session = session;
-        return session;
-      },
-      (err) => {
-        this.markDead(`session open failed: ${(err as Error)?.message ?? String(err)}`);
-        throw err;
-      },
+    const doOpen = () => this.openSession(outbound);
+    const opened = opts.wrapOpen ? opts.wrapOpen(doOpen) : doOpen();
+    this.sessionReady = opened.then(
+      (session) => this.acceptOpenedSession(session),
+      (error) => this.failSessionOpen(error),
     );
     this.sessionReady.catch(() => {});
   }
 
+  private armWallCap(wallCapMs: number): void {
+    if (wallCapMs > 0) {
+      this.wallCapTimer = setTimeout(() => this.fireWallCap(wallCapMs), wallCapMs);
+    }
+  }
+
+  private openSession(outbound: SessionOutbound | undefined): Promise<RpcSessionCallable> {
+    return this.entrypoint.openSession({
+      ...(outbound ? { outbound } : {}),
+      upstream: (message) => this.handleUpstream(message),
+    });
+  }
+
+  private handleUpstream(message: UpstreamMessage): void {
+    const params = upstreamParams(message);
+    if (params === null) return;
+    if (message.event === "kitesurf.wasmTerminated") {
+      this.fireWasmTerminated(params);
+      return;
+    }
+    const handler = this.upstreamHandler;
+    if (!handler) return;
+    try {
+      handler(message.event, params);
+    } catch (error) {
+      console.warn(
+        `[kitesurf-iframe] upstream handler threw for ${message.event}:`,
+        upstreamErrorMessage(error),
+      );
+    }
+  }
+
+  private acceptOpenedSession(session: RpcSessionCallable): RpcSessionCallable {
+    if (this.dead) {
+      if (!this.closeReady) disposeStub(session);
+      return session;
+    }
+    this.session = session;
+    return session;
+  }
+
+  private failSessionOpen(error: unknown): never {
+    this.markDead(`session open failed: ${rpcErrorMessage(error)}`);
+    throw error;
+  }
+
   private noteTransportDeath(raw: string): void {
-    if (this.dead) return;
-    if (!/execution context which hosts this/i.test(raw)) return;
+    if (shouldIgnoreTransportDeath(this.dead, raw)) return;
     const announce = !this.retiring;
     if (announce) {
       console.warn(`[kitesurf] page isolate unreachable, ending session: ${raw}`);
@@ -190,10 +238,20 @@ export class PageScriptRpcSession implements PageScriptStub {
     if (this.dead) return;
     this.dead = true;
     this.deadReason = reason;
+    this.clearWallCapTimer();
+    this.rejectInflightCalls(reason);
+    this.disposeRenderPort();
+    this.disposeSession();
+  }
+
+  private clearWallCapTimer(): void {
     if (this.wallCapTimer) {
       clearTimeout(this.wallCapTimer);
       this.wallCapTimer = null;
     }
+  }
+
+  private rejectInflightCalls(reason: string): void {
     for (const call of this.inflight) {
       if (call.settled) continue;
       call.settled = true;
@@ -201,9 +259,15 @@ export class PageScriptRpcSession implements PageScriptStub {
       call.reject(new Error(`PageScript.${call.method}: session ended (${reason})`));
     }
     this.inflight.clear();
+  }
+
+  private disposeRenderPort(): void {
     const port = this.renderPortStub;
     this.renderPortStub = null;
     disposeStub(port);
+  }
+
+  private disposeSession(): void {
     const session = this.session;
     this.session = null;
     if (!this.closeReady) disposeStub(session);
@@ -214,60 +278,99 @@ export class PageScriptRpcSession implements PageScriptStub {
     params: PageScriptWireParams[M],
     timeoutMs?: number,
   ): Promise<PageScriptReply<M>> {
+    this.assertSessionAlive(method);
+    let session = this.session;
+    if (!session) session = await this.awaitSessionOpen(method);
+    const budget = timeoutMs ?? this.defaultTimeoutMs;
+    const meta = this.callMetadata();
+    return this.sendCall(session, method, params, budget, meta);
+  }
+
+  private async awaitSessionOpen(method: PageScriptMethod): Promise<RpcSessionCallable> {
+    let session: RpcSessionCallable;
+    try {
+      session = await this.sessionReady;
+    } catch (error) {
+      throw new Error(`PageScript.${method}: session open failed (${rpcErrorMessage(error)})`);
+    }
+    if (this.dead) {
+      throw new Error(
+        `PageScript.${method}: session died during open (${this.deadReason ?? "unknown"})`,
+      );
+    }
+    return session;
+  }
+
+  private assertSessionAlive(method: PageScriptMethod): void {
     if (this.dead) {
       throw new Error(`PageScript.${method}: session is dead (${this.deadReason ?? "unknown"})`);
     }
-    let session = this.session;
-    if (!session) {
-      try {
-        session = await this.sessionReady;
-      } catch (e) {
-        throw new Error(
-          `PageScript.${method}: session open failed (${(e as Error)?.message ?? String(e)})`,
-        );
-      }
-      if (this.dead) {
-        throw new Error(
-          `PageScript.${method}: session died during open (${this.deadReason ?? "unknown"})`,
-        );
-      }
-    }
-    const budget = timeoutMs ?? this.defaultTimeoutMs;
-    const tp = this.getTraceParent?.() ?? null;
+  }
+
+  private callMetadata(): WireMeta {
+    const traceParent = this.getTraceParent?.() ?? null;
     const meta: WireMeta = { t: this.now() };
-    if (tp) meta.tp = tp;
+    if (traceParent) meta.tp = traceParent;
+    return meta;
+  }
+
+  private sendCall<M extends PageScriptMethod>(
+    session: RpcSessionCallable,
+    method: M,
+    params: PageScriptWireParams[M],
+    budget: number,
+    meta: WireMeta,
+  ): Promise<PageScriptReply<M>> {
     return new Promise<PageScriptReply<M>>((resolve, reject) => {
       const entry: InflightCall = { reject, timer: null, method, settled: false };
       if (budget > 0) {
         // This timer rejects the waiter; it does not cancel the underlying session call.
-        entry.timer = setTimeout(() => {
-          if (!entry.settled) {
-            entry.settled = true;
-            this.inflight.delete(entry);
-            reject(new Error(`PageScript.${method}: timeout after ${budget}ms`));
-          }
-        }, budget);
+        entry.timer = setTimeout(() => this.expireCall(entry, budget, reject), budget);
       }
       this.inflight.add(entry);
       session.call(method, params, meta).then(
-        (result) => {
-          if (entry.settled) return;
-          entry.settled = true;
-          this.inflight.delete(entry);
-          if (entry.timer) clearTimeout(entry.timer);
-          resolve(result);
-        },
-        (e) => {
-          if (entry.settled) return;
-          entry.settled = true;
-          this.inflight.delete(entry);
-          if (entry.timer) clearTimeout(entry.timer);
-          const raw = (e as Error)?.message ?? String(e);
-          this.noteTransportDeath(raw);
-          reject(new Error(`PageScript.${method}: ${raw}`));
-        },
+        (result) => this.resolveCall(entry, result, resolve),
+        (error) => this.rejectCall(entry, method, error, reject),
       );
     });
+  }
+
+  private expireCall(
+    entry: InflightCall,
+    budget: number,
+    reject: (reason?: unknown) => void,
+  ): void {
+    if (entry.settled) return;
+    entry.settled = true;
+    this.inflight.delete(entry);
+    reject(new Error(`PageScript.${entry.method}: timeout after ${budget}ms`));
+  }
+
+  private resolveCall<M extends PageScriptMethod>(
+    entry: InflightCall,
+    result: PageScriptReply<M>,
+    resolve: (value: PageScriptReply<M>) => void,
+  ): void {
+    if (entry.settled) return;
+    entry.settled = true;
+    this.inflight.delete(entry);
+    if (entry.timer) clearTimeout(entry.timer);
+    resolve(result);
+  }
+
+  private rejectCall(
+    entry: InflightCall,
+    method: PageScriptMethod,
+    error: unknown,
+    reject: (reason?: unknown) => void,
+  ): void {
+    if (entry.settled) return;
+    entry.settled = true;
+    this.inflight.delete(entry);
+    if (entry.timer) clearTimeout(entry.timer);
+    const raw = rpcErrorMessage(error);
+    this.noteTransportDeath(raw);
+    reject(new Error(`PageScript.${method}: ${raw}`));
   }
 
   private renderPort: Promise<RenderPortStub> | null = null;

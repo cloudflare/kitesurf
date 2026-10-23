@@ -255,23 +255,36 @@ describe("corsPreflight", () => {
   const reply = (headers: Record<string, string>, status = 200) =>
     new Response(null, { status, headers });
 
-  function run(
-    responder: (req: Request) => Response,
-    opts: {
-      method?: string;
-      unsafe?: string[];
-      credentials?: boolean;
-      url?: string;
-    } = {},
-  ) {
+  type RunOptions = {
+    method?: string;
+    unsafe?: string[];
+    credentials?: boolean;
+    url?: string;
+  };
+
+  function defaultIfUndefined<T>(value: T | undefined, fallback: T): T {
+    return value ?? fallback;
+  }
+
+  function resolveRunOptions(opts: RunOptions = {}) {
+    return {
+      url: defaultIfUndefined(opts.url, "http://remote.test/x"),
+      method: defaultIfUndefined(opts.method, "PUT"),
+      unsafe: defaultIfUndefined(opts.unsafe, []),
+      credentials: defaultIfUndefined(opts.credentials, false),
+    };
+  }
+
+  function run(responder: (req: Request) => Response, opts?: RunOptions) {
+    const options = resolveRunOptions(opts);
     const seen: Request[] = [];
     const promise = corsPreflight(
       {
-        url: opts.url ?? "http://remote.test/x",
-        method: opts.method ?? "PUT",
-        unsafeNames: opts.unsafe ?? [],
+        url: options.url,
+        method: options.method,
+        unsafeNames: options.unsafe,
         requestOrigin: ORIGIN,
-        credentialsInclude: opts.credentials ?? false,
+        credentialsInclude: options.credentials,
         userAgent: "UA/1",
         referer: null,
         signal: new AbortController().signal,

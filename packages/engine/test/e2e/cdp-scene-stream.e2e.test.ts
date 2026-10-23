@@ -6,6 +6,58 @@ import { expect, test } from "vitest";
 import { upgradedSocket } from "./connect";
 import { engine } from "./harness";
 
+function assertSceneHostManifest(value: unknown): asserts value is { wasm: string } {
+  if (!value || typeof value !== "object" || !("wasm" in value) || typeof value.wasm !== "string") {
+    throw new Error("invalid scene host manifest");
+  }
+}
+
+type SceneStreamMessage = {
+  id?: number;
+  result?: Record<string, unknown>;
+  error?: { message: string };
+  method?: string;
+  params?: { data: string };
+  sessionId?: string;
+};
+
+function isSceneFrameMessage(
+  message: SceneStreamMessage,
+): message is SceneStreamMessage & { params: { data: string } } {
+  return message.method === "Kitesurf.sceneFrame" && Boolean(message.params?.data);
+}
+
+function resolveSceneReply(
+  message: SceneStreamMessage,
+  replies: Map<number, (value: Record<string, unknown>) => void>,
+): boolean {
+  if (message.id === undefined) return false;
+  const resolve = replies.get(message.id);
+  if (!resolve) return true;
+  replies.delete(message.id);
+  resolve(message.error ? { error: message.error.message } : (message.result ?? {}));
+  return true;
+}
+
+function handleSceneStreamMessage(
+  message: SceneStreamMessage,
+  replies: Map<number, (value: Record<string, unknown>) => void>,
+  frames: Uint8Array[],
+  waiters: Set<() => void>,
+  sessionId: string | undefined,
+): void {
+  if (resolveSceneReply(message, replies)) return;
+  if (!isSceneFrameMessage(message)) return;
+  expect(message.sessionId).toBe(sessionId);
+  const binary = atob(message.params.data);
+  frames.push(Uint8Array.from(binary, (char) => char.charCodeAt(0)));
+  for (const notify of [...waiters]) notify();
+}
+
+function lastSceneType(frames: Uint8Array[]): number | undefined {
+  return frames.at(-1)?.[0];
+}
+
 test("retired terminal and binary scene endpoints return 404", async () => {
   for (const path of ["/tui", "/tui?wire=rbi", "/tui/", "/rbi/ws"]) {
     const url = `https://ks.invalid${path}`;
@@ -33,9 +85,7 @@ test("RBI only serves CLI scene-host and font assets", async () => {
   const manifest = await engine.fetch("https://ks.invalid/rbi/scene_host.json");
   expect(manifest.status).toBe(200);
   const data: unknown = await manifest.json();
-  if (!data || typeof data !== "object" || !("wasm" in data) || typeof data.wasm !== "string") {
-    throw new Error("invalid scene host manifest");
-  }
+  assertSceneHostManifest(data);
   expect(data.wasm).toBe("scene_host.wasm");
   const wasm = await engine.fetch("https://ks.invalid/rbi/scene_host.wasm");
   expect(wasm.status).toBe(200);
@@ -94,26 +144,8 @@ test("CDP scene stream preserves credit and resets after navigation", async () =
   const waiters = new Set<() => void>();
   ws.addEventListener("message", (event: { data: string | ArrayBuffer }) => {
     if (typeof event.data !== "string") return;
-    const message = JSON.parse(event.data) as {
-      id?: number;
-      result?: Record<string, unknown>;
-      error?: { message: string };
-      method?: string;
-      params?: { data: string };
-      sessionId?: string;
-    };
-    if (message.id !== undefined) {
-      const resolve = replies.get(message.id);
-      if (resolve) {
-        replies.delete(message.id);
-        resolve(message.error ? { error: message.error.message } : (message.result ?? {}));
-      }
-    } else if (message.method === "Kitesurf.sceneFrame" && message.params?.data) {
-      expect(message.sessionId).toBe(sessionId);
-      const binary = atob(message.params.data);
-      frames.push(Uint8Array.from(binary, (char) => char.charCodeAt(0)));
-      for (const notify of [...waiters]) notify();
-    }
+    const message = JSON.parse(event.data) as SceneStreamMessage;
+    handleSceneStreamMessage(message, replies, frames, waiters, sessionId);
   });
   const send = (method: string, params: Record<string, unknown> = {}) => {
     const requestId = ++id;
@@ -203,14 +235,14 @@ test("CDP scene stream preserves credit and resets after navigation", async () =
       await send("Kitesurf.sceneFrameAck", { seq: sequence(scenes()[0]!), painted: false }),
     ).not.toHaveProperty("error");
     expect(await waitFor(() => scenes().length > stalled)).toBe(true);
-    expect(scenes().at(-1)?.[0]).toBe(3);
+    expect(lastSceneType(scenes())).toBe(3);
     expect(scenes().every((frame) => frame[0] === 3)).toBe(true);
     const before = scenes().length;
     expect(
       await send("Page.navigate", { url: "https://ks.invalid/__fixtures/accessibility.html" }),
     ).not.toHaveProperty("error");
     expect(await waitFor(() => scenes().length > before)).toBe(true);
-    expect(scenes().at(-1)?.[0]).toBe(3);
+    expect(lastSceneType(scenes())).toBe(3);
     expect(sequence(scenes().at(-1)!)).toBeGreaterThan(sequence(scenes()[before - 1]!));
     const resources = await send("Kitesurf.getSceneResources", { missingB64: "AAAAAA==" });
     expect(resources).not.toHaveProperty("error");

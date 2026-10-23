@@ -5,6 +5,30 @@
 import { expect, test } from "../harness";
 import { setContent } from "../set-content";
 
+type LayoutRect = { x: number; y: number; w: number; h: number } | null;
+
+function assertCheapRect(rect: LayoutRect, name: string): void {
+  expect(!!rect && rect.h > 0, `${name} has non-zero height in off mode`).toBeTruthy();
+}
+
+function assertRectBelow(upper: LayoutRect, lower: LayoutRect, message: string): void {
+  expect(!!lower && !!upper && lower.y > upper.y, message).toBeTruthy();
+}
+
+function assertInlineRect(spanRect: LayoutRect, paragraphRect: LayoutRect): void {
+  expect(
+    !!spanRect && !!paragraphRect && Math.abs(spanRect.y - paragraphRect.y) < 32,
+    "inline span shares a line with its paragraph",
+  ).toBeTruthy();
+}
+
+function assertFullModeRects(rects: { h: { h: number }; p: { h: number } }): void {
+  expect(
+    rects.h.h > 0 && rects.p.h > 0,
+    "full mode rectangles remain non-zero after switching modes",
+  ).toBe(true);
+}
+
 test("cheap layout returns ordered rectangles and restores full mode", async ({ page }) => {
   const session = await page.target().createCDPSession();
   const html = `<!doctype html>
@@ -39,15 +63,12 @@ test("cheap layout returns ordered rectangles and restores full mode", async ({ 
     const pRect = rects.p;
     const spanRect = rects.s;
     const dRect = rects.d;
-    expect(!!hRect && hRect.h > 0, "h1 has non-zero height in off mode").toBeTruthy();
-    expect(!!pRect && pRect.h > 0, "p has non-zero height in off mode").toBeTruthy();
-    expect(!!dRect && dRect.h > 0, "div has non-zero height in off mode").toBeTruthy();
-    expect(!!pRect && !!hRect && pRect.y > hRect.y, "p stacks below h1").toBeTruthy();
-    expect(!!dRect && !!pRect && dRect.y > pRect.y, "div stacks below p").toBeTruthy();
-    expect(
-      !!spanRect && !!pRect && Math.abs(spanRect.y - pRect.y) < 32,
-      "inline span shares a line with its paragraph",
-    ).toBeTruthy();
+    assertCheapRect(hRect, "h1");
+    assertCheapRect(pRect, "p");
+    assertCheapRect(dRect, "div");
+    assertRectBelow(hRect, pRect, "p stacks below h1");
+    assertRectBelow(pRect, dRect, "div stacks below p");
+    assertInlineRect(spanRect, pRect);
 
     await session.send("Kitesurf.setLayoutMode", { mode: "full" });
     await setContent(page, html);
@@ -60,10 +81,7 @@ test("cheap layout returns ordered rectangles and restores full mode", async ({ 
         p: { x: p.x, y: p.y, w: p.width, h: p.height },
       };
     });
-    expect(
-      fullRects.h.h > 0 && fullRects.p.h > 0,
-      "full mode rectangles remain non-zero after switching modes",
-    ).toBe(true);
+    assertFullModeRects(fullRects);
 
     const reply = await session.send("Kitesurf.getLayoutMode", {});
     expect(reply.mode, "Kitesurf.getLayoutMode reports full mode").toBe("full");

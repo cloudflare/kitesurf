@@ -148,36 +148,24 @@ test("computed style resolves layout-backed length percentages", async ({ page }
   );
 
   const result = await page.evaluate(() => {
-    const container = document.getElementById("container");
-    const target = document.getElementById("target");
-    const autoBlock = document.getElementById("auto-block");
-    const inline = document.getElementById("inline");
-    const inlineMargin = document.getElementById("inline-margin");
-    const inlineBlockMargin = document.getElementById("inline-block-margin");
-    const floatMargin = document.getElementById("float-margin");
-    const tableRow = document.getElementById("table-row");
-    const borderBox = document.getElementById("border-box");
-    const subpixel = document.getElementById("subpixel");
-    const constrained = document.getElementById("constrained");
-    const contents = document.getElementById("contents");
-    const hidden = document.getElementById("hidden");
-    if (
-      !container ||
-      !target ||
-      !autoBlock ||
-      !inline ||
-      !inlineMargin ||
-      !inlineBlockMargin ||
-      !floatMargin ||
-      !tableRow ||
-      !borderBox ||
-      !subpixel ||
-      !constrained ||
-      !contents ||
-      !hidden
-    ) {
-      throw new Error("fixture elements missing");
-    }
+    const requiredElement = (id: string) => {
+      const element = document.getElementById(id);
+      if (!element) throw new Error("fixture elements missing");
+      return element;
+    };
+    const container = requiredElement("container");
+    const target = requiredElement("target");
+    const autoBlock = requiredElement("auto-block");
+    const inline = requiredElement("inline");
+    const inlineMargin = requiredElement("inline-margin");
+    const inlineBlockMargin = requiredElement("inline-block-margin");
+    const floatMargin = requiredElement("float-margin");
+    const tableRow = requiredElement("table-row");
+    const borderBox = requiredElement("border-box");
+    const subpixel = requiredElement("subpixel");
+    const constrained = requiredElement("constrained");
+    const contents = requiredElement("contents");
+    const hidden = requiredElement("hidden");
 
     const before = getComputedStyle(target);
     const initial = { marginLeft: before.marginLeft, width: before.width };

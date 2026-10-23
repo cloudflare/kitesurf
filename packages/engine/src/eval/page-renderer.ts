@@ -56,6 +56,76 @@ type RendererStub = Fetcher<PageRendererEntrypoint>;
 
 class RendererTimeoutError extends Error {}
 
+function disposeRenderer(stub: RendererStub | null, reason: string): void {
+  if (!stub || typeof stub.killIsolate !== "function") return;
+  try {
+    Promise.resolve(stub.killIsolate(reason)).catch(() => {});
+  } catch {}
+}
+
+type RenderFrameReply = Awaited<ReturnType<PageRendererEntrypoint["renderFrame"]>>;
+type RenderPdfReply = Awaited<ReturnType<PageRendererEntrypoint["renderPdf"]>>;
+
+function isPartialFrame(phases: string[] | undefined): boolean {
+  return (
+    Array.isArray(phases) &&
+    phases.some((phase) => typeof phase === "string" && phase.startsWith("rasterPartial="))
+  );
+}
+
+function hasRenderFrameError(reply: RenderFrameReply): boolean {
+  return Boolean(reply.error || !(reply.bytes instanceof Uint8Array) || reply.bytes.length === 0);
+}
+
+function frameErrorResult(
+  reply: RenderFrameReply,
+  seq: number,
+  scrollX: number,
+  scrollY: number,
+): RenderFrameResult {
+  return {
+    ok: false,
+    stage: reply.stage ?? "raster",
+    error: reply.error ?? "renderer returned empty bytes",
+    info: reply.info,
+    seq,
+    scrollX,
+    scrollY,
+  };
+}
+
+function frameReplyResult(reply: RenderFrameReply): RenderFrameResult {
+  const { seq, scrollX, scrollY } = framePosition(reply);
+  if (reply.unchanged === true) return { ok: true, unchanged: true, seq, scrollX, scrollY };
+  if (hasRenderFrameError(reply)) return frameErrorResult(reply, seq, scrollX, scrollY);
+  return { ok: true, bytes: reply.bytes, info: reply.info, seq, scrollX, scrollY };
+}
+
+function framePosition(reply: RenderFrameReply): {
+  seq: number;
+  scrollX: number;
+  scrollY: number;
+} {
+  return {
+    seq: typeof reply.seq === "number" ? reply.seq : 0,
+    scrollX: typeof reply.scrollX === "number" ? reply.scrollX : 0,
+    scrollY: typeof reply.scrollY === "number" ? reply.scrollY : 0,
+  };
+}
+
+function hasRenderPdfError(reply: RenderPdfReply): boolean {
+  return Boolean(reply.error || !(reply.bytes instanceof Uint8Array) || reply.bytes.length === 0);
+}
+
+function pdfErrorResult(reply: RenderPdfReply): RenderPdfResult {
+  return {
+    ok: false,
+    stage: reply.stage ?? "raster",
+    error: reply.error ?? "renderer returned empty bytes",
+    info: reply.info,
+  };
+}
+
 export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(
@@ -153,6 +223,72 @@ export interface RenderPdfResult {
   error?: string;
   stage?: RenderStage;
   info?: string;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isRenderRasterFailure(result: RenderFrameResult | RenderPdfResult): boolean {
+  return !result.ok && result.stage === "raster";
+}
+
+function rasterFailureError(result: RenderFrameResult | RenderPdfResult, fallback: string): Error {
+  return new Error(result.error ?? fallback);
+}
+
+function frameTimingOptions(opts: RenderFrameOptions): Partial<RenderFrameOpts> {
+  return {
+    ...(typeof opts.sinceSeq === "number" ? { sinceSeq: opts.sinceSeq } : {}),
+    ...(opts.clip ? { clip: opts.clip } : {}),
+    ...(typeof opts.partialKey === "string" && opts.partialKey
+      ? { partialKey: opts.partialKey }
+      : {}),
+  };
+}
+
+function frameResourceOptions(opts: RenderFrameOptions): Partial<RenderFrameOpts> {
+  return {
+    ...(opts.images ? { images: opts.images } : {}),
+    ...(opts.traced ? { traced: true } : {}),
+  };
+}
+
+function traceParentOptions(traceParentId: string | null): { tp?: string } {
+  return traceParentId ? { tp: traceParentId } : {};
+}
+
+function pdfRenderOptions(opts: RenderPdfOptions, traceParentId: string | null): RenderPdfOpts {
+  return {
+    paperWidth: opts.paperWidth,
+    paperHeight: opts.paperHeight,
+    omitBackground: opts.omitBackground,
+    marginTop: opts.marginTop,
+    marginRight: opts.marginRight,
+    marginBottom: opts.marginBottom,
+    marginLeft: opts.marginLeft,
+    ...(opts.traced ? { traced: true } : {}),
+    ...(traceParentId ? { tp: traceParentId } : {}),
+  };
+}
+
+function frameRecordError(error: unknown): RenderFrameResult {
+  return {
+    ok: false,
+    stage: "record",
+    error: `getRenderPort failed: ${errorMessage(error)}`,
+    seq: 0,
+    scrollX: 0,
+    scrollY: 0,
+  };
+}
+
+function pdfRecordError(error: unknown): RenderPdfResult {
+  return {
+    ok: false,
+    stage: "record",
+    error: `getRenderPort failed: ${errorMessage(error)}`,
+  };
 }
 
 export class PageRendererManager {
@@ -265,11 +401,7 @@ export class PageRendererManager {
     this.stub = null;
     this.lease?.release();
     this.lease = null;
-    if (stub && typeof stub.killIsolate === "function") {
-      try {
-        Promise.resolve(stub.killIsolate(reason)).catch(() => {});
-      } catch {}
-    }
+    disposeRenderer(stub, reason);
   }
 
   /**
@@ -280,32 +412,29 @@ export class PageRendererManager {
     source: RenderPortSource,
     opts: RenderFrameOptions,
   ): Promise<RenderFrameResult> {
-    const run = this.queue
-      .catch(() => {})
-      .then(async () => {
-        let lastError = "";
-        for (let attempt = 0; attempt < MAX_RENDER_RASTER_ATTEMPTS; attempt++) {
-          try {
-            const result = await this.renderFrameOnce(source, opts);
-            if (result.ok || result.stage !== "raster") return result;
-            throw new Error(result.error ?? "renderFrame raster failure");
-          } catch (error) {
-            lastError = error instanceof Error ? error.message : String(error);
-            this.dispose(`renderFrame failed: ${lastError}`);
-            // A timed-out RPC may still be running, so do not retry against this renderer.
-            if (error instanceof RendererTimeoutError) break;
-          }
-        }
-        return {
-          ok: false,
-          error: lastError,
-          seq: 0,
-          scrollX: 0,
-          scrollY: 0,
-        };
-      });
+    const run = this.queue.catch(() => {}).then(() => this.renderFrameWithRetry(source, opts));
     this.queue = run;
     return run;
+  }
+
+  private async renderFrameWithRetry(
+    source: RenderPortSource,
+    opts: RenderFrameOptions,
+  ): Promise<RenderFrameResult> {
+    let lastError = "";
+    for (let attempt = 0; attempt < MAX_RENDER_RASTER_ATTEMPTS; attempt++) {
+      try {
+        const result = await this.renderFrameOnce(source, opts);
+        if (!isRenderRasterFailure(result)) return result;
+        throw rasterFailureError(result, "renderFrame raster failure");
+      } catch (error) {
+        lastError = errorMessage(error);
+        this.dispose(`renderFrame failed: ${lastError}`);
+        // A timed-out RPC may still be running, so do not retry against this renderer.
+        if (error instanceof RendererTimeoutError) break;
+      }
+    }
+    return { ok: false, error: lastError, seq: 0, scrollX: 0, scrollY: 0 };
   }
 
   private async renderFrameOnce(
@@ -318,14 +447,7 @@ export class PageRendererManager {
     try {
       port = await withTimeout(source.getRenderPort(), PORT_MINT_TIMEOUT_MS, "getRenderPort");
     } catch (error) {
-      return {
-        ok: false,
-        stage: "record",
-        error: `getRenderPort failed: ${error instanceof Error ? error.message : String(error)}`,
-        seq: 0,
-        scrollX: 0,
-        scrollY: 0,
-      };
+      return frameRecordError(error);
     }
     const reply = await withTimeout(
       stub.renderFrame(
@@ -334,14 +456,9 @@ export class PageRendererManager {
           format: opts.format,
           quality: opts.quality,
           omitBackground: opts.omitBackground,
-          ...(typeof opts.sinceSeq === "number" ? { sinceSeq: opts.sinceSeq } : {}),
-          ...(opts.clip ? { clip: opts.clip } : {}),
-          ...(typeof opts.partialKey === "string" && opts.partialKey
-            ? { partialKey: opts.partialKey }
-            : {}),
-          ...(opts.images ? { images: opts.images } : {}),
-          ...(opts.traced ? { traced: true } : {}),
-          ...(traceParentId ? { tp: traceParentId } : {}),
+          ...frameTimingOptions(opts),
+          ...frameResourceOptions(opts),
+          ...traceParentOptions(traceParentId),
         },
         (path: string) => this.fetchFontAsset(path),
         async (key: string) => this.fetchStoredImage(key),
@@ -350,62 +467,41 @@ export class PageRendererManager {
       RENDER_CALL_TIMEOUT_MS,
       "renderFrame",
     );
-    const seq = typeof reply.seq === "number" ? reply.seq : 0;
-    const scrollX = typeof reply.scrollX === "number" ? reply.scrollX : 0;
-    const scrollY = typeof reply.scrollY === "number" ? reply.scrollY : 0;
-    if (reply.unchanged === true) {
-      return { ok: true, unchanged: true, seq, scrollX, scrollY };
-    }
+    if (reply.unchanged === true) return frameReplyResult(reply);
     this.logSlowPhases("renderFrame", reply.phases);
-    if (reply.error || !(reply.bytes instanceof Uint8Array) || reply.bytes.length === 0) {
-      return {
-        ok: false,
-        stage: reply.stage ?? "raster",
-        error: reply.error ?? "renderer returned empty bytes",
-        info: reply.info,
-        seq,
-        scrollX,
-        scrollY,
-      };
-    }
+    const result = frameReplyResult(reply);
+    if (!result.ok) return result;
     this.framesRendered += 1;
-    if (
-      Array.isArray(reply.phases) &&
-      reply.phases.some((phase) => typeof phase === "string" && phase.startsWith("rasterPartial="))
-    ) {
+    if (isPartialFrame(reply.phases)) {
       this.partialFramesRendered += 1;
     }
-    return {
-      ok: true,
-      bytes: reply.bytes,
-      info: reply.info,
-      seq,
-      scrollX,
-      scrollY,
-    };
+    return result;
   }
 
   /** Queues PDF rendering on the shared renderer worker; worker failures resolve as `ok: false`. */
   async renderPdf(source: RenderPortSource, opts: RenderPdfOptions): Promise<RenderPdfResult> {
-    const run = this.queue
-      .catch(() => {})
-      .then(async () => {
-        let lastError = "";
-        for (let attempt = 0; attempt < MAX_RENDER_RASTER_ATTEMPTS; attempt++) {
-          try {
-            const result = await this.renderPdfOnce(source, opts);
-            if (result.ok || result.stage !== "raster") return result;
-            throw new Error(result.error ?? "renderPdf raster failure");
-          } catch (error) {
-            lastError = error instanceof Error ? error.message : String(error);
-            this.dispose(`renderPdf failed: ${lastError}`);
-            if (error instanceof RendererTimeoutError) break;
-          }
-        }
-        return { ok: false, error: lastError };
-      });
+    const run = this.queue.catch(() => {}).then(() => this.renderPdfWithRetry(source, opts));
     this.queue = run;
     return run;
+  }
+
+  private async renderPdfWithRetry(
+    source: RenderPortSource,
+    opts: RenderPdfOptions,
+  ): Promise<RenderPdfResult> {
+    let lastError = "";
+    for (let attempt = 0; attempt < MAX_RENDER_RASTER_ATTEMPTS; attempt++) {
+      try {
+        const result = await this.renderPdfOnce(source, opts);
+        if (!isRenderRasterFailure(result)) return result;
+        throw rasterFailureError(result, "renderPdf raster failure");
+      } catch (error) {
+        lastError = errorMessage(error);
+        this.dispose(`renderPdf failed: ${lastError}`);
+        if (error instanceof RendererTimeoutError) break;
+      }
+    }
+    return { ok: false, error: lastError };
   }
 
   private async renderPdfOnce(
@@ -418,26 +514,12 @@ export class PageRendererManager {
     try {
       port = await withTimeout(source.getRenderPort(), PORT_MINT_TIMEOUT_MS, "getRenderPort");
     } catch (error) {
-      return {
-        ok: false,
-        stage: "record",
-        error: `getRenderPort failed: ${error instanceof Error ? error.message : String(error)}`,
-      };
+      return pdfRecordError(error);
     }
     const reply = await withTimeout(
       stub.renderPdf(
         port,
-        {
-          paperWidth: opts.paperWidth,
-          paperHeight: opts.paperHeight,
-          omitBackground: opts.omitBackground,
-          marginTop: opts.marginTop,
-          marginRight: opts.marginRight,
-          marginBottom: opts.marginBottom,
-          marginLeft: opts.marginLeft,
-          ...(opts.traced ? { traced: true } : {}),
-          ...(traceParentId ? { tp: traceParentId } : {}),
-        },
+        pdfRenderOptions(opts, traceParentId),
         (path: string) => this.fetchFontAsset(path),
         async (key: string) => this.fetchStoredImage(key),
         async (key: string) => this.fetchStoredFont(key),
@@ -446,14 +528,7 @@ export class PageRendererManager {
       "renderPdf",
     );
     this.logSlowPhases("renderPdf", reply.phases);
-    if (reply.error || !(reply.bytes instanceof Uint8Array) || reply.bytes.length === 0) {
-      return {
-        ok: false,
-        stage: reply.stage ?? "raster",
-        error: reply.error ?? "renderer returned empty bytes",
-        info: reply.info,
-      };
-    }
+    if (hasRenderPdfError(reply)) return pdfErrorResult(reply);
     this.framesRendered += 1;
     return { ok: true, bytes: reply.bytes, info: reply.info };
   }

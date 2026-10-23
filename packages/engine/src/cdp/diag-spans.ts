@@ -12,15 +12,14 @@ const MAX_OPEN_DIAG_SPANS = 16;
 const ABANDONED_DIAG_SPAN_TIMEOUT_MS = 60_000;
 const SUMMARY_PHASE_RE = new RegExp(`^([a-zA-Z]{1,${MAX_DIAG_NAME_CHARS}})Ms$`);
 
+type OpenDiagSpan = {
+  finish: (tags?: SpanTags) => void;
+  timer: ReturnType<typeof setTimeout>;
+  startT: number | null;
+};
+
 export class DiagSpanTracker {
-  private open = new Map<
-    string,
-    {
-      finish: (tags?: SpanTags) => void;
-      timer: ReturnType<typeof setTimeout>;
-      startT: number | null;
-    }
-  >();
+  private open = new Map<string, OpenDiagSpan>();
 
   constructor(
     private tracer: Tracer,
@@ -28,27 +27,12 @@ export class DiagSpanTracker {
   ) {}
 
   handle(params: Record<string, unknown>): void {
-    const ev = typeof params.ev === "string" ? params.ev : "";
-    const op = typeof params.op === "string" ? params.op : "";
-    const safeOp = op.slice(0, MAX_DIAG_NAME_CHARS).replace(/[^a-zA-Z0-9_.-]/g, "");
+    const ev = stringField(params, "ev");
+    const safeOp = diagnosticName(stringField(params, "op"));
     if (!safeOp) return;
-    const t = typeof params.t === "number" ? params.t : null;
+    const t = numericField(params, "t");
     if (ev === "start") this.start(safeOp, t);
-    else if (ev === "end") {
-      const entry = this.open.get(safeOp);
-      const childMs = t !== null && entry?.startT != null ? +(t - entry.startT).toFixed(1) : null;
-      const tags: SpanTags = {};
-      let n = 0;
-      for (const [k, v] of Object.entries(params)) {
-        if (k === "ev" || k === "op" || k === "t") continue;
-        if (typeof v !== "number" || !Number.isFinite(v)) continue;
-        if (++n > MAX_DIAG_SPAN_TAGS) break;
-        const key = k.slice(0, MAX_DIAG_NAME_CHARS).replace(/[^a-zA-Z0-9_.-]/g, "");
-        tags[key] = v;
-      }
-      if (childMs !== null) tags.child_ms = childMs;
-      this.end(safeOp, Object.keys(tags).length ? tags : undefined);
-    }
+    else if (ev === "end") this.end(safeOp, tagsForEnd(params, t, this.open.get(safeOp)));
   }
 
   private start(op: string, startT: number | null = null): void {
@@ -84,17 +68,22 @@ export class DiagSpanTracker {
 
   settleFromSummary(phases: Record<string, number>): void {
     for (const [key, value] of Object.entries(phases)) {
-      if (typeof value !== "number" || !Number.isFinite(value)) continue;
-      const stem = SUMMARY_PHASE_RE.exec(key)?.[1];
-      if (stem === undefined) continue;
-      const op = stem.replace(/([A-Z])/g, "_$1").toLowerCase();
-      if (this.closed.has(op)) continue;
-      if (!this.open.has(op)) {
-        this.start(op);
-        if (!this.open.has(op)) continue;
-      }
-      this.end(op, { child_ms: value, from_summary: true });
+      this.settleSummaryEntry(key, value);
     }
+  }
+
+  private settleSummaryEntry(key: string, value: number): void {
+    if (!isFiniteNumber(value)) return;
+    const op = operationFromSummaryKey(key);
+    if (!op || this.closed.has(op)) return;
+    if (!this.ensureSummarySpan(op)) return;
+    this.end(op, { child_ms: value, from_summary: true });
+  }
+
+  private ensureSummarySpan(op: string): boolean {
+    if (this.open.has(op)) return true;
+    this.start(op);
+    return this.open.has(op);
   }
 
   closeAll(reason: string): void {
@@ -102,4 +91,62 @@ export class DiagSpanTracker {
       this.end(op, { abandoned: true, reason });
     }
   }
+}
+
+function stringField(params: Record<string, unknown>, key: string): string {
+  const value = params[key];
+  return typeof value === "string" ? value : "";
+}
+
+function numericField(params: Record<string, unknown>, key: string): number | null {
+  const value = params[key];
+  return typeof value === "number" ? value : null;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function diagnosticName(name: string): string {
+  return name.slice(0, MAX_DIAG_NAME_CHARS).replace(/[^a-zA-Z0-9_.-]/g, "");
+}
+
+function tagsForEnd(
+  params: Record<string, unknown>,
+  time: number | null,
+  entry: OpenDiagSpan | undefined,
+): SpanTags | undefined {
+  const tags: SpanTags = {};
+  let n = 0;
+  for (const [key, value] of Object.entries(params)) {
+    if (!isDiagnosticTag(key, value)) continue;
+    if (++n > MAX_DIAG_SPAN_TAGS) break;
+    tags[diagnosticName(key)] = value;
+  }
+  const childMs = diagnosticChildMs(time, entry);
+  if (childMs !== null) tags.child_ms = childMs;
+  return nonEmptyTags(tags);
+}
+
+function nonEmptyTags(tags: SpanTags): SpanTags | undefined {
+  return Object.keys(tags).length ? tags : undefined;
+}
+
+function isDiagnosticTag(key: string, value: unknown): value is number {
+  return (
+    key !== "ev" &&
+    key !== "op" &&
+    key !== "t" &&
+    typeof value === "number" &&
+    Number.isFinite(value)
+  );
+}
+
+function diagnosticChildMs(time: number | null, entry: OpenDiagSpan | undefined): number | null {
+  return time !== null && entry?.startT != null ? +(time - entry.startT).toFixed(1) : null;
+}
+
+function operationFromSummaryKey(key: string): string | null {
+  const stem = SUMMARY_PHASE_RE.exec(key)?.[1];
+  return stem === undefined ? null : stem.replace(/([A-Z])/g, "_$1").toLowerCase();
 }

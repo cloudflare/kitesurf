@@ -5,6 +5,18 @@
 import { expect, test } from "../harness";
 import { setContent } from "../set-content";
 
+function isNonEmptyString(value: unknown): boolean {
+  return typeof value === "string" && value.length > 0;
+}
+
+function startsWithHeading(value: unknown): boolean {
+  return typeof value === "string" && value.startsWith("<h1");
+}
+
+function hasParagraphTexts(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0;
+}
+
 test("evaluates DOM state and accepts title writes", async ({ page }) => {
   await setContent(
     page,
@@ -41,27 +53,13 @@ test("evaluates DOM state and accepts title writes", async ({ page }) => {
     };
   });
 
-  expect(
-    typeof values.title === "string" && values.title.length > 0,
-    "document.title is non-empty",
-  ).toBe(true);
+  expect(isNonEmptyString(values.title), "document.title is non-empty").toBe(true);
   expect(values.rootTagName, "document element tag name").toBe("HTML");
-  expect(
-    typeof values.headingText === "string" && values.headingText.length > 0,
-    "heading text is non-empty",
-  ).toBe(true);
-  expect(
-    typeof values.headingOuterHTML === "string" && values.headingOuterHTML.startsWith("<h1"),
-    "heading outerHTML starts with h1",
-  ).toBe(true);
+  expect(isNonEmptyString(values.headingText), "heading text is non-empty").toBe(true);
+  expect(startsWithHeading(values.headingOuterHTML), "heading outerHTML starts with h1").toBe(true);
   expect(values.linkCount >= 1, "document contains a link").toBe(true);
-  expect(
-    Array.isArray(values.paragraphTexts) && values.paragraphTexts.length > 0,
-    "paragraph mapping is non-empty",
-  ).toBe(true);
-  expect(typeof values.href === "string" && values.href.length > 0, "link href is non-empty").toBe(
-    true,
-  );
+  expect(hasParagraphTexts(values.paragraphTexts), "paragraph mapping is non-empty").toBe(true);
+  expect(isNonEmptyString(values.href), "link href is non-empty").toBe(true);
   expect(values.bodyHtmlLong, "body HTML exceeds 100 characters").toBe(true);
   expect(values.titleWriteResult, "title setter accepts the write").toBe("returned");
 });

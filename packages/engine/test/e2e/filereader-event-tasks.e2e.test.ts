@@ -67,6 +67,16 @@ test("FileReader fires load and loadend in later tasks than progress", async ({ 
 test("FileReader reports an invalid Blob when DOMException is unavailable", async ({ page }) => {
   const outcome = await page.evaluate(async () => {
     const originalDOMException = window.DOMException;
+    const readSynchronousError = (reader: FileReader): string | null => {
+      try {
+        Reflect.apply(reader.readAsText, reader, [{}]);
+      } catch (error) {
+        return error instanceof Error ? error.name : String(error);
+      }
+      return null;
+    };
+    const errorName = (reader: FileReader): string | null => reader.error?.name ?? null;
+
     let readOutcome: Omit<InvalidBlobReadOutcome, "constructorRestored"> | null = null;
     try {
       const domExceptionUnset =
@@ -84,19 +94,14 @@ test("FileReader reports an invalid Blob when DOMException is unavailable", asyn
           { once: true },
         );
       });
-      let synchronousErrorType: string | null = null;
-      try {
-        Reflect.apply(reader.readAsText, reader, [{}]);
-      } catch (error) {
-        synchronousErrorType = error instanceof Error ? error.name : String(error);
-      }
+      const synchronousErrorType = readSynchronousError(reader);
       if (synchronousErrorType === null) await loadend;
       readOutcome = {
         domExceptionUnset,
         synchronousErrorType,
         readyState: reader.readyState,
         doneState: FileReader.DONE,
-        errorType: reader.error?.name ?? null,
+        errorType: errorName(reader),
         events,
       };
     } finally {

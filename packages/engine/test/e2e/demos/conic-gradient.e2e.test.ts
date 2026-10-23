@@ -14,6 +14,26 @@ function chan(png: ReturnType<typeof decodePng>, x: number, y: number, ch: 0 | 1
   return png.pixels[(y * png.width + x) * 4 + ch];
 }
 
+function scanConicGradient(png: ReturnType<typeof decodePng>) {
+  let firstStopMatches = 0;
+  let minLum = 255;
+  let maxLum = 0;
+  const step = 40;
+  for (let y = step; y < 600; y += step) {
+    for (let x = step; x < 800; x += step) {
+      const s = sample(png, x, y);
+      const dr = Math.abs(s[0] - FIRST_STOP[0]);
+      const dg = Math.abs(s[1] - FIRST_STOP[1]);
+      const db = Math.abs(s[2] - FIRST_STOP[2]);
+      firstStopMatches += Number(dr <= 5 && dg <= 5 && db <= 5);
+      const lum = (s[0] + s[1] + s[2]) / 3;
+      minLum = Math.min(minLum, lum);
+      maxLum = Math.max(maxLum, lum);
+    }
+  }
+  return { firstStopMatches, minLum, maxLum };
+}
+
 test("conic-gradient-brush-transform", async ({ page }) => {
   await setContent(page, html, { waitUntil: "domcontentloaded", timeout: 30000 });
 
@@ -29,22 +49,7 @@ test("conic-gradient-brush-transform", async ({ page }) => {
     `top-right samples last-stop white, got rgb(${topRight.join(",")})`,
   ).toBe(true);
 
-  let firstStopMatches = 0;
-  let minLum = 255;
-  let maxLum = 0;
-  const step = 40;
-  for (let y = step; y < 600; y += step) {
-    for (let x = step; x < 800; x += step) {
-      const s = sample(png, x, y);
-      const dr = Math.abs(s[0] - FIRST_STOP[0]);
-      const dg = Math.abs(s[1] - FIRST_STOP[1]);
-      const db = Math.abs(s[2] - FIRST_STOP[2]);
-      if (dr <= 5 && dg <= 5 && db <= 5) firstStopMatches += 1;
-      const lum = (s[0] + s[1] + s[2]) / 3;
-      if (lum < minLum) minLum = lum;
-      if (lum > maxLum) maxLum = lum;
-    }
-  }
+  const { firstStopMatches, minLum, maxLum } = scanConicGradient(png);
 
   expect(
     firstStopMatches,

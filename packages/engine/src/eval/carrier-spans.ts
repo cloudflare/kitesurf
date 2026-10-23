@@ -25,6 +25,90 @@ function logSize(log: CarrierLog): number {
   return UTF8.encode(log.key).length + UTF8.encode(log.value).length;
 }
 
+interface ChunkCursor {
+  index: number;
+  oversized: number;
+}
+
+interface AttachTotals {
+  attached: number;
+  chunks: number;
+  finalEmitted: boolean;
+}
+
+interface AttachChunkContext {
+  tracer: Tracer;
+  name: string;
+  tags: SpanTags;
+  finalTags: SpanTags;
+  cursor: ChunkCursor;
+  totals: AttachTotals;
+}
+
+function appendNextLog(
+  logs: CarrierLog[],
+  chunk: CarrierLog[],
+  cursor: ChunkCursor,
+  bytes: number,
+): number | null {
+  const log = logs[cursor.index];
+  if (log === undefined) return null;
+  const size = logSize(log);
+  if (size > CARRIER_SPAN_BYTE_BUDGET) {
+    cursor.oversized++;
+    cursor.index++;
+    return bytes;
+  }
+  if (bytes + size > CARRIER_SPAN_BYTE_BUDGET) return null;
+  bytes += size;
+  chunk.push(log);
+  cursor.index++;
+  return bytes;
+}
+
+function nextChunk(logs: CarrierLog[], cursor: ChunkCursor): CarrierLog[] {
+  const chunk: CarrierLog[] = [];
+  let bytes = 0;
+  while (cursor.index < logs.length && chunk.length < CARRIER_SPAN_LOG_CAP) {
+    const nextBytes = appendNextLog(logs, chunk, cursor, bytes);
+    if (nextBytes === null) break;
+    bytes = nextBytes;
+  }
+  return chunk;
+}
+
+function attachDataChunk(context: AttachChunkContext, chunk: CarrierLog[], last: boolean): void {
+  const { tracer, name, tags, finalTags, cursor, totals } = context;
+  tracer.enterSpan(name, (span) => {
+    span.setTags({ ...tags, records: chunk.length });
+    for (const log of chunk) span.addLogs({ [log.key]: log.value });
+    totals.attached += chunk.length;
+    if (last) {
+      totals.finalEmitted = true;
+      span.setTags({
+        ...finalTags,
+        ...(cursor.oversized > 0 ? { oversizedDropped: cursor.oversized } : {}),
+      });
+    }
+  });
+}
+
+function needsFinalChunk(cursor: ChunkCursor, totals: AttachTotals, finalTags: SpanTags): boolean {
+  return !totals.finalEmitted && (cursor.oversized > 0 || Object.keys(finalTags).length > 0);
+}
+
+function attachFinalChunk(context: AttachChunkContext): void {
+  const { tracer, name, tags, finalTags, cursor } = context;
+  tracer.enterSpan(name, (span) => {
+    span.setTags({
+      ...tags,
+      records: 0,
+      ...finalTags,
+      ...(cursor.oversized > 0 ? { oversizedDropped: cursor.oversized } : {}),
+    });
+  });
+}
+
 export function attachChunked(
   tracer: Tracer,
   name: string,
@@ -32,54 +116,18 @@ export function attachChunked(
   logs: CarrierLog[],
   finalTags: SpanTags = {},
 ): AttachChunkedResult {
-  let attached = 0;
-  let oversized = 0;
-  let chunks = 0;
-  let finalEmitted = false;
-  let i = 0;
-  while (i < logs.length) {
-    const chunk: CarrierLog[] = [];
-    let bytes = 0;
-    while (i < logs.length && chunk.length < CARRIER_SPAN_LOG_CAP) {
-      const log = logs[i];
-      if (log === undefined) break;
-      const size = logSize(log);
-      if (size > CARRIER_SPAN_BYTE_BUDGET) {
-        oversized++;
-        i++;
-        continue;
-      }
-      if (bytes + size > CARRIER_SPAN_BYTE_BUDGET) break;
-      bytes += size;
-      chunk.push(log);
-      i++;
-    }
+  const cursor: ChunkCursor = { index: 0, oversized: 0 };
+  const totals: AttachTotals = { attached: 0, chunks: 0, finalEmitted: false };
+  const context = { tracer, name, tags, finalTags, cursor, totals };
+  while (cursor.index < logs.length) {
+    const chunk = nextChunk(logs, cursor);
     if (chunk.length === 0) continue;
-    chunks++;
-    const last = i >= logs.length;
-    tracer.enterSpan(name, (s) => {
-      s.setTags({ ...tags, records: chunk.length });
-      for (const log of chunk) s.addLogs({ [log.key]: log.value });
-      attached += chunk.length;
-      if (last) {
-        finalEmitted = true;
-        s.setTags({
-          ...finalTags,
-          ...(oversized > 0 ? { oversizedDropped: oversized } : {}),
-        });
-      }
-    });
+    totals.chunks++;
+    attachDataChunk(context, chunk, cursor.index >= logs.length);
   }
-  if (!finalEmitted && (oversized > 0 || Object.keys(finalTags).length > 0)) {
-    chunks++;
-    tracer.enterSpan(name, (s) => {
-      s.setTags({
-        ...tags,
-        records: 0,
-        ...finalTags,
-        ...(oversized > 0 ? { oversizedDropped: oversized } : {}),
-      });
-    });
+  if (needsFinalChunk(cursor, totals, finalTags)) {
+    totals.chunks++;
+    attachFinalChunk(context);
   }
-  return { attached, oversized, chunks };
+  return { attached: totals.attached, oversized: cursor.oversized, chunks: totals.chunks };
 }

@@ -184,18 +184,22 @@ for (const method of ["getAttribute", "getAttributeNS"] as const) {
     const after = await bridge(page);
     expect(after.ccWeakened - before.ccWeakened).toBeGreaterThanOrEqual(50);
     const ok = await page.evaluate((ns: boolean) => {
+      function returnsExpectedId(get: unknown, index: number, useNamespace: boolean): boolean {
+        if (typeof get !== "function") return false;
+        try {
+          const id: unknown = useNamespace ? get(null, "id") : get("id");
+          return id === "g" + index;
+        } catch {
+          return false;
+        }
+      }
+
       const raw: unknown = Reflect.get(globalThis, "getters");
       if (!Array.isArray(raw)) return 0;
       const getters: unknown[] = raw;
       let n = 0;
       for (const [i, get] of getters.entries()) {
-        if (typeof get !== "function") continue;
-        try {
-          const id: unknown = ns ? get(null, "id") : get("id");
-          if (id === "g" + i) n++;
-        } catch {
-          // A released receiver throws, which counts as a miss.
-        }
+        if (returnsExpectedId(get, i, ns)) n++;
       }
       return n;
     }, method === "getAttributeNS");
@@ -224,22 +228,33 @@ test("a retained unbound fast method preserves caller receiver semantics after c
   });
   const probe = () =>
     page.evaluate(() => {
+      function isIllegalInvocation(get: Function): boolean {
+        try {
+          Reflect.apply(get, undefined, ["id"]);
+          return false;
+        } catch (error) {
+          return String(error) === "TypeError: Illegal invocation";
+        }
+      }
+
+      function updateReceiverStats(
+        stats: { illegalInvocations: number; foreignReceivers: number },
+        get: unknown,
+        host: HTMLElement,
+      ) {
+        if (typeof get !== "function") throw new Error("retained getter is not a function");
+        if (isIllegalInvocation(get)) stats.illegalInvocations++;
+        if (get.call(host, "id") === "host") stats.foreignReceivers++;
+        return stats;
+      }
+
       const raw: unknown = Reflect.get(globalThis, "getters");
       const host = document.getElementById("host");
       if (!Array.isArray(raw) || !host) throw new Error("missing getters or #host");
-      const getters: unknown[] = raw;
-      let illegalInvocations = 0;
-      let foreignReceivers = 0;
-      for (const get of getters) {
-        if (typeof get !== "function") throw new Error("retained getter is not a function");
-        try {
-          get("id");
-        } catch (error) {
-          if (String(error) === "TypeError: Illegal invocation") illegalInvocations++;
-        }
-        if (get.call(host, "id") === "host") foreignReceivers++;
-      }
-      return { illegalInvocations, foreignReceivers };
+      return raw.reduce((stats, get) => updateReceiverStats(stats, get, host), {
+        illegalInvocations: 0,
+        foreignReceivers: 0,
+      });
     });
   const expected = { illegalInvocations: 50, foreignReceivers: 50 };
   expect(await probe()).toEqual(expected);
@@ -320,19 +335,27 @@ test("a WeakMap value stays reachable through its V8-held key", async ({ page })
   }
   await collectBoa(page);
   const intact = await page.evaluate((count: number) => {
+    function hasExpectedEvent(
+      wm: WeakMap<object, unknown>,
+      holder: Element,
+      index: number,
+    ): boolean {
+      try {
+        const value: unknown = wm.get(Reflect.get(holder, "__k" + index));
+        const event: unknown =
+          typeof value === "object" && value !== null ? Reflect.get(value, "el") : undefined;
+        return event instanceof Event && event.type === "t" + index;
+      } catch {
+        // A dead V8 handle throws, which counts as a miss.
+        return false;
+      }
+    }
+
     const holder = document.getElementById("holder");
     const wm: unknown = Reflect.get(globalThis, "wm");
     if (!holder || !(wm instanceof WeakMap)) return -1;
     let ok = 0;
-    for (let i = 0; i < count; i++) {
-      try {
-        const o: unknown = wm.get(Reflect.get(holder, "__k" + i));
-        const el: unknown = typeof o === "object" && o !== null ? Reflect.get(o, "el") : undefined;
-        if (el instanceof Event && el.type === "t" + i) ok++;
-      } catch {
-        // A dead V8 handle throws, which counts as a miss.
-      }
-    }
+    for (let i = 0; i < count; i++) if (hasExpectedEvent(wm, holder, i)) ok++;
     return ok;
   }, n);
   expect(intact).toBe(n);

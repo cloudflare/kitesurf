@@ -9,6 +9,10 @@ import { test } from "./harness";
 
 const HOST = "https://ks.invalid/__fixtures/iframe-referrer-host.html";
 
+function firstChild<T>(tree: { childFrames?: T[] } | undefined): T | undefined {
+  return tree?.childFrames?.[0];
+}
+
 const STATIC_FRAME_REFERRERS = `(() => {
   const d = document.getElementById("echo").contentDocument;
   return { sent: JSON.parse(d.getElementById("h").textContent).referer, referrer: d.referrer };
@@ -40,7 +44,8 @@ test("a nested frame fetches under its embedder frame's policy", async ({ page, 
     timeout: 30000,
   });
   const { frameTree } = await cdpSession.send("Page.getFrameTree");
-  const grandchild = frameTree.childFrames?.[0]?.childFrames?.[0]?.frame;
+  const middle = firstChild(frameTree);
+  const grandchild = firstChild(middle)?.frame;
   if (!grandchild) throw new Error("no depth-2 frame in the tree");
   expect(new URL(grandchild.url).searchParams.get("referer")).toBe("https://ks.invalid/");
 });

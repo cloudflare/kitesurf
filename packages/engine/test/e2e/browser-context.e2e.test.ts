@@ -6,6 +6,13 @@ import type { Protocol } from "devtools-protocol";
 
 import { expect, test } from "./harness";
 
+function cookieValue(
+  cookies: Array<{ name: string; value: string }>,
+  name: string,
+): string | undefined {
+  return cookies.find((cookie) => cookie.name === name)?.value;
+}
+
 test("browser contexts isolate cookies (CDP + subresource fetch)", async ({ browser }) => {
   const c1 = await browser.createBrowserContext();
   const c2 = await browser.createBrowserContext();
@@ -37,8 +44,8 @@ test("browser contexts isolate cookies (CDP + subresource fetch)", async ({ brow
   const got2 = (await cdp2.send("Storage.getCookies", {
     browserContextId: c2.id,
   })) as { cookies: Array<{ name: string; value: string }> };
-  expect(got1.cookies.find((c) => c.name === "who")?.value).toBe("ctx1");
-  expect(got2.cookies.find((c) => c.name === "who")?.value).toBe("ctx2");
+  expect(cookieValue(got1.cookies, "who")).toBe("ctx1");
+  expect(cookieValue(got2.cookies, "who")).toBe("ctx2");
 
   const echo1 = await p1.evaluate(`
     fetch("/__fixtures/echo-headers.json").then((r) => r.json())
@@ -65,8 +72,8 @@ test("browser contexts isolate cookies (CDP + subresource fetch)", async ({ brow
   const network2 = (await cdp2.send("Network.getCookies")) as {
     cookies: Array<{ name: string; value: string }>;
   };
-  expect(network1.cookies.find((c) => c.name === "network")?.value).toBe("ctx1");
-  expect(network2.cookies.find((c) => c.name === "network")?.value).toBe("ctx2");
+  expect(cookieValue(network1.cookies, "network")).toBe("ctx1");
+  expect(cookieValue(network2.cookies, "network")).toBe("ctx2");
 
   await cdp1.send("Network.clearBrowserCookies");
   const afterClear1 = (await cdp1.send("Storage.getCookies", {
@@ -76,7 +83,7 @@ test("browser contexts isolate cookies (CDP + subresource fetch)", async ({ brow
     browserContextId: c2.id,
   })) as { cookies: Array<{ name: string; value: string }> };
   expect(afterClear1.cookies.find((c) => c.name === "network")).toBeUndefined();
-  expect(afterClear2.cookies.find((c) => c.name === "network")?.value).toBe("ctx2");
+  expect(cookieValue(afterClear2.cookies, "network")).toBe("ctx2");
 }, 120_000);
 
 test("Network events retain their target attribution while a sibling navigates", async ({

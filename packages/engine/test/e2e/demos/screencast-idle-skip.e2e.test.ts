@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { expect, test } from "../harness";
-import { decodePng, sample, near } from "./png";
+import { decodePng, sample, near, type DecodedPng } from "./png";
 import { targetIdForSession } from "../connect";
 
 const IDLE_PAGE =
@@ -16,6 +16,31 @@ const IDLE_PAGE =
   #hidden { display: none; }
 </style></head>
 <body><div id="patch"></div><div id="hidden"></div></body></html>`);
+
+function firstRedPixelPosition(png: DecodedPng): number | undefined {
+  for (let x = 0; x < png.width - 2; x += 10) {
+    if (near(sample(png, x + 2, 230), [255, 0, 0])) return x;
+  }
+  return undefined;
+}
+
+async function collectMovingPositions(
+  frames: Uint8Array[],
+  waitForFrames: (count: number, timeoutMs: number) => Promise<boolean>,
+  durationMs: number,
+): Promise<Set<number>> {
+  const seen = new Set<number>();
+  const deadline = Date.now() + durationMs;
+  let decodedThrough = 0;
+  while (Date.now() < deadline && seen.size < 3) {
+    if (!(await waitForFrames(decodedThrough + 1, deadline - Date.now()))) break;
+    decodedThrough = frames.length;
+    const png = decodePng(frames[frames.length - 1]);
+    const position = firstRedPixelPosition(png);
+    if (position !== undefined) seen.add(position);
+  }
+  return seen;
+}
 
 test("pixel-neutral seq bumps do not stall a screenshot", async ({ page, cdpSession }) => {
   await page.goto(IDLE_PAGE, { timeout: 25_000 });
@@ -367,22 +392,7 @@ test("a css transition keeps producing frames while it runs", async ({ page, cdp
     if (el) (el as HTMLElement).style.left = "400px";
   });
 
-  const seen = new Set<number>();
-  const deadline = Date.now() + 6_000;
-  let decodedThrough = 0;
-  while (Date.now() < deadline && seen.size < 3) {
-    if (!(await waitForFrames(decodedThrough + 1, deadline - Date.now()))) {
-      break;
-    }
-    decodedThrough = frames.length;
-    const png = decodePng(frames[frames.length - 1]);
-    for (let x = 0; x < png.width - 2; x += 10) {
-      if (near(sample(png, x + 2, 230), [255, 0, 0])) {
-        seen.add(x);
-        break;
-      }
-    }
-  }
+  const seen = await collectMovingPositions(frames, waitForFrames, 6_000);
   await cdpSession.send("Page.stopScreencast");
   expect(
     seen.size,
@@ -434,22 +444,7 @@ test("a keyframes animation keeps producing frames", async ({ page, cdpSession }
       frameWaiters.add(notify);
     });
 
-  const seen = new Set<number>();
-  const deadline = Date.now() + 8_000;
-  let decodedThrough = 0;
-  while (Date.now() < deadline && seen.size < 3) {
-    if (!(await waitForFrames(decodedThrough + 1, deadline - Date.now()))) {
-      break;
-    }
-    decodedThrough = frames.length;
-    const png = decodePng(frames[frames.length - 1]);
-    for (let x = 0; x < png.width - 2; x += 10) {
-      if (near(sample(png, x + 2, 230), [255, 0, 0])) {
-        seen.add(x);
-        break;
-      }
-    }
-  }
+  const seen = await collectMovingPositions(frames, waitForFrames, 8_000);
   await cdpSession.send("Page.stopScreencast");
   expect(
     seen.size,

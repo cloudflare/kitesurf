@@ -4,6 +4,15 @@
 
 import { expect, test } from "../harness";
 
+function expectStyleMatch(
+  value: string | null,
+  pattern: RegExp,
+  message: string,
+  expected = true,
+): void {
+  expect(pattern.test(value || ""), message).toBe(expected);
+}
+
 test("style-property-demo", async ({ page }) => {
   const PAGE =
     "data:text/html;charset=utf-8," +
@@ -40,11 +49,8 @@ test("style-property-demo", async ({ page }) => {
     };
   });
   console.log("[style] writeProp attr:", writeProp.attr);
-  expect(/color:\s*purple/.test(writeProp.attr || ""), "writeProp-attr-has-color").toBeTruthy();
-  expect(
-    /font-size:\s*32px/.test(writeProp.attr || ""),
-    "writeProp-attr-has-fontSize",
-  ).toBeTruthy();
+  expectStyleMatch(writeProp.attr, /color:\s*purple/, "writeProp-attr-has-color");
+  expectStyleMatch(writeProp.attr, /font-size:\s*32px/, "writeProp-attr-has-fontSize");
   expect(writeProp.readBack.color, "writeProp-readBack-color").toBe("purple");
   expect(writeProp.readBack.fontSize, "writeProp-readBack-fontSize").toBe("32px");
 
@@ -65,8 +71,9 @@ test("style-property-demo", async ({ page }) => {
     };
   });
   console.log("[style] hidden:", hiddenInfo);
-  expect(/display:\s*none/.test(hiddenInfo.attr || ""), "hide-attr-has-display-none").toBeTruthy();
-  expect(hiddenInfo.after.w === 0 && hiddenInfo.after.h === 0, "hide-after-rect-zero").toBeTruthy();
+  expectStyleMatch(hiddenInfo.attr, /display:\s*none/, "hide-attr-has-display-none");
+  expect(hiddenInfo.after.w, "hide-after-rect-zero-width").toBe(0);
+  expect(hiddenInfo.after.h, "hide-after-rect-zero-height").toBe(0);
   expect(hiddenInfo.hitIdAtOriginalCenter !== "hide-me", "hide-no-longer-hit").toBeTruthy();
 
   const cssTextInfo = await page.evaluate(() => {
@@ -81,14 +88,11 @@ test("style-property-demo", async ({ page }) => {
     };
   });
   console.log("[style] cssText:", cssTextInfo);
-  expect(
-    !/color/.test(cssTextInfo.attr || "") &&
-      /border/.test(cssTextInfo.attr || "") &&
-      /padding/.test(cssTextInfo.attr || ""),
-    "cssText-replaces-attr",
-  ).toBeTruthy();
+  expectStyleMatch(cssTextInfo.attr, /color/, "cssText-removes-color", false);
+  expectStyleMatch(cssTextInfo.attr, /border/, "cssText-keeps-border");
+  expectStyleMatch(cssTextInfo.attr, /padding/, "cssText-keeps-padding");
   expect(cssTextInfo.colorGone, "cssText-color-cleared").toBeTruthy();
-  expect(/border/.test(cssTextInfo.cssText || ""), "cssText-readback").toBeTruthy();
+  expectStyleMatch(cssTextInfo.cssText, /border/, "cssText-readback");
 
   const removeInfo = await page.evaluate(() => {
     const el = document.getElementById("target");

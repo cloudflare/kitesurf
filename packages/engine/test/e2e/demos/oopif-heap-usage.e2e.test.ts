@@ -2,14 +2,24 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
+import type { CDPSession } from "@cloudflare/puppeteer";
+
 import { expect, test } from "../harness";
 
-test("oopif-heap-usage", async ({ page, cdpSession }) => {
-  await page.goto("http://localhost:8787/__fixtures/oopif-host-quads.html", {
-    waitUntil: "load",
-    timeout: 60000,
-  });
-  type TargetInfo = { targetId: string; type: string; url: string };
+type TargetInfo = { targetId: string; type: string; url: string };
+
+function isLocalIframeTarget(target: TargetInfo): boolean {
+  return target.type === "iframe" && target.url.startsWith("http://127.0.0.1:8787");
+}
+
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForIframeTarget(cdpSession: CDPSession): Promise<{
+  iframeTarget: TargetInfo | undefined;
+  targetInfos: TargetInfo[];
+}> {
   let targetInfos: TargetInfo[] = [];
   let iframeTarget: TargetInfo | undefined;
   const targetDeadline = Date.now() + 15000;
@@ -17,12 +27,43 @@ test("oopif-heap-usage", async ({ page, cdpSession }) => {
     ({ targetInfos } = (await cdpSession.send("Target.getTargets")) as {
       targetInfos: TargetInfo[];
     });
-    iframeTarget = targetInfos.find(
-      (t) => t.type === "iframe" && t.url.startsWith("http://127.0.0.1:8787"),
-    );
-    if (iframeTarget || Date.now() >= targetDeadline) break;
-    await new Promise((r) => setTimeout(r, 25));
+    iframeTarget = targetInfos.find(isLocalIframeTarget);
+    if (iframeTarget) break;
+    if (Date.now() >= targetDeadline) break;
+    await pause(25);
   }
+  return { iframeTarget, targetInfos };
+}
+
+async function waitForChildDocument(cdpSession: CDPSession, contextId: number): Promise<boolean> {
+  let childReady = false;
+  for (let attempt = 0; attempt < 20 && !childReady; attempt++) {
+    const ready = (await cdpSession.send("Runtime.evaluate", {
+      contextId,
+      expression: "typeof document === 'object' ? document.title : ''",
+      returnByValue: true,
+    })) as { result: { value?: unknown } };
+    childReady = ready.result.value === "oopif-child-quads";
+    if (!childReady) await pause(50);
+  }
+  return childReady;
+}
+
+async function waitForNetworkProbe(requests: string[]): Promise<boolean> {
+  const sawProbe = () => requests.some((url) => url.includes("network-session-probe=1"));
+  const probeDeadline = Date.now() + 5000;
+  while (!sawProbe() && Date.now() < probeDeadline) {
+    await pause(10);
+  }
+  return sawProbe();
+}
+
+test("oopif-heap-usage", async ({ page, cdpSession }) => {
+  await page.goto("http://localhost:8787/__fixtures/oopif-host-quads.html", {
+    waitUntil: "load",
+    timeout: 60000,
+  });
+  const { iframeTarget, targetInfos } = await waitForIframeTarget(cdpSession);
   expect(iframeTarget, `iframe target missing; got ${JSON.stringify(targetInfos)}`).toBeTruthy();
 
   const { sessionId } = await cdpSession.send("Target.attachToTarget", {
@@ -56,16 +97,7 @@ test("oopif-heap-usage", async ({ page, cdpSession }) => {
   const mainUsage = await cdpSession.send("Runtime.getHeapUsage");
   expect(mainUsage.usedSize).toBeGreaterThan(1_000_000);
 
-  let childReady = false;
-  for (let attempt = 0; attempt < 20 && !childReady; attempt++) {
-    const ready = (await cdpSession.send("Runtime.evaluate", {
-      contextId: childContextId,
-      expression: "typeof document === 'object' ? document.title : ''",
-      returnByValue: true,
-    })) as { result: { value?: unknown } };
-    childReady = ready.result.value === "oopif-child-quads";
-    if (!childReady) await new Promise((r) => setTimeout(r, 50));
-  }
+  const childReady = await waitForChildDocument(cdpSession, childContextId);
   expect(childReady).toBe(true);
 
   const probe = (await cdpSession.send("Runtime.evaluate", {
@@ -76,10 +108,5 @@ test("oopif-heap-usage", async ({ page, cdpSession }) => {
   })) as { result: { value?: unknown } };
   expect(probe.result.value).toBe(200);
   await childSession.send("Runtime.getHeapUsage");
-  const sawProbe = () => childRequests.some((url) => url.includes("network-session-probe=1"));
-  const probeDeadline = Date.now() + 5000;
-  while (!sawProbe() && Date.now() < probeDeadline) {
-    await new Promise((r) => setTimeout(r, 10));
-  }
-  expect(sawProbe()).toBe(true);
+  expect(await waitForNetworkProbe(childRequests)).toBe(true);
 });

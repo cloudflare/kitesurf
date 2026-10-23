@@ -211,6 +211,79 @@ test("uncaught worker errors fire error on the Worker unless the worker handles 
   });
 });
 
+test("queued worker error handlers do not suppress an earlier startup failure", async ({
+  page,
+}) => {
+  await setContent(page, "<p>x</p>");
+  const out = await page.evaluate(async () => {
+    const source = `
+      queueMicrotask(function () {
+        queueMicrotask(function () {
+          self.onerror = function () { return true; };
+          postMessage("microtask");
+        });
+      });
+      throw new Error("startup failure");`;
+    const url = URL.createObjectURL(new Blob([source]));
+    const worker = new Worker(url);
+    try {
+      const message = new Promise<unknown>((resolve) => {
+        worker.onmessage = (event) => resolve(event.data);
+      });
+      const error = new Promise<string>((resolve) => {
+        worker.onerror = (event) => {
+          event.preventDefault();
+          resolve(event.message);
+        };
+      });
+      const [microtaskMessage, startupError] = await Promise.all([message, error]);
+      return { microtaskMessage, startupError };
+    } finally {
+      worker.terminate();
+      URL.revokeObjectURL(url);
+    }
+  });
+  expect(out).toEqual({
+    microtaskMessage: "microtask",
+    startupError: "Uncaught Error: startup failure",
+  });
+});
+
+test("a throwing worker onerror does not suppress later listeners or the original error", async ({
+  page,
+}) => {
+  await setContent(page, "<p>x</p>");
+  const out = await page.evaluate(async () => {
+    const source = `
+      self.onerror = function () { throw new Error("handler failed"); };
+      self.addEventListener("error", function (event) { postMessage(event.message); });
+      self.onmessage = function () { throw new Error("original failure"); };`;
+    const url = URL.createObjectURL(new Blob([source]));
+    const worker = new Worker(url);
+    try {
+      const message = new Promise<unknown>((resolve) => {
+        worker.onmessage = (event) => resolve(event.data);
+      });
+      const error = new Promise<string>((resolve) => {
+        worker.onerror = (event) => {
+          event.preventDefault();
+          resolve(event.message);
+        };
+      });
+      worker.postMessage("trigger");
+      const [listenerMessage, originalError] = await Promise.all([message, error]);
+      return { listenerMessage, originalError };
+    } finally {
+      worker.terminate();
+      URL.revokeObjectURL(url);
+    }
+  });
+  expect(out).toEqual({
+    listenerMessage: "Uncaught Error: original failure",
+    originalError: "Uncaught Error: original failure",
+  });
+});
+
 const firstReport = `
   globalThis.firstReport = function (src) {
     return new Promise(function (resolve) {

@@ -9,6 +9,14 @@ interface ConsoleEvent {
   args?: Array<{ value?: unknown }>;
 }
 
+function eventText(event: ConsoleEvent): string {
+  return String(event.args?.[0]?.value ?? "");
+}
+
+function isWallClockError(event: ConsoleEvent, text: string): boolean {
+  return event.type === "error" && text.includes("wall-clock");
+}
+
 test("wall-clock cap kills the page isolate and surfaces to the client", async ({
   browserFactory,
 }) => {
@@ -22,8 +30,8 @@ test("wall-clock cap kills the page isolate and surfaces to the client", async (
   const consoleErr = new Promise<string>((resolve) => {
     cdp.on("Runtime.consoleAPICalled", (ev) => {
       const e = ev as ConsoleEvent;
-      const text = String(e.args?.[0]?.value ?? "");
-      if (e.type === "error" && text.includes("wall-clock")) resolve(text);
+      const text = eventText(e);
+      if (isWallClockError(e, text)) resolve(text);
     });
   });
   const gotoOk = await page

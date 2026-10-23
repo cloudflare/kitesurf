@@ -10,6 +10,10 @@ const MAX_COOKIE_BYTES = 4096;
 const MAX_COOKIES_PER_HOST = 180;
 const MAX_COOKIES_TOTAL = 3000;
 const MILLISECONDS_PER_SECOND = 1_000;
+const FORBIDDEN_COOKIE_NAME_BYTES = new Set([
+  0x28, 0x29, 0x2c, 0x2f, 0x5b, 0x5c, 0x5d, 0x7b, 0x7d, 0x22,
+]);
+const FORBIDDEN_COOKIE_VALUE_BYTES = new Set([0x22, 0x2c, 0x3b, 0x5c]);
 
 export interface CookieEntry {
   name: string;
@@ -79,6 +83,25 @@ export function createCookieJar(): CookieJar {
     return entry.name.length + entry.value.length + entry.path.length;
   }
 
+  function replaceExisting(entry: CookieEntry, list: CookieEntry[], idx: number): void {
+    entry.createdAt = list[idx]!.createdAt;
+    list[idx] = entry;
+  }
+
+  function insertNew(entry: CookieEntry, list: CookieEntry[]): boolean {
+    if (totalEntries() >= MAX_COOKIES_TOTAL) purgeAllExpired();
+    if (totalEntries() >= MAX_COOKIES_TOTAL) {
+      warnOnce(`jar at ${MAX_COOKIES_TOTAL} cookies; refusing ${entry.name}@${entry.host}`);
+      return false;
+    }
+    if (list.length >= MAX_COOKIES_PER_HOST) {
+      list.sort((a, b) => a.createdAt - b.createdAt);
+      list.splice(0, list.length - MAX_COOKIES_PER_HOST + 1);
+    }
+    list.push(entry);
+    return true;
+  }
+
   function upsert(entry: CookieEntry): CookieEntry | null {
     if (entryBytes(entry) > MAX_COOKIE_BYTES) {
       warnOnce(`cookie over ${MAX_COOKIE_BYTES} bytes refused (${entry.name})`);
@@ -90,21 +113,9 @@ export function createCookieJar(): CookieJar {
       (c) => c.name === entry.name && c.path === entry.path && c.hostOnly === entry.hostOnly,
     );
     if (idx >= 0) {
-      entry.createdAt = list[idx]!.createdAt;
-      list[idx] = entry;
-    } else {
-      if (totalEntries() >= MAX_COOKIES_TOTAL) {
-        purgeAllExpired();
-      }
-      if (totalEntries() >= MAX_COOKIES_TOTAL) {
-        warnOnce(`jar at ${MAX_COOKIES_TOTAL} cookies; refusing ${entry.name}@${entry.host}`);
-        return null;
-      }
-      if (list.length >= MAX_COOKIES_PER_HOST) {
-        list.sort((a, b) => a.createdAt - b.createdAt);
-        list.splice(0, list.length - MAX_COOKIES_PER_HOST + 1);
-      }
-      list.push(entry);
+      replaceExisting(entry, list, idx);
+    } else if (!insertNew(entry, list)) {
+      return null;
     }
     byHost.set(entry.host, list);
     return entry;
@@ -119,11 +130,21 @@ export function createCookieJar(): CookieJar {
     return false;
   }
 
+  function isLocalhost(host: string): boolean {
+    return host === "localhost" || host.endsWith(".localhost");
+  }
+
+  function isIpv6Loopback(host: string): boolean {
+    return host === "[::1]" || host === "::1";
+  }
+
   function isTrustworthy(host: string, httpsScheme: boolean): boolean {
-    if (httpsScheme) return true;
-    if (host === "localhost" || host.endsWith(".localhost")) return true;
-    if (host === "[::1]" || host === "::1") return true;
-    return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+    return (
+      httpsScheme ||
+      isLocalhost(host) ||
+      isIpv6Loopback(host) ||
+      /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)
+    );
   }
 
   function urlParts(
@@ -150,46 +171,79 @@ export function createCookieJar(): CookieJar {
     return host.endsWith(`.${cookieHost}`);
   }
 
+  function isDisallowedDomainClaim(domain: string, host: string): boolean {
+    return (
+      isIpHost(host) || isIpHost(domain) || !domainMatches(domain, host) || isPublicSuffix(domain)
+    );
+  }
+
   function resolveDomain(claimed: string, host: string): string | null {
-    const d = claimed.toLowerCase().replace(/^\./, "").replace(/\.$/, "");
-    if (!d) return null;
-    if (d === host) return d;
-    if (isIpHost(host) || isIpHost(d)) return null;
-    if (!domainMatches(d, host)) return null;
-    if (isPublicSuffix(d)) return null;
-    return d;
+    const domain = claimed.toLowerCase().replace(/^\./, "").replace(/\.$/, "");
+    if (!domain) return null;
+    if (domain === host) return domain;
+    if (isDisallowedDomainClaim(domain, host)) return null;
+    return domain;
+  }
+
+  function appendParentEntries(out: CookieEntry[], host: string): void {
+    const labels = host.split(".");
+    for (let i = 1; i < labels.length - 1; i++) {
+      const parent = labels.slice(i).join(".");
+      purgeExpired(parent);
+      for (const cookie of byHost.get(parent) ?? []) {
+        if (!cookie.hostOnly) out.push(cookie);
+      }
+    }
   }
 
   function candidateEntries(host: string): CookieEntry[] {
     purgeExpired(host);
     const out: CookieEntry[] = [...(byHost.get(host) ?? [])];
     if (isIpHost(host)) return out;
-    const labels = host.split(".");
-    for (let i = 1; i < labels.length - 1; i++) {
-      const parent = labels.slice(i).join(".");
-      purgeExpired(parent);
-      for (const c of byHost.get(parent) ?? []) {
-        if (!c.hostOnly) out.push(c);
-      }
-    }
+    appendParentEntries(out, host);
     return out;
+  }
+
+  function isCrossSite(ctx: RequestContext | undefined, host: string): boolean {
+    return (
+      ctx !== undefined &&
+      (ctx.initiatorHost === null || siteKey(ctx.initiatorHost.toLowerCase()) !== siteKey(host))
+    );
+  }
+
+  function isStrictCrossSite(ctx: RequestContext | undefined, crossSite: boolean): boolean {
+    return crossSite && ctx?.topLevel === true;
+  }
+
+  function cookieMatchesRequest(
+    cookie: CookieEntry,
+    parts: { path: string; trustworthy: boolean },
+    crossSite: boolean,
+    strictOnly: boolean,
+  ): boolean {
+    if (isDisallowedBySameSite(cookie, crossSite, strictOnly)) return false;
+    if (cookie.secure && !parts.trustworthy) return false;
+    if (!pathMatches(cookie.path, parts.path)) return false;
+    return true;
+  }
+
+  function isDisallowedBySameSite(
+    cookie: CookieEntry,
+    crossSite: boolean,
+    strictOnly: boolean,
+  ): boolean {
+    if (strictOnly && cookie.sameSite === "Strict") return true;
+    return crossSite && !strictOnly && cookie.sameSite !== "None";
   }
 
   function getForUrl(urlStr: string, ctx?: RequestContext): CookieEntry[] {
     const parts = urlParts(urlStr);
     if (!parts) return [];
-    const crossSite =
-      ctx !== undefined &&
-      (ctx.initiatorHost === null ||
-        siteKey(ctx.initiatorHost.toLowerCase()) !== siteKey(parts.host));
-    const strictOnly = crossSite && ctx?.topLevel === true;
-    const matched = candidateEntries(parts.host).filter((c) => {
-      if (strictOnly && c.sameSite === "Strict") return false;
-      if (crossSite && !strictOnly && c.sameSite !== "None") return false;
-      if (c.secure && !parts.trustworthy) return false;
-      if (!pathMatches(c.path, parts.path)) return false;
-      return true;
-    });
+    const crossSite = isCrossSite(ctx, parts.host);
+    const strictOnly = isStrictCrossSite(ctx, crossSite);
+    const matched = candidateEntries(parts.host).filter((cookie) =>
+      cookieMatchesRequest(cookie, parts, crossSite, strictOnly),
+    );
     matched.sort((a, b) => b.path.length - a.path.length || a.createdAt - b.createdAt);
     return matched;
   }
@@ -204,26 +258,70 @@ export function createCookieJar(): CookieJar {
     if (!s) return false;
     for (let i = 0; i < s.length; i++) {
       const ch = s.charCodeAt(i);
-      if (ch < 0x21 || ch > 0x7e) return false;
-      if (ch === 0x28 || ch === 0x29 || ch === 0x2c || ch === 0x2f) return false;
-      if (ch >= 0x3a && ch <= 0x40) return false;
-      if (ch === 0x5b || ch === 0x5c || ch === 0x5d) return false;
-      if (ch === 0x7b || ch === 0x7d) return false;
-      if (ch === 0x22) return false;
+      if (!isValidCookieNameByte(ch)) return false;
     }
     return true;
   }
-  function isValidCookieValue(s: string): boolean {
-    let v = s;
-    if (v.length >= 2 && v.charCodeAt(0) === 0x22 && v.charCodeAt(v.length - 1) === 0x22) {
-      v = v.slice(1, -1);
+
+  function isValidCookieNameByte(ch: number): boolean {
+    return ch >= 0x21 && ch <= 0x7e && !isForbiddenCookieNameByte(ch);
+  }
+
+  function isForbiddenCookieNameByte(ch: number): boolean {
+    return (ch >= 0x3a && ch <= 0x40) || FORBIDDEN_COOKIE_NAME_BYTES.has(ch);
+  }
+
+  function unquoteCookieValue(value: string): string {
+    if (
+      value.length >= 2 &&
+      value.charCodeAt(0) === 0x22 &&
+      value.charCodeAt(value.length - 1) === 0x22
+    ) {
+      return value.slice(1, -1);
     }
+    return value;
+  }
+
+  function isForbiddenCookieValueByte(ch: number): boolean {
+    return ch < 0x21 || ch > 0x7e || FORBIDDEN_COOKIE_VALUE_BYTES.has(ch);
+  }
+
+  function isValidCookieValue(s: string): boolean {
+    const v = unquoteCookieValue(s);
     for (let i = 0; i < v.length; i++) {
       const ch = v.charCodeAt(i);
-      if (ch < 0x21 || ch > 0x7e) return false;
-      if (ch === 0x22 || ch === 0x2c || ch === 0x3b || ch === 0x5c) return false;
+      if (isForbiddenCookieValueByte(ch)) return false;
     }
     return true;
+  }
+
+  function parseCookiePair(first: string | undefined): { name: string; value: string } | null {
+    if (first === undefined) return null;
+    const eq = first.indexOf("=");
+    if (eq < 0) return null;
+    const name = first.slice(0, eq).trim();
+    const value = first.slice(eq + 1).trim();
+    if (!isValidCookiePair(name, value)) return null;
+    return { name, value };
+  }
+
+  function isValidCookiePair(name: string, value: string): boolean {
+    return name.length > 0 && isValidCookieName(name) && isValidCookieValue(value);
+  }
+
+  function parseCookieAttributes(segments: string[]): Map<string, string> {
+    const attrs = new Map<string, string>();
+    for (let i = 1; i < segments.length; i++) {
+      const seg = segments[i];
+      if (seg === undefined) continue;
+      const eq2 = seg.indexOf("=");
+      if (eq2 < 0) {
+        attrs.set(seg.toLowerCase(), "");
+      } else {
+        attrs.set(seg.slice(0, eq2).trim().toLowerCase(), seg.slice(eq2 + 1).trim());
+      }
+    }
+    return attrs;
   }
 
   function parseSetCookie(raw: string): {
@@ -236,27 +334,9 @@ export function createCookieJar(): CookieJar {
       .split(";")
       .map((s) => s.trim())
       .filter(Boolean);
-    const first = segments[0];
-    if (first === undefined) return null;
-    const eq = first.indexOf("=");
-    if (eq < 0) return null;
-    const name = first.slice(0, eq).trim();
-    const value = first.slice(eq + 1).trim();
-    if (!name) return null;
-    if (!isValidCookieName(name)) return null;
-    if (!isValidCookieValue(value)) return null;
-    const attrs = new Map<string, string>();
-    for (let i = 1; i < segments.length; i++) {
-      const seg = segments[i];
-      if (seg === undefined) continue;
-      const eq2 = seg.indexOf("=");
-      if (eq2 < 0) {
-        attrs.set(seg.toLowerCase(), "");
-      } else {
-        attrs.set(seg.slice(0, eq2).trim().toLowerCase(), seg.slice(eq2 + 1).trim());
-      }
-    }
-    return { name, value, attrs };
+    const pair = parseCookiePair(segments[0]);
+    if (!pair) return null;
+    return { ...pair, attrs: parseCookieAttributes(segments) };
   }
 
   function buildEntry(
@@ -269,18 +349,8 @@ export function createCookieJar(): CookieJar {
     const secure = a.has("secure");
     const httpOnly = a.has("httponly");
     const ssRaw = (a.get("samesite") || "").toLowerCase();
-    const sameSite =
-      ssRaw === "strict" ? "Strict" : ssRaw === "lax" ? "Lax" : ssRaw === "none" ? "None" : null;
-    let expiresAt: number | null = null;
-    if (a.has("max-age")) {
-      const ma = Number(a.get("max-age"));
-      if (Number.isFinite(ma)) {
-        expiresAt = Date.now() + ma * MILLISECONDS_PER_SECOND;
-      }
-    } else if (a.has("expires")) {
-      const t = Date.parse(a.get("expires") || "");
-      if (Number.isFinite(t)) expiresAt = t;
-    }
+    const sameSite = parseSameSite(ssRaw);
+    const expiresAt = cookieExpiry(a);
     return {
       name: parsed.name,
       value: parsed.value,
@@ -295,21 +365,76 @@ export function createCookieJar(): CookieJar {
     };
   }
 
+  function parseSameSite(value: string): CookieEntry["sameSite"] {
+    switch (value) {
+      case "strict":
+        return "Strict";
+      case "lax":
+        return "Lax";
+      case "none":
+        return "None";
+      default:
+        return null;
+    }
+  }
+
+  function cookieExpiry(attrs: Map<string, string>): number | null {
+    if (attrs.has("max-age")) return maxAgeExpiry(attrs);
+    if (attrs.has("expires")) return expiresAttributeExpiry(attrs);
+    return null;
+  }
+
+  function maxAgeExpiry(attrs: Map<string, string>): number | null {
+    const maxAge = Number(attrs.get("max-age"));
+    return Number.isFinite(maxAge) ? Date.now() + maxAge * MILLISECONDS_PER_SECOND : null;
+  }
+
+  function expiresAttributeExpiry(attrs: Map<string, string>): number | null {
+    const expiresAt = Date.parse(attrs.get("expires") || "");
+    return Number.isFinite(expiresAt) ? expiresAt : null;
+  }
+
+  function securePrefixHolds(
+    parsed: { name: string; attrs: Map<string, string> },
+    parts: { trustworthy: boolean },
+  ): boolean {
+    if (!parsed.name.startsWith("__Secure-")) return true;
+    return parsed.attrs.has("secure") && parts.trustworthy;
+  }
+
+  function hostPrefixHolds(
+    parsed: { name: string; attrs: Map<string, string> },
+    parts: { trustworthy: boolean },
+  ): boolean {
+    if (!parsed.name.startsWith("__Host-")) return true;
+    return (
+      hostPrefixSecurityHolds(parsed.attrs, parts) &&
+      hostPrefixDomainHolds(parsed.attrs) &&
+      hostPrefixPathHolds(parsed.attrs)
+    );
+  }
+
+  function hostPrefixSecurityHolds(
+    attrs: Map<string, string>,
+    parts: { trustworthy: boolean },
+  ): boolean {
+    return attrs.has("secure") && parts.trustworthy;
+  }
+
+  function hostPrefixDomainHolds(attrs: Map<string, string>): boolean {
+    const domain = attrs.get("domain");
+    return domain === undefined || domain === "";
+  }
+
+  function hostPrefixPathHolds(attrs: Map<string, string>): boolean {
+    return (attrs.get("path") || "/") === "/";
+  }
+
   function prefixInvariantsHold(
     parsed: { name: string; attrs: Map<string, string> },
     parts: { trustworthy: boolean },
   ): boolean {
-    const secure = parsed.attrs.has("secure");
-    if (parsed.name.startsWith("__Secure-")) {
-      if (!secure || !parts.trustworthy) return false;
-    }
-    if (parsed.name.startsWith("__Host-")) {
-      if (!secure || !parts.trustworthy) return false;
-      const d = parsed.attrs.get("domain");
-      if (d !== undefined && d !== "") return false;
-      if ((parsed.attrs.get("path") || "/") !== "/") return false;
-    }
-    return true;
+    return securePrefixHolds(parsed, parts) && hostPrefixHolds(parsed, parts);
   }
 
   function existing(entry: CookieEntry): CookieEntry | undefined {
@@ -318,49 +443,99 @@ export function createCookieJar(): CookieJar {
     );
   }
 
+  function resolveCookieHost(
+    parsed: { attrs: Map<string, string> },
+    host: string,
+  ): { host: string; hostOnly: boolean } | null {
+    const claimed = parsed.attrs.get("domain");
+    let resolvedHost = host;
+    let hostOnly = true;
+    if (claimed !== undefined && claimed !== "") {
+      const resolved = resolveDomain(claimed, host);
+      if (resolved === null) return null;
+      resolvedHost = resolved;
+      hostOnly = isPublicSuffix(resolved);
+    }
+    return { host: resolvedHost, hostOnly };
+  }
+
+  function otherCookieAttributesAllowed(
+    parsed: { name: string; attrs: Map<string, string> },
+    parts: { trustworthy: boolean },
+  ): boolean {
+    if (!prefixInvariantsHold(parsed, parts)) return false;
+    if (parsed.attrs.has("secure") && !parts.trustworthy) return false;
+    return !hasInsecureSameSiteNone(parsed.attrs);
+  }
+
+  function hasInsecureSameSiteNone(attrs: Map<string, string>): boolean {
+    return (attrs.get("samesite") || "").toLowerCase() === "none" && !attrs.has("secure");
+  }
+
+  function isShadowedByHttpOnly(entry: CookieEntry, requestHost: string): boolean {
+    return candidateEntries(requestHost).some(
+      (cookie) => cookie.name === entry.name && cookie.httpOnly,
+    );
+  }
+
+  function canReplaceExisting(
+    previous: CookieEntry,
+    fromScript: boolean,
+    trustworthy: boolean,
+  ): boolean {
+    return !(fromScript && previous.httpOnly) && !(previous.secure && !trustworthy);
+  }
+
+  function prepareCookieEntry(
+    parsed: { name: string; value: string; attrs: Map<string, string> },
+    parts: { host: string; trustworthy: boolean },
+  ): CookieEntry | null {
+    const host = resolveCookieHost(parsed, parts.host);
+    if (!host) return null;
+    if (!otherCookieAttributesAllowed(parsed, parts)) return null;
+    return buildEntry(parsed, host.host, host.hostOnly);
+  }
+
+  function storeCookieEntry(
+    entry: CookieEntry,
+    parts: { host: string; trustworthy: boolean },
+    fromScript: boolean,
+  ): CookieEntry | null {
+    if (fromScript) entry.httpOnly = false;
+    if (isShadowedScriptCookie(entry, parts.host, fromScript)) return null;
+    const previous = existing(entry);
+    if (cannotReplaceCookie(previous, fromScript, parts.trustworthy)) return null;
+    return upsert(entry);
+  }
+
+  function isShadowedScriptCookie(entry: CookieEntry, host: string, fromScript: boolean): boolean {
+    return fromScript && isShadowedByHttpOnly(entry, host);
+  }
+
+  function cannotReplaceCookie(
+    previous: CookieEntry | undefined,
+    fromScript: boolean,
+    trustworthy: boolean,
+  ): boolean {
+    return previous !== undefined && !canReplaceExisting(previous, fromScript, trustworthy);
+  }
+
+  function storePreparedCookie(
+    parsed: { name: string; value: string; attrs: Map<string, string> },
+    parts: { host: string; trustworthy: boolean },
+    fromScript: boolean,
+  ): CookieEntry | null {
+    const entry = prepareCookieEntry(parsed, parts);
+    if (!entry) return null;
+    return storeCookieEntry(entry, parts, fromScript);
+  }
+
   function store(urlStr: string, raw: string, fromScript: boolean): CookieEntry | null {
     const parts = urlParts(urlStr);
     if (!parts) return null;
     const parsed = parseSetCookie(raw);
     if (!parsed) return null;
-
-    const claimed = parsed.attrs.get("domain");
-    let host = parts.host;
-    let hostOnly = true;
-    if (claimed !== undefined && claimed !== "") {
-      const resolved = resolveDomain(claimed, parts.host);
-      if (resolved === null) return null;
-      host = resolved;
-      hostOnly = isPublicSuffix(resolved);
-    }
-
-    if (!prefixInvariantsHold(parsed, parts)) return null;
-
-    if (parsed.attrs.has("secure") && !parts.trustworthy) return null;
-
-    if (
-      (parsed.attrs.get("samesite") || "").toLowerCase() === "none" &&
-      !parsed.attrs.has("secure")
-    ) {
-      return null;
-    }
-
-    const entry = buildEntry(parsed, host, hostOnly);
-    if (fromScript) entry.httpOnly = false;
-
-    if (fromScript) {
-      const shadowed = candidateEntries(parts.host).some(
-        (c) => c.name === entry.name && c.httpOnly,
-      );
-      if (shadowed) return null;
-    }
-
-    const prev = existing(entry);
-    if (prev) {
-      if (fromScript && prev.httpOnly) return null;
-      if (prev.secure && !parts.trustworthy) return null;
-    }
-    return upsert(entry);
+    return storePreparedCookie(parsed, parts, fromScript);
   }
 
   function setFromHeader(urlStr: string, raw: string): CookieEntry | null {
@@ -395,40 +570,56 @@ export function createCookieJar(): CookieJar {
     return out;
   }
 
-  function remove(opts: { name: string; url?: string; domain?: string; path?: string }): number {
-    const wantName = opts.name;
+  function removalHost(opts: { url?: string; domain?: string }): string | undefined {
     let host: string | undefined;
     if (opts.domain) host = opts.domain.toLowerCase().replace(/^\./, "");
     else if (opts.url) {
       const parts = urlParts(opts.url);
       if (parts) host = parts.host;
     }
-    const wantPath = opts.path;
+    return host;
+  }
+
+  function removeMatching(
+    list: CookieEntry[],
+    name: string,
+    path: string | undefined,
+  ): { kept: CookieEntry[]; removed: number } {
     let removed = 0;
-    if (host) {
-      const list = byHost.get(host);
-      if (!list) return 0;
-      const kept = list.filter((c) => {
-        if (c.name !== wantName) return true;
-        if (wantPath !== undefined && c.path !== wantPath) return true;
-        removed++;
-        return false;
-      });
-      if (kept.length === 0) byHost.delete(host);
-      else byHost.set(host, kept);
-    } else {
-      for (const [h, list] of byHost) {
-        const kept = list.filter((c) => {
-          if (c.name !== wantName) return true;
-          if (wantPath !== undefined && c.path !== wantPath) return true;
-          removed++;
-          return false;
-        });
-        if (kept.length === 0) byHost.delete(h);
-        else byHost.set(h, kept);
-      }
+    const kept = list.filter((cookie) => {
+      if (cookie.name !== name) return true;
+      if (path !== undefined && cookie.path !== path) return true;
+      removed++;
+      return false;
+    });
+    return { kept, removed };
+  }
+
+  function removeFromHost(host: string, name: string, path: string | undefined): number {
+    const list = byHost.get(host);
+    if (!list) return 0;
+    const result = removeMatching(list, name, path);
+    if (result.kept.length === 0) byHost.delete(host);
+    else byHost.set(host, result.kept);
+    return result.removed;
+  }
+
+  function removeEverywhere(name: string, path: string | undefined): number {
+    let removed = 0;
+    for (const [host, list] of byHost) {
+      const result = removeMatching(list, name, path);
+      removed += result.removed;
+      if (result.kept.length === 0) byHost.delete(host);
+      else byHost.set(host, result.kept);
     }
     return removed;
+  }
+
+  function remove(opts: { name: string; url?: string; domain?: string; path?: string }): number {
+    const host = removalHost(opts);
+    return host
+      ? removeFromHost(host, opts.name, opts.path)
+      : removeEverywhere(opts.name, opts.path);
   }
 
   function clear(): void {
@@ -506,20 +697,36 @@ export function parseCdpCookieParam(raw: unknown): CdpCookieParam | null {
   };
 }
 
+function cdpCookieUrl(param: CdpCookieParam): string {
+  const domain = param.domain?.toLowerCase() ?? "";
+  return param.url ?? (domain ? `https://${domain.replace(/^\./, "")}/` : "");
+}
+
+function appendCdpPathAndDomain(param: CdpCookieParam, segments: string[]): void {
+  if (param.path) segments.push(`Path=${param.path}`);
+  if (param.domain?.startsWith(".")) segments.push(`Domain=${param.domain.toLowerCase()}`);
+}
+
+function appendCdpSecurityFlags(param: CdpCookieParam, segments: string[]): void {
+  if (param.secure === true) segments.push("Secure");
+  if (param.httpOnly === true) segments.push("HttpOnly");
+}
+
+function appendCdpSameSiteAndExpiry(param: CdpCookieParam, segments: string[]): void {
+  if (param.sameSite) segments.push(`SameSite=${param.sameSite}`);
+  if (typeof param.expires === "number" && param.expires > 0) {
+    segments.push(`Expires=${new Date(param.expires * MILLISECONDS_PER_SECOND).toUTCString()}`);
+  }
+}
+
 export function setCdpCookie(jar: CookieJar, raw: unknown): CookieEntry | null {
   const p = parseCdpCookieParam(raw);
   if (!p?.name) return null;
-  const domain = p.domain?.toLowerCase() ?? "";
-  const url = p.url ?? (domain ? `https://${domain.replace(/^\./, "")}/` : "");
+  const url = cdpCookieUrl(p);
   if (!url) return null;
   const segs: string[] = [`${p.name}=${p.value ?? ""}`];
-  if (p.path) segs.push(`Path=${p.path}`);
-  if (domain.startsWith(".")) segs.push(`Domain=${domain}`);
-  if (p.secure === true) segs.push("Secure");
-  if (p.httpOnly === true) segs.push("HttpOnly");
-  if (p.sameSite) segs.push(`SameSite=${p.sameSite}`);
-  if (typeof p.expires === "number" && p.expires > 0) {
-    segs.push(`Expires=${new Date(p.expires * MILLISECONDS_PER_SECOND).toUTCString()}`);
-  }
+  appendCdpPathAndDomain(p, segs);
+  appendCdpSecurityFlags(p, segs);
+  appendCdpSameSiteAndExpiry(p, segs);
   return jar.setFromHeader(url, segs.join("; "));
 }

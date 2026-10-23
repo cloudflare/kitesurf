@@ -40,24 +40,27 @@ test("querySelectorAll on a MutationObserver's removed node does not throw", asy
   const report = await page.evaluate(async () => {
     const host = document.getElementById("host")!;
     const out: Record<string, unknown> = {};
+    const inspectRemovedNode = (node: Element) => {
+      try {
+        out.count = node.querySelectorAll("*").length;
+        out.selfMatch = node.querySelectorAll("a").length;
+      } catch (error) {
+        out.threw = String(error);
+      }
+      try {
+        node.querySelectorAll("");
+        out.invalidThrew = false;
+      } catch (error) {
+        out.invalidThrew = (error as { name?: string }).name === "SyntaxError";
+      }
+    };
     const done = new Promise<void>((resolve) => {
       new MutationObserver((records, mo) => {
         mo.disconnect();
         for (const r of records) {
           for (const n of r.removedNodes) {
             if (n.nodeType !== 1) continue;
-            try {
-              out.count = (n as Element).querySelectorAll("*").length;
-              out.selfMatch = (n as Element).querySelectorAll("a").length;
-            } catch (e) {
-              out.threw = String(e);
-            }
-            try {
-              (n as Element).querySelectorAll("");
-              out.invalidThrew = false;
-            } catch (e) {
-              out.invalidThrew = (e as { name?: string }).name === "SyntaxError";
-            }
+            inspectRemovedNode(n as Element);
           }
         }
         resolve();

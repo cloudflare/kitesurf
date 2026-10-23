@@ -115,19 +115,24 @@ cors.all("/no-acao-secret.json", (c) => {
   const headers: Record<string, string> = {
     "content-type": "application/json; charset=utf-8",
   };
-  if (c.req.query("chunked") === "1") {
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(body));
-        controller.close();
-      },
-    });
-    return new Response(stream, { status, headers });
-  }
-  const lie = c.req.query("lie");
-  if (lie) headers["content-length"] = lie;
+  if (c.req.query("chunked") === "1") return chunkedResponse(body, status, headers);
+  applyContentLength(headers, c.req.query("lie"));
   return new Response(body, { status, headers });
 });
+
+function applyContentLength(headers: Record<string, string>, lie: string | undefined): void {
+  if (lie) headers["content-length"] = lie;
+}
+
+function chunkedResponse(body: string, status: number, headers: Record<string, string>): Response {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(body));
+      controller.close();
+    },
+  });
+  return new Response(stream, { status, headers });
+}
 
 const BIG_SECRET_BYTES = 9 * MIB;
 cors.all("/no-acao-big-secret.bin", (c) =>

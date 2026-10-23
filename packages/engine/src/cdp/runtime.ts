@@ -22,6 +22,10 @@ import { traceSpan } from "../tracing.ts";
 import type { Protocol } from "devtools-protocol";
 
 const EXEC_CONTEXT_ID = 1;
+type EvaluationRequest = Extract<
+  CdpRequest,
+  { method: "Runtime.evaluate" | "Runtime.callFunctionOn" }
+>;
 
 function readyPageScript(
   ctx: DispatchCtx,
@@ -35,19 +39,28 @@ function resolveExecutionContextFrame(
   target: TargetState | null | undefined,
   contextId: number | undefined,
 ): FrameState | null | false {
-  if (!contextId || contextId === EXEC_CONTEXT_ID || contextId === ISOLATED_WORLD_CONTEXT_ID) {
-    return null;
-  }
+  if (isBuiltInExecutionContext(contextId)) return null;
   if (!target) return false;
-  if ((target.isolatedWorlds ?? []).some((w) => w.id === contextId)) {
-    return null;
+  if (isIsolatedWorldContext(target, contextId)) return null;
+  return findFrameByExecutionContext(target, contextId) ?? false;
+}
+
+function isBuiltInExecutionContext(contextId: number | undefined): boolean {
+  return !contextId || contextId === EXEC_CONTEXT_ID || contextId === ISOLATED_WORLD_CONTEXT_ID;
+}
+
+function isIsolatedWorldContext(target: TargetState, contextId: number | undefined): boolean {
+  return (target.isolatedWorlds ?? []).some((world) => world.id === contextId);
+}
+
+function findFrameByExecutionContext(
+  target: TargetState,
+  contextId: number | undefined,
+): FrameState | undefined {
+  for (const frame of target.frames.values()) {
+    if (frame.execContextId === contextId) return frame;
   }
-  for (const f of target.frames.values()) {
-    if (f.execContextId === contextId) {
-      return f;
-    }
-  }
-  return false;
+  return undefined;
 }
 
 function assertLiveContextId(target: TargetState | null | undefined, id: unknown): void {
@@ -105,70 +118,8 @@ export function emitOopifExecutionContextDestroyed(ctx: DispatchCtx, execContext
 
 export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
   switch (req.method) {
-    case "Runtime.enable": {
-      const target = pickTarget(ctx, req.sessionId);
-      const sidKey = req.sessionId ?? "";
-      ctx.browser.runtimeEnabledSessions.add(sidKey);
-      if (target && target.defaultContextId === 0) {
-        target.defaultContextId = EXEC_CONTEXT_ID;
-      }
-      const defaultId = target?.defaultContextId || EXEC_CONTEXT_ID;
-      ctx.emit({
-        method: "Runtime.executionContextCreated",
-        params: {
-          context: {
-            id: defaultId,
-            origin: target ? originOf(target.url) : "",
-            name: "",
-            uniqueId: `ctx-${defaultId}`,
-            auxData: {
-              isDefault: true,
-              type: "default",
-              frameId: target?.frameId ?? "browser",
-            },
-          },
-        },
-        sessionId: req.sessionId,
-      });
-      for (const w of target?.isolatedWorlds ?? []) {
-        ctx.emit({
-          method: "Runtime.executionContextCreated",
-          params: {
-            context: {
-              id: w.id,
-              origin: target ? originOf(target.url) : "",
-              name: w.name,
-              uniqueId: `cs-iso-${target?.targetId ?? "?"}-${w.id}`,
-              auxData: { isDefault: false, type: "isolated", frameId: w.frameId },
-            },
-          },
-          sessionId: req.sessionId,
-        });
-      }
-      if (target) {
-        for (const f of target.frames.values()) {
-          if (!f.pageScript || f.execContextId <= 0) continue;
-          ctx.emit({
-            method: "Runtime.executionContextCreated",
-            params: {
-              context: {
-                id: f.execContextId,
-                origin: originOf(f.url),
-                name: f.url,
-                uniqueId: `ctx-oopif-${f.execContextId}`,
-                auxData: {
-                  isDefault: false,
-                  type: "default",
-                  frameId: f.frameId,
-                },
-              },
-            },
-            sessionId: req.sessionId,
-          });
-        }
-      }
-      return {};
-    }
+    case "Runtime.enable":
+      return enableRuntime(ctx, req);
 
     case "Runtime.disable":
     case "Runtime.discardConsoleEntries":
@@ -177,277 +128,31 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
     case "Runtime.setCustomObjectFormatterEnabled":
       return {};
 
-    case "Runtime.getHeapUsage": {
-      const target = pickTarget(ctx, req.sessionId);
-      if (!target || target.type !== "page") {
-        return { usedSize: 0, totalSize: 0 };
-      }
-      const mem = await sessionOf(ctx, target).callIfLive.getMemoryStats({});
-      const usedSize = typeof mem?.bytes === "number" ? mem.bytes : 0;
-      return { usedSize, totalSize: usedSize };
-    }
+    case "Runtime.getHeapUsage":
+      return getHeapUsage(ctx, req.sessionId);
 
-    case "Runtime.addBinding": {
-      const name = (req.params as { name?: string } | undefined)?.name;
-      if (typeof name === "string" && name.length > 0) {
-        ctx.browser.pendingBindings.add(name);
-        try {
-          const target = pickTarget(ctx, req.sessionId);
-          if (target?.blankReady) await target.blankReady;
-          const ps = target?.pageScript;
-          if (ps?.installBindings) await ps.installBindings([name]);
-        } catch {}
-      }
-      return {};
-    }
-    case "Runtime.removeBinding": {
-      const name = (req.params as { name?: string } | undefined)?.name;
-      if (typeof name === "string") {
-        ctx.browser.pendingBindings.delete(name);
-      }
-      return {};
-    }
+    case "Runtime.addBinding":
+      return addBinding(ctx, req);
+    case "Runtime.removeBinding":
+      return removeBinding(ctx, req);
 
-    case "Runtime.evaluate": {
-      const expression = req.params!.expression;
-      assertLiveContextId(
-        (() => {
-          try {
-            return pickTarget(ctx, req.sessionId);
-          } catch {
-            return null;
-          }
-        })(),
-        req.params?.contextId,
-      );
-      const returnByValue = Boolean(req.params?.returnByValue);
-      const awaitPromise = Boolean(req.params?.awaitPromise);
+    case "Runtime.evaluate":
+      return evaluateExpression(ctx, req);
 
-      const target = pickTarget(ctx, req.sessionId);
-      const requestedCtx = (req.params as { contextId?: number } | undefined)?.contextId;
-      const oopifFrame = resolveExecutionContextFrame(target, requestedCtx);
-      if (oopifFrame === false || (oopifFrame && !oopifFrame.pageScript)) {
-        return loaderFailureResponse(
-          new Error(`Runtime.evaluate: unknown or destroyed contextId ${requestedCtx}`),
-        );
-      }
-      const oopifStub = oopifFrame ? oopifFrame.pageScript : null;
+    case "Runtime.callFunctionOn":
+      return callFunctionOn(ctx, req);
 
-      const trivial = tryTrivial(expression);
-      if (trivial !== undefined) {
-        return remoteObjectFromValue(trivial, returnByValue);
-      }
-      const ps = oopifStub ?? (await readyPageScript(ctx, target));
-      if (!ps) {
-        return loaderFailureResponse(
-          new Error("Runtime.evaluate requires an attached page target"),
-        );
-      }
-      try {
-        const result = await traceSpan(
-          ctx.env.HOST_TRACER,
-          "eval.pagescript_rpc",
-          () => ps.evaluate(expression, { returnByValue, awaitPromise }),
-          { exprBytes: expression.length, returnByValue, awaitPromise },
-        );
-        emitCapturedConsole(ctx, result.console, req.sessionId);
-        if (!oopifStub) {
-          replayReopenedLifecycle(ctx, target, result, req.sessionId);
-        }
-        applyCookieWrites(
-          ctx,
-          target,
-          result.cookieWrites,
-          oopifFrame ? oopifFrame.url : undefined,
-        );
-        if (!oopifStub && target) {
-          emitMutations(ctx, target, result.cdpMutations);
-        }
-        return pageScriptResultToCdp(result, returnByValue);
-      } catch (err) {
-        throwIfContextDestroyed(oopifFrame || target, ps);
-        return loaderFailureResponse(err);
-      }
-    }
+    case "Runtime.getProperties":
+      return getProperties(ctx, req);
 
-    case "Runtime.callFunctionOn": {
-      const functionDeclaration = req.params!.functionDeclaration;
-      const returnByValue = Boolean(req.params?.returnByValue);
-      const awaitPromise = Boolean(req.params?.awaitPromise);
-      const argSpecs = encodeArgSpecs(req.params?.arguments);
-      const objectId = req.params?.objectId;
-      const thisObjectId =
-        typeof objectId === "string" && objectId.startsWith("ps:") ? objectId : undefined;
+    case "Runtime.releaseObject":
+      return releaseObject(ctx, req);
 
-      const target = pickTarget(ctx, req.sessionId);
-      const requestedCtxCfn = (req.params as { executionContextId?: number } | undefined)
-        ?.executionContextId;
-      assertLiveContextId(target, requestedCtxCfn);
-      const oopifFrameCfn = resolveExecutionContextFrame(target, requestedCtxCfn);
-      if (oopifFrameCfn === false || (oopifFrameCfn && !oopifFrameCfn.pageScript)) {
-        return loaderFailureResponse(
-          new Error(
-            `Runtime.callFunctionOn: unknown or destroyed executionContextId ${requestedCtxCfn}`,
-          ),
-        );
-      }
-      const oopifStubCfn = oopifFrameCfn ? oopifFrameCfn.pageScript : null;
-      const ps = oopifStubCfn ?? (await readyPageScript(ctx, target));
-      if (!ps) {
-        return loaderFailureResponse(
-          new Error("Runtime.callFunctionOn requires an attached page target"),
-        );
-      }
-      try {
-        const result = await traceSpan(
-          ctx.env.HOST_TRACER,
-          "eval.pagescript_rpc",
-          () =>
-            ps.callFunctionOn(functionDeclaration, argSpecs, {
-              returnByValue,
-              awaitPromise,
-              thisObjectId,
-            }),
-          {
-            fnBytes: functionDeclaration.length,
-            argCount: argSpecs.length,
-            returnByValue,
-            awaitPromise,
-          },
-        );
-        emitCapturedConsole(ctx, result.console, req.sessionId);
-        if (!oopifStubCfn) {
-          replayReopenedLifecycle(ctx, target, result, req.sessionId);
-        }
-        applyCookieWrites(
-          ctx,
-          target,
-          result.cookieWrites,
-          oopifFrameCfn ? oopifFrameCfn.url : undefined,
-        );
-        if (!oopifStubCfn && target) {
-          emitMutations(ctx, target, result.cdpMutations);
-        }
-        return pageScriptResultToCdp(result, returnByValue);
-      } catch (err) {
-        throwIfContextDestroyed(oopifFrameCfn || target, ps);
-        return loaderFailureResponse(err);
-      }
-    }
+    case "Runtime.compileScript":
+      return compileScript(ctx, req);
 
-    case "Runtime.getProperties": {
-      const objectId = req.params?.objectId as string | undefined;
-      if (typeof objectId !== "string" || !objectId.startsWith("ps:")) {
-        return { result: [] };
-      }
-      const target = pickTarget(ctx, req.sessionId);
-      const ps = target?.pageScript;
-      if (!ps) return { result: [] };
-      try {
-        const { result: descriptors } = await ps.getProperties(objectId, {
-          ownProperties: req.params?.ownProperties !== false,
-        });
-        const result = descriptors.map((d) => {
-          const out: Record<string, unknown> = {
-            name: d.name,
-            configurable: d.configurable,
-            enumerable: d.enumerable,
-            isOwn: d.isOwn,
-          };
-          if (d.value) out.value = pageScriptResultToCdp(d.value, false).result;
-          if (d.get) out.get = pageScriptResultToCdp(d.get, false).result;
-          if (d.set) out.set = pageScriptResultToCdp(d.set, false).result;
-          if (typeof d.writable === "boolean") out.writable = d.writable;
-          return out;
-        });
-        return { result };
-      } catch {
-        return { result: [] };
-      }
-    }
-
-    case "Runtime.releaseObject": {
-      const objectId = req.params!.objectId;
-      if (objectId.startsWith("ps:")) {
-        const target = pickTarget(ctx, req.sessionId);
-        const ps = target?.pageScript;
-        if (ps) {
-          try {
-            await ps.releaseObject(objectId);
-          } catch {}
-        }
-      }
-      return {};
-    }
-
-    case "Runtime.compileScript": {
-      const expression = req.params!.expression;
-      const sourceURL = req.params!.sourceURL;
-      const persistScript = req.params!.persistScript;
-      const target = pickTarget(ctx, req.sessionId);
-      const ps = await readyPageScript(ctx, target);
-      if (!ps) {
-        return loaderFailureResponse(
-          new Error("Runtime.compileScript requires an attached page target"),
-        );
-      }
-      try {
-        const res = await ps.compileScript(expression, sourceURL, persistScript);
-        if (!res.ok) {
-          return {
-            exceptionDetails: {
-              exceptionId: 1,
-              text: res.exception.text,
-              lineNumber: 0,
-              columnNumber: 0,
-              exception: {
-                type: "object",
-                subtype: "error",
-                className: res.exception.className,
-                description: res.exception.stack || res.exception.message,
-              },
-            },
-          };
-        }
-        if (res.scriptId === null) return {};
-        const meta = makeCompiledScriptMeta(res.scriptId, expression, sourceURL);
-        if (target) {
-          target.compiledScripts.push(meta);
-          if (hasDebuggerListeners(target)) {
-            emitScriptParsedToSessions(ctx, target, meta);
-          }
-        }
-        return { scriptId: res.scriptId };
-      } catch (err) {
-        return loaderFailureResponse(err);
-      }
-    }
-
-    case "Runtime.runScript": {
-      const scriptId = req.params!.scriptId;
-      const returnByValue = Boolean(req.params?.returnByValue);
-      const awaitPromise = Boolean(req.params?.awaitPromise);
-      const target = pickTarget(ctx, req.sessionId);
-      const ps = await readyPageScript(ctx, target);
-      if (!ps) {
-        return loaderFailureResponse(
-          new Error("Runtime.runScript requires an attached page target"),
-        );
-      }
-      try {
-        const result = await ps.runScript(scriptId, {
-          returnByValue,
-          awaitPromise,
-        });
-        emitCapturedConsole(ctx, result.console, req.sessionId);
-        replayReopenedLifecycle(ctx, target, result, req.sessionId);
-        applyCookieWrites(ctx, target, result.cookieWrites);
-        if (target) emitMutations(ctx, target, result.cdpMutations);
-        return pageScriptResultToCdp(result, returnByValue);
-      } catch (err) {
-        return loaderFailureResponse(err);
-      }
-    }
+    case "Runtime.runScript":
+      return runScript(ctx, req);
 
     case "Runtime.releaseObjectGroup":
     case "Runtime.awaitPromise":
@@ -459,14 +164,526 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
   }
 }
 
+function enableRuntime(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.enable" }>,
+): Record<string, never> {
+  const target = pickTarget(ctx, req.sessionId);
+  const sessionKey = req.sessionId ?? "";
+  ctx.browser.runtimeEnabledSessions.add(sessionKey);
+  if (target && target.defaultContextId === 0) target.defaultContextId = EXEC_CONTEXT_ID;
+  emitDefaultExecutionContext(ctx, target, req.sessionId);
+  emitIsolatedExecutionContexts(ctx, target, req.sessionId);
+  emitOopifExecutionContexts(ctx, target, req.sessionId);
+  return {};
+}
+
+function emitDefaultExecutionContext(
+  ctx: DispatchCtx,
+  target: TargetState | undefined,
+  sessionId: string | undefined,
+): void {
+  const defaultId = defaultExecutionContextId(target);
+  ctx.emit({
+    method: "Runtime.executionContextCreated",
+    params: {
+      context: {
+        id: defaultId,
+        origin: executionContextOrigin(target),
+        name: "",
+        uniqueId: `ctx-${defaultId}`,
+        auxData: {
+          isDefault: true,
+          type: "default",
+          frameId: defaultExecutionContextFrameId(target),
+        },
+      },
+    },
+    sessionId,
+  });
+}
+
+function defaultExecutionContextId(target: TargetState | undefined): number {
+  return target?.defaultContextId || EXEC_CONTEXT_ID;
+}
+
+function executionContextOrigin(target: TargetState | undefined): string {
+  return target ? originOf(target.url) : "";
+}
+
+function defaultExecutionContextFrameId(target: TargetState | undefined): string {
+  return target?.frameId ?? "browser";
+}
+
+function emitIsolatedExecutionContexts(
+  ctx: DispatchCtx,
+  target: TargetState | undefined,
+  sessionId: string | undefined,
+): void {
+  const worlds = isolatedWorlds(target);
+  for (const world of worlds) {
+    ctx.emit({
+      method: "Runtime.executionContextCreated",
+      params: {
+        context: {
+          id: world.id,
+          origin: executionContextOrigin(target),
+          name: world.name,
+          uniqueId: isolatedWorldUniqueId(target, world.id),
+          auxData: { isDefault: false, type: "isolated", frameId: world.frameId },
+        },
+      },
+      sessionId,
+    });
+  }
+}
+
+function isolatedWorlds(target: TargetState | undefined) {
+  return target?.isolatedWorlds ?? [];
+}
+
+function isolatedWorldUniqueId(target: TargetState | undefined, worldId: number): string {
+  return `cs-iso-${target?.targetId ?? "?"}-${worldId}`;
+}
+
+function emitOopifExecutionContexts(
+  ctx: DispatchCtx,
+  target: TargetState | undefined,
+  sessionId: string | undefined,
+): void {
+  if (!target) return;
+  for (const frame of target.frames.values()) {
+    if (!frame.pageScript || frame.execContextId <= 0) continue;
+    ctx.emit({
+      method: "Runtime.executionContextCreated",
+      params: {
+        context: {
+          id: frame.execContextId,
+          origin: originOf(frame.url),
+          name: frame.url,
+          uniqueId: `ctx-oopif-${frame.execContextId}`,
+          auxData: { isDefault: false, type: "default", frameId: frame.frameId },
+        },
+      },
+      sessionId,
+    });
+  }
+}
+
+async function getHeapUsage(
+  ctx: DispatchCtx,
+  sessionId: string | undefined,
+): Promise<{ usedSize: number; totalSize: number }> {
+  const target = pickTarget(ctx, sessionId);
+  if (!isPageTarget(target)) return { usedSize: 0, totalSize: 0 };
+  const memory = await sessionOf(ctx, target).callIfLive.getMemoryStats({});
+  const usedSize = typeof memory?.bytes === "number" ? memory.bytes : 0;
+  return { usedSize, totalSize: usedSize };
+}
+
+function isPageTarget(target: TargetState | undefined): target is TargetState {
+  return target !== undefined && target.type === "page";
+}
+
+async function addBinding(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.addBinding" }>,
+): Promise<Record<string, never>> {
+  const name = bindingName(req.params?.name);
+  if (name === null) return {};
+  ctx.browser.pendingBindings.add(name);
+  await installBinding(ctx, req.sessionId, name);
+  return {};
+}
+
+function bindingName(value: unknown): string | null {
+  if (typeof value !== "string" || value.length === 0) return null;
+  return value;
+}
+
+async function installBinding(
+  ctx: DispatchCtx,
+  sessionId: string | undefined,
+  name: string,
+): Promise<void> {
+  try {
+    const target = pickTarget(ctx, sessionId);
+    await waitForBlankPageScript(target);
+    const pageScript = target?.pageScript;
+    if (pageScript?.installBindings) await pageScript.installBindings([name]);
+  } catch {}
+}
+
+async function waitForBlankPageScript(target: TargetState | undefined): Promise<void> {
+  const blankReady = target?.blankReady;
+  if (blankReady) await blankReady;
+}
+
+function removeBinding(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.removeBinding" }>,
+): Record<string, never> {
+  const name = req.params?.name;
+  if (typeof name === "string") ctx.browser.pendingBindings.delete(name);
+  return {};
+}
+
+async function evaluateExpression(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.evaluate" }>,
+): Promise<unknown> {
+  const params = req.params!;
+  const expression = params.expression;
+  const contextId = params.contextId;
+  assertLiveContextId(contextCheckTarget(ctx, req.sessionId), contextId);
+  const target = pickTarget(ctx, req.sessionId);
+  const oopifFrame = resolveExecutionContextFrame(target, contextId);
+  if (isInvalidExecutionContextFrame(oopifFrame)) {
+    return loaderFailureResponse(
+      new Error(`Runtime.evaluate: unknown or destroyed contextId ${contextId}`),
+    );
+  }
+  const trivial = tryTrivial(expression);
+  if (trivial !== undefined) return remoteObjectFromValue(trivial, Boolean(params.returnByValue));
+  const pageScript = await pageScriptForContext(ctx, target, oopifFrame);
+  if (!pageScript) {
+    return loaderFailureResponse(new Error("Runtime.evaluate requires an attached page target"));
+  }
+  return runEvaluation(ctx, req, target, oopifFrame, pageScript);
+}
+
+function contextCheckTarget(
+  ctx: DispatchCtx,
+  sessionId: string | undefined,
+): TargetState | null | undefined {
+  try {
+    return pickTarget(ctx, sessionId);
+  } catch {
+    return null;
+  }
+}
+
+function isInvalidExecutionContextFrame(
+  frame: FrameState | null | false,
+): frame is false | (FrameState & { pageScript: null }) {
+  if (frame === false) return true;
+  return frame !== null && !frame.pageScript;
+}
+
+async function pageScriptForContext(
+  ctx: DispatchCtx,
+  target: TargetState | undefined,
+  frame: FrameState | null,
+): Promise<PageScriptStub | null> {
+  if (frame) return frame.pageScript;
+  return readyPageScript(ctx, target);
+}
+
+async function runEvaluation(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.evaluate" }>,
+  target: TargetState | undefined,
+  frame: FrameState | null,
+  pageScript: PageScriptStub,
+): Promise<unknown> {
+  const params = req.params!;
+  try {
+    const result = await traceSpan(
+      ctx.env.HOST_TRACER,
+      "eval.pagescript_rpc",
+      () =>
+        pageScript.evaluate(params.expression, {
+          returnByValue: Boolean(params.returnByValue),
+          awaitPromise: Boolean(params.awaitPromise),
+        }),
+      {
+        exprBytes: params.expression.length,
+        returnByValue: Boolean(params.returnByValue),
+        awaitPromise: Boolean(params.awaitPromise),
+      },
+    );
+    return completeEvaluation(ctx, req, target, frame, result);
+  } catch (error) {
+    throwIfContextDestroyed(frame || target, pageScript);
+    return loaderFailureResponse(error);
+  }
+}
+
+function completeEvaluation(
+  ctx: DispatchCtx,
+  req: EvaluationRequest,
+  target: TargetState | undefined,
+  frame: FrameState | null,
+  result: Awaited<ReturnType<PageScriptStub["evaluate"]>>,
+): Protocol.Runtime.EvaluateResponse {
+  const returnByValue = Boolean(req.params!.returnByValue);
+  emitCapturedConsole(ctx, result.console, req.sessionId);
+  if (frame === null) replayReopenedLifecycle(ctx, target, result, req.sessionId);
+  applyCookieWrites(ctx, target, result.cookieWrites, frame ? frame.url : undefined);
+  if (frame === null && target) emitMutations(ctx, target, result.cdpMutations);
+  return pageScriptResultToCdp(result, returnByValue);
+}
+
+async function callFunctionOn(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.callFunctionOn" }>,
+): Promise<unknown> {
+  const params = req.params!;
+  const target = pickTarget(ctx, req.sessionId);
+  const executionContextId = params.executionContextId;
+  assertLiveContextId(target, executionContextId);
+  const oopifFrame = resolveExecutionContextFrame(target, executionContextId);
+  if (isInvalidExecutionContextFrame(oopifFrame)) {
+    return loaderFailureResponse(
+      new Error(
+        `Runtime.callFunctionOn: unknown or destroyed executionContextId ${executionContextId}`,
+      ),
+    );
+  }
+  const pageScript = await pageScriptForContext(ctx, target, oopifFrame);
+  if (!pageScript) {
+    return loaderFailureResponse(
+      new Error("Runtime.callFunctionOn requires an attached page target"),
+    );
+  }
+  const argSpecs = encodeArgSpecs(params.arguments);
+  const thisObjectId = pageScriptObjectId(params.objectId);
+  return runFunctionOn(ctx, req, target, oopifFrame, pageScript, argSpecs, thisObjectId);
+}
+
+function pageScriptObjectId(value: string | undefined): string | undefined {
+  if (typeof value === "string" && value.startsWith("ps:")) return value;
+  return undefined;
+}
+
+async function runFunctionOn(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.callFunctionOn" }>,
+  target: TargetState | undefined,
+  frame: FrameState | null,
+  pageScript: PageScriptStub,
+  argSpecs: Array<{ json?: string; objectId?: string }>,
+  thisObjectId: string | undefined,
+): Promise<unknown> {
+  const params = req.params!;
+  try {
+    const result = await traceSpan(
+      ctx.env.HOST_TRACER,
+      "eval.pagescript_rpc",
+      () =>
+        pageScript.callFunctionOn(params.functionDeclaration, argSpecs, {
+          returnByValue: Boolean(params.returnByValue),
+          awaitPromise: Boolean(params.awaitPromise),
+          thisObjectId,
+        }),
+      {
+        fnBytes: params.functionDeclaration.length,
+        argCount: argSpecs.length,
+        returnByValue: Boolean(params.returnByValue),
+        awaitPromise: Boolean(params.awaitPromise),
+      },
+    );
+    return completeEvaluation(ctx, req, target, frame, result);
+  } catch (error) {
+    throwIfContextDestroyed(frame || target, pageScript);
+    return loaderFailureResponse(error);
+  }
+}
+
+async function getProperties(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.getProperties" }>,
+): Promise<{ result: Record<string, unknown>[] }> {
+  const objectId = runtimeObjectId(propertiesObjectId(req));
+  if (objectId === null) return { result: [] };
+  const pageScript = pageScriptForTarget(pickTarget(ctx, req.sessionId));
+  if (!pageScript) return { result: [] };
+  try {
+    const { result: descriptors } = await pageScript.getProperties(objectId, {
+      ownProperties: propertiesOwnOption(req),
+    });
+    return { result: descriptors.map(propertyDescriptorToCdp) };
+  } catch {
+    return { result: [] };
+  }
+}
+
+function propertiesObjectId(
+  req: Extract<CdpRequest, { method: "Runtime.getProperties" }>,
+): string | undefined {
+  return req.params?.objectId;
+}
+
+function propertiesOwnOption(
+  req: Extract<CdpRequest, { method: "Runtime.getProperties" }>,
+): boolean {
+  return ownPropertiesOption(req.params?.ownProperties);
+}
+
+function runtimeObjectId(value: string | undefined): string | null {
+  if (typeof value !== "string" || !value.startsWith("ps:")) return null;
+  return value;
+}
+
+function pageScriptForTarget(target: TargetState | undefined): PageScriptStub | null {
+  return target?.pageScript ?? null;
+}
+
+function ownPropertiesOption(value: boolean | undefined): boolean {
+  return value !== false;
+}
+
+type PropertyDescriptor = Awaited<ReturnType<PageScriptStub["getProperties"]>>["result"][number];
+
+function propertyDescriptorToCdp(descriptor: PropertyDescriptor): Record<string, unknown> {
+  const output: Record<string, unknown> = {
+    name: descriptor.name,
+    configurable: descriptor.configurable,
+    enumerable: descriptor.enumerable,
+    isOwn: descriptor.isOwn,
+  };
+  if (descriptor.value) output.value = pageScriptResultToCdp(descriptor.value, false).result;
+  if (descriptor.get) output.get = pageScriptResultToCdp(descriptor.get, false).result;
+  if (descriptor.set) output.set = pageScriptResultToCdp(descriptor.set, false).result;
+  if (typeof descriptor.writable === "boolean") output.writable = descriptor.writable;
+  return output;
+}
+
+async function releaseObject(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.releaseObject" }>,
+): Promise<Record<string, never>> {
+  const objectId = req.params!.objectId;
+  if (objectId.startsWith("ps:")) await releasePageScriptObject(ctx, req.sessionId, objectId);
+  return {};
+}
+
+async function releasePageScriptObject(
+  ctx: DispatchCtx,
+  sessionId: string | undefined,
+  objectId: string,
+): Promise<void> {
+  const pageScript = pageScriptForTarget(pickTarget(ctx, sessionId));
+  if (!pageScript) return;
+  try {
+    await pageScript.releaseObject(objectId);
+  } catch {}
+}
+
+async function compileScript(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.compileScript" }>,
+): Promise<unknown> {
+  const params = req.params!;
+  const target = pickTarget(ctx, req.sessionId);
+  const pageScript = await readyPageScript(ctx, target);
+  if (!pageScript) {
+    return loaderFailureResponse(
+      new Error("Runtime.compileScript requires an attached page target"),
+    );
+  }
+  try {
+    const result = await pageScript.compileScript(
+      params.expression,
+      params.sourceURL,
+      params.persistScript,
+    );
+    return registerCompiledScript(ctx, target, params.expression, params.sourceURL, result);
+  } catch (error) {
+    return loaderFailureResponse(error);
+  }
+}
+
+function registerCompiledScript(
+  ctx: DispatchCtx,
+  target: TargetState | undefined,
+  expression: string,
+  sourceURL: string,
+  result: Awaited<ReturnType<PageScriptStub["compileScript"]>>,
+): unknown {
+  if (!result.ok) return compileScriptException(result.exception);
+  if (result.scriptId === null) return {};
+  const meta = makeCompiledScriptMeta(result.scriptId, expression, sourceURL);
+  registerScriptMeta(ctx, target, meta);
+  return { scriptId: result.scriptId };
+}
+
+function compileScriptException(
+  exception: Extract<
+    Awaited<ReturnType<PageScriptStub["compileScript"]>>,
+    { ok: false }
+  >["exception"],
+): unknown {
+  return {
+    exceptionDetails: {
+      exceptionId: 1,
+      text: exception.text,
+      lineNumber: 0,
+      columnNumber: 0,
+      exception: {
+        type: "object",
+        subtype: "error",
+        className: exception.className,
+        description: exception.stack || exception.message,
+      },
+    },
+  };
+}
+
+function registerScriptMeta(
+  ctx: DispatchCtx,
+  target: TargetState | undefined,
+  meta: ReturnType<typeof makeCompiledScriptMeta>,
+): void {
+  if (!target) return;
+  target.compiledScripts.push(meta);
+  if (hasDebuggerListeners(target)) emitScriptParsedToSessions(ctx, target, meta);
+}
+
+async function runScript(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.runScript" }>,
+): Promise<unknown> {
+  const params = req.params!;
+  const target = pickTarget(ctx, req.sessionId);
+  const pageScript = await readyPageScript(ctx, target);
+  if (!pageScript) {
+    return loaderFailureResponse(new Error("Runtime.runScript requires an attached page target"));
+  }
+  try {
+    const result = await pageScript.runScript(params.scriptId, {
+      returnByValue: Boolean(params.returnByValue),
+      awaitPromise: Boolean(params.awaitPromise),
+    });
+    return completeRunScript(ctx, req, target, result);
+  } catch (error) {
+    return loaderFailureResponse(error);
+  }
+}
+
+function completeRunScript(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.runScript" }>,
+  target: TargetState | undefined,
+  result: Awaited<ReturnType<PageScriptStub["runScript"]>>,
+): Protocol.Runtime.EvaluateResponse {
+  const returnByValue = Boolean(req.params!.returnByValue);
+  emitCapturedConsole(ctx, result.console, req.sessionId);
+  replayReopenedLifecycle(ctx, target, result, req.sessionId);
+  applyCookieWrites(ctx, target, result.cookieWrites);
+  if (target) emitMutations(ctx, target, result.cdpMutations);
+  return pageScriptResultToCdp(result, returnByValue);
+}
+
 function applyCookieWrites(
   ctx: DispatchCtx,
   target: TargetState | undefined,
   cookieWrites: string[] | undefined,
   urlOverride?: string,
 ): void {
-  if (!target || !cookieWrites || cookieWrites.length === 0) return;
-  const url = urlOverride || target.url;
+  if (!target) return;
+  if (!hasCookieWrites(cookieWrites)) return;
+  const url = cookieWriteUrl(target, urlOverride);
   if (!url) return;
   const jar = jarForTarget(ctx, target);
   for (const raw of cookieWrites) {
@@ -474,28 +691,50 @@ function applyCookieWrites(
   }
 }
 
+function cookieWriteUrl(target: TargetState, urlOverride: string | undefined): string {
+  return urlOverride || target.url;
+}
+
+function hasCookieWrites(cookieWrites: string[] | undefined): cookieWrites is string[] {
+  return cookieWrites !== undefined && cookieWrites.length > 0;
+}
+
 function emitCapturedConsole(
   ctx: DispatchCtx,
   entries: ConsoleEntry[] | undefined,
   sessionId: string | undefined,
 ): void {
-  if (!entries || entries.length === 0) return;
+  if (!hasConsoleEntries(entries)) return;
   const target = pickTarget(ctx, sessionId);
   const ctxId = target?.defaultContextId || 1;
-  for (const e of entries) {
-    const ev = consoleEntryToCdpEvent(e, ctxId);
+  for (const entry of entries) {
+    const ev = consoleEntryToCdpEvent(entry, ctxId);
     ctx.emit({ method: ev.method, params: ev.params, sessionId });
   }
 }
 
+function hasConsoleEntries(entries: ConsoleEntry[] | undefined): entries is ConsoleEntry[] {
+  return entries !== undefined && entries.length > 0;
+}
+
 function pickTarget(ctx: DispatchCtx, sessionId: string | undefined) {
-  if (sessionId) {
-    for (const t of ctx.browser.targets.values()) {
-      if (t.sessions.has(sessionId)) return t;
-    }
+  return findSessionTarget(ctx, sessionId) ?? firstPageTarget(ctx);
+}
+
+function findSessionTarget(
+  ctx: DispatchCtx,
+  sessionId: string | undefined,
+): TargetState | undefined {
+  if (!sessionId) return undefined;
+  for (const target of ctx.browser.targets.values()) {
+    if (target.sessions.has(sessionId)) return target;
   }
-  for (const t of ctx.browser.targets.values()) {
-    if (t.type === "page") return t;
+  return undefined;
+}
+
+function firstPageTarget(ctx: DispatchCtx): TargetState | undefined {
+  for (const target of ctx.browser.targets.values()) {
+    if (target.type === "page") return target;
   }
   return undefined;
 }
@@ -510,44 +749,63 @@ function originOf(url: string): string {
 }
 
 function tryTrivial(expr: string): unknown {
-  const e = expr.trim().replace(/;$/, "");
-  if (e === "1+1") return 2;
-  if (e === "true") return true;
-  if (e === "false") return false;
-  if (e === "null") return null;
-  const lit = /^"([^"\\]*)"$/.exec(e) ?? /^'([^'\\]*)'$/.exec(e);
-  if (lit) return lit[1];
-  if (/^-?\d+(\.\d+)?$/.test(e)) return Number(e);
-  return undefined;
+  const normalized = expr.trim().replace(/;$/, "");
+  const primitive = primitiveTrivialValue(normalized);
+  if (primitive.matched) return primitive.value;
+  const stringValue = trivialStringValue(normalized);
+  if (stringValue !== undefined) return stringValue;
+  return trivialNumberValue(normalized);
+}
+
+type PrimitiveTrivialValue = { matched: true; value: number | boolean | null } | { matched: false };
+
+function primitiveTrivialValue(expression: string): PrimitiveTrivialValue {
+  if (expression === "1+1") return { matched: true, value: 2 };
+  if (expression === "true") return { matched: true, value: true };
+  if (expression === "false") return { matched: true, value: false };
+  if (expression === "null") return { matched: true, value: null };
+  return { matched: false };
+}
+
+function trivialStringValue(expression: string): string | undefined {
+  const literal = /^"([^"\\]*)"$/.exec(expression) ?? /^'([^'\\]*)'$/.exec(expression);
+  return literal?.[1];
+}
+
+function trivialNumberValue(expression: string): number | undefined {
+  if (!/^-?\d+(\.\d+)?$/.test(expression)) return undefined;
+  return Number(expression);
 }
 
 function encodeArgSpecs(
-  args:
-    | Array<{
-        value?: unknown;
-        objectId?: string;
-        unserializableValue?: string;
-      }>
-    | undefined,
+  args: Protocol.Runtime.CallArgument[] | undefined,
 ): Array<{ json?: string; objectId?: string }> {
   if (!args) return [];
-  return args.map((a) => {
-    if (typeof a.objectId === "string" && a.objectId.startsWith("ps:")) {
-      return { objectId: a.objectId };
-    }
-    if ("value" in a) {
-      try {
-        const json = JSON.stringify(a.value);
-        return json === undefined ? {} : { json };
-      } catch {
-        return { json: "null" };
-      }
-    }
-    if (typeof a.objectId === "string" || typeof a.unserializableValue === "string") {
-      return { json: "null" };
-    }
-    return {};
-  });
+  return args.map(encodeArgSpec);
+}
+
+function encodeArgSpec(argument: Protocol.Runtime.CallArgument): {
+  json?: string;
+  objectId?: string;
+} {
+  const objectId = pageScriptObjectId(argument.objectId);
+  if (objectId) return { objectId };
+  if ("value" in argument) return jsonArgValue(argument.value);
+  if (hasUnserializableArgReference(argument)) return { json: "null" };
+  return {};
+}
+
+function jsonArgValue(value: unknown): { json?: string } {
+  try {
+    const json = JSON.stringify(value);
+    return json === undefined ? {} : { json };
+  } catch {
+    return { json: "null" };
+  }
+}
+
+function hasUnserializableArgReference(argument: Protocol.Runtime.CallArgument): boolean {
+  return typeof argument.objectId === "string" || typeof argument.unserializableValue === "string";
 }
 
 function loaderFailureResponse(err: unknown) {

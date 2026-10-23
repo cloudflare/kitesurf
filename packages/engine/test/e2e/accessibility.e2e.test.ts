@@ -21,11 +21,66 @@ interface AXNode {
   backendDOMNodeId: number;
 }
 
+function roleValue(node: AXNode | undefined): unknown {
+  return node?.role?.value;
+}
+
+function nameValue(node: AXNode | undefined): unknown {
+  return node?.name?.value;
+}
+
+function nodeNameOrEmpty(node: AXNode): unknown {
+  return nameValue(node) ?? "";
+}
+
+function byRoleAndName(nodes: AXNode[], role: string, name: string): AXNode | undefined {
+  return nodes.find((node) => roleValue(node) === role && nameValue(node) === name);
+}
+
+function propertyValue(node: AXNode | undefined, name: string): unknown {
+  const property = node?.properties?.find((entry) => entry.name === name);
+  return property?.value.value;
+}
+
+function hasPropertyValue(
+  node: AXNode | undefined,
+  name: string,
+  value: unknown,
+): boolean | undefined {
+  return node?.properties?.some((entry) => entry.name === name && entry.value.value === value);
+}
+
+function ignoredReasonNames(node: AXNode | undefined): string[] {
+  return (node?.ignoredReasons ?? []).map((reason) => reason.name);
+}
+
+function hasIgnoredReason(node: AXNode, reason: string): boolean {
+  return ignoredReasonNames(node).includes(reason);
+}
+
+function byIgnoredReason(nodes: AXNode[], reason: string): AXNode | undefined {
+  return nodes.find((node) => hasIgnoredReason(node, reason));
+}
+
+function isPresentationalNode(node: AXNode): boolean {
+  return hasIgnoredReason(node, "presentationalRole");
+}
+
+function expectIgnoredNodeShape(node: AXNode): void {
+  expect(node.role?.value).toBe("none");
+  expect(node.name).toBeUndefined();
+  expect(node.properties).toBeUndefined();
+}
+
+function isPrunedNode(node: AXNode): boolean {
+  return node.ignored && roleValue(node) === "none";
+}
+
 function byRole(nodes: AXNode[], role: string): AXNode[] {
-  return nodes.filter((n) => !n.ignored && n.role?.value === role);
+  return nodes.filter((node) => !node.ignored && roleValue(node) === role);
 }
 function byName(nodes: AXNode[], name: string): AXNode | undefined {
-  return nodes.find((n) => !n.ignored && n.name?.value === name);
+  return nodes.find((node) => !node.ignored && nameValue(node) === name);
 }
 
 test("Accessibility.getFullAXTree exposes role + name for landmarks and controls", async ({
@@ -40,7 +95,7 @@ test("Accessibility.getFullAXTree exposes role + name for landmarks and controls
     nodes: AXNode[];
   };
 
-  const roots = nodes.filter((n) => n.role?.value === "RootWebArea");
+  const roots = nodes.filter((node) => roleValue(node) === "RootWebArea");
   expect(roots.length).toBe(1);
 
   expect(byRole(nodes, "banner").length).toBe(1);
@@ -48,10 +103,9 @@ test("Accessibility.getFullAXTree exposes role + name for landmarks and controls
   expect(byRole(nodes, "main").length).toBe(1);
   expect(byRole(nodes, "contentinfo").length).toBe(1);
 
-  const h1 = nodes.find((n) => n.role?.value === "heading" && n.name?.value === "Site Title");
+  const h1 = byRoleAndName(nodes, "heading", "Site Title");
   expect(h1).toBeTruthy();
-  const level = h1?.properties?.find((p) => p.name === "level");
-  expect(level?.value.value).toBe(1);
+  expect(propertyValue(h1, "level")).toBe(1);
 
   expect(byName(nodes, "About us")).toBeTruthy();
   expect(byName(nodes, "Home")).toBeTruthy();
@@ -59,42 +113,33 @@ test("Accessibility.getFullAXTree exposes role + name for landmarks and controls
   const form = byRole(nodes, "form")[0];
   expect(form?.name?.value).toBe("Sign up");
 
-  const email = nodes.find((n) => n.role?.value === "textbox" && n.name?.value === "Email address");
+  const email = byRoleAndName(nodes, "textbox", "Email address");
   expect(email).toBeTruthy();
-  expect(email?.properties?.some((p) => p.name === "required" && p.value.value === true)).toBe(
-    true,
-  );
+  expect(hasPropertyValue(email, "required", true)).toBe(true);
 
-  const pw = nodes.find((n) => n.role?.value === "textbox" && n.name?.value === "Password");
+  const pw = byRoleAndName(nodes, "textbox", "Password");
   expect(pw).toBeTruthy();
 
-  const freeRadio = nodes.find((n) => n.role?.value === "radio" && n.name?.value === "Free");
-  const proRadio = nodes.find((n) => n.role?.value === "radio" && n.name?.value === "Pro");
-  expect(freeRadio?.properties?.find((p) => p.name === "checked")?.value.value).toBe("true");
-  expect(proRadio?.properties?.find((p) => p.name === "checked")?.value.value).toBe("false");
+  const freeRadio = byRoleAndName(nodes, "radio", "Free");
+  const proRadio = byRoleAndName(nodes, "radio", "Pro");
+  expect(propertyValue(freeRadio, "checked")).toBe("true");
+  expect(propertyValue(proRadio, "checked")).toBe("false");
 
   const slider = byRole(nodes, "slider")[0];
   expect(slider).toBeTruthy();
-  const min = slider?.properties?.find((p) => p.name === "valuemin");
-  const max = slider?.properties?.find((p) => p.name === "valuemax");
-  const now = slider?.properties?.find((p) => p.name === "valuenow");
-  expect(min?.value.value).toBe(0);
-  expect(max?.value.value).toBe(10);
-  expect(now?.value.value).toBe(5);
+  expect(propertyValue(slider, "valuemin")).toBe(0);
+  expect(propertyValue(slider, "valuemax")).toBe(10);
+  expect(propertyValue(slider, "valuenow")).toBe(5);
 
-  const cancel = nodes.find((n) => n.role?.value === "button" && n.name?.value === "Cancel");
-  expect(cancel?.properties?.some((p) => p.name === "disabled" && p.value.value === true)).toBe(
-    true,
-  );
+  const cancel = byRoleAndName(nodes, "button", "Cancel");
+  expect(hasPropertyValue(cancel, "disabled", true)).toBe(true);
 
-  const like = nodes.find((n) => n.role?.value === "button" && n.name?.value === "Like");
-  expect(like?.properties?.find((p) => p.name === "pressed")?.value.value).toBe("false");
+  const like = byRoleAndName(nodes, "button", "Like");
+  expect(propertyValue(like, "pressed")).toBe("false");
 
-  const presentational = nodes.filter((n) =>
-    n.ignoredReasons?.some((r) => r.name === "presentationalRole"),
-  );
+  const presentational = nodes.filter(isPresentationalNode);
   expect(presentational.length).toBeGreaterThan(0);
-  expect(presentational.every((n) => n.ignored && n.role?.value === "none")).toBe(true);
+  expect(presentational.every(isPrunedNode)).toBe(true);
 
   expect(byRole(nodes, "alert").length).toBe(1);
 }, 120_000);
@@ -145,19 +190,19 @@ test("Accessibility.getPartialAXTree on an ignored element surfaces ignoredReaso
     backendNodeId: hiddenId,
     fetchRelatives: true,
   })) as { nodes: AXNode[] };
-  const hiddenSelf = hidden.nodes.find((n) => n.backendDOMNodeId === hiddenId);
+  const hiddenSelf = hidden.nodes.find((node) => node.backendDOMNodeId === hiddenId);
   expect(hiddenSelf).toBeTruthy();
   expect(hiddenSelf?.ignored).toBe(true);
-  expect((hiddenSelf?.ignoredReasons ?? []).map((r) => r.name)).toContain("notRendered");
+  expect(ignoredReasonNames(hiddenSelf)).toContain("notRendered");
 
   const bareId = await sel("#y");
   const bare = (await session.send("Accessibility.getPartialAXTree", {
     backendNodeId: bareId,
     fetchRelatives: true,
   })) as { nodes: AXNode[] };
-  const bareSelf = bare.nodes.find((n) => n.backendDOMNodeId === bareId);
+  const bareSelf = bare.nodes.find((node) => node.backendDOMNodeId === bareId);
   expect(bareSelf?.ignored).toBe(false);
-  expect(bareSelf?.role?.value).toBe("generic");
+  expect(roleValue(bareSelf)).toBe("generic");
 }, 120_000);
 
 test("Accessibility.getPartialAXTree returns subtree + ancestors", async ({ page }) => {
@@ -197,21 +242,16 @@ test("Accessibility.getFullAXTree matches Chrome's ignored/pruned tree shape", a
     nodes: AXNode[];
   };
 
-  const reasons = (n: AXNode | undefined) => (n?.ignoredReasons ?? []).map((r) => r.name);
-  const names = nodes.filter((n) => !n.ignored).map((n) => n.name?.value ?? "");
+  const names = nodes.filter((node) => !node.ignored).map(nodeNameOrEmpty);
   const texts = nodes
-    .filter((n) => !n.ignored && n.role?.value === "StaticText")
-    .map((n) => String(n.name?.value ?? ""));
+    .filter((node) => !node.ignored && roleValue(node) === "StaticText")
+    .map((node) => String(nodeNameOrEmpty(node)));
 
   const ignored = nodes.filter((n) => n.ignored);
   expect(ignored.length).toBeGreaterThan(0);
-  for (const n of ignored) {
-    expect(n.role?.value).toBe("none");
-    expect(n.name).toBeUndefined();
-    expect(n.properties).toBeUndefined();
-  }
+  ignored.forEach(expectIgnoredNodeShape);
 
-  const gone = nodes.find((n) => reasons(n).includes("notRendered"));
+  const gone = byIgnoredReason(nodes, "notRendered");
   expect(gone).toBeTruthy();
   expect(names).not.toContain("never-emitted-1");
   expect(names).not.toContain("never-emitted-2");
@@ -220,20 +260,20 @@ test("Accessibility.getFullAXTree matches Chrome's ignored/pruned tree shape", a
   expect(names).toContain("climbs-back");
   expect(names).not.toContain("also-hidden");
 
-  const presentational = nodes.filter((n) => reasons(n).includes("presentationalRole"));
+  const presentational = nodes.filter(isPresentationalNode);
   expect(presentational.length).toBeGreaterThan(0);
   expect(texts.join(" ")).toContain("layout-cell-a");
   expect(byRole(nodes, "table").length).toBe(1);
   expect(byRole(nodes, "columnheader").length + byRole(nodes, "cell").length).toBeGreaterThan(0);
 
-  const ahSelf = nodes.find((n) => reasons(n).includes("ariaHiddenElement"));
+  const ahSelf = byIgnoredReason(nodes, "ariaHiddenElement");
   expect(ahSelf).toBeTruthy();
   expect(names).not.toContain("inherited-hidden");
 
-  const pop = nodes.find((n) => !n.ignored && n.name?.value === "Open menu");
-  expect(pop?.properties?.find((p) => p.name === "hasPopup")?.value.value).toBe("menu");
-  const popListbox = nodes.find((n) => !n.ignored && n.name?.value === "Choose");
-  expect(popListbox?.properties?.find((p) => p.name === "hasPopup")?.value.value).toBe("listbox");
+  const pop = byName(nodes, "Open menu");
+  expect(propertyValue(pop, "hasPopup")).toBe("menu");
+  const popListbox = byName(nodes, "Choose");
+  expect(propertyValue(popListbox, "hasPopup")).toBe("listbox");
 
   expect(byRole(nodes, "generic").length).toBeGreaterThan(0);
 
@@ -241,7 +281,7 @@ test("Accessibility.getFullAXTree matches Chrome's ignored/pruned tree shape", a
   expect(texts).toContain("real text");
   expect(texts.some((t) => t.trim() === "")).toBe(false);
 
-  expect(nodes.some((n) => reasons(n).includes("uninteresting"))).toBe(true);
+  expect(nodes.some((node) => hasIgnoredReason(node, "uninteresting"))).toBe(true);
 }, 120_000);
 
 test("Accessibility.getFullAXTree computes url, focusable, level and keyshortcuts", async ({

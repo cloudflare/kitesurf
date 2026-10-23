@@ -62,9 +62,18 @@ export function resolveConnectionOptions(
   host?: EngineHost,
 ): Required<ConnectionOptions> {
   const overrides = host?.connectionOptions?.(request, connectionId);
+  return resolveOptions(request, overrides);
+}
+
+function resolveOptions(
+  request: Request,
+  overrides: ConnectionOptions | undefined,
+): Required<ConnectionOptions> {
+  const entrypoint = overrides?.entrypoint;
+  const fontDefer = overrides?.fontDefer;
   return {
-    entrypoint: overrides?.entrypoint ?? resolveEntrypoint(request),
-    fontDefer: overrides?.fontDefer ?? false,
+    entrypoint: entrypoint === undefined ? resolveEntrypoint(request) : entrypoint,
+    fontDefer: fontDefer === undefined ? false : fontDefer,
   };
 }
 

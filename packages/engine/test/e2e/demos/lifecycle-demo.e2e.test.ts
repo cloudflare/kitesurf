@@ -4,6 +4,26 @@
 
 import { expect, test } from "../harness";
 
+type LifecycleEntry = { label: string; readyState?: string };
+type ConsoleMessage = { text: string };
+
+function compareEntry(idx: number, expected: LifecycleEntry, actual: LifecycleEntry): void {
+  expect(actual, `position ${idx}: missing entry, expected ${expected.label}`).toBeTruthy();
+  expect(actual.label, `position ${idx} label`).toBe(expected.label);
+  if (expected.readyState !== undefined) {
+    expect(actual.readyState, `position ${idx} readyState`).toBe(expected.readyState);
+  }
+}
+
+async function waitForUnloadSentinels(messages: ConsoleMessage[], deadline: number): Promise<void> {
+  while (
+    messages.filter((message) => message.text.startsWith("[lifecycle] ")).length < 3 &&
+    Date.now() < deadline
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
 test("lifecycle-demo", async ({ page }) => {
   const FIXTURE_URL =
     process.env.KITESURF_FIXTURE ?? "http://127.0.0.1:8787/__fixtures/lifecycle.html";
@@ -21,14 +41,6 @@ test("lifecycle-demo", async ({ page }) => {
     { label: "load" },
     { label: "pageshow" },
   ];
-
-  function compareEntry(idx, expected, actual) {
-    expect(actual, `position ${idx}: missing entry, expected ${expected.label}`).toBeTruthy();
-    expect(actual.label, `position ${idx} label`).toBe(expected.label);
-    if (expected.readyState !== undefined) {
-      expect(actual.readyState, `position ${idx} readyState`).toBe(expected.readyState);
-    }
-  }
 
   await page.goto(FIXTURE_URL, { timeout: 15000 });
 
@@ -56,12 +68,7 @@ test("lifecycle-demo", async ({ page }) => {
   await page.goto(SECOND_URL, { timeout: 15000 });
 
   const sentinelDeadline = Date.now() + 5000;
-  while (
-    messagesDuringNav2.filter((m) => m.text.startsWith("[lifecycle] ")).length < 3 &&
-    Date.now() < sentinelDeadline
-  ) {
-    await new Promise((r) => setTimeout(r, 5));
-  }
+  await waitForUnloadSentinels(messagesDuringNav2, sentinelDeadline);
   page.off("console", consoleListener);
 
   const leakedLog = await page.evaluate(() => typeof globalThis.__ks_lifecycle_log);

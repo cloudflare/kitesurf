@@ -14,6 +14,7 @@ import type {
   PageScriptEntrypointStub,
   PageScriptSession,
   ReceivedUpstreamParams,
+  SessionOutbound,
   UpstreamEventName,
 } from "@kitesurf/jsrpc-types/page-script";
 
@@ -130,8 +131,12 @@ function parseCapMs(raw: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+function positiveOverride(override: number | undefined): number {
+  return override && override > 0 ? Math.floor(override) : 0;
+}
+
 function minCap(configured: number, override: number | undefined): number {
-  const o = override && override > 0 ? Math.floor(override) : 0;
+  const o = positiveOverride(override);
   if (configured > 0 && o > 0) return Math.min(configured, o);
   return configured > 0 ? configured : o;
 }
@@ -199,6 +204,444 @@ interface GetOrCreatePageScriptOptions {
   sandboxOutbound: SandboxOutboundOverride;
 }
 
+type StartupScriptDescriptor = Omit<ParentScriptDescriptor, "prefetchedSource"> & {
+  prefetchedLength?: number;
+};
+
+type PageScriptModule =
+  | string
+  | { wasm: ArrayBuffer }
+  | { cjs: string }
+  | { js: string }
+  | { json: unknown };
+
+type PageScriptModuleMap = Record<string, PageScriptModule>;
+
+type PageScriptEnvironment = GetOrCreatePageScriptOptions["env"];
+
+type RpcOpenWrapper = (open: () => Promise<RpcSessionCallable>) => Promise<RpcSessionCallable>;
+
+interface NormalizedPageScriptStartup {
+  html: string | null;
+  url: string | null;
+  cookies: string;
+  scriptDescriptors: StartupScriptDescriptor[];
+  userAgent: string | null;
+  referrer: string;
+  referrerPolicy: string;
+  cdpDebug: boolean;
+  pixelFree: boolean;
+  fontDefer: boolean;
+  resourceDrainQuietTurns: number;
+  lagWatchdog: boolean;
+  scriptBundle: ScriptBundle | null;
+  wasmBake: WasmBake | null;
+  moduleScriptUrls: string[];
+  moduleScriptCount: number;
+  hasClassicRegular: boolean;
+  hasClassicAsync: boolean;
+  csp: string[];
+  metaCsp: string[];
+  insertedBaked: ScriptBundle["insertedManifest"];
+}
+
+function startupStringOrNull(value: string | null | undefined): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function startupStringOrEmpty(value: string | null | undefined): string {
+  return typeof value === "string" ? value : "";
+}
+
+function startupNonemptyStringOrNull(value: string | null | undefined): string | null {
+  return typeof value === "string" && value ? value : null;
+}
+
+function startupDescriptors(
+  descriptors: ParentScriptDescriptor[] | undefined,
+): StartupScriptDescriptor[] {
+  const source = Array.isArray(descriptors) ? descriptors : [];
+  return source.map(({ prefetchedSource, ...descriptor }) =>
+    typeof prefetchedSource === "string"
+      ? { ...descriptor, prefetchedLength: prefetchedSource.length }
+      : descriptor,
+  );
+}
+
+function startupStringArray(values: string[] | undefined): string[] {
+  return Array.isArray(values) ? values : [];
+}
+
+function quietTurnsFromEnv(raw: string | undefined): number {
+  const configured = Number.parseInt(raw ?? "", 10);
+  return Number.isFinite(configured) ? Math.max(1, configured) : 1;
+}
+
+function insertedBakedModules(bundle: ScriptBundle | null): ScriptBundle["insertedManifest"] {
+  return bundle?.insertedManifest ?? [];
+}
+
+function classicSourcePresence(bundle: ScriptBundle | null): {
+  regular: boolean;
+  async: boolean;
+} {
+  if (!bundle) return { regular: false, async: false };
+  return {
+    regular: !!bundle.classicRegularSource,
+    async: !!bundle.classicAsyncSource,
+  };
+}
+
+function normalizePageScriptStartup(
+  input: Partial<PageScriptStartupInput>,
+  env: PageScriptEnvironment,
+): NormalizedPageScriptStartup {
+  const scriptBundle = input.scriptBundle ?? null;
+  const wasmBake = input.wasmBake ?? null;
+  const cdpDebug = input.cdpDebug === true;
+  const moduleScriptUrls = scriptBundle ? scriptBundle.moduleScriptUrls : [];
+  const classicSources = classicSourcePresence(scriptBundle);
+  return {
+    html: startupStringOrNull(input.html),
+    url: startupStringOrNull(input.url),
+    cookies: startupStringOrEmpty(input.cookies),
+    scriptDescriptors: startupDescriptors(input.scriptDescriptors),
+    userAgent: startupNonemptyStringOrNull(input.userAgent),
+    referrer: startupStringOrEmpty(input.referrer),
+    referrerPolicy: startupStringOrEmpty(input.referrerPolicy),
+    cdpDebug,
+    pixelFree: input.pixelFree === true,
+    fontDefer: input.fontDefer === true,
+    resourceDrainQuietTurns: quietTurnsFromEnv(env.KITESURF_RESOURCE_DRAIN_QUIET_TURNS),
+    lagWatchdog: cdpDebug || env.KITESURF_LAG_WATCHDOG === "1",
+    scriptBundle,
+    wasmBake,
+    moduleScriptUrls,
+    moduleScriptCount: moduleScriptUrls.length,
+    hasClassicRegular: classicSources.regular,
+    hasClassicAsync: classicSources.async,
+    csp: startupStringArray(input.csp),
+    metaCsp: startupStringArray(input.metaCsp),
+    insertedBaked: insertedBakedModules(scriptBundle),
+  };
+}
+
+function startupInputModuleSource(startup: NormalizedPageScriptStartup): string {
+  return `// AUTO-GENERATED per navigate by getOrCreatePageScript.
+// Carries parent-extracted, parent-pre-fetched per-navigate
+// inputs into the loaded worker's module-init phase.
+export const html = ${JSON.stringify(startup.html)};
+export const url = ${JSON.stringify(startup.url)};
+export const cookies = ${JSON.stringify(startup.cookies)};
+export const scriptDescriptors = ${JSON.stringify(startup.scriptDescriptors)};
+export const userAgent = ${JSON.stringify(startup.userAgent)};
+export const referrer = ${JSON.stringify(startup.referrer)};
+export const referrerPolicy = ${JSON.stringify(startup.referrerPolicy)};
+export const hasClassicRegular = ${JSON.stringify(startup.hasClassicRegular)};
+export const hasClassicAsync = ${JSON.stringify(startup.hasClassicAsync)};
+export const moduleScriptCount = ${JSON.stringify(startup.moduleScriptCount)};
+export const moduleScriptUrls = ${JSON.stringify(startup.moduleScriptUrls)};
+export const cdpDebug = ${JSON.stringify(startup.cdpDebug)};
+export const lagWatchdog = ${JSON.stringify(startup.lagWatchdog)};
+export const pixelFree = ${JSON.stringify(startup.pixelFree)};
+export const fontDefer = ${JSON.stringify(startup.fontDefer)};
+export const resourceDrainQuietTurns = ${JSON.stringify(startup.resourceDrainQuietTurns)};
+export const csp = ${JSON.stringify(startup.csp)};
+export const metaCsp = ${JSON.stringify(startup.metaCsp)};
+export const insertedBaked = ${JSON.stringify(startup.insertedBaked)};
+`;
+}
+
+function addClassicSource(modules: PageScriptModuleMap, key: string, source: string | null): void {
+  if (source) modules[key] = { cjs: source };
+}
+
+function addClassicBundleSources(modules: PageScriptModuleMap, bundle: ScriptBundle | null): void {
+  if (!bundle) return;
+  addClassicSource(modules, "__ks_user_classic_regular.js", bundle.classicRegularSource);
+  addClassicSource(modules, "__ks_user_classic_async.js", bundle.classicAsyncSource);
+}
+
+function addInsertedBundleModules(modules: PageScriptModuleMap, bundle: ScriptBundle | null): void {
+  if (!bundle) return;
+  for (const [name, cjs] of Object.entries(bundle.insertedModules)) {
+    modules[name] = { cjs };
+  }
+}
+
+function addAdditionalBundleModules(
+  modules: PageScriptModuleMap,
+  bundle: ScriptBundle | null,
+): void {
+  if (!bundle) return;
+  for (const [url, baked] of Object.entries(bundle.additionalModules)) {
+    if (Object.prototype.hasOwnProperty.call(modules, url)) continue;
+    modules[url] = typeof baked === "string" ? { js: baked } : baked;
+  }
+}
+
+function addBundleModules(modules: PageScriptModuleMap, bundle: ScriptBundle | null): void {
+  addClassicBundleSources(modules, bundle);
+  addInsertedBundleModules(modules, bundle);
+  addAdditionalBundleModules(modules, bundle);
+}
+
+function addBakedWasmModules(modules: PageScriptModuleMap, wasmBake: WasmBake | null): void {
+  const registryImports: string[] = ['import __ksEmpty from "./__ks_empty.wasm";'];
+  const registryEntries: string[] = [];
+  if (wasmBake) {
+    let index = 0;
+    for (const [url, bytes] of Object.entries(wasmBake.modules)) {
+      const key = `__ks_baked_wasm_${index}.wasm`;
+      modules[key] = { wasm: bytes };
+      registryImports.push(`import __w${index} from ${JSON.stringify(`./${key}`)};`);
+      registryEntries.push(`  ${JSON.stringify(url)}: __w${index},`);
+      index++;
+    }
+  }
+  modules["__ks_wasm_registry.js"] = `// AUTO-GENERATED per navigate by getOrCreatePageScript.
+// Parent-baked wasm modules; matching in wasm-baked.ts.
+${registryImports.join("\n")}
+export const emptyModule = __ksEmpty;
+export const bakedWasm = {
+${registryEntries.join("\n")}
+};
+export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
+`;
+}
+
+function createPageScriptModules(
+  startupModule: string,
+  startup: NormalizedPageScriptStartup,
+): PageScriptModuleMap {
+  const modules: PageScriptModuleMap = {
+    "page.js": PAGE_SCRIPT_SOURCE,
+    "dom-shim.js": DOM_SHIM_SOURCE,
+    "internal-state.js": INTERNAL_STATE_SOURCE,
+    "wasm-glue.js": wasmGlueSource,
+    "core_bg.wasm": { wasm: loadWasmBytesFromVfs() },
+    "__ks_startup_probe_input.js": startupModule,
+    "__ks_import_map.js":
+      startup.scriptBundle?.importMapModuleSource ?? FALLBACK_MODULE_RESOLVER_SOURCE,
+  };
+  addBundleModules(modules, startup.scriptBundle);
+  modules["__ks_empty.wasm"] = { wasm: emptyWasmBytes() };
+  addBakedWasmModules(modules, startup.wasmBake);
+  return modules;
+}
+
+function outboundReferrerPolicy(value: string | null | undefined): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function pageOutboundProps(
+  key: PageScriptKey,
+  pageOrigin: string,
+  url: string | null,
+  referrerPolicy: string | null | undefined,
+  mainLoaderId: string,
+  extraHeaders: Record<string, string>,
+  pixelFree: boolean,
+): OutboundProps {
+  return {
+    ...localTraceParentProps(),
+    pageOrigin,
+    pageUrl: url ?? undefined,
+    referrerPolicy: outboundReferrerPolicy(referrerPolicy),
+    mainFrameId: key.frameId ?? key.targetId,
+    mainLoaderId,
+    extraHeaders,
+    connectionId: key.connectionId,
+    cookieKey: key.cookieKey ?? "",
+    pixelFree,
+  };
+}
+
+interface PageScriptWorkerLoadInput {
+  env: PageScriptEnvironment;
+  ctxExports: CtxWithExports;
+  key: PageScriptKey;
+  name: string;
+  tailToken: string;
+  caps: PageIsolateCaps;
+  startup: NormalizedPageScriptStartup;
+  modules: PageScriptModuleMap;
+  outboundProps: OutboundProps;
+  attributionHeaders: Record<string, string>;
+  sandboxOutbound: SandboxOutboundOverride;
+}
+
+function pageScriptWorkerEnv(
+  ctxExports: CtxWithExports,
+  tailToken: string,
+  tracer: Tracer | undefined,
+): Record<string, unknown> {
+  return {
+    KS_TAIL_TOKEN: tailToken,
+    ...(tracer
+      ? {
+          KS_SPAN_SINK: ctxExports.exports.SpanSink({
+            props: { kind: "pagescript", ...localTraceParentProps() },
+          }),
+        }
+      : {}),
+  };
+}
+
+function pageScriptWorkerLimits(caps: PageIsolateCaps): { cpuMs: number; subRequests: number } {
+  return { cpuMs: caps.cpuMs, subRequests: PAGE_SCRIPT_SUBREQUEST_CAP };
+}
+
+function loadPageScriptEntrypoint(input: PageScriptWorkerLoadInput): PageScriptEntrypointStub {
+  const { env, ctxExports, key, name, tailToken, caps, startup, modules } = input;
+  const stub = env.LOADER.load({
+    compatibilityDate: PAGE_SCRIPT_COMPAT_DATE,
+    compatibilityFlags: [...PAGE_SCRIPT_COMPAT_FLAGS],
+    mainModule: "page.js",
+    modules,
+    env: pageScriptWorkerEnv(ctxExports, tailToken, env.HOST_TRACER),
+    globalOutbound: input.sandboxOutbound.loaded(input.outboundProps),
+    tails: [
+      ctxExports.exports.PageScriptTail({
+        props: {
+          scriptName: name,
+          // Navigate-time domain for error reports; a
+          // [ks-err] report's live pageUrl wins over it (SPA routing).
+          pageDomain: hostnameOf(startup.url ?? ""),
+          ksErrToken: tailToken,
+          sessionId: key.connectionId,
+        },
+      }),
+      ...attributionTails(ctxExports.exports, input.attributionHeaders, "kitesurf-page-script"),
+    ],
+    limits: pageScriptWorkerLimits(caps),
+  });
+  return stub.getEntrypoint<PageScriptEntrypoint>("PageScript");
+}
+
+function pageScriptSpanWrap(tracer: Tracer | undefined): RpcOpenWrapper | undefined {
+  return tracer ? (open) => traceSpan(tracer, "init.ws_upgrade", () => open()) : undefined;
+}
+
+function pageScriptTimedOpen(
+  initTimings: PageScriptInitTimings | undefined,
+  wall: () => number,
+  spanWrap: RpcOpenWrapper | undefined,
+): RpcOpenWrapper | undefined {
+  if (!initTimings) return spanWrap;
+  return async (open) => {
+    const t0 = wall();
+    try {
+      return await (spanWrap ? spanWrap(open) : open());
+    } finally {
+      initTimings.wsUpgradeMs = wall() - t0;
+    }
+  };
+}
+
+function pageScriptTraceParent(tracer: Tracer | undefined): (() => string | null) | undefined {
+  if (!tracer) return undefined;
+  return () => tracer.getSpanContext()?.spanId ?? null;
+}
+
+function pageScriptWallCap(caps: PageIsolateCaps): number | undefined {
+  return caps.wallMs > 0 ? caps.wallMs : undefined;
+}
+
+interface PageScriptSessionInput {
+  entrypoint: PageScriptEntrypointStub;
+  env: PageScriptEnvironment;
+  name: string;
+  caps: PageIsolateCaps;
+  initTimings: PageScriptInitTimings | undefined;
+  wall: () => number;
+  outbound: SessionOutbound;
+}
+
+function openLoadedPageScriptSession(input: PageScriptSessionInput): PageScriptStub {
+  // SAFETY: WorkerLoader follows the PageScript JSRPC contract, but Rpc.Provider loses generic
+  // call/reply correlation and annotates cloneable reply objects with Disposable.
+  // Runtime replies remain PageScriptReply data.
+  // Verified by: packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts.
+  const entrypoint = input.entrypoint as RpcSessionEntrypoint;
+  const tracer = input.env.HOST_TRACER;
+  const spanWrap = pageScriptSpanWrap(tracer);
+  const wrapOpen = pageScriptTimedOpen(input.initTimings, input.wall, spanWrap);
+  return openPageScriptRpcSession(entrypoint, {
+    now: makeWallClock(input.env),
+    outbound: input.outbound,
+    wallCapMs: pageScriptWallCap(input.caps),
+    scriptName: input.name,
+    getTraceParent: pageScriptTraceParent(tracer),
+    wrapOpen,
+  });
+}
+
+type PageScriptGenerationInput = Omit<
+  GetOrCreatePageScriptOptions,
+  "startupInput" | "attributionHeaders" | "mainLoaderId" | "extraHeaders"
+> & {
+  startupInput: Partial<PageScriptStartupInput>;
+  attributionHeaders: Record<string, string>;
+  mainLoaderId: string;
+  extraHeaders: Record<string, string>;
+};
+
+function createPageScriptForGeneration(input: PageScriptGenerationInput): PageScriptStub {
+  const {
+    env,
+    ctx,
+    key,
+    pageOrigin,
+    startupInput,
+    attributionHeaders,
+    mainLoaderId,
+    extraHeaders,
+    initTimings,
+    capOverrides,
+    sandboxOutbound,
+  } = input;
+  const ctxExports = ctx as CtxWithExports;
+  const wall = makeWallClock(env);
+  const name = pageScriptCacheKey(key);
+  const caps = pageIsolateCaps(env, capOverrides);
+  const tailToken = crypto.randomUUID();
+  const startup = normalizePageScriptStartup(startupInput, env);
+  const startupModule = startupInputModuleSource(startup);
+  const modules = createPageScriptModules(startupModule, startup);
+  const outboundProps = pageOutboundProps(
+    key,
+    pageOrigin,
+    startup.url,
+    startupInput.referrerPolicy,
+    mainLoaderId,
+    extraHeaders,
+    startup.pixelFree,
+  );
+  const entrypoint = loadPageScriptEntrypoint({
+    env,
+    ctxExports,
+    key,
+    name,
+    tailToken,
+    caps,
+    startup,
+    modules,
+    outboundProps,
+    attributionHeaders,
+    sandboxOutbound,
+  });
+  return openLoadedPageScriptSession({
+    entrypoint,
+    env,
+    name,
+    caps,
+    initTimings,
+    wall,
+    outbound: sandboxOutbound.session(outboundProps),
+  });
+}
+
 /** Loads one PageScript worker for the supplied target generation and returns its RPC adapter. */
 export function getOrCreatePageScript({
   env,
@@ -213,206 +656,18 @@ export function getOrCreatePageScript({
   capOverrides,
   sandboxOutbound,
 }: GetOrCreatePageScriptOptions): PageScriptStub {
-  const cx = ctx as CtxWithExports;
-  const wall = makeWallClock(env);
-  const name = pageScriptCacheKey(key);
-  const caps = pageIsolateCaps(env, capOverrides);
-  // Authenticates the child's [ks-err] engine error channel (see engine-errors.ts
-  // parseKsErrLine): page JS can spoof console prefixes, not this.
-  const tailToken = crypto.randomUUID();
-
-  const html = typeof startupInput.html === "string" ? startupInput.html : null;
-  const url = typeof startupInput.url === "string" ? startupInput.url : null;
-  const cookies = typeof startupInput.cookies === "string" ? startupInput.cookies : "";
-  // The classic bundle already carries every body. A copy here stayed live as
-  // module text and literals for the page's life: ~11 MiB of V8 heap on a large single-page app.
-  const scriptDescriptors = (
-    Array.isArray(startupInput.scriptDescriptors) ? startupInput.scriptDescriptors : []
-  ).map(({ prefetchedSource, ...d }) =>
-    typeof prefetchedSource === "string" ? { ...d, prefetchedLength: prefetchedSource.length } : d,
-  );
-  const userAgent =
-    typeof startupInput.userAgent === "string" && startupInput.userAgent
-      ? startupInput.userAgent
-      : null;
-  const referrer = typeof startupInput.referrer === "string" ? startupInput.referrer : "";
-  const referrerPolicy =
-    typeof startupInput.referrerPolicy === "string" ? startupInput.referrerPolicy : "";
-  const cdpDebug = startupInput.cdpDebug === true;
-  const pixelFree = startupInput.pixelFree === true;
-  const fontDefer = startupInput.fontDefer === true;
-  const configuredQuietTurns = Number.parseInt(env.KITESURF_RESOURCE_DRAIN_QUIET_TURNS ?? "", 10);
-  const resourceDrainQuietTurns = Number.isFinite(configuredQuietTurns)
-    ? Math.max(1, configuredQuietTurns)
-    : 1;
-  const lagWatchdog = cdpDebug || env.KITESURF_LAG_WATCHDOG === "1";
-  const scriptBundle = startupInput.scriptBundle ?? null;
-  const wasmBake = startupInput.wasmBake ?? null;
-  const moduleScriptUrls = scriptBundle ? scriptBundle.moduleScriptUrls : [];
-  const moduleScriptCount = moduleScriptUrls.length;
-  const hasClassicRegular = !!(scriptBundle && scriptBundle.classicRegularSource);
-  const hasClassicAsync = !!(scriptBundle && scriptBundle.classicAsyncSource);
-  const csp = Array.isArray(startupInput.csp) ? startupInput.csp : [];
-  const metaCsp = Array.isArray(startupInput.metaCsp) ? startupInput.metaCsp : [];
-
-  const startupInputModule = `// AUTO-GENERATED per navigate by getOrCreatePageScript.
-// Carries parent-extracted, parent-pre-fetched per-navigate
-// inputs into the loaded worker's module-init phase.
-export const html = ${JSON.stringify(html)};
-export const url = ${JSON.stringify(url)};
-export const cookies = ${JSON.stringify(cookies)};
-export const scriptDescriptors = ${JSON.stringify(scriptDescriptors)};
-export const userAgent = ${JSON.stringify(userAgent)};
-export const referrer = ${JSON.stringify(referrer)};
-export const referrerPolicy = ${JSON.stringify(referrerPolicy)};
-export const hasClassicRegular = ${JSON.stringify(hasClassicRegular)};
-export const hasClassicAsync = ${JSON.stringify(hasClassicAsync)};
-export const moduleScriptCount = ${JSON.stringify(moduleScriptCount)};
-export const moduleScriptUrls = ${JSON.stringify(moduleScriptUrls)};
-export const cdpDebug = ${JSON.stringify(cdpDebug)};
-export const lagWatchdog = ${JSON.stringify(lagWatchdog)};
-export const pixelFree = ${JSON.stringify(pixelFree)};
-export const fontDefer = ${JSON.stringify(fontDefer)};
-export const resourceDrainQuietTurns = ${JSON.stringify(resourceDrainQuietTurns)};
-export const csp = ${JSON.stringify(csp)};
-export const metaCsp = ${JSON.stringify(metaCsp)};
-export const insertedBaked = ${JSON.stringify(scriptBundle?.insertedManifest ?? [])};
-`;
-
-  const modules: Record<
-    string,
-    string | { wasm: ArrayBuffer } | { cjs: string } | { js: string } | { json: unknown }
-  > = {
-    "page.js": PAGE_SCRIPT_SOURCE,
-    "dom-shim.js": DOM_SHIM_SOURCE,
-    "internal-state.js": INTERNAL_STATE_SOURCE,
-    "wasm-glue.js": wasmGlueSource,
-    "core_bg.wasm": { wasm: loadWasmBytesFromVfs() },
-    "__ks_startup_probe_input.js": startupInputModule,
-    "__ks_import_map.js": scriptBundle?.importMapModuleSource ?? FALLBACK_MODULE_RESOLVER_SOURCE,
-  };
-  if (scriptBundle && scriptBundle.classicRegularSource) {
-    modules["__ks_user_classic_regular.js"] = {
-      cjs: scriptBundle.classicRegularSource,
-    };
-  }
-  if (scriptBundle && scriptBundle.classicAsyncSource) {
-    modules["__ks_user_classic_async.js"] = {
-      cjs: scriptBundle.classicAsyncSource,
-    };
-  }
-  for (const [name, cjs] of Object.entries(scriptBundle?.insertedModules ?? {})) {
-    modules[name] = { cjs };
-  }
-  if (scriptBundle) {
-    for (const [url, baked] of Object.entries(scriptBundle.additionalModules)) {
-      if (Object.prototype.hasOwnProperty.call(modules, url)) continue;
-      modules[url] = typeof baked === "string" ? { js: baked } : baked;
-    }
-  }
-
-  modules["__ks_empty.wasm"] = { wasm: emptyWasmBytes() };
-  const registryImports: string[] = ['import __ksEmpty from "./__ks_empty.wasm";'];
-  const registryEntries: string[] = [];
-  if (wasmBake) {
-    let wi = 0;
-    for (const [wUrl, wBytes] of Object.entries(wasmBake.modules)) {
-      const key = `__ks_baked_wasm_${wi}.wasm`;
-      modules[key] = { wasm: wBytes };
-      registryImports.push(`import __w${wi} from ${JSON.stringify(`./${key}`)};`);
-      registryEntries.push(`  ${JSON.stringify(wUrl)}: __w${wi},`);
-      wi++;
-    }
-  }
-  modules["__ks_wasm_registry.js"] = `// AUTO-GENERATED per navigate by getOrCreatePageScript.
-// Parent-baked wasm modules; matching in wasm-baked.ts.
-${registryImports.join("\n")}
-export const emptyModule = __ksEmpty;
-export const bakedWasm = {
-${registryEntries.join("\n")}
-};
-export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
-`;
-
-  const outboundProps = {
-    ...localTraceParentProps(),
+  return createPageScriptForGeneration({
+    env,
+    ctx,
+    key,
     pageOrigin,
-    pageUrl: url ?? undefined,
-    referrerPolicy:
-      typeof startupInput.referrerPolicy === "string" ? startupInput.referrerPolicy : undefined,
-    mainFrameId: key.frameId ?? key.targetId,
+    startupInput,
+    attributionHeaders,
     mainLoaderId,
     extraHeaders,
-    connectionId: key.connectionId,
-    cookieKey: key.cookieKey ?? "",
-    pixelFree,
-  };
-  const stub = env.LOADER.load({
-    compatibilityDate: PAGE_SCRIPT_COMPAT_DATE,
-    compatibilityFlags: [...PAGE_SCRIPT_COMPAT_FLAGS],
-    mainModule: "page.js",
-    modules,
-    env: {
-      KS_TAIL_TOKEN: tailToken,
-      ...(env.HOST_TRACER
-        ? {
-            KS_SPAN_SINK: cx.exports.SpanSink({
-              props: { kind: "pagescript", ...localTraceParentProps() },
-            }),
-          }
-        : {}),
-    },
-    globalOutbound: sandboxOutbound.loaded(outboundProps),
-    tails: [
-      cx.exports.PageScriptTail({
-        props: {
-          scriptName: name,
-          // Navigate-time domain for error reports; a
-          // [ks-err] report's live pageUrl wins over it (SPA routing).
-          pageDomain: hostnameOf(url ?? ""),
-          ksErrToken: tailToken,
-          sessionId: key.connectionId,
-        },
-      }),
-      ...attributionTails(cx.exports, attributionHeaders, "kitesurf-page-script"),
-    ],
-    limits: {
-      cpuMs: caps.cpuMs,
-      subRequests: PAGE_SCRIPT_SUBREQUEST_CAP,
-    },
-  });
-
-  const workerEntrypoint: PageScriptEntrypointStub =
-    stub.getEntrypoint<PageScriptEntrypoint>("PageScript");
-  // The RPC adapter needs promises; the local entrypoint contract is synchronous.
-
-  // SAFETY: WorkerLoader follows the PageScript JSRPC contract, but Rpc.Provider loses generic
-  // call/reply correlation and annotates cloneable reply objects with Disposable.
-  // Runtime replies remain PageScriptReply data.
-  // Verified by: packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts.
-  const entrypoint = workerEntrypoint as RpcSessionEntrypoint;
-  const tracer = env.HOST_TRACER;
-  const spanWrap = tracer
-    ? (open: () => Promise<RpcSessionCallable>) =>
-        traceSpan(tracer, "init.ws_upgrade", () => open())
-    : undefined;
-  const wrapOpen = initTimings
-    ? async (open: () => Promise<RpcSessionCallable>) => {
-        const t0 = wall();
-        try {
-          return await (spanWrap ? spanWrap(open) : open());
-        } finally {
-          initTimings.wsUpgradeMs = wall() - t0;
-        }
-      }
-    : spanWrap;
-  return openPageScriptRpcSession(entrypoint, {
-    now: makeWallClock(env),
-    outbound: sandboxOutbound.session(outboundProps),
-    wallCapMs: caps.wallMs > 0 ? caps.wallMs : undefined,
-    scriptName: name,
-    getTraceParent: tracer ? () => tracer.getSpanContext()?.spanId ?? null : undefined,
-    wrapOpen,
+    initTimings,
+    capOverrides,
+    sandboxOutbound,
   });
 }
 
@@ -472,7 +727,7 @@ export function originOf(url: string): string {
   if (!url) return "";
   try {
     const u = new URL(url);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+    if (!isHttpProtocol(u.protocol)) return "";
     if (!u.host) return "";
     return `${u.protocol}//${u.host}`;
   } catch {
@@ -480,95 +735,115 @@ export function originOf(url: string): string {
   }
 }
 
+function isHttpProtocol(protocol: string): boolean {
+  return protocol === "http:" || protocol === "https:";
+}
+
+function exceptionResultToCdp(res: PackedException): Protocol.Runtime.EvaluateResponse {
+  return {
+    result: {
+      type: "object",
+      subtype: "error",
+      className: res.exception.className,
+      description: res.exception.message,
+    },
+    exceptionDetails: {
+      exceptionId: 1,
+      text: res.exception.text,
+      lineNumber: 0,
+      columnNumber: 0,
+      exception: {
+        type: "object",
+        subtype: "error",
+        className: res.exception.className,
+        description: res.exception.stack || res.exception.message,
+      },
+    },
+  };
+}
+
+const PRIMITIVE_RESULT_TYPES = new Set(["string", "number", "boolean", "bigint", "undefined"]);
+
+const NODE_OBJECT_DESCRIPTIONS = new Set([
+  "Element",
+  "HTMLElement",
+  "DocumentImpl",
+  "Document",
+  "XMLDocument",
+  "TextNode",
+  "Text",
+  "CommentNode",
+  "Comment",
+  "CharacterData",
+  "DocumentFragmentImpl",
+  "DocumentFragment",
+  "ShadowRoot",
+  "DocumentTypeNode",
+  "DocumentType",
+  "Attr",
+  "Node",
+]);
+
+function copyPackedMetadata(remote: Protocol.Runtime.RemoteObject, packed: PackedResult): void {
+  if (packed.subtype) remote.subtype = packed.subtype;
+  if (packed.className) remote.className = packed.className;
+}
+
+function copyPackedValue(
+  remote: Protocol.Runtime.RemoteObject,
+  packed: PackedResult,
+  includeValue: boolean,
+): void {
+  if (includeValue && packed.valueJson !== undefined) {
+    try {
+      remote.value = JSON.parse(packed.valueJson);
+    } catch {}
+  }
+  if (packed.subtype === "null") remote.value = null;
+}
+
+function ensureRemoteObjectId(remote: Protocol.Runtime.RemoteObject, packed: PackedResult): void {
+  if (!("value" in remote) && (packed.type === "object" || packed.type === "function")) {
+    remote.objectId = packed.objectId ?? `eval:${crypto.randomUUID()}`;
+  }
+}
+
+function isNodeObjectDescription(description: string): boolean {
+  return (
+    NODE_OBJECT_DESCRIPTIONS.has(description) || /^HTML[A-Z][A-Za-z0-9]*Element$/.test(description)
+  );
+}
+
+function markRemoteNode(remote: Protocol.Runtime.RemoteObject, packed: PackedResult): void {
+  if (remote.type !== "object" || remote.subtype || typeof packed.description !== "string") {
+    return;
+  }
+  if (isNodeObjectDescription(packed.description)) remote.subtype = "node";
+}
+
 export function pageScriptResultToCdp(
   res: PackedResult | PackedException,
   returnByValue: boolean,
 ): Protocol.Runtime.EvaluateResponse {
   if (!res.ok) {
-    return {
-      result: {
-        type: "object",
-        subtype: "error",
-        className: res.exception.className,
-        description: res.exception.message,
-      },
-      exceptionDetails: {
-        exceptionId: 1,
-        text: res.exception.text,
-        lineNumber: 0,
-        columnNumber: 0,
-        exception: {
-          type: "object",
-          subtype: "error",
-          className: res.exception.className,
-          description: res.exception.stack || res.exception.message,
-        },
-      },
-    };
+    return exceptionResultToCdp(res);
   }
 
   const remote: Protocol.Runtime.RemoteObject = { type: res.type };
-  if (res.subtype) remote.subtype = res.subtype;
-  if (res.className) remote.className = res.className;
+  copyPackedMetadata(remote, res);
   if (res.description) remote.description = res.description;
-
-  const isPrimitiveType =
-    res.type === "string" ||
-    res.type === "number" ||
-    res.type === "boolean" ||
-    res.type === "bigint" ||
-    res.type === "undefined";
-  const wantValue = isPrimitiveType || returnByValue;
-  if (wantValue && res.valueJson !== undefined) {
-    try {
-      remote.value = JSON.parse(res.valueJson);
-    } catch {}
-  }
-  if (res.subtype === "null") remote.value = null;
-
-  if (!("value" in remote) && (res.type === "object" || res.type === "function")) {
-    remote.objectId = res.objectId ?? `eval:${crypto.randomUUID()}`;
-  }
-  if (remote.type === "object" && !remote.subtype && typeof res.description === "string") {
-    const d = res.description;
-    if (
-      d === "Element" ||
-      d === "HTMLElement" ||
-      d === "DocumentImpl" ||
-      d === "Document" ||
-      d === "XMLDocument" ||
-      d === "TextNode" ||
-      d === "Text" ||
-      d === "CommentNode" ||
-      d === "Comment" ||
-      d === "CharacterData" ||
-      d === "DocumentFragmentImpl" ||
-      d === "DocumentFragment" ||
-      d === "ShadowRoot" ||
-      d === "DocumentTypeNode" ||
-      d === "DocumentType" ||
-      d === "Attr" ||
-      d === "Node" ||
-      /^HTML[A-Z][A-Za-z0-9]*Element$/.test(d)
-    ) {
-      remote.subtype = "node";
-    }
-  }
+  copyPackedValue(remote, res, PRIMITIVE_RESULT_TYPES.has(res.type) || returnByValue);
+  ensureRemoteObjectId(remote, res);
+  markRemoteNode(remote, res);
 
   return { result: remote };
 }
 
 function consoleArgToRemote(arg: PackedResult): Protocol.Runtime.RemoteObject {
   const remote: Protocol.Runtime.RemoteObject = { type: arg.type };
-  if (arg.subtype) remote.subtype = arg.subtype;
-  if (arg.className) remote.className = arg.className;
+  copyPackedMetadata(remote, arg);
   if (arg.description !== undefined) remote.description = arg.description;
-  if (arg.valueJson !== undefined) {
-    try {
-      remote.value = JSON.parse(arg.valueJson);
-    } catch {}
-  }
-  if (arg.subtype === "null") remote.value = null;
+  copyPackedValue(remote, arg, true);
   return remote;
 }
 
@@ -592,17 +867,24 @@ function parseTopFrame(
   stack: string,
   preferUrl: string,
 ): { url: string; line: number; col: number } | null {
-  if (!stack) return null;
-  const frameRe = /\bat\s+(?:.*?\s+\()?([^\s()]+):(\d+):(\d+)\)?\s*$/;
   let fallback: { url: string; line: number; col: number } | null = null;
   for (const line of stack.split("\n")) {
-    const m = frameRe.exec(line);
-    if (!m) continue;
-    const frame = { url: m[1]!, line: Number(m[2]!), col: Number(m[3]!) };
-    if (preferUrl && frame.url === preferUrl) return frame;
+    const frame = parseStackFrame(line);
+    if (!frame) continue;
+    if (matchesPreferredUrl(frame, preferUrl)) return frame;
     if (!fallback) fallback = frame;
   }
   return fallback;
+}
+
+function parseStackFrame(line: string): { url: string; line: number; col: number } | null {
+  const match = /\bat\s+(?:.*?\s+\()?([^\s()]+):(\d+):(\d+)\)?\s*$/.exec(line);
+  if (!match) return null;
+  return { url: match[1]!, line: Number(match[2]!), col: Number(match[3]!) };
+}
+
+function matchesPreferredUrl(frame: { url: string }, preferUrl: string): boolean {
+  return preferUrl !== "" && frame.url === preferUrl;
 }
 
 export function exceptionEntryToCdpEvent(

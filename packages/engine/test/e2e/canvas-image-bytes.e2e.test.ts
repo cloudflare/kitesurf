@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { expect, test } from "./harness";
-import { decodePng } from "./png";
+import { decodePng, type DecodedPng } from "./png";
 
 interface CanvasProbeResult {
   same: string;
@@ -21,6 +21,31 @@ declare global {
 }
 
 const FIXTURE = "https://ks.invalid/__fixtures/canvas-drawimage.html";
+
+function isBluePixel(png: DecodedPng, index: number): boolean {
+  const r = byteAt(png.data, index);
+  const g = byteAt(png.data, index + 1);
+  const b = byteAt(png.data, index + 2);
+  return b > 120 && r < 100 && g < 120;
+}
+
+function byteAt(bytes: Uint8Array, index: number): number {
+  return bytes[index] ?? 0;
+}
+
+function countBluePixels(
+  png: DecodedPng,
+  box: { x: number; y: number; w: number; h: number },
+): number {
+  let pixels = 0;
+  for (let y = box.y; y < box.y + box.h; y++) {
+    for (let x = box.x; x < box.x + box.w; x++) {
+      const i = (y * png.width + x) * 4;
+      if (isBluePixel(png, i)) pixels++;
+    }
+  }
+  return pixels;
+}
 
 test("same-origin drawImage composites and stays readable", async ({ page }) => {
   await page.goto(FIXTURE, { waitUntil: "load" });
@@ -42,27 +67,42 @@ test.for(["src", "base", "invalid"] as const)(
     await page.goto(FIXTURE, { waitUntil: "load" });
     await page.evaluate(async () => window.__ks_canvas_ready);
     const results = await page.evaluate((changed) => {
-      const image = document.getElementById("same");
-      if (!(image instanceof HTMLImageElement)) {
-        throw new Error("canvas fixture image is missing");
-      }
+      const fixtureImage = (): HTMLImageElement => {
+        const image = document.getElementById("same");
+        if (!(image instanceof HTMLImageElement)) {
+          throw new Error("canvas fixture image is missing");
+        }
+        return image;
+      };
+      const contextFor = (canvas: HTMLCanvasElement): CanvasRenderingContext2D => {
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("canvas 2D context is unavailable");
+        return context;
+      };
+      const updateImageSource = (image: HTMLImageElement): void => {
+        if (changed === "src") {
+          image.setAttribute("src", "https://ks-other.invalid/__fixtures/solid-red.png");
+        } else if (changed === "base") {
+          const base = document.createElement("base");
+          base.href = "https://ks-other.invalid/";
+          document.head.appendChild(base);
+        } else {
+          image.setAttribute("src", "http://[");
+        }
+      };
+      const imageIdFor = (image: HTMLImageElement): number => {
+        const imageId = Reflect.get(image, "_id");
+        if (typeof imageId !== "number") throw new Error("fixture image has no node id");
+        return imageId;
+      };
+      const image = fixtureImage();
       const canvas = document.createElement("canvas");
       canvas.width = canvas.height = 8;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("canvas 2D context is unavailable");
+      const context = contextFor(canvas);
       context.drawImage(image, 0, 0);
       const same = Array.from(context.getImageData(4, 4, 1, 1).data);
-      if (changed === "src") {
-        image.setAttribute("src", "https://ks-other.invalid/__fixtures/solid-red.png");
-      } else if (changed === "base") {
-        const base = document.createElement("base");
-        base.href = "https://ks-other.invalid/";
-        document.head.appendChild(base);
-      } else {
-        image.setAttribute("src", "http://[");
-      }
-      const imageId = Reflect.get(image, "_id");
-      if (typeof imageId !== "number") throw new Error("fixture image has no node id");
+      updateImageSource(image);
+      const imageId = imageIdFor(image);
       const forged = {
         _id: imageId,
         tagName: "CANVAS",
@@ -75,18 +115,7 @@ test.for(["src", "base", "invalid"] as const)(
       };
       const createPattern = (source: unknown): unknown =>
         Reflect.apply(context.createPattern, context, [source, "repeat"]);
-      const taint = (usePattern: boolean) => {
-        canvas.width = 8;
-        if (usePattern) {
-          const pattern = createPattern(forged);
-          if (!pattern) throw new Error("fixture source must create a pattern");
-          if (!Reflect.set(context, "fillStyle", pattern)) {
-            throw new Error("canvas rejected the fixture pattern");
-          }
-          context.fillRect(0, 0, 8, 8);
-        } else {
-          drawImage(forged);
-        }
+      const taintedRead = (): string => {
         try {
           context.getImageData(0, 0, 1, 1);
           return "readable";
@@ -95,6 +124,20 @@ test.for(["src", "base", "invalid"] as const)(
             typeof error === "object" && error !== null ? Reflect.get(error, "name") : null;
           return typeof name === "string" ? name : String(error);
         }
+      };
+      const taintWithPattern = (): void => {
+        const pattern = createPattern(forged);
+        if (!pattern) throw new Error("fixture source must create a pattern");
+        if (!Reflect.set(context, "fillStyle", pattern)) {
+          throw new Error("canvas rejected the fixture pattern");
+        }
+        context.fillRect(0, 0, 8, 8);
+      };
+      const taint = (usePattern: boolean): string => {
+        canvas.width = 8;
+        if (usePattern) taintWithPattern();
+        else drawImage(forged);
+        return taintedRead();
       };
       return { same, drawn: taint(false), patterned: taint(true) };
     }, changed);
@@ -133,15 +176,5 @@ test("cross-origin drawImage taints the canvas and paints nothing", async ({ pag
     };
   });
   const png = await decodePng(new Uint8Array(await page.screenshot()));
-  let svgPixels = 0;
-  for (let y = box.y; y < box.y + box.h; y++) {
-    for (let x = box.x; x < box.x + box.w; x++) {
-      const i = (y * png.width + x) * 4;
-      const r = png.data[i] ?? 0;
-      const g = png.data[i + 1] ?? 0;
-      const b = png.data[i + 2] ?? 0;
-      if (b > 120 && r < 100 && g < 120) svgPixels++;
-    }
-  }
-  expect(svgPixels).toBe(0);
+  expect(countBluePixels(png, box)).toBe(0);
 }, 120_000);

@@ -61,38 +61,74 @@ export interface CdpEnvelopeError {
 export function parseCdpRequest(
   text: string,
 ): { ok: true; request: CdpRequest } | { ok: false; error: CdpEnvelopeError } {
-  let message: unknown;
-  try {
-    message = JSON.parse(text);
-  } catch (err) {
-    return {
-      ok: false,
-      error: { id: 0, error: { code: -32700, message: "Parse error: " + String(err) } },
-    };
-  }
-  if (typeof message !== "object" || message === null || Array.isArray(message)) {
-    return { ok: false, error: { id: 0, error: { code: -32600, message: "Invalid Request" } } };
-  }
-  for (const key of ["params", "sessionId"]) {
-    if (Reflect.get(message, key) === null) Reflect.deleteProperty(message, key);
-  }
+  const parsed = parseJsonMessage(text);
+  if (!parsed.ok) return parsed;
+  const message = parsed.message;
+  if (!isEnvelopeObject(message)) return invalidRequest();
+  clearNullEnvelopeFields(message);
   const id: unknown = Reflect.get(message, "id");
   const method: unknown = Reflect.get(message, "method");
   const params: unknown = Reflect.get(message, "params");
   const sessionId: unknown = Reflect.get(message, "sessionId");
-  if (
-    typeof id !== "number" ||
-    typeof method !== "string" ||
-    (params !== undefined &&
-      (typeof params !== "object" || params === null || Array.isArray(params))) ||
-    (sessionId !== undefined && typeof sessionId !== "string")
-  ) {
+  if (hasInvalidEnvelopeFields(id, method, params, sessionId)) {
     return {
       ok: false,
       error: { id: id ?? 0, error: { code: -32600, message: "Invalid Request" } },
     };
   }
   return { ok: true, request: message as CdpRequest };
+}
+
+function parseJsonMessage(
+  text: string,
+): { ok: true; message: unknown } | { ok: false; error: CdpEnvelopeError } {
+  try {
+    return { ok: true, message: JSON.parse(text) };
+  } catch (err) {
+    return {
+      ok: false,
+      error: { id: 0, error: { code: -32700, message: "Parse error: " + String(err) } },
+    };
+  }
+}
+
+function isEnvelopeObject(message: unknown): message is object {
+  return typeof message === "object" && message !== null && !Array.isArray(message);
+}
+
+function clearNullEnvelopeFields(message: object): void {
+  for (const key of ["params", "sessionId"]) {
+    if (Reflect.get(message, key) === null) Reflect.deleteProperty(message, key);
+  }
+}
+
+function hasInvalidEnvelopeFields(
+  id: unknown,
+  method: unknown,
+  params: unknown,
+  sessionId: unknown,
+): boolean {
+  return (
+    hasInvalidMethodOrId(id, method) || hasInvalidParams(params) || hasInvalidSessionId(sessionId)
+  );
+}
+
+function hasInvalidMethodOrId(id: unknown, method: unknown): boolean {
+  return typeof id !== "number" || typeof method !== "string";
+}
+
+function hasInvalidParams(params: unknown): boolean {
+  return (
+    params !== undefined && (typeof params !== "object" || params === null || Array.isArray(params))
+  );
+}
+
+function hasInvalidSessionId(sessionId: unknown): boolean {
+  return sessionId !== undefined && typeof sessionId !== "string";
+}
+
+function invalidRequest(): { ok: false; error: CdpEnvelopeError } {
+  return { ok: false, error: { id: 0, error: { code: -32600, message: "Invalid Request" } } };
 }
 
 export type CdpEvent = {

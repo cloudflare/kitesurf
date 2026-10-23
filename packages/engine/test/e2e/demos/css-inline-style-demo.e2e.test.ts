@@ -3,6 +3,161 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { expect, test } from "../harness";
+import type { Protocol } from "devtools-protocol";
+
+type CdpNode = Protocol.DOM.Node;
+type CssProperty = { name: string; value?: string; important?: boolean };
+type InlineStyles = {
+  inlineStyle?: {
+    cssProperties?: CssProperty[];
+    shorthandEntries?: unknown[];
+    cssText?: string;
+  };
+};
+type ComputedStyles = { computedStyle?: Array<{ name: string; value: string }> };
+
+function nodeHasId(node: CdpNode, wantId: string): boolean {
+  const i = (node.attributes || []).indexOf("id");
+  return i >= 0 && (node.attributes || [])[i + 1] === wantId;
+}
+
+function nodeChildren(node: CdpNode): CdpNode[] {
+  return Array.isArray(node.children) ? node.children : [];
+}
+
+function findById(root: CdpNode, wantId: string): CdpNode | null {
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node) continue;
+    if (nodeHasId(node, wantId)) return node;
+    for (const child of nodeChildren(node)) stack.push(child);
+  }
+  return null;
+}
+
+function expectFourNodes<T>(
+  nodes: readonly [T | null, T | null, T | null, T | null],
+  message: string,
+): asserts nodes is readonly [T, T, T, T] {
+  expect(!!(nodes[0] && nodes[1] && nodes[2] && nodes[3]), message).toBeTruthy();
+}
+
+function inlineProperties(response: InlineStyles | null | undefined): CssProperty[] {
+  return response?.inlineStyle?.cssProperties ?? [];
+}
+
+function computedProperties(response: ComputedStyles | null | undefined) {
+  return response?.computedStyle ?? [];
+}
+
+function hasNoShorthandEntries(response: InlineStyles | null | undefined): boolean {
+  const shorthandEntries = response?.inlineStyle?.shorthandEntries;
+  return Array.isArray(shorthandEntries) && shorthandEntries.length === 0;
+}
+
+function findProperty(properties: CssProperty[], name: string): CssProperty | undefined {
+  return properties.find((property) => property.name === name);
+}
+
+function expectPlainNodeStyles(response: InlineStyles | null | undefined): void {
+  expect(
+    response && response.inlineStyle === undefined,
+    "#plain returns no inlineStyle (no style attr): " + JSON.stringify(response).slice(0, 120),
+  ).toBeTruthy();
+}
+
+function expectEmptyInlineProperties(response: InlineStyles | null | undefined): void {
+  expect(
+    !!response?.inlineStyle,
+    "#empty returns inlineStyle object: " + JSON.stringify(response).slice(0, 120),
+  ).toBeTruthy();
+  expect(
+    Array.isArray(response?.inlineStyle?.cssProperties) &&
+      response.inlineStyle.cssProperties.length === 0,
+    "#empty cssProperties is empty array",
+  ).toBeTruthy();
+}
+
+function expectEmptyShorthandEntries(response: InlineStyles | null | undefined): void {
+  expect(hasNoShorthandEntries(response), "#empty shorthandEntries is empty array").toBeTruthy();
+  expect(response?.inlineStyle?.cssText, "#empty cssText is the empty string").toBe("");
+}
+
+function expectSimpleDeclarations(properties: CssProperty[]): void {
+  expect(
+    properties.length === 3,
+    `#simple has 3 declarations: got ${properties.length}: ${JSON.stringify(properties)}`,
+  ).toBeTruthy();
+  expect(
+    findProperty(properties, "color")?.value === "rgb(0, 128, 0)",
+    `#simple color = rgb(0, 128, 0): got ${JSON.stringify(findProperty(properties, "color"))}`,
+  ).toBeTruthy();
+  expect(
+    findProperty(properties, "font-size")?.value === "14px",
+    "#simple font-size = 14px",
+  ).toBeTruthy();
+  expect(
+    findProperty(properties, "padding")?.value === "4px",
+    "#simple padding = 4px",
+  ).toBeTruthy();
+  expect(
+    properties.every((p) => p.important !== true),
+    "#simple no declaration is marked !important: " + JSON.stringify(properties),
+  ).toBeTruthy();
+}
+
+function expectSimpleCssText(response: InlineStyles | null | undefined): void {
+  const cssText = response?.inlineStyle?.cssText;
+  expect(
+    typeof cssText === "string" && cssText.includes("rgb(0, 128, 0)") && cssText.includes("14px"),
+    "#simple cssText preserves the original attribute body: got " + JSON.stringify(cssText),
+  ).toBeTruthy();
+}
+
+function expectShorthandDeclarations(properties: CssProperty[]): void {
+  expect(
+    properties.length === 2,
+    `#shorthand has 2 declarations (margin + color, no expansion): got ${properties.length}: ${JSON.stringify(properties)}`,
+  ).toBeTruthy();
+  expect(
+    !!findProperty(properties, "margin"),
+    "#shorthand keeps margin as a single shorthand entry: " +
+      JSON.stringify(properties.map((p) => p.name)),
+  ).toBeTruthy();
+  expect(
+    findProperty(properties, "margin")?.value === "10px 20px",
+    `#shorthand margin value = 10px 20px: got ${JSON.stringify(findProperty(properties, "margin"))}`,
+  ).toBeTruthy();
+  expect(
+    findProperty(properties, "color")?.value === "blue" &&
+      findProperty(properties, "color")?.important === true,
+    `#shorthand color = blue with !important flag: got ${JSON.stringify(findProperty(properties, "color"))}`,
+  ).toBeTruthy();
+}
+
+function expectNoShorthandEntries(response: InlineStyles | null | undefined): void {
+  expect(
+    hasNoShorthandEntries(response),
+    "#shorthand no shorthandEntries (we don't populate the field)",
+  ).toBeTruthy();
+}
+
+function findComputedValue(response: ComputedStyles | null | undefined, name: string) {
+  const computed = computedProperties(response);
+  return computed.find((property) => property.name === name)?.value;
+}
+
+function expectComputedValues(response: ComputedStyles | null | undefined): void {
+  expect(
+    findComputedValue(response, "color") === "rgb(0, 128, 0)",
+    `Computed: #simple color reflects inline rgb(0, 128, 0): got ${JSON.stringify(findComputedValue(response, "color"))}`,
+  ).toBeTruthy();
+  expect(
+    findComputedValue(response, "font-size") === "14px",
+    "Computed: #simple font-size reflects inline 14px",
+  ).toBeTruthy();
+}
 
 test("css-inline-style-demo", async ({ page }) => {
   const HTML = `<!doctype html>
@@ -27,121 +182,42 @@ test("css-inline-style-demo", async ({ page }) => {
   await session.send("CSS.enable");
 
   const doc = await session.send("DOM.getDocument");
-  function findById(root, wantId) {
-    const stack = [root];
-    while (stack.length) {
-      const n = stack.pop();
-      if (!n) continue;
-      const i = (n.attributes || []).indexOf("id");
-      if (i >= 0 && (n.attributes || [])[i + 1] === wantId) return n;
-      if (Array.isArray(n.children)) {
-        for (const c of n.children) stack.push(c);
-      }
-    }
-    return null;
-  }
-  const plain = findById(doc.root, "plain");
-  const empty = findById(doc.root, "empty");
-  const simple = findById(doc.root, "simple");
-  const shorthand = findById(doc.root, "shorthand");
-  expect(!!(plain && empty && simple && shorthand), "located all four fixture nodes").toBeTruthy();
+  const nodes = [
+    findById(doc.root, "plain"),
+    findById(doc.root, "empty"),
+    findById(doc.root, "simple"),
+    findById(doc.root, "shorthand"),
+  ] as const;
+  expectFourNodes(nodes, "located all four fixture nodes");
+  const [plain, empty, simple, shorthand] = nodes;
 
   const rPlain = await session.send("CSS.getInlineStylesForNode", {
     nodeId: plain.nodeId,
   });
-  expect(
-    rPlain && rPlain.inlineStyle === undefined,
-    "#plain returns no inlineStyle (no style attr): " + JSON.stringify(rPlain).slice(0, 120),
-  ).toBeTruthy();
+  expectPlainNodeStyles(rPlain);
 
   const rEmpty = await session.send("CSS.getInlineStylesForNode", {
     nodeId: empty.nodeId,
   });
-  expect(
-    !!rEmpty?.inlineStyle,
-    "#empty returns inlineStyle object: " + JSON.stringify(rEmpty).slice(0, 120),
-  ).toBeTruthy();
-  expect(
-    Array.isArray(rEmpty?.inlineStyle?.cssProperties) &&
-      rEmpty.inlineStyle.cssProperties.length === 0,
-    "#empty cssProperties is empty array",
-  ).toBeTruthy();
-  expect(
-    Array.isArray(rEmpty?.inlineStyle?.shorthandEntries) &&
-      rEmpty.inlineStyle.shorthandEntries.length === 0,
-    "#empty shorthandEntries is empty array",
-  ).toBeTruthy();
-  expect(rEmpty?.inlineStyle?.cssText, "#empty cssText is the empty string").toBe("");
+  expectEmptyInlineProperties(rEmpty);
+  expectEmptyShorthandEntries(rEmpty);
 
   const rSimple = await session.send("CSS.getInlineStylesForNode", {
     nodeId: simple.nodeId,
   });
-  const simpleProps = rSimple?.inlineStyle?.cssProperties ?? [];
-  expect(
-    simpleProps.length === 3,
-    `#simple has 3 declarations: got ${simpleProps.length}: ${JSON.stringify(simpleProps)}`,
-  ).toBeTruthy();
-  const findProp = (props, name) => props.find((p) => p.name === name);
-  expect(
-    findProp(simpleProps, "color")?.value === "rgb(0, 128, 0)",
-    `#simple color = rgb(0, 128, 0): got ${JSON.stringify(findProp(simpleProps, "color"))}`,
-  ).toBeTruthy();
-  expect(
-    findProp(simpleProps, "font-size")?.value === "14px",
-    "#simple font-size = 14px",
-  ).toBeTruthy();
-  expect(findProp(simpleProps, "padding")?.value === "4px", "#simple padding = 4px").toBeTruthy();
-  expect(
-    simpleProps.every((p) => p.important !== true),
-    "#simple no declaration is marked !important: " + JSON.stringify(simpleProps),
-  ).toBeTruthy();
-  expect(
-    typeof rSimple?.inlineStyle?.cssText === "string" &&
-      rSimple.inlineStyle.cssText.includes("rgb(0, 128, 0)") &&
-      rSimple.inlineStyle.cssText.includes("14px"),
-    "#simple cssText preserves the original attribute body: got " +
-      JSON.stringify(rSimple?.inlineStyle?.cssText),
-  ).toBeTruthy();
+  const simpleProps = inlineProperties(rSimple);
+  expectSimpleDeclarations(simpleProps);
+  expectSimpleCssText(rSimple);
 
   const rShort = await session.send("CSS.getInlineStylesForNode", {
     nodeId: shorthand.nodeId,
   });
-  const shortProps = rShort?.inlineStyle?.cssProperties ?? [];
-  expect(
-    shortProps.length === 2,
-    `#shorthand has 2 declarations (margin + color, no expansion): got ${shortProps.length}: ${JSON.stringify(shortProps)}`,
-  ).toBeTruthy();
-  expect(
-    !!findProp(shortProps, "margin"),
-    "#shorthand keeps margin as a single shorthand entry: " +
-      JSON.stringify(shortProps.map((p) => p.name)),
-  ).toBeTruthy();
-  expect(
-    findProp(shortProps, "margin")?.value === "10px 20px",
-    `#shorthand margin value = 10px 20px: got ${JSON.stringify(findProp(shortProps, "margin"))}`,
-  ).toBeTruthy();
-  expect(
-    findProp(shortProps, "color")?.value === "blue" &&
-      findProp(shortProps, "color")?.important === true,
-    `#shorthand color = blue with !important flag: got ${JSON.stringify(findProp(shortProps, "color"))}`,
-  ).toBeTruthy();
-  expect(
-    Array.isArray(rShort?.inlineStyle?.shorthandEntries) &&
-      rShort.inlineStyle.shorthandEntries.length === 0,
-    "#shorthand no shorthandEntries (we don't populate the field)",
-  ).toBeTruthy();
+  const shortProps = inlineProperties(rShort);
+  expectShorthandDeclarations(shortProps);
+  expectNoShorthandEntries(rShort);
 
   const rComputed = await session.send("CSS.getComputedStyleForNode", {
     nodeId: simple.nodeId,
   });
-  const computed = rComputed?.computedStyle ?? [];
-  const findComp = (name) => computed.find((p) => p.name === name)?.value;
-  expect(
-    findComp("color") === "rgb(0, 128, 0)",
-    `Computed: #simple color reflects inline rgb(0, 128, 0): got ${JSON.stringify(findComp("color"))}`,
-  ).toBeTruthy();
-  expect(
-    findComp("font-size") === "14px",
-    "Computed: #simple font-size reflects inline 14px",
-  ).toBeTruthy();
+  expectComputedValues(rComputed);
 });

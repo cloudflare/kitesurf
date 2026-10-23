@@ -17,6 +17,14 @@ const SAFELISTED_RESPONSE_HEADERS = new Set([
 ]);
 
 const FORBIDDEN_RESPONSE_HEADERS = new Set(["set-cookie", "set-cookie2"]);
+const CORS_UNSAFE_PUNCTUATION_BYTES = new Set([
+  0x22, 0x28, 0x29, 0x3a, 0x3c, 0x3e, 0x3f, 0x40, 0x5b, 0x5c, 0x5d, 0x7b, 0x7d,
+]);
+const SAFELISTED_CONTENT_TYPES = new Set([
+  "application/x-www-form-urlencoded",
+  "multipart/form-data",
+  "text/plain",
+]);
 
 const PLUMBING_PREFIX = "x-kitesurf-";
 
@@ -74,27 +82,13 @@ export function parseTokenList(value: string | null): string[] | null {
 function hasCorsUnsafeByte(value: string): boolean {
   for (let i = 0; i < value.length; i++) {
     const c = value.charCodeAt(i);
-    if (c < 0x20 && c !== 0x09) return true;
-    if (c === 0x7f) return true;
-    if (
-      c === 0x22 ||
-      c === 0x28 ||
-      c === 0x29 ||
-      c === 0x3a ||
-      c === 0x3c ||
-      c === 0x3e ||
-      c === 0x3f ||
-      c === 0x40 ||
-      c === 0x5b ||
-      c === 0x5c ||
-      c === 0x5d ||
-      c === 0x7b ||
-      c === 0x7d
-    ) {
-      return true;
-    }
+    if (isCorsUnsafeByte(c)) return true;
   }
   return false;
+}
+
+function isCorsUnsafeByte(byte: number): boolean {
+  return (byte < 0x20 && byte !== 0x09) || byte === 0x7f || CORS_UNSAFE_PUNCTUATION_BYTES.has(byte);
 }
 
 function mimeEssence(input: string): string | null {
@@ -110,27 +104,51 @@ function mimeEssence(input: string): string | null {
   return `${type}/${subtype}`.toLowerCase();
 }
 
-function safelistedRangeStart(value: string): number | null {
+interface RangeDigits {
+  value: string;
+  index: number;
+}
+
+function collectRangeDigits(value: string, start: number): RangeDigits {
+  let index = start;
+  let digits = "";
+  for (;;) {
+    const ch = value[index];
+    if (ch === undefined || ch < "0" || ch > "9") return { value: digits, index };
+    digits += ch;
+    index++;
+  }
+}
+
+interface RangeStart {
+  value: number;
+  index: number;
+}
+
+function parseRangeStart(value: string): RangeStart | null {
   if (!value.startsWith("bytes=")) return null;
-  let i = 6;
-  const collectDigits = (): string => {
-    let out = "";
-    for (;;) {
-      const ch = value[i];
-      if (ch === undefined || ch < "0" || ch > "9") return out;
-      out += ch;
-      i++;
-    }
-  };
-  const startDigits = collectDigits();
-  if (value[i] !== "-") return null;
-  i++;
-  const endDigits = collectDigits();
-  if (i !== value.length) return null;
-  if (startDigits === "") return null;
-  const start = Number(startDigits);
-  if (endDigits !== "" && start > Number(endDigits)) return null;
-  return start;
+  const start = collectRangeDigits(value, 6);
+  if (start.value === "") return null;
+  if (value[start.index] !== "-") return null;
+  return { value: Number(start.value), index: start.index + 1 };
+}
+
+function rangeEndFits(start: number, endDigits: string): boolean {
+  return endDigits === "" || start <= Number(endDigits);
+}
+
+function safelistedRangeStart(value: string): number | null {
+  const start = parseRangeStart(value);
+  if (start === null) return null;
+  const end = collectRangeDigits(value, start.index);
+  if (end.index !== value.length) return null;
+  if (!rangeEndFits(start.value, end.value)) return null;
+  return start.value;
+}
+
+function isSafelistedContentType(value: string): boolean {
+  if (hasCorsUnsafeByte(value)) return false;
+  return SAFELISTED_CONTENT_TYPES.has(mimeEssence(value) ?? "");
 }
 
 export function isSafelistedRequestHeader(name: string, value: string): boolean {
@@ -142,13 +160,7 @@ export function isSafelistedRequestHeader(name: string, value: string): boolean 
     case "content-language":
       return /^[0-9A-Za-z *,\-.;=]*$/.test(value);
     case "content-type": {
-      if (hasCorsUnsafeByte(value)) return false;
-      const essence = mimeEssence(value);
-      return (
-        essence === "application/x-www-form-urlencoded" ||
-        essence === "multipart/form-data" ||
-        essence === "text/plain"
-      );
+      return isSafelistedContentType(value);
     }
     case "range":
       return safelistedRangeStart(value) !== null;
@@ -161,12 +173,19 @@ export function corsUnsafeRequestHeaderNames(headers: Headers): string[] {
   const unsafe = new Set<string>();
   for (const [rawName, value] of headers.entries()) {
     const name = rawName.toLowerCase();
-    if (name.startsWith("x-kitesurf-")) continue;
-    if (UA_OWNED_REQUEST_HEADERS.has(name)) continue;
-    if (name.startsWith("proxy-") || name.startsWith("sec-")) continue;
+    if (isIgnoredCorsRequestHeader(name)) continue;
     if (!isSafelistedRequestHeader(name, value)) unsafe.add(name);
   }
   return [...unsafe].sort();
+}
+
+function isIgnoredCorsRequestHeader(name: string): boolean {
+  return (
+    name.startsWith("x-kitesurf-") ||
+    UA_OWNED_REQUEST_HEADERS.has(name) ||
+    name.startsWith("proxy-") ||
+    name.startsWith("sec-")
+  );
 }
 
 export function needsPreflight(method: string, headers: Headers): boolean {
@@ -179,21 +198,43 @@ export function isSafelistedMethod(method: string): boolean {
 }
 
 export function filterCorsResponseHeaders(headers: Headers, credentialsInclude: boolean): Headers {
-  const exposed = parseTokenList(headers.get("access-control-expose-headers"));
-  const wildcard = !credentialsInclude && exposed !== null && exposed.includes("*");
-  const explicit = new Set((exposed ?? []).map((n) => n.toLowerCase()));
+  const { wildcard, explicit } = exposedCorsHeaders(headers, credentialsInclude);
   const out = new Headers();
   for (const [name, value] of headers.entries()) {
     const lower = name.toLowerCase();
-    if (FORBIDDEN_RESPONSE_HEADERS.has(lower)) continue;
-    if (lower.startsWith(PLUMBING_PREFIX)) continue;
+    if (isFilteredCorsResponseHeader(lower)) continue;
     if (SAFELISTED_RESPONSE_HEADERS.has(lower)) {
       out.append(name, value);
       continue;
-    }
-    if (wildcard || explicit.has(lower)) out.append(name, value);
+    } else if (isExplicitlyExposedCorsHeader(lower, wildcard, explicit)) out.append(name, value);
   }
   return out;
+}
+
+function exposedCorsHeaders(
+  headers: Headers,
+  credentialsInclude: boolean,
+): {
+  wildcard: boolean;
+  explicit: Set<string>;
+} {
+  const exposed = parseTokenList(headers.get("access-control-expose-headers"));
+  return {
+    wildcard: !credentialsInclude && exposed !== null && exposed.includes("*"),
+    explicit: new Set((exposed ?? []).map((name) => name.toLowerCase())),
+  };
+}
+
+function isFilteredCorsResponseHeader(name: string): boolean {
+  return FORBIDDEN_RESPONSE_HEADERS.has(name) || name.startsWith(PLUMBING_PREFIX);
+}
+
+function isExplicitlyExposedCorsHeader(
+  name: string,
+  wildcard: boolean,
+  explicit: Set<string>,
+): boolean {
+  return wildcard || explicit.has(name);
 }
 
 export interface CorsPreflightVerdict {
@@ -209,17 +250,26 @@ export function corsCheck(
   const aca = headers.get("access-control-allow-origin");
   if (aca === null) return "cors-missing-origin";
   const trimmed = stripHttpWhitespace(aca);
-  if (trimmed === "*") {
+  const originFailure = corsOriginFailure(trimmed, requestOrigin, credentialsInclude);
+  if (originFailure !== null) return originFailure;
+  if (credentialsInclude && headers.get("access-control-allow-credentials") !== "true") {
+    return "cors-credentials-not-allowed";
+  }
+  return null;
+}
+
+function corsOriginFailure(
+  origin: string,
+  requestOrigin: string,
+  credentialsInclude: boolean,
+): string | null {
+  if (origin === "*") {
     if (credentialsInclude) return "cors-wildcard-with-credentials";
     return null;
   }
-  if (trimmed !== requestOrigin) {
-    if (trimmed.includes(",")) return "cors-multiple-origins";
+  if (origin !== requestOrigin) {
+    if (origin.includes(",")) return "cors-multiple-origins";
     return "cors-origin-mismatch";
-  }
-  if (credentialsInclude) {
-    const acc = headers.get("access-control-allow-credentials");
-    if (acc !== "true") return "cors-credentials-not-allowed";
   }
   return null;
 }
@@ -247,19 +297,37 @@ function entrySatisfies(
   credentialsInclude: boolean,
 ): boolean {
   if (entry.expiresAt <= Date.now()) return false;
-  const methodOk =
-    entry.methods.includes(method) ||
-    isSafelistedMethod(method) ||
-    (entry.methodWildcard && !credentialsInclude);
-  if (!methodOk) return false;
-  for (const name of unsafeNames) {
-    if (entry.headerNames.has(name)) continue;
-    if (entry.headerWildcard && !credentialsInclude && name !== "authorization") {
-      continue;
-    }
+  if (!preflightMethodAllowed(entry.methods, method, entry.methodWildcard, credentialsInclude)) {
     return false;
   }
+  for (const name of unsafeNames) {
+    if (
+      !preflightHeaderAllowed(entry.headerNames, entry.headerWildcard, credentialsInclude, name)
+    ) {
+      return false;
+    }
+  }
   return true;
+}
+
+function preflightMethodAllowed(
+  methods: string[],
+  method: string,
+  wildcard: boolean,
+  credentialsInclude: boolean,
+): boolean {
+  return (
+    methods.includes(method) || isSafelistedMethod(method) || (wildcard && !credentialsInclude)
+  );
+}
+
+function preflightHeaderAllowed(
+  allowed: Set<string>,
+  wildcard: boolean,
+  credentialsInclude: boolean,
+  name: string,
+): boolean {
+  return allowed.has(name) || (wildcard && !credentialsInclude && name !== "authorization");
 }
 
 export function preflightCacheLookup(
@@ -311,11 +379,12 @@ export interface CorsPreflightRequest {
 
 // Fetch §cors-preflight-fetch. `doFetch` is injected so outbound
 // keeps ownership of the egress path (proxy, breaker, tracing).
-export async function corsPreflight(
+function preflightRequestHeaders(
   req: CorsPreflightRequest,
-  doFetch: (r: Request) => Promise<Response>,
-): Promise<CorsPreflightVerdict> {
-  const { url, method, unsafeNames, requestOrigin, credentialsInclude } = req;
+  requestOrigin: string,
+  method: string,
+  unsafeNames: string[],
+): Headers {
   const headers = new Headers();
   headers.set("accept", "*/*");
   headers.set("user-agent", req.userAgent);
@@ -325,68 +394,151 @@ export async function corsPreflight(
   if (unsafeNames.length > 0) {
     headers.set("access-control-request-headers", unsafeNames.join(","));
   }
-  let resp: Response;
+  return headers;
+}
+
+type PreflightFetchResult =
+  | { ok: true; response: Response }
+  | { ok: false; verdict: CorsPreflightVerdict };
+
+async function fetchPreflightResponse(
+  url: string,
+  signal: AbortSignal,
+  headers: Headers,
+  doFetch: (request: Request) => Promise<Response>,
+): Promise<PreflightFetchResult> {
+  let response: Response;
   try {
-    resp = await doFetch(
+    response = await doFetch(
       new Request(url, {
         method: "OPTIONS",
         headers,
         redirect: "manual",
-        signal: req.signal,
+        signal,
       }),
     );
   } catch {
-    return { reason: "cors-preflight-failed" };
+    return { ok: false, verdict: { reason: "cors-preflight-failed" } };
   }
   // Cancel the ignored body so the OPTIONS socket closes.
   try {
-    await resp.body?.cancel();
+    await response.body?.cancel();
   } catch {}
-  if (resp.status < 200 || resp.status > 299) {
+  return { ok: true, response };
+}
+
+function preflightStatusFailure(response: Response): CorsPreflightVerdict | null {
+  if (response.status < 200 || response.status > 299) {
     return {
       reason: "cors-preflight-status",
-      message: `preflight response status ${resp.status} is not ok`,
+      message: `preflight response status ${response.status} is not ok`,
     };
   }
-  const originFailure = corsCheck(resp.headers, requestOrigin, credentialsInclude);
-  if (originFailure) return { reason: originFailure };
+  return null;
+}
 
-  const rawMethods = resp.headers.get("access-control-allow-methods");
-  const rawAllowHeaders = resp.headers.get("access-control-allow-headers");
-  const methods = rawMethods === null ? [] : parseTokenList(rawMethods);
-  const allowHeaders = rawAllowHeaders === null ? [] : parseTokenList(rawAllowHeaders);
+function preflightTokenHeader(value: string | null): string[] | null {
+  return value === null ? [] : parseTokenList(value);
+}
+
+interface PreflightTokenHeaders {
+  methods: string[];
+  allowHeaders: string[];
+}
+
+function preflightTokenHeaders(headers: Headers): PreflightTokenHeaders | null {
+  const methods = preflightTokenHeader(headers.get("access-control-allow-methods"));
+  const allowHeaders = preflightTokenHeader(headers.get("access-control-allow-headers"));
   if (methods === null || allowHeaders === null) {
-    return { reason: "cors-preflight-invalid-header" };
+    return null;
   }
-  const methodWildcard = methods.includes("*");
-  const headerWildcard = allowHeaders.includes("*");
-  const methodOk =
-    methods.includes(method) ||
-    isSafelistedMethod(method) ||
-    (methodWildcard && !credentialsInclude);
-  if (!methodOk) {
-    return {
-      reason: "cors-method-not-allowed",
-      message: `method ${method} is not allowed by Access-Control-Allow-Methods`,
-    };
-  }
-  const allowed = new Set(allowHeaders.map((n) => n.toLowerCase()));
+  return { methods, allowHeaders };
+}
+
+function corsPreflightHeaderFailure(
+  unsafeNames: string[],
+  allowed: Set<string>,
+  headerWildcard: boolean,
+  credentialsInclude: boolean,
+): CorsPreflightVerdict | null {
   for (const name of unsafeNames) {
-    if (allowed.has(name)) continue;
-    if (headerWildcard && !credentialsInclude && name !== "authorization") {
-      continue;
-    }
+    if (preflightHeaderAllowed(allowed, headerWildcard, credentialsInclude, name)) continue;
     return {
       reason: "cors-header-not-allowed",
       message: `request header ${name} is not allowed by Access-Control-Allow-Headers`,
     };
   }
+  return null;
+}
 
-  const rawMaxAge = resp.headers.get("access-control-max-age");
-  const maxAge = rawMaxAge !== null && /^[0-9]+$/.test(rawMaxAge) ? Number(rawMaxAge) : 0;
-  const seconds = maxAge > 0 ? Math.min(maxAge, MAX_PREFLIGHT_CACHE_AGE_SECONDS) : 0;
+type PreflightPolicyResult =
+  | { ok: false; verdict: CorsPreflightVerdict }
+  | {
+      ok: true;
+      methods: string[];
+      methodWildcard: boolean;
+      allowed: Set<string>;
+      headerWildcard: boolean;
+    };
+
+function preflightPolicy(
+  response: Response,
+  method: string,
+  unsafeNames: string[],
+  requestOrigin: string,
+  credentialsInclude: boolean,
+): PreflightPolicyResult {
+  const originFailure = corsCheck(response.headers, requestOrigin, credentialsInclude);
+  if (originFailure !== null) return { ok: false, verdict: { reason: originFailure } };
+  const tokenHeaders = preflightTokenHeaders(response.headers);
+  if (tokenHeaders === null) {
+    return { ok: false, verdict: { reason: "cors-preflight-invalid-header" } };
+  }
+  const methodWildcard = tokenHeaders.methods.includes("*");
+  const headerWildcard = tokenHeaders.allowHeaders.includes("*");
+  if (!preflightMethodAllowed(tokenHeaders.methods, method, methodWildcard, credentialsInclude)) {
+    return {
+      ok: false,
+      verdict: {
+        reason: "cors-method-not-allowed",
+        message: `method ${method} is not allowed by Access-Control-Allow-Methods`,
+      },
+    };
+  }
+  const allowed = new Set(tokenHeaders.allowHeaders.map((name) => name.toLowerCase()));
+  const headerFailure = corsPreflightHeaderFailure(
+    unsafeNames,
+    allowed,
+    headerWildcard,
+    credentialsInclude,
+  );
+  if (headerFailure !== null) return { ok: false, verdict: headerFailure };
+  return {
+    ok: true,
+    methods: tokenHeaders.methods,
+    methodWildcard,
+    allowed,
+    headerWildcard,
+  };
+}
+
+function preflightMaxAgeSeconds(rawMaxAge: string | null): number {
+  if (rawMaxAge === null || !/^[0-9]+$/.test(rawMaxAge)) return 0;
+  const maxAge = Number(rawMaxAge);
+  return maxAge > 0 ? Math.min(maxAge, MAX_PREFLIGHT_CACHE_AGE_SECONDS) : 0;
+}
+
+function cachePreflightResponse(
+  req: CorsPreflightRequest,
+  response: Response,
+  methods: string[],
+  methodWildcard: boolean,
+  allowed: Set<string>,
+  headerWildcard: boolean,
+): void {
+  const seconds = preflightMaxAgeSeconds(response.headers.get("access-control-max-age"));
   if (seconds > 0 && req.cacheable !== false) {
-    storePreflight(requestOrigin, url, credentialsInclude, {
+    storePreflight(req.requestOrigin, req.url, req.credentialsInclude, {
       methods,
       methodWildcard,
       headerNames: allowed,
@@ -394,5 +546,33 @@ export async function corsPreflight(
       expiresAt: Date.now() + seconds * MILLISECONDS_PER_SECOND,
     });
   }
+}
+
+export async function corsPreflight(
+  req: CorsPreflightRequest,
+  doFetch: (r: Request) => Promise<Response>,
+): Promise<CorsPreflightVerdict> {
+  const { url, method, unsafeNames, requestOrigin, credentialsInclude } = req;
+  const headers = preflightRequestHeaders(req, requestOrigin, method, unsafeNames);
+  const fetched = await fetchPreflightResponse(url, req.signal, headers, doFetch);
+  if (!fetched.ok) return fetched.verdict;
+  const statusFailure = preflightStatusFailure(fetched.response);
+  if (statusFailure !== null) return statusFailure;
+  const policy = preflightPolicy(
+    fetched.response,
+    method,
+    unsafeNames,
+    requestOrigin,
+    credentialsInclude,
+  );
+  if (!policy.ok) return policy.verdict;
+  cachePreflightResponse(
+    req,
+    fetched.response,
+    policy.methods,
+    policy.methodWildcard,
+    policy.allowed,
+    policy.headerWildcard,
+  );
   return { reason: null };
 }

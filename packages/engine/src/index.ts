@@ -49,6 +49,10 @@ const rethrow: ErrorHandler<EngineApp> = (err) => {
 };
 
 const ASSETS_ORIGIN = "https://kitesurf.invalid";
+function assetResponseContentType(res: Response, contentType: string | undefined): string {
+  return contentType || res.headers.get("content-type") || "application/octet-stream";
+}
+
 async function serveRbiAsset(
   env: Env,
   assetPath: string,
@@ -60,15 +64,16 @@ async function serveRbiAsset(
   const res = await env.FONT_ASSETS.fetch(
     new Request(ASSETS_ORIGIN + assetPath, { headers: requestHeaders }),
   );
-  if (res.status !== 200 && res.status !== 304) {
+  if (!isAssetResponseStatus(res.status)) {
     return new Response("not found", { status: 404 });
   }
   const headers = new Headers(res.headers);
-  headers.set(
-    "content-type",
-    contentType || res.headers.get("content-type") || "application/octet-stream",
-  );
+  headers.set("content-type", assetResponseContentType(res, contentType));
   return new Response(res.body, { status: res.status, headers });
+}
+
+function isAssetResponseStatus(status: number): boolean {
+  return status === 200 || status === 304;
 }
 
 const upgrades = new Hono<EngineApp>();
@@ -142,14 +147,13 @@ const inspectorQuery = z.object({
     .optional()
     .transform((value) => value === "1"),
 });
-app.get("/", async (c, next) => {
-  const url = new URL(c.req.url);
-  const query = inspectorQuery.parse(c.req.query());
-  if (query.url === undefined && !query.inspect) return next();
-  const initialQuery =
-    query.url === undefined ? "" : "?initialUrl=" + encodeURIComponent(query.url);
 
-  const inspectorBase = inspectorBaseUrlOrNull(c.env.env);
+function inspectorResponse(
+  url: URL,
+  requestHost: string,
+  query: z.infer<typeof inspectorQuery>,
+  inspectorBase: string | null,
+): Response {
   if (inspectorBase === null) {
     return new Response(
       "Inspector base URL not configured. Set the\n" +
@@ -161,13 +165,23 @@ app.get("/", async (c, next) => {
       { status: 501, headers: { "content-type": "text/plain; charset=utf-8" } },
     );
   }
-  const requestHost = c.req.header("host") ?? url.host;
+  const initialQuery =
+    query.url === undefined ? "" : "?initialUrl=" + encodeURIComponent(query.url);
   const wsScheme = url.protocol === "https:" ? "wss" : "ws";
   const wsValue = `${requestHost}/devtools/page/kitesurf${initialQuery}`;
   const params = new URLSearchParams();
   params.set(wsScheme, wsValue);
   const target = inspectorBase.replace(/\/$/, "") + "?" + params.toString();
   return Response.redirect(target, 302);
+}
+
+app.get("/", async (c, next) => {
+  const url = new URL(c.req.url);
+  const query = inspectorQuery.parse(c.req.query());
+  if (query.url === undefined && !query.inspect) return next();
+  const inspectorBase = inspectorBaseUrlOrNull(c.env.env);
+  const requestHost = c.req.header("host") ?? url.host;
+  return inspectorResponse(url, requestHost, query, inspectorBase);
 });
 
 app.get(

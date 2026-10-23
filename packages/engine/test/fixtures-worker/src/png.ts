@@ -45,6 +45,47 @@ const KNUTH_HASH = 2654435761;
 const DISC_COUNT = 8;
 const MIN_DISC_RADIUS = 40;
 
+interface PixelContext {
+  side: number;
+  seed: number;
+  noise: boolean;
+  discs: Array<{ x: number; y: number; radius: number; shade: number }>;
+}
+
+function writePixel(
+  raw: Uint8Array,
+  pixel: number,
+  x: number,
+  y: number,
+  context: PixelContext,
+): void {
+  if (context.noise) {
+    const hash = (x * KNUTH_HASH + y * 40503 + context.seed * 97) >>> 0;
+    raw[pixel] = (hash ^ (context.seed * 37)) & MAX_CHANNEL;
+    raw[pixel + 1] = (hash >>> 8) & MAX_CHANNEL;
+    raw[pixel + 2] = (hash >>> 16) & MAX_CHANNEL;
+    raw[pixel + 3] = MAX_CHANNEL;
+    return;
+  }
+  let r = ((x * MAX_CHANNEL) / context.side) | 0;
+  let g = ((y * MAX_CHANNEL) / context.side) | 0;
+  let b = (context.seed * 53) & MAX_CHANNEL;
+  for (const disc of context.discs) {
+    const dx = x - disc.x;
+    const dy = y - disc.y;
+    if (dx * dx + dy * dy < disc.radius * disc.radius) {
+      r = disc.shade;
+      g = MAX_CHANNEL - disc.shade;
+      b = (disc.shade * 3) & MAX_CHANNEL;
+      break;
+    }
+  }
+  raw[pixel] = r;
+  raw[pixel + 1] = g;
+  raw[pixel + 2] = b;
+  raw[pixel + 3] = MAX_CHANNEL;
+}
+
 export async function bigPngBytes(
   side: number,
   seed: number,
@@ -58,36 +99,13 @@ export async function bigPngBytes(
     radius: MIN_DISC_RADIUS + ((((seed + index) * 8191) >>> 0) % (side / 4)),
     shade: ((seed * 37 + index * 77) >>> 0) & MAX_CHANNEL,
   }));
+  const pixelContext = { side, seed, noise, discs };
   for (let y = 0; y < side; y++) {
     const row = y * stride;
     raw[row] = FILTER_NONE;
     for (let x = 0; x < side; x++) {
       const pixel = row + 1 + x * BYTES_PER_PIXEL;
-      if (noise) {
-        const hash = (x * KNUTH_HASH + y * 40503 + seed * 97) >>> 0;
-        raw[pixel] = (hash ^ (seed * 37)) & MAX_CHANNEL;
-        raw[pixel + 1] = (hash >>> 8) & MAX_CHANNEL;
-        raw[pixel + 2] = (hash >>> 16) & MAX_CHANNEL;
-        raw[pixel + 3] = MAX_CHANNEL;
-        continue;
-      }
-      let r = ((x * MAX_CHANNEL) / side) | 0;
-      let g = ((y * MAX_CHANNEL) / side) | 0;
-      let b = (seed * 53) & MAX_CHANNEL;
-      for (const disc of discs) {
-        const dx = x - disc.x;
-        const dy = y - disc.y;
-        if (dx * dx + dy * dy < disc.radius * disc.radius) {
-          r = disc.shade;
-          g = MAX_CHANNEL - disc.shade;
-          b = (disc.shade * 3) & MAX_CHANNEL;
-          break;
-        }
-      }
-      raw[pixel] = r;
-      raw[pixel + 1] = g;
-      raw[pixel + 2] = b;
-      raw[pixel + 3] = MAX_CHANNEL;
+      writePixel(raw, pixel, x, y, pixelContext);
     }
   }
 

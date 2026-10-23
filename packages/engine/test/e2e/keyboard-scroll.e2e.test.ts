@@ -148,8 +148,43 @@ test("terminal link underlines preserve indented, wrapped and block link layout"
     const red = (r: number, g: number, b: number) => r > 190 && g < 80 && b < 80;
     const original = await screenshot();
     const aboutText = bbox(original, 0, 30, blue);
-    expect(aboutText?.w).toBeGreaterThan(20);
+    const boundsWidth = (bounds: ReturnType<typeof bbox>) => bounds?.w;
+    const boundsHeight = (bounds: ReturnType<typeof bbox>) => bounds?.h;
+    const activeId = () => page.evaluate(() => document.activeElement?.id);
+    expect(boundsWidth(aboutText)).toBeGreaterThan(20);
     expect(bbox(original, 0, 400, red)).toBeNull();
+
+    const assertUnderlineLine = (
+      shot: Awaited<ReturnType<typeof screenshot>>,
+      y: number,
+      id: string,
+    ) => {
+      const line = bbox(shot, Math.floor(y), Math.ceil(y + 30), red);
+      const text = bbox(shot, Math.floor(y), Math.ceil(y + 30), blue);
+      expect(boundsWidth(line)).toBeGreaterThan(20);
+      expect(boundsHeight(line)).toBeLessThanOrEqual(3);
+      if (!line || !text) throw new Error(`Missing underline or text for ${id}`);
+      expect(line.y).toBeGreaterThanOrEqual(text.y + text.h);
+    };
+    const assertFocusedLink = async (id: string) => {
+      expect(await activeId()).toBe(id);
+      expect(await geometry()).toEqual(before);
+      const shot = await screenshot();
+      const link = before.find((rect) => rect.id === id);
+      if (!link) throw new Error(`Missing geometry for ${id}`);
+      expect(
+        boundsWidth(
+          bbox(shot, Math.max(0, Math.floor(link.y - 3)), Math.ceil(link.y + link.height + 3), red),
+        ),
+      ).toBeGreaterThan(20);
+      expect(bbox(shot, 0, 30, blue)).toEqual(aboutText);
+      if (id === "wrapped") expect(link.height).toBeGreaterThan(30);
+      for (let y = link.y; y < link.y + link.height; y += 30) {
+        assertUnderlineLine(shot, y, id);
+      }
+      if (id !== "about") expect(bbox(shot, 0, 28, red)).toBeNull();
+    };
+
     for (const [id, modifiers] of [
       ["about", 0],
       ["features", 0],
@@ -163,26 +198,7 @@ test("terminal link underlines preserve indented, wrapped and block link layout"
         code: "Tab",
         modifiers,
       });
-      expect(await page.evaluate(() => document.activeElement?.id)).toBe(id);
-      expect(await geometry()).toEqual(before);
-      const shot = await screenshot();
-      const link = before.find((rect) => rect.id === id);
-      if (!link) throw new Error(`Missing geometry for ${id}`);
-      expect(
-        bbox(shot, Math.max(0, Math.floor(link.y - 3)), Math.ceil(link.y + link.height + 3), red)
-          ?.w,
-      ).toBeGreaterThan(20);
-      expect(bbox(shot, 0, 30, blue)).toEqual(aboutText);
-      if (id === "wrapped") expect(link.height).toBeGreaterThan(30);
-      for (let y = link.y; y < link.y + link.height; y += 30) {
-        const line = bbox(shot, Math.floor(y), Math.ceil(y + 30), red);
-        const text = bbox(shot, Math.floor(y), Math.ceil(y + 30), blue);
-        expect(line?.w).toBeGreaterThan(20);
-        expect(line?.h).toBeLessThanOrEqual(3);
-        if (!line || !text) throw new Error(`Missing underline or text for ${id}`);
-        expect(line.y).toBeGreaterThanOrEqual(text.y + text.h);
-      }
-      if (id !== "about") expect(bbox(shot, 0, 28, red)).toBeNull();
+      await assertFocusedLink(id);
     }
   } finally {
     await cdpSession.send("Kitesurf.stopSceneStream");
@@ -223,6 +239,14 @@ test("terminal focus underline reaches Wikipedia-style block labels", async ({
       );
     const before = await geometry();
     const red = (r: number, g: number, b: number) => r > 190 && g < 80 && b < 80;
+    const assertLabelUnderline = (line: ReturnType<typeof bbox>, selected: boolean) => {
+      if (selected) {
+        expect(line?.w).toBeGreaterThan(30);
+        expect(line?.h).toBeLessThanOrEqual(3);
+      } else {
+        expect(line).toBeNull();
+      }
+    };
     for (const id of ["english", "portuguese"]) {
       await cdpSession.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Tab" });
       expect(await page.evaluate(() => document.activeElement?.id)).toBe(id);
@@ -236,12 +260,7 @@ test("terminal focus underline reaches Wikipedia-style block labels", async ({
       const shot = await decodePng(new Uint8Array(await page.screenshot({ type: "png" })));
       for (const [index, label] of labels.entries()) {
         const line = bbox(shot, Math.floor(label.y), Math.ceil(label.y + label.height), red);
-        if (index === (id === "english" ? 0 : 1)) {
-          expect(line?.w).toBeGreaterThan(30);
-          expect(line?.h).toBeLessThanOrEqual(3);
-        } else {
-          expect(line).toBeNull();
-        }
+        assertLabelUnderline(line, index === (id === "english" ? 0 : 1));
       }
     }
   } finally {
@@ -294,6 +313,14 @@ test("terminal focus underlines cross Wikipedia footer and flex/grid link contai
       decodePng(new Uint8Array(await page.screenshot({ type: "png" })));
     const red = (r: number, g: number, b: number) => r > 190 && g < 80 && b < 80;
     const ink = (r: number, g: number, b: number) => b > r && r < 130 && g < 130;
+    const assertLabelUnderline = (line: ReturnType<typeof bbox>, selected: boolean) => {
+      if (selected) {
+        expect(line?.w).toBeGreaterThan(30);
+        expect(line?.h).toBeLessThanOrEqual(3);
+      } else {
+        expect(line).toBeNull();
+      }
+    };
     const original = await screenshot();
     expect(bbox(original, 0, 500, red)).toBeNull();
     for (const [id, modifiers] of [
@@ -333,12 +360,7 @@ test("terminal focus underlines cross Wikipedia footer and flex/grid link contai
           Math.floor(label.x + label.width),
         );
         expect(bbox(shot, top, bottom, ink)).toEqual(bbox(original, top, bottom, ink));
-        if (label.owner === id) {
-          expect(line?.w).toBeGreaterThan(30);
-          expect(line?.h).toBeLessThanOrEqual(3);
-        } else {
-          expect(line).toBeNull();
-        }
+        assertLabelUnderline(line, label.owner === id);
       }
     }
   } finally {
@@ -373,24 +395,30 @@ test("block decorations respect atomic and out-of-flow boundaries and parent opa
     }),
   );
   const shot = await decodePng(new Uint8Array(await page.screenshot({ type: "png" })));
+  const inRange = (value: number, min: number, max: number) => value > min && value < max;
+  const boundsWidth = (bounds: ReturnType<typeof bbox>) => bounds?.w;
+  const boundsHeight = (bounds: ReturnType<typeof bbox>) => bounds?.h;
   const fadedRed = (r: number, g: number, b: number) =>
     r > 240 && g > 110 && g < 145 && b > 110 && b < 145;
   const fadedGreen = (r: number, g: number, b: number) =>
-    r > 110 && r < 145 && g > 175 && g < 210 && b > 110 && b < 145;
-  for (const rect of rects) {
+    inRange(r, 110, 145) && inRange(g, 175, 210) && inRange(b, 110, 145);
+  const assertDecoration = (rect: (typeof rects)[number]) => {
     const line = bbox(shot, Math.floor(rect.y), Math.ceil(rect.y + rect.height + 4), fadedRed);
     if (rect.id === "flow") {
-      expect(line?.w).toBeGreaterThan(30);
-      expect(line?.h).toBeLessThanOrEqual(3);
+      expect(boundsWidth(line)).toBeGreaterThan(30);
+      expect(boundsHeight(line)).toBeLessThanOrEqual(3);
     } else {
       expect(line).toBeNull();
     }
     if (rect.id === "own") {
       expect(
-        bbox(shot, Math.floor(rect.y), Math.ceil(rect.y + rect.height + 4), fadedGreen)?.w,
+        boundsWidth(
+          bbox(shot, Math.floor(rect.y), Math.ceil(rect.y + rect.height + 4), fadedGreen),
+        ),
       ).toBeGreaterThan(30);
     }
-  }
+  };
+  for (const rect of rects) assertDecoration(rect);
 }, 120_000);
 
 test("Vim letters remain page keys without terminal mode", async ({ page, cdpSession }) => {

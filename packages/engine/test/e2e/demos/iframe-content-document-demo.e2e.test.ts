@@ -10,27 +10,62 @@ test("iframe-content-document-demo", async ({ page }) => {
   await page.goto(`${BASE}/__fixtures/iframe-host.html`, { timeout: 15000 });
 
   const probe = await page.evaluate(() => {
-    const f = document.querySelector('iframe[name="child-a"]') as HTMLIFrameElement;
-    const b = document.querySelector('iframe[name="child-b"]') as HTMLIFrameElement;
-    const cd = f && f.contentDocument;
-    const h1 = cd ? cd.querySelector("h1") : null;
+    const f = document.querySelector('iframe[name="child-a"]') as HTMLIFrameElement | null;
+    const b = document.querySelector('iframe[name="child-b"]') as HTMLIFrameElement | null;
+
+    function getContentDocument(frame: HTMLIFrameElement | null) {
+      return frame && frame.contentDocument;
+    }
+
+    function inspectFrame(frame: HTMLIFrameElement | null) {
+      const contentDocument = getContentDocument(frame);
+      return {
+        contentDocument,
+        hasContentDoc: !!contentDocument,
+        hasContentWin: !!(frame && frame.contentWindow),
+        tagName: frame && frame.tagName,
+      };
+    }
+
+    function describeHeading(contentDocument: Document | null) {
+      const heading = contentDocument && contentDocument.querySelector("h1");
+      return heading && { tag: heading.tagName, id: heading.id, text: heading.textContent };
+    }
+
+    function readBodyText(contentDocument: Document | null) {
+      const body = contentDocument && contentDocument.body;
+      return body && body.textContent.trim();
+    }
+
+    function inspectBlankFrame(frame: HTMLIFrameElement | null) {
+      const contentDocument = getContentDocument(frame);
+      const body = contentDocument && contentDocument.body;
+      return {
+        hasContentDoc: !!(frame && frame.contentDocument),
+        bodyChildren: body ? body.children.length : -1,
+      };
+    }
+
+    function windowsShareDocument(
+      frame: HTMLIFrameElement | null,
+      contentDocument: Document | null,
+    ) {
+      return !!(frame && frame.contentWindow && frame.contentWindow.document === contentDocument);
+    }
+
+    const sameOrigin = inspectFrame(f);
+    const contentDocument = sameOrigin.contentDocument;
     return {
       sameOrigin: {
-        hasContentDoc: !!cd,
-        hasContentWin: !!(f && f.contentWindow),
-        tagName: f && f.tagName,
+        hasContentDoc: sameOrigin.hasContentDoc,
+        hasContentWin: sameOrigin.hasContentWin,
+        tagName: sameOrigin.tagName,
       },
-      docUrl: cd && cd.URL,
-      heading: h1 && { tag: h1.tagName, id: h1.id, text: h1.textContent },
-      bodyText: cd && cd.body && cd.body.textContent.trim(),
-      blank: {
-        hasContentDoc: !!(b && b.contentDocument),
-        bodyChildren:
-          b && b.contentDocument && b.contentDocument.body
-            ? b.contentDocument.body.children.length
-            : -1,
-      },
-      winDocMatch: !!(f && f.contentWindow && f.contentWindow.document === cd),
+      docUrl: contentDocument && contentDocument.URL,
+      heading: describeHeading(contentDocument),
+      bodyText: readBodyText(contentDocument),
+      blank: inspectBlankFrame(b),
+      winDocMatch: windowsShareDocument(f, contentDocument),
     };
   });
 

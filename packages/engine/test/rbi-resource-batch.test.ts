@@ -66,6 +66,21 @@ function at<T>(list: T[], i: number): T {
   return v;
 }
 
+function imageFields(
+  batch: Uint8Array,
+  dv: DataView,
+  p: number,
+  len: number,
+  image: boolean,
+): { format: number; dims: number[]; body: Uint8Array } {
+  if (!image) return { format: -1, dims: [], body: new Uint8Array(0) };
+  return {
+    format: dv.getUint8(p + 13 + 8),
+    dims: [0, 4, 9, 13].map((o) => dv.getUint32(p + 13 + o, true)),
+    body: batch.subarray(p + 13 + 17, p + 13 + len),
+  };
+}
+
 function entries(batch: Uint8Array) {
   const dv = new DataView(batch.buffer, batch.byteOffset, batch.byteLength);
   const count = dv.getUint32(0, true);
@@ -84,12 +99,12 @@ function entries(batch: Uint8Array) {
     const len = dv.getUint32(p + 9, true);
     const kind = dv.getUint8(p);
     const image = kind === KIND_IMAGE && len >= 17;
+    const hash = dv.getBigUint64(p + 1, true);
+    const fields = imageFields(batch, dv, p, len, image);
     out.push({
       kind,
-      hash: dv.getBigUint64(p + 1, true),
-      format: image ? dv.getUint8(p + 13 + 8) : -1,
-      dims: image ? [0, 4, 9, 13].map((o) => dv.getUint32(p + 13 + o, true)) : [],
-      body: image ? batch.subarray(p + 13 + 17, p + 13 + len) : new Uint8Array(0),
+      hash,
+      ...fields,
       refType: dv.getUint8(p + 13),
       faceIndex: dv.getUint32(p + 13 + 1, true),
       fontBody: batch.subarray(p + 13 + 5, p + 13 + len),

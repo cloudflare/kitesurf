@@ -20,6 +20,24 @@ const FIXTURES_DIST = resolve(HERE, process.env.KS_E2E_FIXTURES_DIST ?? "test/e2
 type ModuleRule = Parameters<typeof compileModuleRules>[0][number];
 type WranglerWorkerOptions = ReturnType<typeof unstable_getMiniflareWorkerOptions>["workerOptions"];
 
+function defaultIfUndefined<T>(value: T | undefined, fallback: T): T {
+  return value ?? fallback;
+}
+
+function makeVitestOptions(opts: EngineE2EOptions) {
+  return {
+    // Vitest's default CSS stub would erase raw fixture response bytes.
+    css: { include: [/\.css\?raw$/] },
+    globalSetup: [resolve(HERE, "test/e2e/global-setup.ts")],
+    dir: defaultIfUndefined(opts.dir, HERE),
+    include: defaultIfUndefined(opts.include, ["test/e2e/**/*.e2e.test.ts"]),
+    ...(opts.exclude ? { exclude: opts.exclude } : {}),
+    isolate: false,
+    testTimeout: 120_000,
+    hookTimeout: 300_000,
+  };
+}
+
 function distModules(root: string, entry: string, rules: ModuleRule[]) {
   const compiled = compileModuleRules(rules);
   const modules = [{ type: "ESModule", path: resolve(root, entry) }];
@@ -118,7 +136,9 @@ export interface EngineE2EOptions {
   }>;
 }
 
-export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defineConfig> {
+type EngineBindings = Record<string, unknown>;
+
+function setE2eEnvironment(opts: EngineE2EOptions): void {
   process.env.KS_E2E_WRANGLER_CONFIG = opts.wranglerConfig;
   process.env.KS_E2E_ENGINE_DIST = opts.engineDist;
   process.env.KS_E2E_FIXTURE_WORKER_BUILDS = JSON.stringify(
@@ -127,8 +147,9 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
       outdir,
     })),
   );
-  const { workerOptions } = unstable_getMiniflareWorkerOptions(opts.wranglerConfig);
-  const wo = workerOptions as Record<string, unknown>;
+}
+
+function configureEngineBindings(opts: EngineE2EOptions, wo: EngineBindings): EngineBindings {
   if (opts.engineDurableObjects) {
     const existing = wo.durableObjects;
     wo.durableObjects = {
@@ -153,31 +174,33 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
     ...opts.engineBindings,
   };
   wo.bindings = engineBindings;
-  const ENGINE_RULES: ModuleRule[] = [
-    { type: "CompiledWasm", include: ["**/*.wasm"] },
-    { type: "Text", include: ["**/*.glue.js", "*.css", "**/*.css"] },
-    // Wrangler bundles *.bin as Data by default; wrapping engines ship such modules.
-    { type: "Data", include: ["**/*.woff2", "**/*.bin"] },
-  ];
+  return engineBindings;
+}
 
-  function engineWorkerOptions(name: string, outboundService: string, bindings = engineBindings) {
-    return {
-      ...wo,
-      bindings,
-      name,
-      modulesRoot: opts.engineDist,
-      script: undefined,
-      modulesRules: undefined,
-      get modules() {
-        return distModules(opts.engineDist, "index.js", ENGINE_RULES);
-      },
-      outboundService,
-    };
-  }
+function makeEngineWorkerOptions(
+  opts: EngineE2EOptions,
+  wo: EngineBindings,
+  bindings: EngineBindings,
+  name: string,
+  outboundService: string,
+  rules: ModuleRule[],
+) {
+  return {
+    ...wo,
+    bindings,
+    name,
+    modulesRoot: opts.engineDist,
+    script: undefined,
+    modulesRules: undefined,
+    get modules() {
+      return distModules(opts.engineDist, "index.js", rules);
+    },
+    outboundService,
+  };
+}
 
-  const engineWorker = engineWorkerOptions("kitesurf-engine", "kitesurf-engine");
-
-  const fixtureWorkers: object[] = (opts.fixtureWorkers ?? []).map((fixtureWorker) => ({
+function makeFixtureWorkerOptions(opts: EngineE2EOptions): object[] {
+  return (opts.fixtureWorkers ?? []).map((fixtureWorker) => ({
     name: fixtureWorker.name,
     modulesRoot: fixtureWorker.outdir,
     compatibilityDate: "2026-09-11",
@@ -188,28 +211,39 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
       return distModules(fixtureWorker.outdir, "index.js", FIXTURES_RULES);
     },
   }));
+}
 
-  // Keep modules lazy: global setup replaces the dist before the pool starts.
-  // Spreading these options would snapshot the previous build's module paths.
-  const noInspectorEngineWorker = engineWorkerOptions(
-    "kitesurf-engine-no-inspector",
-    "kitesurf-engine-no-inspector",
-    { ...engineBindings, KITESURF_INSPECTOR_BASE_URL: "" },
+function makeExtraEngineWorkers(
+  opts: EngineE2EOptions,
+  wo: EngineBindings,
+  engineBindings: EngineBindings,
+  rules: ModuleRule[],
+): object[] {
+  return (opts.extraEngines ?? []).map((engine) =>
+    makeEngineWorkerOptions(
+      opts,
+      wo,
+      { ...engineBindings, ...engine.bindings },
+      engine.name,
+      engine.outboundService,
+      rules,
+    ),
   );
+}
 
-  const extraEngineWorkers = (opts.extraEngines ?? []).map((engine) =>
-    engineWorkerOptions(engine.name, engine.outboundService, {
-      ...engineBindings,
-      ...engine.bindings,
-    }),
-  );
-
+function makeEngineE2eConfig(
+  opts: EngineE2EOptions,
+  engineWorker: object,
+  noInspectorEngineWorker: object,
+  extraEngineWorkers: object[],
+  fixtureWorkers: object[],
+): ReturnType<typeof defineConfig> {
   return defineConfig({
     plugins: [
       cloudflareTest({
         miniflare: {
           compatibilityDate: "2026-09-11",
-          bindings: opts.bindings ?? {},
+          bindings: defaultIfUndefined(opts.bindings, {}),
           serviceBindings: {
             ENGINE: "kitesurf-engine",
             ENGINE_NO_INSPECTOR: "kitesurf-engine-no-inspector",
@@ -223,7 +257,7 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
             noInspectorEngineWorker as never,
             ...(extraEngineWorkers as never[]),
             fixturesWorker as never,
-            ...((opts.workers ?? []).concat(fixtureWorkers) as never[]),
+            ...(defaultIfUndefined(opts.workers, []).concat(fixtureWorkers) as never[]),
             otlpCaptureWorker as never,
             coreWasmWorker as never,
             sceneHostWorker as never,
@@ -231,18 +265,52 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
         },
       }),
     ],
-    test: {
-      // Vitest's default CSS stub would erase raw fixture response bytes.
-      css: { include: [/\.css\?raw$/] },
-      globalSetup: [resolve(HERE, "test/e2e/global-setup.ts")],
-      dir: opts.dir ?? HERE,
-      include: opts.include ?? ["test/e2e/**/*.e2e.test.ts"],
-      ...(opts.exclude ? { exclude: opts.exclude } : {}),
-      isolate: false,
-      testTimeout: 120_000,
-      hookTimeout: 300_000,
-    },
+    test: makeVitestOptions(opts),
   });
+}
+
+export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defineConfig> {
+  setE2eEnvironment(opts);
+  const { workerOptions } = unstable_getMiniflareWorkerOptions(opts.wranglerConfig);
+  const wo = workerOptions as EngineBindings;
+  const engineBindings = configureEngineBindings(opts, wo);
+  const ENGINE_RULES: ModuleRule[] = [
+    { type: "CompiledWasm", include: ["**/*.wasm"] },
+    { type: "Text", include: ["**/*.glue.js", "*.css", "**/*.css"] },
+    // Wrangler bundles *.bin as Data by default; wrapping engines ship such modules.
+    { type: "Data", include: ["**/*.woff2", "**/*.bin"] },
+  ];
+
+  const engineWorker = makeEngineWorkerOptions(
+    opts,
+    wo,
+    engineBindings,
+    "kitesurf-engine",
+    "kitesurf-engine",
+    ENGINE_RULES,
+  );
+  const fixtureWorkerOptions = makeFixtureWorkerOptions(opts);
+
+  // Keep modules lazy: global setup replaces the dist before the pool starts.
+  // Spreading these options would snapshot the previous build's module paths.
+  const noInspectorEngineWorker = makeEngineWorkerOptions(
+    opts,
+    wo,
+    { ...engineBindings, KITESURF_INSPECTOR_BASE_URL: "" },
+    "kitesurf-engine-no-inspector",
+    "kitesurf-engine-no-inspector",
+    ENGINE_RULES,
+  );
+
+  const extraEngineWorkers = makeExtraEngineWorkers(opts, wo, engineBindings, ENGINE_RULES);
+
+  return makeEngineE2eConfig(
+    opts,
+    engineWorker,
+    noInspectorEngineWorker,
+    extraEngineWorkers,
+    fixtureWorkerOptions,
+  );
 }
 
 export default engineE2EConfig({

@@ -5,6 +5,50 @@
 import { test } from "../harness";
 import { targetIdForSession } from "../connect";
 
+type DomSummaryNode = {
+  nodeType?: number;
+  nodeName?: string;
+  attributes?: string[];
+  children?: DomSummaryNode[];
+};
+
+function formatAttributes(attributes: string[] | undefined): string[] {
+  const summary: string[] = [];
+  const values = attributes ?? [];
+  for (let i = 0; i + 1 < values.length; i += 2) {
+    summary.push(values[i] + "=" + JSON.stringify(values[i + 1]));
+  }
+  return summary;
+}
+
+function summarizeElement(node: DomSummaryNode): string {
+  const attributes = formatAttributes(node.attributes);
+  const children = node.children ? node.children.length : 0;
+  return (
+    node.nodeName +
+    (attributes.length ? "[" + attributes.join(",") + "]" : "") +
+    " kids=" +
+    children
+  );
+}
+
+function appendDomSummary(node: DomSummaryNode | null | undefined, summary: string[]): void {
+  if (!node) return;
+  if (node.nodeType === 1) summary.push(summarizeElement(node));
+  for (const child of node.children ?? []) appendDomSummary(child, summary);
+}
+
+function logDocumentSummary(docNode: { error?: string; root?: DomSummaryNode }): void {
+  if (docNode && docNode.root) {
+    const summary: string[] = [];
+    appendDomSummary(docNode.root, summary);
+    console.log("[probe] DOM summary:");
+    for (const line of summary.slice(0, 20)) console.log("  ", line);
+  } else {
+    console.log("[probe] DOM.getDocument failed:", JSON.stringify(docNode));
+  }
+}
+
 test("script-execution-probe", async ({ page }) => {
   const FIXTURE_URL =
     process.env.KITESURF_FIXTURE ?? "http://127.0.0.1:8787/__fixtures/lifecycle.html";
@@ -36,29 +80,5 @@ test("script-execution-probe", async ({ page }) => {
   const docNode = await session
     .send("DOM.getDocument", { depth: -1 })
     .catch((err): { error: string; root?: undefined } => ({ error: err && err.message }));
-  if (docNode && docNode.root) {
-    const summary = [];
-    const walk = (n) => {
-      if (!n) return;
-      if (n.nodeType === 1) {
-        const attrs = [];
-        const a = n.attributes || [];
-        for (let i = 0; i + 1 < a.length; i += 2) {
-          attrs.push(a[i] + "=" + JSON.stringify(a[i + 1]));
-        }
-        summary.push(
-          n.nodeName +
-            (attrs.length ? "[" + attrs.join(",") + "]" : "") +
-            " kids=" +
-            (n.children ? n.children.length : 0),
-        );
-      }
-      if (n.children) for (const k of n.children) walk(k);
-    };
-    walk(docNode.root);
-    console.log("[probe] DOM summary:");
-    for (const line of summary.slice(0, 20)) console.log("  ", line);
-  } else {
-    console.log("[probe] DOM.getDocument failed:", JSON.stringify(docNode));
-  }
+  logDocumentSummary(docNode);
 });

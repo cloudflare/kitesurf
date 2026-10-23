@@ -43,28 +43,32 @@ test("a selected attribute added to an earlier option wins a single select", asy
     <select id=k><option>A<option selected>B<option>C</select>`,
   );
   const state = await page.evaluate(() => {
+    const areSelects = (
+      values: (HTMLElement | null)[],
+    ): values is [HTMLSelectElement, HTMLSelectElement, HTMLSelectElement] =>
+      values.length === 3 && values.every((value) => value instanceof HTMLSelectElement);
+    const setSelected = (option: HTMLOptionElement | undefined) => {
+      option?.setAttribute("selected", "");
+    };
+    const moveSelected = (option: HTMLOptionElement | undefined) => {
+      option?.removeAttribute("selected");
+      option?.setAttribute("selected", "");
+    };
     const pick = (id: string) => {
       const s = document.getElementById(id);
       return s instanceof HTMLSelectElement
         ? [s.value, s.selectedIndex, ...[...s.options].map((o) => o.selected)]
         : null;
     };
-    const [a, d, k] = ["a", "d", "k"].map((id) => document.getElementById(id));
-    if (
-      !(
-        a instanceof HTMLSelectElement &&
-        d instanceof HTMLSelectElement &&
-        k instanceof HTMLSelectElement
-      )
-    )
-      return null;
-    a.options[0]?.setAttribute("selected", "");
+    const selects = ["a", "d", "k"].map((id) => document.getElementById(id));
+    if (!areSelects(selects)) return null;
+    const [a, d, k] = selects;
+    setSelected(a.options[0]);
     const opt = d.options[0];
     if (opt) opt.defaultSelected = true;
-    k.options[0]?.setAttribute("selected", "");
+    setSelected(k.options[0]);
     const afterFirst = pick("k");
-    k.options[1]?.removeAttribute("selected");
-    k.options[1]?.setAttribute("selected", "");
+    moveSelected(k.options[1]);
     return { a: pick("a"), d: pick("d"), kFirst: afterFirst, kBack: pick("k") };
   });
   expect(state).toEqual({

@@ -98,13 +98,17 @@ test("a held method keeps its receiver after the receiver's proxy is collected",
   await page.evaluate(() => 0);
   await forceCollect(page);
   const mark = await page.evaluate(() => {
-    const mkObj: unknown = Reflect.get(globalThis, "mkObj");
-    if (typeof mkObj !== "function") throw new Error("missing mkObj");
+    function requireFunction(value: unknown, message: string): Function {
+      if (typeof value !== "function") throw new Error(message);
+      return value;
+    }
+
+    const mkObj = requireFunction(Reflect.get(globalThis, "mkObj"), "missing mkObj");
     for (let i = 100; i < 2100; i++) mkObj(i).mark; // reuses any released pin slot
     const holder: unknown = Reflect.get(globalThis, "holder");
-    const m: unknown =
+    const method: unknown =
       typeof holder === "object" && holder !== null ? Reflect.get(holder, "m") : undefined;
-    if (typeof m !== "function") throw new Error("holder.m is not a function");
+    const m = requireFunction(method, "holder.m is not a function");
     return Reflect.apply(m, undefined, []);
   });
   expect(mark).toBe(7);

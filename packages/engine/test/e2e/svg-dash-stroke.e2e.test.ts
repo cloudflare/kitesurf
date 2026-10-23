@@ -6,6 +6,11 @@ import { expect, test } from "./harness";
 import { setContent } from "./set-content";
 import { decodePng } from "./png";
 
+function isDarkPixel(png: Awaited<ReturnType<typeof decodePng>>, index: number): boolean {
+  const channel = (offset: number) => png.data[index + offset] ?? 255;
+  return channel(0) < 100 && channel(1) < 100 && channel(2) < 100;
+}
+
 function inkRuns(
   png: Awaited<ReturnType<typeof decodePng>>,
   y: number,
@@ -15,9 +20,7 @@ function inkRuns(
   let inRun = false;
   for (let x = 0; x < png.width; x++) {
     const i = (y * png.width + x) * 4;
-    const px = (o: number) => png.data[i + o] ?? 255;
-    const dark = px(0) < 100 && px(1) < 100 && px(2) < 100;
-    if (dark) {
+    if (isDarkPixel(png, i)) {
       ink++;
       if (!inRun) runs++;
       inRun = true;

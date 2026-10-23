@@ -37,9 +37,9 @@ export function isPublicSuffix(domain: string): boolean {
   if (!h) return true;
   if (isIpHost(h)) return false;
   const labels = h.split(".");
-  if (labels.length === 1) return true;
-  if (labels.length === 2 && MULTI_LABEL_SUFFIX_HEADS.has(labels[0] ?? "")) {
-    return true;
-  }
-  return false;
+  return labels.length === 1 || isBareMultiLabelSuffix(labels);
+}
+
+function isBareMultiLabelSuffix(labels: string[]): boolean {
+  return labels.length === 2 && MULTI_LABEL_SUFFIX_HEADS.has(labels[0] ?? "");
 }

@@ -17,6 +17,18 @@ const TO = "https://ks.invalid/__fixtures/keyboard.html";
 
 const PROBE = `JSON.stringify({ doc: typeof document, url: location.href })`;
 
+function exceptionDescription(details: NonNullable<EvalResult["exceptionDetails"]>): string {
+  return details.exception?.description ?? details.text ?? "exception";
+}
+
+function recordEvaluationResult(result: EvalResult, replies: string[], errors: string[]): void {
+  if (result.exceptionDetails) {
+    errors.push(exceptionDescription(result.exceptionDetails));
+  } else {
+    replies.push(String(result.result?.value));
+  }
+}
+
 async function hammerEvaluateDuring(
   cdp: { send(method: string, params?: object): Promise<unknown> },
   op: Promise<unknown>,
@@ -34,13 +46,7 @@ async function hammerEvaluateDuring(
         expression: PROBE,
         returnByValue: true,
       })) as EvalResult;
-      if (r.exceptionDetails) {
-        errors.push(
-          r.exceptionDetails.exception?.description ?? r.exceptionDetails.text ?? "exception",
-        );
-      } else {
-        replies.push(String(r.result?.value));
-      }
+      recordEvaluationResult(r, replies, errors);
     } catch (e) {
       errors.push(String(e));
     }

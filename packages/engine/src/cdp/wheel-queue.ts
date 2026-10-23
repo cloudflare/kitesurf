@@ -47,7 +47,19 @@ export class WheelQueue {
 
   enqueue(init: MouseEventInit): Promise<void> {
     if (!this.isAccepting) return Promise.resolve();
+    return this.#enqueueAccepted(init);
+  }
 
+  #enqueueAccepted(init: MouseEventInit): Promise<void> {
+    const batch = this.#coalesceOrCreate(init);
+    batch.deltaX += typeof init.deltaX === "number" ? init.deltaX : 0;
+    batch.deltaY += typeof init.deltaY === "number" ? init.deltaY : 0;
+    const reply = new Promise<void>((resolve) => batch.pending.push(resolve));
+    if (!this.#draining && this.#scheduled === null) void this.#drain();
+    return reply;
+  }
+
+  #coalesceOrCreate(init: MouseEventInit): WheelBatch {
     const last = this.#batches[this.#batches.length - 1];
     let batch = last && "kind" in last ? undefined : last;
     if (!batch || !canCoalesceWheel(batch.init, init)) {
@@ -56,11 +68,7 @@ export class WheelQueue {
     } else {
       batch.init = init;
     }
-    batch.deltaX += typeof init.deltaX === "number" ? init.deltaX : 0;
-    batch.deltaY += typeof init.deltaY === "number" ? init.deltaY : 0;
-    const reply = new Promise<void>((resolve) => batch.pending.push(resolve));
-    if (!this.#draining && this.#scheduled === null) void this.#drain();
-    return reply;
+    return batch;
   }
 
   async fence(): Promise<(() => void) | null> {
@@ -92,10 +100,16 @@ export class WheelQueue {
   async flush(): Promise<void> {
     if (!this.#draining && this.#batches.length === 0) return;
     this.#clearScheduled();
-    while (this.#draining || this.#batches.length > 0) {
-      if (this.#draining) await this.#draining;
-      if (this.#batches.length > 0) await this.#drain();
-    }
+    await this.#drainUntilIdle();
+  }
+
+  async #drainUntilIdle(): Promise<void> {
+    while (this.#draining || this.#batches.length > 0) await this.#drainStep();
+  }
+
+  async #drainStep(): Promise<void> {
+    if (this.#draining) await this.#draining;
+    if (this.#batches.length > 0) await this.#drain();
   }
 
   async stop(): Promise<void> {
@@ -180,13 +194,21 @@ function queuesFor(
   sessionId: string | undefined,
   create: boolean,
 ): WheelQueue[] {
-  let store = stores.get(browser);
-  if (!store) {
-    if (!create) return [];
-    store = new Map();
-    stores.set(browser, store);
-  }
+  const store = queueStoreFor(browser, create);
+  if (!store) return [];
   const queueKey = key(targetId, sessionId);
+  return queuesFromStore(store, queueKey, create);
+}
+
+function queueStoreFor(browser: BrowserState, create: boolean): QueueStore | undefined {
+  let store = stores.get(browser);
+  if (store || !create) return store;
+  store = new Map();
+  stores.set(browser, store);
+  return store;
+}
+
+function queuesFromStore(store: QueueStore, queueKey: string, create: boolean): WheelQueue[] {
   let queues = store.get(queueKey);
   if (!queues && create) {
     queues = [];
@@ -223,11 +245,12 @@ export function removeWheelQueue(
   queue: WheelQueue,
 ): void {
   const store = stores.get(browser);
-  const queues = store?.get(key(targetId, sessionId));
+  if (!store) return;
+  const queueKey = key(targetId, sessionId);
+  const queues = store.get(queueKey);
   if (!queues) return;
-  const index = queues.indexOf(queue);
-  if (index !== -1) queues.splice(index, 1);
-  if (queues.length === 0) store?.delete(key(targetId, sessionId));
+  removeFromQueueList(queues, queue);
+  deleteEmptyQueueList(store, queueKey, queues);
 }
 
 export function moveWheelQueue(
@@ -240,19 +263,9 @@ export function moveWheelQueue(
   const store = stores.get(browser);
   if (!store) return;
   const fromKey = key(targetId, fromSessionId);
-  const from = store.get(fromKey);
-  if (from) {
-    const index = from.indexOf(queue);
-    if (index !== -1) from.splice(index, 1);
-    if (from.length === 0) store.delete(fromKey);
-  }
+  removeQueueFromStore(store, fromKey, queue);
   const toKey = key(targetId, toSessionId);
-  let to = store.get(toKey);
-  if (!to) {
-    to = [];
-    store.set(toKey, to);
-  }
-  if (!to.includes(queue)) to.push(queue);
+  addQueueToStore(store, toKey, queue);
 }
 
 export function stopAndRemoveWheelQueue(
@@ -272,24 +285,7 @@ export async function cancelAndRemoveTargetWheelQueues(
   const store = stores.get(browser);
   if (!store) return;
   const prefix = `${targetId}\u0000`;
-  for (;;) {
-    const queues = new Set<WheelQueue>();
-    for (const [queueKey, slot] of store) {
-      if (queueKey.startsWith(prefix)) {
-        for (const queue of slot) queues.add(queue);
-      }
-    }
-    if (queues.size === 0) return;
-    await Promise.all([...queues].map((queue) => queue.cancel()));
-    for (const [queueKey, slot] of store) {
-      if (!queueKey.startsWith(prefix)) continue;
-      for (let i = slot.length - 1; i >= 0; i--) {
-        const queue = slot[i];
-        if (queue && queues.has(queue)) slot.splice(i, 1);
-      }
-      if (slot.length === 0) store.delete(queueKey);
-    }
-  }
+  while (await cancelTargetQueueBatch(store, prefix)) {}
 }
 
 export async function flushWheelQueues(
@@ -353,16 +349,88 @@ export async function waitForWheelHandoffDrain(
 
 function canCoalesceWheel(previous: MouseEventInit, next: MouseEventInit): boolean {
   return (
+    sameWheelModifiers(previous, next) &&
+    sameWheelPosition(previous, next) &&
+    sameWheelButtons(previous, next) &&
+    previous.deltaMode === next.deltaMode
+  );
+}
+
+function sameWheelModifiers(previous: MouseEventInit, next: MouseEventInit): boolean {
+  return (
     previous.altKey === next.altKey &&
     previous.ctrlKey === next.ctrlKey &&
     previous.metaKey === next.metaKey &&
-    previous.shiftKey === next.shiftKey &&
-    previous.clientX === next.clientX &&
-    previous.clientY === next.clientY &&
-    previous.button === next.button &&
-    previous.buttons === next.buttons &&
-    previous.deltaMode === next.deltaMode
+    previous.shiftKey === next.shiftKey
   );
+}
+
+function sameWheelPosition(previous: MouseEventInit, next: MouseEventInit): boolean {
+  return previous.clientX === next.clientX && previous.clientY === next.clientY;
+}
+
+function sameWheelButtons(previous: MouseEventInit, next: MouseEventInit): boolean {
+  return previous.button === next.button && previous.buttons === next.buttons;
+}
+
+function removeFromQueueList(queues: WheelQueue[], queue: WheelQueue): void {
+  const index = queues.indexOf(queue);
+  if (index !== -1) queues.splice(index, 1);
+}
+
+function deleteEmptyQueueList(store: QueueStore, queueKey: string, queues: WheelQueue[]): void {
+  if (queues.length === 0) store.delete(queueKey);
+}
+
+function removeQueueFromStore(store: QueueStore, queueKey: string, queue: WheelQueue): void {
+  const queues = store.get(queueKey);
+  if (!queues) return;
+  removeFromQueueList(queues, queue);
+  deleteEmptyQueueList(store, queueKey, queues);
+}
+
+function addQueueToStore(store: QueueStore, queueKey: string, queue: WheelQueue): void {
+  let queues = store.get(queueKey);
+  if (!queues) {
+    queues = [];
+    store.set(queueKey, queues);
+  }
+  if (!queues.includes(queue)) queues.push(queue);
+}
+
+async function cancelTargetQueueBatch(store: QueueStore, prefix: string): Promise<boolean> {
+  const queues = collectTargetQueues(store, prefix);
+  if (queues.size === 0) return false;
+  await Promise.all([...queues].map((queue) => queue.cancel()));
+  removeTargetQueues(store, prefix, queues);
+  return true;
+}
+
+function collectTargetQueues(store: QueueStore, prefix: string): Set<WheelQueue> {
+  const queues = new Set<WheelQueue>();
+  for (const [queueKey, slot] of store) {
+    if (queueKey.startsWith(prefix)) addQueues(queues, slot);
+  }
+  return queues;
+}
+
+function addQueues(queues: Set<WheelQueue>, slot: WheelQueue[]): void {
+  for (const queue of slot) queues.add(queue);
+}
+
+function removeTargetQueues(store: QueueStore, prefix: string, queues: Set<WheelQueue>): void {
+  for (const [queueKey, slot] of store) {
+    if (!queueKey.startsWith(prefix)) continue;
+    removeMatchingQueues(slot, queues);
+    if (slot.length === 0) store.delete(queueKey);
+  }
+}
+
+function removeMatchingQueues(slot: WheelQueue[], queues: Set<WheelQueue>): void {
+  for (let i = slot.length - 1; i >= 0; i--) {
+    const queue = slot[i];
+    if (queue && queues.has(queue)) slot.splice(i, 1);
+  }
 }
 
 function settle(batch: WheelBatch): void {

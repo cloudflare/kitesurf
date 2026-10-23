@@ -80,6 +80,15 @@ function normalizeHost(host: string): string {
   return h.endsWith(".") ? h.slice(0, -1) : h;
 }
 
+function parseHttpUrl(url: string): URL | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Classifies an http(s) URL against a host blocker. Other schemes, unparseable
  * URLs and an absent blocker are never blocked.
@@ -91,13 +100,8 @@ export function classifyRequest(
   resourceType: ResourceType,
 ): RequestBlockVerdict | null {
   if (!blocker) return null;
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+  const parsed = parseHttpUrl(url);
+  if (!parsed) return null;
   const host = normalizeHost(parsed.hostname);
   if (!host) return null;
   const page = normalizeHost(pageHost);

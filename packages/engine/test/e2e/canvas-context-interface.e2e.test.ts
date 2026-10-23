@@ -34,6 +34,36 @@ const html = `<canvas id=c width=4 height=4></canvas>
   })();
 </script>`;
 
+test("setTransform reads matrix members before numeric coercion", async ({ page }) => {
+  await setContent(page, "<canvas></canvas>");
+  const result = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("missing 2D context");
+    const reads: string[] = [];
+    let b = 2;
+    const matrix = {
+      get a() {
+        reads.push("a");
+        return {
+          valueOf() {
+            reads.push("coerce a");
+            b = 42;
+            return 1;
+          },
+        };
+      },
+      get b() {
+        reads.push("b");
+        return b;
+      },
+    };
+    Reflect.apply(context.setTransform, context, [matrix]);
+    return { reads, b: context.getTransform().b };
+  });
+  expect(result).toEqual({ reads: ["a", "b", "coerce a"], b: 2 });
+});
+
 test("2D contexts are CanvasRenderingContext2D instances", async ({ page, cdpSession }) => {
   await setContent(page, html, { waitUntil: "domcontentloaded" });
   expect(await readJsonReport(cdpSession, "globalThis.__ctxReport")).toEqual({

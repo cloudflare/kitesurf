@@ -55,6 +55,40 @@ export interface GatedImportMap {
   scriptDomIndex: number;
 }
 
+function warnBlockedImportMap(reason: string | undefined, message: string | undefined): void {
+  console.warn(
+    `[kitesurf-csp] blocked (${reason ?? "csp"}) import map: ` + (message ?? "blocked by policy"),
+  );
+}
+
+async function gateImportMap(
+  map: DocScan["importMaps"][number],
+  gate: ScriptGateContext,
+  pageUrl: string,
+): Promise<GatedImportMap | null> {
+  if (!scriptGateIsNoop(gate)) {
+    const decision = await checkScriptBeforeFetch(gate, {
+      url: null,
+      nonce: map.nonce,
+      body: map.body,
+      runtimeInserted: false,
+      module: false,
+    });
+    if (decision.reportOnly) {
+      console.warn(`[kitesurf-csp] ${decision.reportOnly}`);
+    }
+    if (!decision.allowed) {
+      warnBlockedImportMap(decision.reason, decision.message);
+      return null;
+    }
+  }
+  return {
+    source: map.body,
+    baseUrl: documentBaseUrl(pageUrl, map.baseHref),
+    scriptDomIndex: map.scriptDomIndex,
+  };
+}
+
 export async function applyImportMapGate(
   importMaps: readonly DocScan["importMaps"][number][],
   gate: ScriptGateContext,
@@ -62,32 +96,65 @@ export async function applyImportMapGate(
 ): Promise<GatedImportMap[]> {
   const out: GatedImportMap[] = [];
   for (const map of importMaps) {
-    if (!scriptGateIsNoop(gate)) {
-      const decision = await checkScriptBeforeFetch(gate, {
-        url: null,
-        nonce: map.nonce,
-        body: map.body,
-        runtimeInserted: false,
-        module: false,
-      });
-      if (decision.reportOnly) {
-        console.warn(`[kitesurf-csp] ${decision.reportOnly}`);
-      }
-      if (!decision.allowed) {
-        console.warn(
-          `[kitesurf-csp] blocked (${decision.reason ?? "csp"}) import map: ` +
-            (decision.message ?? "blocked by policy"),
-        );
-        continue;
-      }
-    }
-    out.push({
-      source: map.body,
-      baseUrl: documentBaseUrl(pageUrl, map.baseHref),
-      scriptDomIndex: map.scriptDomIndex,
-    });
+    const gated = await gateImportMap(map, gate, pageUrl);
+    if (gated !== null) out.push(gated);
   }
   return out;
+}
+
+function scriptUrlForGate(
+  descriptor: ParentScriptDescriptor,
+  baseUrl: string,
+): { kind: "skip" } | { kind: "check"; url: string | null } {
+  if (!descriptor.src) return { kind: "check", url: null };
+  const url = resolveScriptUrl(descriptor.src, baseUrl);
+  if (url === null) return { kind: "skip" };
+  return { kind: "check", url };
+}
+
+function scriptGateInput(
+  descriptor: ParentScriptDescriptor,
+  url: string | null,
+): Parameters<typeof checkScriptBeforeFetch>[1] {
+  return {
+    url,
+    integrity: descriptor.integrity ?? null,
+    nonce: descriptor.nonce ?? null,
+    body: descriptor.src ? "" : (descriptor.body ?? ""),
+    runtimeInserted: false,
+    module: descriptor.kind === "module",
+  };
+}
+
+function warnReportOnly(reportOnly: string | undefined): void {
+  console.warn(`[kitesurf-csp] ${reportOnly}`);
+}
+
+function applyScriptGateDecision(
+  descriptor: ParentScriptDescriptor,
+  decision: Awaited<ReturnType<typeof checkScriptBeforeFetch>>,
+): void {
+  if (!decision.allowed) {
+    descriptor.blocked = {
+      reason: decision.reason ?? "csp",
+      message: decision.message ?? "blocked by policy",
+    };
+    return;
+  }
+  if (decision.upgradeTo) descriptor.resolvedSrc = decision.upgradeTo;
+}
+
+async function gateScriptDescriptor(
+  descriptor: ParentScriptDescriptor,
+  gate: ScriptGateContext,
+  baseUrl: string,
+): Promise<void> {
+  if (descriptor.injected === true) return;
+  const url = scriptUrlForGate(descriptor, baseUrl);
+  if (url.kind === "skip") return;
+  const decision = await checkScriptBeforeFetch(gate, scriptGateInput(descriptor, url.url));
+  if (decision.reportOnly) warnReportOnly(decision.reportOnly);
+  applyScriptGateDecision(descriptor, decision);
 }
 
 export async function applyPreFetchScriptGate(
@@ -98,31 +165,6 @@ export async function applyPreFetchScriptGate(
   const out = descriptors.map((d) => ({ ...d }));
   if (scriptGateIsNoop(gate)) return out;
 
-  await Promise.all(
-    out.map(async (d) => {
-      if (d.injected === true) return;
-      const url = d.src ? resolveScriptUrl(d.src, baseUrl) : null;
-      if (d.src && url === null) return;
-      const decision = await checkScriptBeforeFetch(gate, {
-        url,
-        integrity: d.integrity ?? null,
-        nonce: d.nonce ?? null,
-        body: d.src ? "" : (d.body ?? ""),
-        runtimeInserted: false,
-        module: d.kind === "module",
-      });
-      if (decision.reportOnly) {
-        console.warn(`[kitesurf-csp] ${decision.reportOnly}`);
-      }
-      if (!decision.allowed) {
-        d.blocked = {
-          reason: decision.reason ?? "csp",
-          message: decision.message ?? "blocked by policy",
-        };
-        return;
-      }
-      if (decision.upgradeTo) d.resolvedSrc = decision.upgradeTo;
-    }),
-  );
+  await Promise.all(out.map((descriptor) => gateScriptDescriptor(descriptor, gate, baseUrl)));
   return out;
 }

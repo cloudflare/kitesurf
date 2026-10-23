@@ -73,11 +73,10 @@ test("ctx.fill(Path2D) paints the path and keeps the default path", async ({ pag
   );
   await new Promise((r) => setTimeout(r, 300));
   const png = await decodePng(new Uint8Array(await page.screenshot({ encoding: "binary" })));
+  const channel = (index: number, fallback: number) => png.data[index] ?? fallback;
   const redAt = (x: number, y: number) => {
     const i = (y * png.width + x) * 4;
-    return (
-      (png.data[i] ?? 0) > 150 && (png.data[i + 1] ?? 255) < 80 && (png.data[i + 2] ?? 255) < 80
-    );
+    return channel(i, 0) > 150 && channel(i + 1, 255) < 80 && channel(i + 2, 255) < 80;
   };
   expect(redAt(20, 20)).toBe(true);
   expect(redAt(120, 20)).toBe(true);

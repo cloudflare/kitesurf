@@ -5,6 +5,37 @@
 import { expect, test } from "../harness";
 import expectedCss from "../../fixtures-worker/assets/external-sheet.css?raw";
 
+function lowercaseHeaders(headers) {
+  const lower = {};
+  for (const [key, value] of Object.entries(headers)) lower[key.toLowerCase()] = value;
+  return lower;
+}
+
+function assertBrowserHeaders(headers): void {
+  expect(
+    typeof headers["user-agent"] === "string" && headers["user-agent"].includes("Mozilla"),
+    "user-agent header is set to a real browser-shaped UA",
+  ).toBeTruthy();
+  expect(headers.accept, "accept header is the stylesheet-specific value").toBe(
+    "text/css,*/*;q=0.1",
+  );
+  expect(
+    typeof headers["accept-language"] === "string" && headers["accept-language"].length > 0,
+    "accept-language header is set",
+  ).toBeTruthy();
+  expect(
+    typeof headers.referer === "string" && headers.referer.includes("127.0.0.1:8787"),
+    "referer header is set to the document origin",
+  ).toBeTruthy();
+}
+
+function assertNonEmptyBody(body): void {
+  expect(
+    typeof body.body === "string" && body.body.length > 0,
+    "Network.getResponseBody returns non-empty body",
+  ).toBeTruthy();
+}
+
 test("network-stylesheet-headers-demo", async ({ page }) => {
   const FIXTURE_URL = "http://127.0.0.1:8787/__fixtures/external-sheet.html";
   const SHEET_URL = "http://127.0.0.1:8787/__fixtures/external-sheet.css";
@@ -26,9 +57,7 @@ test("network-stylesheet-headers-demo", async ({ page }) => {
 
   expect(cssRequest, "captured Network.requestWillBeSent for the stylesheet").toBeTruthy();
 
-  const headers = cssRequest.request.headers;
-  const lower = {};
-  for (const [k, v] of Object.entries(headers)) lower[k.toLowerCase()] = v;
+  const lower = lowercaseHeaders(cssRequest.request.headers);
 
   const kitesurfKeys = Object.keys(lower).filter((k) => k.startsWith("x-kitesurf-"));
   expect(
@@ -36,29 +65,12 @@ test("network-stylesheet-headers-demo", async ({ page }) => {
     `no x-kitesurf-* headers leak into Network.requestWillBeSent (leaked: ${JSON.stringify(kitesurfKeys)})`,
   ).toBeTruthy();
 
-  expect(
-    typeof lower["user-agent"] === "string" && lower["user-agent"].includes("Mozilla"),
-    "user-agent header is set to a real browser-shaped UA",
-  ).toBeTruthy();
-  expect(lower["accept"], "accept header is the stylesheet-specific value").toBe(
-    "text/css,*/*;q=0.1",
-  );
-  expect(
-    typeof lower["accept-language"] === "string" && lower["accept-language"].length > 0,
-    "accept-language header is set",
-  ).toBeTruthy();
-  expect(
-    typeof lower["referer"] === "string" && lower["referer"].includes("127.0.0.1:8787"),
-    "referer header is set to the document origin",
-  ).toBeTruthy();
+  assertBrowserHeaders(lower);
 
   const body = await session.send("Network.getResponseBody", {
     requestId: cssRequest.requestId,
   });
-  expect(
-    typeof body.body === "string" && body.body.length > 0,
-    "Network.getResponseBody returns non-empty body",
-  ).toBeTruthy();
+  assertNonEmptyBody(body);
   expect(body.body, "body matches the fixture CSS verbatim").toBe(expectedCss);
   expect(body.base64Encoded, "base64Encoded is false (text response)").toBe(false);
 });

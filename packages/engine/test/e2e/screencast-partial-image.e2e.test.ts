@@ -25,6 +25,36 @@ function pixelAt(
 const isRed = ([r, g, b]: [number, number, number]): boolean => r > 200 && g < 80 && b < 80;
 const isWhite = ([r, g, b]: [number, number, number]): boolean => r > 200 && g > 200 && b > 200;
 
+async function waitForNewFrame(
+  frameCount: number,
+  decodedThrough: number,
+  deadline: number,
+  waitForFrames: (count: number, budgetMs: number) => Promise<boolean>,
+): Promise<boolean> {
+  if (frameCount > decodedThrough) return true;
+  return waitForFrames(decodedThrough + 1, deadline - Date.now());
+}
+
+async function frameIsRed(frame: { data: string } | undefined): Promise<boolean> {
+  if (!frame) return false;
+  const png = await decodePng(b64Bytes(frame.data));
+  return isRed(pixelAt(png, 100, 100));
+}
+
+async function waitForRedFrame(
+  frames: Array<{ at: number; data: string }>,
+  waitForFrames: (count: number, budgetMs: number) => Promise<boolean>,
+  deadline: number,
+): Promise<boolean> {
+  let decodedThrough = 0;
+  while (Date.now() < deadline) {
+    if (!(await waitForNewFrame(frames.length, decodedThrough, deadline, waitForFrames))) break;
+    decodedThrough = frames.length;
+    if (await frameIsRed(frames[frames.length - 1])) return true;
+  }
+  return false;
+}
+
 test("screencast ships partial frames while an image is in flight", async ({
   page,
   cdpSession,
@@ -84,23 +114,7 @@ test("screencast ships partial frames while an image is in flight", async ({
     expect(isWhite(firstPx)).toBe(true);
 
     const deadline = Date.now() + 12_000;
-    let sawRed = false;
-    let decodedThrough = 0;
-    while (Date.now() < deadline) {
-      if (frames.length <= decodedThrough) {
-        const arrived = await waitForFrames(decodedThrough + 1, deadline - Date.now());
-        if (!arrived) break;
-        continue;
-      }
-      decodedThrough = frames.length;
-      const latest = frames[frames.length - 1];
-      if (!latest) continue;
-      const png = await decodePng(b64Bytes(latest.data));
-      if (isRed(pixelAt(png, 100, 100))) {
-        sawRed = true;
-        break;
-      }
-    }
+    const sawRed = await waitForRedFrame(frames, waitForFrames, deadline);
     expect(sawRed).toBe(true);
 
     const loaded = (await page.evaluate(`window.__imgLoadedAt > 0`)) as boolean;

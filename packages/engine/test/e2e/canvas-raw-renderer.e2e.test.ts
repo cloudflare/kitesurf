@@ -6,6 +6,15 @@ import { expect, test } from "./harness";
 import { setContent } from "./set-content";
 import { decodePng } from "./png";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isSceneRecord(value: unknown): value is { sceneB64: string; resourceBatchB64: string } {
+  if (!isRecord(value)) return false;
+  return typeof value.sceneB64 === "string" && typeof value.resourceBatchB64 === "string";
+}
+
 test("renderer canvas pixels survive full, clipped, and interleaved external records", async ({
   page,
   cdpSession,
@@ -31,14 +40,7 @@ test("renderer canvas pixels survive full, clipped, and interleaved external rec
   const session: { send(method: string, params?: unknown): Promise<unknown> } = cdpSession;
   const record = async () => {
     const reply = await session.send("Kitesurf.recordScene", { inlineResources: true });
-    if (
-      typeof reply !== "object" ||
-      reply === null ||
-      !("sceneB64" in reply) ||
-      typeof reply.sceneB64 !== "string" ||
-      !("resourceBatchB64" in reply) ||
-      typeof reply.resourceBatchB64 !== "string"
-    ) {
+    if (!isSceneRecord(reply)) {
       throw new Error("Kitesurf.recordScene: expected sceneB64 and resourceBatchB64 strings");
     }
     return { sceneB64: reply.sceneB64, resourceBatchB64: reply.resourceBatchB64 };

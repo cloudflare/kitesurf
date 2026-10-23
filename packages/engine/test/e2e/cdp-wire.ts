@@ -9,19 +9,39 @@ interface CfWebSocket {
   addEventListener(type: string, callback: (event: { data: string | ArrayBuffer }) => void): void;
 }
 
-function isCfWebSocket(value: unknown): value is CfWebSocket {
+function hasFunction(value: object, key: string): boolean {
+  return key in value && typeof Reflect.get(value, key) === "function";
+}
+
+function hasCdpSocketMethods(value: object): boolean {
   return (
-    typeof value === "object" &&
-    value !== null &&
-    "accept" in value &&
-    typeof value.accept === "function" &&
-    "send" in value &&
-    typeof value.send === "function" &&
-    "close" in value &&
-    typeof value.close === "function" &&
-    "addEventListener" in value &&
-    typeof value.addEventListener === "function"
+    hasFunction(value, "accept") &&
+    hasFunction(value, "send") &&
+    hasFunction(value, "close") &&
+    hasFunction(value, "addEventListener")
   );
+}
+
+function isCfWebSocket(value: unknown): value is CfWebSocket {
+  if (typeof value !== "object" || value === null) return false;
+  return hasCdpSocketMethods(value);
+}
+
+function isCdpReply(message: unknown): message is { id: unknown } {
+  return typeof message === "object" && message !== null && "id" in message;
+}
+
+function receiveCdpMessage(
+  event: { data: string | ArrayBuffer },
+  waiters: Array<(message: unknown) => void>,
+  queue: unknown[],
+): void {
+  const text = typeof event.data === "string" ? event.data : new TextDecoder().decode(event.data);
+  const message: unknown = JSON.parse(text);
+  if (!isCdpReply(message)) return;
+  const waiter = waiters.shift();
+  if (waiter) waiter(message);
+  else queue.push(message);
 }
 
 export async function openCdpWireSession(engine: {
@@ -37,14 +57,7 @@ export async function openCdpWireSession(engine: {
   socket.accept();
   const queue: unknown[] = [];
   const waiters: Array<(message: unknown) => void> = [];
-  socket.addEventListener("message", (event) => {
-    const text = typeof event.data === "string" ? event.data : new TextDecoder().decode(event.data);
-    const message: unknown = JSON.parse(text);
-    if (typeof message !== "object" || message === null || !("id" in message)) return;
-    const waiter = waiters.shift();
-    if (waiter) waiter(message);
-    else queue.push(message);
-  });
+  socket.addEventListener("message", (event) => receiveCdpMessage(event, waiters, queue));
   const next = () =>
     queue.length > 0
       ? Promise.resolve(queue.shift())

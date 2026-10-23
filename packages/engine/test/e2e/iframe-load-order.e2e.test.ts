@@ -135,7 +135,29 @@ test("a same-origin iframe can load successive HTML Blob documents", async ({ pa
     const frame = document.createElement("iframe");
     const results: { marker: string; normalizedText: string }[] = [];
 
-    for (const marker of ["first", "second"]) {
+    function markerText(child: Document): string {
+      return child.getElementById("marker")?.textContent ?? "";
+    }
+
+    function normalizedTail(textNodes: Node[]): string {
+      return String(textNodes[textNodes.length - 1]?.nodeValue ?? "").slice(-9);
+    }
+
+    function recordNormalizedText(child: Document): void {
+      const body = child.body;
+      if (!body) throw new Error("Blob iframe document is missing body");
+      body.appendChild(child.createTextNode("left"));
+      body.appendChild(child.createTextNode(""));
+      body.appendChild(child.createTextNode("right"));
+      child.normalize();
+      const textNodes = Array.from(body.childNodes).filter((node) => node.nodeType === 3);
+      results.push({
+        marker: markerText(child),
+        normalizedText: normalizedTail(textNodes),
+      });
+    }
+
+    const loadMarker = async (marker: string) => {
       const blob = new Blob([`<p id=marker>${marker}</p>`], {
         type: "text/html",
       });
@@ -151,20 +173,14 @@ test("a same-origin iframe can load successive HTML Blob documents", async ({ pa
       });
       try {
         const child = await loadedDocument;
-        const body = child.body;
-        if (!body) throw new Error("Blob iframe document is missing body");
-        body.appendChild(child.createTextNode("left"));
-        body.appendChild(child.createTextNode(""));
-        body.appendChild(child.createTextNode("right"));
-        child.normalize();
-        const textNodes = Array.from(body.childNodes).filter((node) => node.nodeType === 3);
-        results.push({
-          marker: child.getElementById("marker")?.textContent ?? "",
-          normalizedText: String(textNodes[textNodes.length - 1]?.nodeValue ?? "").slice(-9),
-        });
+        recordNormalizedText(child);
       } finally {
         URL.revokeObjectURL(url);
       }
+    };
+
+    for (const marker of ["first", "second"]) {
+      await loadMarker(marker);
     }
     return results;
   });

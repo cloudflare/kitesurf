@@ -10,6 +10,60 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+type SceneHostManifest = { sha256: string; bytes: number };
+type CdpReply = {
+  result?: Record<string, unknown>;
+  error?: { message: string };
+};
+type CdpSend = (method: string, params?: Record<string, unknown>) => Promise<CdpReply>;
+
+function isSceneHostManifest(
+  value: Record<string, unknown> | undefined,
+): value is SceneHostManifest {
+  return typeof value?.sha256 === "string" && typeof value.bytes === "number";
+}
+
+function readCdpResult(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined;
+}
+
+function readCdpError(value: unknown): CdpReply["error"] {
+  if (!isRecord(value) || typeof value.message !== "string") return undefined;
+  return { message: value.message };
+}
+
+function readCdpReply(payload: unknown, id: number): CdpReply | null {
+  if (!isRecord(payload) || payload.id !== id) return null;
+  const result = readCdpResult(payload.result);
+  const error = readCdpError(payload.error);
+  return { ...(result ? { result } : {}), ...(error ? { error } : {}) };
+}
+
+async function readSceneHostChunks(
+  send: CdpSend,
+  manifest: SceneHostManifest,
+  received: Uint8Array,
+): Promise<void> {
+  const chunkBytes = 4 * 1024 * 1024;
+  for (let offset = 0; offset < received.length; offset += chunkBytes) {
+    const chunk = await send("Kitesurf.readSceneHost", {
+      sha256: manifest.sha256,
+      offset,
+      length: chunkBytes,
+    });
+    expect(chunk.error).toBeUndefined();
+    expect(chunk.result).toMatchObject({
+      sha256: manifest.sha256,
+      offset,
+      totalBytes: manifest.bytes,
+    });
+    if (typeof chunk.result?.dataB64 !== "string") throw new Error("missing Wasm chunk");
+    const bytes = Uint8Array.from(atob(chunk.result.dataB64), (c) => c.charCodeAt(0));
+    expect(bytes.length).toBe(Math.min(chunkBytes, received.length - offset));
+    received.set(bytes, offset);
+  }
+}
+
 async function connection() {
   const response = await engine.fetch("https://ks.invalid/devtools/browser", {
     headers: { Upgrade: "websocket" },
@@ -26,17 +80,10 @@ async function connection() {
     }>((resolve) => {
       const receive = (event: { data: string | ArrayBuffer }) => {
         if (typeof event.data !== "string") return;
-        const payload: unknown = JSON.parse(event.data);
-        if (!isRecord(payload) || payload.id !== id) return;
-        const result = payload.result;
-        const error = payload.error;
+        const reply = readCdpReply(JSON.parse(event.data), id);
+        if (!reply) return;
         ws.removeEventListener("message", receive);
-        resolve({
-          ...(isRecord(result) ? { result } : {}),
-          ...(isRecord(error) && typeof error.message === "string"
-            ? { error: { message: error.message } }
-            : {}),
-        });
+        resolve(reply);
       };
       ws.addEventListener("message", receive);
       ws.send(JSON.stringify({ id, method, params }));
@@ -51,32 +98,13 @@ test("CDP supplies its deployed manifest and Wasm before page attachment", async
     const reply = await send("Kitesurf.getSceneHostManifest");
     expect(reply.error).toBeUndefined();
     const manifest = reply.result;
-    if (!manifest || typeof manifest.sha256 !== "string" || typeof manifest.bytes !== "number") {
-      throw new Error("invalid scene-host manifest");
-    }
+    if (!isSceneHostManifest(manifest)) throw new Error("invalid scene-host manifest");
     const httpManifest: unknown = await (
       await engine.fetch("https://ks.invalid/rbi/scene_host.json")
     ).json();
     expect(manifest).toEqual(httpManifest);
     const received = new Uint8Array(manifest.bytes);
-    const chunkBytes = 4 * 1024 * 1024;
-    for (let offset = 0; offset < received.length; offset += chunkBytes) {
-      const chunk = await send("Kitesurf.readSceneHost", {
-        sha256: manifest.sha256,
-        offset,
-        length: chunkBytes,
-      });
-      expect(chunk.error).toBeUndefined();
-      expect(chunk.result).toMatchObject({
-        sha256: manifest.sha256,
-        offset,
-        totalBytes: manifest.bytes,
-      });
-      if (typeof chunk.result?.dataB64 !== "string") throw new Error("missing Wasm chunk");
-      const bytes = Uint8Array.from(atob(chunk.result.dataB64), (c) => c.charCodeAt(0));
-      expect(bytes.length).toBe(Math.min(chunkBytes, received.length - offset));
-      received.set(bytes, offset);
-    }
+    await readSceneHostChunks(send, manifest, received);
     const deployed = await (
       await engine.fetch("https://ks.invalid/rbi/scene_host.wasm")
     ).arrayBuffer();
@@ -103,9 +131,7 @@ test("CDP scene-host reads reject invalid ranges, hashes, and asset paths", asyn
   const { ws, send } = await connection();
   try {
     const manifest = (await send("Kitesurf.getSceneHostManifest")).result;
-    if (!manifest || typeof manifest.sha256 !== "string" || typeof manifest.bytes !== "number") {
-      throw new Error("invalid scene-host manifest");
-    }
+    if (!isSceneHostManifest(manifest)) throw new Error("invalid scene-host manifest");
     for (const invalid of [
       { offset: -1 },
       { offset: 0.5 },

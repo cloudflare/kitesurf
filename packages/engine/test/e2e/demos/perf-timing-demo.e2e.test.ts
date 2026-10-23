@@ -12,90 +12,107 @@ test("supports User Timing and navigation timing APIs", async ({ page }) => {
     const perf = performance as any;
     const out: Record<string, unknown> = {};
 
-    out.hasNow = typeof perf.now === "function";
-    out.hasMark = typeof perf.mark === "function";
-    out.hasMeasure = typeof perf.measure === "function";
-    out.hasGetEntries = typeof perf.getEntries === "function";
-    out.hasGetByName = typeof perf.getEntriesByName === "function";
-    out.hasGetByType = typeof perf.getEntriesByType === "function";
-    out.hasClearMarks = typeof perf.clearMarks === "function";
-    out.hasClearMeasures = typeof perf.clearMeasures === "function";
-    out.hasClearResources = typeof perf.clearResourceTimings === "function";
-    out.hasTiming = !!perf.timing;
-    out.hasNavigation = !!perf.navigation;
-
-    perf.mark("start");
-    perf.mark("end");
-
-    const startEntries = perf.getEntriesByName("start");
-    out.startCount = startEntries.length;
-    out.startEntryType = startEntries[0] && startEntries[0].entryType;
-    out.startHasStartTime = startEntries[0] && typeof startEntries[0].startTime === "number";
-
-    perf.measure("startToEnd", "start", "end");
-    const measureEntries = perf.getEntriesByName("startToEnd");
-    out.measureCount = measureEntries.length;
-    out.measureEntryType = measureEntries[0] && measureEntries[0].entryType;
-
-    perf.measure("withOpts", {
-      start: 100,
-      end: 200,
-      detail: { phase: "test" },
-    });
-    const opts = perf.getEntriesByName("withOpts");
-    out.optsDuration = opts[0] && opts[0].duration;
-    out.optsDetail = opts[0] && opts[0].detail && opts[0].detail.phase;
-
-    perf.measure("withDur", { start: 50, duration: 30 });
-    const dur = perf.getEntriesByName("withDur");
-    out.durDuration = dur[0] && dur[0].duration;
-
-    const allMarks = perf.getEntriesByType("mark");
-    out.markCount = allMarks.length;
-    out.allMarksAreMarks = allMarks.every((entry) => entry.entryType === "mark");
-    const allMeasures = perf.getEntriesByType("measure");
-    out.measureCountTotal = allMeasures.length;
-
-    const all = perf.getEntries();
-    out.entriesTotal = all.filter(
-      (e) => e.entryType === "mark" || e.entryType === "measure",
-    ).length;
-    out.entriesIsArray = Array.isArray(all);
-    all.push({ name: "garbage" });
-    out.snapshotIsolated = perf.getEntries().length === all.length - 1;
-
-    perf.clearMarks("start");
-    out.afterClearStart = perf.getEntriesByName("start").length;
-    out.afterClearEndStillThere = perf.getEntriesByName("end").length;
-    perf.clearMarks();
-    out.afterClearAllMarks = perf.getEntriesByType("mark").length;
-
-    out.beforeClearMeasures = perf.getEntriesByType("measure").length;
-    perf.clearMeasures("startToEnd");
-    out.afterClearOneMeasure = perf.getEntriesByName("startToEnd").length;
-    perf.clearMeasures();
-    out.afterClearAllMeasures = perf.getEntriesByType("measure").length;
-
-    try {
-      perf.measure("from-nav-start", "navigationStart");
-      const entry = perf.getEntriesByName("from-nav-start")[0];
-      out.navStartMeasureOk = entry && entry.entryType === "measure" && entry.startTime === 0;
-    } catch (error) {
-      out.navStartMeasureErr = String(error);
+    function recordApiAvailability(): void {
+      out.hasNow = typeof perf.now === "function";
+      out.hasMark = typeof perf.mark === "function";
+      out.hasMeasure = typeof perf.measure === "function";
+      out.hasGetEntries = typeof perf.getEntries === "function";
+      out.hasGetByName = typeof perf.getEntriesByName === "function";
+      out.hasGetByType = typeof perf.getEntriesByType === "function";
+      out.hasClearMarks = typeof perf.clearMarks === "function";
+      out.hasClearMeasures = typeof perf.clearMeasures === "function";
+      out.hasClearResources = typeof perf.clearResourceTimings === "function";
+      out.hasTiming = !!perf.timing;
+      out.hasNavigation = !!perf.navigation;
     }
-    try {
-      perf.measure("dcl-to-load", "domContentLoadedEventEnd", "loadEventEnd");
-      const entry = perf.getEntriesByName("dcl-to-load")[0];
-      out.dclToLoadOk = entry && entry.entryType === "measure";
-    } catch (error) {
-      out.dclToLoadErr = String(error);
+
+    function recordStartMark(): void {
+      perf.mark("start");
+      perf.mark("end");
+
+      const startEntries = perf.getEntriesByName("start");
+      out.startCount = startEntries.length;
+      out.startEntryType = startEntries[0] && startEntries[0].entryType;
+      out.startHasStartTime = startEntries[0] && typeof startEntries[0].startTime === "number";
     }
-    out.timingNavStart = typeof perf.timing.navigationStart === "number";
-    out.navType = perf.navigation.type;
-    out.nowIsNumber = typeof perf.now() === "number";
-    out.timeOriginIsNumber = typeof perf.timeOrigin === "number";
-    out.timeOriginNotNaN = !Number.isNaN(perf.timeOrigin);
-    out.strictWriteOk = (function () {
+
+    function recordNamedMeasure(): void {
+      perf.measure("startToEnd", "start", "end");
+      const measureEntries = perf.getEntriesByName("startToEnd");
+      out.measureCount = measureEntries.length;
+      out.measureEntryType = measureEntries[0] && measureEntries[0].entryType;
+    }
+
+    function recordOptionMeasure(): void {
+      perf.measure("withOpts", {
+        start: 100,
+        end: 200,
+        detail: { phase: "test" },
+      });
+      const opts = perf.getEntriesByName("withOpts");
+      out.optsDuration = opts[0] && opts[0].duration;
+      out.optsDetail = opts[0] && opts[0].detail && opts[0].detail.phase;
+    }
+
+    function recordDurationMeasure(): void {
+      perf.measure("withDur", { start: 50, duration: 30 });
+      const dur = perf.getEntriesByName("withDur");
+      out.durDuration = dur[0] && dur[0].duration;
+    }
+
+    function recordEntryCollections(): void {
+      const allMarks = perf.getEntriesByType("mark");
+      out.markCount = allMarks.length;
+      out.allMarksAreMarks = allMarks.every((entry) => entry.entryType === "mark");
+      const allMeasures = perf.getEntriesByType("measure");
+      out.measureCountTotal = allMeasures.length;
+
+      const all = perf.getEntries();
+      out.entriesTotal = all.filter(
+        (entry) => entry.entryType === "mark" || entry.entryType === "measure",
+      ).length;
+      out.entriesIsArray = Array.isArray(all);
+      all.push({ name: "garbage" });
+      out.snapshotIsolated = perf.getEntries().length === all.length - 1;
+    }
+
+    function clearMarkEntries(): void {
+      perf.clearMarks("start");
+      out.afterClearStart = perf.getEntriesByName("start").length;
+      out.afterClearEndStillThere = perf.getEntriesByName("end").length;
+      perf.clearMarks();
+      out.afterClearAllMarks = perf.getEntriesByType("mark").length;
+    }
+
+    function clearMeasureEntries(): void {
+      out.beforeClearMeasures = perf.getEntriesByType("measure").length;
+      perf.clearMeasures("startToEnd");
+      out.afterClearOneMeasure = perf.getEntriesByName("startToEnd").length;
+      perf.clearMeasures();
+      out.afterClearAllMeasures = perf.getEntriesByType("measure").length;
+    }
+
+    function recordNavigationStartMeasure(): void {
+      try {
+        perf.measure("from-nav-start", "navigationStart");
+        const entry = perf.getEntriesByName("from-nav-start")[0];
+        out.navStartMeasureOk = entry && entry.entryType === "measure" && entry.startTime === 0;
+      } catch (error) {
+        out.navStartMeasureErr = String(error);
+      }
+    }
+
+    function recordLoadMeasure(): void {
+      try {
+        perf.measure("dcl-to-load", "domContentLoadedEventEnd", "loadEventEnd");
+        const entry = perf.getEntriesByName("dcl-to-load")[0];
+        out.dclToLoadOk = entry && entry.entryType === "measure";
+      } catch (error) {
+        out.dclToLoadErr = String(error);
+      }
+    }
+
+    function strictWriteProbe(): boolean | string {
       "use strict";
       try {
         perf.timeOrigin = 42;
@@ -104,7 +121,28 @@ test("supports User Timing and navigation timing APIs", async ({ page }) => {
       } catch (error) {
         return "threw: " + String(error);
       }
-    })();
+    }
+
+    function recordTimingValues(): void {
+      out.timingNavStart = typeof perf.timing.navigationStart === "number";
+      out.navType = perf.navigation.type;
+      out.nowIsNumber = typeof perf.now() === "number";
+      out.timeOriginIsNumber = typeof perf.timeOrigin === "number";
+      out.timeOriginNotNaN = !Number.isNaN(perf.timeOrigin);
+      out.strictWriteOk = strictWriteProbe();
+    }
+
+    recordApiAvailability();
+    recordStartMark();
+    recordNamedMeasure();
+    recordOptionMeasure();
+    recordDurationMeasure();
+    recordEntryCollections();
+    clearMarkEntries();
+    clearMeasureEntries();
+    recordNavigationStartMeasure();
+    recordLoadMeasure();
+    recordTimingValues();
 
     return out;
   });

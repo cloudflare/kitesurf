@@ -63,6 +63,17 @@ scripts.all("/corp-script-page.html", (c) => {
 
 const SLOW_PROBE_MS = 6000;
 const insertedProbeHits = new Map<string, number>();
+
+function probeHeaders(mode: string, hit: number, key: string): Record<string, string> {
+  const headers: Record<string, string> = { "content-type": JS };
+  if (mode === "stable" && hit > 1) headers["set-cookie"] = `probe_${key}=${hit}; Path=/`;
+  return headers;
+}
+
+function probeBody(mode: string, hit: number): string {
+  return mode === "volatile" ? `${insertedBakeJs}\n// hit ${hit}\n` : insertedBakeJs;
+}
+
 scripts.all("/inserted-probe/:mode{stable|volatile|gone|slow}/:file{[\\w-]+\\.js}", async (c) => {
   const mode = c.req.param("mode");
   const key = c.req.param("file").slice(0, -".js".length);
@@ -72,10 +83,7 @@ scripts.all("/inserted-probe/:mode{stable|volatile|gone|slow}/:file{[\\w-]+\\.js
     if (mode === "gone") return c.text("gone", 404);
     if (mode === "slow") await sleep(SLOW_PROBE_MS);
   }
-  const headers: Record<string, string> = { "content-type": JS };
-  if (mode === "stable" && hit > 1) headers["set-cookie"] = `probe_${key}=${hit}; Path=/`;
-  const body = mode === "volatile" ? `${insertedBakeJs}\n// hit ${hit}\n` : insertedBakeJs;
-  return c.body(body, 200, headers);
+  return c.body(probeBody(mode, hit), 200, probeHeaders(mode, hit, key));
 });
 scripts.all("/inserted-probe-hits/:key{[\\w-]+}", (c) =>
   c.json({ hits: insertedProbeHits.get(c.req.param("key")) ?? 0 }, 200, {

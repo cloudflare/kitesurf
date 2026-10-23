@@ -30,12 +30,15 @@ export const WBA_HEADER_NAMES = ["signature", "signature-input", "signature-agen
 function isEd25519PrivateJwk(v: unknown): v is JsonWebKey {
   if (typeof v !== "object" || v === null) return false;
   const jwk = v as Record<string, unknown>;
-  return (
-    jwk.kty === "OKP" &&
-    jwk.crv === "Ed25519" &&
-    typeof jwk.x === "string" &&
-    typeof jwk.d === "string"
-  );
+  return isEd25519Type(jwk) && hasPrivateKeyMaterial(jwk);
+}
+
+function isEd25519Type(jwk: Record<string, unknown>): boolean {
+  return jwk.kty === "OKP" && jwk.crv === "Ed25519";
+}
+
+function hasPrivateKeyMaterial(jwk: Record<string, unknown>): boolean {
+  return typeof jwk.x === "string" && typeof jwk.d === "string";
 }
 
 const loggedFailures = new Set<string>();
@@ -72,32 +75,29 @@ function signatureAgentHeaderValue(agent: string): string {
   return JSON.stringify(agent);
 }
 
-/** Returns signed headers for an authority, or `{}` when signing is unavailable or fails. */
-export async function wbaHeadersFor(
-  env: WbaEnv,
+function cachedSignatureHeaders(
   authority: string,
-): Promise<Record<string, string>> {
-  const jwkJson = env.WEB_BOT_AUTH_JWK;
-  const agent = env.WEB_BOT_AUTH_SIGNATURE_AGENT;
-  if (!jwkJson || !agent || !authority) return {};
-
-  const now = Date.now();
+  now: number,
+): Promise<Record<string, string>> | null {
   const cached = signatureCache.get(authority);
-  if (cached && cached.expiresAt > now) return cached.headers;
+  return cached && cached.expiresAt > now ? cached.headers : null;
+}
 
-  const signerPromise = getSigner(jwkJson);
-  if (!signerPromise) return {};
-
-  const agentHeader = signatureAgentHeaderValue(agent);
-  const created = new Date(now);
-  const headers = (async () => {
+function createSignatureHeaders(
+  signerPromise: Promise<Signer>,
+  authority: string,
+  agentHeader: string,
+  created: Date,
+  expiresAt: number,
+): Promise<Record<string, string>> {
+  return (async () => {
     const signer = await signerPromise;
     const signed = await signatureHeaders(
       new Request(`https://${authority}/`, {
         headers: { "Signature-Agent": agentHeader },
       }),
       signer,
-      { created, expires: new Date(now + SIGNATURE_TTL_MS) },
+      { created, expires: new Date(expiresAt) },
     );
     return {
       signature: signed["Signature"],
@@ -109,7 +109,13 @@ export async function wbaHeadersFor(
     logOnce("sign-failed", err);
     return {};
   });
+}
 
+function rememberSignatureHeaders(
+  authority: string,
+  headers: Promise<Record<string, string>>,
+  now: number,
+): void {
   if (signatureCache.size >= MAX_CACHED_AUTHORITIES) {
     const oldest = signatureCache.keys().next();
     if (!oldest.done) signatureCache.delete(oldest.value);
@@ -118,6 +124,43 @@ export async function wbaHeadersFor(
     headers,
     expiresAt: now + SIGNATURE_TTL_MS - REFRESH_SKEW_MS,
   });
+}
+
+function wbaSigningInput(
+  env: WbaEnv,
+  authority: string,
+): { jwkJson: string; agent: string } | null {
+  const jwkJson = env.WEB_BOT_AUTH_JWK;
+  const agent = env.WEB_BOT_AUTH_SIGNATURE_AGENT;
+  if (!jwkJson || !agent || !authority) return null;
+  return { jwkJson, agent };
+}
+
+/** Returns signed headers for an authority, or `{}` when signing is unavailable or fails. */
+export async function wbaHeadersFor(
+  env: WbaEnv,
+  authority: string,
+): Promise<Record<string, string>> {
+  const input = wbaSigningInput(env, authority);
+  if (!input) return {};
+
+  const now = Date.now();
+  const cached = cachedSignatureHeaders(authority, now);
+  if (cached) return cached;
+
+  const signerPromise = getSigner(input.jwkJson);
+  if (!signerPromise) return {};
+
+  const agentHeader = signatureAgentHeaderValue(input.agent);
+  const created = new Date(now);
+  const headers = createSignatureHeaders(
+    signerPromise,
+    authority,
+    agentHeader,
+    created,
+    now + SIGNATURE_TTL_MS,
+  );
+  rememberSignatureHeaders(authority, headers, now);
   return headers;
 }
 

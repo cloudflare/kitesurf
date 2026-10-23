@@ -33,6 +33,59 @@ test("aborting a page fetch mid-flight rejects with AbortError", async ({ page }
   expect(got).toBe("AbortError");
 });
 
+test.for(["synchronously", "next microtask"] as const)(
+  "aborting a page fetch %s rejects with AbortError",
+  async (timing, { page }) => {
+    await page.goto(PAGE, { waitUntil: "domcontentloaded" });
+    const got = await page.evaluate((when) => {
+      const controller = new AbortController();
+      const request = fetch("/__fixtures/echo-headers.json", { signal: controller.signal });
+      if (when === "next microtask") queueMicrotask(() => controller.abort());
+      else controller.abort();
+      return request.then(
+        () => "resolved",
+        (error: unknown) => {
+          if (typeof error !== "object" || error === null) return String(error);
+          return "name" in error ? String(error.name) : String(error);
+        },
+      );
+    }, timing);
+    expect(got).toBe("AbortError");
+  },
+);
+
+test.for([
+  { code: undefined, reason: undefined, expectedCode: 1000, expectedReason: "" },
+  { code: 1000, reason: "finished", expectedCode: 1000, expectedReason: "finished" },
+  {
+    code: 4001,
+    reason: "application shutdown",
+    expectedCode: 4001,
+    expectedReason: "application shutdown",
+  },
+])(
+  "a page WebSocket closes with code $expectedCode and reason '$expectedReason'",
+  async ({ code, reason, expectedCode, expectedReason }, { page }) => {
+    await page.goto(PAGE, { waitUntil: "domcontentloaded" });
+    const got = await page.evaluate(
+      async (options) => {
+        const socket = new WebSocket("ws://" + location.host + "/__fixtures/ws-echo");
+        try {
+          return await new Promise<{ code: number; reason: string }>((resolve, reject) => {
+            socket.onopen = () => socket.close(options.code, options.reason);
+            socket.onclose = (event) => resolve({ code: event.code, reason: event.reason });
+            socket.onerror = () => reject(new Error("WebSocket fixture failed to open"));
+          });
+        } finally {
+          socket.close();
+        }
+      },
+      { code, reason },
+    );
+    expect(got).toEqual({ code: expectedCode, reason: expectedReason });
+  },
+);
+
 test("a page fetch keeps Response.url", async ({ page }) => {
   await page.goto(PAGE, { waitUntil: "domcontentloaded", timeout: 30000 });
   const got = await page.evaluate(`(async () => {

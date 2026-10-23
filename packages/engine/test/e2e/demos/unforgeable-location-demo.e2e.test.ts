@@ -24,6 +24,16 @@ const LOCATION_MEMBERS = [
   "reload",
 ];
 
+type PropertyProbe = { defined?: boolean; hasGet?: boolean; configurable?: boolean };
+
+function isDefinedNonConfigurable(property: PropertyProbe): boolean {
+  return property.defined === true && property.configurable === false;
+}
+
+function isOwnAccessor(property: PropertyProbe): boolean {
+  return isDefinedNonConfigurable(property) && property.hasGet === true;
+}
+
 test.fails("window and document.location are own non-configurable accessors", async ({ page }) => {
   // Gap: the engine does not define these as [LegacyUnforgeable] accessors.
   await setContent(page, PAGE);
@@ -47,25 +57,23 @@ test.fails("window and document.location are own non-configurable accessors", as
   });
 
   expect(
-    desc.windowLocation.defined &&
-      desc.windowLocation.hasGet &&
-      desc.windowLocation.configurable === false,
+    isOwnAccessor(desc.windowLocation),
     "window.location is an own non-configurable accessor",
   ).toBe(true);
   expect(
-    desc.windowWindow.defined && desc.windowWindow.configurable === false,
+    isDefinedNonConfigurable(desc.windowWindow),
     "window.window is an own non-configurable accessor",
   ).toBe(true);
   expect(
-    desc.windowDocument.defined && desc.windowDocument.configurable === false,
+    isDefinedNonConfigurable(desc.windowDocument),
     "window.document is an own non-configurable accessor",
   ).toBe(true);
   expect(
-    desc.windowTop.defined && desc.windowTop.configurable === false,
+    isDefinedNonConfigurable(desc.windowTop),
     "window.top is an own non-configurable accessor",
   ).toBe(true);
   expect(
-    desc.docLocation.defined && desc.docLocation.configurable === false,
+    isDefinedNonConfigurable(desc.docLocation),
     "document.location is an own non-configurable accessor",
   ).toBe(true);
 });
@@ -147,20 +155,33 @@ test.fails("location.toString and location.valueOf resist redefinition", async (
 test("window is a Window with own unforgeable members", async ({ page }) => {
   await setContent(page, PAGE);
   const shape = await page.evaluate(() => {
+    function isOwnUnforgeable(id: string): boolean {
+      return id in window && !(id in Window.prototype);
+    }
+
+    function constructorFlags(descriptor: PropertyDescriptor | undefined) {
+      return {
+        writable: descriptor?.writable === true,
+        enumerable: descriptor?.enumerable === false,
+        configurable: descriptor?.configurable === true,
+      };
+    }
+
     const unforgeable = ["window", "document", "location", "top"];
     const own: Record<string, boolean> = {};
     for (const id of unforgeable) {
-      own[id] = id in window && !(id in Window.prototype);
+      own[id] = isOwnUnforgeable(id);
     }
     const ctor = Object.getOwnPropertyDescriptor(Window.prototype, "constructor");
+    const flags = constructorFlags(ctor);
     return {
       windowExists: typeof Window === "function",
       windowIsInstance: window instanceof Window,
       ctorNotOwn: !Object.prototype.hasOwnProperty.call(window, "constructor"),
       own,
-      ctorWritable: ctor?.writable === true,
-      ctorEnumerable: ctor?.enumerable === false,
-      ctorConfigurable: ctor?.configurable === true,
+      ctorWritable: flags.writable,
+      ctorEnumerable: flags.enumerable,
+      ctorConfigurable: flags.configurable,
     };
   });
 

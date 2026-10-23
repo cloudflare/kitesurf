@@ -70,22 +70,30 @@ export function stripNoscript(dom: DomHandle): void {
     return;
   }
   for (let i = ids.length - 1; i >= 0; i--) {
-    const id = ids[i];
-    if (id === undefined || id < 0) continue;
-    try {
-      dom.removeNode(id);
-    } catch {}
+    removeNoscriptNode(dom, ids[i]);
   }
+}
+
+function removeNoscriptNode(dom: DomHandle, id: number | undefined): void {
+  if (id === undefined || id < 0) return;
+  try {
+    dom.removeNode(id);
+  } catch {}
 }
 
 export function ensureTargetDom(target: TargetState): DomHandle | null {
   if (target.dom) return target.dom;
   if (!target.html || !domFactory) return null;
+  return rehydrateTargetDom(target, target.html, domFactory);
+}
+
+function rehydrateTargetDom(
+  target: TargetState,
+  html: string,
+  factory: (html: string, baseUrl: string) => DomHandle,
+): DomHandle | null {
   try {
-    const dom = domFactory(
-      target.html,
-      target.url && /^https?:/.test(target.url) ? target.url : "https://kitesurf.local/",
-    );
+    const dom = factory(html, targetBaseUrl(target.url));
     stripNoscript(dom);
     target.dom = dom;
     return dom;
@@ -100,4 +108,8 @@ export function ensureTargetDom(target: TargetState): DomHandle | null {
     );
     return null;
   }
+}
+
+function targetBaseUrl(url: string): string {
+  return url && /^https?:/.test(url) ? url : "https://kitesurf.local/";
 }

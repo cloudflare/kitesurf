@@ -3,6 +3,24 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { expect, test } from "../harness";
+import type { Protocol } from "devtools-protocol";
+
+type DomNode = Protocol.DOM.Node;
+
+function hasId(node: DomNode, id: string): boolean {
+  const attributes = node.attributes ?? [];
+  const index = attributes.indexOf("id");
+  return index >= 0 && attributes[index + 1] === id;
+}
+
+function findById(node: DomNode, id: string): DomNode | null {
+  if (hasId(node, id)) return node;
+  for (const child of node.children ?? []) {
+    const found = findById(child, id);
+    if (found) return found;
+  }
+  return null;
+}
 
 test("screencast-viewport-demo", async ({ page }) => {
   const HTML_URL =
@@ -25,20 +43,6 @@ test("screencast-viewport-demo", async ({ page }) => {
 
   async function cornerRect() {
     const { root } = await session.send("DOM.getDocument", { depth: -1 });
-    function findById(node, id) {
-      if (node.attributes) {
-        for (let i = 0; i < node.attributes.length; i += 2) {
-          if (node.attributes[i] === "id" && node.attributes[i + 1] === id) return node;
-        }
-      }
-      if (node.children) {
-        for (const c of node.children) {
-          const f = findById(c, id);
-          if (f) return f;
-        }
-      }
-      return null;
-    }
     const n = findById(root, "corner");
     if (!n) return null;
     const { model } = await session.send("DOM.getBoxModel", { nodeId: n.nodeId });

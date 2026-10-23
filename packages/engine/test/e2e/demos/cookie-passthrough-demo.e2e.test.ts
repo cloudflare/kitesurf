@@ -4,6 +4,28 @@
 
 import { expect, test } from "../harness";
 
+function expectDemoCookies(
+  headers: { cookie?: string } | null,
+  source: "doc" | "subresource",
+): void {
+  const cookie = headers?.cookie;
+  const description = source === "doc" ? "doc fetch" : "subresource fetch";
+  const headerName = source === "doc" ? "doc" : "fetch";
+  expect(
+    !!cookie,
+    `${description} saw cookie header: ${headerName}.headers=${JSON.stringify(headers)}`,
+  ).toBeTruthy();
+  if (!cookie) return;
+  expect(
+    cookie.includes("ks_demo_session=abc123"),
+    `${description} cookie contains ks_demo_session: ${cookie}`,
+  ).toBeTruthy();
+  expect(
+    cookie.includes("ks_demo_lax=lax_value"),
+    `${description} cookie contains ks_demo_lax: ${cookie}`,
+  ).toBeTruthy();
+}
+
 test("cookie-passthrough-demo", async ({ page }) => {
   const session = await page.target().createCDPSession();
 
@@ -37,32 +59,6 @@ test("cookie-passthrough-demo", async ({ page }) => {
     fetch: globalThis.__ks_fetch_headers || null,
   }));
 
-  expect(
-    !!seen.doc?.cookie,
-    "doc fetch saw cookie header: doc.headers=" + JSON.stringify(seen.doc),
-  ).toBeTruthy();
-  if (seen.doc?.cookie) {
-    expect(
-      seen.doc.cookie.includes("ks_demo_session=abc123"),
-      "doc fetch cookie contains ks_demo_session: " + seen.doc.cookie,
-    ).toBeTruthy();
-    expect(
-      seen.doc.cookie.includes("ks_demo_lax=lax_value"),
-      "doc fetch cookie contains ks_demo_lax: " + seen.doc.cookie,
-    ).toBeTruthy();
-  }
-  expect(
-    !!seen.fetch?.cookie,
-    "subresource fetch saw cookie header: fetch.headers=" + JSON.stringify(seen.fetch),
-  ).toBeTruthy();
-  if (seen.fetch?.cookie) {
-    expect(
-      seen.fetch.cookie.includes("ks_demo_session=abc123"),
-      "subresource fetch cookie contains ks_demo_session: " + seen.fetch.cookie,
-    ).toBeTruthy();
-    expect(
-      seen.fetch.cookie.includes("ks_demo_lax=lax_value"),
-      "subresource fetch cookie contains ks_demo_lax: " + seen.fetch.cookie,
-    ).toBeTruthy();
-  }
+  expectDemoCookies(seen.doc, "doc");
+  expectDemoCookies(seen.fetch, "subresource");
 });

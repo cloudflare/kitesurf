@@ -37,6 +37,10 @@ async function roundTrip(page: Page): Promise<RoundTripProbe> {
 
   return page.evaluate(() => {
     const probe: RoundTripProbe = { ok: false };
+    const ruleText = (sheet: CSSStyleSheet, index: number): string | false => {
+      const rule = sheet.cssRules[index];
+      return rule ? rule.cssText : false;
+    };
     try {
       const s = document.getElementById("s") as HTMLStyleElement;
       probe.beforeChildren = s.childNodes.length;
@@ -48,14 +52,14 @@ async function roundTrip(page: Page): Promise<RoundTripProbe> {
       probe.afterInsertChildren = s.childNodes.length;
       probe.afterInsertText = s.textContent;
       probe.cssRulesLen = s.sheet!.cssRules.length;
-      probe.firstRuleText = s.sheet!.cssRules[0] && s.sheet!.cssRules[0].cssText;
+      probe.firstRuleText = ruleText(s.sheet!, 0);
 
       s.sheet!.insertRule(".second { color: green; }", 1);
       probe.twoRulesLen = s.sheet!.cssRules.length;
 
       s.sheet!.deleteRule(0);
       probe.afterDeleteLen = s.sheet!.cssRules.length;
-      probe.afterDeleteFirstText = s.sheet!.cssRules[0] && s.sheet!.cssRules[0].cssText;
+      probe.afterDeleteFirstText = ruleText(s.sheet!, 0);
       probe.ok = true;
     } catch (e) {
       probe.ok = false;

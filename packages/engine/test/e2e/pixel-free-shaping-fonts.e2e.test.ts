@@ -15,6 +15,37 @@ interface FixtureMetrics {
   wasmDeltaBytes: number;
 }
 
+function assertObject(value: unknown): asserts value is object {
+  if (typeof value !== "object" || value === null) {
+    throw new Error(`width probe returned ${typeof value}`);
+  }
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function widthFor(raw: object, id: string): number {
+  const width: unknown = Reflect.get(raw, id);
+  if (!isFiniteNumber(width)) {
+    throw new Error(`#${id} width: expected a number, got ${String(width)}`);
+  }
+  return width;
+}
+
+function readWidths(raw: unknown): Record<string, number> {
+  assertObject(raw);
+  const widths: Record<string, number> = {};
+  for (const id of SPAN_IDS) widths[id] = widthFor(raw, id);
+  return widths;
+}
+
+function assertPositiveNumber(value: unknown): asserts value is number {
+  if (typeof value !== "number" || !(value > 0)) {
+    throw new Error(`wasmDeltaBytes: expected a positive number, got ${String(value)}`);
+  }
+}
+
 async function measure(browser: Browser, fixtureUrl: string): Promise<FixtureMetrics> {
   const page = await browser.newPage();
   try {
@@ -25,25 +56,13 @@ async function measure(browser: Browser, fixtureUrl: string): Promise<FixtureMet
         return out;
       }, {})`,
     );
-    if (typeof raw !== "object" || raw === null) {
-      throw new Error(`width probe returned ${typeof raw}`);
-    }
-    const widths: Record<string, number> = {};
-    for (const id of SPAN_IDS) {
-      const w: unknown = Reflect.get(raw, id);
-      if (typeof w !== "number" || !Number.isFinite(w)) {
-        throw new Error(`#${id} width: expected a number, got ${String(w)}`);
-      }
-      widths[id] = w;
-    }
+    const widths = readWidths(raw);
 
     const session = await page.createCDPSession();
     const targetId = await targetIdForSession(session);
     const stats = await session.send("Kitesurf.getMemoryStats", { targetId });
     const delta = stats.wasmDeltaBytes;
-    if (typeof delta !== "number" || !(delta > 0)) {
-      throw new Error(`wasmDeltaBytes: expected a positive number, got ${String(delta)}`);
-    }
+    assertPositiveNumber(delta);
     return { widths, wasmDeltaBytes: delta };
   } finally {
     await page.close();

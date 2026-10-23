@@ -25,17 +25,8 @@ export async function prefetchBestEffort<T, R>(
 ): Promise<R[]> {
   const ctrl = new AbortController();
   const settled: R[] = [];
-  let next = 0;
-  const lane = async (): Promise<void> => {
-    while (!ctrl.signal.aborted && next < items.length) {
-      const item = items[next++];
-      if (item === undefined) continue;
-      try {
-        const out = await fetchOne(item, ctrl.signal);
-        if (!ctrl.signal.aborted) settled.push(out);
-      } catch {}
-    }
-  };
+  const state = { next: 0 };
+  const lane = () => runLane(items, fetchOne, ctrl, settled, state);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<void>((resolve) => {
     timer = setTimeout(resolve, deadlineMs);
@@ -45,4 +36,30 @@ export async function prefetchBestEffort<T, R>(
   clearTimeout(timer);
   ctrl.abort();
   return settled;
+}
+
+async function runLane<T, R>(
+  items: readonly T[],
+  fetchOne: (item: T, signal: AbortSignal) => Promise<R>,
+  ctrl: AbortController,
+  settled: R[],
+  state: { next: number },
+): Promise<void> {
+  while (!ctrl.signal.aborted && state.next < items.length) {
+    const item = items[state.next++];
+    if (item === undefined) continue;
+    await runSpeculativeItem(item, fetchOne, ctrl, settled);
+  }
+}
+
+async function runSpeculativeItem<T, R>(
+  item: T,
+  fetchOne: (item: T, signal: AbortSignal) => Promise<R>,
+  ctrl: AbortController,
+  settled: R[],
+): Promise<void> {
+  try {
+    const result = await fetchOne(item, ctrl.signal);
+    if (!ctrl.signal.aborted) settled.push(result);
+  } catch {}
 }

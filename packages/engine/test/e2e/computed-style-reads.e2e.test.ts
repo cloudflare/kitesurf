@@ -55,22 +55,34 @@ test("a single-property read matches the full declaration", async ({ page }) => 
   <p id=para style="white-space: pre-wrap; font-weight: 700">text</p>`,
   );
   const mismatches = await page.evaluate(() => {
-    const out: string[] = [];
-    for (const id of ["flex", "item", "sticky", "hidden", "inner", "grid", "para"]) {
+    const propertyMismatches = (
+      id: string,
+      name: string,
+      want: string,
+      kebab: string,
+      camel: unknown,
+    ) => {
+      const mismatches: string[] = [];
+      if (kebab !== want)
+        mismatches.push(`${id} ${name}: ${JSON.stringify(kebab)} != ${JSON.stringify(want)}`);
+      if (!name.startsWith("-") && camel !== want)
+        mismatches.push(
+          `${id} ${name} (camel): ${JSON.stringify(camel)} != ${JSON.stringify(want)}`,
+        );
+      return mismatches;
+    };
+    const mismatchesFor = (id: string) => {
       const el = document.getElementById(id)!;
       const full = getComputedStyle(el);
-      for (const name of Array.from(full)) {
+      return Array.from(full).flatMap((name) => {
         const want = full.getPropertyValue(name);
         const kebab = getComputedStyle(el).getPropertyValue(name);
         const camelName = name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
         const camel = Reflect.get(getComputedStyle(el), camelName);
-        if (kebab !== want)
-          out.push(`${id} ${name}: ${JSON.stringify(kebab)} != ${JSON.stringify(want)}`);
-        if (!name.startsWith("-") && camel !== want)
-          out.push(`${id} ${name} (camel): ${JSON.stringify(camel)} != ${JSON.stringify(want)}`);
-      }
-    }
-    return out;
+        return propertyMismatches(id, name, want, kebab, camel);
+      });
+    };
+    return ["flex", "item", "sticky", "hidden", "inner", "grid", "para"].flatMap(mismatchesFor);
   });
   expect(mismatches).toEqual([]);
 });

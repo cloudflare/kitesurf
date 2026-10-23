@@ -58,12 +58,24 @@ export function stopSceneStreams(browser: BrowserState, targetId?: string): void
   const byTarget = streams.get(browser);
   if (!byTarget) return;
   for (const [id, stream] of byTarget) {
-    if (targetId !== undefined && id !== targetId) continue;
-    stream.closed = true;
-    stream.flow.wake?.();
-    stopTerminalWheelQueue(browser, stream);
-    byTarget.delete(id);
+    if (shouldStopStream(id, targetId)) stopAndForgetStream(browser, byTarget, id, stream);
   }
+}
+
+function shouldStopStream(id: string, targetId: string | undefined): boolean {
+  return targetId === undefined || id === targetId;
+}
+
+function stopAndForgetStream(
+  browser: BrowserState,
+  byTarget: Map<string, Stream>,
+  id: string,
+  stream: Stream,
+): void {
+  stream.closed = true;
+  stream.flow.wake?.();
+  stopTerminalWheelQueue(browser, stream);
+  byTarget.delete(id);
 }
 
 export function terminalSceneWheelQueue(
@@ -72,8 +84,23 @@ export function terminalSceneWheelQueue(
   sessionId: string | undefined,
 ): WheelQueue | null {
   const stream = streams.get(browser)?.get(targetId);
-  if (!stream || stream.closed || !stream.terminal || stream.ownerSessionId !== sessionId)
-    return null;
+  if (!ownsLiveTerminalStream(stream, sessionId)) return null;
+  return ensureTerminalWheelQueue(browser, targetId, sessionId, stream);
+}
+
+function ownsLiveTerminalStream(
+  stream: Stream | undefined,
+  sessionId: string | undefined,
+): stream is Stream {
+  return !!stream && !stream.closed && stream.terminal && stream.ownerSessionId === sessionId;
+}
+
+function ensureTerminalWheelQueue(
+  browser: BrowserState,
+  targetId: string,
+  sessionId: string | undefined,
+  stream: Stream,
+): WheelQueue {
   if (!stream.wheelQueue?.isAccepting) {
     stream.wheelQueue = getWheelQueue(browser, targetId, sessionId);
   }
@@ -130,16 +157,26 @@ function page(
   sessionId: string | undefined,
 ): TargetState | null {
   if (targetId !== undefined) {
-    const target = ctx.browser.targets.get(targetId);
-    return target?.type === "page" ? target : null;
+    return pageById(ctx, targetId);
   }
-  if (sessionId) {
-    for (const target of ctx.browser.targets.values()) {
-      if (target.type === "page" && target.sessions.has(sessionId)) return target;
-    }
-    return null;
+  if (sessionId) return pageForSession(ctx, sessionId);
+  return firstPage(ctx);
+}
+
+function pageById(ctx: DispatchCtx, targetId: string): TargetState | null {
+  const target = ctx.browser.targets.get(targetId);
+  return target?.type === "page" ? target : null;
+}
+
+function pageForSession(ctx: DispatchCtx, sessionId: string): TargetState | null {
+  for (const target of ctx.browser.targets.values()) {
+    if (target.type === "page" && target.sessions.has(sessionId)) return target;
   }
-  return [...ctx.browser.targets.values()].find((t) => t.type === "page") ?? null;
+  return null;
+}
+
+function firstPage(ctx: DispatchCtx): TargetState | null {
+  return [...ctx.browser.targets.values()].find((target) => target.type === "page") ?? null;
 }
 
 function base64(bytes: Uint8Array): string {
@@ -161,141 +198,245 @@ export type SceneStreamRequest = Extract<
   }
 >;
 
+type SceneRecord = Parameters<typeof runSceneLoop>[0];
+type SceneRecordArgs = Parameters<SceneRecord>[0];
+type SceneRecordReply = Awaited<ReturnType<SceneRecord>>;
+type StartSceneParams = z.infer<typeof StartParams>;
+
 export async function sceneStreamCommand(
   ctx: DispatchCtx,
   req: SceneStreamRequest,
 ): Promise<unknown> {
-  const targetParams = TargetParams.safeParse(req.params ?? {});
-  if (!targetParams.success) throw new Error("invalid scene stream target");
-  const target = page(ctx, targetParams.data.targetId, req.sessionId);
+  const target = parseSceneTarget(ctx, req);
+  const byTarget = streamMapFor(ctx.browser);
+  const active = byTarget.get(target.targetId);
+  return routeSceneCommand(ctx, req, target, byTarget, active);
+}
+
+function parseSceneTarget(ctx: DispatchCtx, req: SceneStreamRequest): TargetState {
+  const params = TargetParams.safeParse(req.params ?? {});
+  if (!params.success) throw new Error("invalid scene stream target");
+  const target = page(ctx, params.data.targetId, req.sessionId);
   if (!target) throw new Error("no page target");
-  let byTarget = streams.get(ctx.browser);
+  return target;
+}
+
+function streamMapFor(browser: BrowserState): Map<string, Stream> {
+  let byTarget = streams.get(browser);
   if (!byTarget) {
     byTarget = new Map();
-    streams.set(ctx.browser, byTarget);
+    streams.set(browser, byTarget);
   }
-  const active = byTarget.get(target.targetId);
+  return byTarget;
+}
+
+async function routeSceneCommand(
+  ctx: DispatchCtx,
+  req: SceneStreamRequest,
+  target: TargetState,
+  byTarget: Map<string, Stream>,
+  active: Stream | undefined,
+): Promise<unknown> {
   if (req.method === "Kitesurf.stopSceneStream") {
-    stopSceneStreams(ctx.browser, target.targetId);
-    await active?.done;
-    return {};
+    return stopSceneStreamCommand(ctx.browser, target, active);
   }
-  if (req.method === "Kitesurf.sceneFrameAck") {
-    const params = AckParams.safeParse(req.params);
-    if (active && params.success) {
-      if (claimSceneAck(active.flow, params.data.seq) && params.data.painted === false) {
-        active.flow.needFull = true;
-        wakeSceneFlow(active.flow);
-      }
-    }
-    return {};
-  }
+  if (req.method === "Kitesurf.sceneFrameAck") return acknowledgeSceneFrame(active, req.params);
   if (req.method === "Kitesurf.getSceneResources") {
-    if (!active || !target.pageScript) throw new Error("scene stream not running");
-    if (active.needInFlight >= MAX_IN_FLIGHT_RESOURCE_REQUESTS) {
-      throw new Error("too many resource requests");
-    }
-    const params = ResourceParams.safeParse(req.params);
-    if (!params.success) throw new Error("invalid resource request");
-    const missing = unpack(params.data.missingB64);
-    const view = new DataView(missing.buffer, missing.byteOffset, missing.byteLength);
-    if (missing.length < MISSING_RESOURCE_LIST_HEADER_BYTES) {
-      throw new Error("invalid resource request");
-    }
-    const count = view.getUint32(0, true);
-    if (
-      count > MAX_SCENE_RESOURCE_REQUEST_ITEMS ||
-      missing.length !==
-        MISSING_RESOURCE_LIST_HEADER_BYTES + count * MISSING_RESOURCE_LIST_ENTRY_BYTES
-    ) {
-      throw new Error("invalid resource request");
-    }
-    const images: number[] = [],
-      fonts: number[] = [];
-    for (let i = 0; i < count; i++) {
-      const off = MISSING_RESOURCE_LIST_HEADER_BYTES + i * MISSING_RESOURCE_LIST_ENTRY_BYTES;
-      const kind = missing[off];
-      if (kind === 2) {
-        images.push(
-          ...missing.subarray(
-            off + MISSING_RESOURCE_LIST_KIND_BYTES,
-            off + MISSING_RESOURCE_LIST_ENTRY_BYTES,
-          ),
-        );
-      } else if (kind === 3) {
-        fonts.push(
-          ...missing.subarray(
-            off + MISSING_RESOURCE_LIST_KIND_BYTES,
-            off + MISSING_RESOURCE_LIST_ENTRY_BYTES,
-          ),
-        );
-      }
-    }
-    active.needInFlight++;
-    try {
-      const reply = await stubQueryDom(target.pageScript, "getPaintResources", {
-        imageHashes: new Uint8Array(images),
-        fontDataHashes: new Uint8Array(fonts),
-      });
-      const batch = reply.batch
-        ? supplyEngineResources(
-            reply.batch,
-            (hash) => getImageBytes(hash, ctx.connectionId),
-            (key) => getFontBytes(key, ctx.connectionId),
-          )
-        : new Uint8Array();
-      return { batchB64: base64(batch) } satisfies Protocol.Kitesurf.GetSceneResourcesResponse;
-    } finally {
-      active.needInFlight--;
+    return getSceneResources(ctx, target, active, req.params);
+  }
+  return startSceneStream(ctx, req, target, byTarget, active);
+}
+
+async function stopSceneStreamCommand(
+  browser: BrowserState,
+  target: TargetState,
+  active: Stream | undefined,
+): Promise<Record<string, never>> {
+  stopSceneStreams(browser, target.targetId);
+  await active?.done;
+  return {};
+}
+
+function acknowledgeSceneFrame(
+  active: Stream | undefined,
+  rawParams: unknown,
+): Record<string, never> {
+  const params = AckParams.safeParse(rawParams);
+  if (!active || !params.success) return {};
+  if (claimSceneAck(active.flow, params.data.seq) && params.data.painted === false) {
+    active.flow.needFull = true;
+    wakeSceneFlow(active.flow);
+  }
+  return {};
+}
+
+interface MissingSceneResources {
+  images: number[];
+  fonts: number[];
+}
+
+function parseMissingSceneResources(rawParams: unknown): MissingSceneResources {
+  const params = ResourceParams.safeParse(rawParams);
+  if (!params.success) throw new Error("invalid resource request");
+  const missing = unpack(params.data.missingB64);
+  const view = new DataView(missing.buffer, missing.byteOffset, missing.byteLength);
+  if (missing.length < MISSING_RESOURCE_LIST_HEADER_BYTES) {
+    throw new Error("invalid resource request");
+  }
+  const count = view.getUint32(0, true);
+  if (
+    count > MAX_SCENE_RESOURCE_REQUEST_ITEMS ||
+    missing.length !==
+      MISSING_RESOURCE_LIST_HEADER_BYTES + count * MISSING_RESOURCE_LIST_ENTRY_BYTES
+  ) {
+    throw new Error("invalid resource request");
+  }
+  return collectMissingSceneResources(missing, count);
+}
+
+function collectMissingSceneResources(missing: Uint8Array, count: number): MissingSceneResources {
+  const images: number[] = [];
+  const fonts: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const offset = MISSING_RESOURCE_LIST_HEADER_BYTES + i * MISSING_RESOURCE_LIST_ENTRY_BYTES;
+    const kind = missing[offset];
+    if (kind === 2) {
+      images.push(
+        ...missing.subarray(
+          offset + MISSING_RESOURCE_LIST_KIND_BYTES,
+          offset + MISSING_RESOURCE_LIST_ENTRY_BYTES,
+        ),
+      );
+    } else if (kind === 3) {
+      fonts.push(
+        ...missing.subarray(
+          offset + MISSING_RESOURCE_LIST_KIND_BYTES,
+          offset + MISSING_RESOURCE_LIST_ENTRY_BYTES,
+        ),
+      );
     }
   }
-  const parsed = StartParams.safeParse(req.params);
-  if (!parsed.success) {
-    throw new Error("invalid scene stream parameters");
+  return { images, fonts };
+}
+
+function resourceContext(
+  target: TargetState,
+  active: Stream | undefined,
+): { active: Stream; pageScript: NonNullable<TargetState["pageScript"]> } {
+  if (!active || !target.pageScript) throw new Error("scene stream not running");
+  if (active.needInFlight >= MAX_IN_FLIGHT_RESOURCE_REQUESTS) {
+    throw new Error("too many resource requests");
   }
-  const { width, height, fps, text = false, terminal, cellW, cellH, allowPartial } = parsed.data;
-  if (active) {
-    // Finish the existing owner before installing another loop for this target.
-    active.closed = true;
-    active.flow.wake?.();
-    stopTerminalWheelQueue(ctx.browser, active);
-    await active.done;
+  return { active, pageScript: target.pageScript };
+}
+
+async function getSceneResources(
+  ctx: DispatchCtx,
+  target: TargetState,
+  active: Stream | undefined,
+  rawParams: unknown,
+): Promise<Protocol.Kitesurf.GetSceneResourcesResponse> {
+  const { active: stream, pageScript } = resourceContext(target, active);
+  const { images, fonts } = parseMissingSceneResources(rawParams);
+  stream.needInFlight++;
+  try {
+    const reply = await stubQueryDom(pageScript, "getPaintResources", {
+      imageHashes: new Uint8Array(images),
+      fontDataHashes: new Uint8Array(fonts),
+    });
+    const batch = reply.batch
+      ? supplyEngineResources(
+          reply.batch,
+          (hash) => getImageBytes(hash, ctx.connectionId),
+          (key) => getFontBytes(key, ctx.connectionId),
+        )
+      : new Uint8Array();
+    return { batchB64: base64(batch) };
+  } finally {
+    stream.needInFlight--;
   }
+}
+
+async function startSceneStream(
+  ctx: DispatchCtx,
+  req: SceneStreamRequest,
+  target: TargetState,
+  byTarget: Map<string, Stream>,
+  active: Stream | undefined,
+): Promise<{ heartbeatMs: number }> {
+  const params = parseStartSceneParams(req.params);
+  await closeReplacedStreams(ctx.browser, byTarget, target, active);
+  const stream = createSceneStream(target, req.sessionId, params.terminal === true);
+  byTarget.set(target.targetId, stream);
+  configureTerminalStream(ctx.browser, stream, params);
+  startSceneLoop(ctx, target, byTarget, stream, params);
+  return { heartbeatMs: SCENE_HEARTBEAT_MS };
+}
+
+function parseStartSceneParams(rawParams: unknown): StartSceneParams {
+  const parsed = StartParams.safeParse(rawParams);
+  if (!parsed.success) throw new Error("invalid scene stream parameters");
+  return parsed.data;
+}
+
+async function closeReplacedStreams(
+  browser: BrowserState,
+  byTarget: Map<string, Stream>,
+  target: TargetState,
+  active: Stream | undefined,
+): Promise<void> {
+  await closeStream(browser, active);
   const latest = byTarget.get(target.targetId);
-  if (latest && latest !== active) {
-    latest.closed = true;
-    latest.flow.wake?.();
-    stopTerminalWheelQueue(ctx.browser, latest);
-    await latest.done;
-  }
-  const flow: SceneFlow = {
-    sent: 0,
-    acked: 0,
-    outstanding: new Map(),
-    needFull: false,
-  };
-  const stream: Stream = {
+  if (latest !== active) await closeStream(browser, latest);
+}
+
+async function closeStream(browser: BrowserState, stream: Stream | undefined): Promise<void> {
+  if (!stream) return;
+  stream.closed = true;
+  stream.flow.wake?.();
+  stopTerminalWheelQueue(browser, stream);
+  await stream.done;
+}
+
+function createSceneStream(
+  target: TargetState,
+  sessionId: string | undefined,
+  terminal: boolean,
+): Stream {
+  return {
     closed: false,
-    flow,
+    flow: { sent: 0, acked: 0, outstanding: new Map(), needFull: false },
     target,
     resources: new DeliveredKeys(),
     needInFlight: 0,
-    terminal: terminal === true,
-    ownerSessionId: req.sessionId,
+    terminal,
+    ownerSessionId: sessionId,
     wheelQueue: null,
   };
-  byTarget.set(target.targetId, stream);
-  if (terminal) {
-    ctx.browser.ttyKeyboard = true;
-    if (text) {
-      ctx.browser.ttyUaCss = 1;
-      if (cellW !== undefined && cellH !== undefined) {
-        ctx.browser.ttyCellW = cellW;
-        ctx.browser.ttyCellH = cellH;
-      }
-    }
-  }
-  const ownerSessionId = req.sessionId;
+}
+
+function configureTerminalStream(
+  browser: BrowserState,
+  stream: Stream,
+  params: StartSceneParams,
+): void {
+  if (!params.terminal) return;
+  browser.ttyKeyboard = true;
+  if (!params.text) return;
+  browser.ttyUaCss = 1;
+  if (params.cellW === undefined || params.cellH === undefined) return;
+  browser.ttyCellW = params.cellW;
+  browser.ttyCellH = params.cellH;
+}
+
+function startSceneLoop(
+  ctx: DispatchCtx,
+  target: TargetState,
+  byTarget: Map<string, Stream>,
+  stream: Stream,
+  params: StartSceneParams,
+): void {
+  const ownerSessionId = stream.ownerSessionId;
   const send = (bytes: Uint8Array) => {
     ctx.emit({
       method: "Kitesurf.sceneFrame",
@@ -304,35 +445,16 @@ export async function sceneStreamCommand(
     });
   };
   const loop = runSceneLoop(
-    async (args) => {
-      if (!target.pageScript) throw new Error("page not ready");
-      const have = stream.resources.pack();
-      const recordArgs = {
-        ...args,
-        haveImages: have.images,
-        haveFonts: have.fonts,
-      };
-      const reply = await stubQueryDom(target.pageScript, "recordScene", recordArgs);
-      if (!reply.resourceBatch) return reply;
-      const fresh = dropAlreadySent(reply.resourceBatch, stream.resources);
-      if (fresh.length === 0) return { ...reply, resourceBatch: null };
-      const supplied = supplyEngineResources(
-        fresh,
-        (hash) => getImageBytes(hash, ctx.connectionId),
-        (key) => getFontBytes(key, ctx.connectionId),
-      );
-      noteDelivered(supplied, stream.resources);
-      return { ...reply, resourceBatch: supplied };
-    },
+    (args) => recordSceneFrame(ctx, target, stream, args),
     { send },
     () => stream.closed || ctx.browser.wsClosing || !ctx.browser.targets.has(target.targetId),
-    flow,
+    stream.flow,
     {
-      w: width,
-      h: height,
-      fps: fps ?? DEFAULT_SCENE_STREAM_FPS,
-      text,
-      allowPartial: allowPartial !== false,
+      w: params.width,
+      h: params.height,
+      fps: params.fps ?? DEFAULT_SCENE_STREAM_FPS,
+      text: params.text ?? false,
+      allowPartial: params.allowPartial !== false,
       now: makeWallClock(ctx.env),
       // Child isolates cannot currently wake the parent when their own pixels change.
       canIdle: () => ![...target.frames.values()].some((frame) => frame.pageScript),
@@ -344,5 +466,30 @@ export async function sceneStreamCommand(
   });
   stream.done = loop;
   ctx.ctx.waitUntil(loop);
-  return { heartbeatMs: SCENE_HEARTBEAT_MS };
+}
+
+async function recordSceneFrame(
+  ctx: DispatchCtx,
+  target: TargetState,
+  stream: Stream,
+  args: SceneRecordArgs,
+): Promise<SceneRecordReply> {
+  const pageScript = target.pageScript;
+  if (!pageScript) throw new Error("page not ready");
+  const have = stream.resources.pack();
+  const reply = await stubQueryDom(pageScript, "recordScene", {
+    ...args,
+    haveImages: have.images,
+    haveFonts: have.fonts,
+  });
+  if (!reply.resourceBatch) return reply;
+  const fresh = dropAlreadySent(reply.resourceBatch, stream.resources);
+  if (fresh.length === 0) return { ...reply, resourceBatch: null };
+  const supplied = supplyEngineResources(
+    fresh,
+    (hash) => getImageBytes(hash, ctx.connectionId),
+    (key) => getFontBytes(key, ctx.connectionId),
+  );
+  noteDelivered(supplied, stream.resources);
+  return { ...reply, resourceBatch: supplied };
 }

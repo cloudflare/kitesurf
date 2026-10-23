@@ -21,36 +21,55 @@ async function sheetProbe(page: Page): Promise<Record<string, unknown>> {
 
   return page.evaluate(() => {
     const probe: Record<string, unknown> = {};
-    try {
+    const capture = (run: () => void) => {
+      try {
+        run();
+        probe.ok = true;
+      } catch (e) {
+        probe.ok = false;
+        probe.err = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      }
+    };
+
+    const recordStyleSheetCollection = () => {
       probe.styleSheetsExists = typeof document.styleSheets !== "undefined";
       probe.styleSheetsIterable =
         Symbol.iterator in document.styleSheets || Array.isArray(Array.from(document.styleSheets));
       probe.styleSheetsLength = document.styleSheets.length;
+      probe.ruleLengths = [...document.styleSheets].map((sheet) => sheet.cssRules.length);
+    };
 
-      const ruleLengths: number[] = [];
-      for (const s of document.styleSheets) {
-        ruleLengths.push(s.cssRules.length);
-      }
-      probe.ruleLengths = ruleLengths;
+    const recordOwnerTag = (sheet: CSSStyleSheet | undefined) => {
+      const owner = sheet?.ownerNode;
+      probe.firstOwnerTag = owner ? (owner as Element).tagName : null;
+    };
 
+    const recordFirstSheet = () => {
       const first = document.styleSheets[0];
-      probe.firstOwnerTag = (first?.ownerNode as Element | null)?.tagName ?? null;
+      recordOwnerTag(first);
       probe.firstHref = first?.href ?? null;
+      return first;
+    };
 
+    const recordInlineSheet = () => {
       const styleEl = document.getElementById("inline-css") as HTMLStyleElement;
       probe.styleSheetType = typeof styleEl.sheet;
       probe.styleSheetCssRulesLen = styleEl.sheet!.cssRules.length;
+    };
 
+    const recordIconSheet = () => {
       const iconEl = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
       probe.iconSheet = iconEl.sheet;
+    };
 
+    capture(() => {
+      recordStyleSheetCollection();
+      const first = recordFirstSheet();
+      recordInlineSheet();
+      recordIconSheet();
       first!.insertRule(".x{}", 0);
       first!.deleteRule(0);
-      probe.ok = true;
-    } catch (e) {
-      probe.ok = false;
-      probe.err = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-    }
+    });
     return probe;
   });
 }

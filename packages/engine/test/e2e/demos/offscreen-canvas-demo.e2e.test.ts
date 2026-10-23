@@ -10,6 +10,14 @@ test("offscreen-canvas-demo", async ({ page }) => {
   await page.goto(BASE + "/__fixtures/inline-script.html");
 
   const probe = await page.evaluate(() => {
+    const attempt = (run: () => void) => {
+      try {
+        run();
+        return "no-throw";
+      } catch (error) {
+        return error instanceof Error ? error.name : "threw";
+      }
+    };
     const out: {
       width?: number;
       height?: number;
@@ -29,20 +37,14 @@ test("offscreen-canvas-demo", async ({ page }) => {
       ctx.font = "16px sans-serif";
       out.measured = ctx.measureText("Hello Radar").width;
       out.webgl = oc.getContext("webgl");
-      try {
+      out.noNew = attempt(() => {
         // @ts-expect-error deliberate call without `new`; the test checks it throws
         OffscreenCanvas(1, 1);
-        out.noNew = "no-throw";
-      } catch (e) {
-        out.noNew = (e && e.name) || "threw";
-      }
-      try {
+      });
+      out.oneArg = attempt(() => {
         // @ts-expect-error deliberate missing height; the test checks it throws
         new OffscreenCanvas(1);
-        out.oneArg = "no-throw";
-      } catch (e) {
-        out.oneArg = (e && e.name) || "threw";
-      }
+      });
     } catch (e) {
       out.error = String((e && e.message) || e);
     }

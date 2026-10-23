@@ -9,20 +9,23 @@ test("supports document.write, fragment imports, and details toggling", async ({
   await setContent(page, "<body></body>");
 
   const result = await page.evaluate(() => {
-    let writeThrew = false;
-    let writeContinued = false;
-    try {
+    const attempt = (run: () => void) => {
+      try {
+        run();
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const writeContinued = attempt(() => {
       document.write("<span data-ksw>w</span>");
-      writeContinued = true;
-    } catch {
-      writeThrew = true;
-      writeContinued = false;
-    }
+    });
+    const writeThrew = !writeContinued;
 
     let importNodeType: number | null = null;
     let importChildCount = 0;
     let appendedHtml = "";
-    try {
+    attempt(() => {
       const template = document.createElement("template");
       template.innerHTML = "<div class='imp'><b>hi</b></div>";
       const fragment = document.importNode(template.content, true);
@@ -31,10 +34,10 @@ test("supports document.write, fragment imports, and details toggling", async ({
       const host = document.createElement("div");
       host.appendChild(fragment);
       appendedHtml = host.innerHTML;
-    } catch {}
+    });
 
     let detailsToggled = false;
-    try {
+    attempt(() => {
       const details = document.createElement("details");
       const summary = document.createElement("summary");
       summary.textContent = "x";
@@ -44,7 +47,7 @@ test("supports document.write, fragment imports, and details toggling", async ({
       const before = details.open;
       summary.click();
       detailsToggled = details.open !== before;
-    } catch {}
+    });
 
     return {
       writeThrew,

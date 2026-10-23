@@ -4,6 +4,126 @@
 
 import { expect, test } from "../harness";
 
+function nodeHasId(node, id): boolean {
+  const attrs = node.attributes || [];
+  const index = attrs.indexOf("id");
+  return index >= 0 && attrs[index + 1] === id;
+}
+
+function pushChildren(stack, node): void {
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) stack.push(child);
+  }
+}
+
+function findById(root, id) {
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node) continue;
+    if (nodeHasId(node, id)) return node;
+    pushChildren(stack, node);
+  }
+  return null;
+}
+
+function findDirectChildById(parent, id) {
+  if (!parent || !Array.isArray(parent.children)) return null;
+  return parent.children.find((child) => nodeHasId(child, id)) ?? null;
+}
+
+function assertDocumentNodes(rootEl, helloEl): void {
+  expect(rootEl !== null, "#root located in tree").toBeTruthy();
+  expect(helloEl !== null, "#hello located").toBeTruthy();
+}
+
+function assertModifiedAttribute(event, expectedValue: string, details: string): void {
+  expect(
+    event !== undefined &&
+      event.params.value === expectedValue &&
+      typeof event.params.nodeId === "number",
+    details,
+  ).toBeTruthy();
+}
+
+function assertCharacterData(event, details: string): void {
+  expect(event !== undefined && event.params.characterData === "world", details).toBeTruthy();
+}
+
+function assertInsertedNode(inserted, events): void {
+  expect(
+    inserted !== undefined,
+    "childNodeInserted fired: " + JSON.stringify(events.slice(0, 3)),
+  ).toBeTruthy();
+  if (!inserted) return;
+  assertInsertedNodeName(inserted);
+  assertInsertedNodeId(inserted);
+  assertInsertedNodeText(inserted);
+}
+
+function assertInsertedNodeName(inserted): void {
+  const name = inserted.params?.node?.nodeName;
+  expect(name === "SPAN", `inserted.node has nodeName SPAN: got nodeName ${name}`).toBeTruthy();
+}
+
+function assertInsertedNodeId(inserted): void {
+  const attrs = inserted.params?.node?.attributes || [];
+  const idIndex = attrs.indexOf("id");
+  expect(
+    idIndex >= 0 && attrs[idIndex + 1] === "appended",
+    "inserted.node.attributes contains id=appended: " + JSON.stringify(attrs),
+  ).toBeTruthy();
+}
+
+function assertInsertedNodeText(inserted): void {
+  const children = insertedNodeChildren(inserted);
+  const firstChildValue = children[0]?.nodeValue;
+  expect(
+    children.length === 1 && firstChildValue === "buy milk",
+    "inserted.node.children includes the text node: " + JSON.stringify(children),
+  ).toBeTruthy();
+}
+
+function insertedNodeChildren(inserted) {
+  return inserted.params?.node?.children || [];
+}
+
+function assertOrderedInserts(inserts): void {
+  expect(
+    inserts.length === 3,
+    `three childNodeInserted events for three appendChilds: got ${inserts.length}: ${JSON.stringify(inserts.map((e) => e.params?.node?.nodeName))}`,
+  ).toBeTruthy();
+  if (inserts.length !== 3) return;
+  assertSecondInsertFollowsFirst(inserts);
+  assertThirdInsertFollowsSecond(inserts);
+}
+
+function assertSecondInsertFollowsFirst(inserts): void {
+  const previousNodeId = inserts[1].params?.previousNodeId;
+  const firstNodeId = inserts[0].params?.node?.nodeId;
+  expect(
+    previousNodeId === firstNodeId,
+    `second insert.previousNodeId === first insert.nodeId: prev=${previousNodeId}, want=${firstNodeId}`,
+  ).toBeTruthy();
+}
+
+function assertThirdInsertFollowsSecond(inserts): void {
+  const previousNodeId = inserts[2].params?.previousNodeId;
+  const secondNodeId = inserts[1].params?.node?.nodeId;
+  expect(
+    previousNodeId === secondNodeId,
+    `third insert.previousNodeId === second insert.nodeId: prev=${previousNodeId}, want=${secondNodeId}`,
+  ).toBeTruthy();
+}
+
+function hasNumericRootNodeId(doc: { root?: { nodeId?: number } } | null | undefined): boolean {
+  return typeof doc?.root?.nodeId === "number";
+}
+
+function formatDiagnosticEvent(event: unknown): string {
+  return String(JSON.stringify(event || null));
+}
+
 test("dom-mutation-events-demo", async ({ page }) => {
   const HTML = `<!doctype html>
 <html>
@@ -57,30 +177,12 @@ test("dom-mutation-events-demo", async ({ page }) => {
   await session.send("DOM.enable");
   const doc = await session.send("DOM.getDocument");
   expect(
-    typeof doc?.root?.nodeId === "number",
+    hasNumericRootNodeId(doc),
     "DOM.getDocument returned a root node: no root in response",
   ).toBeTruthy();
-  const rootEl = (() => {
-    const stack = [doc.root];
-    while (stack.length) {
-      const n = stack.pop();
-      if (!n) continue;
-      const idAttr = (n.attributes || []).indexOf("id");
-      if (idAttr >= 0 && (n.attributes || [])[idAttr + 1] === "root") return n;
-      if (Array.isArray(n.children)) for (const c of n.children) stack.push(c);
-    }
-    return null;
-  })();
-  expect(rootEl !== null, "#root located in tree").toBeTruthy();
-  const helloEl = (() => {
-    if (!rootEl || !Array.isArray(rootEl.children)) return null;
-    for (const c of rootEl.children) {
-      const idx = (c.attributes || []).indexOf("id");
-      if (idx >= 0 && (c.attributes || [])[idx + 1] === "hello") return c;
-    }
-    return null;
-  })();
-  expect(helloEl !== null, "#hello located").toBeTruthy();
+  const rootEl = findById(doc.root, "root");
+  const helloEl = findDirectChildById(rootEl, "hello");
+  assertDocumentNodes(rootEl, helloEl);
 
   events.length = 0;
 
@@ -97,12 +199,11 @@ test("dom-mutation-events-demo", async ({ page }) => {
   const attrModified = events.find(
     (e) => e.method === "DOM.attributeModified" && e.params?.name === "data-tag",
   );
-  expect(
-    attrModified !== undefined &&
-      attrModified.params.value === "first-attr" &&
-      typeof attrModified.params.nodeId === "number",
-    "attributeModified fired with name+value: " + JSON.stringify(attrModified || null),
-  ).toBeTruthy();
+  assertModifiedAttribute(
+    attrModified,
+    "first-attr",
+    "attributeModified fired with name+value: " + formatDiagnosticEvent(attrModified),
+  );
 
   events.length = 0;
   await page.evaluate(() => {
@@ -131,10 +232,10 @@ test("dom-mutation-events-demo", async ({ page }) => {
     .poll(() => events.some((e) => e.method === "DOM.characterDataModified"), { timeout: 10_000 })
     .toBe(true);
   const charData = events.find((e) => e.method === "DOM.characterDataModified");
-  expect(
-    charData !== undefined && charData.params.characterData === "world",
-    "characterDataModified fired with new value: " + JSON.stringify(charData || null),
-  ).toBeTruthy();
+  assertCharacterData(
+    charData,
+    "characterDataModified fired with new value: " + formatDiagnosticEvent(charData),
+  );
 
   events.length = 0;
   await page.evaluate(() => {
@@ -150,27 +251,7 @@ test("dom-mutation-events-demo", async ({ page }) => {
     })
     .toBe(true);
   const inserted = events.find((e) => e.method === "DOM.childNodeInserted");
-  expect(
-    inserted !== undefined,
-    "childNodeInserted fired: " + JSON.stringify(events.slice(0, 3)),
-  ).toBeTruthy();
-  if (inserted) {
-    expect(
-      inserted.params?.node?.nodeName === "SPAN",
-      `inserted.node has nodeName SPAN: got nodeName ${inserted.params?.node?.nodeName}`,
-    ).toBeTruthy();
-    const attrs = inserted.params?.node?.attributes || [];
-    const idIdx = attrs.indexOf("id");
-    expect(
-      idIdx >= 0 && attrs[idIdx + 1] === "appended",
-      "inserted.node.attributes contains id=appended: " + JSON.stringify(attrs),
-    ).toBeTruthy();
-    const kids = inserted.params?.node?.children || [];
-    expect(
-      kids.length === 1 && kids[0]?.nodeValue === "buy milk",
-      "inserted.node.children includes the text node: " + JSON.stringify(kids),
-    ).toBeTruthy();
-  }
+  assertInsertedNode(inserted, events);
 
   events.length = 0;
   await page.evaluate(() => {
@@ -216,22 +297,7 @@ test("dom-mutation-events-demo", async ({ page }) => {
     )
     .toBe(true);
   const inserts = events.filter((e) => e.method === "DOM.childNodeInserted");
-  expect(
-    inserts.length === 3,
-    `three childNodeInserted events for three appendChilds: got ${inserts.length}: ${JSON.stringify(inserts.map((e) => e.params?.node?.nodeName))}`,
-  ).toBeTruthy();
-  if (inserts.length === 3) {
-    const id0 = inserts[0].params?.node?.nodeId;
-    const id1 = inserts[1].params?.node?.nodeId;
-    expect(
-      inserts[1].params?.previousNodeId === id0,
-      `second insert.previousNodeId === first insert.nodeId: prev=${inserts[1].params?.previousNodeId}, want=${id0}`,
-    ).toBeTruthy();
-    expect(
-      inserts[2].params?.previousNodeId === id1,
-      `third insert.previousNodeId === second insert.nodeId: prev=${inserts[2].params?.previousNodeId}, want=${id1}`,
-    ).toBeTruthy();
-  }
+  assertOrderedInserts(inserts);
 
   events.length = 0;
   await page.evaluate(() => {

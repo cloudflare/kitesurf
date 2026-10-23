@@ -9,7 +9,7 @@ import { getTailTrace } from "./tail-trace-registry.ts";
 import { attachChunked } from "./carrier-spans.ts";
 import { notifyIsolateLimit } from "./limit-registry.ts";
 import { parseKsErrLine, type TailExceptionReport } from "../engine-errors.ts";
-import type { Tracer } from "../tracing.ts";
+import type { SpanContext, Tracer } from "../tracing.ts";
 import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
 
 const ISOLATE_KILL_MARKER: IsolateKillMarker = "[ks-kill]";
@@ -48,6 +48,268 @@ const OTEL_SEVERITY: Record<string, number> = {
   exception: 17,
 };
 
+interface TailInvocationState {
+  scriptName: string;
+  pageDomain: string | undefined;
+  ksErrToken: string | undefined;
+  sessionId: string | undefined;
+  tag: string;
+  buffered: Array<{ level: string; msg: string; t_ms: number }>;
+  spanRecs: string[];
+  spanRecsDropped: number;
+  dropped: number;
+  killRequested: boolean;
+  lastPanicBlob: string | undefined;
+}
+
+interface TailInvocationIdentity {
+  scriptName: string;
+  pageDomain: string | undefined;
+  ksErrToken: string | undefined;
+  sessionId: string | undefined;
+}
+
+function optionalTailField(value: string | undefined): string | undefined {
+  return value || undefined;
+}
+
+function tailInvocationIdentity(props: PageScriptTailProps | undefined): TailInvocationIdentity {
+  const { scriptName: configuredScriptName, pageDomain, ksErrToken, sessionId } = props ?? {};
+  return {
+    scriptName: configuredScriptName ?? "page-script",
+    pageDomain: optionalTailField(pageDomain),
+    ksErrToken: optionalTailField(ksErrToken),
+    sessionId: optionalTailField(sessionId),
+  };
+}
+
+function createTailInvocationState(props: PageScriptTailProps | undefined): TailInvocationState {
+  const identity = tailInvocationIdentity(props);
+  const { scriptName } = identity;
+  return {
+    ...identity,
+    tag: `[${scriptName}]`,
+    buffered: [],
+    spanRecs: [],
+    spanRecsDropped: 0,
+    dropped: 0,
+    killRequested: false,
+    lastPanicBlob: undefined,
+  };
+}
+
+function bufferTailLog(state: TailInvocationState, level: string, line: string, tMs: number): void {
+  if (state.buffered.length >= SPAN_LOG_CAP) {
+    state.dropped++;
+    return;
+  }
+  state.buffered.push({
+    level,
+    msg: line.slice(0, MAX_PAGE_SCRIPT_TAIL_LOG_LINE_CHARS),
+    t_ms: tMs,
+  });
+}
+
+function isEmptyTailSpanBatch(state: TailInvocationState): boolean {
+  return state.buffered.length === 0 && state.dropped === 0 && state.spanRecs.length === 0;
+}
+
+function tailSpanLogs(state: TailInvocationState): Array<{ key: string; value: string }> {
+  return [
+    ...state.buffered.map((entry) => ({ key: "otel.log", value: otelLogRecord(entry) })),
+    ...state.spanRecs.map((record) => ({ key: "otel.span", value: record })),
+    ...(state.dropped > 0
+      ? [
+          {
+            key: "otel.log",
+            value: otelLogRecord({
+              level: "warn",
+              msg: `truncated: dropped ${state.dropped} lines after ${SPAN_LOG_CAP}`,
+              t_ms: Date.now(),
+            }),
+          },
+        ]
+      : []),
+  ];
+}
+
+function tailSpanAttributes(state: TailInvocationState): {
+  logCount: number;
+  dropped: number;
+  wasmSpansDropped?: number;
+} {
+  return {
+    logCount: state.buffered.length,
+    dropped: state.dropped,
+    ...(state.spanRecsDropped > 0 ? { wasmSpansDropped: state.spanRecsDropped } : {}),
+  };
+}
+
+function tailErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function tailSpanTarget(scriptName: string): { tracer: Tracer; parent: SpanContext } | null {
+  const entry = getTailTrace(scriptName);
+  if (!entry) return null;
+  const parent = entry.parent;
+  if (!parent) return null;
+  return { tracer: entry.tracer, parent };
+}
+
+function flushTailSpan(state: TailInvocationState): void {
+  if (isEmptyTailSpanBatch(state)) return;
+  const target = tailSpanTarget(state.scriptName);
+  if (!target) return;
+  try {
+    target.tracer.runWithSpanContext(target.parent, () => {
+      attachChunked(
+        target.tracer,
+        "child.console",
+        { scriptName: state.scriptName },
+        tailSpanLogs(state),
+        tailSpanAttributes(state),
+      );
+    });
+  } catch (error) {
+    console.warn(
+      `[page-script-tail] span submit failed for ${state.scriptName}: ` + tailErrorMessage(error),
+    );
+  }
+}
+
+function handleTailKillMarker(state: TailInvocationState, log: TraceLog, line: string): boolean {
+  const killPrefix = `${ISOLATE_KILL_MARKER} ${state.ksErrToken} `;
+  if (!(state.ksErrToken && line.startsWith(killPrefix))) return false;
+  state.killRequested = true;
+  const note = `${ISOLATE_KILL_MARKER} ${line.slice(killPrefix.length)}`;
+  bufferTailLog(state, log.level, note, log.timestamp);
+  console.log(state.tag, note);
+  return true;
+}
+
+function handleTailSpanRecord(state: TailInvocationState, line: string): boolean {
+  if (!line.startsWith("[ks-otel-span] ")) return false;
+  if (state.spanRecs.length >= SPAN_REC_CAP) state.spanRecsDropped++;
+  else state.spanRecs.push(line.slice("[ks-otel-span] ".length));
+  return true;
+}
+
+function rememberTailPanic(state: TailInvocationState, line: string): void {
+  if (line.startsWith("[cs panic]") || line.startsWith("panicked at")) {
+    state.lastPanicBlob = line;
+  }
+}
+
+function reportAuthenticatedTailError(
+  state: TailInvocationState,
+  line: string,
+  reportException: (report: TailExceptionReport) => void,
+): void {
+  const error = parseKsErrLine(line, state.ksErrToken);
+  if (!error) return;
+  reportException({
+    scriptName: state.scriptName,
+    pageDomain: state.pageDomain,
+    sessionId: state.sessionId,
+    ...error,
+    panicStack: state.lastPanicBlob,
+  });
+  state.lastPanicBlob = undefined;
+}
+
+function mirrorTailConsole(state: TailInvocationState, level: string, line: string): void {
+  switch (level) {
+    case "error":
+      console.error(state.tag, line);
+      break;
+    case "warn":
+      console.warn(state.tag, line);
+      break;
+    case "debug":
+      console.debug(state.tag, line);
+      break;
+    default:
+      console.log(state.tag, line);
+  }
+}
+
+function relayTailLog(
+  state: TailInvocationState,
+  log: TraceLog,
+  reportException: (report: TailExceptionReport) => void,
+): void {
+  const line = renderMessage(log.message);
+  if (handleTailKillMarker(state, log, line)) return;
+  if (handleTailSpanRecord(state, line)) return;
+  rememberTailPanic(state, line);
+  reportAuthenticatedTailError(state, line, reportException);
+  bufferTailLog(state, log.level, line, log.timestamp);
+  mirrorTailConsole(state, log.level, line);
+}
+
+function relayTailException(
+  state: TailInvocationState,
+  exception: TraceException,
+  reportException: (report: TailExceptionReport) => void,
+): void {
+  if (state.killRequested && exception.message.includes(HUNG_INVOCATION_TEXT)) {
+    bufferTailLog(state, "log", "isolate killed on engine request", exception.timestamp);
+    return;
+  }
+  const stack = exception.stack ? `\n${exception.stack}` : "";
+  bufferTailLog(state, "exception", `${exception.name}: ${exception.message}`, exception.timestamp);
+  console.error(`${state.tag} ${exception.name}: ${exception.message}${stack}`);
+  reportException({
+    scriptName: state.scriptName,
+    pageDomain: state.pageDomain,
+    sessionId: state.sessionId,
+    name: exception.name,
+    message: exception.message,
+    stack: exception.stack,
+    panicStack: state.lastPanicBlob,
+  });
+  state.lastPanicBlob = undefined;
+}
+
+function replayTailEntries(
+  item: TraceItem,
+  state: TailInvocationState,
+  reportException: (report: TailExceptionReport) => void,
+): void {
+  const entries: TailEntry[] = [
+    ...item.logs.map((log): TailEntry => ({ at: log.timestamp, log })),
+    ...item.exceptions.map((exception): TailEntry => ({ at: exception.timestamp, exception })),
+  ].sort((a, b) => a.at - b.at);
+  for (const entry of entries) {
+    if ("log" in entry) relayTailLog(state, entry.log, reportException);
+    else relayTailException(state, entry.exception, reportException);
+  }
+}
+
+function shouldIgnoreTailOutcome(item: TraceItem, state: TailInvocationState): boolean {
+  return item.outcome === "ok" || (state.killRequested && item.outcome === "exception");
+}
+
+function notifyTailLimit(scriptName: string, outcome: TraceItem["outcome"]): void {
+  if (outcome === "exceededCpu" || outcome === "exceededMemory") {
+    notifyIsolateLimit(scriptName, {
+      kind: outcome === "exceededCpu" ? "cpu" : "memory",
+      capMs: 0,
+      fromTail: true,
+    });
+  }
+}
+
+function finishTailInvocation(item: TraceItem, state: TailInvocationState): void {
+  if (shouldIgnoreTailOutcome(item, state)) return;
+  notifyTailLimit(state.scriptName, item.outcome);
+  console.warn(
+    `${state.tag} invocation outcome=${item.outcome}` +
+      ` cpu=${item.cpuTime}ms wall=${item.wallTime}ms`,
+  );
+}
+
 function otelLogRecord(b: { level: string; msg: string; t_ms: number }): string {
   return JSON.stringify({
     timeUnixNano: String(b.t_ms * NANOSECONDS_PER_MILLISECOND),
@@ -74,168 +336,11 @@ export class PageScriptTail extends WorkerEntrypoint<
   }
 
   private relayInvocation(item: TraceItem): void {
-    const scriptName = this.ctx.props?.scriptName ?? "page-script";
-    const pageDomain = this.ctx.props?.pageDomain || undefined;
-    const ksErrToken = this.ctx.props?.ksErrToken || undefined;
-    const sessionId = this.ctx.props?.sessionId || undefined;
-    const tag = `[${scriptName}]`;
-
-    const buffered: Array<{ level: string; msg: string; t_ms: number }> = [];
-    const spanRecs: string[] = [];
-    let spanRecsDropped = 0;
-    let dropped = 0;
-    // Set when this invocation is the engine's `killIsolate` call.
-    let killRequested = false;
-    // Preserve the latest panic-hook line for error reports with empty wasm stacks.
-    let lastPanicBlob: string | undefined;
-
-    const buffer = (level: string, line: string, tMs: number) => {
-      if (buffered.length >= SPAN_LOG_CAP) {
-        dropped++;
-        return;
-      }
-      buffered.push({
-        level,
-        msg: line.slice(0, MAX_PAGE_SCRIPT_TAIL_LOG_LINE_CHARS),
-        t_ms: tMs,
-      });
-    };
-
-    const flushSpan = () => {
-      if (buffered.length === 0 && dropped === 0 && spanRecs.length === 0) return;
-      const entry = getTailTrace(scriptName);
-      const tracer = entry?.tracer;
-      const parent = entry?.parent ?? null;
-      if (!tracer || !parent) return;
-      try {
-        const logs = [
-          ...buffered.map((b) => ({ key: "otel.log", value: otelLogRecord(b) })),
-          ...spanRecs.map((r) => ({ key: "otel.span", value: r })),
-          ...(dropped > 0
-            ? [
-                {
-                  key: "otel.log",
-                  value: otelLogRecord({
-                    level: "warn",
-                    msg: `truncated: dropped ${dropped} lines after ${SPAN_LOG_CAP}`,
-                    t_ms: Date.now(),
-                  }),
-                },
-              ]
-            : []),
-        ];
-        tracer.runWithSpanContext(parent, () => {
-          attachChunked(tracer, "child.console", { scriptName }, logs, {
-            logCount: buffered.length,
-            dropped,
-            ...(spanRecsDropped > 0 ? { wasmSpansDropped: spanRecsDropped } : {}),
-          });
-        });
-      } catch (err) {
-        console.warn(
-          `[page-script-tail] span submit failed for ${scriptName}: ` +
-            (err instanceof Error ? err.message : String(err)),
-        );
-      }
-    };
-
-    const onLog = (log: TraceLog): void => {
-      const line = renderMessage(log.message);
-      const killPrefix = `${ISOLATE_KILL_MARKER} ${ksErrToken} `;
-      if (ksErrToken && line.startsWith(killPrefix)) {
-        killRequested = true;
-        const note = `${ISOLATE_KILL_MARKER} ${line.slice(killPrefix.length)}`;
-        buffer(log.level, note, log.timestamp);
-        console.log(tag, note);
-        return;
-      }
-      if (line.startsWith("[ks-otel-span] ")) {
-        if (spanRecs.length >= SPAN_REC_CAP) spanRecsDropped++;
-        else spanRecs.push(line.slice("[ks-otel-span] ".length));
-        return;
-      }
-      // Retain panic-hook output for error reports, then mirror it as console output.
-      if (line.startsWith("[cs panic]") || line.startsWith("panicked at")) {
-        lastPanicBlob = line;
-      }
-      // Authenticated engine errors enter the error channel, then follow normal console handling.
-      const ksErr = parseKsErrLine(line, ksErrToken);
-      if (ksErr) {
-        this.reportException({
-          scriptName,
-          pageDomain,
-          sessionId,
-          ...ksErr,
-          panicStack: lastPanicBlob,
-        });
-        lastPanicBlob = undefined;
-      }
-
-      buffer(log.level, line, log.timestamp);
-      switch (log.level) {
-        case "error":
-          console.error(tag, line);
-          break;
-        case "warn":
-          console.warn(tag, line);
-          break;
-        case "debug":
-          console.debug(tag, line);
-          break;
-        default:
-          console.log(tag, line);
-      }
-    };
-
-    const onException = (ex: TraceException): void => {
-      // The requested abort cancels its own RPC; that is the kill, not a page error.
-      if (killRequested && ex.message.includes(HUNG_INVOCATION_TEXT)) {
-        buffer("log", "isolate killed on engine request", ex.timestamp);
-        return;
-      }
-      const stack = ex.stack ? `\n${ex.stack}` : "";
-      buffer("exception", `${ex.name}: ${ex.message}`, ex.timestamp);
-      console.error(`${tag} ${ex.name}: ${ex.message}${stack}`);
-      // Uncaught tail exceptions indicate a missed error boundary; the
-      // report carries the stack for classifying page versus engine origin.
-      this.reportException({
-        scriptName,
-        pageDomain,
-        sessionId,
-        name: ex.name,
-        message: ex.message,
-        stack: ex.stack,
-        panicStack: lastPanicBlob,
-      });
-      lastPanicBlob = undefined;
-    };
-
-    // Logs and exceptions arrive as separate arrays. Replay them in timestamp
-    // order so a kill marker or panic line still precedes the exception it
-    // explains; on a tie (the clock only advances on I/O) logs go first.
-    const entries: TailEntry[] = [
-      ...item.logs.map((log): TailEntry => ({ at: log.timestamp, log })),
-      ...item.exceptions.map((exception): TailEntry => ({ at: exception.timestamp, exception })),
-    ].sort((a, b) => a.at - b.at);
-    for (const entry of entries) {
-      if ("log" in entry) onLog(entry.log);
-      else onException(entry.exception);
-    }
-
-    flushSpan();
-    if (item.outcome === "ok") return;
-    if (killRequested && item.outcome === "exception") return;
-    if (item.outcome === "exceededCpu" || item.outcome === "exceededMemory") {
-      notifyIsolateLimit(scriptName, {
-        kind: item.outcome === "exceededCpu" ? "cpu" : "memory",
-        capMs: 0,
-        fromTail: true,
-      });
-    }
-    console.warn(
-      `${tag} invocation outcome=${item.outcome}` +
-        ` cpu=${item.cpuTime}ms wall=${item.wallTime}ms`,
-    );
+    const state = createTailInvocationState(this.ctx.props);
+    const reportException = (report: TailExceptionReport) => this.reportException(report);
+    replayTailEntries(item, state, reportException);
+    flushTailSpan(state);
+    finishTailInvocation(item, state);
   }
 }
 

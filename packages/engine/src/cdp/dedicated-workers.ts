@@ -5,8 +5,10 @@
 // Tracks page-created dedicated workers and routes their events into CDP sessions.
 
 import type {
+  WorkerErrorInfo,
   WorkerEventParams,
   WorkerNavigatorInfo,
+  WorkerStartReply,
   WorkerUpstreamMessage,
 } from "@kitesurf/jsrpc-types/dedicated-worker";
 import type { ReceivedUpstreamParams, UpstreamEventName } from "@kitesurf/jsrpc-types/page-script";
@@ -20,6 +22,7 @@ import {
   registerIsolateLimitListener,
   unregisterIsolateLimitListener,
 } from "../eval/limit-registry.ts";
+import type { IsolateLimitKind } from "../eval/limit-registry.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { effectiveExtraHeaders } from "./network.ts";
 
@@ -52,6 +55,24 @@ interface WorkerEntry {
   wallTimer: ReturnType<typeof setTimeout> | null;
 }
 
+interface WorkerLaunch {
+  url: string;
+  source: string;
+  name: string;
+  origin: string;
+  baseUrl: string;
+}
+
+type WorkerDestination = Pick<WorkerLaunch, "origin" | "baseUrl">;
+
+const ISOLATE_LIMIT_DESCRIPTIONS: Record<IsolateLimitKind, string> = {
+  cpu: "CPU time limit",
+  memory: "memory limit",
+  wall: "wall-clock time limit",
+  gone: "isolate (reclaimed by the platform)",
+  crashed: "isolate (reclaimed by the platform)",
+};
+
 let nextDocumentSerial = 1;
 
 export function isWorkerUpstreamEvent(event: UpstreamEventName): boolean {
@@ -65,6 +86,36 @@ export function isWorkerUpstreamEvent(event: UpstreamEventName): boolean {
 function workerLabel(owner: WorkerOwner, workerId: number): string {
   const targetPrefix = owner.target.targetId.slice(0, WORKER_TARGET_ID_LABEL_CHARS);
   return `worker-${targetPrefix}-${owner.documentKey}-${workerId}`;
+}
+
+function isHttpProtocol(protocol: string): boolean {
+  return protocol === "http:" || protocol === "https:";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function errorStack(error: unknown, fallback: string): string {
+  return error instanceof Error ? (error.stack ?? fallback) : fallback;
+}
+
+function workerScriptSource(params: ReceivedUpstreamParams): Pick<WorkerLaunch, "source" | "name"> {
+  return {
+    source: typeof params.source === "string" ? params.source : "",
+    name: typeof params.name === "string" ? params.name : "",
+  };
+}
+
+function workerErrorEvent(workerId: number, params: WorkerErrorInfo): WorkerEventParams {
+  return {
+    workerId,
+    type: "error",
+    message: String(params.message ?? ""),
+    filename: String(params.filename ?? ""),
+    lineno: Number(params.lineno ?? 0) | 0,
+    colno: Number(params.colno ?? 0) | 0,
+  };
 }
 
 function protocolOf(url: string): string {
@@ -138,19 +189,28 @@ export class DedicatedWorkers {
       this.create(ctx, owner, key, workerId, params);
       return;
     }
-    const entry = this.workers.get(key);
+    this.handleExistingWorker(this.workers.get(key), event, params);
+  }
+
+  private handleExistingWorker(
+    entry: WorkerEntry | undefined,
+    event: UpstreamEventName,
+    params: ReceivedUpstreamParams,
+  ): void {
     if (!entry || entry.dead) return;
     if (event === "kitesurf.workerTerminate") {
       this.retire(entry, "Worker.terminate()");
       return;
     }
-    if (event === "kitesurf.workerPostMessage") {
-      if (!entry.started) {
-        entry.pending.push(params.data);
-        return;
-      }
-      this.deliver(entry, params.data);
+    if (event === "kitesurf.workerPostMessage") this.postToWorker(entry, params.data);
+  }
+
+  private postToWorker(entry: WorkerEntry, data: unknown): void {
+    if (!entry.started) {
+      entry.pending.push(data);
+      return;
     }
+    this.deliver(entry, data);
   }
 
   terminateTarget(targetId: string, reason: string): void {
@@ -191,49 +251,93 @@ export class DedicatedWorkers {
     params: ReceivedUpstreamParams,
   ): void {
     if (this.workers.has(key)) return;
+    const launch = this.prepareLaunch(ctx, owner, workerId, params);
+    if (!launch) return;
+    const lease = this.acquireWorkerLease(ctx, owner, workerId, launch.url);
+    if (!lease) {
+      return;
+    }
+    const caps = pageIsolateCaps(ctx.env, ctx.browser.isolateCapOverrides);
+    const entry = this.registerEntry(ctx, owner, key, workerId, lease);
+    this.configureWorkerLimits(entry, launch.url, caps);
+    const navigator = readNavigator(params.navigator);
+    const timeOrigin = Date.now();
+    void this.startWorker(ctx, entry, launch, navigator, caps.cpuMs, timeOrigin);
+  }
+
+  private prepareLaunch(
+    ctx: DispatchCtx,
+    owner: WorkerOwner,
+    workerId: number,
+    params: ReceivedUpstreamParams,
+  ): WorkerLaunch | null {
     const url = typeof params.url === "string" ? params.url : "";
     if (!this.ownerAlive(ctx, owner)) {
       this.fail(owner, workerId, url, "the creating document is gone");
-      return;
+      return null;
     }
-    const source = typeof params.source === "string" ? params.source : "";
-    const name = typeof params.name === "string" ? params.name : "";
+    const destination = this.workerDestination(owner, workerId, url);
+    if (!destination) return null;
+    return {
+      url,
+      ...workerScriptSource(params),
+      ...destination,
+    };
+  }
+
+  private workerDestination(
+    owner: WorkerOwner,
+    workerId: number,
+    url: string,
+  ): WorkerDestination | null {
     const protocol = protocolOf(url);
-    let origin: string;
-    let baseUrl: string;
-    if (protocol === "http:" || protocol === "https:") {
-      if (!owner.origin || originOf(url) !== owner.origin) {
-        this.fail(owner, workerId, url, "worker script is not same-origin with its creator");
-        return;
-      }
-      origin = owner.origin;
-      baseUrl = url;
-    } else if (protocol === "blob:") {
-      origin = owner.origin;
-      baseUrl = owner.url;
-    } else if (protocol === "data:") {
-      origin = "";
-      baseUrl = "";
-    } else {
-      this.fail(owner, workerId, url, "unsupported worker URL scheme");
-      return;
+    if (isHttpProtocol(protocol)) return this.sameOriginDestination(owner, workerId, url);
+    if (protocol === "blob:") return { origin: owner.origin, baseUrl: owner.url };
+    if (protocol === "data:") return { origin: "", baseUrl: "" };
+    this.fail(owner, workerId, url, "unsupported worker URL scheme");
+    return null;
+  }
+
+  private sameOriginDestination(
+    owner: WorkerOwner,
+    workerId: number,
+    url: string,
+  ): WorkerDestination | null {
+    if (!owner.origin || originOf(url) !== owner.origin) {
+      this.fail(owner, workerId, url, "worker script is not same-origin with its creator");
+      return null;
     }
+    return { origin: owner.origin, baseUrl: url };
+  }
+
+  private acquireWorkerLease(
+    ctx: DispatchCtx,
+    owner: WorkerOwner,
+    workerId: number,
+    url: string,
+  ): WorkerLease | null {
     const lease = this.budget.acquire("worker");
-    if (!lease) {
-      console.warn(
-        `[kitesurf-worker] connection ${ctx.connectionId}: budget full, ` +
-          `new Worker(${url.slice(0, MAX_WORKER_URL_PREVIEW_CHARS)}) fails ` +
-          `(${this.budget.describe()})`,
-      );
-      this.fail(owner, workerId, url, "no isolate slot is free for this worker");
-      return;
-    }
-    const target = owner.target;
-    const label = workerLabel(owner, workerId);
+    if (lease) return lease;
+    console.warn(
+      `[kitesurf-worker] connection ${ctx.connectionId}: budget full, ` +
+        `new Worker(${url.slice(0, MAX_WORKER_URL_PREVIEW_CHARS)}) fails ` +
+        `(${this.budget.describe()})`,
+    );
+    this.fail(owner, workerId, url, "no isolate slot is free for this worker");
+    return null;
+  }
+
+  private registerEntry(
+    ctx: DispatchCtx,
+    owner: WorkerOwner,
+    key: string,
+    workerId: number,
+    lease: WorkerLease,
+  ): WorkerEntry {
     const entry: WorkerEntry = {
       key,
       connectionId: ctx.connectionId,
-      label,
+      label: workerLabel(owner, workerId),
       workerId,
       owner,
       lease,
@@ -244,7 +348,14 @@ export class DedicatedWorkers {
       wallTimer: null,
     };
     this.workers.set(key, entry);
-    const caps = pageIsolateCaps(ctx.env, ctx.browser.isolateCapOverrides);
+    return entry;
+  }
+
+  private configureWorkerLimits(
+    entry: WorkerEntry,
+    url: string,
+    caps: ReturnType<typeof pageIsolateCaps>,
+  ): void {
     if (caps.wallMs > 0) {
       entry.wallTimer = setTimeout(() => {
         entry.wallTimer = null;
@@ -255,73 +366,97 @@ export class DedicatedWorkers {
         );
       }, caps.wallMs);
     }
-    registerIsolateLimitListener(label, (notice) => {
-      if (entry.dead) return;
-      const what =
-        notice.kind === "cpu"
-          ? "CPU time limit"
-          : notice.kind === "memory"
-            ? "memory limit"
-            : notice.kind === "wall"
-              ? "wall-clock time limit"
-              : "isolate (reclaimed by the platform)";
-      this.kill(entry, url, `Kitesurf: worker exceeded its ${what} and was terminated.`);
+    registerIsolateLimitListener(entry.label, (notice) =>
+      this.handleLimitNotice(entry, url, notice.kind),
+    );
+  }
+
+  private handleLimitNotice(entry: WorkerEntry, url: string, kind: IsolateLimitKind): void {
+    if (entry.dead) return;
+    const description = ISOLATE_LIMIT_DESCRIPTIONS[kind];
+    this.kill(entry, url, `Kitesurf: worker exceeded its ${description} and was terminated.`);
+  }
+
+  private async startWorker(
+    ctx: DispatchCtx,
+    entry: WorkerEntry,
+    launch: WorkerLaunch,
+    navigator: WorkerNavigatorInfo,
+    cpuMs: number,
+    timeOrigin: number,
+  ): Promise<void> {
+    try {
+      const reply = await this.spawnAndStart(ctx, entry, launch, navigator, cpuMs, timeOrigin);
+      if (reply === null) return;
+      this.handleStartReply(entry, reply);
+    } catch (err) {
+      this.reportStartFailure(entry, launch.url, err);
+    }
+  }
+
+  private async spawnAndStart(
+    ctx: DispatchCtx,
+    entry: WorkerEntry,
+    launch: WorkerLaunch,
+    navigator: WorkerNavigatorInfo,
+    cpuMs: number,
+    timeOrigin: number,
+  ): Promise<WorkerStartReply | null> {
+    const { spawnDedicatedWorker } = await import("../eval/dedicated-worker.ts");
+    if (entry.dead) return null;
+    const cookieKey = cookieKeyFor(ctx.connectionId, entry.owner.target.browserContextId);
+    const handle = spawnDedicatedWorker(ctx.env, ctx.ctx, {
+      connectionId: ctx.connectionId,
+      cookieKey,
+      label: entry.label,
+      origin: launch.origin,
+      creatorUrl: entry.owner.url,
+      frameId: entry.owner.frameId,
+      loaderId: entry.owner.loaderId,
+      extraHeaders: effectiveExtraHeaders(entry.owner.target),
+      cpuMs,
+      source: launch.source,
+      sandboxOutbound: ctx.browser.sandboxOutbound,
+      onUpstream: (message) => this.fromWorker(entry, message),
     });
-    const cookieKey = cookieKeyFor(ctx.connectionId, target.browserContextId);
-    const navigator = readNavigator(params.navigator);
-    const timeOrigin = Date.now();
-    void (async () => {
-      try {
-        const { spawnDedicatedWorker } = await import("../eval/dedicated-worker.ts");
-        if (entry.dead) return;
-        entry.handle = spawnDedicatedWorker(ctx.env, ctx.ctx, {
-          connectionId: ctx.connectionId,
-          cookieKey,
-          label,
-          origin,
-          creatorUrl: owner.url,
-          frameId: owner.frameId,
-          loaderId: owner.loaderId,
-          extraHeaders: effectiveExtraHeaders(target),
-          cpuMs: caps.cpuMs,
-          source,
-          sandboxOutbound: ctx.browser.sandboxOutbound,
-          onUpstream: (message) => this.fromWorker(entry, message),
-        });
-        const reply = await entry.handle.start({
-          url,
-          baseUrl,
-          name,
-          navigator,
-          connectionId: ctx.connectionId,
-          frameId: owner.frameId,
-          cookieKey,
-          timeOrigin,
-        });
-        if (entry.dead) return;
-        if (reply.parseError) {
-          this.toPage(entry, { workerId, type: "loadError" });
-          this.retire(entry, "worker script failed to parse");
-          return;
-        }
-        entry.started = true;
-        if (reply.error) {
-          this.toPage(entry, { workerId, type: "error", ...reply.error });
-        }
-        const pending = entry.pending;
-        entry.pending = [];
-        for (const data of pending) this.deliver(entry, data);
-      } catch (err) {
-        if (entry.dead) return;
-        const detail = err instanceof Error ? err.message : String(err);
-        console.warn(
-          `[kitesurf-worker] ${label} (connection ${ctx.connectionId}): ` +
-            `spawn failed for ${url.slice(0, MAX_WORKER_URL_PREVIEW_CHARS)}:`,
-          err instanceof Error ? (err.stack ?? detail) : detail,
-        );
-        this.kill(entry, url, `Failed to start worker: ${detail}`);
-      }
-    })();
+    entry.handle = handle;
+    const reply = await handle.start({
+      url: launch.url,
+      baseUrl: launch.baseUrl,
+      name: launch.name,
+      navigator,
+      connectionId: ctx.connectionId,
+      frameId: entry.owner.frameId,
+      cookieKey,
+      timeOrigin,
+    });
+    return entry.dead ? null : reply;
+  }
+
+  private handleStartReply(entry: WorkerEntry, reply: WorkerStartReply): void {
+    if (reply.parseError) {
+      this.toPage(entry, { workerId: entry.workerId, type: "loadError" });
+      this.retire(entry, "worker script failed to parse");
+      return;
+    }
+    entry.started = true;
+    if (reply.error) {
+      this.toPage(entry, { workerId: entry.workerId, type: "error", ...reply.error });
+    }
+    const pending = entry.pending;
+    entry.pending = [];
+    for (const data of pending) this.deliver(entry, data);
+  }
+
+  private reportStartFailure(entry: WorkerEntry, url: string, err: unknown): void {
+    if (entry.dead) return;
+    const detail = errorMessage(err);
+    console.warn(
+      `[kitesurf-worker] ${entry.label} (connection ${entry.connectionId}): ` +
+        `spawn failed for ${url.slice(0, MAX_WORKER_URL_PREVIEW_CHARS)}:`,
+      errorStack(err, detail),
+    );
+    this.kill(entry, url, `Failed to start worker: ${detail}`);
   }
 
   private deliver(entry: WorkerEntry, data: unknown): void {
@@ -334,23 +469,21 @@ export class DedicatedWorkers {
 
   private fromWorker(entry: WorkerEntry, message: WorkerUpstreamMessage): void {
     if (entry.dead) return;
+    this.routeWorkerMessage(entry, message);
+  }
+
+  private routeWorkerMessage(entry: WorkerEntry, message: WorkerUpstreamMessage): void {
     const workerId = entry.workerId;
     if (message.event === "worker.message") {
       this.toPage(entry, { workerId, type: "message", data: message.params.data });
-    } else if (message.event === "worker.error") {
-      const params = message.params;
-      this.toPage(entry, {
-        workerId,
-        type: "error",
-        message: String(params.message ?? ""),
-        filename: String(params.filename ?? ""),
-        lineno: Number(params.lineno ?? 0) | 0,
-        colno: Number(params.colno ?? 0) | 0,
-      });
-    } else if (message.event === "worker.closed") {
-      this.toPage(entry, { workerId, type: "closed" });
-      this.retire(entry, "self.close()");
+      return;
     }
+    if (message.event === "worker.error") {
+      this.toPage(entry, workerErrorEvent(workerId, message.params));
+      return;
+    }
+    this.toPage(entry, { workerId, type: "closed" });
+    this.retire(entry, "self.close()");
   }
 
   private toPage(entry: WorkerEntry, params: WorkerEventParams): void {

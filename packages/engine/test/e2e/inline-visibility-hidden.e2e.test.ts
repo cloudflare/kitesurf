@@ -32,7 +32,7 @@ test("hidden inline text, ::after content and span backgrounds do not paint", as
   const count = (match: (r: number, g: number, b: number) => boolean) => {
     let n = 0;
     for (let i = 0; i < png.data.length; i += 4) {
-      if (match(png.data[i] ?? 0, png.data[i + 1] ?? 0, png.data[i + 2] ?? 0)) n++;
+      n += Number(match(png.data[i] ?? 0, png.data[i + 1] ?? 0, png.data[i + 2] ?? 0));
     }
     return n;
   };

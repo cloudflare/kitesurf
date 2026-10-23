@@ -2,7 +2,13 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
+import type { Protocol } from "devtools-protocol";
+
 import { expect, test } from "../harness";
+
+function exceptionMessage(details: Protocol.Runtime.ExceptionDetails): string {
+  return String(details.exception?.description || details.exception?.value || details.text);
+}
 
 test("boa-evalless-phase4", async ({ page }) => {
   const session = await page.target().createCDPSession();
@@ -24,10 +30,7 @@ test("boa-evalless-phase4", async ({ page }) => {
       returnByValue: true,
       awaitPromise: true,
     });
-    if (r.exceptionDetails) {
-      const d = r.exceptionDetails;
-      throw new Error(d.exception?.description || d.exception?.value || d.text);
-    }
+    if (r.exceptionDetails) throw new Error(exceptionMessage(r.exceptionDetails));
     return r.result.value;
   }
 

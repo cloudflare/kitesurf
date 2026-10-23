@@ -70,4 +70,15 @@ describe("next route chunks", () => {
     );
     expect(urls).toEqual(["https://h.test/_next/static/chunks/pages/w/%5Bslug%5D-4.js?dpl=dpl_1"]);
   });
+
+  it("still validates a new chunk URL after the route chunk limit is reached", () => {
+    const paths = Array.from({ length: 12 }, (_, index) => `static/chunks/${index}.js`);
+    const manifest = `self.__BUILD_MANIFEST={"/input":[${paths.map((path) => JSON.stringify(path)).join(",")},"${paths[0]}","\ud800.js"]};`;
+    const descriptors = [
+      ext("/_next/static/chunks/pages/index.js", 'router.push("/input")'),
+      ext("/_next/static/BUILD/_buildManifest.js", manifest),
+    ];
+
+    expect(() => nextRouteChunkUrls(descriptors, "https://h.test/")).toThrow(URIError);
+  });
 });

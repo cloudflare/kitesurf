@@ -11,9 +11,16 @@ test("location mutation APIs update the hash", async ({ page }) => {
   });
 
   const probe = await page.evaluate(() => {
-    let assignmentThrew: string | null = null;
-    let assignThrew: string | null = null;
-    let hrefThrew: string | null = null;
+    const thrownMessage = (error: unknown) =>
+      (error as { message?: string } | null)?.message ?? String(error);
+    const captureError = (run: () => void): string | null => {
+      try {
+        run();
+        return null;
+      } catch (error) {
+        return thrownMessage(error);
+      }
+    };
 
     window.addEventListener(
       "hashchange",
@@ -23,30 +30,24 @@ test("location mutation APIs update the hash", async ({ page }) => {
       { once: true },
     );
 
-    try {
+    const assignmentThrew = captureError(() => {
       location.hash = "/foo";
-    } catch (error) {
-      assignmentThrew = (error as { message?: string } | null)?.message ?? String(error);
-    }
+    });
     const afterHash = location.hash;
 
-    try {
+    captureError(() => {
       location.hash = "#bar";
-    } catch {}
+    });
     const afterHashWithPrefix = location.hash;
 
-    try {
+    const assignThrew = captureError(() => {
       location.assign("#baz");
-    } catch (error) {
-      assignThrew = (error as { message?: string } | null)?.message ?? String(error);
-    }
+    });
     const afterAssign = location.hash;
 
-    try {
+    const hrefThrew = captureError(() => {
       location.href = location.href.split("#")[0] + "#qux";
-    } catch (error) {
-      hrefThrew = (error as { message?: string } | null)?.message ?? String(error);
-    }
+    });
     const afterHrefSet = location.hash;
 
     return {

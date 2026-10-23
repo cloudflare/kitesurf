@@ -6,17 +6,64 @@
 
 export type ErrorOrigin = "page" | "wasm" | "shim" | "runtime" | "unknown";
 
+type AuthenticatedOrigin = Extract<ErrorOrigin, "wasm" | "shim" | "runtime">;
+
+function isAuthenticatedOrigin(value: unknown): value is AuthenticatedOrigin {
+  return value === "wasm" || value === "shim" || value === "runtime";
+}
+
+function isWasmException(name: string, message: string): boolean {
+  return name === "RuntimeError" || /panicked at|unreachable/.test(message);
+}
+
+function isWasmFrame(stack: string): boolean {
+  return stack.includes("core_bg.wasm") || stack.includes("wasm-glue.js");
+}
+
+function isRuntimeFrame(stack: string): boolean {
+  return /\bpage\.js:/.test(stack) || stack.includes("(page.js");
+}
+
+function reportField(raw: unknown, name: string): unknown {
+  return raw === null || raw === undefined ? undefined : Reflect.get(Object(raw), name, raw);
+}
+
+function boundedErrorName(value: unknown): string {
+  return (typeof value === "string" && value ? value : "Error").slice(0, 64);
+}
+
+function boundedOptionalString(value: unknown, limit: number): string | undefined {
+  return typeof value === "string" ? value.slice(0, limit) : undefined;
+}
+
+function parseAuthenticatedReport(raw: unknown): Omit<TailExceptionReport, "scriptName"> | null {
+  const message = reportField(raw, "message");
+  const origin = reportField(raw, "origin");
+  if (typeof message !== "string" || !isAuthenticatedOrigin(origin)) return null;
+  return {
+    origin,
+    name: boundedErrorName(reportField(raw, "name")),
+    message: message.slice(0, 1024),
+    stack: boundedOptionalString(reportField(raw, "stack"), 8192),
+    pageUrl: boundedOptionalString(reportField(raw, "pageUrl"), 512),
+  };
+}
+
 // Classify uncaught exceptions by PageScript module and wasm panic frames.
 export function classifyOrigin(name: string, message: string, stack?: string): ErrorOrigin {
-  const s = stack ?? "";
+  return classifyStackOrigin(name, message, stack ?? "");
+}
+
+function isWasmOrigin(name: string, message: string, stack: string): boolean {
+  return isWasmException(name, message) || isWasmFrame(stack);
+}
+
+function classifyStackOrigin(name: string, message: string, stack: string): ErrorOrigin {
   // Page bundle frames identify exceptions that escaped page-error handling.
-  if (s.includes("__ks_user_")) return "page";
-  if (name === "RuntimeError" || /panicked at|unreachable/.test(message)) {
-    return "wasm";
-  }
-  if (s.includes("core_bg.wasm") || s.includes("wasm-glue.js")) return "wasm";
-  if (s.includes("dom-shim.js")) return "shim";
-  if (/\bpage\.js:/.test(s) || s.includes("(page.js")) return "runtime";
+  if (stack.includes("__ks_user_")) return "page";
+  if (isWasmOrigin(name, message, stack)) return "wasm";
+  if (stack.includes("dom-shim.js")) return "shim";
+  if (isRuntimeFrame(stack)) return "runtime";
   return "unknown";
 }
 
@@ -46,27 +93,8 @@ export function parseKsErrLine(
   if (!line.startsWith("[ks-err] ")) return null;
   try {
     const raw: unknown = JSON.parse(line.slice("[ks-err] ".length));
-    const field = (name: string): unknown =>
-      raw === null || raw === undefined ? undefined : Reflect.get(Object(raw), name, raw);
-    if (field("token") !== expectedToken) return null;
-    const message = field("message");
-    const origin = field("origin");
-    if (
-      typeof message !== "string" ||
-      (origin !== "wasm" && origin !== "shim" && origin !== "runtime")
-    ) {
-      return null;
-    }
-    const name = field("name");
-    const stack = field("stack");
-    const pageUrl = field("pageUrl");
-    return {
-      origin,
-      name: (typeof name === "string" && name ? name : "Error").slice(0, 64),
-      message: message.slice(0, 1024),
-      stack: typeof stack === "string" ? stack.slice(0, 8192) : undefined,
-      pageUrl: typeof pageUrl === "string" ? pageUrl.slice(0, 512) : undefined,
-    };
+    if (reportField(raw, "token") !== expectedToken) return null;
+    return parseAuthenticatedReport(raw);
   } catch {
     return null;
   }

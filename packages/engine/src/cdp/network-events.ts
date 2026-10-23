@@ -58,6 +58,35 @@ const MILLISECONDS_PER_SECOND = 1_000;
 const SECONDS_PER_DAY = 86_400;
 const SYNTHETIC_CERTIFICATE_VALIDITY_DAYS = 30;
 
+const EXACT_RESOURCE_TYPES = new Map<string, ResourceType>([
+  ["text/html", "Document"],
+  ["application/xhtml+xml", "Document"],
+  ["text/css", "Stylesheet"],
+  ["text/javascript", "Script"],
+  ["application/javascript", "Script"],
+  ["application/x-javascript", "Script"],
+  ["application/json", "Fetch"],
+  ["text/event-stream", "EventSource"],
+  ["application/manifest+json", "Manifest"],
+]);
+
+const RESOURCE_TYPE_PREFIXES: ReadonlyArray<readonly [string, ResourceType]> = [
+  ["image/", "Image"],
+  ["font/", "Font"],
+  ["application/font-", "Font"],
+  ["video/", "Media"],
+  ["audio/", "Media"],
+];
+
+const EXACT_TEXT_MIMES = new Set([
+  "application/json",
+  "application/javascript",
+  "application/x-javascript",
+  "application/xhtml+xml",
+  "application/xml",
+  "application/manifest+json",
+]);
+
 export interface SessionBuffer {
   maxTotalBufferSize?: number;
   maxResourceBufferSize?: number;
@@ -206,9 +235,17 @@ export class NetworkEventTracker {
 
   private enqueue(ev: CdpEvent, sessionIds: Array<string | undefined>): void {
     if (sessionIds.length === 0) {
-      if (this.isEnabled(undefined)) this.pending.push(ev);
+      this.enqueueUnscoped(ev);
       return;
     }
+    this.enqueueForSessions(ev, sessionIds);
+  }
+
+  private enqueueUnscoped(ev: CdpEvent): void {
+    if (this.isEnabled(undefined)) this.pending.push(ev);
+  }
+
+  private enqueueForSessions(ev: CdpEvent, sessionIds: Array<string | undefined>): void {
     let delivered = false;
     for (const sid of sessionIds) {
       if (!this.isEnabled(sid)) continue;
@@ -233,9 +270,7 @@ export class NetworkEventTracker {
     const requestId = opts.requestId ?? this.newRequestId();
     const ts = opts.timestamp ?? this.monotonicSeconds();
     // Snapshot recipients at request start; later target changes cannot retarget its events.
-    const sessionIds = opts.sessionIds
-      ? [...opts.sessionIds]
-      : [...(this.targetAttributions.get(opts.frameId)?.sessionIds ?? [])];
+    const sessionIds = requestSessionIds(opts, this.targetAttributions);
 
     this.records.set(requestId, {
       url: opts.url,
@@ -249,48 +284,19 @@ export class NetworkEventTracker {
     this.inFlightCount++;
     this.evictIfFull();
 
-    const request: Protocol.Network.Request = {
-      url: opts.url,
-      method: opts.method,
-      headers: opts.headers,
-      initialPriority: opts.type === "Document" ? "VeryHigh" : "Medium",
-      referrerPolicy: "strict-origin-when-cross-origin",
-      mixedContentType: "none",
-      isSameSite: true,
-    };
-    const params: Protocol.Network.RequestWillBeSentEvent = {
-      requestId,
-      loaderId: opts.loaderId,
-      documentURL: opts.url,
-      request,
-      timestamp: ts,
-      wallTime: Date.now() / MILLISECONDS_PER_SECOND,
-      initiator: opts.initiator,
-      type: opts.type,
-      frameId: opts.frameId,
-      hasUserGesture: false,
-      redirectHasExtraInfo: false,
-    };
     this.enqueue(
       {
         method: "Network.requestWillBeSent",
-        params,
+        params: requestWillBeSentEvent(requestId, ts, opts),
         sessionId: undefined,
       },
       sessionIds,
     );
 
-    const reqExtra: Protocol.Network.RequestWillBeSentExtraInfoEvent = {
-      requestId,
-      associatedCookies: [],
-      headers: opts.headers,
-      connectTiming: { requestTime: ts },
-      siteHasCookieInOtherPartition: false,
-    };
     this.enqueue(
       {
         method: "Network.requestWillBeSentExtraInfo",
-        params: reqExtra,
+        params: requestExtraInfoEvent(requestId, ts, opts.headers),
         sessionId: undefined,
       },
       sessionIds,
@@ -313,9 +319,7 @@ export class NetworkEventTracker {
       type: Protocol.Network.ResourceType;
     },
   ): void {
-    const rec = this.records.get(requestId);
-    const prevUrl = rec?.url ?? opts.newUrl;
-    if (rec) rec.url = opts.newUrl;
+    const { rec, prevUrl } = this.updateRedirectRecord(requestId, opts.newUrl);
     const sessionIds = rec?.sessionIds ?? [];
     if (!this.wantsEvents(sessionIds)) return;
     const ts = this.monotonicSeconds();
@@ -342,15 +346,7 @@ export class NetworkEventTracker {
       requestId,
       loaderId: opts.loaderId,
       documentURL: opts.newUrl,
-      request: {
-        url: opts.newUrl,
-        method: opts.method,
-        headers: opts.headers,
-        initialPriority: opts.type === "Document" ? "VeryHigh" : "Medium",
-        referrerPolicy: "strict-origin-when-cross-origin",
-        mixedContentType: "none",
-        isSameSite: true,
-      },
+      request: redirectRequest(opts),
       timestamp: ts,
       wallTime: Date.now() / MILLISECONDS_PER_SECOND,
       initiator: { type: "other" },
@@ -370,91 +366,41 @@ export class NetworkEventTracker {
     );
   }
 
+  private updateRedirectRecord(
+    requestId: Protocol.Network.RequestId,
+    newUrl: string,
+  ): { rec: RequestRecord | undefined; prevUrl: string } {
+    const rec = this.records.get(requestId);
+    const prevUrl = rec?.url ?? newUrl;
+    if (rec) rec.url = newUrl;
+    return { rec, prevUrl };
+  }
+
   completeRequest(requestId: Protocol.Network.RequestId, opts: CompleteRequestOpts): void {
     const rec = this.records.get(requestId);
-    if (!rec) {
-      return;
-    }
-    if (!rec.completed) {
-      rec.completed = true;
-      this.inFlightCount--;
-    }
-
-    // If the frame has a current attribution, skip bodies from other loaders;
-    // the request's snapshotted Network recipients may still receive response events.
-    const currentLoaderId = this.targetAttributions.get(rec.frameId)?.loaderId;
-    const supersededLoader = currentLoaderId !== undefined && rec.loaderId !== currentLoaderId;
-    if (
-      !supersededLoader &&
-      opts.body !== undefined &&
-      opts.body.length * 2 <= this.perBodyBudget()
-    ) {
-      this.storeBody(rec, opts.body, opts.bodyBase64Encoded ?? false);
-    }
-
+    if (!rec) return;
+    this.markCompleted(rec);
+    this.storeEligibleResponseBody(rec, opts);
     if (!this.wantsEvents(rec.sessionIds)) return;
-
     const ts = opts.timestamp ?? this.monotonicSeconds();
-    const timing: Protocol.Network.ResourceTiming = {
-      requestTime: ts,
-      proxyStart: -1,
-      proxyEnd: -1,
-      dnsStart: -1,
-      dnsEnd: -1,
-      connectStart: -1,
-      connectEnd: -1,
-      sslStart: -1,
-      sslEnd: -1,
-      workerStart: -1,
-      workerReady: -1,
-      workerFetchStart: -1,
-      workerRespondWithSettled: -1,
-      sendStart: 0,
-      sendEnd: 0,
-      pushStart: 0,
-      pushEnd: 0,
-      receiveHeadersStart: 0,
-      receiveHeadersEnd: 0,
-    };
-    const response: Protocol.Network.Response = {
-      url: opts.url,
-      status: opts.status,
-      statusText: opts.statusText,
-      headers: opts.headers,
-      mimeType: opts.mimeType,
-      encodedDataLength: opts.bodyLength,
-      fromDiskCache: opts.fromDiskCache ?? false,
-      fromServiceWorker: false,
-      fromPrefetchCache: false,
-      connectionReused: false,
-      connectionId: 0,
-      remoteIPAddress: "",
-      remotePort: 0,
-      securityState: "secure",
-      charset: "",
-      protocol: "http/1.1",
-      responseTime: Date.now(),
-      timing,
-      securityDetails: {
-        protocol: "TLS 1.3",
-        keyExchange: "",
-        keyExchangeGroup: "X25519",
-        cipher: "AES_128_GCM",
-        certificateId: 0,
-        subjectName: hostFromUrl(opts.url),
-        sanList: [hostFromUrl(opts.url)],
-        issuer: "Kitesurf POC",
-        validFrom: Math.floor(Date.now() / MILLISECONDS_PER_SECOND) - SECONDS_PER_DAY,
-        validTo:
-          Math.floor(Date.now() / MILLISECONDS_PER_SECOND) +
-          SECONDS_PER_DAY * SYNTHETIC_CERTIFICATE_VALIDITY_DAYS,
-        signedCertificateTimestampList: [],
-        certificateTransparencyCompliance: "unknown",
-        serverSignatureAlgorithm: 0,
-        encryptedClientHello: false,
-      },
-      alternateProtocolUsage: "unspecifiedReason",
-    };
+    this.enqueueCompletionEvents(requestId, rec, opts, ts);
+  }
+
+  private storeEligibleResponseBody(rec: RequestRecord, opts: CompleteRequestOpts): void {
+    const body = opts.body;
+    if (body === undefined) return;
+    const currentLoaderId = this.targetAttributions.get(rec.frameId)?.loaderId;
+    if (!canStoreResponseBody(rec, body.length, currentLoaderId, this.perBodyBudget())) return;
+    this.storeBody(rec, body, opts.bodyBase64Encoded ?? false);
+  }
+
+  private enqueueCompletionEvents(
+    requestId: Protocol.Network.RequestId,
+    rec: RequestRecord,
+    opts: CompleteRequestOpts,
+    ts: Protocol.Network.MonotonicTime,
+  ): void {
+    const response = responseEvent(opts, ts);
     const respExtra: Protocol.Network.ResponseReceivedExtraInfoEvent = {
       requestId,
       blockedCookies: [],
@@ -474,7 +420,7 @@ export class NetworkEventTracker {
       rec.sessionIds,
     );
 
-    const responseEvent: Protocol.Network.ResponseReceivedEvent = {
+    const responseEventParams: Protocol.Network.ResponseReceivedEvent = {
       requestId,
       loaderId: rec.loaderId,
       frameId: rec.frameId,
@@ -486,57 +432,62 @@ export class NetworkEventTracker {
     this.enqueue(
       {
         method: "Network.responseReceived",
-        params: responseEvent,
+        params: responseEventParams,
         sessionId: undefined,
       },
       rec.sessionIds,
     );
 
     if (opts.errorText) {
-      const failedEvent: Protocol.Network.LoadingFailedEvent = {
-        requestId,
-        timestamp: ts,
-        type: rec.type,
-        errorText: opts.errorText,
-        canceled: false,
-      };
-      this.enqueue(
-        {
-          method: "Network.loadingFailed",
-          params: failedEvent,
-          sessionId: undefined,
-        },
-        rec.sessionIds,
-      );
+      this.enqueueLoadingFailed(requestId, rec, opts.errorText, ts);
       return;
     }
+    this.enqueueDataAndFinished(requestId, rec, opts.bodyLength, ts);
+  }
 
+  private enqueueLoadingFailed(
+    requestId: Protocol.Network.RequestId,
+    rec: RequestRecord,
+    errorText: string,
+    ts: Protocol.Network.MonotonicTime,
+  ): void {
+    const failedEvent: Protocol.Network.LoadingFailedEvent = {
+      requestId,
+      timestamp: ts,
+      type: rec.type,
+      errorText,
+      canceled: false,
+    };
+    this.enqueue(
+      { method: "Network.loadingFailed", params: failedEvent, sessionId: undefined },
+      rec.sessionIds,
+    );
+  }
+
+  private enqueueDataAndFinished(
+    requestId: Protocol.Network.RequestId,
+    rec: RequestRecord,
+    bodyLength: number,
+    ts: Protocol.Network.MonotonicTime,
+  ): void {
     const dataEvent: Protocol.Network.DataReceivedEvent = {
       requestId,
       timestamp: ts,
-      dataLength: opts.bodyLength,
-      encodedDataLength: opts.bodyLength,
+      dataLength: bodyLength,
+      encodedDataLength: bodyLength,
     };
     this.enqueue(
-      {
-        method: "Network.dataReceived",
-        params: dataEvent,
-        sessionId: undefined,
-      },
+      { method: "Network.dataReceived", params: dataEvent, sessionId: undefined },
       rec.sessionIds,
     );
 
     const finishedEvent: Protocol.Network.LoadingFinishedEvent = {
       requestId,
       timestamp: ts,
-      encodedDataLength: opts.bodyLength,
+      encodedDataLength: bodyLength,
     };
     this.enqueue(
-      {
-        method: "Network.loadingFinished",
-        params: finishedEvent,
-        sessionId: undefined,
-      },
+      { method: "Network.loadingFinished", params: finishedEvent, sessionId: undefined },
       rec.sessionIds,
     );
   }
@@ -548,10 +499,7 @@ export class NetworkEventTracker {
   ): void {
     const rec = this.records.get(requestId);
     if (!rec) return;
-    if (!rec.completed) {
-      rec.completed = true;
-      this.inFlightCount--;
-    }
+    this.markCompleted(rec);
     const failedEvent: Protocol.Network.LoadingFailedEvent = {
       requestId,
       timestamp: this.monotonicSeconds(),
@@ -588,6 +536,13 @@ export class NetworkEventTracker {
       const rec = this.records.get(id);
       if (rec) this.dropBody(rec);
       this.records.delete(id);
+    }
+  }
+
+  private markCompleted(rec: RequestRecord): void {
+    if (!rec.completed) {
+      rec.completed = true;
+      this.inFlightCount--;
     }
   }
 
@@ -644,9 +599,7 @@ export class NetworkEventTracker {
     const currentLoaderId = this.targetAttributions.get(frameId)?.loaderId;
     if (currentLoaderId === undefined) return;
     for (const rec of this.records.values()) {
-      if (rec.frameId === frameId && rec.loaderId !== currentLoaderId) {
-        this.dropBody(rec);
-      }
+      if (isStaleFrameRecord(rec, frameId, currentLoaderId)) this.dropBody(rec);
     }
   }
 }
@@ -661,43 +614,28 @@ function hostFromUrl(url: string): string {
 
 export function inferResourceType(contentType: string, hint?: ResourceType): ResourceType {
   if (hint && hint !== "Other") return hint;
-  const ct = (contentType.toLowerCase().split(";")[0] ?? "").trim();
+  return inferResourceTypeFromMime(mimeEssence(contentType));
+}
+
+function inferResourceTypeFromMime(ct: string): ResourceType {
   if (!ct) return "Other";
-  if (ct === "text/html" || ct === "application/xhtml+xml") return "Document";
-  if (ct === "text/css") return "Stylesheet";
-  if (
-    ct === "text/javascript" ||
-    ct === "application/javascript" ||
-    ct === "application/x-javascript" ||
-    (ct.endsWith("+json") && ct.includes("javascript"))
-  ) {
-    return "Script";
-  }
-  if (ct === "application/json" || ct.endsWith("+json")) return "Fetch";
-  if (ct.startsWith("image/")) return "Image";
-  if (ct.startsWith("font/") || ct.startsWith("application/font-")) return "Font";
-  if (ct.startsWith("video/") || ct.startsWith("audio/")) return "Media";
-  if (ct === "text/event-stream") return "EventSource";
-  if (ct === "application/manifest+json") return "Manifest";
-  return "Other";
+  return (
+    EXACT_RESOURCE_TYPES.get(ct) ??
+    inferredJsonResourceType(ct) ??
+    inferredPrefixResourceType(ct) ??
+    "Other"
+  );
 }
 
 export function isTextLikeMime(mimeType: string): boolean {
-  const ct = (mimeType.toLowerCase().split(";")[0] ?? "").trim();
-  if (!ct) return false;
-  if (ct.startsWith("text/")) return true;
-  if (
-    ct === "application/json" ||
-    ct === "application/javascript" ||
-    ct === "application/x-javascript" ||
-    ct === "application/xhtml+xml" ||
-    ct === "application/xml" ||
-    ct === "application/manifest+json"
-  ) {
-    return true;
-  }
-  if (ct.endsWith("+json") || ct.endsWith("+xml")) return true;
-  return false;
+  const ct = mimeEssence(mimeType);
+  return (
+    ct.length > 0 &&
+    (ct.startsWith("text/") ||
+      EXACT_TEXT_MIMES.has(ct) ||
+      ct.endsWith("+json") ||
+      ct.endsWith("+xml"))
+  );
 }
 
 export function headersToRecord(h: Headers): Record<string, string> {
@@ -706,4 +644,180 @@ export function headersToRecord(h: Headers): Record<string, string> {
     out[k] = v;
   });
   return out;
+}
+
+function requestSessionIds(
+  opts: BeginRequestOpts,
+  attributions: ReadonlyMap<string, { sessionIds: Array<string | undefined> }>,
+): Array<string | undefined> {
+  return opts.sessionIds
+    ? [...opts.sessionIds]
+    : [...(attributions.get(opts.frameId)?.sessionIds ?? [])];
+}
+
+function requestWillBeSentEvent(
+  requestId: Protocol.Network.RequestId,
+  timestamp: Protocol.Network.MonotonicTime,
+  opts: BeginRequestOpts,
+): Protocol.Network.RequestWillBeSentEvent {
+  return {
+    requestId,
+    loaderId: opts.loaderId,
+    documentURL: opts.url,
+    request: requestFor(opts.url, opts.method, opts.headers, opts.type),
+    timestamp,
+    wallTime: Date.now() / MILLISECONDS_PER_SECOND,
+    initiator: opts.initiator,
+    type: opts.type,
+    frameId: opts.frameId,
+    hasUserGesture: false,
+    redirectHasExtraInfo: false,
+  };
+}
+
+function requestExtraInfoEvent(
+  requestId: Protocol.Network.RequestId,
+  timestamp: Protocol.Network.MonotonicTime,
+  headers: Protocol.Network.Headers,
+): Protocol.Network.RequestWillBeSentExtraInfoEvent {
+  return {
+    requestId,
+    associatedCookies: [],
+    headers,
+    connectTiming: { requestTime: timestamp },
+    siteHasCookieInOtherPartition: false,
+  };
+}
+
+function requestFor(
+  url: string,
+  method: string,
+  headers: Protocol.Network.Headers,
+  type: ResourceType,
+): Protocol.Network.Request {
+  return {
+    url,
+    method,
+    headers,
+    initialPriority: type === "Document" ? "VeryHigh" : "Medium",
+    referrerPolicy: "strict-origin-when-cross-origin",
+    mixedContentType: "none",
+    isSameSite: true,
+  };
+}
+
+function redirectRequest(opts: {
+  newUrl: string;
+  method: string;
+  headers: Record<string, string>;
+  type: ResourceType;
+}): Protocol.Network.Request {
+  return requestFor(opts.newUrl, opts.method, opts.headers, opts.type);
+}
+
+function responseEvent(
+  opts: CompleteRequestOpts,
+  timestamp: Protocol.Network.MonotonicTime,
+): Protocol.Network.Response {
+  return {
+    url: opts.url,
+    status: opts.status,
+    statusText: opts.statusText,
+    headers: opts.headers,
+    mimeType: opts.mimeType,
+    encodedDataLength: opts.bodyLength,
+    fromDiskCache: opts.fromDiskCache ?? false,
+    fromServiceWorker: false,
+    fromPrefetchCache: false,
+    connectionReused: false,
+    connectionId: 0,
+    remoteIPAddress: "",
+    remotePort: 0,
+    securityState: "secure",
+    charset: "",
+    protocol: "http/1.1",
+    responseTime: Date.now(),
+    timing: responseTiming(timestamp),
+    securityDetails: syntheticSecurityDetails(opts.url),
+    alternateProtocolUsage: "unspecifiedReason",
+  };
+}
+
+function responseTiming(
+  requestTime: Protocol.Network.MonotonicTime,
+): Protocol.Network.ResourceTiming {
+  return {
+    requestTime,
+    proxyStart: -1,
+    proxyEnd: -1,
+    dnsStart: -1,
+    dnsEnd: -1,
+    connectStart: -1,
+    connectEnd: -1,
+    sslStart: -1,
+    sslEnd: -1,
+    workerStart: -1,
+    workerReady: -1,
+    workerFetchStart: -1,
+    workerRespondWithSettled: -1,
+    sendStart: 0,
+    sendEnd: 0,
+    pushStart: 0,
+    pushEnd: 0,
+    receiveHeadersStart: 0,
+    receiveHeadersEnd: 0,
+  };
+}
+
+function syntheticSecurityDetails(url: string): Protocol.Network.SecurityDetails {
+  const host = hostFromUrl(url);
+  const nowSeconds = Math.floor(Date.now() / MILLISECONDS_PER_SECOND);
+  return {
+    protocol: "TLS 1.3",
+    keyExchange: "",
+    keyExchangeGroup: "X25519",
+    cipher: "AES_128_GCM",
+    certificateId: 0,
+    subjectName: host,
+    sanList: [host],
+    issuer: "Kitesurf POC",
+    validFrom: nowSeconds - SECONDS_PER_DAY,
+    validTo: nowSeconds + SECONDS_PER_DAY * SYNTHETIC_CERTIFICATE_VALIDITY_DAYS,
+    signedCertificateTimestampList: [],
+    certificateTransparencyCompliance: "unknown",
+    serverSignatureAlgorithm: 0,
+    encryptedClientHello: false,
+  };
+}
+
+function canStoreResponseBody(
+  rec: RequestRecord,
+  bodyLength: number,
+  currentLoaderId: Protocol.Network.LoaderId | undefined,
+  perBodyBudget: number,
+): boolean {
+  const loaderIsCurrent = currentLoaderId === undefined || rec.loaderId === currentLoaderId;
+  return loaderIsCurrent && bodyLength * 2 <= perBodyBudget;
+}
+
+function inferredJsonResourceType(ct: string): ResourceType | undefined {
+  if (ct.endsWith("+json") && ct.includes("javascript")) return "Script";
+  if (ct.endsWith("+json")) return "Fetch";
+  return undefined;
+}
+
+function inferredPrefixResourceType(ct: string): ResourceType | undefined {
+  return RESOURCE_TYPE_PREFIXES.find(([prefix]) => ct.startsWith(prefix))?.[1];
+}
+
+function mimeEssence(mimeType: string): string {
+  return (mimeType.toLowerCase().split(";")[0] ?? "").trim();
+}
+
+function isStaleFrameRecord(
+  rec: RequestRecord,
+  frameId: Protocol.Page.FrameId,
+  currentLoaderId: Protocol.Network.LoaderId,
+): boolean {
+  return rec.frameId === frameId && rec.loaderId !== currentLoaderId;
 }

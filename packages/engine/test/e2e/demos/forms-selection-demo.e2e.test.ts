@@ -21,6 +21,22 @@ test("forms-selection-demo", async ({ page }) => {
     const el = <T extends HTMLElement = HTMLInputElement>(id: string) =>
       document.getElementById(id) as T;
     const flush = () => new Promise((r) => setTimeout(r, 0));
+    const selectionMatches = (element: HTMLInputElement, start: number, end: number) =>
+      element.selectionStart === start && element.selectionEnd === end;
+    const selectedValueAndRangeMatch = (
+      element: HTMLInputElement,
+      value: string,
+      start: number,
+      end: number,
+    ) => element.value === value && selectionMatches(element, start, end);
+    const setSelectionRangeThrows = (element: HTMLInputElement): boolean => {
+      try {
+        element.setSelectionRange(0, 1);
+      } catch {
+        return true;
+      }
+      return false;
+    };
 
     const t = el("t");
 
@@ -41,7 +57,7 @@ test("forms-selection-demo", async ({ page }) => {
     add("wrap+clamp end = len", t.selectionEnd === t.value.length);
 
     t.value = "rebuilt";
-    add("value setter collapses to end", t.selectionStart === 7 && t.selectionEnd === 7);
+    add("value setter collapses to end", selectionMatches(t, 7, 7));
     t.select();
     add("select() start = 0", t.selectionStart === 0);
     add("select() end = len", t.selectionEnd === 7);
@@ -69,10 +85,7 @@ test("forms-selection-demo", async ({ page }) => {
 
     t.value = "abcdef";
     t.setRangeText("XX", 0, 2, "select");
-    add(
-      "setRangeText select mode",
-      t.value === "XXcdef" && t.selectionStart === 0 && t.selectionEnd === 2,
-    );
+    add("setRangeText select mode", selectedValueAndRangeMatch(t, "XXcdef", 0, 2));
 
     t.value = "abcdef";
     t.setRangeText("XXX", 0, 2, "end");
@@ -90,13 +103,7 @@ test("forms-selection-demo", async ({ page }) => {
     el("p").setSelectionRange(0, 3);
     add("password supports selection", el("p").selectionEnd === 3);
 
-    let threw = false;
-    try {
-      el("cb").setSelectionRange(0, 1);
-    } catch {
-      threw = true;
-    }
-    add("checkbox setSelectionRange throws", threw);
+    add("checkbox setSelectionRange throws", setSelectionRangeThrows(el("cb")));
     add("checkbox selectionStart returns null", el("cb").selectionStart === null);
 
     return checks;

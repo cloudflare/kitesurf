@@ -17,17 +17,24 @@ test("parsed templates keep their content", async ({ page }) => {
     { waitUntil: "domcontentloaded" },
   );
   const got = await page.evaluate(() => {
+    const textOrNull = (element: Element | null): string | null => element?.textContent ?? null;
+    const templateText = (template: HTMLTemplateElement, selector: string) =>
+      textOrNull(template.content.querySelector(selector));
+    const shadowText = (host: HTMLElement) => {
+      const root = host.shadowRoot;
+      return root ? textOrNull(root.getElementById("inner")) : null;
+    };
     const markup = document.getElementById("markup") as HTMLTemplateElement;
     const mount = document.getElementById("mount")!;
     mount.innerHTML = '<template id="dyn"><b>from innerHTML</b></template>';
     const dyn = document.getElementById("dyn") as HTMLTemplateElement;
     const host = document.getElementById("host")!;
     return {
-      markup: markup.content.querySelector(".x")?.textContent ?? null,
+      markup: templateText(markup, ".x"),
       markupOwnChildren: markup.childNodes.length,
       leaksIntoDocument: document.querySelector(".x") !== null,
-      dyn: dyn.content.querySelector("b")?.textContent ?? null,
-      shadow: host.shadowRoot?.getElementById("inner")?.textContent ?? null,
+      dyn: templateText(dyn, "b"),
+      shadow: shadowText(host),
     };
   });
   expect(got).toEqual({

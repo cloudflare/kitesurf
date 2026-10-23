@@ -4,7 +4,7 @@
 
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
-import { decodePng } from "./png";
+import { bbox, decodePng } from "./png";
 
 const HTML = `<!doctype html>
 <html>
@@ -31,12 +31,6 @@ test("clips are still honoured past 1024 sibling clipped boxes", async ({ page }
   expect(spans).toBeGreaterThan(1024);
 
   const png = await decodePng(new Uint8Array((await page.screenshot()) as Uint8Array));
-  let magenta = 0;
-  for (let i = 0; i < png.data.length; i += 4) {
-    const r = png.data[i] ?? 0;
-    const g = png.data[i + 1] ?? 0;
-    const b = png.data[i + 2] ?? 0;
-    if (r > 150 && g < 80 && b > 150) magenta++;
-  }
-  expect(magenta).toBe(0);
+  const magenta = (r: number, g: number, b: number) => r > 150 && g < 80 && b > 150;
+  expect(bbox(png, 0, png.height, magenta)).toBeNull();
 }, 120_000);

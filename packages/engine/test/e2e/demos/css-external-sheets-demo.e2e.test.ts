@@ -4,6 +4,33 @@
 
 import { expect, test } from "../harness";
 import expectedSheetBody from "../../fixtures-worker/assets/external-sheet.css?raw";
+import type { Protocol } from "devtools-protocol";
+
+type CdpNode = Protocol.DOM.Node;
+
+function nodeHasId(node: CdpNode, id: string): boolean {
+  const index = (node.attributes || []).indexOf("id");
+  return index >= 0 && (node.attributes || [])[index + 1] === id;
+}
+
+function nodeChildren(node: CdpNode): CdpNode[] {
+  return Array.isArray(node.children) ? node.children : [];
+}
+
+function findById(root: CdpNode, id: string): CdpNode | null {
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node) continue;
+    if (nodeHasId(node, id)) return node;
+    for (const child of nodeChildren(node)) stack.push(child);
+  }
+  return null;
+}
+
+function expectFound<T>(value: T | null | undefined, message: string): asserts value is T {
+  expect(!!value, message).toBe(true);
+}
 
 test("exposes linked stylesheet text and matched rules", async ({ page }) => {
   const SHEET_URL = "https://ks.invalid/__fixtures/external-sheet.css";
@@ -29,34 +56,21 @@ test("exposes linked stylesheet text and matched rules", async ({ page }) => {
     await expect.poll(() => adds.length >= 1, { timeout: 10_000 }).toBe(true);
 
     const external = adds.find((header) => header.isInline === false);
-    expect(!!external, "external sheet is emitted with isInline:false").toBe(true);
+    expectFound(external, "external sheet is emitted with isInline:false");
     expect(external?.sourceURL, "external sheet sourceURL matches the fixture").toBe(SHEET_URL);
     expect((external?.length ?? 0) > 0, "external sheet body has non-zero length").toBe(true);
 
     const text = await session.send("CSS.getStyleSheetText", {
-      styleSheetId: external!.styleSheetId,
+      styleSheetId: external.styleSheetId,
     });
     expect(text.text, "getStyleSheetText returns the external sheet body").toBe(expectedSheetBody);
 
     const doc = await session.send("DOM.getDocument");
-    function findById(root: any, id: string): any {
-      const stack = [root];
-      while (stack.length) {
-        const node = stack.pop();
-        if (!node) continue;
-        const index = (node.attributes || []).indexOf("id");
-        if (index >= 0 && node.attributes[index + 1] === id) return node;
-        if (Array.isArray(node.children)) {
-          for (const child of node.children) stack.push(child);
-        }
-      }
-      return null;
-    }
     const pNode = findById(doc.root, "x");
-    expect(!!pNode, "fixture contains the styled paragraph").toBe(true);
+    expectFound(pNode, "fixture contains the styled paragraph");
 
     const matched = await session.send("CSS.getMatchedStylesForNode", {
-      nodeId: pNode!.nodeId,
+      nodeId: pNode.nodeId,
     });
     const hasRule = (matched.matchedCSSRules ?? []).some(
       (entry) => entry.rule.selectorList.text === "p#x",

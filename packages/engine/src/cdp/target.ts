@@ -88,52 +88,12 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
     case "Target.setDiscoverTargets":
     case "Target.setRemoteLocations":
       return {};
-
-    case "Target.setAutoAttach": {
-      if (req.sessionId) return {};
-
-      ctx.browser.autoAttach = Boolean(req.params?.autoAttach);
-      ctx.browser.flatten = Boolean(req.params?.flatten);
-      if (ctx.browser.autoAttach && ctx.browser.connectionMode !== "page") {
-        for (const t of ctx.browser.targets.values()) {
-          if (t.type !== "page") continue;
-          if (t.sessions.size > 0) continue;
-          autoAttachTarget(ctx, t);
-        }
-      }
-      if (ctx.browser.autoAttach && ctx.browser.connectionMode === "page") {
-        announceRendererTarget(ctx);
-        announceEngineTarget(ctx);
-        announceExistingOopifTargets(ctx);
-      }
-      return {};
-    }
-
-    case "Target.getTargets": {
-      const infos: Protocol.Target.TargetInfo[] = [];
-      for (const t of ctx.browser.targets.values()) {
-        infos.push(targetInfo(ctx, t));
-        if (t.type !== "page" || ctx.browser.connectionMode !== "browser") continue;
-        for (const frame of t.frames.values()) {
-          if (frame.parentFrameId === null) continue;
-          infos.push(frameTargetInfo(frame));
-        }
-      }
-      return { targetInfos: infos };
-    }
-
-    case "Target.getTargetInfo": {
-      const id = req.params?.targetId ?? BROWSER_TARGET_ID;
-      if (id === RENDERER_TARGET_ID) {
-        return { targetInfo: rendererTargetInfo(ctx) };
-      }
-      if (id === ENGINE_TARGET_ID) {
-        return { targetInfo: engineTargetInfo(ctx) };
-      }
-      const t = ctx.browser.targets.get(id);
-      if (!t) throw new Error(`No target with id ${id}`);
-      return { targetInfo: targetInfo(ctx, t) };
-    }
+    case "Target.setAutoAttach":
+      return setAutoAttach(ctx, req);
+    case "Target.getTargets":
+      return { targetInfos: getTargetInfos(ctx) };
+    case "Target.getTargetInfo":
+      return getTargetInfoCommand(ctx, req);
 
     case "Target.createBrowserContext": {
       const id = `ctx-${ctx.browser.nextBrowserContextId++}`;
@@ -143,141 +103,26 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       return { browserContextId: id };
     }
 
-    case "Target.disposeBrowserContext": {
-      const id = req.params?.browserContextId;
-      if (id && ctx.browser.contexts.has(id)) {
-        const closes: Promise<boolean>[] = [];
-        for (const t of Array.from(ctx.browser.targets.values())) {
-          if (t.browserContextId === id) closes.push(closeTargetInternal(ctx, t.targetId));
-        }
-        await Promise.all(closes);
-        ctx.browser.contexts.delete(id);
-        unregisterCookieJar(cookieKeyFor(ctx.connectionId, id));
-        clearLearnedScripts(ctx.browser.learnedInsertedScripts, id);
-      }
-      return {};
-    }
+    case "Target.disposeBrowserContext":
+      return disposeBrowserContext(ctx, req);
 
     case "Target.getBrowserContexts":
       return { browserContextIds: Array.from(ctx.browser.contexts.keys()) };
 
-    case "Target.createTarget": {
-      const url = req.params?.url ?? "about:blank";
-      const bctx = req.params?.browserContextId;
-      if (bctx && !ctx.browser.contexts.has(bctx)) {
-        throw new Error(`Failed to find browser context with id ${bctx}`);
-      }
-      const target = createPageTarget(ctx, url, bctx || undefined);
-      ctx.emit({
-        method: "Target.targetCreated",
-        params: { targetInfo: targetInfo(ctx, target) },
-      });
-      if (ctx.browser.autoAttach) {
-        autoAttachTarget(ctx, target);
-      }
-      return { targetId: target.targetId };
-    }
+    case "Target.createTarget":
+      return createTarget(ctx, req);
 
-    case "Target.closeTarget": {
-      const existed = await closeTargetInternal(ctx, req.params!.targetId);
-      return { success: existed };
-    }
+    case "Target.closeTarget":
+      return closeTarget(ctx, req);
 
-    case "Target.attachToTarget": {
-      const id = req.params!.targetId;
-      if (id === RENDERER_TARGET_ID) {
-        const sessionId = announceRendererTarget(ctx);
-        if (!sessionId) throw new Error("pageRenderer is disabled");
-        return { sessionId };
-      }
-      if (id === ENGINE_TARGET_ID) {
-        return { sessionId: announceEngineTarget(ctx) };
-      }
-      const target = ctx.browser.targets.get(id);
-      if (target) {
-        const sessionId = makeSessionId();
-        target.sessions.add(sessionId);
-        ctx.browser.networkEvents.setTargetAttribution(
-          target.frameId,
-          target.loaderId,
-          Array.from(target.sessions),
-        );
-        ctx.emit({
-          method: "Target.attachedToTarget",
-          params: {
-            sessionId,
-            targetInfo: targetInfo(ctx, target),
-            waitingForDebugger: false,
-          },
-        });
-        return { sessionId };
-      }
-      if (ctx.browser.connectionMode === "browser") {
-        for (const parent of ctx.browser.targets.values()) {
-          const frame = parent.frames.get(id);
-          if (!frame || frame.parentFrameId === null || frame.detached) continue;
-          const sessionId = makeSessionId();
-          frame.sessions.add(sessionId);
-          ctx.browser.networkEvents.setTargetAttribution(
-            frame.frameId,
-            frame.loaderId,
-            Array.from(frame.sessions),
-          );
-          ctx.emit({
-            method: "Target.attachedToTarget",
-            params: {
-              sessionId,
-              targetInfo: frameTargetInfo(frame),
-              waitingForDebugger: false,
-            },
-          });
-          return { sessionId };
-        }
-      }
-      throw new Error(`No target with id ${id}`);
-    }
+    case "Target.attachToTarget":
+      return attachToTarget(ctx, req.params!.targetId);
 
-    case "Target.attachToBrowserTarget": {
-      const sessionId = makeSessionId();
-      const browser = ctx.browser.targets.get(BROWSER_TARGET_ID);
-      if (browser) browser.sessions.add(sessionId);
-      return { sessionId };
-    }
+    case "Target.attachToBrowserTarget":
+      return attachToBrowserTarget(ctx);
 
-    case "Target.detachFromTarget": {
-      const sessionId = req.params?.sessionId;
-      if (sessionId) {
-        for (const t of ctx.browser.targets.values()) {
-          if (t.sessions.delete(sessionId)) {
-            ctx.browser.networkEvents.setTargetAttribution(
-              t.frameId,
-              t.loaderId,
-              Array.from(t.sessions),
-            );
-          }
-          detachWebMcpSession(t, sessionId);
-          const stream = ctx.browser.screencasts.get(t.targetId);
-          if (stream?.ownerSessionId === sessionId) {
-            stream.stopped = true;
-            ctx.browser.screencasts.delete(t.targetId);
-            stopAndRemoveWheelQueue(
-              ctx.browser,
-              t.targetId,
-              stream.ownerSessionId,
-              stream.wheelQueue,
-            );
-          }
-          for (const frame of t.frames.values()) {
-            updateFrameSessionAttribution(ctx, frame, sessionId);
-          }
-        }
-        ctx.browser.networkEvents.forgetSession(sessionId);
-        if (sessionId === ctx.browser.rendererSessionId) {
-          ctx.browser.rendererSessionId = null;
-        }
-      }
-      return {};
-    }
+    case "Target.detachFromTarget":
+      return detachFromTargetCommand(ctx, req);
 
     case "Target.activateTarget":
       return {};
@@ -285,6 +130,262 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
     default:
       return {};
   }
+}
+
+function setAutoAttach(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Target.setAutoAttach" }>,
+): Record<string, never> {
+  if (req.sessionId) return {};
+  ctx.browser.autoAttach = Boolean(req.params?.autoAttach);
+  ctx.browser.flatten = Boolean(req.params?.flatten);
+  attachExistingTargets(ctx);
+  return {};
+}
+
+function attachExistingTargets(ctx: DispatchCtx): void {
+  if (!ctx.browser.autoAttach) return;
+  if (ctx.browser.connectionMode === "page") {
+    announceRendererTarget(ctx);
+    announceEngineTarget(ctx);
+    announceExistingOopifTargets(ctx);
+    return;
+  }
+  autoAttachPageTargets(ctx);
+}
+
+function autoAttachPageTargets(ctx: DispatchCtx): void {
+  for (const target of ctx.browser.targets.values()) {
+    if (isAvailablePageTarget(target)) autoAttachTarget(ctx, target);
+  }
+}
+
+function isAvailablePageTarget(target: TargetState): boolean {
+  return target.type === "page" && target.sessions.size === 0;
+}
+
+function getTargetInfos(ctx: DispatchCtx): Protocol.Target.TargetInfo[] {
+  const infos: Protocol.Target.TargetInfo[] = [];
+  for (const target of ctx.browser.targets.values()) {
+    infos.push(targetInfo(ctx, target));
+    appendFrameTargetInfos(ctx, target, infos);
+  }
+  return infos;
+}
+
+function appendFrameTargetInfos(
+  ctx: DispatchCtx,
+  target: TargetState,
+  infos: Protocol.Target.TargetInfo[],
+): void {
+  if (target.type !== "page" || ctx.browser.connectionMode !== "browser") return;
+  for (const frame of target.frames.values()) {
+    if (frame.parentFrameId !== null) infos.push(frameTargetInfo(frame));
+  }
+}
+
+function getTargetInfoCommand(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Target.getTargetInfo" }>,
+): { targetInfo: Protocol.Target.TargetInfo } {
+  const id = requestedTargetId(req);
+  if (id === RENDERER_TARGET_ID) return { targetInfo: rendererTargetInfo(ctx) };
+  if (id === ENGINE_TARGET_ID) return { targetInfo: engineTargetInfo(ctx) };
+  const target = ctx.browser.targets.get(id);
+  if (!target) throw new Error(`No target with id ${id}`);
+  return { targetInfo: targetInfo(ctx, target) };
+}
+
+function requestedTargetId(req: Extract<CdpRequest, { method: "Target.getTargetInfo" }>): string {
+  return req.params?.targetId ?? BROWSER_TARGET_ID;
+}
+
+async function disposeBrowserContext(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Target.disposeBrowserContext" }>,
+): Promise<Record<string, never>> {
+  const id = req.params?.browserContextId;
+  if (!id || !ctx.browser.contexts.has(id)) return {};
+  await closeBrowserContextTargets(ctx, id);
+  ctx.browser.contexts.delete(id);
+  unregisterCookieJar(cookieKeyFor(ctx.connectionId, id));
+  clearLearnedScripts(ctx.browser.learnedInsertedScripts, id);
+  return {};
+}
+
+async function closeBrowserContextTargets(ctx: DispatchCtx, id: string): Promise<void> {
+  const closes: Promise<boolean>[] = [];
+  for (const target of Array.from(ctx.browser.targets.values())) {
+    if (target.browserContextId === id) closes.push(closeTargetInternal(ctx, target.targetId));
+  }
+  await Promise.all(closes);
+}
+
+function createTarget(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Target.createTarget" }>,
+): { targetId: string } {
+  const target = createPageTarget(
+    ctx,
+    targetCreateUrl(req.params),
+    validateTargetBrowserContext(ctx, targetCreateContextId(req.params)),
+  );
+  ctx.emit({ method: "Target.targetCreated", params: { targetInfo: targetInfo(ctx, target) } });
+  attachCreatedTarget(ctx, target);
+  return { targetId: target.targetId };
+}
+
+function targetCreateUrl(
+  params: Extract<CdpRequest, { method: "Target.createTarget" }>["params"],
+): string {
+  return params?.url ?? "about:blank";
+}
+
+function targetCreateContextId(
+  params: Extract<CdpRequest, { method: "Target.createTarget" }>["params"],
+): string | undefined {
+  return params?.browserContextId;
+}
+
+function validateTargetBrowserContext(
+  ctx: DispatchCtx,
+  id: string | undefined,
+): string | undefined {
+  if (!id) return undefined;
+  if (!ctx.browser.contexts.has(id)) {
+    throw new Error(`Failed to find browser context with id ${id}`);
+  }
+  return id;
+}
+
+function attachCreatedTarget(ctx: DispatchCtx, target: TargetState): void {
+  if (ctx.browser.autoAttach) autoAttachTarget(ctx, target);
+}
+
+async function closeTarget(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Target.closeTarget" }>,
+): Promise<{ success: boolean }> {
+  const existed = await closeTargetInternal(ctx, req.params!.targetId);
+  return { success: existed };
+}
+
+function attachToTarget(ctx: DispatchCtx, id: string): { sessionId: string } {
+  const specialTarget = attachSpecialTarget(ctx, id);
+  if (specialTarget) return specialTarget;
+  const target = ctx.browser.targets.get(id);
+  if (target) return attachPageTarget(ctx, target);
+  const frame = findAttachableOopifTarget(ctx, id);
+  if (frame) return attachFrameTarget(ctx, frame);
+  throw new Error(`No target with id ${id}`);
+}
+
+function attachSpecialTarget(ctx: DispatchCtx, id: string): { sessionId: string } | null {
+  if (id === RENDERER_TARGET_ID) {
+    const sessionId = announceRendererTarget(ctx);
+    if (!sessionId) throw new Error("pageRenderer is disabled");
+    return { sessionId };
+  }
+  if (id === ENGINE_TARGET_ID) return { sessionId: announceEngineTarget(ctx) };
+  return null;
+}
+
+function attachPageTarget(ctx: DispatchCtx, target: TargetState): { sessionId: string } {
+  const sessionId = makeSessionId();
+  target.sessions.add(sessionId);
+  ctx.browser.networkEvents.setTargetAttribution(
+    target.frameId,
+    target.loaderId,
+    Array.from(target.sessions),
+  );
+  ctx.emit({
+    method: "Target.attachedToTarget",
+    params: {
+      sessionId,
+      targetInfo: targetInfo(ctx, target),
+      waitingForDebugger: false,
+    },
+  });
+  return { sessionId };
+}
+
+function findAttachableOopifTarget(ctx: DispatchCtx, id: string): FrameState | null {
+  if (ctx.browser.connectionMode !== "browser") return null;
+  for (const parent of ctx.browser.targets.values()) {
+    const frame = parent.frames.get(id);
+    if (isAttachableOopifFrame(frame)) return frame;
+  }
+  return null;
+}
+
+function isAttachableOopifFrame(frame: FrameState | undefined): frame is FrameState {
+  return frame !== undefined && frame.parentFrameId !== null && !frame.detached;
+}
+
+function attachFrameTarget(ctx: DispatchCtx, frame: FrameState): { sessionId: string } {
+  const sessionId = makeSessionId();
+  frame.sessions.add(sessionId);
+  ctx.browser.networkEvents.setTargetAttribution(
+    frame.frameId,
+    frame.loaderId,
+    Array.from(frame.sessions),
+  );
+  ctx.emit({
+    method: "Target.attachedToTarget",
+    params: {
+      sessionId,
+      targetInfo: frameTargetInfo(frame),
+      waitingForDebugger: false,
+    },
+  });
+  return { sessionId };
+}
+
+function attachToBrowserTarget(ctx: DispatchCtx): { sessionId: string } {
+  const sessionId = makeSessionId();
+  const browser = ctx.browser.targets.get(BROWSER_TARGET_ID);
+  if (browser) browser.sessions.add(sessionId);
+  return { sessionId };
+}
+
+function detachFromTargetCommand(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Target.detachFromTarget" }>,
+): Record<string, never> {
+  return detachFromTarget(ctx, req.params?.sessionId);
+}
+
+function detachFromTarget(ctx: DispatchCtx, sessionId: string | undefined): Record<string, never> {
+  if (!sessionId) return {};
+  for (const target of ctx.browser.targets.values()) {
+    detachTargetSession(ctx, target, sessionId);
+  }
+  ctx.browser.networkEvents.forgetSession(sessionId);
+  if (sessionId === ctx.browser.rendererSessionId) ctx.browser.rendererSessionId = null;
+  return {};
+}
+
+function detachTargetSession(ctx: DispatchCtx, target: TargetState, sessionId: string): void {
+  if (target.sessions.delete(sessionId)) {
+    ctx.browser.networkEvents.setTargetAttribution(
+      target.frameId,
+      target.loaderId,
+      Array.from(target.sessions),
+    );
+  }
+  detachWebMcpSession(target, sessionId);
+  stopOwnedScreencast(ctx, target, sessionId);
+  for (const frame of target.frames.values()) {
+    updateFrameSessionAttribution(ctx, frame, sessionId);
+  }
+}
+
+function stopOwnedScreencast(ctx: DispatchCtx, target: TargetState, sessionId: string): void {
+  const stream = ctx.browser.screencasts.get(target.targetId);
+  if (stream?.ownerSessionId !== sessionId) return;
+  stream.stopped = true;
+  ctx.browser.screencasts.delete(target.targetId);
+  stopAndRemoveWheelQueue(ctx.browser, target.targetId, stream.ownerSessionId, stream.wheelQueue);
 }
 
 export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
@@ -343,75 +444,99 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
   const target = ctx.browser.targets.get(id);
   const retirements: Promise<unknown>[] = [];
   if (target) {
-    try {
-      target.pendingNavAbort?.abort();
-    } catch {}
-    target.pendingNavAbort = null;
-    target.navigateGeneration++;
-    target.blankReady = null;
-    target.wheelTeardownDepth += 1;
-    const stream = ctx.browser.screencasts.get(id);
-    if (stream) stream.stopped = true;
-    ctx.browser.screencasts.delete(id);
-    void cancelAndRemoveTargetWheelQueues(ctx.browser, id);
-    ctx.browser.dedicatedWorkers.terminateTarget(id, "Target.closeTarget");
-    retirements.push(
-      retireStub(target, "closeTarget", "Target.closeTarget", {
-        budget: ctx.browser.workerBudget,
-        awaitTeardown: true,
-      }),
-    );
+    prepareTargetForClose(ctx, target);
+    retirements.push(retireClosedTarget(ctx, target));
   }
-  if (target) {
-    // Puppeteer resolves page.close() on Target.detachedFromTarget, before targetDestroyed.
-    detachSessions(ctx, target.sessions, id);
-    ctx.browser.networkEvents.deleteTargetAttribution(target.frameId);
-    for (const frame of target.frames.values()) {
-      if (frame.frameId !== target.frameId) {
-        ctx.browser.networkEvents.deleteTargetAttribution(frame.frameId);
-      }
-      for (const sessionId of frame.sessions) {
-        ctx.browser.networkEvents.forgetSession(sessionId);
-      }
-      frame.sessions.clear();
-      frame.detached = true;
-      const prespawn = frame.oopifPrespawn;
-      if (prespawn) {
-        frame.oopifPrespawn = undefined;
-        frame.pageScriptLease?.release();
-        frame.pageScriptLease = null;
-        ctx.ctx.waitUntil(
-          prespawn.promise.then(async (pre) => {
-            if (!pre) return;
-            try {
-              const { discardPrespawnedFrame } = await import("../eval/oopif-render.ts");
-              await discardPrespawnedFrame(pre, "Target.closeTarget");
-            } catch {}
-          }),
-        );
-      }
-      frame.lastRenderSeq = -1;
-      frame.execContextId = 0;
-      retirements.push(
-        retireStub(frame, "closeTarget", "Target.closeTarget", {
-          budget: ctx.browser.workerBudget,
-          awaitTeardown: true,
-        }),
-      );
-    }
-    releaseAllDomHandles(target);
-  }
+  if (target) retirements.push(...detachAndRetireTargetFrames(ctx, target, id));
   const existed = ctx.browser.targets.delete(id);
   stopSceneStreams(ctx.browser, id);
-  if (existed) {
-    ctx.emit({
-      method: "Target.targetDestroyed",
-      params: { targetId: id },
-    });
-  }
+  if (existed) emitTargetDestroyed(ctx, id);
   releaseParkedForConnection(ctx.connectionId);
   await Promise.all(retirements);
   return existed;
+}
+
+function prepareTargetForClose(ctx: DispatchCtx, target: TargetState): void {
+  try {
+    target.pendingNavAbort?.abort();
+  } catch {}
+  target.pendingNavAbort = null;
+  target.navigateGeneration++;
+  target.blankReady = null;
+  target.wheelTeardownDepth++;
+  const stream = ctx.browser.screencasts.get(target.targetId);
+  if (stream) stream.stopped = true;
+  ctx.browser.screencasts.delete(target.targetId);
+  void cancelAndRemoveTargetWheelQueues(ctx.browser, target.targetId);
+  ctx.browser.dedicatedWorkers.terminateTarget(target.targetId, "Target.closeTarget");
+}
+
+function retireClosedTarget(ctx: DispatchCtx, target: TargetState): Promise<unknown> {
+  return retireStub(target, "closeTarget", "Target.closeTarget", {
+    budget: ctx.browser.workerBudget,
+    awaitTeardown: true,
+  });
+}
+
+function detachAndRetireTargetFrames(
+  ctx: DispatchCtx,
+  target: TargetState,
+  targetId: string,
+): Promise<unknown>[] {
+  // Puppeteer resolves page.close() on Target.detachedFromTarget, before targetDestroyed.
+  detachSessions(ctx, target.sessions, targetId);
+  ctx.browser.networkEvents.deleteTargetAttribution(target.frameId);
+  const retirements: Promise<unknown>[] = [];
+  for (const frame of target.frames.values()) {
+    retirements.push(detachAndRetireFrame(ctx, target, frame));
+  }
+  releaseAllDomHandles(target);
+  return retirements;
+}
+
+function detachAndRetireFrame(
+  ctx: DispatchCtx,
+  target: TargetState,
+  frame: FrameState,
+): Promise<unknown> {
+  if (frame.frameId !== target.frameId) {
+    ctx.browser.networkEvents.deleteTargetAttribution(frame.frameId);
+  }
+  for (const sessionId of frame.sessions) {
+    ctx.browser.networkEvents.forgetSession(sessionId);
+  }
+  frame.sessions.clear();
+  frame.detached = true;
+  schedulePrespawnDiscard(ctx, frame);
+  frame.lastRenderSeq = -1;
+  frame.execContextId = 0;
+  return retireStub(frame, "closeTarget", "Target.closeTarget", {
+    budget: ctx.browser.workerBudget,
+    awaitTeardown: true,
+  });
+}
+
+function schedulePrespawnDiscard(ctx: DispatchCtx, frame: FrameState): void {
+  const prespawn = frame.oopifPrespawn;
+  if (!prespawn) return;
+  frame.oopifPrespawn = undefined;
+  frame.pageScriptLease?.release();
+  frame.pageScriptLease = null;
+  ctx.ctx.waitUntil(prespawn.promise.then(discardPrespawnedFrame));
+}
+
+async function discardPrespawnedFrame(
+  pre: Awaited<NonNullable<FrameState["oopifPrespawn"]>["promise"]>,
+): Promise<void> {
+  if (!pre) return;
+  try {
+    const { discardPrespawnedFrame: discard } = await import("../eval/oopif-render.ts");
+    await discard(pre, "Target.closeTarget");
+  } catch {}
+}
+
+function emitTargetDestroyed(ctx: DispatchCtx, id: string): void {
+  ctx.emit({ method: "Target.targetDestroyed", params: { targetId: id } });
 }
 
 export function createPageTarget(
@@ -759,68 +884,17 @@ export async function handleOopifSession(
 ): Promise<unknown> {
   switch (req.method) {
     case "Network.enable":
-      ctx.browser.networkEvents.setEnabled(req.sessionId, true, {
-        maxTotalBufferSize:
-          typeof req.params?.maxTotalBufferSize === "number"
-            ? req.params.maxTotalBufferSize
-            : undefined,
-        maxResourceBufferSize:
-          typeof req.params?.maxResourceBufferSize === "number"
-            ? req.params.maxResourceBufferSize
-            : undefined,
-      });
-      return {};
+      return enableOopifNetwork(ctx, req);
     case "Network.disable":
       ctx.browser.networkEvents.setEnabled(req.sessionId, false);
       return {};
     case "Page.getFrameTree":
-    case "Page.getResourceTree": {
-      const frameJson = {
-        id: frame.frameId,
-        loaderId: frame.loaderId,
-        url: frame.url,
-        domainAndRegistry: domainAndRegistryOf(frame.url),
-        securityOrigin: originOfUrl(frame.url),
-        mimeType: "text/html",
-        secureContextType: "Secure",
-        crossOriginIsolatedContextType: "NotIsolated",
-        gatedAPIFeatures: [],
-      };
-      return req.method === "Page.getFrameTree"
-        ? { frameTree: { frame: frameJson, childFrames: [] } }
-        : { frameTree: { frame: frameJson, resources: [] } };
-    }
-    case "Runtime.enable": {
-      ctx.emit({
-        method: "Runtime.executionContextCreated",
-        params: {
-          context: {
-            id: frame.execContextId || 1,
-            origin: originOfUrl(frame.url),
-            name: "",
-            uniqueId: `oopif-${frame.frameId}`,
-            auxData: {
-              isDefault: true,
-              type: "default",
-              frameId: frame.frameId,
-            },
-          },
-        },
-        sessionId: req.sessionId,
-      });
-      return {};
-    }
-    case "Runtime.getHeapUsage": {
-      try {
-        const mem = frame.pageScript
-          ? await stubQueryDom(frame.pageScript, "getMemoryStats", {})
-          : undefined;
-        const usedSize = typeof mem?.bytes === "number" ? mem.bytes : 0;
-        return { usedSize, totalSize: usedSize };
-      } catch {
-        return { usedSize: 0, totalSize: 0 };
-      }
-    }
+    case "Page.getResourceTree":
+      return oopifFrameTree(req.method, frame);
+    case "Runtime.enable":
+      return enableOopifRuntime(ctx, req, frame);
+    case "Runtime.getHeapUsage":
+      return getOopifHeapUsage(frame);
     case "Target.getTargetInfo":
       return { targetInfo: { ...frameTargetInfo(frame), attached: true } };
 
@@ -832,48 +906,139 @@ export async function handleOopifSession(
       return {};
     }
     case "DOM.getDocument": {
-      const r = frame.pageScript
-        ? await stubQueryDom(frame.pageScript, "getDocument", {})
-        : undefined;
-      return r?.root ? r : { root: null };
+      return getOopifDocument(frame);
     }
     case "DOM.getFlattenedDocument": {
-      const r = frame.pageScript
-        ? await stubQueryDom(frame.pageScript, "getDocument", {})
-        : undefined;
-      return { nodes: r?.root ? [r.root] : [] };
+      return getOopifFlattenedDocument(frame);
     }
     case "DOM.requestChildNodes":
       return {};
     case "DOM.getOuterHTML": {
-      const nodeId = oopifNodeId(req.params);
-      if (!frame.pageScript) return undefined;
-      return await stubQueryDom(frame.pageScript, "getOuterHTML", nodeId != null ? { nodeId } : {});
+      return getOopifNode(frame, req.params, "getOuterHTML");
     }
     case "DOM.describeNode": {
-      const nodeId = oopifNodeId(req.params);
-      if (!frame.pageScript) return undefined;
-      return await stubQueryDom(frame.pageScript, "describeNode", nodeId != null ? { nodeId } : {});
+      return getOopifNode(frame, req.params, "describeNode");
     }
     case "DOM.getAttributes": {
-      const nodeId = oopifNodeId(req.params);
-      if (!frame.pageScript) return undefined;
-      return await stubQueryDom(
-        frame.pageScript,
-        "getAttributes",
-        nodeId != null ? { nodeId } : {},
-      );
+      return getOopifNode(frame, req.params, "getAttributes");
     }
     default:
       return {};
   }
 }
 
+async function readOopifDocument(frame: FrameState): Promise<{ root?: unknown } | undefined> {
+  const pageScript = frame.pageScript;
+  if (!pageScript) return undefined;
+  return stubQueryDom(pageScript, "getDocument", {});
+}
+
+async function getOopifDocument(frame: FrameState): Promise<unknown> {
+  const result = await readOopifDocument(frame);
+  if (result?.root) return result;
+  return { root: null };
+}
+
+async function getOopifFlattenedDocument(frame: FrameState): Promise<{ nodes: unknown[] }> {
+  const result = await readOopifDocument(frame);
+  const nodes = result?.root ? [result.root] : [];
+  return { nodes };
+}
+
+function enableOopifNetwork(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Network.enable" }>,
+): Record<string, never> {
+  ctx.browser.networkEvents.setEnabled(req.sessionId, true, {
+    maxTotalBufferSize: numericParam(req.params?.maxTotalBufferSize),
+    maxResourceBufferSize: numericParam(req.params?.maxResourceBufferSize),
+  });
+  return {};
+}
+
+function numericParam(value: number | undefined): number | undefined {
+  return typeof value === "number" ? value : undefined;
+}
+
+function oopifFrameTree(
+  method: "Page.getFrameTree" | "Page.getResourceTree",
+  frame: FrameState,
+): unknown {
+  const frameJson = {
+    id: frame.frameId,
+    loaderId: frame.loaderId,
+    url: frame.url,
+    domainAndRegistry: domainAndRegistryOf(frame.url),
+    securityOrigin: originOfUrl(frame.url),
+    mimeType: "text/html",
+    secureContextType: "Secure",
+    crossOriginIsolatedContextType: "NotIsolated",
+    gatedAPIFeatures: [],
+  };
+  return method === "Page.getFrameTree"
+    ? { frameTree: { frame: frameJson, childFrames: [] } }
+    : { frameTree: { frame: frameJson, resources: [] } };
+}
+
+function enableOopifRuntime(
+  ctx: DispatchCtx,
+  req: Extract<CdpRequest, { method: "Runtime.enable" }>,
+  frame: FrameState,
+): Record<string, never> {
+  ctx.emit({
+    method: "Runtime.executionContextCreated",
+    params: {
+      context: {
+        id: frame.execContextId || 1,
+        origin: originOfUrl(frame.url),
+        name: "",
+        uniqueId: `oopif-${frame.frameId}`,
+        auxData: { isDefault: true, type: "default", frameId: frame.frameId },
+      },
+    },
+    sessionId: req.sessionId,
+  });
+  return {};
+}
+
+async function getOopifHeapUsage(
+  frame: FrameState,
+): Promise<{ usedSize: number; totalSize: number }> {
+  try {
+    const mem = frame.pageScript
+      ? await stubQueryDom(frame.pageScript, "getMemoryStats", {})
+      : undefined;
+    const usedSize = typeof mem?.bytes === "number" ? mem.bytes : 0;
+    return { usedSize, totalSize: usedSize };
+  } catch {
+    return { usedSize: 0, totalSize: 0 };
+  }
+}
+
+async function getOopifNode(
+  frame: FrameState,
+  params: { nodeId?: number; backendNodeId?: number } | undefined,
+  method: "getOuterHTML" | "describeNode" | "getAttributes",
+): Promise<unknown> {
+  const pageScript = frame.pageScript;
+  if (!pageScript) return undefined;
+  const nodeId = oopifNodeId(params);
+  return stubQueryDom(pageScript, method, nodeId !== null ? { nodeId } : {});
+}
+
 function oopifNodeId(
   params: { nodeId?: number; backendNodeId?: number } | undefined,
 ): number | null {
-  const v = params?.nodeId ?? params?.backendNodeId;
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
+  const value = requestedOopifNodeId(params);
+  if (typeof value !== "number") return null;
+  if (!Number.isFinite(value)) return null;
+  return value;
+}
+
+function requestedOopifNodeId(
+  params: { nodeId?: number; backendNodeId?: number } | undefined,
+): number | undefined {
+  return params?.nodeId ?? params?.backendNodeId;
 }
 
 function originOfUrl(url: string): string {

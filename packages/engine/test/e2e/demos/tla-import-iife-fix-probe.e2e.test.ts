@@ -63,6 +63,35 @@ test("tla-import-iife-fix-probe", async ({ page }) => {
     },
   ];
 
+  const assertFixture = (
+    fixture: (typeof cases)[number],
+    result: Awaited<ReturnType<typeof runFixture>>,
+  ) => {
+    expect(
+      result.state.helper_loaded === true,
+      fixture.label + ": imported HELPER_LOADED true inside IIFE",
+    ).toBeTruthy();
+    expect(
+      result.state.greeting,
+      fixture.label + ": imported greet() callable (ESM live binding survived)",
+    ).toBe("hello-from-helper:" + fixture.greetingTag);
+    expect(
+      result.state.completed === true && result.state.fetched_bytes > 0,
+      fixture.label + ": side-effects landed past the await",
+    ).toBeTruthy();
+    expect(
+      fixture.statusRe.test(result.state.status_text ?? ""),
+      fixture.label + ": DOM mutation post-await landed",
+    ).toBeTruthy();
+    const sawTla = /Top-level await in module is unsettled/i.test(result.pageErrors.join("\n"));
+    const sawWrapped = /\[kitesurf\] user module .* threw/i.test(result.consoleErrors.join("\n"));
+    expect(!sawTla, fixture.label + ": NO 'Top-level await unsettled' page error").toBeTruthy();
+    expect(
+      !sawWrapped,
+      fixture.label + ": NO '[kitesurf] user module N threw' console.error",
+    ).toBeTruthy();
+  };
+
   for (const c of cases) {
     console.log("\n[tla-import-probe] === " + c.label + " ===");
     const r = await runFixture(page, c.path, c.prefix, c.greetingTag);
@@ -72,29 +101,6 @@ test("tla-import-iife-fix-probe", async ({ page }) => {
       "[tla-import-probe] console.error:",
       r.consoleErrors.length ? r.consoleErrors : "(none)",
     );
-
-    expect(
-      r.state.helper_loaded === true,
-      c.label + ": imported HELPER_LOADED true inside IIFE",
-    ).toBeTruthy();
-    expect(
-      r.state.greeting,
-      c.label + ": imported greet() callable (ESM live binding survived)",
-    ).toBe("hello-from-helper:" + c.greetingTag);
-    expect(
-      r.state.completed === true && r.state.fetched_bytes > 0,
-      c.label + ": side-effects landed past the await",
-    ).toBeTruthy();
-    expect(
-      c.statusRe.test(r.state.status_text ?? ""),
-      c.label + ": DOM mutation post-await landed",
-    ).toBeTruthy();
-    const sawTla = /Top-level await in module is unsettled/i.test(r.pageErrors.join("\n"));
-    const sawWrapped = /\[kitesurf\] user module .* threw/i.test(r.consoleErrors.join("\n"));
-    expect(!sawTla, c.label + ": NO 'Top-level await unsettled' page error").toBeTruthy();
-    expect(
-      !sawWrapped,
-      c.label + ": NO '[kitesurf] user module N threw' console.error",
-    ).toBeTruthy();
+    assertFixture(c, r);
   }
 });

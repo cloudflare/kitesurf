@@ -64,31 +64,80 @@ export function recordInsertedScript(
   run: InsertedRun = "boa",
   contextId = "",
 ): void {
+  recordInsertedScriptForRun(store, pageUrl, scriptUrl, bytes, run, contextId);
+}
+
+function scriptRecordingKey(pageUrl: string, scriptUrl: string, contextId: string): string | null {
   const key = storeKey(pageUrl, contextId);
-  if (!key || !originOf(scriptUrl)) return;
-  let entry = store.get(key);
-  if (run === "stale") {
-    if (!entry) return;
-    entry.urls.delete(scriptUrl);
-    entry.refused.delete(scriptUrl);
-    entry.refused.add(scriptUrl);
-    trimOldest(entry.refused, MAX_URLS_PER_ORIGIN);
-    return;
-  }
-  if (run === "baked") {
-    if (!entry?.urls.has(scriptUrl)) return;
-  } else if (!(bytes >= MIN_LEARNED_BYTES) || entry?.refused.has(scriptUrl)) {
-    return;
-  }
-  entry ??= { urls: new Map(), refused: new Set(), queried: new Set() };
-  touch(store, key, entry);
-  trimOldest(store, MAX_ORIGINS);
-  if (
+  if (!key) return null;
+  if (!originOf(scriptUrl)) return null;
+  return key;
+}
+
+function markStaleScript(entry: OriginScripts | undefined, scriptUrl: string): void {
+  if (!entry) return;
+  entry.urls.delete(scriptUrl);
+  entry.refused.delete(scriptUrl);
+  entry.refused.add(scriptUrl);
+  trimOldest(entry.refused, MAX_URLS_PER_ORIGIN);
+}
+
+function shouldRecordScript(
+  entry: OriginScripts | undefined,
+  scriptUrl: string,
+  bytes: number,
+  run: InsertedRun,
+): boolean {
+  return run === "baked"
+    ? isKnownBakedScript(entry, scriptUrl)
+    : isEligibleBoaScript(entry, scriptUrl, bytes);
+}
+
+function isKnownBakedScript(entry: OriginScripts | undefined, scriptUrl: string): boolean {
+  return entry !== undefined && entry.urls.has(scriptUrl);
+}
+
+function isEligibleBoaScript(
+  entry: OriginScripts | undefined,
+  scriptUrl: string,
+  bytes: number,
+): boolean {
+  return bytes >= MIN_LEARNED_BYTES && (entry === undefined || !entry.refused.has(scriptUrl));
+}
+
+function getOrCreateOriginScripts(entry: OriginScripts | undefined): OriginScripts {
+  return entry ?? { urls: new Map(), refused: new Set(), queried: new Set() };
+}
+
+function shouldRecordQueryOnce(entry: OriginScripts, scriptUrl: string, run: InsertedRun): boolean {
+  return (
     run === "boa" &&
     hasQuery(scriptUrl) &&
     !entry.urls.has(scriptUrl) &&
     !entry.queried.delete(scriptUrl)
-  ) {
+  );
+}
+
+function recordInsertedScriptForRun(
+  store: LearnedScripts,
+  pageUrl: string,
+  scriptUrl: string,
+  bytes: number,
+  run: InsertedRun,
+  contextId: string,
+): void {
+  const key = scriptRecordingKey(pageUrl, scriptUrl, contextId);
+  if (key === null) return;
+  let entry = store.get(key);
+  if (run === "stale") {
+    markStaleScript(entry, scriptUrl);
+    return;
+  }
+  if (!shouldRecordScript(entry, scriptUrl, bytes, run)) return;
+  entry = getOrCreateOriginScripts(entry);
+  touch(store, key, entry);
+  trimOldest(store, MAX_ORIGINS);
+  if (shouldRecordQueryOnce(entry, scriptUrl, run)) {
     entry.queried.add(scriptUrl);
     trimOldest(entry.queried, MAX_URLS_PER_ORIGIN);
     return;
@@ -118,10 +167,23 @@ export function learnedScriptsFor(
   pageUrl: string,
   contextId = "",
 ): string[] {
+  return learnedScriptsForContext(store, pageUrl, contextId);
+}
+
+function learnedScriptsForContext(
+  store: LearnedScripts,
+  pageUrl: string,
+  contextId: string,
+): string[] {
   const key = storeKey(pageUrl, contextId);
-  const entry = key ? store.get(key) : undefined;
-  if (!key || !entry) return [];
+  if (!key) return [];
+  const entry = store.get(key);
+  if (!entry) return [];
   touch(store, key, entry);
+  return advanceLearnedScripts(entry);
+}
+
+function advanceLearnedScripts(entry: OriginScripts): string[] {
   const out: string[] = [];
   for (const [url, idle] of entry.urls) {
     if (idle >= MAX_IDLE_NAVIGATES) {

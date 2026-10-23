@@ -10,6 +10,10 @@ type CdpNode = Protocol.DOM.Node;
 function findNode(n: CdpNode | undefined, pred: (n: CdpNode) => boolean): CdpNode | null {
   if (!n) return null;
   if (pred(n)) return n;
+  return findChildNode(n, pred);
+}
+
+function findChildNode(n: CdpNode, pred: (n: CdpNode) => boolean): CdpNode | null {
   for (const c of n.children ?? []) {
     const hit = findNode(c, pred);
     if (hit) return hit;

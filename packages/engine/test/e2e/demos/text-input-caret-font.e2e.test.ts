@@ -6,6 +6,30 @@ import { expect, test } from "../harness";
 import { setContent } from "../set-content";
 import { decodePng } from "./png";
 
+function pixel(png: ReturnType<typeof decodePng>, index: number): number {
+  return png.pixels[index] ?? 0;
+}
+
+function isCaretPixel(png: ReturnType<typeof decodePng>, index: number): boolean {
+  return pixel(png, index) > 200 && pixel(png, index + 1) < 160 && pixel(png, index + 2) < 160;
+}
+
+function caretColumns(
+  png: ReturnType<typeof decodePng>,
+  rect: { top: number; bottom: number },
+): number[] {
+  const columns: number[] = [];
+  for (let x = 0; x < png.width; x++) {
+    let redPixels = 0;
+    for (let y = Math.floor(rect.top); y < Math.ceil(rect.bottom); y++) {
+      const i = (y * png.width + x) * 4;
+      redPixels += Number(isCaretPixel(png, i));
+    }
+    if (redPixels >= 12) columns.push(x);
+  }
+  return columns;
+}
+
 test("textarea caret uses the computed font family", async ({ page }) => {
   const value = "<html> adfasdfasdfas </html>";
   const measureText = value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -33,20 +57,9 @@ test("textarea caret uses the computed font family", async ({ page }) => {
   const expected = await page.$eval("#measure", (element) => element.getBoundingClientRect().right);
   const screenshot = await page.screenshot({ type: "png" });
   const png = decodePng(screenshot);
-  const caretColumns: number[] = [];
-  for (let x = 0; x < png.width; x++) {
-    let redPixels = 0;
-    for (let y = Math.floor(rect.top); y < Math.ceil(rect.bottom); y++) {
-      const i = (y * png.width + x) * 4;
-      const r = png.pixels[i] ?? 0;
-      const g = png.pixels[i + 1] ?? 0;
-      const b = png.pixels[i + 2] ?? 0;
-      if (r > 200 && g < 160 && b < 160) redPixels++;
-    }
-    if (redPixels >= 12) caretColumns.push(x);
-  }
+  const columns = caretColumns(png, rect);
   expect(
-    caretColumns.some((x) => Math.abs(x - expected) <= 2),
-    `caret columns ${caretColumns.join(",")} must end at ${expected}`,
+    columns.some((x) => Math.abs(x - expected) <= 2),
+    `caret columns ${columns.join(",")} must end at ${expected}`,
   ).toBe(true);
 }, 120_000);

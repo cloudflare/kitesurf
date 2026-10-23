@@ -37,13 +37,15 @@ export function originOf(url: string): string {
 export function domainAndRegistryOf(url: string): string {
   try {
     const host = new URL(url).hostname.toLowerCase().replace(/\.$/, "");
-    if (!host || isIpHost(host) || !host.includes(".") || isPublicSuffix(host)) {
-      return "";
-    }
+    if (isInvalidDomainHost(host)) return "";
     return siteKey(host);
   } catch {
     return "";
   }
+}
+
+function isInvalidDomainHost(host: string): boolean {
+  return !host || isIpHost(host) || !host.includes(".") || isPublicSuffix(host);
 }
 
 export function makeFrameInfo(frame: FrameState): Protocol.Page.Frame {

@@ -57,6 +57,14 @@ async function manifest(
 ): Promise<Protocol.Kitesurf.SceneHostManifest> {
   const cached = manifests.get(session);
   if (cached) return cached;
+  const parsed = await fetchManifest(assets);
+  manifests.set(session, parsed);
+  return parsed;
+}
+
+async function fetchManifest(
+  assets: Pick<Fetcher, "fetch">,
+): Promise<Protocol.Kitesurf.SceneHostManifest> {
   const response = await assets.fetch(new Request(ASSET_BASE + "scene_host.json"));
   if (response.status !== 200) {
     await response.body?.cancel();
@@ -67,7 +75,6 @@ async function manifest(
   const payload: unknown = JSON.parse(new TextDecoder().decode(bytes));
   const parsed = Manifest.safeParse(payload);
   if (!parsed.success) throw new Error("invalid deployed scene-host manifest");
-  manifests.set(session, parsed.data);
   return parsed.data;
 }
 
@@ -84,8 +91,16 @@ export async function sceneHostCommand(
   if (req.method === "Kitesurf.getSceneHostManifest") return manifest(assets, session);
   const parsed = ReadParams.safeParse(req.params);
   if (!parsed.success) throw new Error("invalid scene-host chunk parameters");
-  const { sha256, offset, length } = parsed.data;
   const info = await manifest(assets, session);
+  return readSceneHostChunk(assets, info, parsed.data);
+}
+
+async function readSceneHostChunk(
+  assets: Pick<Fetcher, "fetch">,
+  info: Protocol.Kitesurf.SceneHostManifest,
+  params: z.infer<typeof ReadParams>,
+): Promise<Protocol.Kitesurf.ReadSceneHostResponse> {
+  const { sha256, offset, length } = params;
   if (sha256 !== info.sha256) throw new Error("scene-host hash changed; request a new manifest");
   if (offset >= info.bytes) throw new Error("scene-host offset is outside the artifact");
   const count = Math.min(length, info.bytes - offset);
@@ -95,22 +110,7 @@ export async function sceneHostCommand(
       headers: { Range: `bytes=${offset}-${end}`, "Accept-Encoding": "identity" },
     }),
   );
-  if (response.status !== 200 && response.status !== 206) {
-    await response.body?.cancel();
-    throw new Error("scene-host Wasm is unavailable in this deployment");
-  }
-  // Re-reading the full prefix for every chunk makes downloads quadratic.
-  if (response.status === 200 && offset !== 0) {
-    await response.body?.cancel();
-    throw new Error("scene-host asset ignored the range request");
-  }
-  if (
-    response.status === 206 &&
-    response.headers.get("Content-Range") !== `bytes ${offset}-${end}/${info.bytes}`
-  ) {
-    await response.body?.cancel();
-    throw new Error("scene-host asset returned an unexpected range");
-  }
+  await validateSceneHostRangeResponse(response, offset, end, info.bytes);
   const bytes = await readSpan(response, count);
   if (bytes.byteLength !== count) throw new Error("scene-host asset returned a short chunk");
   return {
@@ -119,4 +119,49 @@ export async function sceneHostCommand(
     totalBytes: info.bytes,
     dataB64: bytes.toBase64(),
   };
+}
+
+async function validateSceneHostRangeResponse(
+  response: Response,
+  offset: number,
+  end: number,
+  totalBytes: number,
+): Promise<void> {
+  if (!isAvailableSceneHostStatus(response.status)) {
+    await cancelSceneHostBody(response);
+    throw new Error("scene-host Wasm is unavailable in this deployment");
+  }
+  // Re-reading the full prefix for every chunk makes downloads quadratic.
+  if (isIgnoredSceneHostRange(response.status, offset)) {
+    await cancelSceneHostBody(response);
+    throw new Error("scene-host asset ignored the range request");
+  }
+  if (hasUnexpectedSceneHostRange(response, offset, end, totalBytes)) {
+    await cancelSceneHostBody(response);
+    throw new Error("scene-host asset returned an unexpected range");
+  }
+}
+
+function cancelSceneHostBody(response: Response): Promise<void> | undefined {
+  return response.body?.cancel();
+}
+
+function isAvailableSceneHostStatus(status: number): boolean {
+  return status === 200 || status === 206;
+}
+
+function isIgnoredSceneHostRange(status: number, offset: number): boolean {
+  return status === 200 && offset !== 0;
+}
+
+function hasUnexpectedSceneHostRange(
+  response: Response,
+  offset: number,
+  end: number,
+  totalBytes: number,
+): boolean {
+  return (
+    response.status === 206 &&
+    response.headers.get("Content-Range") !== `bytes ${offset}-${end}/${totalBytes}`
+  );
 }

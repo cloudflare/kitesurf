@@ -5,6 +5,32 @@
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
 
+test("custom element registration stores the callback read after observed attributes", async ({
+  page,
+}) => {
+  await setContent(page, "<p>x</p>");
+  const calls = await page.evaluate(() => {
+    const log: string[] = [];
+    let callbackReads = 0;
+    const first = () => log.push("first callback");
+    const second = () => log.push("second callback");
+    class AccessorElement extends HTMLElement {
+      static get observedAttributes() {
+        log.push("observed attributes");
+        return ["state"];
+      }
+      get attributeChangedCallback() {
+        log.push("callback " + ++callbackReads);
+        return callbackReads === 1 ? first : second;
+      }
+    }
+    customElements.define("accessor-element", AccessorElement);
+    document.createElement("accessor-element").setAttribute("state", "changed");
+    return log;
+  });
+  expect(calls).toEqual(["callback 1", "observed attributes", "callback 2", "second callback"]);
+});
+
 test("custom elements react to observed attribute changes", async ({ page }) => {
   await setContent(
     page,

@@ -12,6 +12,10 @@ const HTML = `<!doctype html>
 </div>
 </body></html>`;
 
+function isInk(r: number, g: number, b: number): boolean {
+  return r < 100 && g < 100 && b < 100;
+}
+
 function inkPixels(png: { width: number; height: number; pixels: Uint8Array | number[] }): number {
   let ink = 0;
   const rows = Math.min(180, png.height);
@@ -21,7 +25,7 @@ function inkPixels(png: { width: number; height: number; pixels: Uint8Array | nu
       const r = png.pixels[i] as number;
       const g = png.pixels[i + 1] as number;
       const b = png.pixels[i + 2] as number;
-      if (r < 100 && g < 100 && b < 100) ink += 1;
+      if (isInk(r, g, b)) ink += 1;
     }
   }
   return ink;

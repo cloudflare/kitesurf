@@ -12,6 +12,61 @@ const HOP = "https://ks.invalid/__fixtures/loud-redirect";
 
 const BLOCKED_HOP_ORIGIN = "https://ks-other.invalid";
 
+type ExecutionContext = {
+  context?: { origin?: unknown; auxData?: { frameId?: unknown } };
+};
+
+function firstChild<T>(tree: { childFrames?: T[] } | undefined): T | undefined {
+  return tree?.childFrames?.[0];
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isRedirectRealm(origin: string, frameId: unknown): frameId is string {
+  return origin === BLOCKED_HOP_ORIGIN && isString(frameId);
+}
+
+function frameIdForContext(context: ExecutionContext["context"]): unknown {
+  return context?.auxData?.frameId;
+}
+
+function recordExecutionContext(
+  value: unknown,
+  origins: string[],
+  realmFrameIds: Set<string>,
+): void {
+  const event = value as ExecutionContext;
+  const context = event.context;
+  const origin = context?.origin;
+  if (!isString(origin)) return;
+  origins.push(origin);
+  const frameId = frameIdForContext(context);
+  if (isRedirectRealm(origin, frameId)) realmFrameIds.add(frameId);
+}
+
+async function waitForRedirectRealm(
+  origins: string[],
+  realmFrameIds: Set<string>,
+  stoppedFrameIds: Set<string>,
+): Promise<void> {
+  let realmObserved = false;
+  try {
+    await expect
+      .poll(() => origins.includes(BLOCKED_HOP_ORIGIN), {
+        timeout: 15_000,
+      })
+      .toBe(true);
+    realmObserved = true;
+  } catch {}
+  if (realmObserved) {
+    await expect
+      .poll(() => [...realmFrameIds].some((id) => stoppedFrameIds.has(id)), { timeout: 15_000 })
+      .toBe(true);
+  }
+}
+
 async function redirectedFetchStatus(page: Page): Promise<number | string> {
   const to = encodeURIComponent(`${BLOCKED_HOP_ORIGIN}/__fixtures/echo-headers.json`);
   return (await page.evaluate(`
@@ -162,23 +217,9 @@ test("a depth-2 frame that redirects off-origin still gets a realm", async ({ pa
   const origins: string[] = [];
   const realmFrameIds = new Set<string>();
   const stoppedFrameIds = new Set<string>();
-  session.on("Runtime.executionContextCreated", (p: unknown) => {
-    const e = p as {
-      context?: {
-        origin?: unknown;
-        auxData?: { frameId?: unknown };
-      };
-    };
-    if (typeof e.context?.origin === "string") {
-      origins.push(e.context.origin);
-      if (
-        e.context.origin === "https://ks-other.invalid" &&
-        typeof e.context.auxData?.frameId === "string"
-      ) {
-        realmFrameIds.add(e.context.auxData.frameId);
-      }
-    }
-  });
+  session.on("Runtime.executionContextCreated", (params: unknown) =>
+    recordExecutionContext(params, origins, realmFrameIds),
+  );
   session.on("Page.frameStoppedLoading", (p: unknown) => {
     const e = p as { frameId?: unknown };
     if (typeof e.frameId === "string") stoppedFrameIds.add(e.frameId);
@@ -187,20 +228,7 @@ test("a depth-2 frame that redirects off-origin still gets a realm", async ({ pa
   await page.goto("https://ks.invalid/__fixtures/redirect-gate-deep.html", {
     waitUntil: "domcontentloaded",
   });
-  let realmObserved = false;
-  try {
-    await expect
-      .poll(() => origins.includes("https://ks-other.invalid"), {
-        timeout: 15_000,
-      })
-      .toBe(true);
-    realmObserved = true;
-  } catch {}
-  if (realmObserved) {
-    await expect
-      .poll(() => [...realmFrameIds].some((id) => stoppedFrameIds.has(id)), { timeout: 15_000 })
-      .toBe(true);
-  }
+  await waitForRedirectRealm(origins, realmFrameIds, stoppedFrameIds);
 
   const tree = (await session.send("Page.getFrameTree")) as {
     frameTree: {
@@ -210,7 +238,8 @@ test("a depth-2 frame that redirects off-origin still gets a realm", async ({ pa
       }[];
     };
   };
-  const grandchild = tree.frameTree.childFrames?.[0]?.childFrames?.[0]?.frame;
+  const child = firstChild(tree.frameTree);
+  const grandchild = firstChild(child)?.frame;
   expect(grandchild, "no depth-2 frame in the tree").toBeDefined();
   expect(grandchild?.securityOrigin).toBe("https://ks-other.invalid");
 

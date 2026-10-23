@@ -72,50 +72,102 @@ function parseUrlLikeSpecifier(specifier: string, baseUrl: string): URL | null {
   }
 }
 
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseSpecifierMapKey(rawKey: string, baseUrl: string): string {
+  return parseUrlLikeSpecifier(rawKey, baseUrl)?.href ?? rawKey;
+}
+
+function parseSpecifierMapAddress(rawValue: unknown, baseUrl: string): string | null {
+  if (typeof rawValue !== "string") return null;
+  return parseUrlLikeSpecifier(rawValue, baseUrl)?.href ?? null;
+}
+
+function validSpecifierMapAddress(key: string, address: string | null): string | null {
+  if (address === null) return null;
+  if (key.endsWith("/") && !address.endsWith("/")) return null;
+  return address;
+}
+
+function parseSpecifierMapEntry(
+  out: Map<string, string | null>,
+  rawKey: string,
+  rawValue: unknown,
+  baseUrl: string,
+): void {
+  if (rawKey === "") return;
+  const key = parseSpecifierMapKey(rawKey, baseUrl);
+  const address = parseSpecifierMapAddress(rawValue, baseUrl);
+  out.set(key, validSpecifierMapAddress(key, address));
+}
+
 function parseSpecifierMap(value: unknown, baseUrl: string): Map<string, string | null> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (!isRecordValue(value)) return null;
   const out = new Map<string, string | null>();
   for (const [rawKey, rawValue] of Object.entries(value)) {
-    if (rawKey === "") continue;
-    const key = parseUrlLikeSpecifier(rawKey, baseUrl)?.href ?? rawKey;
-    const address =
-      typeof rawValue === "string"
-        ? (parseUrlLikeSpecifier(rawValue, baseUrl)?.href ?? null)
-        : null;
-    out.set(key, address !== null && key.endsWith("/") && !address.endsWith("/") ? null : address);
+    parseSpecifierMapEntry(out, rawKey, rawValue, baseUrl);
   }
   return out;
 }
 
-export function parseImportMap(source: string, baseUrl: string): ParsedImportMap | null {
+type ParsedScopeEntry = { ok: true; entry: ImportMapScope | null } | { ok: false };
+
+function parseScopeEntry(rawScope: string, mappings: unknown, baseUrl: string): ParsedScopeEntry {
+  const specifierMap = parseSpecifierMap(mappings, baseUrl);
+  if (specifierMap === null) return { ok: false };
+  try {
+    return { ok: true, entry: [new URL(rawScope, baseUrl).href, specifierMap] };
+  } catch {
+    return { ok: true, entry: null };
+  }
+}
+
+function parseImportMapScopes(
+  value: unknown,
+  baseUrl: string,
+): Map<string, Map<string, string | null>> | null {
+  if (value === undefined) return new Map();
+  if (!isRecordValue(value)) return null;
+  const scopes = new Map<string, Map<string, string | null>>();
+  for (const [rawScope, mappings] of Object.entries(value)) {
+    if (!addImportMapScope(scopes, rawScope, mappings, baseUrl)) return null;
+  }
+  return scopes;
+}
+
+function addImportMapScope(
+  scopes: Map<string, Map<string, string | null>>,
+  rawScope: string,
+  mappings: unknown,
+  baseUrl: string,
+): boolean {
+  const parsed = parseScopeEntry(rawScope, mappings, baseUrl);
+  if (!parsed.ok) return false;
+  if (parsed.entry) scopes.set(...parsed.entry);
+  return true;
+}
+
+function parseImportMapRecord(source: string): Record<string, unknown> | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(source);
   } catch {
     return null;
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-  const record = parsed as Record<string, unknown>;
+  if (!isRecordValue(parsed)) return null;
+  return parsed;
+}
+
+export function parseImportMap(source: string, baseUrl: string): ParsedImportMap | null {
+  const record = parseImportMapRecord(source);
+  if (!record) return null;
   const imports =
     record.imports === undefined ? new Map() : parseSpecifierMap(record.imports, baseUrl);
   if (imports === null) return null;
-  const scopes = new Map<string, Map<string, string | null>>();
-  if (record.scopes !== undefined) {
-    if (!record.scopes || typeof record.scopes !== "object" || Array.isArray(record.scopes)) {
-      return null;
-    }
-    for (const [rawScope, mappings] of Object.entries(record.scopes)) {
-      const specifierMap = parseSpecifierMap(mappings, baseUrl);
-      if (specifierMap === null) return null;
-      let scope: string;
-      try {
-        scope = new URL(rawScope, baseUrl).href;
-      } catch {
-        continue;
-      }
-      scopes.set(scope, specifierMap);
-    }
-  }
+  const scopes = parseImportMapScopes(record.scopes, baseUrl);
+  if (scopes === null) return null;
   return { imports, scopes };
 }
 
@@ -161,26 +213,74 @@ export function mergeImportMap(
   resolved: readonly ResolvedModuleRecord[] = [],
 ): void {
   sortedScopesByMap.delete(target);
-  for (const [scopePrefix, mappings] of incoming.scopes) {
-    const kept = new Map(mappings);
-    for (const record of resolved) {
-      if (!scopeMatches(scopePrefix, record.referrer)) continue;
-      for (const key of [...kept.keys()]) {
-        if (ruleMatchesRecord(key, record)) kept.delete(key);
-      }
-    }
-    const existing = target.scopes.get(scopePrefix);
-    if (!existing) {
-      target.scopes.set(scopePrefix, kept);
-      continue;
-    }
-    for (const [key, address] of kept) {
-      if (!existing.has(key)) existing.set(key, address);
-    }
+  mergeScopedImportMappings(target.scopes, incoming.scopes, resolved);
+  mergeGlobalImportMappings(target.imports, incoming.imports, resolved);
+}
+
+function mappingAlreadyResolved(
+  scopePrefix: string,
+  key: string,
+  resolved: readonly ResolvedModuleRecord[],
+): boolean {
+  return resolved.some(
+    (record) => scopeMatches(scopePrefix, record.referrer) && ruleMatchesRecord(key, record),
+  );
+}
+
+function unresolvedScopedMappings(
+  scopePrefix: string,
+  mappings: ReadonlyMap<string, string | null>,
+  resolved: readonly ResolvedModuleRecord[],
+): Map<string, string | null> {
+  const kept = new Map<string, string | null>();
+  for (const [key, address] of mappings) {
+    if (!mappingAlreadyResolved(scopePrefix, key, resolved)) kept.set(key, address);
   }
-  for (const [key, address] of incoming.imports) {
-    if (resolved.some((record) => ruleMatchesRecord(key, record))) continue;
-    if (!target.imports.has(key)) target.imports.set(key, address);
+  return kept;
+}
+
+function mergeScopeEntry(
+  target: Map<string, Map<string, string | null>>,
+  scopePrefix: string,
+  mappings: ReadonlyMap<string, string | null>,
+  resolved: readonly ResolvedModuleRecord[],
+): void {
+  const kept = unresolvedScopedMappings(scopePrefix, mappings, resolved);
+  const existing = target.get(scopePrefix);
+  if (!existing) {
+    target.set(scopePrefix, kept);
+    return;
+  }
+  for (const [key, address] of kept) {
+    if (!existing.has(key)) existing.set(key, address);
+  }
+}
+
+function mergeScopedImportMappings(
+  target: Map<string, Map<string, string | null>>,
+  incoming: ReadonlyMap<string, Map<string, string | null>>,
+  resolved: readonly ResolvedModuleRecord[],
+): void {
+  for (const [scopePrefix, mappings] of incoming) {
+    mergeScopeEntry(target, scopePrefix, mappings, resolved);
+  }
+}
+
+function globalMappingAlreadyResolved(
+  key: string,
+  resolved: readonly ResolvedModuleRecord[],
+): boolean {
+  return resolved.some((record) => ruleMatchesRecord(key, record));
+}
+
+function mergeGlobalImportMappings(
+  target: Map<string, string | null>,
+  incoming: ReadonlyMap<string, string | null>,
+  resolved: readonly ResolvedModuleRecord[],
+): void {
+  for (const [key, address] of incoming) {
+    if (globalMappingAlreadyResolved(key, resolved)) continue;
+    if (!target.has(key)) target.set(key, address);
   }
 }
 
@@ -205,22 +305,37 @@ function resolveInSpecifierMap(
 ): string | null | undefined {
   if (mappings.has(normalized)) return mappings.get(normalized);
   if (asUrl !== null && !SPECIAL_SCHEMES.has(asUrl.protocol)) return undefined;
+  return resolveLongestPrefix(normalized, mappings);
+}
+
+function isLongerPrefixMatch(key: string, normalized: string, bestKey: string): boolean {
+  return key.endsWith("/") && normalized.startsWith(key) && key.length > bestKey.length;
+}
+
+function resolvePrefixAddress(
+  normalized: string,
+  key: string,
+  address: string | null,
+): string | null {
+  if (address === null) return null;
+  try {
+    const resolved = new URL(normalized.slice(key.length), address).href;
+    return resolved.startsWith(address) ? resolved : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveLongestPrefix(
+  normalized: string,
+  mappings: ReadonlyMap<string, string | null>,
+): string | null | undefined {
   let bestKey = "";
   let bestAddress: string | null | undefined;
   for (const [key, address] of mappings) {
-    if (key.endsWith("/") && normalized.startsWith(key) && key.length > bestKey.length) {
-      bestKey = key;
-      if (address === null) {
-        bestAddress = null;
-        continue;
-      }
-      try {
-        const resolved = new URL(normalized.slice(key.length), address).href;
-        bestAddress = resolved.startsWith(address) ? resolved : null;
-      } catch {
-        bestAddress = null;
-      }
-    }
+    if (!isLongerPrefixMatch(key, normalized, bestKey)) continue;
+    bestKey = key;
+    bestAddress = resolvePrefixAddress(normalized, key, address);
   }
   return bestAddress;
 }
@@ -255,16 +370,41 @@ export function resolveImportMapSpecifier(
   importer: string,
   importMap: ParsedImportMap,
 ): string | null {
+  const { asUrl, normalized } = normalizeModuleSpecifier(specifier, importer);
+  const scoped = resolveInScopes(normalized, asUrl, importer, importMap);
+  if (scoped !== undefined) return scoped;
+  const mapped = resolveInSpecifierMap(normalized, asUrl, importMap.imports);
+  if (mapped !== undefined) return mapped;
+  return unresolvedModuleSpecifier(asUrl);
+}
+
+function normalizeModuleSpecifier(
+  specifier: string,
+  importer: string,
+): {
+  asUrl: URL | null;
+  normalized: string;
+} {
   const asUrl = parseUrlLikeSpecifier(specifier, importer);
-  const normalized = asUrl?.href ?? specifier;
+  return { asUrl, normalized: asUrl?.href ?? specifier };
+}
+
+function unresolvedModuleSpecifier(asUrl: URL | null): string | null {
+  return asUrl === null ? null : asUrl.href;
+}
+
+function resolveInScopes(
+  normalized: string,
+  asUrl: URL | null,
+  importer: string,
+  importMap: ParsedImportMap,
+): string | null | undefined {
   for (const [scope, mappings] of scopesBySpecificity(importMap)) {
     if (!scopeMatches(scope, importer)) continue;
     const resolved = resolveInSpecifierMap(normalized, asUrl, mappings);
     if (resolved !== undefined) return resolved;
   }
-  const mapped = resolveInSpecifierMap(normalized, asUrl, importMap.imports);
-  if (mapped !== undefined) return mapped;
-  return asUrl?.href ?? null;
+  return undefined;
 }
 
 type LexedImport = ReturnType<typeof lexerParse>[0][number];
@@ -279,16 +419,22 @@ function nativelyResolvesTo(specifier: string, importer: string, target: string)
   return resolveAgainstImporter(specifier, importer) === target;
 }
 
+function isSpecifierQuote(quote: string | undefined): boolean {
+  return quote === '"' || quote === "'" || quote === "`";
+}
+
+function hasDynamicSpecifierContent(value: string, quote: string | undefined): boolean {
+  return value.includes("${") || value.includes("\\") || value.includes(quote ?? "");
+}
+
 function constSpecifier(raw: string): string | null {
-  const s = raw.trim();
-  if (s.length < 2) return null;
-  const q = s[0];
-  if ((q === '"' || q === "'" || q === "`") && s[s.length - 1] === q) {
-    const inner = s.slice(1, -1);
-    if (inner.includes("${") || inner.includes("\\") || inner.includes(q)) return null;
-    return inner;
-  }
-  return null;
+  const source = raw.trim();
+  if (source.length < 2) return null;
+  const quote = source[0];
+  if (!isSpecifierQuote(quote) || source[source.length - 1] !== quote) return null;
+  const inner = source.slice(1, -1);
+  if (hasDynamicSpecifierContent(inner, quote)) return null;
+  return inner;
 }
 
 function importMetaResolveEnd(
@@ -304,67 +450,133 @@ export function rewriteImportMetaResolve(
   importer: string,
   syntheticImportMeta?: string,
 ): string {
-  const replacement = `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${JSON.stringify(importer)}))`;
-  let imports: ReturnType<typeof lexerParse>[0];
+  const imports = tryParseImports(expression);
+  if (imports === null) return expression;
+  return applyRewritesReverse(
+    expression,
+    collectImportMetaRewrites(expression, importer, syntheticImportMeta, imports),
+  );
+}
+
+function tryParseImports(source: string): ReturnType<typeof lexerParse>[0] | null {
   try {
-    imports = lexerParse(expression)[0];
+    return lexerParse(source)[0];
   } catch {
-    return expression;
+    return null;
   }
-  const rewrites: Array<{ start: number; end: number; text: string }> = [];
+}
+
+interface SourceRewrite {
+  start: number;
+  end: number;
+  text: string;
+}
+
+function importMetaRewrite(
+  expression: string,
+  importer: string,
+  syntheticImportMeta: string | undefined,
+  imp: ReturnType<typeof lexerParse>[0][number],
+): SourceRewrite | null {
+  if (imp.t !== 3) return null;
+  if (syntheticImportMeta) {
+    return { start: imp.ss, end: imp.se, text: syntheticImportMeta };
+  }
+  const end = importMetaResolveEnd(expression, imp);
+  if (end === null) return null;
+  const text = `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${JSON.stringify(importer)}))`;
+  return { start: imp.ss, end, text };
+}
+
+function collectImportMetaRewrites(
+  expression: string,
+  importer: string,
+  syntheticImportMeta: string | undefined,
+  imports: ReturnType<typeof lexerParse>[0],
+): SourceRewrite[] {
+  const rewrites: SourceRewrite[] = [];
   for (const imp of imports) {
-    if (imp.t !== 3) continue;
-    if (syntheticImportMeta) {
-      rewrites.push({ start: imp.ss, end: imp.se, text: syntheticImportMeta });
-      continue;
-    }
-    const end = importMetaResolveEnd(expression, imp);
-    if (end !== null) {
-      rewrites.push({ start: imp.ss, end, text: replacement });
-    }
+    const rewrite = importMetaRewrite(expression, importer, syntheticImportMeta, imp);
+    if (rewrite !== null) rewrites.push(rewrite);
   }
-  let rewritten = expression;
+  return rewrites;
+}
+
+function applyRewritesReverse(source: string, rewrites: SourceRewrite[]): string {
+  let rewritten = source;
   for (const rewrite of rewrites.reverse()) {
     rewritten = rewritten.slice(0, rewrite.start) + rewrite.text + rewritten.slice(rewrite.end);
   }
   return rewritten;
 }
 
+function registryIdentity(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.href;
+  } catch {
+    return null;
+  }
+}
+
+function addRegistryUrl(groups: Map<string, string[]>, url: string): void {
+  const identity = registryIdentity(url);
+  if (identity === null) return;
+  const group = groups.get(identity) ?? [];
+  group.push(url);
+  groups.set(identity, group);
+}
+
+function registryUrlGroups(urls: string[]): Map<string, string[]> {
+  const groups = new Map<string, string[]>();
+  for (const url of urls) addRegistryUrl(groups, url);
+  return groups;
+}
+
+function registryNameParts(identity: string): {
+  base: URL;
+  stem: string;
+  extension: string;
+} {
+  const base = new URL(identity);
+  const match = /^(.*?)(\.[^./]+)$/.exec(base.pathname);
+  return {
+    base,
+    stem: match?.[1] ?? base.pathname,
+    extension: match?.[2] ?? ".js",
+  };
+}
+
+function availableRegistryName(
+  base: URL,
+  stem: string,
+  extension: string,
+  index: number,
+  occupied: Set<string>,
+): string {
+  let candidate: string;
+  let suffix = index;
+  do {
+    base.pathname = `${stem}.__ks_query_${suffix}${extension}`;
+    candidate = base.href;
+    suffix++;
+  } while (occupied.has(candidate));
+  return candidate;
+}
+
 export function assignModuleRegistryNames(urls: Iterable<string>): Map<string, string> {
   const allUrls = [...urls];
-  const groups = new Map<string, string[]>();
-  for (const url of allUrls) {
-    let identity = url;
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue;
-      parsed.search = "";
-      parsed.hash = "";
-      identity = parsed.href;
-    } catch {
-      continue;
-    }
-    const group = groups.get(identity) ?? [];
-    group.push(url);
-    groups.set(identity, group);
-  }
-
+  const groups = registryUrlGroups(allUrls);
   const names = new Map<string, string>();
   const occupied = new Set(allUrls);
   for (const [identity, group] of groups) {
     if (group.length < 2) continue;
-    const base = new URL(identity);
-    const match = /^(.*?)(\.[^./]+)$/.exec(base.pathname);
-    const stem = match?.[1] ?? base.pathname;
-    const extension = match?.[2] ?? ".js";
+    const { base, stem, extension } = registryNameParts(identity);
     for (const [index, url] of group.entries()) {
-      let candidate: string;
-      let suffix = index;
-      do {
-        base.pathname = `${stem}.__ks_query_${suffix}${extension}`;
-        candidate = base.href;
-        suffix++;
-      } while (occupied.has(candidate));
+      const candidate = availableRegistryName(base, stem, extension, index, occupied);
       occupied.add(candidate);
       names.set(url, candidate);
     }
@@ -372,13 +584,21 @@ export function assignModuleRegistryNames(urls: Iterable<string>): Map<string, s
   return names;
 }
 
+function addAstroIslandModuleUrl(
+  urls: Set<string>,
+  raw: string | undefined,
+  baseUrl: string,
+): void {
+  if (!raw) return;
+  const url = resolveAgainstImporter(raw.replace(/&amp;/g, "&"), baseUrl);
+  if (url && /^https?:\/\//.test(url)) urls.add(url);
+}
+
 export function astroIslandModuleUrls(html: string, baseUrl: string): string[] {
   const urls = new Set<string>();
   for (const [tag] of html.matchAll(/<astro-island\b[^>]*>/gi)) {
     for (const [, raw] of tag.matchAll(/\s(?:component|renderer)-url="([^"]+)"/gi)) {
-      if (!raw) continue;
-      const url = resolveAgainstImporter(raw.replace(/&amp;/g, "&"), baseUrl);
-      if (url && /^https?:\/\//.test(url)) urls.add(url);
+      addAstroIslandModuleUrl(urls, raw, baseUrl);
     }
   }
   return [...urls];
@@ -389,22 +609,41 @@ export interface ModulePreloadSeed {
   nonce: string | null;
 }
 
+function tagAttribute(tag: string, name: string): string | null {
+  const match = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(tag);
+  return match ? (match[1] ?? match[2] ?? match[3] ?? "").replace(/&amp;/g, "&") : null;
+}
+
+function hasModulePreloadRel(tag: string): boolean {
+  const rel = tagAttribute(tag, "rel")?.toLowerCase().split(/\s+/) ?? [];
+  if (!rel.includes("modulepreload")) return false;
+  return tagAttribute(tag, "integrity") === null;
+}
+
+function supportsModulePreloadDestination(tag: string): boolean {
+  const destination = tagAttribute(tag, "as")?.toLowerCase();
+  return !destination || destination === "script";
+}
+
+function resolveModulePreloadUrl(tag: string, baseUrl: string): string | null {
+  const href = tagAttribute(tag, "href");
+  if (href === null) return null;
+  return resolveAgainstImporter(href, baseUrl);
+}
+
+function modulePreloadSeed(tag: string, baseUrl: string): ModulePreloadSeed | null {
+  if (!hasModulePreloadRel(tag)) return null;
+  if (!supportsModulePreloadDestination(tag)) return null;
+  const url = resolveModulePreloadUrl(tag, baseUrl);
+  if (url === null || !/^https?:\/\//.test(url)) return null;
+  return { url, nonce: tagAttribute(tag, "nonce") };
+}
+
 export function modulePreloadSeeds(html: string, baseUrl: string): ModulePreloadSeed[] {
   const seeds = new Map<string, string | null>();
   for (const [tag] of html.matchAll(/<link\b[^>]*>/gi)) {
-    const attr = (name: string): string | null => {
-      const m = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(tag);
-      return m ? (m[1] ?? m[2] ?? m[3] ?? "").replace(/&amp;/g, "&") : null;
-    };
-    const rel = attr("rel")?.toLowerCase().split(/\s+/) ?? [];
-    if (!rel.includes("modulepreload") || attr("integrity") !== null) continue;
-    const as = attr("as")?.toLowerCase();
-    if (as && as !== "script") continue;
-    const href = attr("href");
-    const url = href ? resolveAgainstImporter(href, baseUrl) : null;
-    if (url && /^https?:\/\//.test(url) && !seeds.has(url)) {
-      seeds.set(url, attr("nonce"));
-    }
+    const seed = modulePreloadSeed(tag, baseUrl);
+    if (seed && !seeds.has(seed.url)) seeds.set(seed.url, seed.nonce);
   }
   return [...seeds].map(([url, nonce]) => ({ url, nonce }));
 }
@@ -418,58 +657,125 @@ export function extractClassicDynamicSeeds(
   ) => (isUrlLikeSpecifier(specifier) ? resolveAgainstImporter(specifier, importer) : null),
 ): { rewritten: string; seeds: string[] } {
   if (!/import\s*\(/.test(body)) return { rewritten: body, seeds: [] };
-  let imports: ReturnType<typeof lexerParse>[0];
-  try {
-    imports = lexerParse(body, baseUrl)[0];
-  } catch {
-    return { rewritten: body, seeds: [] };
-  }
+  const imports = parseClassicImports(body, baseUrl);
+  if (imports === null) return { rewritten: body, seeds: [] };
   const dynamics = imports.filter((imp) => imp.t === 2);
   if (dynamics.length === 0) return { rewritten: body, seeds: [] };
-  const seeds: string[] = [];
-  let b = body;
-  const ref = JSON.stringify(baseUrl);
-  for (const imp of dynamics.sort((a, c) => c.ss - a.ss)) {
-    const spec = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
-    if (spec) {
-      const resolved = resolveSpecifier(spec, baseUrl);
-      if (!resolved) {
-        b = b.slice(0, imp.ss) + `__ks_import(${JSON.stringify(spec)}, ${ref})` + b.slice(imp.se);
-        continue;
-      }
-      if (!/^https?:\/\//.test(resolved) && !resolved.startsWith("data:")) {
-        continue;
-      }
-      if (/^https?:\/\//.test(resolved)) seeds.push(resolved);
-      b = b.slice(0, imp.s) + JSON.stringify(resolved) + b.slice(imp.e);
-      continue;
-    }
-    if (imp.d > -1) {
-      const expr = dynamicImportExpression(body, imp);
-      b = b.slice(0, imp.ss) + `__ks_import(${expr}, ${ref})` + b.slice(imp.se);
-    }
-  }
-  return { rewritten: b, seeds };
+  return rewriteClassicDynamicImports(body, baseUrl, dynamics, resolveSpecifier);
 }
 
-function maybeWrapInlineModule(body: string, url: string): string {
-  if (!/\bawait\b/.test(body)) return body;
+interface ClassicDynamicRewrite {
+  rewrite: SourceRewrite;
+  seed?: string;
+}
 
-  let parsed: ReturnType<typeof lexerParse>;
+function parseClassicImports(
+  body: string,
+  baseUrl: string,
+): ReturnType<typeof lexerParse>[0] | null {
   try {
-    parsed = lexerParse(body, url);
+    return lexerParse(body, baseUrl)[0];
   } catch {
-    return body;
+    return null;
   }
-  const imports = parsed[0];
-  const exports = parsed[1];
+}
 
-  if (exports.length > 0) return body;
+function wrapUnresolvedDynamicImport(
+  specifier: string,
+  referrer: string,
+  imp: LexedImport,
+): ClassicDynamicRewrite {
+  return {
+    rewrite: {
+      start: imp.ss,
+      end: imp.se,
+      text: `__ks_import(${JSON.stringify(specifier)}, ${referrer})`,
+    },
+  };
+}
 
-  if (imports.length === 0) {
-    return ";(async () => {\n" + body + "\n})();\n";
+function wrapComputedDynamicImport(
+  body: string,
+  referrer: string,
+  imp: LexedImport,
+): ClassicDynamicRewrite | null {
+  if (imp.d < 0) return null;
+  const expression = dynamicImportExpression(body, imp);
+  return {
+    rewrite: {
+      start: imp.ss,
+      end: imp.se,
+      text: `__ks_import(${expression}, ${referrer})`,
+    },
+  };
+}
+
+function isSupportedDynamicImportUrl(url: string): boolean {
+  return /^https?:\/\//.test(url) || url.startsWith("data:");
+}
+
+function resolvedClassicDynamicRewrite(
+  specifier: string,
+  resolved: string | null,
+  referrer: string,
+  imp: LexedImport,
+): ClassicDynamicRewrite | null {
+  if (!resolved) return wrapUnresolvedDynamicImport(specifier, referrer, imp);
+  if (!isSupportedDynamicImportUrl(resolved)) return null;
+  return {
+    rewrite: { start: imp.s, end: imp.e, text: JSON.stringify(resolved) },
+    ...(/^https?:\/\//.test(resolved) ? { seed: resolved } : {}),
+  };
+}
+
+function classicDynamicRewrite(
+  body: string,
+  baseUrl: string,
+  referrer: string,
+  imp: LexedImport,
+  resolveSpecifier: (specifier: string, importer: string) => string | null,
+): ClassicDynamicRewrite | null {
+  const specifier = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
+  if (!specifier) return wrapComputedDynamicImport(body, referrer, imp);
+  const resolved = resolveSpecifier(specifier, baseUrl);
+  return resolvedClassicDynamicRewrite(specifier, resolved, referrer, imp);
+}
+
+function rewriteClassicDynamicImports(
+  body: string,
+  baseUrl: string,
+  dynamics: LexedImport[],
+  resolveSpecifier: (specifier: string, importer: string) => string | null,
+): { rewritten: string; seeds: string[] } {
+  const seeds: string[] = [];
+  let rewritten = body;
+  const referrer = JSON.stringify(baseUrl);
+  for (const imp of dynamics.sort((left, right) => right.ss - left.ss)) {
+    const result = classicDynamicRewrite(body, baseUrl, referrer, imp, resolveSpecifier);
+    if (result === null) continue;
+    if (result.seed !== undefined) seeds.push(result.seed);
+    const { start, end, text } = result.rewrite;
+    rewritten = rewritten.slice(0, start) + text + rewritten.slice(end);
   }
+  return { rewritten, seeds };
+}
 
+function parseModuleSource(body: string, url: string): ReturnType<typeof lexerParse> | null {
+  try {
+    return lexerParse(body, url);
+  } catch {
+    return null;
+  }
+}
+
+function wrapInlineModuleBody(body: string): string {
+  return ";(async () => {\n" + body + "\n})();\n";
+}
+
+function wrapInlineModuleWithImports(
+  body: string,
+  imports: ReturnType<typeof lexerParse>[0],
+): string {
   const importStmts: string[] = [];
   let remainder = "";
   let cursor = 0;
@@ -483,6 +789,16 @@ function maybeWrapInlineModule(body: string, url: string): string {
   remainder += body.slice(cursor);
 
   return importStmts.join(";\n") + ";\n;(async () => {\n" + remainder + "\n})();\n";
+}
+
+function maybeWrapInlineModule(body: string, url: string): string {
+  if (!/\bawait\b/.test(body)) return body;
+  const parsed = parseModuleSource(body, url);
+  if (parsed === null) return body;
+  const [imports, exports] = parsed;
+  if (exports.length > 0) return body;
+  if (imports.length === 0) return wrapInlineModuleBody(body);
+  return wrapInlineModuleWithImports(body, imports);
 }
 
 function isAssetExtension(url: string): boolean {
@@ -513,19 +829,41 @@ const WALK_DEADLINE_MS = 1_000;
 
 const FANOUT_REGISTRY_THRESHOLD = 8;
 
-export function chunkBaseName(url: string): string | null {
-  let file: string;
+const MODULE_FETCH_ATTEMPTS = 3;
+
+const MAX_WEBPACK_CHUNKS = 300;
+
+const MAX_WEBPACK_COMPOSER_SCAN_CHARS = 120_000;
+
+function urlPathname(url: string): string | null {
   try {
-    file = new URL(url).pathname.split("/").pop() ?? "";
+    return new URL(url).pathname.split("/").pop() ?? "";
   } catch {
     return null;
   }
+}
+
+function isGeneratedChunkHash(hash: string): boolean {
+  return /\d/.test(hash) || (/[a-z]/.test(hash) && /[A-Z]/.test(hash.slice(1)));
+}
+
+function withoutGeneratedChunkHash(stem: string): string {
+  const match = /^(.+)[-.]([A-Za-z0-9_-]{8}|[a-f0-9]{9,32})$/.exec(stem);
+  if (!match) return stem;
+  const [name, hash] = [match[1], match[2] ?? ""];
+  return isGeneratedChunkHash(hash) && name ? name : stem;
+}
+
+function validChunkBaseName(name: string): boolean {
+  return name.length >= 4 && /[A-Za-z]/.test(name);
+}
+
+export function chunkBaseName(url: string): string | null {
+  const file = urlPathname(url);
+  if (file === null) return null;
   const stem = file.replace(/(?:\.chunk)?\.m?js$/i, "");
-  const m = /^(.+)[-.]([A-Za-z0-9_-]{8}|[a-f0-9]{9,32})$/.exec(stem);
-  const hash = m?.[2] ?? "";
-  const hashed = /\d/.test(hash) || (/[a-z]/.test(hash) && /[A-Z]/.test(hash.slice(1)));
-  const name = m?.[1] && hashed ? m[1] : stem;
-  return name.length >= 4 && /[A-Za-z]/.test(name) ? name : null;
+  const name = withoutGeneratedChunkHash(stem);
+  return validChunkBaseName(name) ? name : null;
 }
 
 const MAX_TOKENIZED_HTML = 4 * 1024 * 1024;
@@ -562,924 +900,1964 @@ interface WalkModuleGraphInput {
   sandboxOutbound: SandboxOutboundOverride;
 }
 
-export async function walkModuleGraph({
-  descriptors,
-  pageUrl,
-  connectionId,
-  mainFrameId = "",
-  mainLoaderId = "",
-  extraHeaders = {},
-  cookieKey = "",
-  options: opts = {},
-  sandboxOutbound,
-}: WalkModuleGraphInput): Promise<WalkResult> {
-  const out = descriptors.map((d) => ({ ...d }));
-  const moduleEntries = out.filter((d) => d.kind === "module" && !d.blocked);
+type WalkGraphOptions = NonNullable<WalkModuleGraphInput["options"]>;
 
-  const pageOrigin = pageOriginFromUrl(pageUrl);
-  const entryBaseUrl = opts.baseUrl || pageUrl;
-  const gate = opts.gate ?? null;
-  const importMap: ParsedImportMap = { imports: new Map(), scopes: new Map() };
-  const resolveModule = (specifier: string, importer: string): string | null =>
-    resolveImportMapSpecifier(specifier, importer, importMap);
-  const integrityByUrl = new Map<string, string>();
-  const nonceByUrl = new Map<string, string>();
-  const viaTrustedImporter = new Set<string>();
+interface WalkQueueItem {
+  url: string;
+  importer: string | null;
+  isDynamic: boolean;
+  depth: number;
+  importerDynFanout: number;
+  viaRegistry: boolean;
+  preload?: true;
+}
 
-  const classicSeeds = new Set<string>(opts.moduleSeeds);
-  const seedClassic = (
-    d: ParentScriptDescriptor,
-    resolve: (specifier: string, importer: string) => string | null,
-  ): void => {
-    if (d.kind !== "classic" || d.prefetchError || d.blocked) return;
-    const isExternal = !!d.src;
-    const src = isExternal ? (d.prefetchedSource ?? "") : (d.body ?? "");
-    if (!src) return;
-    const base = isExternal
-      ? d.resolvedSrc || (d.src ? resolveAgainstImporter(d.src, entryBaseUrl) : null)
-      : entryBaseUrl;
-    if (!base) return;
-    const { rewritten, seeds } = extractClassicDynamicSeeds(src, base, resolve);
-    if (rewritten === src) return;
-    if (isExternal) d.prefetchedSource = rewritten;
-    else d.body = rewritten;
-    for (const s of seeds) {
-      classicSeeds.add(s);
-      if (d.nonce && !nonceByUrl.has(s)) nonceByUrl.set(s, d.nonce);
-    }
+type ModuleFetchResult =
+  | { ok: true; body: string; moduleType: ModuleType }
+  | { ok: false; error: string };
+
+type NextWalkQueueItem = (WalkQueueItem & { sizeCapped: boolean }) | "wait" | "done";
+
+type DocumentItem =
+  | { index: number; kind: "map"; map: ParsedImportMap }
+  | { index: number; kind: "script"; script: ParentScriptDescriptor };
+
+interface ModuleGraphState {
+  input: WalkModuleGraphInput;
+  options: WalkGraphOptions;
+  descriptors: ParentScriptDescriptor[];
+  moduleEntries: ParentScriptDescriptor[];
+  pageUrl: string;
+  pageOrigin: string;
+  entryBaseUrl: string;
+  connectionId: string;
+  mainFrameId: string;
+  mainLoaderId: string;
+  extraHeaders: Record<string, string>;
+  cookieKey: string;
+  sandboxOutbound: SandboxOutboundOverride;
+  gate: ScriptGateContext | null;
+  importMap: ParsedImportMap;
+  integrityByUrl: Map<string, string>;
+  nonceByUrl: Map<string, string>;
+  viaTrustedImporter: Set<string>;
+  classicSeeds: Set<string>;
+  resolvedModules: ResolvedModuleRecord[];
+  moduleEntryIndex: Map<ParentScriptDescriptor, number>;
+  outbound: Fetcher | null;
+  modules: Map<string, string>;
+  failed: Map<string, string>;
+  queue: WalkQueueItem[];
+  depthOf: Map<string, number>;
+  totalFetches: number;
+  bakedBytes: number;
+  oversizedDynamicSkipped: number;
+  sizeSkipped: Set<string>;
+  viaDyn: Map<string, boolean>;
+  viaReg: Map<string, boolean>;
+  dynamicRoots: Set<string>;
+  webpackChunkUrls: Set<string>;
+  jsonModules: Map<string, unknown>;
+  lexed: Set<string>;
+  lexCache: Map<string, ReturnType<typeof lexerParse>[0]>;
+  docTokens: Set<string> | null;
+  walkStartedAt: number;
+  deadlineHit: boolean;
+  deadlineSkipped: number;
+  inflight: number;
+  inflightUrls: Set<string>;
+  waiters: Array<() => void>;
+  evictedCount: number;
+  prunedCount: number;
+  deferredCount: number;
+}
+
+function isModuleEntry(descriptor: ParentScriptDescriptor): boolean {
+  return descriptor.kind === "module" && !descriptor.blocked;
+}
+
+function copyScriptDescriptors(descriptors: ParentScriptDescriptor[]): ParentScriptDescriptor[] {
+  return descriptors.map((descriptor) => ({ ...descriptor }));
+}
+
+function graphEntryBaseUrl(pageUrl: string, options: WalkGraphOptions): string {
+  return options.baseUrl || pageUrl;
+}
+
+function moduleEntryIndices(
+  entries: ParentScriptDescriptor[],
+): Map<ParentScriptDescriptor, number> {
+  return new Map(entries.map((descriptor, index) => [descriptor, index] as const));
+}
+
+function graphPageDetails(input: WalkModuleGraphInput, options: WalkGraphOptions) {
+  return {
+    pageUrl: input.pageUrl,
+    pageOrigin: pageOriginFromUrl(input.pageUrl),
+    entryBaseUrl: graphEntryBaseUrl(input.pageUrl, options),
   };
+}
 
-  const resolvedModules: ResolvedModuleRecord[] = [];
-  const resolveAndRecord = (specifier: string, importer: string): string | null => {
-    resolvedModules.push(resolvedModuleRecord(specifier, importer));
-    return resolveModule(specifier, importer);
+function graphSessionDetails(input: WalkModuleGraphInput) {
+  return {
+    connectionId: input.connectionId,
+    mainFrameId: input.mainFrameId ?? "",
+    mainLoaderId: input.mainLoaderId ?? "",
+    extraHeaders: input.extraHeaders ?? {},
+    cookieKey: input.cookieKey ?? "",
+    sandboxOutbound: input.sandboxOutbound,
   };
-  const moduleEntryIndex = new Map(moduleEntries.map((d, i) => [d, i] as const));
-  const recordInlineModuleStatics = (d: ParentScriptDescriptor): void => {
-    const body = d.body ?? "";
-    const entryUrl = inlineModuleUrl(entryBaseUrl, moduleEntryIndex.get(d) ?? 0);
-    let imports: ReturnType<typeof lexerParse>[0];
-    try {
-      imports = lexerParse(body, entryUrl)[0];
-    } catch {
-      return;
-    }
-    for (const imp of imports) {
-      if (imp.t === 1 && imp.n) resolveAndRecord(imp.n, entryUrl);
-    }
+}
+
+function createModuleGraphState(input: WalkModuleGraphInput): ModuleGraphState {
+  const options = input.options ?? {};
+  const descriptors = copyScriptDescriptors(input.descriptors);
+  const moduleEntries = descriptors.filter(isModuleEntry);
+  return {
+    input,
+    options,
+    descriptors,
+    moduleEntries,
+    ...graphPageDetails(input, options),
+    ...graphSessionDetails(input),
+    gate: options.gate ?? null,
+    importMap: { imports: new Map(), scopes: new Map() },
+    integrityByUrl: new Map(),
+    nonceByUrl: new Map(),
+    viaTrustedImporter: new Set(),
+    classicSeeds: new Set(options.moduleSeeds),
+    resolvedModules: [],
+    moduleEntryIndex: moduleEntryIndices(moduleEntries),
+    outbound: null,
+    modules: new Map(),
+    failed: new Map(),
+    queue: [],
+    depthOf: new Map(),
+    totalFetches: 0,
+    bakedBytes: 0,
+    oversizedDynamicSkipped: 0,
+    sizeSkipped: new Set(),
+    viaDyn: new Map(),
+    viaReg: new Map(),
+    dynamicRoots: new Set(),
+    webpackChunkUrls: new Set(),
+    jsonModules: new Map(),
+    lexed: new Set(),
+    lexCache: new Map(),
+    docTokens: null,
+    walkStartedAt: 0,
+    deadlineHit: false,
+    deadlineSkipped: 0,
+    inflight: 0,
+    inflightUrls: new Set(),
+    waiters: [],
+    evictedCount: 0,
+    prunedCount: 0,
+    deferredCount: 0,
   };
-  type DocumentItem =
-    | { index: number; kind: "map"; map: ParsedImportMap }
-    | { index: number; kind: "script"; script: ParentScriptDescriptor };
-  const documentOrder: DocumentItem[] = [];
-  for (const m of opts.importMaps ?? []) {
-    const parsed = parseImportMap(m.source, m.baseUrl);
-    if (parsed) documentOrder.push({ index: m.scriptDomIndex, kind: "map", map: parsed });
-  }
-  for (const d of out) {
-    documentOrder.push({ index: d.scriptDomIndex ?? -1, kind: "script", script: d });
-  }
-  documentOrder.sort((a, b) => a.index - b.index);
-  const lateClassics: ParentScriptDescriptor[] = [];
-  for (const item of documentOrder) {
-    if (item.kind === "map") {
-      mergeImportMap(importMap, item.map, resolvedModules);
-      continue;
-    }
-    const d = item.script;
-    if (d.blocked) continue;
-    if (d.kind === "classic") {
-      if (d.src && (d.async || d.defer)) lateClassics.push(d);
-      else seedClassic(d, resolveAndRecord);
-    } else if (!d.src) {
-      recordInlineModuleStatics(d);
-    }
-  }
-  for (const d of lateClassics) seedClassic(d, resolveModule);
+}
 
-  if (moduleEntries.length === 0 && classicSeeds.size === 0) {
-    return {
-      descriptors: out,
-      additionalModules: {},
-      importMapModuleSource: importMapModuleSource(importMap),
-    };
-  }
+function resolveGraphModule(
+  state: ModuleGraphState,
+  specifier: string,
+  importer: string,
+): string | null {
+  return resolveImportMapSpecifier(specifier, importer, state.importMap);
+}
 
-  const outbound = sandboxOutbound.parent({
+function resolveAndRecordModule(
+  state: ModuleGraphState,
+  specifier: string,
+  importer: string,
+): string | null {
+  state.resolvedModules.push(resolvedModuleRecord(specifier, importer));
+  return resolveGraphModule(state, specifier, importer);
+}
+
+function createGraphOutbound(state: ModuleGraphState): Fetcher {
+  return state.sandboxOutbound.parent({
     ...localTraceParentProps(),
-    pageOrigin,
-    mainFrameId,
-    mainLoaderId,
-    extraHeaders,
-    connectionId,
-    cookieKey,
+    pageOrigin: state.pageOrigin,
+    mainFrameId: state.mainFrameId,
+    mainLoaderId: state.mainLoaderId,
+    extraHeaders: state.extraHeaders,
+    connectionId: state.connectionId,
+    cookieKey: state.cookieKey,
   });
+}
 
-  const modules = new Map<string, string>();
-  const failed = new Map<string, string>();
-  interface WalkQueueItem {
-    url: string;
-    importer: string | null;
-    isDynamic: boolean;
-    depth: number;
-    importerDynFanout: number;
-    viaRegistry: boolean;
-    preload?: true;
-  }
-  const queue: WalkQueueItem[] = [];
-  const depthOf = new Map<string, number>();
-  let totalFetches = 0;
-  let bakedBytes = 0;
-  let oversizedDynamicSkipped = 0;
-  const sizeSkipped = new Set<string>();
-  const viaDyn = new Map<string, boolean>();
-  const viaReg = new Map<string, boolean>();
-  const dynamicRoots = new Set<string>();
-  const webpackChunkUrls = new Set<string>();
-  const jsonModules = new Map<string, unknown>();
-  const lexed = new Set<string>();
-  const lexCache = new Map<string, ReturnType<typeof lexerParse>[0]>();
+function getGraphOutbound(state: ModuleGraphState): Fetcher {
+  if (state.outbound === null) throw new Error("module graph outbound fetcher is not initialized");
+  return state.outbound;
+}
 
-  let docTokens: Set<string> | null = null;
-  const namedByDocument = (url: string): boolean => {
-    const name = chunkBaseName(url);
-    return name !== null && docTokens?.has(name) === true;
+function isGraphWalkEmpty(state: ModuleGraphState): boolean {
+  return state.moduleEntries.length === 0 && state.classicSeeds.size === 0;
+}
+
+function emptyGraphResult(state: ModuleGraphState): WalkResult {
+  return {
+    descriptors: state.descriptors,
+    additionalModules: {},
+    importMapModuleSource: importMapModuleSource(state.importMap),
   };
+}
 
-  const crawlImports = (fromUrl: string, body: string): void => {
-    const fromViaDyn = viaDyn.get(fromUrl) ?? false;
-    const fromViaReg = viaReg.get(fromUrl) ?? false;
-    const fromDepth = depthOf.get(fromUrl) ?? 0;
-    let imports: ReturnType<typeof lexerParse>[0];
-    try {
-      imports = lexerParse(body, fromUrl)[0];
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      failed.set(fromUrl, `lex failed for ${fromUrl}: ${msg}`);
-      modules.delete(fromUrl);
-      return;
-    }
-    lexCache.set(fromUrl, imports);
-    let dynFanout = 0;
-    for (const imp of imports) {
-      if (imp.t === 2) dynFanout++;
-    }
-    if (dynFanout > FANOUT_REGISTRY_THRESHOLD && opts.documentHtml && !docTokens) {
-      docTokens = documentTokens(opts.documentHtml);
-    }
-    for (const imp of imports) {
-      if (imp.t !== 1 && imp.t !== 2) continue;
-      const isDynamic = imp.t === 2;
-      const specifier = imp.n ?? (isDynamic ? constSpecifier(body.slice(imp.s, imp.e)) : undefined);
-      if (!specifier) continue;
-      const resolved = resolveModule(specifier, fromUrl);
-      if (!resolved) {
-        if (isDynamic) continue;
-        failed.set(
-          fromUrl,
-          `Failed to resolve module specifier "${specifier}" ` +
-            `(imported from ${fromUrl}): the document's import map ` +
-            `does not remap it to a URL, or blocks it.`,
-        );
-        modules.delete(fromUrl);
-        return;
-      }
-      if (resolved.startsWith("data:")) continue;
-      if (modules.has(resolved) || failed.has(resolved)) continue;
-      if (/\.wasm$/i.test(new URL(resolved).pathname)) {
-        failed.set(
-          resolved,
-          "wasm modules in the ES-module graph are not supported " +
-            "(kitesurf bakes page wasm for the WebAssembly.* APIs, " +
-            "not ESM-integration)",
-        );
-        continue;
-      }
-      const childViaDyn = fromViaDyn || isDynamic;
-      const prev = viaDyn.get(resolved);
-      viaDyn.set(resolved, prev === undefined ? childViaDyn : prev && childViaDyn);
-      const named = isDynamic && docTokens !== null && namedByDocument(resolved);
-      const childViaReg =
-        fromViaReg || (isDynamic && dynFanout > FANOUT_REGISTRY_THRESHOLD && !named);
-      const prevReg = viaReg.get(resolved);
-      viaReg.set(resolved, prevReg === undefined ? childViaReg : prevReg && childViaReg);
-      viaTrustedImporter.add(resolved);
-      const inheritedNonce = nonceByUrl.get(fromUrl);
-      if (inheritedNonce && !nonceByUrl.has(resolved)) {
-        nonceByUrl.set(resolved, inheritedNonce);
-      }
-      if (isDynamic) dynamicRoots.add(resolved);
-      if (!depthOf.has(resolved)) depthOf.set(resolved, fromDepth + 1);
-      queue.push({
-        url: resolved,
-        importer: fromUrl,
-        isDynamic,
-        depth: fromDepth + 1,
-        importerDynFanout: isDynamic && !named ? dynFanout : 0,
-        viaRegistry: childViaReg,
-      });
-    }
-  };
+function isEligibleClassicSeed(descriptor: ParentScriptDescriptor): boolean {
+  return descriptor.kind === "classic" && !descriptor.prefetchError && !descriptor.blocked;
+}
 
-  for (const seedUrl of classicSeeds) {
-    if (!modules.has(seedUrl) && !failed.has(seedUrl)) {
-      viaDyn.set(seedUrl, false);
-      depthOf.set(seedUrl, 0);
-      queue.push({
-        url: seedUrl,
-        importer: null,
-        isDynamic: false,
-        depth: 0,
-        importerDynFanout: 0,
-        viaRegistry: false,
-      });
+function classicExternalBase(
+  descriptor: ParentScriptDescriptor,
+  entryBaseUrl: string,
+  src: string,
+): string | null {
+  if (descriptor.resolvedSrc) return descriptor.resolvedSrc;
+  return resolveAgainstImporter(src, entryBaseUrl);
+}
+
+function classicSeedSource(descriptor: ParentScriptDescriptor, external: boolean): string {
+  return external ? (descriptor.prefetchedSource ?? "") : (descriptor.body ?? "");
+}
+
+function classicSeedBase(
+  descriptor: ParentScriptDescriptor,
+  entryBaseUrl: string,
+  external: boolean,
+): string | null {
+  if (!external) return entryBaseUrl;
+  return classicExternalBase(descriptor, entryBaseUrl, descriptor.src ?? "");
+}
+
+function classicSeedInput(
+  descriptor: ParentScriptDescriptor,
+  entryBaseUrl: string,
+): { source: string; baseUrl: string; external: boolean } | null {
+  if (!isEligibleClassicSeed(descriptor)) return null;
+  const external = Boolean(descriptor.src);
+  const source = classicSeedSource(descriptor, external);
+  if (!source) return null;
+  const baseUrl = classicSeedBase(descriptor, entryBaseUrl, external);
+  if (!baseUrl) return null;
+  return { source, baseUrl, external };
+}
+
+function classicSeedResolver(
+  state: ModuleGraphState,
+  recordResolved: boolean,
+  specifier: string,
+  importer: string,
+): string | null {
+  return recordResolved
+    ? resolveAndRecordModule(state, specifier, importer)
+    : resolveGraphModule(state, specifier, importer);
+}
+
+function addClassicSeedUrls(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+  seeds: string[],
+): void {
+  for (const url of seeds) {
+    state.classicSeeds.add(url);
+    if (descriptor.nonce && !state.nonceByUrl.has(url)) {
+      state.nonceByUrl.set(url, descriptor.nonce);
     }
   }
+}
 
-  for (const [i, d] of moduleEntries.entries()) {
-    let entryUrl: string;
-    if (d.src) {
-      const resolved = d.resolvedSrc ?? resolveAgainstImporter(d.src, entryBaseUrl);
-      if (!resolved) {
-        d.prefetchError = "could not resolve module src against page URL: " + d.src;
-        continue;
-      }
-      entryUrl = resolved;
-      d.resolvedSrc = entryUrl;
-      if (d.integrity) integrityByUrl.set(entryUrl, d.integrity);
-      if (d.nonce) nonceByUrl.set(entryUrl, d.nonce);
-      if (!modules.has(entryUrl) && !failed.has(entryUrl)) {
-        viaDyn.set(entryUrl, false);
-        depthOf.set(entryUrl, 0);
-        queue.push({
-          url: entryUrl,
-          importer: null,
-          isDynamic: false,
-          depth: 0,
-          importerDynFanout: 0,
-          viaRegistry: false,
-        });
-      }
-    } else {
-      entryUrl = inlineModuleUrl(entryBaseUrl, i);
-      d.resolvedSrc = entryUrl;
-      if (d.nonce) nonceByUrl.set(entryUrl, d.nonce);
-      viaDyn.set(entryUrl, false);
-      depthOf.set(entryUrl, 0);
-      const rawBody = d.body ?? "";
-      const body = maybeWrapInlineModule(rawBody, entryUrl);
-      modules.set(entryUrl, body);
-      bakedBytes += body.length;
-      d.prefetchedSource = body;
-      lexed.add(entryUrl);
-      crawlImports(entryUrl, body);
-    }
+function seedClassicDescriptor(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+  recordResolved: boolean,
+): void {
+  const input = classicSeedInput(descriptor, state.entryBaseUrl);
+  if (input === null) return;
+  const resolver = (specifier: string, importer: string) =>
+    classicSeedResolver(state, recordResolved, specifier, importer);
+  const result = extractClassicDynamicSeeds(input.source, input.baseUrl, resolver);
+  if (result.rewritten === input.source) return;
+  if (input.external) descriptor.prefetchedSource = result.rewritten;
+  else descriptor.body = result.rewritten;
+  addClassicSeedUrls(state, descriptor, result.seeds);
+}
+
+function inlineModuleEntryUrl(state: ModuleGraphState, descriptor: ParentScriptDescriptor): string {
+  return inlineModuleUrl(state.entryBaseUrl, state.moduleEntryIndex.get(descriptor) ?? 0);
+}
+
+function recordInlineModuleStatics(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+): void {
+  const body = descriptor.body ?? "";
+  const entryUrl = inlineModuleEntryUrl(state, descriptor);
+  const imports = parseClassicImports(body, entryUrl);
+  if (imports === null) return;
+  for (const imp of imports) recordInlineModuleStatic(state, entryUrl, imp);
+}
+
+function recordInlineModuleStatic(
+  state: ModuleGraphState,
+  entryUrl: string,
+  imp: LexedImport,
+): void {
+  if (imp.t === 1 && imp.n) resolveAndRecordModule(state, imp.n, entryUrl);
+}
+
+function importMapDocumentItems(state: ModuleGraphState): DocumentItem[] {
+  const items: DocumentItem[] = [];
+  for (const mapInput of state.options.importMaps ?? []) {
+    const map = parseImportMap(mapInput.source, mapInput.baseUrl);
+    if (map) items.push({ index: mapInput.scriptDomIndex, kind: "map", map });
   }
+  return items;
+}
 
-  for (const { url, nonce } of opts.preloadSeeds ?? []) {
-    if (modules.has(url) || failed.has(url) || depthOf.has(url)) continue;
-    if (nonce && !nonceByUrl.has(url)) nonceByUrl.set(url, nonce);
-    viaDyn.set(url, false);
-    depthOf.set(url, 0);
-    queue.push({
-      url,
-      importer: null,
-      isDynamic: false,
-      depth: 0,
-      importerDynFanout: 0,
-      viaRegistry: false,
-      preload: true,
+function scriptDocumentItems(state: ModuleGraphState): DocumentItem[] {
+  const items: DocumentItem[] = [];
+  for (const descriptor of state.descriptors) {
+    items.push({
+      index: descriptor.scriptDomIndex ?? -1,
+      kind: "script",
+      script: descriptor,
     });
   }
+  return items;
+}
 
-  const MODULE_FETCH_ATTEMPTS = 3;
-  type ModuleFetchResult =
-    | { ok: true; body: string; moduleType: ModuleType }
-    | { ok: false; error: string };
+function moduleDocumentItems(state: ModuleGraphState): DocumentItem[] {
+  return [...importMapDocumentItems(state), ...scriptDocumentItems(state)].sort(
+    (left, right) => left.index - right.index,
+  );
+}
 
-  const isTransientFetchError = (error: string): boolean =>
-    /aborted|abort|connection|network connection lost|reset|HTTP 5\d\d|timed out|timeout/i.test(
-      error,
-    );
+function isLateClassicScript(descriptor: ParentScriptDescriptor): boolean {
+  return Boolean(descriptor.src) && (descriptor.async || descriptor.defer);
+}
 
-  const attemptFetchModuleBody = async (url: string): Promise<ModuleFetchResult> => {
-    if (gate) {
-      const pre = await checkScriptBeforeFetch(gate, {
-        url,
-        integrity: integrityByUrl.get(url) ?? null,
-        nonce: nonceByUrl.get(url) ?? null,
-        runtimeInserted: viaTrustedImporter.has(url),
-        module: true,
-      });
-      if (pre.reportOnly) console.warn(`[kitesurf-csp] ${pre.reportOnly}`);
-      if (!pre.allowed) {
-        return { ok: false, error: pre.message ?? `module blocked: ${url}` };
-      }
-    }
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-    try {
-      const headers: Record<string, string> = {
-        "x-kitesurf-resource-type": "Script",
-        "x-kitesurf-script-cors": "cors",
-        "x-kitesurf-initiator": "module-graph",
-        "x-kitesurf-page-origin": pageOrigin,
-      };
-      if (connectionId) headers["x-kitesurf-connection-id"] = connectionId;
-      if (mainFrameId) headers["x-kitesurf-frame-id"] = mainFrameId;
-      if (pageOrigin) headers["origin"] = pageOrigin;
-      const walk = await walkRedirects({
-        url,
-        signal: ctrl.signal,
-        headers,
-        taintOriginFrom: pageOrigin || undefined,
-        fetchHop: (hopReq) => outbound.fetch(hopReq),
-      });
-      if (!walk.ok) {
-        return { ok: false, error: `module fetch too many redirects for ${url}` };
-      }
-      const res = walk.response;
-      const blocked = res.headers.get("x-kitesurf-blocked");
-      if (res.status === 403 && blocked) {
-        return {
-          ok: false,
-          error: `module fetch blocked (${blocked}) for ${url}`,
-        };
-      }
-      if (!res.ok) {
-        return {
-          ok: false,
-          error: `module fetch returned HTTP ${res.status} for ${url}`,
-        };
-      }
-      const integrity = integrityByUrl.get(url) ?? null;
-      const bytes = integrity ? new Uint8Array(await res.arrayBuffer()) : null;
-      const body = bytes
-        ? new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(bytes)
-        : await res.text();
-      const verdict = await checkScriptResponse(
-        { url, integrity, module: true },
-        {
-          contentType: res.headers.get("content-type"),
-          contentTypeOptions: res.headers.get(KITESURF_NOSNIFF_HEADER),
-          bytes,
-          opaque: false,
-        },
-      );
-      if (!verdict.allowed) {
-        return {
-          ok: false,
-          error: verdict.message ?? `module blocked by policy: ${url}`,
-        };
-      }
-      return { ok: true, body, moduleType: verdict.moduleType ?? "javascript" };
-    } catch (err) {
-      return {
-        ok: false,
-        error:
-          `module fetch threw for ${url}: ` + (err instanceof Error ? err.message : String(err)),
-      };
-    } finally {
-      clearTimeout(timer);
-    }
+function applyClassicDocumentItem(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+  lateClassics: ParentScriptDescriptor[],
+): void {
+  if (isLateClassicScript(descriptor)) lateClassics.push(descriptor);
+  else seedClassicDescriptor(state, descriptor, true);
+}
+
+function applyDocumentItem(
+  state: ModuleGraphState,
+  item: DocumentItem,
+  lateClassics: ParentScriptDescriptor[],
+): void {
+  if (item.kind === "map") {
+    mergeImportMap(state.importMap, item.map, state.resolvedModules);
+    return;
+  }
+  const descriptor = item.script;
+  if (descriptor.blocked) return;
+  if (descriptor.kind === "classic") {
+    applyClassicDocumentItem(state, descriptor, lateClassics);
+    return;
+  }
+  if (!descriptor.src) recordInlineModuleStatics(state, descriptor);
+}
+
+function prepareModuleDocument(state: ModuleGraphState): void {
+  const lateClassics: ParentScriptDescriptor[] = [];
+  for (const item of moduleDocumentItems(state)) {
+    applyDocumentItem(state, item, lateClassics);
+  }
+  for (const descriptor of lateClassics) seedClassicDescriptor(state, descriptor, false);
+}
+
+function namedByDocument(state: ModuleGraphState, url: string): boolean {
+  const name = chunkBaseName(url);
+  return name !== null && state.docTokens?.has(name) === true;
+}
+
+function isDocumentNamedDynamicImport(
+  state: ModuleGraphState,
+  isDynamic: boolean,
+  url: string,
+): boolean {
+  if (!isDynamic || state.docTokens === null) return false;
+  return namedByDocument(state, url);
+}
+
+function dynamicImportFanout(imports: ReturnType<typeof lexerParse>[0]): number {
+  let fanout = 0;
+  for (const imp of imports) {
+    if (imp.t === 2) fanout++;
+  }
+  return fanout;
+}
+
+function prepareDocumentTokens(state: ModuleGraphState, fanout: number): void {
+  if (
+    fanout > FANOUT_REGISTRY_THRESHOLD &&
+    state.options.documentHtml &&
+    state.docTokens === null
+  ) {
+    state.docTokens = documentTokens(state.options.documentHtml);
+  }
+}
+
+function lexGraphModule(
+  state: ModuleGraphState,
+  fromUrl: string,
+  body: string,
+): ReturnType<typeof lexerParse>[0] | null {
+  try {
+    return lexerParse(body, fromUrl)[0];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    state.failed.set(fromUrl, `lex failed for ${fromUrl}: ${message}`);
+    state.modules.delete(fromUrl);
+    return null;
+  }
+}
+
+function isGraphImport(imp: LexedImport): boolean {
+  return imp.t === 1 || imp.t === 2;
+}
+
+function importSpecifierForGraph(
+  body: string,
+  imp: LexedImport,
+): { isDynamic: boolean; specifier: string } | null {
+  if (!isGraphImport(imp)) return null;
+  const isDynamic = imp.t === 2;
+  const specifier = imp.n ?? (isDynamic ? constSpecifier(body.slice(imp.s, imp.e)) : undefined);
+  if (!specifier) return null;
+  return { isDynamic, specifier };
+}
+
+function recordUnresolvedGraphImport(
+  state: ModuleGraphState,
+  fromUrl: string,
+  specifier: string,
+  isDynamic: boolean,
+): boolean {
+  if (isDynamic) return true;
+  state.failed.set(
+    fromUrl,
+    `Failed to resolve module specifier "${specifier}" ` +
+      `(imported from ${fromUrl}): the document's import map ` +
+      `does not remap it to a URL, or blocks it.`,
+  );
+  state.modules.delete(fromUrl);
+  return false;
+}
+
+function isUnsupportedWasmModule(url: string): boolean {
+  return /\.wasm$/i.test(new URL(url).pathname);
+}
+
+function recordUnsupportedWasmModule(state: ModuleGraphState, url: string): void {
+  state.failed.set(
+    url,
+    "wasm modules in the ES-module graph are not supported " +
+      "(kitesurf bakes page wasm for the WebAssembly.* APIs, " +
+      "not ESM-integration)",
+  );
+}
+
+function shouldIgnoreResolvedModule(state: ModuleGraphState, url: string): boolean {
+  return url.startsWith("data:") || state.modules.has(url) || state.failed.has(url);
+}
+
+function updateDynamicPath(state: ModuleGraphState, url: string, isDynamic: boolean): void {
+  const previous = state.viaDyn.get(url);
+  state.viaDyn.set(url, previous === undefined ? isDynamic : previous && isDynamic);
+}
+
+function updateRegistryPath(state: ModuleGraphState, url: string, viaRegistry: boolean): void {
+  const previous = state.viaReg.get(url);
+  state.viaReg.set(url, previous === undefined ? viaRegistry : previous && viaRegistry);
+}
+
+function inheritImporterNonce(state: ModuleGraphState, fromUrl: string, url: string): void {
+  const nonce = state.nonceByUrl.get(fromUrl);
+  if (nonce && !state.nonceByUrl.has(url)) state.nonceByUrl.set(url, nonce);
+}
+
+function graphImportContext(state: ModuleGraphState, fromUrl: string): GraphImportContext {
+  return {
+    fromUrl,
+    viaDynamic: state.viaDyn.get(fromUrl) ?? false,
+    viaRegistry: state.viaReg.get(fromUrl) ?? false,
+    depth: state.depthOf.get(fromUrl) ?? 0,
   };
+}
 
-  const fetchModuleBody = async (url: string): Promise<ModuleFetchResult> => {
-    let last: ModuleFetchResult = {
-      ok: false,
-      error: `module fetch not attempted for ${url}`,
-    };
-    for (let attempt = 1; attempt <= MODULE_FETCH_ATTEMPTS; attempt++) {
-      last = await attemptFetchModuleBody(url);
-      if (last.ok || !isTransientFetchError(last.error)) return last;
-      if (attempt < MODULE_FETCH_ATTEMPTS) {
-        const base = MODULE_FETCH_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
-        const delay = base + Math.random() * base * MODULE_FETCH_RETRY_JITTER_RATIO;
-        await new Promise((r) => setTimeout(r, delay));
-      }
-    }
-    return last;
-  };
+interface GraphImportContext {
+  fromUrl: string;
+  viaDynamic: boolean;
+  viaRegistry: boolean;
+  depth: number;
+}
 
-  const storeFetched = (
-    url: string,
-    fetched: { body: string; moduleType: ModuleType },
-  ): boolean => {
-    if (fetched.moduleType === "json") {
-      try {
-        jsonModules.set(url, JSON.parse(fetched.body));
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        failed.set(url, `JSON module ${url} did not parse: ${msg}`);
-        return false;
-      }
-      modules.set(url, fetched.body);
-      bakedBytes += fetched.body.length;
-      lexed.add(url);
-      return true;
-    }
-    modules.set(url, fetched.body);
-    bakedBytes += fetched.body.length;
-    if (!lexed.has(url)) {
-      lexed.add(url);
-      crawlImports(url, fetched.body);
-    }
+function graphImportViaRegistry(
+  state: ModuleGraphState,
+  context: GraphImportContext,
+  url: string,
+  isDynamic: boolean,
+  fanout: number,
+): boolean {
+  if (context.viaRegistry) return true;
+  if (!isDynamic || fanout <= FANOUT_REGISTRY_THRESHOLD) return false;
+  return !isDocumentNamedDynamicImport(state, isDynamic, url);
+}
+
+function graphImporterFanout(isDynamic: boolean, named: boolean, fanout: number): number {
+  return isDynamic && !named ? fanout : 0;
+}
+
+function recordDynamicGraphRoot(state: ModuleGraphState, url: string, isDynamic: boolean): void {
+  if (isDynamic) state.dynamicRoots.add(url);
+}
+
+function recordGraphDepth(state: ModuleGraphState, url: string, depth: number): void {
+  if (!state.depthOf.has(url)) state.depthOf.set(url, depth);
+}
+
+function enqueueResolvedGraphImport(
+  state: ModuleGraphState,
+  context: GraphImportContext,
+  url: string,
+  isDynamic: boolean,
+  fanout: number,
+): void {
+  const viaDynamic = context.viaDynamic || isDynamic;
+  updateDynamicPath(state, url, viaDynamic);
+  const named = isDocumentNamedDynamicImport(state, isDynamic, url);
+  const viaRegistry = graphImportViaRegistry(state, context, url, isDynamic, fanout);
+  updateRegistryPath(state, url, viaRegistry);
+  state.viaTrustedImporter.add(url);
+  inheritImporterNonce(state, context.fromUrl, url);
+  recordDynamicGraphRoot(state, url, isDynamic);
+  recordGraphDepth(state, url, context.depth + 1);
+  state.queue.push({
+    url,
+    importer: context.fromUrl,
+    isDynamic,
+    depth: context.depth + 1,
+    importerDynFanout: graphImporterFanout(isDynamic, named, fanout),
+    viaRegistry,
+  });
+}
+
+function queueGraphImport(
+  state: ModuleGraphState,
+  context: GraphImportContext,
+  body: string,
+  imp: LexedImport,
+  fanout: number,
+): boolean {
+  const target = importSpecifierForGraph(body, imp);
+  if (target === null) return true;
+  const url = resolveGraphModule(state, target.specifier, context.fromUrl);
+  if (!url) {
+    return recordUnresolvedGraphImport(state, context.fromUrl, target.specifier, target.isDynamic);
+  }
+  if (shouldIgnoreResolvedModule(state, url)) return true;
+  if (isUnsupportedWasmModule(url)) {
+    recordUnsupportedWasmModule(state, url);
     return true;
-  };
-
-  const walkStartedAt = Date.now();
-  let deadlineHit = false;
-  const pastDeadline = (): boolean => {
-    if (!deadlineHit && Date.now() - walkStartedAt >= WALK_DEADLINE_MS) {
-      deadlineHit = true;
-    }
-    return deadlineHit;
-  };
-  let deadlineSkipped = 0;
-
-  let inflight = 0;
-  const inflightUrls = new Set<string>();
-  let waiters: Array<() => void> = [];
-  const notifyAll = (): void => {
-    const w = waiters;
-    waiters = [];
-    for (const f of w) f();
-  };
-
-  const itemClass = (item: WalkQueueItem): number =>
-    !item.isDynamic ? 0 : item.importerDynFanout > FANOUT_REGISTRY_THRESHOLD ? 2 : 1;
-
-  const nextItem = (): (WalkQueueItem & { sizeCapped: boolean }) | "wait" | "done" => {
-    const keep: WalkQueueItem[] = [];
-    let best: WalkQueueItem | null = null;
-    let bestClass = 3;
-    for (const item of queue) {
-      if (modules.size >= MAX_MODULES) {
-        queue.length = 0;
-        return inflight > 0 ? "wait" : "done";
-      }
-      const url = item.url;
-      if (failed.has(url)) continue;
-      if (inflightUrls.has(url)) {
-        keep.push(item);
-        continue;
-      }
-      if (modules.has(url)) {
-        if (!lexed.has(url)) {
-          lexed.add(url);
-          crawlImports(url, modules.get(url)!);
-        }
-        continue;
-      }
-      if (item.isDynamic && bakedBytes >= BAKE_BUDGET_BYTES) continue;
-      if (item.viaRegistry && pastDeadline()) {
-        deadlineSkipped++;
-        continue;
-      }
-      if (isAssetExtension(url)) {
-        modules.set(url, `/* kitesurf: asset-import side-effect stub for ${url} */\nexport {};\n`);
-        continue;
-      }
-      keep.push(item);
-      const cls = itemClass(item);
-      if (best === null || cls < bestClass || (cls === bestClass && item.depth < best.depth)) {
-        best = item;
-        bestClass = cls;
-      }
-    }
-    queue.length = 0;
-    for (const item of keep) {
-      if (item !== best) queue.push(item);
-    }
-    if (best) {
-      return {
-        ...best,
-        sizeCapped: best.isDynamic || (best.importer === null && classicSeeds.has(best.url)),
-      };
-    }
-    return inflight > 0 ? "wait" : "done";
-  };
-
-  const workerLoop = async (): Promise<void> => {
-    for (;;) {
-      const item = nextItem();
-      if (item === "done") {
-        notifyAll();
-        return;
-      }
-      if (item === "wait") {
-        await new Promise<void>((r) => waiters.push(r));
-        continue;
-      }
-      inflight++;
-      inflightUrls.add(item.url);
-      let result: ModuleFetchResult;
-      try {
-        result = await fetchModuleBody(item.url);
-      } finally {
-        inflightUrls.delete(item.url);
-        inflight--;
-        notifyAll();
-      }
-      totalFetches++;
-      if (!result.ok) {
-        if (!item.preload) failed.set(item.url, result.error);
-      } else if (item.sizeCapped && result.body.length > MAX_DYNAMIC_MODULE_BYTES) {
-        oversizedDynamicSkipped++;
-        sizeSkipped.add(item.url);
-      } else if (!(item.isDynamic && bakedBytes >= BAKE_BUDGET_BYTES)) {
-        storeFetched(item.url, result);
-      }
-    }
-  };
-  await Promise.all(Array.from({ length: WALK_CONCURRENCY }, () => workerLoop()));
-
-  {
-    const MAX_WEBPACK_CHUNKS = 300;
-    const MAX_WEBPACK_COMPOSER_SCAN_CHARS = 120_000;
-    let composeBase: string | null = null;
-    let nameMap: Record<string, string> | null = null;
-    let hashMap: Record<string, string> | null = null;
-    for (const [url, body] of modules) {
-      const uIdx = body.search(/\.u\s*=/);
-      if (uIdx < 0) continue;
-      const win = body.slice(uIdx, uIdx + MAX_WEBPACK_COMPOSER_SCAN_CHARS);
-      const end = win.indexOf('".js"');
-      if (end < 0) continue;
-      const expr = win.slice(0, end + 5);
-      const maps: Record<string, string>[] = [];
-      for (const m of expr.matchAll(/\{(?:\d+:"[^"]*",?)+\}/g)) {
-        const obj: Record<string, string> = {};
-        for (const kv of m[0].slice(1, -1).split(",")) {
-          const ci = kv.indexOf(':"');
-          if (ci < 0) continue;
-          obj[kv.slice(0, ci)] = kv.slice(ci + 2, -1);
-        }
-        maps.push(obj);
-      }
-      if (maps.length === 0) continue;
-      nameMap = maps.length >= 2 ? maps[0]! : null;
-      hashMap = maps[maps.length - 1]!;
-      composeBase = url;
-      break;
-    }
-    const webpackBase = composeBase;
-    const webpackHashMap = hashMap;
-    if (webpackBase && webpackHashMap) {
-      const seenIds = new Set<string>();
-      const pendingIds: string[] = [];
-      const pushId = (id: string) => {
-        if (!seenIds.has(id) && webpackHashMap[id] !== undefined) {
-          seenIds.add(id);
-          pendingIds.push(id);
-        }
-      };
-      const scanForIds = (body: string) => {
-        for (const m of body.matchAll(/\.e\((\d+)\)/g)) pushId(m[1]!);
-        for (const m of body.matchAll(/\[(\d{1,6}(?:,\d{1,6})+)\]/g)) {
-          const ids = m[1]!.split(",");
-          if (ids.every((id) => webpackHashMap[id] !== undefined)) {
-            for (const id of ids) pushId(id);
-          }
-        }
-      };
-      for (const body of modules.values()) scanForIds(body);
-      const drainWebpackQueue = async (): Promise<void> => {
-        while (queue.length > 0) {
-          const wave2: typeof queue = [];
-          while (queue.length > 0 && wave2.length < WALK_CONCURRENCY) {
-            const item = queue.shift()!;
-            if (
-              modules.has(item.url) ||
-              failed.has(item.url) ||
-              (item.isDynamic && (bakedBytes >= BAKE_BUDGET_BYTES || pastDeadline()))
-            ) {
-              continue;
-            }
-            wave2.push(item);
-          }
-          if (wave2.length === 0) continue;
-          const drained = await Promise.all(
-            wave2.map(async (item) => {
-              const r = await fetchModuleBody(item.url);
-              totalFetches++;
-              return { item, r };
-            }),
-          );
-          for (const { item, r } of drained) {
-            if (!r.ok) {
-              failed.set(item.url, r.error);
-              continue;
-            }
-            if (!storeFetched(item.url, r)) continue;
-            if (r.moduleType === "javascript") scanForIds(r.body);
-          }
-        }
-      };
-      let bakedChunks = 0;
-      while (pendingIds.length > 0 && bakedChunks < MAX_WEBPACK_CHUNKS && !pastDeadline()) {
-        if (bakedBytes >= BAKE_BUDGET_BYTES) break;
-        const wave = pendingIds
-          .splice(0, WALK_CONCURRENCY)
-          .map((id) => {
-            const hash = webpackHashMap[id];
-            if (hash === undefined) return null;
-            const name = nameMap?.[id] ?? id;
-            const resolved = resolveAgainstImporter(`./${name}.${hash}.js`, webpackBase);
-            return resolved && !modules.has(resolved) && !failed.has(resolved)
-              ? { id, url: resolved }
-              : null;
-          })
-          .filter((x): x is { id: string; url: string } => x !== null);
-        if (wave.length === 0) continue;
-        const results = await Promise.all(
-          wave.map(async ({ url }) => {
-            const r = await fetchModuleBody(url);
-            totalFetches++;
-            return { url, result: r };
-          }),
-        );
-        for (const { url, result } of results) {
-          if (!result.ok) {
-            failed.set(url, result.error);
-            continue;
-          }
-          if (bakedBytes >= BAKE_BUDGET_BYTES) break;
-          if (!storeFetched(url, result)) continue;
-          viaDyn.set(url, true);
-          dynamicRoots.add(url);
-          webpackChunkUrls.add(url);
-          bakedChunks++;
-          if (result.moduleType === "javascript") scanForIds(result.body);
-        }
-        await drainWebpackQueue();
-      }
-      if (bakedChunks > 0) {
-        console.log(
-          `[kitesurf-walk] webpack chunk crawl: ${bakedChunks} chunk(s) baked from ${composeBase}`,
-        );
-      }
-    }
   }
+  enqueueResolvedGraphImport(state, context, url, target.isDynamic, fanout);
+  return true;
+}
 
-  let evictedCount = 0;
-  let prunedCount = 0;
-  if (deadlineHit) {
-    const resolveStatic = resolveModule;
-    let completeness = new Map<string, boolean>();
-    const staticDepsComplete = (url: string): boolean => {
-      const memo = completeness.get(url);
-      if (memo !== undefined) return memo;
-      completeness.set(url, true);
-      for (const imp of lexCache.get(url) ?? []) {
-        if (imp.t !== 1 || !imp.n) continue;
-        const resolved = resolveStatic(imp.n, url);
-        if (!resolved) continue;
-        if (!modules.has(resolved) || !staticDepsComplete(resolved)) {
-          completeness.set(url, false);
-          return false;
-        }
-      }
-      return true;
-    };
-    for (let changed = true; changed;) {
-      changed = false;
-      completeness = new Map();
-      for (const root of dynamicRoots) {
-        if (!modules.has(root) || viaDyn.get(root) === false) continue;
-        if (!staticDepsComplete(root)) {
-          modules.delete(root);
-          evictedCount++;
-          changed = true;
-        }
-      }
-    }
-    const reachable = new Set<string>();
-    const stack: string[] = [];
-    const pushRoot = (u: string | null | undefined): void => {
-      if (u && modules.has(u) && !reachable.has(u)) {
-        reachable.add(u);
-        stack.push(u);
-      }
-    };
-    for (const d of moduleEntries) pushRoot(d.resolvedSrc);
-    for (const s of classicSeeds) pushRoot(s);
-    for (const c of webpackChunkUrls) pushRoot(c);
-    while (stack.length > 0) {
-      const url = stack.pop()!;
-      for (const imp of lexCache.get(url) ?? []) {
-        if (imp.t !== 1 && imp.t !== 2) continue;
-        const spec =
-          imp.n ??
-          (imp.t === 2 ? constSpecifier(modules.get(url)!.slice(imp.s, imp.e)) : undefined);
-        if (!spec) continue;
-        const resolved = resolveStatic(spec, url);
-        if (resolved) pushRoot(resolved);
-      }
-    }
-    for (const u of [...modules.keys()]) {
-      if (!reachable.has(u) && viaDyn.get(u) === true) {
-        modules.delete(u);
-        prunedCount++;
-      }
-    }
+function crawlModuleImports(state: ModuleGraphState, fromUrl: string, body: string): void {
+  const imports = lexGraphModule(state, fromUrl, body);
+  if (imports === null) return;
+  state.lexCache.set(fromUrl, imports);
+  const fanout = dynamicImportFanout(imports);
+  prepareDocumentTokens(state, fanout);
+  const context = graphImportContext(state, fromUrl);
+  for (const imp of imports) {
+    if (!queueGraphImport(state, context, body, imp, fanout)) return;
   }
+}
 
-  const registryNames = assignModuleRegistryNames(modules.keys());
-  const registryName = (url: string): string => registryNames.get(url) ?? url;
+function queueGraphRoot(state: ModuleGraphState, url: string, preload = false): void {
+  if (state.modules.has(url) || state.failed.has(url)) return;
+  state.viaDyn.set(url, false);
+  state.depthOf.set(url, 0);
+  state.queue.push({
+    url,
+    importer: null,
+    isDynamic: false,
+    depth: 0,
+    importerDynFanout: 0,
+    viaRegistry: false,
+    ...(preload ? { preload: true as const } : {}),
+  });
+}
 
-  for (const u of [...sizeSkipped]) if (modules.has(u)) sizeSkipped.delete(u);
+function queueClassicModuleSeeds(state: ModuleGraphState): void {
+  for (const url of state.classicSeeds) queueGraphRoot(state, url);
+}
 
-  if (registryNames.size > 0 || sizeSkipped.size > 0) {
-    for (const d of out) {
-      if (d.kind === "module") continue;
-      const field = d.src ? "prefetchedSource" : "body";
-      const source = d[field];
-      if (!source || !/import\s*\(/.test(source)) continue;
-      const base = d.src
-        ? d.resolvedSrc || resolveAgainstImporter(d.src, entryBaseUrl)
-        : entryBaseUrl;
-      if (!base) continue;
-      let parsed: ReturnType<typeof lexerParse>[0];
-      try {
-        parsed = lexerParse(source)[0];
-      } catch {
-        continue;
-      }
-      const rewrites: { ss: number; se: number; text: string }[] = [];
-      for (const imp of parsed) {
-        if (imp.t !== 2) continue;
-        const spec = imp.n ?? constSpecifier(source.slice(imp.s, imp.e));
-        if (!spec) continue;
-        let absolute: string;
-        try {
-          absolute = new URL(spec, base).href;
-        } catch {
-          continue;
-        }
-        if (sizeSkipped.has(absolute)) {
-          rewrites.push({
-            ss: imp.ss,
-            se: imp.se,
-            text: `__ks_import(${JSON.stringify(absolute)}, ${JSON.stringify(base)})`,
-          });
-          continue;
-        }
-        const name = registryNames.get(absolute);
-        if (name) rewrites.push({ ss: imp.s, se: imp.e, text: JSON.stringify(name) });
-      }
-      let rewritten = source;
-      for (const rw of rewrites.sort((a, b) => b.ss - a.ss)) {
-        rewritten = rewritten.slice(0, rw.ss) + rw.text + rewritten.slice(rw.se);
-      }
-      d[field] = rewritten;
-    }
+function resolvedExternalModuleEntryUrl(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+): string | null {
+  return descriptor.resolvedSrc ?? resolveAgainstImporter(descriptor.src ?? "", state.entryBaseUrl);
+}
+
+function queueExternalModuleEntry(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+): void {
+  const resolved = resolvedExternalModuleEntryUrl(state, descriptor);
+  if (!resolved) {
+    descriptor.prefetchError = "could not resolve module src against page URL: " + descriptor.src;
+    return;
   }
+  descriptor.resolvedSrc = resolved;
+  if (descriptor.integrity) state.integrityByUrl.set(resolved, descriptor.integrity);
+  if (descriptor.nonce) state.nonceByUrl.set(resolved, descriptor.nonce);
+  queueGraphRoot(state, resolved);
+}
 
-  let deferredCount = 0;
-  const literalRange = (imp: LexedImport): { ss: number; se: number } =>
-    imp.t === 1 ? { ss: imp.s - 1, se: imp.e + 1 } : { ss: imp.s, se: imp.e };
-  for (const [fromUrl, body] of [...modules.entries()]) {
-    if (jsonModules.has(fromUrl)) continue;
-    let imports: ReturnType<typeof lexerParse>[0] | undefined = lexCache.get(fromUrl);
-    if (!imports) {
-      try {
-        imports = lexerParse(body, fromUrl)[0];
-      } catch {
-        continue;
-      }
-    }
-    const ref = JSON.stringify(fromUrl);
-    let syntheticImportMeta: string | undefined;
-    if (registryName(fromUrl) !== fromUrl) {
-      syntheticImportMeta = "__ks_import_meta";
-      while (body.includes(syntheticImportMeta)) syntheticImportMeta += "_";
-    }
-    const rewrites: { ss: number; se: number; text: string }[] = [];
-    const dynamicRanges = imports
-      .filter((imp) => imp.t === 2)
-      .map((imp) => ({ start: imp.ss, end: imp.se }));
-    for (const imp of imports) {
-      if (imp.t === 2) {
-        const spec = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
-        if (!spec && imp.d > -1) {
-          const expr = rewriteImportMetaResolve(
-            dynamicImportExpression(body, imp),
-            fromUrl,
-            syntheticImportMeta,
-          );
-          rewrites.push({ ss: imp.ss, se: imp.se, text: `__ks_import(${expr}, ${ref})` });
-        }
-        if (!spec) continue;
+function queueInlineModuleEntry(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+  index: number,
+): void {
+  const url = inlineModuleUrl(state.entryBaseUrl, index);
+  descriptor.resolvedSrc = url;
+  if (descriptor.nonce) state.nonceByUrl.set(url, descriptor.nonce);
+  state.viaDyn.set(url, false);
+  state.depthOf.set(url, 0);
+  const source = descriptor.body ?? "";
+  const body = maybeWrapInlineModule(source, url);
+  state.modules.set(url, body);
+  state.bakedBytes += body.length;
+  descriptor.prefetchedSource = body;
+  state.lexed.add(url);
+  crawlModuleImports(state, url, body);
+}
 
-        const resolved = resolveModule(spec, fromUrl);
-        const registryResolved = resolved && modules.has(resolved) ? registryName(resolved) : null;
-        if (registryResolved !== null && !nativelyResolvesTo(spec, fromUrl, registryResolved)) {
-          rewrites.push({ ...literalRange(imp), text: JSON.stringify(registryResolved) });
-        }
-        if (registryResolved !== null) continue;
+function queueModuleEntry(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+  index: number,
+): void {
+  if (descriptor.src) queueExternalModuleEntry(state, descriptor);
+  else queueInlineModuleEntry(state, descriptor, index);
+}
 
-        rewrites.push({
-          ss: imp.ss,
-          se: imp.se,
-          text: `__ks_import(${JSON.stringify(spec)}, ${ref})`,
-        });
-        deferredCount++;
-        continue;
-      }
+function shouldSkipPreloadSeed(state: ModuleGraphState, url: string): boolean {
+  return state.modules.has(url) || state.failed.has(url) || state.depthOf.has(url);
+}
 
-      if (imp.t === 3) {
-        if (dynamicRanges.some(({ start, end }) => imp.ss >= start && imp.se <= end)) {
-          continue;
-        }
-        if (syntheticImportMeta) {
-          rewrites.push({ ss: imp.ss, se: imp.se, text: syntheticImportMeta });
-          continue;
-        }
-        const resolveEnd = importMetaResolveEnd(body, imp);
-        if (resolveEnd === null) continue;
-        rewrites.push({
-          ss: imp.ss,
-          se: resolveEnd,
-          text: `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${ref}))`,
-        });
-        continue;
-      }
+function queuePreloadSeed(state: ModuleGraphState, url: string, nonce: string | null): void {
+  if (shouldSkipPreloadSeed(state, url)) return;
+  if (nonce && !state.nonceByUrl.has(url)) state.nonceByUrl.set(url, nonce);
+  queueGraphRoot(state, url, true);
+}
 
-      if (imp.t !== 1 || !imp.n) continue;
-      const resolved = resolveModule(imp.n, fromUrl);
-      if (!resolved) continue;
-      const registryResolved = registryName(resolved);
-      if (!nativelyResolvesTo(imp.n, fromUrl, registryResolved)) {
-        rewrites.push({ ...literalRange(imp), text: JSON.stringify(registryResolved) });
-      }
-    }
-    if (rewrites.length > 0 || syntheticImportMeta) {
-      let b = body;
-      for (const rw of rewrites.sort((a, c) => c.ss - a.ss)) {
-        b = b.slice(0, rw.ss) + rw.text + b.slice(rw.se);
-      }
-      if (syntheticImportMeta) {
-        b =
-          `const ${syntheticImportMeta}=Object.assign(Object.create(null),` +
-          `{url:${ref},resolve:(specifier)=>globalThis.__ks_resolve_import_map(specifier,${ref})});\n` +
-          b;
-      }
-      modules.set(fromUrl, b);
-    }
+function queuePreloadSeeds(state: ModuleGraphState): void {
+  for (const seed of state.options.preloadSeeds ?? []) {
+    queuePreloadSeed(state, seed.url, seed.nonce);
   }
+}
 
-  for (const d of moduleEntries) {
-    if (d.prefetchError) continue;
-    const u = d.resolvedSrc;
-    if (!u) continue;
-    const failure = failed.get(u);
-    if (failure !== undefined) {
-      d.prefetchError = failure;
+function initializeGraphQueue(state: ModuleGraphState): void {
+  queueClassicModuleSeeds(state);
+  for (const [index, descriptor] of state.moduleEntries.entries()) {
+    queueModuleEntry(state, descriptor, index);
+  }
+  queuePreloadSeeds(state);
+}
+
+function moduleFetchGateFailure(
+  state: ModuleGraphState,
+  url: string,
+): Promise<ModuleFetchResult | null> {
+  if (state.gate === null) return Promise.resolve(null);
+  return checkScriptBeforeFetch(state.gate, {
+    url,
+    integrity: state.integrityByUrl.get(url) ?? null,
+    nonce: state.nonceByUrl.get(url) ?? null,
+    runtimeInserted: state.viaTrustedImporter.has(url),
+    module: true,
+  }).then((pre) => {
+    if (pre.reportOnly) console.warn(`[kitesurf-csp] ${pre.reportOnly}`);
+    if (pre.allowed) return null;
+    return { ok: false, error: pre.message ?? `module blocked: ${url}` };
+  });
+}
+
+function moduleFetchHeaders(state: ModuleGraphState): Record<string, string> {
+  const headers: Record<string, string> = {
+    "x-kitesurf-resource-type": "Script",
+    "x-kitesurf-script-cors": "cors",
+    "x-kitesurf-initiator": "module-graph",
+    "x-kitesurf-page-origin": state.pageOrigin,
+  };
+  if (state.connectionId) headers["x-kitesurf-connection-id"] = state.connectionId;
+  if (state.mainFrameId) headers["x-kitesurf-frame-id"] = state.mainFrameId;
+  if (state.pageOrigin) headers.origin = state.pageOrigin;
+  return headers;
+}
+
+function moduleFetchError(url: string, error: unknown): ModuleFetchResult {
+  return {
+    ok: false,
+    error:
+      `module fetch threw for ${url}: ` + (error instanceof Error ? error.message : String(error)),
+  };
+}
+
+function moduleResponseFailure(url: string, response: Response): ModuleFetchResult | null {
+  const blocked = response.headers.get("x-kitesurf-blocked");
+  if (response.status === 403 && blocked) {
+    return { ok: false, error: `module fetch blocked (${blocked}) for ${url}` };
+  }
+  if (!response.ok) {
+    return { ok: false, error: `module fetch returned HTTP ${response.status} for ${url}` };
+  }
+  return null;
+}
+
+async function readModuleResponseBody(
+  response: Response,
+  integrity: string | null,
+): Promise<{ bytes: Uint8Array | null; body: string }> {
+  const bytes = integrity ? new Uint8Array(await response.arrayBuffer()) : null;
+  const body = bytes
+    ? new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(bytes)
+    : await response.text();
+  return { bytes, body };
+}
+
+async function moduleResponseBody(
+  state: ModuleGraphState,
+  url: string,
+  response: Response,
+): Promise<ModuleFetchResult> {
+  const integrity = state.integrityByUrl.get(url) ?? null;
+  const { bytes, body } = await readModuleResponseBody(response, integrity);
+  const verdict = await checkScriptResponse(
+    { url, integrity, module: true },
+    {
+      contentType: response.headers.get("content-type"),
+      contentTypeOptions: response.headers.get(KITESURF_NOSNIFF_HEADER),
+      bytes,
+      opaque: false,
+    },
+  );
+  if (!verdict.allowed) {
+    return { ok: false, error: verdict.message ?? `module blocked by policy: ${url}` };
+  }
+  return { ok: true, body, moduleType: verdict.moduleType ?? "javascript" };
+}
+
+async function validateModuleResponse(
+  state: ModuleGraphState,
+  url: string,
+  response: Response,
+): Promise<ModuleFetchResult> {
+  const failure = moduleResponseFailure(url, response);
+  if (failure !== null) return failure;
+  return moduleResponseBody(state, url, response);
+}
+
+async function fetchRedirectedModule(
+  state: ModuleGraphState,
+  url: string,
+  signal: AbortSignal,
+): Promise<ModuleFetchResult> {
+  const walk = await walkRedirects({
+    url,
+    signal,
+    headers: moduleFetchHeaders(state),
+    taintOriginFrom: state.pageOrigin || undefined,
+    fetchHop: (request) => getGraphOutbound(state).fetch(request),
+  });
+  if (!walk.ok) return { ok: false, error: `module fetch too many redirects for ${url}` };
+  return validateModuleResponse(state, url, walk.response);
+}
+
+async function attemptFetchModuleBody(
+  state: ModuleGraphState,
+  url: string,
+): Promise<ModuleFetchResult> {
+  const gateFailure = await moduleFetchGateFailure(state, url);
+  if (gateFailure !== null) return gateFailure;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetchRedirectedModule(state, url, controller.signal);
+  } catch (error) {
+    return moduleFetchError(url, error);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isTransientFetchError(error: string): boolean {
+  return /aborted|abort|connection|network connection lost|reset|HTTP 5\d\d|timed out|timeout/i.test(
+    error,
+  );
+}
+
+async function waitBeforeModuleRetry(attempt: number): Promise<void> {
+  const base = MODULE_FETCH_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+  const delay = base + Math.random() * base * MODULE_FETCH_RETRY_JITTER_RATIO;
+  await new Promise((resolve) => setTimeout(resolve, delay));
+}
+
+async function fetchModuleBody(state: ModuleGraphState, url: string): Promise<ModuleFetchResult> {
+  let last: ModuleFetchResult = {
+    ok: false,
+    error: `module fetch not attempted for ${url}`,
+  };
+  for (let attempt = 1; attempt <= MODULE_FETCH_ATTEMPTS; attempt++) {
+    last = await attemptFetchModuleBody(state, url);
+    if (last.ok || !isTransientFetchError(last.error)) return last;
+    if (attempt < MODULE_FETCH_ATTEMPTS) await waitBeforeModuleRetry(attempt);
+  }
+  return last;
+}
+
+function storeJsonModule(state: ModuleGraphState, url: string, body: string): boolean {
+  try {
+    state.jsonModules.set(url, JSON.parse(body));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    state.failed.set(url, `JSON module ${url} did not parse: ${message}`);
+    return false;
+  }
+  state.modules.set(url, body);
+  state.bakedBytes += body.length;
+  state.lexed.add(url);
+  return true;
+}
+
+function storeJavaScriptModule(state: ModuleGraphState, url: string, body: string): boolean {
+  state.modules.set(url, body);
+  state.bakedBytes += body.length;
+  if (!state.lexed.has(url)) {
+    state.lexed.add(url);
+    crawlModuleImports(state, url, body);
+  }
+  return true;
+}
+
+function storeFetchedModule(
+  state: ModuleGraphState,
+  url: string,
+  fetched: { body: string; moduleType: ModuleType },
+): boolean {
+  if (fetched.moduleType === "json") return storeJsonModule(state, url, fetched.body);
+  return storeJavaScriptModule(state, url, fetched.body);
+}
+
+function pastGraphDeadline(state: ModuleGraphState): boolean {
+  if (!state.deadlineHit && Date.now() - state.walkStartedAt >= WALK_DEADLINE_MS) {
+    state.deadlineHit = true;
+  }
+  return state.deadlineHit;
+}
+
+function notifyGraphWaiters(state: ModuleGraphState): void {
+  const waiters = state.waiters;
+  state.waiters = [];
+  for (const wake of waiters) wake();
+}
+
+function waitForGraphWork(state: ModuleGraphState): Promise<void> {
+  return new Promise((resolve) => state.waiters.push(resolve));
+}
+
+type QueueItemDisposition = "skip" | "inflight" | "candidate";
+
+function lexAlreadyFetchedModule(state: ModuleGraphState, url: string): void {
+  if (state.lexed.has(url)) return;
+  const body = state.modules.get(url);
+  if (body === undefined) return;
+  state.lexed.add(url);
+  crawlModuleImports(state, url, body);
+}
+
+function isDynamicGraphItemOverBudget(state: ModuleGraphState, item: WalkQueueItem): boolean {
+  return item.isDynamic && state.bakedBytes >= BAKE_BUDGET_BYTES;
+}
+
+function isRegistryGraphItemPastDeadline(state: ModuleGraphState, item: WalkQueueItem): boolean {
+  if (!item.viaRegistry) return false;
+  if (!pastGraphDeadline(state)) return false;
+  state.deadlineSkipped++;
+  return true;
+}
+
+function classifyMissingQueueItem(
+  state: ModuleGraphState,
+  item: WalkQueueItem,
+): QueueItemDisposition {
+  if (isDynamicGraphItemOverBudget(state, item)) return "skip";
+  if (isRegistryGraphItemPastDeadline(state, item)) {
+    return "skip";
+  }
+  if (isAssetExtension(item.url)) {
+    state.modules.set(
+      item.url,
+      `/* kitesurf: asset-import side-effect stub for ${item.url} */\nexport {};\n`,
+    );
+    return "skip";
+  }
+  return "candidate";
+}
+
+function classifyQueueItem(state: ModuleGraphState, item: WalkQueueItem): QueueItemDisposition {
+  if (state.failed.has(item.url)) return "skip";
+  if (state.inflightUrls.has(item.url)) return "inflight";
+  if (state.modules.has(item.url)) {
+    lexAlreadyFetchedModule(state, item.url);
+    return "skip";
+  }
+  return classifyMissingQueueItem(state, item);
+}
+
+function queueItemClass(item: WalkQueueItem): number {
+  if (!item.isDynamic) return 0;
+  return item.importerDynFanout > FANOUT_REGISTRY_THRESHOLD ? 2 : 1;
+}
+
+interface QueueSelection {
+  keep: WalkQueueItem[];
+  best: WalkQueueItem | null;
+  bestClass: number;
+}
+
+function isBetterQueueCandidate(item: WalkQueueItem, selection: QueueSelection): boolean {
+  const itemClass = queueItemClass(item);
+  return (
+    selection.best === null ||
+    itemClass < selection.bestClass ||
+    (itemClass === selection.bestClass && item.depth < selection.best.depth)
+  );
+}
+
+function considerQueueItem(
+  selection: QueueSelection,
+  item: WalkQueueItem,
+  disposition: QueueItemDisposition,
+): void {
+  if (disposition === "skip") return;
+  selection.keep.push(item);
+  if (disposition === "inflight") return;
+  if (isBetterQueueCandidate(item, selection)) {
+    selection.best = item;
+    selection.bestClass = queueItemClass(item);
+  }
+}
+
+function moduleLimitQueueResult(state: ModuleGraphState): NextWalkQueueItem | null {
+  if (state.modules.size < MAX_MODULES) return null;
+  state.queue.length = 0;
+  return state.inflight > 0 ? "wait" : "done";
+}
+
+function selectedQueueItemOrStatus(
+  state: ModuleGraphState,
+  best: WalkQueueItem | null,
+): NextWalkQueueItem {
+  if (best === null) return state.inflight > 0 ? "wait" : "done";
+  return {
+    ...best,
+    sizeCapped: best.isDynamic || (best.importer === null && state.classicSeeds.has(best.url)),
+  };
+}
+
+function nextGraphQueueItem(state: ModuleGraphState): NextWalkQueueItem {
+  const selection: QueueSelection = { keep: [], best: null, bestClass: 3 };
+  for (const item of state.queue) {
+    const limitResult = moduleLimitQueueResult(state);
+    if (limitResult !== null) return limitResult;
+    considerQueueItem(selection, item, classifyQueueItem(state, item));
+  }
+  state.queue.length = 0;
+  for (const item of selection.keep) {
+    if (item !== selection.best) state.queue.push(item);
+  }
+  return selectedQueueItemOrStatus(state, selection.best);
+}
+
+function clearInflightGraphItem(state: ModuleGraphState, url: string): void {
+  state.inflightUrls.delete(url);
+  state.inflight--;
+  notifyGraphWaiters(state);
+}
+
+function recordFailedGraphFetch(state: ModuleGraphState, item: WalkQueueItem, error: string): void {
+  if (!item.preload) state.failed.set(item.url, error);
+}
+
+function isOversizedCappedModule(
+  item: WalkQueueItem & { sizeCapped: boolean },
+  result: ModuleFetchResult,
+): boolean {
+  return result.ok && item.sizeCapped === true && result.body.length > MAX_DYNAMIC_MODULE_BYTES;
+}
+
+function shouldSkipDynamicForBudget(state: ModuleGraphState, item: WalkQueueItem): boolean {
+  return item.isDynamic && state.bakedBytes >= BAKE_BUDGET_BYTES;
+}
+
+function storeQueueFetchResult(
+  state: ModuleGraphState,
+  item: WalkQueueItem & { sizeCapped: boolean },
+  result: ModuleFetchResult,
+): void {
+  if (!result.ok) {
+    recordFailedGraphFetch(state, item, result.error);
+    return;
+  }
+  if (isOversizedCappedModule(item, result)) {
+    state.oversizedDynamicSkipped++;
+    state.sizeSkipped.add(item.url);
+    return;
+  }
+  if (shouldSkipDynamicForBudget(state, item)) return;
+  storeFetchedModule(state, item.url, result);
+}
+
+async function fetchQueuedGraphModule(
+  state: ModuleGraphState,
+  item: WalkQueueItem & { sizeCapped: boolean },
+): Promise<void> {
+  state.inflight++;
+  state.inflightUrls.add(item.url);
+  let result: ModuleFetchResult;
+  try {
+    result = await fetchModuleBody(state, item.url);
+  } finally {
+    clearInflightGraphItem(state, item.url);
+  }
+  state.totalFetches++;
+  storeQueueFetchResult(state, item, result);
+}
+
+async function processGraphWorkerItem(
+  state: ModuleGraphState,
+  item: NextWalkQueueItem,
+): Promise<boolean> {
+  if (item === "done") {
+    notifyGraphWaiters(state);
+    return false;
+  }
+  if (item === "wait") {
+    await waitForGraphWork(state);
+    return true;
+  }
+  await fetchQueuedGraphModule(state, item);
+  return true;
+}
+
+async function runGraphWorker(state: ModuleGraphState): Promise<void> {
+  for (;;) {
+    const keepRunning = await processGraphWorkerItem(state, nextGraphQueueItem(state));
+    if (!keepRunning) return;
+  }
+}
+
+async function runGraphWorkers(state: ModuleGraphState): Promise<void> {
+  const workers = Array.from({ length: WALK_CONCURRENCY }, () => runGraphWorker(state));
+  await Promise.all(workers);
+}
+
+interface WebpackComposer {
+  url: string;
+  nameMap: Record<string, string> | null;
+  hashMap: Record<string, string>;
+}
+
+interface WebpackIdQueue {
+  hashMap: Record<string, string>;
+  seen: Set<string>;
+  pending: string[];
+}
+
+interface WebpackChunkCandidate {
+  id: string;
+  url: string;
+}
+
+interface WebpackChunkCrawl {
+  composer: WebpackComposer;
+  ids: WebpackIdQueue;
+  bakedChunks: number;
+}
+
+function parseWebpackMapObject(source: string): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const entry of source.slice(1, -1).split(",")) {
+    const colon = entry.indexOf(':"');
+    if (colon < 0) continue;
+    map[entry.slice(0, colon)] = entry.slice(colon + 2, -1);
+  }
+  return map;
+}
+
+function parseWebpackMaps(source: string): Record<string, string>[] {
+  const maps: Record<string, string>[] = [];
+  for (const match of source.matchAll(/\{(?:\d+:"[^"]*",?)+\}/g)) {
+    maps.push(parseWebpackMapObject(match[0]));
+  }
+  return maps;
+}
+
+function webpackComposerFromMaps(
+  url: string,
+  maps: Record<string, string>[],
+): WebpackComposer | null {
+  if (maps.length === 0) return null;
+  return {
+    url,
+    nameMap: maps.length >= 2 ? (maps[0] ?? null) : null,
+    hashMap: maps[maps.length - 1] ?? {},
+  };
+}
+
+function webpackComposerInBody(url: string, body: string): WebpackComposer | null {
+  const assignment = body.search(/\.u\s*=/);
+  if (assignment < 0) return null;
+  const window = body.slice(assignment, assignment + MAX_WEBPACK_COMPOSER_SCAN_CHARS);
+  const end = window.indexOf('".js"');
+  if (end < 0) return null;
+  const maps = parseWebpackMaps(window.slice(0, end + 5));
+  return webpackComposerFromMaps(url, maps);
+}
+
+function findWebpackComposer(state: ModuleGraphState): WebpackComposer | null {
+  for (const [url, body] of state.modules) {
+    const composer = webpackComposerInBody(url, body);
+    if (composer !== null) return composer;
+  }
+  return null;
+}
+
+function pushWebpackId(ids: WebpackIdQueue, id: string): void {
+  if (ids.seen.has(id) || ids.hashMap[id] === undefined) return;
+  ids.seen.add(id);
+  ids.pending.push(id);
+}
+
+function scanWebpackArrayIds(ids: WebpackIdQueue, body: string): void {
+  for (const match of body.matchAll(/\[(\d{1,6}(?:,\d{1,6})+)\]/g)) {
+    const group = match[1];
+    if (group === undefined) continue;
+    const chunkIds = group.split(",");
+    if (!chunkIds.every((id) => ids.hashMap[id] !== undefined)) continue;
+    for (const id of chunkIds) pushWebpackId(ids, id);
+  }
+}
+
+function scanWebpackIds(ids: WebpackIdQueue, body: string): void {
+  for (const match of body.matchAll(/\.e\((\d+)\)/g)) {
+    const id = match[1];
+    if (id !== undefined) pushWebpackId(ids, id);
+  }
+  scanWebpackArrayIds(ids, body);
+}
+
+function createWebpackIdQueue(composer: WebpackComposer): WebpackIdQueue {
+  return { hashMap: composer.hashMap, seen: new Set(), pending: [] };
+}
+
+function shouldSkipWebpackQueueItem(state: ModuleGraphState, item: WalkQueueItem): boolean {
+  if (state.modules.has(item.url) || state.failed.has(item.url)) return true;
+  return item.isDynamic && (state.bakedBytes >= BAKE_BUDGET_BYTES || pastGraphDeadline(state));
+}
+
+function takeWebpackQueueWave(state: ModuleGraphState): WalkQueueItem[] {
+  const wave: WalkQueueItem[] = [];
+  while (state.queue.length > 0 && wave.length < WALK_CONCURRENCY) {
+    const item = state.queue.shift();
+    if (item === undefined || shouldSkipWebpackQueueItem(state, item)) continue;
+    wave.push(item);
+  }
+  return wave;
+}
+
+interface FetchedWebpackQueueItem {
+  item: WalkQueueItem;
+  result: ModuleFetchResult;
+}
+
+async function fetchWebpackQueueWave(
+  state: ModuleGraphState,
+  wave: WalkQueueItem[],
+): Promise<FetchedWebpackQueueItem[]> {
+  return Promise.all(
+    wave.map(async (item) => {
+      const result = await fetchModuleBody(state, item.url);
+      state.totalFetches++;
+      return { item, result };
+    }),
+  );
+}
+
+function storeWebpackQueueWave(
+  state: ModuleGraphState,
+  results: FetchedWebpackQueueItem[],
+  scanIds: (body: string) => void,
+): void {
+  for (const { item, result } of results) {
+    if (!result.ok) {
+      state.failed.set(item.url, result.error);
       continue;
     }
-    const body = modules.get(u);
-    if (body == null) {
-      d.prefetchError = `module not in graph after walk: ${u}`;
-      continue;
-    }
-    d.prefetchedSource = body;
-    d.resolvedSrc = registryName(u);
+    if (!storeFetchedModule(state, item.url, result)) continue;
+    if (result.moduleType === "javascript") scanIds(result.body);
   }
+}
 
-  if (totalFetches > 0 || moduleEntries.length > 0) {
-    const parts = [
-      `${moduleEntries.length} module entr${moduleEntries.length === 1 ? "y" : "ies"}`,
-      `${modules.size} modules baked`,
-      `${totalFetches} fetches`,
-    ];
-    if (failed.size > 0) parts.push(`${failed.size} failed`);
-    if (deferredCount > 0) parts.push(`${deferredCount} dyn deferred->boa`);
-    if (oversizedDynamicSkipped > 0) {
-      parts.push(`${oversizedDynamicSkipped} oversized dyn skipped`);
-    }
-    parts.push(`${(bakedBytes / BYTES_PER_MIB).toFixed(1)}MiB baked`);
-    if (modules.size >= MAX_MODULES) {
-      parts.push(`hit MAX_MODULES=${MAX_MODULES} cap`);
-    }
-    if (deadlineHit) {
-      parts.push(
-        `hit ${WALK_DEADLINE_MS}ms deadline ` +
-          `(${deadlineSkipped} skipped, ${evictedCount} evicted, ${prunedCount} pruned)`,
-      );
-    }
-    parts.push(`${Date.now() - walkStartedAt}ms`);
-    console.log(`[kitesurf-walk] ${parts.join(", ")}`);
+async function drainWebpackQueue(
+  state: ModuleGraphState,
+  scanIds: (body: string) => void,
+): Promise<void> {
+  while (state.queue.length > 0) {
+    const wave = takeWebpackQueueWave(state);
+    if (wave.length === 0) continue;
+    const results = await fetchWebpackQueueWave(state, wave);
+    storeWebpackQueueWave(state, results, scanIds);
   }
+}
 
+function isNewWebpackChunkUrl(state: ModuleGraphState, url: string | null): url is string {
+  return url !== null && !state.modules.has(url) && !state.failed.has(url);
+}
+
+function webpackChunkCandidate(
+  state: ModuleGraphState,
+  composer: WebpackComposer,
+  id: string,
+): WebpackChunkCandidate | null {
+  const hash = composer.hashMap[id];
+  if (hash === undefined) return null;
+  const name = composer.nameMap?.[id] ?? id;
+  const url = resolveAgainstImporter(`./${name}.${hash}.js`, composer.url);
+  if (!isNewWebpackChunkUrl(state, url)) return null;
+  return { id, url };
+}
+
+function nextWebpackChunkWave(
+  state: ModuleGraphState,
+  crawl: WebpackChunkCrawl,
+): WebpackChunkCandidate[] {
+  const ids = crawl.ids.pending.splice(0, WALK_CONCURRENCY);
+  const wave: WebpackChunkCandidate[] = [];
+  for (const id of ids) {
+    const candidate = webpackChunkCandidate(state, crawl.composer, id);
+    if (candidate !== null) wave.push(candidate);
+  }
+  return wave;
+}
+
+interface FetchedWebpackChunk {
+  url: string;
+  result: ModuleFetchResult;
+}
+
+async function fetchWebpackChunkWave(
+  state: ModuleGraphState,
+  wave: WebpackChunkCandidate[],
+): Promise<FetchedWebpackChunk[]> {
+  return Promise.all(
+    wave.map(async ({ url }) => {
+      const result = await fetchModuleBody(state, url);
+      state.totalFetches++;
+      return { url, result };
+    }),
+  );
+}
+
+function storeWebpackChunk(
+  state: ModuleGraphState,
+  crawl: WebpackChunkCrawl,
+  fetched: FetchedWebpackChunk,
+  scanIds: (body: string) => void,
+): boolean {
+  const { url, result } = fetched;
+  if (!result.ok) {
+    state.failed.set(url, result.error);
+    return false;
+  }
+  if (state.bakedBytes >= BAKE_BUDGET_BYTES || !storeFetchedModule(state, url, result))
+    return false;
+  state.viaDyn.set(url, true);
+  state.dynamicRoots.add(url);
+  state.webpackChunkUrls.add(url);
+  crawl.bakedChunks++;
+  if (result.moduleType === "javascript") scanIds(result.body);
+  return true;
+}
+
+function storeWebpackChunkWave(
+  state: ModuleGraphState,
+  crawl: WebpackChunkCrawl,
+  results: FetchedWebpackChunk[],
+  scanIds: (body: string) => void,
+): void {
+  for (const result of results) storeWebpackChunk(state, crawl, result, scanIds);
+}
+
+function canContinueWebpackChunkCrawl(state: ModuleGraphState, crawl: WebpackChunkCrawl): boolean {
+  return (
+    crawl.ids.pending.length > 0 &&
+    crawl.bakedChunks < MAX_WEBPACK_CHUNKS &&
+    !pastGraphDeadline(state)
+  );
+}
+
+async function crawlWebpackChunks(
+  state: ModuleGraphState,
+  crawl: WebpackChunkCrawl,
+  scanIds: (body: string) => void,
+): Promise<void> {
+  while (canContinueWebpackChunkCrawl(state, crawl)) {
+    if (state.bakedBytes >= BAKE_BUDGET_BYTES) break;
+    const wave = nextWebpackChunkWave(state, crawl);
+    if (wave.length === 0) continue;
+    const results = await fetchWebpackChunkWave(state, wave);
+    storeWebpackChunkWave(state, crawl, results, scanIds);
+    await drainWebpackQueue(state, scanIds);
+  }
+}
+
+async function discoverWebpackChunks(state: ModuleGraphState): Promise<void> {
+  const composer = findWebpackComposer(state);
+  if (composer === null) return;
+  const ids = createWebpackIdQueue(composer);
+  const scanIds = (body: string) => scanWebpackIds(ids, body);
+  for (const body of state.modules.values()) scanIds(body);
+  const crawl: WebpackChunkCrawl = { composer, ids, bakedChunks: 0 };
+  await crawlWebpackChunks(state, crawl, scanIds);
+  if (crawl.bakedChunks > 0) {
+    console.log(
+      `[kitesurf-walk] webpack chunk crawl: ${crawl.bakedChunks} chunk(s) baked from ${composer.url}`,
+    );
+  }
+}
+
+function staticDependencyIncomplete(
+  state: ModuleGraphState,
+  url: string,
+  imp: LexedImport,
+  completeness: Map<string, boolean>,
+): boolean {
+  if (imp.t !== 1 || !imp.n) return false;
+  const resolved = resolveGraphModule(state, imp.n, url);
+  if (!resolved) return false;
+  return !state.modules.has(resolved) || !staticDependenciesComplete(state, resolved, completeness);
+}
+
+function staticDependenciesComplete(
+  state: ModuleGraphState,
+  url: string,
+  completeness: Map<string, boolean>,
+): boolean {
+  const memo = completeness.get(url);
+  if (memo !== undefined) return memo;
+  completeness.set(url, true);
+  for (const imp of state.lexCache.get(url) ?? []) {
+    if (!staticDependencyIncomplete(state, url, imp, completeness)) continue;
+    completeness.set(url, false);
+    return false;
+  }
+  return true;
+}
+
+function shouldCheckDynamicRoot(state: ModuleGraphState, url: string): boolean {
+  return state.modules.has(url) && state.viaDyn.get(url) !== false;
+}
+
+function evictIncompleteRootPass(state: ModuleGraphState): boolean {
+  let changed = false;
+  const completeness = new Map<string, boolean>();
+  for (const root of state.dynamicRoots) {
+    if (!shouldCheckDynamicRoot(state, root)) continue;
+    if (staticDependenciesComplete(state, root, completeness)) continue;
+    state.modules.delete(root);
+    state.evictedCount++;
+    changed = true;
+  }
+  return changed;
+}
+
+function evictIncompleteDynamicRoots(state: ModuleGraphState): void {
+  while (evictIncompleteRootPass(state)) {}
+}
+
+function pushReachableRoot(
+  state: ModuleGraphState,
+  reachable: Set<string>,
+  stack: string[],
+  url: string | null | undefined,
+): void {
+  if (!url || !state.modules.has(url) || reachable.has(url)) return;
+  reachable.add(url);
+  stack.push(url);
+}
+
+function reachableImportSpecifier(body: string, imp: LexedImport): string | null | undefined {
+  if (imp.t !== 1 && imp.t !== 2) return undefined;
+  return imp.n ?? (imp.t === 2 ? constSpecifier(body.slice(imp.s, imp.e)) : undefined);
+}
+
+function pushReachableImport(
+  state: ModuleGraphState,
+  url: string,
+  body: string,
+  imp: LexedImport,
+  reachable: Set<string>,
+  stack: string[],
+): void {
+  const specifier = reachableImportSpecifier(body, imp);
+  if (!specifier) return;
+  const resolved = resolveGraphModule(state, specifier, url);
+  pushReachableRoot(state, reachable, stack, resolved);
+}
+
+function visitReachableDependencies(
+  state: ModuleGraphState,
+  url: string,
+  reachable: Set<string>,
+  stack: string[],
+): void {
+  const body = state.modules.get(url);
+  if (body === undefined) return;
+  for (const imp of state.lexCache.get(url) ?? []) {
+    pushReachableImport(state, url, body, imp, reachable, stack);
+  }
+}
+
+function collectDeadlineReachableModules(state: ModuleGraphState): Set<string> {
+  const reachable = new Set<string>();
+  const stack: string[] = [];
+  for (const descriptor of state.moduleEntries) {
+    pushReachableRoot(state, reachable, stack, descriptor.resolvedSrc);
+  }
+  for (const url of state.classicSeeds) pushReachableRoot(state, reachable, stack, url);
+  for (const url of state.webpackChunkUrls) pushReachableRoot(state, reachable, stack, url);
+  while (stack.length > 0) visitNextReachableModule(state, stack, reachable);
+  return reachable;
+}
+
+function visitNextReachableModule(
+  state: ModuleGraphState,
+  stack: string[],
+  reachable: Set<string>,
+): void {
+  const url = stack.pop();
+  if (url !== undefined) visitReachableDependencies(state, url, reachable, stack);
+}
+
+function pruneUnreachableDynamicModules(state: ModuleGraphState, reachable: Set<string>): void {
+  for (const url of [...state.modules.keys()]) {
+    if (reachable.has(url) || state.viaDyn.get(url) !== true) continue;
+    state.modules.delete(url);
+    state.prunedCount++;
+  }
+}
+
+function pruneAfterWalkDeadline(state: ModuleGraphState): void {
+  if (!state.deadlineHit) return;
+  evictIncompleteDynamicRoots(state);
+  const reachable = collectDeadlineReachableModules(state);
+  pruneUnreachableDynamicModules(state, reachable);
+}
+
+function classicDynamicSpecifier(source: string, imp: LexedImport): string | null {
+  if (imp.t !== 2) return null;
+  return imp.n ?? constSpecifier(source.slice(imp.s, imp.e));
+}
+
+function sizeSkippedClassicRewrite(
+  state: ModuleGraphState,
+  url: string,
+  baseUrl: string,
+  imp: LexedImport,
+): SourceRewrite | null {
+  if (!state.sizeSkipped.has(url)) return null;
+  return {
+    start: imp.ss,
+    end: imp.se,
+    text: `__ks_import(${JSON.stringify(url)}, ${JSON.stringify(baseUrl)})`,
+  };
+}
+
+function registeredClassicRewrite(
+  url: string,
+  imp: LexedImport,
+  registryNames: ReadonlyMap<string, string>,
+): SourceRewrite | null {
+  const name = registryNames.get(url);
+  if (!name) return null;
+  return { start: imp.s, end: imp.e, text: JSON.stringify(name) };
+}
+
+function classicDynamicRegistryRewrite(
+  state: ModuleGraphState,
+  source: string,
+  baseUrl: string,
+  imp: LexedImport,
+  registryNames: ReadonlyMap<string, string>,
+): SourceRewrite | null {
+  const specifier = classicDynamicSpecifier(source, imp);
+  if (!specifier) return null;
+  const absolute = resolveAgainstImporter(specifier, baseUrl);
+  if (absolute === null) return null;
+  return (
+    sizeSkippedClassicRewrite(state, absolute, baseUrl, imp) ??
+    registeredClassicRewrite(absolute, imp, registryNames)
+  );
+}
+
+function classicDynamicRegistryRewrites(
+  state: ModuleGraphState,
+  source: string,
+  baseUrl: string,
+  registryNames: ReadonlyMap<string, string>,
+): SourceRewrite[] {
+  const imports = tryParseImports(source);
+  if (imports === null) return [];
+  const rewrites: SourceRewrite[] = [];
+  for (const imp of imports) {
+    const rewrite = classicDynamicRegistryRewrite(state, source, baseUrl, imp, registryNames);
+    if (rewrite !== null) rewrites.push(rewrite);
+  }
+  return rewrites;
+}
+
+interface ClassicDescriptorSource {
+  field: "prefetchedSource" | "body";
+  source: string;
+  baseUrl: string;
+}
+
+function classicDescriptorField(descriptor: ParentScriptDescriptor): "prefetchedSource" | "body" {
+  return descriptor.src ? "prefetchedSource" : "body";
+}
+
+function hasClassicDynamicImport(source: string | undefined): source is string {
+  return source !== undefined && source !== "" && /import\s*\(/.test(source);
+}
+
+function classicDescriptorBaseUrl(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+): string | null {
+  if (!descriptor.src) return state.entryBaseUrl;
+  return descriptor.resolvedSrc || resolveAgainstImporter(descriptor.src, state.entryBaseUrl);
+}
+
+function classicDescriptorSource(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+): ClassicDescriptorSource | null {
+  if (descriptor.kind === "module") return null;
+  const field = classicDescriptorField(descriptor);
+  const source = descriptor[field];
+  if (!hasClassicDynamicImport(source)) return null;
+  const baseUrl = classicDescriptorBaseUrl(state, descriptor);
+  if (!baseUrl) return null;
+  return { field, source, baseUrl };
+}
+
+function rewriteClassicDescriptor(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+  registryNames: ReadonlyMap<string, string>,
+): void {
+  const input = classicDescriptorSource(state, descriptor);
+  if (input === null) return;
+  const rewrites = classicDynamicRegistryRewrites(
+    state,
+    input.source,
+    input.baseUrl,
+    registryNames,
+  );
+  if (rewrites.length > 0) descriptor[input.field] = applyRewritesReverse(input.source, rewrites);
+}
+
+function rewriteClassicDescriptors(
+  state: ModuleGraphState,
+  registryNames: ReadonlyMap<string, string>,
+): void {
+  if (registryNames.size === 0 && state.sizeSkipped.size === 0) return;
+  for (const descriptor of state.descriptors) {
+    rewriteClassicDescriptor(state, descriptor, registryNames);
+  }
+}
+
+function removeRecoveredSizeSkips(state: ModuleGraphState): void {
+  for (const url of [...state.sizeSkipped]) {
+    if (state.modules.has(url)) state.sizeSkipped.delete(url);
+  }
+}
+
+function moduleRegistryName(url: string, registryNames: ReadonlyMap<string, string>): string {
+  return registryNames.get(url) ?? url;
+}
+
+function literalImportRange(imp: LexedImport): { start: number; end: number } {
+  return imp.t === 1 ? { start: imp.s - 1, end: imp.e + 1 } : { start: imp.s, end: imp.e };
+}
+
+function dynamicImportRanges(imports: ReturnType<typeof lexerParse>[0]): {
+  start: number;
+  end: number;
+}[] {
+  return imports.filter((imp) => imp.t === 2).map((imp) => ({ start: imp.ss, end: imp.se }));
+}
+
+function isInsideDynamicImport(
+  imp: LexedImport,
+  ranges: readonly { start: number; end: number }[],
+): boolean {
+  return ranges.some(({ start, end }) => imp.ss >= start && imp.se <= end);
+}
+
+function dynamicModuleSpecifier(body: string, imp: LexedImport): string | null {
+  return imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
+}
+
+function computedDynamicModuleRewrite(
+  body: string,
+  fromUrl: string,
+  imp: LexedImport,
+  syntheticImportMeta: string | undefined,
+): SourceRewrite | null {
+  if (imp.d < 0) return null;
+  const expression = rewriteImportMetaResolve(
+    dynamicImportExpression(body, imp),
+    fromUrl,
+    syntheticImportMeta,
+  );
+  return {
+    start: imp.ss,
+    end: imp.se,
+    text: `__ks_import(${expression}, ${JSON.stringify(fromUrl)})`,
+  };
+}
+
+function bakedDynamicRegistryName(
+  state: ModuleGraphState,
+  specifier: string,
+  fromUrl: string,
+  registryNames: ReadonlyMap<string, string>,
+): string | null {
+  const resolved = resolveGraphModule(state, specifier, fromUrl);
+  if (!resolved || !state.modules.has(resolved)) return null;
+  return moduleRegistryName(resolved, registryNames);
+}
+
+function mappedDynamicModuleRewrite(
+  specifier: string,
+  fromUrl: string,
+  imp: LexedImport,
+  mapped: string,
+): SourceRewrite | null {
+  if (nativelyResolvesTo(specifier, fromUrl, mapped)) return null;
+  return { ...literalImportRange(imp), text: JSON.stringify(mapped) };
+}
+
+function deferredDynamicModuleRewrite(
+  state: ModuleGraphState,
+  specifier: string,
+  fromUrl: string,
+  imp: LexedImport,
+): SourceRewrite {
+  state.deferredCount++;
+  return {
+    start: imp.ss,
+    end: imp.se,
+    text: `__ks_import(${JSON.stringify(specifier)}, ${JSON.stringify(fromUrl)})`,
+  };
+}
+
+function rewriteDynamicModuleImport(
+  state: ModuleGraphState,
+  body: string,
+  fromUrl: string,
+  imp: LexedImport,
+  syntheticImportMeta: string | undefined,
+  registryNames: ReadonlyMap<string, string>,
+): SourceRewrite | null {
+  const specifier = dynamicModuleSpecifier(body, imp);
+  if (!specifier) return computedDynamicModuleRewrite(body, fromUrl, imp, syntheticImportMeta);
+  const mapped = bakedDynamicRegistryName(state, specifier, fromUrl, registryNames);
+  if (mapped !== null) return mappedDynamicModuleRewrite(specifier, fromUrl, imp, mapped);
+  return deferredDynamicModuleRewrite(state, specifier, fromUrl, imp);
+}
+
+function rewriteImportMetaModuleReference(
+  body: string,
+  importer: string,
+  imp: LexedImport,
+  syntheticImportMeta: string | undefined,
+  dynamicRanges: readonly { start: number; end: number }[],
+): SourceRewrite | null {
+  if (isInsideDynamicImport(imp, dynamicRanges)) return null;
+  return importMetaRewrite(body, importer, syntheticImportMeta, imp);
+}
+
+function rewriteStaticModuleImport(
+  state: ModuleGraphState,
+  importer: string,
+  imp: LexedImport,
+  registryNames: ReadonlyMap<string, string>,
+): SourceRewrite | null {
+  if (imp.t !== 1 || !imp.n) return null;
+  const resolved = resolveGraphModule(state, imp.n, importer);
+  if (!resolved) return null;
+  const mapped = moduleRegistryName(resolved, registryNames);
+  if (nativelyResolvesTo(imp.n, importer, mapped)) return null;
+  return { ...literalImportRange(imp), text: JSON.stringify(mapped) };
+}
+
+function moduleImportRewrite(
+  state: ModuleGraphState,
+  body: string,
+  importer: string,
+  imp: LexedImport,
+  syntheticImportMeta: string | undefined,
+  dynamicRanges: readonly { start: number; end: number }[],
+  registryNames: ReadonlyMap<string, string>,
+): SourceRewrite | null {
+  if (imp.t === 2) {
+    return rewriteDynamicModuleImport(
+      state,
+      body,
+      importer,
+      imp,
+      syntheticImportMeta,
+      registryNames,
+    );
+  }
+  if (imp.t === 3) {
+    return rewriteImportMetaModuleReference(
+      body,
+      importer,
+      imp,
+      syntheticImportMeta,
+      dynamicRanges,
+    );
+  }
+  return rewriteStaticModuleImport(state, importer, imp, registryNames);
+}
+
+function moduleSourceRewrites(
+  state: ModuleGraphState,
+  body: string,
+  importer: string,
+  imports: ReturnType<typeof lexerParse>[0],
+  syntheticImportMeta: string | undefined,
+  registryNames: ReadonlyMap<string, string>,
+): SourceRewrite[] {
+  const ranges = dynamicImportRanges(imports);
+  const rewrites: SourceRewrite[] = [];
+  for (const imp of imports) {
+    const rewrite = moduleImportRewrite(
+      state,
+      body,
+      importer,
+      imp,
+      syntheticImportMeta,
+      ranges,
+      registryNames,
+    );
+    if (rewrite !== null) rewrites.push(rewrite);
+  }
+  return rewrites;
+}
+
+function uniqueSyntheticImportMeta(
+  body: string,
+  importer: string,
+  registryNames: ReadonlyMap<string, string>,
+): string | undefined {
+  if (moduleRegistryName(importer, registryNames) === importer) return undefined;
+  let name = "__ks_import_meta";
+  while (body.includes(name)) name += "_";
+  return name;
+}
+
+function parseCachedModuleImports(
+  state: ModuleGraphState,
+  importer: string,
+  body: string,
+): ReturnType<typeof lexerParse>[0] | null {
+  const cached = state.lexCache.get(importer);
+  if (cached !== undefined) return cached;
+  return parseModuleSource(body, importer)?.[0] ?? null;
+}
+
+function rewrittenModuleSource(
+  body: string,
+  rewrites: SourceRewrite[],
+  importer: string,
+  syntheticImportMeta: string | undefined,
+): string {
+  const rewritten = applyRewritesReverse(body, rewrites);
+  if (syntheticImportMeta === undefined) return rewritten;
+  const referrer = JSON.stringify(importer);
+  return (
+    `const ${syntheticImportMeta}=Object.assign(Object.create(null),` +
+    `{url:${referrer},resolve:(specifier)=>globalThis.__ks_resolve_import_map(specifier,${referrer})});\n` +
+    rewritten
+  );
+}
+
+function hasModuleSourceRewrites(
+  rewrites: SourceRewrite[],
+  syntheticImportMeta: string | undefined,
+): boolean {
+  return rewrites.length > 0 || syntheticImportMeta !== undefined;
+}
+
+function rewriteOneModuleSource(
+  state: ModuleGraphState,
+  importer: string,
+  body: string,
+  registryNames: ReadonlyMap<string, string>,
+): void {
+  if (state.jsonModules.has(importer)) return;
+  const imports = parseCachedModuleImports(state, importer, body);
+  if (imports === null) return;
+  const syntheticImportMeta = uniqueSyntheticImportMeta(body, importer, registryNames);
+  const rewrites = moduleSourceRewrites(
+    state,
+    body,
+    importer,
+    imports,
+    syntheticImportMeta,
+    registryNames,
+  );
+  if (!hasModuleSourceRewrites(rewrites, syntheticImportMeta)) return;
+  state.modules.set(importer, rewrittenModuleSource(body, rewrites, importer, syntheticImportMeta));
+}
+
+function rewriteModuleSources(
+  state: ModuleGraphState,
+  registryNames: ReadonlyMap<string, string>,
+): void {
+  for (const [url, body] of [...state.modules.entries()]) {
+    rewriteOneModuleSource(state, url, body, registryNames);
+  }
+}
+
+function applyModuleEntryResult(
+  state: ModuleGraphState,
+  descriptor: ParentScriptDescriptor,
+  registryNames: ReadonlyMap<string, string>,
+): void {
+  if (descriptor.prefetchError) return;
+  const url = descriptor.resolvedSrc;
+  if (!url) return;
+  const failure = state.failed.get(url);
+  if (failure !== undefined) {
+    descriptor.prefetchError = failure;
+    return;
+  }
+  const body = state.modules.get(url);
+  if (body == null) {
+    descriptor.prefetchError = `module not in graph after walk: ${url}`;
+    return;
+  }
+  descriptor.prefetchedSource = body;
+  descriptor.resolvedSrc = moduleRegistryName(url, registryNames);
+}
+
+function applyModuleEntryResults(
+  state: ModuleGraphState,
+  registryNames: ReadonlyMap<string, string>,
+): void {
+  for (const descriptor of state.moduleEntries) {
+    applyModuleEntryResult(state, descriptor, registryNames);
+  }
+}
+
+function appendFailureStats(state: ModuleGraphState, parts: string[]): void {
+  if (state.failed.size > 0) parts.push(`${state.failed.size} failed`);
+  if (state.deferredCount > 0) parts.push(`${state.deferredCount} dyn deferred->boa`);
+  if (state.oversizedDynamicSkipped > 0) {
+    parts.push(`${state.oversizedDynamicSkipped} oversized dyn skipped`);
+  }
+}
+
+function appendWalkLimitStats(state: ModuleGraphState, parts: string[]): void {
+  if (state.modules.size >= MAX_MODULES) parts.push(`hit MAX_MODULES=${MAX_MODULES} cap`);
+  if (state.deadlineHit) {
+    parts.push(
+      `hit ${WALK_DEADLINE_MS}ms deadline ` +
+        `(${state.deadlineSkipped} skipped, ${state.evictedCount} evicted, ${state.prunedCount} pruned)`,
+    );
+  }
+}
+
+function graphWalkSummary(state: ModuleGraphState): string[] {
+  const parts = [
+    `${state.moduleEntries.length} module entr${state.moduleEntries.length === 1 ? "y" : "ies"}`,
+    `${state.modules.size} modules baked`,
+    `${state.totalFetches} fetches`,
+  ];
+  appendFailureStats(state, parts);
+  parts.push(`${(state.bakedBytes / BYTES_PER_MIB).toFixed(1)}MiB baked`);
+  appendWalkLimitStats(state, parts);
+  parts.push(`${Date.now() - state.walkStartedAt}ms`);
+  return parts;
+}
+
+function logGraphWalkSummary(state: ModuleGraphState): void {
+  if (state.totalFetches === 0 && state.moduleEntries.length === 0) return;
+  console.log(`[kitesurf-walk] ${graphWalkSummary(state).join(", ")}`);
+}
+
+function graphAdditionalModules(
+  state: ModuleGraphState,
+  registryNames: ReadonlyMap<string, string>,
+): Record<string, BakedModule> {
   const additionalModules: Record<string, BakedModule> = {};
-  for (const [u, body] of modules) {
-    additionalModules[registryName(u)] = jsonModules.has(u) ? { json: jsonModules.get(u) } : body;
+  for (const [url, body] of state.modules) {
+    const name = moduleRegistryName(url, registryNames);
+    additionalModules[name] = state.jsonModules.has(url)
+      ? { json: state.jsonModules.get(url) }
+      : body;
   }
+  return additionalModules;
+}
+
+export async function walkModuleGraph(input: WalkModuleGraphInput): Promise<WalkResult> {
+  const state = createModuleGraphState(input);
+  prepareModuleDocument(state);
+  if (isGraphWalkEmpty(state)) return emptyGraphResult(state);
+  state.outbound = createGraphOutbound(state);
+  initializeGraphQueue(state);
+  state.walkStartedAt = Date.now();
+  await runGraphWorkers(state);
+  await discoverWebpackChunks(state);
+  pruneAfterWalkDeadline(state);
+
+  const registryNames = assignModuleRegistryNames(state.modules.keys());
+  removeRecoveredSizeSkips(state);
+  rewriteClassicDescriptors(state, registryNames);
+  rewriteModuleSources(state, registryNames);
+  applyModuleEntryResults(state, registryNames);
+  logGraphWalkSummary(state);
 
   return {
-    descriptors: out,
-    additionalModules,
-    importMapModuleSource: importMapModuleSource(importMap, registryNames),
+    descriptors: state.descriptors,
+    additionalModules: graphAdditionalModules(state, registryNames),
+    importMapModuleSource: importMapModuleSource(state.importMap, registryNames),
   };
 }

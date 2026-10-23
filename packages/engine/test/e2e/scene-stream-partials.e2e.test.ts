@@ -35,11 +35,7 @@ test("scene patches composite through the CLI wasm and recover with full frames"
     if (bytes[0] === 3 || bytes[0] === 5) frames.push(bytes);
   });
   let consumed = 0;
-  const next = async (painted = true) => {
-    await expect.poll(() => frames.length, { timeout: 5000 }).toBeGreaterThan(consumed);
-    const frame = frames[consumed++];
-    if (!frame) throw new Error("missing scene frame");
-    for (const batch of resources.splice(0)) await call(1, batch);
+  const render = async (frame: Uint8Array, painted: boolean) => {
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
     const seq = view.getUint32(3, true);
     const partial = frame[0] === 5;
@@ -49,6 +45,13 @@ test("scene patches composite through the CLI wasm and recover with full frames"
     const raw = await call(partial ? 16 : 15, input(fields, frame.subarray(partial ? 31 : 11)));
     await cdpSession.send("Kitesurf.sceneFrameAck", { seq, painted });
     return { frame, seq, raw };
+  };
+  const next = async (painted = true) => {
+    await expect.poll(() => frames.length, { timeout: 5000 }).toBeGreaterThan(consumed);
+    const frame = frames[consumed++];
+    if (!frame) throw new Error("missing scene frame");
+    for (const batch of resources.splice(0)) await call(1, batch);
+    return render(frame, painted);
   };
   await page.setViewport({ width: 800, height: 600 });
   // Unchanged boxes make a full scene substantially larger than the checkbox patch.

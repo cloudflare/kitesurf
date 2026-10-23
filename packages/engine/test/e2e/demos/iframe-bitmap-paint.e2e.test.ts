@@ -12,21 +12,26 @@ test("iframe-bitmap-paint", async ({ page }) => {
   });
 
   const rc = await page.evaluate(() => {
+    const hasValidNodeId = (nodeId: number): boolean => typeof nodeId === "number" && nodeId > 0;
+    const makeRedPixels = (width: number, height: number): Uint8Array => {
+      const rgba = new Uint8Array(width * height * 4);
+      for (let i = 0; i < rgba.length; i += 4) {
+        rgba[i] = 255;
+        rgba[i + 1] = 0;
+        rgba[i + 2] = 0;
+        rgba[i + 3] = 255;
+      }
+      return rgba;
+    };
     const el = document.querySelector("iframe#tgt") as any;
     if (!el) return { ok: false, why: "iframe not found" };
     const nodeId: number = el._id;
-    if (typeof nodeId !== "number" || nodeId <= 0) {
+    if (!hasValidNodeId(nodeId)) {
       return { ok: false, why: `bad _id: ${nodeId}` };
     }
     const W = 200,
       H = 150;
-    const rgba = new Uint8Array(W * H * 4);
-    for (let i = 0; i < rgba.length; i += 4) {
-      rgba[i] = 255;
-      rgba[i + 1] = 0;
-      rgba[i + 2] = 0;
-      rgba[i + 3] = 255;
-    }
+    const rgba = makeRedPixels(W, H);
     const dom = (globalThis as any).__ks_dom_debug;
     if (!dom || typeof dom.setIframeImage !== "function") {
       return { ok: false, why: "setIframeImage not exposed" };

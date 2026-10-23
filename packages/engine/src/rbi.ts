@@ -104,7 +104,7 @@ export function wakeSceneFlow(flow: SceneFlow): void {
 // push `sent - acked` negative and wedge the credit gate open. Recovery may resend a mutation
 // sequence, so outstanding frames are a per-sequence count.
 export function claimSceneAck(flow: SceneFlow, seq: unknown): boolean {
-  if (typeof seq !== "number" || !Number.isFinite(seq)) return false;
+  if (!isSceneAckSequence(seq)) return false;
   const n = flow.outstanding.get(seq);
   if (!n) return false;
   if (n === 1) flow.outstanding.delete(seq);
@@ -112,6 +112,10 @@ export function claimSceneAck(flow: SceneFlow, seq: unknown): boolean {
   flow.acked = Math.min(flow.acked + 1, flow.sent);
   flow.wake?.();
   return true;
+}
+
+function isSceneAckSequence(seq: unknown): seq is number {
+  return typeof seq === "number" && Number.isFinite(seq);
 }
 
 function trackSceneSent(flow: SceneFlow, seq: number): void {
@@ -147,298 +151,674 @@ type RecordScene = (args: {
   haveFonts?: Uint8Array;
 }) => Promise<RecordSceneReply>;
 
+interface SceneLoopOptions {
+  w: number;
+  h: number;
+  fps: number;
+  text: boolean;
+  allowPartial?: boolean;
+  now?: () => number;
+  canIdle?: () => boolean;
+}
+
+interface SceneLoopContext {
+  recordScene: RecordScene;
+  server: Pick<WebSocket, "send">;
+  isClosed: () => boolean;
+  flow: SceneFlow;
+  opts: SceneLoopOptions;
+  getGeneration: () => number;
+  tracer: Tracer | undefined;
+  clock: () => number;
+}
+
+interface PendingFrame {
+  seq: number;
+  bytes: Uint8Array;
+  resBytes: Uint8Array | null;
+  partial: boolean;
+  clip: { x: number; y: number; w: number; h: number } | null;
+  baseSeq: number;
+  recordMs: number;
+  tRecordDone: number;
+  w: number;
+  h: number;
+}
+
+interface PumpStats {
+  calls: number;
+  pumpMsTotal: number;
+  byVal: Record<number, number>;
+}
+
+interface SceneLoopState {
+  period: number;
+  generation: number;
+  wireBase: number;
+  maxWireSeq: number;
+  lastSeq: number;
+  paintedSeq: number;
+  lastFullScene: {
+    bytes: Uint8Array;
+    resources?: Uint8Array;
+    scrollX: number;
+    scrollY: number;
+  } | null;
+  due: number;
+  idleUntil: number;
+  creditWaitMs: number;
+  fpsWaitMs: number;
+  lastSendAt: number;
+  lastWireAt: number;
+  spanBudget: number;
+  pumpStats: PumpStats;
+  pending: PendingFrame | null;
+  forceFull: boolean;
+}
+
+type SceneLoopStep = "continue" | "stop";
+type SceneReadyStep = SceneLoopStep | "record";
+
+interface RecordRequest {
+  kind: "record";
+  promise: Promise<RecordSceneReply>;
+}
+
+interface StopRecordRequest {
+  kind: "stop";
+}
+
+type RecordRequestStart = RecordRequest | StopRecordRequest;
+
+interface RecordAwaitResult {
+  reply: RecordSceneReply;
+  heartbeatFailed: boolean;
+}
+
+interface RecordSceneCompletion {
+  reply: RecordSceneReply;
+  forceFull: boolean;
+  tRecordStart: number;
+  tRecordDone: number;
+  recordedW: number;
+  recordedH: number;
+}
+
+function createSceneLoopState(context: SceneLoopContext): SceneLoopState {
+  return {
+    period: Math.max(MIN_FRAME_INTERVAL_MS, Math.floor(MILLISECONDS_PER_SECOND / context.opts.fps)),
+    generation: context.getGeneration(),
+    wireBase: 0,
+    maxWireSeq: -1,
+    lastSeq: -1,
+    paintedSeq: -1,
+    lastFullScene: null,
+    due: 0,
+    idleUntil: 0,
+    creditWaitMs: 0,
+    fpsWaitMs: 0,
+    lastSendAt: 0,
+    lastWireAt: 0,
+    spanBudget: MAX_FRAME_TRACE_SPANS,
+    pumpStats: { calls: 0, pumpMsTotal: 0, byVal: {} },
+    pending: null,
+    forceFull: false,
+  };
+}
+
+function sleepWithSceneWake(flow: SceneFlow, ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      if (flow.wake === wake) flow.wake = undefined;
+      resolve();
+    };
+    let timer = setTimeout(done, ms);
+    const wake = () => {
+      clearTimeout(timer);
+      // Yield through a timer even for ACKs, so a fast client cannot starve other work.
+      timer = setTimeout(done, 0);
+    };
+    flow.wake = wake;
+  });
+}
+
+function resetSceneGeneration(context: SceneLoopContext, state: SceneLoopState): boolean {
+  const current = context.getGeneration();
+  if (current === state.generation) return false;
+  state.generation = current;
+  state.pending = null;
+  state.lastSeq = -1;
+  state.paintedSeq = -1;
+  state.lastFullScene = null;
+  state.idleUntil = 0;
+  state.due = 0;
+  // Wire sequences stay monotonic although PageScript sequences reset on navigation.
+  state.wireBase = state.maxWireSeq + 1;
+  context.flow.sent = 0;
+  context.flow.acked = 0;
+  context.flow.outstanding.clear();
+  context.flow.needFull = false;
+  context.server.send(infoEnvelope({ t: "sceneReset" }));
+  return true;
+}
+
+function sendSceneHeartbeat(context: SceneLoopContext, state: SceneLoopState): boolean {
+  if (context.clock() - state.lastWireAt < SCENE_HEARTBEAT_MS) return true;
+  // A heartbeat proves stream liveness; it does not finish the pending record.
+  try {
+    context.server.send(infoEnvelope({ t: "sceneAlive" }));
+  } catch {
+    return false;
+  }
+  state.lastWireAt = context.clock();
+  return true;
+}
+
+function sendPendingFrame(context: SceneLoopContext, frame: PendingFrame): boolean {
+  try {
+    if (frame.resBytes) {
+      context.server.send(sceneEnvelope(MSG_RESOURCES, 0, frame.w, frame.h, frame.resBytes));
+    }
+    if (frame.partial && frame.clip) {
+      context.server.send(partialEnvelope(frame.seq, frame.clip, frame.baseSeq, frame.bytes));
+    } else {
+      context.server.send(sceneEnvelope(MSG_SCENE, frame.seq, frame.w, frame.h, frame.bytes));
+    }
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+function tracePendingFrame(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  frame: PendingFrame,
+  sentAt: number,
+): void {
+  if (!context.tracer || state.spanBudget <= 0) return;
+  state.spanBudget--;
+  traceSpan(context.tracer, "rbi.frame", () => {}, {
+    seq: frame.seq,
+    partial: frame.partial,
+    sceneBytes: frame.bytes.length,
+    resBytes: frame.resBytes ? frame.resBytes.length : 0,
+    recordMs: frame.recordMs,
+    sendLagMs: sentAt - frame.tRecordDone,
+    creditWaitMs: state.creditWaitMs,
+    fpsWaitMs: state.fpsWaitMs,
+    interFrameMs: state.lastSendAt > 0 ? sentAt - state.lastSendAt : 0,
+    inFlight: context.flow.sent - context.flow.acked,
+  });
+}
+
+function flushPendingFrame(context: SceneLoopContext, state: SceneLoopState): boolean {
+  const frame = state.pending;
+  if (!frame) return true;
+  state.pending = null;
+  if (!sendPendingFrame(context, frame)) return false;
+  const sentAt = context.clock();
+  tracePendingFrame(context, state, frame, sentAt);
+  state.lastSendAt = sentAt;
+  state.lastWireAt = sentAt;
+  state.creditWaitMs = 0;
+  state.fpsWaitMs = 0;
+  return true;
+}
+
+function canWaitForIdle(context: SceneLoopContext, state: SceneLoopState, now: number): boolean {
+  return (
+    state.idleUntil > now &&
+    !context.flow.paintDirty &&
+    !context.flow.needFull &&
+    context.opts.canIdle?.() !== false
+  );
+}
+
+async function waitInIdleWindow(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  now: number,
+): Promise<boolean> {
+  if (!flushPendingFrame(context, state) || !sendSceneHeartbeat(context, state)) return false;
+  if (context.flow.paintDirty || context.flow.needFull) return true;
+  await sleepWithSceneWake(
+    context.flow,
+    Math.min(state.idleUntil - now, SCENE_HEARTBEAT_MS - (context.clock() - state.lastWireAt)),
+  );
+  return true;
+}
+
+async function waitForFramePeriod(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  now: number,
+): Promise<boolean> {
+  if (!flushPendingFrame(context, state)) return false;
+  const startedAt = context.clock();
+  await sleepWithSceneWake(context.flow, Math.min(state.due - now, FRAME_WAIT_SLICE_MS));
+  state.fpsWaitMs += context.clock() - startedAt;
+  return true;
+}
+
+async function waitForSceneCredit(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+): Promise<boolean> {
+  if (!flushPendingFrame(context, state)) return false;
+  if (!sendSceneHeartbeat(context, state)) return false;
+  const startedAt = context.clock();
+  await sleepWithSceneWake(context.flow, SCENE_CREDIT_POLL_MS);
+  state.creditWaitMs += context.clock() - startedAt;
+  return true;
+}
+
+async function waitForIdleIfNeeded(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  now: number,
+): Promise<SceneLoopStep | null> {
+  if (!canWaitForIdle(context, state, now)) return null;
+  return (await waitInIdleWindow(context, state, now)) ? "continue" : "stop";
+}
+
+async function waitForFramePeriodIfNeeded(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  now: number,
+): Promise<SceneLoopStep | null> {
+  if (now >= state.due) return null;
+  return (await waitForFramePeriod(context, state, now)) ? "continue" : "stop";
+}
+
+async function waitForCreditIfNeeded(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+): Promise<SceneLoopStep | null> {
+  if (context.flow.sent - context.flow.acked < MAX_SCENES_IN_FLIGHT) return null;
+  return (await waitForSceneCredit(context, state)) ? "continue" : "stop";
+}
+
+function beginSceneFrame(context: SceneLoopContext, state: SceneLoopState, now: number): void {
+  state.due = now + state.period;
+  state.forceFull = context.flow.needFull;
+  if (state.forceFull) {
+    context.flow.needFull = false;
+    state.paintedSeq = -1;
+    state.lastFullScene = null;
+    state.lastSeq = -1;
+  }
+}
+
+async function waitForSceneFrame(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+): Promise<SceneReadyStep> {
+  const now = context.clock();
+  const idle = await waitForIdleIfNeeded(context, state, now);
+  if (idle !== null) return idle;
+  state.idleUntil = 0;
+  const period = await waitForFramePeriodIfNeeded(context, state, now);
+  if (period !== null) return period;
+  const credit = await waitForCreditIfNeeded(context, state);
+  if (credit !== null) return credit;
+  beginSceneFrame(context, state, now);
+  return "record";
+}
+
+function recordSceneArguments(context: SceneLoopContext, state: SceneLoopState) {
+  return {
+    ...(context.opts.text ? { producer: "client" as const } : {}),
+    sinceSeq: state.lastSeq,
+    allowPartial: !context.opts.text && context.opts.allowPartial !== false,
+    baseSeq: state.paintedSeq < 0 ? -1 : state.paintedSeq - state.wireBase,
+    inlineResources: true,
+    // Deployed isolates can defer timer wakes under CPU load, so each record also runs
+    // overdue rAF callbacks and timers; the scene stream doubles as the page's vsync.
+    pumpRaf: true,
+    frameIntervalMs: state.period,
+    armWake: context.opts.canIdle?.() !== false,
+  };
+}
+
+function startSceneRecord(context: SceneLoopContext, state: SceneLoopState): RecordRequestStart {
+  const promise = context.recordScene(recordSceneArguments(context, state));
+  if (resetSceneGeneration(context, state)) return { kind: "record", promise };
+  if (!flushPendingFrame(context, state)) return { kind: "stop" };
+  return { kind: "record", promise };
+}
+
+async function awaitSceneRecord(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  promise: Promise<RecordSceneReply>,
+): Promise<RecordAwaitResult> {
+  let heartbeatFailed = false;
+  const heartbeat = setInterval(() => {
+    if (context.isClosed() || !sendSceneHeartbeat(context, state)) {
+      heartbeatFailed = true;
+      clearInterval(heartbeat);
+    }
+  }, SCENE_HEARTBEAT_MS);
+  try {
+    const reply = await promise;
+    return { reply, heartbeatFailed };
+  } finally {
+    clearInterval(heartbeat);
+  }
+}
+
+function shouldMarkSceneIdle(reply: RecordSceneReply, flow: SceneFlow): boolean {
+  return reply.idle === true && !reply.error && !flow.paintDirty && hasIdleSceneContent(reply);
+}
+
+function hasIdleSceneContent(reply: RecordSceneReply): boolean {
+  return Boolean(reply.unchanged || reply.scene?.length);
+}
+
+function applySceneReplyTiming(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  reply: RecordSceneReply,
+  tRecordDone: number,
+): void {
+  if (reply.nextRafDelayMs !== undefined && reply.nextRafDelayMs > 0) {
+    state.due = Math.min(state.due, tRecordDone + reply.nextRafDelayMs);
+  }
+  if (shouldMarkSceneIdle(reply, context.flow)) {
+    state.idleUntil = tRecordDone + SCENE_HEARTBEAT_MS;
+  }
+}
+
+function updatePumpStats(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  reply: RecordSceneReply,
+): void {
+  const { pumpStats } = state;
+  pumpStats.calls++;
+  const pumped = typeof reply.pumped === "number" ? reply.pumped : -1;
+  pumpStats.byVal[pumped] = (pumpStats.byVal[pumped] ?? 0) + 1;
+  pumpStats.pumpMsTotal += reply.pumpMs ?? 0;
+  if (pumpStats.calls % PUMP_STATS_CALL_INTERVAL === 0) sendPumpStats(context, pumpStats);
+}
+
+function sendPumpStats(context: SceneLoopContext, pumpStats: PumpStats): void {
+  try {
+    context.server.send(
+      infoEnvelope({
+        t: "pumpStats",
+        pumpMsTotal: pumpStats.pumpMsTotal,
+        ...pumpStats.byVal,
+      }),
+    );
+  } catch {}
+}
+
+function sceneReplyBytes(reply: RecordSceneReply): Uint8Array | null {
+  if (reply.error || reply.unchanged || !reply.scene || reply.scene.length === 0) return null;
+  return reply.scene;
+}
+
+function handleUnpaintableSceneReply(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  reply: RecordSceneReply,
+): SceneLoopStep {
+  if (typeof reply.seq === "number") state.lastSeq = reply.seq;
+  if (reply.error) return "continue";
+  return sendSceneHeartbeat(context, state) ? "continue" : "stop";
+}
+
+function sameSceneBytes(a: Uint8Array | undefined, b: Uint8Array | undefined): boolean {
+  return (
+    a === b ||
+    (a !== undefined &&
+      b !== undefined &&
+      a.length === b.length &&
+      a.every((value, index) => value === b[index]))
+  );
+}
+
+function sameSceneViewport(
+  previous: NonNullable<SceneLoopState["lastFullScene"]>,
+  reply: RecordSceneReply,
+): boolean {
+  return previous.scrollX === (reply.scrollX ?? 0) && previous.scrollY === (reply.scrollY ?? 0);
+}
+
+function sameScenePayload(
+  previous: NonNullable<SceneLoopState["lastFullScene"]>,
+  resources: Uint8Array | undefined,
+  bytes: Uint8Array,
+): boolean {
+  return sameSceneBytes(previous.resources, resources) && sameSceneBytes(previous.bytes, bytes);
+}
+
+function isDuplicateFullScene(
+  state: SceneLoopState,
+  forceFull: boolean,
+  reply: RecordSceneReply,
+  full: boolean,
+  resources: Uint8Array | undefined,
+  bytes: Uint8Array,
+): boolean {
+  if (!full) return false;
+  if (forceFull) return false;
+  const previous = state.lastFullScene;
+  if (!previous) return false;
+  return sameSceneViewport(previous, reply) && sameScenePayload(previous, resources, bytes);
+}
+
+function duplicateSceneStep(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  forceFull: boolean,
+  reply: RecordSceneReply,
+  full: boolean,
+  resources: Uint8Array | undefined,
+  bytes: Uint8Array,
+): SceneLoopStep | null {
+  if (!isDuplicateFullScene(state, forceFull, reply, full, resources, bytes)) return null;
+  return sendSceneHeartbeat(context, state) ? "continue" : "stop";
+}
+
+function updateLastFullScene(
+  state: SceneLoopState,
+  reply: RecordSceneReply,
+  full: boolean,
+  resources: Uint8Array | undefined,
+  bytes: Uint8Array,
+): void {
+  state.lastFullScene = full
+    ? {
+        bytes,
+        resources,
+        scrollX: reply.scrollX ?? 0,
+        scrollY: reply.scrollY ?? 0,
+      }
+    : null;
+}
+
+function replyResources(reply: RecordSceneReply): Uint8Array | undefined {
+  return reply.resourceBatch?.length ? reply.resourceBatch : undefined;
+}
+
+function pendingFrameClip(
+  reply: RecordSceneReply,
+): { x: number; y: number; w: number; h: number } | null {
+  return reply.clip
+    ? {
+        x: reply.clip.x - (reply.scrollX ?? 0),
+        y: reply.clip.y - (reply.scrollY ?? 0),
+        w: reply.clip.w,
+        h: reply.clip.h,
+      }
+    : null;
+}
+
+function pendingFrameIsPartial(reply: RecordSceneReply): boolean {
+  return !!(reply.partial && reply.clip);
+}
+
+function pendingFrameBaseSequence(reply: RecordSceneReply, wireBase: number): number {
+  return reply.baseSeq === undefined ? -1 : reply.baseSeq + wireBase;
+}
+
+function createPendingFrame(
+  completion: RecordSceneCompletion,
+  seq: number,
+  resources: Uint8Array | undefined,
+  bytes: Uint8Array,
+  wireBase: number,
+): PendingFrame {
+  const { reply } = completion;
+  return {
+    seq,
+    bytes,
+    resBytes: resources ?? null,
+    partial: pendingFrameIsPartial(reply),
+    clip: pendingFrameClip(reply),
+    baseSeq: pendingFrameBaseSequence(reply, wireBase),
+    recordMs: completion.tRecordDone - completion.tRecordStart,
+    tRecordDone: completion.tRecordDone,
+    w: completion.recordedW,
+    h: completion.recordedH,
+  };
+}
+
+function queueSceneFrame(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  completion: RecordSceneCompletion,
+  seq: number,
+  full: boolean,
+  resources: Uint8Array | undefined,
+  bytes: Uint8Array,
+): void {
+  const { reply } = completion;
+  updateLastFullScene(state, reply, full, resources, bytes);
+  state.paintedSeq = seq;
+  trackSceneSent(context.flow, seq);
+  state.pending = createPendingFrame(completion, seq, resources, bytes, state.wireBase);
+}
+
+function handleSceneRecordReply(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  completion: RecordSceneCompletion,
+): SceneLoopStep {
+  const { reply } = completion;
+  applySceneReplyTiming(context, state, reply, completion.tRecordDone);
+  updatePumpStats(context, state, reply);
+  const bytes = sceneReplyBytes(reply);
+  if (bytes === null) return handleUnpaintableSceneReply(context, state, reply);
+  return handlePaintableSceneReply(context, state, completion, reply, bytes);
+}
+
+function handlePaintableSceneReply(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+  completion: RecordSceneCompletion,
+  reply: RecordSceneReply,
+  bytes: Uint8Array,
+): SceneLoopStep {
+  state.lastSeq = reply.seq ?? 0;
+  const seq = state.lastSeq + state.wireBase;
+  state.maxWireSeq = Math.max(state.maxWireSeq, seq);
+  const full = !(reply.partial && reply.clip);
+  const resources = replyResources(reply);
+  const duplicate = duplicateSceneStep(
+    context,
+    state,
+    completion.forceFull,
+    reply,
+    full,
+    resources,
+    bytes,
+  );
+  if (duplicate !== null) return duplicate;
+  queueSceneFrame(context, state, completion, seq, full, resources, bytes);
+  return "continue";
+}
+
+type SceneRecordAttempt =
+  | { kind: "record"; reply: RecordSceneReply }
+  | { kind: "continue" }
+  | { kind: "stop" };
+
+async function performSceneRecord(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+): Promise<SceneRecordAttempt> {
+  try {
+    const started = startSceneRecord(context, state);
+    if (started.kind === "stop") return { kind: "stop" };
+    const awaited = await awaitSceneRecord(context, state, started.promise);
+    if (awaited.heartbeatFailed || context.isClosed()) return { kind: "stop" };
+    return { kind: "record", reply: awaited.reply };
+  } catch {
+    return { kind: "continue" };
+  }
+}
+
+async function recordSceneFrame(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+): Promise<SceneLoopStep> {
+  const tRecordStart = context.clock();
+  const recordedW = context.opts.w;
+  const recordedH = context.opts.h;
+  const forceFull = state.forceFull;
+  context.flow.paintDirty = false;
+  const attempt = await performSceneRecord(context, state);
+  if (attempt.kind !== "record") return attempt.kind;
+  if (resetSceneGeneration(context, state)) return "continue";
+  const tRecordDone = context.clock();
+  return handleSceneRecordReply(context, state, {
+    reply: attempt.reply,
+    forceFull,
+    tRecordStart,
+    tRecordDone,
+    recordedW,
+    recordedH,
+  });
+}
+
+async function runSceneIteration(
+  context: SceneLoopContext,
+  state: SceneLoopState,
+): Promise<SceneLoopStep> {
+  resetSceneGeneration(context, state);
+  const ready = await waitForSceneFrame(context, state);
+  if (ready === "stop") return "stop";
+  if (ready === "continue") return "continue";
+  return recordSceneFrame(context, state);
+}
+
 export async function runSceneLoop(
   recordScene: RecordScene,
   server: Pick<WebSocket, "send">,
   isClosed: () => boolean,
   flow: SceneFlow,
-  opts: {
-    w: number;
-    h: number;
-    fps: number;
-    text: boolean;
-    allowPartial?: boolean;
-    now?: () => number;
-    canIdle?: () => boolean;
-  },
+  opts: SceneLoopOptions,
   getGeneration: () => number,
   tracer?: Tracer,
 ): Promise<void> {
-  const clock = opts.now ?? Date.now;
-  const period = Math.max(MIN_FRAME_INTERVAL_MS, Math.floor(MILLISECONDS_PER_SECOND / opts.fps));
-  let generation = getGeneration();
-  let wireBase = 0;
-  let maxWireSeq = -1;
-  let lastSeq = -1;
-  let paintedSeq = -1;
-  let lastFullScene: {
-    bytes: Uint8Array;
-    resources?: Uint8Array;
-    scrollX: number;
-    scrollY: number;
-  } | null = null;
-  let due = 0;
-  let idleUntil = 0;
-  let creditWaitMs = 0;
-  let fpsWaitMs = 0;
-  let lastSendAt = 0;
-  let lastWireAt = 0;
-  const sendHeartbeat = (): boolean => {
-    if (clock() - lastWireAt < SCENE_HEARTBEAT_MS) return true;
-    // A heartbeat proves stream liveness; it does not finish the pending record.
-    try {
-      server.send(infoEnvelope({ t: "sceneAlive" }));
-    } catch {
-      return false;
-    }
-    lastWireAt = clock();
-    return true;
+  const context: SceneLoopContext = {
+    recordScene,
+    server,
+    isClosed,
+    flow,
+    opts,
+    getGeneration,
+    tracer,
+    clock: opts.now ?? Date.now,
   };
-  let spanBudget = MAX_FRAME_TRACE_SPANS;
-  const pumpStats: {
-    calls: number;
-    pumpMsTotal: number;
-    byVal: Record<number, number>;
-  } = {
-    calls: 0,
-    pumpMsTotal: 0,
-    byVal: {},
-  };
-  const sleep = (ms: number) =>
-    new Promise<void>((resolve) => {
-      const done = () => {
-        if (flow.wake === wake) flow.wake = undefined;
-        resolve();
-      };
-      let timer = setTimeout(done, ms);
-      const wake = () => {
-        clearTimeout(timer);
-        // Yield through a timer even for ACKs, so a fast client cannot starve other work.
-        timer = setTimeout(done, 0);
-      };
-      flow.wake = wake;
-    });
-  const sameBytes = (a: Uint8Array | undefined, b: Uint8Array | undefined) =>
-    a === b ||
-    (a !== undefined &&
-      b !== undefined &&
-      a.length === b.length &&
-      a.every((value, index) => value === b[index]));
-  interface PendingFrame {
-    seq: number;
-    bytes: Uint8Array;
-    resBytes: Uint8Array | null;
-    partial: boolean;
-    clip: { x: number; y: number; w: number; h: number } | null;
-    baseSeq: number;
-    recordMs: number;
-    tRecordDone: number;
-    w: number;
-    h: number;
-  }
-  let pending: PendingFrame | null = null;
-  const resetGeneration = () => {
-    const current = getGeneration();
-    if (current === generation) return false;
-    generation = current;
-    pending = null;
-    lastSeq = -1;
-    paintedSeq = -1;
-    lastFullScene = null;
-    idleUntil = 0;
-    due = 0;
-    // Wire sequences stay monotonic although PageScript sequences reset on navigation.
-    wireBase = maxWireSeq + 1;
-    flow.sent = 0;
-    flow.acked = 0;
-    flow.outstanding.clear();
-    flow.needFull = false;
-    server.send(infoEnvelope({ t: "sceneReset" }));
-    return true;
-  };
-  const flushPending = (): boolean => {
-    if (!pending) return true;
-    const f = pending;
-    pending = null;
-    try {
-      if (f.resBytes) {
-        server.send(sceneEnvelope(MSG_RESOURCES, 0, f.w, f.h, f.resBytes));
-      }
-      if (f.partial && f.clip) {
-        server.send(partialEnvelope(f.seq, f.clip, f.baseSeq, f.bytes));
-      } else {
-        server.send(sceneEnvelope(MSG_SCENE, f.seq, f.w, f.h, f.bytes));
-      }
-    } catch {
-      return false;
-    }
-    const tSent = clock();
-    if (tracer && spanBudget > 0) {
-      spanBudget--;
-      traceSpan(tracer, "rbi.frame", () => {}, {
-        seq: f.seq,
-        partial: f.partial,
-        sceneBytes: f.bytes.length,
-        resBytes: f.resBytes ? f.resBytes.length : 0,
-        recordMs: f.recordMs,
-        sendLagMs: tSent - f.tRecordDone,
-        creditWaitMs,
-        fpsWaitMs,
-        interFrameMs: lastSendAt > 0 ? tSent - lastSendAt : 0,
-        inFlight: flow.sent - flow.acked,
-      });
-    }
-    lastSendAt = tSent;
-    lastWireAt = tSent;
-    creditWaitMs = 0;
-    fpsWaitMs = 0;
-    return true;
-  };
+  const state = createSceneLoopState(context);
   while (!isClosed()) {
-    resetGeneration();
-    const now = clock();
-    // Sleep while idle only if the page can wake this stream when paint changes.
-    if (idleUntil > now && !flow.paintDirty && !flow.needFull && opts.canIdle?.() !== false) {
-      if (!flushPending() || !sendHeartbeat()) return;
-      if (flow.paintDirty || flow.needFull) continue;
-      await sleep(Math.min(idleUntil - now, SCENE_HEARTBEAT_MS - (clock() - lastWireAt)));
-      continue;
-    }
-    idleUntil = 0;
-    if (now < due) {
-      if (!flushPending()) return;
-      const t0 = clock();
-      await sleep(Math.min(due - now, FRAME_WAIT_SLICE_MS));
-      fpsWaitMs += clock() - t0;
-      continue;
-    }
-    if (flow.sent - flow.acked >= MAX_SCENES_IN_FLIGHT) {
-      if (!flushPending()) return;
-      if (!sendHeartbeat()) return;
-      const t0 = clock();
-      await sleep(SCENE_CREDIT_POLL_MS);
-      creditWaitMs += clock() - t0;
-      continue;
-    }
-    due = now + period;
-    const forceFull = flow.needFull;
-    if (forceFull) {
-      flow.needFull = false;
-      paintedSeq = -1;
-      lastFullScene = null;
-      lastSeq = -1;
-    }
-    let r: RecordSceneReply;
-    const tRecordStart = clock();
-    const recordedW = opts.w;
-    const recordedH = opts.h;
-    // A wake arriving during the RPC must survive until the next record, even if
-    // this reply says idle. That closes the arm/reply/sleep lost-wakeup window.
-    flow.paintDirty = false;
-    try {
-      const p = recordScene({
-        ...(opts.text ? { producer: "client" as const } : {}),
-        sinceSeq: lastSeq,
-        allowPartial: !opts.text && opts.allowPartial !== false,
-        baseSeq: paintedSeq < 0 ? -1 : paintedSeq - wireBase,
-        inlineResources: true,
-        // Deployed isolates can defer timer wakes under CPU load, so each record also runs
-        // overdue rAF callbacks and timers; the scene stream doubles as the page's vsync.
-        pumpRaf: true,
-        frameIntervalMs: period,
-        armWake: opts.canIdle?.() !== false,
-      });
-      if (resetGeneration()) {
-      } else if (!flushPending()) return;
-      let heartbeatFailed = false;
-      const heartbeat = setInterval(() => {
-        if (isClosed() || !sendHeartbeat()) {
-          heartbeatFailed = true;
-          clearInterval(heartbeat);
-        }
-      }, SCENE_HEARTBEAT_MS);
-      try {
-        r = await p;
-      } finally {
-        clearInterval(heartbeat);
-      }
-      if (heartbeatFailed || isClosed()) return;
-    } catch {
-      continue;
-    }
-    if (resetGeneration()) continue;
-    const tRecordDone = clock();
-    if (r.nextRafDelayMs !== undefined && r.nextRafDelayMs > 0) {
-      due = Math.min(due, tRecordDone + r.nextRafDelayMs);
-    }
-    if (r.idle && !r.error && !flow.paintDirty && (r.unchanged || r.scene?.length)) {
-      idleUntil = tRecordDone + SCENE_HEARTBEAT_MS;
-    }
-    pumpStats.calls++;
-    const pv = typeof r.pumped === "number" ? r.pumped : -1;
-    pumpStats.byVal[pv] = (pumpStats.byVal[pv] ?? 0) + 1;
-    pumpStats.pumpMsTotal += r.pumpMs ?? 0;
-    if (pumpStats.calls % PUMP_STATS_CALL_INTERVAL === 0) {
-      try {
-        server.send(
-          infoEnvelope({
-            t: "pumpStats",
-            pumpMsTotal: pumpStats.pumpMsTotal,
-            ...pumpStats.byVal,
-          }),
-        );
-      } catch {}
-    }
-    if (r.error || r.unchanged || !r.scene || r.scene.length === 0) {
-      if (typeof r.seq === "number") lastSeq = r.seq;
-      if (!r.error && !sendHeartbeat()) return;
-      continue;
-    }
-    lastSeq = r.seq ?? 0;
-    const seq = lastSeq + wireBase;
-    maxWireSeq = Math.max(maxWireSeq, seq);
-    const bytes = r.scene;
-    const full = !(r.partial && r.clip);
-    const resources = r.resourceBatch?.length ? r.resourceBatch : undefined;
-    if (
-      full &&
-      !forceFull &&
-      lastFullScene &&
-      lastFullScene.scrollX === (r.scrollX ?? 0) &&
-      lastFullScene.scrollY === (r.scrollY ?? 0) &&
-      sameBytes(lastFullScene.resources, resources) &&
-      sameBytes(lastFullScene.bytes, bytes)
-    ) {
-      if (!sendHeartbeat()) return;
-      continue;
-    }
-    lastFullScene = full
-      ? { bytes, resources, scrollX: r.scrollX ?? 0, scrollY: r.scrollY ?? 0 }
-      : null;
-    {
-      paintedSeq = seq;
-      trackSceneSent(flow, seq);
-      pending = {
-        seq,
-        bytes,
-        resBytes: resources ?? null,
-        partial: !!(r.partial && r.clip),
-        // Convert recordScene's document-space clip to the RBI envelope's viewport space.
-        clip: r.clip
-          ? {
-              x: r.clip.x - (r.scrollX ?? 0),
-              y: r.clip.y - (r.scrollY ?? 0),
-              w: r.clip.w,
-              h: r.clip.h,
-            }
-          : null,
-        baseSeq: r.baseSeq === undefined ? -1 : r.baseSeq + wireBase,
-        recordMs: tRecordDone - tRecordStart,
-        tRecordDone,
-        w: recordedW,
-        h: recordedH,
-      };
-    }
+    const step = await runSceneIteration(context, state);
+    if (step === "stop") return;
   }
-  pending = null;
+  state.pending = null;
 }

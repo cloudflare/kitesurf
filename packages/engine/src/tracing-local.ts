@@ -41,10 +41,35 @@ function parseTraceparent(
   const m = TRACEPARENT_RE.exec(header);
   if (m === null) return null;
   const [, traceId, spanId, flags] = m;
-  if (!traceId || !spanId || !flags) return null;
+  const valid = validTraceIdentifiers(traceId, spanId, flags);
+  if (valid === null) return null;
+  return { traceId: valid.traceId, spanId: valid.spanId, traceFlags: parseInt(valid.flags, 16) };
+}
+
+function validTraceIdentifiers(
+  traceId: string | undefined,
+  spanId: string | undefined,
+  flags: string | undefined,
+): { traceId: string; spanId: string; flags: string } | null {
+  const identifiers = traceIdentifierValues(traceId, spanId, flags);
+  if (identifiers === null) return null;
+  const [validTraceId, validSpanId, validFlags] = identifiers;
   // The spec marks all-zero trace and parent ids invalid.
-  if (ALL_ZERO_RE.test(traceId) || ALL_ZERO_RE.test(spanId)) return null;
-  return { traceId, spanId, traceFlags: parseInt(flags, 16) };
+  if (hasZeroTraceIdentifier(validTraceId, validSpanId)) return null;
+  return { traceId: validTraceId, spanId: validSpanId, flags: validFlags };
+}
+
+function traceIdentifierValues(
+  traceId: string | undefined,
+  spanId: string | undefined,
+  flags: string | undefined,
+): [string, string, string] | null {
+  if (!traceId || !spanId || !flags) return null;
+  return [traceId, spanId, flags];
+}
+
+function hasZeroTraceIdentifier(traceId: string, spanId: string): boolean {
+  return ALL_ZERO_RE.test(traceId) || ALL_ZERO_RE.test(spanId);
 }
 
 type TagValue = SpanTags[string];
@@ -177,18 +202,23 @@ class LocalSpan implements Span {
     if (rec === null || this.#bytes > MAX_SPAN_BYTES) return;
     const tUs = nowUs();
     for (const [key, value] of Object.entries(logs)) {
-      if (rec.logs.length >= MAX_SPAN_LOGS) {
-        rec.droppedLogs++;
-        continue;
-      }
-      const size = valueSize(value);
-      this.#bytes += key.length + size;
-      if (this.#bytes > MAX_SPAN_BYTES) {
-        this.#limitError(rec, "log", key, size);
-        return;
-      }
-      rec.logs.push({ tUs, key, value });
+      if (this.#appendLog(rec, tUs, key, value)) return;
     }
+  }
+
+  #appendLog(rec: SpanRecord, tUs: number, key: string, value: TagValue): boolean {
+    if (rec.logs.length >= MAX_SPAN_LOGS) {
+      rec.droppedLogs++;
+      return false;
+    }
+    const size = valueSize(value);
+    this.#bytes += key.length + size;
+    if (this.#bytes > MAX_SPAN_BYTES) {
+      this.#limitError(rec, "log", key, size);
+      return true;
+    }
+    rec.logs.push({ tUs, key, value });
+    return false;
   }
 
   end(): void {
@@ -255,7 +285,8 @@ export class OtlpExporter {
   }
 
   async #flush(): Promise<void> {
-    if (this.#queue.length === 0 || this.#target === null) return;
+    const target = this.#target;
+    if (this.#queue.length === 0 || target === null) return;
     const batch = this.#queue;
     this.#queue = [];
     const init: RequestInit = {
@@ -265,22 +296,30 @@ export class OtlpExporter {
       signal: AbortSignal.timeout(OTLP_EXPORT_TIMEOUT_MS),
     };
     try {
-      const res =
-        "url" in this.#target
-          ? await fetch(this.#target.url, init)
-          : await this.#target.binding.fetch("http://otlp-capture/v1/traces", init);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await res.body?.cancel();
+      await sendOtlpBatch(target, init);
     } catch (err) {
-      if (this.#warned) return;
-      this.#warned = true;
-      console.warn(
-        `[local-trace] OTLP export failed (further failures silent): ${
-          err instanceof Error ? err.message : String(err)
-        } — is the collector up? (pnpm dev:tracing)`,
-      );
+      this.#warnExportFailure(err);
     }
   }
+
+  #warnExportFailure(err: unknown): void {
+    if (this.#warned) return;
+    this.#warned = true;
+    console.warn(
+      `[local-trace] OTLP export failed (further failures silent): ${
+        err instanceof Error ? err.message : String(err)
+      } — is the collector up? (pnpm dev:tracing)`,
+    );
+  }
+}
+
+async function sendOtlpBatch(target: OtlpTarget, init: RequestInit): Promise<void> {
+  const response =
+    "url" in target
+      ? await fetch(target.url, init)
+      : await target.binding.fetch("http://otlp-capture/v1/traces", init);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  await response.body?.cancel();
 }
 
 function otlpValue(v: TagValue): OtlpValue {
@@ -296,6 +335,23 @@ function otlpValue(v: TagValue): OtlpValue {
 
 function usToNanos(us: number): string {
   return (BigInt(Math.round(us)) * NANOSECONDS_PER_MICROSECOND).toString();
+}
+
+function finishSessionResult<T>(value: T, settle: () => void): T {
+  const ws: unknown =
+    value === null || value === undefined
+      ? undefined
+      : Reflect.get(Object(value), "webSocket", value);
+  if (!ws) settle();
+  return value;
+}
+
+function sessionParentSpanId(parent: { spanId: string; traceFlags: number } | undefined): string {
+  return parent?.spanId ?? ZERO_SPAN_ID;
+}
+
+function sessionTraceFlags(parent: { spanId: string; traceFlags: number } | undefined): number {
+  return parent?.traceFlags ?? 1;
 }
 
 export function toOtlpPayload(recs: SpanRecord[]): OtlpPayload {
@@ -467,7 +523,7 @@ export class LocalTracer implements Tracer {
     const rec: SpanRecord = {
       traceId,
       spanId: randHex(SPAN_ID_HEX_CHARS),
-      parentSpanId: parent?.spanId ?? ZERO_SPAN_ID,
+      parentSpanId: sessionParentSpanId(parent),
       name,
       startUs: nowUs(),
       endUs: 0,
@@ -481,7 +537,7 @@ export class LocalTracer implements Tracer {
       traceId,
       spanId: rec.spanId,
       parentSpanId: rec.parentSpanId,
-      traceFlags: parent?.traceFlags ?? 1,
+      traceFlags: sessionTraceFlags(parent),
       recording: true,
     };
     const settle = () => {
@@ -492,14 +548,7 @@ export class LocalTracer implements Tracer {
     const result = this.#als.run(ctx, fn);
     if (result instanceof Promise) {
       return result.then(
-        (value) => {
-          const ws: unknown =
-            value === null || value === undefined
-              ? undefined
-              : Reflect.get(Object(value), "webSocket", value);
-          if (!ws) settle();
-          return value;
-        },
+        (value) => finishSessionResult(value, settle),
         (err) => {
           settle();
           throw err;
@@ -543,6 +592,84 @@ interface LocalTracingEnv {
 
 let singleton: LocalTracer | null = null;
 let singletonExporter: OtlpExporter | null = null;
+
+function canArmLocalTracing(env: LocalTracingEnv): boolean {
+  return (
+    env.KITESURF_ENV === "local" &&
+    (env.HOST_TRACER === undefined || env.HOST_TRACER instanceof LocalTracer)
+  );
+}
+
+function ensureLocalTracer(env: LocalTracingEnv, ctx: ExecutionContext): LocalTracer {
+  if (singleton === null) {
+    singletonExporter = new OtlpExporter(targetFromEnv(env));
+    singleton = new LocalTracer(singletonExporter);
+  }
+  const tracer = singleton;
+  singletonExporter?.bind(ctx);
+  return tracer;
+}
+
+function incomingTraceparent(request: Request): string | null {
+  return request.headers.get(TRACE_HEADER)?.toLowerCase() ?? null;
+}
+
+function shouldTraceRequest(header: string | null, traceAll: string | undefined): boolean {
+  return header !== null || traceAll === "1";
+}
+
+function traceIdFromHeader(
+  header: string | null,
+  full: ReturnType<typeof parseTraceparent>,
+): string {
+  if (full) return full.traceId;
+  if (header !== null && TRACE_ID_RE.test(header)) return header;
+  return randHex(TRACE_ID_HEX_CHARS);
+}
+
+function parentFromTraceparent(
+  full: ReturnType<typeof parseTraceparent>,
+): { spanId: string; traceFlags: number } | undefined {
+  return full ? { spanId: full.spanId, traceFlags: full.traceFlags } : undefined;
+}
+
+function logNewTrace(traceId: string): void {
+  console.log(
+    `[local-trace] sampled trace ${traceId} — ` +
+      `http://localhost:16686/trace/${traceId.padStart(TRACE_ID_HEX_CHARS, "0")}`,
+  );
+}
+
+interface LocalRequestTrace {
+  traceId: string;
+  runTags: SpanTags;
+  parent: { spanId: string; traceFlags: number } | undefined;
+  isUpgrade: boolean;
+}
+
+function localRequestTrace(header: string | null, request: Request): LocalRequestTrace {
+  const full = header !== null ? parseTraceparent(header) : null;
+  const traceId = traceIdFromHeader(header, full);
+  const parent = parentFromTraceparent(full);
+  const url = new URL(request.url);
+  if (!parent) logNewTrace(traceId);
+  const runTags = { "http.method": request.method, "http.path": url.pathname };
+  const isUpgrade = (request.headers.get("upgrade") ?? "").toLowerCase() === "websocket";
+  return { traceId, runTags, parent, isUpgrade };
+}
+
+function runLocalRequest<R>(
+  tracer: LocalTracer,
+  isUpgrade: boolean,
+  traceId: string,
+  runTags: SpanTags,
+  parent: { spanId: string; traceFlags: number } | undefined,
+  fn: () => R,
+): R {
+  return isUpgrade
+    ? tracer.runTracedSession(traceId, "local.request", runTags, fn, parent)
+    : tracer.runTraced(traceId, "local.request", runTags, fn, parent);
+}
 
 function targetFromEnv(env: LocalTracingEnv): OtlpTarget | null {
   if (env.OTLP_CAPTURE) return { binding: env.OTLP_CAPTURE };
@@ -601,37 +728,14 @@ export function armLocalTracing(
   ctx: ExecutionContext,
   request: Request,
 ): (<R>(fn: () => R) => R) | null {
-  if (env.KITESURF_ENV !== "local") return null;
-  if (env.HOST_TRACER !== undefined && !(env.HOST_TRACER instanceof LocalTracer)) {
-    return null;
-  }
-  if (singleton === null) {
-    singletonExporter = new OtlpExporter(targetFromEnv(env));
-    singleton = new LocalTracer(singletonExporter);
-  }
-  const shim = singleton;
+  if (!canArmLocalTracing(env)) return null;
+  const shim = ensureLocalTracer(env, ctx);
   env.HOST_TRACER = shim;
-  singletonExporter?.bind(ctx);
-  const header = request.headers.get(TRACE_HEADER)?.toLowerCase() ?? null;
-  if (header === null && env.KITESURF_TRACE_ALL !== "1") return null;
-  const full = header !== null ? parseTraceparent(header) : null;
-  const traceId =
-    full?.traceId ??
-    (header !== null && TRACE_ID_RE.test(header) ? header : randHex(TRACE_ID_HEX_CHARS));
-  const parent = full ? { spanId: full.spanId, traceFlags: full.traceFlags } : undefined;
-  const url = new URL(request.url);
-  if (!parent) {
-    console.log(
-      `[local-trace] sampled trace ${traceId} — ` +
-        `http://localhost:16686/trace/${traceId.padStart(TRACE_ID_HEX_CHARS, "0")}`,
-    );
-  }
-  const runTags = { "http.method": request.method, "http.path": url.pathname };
-  const isUpgrade = (request.headers.get("upgrade") ?? "").toLowerCase() === "websocket";
+  const header = incomingTraceparent(request);
+  if (!shouldTraceRequest(header, env.KITESURF_TRACE_ALL)) return null;
+  const trace = localRequestTrace(header, request);
   return (fn) =>
-    isUpgrade
-      ? shim.runTracedSession(traceId, "local.request", runTags, fn, parent)
-      : shim.runTraced(traceId, "local.request", runTags, fn, parent);
+    runLocalRequest(shim, trace.isUpgrade, trace.traceId, trace.runTags, trace.parent, fn);
 }
 
 export function createLocalTracerForTest(target: OtlpTarget | null): {

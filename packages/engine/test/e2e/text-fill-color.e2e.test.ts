@@ -29,17 +29,20 @@ test("-webkit-text-fill-color paints the glyph fill", async ({ page, cdpSession 
   })) as { data: string };
   const png = await decodePng(b64Bytes(shot.data));
 
+  const channel = (index: number) => png.data[index] ?? 0;
+  const pixel = (index: number): [number, number, number] => [
+    channel(index),
+    channel(index + 1),
+    channel(index + 2),
+  ];
+  const isRed = (px: [number, number, number]) => px[0] > 150 && px[2] < 110;
   const scanBand = ([y0, y1]: readonly [number, number]) => {
     let best: [number, number, number] = [255, 255, 255];
     let bestScore = -1;
     for (let y = y0; y < Math.min(y1, png.height); y++) {
       for (let x = 2; x < Math.min(png.width - 2, 220); x++) {
         const i = (y * png.width + x) * 4;
-        const px: [number, number, number] = [
-          png.data[i] ?? 0,
-          png.data[i + 1] ?? 0,
-          png.data[i + 2] ?? 0,
-        ];
+        const px = pixel(i);
         const score = 765 - (px[0] + px[1] + px[2]);
         if (score > bestScore) {
           bestScore = score;
@@ -61,7 +64,7 @@ test("-webkit-text-fill-color paints the glyph fill", async ({ page, cdpSession 
     for (let y = y0; y < Math.min(y1, png.height); y++) {
       for (let x = 2; x < Math.min(png.width - 2, 220); x++) {
         const i = (y * png.width + x) * 4;
-        if ((png.data[i] ?? 0) > 150 && (png.data[i + 2] ?? 0) < 110) reddish++;
+        if (isRed(pixel(i))) reddish++;
       }
     }
     return reddish;

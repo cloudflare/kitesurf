@@ -8,6 +8,20 @@ test("Typed OM maps round-trip keyword and numeric values", async ({ page }) => 
   await page.goto("data:text/html,<!doctype html><div id='target'></div>");
   const result = await page.evaluate(() => {
     const g = globalThis as any;
+    const constructorName = (error: any) => error?.constructor?.name;
+    const errorName = (error: any) => String(error?.name || constructorName(error) || "");
+    const errorDetails = (error: any) => ({
+      errorName: errorName(error),
+      errorMessage: `${error.name}: ${error.message}`,
+    });
+    const capture = (run: () => unknown) => {
+      try {
+        run();
+        return { threw: false, errorName: "", errorMessage: "" };
+      } catch (error) {
+        return { threw: true, ...errorDetails(error) };
+      }
+    };
     const target = document.getElementById("target") as any;
     const firstKeyword = new g.CSSKeywordValue("rtl");
     target.attributeStyleMap.set("direction", firstKeyword);
@@ -46,50 +60,30 @@ test("Typed OM maps round-trip keyword and numeric values", async ({ page }) => 
     const parsedWidth = g.CSSStyleValue.parse("width", "10px");
     const parsedDurations = g.CSSStyleValue.parseAll("transition-duration", "1s, 2s");
     const doubleDash = new g.CSSKeywordValue("--");
-    let incompatibleSumRejected = false;
-    let declarationInjectionRejected = false;
-    let declarationPriorityRejected = false;
-    let reifiedAssociationRejected = false;
-    let parsedNamedColor = "";
-    let parsedNamedColorError = "";
-    let cssStyleValueConstructRejected = false;
-    let cssStyleValueReflectConstructRejected = false;
-    try {
+    const incompatibleSumRejected = capture(() => {
       new g.CSSMathSum(g.CSS.px(1), g.CSS.s(1));
-    } catch {
-      incompatibleSumRejected = true;
-    }
-    try {
+    }).threw;
+    const declarationInjectionRejected = capture(() => {
       target.attributeStyleMap.set("width", "1px; color: blue");
-    } catch {
-      declarationInjectionRejected = true;
-    }
-    try {
+    }).threw;
+    const declarationPriorityRejected = capture(() => {
       g.CSSStyleValue.parse("width", "1px !important");
-    } catch {
-      declarationPriorityRejected = true;
-    }
+    }).threw;
     target.attributeStyleMap.set("width", g.CSS.px(1));
-    try {
+    const reifiedAssociationRejected = capture(() => {
       target.attributeStyleMap.set("height", target.attributeStyleMap.get("width"));
-    } catch {
-      reifiedAssociationRejected = true;
-    }
-    try {
+    }).threw;
+    let parsedNamedColor = "";
+    const parsedColor = capture(() => {
       parsedNamedColor = String(g.CSSColorValue.parse("rebeccapurple"));
-    } catch (error) {
-      parsedNamedColorError = `${(error as any).name}: ${(error as any).message}`;
-    }
-    try {
+    });
+    const parsedNamedColorError = parsedColor.errorMessage;
+    const cssStyleValueConstructRejected = capture(() => {
       new g.CSSStyleValue();
-    } catch {
-      cssStyleValueConstructRejected = true;
-    }
-    try {
+    }).threw;
+    const cssStyleValueReflectConstructRejected = capture(() => {
       Reflect.construct(g.CSSStyleValue, [], g.CSSUnitValue);
-    } catch {
-      cssStyleValueReflectConstructRejected = true;
-    }
+    }).threw;
     class DerivedUnit extends g.CSSUnitValue {}
     class DerivedSum extends g.CSSMathSum {}
     class DerivedTranslate extends g.CSSTranslate {}
@@ -99,14 +93,9 @@ test("Typed OM maps round-trip keyword and numeric values", async ({ page }) => 
     const unparsed = new g.CSSUnparsedValue(["x"]);
     const variableReference = new g.CSSVariableReferenceValue("--x", unparsed);
     const sum = new g.CSSMathSum(g.CSS.px(1));
-    let rejected = false;
-    let rejectionName = "";
-    try {
+    const rejection = capture(() => {
       target.attributeStyleMap.set("direction", new g.CSSUnitValue(2, "px"));
-    } catch (error) {
-      rejected = true;
-      rejectionName = String((error as any)?.name || (error as any)?.constructor?.name || "");
-    }
+    });
     return {
       sameInlineMap: target.attributeStyleMap === target.attributeStyleMap,
       sameComputedMap: target.computedStyleMap() === target.computedStyleMap(),
@@ -170,8 +159,8 @@ test("Typed OM maps round-trip keyword and numeric values", async ({ page }) => 
         operatorInherited: !Object.prototype.hasOwnProperty.call(sum, "operator"),
       },
       uninjectedColor: target.style.color,
-      rejected,
-      rejectionName,
+      rejected: rejection.threw,
+      rejectionName: rejection.errorName,
       preservedDirection: target.style.direction,
     };
   });
@@ -236,6 +225,14 @@ test("Typed OM numeric objects implement arithmetic and complex values", async (
   const result = await page.evaluate(() => {
     "use strict";
     const g = globalThis as any;
+    const attempt = (run: () => unknown) => {
+      try {
+        run();
+        return { threw: false, name: "" };
+      } catch (error) {
+        return { threw: true, name: (error as any).name };
+      }
+    };
     const sum = new g.CSSMathSum(1, g.CSS.number(2));
     const product = new g.CSSMathProduct(g.CSS.px(2), 3);
     const negate = new g.CSSMathNegate(g.CSS.px(2));
@@ -246,51 +243,32 @@ test("Typed OM numeric objects implement arithmetic and complex values", async (
     const hinted = new g.CSSMathSum(g.CSS.px(1), g.CSS.percent(1));
     const compound = new g.CSSMathProduct(g.CSS.px(1), g.CSS.s(1));
 
-    let arrayWriteRejected = false;
-    let arrayDeleteRejected = false;
-    let backingWriteRejected = false;
-    let valuesWriteRejected = false;
-    let operatorWriteRejected = false;
-    try {
+    const arrayWriteRejected = attempt(() => {
       sum.values[0] = g.CSS.number(9);
-    } catch {
-      arrayWriteRejected = true;
-    }
-    try {
+    }).threw;
+    const arrayDeleteRejected = attempt(() => {
       delete sum.values[0];
-    } catch {
-      arrayDeleteRejected = true;
-    }
-    try {
+    }).threw;
+    const backingWriteRejected = attempt(() => {
       sum._values = null;
-    } catch {
-      backingWriteRejected = true;
-    }
-    try {
+    }).threw;
+    const valuesWriteRejected = attempt(() => {
       sum.values = [];
-    } catch {
-      valuesWriteRejected = true;
-    }
-    try {
+    }).threw;
+    const operatorWriteRejected = attempt(() => {
       sum.operator = "max";
-    } catch {
-      operatorWriteRejected = true;
-    }
+    }).threw;
 
-    const errors: string[] = [];
-    for (const run of [
+    const errors = [
       () => new g.CSSMathSum(),
       () => new g.CSSMathMin(g.CSS.px(1), g.CSS.s(1)),
       () => g.CSS.number(1).div(0),
       () => g.CSS.px(1).toSum("number"),
       () => g.CSS.px(1).toSum("lemon"),
-    ]) {
-      try {
-        run();
-      } catch (error) {
-        errors.push((error as any).name);
-      }
-    }
+    ].flatMap((run) => {
+      const result = attempt(run);
+      return result.threw ? [result.name] : [];
+    });
 
     const greedy = new g.CSSMathSum(g.CSS.cm(1), g.CSS.mm(10)).toSum("cm", "mm");
     const sorted = new g.CSSMathSum(g.CSS.px(1), g.CSS.em(1), g.CSS.rem(1)).toSum();
@@ -429,8 +407,15 @@ test("Typed OM transform objects validate, serialize, and produce matrices", asy
   const result = await page.evaluate(() => {
     "use strict";
     const g = globalThis as any;
-    const errors: string[] = [];
-    for (const run of [
+    const capture = (run: () => unknown) => {
+      try {
+        run();
+        return { threw: false, name: "" };
+      } catch (error) {
+        return { threw: true, name: (error as any).name };
+      }
+    };
+    const errors = [
       () => new g.CSSTranslate(g.CSS.deg(1), g.CSS.px(0)),
       () => new g.CSSTranslate(g.CSS.px(0), g.CSS.px(0), g.CSS.percent(1)),
       () => new g.CSSRotate(g.CSS.number(1)),
@@ -439,21 +424,18 @@ test("Typed OM transform objects validate, serialize, and produce matrices", asy
       () => new g.CSSSkew(0, g.CSS.deg(0)),
       () => new g.CSSPerspective(g.CSS.percent(1)),
       () => new g.CSSTransformValue([]),
-    ]) {
-      try {
-        run();
-      } catch (error) {
-        errors.push((error as any).name);
-      }
-    }
+    ].flatMap((run) => {
+      const result = capture(run);
+      return result.threw ? [result.name] : [];
+    });
 
     const translate = new g.CSSTranslate(g.CSS.px(1), g.CSS.percent(2), g.CSS.px(3));
-    let preserved = "";
-    try {
-      translate.z = g.CSS.percent(4);
-    } catch {
-      preserved = String(translate.z);
-    }
+    const preserved = (() => {
+      const result = capture(() => {
+        translate.z = g.CSS.percent(4);
+      });
+      return result.threw ? String(translate.z) : "";
+    })();
     const rotate = new g.CSSRotate(1, 2, 3, g.CSS.deg(90));
     const scale = new g.CSSScale(2, 3, 4);
     const skew = new g.CSSSkew(g.CSS.deg(90), g.CSS.turn(0));
@@ -462,12 +444,9 @@ test("Typed OM transform objects validate, serialize, and produce matrices", asy
       new g.DOMMatrix([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
     );
     matrixComponent.is2D = true;
-    let readonlyMatrixRejected = false;
-    try {
+    const readonlyMatrixRejected = capture(() => {
       matrixComponent.matrix = new g.DOMMatrixReadOnly();
-    } catch {
-      readonlyMatrixRejected = true;
-    }
+    }).threw;
 
     const sequence = new g.CSSTransformValue([
       new g.CSSScale(2, 2),
@@ -475,24 +454,15 @@ test("Typed OM transform objects validate, serialize, and produce matrices", asy
     ]);
     sequence[1] = new g.CSSTranslate(g.CSS.px(5), g.CSS.px(6));
     sequence[2] = new g.CSSScale(3, 4);
-    let badIndex = "";
-    let readonly = "";
-    let backingWrite = "";
-    try {
+    const badIndex = capture(() => {
       sequence[4] = new g.CSSScale(1, 1);
-    } catch (error) {
-      badIndex = (error as any).name;
-    }
-    try {
+    }).name;
+    const readonly = capture(() => {
       sequence.is2D = false;
-    } catch (error) {
-      readonly = (error as any).name;
-    }
-    try {
+    }).name;
+    const backingWrite = capture(() => {
       sequence._components = [];
-    } catch (error) {
-      backingWrite = (error as any).name;
-    }
+    }).name;
 
     const mutable = new g.DOMMatrix([1, 2, 3, 4, 5, 6]);
     mutable.a = 7;
@@ -542,17 +512,13 @@ test("Typed OM transform objects validate, serialize, and produce matrices", asy
         matrix.m44,
       ].map(round);
 
-    const relativeErrors: string[] = [];
-    for (const component of [
+    const relativeErrors = [
       new g.CSSTranslate(g.CSS.px(1), g.CSS.em(1)),
       new g.CSSPerspective(g.CSS.em(1)),
-    ]) {
-      try {
-        component.toMatrix();
-      } catch (error) {
-        relativeErrors.push((error as any).name);
-      }
-    }
+    ].flatMap((component) => {
+      const result = capture(() => component.toMatrix());
+      return result.threw ? [result.name] : [];
+    });
 
     const parsed = g.CSSStyleValue.parse("transform", "translate(10px, 20%) rotate(30deg)");
     const computed = (document.getElementById("target") as any).computedStyleMap().get("transform");
@@ -723,6 +689,14 @@ test("Typed OM color subclasses normalize, validate, and parse channels", async 
   const result = await page.evaluate(() => {
     "use strict";
     const g = globalThis as any;
+    const attempt = (run: () => unknown) => {
+      try {
+        run();
+        return { threw: false, name: "" };
+      } catch (error) {
+        return { threw: true, name: (error as any).name };
+      }
+    };
     const rgb = new g.CSSRGB(0.5, g.CSS.number(73), g.CSS.percent(91));
     const hsl = new g.CSSHSL(undefined, 0.7, g.CSS.percent(91));
     const hwb = new g.CSSHWB(g.CSS.grad(101), 0.2, 0.3, g.CSS.percent(0.4));
@@ -736,8 +710,7 @@ test("Typed OM color subclasses normalize, validate, and parse channels", async 
     const serializedColor = String(color);
     color.channels = [0.6, 0.7, 0.8];
     const channel = (value: any) => [value.constructor.name, value.value, value.unit];
-    const errors: string[] = [];
-    for (const run of [
+    const errors = [
       () => new g.CSSRGB(g.CSS.deg(1), 0, 0),
       () => new g.CSSRGB(0, 0, 0, g.CSS.number(1)),
       () => new g.CSSHSL(g.CSS.px(1), 0, 0),
@@ -753,19 +726,13 @@ test("Typed OM color subclasses normalize, validate, and parse channels", async 
         color.channels[0] = g.CSS.number(1);
       },
       () => color.channels.push(g.CSS.number(1)),
-    ]) {
-      try {
-        run();
-      } catch (error) {
-        errors.push((error as any).name);
-      }
-    }
-    let backingWriteRejected = false;
-    try {
+    ].flatMap((run) => {
+      const result = attempt(run);
+      return result.threw ? [result.name] : [];
+    });
+    const backingWriteRejected = attempt(() => {
       color._channels = [];
-    } catch {
-      backingWriteRejected = true;
-    }
+    }).threw;
     const target = document.createElement("div") as any;
     target.attributeStyleMap.set("color", color);
     const clonedColor = target.attributeStyleMap.get("color");
@@ -780,14 +747,10 @@ test("Typed OM color subclasses normalize, validate, and parse channels", async 
       g.CSSColorValue.parse("transparent"),
       g.CSSColorValue.parse("GrayText"),
     ];
-    const parseErrors: string[] = [];
-    for (const value of ["abcdef", "initial", "inherit", "abc()", "--foo"]) {
-      try {
-        g.CSSColorValue.parse(value);
-      } catch (error) {
-        parseErrors.push((error as any).name);
-      }
-    }
+    const parseErrors = ["abcdef", "initial", "inherit", "abc()", "--foo"].flatMap((value) => {
+      const result = attempt(() => g.CSSColorValue.parse(value));
+      return result.threw ? [result.name] : [];
+    });
     rgb.r = new g.CSSMathSum(g.CSS.percent(10), g.CSS.percent(20));
     return {
       globals: [

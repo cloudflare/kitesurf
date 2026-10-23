@@ -22,9 +22,11 @@ async function expectProbes(page: Page, boxes: string, probes: Probe[]): Promise
   await page.setViewport({ width: 800, height: 200 });
   await setContent(page, `<style>body { margin: 0; background: #fff }</style>${boxes}`);
   const png = await decodePng(new Uint8Array(await page.screenshot({ type: "png" })));
+  const isOutside = (x: number, y: number, index: number) =>
+    x < 0 || y < 0 || x >= png.width || index + 2 >= png.data.length;
   const pixel = (x: number, y: number): Rgb => {
     const i = (y * png.width + x) * 4;
-    if (x < 0 || y < 0 || x >= png.width || i + 2 >= png.data.length) {
+    if (isOutside(x, y, i)) {
       throw new Error(`(${x},${y}) is outside the ${png.width}x${png.height} screenshot`);
     }
     return [png.data[i] ?? 0, png.data[i + 1] ?? 0, png.data[i + 2] ?? 0];

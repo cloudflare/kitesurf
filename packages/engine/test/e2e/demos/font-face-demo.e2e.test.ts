@@ -6,6 +6,33 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { expect, test } from "../harness";
 
+type FontFetch = { phase: string; url: string; type?: string };
+
+async function waitForFontResponse(
+  fetches: FontFetch[],
+  url: string,
+  deadline: number,
+): Promise<void> {
+  while (
+    !fetches.some((fetch) => fetch.phase === "responseReceived" && fetch.url === url) &&
+    Date.now() < deadline
+  ) {
+    await sleep(10);
+  }
+}
+
+function assertFontRequest(fetches: FontFetch[], url: string): void {
+  const willBeSent = fetches.find((fetch) => fetch.phase === "willBeSent" && fetch.url === url);
+  expect(
+    willBeSent !== undefined,
+    `woff2 fetch was queued: events=${JSON.stringify(fetches)}`,
+  ).toBeTruthy();
+  expect(
+    willBeSent?.type === "Font",
+    `woff2 fetch type=Font: got type=${willBeSent?.type}`,
+  ).toBeTruthy();
+}
+
 test("font-face-demo", async ({ browser }) => {
   const FIXTURE_URL = "http://127.0.0.1:8787/__fixtures/font-face.html";
   const WOFF2_URL = "http://127.0.0.1:8787/__fixtures/bungee.woff2";
@@ -48,12 +75,7 @@ test("font-face-demo", async ({ browser }) => {
   await page.goto(FIXTURE_URL, { waitUntil: "load" });
 
   const fontDeadline = Date.now() + 15000;
-  while (
-    !fetches.some((f) => f.phase === "responseReceived" && f.url === WOFF2_URL) &&
-    Date.now() < fontDeadline
-  ) {
-    await sleep(10);
-  }
+  await waitForFontResponse(fetches, WOFF2_URL, fontDeadline);
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
@@ -78,17 +100,7 @@ test("font-face-demo", async ({ browser }) => {
     `both paragraphs rendered: target=${metrics.target.width} control=${metrics.control.width}`,
   ).toBeTruthy();
 
-  const willBeSent = fetches.find((f) => f.phase === "willBeSent" && f.url === WOFF2_URL);
-  expect(
-    willBeSent !== undefined,
-    `woff2 fetch was queued: events=${JSON.stringify(fetches)}`,
-  ).toBeTruthy();
-  if (willBeSent) {
-    expect(
-      willBeSent.type === "Font",
-      `woff2 fetch type=Font: got type=${willBeSent.type}`,
-    ).toBeTruthy();
-  }
+  assertFontRequest(fetches, WOFF2_URL);
 
   const responseReceived = fetches.find(
     (f) => f.phase === "responseReceived" && f.url === WOFF2_URL,

@@ -100,30 +100,20 @@ test("a throw from a called function, caught by its caller, leaves the stack cle
       throw new Error("close failed");
     };
     const take = (...args: unknown[]) => args.length;
-    let caught = 0;
-    for (let i = 0; i < 5000; i++) {
-      try {
-        fail();
-      } catch {
-        caught++;
+    const countCaughtCalls = (call: () => unknown, iterations: number) => {
+      let caught = 0;
+      for (let i = 0; i < iterations; i++) {
+        try {
+          call();
+        } catch {
+          caught++;
+        }
       }
-    }
-    let halfBuilt = 0;
-    for (let i = 0; i < 5000; i++) {
-      try {
-        take(1, 2, fail());
-      } catch {
-        halfBuilt++;
-      }
-    }
-    let sameFrame = 0;
-    for (let i = 0; i < 5000; i++) {
-      try {
-        JSON.parse("{bad");
-      } catch {
-        sameFrame++;
-      }
-    }
+      return caught;
+    };
+    const caught = countCaughtCalls(fail, 5000);
+    const halfBuilt = countCaughtCalls(() => take(1, 2, fail()), 5000);
+    const sameFrame = countCaughtCalls(() => JSON.parse("{bad"), 5000);
     return {
       finallyCallsCallee: (function () {
         try {

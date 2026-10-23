@@ -29,6 +29,31 @@ test("a malformed envelope gets -32600 and echoes the id", async () => {
   ws.close();
 });
 
+test.each([undefined, null])("Debugger.getScriptSource rejects %s params", async (params) => {
+  const { ws, next } = await openCdpWireSession(engine);
+  try {
+    ws.send(JSON.stringify({ id: 1, method: "Debugger.getScriptSource", params }));
+    expect(await next()).toEqual({
+      id: 1,
+      error: {
+        code: -32000,
+        message: "Cannot read properties of undefined (reading 'scriptId')",
+      },
+    });
+
+    ws.send(
+      JSON.stringify({
+        id: 2,
+        method: "Debugger.getScriptSource",
+        params: { scriptId: "unknown-script" },
+      }),
+    );
+    expect(await next()).toEqual({ id: 2, result: { scriptSource: "" } });
+  } finally {
+    ws.close();
+  }
+});
+
 test("Kitesurf.setOutboundFilters rejects a non-string filter entry", async () => {
   const { ws, next } = await openCdpWireSession(engine);
   ws.send(

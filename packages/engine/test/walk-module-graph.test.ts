@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   assignModuleRegistryNames,
   astroIslandModuleUrls,
@@ -24,6 +24,12 @@ import type { SandboxOutboundOverride } from "../src/eval/outbound.ts";
 import type { ParentScriptDescriptor } from "../src/wasm.ts";
 
 const BASE = "https://example.com/js/app.min.js";
+
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
 
 describe("astroIslandModuleUrls", () => {
   it("collects component and renderer urls from every island once", () => {
@@ -97,10 +103,14 @@ describe("extractClassicDynamicSeeds", () => {
 function stubOutbound(
   bodies: Record<string, string> = {},
   delays: Record<string, number> = {},
+  requests: string[] = [],
+  onFetch: (url: string) => void = () => {},
 ): SandboxOutboundOverride {
   const fetcher = {
     fetch: async (input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const url = requestUrl(input);
+      requests.push(url);
+      onFetch(url);
       if (delays[url]) await new Promise((r) => setTimeout(r, delays[url]));
       return new Response(bodies[url] ?? "export default 1;", {
         headers: { "content-type": "text/javascript" },
@@ -123,6 +133,85 @@ function classicExternal(src: string, prefetchedSource: string): ParentScriptDes
 function moduleInline(body: string): ParentScriptDescriptor {
   return { src: null, kind: "module", defer: false, async: false, body };
 }
+
+describe("walkModuleGraph crawl bounds", () => {
+  const walk = (descriptors: ParentScriptDescriptor[], sandboxOutbound: SandboxOutboundOverride) =>
+    walkModuleGraph({
+      descriptors,
+      pageUrl: "https://h.test/",
+      connectionId: "crawl-bounds",
+      mainFrameId: "",
+      mainLoaderId: "",
+      extraHeaders: {},
+      cookieKey: "",
+      options: {},
+      sandboxOutbound,
+    });
+
+  it("stops crawling a module at its first unresolved static import", async () => {
+    const requests: string[] = [];
+    const result = await walk(
+      [moduleInline('import "bare-a"; import "./b.js"; import "bare-z";')],
+      stubOutbound({}, {}, requests),
+    );
+
+    expect(requests).toEqual([]);
+    expect(result.descriptors.map((descriptor) => descriptor.prefetchError)).toEqual([
+      'Failed to resolve module specifier "bare-a" (imported from https://h.test/__kitesurf_inline_0.js): the document\'s import map does not remap it to a URL, or blocks it.',
+    ]);
+    expect(Object.keys(result.additionalModules)).toEqual([]);
+  });
+
+  it("applies the module limit after adding asset stubs in the same queue pass", async () => {
+    const requests: string[] = [];
+    const imports = Array.from({ length: 1000 }, (_, index) => `import "./${index}.css";`);
+    const result = await walk(
+      [moduleInline(`${imports.join("\n")}\nimport "./beyond-limit.js";`)],
+      stubOutbound({}, {}, requests),
+    );
+
+    expect(Object.keys(result.additionalModules)).toHaveLength(1000);
+    expect(requests).toEqual([]);
+    expect(result.additionalModules["https://h.test/beyond-limit.js"]).toBeUndefined();
+  });
+
+  it("evicts a failed webpack dynamic chunk that was also discovered as a root", async () => {
+    const app = "https://h.test/c/app.js";
+    const chunk = "https://h.test/c/1.aaaa1111.js";
+    const dependency = "https://h.test/c/dep.js";
+    const requests: string[] = [];
+    let elapsed = 0;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => elapsed);
+    const outbound = stubOutbound(
+      {
+        [app]: 'const r={};r.u=e=>""+{1:"aaaa1111",2:"bbbb2222"}[e]+".js";r.e(1);export {};',
+        [chunk]: 'import "./dep.js";r.e(2);export default 1;//' + "x".repeat(4 * 1024 * 1024 + 10),
+      },
+      {},
+      requests,
+      (url) => {
+        if (url === dependency) {
+          elapsed = 1200;
+          throw new Error("dependency fetch failed");
+        }
+      },
+    );
+    try {
+      const result = await walk(
+        [
+          { src: app, kind: "module", defer: false, async: false, body: "" },
+          classicExternal("https://h.test/c/boot.js", 'import("/c/1.aaaa1111.js");'),
+        ],
+        outbound,
+      );
+
+      expect(requests).toContain(dependency);
+      expect(Object.keys(result.additionalModules)).toEqual([app]);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+});
 
 describe("walkModuleGraph query-collision alias in classic bodies", () => {
   const PAGE = "https://example.com/page.html";
@@ -184,8 +273,7 @@ describe("walkModuleGraph modulepreload seeds", () => {
     let depRequests = 0;
     const fetcher = {
       fetch: async (input: RequestInfo | URL) => {
-        const url =
-          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const url = requestUrl(input);
         if (url === DEP && depRequests++ === 0) return new Response("no", { status: 404 });
         return new Response(url === DEP ? "export default 1;" : `import "/dep.js";`, {
           headers: { "content-type": "text/javascript" },

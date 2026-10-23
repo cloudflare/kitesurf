@@ -5,6 +5,103 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
 import { expect, test } from "../harness";
+import type { Protocol } from "devtools-protocol";
+
+type CdpNode = Protocol.DOM.Node;
+type MatchedRule = {
+  rule: {
+    origin: string;
+    selectorList: { text: string };
+    style: { cssProperties: Array<{ name: string }> };
+  };
+};
+type InheritedEntry = { matchedCSSRules: MatchedRule[] };
+
+function nodeHasId(node: CdpNode, id: string): boolean {
+  const i = (node.attributes || []).indexOf("id");
+  return i >= 0 && (node.attributes || [])[i + 1] === id;
+}
+
+function nodeChildren(node: CdpNode): CdpNode[] {
+  return Array.isArray(node.children) ? node.children : [];
+}
+
+function findById(root: CdpNode, id: string): CdpNode | null {
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node) continue;
+    if (nodeHasId(node, id)) return node;
+    for (const child of nodeChildren(node)) stack.push(child);
+  }
+  return null;
+}
+
+function expectNode(node: CdpNode | null, message: string): asserts node is CdpNode {
+  expect(!!node, message).toBeTruthy();
+}
+
+function onlyAuthor(entry: InheritedEntry): MatchedRule[] {
+  return entry.matchedCSSRules.filter((m) => m.rule.origin === "regular");
+}
+
+function expectAuthorDirect(authorDirect: MatchedRule[]): void {
+  expect(
+    authorDirect.length === 1 && authorDirect[0].rule.selectorList.text === "p#x",
+    `author matchedCSSRules has the p#x rule: got: ${JSON.stringify(authorDirect.map((m) => m.rule.selectorList.text))}`,
+  ).toBeTruthy();
+}
+
+function expectContainerInherited(div: { matchedCSSRules: MatchedRule[] }): void {
+  expect(
+    div.matchedCSSRules.length === 1 &&
+      div.matchedCSSRules[0].rule.selectorList.text === ".container" &&
+      div.matchedCSSRules[0].rule.style.cssProperties.some((p) => p.name === "font-size"),
+    `inherited[0] has .container { font-size } only (padding filtered): got: ${JSON.stringify(div.matchedCSSRules.map((m) => ({ sel: m.rule.selectorList.text, props: m.rule.style.cssProperties.map((p) => p.name) })))}`,
+  ).toBeTruthy();
+}
+
+function expectBodyInherited(body: { matchedCSSRules: MatchedRule[] }): void {
+  expect(
+    body.matchedCSSRules.length === 2,
+    `inherited[1] has body{color} and .bb{line-height}: got: ${JSON.stringify(body.matchedCSSRules.map((m) => ({ sel: m.rule.selectorList.text, props: m.rule.style.cssProperties.map((p) => p.name) })))}`,
+  ).toBeTruthy();
+  const bodyRuleNames = body.matchedCSSRules.map((m) => m.rule.selectorList.text);
+  expect(
+    bodyRuleNames.includes("body") && bodyRuleNames.includes(".bb"),
+    "inherited[1] body rule that survived is the one with color",
+  ).toBeTruthy();
+}
+
+function expectHtmlInherited(html: { matchedCSSRules: MatchedRule[] }): void {
+  expect(
+    html.matchedCSSRules.length === 1 &&
+      html.matchedCSSRules[0].rule.selectorList.text === "html" &&
+      html.matchedCSSRules[0].rule.style.cssProperties.some((p) => p.name === "font-family"),
+    `inherited[2] has html { font-family }: got: ${JSON.stringify(html.matchedCSSRules.map((m) => ({ sel: m.rule.selectorList.text, props: m.rule.style.cssProperties.map((p) => p.name) })))}`,
+  ).toBeTruthy();
+}
+
+function expectThreeInheritedEntries(
+  inherited: InheritedEntry[] | undefined,
+): inherited is [InheritedEntry, InheritedEntry, InheritedEntry] {
+  expect(Array.isArray(inherited), `inherited is an array: got: ${typeof inherited}`).toBeTruthy();
+  const count = inherited?.length;
+  const hasThreeEntries = count === 3;
+  expect(
+    hasThreeEntries,
+    `inherited has 3 ancestor entries: got ${count} entries: ${JSON.stringify(inherited?.map((i) => i.matchedCSSRules.map((m) => m.rule.selectorList.text)))}`,
+  ).toBeTruthy();
+  return hasThreeEntries;
+}
+
+function expectInheritedStyles(inherited: InheritedEntry[] | undefined): void {
+  if (!expectThreeInheritedEntries(inherited)) return;
+  const [div, body, html] = inherited.map((entry) => ({ matchedCSSRules: onlyAuthor(entry) }));
+  expectContainerInherited(div);
+  expectBodyInherited(body);
+  expectHtmlInherited(html);
+}
 
 test("css-inherited-styles-demo", async ({ page }) => {
   const STYLE_TEXT =
@@ -41,66 +138,14 @@ test("css-inherited-styles-demo", async ({ page }) => {
   }
 
   const doc = await session.send("DOM.getDocument");
-  function findById(root, id) {
-    const stack = [root];
-    while (stack.length) {
-      const n = stack.pop();
-      if (!n) continue;
-      const i = (n.attributes || []).indexOf("id");
-      if (i >= 0 && (n.attributes || [])[i + 1] === id) return n;
-      if (Array.isArray(n.children)) for (const c of n.children) stack.push(c);
-    }
-    return null;
-  }
   const pNode = findById(doc.root, "x");
-  expect(!!pNode, "located <p id=x>").toBeTruthy();
+  expectNode(pNode, "located <p id=x>");
 
   const r = await session.send("CSS.getMatchedStylesForNode", {
     nodeId: pNode.nodeId,
   });
 
   const authorDirect = (r.matchedCSSRules ?? []).filter((m) => m.rule.origin === "regular");
-  expect(
-    authorDirect.length === 1 && authorDirect[0].rule.selectorList.text === "p#x",
-    `author matchedCSSRules has the p#x rule: got: ${JSON.stringify(authorDirect.map((m) => m.rule.selectorList.text))}`,
-  ).toBeTruthy();
-
-  expect(
-    Array.isArray(r.inherited),
-    `inherited is an array: got: ${typeof r.inherited}`,
-  ).toBeTruthy();
-
-  expect(
-    r.inherited?.length === 3,
-    `inherited has 3 ancestor entries: got ${r.inherited?.length} entries: ${JSON.stringify(r.inherited?.map((i) => i.matchedCSSRules.map((m) => m.rule.selectorList.text)))}`,
-  ).toBeTruthy();
-
-  if (r.inherited?.length === 3) {
-    const onlyAuthor = (entry) => entry.matchedCSSRules.filter((m) => m.rule.origin === "regular");
-    const [div, body, html] = r.inherited.map((e) => ({ matchedCSSRules: onlyAuthor(e) }));
-
-    expect(
-      div.matchedCSSRules.length === 1 &&
-        div.matchedCSSRules[0].rule.selectorList.text === ".container" &&
-        div.matchedCSSRules[0].rule.style.cssProperties.some((p) => p.name === "font-size"),
-      `inherited[0] has .container { font-size } only (padding filtered): got: ${JSON.stringify(div.matchedCSSRules.map((m) => ({ sel: m.rule.selectorList.text, props: m.rule.style.cssProperties.map((p) => p.name) })))}`,
-    ).toBeTruthy();
-
-    expect(
-      body.matchedCSSRules.length === 2,
-      `inherited[1] has body{color} and .bb{line-height}: got: ${JSON.stringify(body.matchedCSSRules.map((m) => ({ sel: m.rule.selectorList.text, props: m.rule.style.cssProperties.map((p) => p.name) })))}`,
-    ).toBeTruthy();
-    const bodyRuleNames = body.matchedCSSRules.map((m) => m.rule.selectorList.text);
-    expect(
-      bodyRuleNames.includes("body") && bodyRuleNames.includes(".bb"),
-      "inherited[1] body rule that survived is the one with color",
-    ).toBeTruthy();
-
-    expect(
-      html.matchedCSSRules.length === 1 &&
-        html.matchedCSSRules[0].rule.selectorList.text === "html" &&
-        html.matchedCSSRules[0].rule.style.cssProperties.some((p) => p.name === "font-family"),
-      `inherited[2] has html { font-family }: got: ${JSON.stringify(html.matchedCSSRules.map((m) => ({ sel: m.rule.selectorList.text, props: m.rule.style.cssProperties.map((p) => p.name) })))}`,
-    ).toBeTruthy();
-  }
+  expectAuthorDirect(authorDirect);
+  expectInheritedStyles(r.inherited);
 });

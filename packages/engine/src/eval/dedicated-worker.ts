@@ -38,9 +38,14 @@ const UPSTREAM_EVENTS: ReadonlySet<string> = new Set<WorkerUpstreamEventName>([
 
 function isWorkerUpstreamMessage(value: unknown): value is WorkerUpstreamMessage {
   if (typeof value !== "object" || value === null) return false;
-  if (!("event" in value) || typeof value.event !== "string" || !UPSTREAM_EVENTS.has(value.event)) {
-    return false;
-  }
+  return hasKnownWorkerEvent(value) && hasWorkerParams(value);
+}
+
+function hasKnownWorkerEvent(value: object): value is object & { event: string } {
+  return "event" in value && typeof value.event === "string" && UPSTREAM_EVENTS.has(value.event);
+}
+
+function hasWorkerParams(value: object): value is object & { params: object } {
   return "params" in value && typeof value.params === "object" && value.params !== null;
 }
 
@@ -114,8 +119,12 @@ function settleWithin(promise: Promise<unknown>, ms: number): Promise<void> {
   });
 }
 
+function hasDisposeSymbol(stub: unknown): stub is object & { [Symbol.dispose]: unknown } {
+  return typeof stub === "object" && stub !== null && Symbol.dispose in stub;
+}
+
 function disposeStub(stub: unknown): void {
-  if (typeof stub !== "object" || stub === null || !(Symbol.dispose in stub)) return;
+  if (!hasDisposeSymbol(stub)) return;
   const dispose = stub[Symbol.dispose];
   if (typeof dispose !== "function") return;
   try {

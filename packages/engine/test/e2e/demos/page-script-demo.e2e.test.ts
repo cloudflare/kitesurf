@@ -4,6 +4,10 @@
 
 import { expect, test } from "../harness";
 
+function logMessages(messages: Array<{ type: string; text: string }>): void {
+  for (const message of messages) console.log("  -", message.type, "|", message.text);
+}
+
 test("page-script-demo", async ({ page }) => {
   const FIXTURE_URL =
     process.env.KITESURF_FIXTURE ?? "http://127.0.0.1:8787/__fixtures/inline-script.html";
@@ -26,7 +30,7 @@ test("page-script-demo", async ({ page }) => {
   await new Promise((r) => setTimeout(r, 50));
 
   console.log("[ps] captured", messages.length, "console messages:");
-  for (const m of messages) console.log("  -", m.type, "|", m.text);
+  logMessages(messages);
 
   const types = messages.map((m) => m.type);
   expect(types, "console message types").toStrictEqual(["log", "info", "warn"]);

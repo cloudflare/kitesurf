@@ -8,9 +8,10 @@ import type { Protocol } from "devtools-protocol";
 
 import type { CdpRequest, TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
-import { sessionOf, type SessionSoftOps } from "./page-session.ts";
+import { sessionOf, type PageSession, type SessionSoftOps } from "./page-session.ts";
 import type { ReadStamp } from "@kitesurf/jsrpc-types/query-dom";
 import { ensureTargetDom } from "./dom-release.ts";
+import { isRecord } from "../guards.ts";
 
 export interface AxNode {
   nodeId: string;
@@ -48,110 +49,191 @@ export async function handleAccessibility(ctx: DispatchCtx, req: CdpRequest): Pr
   const session = sessionOf(ctx, target);
   const ps = session.available() ? session : null;
 
+  return dispatchAccessibilityMethod(ctx, target, ps, req);
+}
+
+function dispatchAccessibilityMethod(
+  ctx: DispatchCtx,
+  target: TargetState,
+  ps: PageSession | null,
+  req: CdpRequest,
+): Promise<unknown> | unknown {
   switch (req.method) {
-    case "Accessibility.enable": {
-      const tree = await buildTree(ps, target);
-      const root = tree?.nodes[0];
-      if (root) {
-        ctx.emit({
-          method: "Accessibility.loadComplete",
-          // SAFETY: `buildTree` root is synthetic; `AxNode` also allows newer AX property names.
-          // The pinned protocol type omits those names. Related coverage is in
-          // `packages/engine/test/e2e/accessibility.e2e.test.ts`.
-          params: { root } as Protocol.Accessibility.LoadCompleteEvent,
-          sessionId: req.sessionId,
-        });
-      }
-      return {};
-    }
+    case "Accessibility.enable":
+      return enableAccessibility(ctx, target, ps, req.sessionId);
     case "Accessibility.disable":
       return {};
-
-    case "Accessibility.getFullAXTree": {
-      const tree = await buildTree(ps, target);
-      return { nodes: tree ? tree.nodes : [] };
-    }
-
-    case "Accessibility.getRootAXNode": {
-      const tree = await buildTree(ps, target);
-      if (!tree) throw new Error("No document loaded");
-      const root = tree.nodes[0];
-      if (!root) throw new Error("Empty accessibility tree");
-      return { node: root };
-    }
-
-    case "Accessibility.getPartialAXTree": {
-      const tree = await buildTree(ps, target);
-      if (!tree) return { nodes: [] };
-      const id = pickBackendId(req.params, tree);
-      if (id == null) return { nodes: [] };
-      const wantAncestors = req.params?.fetchRelatives !== false;
-      const collected = new Map<string, AxNode>();
-      collectSubtree(tree, String(id), collected);
-      if (wantAncestors) collectAncestors(tree, String(id), collected);
-      return { nodes: Array.from(collected.values()) };
-    }
-
-    case "Accessibility.getChildAXNodes": {
-      const tree = await buildTree(ps, target);
-      if (!tree) return { nodes: [] };
-      const id = String(req.params?.id ?? "");
-      const parent = tree.byId.get(id);
-      if (!parent) return { nodes: [] };
-      const nodes: AxNode[] = [];
-      for (const cid of parent.childIds ?? []) {
-        const n = tree.byId.get(cid);
-        if (n) nodes.push(n);
-      }
-      return { nodes };
-    }
-
-    case "Accessibility.getAXNodeAndAncestors": {
-      const tree = await buildTree(ps, target);
-      if (!tree) return { nodes: [] };
-      const id = pickBackendId(req.params, tree);
-      if (id == null) return { nodes: [] };
-      const chain: AxNode[] = [];
-      let cur: string | undefined = String(id);
-      const seen = new Set<string>();
-      while (cur && !seen.has(cur)) {
-        seen.add(cur);
-        const n = tree.byId.get(cur);
-        if (!n) break;
-        chain.push(n);
-        cur = n.parentId;
-      }
-      return { nodes: chain };
-    }
-
-    case "Accessibility.queryAXTree": {
-      const tree = await buildTree(ps, target);
-      if (!tree) return { nodes: [] };
-      const params = req.params ?? {};
-      const rootId = pickExplicitBackendId(params);
-      const wantName =
-        typeof params.accessibleName === "string" ? params.accessibleName : undefined;
-      const wantRole = typeof params.role === "string" ? params.role : undefined;
-      const subtree = new Map<string, AxNode>();
-      if (rootId == null) {
-        for (const n of tree.nodes) subtree.set(n.nodeId, n);
-      } else {
-        collectSubtree(tree, String(rootId), subtree);
-      }
-      const matches: AxNode[] = [];
-      for (const n of subtree.values()) {
-        if (n.ignored) continue;
-        if (wantRole && (n.role?.value ?? "") !== wantRole) continue;
-        if (wantName != null && (n.name?.value ?? "") !== wantName) continue;
-        matches.push(n);
-      }
-      return { nodes: matches };
-    }
+    case "Accessibility.getFullAXTree":
+      return getFullAccessibilityTree(ps, target);
+    case "Accessibility.getRootAXNode":
+      return getRootAccessibilityNode(ps, target);
+    case "Accessibility.getPartialAXTree":
+      return getPartialAccessibilityTree(ps, target, req);
+    case "Accessibility.getChildAXNodes":
+      return getChildAccessibilityNodes(ps, target, req);
+    case "Accessibility.getAXNodeAndAncestors":
+      return getAccessibilityNodeAndAncestors(ps, target, req);
+    case "Accessibility.queryAXTree":
+      return queryAccessibilityTree(ps, target, req);
 
     default:
       // Accept unsupported Accessibility methods without a protocol error.
       return {};
   }
+}
+
+async function enableAccessibility(
+  ctx: DispatchCtx,
+  target: TargetState,
+  ps: PageSession | null,
+  sessionId: string | undefined,
+): Promise<Record<string, never>> {
+  const tree = await buildTree(ps, target);
+  const root = tree?.nodes[0];
+  if (root) {
+    ctx.emit({
+      method: "Accessibility.loadComplete",
+      // SAFETY: `buildTree` root is synthetic; `AxNode` also allows newer AX property names.
+      // The pinned protocol type omits those names. Related coverage is in
+      // `packages/engine/test/e2e/accessibility.e2e.test.ts`.
+      params: { root } as Protocol.Accessibility.LoadCompleteEvent,
+      sessionId,
+    });
+  }
+  return {};
+}
+
+async function getFullAccessibilityTree(
+  ps: PageSession | null,
+  target: TargetState,
+): Promise<{ nodes: AxNode[] }> {
+  const tree = await buildTree(ps, target);
+  return { nodes: tree ? tree.nodes : [] };
+}
+
+async function getRootAccessibilityNode(
+  ps: PageSession | null,
+  target: TargetState,
+): Promise<{ node: AxNode }> {
+  const tree = await buildTree(ps, target);
+  if (!tree) throw new Error("No document loaded");
+  const root = tree.nodes[0];
+  if (!root) throw new Error("Empty accessibility tree");
+  return { node: root };
+}
+
+async function getPartialAccessibilityTree(
+  ps: PageSession | null,
+  target: TargetState,
+  req: Extract<CdpRequest, { method: "Accessibility.getPartialAXTree" }>,
+): Promise<{ nodes: AxNode[] }> {
+  const tree = await buildTree(ps, target);
+  if (!tree) return { nodes: [] };
+  const id = pickBackendId(req.params, tree);
+  if (id == null) return { nodes: [] };
+  const collected = new Map<string, AxNode>();
+  collectSubtree(tree, String(id), collected);
+  if (req.params?.fetchRelatives !== false) collectAncestors(tree, String(id), collected);
+  return { nodes: Array.from(collected.values()) };
+}
+
+async function getChildAccessibilityNodes(
+  ps: PageSession | null,
+  target: TargetState,
+  req: Extract<CdpRequest, { method: "Accessibility.getChildAXNodes" }>,
+): Promise<{ nodes: AxNode[] }> {
+  const tree = await buildTree(ps, target);
+  if (!tree) return { nodes: [] };
+  const parent = tree.byId.get(String(req.params?.id ?? ""));
+  if (!parent) return { nodes: [] };
+  return { nodes: accessibilityChildren(tree, parent) };
+}
+
+function accessibilityChildren(tree: BuiltTree, parent: AxNode): AxNode[] {
+  const nodes: AxNode[] = [];
+  for (const id of parent.childIds ?? []) {
+    const node = tree.byId.get(id);
+    if (node) nodes.push(node);
+  }
+  return nodes;
+}
+
+async function getAccessibilityNodeAndAncestors(
+  ps: PageSession | null,
+  target: TargetState,
+  req: CdpRequest,
+): Promise<{ nodes: AxNode[] }> {
+  const tree = await buildTree(ps, target);
+  if (!tree) return { nodes: [] };
+  const id = pickBackendId(req.params, tree);
+  if (id == null) return { nodes: [] };
+  return { nodes: accessibilityNodeChain(tree, String(id)) };
+}
+
+function accessibilityNodeChain(tree: BuiltTree, startId: string): AxNode[] {
+  const chain: AxNode[] = [];
+  let current: string | undefined = startId;
+  const seen = new Set<string>();
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const node = tree.byId.get(current);
+    if (!node) break;
+    chain.push(node);
+    current = node.parentId;
+  }
+  return chain;
+}
+
+async function queryAccessibilityTree(
+  ps: PageSession | null,
+  target: TargetState,
+  req: Extract<CdpRequest, { method: "Accessibility.queryAXTree" }>,
+): Promise<{ nodes: AxNode[] }> {
+  const tree = await buildTree(ps, target);
+  if (!tree) return { nodes: [] };
+  const params = req.params ?? {};
+  const subtree = accessibilitySubtree(tree, pickExplicitBackendId(params));
+  return { nodes: filterAccessibilityNodes(subtree, params) };
+}
+
+function accessibilitySubtree(tree: BuiltTree, rootId: number | null): Map<string, AxNode> {
+  const subtree = new Map<string, AxNode>();
+  if (rootId == null) {
+    for (const node of tree.nodes) subtree.set(node.nodeId, node);
+  } else {
+    collectSubtree(tree, String(rootId), subtree);
+  }
+  return subtree;
+}
+
+function filterAccessibilityNodes(
+  subtree: Map<string, AxNode>,
+  params: NonNullable<Extract<CdpRequest, { method: "Accessibility.queryAXTree" }>["params"]>,
+): AxNode[] {
+  const wantName = typeof params.accessibleName === "string" ? params.accessibleName : undefined;
+  const wantRole = typeof params.role === "string" ? params.role : undefined;
+  const matches: AxNode[] = [];
+  for (const node of subtree.values()) {
+    if (matchesAccessibilityNode(node, wantRole, wantName)) matches.push(node);
+  }
+  return matches;
+}
+
+function matchesAccessibilityNode(
+  node: AxNode,
+  wantRole: string | undefined,
+  wantName: string | undefined,
+): boolean {
+  if (node.ignored) return false;
+  return matchesAccessibilityRole(node, wantRole) && matchesAccessibilityName(node, wantName);
+}
+
+function matchesAccessibilityRole(node: AxNode, wantRole: string | undefined): boolean {
+  return !wantRole || (node.role?.value ?? "") === wantRole;
+}
+
+function matchesAccessibilityName(node: AxNode, wantName: string | undefined): boolean {
+  return wantName == null || (node.name?.value ?? "") === wantName;
 }
 
 function emptyReply(method: string): Record<string, unknown> {
@@ -172,10 +254,20 @@ function emptyReply(method: string): Record<string, unknown> {
 
 function pickTarget(ctx: DispatchCtx, sessionId: string | undefined): TargetState | undefined {
   if (sessionId) {
-    for (const t of ctx.browser.targets.values()) {
-      if (t.sessions.has(sessionId)) return t;
-    }
+    const sessionTarget = findSessionTarget(ctx, sessionId);
+    if (sessionTarget) return sessionTarget;
   }
+  return findPageTarget(ctx);
+}
+
+function findSessionTarget(ctx: DispatchCtx, sessionId: string): TargetState | undefined {
+  for (const t of ctx.browser.targets.values()) {
+    if (t.sessions.has(sessionId)) return t;
+  }
+  return undefined;
+}
+
+function findPageTarget(ctx: DispatchCtx): TargetState | undefined {
   for (const t of ctx.browser.targets.values()) {
     if (t.type === "page") return t;
   }
@@ -183,35 +275,28 @@ function pickTarget(ctx: DispatchCtx, sessionId: string | undefined): TargetStat
 }
 
 function pickBackendId(params: unknown, tree: BuiltTree): number | null {
-  const p = (params ?? {}) as {
-    nodeId?: number;
-    backendNodeId?: number;
-    objectId?: string;
-  };
-  if (typeof p.backendNodeId === "number" && p.backendNodeId > 0) return p.backendNodeId;
-  if (typeof p.nodeId === "number" && p.nodeId > 0) return p.nodeId;
-  if (typeof p.objectId === "string") {
-    const m = /^node:(\d+)$/.exec(p.objectId);
-    if (m) return Number(m[1]);
-    const ps = /^ps:(\d+)$/.exec(p.objectId);
-    if (ps) return Number(ps[1]);
-  }
-  return tree.nodes[0]?.backendDOMNodeId ?? null;
+  return requestedBackendId(params) ?? tree.nodes[0]?.backendDOMNodeId ?? null;
 }
 
 function pickExplicitBackendId(params: unknown): number | null {
-  const p = (params ?? {}) as {
-    nodeId?: number;
-    backendNodeId?: number;
-    objectId?: string;
-  };
-  if (typeof p.backendNodeId === "number" && p.backendNodeId > 0) return p.backendNodeId;
-  if (typeof p.nodeId === "number" && p.nodeId > 0) return p.nodeId;
-  if (typeof p.objectId === "string") {
-    const m = /^(?:node|ps):(\d+)$/.exec(p.objectId);
-    if (m) return Number(m[1]);
-  }
-  return null;
+  return requestedBackendId(params);
+}
+
+function requestedBackendId(params: unknown): number | null {
+  const p = isRecord(params) ? params : {};
+  return (
+    positiveBackendId(p.backendNodeId) ?? positiveBackendId(p.nodeId) ?? objectBackendId(p.objectId)
+  );
+}
+
+function positiveBackendId(value: unknown): number | null {
+  return typeof value === "number" && value > 0 ? value : null;
+}
+
+function objectBackendId(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const match = /^(?:node|ps):(\d+)$/.exec(value);
+  return match ? Number(match[1]) : null;
 }
 
 export interface BuiltTree {
@@ -239,66 +324,147 @@ export interface AccessibilityReadState {
 
 export type MeasurePageRead = <T>(phase: string, run: () => Promise<T>) => Promise<T>;
 
-export async function buildTree(
-  ps: {
-    tryCall: Pick<SessionSoftOps, "getDocument" | "notRenderedNodeIds" | "formStateSnapshot">;
-  } | null,
+type AccessibilityPageSession = {
+  tryCall: Pick<SessionSoftOps, "getDocument" | "notRenderedNodeIds" | "formStateSnapshot">;
+};
+
+interface BuildTreeOptions {
+  includeReadState?: boolean;
+  fallback?: boolean;
+  measureRead?: MeasurePageRead;
+}
+
+interface AccessibilityPageData {
+  root: DomNode | null;
+  displayNone: Set<number>;
+  invisible: Set<number>;
+  liveValues: Map<number, string>;
+  liveChecked: Map<number, boolean>;
+  liveSelected: Map<number, boolean>;
+  stamps: AccessibilityReadState["stamps"];
+}
+
+type AccessibilityVisibilityResult = Awaited<ReturnType<SessionSoftOps["notRenderedNodeIds"]>>;
+type AccessibilityFormsResult = Awaited<ReturnType<SessionSoftOps["formStateSnapshot"]>>;
+
+function emptyAccessibilityPageData(): AccessibilityPageData {
+  return {
+    root: null,
+    displayNone: new Set<number>(),
+    invisible: new Set<number>(),
+    liveValues: new Map<number, string>(),
+    liveChecked: new Map<number, boolean>(),
+    liveSelected: new Map<number, boolean>(),
+    stamps: {},
+  };
+}
+
+async function readAccessibilityPageData(
+  ps: AccessibilityPageSession,
+  options: BuildTreeOptions,
+): Promise<AccessibilityPageData> {
+  const read = <T>(phase: string, run: () => Promise<T>): Promise<T> =>
+    options.measureRead ? options.measureRead(phase, run) : run();
+  const args = options.includeReadState ? { includeReadStamp: true } : {};
+  const [docRes, hiddenRes, formRes] = await Promise.all([
+    read("axtree.dom", () => ps.tryCall.getDocument(args)),
+    read("axtree.visibility", () => ps.tryCall.notRenderedNodeIds(args)),
+    read("axtree.forms", () => ps.tryCall.formStateSnapshot(args)),
+  ]);
+  return accessibilityPageDataFromResponses(docRes, hiddenRes, formRes);
+}
+
+function accessibilityPageDataFromResponses(
+  docRes: Awaited<ReturnType<SessionSoftOps["getDocument"]>>,
+  hiddenRes: AccessibilityVisibilityResult,
+  formRes: AccessibilityFormsResult,
+): AccessibilityPageData {
+  const visibility = accessibilityVisibilityData(hiddenRes);
+  const forms = accessibilityFormsData(formRes);
+  return {
+    root: (docRes?.root as DomNode | undefined) ?? null,
+    displayNone: visibility.displayNone,
+    invisible: visibility.invisible,
+    liveValues: forms.liveValues,
+    liveChecked: forms.liveChecked,
+    liveSelected: forms.liveSelected,
+    stamps: accessibilityReadStamps(docRes, hiddenRes, formRes),
+  };
+}
+
+function accessibilityReadStamps(
+  docRes: Awaited<ReturnType<SessionSoftOps["getDocument"]>>,
+  hiddenRes: AccessibilityVisibilityResult,
+  formRes: AccessibilityFormsResult,
+): AccessibilityReadState["stamps"] {
+  return {
+    document: docRes?.readStamp,
+    visibility: hiddenRes?.readStamp,
+    forms: formRes?.readStamp,
+  };
+}
+
+function accessibilityVisibilityData(
+  result: AccessibilityVisibilityResult,
+): Pick<AccessibilityPageData, "displayNone" | "invisible"> {
+  const displayNone = Array.isArray(result?.displayNone)
+    ? new Set(result.displayNone)
+    : new Set<number>();
+  const invisible = Array.isArray(result?.invisible)
+    ? new Set(result.invisible)
+    : new Set<number>();
+  return { displayNone, invisible };
+}
+
+function accessibilityFormsData(
+  result: AccessibilityFormsResult,
+): Pick<AccessibilityPageData, "liveValues" | "liveChecked" | "liveSelected"> {
+  return {
+    liveValues: numberStringMap(result?.values),
+    liveChecked: numberBooleanMap(result?.checked),
+    liveSelected: numberBooleanMap(result?.selected),
+  };
+}
+
+function numberStringMap(value: Array<[number, string]> | undefined): Map<number, string> {
+  return Array.isArray(value) ? new Map(value) : new Map<number, string>();
+}
+
+function numberBooleanMap(value: Array<[number, boolean]> | undefined): Map<number, boolean> {
+  return Array.isArray(value) ? new Map(value) : new Map<number, boolean>();
+}
+
+function fallbackDocument(
+  root: DomNode | null,
   target: TargetState,
-  options: {
-    includeReadState?: boolean;
-    fallback?: boolean;
-    measureRead?: MeasurePageRead;
-  } = {},
+  fallbackEnabled: boolean,
+): DomNode | null {
+  if (root || !fallbackEnabled) return root;
+  const dom = ensureTargetDom(target);
+  if (!dom) return null;
+  try {
+    return dom.getDocument() as DomNode;
+  } catch {
+    return null;
+  }
+}
+
+export async function buildTree(
+  ps: AccessibilityPageSession | null,
+  target: TargetState,
+  options: BuildTreeOptions = {},
 ): Promise<BuiltTree | null> {
-  let root: DomNode | null = null;
-  let displayNone = new Set<number>();
-  let invisible = new Set<number>();
-  let liveValues = new Map<number, string>();
-  let liveChecked = new Map<number, boolean>();
-  let liveSelected = new Map<number, boolean>();
-  const stamps: AccessibilityReadState["stamps"] = {};
-  if (ps) {
-    const read = <T>(phase: string, run: () => Promise<T>): Promise<T> =>
-      options.measureRead ? options.measureRead(phase, run) : run();
-    const args = options.includeReadState ? { includeReadStamp: true } : {};
-    const [docRes, hiddenRes, formRes] = await Promise.all([
-      read("axtree.dom", () => ps.tryCall.getDocument(args)),
-      read("axtree.visibility", () => ps.tryCall.notRenderedNodeIds(args)),
-      read("axtree.forms", () => ps.tryCall.formStateSnapshot(args)),
-    ]);
-    stamps.document = docRes?.readStamp;
-    stamps.visibility = hiddenRes?.readStamp;
-    stamps.forms = formRes?.readStamp;
-    root = (docRes?.root as DomNode | undefined) ?? null;
-    if (Array.isArray(hiddenRes?.displayNone)) {
-      displayNone = new Set(hiddenRes.displayNone);
-    }
-    if (Array.isArray(hiddenRes?.invisible)) {
-      invisible = new Set(hiddenRes.invisible);
-    }
-    if (Array.isArray(formRes?.values)) liveValues = new Map(formRes.values);
-    if (Array.isArray(formRes?.checked)) {
-      liveChecked = new Map(formRes.checked);
-    }
-    if (Array.isArray(formRes?.selected)) liveSelected = new Map(formRes.selected);
-  }
-  const usedFallback = !root;
-  const fallbackDom = root || options.fallback === false ? null : ensureTargetDom(target);
-  if (!root && fallbackDom) {
-    try {
-      root = fallbackDom.getDocument() as DomNode;
-    } catch {
-      root = null;
-    }
-  }
+  const data = ps ? await readAccessibilityPageData(ps, options) : emptyAccessibilityPageData();
+  const usedFallback = !data.root;
+  const root = fallbackDocument(data.root, target, options.fallback !== false);
   if (!root) return null;
 
-  const ctx = new BuildCtx(target.frameId, displayNone, invisible);
+  const ctx = new BuildCtx(target.frameId, data.displayNone, data.invisible);
   ctx.root = root;
   ctx.baseUrl = target.url || "";
-  ctx.liveValues = liveValues;
-  ctx.liveChecked = liveChecked;
-  ctx.liveSelected = liveSelected;
+  ctx.liveValues = data.liveValues;
+  ctx.liveChecked = data.liveChecked;
+  ctx.liveSelected = data.liveSelected;
   ctx.indexIds(root);
   const rootAx = ctx.build(root, null, {
     ariaHidden: false,
@@ -307,6 +473,34 @@ export async function buildTree(
     layoutTable: false,
     listDepth: 0,
   });
+  const rootWeb = rootWebAreaNode(target, root, rootAx);
+  ctx.byId.set(rootWeb.nodeId, rootWeb);
+  ctx.nodes.unshift(rootWeb);
+  return finishBuiltTree(ctx, root, data, usedFallback, options.includeReadState);
+}
+
+function finishBuiltTree(
+  ctx: BuildCtx,
+  root: DomNode,
+  data: AccessibilityPageData,
+  usedFallback: boolean,
+  includeReadState: boolean | undefined,
+): BuiltTree {
+  const readState = includeReadState
+    ? {
+        stamps: data.stamps,
+        forms: {
+          values: data.liveValues,
+          checked: data.liveChecked,
+          selected: data.liveSelected,
+        },
+        fallback: usedFallback,
+      }
+    : undefined;
+  return { nodes: ctx.nodes, byId: ctx.byId, root, ...(readState ? { readState } : {}) };
+}
+
+function rootWebAreaNode(target: TargetState, root: DomNode, rootAx: AxNode | null): AxNode {
   const rootWeb: AxNode = {
     nodeId: `root-${target.frameId}`,
     ignored: false,
@@ -316,23 +510,23 @@ export async function buildTree(
     value: { type: "string", value: target.url || "" },
     backendDOMNodeId: root.backendNodeId ?? 0,
     frameId: target.frameId,
-    childIds: rootAx ? [rootAx.nodeId] : [],
+    childIds: rootWebAreaChildIds(rootAx),
     properties: [
       { name: "url", value: { type: "string", value: target.url || "" } },
       { name: "focusable", value: { type: "booleanOrUndefined", value: true } },
     ],
   };
-  if (rootAx) rootAx.parentId = rootWeb.nodeId;
-  ctx.byId.set(rootWeb.nodeId, rootWeb);
-  ctx.nodes.unshift(rootWeb);
-  const readState = options.includeReadState
-    ? {
-        stamps,
-        forms: { values: liveValues, checked: liveChecked, selected: liveSelected },
-        fallback: usedFallback,
-      }
-    : undefined;
-  return { nodes: ctx.nodes, byId: ctx.byId, root, ...(readState ? { readState } : {}) };
+  linkRootWebAreaChild(rootWeb, rootAx);
+  return rootWeb;
+}
+
+function linkRootWebAreaChild(rootWeb: AxNode, rootAx: AxNode | null): void {
+  if (!rootAx) return;
+  rootAx.parentId = rootWeb.nodeId;
+}
+
+function rootWebAreaChildIds(rootAx: AxNode | null): string[] {
+  return rootAx ? [rootAx.nodeId] : [];
 }
 
 interface Inherited {
@@ -341,6 +535,35 @@ interface Inherited {
   textHidden: boolean;
   layoutTable: boolean;
   listDepth: number;
+}
+
+interface ElementBasics {
+  tag: string;
+  attrs: Map<string, string>;
+  backendId: number;
+}
+
+interface ElementVisibility {
+  selfAriaHidden: boolean;
+  ariaHidden: boolean;
+  noBox: boolean;
+  subtreeHidden: boolean;
+  hidden: boolean;
+}
+
+interface ElementTableState {
+  inLayoutTable: boolean;
+  demotedByTable: boolean;
+}
+
+interface ElementBuildInfo extends ElementBasics, ElementVisibility, ElementTableState {
+  axId: string;
+  explicitRole: string;
+  role: string;
+  name: string;
+  description: string;
+  value: AxNode["value"];
+  props: NonNullable<AxNode["properties"]>;
 }
 
 class BuildCtx {
@@ -375,164 +598,370 @@ class BuildCtx {
   }
 
   indexIds(node: DomNode): void {
-    if (typeof node.backendNodeId === "number") {
-      this.backendToNode.set(node.backendNodeId, node);
-    }
-    if (node.nodeType === 1) {
-      const attrs = attrMap(node.attributes);
-      const id = attrs.get("id");
-      if (id && typeof node.backendNodeId === "number") {
-        this.idAttrToBackend.set(id, node.backendNodeId);
-      }
-      const tagName = (node.localName || node.nodeName || "").toLowerCase();
-      if (tagName === "label") {
-        const forId = attrs.get("for");
-        if (forId && !this.labelForId.has(forId)) this.labelForId.set(forId, node);
-      }
-      if (tagName === "base") {
-        const href = attrs.get("href");
-        if (href && !this.sawBase) {
-          this.sawBase = true;
-          this.baseUrl = absUrl(href, this.baseUrl) || this.baseUrl;
-        }
-      }
-    }
-    for (const c of node.children ?? []) {
-      if (typeof c.backendNodeId === "number") this.parentOf.set(c.backendNodeId, node);
-    }
-    for (const c of node.children ?? []) this.indexIds(c);
-    for (const c of node.shadowRoots ?? []) this.indexIds(c);
+    this.indexBackendNode(node);
+    this.indexElement(node);
+    this.indexParentLinks(node);
+    this.indexNodeList(node.children);
+    this.indexNodeList(node.shadowRoots);
     if (node.contentDocument) this.indexIds(node.contentDocument);
   }
 
-  build(node: DomNode, parentAxId: string | null, inh: Inherited): AxNode | null {
-    if (node.nodeType === 3) {
-      const text = (node.nodeValue ?? "").replace(/\s+/g, " ").trim();
-      if (!text) return null;
-      const textHidden = inh.hidden || inh.textHidden;
-      const tid = node.backendNodeId ?? node.nodeId ?? 0;
-      const tax: AxNode = {
-        nodeId: String(tid),
-        ignored: textHidden,
-        backendDOMNodeId: tid,
-        frameId: this.frameId,
-      };
-      if (textHidden) {
-        tax.ignoredReasons = [ignoreReason(inh.ariaHidden ? "ariaHiddenSubtree" : "notRendered")];
-        tax.role = { type: "internalRole", value: "none" };
-      } else {
-        tax.role = { type: "internalRole", value: "StaticText" };
-        tax.name = { type: "computedString", value: text };
-      }
-      if (parentAxId) tax.parentId = parentAxId;
-      this.nodes.push(tax);
-      this.byId.set(tax.nodeId, tax);
-      return tax;
+  private indexBackendNode(node: DomNode): void {
+    if (typeof node.backendNodeId === "number") {
+      this.backendToNode.set(node.backendNodeId, node);
     }
-    if (node.nodeType !== 1 && node.nodeType !== 9) return null;
+  }
 
-    if (node.nodeType === 9) {
-      let firstChild: AxNode | null = null;
-      for (const c of node.children ?? []) {
-        const built = this.build(c, parentAxId, inh);
-        if (built && !firstChild) firstChild = built;
-      }
-      return firstChild;
-    }
-
-    const tag = (node.localName || node.nodeName || "").toLowerCase();
-    if (SKIP_TAGS.has(tag)) return null;
-
+  private indexElement(node: DomNode): void {
+    if (node.nodeType !== 1) return;
     const attrs = attrMap(node.attributes);
-    const backendId = node.backendNodeId ?? node.nodeId ?? 0;
-    const axId = String(backendId);
+    this.indexIdAttribute(node, attrs);
+    this.indexLabel(node, attrs);
+    this.indexBase(node, attrs);
+  }
 
-    const selfAriaHidden = attrs.get("aria-hidden") === "true";
-    const ariaHidden = inh.ariaHidden || selfAriaHidden;
-    const uaHiddenOption =
-      tag === "option" && this.inSelect(backendId) && !inlineDisplayNone(attrs.get("style"));
-    // UA-hidden inputs can be absent from the layout walk's computed display.
-    const hiddenInput = tag === "input" && attrs.get("type")?.trim().toLowerCase() === "hidden";
-    const boxless = (this.displayNone.has(backendId) && !uaHiddenOption) || hiddenInput;
-    const noBox = boxless || attrs.has("hidden");
-    const subtreeHidden = inh.hidden || ariaHidden || noBox;
-    const hidden = subtreeHidden || this.invisible.has(backendId);
-
-    const explicitRole = firstToken(attrs.get("role"));
-    const mapped = explicitRole || implicitRole(tag, attrs);
-    const role = mapped || "generic";
-
-    const name = computeName(node, tag, attrs, this);
-    const description = computeDescription(attrs, this);
-    const value = computeValue(node, tag, attrs, this);
-    const props = computeProperties(tag, attrs, node, this, role, inh.listDepth);
-
-    const isTable = tag === "table" && !explicitRole;
-    const startsLayoutTable = isTable && isLayoutTable(node, attrs);
-    const inLayoutTable = tag === "table" ? startsLayoutTable : inh.layoutTable;
-    const demotedByTable =
-      startsLayoutTable || (inh.layoutTable && TABLE_PART_TAGS.has(tag) && !explicitRole);
-
-    const reasons: NonNullable<AxNode["ignoredReasons"]> = [];
-    if (hidden) {
-      if (selfAriaHidden) reasons.push(ignoreReason("ariaHiddenElement"));
-      else if (ariaHidden) reasons.push(ignoreReason("ariaHiddenSubtree"));
-      else reasons.push(ignoreReason("notRendered"));
-    } else if (role === "presentation" || role === "none" || demotedByTable) {
-      reasons.push(ignoreReason("presentationalRole"));
-    } else if (tag === "html") {
-      reasons.push(ignoreReason("uninteresting"));
+  private indexIdAttribute(node: DomNode, attrs: Map<string, string>): void {
+    const id = attrs.get("id");
+    if (id && typeof node.backendNodeId === "number") {
+      this.idAttrToBackend.set(id, node.backendNodeId);
     }
-    const ignored = reasons.length > 0;
+  }
 
-    const ax: AxNode = {
-      nodeId: axId,
-      ignored,
-      backendDOMNodeId: backendId,
-      frameId: this.frameId,
-    };
-    if (ignored) {
-      ax.ignoredReasons = reasons;
-      ax.role = { type: "internalRole", value: "none" };
-    } else {
-      ax.role = { type: explicitRole ? "role" : "internalRole", value: role };
-      if (name) ax.name = { type: "computedString", value: name };
-      if (description) ax.description = { type: "computedString", value: description };
-      if (value !== undefined) ax.value = value;
-      if (props.length > 0) ax.properties = props;
-    }
-    if (parentAxId) ax.parentId = parentAxId;
+  private indexLabel(node: DomNode, attrs: Map<string, string>): void {
+    if (localTag(node) !== "label") return;
+    const forId = attrs.get("for");
+    if (forId && !this.labelForId.has(forId)) this.labelForId.set(forId, node);
+  }
 
-    this.nodes.push(ax);
-    this.byId.set(axId, ax);
+  private indexBase(node: DomNode, attrs: Map<string, string>): void {
+    if (localTag(node) !== "base") return;
+    const href = attrs.get("href");
+    if (!href || this.sawBase) return;
+    this.sawBase = true;
+    this.baseUrl = absUrl(href, this.baseUrl) || this.baseUrl;
+  }
 
-    if (noBox) return ax;
-
-    const childInh: Inherited = {
-      ariaHidden,
-      hidden: subtreeHidden,
-      textHidden: hidden,
-      layoutTable: inLayoutTable,
-      listDepth: tag === "ul" || tag === "ol" ? inh.listDepth + 1 : inh.listDepth,
-    };
-    const childIds: string[] = [];
-    for (const sr of node.shadowRoots ?? []) {
-      for (const c of sr.children ?? []) {
-        const built = this.build(c, axId, childInh);
-        if (built) childIds.push(built.nodeId);
+  private indexParentLinks(node: DomNode): void {
+    for (const child of node.children ?? []) {
+      if (typeof child.backendNodeId === "number") {
+        this.parentOf.set(child.backendNodeId, node);
       }
     }
-    for (const c of node.children ?? []) {
-      const built = this.build(c, axId, childInh);
-      if (built) childIds.push(built.nodeId);
+  }
+
+  private indexNodeList(nodes: DomNode[] | undefined): void {
+    for (const node of nodes ?? []) this.indexIds(node);
+  }
+
+  build(node: DomNode, parentAxId: string | null, inh: Inherited): AxNode | null {
+    if (node.nodeType === 3) return this.buildTextNode(node, parentAxId, inh);
+    if (node.nodeType === 9) return this.buildDocumentNode(node, parentAxId, inh);
+    if (node.nodeType !== 1) return null;
+    return this.buildElementNode(node, parentAxId, inh);
+  }
+
+  private buildTextNode(node: DomNode, parentAxId: string | null, inh: Inherited): AxNode | null {
+    const text = textNodeContent(node);
+    if (!text) return null;
+    const ax = textAxNode(
+      backendIdForNode(node),
+      text,
+      isInheritedTextHidden(inh),
+      inh.ariaHidden,
+      this.frameId,
+    );
+    if (parentAxId) ax.parentId = parentAxId;
+    this.nodes.push(ax);
+    this.byId.set(ax.nodeId, ax);
+    return ax;
+  }
+
+  private buildDocumentNode(
+    node: DomNode,
+    parentAxId: string | null,
+    inh: Inherited,
+  ): AxNode | null {
+    let firstChild: AxNode | null = null;
+    for (const child of node.children ?? []) {
+      const built = this.build(child, parentAxId, inh);
+      if (built && !firstChild) firstChild = built;
     }
-    if (node.contentDocument) {
-      const inner = this.build(node.contentDocument, axId, childInh);
-      if (inner) childIds.push(inner.nodeId);
-    }
+    return firstChild;
+  }
+
+  private buildElementNode(
+    node: DomNode,
+    parentAxId: string | null,
+    inh: Inherited,
+  ): AxNode | null {
+    const info = elementBuildInfo(this, node, inh);
+    if (!info) return null;
+    const ax = elementAxNode(this.frameId, info);
+    if (parentAxId) ax.parentId = parentAxId;
+    this.nodes.push(ax);
+    this.byId.set(info.axId, ax);
+    if (info.noBox) return ax;
+    const childIds = elementChildIds(this, node, info, inh);
     if (childIds.length > 0) ax.childIds = childIds;
     return ax;
   }
+}
+
+function textNodeContent(node: DomNode): string {
+  return (node.nodeValue ?? "").replace(/\s+/g, " ").trim();
+}
+
+function isInheritedTextHidden(inh: Inherited): boolean {
+  return inh.hidden || inh.textHidden;
+}
+
+function textAxNode(
+  id: number,
+  text: string,
+  hidden: boolean,
+  ariaHidden: boolean,
+  frameId: string,
+): AxNode {
+  const ax: AxNode = {
+    nodeId: String(id),
+    ignored: hidden,
+    backendDOMNodeId: id,
+    frameId,
+  };
+  if (hidden) {
+    ax.ignoredReasons = [ignoreReason(ariaHidden ? "ariaHiddenSubtree" : "notRendered")];
+    ax.role = { type: "internalRole", value: "none" };
+  } else {
+    ax.role = { type: "internalRole", value: "StaticText" };
+    ax.name = { type: "computedString", value: text };
+  }
+  return ax;
+}
+
+function elementBuildInfo(ctx: BuildCtx, node: DomNode, inh: Inherited): ElementBuildInfo | null {
+  const basics = elementBasics(node);
+  if (!basics) return null;
+  const visibility = elementVisibility(ctx, basics, inh);
+  const explicitRole = firstToken(basics.attrs.get("role"));
+  const role = elementRole(basics.tag, basics.attrs, explicitRole);
+  const table = elementTableState(node, basics, explicitRole, inh);
+  return {
+    ...basics,
+    ...visibility,
+    ...table,
+    axId: String(basics.backendId),
+    explicitRole,
+    role,
+    name: computeName(node, basics.tag, basics.attrs, ctx),
+    description: computeDescription(basics.attrs, ctx),
+    value: computeValue(node, basics.tag, basics.attrs, ctx),
+    props: computeProperties(basics.tag, basics.attrs, node, ctx, role, inh.listDepth),
+  };
+}
+
+function elementBasics(node: DomNode): ElementBasics | null {
+  const tag = localTag(node);
+  if (SKIP_TAGS.has(tag)) return null;
+  const backendId = backendIdForNode(node);
+  return { tag, attrs: attrMap(node.attributes), backendId };
+}
+
+function backendIdForNode(node: DomNode): number {
+  return node.backendNodeId ?? node.nodeId ?? 0;
+}
+
+function elementRole(tag: string, attrs: Map<string, string>, explicitRole: string): string {
+  return explicitRole || implicitRole(tag, attrs) || "generic";
+}
+
+function elementVisibility(
+  ctx: BuildCtx,
+  basics: ElementBasics,
+  inh: Inherited,
+): ElementVisibility {
+  const selfAriaHidden = basics.attrs.get("aria-hidden") === "true";
+  const ariaHidden = inh.ariaHidden || selfAriaHidden;
+  const noBox = elementHasNoBox(ctx, basics);
+  const subtreeHidden = inh.hidden || ariaHidden || noBox;
+  return {
+    selfAriaHidden,
+    ariaHidden,
+    noBox,
+    subtreeHidden,
+    hidden: subtreeHidden || ctx.invisible.has(basics.backendId),
+  };
+}
+
+function elementHasNoBox(ctx: BuildCtx, basics: ElementBasics): boolean {
+  return elementIsBoxless(ctx, basics) || basics.attrs.has("hidden");
+}
+
+function elementIsBoxless(ctx: BuildCtx, basics: ElementBasics): boolean {
+  const hiddenOption = isUaHiddenOption(ctx, basics);
+  const noDisplay = ctx.displayNone.has(basics.backendId) && !hiddenOption;
+  return noDisplay || isHiddenInput(basics);
+}
+
+function isUaHiddenOption(ctx: BuildCtx, basics: ElementBasics): boolean {
+  return (
+    basics.tag === "option" &&
+    ctx.inSelect(basics.backendId) &&
+    !inlineDisplayNone(basics.attrs.get("style"))
+  );
+}
+
+function isHiddenInput(basics: ElementBasics): boolean {
+  return basics.tag === "input" && basics.attrs.get("type")?.trim().toLowerCase() === "hidden";
+}
+
+function elementTableState(
+  node: DomNode,
+  basics: ElementBasics,
+  explicitRole: string,
+  inh: Inherited,
+): ElementTableState {
+  const startsLayoutTable = isLayoutTableElement(node, basics, explicitRole);
+  const inLayoutTable = basics.tag === "table" ? startsLayoutTable : inh.layoutTable;
+  return {
+    inLayoutTable,
+    demotedByTable:
+      startsLayoutTable || isTablePartInLayoutTable(basics.tag, explicitRole, inh.layoutTable),
+  };
+}
+
+function isLayoutTableElement(node: DomNode, basics: ElementBasics, explicitRole: string): boolean {
+  return basics.tag === "table" && !explicitRole && isLayoutTable(node, basics.attrs);
+}
+
+function isTablePartInLayoutTable(
+  tag: string,
+  explicitRole: string,
+  inLayoutTable: boolean,
+): boolean {
+  return inLayoutTable && TABLE_PART_TAGS.has(tag) && !explicitRole;
+}
+
+function elementAxNode(frameId: string, info: ElementBuildInfo): AxNode {
+  const reasons = elementIgnoredReasons(info);
+  const ax: AxNode = {
+    nodeId: info.axId,
+    ignored: reasons.length > 0,
+    backendDOMNodeId: info.backendId,
+    frameId,
+  };
+  applyElementSemantics(ax, info, reasons);
+  return ax;
+}
+
+function elementIgnoredReasons(info: ElementBuildInfo): NonNullable<AxNode["ignoredReasons"]> {
+  if (info.hidden) {
+    return [ignoreReason(hiddenElementReason(info))];
+  }
+  if (isPresentationalElement(info)) return [ignoreReason("presentationalRole")];
+  if (info.tag === "html") return [ignoreReason("uninteresting")];
+  return [];
+}
+
+function hiddenElementReason(info: ElementBuildInfo): string {
+  return info.selfAriaHidden
+    ? "ariaHiddenElement"
+    : info.ariaHidden
+      ? "ariaHiddenSubtree"
+      : "notRendered";
+}
+
+function isPresentationalElement(info: ElementBuildInfo): boolean {
+  return info.role === "presentation" || info.role === "none" || info.demotedByTable;
+}
+
+function applyElementSemantics(
+  ax: AxNode,
+  info: ElementBuildInfo,
+  reasons: NonNullable<AxNode["ignoredReasons"]>,
+): void {
+  if (reasons.length > 0) {
+    ax.ignoredReasons = reasons;
+    ax.role = { type: "internalRole", value: "none" };
+    return;
+  }
+  ax.role = { type: info.explicitRole ? "role" : "internalRole", value: info.role };
+  applyExposedElementProperties(ax, info);
+}
+
+function applyExposedElementProperties(ax: AxNode, info: ElementBuildInfo): void {
+  if (info.name) ax.name = { type: "computedString", value: info.name };
+  if (info.description) ax.description = { type: "computedString", value: info.description };
+  if (info.value !== undefined) ax.value = info.value;
+  if (info.props.length > 0) ax.properties = info.props;
+}
+
+function elementChildIds(
+  ctx: BuildCtx,
+  node: DomNode,
+  info: ElementBuildInfo,
+  inh: Inherited,
+): string[] {
+  const childIds: string[] = [];
+  const childInh = childInheritance(info, inh);
+  appendShadowRootChildren(ctx, node.shadowRoots, info.axId, childInh, childIds);
+  appendBuiltChildren(ctx, node.children ?? [], info.axId, childInh, childIds);
+  appendContentDocument(ctx, node.contentDocument, info.axId, childInh, childIds);
+  return childIds;
+}
+
+function childInheritance(info: ElementBuildInfo, inh: Inherited): Inherited {
+  const listDepth = info.tag === "ul" || info.tag === "ol" ? inh.listDepth + 1 : inh.listDepth;
+  return {
+    ariaHidden: info.ariaHidden,
+    hidden: info.subtreeHidden,
+    textHidden: info.hidden,
+    layoutTable: info.inLayoutTable,
+    listDepth,
+  };
+}
+
+function appendShadowRootChildren(
+  ctx: BuildCtx,
+  shadowRoots: DomNode[] | undefined,
+  axId: string,
+  inh: Inherited,
+  childIds: string[],
+): void {
+  for (const shadowRoot of shadowRoots ?? []) {
+    appendBuiltChildren(ctx, shadowRoot.children ?? [], axId, inh, childIds);
+  }
+}
+
+function appendBuiltChildren(
+  ctx: BuildCtx,
+  children: DomNode[],
+  axId: string,
+  inh: Inherited,
+  childIds: string[],
+): void {
+  for (const child of children) appendBuiltChild(ctx, child, axId, inh, childIds);
+}
+
+function appendBuiltChild(
+  ctx: BuildCtx,
+  child: DomNode,
+  axId: string,
+  inh: Inherited,
+  childIds: string[],
+): void {
+  const built = ctx.build(child, axId, inh);
+  if (built) childIds.push(built.nodeId);
+}
+
+function appendContentDocument(
+  ctx: BuildCtx,
+  contentDocument: DomNode | undefined,
+  axId: string,
+  inh: Inherited,
+  childIds: string[],
+): void {
+  if (!contentDocument) return;
+  appendBuiltChild(ctx, contentDocument, axId, inh, childIds);
 }
 
 function ignoreReason(name: string): { name: string; value: { type: string; value: unknown } } {
@@ -553,34 +982,41 @@ const TABLE_PART_TAGS = new Set([
 
 function isLayoutTable(node: DomNode, attrs: Map<string, string>): boolean {
   if (attrs.has("summary")) return false;
-  let dataSignals = 0;
-  const walk = (n: DomNode, depth: number): void => {
-    if (dataSignals > 0 || depth > 4) return;
-    for (const c of n.children ?? []) {
-      if (c.nodeType !== 1) continue;
-      const t = (c.localName || c.nodeName || "").toLowerCase();
-      if (t === "caption") {
-        dataSignals++;
-        return;
-      }
-      if (t === "th") {
-        dataSignals++;
-        return;
-      }
-      if (t === "td") {
-        const ca = attrMap(c.attributes);
-        if (ca.has("scope") || ca.has("headers") || ca.has("abbr")) {
-          dataSignals++;
-          return;
-        }
-      }
-      if (t === "table") continue;
-      walk(c, depth + 1);
-      if (dataSignals > 0) return;
+  return !hasDataTableSignal(node, 0);
+}
+
+function hasDataTableSignal(node: DomNode, depth: number): boolean {
+  if (depth > 4) return false;
+  for (const child of nodeChildren(node)) {
+    if (hasTableCellSignal(child) || hasRelevantTableDescendantSignal(child, depth + 1)) {
+      return true;
     }
-  };
-  walk(node, 0);
-  return dataSignals === 0;
+  }
+  return false;
+}
+
+function nodeChildren(node: DomNode): DomNode[] {
+  return node.children ?? [];
+}
+
+function hasTableCellSignal(node: DomNode): boolean {
+  if (node.nodeType !== 1) return false;
+  const tag = localTag(node);
+  if (tag === "caption" || tag === "th") return true;
+  return tag === "td" && hasTableHeaderAttributes(node);
+}
+
+function hasTableHeaderAttributes(node: DomNode): boolean {
+  const attrs = attrMap(node.attributes);
+  return attrs.has("scope") || attrs.has("headers") || attrs.has("abbr");
+}
+
+function hasRelevantTableDescendantSignal(node: DomNode, depth: number): boolean {
+  return !isNestedTable(node) && hasDataTableSignal(node, depth);
+}
+
+function isNestedTable(node: DomNode): boolean {
+  return node.nodeType === 1 && localTag(node) === "table";
 }
 
 function localTag(node: DomNode): string {
@@ -589,21 +1025,34 @@ function localTag(node: DomNode): string {
 
 function inlineDisplayNone(style: string | undefined): boolean {
   if (!style) return false;
+  return lastDisplayValue(style) === "none";
+}
+
+function lastDisplayValue(style: string): string | undefined {
   let display: string | undefined;
   let important = false;
   for (const decl of style.split(";")) {
-    const colon = decl.indexOf(":");
-    if (colon < 0 || decl.slice(0, colon).trim().toLowerCase() !== "display") continue;
-    const raw = decl.slice(colon + 1);
-    const isImportant = /!\s*important\s*$/i.test(raw);
-    if (important && !isImportant) continue;
-    display = raw
-      .replace(/!\s*important\s*$/i, "")
-      .trim()
-      .toLowerCase();
-    important = isImportant;
+    const parsed = parseDisplayDeclaration(decl);
+    if (!parsed) continue;
+    if (important && !parsed.important) continue;
+    display = parsed.value;
+    important = parsed.important;
   }
-  return display === "none";
+  return display;
+}
+
+function parseDisplayDeclaration(
+  declaration: string,
+): { value: string; important: boolean } | null {
+  const colon = declaration.indexOf(":");
+  if (colon < 0 || declaration.slice(0, colon).trim().toLowerCase() !== "display") return null;
+  const raw = declaration.slice(colon + 1);
+  const important = /!\s*important\s*$/i.test(raw);
+  const value = raw
+    .replace(/!\s*important\s*$/i, "")
+    .trim()
+    .toLowerCase();
+  return { value, important };
 }
 
 function attrMap(flat: string[] | undefined): Map<string, string> {
@@ -636,9 +1085,8 @@ const SKIP_TAGS = new Set([
 function implicitRole(tag: string, attrs: Map<string, string>): string {
   switch (tag) {
     case "a":
-      return attrs.has("href") ? "link" : "generic";
     case "area":
-      return attrs.has("href") ? "link" : "generic";
+      return linkRole(attrs);
     case "article":
       return "article";
     case "aside":
@@ -692,48 +1140,10 @@ function implicitRole(tag: string, attrs: Map<string, string>): string {
       return "document";
     case "iframe":
       return "Iframe";
-    case "img": {
-      const alt = attrs.get("alt");
-      if (alt === "") return "presentation";
-      return "image";
-    }
-    case "input": {
-      const type = (attrs.get("type") || "text").toLowerCase();
-      switch (type) {
-        case "button":
-        case "submit":
-        case "reset":
-        case "image":
-          return "button";
-        case "checkbox":
-          return "checkbox";
-        case "radio":
-          return "radio";
-        case "range":
-          return "slider";
-        case "number":
-          return "spinbutton";
-        case "search":
-          return "searchbox";
-        case "email":
-        case "tel":
-        case "text":
-        case "url":
-          return "textbox";
-        case "password":
-        case "hidden":
-        case "file":
-        case "color":
-        case "date":
-        case "datetime-local":
-        case "month":
-        case "time":
-        case "week":
-          return "textbox";
-        default:
-          return "textbox";
-      }
-    }
+    case "img":
+      return imageRole(attrs);
+    case "input":
+      return inputRole(attrs);
     case "ins":
       return "insertion";
     case "label":
@@ -766,9 +1176,9 @@ function implicitRole(tag: string, attrs: Map<string, string>): string {
     case "search":
       return "search";
     case "section":
-      return attrs.has("aria-label") || attrs.has("aria-labelledby") ? "region" : "generic";
+      return sectionRole(attrs);
     case "select":
-      return attrs.has("multiple") || Number(attrs.get("size") ?? "0") > 1 ? "listbox" : "combobox";
+      return selectRole(attrs);
     case "strong":
       return "strong";
     case "sub":
@@ -790,7 +1200,7 @@ function implicitRole(tag: string, attrs: Map<string, string>): string {
     case "td":
       return "cell";
     case "th":
-      return attrs.get("scope") === "row" ? "rowheader" : "columnheader";
+      return headerCellRole(attrs);
     case "time":
       return "time";
     case "tr":
@@ -800,164 +1210,354 @@ function implicitRole(tag: string, attrs: Map<string, string>): string {
   }
 }
 
+function linkRole(attrs: Map<string, string>): string {
+  return attrs.has("href") ? "link" : "generic";
+}
+
+function imageRole(attrs: Map<string, string>): string {
+  return attrs.get("alt") === "" ? "presentation" : "image";
+}
+
+function inputRole(attrs: Map<string, string>): string {
+  const type = (attrs.get("type") || "text").toLowerCase();
+  switch (type) {
+    case "button":
+    case "submit":
+    case "reset":
+    case "image":
+      return "button";
+    case "checkbox":
+      return "checkbox";
+    case "radio":
+      return "radio";
+    case "range":
+      return "slider";
+    case "number":
+      return "spinbutton";
+    case "search":
+      return "searchbox";
+    case "email":
+    case "tel":
+    case "text":
+    case "url":
+      return "textbox";
+    case "password":
+    case "hidden":
+    case "file":
+    case "color":
+    case "date":
+    case "datetime-local":
+    case "month":
+    case "time":
+    case "week":
+      return "textbox";
+    default:
+      return "textbox";
+  }
+}
+
+function sectionRole(attrs: Map<string, string>): string {
+  return attrs.has("aria-label") || attrs.has("aria-labelledby") ? "region" : "generic";
+}
+
+function selectRole(attrs: Map<string, string>): string {
+  return attrs.has("multiple") || Number(attrs.get("size") ?? "0") > 1 ? "listbox" : "combobox";
+}
+
+function headerCellRole(attrs: Map<string, string>): string {
+  return attrs.get("scope") === "row" ? "rowheader" : "columnheader";
+}
+
 function computeName(
   node: DomNode,
   tag: string,
   attrs: Map<string, string>,
   ctx: BuildCtx,
 ): string {
+  const ariaName = ariaNameFromAttributes(attrs, ctx);
+  if (ariaName) return ariaName;
+  const elementName = elementNameFromAttributes(node, tag, attrs, ctx);
+  if (elementName !== undefined) return elementName;
+  const containerName = containerNameFromChild(node, tag);
+  if (containerName !== undefined) return containerName;
+  const contentName = contentNameFromNode(node, tag, attrs);
+  if (contentName !== undefined) return contentName;
+  return titleName(attrs);
+}
+
+function ariaNameFromAttributes(attrs: Map<string, string>, ctx: BuildCtx): string {
   const labelledBy = attrs.get("aria-labelledby");
   if (labelledBy) {
-    const parts: string[] = [];
-    for (const id of labelledBy.trim().split(/\s+/)) {
-      const backend = ctx.idAttrToBackend.get(id);
-      if (backend == null) continue;
-      const found = findByBackend(ctx, backend);
-      if (found) parts.push(textFromSubtree(found));
-    }
-    const joined = parts.join(" ").trim();
+    const joined = textFromAriaReferences(labelledBy, ctx);
     if (joined) return joined;
   }
   const ariaLabel = attrs.get("aria-label");
-  if (ariaLabel && ariaLabel.trim()) return ariaLabel.trim();
+  return ariaLabel && ariaLabel.trim() ? ariaLabel.trim() : "";
+}
 
+function textFromAriaReferences(ids: string, ctx: BuildCtx): string {
+  const parts: string[] = [];
+  for (const id of ids.trim().split(/\s+/)) {
+    const backend = ctx.idAttrToBackend.get(id);
+    if (backend == null) continue;
+    const found = findByBackend(ctx, backend);
+    if (found) parts.push(textFromSubtree(found));
+  }
+  return parts.join(" ").trim();
+}
+
+function elementNameFromAttributes(
+  node: DomNode,
+  tag: string,
+  attrs: Map<string, string>,
+  ctx: BuildCtx,
+): string | undefined {
+  const alternative = alternativeName(node, tag, attrs);
+  if (alternative !== undefined) return alternative;
+  return controlName(node, tag, attrs, ctx);
+}
+
+function alternativeName(
+  node: DomNode,
+  tag: string,
+  attrs: Map<string, string>,
+): string | undefined {
   if (tag === "img" || tag === "area") {
-    const alt = attrs.get("alt");
-    if (alt) return alt;
+    return nonEmptyAttribute(attrs, "alt");
   }
-  if (tag === "input") {
-    const type = (attrs.get("type") || "text").toLowerCase();
-    if (type === "button" || type === "submit" || type === "reset") {
-      const v = attrs.get("value");
-      if (v) return v;
-      if (type === "submit") return "Submit";
-      if (type === "reset") return "Reset";
-    }
-    if (type === "image") {
-      const alt = attrs.get("alt");
-      if (alt) return alt;
-    }
-    const idAttr = attrs.get("id");
-    if (idAttr) {
-      const labelText = findLabelFor(ctx, idAttr);
-      if (labelText) return labelText;
-    }
-    const wrapped = findWrappingLabel(ctx, node);
-    if (wrapped) return wrapped;
-    const ph = attrs.get("placeholder");
-    if (ph) return ph;
-  }
-  if (tag === "textarea" || tag === "select") {
-    const idAttr = attrs.get("id");
-    if (idAttr) {
-      const labelText = findLabelFor(ctx, idAttr);
-      if (labelText) return labelText;
-    }
-    const wrapped = findWrappingLabel(ctx, node);
-    if (wrapped) return wrapped;
-    if (tag === "textarea") {
-      const ph = attrs.get("placeholder");
-      if (ph) return ph;
-    }
-  }
-  if (tag === "fieldset") {
-    for (const c of node.children ?? []) {
-      if ((c.localName || c.nodeName).toLowerCase() === "legend") {
-        return textFromSubtree(c);
-      }
-    }
-  }
-  if (tag === "table") {
-    for (const c of node.children ?? []) {
-      if ((c.localName || c.nodeName).toLowerCase() === "caption") {
-        return textFromSubtree(c);
-      }
-    }
-  }
-  if (tag === "figure") {
-    for (const c of node.children ?? []) {
-      if ((c.localName || c.nodeName).toLowerCase() === "figcaption") {
-        return textFromSubtree(c);
-      }
-    }
-  }
-  if (tag === "svg") {
-    for (const c of node.children ?? []) {
-      if ((c.localName || c.nodeName).toLowerCase() === "title") {
-        return textFromSubtree(c);
-      }
-    }
-  }
+  return tag === "input" ? inputAlternativeName(attrs) : undefined;
+}
 
+function inputAlternativeName(attrs: Map<string, string>): string | undefined {
+  const type = (attrs.get("type") || "text").toLowerCase();
+  const buttonName = inputButtonName(type, attrs);
+  if (buttonName !== undefined) return buttonName;
+  if (type === "image") return nonEmptyAttribute(attrs, "alt");
+  return undefined;
+}
+
+function inputButtonName(type: string, attrs: Map<string, string>): string | undefined {
+  if (!isButtonInputType(type)) return undefined;
+  const value = attrs.get("value");
+  if (value) return value;
+  if (type === "submit") return "Submit";
+  return type === "reset" ? "Reset" : undefined;
+}
+
+function isButtonInputType(type: string): boolean {
+  switch (type) {
+    case "button":
+    case "submit":
+    case "reset":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function nonEmptyAttribute(attrs: Map<string, string>, name: string): string | undefined {
+  const value = attrs.get(name);
+  return value ? value : undefined;
+}
+
+function controlName(
+  node: DomNode,
+  tag: string,
+  attrs: Map<string, string>,
+  ctx: BuildCtx,
+): string | undefined {
+  if (tag === "input") return inputControlName(node, attrs, ctx);
+  if (tag !== "textarea" && tag !== "select") return undefined;
+  return textareaOrSelectControlName(node, tag, attrs, ctx);
+}
+
+function inputControlName(
+  node: DomNode,
+  attrs: Map<string, string>,
+  ctx: BuildCtx,
+): string | undefined {
+  const label = explicitLabelName(attrs, ctx);
+  if (label !== undefined) return label;
+  const wrapped = nonEmptyText(findWrappingLabel(ctx, node));
+  if (wrapped !== undefined) return wrapped;
+  return nonEmptyAttribute(attrs, "placeholder");
+}
+
+function textareaOrSelectControlName(
+  node: DomNode,
+  tag: string,
+  attrs: Map<string, string>,
+  ctx: BuildCtx,
+): string | undefined {
+  const label = explicitLabelName(attrs, ctx);
+  if (label !== undefined) return label;
+  const wrapped = nonEmptyText(findWrappingLabel(ctx, node));
+  if (wrapped !== undefined) return wrapped;
+  return tag === "textarea" ? nonEmptyAttribute(attrs, "placeholder") : undefined;
+}
+
+function explicitLabelName(attrs: Map<string, string>, ctx: BuildCtx): string | undefined {
+  const id = attrs.get("id");
+  if (!id) return undefined;
+  return nonEmptyText(findLabelFor(ctx, id));
+}
+
+function nonEmptyText(text: string): string | undefined {
+  return text ? text : undefined;
+}
+
+function containerNameFromChild(node: DomNode, tag: string): string | undefined {
+  const childTag = containerNameChildTag(tag);
+  return childTag ? directChildText(node, childTag) : undefined;
+}
+
+function containerNameChildTag(tag: string): string | undefined {
+  switch (tag) {
+    case "fieldset":
+      return "legend";
+    case "table":
+      return "caption";
+    case "figure":
+      return "figcaption";
+    case "svg":
+      return "title";
+    default:
+      return undefined;
+  }
+}
+
+function directChildText(node: DomNode, tag: string): string | undefined {
+  for (const child of node.children ?? []) {
+    if (localTag(child) === tag) return textFromSubtree(child);
+  }
+  return undefined;
+}
+
+function contentNameFromNode(
+  node: DomNode,
+  tag: string,
+  attrs: Map<string, string>,
+): string | undefined {
   if (NAME_FROM_CONTENTS.has(tag)) {
-    const t = textFromSubtree(node).trim();
-    if (t) return t;
+    const text = nonEmptyTrimmedText(node);
+    if (text) return text;
   }
   const explicitRole = firstToken(attrs.get("role"));
-  if (explicitRole && ROLE_NAME_FROM_CONTENTS.has(explicitRole)) {
-    const t = textFromSubtree(node).trim();
-    if (t) return t;
-  }
+  return roleContentName(node, explicitRole);
+}
 
+function nonEmptyTrimmedText(node: DomNode): string | undefined {
+  const text = textFromSubtree(node).trim();
+  return text ? text : undefined;
+}
+
+function roleContentName(node: DomNode, role: string): string | undefined {
+  if (role && ROLE_NAME_FROM_CONTENTS.has(role)) return nonEmptyTrimmedText(node);
+  return undefined;
+}
+
+function titleName(attrs: Map<string, string>): string {
   const title = attrs.get("title");
-  if (title && title.trim()) return title.trim();
-  return "";
+  return title && title.trim() ? title.trim() : "";
 }
 
 function computeDescription(attrs: Map<string, string>, ctx: BuildCtx): string {
   const describedBy = attrs.get("aria-describedby");
   if (describedBy) {
-    const parts: string[] = [];
-    for (const id of describedBy.trim().split(/\s+/)) {
-      const backend = ctx.idAttrToBackend.get(id);
-      if (backend == null) continue;
-      const found = findByBackend(ctx, backend);
-      if (found) parts.push(textFromSubtree(found));
-    }
-    const joined = parts.join(" ").trim();
+    const joined = textFromAriaReferences(describedBy, ctx);
     if (joined) return joined;
   }
   const ariaDesc = attrs.get("aria-description");
-  if (ariaDesc && ariaDesc.trim()) return ariaDesc.trim();
-  return "";
+  return ariaDesc && ariaDesc.trim() ? ariaDesc.trim() : "";
 }
 
 function computeValue(
-  _node: DomNode,
+  node: DomNode,
   tag: string,
   attrs: Map<string, string>,
   ctx: BuildCtx,
 ): AxNode["value"] {
-  const backendId = _node.backendNodeId;
-  const live = typeof backendId === "number" ? ctx.liveValues.get(backendId) : undefined;
-  if (tag === "input") {
-    const type = (attrs.get("type") || "text").toLowerCase();
-    const v = live !== undefined ? live : attrs.get("value");
-    if (type === "range" || type === "number") {
-      if (v != null && v !== "") return { type: "number", value: Number(v) };
-    } else if (v != null) {
-      return { type: "string", value: v };
-    }
-  }
-  if (tag === "select" && !attrs.has("multiple")) {
-    const label = selectedOptionLabel(_node, ctx);
-    if (label !== undefined) return { type: "string", value: label };
-  }
-  // A contenteditable editing host is a text field whose value is its text, as Chrome reports it;
-  // without it a host that took typing read as empty, and a client typed into it again.
+  const live = liveValueForNode(node, ctx);
+  const inputValue = inputElementValue(tag, attrs, live);
+  if (inputValue !== undefined) return inputValue;
+  const selectValue = selectElementValue(node, tag, attrs, ctx);
+  if (selectValue !== undefined) return selectValue;
+  const editableValue = contentEditableValue(node, attrs);
+  if (editableValue !== undefined) return editableValue;
+  const textareaValue = textareaElementValue(node, tag, live);
+  if (textareaValue !== undefined) return textareaValue;
+  return ariaValue(attrs);
+}
+
+function liveValueForNode(node: DomNode, ctx: BuildCtx): string | undefined {
+  const backendId = node.backendNodeId;
+  return typeof backendId === "number" ? ctx.liveValues.get(backendId) : undefined;
+}
+
+function inputElementValue(
+  tag: string,
+  attrs: Map<string, string>,
+  live: string | undefined,
+): AxNode["value"] {
+  if (tag !== "input") return undefined;
+  const type = inputType(attrs);
+  const value = liveInputValue(attrs, live);
+  if (isNumericInputType(type)) return numericInputValue(value);
+  return value != null ? { type: "string", value } : undefined;
+}
+
+function inputType(attrs: Map<string, string>): string {
+  return (attrs.get("type") || "text").toLowerCase();
+}
+
+function liveInputValue(attrs: Map<string, string>, live: string | undefined): string | undefined {
+  return live !== undefined ? live : attrs.get("value");
+}
+
+function isNumericInputType(type: string): boolean {
+  return type === "range" || type === "number";
+}
+
+function numericInputValue(value: string | undefined): AxNode["value"] {
+  if (value == null || value === "") return undefined;
+  return { type: "number", value: Number(value) };
+}
+
+function selectElementValue(
+  node: DomNode,
+  tag: string,
+  attrs: Map<string, string>,
+  ctx: BuildCtx,
+): AxNode["value"] {
+  if (tag !== "select" || attrs.has("multiple")) return undefined;
+  const label = selectedOptionLabel(node, ctx);
+  return label !== undefined ? { type: "string", value: label } : undefined;
+}
+
+function contentEditableValue(node: DomNode, attrs: Map<string, string>): AxNode["value"] {
   const editable = attrs.get("contenteditable");
   if (editable !== undefined && editable.toLowerCase() !== "false") {
-    return { type: "string", value: textFromSubtree(_node) };
+    return { type: "string", value: textFromSubtree(node) };
   }
-  if (tag === "textarea") {
-    if (live !== undefined) return { type: "string", value: live };
-    const v = textFromSubtree(_node);
-    if (v) return { type: "string", value: v };
-  }
+  return undefined;
+}
+
+function textareaElementValue(
+  node: DomNode,
+  tag: string,
+  live: string | undefined,
+): AxNode["value"] {
+  if (tag !== "textarea") return undefined;
+  if (live !== undefined) return { type: "string", value: live };
+  const text = textFromSubtree(node);
+  return text ? { type: "string", value: text } : undefined;
+}
+
+function ariaValue(attrs: Map<string, string>): AxNode["value"] {
   const ariaVal = attrs.get("aria-valuenow");
   if (ariaVal != null) {
-    const n = Number(ariaVal);
-    if (Number.isFinite(n)) return { type: "number", value: n };
+    const number = Number(ariaVal);
+    if (Number.isFinite(number)) return { type: "number", value: number };
   }
   const ariaValText = attrs.get("aria-valuetext");
   if (ariaValText) return { type: "string", value: ariaValText };
@@ -966,14 +1566,22 @@ function computeValue(
 
 function optionsOf(select: DomNode): DomNode[] {
   const out: DomNode[] = [];
-  for (const c of select.children ?? []) {
-    const tag = (c.localName || c.nodeName || "").toLowerCase();
-    if (tag === "option") out.push(c);
-    else if (tag === "optgroup")
-      for (const o of c.children ?? [])
-        if ((o.localName || o.nodeName || "").toLowerCase() === "option") out.push(o);
-  }
+  appendOptions(nodeChildren(select), out);
   return out;
+}
+
+function appendOptions(children: DomNode[], out: DomNode[]): void {
+  for (const child of children) {
+    const tag = localTag(child);
+    if (tag === "option") out.push(child);
+    else if (tag === "optgroup") appendOptgroupOptions(child, out);
+  }
+}
+
+function appendOptgroupOptions(group: DomNode, out: DomNode[]): void {
+  for (const option of nodeChildren(group)) {
+    if (localTag(option) === "option") out.push(option);
+  }
 }
 
 function selectedOptionLabel(select: DomNode, ctx: BuildCtx): string | undefined {
@@ -987,21 +1595,38 @@ function selectedOptionLabel(select: DomNode, ctx: BuildCtx): string | undefined
 }
 
 function markupSelected(select: DomNode, opts: DomNode[]): DomNode | undefined {
-  const marked = opts.filter((o) => attrMap(o.attributes).has("selected"));
+  const marked = lastMarkedOption(opts);
+  if (marked) return marked;
+  if (hasLargeSelectSize(select)) return undefined;
+  return firstEnabledMarkupOption(select);
+}
+
+function lastMarkedOption(options: DomNode[]): DomNode | undefined {
+  const marked = options.filter((option) => attrMap(option.attributes).has("selected"));
   if (marked.length > 0) return marked[marked.length - 1];
+  return undefined;
+}
+
+function hasLargeSelectSize(select: DomNode): boolean {
   const size = Number.parseInt(attrMap(select.attributes).get("size") ?? "", 10);
-  if (size > 1) return undefined;
-  for (const c of select.children ?? []) {
-    const tag = localTag(c);
-    if (attrMap(c.attributes).has("disabled")) continue;
-    if (tag === "option") return c;
-    if (tag !== "optgroup") continue;
-    const inGroup = (c.children ?? []).find(
-      (o) => localTag(o) === "option" && !attrMap(o.attributes).has("disabled"),
-    );
-    if (inGroup) return inGroup;
+  return size > 1;
+}
+
+function firstEnabledMarkupOption(select: DomNode): DomNode | undefined {
+  for (const child of nodeChildren(select)) {
+    if (attrMap(child.attributes).has("disabled")) continue;
+    if (localTag(child) === "option") return child;
+    const option = firstEnabledOptionInGroup(child);
+    if (option) return option;
   }
   return undefined;
+}
+
+function firstEnabledOptionInGroup(group: DomNode): DomNode | undefined {
+  if (localTag(group) !== "optgroup") return undefined;
+  return nodeChildren(group).find(
+    (option) => localTag(option) === "option" && !attrMap(option.attributes).has("disabled"),
+  );
 }
 
 function computeProperties(
@@ -1013,138 +1638,298 @@ function computeProperties(
   listDepth: number,
 ): NonNullable<AxNode["properties"]> {
   const out: NonNullable<AxNode["properties"]> = [];
-  const push = (name: string, type: string, value: unknown) => {
-    out.push({ name, value: { type, value } });
-  };
+  const push: PushAxProperty = (name, type, value) => appendAxProperty(out, name, type, value);
+  addHeadingLevel(tag, push);
+  addAriaLevel(attrs, push);
+  addListItemLevel(role, attrs, listDepth, push);
+  addResourceUrl(tag, attrs, ctx, role, push);
+  addFocusableProperty(tag, attrs, push);
+  addAccessKeyProperty(attrs, push);
+  addAriaBooleanProperties(attrs, push);
+  addAriaTristateProperties(attrs, push);
+  addNativeFormProperties(tag, attrs, push);
+  addInputCheckedProperty(tag, attrs, node, ctx, push);
+  addOptionSelectedProperty(tag, attrs, node, ctx, push);
+  addDetailsExpandedProperty(tag, attrs, push);
+  addHasPopupProperty(attrs, push);
+  addAriaStringProperties(attrs, push);
+  addAriaNumberProperties(attrs, push);
+  addInputRangeProperties(tag, attrs, push);
+  return out;
+}
 
-  if (/^h[1-6]$/.test(tag)) {
-    push("level", "integer", Number(tag.slice(1)));
-  }
+type PushAxProperty = (name: string, type: string, value: unknown) => void;
+
+function appendAxProperty(
+  out: NonNullable<AxNode["properties"]>,
+  name: string,
+  type: string,
+  value: unknown,
+): void {
+  out.push({ name, value: { type, value } });
+}
+
+function addHeadingLevel(tag: string, push: PushAxProperty): void {
+  if (/^h[1-6]$/.test(tag)) push("level", "integer", Number(tag.slice(1)));
+}
+
+function addAriaLevel(attrs: Map<string, string>, push: PushAxProperty): void {
   const ariaLevel = attrs.get("aria-level");
-  if (ariaLevel != null) {
-    const n = Number(ariaLevel);
-    if (Number.isFinite(n)) push("level", "integer", n);
-  }
-  if (role === "listitem" && ariaLevel == null && listDepth > 0) {
+  if (ariaLevel == null) return;
+  const level = Number(ariaLevel);
+  if (Number.isFinite(level)) push("level", "integer", level);
+}
+
+function addListItemLevel(
+  role: string,
+  attrs: Map<string, string>,
+  listDepth: number,
+  push: PushAxProperty,
+): void {
+  if (role === "listitem" && attrs.get("aria-level") == null && listDepth > 0) {
     push("level", "integer", listDepth);
   }
+}
 
-  if (role === "link") {
-    const href = attrs.get("href");
-    if (href != null) push("url", "string", absUrl(href, ctx.baseUrl) || href);
-  } else if (tag === "img") {
-    const src = attrs.get("src");
-    if (src != null) push("url", "string", absUrl(src, ctx.baseUrl) || src);
-  }
+function addResourceUrl(
+  tag: string,
+  attrs: Map<string, string>,
+  ctx: BuildCtx,
+  role: string,
+  push: PushAxProperty,
+): void {
+  if (role === "link") addLinkUrl(attrs, ctx, push);
+  else if (tag === "img") addImageUrl(attrs, ctx, push);
+}
 
+function addLinkUrl(attrs: Map<string, string>, ctx: BuildCtx, push: PushAxProperty): void {
+  const href = attrs.get("href");
+  if (href != null) push("url", "string", absUrl(href, ctx.baseUrl) || href);
+}
+
+function addImageUrl(attrs: Map<string, string>, ctx: BuildCtx, push: PushAxProperty): void {
+  const src = attrs.get("src");
+  if (src != null) push("url", "string", absUrl(src, ctx.baseUrl) || src);
+}
+
+function addFocusableProperty(tag: string, attrs: Map<string, string>, push: PushAxProperty): void {
   if (isFocusable(tag, attrs)) push("focusable", "booleanOrUndefined", true);
+}
 
+function addAccessKeyProperty(attrs: Map<string, string>, push: PushAxProperty): void {
   const accessKey = attrs.get("accesskey");
   if (accessKey && !attrs.get("aria-keyshortcuts")) {
     push("keyshortcuts", "string", `Ctrl+Alt+${accessKey}`);
   }
+}
 
-  const bool = (name: string, aria: string) => {
-    const v = attrs.get(aria);
-    if (v === "true") push(name, "boolean", true);
-    else if (v === "false") push(name, "boolean", false);
-  };
-  bool("expanded", "aria-expanded");
-  bool("disabled", "aria-disabled");
-  bool("required", "aria-required");
-  bool("readonly", "aria-readonly");
-  bool("selected", "aria-selected");
-  bool("modal", "aria-modal");
-  bool("multiline", "aria-multiline");
-  bool("multiselectable", "aria-multiselectable");
-  bool("atomic", "aria-atomic");
-  bool("busy", "aria-busy");
+const ARIA_BOOLEAN_PROPERTIES: Array<[string, string]> = [
+  ["expanded", "aria-expanded"],
+  ["disabled", "aria-disabled"],
+  ["required", "aria-required"],
+  ["readonly", "aria-readonly"],
+  ["selected", "aria-selected"],
+  ["modal", "aria-modal"],
+  ["multiline", "aria-multiline"],
+  ["multiselectable", "aria-multiselectable"],
+  ["atomic", "aria-atomic"],
+  ["busy", "aria-busy"],
+];
 
-  const tristate = (name: string, aria: string) => {
-    const v = attrs.get(aria);
-    if (v === "true" || v === "false" || v === "mixed") {
-      push(name, "tristate", v);
+function addAriaBooleanProperties(attrs: Map<string, string>, push: PushAxProperty): void {
+  for (const [name, aria] of ARIA_BOOLEAN_PROPERTIES) {
+    addAriaBooleanProperty(name, aria, attrs, push);
+  }
+}
+
+function addAriaBooleanProperty(
+  name: string,
+  aria: string,
+  attrs: Map<string, string>,
+  push: PushAxProperty,
+): void {
+  const value = attrs.get(aria);
+  if (value === "true") push(name, "boolean", true);
+  else if (value === "false") push(name, "boolean", false);
+}
+
+function addAriaTristateProperties(attrs: Map<string, string>, push: PushAxProperty): void {
+  addAriaTristateProperty("checked", "aria-checked", attrs, push);
+  addAriaTristateProperty("pressed", "aria-pressed", attrs, push);
+}
+
+function addAriaTristateProperty(
+  name: string,
+  aria: string,
+  attrs: Map<string, string>,
+  push: PushAxProperty,
+): void {
+  const value = attrs.get(aria);
+  if (value === "true" || value === "false" || value === "mixed") {
+    push(name, "tristate", value);
+  }
+}
+
+function addNativeFormProperties(
+  tag: string,
+  attrs: Map<string, string>,
+  push: PushAxProperty,
+): void {
+  if (!hasNativeFormProperties(tag)) return;
+  addNativeFormProperty("disabled", attrs, push);
+  addNativeFormProperty("required", attrs, push);
+  addNativeFormProperty("readonly", attrs, push);
+}
+
+function hasNativeFormProperties(tag: string): boolean {
+  switch (tag) {
+    case "input":
+    case "textarea":
+    case "select":
+    case "button":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function addNativeFormProperty(
+  name: string,
+  attrs: Map<string, string>,
+  push: PushAxProperty,
+): void {
+  if (attrs.has(name)) push(name, "boolean", true);
+}
+
+function addInputCheckedProperty(
+  tag: string,
+  attrs: Map<string, string>,
+  node: DomNode,
+  ctx: BuildCtx,
+  push: PushAxProperty,
+): void {
+  if (tag !== "input" || !isCheckableInput(attrs)) return;
+  const checked = inputCheckedState(attrs, node, ctx);
+  push("checked", "tristate", checked ? "true" : "false");
+}
+
+function isCheckableInput(attrs: Map<string, string>): boolean {
+  const type = (attrs.get("type") || "text").toLowerCase();
+  return type === "checkbox" || type === "radio";
+}
+
+function inputCheckedState(attrs: Map<string, string>, node: DomNode, ctx: BuildCtx): boolean {
+  const backendId = node.backendNodeId;
+  const liveOn = typeof backendId === "number" ? ctx.liveChecked.get(backendId) : undefined;
+  return liveOn !== undefined ? liveOn : attrs.has("checked");
+}
+
+function addOptionSelectedProperty(
+  tag: string,
+  attrs: Map<string, string>,
+  node: DomNode,
+  ctx: BuildCtx,
+  push: PushAxProperty,
+): void {
+  if (tag !== "option") return;
+  const backendId = node.backendNodeId;
+  const live = typeof backendId === "number" ? ctx.liveSelected.get(backendId) : undefined;
+  if (live ?? attrs.has("selected")) push("selected", "boolean", true);
+}
+
+function addDetailsExpandedProperty(
+  tag: string,
+  attrs: Map<string, string>,
+  push: PushAxProperty,
+): void {
+  if (tag === "details" && attrs.has("open")) push("expanded", "boolean", true);
+}
+
+function addHasPopupProperty(attrs: Map<string, string>, push: PushAxProperty): void {
+  const value = attrs.get("aria-haspopup");
+  if (value && value !== "false") {
+    push("hasPopup", "token", value === "true" ? "menu" : value);
+  }
+}
+
+const ARIA_STRING_PROPERTIES: Array<[string, string]> = [
+  ["keyshortcuts", "aria-keyshortcuts"],
+  ["roledescription", "aria-roledescription"],
+  ["autocomplete", "aria-autocomplete"],
+  ["orientation", "aria-orientation"],
+  ["live", "aria-live"],
+  ["relevant", "aria-relevant"],
+  ["placeholder", "aria-placeholder"],
+  ["valuetext", "aria-valuetext"],
+];
+
+function addAriaStringProperties(attrs: Map<string, string>, push: PushAxProperty): void {
+  for (const [name, aria] of ARIA_STRING_PROPERTIES) {
+    const value = attrs.get(aria);
+    if (value) push(name, "string", value);
+  }
+}
+
+const ARIA_NUMBER_PROPERTIES: Array<[string, string]> = [
+  ["valuemin", "aria-valuemin"],
+  ["valuemax", "aria-valuemax"],
+  ["valuenow", "aria-valuenow"],
+  ["setsize", "aria-setsize"],
+  ["posinset", "aria-posinset"],
+  ["colcount", "aria-colcount"],
+  ["rowcount", "aria-rowcount"],
+  ["colindex", "aria-colindex"],
+  ["rowindex", "aria-rowindex"],
+  ["colspan", "aria-colspan"],
+  ["rowspan", "aria-rowspan"],
+];
+
+function addAriaNumberProperties(attrs: Map<string, string>, push: PushAxProperty): void {
+  for (const [name, aria] of ARIA_NUMBER_PROPERTIES) {
+    addAriaNumberProperty(name, aria, attrs, push);
+  }
+}
+
+function addAriaNumberProperty(
+  name: string,
+  aria: string,
+  attrs: Map<string, string>,
+  push: PushAxProperty,
+): void {
+  const value = attrs.get(aria);
+  if (value == null) return;
+  const number = Number(value);
+  if (Number.isFinite(number)) push(name, "integer", number);
+}
+
+function addInputRangeProperties(
+  tag: string,
+  attrs: Map<string, string>,
+  push: PushAxProperty,
+): void {
+  if (!isRangeNumberInput(tag, attrs)) return;
+  addFiniteInputNumbers(attrs, push);
+}
+
+function isRangeNumberInput(tag: string, attrs: Map<string, string>): boolean {
+  if (tag !== "input") return false;
+  const type = (attrs.get("type") || "text").toLowerCase();
+  return type === "range" || type === "number";
+}
+
+const INPUT_RANGE_PROPERTIES: Array<[string, string]> = [
+  ["valuemin", "min"],
+  ["valuemax", "max"],
+  ["valuenow", "value"],
+];
+
+function addFiniteInputNumbers(attrs: Map<string, string>, push: PushAxProperty): void {
+  for (const [name, attr] of INPUT_RANGE_PROPERTIES) {
+    const value = attrs.get(attr);
+    if (value != null && Number.isFinite(Number(value))) {
+      push(name, "number", Number(value));
     }
-  };
-  tristate("checked", "aria-checked");
-  tristate("pressed", "aria-pressed");
-
-  if (tag === "input" || tag === "textarea" || tag === "select" || tag === "button") {
-    if (attrs.has("disabled")) push("disabled", "boolean", true);
-    if (attrs.has("required")) push("required", "boolean", true);
-    if (attrs.has("readonly")) push("readonly", "boolean", true);
   }
-  if (tag === "input") {
-    const type = (attrs.get("type") || "text").toLowerCase();
-    if (type === "checkbox" || type === "radio") {
-      const backendId = node.backendNodeId;
-      const liveOn = typeof backendId === "number" ? ctx.liveChecked.get(backendId) : undefined;
-      const on = liveOn !== undefined ? liveOn : attrs.has("checked");
-      push("checked", "tristate", on ? "true" : "false");
-    }
-  }
-  if (tag === "option") {
-    const backendId = node.backendNodeId;
-    const live = typeof backendId === "number" ? ctx.liveSelected.get(backendId) : undefined;
-    if (live ?? attrs.has("selected")) push("selected", "boolean", true);
-  }
-  if (tag === "details" && attrs.has("open")) {
-    push("expanded", "boolean", true);
-  }
-
-  const hasPopup = attrs.get("aria-haspopup");
-  if (hasPopup && hasPopup !== "false") {
-    push("hasPopup", "token", hasPopup === "true" ? "menu" : hasPopup);
-  }
-
-  const strProps: Array<[string, string]> = [
-    ["keyshortcuts", "aria-keyshortcuts"],
-    ["roledescription", "aria-roledescription"],
-    ["autocomplete", "aria-autocomplete"],
-    ["orientation", "aria-orientation"],
-    ["live", "aria-live"],
-    ["relevant", "aria-relevant"],
-    ["placeholder", "aria-placeholder"],
-    ["valuetext", "aria-valuetext"],
-  ];
-  for (const [name, aria] of strProps) {
-    const v = attrs.get(aria);
-    if (v) push(name, "string", v);
-  }
-  const numProps: Array<[string, string]> = [
-    ["valuemin", "aria-valuemin"],
-    ["valuemax", "aria-valuemax"],
-    ["valuenow", "aria-valuenow"],
-    ["setsize", "aria-setsize"],
-    ["posinset", "aria-posinset"],
-    ["colcount", "aria-colcount"],
-    ["rowcount", "aria-rowcount"],
-    ["colindex", "aria-colindex"],
-    ["rowindex", "aria-rowindex"],
-    ["colspan", "aria-colspan"],
-    ["rowspan", "aria-rowspan"],
-  ];
-  for (const [name, aria] of numProps) {
-    const v = attrs.get(aria);
-    if (v != null) {
-      const n = Number(v);
-      if (Number.isFinite(n)) push(name, "integer", n);
-    }
-  }
-
-  if (tag === "input") {
-    const type = (attrs.get("type") || "text").toLowerCase();
-    if (type === "range" || type === "number") {
-      const min = attrs.get("min");
-      const max = attrs.get("max");
-      const val = attrs.get("value");
-      if (min != null && Number.isFinite(Number(min))) push("valuemin", "number", Number(min));
-      if (max != null && Number.isFinite(Number(max))) push("valuemax", "number", Number(max));
-      if (val != null && Number.isFinite(Number(val))) push("valuenow", "number", Number(val));
-    }
-  }
-
-  return out;
 }
 
 const NAME_FROM_CONTENTS = new Set([
@@ -1187,31 +1972,73 @@ const ROLE_NAME_FROM_CONTENTS = new Set([
 
 function textFromSubtree(node: DomNode, excludeBackendId?: number): string {
   const parts: string[] = [];
-  const walk = (n: DomNode) => {
-    if (excludeBackendId != null && n.backendNodeId === excludeBackendId) return;
-    if (n.nodeType === 3) {
-      if (n.nodeValue) parts.push(n.nodeValue);
-      return;
-    }
-    if (n.nodeType !== 1) return;
-    const tag = (n.localName || n.nodeName || "").toLowerCase();
-    if (SKIP_TAGS.has(tag)) return;
-    const attrs = attrMap(n.attributes);
-    if (attrs.get("aria-hidden") === "true") return;
-    const label = attrs.get("aria-label");
-    if (label && label.trim()) {
-      parts.push(label.trim());
-      return;
-    }
-    if (tag === "img") {
-      const alt = attrs.get("alt");
-      if (alt) parts.push(alt);
-      return;
-    }
-    for (const c of n.children ?? []) walk(c);
-  };
-  for (const c of node.children ?? []) walk(c);
+  appendSubtreeTextChildren(nodeChildren(node), excludeBackendId, parts);
   return parts.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function appendSubtreeTextChildren(
+  children: DomNode[],
+  excludeBackendId: number | undefined,
+  parts: string[],
+): void {
+  for (const child of children) appendSubtreeText(child, excludeBackendId, parts);
+}
+
+function appendSubtreeText(
+  node: DomNode,
+  excludeBackendId: number | undefined,
+  parts: string[],
+): void {
+  if (isExcludedTextNode(node, excludeBackendId)) return;
+  if (node.nodeType === 3) {
+    appendTextNode(node, parts);
+    return;
+  }
+  if (node.nodeType !== 1) return;
+  appendElementText(node, excludeBackendId, parts);
+}
+
+function isExcludedTextNode(node: DomNode, excludeBackendId: number | undefined): boolean {
+  return excludeBackendId != null && node.backendNodeId === excludeBackendId;
+}
+
+function appendTextNode(node: DomNode, parts: string[]): void {
+  if (node.nodeValue) parts.push(node.nodeValue);
+}
+
+function appendElementText(
+  node: DomNode,
+  excludeBackendId: number | undefined,
+  parts: string[],
+): void {
+  const tag = localTag(node);
+  if (SKIP_TAGS.has(tag)) return;
+  const attrs = attrMap(node.attributes);
+  if (isAriaHidden(attrs)) return;
+  if (appendAccessibleLabel(attrs, parts)) return;
+  if (tag === "img") {
+    appendImageAlt(attrs, parts);
+    return;
+  }
+  appendSubtreeTextChildren(nodeChildren(node), excludeBackendId, parts);
+}
+
+function isAriaHidden(attrs: Map<string, string>): boolean {
+  return attrs.get("aria-hidden") === "true";
+}
+
+function appendAccessibleLabel(attrs: Map<string, string>, parts: string[]): boolean {
+  const label = attrs.get("aria-label");
+  if (label && label.trim()) {
+    parts.push(label.trim());
+    return true;
+  }
+  return false;
+}
+
+function appendImageAlt(attrs: Map<string, string>, parts: string[]): void {
+  const alt = attrs.get("alt");
+  if (alt) parts.push(alt);
 }
 
 function findByBackend(ctx: BuildCtx, backendId: number): DomNode | null {
@@ -1233,9 +2060,18 @@ function absUrl(href: string, base: string): string {
 
 function isFocusable(tag: string, attrs: Map<string, string>): boolean {
   if (attrs.has("disabled")) return false;
+  if (hasExplicitFocusability(attrs)) return true;
+  return isFocusableByTag(tag, attrs);
+}
+
+function hasExplicitFocusability(attrs: Map<string, string>): boolean {
   if (attrs.has("tabindex")) return true;
   const ce = attrs.get("contenteditable");
   if (ce != null && ce !== "false") return true;
+  return false;
+}
+
+function isFocusableByTag(tag: string, attrs: Map<string, string>): boolean {
   switch (tag) {
     case "a":
     case "area":
@@ -1258,15 +2094,29 @@ function isFocusable(tag: string, attrs: Map<string, string>): boolean {
 function findWrappingLabel(ctx: BuildCtx, node: DomNode): string {
   const selfId = node.backendNodeId;
   if (typeof selfId !== "number") return "";
-  let cur = ctx.parentOf.get(selfId);
-  for (let depth = 0; cur && depth < 8; depth++) {
-    const tag = (cur.localName || cur.nodeName || "").toLowerCase();
-    if (tag === "label") return textFromSubtree(cur, selfId);
-    const pid = cur.backendNodeId;
-    if (typeof pid !== "number") return "";
-    cur = ctx.parentOf.get(pid);
+  return findWrappingLabelById(ctx, selfId);
+}
+
+type WrappingLabelStep = { label: string } | { stop: true } | { next: DomNode | undefined };
+
+function findWrappingLabelById(ctx: BuildCtx, selfId: number): string {
+  let current = ctx.parentOf.get(selfId);
+  for (let depth = 0; current && depth < 8; depth++) {
+    const step = wrappingLabelStep(ctx, current, selfId);
+    if ("label" in step) return step.label;
+    if ("stop" in step) return "";
+    current = step.next;
   }
   return "";
+}
+
+function wrappingLabelStep(ctx: BuildCtx, current: DomNode, selfId: number): WrappingLabelStep {
+  if (localTag(current) === "label") {
+    return { label: textFromSubtree(current, selfId) };
+  }
+  const parentId = current.backendNodeId;
+  if (typeof parentId !== "number") return { stop: true };
+  return { next: ctx.parentOf.get(parentId) };
 }
 
 function collectSubtree(tree: BuiltTree, rootId: string, out: Map<string, AxNode>): void {
@@ -1274,12 +2124,25 @@ function collectSubtree(tree: BuiltTree, rootId: string, out: Map<string, AxNode
   while (stack.length) {
     const id = stack.pop();
     if (id === undefined) continue;
-    if (out.has(id)) continue;
-    const n = tree.byId.get(id);
-    if (!n) continue;
-    out.set(id, n);
-    for (const cid of n.childIds ?? []) stack.push(cid);
+    collectTreeNode(tree, id, out, stack);
   }
+}
+
+function collectTreeNode(
+  tree: BuiltTree,
+  id: string,
+  out: Map<string, AxNode>,
+  stack: string[],
+): void {
+  if (out.has(id)) return;
+  const node = tree.byId.get(id);
+  if (!node) return;
+  out.set(id, node);
+  appendChildIdsToStack(node, stack);
+}
+
+function appendChildIdsToStack(node: AxNode, stack: string[]): void {
+  for (const childId of node.childIds ?? []) stack.push(childId);
 }
 
 function collectAncestors(tree: BuiltTree, startId: string, out: Map<string, AxNode>): void {

@@ -127,25 +127,37 @@ test("held node-owned objects preserve identity, state, and owner after a sweep"
   await new Promise((resolve) => setTimeout(resolve, SWEEP_SETTLE_MS));
   const result = await page.evaluate(() => {
     const held: unknown = Reflect.get(globalThis, "heldObjects");
-    if (typeof held !== "object" || held === null) throw new Error("missing held objects");
-    const attr: unknown = Reflect.get(held, "attr");
-    const sheet: unknown = Reflect.get(held, "sheet");
-    const track: unknown = Reflect.get(held, "track");
-    if (
-      !(attr instanceof Attr) ||
-      !(sheet instanceof CSSStyleSheet) ||
-      typeof track !== "object" ||
-      track === null
-    ) {
-      throw new Error("invalid held objects");
-    }
-    const owner = attr.ownerElement;
-    const style = sheet.ownerNode;
-    if (!owner || !(style instanceof HTMLStyleElement)) throw new Error("missing owners");
-    const root = owner.parentElement;
-    if (!root) throw new Error("missing detached tree");
-    const trackOwner = root.querySelector("track");
-    if (!trackOwner) throw new Error("missing track owner");
+    const requireObject = (value: unknown, message: string): object => {
+      if (typeof value !== "object" || value === null) throw new Error(message);
+      return value;
+    };
+    const readHeldObjects = (value: object) => {
+      const attr: unknown = Reflect.get(value, "attr");
+      const sheet: unknown = Reflect.get(value, "sheet");
+      const track: unknown = Reflect.get(value, "track");
+      if (
+        !(attr instanceof Attr) ||
+        !(sheet instanceof CSSStyleSheet) ||
+        typeof track !== "object" ||
+        track === null
+      ) {
+        throw new Error("invalid held objects");
+      }
+      return { attr, sheet, track };
+    };
+    const resolveOwners = (attr: Attr, sheet: CSSStyleSheet) => {
+      const owner = attr.ownerElement;
+      const style = sheet.ownerNode;
+      if (!owner || !(style instanceof HTMLStyleElement)) throw new Error("missing owners");
+      const root = owner.parentElement;
+      if (!root) throw new Error("missing detached tree");
+      const trackOwner = root.querySelector("track");
+      if (!trackOwner) throw new Error("missing track owner");
+      return { owner, style, root, trackOwner };
+    };
+    const objects = readHeldObjects(requireObject(held, "missing held objects"));
+    const { attr, sheet, track } = objects;
+    const { owner, style, root, trackOwner } = resolveOwners(attr, sheet);
     attr.value = "after";
     document.body.appendChild(root);
     return {
@@ -180,11 +192,23 @@ test("connected owners preserve cache state even when the values are not held", 
   });
   for (let round = 0; round < PRESSURE_ROUNDS; round++) await applyPressure(page);
   const result = await page.evaluate(() => {
+    const attributeFor = (main: Element | null) => main?.getAttributeNode("data-state");
+    const sheetFor = (main: Element | null) => main?.querySelector("style")?.sheet;
+    const trackFor = (main: Element | null) => main?.querySelector("track")?.track;
+    const requireConnectedCaches = (
+      attr: Attr | null | undefined,
+      sheet: CSSStyleSheet | null | undefined,
+      track: TextTrack | null | undefined,
+    ) => {
+      if (!attr || !sheet || !track) throw new Error("missing connected objects");
+      return { attr, sheet, track };
+    };
     const main = document.querySelector("main");
-    const attr = main?.getAttributeNode("data-state");
-    const sheet = main?.querySelector("style")?.sheet;
-    const track = main?.querySelector("track")?.track;
-    if (!attr || !sheet || !track) throw new Error("missing connected objects");
+    const { attr, sheet, track } = requireConnectedCaches(
+      attributeFor(main),
+      sheetFor(main),
+      trackFor(main),
+    );
     return { attr: Reflect.get(attr, "marker"), disabled: sheet.disabled, mode: track.mode };
   });
   expect(result).toEqual({ attr: "kept", disabled: true, mode: "showing" });

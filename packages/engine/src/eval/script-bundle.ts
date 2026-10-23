@@ -41,42 +41,53 @@ interface ClassicSegment {
   lineCount: number;
 }
 
+function mapClassicSegmentLines(
+  lineSegments: string[],
+  sourceIndex: number,
+  segment: ClassicSegment,
+  totalLines: number,
+  previousSourceIndex: number,
+): void {
+  let previousOriginalLine = 0;
+  for (let originalLine = 0; originalLine < segment.lineCount; originalLine++) {
+    const generatedLine = segment.generatedLine + originalLine;
+    if (generatedLine >= totalLines) break;
+    const sourceDelta = originalLine === 0 ? sourceIndex - previousSourceIndex : 0;
+    lineSegments[generatedLine] =
+      encodeVLQ(0) +
+      encodeVLQ(sourceDelta) +
+      encodeVLQ(originalLine - previousOriginalLine) +
+      encodeVLQ(0);
+    previousOriginalLine = originalLine;
+  }
+}
+
+function sourceMapDataUrl(json: string): string {
+  try {
+    return `data:application/json;base64,${btoa(json)}`;
+  } catch {
+    return `data:application/json;base64,${btoa(unescape(encodeURIComponent(json)))}`;
+  }
+}
+
 function buildClassicSourceMap(segments: ClassicSegment[], totalLines: number): string {
   if (segments.length === 0) return "";
-  const sources = segments.map((s) => s.source);
   const lineSegments: string[] = new Array(totalLines).fill("");
-  let prevSourceIdx = 0;
-  let prevOrigLine = 0;
-  for (const [sourceIdx, seg] of segments.entries()) {
-    const dSource = sourceIdx - prevSourceIdx;
-    for (let j = 0; j < seg.lineCount; j++) {
-      const genLine = seg.generatedLine + j;
-      if (genLine >= totalLines) break;
-      const dOrigLine = j - prevOrigLine;
-      lineSegments[genLine] =
-        encodeVLQ(0) + encodeVLQ(j === 0 ? dSource : 0) + encodeVLQ(dOrigLine) + encodeVLQ(0);
-      prevOrigLine = j;
-    }
-    prevSourceIdx = sourceIdx;
-    prevOrigLine = 0;
+  let previousSourceIndex = 0;
+  for (const [sourceIndex, segment] of segments.entries()) {
+    mapClassicSegmentLines(lineSegments, sourceIndex, segment, totalLines, previousSourceIndex);
+    previousSourceIndex = sourceIndex;
   }
   const mappings = lineSegments.join(";");
   const map = {
     version: 3,
     file: "",
-    sources,
+    sources: segments.map((segment) => segment.source),
     sourcesContent: segments.map(() => null),
     names: [] as string[],
     mappings,
   };
-  const json = JSON.stringify(map);
-  let b64: string;
-  try {
-    b64 = btoa(json);
-  } catch {
-    b64 = btoa(unescape(encodeURIComponent(json)));
-  }
-  return `data:application/json;base64,${b64}`;
+  return sourceMapDataUrl(JSON.stringify(map));
 }
 
 export interface ScriptBundle {
@@ -111,76 +122,128 @@ export async function insertedSourceDigests(
   return out;
 }
 
+const BLOCKED_CLASSIC_GLOBAL_NAMES = new Set(["module", "exports", "require"]);
+
+function failedClassicSegment(
+  descriptor: ParentScriptDescriptor,
+  label: string,
+): { source: string; sourceLineOffset: number } | null {
+  if (descriptor.blocked) {
+    return {
+      source: `console.error(${JSON.stringify(descriptor.blocked.message)});\n`,
+      sourceLineOffset: 0,
+    };
+  }
+  if (descriptor.prefetchError) {
+    return {
+      source: `console.error(${JSON.stringify(`[${label}] prefetch failed: ${descriptor.prefetchError}`)});\n`,
+      sourceLineOffset: 0,
+    };
+  }
+  return null;
+}
+
+function classicDescriptorSource(descriptor: ParentScriptDescriptor): string {
+  return descriptor.src ? (descriptor.prefetchedSource ?? "") : (descriptor.body ?? "");
+}
+
+function withoutTopLevelVarDeclarations(source: string, varSites: number[]): string {
+  if (varSites.length === 0) return source;
+  const parts: string[] = [];
+  let last = 0;
+  for (const start of varSites) {
+    parts.push(source.slice(last, start), "   ");
+    last = start + 3;
+  }
+  parts.push(source.slice(last));
+  return parts.join("");
+}
+
+function liveVariableHead(label: string, names: string[]): string {
+  if (names.length === 0) return "";
+  return `// === ${label} (live-globalize top-level vars) ===\n${predeclareVarsHead(names, "globalThis")}\n`;
+}
+
+function promotedTopLevelDeclarations(label: string, names: string[]): string {
+  const lines: string[] = [];
+  for (const name of names) {
+    if (BLOCKED_CLASSIC_GLOBAL_NAMES.has(name)) continue;
+    lines.push(
+      `try { if (typeof ${name} !== "undefined") globalThis.${name} = ${name}; } catch (e) {}`,
+    );
+  }
+  if (lines.length === 0) return "";
+  return `// === ${label} (promote top-level decls to globalThis) ===
+${lines.join("\n")}
+`;
+}
+
+function currentScriptPrefix(
+  descriptor: ParentScriptDescriptor,
+  bodyKey: string,
+  enabled: boolean,
+): string {
+  if (!enabled) return "";
+  const url = currentScriptUrl(descriptor);
+  const domIndex = currentScriptDomIndex(descriptor);
+  return `__ks_state_local.setCurrentScript(${JSON.stringify(url)}, ${domIndex}, ${JSON.stringify(bodyKey)}, ${JSON.stringify(descriptor.src ?? "")});\n`;
+}
+
+function currentScriptUrl(descriptor: ParentScriptDescriptor): string {
+  return descriptor.resolvedSrc ?? descriptor.src ?? "";
+}
+
+function currentScriptDomIndex(descriptor: ParentScriptDescriptor): number {
+  return typeof descriptor.scriptDomIndex === "number" ? descriptor.scriptDomIndex : -1;
+}
+
+function classicSegmentBodyKey(descriptor: ParentScriptDescriptor): string {
+  if (descriptor.src) return "";
+  return (descriptor.body ?? "").trim().slice(0, INLINE_SCRIPT_BODY_KEY_PREFIX_CHARS);
+}
+
+function liveClassicVariableNames(names: string[]): string[] {
+  return names.filter((name) => !BLOCKED_CLASSIC_GLOBAL_NAMES.has(name));
+}
+
+function currentScriptSuffix(enabled: boolean): string {
+  return enabled
+    ? "if (__ks_state_local.endClassicScript) { await __ks_state_local.endClassicScript(); } else { __ks_state_local.setCurrentScript(null); }\n"
+    : "";
+}
+
 function buildClassicSegment(
   d: ParentScriptDescriptor,
   index: number,
   opts: { currentScript?: boolean } = {},
 ): { source: string; sourceLineOffset: number } {
-  const label = d.src ? d.src : `inline#${index}`;
-  if (d.blocked) {
-    return {
-      source: `console.error(${JSON.stringify(d.blocked.message)});\n`,
-      sourceLineOffset: 0,
-    };
-  }
-  if (d.prefetchError) {
-    return {
-      source: `console.error(${JSON.stringify(`[${label}] prefetch failed: ${d.prefetchError}`)});\n`,
-      sourceLineOffset: 0,
-    };
-  }
-  const source = d.src ? (d.prefetchedSource ?? "") : (d.body ?? "");
+  const label = classicSegmentLabel(d, index);
+  const failed = failedClassicSegment(d, label);
+  if (failed) return failed;
+  const source = classicDescriptorSource(d);
   if (!source.trim()) return { source: "", sourceLineOffset: 0 };
+  return compileClassicSegment(d, label, source, opts.currentScript !== false);
+}
 
-  const currentScriptUrl = d.resolvedSrc ?? d.src ?? "";
-  const domIdx = typeof d.scriptDomIndex === "number" ? d.scriptDomIndex : -1;
-  const bodyKey = !d.src ? (d.body || "").trim().slice(0, INLINE_SCRIPT_BODY_KEY_PREFIX_CHARS) : "";
-  const rawSrc = d.src ?? "";
-  const bracket = opts.currentScript !== false;
-  const setCurrent = !bracket
-    ? ""
-    : `__ks_state_local.setCurrentScript(${JSON.stringify(currentScriptUrl)}, ${domIdx}, ${JSON.stringify(bodyKey)}, ${JSON.stringify(rawSrc)});
-`;
-  const clearCurrent = !bracket
-    ? ""
-    : "if (__ks_state_local.endClassicScript) { await __ks_state_local.endClassicScript(); } else { __ks_state_local.setCurrentScript(null); }\n";
-
+function compileClassicSegment(
+  descriptor: ParentScriptDescriptor,
+  label: string,
+  source: string,
+  currentScript: boolean,
+): { source: string; sourceLineOffset: number } {
+  const bodyKey = classicSegmentBodyKey(descriptor);
   const scan = extractTopLevelDecls(source);
-  const blockedNames = new Set(["module", "exports", "require"]);
-  let bodySource = source;
-  if (scan.varSites.length > 0) {
-    const parts: string[] = [];
-    let last = 0;
-    for (const kwStart of scan.varSites) {
-      parts.push(bodySource.slice(last, kwStart), "   ");
-      last = kwStart + 3;
-    }
-    parts.push(bodySource.slice(last));
-    bodySource = parts.join("");
-  }
-  const liveVarNames = scan.varNames.filter((n) => !blockedNames.has(n));
-  const predeclareHead =
-    liveVarNames.length === 0
-      ? ""
-      : `// === ${label} (live-globalize top-level vars) ===\n${predeclareVarsHead(liveVarNames, "globalThis")}\n`;
+  const bodySource = withoutTopLevelVarDeclarations(source, scan.varSites);
+  const liveVarNames = liveClassicVariableNames(scan.varNames);
+  const predeclareHead = liveVariableHead(label, liveVarNames);
   const liveVarSet = new Set(liveVarNames);
   const topDecls = scan.names.filter((n) => !liveVarSet.has(n));
-  let promoteTail = "";
-  if (topDecls.length > 0) {
-    const lines: string[] = [];
-    for (const n of topDecls) {
-      if (blockedNames.has(n)) continue;
-      lines.push(`try { if (typeof ${n} !== "undefined") globalThis.${n} = ${n}; } catch (e) {}`);
-    }
-    if (lines.length > 0) {
-      promoteTail = `// === ${label} (promote top-level decls to globalThis) ===
-${lines.join("\n")}
-`;
-    }
-  }
-  const prefix = `// === ${label} ===\n${predeclareHead}${setCurrent}`;
+  const promoteTail = promotedTopLevelDeclarations(label, topDecls);
+  const prefix =
+    `// === ${label} ===\n${predeclareHead}` +
+    currentScriptPrefix(descriptor, bodyKey, currentScript);
   return {
-    source: `${prefix}${bodySource}\n${promoteTail}${clearCurrent}\n`,
+    source: `${prefix}${bodySource}\n${promoteTail}${currentScriptSuffix(currentScript)}\n`,
     sourceLineOffset: countLines(prefix),
   };
 }
@@ -193,161 +256,211 @@ export interface BuildScriptBundleOptions {
   insertedDigests?: ReadonlyMap<string, string>;
 }
 
-export function buildScriptBundle(
+interface ScriptBuckets {
+  regularInline: ParentScriptDescriptor[];
+  regularDeferred: ParentScriptDescriptor[];
+  async: ParentScriptDescriptor[];
+  modules: ParentScriptDescriptor[];
+}
+
+function isExternalAsyncScript(descriptor: ParentScriptDescriptor): boolean {
+  return descriptor.async && Boolean(descriptor.src);
+}
+
+function isExternalDeferredScript(descriptor: ParentScriptDescriptor): boolean {
+  return descriptor.defer && Boolean(descriptor.src);
+}
+
+function bucketScript(descriptor: ParentScriptDescriptor, buckets: ScriptBuckets): void {
+  if (descriptor.kind === "module") {
+    buckets.modules.push(descriptor);
+    return;
+  }
+  if (isExternalAsyncScript(descriptor)) {
+    buckets.async.push(descriptor);
+    return;
+  }
+  if (isExternalDeferredScript(descriptor)) {
+    buckets.regularDeferred.push(descriptor);
+    return;
+  }
+  buckets.regularInline.push(descriptor);
+}
+
+function bucketScripts(descriptors: ParentScriptDescriptor[]): ScriptBuckets {
+  const buckets: ScriptBuckets = {
+    regularInline: [],
+    regularDeferred: [],
+    async: [],
+    modules: [],
+  };
+  for (const descriptor of descriptors) bucketScript(descriptor, buckets);
+  return buckets;
+}
+
+interface ClassicAccumulator {
+  parts: string[];
+  lines: number;
+}
+
+function pushClassicSegment(
+  accumulator: ClassicAccumulator,
+  source: string,
+  sourceLineOffset: number,
+  label: string,
+  sourceBody: string,
+  metadata: ClassicSegment[],
+): void {
+  if (!source) return;
+  metadata.push({
+    source: label,
+    generatedLine: accumulator.lines + sourceLineOffset,
+    lineCount: countLines(sourceBody) + 1,
+  });
+  accumulator.parts.push(source);
+  accumulator.lines += countLines(source);
+}
+
+function classicSegmentLabel(descriptor: ParentScriptDescriptor, index: number): string {
+  return descriptor.src ? descriptor.src : `inline#${index}`;
+}
+
+function classicSegmentSourceBody(descriptor: ParentScriptDescriptor): string {
+  if (descriptor.prefetchError || descriptor.blocked) return "";
+  return classicDescriptorSource(descriptor);
+}
+
+type ClassicDebugLabel = "regularInline" | "regularDeferred";
+
+function appendClassicSegments(
   descriptors: ParentScriptDescriptor[],
-  options: BuildScriptBundleOptions = {},
-): ScriptBundle {
-  const cdpDebug = options.cdpDebug === true;
-  const regularInline: ParentScriptDescriptor[] = [];
-  const regularDeferred: ParentScriptDescriptor[] = [];
-  const asyncBucket: ParentScriptDescriptor[] = [];
-  const moduleBucket: ParentScriptDescriptor[] = [];
-  for (const d of descriptors) {
-    if (d.kind === "module") {
-      moduleBucket.push(d);
-      continue;
-    }
-    if (d.async && d.src) {
-      asyncBucket.push(d);
-    } else if (d.defer && d.src) {
-      regularDeferred.push(d);
-    } else {
-      regularInline.push(d);
-    }
-  }
-
-  const regularAcc = { parts: [] as string[], lines: 0 };
-  const asyncAcc = { parts: [] as string[], lines: 0 };
-  const moduleScriptUrls: string[] = [];
-  const additionalModules: Record<string, BakedModule> = {
-    ...(options.additionalModules ?? {}),
-  };
-  const walkerSupplied = options.additionalModules != null;
-  const regularSegMeta: ClassicSegment[] = [];
-  const asyncSegMeta: ClassicSegment[] = [];
-  let regularIdx = 0;
-  if (cdpDebug) {
-    console.log(
-      `[kitesurf-nav] bucketize: regularInline=${regularInline.length} ` +
-        `regularDeferred=${regularDeferred.length} ` +
-        `async=${asyncBucket.length} modules=${moduleBucket.length}`,
-    );
-  }
-  const pushSegment = (
-    acc: { parts: string[]; lines: number },
-    seg: string,
-    sourceLineOffset: number,
-    label: string,
-    sourceBody: string,
-    metaList: ClassicSegment[],
-  ): void => {
-    if (!seg) return;
-    const sourceLines = countLines(sourceBody) + 1;
-    metaList.push({
-      source: label,
-      generatedLine: acc.lines + sourceLineOffset,
-      lineCount: sourceLines,
-    });
-    acc.parts.push(seg);
-    acc.lines += countLines(seg);
-  };
-  const segLabel = (d: ParentScriptDescriptor, idx: number): string =>
-    d.src ? d.src : `inline#${idx}`;
-  const segSourceBody = (d: ParentScriptDescriptor): string =>
-    d.prefetchError || d.blocked ? "" : d.src ? (d.prefetchedSource ?? "") : (d.body ?? "");
-  for (const d of regularInline) {
-    const segment = buildClassicSegment(d, regularIdx);
-    pushSegment(
-      regularAcc,
+  startIndex: number,
+  accumulator: ClassicAccumulator,
+  metadata: ClassicSegment[],
+  cdpDebug: boolean,
+  debugLabel?: ClassicDebugLabel,
+): number {
+  let index = startIndex;
+  for (const descriptor of descriptors) {
+    const segment = buildClassicSegment(descriptor, index);
+    pushClassicSegment(
+      accumulator,
       segment.source,
       segment.sourceLineOffset,
-      segLabel(d, regularIdx),
-      segSourceBody(d),
-      regularSegMeta,
+      classicSegmentLabel(descriptor, index),
+      classicSegmentSourceBody(descriptor),
+      metadata,
     );
-    if (cdpDebug) {
+    if (cdpDebug && debugLabel !== undefined) {
       console.log(
-        `[kitesurf-nav] segment regularInline#${regularIdx} ` +
-          `src=${JSON.stringify(d.src)} added=${segment.source.length}chars`,
+        `[kitesurf-nav] segment ${debugLabel}#${index} ` +
+          `src=${JSON.stringify(descriptor.src)} added=${segment.source.length}chars`,
       );
     }
-    regularIdx++;
+    index++;
   }
-  for (const d of regularDeferred) {
-    const segment = buildClassicSegment(d, regularIdx);
-    pushSegment(
-      regularAcc,
-      segment.source,
-      segment.sourceLineOffset,
-      segLabel(d, regularIdx),
-      segSourceBody(d),
-      regularSegMeta,
-    );
-    if (cdpDebug) {
-      console.log(
-        `[kitesurf-nav] segment regularDeferred#${regularIdx} ` +
-          `src=${JSON.stringify(d.src)} added=${segment.source.length}chars`,
-      );
-    }
-    regularIdx++;
-  }
-  let asyncIdx = 0;
-  for (const d of asyncBucket) {
-    const segment = buildClassicSegment(d, asyncIdx);
-    pushSegment(
-      asyncAcc,
-      segment.source,
-      segment.sourceLineOffset,
-      segLabel(d, asyncIdx),
-      segSourceBody(d),
-      asyncSegMeta,
-    );
-    asyncIdx++;
-  }
-  for (const [mi, d] of moduleBucket.entries()) {
-    if (d.blocked) {
-      const errorUrl = `https://kitesurf-error.invalid/module-${mi}.js`;
-      additionalModules[errorUrl] =
-        `console.error(${JSON.stringify(d.blocked.message)});\nexport {};\n`;
-      moduleScriptUrls.push(errorUrl);
-      continue;
-    }
-    if (d.prefetchError) {
-      const errorUrl = `https://kitesurf-error.invalid/module-${mi}.js`;
-      additionalModules[errorUrl] = `console.error(${JSON.stringify(
-        `[${d.src || "inline-module"}] module prefetch failed: ${d.prefetchError}`,
-      )});\nexport {};\n`;
-      moduleScriptUrls.push(errorUrl);
-      continue;
-    }
-    const src = d.src ? (d.prefetchedSource ?? "") : (d.body ?? "");
-    if (!src.trim()) continue;
-    let url = d.resolvedSrc ?? null;
-    if (!url) {
-      url = d.src
-        ? `https://kitesurf-fallback.invalid/external-${mi}.js`
-        : `https://kitesurf-fallback.invalid/inline-${mi}.js`;
-    }
-    if (!walkerSupplied || additionalModules[url] === undefined) {
-      additionalModules[url] = src;
-    }
-    moduleScriptUrls.push(url);
-  }
+  return index;
+}
 
-  const regularBody = regularAcc.parts.join("");
-  const asyncBody = asyncAcc.parts.join("");
+interface ModuleAccumulator {
+  scriptUrls: string[];
+  additionalModules: Record<string, BakedModule>;
+  walkerSupplied: boolean;
+}
 
-  const umdShadow = "var module=undefined,exports=undefined,require=undefined;\n";
-  const stateLocalDecl =
-    'var __ks_state_local = (await import("./internal-state.js")).getInternalState();\n';
-  const prodWrap = (body: string, strict = false): string =>
-    `module.exports.run = async function () {
-${strict ? '"use strict"; ' : ""}${stateLocalDecl}${umdShadow}${body}
+function moduleErrorUrl(index: number): string {
+  return `https://kitesurf-error.invalid/module-${index}.js`;
+}
+
+function moduleFallbackUrl(descriptor: ParentScriptDescriptor, index: number): string {
+  const kind = descriptor.src ? "external" : "inline";
+  return `https://kitesurf-fallback.invalid/${kind}-${index}.js`;
+}
+
+function appendBlockedModule(
+  descriptor: ParentScriptDescriptor,
+  index: number,
+  accumulator: ModuleAccumulator,
+): boolean {
+  if (!descriptor.blocked) return false;
+  const url = moduleErrorUrl(index);
+  accumulator.additionalModules[url] =
+    `console.error(${JSON.stringify(descriptor.blocked.message)});\nexport {};\n`;
+  accumulator.scriptUrls.push(url);
+  return true;
+}
+
+function modulePrefetchErrorSource(descriptor: ParentScriptDescriptor): string {
+  const label = descriptor.src || "inline-module";
+  return `console.error(${JSON.stringify(
+    `[${label}] module prefetch failed: ${descriptor.prefetchError}`,
+  )});\nexport {};\n`;
+}
+
+function appendModulePrefetchError(
+  descriptor: ParentScriptDescriptor,
+  index: number,
+  accumulator: ModuleAccumulator,
+): boolean {
+  if (!descriptor.prefetchError) return false;
+  const url = moduleErrorUrl(index);
+  accumulator.additionalModules[url] = modulePrefetchErrorSource(descriptor);
+  accumulator.scriptUrls.push(url);
+  return true;
+}
+
+function resolvedModuleUrl(descriptor: ParentScriptDescriptor, index: number): string {
+  if (descriptor.resolvedSrc) return descriptor.resolvedSrc;
+  return moduleFallbackUrl(descriptor, index);
+}
+
+function setModuleSourceIfMissing(
+  accumulator: ModuleAccumulator,
+  url: string,
+  source: string,
+): void {
+  if (!accumulator.walkerSupplied || accumulator.additionalModules[url] === undefined) {
+    accumulator.additionalModules[url] = source;
+  }
+}
+
+function appendModuleDescriptor(
+  descriptor: ParentScriptDescriptor,
+  index: number,
+  accumulator: ModuleAccumulator,
+): void {
+  if (appendBlockedModule(descriptor, index, accumulator)) return;
+  if (appendModulePrefetchError(descriptor, index, accumulator)) return;
+  const source = classicDescriptorSource(descriptor);
+  if (!source.trim()) return;
+  const url = resolvedModuleUrl(descriptor, index);
+  setModuleSourceIfMissing(accumulator, url, source);
+  accumulator.scriptUrls.push(url);
+}
+
+function appendModuleDescriptors(
+  descriptors: ParentScriptDescriptor[],
+  accumulator: ModuleAccumulator,
+): void {
+  for (const [index, descriptor] of descriptors.entries()) {
+    appendModuleDescriptor(descriptor, index, accumulator);
+  }
+}
+
+const UMD_SHADOW = "var module=undefined,exports=undefined,require=undefined;\n";
+const STATE_LOCAL_DECL =
+  'var __ks_state_local = (await import("./internal-state.js")).getInternalState();\n';
+
+function productionWrapper(body: string, strict = false): string {
+  return `module.exports.run = async function () {
+${strict ? '"use strict"; ' : ""}${STATE_LOCAL_DECL}${UMD_SHADOW}${body}
 };
 `;
-  const debugWrap = (body: string): string =>
-    `module.exports.run = async function () {
-${stateLocalDecl}${umdShadow}var __ks_diag = __ks_state_local.bundleDiag = {
+}
+
+function debugWrapper(body: string): string {
+  return `module.exports.run = async function () {
+${STATE_LOCAL_DECL}${UMD_SHADOW}var __ks_diag = __ks_state_local.bundleDiag = {
   entered: true,
   exited: false,
   bodyChars: ${JSON.stringify(body.length)},
@@ -393,72 +506,199 @@ try {
 __ks_diag.exited = true;
 };
 `;
-  const wrap = cdpDebug ? debugWrap : prodWrap;
+}
 
-  const wrapEmpty = wrap("");
+function wrapBundleBody(body: string, cdpDebug: boolean): string {
+  return cdpDebug ? debugWrapper(body) : productionWrapper(body);
+}
+
+function wrapperHeaderLineCount(cdpDebug: boolean): number {
+  const wrapEmpty = wrapBundleBody("", cdpDebug);
   const wrapHeaderLines =
     wrapEmpty.indexOf("\n};\n") >= 0
       ? countLines(wrapEmpty.slice(0, wrapEmpty.indexOf("\n};\n")))
       : countLines(wrapEmpty);
+  return wrapHeaderLines;
+}
 
-  const finalize = (
-    body: string,
-    bundleUrl: string,
-    segments: ClassicSegment[],
-  ): { source: string; sourceMapURL: string } => {
-    const wrapped = wrap(body);
-    const shifted = segments.map((s) => ({
-      ...s,
-      generatedLine: s.generatedLine + wrapHeaderLines,
-    }));
-    const totalLines = countLines(wrapped) + 1;
-    const sourceMapURL = buildClassicSourceMap(shifted, totalLines);
-    const directives =
-      `\n//# sourceURL=${bundleUrl}\n` +
-      (sourceMapURL ? `//# sourceMappingURL=${sourceMapURL}\n` : "");
-    return { source: wrapped + directives, sourceMapURL };
+function finalizeClassicSource(
+  body: string,
+  bundleUrl: string,
+  segments: ClassicSegment[],
+  cdpDebug: boolean,
+  wrapperHeaderLines: number,
+): { source: string; sourceMapURL: string } {
+  const wrapped = wrapBundleBody(body, cdpDebug);
+  const shifted = segments.map((segment) => ({
+    ...segment,
+    generatedLine: segment.generatedLine + wrapperHeaderLines,
+  }));
+  const totalLines = countLines(wrapped) + 1;
+  const sourceMapURL = buildClassicSourceMap(shifted, totalLines);
+  const directives =
+    `\n//# sourceURL=${bundleUrl}\n` +
+    (sourceMapURL ? `//# sourceMappingURL=${sourceMapURL}\n` : "");
+  return { source: wrapped + directives, sourceMapURL };
+}
+
+interface FinalizedClassicSource {
+  source: string | null;
+  sourceMapURL: string;
+}
+
+function finalizeIfPresent(
+  body: string,
+  bundleUrl: string,
+  segments: ClassicSegment[],
+  cdpDebug: boolean,
+  wrapperHeaderLines: number,
+): FinalizedClassicSource {
+  if (body.length === 0) return { source: null, sourceMapURL: "" };
+  return finalizeClassicSource(body, bundleUrl, segments, cdpDebug, wrapperHeaderLines);
+}
+
+interface InsertedModules {
+  modules: Record<string, string>;
+  manifest: InsertedBakeEntry[];
+}
+
+interface InsertedBakeCandidate {
+  source: string | undefined;
+  url: string | undefined;
+  digest: string | undefined;
+}
+
+interface ValidInsertedBake extends InsertedBakeCandidate {
+  source: string;
+  url: string;
+  digest: string;
+}
+
+function insertedBakeEntry(
+  descriptor: ParentScriptDescriptor,
+  digests: ReadonlyMap<string, string> | undefined,
+): { source: string; url: string; digest: string } | null {
+  const candidate: InsertedBakeCandidate = {
+    source: descriptor.prefetchedSource,
+    url: insertedDescriptorUrl(descriptor),
+    digest: undefined,
   };
+  candidate.digest = insertedSourceDigest(candidate.url, digests);
+  if (!isValidInsertedBake(candidate)) return null;
+  return candidate;
+}
 
-  let classicRegularSource: string | null = null;
-  let classicRegularSourceMapURL = "";
-  if (regularBody.length > 0) {
-    const r = finalize(regularBody, "/__ks_user_classic_regular.js", regularSegMeta);
-    classicRegularSource = r.source;
-    classicRegularSourceMapURL = r.sourceMapURL;
-  }
-  let classicAsyncSource: string | null = null;
-  let classicAsyncSourceMapURL = "";
-  if (asyncBody.length > 0) {
-    const r = finalize(asyncBody, "/__ks_user_classic_async.js", asyncSegMeta);
-    classicAsyncSource = r.source;
-    classicAsyncSourceMapURL = r.sourceMapURL;
-  }
+function insertedDescriptorUrl(descriptor: ParentScriptDescriptor): string | undefined {
+  if (descriptor.resolvedSrc) return descriptor.resolvedSrc;
+  return descriptor.src ?? undefined;
+}
 
-  const insertedModules: Record<string, string> = {};
-  const insertedManifest: InsertedBakeEntry[] = [];
-  for (const [i, d] of (options.insertedBake ?? []).entries()) {
-    const source = d.prefetchedSource;
-    const url = d.resolvedSrc ?? d.src;
-    const digest = url ? options.insertedDigests?.get(url) : undefined;
-    if (typeof source !== "string" || !source.trim() || !url || !digest) continue;
-    const module = `__ks_inserted_${i}.js`;
-    insertedModules[module] =
-      prodWrap(
-        buildClassicSegment(d, i, { currentScript: false }).source,
-        hasUseStrictDirective(source),
-      ) + `\n//# sourceURL=${url}\n`;
-    insertedManifest.push({ url, module, digest });
+function insertedSourceDigest(
+  url: string | undefined,
+  digests: ReadonlyMap<string, string> | undefined,
+): string | undefined {
+  if (url === undefined) return undefined;
+  return digests?.get(url);
+}
+
+function isValidInsertedBake(candidate: InsertedBakeCandidate): candidate is ValidInsertedBake {
+  if (typeof candidate.source !== "string") return false;
+  if (!candidate.source.trim()) return false;
+  if (!candidate.url) return false;
+  if (!candidate.digest) return false;
+  return true;
+}
+
+function buildInsertedModules(options: BuildScriptBundleOptions): InsertedModules {
+  const modules: Record<string, string> = {};
+  const manifest: InsertedBakeEntry[] = [];
+  for (const [index, descriptor] of (options.insertedBake ?? []).entries()) {
+    const baked = insertedBakeEntry(descriptor, options.insertedDigests);
+    if (!baked) continue;
+    const module = `__ks_inserted_${index}.js`;
+    modules[module] =
+      productionWrapper(
+        buildClassicSegment(descriptor, index, { currentScript: false }).source,
+        hasUseStrictDirective(baked.source),
+      ) + `\n//# sourceURL=${baked.url}\n`;
+    manifest.push({ url: baked.url, module, digest: baked.digest });
   }
+  return { modules, manifest };
+}
+
+function logScriptBuckets(buckets: ScriptBuckets): void {
+  console.log(
+    `[kitesurf-nav] bucketize: regularInline=${buckets.regularInline.length} ` +
+      `regularDeferred=${buckets.regularDeferred.length} ` +
+      `async=${buckets.async.length} modules=${buckets.modules.length}`,
+  );
+}
+
+export function buildScriptBundle(
+  descriptors: ParentScriptDescriptor[],
+  options: BuildScriptBundleOptions = {},
+): ScriptBundle {
+  const cdpDebug = options.cdpDebug === true;
+  const buckets = bucketScripts(descriptors);
+  if (cdpDebug) logScriptBuckets(buckets);
+
+  const regularAccumulator: ClassicAccumulator = { parts: [], lines: 0 };
+  const asyncAccumulator: ClassicAccumulator = { parts: [], lines: 0 };
+  const regularMetadata: ClassicSegment[] = [];
+  const asyncMetadata: ClassicSegment[] = [];
+  const regularIndex = appendClassicSegments(
+    buckets.regularInline,
+    0,
+    regularAccumulator,
+    regularMetadata,
+    cdpDebug,
+    "regularInline",
+  );
+  appendClassicSegments(
+    buckets.regularDeferred,
+    regularIndex,
+    regularAccumulator,
+    regularMetadata,
+    cdpDebug,
+    "regularDeferred",
+  );
+  appendClassicSegments(buckets.async, 0, asyncAccumulator, asyncMetadata, cdpDebug);
+
+  const moduleAccumulator: ModuleAccumulator = {
+    scriptUrls: [],
+    additionalModules: { ...(options.additionalModules ?? {}) },
+    walkerSupplied: options.additionalModules != null,
+  };
+  appendModuleDescriptors(buckets.modules, moduleAccumulator);
+
+  const regularBody = regularAccumulator.parts.join("");
+  const asyncBody = asyncAccumulator.parts.join("");
+  const wrapperLines = wrapperHeaderLineCount(cdpDebug);
+  const regular = finalizeIfPresent(
+    regularBody,
+    "/__ks_user_classic_regular.js",
+    regularMetadata,
+    cdpDebug,
+    wrapperLines,
+  );
+  const async = finalizeIfPresent(
+    asyncBody,
+    "/__ks_user_classic_async.js",
+    asyncMetadata,
+    cdpDebug,
+    wrapperLines,
+  );
+  const inserted = buildInsertedModules(options);
 
   return {
-    insertedModules,
-    insertedManifest,
-    classicRegularSource,
-    classicAsyncSource,
-    moduleScriptUrls,
-    additionalModules,
+    insertedModules: inserted.modules,
+    insertedManifest: inserted.manifest,
+    classicRegularSource: regular.source,
+    classicAsyncSource: async.source,
+    moduleScriptUrls: moduleAccumulator.scriptUrls,
+    additionalModules: moduleAccumulator.additionalModules,
     importMapModuleSource: options.importMapModuleSource ?? FALLBACK_MODULE_RESOLVER_SOURCE,
-    classicRegularSourceMapURL,
-    classicAsyncSourceMapURL,
+    classicRegularSourceMapURL: regular.sourceMapURL,
+    classicAsyncSourceMapURL: async.sourceMapURL,
   };
 }

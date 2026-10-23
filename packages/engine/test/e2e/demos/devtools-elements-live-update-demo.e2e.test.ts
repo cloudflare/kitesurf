@@ -40,33 +40,74 @@ async function connectPageMode() {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-test("devtools-elements-live-update-demo", async () => {
-  const { ws, send, events } = await connectPageMode();
+type PageModeConnection = Awaited<ReturnType<typeof connectPageMode>>;
+type PageModeEvent = PageModeConnection["events"][number];
+type DocumentResponse = {
+  error?: unknown;
+  result?: { root?: { nodeType?: number; nodeId?: number } };
+};
 
+function hasLoadEvent(events: PageModeEvent[], start: number): boolean {
+  return events.slice(start).some((event) => event.method === "Page.loadEventFired");
+}
+
+function insertedNodeName(event: PageModeEvent): string | undefined {
+  return (event.params?.node as { nodeName?: string } | undefined)?.nodeName;
+}
+
+function isInsertedNode(event: PageModeEvent, nodeName: string): boolean {
+  return event.method === "DOM.childNodeInserted" && insertedNodeName(event) === nodeName;
+}
+
+function isAttributeModified(event: PageModeEvent, name: string): boolean {
+  return (
+    event.method === "DOM.attributeModified" && (event.params as { name?: string }).name === name
+  );
+}
+
+function hasTimerMutationEvents(events: PageModeEvent[]): boolean {
+  return (
+    events.some((event) => isInsertedNode(event, "SPAN")) &&
+    events.some((event) => isAttributeModified(event, "data-late")) &&
+    events.some((event) => event.method === "Runtime.consoleAPICalled")
+  );
+}
+
+function assertBlankDocumentResponse(response: DocumentResponse): void {
+  expect(
+    response.error,
+    "pre-navigate DOM.getDocument must not error (DevTools caches the rejection): " +
+      JSON.stringify(response.error ?? null),
+  ).toBeUndefined();
+  expect(response.result?.root?.nodeType).toBe(9);
+}
+
+function assertDocumentHasNodeId(response: DocumentResponse): void {
+  expect(response.result?.root?.nodeId).toBeTypeOf("number");
+}
+
+async function prepareDevtoolsPage(client: PageModeConnection): Promise<void> {
+  const { send, events } = client;
   await send("Page.enable");
   await send("Runtime.enable");
   await send("DOM.enable");
   const bootDoc = await send("DOM.getDocument");
-  expect(
-    bootDoc.error,
-    "pre-navigate DOM.getDocument must not error (DevTools caches the rejection): " +
-      JSON.stringify(bootDoc.error ?? null),
-  ).toBeUndefined();
-  expect(bootDoc.result?.root?.nodeType).toBe(9);
+  assertBlankDocumentResponse(bootDoc);
 
   const navigateEventStart = events.length;
   await send("Page.navigate", {
     url: "http://127.0.0.1:8787/__fixtures/events.html",
   });
   await expect
-    .poll(() => events.slice(navigateEventStart).some((e) => e.method === "Page.loadEventFired"), {
-      timeout: 10_000,
-    })
+    .poll(() => hasLoadEvent(events, navigateEventStart), { timeout: 10_000 })
     .toBe(true)
     .catch(() => {});
   const doc = await send("DOM.getDocument");
-  expect(doc.result?.root?.nodeId).toBeTypeOf("number");
+  assertDocumentHasNodeId(doc);
+}
 
+async function verifyTimerMutationEvents(client: PageModeConnection): Promise<void> {
+  const { send, events } = client;
   await send("Runtime.evaluate", {
     expression: `setTimeout(() => {
       const s = document.createElement("span");
@@ -80,26 +121,12 @@ test("devtools-elements-live-update-demo", async () => {
   await sleep(50);
   events.length = 0;
   await expect
-    .poll(
-      () =>
-        events.some(
-          (e) =>
-            e.method === "DOM.childNodeInserted" &&
-            (e.params?.node as { nodeName?: string } | undefined)?.nodeName === "SPAN",
-        ) &&
-        events.some(
-          (e) =>
-            e.method === "DOM.attributeModified" &&
-            (e.params as { name?: string }).name === "data-late",
-        ) &&
-        events.some((e) => e.method === "Runtime.consoleAPICalled"),
-      { timeout: 10_000 },
-    )
+    .poll(() => hasTimerMutationEvents(events), { timeout: 10_000 })
     .toBe(true)
     .catch(() => {});
 
-  const methods = events.map((e) => e.method);
-  const inserted = events.find((e) => e.method === "DOM.childNodeInserted");
+  const methods = events.map((event) => event.method);
+  const inserted = events.find((event) => event.method === "DOM.childNodeInserted");
   expect(
     inserted,
     `timer-driven childNodeInserted reached the root session; saw: ${JSON.stringify(methods)}`,
@@ -108,20 +135,20 @@ test("devtools-elements-live-update-demo", async () => {
     | { nodeName?: string; attributes?: string[] }
     | undefined;
   expect(insertedNode?.nodeName).toBe("SPAN");
-  const lateAttr = events.find(
-    (e) =>
-      e.method === "DOM.attributeModified" && (e.params as { name?: string }).name === "data-late",
-  );
+  const lateAttr = events.find((event) => isAttributeModified(event, "data-late"));
   expect(
     lateAttr,
     `timer-driven attributeModified reached the root session; saw: ${JSON.stringify(methods)}`,
   ).toBeTruthy();
-  const lateLog = events.find((e) => e.method === "Runtime.consoleAPICalled");
+  const lateLog = events.find((event) => event.method === "Runtime.consoleAPICalled");
   expect(
     lateLog,
     `timer-driven consoleAPICalled reached the root session; saw: ${JSON.stringify(methods)}`,
   ).toBeTruthy();
+}
 
+async function verifyWebSocketMutationEvents(client: PageModeConnection): Promise<void> {
+  const { send, events } = client;
   events.length = 0;
   await send("Runtime.evaluate", {
     expression: `(() => {
@@ -139,50 +166,40 @@ test("devtools-elements-live-update-demo", async () => {
     })()`,
   });
   await expect
-    .poll(
-      () =>
-        events.some(
-          (e) =>
-            e.method === "DOM.childNodeInserted" &&
-            (e.params?.node as { nodeName?: string } | undefined)?.nodeName === "A",
-        ),
-      { timeout: 10_000 },
-    )
+    .poll(() => events.some((event) => isInsertedNode(event, "A")), { timeout: 10_000 })
     .toBe(true)
     .catch(() => {});
-  const wsInsert = events.find(
-    (e) =>
-      e.method === "DOM.childNodeInserted" &&
-      (e.params?.node as { nodeName?: string } | undefined)?.nodeName === "A",
-  );
+  const wsInsert = events.find((event) => isInsertedNode(event, "A"));
   expect(
     wsInsert,
-    `ws.onmessage-driven childNodeInserted reached the root session; saw: ${JSON.stringify(events.map((e) => e.method))}`,
+    `ws.onmessage-driven childNodeInserted reached the root session; saw: ${JSON.stringify(events.map((event) => event.method))}`,
   ).toBeTruthy();
+}
 
+async function verifySynchronousMutationEvent(client: PageModeConnection): Promise<void> {
+  const { send, events } = client;
   events.length = 0;
   await send("Runtime.evaluate", {
     expression: `document.getElementById("hdr").setAttribute("data-sync", "1")`,
   });
   await expect
-    .poll(
-      () =>
-        events.some(
-          (e) =>
-            e.method === "DOM.attributeModified" &&
-            (e.params as { name?: string }).name === "data-sync",
-        ),
-      { timeout: 100, interval: 10 },
-    )
+    .poll(() => events.some((event) => isAttributeModified(event, "data-sync")), {
+      timeout: 100,
+      interval: 10,
+    })
     .toBe(true)
     .catch(() => {});
-  const syncAttr = events.find(
-    (e) =>
-      e.method === "DOM.attributeModified" && (e.params as { name?: string }).name === "data-sync",
-  );
+  const syncAttr = events.find((event) => isAttributeModified(event, "data-sync"));
   expect(syncAttr, "evaluate-driven attributeModified still arrives").toBeTruthy();
+}
 
-  ws.close();
+test("devtools-elements-live-update-demo", async () => {
+  const client = await connectPageMode();
+  await prepareDevtoolsPage(client);
+  await verifyTimerMutationEvents(client);
+  await verifyWebSocketMutationEvents(client);
+  await verifySynchronousMutationEvent(client);
+  client.ws.close();
 });
 
 test("devtools page mode matches author rules after navigate", async () => {

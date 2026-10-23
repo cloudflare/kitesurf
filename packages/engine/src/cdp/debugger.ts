@@ -9,72 +9,82 @@ import type { DispatchCtx } from "./dispatch.ts";
 
 const EXEC_CONTEXT_ID = 1;
 
+type DebuggerHandler = (ctx: DispatchCtx, req: CdpRequest) => unknown;
+type GetScriptSourceRequest = Extract<CdpRequest, { method: "Debugger.getScriptSource" }>;
+
+function isGetScriptSourceRequest(req: CdpRequest): req is GetScriptSourceRequest {
+  return req.method === "Debugger.getScriptSource";
+}
+
+const DEBUGGER_HANDLERS = new Map<string, DebuggerHandler>([
+  ["Debugger.enable", (ctx, req) => enableDebugger(ctx, req.sessionId)],
+  ["Debugger.disable", (ctx, req) => disableDebugger(ctx, req.sessionId)],
+  [
+    "Debugger.getScriptSource",
+    (ctx, req) =>
+      isGetScriptSourceRequest(req) ? getScriptSource(ctx, req) : { scriptSource: "" },
+  ],
+]);
+
 export async function handleDebugger(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  switch (req.method) {
-    case "Debugger.enable": {
-      const sessionId = req.sessionId;
-      for (const target of ctx.browser.targets.values()) {
-        if (target.type !== "page") continue;
-        if (sessionId && target.sessions.has(sessionId)) {
-          target.debuggerEnabledSessions.add(sessionId);
-          for (const meta of target.compiledScripts) {
-            emitScriptParsed(
-              ctx,
-              meta,
-              sessionId,
-              target.frameId,
-              target.defaultContextId || undefined,
-            );
-          }
-        } else if (!sessionId) {
-          target.debuggerEnabledSessions.add("");
-          for (const meta of target.compiledScripts) {
-            emitScriptParsed(
-              ctx,
-              meta,
-              undefined,
-              target.frameId,
-              target.defaultContextId || undefined,
-            );
-          }
-        }
-      }
-      return { debuggerId: `dbg-${sessionId ?? "browser"}` };
-    }
+  return DEBUGGER_HANDLERS.get(req.method)?.(ctx, req) ?? {};
+}
 
-    case "Debugger.disable": {
-      const sessionId = req.sessionId;
-      for (const target of ctx.browser.targets.values()) {
-        if (sessionId) target.debuggerEnabledSessions.delete(sessionId);
-        else target.debuggerEnabledSessions.delete("");
-      }
-      return {};
-    }
-
-    // Accept unsupported methods commonly sent during attach.
-    case "Debugger.setSkipAllPauses":
-    case "Debugger.setBreakpointsActive":
-    case "Debugger.setPauseOnExceptions":
-    case "Debugger.setAsyncCallStackDepth":
-    case "Debugger.setBlackboxPatterns":
-    case "Debugger.setBlackboxedRanges":
-      return {};
-
-    case "Debugger.getScriptSource": {
-      const scriptId = req.params!.scriptId;
-      for (const target of ctx.browser.targets.values()) {
-        for (const meta of target.compiledScripts) {
-          if (meta.scriptId === scriptId) {
-            return { scriptSource: meta.source ?? "" };
-          }
-        }
-      }
-      return { scriptSource: "" };
-    }
-
-    default:
-      return {};
+function enableDebugger(ctx: DispatchCtx, sessionId: string | undefined): { debuggerId: string } {
+  for (const target of ctx.browser.targets.values()) {
+    if (target.type === "page") enableTargetDebugger(ctx, target, sessionId);
   }
+  return { debuggerId: `dbg-${sessionId ?? "browser"}` };
+}
+
+function enableTargetDebugger(
+  ctx: DispatchCtx,
+  target: TargetState,
+  sessionId: string | undefined,
+): void {
+  if (sessionId && target.sessions.has(sessionId)) {
+    target.debuggerEnabledSessions.add(sessionId);
+    emitCompiledScripts(ctx, target, sessionId);
+    return;
+  }
+  if (!sessionId) {
+    target.debuggerEnabledSessions.add("");
+    emitCompiledScripts(ctx, target, undefined);
+  }
+}
+
+function emitCompiledScripts(
+  ctx: DispatchCtx,
+  target: TargetState,
+  sessionId: string | undefined,
+): void {
+  for (const meta of target.compiledScripts) {
+    emitScriptParsed(ctx, meta, sessionId, target.frameId, target.defaultContextId || undefined);
+  }
+}
+
+function disableDebugger(ctx: DispatchCtx, sessionId: string | undefined): Record<string, never> {
+  for (const target of ctx.browser.targets.values()) {
+    target.debuggerEnabledSessions.delete(sessionId ?? "");
+  }
+  return {};
+}
+
+function getScriptSource(ctx: DispatchCtx, req: GetScriptSourceRequest): { scriptSource: string } {
+  const scriptId = scriptSourceId(req);
+  for (const target of ctx.browser.targets.values()) {
+    for (const meta of target.compiledScripts) {
+      if (meta.scriptId === scriptId) return { scriptSource: meta.source ?? "" };
+    }
+  }
+  return { scriptSource: "" };
+}
+
+function scriptSourceId(req: GetScriptSourceRequest): string | undefined {
+  if (req.params === undefined) {
+    throw new TypeError("Cannot read properties of undefined (reading 'scriptId')");
+  }
+  return req.params.scriptId;
 }
 
 export function emitScriptParsed(

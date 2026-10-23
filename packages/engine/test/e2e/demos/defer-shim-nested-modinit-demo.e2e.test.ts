@@ -18,6 +18,34 @@ type NestedModinitWindow = Window & {
   };
 };
 
+function snapshotOrEmpty(snapshot: ProbeSnapshot | null | undefined): ProbeSnapshot {
+  return snapshot ?? {};
+}
+
+function assertSyncSnapshot(snapshot: ProbeSnapshot, phase: string): void {
+  for (const key of ["setTimeout", "fetch", "getRandomValues", "subtleDigest"] as const) {
+    expect(
+      String(snapshot[key] ?? "").startsWith("ok"),
+      `${phase} sync ${key} did not throw: got: ${JSON.stringify(snapshot[key])}`,
+    ).toBeTruthy();
+  }
+}
+
+function assertAsyncSnapshot(snapshot: ProbeSnapshot, phase: string): void {
+  expect(
+    snapshot.setTimeout === "fired",
+    `${phase} async setTimeout fired: got: ${JSON.stringify(snapshot.setTimeout)}`,
+  ).toBeTruthy();
+  expect(
+    String(snapshot.fetch ?? "").startsWith("status="),
+    `${phase} async fetch resolved: got: ${JSON.stringify(snapshot.fetch)}`,
+  ).toBeTruthy();
+  expect(
+    snapshot.subtleDigest === "ok(bytes=32)",
+    `${phase} async subtle.digest resolved: got: ${JSON.stringify(snapshot.subtleDigest)}`,
+  ).toBeTruthy();
+}
+
 test("defer-shim-nested-modinit-demo", async ({ page }) => {
   await page.goto("http://127.0.0.1:8787/__fixtures/nested-modinit.html");
   await new Promise((r) => setTimeout(r, 1500));
@@ -26,43 +54,12 @@ test("defer-shim-nested-modinit-demo", async ({ page }) => {
 
   expect(!!probe, "probe captured: no __probe found").toBeTruthy();
   expect(probe.error == null, "no error during settlement: " + (probe.error || "")).toBeTruthy();
-
-  for (const k of ["setTimeout", "fetch", "getRandomValues", "subtleDigest"]) {
-    expect(
-      String(probe.initSync?.[k] ?? "").startsWith("ok"),
-      "init sync " + k + " did not throw: got: " + JSON.stringify(probe.initSync?.[k]),
-    ).toBeTruthy();
-  }
-
-  expect(
-    probe.initAsync?.setTimeout === "fired",
-    "init async setTimeout fired: got: " + JSON.stringify(probe.initAsync?.setTimeout),
-  ).toBeTruthy();
-  expect(
-    String(probe.initAsync?.fetch ?? "").startsWith("status="),
-    "init async fetch resolved: got: " + JSON.stringify(probe.initAsync?.fetch),
-  ).toBeTruthy();
-  expect(
-    probe.initAsync?.subtleDigest === "ok(bytes=32)",
-    "init async subtle.digest resolved: got: " + JSON.stringify(probe.initAsync?.subtleDigest),
-  ).toBeTruthy();
-
-  for (const k of ["setTimeout", "fetch", "getRandomValues", "subtleDigest"]) {
-    expect(
-      String(probe.postSync?.[k] ?? "").startsWith("ok"),
-      "post sync " + k + " did not throw: got: " + JSON.stringify(probe.postSync?.[k]),
-    ).toBeTruthy();
-  }
-  expect(
-    probe.postAsync?.setTimeout === "fired",
-    "post async setTimeout fired: got: " + JSON.stringify(probe.postAsync?.setTimeout),
-  ).toBeTruthy();
-  expect(
-    String(probe.postAsync?.fetch ?? "").startsWith("status="),
-    "post async fetch resolved: got: " + JSON.stringify(probe.postAsync?.fetch),
-  ).toBeTruthy();
-  expect(
-    probe.postAsync?.subtleDigest === "ok(bytes=32)",
-    "post async subtle.digest resolved: got: " + JSON.stringify(probe.postAsync?.subtleDigest),
-  ).toBeTruthy();
+  const initSync = snapshotOrEmpty(probe.initSync);
+  const initAsync = snapshotOrEmpty(probe.initAsync);
+  const postSync = snapshotOrEmpty(probe.postSync);
+  const postAsync = snapshotOrEmpty(probe.postAsync);
+  assertSyncSnapshot(initSync, "init");
+  assertAsyncSnapshot(initAsync, "init");
+  assertSyncSnapshot(postSync, "post");
+  assertAsyncSnapshot(postAsync, "post");
 });

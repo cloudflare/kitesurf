@@ -12,144 +12,206 @@ test("WebRTC stubs expose a graceful no-transport surface", async ({ page }) => 
     const g = globalThis as any;
     const out: Record<string, any> = {};
 
-    out.hasPC = typeof g.RTCPeerConnection === "function";
-    out.hasDC = typeof g.RTCDataChannel === "function";
-    out.hasDesc = typeof g.RTCSessionDescription === "function";
-    out.hasCand = typeof g.RTCIceCandidate === "function";
-    out.hasErr = typeof g.RTCError === "function";
-    out.hasMS = typeof g.MediaStream === "function";
-    out.hasMST = typeof g.MediaStreamTrack === "function";
-    out.hasWebkitPC = typeof g.webkitRTCPeerConnection === "function";
-    out.hasErrorEvent = typeof g.RTCErrorEvent === "function";
-    out.hasIceEvent = typeof g.RTCPeerConnectionIceEvent === "function";
-    out.hasDataEvent = typeof g.RTCDataChannelEvent === "function";
-    out.hasTrackEvent = typeof g.RTCTrackEvent === "function";
-
-    let pc: any;
-    try {
-      pc = new g.RTCPeerConnection();
-      out.ctorOk = true;
-    } catch (e) {
-      out.ctorOk = false;
-      out.ctorErr = String(e);
+    function recordGlobalSurface() {
+      out.hasPC = typeof g.RTCPeerConnection === "function";
+      out.hasDC = typeof g.RTCDataChannel === "function";
+      out.hasDesc = typeof g.RTCSessionDescription === "function";
+      out.hasCand = typeof g.RTCIceCandidate === "function";
+      out.hasErr = typeof g.RTCError === "function";
+      out.hasMS = typeof g.MediaStream === "function";
+      out.hasMST = typeof g.MediaStreamTrack === "function";
+      out.hasWebkitPC = typeof g.webkitRTCPeerConnection === "function";
+      out.hasErrorEvent = typeof g.RTCErrorEvent === "function";
+      out.hasIceEvent = typeof g.RTCPeerConnectionIceEvent === "function";
+      out.hasDataEvent = typeof g.RTCDataChannelEvent === "function";
+      out.hasTrackEvent = typeof g.RTCTrackEvent === "function";
     }
+
+    function createPeerConnection() {
+      try {
+        const pc = new g.RTCPeerConnection();
+        out.ctorOk = true;
+        return pc;
+      } catch (error) {
+        out.ctorOk = false;
+        out.ctorErr = String(error);
+        return null;
+      }
+    }
+
+    function observeConnection(pc) {
+      out.initialConnectionState = pc.connectionState;
+      out.initialIceState = pc.iceConnectionState;
+      out.initialSignalingState = pc.signalingState;
+
+      let stateChanges = 0;
+      let resolveFailure!: () => void;
+      const connectionFailed = new Promise<void>((resolve) => {
+        resolveFailure = resolve;
+      });
+      pc.onconnectionstatechange = () => {
+        stateChanges++;
+        if (pc.connectionState === "failed") resolveFailure();
+      };
+      return { connectionFailed, stateChanges: () => stateChanges };
+    }
+
+    async function captureCall<T>(
+      call: () => Promise<T>,
+      onSuccess: (value: T) => void,
+      errorKey: string,
+    ): Promise<void> {
+      try {
+        onSuccess(await call());
+      } catch (error) {
+        out[errorKey] = String(error);
+      }
+    }
+
+    function hasMethod(value: object, name: "forEach" | "get"): boolean {
+      return typeof Reflect.get(value, name) === "function";
+    }
+
+    function isStatsMapLike(value: unknown): boolean {
+      if (value === null || value === undefined) return false;
+      const stats = Object(value);
+      return hasMethod(stats, "forEach") && hasMethod(stats, "get");
+    }
+
+    async function exercisePeerCalls(pc) {
+      await captureCall(
+        () => pc.setRemoteDescription({ type: "offer", sdp: "" }),
+        () => {
+          out.setRemoteDescOk = true;
+        },
+        "setRemoteDescErr",
+      );
+      await captureCall(
+        () => pc.createAnswer(),
+        (answer: unknown) => {
+          out.createAnswerType = answer && Reflect.get(Object(answer), "type");
+        },
+        "createAnswerErr",
+      );
+      await captureCall(
+        () => pc.setLocalDescription({ type: "answer", sdp: "" }),
+        () => {
+          out.setLocalDescOk = true;
+        },
+        "setLocalDescErr",
+      );
+      await captureCall(
+        () => pc.addIceCandidate({ candidate: "" }),
+        () => {
+          out.addIceOk = true;
+        },
+        "addIceErr",
+      );
+      await captureCall(
+        () => pc.getStats(),
+        (stats: unknown) => {
+          out.statsMapLike = isStatsMapLike(stats);
+        },
+        "statsErr",
+      );
+    }
+
+    function addTrackAndDataChannel(pc) {
+      const track = new g.MediaStreamTrack("video");
+      const stream = new g.MediaStream([track]);
+      const sender = pc.addTrack(track, stream);
+      out.senderHasReplaceTrack = sender && typeof sender.replaceTrack === "function";
+
+      let resolveChannelOpen!: () => void;
+      const channelOpened = new Promise<void>((resolve) => {
+        resolveChannelOpen = resolve;
+      });
+      const dc = pc.createDataChannel("test");
+      out.dcLabel = dc.label;
+      out.dcInitialReadyState = dc.readyState;
+      dc.onopen = () => resolveChannelOpen();
+      return { channelOpened, dc };
+    }
+
+    function recordStreamsAndTrack(pc) {
+      pc.close();
+      out.afterCloseConnectionState = pc.connectionState;
+      out.afterCloseSignalingState = pc.signalingState;
+
+      const stream = new g.MediaStream([
+        new g.MediaStreamTrack("audio"),
+        new g.MediaStreamTrack("video"),
+      ]);
+      out.streamTracks = stream.getTracks().length;
+      out.audioTracks = stream.getAudioTracks().length;
+      out.videoTracks = stream.getVideoTracks().length;
+      out.cloneTracks = stream.clone().getTracks().length;
+
+      const track = new g.MediaStreamTrack("video");
+      let trackEnded = false;
+      track.onended = () => {
+        trackEnded = true;
+      };
+      track.stop();
+      out.trackEndedReadyState = track.readyState;
+      out.trackEndedFired = trackEnded;
+    }
+
+    async function captureGetUserMedia(mediaDevices) {
+      try {
+        await mediaDevices.getUserMedia({ video: true });
+        out.gumResolved = true;
+      } catch (error) {
+        out.gumRejectedName = error && (error as any).name;
+      }
+    }
+
+    async function captureEnumeratedDevices(mediaDevices) {
+      try {
+        const devices = await mediaDevices.enumerateDevices();
+        out.enumDevicesIsArray = Array.isArray(devices) && devices.length === 0;
+      } catch (error) {
+        out.enumDevicesErr = String(error);
+      }
+    }
+
+    async function recordMediaDevices() {
+      const mediaDevices = g.navigator.mediaDevices;
+      out.hasMediaDevices = !!(g.navigator && mediaDevices);
+      out.hasGUM = typeof mediaDevices.getUserMedia === "function";
+      await captureGetUserMedia(mediaDevices);
+      await captureEnumeratedDevices(mediaDevices);
+    }
+
+    function recordDescriptionConstructors() {
+      const desc = new g.RTCSessionDescription({ type: "offer", sdp: "v=0" });
+      out.descType = desc.type;
+      out.descSdp = desc.sdp;
+      out.descJson = JSON.stringify(desc);
+
+      const candidate = new g.RTCIceCandidate({
+        candidate: "candidate:1 1 UDP 1 1.1.1.1 1 typ host",
+      });
+      out.candidate = candidate.candidate;
+    }
+
+    recordGlobalSurface();
+    const pc = createPeerConnection();
     if (!pc) return out;
 
-    out.initialConnectionState = pc.connectionState;
-    out.initialIceState = pc.iceConnectionState;
-    out.initialSignalingState = pc.signalingState;
-
-    let stateChanges = 0;
-    let resolveFailure!: () => void;
-    const connectionFailed = new Promise<void>((resolve) => {
-      resolveFailure = resolve;
-    });
-    pc.onconnectionstatechange = () => {
-      stateChanges++;
-      if (pc.connectionState === "failed") resolveFailure();
-    };
-
-    try {
-      await pc.setRemoteDescription({ type: "offer", sdp: "" });
-      out.setRemoteDescOk = true;
-    } catch (e) {
-      out.setRemoteDescErr = String(e);
-    }
-    try {
-      const ans = await pc.createAnswer();
-      out.createAnswerType = ans && ans.type;
-    } catch (e) {
-      out.createAnswerErr = String(e);
-    }
-    try {
-      await pc.setLocalDescription({ type: "answer", sdp: "" });
-      out.setLocalDescOk = true;
-    } catch (e) {
-      out.setLocalDescErr = String(e);
-    }
-    try {
-      await pc.addIceCandidate({ candidate: "" });
-      out.addIceOk = true;
-    } catch (e) {
-      out.addIceErr = String(e);
-    }
-    try {
-      const stats = await pc.getStats();
-      out.statsMapLike = typeof stats?.forEach === "function" && typeof stats?.get === "function";
-    } catch (e) {
-      out.statsErr = String(e);
-    }
-
-    const track = new g.MediaStreamTrack("video");
-    const stream = new g.MediaStream([track]);
-    const sender = pc.addTrack(track, stream);
-    out.senderHasReplaceTrack = sender && typeof sender.replaceTrack === "function";
-
-    let dcOpened = false;
-    let resolveChannelOpen!: () => void;
-    const channelOpened = new Promise<void>((resolve) => {
-      resolveChannelOpen = resolve;
-    });
-    const dc = pc.createDataChannel("test");
-    out.dcLabel = dc.label;
-    out.dcInitialReadyState = dc.readyState;
-    dc.onopen = () => {
-      dcOpened = true;
-      resolveChannelOpen();
-    };
-
-    await Promise.all([connectionFailed, channelOpened]);
-    out.dcOpenedAfterTick = dcOpened;
-    out.dcReadyStateAfterTick = dc.readyState;
+    const connection = observeConnection(pc);
+    await exercisePeerCalls(pc);
+    const channel = addTrackAndDataChannel(pc);
+    await Promise.all([connection.connectionFailed, channel.channelOpened]);
+    out.dcOpenedAfterTick = true;
+    out.dcReadyStateAfterTick = channel.dc.readyState;
     out.connectionStateAfterTick = pc.connectionState;
-    out.stateChangesAfterTick = stateChanges;
+    out.stateChangesAfterTick = connection.stateChanges();
     out.finalIceState = pc.iceConnectionState;
 
-    pc.close();
-    out.afterCloseConnectionState = pc.connectionState;
-    out.afterCloseSignalingState = pc.signalingState;
-
-    const stream2 = new g.MediaStream([
-      new g.MediaStreamTrack("audio"),
-      new g.MediaStreamTrack("video"),
-    ]);
-    out.streamTracks = stream2.getTracks().length;
-    out.audioTracks = stream2.getAudioTracks().length;
-    out.videoTracks = stream2.getVideoTracks().length;
-    out.cloneTracks = stream2.clone().getTracks().length;
-
-    const t = new g.MediaStreamTrack("video");
-    let trackEnded = false;
-    t.onended = () => {
-      trackEnded = true;
-    };
-    t.stop();
-    out.trackEndedReadyState = t.readyState;
-    out.trackEndedFired = trackEnded;
-
-    const mediaDevices = g.navigator.mediaDevices;
-    out.hasMediaDevices = !!(g.navigator && mediaDevices);
-    out.hasGUM = typeof mediaDevices.getUserMedia === "function";
-    try {
-      await mediaDevices.getUserMedia({ video: true });
-      out.gumResolved = true;
-    } catch (e) {
-      out.gumRejectedName = e && (e as any).name;
-    }
-    try {
-      const devices = await mediaDevices.enumerateDevices();
-      out.enumDevicesIsArray = Array.isArray(devices) && devices.length === 0;
-    } catch (e) {
-      out.enumDevicesErr = String(e);
-    }
-
-    const desc = new g.RTCSessionDescription({ type: "offer", sdp: "v=0" });
-    out.descType = desc.type;
-    out.descSdp = desc.sdp;
-    out.descJson = JSON.stringify(desc);
-
-    const cand = new g.RTCIceCandidate({ candidate: "candidate:1 1 UDP 1 1.1.1.1 1 typ host" });
-    out.candidate = cand.candidate;
+    recordStreamsAndTrack(pc);
+    await recordMediaDevices();
+    recordDescriptionConstructors();
 
     return out;
   });

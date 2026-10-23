@@ -21,13 +21,18 @@ async function stats(page: Page): Promise<Stats> {
   await session.detach().catch(() => {});
   const domNodes = s.domNodes;
   const wrappers = s.wrappers;
-  if (
-    typeof domNodes !== "number" ||
-    !wrappers ||
-    typeof wrappers.demoted !== "number" ||
-    typeof wrappers.revived !== "number" ||
-    typeof wrappers.reclaimed !== "number"
-  ) {
+  const hasNumericWrapperStats = (
+    value: typeof wrappers,
+  ): value is Record<string, number> & {
+    demoted: number;
+    revived: number;
+    reclaimed: number;
+  } =>
+    !!value &&
+    typeof value.demoted === "number" &&
+    typeof value.revived === "number" &&
+    typeof value.reclaimed === "number";
+  if (typeof domNodes !== "number" || !hasNumericWrapperStats(wrappers)) {
     throw new Error(`no stats in ${JSON.stringify(s).slice(0, 200)}`);
   }
   return {

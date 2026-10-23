@@ -44,44 +44,67 @@ test("window.getComputedStyle exposes values and stays read-only", async ({ page
 
   const result = await page.evaluate(() => {
     const out: ComputedStyleProbe = {};
+
+    function errorText(error: unknown): string {
+      const value = error as Error;
+      return String(value?.stack || value?.message || error);
+    }
+
+    function recordComputedStyle(
+      style: CSSStyleDeclaration & {
+        "background-color": string;
+        parentRule: unknown;
+        thisPropertyDoesNotExist: string;
+      },
+    ): void {
+      out.color = style.color;
+      out.backgroundColor = style.backgroundColor;
+      out.fontSize = style.fontSize;
+      out.display = style.display;
+      out.kebab = style["background-color"];
+      out.viaMethod = style.getPropertyValue("background-color");
+      out.viaMethodCamel = style.getPropertyValue("backgroundColor");
+      out.parentRule = style.parentRule;
+      out.length = style.length;
+      out.unknown = style.thisPropertyDoesNotExist;
+    }
+
+    function recordAssignmentFailure(style: CSSStyleDeclaration): void {
+      try {
+        style.color = "blue";
+        out.assignThrew = false;
+      } catch (error) {
+        out.assignThrew = true;
+        out.assignError = (error as Error)?.name;
+      }
+    }
+
+    function recordSetPropertyFailure(style: CSSStyleDeclaration): void {
+      try {
+        style.setProperty("color", "blue");
+        out.setPropertyThrew = false;
+      } catch (error) {
+        out.setPropertyThrew = true;
+        out.setPropertyError = (error as Error)?.name;
+      }
+    }
+
     try {
       const target = document.getElementById("target");
       out.targetFound = !!target;
-      const s = window.getComputedStyle(target!) as CSSStyleDeclaration & {
+      const style = window.getComputedStyle(target!) as CSSStyleDeclaration & {
         "background-color": string;
         parentRule: unknown;
         thisPropertyDoesNotExist: string;
       };
-      out.color = s.color;
-      out.backgroundColor = s.backgroundColor;
-      out.fontSize = s.fontSize;
-      out.display = s.display;
-      out.kebab = s["background-color"];
-      out.viaMethod = s.getPropertyValue("background-color");
-      out.viaMethodCamel = s.getPropertyValue("backgroundColor");
-      out.parentRule = s.parentRule;
-      out.length = s.length;
-      out.unknown = s.thisPropertyDoesNotExist;
+      recordComputedStyle(style);
 
       const bodyStyle = window.getComputedStyle(document.body);
       out.bodyDisplay = bodyStyle.display;
-
-      try {
-        s.color = "blue";
-        out.assignThrew = false;
-      } catch (e) {
-        out.assignThrew = true;
-        out.assignError = (e as Error)?.name;
-      }
-      try {
-        s.setProperty("color", "blue");
-        out.setPropertyThrew = false;
-      } catch (e) {
-        out.setPropertyThrew = true;
-        out.setPropertyError = (e as Error)?.name;
-      }
-    } catch (err) {
-      out.error = String((err as Error)?.stack || (err as Error)?.message || err);
+      recordAssignmentFailure(style);
+      recordSetPropertyFailure(style);
+    } catch (error) {
+      out.error = errorText(error);
     }
     return out;
   });

@@ -37,6 +37,8 @@ test("forms-form-demo", async ({ page }) => {
     const add = (l, ok, info = "") => checks.push({ l, ok, info });
     const el = <T extends HTMLElement = HTMLInputElement>(id: string) =>
       document.getElementById(id) as T;
+    const hasOneLabel = (labels) => labels && labels.length === 1;
+    const isLabelFor = (labels, label) => labels && labels[0] === label;
 
     const f = el<HTMLFormElement>("f");
 
@@ -64,16 +66,13 @@ test("forms-form-demo", async ({ page }) => {
     add("button.form via ancestor", el<HTMLButtonElement>("b1").form === f);
 
     const labelsForI = el("i").labels;
-    add("input.labels NodeList truthy", labelsForI && labelsForI.length === 1);
-    add(
-      "input.labels[0] = explicit label",
-      labelsForI && labelsForI[0] === el<HTMLLabelElement>("lab"),
-    );
+    add("input.labels NodeList truthy", hasOneLabel(labelsForI));
+    add("input.labels[0] = explicit label", isLabelFor(labelsForI, el<HTMLLabelElement>("lab")));
 
     const labelsForIc = el("ic").labels;
     add(
       "ancestor label found",
-      labelsForIc && labelsForIc.length === 1 && labelsForIc[0] === el<HTMLLabelElement>("lab2"),
+      hasOneLabel(labelsForIc) && isLabelFor(labelsForIc, el<HTMLLabelElement>("lab2")),
     );
 
     add("hidden.labels null", el("i3").labels === null);
@@ -91,7 +90,7 @@ test("forms-form-demo", async ({ page }) => {
     let lastSubmitter = "MISSING";
     f.addEventListener("submit", (e) => {
       submitFired++;
-      lastSubmitter = e.submitter ? e.submitter.id : "null";
+      lastSubmitter = e.submitter?.id ?? "null";
       e.preventDefault();
     });
     f.submit();

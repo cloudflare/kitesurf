@@ -28,6 +28,62 @@ const PROBES = `<script>
   };
 </script>`;
 
+test("iterable keyframe properties are read before keyframe metadata", async ({ page }) => {
+  await setContent(page, "<div></div>");
+  const result = await page.evaluate(() => {
+    const reads: string[] = [];
+    let offset = 0.25;
+    const frame: Keyframe = {
+      get opacity() {
+        reads.push("opacity");
+        offset = 0.75;
+        return "0.5";
+      },
+      get easing() {
+        reads.push("easing");
+        return "linear";
+      },
+      get composite(): Keyframe["composite"] {
+        reads.push("composite");
+        return "replace";
+      },
+      get offset() {
+        reads.push("offset");
+        return offset;
+      },
+    };
+    const effect = new KeyframeEffect(document.body, [frame], 1000);
+    return {
+      reads,
+      keyframes: effect.getKeyframes().map((keyframe) => ({
+        offset: keyframe.offset,
+        computedOffset: keyframe.computedOffset,
+        opacity: keyframe.opacity,
+      })),
+    };
+  });
+  expect(result).toEqual({
+    reads: ["opacity", "easing", "composite", "offset"],
+    keyframes: [{ offset: 0.75, computedOffset: 0.75, opacity: "0.5" }],
+  });
+});
+
+test("an empty keyframe property is ignored without reading its value", async ({ page }) => {
+  await setContent(page, "<div></div>");
+  const result = await page.evaluate(() => {
+    const frame = Object.defineProperty({}, "", {
+      enumerable: true,
+      get() {
+        throw new Error("empty keyframe property must not be read");
+      },
+    });
+    return new KeyframeEffect(document.body, [frame], 1000)
+      .getKeyframes()
+      .map((keyframe) => Object.hasOwn(keyframe, ""));
+  });
+  expect(result).toEqual([false]);
+});
+
 test("paused animations compute the values Chrome computes", async ({ page }) => {
   await setContent(page, PROBES);
   const got = await page.evaluate(() => Reflect.get(globalThis, "__probes"));

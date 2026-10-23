@@ -5,6 +5,66 @@
 import type { Frame } from "@cloudflare/puppeteer";
 import { expect, test } from "../harness";
 
+type FrameWithId = Frame & { _id?: string; id?: string };
+type AttachedFrame = { frameId: string };
+type NavigatedFrame = { frame: { id: string } };
+type FrameTree = {
+  frame: { id: string };
+  childFrames?: Array<{ frame: { parentId?: string; url?: string } }>;
+};
+type ResourceTree = { resources: unknown[]; childFrames?: Array<{ resources: unknown[] }> };
+type IframeTarget = { type: string; targetId: string; openerFrameId?: string };
+
+function assertFrameIds(frames: Frame[]): void {
+  const ids = (frames as FrameWithId[]).map((frame) => frame._id ?? frame.id);
+  expect(new Set(ids).size, "frame ids should be unique").toBe(3);
+  for (const id of ids) expect(id && id.length > 0, "frameId nonempty").toBeTruthy();
+}
+
+function assertFrameHierarchy(frames: Frame[]): void {
+  const main = frames.find((frame) => frame.parentFrame() === null);
+  expect(main, "must find a main frame").toBeTruthy();
+  const children = frames.filter((frame) => frame.parentFrame() === main);
+  expect(children.length, "two child frames under main").toBe(2);
+}
+
+function assertFrameEvents(attached: AttachedFrame[], navigated: NavigatedFrame[]): void {
+  expect(attached.length >= 2, "expected at least 2 frameAttached events").toBeTruthy();
+  expect(navigated.length >= 3, "expected at least 3 frameNavigated events").toBeTruthy();
+  for (const event of attached) {
+    const navigation = navigated.find((entry) => entry.frame.id === event.frameId);
+    expect(
+      navigation,
+      `frameNavigated should follow frameAttached for ${event.frameId}`,
+    ).toBeTruthy();
+  }
+}
+
+function assertFrameTree(frameTree: FrameTree): void {
+  const children = frameTree.childFrames ?? [];
+  expect(frameTree.childFrames?.length ?? 0, "frameTree has 2 children").toBe(2);
+  for (const child of children) {
+    expect(child.frame.parentId, "child's parentId matches main frame's id").toBe(
+      frameTree.frame.id,
+    );
+    expect(child.frame.url, "child frame has a url").toBeTruthy();
+  }
+}
+
+function assertResourceTree(resourceTree: ResourceTree): void {
+  expect(resourceTree.childFrames?.length ?? 0).toBe(2);
+  expect(resourceTree.resources).toEqual([]);
+  for (const child of resourceTree.childFrames ?? []) expect(child.resources).toEqual([]);
+}
+
+function assertIframeTargets(iframeTargets: IframeTarget[]): void {
+  expect(iframeTargets.length, "two iframe-typed targets").toBe(2);
+  for (const target of iframeTargets) {
+    expect(target.targetId, "iframe target has id").toBeTruthy();
+    expect(target.openerFrameId, "iframe target carries openerFrameId").toBeTruthy();
+  }
+}
+
 test("iframe-frame-tree-demo", async ({ page }) => {
   const URL_BASE = process.env.KITESURF_FIXTURE_BASE ?? "http://127.0.0.1:8787";
 
@@ -20,15 +80,8 @@ test("iframe-frame-tree-demo", async ({ page }) => {
   const frames = page.frames();
   console.log("[iframe-demo] frames =", frames.length);
   expect(frames.length, "expected 1 main + 2 child frames").toBe(3);
-
-  const ids = (frames as (Frame & { _id?: string; id?: string })[]).map((f) => f._id ?? f.id);
-  expect(new Set(ids).size, "frame ids should be unique").toBe(3);
-  for (const id of ids) expect(id && id.length > 0, "frameId nonempty").toBeTruthy();
-
-  const main = frames.find((f) => f.parentFrame() === null);
-  expect(main, "must find a main frame").toBeTruthy();
-  const children = frames.filter((f) => f.parentFrame() === main);
-  expect(children.length, "two child frames under main").toBe(2);
+  assertFrameIds(frames);
+  assertFrameHierarchy(frames);
 
   console.log(
     "[iframe-demo] frameAttached =",
@@ -36,35 +89,16 @@ test("iframe-frame-tree-demo", async ({ page }) => {
     "frameNavigated =",
     navigated.length,
   );
-  expect(attached.length >= 2, "expected at least 2 frameAttached events").toBeTruthy();
-  expect(navigated.length >= 3, "expected at least 3 frameNavigated events").toBeTruthy();
-  for (const att of attached) {
-    const nav = navigated.find((n) => n.frame.id === att.frameId);
-    expect(nav, `frameNavigated should follow frameAttached for ${att.frameId}`).toBeTruthy();
-  }
+  assertFrameEvents(attached, navigated);
 
   const { frameTree } = await session.send("Page.getFrameTree");
-  expect(frameTree.childFrames?.length ?? 0, "frameTree has 2 children").toBe(2);
-  for (const child of frameTree.childFrames) {
-    expect(child.frame.parentId, "child's parentId matches main frame's id").toBe(
-      frameTree.frame.id,
-    );
-    expect(child.frame.url, "child frame has a url").toBeTruthy();
-  }
+  assertFrameTree(frameTree);
 
   const { frameTree: resourceTree } = await session.send("Page.getResourceTree");
-  expect(resourceTree.childFrames?.length ?? 0).toBe(2);
-  expect(resourceTree.resources).toEqual([]);
-  for (const child of resourceTree.childFrames) {
-    expect(child.resources).toEqual([]);
-  }
+  assertResourceTree(resourceTree);
 
   const { targetInfos } = await session.send("Target.getTargets");
   const iframeTargets = targetInfos.filter((t) => t.type === "iframe");
   console.log("[iframe-demo] iframe Target.* entries =", iframeTargets.length);
-  expect(iframeTargets.length, "two iframe-typed targets").toBe(2);
-  for (const it of iframeTargets) {
-    expect(it.targetId, "iframe target has id").toBeTruthy();
-    expect(it.openerFrameId, "iframe target carries openerFrameId").toBeTruthy();
-  }
+  assertIframeTargets(iframeTargets);
 });

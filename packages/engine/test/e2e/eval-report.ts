@@ -12,14 +12,7 @@ function isEvalReply(
   return typeof v === "object" && v !== null;
 }
 
-export async function readJsonReport(
-  cdp: CdpSender,
-  expression: string,
-): Promise<Record<string, unknown>> {
-  const reply: unknown = await cdp.send("Runtime.evaluate", {
-    expression,
-    returnByValue: true,
-  });
+function checkedEvalReply(reply: unknown, expression: string) {
   if (!isEvalReply(reply)) {
     throw new Error(`Runtime.evaluate returned a non-object reply for ${expression}`);
   }
@@ -28,7 +21,10 @@ export async function readJsonReport(
       `Runtime.evaluate threw for ${expression}: ${JSON.stringify(reply.exceptionDetails)}`,
     );
   }
-  const raw = reply.result?.value;
+  return reply;
+}
+
+function parseJsonReport(raw: unknown, expression: string): Record<string, unknown> {
   if (typeof raw !== "string") {
     throw new Error(
       `${expression} is ${typeof raw}, not the expected JSON string ` +
@@ -40,4 +36,18 @@ export async function readJsonReport(
     throw new Error(`${expression} parsed to ${typeof parsed}, expected an object`);
   }
   return parsed as Record<string, unknown>;
+}
+
+export async function readJsonReport(
+  cdp: CdpSender,
+  expression: string,
+): Promise<Record<string, unknown>> {
+  const reply = checkedEvalReply(
+    await cdp.send("Runtime.evaluate", {
+      expression,
+      returnByValue: true,
+    }),
+    expression,
+  );
+  return parseJsonReport(reply.result?.value, expression);
 }

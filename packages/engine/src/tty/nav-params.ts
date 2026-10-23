@@ -18,28 +18,39 @@ export const DEFAULT_TTY_CELL_HEIGHT_PX = 17;
 
 const PARAMS = ["ks_tty_css", "ks_tty_cell", "ks_color_scheme"] as const;
 
-export function applyTtyNavParams(params: URLSearchParams, state: TtyNavState): boolean {
-  let seen = false;
-
+function applyCssParam(params: URLSearchParams, state: TtyNavState): boolean {
   if (params.has("ks_tty_css")) {
-    seen = true;
     const level = Number(params.get("ks_tty_css"));
     state.ttyUaCss =
       Number.isFinite(level) && level > 0 ? Math.min(2, Math.floor(level)) : undefined;
+    return true;
   }
+  return false;
+}
 
+function applyColorSchemeParam(params: URLSearchParams, state: TtyNavState): boolean {
   if (params.has("ks_color_scheme")) {
-    seen = true;
     state.darkColorScheme = params.get("ks_color_scheme") === "dark" ? true : undefined;
+    return true;
   }
+  return false;
+}
 
+function applyCellParam(params: URLSearchParams, state: TtyNavState): boolean {
   if (params.has("ks_tty_cell")) {
-    seen = true;
     const cell = parseCell(params.get("ks_tty_cell") ?? "");
     state.ttyCellW = cell?.w;
     state.ttyCellH = cell?.h;
+    return true;
   }
+  return false;
+}
 
+export function applyTtyNavParams(params: URLSearchParams, state: TtyNavState): boolean {
+  const cssSeen = applyCssParam(params, state);
+  const colorSchemeSeen = applyColorSchemeParam(params, state);
+  const cellSeen = applyCellParam(params, state);
+  const seen = cssSeen || colorSchemeSeen || cellSeen;
   if (seen) {
     for (const p of PARAMS) params.delete(p);
   }

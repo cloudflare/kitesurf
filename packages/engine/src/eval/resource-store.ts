@@ -79,32 +79,52 @@ function drop(kind: ResourceKind, id: string): void {
   stores[kind].delete(id);
 }
 
-function evictOverBudget(kind: ResourceKind, connectionId: string, keepId: string): void {
-  const ceiling = kind === "font" ? MAX_TOTAL_FONT_BYTES : MAX_TOTAL_BYTES;
-  const entries = stores[kind];
-  const over = (): boolean =>
-    bytesTotal[kind] > ceiling || (kind === "font" && entries.size > MAX_FONT_ENTRIES);
+function isOverBudget(kind: ResourceKind, entries: Map<string, Entry>, ceiling: number): boolean {
+  return bytesTotal[kind] > ceiling || (kind === "font" && entries.size > MAX_FONT_ENTRIES);
+}
 
-  if (kind === "font") {
-    while (over() && entries.size > 1) {
-      let victim: string | undefined;
-      for (const [id, entry] of entries) {
-        if (id === keepId) continue;
-        if (entry.connectionId === connectionId) {
-          victim = id;
-          break;
-        }
-      }
-      if (victim === undefined) break;
-      drop(kind, victim);
-    }
+function oldestOwnedEntry(
+  entries: Map<string, Entry>,
+  connectionId: string,
+  keepId: string,
+): string | undefined {
+  for (const [id, entry] of entries) {
+    if (id === keepId) continue;
+    if (entry.connectionId === connectionId) return id;
   }
+  return undefined;
+}
 
-  while (over() && entries.size > 1) {
+function evictOwnedFontEntries(
+  entries: Map<string, Entry>,
+  connectionId: string,
+  keepId: string,
+  ceiling: number,
+): void {
+  while (isOverBudget("font", entries, ceiling) && entries.size > 1) {
+    const victim = oldestOwnedEntry(entries, connectionId, keepId);
+    if (victim === undefined) break;
+    drop("font", victim);
+  }
+}
+
+function evictOldestEntries(
+  kind: ResourceKind,
+  entries: Map<string, Entry>,
+  ceiling: number,
+): void {
+  while (isOverBudget(kind, entries, ceiling) && entries.size > 1) {
     const oldest = entries.keys().next().value;
     if (oldest === undefined) break;
     drop(kind, oldest);
   }
+}
+
+function evictOverBudget(kind: ResourceKind, connectionId: string, keepId: string): void {
+  const ceiling = kind === "font" ? MAX_TOTAL_FONT_BYTES : MAX_TOTAL_BYTES;
+  const entries = stores[kind];
+  if (kind === "font") evictOwnedFontEntries(entries, connectionId, keepId, ceiling);
+  evictOldestEntries(kind, entries, ceiling);
 }
 
 export function getImageBytes(key: bigint, connectionId: string): Uint8Array | null {

@@ -13,6 +13,10 @@ test("children and options are one live collection per element", async ({ page }
     <select id=s><option>A</option><optgroup><option>B</option></optgroup></select>`,
   );
   const state = await page.evaluate(() => {
+    const requireElement = (element: Element | null, message: string) => {
+      if (!element) throw new Error(message);
+      return element;
+    };
     const u = document.getElementById("u");
     const s = document.getElementById("s");
     if (!u || !(s instanceof HTMLSelectElement)) throw new Error("fixture missing");
@@ -22,11 +26,9 @@ test("children and options are one live collection per element", async ({ page }
     const li = document.createElement("li");
     li.textContent = "c";
     u.appendChild(li);
-    const firstChild = u.firstElementChild;
-    if (!firstChild) throw new Error("no element child");
+    const firstChild = requireElement(u.firstElementChild, "no element child");
     firstChild.remove();
-    const group = s.querySelector("optgroup");
-    if (!group) throw new Error("no optgroup");
+    const group = requireElement(s.querySelector("optgroup"), "no optgroup");
     group.appendChild(document.createElement("option"));
     return {
       same: u.children === kids && s.options === opts,

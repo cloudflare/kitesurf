@@ -13,7 +13,7 @@ import {
 } from "../cdp/network-events-registry.ts";
 import { getCookieJar } from "../cdp/cookie-jar-registry.ts";
 import { siteKey } from "../public-suffix.ts";
-import { traceSpan, type Tracer } from "../tracing.ts";
+import { traceSpan, type Span, type Tracer } from "../tracing.ts";
 import { LocalTracer } from "../tracing-local.ts";
 import {
   getInterception,
@@ -21,6 +21,7 @@ import {
   registerParked,
   awaitVerdict,
   errorReasonToNet,
+  type InterceptAction,
 } from "../cdp/fetch-interception.ts";
 import { getOutboundFilters, shouldBlock } from "../cdp/outbound-filter-registry.ts";
 import { isTextLikeMime, headersToRecord } from "../cdp/network-events.ts";
@@ -96,19 +97,32 @@ const ASSET_CACHE_MAX_ENTRY_BYTES = 1_048_576;
 const ASSET_CACHE_MAX_TOTAL_BYTES = 4_194_304;
 const assetCache = new Map<string, Uint8Array>();
 let assetCacheBytes = 0;
+
+function removeAssetCacheEntry(path: string): void {
+  const prior = assetCache.get(path);
+  if (!prior) return;
+  assetCache.delete(path);
+  assetCacheBytes -= prior.byteLength;
+}
+
+function evictOldestAssetCacheEntry(): boolean {
+  const oldest = assetCache.keys().next().value;
+  if (oldest === undefined) return false;
+  const evicted = assetCache.get(oldest);
+  assetCache.delete(oldest);
+  assetCacheBytes -= evicted?.byteLength ?? 0;
+  return true;
+}
+
+function assetCacheOverCapacity(bytes: Uint8Array): boolean {
+  return assetCacheBytes + bytes.byteLength > ASSET_CACHE_MAX_TOTAL_BYTES && assetCache.size > 0;
+}
+
 function assetCacheStore(path: string, bytes: Uint8Array): void {
   if (bytes.byteLength > ASSET_CACHE_MAX_ENTRY_BYTES) return;
-  const prior = assetCache.get(path);
-  if (prior) {
-    assetCache.delete(path);
-    assetCacheBytes -= prior.byteLength;
-  }
-  while (assetCacheBytes + bytes.byteLength > ASSET_CACHE_MAX_TOTAL_BYTES && assetCache.size > 0) {
-    const oldest = assetCache.keys().next().value as string | undefined;
-    if (oldest === undefined) break;
-    const evicted = assetCache.get(oldest);
-    assetCache.delete(oldest);
-    assetCacheBytes -= evicted ? evicted.byteLength : 0;
+  removeAssetCacheEntry(path);
+  while (assetCacheOverCapacity(bytes)) {
+    if (!evictOldestAssetCacheEntry()) break;
   }
   if (bytes.byteLength > ASSET_CACHE_MAX_TOTAL_BYTES) return;
   assetCache.set(path, bytes);
@@ -139,15 +153,20 @@ function takeSubresourceSpanBudget(connectionId: string | null): boolean {
   const key = connectionId ?? "unknown";
   const n = subresourceSpanCounts.get(key) ?? 0;
   if (n >= SUBRESOURCE_SPAN_BUDGET) return false;
-  if (
-    !subresourceSpanCounts.has(key) &&
-    subresourceSpanCounts.size >= MAX_SUBRESOURCE_SPAN_CONNECTIONS
-  ) {
-    const oldest = subresourceSpanCounts.keys().next().value;
-    if (oldest !== undefined) subresourceSpanCounts.delete(oldest);
-  }
+  evictOldestSpanConnectionIfNeeded(key);
   subresourceSpanCounts.set(key, n + 1);
   return true;
+}
+
+function evictOldestSpanConnectionIfNeeded(key: string): void {
+  if (
+    subresourceSpanCounts.has(key) ||
+    subresourceSpanCounts.size < MAX_SUBRESOURCE_SPAN_CONNECTIONS
+  ) {
+    return;
+  }
+  const oldest = subresourceSpanCounts.keys().next().value;
+  if (oldest !== undefined) subresourceSpanCounts.delete(oldest);
 }
 
 const outboundInflight = new Map<string, number>();
@@ -198,13 +217,15 @@ function sessionRequest(req: SessionOutboundRequest): Request {
 
 export function rpcSafeResponse(resp: Response): Response {
   if (resp.status >= 200 && resp.status <= 599) return resp;
-  let body = resp.body;
-  if (resp.status < 200) {
-    void body?.cancel().catch(() => {});
-    if (resp.status !== 101) throw new TypeError("Failed to fetch");
-    body = null;
-  }
+  const body = rpcResponseBody(resp);
   return corsFilteredResponse(resp, body, new Headers(resp.headers));
+}
+
+function rpcResponseBody(resp: Response): ReadableStream<Uint8Array> | null {
+  if (resp.status >= 200) return resp.body;
+  void resp.body?.cancel().catch(() => {});
+  if (resp.status === 101) return null;
+  throw new TypeError("Failed to fetch");
 }
 
 export function createSandboxOutboundOverride(
@@ -252,17 +273,11 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     // Inflight accounting covers headers only (body streams past the
     // return) — matching the platform's awaiting-headers socket cap.
     const conn = props?.connectionId ?? request.headers.get(CONNECTION_ID_HEADER) ?? "";
-    if (conn) {
-      outboundInflight.set(conn, (outboundInflight.get(conn) ?? 0) + 1);
-    }
+    beginOutboundInflight(conn);
     try {
       return await SandboxOutbound.fetchTraced(env, props, request);
     } finally {
-      if (conn) {
-        const n = (outboundInflight.get(conn) ?? 1) - 1;
-        if (n <= 0) outboundInflight.delete(conn);
-        else outboundInflight.set(conn, n);
-      }
+      endOutboundInflight(conn);
     }
   }
 
@@ -273,16 +288,14 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
   ): Promise<Response> {
     const tracer = env.HOST_TRACER;
     if (!tracer) return SandboxOutbound.fetchPolicy(env, props, request);
-    if (tracer.getSpanContext() === null) {
-      const stamped = props?.localTraceParent;
-      if (!(tracer instanceof LocalTracer) || !stamped) {
-        return SandboxOutbound.fetchPolicy(env, props, request);
-      }
-      return tracer.runWithSpanContext(stamped, () =>
-        SandboxOutbound.fetchSpanned(env, props, tracer, request),
-      );
+    if (tracer.getSpanContext() !== null) {
+      return SandboxOutbound.fetchSpanned(env, props, tracer, request);
     }
-    return SandboxOutbound.fetchSpanned(env, props, tracer, request);
+    const stamped = localTraceParent(tracer, props);
+    if (stamped === null) return SandboxOutbound.fetchPolicy(env, props, request);
+    return tracer.runWithSpanContext(stamped, () =>
+      SandboxOutbound.fetchSpanned(env, props, tracer, request),
+    );
   }
 
   private static async fetchSpanned(
@@ -295,25 +308,13 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     if (!takeSubresourceSpanBudget(connectionId)) {
       return SandboxOutbound.fetchPolicy(env, props, request);
     }
-    let host = "";
-    let path = "";
-    try {
-      const u = new URL(request.url);
-      host = u.hostname;
-      path = u.pathname;
-    } catch {}
+    const { host, path } = requestSpanLocation(request.url);
     return traceSpan(
       tracer,
       "subresource.fetch",
       async (s) => {
         const resp = await SandboxOutbound.fetchPolicy(env, props, request);
-        if (s && s.isRecording) {
-          s.setTags({
-            status: resp.status,
-            contentLength: resp.headers.get("content-length") ?? "",
-            blocked: resp.headers.get("x-kitesurf-blocked") ?? "",
-          });
-        }
+        tagSubresourceResponse(s, resp);
         return resp;
       },
       {
@@ -351,779 +352,1648 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     props: OutboundProps | undefined,
     request: Request,
   ): Promise<Response> {
-    let parsedUrl: URL | null = null;
-    try {
-      parsedUrl = new URL(request.url);
-    } catch {}
-    if (parsedUrl && parsedUrl.hostname === ASSET_SENTINEL_HOST) {
-      return SandboxOutbound.fetchAsset(env, parsedUrl);
+    const target = parseRequestTarget(request.url);
+    if (target === null) return blocked("kitesurf: invalid URL", "invalid-url");
+    if (target.hostname === ASSET_SENTINEL_HOST) {
+      return SandboxOutbound.fetchAsset(env, target);
     }
+    const policy = createOutboundPolicyState(env, props, request, target);
+    if (policy.kind === "respond") return policy.response;
+    return runOutboundPolicy(policy.value);
+  }
+}
 
-    const sealed = !!props;
-    const externalOutbound = props?.externalOutbound;
-    const hostEgress = externalOutbound !== undefined;
-    const headerOrigin = request.headers.get("x-kitesurf-page-origin") ?? "";
-    // "null" may narrow sealed identity to opaque; other header values cannot replace it.
-    const pageOrigin =
-      headerOrigin === "null" ? "" : sealed ? (props.pageOrigin ?? "") : headerOrigin;
+function beginOutboundInflight(connectionId: string): void {
+  if (!connectionId) return;
+  outboundInflight.set(connectionId, (outboundInflight.get(connectionId) ?? 0) + 1);
+}
 
-    // SameSite keeps the sealed document origin even when CORS marks the request opaque.
-    const cookieOriginSource = sealed
-      ? (props.pageOrigin ?? "")
-      : headerOrigin === "null"
-        ? ""
-        : headerOrigin;
-    let cookieInitiatorHost: string | null = null;
-    if (cookieOriginSource) {
-      try {
-        cookieInitiatorHost = new URL(cookieOriginSource).hostname;
-      } catch {}
-    }
-    const cookieContext = { initiatorHost: cookieInitiatorHost };
+function endOutboundInflight(connectionId: string): void {
+  if (!connectionId) return;
+  const count = (outboundInflight.get(connectionId) ?? 1) - 1;
+  if (count <= 0) outboundInflight.delete(connectionId);
+  else outboundInflight.set(connectionId, count);
+}
 
-    const opaqueOrigin = !pageOrigin;
+function localTraceParent(
+  tracer: Tracer,
+  props: OutboundProps | undefined,
+): import("../tracing.ts").SpanContext | null {
+  if (!(tracer instanceof LocalTracer)) return null;
+  return props?.localTraceParent ?? null;
+}
 
-    let target: URL;
-    try {
-      target = new URL(request.url);
-    } catch {
-      return blocked("kitesurf: invalid URL", "invalid-url");
-    }
+function requestSpanLocation(url: string): { host: string; path: string } {
+  try {
+    const parsed = new URL(url);
+    return { host: parsed.hostname, path: parsed.pathname };
+  } catch {
+    return { host: "", path: "" };
+  }
+}
 
-    let allowed: URL;
-    if (opaqueOrigin) {
-      allowed = new URL("https://opaque.invalid/");
-    } else {
-      try {
-        allowed = new URL(pageOrigin);
-      } catch {
-        return blocked("kitesurf: invalid page origin", "invalid-page-origin");
-      }
-    }
+function tagSubresourceResponse(span: Span | null, response: Response): void {
+  if (!span || !span.isRecording) return;
+  span.setTags({
+    status: response.status,
+    contentLength: response.headers.get("content-length") ?? "",
+    blocked: response.headers.get("x-kitesurf-blocked") ?? "",
+  });
+}
 
-    if (allowed.host === "kitesurf.local") {
-      return blocked(
+type OutboundStep<T> = { kind: "continue"; value: T } | { kind: "respond"; response: Response };
+
+interface OutboundOriginState {
+  sealed: boolean;
+  externalOutbound: ExternalOutbound | undefined;
+  hostEgress: boolean;
+  pageOrigin: string;
+  cookieContext: { initiatorHost: string | null };
+  opaqueOrigin: boolean;
+  allowed: URL;
+  allowedOriginKey: string;
+  sameOrigin: boolean;
+  crossOriginNow: boolean;
+}
+
+interface OutboundCorsState {
+  resourceType: string;
+  scriptCorsMode: string;
+  opaqueResourceBypass: boolean;
+  stylesheetCorsMode: string;
+  sheetWantsCors: boolean;
+  noCorsMode: boolean;
+  opaqueNoCors: boolean;
+  needsCorsCheck: boolean;
+  corpApplies: boolean;
+  credentialsMode: CredentialsMode | null;
+  credentialsInclude: boolean;
+  sendCredentials: boolean;
+  authorUnsafeHeaders: string[];
+  wantsPreflight: boolean;
+}
+
+interface OutboundNetworkState {
+  connectionId: string;
+  foreignIsolate: boolean;
+  tracker: ReturnType<typeof getTracker>;
+  requestFrameId: string;
+  networkFrameId: string;
+  networkLoaderId: string;
+  networkSessionIds: TrackerSessionIds;
+}
+
+interface OutboundPolicyState extends OutboundOriginState, OutboundCorsState, OutboundNetworkState {
+  env: SandboxOutboundEnv;
+  props: OutboundProps | undefined;
+  request: Request;
+  target: URL;
+}
+
+interface PreparedOutboundState extends OutboundPolicyState {
+  forwardRequest: Request;
+  cookieKey: string;
+  jar: ReturnType<typeof getCookieJar>;
+  requestId: string | null;
+}
+
+interface OutboundResponseState extends PreparedOutboundState {
+  response: Response;
+  isRedirect: boolean;
+  emptyLocationRedirect: boolean;
+  reduceToOpaque: boolean;
+  shellRedirect: boolean;
+  withholdImage: boolean;
+  interceptFont: boolean;
+  shapeFont: boolean;
+  corsVerdict: "clean" | "opaque" | null;
+}
+
+function parseRequestTarget(url: string): URL | null {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+function pageOriginForRequest(props: OutboundProps | undefined, headerOrigin: string): string {
+  if (headerOrigin === "null") return "";
+  if (props) return props.pageOrigin ?? "";
+  return headerOrigin;
+}
+
+function cookieOriginForRequest(props: OutboundProps | undefined, headerOrigin: string): string {
+  if (props) return props.pageOrigin ?? "";
+  return headerOrigin === "null" ? "" : headerOrigin;
+}
+
+function cookieContextFromOrigin(origin: string): { initiatorHost: string | null } {
+  if (!origin) return { initiatorHost: null };
+  try {
+    return { initiatorHost: new URL(origin).hostname };
+  } catch {
+    return { initiatorHost: null };
+  }
+}
+
+function allowedPageOrigin(pageOrigin: string, opaqueOrigin: boolean): URL | null {
+  if (opaqueOrigin) return new URL("https://opaque.invalid/");
+  try {
+    return new URL(pageOrigin);
+  } catch {
+    return null;
+  }
+}
+
+function originStateForAllowedPage(
+  props: OutboundProps | undefined,
+  pageOrigin: string,
+  cookieContext: { initiatorHost: string | null },
+  opaqueOrigin: boolean,
+  target: URL,
+  allowed: URL,
+): OutboundStep<OutboundOriginState> {
+  if (allowed.host === "kitesurf.local") {
+    return {
+      kind: "respond",
+      response: blocked(
         "kitesurf: synthetic-origin fetch dropped (no network during bench)",
         "synthetic-origin",
-      );
-    }
-
-    const targetOriginKey = originKey(target);
-    const allowedOriginKey = originKey(allowed);
-    const sameOrigin = !opaqueOrigin && targetOriginKey === allowedOriginKey;
-    let crossOriginNow = !sameOrigin;
-
-    const allowCrossOrigin = request.headers.get("x-kitesurf-allow-cross-origin") === "1";
-    const resourceType = request.headers.get("x-kitesurf-resource-type") ?? "";
-    const scriptCorsMode = request.headers.get("x-kitesurf-script-cors") ?? "";
-    const safeCrossOriginType =
-      resourceType === "Image" ||
-      resourceType === "Stylesheet" ||
-      (resourceType === "Document" && props?.allowDocumentBypass === true) ||
-      (resourceType === "Script" && scriptCorsMode === "no-cors");
-    const opaqueResourceBypass = allowCrossOrigin && safeCrossOriginType;
-
-    const stylesheetCorsMode =
-      resourceType === "Stylesheet"
-        ? (request.headers.get("x-kitesurf-stylesheet-cors") ?? "")
-        : "";
-    const sheetWantsCors = stylesheetCorsMode === "cors" && !sameOrigin;
-
-    const noCorsMode = request.headers.get("x-kitesurf-mode") === "no-cors";
-    let opaqueNoCors = noCorsMode && !sameOrigin;
-    let needsCorsCheck = !sameOrigin && !opaqueResourceBypass && !noCorsMode;
-
-    const corpApplies = noCorsMode || (resourceType === "Script" && scriptCorsMode === "no-cors");
-
-    const credentialsHeader = request.headers.get("x-kitesurf-credentials");
-    const credentialsMode: CredentialsMode | null =
-      credentialsHeader === null
-        ? null
-        : credentialsHeader === "omit" ||
-            credentialsHeader === "same-origin" ||
-            credentialsHeader === "include"
-          ? credentialsHeader
-          : "same-origin";
-    let credentialsInclude = sameOrigin
-      ? credentialsMode !== "omit"
-      : credentialsMode === "include";
-    let sendCredentials = credentialsMode === null || credentialsInclude;
-
-    // Classify author headers before buildForwardRequest adds browser-owned headers.
-    let authorUnsafeHeaders = needsCorsCheck ? corsUnsafeRequestHeaderNames(request.headers) : [];
-    let wantsPreflight = needsCorsCheck && needsPreflight(request.method, request.headers);
-
-    const connectionId = sealed
-      ? (props.connectionId ?? "")
-      : (request.headers.get(CONNECTION_ID_HEADER) ?? "");
-    const foreignIsolate = isForeignIsolate(props?.engineIsolateId);
-    if (foreignIsolate) noteForeignIsolate(connectionId);
-    const tracker = connectionId ? getTracker(connectionId) : undefined;
-    const requestFrameId = sealed
-      ? (props.mainFrameId ?? "")
-      : (request.headers.get(FRAME_ID_HEADER) ?? "");
-    const trackerAttribution = tracker?.attributionForTarget(requestFrameId);
-    const networkFrameId = trackerAttribution?.frameId ?? requestFrameId;
-    const networkLoaderId = trackerAttribution?.loaderId ?? props?.mainLoaderId ?? "";
-    const networkSessionIds = trackerAttribution?.sessionIds ?? [];
-
-    if (connectionId) {
-      const filters = getOutboundFilters(connectionId);
-      if (filters) {
-        const decision = shouldBlock(filters, request.url, resourceType);
-        if (decision.blocked) {
-          return new Response(`kitesurf: outbound blocked — ${decision.reason}\n`, {
-            status: 451,
-            statusText: "Blocked by kitesurf outbound filter",
-            headers: {
-              "content-type": "text/plain; charset=utf-8",
-              "x-kitesurf-blocked-reason": decision.reason,
-            },
-          });
-        }
-      }
-    }
-
-    const requestBlocker =
-      props?.skipRequestBlocker === true || !connectionId
-        ? undefined
-        : getRequestBlocker(connectionId);
-    const pageHost = allowed.host === "opaque.invalid" ? "" : allowed.hostname;
-    const blockType = parseResourceType(resourceType);
-    const verdict = classifyRequest(requestBlocker, request.url, pageHost, blockType);
-    if (verdict) {
-      if (tracker) {
-        const headers = headersToRecord(request.headers);
-        stripKitesurfHeaders(headers);
-        const requestId = tracker.beginRequest({
-          url: request.url,
-          method: request.method,
-          headers,
-          type: blockType,
-          initiator: {
-            type: request.headers.get("x-kitesurf-initiator") === "parser" ? "parser" : "script",
-            url: pageOrigin,
-          },
-          loaderId: networkLoaderId,
-          frameId: networkFrameId,
-          sessionIds: networkSessionIds,
-        });
-        tracker.failRequest(requestId, "net::ERR_BLOCKED_BY_CLIENT", "subresource-filter");
-      }
-      return new Response(`kitesurf: outbound blocked — ${verdict.reason}\n`, {
-        status: 451,
-        statusText: "Blocked by kitesurf request blocker",
-        headers: {
-          "content-type": "text/plain; charset=utf-8",
-          "x-kitesurf-blocked-reason": verdict.reason,
-          "x-kitesurf-blocked-match": verdict.matched,
-        },
-      });
-    }
-
-    if ((request.headers.get("Upgrade") ?? "").toLowerCase() === "websocket") {
-      const wsHeaders = new Headers();
-      wsHeaders.set("Upgrade", "websocket");
-      const proto = request.headers.get("Sec-WebSocket-Protocol");
-      if (proto) wsHeaders.set("Sec-WebSocket-Protocol", proto);
-      if (pageOrigin) wsHeaders.set("Origin", pageOrigin);
-      const wsCookieKey = sealed
-        ? props.cookieKey || connectionId
-        : request.headers.get("x-kitesurf-cookie-key") || connectionId;
-      const wsJar = wsCookieKey ? getCookieJar(wsCookieKey) : undefined;
-      if (wsJar) {
-        const cookieHeader = wsJar.cookieHeaderForUrl(request.url, cookieContext);
-        if (cookieHeader) wsHeaders.set("cookie", cookieHeader);
-      }
-      return directExternalFetch(
-        externalOutbound,
-        new Request(request.url, { method: "GET", headers: wsHeaders }),
-      );
-    }
-
-    const extraHeaders = props?.extraHeaders ?? {};
-    const wbaHeaders = hostEgress ? {} : await wbaHeadersFor(env, target.host);
-    let authorRequest = request;
-    if (noCorsMode) {
-      if (!isSafelistedMethod(request.method)) {
-        return blocked(
-          `kitesurf: mode 'no-cors' only permits GET, HEAD and POST, not ${request.method}`,
-          "no-cors-method",
-        );
-      }
-      const unsafe = corsUnsafeRequestHeaderNames(request.headers);
-      if (unsafe.length > 0) {
-        const reduced = new Headers(request.headers);
-        for (const name of unsafe) reduced.delete(name);
-        authorRequest = new Request(request, { headers: reduced });
-      }
-    }
-    let forwardRequest = buildForwardRequest({
-      original: authorRequest,
-      resourceType,
-      pageOrigin,
-      extraHeaders,
-      pageUrl: props?.pageUrl,
-      referrerPolicy: props?.referrerPolicy,
-      wbaHeaders,
-      corsMode: needsCorsCheck || sheetWantsCors,
-    });
-
-    // Sealed props or x-kitesurf-cookie-key select the jar; only a missing context key
-    // falls back to connectionId, the default-context jar.
-    const cookieKey =
-      (sealed ? (props.cookieKey ?? "") : (request.headers.get("x-kitesurf-cookie-key") ?? "")) ||
-      connectionId;
-    const jar = cookieKey ? getCookieJar(cookieKey) : undefined;
-    if (jar && sendCredentials && !forwardRequest.headers.has("cookie")) {
-      const cookieHeader = jar.cookieHeaderForUrl(request.url, cookieContext);
-      if (cookieHeader) {
-        forwardRequest.headers.set("cookie", cookieHeader);
-      }
-    }
-
-    let requestId: string | null = null;
-    if (tracker) {
-      const typeHint = (request.headers.get("x-kitesurf-resource-type") ?? "Other") as
-        | "Document"
-        | "Stylesheet"
-        | "Image"
-        | "Script"
-        | "XHR"
-        | "Fetch"
-        | "Other";
-      const initType =
-        request.headers.get("x-kitesurf-initiator") === "parser" ? "parser" : "script";
-      requestId = tracker.beginRequest({
-        url: request.url,
-        method: request.method,
-        headers: headersToRecord(forwardRequest.headers),
-        type: typeHint,
-        initiator: { type: initType, url: pageOrigin },
-        loaderId: networkLoaderId,
-        frameId: networkFrameId,
-        sessionIds: networkSessionIds,
-      });
-    }
-
-    const interceptConn = sealed
-      ? props.interceptConnectionId || connectionId
-      : (request.headers.get("x-kitesurf-intercept-connection") ?? connectionId);
-    const interception = interceptConn ? getInterception(interceptConn) : undefined;
-    if (interception && interceptionMatches(interception, forwardRequest.url, resourceType)) {
-      const networkId = request.headers.get("x-kitesurf-network-id") ?? requestId ?? "";
-      let postData: string | undefined;
-      if (forwardRequest.method !== "GET" && forwardRequest.method !== "HEAD") {
-        postData = await readBodyCapped(forwardRequest, POST_DATA_CAP_BYTES);
-      }
-      const parked = registerParked(interception, {
-        url: forwardRequest.url,
-        method: forwardRequest.method,
-        headers: headersToRecord(forwardRequest.headers),
-        postData,
-        resourceType,
-        frameId: networkFrameId,
-        networkId,
-      });
-      const action = await awaitVerdict(interception, parked);
-      if (action.kind === "fail") {
-        const msg = errorReasonToNet(action.errorReason);
-        if (requestId && tracker) tracker.failRequest(requestId, msg);
-        throw new Error(msg);
-      }
-      if (action.kind === "fulfill") {
-        const fulfillHeaders = new Headers();
-        for (const h of action.responseHeaders ?? []) {
-          fulfillHeaders.append(h.name, h.value);
-        }
-        const bodyBytes = action.body
-          ? Uint8Array.from(atob(action.body), (c) => c.charCodeAt(0))
-          : new Uint8Array(0);
-        if (requestId && tracker) {
-          tracker.completeRequest(requestId, {
-            url: forwardRequest.url,
-            status: action.responseCode,
-            statusText: "",
-            headers: headersToRecord(fulfillHeaders),
-            mimeType:
-              (fulfillHeaders.get("content-type")?.split(";")[0] ?? "").trim() || "text/plain",
-            bodyLength: bodyBytes.length,
-            body: action.body ?? "",
-            bodyBase64Encoded: true,
-          });
-        }
-        const noBody = [101, 204, 205, 304].includes(action.responseCode);
-        const fulfilled = new Response(noBody ? null : bodyBytes, {
-          status: action.responseCode,
-          headers: fulfillHeaders,
-        });
-        if (needsCorsCheck && fulfilled.headers.has("access-control-allow-origin")) {
-          const corsFailure = checkCorsResponse(fulfilled, pageOrigin, target, credentialsInclude);
-          if (corsFailure) {
-            failTrackedRequest(tracker, requestId, corsFailure.reason);
-            return blocked(corsFailure.message, "cors");
-          }
-        }
-        return fulfilled;
-      }
-      if (
-        action.url !== undefined ||
-        action.method !== undefined ||
-        action.headers !== undefined ||
-        action.postData !== undefined
-      ) {
-        const oh = action.headers
-          ? (() => {
-              const h = new Headers();
-              for (const e of action.headers) h.append(e.name, e.value);
-              h.set(
-                "accept-encoding",
-                decodableAcceptEncoding(h.get("accept-encoding"), h.has("range")),
-              );
-              return h;
-            })()
-          : forwardRequest.headers;
-        forwardRequest = new Request(action.url ?? forwardRequest.url, {
-          method: action.method ?? forwardRequest.method,
-          headers: oh,
-          body:
-            action.postData !== undefined
-              ? Uint8Array.from(atob(action.postData), (c) => c.charCodeAt(0))
-              : forwardRequest.body,
-          redirect: "manual",
-          signal: forwardRequest.signal,
-        });
-        if (action.url !== undefined && action.url !== target.href) {
-          try {
-            target = new URL(forwardRequest.url);
-          } catch {}
-          forwardRequest.headers.delete("cookie");
-          const overrideCookie = jar?.cookieHeaderForUrl(forwardRequest.url, cookieContext);
-          if (overrideCookie) {
-            forwardRequest.headers.set("cookie", overrideCookie);
-          }
-          const stillSameOrigin = !opaqueOrigin && originKey(target) === allowedOriginKey;
-          crossOriginNow = !stillSameOrigin;
-          opaqueNoCors = noCorsMode && !stillSameOrigin;
-          needsCorsCheck = !stillSameOrigin && !opaqueResourceBypass && !noCorsMode;
-          credentialsInclude = stillSameOrigin
-            ? credentialsMode !== "omit"
-            : credentialsMode === "include";
-          sendCredentials = credentialsMode === null || credentialsInclude;
-          if (!sendCredentials) forwardRequest.headers.delete("cookie");
-        }
-        // Recompute from author headers, not browser headers added to forwardRequest.
-        const authorHeaders = action.headers ? oh : request.headers;
-        authorUnsafeHeaders = needsCorsCheck ? corsUnsafeRequestHeaderNames(authorHeaders) : [];
-        wantsPreflight = needsCorsCheck && needsPreflight(forwardRequest.method, authorHeaders);
-        const wbaAfter = hostEgress ? {} : await wbaHeadersFor(env, target.host);
-        for (const [k, v] of Object.entries(wbaAfter)) {
-          forwardRequest.headers.set(k, v);
-        }
-        if (needsCorsCheck) {
-          forwardRequest.headers.set("origin", pageOrigin || "null");
-        }
-      }
-    }
-
-    if (wantsPreflight) {
-      // Grants from a host egress hook are session-scoped (that hook answered them), so
-      // they never enter the shared cache, and a host-egress session never trusts one from it.
-      const cached =
-        !hostEgress &&
-        preflightCacheLookup(
-          pageOrigin || "null",
-          forwardRequest.url,
-          forwardRequest.method,
-          authorUnsafeHeaders,
-          credentialsInclude,
-        );
-      if (!cached) {
-        const pfTimeout = new AbortController();
-        const pfTimer = setTimeout(
-          () => pfTimeout.abort(new Error("kitesurf: preflight headers timeout")),
-          EGRESS_HEADERS_TIMEOUT_MS,
-        );
-        const pfSignal =
-          typeof AbortSignal.any === "function" && forwardRequest.signal
-            ? AbortSignal.any([forwardRequest.signal, pfTimeout.signal])
-            : pfTimeout.signal;
-        let verdict;
-        try {
-          verdict = await corsPreflight(
-            {
-              url: forwardRequest.url,
-              method: forwardRequest.method,
-              unsafeNames: authorUnsafeHeaders,
-              requestOrigin: pageOrigin || "null",
-              credentialsInclude,
-              userAgent: forwardRequest.headers.get("user-agent") ?? BROWSER_UA,
-              referer: forwardRequest.headers.get("referer"),
-              signal: pfSignal,
-              cacheable: !hostEgress,
-            },
-            async (req) => {
-              const pfWba = hostEgress ? {} : await wbaHeadersFor(env, target.host);
-              for (const [k, v] of Object.entries(pfWba)) {
-                req.headers.set(k, v);
-              }
-              return directExternalFetch(externalOutbound, req);
-            },
-          );
-        } finally {
-          clearTimeout(pfTimer);
-        }
-        if (verdict.reason) {
-          if (requestId && tracker) tracker.failRequest(requestId, verdict.reason);
-          return blocked(
-            `kitesurf: Access to fetch at '${target.href}' from origin '${pageOrigin}' has been blocked by CORS policy: ` +
-              `Response to preflight request doesn't pass access control check` +
-              (verdict.message ? ` (${verdict.message})` : "."),
-            "cors",
-          );
-        }
-      }
-    }
-
-    let resp: Response;
-    const __egressT0 = Date.now();
-    const egressAbortCtl = new AbortController();
-    // Top-level documents get more time before PageScript exists; live-page egress keeps 10 s.
-    const headersCapMs =
-      resourceType === "Document" && props?.topLevelDocument === true
-        ? DOCUMENT_HEADERS_TIMEOUT_MS
-        : EGRESS_HEADERS_TIMEOUT_MS;
-    const egressAbortTimer = setTimeout(() => {
-      egressAbortCtl.abort(new Error(`kitesurf: egress headers timeout after ${headersCapMs}ms`));
-    }, headersCapMs);
-    const egressSignal =
-      typeof AbortSignal.any === "function" && forwardRequest.signal
-        ? AbortSignal.any([forwardRequest.signal, egressAbortCtl.signal])
-        : egressAbortCtl.signal;
-    try {
-      resp = await directExternalFetch(
-        externalOutbound,
-        new Request(forwardRequest, { signal: egressSignal }),
-      );
-      clearTimeout(egressAbortTimer);
-      const __egressMs = Date.now() - __egressT0;
-      if (__egressMs > SLOW_EGRESS_HEADERS_THRESHOLD_MS) {
-        console.warn(
-          `[ks-egress] slow headers: ${__egressMs}ms ` +
-            `type=${request.headers.get("x-kitesurf-resource-type") ?? "Other"} ` +
-            `url=${forwardRequest.url.slice(0, MAX_SLOW_HEADER_URL_PREVIEW_CHARS)}`,
-        );
-      }
-    } catch (err) {
-      clearTimeout(egressAbortTimer);
-      if (requestId && tracker) {
-        tracker.failRequest(requestId, err instanceof Error ? err.message : String(err));
-      }
-      if (egressAbortCtl.signal.aborted) {
-        return blocked(`kitesurf: egress timeout after ${headersCapMs}ms`, "egress-timeout");
-      }
-      throw err;
-    }
-
-    if (jar && sendCredentials) {
-      try {
-        const setCookies =
-          typeof resp.headers.getSetCookie === "function" ? resp.headers.getSetCookie() : [];
-        for (const sc of setCookies) {
-          if (typeof sc === "string" && sc.length > 0) {
-            jar.setFromHeader(forwardRequest.url, sc);
-          }
-        }
-      } catch {}
-    }
-
-    if (corpApplies && pageOrigin) {
-      const corp = (resp.headers.get("cross-origin-resource-policy") ?? "").trim();
-      if (corp === "same-origin" || corp === "same-site") {
-        let corpBlocked = true;
-        try {
-          const corpTarget = new URL(forwardRequest.url);
-          const pageU = new URL(pageOrigin);
-          if (originKey(corpTarget) === originKey(pageU)) {
-            corpBlocked = false;
-          } else {
-            corpBlocked =
-              corp === "same-origin" ||
-              corpTarget.protocol !== pageU.protocol ||
-              siteKey(corpTarget.hostname) !== siteKey(pageU.hostname);
-          }
-        } catch {}
-        if (corpBlocked) {
-          if (requestId && tracker) {
-            tracker.failRequest(requestId, "corp-blocked");
-          }
-          return blocked(
-            `kitesurf: Access to fetch at '${forwardRequest.url}' from origin '${pageOrigin}' has been blocked by Cross-Origin-Resource-Policy: ${corp}.`,
-            "cors",
-          );
-        }
-      }
-    }
-
-    if (needsCorsCheck) {
-      const corsFailure = checkCorsResponse(resp, pageOrigin, target, credentialsInclude);
-      if (corsFailure) {
-        if (requestId && tracker) {
-          tracker.failRequest(requestId, corsFailure.reason);
-        }
-        return blocked(corsFailure.message, "cors");
-      }
-    }
-
-    const isRedirect =
-      REDIRECT_STATUSES.has(resp.status) && (resp.headers.get("location") ?? "") !== "";
-    const emptyLocationRedirect =
-      REDIRECT_STATUSES.has(resp.status) && resp.headers.get("location") === "";
-    if (needsCorsCheck && isRedirect) {
-      const location = resp.headers.get("location");
-      if (location) {
-        let hasUserinfo = false;
-        try {
-          const next = new URL(location, forwardRequest.url);
-          hasUserinfo = next.username !== "" || next.password !== "";
-        } catch {}
-        if (hasUserinfo) {
-          if (requestId && tracker) {
-            tracker.failRequest(requestId, "cors-redirect-userinfo");
-          }
-          return blocked(
-            `kitesurf: Redirect from '${forwardRequest.url}' to a URL containing credentials is not allowed for a CORS request.`,
-            "cors",
-          );
-        }
-      }
-    }
-    const reduceToOpaque = opaqueNoCors && !isRedirect;
-
-    const shellRedirect = isRedirect && crossOriginNow && props?.walksOwnRedirects !== true;
-
-    const withholdImage =
-      resourceType === "Image" && !isRedirect && crossOriginNow && opaqueResourceBypass;
-
-    const interceptFont = resourceType === "Font" && !isRedirect && resp.ok && resp.body !== null;
-    const shapeFont = interceptFont && props?.pixelFree === true;
-
-    const shapedFont = async (out: Response, buffered: ArrayBuffer | null): Promise<Response> => {
-      const rebuild = (body: BodyInit | null, headers: Headers): Response =>
-        new Response(body, {
-          status: out.status,
-          statusText: out.statusText,
-          headers,
-        });
-      let body: ArrayBuffer | Uint8Array | null = buffered;
-      if (body === null) {
-        const capped = await readCapped(out.body, MAX_SHAPED_FONT_BYTES);
-        if (!capped.bytes) {
-          return rebuild(capped.rest, exposeHeaders(out.headers));
-        }
-        body = capped.bytes;
-      }
-      const bytes = body instanceof Uint8Array ? body : new Uint8Array(body);
-      const headers = new Headers(exposeHeaders(out.headers));
-      // A loopback call may reach a replacement isolate with a separate resource store.
-      // Its font keys cannot be resolved by the creating isolate's renderer, so only
-      // publish a key when this is the creating isolate.
-      if (!shapeFont && !foreignIsolate) {
-        const key = putAuthorFont(bytes, connectionId, props?.mainFrameId ?? "");
-        if (key !== null) headers.set(FONT_KEY_HEADER, key.toString());
-      }
-      if (!shapeFont) return rebuild(bytes, headers);
-      let shaped: Uint8Array | null = null;
-      try {
-        shaped = await shapeFontBytes(bytes, env.HOST_TRACER);
-      } catch {
-        shaped = null;
-      }
-      if (!shaped) return rebuild(bytes, headers);
-      headers.delete("content-length");
-      headers.set("content-type", "font/otf");
-      return rebuild(shaped, headers);
+      ),
     };
-    const withheldImage = async (
-      out: Response,
-      buffered: ArrayBuffer | null,
-    ): Promise<Response> => {
-      const shell = (extra?: Record<string, string>): Response =>
-        new Response(null, {
-          status: out.status,
-          statusText: out.statusText,
-          headers: extra ?? {},
-        });
-      let body = buffered;
-      if (body === null) {
-        const capped = await readCapped(out.body, MAX_ENTRY_BYTES);
-        if (!capped.bytes) {
-          void capped.rest.cancel();
-          return shell();
-        }
-        body = capped.bytes.buffer;
-      }
-      const bytes = new Uint8Array(body);
-      const dims = sniffImageDims(bytes);
-      if (!dims) {
-        if (!looksLikeSvg(bytes)) {
-          console.warn(
-            `[ks-outbound] resource-type Image on a non-image body: ${forwardRequest.url}`,
-          );
-        }
-        return shell();
-      }
-      const key = putOpaqueImage(bytes, connectionId, props?.mainFrameId ?? "");
-      if (!key) return shell();
-      return shell({
-        [RESOURCE_KEY_HEADER]: key.toString(),
-        [IMAGE_WIDTH_HEADER]: String(dims.width),
-        [IMAGE_HEIGHT_HEADER]: String(dims.height),
-      });
-    };
-    const exposeHeaders = (h: Headers): Headers => {
-      if (!needsCorsCheck || isRedirect) return h;
-      const filtered = scrubKitesurfNamespace(filterCorsResponseHeaders(h, credentialsInclude));
-      if (emptyLocationRedirect) filtered.set("location", "");
-      stampScriptSecurity(h, filtered);
-      return filtered;
-    };
-
-    function stampScriptSecurity(source: Headers, out: Headers): void {
-      if (resourceType !== "Script") return;
-      const nosniff = source.get("x-content-type-options");
-      if (nosniff) out.set(KITESURF_NOSNIFF_HEADER, nosniff);
-      if (corsVerdict !== null) {
-        out.set(KITESURF_CORS_VERDICT_HEADER, corsVerdict);
-      }
-    }
-
-    const corsVerdict: "clean" | "opaque" | null =
-      resourceType === "Stylesheet"
-        ? !crossOriginNow ||
-          (stylesheetCorsMode === "cors" &&
-            corsCheck(resp.headers, pageOrigin || "null", credentialsInclude) === null)
-          ? "clean"
-          : "opaque"
-        : resourceType === "Script"
-          ? !crossOriginNow || scriptCorsMode === "cors"
-            ? "clean"
-            : "opaque"
-          : null;
-
-    const stampSheetCors = (h: Headers): Headers => {
-      if (corsVerdict === null) return h;
-      const out = scrubKitesurfNamespace(h);
-      out.set(KITESURF_CORS_VERDICT_HEADER, corsVerdict);
-      stampScriptSecurity(h, out);
-      return out;
-    };
-
-    const responseForCapturedBody = (
-      out: Response,
-      body: ArrayBuffer,
-    ): Response | Promise<Response> => {
-      if (reduceToOpaque) return opaqueResponse();
-      if (withholdImage) return withheldImage(out, body);
-      if (interceptFont) return shapedFont(out, body);
-      if (shellRedirect) return redirectShell(out);
-      if (!needsCorsCheck || isRedirect) {
-        return new Response(body, {
-          status: out.status,
-          statusText: out.statusText,
-          headers: stampSheetCors(out.headers),
-        });
-      }
-      return corsFilteredResponse(out, body, exposeHeaders(out.headers));
-    };
-
-    if (
-      (resourceType === "Image" || resourceType === "Media") &&
-      !isRedirect &&
-      resp.body !== null &&
-      resp.status >= 200 &&
-      resp.status <= 599
-    ) {
-      // Bound image/media bodies before Network capture so slow streams cannot pin the session.
-      resp = new Response(withDeadline(resp.body, PIXEL_BODY_DEADLINE_MS), resp);
-    }
-
-    if (requestId && tracker) {
-      const mimeType = resp.headers.get("content-type") ?? "";
-      const contentLength = Number(resp.headers.get("content-length") ?? "0") || 0;
-      const trimmedMime = (mimeType.split(";")[0] ?? "").trim() || "application/octet-stream";
-      if (isTextLikeMime(mimeType) && resp.body && tracker.retainsBodies()) {
-        try {
-          const capped = await readCapped(resp.body, RESPONSE_BODY_BUFFER_CAP);
-          if (capped.bytes) {
-            const buf = capped.bytes.buffer;
-            const text = new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(buf);
-            tracker.completeRequest(requestId, {
-              url: request.url,
-              status: resp.status,
-              statusText: resp.statusText,
-              headers: headersToRecord(resp.headers),
-              mimeType: trimmedMime,
-              bodyLength: contentLength || buf.byteLength,
-              body: text,
-              bodyBase64Encoded: false,
-            });
-            const capturedResponse = responseForCapturedBody(resp, buf);
-            return capturedResponse instanceof Response ? capturedResponse : await capturedResponse;
-          }
-          const replay = new Response(capped.rest, {
-            status: resp.status,
-            statusText: resp.statusText,
-            headers: resp.headers,
-          });
-          tracker.completeRequest(requestId, {
-            url: request.url,
-            status: resp.status,
-            statusText: resp.statusText,
-            headers: headersToRecord(resp.headers),
-            mimeType: trimmedMime,
-            bodyLength: contentLength,
-          });
-          resp = replay;
-        } catch {
-          tracker.completeRequest(requestId, {
-            url: request.url,
-            status: resp.status,
-            statusText: resp.statusText,
-            headers: headersToRecord(resp.headers),
-            mimeType: trimmedMime,
-            bodyLength: contentLength,
-          });
-        }
-      } else {
-        tracker.completeRequest(requestId, {
-          url: request.url,
-          status: resp.status,
-          statusText: resp.statusText,
-          headers: headersToRecord(resp.headers),
-          mimeType: trimmedMime,
-          bodyLength: contentLength,
-        });
-      }
-    }
-
-    if (reduceToOpaque) return opaqueResponse();
-    if (withholdImage) return await withheldImage(resp, null);
-    if (interceptFont) return await shapedFont(resp, null);
-    if (shellRedirect) return redirectShell(resp);
-    if (!needsCorsCheck || isRedirect) {
-      if (corsVerdict === null || resp.status < 200 || resp.status > 599) {
-        if (corsVerdict === null) return resp;
-        return corsFilteredResponse(resp, resp.body, scrubKitesurfNamespace(resp.headers));
-      }
-      return new Response(resp.body, {
-        status: resp.status,
-        statusText: resp.statusText,
-        headers: stampSheetCors(resp.headers),
-      });
-    }
-    return corsFilteredResponse(resp, resp.body, exposeHeaders(resp.headers));
   }
+  const sameOrigin = !opaqueOrigin && originKey(target) === originKey(allowed);
+  const externalOutbound = props?.externalOutbound;
+  return {
+    kind: "continue",
+    value: {
+      sealed: !!props,
+      externalOutbound,
+      hostEgress: externalOutbound !== undefined,
+      pageOrigin,
+      cookieContext,
+      opaqueOrigin,
+      allowed,
+      allowedOriginKey: originKey(allowed),
+      sameOrigin,
+      crossOriginNow: !sameOrigin,
+    },
+  };
+}
+
+function createOutboundOriginState(
+  props: OutboundProps | undefined,
+  request: Request,
+  target: URL,
+): OutboundStep<OutboundOriginState> {
+  const headerOrigin = request.headers.get("x-kitesurf-page-origin") ?? "";
+  const pageOrigin = pageOriginForRequest(props, headerOrigin);
+  const cookieContext = cookieContextFromOrigin(cookieOriginForRequest(props, headerOrigin));
+  const opaqueOrigin = !pageOrigin;
+  const allowed = allowedPageOrigin(pageOrigin, opaqueOrigin);
+  if (allowed === null) {
+    return {
+      kind: "respond",
+      response: blocked("kitesurf: invalid page origin", "invalid-page-origin"),
+    };
+  }
+  return originStateForAllowedPage(props, pageOrigin, cookieContext, opaqueOrigin, target, allowed);
+}
+
+function isSafeOpaqueResource(
+  resourceType: string,
+  props: OutboundProps | undefined,
+  scriptCorsMode: string,
+): boolean {
+  switch (resourceType) {
+    case "Image":
+    case "Stylesheet":
+      return true;
+    case "Document":
+      return props?.allowDocumentBypass === true;
+    case "Script":
+      return scriptCorsMode === "no-cors";
+    default:
+      return false;
+  }
+}
+
+function requestCredentialsMode(value: string | null): CredentialsMode | null {
+  if (value === null) return null;
+  if (value === "omit" || value === "same-origin" || value === "include") return value;
+  return "same-origin";
+}
+
+function credentialsForOrigin(sameOrigin: boolean, mode: CredentialsMode | null): boolean {
+  return sameOrigin ? mode !== "omit" : mode === "include";
+}
+
+function corpAppliesToRequest(
+  request: Request,
+  resourceType: string,
+  scriptCorsMode: string,
+): boolean {
+  return (
+    request.headers.get("x-kitesurf-mode") === "no-cors" ||
+    (resourceType === "Script" && scriptCorsMode === "no-cors")
+  );
+}
+
+function outboundResourceCorsState(
+  props: OutboundProps | undefined,
+  request: Request,
+): Pick<
+  OutboundCorsState,
+  "resourceType" | "scriptCorsMode" | "opaqueResourceBypass" | "corpApplies"
+> {
+  const resourceType = request.headers.get("x-kitesurf-resource-type") ?? "";
+  const scriptCorsMode = request.headers.get("x-kitesurf-script-cors") ?? "";
+  const allowCrossOrigin = request.headers.get("x-kitesurf-allow-cross-origin") === "1";
+  return {
+    resourceType,
+    scriptCorsMode,
+    opaqueResourceBypass:
+      allowCrossOrigin && isSafeOpaqueResource(resourceType, props, scriptCorsMode),
+    corpApplies: corpAppliesToRequest(request, resourceType, scriptCorsMode),
+  };
+}
+
+function outboundStylesheetCorsState(
+  request: Request,
+  resourceType: string,
+  sameOrigin: boolean,
+): Pick<OutboundCorsState, "stylesheetCorsMode" | "sheetWantsCors"> {
+  const stylesheetCorsMode =
+    resourceType === "Stylesheet" ? (request.headers.get("x-kitesurf-stylesheet-cors") ?? "") : "";
+  return {
+    stylesheetCorsMode,
+    sheetWantsCors: stylesheetCorsMode === "cors" && !sameOrigin,
+  };
+}
+
+function outboundRequestModeState(
+  request: Request,
+  sameOrigin: boolean,
+  opaqueResourceBypass: boolean,
+): Pick<OutboundCorsState, "noCorsMode" | "opaqueNoCors" | "needsCorsCheck"> {
+  const noCorsMode = request.headers.get("x-kitesurf-mode") === "no-cors";
+  return {
+    noCorsMode,
+    opaqueNoCors: noCorsMode && !sameOrigin,
+    needsCorsCheck: !sameOrigin && !opaqueResourceBypass && !noCorsMode,
+  };
+}
+
+function outboundCredentialState(
+  request: Request,
+  sameOrigin: boolean,
+): Pick<OutboundCorsState, "credentialsMode" | "credentialsInclude" | "sendCredentials"> {
+  const credentialsMode = requestCredentialsMode(request.headers.get("x-kitesurf-credentials"));
+  const credentialsInclude = credentialsForOrigin(sameOrigin, credentialsMode);
+  return {
+    credentialsMode,
+    credentialsInclude,
+    sendCredentials: credentialsMode === null || credentialsInclude,
+  };
+}
+
+function createOutboundCorsState(
+  props: OutboundProps | undefined,
+  request: Request,
+  pageOrigin: string,
+  sameOrigin: boolean,
+): OutboundCorsState {
+  const resource = outboundResourceCorsState(props, request);
+  const stylesheet = outboundStylesheetCorsState(request, resource.resourceType, sameOrigin);
+  const requestMode = outboundRequestModeState(request, sameOrigin, resource.opaqueResourceBypass);
+  const credentials = outboundCredentialState(request, sameOrigin);
+  const authorUnsafeHeaders = requestMode.needsCorsCheck
+    ? corsUnsafeRequestHeaderNames(request.headers)
+    : [];
+  return {
+    ...resource,
+    ...stylesheet,
+    ...requestMode,
+    ...credentials,
+    authorUnsafeHeaders,
+    wantsPreflight: requestMode.needsCorsCheck && needsPreflight(request.method, request.headers),
+  };
+}
+
+function outboundConnectionId(
+  props: OutboundProps | undefined,
+  request: Request,
+  sealed: boolean,
+): string {
+  if (sealed) return props?.connectionId ?? "";
+  return request.headers.get(CONNECTION_ID_HEADER) ?? "";
+}
+
+function outboundFrameId(
+  props: OutboundProps | undefined,
+  request: Request,
+  sealed: boolean,
+): string {
+  if (sealed) return props?.mainFrameId ?? "";
+  return request.headers.get(FRAME_ID_HEADER) ?? "";
+}
+
+type TrackerAttribution = ReturnType<
+  NonNullable<ReturnType<typeof getTracker>>["attributionForTarget"]
+>;
+type TrackerSessionIds = NonNullable<TrackerAttribution>["sessionIds"];
+
+function attributedNetworkFrameId(attribution: TrackerAttribution, fallback: string): string {
+  return attribution?.frameId ?? fallback;
+}
+
+function attributedNetworkLoaderId(
+  attribution: TrackerAttribution,
+  props: OutboundProps | undefined,
+): string {
+  const loaderId = attribution?.loaderId;
+  if (loaderId !== undefined) return loaderId;
+  return props?.mainLoaderId ?? "";
+}
+
+function attributedNetworkSessionIds(attribution: TrackerAttribution): TrackerSessionIds {
+  return attribution?.sessionIds ?? [];
+}
+
+function outboundNetworkAttribution(
+  props: OutboundProps | undefined,
+  requestFrameId: string,
+  tracker: ReturnType<typeof getTracker>,
+): Pick<OutboundNetworkState, "networkFrameId" | "networkLoaderId" | "networkSessionIds"> {
+  const attribution = tracker?.attributionForTarget(requestFrameId);
+  return {
+    networkFrameId: attributedNetworkFrameId(attribution, requestFrameId),
+    networkLoaderId: attributedNetworkLoaderId(attribution, props),
+    networkSessionIds: attributedNetworkSessionIds(attribution),
+  };
+}
+
+function createOutboundNetworkState(
+  props: OutboundProps | undefined,
+  request: Request,
+  pageOrigin: string,
+  sealed: boolean,
+): OutboundNetworkState {
+  const connectionId = outboundConnectionId(props, request, sealed);
+  const foreignIsolate = isForeignIsolate(props?.engineIsolateId);
+  if (foreignIsolate) noteForeignIsolate(connectionId);
+  const tracker = connectionId ? getTracker(connectionId) : undefined;
+  const requestFrameId = outboundFrameId(props, request, sealed);
+  return {
+    connectionId,
+    foreignIsolate,
+    tracker,
+    requestFrameId,
+    ...outboundNetworkAttribution(props, requestFrameId, tracker),
+  };
+}
+
+function createOutboundPolicyState(
+  env: SandboxOutboundEnv,
+  props: OutboundProps | undefined,
+  request: Request,
+  target: URL,
+): OutboundStep<OutboundPolicyState> {
+  const origin = createOutboundOriginState(props, request, target);
+  if (origin.kind === "respond") return origin;
+  const cors = createOutboundCorsState(
+    props,
+    request,
+    origin.value.pageOrigin,
+    origin.value.sameOrigin,
+  );
+  const network = createOutboundNetworkState(
+    props,
+    request,
+    origin.value.pageOrigin,
+    origin.value.sealed,
+  );
+  return {
+    kind: "continue",
+    value: {
+      env,
+      props,
+      request,
+      target,
+      ...origin.value,
+      ...cors,
+      ...network,
+    },
+  };
+}
+
+function outboundFilterResponse(state: OutboundPolicyState): Response | null {
+  if (!state.connectionId) return null;
+  const filters = getOutboundFilters(state.connectionId);
+  if (!filters) return null;
+  const decision = shouldBlock(filters, state.request.url, state.resourceType);
+  if (!decision.blocked) return null;
+  return new Response(`kitesurf: outbound blocked — ${decision.reason}\n`, {
+    status: 451,
+    statusText: "Blocked by kitesurf outbound filter",
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      "x-kitesurf-blocked-reason": decision.reason,
+    },
+  });
+}
+
+function requestBlockerForState(state: OutboundPolicyState) {
+  if (state.props?.skipRequestBlocker === true || !state.connectionId) return undefined;
+  return getRequestBlocker(state.connectionId);
+}
+
+function requestBlockerVerdict(state: OutboundPolicyState) {
+  const pageHost = state.allowed.host === "opaque.invalid" ? "" : state.allowed.hostname;
+  return classifyRequest(
+    requestBlockerForState(state),
+    state.request.url,
+    pageHost,
+    parseResourceType(state.resourceType),
+  );
+}
+
+function recordRequestBlockerFailure(state: OutboundPolicyState): void {
+  if (!state.tracker) return;
+  const headers = headersToRecord(state.request.headers);
+  stripKitesurfHeaders(headers);
+  const requestId = state.tracker.beginRequest({
+    url: state.request.url,
+    method: state.request.method,
+    headers,
+    type: parseResourceType(state.resourceType),
+    initiator: {
+      type: state.request.headers.get("x-kitesurf-initiator") === "parser" ? "parser" : "script",
+      url: state.pageOrigin,
+    },
+    loaderId: state.networkLoaderId,
+    frameId: state.networkFrameId,
+    sessionIds: state.networkSessionIds,
+  });
+  state.tracker.failRequest(requestId, "net::ERR_BLOCKED_BY_CLIENT", "subresource-filter");
+}
+
+function requestBlockerResponse(state: OutboundPolicyState): Response | null {
+  const verdict = requestBlockerVerdict(state);
+  if (verdict === null) return null;
+  recordRequestBlockerFailure(state);
+  return new Response(`kitesurf: outbound blocked — ${verdict.reason}\n`, {
+    status: 451,
+    statusText: "Blocked by kitesurf request blocker",
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      "x-kitesurf-blocked-reason": verdict.reason,
+      "x-kitesurf-blocked-match": verdict.matched,
+    },
+  });
+}
+
+function earlyOutboundPolicyResponse(state: OutboundPolicyState): Response | null {
+  const filtered = outboundFilterResponse(state);
+  if (filtered !== null) return filtered;
+  return requestBlockerResponse(state);
+}
+
+function isWebSocketRequest(request: Request): boolean {
+  return (request.headers.get("Upgrade") ?? "").toLowerCase() === "websocket";
+}
+
+function websocketCookieKey(state: OutboundPolicyState): string {
+  return state.sealed
+    ? state.props?.cookieKey || state.connectionId
+    : state.request.headers.get("x-kitesurf-cookie-key") || state.connectionId;
+}
+
+function setWebSocketProtocol(headers: Headers, request: Request): void {
+  const protocol = request.headers.get("Sec-WebSocket-Protocol");
+  if (protocol) headers.set("Sec-WebSocket-Protocol", protocol);
+}
+
+function setWebSocketOrigin(headers: Headers, pageOrigin: string): void {
+  if (pageOrigin) headers.set("Origin", pageOrigin);
+}
+
+function setWebSocketCookie(state: OutboundPolicyState, headers: Headers): void {
+  const jarKey = websocketCookieKey(state);
+  const jar = jarKey ? getCookieJar(jarKey) : undefined;
+  if (!jar) return;
+  const cookie = jar.cookieHeaderForUrl(state.request.url, state.cookieContext);
+  if (cookie) headers.set("cookie", cookie);
+}
+
+function websocketHeaders(state: OutboundPolicyState): Headers {
+  const headers = new Headers();
+  headers.set("Upgrade", "websocket");
+  setWebSocketProtocol(headers, state.request);
+  setWebSocketOrigin(headers, state.pageOrigin);
+  setWebSocketCookie(state, headers);
+  return headers;
+}
+
+function fetchOutboundWebSocket(state: OutboundPolicyState): Promise<Response> {
+  return directExternalFetch(
+    state.externalOutbound,
+    new Request(state.request.url, { method: "GET", headers: websocketHeaders(state) }),
+  );
+}
+
+function sanitizedNoCorsRequest(state: OutboundPolicyState): OutboundStep<Request> {
+  if (!state.noCorsMode) return { kind: "continue", value: state.request };
+  if (!isSafelistedMethod(state.request.method)) {
+    return {
+      kind: "respond",
+      response: blocked(
+        `kitesurf: mode 'no-cors' only permits GET, HEAD and POST, not ${state.request.method}`,
+        "no-cors-method",
+      ),
+    };
+  }
+  const unsafe = corsUnsafeRequestHeaderNames(state.request.headers);
+  if (unsafe.length === 0) return { kind: "continue", value: state.request };
+  const headers = new Headers(state.request.headers);
+  for (const name of unsafe) headers.delete(name);
+  return { kind: "continue", value: new Request(state.request, { headers }) };
+}
+
+function configuredRequestCookieKey(state: OutboundPolicyState): string {
+  if (state.sealed) return state.props?.cookieKey ?? "";
+  return state.request.headers.get("x-kitesurf-cookie-key") ?? "";
+}
+
+function requestCookieKey(state: OutboundPolicyState): string {
+  return configuredRequestCookieKey(state) || state.connectionId;
+}
+
+function attachRequestCookie(state: PreparedOutboundState): void {
+  if (!state.jar || !state.sendCredentials || state.forwardRequest.headers.has("cookie")) return;
+  const cookie = state.jar.cookieHeaderForUrl(state.request.url, state.cookieContext);
+  if (cookie) state.forwardRequest.headers.set("cookie", cookie);
+}
+
+function trackedRequestId(state: OutboundPolicyState, forwardRequest: Request): string | null {
+  if (!state.tracker) return null;
+  const typeHint = (state.request.headers.get("x-kitesurf-resource-type") ?? "Other") as
+    | "Document"
+    | "Stylesheet"
+    | "Image"
+    | "Script"
+    | "XHR"
+    | "Fetch"
+    | "Other";
+  const initiatorType =
+    state.request.headers.get("x-kitesurf-initiator") === "parser" ? "parser" : "script";
+  return state.tracker.beginRequest({
+    url: state.request.url,
+    method: state.request.method,
+    headers: headersToRecord(forwardRequest.headers),
+    type: typeHint,
+    initiator: { type: initiatorType, url: state.pageOrigin },
+    loaderId: state.networkLoaderId,
+    frameId: state.networkFrameId,
+    sessionIds: state.networkSessionIds,
+  });
+}
+
+async function prepareOutboundRequest(
+  state: OutboundPolicyState,
+): Promise<OutboundStep<PreparedOutboundState>> {
+  const extraHeaders = state.props?.extraHeaders ?? {};
+  const wbaHeaders = await outboundWbaHeaders(state);
+  const authorRequest = sanitizedNoCorsRequest(state);
+  if (authorRequest.kind === "respond") return authorRequest;
+  return finishOutboundRequestPreparation(state, authorRequest.value, wbaHeaders, extraHeaders);
+}
+
+async function outboundWbaHeaders(state: OutboundPolicyState): Promise<Record<string, string>> {
+  if (state.hostEgress) return {};
+  return wbaHeadersFor(state.env, state.target.host);
+}
+
+async function finishOutboundRequestPreparation(
+  state: OutboundPolicyState,
+  authorRequest: Request,
+  wbaHeaders: Record<string, string>,
+  extraHeaders: Record<string, string>,
+): Promise<OutboundStep<PreparedOutboundState>> {
+  const forwardRequest = buildForwardRequest(
+    outboundForwardRequestOptions(state, authorRequest, wbaHeaders, extraHeaders),
+  );
+  const cookieKey = requestCookieKey(state);
+  const jar = cookieKey ? getCookieJar(cookieKey) : undefined;
+  const prepared: PreparedOutboundState = {
+    ...state,
+    forwardRequest,
+    cookieKey,
+    jar,
+    requestId: null,
+  };
+  attachRequestCookie(prepared);
+  prepared.requestId = trackedRequestId(state, forwardRequest);
+  return { kind: "continue", value: prepared };
+}
+
+function outboundForwardRequestOptions(
+  state: OutboundPolicyState,
+  original: Request,
+  wbaHeaders: Record<string, string>,
+  extraHeaders: Record<string, string>,
+): BuildForwardRequestOptions {
+  const props = state.props;
+  return {
+    original,
+    resourceType: state.resourceType,
+    pageOrigin: state.pageOrigin,
+    extraHeaders,
+    pageUrl: pageUrlFromProps(props),
+    referrerPolicy: referrerPolicyFromProps(props),
+    wbaHeaders,
+    corsMode: state.needsCorsCheck || state.sheetWantsCors,
+  };
+}
+
+function pageUrlFromProps(props: OutboundProps | undefined): string | undefined {
+  return props?.pageUrl;
+}
+
+function referrerPolicyFromProps(props: OutboundProps | undefined): string | undefined {
+  return props?.referrerPolicy;
+}
+
+type ContinueInterceptAction = Extract<InterceptAction, { kind: "continue" }>;
+
+function interceptedHeaders(entries: NonNullable<ContinueInterceptAction["headers"]>): Headers {
+  const headers = new Headers();
+  for (const entry of entries) headers.append(entry.name, entry.value);
+  headers.set(
+    "accept-encoding",
+    decodableAcceptEncoding(headers.get("accept-encoding"), headers.has("range")),
+  );
+  return headers;
+}
+
+function continueRequestHeaders(
+  state: PreparedOutboundState,
+  action: ContinueInterceptAction,
+): Headers {
+  return action.headers ? interceptedHeaders(action.headers) : state.forwardRequest.headers;
+}
+
+function continueRequestBody(
+  state: PreparedOutboundState,
+  action: ContinueInterceptAction,
+): BodyInit | null {
+  return action.postData !== undefined
+    ? Uint8Array.from(atob(action.postData), (character) => character.charCodeAt(0))
+    : state.forwardRequest.body;
+}
+
+function continuedRequest(
+  state: PreparedOutboundState,
+  action: ContinueInterceptAction,
+  headers: Headers,
+): Request {
+  return new Request(action.url ?? state.forwardRequest.url, {
+    method: action.method ?? state.forwardRequest.method,
+    headers,
+    body: continueRequestBody(state, action),
+    redirect: "manual",
+    signal: state.forwardRequest.signal,
+  });
+}
+
+function hasContinueRequestOverrides(action: ContinueInterceptAction): boolean {
+  return (
+    action.url !== undefined ||
+    action.method !== undefined ||
+    action.headers !== undefined ||
+    action.postData !== undefined
+  );
+}
+
+function updateCorsAfterInterception(state: PreparedOutboundState, sameOrigin: boolean): void {
+  const cors = interceptedCorsState(state, sameOrigin);
+  state.crossOriginNow = cors.crossOriginNow;
+  state.opaqueNoCors = cors.opaqueNoCors;
+  state.needsCorsCheck = cors.needsCorsCheck;
+  state.credentialsInclude = cors.credentialsInclude;
+  state.sendCredentials = cors.sendCredentials;
+  if (!state.sendCredentials) state.forwardRequest.headers.delete("cookie");
+}
+
+function interceptedCorsState(
+  state: PreparedOutboundState,
+  sameOrigin: boolean,
+): Pick<
+  OutboundCorsState,
+  "opaqueNoCors" | "needsCorsCheck" | "credentialsInclude" | "sendCredentials"
+> & { crossOriginNow: boolean } {
+  const credentialsInclude = credentialsForOrigin(sameOrigin, state.credentialsMode);
+  return {
+    crossOriginNow: !sameOrigin,
+    opaqueNoCors: state.noCorsMode && !sameOrigin,
+    needsCorsCheck: !sameOrigin && !state.opaqueResourceBypass && !state.noCorsMode,
+    credentialsInclude,
+    sendCredentials: state.credentialsMode === null || credentialsInclude,
+  };
+}
+
+function shouldUpdateInterceptionTarget(
+  state: PreparedOutboundState,
+  action: ContinueInterceptAction,
+): boolean {
+  return action.url !== undefined && action.url !== state.target.href;
+}
+
+function restoreInterceptionCookie(state: PreparedOutboundState): void {
+  state.forwardRequest.headers.delete("cookie");
+  const cookie = state.jar?.cookieHeaderForUrl(state.forwardRequest.url, state.cookieContext);
+  if (cookie) state.forwardRequest.headers.set("cookie", cookie);
+}
+
+function updateInterceptionTarget(
+  state: PreparedOutboundState,
+  action: ContinueInterceptAction,
+): void {
+  if (!shouldUpdateInterceptionTarget(state, action)) return;
+  try {
+    state.target = new URL(state.forwardRequest.url);
+  } catch {}
+  restoreInterceptionCookie(state);
+  const sameOrigin = !state.opaqueOrigin && originKey(state.target) === state.allowedOriginKey;
+  updateCorsAfterInterception(state, sameOrigin);
+}
+
+async function addInterceptionOutboundHeaders(state: PreparedOutboundState): Promise<void> {
+  const headers = state.hostEgress ? {} : await wbaHeadersFor(state.env, state.target.host);
+  for (const [name, value] of Object.entries(headers)) {
+    state.forwardRequest.headers.set(name, value);
+  }
+  if (state.needsCorsCheck) {
+    state.forwardRequest.headers.set("origin", state.pageOrigin || "null");
+  }
+}
+
+async function applyContinueInterceptAction(
+  state: PreparedOutboundState,
+  action: ContinueInterceptAction,
+): Promise<void> {
+  if (!hasContinueRequestOverrides(action)) return;
+  const headers = continueRequestHeaders(state, action);
+  state.forwardRequest = continuedRequest(state, action, headers);
+  updateInterceptionTarget(state, action);
+  const authorHeaders = action.headers ? headers : state.request.headers;
+  state.authorUnsafeHeaders = state.needsCorsCheck
+    ? corsUnsafeRequestHeaderNames(authorHeaders)
+    : [];
+  state.wantsPreflight =
+    state.needsCorsCheck && needsPreflight(state.forwardRequest.method, authorHeaders);
+  await addInterceptionOutboundHeaders(state);
+}
+
+function interceptedFulfillmentHeaders(
+  action: Extract<InterceptAction, { kind: "fulfill" }>,
+): Headers {
+  const headers = new Headers();
+  for (const entry of action.responseHeaders ?? []) headers.append(entry.name, entry.value);
+  return headers;
+}
+
+function interceptedFulfillmentBody(
+  action: Extract<InterceptAction, { kind: "fulfill" }>,
+): Uint8Array {
+  return action.body
+    ? Uint8Array.from(atob(action.body), (character) => character.charCodeAt(0))
+    : new Uint8Array(0);
+}
+
+function completeInterceptedFulfillment(
+  state: PreparedOutboundState,
+  action: Extract<InterceptAction, { kind: "fulfill" }>,
+  headers: Headers,
+  body: Uint8Array,
+): void {
+  if (!state.requestId || !state.tracker) return;
+  state.tracker.completeRequest(state.requestId, {
+    url: state.forwardRequest.url,
+    status: action.responseCode,
+    statusText: "",
+    headers: headersToRecord(headers),
+    mimeType: interceptedMimeType(headers),
+    bodyLength: body.length,
+    body: action.body ?? "",
+    bodyBase64Encoded: true,
+  });
+}
+
+function interceptedMimeType(headers: Headers): string {
+  return (headers.get("content-type")?.split(";")[0] ?? "").trim() || "text/plain";
+}
+
+function interceptedCorsFailure(state: PreparedOutboundState, response: Response): Response | null {
+  if (!state.needsCorsCheck || !response.headers.has("access-control-allow-origin")) return null;
+  const failure = checkCorsResponse(
+    response,
+    state.pageOrigin,
+    state.target,
+    state.credentialsInclude,
+  );
+  if (failure === null) return null;
+  failTrackedRequest(state.tracker, state.requestId, failure.reason);
+  return blocked(failure.message, "cors");
+}
+
+function fulfilledInterceptResponse(
+  action: Extract<InterceptAction, { kind: "fulfill" }>,
+  headers: Headers,
+  body: Uint8Array,
+): Response {
+  const noBody = [101, 204, 205, 304].includes(action.responseCode);
+  return new Response(noBody ? null : body, {
+    status: action.responseCode,
+    headers,
+  });
+}
+
+function failInterceptedAction(
+  state: PreparedOutboundState,
+  action: Extract<InterceptAction, { kind: "fail" }>,
+): never {
+  const message = errorReasonToNet(action.errorReason);
+  failTrackedRequest(state.tracker, state.requestId, message);
+  throw new Error(message);
+}
+
+async function applyInterceptAction(
+  state: PreparedOutboundState,
+  action: InterceptAction,
+): Promise<Response | null> {
+  switch (action.kind) {
+    case "fail":
+      return failInterceptedAction(state, action);
+    case "fulfill": {
+      const headers = interceptedFulfillmentHeaders(action);
+      const body = interceptedFulfillmentBody(action);
+      completeInterceptedFulfillment(state, action, headers, body);
+      const response = fulfilledInterceptResponse(action, headers, body);
+      return interceptedCorsFailure(state, response) ?? response;
+    }
+    case "continue":
+      await applyContinueInterceptAction(state, action);
+      return null;
+  }
+}
+
+function interceptionConnection(state: PreparedOutboundState): string {
+  return state.sealed
+    ? state.props?.interceptConnectionId || state.connectionId
+    : (state.request.headers.get("x-kitesurf-intercept-connection") ?? state.connectionId);
+}
+
+async function interceptionPostData(state: PreparedOutboundState): Promise<string | undefined> {
+  if (state.forwardRequest.method === "GET" || state.forwardRequest.method === "HEAD") {
+    return undefined;
+  }
+  return readBodyCapped(state.forwardRequest, POST_DATA_CAP_BYTES);
+}
+
+function matchingRequestInterception(
+  state: PreparedOutboundState,
+): ReturnType<typeof getInterception> {
+  const connectionId = interceptionConnection(state);
+  const interception = connectionId ? getInterception(connectionId) : undefined;
+  if (!interception) return undefined;
+  if (!interceptionMatches(interception, state.forwardRequest.url, state.resourceType)) {
+    return undefined;
+  }
+  return interception;
+}
+
+async function interceptOutboundRequest(state: PreparedOutboundState): Promise<Response | null> {
+  const interception = matchingRequestInterception(state);
+  if (!interception) return null;
+  const postData = await interceptionPostData(state);
+  const parked = registerParked(interception, {
+    url: state.forwardRequest.url,
+    method: state.forwardRequest.method,
+    headers: headersToRecord(state.forwardRequest.headers),
+    postData,
+    resourceType: state.resourceType,
+    frameId: state.networkFrameId,
+    networkId: state.request.headers.get("x-kitesurf-network-id") ?? state.requestId ?? "",
+  });
+  const action = await awaitVerdict(interception, parked);
+  return applyInterceptAction(state, action);
+}
+
+function preflightCacheHit(state: PreparedOutboundState): boolean {
+  return (
+    !state.hostEgress &&
+    preflightCacheLookup(
+      state.pageOrigin || "null",
+      state.forwardRequest.url,
+      state.forwardRequest.method,
+      state.authorUnsafeHeaders,
+      state.credentialsInclude,
+    )
+  );
+}
+
+function preflightAbortSignal(request: Request, controller: AbortController): AbortSignal {
+  if (typeof AbortSignal.any !== "function" || !request.signal) return controller.signal;
+  return AbortSignal.any([request.signal, controller.signal]);
+}
+
+async function preflightOutboundHeaders(
+  state: PreparedOutboundState,
+  request: Request,
+): Promise<Response> {
+  const headers = state.hostEgress ? {} : await wbaHeadersFor(state.env, state.target.host);
+  for (const [name, value] of Object.entries(headers)) request.headers.set(name, value);
+  return directExternalFetch(state.externalOutbound, request);
+}
+
+async function fetchCorsPreflight(state: PreparedOutboundState) {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new Error("kitesurf: preflight headers timeout")),
+    EGRESS_HEADERS_TIMEOUT_MS,
+  );
+  const signal = preflightAbortSignal(state.forwardRequest, controller);
+  try {
+    return await corsPreflight(
+      {
+        url: state.forwardRequest.url,
+        method: state.forwardRequest.method,
+        unsafeNames: state.authorUnsafeHeaders,
+        requestOrigin: state.pageOrigin || "null",
+        credentialsInclude: state.credentialsInclude,
+        userAgent: state.forwardRequest.headers.get("user-agent") ?? BROWSER_UA,
+        referer: state.forwardRequest.headers.get("referer"),
+        signal,
+        cacheable: !state.hostEgress,
+      },
+      (request) => preflightOutboundHeaders(state, request),
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function preflightBlockedResponse(
+  state: PreparedOutboundState,
+  verdict: Awaited<ReturnType<typeof corsPreflight>>,
+): Response | null {
+  if (!verdict.reason) return null;
+  failTrackedRequest(state.tracker, state.requestId, verdict.reason);
+  return blocked(
+    `kitesurf: Access to fetch at '${state.target.href}' from origin '${state.pageOrigin}' has been blocked by CORS policy: ` +
+      `Response to preflight request doesn't pass access control check` +
+      (verdict.message ? ` (${verdict.message})` : "."),
+    "cors",
+  );
+}
+
+async function runCorsPreflightIfNeeded(state: PreparedOutboundState): Promise<Response | null> {
+  if (!state.wantsPreflight || preflightCacheHit(state)) return null;
+  const verdict = await fetchCorsPreflight(state);
+  return preflightBlockedResponse(state, verdict);
+}
+
+type EgressResult = OutboundStep<Response>;
+
+function egressHeadersTimeout(state: PreparedOutboundState): number {
+  return state.resourceType === "Document" && state.props?.topLevelDocument === true
+    ? DOCUMENT_HEADERS_TIMEOUT_MS
+    : EGRESS_HEADERS_TIMEOUT_MS;
+}
+
+function reportSlowEgressHeaders(
+  startedAt: number,
+  request: Request,
+  forwardRequest: Request,
+): void {
+  const duration = Date.now() - startedAt;
+  if (duration <= SLOW_EGRESS_HEADERS_THRESHOLD_MS) return;
+  console.warn(
+    `[ks-egress] slow headers: ${duration}ms ` +
+      `type=${request.headers.get("x-kitesurf-resource-type") ?? "Other"} ` +
+      `url=${forwardRequest.url.slice(0, MAX_SLOW_HEADER_URL_PREVIEW_CHARS)}`,
+  );
+}
+
+function egressAbortSignal(request: Request, controller: AbortController): AbortSignal {
+  if (typeof AbortSignal.any !== "function" || !request.signal) return controller.signal;
+  return AbortSignal.any([request.signal, controller.signal]);
+}
+
+function outboundEgressFailure(
+  state: PreparedOutboundState,
+  controller: AbortController,
+  timeoutMs: number,
+  error: unknown,
+): EgressResult {
+  failTrackedRequest(
+    state.tracker,
+    state.requestId,
+    error instanceof Error ? error.message : String(error),
+  );
+  if (controller.signal.aborted) {
+    return {
+      kind: "respond",
+      response: blocked(`kitesurf: egress timeout after ${timeoutMs}ms`, "egress-timeout"),
+    };
+  }
+  throw error;
+}
+
+async function fetchOutboundEgress(state: PreparedOutboundState): Promise<EgressResult> {
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeoutMs = egressHeadersTimeout(state);
+  const timer = setTimeout(
+    () => controller.abort(new Error(`kitesurf: egress headers timeout after ${timeoutMs}ms`)),
+    timeoutMs,
+  );
+  const signal = egressAbortSignal(state.forwardRequest, controller);
+  try {
+    const response = await directExternalFetch(
+      state.externalOutbound,
+      new Request(state.forwardRequest, { signal }),
+    );
+    clearTimeout(timer);
+    reportSlowEgressHeaders(startedAt, state.request, state.forwardRequest);
+    return { kind: "continue", value: response };
+  } catch (error) {
+    clearTimeout(timer);
+    return outboundEgressFailure(state, controller, timeoutMs, error);
+  }
+}
+
+function isRedirectResponse(response: Response): boolean {
+  return REDIRECT_STATUSES.has(response.status) && (response.headers.get("location") ?? "") !== "";
+}
+
+function isEmptyLocationRedirect(response: Response): boolean {
+  return REDIRECT_STATUSES.has(response.status) && response.headers.get("location") === "";
+}
+
+function stylesheetCorsVerdict(
+  state: PreparedOutboundState,
+  response: Response,
+): "clean" | "opaque" {
+  if (!state.crossOriginNow) return "clean";
+  const corsAllowed =
+    state.stylesheetCorsMode === "cors" &&
+    corsCheck(response.headers, state.pageOrigin || "null", state.credentialsInclude) === null;
+  return corsAllowed ? "clean" : "opaque";
+}
+
+function scriptCorsVerdict(state: PreparedOutboundState): "clean" | "opaque" {
+  return !state.crossOriginNow || state.scriptCorsMode === "cors" ? "clean" : "opaque";
+}
+
+function outboundResponseCorsVerdict(
+  state: PreparedOutboundState,
+  response: Response,
+): "clean" | "opaque" | null {
+  if (state.resourceType === "Stylesheet") return stylesheetCorsVerdict(state, response);
+  if (state.resourceType === "Script") return scriptCorsVerdict(state);
+  return null;
+}
+
+function shouldReduceToOpaque(state: PreparedOutboundState, isRedirect: boolean): boolean {
+  return state.opaqueNoCors && !isRedirect;
+}
+
+function shouldShellRedirect(state: PreparedOutboundState, isRedirect: boolean): boolean {
+  return isRedirect && state.crossOriginNow && state.props?.walksOwnRedirects !== true;
+}
+
+function shouldWithholdImage(state: PreparedOutboundState, isRedirect: boolean): boolean {
+  return (
+    state.resourceType === "Image" &&
+    !isRedirect &&
+    state.crossOriginNow &&
+    state.opaqueResourceBypass
+  );
+}
+
+function shouldInterceptFont(
+  state: PreparedOutboundState,
+  response: Response,
+  isRedirect: boolean,
+): boolean {
+  return state.resourceType === "Font" && !isRedirect && response.ok && response.body !== null;
+}
+
+function createOutboundResponseState(
+  state: PreparedOutboundState,
+  response: Response,
+): OutboundResponseState {
+  const isRedirect = isRedirectResponse(response);
+  const responseState: OutboundResponseState = {
+    ...state,
+    response,
+    isRedirect,
+    emptyLocationRedirect: isEmptyLocationRedirect(response),
+    reduceToOpaque: shouldReduceToOpaque(state, isRedirect),
+    shellRedirect: shouldShellRedirect(state, isRedirect),
+    withholdImage: shouldWithholdImage(state, isRedirect),
+    interceptFont: shouldInterceptFont(state, response, isRedirect),
+    shapeFont: false,
+    corsVerdict: null,
+  };
+  responseState.shapeFont = responseState.interceptFont && state.props?.pixelFree === true;
+  responseState.corsVerdict = outboundResponseCorsVerdict(state, response);
+  return responseState;
+}
+
+function saveResponseCookies(state: OutboundResponseState): void {
+  if (!state.jar || !state.sendCredentials) return;
+  try {
+    const cookies = responseSetCookies(state.response);
+    for (const cookie of cookies) {
+      storeResponseCookie(state, cookie);
+    }
+  } catch {}
+}
+
+function responseSetCookies(response: Response): string[] {
+  if (typeof response.headers.getSetCookie !== "function") return [];
+  return response.headers.getSetCookie();
+}
+
+function storeResponseCookie(state: OutboundResponseState, cookie: string): void {
+  if (typeof cookie !== "string" || cookie.length === 0) return;
+  state.jar?.setFromHeader(state.forwardRequest.url, cookie);
+}
+
+function isCorpViolation(state: OutboundResponseState, corp: string): boolean {
+  try {
+    const target = new URL(state.forwardRequest.url);
+    const page = new URL(state.pageOrigin);
+    if (originKey(target) === originKey(page)) return false;
+    return (
+      corp === "same-origin" ||
+      target.protocol !== page.protocol ||
+      siteKey(target.hostname) !== siteKey(page.hostname)
+    );
+  } catch {
+    return true;
+  }
+}
+
+function shouldCheckCorp(state: OutboundResponseState): boolean {
+  return state.corpApplies && state.pageOrigin !== "";
+}
+
+function supportedCorpPolicy(value: string): boolean {
+  return value === "same-origin" || value === "same-site";
+}
+
+function corpResponseFailure(state: OutboundResponseState): Response | null {
+  if (!shouldCheckCorp(state)) return null;
+  const corp = (state.response.headers.get("cross-origin-resource-policy") ?? "").trim();
+  if (!supportedCorpPolicy(corp)) return null;
+  if (!isCorpViolation(state, corp)) return null;
+  failTrackedRequest(state.tracker, state.requestId, "corp-blocked");
+  return blocked(
+    `kitesurf: Access to fetch at '${state.forwardRequest.url}' from origin '${state.pageOrigin}' has been blocked by Cross-Origin-Resource-Policy: ${corp}.`,
+    "cors",
+  );
+}
+
+function corsResponseFailure(state: OutboundResponseState): Response | null {
+  if (!state.needsCorsCheck) return null;
+  const failure = checkCorsResponse(
+    state.response,
+    state.pageOrigin,
+    state.target,
+    state.credentialsInclude,
+  );
+  if (failure === null) return null;
+  failTrackedRequest(state.tracker, state.requestId, failure.reason);
+  return blocked(failure.message, "cors");
+}
+
+function redirectHasCredentials(location: string, baseUrl: string): boolean {
+  try {
+    const target = new URL(location, baseUrl);
+    return target.username !== "" || target.password !== "";
+  } catch {
+    return false;
+  }
+}
+
+function corsRedirectFailure(state: OutboundResponseState): Response | null {
+  if (!state.needsCorsCheck || !state.isRedirect) return null;
+  const location = state.response.headers.get("location");
+  if (!location || !redirectHasCredentials(location, state.forwardRequest.url)) return null;
+  failTrackedRequest(state.tracker, state.requestId, "cors-redirect-userinfo");
+  return blocked(
+    `kitesurf: Redirect from '${state.forwardRequest.url}' to a URL containing credentials is not allowed for a CORS request.`,
+    "cors",
+  );
+}
+
+function validateOutboundResponse(state: OutboundResponseState): Response | null {
+  const corpFailure = corpResponseFailure(state);
+  if (corpFailure !== null) return corpFailure;
+  const corsFailure = corsResponseFailure(state);
+  if (corsFailure !== null) return corsFailure;
+  return corsRedirectFailure(state);
+}
+
+function shouldApplyPixelBodyDeadline(state: OutboundResponseState): boolean {
+  return (
+    isPixelResource(state.resourceType) &&
+    !state.isRedirect &&
+    state.response.body !== null &&
+    isValidResponseStatus(state.response.status)
+  );
+}
+
+function isPixelResource(resourceType: string): boolean {
+  return resourceType === "Image" || resourceType === "Media";
+}
+
+function isValidResponseStatus(status: number): boolean {
+  return status >= 200 && status <= 599;
+}
+
+function boundPixelResponseBody(state: OutboundResponseState): void {
+  const body = state.response.body;
+  if (body === null || !shouldApplyPixelBodyDeadline(state)) return;
+  state.response = new Response(withDeadline(body, PIXEL_BODY_DEADLINE_MS), state.response);
+}
+
+function rebuildOutboundResponse(out: Response, body: BodyInit | null, headers: Headers): Response {
+  return new Response(body, {
+    status: out.status,
+    statusText: out.statusText,
+    headers,
+  });
+}
+
+function stampScriptSecurity(state: OutboundResponseState, source: Headers, output: Headers): void {
+  if (state.resourceType !== "Script") return;
+  const nosniff = source.get("x-content-type-options");
+  if (nosniff) output.set(KITESURF_NOSNIFF_HEADER, nosniff);
+  if (state.corsVerdict !== null) output.set(KITESURF_CORS_VERDICT_HEADER, state.corsVerdict);
+}
+
+function exposedResponseHeaders(state: OutboundResponseState, headers: Headers): Headers {
+  if (!state.needsCorsCheck || state.isRedirect) return headers;
+  const filtered = scrubKitesurfNamespace(
+    filterCorsResponseHeaders(headers, state.credentialsInclude),
+  );
+  if (state.emptyLocationRedirect) filtered.set("location", "");
+  stampScriptSecurity(state, headers, filtered);
+  return filtered;
+}
+
+function stampedSheetCorsHeaders(state: OutboundResponseState, headers: Headers): Headers {
+  if (state.corsVerdict === null) return headers;
+  const output = scrubKitesurfNamespace(headers);
+  output.set(KITESURF_CORS_VERDICT_HEADER, state.corsVerdict);
+  stampScriptSecurity(state, headers, output);
+  return output;
+}
+
+type BufferedOutboundBody =
+  | { kind: "bytes"; bytes: Uint8Array }
+  | { kind: "rest"; body: ReadableStream<Uint8Array> };
+
+async function fontBodyBytes(
+  out: Response,
+  buffered: ArrayBuffer | null,
+): Promise<BufferedOutboundBody> {
+  if (buffered !== null) return { kind: "bytes", bytes: new Uint8Array(buffered) };
+  const capped = await readCapped(out.body, MAX_SHAPED_FONT_BYTES);
+  if (capped.bytes === null) return { kind: "rest", body: capped.rest };
+  return { kind: "bytes", bytes: capped.bytes };
+}
+
+async function shapeOutboundFont(
+  bytes: Uint8Array,
+  env: SandboxOutboundEnv,
+): Promise<Uint8Array | null> {
+  try {
+    return await shapeFontBytes(bytes, env.HOST_TRACER);
+  } catch {
+    return null;
+  }
+}
+
+function shouldStoreFontKey(state: OutboundResponseState): boolean {
+  return !state.shapeFont && !state.foreignIsolate;
+}
+
+function storeAuthorFontKey(
+  state: OutboundResponseState,
+  bytes: Uint8Array,
+  headers: Headers,
+): void {
+  if (!shouldStoreFontKey(state)) return;
+  const key = putAuthorFont(bytes, state.connectionId, state.props?.mainFrameId ?? "");
+  if (key !== null) headers.set(FONT_KEY_HEADER, key.toString());
+}
+
+async function shapeFontResponseBytes(
+  state: OutboundResponseState,
+  out: Response,
+  bytes: Uint8Array,
+  headers: Headers,
+): Promise<Response> {
+  storeAuthorFontKey(state, bytes, headers);
+  if (!state.shapeFont) return rebuildOutboundResponse(out, bytes, headers);
+  const shaped = await shapeOutboundFont(bytes, state.env);
+  if (shaped === null) return rebuildOutboundResponse(out, bytes, headers);
+  headers.delete("content-length");
+  headers.set("content-type", "font/otf");
+  return rebuildOutboundResponse(out, shaped, headers);
+}
+
+async function shapedFontResponse(
+  state: OutboundResponseState,
+  out: Response,
+  buffered: ArrayBuffer | null,
+): Promise<Response> {
+  const body = await fontBodyBytes(out, buffered);
+  if (body.kind === "rest") {
+    return rebuildOutboundResponse(out, body.body, exposedResponseHeaders(state, out.headers));
+  }
+  return shapeFontResponseBytes(
+    state,
+    out,
+    body.bytes,
+    new Headers(exposedResponseHeaders(state, out.headers)),
+  );
+}
+
+function opaqueImageShell(out: Response, extra: Record<string, string> = {}): Response {
+  return new Response(null, {
+    status: out.status,
+    statusText: out.statusText,
+    headers: extra,
+  });
+}
+
+async function imageBodyBytes(
+  out: Response,
+  buffered: ArrayBuffer | null,
+): Promise<BufferedOutboundBody> {
+  if (buffered !== null) return { kind: "bytes", bytes: new Uint8Array(buffered) };
+  const capped = await readCapped(out.body, MAX_ENTRY_BYTES);
+  if (capped.bytes === null) return { kind: "rest", body: capped.rest };
+  return { kind: "bytes", bytes: capped.bytes };
+}
+
+function warnIfOpaqueImageIsNotImage(state: OutboundResponseState, bytes: Uint8Array): void {
+  if (looksLikeSvg(bytes)) return;
+  console.warn(
+    `[ks-outbound] resource-type Image on a non-image body: ${state.forwardRequest.url}`,
+  );
+}
+
+function opaqueImageResourceResponse(
+  state: OutboundResponseState,
+  out: Response,
+  bytes: Uint8Array,
+): Response {
+  const dimensions = sniffImageDims(bytes);
+  if (dimensions === null) {
+    warnIfOpaqueImageIsNotImage(state, bytes);
+    return opaqueImageShell(out);
+  }
+  const key = putOpaqueImage(bytes, state.connectionId, state.props?.mainFrameId ?? "");
+  if (!key) return opaqueImageShell(out);
+  return opaqueImageShell(out, {
+    [RESOURCE_KEY_HEADER]: key.toString(),
+    [IMAGE_WIDTH_HEADER]: String(dimensions.width),
+    [IMAGE_HEIGHT_HEADER]: String(dimensions.height),
+  });
+}
+
+async function withheldImageResponse(
+  state: OutboundResponseState,
+  out: Response,
+  buffered: ArrayBuffer | null,
+): Promise<Response> {
+  const body = await imageBodyBytes(out, buffered);
+  if (body.kind === "rest") {
+    void body.body.cancel();
+    return opaqueImageShell(out);
+  }
+  return opaqueImageResourceResponse(state, out, body.bytes);
+}
+
+function capturedBodySpecialResponse(
+  state: OutboundResponseState,
+  out: Response,
+  body: ArrayBuffer,
+): Response | Promise<Response> | null {
+  if (state.reduceToOpaque) return opaqueResponse();
+  if (state.withholdImage) return withheldImageResponse(state, out, body);
+  if (state.interceptFont) return shapedFontResponse(state, out, body);
+  if (state.shellRedirect) return redirectShell(out);
+  return null;
+}
+
+async function responseForCapturedBody(
+  state: OutboundResponseState,
+  out: Response,
+  body: ArrayBuffer,
+): Promise<Response> {
+  const special = await capturedBodySpecialResponse(state, out, body);
+  if (special !== null) return special;
+  if (!state.needsCorsCheck || state.isRedirect) {
+    return new Response(body, {
+      status: out.status,
+      statusText: out.statusText,
+      headers: stampedSheetCorsHeaders(state, out.headers),
+    });
+  }
+  return corsFilteredResponse(out, body, exposedResponseHeaders(state, out.headers));
+}
+
+async function runOutboundPolicy(state: OutboundPolicyState): Promise<Response> {
+  const earlyResponse = earlyOutboundPolicyResponse(state);
+  if (earlyResponse !== null) return earlyResponse;
+  if (isWebSocketRequest(state.request)) return fetchOutboundWebSocket(state);
+  return fetchPreparedOutboundRequest(state);
+}
+
+async function fetchPreparedOutboundRequest(state: OutboundPolicyState): Promise<Response> {
+  const prepared = await prepareOutboundRequest(state);
+  if (prepared.kind === "respond") return prepared.response;
+  return continuePreparedOutboundRequest(prepared.value);
+}
+
+async function continuePreparedOutboundRequest(state: PreparedOutboundState): Promise<Response> {
+  const intercepted = await interceptOutboundRequest(state);
+  if (intercepted !== null) return intercepted;
+  const preflight = await runCorsPreflightIfNeeded(state);
+  if (preflight !== null) return preflight;
+  const egress = await fetchOutboundEgress(state);
+  if (egress.kind === "respond") return egress.response;
+  return finishOutboundResponse(state, egress.value);
+}
+
+async function finishOutboundResponse(
+  state: PreparedOutboundState,
+  response: Response,
+): Promise<Response> {
+  const responseState = createOutboundResponseState(state, response);
+  saveResponseCookies(responseState);
+  const failure = validateOutboundResponse(responseState);
+  if (failure !== null) return failure;
+  boundPixelResponseBody(responseState);
+  return captureAndFilterOutboundResponse(responseState);
+}
+
+async function captureAndFilterOutboundResponse(state: OutboundResponseState): Promise<Response> {
+  const captured = await captureTrackedOutboundResponse(state);
+  if (captured !== null) return captured;
+  return finalOutboundResponse(state);
+}
+
+function completeTrackedOutboundResponse(
+  state: OutboundResponseState,
+  mimeType: string,
+  bodyLength: number,
+  body?: string,
+): void {
+  if (!state.requestId || !state.tracker) return;
+  const response = state.response;
+  const common = {
+    url: state.request.url,
+    status: response.status,
+    statusText: response.statusText,
+    headers: headersToRecord(response.headers),
+    mimeType,
+    bodyLength,
+  };
+  state.tracker.completeRequest(
+    state.requestId,
+    body === undefined ? common : { ...common, body, bodyBase64Encoded: false },
+  );
+}
+
+function shouldCaptureOutboundBody(state: OutboundResponseState, mimeType: string): boolean {
+  return (
+    isTextLikeMime(mimeType) &&
+    state.response.body !== null &&
+    state.tracker?.retainsBodies() === true
+  );
+}
+
+function normalizedResponseMimeType(header: string): string {
+  const mediaType = (header.split(";")[0] ?? "").trim();
+  return mediaType || "application/octet-stream";
+}
+
+function responseContentLength(response: Response): number {
+  return Number(response.headers.get("content-length") ?? "0") || 0;
+}
+
+function networkResponseMimeType(response: Response): { mimeType: string; contentLength: number } {
+  return {
+    mimeType: normalizedResponseMimeType(response.headers.get("content-type") ?? ""),
+    contentLength: responseContentLength(response),
+  };
+}
+
+async function captureTrackedOutboundResponse(
+  state: OutboundResponseState,
+): Promise<Response | null> {
+  if (!state.requestId || !state.tracker) return null;
+  const { mimeType, contentLength } = networkResponseMimeType(state.response);
+  if (!shouldCaptureOutboundBody(state, state.response.headers.get("content-type") ?? "")) {
+    completeTrackedOutboundResponse(state, mimeType, contentLength);
+    return null;
+  }
+  return captureTrackedOutboundBody(state, mimeType, contentLength);
+}
+
+async function replayUncapturedOutboundBody(
+  state: OutboundResponseState,
+  mimeType: string,
+  contentLength: number,
+  rest: ReadableStream<Uint8Array>,
+): Promise<null> {
+  const response = state.response;
+  state.response = new Response(rest, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+  completeTrackedOutboundResponse(state, mimeType, contentLength);
+  return null;
+}
+
+async function captureTrackedOutboundBody(
+  state: OutboundResponseState,
+  mimeType: string,
+  contentLength: number,
+): Promise<Response | null> {
+  try {
+    const capped = await readCapped(state.response.body, RESPONSE_BODY_BUFFER_CAP);
+    if (capped.bytes === null) {
+      return await replayUncapturedOutboundBody(state, mimeType, contentLength, capped.rest);
+    }
+    const body = capped.bytes.buffer;
+    const text = new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(body);
+    completeTrackedOutboundResponse(state, mimeType, contentLength || body.byteLength, text);
+    return await responseForCapturedBody(state, state.response, body);
+  } catch {
+    completeTrackedOutboundResponse(state, mimeType, contentLength);
+    return null;
+  }
+}
+
+function outboundSpecialResponse(
+  state: OutboundResponseState,
+): Response | Promise<Response> | null {
+  if (state.reduceToOpaque) return opaqueResponse();
+  if (state.withholdImage) return withheldImageResponse(state, state.response, null);
+  if (state.interceptFont) return shapedFontResponse(state, state.response, null);
+  if (state.shellRedirect) return redirectShell(state.response);
+  return null;
+}
+
+function responseWithoutCorsCheck(state: OutboundResponseState): Response {
+  const response = state.response;
+  if (state.corsVerdict === null) return response;
+  if (response.status < 200 || response.status > 599) {
+    return corsFilteredResponse(response, response.body, scrubKitesurfNamespace(response.headers));
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: stampedSheetCorsHeaders(state, response.headers),
+  });
+}
+
+function corsFilteredOutboundResponse(state: OutboundResponseState): Response {
+  if (!state.needsCorsCheck || state.isRedirect) return responseWithoutCorsCheck(state);
+  return corsFilteredResponse(
+    state.response,
+    state.response.body,
+    exposedResponseHeaders(state, state.response.headers),
+  );
+}
+
+async function finalOutboundResponse(state: OutboundResponseState): Promise<Response> {
+  const special = outboundSpecialResponse(state);
+  if (special !== null) return special;
+  return corsFilteredOutboundResponse(state);
 }
 
 function opaqueResponse(): Response {
@@ -1222,43 +2092,37 @@ function checkCorsResponse(
   if (reason === null) return null;
   const prefix = `kitesurf: Access to fetch at '${target.href}' from origin '${pageOrigin}' has been blocked by CORS policy: `;
   const aca = (resp.headers.get("access-control-allow-origin") ?? "").trim();
+  return { reason, message: corsFailureMessage(reason, prefix, aca, resp.headers) };
+}
+
+function corsFailureMessage(reason: string, prefix: string, aca: string, headers: Headers): string {
   switch (reason) {
     case "cors-missing-origin":
-      return {
-        reason,
-        message:
-          prefix + `No 'Access-Control-Allow-Origin' header is present on the requested resource.`,
-      };
+      return (
+        prefix + `No 'Access-Control-Allow-Origin' header is present on the requested resource.`
+      );
     case "cors-multiple-origins":
-      return {
-        reason,
-        message:
-          prefix +
-          `The 'Access-Control-Allow-Origin' header contains multiple values '${aca}', but only one is allowed.`,
-      };
+      return (
+        prefix +
+        `The 'Access-Control-Allow-Origin' header contains multiple values '${aca}', but only one is allowed.`
+      );
     case "cors-wildcard-with-credentials":
-      return {
-        reason,
-        message:
-          prefix +
-          `The value of the 'Access-Control-Allow-Origin' header must not be the wildcard '*' when the request's credentials mode is 'include'.`,
-      };
+      return (
+        prefix +
+        `The value of the 'Access-Control-Allow-Origin' header must not be the wildcard '*' when the request's credentials mode is 'include'.`
+      );
     case "cors-credentials-not-allowed":
-      return {
-        reason,
-        message:
-          prefix +
-          `The value of the 'Access-Control-Allow-Credentials' header in the response is '` +
-          `${resp.headers.get("access-control-allow-credentials") ?? ""}' which must be 'true' ` +
-          `when the request's credentials mode is 'include'.`,
-      };
+      return (
+        prefix +
+        `The value of the 'Access-Control-Allow-Credentials' header in the response is '` +
+        `${headers.get("access-control-allow-credentials") ?? ""}' which must be 'true' ` +
+        `when the request's credentials mode is 'include'.`
+      );
     default:
-      return {
-        reason,
-        message:
-          prefix +
-          `The 'Access-Control-Allow-Origin' header has a value '${aca}' that is not equal to the supplied origin.`,
-      };
+      return (
+        prefix +
+        `The 'Access-Control-Allow-Origin' header has a value '${aca}' that is not equal to the supplied origin.`
+      );
   }
 }
 
@@ -1268,37 +2132,69 @@ const BROWSER_UA =
 
 const POST_DATA_CAP_BYTES = 8 * 1024 * 1024;
 
-async function readBodyCapped(req: Request, capBytes: number): Promise<string | undefined> {
-  const cl = Number(req.headers.get("content-length") ?? "");
-  if (Number.isFinite(cl) && cl > capBytes) return undefined;
-  const body = req.clone().body;
-  if (!body) return undefined;
-  const reader = body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
+interface CappedBodyChunks {
+  chunks: Uint8Array[];
+  totalBytes: number;
+}
+
+type BodyChunkResult = "continue" | "done" | "overflow";
+
+function contentLengthExceedsCap(request: Request, capBytes: number): boolean {
+  const contentLength = Number(request.headers.get("content-length") ?? "");
+  return Number.isFinite(contentLength) && contentLength > capBytes;
+}
+
+async function readCappedBodyChunk(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  collected: CappedBodyChunks,
+  capBytes: number,
+): Promise<BodyChunkResult> {
+  const { done, value } = await reader.read();
+  if (done) return "done";
+  if (!value) return "continue";
+  const totalBytes = collected.totalBytes + value.byteLength;
+  if (totalBytes > capBytes) {
+    await reader.cancel().catch(() => {});
+    return "overflow";
+  }
+  collected.totalBytes = totalBytes;
+  collected.chunks.push(value);
+  return "continue";
+}
+
+async function collectCappedBodyChunks(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  capBytes: number,
+): Promise<CappedBodyChunks | null> {
+  const collected: CappedBodyChunks = { chunks: [], totalBytes: 0 };
   try {
     for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        total += value.byteLength;
-        if (total > capBytes) {
-          await reader.cancel().catch(() => {});
-          return undefined;
-        }
-        chunks.push(value);
-      }
+      const result = await readCappedBodyChunk(reader, collected, capBytes);
+      if (result === "done") return collected;
+      if (result === "overflow") return null;
     }
   } catch {
-    return undefined;
+    return null;
   }
-  const all = new Uint8Array(total);
-  let off = 0;
-  for (const c of chunks) {
-    all.set(c, off);
-    off += c.byteLength;
+}
+
+function decodeCappedBodyChunks(collected: CappedBodyChunks): string {
+  const all = new Uint8Array(collected.totalBytes);
+  let offset = 0;
+  for (const chunk of collected.chunks) {
+    all.set(chunk, offset);
+    offset += chunk.byteLength;
   }
   return new TextDecoder().decode(all);
+}
+
+async function readBodyCapped(req: Request, capBytes: number): Promise<string | undefined> {
+  if (contentLengthExceedsCap(req, capBytes)) return undefined;
+  const body = req.clone().body;
+  if (!body) return undefined;
+  const collected = await collectCappedBodyChunks(body.getReader(), capBytes);
+  if (collected === null) return undefined;
+  return decodeCappedBodyChunks(collected);
 }
 
 interface BuildForwardRequestOptions {
@@ -1312,6 +2208,185 @@ interface BuildForwardRequestOptions {
   corsMode?: boolean;
 }
 
+function copyPageRequestHeaders(request: Request): Headers {
+  const headers = new Headers();
+  for (const [name, value] of request.headers.entries()) {
+    if (name.toLowerCase().startsWith("x-kitesurf-")) continue;
+    headers.set(name, value);
+  }
+  return headers;
+}
+
+function setDefaultAgentHeader(headers: Headers): void {
+  if (!headers.has("user-agent")) headers.set("user-agent", BROWSER_UA);
+}
+
+function setDefaultAcceptHeader(headers: Headers, resourceType: string): void {
+  if (!headers.has("accept")) headers.set("accept", defaultAcceptFor(resourceType));
+}
+
+function setOpaqueOriginHeader(headers: Headers, pageOrigin: string): void {
+  if (!headers.has("origin") && !pageOrigin) headers.set("origin", "null");
+}
+
+function setCorsOriginHeader(headers: Headers, pageOrigin: string, corsMode: boolean): void {
+  if (corsMode) headers.set("origin", pageOrigin || "null");
+}
+
+function setDefaultForwardHeaders(
+  headers: Headers,
+  resourceType: string,
+  pageOrigin: string,
+  corsMode: boolean,
+): void {
+  setDefaultAgentHeader(headers);
+  setDefaultAcceptHeader(headers, resourceType);
+  setOpaqueOriginHeader(headers, pageOrigin);
+  setCorsOriginHeader(headers, pageOrigin, corsMode);
+}
+
+function referrerMatchesPageOrigin(raw: string, pageOrigin: string): string {
+  try {
+    return new URL(raw).origin === pageOrigin ? raw : "";
+  } catch {
+    return "";
+  }
+}
+
+function pageRequestReferrer(original: Request, pageOrigin: string): string {
+  const raw = original.headers.get("x-kitesurf-referrer") ?? "";
+  if (raw === "" || raw === "no-referrer") return raw;
+  if (!pageOrigin) return "";
+  return referrerMatchesPageOrigin(raw, pageOrigin);
+}
+
+function originOnlyReferrer(pageOrigin: string): string {
+  return pageOrigin.endsWith("/") ? pageOrigin : pageOrigin + "/";
+}
+
+function referrerCarrier(
+  requestReferrer: string,
+  policy: ReturnType<typeof parseReferrerPolicy>,
+  originOnly: string,
+): string | null {
+  if (!requestReferrer) return null;
+  if (policy === "origin") return originOnly;
+  try {
+    const referrer = new URL(requestReferrer);
+    referrer.hash = "";
+    referrer.username = "";
+    referrer.password = "";
+    return referrer.href;
+  } catch {
+    return null;
+  }
+}
+
+function pageReferrerSource(
+  pageUrl: string | undefined,
+  pageOrigin: string,
+  originOnly: string,
+): string {
+  if (!pageUrl) return originOnly;
+  try {
+    return new URL(pageUrl).origin === pageOrigin ? pageUrl : originOnly;
+  } catch {
+    return originOnly;
+  }
+}
+
+function shouldSetForwardReferrer(
+  headers: Headers,
+  pageOrigin: string,
+  policy: ReturnType<typeof parseReferrerPolicy>,
+  requestReferrer: string,
+): boolean {
+  return (
+    !headers.has("referer") &&
+    pageOrigin !== "" &&
+    policy !== "no-referrer" &&
+    requestReferrer !== "no-referrer"
+  );
+}
+
+function setForwardReferrer(
+  headers: Headers,
+  original: Request,
+  pageOrigin: string,
+  pageUrl: string | undefined,
+  policy: ReturnType<typeof parseReferrerPolicy>,
+  requestReferrer: string,
+): void {
+  if (!shouldSetForwardReferrer(headers, pageOrigin, policy, requestReferrer)) return;
+  const originOnly = originOnlyReferrer(pageOrigin);
+  const carrier = referrerCarrier(requestReferrer, policy, originOnly);
+  const source = pageReferrerSource(pageUrl, pageOrigin, originOnly);
+  const value = carrier ?? determineReferrer(source, original.url, policy);
+  if (value) headers.set("referer", value);
+}
+
+function isSameOriginPageRequest(original: Request, pageOrigin: string): boolean {
+  if (!pageOrigin) return false;
+  try {
+    return new URL(original.url).origin === new URL(pageOrigin).origin;
+  } catch {
+    return false;
+  }
+}
+
+function isCredentialHeader(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower === "authorization" || lower === "cookie";
+}
+
+function addExtraForwardHeaders(
+  headers: Headers,
+  extraHeaders: Record<string, string>,
+  sameOrigin: boolean,
+): void {
+  for (const [name, value] of Object.entries(extraHeaders)) {
+    // Restrict CDP extra Authorization and Cookie headers to same-origin requests.
+    if (!sameOrigin && isCredentialHeader(name)) continue;
+    headers.set(name, value);
+  }
+}
+
+function setForwardAcceptEncoding(headers: Headers): void {
+  headers.set(
+    "accept-encoding",
+    decodableAcceptEncoding(headers.get("accept-encoding"), headers.has("range")),
+  );
+}
+
+function addWbaForwardHeaders(headers: Headers, wbaHeaders: Record<string, string>): void {
+  for (const [name, value] of Object.entries(wbaHeaders)) {
+    headers.set(name, value);
+  }
+}
+
+function forwardRequestHeaders(options: BuildForwardRequestOptions): Headers {
+  const {
+    original,
+    resourceType,
+    pageOrigin,
+    extraHeaders,
+    pageUrl,
+    referrerPolicy,
+    wbaHeaders = {},
+    corsMode = false,
+  } = options;
+  const headers = copyPageRequestHeaders(original);
+  setDefaultForwardHeaders(headers, resourceType, pageOrigin, corsMode);
+  const policy = parseReferrerPolicy(referrerPolicy);
+  const requestReferrer = pageRequestReferrer(original, pageOrigin);
+  setForwardReferrer(headers, original, pageOrigin, pageUrl, policy, requestReferrer);
+  if (!headers.has("accept-language")) headers.set("accept-language", "en-US,en;q=0.9");
+  addExtraForwardHeaders(headers, extraHeaders, isSameOriginPageRequest(original, pageOrigin));
+  setForwardAcceptEncoding(headers);
+  addWbaForwardHeaders(headers, wbaHeaders);
+  return headers;
+}
+
 export function buildForwardRequest({
   original,
   resourceType,
@@ -1322,82 +2397,16 @@ export function buildForwardRequest({
   wbaHeaders = {},
   corsMode = false,
 }: BuildForwardRequestOptions): Request {
-  const headers = new Headers();
-  for (const [k, v] of original.headers.entries()) {
-    const lower = k.toLowerCase();
-    if (lower.startsWith("x-kitesurf-")) continue;
-    headers.set(k, v);
-  }
-  if (!headers.has("user-agent")) headers.set("user-agent", BROWSER_UA);
-  if (!headers.has("accept")) headers.set("accept", defaultAcceptFor(resourceType));
-  if (!headers.has("origin") && !pageOrigin) headers.set("origin", "null");
-  if (corsMode) headers.set("origin", pageOrigin || "null");
-  const policy = parseReferrerPolicy(referrerPolicy);
-  const requestReferrer = (() => {
-    const raw = original.headers.get("x-kitesurf-referrer") ?? "";
-    if (raw === "" || raw === "no-referrer") return raw;
-    if (!pageOrigin) return "";
-    try {
-      return new URL(raw).origin === pageOrigin ? raw : "";
-    } catch {
-      return "";
-    }
-  })();
-  if (
-    !headers.has("referer") &&
-    pageOrigin &&
-    policy !== "no-referrer" &&
-    requestReferrer !== "no-referrer"
-  ) {
-    const originOnly = pageOrigin.endsWith("/") ? pageOrigin : pageOrigin + "/";
-    const carrier = (() => {
-      if (!requestReferrer) return null;
-      if (policy === "origin") return originOnly;
-      try {
-        const u = new URL(requestReferrer);
-        u.hash = "";
-        u.username = "";
-        u.password = "";
-        return u.href;
-      } catch {
-        return null;
-      }
-    })();
-    const source = (() => {
-      if (!pageUrl) return originOnly;
-      try {
-        return new URL(pageUrl).origin === pageOrigin ? pageUrl : originOnly;
-      } catch {
-        return originOnly;
-      }
-    })();
-    const referer = carrier ?? determineReferrer(source, original.url, policy);
-    if (referer) headers.set("referer", referer);
-  }
-  if (!headers.has("accept-language")) headers.set("accept-language", "en-US,en;q=0.9");
-  let sameOrigin = false;
-  if (pageOrigin) {
-    try {
-      sameOrigin = new URL(original.url).origin === new URL(pageOrigin).origin;
-    } catch {
-      sameOrigin = false;
-    }
-  }
-  for (const [k, v] of Object.entries(extraHeaders)) {
-    const lower = k.toLowerCase();
-    // Restrict CDP extra Authorization and Cookie headers to same-origin requests.
-    if (!sameOrigin && (lower === "authorization" || lower === "cookie")) {
-      continue;
-    }
-    headers.set(k, v);
-  }
-  headers.set(
-    "accept-encoding",
-    decodableAcceptEncoding(headers.get("accept-encoding"), headers.has("range")),
-  );
-  for (const [k, v] of Object.entries(wbaHeaders)) {
-    headers.set(k, v);
-  }
+  const headers = forwardRequestHeaders({
+    original,
+    resourceType,
+    pageOrigin,
+    extraHeaders,
+    pageUrl,
+    referrerPolicy,
+    wbaHeaders,
+    corsMode,
+  });
   return new Request(original.url, {
     method: original.method,
     headers,
