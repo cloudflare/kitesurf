@@ -70,6 +70,8 @@ function failTrackedRequest(
 export interface OutboundProps {
   pageOrigin: string;
   externalOutbound?: ExternalOutbound;
+  // The host's egress transport; unlike externalOutbound, it keeps the engine's egress policy.
+  egress?: ExternalOutbound;
   engineIsolateId?: string;
   localTraceParent?: import("../tracing.ts").SpanContext;
   mainFrameId?: string;
@@ -179,11 +181,14 @@ export type SandboxOutboundExports = {
   SandboxOutbound(opts: { props: OutboundProps }): Fetcher;
 };
 
+/** Outbound props a caller supplies; the override seals in the connection's outbound hooks. */
+export type CallerOutboundProps = Omit<OutboundProps, "externalOutbound" | "egress">;
+
 export interface SandboxOutboundOverride {
   readonly external: boolean;
-  parent(props: Omit<OutboundProps, "externalOutbound">): Fetcher;
-  loaded(props: Omit<OutboundProps, "externalOutbound">): Fetcher;
-  session(props: Omit<OutboundProps, "externalOutbound">): SessionOutbound;
+  parent(props: CallerOutboundProps): Fetcher;
+  loaded(props: CallerOutboundProps): Fetcher;
+  session(props: CallerOutboundProps): SessionOutbound;
   final(request: Request): Promise<Response>;
 }
 
@@ -211,10 +216,12 @@ export function createSandboxOutboundOverride(
   exports: SandboxOutboundExports,
   env: SandboxOutboundEnv,
   externalOutbound?: ExternalOutbound,
+  egress?: ExternalOutbound,
 ): SandboxOutboundOverride {
-  const seal = (props: Omit<OutboundProps, "externalOutbound">): OutboundProps => ({
+  const seal = (props: CallerOutboundProps): OutboundProps => ({
     ...props,
     externalOutbound,
+    egress: externalOutbound ? undefined : egress,
     engineIsolateId: engineIsolateId(),
   });
   return {
@@ -234,7 +241,7 @@ export function createSandboxOutboundOverride(
         rpcSafeResponse(await SandboxOutbound.handle(env, sealed, sessionRequest(req)));
     },
     final(request) {
-      return directExternalFetch(externalOutbound, request);
+      return directExternalFetch(externalOutbound ?? egress, request);
     },
   };
 }
@@ -362,6 +369,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     const sealed = !!props;
     const externalOutbound = props?.externalOutbound;
     const hostEgress = externalOutbound !== undefined;
+    const transport = externalOutbound ?? props?.egress;
     const headerOrigin = request.headers.get("x-kitesurf-page-origin") ?? "";
     // "null" may narrow sealed identity to opaque; other header values cannot replace it.
     const pageOrigin =
@@ -536,7 +544,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         if (cookieHeader) wsHeaders.set("cookie", cookieHeader);
       }
       return directExternalFetch(
-        externalOutbound,
+        transport,
         new Request(request.url, { method: "GET", headers: wsHeaders }),
       );
     }
@@ -767,7 +775,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
               for (const [k, v] of Object.entries(pfWba)) {
                 req.headers.set(k, v);
               }
-              return directExternalFetch(externalOutbound, req);
+              return directExternalFetch(transport, req);
             },
           );
         } finally {
@@ -802,7 +810,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         : egressAbortCtl.signal;
     try {
       resp = await directExternalFetch(
-        externalOutbound,
+        transport,
         new Request(forwardRequest, { signal: egressSignal }),
       );
       clearTimeout(egressAbortTimer);

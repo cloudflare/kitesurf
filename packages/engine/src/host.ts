@@ -10,6 +10,7 @@ import {
   type TelemetryFactory,
 } from "./observability.ts";
 import type { EngineCdpCommandExtension } from "./cdp/dispatch.ts";
+import type { ExternalOutbound } from "./eval/external-outbound.ts";
 import { landingPage } from "./landing.ts";
 import type { RequestBlocker } from "./request-blocker.ts";
 
@@ -53,6 +54,11 @@ export interface EngineHost {
    * Top-level navigations are exempt. Unset blocks nothing beyond outbound filters.
    */
   requestBlocker?: RequestBlocker;
+  /**
+   * Per-connection transport that replaces `fetch` after engine policy; must fit in worker props.
+   * An external outbound takes precedence. Unset uses `fetch`.
+   */
+  egress?(env: Env, ctx: ExecutionContext): ExternalOutbound | undefined;
 }
 
 /** Applies host overrides and defaults before opening a CDP connection. */

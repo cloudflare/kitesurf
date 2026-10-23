@@ -239,6 +239,7 @@ export async function handleWebSocket(
       (ctx as ExecutionContext & { exports: SandboxOutboundExports }).exports,
       env,
       opts?.externalOutbound,
+      opts?.externalOutbound ? undefined : opts?.host?.egress?.(env, ctx),
     ),
     contexts: new Map(),
     nextBrowserContextId: 1,

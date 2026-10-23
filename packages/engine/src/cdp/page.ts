@@ -102,7 +102,7 @@ import {
 import { registerIsolateLimitListener } from "../eval/limit-registry.ts";
 import { disposeStub, publishStub, retireStub } from "./page-script-generation.ts";
 import { emitSessionStart } from "../observability.ts";
-import type { OutboundProps, SandboxOutboundOverride } from "../eval/outbound.ts";
+import type { CallerOutboundProps, SandboxOutboundOverride } from "../eval/outbound.ts";
 import { getOutboundInflight } from "../eval/outbound.ts";
 import { walkRedirects } from "../eval/redirect-walk.ts";
 import { siteKey } from "../public-suffix.ts";
@@ -722,7 +722,7 @@ export async function handlePage(
         try {
           docPageOrigin = new URL(url).origin;
         } catch {}
-        const docProps: Omit<OutboundProps, "externalOutbound"> = {
+        const docProps: CallerOutboundProps = {
           pageOrigin: docPageOrigin,
           mainFrameId: target.frameId,
           mainLoaderId: target.loaderId,
@@ -4423,7 +4423,7 @@ async function loadChildFrame(
       ? target.frames.get(frame.parentFrameId)
       : undefined;
   // Child requests inherit the embedding document's URL and referrer policy.
-  const childDocProps: Omit<OutboundProps, "externalOutbound"> = {
+  const childDocProps: CallerOutboundProps = {
     pageOrigin: docPageOrigin,
     // The embedder's URL and policy give the Referer a browser sends;
     // page-script reports the same value as the frame's document.referrer.
