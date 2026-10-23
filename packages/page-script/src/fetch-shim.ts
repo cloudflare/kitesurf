@@ -29,12 +29,15 @@ export function pageOriginFromUrl(href: string): string {
   if (!href) return "";
   try {
     const url = new URL(href);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-    if (!url.host) return "";
+    if (!isHttpUrl(url)) return "";
     return url.protocol + "//" + url.host;
   } catch {
     return "";
   }
+}
+
+function isHttpUrl(url: URL): boolean {
+  return (url.protocol === "http:" || url.protocol === "https:") && url.host !== "";
 }
 
 const METHOD_OVERRIDE_HEADERS = new Set([
@@ -193,14 +196,21 @@ function withNormalizedHeaderInit(init: unknown): unknown {
   });
 }
 
+function headersFilterMethods(headersPrototype: any): { append: Function; set: Function } | null {
+  if (!headersPrototype || headersPrototype.__ksForbiddenFiltered) return null;
+  const originalAppend = headersPrototype.append;
+  const originalSet = headersPrototype.set;
+  if (typeof originalAppend !== "function" || typeof originalSet !== "function") return null;
+  return { append: originalAppend, set: originalSet };
+}
+
 function installHeadersForbiddenFilter(): void {
   const HeadersConstructor = ksGlobal.Headers;
   if (typeof HeadersConstructor !== "function") return;
   const headersPrototype = HeadersConstructor.prototype;
-  if (!headersPrototype || (headersPrototype as any).__ksForbiddenFiltered) return;
-  const originalAppend = headersPrototype.append;
-  const originalSet = headersPrototype.set;
-  if (typeof originalAppend !== "function" || typeof originalSet !== "function") return;
+  const methods = headersFilterMethods(headersPrototype);
+  if (!methods) return;
+  const { append: originalAppend, set: originalSet } = methods;
   headersPrototype.append = function append(name: string, value: string): void {
     const headerName = toHeaderByteString(name);
     const headerValue = toHeaderByteString(value);
@@ -227,24 +237,27 @@ const VALID_CACHE_MODES = new Set([
 
 const WORKERD_CACHE_MODES = new Set(["no-store", "no-cache"]);
 
-function validateAndStripCache(init: any, isFetchCall: boolean): any {
-  if (!init || typeof init !== "object" || (init as any).cache === undefined) return init;
-  const cache = String((init as any).cache);
+function validateCacheMode(cache: string, init: any, isFetchCall: boolean): void {
   if (!VALID_CACHE_MODES.has(cache)) {
     throw new TypeError(
       `Failed to construct 'Request': The provided value '${cache}' is not a valid enum value of type RequestCache.`,
     );
   }
-  if (cache === "only-if-cached") {
-    if ((init as any).mode !== "same-origin") {
-      throw new TypeError(
-        "Failed to construct 'Request': 'only-if-cached' can be set only if 'mode' is 'same-origin'.",
-      );
-    }
-    if (isFetchCall) {
-      throw new TypeError("Failed to fetch: no cached response for 'only-if-cached' request.");
-    }
+  if (cache !== "only-if-cached") return;
+  if ((init as any).mode !== "same-origin") {
+    throw new TypeError(
+      "Failed to construct 'Request': 'only-if-cached' can be set only if 'mode' is 'same-origin'.",
+    );
   }
+  if (isFetchCall) {
+    throw new TypeError("Failed to fetch: no cached response for 'only-if-cached' request.");
+  }
+}
+
+function validateAndStripCache(init: any, isFetchCall: boolean): any {
+  if (!init || typeof init !== "object" || (init as any).cache === undefined) return init;
+  const cache = String((init as any).cache);
+  validateCacheMode(cache, init, isFetchCall);
   if (WORKERD_CACHE_MODES.has(cache)) return init;
   const strippedInit = { ...init };
   delete strippedInit.cache;
@@ -271,18 +284,21 @@ function installRequestShim(): void {
     return input;
   }
 
+  function rejectForbiddenRequestMethod(init: any): void {
+    if (!init || typeof init !== "object" || typeof (init as any).method !== "string") return;
+    const upper = String((init as any).method).toUpperCase();
+    if (FORBIDDEN_METHODS.has(upper)) {
+      throw new TypeError(
+        `Failed to construct 'Request': '${(init as any).method}' HTTP method is unsupported.`,
+      );
+    }
+  }
+
   const FORBIDDEN_METHODS = new Set(["CONNECT", "TRACE", "TRACK"]);
 
   function WrappedRequest(this: any, input: any, init?: any) {
     const resolvedInput = resolveRequestInput(input);
-    if (init && typeof init === "object" && typeof (init as any).method === "string") {
-      const upper = String((init as any).method).toUpperCase();
-      if (FORBIDDEN_METHODS.has(upper)) {
-        throw new TypeError(
-          `Failed to construct 'Request': '${(init as any).method}' HTTP method is unsupported.`,
-        );
-      }
-    }
+    rejectForbiddenRequestMethod(init);
     const referrerState = requestReferrerState(input, init);
     // Workerd omits Request.referrer and Request.referrerPolicy.
     // Keep their state beside the native Request object.
@@ -345,50 +361,66 @@ const REQUEST_INIT_MEMBERS = [
   "window",
 ];
 
-function requestReferrerState(input: unknown, init: unknown): RequestReferrerState {
+function inheritedRequestReferrerState(input: unknown): RequestReferrerState {
   const inherited = input && typeof input === "object" ? requestReferrers.get(input) : undefined;
-  const next: RequestReferrerState = inherited
-    ? { ...inherited }
-    : { referrer: "client", policy: "" };
-  if (!init || typeof init !== "object") return next;
-  const member = (key: string): unknown => Reflect.get(init, key);
-  if (REQUEST_INIT_MEMBERS.some((k) => member(k) !== undefined)) {
+  return inherited ? { ...inherited } : { referrer: "client", policy: "" };
+}
+
+function resetReferrerStateForInit(next: RequestReferrerState, init: object): void {
+  const hasInitMember = REQUEST_INIT_MEMBERS.some((key) => Reflect.get(init, key) !== undefined);
+  if (hasInitMember) {
     next.referrer = "client";
     next.policy = "";
   }
-  const referrerInit = member("referrer");
-  if (referrerInit !== undefined) {
-    const value = String(referrerInit);
-    if (value === "") {
-      next.referrer = "no-referrer";
-    } else {
-      let parsed: URL;
-      try {
-        parsed = new URL(value, state.pageUrl || undefined);
-      } catch {
-        throw new TypeError(
-          `Failed to construct 'Request': Referrer '${value}' is not a valid URL.`,
-        );
-      }
-      let pageOrigin = "";
-      try {
-        pageOrigin = new URL(state.pageUrl).origin;
-      } catch {}
-      // about:client, or a cross-origin URL, falls back to the client.
-      next.referrer =
-        parsed.href === "about:client" || parsed.origin !== pageOrigin ? "client" : parsed.href;
-    }
+}
+
+function parseRequestReferrer(value: string): URL {
+  try {
+    return new URL(value, state.pageUrl || undefined);
+  } catch {
+    throw new TypeError(`Failed to construct 'Request': Referrer '${value}' is not a valid URL.`);
   }
-  const policyInit = member("referrerPolicy");
-  if (policyInit !== undefined) {
-    const policy = String(policyInit);
-    if (!REFERRER_POLICY_VALUES.has(policy)) {
-      throw new TypeError(
-        `Failed to construct 'Request': The provided value '${policy}' is not a valid enum value of type ReferrerPolicy.`,
-      );
-    }
-    next.policy = policy;
+}
+
+function requestPageOrigin(): string {
+  try {
+    return new URL(state.pageUrl).origin;
+  } catch {
+    return "";
   }
+}
+
+function normalizedRequestReferrer(value: string): string {
+  const parsed = parseRequestReferrer(value);
+  const pageOrigin = requestPageOrigin();
+  // about:client, or a cross-origin URL, falls back to the client.
+  return parsed.href === "about:client" || parsed.origin !== pageOrigin ? "client" : parsed.href;
+}
+
+function setRequestReferrer(next: RequestReferrerState, referrerInit: unknown): void {
+  if (referrerInit === undefined) return;
+  const value = String(referrerInit);
+  next.referrer = value === "" ? "no-referrer" : normalizedRequestReferrer(value);
+}
+
+function setRequestReferrerPolicy(next: RequestReferrerState, policyInit: unknown): void {
+  if (policyInit === undefined) return;
+  const policy = String(policyInit);
+  if (!REFERRER_POLICY_VALUES.has(policy)) {
+    throw new TypeError(
+      `Failed to construct 'Request': The provided value '${policy}' is not a valid enum value of type ReferrerPolicy.`,
+    );
+  }
+  next.policy = policy;
+}
+
+function requestReferrerState(input: unknown, init: unknown): RequestReferrerState {
+  const next = inheritedRequestReferrerState(input);
+  if (!init || typeof init !== "object") return next;
+  const requestInit = init;
+  resetReferrerStateForInit(next, requestInit);
+  setRequestReferrer(next, Reflect.get(requestInit, "referrer"));
+  setRequestReferrerPolicy(next, Reflect.get(requestInit, "referrerPolicy"));
   return next;
 }
 
@@ -427,28 +459,52 @@ function installResponseShim(): void {
   if (typeof RealResponse !== "function") return;
   if ((RealResponse as any).__ksWrapped) return;
 
-  function WrappedResponse(this: any, body?: any, init?: any) {
+  const WrappedResponse = function WrappedResponse(this: any, body?: any, init?: any) {
     const effectiveBody = body instanceof FormData ? formDataToMultipartBlob(body) : body;
     const effectiveInit = withNormalizedHeaderInit(init);
     if (new.target) {
       return Reflect.construct(RealResponse, [effectiveBody, effectiveInit], new.target);
     }
     return new RealResponse(effectiveBody, effectiveInit);
-  }
+  };
   WrappedResponse.prototype = RealResponse.prototype;
-  for (const propertyName of Object.getOwnPropertyNames(RealResponse)) {
-    if (propertyName === "length" || propertyName === "name" || propertyName === "prototype")
-      continue;
-    try {
-      const descriptor = Object.getOwnPropertyDescriptor(RealResponse, propertyName);
-      if (descriptor) Object.defineProperty(WrappedResponse, propertyName, descriptor);
-    } catch {}
-  }
+  copyResponseStaticProperties(RealResponse, WrappedResponse);
   Object.defineProperty(WrappedResponse, "name", { value: "Response" });
   (WrappedResponse as any).__ksWrapped = true;
   ksGlobal.Response = WrappedResponse;
   patchFormDataRealmCrossing(RealResponse.prototype);
   patchBodyBlobMimeType(RealResponse.prototype);
+}
+
+function isResponseIntrinsicProperty(propertyName: string): boolean {
+  return propertyName === "length" || propertyName === "name" || propertyName === "prototype";
+}
+
+function copyResponseStaticProperty(
+  source: Function,
+  target: Function,
+  propertyName: string,
+): void {
+  if (isResponseIntrinsicProperty(propertyName)) return;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(source, propertyName);
+    if (descriptor) Object.defineProperty(target, propertyName, descriptor);
+  } catch {}
+}
+
+function copyResponseStaticProperties(source: Function, target: Function): void {
+  for (const propertyName of Object.getOwnPropertyNames(source)) {
+    copyResponseStaticProperty(source, target, propertyName);
+  }
+}
+
+function installBlobMimeTypePatch(prototype: object, blob: Function): void {
+  if (
+    !Reflect.set(prototype, "blob", blob, prototype) ||
+    !Reflect.set(prototype, "__ksMimeTypeBlobPatched", true, prototype)
+  ) {
+    throw new TypeError("Cannot patch Body.blob()");
+  }
 }
 
 function patchBodyBlobMimeType(prototype: object): void {
@@ -472,12 +528,7 @@ function patchBodyBlobMimeType(prototype: object): void {
     setBlobMimeType(result, mimeType);
     return result;
   };
-  if (
-    !Reflect.set(prototype, "blob", blob, prototype) ||
-    !Reflect.set(prototype, "__ksMimeTypeBlobPatched", true, prototype)
-  ) {
-    throw new TypeError("Cannot patch Body.blob()");
-  }
+  installBlobMimeTypePatch(prototype, blob);
 }
 
 function patchFormDataRealmCrossing(prototype: any): void {
@@ -498,36 +549,72 @@ function patchFormDataRealmCrossing(prototype: any): void {
 
 type BlobPart = string | Blob;
 
+function multipartBlobMetadata(value: File | Blob): { filename: string; contentType: string } {
+  const filename = (value && (value as File).name) || "blob";
+  const contentType = (value && (value as Blob).type) || "application/octet-stream";
+  return { filename, contentType };
+}
+
+function appendTextMultipartPart(
+  parts: BlobPart[],
+  name: string,
+  value: string,
+  boundary: string,
+  dashes: string,
+  crlf: string,
+): void {
+  const header =
+    dashes +
+    boundary +
+    crlf +
+    'Content-Disposition: form-data; name="' +
+    escapeMultipartName(name) +
+    '"' +
+    crlf +
+    crlf;
+  parts.push(header);
+  parts.push(value);
+  parts.push(crlf);
+}
+
+function appendFileMultipartPart(
+  parts: BlobPart[],
+  name: string,
+  value: Blob,
+  boundary: string,
+  dashes: string,
+  crlf: string,
+): void {
+  const { filename, contentType } = multipartBlobMetadata(value);
+  const header =
+    dashes +
+    boundary +
+    crlf +
+    'Content-Disposition: form-data; name="' +
+    escapeMultipartName(name) +
+    '"; filename="' +
+    escapeMultipartName(filename) +
+    '"' +
+    crlf +
+    "Content-Type: " +
+    contentType +
+    crlf +
+    crlf;
+  parts.push(header);
+  parts.push(value);
+  parts.push(crlf);
+}
+
 function formDataToMultipartBlob(formData: FormData): Blob {
   const boundary = "----formdata-kitesurf-" + Math.random().toString(36).slice(2, 18);
   const parts: BlobPart[] = [];
   const dashes = "--";
   const crlf = "\r\n";
   for (const [name, value] of formData as any) {
-    let header = dashes + boundary + crlf;
     if (typeof value === "string") {
-      header +=
-        'Content-Disposition: form-data; name="' + escapeMultipartName(name) + '"' + crlf + crlf;
-      parts.push(header);
-      parts.push(value);
-      parts.push(crlf);
+      appendTextMultipartPart(parts, name, value, boundary, dashes, crlf);
     } else {
-      const filename = (value && (value as File).name) || "blob";
-      const ctype = (value && (value as Blob).type) || "application/octet-stream";
-      header +=
-        'Content-Disposition: form-data; name="' +
-        escapeMultipartName(name) +
-        '"; filename="' +
-        escapeMultipartName(filename) +
-        '"' +
-        crlf +
-        "Content-Type: " +
-        ctype +
-        crlf +
-        crlf;
-      parts.push(header);
-      parts.push(value as Blob);
-      parts.push(crlf);
+      appendFileMultipartPart(parts, name, value, boundary, dashes, crlf);
     }
   }
   parts.push(dashes + boundary + dashes + crlf);
@@ -567,35 +654,42 @@ function requestUrlString(resolved: unknown, inputRequest: PageRequest | null): 
 const CARRIED_STATUS_HEADER = "x-kitesurf-status";
 const STATUS_CARRIER = 599;
 
-function restoreCarriedStatus(response: Response): Response {
-  const carried = responseHeaderGet(response, CARRIED_STATUS_HEADER);
-  if (carried === null) return response;
-  const authentic = response.status === STATUS_CARRIER;
-  const actualStatus = authentic ? Number(carried) : NaN;
+function responseHeadersWithoutCarriedStatus(response: Response): Headers {
   const visibleHeaders = newHeaders();
   for (const [name, value] of hdrEntries(responseHeaders(response))) {
     if (name.toLowerCase() !== CARRIED_STATUS_HEADER) {
       hdrAppend(visibleHeaders, name, value);
     }
   }
+  return visibleHeaders;
+}
+
+function restoreResponseStatus(response: Response, actualStatus: number): void {
+  if (!Number.isFinite(actualStatus) || actualStatus <= 0) return;
+  Object.defineProperty(response, "status", {
+    value: actualStatus,
+    configurable: true,
+    enumerable: true,
+  });
+  Object.defineProperty(response, "ok", {
+    value: actualStatus >= 200 && actualStatus <= 299,
+    configurable: true,
+    enumerable: true,
+  });
+}
+
+function restoreCarriedStatus(response: Response): Response {
+  const carried = responseHeaderGet(response, CARRIED_STATUS_HEADER);
+  if (carried === null) return response;
+  const actualStatus = response.status === STATUS_CARRIER ? Number(carried) : NaN;
+  const visibleHeaders = responseHeadersWithoutCarriedStatus(response);
   try {
     Object.defineProperty(response, "headers", {
       value: visibleHeaders,
       configurable: true,
       enumerable: true,
     });
-    if (Number.isFinite(actualStatus) && actualStatus > 0) {
-      Object.defineProperty(response, "status", {
-        value: actualStatus,
-        configurable: true,
-        enumerable: true,
-      });
-      Object.defineProperty(response, "ok", {
-        value: actualStatus >= 200 && actualStatus <= 299,
-        configurable: true,
-        enumerable: true,
-      });
-    }
+    restoreResponseStatus(response, actualStatus);
   } catch {}
   return response;
 }
@@ -604,61 +698,107 @@ const MAX_REDIRECTS = 20;
 
 const MAX_REPLAYABLE_BODY_BYTES = 1024 * 1024;
 
+type RequestBodySnapshot = {
+  replayable: Uint8Array | null;
+  body: Uint8Array | ReadableStream<Uint8Array>;
+};
+
+function throwIfRequestBodyAborted(signal?: AbortSignal): void {
+  signal?.throwIfAborted?.();
+}
+
+async function readRequestBody(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<{ done?: boolean; value?: Uint8Array }> {
+  try {
+    return await reader.read();
+  } catch (error) {
+    try {
+      console.error("[kitesurf] request body stream errored:", error);
+    } catch {}
+    throw new TypeError("Failed to fetch");
+  }
+}
+
+function cancelInvalidRequestBody(reader: ReadableStreamDefaultReader<Uint8Array>): never {
+  try {
+    reader.cancel();
+  } catch {}
+  throw new TypeError("Failed to fetch");
+}
+
+function appendRequestBodyChunk(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  chunks: Uint8Array[],
+  total: number,
+  chunk: unknown,
+): number {
+  if (chunk === undefined) return total;
+  if (!(chunk instanceof Uint8Array)) cancelInvalidRequestBody(reader);
+  chunks.push(chunk);
+  return total + chunk.byteLength;
+}
+
+function completeRequestBodySnapshot(chunks: Uint8Array[], total: number): RequestBodySnapshot {
+  const bodyBytes = concatChunks(chunks, total);
+  return { replayable: bodyBytes, body: bodyBytes };
+}
+
+function replayOversizeRequestBody(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  chunks: Uint8Array[],
+): RequestBodySnapshot {
+  const consumedChunks = chunks.slice();
+  const replayStream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const consumedChunk of consumedChunks) controller.enqueue(consumedChunk);
+    },
+    async pull(controller) {
+      try {
+        const readResult = await reader.read();
+        if (readResult.done) controller.close();
+        else if (readResult.value) controller.enqueue(readResult.value);
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+  return { replayable: null, body: replayStream };
+}
+
 async function snapshotRequestBody(
   body: ReadableStream<Uint8Array>,
   cap: number,
   signal?: AbortSignal,
-): Promise<{ replayable: Uint8Array | null; body: Uint8Array | ReadableStream<Uint8Array> }> {
+): Promise<RequestBodySnapshot> {
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {
-    signal?.throwIfAborted?.();
-    let readResult: { done?: boolean; value?: Uint8Array };
-    try {
-      readResult = await reader.read();
-    } catch (e) {
-      try {
-        console.error("[kitesurf] request body stream errored:", e);
-      } catch {}
-      throw new TypeError("Failed to fetch");
-    }
-    if (readResult.done) {
-      const bodyBytes = concatChunks(chunks, total);
-      return { replayable: bodyBytes, body: bodyBytes };
-    }
-    const chunk = readResult.value;
-    if (chunk === undefined) continue;
-    if (!(chunk instanceof Uint8Array)) {
-      try {
-        reader.cancel();
-      } catch {}
-      throw new TypeError("Failed to fetch");
-    }
-    chunks.push(chunk);
-    total += chunk.byteLength;
-    if (total > cap) {
-      const consumedChunks = chunks.slice();
-      const replayStream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          for (const consumedChunk of consumedChunks) controller.enqueue(consumedChunk);
-        },
-        async pull(controller) {
-          try {
-            const readResult = await reader.read();
-            if (readResult.done) controller.close();
-            else if (readResult.value) controller.enqueue(readResult.value);
-          } catch (e) {
-            controller.error(e);
-          }
-        },
-        cancel(reason) {
-          return reader.cancel(reason);
-        },
-      });
-      return { replayable: null, body: replayStream };
-    }
+    throwIfRequestBodyAborted(signal);
+    const readResult = await readRequestBody(reader);
+    if (readResult.done) return completeRequestBodySnapshot(chunks, total);
+    total = appendRequestBodyChunk(reader, chunks, total, readResult.value);
+    if (total > cap) return replayOversizeRequestBody(reader, chunks);
   }
+}
+
+function throwIfRedirectAborted(signal?: AbortSignal): void {
+  signal?.throwIfAborted?.();
+}
+
+async function throwIfBlockedResponse(response: Response): Promise<void> {
+  const blockedReason = responseHeaderGet(response, "x-kitesurf-blocked");
+  if (response.status !== 403 || !blockedReason) return;
+  const detail = await response.text();
+  try {
+    console.error(detail);
+  } catch {}
+  if (blockedReason === "cors") throw new TypeError("Failed to fetch");
+  throw new TypeError(detail);
 }
 
 // Workerd omits these Request fields; page-provided values stay untrusted until narrowed.
@@ -696,6 +836,27 @@ interface RedirectContext {
   inputRequest: PageRequest | null;
 }
 
+interface RedirectState {
+  response: Response;
+  currentUrl: string;
+  hops: number;
+  tainting: "basic" | "cors";
+  opaqueOrigin: boolean;
+  method: string;
+  keepBody: boolean;
+}
+
+type RedirectResult = {
+  response: Response;
+  url: string;
+  hops: number;
+  tainting: "basic" | "cors";
+};
+
+type RedirectDecision =
+  | { kind: "done"; result: RedirectResult }
+  | { kind: "follow"; location: string };
+
 function redirectDowngradesToGet(status: number, method: string): boolean {
   if (status === 303) return method !== "GET" && method !== "HEAD";
   return (status === 301 || status === 302) && method === "POST";
@@ -713,6 +874,226 @@ function opaqueRedirect(response: Response): Response {
   return opaqueResponse;
 }
 
+function originOfUrl(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "";
+  }
+}
+
+function isCrossOriginUrl(url: string, pageOrigin: string): boolean {
+  if (!url || !pageOrigin) return false;
+  try {
+    return new URL(url).origin !== pageOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function createRedirectState(
+  first: Response,
+  firstUrl: string,
+  { pageOrigin, init, inputRequest }: RedirectContext,
+): RedirectState {
+  return {
+    response: first,
+    currentUrl: firstUrl,
+    hops: 0,
+    tainting: isCrossOriginUrl(firstUrl, pageOrigin) ? "cors" : "basic",
+    opaqueOrigin: !pageOrigin,
+    method: String(init.method ?? inputRequest?.method ?? "GET").toUpperCase(),
+    keepBody: true,
+  };
+}
+
+function isRedirectResponse(response: Response): boolean {
+  return REDIRECT_STATUSES.indexOf(response.status) !== -1;
+}
+
+function redirectResult(state: RedirectState, response = state.response): RedirectResult {
+  return {
+    response,
+    url: state.currentUrl,
+    hops: state.hops,
+    tainting: state.tainting,
+  };
+}
+
+function manualRedirectResult(
+  state: RedirectState,
+  redirectMode: string,
+  isRedirect: boolean,
+): RedirectResult | null {
+  if (!isRedirect || redirectMode !== "manual") return null;
+  return redirectResult(state, opaqueRedirect(state.response));
+}
+
+function redirectLocation(state: RedirectState, isRedirect: boolean): string | null {
+  return isRedirect ? responseHeaderGet(state.response, "location") : null;
+}
+
+function assertRedirectCanBeFollowed(location: string, redirectMode: string, hops: number): void {
+  if (location === "") throw new TypeError("Failed to fetch");
+  if (redirectMode === "error") throw new TypeError("Failed to fetch");
+  if (hops >= MAX_REDIRECTS) throw new TypeError("Failed to fetch");
+}
+
+function inspectRedirect(state: RedirectState, redirectMode: string): RedirectDecision {
+  const isRedirect = isRedirectResponse(state.response);
+  const manualResult = manualRedirectResult(state, redirectMode, isRedirect);
+  if (manualResult !== null) return { kind: "done", result: manualResult };
+  const location = redirectLocation(state, isRedirect);
+  if (location === null) return { kind: "done", result: redirectResult(state) };
+  assertRedirectCanBeFollowed(location, redirectMode, state.hops);
+  return { kind: "follow", location };
+}
+
+function isBodylessGet(method: string, body: BodyInit | null | undefined): boolean {
+  return (method === "GET" || method === "HEAD") && body == null;
+}
+
+async function followReplacementRedirect(
+  realFetch: typeof globalThis.fetch,
+  state: RedirectState,
+  location: string,
+  context: RedirectContext,
+): Promise<RedirectResult | null> {
+  if (!location.includes("\uFFFD")) return null;
+  if (!isBodylessGet(state.method, context.init.body)) {
+    throw new TypeError("Failed to fetch");
+  }
+  const handoff: KsRequestInit = { ...context.init, redirect: "follow" };
+  const response = await realFetch(state.currentUrl, handoff);
+  return redirectResult(state, response);
+}
+
+function parseRedirectTarget(location: string, currentUrl: string): URL {
+  try {
+    return new URL(location, currentUrl);
+  } catch {
+    throw new TypeError("Failed to fetch");
+  }
+}
+
+function redirectTargetHasHttpProtocol(target: URL): boolean {
+  return target.protocol === "http:" || target.protocol === "https:";
+}
+
+function validateRedirectTarget(target: URL, mode: string): void {
+  if (!redirectTargetHasHttpProtocol(target)) throw new TypeError("Failed to fetch");
+  if (mode !== "no-cors" && (target.username !== "" || target.password !== "")) {
+    throw new TypeError("Failed to fetch");
+  }
+}
+
+function updateRedirectOriginState(
+  state: RedirectState,
+  target: URL,
+  currentHopOrigin: string,
+  headers: Headers,
+): void {
+  if (state.tainting === "cors" && target.origin !== currentHopOrigin) {
+    state.opaqueOrigin = true;
+  }
+  if (target.origin !== currentHopOrigin) hdrDelete(headers, "authorization");
+}
+
+function stripRedirectBodyHeaders(headers: Headers): void {
+  for (const name of [
+    "content-encoding",
+    "content-language",
+    "content-length",
+    "content-location",
+    "content-type",
+  ]) {
+    hdrDelete(headers, name);
+  }
+}
+
+function downgradeRedirectRequest(
+  state: RedirectState,
+  response: Response,
+  init: KsRequestInit,
+  headers: Headers,
+): void {
+  if (!redirectDowngradesToGet(response.status, state.method)) return;
+  state.method = "GET";
+  delete init.body;
+  state.keepBody = false;
+  stripRedirectBodyHeaders(headers);
+}
+
+function assertRedirectBodyReplayable(
+  state: RedirectState,
+  body: BodyInit | null | undefined,
+): void {
+  if (state.keepBody && isStreamBody(body)) throw new TypeError("Failed to fetch");
+}
+
+function setRedirectOriginHeader(
+  headers: Headers,
+  target: URL,
+  hopOrigin: string,
+  method: string,
+): void {
+  if (!hopOrigin) return;
+  const isCrossOrigin = target.origin !== hopOrigin;
+  if (isCrossOrigin || (method !== "GET" && method !== "HEAD")) {
+    hdrSet(headers, "Origin", hopOrigin);
+  }
+}
+
+function setRedirectRequestHeaders(
+  state: RedirectState,
+  target: URL,
+  context: RedirectContext,
+): void {
+  const hopOrigin = state.opaqueOrigin ? "" : context.pageOrigin;
+  hdrSet(context.headers, "x-kitesurf-page-origin", state.opaqueOrigin ? "null" : hopOrigin);
+  hdrDelete(context.headers, "Origin");
+  setRedirectOriginHeader(context.headers, target, hopOrigin, state.method);
+}
+
+function updateRedirectTainting(state: RedirectState, target: URL, pageOrigin: string): void {
+  if (state.opaqueOrigin || (pageOrigin !== "" && target.origin !== pageOrigin)) {
+    state.tainting = "cors";
+  }
+}
+
+function prepareRedirectHop(state: RedirectState, target: URL, context: RedirectContext): void {
+  const currentHopOrigin = originOfUrl(state.currentUrl);
+  updateRedirectOriginState(state, target, currentHopOrigin, context.headers);
+  downgradeRedirectRequest(state, state.response, context.init, context.headers);
+  assertRedirectBodyReplayable(state, context.init.body);
+  setRedirectRequestHeaders(state, target, context);
+  state.currentUrl = target.toString();
+  updateRedirectTainting(state, target, context.pageOrigin);
+  state.hops += 1;
+  context.init.method = state.method;
+  context.init.headers = context.headers;
+}
+
+async function followRedirectLoop(
+  realFetch: typeof globalThis.fetch,
+  state: RedirectState,
+  context: RedirectContext,
+): Promise<RedirectResult> {
+  const signal = context.init.signal ?? undefined;
+  for (;;) {
+    const decision = inspectRedirect(state, context.redirectMode);
+    if (decision.kind === "done") return decision.result;
+    throwIfRedirectAborted(signal);
+    const handoff = await followReplacementRedirect(realFetch, state, decision.location, context);
+    if (handoff !== null) return handoff;
+    const target = parseRedirectTarget(decision.location, state.currentUrl);
+    validateRedirectTarget(target, context.mode);
+    prepareRedirectHop(state, target, context);
+    state.response = await realFetch(state.currentUrl, context.init);
+    await throwIfBlockedResponse(state.response);
+  }
+}
+
 async function followRedirects(
   realFetch: typeof globalThis.fetch,
   first: Response,
@@ -720,108 +1101,580 @@ async function followRedirects(
   { pageOrigin, headers, init, redirectMode, mode, inputRequest }: RedirectContext,
 ): Promise<{ response: Response; url: string; hops: number; tainting: "basic" | "cors" }> {
   // The shim owns redirects so each hop receives updated origin and referrer carriers.
-  let response = first;
-  let currentUrl = firstUrl;
-  let hops = 0;
-  let tainting: "basic" | "cors" = "basic";
-  try {
-    if (currentUrl && pageOrigin && new URL(currentUrl).origin !== pageOrigin) {
-      tainting = "cors";
-    }
-  } catch {}
-  let opaqueOrigin = !pageOrigin;
-  let method = String(init.method ?? inputRequest?.method ?? "GET").toUpperCase();
-  const signal = init.signal ?? undefined;
-  let keepBody = true;
+  const state = createRedirectState(first, firstUrl, {
+    pageOrigin,
+    headers,
+    init,
+    redirectMode,
+    mode,
+    inputRequest,
+  });
+  return followRedirectLoop(realFetch, state, {
+    pageOrigin,
+    headers,
+    init,
+    redirectMode,
+    mode,
+    inputRequest,
+  });
+}
 
-  for (;;) {
-    const isRedirect = REDIRECT_STATUSES.indexOf(response.status) !== -1;
-    if (isRedirect && redirectMode === "manual") {
-      return { response: opaqueRedirect(response), url: currentUrl, hops, tainting };
-    }
-    const rawLocation = isRedirect ? responseHeaderGet(response, "location") : null;
-    if (rawLocation === null) return { response, url: currentUrl, hops, tainting };
-    if (rawLocation === "") throw new TypeError("Failed to fetch");
-    const location = rawLocation;
-    if (redirectMode === "error") throw new TypeError("Failed to fetch");
-    if (hops >= MAX_REDIRECTS) throw new TypeError("Failed to fetch");
-    signal?.throwIfAborted?.();
+type FetchInput = Parameters<typeof globalThis.fetch>[0];
+type FetchInit = Parameters<typeof globalThis.fetch>[1];
 
-    if (location.includes("\uFFFD")) {
-      if ((method !== "GET" && method !== "HEAD") || init.body != null) {
-        throw new TypeError("Failed to fetch");
-      }
-      const handoff: KsRequestInit = { ...init, redirect: "follow" };
-      return {
-        response: await realFetch(currentUrl, handoff),
-        url: currentUrl,
-        hops,
-        tainting,
-      };
-    }
-    let redirectTarget: URL;
-    try {
-      redirectTarget = new URL(location, currentUrl);
-    } catch {
-      throw new TypeError("Failed to fetch");
-    }
-    if (redirectTarget.protocol !== "http:" && redirectTarget.protocol !== "https:") {
-      throw new TypeError("Failed to fetch");
-    }
-    if (mode !== "no-cors" && (redirectTarget.username !== "" || redirectTarget.password !== "")) {
-      throw new TypeError("Failed to fetch");
-    }
-    let currentHopOrigin = "";
-    try {
-      currentHopOrigin = new URL(currentUrl).origin;
-    } catch {}
-    if (tainting === "cors" && redirectTarget.origin !== currentHopOrigin) opaqueOrigin = true;
-    if (redirectTarget.origin !== currentHopOrigin) hdrDelete(headers, "authorization");
-
-    if (redirectDowngradesToGet(response.status, method)) {
-      method = "GET";
-      delete init.body;
-      keepBody = false;
-      for (const name of [
-        "content-encoding",
-        "content-language",
-        "content-length",
-        "content-location",
-        "content-type",
-      ]) {
-        hdrDelete(headers, name);
-      }
-    }
-    if (keepBody && isStreamBody(init.body)) {
-      throw new TypeError("Failed to fetch");
-    }
-    const hopOrigin = opaqueOrigin ? "" : pageOrigin;
-    hdrSet(headers, "x-kitesurf-page-origin", opaqueOrigin ? "null" : hopOrigin);
-    hdrDelete(headers, "Origin");
-    if (hopOrigin) {
-      const isCrossOrigin = redirectTarget.origin !== hopOrigin;
-      if (isCrossOrigin || (method !== "GET" && method !== "HEAD")) {
-        hdrSet(headers, "Origin", hopOrigin);
-      }
-    }
-    currentUrl = redirectTarget.toString();
-    if (opaqueOrigin || (pageOrigin !== "" && redirectTarget.origin !== pageOrigin)) {
-      tainting = "cors";
-    }
-    hops += 1;
-    init.method = method;
-    init.headers = headers;
-    response = await realFetch(currentUrl, init);
-    const blockedReason = responseHeaderGet(response, "x-kitesurf-blocked");
-    if (response.status === 403 && blockedReason) {
-      const detail = await response.text();
-      try {
-        console.error(detail);
-      } catch {}
-      if (blockedReason === "cors") throw new TypeError("Failed to fetch");
-      throw new TypeError(detail);
-    }
+function resolveFetchInput(input: FetchInput): FetchInput {
+  if (typeof input === "string") {
+    return state.pageUrl ? new URL(input, state.pageUrl).toString() : input;
   }
+  if (input instanceof URL) return input.toString();
+  return input;
+}
+
+function pageRequestFromInput(input: FetchInput): PageRequest | null {
+  return typeof Request === "function" && input instanceof Request ? (input as PageRequest) : null;
+}
+
+function coerceFetchInit(init: FetchInit): KsRequestInit | undefined {
+  return serializeFormDataBodyInInit(validateAndStripCache(init, true));
+}
+
+function sourceFetchHeaders(
+  mergedInit: KsRequestInit,
+  inputRequest: PageRequest | null,
+): HeadersInit {
+  return mergedInit.headers ?? (inputRequest ? inputRequest.headers : {});
+}
+
+function setPageMetadataHeaders(headers: Headers): void {
+  if (state.connectionId) {
+    hdrSet(headers, "x-kitesurf-connection-id", state.connectionId);
+  } else {
+    hdrDelete(headers, "x-kitesurf-connection-id");
+  }
+  if (state.mainFrameId) {
+    hdrSet(headers, "x-kitesurf-frame-id", state.mainFrameId);
+  } else {
+    hdrDelete(headers, "x-kitesurf-frame-id");
+  }
+  if (state.cookieKey) {
+    hdrSet(headers, "x-kitesurf-cookie-key", state.cookieKey);
+  } else {
+    hdrDelete(headers, "x-kitesurf-cookie-key");
+  }
+}
+
+function setFetchCredentialsHeader(
+  headers: Headers,
+  initMaybeCoerced: KsRequestInit | undefined,
+  inputRequest: PageRequest | null,
+): void {
+  if (hdrHas(headers, "x-kitesurf-credentials")) return;
+  const credentialsMode = fetchCredentialsMode(initMaybeCoerced, inputRequest);
+  hdrSet(headers, "x-kitesurf-credentials", fetchCredentialsHeaderValue(credentialsMode));
+}
+
+function pageRequestCredentials(inputRequest: PageRequest | null): unknown {
+  return inputRequest ? inputRequest.credentials : undefined;
+}
+
+function fetchCredentialsMode(
+  initMaybeCoerced: KsRequestInit | undefined,
+  inputRequest: PageRequest | null,
+): string {
+  const requestCredentials = pageRequestCredentials(inputRequest);
+  return String(initMaybeCoerced?.credentials ?? requestCredentials ?? "same-origin");
+}
+
+function fetchCredentialsHeaderValue(credentialsMode: string): string {
+  return credentialsMode === "omit" || credentialsMode === "include"
+    ? credentialsMode
+    : "same-origin";
+}
+
+function pageRequestMode(inputRequest: PageRequest | null): unknown {
+  return inputRequest?.mode ?? "cors";
+}
+
+function fetchRequestMode(
+  initMaybeCoerced: KsRequestInit | undefined,
+  inputRequest: PageRequest | null,
+): string {
+  return String(initMaybeCoerced?.mode ?? pageRequestMode(inputRequest));
+}
+
+function fetchModeHeaderValue(requestMode: string): string {
+  return requestMode === "no-cors" ? "no-cors" : "cors";
+}
+
+function setFetchModeHeader(
+  headers: Headers,
+  initMaybeCoerced: KsRequestInit | undefined,
+  inputRequest: PageRequest | null,
+): void {
+  const requestMode = fetchRequestMode(initMaybeCoerced, inputRequest);
+  hdrSet(headers, "x-kitesurf-mode", fetchModeHeaderValue(requestMode));
+}
+
+function createFetchRequestHeaders(
+  init: FetchInit,
+  initMaybeCoerced: KsRequestInit | undefined,
+  mergedInit: KsRequestInit,
+  inputRequest: PageRequest | null,
+  origin: string,
+): Headers {
+  const headers = newHeaders(sourceFetchHeaders(mergedInit, inputRequest));
+  hdrSet(headers, "x-kitesurf-page-origin", origin);
+  setPageMetadataHeaders(headers);
+  // Only metadata in the private WeakMap may set engine-owned request attribution.
+  const trustedMeta = takeTrustedRequestMeta(init);
+  hdrSet(headers, "x-kitesurf-initiator", trustedMeta?.initiator || "script");
+  hdrSet(headers, "x-kitesurf-resource-type", trustedMeta?.resourceType || "Fetch");
+  setFetchCredentialsHeader(headers, initMaybeCoerced, inputRequest);
+  setFetchModeHeader(headers, initMaybeCoerced, inputRequest);
+  return headers;
+}
+
+function parseFetchReferrer(referrerString: string): URL | null {
+  try {
+    return new URL(referrerString, state.pageUrl || undefined);
+  } catch {
+    return null;
+  }
+}
+
+function sameOriginFetchReferrer(referrerString: string, origin: string): URL | null {
+  const referrerUrl = parseFetchReferrer(referrerString);
+  if (!referrerUrl || !origin || referrerUrl.origin !== origin) return null;
+  referrerUrl.hash = "";
+  referrerUrl.username = "";
+  referrerUrl.password = "";
+  return referrerUrl;
+}
+
+function isOriginOnlyReferrerPolicy(policy: string): boolean {
+  return policy === "origin" || policy === "strict-origin";
+}
+
+function isCrossOriginOriginReferrerPolicy(policy: string): boolean {
+  return (
+    policy === "" ||
+    policy === "origin-when-cross-origin" ||
+    policy === "strict-origin-when-cross-origin"
+  );
+}
+
+function isCrossOriginFetchTarget(
+  resolved: FetchInput,
+  inputRequest: PageRequest | null,
+  origin: string,
+): boolean {
+  try {
+    const requestUrl = requestUrlString(resolved, inputRequest);
+    return !!requestUrl && new URL(requestUrl, state.pageUrl || undefined).origin !== origin;
+  } catch {
+    return false;
+  }
+}
+
+function isNoReferrerValue(referrerString: string, policy: string): boolean {
+  return referrerString === "" || policy === "no-referrer";
+}
+
+function shouldSendOriginOnlyReferrer(policy: string, targetCrossOrigin: boolean): boolean {
+  return (
+    isOriginOnlyReferrerPolicy(policy) ||
+    (isCrossOriginOriginReferrerPolicy(policy) && targetCrossOrigin)
+  );
+}
+
+function fetchReferrerHeaderValue(
+  referrerString: string,
+  policy: string,
+  resolved: FetchInput,
+  inputRequest: PageRequest | null,
+  origin: string,
+): string | null {
+  if (isNoReferrerValue(referrerString, policy)) return "no-referrer";
+  if (referrerString === "about:client") return null;
+  const referrerUrl = sameOriginFetchReferrer(referrerString, origin);
+  if (!referrerUrl) return null;
+  const targetCrossOrigin = isCrossOriginFetchTarget(resolved, inputRequest, origin);
+  return shouldSendOriginOnlyReferrer(policy, targetCrossOrigin)
+    ? referrerUrl.origin + "/"
+    : referrerUrl.href;
+}
+
+function setFetchReferrerHeader(
+  headers: Headers,
+  initMaybeCoerced: KsRequestInit | undefined,
+  inputRequest: PageRequest | null,
+  resolved: FetchInput,
+  origin: string,
+): void {
+  // SAFETY: Strip page-supplied referrer carriers before deriving the trusted page referrer.
+  hdrDelete(headers, "x-kitesurf-referrer");
+  const referrerInput = fetchReferrerInput(initMaybeCoerced, inputRequest);
+  if (referrerInput === undefined || referrerInput === null) return;
+  const referrerString = String(referrerInput);
+  const policy = fetchReferrerPolicy(initMaybeCoerced, inputRequest);
+  const value = fetchReferrerHeaderValue(referrerString, policy, resolved, inputRequest, origin);
+  if (value !== null) hdrSet(headers, "x-kitesurf-referrer", value);
+}
+
+function fetchReferrerInput(
+  initMaybeCoerced: KsRequestInit | undefined,
+  inputRequest: PageRequest | null,
+): unknown {
+  return initMaybeCoerced?.referrer ?? (inputRequest ? inputRequest.referrer : undefined);
+}
+
+function pageRequestReferrerPolicy(inputRequest: PageRequest | null): unknown {
+  return inputRequest?.referrerPolicy ?? "";
+}
+
+function fetchReferrerPolicy(
+  initMaybeCoerced: KsRequestInit | undefined,
+  inputRequest: PageRequest | null,
+): string {
+  return String(
+    initMaybeCoerced?.referrerPolicy ?? pageRequestReferrerPolicy(inputRequest) ?? "",
+  ).toLowerCase();
+}
+
+function requestOriginForInput(resolved: FetchInput, inputRequest: PageRequest | null): string {
+  try {
+    const requestUrl = requestUrlString(resolved, inputRequest);
+    if (!requestUrl) return "";
+    return new URL(requestUrl, state.pageUrl || undefined).origin;
+  } catch {
+    return "";
+  }
+}
+
+function isSafeFetchMethod(method: string): boolean {
+  return method === "GET" || method === "HEAD";
+}
+
+function shouldSetFetchOriginHeader(
+  origin: string,
+  requestOrigin: string,
+  method: string,
+): boolean {
+  const isCrossOrigin = requestOrigin !== "" && requestOrigin !== origin;
+  return isCrossOrigin || !isSafeFetchMethod(method);
+}
+
+function setFetchOriginHeader(
+  headers: Headers,
+  origin: string,
+  resolved: FetchInput,
+  inputRequest: PageRequest | null,
+  mergedInit: KsRequestInit,
+): void {
+  if (!origin) return;
+  if (hdrHas(headers, "Origin")) return;
+  const requestOrigin = requestOriginForInput(resolved, inputRequest);
+  const method = requestMethodForInput(mergedInit, inputRequest);
+  if (shouldSetFetchOriginHeader(origin, requestOrigin, method)) {
+    hdrSet(headers, "Origin", origin);
+  }
+}
+
+function requestMethodForInput(
+  mergedInit: KsRequestInit,
+  inputRequest: PageRequest | null,
+): string {
+  return String(mergedInit.method ?? inputRequest?.method ?? "GET").toUpperCase();
+}
+
+function isNoCorsFetchMode(
+  initMaybeCoerced: KsRequestInit | undefined,
+  inputRequest: PageRequest | null,
+): boolean {
+  return fetchRequestMode(initMaybeCoerced, inputRequest) === "no-cors";
+}
+
+function isNoCorsFetchMethod(mergedInit: KsRequestInit, inputRequest: PageRequest | null): boolean {
+  return ["GET", "HEAD", "POST"].includes(requestMethodForInput(mergedInit, inputRequest));
+}
+
+function validateNoCorsRequest(
+  initMaybeCoerced: KsRequestInit | undefined,
+  inputRequest: PageRequest | null,
+  mergedInit: KsRequestInit,
+): void {
+  if (
+    isNoCorsFetchMode(initMaybeCoerced, inputRequest) &&
+    !isNoCorsFetchMethod(mergedInit, inputRequest)
+  ) {
+    throw new TypeError(
+      "Failed to execute 'fetch': mode 'no-cors' only permits GET, HEAD and POST",
+    );
+  }
+}
+
+function validatedRedirectMode(
+  mergedInit: KsRequestInit,
+  inputRequest: PageRequest | null,
+): string {
+  const redirectMode = fetchRedirectMode(mergedInit, inputRequest);
+  if (!isValidFetchRedirectMode(redirectMode)) {
+    throw new TypeError(
+      `Failed to execute 'fetch': The provided value '${redirectMode}' is not a valid enum value of type RequestRedirect.`,
+    );
+  }
+  return redirectMode;
+}
+
+function isValidFetchRedirectMode(redirectMode: string): boolean {
+  return redirectMode === "follow" || redirectMode === "manual" || redirectMode === "error";
+}
+
+function fetchRedirectMode(mergedInit: KsRequestInit, inputRequest: PageRequest | null): string {
+  return String(mergedInit.redirect ?? inputRequest?.redirect ?? "follow");
+}
+
+function applyRequestBodySnapshot(init: KsRequestInit, snapshot: RequestBodySnapshot): void {
+  init.body = snapshot.body;
+  if (snapshot.replayable === null) init.duplex = "half";
+}
+
+async function snapshotInputRequestBody(
+  inputRequest: PageRequest,
+  init: KsRequestInit,
+): Promise<FetchInput> {
+  const snapshot = await snapshotRequestBody(
+    inputRequest.body as ReadableStream<Uint8Array>,
+    MAX_REPLAYABLE_BODY_BYTES,
+    init.signal ?? inputRequest.signal ?? undefined,
+  );
+  applyRequestBodySnapshot(init, snapshot);
+  init.method = init.method ?? inputRequest.method;
+  init.signal = init.signal ?? inputRequest.signal;
+  return inputRequest.url;
+}
+
+async function snapshotFetchRequestBody(
+  resolved: FetchInput,
+  inputRequest: PageRequest | null,
+  init: KsRequestInit,
+): Promise<FetchInput> {
+  if (inputRequestBodyNeedsSnapshot(inputRequest, init)) {
+    return snapshotInputRequestBody(inputRequest, init);
+  }
+  if (!isStreamBody(init.body)) return resolved;
+  const snapshot = await snapshotRequestBody(
+    init.body as ReadableStream<Uint8Array>,
+    MAX_REPLAYABLE_BODY_BYTES,
+    init.signal ?? undefined,
+  );
+  applyRequestBodySnapshot(init, snapshot);
+  return resolved;
+}
+
+function inputRequestBodyNeedsSnapshot(
+  inputRequest: PageRequest | null,
+  init: KsRequestInit,
+): inputRequest is PageRequest {
+  return !!(inputRequest && inputRequest.body && init.body == null);
+}
+
+function retryMethodForInput(resolved: FetchInput, init: KsRequestInit): string {
+  return String(
+    init.method ??
+      (typeof Request === "function" && resolved instanceof Request
+        ? (resolved as any).method
+        : "GET"),
+  ).toUpperCase();
+}
+
+function isRetriableFetchMethod(method: string): boolean {
+  return method === "GET" || method === "HEAD" || method === "OPTIONS" || method === "POST";
+}
+
+function retryRequestIsBodiless(resolved: FetchInput, init: KsRequestInit): boolean {
+  return (
+    init.body == null &&
+    !(
+      typeof Request === "function" &&
+      resolved instanceof Request &&
+      (resolved as any).body != null
+    )
+  );
+}
+
+function shouldRetryFetch(error: unknown, resolved: FetchInput, init: KsRequestInit): boolean {
+  const retryMethod = retryMethodForInput(resolved, init);
+  const methodOk = isRetriableFetchMethod(retryMethod);
+  const bodiless = retryRequestIsBodiless(resolved, init);
+  const aborted = init.signal?.aborted === true;
+  const retriable = isRetriableInternalError(error);
+  return retriable && methodOk && bodiless && !aborted;
+}
+
+async function fetchWithInternalRetry(
+  realFetch: typeof globalThis.fetch,
+  resolved: FetchInput,
+  init: KsRequestInit,
+): Promise<Response> {
+  try {
+    return await realFetch(resolved, init);
+  } catch (error) {
+    if (!shouldRetryFetch(error, resolved, init)) throw error;
+    return await realFetch(resolved, init);
+  }
+}
+
+function validateFetchRequest(
+  initMaybeCoerced: KsRequestInit | undefined,
+  inputRequest: PageRequest | null,
+  mergedInit: KsRequestInit,
+): string {
+  validateNoCorsRequest(initMaybeCoerced, inputRequest, mergedInit);
+  const redirectMode = validatedRedirectMode(mergedInit, inputRequest);
+  mergedInit.redirect = "manual";
+  return redirectMode;
+}
+
+function responseTypeForUrl(finalRequestUrl: string): "basic" | "cors" {
+  if (!finalRequestUrl || !state.pageUrl) return "basic";
+  const requestOrigin = new URL(finalRequestUrl, state.pageUrl).origin;
+  const pageOrigin = new URL(state.pageUrl).origin;
+  return requestOrigin !== pageOrigin ? "cors" : "basic";
+}
+
+function fetchResponseType(
+  followed: RedirectResult,
+  resolved: FetchInput,
+  inputRequest: PageRequest | null,
+  init: KsRequestInit,
+): "basic" | "cors" | "opaque" {
+  if (followed.tainting === "cors") {
+    const requestMode = fetchRequestMode(init, inputRequest);
+    return requestMode === "no-cors" ? "opaque" : "cors";
+  }
+  const finalRequestUrl = followed.url || requestUrlString(resolved, inputRequest);
+  return responseTypeForUrl(finalRequestUrl);
+}
+
+function createOpaqueFetchResponse(): Response {
+  const OPAQUE_RESPONSE_CONSTRUCTION_STATUS = 400;
+  const opaque = new Response(null, {
+    status: OPAQUE_RESPONSE_CONSTRUCTION_STATUS,
+    headers: newHeaders(),
+  });
+  for (const [prop, value] of [
+    ["type", "opaque"],
+    ["status", 0],
+    ["ok", false],
+    ["statusText", ""],
+    ["url", ""],
+    ["redirected", false],
+  ] as Array<[string, unknown]>) {
+    try {
+      Object.defineProperty(opaque, prop, {
+        value,
+        configurable: true,
+        enumerable: true,
+      });
+    } catch {}
+  }
+  return opaque;
+}
+
+function applyFetchResponseType(
+  response: Response,
+  computedType: "basic" | "cors" | "opaque",
+): Response {
+  if (computedType === "opaque") return createOpaqueFetchResponse();
+  Object.defineProperty(response, "type", {
+    value: computedType,
+    configurable: true,
+    enumerable: true,
+    writable: false,
+  });
+  return response;
+}
+
+function setRedirectedResponseMetadata(response: Response, followed: RedirectResult): void {
+  if (followed.hops <= 0) return;
+  try {
+    Object.defineProperty(response, "url", {
+      value: followed.url,
+      configurable: true,
+      enumerable: true,
+    });
+    Object.defineProperty(response, "redirected", {
+      value: true,
+      configurable: true,
+      enumerable: true,
+    });
+  } catch {}
+}
+
+function applyFetchResponseTypeIfReadable(
+  response: Response,
+  followed: RedirectResult,
+  resolved: FetchInput,
+  inputRequest: PageRequest | null,
+  init: KsRequestInit,
+): Response {
+  try {
+    if ((response.type as string) === "opaqueredirect") return response;
+    return applyFetchResponseType(
+      response,
+      fetchResponseType(followed, resolved, inputRequest, init),
+    );
+  } catch {}
+  return response;
+}
+
+function finalizeFetchResponse(
+  response: Response,
+  followed: RedirectResult,
+  resolved: FetchInput,
+  inputRequest: PageRequest | null,
+  init: KsRequestInit,
+): Response {
+  const restored = restoreCarriedStatus(response);
+  setRedirectedResponseMetadata(restored, followed);
+  return applyFetchResponseTypeIfReadable(restored, followed, resolved, inputRequest, init);
+}
+
+function isFetchInitAborted(init: FetchInit): boolean {
+  return (init as KsRequestInit | undefined)?.signal?.aborted === true;
+}
+
+function isRequestInputAborted(input: FetchInput): boolean {
+  if (typeof Request === "function" && input instanceof Request) {
+    return input.signal?.aborted === true;
+  }
+  return false;
+}
+
+function isFetchSignalAborted(init: FetchInit, input: FetchInput): boolean {
+  if (isFetchInitAborted(init)) return true;
+  return isRequestInputAborted(input);
+}
+
+function isAbortError(error: unknown): boolean {
+  return (error as any)?.name === "AbortError";
+}
+
+function isFetchAbortError(error: unknown, init: FetchInit, input: FetchInput): boolean {
+  return isFetchSignalAborted(init, input) || isAbortError(error);
+}
+
+function shouldPassThroughFetchError(error: unknown, init: FetchInit, input: FetchInput): boolean {
+  if (error instanceof TypeError) return true;
+  if (isFetchAbortError(error, init, input)) return true;
+  return isDisallowedError(error);
+}
+
+function logFetchNetworkError(error: unknown): void {
+  try {
+    console.error("[kitesurf] fetch network error:", error);
+  } catch {}
 }
 
 export function installFetchShim(): void {
@@ -832,198 +1685,28 @@ export function installFetchShim(): void {
   if (typeof nativeFetch !== "function") return;
   const realFetch = routeViaSession(nativeFetch);
   const kitesurfFetchImpl = async function fetch(
-    input: Parameters<typeof globalThis.fetch>[0],
-    init?: Parameters<typeof globalThis.fetch>[1],
+    input: FetchInput,
+    init?: FetchInit,
   ): Promise<Response> {
-    let resolved: typeof input = input;
-    if (typeof input === "string") {
-      resolved = state.pageUrl ? new URL(input, state.pageUrl).toString() : input;
-    } else if (input instanceof URL) {
-      resolved = input.toString();
-    }
-    const inputRequest =
-      typeof Request === "function" && input instanceof Request ? (input as PageRequest) : null;
+    let resolved = resolveFetchInput(input);
+    const inputRequest = pageRequestFromInput(input);
     const origin = pageOriginFromUrl(state.pageUrl);
-    const initMaybeCoerced: KsRequestInit | undefined = serializeFormDataBodyInInit(
-      validateAndStripCache(init, true),
-    );
+    const initMaybeCoerced = coerceFetchInit(init);
     const mergedInit: KsRequestInit = { ...(initMaybeCoerced || {}) };
-    const requestHeaders = newHeaders(
-      mergedInit.headers ?? (inputRequest ? inputRequest.headers : {}),
+    const requestHeaders = createFetchRequestHeaders(
+      init,
+      initMaybeCoerced,
+      mergedInit,
+      inputRequest,
+      origin,
     );
-    hdrSet(requestHeaders, "x-kitesurf-page-origin", origin);
-    if (state.connectionId) {
-      hdrSet(requestHeaders, "x-kitesurf-connection-id", state.connectionId);
-    } else {
-      hdrDelete(requestHeaders, "x-kitesurf-connection-id");
-    }
-    if (state.mainFrameId) {
-      hdrSet(requestHeaders, "x-kitesurf-frame-id", state.mainFrameId);
-    } else {
-      hdrDelete(requestHeaders, "x-kitesurf-frame-id");
-    }
-    if (state.cookieKey) {
-      hdrSet(requestHeaders, "x-kitesurf-cookie-key", state.cookieKey);
-    } else {
-      hdrDelete(requestHeaders, "x-kitesurf-cookie-key");
-    }
-    // Only metadata in the private WeakMap may set engine-owned request attribution.
-    const trustedMeta = takeTrustedRequestMeta(init);
-    hdrSet(requestHeaders, "x-kitesurf-initiator", trustedMeta?.initiator || "script");
-    hdrSet(requestHeaders, "x-kitesurf-resource-type", trustedMeta?.resourceType || "Fetch");
-    if (!hdrHas(requestHeaders, "x-kitesurf-credentials")) {
-      const requestCredentials = inputRequest ? inputRequest.credentials : undefined;
-      const credentialsMode = String(
-        initMaybeCoerced?.credentials ?? requestCredentials ?? "same-origin",
-      );
-      hdrSet(
-        requestHeaders,
-        "x-kitesurf-credentials",
-        credentialsMode === "omit" || credentialsMode === "include"
-          ? credentialsMode
-          : "same-origin",
-      );
-    }
-    const requestMode = String(initMaybeCoerced?.mode ?? inputRequest?.mode ?? "cors");
-    hdrSet(requestHeaders, "x-kitesurf-mode", requestMode === "no-cors" ? "no-cors" : "cors");
-    // SAFETY: Strip page-supplied referrer carriers before deriving the trusted page referrer.
-    hdrDelete(requestHeaders, "x-kitesurf-referrer");
-    {
-      const referrerInput =
-        initMaybeCoerced?.referrer ?? (inputRequest ? inputRequest.referrer : undefined);
-      if (referrerInput !== undefined && referrerInput !== null) {
-        const referrerString = String(referrerInput);
-        const requestReferrerPolicy = String(
-          initMaybeCoerced?.referrerPolicy ??
-            (inputRequest ? inputRequest.referrerPolicy : "") ??
-            "",
-        ).toLowerCase();
-        if (referrerString === "" || requestReferrerPolicy === "no-referrer") {
-          hdrSet(requestHeaders, "x-kitesurf-referrer", "no-referrer");
-        } else if (referrerString !== "about:client") {
-          let referrerUrl: URL | null = null;
-          try {
-            referrerUrl = new URL(referrerString, state.pageUrl || undefined);
-          } catch {
-            referrerUrl = null;
-          }
-          if (referrerUrl && origin && referrerUrl.origin === origin) {
-            referrerUrl.hash = "";
-            referrerUrl.username = "";
-            referrerUrl.password = "";
-            let targetCrossOrigin = false;
-            try {
-              const requestUrl = requestUrlString(resolved, inputRequest);
-              targetCrossOrigin =
-                !!requestUrl && new URL(requestUrl, state.pageUrl || undefined).origin !== origin;
-            } catch {}
-            const originOnly =
-              requestReferrerPolicy === "origin" ||
-              requestReferrerPolicy === "strict-origin" ||
-              ((requestReferrerPolicy === "" ||
-                requestReferrerPolicy === "origin-when-cross-origin" ||
-                requestReferrerPolicy === "strict-origin-when-cross-origin") &&
-                targetCrossOrigin);
-            hdrSet(
-              requestHeaders,
-              "x-kitesurf-referrer",
-              originOnly ? referrerUrl.origin + "/" : referrerUrl.href,
-            );
-          }
-        }
-      }
-    }
-    if (origin && !hdrHas(requestHeaders, "Origin")) {
-      let requestOrigin = "";
-      try {
-        const resolvedRequestUrl = requestUrlString(resolved, inputRequest);
-        if (resolvedRequestUrl) {
-          requestOrigin = new URL(resolvedRequestUrl, state.pageUrl || undefined).origin;
-        }
-      } catch {}
-      const isCrossOrigin = requestOrigin !== "" && requestOrigin !== origin;
-      const method = String(mergedInit.method ?? inputRequest?.method ?? "GET").toUpperCase();
-      const isSafeMethod = method === "GET" || method === "HEAD";
-      if (isCrossOrigin || !isSafeMethod) {
-        hdrSet(requestHeaders, "Origin", origin);
-      }
-    }
+    setFetchReferrerHeader(requestHeaders, initMaybeCoerced, inputRequest, resolved, origin);
+    setFetchOriginHeader(requestHeaders, origin, resolved, inputRequest, mergedInit);
     mergedInit.headers = requestHeaders;
-    if (
-      String(initMaybeCoerced?.mode ?? inputRequest?.mode ?? "cors") === "no-cors" &&
-      !["GET", "HEAD", "POST"].includes(
-        String(mergedInit.method ?? inputRequest?.method ?? "GET").toUpperCase(),
-      )
-    ) {
-      throw new TypeError(
-        "Failed to execute 'fetch': mode 'no-cors' only permits GET, HEAD and POST",
-      );
-    }
-    const redirectMode = String(mergedInit.redirect ?? inputRequest?.redirect ?? "follow");
-    if (redirectMode !== "follow" && redirectMode !== "manual" && redirectMode !== "error") {
-      throw new TypeError(
-        `Failed to execute 'fetch': The provided value '${redirectMode}' is not a valid enum value of type RequestRedirect.`,
-      );
-    }
-    mergedInit.redirect = "manual";
-    if (inputRequest && inputRequest.body && mergedInit.body == null) {
-      const snap = await snapshotRequestBody(
-        inputRequest.body as ReadableStream<Uint8Array>,
-        MAX_REPLAYABLE_BODY_BYTES,
-        mergedInit.signal ?? inputRequest.signal ?? undefined,
-      );
-      const replayable = snap.replayable !== null;
-      mergedInit.body = snap.body;
-      if (!replayable) mergedInit.duplex = "half";
-      mergedInit.method = mergedInit.method ?? inputRequest.method;
-      mergedInit.signal = mergedInit.signal ?? inputRequest.signal;
-      resolved = inputRequest.url;
-    } else if (isStreamBody(mergedInit.body)) {
-      const snap = await snapshotRequestBody(
-        mergedInit.body as ReadableStream<Uint8Array>,
-        MAX_REPLAYABLE_BODY_BYTES,
-        mergedInit.signal ?? undefined,
-      );
-      mergedInit.body = snap.body;
-      if (snap.replayable === null) mergedInit.duplex = "half";
-    }
-    let response: Response;
-    try {
-      response = await realFetch(resolved, mergedInit);
-    } catch (error) {
-      const retryMethod = String(
-        mergedInit.method ??
-          (typeof Request === "function" && resolved instanceof Request
-            ? (resolved as any).method
-            : "GET"),
-      ).toUpperCase();
-      const methodOk =
-        retryMethod === "GET" ||
-        retryMethod === "HEAD" ||
-        retryMethod === "OPTIONS" ||
-        retryMethod === "POST";
-      const bodiless =
-        mergedInit.body == null &&
-        !(
-          typeof Request === "function" &&
-          resolved instanceof Request &&
-          (resolved as any).body != null
-        );
-      const aborted = mergedInit.signal?.aborted === true;
-      if (!isRetriableInternalError(error) || !methodOk || !bodiless || aborted) throw error;
-      response = await realFetch(resolved, mergedInit);
-    }
-    const blockedReason = responseHeaderGet(response, "x-kitesurf-blocked");
-    if (response.status === 403 && blockedReason) {
-      const detail = await response.text();
-      try {
-        console.error(detail);
-      } catch {}
-      if (blockedReason === "cors") {
-        throw new TypeError("Failed to fetch");
-      }
-      throw new TypeError(detail);
-    }
+    const redirectMode = validateFetchRequest(initMaybeCoerced, inputRequest, mergedInit);
+    resolved = await snapshotFetchRequestBody(resolved, inputRequest, mergedInit);
+    const response = await fetchWithInternalRetry(realFetch, resolved, mergedInit);
+    await throwIfBlockedResponse(response);
     const hopStart = requestUrlString(resolved, inputRequest);
     const followed = await followRedirects(realFetch, response, hopStart, {
       pageOrigin: origin,
@@ -1033,86 +1716,18 @@ export function installFetchShim(): void {
       mode: String(mergedInit.mode ?? inputRequest?.mode ?? "cors"),
       inputRequest,
     });
-    response = followed.response;
-    response = restoreCarriedStatus(response);
-    if (followed.hops > 0) {
-      try {
-        Object.defineProperty(response, "url", {
-          value: followed.url,
-          configurable: true,
-          enumerable: true,
-        });
-        Object.defineProperty(response, "redirected", {
-          value: true,
-          configurable: true,
-          enumerable: true,
-        });
-      } catch {}
-    }
-    try {
-      if ((response.type as string) === "opaqueredirect") return response;
-      const finalRequestUrl = followed.url || requestUrlString(resolved, inputRequest);
-      let computedType: "basic" | "cors" | "opaque" = "basic";
-      if (followed.tainting === "cors") {
-        const requestMode = String(mergedInit.mode ?? inputRequest?.mode ?? "cors");
-        computedType = requestMode === "no-cors" ? "opaque" : "cors";
-      } else if (finalRequestUrl && state.pageUrl) {
-        const requestOrigin = new URL(finalRequestUrl, state.pageUrl).origin;
-        const pageOrigin = new URL(state.pageUrl).origin;
-        if (requestOrigin !== pageOrigin) computedType = "cors";
-      }
-      if (computedType === "opaque") {
-        const OPAQUE_RESPONSE_CONSTRUCTION_STATUS = 400;
-        const opaque = new Response(null, {
-          status: OPAQUE_RESPONSE_CONSTRUCTION_STATUS,
-          headers: newHeaders(),
-        });
-        for (const [prop, value] of [
-          ["type", "opaque"],
-          ["status", 0],
-          ["ok", false],
-          ["statusText", ""],
-          ["url", ""],
-          ["redirected", false],
-        ] as Array<[string, unknown]>) {
-          try {
-            Object.defineProperty(opaque, prop, {
-              value,
-              configurable: true,
-              enumerable: true,
-            });
-          } catch {}
-        }
-        return opaque;
-      }
-      Object.defineProperty(response, "type", {
-        value: computedType,
-        configurable: true,
-        enumerable: true,
-        writable: false,
-      });
-    } catch {}
-    return response;
+    return finalizeFetchResponse(followed.response, followed, resolved, inputRequest, mergedInit);
   };
 
   (globalThis as { fetch: typeof fetch }).fetch = async function fetch(
-    input: Parameters<typeof globalThis.fetch>[0],
-    init?: Parameters<typeof globalThis.fetch>[1],
+    input: FetchInput,
+    init?: FetchInit,
   ): Promise<Response> {
     try {
       return await kitesurfFetchImpl(input, init);
     } catch (error) {
-      if (error instanceof TypeError) throw error;
-      const aborted =
-        (init as KsRequestInit | undefined)?.signal?.aborted === true ||
-        (typeof Request === "function" &&
-          input instanceof Request &&
-          input.signal?.aborted === true);
-      if (aborted || (error as any)?.name === "AbortError") throw error;
-      if (isDisallowedError(error)) throw error;
-      try {
-        console.error("[kitesurf] fetch network error:", error);
-      } catch {}
+      if (shouldPassThroughFetchError(error, init, input)) throw error;
+      logFetchNetworkError(error);
       throw new TypeError("Failed to fetch");
     }
   };

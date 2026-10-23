@@ -32,25 +32,34 @@ import { ksGlobal } from "./state.ts";
 
 let coreWasmMemory: WebAssembly.Memory | null = null;
 const OriginalWebAssemblyInstance = WebAssembly.Instance;
+
+function addMemprofImports(imports: unknown): void {
+  if (
+    imports &&
+    (typeof imports === "object" || typeof imports === "function") &&
+    ksGlobal.__ks_memprof_imports
+  ) {
+    Object.assign(imports, { wmprof: ksGlobal.__ks_memprof_imports });
+  }
+}
+
+function captureCoreWasmMemory(instance: unknown): void {
+  if (
+    instance instanceof OriginalWebAssemblyInstance &&
+    instance.exports &&
+    instance.exports.memory instanceof WebAssembly.Memory
+  ) {
+    coreWasmMemory = instance.exports.memory;
+  }
+}
+
 // FFI: observe wasm-bindgen init for memprof imports and core-memory capture.
 const trackedInstance = new Proxy(OriginalWebAssemblyInstance, {
   construct(target, argumentsList) {
     const imports: unknown = argumentsList[1];
-    if (
-      imports &&
-      (typeof imports === "object" || typeof imports === "function") &&
-      ksGlobal.__ks_memprof_imports
-    ) {
-      Object.assign(imports, { wmprof: ksGlobal.__ks_memprof_imports });
-    }
+    addMemprofImports(imports);
     const instance = Reflect.construct(target, argumentsList);
-    if (
-      instance instanceof OriginalWebAssemblyInstance &&
-      instance.exports &&
-      instance.exports.memory instanceof WebAssembly.Memory
-    ) {
-      coreWasmMemory = instance.exports.memory;
-    }
+    captureCoreWasmMemory(instance);
     return instance;
   },
 });

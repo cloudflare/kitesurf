@@ -76,18 +76,25 @@ let engineClearTimeout: ((id: any) => void) | null = null;
 function scheduleRafBackstop(): void {
   if (rafQueue.size === 0) return;
   const delay = Math.max(rafBackstopMs(), lastPumpMs * 2);
-  if (rafTimer !== null) {
-    if (Date.now() - rafArmedAt <= delay + RAF_BACKSTOP_STALE_MS) return;
-    try {
-      (engineClearTimeout ?? clearTimeout)(rafTimer);
-    } catch {}
-    rafTimer = null;
-  }
+  if (hasFreshRafBackstop(delay)) return;
+  clearRafTimer();
   rafArmedAt = Date.now();
   rafTimer = (engineSetTimeout ?? setTimeout)(() => {
     rafTimer = null;
     pumpAnimationFrames(activeTimerDeadline);
   }, delay);
+}
+
+function hasFreshRafBackstop(delay: number): boolean {
+  return rafTimer !== null && Date.now() - rafArmedAt <= delay + RAF_BACKSTOP_STALE_MS;
+}
+
+function clearRafTimer(): void {
+  if (rafTimer === null) return;
+  try {
+    (engineClearTimeout ?? clearTimeout)(rafTimer);
+  } catch {}
+  rafTimer = null;
 }
 
 export function hasPendingAnimationFrames(): boolean {
@@ -100,7 +107,7 @@ function rafFrameDueAt(): number {
 
 export function pumpAnimationFrames(deadlineMs?: number): number {
   if (rafQueue.size === 0) return 0;
-  if ((rafDriven() && !rafDriverTurn) || Date.now() < rafFrameDueAt()) {
+  if (shouldDeferAnimationFrame()) {
     scheduleRafBackstop();
     return 0;
   }
@@ -110,45 +117,56 @@ export function pumpAnimationFrames(deadlineMs?: number): number {
   // Each handle is removed before its callback runs, matching HTML's cancellation/requeue order.
   // https://html.spec.whatwg.org/#run-the-animation-frame-callbacks
   const frameCallbackIds = [...rafQueue.keys()];
-  if (rafTimer !== null) {
-    try {
-      (engineClearTimeout ?? clearTimeout)(rafTimer);
-    } catch {}
-    rafTimer = null;
-  }
+  clearRafTimer();
   const pumpStartedAt = Date.now();
   const deadline = deadlineMs ?? pumpStartedAt + RAF_PUMP_BUDGET_MS;
-  const frameTimestamp = performance.now();
-  let callbacksRun = 0;
-  let stoppedByDeadline = false;
-  for (let index = 0; index < frameCallbackIds.length; index++) {
-    if (Date.now() >= deadline) {
-      stoppedByDeadline = true;
-      break;
-    }
-    const id = frameCallbackIds[index]!;
-    const callback = rafQueue.get(id);
-    if (callback === undefined) continue;
-    rafQueue.delete(id);
-    try {
-      callback(frameTimestamp);
-      callbacksRun++;
-    } catch (error) {
-      try {
-        console.error("[kitesurf] rAF callback threw:", error);
-      } catch {}
-    }
-  }
-  if (!stoppedByDeadline) {
-    const nextFromStart = pumpStartedAt + RAF_FRAME_MS - RAF_FRAME_SLACK_MS;
-    const frameEndedAt = Date.now();
-    rafBatchDueAt = frameEndedAt < nextFromStart ? nextFromStart : frameEndedAt + RAF_FRAME_MS;
-    if (rafQueue.size > 0) rafNextFrameAt = rafBatchDueAt;
-  }
+  const batch = runRafCallbacks(frameCallbackIds, deadline, performance.now());
+  advanceRafFrameClock(pumpStartedAt, batch.stoppedByDeadline);
   recheckIntersectionObservers("frame");
   lastPumpMs = Date.now() - pumpStartedAt;
   scheduleRafBackstop();
-  return callbacksRun;
+  return batch.callbacksRun;
+}
+
+function shouldDeferAnimationFrame(): boolean {
+  return (rafDriven() && !rafDriverTurn) || Date.now() < rafFrameDueAt();
+}
+
+interface RafCallbackBatch {
+  callbacksRun: number;
+  stoppedByDeadline: boolean;
+}
+
+function runRafCallbacks(ids: number[], deadline: number, timestamp: number): RafCallbackBatch {
+  let callbacksRun = 0;
+  for (let index = 0; index < ids.length; index++) {
+    if (Date.now() >= deadline) return { callbacksRun, stoppedByDeadline: true };
+    if (runRafCallback(ids[index]!, timestamp)) callbacksRun++;
+  }
+  return { callbacksRun, stoppedByDeadline: false };
+}
+
+function runRafCallback(id: number, timestamp: number): boolean {
+  const callback = rafQueue.get(id);
+  if (callback === undefined) return false;
+  rafQueue.delete(id);
+  try {
+    callback(timestamp);
+    return true;
+  } catch (error) {
+    try {
+      console.error("[kitesurf] rAF callback threw:", error);
+    } catch {}
+    return false;
+  }
+}
+
+function advanceRafFrameClock(pumpStartedAt: number, stoppedByDeadline: boolean): void {
+  if (stoppedByDeadline) return;
+  const nextFromStart = pumpStartedAt + RAF_FRAME_MS - RAF_FRAME_SLACK_MS;
+  const frameEndedAt = Date.now();
+  rafBatchDueAt = frameEndedAt < nextFromStart ? nextFromStart : frameEndedAt + RAF_FRAME_MS;
+  if (rafQueue.size > 0) rafNextFrameAt = rafBatchDueAt;
 }
 
 interface WheelEntry {
@@ -215,25 +233,47 @@ function popTimerWheelEntry(): WheelEntry | undefined {
   const first = timerWheelHeap[0];
   const last = timerWheelHeap.pop();
   if (!first || first === last) return first;
+  if (last) siftTimerWheelEntryDown(last);
+  return first;
+}
+
+function siftTimerWheelEntryDown(last: WheelEntry): void {
   let index = 0;
   while (true) {
-    const left = index * 2 + 1;
-    if (left >= timerWheelHeap.length) break;
-    const right = left + 1;
-    const leftEntry = timerWheelHeap[left];
-    if (!leftEntry) break;
-    const rightEntry = timerWheelHeap[right];
-    const child =
-      right < timerWheelHeap.length && rightEntry && timerPrecedes(rightEntry, leftEntry)
-        ? right
-        : left;
+    const child = timerWheelChildIndex(index);
+    if (child === undefined) break;
     const childEntry = timerWheelHeap[child];
-    if (!last || !childEntry || !timerPrecedes(childEntry, last)) break;
+    if (!childPrecedesTimerWheelEntry(childEntry, last)) break;
     timerWheelHeap[index] = childEntry;
     index = child;
   }
-  if (last) timerWheelHeap[index] = last;
-  return first;
+  timerWheelHeap[index] = last;
+}
+
+function timerWheelChildIndex(index: number): number | undefined {
+  const left = index * 2 + 1;
+  if (left >= timerWheelHeap.length) return undefined;
+  const right = left + 1;
+  const leftEntry = timerWheelHeap[left];
+  if (!leftEntry) return undefined;
+  const rightEntry = timerWheelHeap[right];
+  if (rightTimerWheelChildPrecedes(right, rightEntry, leftEntry)) return right;
+  return left;
+}
+
+function rightTimerWheelChildPrecedes(
+  right: number,
+  rightEntry: WheelEntry | undefined,
+  leftEntry: WheelEntry,
+): boolean {
+  return right < timerWheelHeap.length && !!rightEntry && timerPrecedes(rightEntry, leftEntry);
+}
+
+function childPrecedesTimerWheelEntry(
+  child: WheelEntry | undefined,
+  parent: WheelEntry,
+): child is WheelEntry {
+  return !!child && timerPrecedes(child, parent);
 }
 
 function nextTimerWheelEntry(): WheelEntry | undefined {
@@ -260,70 +300,125 @@ function armTimerWheelWake(): void {
   if (!capturedTimers) return;
   const nextEntry = nextTimerWheelEntry();
   if (!nextEntry) {
-    if (timerWheelWake !== null) {
-      try {
-        capturedTimers.clearTimeout(timerWheelWake);
-      } catch {}
-    }
-    timerWheelWake = null;
-    timerWheelWakeDue = Infinity;
+    clearUnusedTimerWheelWake(capturedTimers);
     return;
   }
   const currentTimeMs = nativeTimerNow();
   const delay = Math.min(MAX_NATIVE_TIMER_DELAY, Math.max(0, nextEntry.due - currentTimeMs));
   const wakeDue = currentTimeMs + delay;
-  if (timerWheelWake !== null && timerWheelWakeDue <= wakeDue) return;
+  if (timerWakeAlreadyCovers(wakeDue)) return;
   const previousWake = timerWheelWake;
   const previousWakeDue = timerWheelWakeDue;
-  const scheduleWake = (wakeDelay: number): number => {
-    let scheduledWakeId = 0;
-    timerWheelWakesArmed++;
-    scheduledWakeId = capturedTimers.setTimeout(() => {
-      timerWheelWakesFired++;
-      if (timerWheelWake !== scheduledWakeId) return;
-      const wakeDueMs = timerWheelWakeDue;
-      timerWheelWake = null;
-      timerWheelWakeDue = Infinity;
-      pumpDueTimers(undefined, undefined, wakeDueMs);
-    }, wakeDelay);
-    return scheduledWakeId;
-  };
-  let previousWakeCleared = false;
-  let nextWake: number;
+  const scheduled = scheduleTimerWheelWakeWithFallback(
+    capturedTimers,
+    delay,
+    previousWake,
+    previousWakeDue,
+  );
+  timerWheelWake = scheduled.id;
+  timerWheelWakeDue = wakeDue;
+  clearReplacedTimerWheelWake(capturedTimers, previousWake, scheduled.previousWakeCleared);
+}
+
+function clearReplacedTimerWheelWake(
+  timers: NonNullable<typeof nativeTimerFunctions>,
+  previousWake: number | null,
+  previousWakeCleared: boolean,
+): void {
+  if (previousWake === null || previousWakeCleared) return;
+  clearTimerWheelWake(timers, previousWake);
+}
+
+function clearUnusedTimerWheelWake(timers: NonNullable<typeof nativeTimerFunctions>): void {
+  if (timerWheelWake !== null) clearTimerWheelWake(timers, timerWheelWake);
+  timerWheelWake = null;
+  timerWheelWakeDue = Infinity;
+}
+
+function clearTimerWheelWake(timers: NonNullable<typeof nativeTimerFunctions>, id: number): void {
   try {
-    nextWake = scheduleWake(delay);
-  } catch (error) {
-    if (
-      previousWake === null ||
-      !/too many active timeouts/i.test(error instanceof Error ? error.message : String(error))
-    ) {
-      throw error;
-    }
-    capturedTimers.clearTimeout(previousWake);
-    previousWakeCleared = true;
+    timers.clearTimeout(id);
+  } catch {}
+}
+
+function timerWakeAlreadyCovers(wakeDue: number): boolean {
+  return timerWheelWake !== null && timerWheelWakeDue <= wakeDue;
+}
+
+function createTimerWheelWake(
+  timers: NonNullable<typeof nativeTimerFunctions>,
+  delay: number,
+): number {
+  let wakeId = 0;
+  timerWheelWakesArmed++;
+  wakeId = timers.setTimeout(() => {
+    timerWheelWakesFired++;
+    if (timerWheelWake !== wakeId) return;
+    const wakeDueMs = timerWheelWakeDue;
     timerWheelWake = null;
     timerWheelWakeDue = Infinity;
-    try {
-      nextWake = scheduleWake(delay);
-    } catch (retryError) {
-      try {
-        const restoreDelay = Math.min(
-          MAX_NATIVE_TIMER_DELAY,
-          Math.max(0, previousWakeDue - nativeTimerNow()),
-        );
-        timerWheelWake = scheduleWake(restoreDelay);
-        timerWheelWakeDue = nativeTimerNow() + restoreDelay;
-      } catch {}
-      throw retryError;
-    }
+    pumpDueTimers(undefined, undefined, wakeDueMs);
+  }, delay);
+  return wakeId;
+}
+
+function scheduleTimerWheelWakeWithFallback(
+  timers: NonNullable<typeof nativeTimerFunctions>,
+  delay: number,
+  previousWake: number | null,
+  previousWakeDue: number,
+): { id: number; previousWakeCleared: boolean } {
+  try {
+    return { id: createTimerWheelWake(timers, delay), previousWakeCleared: false };
+  } catch (error) {
+    return retryTimerWheelWakeAfterLimit(timers, delay, previousWake, previousWakeDue, error);
   }
-  timerWheelWake = nextWake;
-  timerWheelWakeDue = wakeDue;
-  if (previousWake !== null && !previousWakeCleared) {
+}
+
+function retryTimerWheelWakeAfterLimit(
+  timers: NonNullable<typeof nativeTimerFunctions>,
+  delay: number,
+  previousWake: number | null,
+  previousWakeDue: number,
+  error: unknown,
+): { id: number; previousWakeCleared: boolean } {
+  if (previousWake === null || !isActiveTimeoutLimitError(error)) throw error;
+  timers.clearTimeout(previousWake);
+  timerWheelWake = null;
+  timerWheelWakeDue = Infinity;
+  return retryTimerWheelWakeAfterClear(timers, delay, previousWakeDue);
+}
+
+function isActiveTimeoutLimitError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /too many active timeouts/i.test(message);
+}
+
+function retryTimerWheelWakeAfterClear(
+  timers: NonNullable<typeof nativeTimerFunctions>,
+  delay: number,
+  previousWakeDue: number,
+): { id: number; previousWakeCleared: boolean } {
+  try {
+    return { id: createTimerWheelWake(timers, delay), previousWakeCleared: true };
+  } catch (retryError) {
     try {
-      capturedTimers.clearTimeout(previousWake);
+      restoreTimerWheelWake(timers, previousWakeDue);
     } catch {}
+    throw retryError;
   }
+}
+
+function restoreTimerWheelWake(
+  timers: NonNullable<typeof nativeTimerFunctions>,
+  previousWakeDue: number,
+): void {
+  const restoreDelay = Math.min(
+    MAX_NATIVE_TIMER_DELAY,
+    Math.max(0, previousWakeDue - nativeTimerNow()),
+  );
+  timerWheelWake = createTimerWheelWake(timers, restoreDelay);
+  timerWheelWakeDue = nativeTimerNow() + restoreDelay;
 }
 
 function toTimerLong(value: unknown): number {
@@ -331,13 +426,13 @@ function toTimerLong(value: unknown): number {
   const number = +(value as number);
   if (!Number.isFinite(number) || number === 0) return 0;
   const modulo = Math.trunc(number) % TIMER_ID_MODULO;
-  const signed =
-    modulo >= TIMER_ID_SIGNED_BOUNDARY
-      ? modulo - TIMER_ID_MODULO
-      : modulo < -TIMER_ID_SIGNED_BOUNDARY
-        ? modulo + TIMER_ID_MODULO
-        : modulo;
-  return signed;
+  return signedTimerId(modulo);
+}
+
+function signedTimerId(modulo: number): number {
+  if (modulo >= TIMER_ID_SIGNED_BOUNDARY) return modulo - TIMER_ID_MODULO;
+  if (modulo < -TIMER_ID_SIGNED_BOUNDARY) return modulo + TIMER_ID_MODULO;
+  return modulo;
 }
 
 function scheduleWheelTimer(
@@ -347,34 +442,55 @@ function scheduleWheelTimer(
   repeats: boolean,
 ): number {
   const delay = Math.max(0, toTimerLong(delayValue));
-  while (timerWheel.has(timerWheelNextId) || runningTimerIds.has(timerWheelNextId)) {
-    timerWheelNextId =
-      timerWheelNextId === MAX_PAGE_TIMER_ID ? FIRST_PAGE_TIMER_ID : timerWheelNextId + 1;
-  }
-  const id = timerWheelNextId;
-  timerWheelNextId = id === MAX_PAGE_TIMER_ID ? FIRST_PAGE_TIMER_ID : id + 1;
-  const due = nativeTimerNow() + delay;
-  const timerEntry = {
-    id,
-    order: timerWheelNextOrder++,
-    callback,
-    callbackArgs,
-    due,
-    delay,
-    repeats,
-  };
-  timerWheel.set(id, timerEntry);
+  const timerId = allocateTimerWheelId();
+  const timerEntry = createWheelEntry(timerId, callback, callbackArgs, delay, repeats);
+  timerWheel.set(timerId, timerEntry);
   pushTimerWheelEntry(timerEntry);
   try {
     armTimerWheelWake();
   } catch (error) {
-    timerWheel.delete(id);
-    try {
-      armTimerWheelWake();
-    } catch {}
+    rollbackWheelTimer(timerId);
     throw error;
   }
+  return timerId;
+}
+
+function allocateTimerWheelId(): number {
+  while (timerWheel.has(timerWheelNextId) || runningTimerIds.has(timerWheelNextId)) {
+    timerWheelNextId = followingTimerWheelId(timerWheelNextId);
+  }
+  const id = timerWheelNextId;
+  timerWheelNextId = followingTimerWheelId(id);
   return id;
+}
+
+function followingTimerWheelId(id: number): number {
+  return id === MAX_PAGE_TIMER_ID ? FIRST_PAGE_TIMER_ID : id + 1;
+}
+
+function createWheelEntry(
+  id: number,
+  callback: (...callbackArgs: unknown[]) => void,
+  callbackArgs: unknown[],
+  delay: number,
+  repeats: boolean,
+): WheelEntry {
+  return {
+    id,
+    order: timerWheelNextOrder++,
+    callback,
+    callbackArgs,
+    due: nativeTimerNow() + delay,
+    delay,
+    repeats,
+  };
+}
+
+function rollbackWheelTimer(id: number): void {
+  timerWheel.delete(id);
+  try {
+    armTimerWheelWake();
+  } catch {}
 }
 
 function clearWheelTimer(id: number): boolean {
@@ -471,26 +587,57 @@ export function pumpDueTimers(
   maxRunCount?: number,
   wakeDueMs = -Infinity,
 ): number {
-  if (timerWheel.size === 0 || !nativeTimerFunctions) return 0;
-  if (maxRunCount !== undefined && maxRunCount <= 0) return 0;
-  if (deadlineMs !== undefined && Date.now() >= deadlineMs) return 0;
+  if (!canPumpDueTimer(deadlineMs, maxRunCount)) return 0;
   const currentTimeMs = Math.max(nativeTimerNow(), wakeDueMs);
-  const timerEntry = nextTimerWheelEntry();
+  const timerEntry = nextDueTimer(currentTimeMs);
   if (!timerEntry) return 0;
-  if (timerEntry.due > currentTimeMs) {
-    armTimerWheelWake();
-    return 0;
-  }
-  if (timerWheelWake !== null) {
-    try {
-      nativeTimerFunctions.clearTimeout(timerWheelWake);
-    } catch {}
-    timerWheelWake = null;
-    timerWheelWakeDue = Infinity;
-  }
+  clearCurrentTimerWheelWake();
   popTimerWheelEntry();
   timerWheel.delete(timerEntry.id);
   runningTimerIds.add(timerEntry.id);
+  runTimerCallback(timerEntry, deadlineMs);
+  runPageJobsIfNeeded();
+  runningTimerIds.delete(timerEntry.id);
+  rescheduleRepeatingTimer(timerEntry);
+  armTimerWheelWake();
+  notifyTimerTaskWaiters();
+  return 1;
+}
+
+function canPumpDueTimer(deadlineMs: number | undefined, maxRunCount: number | undefined): boolean {
+  if (timerWheel.size === 0 || !nativeTimerFunctions) return false;
+  if (hasReachedPumpLimit(deadlineMs, maxRunCount)) return false;
+  return true;
+}
+
+function hasReachedPumpLimit(
+  deadlineMs: number | undefined,
+  maxRunCount: number | undefined,
+): boolean {
+  if (maxRunCount !== undefined && maxRunCount <= 0) return true;
+  return deadlineMs !== undefined && Date.now() >= deadlineMs;
+}
+
+function nextDueTimer(currentTimeMs: number): WheelEntry | undefined {
+  const timerEntry = nextTimerWheelEntry();
+  if (!timerEntry) return undefined;
+  if (timerEntry.due > currentTimeMs) {
+    armTimerWheelWake();
+    return undefined;
+  }
+  return timerEntry;
+}
+
+function clearCurrentTimerWheelWake(): void {
+  if (timerWheelWake === null) return;
+  try {
+    nativeTimerFunctions?.clearTimeout(timerWheelWake);
+  } catch {}
+  timerWheelWake = null;
+  timerWheelWakeDue = Infinity;
+}
+
+function runTimerCallback(timerEntry: WheelEntry, deadlineMs: number | undefined): void {
   const previousTimerDeadline = activeTimerDeadline;
   activeTimerDeadline = deadlineMs ?? previousTimerDeadline;
   try {
@@ -502,26 +649,29 @@ export function pumpDueTimers(
   } finally {
     activeTimerDeadline = previousTimerDeadline;
   }
-  if (ks_bridge_ever_minted()) {
-    try {
-      ks_run_page_jobs();
-    } catch {}
-  }
-  runningTimerIds.delete(timerEntry.id);
+}
+
+function runPageJobsIfNeeded(): void {
+  if (!ks_bridge_ever_minted()) return;
+  try {
+    ks_run_page_jobs();
+  } catch {}
+}
+
+function rescheduleRepeatingTimer(timerEntry: WheelEntry): void {
   const wasCancelled = cancelledTimerIds.delete(timerEntry.id);
-  if (timerEntry.repeats && !wasCancelled) {
-    timerEntry.due = nativeTimerNow() + timerEntry.delay;
-    timerEntry.order = timerWheelNextOrder++;
-    timerWheel.set(timerEntry.id, timerEntry);
-    pushTimerWheelEntry(timerEntry);
-  }
-  armTimerWheelWake();
-  if (timerTaskWaiters.length > 0) {
-    const pendingWaiters = timerTaskWaiters;
-    timerTaskWaiters = [];
-    for (const waiter of pendingWaiters) waiter();
-  }
-  return 1;
+  if (!timerEntry.repeats || wasCancelled) return;
+  timerEntry.due = nativeTimerNow() + timerEntry.delay;
+  timerEntry.order = timerWheelNextOrder++;
+  timerWheel.set(timerEntry.id, timerEntry);
+  pushTimerWheelEntry(timerEntry);
+}
+
+function notifyTimerTaskWaiters(): void {
+  if (timerTaskWaiters.length === 0) return;
+  const pendingWaiters = timerTaskWaiters;
+  timerTaskWaiters = [];
+  for (const waiter of pendingWaiters) waiter();
 }
 
 const portTasks: Array<() => void> = [];
@@ -556,32 +706,42 @@ function armPortTaskWake(): void {
 
 function runPortTask(): boolean {
   const task = portTasks.shift();
-  if (task) {
-    try {
-      task();
-    } catch (error) {
-      try {
-        console.error(error);
-      } catch {}
-    }
-  }
+  if (task) runPortCallback(task);
   armPortTaskWake();
-  if (task && timerTaskWaiters.length > 0) {
-    const pendingWaiters = timerTaskWaiters;
-    timerTaskWaiters = [];
-    for (const waiter of pendingWaiters) waiter();
-  }
+  if (task) notifyTimerTaskWaiters();
   return task !== undefined;
+}
+
+function runPortCallback(task: () => void): void {
+  try {
+    task();
+  } catch (error) {
+    try {
+      console.error(error);
+    } catch {}
+  }
 }
 
 // Keep posted messages on a separate FIFO; alternate with due timers to avoid starvation.
 let portTaskTurn = false;
 
 export function pumpPageTask(deadlineMs?: number): number {
-  if (deadlineMs !== undefined && Date.now() >= deadlineMs) return 0;
+  if (pageTaskDeadlineReached(deadlineMs)) return 0;
+  if (pumpPortTaskFirst()) return 1;
+  return pumpTimerThenPort(deadlineMs);
+}
+
+function pageTaskDeadlineReached(deadlineMs: number | undefined): boolean {
+  return deadlineMs !== undefined && Date.now() >= deadlineMs;
+}
+
+function pumpPortTaskFirst(): boolean {
   const portFirst = portTasks.length > 0 && portTaskTurn;
   portTaskTurn = !portTaskTurn;
-  if (portFirst && runPortTask()) return 1;
+  return portFirst && runPortTask();
+}
+
+function pumpTimerThenPort(deadlineMs: number | undefined): number {
   const timerCallbacksPumped = pumpDueTimers(deadlineMs, 1);
   if (timerCallbacksPumped > 0) return timerCallbacksPumped;
   return runPortTask() ? 1 : 0;
@@ -694,39 +854,49 @@ let pageTaskPumpInFlight: Promise<PageTaskPumpResult> | null = null;
 export async function pumpDuePageTasks(): Promise<PageTaskPumpResult> {
   if (pageTaskPumpInFlight) return pageTaskPumpInFlight;
 
-  const pumpPromise = (async () => {
-    const pumpStartedAt = Date.now();
-    const deadlineMs = pumpStartedAt + PUMP_BUDGET_MS;
-    let tasksPumped = 0;
-    let nextRafDelayMs: number | undefined;
-    try {
-      let timerTurns = 0;
-      for (;;) {
-        const pageTasksPumped = pumpPageTask(deadlineMs);
-        if (pageTasksPumped === 0) break;
-        tasksPumped += pageTasksPumped;
-        await drainSettleMicrotasks();
-        if (Date.now() >= deadlineMs || ++timerTurns >= MAX_PUMP_TIMER_TURNS) break;
-      }
-      if (Date.now() < deadlineMs) {
-        const framesPumped = pumpAnimationFrames(deadlineMs);
-        const frameDueAt = rafFrameDueAt();
-        tasksPumped += framesPumped;
-        await null;
-        if (framesPumped === 0 && rafQueue.size > 0) {
-          const remainingMs = frameDueAt - Date.now();
-          if (remainingMs > 0) nextRafDelayMs = remainingMs;
-        }
-      }
-    } catch {
-      tasksPumped = -2;
-    }
-    return { pumped: tasksPumped, pumpMs: Date.now() - pumpStartedAt, nextRafDelayMs };
-  })();
+  const pumpPromise = runPageTaskPump();
   pageTaskPumpInFlight = pumpPromise;
   try {
     return await pumpPromise;
   } finally {
     pageTaskPumpInFlight = null;
   }
+}
+
+async function runPageTaskPump(): Promise<PageTaskPumpResult> {
+  const pumpStartedAt = Date.now();
+  const deadlineMs = pumpStartedAt + PUMP_BUDGET_MS;
+  let tasksPumped = 0;
+  let nextRafDelayMs: number | undefined;
+  try {
+    let timerTurns = 0;
+    let pageTasksPumped = pumpPageTask(deadlineMs);
+    while (pageTasksPumped > 0) {
+      tasksPumped += pageTasksPumped;
+      await drainSettleMicrotasks();
+      timerTurns++;
+      if (shouldStopTimerPump(deadlineMs, timerTurns)) break;
+      pageTasksPumped = pumpPageTask(deadlineMs);
+    }
+    if (Date.now() < deadlineMs) {
+      const framesPumped = pumpAnimationFrames(deadlineMs);
+      const frameDueAt = rafFrameDueAt();
+      tasksPumped += framesPumped;
+      await null;
+      nextRafDelayMs = nextRafPumpDelay(framesPumped, frameDueAt);
+    }
+  } catch {
+    tasksPumped = -2;
+  }
+  return { pumped: tasksPumped, pumpMs: Date.now() - pumpStartedAt, nextRafDelayMs };
+}
+
+function shouldStopTimerPump(deadlineMs: number, timerTurns: number): boolean {
+  return Date.now() >= deadlineMs || timerTurns >= MAX_PUMP_TIMER_TURNS;
+}
+
+function nextRafPumpDelay(framesPumped: number, frameDueAt: number): number | undefined {
+  if (framesPumped !== 0 || rafQueue.size === 0) return undefined;
+  const remainingMs = frameDueAt - Date.now();
+  return remainingMs > 0 ? remainingMs : undefined;
 }

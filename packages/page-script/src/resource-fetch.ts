@@ -39,6 +39,12 @@ const FONT_CUSTODY_BUDGET = 8 * 1024 * 1024;
 const fontKeyUrls = new Map<string, string>();
 const NODE_ATTRIBUTE_PAIR_WIDTH = 2;
 const NODE_ATTRIBUTE_VALUE_OFFSET = 1;
+const DATA_URL_PREFIX_LENGTH = 5;
+const DATA_URL_PERCENT_SIGN_CODE_POINT = 0x25;
+const DATA_URL_PLUS_SIGN_CODE_POINT = 0x2b;
+const DATA_URL_SPACE_CODE_POINT = 0x20;
+const DATA_URL_HEX_RADIX = 16;
+const DATA_URL_BYTE_MASK = 0xff;
 
 export function fontUrlForKey(key: string): string {
   return fontKeyUrls.get(key) ?? "";
@@ -51,96 +57,123 @@ export async function resolveFontUrlData(url: string): Promise<Uint8Array | null
     fontCustodyBytes -= held.length;
     return held;
   }
-  if (url.startsWith("data:")) {
-    const DATA_URL_PREFIX_LENGTH = 5;
-    const DATA_URL_PERCENT_SIGN_CODE_POINT = 0x25;
-    const DATA_URL_PLUS_SIGN_CODE_POINT = 0x2b;
-    const DATA_URL_SPACE_CODE_POINT = 0x20;
-    const DATA_URL_HEX_RADIX = 16;
-    const DATA_URL_BYTE_MASK = 0xff;
-    try {
-      const comma = url.indexOf(",");
-      if (comma < 0) return null;
-      const meta = url.slice(DATA_URL_PREFIX_LENGTH, comma);
-      const payload = url.slice(comma + 1);
-      if (/;base64/i.test(meta)) {
-        const bin = atob(payload.replace(/\s+/g, ""));
-        return Uint8Array.from(bin, (c) => c.charCodeAt(0));
-      }
-      const out: number[] = [];
-      for (let i = 0; i < payload.length; i++) {
-        const characterCode = payload.charCodeAt(i);
-        const hexPair =
-          characterCode === DATA_URL_PERCENT_SIGN_CODE_POINT && i + 2 < payload.length
-            ? payload.slice(i + 1, i + 3)
-            : null;
-        if (hexPair !== null && /^[0-9a-fA-F]{2}$/.test(hexPair)) {
-          out.push(parseInt(hexPair, DATA_URL_HEX_RADIX));
-          i += 2;
-          continue;
-        }
-        out.push(
-          characterCode === DATA_URL_PLUS_SIGN_CODE_POINT
-            ? DATA_URL_SPACE_CODE_POINT
-            : characterCode & DATA_URL_BYTE_MASK,
-        );
-      }
-      return Uint8Array.from(out);
-    } catch {
-      return null;
-    }
-  }
+  if (url.startsWith("data:")) return decodeFontDataUrl(url);
   const fetchResult = await doRealFetch(url, "Font");
   return fetchResult.ok ? fetchResult.bytes : null;
+}
+
+function decodeFontDataUrl(url: string): Uint8Array | null {
+  try {
+    const comma = url.indexOf(",");
+    if (comma < 0) return null;
+    const meta = url.slice(DATA_URL_PREFIX_LENGTH, comma);
+    const payload = url.slice(comma + 1);
+    if (/;base64/i.test(meta)) return decodeBase64Payload(payload);
+    return decodePercentPayload(payload);
+  } catch {
+    return null;
+  }
+}
+
+function decodeBase64Payload(payload: string): Uint8Array {
+  const binary = atob(payload.replace(/\s+/g, ""));
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+function dataHexPair(payload: string, index: number, characterCode: number): string | null {
+  if (characterCode !== DATA_URL_PERCENT_SIGN_CODE_POINT) return null;
+  if (index + 2 >= payload.length) return null;
+  const pair = payload.slice(index + 1, index + 3);
+  return /^[0-9a-fA-F]{2}$/.test(pair) ? pair : null;
+}
+
+function dataByteFromCharacter(characterCode: number): number {
+  return characterCode === DATA_URL_PLUS_SIGN_CODE_POINT
+    ? DATA_URL_SPACE_CODE_POINT
+    : characterCode & DATA_URL_BYTE_MASK;
+}
+
+function dataPayloadByte(payload: string, index: number): { byte: number; consumed: number } {
+  const characterCode = payload.charCodeAt(index);
+  const hexPair = dataHexPair(payload, index, characterCode);
+  if (hexPair !== null) {
+    return { byte: parseInt(hexPair, DATA_URL_HEX_RADIX), consumed: 2 };
+  }
+  return { byte: dataByteFromCharacter(characterCode), consumed: 0 };
+}
+
+function decodePercentPayload(payload: string): Uint8Array {
+  const bytes: number[] = [];
+  for (let index = 0; index < payload.length; index++) {
+    const decoded = dataPayloadByte(payload, index);
+    bytes.push(decoded.byte);
+    index += decoded.consumed;
+  }
+  return Uint8Array.from(bytes);
 }
 
 export const resourceCacheStyles = new Map<string, string>();
 
 export const stylesheetCors = new Map<string, "clean" | "opaque">();
 
-export function externalSheetRulesForNode(
-  nodeId: number,
-): { state: "clean"; text: string } | { state: "denied" } | { state: "pending" } {
-  const dom = state.dom as {
-    nodeInfo?: (id: number) => { attributes?: unknown[] } | null;
-    baseURL?: () => string;
-  } | null;
-  if (!dom?.nodeInfo) return { state: "pending" };
+type StylesheetDom = {
+  nodeInfo?: (id: number) => { attributes?: unknown[] } | null;
+  baseURL?: () => string;
+};
 
-  let href = "";
+function hrefFromAttributes(attrs: unknown[]): string {
+  for (
+    let index = 0;
+    index + NODE_ATTRIBUTE_VALUE_OFFSET < attrs.length;
+    index += NODE_ATTRIBUTE_PAIR_WIDTH
+  ) {
+    if (String(attrs[index] ?? "").toLowerCase() === "href") {
+      return String(attrs[index + NODE_ATTRIBUTE_VALUE_OFFSET] ?? "");
+    }
+  }
+  return "";
+}
+
+function stylesheetHref(dom: StylesheetDom, nodeId: number): string | null {
+  if (typeof dom.nodeInfo !== "function") return null;
   try {
     const attrs = dom.nodeInfo(nodeId)?.attributes;
-    if (Array.isArray(attrs)) {
-      for (
-        let i = 0;
-        i + NODE_ATTRIBUTE_VALUE_OFFSET < attrs.length;
-        i += NODE_ATTRIBUTE_PAIR_WIDTH
-      ) {
-        if (String(attrs[i] ?? "").toLowerCase() === "href") {
-          href = String(attrs[i + NODE_ATTRIBUTE_VALUE_OFFSET] ?? "");
-          break;
-        }
-      }
-    }
+    return Array.isArray(attrs) ? hrefFromAttributes(attrs) : "";
   } catch {
-    return { state: "pending" };
+    return null;
   }
-  if (!href) return { state: "pending" };
+}
 
-  let resolved = "";
+function resolveStylesheetHref(dom: StylesheetDom, href: string): string | null {
   try {
     const base = (dom.baseURL && dom.baseURL()) || "about:blank";
-    resolved = new URL(href, base).href;
+    return new URL(href, base).href;
   } catch {
-    return { state: "pending" };
+    return null;
   }
+}
 
+function cachedStylesheetResult(
+  resolved: string,
+): { state: "clean"; text: string } | { state: "denied" } | { state: "pending" } {
   const verdict = stylesheetCors.get(resolved);
   if (verdict === undefined) return { state: "pending" };
   if (verdict !== "clean") return { state: "denied" };
   const text = resourceCacheStyles.get(resolved);
   if (text === undefined) return { state: "pending" };
   return { state: "clean", text };
+}
+
+export function externalSheetRulesForNode(
+  nodeId: number,
+): { state: "clean"; text: string } | { state: "denied" } | { state: "pending" } {
+  const dom = state.dom as StylesheetDom | null;
+  if (!dom?.nodeInfo) return { state: "pending" };
+  const href = stylesheetHref(dom, nodeId);
+  if (!href) return { state: "pending" };
+  const resolved = resolveStylesheetHref(dom, href);
+  if (!resolved) return { state: "pending" };
+  return cachedStylesheetResult(resolved);
 }
 
 const STYLESHEET_CACHE_MAX = 32;
@@ -220,6 +253,10 @@ function removeFontInflight(url: string): void {
   }
   fontInflightRefcount.delete(url);
   if (fontInflightRefcount.size !== 0) return;
+  resolveFontWaiters();
+}
+
+function resolveFontWaiters(): void {
   const drained = fontWaiters.splice(0, fontWaiters.length);
   for (const resolveWaiter of drained) {
     try {
@@ -342,39 +379,73 @@ export function blockingInflightCount(): number {
 }
 
 function collectImageHints(url: string): Array<{ priority: string; lazy: boolean }> | null {
-  const dom = state.dom as {
-    pendingImageNodes?: (url: string) => ArrayLike<number>;
-    nodeInfo?: (id: number) => { attributes?: unknown[] } | null;
-  } | null;
-  if (!dom?.pendingImageNodes || !dom.nodeInfo) return null;
+  const dom = imageHintDom();
+  if (!dom) return null;
   const hints: Array<{ priority: string; lazy: boolean }> = [];
   try {
     for (const id of Array.from(dom.pendingImageNodes(url))) {
-      let priority = "";
-      let lazy = false;
-      const attrs = dom.nodeInfo(id)?.attributes;
-      if (!Array.isArray(attrs)) {
-        hints.push({ priority, lazy });
-        continue;
-      }
-      for (
-        let i = 0;
-        i + NODE_ATTRIBUTE_VALUE_OFFSET < attrs.length;
-        i += NODE_ATTRIBUTE_PAIR_WIDTH
-      ) {
-        const name = String(attrs[i] ?? "").toLowerCase();
-        if (name === "fetchpriority") {
-          priority = String(attrs[i + NODE_ATTRIBUTE_VALUE_OFFSET] ?? "").toLowerCase();
-        } else if (name === "loading") {
-          lazy = String(attrs[i + NODE_ATTRIBUTE_VALUE_OFFSET] ?? "").toLowerCase() === "lazy";
-        }
-      }
-      hints.push({ priority, lazy });
+      hints.push(imageHintsForNode(dom, id));
     }
   } catch {
     return null;
   }
   return hints;
+}
+
+type ImageHint = { priority: string; lazy: boolean };
+type ImageHintDom = {
+  pendingImageNodes?: (url: string) => ArrayLike<number>;
+  nodeInfo?: (id: number) => { attributes?: unknown[] } | null;
+};
+type ReadyImageHintDom = ImageHintDom & {
+  pendingImageNodes: NonNullable<ImageHintDom["pendingImageNodes"]>;
+  nodeInfo: NonNullable<ImageHintDom["nodeInfo"]>;
+};
+
+function isReadyImageHintDom(dom: ImageHintDom | null): dom is ReadyImageHintDom {
+  return !!dom?.pendingImageNodes && !!dom.nodeInfo;
+}
+
+function imageHintDom(): ReadyImageHintDom | null {
+  const dom = state.dom as ImageHintDom | null;
+  return isReadyImageHintDom(dom) ? dom : null;
+}
+
+function nodeAttributeName(attrs: unknown[], index: number): string {
+  return String(attrs[index] ?? "").toLowerCase();
+}
+
+function nodeAttributeValue(attrs: unknown[], index: number): string {
+  return String(attrs[index + NODE_ATTRIBUTE_VALUE_OFFSET] ?? "");
+}
+
+function imageHintsForNode(dom: ImageHintDom, id: number): ImageHint {
+  const attrs = dom.nodeInfo?.(id)?.attributes;
+  if (!Array.isArray(attrs)) return { priority: "", lazy: false };
+  return imageHintsFromAttributes(attrs);
+}
+
+function updateImageHint(attrs: unknown[], index: number, hint: ImageHint): void {
+  const name = nodeAttributeName(attrs, index);
+  if (name === "fetchpriority") {
+    hint.priority = nodeAttributeValue(attrs, index).toLowerCase();
+    return;
+  }
+  if (name === "loading") {
+    hint.lazy = nodeAttributeValue(attrs, index).toLowerCase() === "lazy";
+  }
+}
+
+function imageHintsFromAttributes(attrs: unknown[]): ImageHint {
+  const hint: ImageHint = { priority: "", lazy: false };
+  for (
+    let index = 0;
+    index + NODE_ATTRIBUTE_VALUE_OFFSET < attrs.length;
+    index += NODE_ATTRIBUTE_PAIR_WIDTH
+  ) {
+    updateImageHint(attrs, index, hint);
+  }
+  return hint;
 }
 
 function reevaluateDeferred(url: string): void {
@@ -395,58 +466,121 @@ let iframeDocumentHintSeq = -1;
 let iframeDocumentHintDom: unknown = null;
 let iframeDocumentHints = new Map<string, { lazy: boolean; crossOrigin: boolean }>();
 
-function iframeDocumentHint(url: string): { lazy: boolean; crossOrigin: boolean } | null {
-  const dom = state.dom as {
-    querySelectorAll?: (selector: string) => ArrayLike<number>;
-    nodeInfo?: (id: number) => { attributes?: unknown[] } | null;
-    baseURL?: () => string;
-  } | null;
-  if (!dom?.querySelectorAll || !dom.nodeInfo) return null;
-  const seq = getInternalState().mutationSeq | 0;
-  if (dom === iframeDocumentHintDom && seq === iframeDocumentHintSeq) {
-    return iframeDocumentHints.get(url) ?? null;
+type IframeHint = { lazy: boolean; crossOrigin: boolean };
+type IframeDom = {
+  querySelectorAll?: (selector: string) => ArrayLike<number>;
+  nodeInfo?: (id: number) => { attributes?: unknown[] } | null;
+  baseURL?: () => string;
+};
+type ReadyIframeDom = IframeDom & {
+  querySelectorAll: NonNullable<IframeDom["querySelectorAll"]>;
+  nodeInfo: NonNullable<IframeDom["nodeInfo"]>;
+};
+
+function isReadyIframeDom(dom: IframeDom | null): dom is ReadyIframeDom {
+  return !!dom?.querySelectorAll && !!dom.nodeInfo;
+}
+
+function iframeElementHints(attrs: unknown[]): { src: string; lazy: boolean } {
+  let src = "";
+  let lazy = false;
+  for (
+    let index = 0;
+    index + NODE_ATTRIBUTE_VALUE_OFFSET < attrs.length;
+    index += NODE_ATTRIBUTE_PAIR_WIDTH
+  ) {
+    const name = nodeAttributeName(attrs, index);
+    if (name === "src") {
+      src = nodeAttributeValue(attrs, index);
+    }
+    if (name === "loading") {
+      lazy = nodeAttributeValue(attrs, index).toLowerCase() === "lazy";
+    }
   }
-  const hints = new Map<string, { lazy: boolean; crossOrigin: boolean }>();
+  return { src, lazy };
+}
+
+function resolveIframeSource(src: string, base: string): string | null {
+  try {
+    return new URL(src, base).href;
+  } catch {
+    return null;
+  }
+}
+
+function iframeIsCrossOrigin(resolved: string, baseOrigin: string): boolean {
+  return resolved !== "about:blank" && new URL(resolved).origin !== baseOrigin;
+}
+
+function mergedIframeLazy(previous: IframeHint | undefined, lazy: boolean): boolean {
+  return (previous?.lazy ?? true) && lazy;
+}
+
+function addIframeDocumentHint(
+  dom: ReadyIframeDom,
+  id: number,
+  base: string,
+  baseOrigin: string,
+  hints: Map<string, IframeHint>,
+): void {
+  const attrs = dom.nodeInfo(id)?.attributes;
+  if (!Array.isArray(attrs)) return;
+  const { src, lazy } = iframeElementHints(attrs);
+  if (!src) return;
+  const resolved = resolveIframeSource(src, base);
+  if (!resolved) return;
+  const previous = hints.get(resolved);
+  hints.set(resolved, {
+    lazy: mergedIframeLazy(previous, lazy),
+    crossOrigin: iframeIsCrossOrigin(resolved, baseOrigin),
+  });
+}
+
+function scanIframeDocumentHints(dom: ReadyIframeDom): Map<string, IframeHint> | null {
+  const hints = new Map<string, IframeHint>();
   try {
     const base = dom.baseURL?.() || "about:blank";
     const baseOrigin = new URL(base).origin;
     for (const id of Array.from(dom.querySelectorAll("iframe"))) {
-      const attrs = dom.nodeInfo(id)?.attributes;
-      if (!Array.isArray(attrs)) continue;
-      let src = "";
-      let lazy = false;
-      for (
-        let i = 0;
-        i + NODE_ATTRIBUTE_VALUE_OFFSET < attrs.length;
-        i += NODE_ATTRIBUTE_PAIR_WIDTH
-      ) {
-        const name = String(attrs[i] ?? "").toLowerCase();
-        if (name === "src") {
-          src = String(attrs[i + NODE_ATTRIBUTE_VALUE_OFFSET] ?? "");
-        }
-        if (name === "loading") {
-          lazy = String(attrs[i + NODE_ATTRIBUTE_VALUE_OFFSET] ?? "").toLowerCase() === "lazy";
-        }
-      }
-      if (!src) continue;
-      let resolved = "";
-      try {
-        resolved = new URL(src, base).href;
-      } catch {
-        continue;
-      }
-      const previous = hints.get(resolved);
-      hints.set(resolved, {
-        lazy: (previous?.lazy ?? true) && lazy,
-        crossOrigin: resolved !== "about:blank" && new URL(resolved).origin !== baseOrigin,
-      });
+      addIframeDocumentHint(dom, id, base, baseOrigin, hints);
     }
   } catch {
     return null;
   }
+  return hints;
+}
+
+function iframeDocumentDom(): ReadyIframeDom | null {
+  const dom = state.dom as IframeDom | null;
+  return isReadyIframeDom(dom) ? dom : null;
+}
+
+function iframeHintCacheMatches(dom: ReadyIframeDom, seq: number): boolean {
+  return dom === iframeDocumentHintDom && seq === iframeDocumentHintSeq;
+}
+
+function cachedIframeHint(url: string): IframeHint | null {
+  return iframeDocumentHints.get(url) ?? null;
+}
+
+function cacheIframeDocumentHints(
+  dom: ReadyIframeDom,
+  seq: number,
+  hints: Map<string, IframeHint>,
+): void {
   iframeDocumentHintDom = dom;
   iframeDocumentHintSeq = seq;
   iframeDocumentHints = hints;
+}
+
+function iframeDocumentHint(url: string): IframeHint | null {
+  const dom = iframeDocumentDom();
+  if (!dom) return null;
+  const seq = getInternalState().mutationSeq | 0;
+  if (iframeHintCacheMatches(dom, seq)) return cachedIframeHint(url);
+  const hints = scanIframeDocumentHints(dom);
+  if (!hints) return null;
+  cacheIframeDocumentHints(dom, seq, hints);
   return hints.get(url) ?? null;
 }
 
@@ -471,34 +605,80 @@ let boostVerdictSeq = -1;
 let boostFlushedAt = 0;
 const BOOST_VERDICT_MAX_AGE_MS = 100;
 
-fetchSlots.setBoostProbe((url: string) => {
-  if (state.paintCacheHandle === null) return null;
+function hasPendingCriticalResources(): boolean {
   try {
     const dom = state.dom as { hasPendingCriticalResources?: () => boolean } | null;
-    if (dom?.hasPendingCriticalResources?.()) return null;
+    return Boolean(dom?.hasPendingCriticalResources?.());
   } catch {
-    return null;
+    return true;
   }
-  const cascadeSequence = cascadeSeq() | 0;
+}
+
+function canProbeImageBoost(): boolean {
+  return state.paintCacheHandle !== null && !hasPendingCriticalResources();
+}
+
+type BoostVerdictLookup = { cached: true; verdict: number | null } | { cached: false };
+
+function cachedBoostVerdict(url: string, cascadeSequence: number): BoostVerdictLookup {
   if (cascadeSequence !== boostVerdictSeq) {
     const now = Date.now();
     if (now - boostFlushedAt < BOOST_VERDICT_MAX_AGE_MS) {
       const stale = boostVerdicts.get(url);
-      return stale === undefined ? null : stale;
+      return { cached: true, verdict: stale ?? null };
     }
     boostVerdicts.clear();
     boostVerdictSeq = cascadeSequence;
     boostFlushedAt = now;
   }
   const cached = boostVerdicts.get(url);
-  if (cached !== undefined) return cached;
-  const dom = state.dom as {
-    pendingImageNodes?: (url: string) => ArrayLike<number>;
-    getBoundingClientRect?: (
-      id: number,
-    ) => { x?: number; y?: number; width?: number; height?: number } | null;
-  } | null;
-  if (!dom?.pendingImageNodes || !dom.getBoundingClientRect) return null;
+  return cached === undefined ? { cached: false } : { cached: true, verdict: cached };
+}
+
+type PendingImageDom = {
+  pendingImageNodes?: (url: string) => ArrayLike<number>;
+  getBoundingClientRect?: (
+    id: number,
+  ) => { x?: number; y?: number; width?: number; height?: number } | null;
+};
+type ReadyPendingImageDom = PendingImageDom & {
+  pendingImageNodes: NonNullable<PendingImageDom["pendingImageNodes"]>;
+  getBoundingClientRect: NonNullable<PendingImageDom["getBoundingClientRect"]>;
+};
+
+function isReadyPendingImageDom(dom: PendingImageDom | null): dom is ReadyPendingImageDom {
+  return !!dom?.pendingImageNodes && !!dom.getBoundingClientRect;
+}
+
+function pendingImageDom(): ReadyPendingImageDom | null {
+  const dom = state.dom as PendingImageDom | null;
+  return isReadyPendingImageDom(dom) ? dom : null;
+}
+
+function pendingImageIntersectsViewport(
+  range: { x?: number; y?: number; width?: number; height?: number },
+  viewportX: number,
+  viewportY: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): boolean {
+  const rangeX = rectCoordinate(range.x);
+  const rangeY = rectCoordinate(range.y);
+  const width = rectCoordinate(range.width);
+  const height = rectCoordinate(range.height);
+  return (
+    rangeX < viewportX + viewportWidth &&
+    rangeX + width > viewportX &&
+    rangeY < viewportY + viewportHeight &&
+    rangeY + height > viewportY
+  );
+}
+
+function rectCoordinate(value: number | undefined): number {
+  return Number(value) || 0;
+}
+
+function visiblePendingImageVerdict(dom: ReadyPendingImageDom, url: string): number | null {
   let verdict: number | null = null;
   try {
     const viewportX = state.scrollX;
@@ -508,15 +688,8 @@ fetchSlots.setBoostProbe((url: string) => {
     for (const id of Array.from(dom.pendingImageNodes(url))) {
       const range = dom.getBoundingClientRect(id);
       if (!range) continue;
-      const rangeX = Number(range.x) || 0;
-      const rangeY = Number(range.y) || 0;
-      const width = Number(range.width) || 0;
-      const height = Number(range.height) || 0;
       if (
-        rangeX < viewportX + viewportWidth &&
-        rangeX + width > viewportX &&
-        rangeY < viewportY + viewportHeight &&
-        rangeY + height > viewportY
+        pendingImageIntersectsViewport(range, viewportX, viewportY, viewportWidth, viewportHeight)
       ) {
         verdict = CLASS_IMAGE_VIEWPORT;
         break;
@@ -526,9 +699,21 @@ fetchSlots.setBoostProbe((url: string) => {
     invalidatePaintDom();
     verdict = null;
   }
+  return verdict;
+}
+
+function probeImageBoost(url: string): number | null {
+  if (!canProbeImageBoost()) return null;
+  const cache = cachedBoostVerdict(url, cascadeSeq() | 0);
+  if (cache.cached) return cache.verdict;
+  const dom = pendingImageDom();
+  if (!dom) return null;
+  const verdict = visiblePendingImageVerdict(dom, url);
   boostVerdicts.set(url, verdict);
   return verdict;
-});
+}
+
+fetchSlots.setBoostProbe(probeImageBoost);
 
 type FetchResult =
   | {
@@ -555,15 +740,92 @@ function readFontKey(response: Response): string {
 
 function readOpaqueImage(response: Response): OpaqueImage | null {
   const key = responseHeaderGet(response, RESOURCE_KEY_HEADER) ?? "";
+  if (key === "" || key === "0") return null;
+  const dimensions = opaqueImageDimensions(response);
+  return dimensions ? { key, w: dimensions.width, h: dimensions.height } : null;
+}
+
+function isValidOpaqueImageDimensions(width: number, height: number): boolean {
+  return Number.isInteger(width) && Number.isInteger(height) && width > 0 && height > 0;
+}
+
+function opaqueImageDimensions(response: Response): { width: number; height: number } | null {
   const width = Number(responseHeaderGet(response, IMAGE_WIDTH_HEADER) ?? "");
   const height = Number(responseHeaderGet(response, IMAGE_HEIGHT_HEADER) ?? "");
-  if (key === "" || key === "0") return null;
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
-    return null;
-  }
-  return { key, w: width, h: height };
+  if (!isValidOpaqueImageDimensions(width, height)) return null;
+  return { width, height };
 }
+
 const inflightFetches = new Map<string, Promise<FetchResult>>();
+
+function addOptionalFetchHeader(
+  headers: Record<string, string>,
+  name: string,
+  value: string,
+): void {
+  if (value) headers[name] = value;
+}
+
+function resourceFetchHeaders(kind: string, corsMode: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "x-kitesurf-allow-cross-origin": "1",
+  };
+  if (kind === "Stylesheet" && corsMode) {
+    headers["x-kitesurf-stylesheet-cors"] = corsMode;
+  }
+  addOptionalFetchHeader(headers, "x-kitesurf-connection-id", state.connectionId);
+  addOptionalFetchHeader(headers, "x-kitesurf-frame-id", state.mainFrameId);
+  addOptionalFetchHeader(headers, "x-kitesurf-cookie-key", state.cookieKey);
+  return headers;
+}
+
+function recordFetchTimings(slotMs: number, fetchMs: number, headersMs: number): void {
+  fetchPhaseStats.count++;
+  fetchPhaseStats.slotMs += slotMs;
+  fetchPhaseStats.fetchMs += fetchMs;
+  fetchPhaseStats.headersMs += headersMs;
+  if (slotMs > fetchPhaseStats.maxSlotMs) fetchPhaseStats.maxSlotMs = slotMs;
+  if (fetchMs > fetchPhaseStats.maxFetchMs) fetchPhaseStats.maxFetchMs = fetchMs;
+}
+
+function warnSlowFetch(
+  fetchMs: number,
+  headersMs: number,
+  slotMs: number,
+  kind: string,
+  url: string,
+): void {
+  if (fetchMs <= SLOW_FETCH_WARNING_MS) return;
+  console.warn(
+    `[ks-fetch] slow fetch: ${fetchMs}ms (headers=${headersMs}ms slot=${slotMs}ms) kind=${kind} url=${url}`,
+  );
+}
+
+async function successfulFetchResult(
+  response: Response,
+  url: string,
+  kind: string,
+  queuedAt: number,
+  slotStartedAt: number,
+  headersMs: number,
+): Promise<FetchResult> {
+  const cors =
+    responseHeaderGet(response, "x-kitesurf-cors") === "clean"
+      ? ("clean" as const)
+      : ("opaque" as const);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const slotMs = slotStartedAt - queuedAt;
+  const fetchMs = Date.now() - slotStartedAt;
+  recordFetchTimings(slotMs, fetchMs, headersMs);
+  warnSlowFetch(fetchMs, headersMs, slotMs, kind, url);
+  return {
+    ok: true,
+    bytes,
+    opaqueImage: readOpaqueImage(response),
+    cors,
+    fontKey: readFontKey(response),
+  };
+}
 
 async function doRealFetch(url: string, kind: string, corsMode: string = ""): Promise<FetchResult> {
   const queuedAt = Date.now();
@@ -576,24 +838,9 @@ async function doRealFetch(url: string, kind: string, corsMode: string = ""): Pr
     releaseFetchSlot(url);
   };
   try {
-    const headers: Record<string, string> = {
-      "x-kitesurf-allow-cross-origin": "1",
-    };
-    if (kind === "Stylesheet" && corsMode) {
-      headers["x-kitesurf-stylesheet-cors"] = corsMode;
-    }
-    if (state.connectionId) {
-      headers["x-kitesurf-connection-id"] = state.connectionId;
-    }
-    if (state.mainFrameId) {
-      headers["x-kitesurf-frame-id"] = state.mainFrameId;
-    }
-    if (state.cookieKey) {
-      headers["x-kitesurf-cookie-key"] = state.cookieKey;
-    }
     const response = await trustedFetch(
       url,
-      { headers },
+      { headers: resourceFetchHeaders(kind, corsMode) },
       { resourceType: kind || "Other", initiator: "parser" },
     );
     // Release at response headers so body reads do not hold admission capacity.
@@ -603,31 +850,7 @@ async function doRealFetch(url: string, kind: string, corsMode: string = ""): Pr
       fetchPhaseStats.errors++;
       return { ok: false };
     }
-    const cors =
-      responseHeaderGet(response, "x-kitesurf-cors") === "clean"
-        ? ("clean" as const)
-        : ("opaque" as const);
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    const slotMs = slotStartedAt - queuedAt;
-    const fetchMs = Date.now() - slotStartedAt;
-    fetchPhaseStats.count++;
-    fetchPhaseStats.slotMs += slotMs;
-    fetchPhaseStats.fetchMs += fetchMs;
-    fetchPhaseStats.headersMs += headersMs;
-    if (slotMs > fetchPhaseStats.maxSlotMs) fetchPhaseStats.maxSlotMs = slotMs;
-    if (fetchMs > fetchPhaseStats.maxFetchMs) fetchPhaseStats.maxFetchMs = fetchMs;
-    if (fetchMs > SLOW_FETCH_WARNING_MS) {
-      console.warn(
-        `[ks-fetch] slow fetch: ${fetchMs}ms (headers=${headersMs}ms slot=${slotMs}ms) kind=${kind} url=${url}`,
-      );
-    }
-    return {
-      ok: true,
-      bytes,
-      opaqueImage: readOpaqueImage(response),
-      cors,
-      fontKey: readFontKey(response),
-    };
+    return await successfulFetchResult(response, url, kind, queuedAt, slotStartedAt, headersMs);
   } catch {
     fetchPhaseStats.errors++;
     return { ok: false };
@@ -655,53 +878,64 @@ export async function fetchInsertedScript(
     releaseFetchSlot(url);
   };
   try {
-    const corsMode = crossOrigin == null ? "no-cors" : "cors";
-    const headers: Record<string, string> = {
-      "x-kitesurf-script-cors": corsMode,
-      accept: "*/*",
-    };
-    if (state.connectionId) {
-      headers["x-kitesurf-connection-id"] = state.connectionId;
-    }
-    if (state.mainFrameId) headers["x-kitesurf-frame-id"] = state.mainFrameId;
-    if (state.cookieKey) headers["x-kitesurf-cookie-key"] = state.cookieKey;
+    const headers = insertedScriptHeaders(insertedScriptCorsMode(crossOrigin));
     const response = await trustedFetch(
       url,
       { headers },
       { resourceType: "Script", initiator: "script" },
     );
     release();
-    if (!response.ok) {
-      return {
-        status: response.status || 0,
-        source: "",
-        bytes: EMPTY_BYTES,
-        contentType: null,
-        nosniff: null,
-        opaque: true,
-      };
-    }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    return {
-      status: response.status,
-      source: new TextDecoder("utf-8").decode(bytes),
-      bytes,
-      contentType: response.headers.get("content-type"),
-      nosniff: response.headers.get(KITESURF_NOSNIFF_HEADER),
-      opaque: responseIsOpaque(response.headers.get(KITESURF_CORS_VERDICT_HEADER)),
-    };
+    return await insertedScriptResult(response);
   } catch {
-    return {
-      status: 0,
-      source: "",
-      bytes: EMPTY_BYTES,
-      contentType: null,
-      nosniff: null,
-      opaque: true,
-    };
+    return insertedScriptFailure(0);
   } finally {
     release();
   }
+}
+
+type InsertedScriptResult = Awaited<ReturnType<typeof fetchInsertedScript>>;
+
+function insertedScriptCorsMode(crossOrigin: string | null): string {
+  return crossOrigin == null ? "no-cors" : "cors";
+}
+
+async function insertedScriptResult(response: Response): Promise<InsertedScriptResult> {
+  if (!response.ok) return insertedScriptFailure(response.status || 0);
+  return insertedScriptResponse(response);
+}
+
+function insertedScriptHeaders(corsMode: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "x-kitesurf-script-cors": corsMode,
+    accept: "*/*",
+  };
+  addOptionalFetchHeader(headers, "x-kitesurf-connection-id", state.connectionId);
+  addOptionalFetchHeader(headers, "x-kitesurf-frame-id", state.mainFrameId);
+  addOptionalFetchHeader(headers, "x-kitesurf-cookie-key", state.cookieKey);
+  return headers;
+}
+
+function insertedScriptFailure(status: number): InsertedScriptResult {
+  return {
+    status,
+    source: "",
+    bytes: EMPTY_BYTES,
+    contentType: null,
+    nosniff: null,
+    opaque: true,
+  };
+}
+
+async function insertedScriptResponse(response: Response): Promise<InsertedScriptResult> {
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return {
+    status: response.status,
+    source: new TextDecoder("utf-8").decode(bytes),
+    bytes,
+    contentType: response.headers.get("content-type"),
+    nosniff: response.headers.get(KITESURF_NOSNIFF_HEADER),
+    opaque: responseIsOpaque(response.headers.get(KITESURF_CORS_VERDICT_HEADER)),
+  };
 }
 
 const EMPTY_BYTES = new Uint8Array(0);
@@ -719,180 +953,327 @@ function releaseParkedFontFetches(): void {
 }
 setParkedFontReleaseHook(releaseParkedFontFetches);
 
+interface ResourceRequest {
+  id: number;
+  url: string;
+  kind: string;
+  corsMode: string;
+}
+
+interface TrackedResourceRequest extends ResourceRequest {
+  blocksLoad: boolean;
+}
+
+type ResourceDisposition = { state: "skip" } | { state: "fetch"; blocksLoad: boolean };
+
+type ResourceDom = {
+  deliverResource?: (id: number, bytes: Uint8Array) => boolean;
+  deliverFontResource?: (id: number, bytes: Uint8Array, key: string) => boolean;
+  deliverResourceMeta?: (id: number, key: string, w: number, h: number) => boolean;
+  deliverResourceError?: (id: number) => void;
+};
+
+type ReadyResourceDom = ResourceDom & {
+  deliverResource: NonNullable<ResourceDom["deliverResource"]>;
+};
+
+function isReadyResourceDom(dom: ResourceDom | null): dom is ReadyResourceDom {
+  return !!dom?.deliverResource;
+}
+
+type SuccessfulFetchResult = Extract<FetchResult, { ok: true }>;
+
+function shouldParkFont(kind: string): boolean {
+  return kind === "Font" && fontDeferActive() && !fontDemandFired();
+}
+
+function parkFont(request: ResourceRequest): void {
+  parkedFonts.push({ id: request.id, url: request.url, corsMode: request.corsMode });
+  try {
+    console.warn(`[ks-fonts] @font-face parked: ${request.url}`);
+  } catch {}
+}
+
+function notifyDocumentResourceError(id: number): void {
+  try {
+    const dom = state.dom as { deliverResourceError?: (id: number) => void } | null;
+    dom?.deliverResourceError?.(id);
+  } catch {}
+}
+
+function resourceDisposition(id: number, url: string, kind: string): ResourceDisposition {
+  if (kind !== "Document") return { state: "fetch", blocksLoad: true };
+  const hint = iframeDocumentHint(url);
+  if (hint === null || hint.crossOrigin) {
+    notifyDocumentResourceError(id);
+    return { state: "skip" };
+  }
+  return { state: "fetch", blocksLoad: !hint.lazy };
+}
+
+function trackResourceStart(request: TrackedResourceRequest): void {
+  if (request.blocksLoad) addInflight(request.url);
+  if (request.kind === "Image") addImageInflight(request.url);
+  if (request.kind === "Font") {
+    addFontInflight(request.url);
+    try {
+      console.warn(`[ks-fonts] @font-face fetch: ${request.url}`);
+    } catch {}
+  }
+}
+
+function snapshotImageNodes(request: ResourceRequest): number[] {
+  if (request.kind !== "Image") return [];
+  const dom = state.dom as { pendingImageNodes?: (url: string) => ArrayLike<number> } | null;
+  if (!dom?.pendingImageNodes) return [];
+  try {
+    return Array.from(dom.pendingImageNodes(request.url));
+  } catch {
+    return [];
+  }
+}
+
+function notifyResourceImages(nodeIds: number[], ok: boolean): void {
+  if (nodeIds.length === 0) return;
+  try {
+    state.notifyImageResults(nodeIds, ok);
+  } catch {}
+}
+
+function notifyStylesheetError(request: ResourceRequest): void {
+  if (request.kind !== "Stylesheet") return;
+  try {
+    state.notifyStylesheetResults(request.url, false);
+  } catch {}
+}
+
+function reportResourceError(request: ResourceRequest): void {
+  const dom = state.dom as { deliverResourceError?: (id: number) => void } | null;
+  if (!dom?.deliverResourceError) return;
+  const imageNodes = snapshotImageNodes(request);
+  try {
+    dom.deliverResourceError(request.id);
+  } catch {}
+  notifyResourceImages(imageNodes, false);
+  notifyStylesheetError(request);
+}
+
+function removeCoalescedFetch(key: string, shared: Promise<FetchResult>): void {
+  if (inflightFetches.get(key) === shared) inflightFetches.delete(key);
+}
+
+function coalescedResourceFetch(request: ResourceRequest): Promise<FetchResult> {
+  // CORS mode stays in the key so callers never share a differently entitled response.
+  const key = `${request.corsMode}\n${request.url}`;
+  const existing = inflightFetches.get(key);
+  if (existing) return existing;
+  const shared = doRealFetch(request.url, request.kind, request.corsMode);
+  inflightFetches.set(key, shared);
+  shared.finally(() => removeCoalescedFetch(key, shared));
+  return shared;
+}
+
+async function waitForImageReevaluation(request: ResourceRequest): Promise<void> {
+  if (request.kind !== "Image") return;
+  await NativePromise.resolve();
+  reevaluateDeferred(request.url);
+}
+
+function warnFailedFontFetch(request: ResourceRequest): void {
+  if (request.kind !== "Font") return;
+  try {
+    console.warn(`[ks-fonts] @font-face fetch FAILED: ${request.url}`);
+  } catch {}
+}
+
+function warnCompletedFontFetch(request: ResourceRequest, bytes: Uint8Array): void {
+  if (request.kind !== "Font") return;
+  try {
+    console.warn(`[ks-fonts] @font-face fetched ${bytes.length} bytes: ${request.url}`);
+  } catch {}
+}
+
+function shouldRetainFontCustody(request: ResourceRequest, bytes: Uint8Array): boolean {
+  return (
+    request.kind === "Font" &&
+    bytes.length > 0 &&
+    bytes.length <= FONT_CUSTODY_BUDGET &&
+    fontLoaderMode() === "lazy" &&
+    !fontCustody.has(request.url)
+  );
+}
+
+function evictOldestFontCustody(): boolean {
+  const oldest = fontCustody.keys().next().value;
+  if (oldest === undefined) return false;
+  fontCustodyBytes -= fontCustody.get(oldest)?.length ?? 0;
+  fontCustody.delete(oldest);
+  return true;
+}
+
+function storeFontCustody(url: string, bytes: Uint8Array): void {
+  while (fontCustodyBytes + bytes.length > FONT_CUSTODY_BUDGET && fontCustody.size > 0) {
+    if (!evictOldestFontCustody()) break;
+  }
+  fontCustody.set(url, bytes);
+  fontCustodyBytes += bytes.length;
+}
+
+function retainFontCustody(request: ResourceRequest, bytes: Uint8Array): void {
+  if (!shouldRetainFontCustody(request, bytes)) return;
+  storeFontCustody(request.url, bytes);
+}
+
+function rememberFontKey(request: ResourceRequest, result: SuccessfulFetchResult): void {
+  if (request.kind === "Font" && result.fontKey) {
+    fontKeyUrls.set(result.fontKey, request.url);
+  }
+}
+
+function shouldCacheStylesheet(request: ResourceRequest, result: SuccessfulFetchResult): boolean {
+  return (
+    request.kind === "Stylesheet" &&
+    result.cors === "clean" &&
+    result.bytes.length > 0 &&
+    !resourceCacheStyles.has(request.url)
+  );
+}
+
+function rememberResourceMetadata(request: ResourceRequest, result: SuccessfulFetchResult): void {
+  rememberFontKey(request, result);
+  if (request.kind === "Stylesheet") stylesheetCors.set(request.url, result.cors);
+  if (shouldCacheStylesheet(request, result)) cacheStylesheet(request.url, result.bytes);
+}
+
+function recordSuccessfulResource(request: ResourceRequest, result: SuccessfulFetchResult): void {
+  retainFontCustody(request, result.bytes);
+  rememberResourceMetadata(request, result);
+}
+
+function deliverOpaqueResource(
+  dom: ReadyResourceDom,
+  id: number,
+  result: SuccessfulFetchResult,
+): boolean | null {
+  const opaque = result.opaqueImage;
+  if (opaque && dom.deliverResourceMeta) {
+    return dom.deliverResourceMeta(id, opaque.key, opaque.w, opaque.h);
+  }
+  return null;
+}
+
+function deliverFontResource(
+  dom: ReadyResourceDom,
+  id: number,
+  bytes: Uint8Array,
+  result: SuccessfulFetchResult,
+): boolean | null {
+  if (result.fontKey && dom.deliverFontResource) {
+    return dom.deliverFontResource(id, bytes, result.fontKey);
+  }
+  return null;
+}
+
+function invokeResourceDelivery(
+  dom: ReadyResourceDom,
+  request: ResourceRequest,
+  result: SuccessfulFetchResult,
+): boolean {
+  const opaqueResult = deliverOpaqueResource(dom, request.id, result);
+  if (opaqueResult !== null) return opaqueResult;
+  const fontResult = deliverFontResource(dom, request.id, result.bytes, result);
+  if (fontResult !== null) return fontResult;
+  return dom.deliverResource(request.id, result.bytes);
+}
+
+function measuredResourceDelivery(
+  dom: ReadyResourceDom,
+  request: ResourceRequest,
+  result: SuccessfulFetchResult,
+): boolean {
+  noteSyncOp(`deliver:${request.kind}`);
+  const deliveryStartedAt = Date.now();
+  const ok = invokeResourceDelivery(dom, request, result);
+  recordDeliverMs(Date.now() - deliveryStartedAt);
+  return ok;
+}
+
+function completeResourceDelivery(
+  request: ResourceRequest,
+  imageNodes: number[],
+  ok: boolean,
+): void {
+  if (request.kind === "Font") warnFontDelivery(request.id, ok, request.url);
+  if (!ok) return;
+  notifyResourceImages(imageNodes, true);
+  markResourceDelivered(getInternalState(), request.kind, request.url);
+}
+
+function deliverResourceResult(request: ResourceRequest, result: SuccessfulFetchResult): void {
+  const dom = state.dom as ResourceDom | null;
+  if (!isReadyResourceDom(dom)) return;
+  const imageNodes = snapshotImageNodes(request);
+  try {
+    const ok = measuredResourceDelivery(dom, request, result);
+    completeResourceDelivery(request, imageNodes, ok);
+  } catch {
+    reportResourceError(request);
+  }
+}
+
+async function fetchAndDeliverResource(request: ResourceRequest): Promise<void> {
+  const shared = coalescedResourceFetch(request);
+  await waitForImageReevaluation(request);
+  const result = await shared;
+  if (!result.ok) {
+    warnFailedFontFetch(request);
+    reportResourceError(request);
+    return;
+  }
+  warnCompletedFontFetch(request, result.bytes);
+  recordSuccessfulResource(request, result);
+  deliverResourceResult(request, result);
+}
+
+function settleResourceFetch(request: TrackedResourceRequest): void {
+  if (request.blocksLoad) removeInflight(request.url);
+  if (request.kind === "Font") removeFontInflight(request.url);
+  if (request.kind === "Image") removeImageInflight(request.url);
+  fetchSlots.poke();
+  const settledWaiters = resourceSettleWaiters;
+  resourceSettleWaiters = [];
+  for (const resolveWaiter of settledWaiters) resolveWaiter();
+}
+
+function prepareResourceRequest(request: ResourceRequest): TrackedResourceRequest | null {
+  if (shouldParkFont(request.kind)) {
+    parkFont(request);
+    return null;
+  }
+  const disposition = resourceDisposition(request.id, request.url, request.kind);
+  if (disposition.state === "skip") return null;
+  const trackedRequest = { ...request, blocksLoad: disposition.blocksLoad };
+  trackResourceStart(trackedRequest);
+  return trackedRequest;
+}
+
 export async function fetchResource(
   id: number,
   url: string,
   kind: string,
   corsMode: string = "",
 ): Promise<void> {
-  if (kind === "Font" && fontDeferActive() && !fontDemandFired()) {
-    parkedFonts.push({ id, url, corsMode });
-    try {
-      console.warn(`[ks-fonts] @font-face parked: ${url}`);
-    } catch {}
-    return;
-  }
-  let blocksLoad = true;
-  if (kind === "Document") {
-    await NativePromise.resolve();
-    const hint = iframeDocumentHint(url);
-    if (hint === null || hint.crossOrigin) {
-      try {
-        const dom = state.dom as { deliverResourceError?: (id: number) => void } | null;
-        dom?.deliverResourceError?.(id);
-      } catch {}
-      return;
-    }
-    blocksLoad = !hint.lazy;
-  }
-  if (blocksLoad) addInflight(url);
-  if (kind === "Image") addImageInflight(url);
-  if (kind === "Font") {
-    addFontInflight(url);
-    try {
-      console.warn(`[ks-fonts] @font-face fetch: ${url}`);
-    } catch {}
-  }
-
-  const snapshotImageNodes = (): number[] => {
-    if (kind !== "Image") return [];
-    const dom = state.dom as { pendingImageNodes?: (url: string) => ArrayLike<number> } | null;
-    if (!dom?.pendingImageNodes) return [];
-    try {
-      return Array.from(dom.pendingImageNodes(url));
-    } catch {
-      return [];
-    }
-  };
-  const notifyImages = (nodeIds: number[], ok: boolean) => {
-    if (nodeIds.length === 0) return;
-    try {
-      state.notifyImageResults(nodeIds, ok);
-    } catch {}
-  };
-
-  const reportError = () => {
-    const dom = state.dom as { deliverResourceError?: (id: number) => void } | null;
-    if (!dom?.deliverResourceError) return;
-    const imageNodes = snapshotImageNodes();
-    try {
-      dom.deliverResourceError(id);
-    } catch {}
-    notifyImages(imageNodes, false);
-    if (kind === "Stylesheet") {
-      try {
-        state.notifyStylesheetResults(url, false);
-      } catch {}
-    }
-  };
-
+  const request = { id, url, kind, corsMode };
+  // Other resource kinds must enter the inflight counters before yielding to idle waiters.
+  if (kind === "Document") await NativePromise.resolve();
+  const trackedRequest = prepareResourceRequest(request);
+  if (!trackedRequest) return;
   try {
-    // CORS mode stays in the key so callers never share a differently entitled response.
-    const coalesceKey = `${corsMode}\n${url}`;
-    let shared = inflightFetches.get(coalesceKey);
-    if (!shared) {
-      shared = doRealFetch(url, kind, corsMode);
-      inflightFetches.set(coalesceKey, shared);
-      shared.finally(() => {
-        if (inflightFetches.get(coalesceKey) === shared) {
-          inflightFetches.delete(coalesceKey);
-        }
-      });
-    }
-
-    if (kind === "Image") {
-      await NativePromise.resolve();
-      reevaluateDeferred(url);
-    }
-
-    const result = await shared;
-    if (!result.ok) {
-      if (kind === "Font") {
-        try {
-          console.warn(`[ks-fonts] @font-face fetch FAILED: ${url}`);
-        } catch {}
-      }
-      reportError();
-      return;
-    }
-    const bytes = result.bytes;
-    if (kind === "Font") {
-      try {
-        console.warn(`[ks-fonts] @font-face fetched ${bytes.length} bytes: ${url}`);
-      } catch {}
-    }
-
-    if (
-      kind === "Font" &&
-      bytes.length > 0 &&
-      bytes.length <= FONT_CUSTODY_BUDGET &&
-      fontLoaderMode() === "lazy" &&
-      !fontCustody.has(url)
-    ) {
-      while (fontCustodyBytes + bytes.length > FONT_CUSTODY_BUDGET && fontCustody.size > 0) {
-        const oldest = fontCustody.keys().next().value;
-        if (oldest === undefined) break;
-        fontCustodyBytes -= fontCustody.get(oldest)?.length ?? 0;
-        fontCustody.delete(oldest);
-      }
-      fontCustody.set(url, bytes);
-      fontCustodyBytes += bytes.length;
-    }
-
-    if (kind === "Font" && result.fontKey) {
-      fontKeyUrls.set(result.fontKey, url);
-    }
-
-    if (kind === "Stylesheet") {
-      stylesheetCors.set(url, result.cors);
-    }
-    if (
-      kind === "Stylesheet" &&
-      result.cors === "clean" &&
-      bytes.length > 0 &&
-      !resourceCacheStyles.has(url)
-    ) {
-      cacheStylesheet(url, bytes);
-    }
-
-    const dom = state.dom as {
-      deliverResource?: (id: number, bytes: Uint8Array) => boolean;
-      deliverFontResource?: (id: number, bytes: Uint8Array, key: string) => boolean;
-      deliverResourceMeta?: (id: number, key: string, w: number, h: number) => boolean;
-      deliverResourceError?: (id: number) => void;
-    } | null;
-    if (dom?.deliverResource) {
-      const imageNodes = snapshotImageNodes();
-      try {
-        noteSyncOp(`deliver:${kind}`);
-        const deliveryStartedAt = Date.now();
-        const opaque = result.opaqueImage;
-        const ok =
-          opaque && dom.deliverResourceMeta
-            ? dom.deliverResourceMeta(id, opaque.key, opaque.w, opaque.h)
-            : result.fontKey && dom.deliverFontResource
-              ? dom.deliverFontResource(id, bytes, result.fontKey)
-              : dom.deliverResource(id, bytes);
-        recordDeliverMs(Date.now() - deliveryStartedAt);
-        if (kind === "Font") warnFontDelivery(id, ok, url);
-        if (ok) {
-          notifyImages(imageNodes, true);
-          markResourceDelivered(getInternalState(), kind, url);
-        }
-      } catch {
-        reportError();
-      }
-    }
+    await fetchAndDeliverResource(request);
   } catch {
-    reportError();
+    reportResourceError(request);
   } finally {
-    if (blocksLoad) removeInflight(url);
-    if (kind === "Font") removeFontInflight(url);
-    if (kind === "Image") removeImageInflight(url);
-    fetchSlots.poke();
-    const settledWaiters = resourceSettleWaiters;
-    resourceSettleWaiters = [];
-    for (const resolveWaiter of settledWaiters) resolveWaiter();
+    settleResourceFetch(trackedRequest);
   }
 }
 

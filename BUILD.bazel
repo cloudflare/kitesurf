@@ -167,6 +167,7 @@ test_suite(
         "//packages/page-renderer:build",
         "//packages/page-renderer:types",
         "//packages/page-script:build",
+        "//packages/page-script:test",
         "//packages/page-script:types",
         "//packages/scene-host-wasm:abi_test",
         "//packages/script-gate:test",

@@ -9,6 +9,7 @@
 import { retryWhenIoAllowed } from "./defer-shim.ts";
 import { nativeClearTimeout, nativeSetTimeout } from "./native-scheduling.ts";
 import { ksEventCtors, state } from "./state.ts";
+import type { ShimNode } from "./types.ts";
 
 const TICK_MS = 16;
 
@@ -82,14 +83,7 @@ function scheduleDrain(delayMs: number): void {
 }
 
 export function armTransitionDrain(animationListeners?: boolean): void {
-  if (animationListeners !== undefined) {
-    animationDrainRequested = animationListeners;
-    const dom = state.dom as any;
-    try {
-      dom?.setAnimationEventsRequested?.(animationListeners);
-    } catch {}
-    if (!animationListeners) return;
-  }
+  if (updateAnimationDrainRequest(animationListeners)) return;
   if (tickPending) {
     armedSinceSchedule = true;
     if (tickIntervalMs > TICK_MS) {
@@ -107,131 +101,185 @@ export function armTransitionDrain(animationListeners?: boolean): void {
   scheduleDrain(tickIntervalMs);
 }
 
-function drainTick(): void {
-  tickPending = false;
-  const dom = state.dom as any;
-  if (
-    !dom ||
-    (typeof dom.takeTransitionEvents !== "function" &&
-      typeof dom.takeAnimationEvents !== "function")
-  )
-    return;
-
-  if (armedSinceSchedule && deferredTicks < MAX_DEFERRED_TICKS) {
-    let pending = false;
-    try {
-      pending = dom.hasPendingTransitions() === true;
-    } catch {}
-    if (!pending && animationDrainRequested) {
-      try {
-        pending = dom.isAnimating() === true;
-      } catch {}
-    }
-    if (!pending) {
-      armedSinceSchedule = false;
-      deferredTicks++;
-      scheduleDrain(tickIntervalMs);
-      return;
-    }
-  }
-  armedSinceSchedule = false;
-  if (queuedAnimationEvents.length > 0) {
-    dispatchAnimationEvents(queuedAnimationEvents.splice(0, ANIMATION_EVENT_BATCH_SIZE));
-    scheduleDrain(0);
-    return;
-  }
-  let transitionEvents: unknown = [];
-  let animationEvents: unknown = [];
+function updateAnimationDrainRequest(animationListeners: boolean | undefined): boolean {
+  if (animationListeners === undefined) return false;
+  animationDrainRequested = animationListeners;
   try {
-    if (typeof dom.takeTransitionEvents === "function") {
-      transitionEvents = dom.takeTransitionEvents();
-    }
-    if (animationDrainRequested && typeof dom.takeAnimationEvents === "function") {
-      animationEvents = dom.takeAnimationEvents();
-    }
-  } catch {
-    return;
-  }
-  if (Array.isArray(transitionEvents) && transitionEvents.length > 0) {
-    dispatchTransitionEvents(transitionEvents as TransitionEventData[]);
-  }
-  if (Array.isArray(animationEvents) && animationEvents.length > 0) {
-    queuedAnimationEvents.push(...(animationEvents as AnimationEventData[]));
-    dispatchAnimationEvents(queuedAnimationEvents.splice(0, ANIMATION_EVENT_BATCH_SIZE));
-  }
-  let transitionsPending = false;
-  try {
-    transitionsPending = dom.hasPendingTransitions() === true;
+    const dom = state.dom as any;
+    dom?.setAnimationEventsRequested?.(animationListeners);
   } catch {}
-  let pending = transitionsPending;
-  if (!pending && animationDrainRequested) {
-    try {
-      pending = dom.isAnimating() === true;
-    } catch {}
-  }
-  if (pending || queuedAnimationEvents.length > 0) {
-    if (transitionsPending) {
-      zeroEventTicks = 0;
-      tickIntervalMs = TICK_MS;
-    } else {
-      zeroEventTicks++;
-      tickIntervalMs = Math.min(
-        TICK_MS * 2 ** Math.min(zeroEventTicks, MAX_ZERO_EVENT_BACKOFF_EXPONENT),
-        MAX_BACKOFF_MS,
-      );
-    }
-    armedSinceSchedule = false;
-    deferredTicks = 0;
-    scheduleDrain(tickIntervalMs);
+  return !animationListeners;
+}
+
+function hasEventSource(dom: any): boolean {
+  return (
+    typeof dom.takeTransitionEvents === "function" || typeof dom.takeAnimationEvents === "function"
+  );
+}
+
+function canDrainEvents(dom: any): boolean {
+  return !!dom && hasEventSource(dom);
+}
+
+function hasTransitionWork(dom: any): boolean {
+  try {
+    return dom.hasPendingTransitions() === true;
+  } catch {
+    return false;
   }
 }
 
+function hasAnimationWork(dom: any): boolean {
+  try {
+    return dom.isAnimating() === true;
+  } catch {
+    return false;
+  }
+}
+
+function hasArmedWork(dom: any): boolean {
+  return hasTransitionWork(dom) || (animationDrainRequested && hasAnimationWork(dom));
+}
+
+function deferArmedDrain(dom: any): boolean {
+  if (!armedSinceSchedule || deferredTicks >= MAX_DEFERRED_TICKS) return false;
+  if (hasArmedWork(dom)) return false;
+  armedSinceSchedule = false;
+  deferredTicks++;
+  scheduleDrain(tickIntervalMs);
+  return true;
+}
+
+function drainQueuedAnimationEvents(): boolean {
+  if (queuedAnimationEvents.length === 0) return false;
+  dispatchAnimationEvents(queuedAnimationEvents.splice(0, ANIMATION_EVENT_BATCH_SIZE));
+  scheduleDrain(0);
+  return true;
+}
+
+interface PendingEvents {
+  transitions: unknown;
+  animations: unknown;
+}
+
+function takePendingEvents(dom: any): PendingEvents | null {
+  let transitions: unknown = [];
+  let animations: unknown = [];
+  try {
+    if (typeof dom.takeTransitionEvents === "function") {
+      transitions = dom.takeTransitionEvents();
+    }
+    if (animationDrainRequested && typeof dom.takeAnimationEvents === "function") {
+      animations = dom.takeAnimationEvents();
+    }
+  } catch {
+    return null;
+  }
+  return { transitions, animations };
+}
+
+function dispatchTransitionsIfAny(events: unknown): void {
+  if (Array.isArray(events) && events.length > 0) {
+    dispatchTransitionEvents(events as TransitionEventData[]);
+  }
+}
+
+function queueAnimationsIfAny(events: unknown): void {
+  if (!Array.isArray(events) || events.length === 0) return;
+  queuedAnimationEvents.push(...(events as AnimationEventData[]));
+  dispatchAnimationEvents(queuedAnimationEvents.splice(0, ANIMATION_EVENT_BATCH_SIZE));
+}
+
+function dispatchPendingEvents(events: PendingEvents): void {
+  dispatchTransitionsIfAny(events.transitions);
+  queueAnimationsIfAny(events.animations);
+}
+
+function isAnimationDrainPending(dom: any, transitionsPending: boolean): boolean {
+  if (transitionsPending || !animationDrainRequested) return false;
+  return hasAnimationWork(dom);
+}
+
+function schedulePendingDrain(dom: any): void {
+  const transitionsPending = hasTransitionWork(dom);
+  const animationPending = isAnimationDrainPending(dom, transitionsPending);
+  if (!transitionsPending && !animationPending && queuedAnimationEvents.length === 0) return;
+  if (transitionsPending) {
+    zeroEventTicks = 0;
+    tickIntervalMs = TICK_MS;
+  } else {
+    zeroEventTicks++;
+    tickIntervalMs = Math.min(
+      TICK_MS * 2 ** Math.min(zeroEventTicks, MAX_ZERO_EVENT_BACKOFF_EXPONENT),
+      MAX_BACKOFF_MS,
+    );
+  }
+  armedSinceSchedule = false;
+  deferredTicks = 0;
+  scheduleDrain(tickIntervalMs);
+}
+
+function drainTick(): void {
+  tickPending = false;
+  const dom = state.dom as any;
+  if (!canDrainEvents(dom)) return;
+
+  if (deferArmedDrain(dom)) return;
+  armedSinceSchedule = false;
+  if (drainQueuedAnimationEvents()) return;
+  const events = takePendingEvents(dom);
+  if (!events) return;
+  dispatchPendingEvents(events);
+  schedulePendingDrain(dom);
+}
+
+function dispatchTrustedPageEvent(
+  constructor: any,
+  element: ShimNode,
+  type: string,
+  init: Record<string, unknown>,
+): void {
+  let event: unknown;
+  try {
+    event = new constructor(type, init);
+  } catch {
+    return;
+  }
+  try {
+    state.dispatchTrustedEvent(element, event);
+  } catch {}
+}
+
 function dispatchTransitionEvents(events: TransitionEventData[]): void {
-  const TransitionEventConstructor = ksEventCtors.TransitionEvent;
+  const constructor = ksEventCtors.TransitionEvent;
   const resolveNode = state.resolveNodeId;
-  if (!TransitionEventConstructor || typeof resolveNode !== "function") return;
+  if (!constructor || typeof resolveNode !== "function") return;
   for (const eventData of events) {
     const element = resolveNode(eventData.nodeId);
     if (!element) continue;
-    let event: unknown;
-    try {
-      event = new TransitionEventConstructor(eventData.type, {
-        bubbles: true,
-        cancelable: false,
-        propertyName: eventData.propertyName,
-        elapsedTime: eventData.elapsedTime,
-        pseudoElement: "",
-      });
-    } catch {
-      continue;
-    }
-    try {
-      state.dispatchTrustedEvent(element, event);
-    } catch {}
+    dispatchTrustedPageEvent(constructor, element, eventData.type, {
+      bubbles: true,
+      cancelable: false,
+      propertyName: eventData.propertyName,
+      elapsedTime: eventData.elapsedTime,
+      pseudoElement: "",
+    });
   }
 }
 
 function dispatchAnimationEvents(events: AnimationEventData[]): void {
-  const AnimationEventConstructor = ksEventCtors.AnimationEvent;
+  const constructor = ksEventCtors.AnimationEvent;
   const resolveNode = state.resolveNodeId;
-  if (!AnimationEventConstructor || typeof resolveNode !== "function") return;
+  if (!constructor || typeof resolveNode !== "function") return;
   for (const eventData of events) {
     const element = resolveNode(eventData.nodeId);
     if (!element) continue;
-    let event: unknown;
-    try {
-      event = new AnimationEventConstructor(eventData.type, {
-        bubbles: true,
-        cancelable: false,
-        animationName: eventData.animationName,
-        elapsedTime: eventData.elapsedTime,
-        pseudoElement: "",
-      });
-    } catch {
-      continue;
-    }
-    try {
-      state.dispatchTrustedEvent(element, event);
-    } catch {}
+    dispatchTrustedPageEvent(constructor, element, eventData.type, {
+      bubbles: true,
+      cancelable: false,
+      animationName: eventData.animationName,
+      elapsedTime: eventData.elapsedTime,
+      pseudoElement: "",
+    });
   }
 }

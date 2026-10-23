@@ -2,7 +2,7 @@ load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary"
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@npm//packages/page-script:typescript/package_json.bzl", tsc = "bin")
-load("//bazel:checks.bzl", "tsc_test", "workspace_configs")
+load("//bazel:checks.bzl", "node_test", "tsc_test", "workspace_configs")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -59,6 +59,13 @@ tsc_test(
         "//:node_modules/@cloudflare/workers-types",
         "//packages/core/pkg",
     ],
+)
+
+node_test(
+    name = "test",
+    args = ["test/*.test.mjs"],
+    data = [":srcs"] + glob(["test/**"]),
+    env = {"NODE_OPTIONS": "--experimental-vm-modules"},
 )
 
 build_test(name = "build", targets = [":dist"])

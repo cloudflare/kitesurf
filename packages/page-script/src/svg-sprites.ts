@@ -22,35 +22,56 @@ interface ExternalRef {
   attr: string;
 }
 
-function externalRef(use: any): ExternalRef | null {
-  let attr: string | null = null;
-  let raw = "";
+interface HrefReference {
+  attr: string;
+  raw: string;
+}
+
+function readHrefReference(use: any): HrefReference | null {
+  const attr = use.hasAttribute("href")
+    ? "href"
+    : use.hasAttribute("xlink:href")
+      ? "xlink:href"
+      : null;
+  if (!attr) return null;
+  return { attr, raw: String(use.getAttribute(attr) || "") };
+}
+
+function hrefReference(use: any): HrefReference | null {
   try {
-    if (use.hasAttribute("href")) {
-      attr = "href";
-      raw = String(use.getAttribute("href") || "");
-    } else if (use.hasAttribute("xlink:href")) {
-      attr = "xlink:href";
-      raw = String(use.getAttribute("xlink:href") || "");
-    }
+    return readHrefReference(use);
   } catch {
     return null;
   }
-  if (!attr) return null;
+}
+
+function fragmentReference(raw: string, attr: string): ExternalRef | null {
   const fragmentIndex = raw.indexOf("#");
   if (fragmentIndex <= 0) return null;
   const id = raw.slice(fragmentIndex + 1);
   if (!id) return null;
+  const url = sameOriginSpriteUrl(raw.slice(0, fragmentIndex));
+  if (!url) return null;
+  return { url, id, attr };
+}
+
+function sameOriginSpriteUrl(path: string): string | null {
   let abs: URL;
   let page: URL;
   try {
     page = new URL(state.pageUrl);
-    abs = new URL(raw.slice(0, fragmentIndex), state.pageUrl);
+    abs = new URL(path, state.pageUrl);
   } catch {
     return null;
   }
   if (abs.origin !== page.origin) return null;
-  return { url: abs.toString(), id, attr };
+  return abs.toString();
+}
+
+function externalRef(use: any): ExternalRef | null {
+  const reference = hrefReference(use);
+  if (!reference) return null;
+  return fragmentReference(reference.raw, reference.attr);
 }
 
 function collectUses(): any[] {
@@ -64,76 +85,125 @@ function collectUses(): any[] {
 export function rewriteSpriteUses(): number {
   let rewritten = 0;
   for (const use of collectUses()) {
-    const ref = externalRef(use);
-    if (!ref) continue;
-    const ids = loadedSprites.get(ref.url);
-    if (!ids || !ids.has(ref.id)) continue;
-    try {
-      use.setAttribute("href", "#" + ref.id);
-      rewritten++;
-    } catch {}
+    rewritten += rewriteLoadedSpriteUse(use);
   }
   return rewritten;
 }
 
+function rewriteLoadedSpriteUse(use: any): number {
+  const ref = externalRef(use);
+  if (!ref) return 0;
+  const ids = loadedSprites.get(ref.url);
+  if (!ids || !ids.has(ref.id)) return 0;
+  try {
+    use.setAttribute("href", "#" + ref.id);
+    return 1;
+  } catch {
+    return 0;
+  }
+}
+
+function warnRejectedSprite(url: string, response: Response | null | undefined): void {
+  try {
+    console.warn(`[ks-sprites] sprite fetch ${url}: HTTP ${response ? response.status : "null"}`);
+  } catch {}
+}
+
+function warnOversizedSprite(url: string, text: string): void {
+  try {
+    console.warn(
+      `[ks-sprites] sprite rejected ${url}: ${text ? text.length : 0} bytes (cap ${MAX_SPRITE_BYTES})`,
+    );
+  } catch {}
+}
+
+async function fetchSpriteText(url: string): Promise<string | null> {
+  const response = await fetch(url);
+  if (!response || !response.ok) {
+    warnRejectedSprite(url, response);
+    return null;
+  }
+  const text = await response.text();
+  if (!text || text.length > MAX_SPRITE_BYTES) {
+    warnOversizedSprite(url, text);
+    return null;
+  }
+  return text;
+}
+
+function spriteIdsIn(holder: any): Set<string> {
+  const ids = new Set<string>();
+  for (const element of Array.from(holder.querySelectorAll("[id]")) as any[]) {
+    try {
+      ids.add(String(element.getAttribute("id")));
+    } catch {}
+  }
+  return ids;
+}
+
+function installSpriteHolder(url: string, text: string): Set<string> {
+  const doc = state.document as any;
+  const holder = doc.createElement("div");
+  holder.setAttribute("style", "display:none");
+  holder.setAttribute("aria-hidden", "true");
+  holder.setAttribute("data-ks-sprite", url);
+  holder.innerHTML = text;
+  (doc.body || doc.documentElement).appendChild(holder);
+  return spriteIdsIn(holder);
+}
+
 async function loadSprite(url: string): Promise<void> {
   try {
-    const response = await fetch(url);
-    if (!response || !response.ok) {
-      try {
-        console.warn(
-          `[ks-sprites] sprite fetch ${url}: HTTP ${response ? response.status : "null"}`,
-        );
-      } catch {}
+    const text = await fetchSpriteText(url);
+    if (!text) {
       failedSprites.add(url);
       return;
     }
-    const text = await response.text();
-    if (!text || text.length > MAX_SPRITE_BYTES) {
-      try {
-        console.warn(
-          `[ks-sprites] sprite rejected ${url}: ${text ? text.length : 0} bytes (cap ${MAX_SPRITE_BYTES})`,
-        );
-      } catch {}
-      failedSprites.add(url);
-      return;
-    }
-    const doc = state.document as any;
-    const holder = doc.createElement("div");
-    holder.setAttribute("style", "display:none");
-    holder.setAttribute("aria-hidden", "true");
-    holder.setAttribute("data-ks-sprite", url);
-    holder.innerHTML = text;
-    (doc.body || doc.documentElement).appendChild(holder);
-    const ids = new Set<string>();
-    for (const element of Array.from(holder.querySelectorAll("[id]")) as any[]) {
-      try {
-        ids.add(String(element.getAttribute("id")));
-      } catch {}
-    }
-    loadedSprites.set(url, ids);
+    loadedSprites.set(url, installSpriteHolder(url, text));
   } catch (e) {
-    const MAX_SPRITE_ERROR_MESSAGE_CHARS = 160;
-    try {
-      console.warn(
-        `[ks-sprites] sprite load failed ${url}: ${String((e as any)?.message || e).slice(0, MAX_SPRITE_ERROR_MESSAGE_CHARS)}`,
-      );
-    } catch {}
+    warnSpriteLoadFailure(url, e);
     failedSprites.add(url);
   }
 }
 
-export function resolveExternalSvgSprites(): Promise<void> {
+function warnSpriteLoadFailure(url: string, error: unknown): void {
+  const MAX_SPRITE_ERROR_MESSAGE_CHARS = 160;
+  try {
+    console.warn(
+      `[ks-sprites] sprite load failed ${url}: ${String((error as any)?.message || error).slice(0, MAX_SPRITE_ERROR_MESSAGE_CHARS)}`,
+    );
+  } catch {}
+}
+
+function collectWantedSprites(): string[] {
   const wanted: string[] = [];
   for (const use of collectUses()) {
     const ref = externalRef(use);
-    if (!ref) continue;
-    if (loadedSprites.has(ref.url) || failedSprites.has(ref.url)) continue;
-    if (!wanted.includes(ref.url)) {
-      wanted.push(ref.url);
-      if (wanted.length >= MAX_SPRITES) break;
-    }
+    if (!ref || !isUnseenSprite(ref.url, wanted)) continue;
+    wanted.push(ref.url);
+    if (wanted.length >= MAX_SPRITES) break;
   }
+  return wanted;
+}
+
+function isUnseenSprite(url: string, wanted: string[]): boolean {
+  return !loadedSprites.has(url) && !failedSprites.has(url) && !wanted.includes(url);
+}
+
+async function fetchWantedSprites(wanted: string[]): Promise<void> {
+  for (const url of wanted) resourceInflight.add("sprite:" + url);
+  try {
+    await Promise.all(
+      wanted.map((url) => loadSprite(url).finally(() => resourceInflight.delete("sprite:" + url))),
+    );
+    rewriteSpriteUses();
+  } catch {
+    for (const url of wanted) resourceInflight.delete("sprite:" + url);
+  }
+}
+
+export function resolveExternalSvgSprites(): Promise<void> {
+  const wanted = collectWantedSprites();
   if (wanted.length === 0) {
     rewriteSpriteUses();
     return Promise.resolve();
@@ -141,19 +211,7 @@ export function resolveExternalSvgSprites(): Promise<void> {
   try {
     console.warn(`[ks-sprites] fetching ${wanted.length} sprite(s): ${wanted.join(", ")}`);
   } catch {}
-  for (const url of wanted) resourceInflight.add("sprite:" + url);
-  return (async () => {
-    try {
-      await Promise.all(
-        wanted.map((url) =>
-          loadSprite(url).finally(() => resourceInflight.delete("sprite:" + url)),
-        ),
-      );
-      rewriteSpriteUses();
-    } catch {
-      for (const url of wanted) resourceInflight.delete("sprite:" + url);
-    }
-  })();
+  return fetchWantedSprites(wanted);
 }
 
 const LATE_SPRITE_SWEEP_PASSES = 12;

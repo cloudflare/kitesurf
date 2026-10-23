@@ -46,22 +46,17 @@ export function drainDeferParked(): void {
 
 export function retryWhenIoAllowed(attempt: () => void): void {
   let attempts = 0;
-  const tryOnce = (): void => {
+  let tryOnce: () => void;
+  const resumeParked = (): void => {
+    attempts = 0;
+    tryOnce();
+  };
+  tryOnce = (): void => {
     attempts++;
     try {
       attempt();
-    } catch (e) {
-      if (!isDisallowedError(e)) {
-        if (attempts === 1) throw e;
-        console.warn("[ks defer-shim] deferred engine call threw:", e);
-        return;
-      }
-      if (attempts < MAX_RETRIES) scheduleRetry(tryOnce);
-      else
-        parked.push(() => {
-          attempts = 0;
-          tryOnce();
-        });
+    } catch (error) {
+      handleRetryFailure(error, attempts, tryOnce, resumeParked);
     }
   };
   tryOnce();
@@ -99,42 +94,62 @@ function scheduleRetry(fn: () => void): void {
   }
 }
 
+function scheduleRetryOrPark(attempts: number, retry: () => void, resume: () => void): void {
+  if (attempts < MAX_RETRIES) scheduleRetry(retry);
+  else parked.push(resume);
+}
+
+function handleRetryFailure(
+  error: unknown,
+  attempts: number,
+  retry: () => void,
+  resume: () => void,
+): void {
+  if (!isDisallowedError(error)) {
+    if (attempts === 1) throw error;
+    console.warn("[ks defer-shim] deferred engine call threw:", error);
+    return;
+  }
+  scheduleRetryOrPark(attempts, retry, resume);
+}
+
+function handleAsyncFailure(
+  error: unknown,
+  attempts: number,
+  retry: () => void,
+  resume: () => void,
+  reject: (reason?: unknown) => void,
+): void {
+  if (isDisallowedError(error)) {
+    scheduleRetryOrPark(attempts, retry, resume);
+    return;
+  }
+  reject(error);
+}
+
 function wrapAsync<T>(
   real: (...args: unknown[]) => Promise<T>,
 ): (...args: unknown[]) => Promise<T> {
   return function (this: unknown, ...args: unknown[]): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       let attempts = 0;
-      const tryOnce = (): void => {
+      let tryOnce: () => void;
+      const resumeParked = (): void => {
+        attempts = 0;
+        tryOnce();
+      };
+      tryOnce = (): void => {
         attempts++;
         let operationPromise: Promise<T>;
         try {
           operationPromise = nativeApply(real, this, args);
-        } catch (e) {
-          if (isDisallowedError(e)) {
-            if (attempts < MAX_RETRIES) scheduleRetry(tryOnce);
-            else
-              parked.push(() => {
-                attempts = 0;
-                tryOnce();
-              });
-            return;
-          }
-          reject(e);
+        } catch (error) {
+          handleAsyncFailure(error, attempts, tryOnce, resumeParked, reject);
           return;
         }
-        Promise.resolve(operationPromise).then(resolve, (err: unknown) => {
-          if (isDisallowedError(err)) {
-            if (attempts < MAX_RETRIES) scheduleRetry(tryOnce);
-            else
-              parked.push(() => {
-                attempts = 0;
-                tryOnce();
-              });
-          } else {
-            reject(err);
-          }
-        });
+        Promise.resolve(operationPromise).then(resolve, (error: unknown) =>
+          handleAsyncFailure(error, attempts, tryOnce, resumeParked, reject),
+        );
       };
       tryOnce();
     });
@@ -151,6 +166,101 @@ function drainPending(): void {
     start();
     if (outstanding > before) break;
   }
+}
+
+function timerName(isInterval: boolean): string {
+  return isInterval ? "setInterval" : "setTimeout";
+}
+
+function discardCanceledTimer(
+  fakeId: number,
+  cancelSet: Set<number>,
+  deferred: Set<number>,
+): boolean {
+  if (!cancelSet.has(fakeId)) return false;
+  cancelSet.delete(fakeId);
+  deferred.delete(fakeId);
+  return true;
+}
+
+function queueTimerAtCapacity(fakeId: number, deferred: Set<number>, retry: () => void): boolean {
+  if (outstanding < TIMER_CAP) return false;
+  deferred.add(fakeId);
+  pending.push(retry);
+  return true;
+}
+
+function releaseOneShotTimer(fakeId: number, fakeToReal: Map<number, number>): void {
+  fakeToReal.delete(fakeId);
+  outstanding--;
+  drainPending();
+}
+
+function fireTimerCallback(
+  fakeId: number,
+  isInterval: boolean,
+  fakeToReal: Map<number, number>,
+  cancelSet: Set<number>,
+  userFn: (...args: unknown[]) => void,
+  args: unknown[],
+): void {
+  if (cancelSet.has(fakeId)) {
+    cancelSet.delete(fakeId);
+    if (!isInterval) releaseOneShotTimer(fakeId, fakeToReal);
+    return;
+  }
+  try {
+    userFn.call(globalThis, ...args);
+  } catch (error) {
+    console.warn("[ks defer-shim] " + timerName(isInterval) + " callback threw:", error);
+  }
+  if (!isInterval) releaseOneShotTimer(fakeId, fakeToReal);
+}
+
+function warnTimerParked(isInterval: boolean, attempts: number): void {
+  console.warn(
+    "[ks defer-shim] " +
+      timerName(isInterval) +
+      " parked after " +
+      attempts +
+      " module-init attempts; " +
+      "will replay at the next handler-scope entry",
+  );
+}
+
+function scheduleTimerRetryOrPark(
+  attempts: number,
+  retry: () => void,
+  resume: () => void,
+  isInterval: boolean,
+): void {
+  if (attempts < MAX_RETRIES) {
+    scheduleRetry(retry);
+    return;
+  }
+  parked.push(resume);
+  warnTimerParked(isInterval, attempts);
+}
+
+function handleTimerScheduleFailure(
+  error: unknown,
+  fakeId: number,
+  isInterval: boolean,
+  attempts: number,
+  retry: () => void,
+  resume: () => void,
+  deferred: Set<number>,
+): void {
+  if (isDisallowedError(error)) {
+    deferred.add(fakeId);
+    scheduleTimerRetryOrPark(attempts, retry, resume, isInterval);
+    return;
+  }
+  deferred.delete(fakeId);
+  console.warn(
+    "[ks defer-shim] " + timerName(isInterval) + " gave up after " + attempts + " attempts:",
+    error,
+  );
 }
 
 function makeTimerWrapper(
@@ -171,76 +281,32 @@ function makeTimerWrapper(
     const userFn = fn as (...a: unknown[]) => void;
     const userDelay = typeof delay === "number" ? delay : 0;
     let attempts = 0;
-    const tryOnce = (): void => {
-      if (cancelSet.has(fakeId)) {
-        cancelSet.delete(fakeId);
-        deferred.delete(fakeId);
-        return;
-      }
-      if (outstanding >= TIMER_CAP) {
-        deferred.add(fakeId);
-        pending.push(tryOnce);
-        return;
-      }
+    let tryOnce: () => void;
+    const resumeParked = (): void => {
+      attempts = 0;
+      tryOnce();
+    };
+    tryOnce = (): void => {
+      if (discardCanceledTimer(fakeId, cancelSet, deferred)) return;
+      if (queueTimerAtCapacity(fakeId, deferred, tryOnce)) return;
       attempts++;
       try {
         const realId = real(() => {
-          if (cancelSet.has(fakeId)) {
-            cancelSet.delete(fakeId);
-            if (!isInterval) {
-              fakeToReal.delete(fakeId);
-              outstanding--;
-              drainPending();
-            }
-            return;
-          }
-          try {
-            userFn.call(globalThis, ...args);
-          } catch (cbErr) {
-            console.warn(
-              "[ks defer-shim] " + (isInterval ? "setInterval" : "setTimeout") + " callback threw:",
-              cbErr,
-            );
-          }
-          if (!isInterval) {
-            fakeToReal.delete(fakeId);
-            outstanding--;
-            drainPending();
-          }
+          fireTimerCallback(fakeId, isInterval, fakeToReal, cancelSet, userFn, args);
         }, userDelay);
         fakeToReal.set(fakeId, realId);
         deferred.delete(fakeId);
         outstanding++;
-      } catch (e) {
-        if (isDisallowedError(e)) {
-          deferred.add(fakeId);
-          if (attempts < MAX_RETRIES) {
-            scheduleRetry(tryOnce);
-          } else {
-            parked.push(() => {
-              attempts = 0;
-              tryOnce();
-            });
-            console.warn(
-              "[ks defer-shim] " +
-                (isInterval ? "setInterval" : "setTimeout") +
-                " parked after " +
-                attempts +
-                " module-init attempts; " +
-                "will replay at the next handler-scope entry",
-            );
-          }
-        } else {
-          deferred.delete(fakeId);
-          console.warn(
-            "[ks defer-shim] " +
-              (isInterval ? "setInterval" : "setTimeout") +
-              " gave up after " +
-              attempts +
-              " attempts:",
-            e,
-          );
-        }
+      } catch (error) {
+        handleTimerScheduleFailure(
+          error,
+          fakeId,
+          isInterval,
+          attempts,
+          tryOnce,
+          resumeParked,
+          deferred,
+        );
       }
     };
     tryOnce();
@@ -273,7 +339,13 @@ function makeClearTimerWrapper(
 export function installDeferShim(): void {
   if (installed) return;
   installed = true;
+  installTimerGlobals();
+  installAbortTimeout();
+  installFetchWrapper();
+  installSubtleWrappers();
+}
 
+function installTimerGlobals(): void {
   const realSetTimeout = ksGlobal.setTimeout.bind(globalThis);
   const realClearTimeout = ksGlobal.clearTimeout.bind(globalThis);
   const realSetInterval = ksGlobal.setInterval.bind(globalThis);
@@ -305,7 +377,9 @@ export function installDeferShim(): void {
     deferredInterval,
     canceledInterval,
   );
+}
 
+function installAbortTimeout(): void {
   // AbortSignal.timeout arms a native timer, so module scope refuses it. The fallback aborts a
   // native controller from the deferred setTimeout, so fetch and AbortSignal.any still accept the
   // signal. Capture the controller before globals.ts swaps in its lazy one.
@@ -328,64 +402,99 @@ export function installDeferShim(): void {
     }, ms);
     return controller.signal;
   };
+}
 
+function installFetchWrapper(): void {
   if (typeof ksGlobal.fetch === "function") {
     const realFetch = ksGlobal.fetch.bind(globalThis);
     ksGlobal.fetch = wrapAsync(realFetch);
   }
+}
 
-  const cryptoObj = ksGlobal.crypto;
-  if (cryptoObj && typeof cryptoObj === "object") {
-    const subtle = cryptoObj.subtle;
-    if (subtle && typeof subtle === "object") {
-      const methods = [
-        "digest",
-        "encrypt",
-        "decrypt",
-        "sign",
-        "verify",
-        "generateKey",
-        "deriveKey",
-        "deriveBits",
-        "importKey",
-        "exportKey",
-        "wrapKey",
-        "unwrapKey",
-      ];
-      for (const name of methods) {
-        const subtleMethod = subtle[name];
-        if (typeof subtleMethod !== "function") continue;
-        const bound = subtleMethod.bind(subtle);
-        const wrapped = wrapAsync(bound);
-        try {
-          subtle[name] =
-            name === "deriveBits"
-              ? function (this: unknown, ...args: unknown[]) {
-                  const length = args[2];
-                  if (length !== null && length !== undefined) {
-                    if (typeof length === "bigint") {
-                      return Promise.reject(new TypeError("deriveBits: length must be a number"));
-                    }
-                    let number: number;
-                    try {
-                      number = Number(length);
-                    } catch (error) {
-                      return Promise.reject(error);
-                    }
-                    number = Math.trunc(number);
-                    const MAX_DERIVE_BITS_LENGTH = 0xffff_ffff;
-                    if (!Number.isFinite(number) || number < 0 || number > MAX_DERIVE_BITS_LENGTH) {
-                      return Promise.reject(
-                        new TypeError("deriveBits: length is outside the accepted range"),
-                      );
-                    }
-                    args[2] = number;
-                  }
-                  return nativeApply(wrapped, this, args);
-                }
-              : wrapped;
-        } catch {}
-      }
-    }
+function isPropertyRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function subtleCrypto(): Record<string, unknown> | null {
+  const cryptoObj: unknown = ksGlobal.crypto;
+  if (!isPropertyRecord(cryptoObj)) return null;
+  const subtle = cryptoObj.subtle;
+  if (!isPropertyRecord(subtle)) return null;
+  return subtle;
+}
+
+function installSubtleWrappers(): void {
+  const subtle = subtleCrypto();
+  if (!subtle) return;
+  const methods = [
+    "digest",
+    "encrypt",
+    "decrypt",
+    "sign",
+    "verify",
+    "generateKey",
+    "deriveKey",
+    "deriveBits",
+    "importKey",
+    "exportKey",
+    "wrapKey",
+    "unwrapKey",
+  ];
+  for (const name of methods) installSubtleMethod(subtle, name);
+}
+
+function installSubtleMethod(subtle: Record<string, unknown>, name: string): void {
+  const subtleMethod = subtle[name];
+  if (typeof subtleMethod !== "function") return;
+  const wrapped = wrapAsync(subtleMethod.bind(subtle));
+  try {
+    subtle[name] = name === "deriveBits" ? deriveBitsWrapper(wrapped) : wrapped;
+  } catch {}
+}
+
+type DeriveBitsLengthResult =
+  | { valid: true; replace: false }
+  | { valid: true; replace: true; value: number }
+  | { valid: false; error: unknown };
+
+const MAX_DERIVE_BITS_LENGTH = 0xffff_ffff;
+
+function normalizeDeriveBitsLength(length: unknown): DeriveBitsLengthResult {
+  if (length === null || length === undefined) return { valid: true, replace: false };
+  if (typeof length === "bigint") {
+    return { valid: false, error: new TypeError("deriveBits: length must be a number") };
   }
+  return convertDeriveBitsLength(length);
+}
+
+function isValidDeriveBitsLength(length: number): boolean {
+  return Number.isFinite(length) && length >= 0 && length <= MAX_DERIVE_BITS_LENGTH;
+}
+
+function convertDeriveBitsLength(length: unknown): DeriveBitsLengthResult {
+  let number: number;
+  try {
+    number = Number(length);
+  } catch (error) {
+    return { valid: false, error };
+  }
+  number = Math.trunc(number);
+  if (!isValidDeriveBitsLength(number)) {
+    return {
+      valid: false,
+      error: new TypeError("deriveBits: length is outside the accepted range"),
+    };
+  }
+  return { valid: true, replace: true, value: number };
+}
+
+function deriveBitsWrapper(
+  wrapped: (...args: unknown[]) => Promise<unknown>,
+): (...args: unknown[]) => Promise<unknown> {
+  return function (this: unknown, ...args: unknown[]) {
+    const length = normalizeDeriveBitsLength(args[2]);
+    if (!length.valid) return Promise.reject(length.error);
+    if (length.replace) args[2] = length.value;
+    return nativeApply(wrapped, this, args);
+  };
 }

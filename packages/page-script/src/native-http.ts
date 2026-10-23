@@ -17,17 +17,22 @@ const nativeHas = headersProto?.has;
 const nativeDelete = headersProto?.delete;
 const nativeAppend = headersProto?.append;
 const nativeEntries = headersProto?.entries;
-const nativeResponseHeaders = (() => {
+
+function responseHeadersGetterFromPrototype(prototype: object): (() => Headers) | undefined {
+  const descriptor = Object.getOwnPropertyDescriptor(prototype, "headers");
+  return typeof descriptor?.get === "function" ? descriptor.get : undefined;
+}
+
+function captureNativeResponseHeaders(): (() => Headers) | undefined {
   try {
-    const descriptor = Object.getOwnPropertyDescriptor(
-      globalThis.Response?.prototype ?? {},
-      "headers",
-    );
-    return typeof descriptor?.get === "function" ? descriptor.get : undefined;
+    const prototype = globalThis.Response?.prototype ?? {};
+    return responseHeadersGetterFromPrototype(prototype);
   } catch {
     return undefined;
   }
-})();
+}
+
+const nativeResponseHeaders = captureNativeResponseHeaders();
 
 type HeadersArg = ConstructorParameters<typeof Headers>[0];
 

@@ -33,6 +33,90 @@ interface QueuedFetch {
   aborted: boolean;
 }
 
+function registerQueuedFetchAbort(
+  signal: AbortSignal | null | undefined,
+  entry: QueuedFetch,
+): boolean {
+  if (signal && signal.aborted) {
+    entry.reject(new DOMException("The operation was aborted.", "AbortError"));
+    return true;
+  }
+  if (signal && typeof signal.addEventListener === "function") {
+    signal.addEventListener(
+      "abort",
+      () => {
+        entry.aborted = true;
+        entry.reject(new DOMException("The operation was aborted.", "AbortError"));
+      },
+      { once: true },
+    );
+  }
+  return false;
+}
+
+function restoreInitShims(): void {
+  (globalThis as { setTimeout: unknown }).setTimeout = realSetTimeout!;
+  (globalThis as { clearTimeout: unknown }).clearTimeout = realClearTimeout!;
+  (globalThis as { setInterval: unknown }).setInterval = realSetInterval!;
+  (globalThis as { clearInterval: unknown }).clearInterval = realClearInterval!;
+  (globalThis as { fetch: unknown }).fetch = realFetch!;
+}
+
+function startQueuedTimer(timer: QueuedTimer): void {
+  const realId = realSetTimeout!(() => {
+    try {
+      timer.fn.call(globalThis, ...timer.args);
+    } catch (e) {
+      console.warn("[kitesurf init-shim] deferred timer threw:", e);
+    }
+    fakeToReal.delete(timer.fakeId);
+  }, timer.delay);
+  fakeToReal.set(timer.fakeId, realId);
+}
+
+function drainQueuedTimers(): void {
+  for (const timer of queuedTimers) {
+    if (canceled.has(timer.fakeId)) {
+      canceled.delete(timer.fakeId);
+      continue;
+    }
+    startQueuedTimer(timer);
+  }
+  queuedTimers = [];
+}
+
+function startQueuedInterval(interval: QueuedInterval): void {
+  const realId = realSetInterval!(() => {
+    try {
+      interval.fn.call(globalThis, ...interval.args);
+    } catch (e) {
+      console.warn("[kitesurf init-shim] deferred interval threw:", e);
+    }
+  }, interval.delay);
+  fakeIntervalToReal.set(interval.fakeId, realId);
+}
+
+function drainQueuedIntervals(): void {
+  for (const interval of queuedIntervals) {
+    if (canceledIntervals.has(interval.fakeId)) {
+      canceledIntervals.delete(interval.fakeId);
+      continue;
+    }
+    startQueuedInterval(interval);
+  }
+  queuedIntervals = [];
+}
+
+function drainQueuedFetches(): void {
+  for (const entry of queuedFetches) {
+    if (entry.aborted) continue;
+    Promise.resolve()
+      .then(() => realFetch!(entry.input, entry.init))
+      .then(entry.resolve, entry.reject);
+  }
+  queuedFetches = [];
+}
+
 let installed = false;
 let realSetTimeout: RealSetTimeout | null = null;
 let realClearTimeout: RealClearTimeout | null = null;
@@ -153,20 +237,7 @@ export function installInitShims(): void {
       aborted: false,
     };
     const signal = init?.signal;
-    if (signal && signal.aborted) {
-      reject(new DOMException("The operation was aborted.", "AbortError"));
-      return promise;
-    }
-    if (signal && typeof signal.addEventListener === "function") {
-      signal.addEventListener(
-        "abort",
-        () => {
-          entry.aborted = true;
-          entry.reject(new DOMException("The operation was aborted.", "AbortError"));
-        },
-        { once: true },
-      );
-    }
+    if (registerQueuedFetchAbort(signal, entry)) return promise;
     queuedFetches.push(entry);
     return promise;
   };
@@ -174,51 +245,9 @@ export function installInitShims(): void {
 
 export function drainInitShims(): void {
   if (!installed) return;
-  (globalThis as { setTimeout: unknown }).setTimeout = realSetTimeout!;
-  (globalThis as { clearTimeout: unknown }).clearTimeout = realClearTimeout!;
-  (globalThis as { setInterval: unknown }).setInterval = realSetInterval!;
-  (globalThis as { clearInterval: unknown }).clearInterval = realClearInterval!;
-  (globalThis as { fetch: unknown }).fetch = realFetch!;
+  restoreInitShims();
   installed = false;
-
-  for (const t of queuedTimers) {
-    if (canceled.has(t.fakeId)) {
-      canceled.delete(t.fakeId);
-      continue;
-    }
-    const realId = realSetTimeout!(() => {
-      try {
-        t.fn.call(globalThis, ...t.args);
-      } catch (e) {
-        console.warn("[kitesurf init-shim] deferred timer threw:", e);
-      }
-      fakeToReal.delete(t.fakeId);
-    }, t.delay);
-    fakeToReal.set(t.fakeId, realId);
-  }
-  queuedTimers = [];
-
-  for (const iv of queuedIntervals) {
-    if (canceledIntervals.has(iv.fakeId)) {
-      canceledIntervals.delete(iv.fakeId);
-      continue;
-    }
-    const realId = realSetInterval!(() => {
-      try {
-        iv.fn.call(globalThis, ...iv.args);
-      } catch (e) {
-        console.warn("[kitesurf init-shim] deferred interval threw:", e);
-      }
-    }, iv.delay);
-    fakeIntervalToReal.set(iv.fakeId, realId);
-  }
-  queuedIntervals = [];
-
-  for (const f of queuedFetches) {
-    if (f.aborted) continue;
-    Promise.resolve()
-      .then(() => realFetch!(f.input, f.init))
-      .then(f.resolve, f.reject);
-  }
-  queuedFetches = [];
+  drainQueuedTimers();
+  drainQueuedIntervals();
+  drainQueuedFetches();
 }

@@ -16,6 +16,7 @@ const POLL_INTERVAL_MS = 100;
 const FRAME_MS = 16;
 
 const MAX_FORCED_BACKOFF_MS = 250;
+const MAX_ROOT_MARGIN_COMPONENTS = 4;
 
 type Margin = { value: number; percent: boolean };
 
@@ -88,22 +89,30 @@ function zeroRect(): Rect {
 
 function rect(value: any): Rect | null {
   try {
-    const result = value?.getBoundingClientRect?.();
-    if (!result) return null;
-    const out: Rect = {
-      x: Number(result.x),
-      y: Number(result.y),
-      top: Number(result.top),
-      right: Number(result.right),
-      bottom: Number(result.bottom),
-      left: Number(result.left),
-      width: Number(result.width),
-      height: Number(result.height),
-    };
-    return Object.values(out).every(Number.isFinite) ? out : null;
+    return readBoundingRect(value);
   } catch {
     return null;
   }
+}
+
+function readBoundingRect(value: any): Rect | null {
+  const result = value?.getBoundingClientRect?.();
+  if (!result) return null;
+  const out = rectFromFields(result);
+  return Object.values(out).every(Number.isFinite) ? out : null;
+}
+
+function rectFromFields(result: any): Rect {
+  return {
+    x: Number(result.x),
+    y: Number(result.y),
+    top: Number(result.top),
+    right: Number(result.right),
+    bottom: Number(result.bottom),
+    left: Number(result.left),
+    width: Number(result.width),
+    height: Number(result.height),
+  };
 }
 
 function viewport(win: any): Rect {
@@ -131,45 +140,57 @@ function syntaxError(message: string): Error {
   return error;
 }
 
-function parseMargins(input: unknown): Margin[] {
-  const MAX_ROOT_MARGIN_COMPONENTS = 4;
+function marginText(input: unknown): string {
+  try {
+    return String(input ?? "0px").trim();
+  } catch {
+    throw syntaxError("invalid root margin");
+  }
+}
+
+function marginParts(text: string): string[] {
+  return text ? text.split(/\s+/) : ["0px"];
+}
+
+function parseMarginPart(part: string): Margin {
+  const match = /^([+-]?(?:\d+\.?\d*|\.\d+))(px|cm|mm|q|in|pt|pc|%)$/i.exec(part);
+  if (!match) throw syntaxError("invalid root margin");
+  if (match[2] === "%") return { value: Number(match[1]), percent: true };
+  const pixels = marginUnitPixels(match[2]);
+  return { value: Math.floor(Number(match[1]) * pixels), percent: false };
+}
+
+function marginUnitPixels(unit: string): number {
   const CSS_PIXELS_PER_INCH = 96;
   const CSS_CENTIMETERS_PER_INCH = 2.54;
   const CSS_MILLIMETERS_PER_INCH = 25.4;
   const CSS_QUARTER_MILLIMETERS_PER_INCH = 101.6;
   const CSS_POINTS_PER_INCH = 72;
   const CSS_PIXELS_PER_PICA = 16;
-  let text: string;
-  try {
-    text = String(input ?? "0px").trim();
-  } catch {
-    throw syntaxError("invalid root margin");
-  }
-  const parts = text ? text.split(/\s+/) : ["0px"];
-  if (parts.length > MAX_ROOT_MARGIN_COMPONENTS) {
-    throw syntaxError("invalid root margin");
-  }
-  const values = parts.map((part) => {
-    const match = /^([+-]?(?:\d+\.?\d*|\.\d+))(px|cm|mm|q|in|pt|pc|%)$/i.exec(part);
-    if (!match) throw syntaxError("invalid root margin");
-    if (match[2] === "%") {
-      return { value: Number(match[1]), percent: true };
-    }
-    const pixels = {
-      px: 1,
-      cm: CSS_PIXELS_PER_INCH / CSS_CENTIMETERS_PER_INCH,
-      mm: CSS_PIXELS_PER_INCH / CSS_MILLIMETERS_PER_INCH,
-      q: CSS_PIXELS_PER_INCH / CSS_QUARTER_MILLIMETERS_PER_INCH,
-      in: CSS_PIXELS_PER_INCH,
-      pt: CSS_PIXELS_PER_INCH / CSS_POINTS_PER_INCH,
-      pc: CSS_PIXELS_PER_PICA,
-    }[match[2].toLowerCase() as "px" | "cm" | "mm" | "q" | "in" | "pt" | "pc"];
-    return { value: Math.floor(Number(match[1]) * pixels), percent: false };
-  });
+  return {
+    px: 1,
+    cm: CSS_PIXELS_PER_INCH / CSS_CENTIMETERS_PER_INCH,
+    mm: CSS_PIXELS_PER_INCH / CSS_MILLIMETERS_PER_INCH,
+    q: CSS_PIXELS_PER_INCH / CSS_QUARTER_MILLIMETERS_PER_INCH,
+    in: CSS_PIXELS_PER_INCH,
+    pt: CSS_PIXELS_PER_INCH / CSS_POINTS_PER_INCH,
+    pc: CSS_PIXELS_PER_PICA,
+  }[unit.toLowerCase() as "px" | "cm" | "mm" | "q" | "in" | "pt" | "pc"];
+}
+
+function expandMargins(values: Margin[]): Margin[] {
   if (values.length === 1) return [values[0], values[0], values[0], values[0]];
   if (values.length === 2) return [values[0], values[1], values[0], values[1]];
   if (values.length === 3) return [values[0], values[1], values[2], values[1]];
   return values;
+}
+
+function parseMargins(input: unknown): Margin[] {
+  const parts = marginParts(marginText(input));
+  if (parts.length > MAX_ROOT_MARGIN_COMPONENTS) {
+    throw syntaxError("invalid root margin");
+  }
+  return expandMargins(parts.map(parseMarginPart));
 }
 
 function serializeMargins(values: Margin[]): string {
@@ -285,34 +306,53 @@ function reportCallbackError(win: any, thrown: unknown): void {
     text: "Uncaught",
   });
   try {
-    const message =
-      thrown && typeof thrown === "object" && "message" in thrown
-        ? `Uncaught ${"name" in thrown ? String(thrown.name) : "Error"}: ${String(thrown.message)}`
-        : `Uncaught ${String(thrown)}`;
-    const ErrorEventConstructor = ksEventCtors.ErrorEvent || ksGlobal.ErrorEvent;
-    if (typeof ErrorEventConstructor === "function") {
-      win?.dispatchEvent?.(
-        new ErrorEventConstructor("error", {
-          message,
-          error: thrown,
-          cancelable: true,
-          bubbles: false,
-        }),
-      );
-    }
-    const winHandler = win && win.onerror;
-    const globalHandler = ksGlobal.onerror;
-    const handler =
-      typeof winHandler === "function"
-        ? winHandler
-        : typeof globalHandler === "function"
-          ? globalHandler
-          : null;
-    if (handler) handler.call(win, message, "", 0, 0, thrown);
+    dispatchCallbackError(win, thrown, callbackErrorMessage(thrown));
   } catch {}
   try {
     console.error("[kitesurf] IntersectionObserver callback threw:", thrown);
   } catch {}
+}
+
+function isMessageBearingError(thrown: unknown): thrown is object & { message: unknown } {
+  return thrown !== null && typeof thrown === "object" && "message" in thrown;
+}
+
+function callbackErrorMessage(thrown: unknown): string {
+  if (!isMessageBearingError(thrown)) return `Uncaught ${String(thrown)}`;
+  const name = "name" in thrown ? String(thrown.name) : "Error";
+  return `Uncaught ${name}: ${String(thrown.message)}`;
+}
+
+function dispatchCallbackError(win: any, thrown: unknown, message: string): void {
+  dispatchCallbackErrorEvent(win, thrown, message);
+  notifyCallbackErrorHandler(win, thrown, message);
+}
+
+function dispatchCallbackErrorEvent(win: any, thrown: unknown, message: string): void {
+  const ErrorEventConstructor = ksEventCtors.ErrorEvent || ksGlobal.ErrorEvent;
+  if (typeof ErrorEventConstructor === "function") {
+    win?.dispatchEvent?.(
+      new ErrorEventConstructor("error", {
+        message,
+        error: thrown,
+        cancelable: true,
+        bubbles: false,
+      }),
+    );
+  }
+}
+
+function notifyCallbackErrorHandler(win: any, thrown: unknown, message: string): void {
+  const handler = callbackErrorHandler(win);
+  if (handler) handler.call(win, message, "", 0, 0, thrown);
+}
+
+function callbackErrorHandler(win: any): ((...args: unknown[]) => unknown) | null {
+  const winHandler = win && win.onerror;
+  const globalHandler = ksGlobal.onerror;
+  if (typeof winHandler === "function") return winHandler;
+  if (typeof globalHandler === "function") return globalHandler;
+  return null;
 }
 
 function assertObserver(value: unknown): asserts value is ObserverInstance {
@@ -325,11 +365,18 @@ function gateValue(win: any): string {
   const internal = getInternalState();
   return [
     internal.mutationSeq | 0,
-    Number(win?.scrollX) || 0,
-    Number(win?.scrollY) || 0,
-    Number(win?.innerWidth) || 0,
-    Number(win?.innerHeight) || 0,
+    windowNumber(win, "scrollX"),
+    windowNumber(win, "scrollY"),
+    windowNumber(win, "innerWidth"),
+    windowNumber(win, "innerHeight"),
   ].join("/");
+}
+
+function windowNumber(
+  win: any,
+  property: "scrollX" | "scrollY" | "innerWidth" | "innerHeight",
+): number {
+  return Number(win?.[property]) || 0;
 }
 
 function queueTask(callback: () => void): void {
@@ -342,14 +389,20 @@ function queueTask(callback: () => void): void {
 
 function poll(resetGate = true): void {
   const schedule = setTask;
-  if (timer !== null || active.size === 0 || !schedule) return;
-  const tick = () => {
-    timer = null;
-    if (active.size === 0) return;
-    recheckIntersectionObservers("poll");
-    timer = schedule(tick, POLL_INTERVAL_MS);
-  };
+  if (!canPoll(schedule)) return;
+  const tick = () => runPollTick(tick, schedule);
   if (resetGate) gate = gateValue(installedWindow);
+  timer = schedule(tick, POLL_INTERVAL_MS);
+}
+
+function canPoll(schedule: typeof setTask): schedule is NonNullable<typeof setTask> {
+  return timer === null && active.size > 0 && !!schedule;
+}
+
+function runPollTick(tick: () => void, schedule: NonNullable<typeof setTask>): void {
+  timer = null;
+  if (active.size === 0) return;
+  recheckIntersectionObservers("poll");
   timer = schedule(tick, POLL_INTERVAL_MS);
 }
 
@@ -366,60 +419,117 @@ function rootBounds(observer: ObserverInstance, win: any): Rect | null {
   return observer._root && observer._root.nodeType === 1 ? rect(observer._root) : viewport(win);
 }
 
+function intersectionNow(): number {
+  return Number(ksGlobal.performance?.now?.()) || Date.now();
+}
+
+function fallbackEntry(
+  observer: ObserverInstance,
+  target: any,
+  win: any,
+  resolve: boolean,
+): EntryData | null {
+  if (!resolve) return null;
+  return {
+    time: intersectionNow(),
+    target,
+    rootBounds: rootBounds(observer, win),
+    boundingClientRect: zeroRect(),
+    intersectionRect: zeroRect(),
+    isIntersecting: false,
+    isVisible: false,
+    intersectionRatio: 0,
+  };
+}
+
+function marginPairs(margins: Margin[]): Float32Array {
+  return new Float32Array(margins.flatMap(({ value, percent }) => [value, percent ? 1 : 0]));
+}
+
+function canReadIntersectionGeometry(paint: any): boolean {
+  return !!paint && typeof paint.intersectionGeometry === "function";
+}
+
+function readIntersectionGeometry(
+  paint: any,
+  observer: ObserverInstance,
+  nodeId: number,
+  resolve: boolean,
+): IntersectionGeometry {
+  return JSON.parse(
+    paint.intersectionGeometry(
+      nodeId,
+      observer._rootId,
+      marginPairs(observer._margins),
+      marginPairs(observer._scrollMargins),
+      state.scrollX,
+      state.scrollY,
+      resolve,
+    ),
+  );
+}
+
+function hasIntersectionGeometry(geometry: IntersectionGeometry): boolean {
+  return !!geometry?.target && !!geometry.intersectionRect;
+}
+
+function isAboveObserverThreshold(
+  observer: ObserverInstance,
+  geometry: IntersectionGeometry,
+  ratio: number,
+): boolean {
+  return Boolean(geometry.isIntersecting) && ratio >= (observer._thresholds[0] ?? 0);
+}
+
+function entryFromGeometry(
+  observer: ObserverInstance,
+  target: any,
+  geometry: IntersectionGeometry,
+): EntryData {
+  const intersectionRatio = Number(geometry.intersectionRatio) || 0;
+  return {
+    time: intersectionNow(),
+    target,
+    rootBounds: geometry.rootBounds,
+    boundingClientRect: geometry.target,
+    intersectionRect: geometry.intersectionRect,
+    isIntersecting: isAboveObserverThreshold(observer, geometry, intersectionRatio),
+    isVisible: Boolean(geometry.isVisible),
+    intersectionRatio,
+  };
+}
+
 function entryFor(
   observer: ObserverInstance,
   target: any,
   win: any,
   resolve: boolean,
 ): EntryData | null {
-  const fallback = (): EntryData | null =>
-    resolve
-      ? {
-          time: Number(ksGlobal.performance?.now?.()) || Date.now(),
-          target,
-          rootBounds: rootBounds(observer, win),
-          boundingClientRect: zeroRect(),
-          intersectionRect: zeroRect(),
-          isIntersecting: false,
-          isVisible: false,
-          intersectionRatio: 0,
-        }
-      : null;
   const nodeId = target?._id;
-  if (typeof nodeId !== "number") return fallback();
+  if (typeof nodeId !== "number") return fallbackEntry(observer, target, win, resolve);
+  return entryFromPaint(observer, target, win, resolve, nodeId, paintDomFor(resolve));
+}
 
-  const pairs = (margins: Margin[]) =>
-    new Float32Array(margins.flatMap(({ value, percent }) => [value, percent ? 1 : 0]));
-  const paint = resolve ? ensurePaintDom() : state.dom;
-  if (!paint || typeof paint.intersectionGeometry !== "function") return fallback();
+function paintDomFor(resolve: boolean): any {
+  return resolve ? ensurePaintDom() : state.dom;
+}
+
+function entryFromPaint(
+  observer: ObserverInstance,
+  target: any,
+  win: any,
+  resolve: boolean,
+  nodeId: number,
+  paint: any,
+): EntryData | null {
+  if (!canReadIntersectionGeometry(paint)) return fallbackEntry(observer, target, win, resolve);
   try {
-    const geometry: IntersectionGeometry = JSON.parse(
-      paint.intersectionGeometry(
-        nodeId,
-        observer._rootId,
-        pairs(observer._margins),
-        pairs(observer._scrollMargins),
-        state.scrollX,
-        state.scrollY,
-        resolve,
-      ),
-    );
-    if (!geometry?.target || !geometry.intersectionRect) return fallback();
-    const intersectionRatio = Number(geometry.intersectionRatio) || 0;
-    return {
-      time: Number(ksGlobal.performance?.now?.()) || Date.now(),
-      target,
-      rootBounds: geometry.rootBounds,
-      boundingClientRect: geometry.target,
-      intersectionRect: geometry.intersectionRect,
-      isIntersecting:
-        Boolean(geometry.isIntersecting) && intersectionRatio >= (observer._thresholds[0] ?? 0),
-      isVisible: Boolean(geometry.isVisible),
-      intersectionRatio,
-    };
+    const geometry = readIntersectionGeometry(paint, observer, nodeId, resolve);
+    if (!hasIntersectionGeometry(geometry)) return fallbackEntry(observer, target, win, resolve);
+    return entryFromGeometry(observer, target, geometry);
   } catch {
     invalidatePaintDom();
-    return fallback();
+    return fallbackEntry(observer, target, win, resolve);
   }
 }
 
@@ -446,38 +556,190 @@ export function runIntersectionObservers(resolve: boolean): void {
 
 export function recheckIntersectionObservers(kind: "frame" | "poll" | "layout"): void {
   if (active.size === 0) return;
-  if (kind === "frame" && timer !== null) {
-    clearTask?.(timer);
-    timer = null;
-    poll(false);
-  }
+  refreshFramePoll(kind);
   const next = gateValue(installedWindow);
   if (next === gate) return;
-  if (
-    state.dom?.layoutClean() === true &&
-    state.paintCacheViewportW === state.paintViewportW &&
-    state.paintCacheViewportH === state.paintViewportH
-  ) {
-    gate = next;
-    forcedBackoffMs = 0;
-    stats.free++;
-    runIntersectionObservers(false);
+  if (canUseFreeLayoutCheck()) {
+    recordFreeCheck(next);
     return;
   }
   if (kind === "layout") return;
+  recordForcedCheck(next);
+}
+
+function refreshFramePoll(kind: "frame" | "poll" | "layout"): void {
+  if (kind !== "frame" || timer === null) return;
+  clearTask?.(timer);
+  timer = null;
+  poll(false);
+}
+
+function canUseFreeLayoutCheck(): boolean {
+  return (
+    state.dom?.layoutClean() === true &&
+    state.paintCacheViewportW === state.paintViewportW &&
+    state.paintCacheViewportH === state.paintViewportH
+  );
+}
+
+function recordFreeCheck(next: string): void {
+  gate = next;
+  forcedBackoffMs = 0;
+  stats.free++;
+  runIntersectionObservers(false);
+}
+
+function forcedCheckIsTooSoon(now: number): boolean {
+  return now - lastForcedAt < forcedBackoffMs;
+}
+
+function nextForcedBackoff(now: number): number {
+  if (now - lastForcedAt >= MAX_FORCED_BACKOFF_MS * 2) return 0;
+  return Math.min(MAX_FORCED_BACKOFF_MS, Math.max(FRAME_MS, forcedBackoffMs * 2));
+}
+
+function recordForcedCheck(next: string): void {
   const now = Date.now();
-  if (now - lastForcedAt < forcedBackoffMs) {
+  if (forcedCheckIsTooSoon(now)) {
     stats.skipped++;
     return;
   }
-  forcedBackoffMs =
-    now - lastForcedAt < MAX_FORCED_BACKOFF_MS * 2
-      ? Math.min(MAX_FORCED_BACKOFF_MS, Math.max(FRAME_MS, forcedBackoffMs * 2))
-      : 0;
+  forcedBackoffMs = nextForcedBackoff(now);
   lastForcedAt = now;
   gate = next;
   stats.forced++;
   runIntersectionObservers(true);
+}
+
+function installScrollListener(win: any): void {
+  if (installedWindow === win) return;
+  installedWindow = win;
+  try {
+    win?.addEventListener?.("scroll", onScroll);
+  } catch {}
+}
+
+function onScroll(): void {
+  if (scrollTask !== null) return;
+  scrollTask = true;
+  queueTask(() => {
+    scrollTask = null;
+    gate = null;
+    recheckIntersectionObservers("frame");
+  });
+}
+
+function isElementRoot(rootValue: any): boolean {
+  return rootValue.nodeType === 1 && typeof rootValue._id === "number";
+}
+
+function isDocumentRoot(rootValue: any): boolean {
+  return rootValue.nodeType === 9;
+}
+
+function observerRoot(rootValue: any): { root: any; rootId: number } {
+  let root = null;
+  let rootId = -1;
+  if (rootValue !== null && rootValue !== undefined) {
+    if (isElementRoot(rootValue)) {
+      root = rootValue;
+      rootId = rootValue._id;
+    } else if (isDocumentRoot(rootValue)) {
+      root = rootValue;
+    } else {
+      throw new TypeError("root must be an Element or Document");
+    }
+  }
+  return { root, rootId };
+}
+
+function observerDelay(init: any, trackVisibility: boolean): number {
+  let delay = Math.trunc(Number(init.delay) || 0);
+  if (trackVisibility && delay < MIN_VISIBILITY_DELAY_MS) delay = MIN_VISIBILITY_DELAY_MS;
+  return delay;
+}
+
+function initializeObserver(observer: ObserverInstance, callback: unknown, options: any): void {
+  const init = options == null ? {} : Object(options);
+  const { root, rootId } = observerRoot(init.root);
+  const margins = parseMargins(init.rootMargin);
+  const scrollMargins = parseMargins(init.scrollMargin);
+  const thresholdValues = Object.freeze(parseThresholds(init.threshold));
+  const trackVisibility = Boolean(init.trackVisibility);
+  const delay = observerDelay(init, trackVisibility);
+  Object.defineProperties(observer, {
+    _callback: { configurable: true, value: callback },
+    _targets: { configurable: true, value: new Map() },
+    _pending: { configurable: true, value: [], writable: true },
+    _delivery: { configurable: true, value: null, writable: true },
+    _margins: { configurable: true, value: margins },
+    _scrollMargins: { configurable: true, value: scrollMargins },
+    _root: { configurable: true, value: root },
+    _rootId: { configurable: true, value: rootId },
+    _thresholds: { configurable: true, value: thresholdValues },
+    _delay: { configurable: true, value: delay },
+    _trackVisibility: { configurable: true, value: trackVisibility },
+  });
+}
+
+function isDetachedImplicitRoot(observer: ObserverInstance, target: any): boolean {
+  return observer._root == null && target.ownerDocument?.defaultView == null;
+}
+
+function delayHasNotElapsed(
+  observer: ObserverInstance,
+  previous: ObserverRecord,
+  current: EntryData,
+): boolean {
+  return Boolean(previous && observer._delay > 0 && current.time - previous.time < observer._delay);
+}
+
+function deliverObserverRecords(observer: ObserverInstance, win: any): void {
+  observer._delivery = null;
+  const records = observer.takeRecords();
+  if (records.length === 0) return;
+  try {
+    observer._callback.call(observer, records, observer);
+  } catch (error) {
+    reportCallbackError(win, error);
+  }
+}
+
+function enqueueObserverEntry(observer: ObserverInstance, current: EntryData, win: any): void {
+  observer._pending.push(entryFrom(current));
+  if (observer._delivery !== null) return;
+  observer._delivery = true;
+  queueTask(() => deliverObserverRecords(observer, win));
+}
+
+function updateObserverTarget(
+  observer: ObserverInstance,
+  target: any,
+  previous: ObserverRecord,
+  current: EntryData,
+  win: any,
+): void {
+  if (delayHasNotElapsed(observer, previous, current)) return;
+  observer._targets.set(target, current);
+  if (crossed(previous, current, observer._thresholds)) {
+    enqueueObserverEntry(observer, current, win);
+  }
+}
+
+function checkObserverTarget(
+  observer: ObserverInstance,
+  target: any,
+  resolve: boolean,
+  win: any,
+): void {
+  if (!observer._targets.has(target)) return;
+  const previous = observer._targets.get(target);
+  if (isDetachedImplicitRoot(observer, target)) {
+    observer._targets.set(target, null);
+    return;
+  }
+  const current = entryFor(observer, target, win, resolve);
+  if (current !== null) updateObserverTarget(observer, target, previous, current, win);
 }
 
 export function installIntersectionObserver(
@@ -488,20 +750,7 @@ export function installIntersectionObserver(
 ): void {
   setTask = schedule;
   clearTask = cancel;
-  if (installedWindow !== win) {
-    installedWindow = win;
-    try {
-      win?.addEventListener?.("scroll", () => {
-        if (scrollTask !== null) return;
-        scrollTask = true;
-        queueTask(() => {
-          scrollTask = null;
-          gate = null;
-          recheckIntersectionObservers("frame");
-        });
-      });
-    } catch {}
-  }
+  installScrollListener(win);
   if (typeof globalThis.IntersectionObserver === "function") return;
 
   const IntersectionObserverImpl = function (
@@ -515,39 +764,7 @@ export function installIntersectionObserver(
     if (!(this instanceof IntersectionObserverImpl)) {
       throw new TypeError("Illegal constructor");
     }
-    const init = options == null ? {} : Object(options);
-    const rootValue = init.root;
-    let root = null;
-    let rootId = -1;
-    if (rootValue !== null && rootValue !== undefined) {
-      if (rootValue.nodeType === 1 && typeof rootValue._id === "number") {
-        root = rootValue;
-        rootId = rootValue._id;
-      } else if (rootValue.nodeType === 9) {
-        root = rootValue;
-      } else {
-        throw new TypeError("root must be an Element or Document");
-      }
-    }
-    const margins = parseMargins(init.rootMargin);
-    const scrollMargins = parseMargins(init.scrollMargin);
-    const thresholdValues = Object.freeze(parseThresholds(init.threshold));
-    const trackVisibility = Boolean(init.trackVisibility);
-    let delay = Math.trunc(Number(init.delay) || 0);
-    if (trackVisibility && delay < MIN_VISIBILITY_DELAY_MS) delay = MIN_VISIBILITY_DELAY_MS;
-    Object.defineProperties(this, {
-      _callback: { configurable: true, value: callback },
-      _targets: { configurable: true, value: new Map() },
-      _pending: { configurable: true, value: [], writable: true },
-      _delivery: { configurable: true, value: null, writable: true },
-      _margins: { configurable: true, value: margins },
-      _scrollMargins: { configurable: true, value: scrollMargins },
-      _root: { configurable: true, value: root },
-      _rootId: { configurable: true, value: rootId },
-      _thresholds: { configurable: true, value: thresholdValues },
-      _delay: { configurable: true, value: delay },
-      _trackVisibility: { configurable: true, value: trackVisibility },
-    });
+    initializeObserver(this, callback, options);
   } as any;
 
   defineAttribute(IntersectionObserverImpl.prototype, "root", "_root");
@@ -612,32 +829,7 @@ export function installIntersectionObserver(
     _check: {
       configurable: true,
       value: function (this: ObserverInstance, target: any, resolve: boolean): void {
-        if (!this._targets.has(target)) return;
-        const previous = this._targets.get(target);
-        if (this._root == null && target.ownerDocument?.defaultView == null) {
-          this._targets.set(target, null);
-          return;
-        }
-        const current = entryFor(this, target, win, resolve);
-        if (current === null) return;
-        if (previous && this._delay > 0 && current.time - previous.time < this._delay) {
-          return;
-        }
-        this._targets.set(target, current);
-        if (!crossed(previous, current, this._thresholds)) return;
-        this._pending.push(entryFrom(current));
-        if (this._delivery !== null) return;
-        this._delivery = true;
-        queueTask(() => {
-          this._delivery = null;
-          const records = this.takeRecords();
-          if (records.length === 0) return;
-          try {
-            this._callback.call(this, records, this);
-          } catch (error) {
-            reportCallbackError(win, error);
-          }
-        });
+        checkObserverTarget(this, target, resolve, win);
       },
     },
     _checkAll: {

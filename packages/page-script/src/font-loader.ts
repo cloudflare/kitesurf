@@ -125,16 +125,28 @@ const ANY_SCRIPT_RANGE = new RegExp(
     "]",
 );
 
-function scriptScanText(html: string): string {
-  if (!html.includes("&#")) return html;
+function entityCodePoint(match: RegExpMatchArray): number {
+  const hexadecimal = match[1];
+  return Number.parseInt(hexadecimal ?? match[2], hexadecimal ? 16 : 10);
+}
+
+function isUnicodeScalar(codePoint: number): boolean {
+  return codePoint > 0 && codePoint <= 0x10ffff && !(codePoint >= 0xd800 && codePoint <= 0xdfff);
+}
+
+function decodedEntityText(html: string): string {
   let decoded = "";
   const refs = /&#(?:x([0-9a-f]+)|([0-9]+));?/gi;
   for (const match of html.matchAll(refs)) {
-    const cp = Number.parseInt(match[1] ?? match[2], match[1] ? 16 : 10);
-    if (cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff)) {
-      decoded += String.fromCodePoint(cp);
-    }
+    const codePoint = entityCodePoint(match);
+    if (isUnicodeScalar(codePoint)) decoded += String.fromCodePoint(codePoint);
   }
+  return decoded;
+}
+
+function scriptScanText(html: string): string {
+  if (!html.includes("&#")) return html;
+  const decoded = decodedEntityText(html);
   return decoded ? html + decoded : html;
 }
 
@@ -165,15 +177,20 @@ function needsSymbols2(html: string): boolean {
   return SYMBOLS2_EXCLUSIVE.test(html) || hasListMarkers(html);
 }
 
-function needsMono(html: string): boolean {
-  if (typeof html !== "string" || html.length === 0) return false;
-  if (/<(pre|code|kbd|samp|tt|xmp|listing|plaintext)[\s/>]/i.test(html)) return true;
+function hasMonospaceStyle(html: string): boolean {
   for (const [context] of html.matchAll(
     /<style\b[^>]*>[\s\S]*?<\/style>|(?:class|style)\s*=\s*(?:"[^"]*"|'[^']*')/gi,
   )) {
     if (/(?:monospace|font-mono|DM(?:%20|\+|\s)+Mono)/i.test(context)) return true;
   }
   return false;
+}
+
+function needsMono(html: string): boolean {
+  if (typeof html !== "string" || html.length === 0) return false;
+  return (
+    /<(pre|code|kbd|samp|tt|xmp|listing|plaintext)[\s/>]/i.test(html) || hasMonospaceStyle(html)
+  );
 }
 
 function needsSerif(html: string): boolean {
@@ -211,15 +228,17 @@ function needsOutlineConsumers(html: string): boolean {
 
 function decideFontMode(html: string | undefined): void {
   if (fontMode !== null) return;
-  if (startupPixelFree) {
-    fontMode = "pixelFree";
-    return;
-  }
-  if (html && needsOutlineConsumers(html)) {
-    fontMode = "full";
-    return;
-  }
-  fontMode = "lazy";
+  fontMode = initialFontMode(html);
+  if (fontMode === "lazy") enableLazyFontShaping();
+}
+
+function initialFontMode(html: string | undefined): "full" | "pixelFree" | "lazy" {
+  if (startupPixelFree) return "pixelFree";
+  if (html && needsOutlineConsumers(html)) return "full";
+  return "lazy";
+}
+
+function enableLazyFontShaping(): void {
   try {
     setFontShapingLazy(true);
   } catch {}
@@ -247,58 +266,89 @@ export function upgradePendingPromise(): Promise<void> | null {
   return upgradePending;
 }
 
+function fontNow(): number {
+  return typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+}
+
+function pendingFontPaths(): string[] {
+  try {
+    return pendingLazyFontPaths();
+  } catch {
+    return [];
+  }
+}
+
+async function fetchUpgradeFont(fontPath: string): Promise<readonly [string, Uint8Array | null]> {
+  try {
+    return [fontPath, await fetchBytes(fontPath)];
+  } catch (error) {
+    console.warn(`[kitesurf-fonts] upgrade fetch ${fontPath} failed:`, String(error));
+    return [fontPath, null];
+  }
+}
+
+function swapUpgradeFont(fontPath: string, fontBytes: Uint8Array): boolean {
+  try {
+    return upgradeFontFace(fontPath, fontBytes);
+  } catch (error) {
+    console.warn(`[kitesurf-fonts] upgrade swap ${fontPath} failed:`, String(error));
+    return false;
+  }
+}
+
+function applyUpgradeFonts(
+  fetchedFonts: readonly (readonly [string, Uint8Array | null])[],
+): number {
+  let swappedCount = 0;
+  for (const [fontPath, fontBytes] of fetchedFonts) {
+    if (fontBytes && swapUpgradeFont(fontPath, fontBytes)) swappedCount++;
+  }
+  return swappedCount;
+}
+
+async function upgradeAuthorFonts(): Promise<void> {
+  try {
+    await authorUpgradeHook?.();
+  } catch {}
+}
+
+function finishFontUpgradeSafely(): boolean {
+  try {
+    return finishFontUpgrade();
+  } catch {
+    return false;
+  }
+}
+
+function notifyFontsUpgraded(swappedCount: number): void {
+  if (swappedCount === 0) return;
+  try {
+    onUpgraded?.();
+  } catch {}
+}
+
+async function runFullFontUpgrade(): Promise<void> {
+  const startedAt = fontNow();
+  const fontPaths = pendingFontPaths();
+  const fetchedFonts = await Promise.all(fontPaths.map(fetchUpgradeFont));
+  const swappedCount = applyUpgradeFonts(fetchedFonts);
+  await upgradeAuthorFonts();
+  if (finishFontUpgradeSafely()) {
+    fontMode = "full";
+  } else {
+    upgradePending = null;
+  }
+  const finishedAt = fontNow();
+  console.log(
+    `[kitesurf-fonts] upgraded ${swappedCount}/${fontPaths.length} faces to full in ${(finishedAt - startedAt).toFixed(1)}ms`,
+  );
+  notifyFontsUpgraded(swappedCount);
+}
+
 export function upgradeToFullFonts(): Promise<void> | null {
   if (fontLoaderMode() !== "lazy") return upgradePending;
   if (upgradePending) return upgradePending;
-  upgradePending = (async () => {
-    const startedAt =
-      typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
-    let fontPaths: string[] = [];
-    try {
-      fontPaths = pendingLazyFontPaths();
-    } catch {}
-    const fetchedFonts = await Promise.all(
-      fontPaths.map(async (fontPath) => {
-        try {
-          return [fontPath, await fetchBytes(fontPath)] as const;
-        } catch (e) {
-          console.warn(`[kitesurf-fonts] upgrade fetch ${fontPath} failed:`, String(e));
-          return [fontPath, null] as const;
-        }
-      }),
-    );
-    let swappedCount = 0;
-    for (const [fontPath, fontBytes] of fetchedFonts) {
-      if (!fontBytes) continue;
-      try {
-        if (upgradeFontFace(fontPath, fontBytes)) swappedCount++;
-      } catch (e) {
-        console.warn(`[kitesurf-fonts] upgrade swap ${fontPath} failed:`, String(e));
-      }
-    }
-    try {
-      await authorUpgradeHook?.();
-    } catch {}
-    let finished = false;
-    try {
-      finished = finishFontUpgrade();
-    } catch {}
-    if (finished) {
-      fontMode = "full";
-    } else {
-      upgradePending = null;
-    }
-    const finishedAt =
-      typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
-    console.log(
-      `[kitesurf-fonts] upgraded ${swappedCount}/${fontPaths.length} faces to full in ${(finishedAt - startedAt).toFixed(1)}ms`,
-    );
-    if (swappedCount > 0) {
-      try {
-        onUpgraded?.();
-      } catch {}
-    }
-  })();
+  upgradePending = runFullFontUpgrade();
   return upgradePending;
 }
 
@@ -328,12 +378,10 @@ function registerCjkIfNeeded(): Promise<void> {
   if (cjkPending) return cjkPending;
   cjkPending = (async () => {
     try {
-      const startedAt =
-        typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+      const startedAt = fontNow();
       const bytes = await fetchBytes(CJK_SHAPING_PATH).catch(() => fetchBytes(CJK_FONT_PATH));
       register_cjk_font(bytes);
-      const finishedAt =
-        typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+      const finishedAt = fontNow();
       console.log(
         `[kitesurf-fonts] registered CJK font (${bytes.byteLength} bytes) in ${(finishedAt - startedAt).toFixed(1)}ms`,
       );
@@ -379,6 +427,11 @@ interface ScriptTextProbe {
   textUsesCodepoints?(ranges: Uint32Array): boolean;
 }
 
+type ReadyScriptTextProbe = ScriptTextProbe & {
+  nonLatinTextWrites: () => number;
+  textUsesCodepoints: (ranges: Uint32Array) => boolean;
+};
+
 let nonLatinWritesSeen = 0;
 
 function classRanges(unicodeRange: RegExp): Uint32Array {
@@ -400,25 +453,37 @@ export function noteNavigateText(dom: ScriptTextProbe): void {
   nonLatinWritesSeen = dom.nonLatinTextWrites?.() ?? 0;
 }
 
-export function demandFacesForScriptText(dom: ScriptTextProbe): void {
-  if (!dom.nonLatinTextWrites || !dom.textUsesCodepoints) return;
-  const writes = dom.nonLatinTextWrites();
-  if (writes === nonLatinWritesSeen) return;
-  nonLatinWritesSeen = writes;
-  const tasks: Promise<void>[] = [];
-  if (!cjkPending && dom.textUsesCodepoints(CJK_RANGES)) {
-    tasks.push(registerCjkIfNeeded());
-  }
-  if (!emojiPending && dom.textUsesCodepoints(EMOJI_RANGES)) {
-    tasks.push(registerEmojiIfNeeded());
-  }
+function hasScriptTextProbe(dom: ScriptTextProbe): dom is ReadyScriptTextProbe {
+  return !!dom.nonLatinTextWrites && !!dom.textUsesCodepoints;
+}
+
+function addDemandedBaseFaces(dom: ReadyScriptTextProbe, tasks: Promise<void>[]): void {
+  if (!cjkPending && dom.textUsesCodepoints(CJK_RANGES)) tasks.push(registerCjkIfNeeded());
+  if (!emojiPending && dom.textUsesCodepoints(EMOJI_RANGES)) tasks.push(registerEmojiIfNeeded());
+}
+
+function addDemandedScriptFaces(dom: ReadyScriptTextProbe, tasks: Promise<void>[]): void {
   for (const { scriptFont, ranges } of SCRIPT_FACE_RANGES) {
     if (!scriptPending.has(scriptFont.tag) && dom.textUsesCodepoints(ranges)) {
       tasks.push(registerScriptIfNeeded(scriptFont));
     }
   }
+}
+
+function notifyDemandedFaces(tasks: Promise<void>[]): void {
   if (tasks.length === 0) return;
   void NativePromise.all(tasks.map((task) => task.catch(() => {}))).then(() => onUpgraded?.());
+}
+
+export function demandFacesForScriptText(dom: ScriptTextProbe): void {
+  if (!hasScriptTextProbe(dom)) return;
+  const writes = dom.nonLatinTextWrites();
+  if (writes === nonLatinWritesSeen) return;
+  nonLatinWritesSeen = writes;
+  const tasks: Promise<void>[] = [];
+  addDemandedBaseFaces(dom, tasks);
+  addDemandedScriptFaces(dom, tasks);
+  notifyDemandedFaces(tasks);
 }
 
 let forceMono = false;
@@ -427,7 +492,7 @@ export function forceMonoFace(): void {
   forceMono = true;
 }
 
-function computeFontWants(html?: string): {
+interface FontWants {
   symbols: boolean;
   symbols2: boolean;
   emoji: boolean;
@@ -435,81 +500,117 @@ function computeFontWants(html?: string): {
   mono: boolean;
   serif: boolean;
   scripts: ScriptFont[];
-} {
-  const symbols = !!html && needsSymbols(html);
+}
+
+function scriptFontsForText(perScriptScan: string): ScriptFont[] {
   const scripts: ScriptFont[] = [];
-  const perScriptScan = html ? scriptScanText(html) : "";
   if (perScriptScan && ANY_SCRIPT_RANGE.test(perScriptScan)) {
     for (const scriptFont of SCRIPT_FONTS) {
       if (scriptFont.range.test(perScriptScan)) scripts.push(scriptFont);
     }
   }
+  return scripts;
+}
+
+function wantsSymbols2(html: string | undefined, symbols: boolean): boolean {
+  return Boolean(symbols && html && needsSymbols2(html));
+}
+
+function wantsCjkFont(html: string | undefined): boolean {
+  return Boolean(html && needsCjk(html));
+}
+
+function wantsMonoFont(html: string | undefined): boolean {
+  return forceMono || Boolean(html && needsMono(html));
+}
+
+function wantsSerifFont(html: string | undefined): boolean {
+  return Boolean(html && needsSerif(html));
+}
+
+function computeFontWants(html?: string): FontWants {
+  const symbols = Boolean(html && needsSymbols(html));
+  const perScriptScan = html ? scriptScanText(html) : "";
   return {
     symbols,
-    symbols2: symbols && needsSymbols2(html),
+    symbols2: wantsSymbols2(html, symbols),
     emoji: needsEmoji(perScriptScan),
-    cjk: !!html && needsCjk(html),
-    mono: forceMono || (!!html && needsMono(html)),
-    serif: !!html && needsSerif(html),
-    scripts,
+    cjk: wantsCjkFont(html),
+    mono: wantsMonoFont(html),
+    serif: wantsSerifFont(html),
+    scripts: scriptFontsForText(perScriptScan),
   };
+}
+
+function fetchCoreFontFaces(wants: FontWants): Promise<Uint8Array[]> {
+  const coreFetches = [fetchFaceBytes(UA_FONT_PATHS[0]), fetchFaceBytes(UA_FONT_PATHS[1])];
+  if (wants.serif) coreFetches.push(fetchFaceBytes(UA_FONT_PATHS[2]));
+  if (wants.mono) coreFetches.push(fetchFaceBytes(MONO_FONT_PATH));
+  return Promise.all(coreFetches);
+}
+
+function coreFontBuffers(
+  faces: Uint8Array[],
+  wants: FontWants,
+): { sans: Uint8Array; sansItalic: Uint8Array; serif: Uint8Array; mono: Uint8Array } {
+  const sans = faces[0];
+  const sansItalic = faces[1];
+  let faceIndex = 2;
+  const serif = wants.serif ? faces[faceIndex++] : new Uint8Array(0);
+  const mono = wants.mono ? faces[faceIndex++] : new Uint8Array(0);
+  return { sans, sansItalic, serif, mono };
+}
+
+async function registerCoreFonts(wants: FontWants): Promise<void> {
+  const startedAt = fontNow();
+  try {
+    const faces = await fetchCoreFontFaces(wants);
+    const { sans, sansItalic, serif, mono } = coreFontBuffers(faces, wants);
+    register_ua_fonts(sans, sansItalic, serif, mono);
+    const completedAt = fontNow();
+    const totalBytes = sans.byteLength + sansItalic.byteLength + serif.byteLength + mono.byteLength;
+    console.log(
+      `[kitesurf-fonts] registered ${wants.mono ? 4 : 3} Latin UA fonts (${totalBytes} bytes) in ${(completedAt - startedAt).toFixed(1)}ms`,
+    );
+  } catch (error) {
+    console.warn("[kitesurf-fonts] registration failed:", String(error));
+    pending = null;
+    throw error;
+  }
+}
+
+async function ensureCoreFontsRegistered(wants: FontWants): Promise<boolean> {
+  if (!pending) {
+    pending = registerCoreFonts(wants);
+  }
+  return awaitCoreFontRegistration(pending);
+}
+
+async function awaitCoreFontRegistration(registration: Promise<void>): Promise<boolean> {
+  try {
+    await registration;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function optionalFontRegistrations(wants: FontWants): Promise<void>[] {
+  const tasks: Promise<void>[] = [];
+  if (wants.symbols) tasks.push(registerSymbolsIfNeeded(wants.symbols2).catch(() => {}));
+  if (wants.emoji) tasks.push(registerEmojiIfNeeded().catch(() => {}));
+  if (wants.cjk) tasks.push(registerCjkIfNeeded().catch(() => {}));
+  for (const scriptFont of wants.scripts) {
+    tasks.push(registerScriptIfNeeded(scriptFont).catch(() => {}));
+  }
+  return tasks;
 }
 
 export async function ensureFontsRegistered(htmlForEmojiScan?: string): Promise<void> {
   decideFontMode(htmlForEmojiScan);
   const wants = computeFontWants(htmlForEmojiScan);
-  const wantSymbols = wants.symbols;
-  const wantSymbols2 = wants.symbols2;
-  const wantEmoji = wants.emoji;
-  const wantCjk = wants.cjk;
-  const wantMono = wants.mono;
-  const wantSerif = wants.serif;
-
-  if (!pending) {
-    pending = (async () => {
-      const startedAt =
-        typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
-      try {
-        const coreFetches = [fetchFaceBytes(UA_FONT_PATHS[0]), fetchFaceBytes(UA_FONT_PATHS[1])];
-        if (wantSerif) coreFetches.push(fetchFaceBytes(UA_FONT_PATHS[2]));
-        if (wantMono) coreFetches.push(fetchFaceBytes(MONO_FONT_PATH));
-        const faces = await Promise.all(coreFetches);
-        const sans = faces[0];
-        const sansItalic = faces[1];
-        let faceIndex = 2;
-        const serif = wantSerif ? faces[faceIndex++] : new Uint8Array(0);
-        const mono = wantMono ? faces[faceIndex++] : new Uint8Array(0);
-
-        register_ua_fonts(sans, sansItalic, serif, mono);
-
-        const completedAt =
-          typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
-        const totalBytes =
-          sans.byteLength + sansItalic.byteLength + serif.byteLength + mono.byteLength;
-        console.log(
-          `[kitesurf-fonts] registered ${wantMono ? 4 : 3} Latin UA fonts (${totalBytes} bytes) in ${(completedAt - startedAt).toFixed(1)}ms`,
-        );
-      } catch (e) {
-        console.warn("[kitesurf-fonts] registration failed:", String(e));
-        pending = null;
-        throw e;
-      }
-    })();
-  }
-
-  try {
-    await pending;
-  } catch {
-    return;
-  }
-
-  const tasks: Promise<void>[] = [];
-  if (wantSymbols) tasks.push(registerSymbolsIfNeeded(wantSymbols2).catch(() => {}));
-  if (wantEmoji) tasks.push(registerEmojiIfNeeded().catch(() => {}));
-  if (wantCjk) tasks.push(registerCjkIfNeeded().catch(() => {}));
-  for (const scriptFont of wants.scripts) {
-    tasks.push(registerScriptIfNeeded(scriptFont).catch(() => {}));
-  }
+  if (!(await ensureCoreFontsRegistered(wants))) return;
+  const tasks = optionalFontRegistrations(wants);
   if (tasks.length) await Promise.all(tasks);
 }
 
@@ -553,85 +654,144 @@ export function deferredDegradedReads(): number {
 
 const deferSettledEmpty = new Set<string>();
 
+function hasDeferredCoreBytes(): boolean {
+  return Boolean(deferStash.sans && deferStash.sansItalic);
+}
+
+function optionalDeferredCoreReady(
+  wanted: boolean,
+  bytes: Uint8Array | null,
+  label: string,
+): boolean {
+  return !wanted || Boolean(bytes) || deferSettledEmpty.has(label);
+}
+
 function deferCoreBytesReady(): boolean {
-  if (!deferWants) return false;
-  if (!deferStash.sans || !deferStash.sansItalic) return false;
-  if (deferWants.serif && !deferStash.serif && !deferSettledEmpty.has("serif")) return false;
-  if (deferWants.mono && !deferStash.mono && !deferSettledEmpty.has("mono")) return false;
+  const wants = deferWants;
+  if (!wants) return false;
+  return (
+    hasDeferredCoreBytes() &&
+    optionalDeferredCoreReady(wants.serif, deferStash.serif, "serif") &&
+    optionalDeferredCoreReady(wants.mono, deferStash.mono, "mono")
+  );
+}
+
+function deferredCoreBuffers(): { sans: Uint8Array; sansItalic: Uint8Array } | null {
+  const sans = deferStash.sans;
+  const sansItalic = deferStash.sansItalic;
+  if (!sans || !sansItalic) return null;
+  if (!deferCoreBytesReady()) return null;
+  return { sans, sansItalic };
+}
+
+function deferredOptionalCoreBuffer(bytes: Uint8Array | null): Uint8Array {
+  return bytes ?? new Uint8Array(0);
+}
+
+function registerDeferredCore(): boolean {
+  if (deferCoreRegistered) return true;
+  const core = deferredCoreBuffers();
+  if (!core) return false;
+  try {
+    register_ua_fonts(
+      core.sans,
+      core.sansItalic,
+      deferredOptionalCoreBuffer(deferStash.serif),
+      deferredOptionalCoreBuffer(deferStash.mono),
+    );
+    deferCoreRegistered = true;
+    console.log("[kitesurf-fonts] deferred: registered Latin UA core on demand");
+  } catch (error) {
+    console.warn("[kitesurf-fonts] deferred core registration failed:", String(error));
+    deferCoreFailed = true;
+    return false;
+  }
   return true;
+}
+
+function registerDeferredGroup(name: string, run: () => void): void {
+  if (deferRegistered.has(name)) return;
+  deferRegistered.add(name);
+  try {
+    run();
+  } catch (error) {
+    console.warn(`[kitesurf-fonts] deferred ${name} registration failed:`, String(error));
+  }
+}
+
+function registerDeferredSymbols(wants: FontWants): void {
+  const { symbols, symbols2 } = deferStash;
+  if (!wants.symbols || !symbols) return;
+  if (wants.symbols2 && !symbols2) return;
+  registerDeferredGroup("symbols", () =>
+    register_symbol_fonts(symbols, symbols2 ?? new Uint8Array(0)),
+  );
+}
+
+function registerDeferredFont(
+  name: string,
+  wanted: boolean,
+  bytes: Uint8Array | null,
+  register: (bytes: Uint8Array) => void,
+): void {
+  if (wanted && bytes) registerDeferredGroup(name, () => register(bytes));
+}
+
+function registerDeferredExtras(wants: FontWants): void {
+  const { emoji, cjk } = deferStash;
+  registerDeferredSymbols(wants);
+  registerDeferredFont("emoji", wants.emoji, emoji, register_emoji_font);
+  registerDeferredFont("cjk", wants.cjk, cjk, register_cjk_font);
+  for (const [tag, bytes] of deferStash.scripts) {
+    registerDeferredGroup(`script:${tag}`, () => register_script_font(bytes, tag));
+  }
 }
 
 function tryRegisterDeferred(): boolean {
   const wants = deferWants;
   if (!wants || deferCoreFailed) return false;
-  if (!deferCoreRegistered) {
-    const { sans, sansItalic } = deferStash;
-    if (!sans || !sansItalic || !deferCoreBytesReady()) return false;
-    try {
-      register_ua_fonts(
-        sans,
-        sansItalic,
-        deferStash.serif ?? new Uint8Array(0),
-        deferStash.mono ?? new Uint8Array(0),
-      );
-      deferCoreRegistered = true;
-      console.log("[kitesurf-fonts] deferred: registered Latin UA core on demand");
-    } catch (e) {
-      console.warn("[kitesurf-fonts] deferred core registration failed:", String(e));
-      deferCoreFailed = true;
-      return false;
-    }
-  }
-  const group = (name: string, run: () => void): void => {
-    if (deferRegistered.has(name)) return;
-    deferRegistered.add(name);
-    try {
-      run();
-    } catch (e) {
-      console.warn(`[kitesurf-fonts] deferred ${name} registration failed:`, String(e));
-    }
-  };
-  const { symbols, symbols2, emoji, cjk } = deferStash;
-  if (wants.symbols && symbols && (!wants.symbols2 || symbols2)) {
-    group("symbols", () => register_symbol_fonts(symbols, symbols2 ?? new Uint8Array(0)));
-  }
-  if (wants.emoji && emoji) group("emoji", () => register_emoji_font(emoji));
-  if (wants.cjk && cjk) group("cjk", () => register_cjk_font(cjk));
-  for (const [tag, bytes] of deferStash.scripts) {
-    group(`script:${tag}`, () => register_script_font(bytes, tag));
-  }
+  if (!registerDeferredCore()) return false;
+  registerDeferredExtras(wants);
   return true;
 }
 
-export function startFontPrefetch(html?: string): void {
-  if (deferStarted) return;
-  deferStarted = true;
-  decideFontMode(html);
-  const wants = computeFontWants(html);
-  deferWants = wants;
-  const all: Promise<void>[] = [];
-  const kick = (
-    fetchPromise: Promise<Uint8Array>,
-    storeBytes: (bytes: Uint8Array) => void,
-    tier: "core" | "optional" | "extra",
-    label: string,
-  ): void => {
-    all.push(
-      fetchPromise
-        .then((bytes) => {
-          storeBytes(bytes);
-          if (deferDemandArmed) tryRegisterDeferred();
-        })
-        .catch((error) => {
-          if (tier === "core") deferCoreFailed = true;
-          if (tier === "optional") {
-            deferSettledEmpty.add(label);
-            if (deferDemandArmed) tryRegisterDeferred();
-          }
-          console.warn(`[kitesurf-fonts] deferred ${label} fetch failed:`, String(error));
-        }),
-    );
-  };
+type DeferredFontTier = "core" | "optional" | "extra";
+type DeferredFontKick = (
+  fetchPromise: Promise<Uint8Array>,
+  storeBytes: (bytes: Uint8Array) => void,
+  tier: DeferredFontTier,
+  label: string,
+) => void;
+
+function deferredFontBytesLoaded(bytes: Uint8Array, storeBytes: (bytes: Uint8Array) => void): void {
+  storeBytes(bytes);
+  if (deferDemandArmed) tryRegisterDeferred();
+}
+
+function deferredFontFetchFailed(error: unknown, tier: DeferredFontTier, label: string): void {
+  if (tier === "core") deferCoreFailed = true;
+  if (tier === "optional") {
+    deferSettledEmpty.add(label);
+    if (deferDemandArmed) tryRegisterDeferred();
+  }
+  console.warn(`[kitesurf-fonts] deferred ${label} fetch failed:`, String(error));
+}
+
+function kickDeferredFontFetch(
+  all: Promise<void>[],
+  fetchPromise: Promise<Uint8Array>,
+  storeBytes: (bytes: Uint8Array) => void,
+  tier: DeferredFontTier,
+  label: string,
+): void {
+  all.push(
+    fetchPromise
+      .then((bytes) => deferredFontBytesLoaded(bytes, storeBytes))
+      .catch((error) => deferredFontFetchFailed(error, tier, label)),
+  );
+}
+
+function scheduleCoreFontPrefetch(kick: DeferredFontKick): void {
   kick(fetchFaceBytes(UA_FONT_PATHS[0]), (bytes) => (deferStash.sans = bytes), "core", "sans");
   kick(
     fetchFaceBytes(UA_FONT_PATHS[1]),
@@ -639,6 +799,9 @@ export function startFontPrefetch(html?: string): void {
     "core",
     "sans-italic",
   );
+}
+
+function scheduleOptionalCoreFontPrefetch(wants: FontWants, kick: DeferredFontKick): void {
   if (wants.serif) {
     kick(
       fetchFaceBytes(UA_FONT_PATHS[2]),
@@ -650,6 +813,9 @@ export function startFontPrefetch(html?: string): void {
   if (wants.mono) {
     kick(fetchFaceBytes(MONO_FONT_PATH), (bytes) => (deferStash.mono = bytes), "optional", "mono");
   }
+}
+
+function scheduleSpecialFontPrefetch(wants: FontWants, kick: DeferredFontKick): void {
   if (wants.symbols) {
     kick(
       fetchFaceBytes(SYMBOL_FONT_PATHS[0]),
@@ -682,6 +848,9 @@ export function startFontPrefetch(html?: string): void {
       "cjk",
     );
   }
+}
+
+function scheduleScriptFontPrefetch(wants: FontWants, kick: DeferredFontKick): void {
   for (const scriptFont of wants.scripts) {
     kick(
       fetchFaceBytes(scriptFont.path),
@@ -690,6 +859,25 @@ export function startFontPrefetch(html?: string): void {
       scriptFont.tag,
     );
   }
+}
+
+export function startFontPrefetch(html?: string): void {
+  if (deferStarted) return;
+  deferStarted = true;
+  decideFontMode(html);
+  const wants = computeFontWants(html);
+  deferWants = wants;
+  const all: Promise<void>[] = [];
+  const kick: DeferredFontKick = (
+    fetchPromise: Promise<Uint8Array>,
+    storeBytes: (bytes: Uint8Array) => void,
+    tier: DeferredFontTier,
+    label: string,
+  ) => kickDeferredFontFetch(all, fetchPromise, storeBytes, tier, label);
+  scheduleCoreFontPrefetch(kick);
+  scheduleOptionalCoreFontPrefetch(wants, kick);
+  scheduleSpecialFontPrefetch(wants, kick);
+  scheduleScriptFontPrefetch(wants, kick);
   deferFetchSettled = Promise.all(all).then(() => undefined);
   console.log(
     `[kitesurf-fonts] deferred: prefetching ${all.length} face file(s), registration on demand`,

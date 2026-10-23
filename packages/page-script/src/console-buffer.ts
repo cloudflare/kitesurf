@@ -136,27 +136,92 @@ export function drainConsole(): ConsoleEntry[] {
 }
 
 type InsertedNode = Extract<CdpMutation, { kind: "childNodeInserted" }>["node"];
+type RawInsertedNodeMutation = Extract<
+  ReturnType<typeof state.drainCdpMutationsRaw>[number],
+  { kind: "childNodeInserted" }
+>;
+
+function hasNumberField(value: Record<string, unknown>, field: string): boolean {
+  return field in value && typeof value[field] === "number";
+}
+
+function hasStringField(value: Record<string, unknown>, field: string): boolean {
+  return field in value && typeof value[field] === "string";
+}
+
+function hasOptionalArray(value: Record<string, unknown>, field: string): boolean {
+  return !(field in value) || Array.isArray(value[field]);
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function hasNodeIdentity(value: Record<string, unknown>): boolean {
+  return hasNumberField(value, "nodeId") && hasNumberField(value, "backendNodeId");
+}
+
+function hasNodeType(value: Record<string, unknown>): boolean {
+  return hasNumberField(value, "nodeType") && hasStringField(value, "nodeName");
+}
+
+function hasNodeContents(value: Record<string, unknown>): boolean {
+  return (
+    hasStringField(value, "localName") &&
+    hasStringField(value, "nodeValue") &&
+    hasNumberField(value, "childNodeCount")
+  );
+}
+
+function hasNodeArrays(value: Record<string, unknown>): boolean {
+  return hasOptionalArray(value, "children") && hasOptionalArray(value, "shadowRoots");
+}
 
 function isInsertedNode(value: unknown): value is InsertedNode {
-  if (typeof value !== "object" || value === null) return false;
+  if (!isObjectRecord(value)) return false;
   return (
-    "nodeId" in value &&
-    typeof value.nodeId === "number" &&
-    "backendNodeId" in value &&
-    typeof value.backendNodeId === "number" &&
-    "nodeType" in value &&
-    typeof value.nodeType === "number" &&
-    "nodeName" in value &&
-    typeof value.nodeName === "string" &&
-    "localName" in value &&
-    typeof value.localName === "string" &&
-    "nodeValue" in value &&
-    typeof value.nodeValue === "string" &&
-    "childNodeCount" in value &&
-    typeof value.childNodeCount === "number" &&
-    (!("children" in value) || Array.isArray(value.children)) &&
-    (!("shadowRoots" in value) || Array.isArray(value.shadowRoots))
+    hasNodeIdentity(value) && hasNodeType(value) && hasNodeContents(value) && hasNodeArrays(value)
   );
+}
+
+function normalizeInsertedNodeMutation(
+  mutation: RawInsertedNodeMutation,
+): Extract<CdpMutation, { kind: "childNodeInserted" }> | null {
+  try {
+    const dom = state.dom as { nodeSubtree?: (id: number) => unknown } | null;
+    const subtree = dom?.nodeSubtree?.(mutation.nodeId);
+    if (!isInsertedNode(subtree)) return null;
+    return {
+      kind: "childNodeInserted",
+      parentNodeId: mutation.parentNodeId,
+      previousNodeId: mutation.previousNodeId,
+      node: sanitizeCdpNodeTree(subtree),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function appendRawMutation(
+  mutations: CdpMutation[],
+  mutation: ReturnType<typeof state.drainCdpMutationsRaw>[number],
+): void {
+  if (mutation.kind !== "childNodeInserted") {
+    mutations.push(mutation);
+    return;
+  }
+  const normalized = normalizeInsertedNodeMutation(mutation);
+  if (normalized) mutations.push(normalized);
+}
+
+function appendRawMutations(
+  mutations: CdpMutation[],
+  rawMutations: ReturnType<typeof state.drainCdpMutationsRaw>,
+): void {
+  for (const mutation of rawMutations) {
+    if (!mutation || typeof mutation !== "object") continue;
+    appendRawMutation(mutations, mutation);
+  }
 }
 
 export function drainCdpMutations(): CdpMutation[] {
@@ -169,28 +234,7 @@ export function drainCdpMutations(): CdpMutation[] {
   }
   if (rawMutations.length === 0 && styleSheetHints.length === 0) return [];
   const mutations: CdpMutation[] = styleSheetHints;
-  for (const mutation of rawMutations) {
-    if (!mutation || typeof mutation !== "object") continue;
-    if (mutation.kind === "childNodeInserted") {
-      let nodeShape: InsertedNode | null = null;
-      try {
-        const dom = state.dom as { nodeSubtree?: (id: number) => unknown } | null;
-        const subtree = dom?.nodeSubtree?.(mutation.nodeId);
-        nodeShape = isInsertedNode(subtree) ? sanitizeCdpNodeTree(subtree) : null;
-      } catch {
-        nodeShape = null;
-      }
-      if (!nodeShape) continue;
-      mutations.push({
-        kind: "childNodeInserted",
-        parentNodeId: mutation.parentNodeId,
-        previousNodeId: mutation.previousNodeId,
-        node: nodeShape,
-      });
-      continue;
-    }
-    mutations.push(mutation);
-  }
+  appendRawMutations(mutations, rawMutations);
   return mutations;
 }
 

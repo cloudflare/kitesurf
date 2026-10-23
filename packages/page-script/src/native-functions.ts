@@ -11,29 +11,35 @@ const nativeNames = new WeakMap<object, string>();
 const realToString = Function.prototype.toString;
 const REAL_NATIVE = /^function [\w$]+\(\) \{\s*\[native code\]\s*\}$/;
 
-function propertyName(key: string | symbol): string {
-  return typeof key === "symbol" ? `[${key.description ?? ""}]` : key;
+function isUntrackedFunction(fn: unknown): fn is Function {
+  return typeof fn === "function" && !nativeNames.has(fn);
 }
 
-// A workerd built-in already prints the right thing under its own name; a bound copy prints
-// "function () { [native code] }" and is named "bound x", so it is ours.
-export function markNative(fn: unknown, name: string, accessor = false): void {
-  if (typeof fn !== "function" || nativeNames.has(fn)) return;
-  let src: string;
+function nativeSource(fn: Function): string | null {
   try {
-    src = realToString.call(fn);
+    return realToString.call(fn);
   } catch {
-    return;
+    return null;
   }
-  let own: string;
+}
+
+function ownFunctionName(fn: Function): string | null {
   try {
-    own = typeof fn.name === "string" ? fn.name : "";
+    return typeof fn.name === "string" ? fn.name : "";
   } catch {
-    return;
+    return null;
   }
-  const bound = own.startsWith("bound ");
-  if (REAL_NATIVE.test(src) && own && !bound) return;
-  const effective = accessor || !own || bound ? name : own;
+}
+
+function isExistingNative(src: string, own: string, bound: boolean): boolean {
+  return REAL_NATIVE.test(src) && !!own && !bound;
+}
+
+function effectiveNativeName(accessor: boolean, own: string, bound: boolean, name: string): string {
+  return accessor || !own || bound ? name : own;
+}
+
+function registerNativeName(fn: Function, own: string, effective: string): void {
   if (!effective) return;
   nativeNames.set(fn, effective);
   if (own !== effective) {
@@ -41,6 +47,28 @@ export function markNative(fn: unknown, name: string, accessor = false): void {
       Object.defineProperty(fn, "name", { value: effective, configurable: true });
     } catch {}
   }
+}
+
+function markNativeImpl(fn: unknown, name: string, accessor: boolean): void {
+  if (!isUntrackedFunction(fn)) return;
+  const src = nativeSource(fn);
+  if (src === null) return;
+  const own = ownFunctionName(fn);
+  if (own === null) return;
+  const bound = own.startsWith("bound ");
+  if (isExistingNative(src, own, bound)) return;
+  const effective = effectiveNativeName(accessor, own, bound, name);
+  registerNativeName(fn, own, effective);
+}
+
+function propertyName(key: string | symbol): string {
+  return typeof key === "symbol" ? `[${key.description ?? ""}]` : key;
+}
+
+// A workerd built-in already prints the right thing under its own name; a bound copy prints
+// "function () { [native code] }" and is named "bound x", so it is ours.
+export function markNative(fn: unknown, name: string, accessor = false): void {
+  markNativeImpl(fn, name, accessor);
 }
 
 let toStringInstalled = false;
@@ -66,50 +94,101 @@ export function installNativeToString(): void {
   getInternalState().markNative = markNative;
 }
 
+const MAX_OBJECT_TRAVERSAL_DEPTH = 1;
+const MAX_PROTOTYPE_CHAIN_HOPS = 8;
+
+type NativeVisit = (obj: unknown, depth: number) => void;
+type NativeVisitChain = (proto: unknown, depth: number) => void;
+
+function isObjectLike(value: unknown): value is object {
+  return (typeof value === "object" || typeof value === "function") && value !== null;
+}
+
+function shouldSkipNativeObject(obj: object, seen: Set<object>): boolean {
+  return obj === Object.prototype || obj === Function.prototype || seen.has(obj);
+}
+
+function ownKeysOf(obj: object): (string | symbol)[] | null {
+  try {
+    return Reflect.ownKeys(obj);
+  } catch {
+    return null;
+  }
+}
+
+function isShallowEngineObject(value: unknown, depth: number): value is object {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    depth < MAX_OBJECT_TRAVERSAL_DEPTH &&
+    !Array.isArray(value) &&
+    !ArrayBuffer.isView(value)
+  );
+}
+
+function markNativeAccessors(descriptor: PropertyDescriptor, name: string): void {
+  if (descriptor.get) markNative(descriptor.get, `get ${name}`, true);
+  if (descriptor.set) markNative(descriptor.set, `set ${name}`, true);
+}
+
+function visitNativeFunction(
+  value: Function,
+  key: string | symbol,
+  name: string,
+  depth: number,
+  visit: NativeVisit,
+  visitChain: NativeVisitChain,
+): void {
+  markNative(value, name);
+  if (key !== "constructor") visit(value, depth);
+  const proto = Object.prototype.hasOwnProperty.call(value, "prototype") ? value.prototype : null;
+  visitChain(proto, depth);
+}
+
+function visitNativeKey(
+  obj: object,
+  key: string | symbol,
+  depth: number,
+  visit: NativeVisit,
+  visitChain: NativeVisitChain,
+): void {
+  const descriptor = Object.getOwnPropertyDescriptor(obj, key);
+  if (!descriptor) return;
+  const name = propertyName(key);
+  markNativeAccessors(descriptor, name);
+  const value = descriptor.value;
+  if (typeof value === "function") {
+    visitNativeFunction(value, key, name, depth, visit, visitChain);
+    return;
+  }
+  if (!isShallowEngineObject(value, depth)) return;
+  visit(value, depth + 1);
+  visitChain(Object.getPrototypeOf(value), depth + 1);
+}
+
+function visitNativeKeys(
+  obj: object,
+  keys: (string | symbol)[],
+  depth: number,
+  visit: NativeVisit,
+  visitChain: NativeVisitChain,
+): void {
+  for (const key of keys) {
+    try {
+      visitNativeKey(obj, key, depth, visit, visitChain);
+    } catch {}
+  }
+}
+
 export function markEngineFunctions(roots: readonly unknown[]): void {
-  const MAX_OBJECT_TRAVERSAL_DEPTH = 1;
-  const MAX_PROTOTYPE_CHAIN_HOPS = 8;
   const seen = new Set<object>();
   const visit = (obj: unknown, depth: number): void => {
-    if ((typeof obj !== "object" && typeof obj !== "function") || obj === null) return;
-    if (obj === Object.prototype || obj === Function.prototype || seen.has(obj)) return;
+    if (!isObjectLike(obj)) return;
+    if (shouldSkipNativeObject(obj, seen)) return;
     seen.add(obj);
-    let keys: (string | symbol)[];
-    try {
-      keys = Reflect.ownKeys(obj);
-    } catch {
-      return;
-    }
-    for (const key of keys) {
-      try {
-        visitKey(obj, key, depth);
-      } catch {}
-    }
-  };
-  const visitKey = (obj: object, key: string | symbol, depth: number): void => {
-    const d = Object.getOwnPropertyDescriptor(obj, key);
-    if (!d) return;
-    const name = propertyName(key);
-    if (d.get) markNative(d.get, `get ${name}`, true);
-    if (d.set) markNative(d.set, `set ${name}`, true);
-    const value = d.value;
-    if (typeof value === "function") {
-      markNative(value, name);
-      if (key !== "constructor") visit(value, depth);
-      const proto = Object.prototype.hasOwnProperty.call(value, "prototype")
-        ? value.prototype
-        : null;
-      visitChain(proto, depth);
-    } else if (
-      value &&
-      typeof value === "object" &&
-      depth < MAX_OBJECT_TRAVERSAL_DEPTH &&
-      !Array.isArray(value) &&
-      !ArrayBuffer.isView(value)
-    ) {
-      visit(value, depth + 1);
-      visitChain(Object.getPrototypeOf(value), depth + 1);
-    }
+    const keys = ownKeysOf(obj);
+    if (!keys) return;
+    visitNativeKeys(obj, keys, depth, visit, visitChain);
   };
   const visitChain = (proto: unknown, depth: number): void => {
     try {

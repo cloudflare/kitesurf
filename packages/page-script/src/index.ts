@@ -190,52 +190,70 @@ const sessionClosingSignal = new NativePromise<void>((resolve) => {
   resolveSessionClosing = resolve;
 });
 
-function afterFontUpgrade(): void {
-  try {
-    state.dom?.fontsUpgraded?.();
-  } catch {}
+function recordFontUpgradeMutation(): void {
   try {
     const internalState = getInternalState();
     internalState.mutationSeq = (internalState.mutationSeq | 0) + 1;
     internalState.lastMutationAt = Date.now();
   } catch {}
+}
+
+function invalidateFontUpgradePaint(): void {
   try {
     invalidatePaintDom();
   } catch {}
 }
+
+function afterFontUpgrade(): void {
+  try {
+    state.dom?.fontsUpgraded?.();
+  } catch {}
+  recordFontUpgradeMutation();
+  invalidateFontUpgradePaint();
+}
 setFontUpgradeCallback(afterFontUpgrade);
 
-setAuthorFontUpgradeHook(async () => {
-  const MAX_FONT_UPGRADE_ERROR_URL_CHARS = 80;
+const MAX_FONT_UPGRADE_ERROR_URL_CHARS = 80;
+
+function pendingAuthorFontUpgradeUrls(): string[] {
   const dom = state.dom;
-  if (!dom || typeof dom.pendingAuthorFontUpgrades !== "function") return;
-  let urls: string[] = [];
+  if (!dom || typeof dom.pendingAuthorFontUpgrades !== "function") return [];
   try {
-    urls = dom.pendingAuthorFontUpgrades() ?? [];
-  } catch {}
-  const fetched = await Promise.all(
-    urls.map(async (url) => {
-      try {
-        return [url, await resolveFontUrlData(url)] as const;
-      } catch (e) {
-        console.warn(
-          `[kitesurf-fonts] author upgrade fetch ${url.slice(0, MAX_FONT_UPGRADE_ERROR_URL_CHARS)} failed:`,
-          String(e),
-        );
-        return [url, null] as const;
-      }
-    }),
-  );
+    return dom.pendingAuthorFontUpgrades() ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchAuthorFontUpgrade(url: string): Promise<readonly [string, Uint8Array | null]> {
+  try {
+    return [url, await resolveFontUrlData(url)] as const;
+  } catch (error) {
+    console.warn(
+      `[kitesurf-fonts] author upgrade fetch ${url.slice(0, MAX_FONT_UPGRADE_ERROR_URL_CHARS)} failed:`,
+      String(error),
+    );
+    return [url, null] as const;
+  }
+}
+
+function applyAuthorFontUpgrade(url: string, bytes: Uint8Array | null): void {
+  if (!bytes || bytes.length === 0) return;
+  try {
+    upgradeAuthorFontFace(url, bytes);
+  } catch (error) {
+    console.warn(
+      `[kitesurf-fonts] author upgrade swap ${url.slice(0, MAX_FONT_UPGRADE_ERROR_URL_CHARS)} failed:`,
+      String(error),
+    );
+  }
+}
+
+setAuthorFontUpgradeHook(async () => {
+  const urls = pendingAuthorFontUpgradeUrls();
+  const fetched = await Promise.all(urls.map(fetchAuthorFontUpgrade));
   for (const [url, bytes] of fetched) {
-    if (!bytes || bytes.length === 0) continue;
-    try {
-      upgradeAuthorFontFace(url, bytes);
-    } catch (e) {
-      console.warn(
-        `[kitesurf-fonts] author upgrade swap ${url.slice(0, MAX_FONT_UPGRADE_ERROR_URL_CHARS)} failed:`,
-        String(e),
-      );
-    }
+    applyAuthorFontUpgrade(url, bytes);
   }
 });
 
@@ -260,7 +278,7 @@ import {
   state,
 } from "./state.ts";
 import { sanitizeCdpNodeTree } from "./cdp-nodes.ts";
-import type { ShimElement } from "./types.ts";
+import type { ShimDocument, ShimElement } from "./types.ts";
 import {
   intersectionObserverStats,
   recheckIntersectionObservers,
@@ -328,7 +346,7 @@ import {
   parseUrlForNode,
   detachedWrapperStats,
 } from "./dom-shim.js";
-import type { BuildDocumentResult } from "./dom-shim.js";
+import type { BuildDocumentOpts, BuildDocumentResult } from "./dom-shim.js";
 
 import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
 
@@ -352,30 +370,53 @@ function queuePageTask(callback: () => void): void {
   }
 }
 
+function fragmentFromUrl(url: string): string | null {
+  const hashIndex = String(url || "").indexOf("#");
+  if (hashIndex < 0) return null;
+  let fragment = url.slice(hashIndex + 1);
+  try {
+    fragment = decodeURIComponent(fragment);
+  } catch {}
+  return fragment;
+}
+
+function fragmentElement(doc: FragmentLookupDoc, fragment: string) {
+  return ((doc.getElementById && doc.getElementById(fragment)) ||
+    (doc.getElementsByName && doc.getElementsByName(fragment)[0]) ||
+    null) as { scrollIntoView?: () => void } | null;
+}
+
+function scrollEmptyFragment(fragment: string): boolean {
+  if (fragment !== "") return false;
+  setScrollOffset(state.scrollX, 0);
+  return true;
+}
+
+function scrollFragmentElement(element: { scrollIntoView?: () => void } | null): boolean {
+  if (!element || typeof element.scrollIntoView !== "function") return false;
+  element.scrollIntoView();
+  return true;
+}
+
+function scrollNamedFragment(fragment: string): void {
+  const doc = state.document as FragmentLookupDoc | null;
+  if (!doc) return;
+  const element = fragmentElement(doc, fragment);
+  if (!scrollFragmentElement(element) && fragment === "top") setScrollOffset(state.scrollX, 0);
+}
+
+function scrollFragment(url: string): void {
+  const fragment = fragmentFromUrl(url);
+  if (fragment === null) return;
+  if (scrollEmptyFragment(fragment)) return;
+  scrollNamedFragment(fragment);
+}
+
 function scrollToFragment(url: string): void {
   try {
-    const hashIdx = String(url || "").indexOf("#");
-    if (hashIdx < 0) return;
-    let frag = url.slice(hashIdx + 1);
-    try {
-      frag = decodeURIComponent(frag);
-    } catch {}
-    if (!frag) {
-      setScrollOffset(state.scrollX, 0);
-      return;
-    }
-    const doc = state.document as FragmentLookupDoc | null;
-    if (!doc) return;
-    const element = ((doc.getElementById && doc.getElementById(frag)) ||
-      (doc.getElementsByName && doc.getElementsByName(frag)[0]) ||
-      null) as { scrollIntoView?: () => void } | null;
-    if (element && typeof element.scrollIntoView === "function") {
-      element.scrollIntoView();
-      return;
-    }
-    if (frag === "top") setScrollOffset(state.scrollX, 0);
-  } catch (e) {
-    console.error("[kitesurf] scrollToFragment failed:", e);
+    scrollFragment(url);
+  } catch (error) {
+    console.error("[kitesurf] scrollToFragment failed:", error);
   }
 }
 
@@ -395,10 +436,37 @@ function caretX(clientX: number, clientY: number, eventType: string): number {
   if (!(cellWidth > 0)) return clientX;
   const left = Math.floor(clientX / cellWidth) * cellWidth;
   const CARET_CELL_EDGE_INSET_PX = 0.5;
-  const dragOrigin = __ksCaretDragOrigin;
-  if (eventType !== "mousemove" || !dragOrigin) return left + CARET_CELL_EDGE_INSET_PX;
-  const forward = clientY > dragOrigin.y || (clientY === dragOrigin.y && clientX >= dragOrigin.x);
-  return forward ? left + cellWidth - CARET_CELL_EDGE_INSET_PX : left + CARET_CELL_EDGE_INSET_PX;
+  return caretDragPosition(
+    left,
+    cellWidth,
+    clientX,
+    clientY,
+    eventType,
+    __ksCaretDragOrigin,
+    CARET_CELL_EDGE_INSET_PX,
+  );
+}
+
+function caretDragPosition(
+  left: number,
+  cellWidth: number,
+  clientX: number,
+  clientY: number,
+  eventType: string,
+  dragOrigin: { x: number; y: number } | null,
+  inset: number,
+): number {
+  if (eventType !== "mousemove" || !dragOrigin) return left + inset;
+  const forward = isForwardCaretDrag(clientX, clientY, dragOrigin);
+  return forward ? left + cellWidth - inset : left + inset;
+}
+
+function isForwardCaretDrag(
+  clientX: number,
+  clientY: number,
+  dragOrigin: { x: number; y: number },
+): boolean {
+  return clientY > dragOrigin.y || (clientY === dragOrigin.y && clientX >= dragOrigin.x);
 }
 let __ksOverTarget: any = null;
 let lastMousePosition: { x: number; y: number } | null = null;
@@ -427,98 +495,215 @@ function setValueRawOnControl(element: any, value: string): void {
   element.value = value;
 }
 
-function getValueRawOnControl(el: any): string {
-  let proto = Object.getPrototypeOf(el);
+function findControlValueGetter(element: any): ((this: any) => unknown) | undefined {
+  let proto = Object.getPrototypeOf(element);
   while (proto) {
     const desc = Object.getOwnPropertyDescriptor(proto, "value");
-    if (desc && typeof desc.get === "function") {
-      const value = desc.get.call(el);
-      return typeof value === "string" ? value : String(value ?? "");
-    }
+    if (desc && typeof desc.get === "function") return desc.get;
     proto = Object.getPrototypeOf(proto);
   }
-  const value = el.value;
+  return undefined;
+}
+
+function controlValueString(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
+}
+
+function getValueRawOnControl(el: any): string {
+  const getter = findControlValueGetter(el);
+  const value = getter ? getter.call(el) : el.value;
+  return controlValueString(value);
+}
+
+const KEYBOARD_ACTIVATABLE_INPUT_TYPES = new Set([
+  "button",
+  "submit",
+  "reset",
+  "checkbox",
+  "radio",
+  "image",
+]);
+
+function isButtonOrSummaryTag(tagName: string): boolean {
+  return tagName === "BUTTON" || tagName === "SUMMARY";
+}
+
+function hasAnchorHref(element: ShimElement): boolean {
+  return element.getAttribute?.("href") != null;
+}
+
+function isKeyboardActivatableInput(element: ShimElement): boolean {
+  const type = String(element.getAttribute?.("type") || "").toLowerCase();
+  return KEYBOARD_ACTIVATABLE_INPUT_TYPES.has(type);
+}
+
+function keyboardActivationForTag(element: ShimElement, tagName: string): boolean {
+  if (isButtonOrSummaryTag(tagName)) return true;
+  if (tagName === "A") return hasAnchorHref(element);
+  return tagName === "INPUT" && isKeyboardActivatableInput(element);
 }
 
 function isKeyboardActivatable(element: ShimElement): boolean {
   try {
     const tagName = String(element.tagName || "").toUpperCase();
-    if (tagName === "BUTTON" || tagName === "SUMMARY") return true;
-    if (tagName === "A") return element.getAttribute?.("href") != null;
-    if (tagName !== "INPUT") return false;
-    const type = String(element.getAttribute?.("type") || "").toLowerCase();
-    return (
-      type === "button" ||
-      type === "submit" ||
-      type === "reset" ||
-      type === "checkbox" ||
-      type === "radio" ||
-      type === "image"
-    );
+    return keyboardActivationForTag(element, tagName);
   } catch {
     return false;
   }
 }
 
+interface FocusableTabStop {
+  element: ShimElement;
+  tabIndex: number;
+  domOrder: number;
+}
+
+const FORM_CONTROL_TAGS = new Set(["BUTTON", "INPUT", "SELECT", "TEXTAREA"]);
+const LINK_TAGS = new Set(["A", "AREA"]);
+
+function isDisabledTabStop(element: ShimElement, tagName: string): boolean {
+  return (
+    isDisabledFormControl(element, tagName) ||
+    isHiddenInput(tagName, element) ||
+    isInertTabStop(element)
+  );
+}
+
+function isDisabledFormControl(element: ShimElement, tagName: string): boolean {
+  if (!FORM_CONTROL_TAGS.has(tagName)) return false;
+  return Boolean(element.hasAttribute?.("disabled") || element.closest?.("fieldset[disabled]"));
+}
+
+function isHiddenInput(tagName: string, element: ShimElement): boolean {
+  return tagName === "INPUT" && element.type === "hidden";
+}
+
+function isInertTabStop(element: ShimElement): boolean {
+  return Boolean(element.closest?.("[inert]"));
+}
+
+function isNaturalTabStopTag(tagName: string): boolean {
+  return FORM_CONTROL_TAGS.has(tagName) || tagName === "SUMMARY";
+}
+
+function isLinkTabStop(element: ShimElement, tagName: string): boolean {
+  return LINK_TAGS.has(tagName) && Boolean(element.hasAttribute?.("href"));
+}
+
+function isEditableTabStop(editable: string | null): boolean {
+  return editable !== null && editable.toLowerCase() !== "false";
+}
+
+function hasNaturalTabStop(
+  element: ShimElement,
+  tagName: string,
+  editable: string | null,
+): boolean {
+  return (
+    isNaturalTabStopTag(tagName) || isLinkTabStop(element, tagName) || isEditableTabStop(editable)
+  );
+}
+
+function parseTabIndex(rawTabIndex: string | null): number | null {
+  if (rawTabIndex === null || !/^[+-]?\d+$/.test(rawTabIndex.trim())) return null;
+  const tabIndex = Number(rawTabIndex.trim());
+  return Number.isFinite(tabIndex) ? tabIndex : null;
+}
+
+function isVisibleTabStop(element: ShimElement): boolean {
+  return hasTabStopClientRect(element) && tabStopVisibleByStyle(element);
+}
+
+function hasTabStopClientRect(element: ShimElement): boolean {
+  return Boolean(element.getClientRects?.()?.length);
+}
+
+function tabStopVisibleByStyle(element: ShimElement): boolean {
+  const visibility = state.window?.getComputedStyle?.(element).visibility;
+  return visibility !== "hidden" && visibility !== "collapse";
+}
+
+function readTabStopAttributes(element: ShimElement): {
+  editable: string | null;
+  tabIndex: number | null;
+} {
+  const editable = element.getAttribute?.("contenteditable") ?? null;
+  const tabIndex = parseTabIndex(element.getAttribute?.("tabindex") ?? null);
+  return { editable, tabIndex };
+}
+
+function tabStopIndexCandidate(element: ShimElement, tagName: string): number | null {
+  const attributes = readTabStopAttributes(element);
+  const isNatural = hasNaturalTabStop(element, tagName, attributes.editable);
+  return attributes.tabIndex ?? (isNatural ? 0 : null);
+}
+
+function isVisibleNonnegativeTabIndex(index: number, element: ShimElement): boolean {
+  return index >= 0 && isVisibleTabStop(element);
+}
+
+function resolveFocusableTabIndex(element: ShimElement, tagName: string): number | null {
+  const candidate = tabStopIndexCandidate(element, tagName);
+  if (candidate === null) return null;
+  return isVisibleNonnegativeTabIndex(candidate, element) ? candidate : null;
+}
+
+function focusableTabIndex(element: ShimElement): number | null {
+  const tagName = element.tagName ?? "";
+  if (isDisabledTabStop(element, tagName)) return null;
+  return resolveFocusableTabIndex(element, tagName);
+}
+
+function collectFocusableTabStops(
+  documentNode: NonNullable<typeof state.document>,
+): FocusableTabStop[] {
+  const focusableElements: FocusableTabStop[] = [];
+  const candidates = documentNode.querySelectorAll(
+    "a[href], area[href], button, input, select, textarea, summary, [tabindex], [contenteditable]",
+  );
+  for (const element of Array.from(candidates)) {
+    const tabIndex = focusableTabIndex(element);
+    if (tabIndex === null) continue;
+    focusableElements.push({ element, tabIndex, domOrder: focusableElements.length });
+  }
+  return focusableElements;
+}
+
+function compareTabStops(first: FocusableTabStop, second: FocusableTabStop): number {
+  if (first.tabIndex === 0) {
+    return second.tabIndex === 0 ? first.domOrder - second.domOrder : 1;
+  }
+  if (second.tabIndex === 0) return -1;
+  return first.tabIndex - second.tabIndex || first.domOrder - second.domOrder;
+}
+
+function nextTabStopIndex(
+  focusableElements: FocusableTabStop[],
+  activeElement: unknown,
+  reverse: boolean,
+): number {
+  const currentIndex = focusableElements.findIndex(({ element }) => element === activeElement);
+  if (currentIndex < 0) return reverse ? focusableElements.length - 1 : 0;
+  const step = reverse ? focusableElements.length - 1 : 1;
+  return (currentIndex + step) % focusableElements.length;
+}
+
 function moveTabFocus(reverse: boolean): void {
   const documentNode = state.document;
   if (!documentNode) return;
-  const focusableElements: { element: ShimElement; tabIndex: number; domOrder: number }[] = [];
-  const focusableCandidates = documentNode.querySelectorAll(
-    "a[href], area[href], button, input, select, textarea, summary, [tabindex], [contenteditable]",
-  );
-  for (const element of Array.from(focusableCandidates)) {
-    const tagName = element.tagName;
-    const isFormControl =
-      tagName === "BUTTON" || tagName === "INPUT" || tagName === "SELECT" || tagName === "TEXTAREA";
-    if (
-      isFormControl &&
-      (element.hasAttribute?.("disabled") || element.closest?.("fieldset[disabled]"))
-    )
-      continue;
-    if (tagName === "INPUT" && element.type === "hidden") continue;
-    if (element.closest?.("[inert]")) continue;
-
-    const rawTabIndex = element.getAttribute?.("tabindex") ?? null;
-    const editable = element.getAttribute?.("contenteditable") ?? null;
-    const naturallyFocusable =
-      isFormControl ||
-      tagName === "SUMMARY" ||
-      ((tagName === "A" || tagName === "AREA") && element.hasAttribute?.("href")) ||
-      (editable !== null && editable.toLowerCase() !== "false");
-    const parsedTabIndex =
-      rawTabIndex !== null && /^[+-]?\d+$/.test(rawTabIndex.trim())
-        ? Number(rawTabIndex.trim())
-        : NaN;
-    if (!naturallyFocusable && !Number.isFinite(parsedTabIndex)) continue;
-    const tabIndex = Number.isFinite(parsedTabIndex) ? parsedTabIndex : 0;
-    if (tabIndex < 0) continue;
-    if (!element.getClientRects?.()?.length) continue;
-    const visibility = state.window?.getComputedStyle?.(element).visibility;
-    if (visibility === "hidden" || visibility === "collapse") continue;
-    focusableElements.push({ element, tabIndex, domOrder: focusableElements.length });
-  }
+  const focusableElements = collectFocusableTabStops(documentNode);
   if (!focusableElements.length) return;
-  focusableElements.sort((first, second) => {
-    if (first.tabIndex === 0) {
-      return second.tabIndex === 0 ? first.domOrder - second.domOrder : 1;
-    }
-    if (second.tabIndex === 0) return -1;
-    return first.tabIndex - second.tabIndex || first.domOrder - second.domOrder;
-  });
-  const activeElement = state.getActiveElement();
-  const currentIndex = focusableElements.findIndex(({ element }) => element === activeElement);
-  const nextIndex =
-    currentIndex < 0
-      ? reverse
-        ? focusableElements.length - 1
-        : 0
-      : (currentIndex + (reverse ? focusableElements.length - 1 : 1)) % focusableElements.length;
-  const nextElement = focusableElements[nextIndex].element;
-  nextElement.focus?.();
-  if (state.getActiveElement() === nextElement) {
-    nextElement.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  focusableElements.sort(compareTabStops);
+  const nextElement =
+    focusableElements[nextTabStopIndex(focusableElements, state.getActiveElement(), reverse)]
+      .element;
+  focusTabStop(nextElement);
+}
+
+function focusTabStop(element: ShimElement): void {
+  element.focus?.();
+  if (state.getActiveElement() === element) {
+    element.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }
 }
 
@@ -532,74 +717,216 @@ interface KeyScrollInit {
 
 const MAX_SCROLLABLE_ANCESTOR_DEPTH = 32;
 const DEFAULT_KEY_SCROLL_STEP_PX = 40;
+const SCROLL_BLOCKING_CONTROL_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
-function scrollForKey(key: string, init: KeyScrollInit | undefined): void {
-  if (!state.document || init?.altKey || init?.metaKey) return;
-  const focused = state.getActiveElement();
+interface KeyScrollMetrics {
+  lineHeight: number;
+  lineWidth: number;
+  pageHeight: number;
+}
+
+interface ScrollDelta {
+  x: number;
+  y: number;
+}
+
+const ZERO_SCROLL_DELTA: ScrollDelta = { x: 0, y: 0 };
+
+function contentEditableScrollState(element: ShimElement): boolean | null {
+  const editable = element.getAttribute?.("contenteditable");
+  if (editable === null || editable === undefined) return null;
+  return editable.toLowerCase() !== "false";
+}
+
+function focusedElementBlocksPageScroll(focused: ShimElement | null): boolean {
   for (
     let element: ShimElement | null | undefined = focused, depth = 0;
     element && depth < MAX_SCROLLABLE_ANCESTOR_DEPTH;
     element = element.parentElement, depth++
   ) {
-    if (
-      element.tagName === "INPUT" ||
-      element.tagName === "TEXTAREA" ||
-      element.tagName === "SELECT"
-    )
-      return;
-    const editable = element.getAttribute?.("contenteditable");
-    if (editable !== null && editable !== undefined) {
-      if (editable.toLowerCase() !== "false") return;
-      break;
-    }
+    const decision = ancestorScrollDecision(element);
+    if (decision === true) return true;
+    if (decision === false) return false;
   }
+  return false;
+}
 
-  const ttyKeyboard = init?.ttyKeyboard === true;
+function ancestorScrollDecision(element: ShimElement): boolean | null {
+  if (SCROLL_BLOCKING_CONTROL_TAGS.has(element.tagName ?? "")) return true;
+  return contentEditableScrollState(element);
+}
+
+function keyScrollMetrics(): KeyScrollMetrics {
   const cellHeight = Number(ksGlobal.__ks_tty_cell_h) || 0;
   const cellWidth = Number(ksGlobal.__ks_tty_cell_w) || 0;
   const lineHeight = cellHeight || DEFAULT_KEY_SCROLL_STEP_PX;
   const lineWidth = cellWidth || DEFAULT_KEY_SCROLL_STEP_PX;
-  const pageHeight = Math.max(lineHeight, state.paintViewportH - lineHeight);
-  let scrollDeltaX = 0;
-  let scrollDeltaY = 0;
-  if (init?.ctrlKey) {
-    if (!ttyKeyboard) return;
-    const halfPage = Math.max(
-      lineHeight,
-      Math.floor(state.paintViewportH / (2 * lineHeight)) * lineHeight,
-    );
-    if (key === "f") scrollDeltaY = pageHeight;
-    else if (key === "b") scrollDeltaY = -pageHeight;
-    else if (key === "d") scrollDeltaY = halfPage;
-    else if (key === "u") scrollDeltaY = -halfPage;
-  } else {
-    const isSpace = key === " " || key === "Spacebar";
-    if (isSpace && (focused?.tagName === "BUTTON" || focused?.tagName === "SUMMARY")) return;
-    if (key === "ArrowDown" || (ttyKeyboard && !init?.shiftKey && key === "j")) {
-      scrollDeltaY = lineHeight;
-    } else if (key === "ArrowUp" || (ttyKeyboard && !init?.shiftKey && key === "k")) {
-      scrollDeltaY = -lineHeight;
-    } else if (key === "ArrowRight" || (ttyKeyboard && !init?.shiftKey && key === "l")) {
-      scrollDeltaX = lineWidth;
-    } else if (key === "ArrowLeft" || (ttyKeyboard && !init?.shiftKey && key === "h")) {
-      scrollDeltaX = -lineWidth;
-    } else if (key === "PageDown" || (isSpace && !init?.shiftKey)) {
-      scrollDeltaY = pageHeight;
-    } else if (key === "PageUp" || (isSpace && init?.shiftKey)) {
-      scrollDeltaY = -pageHeight;
-    }
+  return {
+    lineHeight,
+    lineWidth,
+    pageHeight: Math.max(lineHeight, state.paintViewportH - lineHeight),
+  };
+}
+
+function ctrlKeyScrollDelta(
+  key: string,
+  ttyKeyboard: boolean,
+  metrics: KeyScrollMetrics,
+): ScrollDelta {
+  return ttyKeyboard ? ttyControlScrollDelta(key, metrics) : ZERO_SCROLL_DELTA;
+}
+
+function ttyControlScrollDelta(key: string, metrics: KeyScrollMetrics): ScrollDelta {
+  const halfPage = Math.max(
+    metrics.lineHeight,
+    Math.floor(state.paintViewportH / (2 * metrics.lineHeight)) * metrics.lineHeight,
+  );
+  switch (key) {
+    case "f":
+      return { x: 0, y: metrics.pageHeight };
+    case "b":
+      return { x: 0, y: -metrics.pageHeight };
+    case "d":
+      return { x: 0, y: halfPage };
+    case "u":
+      return { x: 0, y: -halfPage };
+    default:
+      return ZERO_SCROLL_DELTA;
   }
-  if (!scrollDeltaX && !scrollDeltaY) return;
-  const scrollTarget = focused || state.document.body;
+}
+
+function arrowKeyScrollDelta(key: string, metrics: KeyScrollMetrics): ScrollDelta | null {
+  switch (key) {
+    case "ArrowDown":
+      return { x: 0, y: metrics.lineHeight };
+    case "ArrowUp":
+      return { x: 0, y: -metrics.lineHeight };
+    case "ArrowRight":
+      return { x: metrics.lineWidth, y: 0 };
+    case "ArrowLeft":
+      return { x: -metrics.lineWidth, y: 0 };
+    default:
+      return null;
+  }
+}
+
+function ttyLetterScrollDelta(key: string, metrics: KeyScrollMetrics): ScrollDelta | null {
+  switch (key) {
+    case "j":
+      return { x: 0, y: metrics.lineHeight };
+    case "k":
+      return { x: 0, y: -metrics.lineHeight };
+    case "l":
+      return { x: metrics.lineWidth, y: 0 };
+    case "h":
+      return { x: -metrics.lineWidth, y: 0 };
+    default:
+      return null;
+  }
+}
+
+function pageKeyScrollDelta(
+  key: string,
+  isSpace: boolean,
+  shiftKey: boolean | undefined,
+  metrics: KeyScrollMetrics,
+): ScrollDelta {
+  const direction = pageKeyScrollDirection(key, isSpace, shiftKey);
+  return direction === 0 ? ZERO_SCROLL_DELTA : { x: 0, y: direction * metrics.pageHeight };
+}
+
+function pageKeyScrollDirection(
+  key: string,
+  isSpace: boolean,
+  shiftKey: boolean | undefined,
+): -1 | 0 | 1 {
+  if (key === "PageDown") return 1;
+  if (key === "PageUp") return -1;
+  if (!isSpace) return 0;
+  return shiftKey ? -1 : 1;
+}
+
+function isSpaceScrollKey(key: string): boolean {
+  return key === " " || key === "Spacebar";
+}
+
+function isButtonOrSummaryElement(element: ShimElement | null): boolean {
+  if (!element) return false;
+  return isButtonOrSummaryTag(element.tagName ?? "");
+}
+
+function shouldSuppressSpaceScroll(key: string, focused: ShimElement | null): boolean {
+  return isSpaceScrollKey(key) && isButtonOrSummaryElement(focused);
+}
+
+function preferredDirectionalScrollDelta(
+  key: string,
+  init: KeyScrollInit | undefined,
+  metrics: KeyScrollMetrics,
+): ScrollDelta | null {
+  const arrowDelta = arrowKeyScrollDelta(key, metrics);
+  if (arrowDelta) return arrowDelta;
+  if (init?.ttyKeyboard && !init.shiftKey) {
+    return ttyLetterScrollDelta(key, metrics);
+  }
+  return null;
+}
+
+function normalKeyScrollDelta(
+  key: string,
+  init: KeyScrollInit | undefined,
+  focused: ShimElement | null,
+  metrics: KeyScrollMetrics,
+): ScrollDelta {
+  const isSpace = key === " " || key === "Spacebar";
+  if (shouldSuppressSpaceScroll(key, focused)) return ZERO_SCROLL_DELTA;
+  const directionalDelta = preferredDirectionalScrollDelta(key, init, metrics);
+  if (directionalDelta) return directionalDelta;
+  return pageKeyScrollDelta(key, isSpace, init?.shiftKey, metrics);
+}
+
+function tryScrollByWheel(target: ShimElement | null, delta: ScrollDelta): boolean {
   const scrollByWheel: unknown = ksGlobal.__ks_scrollByWheel;
-  if (typeof scrollByWheel === "function" && typeof scrollTarget?._id === "number") {
-    try {
-      if (scrollByWheel(scrollTarget._id, scrollDeltaX, scrollDeltaY)) return;
-    } catch (error) {
-      console.warn("[kitesurf-tty] scrollByWheel failed:", String(error));
-    }
+  if (typeof scrollByWheel !== "function" || typeof target?._id !== "number") return false;
+  try {
+    return Boolean(scrollByWheel(target._id, delta.x, delta.y));
+  } catch (error) {
+    console.warn("[kitesurf-tty] scrollByWheel failed:", String(error));
+    return false;
   }
-  scrollBy(scrollDeltaX, scrollDeltaY);
+}
+
+function applyKeyScrollDelta(target: ShimElement | null, delta: ScrollDelta): void {
+  if (delta.x === 0 && delta.y === 0) return;
+  if (tryScrollByWheel(target, delta)) return;
+  scrollBy(delta.x, delta.y);
+}
+
+function scrollForKey(key: string, init: KeyScrollInit | undefined): void {
+  const documentNode = state.document;
+  if (shouldIgnoreKeyScroll(documentNode, init) || !documentNode) return;
+  const focused = state.getActiveElement();
+  if (focusedElementBlocksPageScroll(focused)) return;
+  const metrics = keyScrollMetrics();
+  const delta = keyScrollDelta(key, init, focused, metrics);
+  applyKeyScrollDelta(focused || documentNode.body, delta);
+}
+
+function shouldIgnoreKeyScroll(
+  documentNode: typeof state.document,
+  init: KeyScrollInit | undefined,
+): boolean {
+  return !documentNode || Boolean(init?.altKey || init?.metaKey);
+}
+
+function keyScrollDelta(
+  key: string,
+  init: KeyScrollInit | undefined,
+  focused: ShimElement | null,
+  metrics: KeyScrollMetrics,
+): ScrollDelta {
+  if (init?.ctrlKey) return ctrlKeyScrollDelta(key, init.ttyKeyboard === true, metrics);
+  return normalKeyScrollDelta(key, init, focused, metrics);
 }
 
 const MAX_ANCESTOR_CHAIN_NODES = 512;
@@ -609,26 +936,32 @@ function __ksAncestorChain(node: any): any[] {
   let currentNode = node;
   for (let depth = 0; currentNode && depth < MAX_ANCESTOR_CHAIN_NODES; depth++) {
     chain.push(currentNode);
-    let next: any = null;
-    try {
-      next = currentNode.parentNode || null;
-    } catch {
-      next = null;
-    }
+    const next = safeParentNode(currentNode);
     if (next === currentNode) break;
     currentNode = next;
   }
   return chain;
 }
 
+function safeParentNode(node: any): any {
+  try {
+    return node.parentNode || null;
+  } catch {
+    return null;
+  }
+}
+
+function findCommonAncestor(firstChain: any[], secondChain: any[]): any {
+  for (const node of firstChain) {
+    if (secondChain.indexOf(node) !== -1) return node;
+  }
+  return null;
+}
+
 function __ksCommonAncestor(firstNode: any, secondNode: any): any {
   if (!firstNode || !secondNode) return null;
   if (firstNode === secondNode) return firstNode;
-  const secondAncestorChain = __ksAncestorChain(secondNode);
-  for (const node of __ksAncestorChain(firstNode)) {
-    if (secondAncestorChain.indexOf(node) !== -1) return node;
-  }
-  return null;
+  return findCommonAncestor(__ksAncestorChain(firstNode), __ksAncestorChain(secondNode));
 }
 
 function __ksIsConnected(node: any): boolean {
@@ -672,166 +1005,279 @@ function __ksFireBoundaryEvent(
   try {
     __ks_dispatchTrusted(
       node,
-      new EventConstructor(type, {
-        ...init,
-        ...(pointer ? { pointerId: 1, pointerType: "mouse", isPrimary: true } : {}),
-        bubbles,
-        cancelable: bubbles,
-        composed: bubbles,
-        button: 0,
-        detail: 0,
-        relatedTarget: related || null,
-      }),
+      new EventConstructor(type, boundaryEventInit(pointer, related, bubbles, init)),
     );
   } catch {}
 }
 
-function __ksDispatchBoundaryEvents(from: any, to: any, init: any): void {
-  const common = __ksCommonAncestor(from, to);
-  const fire = (node: any, type: string, related: any, bubbles: boolean) =>
-    __ksFireBoundaryEvent(node, type, related, bubbles, init);
-  const isElement = (node: any) => {
-    try {
-      return node && node.nodeType === 1;
-    } catch {
-      return false;
-    }
+function boundaryEventInit(pointer: boolean, related: any, bubbles: boolean, init: any): object {
+  return {
+    ...init,
+    ...(pointer ? { pointerId: 1, pointerType: "mouse", isPrimary: true } : {}),
+    bubbles,
+    cancelable: bubbles,
+    composed: bubbles,
+    button: 0,
+    detail: 0,
+    relatedTarget: related || null,
   };
-  for (const kind of ["pointer", "mouse"]) {
-    if (from) {
-      fire(from, `${kind}out`, to, true);
-      for (const node of __ksAncestorChain(from)) {
-        if (node === common) break;
-        if (isElement(node)) fire(node, `${kind}leave`, to, false);
-      }
-    }
-    if (to) {
-      fire(to, `${kind}over`, from, true);
-      const entered: any[] = [];
-      for (const node of __ksAncestorChain(to)) {
-        if (node === common) break;
-        if (isElement(node)) entered.push(node);
-      }
-      for (let i = entered.length - 1; i >= 0; i--) {
-        fire(entered[i], `${kind}enter`, from, false);
-      }
-    }
+}
+
+function isBoundaryEventElement(node: any): boolean {
+  try {
+    return node && node.nodeType === 1;
+  } catch {
+    return false;
   }
 }
 
-function __wireContentWindowPostMessage(contentWindow: any, iframeElement: any) {
-  contentWindow.postMessage = function (...args: any[]) {
-    if (args.length === 0) {
+type BoundaryEventDispatcher = (node: any, type: string, related: any, bubbles: boolean) => void;
+
+function dispatchBoundaryExit(
+  from: any,
+  to: any,
+  common: any,
+  fire: BoundaryEventDispatcher,
+  kind: string,
+): void {
+  if (!from) return;
+  fire(from, `${kind}out`, to, true);
+  for (const node of __ksAncestorChain(from)) {
+    if (node === common) break;
+    if (isBoundaryEventElement(node)) fire(node, `${kind}leave`, to, false);
+  }
+}
+
+function dispatchBoundaryEnter(
+  from: any,
+  to: any,
+  common: any,
+  fire: BoundaryEventDispatcher,
+  kind: string,
+): void {
+  if (!to) return;
+  fire(to, `${kind}over`, from, true);
+  dispatchBoundaryEnterAncestors(boundaryEnterAncestors(to, common), from, fire, kind);
+}
+
+function boundaryEnterAncestors(to: any, common: any): any[] {
+  const entered: any[] = [];
+  for (const node of __ksAncestorChain(to)) {
+    if (node === common) break;
+    if (isBoundaryEventElement(node)) entered.push(node);
+  }
+  return entered;
+}
+
+function dispatchBoundaryEnterAncestors(
+  entered: any[],
+  from: any,
+  fire: BoundaryEventDispatcher,
+  kind: string,
+): void {
+  for (let i = entered.length - 1; i >= 0; i--) {
+    fire(entered[i], `${kind}enter`, from, false);
+  }
+}
+
+function __ksDispatchBoundaryEvents(from: any, to: any, init: any): void {
+  const common = __ksCommonAncestor(from, to);
+  const fire: BoundaryEventDispatcher = (node, type, related, bubbles) =>
+    __ksFireBoundaryEvent(node, type, related, bubbles, init);
+  for (const kind of ["pointer", "mouse"]) {
+    dispatchBoundaryExit(from, to, common, fire, kind);
+    dispatchBoundaryEnter(from, to, common, fire, kind);
+  }
+}
+
+interface ContentWindowPostMessageArgs {
+  message: unknown;
+  targetOrigin: unknown;
+  transfer: any[];
+}
+
+function isPostMessageOptions(value: unknown): boolean {
+  return value === null || typeof value === "object";
+}
+
+function usesPostMessageOptions(args: any[], targetOrigin: unknown): boolean {
+  return args.length < 3 && targetOrigin !== undefined && isPostMessageOptions(targetOrigin);
+}
+
+function postMessageOptionsValues(targetOrigin: any): {
+  targetOrigin: unknown;
+  transfer: unknown;
+} {
+  if (targetOrigin === null) return { targetOrigin: undefined, transfer: undefined };
+  const transfer = targetOrigin.transfer;
+  return { targetOrigin: targetOrigin.targetOrigin, transfer };
+}
+
+function collectPostMessageTransfer(rawTransfer: any): any[] {
+  if (rawTransfer === undefined) return [];
+  if (!isIterableTransferList(rawTransfer)) {
+    throw new TypeError(
+      "Failed to execute 'postMessage' on 'Window': The provided value cannot be converted to a sequence.",
+    );
+  }
+  const transfer: any[] = [];
+  for (const transferable of rawTransfer) {
+    if (!isTransferListObject(transferable)) {
       throw new TypeError(
-        "Failed to execute 'postMessage' on 'Window': 1 argument required, but only 0 present.",
+        "Failed to execute 'postMessage' on 'Window': Transferable entry is not an object.",
       );
     }
-    const message = args[0];
-    let targetOrigin: any = args[1];
-    let rawTransfer: any = args.length >= 3 ? args[2] : undefined;
-    if (
-      args.length < 3 &&
-      targetOrigin !== undefined &&
-      (targetOrigin === null || typeof targetOrigin === "object")
-    ) {
-      rawTransfer = targetOrigin === null ? undefined : targetOrigin.transfer;
-      targetOrigin = targetOrigin === null ? undefined : targetOrigin.targetOrigin;
+    transfer.push(transferable);
+  }
+  return transfer;
+}
+
+function isIterableTransferList(value: any): boolean {
+  return (
+    value !== null && typeof value === "object" && typeof value[Symbol.iterator] === "function"
+  );
+}
+
+function isTransferListObject(value: any): boolean {
+  return value !== null && (typeof value === "object" || typeof value === "function");
+}
+
+function contentWindowPostMessageArgs(args: any[]): ContentWindowPostMessageArgs {
+  if (args.length === 0) {
+    throw new TypeError(
+      "Failed to execute 'postMessage' on 'Window': 1 argument required, but only 0 present.",
+    );
+  }
+  const message = args[0];
+  let targetOrigin: any = args[1];
+  let rawTransfer: any = args.length >= 3 ? args[2] : undefined;
+  if (usesPostMessageOptions(args, targetOrigin)) {
+    const options = postMessageOptionsValues(targetOrigin);
+    rawTransfer = options.transfer;
+    targetOrigin = options.targetOrigin;
+  }
+  return { message, targetOrigin, transfer: collectPostMessageTransfer(rawTransfer) };
+}
+
+function postMessageDataCloneError(message: string): Error {
+  const DOMExceptionConstructor: any = ksGlobal.DOMException;
+  return typeof DOMExceptionConstructor === "function"
+    ? new DOMExceptionConstructor(message, "DataCloneError")
+    : Object.assign(new Error(message), { name: "DataCloneError" });
+}
+
+function serializePostMessage(message: unknown): string {
+  try {
+    return JSON.stringify(message === undefined ? null : message) ?? "null";
+  } catch {
+    const DOMExceptionConstructor: any = ksGlobal.DOMException;
+    throw DOMExceptionConstructor
+      ? new DOMExceptionConstructor("The object could not be cloned.", "DataCloneError")
+      : new Error("DataCloneError: the object could not be cloned.");
+  }
+}
+
+function validatePostMessageTargetOrigin(targetOrigin: string): void {
+  if (targetOrigin === "*" || targetOrigin === "/") return;
+  try {
+    new URL(targetOrigin);
+  } catch {
+    const DOMExceptionConstructor: any = ksGlobal.DOMException;
+    const message = `Failed to execute 'postMessage' on 'Window': Invalid target origin '${targetOrigin}'.`;
+    throw DOMExceptionConstructor
+      ? new DOMExceptionConstructor(message, "SyntaxError")
+      : new Error(message);
+  }
+}
+
+function isMessagePortTransferable(value: any, MessagePortConstructor: any): boolean {
+  return typeof MessagePortConstructor === "function" && value instanceof MessagePortConstructor;
+}
+
+function validatePostMessageTransferable(value: any, MessagePortConstructor: any): void {
+  if (isMessagePortTransferable(value, MessagePortConstructor)) {
+    validateMessagePortTransferable(value);
+    return;
+  }
+  if (value instanceof ArrayBuffer) {
+    validateArrayBufferTransferable(value);
+    return;
+  }
+  throw postMessageDataCloneError("Value is not transferable.");
+}
+
+function validateMessagePortTransferable(value: any): void {
+  if (value._closed || value._detached) {
+    throw postMessageDataCloneError("MessagePort is already detached.");
+  }
+}
+
+function validateArrayBufferTransferable(value: ArrayBuffer): void {
+  if (value.detached === true) {
+    throw postMessageDataCloneError("ArrayBuffer is already detached.");
+  }
+}
+
+function validatePostMessageTransfers(transfer: any[], MessagePortConstructor: any): void {
+  const seen = new Set();
+  for (const transferable of transfer) {
+    if (seen.has(transferable)) {
+      throw postMessageDataCloneError("Duplicate transferable in transfer list.");
     }
-    const transfer: any[] = [];
-    if (rawTransfer !== undefined) {
-      if (
-        rawTransfer === null ||
-        typeof rawTransfer !== "object" ||
-        typeof rawTransfer[Symbol.iterator] !== "function"
-      ) {
-        throw new TypeError(
-          "Failed to execute 'postMessage' on 'Window': The provided value cannot be converted to a sequence.",
-        );
-      }
-      for (const transferable of rawTransfer) {
-        if (
-          transferable === null ||
-          (typeof transferable !== "object" && typeof transferable !== "function")
-        ) {
-          throw new TypeError(
-            "Failed to execute 'postMessage' on 'Window': Transferable entry is not an object.",
-          );
-        }
-        transfer.push(transferable);
-      }
-    }
-    let dataJson: string;
-    try {
-      dataJson = JSON.stringify(message === undefined ? null : message) ?? "null";
-    } catch {
-      const DOMExceptionConstructor: any = ksGlobal.DOMException;
-      throw DOMExceptionConstructor
-        ? new DOMExceptionConstructor("The object could not be cloned.", "DataCloneError")
-        : new Error("DataCloneError: the object could not be cloned.");
-    }
-    const targetOriginValue = targetOrigin === undefined ? "/" : String(targetOrigin);
-    if (targetOriginValue !== "*" && targetOriginValue !== "/") {
-      try {
-        new URL(targetOriginValue);
-      } catch {
-        const DOMExceptionConstructor: any = ksGlobal.DOMException;
-        const message = `Failed to execute 'postMessage' on 'Window': Invalid target origin '${targetOriginValue}'.`;
-        throw DOMExceptionConstructor
-          ? new DOMExceptionConstructor(message, "SyntaxError")
-          : new Error(message);
-      }
-    }
+    seen.add(transferable);
+    validatePostMessageTransferable(transferable, MessagePortConstructor);
+  }
+}
+
+function transferPostMessageItem(transferable: any, MessagePortConstructor: any): void {
+  if (isMessagePortTransferable(transferable, MessagePortConstructor)) {
+    if (typeof transferable.__ksTransfer === "function") transferable.__ksTransfer();
+  } else if (typeof transferable.transfer === "function") {
+    transferable.transfer();
+  }
+}
+
+function transferPostMessageItems(transfer: any[], MessagePortConstructor: any): void {
+  for (const transferable of transfer) {
+    transferPostMessageItem(transferable, MessagePortConstructor);
+  }
+}
+
+function postMessageSourceOrigin(): string {
+  try {
+    return new URL(state.pageUrl || "").origin;
+  } catch {
+    return "";
+  }
+}
+
+function sendContentWindowPostMessage(
+  iframeElement: any,
+  dataJson: string,
+  targetOrigin: string,
+): void {
+  sendUpstreamEvent({
+    event: "kitesurf.postMessage",
+    params: {
+      toFrameOwnerId: typeof iframeElement?._id === "number" ? iframeElement._id : -1,
+      dataJson,
+      targetOrigin,
+      sourceOrigin: postMessageSourceOrigin(),
+    },
+  });
+}
+
+function __wireContentWindowPostMessage(contentWindow: any, iframeElement: any): void {
+  contentWindow.postMessage = function (...args: any[]): void {
+    const postMessageArgs = contentWindowPostMessageArgs(args);
+    const dataJson = serializePostMessage(postMessageArgs.message);
+    const targetOrigin =
+      postMessageArgs.targetOrigin === undefined ? "/" : String(postMessageArgs.targetOrigin);
+    validatePostMessageTargetOrigin(targetOrigin);
     const MessagePortConstructor: any = ksGlobal.MessagePort;
-    const dataCloneError = (message: string) => {
-      const DOMExceptionConstructor: any = ksGlobal.DOMException;
-      return typeof DOMExceptionConstructor === "function"
-        ? new DOMExceptionConstructor(message, "DataCloneError")
-        : Object.assign(new Error(message), { name: "DataCloneError" });
-    };
-    const seen = new Set();
-    for (const transferable of transfer) {
-      if (seen.has(transferable)) {
-        throw dataCloneError("Duplicate transferable in transfer list.");
-      }
-      seen.add(transferable);
-      if (
-        typeof MessagePortConstructor === "function" &&
-        transferable instanceof MessagePortConstructor
-      ) {
-        if (transferable._closed || transferable._detached) {
-          throw dataCloneError("MessagePort is already detached.");
-        }
-      } else if (transferable instanceof ArrayBuffer) {
-        if (transferable.detached === true) {
-          throw dataCloneError("ArrayBuffer is already detached.");
-        }
-      } else {
-        throw dataCloneError("Value is not transferable.");
-      }
-    }
-    for (const transferable of transfer) {
-      if (
-        typeof MessagePortConstructor === "function" &&
-        transferable instanceof MessagePortConstructor
-      ) {
-        if (typeof transferable.__ksTransfer === "function") transferable.__ksTransfer();
-      } else if (typeof transferable.transfer === "function") {
-        transferable.transfer();
-      }
-    }
-    let sourceOrigin = "";
-    try {
-      sourceOrigin = new URL(state.pageUrl || "").origin;
-    } catch {}
-    sendUpstreamEvent({
-      event: "kitesurf.postMessage",
-      params: {
-        toFrameOwnerId: typeof iframeElement?._id === "number" ? iframeElement._id : -1,
-        dataJson,
-        targetOrigin: targetOriginValue,
-        sourceOrigin,
-      },
-    });
+    validatePostMessageTransfers(postMessageArgs.transfer, MessagePortConstructor);
+    transferPostMessageItems(postMessageArgs.transfer, MessagePortConstructor);
+    sendContentWindowPostMessage(iframeElement, dataJson, targetOrigin);
   };
 }
 
@@ -893,6 +1339,40 @@ function warnIframeFailure(error: unknown, context: Record<string, unknown>): vo
   } catch {}
 }
 
+function facadeLocationBaseUrl(): string | undefined {
+  return state.document?.baseURI || state.pageUrl || undefined;
+}
+
+function invalidFacadeLocationUrlError(iframeEl: object, contentWindow: object): DOMException {
+  const error = new DOMException("Invalid URL", "SyntaxError");
+  const frameWindow: unknown = Reflect.get(iframeEl, "__ks_iframeContentWindow", iframeEl);
+  const frameDomException: unknown =
+    Reflect.get(contentWindow, "DOMException", contentWindow) ??
+    (isObjectRecord(frameWindow)
+      ? Reflect.get(frameWindow, "DOMException", frameWindow)
+      : undefined);
+  if (typeof frameDomException === "function") {
+    Object.defineProperty(error, "constructor", { value: frameDomException });
+  }
+  return error;
+}
+
+function resolveFacadeLocationHref(href: string, iframeEl: object, contentWindow: object): string {
+  try {
+    return new URL(href, facadeLocationBaseUrl()).toString();
+  } catch {
+    throw invalidFacadeLocationUrlError(iframeEl, contentWindow);
+  }
+}
+
+function navigateFacadeLocation(iframeEl: object, resolved: string): void {
+  try {
+    handleIframeSrcChange(iframeEl, resolved);
+  } catch (error) {
+    warnIframeFailure(error, { operation: "navigate location", url: resolved });
+  }
+}
+
 function __makeFacadeLocation(iframeEl: object, url: string, contentWindow: object) {
   let current = url;
   const loc: FacadeLocation = {
@@ -901,28 +1381,9 @@ function __makeFacadeLocation(iframeEl: object, url: string, contentWindow: obje
     },
     set href(v: string) {
       const href = locationInputString(v);
-      let resolved = "";
-      try {
-        resolved = new URL(href, state.document?.baseURI || state.pageUrl || undefined).toString();
-      } catch {
-        const error = new DOMException("Invalid URL", "SyntaxError");
-        const frameWindow: unknown = Reflect.get(iframeEl, "__ks_iframeContentWindow", iframeEl);
-        const FrameDOMException: unknown =
-          Reflect.get(contentWindow, "DOMException", contentWindow) ??
-          (isObjectRecord(frameWindow)
-            ? Reflect.get(frameWindow, "DOMException", frameWindow)
-            : undefined);
-        if (typeof FrameDOMException === "function") {
-          Object.defineProperty(error, "constructor", { value: FrameDOMException });
-        }
-        throw error;
-      }
+      const resolved = resolveFacadeLocationHref(href, iframeEl, contentWindow);
       current = resolved;
-      try {
-        handleIframeSrcChange(iframeEl, resolved);
-      } catch (error) {
-        warnIframeFailure(error, { operation: "navigate location", url: resolved });
-      }
+      navigateFacadeLocation(iframeEl, resolved);
     },
     get origin() {
       try {
@@ -1081,34 +1542,59 @@ function __decorateContentWindow(contentWindow: any) {
   }
 }
 
-function preinstallStaticIframes() {
+interface StaticIframeSetup {
+  document: { querySelectorAll(selector: string): unknown };
+  parser: any;
+}
+
+function staticIframeSetup(): StaticIframeSetup | null {
   const document = ksGlobal.document;
-  if (!document || typeof document.querySelectorAll !== "function") return;
+  if (!document || typeof document.querySelectorAll !== "function") return null;
   const DOMParserConstructor = ksGlobal.DOMParser;
-  if (!DOMParserConstructor) return;
-  let iframeElements: any;
+  if (!DOMParserConstructor) return null;
+  return { document, parser: DOMParserConstructor };
+}
+
+function queryStaticIframes(document: StaticIframeSetup["document"]): any {
   try {
-    iframeElements = document.querySelectorAll("iframe");
+    return document.querySelectorAll("iframe");
   } catch {
-    return;
+    return undefined;
   }
+}
+
+function readIframeSrc(iframeElement: any): string {
+  try {
+    return String(iframeElement.getAttribute?.("src") ?? "");
+  } catch {
+    return "";
+  }
+}
+
+function resolveIframeUrl(iframeElement: any, src: string): string {
+  if (!src || src === "about:blank") return "about:blank";
+  try {
+    return parseUrlForNode(iframeElement, src, state.pageUrl || undefined).toString();
+  } catch {
+    return "about:blank";
+  }
+}
+
+function preinstallStaticIframe(iframeElement: any, win: unknown, DOMParserConstructor: any): void {
+  if (!iframeElement || iframeElement.__ks_iframeContentWindow) return;
+  const src = readIframeSrc(iframeElement);
+  const resolvedUrl = resolveIframeUrl(iframeElement, src);
+  installPlaceholderContentDocument(iframeElement, resolvedUrl, win, DOMParserConstructor);
+}
+
+function preinstallStaticIframes(): void {
+  const setup = staticIframeSetup();
+  if (!setup) return;
+  const iframeElements = queryStaticIframes(setup.document);
+  if (iframeElements === undefined) return;
   const win = ksGlobal.window ?? globalThis;
   for (const iframeElement of iframeElements as any) {
-    if (!iframeElement) continue;
-    if ((iframeElement as any).__ks_iframeContentWindow) continue;
-    let src = "";
-    try {
-      src = String(iframeElement.getAttribute?.("src") ?? "");
-    } catch {}
-    let resolvedUrl = "about:blank";
-    if (src && src !== "about:blank") {
-      try {
-        resolvedUrl = parseUrlForNode(iframeElement, src, state.pageUrl || undefined).toString();
-      } catch {
-        resolvedUrl = "about:blank";
-      }
-    }
-    installPlaceholderContentDocument(iframeElement, resolvedUrl, win, DOMParserConstructor);
+    preinstallStaticIframe(iframeElement, win, setup.parser);
   }
 }
 
@@ -1157,50 +1643,78 @@ function queueSrcdocLoad(
   });
 }
 
-function handleDynamicIframeInsert(iframeEl: any) {
-  if (!iframeEl) return;
-  if (iframeEl.__ks_iframeContentWindow) {
-    handleIframeSrcChange(iframeEl);
-    return;
-  }
-  const win = ksGlobal.window ?? globalThis;
-  const DOMParserConstructor = ksGlobal.DOMParser;
-  if (!DOMParserConstructor) return;
-  const srcdoc = readSrcdoc(iframeEl);
-  let src = "";
-  try {
-    src = String(iframeEl.getAttribute?.("src") ?? "");
-  } catch {}
-  let resolvedUrl = "about:blank";
-  if (srcdoc !== null) {
-    resolvedUrl = SRCDOC_URL;
-  } else if (src && src !== "about:blank") {
-    try {
-      resolvedUrl = parseUrlForNode(iframeEl, src, state.pageUrl || undefined).toString();
-    } catch {
-      resolvedUrl = "about:blank";
-    }
-  }
-  installPlaceholderContentDocument(
-    iframeEl,
-    resolvedUrl,
-    win,
-    DOMParserConstructor,
-    "about:blank",
-  );
+interface IframeNavigationTarget {
+  src: string;
+  url: string;
+}
 
+function dynamicIframeNavigationTarget(
+  iframeEl: any,
+  srcdoc: string | null,
+): IframeNavigationTarget {
+  const src = readIframeSrc(iframeEl);
+  return {
+    src,
+    url: srcdoc === null ? resolveIframeUrl(iframeEl, src) : SRCDOC_URL,
+  };
+}
+
+function attachDynamicIframe(iframeEl: any, resolvedUrl: string): string {
   const frameId = mintDynamicFrameId();
-  (iframeEl as any).__ks_iframeFrameId = frameId;
-  const ownerBackendNodeId = (iframeEl as any)._id ?? -1;
+  iframeEl.__ks_iframeFrameId = frameId;
   sendUpstreamEvent({
     event: "kitesurf.frameAttached",
     params: {
       frameId,
-      ownerBackendNodeId,
+      ownerBackendNodeId: iframeEl._id ?? -1,
       url: resolvedUrl,
     },
   });
+  return frameId;
+}
 
+function originOfUrl(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "";
+  }
+}
+
+function isCrossOriginFrameUrl(url: string): boolean {
+  const pageOrigin = originOfUrl(state.pageUrl);
+  const frameOrigin = originOfUrl(url);
+  return Boolean(pageOrigin && frameOrigin && pageOrigin !== frameOrigin);
+}
+
+function setCrossOriginIframeDocument(iframeEl: any, resolvedUrl: string): void {
+  const contentWindow =
+    iframeEl.__ks_iframeContentWindow ?? __makeCrossOriginContentWindow(iframeEl, resolvedUrl);
+  try {
+    contentWindow.document = null;
+  } catch {}
+  setIframeFacadeLocation(contentWindow, iframeEl, resolvedUrl);
+  iframeEl.__ks_iframeContentDocument = null;
+  iframeEl.__ks_iframeContentWindow = contentWindow;
+}
+
+function scheduleCrossOriginIframeLoad(iframeEl: any, frameId: string, resolvedUrl: string): void {
+  Promise.resolve().then(() => {
+    setCrossOriginIframeDocument(iframeEl, resolvedUrl);
+    emitFrameLifecycle(frameId, resolvedUrl);
+    fireIframeLoad(iframeEl);
+  });
+}
+
+function completeInsertedIframeLoad(
+  iframeEl: any,
+  srcdoc: string | null,
+  src: string,
+  resolvedUrl: string,
+  frameId: string,
+  win: unknown,
+  DOMParserConstructor: any,
+): void {
   if (srcdoc !== null) {
     queueSrcdocLoad(iframeEl, srcdoc, win, DOMParserConstructor);
     return;
@@ -1210,110 +1724,145 @@ function handleDynamicIframeInsert(iframeEl: any) {
     fireIframeLoad(iframeEl);
     return;
   }
-  let pageOrigin = "";
-  try {
-    pageOrigin = new URL(state.pageUrl).origin;
-  } catch {}
-  let frameOrigin = "";
-  try {
-    frameOrigin = new URL(resolvedUrl).origin;
-  } catch {}
-  if (pageOrigin && frameOrigin && pageOrigin !== frameOrigin) {
-    Promise.resolve().then(() => {
-      const contentWindow =
-        iframeEl.__ks_iframeContentWindow ?? __makeCrossOriginContentWindow(iframeEl, resolvedUrl);
-      try {
-        contentWindow.document = null;
-      } catch {}
-      setIframeFacadeLocation(contentWindow, iframeEl, resolvedUrl);
-      iframeEl.__ks_iframeContentDocument = null;
-      iframeEl.__ks_iframeContentWindow = contentWindow;
-      emitFrameLifecycle(frameId, resolvedUrl);
-      fireIframeLoad(iframeEl);
-    });
+  if (isCrossOriginFrameUrl(resolvedUrl)) {
+    scheduleCrossOriginIframeLoad(iframeEl, frameId, resolvedUrl);
     return;
   }
-  loadDynamicIframe(iframeEl, resolvedUrl, win, DOMParserConstructor);
+  void loadDynamicIframe(iframeEl, resolvedUrl, win, DOMParserConstructor);
 }
 
-function handleIframeSrcChange(iframeEl: any, urlOverride?: string, post?: IframePost) {
+function handleDynamicIframeInsert(iframeEl: any): void {
   if (!iframeEl) return;
-  if (!iframeEl.__ks_iframeContentWindow) return;
+  if (iframeEl.__ks_iframeContentWindow) {
+    handleIframeSrcChange(iframeEl);
+    return;
+  }
+  const win = ksGlobal.window ?? globalThis;
+  const DOMParserConstructor = ksGlobal.DOMParser;
+  if (!DOMParserConstructor) return;
+  const srcdoc = readSrcdoc(iframeEl);
+  const { src, url: resolvedUrl } = dynamicIframeNavigationTarget(iframeEl, srcdoc);
+  installPlaceholderContentDocument(
+    iframeEl,
+    resolvedUrl,
+    win,
+    DOMParserConstructor,
+    "about:blank",
+  );
+  const frameId = attachDynamicIframe(iframeEl, resolvedUrl);
+  completeInsertedIframeLoad(
+    iframeEl,
+    srcdoc,
+    src,
+    resolvedUrl,
+    frameId,
+    win,
+    DOMParserConstructor,
+  );
+}
+
+function hasIframeContentWindow(iframeEl: any): boolean {
+  return Boolean(iframeEl && iframeEl.__ks_iframeContentWindow);
+}
+
+function iframeNavigationTarget(iframeEl: any, urlOverride?: string): IframeNavigationTarget {
+  if (typeof urlOverride === "string" && urlOverride.length > 0) {
+    return { src: urlOverride, url: urlOverride };
+  }
+  const src = readIframeSrc(iframeEl);
+  return { src, url: resolveIframeUrl(iframeEl, src) };
+}
+
+function scheduleCrossOriginSourceChange(
+  iframeEl: any,
+  frameId: string,
+  resolvedUrl: string,
+): void {
+  setCrossOriginIframeDocument(iframeEl, resolvedUrl);
+  Promise.resolve().then(() => {
+    emitFrameLifecycle(frameId, resolvedUrl);
+    fireIframeLoad(iframeEl);
+  });
+}
+
+function scheduleBlankIframeNavigation(
+  iframeEl: any,
+  frameId: string,
+  resolvedUrl: string,
+  win: unknown,
+  DOMParserConstructor: any,
+): void {
+  installPlaceholderContentDocument(
+    iframeEl,
+    resolvedUrl,
+    win,
+    DOMParserConstructor,
+    undefined,
+    frameNavigationReferrer(resolvedUrl),
+  );
+  const pendingLoad = {};
+  pendingDocumentLoads.set(iframeEl, pendingLoad);
+  Promise.resolve().then(() => {
+    if (pendingDocumentLoads.get(iframeEl) !== pendingLoad) return;
+    pendingDocumentLoads.delete(iframeEl);
+    emitFrameLifecycle(frameId, resolvedUrl);
+    fireIframeLoad(iframeEl);
+  });
+}
+
+function isBlankIframeNavigation(src: string, resolvedUrl: string): boolean {
+  return isAboutBlankUrl(resolvedUrl) || !src;
+}
+
+function usesIframeLocationOverride(urlOverride: string | undefined): boolean {
+  return typeof urlOverride === "string" && urlOverride.length > 0;
+}
+
+function queueIframeSrcdocLoadIfNeeded(
+  iframeEl: any,
+  urlOverride: string | undefined,
+  win: unknown,
+  DOMParserConstructor: any,
+): boolean {
+  const srcdoc = usesIframeLocationOverride(urlOverride) ? null : readSrcdoc(iframeEl);
+  if (srcdoc === null) return false;
+  queueSrcdocLoad(iframeEl, srcdoc, win, DOMParserConstructor);
+  return true;
+}
+
+function isCrossOriginSourceChange(src: string, resolvedUrl: string): boolean {
+  return Boolean(src) && !isAboutBlankUrl(resolvedUrl) && isCrossOriginFrameUrl(resolvedUrl);
+}
+
+function handleResolvedIframeSourceChange(
+  iframeEl: any,
+  src: string,
+  resolvedUrl: string,
+  win: unknown,
+  DOMParserConstructor: any,
+  post: IframePost | undefined,
+): void {
+  const frameId = (iframeEl as any).__ks_iframeFrameId;
+  if (isCrossOriginSourceChange(src, resolvedUrl)) {
+    scheduleCrossOriginSourceChange(iframeEl, frameId, resolvedUrl);
+    return;
+  }
+  if (isBlankIframeNavigation(src, resolvedUrl)) {
+    scheduleBlankIframeNavigation(iframeEl, frameId, resolvedUrl, win, DOMParserConstructor);
+    return;
+  }
+  void loadDynamicIframe(iframeEl, resolvedUrl, win, DOMParserConstructor, undefined, post);
+}
+
+function handleIframeSrcChange(iframeEl: any, urlOverride?: string, post?: IframePost): void {
+  if (!hasIframeContentWindow(iframeEl)) return;
   pendingDocumentLoads.delete(iframeEl);
   const win = ksGlobal.window ?? globalThis;
   const DOMParserConstructor = ksGlobal.DOMParser;
   if (!DOMParserConstructor) return;
-  const isLocationNavigation = typeof urlOverride === "string" && urlOverride.length > 0;
-  const srcdoc = isLocationNavigation ? null : readSrcdoc(iframeEl);
-  if (srcdoc !== null) {
-    queueSrcdocLoad(iframeEl, srcdoc, win, DOMParserConstructor);
-    return;
-  }
-  let src = "";
-  let resolvedUrl = "about:blank";
-  if (typeof urlOverride === "string" && urlOverride.length > 0) {
-    src = urlOverride;
-    resolvedUrl = urlOverride;
-  } else {
-    try {
-      src = String(iframeEl.getAttribute?.("src") ?? "");
-    } catch {}
-    if (src && src !== "about:blank") {
-      try {
-        resolvedUrl = parseUrlForNode(iframeEl, src, state.pageUrl || undefined).toString();
-      } catch {
-        resolvedUrl = "about:blank";
-      }
-    }
-  }
-  const frameId = (iframeEl as any).__ks_iframeFrameId;
-  let pageOrigin = "";
-  try {
-    pageOrigin = new URL(state.pageUrl).origin;
-  } catch {}
-  let frameOrigin = "";
-  try {
-    frameOrigin = new URL(resolvedUrl).origin;
-  } catch {}
-  const isCrossOriginNav =
-    !!(pageOrigin && frameOrigin && pageOrigin !== frameOrigin) &&
-    !isAboutBlankUrl(resolvedUrl) &&
-    !!src;
-  if (isCrossOriginNav) {
-    const contentWindow =
-      iframeEl.__ks_iframeContentWindow ?? __makeCrossOriginContentWindow(iframeEl, resolvedUrl);
-    try {
-      contentWindow.document = null;
-    } catch {}
-    setIframeFacadeLocation(contentWindow, iframeEl, resolvedUrl);
-    iframeEl.__ks_iframeContentDocument = null;
-    iframeEl.__ks_iframeContentWindow = contentWindow;
-    Promise.resolve().then(() => {
-      emitFrameLifecycle(frameId, resolvedUrl);
-      fireIframeLoad(iframeEl);
-    });
-    return;
-  }
-  if (isAboutBlankUrl(resolvedUrl) || !src) {
-    installPlaceholderContentDocument(
-      iframeEl,
-      resolvedUrl,
-      win,
-      DOMParserConstructor,
-      undefined,
-      frameNavigationReferrer(resolvedUrl),
-    );
-    const pendingLoad = {};
-    pendingDocumentLoads.set(iframeEl, pendingLoad);
-    Promise.resolve().then(() => {
-      if (pendingDocumentLoads.get(iframeEl) !== pendingLoad) return;
-      pendingDocumentLoads.delete(iframeEl);
-      emitFrameLifecycle(frameId, resolvedUrl);
-      fireIframeLoad(iframeEl);
-    });
-    return;
-  }
-  loadDynamicIframe(iframeEl, resolvedUrl, win, DOMParserConstructor, undefined, post);
+  if (queueIframeSrcdocLoadIfNeeded(iframeEl, urlOverride, win, DOMParserConstructor)) return;
+  const { src, url: resolvedUrl } = iframeNavigationTarget(iframeEl, urlOverride);
+  handleResolvedIframeSourceChange(iframeEl, src, resolvedUrl, win, DOMParserConstructor, post);
 }
 
 // The referrer a frame navigation from this document to `url` carries,
@@ -1331,46 +1880,60 @@ function setFrameReferrer(doc: FrameDocument | null, referrer: string): void {
   if (doc) doc._referrer = referrer;
 }
 
-function installPlaceholderContentDocument(
-  iframeEl: any,
-  url: string,
-  win: any,
+function preparePlaceholderDocument(
+  contentDoc: any,
+  documentUrl: string,
+  referrer: string | undefined,
+): void {
+  if (!contentDoc) return;
+  contentDoc._mutable = true;
+  setFrameReferrer(contentDoc, referrer ?? state.pageUrl);
+  if (documentUrl) {
+    try {
+      Object.defineProperty(contentDoc, "_baseUrl", {
+        value: documentUrl,
+        configurable: true,
+        writable: true,
+      });
+    } catch {}
+  }
+}
+
+function parsePlaceholderDocument(
   DOMParserConstructor: any,
-  docUrl?: string,
-  // Unset for the initial about:blank document, whose referrer is its
-  // creator's URL; a navigation to about:blank passes its own.
-  referrer?: string,
-) {
+  documentUrl: string,
+  referrer: string | undefined,
+): any {
   let contentDoc: any = null;
-  const documentUrl = docUrl ?? url;
   try {
     const parser = new DOMParserConstructor();
     // No doctype: an about:blank document is in quirks mode.
     contentDoc = parser.parseFromString("<html><head></head><body></body></html>", "text/html");
-    if (contentDoc) (contentDoc as any)._mutable = true;
-    setFrameReferrer(contentDoc, referrer ?? state.pageUrl);
-    if (contentDoc && documentUrl) {
-      try {
-        Object.defineProperty(contentDoc, "_baseUrl", {
-          value: documentUrl,
-          configurable: true,
-          writable: true,
-        });
-      } catch {}
-    }
   } catch {}
+  preparePlaceholderDocument(contentDoc, documentUrl, referrer);
+  return contentDoc;
+}
+
+function placeholderFrameName(iframeEl: any): string {
+  try {
+    return String(iframeEl.getAttribute?.("name") ?? "");
+  } catch {
+    return "";
+  }
+}
+
+function createPlaceholderContentWindow(
+  iframeEl: any,
+  url: string,
+  win: any,
+  contentDoc: any,
+): any {
   const contentWindow: any = {
     document: contentDoc,
     parent: win,
     top: win,
     frames: [],
-    name: (() => {
-      try {
-        return String(iframeEl.getAttribute?.("name") ?? "");
-      } catch {
-        return "";
-      }
-    })(),
+    name: placeholderFrameName(iframeEl),
     addEventListener() {},
     removeEventListener() {},
     dispatchEvent() {
@@ -1383,14 +1946,33 @@ function installPlaceholderContentDocument(
   contentWindow.frameElement = iframeEl;
   __decorateContentWindow(contentWindow);
   __wireContentWindowPostMessage(contentWindow, iframeEl);
-  if (contentDoc) {
-    try {
-      Object.defineProperty(contentDoc, "defaultView", {
-        value: contentWindow,
-        configurable: true,
-      });
-    } catch {}
-  }
+  return contentWindow;
+}
+
+function setPlaceholderDefaultView(contentDoc: any, contentWindow: any): void {
+  if (!contentDoc) return;
+  try {
+    Object.defineProperty(contentDoc, "defaultView", {
+      value: contentWindow,
+      configurable: true,
+    });
+  } catch {}
+}
+
+function installPlaceholderContentDocument(
+  iframeEl: any,
+  url: string,
+  win: any,
+  DOMParserConstructor: any,
+  docUrl?: string,
+  // Unset for the initial about:blank document, whose referrer is its
+  // creator's URL; a navigation to about:blank passes its own.
+  referrer?: string,
+) {
+  const documentUrl = docUrl ?? url;
+  const contentDoc = parsePlaceholderDocument(DOMParserConstructor, documentUrl, referrer);
+  const contentWindow = createPlaceholderContentWindow(iframeEl, url, win, contentDoc);
+  setPlaceholderDefaultView(contentDoc, contentWindow);
   iframeEl.__ks_iframeContentDocument = contentDoc;
   iframeEl.__ks_iframeContentWindow = contentWindow;
 }
@@ -1419,6 +2001,217 @@ function warnDynamicIframeStatus(response: Response, url: string): void {
   } catch {}
 }
 
+interface DynamicIframeSource {
+  html: string;
+  characterSet: string;
+  decodedResponse: boolean;
+  finalUrl: string;
+  contentType: string | null;
+  bytes: Uint8Array | null;
+}
+
+function responseHasIframeBody(response: Response): boolean {
+  return Boolean(response && response.ok && response.status !== 204 && response.status !== 205);
+}
+
+async function responseIframeBytes(response: Response, url: string): Promise<Uint8Array | null> {
+  if (responseHasIframeBody(response)) {
+    return new Uint8Array(await response.arrayBuffer());
+  }
+  if (response && !response.ok) warnDynamicIframeStatus(response, url);
+  return null;
+}
+
+async function loadDynamicIframeBytes(
+  url: string,
+  post: IframePost | undefined,
+  source: DynamicIframeSource,
+): Promise<void> {
+  const blob = state.blobUrls.get(url);
+  if (blob) {
+    source.contentType = blob.type || null;
+    source.bytes = new Uint8Array(await blob.arrayBuffer());
+    return;
+  }
+  const response = await fetchDynamicIframeDocument(url, post);
+  source.finalUrl = response && response.url ? response.url : url;
+  source.contentType = responseHeaderGet(response, "content-type");
+  source.bytes = await responseIframeBytes(response, url);
+}
+
+function warnDynamicIframeFetchError(url: string, error: unknown): void {
+  try {
+    console.warn(
+      "[kitesurf-iframe] dynamic iframe fetch failed for " + url + ":",
+      error instanceof Error ? error.message : String(error),
+    );
+  } catch {}
+}
+
+async function fetchDynamicIframeSource(
+  url: string,
+  post: IframePost | undefined,
+  srcdoc: string | undefined,
+): Promise<DynamicIframeSource> {
+  const source: DynamicIframeSource = {
+    html: "",
+    characterSet: "UTF-8",
+    decodedResponse: false,
+    finalUrl: url,
+    contentType: null,
+    bytes: null,
+  };
+  if (srcdoc !== undefined) {
+    source.html = srcdoc;
+    source.decodedResponse = true;
+    source.contentType = "text/html";
+    return source;
+  }
+  await fetchAndDecodeDynamicIframeSource(url, post, source);
+  return source;
+}
+
+async function fetchAndDecodeDynamicIframeSource(
+  url: string,
+  post: IframePost | undefined,
+  source: DynamicIframeSource,
+): Promise<void> {
+  try {
+    await loadDynamicIframeBytes(url, post, source);
+    if (source.bytes !== null) {
+      const decoded = decodeHtmlBytes(source.bytes, source.contentType ?? "");
+      source.html = decoded.html;
+      source.characterSet = ks_encoding_name(decoded.charset) ?? "UTF-8";
+      source.decodedResponse = true;
+    }
+  } catch (error) {
+    warnDynamicIframeFetchError(url, error);
+  }
+}
+
+function parseDynamicIframeDocument(
+  source: DynamicIframeSource,
+  DOMParserConstructor: any,
+  url: string,
+): Record<string, unknown> | null {
+  if (!source.decodedResponse) return null;
+  const html = source.html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "");
+  return parseDynamicIframeHtml(source, html, DOMParserConstructor, url);
+}
+
+function parseDynamicIframeHtml(
+  source: DynamicIframeSource,
+  html: string,
+  DOMParserConstructor: any,
+  url: string,
+): Record<string, unknown> | null {
+  try {
+    const parser = new DOMParserConstructor();
+    const parserMime = pickDomParserMime(source.contentType);
+    const parsedDocument: unknown = parser.parseFromString(html, parserMime);
+    if (!isObjectRecord(parsedDocument)) return null;
+    parsedDocument._mutable = true;
+    parsedDocument._characterSet = source.characterSet;
+    return parsedDocument;
+  } catch (error) {
+    try {
+      console.warn(
+        "[kitesurf-iframe] dynamic iframe parse failed for " + url + ":",
+        error instanceof Error ? error.message : String(error),
+      );
+    } catch {}
+    return null;
+  }
+}
+
+function defineFrameDocumentBaseUrl(document: object, url: string): void {
+  try {
+    Object.defineProperty(document, "_baseUrl", {
+      value: url,
+      configurable: true,
+      writable: true,
+    });
+  } catch {}
+}
+
+function dynamicIframeDocumentBaseUrl(srcdoc: string | undefined, finalUrl: string): string {
+  return srcdoc !== undefined ? state.document?.baseURI || state.pageUrl || finalUrl : finalUrl;
+}
+
+function installDynamicIframeDocumentWindow(
+  iframeEl: any,
+  newDoc: Record<string, unknown>,
+  finalUrl: string,
+): void {
+  const existingWin = iframeEl.__ks_iframeContentWindow;
+  if (!existingWin) return;
+  existingWin.document = newDoc;
+  setIframeFacadeLocation(existingWin, iframeEl, finalUrl);
+  try {
+    Object.defineProperty(newDoc, "defaultView", {
+      value: existingWin,
+      configurable: true,
+    });
+  } catch {}
+}
+
+function commitDynamicIframeDocument(
+  iframeEl: any,
+  newDoc: Record<string, unknown>,
+  srcdoc: string | undefined,
+  finalUrl: string,
+): void {
+  defineFrameDocumentBaseUrl(newDoc, dynamicIframeDocumentBaseUrl(srcdoc, finalUrl));
+  setFrameReferrer(newDoc, frameNavigationReferrer(finalUrl));
+  installDynamicIframeDocumentWindow(iframeEl, newDoc, finalUrl);
+  iframeEl.__ks_iframeContentDocument = newDoc;
+}
+
+function warnPlaceholderCharacterSet(frameId: unknown, error: unknown): void {
+  console.warn("[kitesurf-iframe] failed to set placeholder character set", { frameId, error });
+}
+
+function setPlaceholderCharacterSet(
+  placeholderDoc: object,
+  iframeEl: any,
+  characterSet: string,
+): void {
+  try {
+    if (!Reflect.set(placeholderDoc, "_characterSet", characterSet, placeholderDoc)) {
+      throw new TypeError("Failed to set iframe placeholder character set");
+    }
+  } catch (error) {
+    warnPlaceholderCharacterSet(iframeEl.__ks_iframeFrameId, error);
+  }
+}
+
+function setPlaceholderXmlMetadata(placeholderDoc: object, parserMime: string): void {
+  if (parserMime === "text/html") return;
+  try {
+    Reflect.set(placeholderDoc, "_contentType", parserMime, placeholderDoc);
+  } catch {}
+  try {
+    Reflect.set(placeholderDoc, "_isXml", true, placeholderDoc);
+  } catch {}
+}
+
+function updateIframePlaceholderDocument(
+  iframeEl: any,
+  characterSet: string,
+  contentType: string | null,
+  finalUrl: string,
+): void {
+  const placeholderDoc: unknown = iframeEl.__ks_iframeContentDocument;
+  if (isObjectRecord(placeholderDoc)) {
+    setPlaceholderCharacterSet(placeholderDoc, iframeEl, characterSet);
+    defineFrameDocumentBaseUrl(placeholderDoc, finalUrl);
+    setFrameReferrer(placeholderDoc, frameNavigationReferrer(finalUrl));
+    setPlaceholderXmlMetadata(placeholderDoc, pickDomParserMime(contentType));
+  }
+  const existingWin = iframeEl.__ks_iframeContentWindow;
+  if (existingWin) setIframeFacadeLocation(existingWin, iframeEl, finalUrl);
+}
+
 async function loadDynamicIframe(
   iframeEl: any,
   url: string,
@@ -1426,129 +2219,21 @@ async function loadDynamicIframe(
   DOMParserConstructor: any,
   srcdoc?: string,
   post?: IframePost,
-) {
-  let html = "";
-  let characterSet = "UTF-8";
-  let decodedResponse = false;
-  let finalUrl = url;
-  let contentType: string | null = null;
-  try {
-    let bytes: Uint8Array | null = null;
-    if (srcdoc !== undefined) {
-      html = srcdoc;
-      decodedResponse = true;
-      contentType = "text/html";
-    } else {
-      const blob = state.blobUrls.get(url);
-      if (blob) {
-        contentType = blob.type || null;
-        bytes = new Uint8Array(await blob.arrayBuffer());
-      } else {
-        const response = await fetchDynamicIframeDocument(url, post);
-        finalUrl = response && response.url ? response.url : url;
-        contentType = responseHeaderGet(response, "content-type");
-        if (response && response.ok && response.status !== 204 && response.status !== 205) {
-          bytes = new Uint8Array(await response.arrayBuffer());
-        } else if (response && !response.ok) {
-          warnDynamicIframeStatus(response, url);
-        }
-      }
-    }
-    if (bytes !== null) {
-      const decoded = decodeHtmlBytes(bytes, contentType ?? "");
-      html = decoded.html;
-      characterSet = ks_encoding_name(decoded.charset) ?? "UTF-8";
-      decodedResponse = true;
-    }
-  } catch (err) {
-    try {
-      console.warn(
-        "[kitesurf-iframe] dynamic iframe fetch failed for " + url + ":",
-        err instanceof Error ? err.message : String(err),
-      );
-    } catch {}
-  }
-  html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "");
-  let newDoc: Record<string, unknown> | null = null;
-  if (decodedResponse) {
-    try {
-      const parser = new DOMParserConstructor();
-      const parserMime = pickDomParserMime(contentType);
-      const parsedDocument: unknown = parser.parseFromString(html, parserMime);
-      if (isObjectRecord(parsedDocument)) {
-        parsedDocument._mutable = true;
-        parsedDocument._characterSet = characterSet;
-        newDoc = parsedDocument;
-      }
-    } catch (err) {
-      try {
-        console.warn(
-          "[kitesurf-iframe] dynamic iframe parse failed for " + url + ":",
-          err instanceof Error ? err.message : String(err),
-        );
-      } catch {}
-    }
-  }
+): Promise<void> {
+  const source = await fetchDynamicIframeSource(url, post, srcdoc);
+  const newDoc = parseDynamicIframeDocument(source, DOMParserConstructor, url);
   if (newDoc) {
-    try {
-      Object.defineProperty(newDoc, "_baseUrl", {
-        value:
-          srcdoc !== undefined ? state.document?.baseURI || state.pageUrl || finalUrl : finalUrl,
-        configurable: true,
-        writable: true,
-      });
-    } catch {}
-    setFrameReferrer(newDoc, frameNavigationReferrer(finalUrl));
-    const existingWin = iframeEl.__ks_iframeContentWindow;
-    if (existingWin) {
-      existingWin.document = newDoc;
-      setIframeFacadeLocation(existingWin, iframeEl, finalUrl);
-      try {
-        Object.defineProperty(newDoc, "defaultView", {
-          value: existingWin,
-          configurable: true,
-        });
-      } catch {}
-    }
-    iframeEl.__ks_iframeContentDocument = newDoc;
+    commitDynamicIframeDocument(iframeEl, newDoc, srcdoc, source.finalUrl);
   } else {
-    const placeholderDoc: unknown = iframeEl.__ks_iframeContentDocument;
-    if (isObjectRecord(placeholderDoc)) {
-      try {
-        if (!Reflect.set(placeholderDoc, "_characterSet", characterSet, placeholderDoc)) {
-          throw new TypeError("Failed to set iframe placeholder character set");
-        }
-      } catch (error) {
-        console.warn("[kitesurf-iframe] failed to set placeholder character set", {
-          frameId: iframeEl.__ks_iframeFrameId,
-          error,
-        });
-      }
-      try {
-        Object.defineProperty(placeholderDoc, "_baseUrl", {
-          value: finalUrl,
-          configurable: true,
-          writable: true,
-        });
-      } catch {}
-      setFrameReferrer(placeholderDoc, frameNavigationReferrer(finalUrl));
-      const parserMime = pickDomParserMime(contentType);
-      if (parserMime !== "text/html") {
-        try {
-          Reflect.set(placeholderDoc, "_contentType", parserMime, placeholderDoc);
-        } catch {}
-        try {
-          Reflect.set(placeholderDoc, "_isXml", true, placeholderDoc);
-        } catch {}
-      }
-    }
-    const existingWin = iframeEl.__ks_iframeContentWindow;
-    if (existingWin) {
-      setIframeFacadeLocation(existingWin, iframeEl, finalUrl);
-    }
+    updateIframePlaceholderDocument(
+      iframeEl,
+      source.characterSet,
+      source.contentType,
+      source.finalUrl,
+    );
   }
   const frameId = (iframeEl as any).__ks_iframeFrameId;
-  emitFrameLifecycle(frameId, finalUrl);
+  emitFrameLifecycle(frameId, source.finalUrl);
   fireIframeLoad(iframeEl);
 }
 
@@ -1572,31 +2257,54 @@ function dispatchWindowUnload(): void {
 
 function compileEventAttribute(element: any, handlerName: string): void {
   try {
-    if (typeof element?.[handlerName] === "function") return;
-    const handlerSource = element?.getAttribute?.(handlerName);
-    if (typeof handlerSource !== "string" || handlerSource.length === 0) return;
-    let eventHandler: Function;
-    try {
-      eventHandler = new Function("event", handlerSource);
-    } catch {
-      return;
-    }
-    try {
-      element[handlerName] = eventHandler;
-    } catch {}
+    compileEventAttributeIfNeeded(element, handlerName);
   } catch {}
 }
 
-function pickDomParserMime(contentType: string | null | undefined): string {
-  if (typeof contentType !== "string" || contentType.length === 0) {
-    return "text/html";
+function compileEventAttributeIfNeeded(element: any, handlerName: string): void {
+  if (hasEventAttributeHandler(element, handlerName)) return;
+  const handlerSource = eventAttributeHandlerSource(element, handlerName);
+  if (handlerSource === null) return;
+  const eventHandler = compileAttributeHandler(handlerSource);
+  if (eventHandler) assignEventAttributeHandler(element, handlerName, eventHandler);
+}
+
+function hasEventAttributeHandler(element: any, handlerName: string): boolean {
+  return typeof element?.[handlerName] === "function";
+}
+
+function eventAttributeHandlerSource(element: any, handlerName: string): string | null {
+  const source = element?.getAttribute?.(handlerName);
+  if (typeof source !== "string" || source.length === 0) return null;
+  return source;
+}
+
+function compileAttributeHandler(handlerSource: string): Function | null {
+  try {
+    return new Function("event", handlerSource);
+  } catch {
+    return null;
   }
+}
+
+function assignEventAttributeHandler(element: any, handlerName: string, handler: Function): void {
+  try {
+    element[handlerName] = handler;
+  } catch {}
+}
+
+const DOM_PARSER_MIME_TYPES = new Map([
+  ["text/html", "text/html"],
+  ["application/xhtml+xml", "application/xhtml+xml"],
+  ["image/svg+xml", "image/svg+xml"],
+  ["application/xml", "application/xml"],
+  ["text/xml", "application/xml"],
+]);
+
+function pickDomParserMime(contentType: string | null | undefined): string {
+  if (typeof contentType !== "string" || contentType.length === 0) return "text/html";
   const mediaType = contentType.split(";")[0].trim().toLowerCase();
-  if (mediaType === "text/html") return "text/html";
-  if (mediaType === "application/xhtml+xml") return "application/xhtml+xml";
-  if (mediaType === "image/svg+xml") return "image/svg+xml";
-  if (mediaType === "application/xml" || mediaType === "text/xml") return "application/xml";
-  return "text/html";
+  return DOM_PARSER_MIME_TYPES.get(mediaType) ?? "text/html";
 }
 
 // Transform-only (ink) damage clips each node's ink rect at the last record and now, so the old
@@ -1606,6 +2314,76 @@ const MAX_TRACKED_INK_RECTS = 64;
 const MAX_PARTIAL_DAMAGE_CANDIDATES = 256;
 const MAX_PARTIAL_DAMAGE_COVERAGE = 0.6;
 const MAX_SCENE_CLIP_DIMENSION_PX = 2_560;
+
+function isScrollFar(
+  scrollDeltaX: number,
+  scrollDeltaY: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): boolean {
+  return Math.abs(scrollDeltaX) >= viewportWidth || Math.abs(scrollDeltaY) >= viewportHeight;
+}
+
+function currentPinnedRectState(
+  pinnedRects: Map<number, number[]> | undefined,
+): { current: Map<number, number[]>; previous: Map<number, number[]> } | null {
+  if (!pinnedRects || !pinnedAtRecord || pinnedRects.size !== pinnedAtRecord.size) return null;
+  return { current: pinnedRects, previous: pinnedAtRecord };
+}
+
+function addVerticalScrollPatch(
+  addRect: (x: number, y: number, width: number, height: number, padding: number) => void,
+  scrollDeltaY: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): void {
+  if (scrollDeltaY === 0) return;
+  addRect(
+    0,
+    scrollDeltaY > 0 ? viewportHeight - scrollDeltaY : 0,
+    viewportWidth,
+    Math.abs(scrollDeltaY),
+    0,
+  );
+}
+
+function addHorizontalScrollPatch(
+  addRect: (x: number, y: number, width: number, height: number, padding: number) => void,
+  scrollDeltaX: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): void {
+  if (scrollDeltaX === 0) return;
+  addRect(
+    scrollDeltaX > 0 ? viewportWidth - scrollDeltaX : 0,
+    0,
+    Math.abs(scrollDeltaX),
+    viewportHeight,
+    0,
+  );
+}
+
+function addPinnedScrollPatches(
+  pinnedRects: Map<number, number[]>,
+  previousPinnedRects: Map<number, number[]>,
+  scrollDeltaX: number,
+  scrollDeltaY: number,
+  addRect: (x: number, y: number, width: number, height: number, padding: number) => void,
+): boolean {
+  for (const [id, [x, y, width, height]] of pinnedRects) {
+    const previousRect = previousPinnedRects.get(id);
+    if (!previousRect) return false;
+    addRect(x, y, width, height, DAMAGE_INK_PADDING_PX);
+    addRect(
+      previousRect[0] - scrollDeltaX,
+      previousRect[1] - scrollDeltaY,
+      previousRect[2],
+      previousRect[3],
+      DAMAGE_INK_PADDING_PX,
+    );
+  }
+  return true;
+}
 
 function readInkRect(paint: DomHandle, id: number): number[] | undefined {
   let rect: Float64Array | undefined;
@@ -1658,11 +2436,9 @@ function scrollPatches(
   viewportHeight: number,
   pinnedRects: Map<number, number[]> | undefined,
 ): number[][] | string {
-  if (Math.abs(scrollDeltaX) >= viewportWidth || Math.abs(scrollDeltaY) >= viewportHeight)
-    return "scrollFar";
-  if (!pinnedRects || !pinnedAtRecord || pinnedRects.size !== pinnedAtRecord.size) {
-    return "scrollPinned";
-  }
+  if (isScrollFar(scrollDeltaX, scrollDeltaY, viewportWidth, viewportHeight)) return "scrollFar";
+  const pinnedState = currentPinnedRectState(pinnedRects);
+  if (!pinnedState) return "scrollPinned";
   const patches: number[][] = [];
   let totalArea = 0;
   const addRect = (
@@ -1680,35 +2456,18 @@ function scrollPatches(
     patches.push([x0, y0, x1 - x0, y1 - y0]);
     totalArea += (x1 - x0) * (y1 - y0);
   };
-  if (scrollDeltaY !== 0) {
-    addRect(
-      0,
-      scrollDeltaY > 0 ? viewportHeight - scrollDeltaY : 0,
-      viewportWidth,
-      Math.abs(scrollDeltaY),
-      0,
-    );
-  }
-  if (scrollDeltaX !== 0) {
-    addRect(
-      scrollDeltaX > 0 ? viewportWidth - scrollDeltaX : 0,
-      0,
-      Math.abs(scrollDeltaX),
-      viewportHeight,
-      0,
-    );
-  }
-  for (const [id, [x, y, width, height]] of pinnedRects) {
-    const previousRect = pinnedAtRecord.get(id);
-    if (!previousRect) return "scrollPinned";
-    addRect(x, y, width, height, DAMAGE_INK_PADDING_PX);
-    addRect(
-      previousRect[0] - scrollDeltaX,
-      previousRect[1] - scrollDeltaY,
-      previousRect[2],
-      previousRect[3],
-      DAMAGE_INK_PADDING_PX,
-    );
+  addVerticalScrollPatch(addRect, scrollDeltaY, viewportWidth, viewportHeight);
+  addHorizontalScrollPatch(addRect, scrollDeltaX, viewportWidth, viewportHeight);
+  if (
+    !addPinnedScrollPatches(
+      pinnedState.current,
+      pinnedState.previous,
+      scrollDeltaX,
+      scrollDeltaY,
+      addRect,
+    )
+  ) {
+    return "scrollPinned";
   }
   return totalArea <= MAX_PARTIAL_DAMAGE_COVERAGE * viewportWidth * viewportHeight
     ? patches
@@ -1729,20 +2488,26 @@ interface SceneClipInput {
   height: number;
 }
 
+function hasSceneClipNumericFields(
+  value: Record<string, unknown>,
+): value is Record<string, unknown> & SceneClipInput {
+  return (
+    typeof value.x === "number" &&
+    typeof value.y === "number" &&
+    typeof value.width === "number" &&
+    typeof value.height === "number"
+  );
+}
+
+function hasPositiveSceneClipSize(width: number, height: number): boolean {
+  return width > 0 && height > 0;
+}
+
 function readSceneClip(value: unknown): SceneClipInput | null {
   if (!isObjectRecord(value)) return null;
-  const { x, y, width, height } = value;
-  if (
-    typeof x !== "number" ||
-    typeof y !== "number" ||
-    typeof width !== "number" ||
-    typeof height !== "number" ||
-    !(width > 0) ||
-    !(height > 0)
-  ) {
-    return null;
-  }
-  return { x, y, width, height };
+  if (!hasSceneClipNumericFields(value)) return null;
+  if (!hasPositiveSceneClipSize(value.width, value.height)) return null;
+  return { x: value.x, y: value.y, width: value.width, height: value.height };
 }
 
 function isUnknownArray(value: unknown): value is unknown[] {
@@ -1767,40 +2532,85 @@ function partialDamageFailure(skipReason: string): PartialDamageRead {
   return { skipReason, candidates: null, inkIds: [] };
 }
 
+function partialDamageSummaryJson(paint: DomHandle): string | null {
+  if (typeof paint.takeDamageSummary !== "function") return null;
+  try {
+    if (typeof paint.resolveLayout === "function") paint.resolveLayout();
+  } catch {}
+  return paint.takeDamageSummary() || "";
+}
+
+function partialDamageLayoutSkipReason(layout: unknown): string | null {
+  if (isUnknownArray(layout) && layout.length === 0) return null;
+  const names: unknown = layout || [];
+  if (!isUnknownArray(names)) return "summaryThrew";
+  const MAX_LAYOUT_DAMAGE_NAMES_LOGGED = 6;
+  return "layoutDamage:" + names.slice(0, MAX_LAYOUT_DAMAGE_NAMES_LOGGED).join(",");
+}
+
+function partialDamageSummarySkipReason(summaryValue: unknown): string | null {
+  if (!isObjectRecord(summaryValue)) return "layoutDamage:";
+  if (summaryValue.layoutOverflow || summaryValue.paintOverflow) return "overflow";
+  return partialDamageLayoutSkipReason(summaryValue.layout);
+}
+
+function addPartialDamagePaintIds(candidates: Set<number>, ids: unknown[]): void {
+  for (const id of ids) candidates.add(Number(id) | 0);
+}
+
+function addPartialDamageEpochIds(candidates: Set<number>, ids: Set<number>): void {
+  for (const id of ids) candidates.add(id | 0);
+}
+
+function partialDamageInkIds(inkNodes: unknown): number[] {
+  if (!isUnknownArray(inkNodes)) return [];
+  const inkIds: number[] = [];
+  for (const id of inkNodes) inkIds.push(Number(id) | 0);
+  return inkIds;
+}
+
+function partialDamageCandidates(
+  paintNodes: unknown,
+  inkNodes: unknown,
+  epochDamage: Set<number>,
+): PartialDamageRead {
+  if (!isUnknownArray(paintNodes)) return { skipReason: "", candidates: null, inkIds: [] };
+  const candidates = new Set<number>();
+  addPartialDamagePaintIds(candidates, paintNodes);
+  addPartialDamageEpochIds(candidates, epochDamage);
+  return { skipReason: "", candidates, inkIds: partialDamageInkIds(inkNodes) };
+}
+
+function parsedPartialDamageValue(raw: string): unknown {
+  if (!raw) return null;
+  return JSON.parse(raw);
+}
+
+function partialDamageCandidatesFromSummary(
+  summaryValue: unknown,
+  epochDamage: Set<number>,
+): PartialDamageRead {
+  if (!isObjectRecord(summaryValue)) return partialDamageFailure("layoutDamage:");
+  return partialDamageCandidates(summaryValue.paint, summaryValue.ink, epochDamage);
+}
+
+function parsePartialDamageSummary(raw: string, epochDamage: Set<number>): PartialDamageRead {
+  try {
+    const summaryValue = parsedPartialDamageValue(raw);
+    if (!summaryValue) return partialDamageFailure("noSummary");
+    const skipReason = partialDamageSummarySkipReason(summaryValue);
+    if (skipReason !== null) return partialDamageFailure(skipReason);
+    return partialDamageCandidatesFromSummary(summaryValue, epochDamage);
+  } catch {
+    return partialDamageFailure("summaryThrew");
+  }
+}
+
 function readPartialDamageSummary(paint: DomHandle, epochDamage: Set<number>): PartialDamageRead {
   try {
-    if (typeof paint.takeDamageSummary !== "function") return partialDamageFailure("noWasmEntry");
-    try {
-      if (typeof paint.resolveLayout === "function") paint.resolveLayout();
-    } catch {}
-    const raw = paint.takeDamageSummary() || "";
-    const summaryValue: unknown = raw ? JSON.parse(raw) : null;
-    if (!summaryValue) return partialDamageFailure("noSummary");
-    if (!isObjectRecord(summaryValue)) return partialDamageFailure("layoutDamage:");
-    if (summaryValue.layoutOverflow || summaryValue.paintOverflow) {
-      return partialDamageFailure("overflow");
-    }
-    const layout = summaryValue.layout;
-    if (!isUnknownArray(layout) || layout.length > 0) {
-      const names: unknown = layout || [];
-      if (!isUnknownArray(names)) return partialDamageFailure("summaryThrew");
-      const MAX_LAYOUT_DAMAGE_NAMES_LOGGED = 6;
-      return partialDamageFailure(
-        "layoutDamage:" + names.slice(0, MAX_LAYOUT_DAMAGE_NAMES_LOGGED).join(","),
-      );
-    }
-    const paintNodes = summaryValue.paint;
-    if (!isUnknownArray(paintNodes)) {
-      return { skipReason: "", candidates: null, inkIds: [] };
-    }
-    const candidates = new Set<number>();
-    for (const id of paintNodes) candidates.add(Number(id) | 0);
-    for (const id of epochDamage) candidates.add(id | 0);
-    const inkIds: number[] = [];
-    if (isUnknownArray(summaryValue.ink)) {
-      for (const id of summaryValue.ink) inkIds.push(Number(id) | 0);
-    }
-    return { skipReason: "", candidates, inkIds };
+    const raw = partialDamageSummaryJson(paint);
+    if (raw === null) return partialDamageFailure("noWasmEntry");
+    return parsePartialDamageSummary(raw, epochDamage);
   } catch {
     return partialDamageFailure("summaryThrew");
   }
@@ -1839,84 +2649,198 @@ function isWasmBoundingRect(
 function readPartialDamageRect(
   value: unknown,
 ): { x: number; y: number; width: number; height: number } | null {
-  if (!value || !isObjectRecord(value)) return null;
+  if (!value) return null;
+  if (!isObjectRecord(value)) return null;
   const width = Number(value.width);
   const height = Number(value.height);
-  if (!(width > 0) || !(height > 0)) return null;
-  return { x: Number(value.x) || 0, y: Number(value.y) || 0, width, height };
+  if (!hasPositiveSceneClipSize(width, height)) return null;
+  return {
+    x: partialDamageCoordinate(value.x),
+    y: partialDamageCoordinate(value.y),
+    width,
+    height,
+  };
 }
 
-function partialDamageClip(options: PartialDamageRectOptions): PartialDamageRectResult {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  let ok = true;
-  const addRect = (x: number, y: number, width: number, height: number): void => {
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x + width > maxX) maxX = x + width;
-    if (y + height > maxY) maxY = y + height;
-  };
+function partialDamageCoordinate(value: unknown): number {
+  return Number(value) || 0;
+}
+
+interface PartialDamageBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+interface PartialDamageClipGeometry {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function addPartialDamageBoundsRect(
+  bounds: PartialDamageBounds,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  if (x < bounds.minX) bounds.minX = x;
+  if (y < bounds.minY) bounds.minY = y;
+  if (x + width > bounds.maxX) bounds.maxX = x + width;
+  if (y + height > bounds.maxY) bounds.maxY = y + height;
+}
+
+function partialDamageBounds(): PartialDamageBounds {
+  return { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+}
+
+function addPartialDamageCandidateRects(
+  options: PartialDamageRectOptions,
+  bounds: PartialDamageBounds,
+): boolean {
   for (const id of options.candidates) {
     let rawRect: unknown;
     try {
       rawRect = options.paint.getBoundingClientRect(id);
     } catch {
-      ok = false;
-      break;
+      return false;
     }
     const rect = readPartialDamageRect(rawRect);
-    if (!rect) {
-      ok = false;
-      break;
-    }
-    addRect(rect.x, rect.y, rect.width, rect.height);
+    if (!rect) return false;
+    addPartialDamageBoundsRect(bounds, rect.x, rect.y, rect.width, rect.height);
   }
-  let skipReason = "";
-  for (const id of ok ? options.inkIds : []) {
-    const previousInkRect = inkRects.get(id);
-    const currentInkRect = readInkRect(options.paint, id);
-    if (currentInkRect) options.inkNow.set(id, currentInkRect);
-    if (!previousInkRect) skipReason = "inkFirst";
-    if (!previousInkRect || !currentInkRect) {
-      ok = false;
-      break;
-    }
-    addRect(previousInkRect[0], previousInkRect[1], previousInkRect[2], previousInkRect[3]);
-    addRect(currentInkRect[0], currentInkRect[1], currentInkRect[2], currentInkRect[3]);
+  return true;
+}
+
+function addPartialDamageInkRects(
+  options: PartialDamageRectOptions,
+  bounds: PartialDamageBounds,
+): { ok: boolean; skipReason: string } {
+  for (const id of options.inkIds) {
+    const result = addPartialDamageInkRect(options, bounds, id);
+    if (!result.ok) return result;
   }
-  if (!ok || maxX <= minX || maxY <= minY) {
-    return { clip: null, offscreen: false, skipReason: skipReason || "rectFail" };
-  }
-  const clipX = Math.max(0, Math.floor(minX - DAMAGE_INK_PADDING_PX));
-  const clipY = Math.max(0, Math.floor(minY - DAMAGE_INK_PADDING_PX));
-  const clipWidth = Math.ceil(maxX + DAMAGE_INK_PADDING_PX) - clipX;
-  const clipHeight = Math.ceil(maxY + DAMAGE_INK_PADDING_PX) - clipY;
-  if (
+  return { ok: true, skipReason: "" };
+}
+
+function addPartialDamageInkRect(
+  options: PartialDamageRectOptions,
+  bounds: PartialDamageBounds,
+  id: number,
+): { ok: boolean; skipReason: string } {
+  const previousInkRect = inkRects.get(id);
+  const currentInkRect = readInkRect(options.paint, id);
+  if (currentInkRect) options.inkNow.set(id, currentInkRect);
+  const skipReason = previousInkRect ? "" : "inkFirst";
+  if (!previousInkRect || !currentInkRect) return { ok: false, skipReason };
+  addPartialDamageBoundsRect(
+    bounds,
+    previousInkRect[0],
+    previousInkRect[1],
+    previousInkRect[2],
+    previousInkRect[3],
+  );
+  addPartialDamageBoundsRect(
+    bounds,
+    currentInkRect[0],
+    currentInkRect[1],
+    currentInkRect[2],
+    currentInkRect[3],
+  );
+  return { ok: true, skipReason };
+}
+
+function partialDamageClipGeometry(bounds: PartialDamageBounds): PartialDamageClipGeometry | null {
+  if (bounds.maxX <= bounds.minX || bounds.maxY <= bounds.minY) return null;
+  const x = Math.max(0, Math.floor(bounds.minX - DAMAGE_INK_PADDING_PX));
+  const y = Math.max(0, Math.floor(bounds.minY - DAMAGE_INK_PADDING_PX));
+  const width = Math.ceil(bounds.maxX + DAMAGE_INK_PADDING_PX) - x;
+  const height = Math.ceil(bounds.maxY + DAMAGE_INK_PADDING_PX) - y;
+  return { x, y, width, height };
+}
+
+function shouldCheckDamageClipOffscreen(options: PartialDamageRectOptions): boolean {
+  return (
     options.sinceSeq !== null &&
     !options.hasClip &&
     options.viewportWidth > 0 &&
-    options.viewportHeight > 0 &&
-    (clipX >= state.scrollX + options.viewportWidth ||
-      clipY >= state.scrollY + options.viewportHeight ||
-      clipX + clipWidth <= state.scrollX ||
-      clipY + clipHeight <= state.scrollY)
-  ) {
+    options.viewportHeight > 0
+  );
+}
+
+function isDamageClipOutsideViewport(
+  clip: PartialDamageClipGeometry,
+  viewportWidth: number,
+  viewportHeight: number,
+): boolean {
+  return (
+    clip.x >= state.scrollX + viewportWidth ||
+    clip.y >= state.scrollY + viewportHeight ||
+    clip.x + clip.width <= state.scrollX ||
+    clip.y + clip.height <= state.scrollY
+  );
+}
+
+function isPartialDamageClipOffscreen(
+  options: PartialDamageRectOptions,
+  clip: PartialDamageClipGeometry,
+): boolean {
+  return (
+    shouldCheckDamageClipOffscreen(options) &&
+    isDamageClipOutsideViewport(clip, options.viewportWidth, options.viewportHeight)
+  );
+}
+
+function partialDamageClipCoverage(
+  clip: PartialDamageClipGeometry,
+  viewportWidth: number,
+  viewportHeight: number,
+): number {
+  return viewportWidth > 0 && viewportHeight > 0
+    ? (clip.width * clip.height) / (viewportWidth * viewportHeight)
+    : 1;
+}
+
+function isPartialDamageClipWithinCoverage(
+  clip: PartialDamageClipGeometry,
+  coverage: number,
+): boolean {
+  return clip.width > 0 && clip.height > 0 && coverage <= MAX_PARTIAL_DAMAGE_COVERAGE;
+}
+
+function partialDamageRectFailure(skipReason: string): PartialDamageRectResult {
+  return { clip: null, offscreen: false, skipReason: skipReason || "rectFail" };
+}
+
+function finishPartialDamageClip(
+  options: PartialDamageRectOptions,
+  clip: PartialDamageClipGeometry,
+): PartialDamageRectResult {
+  if (isPartialDamageClipOffscreen(options, clip)) {
     return { clip: null, offscreen: true, skipReason: "" };
   }
-  const coverage =
-    options.viewportWidth > 0 && options.viewportHeight > 0
-      ? (clipWidth * clipHeight) / (options.viewportWidth * options.viewportHeight)
-      : 1;
-  if (clipWidth > 0 && clipHeight > 0 && coverage <= MAX_PARTIAL_DAMAGE_COVERAGE) {
+  const coverage = partialDamageClipCoverage(clip, options.viewportWidth, options.viewportHeight);
+  if (isPartialDamageClipWithinCoverage(clip, coverage)) {
     return {
-      clip: { x: clipX, y: clipY, w: clipWidth, h: clipHeight },
+      clip: { x: clip.x, y: clip.y, w: clip.width, h: clip.height },
       offscreen: false,
       skipReason: "",
     };
   }
   return { clip: null, offscreen: false, skipReason: "cutoff" };
+}
+
+function partialDamageClip(options: PartialDamageRectOptions): PartialDamageRectResult {
+  const bounds = partialDamageBounds();
+  if (!addPartialDamageCandidateRects(options, bounds)) return partialDamageRectFailure("");
+  const inkResult = addPartialDamageInkRects(options, bounds);
+  if (!inkResult.ok) return partialDamageRectFailure(inkResult.skipReason);
+  const clip = partialDamageClipGeometry(bounds);
+  if (!clip) return partialDamageRectFailure("");
+  return finishPartialDamageClip(options, clip);
 }
 
 interface PartialSceneOptions {
@@ -1947,89 +2871,163 @@ interface PartialScenePlan {
   unchangedReason: "noDamage" | "offscreen" | null;
 }
 
-// A partial composites onto the client's retained frame, so it needs the client's painted base to
-// be this epoch's base, with no unshiftable scroll or resize since. The client checks the base too.
-function planPartialScene(options: PartialSceneOptions): PartialScenePlan {
-  let skipReason = "";
-  if (!options.allowPartial) skipReason = "off";
-  else if (options.clientWire) skipReason = "clientWire";
-  else if (options.epochLayoutDirty) skipReason = "opaquePaint";
-  else if (options.baseSeq < 0 || options.baseSeq !== options.epochBase) skipReason = "base";
-  else if (options.scrolled && !options.allowScrollShift) skipReason = "scroll";
-  else if (
+function partialScenePolicySkipReason(options: PartialSceneOptions): string {
+  if (!options.allowPartial) return "off";
+  if (options.clientWire) return "clientWire";
+  if (options.epochLayoutDirty) return "opaquePaint";
+  return "";
+}
+
+function partialSceneSequenceSkipReason(options: PartialSceneOptions): string {
+  if (options.baseSeq < 0 || options.baseSeq !== options.epochBase) return "base";
+  if (options.scrolled && !options.allowScrollShift) return "scroll";
+  return "";
+}
+
+function partialSceneViewportSkipReason(): string {
+  if (
     state.paintViewportW !== state.lastRecordViewportW ||
     state.paintViewportH !== state.lastRecordViewportH
   ) {
-    skipReason = "resize";
+    return "resize";
   }
-  let scrollClips: number[][] = [];
-  let pinnedNow: Map<number, number[]> | undefined;
-  let inkIds: number[] = [];
-  const inkNow = new Map<number, number[]>();
-  let partialClip: SceneClip | null = null;
-  let unchangedReason: PartialScenePlan["unchangedReason"] = null;
-  const plan = (): PartialScenePlan => ({
-    skipReason,
-    scrollClips,
-    pinnedNow,
-    inkIds,
-    inkNow,
-    partialClip,
-    unchangedReason,
-  });
-  if (skipReason !== "") return plan();
+  return "";
+}
 
-  const damage = readPartialDamageSummary(options.paint, options.epochDamage);
-  skipReason = damage.skipReason;
-  inkIds = damage.inkIds;
-  if (skipReason !== "") return plan();
-  let candidates = damage.candidates;
-  if (options.scrolled && candidates) {
-    if (candidates.size > 0 || inkIds.length > 0) {
-      skipReason = "scrollDamage";
-    } else {
-      pinnedNow = readPinnedRects(options.paint);
-      const patchResult = scrollPatches(
-        options.scrollDeltaX,
-        options.scrollDeltaY,
-        options.viewportWidth,
-        options.viewportHeight,
-        pinnedNow,
-      );
-      if (typeof patchResult === "string") skipReason = patchResult;
-      else scrollClips = patchResult;
-    }
-    candidates = null;
-  }
-  if (
+function initialPartialSceneSkipReason(options: PartialSceneOptions): string {
+  const policySkip = partialScenePolicySkipReason(options);
+  if (policySkip) return policySkip;
+  const sequenceSkip = partialSceneSequenceSkipReason(options);
+  if (sequenceSkip) return sequenceSkip;
+  return partialSceneViewportSkipReason();
+}
+
+function emptyPartialScenePlan(skipReason: string): PartialScenePlan {
+  return {
+    skipReason,
+    scrollClips: [],
+    pinnedNow: undefined,
+    inkIds: [],
+    inkNow: new Map<number, number[]>(),
+    partialClip: null,
+    unchangedReason: null,
+  };
+}
+
+function applyPartialSceneScrollPatches(
+  options: PartialSceneOptions,
+  plan: PartialScenePlan,
+): void {
+  plan.pinnedNow = readPinnedRects(options.paint);
+  const patchResult = scrollPatches(
+    options.scrollDeltaX,
+    options.scrollDeltaY,
+    options.viewportWidth,
+    options.viewportHeight,
+    plan.pinnedNow,
+  );
+  if (typeof patchResult === "string") plan.skipReason = patchResult;
+  else plan.scrollClips = patchResult;
+}
+
+function hasScrollDamage(candidates: Set<number>, inkIds: number[]): boolean {
+  return candidates.size > 0 || inkIds.length > 0;
+}
+
+function preparePartialSceneCandidates(
+  options: PartialSceneOptions,
+  damage: PartialDamageRead,
+  plan: PartialScenePlan,
+): Set<number> | null {
+  const candidates = damage.candidates;
+  if (!options.scrolled || !candidates) return candidates;
+  if (hasScrollDamage(candidates, plan.inkIds)) plan.skipReason = "scrollDamage";
+  else applyPartialSceneScrollPatches(options, plan);
+  return null;
+}
+
+function isUnchangedPartialScene(
+  options: PartialSceneOptions,
+  candidates: Set<number> | null,
+  inkIds: number[],
+): boolean {
+  return (
     options.sinceSeq !== null &&
-    candidates &&
+    candidates !== null &&
     candidates.size === 0 &&
     inkIds.length === 0 &&
     !isAnimating()
-  ) {
-    unchangedReason = "noDamage";
-    return plan();
+  );
+}
+
+function partialSceneDamageCount(candidates: Set<number> | null, inkIds: number[]): number {
+  return candidates ? candidates.size + inkIds.length : 0;
+}
+
+function partialSceneCandidateSkipReason(
+  candidates: Set<number> | null,
+  damageCount: number,
+): string {
+  if (candidates && damageCount === 0) return "noCandidates";
+  if (damageCount > MAX_PARTIAL_DAMAGE_CANDIDATES) return "tooMany";
+  return "";
+}
+
+function shouldPlanPartialDamageClip(
+  candidates: Set<number> | null,
+  damageCount: number,
+): candidates is Set<number> {
+  return candidates !== null && damageCount > 0 && damageCount <= MAX_PARTIAL_DAMAGE_CANDIDATES;
+}
+
+function applyPartialDamageClipResult(
+  plan: PartialScenePlan,
+  rectPlan: PartialDamageRectResult,
+): void {
+  if (rectPlan.offscreen) plan.unchangedReason = "offscreen";
+  else if (rectPlan.clip) plan.partialClip = rectPlan.clip;
+  else if (plan.skipReason === "") plan.skipReason = rectPlan.skipReason;
+}
+
+function applyPartialDamageClip(
+  options: PartialSceneOptions,
+  candidates: Set<number> | null,
+  plan: PartialScenePlan,
+  damageCount: number,
+): void {
+  if (!shouldPlanPartialDamageClip(candidates, damageCount)) return;
+  const rectPlan = partialDamageClip({
+    paint: options.paint,
+    candidates,
+    inkIds: plan.inkIds,
+    inkNow: plan.inkNow,
+    viewportWidth: options.viewportWidth,
+    viewportHeight: options.viewportHeight,
+    sinceSeq: options.sinceSeq,
+    hasClip: options.hasClip,
+  });
+  applyPartialDamageClipResult(plan, rectPlan);
+}
+
+// A partial composites onto the client's retained frame, so it needs the client's painted base to
+// be this epoch's base, with no unshiftable scroll or resize since. The client checks the base too.
+function planPartialScene(options: PartialSceneOptions): PartialScenePlan {
+  const plan = emptyPartialScenePlan(initialPartialSceneSkipReason(options));
+  if (plan.skipReason !== "") return plan;
+  const damage = readPartialDamageSummary(options.paint, options.epochDamage);
+  plan.skipReason = damage.skipReason;
+  plan.inkIds = damage.inkIds;
+  if (plan.skipReason !== "") return plan;
+  const candidates = preparePartialSceneCandidates(options, damage, plan);
+  if (isUnchangedPartialScene(options, candidates, plan.inkIds)) {
+    plan.unchangedReason = "noDamage";
+    return plan;
   }
-  const damageCount = candidates ? candidates.size + inkIds.length : 0;
-  if (candidates && damageCount === 0) skipReason = "noCandidates";
-  if (damageCount > MAX_PARTIAL_DAMAGE_CANDIDATES) skipReason = "tooMany";
-  if (candidates && damageCount > 0 && damageCount <= MAX_PARTIAL_DAMAGE_CANDIDATES) {
-    const rectPlan = partialDamageClip({
-      paint: options.paint,
-      candidates,
-      inkIds,
-      inkNow,
-      viewportWidth: options.viewportWidth,
-      viewportHeight: options.viewportHeight,
-      sinceSeq: options.sinceSeq,
-      hasClip: options.hasClip,
-    });
-    if (rectPlan.offscreen) unchangedReason = "offscreen";
-    else if (rectPlan.clip) partialClip = rectPlan.clip;
-    else if (skipReason === "") skipReason = rectPlan.skipReason;
-  }
-  return plan();
+  const damageCount = partialSceneDamageCount(candidates, plan.inkIds);
+  const candidateSkipReason = partialSceneCandidateSkipReason(candidates, damageCount);
+  if (candidateSkipReason !== "") plan.skipReason = candidateSkipReason;
+  applyPartialDamageClip(options, candidates, plan, damageCount);
+  return plan;
 }
 
 interface ScenePatch {
@@ -2074,13 +3072,17 @@ const IFRAME_INSTALL_WAIT_MS = 5_000;
 
 const TLA_SETTLE_BUDGET_MS = 1_500;
 
+function createIframeLoadEvent(): Event | null {
+  const EventConstructor = ksEventCtors.Event || ksGlobal.CsEvent;
+  if (!EventConstructor) return null;
+  return new EventConstructor("load", { bubbles: false, cancelable: false });
+}
+
 function fireIframeLoad(iframeElement: any) {
   try {
-    const EventConstructor = ksEventCtors.Event || ksGlobal.CsEvent;
-    if (!EventConstructor) return;
+    const event = createIframeLoadEvent();
+    if (!event) return;
     compileEventAttribute(iframeElement, "onload");
-    const event = new EventConstructor("load", { bubbles: false, cancelable: false });
-
     try {
       iframeElement.dispatchEvent?.(event);
     } catch {}
@@ -2119,62 +3121,74 @@ function resourceHashes(value: unknown): Uint8Array {
   throw new TypeError("Resource hashes must be a Uint8Array");
 }
 
-function armSpanSink(self: any, traced: boolean): void {
-  const sink = self?.env?.KS_SPAN_SINK;
-  if (!traced || !sink) {
-    if (__ksSpanHookArmed) {
-      try {
-        ks_set_emit_hook(null);
-      } catch {}
-      __ksSpanHookArmed = false;
+function spanSinkFromWorker(self: any): any {
+  return self?.env?.KS_SPAN_SINK;
+}
+
+function disarmSpanSink(): void {
+  if (!__ksSpanHookArmed) return;
+  try {
+    ks_set_emit_hook(null);
+  } catch {}
+  __ksSpanHookArmed = false;
+}
+
+function flushSpanBatch(self: any, sink: any): void {
+  __ksSpanFlushScheduled = false;
+  if (__ksSpanBuf.length === 0) return;
+  const batch = __ksSpanBuf;
+  __ksSpanBuf = [];
+  const flushPromise = Promise.resolve()
+    .then(() => sink.emit(batch))
+    .catch(() => {});
+  try {
+    self.ctx.waitUntil(flushPromise);
+  } catch {}
+}
+
+function scheduleSpanFlush(self: any, sink: any): void {
+  const flush = (): void => flushSpanBatch(self, sink);
+  if (__ksSpanBuf.length >= __KS_SPAN_FLUSH_HIGH_WATER) {
+    flush();
+    return;
+  }
+  if (__ksSpanFlushScheduled) return;
+  __ksSpanFlushScheduled = true;
+  try {
+    nativeSetTimeout(flush, 0);
+  } catch {
+    queueMicrotask(flush);
+  }
+}
+
+function recordSpanForSink(self: any, sink: any, record: string): void {
+  if (__ksSpanTotal >= __KS_SPAN_BUDGET) {
+    if (!__ksSpanCapped) {
+      __ksSpanCapped = true;
+      __ksSpanBuf.push(
+        `{"name":"child.spans.capped","attributes":[{"key":"budget","value":{"intValue":"${__KS_SPAN_BUDGET}"}}]}`,
+      );
+      scheduleSpanFlush(self, sink);
     }
+    return;
+  }
+  __ksSpanTotal++;
+  __ksSpanBuf.push(record);
+  scheduleSpanFlush(self, sink);
+}
+
+function armSpanSink(self: any, traced: boolean): void {
+  const sink = spanSinkFromWorker(self);
+  if (!traced || !sink) {
+    disarmSpanSink();
     return;
   }
   __ksSpanTotal = 0;
   __ksSpanCapped = false;
   if (__ksSpanHookArmed) return;
   __ksSpanHookArmed = true;
-  const flush = () => {
-    __ksSpanFlushScheduled = false;
-    if (__ksSpanBuf.length === 0) return;
-    const batch = __ksSpanBuf;
-    __ksSpanBuf = [];
-    const flushPromise = Promise.resolve()
-      .then(() => sink.emit(batch))
-      .catch(() => {});
-    try {
-      self.ctx.waitUntil(flushPromise);
-    } catch {}
-  };
-  const schedule = () => {
-    if (__ksSpanBuf.length >= __KS_SPAN_FLUSH_HIGH_WATER) {
-      flush();
-      return;
-    }
-    if (__ksSpanFlushScheduled) return;
-    __ksSpanFlushScheduled = true;
-    try {
-      nativeSetTimeout(flush, 0);
-    } catch {
-      queueMicrotask(flush);
-    }
-  };
   try {
-    ks_set_emit_hook((rec: string) => {
-      if (__ksSpanTotal >= __KS_SPAN_BUDGET) {
-        if (!__ksSpanCapped) {
-          __ksSpanCapped = true;
-          __ksSpanBuf.push(
-            `{"name":"child.spans.capped","attributes":[{"key":"budget","value":{"intValue":"${__KS_SPAN_BUDGET}"}}]}`,
-          );
-          schedule();
-        }
-        return;
-      }
-      __ksSpanTotal++;
-      __ksSpanBuf.push(rec);
-      schedule();
-    });
+    ks_set_emit_hook((record: string) => recordSpanForSink(self, sink, record));
   } catch {
     __ksSpanHookArmed = false;
   }
@@ -2191,6 +3205,8 @@ interface MouseTarget extends ShimElement {
   removeAttribute?: (name: string) => void;
   form?: NonNullable<ShimElement["form"]> & { reset?: () => void };
 }
+
+type PseudoMouseTarget = MouseTarget & Required<Pick<MouseTarget, "pseudo">>;
 
 type AttributeTarget = MouseTarget &
   Required<Pick<MouseTarget, "hasAttribute" | "setAttribute" | "removeAttribute">>;
@@ -2209,6 +3225,75 @@ function isTextControl(node: ShimElement | null): node is TextControl {
   return (tag === "INPUT" || tag === "TEXTAREA") && typeof node.setSelectionRange === "function";
 }
 
+function resolveMouseTargetLayout(paint: DomHandle): void {
+  try {
+    if (typeof paint.resolveLayout === "function") paint.resolveLayout();
+  } catch {}
+}
+
+function forceMouseTargetRestyle(paint: DomHandle, sequence: number): void {
+  if (sequence > state.lastForceRestyleSeq) {
+    try {
+      if (typeof paint.forceFullRestyle === "function") paint.forceFullRestyle();
+    } catch {}
+    state.lastForceRestyleSeq = sequence;
+  }
+}
+
+function mouseHitAtPoint(paint: DomHandle, clientX: number, clientY: number): unknown {
+  try {
+    return paint.elementFromPoint(clientX + state.scrollX, clientY + state.scrollY);
+  } catch {
+    invalidatePaintDom();
+    return -1;
+  }
+}
+
+function resolveMouseTargetHit(paintHitId: unknown): MouseTarget | null {
+  if (typeof paintHitId === "number" && paintHitId >= 0) {
+    return state.resolveNodeId(paintHitId);
+  }
+  return null;
+}
+
+function shouldSetMousePseudoTarget(
+  eventType: string,
+  paint: DomHandle,
+  targetEl: MouseTarget | null,
+): targetEl is PseudoMouseTarget {
+  return Boolean(
+    targetEl &&
+    eventType !== "mousemove" &&
+    eventType !== "wheel" &&
+    typeof paint.pseudoKindAtPoint === "function" &&
+    typeof targetEl.pseudo === "function",
+  );
+}
+
+function pseudoNameForKind(kind: unknown): string | null {
+  if (kind === 1) return "::before";
+  if (kind === 2) return "::after";
+  return null;
+}
+
+function setMousePseudoTarget(
+  eventType: string,
+  clientX: number,
+  clientY: number,
+  event: MouseInputEvent,
+  paint: DomHandle,
+  targetEl: MouseTarget | null,
+): void {
+  if (!shouldSetMousePseudoTarget(eventType, paint, targetEl)) return;
+  try {
+    const kind = paint.pseudoKindAtPoint(clientX + state.scrollX, clientY + state.scrollY);
+    const pseudoName = pseudoNameForKind(kind);
+    if (pseudoName !== null) event.pseudoTarget = targetEl.pseudo(pseudoName);
+  } catch {}
+}
+
+type PageSelection = NonNullable<ReturnType<NonNullable<ShimDocument["getSelection"]>>>;
+
 type MouseInputEvent = NonNullable<Parameters<BuildDocumentResult["__ks_activateLabel"]>[1]> &
   Partial<InstanceType<BuildDocumentResult["WheelEvent"]>>;
 
@@ -2223,39 +3308,10 @@ function mouseTargetAtPoint(
     const paint = ensurePaintDom();
     if (!paint) return null;
     const seqNow = cascadeSeq();
-    try {
-      if (typeof paint.resolveLayout === "function") paint.resolveLayout();
-    } catch {}
-    if (seqNow > state.lastForceRestyleSeq) {
-      try {
-        if (typeof paint.forceFullRestyle === "function") paint.forceFullRestyle();
-      } catch {}
-      state.lastForceRestyleSeq = seqNow;
-    }
-    let paintHitId: unknown;
-    try {
-      paintHitId = paint.elementFromPoint(clientX + state.scrollX, clientY + state.scrollY);
-    } catch {
-      invalidatePaintDom();
-      paintHitId = -1;
-    }
-    if (typeof paintHitId === "number" && paintHitId >= 0) {
-      targetEl = state.resolveNodeId(paintHitId);
-    }
-    if (
-      targetEl &&
-      eventType !== "mousemove" &&
-      eventType !== "wheel" &&
-      typeof paint.pseudoKindAtPoint === "function" &&
-      typeof targetEl.pseudo === "function"
-    ) {
-      try {
-        const kind = paint.pseudoKindAtPoint(clientX + state.scrollX, clientY + state.scrollY);
-        if (kind === 1 || kind === 2) {
-          event.pseudoTarget = targetEl.pseudo(kind === 1 ? "::before" : "::after");
-        }
-      } catch {}
-    }
+    resolveMouseTargetLayout(paint);
+    forceMouseTargetRestyle(paint, seqNow);
+    targetEl = resolveMouseTargetHit(mouseHitAtPoint(paint, clientX, clientY));
+    setMousePseudoTarget(eventType, clientX, clientY, event, paint, targetEl);
   } catch {
     targetEl = null;
   }
@@ -2269,6 +3325,147 @@ function readCaretPosition(value: unknown): { nodeId: number; offset: number } |
   return typeof nodeId === "number" && typeof offset === "number" ? { nodeId, offset } : null;
 }
 
+function safeCaretOffset(offset: number, valueLength: number): number {
+  return Math.max(0, Math.min(Number(offset) || 0, valueLength));
+}
+
+function textControlSelectionBounds(
+  caretNode: TextControl,
+  safeOffset: number,
+): { start: number; end: number } {
+  const start =
+    typeof caretNode.selectionStart === "number" ? caretNode.selectionStart : safeOffset;
+  const end = typeof caretNode.selectionEnd === "number" ? caretNode.selectionEnd : start;
+  return { start, end };
+}
+
+function updateTextControlMouseMove(caretNode: TextControl, safeOffset: number): void {
+  const anchor = __ksControlCaretAnchor;
+  if (anchor?.el !== caretNode) return;
+  const direction = safeOffset < anchor.offset ? "backward" : "forward";
+  caretNode.setSelectionRange(
+    Math.min(anchor.offset, safeOffset),
+    Math.max(anchor.offset, safeOffset),
+    direction,
+  );
+}
+
+function setCollapsedTextControlSelection(caretNode: TextControl, safeOffset: number): void {
+  if (typeof caretNode.__ksCollapseSelectionTo === "function") {
+    caretNode.__ksCollapseSelectionTo(safeOffset);
+  } else {
+    caretNode.setSelectionRange(safeOffset, safeOffset);
+  }
+  __ksControlCaretAnchor = { el: caretNode, offset: safeOffset };
+}
+
+function setTextControlSelection(
+  caretNode: TextControl,
+  safeOffset: number,
+  shiftKey: boolean,
+  start: number,
+  end: number,
+): void {
+  if (shiftKey) {
+    const anchor = caretNode.selectionDirection === "backward" ? end : start;
+    caretNode.setSelectionRange(
+      Math.min(anchor, safeOffset),
+      Math.max(anchor, safeOffset),
+      safeOffset < anchor ? "backward" : "forward",
+    );
+    __ksControlCaretAnchor = { el: caretNode, offset: anchor };
+    return;
+  }
+  setCollapsedTextControlSelection(caretNode, safeOffset);
+}
+
+function updateTextControlCaret(
+  caretNode: TextControl,
+  offset: number,
+  eventType: string,
+  event: MouseInputEvent,
+  clientX: number,
+  clientY: number,
+): void {
+  const valueLength = String(caretNode.value || "").length;
+  const safeOffset = safeCaretOffset(offset, valueLength);
+  const { start, end } = textControlSelectionBounds(caretNode, safeOffset);
+  if (eventType === "mousemove") {
+    updateTextControlMouseMove(caretNode, safeOffset);
+    return;
+  }
+  setTextControlSelection(caretNode, safeOffset, event.shiftKey, start, end);
+  if (event.button === 0) {
+    __ksCaretDragActive = true;
+    __ksCaretDragOrigin = { x: clientX, y: clientY };
+  }
+}
+
+function documentSelection(): PageSelection | null {
+  const documentNode = state.document;
+  return documentNode && typeof documentNode.getSelection === "function"
+    ? documentNode.getSelection()
+    : null;
+}
+
+function extendDocumentSelection(
+  selection: PageSelection,
+  caretNode: ShimElement,
+  offset: number,
+): void {
+  if (selection.rangeCount > 0) selection.extend(caretNode, offset);
+  else selection.collapse(caretNode, offset);
+}
+
+function updateDocumentSelectionMouseMove(
+  selection: PageSelection,
+  caretNode: ShimElement,
+  offset: number,
+): void {
+  if (selection.rangeCount > 0) selection.extend(caretNode, offset);
+}
+
+function shouldExtendDocumentSelection(
+  event: MouseInputEvent,
+  targetEl: MouseTarget | null,
+): boolean {
+  return event.shiftKey && !findAnchorAncestor(targetEl);
+}
+
+function beginDocumentSelectionDrag(
+  event: MouseInputEvent,
+  clientX: number,
+  clientY: number,
+): void {
+  if (event.button === 0 && !event.shiftKey) {
+    __ksCaretDragActive = true;
+    __ksCaretDragOrigin = { x: clientX, y: clientY };
+  }
+}
+
+function updateDocumentCaretSelection(
+  caretNode: ShimElement | null,
+  offset: number,
+  eventType: string,
+  event: MouseInputEvent,
+  targetEl: MouseTarget | null,
+  clientX: number,
+  clientY: number,
+): void {
+  const selection = documentSelection();
+  if (!caretNode || !selection) return;
+  if (eventType === "mousemove") {
+    updateDocumentSelectionMouseMove(selection, caretNode, offset);
+    return;
+  }
+  if (shouldExtendDocumentSelection(event, targetEl)) {
+    extendDocumentSelection(selection, caretNode, offset);
+    return;
+  }
+  selection.collapse(caretNode, offset);
+  beginDocumentSelectionDrag(event, clientX, clientY);
+}
+
 function updateCaretSelection(
   caretNode: ShimElement | null,
   offset: number,
@@ -2279,65 +3476,10 @@ function updateCaretSelection(
   clientY: number,
 ): void {
   if (isTextControl(caretNode)) {
-    const valueLength = String(caretNode.value || "").length;
-    const safeOffset = Math.max(0, Math.min(Number(offset) || 0, valueLength));
-    const start =
-      typeof caretNode.selectionStart === "number" ? caretNode.selectionStart : safeOffset;
-    const end = typeof caretNode.selectionEnd === "number" ? caretNode.selectionEnd : start;
-    if (eventType === "mousemove") {
-      const anchor = __ksControlCaretAnchor;
-      if (anchor?.el === caretNode) {
-        const direction = safeOffset < anchor.offset ? "backward" : "forward";
-        caretNode.setSelectionRange(
-          Math.min(anchor.offset, safeOffset),
-          Math.max(anchor.offset, safeOffset),
-          direction,
-        );
-      }
-      return;
-    }
-    if (event.shiftKey) {
-      const anchor = caretNode.selectionDirection === "backward" ? end : start;
-      caretNode.setSelectionRange(
-        Math.min(anchor, safeOffset),
-        Math.max(anchor, safeOffset),
-        safeOffset < anchor ? "backward" : "forward",
-      );
-      __ksControlCaretAnchor = { el: caretNode, offset: anchor };
-    } else if (typeof caretNode.__ksCollapseSelectionTo === "function") {
-      caretNode.__ksCollapseSelectionTo(safeOffset);
-      __ksControlCaretAnchor = { el: caretNode, offset: safeOffset };
-    } else {
-      caretNode.setSelectionRange(safeOffset, safeOffset);
-      __ksControlCaretAnchor = { el: caretNode, offset: safeOffset };
-    }
-    if (event.button === 0) {
-      __ksCaretDragActive = true;
-      __ksCaretDragOrigin = { x: clientX, y: clientY };
-    }
+    updateTextControlCaret(caretNode, offset, eventType, event, clientX, clientY);
     return;
   }
-
-  const documentNode = state.document;
-  const selection =
-    documentNode && typeof documentNode.getSelection === "function"
-      ? documentNode.getSelection()
-      : null;
-  if (!caretNode || !selection) return;
-  if (eventType === "mousemove") {
-    if (selection.rangeCount > 0) selection.extend(caretNode, offset);
-    return;
-  }
-  if (event.shiftKey && !findAnchorAncestor(targetEl)) {
-    if (selection.rangeCount > 0) selection.extend(caretNode, offset);
-    else selection.collapse(caretNode, offset);
-    return;
-  }
-  selection.collapse(caretNode, offset);
-  if (event.button === 0 && !event.shiftKey) {
-    __ksCaretDragActive = true;
-    __ksCaretDragOrigin = { x: clientX, y: clientY };
-  }
+  updateDocumentCaretSelection(caretNode, offset, eventType, event, targetEl, clientX, clientY);
 }
 
 function updateCaretFromMouse(
@@ -2389,70 +3531,115 @@ async function pumpPageTasksAsDriver(frameIntervalMs: unknown) {
   }
 }
 
+const BUTTON_ACTIVATION_TAGS = new Set(["BUTTON", "INPUT", "A", "SUMMARY", "LABEL"]);
+
 function isButtonActivationAncestor(element: MouseTarget): boolean {
-  const tagName = (element.tagName || "").toUpperCase();
-  return (
-    tagName === "BUTTON" ||
-    tagName === "INPUT" ||
-    tagName === "A" ||
-    tagName === "SUMMARY" ||
-    tagName === "LABEL"
-  );
+  return BUTTON_ACTIVATION_TAGS.has((element.tagName || "").toUpperCase());
 }
 
-function buttonActivationNavigation(targetEl: MouseTarget): string | null {
+function shouldFindButtonActivationParent(
+  element: MouseTarget | null | undefined,
+): element is MouseTarget {
+  return Boolean(element && element !== state.document && !isButtonActivationAncestor(element));
+}
+
+function findButtonActivationTarget(targetEl: MouseTarget): MouseTarget {
   let activator: MouseTarget | null | undefined = targetEl;
-  while (activator && activator !== state.document && !isButtonActivationAncestor(activator)) {
-    activator = activator.parentNode;
-  }
-  if (!activator || activator === state.document) activator = targetEl;
-  const tagName = (activator.tagName || "").toUpperCase();
-  const typeAttr = ((activator.getAttribute && activator.getAttribute("type")) || "").toLowerCase();
-  const isSubmit =
-    (tagName === "BUTTON" && (typeAttr === "" || typeAttr === "submit")) ||
-    (tagName === "INPUT" && (typeAttr === "submit" || typeAttr === "image"));
-  const isReset = (tagName === "BUTTON" || tagName === "INPUT") && typeAttr === "reset";
-  if (!(isSubmit || isReset) || activator.disabled) return null;
-  const form = activator.form;
-  if (!form) return null;
-  if (isSubmit && typeof form.__ksRequestSubmit === "function") {
-    const navUrl = form.__ksRequestSubmit(activator);
-    return typeof navUrl === "string" && navUrl.length > 0 ? navUrl : null;
-  }
-  if (isReset && typeof form.reset === "function") form.reset();
+  while (shouldFindButtonActivationParent(activator)) activator = activator.parentNode;
+  if (!activator || activator === state.document) return targetEl;
+  return activator;
+}
+
+function isButtonSubmitType(tagName: string, typeAttr: string): boolean {
+  return tagName === "BUTTON" && (typeAttr === "" || typeAttr === "submit");
+}
+
+function isInputSubmitType(tagName: string, typeAttr: string): boolean {
+  return tagName === "INPUT" && (typeAttr === "submit" || typeAttr === "image");
+}
+
+function isButtonActivationSubmit(tagName: string, typeAttr: string): boolean {
+  return isButtonSubmitType(tagName, typeAttr) || isInputSubmitType(tagName, typeAttr);
+}
+
+function isButtonActivationReset(tagName: string, typeAttr: string): boolean {
+  return (tagName === "BUTTON" || tagName === "INPUT") && typeAttr === "reset";
+}
+
+function buttonActivationAction(element: MouseTarget): "submit" | "reset" | null {
+  const tagName = (element.tagName || "").toUpperCase();
+  const typeAttr = mouseTargetTypeAttribute(element);
+  if (isButtonActivationSubmit(tagName, typeAttr)) return "submit";
+  if (isButtonActivationReset(tagName, typeAttr)) return "reset";
   return null;
 }
 
-function toggleDetailsFromSummary(targetEl: MouseTarget): void {
+function mouseTargetTypeAttribute(element: MouseTarget): string {
+  return ((element.getAttribute && element.getAttribute("type")) || "").toLowerCase();
+}
+
+function submitFromButtonActivation(
+  form: NonNullable<MouseTarget["form"]>,
+  activator: MouseTarget,
+): string | null {
+  if (typeof form.__ksRequestSubmit !== "function") return null;
+  const navUrl = form.__ksRequestSubmit(activator);
+  return typeof navUrl === "string" && navUrl.length > 0 ? navUrl : null;
+}
+
+function resetButtonActivationForm(form: NonNullable<MouseTarget["form"]>): void {
+  if (typeof form.reset === "function") form.reset();
+}
+
+function buttonActivationNavigation(targetEl: MouseTarget): string | null {
+  const activator = findButtonActivationTarget(targetEl);
+  const action = buttonActivationAction(activator);
+  if (!action || activator.disabled) return null;
+  const form = activator.form;
+  if (!form) return null;
+  if (action === "submit") return submitFromButtonActivation(form, activator);
+  resetButtonActivationForm(form);
+  return null;
+}
+
+function isSummaryElement(element: MouseTarget | null | undefined): element is MouseTarget {
+  return Boolean(element && (element.tagName || "").toUpperCase() === "SUMMARY");
+}
+
+function shouldFindSummaryParent(element: MouseTarget | null | undefined): element is MouseTarget {
+  return Boolean(element && element !== state.document && !isSummaryElement(element));
+}
+
+function findSummaryAncestor(targetEl: MouseTarget): MouseTarget | null {
   let summary: MouseTarget | null | undefined = targetEl;
-  while (
-    summary &&
-    summary !== state.document &&
-    (summary.tagName || "").toUpperCase() !== "SUMMARY"
-  ) {
-    summary = summary.parentNode;
-  }
-  if (!summary || (summary.tagName || "").toUpperCase() !== "SUMMARY") return;
-  const details = summary.parentNode;
-  if (
-    !details ||
-    (details.tagName || "").toUpperCase() !== "DETAILS" ||
-    !hasAttributeMethods(details)
-  ) {
-    return;
-  }
-  let firstSummary: MouseTarget | null = null;
+  while (shouldFindSummaryParent(summary)) summary = summary.parentNode;
+  if (isSummaryElement(summary)) return summary;
+  return null;
+}
+
+function isDetailsSummaryParent(
+  details: MouseTarget | null | undefined,
+): details is AttributeTarget {
+  return Boolean(
+    details && (details.tagName || "").toUpperCase() === "DETAILS" && hasAttributeMethods(details),
+  );
+}
+
+function firstSummaryChild(details: MouseTarget): MouseTarget | null {
   const kids = details.childNodes || [];
   for (let i = 0; i < kids.length; i++) {
     const child = kids[i];
-    if (child && (child.tagName || "").toUpperCase() === "SUMMARY") {
-      firstSummary = child;
-      break;
-    }
+    if (isSummaryElement(child)) return child;
   }
-  if (firstSummary !== summary) return;
+  return null;
+}
+
+function toggleDetailsOpen(details: AttributeTarget): void {
   if (details.hasAttribute("open")) details.removeAttribute("open");
   else details.setAttribute("open", "");
+}
+
+function dispatchDetailsToggle(details: MouseTarget): void {
   try {
     __ks_dispatchTrusted(
       details,
@@ -2461,59 +3648,105 @@ function toggleDetailsFromSummary(targetEl: MouseTarget): void {
   } catch {}
 }
 
+function toggleDetailsFromSummary(targetEl: MouseTarget): void {
+  const summary = findSummaryAncestor(targetEl);
+  if (!summary) return;
+  const details = summary.parentNode;
+  if (!isDetailsSummaryParent(details)) return;
+  if (firstSummaryChild(details) !== summary) return;
+  toggleDetailsOpen(details);
+  dispatchDetailsToggle(details);
+}
+
 type AnchorNavigation = { kind: "hash" | "navigate"; url: string };
 
-function activateAnchorNavigation(
+function anchorForActivation(
   targetEl: MouseTarget,
   clientX: number,
   clientY: number,
-): AnchorNavigation | null {
-  const anchor =
-    findAnchorAncestor(targetEl) || findAnchorViaSingleChild(targetEl, clientX, clientY);
-  if (!anchor) return null;
-  const rawHref = anchorHrefAttribute(anchor);
-  if (typeof rawHref !== "string" || rawHref.length === 0) return null;
+): MouseTarget | null {
+  return findAnchorAncestor(targetEl) || findAnchorViaSingleChild(targetEl, clientX, clientY);
+}
+
+function isNonEmptyHref(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function isSameDocumentHashNavigation(resolved: string): boolean {
+  return resolved.includes("#") && resolved.split("#")[0] === state.pageUrl.split("#")[0];
+}
+
+function queueHashChangeEvent(
+  win: NonNullable<typeof state.window>,
+  previous: string,
+  resolved: string,
+): void {
+  queuePageTask(() => {
+    try {
+      const event: unknown = new ksEventCtors.HashChangeEvent("hashchange", {
+        bubbles: false,
+        cancelable: false,
+        oldURL: previous,
+        newURL: resolved,
+      });
+      __ks_dispatchTrusted(win, event);
+    } catch {}
+  });
+}
+
+function queuePopStateEvent(
+  win: NonNullable<typeof state.window>,
+  stateForPopstate: unknown,
+): void {
+  queuePageTask(() => {
+    try {
+      const event: unknown = new ksEventCtors.PopStateEvent("popstate", {
+        bubbles: false,
+        cancelable: false,
+        state: stateForPopstate,
+      });
+      __ks_dispatchTrusted(win, event);
+    } catch {}
+  });
+}
+
+function completeHashAnchorNavigation(resolved: string): AnchorNavigation {
+  const previous = state.pageUrl;
+  state.pageUrl = resolved;
+  const win = state.window;
+  if (win) {
+    const stateForPopstate = win.history?.state ?? null;
+    queueHashChangeEvent(win, previous, resolved);
+    queuePopStateEvent(win, stateForPopstate);
+  }
+  scrollToFragment(resolved);
+  return { kind: "hash", url: resolved };
+}
+
+function resolveAnchorNavigation(anchor: MouseTarget, rawHref: string): AnchorNavigation | null {
   try {
     const resolved = parseUrlForNode(
       anchor,
       rawHref,
       state.pageUrl || "https://kitesurf.local/",
     ).toString();
-    const isHashOnly =
-      resolved.includes("#") && resolved.split("#")[0] === state.pageUrl.split("#")[0];
-    if (!isHashOnly) return { kind: "navigate", url: resolved };
-    const previous = state.pageUrl;
-    state.pageUrl = resolved;
-    const win = state.window;
-    if (win) {
-      const stateForPopstate = win.history?.state ?? null;
-      queuePageTask(() => {
-        try {
-          const event: unknown = new ksEventCtors.HashChangeEvent("hashchange", {
-            bubbles: false,
-            cancelable: false,
-            oldURL: previous,
-            newURL: resolved,
-          });
-          __ks_dispatchTrusted(win, event);
-        } catch {}
-      });
-      queuePageTask(() => {
-        try {
-          const event: unknown = new ksEventCtors.PopStateEvent("popstate", {
-            bubbles: false,
-            cancelable: false,
-            state: stateForPopstate,
-          });
-          __ks_dispatchTrusted(win, event);
-        } catch {}
-      });
-    }
-    scrollToFragment(resolved);
-    return { kind: "hash", url: resolved };
+    if (!isSameDocumentHashNavigation(resolved)) return { kind: "navigate", url: resolved };
+    return completeHashAnchorNavigation(resolved);
   } catch {
     return null;
   }
+}
+
+function activateAnchorNavigation(
+  targetEl: MouseTarget,
+  clientX: number,
+  clientY: number,
+): AnchorNavigation | null {
+  const anchor = anchorForActivation(targetEl, clientX, clientY);
+  if (!anchor) return null;
+  const rawHref = anchorHrefAttribute(anchor);
+  if (!isNonEmptyHref(rawHref)) return null;
+  return resolveAnchorNavigation(anchor, rawHref);
 }
 
 function notifyControlValueMutation(
@@ -2521,9 +3754,18 @@ function notifyControlValueMutation(
   cursor: number,
   keyboardEventConstructor: BuildDocumentResult["Event"] | BuildDocumentResult["KeyboardEvent"],
 ): void {
+  markControlUserEdited(control);
+  collapseControlSelection(control, cursor);
+  dispatchControlInputEvent(control, keyboardEventConstructor);
+}
+
+function markControlUserEdited(control: ShimElement): void {
   try {
     if (typeof control.__ksMarkUserEdited === "function") control.__ksMarkUserEdited();
   } catch {}
+}
+
+function collapseControlSelection(control: ShimElement, cursor: number): void {
   try {
     if (typeof control.__ksCollapseSelectionTo === "function") {
       control.__ksCollapseSelectionTo(cursor);
@@ -2531,6 +3773,12 @@ function notifyControlValueMutation(
       control.setSelectionRange(cursor, cursor);
     }
   } catch {}
+}
+
+function dispatchControlInputEvent(
+  control: ShimElement,
+  keyboardEventConstructor: BuildDocumentResult["Event"] | BuildDocumentResult["KeyboardEvent"],
+): void {
   try {
     const inputEvent = new (ksEventCtors.Event || keyboardEventConstructor)("input", {
       bubbles: true,
@@ -2540,40 +3788,57 @@ function notifyControlValueMutation(
   } catch {}
 }
 
+function formSubmitControlType(element: ShimElement): string {
+  return ((element.getAttribute && element.getAttribute("type")) || "").toLowerCase();
+}
+
+function isDefaultSubmitButton(element: ShimElement): boolean {
+  const type = formSubmitControlType(element);
+  return isButtonDefaultSubmit(element, type) || isInputDefaultSubmit(element, type);
+}
+
+function isButtonDefaultSubmit(element: ShimElement, type: string): boolean {
+  return element.tagName === "BUTTON" && (type === "" || type === "submit");
+}
+
+function isInputDefaultSubmit(element: ShimElement, type: string): boolean {
+  return element.tagName === "INPUT" && (type === "submit" || type === "image");
+}
+
 function findDefaultSubmitButton(form: NonNullable<ShimElement["form"]>): ShimElement | null {
-  let defaultButton: ShimElement | null = null;
   const elements = form.elements;
   for (let i = 0; i < elements.length; i++) {
     const element = elements[i];
-    const type = ((element.getAttribute && element.getAttribute("type")) || "").toLowerCase();
-    if (element.tagName === "BUTTON" && (type === "" || type === "submit")) {
-      defaultButton = element;
-      break;
-    }
-    if (element.tagName === "INPUT" && (type === "submit" || type === "image")) {
-      defaultButton = element;
-      break;
-    }
+    if (isDefaultSubmitButton(element)) return element;
   }
-  return defaultButton;
+  return null;
+}
+
+const IMPLICIT_SUBMIT_EXCLUDED_TYPES = new Set([
+  "button",
+  "submit",
+  "reset",
+  "checkbox",
+  "radio",
+  "file",
+  "image",
+]);
+
+function shouldSkipImplicitSubmit(focused: ShimElement): boolean {
+  const typeAttr = formSubmitControlType(focused);
+  return IMPLICIT_SUBMIT_EXCLUDED_TYPES.has(typeAttr);
+}
+
+function requestImplicitFormSubmit(form: ShimElement["form"]): string | null {
+  if (!form || typeof form.__ksRequestSubmit !== "function") return null;
+  const navUrl = form.__ksRequestSubmit(findDefaultSubmitButton(form));
+  return isNonEmptyHref(navUrl) ? navUrl : null;
 }
 
 function submitFormOnEnter(focused: ShimElement): string | null {
   try {
-    const typeAttr = ((focused.getAttribute && focused.getAttribute("type")) || "").toLowerCase();
-    const skipImplicit =
-      typeAttr === "button" ||
-      typeAttr === "submit" ||
-      typeAttr === "reset" ||
-      typeAttr === "checkbox" ||
-      typeAttr === "radio" ||
-      typeAttr === "file" ||
-      typeAttr === "image";
-    if (skipImplicit) return null;
-    const form = focused.form;
-    if (!form || typeof form.__ksRequestSubmit !== "function") return null;
-    const navUrl = form.__ksRequestSubmit(findDefaultSubmitButton(form));
-    return typeof navUrl === "string" && navUrl.length > 0 ? navUrl : null;
+    if (shouldSkipImplicitSubmit(focused)) return null;
+    return requestImplicitFormSubmit(focused.form);
   } catch (err) {
     console.error("[kitesurf] implicit submit failed", err);
     return null;
@@ -2601,46 +3866,69 @@ function readFormControlAttribute(element: ShimElement, name: string): unknown {
   return Reflect.apply(getAttribute, element, [name]);
 }
 
-function collectFormControlState(
-  id: number,
-  values: Array<[number, string]>,
-  checked: Array<[number, boolean]>,
-  selected: Array<[number, boolean]>,
-): boolean {
-  let element: ShimElement | null = null;
+function resolveFormControlNode(id: number): ShimElement | null {
   try {
-    element = state.resolveNodeId ? state.resolveNodeId(id) : null;
+    return state.resolveNodeId ? state.resolveNodeId(id) : null;
+  } catch {
+    return null;
+  }
+}
+
+const CHECKED_INPUT_TYPES = new Set(["checkbox", "radio"]);
+
+function isCheckedInputType(type: string): boolean {
+  return CHECKED_INPUT_TYPES.has(type);
+}
+
+function collectCheckedInputState(
+  id: number,
+  element: ShimElement,
+  tagName: string,
+  checked: Array<[number, boolean]>,
+): boolean | null {
+  if (tagName !== "input") return null;
+  const inputType = String(readFormControlAttribute(element, "type") || "text").toLowerCase();
+  if (!isCheckedInputType(inputType)) return null;
+  try {
+    checked.push([id, !!Reflect.get(element, "checked")]);
+    return true;
   } catch {
     return false;
   }
-  if (!element) return false;
-  const tagName = String(Reflect.get(element, "localName") || "").toLowerCase();
-  if (tagName === "input") {
-    const inputType = String(readFormControlAttribute(element, "type") || "text").toLowerCase();
-    if (inputType === "checkbox" || inputType === "radio") {
-      try {
-        checked.push([id, !!Reflect.get(element, "checked")]);
-      } catch {
-        return false;
-      }
-      return true;
+}
+
+function isFormSelectOption(value: unknown): value is Record<string, unknown> & { _id: number } {
+  return isObjectRecord(value) && typeof value._id === "number";
+}
+
+function collectSelectOptionsState(
+  id: number,
+  element: ShimElement,
+  selected: Array<[number, boolean]>,
+): boolean {
+  try {
+    const options: unknown = Reflect.get(element, "options");
+    if (!isObjectRecord(options)) throw new TypeError("Select options are unavailable");
+    const length: unknown = Reflect.get(options, "length");
+    for (let index = 0; index < Number(length); index++) {
+      const option: unknown = Reflect.get(options, String(index));
+      if (!isFormSelectOption(option)) continue;
+      selected.push([option._id, !!option.selected]);
     }
+    return true;
+  } catch {
+    return false;
   }
-  let complete = true;
-  if (tagName === "select") {
-    try {
-      const options: unknown = Reflect.get(element, "options");
-      if (!isObjectRecord(options)) throw new TypeError("Select options are unavailable");
-      const length: unknown = Reflect.get(options, "length");
-      for (let index = 0; index < Number(length); index++) {
-        const option: unknown = Reflect.get(options, String(index));
-        if (!isObjectRecord(option) || typeof option._id !== "number") continue;
-        selected.push([option._id, !!option.selected]);
-      }
-    } catch {
-      complete = false;
-    }
-  }
+}
+
+function collectOtherFormControlState(
+  id: number,
+  element: ShimElement,
+  tagName: string,
+  values: Array<[number, string]>,
+  selected: Array<[number, boolean]>,
+): boolean {
+  let complete = tagName === "select" ? collectSelectOptionsState(id, element, selected) : true;
   try {
     values.push([id, String(Reflect.get(element, "value") ?? "")]);
   } catch {
@@ -2649,18 +3937,46 @@ function collectFormControlState(
   return complete;
 }
 
-function stylesheetHref(attributes: unknown[]): string | null {
+function collectFormControlState(
+  id: number,
+  values: Array<[number, string]>,
+  checked: Array<[number, boolean]>,
+  selected: Array<[number, boolean]>,
+): boolean {
+  const element = resolveFormControlNode(id);
+  if (!element) return false;
+  const tagName = String(Reflect.get(element, "localName") || "").toLowerCase();
+  const checkedInput = collectCheckedInputState(id, element, tagName, checked);
+  if (checkedInput !== null) return checkedInput;
+  return collectOtherFormControlState(id, element, tagName, values, selected);
+}
+
+function linkAttributeString(value: unknown): string {
+  return String(value ?? "");
+}
+
+function stylesheetLinkAttributes(attributes: unknown[]): { rel: string; href: string } {
   let rel = "";
   let href = "";
   for (let index = 0; index + 1 < attributes.length; index += 2) {
-    const name = String(attributes[index] ?? "").toLowerCase();
-    const value = String(attributes[index + 1] ?? "");
+    const name = linkAttributeString(attributes[index]).toLowerCase();
+    const value = linkAttributeString(attributes[index + 1]);
     if (name === "rel") rel = value;
     else if (name === "href") href = value;
   }
-  const tokens = rel.split(/\s+/).map((token) => token.toLowerCase());
-  if (!tokens.includes("stylesheet") || tokens.includes("alternate") || !href) return null;
-  return href;
+  return { rel, href };
+}
+
+function isStylesheetRelation(rel: string): boolean {
+  const tokens = new Set(rel.split(/\s+/).map((token) => token.toLowerCase()));
+  return tokens.has("stylesheet") && !tokens.has("alternate");
+}
+
+function stylesheetHref(attributes: unknown[]): string | null {
+  const link = stylesheetLinkAttributes(attributes);
+  if (!isStylesheetRelation(link.rel)) return null;
+  if (!link.href) return null;
+  return link.href;
 }
 
 function attributesFromNodeInfo(info: unknown): unknown[] | undefined {
@@ -2683,6 +3999,22 @@ function readPaintSequence(sequence: PaintSequence): number {
   return typeof sequence === "function" ? sequence() : sequence;
 }
 
+function resolveCachedPaintLayout(paint: DomHandle): void {
+  try {
+    if (typeof paint.resolveLayout === "function") paint.resolveLayout();
+  } catch {}
+}
+
+function shouldRestyleCachedPaint(sequence: PaintSequence): boolean {
+  return readPaintSequence(sequence) > state.lastForceRestyleSeq;
+}
+
+function forceCachedPaintRestyle(paint: DomHandle): void {
+  try {
+    if (typeof paint.forceFullRestyle === "function") paint.forceFullRestyle();
+  } catch {}
+}
+
 function prepareCachedPaint(
   paint: DomHandle,
   fresh: boolean,
@@ -2690,14 +4022,82 @@ function prepareCachedPaint(
   sequenceAfterRestyle: PaintSequence = sequence,
 ): void {
   if (fresh) return;
-  try {
-    if (typeof paint.resolveLayout === "function") paint.resolveLayout();
-  } catch {}
-  if (readPaintSequence(sequence) <= state.lastForceRestyleSeq) return;
-  try {
-    if (typeof paint.forceFullRestyle === "function") paint.forceFullRestyle();
-  } catch {}
+  resolveCachedPaintLayout(paint);
+  if (!shouldRestyleCachedPaint(sequence)) return;
+  forceCachedPaintRestyle(paint);
   state.lastForceRestyleSeq = readPaintSequence(sequenceAfterRestyle);
+}
+
+function recordClassicModuleImport(bundleExec: string[], mod: any): void {
+  bundleExec.push(
+    "classic:imported(keys=" +
+      JSON.stringify(Object.keys(mod || {})) +
+      ",defaultKeys=" +
+      JSON.stringify(Object.keys((mod && mod.default) || {})) +
+      ")",
+  );
+}
+
+function classicBucketRunner(mod: any): Function | null {
+  const run = (mod && mod.default && mod.default.run) || mod.run;
+  return typeof run === "function" ? run : null;
+}
+
+function recordClassicMissingRunner(bundleExec: string[], mod: any): void {
+  bundleExec.push("classic:no-run-export");
+  console.error("[kitesurf] classic regular bucket: no run() export", Object.keys(mod || {}));
+}
+
+function recordClassicRunnerSource(bundleExec: string[], run: Function): void {
+  if (!startupCdpDebug) return;
+  const CLASSIC_RUN_SOURCE_PREVIEW_CHARS = 80;
+  bundleExec.push(
+    "classic:run-fn(toString=" +
+      JSON.stringify(String(run).slice(0, CLASSIC_RUN_SOURCE_PREVIEW_CHARS).replace(/\n/g, "\\n")) +
+      ")",
+  );
+}
+
+function recordClassicRunSuccess(
+  bundleExec: string[],
+  scriptStartedAt: number,
+  nowMs: () => number,
+): void {
+  const elapsed = Math.round(nowMs() - scriptStartedAt);
+  if (!startupCdpDebug) {
+    bundleExec.push("classic:run-ok(ms=" + elapsed + ")");
+    return;
+  }
+  const diag: Partial<BundleDiag> = getInternalState().bundleDiag || {};
+  bundleExec.push(
+    "classic:run-ok(ms=" +
+      elapsed +
+      ",entered=" +
+      !!diag.entered +
+      ",exited=" +
+      !!diag.exited +
+      ",bodyChars=" +
+      diag.bodyChars +
+      ")",
+  );
+  try {
+    bundleExec.push("classic:entryDom(" + JSON.stringify(diag.entryDom) + ")");
+    bundleExec.push("classic:exitDom(" + JSON.stringify(diag.exitDom) + ")");
+  } catch (error) {
+    bundleExec.push("classic:dom-snap-err(" + String(error) + ")");
+  }
+}
+
+function reportClassicBucketError(bundleExec: string[], error: unknown): void {
+  const CLASSIC_BUCKET_ERROR_DETAIL_CHARS = 200;
+  const detail = classicBucketErrorDetail(error);
+  bundleExec.push("classic:threw(" + detail.slice(0, CLASSIC_BUCKET_ERROR_DETAIL_CHARS) + ")");
+  pushException(error, {
+    scriptId: "bundle:classic-regular",
+    url: "/__ks_user_classic_regular.js",
+    text: "Uncaught",
+  });
+  console.error("[kitesurf] classic regular bucket threw: " + detail);
 }
 
 async function runClassicRegularBucket(
@@ -2707,68 +4107,18 @@ async function runClassicRegularBucket(
 ) {
   try {
     const mod = await import("./__ks_user_classic_regular.js");
-    bundleExec.push(
-      "classic:imported(keys=" +
-        JSON.stringify(Object.keys(mod || {})) +
-        ",defaultKeys=" +
-        JSON.stringify(Object.keys((mod && mod.default) || {})) +
-        ")",
-    );
-    const run = (mod && mod.default && mod.default.run) || mod.run;
-    if (typeof run !== "function") {
-      bundleExec.push("classic:no-run-export");
-      console.error("[kitesurf] classic regular bucket: no run() export", Object.keys(mod || {}));
+    recordClassicModuleImport(bundleExec, mod);
+    const run = classicBucketRunner(mod);
+    if (!run) {
+      recordClassicMissingRunner(bundleExec, mod);
       return;
     }
-    if (startupCdpDebug) {
-      const CLASSIC_RUN_SOURCE_PREVIEW_CHARS = 80;
-      bundleExec.push(
-        "classic:run-fn(toString=" +
-          JSON.stringify(
-            String(run).slice(0, CLASSIC_RUN_SOURCE_PREVIEW_CHARS).replace(/\n/g, "\\n"),
-          ) +
-          ")",
-      );
-    }
+    recordClassicRunnerSource(bundleExec, run);
     bundleExec.push("classic:run-call");
     await run();
-    if (!startupCdpDebug) {
-      bundleExec.push("classic:run-ok(ms=" + Math.round(nowMs() - scriptStartedAt) + ")");
-      return;
-    }
-    const diag: Partial<BundleDiag> = getInternalState().bundleDiag || {};
-    const entered = !!diag.entered;
-    const exited = !!diag.exited;
-    const bodyChars = diag.bodyChars;
-    bundleExec.push(
-      "classic:run-ok(ms=" +
-        Math.round(nowMs() - scriptStartedAt) +
-        ",entered=" +
-        entered +
-        ",exited=" +
-        exited +
-        ",bodyChars=" +
-        bodyChars +
-        ")",
-    );
-    try {
-      const entryDom = diag.entryDom;
-      const exitDom = diag.exitDom;
-      bundleExec.push("classic:entryDom(" + JSON.stringify(entryDom) + ")");
-      bundleExec.push("classic:exitDom(" + JSON.stringify(exitDom) + ")");
-    } catch (error) {
-      bundleExec.push("classic:dom-snap-err(" + String(error) + ")");
-    }
+    recordClassicRunSuccess(bundleExec, scriptStartedAt, nowMs);
   } catch (error) {
-    const CLASSIC_BUCKET_ERROR_DETAIL_CHARS = 200;
-    const detail = classicBucketErrorDetail(error);
-    bundleExec.push("classic:threw(" + detail.slice(0, CLASSIC_BUCKET_ERROR_DETAIL_CHARS) + ")");
-    pushException(error, {
-      scriptId: "bundle:classic-regular",
-      url: "/__ks_user_classic_regular.js",
-      text: "Uncaught",
-    });
-    console.error("[kitesurf] classic regular bucket threw: " + detail);
+    reportClassicBucketError(bundleExec, error);
   }
 }
 
@@ -2808,6 +4158,186 @@ function cycleCollectStatsForLog(): unknown {
   }
 }
 
+type CurrentUrlChangeKind = Parameters<NonNullable<BuildDocumentOpts["setCurrentUrl"]>>[1];
+
+function updateCurrentUrl(newUrl: string, kind: CurrentUrlChangeKind): void {
+  if (typeof newUrl !== "string" || newUrl.length === 0) return;
+  const previous = state.pageUrl;
+  logCurrentUrlChange(previous, newUrl, kind);
+  state.pageUrl = newUrl;
+  dispatchCurrentUrlEvents(previous, newUrl, kind);
+  reportCurrentUrlNavigation(previous, newUrl, kind);
+}
+
+function logCurrentUrlChange(previous: string, newUrl: string, kind: CurrentUrlChangeKind): void {
+  if (!startupCdpDebug) return;
+  try {
+    console.log(
+      "[kitesurf-debug] setCurrentUrl",
+      JSON.stringify({ kind, previous, newUrl, same: previous === newUrl }),
+    );
+  } catch {}
+}
+
+function dispatchCurrentUrlEvents(
+  previous: string,
+  newUrl: string,
+  kind: CurrentUrlChangeKind,
+): void {
+  const window = state.window;
+  if (!shouldDispatchCurrentUrlEvents(previous, newUrl, kind, window)) return;
+  const stateForPopstate = window.history?.state ?? null;
+  queuePageTask(() => dispatchCurrentHashChange(previous, newUrl));
+  queuePageTask(() => dispatchCurrentPopState(stateForPopstate));
+  scrollToFragment(newUrl);
+}
+
+function shouldDispatchCurrentUrlEvents(
+  previous: string,
+  newUrl: string,
+  kind: CurrentUrlChangeKind,
+  window: typeof state.window,
+): window is NonNullable<typeof window> {
+  return kind === "hash" && previous !== newUrl && Boolean(window);
+}
+
+function dispatchCurrentHashChange(previous: string, newUrl: string): void {
+  try {
+    const event: any = new ksEventCtors.HashChangeEvent("hashchange", {
+      bubbles: false,
+      cancelable: false,
+      oldURL: previous,
+      newURL: newUrl,
+    });
+    __ks_dispatchTrusted(state.window, event);
+  } catch {}
+}
+
+function dispatchCurrentPopState(stateForPopstate: unknown): void {
+  try {
+    const event: any = new ksEventCtors.PopStateEvent("popstate", {
+      bubbles: false,
+      cancelable: false,
+      state: stateForPopstate,
+    });
+    __ks_dispatchTrusted(state.window, event);
+  } catch {}
+}
+
+function reportCurrentUrlNavigation(
+  previous: string,
+  newUrl: string,
+  kind: CurrentUrlChangeKind,
+): void {
+  if (previous !== newUrl && kind !== "navigate") return;
+  try {
+    sendUpstreamEvent({
+      event: "kitesurf.navigatedWithinDocument",
+      params: {
+        url: newUrl,
+        navigationType: currentUrlNavigationType(kind),
+        kind,
+        previousUrl: previous,
+      },
+    });
+  } catch {}
+}
+
+function currentUrlNavigationType(kind: CurrentUrlChangeKind): "fragment" | "historyApi" | "other" {
+  if (kind === "hash") return "fragment";
+  if (kind === "pushState" || kind === "replaceState") return "historyApi";
+  return "other";
+}
+
+interface InsertedScriptRecord {
+  id: number;
+  src: string;
+  source: string;
+  type: string;
+  integrity: string;
+  nonce: string;
+  crossOrigin: string | null;
+}
+
+function handleInsertedScript(info: unknown): void {
+  const script = insertedScriptRecord(info);
+  if (script.src) {
+    runInsertedExternalScript({
+      id: script.id,
+      src: script.src,
+      type: script.type,
+      integrity: script.integrity,
+      nonce: script.nonce,
+      crossOrigin: script.crossOrigin,
+    });
+    return;
+  }
+  if (script.source) runInsertedInlineScript(script.source, script.nonce);
+}
+
+function insertedScriptRecord(info: unknown): InsertedScriptRecord {
+  const record = isObjectRecord(info) ? info : {};
+  return {
+    id: typeof record.id === "number" ? record.id : -1,
+    src: stringField(record.src),
+    source: stringField(record.source),
+    type: stringField(record.type),
+    integrity: stringField(record.integrity),
+    nonce: stringField(record.nonce),
+    crossOrigin: typeof record.crossOrigin === "string" ? record.crossOrigin : null,
+  };
+}
+
+function stringField(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function runInsertedInlineScript(source: string, nonce: string): void {
+  const metadata = { url: null, nonce, body: source };
+  const decision = inlineInsertDecisionSync(metadata);
+  if (decision) {
+    runInsertedInlineSyncDecision(decision, source);
+    return;
+  }
+  void runInsertedInlineAsync(metadata, source);
+}
+
+function runInsertedInlineSyncDecision(
+  decision: ReturnType<typeof inlineInsertDecisionSync>,
+  source: string,
+): void {
+  if (!decision) return;
+  reportOnly(decision);
+  if (decision.allowed) evalInsertedInlineScript(source);
+  else reportBlocked(decision);
+}
+
+async function runInsertedInlineAsync(
+  metadata: { url: null; nonce: string; body: string },
+  source: string,
+): Promise<void> {
+  const verdict = await insertedScriptAllowed(metadata);
+  reportOnly(verdict);
+  if (!verdict.allowed) {
+    reportBlocked(verdict);
+    return;
+  }
+  evalInsertedInlineScript(source);
+}
+
+function evalInsertedInlineScript(source: string): void {
+  try {
+    evalInsertedOnBoa(source);
+  } catch (error) {
+    try {
+      console.warn(
+        "[kitesurf] inserted-script eval failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+    } catch {}
+  }
+}
+
 export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   async fetch(_req: Request) {
     return new Response("PageScript", { status: 404 });
@@ -2820,948 +4350,25 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   ): Promise<NavigateSummary> {
     state.navigateStarted = true;
     startCycleCollector();
-    const safeUrl = typeof url === "string" ? url : "about:blank";
-    const safeHtml =
-      typeof html === "string" && html.length > 0
-        ? html
-        : "<html><head></head><body></body></html>";
-    if (startupCdpDebug) {
-      const NAVIGATE_HTML_PREVIEW_CHARS = 200;
-      try {
-        console.log(
-          "[kitesurf-debug] PageScript.navigate() called",
-          JSON.stringify({
-            url: safeUrl,
-            htmlLength: safeHtml.length,
-            htmlPreview: safeHtml.slice(0, NAVIGATE_HTML_PREVIEW_CHARS),
-            startupScriptCount: startupInputSnapshot?.scriptDescriptorCount,
-            startupSample: startupInputSnapshot?.scriptDescriptorSample,
-            startupHasClassicRegular: startupHasClassicRegular,
-          }),
-        );
-      } catch {}
-    }
-    const initialCookies =
-      navigateOptions && typeof navigateOptions.cookies === "string" ? navigateOptions.cookies : "";
-    if (navigateOptions && typeof navigateOptions.connectionId === "string") {
-      state.connectionId = navigateOptions.connectionId;
-    }
-    if (navigateOptions && typeof navigateOptions.mainFrameId === "string") {
-      state.mainFrameId = navigateOptions.mainFrameId;
-    }
-    if (navigateOptions && typeof navigateOptions.cookieKey === "string") {
-      state.cookieKey = navigateOptions.cookieKey;
-    }
-
+    const context = createNavigationContext(html, url, navigateOptions);
+    applyNavigationConnectionOptions(context.options);
     if (navigateOptions && Array.isArray(navigateOptions.bindingNames)) {
       this.installBindings(navigateOptions.bindingNames);
     }
-
-    const nowMs =
-      typeof performance !== "undefined" && performance.now
-        ? () => performance.now()
-        : () => Date.now();
-    const phases = {};
-
-    const isTraced = !!(navigateOptions && navigateOptions.traced === true);
-    awaitingIframeInstalls =
-      (navigateOptions as { expectIframeInstalls?: boolean } | undefined)?.expectIframeInstalls ===
-      true;
-    try {
-      set_ks_tracing(isTraced);
-    } catch {}
-    try {
-      armKsOtel(isTraced);
-    } catch {}
-    try {
-      armSpanSink(this, isTraced);
-    } catch {}
-    const emitNavigateDiagnostic = (event, operation, extra?) => {
-      if (!isTraced) return;
-      try {
-        sendUpstreamEvent({
-          event: "kitesurf.diag",
-          params: {
-            ev: event,
-            op: operation,
-            t: nowMs(),
-            ...(extra || {}),
-          },
-        });
-      } catch {}
-    };
-
-    const bundleExec: string[] = [];
-    let phaseStartedAt = nowMs();
-    const markPhase = (name) => {
-      const phaseEndedAt = nowMs();
-      phases[name] = +(phaseEndedAt - phaseStartedAt).toFixed(3);
-      phaseStartedAt = phaseEndedAt;
-    };
-
-    emitNavigateDiagnostic("start", "teardown");
-
-    dispatchWindowUnload();
-
-    if (state.dom) {
-      try {
-        state.dom.free();
-      } catch {}
-    }
-    state.pageUrl = safeUrl;
-    state.lastForceRestyleSeq = -1;
-    state.currentMediaType = "screen";
-
-    emitNavigateDiagnostic("end", "teardown");
-    markPhase("teardownMs");
-
-    try {
-      setDimsOnlyImages(true);
-    } catch {}
-    if (navigateOptions && typeof navigateOptions.darkColorScheme === "boolean") {
-      try {
-        setDarkColorScheme(navigateOptions.darkColorScheme);
-      } catch {}
-      ksGlobal.__ks_dark_scheme = navigateOptions.darkColorScheme;
-    }
-    if (
-      navigateOptions &&
-      typeof navigateOptions.ttyUaCss === "number" &&
-      navigateOptions.ttyUaCss > 0
-    ) {
-      forceMonoFace();
-    }
-    if (startupPixelFree) {
-      try {
-        setPixelFreeSession(true);
-      } catch {}
-    }
-    emitNavigateDiagnostic("start", "fonts");
-    if (fontDeferActive()) {
-      startFontPrefetch(safeHtml);
-    } else {
-      await ensureFontsRegistered(safeHtml);
-    }
-    emitNavigateDiagnostic("end", "fonts");
-    markPhase("fontsMs");
-
-    if (
-      navigateOptions &&
-      typeof navigateOptions.ttyUaCss === "number" &&
-      navigateOptions.ttyUaCss > 0 &&
-      typeof navigateOptions.ttyCss === "string" &&
-      navigateOptions.ttyCss.length > 0
-    ) {
-      try {
-        const DEFAULT_TTY_CELL_WIDTH_PX = 8;
-        const DEFAULT_TTY_CELL_HEIGHT_PX = 17;
-        const cellWidth =
-          typeof navigateOptions.ttyCellW === "number" && navigateOptions.ttyCellW > 0
-            ? navigateOptions.ttyCellW
-            : DEFAULT_TTY_CELL_WIDTH_PX;
-        const cellHeight =
-          typeof navigateOptions.ttyCellH === "number" && navigateOptions.ttyCellH > 0
-            ? navigateOptions.ttyCellH
-            : DEFAULT_TTY_CELL_HEIGHT_PX;
-        ksGlobal.__ks_tty_cell_w = cellWidth;
-        ksGlobal.__ks_tty_cell_h = cellHeight;
-        const ratio = monoAdvancePerEm();
-        if (ratio > 0) {
-          const fontPx = cellWidth / ratio;
-          setTtyUaCss(navigateOptions.ttyCss.replace(/\{\{FONT_PX\}\}/g, String(fontPx)));
-          setTtyCellGrid(cellWidth, cellHeight);
-          console.log(
-            `[kitesurf-tty] sheet installed: cell=${cellWidth}x${cellHeight} ` +
-              `advance/em=${ratio.toFixed(4)} font-size=${fontPx.toFixed(3)}px`,
-          );
-        } else {
-          setTtyCellGrid(0, 0);
-          console.warn("[kitesurf-tty] no mono face registered; sheet NOT installed");
-        }
-      } catch (e) {
-        console.warn("[kitesurf-tty] sheet install failed:", String(e));
-      }
-    } else if (
-      navigateOptions &&
-      typeof navigateOptions.ttyCss === "string" &&
-      navigateOptions.ttyCss.length > 0
-    ) {
-      setTtyUaCss(navigateOptions.ttyCss);
-    }
-    emitNavigateDiagnostic("start", "parse");
-
-    const sourceDoctype = sourceDoctypeOf(safeHtml);
-    const marker = sourceDoctype
-      ? `__kitesurf_doctype_${Math.random().toString(36).slice(2)}__`
-      : null;
-    const parsedHtml =
-      sourceDoctype && marker
-        ? safeHtml.slice(0, sourceDoctype.end) +
-          `<!--${marker}-->` +
-          safeHtml.slice(sourceDoctype.end)
-        : safeHtml;
-    const navigateDom = new DomHandle(parsedHtml, safeUrl);
-    state.dom = navigateDom;
-    noteNavigateText(navigateDom);
-    state.sourceDoctype = sourceDoctype && marker ? { markup: sourceDoctype.markup, marker } : null;
-    if (
-      navigateOptions &&
-      typeof navigateOptions.viewportWidth === "number" &&
-      typeof navigateOptions.viewportHeight === "number"
-    ) {
-      const viewportWidth = Math.max(1, Math.floor(navigateOptions.viewportWidth));
-      const viewportHeight = Math.max(1, Math.floor(navigateOptions.viewportHeight));
-      state.paintViewportW = viewportWidth;
-      state.paintViewportH = viewportHeight;
-      try {
-        const internalState = getInternalState();
-        internalState.viewportW = viewportWidth;
-        internalState.viewportH = viewportHeight;
-      } catch {}
-      try {
-        state.dom.setViewport(viewportWidth, viewportHeight);
-      } catch {}
-    }
-    try {
-      ksGlobal.__ks_dom_debug = state.dom;
-    } catch {}
-    state.scrollX = 0;
-    state.scrollY = 0;
-    invalidatePaintDom();
-    emitNavigateDiagnostic("end", "parse");
-    markPhase("parseMs");
-    emitNavigateDiagnostic("start", "shim");
-
-    installNativeToString();
-    const built = ksSpan("dom.build_document", null, () =>
-      buildDocument(navigateDom, {
-        pageUrl: safeUrl,
-        initialCookieString: initialCookies,
-        doctypeMarker: marker,
-        userAgent: startupUserAgent,
-        referrer: startupReferrer,
-        canonicalizeInlineStyle: (css: string) => {
-          try {
-            return ks_parse_inline_style(css);
-          } catch {
-            return [];
-          }
-        },
-        parseTypedStyleValue: (property: string, cssText: string) => {
-          try {
-            return ks_parse_typed_style_value(property, cssText);
-          } catch {
-            return null;
-          }
-        },
-        parseTypedNumericValue: (cssText: string) => {
-          try {
-            return ks_parse_typed_numeric_value(cssText);
-          } catch {
-            return null;
-          }
-        },
-        parseCounterStyleRule: (css: string, field: string, value: string) => {
-          try {
-            return ks_counter_style_rule(css, field, value);
-          } catch {
-            return null;
-          }
-        },
-        serializeInlineStyle: (css: string) => {
-          try {
-            return ks_serialize_inline_style(css);
-          } catch {
-            return "";
-          }
-        },
-        getInlinePropertyValue: (css: string, property: string) => {
-          try {
-            return ks_get_property_value(css, property);
-          } catch {
-            return "";
-          }
-        },
-        createRuleStyleDeclaration: (context, css, baseUrl) =>
-          new RuleStyleDeclarationStore(context, css, baseUrl),
-        canonicalizePageSelectors: (prelude: string) => {
-          try {
-            return ks_canonicalize_page_selectors(prelude);
-          } catch {
-            return undefined;
-          }
-        },
-        characterSet: documentCharacterSet(navigateOptions?.charset),
-        encodingName: (label: string) => {
-          try {
-            return ks_encoding_name(label);
-          } catch {
-            return undefined;
-          }
-        },
-        percentEncodeAfterEncoding: ks_percent_encode_after_encoding,
-        encodeHtml: ks_encode_html,
-        getCurrentUrl: () => state.pageUrl,
-        setCurrentUrl: (newUrl, kind) => {
-          if (typeof newUrl !== "string" || newUrl.length === 0) return;
-          const previous = state.pageUrl;
-          if (startupCdpDebug) {
-            try {
-              console.log(
-                "[kitesurf-debug] setCurrentUrl",
-                JSON.stringify({
-                  kind,
-                  previous,
-                  newUrl,
-                  same: previous === newUrl,
-                }),
-              );
-            } catch {}
-          }
-          state.pageUrl = newUrl;
-          if (kind === "hash" && previous !== newUrl && state.window) {
-            const stateForPopstate = state.window.history?.state ?? null;
-            queuePageTask(() => {
-              try {
-                const event: any = new ksEventCtors.HashChangeEvent("hashchange", {
-                  bubbles: false,
-                  cancelable: false,
-                  oldURL: previous,
-                  newURL: newUrl,
-                });
-                __ks_dispatchTrusted(state.window, event);
-              } catch {}
-            });
-            queuePageTask(() => {
-              try {
-                const event: any = new ksEventCtors.PopStateEvent("popstate", {
-                  bubbles: false,
-                  cancelable: false,
-                  state: stateForPopstate,
-                });
-                __ks_dispatchTrusted(state.window, event);
-              } catch {}
-            });
-            scrollToFragment(newUrl);
-          }
-          if (previous !== newUrl || kind === "navigate") {
-            try {
-              const navigationType =
-                kind === "hash"
-                  ? "fragment"
-                  : kind === "pushState" || kind === "replaceState"
-                    ? "historyApi"
-                    : "other";
-              sendUpstreamEvent({
-                event: "kitesurf.navigatedWithinDocument",
-                params: {
-                  url: newUrl,
-                  navigationType,
-                  kind,
-                  previousUrl: previous,
-                },
-              });
-            } catch {}
-          }
-        },
-        getRectByAuthId: (authId: number) => {
-          if (typeof authId !== "number" || authId <= 0) return null;
-          const paint = ensurePaintDom();
-          if (!paint) return null;
-          try {
-            return rectWithScrollOffset(paint.getBoundingClientRect(authId));
-          } catch {
-            invalidatePaintDom();
-            return null;
-          }
-        },
-        getScrollInfoByAuthId: (authId: number) => {
-          if (typeof authId !== "number" || authId <= 0) return null;
-          const paint = ensurePaintDom();
-          if (!paint) return null;
-          try {
-            return paint.nodeScrollInfo(authId);
-          } catch {
-            invalidatePaintDom();
-            return null;
-          }
-        },
-        getOffsetMetricsByAuthId: (authId: number) => {
-          if (typeof authId !== "number" || authId <= 0) return null;
-          const paint = ensurePaintDom();
-          if (!paint) return null;
-          try {
-            return paint.offsetMetrics(authId);
-          } catch {
-            invalidatePaintDom();
-            return null;
-          }
-        },
-        getStickyShiftByAuthId: (authId: number) => {
-          if (typeof authId !== "number" || authId <= 0) return null;
-          const paint = ensurePaintDom();
-          if (!paint) return null;
-          try {
-            return paint.stickyShift(authId);
-          } catch {
-            invalidatePaintDom();
-            return null;
-          }
-        },
-        hitTestViaPaint: (x: number, y: number) => {
-          const paint = ensurePaintDom();
-          if (!paint) return -1;
-          try {
-            const id = paint.elementFromPoint(x + state.scrollX, y + state.scrollY);
-            return typeof id === "number" && id >= 0 ? id : -1;
-          } catch {
-            invalidatePaintDom();
-            return -1;
-          }
-        },
-        getComputedStyleForAuthId: (authId: number, pseudo?: string) =>
-          computedStyleForAuthId(authId, pseudo),
-        getComputedStyleValueForAuthId: (authId: number, name: string) =>
-          computedStyleValueForAuthId(authId, name),
-        getExternalSheetRules: (nodeId: number) => externalSheetRulesForNode(nodeId),
-        getScrollOffset: () => ({ x: state.scrollX, y: state.scrollY }),
-        setScrollOffset: (x: number, y: number) => setScrollOffset(x, y),
-        setWheelScrollOffset: (x: number, y: number) =>
-          setScrollOffset(
-            x,
-            y,
-            Number(navigateOptions?.ttyCellW) || 0,
-            Number(navigateOptions?.ttyCellH) || 0,
-          ),
-        armTransitionDrain,
-      }),
-    );
-    state.document = built.document;
-    state.window = built.window;
-    try {
-      void resolveExternalSvgSprites();
-    } catch {}
-    state.getOpLog = built.getOpLog || (() => []);
-    state.setReadyState = built.setReadyState || (() => {});
-    state.drainCookieWrites = built.drainCookieWrites || (() => []);
-    state.setCookieString = built.setCookieString || (() => {});
-    state.resolveNodeId = built.nodeFor || (() => null);
-    state.notifyImageResults = built.notifyImageResults || (() => {});
-    state.notifyStylesheetResults = built.notifyStylesheetResults || (() => {});
-    state.getActiveElement = built.getActiveElement || (() => null);
-    state.drainCdpMutationsRaw = built.drainCdpMutations || (() => []);
-    __ks_dispatchTrustedEvent = built.__ks_dispatchTrustedEvent || null;
-    __ks_activateLabel = built.__ks_activateLabel;
-    state.dispatchTrustedEvent = __ks_dispatchTrusted;
-    ksGlobal.__ks_canonicalize_inline_style = (css: string) => {
-      try {
-        return ks_parse_inline_style(css);
-      } catch {
-        return [];
-      }
-    };
-    installGlobals(state.document, state.window, built);
-    preinstallStaticIframes();
-    ksSpan("dom.mark_engine_functions", null, () =>
-      markEngineFunctions([globalThis, state.window, state.document]),
-    );
-    getInternalState().afterIframeInsert = (iframeEl: unknown) => {
-      try {
-        handleDynamicIframeInsert(iframeEl);
-      } catch (err) {
-        try {
-          console.warn(
-            "[kitesurf-iframe] dynamic-insert handler failed:",
-            err instanceof Error ? err.message : String(err),
-          );
-        } catch {}
-      }
-    };
-    getInternalState().afterIframeRemove = (iframeEl: unknown) => {
-      try {
-        const frameId = (iframeEl as { __ks_iframeFrameId?: unknown } | null)?.__ks_iframeFrameId;
-        if (typeof frameId !== "string" || frameId.length === 0) return;
-        sendUpstreamEvent({ event: "kitesurf.frameDetached", params: { frameId } });
-      } catch {}
-    };
-    getInternalState().afterIframeSrcChange = (iframeEl: unknown) => {
-      try {
-        handleIframeSrcChange(iframeEl);
-      } catch (err) {
-        try {
-          console.warn(
-            "[kitesurf-iframe] src-change handler failed:",
-            err instanceof Error ? err.message : String(err),
-          );
-        } catch {}
-      }
-    };
-    getInternalState().navigateIframe = (iframeEl: unknown, url: string, post?: IframePost) => {
-      try {
-        handleIframeSrcChange(iframeEl, url, post);
-      } catch (err) {
-        warnIframeFailure(err, { operation: "form target navigation", url });
-      }
-    };
-    getInternalState().endClassicScript = async () => {
-      try {
-        await drainSettleMicrotasks();
-      } catch {}
-      try {
-        getInternalState().setCurrentScript?.(null);
-      } catch {}
-    };
-    getInternalState().afterScriptInsert = (info: unknown) => {
-      const rec = (info && typeof info === "object" ? info : {}) as {
-        id?: unknown;
-        src?: unknown;
-        source?: unknown;
-        type?: unknown;
-        integrity?: unknown;
-        nonce?: unknown;
-        crossOrigin?: unknown;
-      };
-      const src = typeof rec.src === "string" ? rec.src : "";
-      const source = typeof rec.source === "string" ? rec.source : "";
-      const integrity = typeof rec.integrity === "string" ? rec.integrity : "";
-      const nonce = typeof rec.nonce === "string" ? rec.nonce : "";
-      if (src) {
-        runInsertedExternalScript({
-          id: typeof rec.id === "number" ? rec.id : -1,
-          src,
-          type: typeof rec.type === "string" ? rec.type : "",
-          integrity,
-          nonce,
-          crossOrigin: typeof rec.crossOrigin === "string" ? rec.crossOrigin : null,
-        });
-        return;
-      }
-      if (!source) return;
-      const runInline = () => {
-        try {
-          evalInsertedOnBoa(source);
-        } catch (err) {
-          try {
-            console.warn(
-              "[kitesurf] inserted-script eval failed:",
-              err instanceof Error ? err.message : String(err),
-            );
-          } catch {}
-        }
-      };
-      const inlineMeta = { url: null, nonce, body: source };
-      const sync = inlineInsertDecisionSync(inlineMeta);
-      if (sync) {
-        reportOnly(sync);
-        if (sync.allowed) runInline();
-        else reportBlocked(sync);
-        return;
-      }
-      void (async () => {
-        const verdict = await insertedScriptAllowed(inlineMeta);
-        reportOnly(verdict);
-        if (!verdict.allowed) {
-          reportBlocked(verdict);
-          return;
-        }
-        runInline();
-      })();
-    };
-    if (typeof built.applyDeclarativeShadowRoots === "function") {
-      try {
-        built.applyDeclarativeShadowRoots();
-      } catch {}
-    }
-    if (typeof built.stampInitialNamedGlobals === "function") {
-      try {
-        built.stampInitialNamedGlobals();
-      } catch {}
-    }
-    emitNavigateDiagnostic("end", "shim");
-    markPhase("shimMs");
-    const hasScriptObservers = startupScriptDescriptors.length > 0 || /\son\w+\s*=/i.test(safeHtml);
-    if (fontDeferActive() && hasScriptObservers) {
-      await awaitDeferredFontBytes();
-    }
-    emitNavigateDiagnostic("start", "regular_scripts");
-
-    resetConsoleBuffer();
-    resetExceptionBuffer();
-
-    const useBundle =
-      startupHasClassicRegular || startupHasClassicAsync || startupModuleScriptCount > 0;
-
-    if (startupHasClassicRegular || startupModuleScriptCount > 0) {
-      const CSS_CRITICAL_RESOURCE_WAIT_BUDGET_MS = 5000;
-      const CSS_CRITICAL_RESOURCE_POLL_INTERVAL_MS = 25;
-      const cssStart = Date.now();
-      const cssDeadline = cssStart + CSS_CRITICAL_RESOURCE_WAIT_BUDGET_MS;
-      let cssWaits = 0;
-      for (;;) {
-        let pending = false;
-        if (state.dom && typeof state.dom.hasPendingCriticalResources === "function") {
-          try {
-            pending = !!state.dom.hasPendingCriticalResources();
-          } catch {}
-        }
-        if (!pending || Date.now() >= cssDeadline) break;
-        cssWaits++;
-        await NativePromise.race([
-          nativeSleep(CSS_CRITICAL_RESOURCE_POLL_INTERVAL_MS),
-          nextResourceSettle(),
-        ]);
-      }
-      if (cssWaits > 0) {
-        bundleExec.push(`css-block:${Date.now() - cssStart}ms`);
-      }
-    }
-    let scriptCount = 0;
-    let legacyPlan: ReturnType<typeof planScripts> | null = null;
-
-    if (useBundle) {
-      if (startupHasClassicRegular) {
-        bundleExec.push("classic:start");
-        const scriptStartedAt = nowMs();
-        if (startupCdpDebug) {
-          try {
-            getInternalState().bundleDiag = null;
-          } catch {}
-        }
-        await runClassicRegularBucket(bundleExec, scriptStartedAt, nowMs);
-      } else {
-        bundleExec.push("classic:skipped(no-bundle)");
-      }
-      emitNavigateDiagnostic("end", "regular_scripts");
-      markPhase("regularScriptsMs");
-      emitNavigateDiagnostic("start", "module_scripts");
-
-      if (startupModuleScriptCount > 0) {
-        installInitShims();
-      }
-      bundleExec.push("module:count=" + startupModuleScriptCount);
-      const MAX_MODULE_ERRORS_LOGGED = 3;
-      const MAX_MODULE_ERROR_MESSAGE_CHARS = 200;
-
-      let moduleSuccessCount = 0;
-      let moduleFailureCount = 0;
-      try {
-        const drainUpgrades = (globalThis as { __ks_drainCustomElementUpgrades?: () => void })
-          .__ks_drainCustomElementUpgrades;
-        const pendingImports: Array<Promise<void>> = [];
-        const trackModuleImport = (
-          moduleIndex: number,
-          moduleUrl: string,
-          modulePromise: Promise<unknown>,
-        ): Promise<void> =>
-          modulePromise.then(
-            () => {
-              moduleSuccessCount++;
-            },
-            (error) => {
-              moduleFailureCount++;
-              if (moduleFailureCount <= MAX_MODULE_ERRORS_LOGGED) {
-                const errorMessage = errorMessageOrValue(error).slice(
-                  0,
-                  MAX_MODULE_ERROR_MESSAGE_CHARS,
-                );
-                bundleExec.push("module:err[" + moduleIndex + "]=" + errorMessage);
-              }
-              pushException(error, {
-                scriptId: "bundle:module-" + moduleIndex,
-                url: moduleUrl || "/__ks_user_module_" + moduleIndex + ".js",
-                text: "Uncaught",
-              });
-              console.error(
-                "[kitesurf] user module " + moduleIndex + " (" + moduleUrl + ") threw:",
-                error,
-              );
-            },
-          );
-        for (let moduleIndex = 0; moduleIndex < startupModuleScriptCount; moduleIndex++) {
-          const moduleUrl = startupModuleScriptUrls[moduleIndex] ?? "";
-          const moduleImport = trackModuleImport(moduleIndex, moduleUrl, importModule(moduleUrl));
-          const outcome = await NativePromise.race([
-            moduleImport.then(() => "settled" as const),
-            nativeSleep(0).then(() => "pending" as const),
-          ]);
-          if (outcome === "pending") {
-            bundleExec.push("module:tla-parked[" + moduleIndex + "]");
-            drainInitShims();
-            drainDeferParked();
-            installInitShims();
-            pendingImports.push(moduleImport);
-          }
-          drainPageCustomElementUpgrades(drainUpgrades);
-        }
-        if (pendingImports.length > 0) {
-          drainInitShims();
-          await NativePromise.race([
-            NativePromise.all(pendingImports),
-            nativeSleep(TLA_SETTLE_BUDGET_MS),
-          ]);
-        }
-      } finally {
-        if (startupModuleScriptCount > 0) {
-          drainInitShims();
-        }
-        drainDeferParked();
-        bundleExec.push(
-          "module:done(ok=" + moduleSuccessCount + ",err=" + moduleFailureCount + ")",
-        );
-      }
-      emitNavigateDiagnostic("end", "module_scripts");
-      markPhase("moduleScriptsMs");
-
-      scriptCount = Array.isArray(startupScriptDescriptors) ? startupScriptDescriptors.length : 0;
-    } else {
-      const scripts = extractScripts();
-      const plan = planScripts(scripts);
-      legacyPlan = plan;
-
-      await runRegularPhase(plan);
-      emitNavigateDiagnostic("end", "regular_scripts");
-      markPhase("regularScriptsMs");
-      emitNavigateDiagnostic("start", "module_scripts");
-
-      await runModulePhase(plan);
-      emitNavigateDiagnostic("end", "module_scripts");
-      markPhase("moduleScriptsMs");
-
-      scriptCount = scripts.length;
-    }
+    initializeNavigationSession(context, this);
+    emitNavigateDiagnostic(context, "start", "teardown");
+    const documentPreparation = prepareNavigationDocument(context);
+    if (documentPreparation) await documentPreparation;
+    const scripts = await executeNavigationScripts(context);
     state.setReadyState("interactive");
     dispatchLifecycle(state.document, "readystatechange", { bubbles: false });
     dispatchLifecycle(state.document, "DOMContentLoaded", {
       bubbles: true,
       cancelable: false,
     });
-
-    const startedAsyncAndLoadAt = nowMs();
-    state.loadCompletion = (async () => {
-      const loadPhases: Record<string, number> = {};
-      let loadPhaseStartedAt = startedAsyncAndLoadAt;
-      const markLoadPhase = (name: string) => {
-        const phaseEndedAt = nowMs();
-        loadPhases[name] = +(phaseEndedAt - loadPhaseStartedAt).toFixed(3);
-        loadPhaseStartedAt = phaseEndedAt;
-      };
-
-      emitNavigateDiagnostic("start", "async_scripts");
-      if (useBundle) {
-        if (startupHasClassicAsync) {
-          try {
-            const mod = (await importModule("./__ks_user_classic_async.js")) as {
-              default?: { run?: () => unknown };
-              run?: () => unknown;
-            };
-            const run = (mod && mod.default && mod.default.run) || mod.run;
-            if (typeof run === "function") {
-              await run();
-            } else {
-              console.error(
-                "[kitesurf] classic async bucket: no run() export",
-                Object.keys(mod || {}),
-              );
-            }
-          } catch (err) {
-            pushException(err, {
-              scriptId: "bundle:classic-async",
-              url: "/__ks_user_classic_async.js",
-              text: "Uncaught",
-            });
-            console.error("[kitesurf] classic async bucket threw:", err);
-          }
-        }
-      } else if (legacyPlan) {
-        await runAsyncPhase(legacyPlan);
-      }
-      emitNavigateDiagnostic("end", "async_scripts");
-      markLoadPhase("asyncScriptsMs");
-
-      emitNavigateDiagnostic("start", "resource_drain");
-      {
-        const RESOURCE_WAIT_BUDGET_MS = 25_000;
-        const POLL_INTERVAL_MS = 10;
-        const SUBRESOURCE_INFLIGHT_WAIT_BACKSTOP_MS = 1_000;
-        const QUIET_TURNS = Math.max(1, startupResourceDrainQuietTurns);
-        const resourceDrainStartedAt = nowMs();
-        const statsAtStart = snapshotFetchStats();
-        let pollCount = 0;
-        let activityWaveCount = 0;
-        let quietTurns = 0;
-        let iframeGateExpired = false;
-        while (true) {
-          if (sessionClosing) throw SESSION_CLOSED_ERROR;
-          let hasCriticalResources = false;
-          if (state.dom && typeof state.dom.hasPendingCriticalResources === "function") {
-            try {
-              hasCriticalResources = !!state.dom.hasPendingCriticalResources();
-            } catch {
-              hasCriticalResources = false;
-            }
-          }
-          try {
-            reevaluateDeferredUrls();
-          } catch {}
-          const hasBlockingSubresources = blockingInflightCount() > 0;
-          const iframeGateHeld = awaitingIframeInstalls;
-          const iframeInstallGatePending =
-            iframeGateHeld && nowMs() - resourceDrainStartedAt < IFRAME_INSTALL_WAIT_MS;
-          if (iframeGateHeld && !iframeInstallGatePending && !iframeGateExpired) {
-            iframeGateExpired = true;
-            console.warn(
-              "[kitesurf-iframe] load gate expired after " +
-                IFRAME_INSTALL_WAIT_MS +
-                "ms without an iframeInstallsSettled; `load` was held " +
-                "for the full backstop",
-            );
-          }
-          if (!hasCriticalResources && !hasBlockingSubresources && !iframeInstallGatePending) {
-            if (quietTurns >= QUIET_TURNS) break;
-            quietTurns++;
-            pollCount++;
-            await drainSettleMicrotasks();
-            try {
-              pumpPageTask();
-            } catch (e) {
-              reportEngineError("runtime", e, "pumpPageTask threw during load settle");
-            }
-            try {
-              (state.dom as { pumpResourceMessages?: () => void } | null)?.pumpResourceMessages?.();
-            } catch {}
-            if (pageTimerDueWithin(POLL_INTERVAL_MS)) {
-              await NativePromise.race([
-                nativeSleep(POLL_INTERVAL_MS),
-                nextTimerTask(),
-                sessionClosingSignal,
-              ]);
-            }
-          } else {
-            if (quietTurns > 0) activityWaveCount++;
-            quietTurns = 0;
-            pollCount++;
-            if (hasBlockingSubresources) {
-              await NativePromise.race([
-                waitForInflightZero(),
-                nativeSleep(SUBRESOURCE_INFLIGHT_WAIT_BACKSTOP_MS),
-                sessionClosingSignal,
-              ]);
-            } else {
-              await NativePromise.race([nativeSleep(POLL_INTERVAL_MS), sessionClosingSignal]);
-            }
-          }
-          if (nowMs() - resourceDrainStartedAt > RESOURCE_WAIT_BUDGET_MS) break;
-        }
-        const statsAtEnd = snapshotFetchStats();
-        emitNavigateDiagnostic("end", "resource_drain", {
-          polls: pollCount,
-          waves: activityWaveCount,
-          ...(iframeGateExpired ? { iframe_gate_expired: true } : {}),
-          d_count: statsAtEnd.count - statsAtStart.count,
-          d_slot_ms: Math.round(statsAtEnd.slotMs - statsAtStart.slotMs),
-          d_fetch_ms: Math.round(statsAtEnd.fetchMs - statsAtStart.fetchMs),
-          d_deliver_ms: Math.round(statsAtEnd.deliverMs - statsAtStart.deliverMs),
-          max_deliver_ms: Math.round(statsAtEnd.maxDeliverMs),
-        });
-      }
-      markLoadPhase("resourceDrainMs");
-
-      try {
-        const bodyEl = (state.document as any)?.body;
-        const attrs = bodyEl?.attributes;
-        if (attrs) {
-          for (const attribute of Array.from(attrs as ArrayLike<any>)) {
-            const attributeName = String((attribute as any)?.name || "");
-            if (attributeName.startsWith("on")) {
-              compileEventAttribute(bodyEl, attributeName);
-            }
-          }
-        }
-      } catch {}
-
-      const getSettleState = (): [number, number, number] => [
-        cascadeSeq() | 0,
-        timersScheduledCount(),
-        blockingInflightCount(),
-      ];
-      const settleBaseline = getSettleState();
-
-      state.setReadyState("complete");
-      dispatchLifecycle(state.document, "readystatechange", { bubbles: false });
-      dispatchLifecycle(state.window, "load", { bubbles: false });
-      dispatchLifecycle(state.window, "pageshow", { bubbles: false });
-
-      let postLoadPassCount = 0;
-      let previousSettleState = settleBaseline;
-      const settleStartedAt = nowMs();
-      const SETTLE_BUDGET_MS = 250;
-      const MAX_POST_LOAD_SETTLE_PASSES = 3;
-      for (let pass = 0; pass < MAX_POST_LOAD_SETTLE_PASSES; pass++) {
-        await drainSettleMicrotasks();
-        const currentSettleState = getSettleState();
-        const outputMoved =
-          currentSettleState[0] !== previousSettleState[0] ||
-          currentSettleState[2] !== previousSettleState[2];
-        const timersMoved = currentSettleState[1] !== previousSettleState[1];
-        previousSettleState = currentSettleState;
-        if (!outputMoved && !timersMoved) break;
-        if (!outputMoved && pass > 0) break;
-        if (nowMs() - settleStartedAt > SETTLE_BUDGET_MS) break;
-        postLoadPassCount++;
-        await yieldToPageTasks();
-      }
-      {
-        const finalSettleState = getSettleState();
-        loadPhases.plPasses = postLoadPassCount;
-        loadPhases.plMutations = finalSettleState[0] - settleBaseline[0];
-        loadPhases.plTimers = finalSettleState[1] - settleBaseline[1];
-        loadPhases.plInflightEnd = finalSettleState[2];
-      }
-      try {
-        ksGlobal.__ks_drainCustomElementUpgrades?.();
-        await drainSettleMicrotasks();
-        const afterUpgradeState = getSettleState();
-        if (
-          afterUpgradeState[0] !== previousSettleState[0] ||
-          afterUpgradeState[2] !== previousSettleState[2]
-        ) {
-          postLoadPassCount++;
-          await yieldToPageTasks();
-        }
-        previousSettleState = afterUpgradeState;
-      } catch {}
-      try {
-        startLateSpriteSweep();
-      } catch {}
-      markLoadPhase("postLoadDrainMs");
-
-      return {
-        console: drainConsole(),
-        cookieWrites: state.drainCookieWrites(),
-        cdpMutations: drainCdpMutations(),
-        exceptions: drainExceptions(),
-        phases: loadPhases,
-        readyAt: Date.now(),
-      };
-    })();
-    state.settleLoadCompletionArmed();
+    armNavigationLoadCompletion(context, scripts);
     getInternalState().mutationSeq += 1;
-
-    return {
-      title: "",
-      nodeCount: 0,
-      documentNodeId: 0,
-      url: safeUrl,
-      scriptCount,
-      readyState: "interactive",
-      console: drainConsole(),
-      cookieWrites: state.drainCookieWrites(),
-      cdpMutations: drainCdpMutations(),
-      exceptions: drainExceptions(),
-      phases,
-      bundleExec,
-      fontDegradedReads: deferredDegradedReads(),
-    };
+    return navigationSummary(context, scripts.scriptCount);
   }
 
   async awaitLoad(): Promise<LoadCompletion> {
@@ -3821,70 +4428,16 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   }
 
   openSession(init: ReceivedSessionInit | undefined): RetainedPageScriptSessionTarget {
-    try {
-      setTailToken((this.env as any)?.KS_TAIL_TOKEN);
-    } catch {}
-    if (startupLagWatchdog) {
-      try {
-        installLagWatchdog();
-      } catch {}
-    }
-    const self = this;
+    initializePageScriptSession(() => (this.env as any)?.KS_TAIL_TOKEN);
     // Duplicate these callback stubs; openSession arguments expire when the call returns.
-    const raw = init && init.upstream ? init.upstream : null;
-    const upstream = raw && raw.dup ? raw.dup() : raw;
-    const rawOutbound = init && init.outbound ? init.outbound : null;
-    const outbound = rawOutbound && rawOutbound.dup ? rawOutbound.dup() : rawOutbound;
+    const upstream = duplicateUpstreamStub(init);
+    const outbound = duplicateOutboundStub(init);
     if (outbound) setSessionOutbound(outbound);
-    let closed = false;
-    const closeSession = () => {
-      if (closed) return;
-      closed = true;
-      clearUpstreamSender();
-      if (upstream) {
-        try {
-          upstream[Symbol.dispose] && upstream[Symbol.dispose]();
-        } catch {}
-      }
-      if (outbound) {
-        clearSessionOutbound(outbound);
-        try {
-          outbound[Symbol.dispose] && outbound[Symbol.dispose]();
-        } catch {}
-      }
-      sessionClosing = true;
-      resolveSessionClosing();
-    };
-    if (upstream) {
-      registerUpstreamSender((message) => {
-        const upstreamPromise = upstream(message);
-        if (upstreamPromise && upstreamPromise.catch) upstreamPromise.catch(() => {});
-      });
-    }
+    const cleanup = { closed: false, upstream, outbound };
+    const closeSession = () => closePageScriptSession(cleanup);
+    registerSessionUpstream(upstream);
     installWasmTerminatedHandler();
-    class PageScriptSessionTarget extends RpcTarget implements RetainedPageScriptSessionTarget {
-      call<M extends PageScriptMethod>(
-        method: M,
-        params: PageScriptWireParams[M],
-        meta: WireMeta,
-      ): Promise<PageScriptReply<M>> {
-        return invokeSessionMethod(self, method, params || {}, meta || {});
-      }
-      makeRenderPort() {
-        return self.makeRenderPort();
-      }
-      async close() {
-        // Let the load drain settle before the parent proceeds to kill this isolate.
-        closeSession();
-        try {
-          await state.loadCompletion;
-        } catch {}
-      }
-      [Symbol.dispose]() {
-        closeSession();
-      }
-    }
-    return new PageScriptSessionTarget();
+    return createPageScriptSessionTarget(this, closeSession);
   }
 
   async unload(): Promise<UnloadReply> {
@@ -3925,102 +4478,18 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 
   async installBindings(names: string[]): Promise<OkReply> {
     const list = Array.isArray(names) ? names : [];
-    for (const raw of list) {
-      const name = typeof raw === "string" && raw ? raw : null;
-      if (!name) continue;
-      const bindingCallback = function (payload) {
-        if (typeof payload !== "string") return;
-        sendUpstreamEvent({ event: "kitesurf.bindingCalled", params: { name, payload } });
-      };
-      try {
-        globalThis[name] = bindingCallback;
-      } catch {}
-    }
+    for (const raw of list) installPageBinding(raw);
     return { ok: true };
   }
 
   async setFrameBitmap(params: FrameBitmapParams): Promise<FrameBitmapReply> {
-    const bitmap: {
-      ownerBackendNodeId: unknown;
-      width: unknown;
-      height: unknown;
-      rgba: unknown;
-    } = isObjectRecord(params)
-      ? {
-          ownerBackendNodeId: params.ownerBackendNodeId,
-          width: params.width,
-          height: params.height,
-          rgba: params.rgba,
-        }
-      : {
-          ownerBackendNodeId: undefined,
-          width: undefined,
-          height: undefined,
-          rgba: undefined,
-        };
-    const { ownerBackendNodeId, width, height, rgba } = bitmap;
-    if (
-      typeof ownerBackendNodeId !== "number" ||
-      typeof width !== "number" ||
-      typeof height !== "number" ||
-      !(rgba instanceof Uint8Array)
-    ) {
-      return { ok: false, rc: -1, error: "bad args" };
-    }
-    if (!state.dom || typeof state.dom.setIframeImage !== "function") {
-      return { ok: false, rc: -1, error: "dom missing" };
-    }
-    try {
-      const resultCode = state.dom.setIframeImage(ownerBackendNodeId, width, height, rgba);
-      if (resultCode === 0) {
-        try {
-          getInternalState().damageNodes.add(ownerBackendNodeId | 0);
-        } catch {}
-      }
-      return { ok: resultCode >= 0, rc: resultCode };
-    } catch (e) {
-      return {
-        ok: false,
-        rc: -1,
-        error: e instanceof Error ? e.message : String(e),
-      };
-    }
+    const bitmap = frameBitmapFromParams(params);
+    if (!bitmap) return { ok: false, rc: -1, error: "bad args" };
+    return applyFrameBitmap(bitmap);
   }
 
   async deliverMessage(params: DeliverMessageParams): Promise<{ ok: boolean; error?: string }> {
-    const { dataJson, origin, sourceFrameOwnerId, fromParent } = params ?? {};
-    let data: unknown = null;
-    try {
-      data = JSON.parse(String(dataJson ?? "null"));
-    } catch {}
-    const pageGlobal: any = globalThis;
-    const win = pageGlobal.window ?? pageGlobal;
-    let source: unknown = null;
-    if (fromParent) {
-      source = win.parent ?? null;
-    } else if (typeof sourceFrameOwnerId === "number" && sourceFrameOwnerId > 0) {
-      try {
-        const iframes = pageGlobal.document?.querySelectorAll?.("iframe") ?? [];
-        for (const iframeElement of iframes) {
-          if (iframeElement && (iframeElement as any)._id === sourceFrameOwnerId) {
-            source = (iframeElement as any).contentWindow ?? null;
-            break;
-          }
-        }
-      } catch {}
-    }
-    try {
-      const MessageEventConstructor: any = pageGlobal.MessageEvent;
-      const event = new MessageEventConstructor("message", {
-        data,
-        origin: String(origin ?? ""),
-        source,
-      });
-      win.dispatchEvent(event);
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) };
-    }
+    return dispatchMessageDelivery(prepareMessageDelivery(params));
   }
 
   async deliverWorkerEvent(params: WorkerEventParams): Promise<OkReply> {
@@ -4029,121 +4498,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   }
 
   async installIframeContent(params: IframeContentParams): Promise<OkReply> {
-    const { ownerBackendNodeId, html, url, failed, frameId, mimeType, crossOrigin } = params ?? {};
-    const iframeElement = state.resolveNodeId?.(ownerBackendNodeId);
-    if (!iframeElement || String(iframeElement.tagName || "").toLowerCase() !== "iframe") {
-      return { ok: true };
-    }
-    if (crossOrigin === true) {
-      const existingWindow = (iframeElement as any).__ks_iframeContentWindow;
-      const win =
-        existingWindow ??
-        __makeCrossOriginContentWindow(iframeElement, typeof url === "string" ? url : "");
-      try {
-        win.document = null;
-      } catch {}
-      (iframeElement as any).__ks_iframeContentDocument = null;
-      (iframeElement as any).__ks_iframeContentWindow = win;
-      (iframeElement as any).__ks_iframeFrameId = frameId;
-      fireIframeLoad(iframeElement);
-      return { ok: true };
-    }
-    let hasSrcOrSrcdoc = false;
-    try {
-      hasSrcOrSrcdoc =
-        iframeElement.hasAttribute?.("src") === true ||
-        iframeElement.hasAttribute?.("srcdoc") === true;
-    } catch {}
-    if (
-      (!url || url === "about:blank") &&
-      !hasSrcOrSrcdoc &&
-      (iframeElement as any).__ks_iframeContentDocument
-    ) {
-      (iframeElement as any).__ks_iframeFrameId = frameId;
-      return { ok: true };
-    }
-    let contentDoc = null;
-    try {
-      const DOMParserConstructor = ksGlobal.DOMParser;
-      // An about:blank document has no doctype, so it is in quirks mode.
-      const sourceHtml =
-        !failed && typeof html === "string" && html.length > 0
-          ? html
-          : !url || url === "about:blank"
-            ? "<html><head></head><body></body></html>"
-            : "<!doctype html><html><head></head><body></body></html>";
-      if (DOMParserConstructor) {
-        const parser = new DOMParserConstructor();
-        const parserMime = pickDomParserMime(mimeType);
-        contentDoc = parser.parseFromString(sourceHtml, parserMime);
-        if (contentDoc) (contentDoc as any)._mutable = true;
-        // An initial about:blank child inherits its creator's referrer.
-        setFrameReferrer(
-          contentDoc,
-          typeof url === "string" && url && url !== "about:blank"
-            ? frameNavigationReferrer(url)
-            : state.pageUrl,
-        );
-        // Keep the committed URL available as the document base.
-        if (contentDoc && typeof url === "string" && url.length > 0) {
-          try {
-            Object.defineProperty(contentDoc, "_baseUrl", {
-              value: url,
-              configurable: true,
-              writable: true,
-            });
-          } catch {}
-        }
-      }
-    } catch (err) {
-      try {
-        console.warn(
-          "[kitesurf-iframe] parseFromString failed for " + url + ":",
-          err instanceof Error ? err.message : String(err),
-        );
-      } catch {}
-    }
-    const contentWindow: Record<string, unknown> = {
-      document: contentDoc,
-      parent: ksGlobal.window ?? globalThis,
-      top: ksGlobal.window ?? globalThis,
-      frames: [],
-      name: (() => {
-        try {
-          return String(iframeElement.getAttribute?.("name") ?? "");
-        } catch {
-          return "";
-        }
-      })(),
-      addEventListener() {},
-      removeEventListener() {},
-      dispatchEvent() {
-        return true;
-      },
-    };
-    setIframeFacadeLocation(
-      contentWindow,
-      iframeElement,
-      contentDoc ? url || "about:blank" : "about:blank",
-    );
-    contentWindow.self = contentWindow;
-    contentWindow.window = contentWindow;
-    contentWindow.frameElement = iframeElement;
-    __decorateContentWindow(contentWindow);
-    __wireContentWindowPostMessage(contentWindow, iframeElement);
-    if (contentDoc) {
-      try {
-        Object.defineProperty(contentDoc, "defaultView", {
-          value: contentWindow,
-          configurable: true,
-        });
-      } catch {}
-    }
-    (iframeElement as any).__ks_iframeContentDocument = contentDoc;
-    (iframeElement as any).__ks_iframeContentWindow = contentWindow;
-    (iframeElement as any).__ks_iframeFrameId = frameId;
-    fireIframeLoad(iframeElement);
-    return { ok: true };
+    return installIframeContentInDocument(params);
   }
 
   async iframeInstallsSettled(): Promise<OkReply> {
@@ -4197,97 +4552,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     argumentSpecs: ArgSpec[],
     options: CallFunctionOnOptions,
   ): Promise<EvalResult> {
-    const returnByValue = !!(options && options.returnByValue);
-    const awaitPromise = options === undefined ? true : options.awaitPromise !== false;
-    const thisObjectId =
-      options && typeof options.thisObjectId === "string" ? options.thisObjectId : null;
-    let result: EvalResultBody;
-    try {
-      const functionSource =
-        typeof functionDeclaration === "string" ? functionDeclaration : "undefined";
-      const factory = new SyncFunction("return (" + functionSource + ");");
-      const pageFunction = factory();
-      if (typeof pageFunction !== "function") {
-        throw new TypeError("functionDeclaration did not evaluate to a function");
-      }
-      const argumentValues = (Array.isArray(argumentSpecs) ? argumentSpecs : []).map((spec) => {
-        if (typeof spec === "string") {
-          try {
-            return JSON.parse(spec);
-          } catch {
-            return undefined;
-          }
-        }
-        if (spec && typeof spec === "object") {
-          if (typeof spec.objectId === "string") {
-            return lookupHandle(spec.objectId);
-          }
-          if (typeof spec.json === "string") {
-            try {
-              return JSON.parse(spec.json);
-            } catch {
-              return undefined;
-            }
-          }
-        }
-        return undefined;
-      });
-      const thisValue =
-        thisObjectId !== null ? (lookupHandle(thisObjectId) ?? globalThis) : globalThis;
-      let value = pageFunction.apply(thisValue, argumentValues);
-      if (awaitPromise && value && typeof value.then === "function") {
-        value = await value;
-      }
-      result = packResult(value, returnByValue);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.name === "EvalError" &&
-        typeof error.message === "string" &&
-        error.message.includes("Code generation from strings disallowed")
-      ) {
-        const functionSource =
-          typeof functionDeclaration === "string" ? functionDeclaration : "undefined";
-        const liveArguments = (Array.isArray(argumentSpecs) ? argumentSpecs : []).map((spec) => {
-          if (typeof spec === "string") {
-            try {
-              return JSON.parse(spec);
-            } catch {
-              return undefined;
-            }
-          }
-          if (spec && typeof spec === "object") {
-            if (typeof spec.objectId === "string") return lookupHandle(spec.objectId);
-            if (typeof spec.json === "string") {
-              try {
-                return JSON.parse(spec.json);
-              } catch {
-                return undefined;
-              }
-            }
-          }
-          return undefined;
-        });
-        const thisValue =
-          thisObjectId !== null ? (lookupHandle(thisObjectId) ?? globalThis) : globalThis;
-        try {
-          const boaResult = await ks_call_cdp(
-            functionSource,
-            thisValue,
-            liveArguments,
-            awaitPromise,
-            returnByValue,
-          );
-          result = packBoaResult(boaResult, returnByValue);
-        } catch (boaError) {
-          result = packException(
-            boaError instanceof Error ? boaError : new Error(String(boaError)),
-          );
-        }
-      } else {
-        result = packException(error);
-      }
-    }
+    const settings = callFunctionSettings(options);
+    const result = await evaluateCallFunctionOn(functionDeclaration, argumentSpecs, settings);
     return drainEvalResult(result);
   }
 
@@ -4302,650 +4568,46 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   ): Promise<{ result: PropertyDescriptor[] }> {
     const ownOnly = !options || options.ownProperties !== false;
     const objectValue = lookupHandle(objectId);
-    if (
-      objectValue === null ||
-      (typeof objectValue !== "object" && typeof objectValue !== "function")
-    ) {
-      return { result: [] };
-    }
-    const result: PropertyDescriptor[] = [];
-    const seen = new Set();
-    const collect = (target, isOwn) => {
-      let names;
-      try {
-        names = Object.getOwnPropertyNames(target);
-      } catch {
-        return;
-      }
-      for (const name of names) {
-        if (seen.has(name)) continue;
-        seen.add(name);
-        let descriptor;
-        try {
-          descriptor = Object.getOwnPropertyDescriptor(target, name);
-        } catch {
-          continue;
-        }
-        if (!descriptor) continue;
-        const entry: PropertyDescriptor = {
-          name,
-          configurable: !!descriptor.configurable,
-          enumerable: !!descriptor.enumerable,
-          isOwn,
-        };
-        if ("value" in descriptor) {
-          entry.writable = !!descriptor.writable;
-          try {
-            entry.value = packResult(descriptor.value, false);
-          } catch {}
-        } else {
-          if (typeof descriptor.get === "function") {
-            try {
-              entry.get = packResult(descriptor.get, false);
-            } catch {}
-          }
-          if (typeof descriptor.set === "function") {
-            try {
-              entry.set = packResult(descriptor.set, false);
-            } catch {}
-          }
-        }
-        result.push(entry);
-      }
-    };
-    collect(objectValue, true);
-    if (!ownOnly) {
-      const MAX_PROTOTYPE_DESCRIPTOR_CHAIN_DEPTH = 6;
-      let proto = null;
-      try {
-        proto = Object.getPrototypeOf(objectValue);
-      } catch {}
-      let depth = 0;
-      while (proto && depth++ < MAX_PROTOTYPE_DESCRIPTOR_CHAIN_DEPTH) {
-        collect(proto, false);
-        try {
-          proto = Object.getPrototypeOf(proto);
-        } catch {
-          break;
-        }
-      }
-    }
-    return { result };
+    if (!isPropertyInspectable(objectValue)) return { result: [] };
+    return { result: collectObjectProperties(objectValue, ownOnly) };
   }
 
   async dispatchMouseEvent(type: string, init: MouseEventInit): Promise<MouseDispatchReply> {
     if (!state.document || typeof ksEventCtors.MouseEvent !== "function") {
-      return {
-        console: drainConsole(),
-        cookieWrites: state.drainCookieWrites(),
-        cdpMutations: drainCdpMutations(),
-        defaultPrevented: false,
-      };
+      return emptyMouseDispatchReply();
     }
-    let defaultPrevented = false;
-    let navigateTo: string | null = null;
-    let hashNavigateTo: string | null = null;
-    let navigatePost: ReturnType<typeof takePendingSubmitNav> = null;
+    const outcome = newMouseDispatchOutcome();
     const internalState = getInternalState();
     internalState.dispatchingUserEvent = true;
     internalState.pendingSubmitNav = null;
     try {
-      const eventType = String(type || "click");
-      const clientX = init && typeof init.clientX === "number" ? init.clientX : 0;
-      const clientY = init && typeof init.clientY === "number" ? init.clientY : 0;
-      const previousMousePosition = eventType === "mousemove" ? lastMousePosition : null;
-      const eventInit = {
-        ...(init || {}),
-        composed: true,
-        pageX: clientX + state.scrollX,
-        pageY: clientY + state.scrollY,
-        movementX: previousMousePosition ? clientX - previousMousePosition.x : 0,
-        movementY: previousMousePosition ? clientY - previousMousePosition.y : 0,
-      };
-      if (eventType === "mousemove" || eventType === "mousedown" || eventType === "mouseup") {
-        lastMousePosition = { x: clientX, y: clientY };
-      }
-      const POINTER_EVENT_TYPES = ["click", "auxclick", "dblclick", "contextmenu"];
-      let event: MouseInputEvent;
-      if (eventType === "wheel" && typeof ksEventCtors.WheelEvent === "function") {
-        event = new ksEventCtors.WheelEvent(eventType, eventInit);
-      } else if (
-        POINTER_EVENT_TYPES.indexOf(eventType) !== -1 &&
-        typeof ksEventCtors.PointerEvent === "function"
-      ) {
-        event = new ksEventCtors.PointerEvent(eventType, {
-          ...eventInit,
-          pointerId: 1,
-          pointerType: "mouse",
-          isPrimary: true,
-        });
-      } else {
-        event = new ksEventCtors.MouseEvent(eventType, eventInit);
-      }
-
-      let targetEl = mouseTargetAtPoint(eventType, clientX, clientY, event);
-      if (!targetEl) {
-        targetEl = state.document.body || state.document.documentElement || state.document;
-      }
-
-      if (__ksOverTarget && !__ksIsConnected(__ksOverTarget)) {
-        const recomputed = __ksFirstConnected(__ksOverChain);
-        __ksSetOverTarget(recomputed);
-        __ksFireBoundaryEvent(recomputed, "pointerover", null, true, eventInit);
-        __ksFireBoundaryEvent(recomputed, "mouseover", null, true, eventInit);
-      }
-
-      const targetChain = __ksAncestorChain(targetEl);
-      if (eventType === "mousemove" && __ksOverTarget !== targetEl) {
-        const from = __ksOverTarget;
-        __ksSetOverTarget(targetEl, targetChain);
-        __ksDispatchBoundaryEvents(from, targetEl, eventInit);
-      }
-
-      if (targetEl && !__ksIsConnected(targetEl)) {
-        const reconnected: MouseTarget | null = __ksFirstConnected(targetChain);
-        if (reconnected) {
-          targetEl = reconnected;
-          if (eventType === "mousemove") __ksSetOverTarget(reconnected);
-        }
-      }
-
-      if (eventType === "mousedown") {
-        __ksMouseDownTarget = targetEl;
-      } else if (
-        (eventType === "click" || eventType === "dblclick" || eventType === "auxclick") &&
-        __ksMouseDownTarget &&
-        __ksMouseDownTarget !== targetEl
-      ) {
-        const common: MouseTarget | null = __ksCommonAncestor(__ksMouseDownTarget, targetEl);
-        if (common) targetEl = common;
-      }
-
-      const isRangeInput = (element) =>
-        element &&
-        element.tagName === "INPUT" &&
-        element.getAttribute &&
-        (element.getAttribute("type") || "").toLowerCase() === "range";
-      const applyRangeFromX = (element, clientX) => {
-        try {
-          const rect = element.getBoundingClientRect();
-          if (!rect || !(rect.width > 0)) return false;
-          const DEFAULT_RANGE_INPUT_MAX = 100;
-          const RANGE_INPUT_THUMB_MIN_RADIUS_PX = 2;
-          const RANGE_INPUT_THUMB_HEIGHT_FRACTION = 0.5;
-          const RANGE_INPUT_THUMB_WIDTH_FRACTION = 0.25;
-          const RANGE_INPUT_THUMB_RADIUS_FACTOR = 0.8;
-          const RANGE_INPUT_MIN_TRACK_TRAVEL_PX = 1;
-          const min = parseFloat(element.getAttribute("min")) || 0;
-          const maxRaw = parseFloat(element.getAttribute("max"));
-          const max = Math.max(min, Number.isFinite(maxRaw) ? maxRaw : DEFAULT_RANGE_INPUT_MAX);
-          const stepAttr = element.getAttribute("step");
-          const step =
-            stepAttr === "any"
-              ? 0
-              : Number.isFinite(parseFloat(stepAttr)) && parseFloat(stepAttr) > 0
-                ? parseFloat(stepAttr)
-                : 1;
-          const thumbRadius =
-            Math.max(
-              RANGE_INPUT_THUMB_MIN_RADIUS_PX,
-              Math.min(
-                rect.height * RANGE_INPUT_THUMB_HEIGHT_FRACTION,
-                rect.width * RANGE_INPUT_THUMB_WIDTH_FRACTION,
-              ),
-            ) * RANGE_INPUT_THUMB_RADIUS_FACTOR;
-          const travel = Math.max(RANGE_INPUT_MIN_TRACK_TRAVEL_PX, rect.width - 2 * thumbRadius);
-          const fraction = Math.min(1, Math.max(0, (clientX - rect.left - thumbRadius) / travel));
-          let raw = min + fraction * (max - min);
-          if (step > 0) raw = min + Math.round((raw - min) / step) * step;
-          raw = Math.min(max, Math.max(min, raw));
-          const next = String(raw);
-          if (getValueRawOnControl(element) === next) return false;
-          setValueRawOnControl(element, next);
-          try {
-            __ks_dispatchTrusted(
-              element,
-              new ksEventCtors.InputEvent("input", {
-                bubbles: true,
-                cancelable: false,
-              }),
-            );
-          } catch {}
-          return true;
-        } catch {
-          return false;
-        }
-      };
-      if (eventType === "mousemove" && __ksRangeDrag && __ksRangeDrag.el) {
-        const rangeDrag = __ksRangeDrag;
-        if (applyRangeFromX(rangeDrag.el, clientX)) rangeDrag.changed = true;
-      } else if (eventType === "mouseup" && __ksRangeDrag && __ksRangeDrag.el) {
-        const rangeDrag = __ksRangeDrag;
-        if (applyRangeFromX(rangeDrag.el, clientX)) rangeDrag.changed = true;
-        if (rangeDrag.changed) {
-          try {
-            __ks_dispatchTrusted(
-              rangeDrag.el,
-              new ksEventCtors.Event("change", {
-                bubbles: true,
-                cancelable: false,
-              }),
-            );
-          } catch {}
-        }
-        __ksRangeDrag = null;
-      }
-
-      const isCheckableTarget =
-        eventType === "click" &&
-        targetEl &&
-        targetEl.tagName === "INPUT" &&
-        ((targetEl.type || "").toLowerCase() === "checkbox" ||
-          (targetEl.type || "").toLowerCase() === "radio");
-      let previousCheckedState;
-      const setCheckedRaw = (element, value) => {
-        let prototype = Object.getPrototypeOf(element);
-        while (prototype) {
-          const descriptor = Object.getOwnPropertyDescriptor(prototype, "checked");
-          if (descriptor && typeof descriptor.set === "function") {
-            descriptor.set.call(element, value);
-            return;
-          }
-          prototype = Object.getPrototypeOf(prototype);
-        }
-        element.checked = value;
-      };
-      if (isCheckableTarget) {
-        previousCheckedState = !!targetEl.checked;
-        const nextCheckedState =
-          (targetEl.type || "").toLowerCase() === "checkbox" ? !previousCheckedState : true;
-        setCheckedRaw(targetEl, nextCheckedState);
-      }
-
-      let compatibilityMouseAllowed = true;
-      const dispatchPointerEvent = (eventType) => {
-        if (typeof ksEventCtors.PointerEvent !== "function") return true;
-        const pointerInit = {
-          ...eventInit,
-          pointerId: 1,
-          pointerType: "mouse",
-          isPrimary: true,
-        };
-        const coalescedEvents =
-          eventType === "pointermove"
-            ? [new ksEventCtors.PointerEvent(eventType, pointerInit)]
-            : undefined;
-        return __ks_dispatchTrusted(
-          targetEl,
-          new ksEventCtors.PointerEvent(eventType, {
-            ...pointerInit,
-            coalescedEvents,
-          }),
-        );
-      };
-      if (eventType === "mousedown") {
-        __ksPointerDownCanceled = false;
-        __ksPointerDownCanceled = !dispatchPointerEvent("pointerdown");
-        compatibilityMouseAllowed = !__ksPointerDownCanceled;
-        defaultPrevented = !compatibilityMouseAllowed;
-      } else if (eventType === "mousemove") {
-        dispatchPointerEvent("pointermove");
-        compatibilityMouseAllowed = !__ksPointerDownCanceled;
-      } else if (eventType === "mouseup") {
-        dispatchPointerEvent("pointerup");
-        if (__ksPointerDownCanceled) {
-          compatibilityMouseAllowed = false;
-          __ksPointerDownCanceled = false;
-        }
-      }
-
-      const allowed = compatibilityMouseAllowed ? __ks_dispatchTrusted(targetEl, event) : true;
-      if (compatibilityMouseAllowed || eventType !== "mousedown") {
-        defaultPrevented = !allowed;
-      }
-
-      if (eventType === "mousedown" && !defaultPrevented) {
-        const focusable = findFocusableAncestor(targetEl);
-        if (focusable && typeof focusable.focus === "function") {
-          try {
-            focusable.focus();
-          } catch {}
-        } else if (
-          state.document &&
-          state.document.activeElement &&
-          typeof state.document.activeElement.blur === "function"
-        ) {
-          try {
-            state.document.activeElement.blur();
-          } catch {}
-        }
-      }
-
-      const wantsCaretWork =
-        (eventType === "mousedown" && !defaultPrevented) ||
-        (eventType === "mousemove" && __ksCaretDragActive && (event.buttons & 1) === 1);
-      if (wantsCaretWork) {
-        updateCaretFromMouse(eventType, event, targetEl, clientX, clientY);
-      }
-      if (eventType === "mouseup") {
-        __ksCaretDragActive = false;
-        __ksControlCaretAnchor = null;
-        __ksCaretDragOrigin = null;
-      }
-
-      if (
-        eventType === "mousedown" &&
-        !defaultPrevented &&
-        isRangeInput(targetEl) &&
-        !targetEl.disabled
-      ) {
-        __ksRangeDrag = { el: targetEl, changed: false };
-        if (applyRangeFromX(targetEl, clientX)) __ksRangeDrag.changed = true;
-      }
-
-      if (eventType === "wheel" && !defaultPrevented) {
-        const dx = event.deltaX || 0;
-        const dy = event.deltaY || 0;
-        const wheelBridge = ksGlobal.__ks_scrollByWheel;
-        let bridgeAvailable =
-          typeof wheelBridge === "function" && !!targetEl && typeof targetEl._id === "number";
-        if (bridgeAvailable) {
-          try {
-            wheelBridge(targetEl._id, dx, dy);
-          } catch {
-            bridgeAvailable = false;
-          }
-        }
-        if (!bridgeAvailable) {
-          try {
-            scrollBy(dx, dy);
-          } catch {}
-        }
-      }
-
-      if (isCheckableTarget) {
-        if (defaultPrevented) {
-          setCheckedRaw(targetEl, previousCheckedState);
-        } else {
-          try {
-            const inputEv = new ksEventCtors.InputEvent("input", {
-              bubbles: true,
-              cancelable: false,
-            });
-            __ks_dispatchTrusted(targetEl, inputEv);
-          } catch {}
-          try {
-            const changeEv = new ksEventCtors.Event("change", {
-              bubbles: true,
-              cancelable: false,
-            });
-            __ks_dispatchTrusted(targetEl, changeEv);
-          } catch {}
-        }
-      }
-
-      if (eventType === "click" && !defaultPrevented && targetEl) {
-        try {
-          const activationNavigation = buttonActivationNavigation(targetEl);
-          if (activationNavigation) navigateTo = activationNavigation;
-        } catch (err) {
-          console.error("[kitesurf] button activation failed", err);
-        }
-      }
-
-      // CDP clicks bypass Element.click(); the shim owns forwarding without exposing a page-global
-      // hook or trusting a page-provided isTrusted property.
-      if (eventType === "click" && !defaultPrevented && targetEl) {
-        try {
-          __ks_activateLabel?.(targetEl, event);
-        } catch (err) {
-          console.error("[kitesurf] label activation failed", err);
-        }
-      }
-
-      if (eventType === "click" && !defaultPrevented && targetEl) {
-        try {
-          let sel: MouseTarget | null | undefined = targetEl;
-          while (sel && sel !== state.document && (sel.tagName || "").toUpperCase() !== "SELECT") {
-            sel = sel.parentNode;
-          }
-          const toggle = ksGlobal.__ksSelectDropdownToggle;
-          if (
-            sel &&
-            (sel.tagName || "").toUpperCase() === "SELECT" &&
-            typeof toggle === "function"
-          ) {
-            toggle(sel);
-          }
-        } catch (err) {
-          console.error("[kitesurf] select dropdown toggle failed", err);
-        }
-      }
-
-      if (eventType === "click" && !defaultPrevented && targetEl) {
-        try {
-          toggleDetailsFromSummary(targetEl);
-        } catch (err) {
-          console.error("[kitesurf] details toggle failed", err);
-        }
-      }
-
-      if (eventType === "click" && !defaultPrevented && targetEl && targetEl !== state.document) {
-        const navigation = activateAnchorNavigation(targetEl, clientX, clientY);
-        if (navigation?.kind === "hash") {
-          hashNavigateTo = navigation.url;
-        } else if (navigation?.kind === "navigate") {
-          navigateTo = navigation.url;
-        }
-      }
+      dispatchMouseEventBody(createMouseDispatchContext(type, init, outcome));
     } catch (err) {
       console.error("[kitesurf] Input.dispatchMouseEvent failed", err);
     } finally {
-      const nav = takePendingSubmitNav();
-      if (nav && typeof nav.url === "string") {
-        if (typeof nav.postData === "string") navigatePost = nav;
-        else if (!navigateTo) navigateTo = nav.url;
-      }
+      applyPendingMouseNavigation(outcome);
     }
-    return {
-      console: drainConsole(),
-      cookieWrites: state.drainCookieWrites(),
-      cdpMutations: drainCdpMutations(),
-      defaultPrevented,
-      navigateTo,
-      navigatePost,
-      hashNavigateTo,
-    };
+    return mouseDispatchReply(outcome);
   }
 
   async dispatchKeyEvent(type: string, init: KeyEventInit): Promise<KeyDispatchReply> {
-    const KeyboardEventConstructor:
-      | BuildDocumentResult["Event"]
-      | BuildDocumentResult["KeyboardEvent"] = ksEventCtors.KeyboardEvent || ksEventCtors.Event;
-    if (!state.document || typeof KeyboardEventConstructor !== "function") {
-      return {
-        console: drainConsole(),
-        cookieWrites: state.drainCookieWrites(),
-        cdpMutations: drainCdpMutations(),
-        defaultPrevented: false,
-      };
-    }
-    if (type === "keydown") __ksSuppressChar = false;
-    if (type === "keypress" && __ksSuppressChar) {
-      return {
-        console: drainConsole(),
-        cookieWrites: state.drainCookieWrites(),
-        cdpMutations: drainCdpMutations(),
-        defaultPrevented: true,
-      };
-    }
-    let defaultPrevented = false;
-    let navigateTo: string | null = null;
-    let navigatePost: ReturnType<typeof takePendingSubmitNav> = null;
+    const eventConstructor = keyboardEventConstructor();
+    const earlyReply = earlyKeyDispatchReply(type, eventConstructor);
+    if (earlyReply) return earlyReply;
+    const outcome = newKeyDispatchOutcome();
     const internalState = getInternalState();
     internalState.dispatchingUserEvent = true;
     internalState.pendingSubmitNav = null;
     try {
-      const eventType = String(type || "keydown");
-      const event = new KeyboardEventConstructor(eventType, {
-        ...(init || {}),
-        composed: true,
-      });
-      const focused = state.getActiveElement();
-      const targetEl =
-        focused || state.document.body || state.document.documentElement || state.document;
-      const allowed = __ks_dispatchTrusted(targetEl, event);
-      defaultPrevented = !allowed;
-      if (eventType === "keydown" && defaultPrevented) __ksSuppressChar = true;
-
-      if (
-        eventType === "keydown" &&
-        init?.key === "Tab" &&
-        !defaultPrevented &&
-        !init.altKey &&
-        !init.ctrlKey &&
-        !init.metaKey
-      ) {
-        moveTabFocus(!!init.shiftKey);
-      }
-      if (eventType === "keydown" && !defaultPrevented) {
-        scrollForKey(init?.key || "", init);
-      }
-
-      {
-        const keyName = init && typeof init.key === "string" ? init.key : "";
-        const isSpace = keyName === " " || keyName === "Spacebar";
-        if (eventType === "keydown" && isSpace) {
-          __ksSpaceArmedTarget =
-            !defaultPrevented && focused && isKeyboardActivatable(focused) ? focused : null;
-        }
-        const activateNow =
-          !defaultPrevented &&
-          focused &&
-          ((eventType === "keydown" && keyName === "Enter" && isKeyboardActivatable(focused)) ||
-            (eventType === "keyup" && isSpace && __ksSpaceArmedTarget === focused));
-        if (eventType === "keyup" && isSpace) __ksSpaceArmedTarget = null;
-        if (activateNow) {
-          try {
-            focused.click?.();
-          } catch {}
-        }
-      }
-
-      const isCharBearing = eventType === "keydown" || eventType === "keypress";
-      const editHost = defaultPrevented ? null : editingHostOf(focused);
-      if (editHost) {
-        const text = typeof init?.text === "string" ? init.text : "";
-        const key = typeof init?.key === "string" ? init.key : "";
-        if (eventType === "keydown" && (key === "Backspace" || key === "Delete")) {
-          editContentEditable(
-            editHost,
-            key === "Backspace" ? "deleteContentBackward" : "deleteContentForward",
-            null,
-            __ks_dispatchTrusted,
-          );
-        } else if (isCharBearing && text && !init.ctrlKey && !init.metaKey) {
-          let typed = true;
-          if (eventType === "keydown") {
-            typed = __ks_dispatchTrusted(
-              targetEl,
-              new KeyboardEventConstructor("keypress", { ...init, composed: true }),
-            );
-          }
-          if (!typed) {
-            defaultPrevented = true;
-          } else if (text === "\r" || text === "\n") {
-            editContentEditable(
-              editHost,
-              init.shiftKey ? "insertLineBreak" : "insertParagraph",
-              null,
-              __ks_dispatchTrusted,
-            );
-          } else if (!hasControlChar(text)) {
-            editContentEditable(editHost, "insertText", text, __ks_dispatchTrusted);
-          }
-        }
-      }
-      if (
-        focused &&
-        !defaultPrevented &&
-        isCharBearing &&
-        (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA")
-      ) {
-        const text = init && typeof init.text === "string" ? init.text : "";
-        const key = init && typeof init.key === "string" ? init.key : "";
-        const oldValue = getValueRawOnControl(focused);
-        const oldLength = oldValue.length;
-        const rawStart =
-          typeof focused.selectionStart === "number" ? focused.selectionStart : oldLength;
-        const rawEnd = typeof focused.selectionEnd === "number" ? focused.selectionEnd : rawStart;
-        const selectionStart = Math.max(0, Math.min(rawStart, oldLength));
-        const selectionEnd = Math.max(selectionStart, Math.min(rawEnd, oldLength));
-        let newValue = oldValue;
-        let nextCursor = selectionStart;
-        const HIGH_SURROGATE_START_CODE_UNIT = 0xd800;
-        const HIGH_SURROGATE_END_CODE_UNIT = 0xdbff;
-        const LOW_SURROGATE_START_CODE_UNIT = 0xdc00;
-        const LOW_SURROGATE_END_CODE_UNIT = 0xdfff;
-        const isHighSurrogate = (unit: number) =>
-          unit >= HIGH_SURROGATE_START_CODE_UNIT && unit <= HIGH_SURROGATE_END_CODE_UNIT;
-        const isLowSurrogate = (unit: number) =>
-          unit >= LOW_SURROGATE_START_CODE_UNIT && unit <= LOW_SURROGATE_END_CODE_UNIT;
-        const isPrintable = text.length > 0 && !hasControlChar(text);
-        if (isPrintable) {
-          newValue = oldValue.slice(0, selectionStart) + text + oldValue.slice(selectionEnd);
-          nextCursor = selectionStart + text.length;
-        } else if (eventType === "keydown" && (key === "Backspace" || key === "Delete")) {
-          if (selectionStart !== selectionEnd) {
-            newValue = oldValue.slice(0, selectionStart) + oldValue.slice(selectionEnd);
-          } else if (key === "Backspace" && selectionStart > 0) {
-            const previous = selectionStart - 1;
-            const deleteStart =
-              previous > 0 &&
-              isLowSurrogate(oldValue.charCodeAt(previous)) &&
-              isHighSurrogate(oldValue.charCodeAt(previous - 1))
-                ? previous - 1
-                : previous;
-            newValue = oldValue.slice(0, deleteStart) + oldValue.slice(selectionEnd);
-            nextCursor = deleteStart;
-          } else if (key === "Delete" && selectionStart < oldLength) {
-            const next = selectionStart + 1;
-            const deleteEnd =
-              isHighSurrogate(oldValue.charCodeAt(selectionStart)) &&
-              next < oldLength &&
-              isLowSurrogate(oldValue.charCodeAt(next))
-                ? next + 1
-                : next;
-            newValue = oldValue.slice(0, selectionStart) + oldValue.slice(deleteEnd);
-          }
-        }
-        if (newValue !== oldValue) {
-          setValueRawOnControl(focused, newValue);
-          notifyControlValueMutation(focused, nextCursor, KeyboardEventConstructor);
-        }
-        if (eventType === "keydown" && key === "Enter" && focused.tagName === "INPUT") {
-          dispatchEnterChange(focused, KeyboardEventConstructor);
-          const implicitNavigation = submitFormOnEnter(focused);
-          if (implicitNavigation) navigateTo = implicitNavigation;
-        }
-      }
+      dispatchKeyboardEventBody(
+        createKeyboardDispatchContext(type, init, eventConstructor, outcome),
+      );
     } catch (err) {
       console.error("[kitesurf] Input.dispatchKeyEvent failed", err);
     } finally {
-      const nav = takePendingSubmitNav();
-      if (nav && typeof nav.url === "string") {
-        if (typeof nav.postData === "string") navigatePost = nav;
-        else if (!navigateTo) navigateTo = nav.url;
-      }
+      applyPendingKeyNavigation(outcome);
     }
-    return {
-      console: drainConsole(),
-      cookieWrites: state.drainCookieWrites(),
-      cdpMutations: drainCdpMutations(),
-      defaultPrevented,
-      navigateTo,
-      navigatePost,
-    };
+    return keyDispatchReply(outcome);
   }
 
   queryDom<M extends QueryDomMethod>(method: M, args: QueryDomArgs<M>): Promise<QueryDomResult<M>>;
@@ -4953,109 +4615,3385 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     method: QueryDomMethod,
     args: Record<string, unknown> | undefined,
   ): Promise<QueryDomResult<QueryDomMethod>> {
-    if (method === "setFrameContext") {
-      const parentOrigin = String(args?.parentOrigin ?? "");
-      getInternalState().frameContext = { parentOrigin };
-      return { ok: true } satisfies QueryDomResult<"setFrameContext">;
+    if (method === "setFrameContext") return queryDomSetFrameContext(args);
+    const pageState = state;
+    requireQueryDomDocument(pageState);
+    return queryDomWithDocument(pageState, method, args || {});
+  }
+}
+
+interface NavigationContext {
+  safeUrl: string;
+  safeHtml: string;
+  options: NavigateOptions | undefined;
+  initialCookies: string;
+  nowMs: () => number;
+  traced: boolean;
+  phases: Record<string, number>;
+  phaseStartedAt: number;
+  bundleExec: string[];
+}
+
+type NavigationDiagnosticEvent = "start" | "end";
+
+interface NavigationDomSetup {
+  dom: DomHandle;
+  marker: string | null;
+}
+
+interface NavigationScriptResult {
+  useBundle: boolean;
+  legacyPlan: ReturnType<typeof planScripts> | null;
+  scriptCount: number;
+}
+
+function createNavigationContext(
+  html: string,
+  url: string,
+  options: NavigateOptions | undefined,
+): NavigationContext {
+  const nowMs = navigationClock();
+  const context: NavigationContext = {
+    safeUrl: safeNavigationUrl(url),
+    safeHtml: safeNavigationHtml(html),
+    options,
+    initialCookies: initialNavigationCookies(options),
+    nowMs,
+    traced: false,
+    phases: {},
+    phaseStartedAt: 0,
+    bundleExec: [],
+  };
+  logNavigationStart(context);
+  return context;
+}
+
+function safeNavigationUrl(url: string): string {
+  return typeof url === "string" ? url : "about:blank";
+}
+
+function safeNavigationHtml(html: string): string {
+  return typeof html === "string" && html.length > 0
+    ? html
+    : "<html><head></head><body></body></html>";
+}
+
+function initialNavigationCookies(options: NavigateOptions | undefined): string {
+  return typeof options?.cookies === "string" ? options.cookies : "";
+}
+
+function navigationClock(): () => number {
+  return typeof performance !== "undefined" && performance.now
+    ? () => performance.now()
+    : () => Date.now();
+}
+
+function logNavigationStart(context: NavigationContext): void {
+  if (!startupCdpDebug) return;
+  const NAVIGATE_HTML_PREVIEW_CHARS = 200;
+  try {
+    console.log(
+      "[kitesurf-debug] PageScript.navigate() called",
+      JSON.stringify({
+        url: context.safeUrl,
+        htmlLength: context.safeHtml.length,
+        htmlPreview: context.safeHtml.slice(0, NAVIGATE_HTML_PREVIEW_CHARS),
+        startupScriptCount: startupInputSnapshot?.scriptDescriptorCount,
+        startupSample: startupInputSnapshot?.scriptDescriptorSample,
+        startupHasClassicRegular: startupHasClassicRegular,
+      }),
+    );
+  } catch {}
+}
+
+function initializeNavigationSession(context: NavigationContext, host: PageScript): void {
+  context.traced = context.options?.traced === true;
+  awaitingIframeInstalls = context.options?.expectIframeInstalls === true;
+  armNavigationTracing(host, context.traced);
+  context.phaseStartedAt = context.nowMs();
+}
+
+function applyNavigationConnectionOptions(options: NavigateOptions | undefined): void {
+  applyNavigationConnectionId(options);
+  applyNavigationMainFrameId(options);
+  applyNavigationCookieKey(options);
+}
+
+function applyNavigationConnectionId(options: NavigateOptions | undefined): void {
+  const connectionId = options?.connectionId;
+  if (typeof connectionId === "string") state.connectionId = connectionId;
+}
+
+function applyNavigationMainFrameId(options: NavigateOptions | undefined): void {
+  const mainFrameId = options?.mainFrameId;
+  if (typeof mainFrameId === "string") state.mainFrameId = mainFrameId;
+}
+
+function applyNavigationCookieKey(options: NavigateOptions | undefined): void {
+  const cookieKey = options?.cookieKey;
+  if (typeof cookieKey === "string") state.cookieKey = cookieKey;
+}
+
+function armNavigationTracing(host: PageScript, traced: boolean): void {
+  try {
+    set_ks_tracing(traced);
+  } catch {}
+  try {
+    armKsOtel(traced);
+  } catch {}
+  try {
+    armSpanSink(host, traced);
+  } catch {}
+}
+
+function emitNavigateDiagnostic(
+  context: NavigationContext,
+  event: NavigationDiagnosticEvent,
+  operation: string,
+  extra?: Record<string, unknown>,
+): void {
+  if (!context.traced) return;
+  try {
+    sendUpstreamEvent({
+      event: "kitesurf.diag",
+      params: {
+        ev: event,
+        op: operation,
+        t: context.nowMs(),
+        ...(extra || {}),
+      },
+    });
+  } catch {}
+}
+
+function markNavigationPhase(context: NavigationContext, name: string): void {
+  const phaseEndedAt = context.nowMs();
+  context.phases[name] = +(phaseEndedAt - context.phaseStartedAt).toFixed(3);
+  context.phaseStartedAt = phaseEndedAt;
+}
+
+function prepareNavigationDocument(context: NavigationContext): Promise<void> | void {
+  teardownPreviousNavigation(context);
+  prepareNavigationEnvironment(context);
+  emitNavigateDiagnostic(context, "start", "fonts");
+  const fontRegistration = navigationFontRegistration(context);
+  if (fontRegistration) return fontRegistration.then(() => finishNavigationDocument(context));
+  finishNavigationDocument(context);
+}
+
+function finishNavigationDocument(context: NavigationContext): void {
+  finishNavigationEnvironment(context);
+  const domSetup = createNavigationDom(context);
+  const built = buildNavigationDocument(context, domSetup);
+  installBuiltNavigationDocument(built);
+  installNavigationIframeHooks();
+  applyBuiltDocumentLifecycleHooks(built);
+  emitNavigateDiagnostic(context, "end", "shim");
+  markNavigationPhase(context, "shimMs");
+}
+
+function teardownPreviousNavigation(context: NavigationContext): void {
+  dispatchWindowUnload();
+  if (state.dom) {
+    try {
+      state.dom.free();
+    } catch {}
+  }
+  state.pageUrl = context.safeUrl;
+  state.lastForceRestyleSeq = -1;
+  state.currentMediaType = "screen";
+  emitNavigateDiagnostic(context, "end", "teardown");
+  markNavigationPhase(context, "teardownMs");
+}
+
+function prepareNavigationEnvironment(context: NavigationContext): void {
+  setNavigationImageDimensions();
+  applyNavigationDarkScheme(context.options);
+  applyNavigationMonoFace(context.options);
+  applyNavigationPixelFreeMode();
+}
+
+function navigationFontRegistration(context: NavigationContext): Promise<void> | null {
+  if (fontDeferActive()) {
+    startFontPrefetch(context.safeHtml);
+    return null;
+  }
+  return ensureFontsRegistered(context.safeHtml);
+}
+
+function finishNavigationEnvironment(context: NavigationContext): void {
+  emitNavigateDiagnostic(context, "end", "fonts");
+  markNavigationPhase(context, "fontsMs");
+  installNavigationTtyCss(context.options);
+}
+
+function setNavigationImageDimensions(): void {
+  try {
+    setDimsOnlyImages(true);
+  } catch {}
+}
+
+function applyNavigationDarkScheme(options: NavigateOptions | undefined): void {
+  const darkColorScheme = options?.darkColorScheme;
+  if (typeof darkColorScheme !== "boolean") return;
+  try {
+    setDarkColorScheme(darkColorScheme);
+  } catch {}
+  ksGlobal.__ks_dark_scheme = darkColorScheme;
+}
+
+function applyNavigationMonoFace(options: NavigateOptions | undefined): void {
+  if (typeof options?.ttyUaCss !== "number" || options.ttyUaCss <= 0) return;
+  forceMonoFace();
+}
+
+function applyNavigationPixelFreeMode(): void {
+  if (!startupPixelFree) return;
+  try {
+    setPixelFreeSession(true);
+  } catch {}
+}
+
+function hasNavigationTtyGrid(options: NavigateOptions | undefined): boolean {
+  return (
+    typeof options?.ttyUaCss === "number" &&
+    options.ttyUaCss > 0 &&
+    typeof options.ttyCss === "string" &&
+    options.ttyCss.length > 0
+  );
+}
+
+function installNavigationTtyCss(options: NavigateOptions | undefined): void {
+  if (hasNavigationTtyGrid(options)) {
+    installNavigationTtyGrid(options);
+    return;
+  }
+  const css = navigationTtyCss(options);
+  if (css !== null) setTtyUaCss(css);
+}
+
+function navigationTtyCss(options: NavigateOptions | undefined): string | null {
+  const css = options?.ttyCss;
+  return typeof css === "string" && css.length > 0 ? css : null;
+}
+
+function installNavigationTtyGrid(options: NavigateOptions | undefined): void {
+  const css = options?.ttyCss;
+  if (typeof css !== "string") return;
+  try {
+    installNavigationTtyGridForCss(css, options);
+  } catch (error) {
+    console.warn("[kitesurf-tty] sheet install failed:", String(error));
+  }
+}
+
+function installNavigationTtyGridForCss(css: string, options: NavigateOptions | undefined): void {
+  const cellWidth = navigationTtyCellWidth(options);
+  const cellHeight = navigationTtyCellHeight(options);
+  ksGlobal.__ks_tty_cell_w = cellWidth;
+  ksGlobal.__ks_tty_cell_h = cellHeight;
+  const ratio = monoAdvancePerEm();
+  if (ratio > 0) {
+    installNavigationTtyGridSheet(css, cellWidth, cellHeight, ratio);
+    return;
+  }
+  setTtyCellGrid(0, 0);
+  console.warn("[kitesurf-tty] no mono face registered; sheet NOT installed");
+}
+
+function navigationTtyCellWidth(options: NavigateOptions | undefined): number {
+  return positiveOptionOr(options?.ttyCellW, 8);
+}
+
+function navigationTtyCellHeight(options: NavigateOptions | undefined): number {
+  return positiveOptionOr(options?.ttyCellH, 17);
+}
+
+function positiveOptionOr(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && value > 0 ? value : fallback;
+}
+
+function installNavigationTtyGridSheet(
+  css: string,
+  cellWidth: number,
+  cellHeight: number,
+  ratio: number,
+): void {
+  const fontPx = cellWidth / ratio;
+  setTtyUaCss(css.replace(/\{\{FONT_PX\}\}/g, String(fontPx)));
+  setTtyCellGrid(cellWidth, cellHeight);
+  console.log(
+    `[kitesurf-tty] sheet installed: cell=${cellWidth}x${cellHeight} ` +
+      `advance/em=${ratio.toFixed(4)} font-size=${fontPx.toFixed(3)}px`,
+  );
+}
+
+function createNavigationDom(context: NavigationContext): NavigationDomSetup {
+  emitNavigateDiagnostic(context, "start", "parse");
+  const sourceDoctype = sourceDoctypeOf(context.safeHtml);
+  const marker = navigationDoctypeMarker(sourceDoctype);
+  const parsedHtml = htmlWithNavigationDoctypeMarker(context.safeHtml, sourceDoctype, marker);
+  const dom = new DomHandle(parsedHtml, context.safeUrl);
+  state.dom = dom;
+  noteNavigateText(dom);
+  state.sourceDoctype = navigationSourceDoctype(sourceDoctype, marker);
+  setNavigationViewport(dom, context.options);
+  setNavigationDomDebugReference();
+  state.scrollX = 0;
+  state.scrollY = 0;
+  invalidatePaintDom();
+  emitNavigateDiagnostic(context, "end", "parse");
+  markNavigationPhase(context, "parseMs");
+  emitNavigateDiagnostic(context, "start", "shim");
+  return { dom, marker };
+}
+
+function navigationDoctypeMarker(sourceDoctype: ReturnType<typeof sourceDoctypeOf>): string | null {
+  return sourceDoctype ? `__kitesurf_doctype_${Math.random().toString(36).slice(2)}__` : null;
+}
+
+function htmlWithNavigationDoctypeMarker(
+  html: string,
+  sourceDoctype: ReturnType<typeof sourceDoctypeOf>,
+  marker: string | null,
+): string {
+  if (!sourceDoctype || !marker) return html;
+  return html.slice(0, sourceDoctype.end) + `<!--${marker}-->` + html.slice(sourceDoctype.end);
+}
+
+function navigationSourceDoctype(
+  sourceDoctype: ReturnType<typeof sourceDoctypeOf>,
+  marker: string | null,
+): { markup: string; marker: string } | null {
+  if (!sourceDoctype || !marker) return null;
+  return { markup: sourceDoctype.markup, marker };
+}
+
+interface NavigationViewport {
+  width: number;
+  height: number;
+}
+
+function navigationViewport(options: NavigateOptions | undefined): NavigationViewport | null {
+  const width = options?.viewportWidth;
+  const height = options?.viewportHeight;
+  if (typeof width !== "number") return null;
+  if (typeof height !== "number") return null;
+  return {
+    width: Math.max(1, Math.floor(width)),
+    height: Math.max(1, Math.floor(height)),
+  };
+}
+
+function setNavigationViewport(dom: DomHandle, options: NavigateOptions | undefined): void {
+  const viewport = navigationViewport(options);
+  if (!viewport) return;
+  state.paintViewportW = viewport.width;
+  state.paintViewportH = viewport.height;
+  try {
+    const internalState = getInternalState();
+    internalState.viewportW = viewport.width;
+    internalState.viewportH = viewport.height;
+  } catch {}
+  try {
+    dom.setViewport(viewport.width, viewport.height);
+  } catch {}
+}
+
+function setNavigationDomDebugReference(): void {
+  try {
+    ksGlobal.__ks_dom_debug = state.dom;
+  } catch {}
+}
+
+function buildNavigationDocument(
+  context: NavigationContext,
+  domSetup: NavigationDomSetup,
+): BuildDocumentResult {
+  installNativeToString();
+  return ksSpan("dom.build_document", null, () =>
+    buildDocument(domSetup.dom, createNavigationBuildOptions(context, domSetup.marker)),
+  );
+}
+
+function createNavigationBuildOptions(
+  context: NavigationContext,
+  marker: string | null,
+): BuildDocumentOpts {
+  return {
+    pageUrl: context.safeUrl,
+    initialCookieString: context.initialCookies,
+    doctypeMarker: marker,
+    userAgent: startupUserAgent,
+    referrer: startupReferrer,
+    canonicalizeInlineStyle: canonicalizeNavigationInlineStyle,
+    parseTypedStyleValue: parseNavigationTypedStyleValue,
+    parseTypedNumericValue: parseNavigationTypedNumericValue,
+    parseCounterStyleRule: parseNavigationCounterStyleRule,
+    serializeInlineStyle: serializeNavigationInlineStyle,
+    getInlinePropertyValue: navigationInlinePropertyValue,
+    createRuleStyleDeclaration: createNavigationRuleStyleDeclaration,
+    canonicalizePageSelectors: canonicalizeNavigationPageSelectors,
+    characterSet: documentCharacterSet(context.options?.charset),
+    encodingName: navigationEncodingName,
+    percentEncodeAfterEncoding: ks_percent_encode_after_encoding,
+    encodeHtml: ks_encode_html,
+    getCurrentUrl: currentNavigationUrl,
+    setCurrentUrl: updateCurrentUrl,
+    getRectByAuthId: navigationRectByAuthId,
+    getScrollInfoByAuthId: navigationScrollInfoByAuthId,
+    getOffsetMetricsByAuthId: navigationOffsetMetricsByAuthId,
+    getStickyShiftByAuthId: navigationStickyShiftByAuthId,
+    hitTestViaPaint: navigationHitTestViaPaint,
+    getComputedStyleForAuthId: computedStyleForAuthId,
+    getComputedStyleValueForAuthId: computedStyleValueForAuthId,
+    getExternalSheetRules: externalSheetRulesForNode,
+    getScrollOffset: navigationScrollOffset,
+    setScrollOffset: navigationSetScrollOffset,
+    setWheelScrollOffset: (x, y) => navigationWheelScrollOffset(context, x, y),
+    armTransitionDrain,
+  };
+}
+
+function canonicalizeNavigationInlineStyle(css: string) {
+  try {
+    return ks_parse_inline_style(css);
+  } catch {
+    return [];
+  }
+}
+
+function parseNavigationTypedStyleValue(property: string, cssText: string): unknown {
+  try {
+    return ks_parse_typed_style_value(property, cssText);
+  } catch {
+    return null;
+  }
+}
+
+function parseNavigationTypedNumericValue(cssText: string): unknown {
+  try {
+    return ks_parse_typed_numeric_value(cssText);
+  } catch {
+    return null;
+  }
+}
+
+function parseNavigationCounterStyleRule(css: string, field: string, value: string): unknown {
+  try {
+    return ks_counter_style_rule(css, field, value);
+  } catch {
+    return null;
+  }
+}
+
+function serializeNavigationInlineStyle(css: string): string {
+  try {
+    return ks_serialize_inline_style(css);
+  } catch {
+    return "";
+  }
+}
+
+function navigationInlinePropertyValue(css: string, property: string): string {
+  try {
+    return ks_get_property_value(css, property);
+  } catch {
+    return "";
+  }
+}
+
+function createNavigationRuleStyleDeclaration(
+  context: "style" | "keyframe" | "font-face" | "page",
+  css: string,
+  baseUrl: string,
+): RuleStyleDeclarationStore {
+  return new RuleStyleDeclarationStore(context, css, baseUrl);
+}
+
+function canonicalizeNavigationPageSelectors(prelude: string): string | undefined {
+  try {
+    return ks_canonicalize_page_selectors(prelude);
+  } catch {
+    return undefined;
+  }
+}
+
+function navigationEncodingName(label: string): string | undefined {
+  try {
+    return ks_encoding_name(label);
+  } catch {
+    return undefined;
+  }
+}
+
+function currentNavigationUrl(): string {
+  return state.pageUrl;
+}
+
+type NavigationPaint = NonNullable<ReturnType<typeof ensurePaintDom>>;
+
+function navigationPaintForAuthId(authId: number): NavigationPaint | null {
+  if (typeof authId !== "number" || authId <= 0) return null;
+  return ensurePaintDom();
+}
+
+function navigationRectByAuthId(
+  authId: number,
+): ReturnType<NonNullable<BuildDocumentOpts["getRectByAuthId"]>> {
+  const paint = navigationPaintForAuthId(authId);
+  if (!paint) return null;
+  try {
+    return rectWithScrollOffset(paint.getBoundingClientRect(authId));
+  } catch {
+    invalidatePaintDom();
+    return null;
+  }
+}
+
+function navigationScrollInfoByAuthId(
+  authId: number,
+): ReturnType<NonNullable<BuildDocumentOpts["getScrollInfoByAuthId"]>> {
+  const paint = navigationPaintForAuthId(authId);
+  if (!paint) return null;
+  try {
+    return paint.nodeScrollInfo(authId);
+  } catch {
+    invalidatePaintDom();
+    return null;
+  }
+}
+
+function navigationOffsetMetricsByAuthId(
+  authId: number,
+): ReturnType<NonNullable<BuildDocumentOpts["getOffsetMetricsByAuthId"]>> {
+  const paint = navigationPaintForAuthId(authId);
+  if (!paint) return null;
+  try {
+    return paint.offsetMetrics(authId);
+  } catch {
+    invalidatePaintDom();
+    return null;
+  }
+}
+
+function navigationStickyShiftByAuthId(
+  authId: number,
+): ReturnType<NonNullable<BuildDocumentOpts["getStickyShiftByAuthId"]>> {
+  const paint = navigationPaintForAuthId(authId);
+  if (!paint) return null;
+  try {
+    return paint.stickyShift(authId);
+  } catch {
+    invalidatePaintDom();
+    return null;
+  }
+}
+
+function navigationHitTestViaPaint(x: number, y: number): number {
+  const paint = ensurePaintDom();
+  if (!paint) return -1;
+  try {
+    const id = paint.elementFromPoint(x + state.scrollX, y + state.scrollY);
+    return validNavigationHitTestId(id);
+  } catch {
+    invalidatePaintDom();
+    return -1;
+  }
+}
+
+function validNavigationHitTestId(id: unknown): number {
+  return typeof id === "number" && id >= 0 ? id : -1;
+}
+
+function navigationScrollOffset(): { x: number; y: number } {
+  return { x: state.scrollX, y: state.scrollY };
+}
+
+function navigationSetScrollOffset(x: number, y: number): ReturnType<typeof setScrollOffset> {
+  return setScrollOffset(x, y);
+}
+
+function navigationWheelScrollOffset(
+  context: NavigationContext,
+  x: number,
+  y: number,
+): ReturnType<typeof setScrollOffset> {
+  return setScrollOffset(
+    x,
+    y,
+    Number(context.options?.ttyCellW) || 0,
+    Number(context.options?.ttyCellH) || 0,
+  );
+}
+
+function installBuiltNavigationDocument(built: BuildDocumentResult): void {
+  state.document = built.document;
+  state.window = built.window;
+  startExternalSvgSpriteResolution();
+  installBuiltNavigationCallbacks(built);
+  installBuiltNavigationGlobals();
+  installGlobals(state.document, state.window, built);
+  preinstallStaticIframes();
+  ksSpan("dom.mark_engine_functions", null, () =>
+    markEngineFunctions([globalThis, state.window, state.document]),
+  );
+}
+
+function startExternalSvgSpriteResolution(): void {
+  try {
+    void resolveExternalSvgSprites();
+  } catch {}
+}
+
+function installBuiltNavigationCallbacks(built: BuildDocumentResult): void {
+  installBuiltPageCallbacks(built);
+  installBuiltNodeCallbacks(built);
+  installBuiltEventCallbacks(built);
+  __ks_dispatchTrustedEvent = built.__ks_dispatchTrustedEvent || null;
+  __ks_activateLabel = built.__ks_activateLabel;
+  state.dispatchTrustedEvent = __ks_dispatchTrusted;
+}
+
+function installBuiltPageCallbacks(built: BuildDocumentResult): void {
+  state.getOpLog = built.getOpLog || (() => []);
+  state.setReadyState = built.setReadyState || (() => {});
+  state.drainCookieWrites = built.drainCookieWrites || (() => []);
+}
+
+function installBuiltNodeCallbacks(built: BuildDocumentResult): void {
+  state.setCookieString = built.setCookieString || (() => {});
+  state.resolveNodeId = built.nodeFor || (() => null);
+  state.notifyImageResults = built.notifyImageResults || (() => {});
+}
+
+function installBuiltEventCallbacks(built: BuildDocumentResult): void {
+  state.notifyStylesheetResults = built.notifyStylesheetResults || (() => {});
+  state.getActiveElement = built.getActiveElement || (() => null);
+  state.drainCdpMutationsRaw = built.drainCdpMutations || (() => []);
+}
+
+function installBuiltNavigationGlobals(): void {
+  ksGlobal.__ks_canonicalize_inline_style = canonicalizeNavigationInlineStyle;
+}
+
+function installNavigationIframeHooks(): void {
+  const internalState = getInternalState();
+  internalState.afterIframeInsert = handleAfterIframeInsert;
+  internalState.afterIframeRemove = handleAfterIframeRemove;
+  internalState.afterIframeSrcChange = handleAfterIframeSrcChange;
+  internalState.navigateIframe = handleIframeNavigation;
+  internalState.endClassicScript = finishClassicScriptTurn;
+  internalState.afterScriptInsert = handleInsertedScript;
+}
+
+function handleAfterIframeInsert(iframeElement: unknown): void {
+  try {
+    handleDynamicIframeInsert(iframeElement);
+  } catch (error) {
+    warnDynamicIframeInsert(error);
+  }
+}
+
+function warnDynamicIframeInsert(error: unknown): void {
+  try {
+    console.warn(
+      "[kitesurf-iframe] dynamic-insert handler failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+  } catch {}
+}
+
+function handleAfterIframeRemove(iframeElement: unknown): void {
+  try {
+    const frameId = (iframeElement as { __ks_iframeFrameId?: unknown } | null)?.__ks_iframeFrameId;
+    if (typeof frameId !== "string" || frameId.length === 0) return;
+    sendUpstreamEvent({ event: "kitesurf.frameDetached", params: { frameId } });
+  } catch {}
+}
+
+function handleAfterIframeSrcChange(iframeElement: unknown): void {
+  try {
+    handleIframeSrcChange(iframeElement);
+  } catch (error) {
+    warnIframeSourceChange(error);
+  }
+}
+
+function warnIframeSourceChange(error: unknown): void {
+  try {
+    console.warn(
+      "[kitesurf-iframe] src-change handler failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+  } catch {}
+}
+
+function handleIframeNavigation(iframeElement: unknown, url: string, post?: IframePost): void {
+  try {
+    handleIframeSrcChange(iframeElement, url, post);
+  } catch (error) {
+    warnIframeFailure(error, { operation: "form target navigation", url });
+  }
+}
+
+async function finishClassicScriptTurn(): Promise<void> {
+  try {
+    await drainSettleMicrotasks();
+  } catch {}
+  try {
+    getInternalState().setCurrentScript?.(null);
+  } catch {}
+}
+
+function applyBuiltDocumentLifecycleHooks(built: BuildDocumentResult): void {
+  applyDeclarativeShadowRoots(built);
+  stampInitialNamedGlobals(built);
+}
+
+function applyDeclarativeShadowRoots(built: BuildDocumentResult): void {
+  if (typeof built.applyDeclarativeShadowRoots !== "function") return;
+  try {
+    built.applyDeclarativeShadowRoots();
+  } catch {}
+}
+
+function stampInitialNamedGlobals(built: BuildDocumentResult): void {
+  if (typeof built.stampInitialNamedGlobals !== "function") return;
+  try {
+    built.stampInitialNamedGlobals();
+  } catch {}
+}
+
+async function executeNavigationScripts(
+  context: NavigationContext,
+): Promise<NavigationScriptResult> {
+  const fontWait = deferredFontsObservedByScripts(context);
+  if (fontWait) await fontWait;
+  emitNavigateDiagnostic(context, "start", "regular_scripts");
+  resetConsoleBuffer();
+  resetExceptionBuffer();
+  const useBundle = navigationUsesBundle();
+  if (useBundle) {
+    const scriptCount = await runBundledNavigationScripts(context);
+    return { useBundle, legacyPlan: null, scriptCount };
+  }
+  const legacy = await runLegacyNavigationScripts(context);
+  return {
+    useBundle,
+    legacyPlan: legacy.legacyPlan,
+    scriptCount: legacy.scriptCount,
+  };
+}
+
+function deferredFontsObservedByScripts(context: NavigationContext): Promise<void> | null {
+  if (!fontDeferActive()) return null;
+  if (!navigationHasScriptObservers(context.safeHtml)) return null;
+  return awaitDeferredFontBytes();
+}
+
+function navigationHasScriptObservers(html: string): boolean {
+  return startupScriptDescriptors.length > 0 || /\son\w+\s*=/i.test(html);
+}
+
+function navigationUsesBundle(): boolean {
+  return startupHasClassicRegular || startupHasClassicAsync || startupModuleScriptCount > 0;
+}
+
+function shouldRunBundledNavigationScripts(): boolean {
+  return startupHasClassicRegular || startupModuleScriptCount > 0;
+}
+
+async function runBundledNavigationScripts(context: NavigationContext): Promise<number> {
+  const cssWait = waitForNavigationCriticalCss(context);
+  if (cssWait) await cssWait;
+  const classicRun = runBundledClassicRegularScripts(context);
+  if (classicRun) await classicRun;
+  const moduleRun = runBundledModuleScripts(context);
+  if (moduleRun) await moduleRun;
+  return navigationStartupScriptCount();
+}
+
+function waitForNavigationCriticalCss(context: NavigationContext): Promise<void> | void {
+  if (!shouldRunBundledNavigationScripts()) return;
+  const cssStart = Date.now();
+  const cssDeadline = cssStart + CSS_CRITICAL_RESOURCE_WAIT_BUDGET_MS;
+  const cssWait = waitForCriticalCssResources(cssDeadline);
+  if (!cssWait) return;
+  return cssWait.then((cssWaits) => {
+    if (cssWaits > 0) context.bundleExec.push(`css-block:${Date.now() - cssStart}ms`);
+  });
+}
+
+const CSS_CRITICAL_RESOURCE_WAIT_BUDGET_MS = 5000;
+const CSS_CRITICAL_RESOURCE_POLL_INTERVAL_MS = 25;
+
+function waitForCriticalCssResources(deadline: number): Promise<number> | null {
+  if (!hasNavigationCriticalResources()) return null;
+  if (Date.now() >= deadline) return null;
+  return pollCriticalCssResources(deadline);
+}
+
+async function pollCriticalCssResources(deadline: number): Promise<number> {
+  let waits = 0;
+  while (true) {
+    waits++;
+    await NativePromise.race([
+      nativeSleep(CSS_CRITICAL_RESOURCE_POLL_INTERVAL_MS),
+      nextResourceSettle(),
+    ]);
+    if (!hasNavigationCriticalResources()) return waits;
+    if (Date.now() >= deadline) return waits;
+  }
+}
+
+function hasNavigationCriticalResources(): boolean {
+  const dom = state.dom;
+  if (!dom || typeof dom.hasPendingCriticalResources !== "function") return false;
+  try {
+    return Boolean(dom.hasPendingCriticalResources());
+  } catch {
+    return false;
+  }
+}
+
+function runBundledClassicRegularScripts(context: NavigationContext): Promise<void> | void {
+  if (startupHasClassicRegular) {
+    context.bundleExec.push("classic:start");
+    const scriptStartedAt = context.nowMs();
+    resetBundleDiagnostics();
+    return runClassicRegularBucket(context.bundleExec, scriptStartedAt, context.nowMs).then(() => {
+      finishBundledClassicRegularScripts(context);
+    });
+  } else {
+    context.bundleExec.push("classic:skipped(no-bundle)");
+  }
+  finishBundledClassicRegularScripts(context);
+}
+
+function finishBundledClassicRegularScripts(context: NavigationContext): void {
+  emitNavigateDiagnostic(context, "end", "regular_scripts");
+  markNavigationPhase(context, "regularScriptsMs");
+  emitNavigateDiagnostic(context, "start", "module_scripts");
+}
+
+function resetBundleDiagnostics(): void {
+  if (!startupCdpDebug) return;
+  try {
+    getInternalState().bundleDiag = null;
+  } catch {}
+}
+
+function runBundledModuleScripts(context: NavigationContext): Promise<void> | void {
+  if (startupModuleScriptCount > 0) installInitShims();
+  context.bundleExec.push("module:count=" + startupModuleScriptCount);
+  const progress: NavigationModuleProgress = { successCount: 0, failureCount: 0 };
+  if (startupModuleScriptCount === 0) {
+    finishNavigationModuleScripts(context, progress);
+    finishBundledModuleScripts(context);
+    return;
+  }
+  return runNavigationModuleImports(context, progress)
+    .finally(() => finishNavigationModuleScripts(context, progress))
+    .then(() => finishBundledModuleScripts(context));
+}
+
+function finishBundledModuleScripts(context: NavigationContext): void {
+  emitNavigateDiagnostic(context, "end", "module_scripts");
+  markNavigationPhase(context, "moduleScriptsMs");
+}
+
+interface NavigationModuleProgress {
+  successCount: number;
+  failureCount: number;
+}
+
+const MAX_MODULE_ERRORS_LOGGED = 3;
+const MAX_MODULE_ERROR_MESSAGE_CHARS = 200;
+
+async function runNavigationModuleImports(
+  context: NavigationContext,
+  progress: NavigationModuleProgress,
+): Promise<void> {
+  const drainUpgrades = (globalThis as { __ks_drainCustomElementUpgrades?: () => void })
+    .__ks_drainCustomElementUpgrades;
+  const pendingImports: Array<Promise<void>> = [];
+  for (let moduleIndex = 0; moduleIndex < startupModuleScriptCount; moduleIndex++) {
+    await runOneNavigationModule(context, moduleIndex, progress, pendingImports, drainUpgrades);
+  }
+  await settlePendingNavigationModules(pendingImports);
+}
+
+async function runOneNavigationModule(
+  context: NavigationContext,
+  moduleIndex: number,
+  progress: NavigationModuleProgress,
+  pendingImports: Promise<void>[],
+  drainUpgrades: (() => void) | undefined,
+): Promise<void> {
+  const moduleUrl = startupModuleScriptUrls[moduleIndex] ?? "";
+  const moduleImport = trackNavigationModuleImport(
+    context,
+    moduleIndex,
+    moduleUrl,
+    importModule(moduleUrl),
+    progress,
+  );
+  const outcome = await NativePromise.race([
+    moduleImport.then(() => "settled" as const),
+    nativeSleep(0).then(() => "pending" as const),
+  ]);
+  if (outcome === "pending") {
+    parkNavigationModuleImport(context, moduleIndex, moduleImport, pendingImports);
+  }
+  drainPageCustomElementUpgrades(drainUpgrades);
+}
+
+function trackNavigationModuleImport(
+  context: NavigationContext,
+  moduleIndex: number,
+  moduleUrl: string,
+  modulePromise: Promise<unknown>,
+  progress: NavigationModuleProgress,
+): Promise<void> {
+  return modulePromise.then(
+    () => {
+      progress.successCount++;
+    },
+    (error) => {
+      recordNavigationModuleFailure(context, moduleIndex, moduleUrl, error, progress);
+    },
+  );
+}
+
+function recordNavigationModuleFailure(
+  context: NavigationContext,
+  moduleIndex: number,
+  moduleUrl: string,
+  error: unknown,
+  progress: NavigationModuleProgress,
+): void {
+  progress.failureCount++;
+  if (progress.failureCount <= MAX_MODULE_ERRORS_LOGGED) {
+    const message = errorMessageOrValue(error).slice(0, MAX_MODULE_ERROR_MESSAGE_CHARS);
+    context.bundleExec.push("module:err[" + moduleIndex + "]=" + message);
+  }
+  pushException(error, {
+    scriptId: "bundle:module-" + moduleIndex,
+    url: moduleUrl || "/__ks_user_module_" + moduleIndex + ".js",
+    text: "Uncaught",
+  });
+  console.error("[kitesurf] user module " + moduleIndex + " (" + moduleUrl + ") threw:", error);
+}
+
+function parkNavigationModuleImport(
+  context: NavigationContext,
+  moduleIndex: number,
+  moduleImport: Promise<void>,
+  pendingImports: Promise<void>[],
+): void {
+  context.bundleExec.push("module:tla-parked[" + moduleIndex + "]");
+  drainInitShims();
+  drainDeferParked();
+  installInitShims();
+  pendingImports.push(moduleImport);
+}
+
+async function settlePendingNavigationModules(pendingImports: Promise<void>[]): Promise<void> {
+  if (pendingImports.length === 0) return;
+  drainInitShims();
+  await NativePromise.race([NativePromise.all(pendingImports), nativeSleep(TLA_SETTLE_BUDGET_MS)]);
+}
+
+function finishNavigationModuleScripts(
+  context: NavigationContext,
+  progress: NavigationModuleProgress,
+): void {
+  if (startupModuleScriptCount > 0) drainInitShims();
+  drainDeferParked();
+  context.bundleExec.push(
+    "module:done(ok=" + progress.successCount + ",err=" + progress.failureCount + ")",
+  );
+}
+
+function navigationStartupScriptCount(): number {
+  return Array.isArray(startupScriptDescriptors) ? startupScriptDescriptors.length : 0;
+}
+
+interface LegacyNavigationScripts {
+  legacyPlan: ReturnType<typeof planScripts>;
+  scriptCount: number;
+}
+
+async function runLegacyNavigationScripts(
+  context: NavigationContext,
+): Promise<LegacyNavigationScripts> {
+  const scripts = extractScripts();
+  const legacyPlan = planScripts(scripts);
+  await runRegularPhase(legacyPlan);
+  emitNavigateDiagnostic(context, "end", "regular_scripts");
+  markNavigationPhase(context, "regularScriptsMs");
+  emitNavigateDiagnostic(context, "start", "module_scripts");
+  await runModulePhase(legacyPlan);
+  emitNavigateDiagnostic(context, "end", "module_scripts");
+  markNavigationPhase(context, "moduleScriptsMs");
+  return { legacyPlan, scriptCount: scripts.length };
+}
+
+function armNavigationLoadCompletion(
+  context: NavigationContext,
+  scripts: NavigationScriptResult,
+): void {
+  const startedAt = context.nowMs();
+  state.loadCompletion = completeNavigationLoad(context, scripts, startedAt);
+  state.settleLoadCompletionArmed();
+}
+
+function navigationSummary(context: NavigationContext, scriptCount: number): NavigateSummary {
+  return {
+    title: "",
+    nodeCount: 0,
+    documentNodeId: 0,
+    url: context.safeUrl,
+    scriptCount,
+    readyState: "interactive",
+    console: drainConsole(),
+    cookieWrites: state.drainCookieWrites(),
+    cdpMutations: drainCdpMutations(),
+    exceptions: drainExceptions(),
+    phases: context.phases,
+    bundleExec: context.bundleExec,
+    fontDegradedReads: deferredDegradedReads(),
+  };
+}
+
+interface LoadPhaseProgress {
+  phases: Record<string, number>;
+  phaseStartedAt: number;
+}
+
+function loadPhaseProgress(startedAt: number): LoadPhaseProgress {
+  return { phases: {}, phaseStartedAt: startedAt };
+}
+
+function markLoadPhase(
+  context: NavigationContext,
+  progress: LoadPhaseProgress,
+  name: string,
+): void {
+  const phaseEndedAt = context.nowMs();
+  progress.phases[name] = +(phaseEndedAt - progress.phaseStartedAt).toFixed(3);
+  progress.phaseStartedAt = phaseEndedAt;
+}
+
+async function completeNavigationLoad(
+  context: NavigationContext,
+  scripts: NavigationScriptResult,
+  startedAt: number,
+): Promise<LoadCompletion> {
+  const progress = loadPhaseProgress(startedAt);
+  await runNavigationAsyncScripts(context, scripts, progress);
+  await drainNavigationResources(context, progress);
+  compileNavigationEventAttributes();
+  await settleNavigationAfterLoad(context, progress);
+  return {
+    console: drainConsole(),
+    cookieWrites: state.drainCookieWrites(),
+    cdpMutations: drainCdpMutations(),
+    exceptions: drainExceptions(),
+    phases: progress.phases,
+    readyAt: Date.now(),
+  };
+}
+
+async function runNavigationAsyncScripts(
+  context: NavigationContext,
+  scripts: NavigationScriptResult,
+  progress: LoadPhaseProgress,
+): Promise<void> {
+  emitNavigateDiagnostic(context, "start", "async_scripts");
+  if (scripts.useBundle) {
+    if (startupHasClassicAsync) await runClassicAsyncBucket();
+  } else if (scripts.legacyPlan) {
+    await runAsyncPhase(scripts.legacyPlan);
+  }
+  emitNavigateDiagnostic(context, "end", "async_scripts");
+  markLoadPhase(context, progress, "asyncScriptsMs");
+}
+
+interface ClassicAsyncModule {
+  default?: { run?: () => unknown };
+  run?: () => unknown;
+}
+
+async function runClassicAsyncBucket(): Promise<void> {
+  try {
+    const module = (await importModule("./__ks_user_classic_async.js")) as ClassicAsyncModule;
+    const run = classicAsyncBucketRunner(module);
+    if (run) await run();
+    else reportMissingClassicAsyncRunner(module);
+  } catch (error) {
+    pushException(error, {
+      scriptId: "bundle:classic-async",
+      url: "/__ks_user_classic_async.js",
+      text: "Uncaught",
+    });
+    console.error("[kitesurf] classic async bucket threw:", error);
+  }
+}
+
+function classicAsyncBucketRunner(module: ClassicAsyncModule): (() => unknown) | null {
+  const run = (module && module.default && module.default.run) || module.run;
+  return typeof run === "function" ? run : null;
+}
+
+function reportMissingClassicAsyncRunner(module: ClassicAsyncModule): void {
+  console.error("[kitesurf] classic async bucket: no run() export", Object.keys(module || {}));
+}
+
+const RESOURCE_WAIT_BUDGET_MS = 25_000;
+const RESOURCE_POLL_INTERVAL_MS = 10;
+const SUBRESOURCE_INFLIGHT_WAIT_BACKSTOP_MS = 1_000;
+
+interface NavigationResourceDrainState {
+  startedAt: number;
+  statsAtStart: ReturnType<typeof snapshotFetchStats>;
+  quietTurnLimit: number;
+  pollCount: number;
+  activityWaveCount: number;
+  quietTurns: number;
+  iframeGateExpired: boolean;
+}
+
+interface NavigationResourceActivity {
+  hasCriticalResources: boolean;
+  hasBlockingSubresources: boolean;
+  iframeInstallGatePending: boolean;
+}
+
+function createNavigationResourceDrainState(
+  context: NavigationContext,
+): NavigationResourceDrainState {
+  return {
+    startedAt: context.nowMs(),
+    statsAtStart: snapshotFetchStats(),
+    quietTurnLimit: Math.max(1, startupResourceDrainQuietTurns),
+    pollCount: 0,
+    activityWaveCount: 0,
+    quietTurns: 0,
+    iframeGateExpired: false,
+  };
+}
+
+async function drainNavigationResources(
+  context: NavigationContext,
+  progress: LoadPhaseProgress,
+): Promise<void> {
+  emitNavigateDiagnostic(context, "start", "resource_drain");
+  const drain = createNavigationResourceDrainState(context);
+  await waitForNavigationResources(context, drain);
+  reportNavigationResourceDrain(context, drain);
+  markLoadPhase(context, progress, "resourceDrainMs");
+}
+
+async function waitForNavigationResources(
+  context: NavigationContext,
+  drain: NavigationResourceDrainState,
+): Promise<void> {
+  while (true) {
+    throwIfNavigationSessionClosed();
+    const activity = navigationResourceActivity(context, drain);
+    if (navigationResourceDrainIsQuietEnough(drain, activity)) break;
+    await waitForNavigationResourceDrainTurn(drain, activity);
+    if (navigationResourceDrainBudgetExpired(context, drain)) break;
+  }
+}
+
+function throwIfNavigationSessionClosed(): void {
+  if (sessionClosing) throw SESSION_CLOSED_ERROR;
+}
+
+function navigationResourceActivity(
+  context: NavigationContext,
+  drain: NavigationResourceDrainState,
+): NavigationResourceActivity {
+  const hasCriticalResources = hasNavigationCriticalResources();
+  reevaluateDeferredResources();
+  return {
+    hasCriticalResources,
+    hasBlockingSubresources: blockingInflightCount() > 0,
+    iframeInstallGatePending: navigationIframeInstallGatePending(context, drain),
+  };
+}
+
+function reevaluateDeferredResources(): void {
+  try {
+    reevaluateDeferredUrls();
+  } catch {}
+}
+
+function navigationIframeInstallGatePending(
+  context: NavigationContext,
+  drain: NavigationResourceDrainState,
+): boolean {
+  const pending =
+    awaitingIframeInstalls && context.nowMs() - drain.startedAt < IFRAME_INSTALL_WAIT_MS;
+  if (shouldReportExpiredIframeGate(pending, drain)) {
+    drain.iframeGateExpired = true;
+    console.warn(
+      "[kitesurf-iframe] load gate expired after " +
+        IFRAME_INSTALL_WAIT_MS +
+        "ms without an iframeInstallsSettled; `load` was held " +
+        "for the full backstop",
+    );
+  }
+  return pending;
+}
+
+function shouldReportExpiredIframeGate(
+  pending: boolean,
+  drain: NavigationResourceDrainState,
+): boolean {
+  return awaitingIframeInstalls && !pending && !drain.iframeGateExpired;
+}
+
+function navigationResourceDrainIsQuietEnough(
+  drain: NavigationResourceDrainState,
+  activity: NavigationResourceActivity,
+): boolean {
+  return navigationResourcesAreQuiet(activity) && drain.quietTurns >= drain.quietTurnLimit;
+}
+
+function navigationResourcesAreQuiet(activity: NavigationResourceActivity): boolean {
+  return (
+    !activity.hasCriticalResources &&
+    !activity.hasBlockingSubresources &&
+    !activity.iframeInstallGatePending
+  );
+}
+
+async function waitForNavigationResourceDrainTurn(
+  drain: NavigationResourceDrainState,
+  activity: NavigationResourceActivity,
+): Promise<void> {
+  if (navigationResourcesAreQuiet(activity)) {
+    await waitForQuietNavigationResourceTurn(drain);
+    return;
+  }
+  await waitForActiveNavigationResourceTurn(drain, activity);
+}
+
+async function waitForQuietNavigationResourceTurn(
+  drain: NavigationResourceDrainState,
+): Promise<void> {
+  drain.quietTurns++;
+  drain.pollCount++;
+  await drainSettleMicrotasks();
+  try {
+    pumpPageTask();
+  } catch (error) {
+    reportEngineError("runtime", error, "pumpPageTask threw during load settle");
+  }
+  pumpNavigationResourceMessages();
+  if (pageTimerDueWithin(RESOURCE_POLL_INTERVAL_MS)) {
+    await NativePromise.race([
+      nativeSleep(RESOURCE_POLL_INTERVAL_MS),
+      nextTimerTask(),
+      sessionClosingSignal,
+    ]);
+  }
+}
+
+function pumpNavigationResourceMessages(): void {
+  try {
+    (state.dom as { pumpResourceMessages?: () => void } | null)?.pumpResourceMessages?.();
+  } catch {}
+}
+
+async function waitForActiveNavigationResourceTurn(
+  drain: NavigationResourceDrainState,
+  activity: NavigationResourceActivity,
+): Promise<void> {
+  if (drain.quietTurns > 0) drain.activityWaveCount++;
+  drain.quietTurns = 0;
+  drain.pollCount++;
+  if (activity.hasBlockingSubresources) {
+    await waitForBlockingNavigationSubresources();
+  } else {
+    await NativePromise.race([nativeSleep(RESOURCE_POLL_INTERVAL_MS), sessionClosingSignal]);
+  }
+}
+
+async function waitForBlockingNavigationSubresources(): Promise<void> {
+  await NativePromise.race([
+    waitForInflightZero(),
+    nativeSleep(SUBRESOURCE_INFLIGHT_WAIT_BACKSTOP_MS),
+    sessionClosingSignal,
+  ]);
+}
+
+function navigationResourceDrainBudgetExpired(
+  context: NavigationContext,
+  drain: NavigationResourceDrainState,
+): boolean {
+  return context.nowMs() - drain.startedAt > RESOURCE_WAIT_BUDGET_MS;
+}
+
+function reportNavigationResourceDrain(
+  context: NavigationContext,
+  drain: NavigationResourceDrainState,
+): void {
+  const statsAtEnd = snapshotFetchStats();
+  emitNavigateDiagnostic(context, "end", "resource_drain", {
+    polls: drain.pollCount,
+    waves: drain.activityWaveCount,
+    ...expiredIframeGateDiagnostic(drain),
+    d_count: statsAtEnd.count - drain.statsAtStart.count,
+    d_slot_ms: Math.round(statsAtEnd.slotMs - drain.statsAtStart.slotMs),
+    d_fetch_ms: Math.round(statsAtEnd.fetchMs - drain.statsAtStart.fetchMs),
+    d_deliver_ms: Math.round(statsAtEnd.deliverMs - drain.statsAtStart.deliverMs),
+    max_deliver_ms: Math.round(statsAtEnd.maxDeliverMs),
+  });
+}
+
+function expiredIframeGateDiagnostic(
+  drain: NavigationResourceDrainState,
+): Record<string, true> | {} {
+  return drain.iframeGateExpired ? { iframe_gate_expired: true } : {};
+}
+
+function compileNavigationEventAttributes(): void {
+  try {
+    const body = (state.document as any)?.body;
+    for (const attributeName of navigationEventAttributeNames(body)) {
+      compileEventAttribute(body, attributeName);
     }
-    requireQueryDomDocument(state);
-    const queryArgs = args || {};
-    switch (method) {
-      case "getDocument":
-      case "nodeSubtree":
-      case "getOuterHTMLAndSeq":
-        return queryDomDocumentRead(state, method, queryArgs);
-      case "getOuterHTML":
-        return queryDomOuterHTML(state, queryArgs);
-      case "querySelector":
-      case "querySelectorAll":
-      case "matchSelectorList":
-        return queryDomSelectorRead(state, method, queryArgs);
-      case "getAncestorElementIds":
-        return queryDomAncestorElementIds(state, queryArgs);
-      case "parseStyleSheet":
-        return queryDomParseStylesheet(queryArgs);
-      case "enumerateStyleSheets":
-        return queryDomEnumerateStyleSheets(state);
-      case "getSceneStats":
-        return queryDomSceneStats();
-      case "pumpTasks":
-        return queryDomPumpTasks(queryArgs);
-      case "recordScene":
-        return queryDomRecordScene(state, queryArgs);
-      case "getFontUrlData":
-        return queryDomGetFontUrlData(queryArgs);
-      case "getPaintResources":
-        return queryDomGetPaintResources(state, queryArgs);
-      case "recordPdfScenes":
-        return queryDomRecordPdfScenes(queryArgs);
-      case "getComputedStyle":
-      case "getRect":
-      case "elementFromPoint":
-        return queryDomPaintGeometry(method, queryArgs);
-      case "notRenderedNodeIds":
-        return queryDomNotRenderedNodeIds(queryArgs);
-      case "formStateSnapshot":
-      case "setControlValueAsUser":
-        return queryDomFormState(state, method, queryArgs);
-      case "setViewport":
-        return queryDomSetViewport(state, queryArgs);
-      case "setMediaType":
-        return queryDomSetMediaType(state, queryArgs);
-      case "setSuppressBackgrounds":
-        return queryDomSetSuppressBackgrounds(queryArgs);
-      case "awaitPendingResources":
-        return await queryDomAwaitPendingResources(state, queryArgs);
-      case "pageBoxJson":
-      case "setLayoutMode":
-      case "getLayoutMode":
-      case "setCdpDomActive":
-        return queryDomLayoutSettings(state, method, queryArgs);
-      case "layoutMetrics": {
-        // One layout walk for both axes; documentScrollSize falls back to
-        // the viewport when there is no paint DOM.
-        const content = documentScrollSize();
-        return {
-          viewportWidth: state.paintViewportW,
-          viewportHeight: state.paintViewportH,
-          scrollX: state.scrollX,
-          scrollY: state.scrollY,
-          contentWidth: content.width,
-          contentHeight: content.height,
-        } satisfies QueryDomResult<"layoutMetrics">;
-      }
-      case "describeNode":
-      case "resolveNode":
-      case "getAttributes":
-      case "focus":
-        return queryDomNodeHandle(state, method, queryArgs);
-      case "hasPendingCriticalResources":
-        return queryDomHasPendingCriticalResources(state);
-      case "getMemoryStats":
-        return queryDomMemoryStats();
-      case "boaForceCollect":
-      case "getFontFaces":
-      case "getMemprofDump":
-      case "resetMemprof":
-        return queryDomDiagnostics(method);
-      case "webmcpGetTools":
-      case "webmcpStopWatchingTools":
-      case "webmcpCancelTool":
-        return queryDomWebMcpRead(method, queryArgs);
-      case "webmcpCallTool":
-        return await queryDomWebMcpCall(queryArgs);
-      case "getPageState":
-        return queryDomPageState();
-      case "markPaintDamage":
-      case "paintDamageSince":
-        return queryDomPaintDamage(method, queryArgs);
-      default:
-        return {};
+  } catch {}
+}
+
+function navigationEventAttributeNames(body: any): string[] {
+  const attributes = body?.attributes;
+  if (!attributes) return [];
+  return Array.from(attributes as ArrayLike<unknown>, navigationEventAttributeName).filter((name) =>
+    name.startsWith("on"),
+  );
+}
+
+function navigationEventAttributeName(attribute: unknown): string {
+  const name = attribute == null ? undefined : Reflect.get(Object(attribute), "name");
+  return String(name || "");
+}
+
+type NavigationSettleState = [number, number, number];
+
+interface PostLoadSettleProgress {
+  passCount: number;
+  previousState: NavigationSettleState;
+}
+
+function navigationSettleState(): NavigationSettleState {
+  return [cascadeSeq() | 0, timersScheduledCount(), blockingInflightCount()];
+}
+
+async function settleNavigationAfterLoad(
+  context: NavigationContext,
+  progress: LoadPhaseProgress,
+): Promise<void> {
+  const baseline = navigationSettleState();
+  dispatchNavigationLoadLifecycleEvents();
+  const settleProgress = await runPostLoadSettlePasses(context, baseline);
+  recordNavigationSettlePhases(progress, baseline, settleProgress);
+  await settleAfterCustomElementUpgrades(settleProgress);
+  startNavigationLateSpriteSweep();
+  markLoadPhase(context, progress, "postLoadDrainMs");
+}
+
+function dispatchNavigationLoadLifecycleEvents(): void {
+  state.setReadyState("complete");
+  dispatchLifecycle(state.document, "readystatechange", { bubbles: false });
+  dispatchLifecycle(state.window, "load", { bubbles: false });
+  dispatchLifecycle(state.window, "pageshow", { bubbles: false });
+}
+
+async function runPostLoadSettlePasses(
+  context: NavigationContext,
+  baseline: NavigationSettleState,
+): Promise<PostLoadSettleProgress> {
+  let passCount = 0;
+  let previousState = baseline;
+  const startedAt = context.nowMs();
+  const SETTLE_BUDGET_MS = 250;
+  const MAX_POST_LOAD_SETTLE_PASSES = 3;
+  for (let pass = 0; pass < MAX_POST_LOAD_SETTLE_PASSES; pass++) {
+    await drainSettleMicrotasks();
+    const currentState = navigationSettleState();
+    const shouldContinue = shouldContinuePostLoadSettle(
+      context,
+      startedAt,
+      SETTLE_BUDGET_MS,
+      pass,
+      currentState,
+      previousState,
+    );
+    previousState = currentState;
+    if (!shouldContinue) break;
+    passCount++;
+    await yieldToPageTasks();
+  }
+  return { passCount, previousState };
+}
+
+function shouldContinuePostLoadSettle(
+  context: NavigationContext,
+  startedAt: number,
+  budgetMs: number,
+  pass: number,
+  current: NavigationSettleState,
+  previous: NavigationSettleState,
+): boolean {
+  const outputMoved = navigationSettleOutputMoved(current, previous);
+  const timersMoved = current[1] !== previous[1];
+  if (!outputMoved && !timersMoved) return false;
+  if (!outputMoved && pass > 0) return false;
+  return context.nowMs() - startedAt <= budgetMs;
+}
+
+function navigationSettleOutputMoved(
+  current: NavigationSettleState,
+  previous: NavigationSettleState,
+): boolean {
+  return current[0] !== previous[0] || current[2] !== previous[2];
+}
+
+function recordNavigationSettlePhases(
+  progress: LoadPhaseProgress,
+  baseline: NavigationSettleState,
+  settleProgress: PostLoadSettleProgress,
+): void {
+  const finalState = navigationSettleState();
+  progress.phases.plPasses = settleProgress.passCount;
+  progress.phases.plMutations = finalState[0] - baseline[0];
+  progress.phases.plTimers = finalState[1] - baseline[1];
+  progress.phases.plInflightEnd = finalState[2];
+}
+
+async function settleAfterCustomElementUpgrades(progress: PostLoadSettleProgress): Promise<void> {
+  try {
+    ksGlobal.__ks_drainCustomElementUpgrades?.();
+    await drainSettleMicrotasks();
+    const currentState = navigationSettleState();
+    if (navigationSettleOutputMoved(currentState, progress.previousState)) {
+      progress.passCount++;
+      await yieldToPageTasks();
     }
+    progress.previousState = currentState;
+  } catch {}
+}
+
+function startNavigationLateSpriteSweep(): void {
+  try {
+    startLateSpriteSweep();
+  } catch {}
+}
+
+function queryDomSetFrameContext(
+  args: Record<string, unknown> | undefined,
+): QueryDomResult<"setFrameContext"> {
+  const parentOrigin = String(args?.parentOrigin ?? "");
+  getInternalState().frameContext = { parentOrigin };
+  return { ok: true } satisfies QueryDomResult<"setFrameContext">;
+}
+
+interface MouseDispatchOutcome {
+  defaultPrevented: boolean;
+  navigateTo: string | null;
+  navigatePost: ReturnType<typeof takePendingSubmitNav>;
+  hashNavigateTo: string | null;
+}
+
+interface MouseEventDispatchInit extends MouseEventInit {
+  composed: boolean;
+  pageX: number;
+  pageY: number;
+  movementX: number;
+  movementY: number;
+}
+
+interface MouseDispatchContext {
+  outcome: MouseDispatchOutcome;
+  eventType: string;
+  clientX: number;
+  clientY: number;
+  eventInit: MouseEventDispatchInit;
+  event: MouseInputEvent;
+  targetEl: MouseTarget | null;
+  targetChain: MouseTarget[];
+  checkableTarget: MouseTarget | null;
+  previousCheckedState: boolean | undefined;
+  compatibilityMouseAllowed: boolean;
+}
+
+function newMouseDispatchOutcome(): MouseDispatchOutcome {
+  return {
+    defaultPrevented: false,
+    navigateTo: null,
+    navigatePost: null,
+    hashNavigateTo: null,
+  };
+}
+
+function emptyMouseDispatchReply(): MouseDispatchReply {
+  return {
+    console: drainConsole(),
+    cookieWrites: state.drainCookieWrites(),
+    cdpMutations: drainCdpMutations(),
+    defaultPrevented: false,
+  };
+}
+
+function createMouseDispatchContext(
+  type: string,
+  init: MouseEventInit,
+  outcome: MouseDispatchOutcome,
+): MouseDispatchContext {
+  const eventType = normalizedMouseEventType(type);
+  const clientX = mouseCoordinate(init?.clientX);
+  const clientY = mouseCoordinate(init?.clientY);
+  const previousMousePosition = mousePositionForMovement(eventType);
+  const eventInit = createMouseEventDispatchInit(init, clientX, clientY, previousMousePosition);
+  updateLastMousePosition(eventType, clientX, clientY);
+  return {
+    outcome,
+    eventType,
+    clientX,
+    clientY,
+    eventInit,
+    event: createMouseInputEvent(eventType, eventInit),
+    targetEl: null,
+    targetChain: [],
+    checkableTarget: null,
+    previousCheckedState: undefined,
+    compatibilityMouseAllowed: true,
+  };
+}
+
+function normalizedMouseEventType(type: string): string {
+  return String(type || "click");
+}
+
+function mouseCoordinate(value: MouseEventInit["clientX"] | undefined): number {
+  return typeof value === "number" ? value : 0;
+}
+
+function mousePositionForMovement(eventType: string): { x: number; y: number } | null {
+  return eventType === "mousemove" ? lastMousePosition : null;
+}
+
+function createMouseEventDispatchInit(
+  init: MouseEventInit,
+  clientX: number,
+  clientY: number,
+  previousMousePosition: { x: number; y: number } | null,
+): MouseEventDispatchInit {
+  return {
+    ...(init || {}),
+    composed: true,
+    pageX: clientX + state.scrollX,
+    pageY: clientY + state.scrollY,
+    movementX: mouseMovementDelta(clientX, previousMousePosition?.x),
+    movementY: mouseMovementDelta(clientY, previousMousePosition?.y),
+  };
+}
+
+function mouseMovementDelta(position: number, previous: number | undefined): number {
+  return previous === undefined ? 0 : position - previous;
+}
+
+function updateLastMousePosition(eventType: string, clientX: number, clientY: number): void {
+  if (eventType === "mousemove" || eventType === "mousedown" || eventType === "mouseup") {
+    lastMousePosition = { x: clientX, y: clientY };
+  }
+}
+
+function createMouseInputEvent(
+  eventType: string,
+  eventInit: MouseEventDispatchInit,
+): MouseInputEvent {
+  const pointerEventTypes = ["click", "auxclick", "dblclick", "contextmenu"];
+  if (eventType === "wheel" && typeof ksEventCtors.WheelEvent === "function") {
+    return new ksEventCtors.WheelEvent(eventType, eventInit);
+  }
+  if (pointerEventTypes.includes(eventType) && typeof ksEventCtors.PointerEvent === "function") {
+    return new ksEventCtors.PointerEvent(eventType, {
+      ...eventInit,
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+    });
+  }
+  return new ksEventCtors.MouseEvent(eventType, eventInit);
+}
+
+function dispatchMouseEventBody(context: MouseDispatchContext): void {
+  selectMouseEventTarget(context);
+  updateMouseRangeDrag(context);
+  prepareCheckableMouseTarget(context);
+  dispatchPointerAndMouseEvents(context);
+  focusTargetAfterMouseDown(context);
+  updateMouseCaret(context);
+  startMouseRangeDrag(context);
+  dispatchMouseWheelScroll(context);
+  finishCheckableMouseTarget(context);
+  activateMouseClickTarget(context);
+}
+
+function selectMouseEventTarget(context: MouseDispatchContext): void {
+  context.targetEl = mouseEventTargetAtPoint(context);
+  repairDisconnectedMouseOverTarget(context.eventInit);
+  context.targetChain = __ksAncestorChain(context.targetEl);
+  updateMouseOverTarget(context);
+  reconnectMouseEventTarget(context);
+  rememberMouseDownOrClickTarget(context);
+}
+
+function mouseEventTargetAtPoint(context: MouseDispatchContext): MouseTarget | null {
+  return (
+    mouseTargetAtPoint(context.eventType, context.clientX, context.clientY, context.event) ||
+    mouseDocumentFallbackTarget()
+  );
+}
+
+function mouseDocumentFallbackTarget(): MouseTarget | null {
+  return state.document?.body || state.document?.documentElement || state.document;
+}
+
+function repairDisconnectedMouseOverTarget(eventInit: MouseEventDispatchInit): void {
+  if (!__ksOverTarget || __ksIsConnected(__ksOverTarget)) return;
+  const recomputed = __ksFirstConnected(__ksOverChain);
+  __ksSetOverTarget(recomputed);
+  __ksFireBoundaryEvent(recomputed, "pointerover", null, true, eventInit);
+  __ksFireBoundaryEvent(recomputed, "mouseover", null, true, eventInit);
+}
+
+function updateMouseOverTarget(context: MouseDispatchContext): void {
+  if (context.eventType !== "mousemove" || __ksOverTarget === context.targetEl) return;
+  const from = __ksOverTarget;
+  __ksSetOverTarget(context.targetEl, context.targetChain);
+  __ksDispatchBoundaryEvents(from, context.targetEl, context.eventInit);
+}
+
+function reconnectMouseEventTarget(context: MouseDispatchContext): void {
+  if (!context.targetEl || __ksIsConnected(context.targetEl)) return;
+  const reconnected: MouseTarget | null = __ksFirstConnected(context.targetChain);
+  if (!reconnected) return;
+  context.targetEl = reconnected;
+  if (context.eventType === "mousemove") __ksSetOverTarget(reconnected);
+}
+
+function rememberMouseDownOrClickTarget(context: MouseDispatchContext): void {
+  if (context.eventType === "mousedown") {
+    __ksMouseDownTarget = context.targetEl;
+    return;
+  }
+  if (!shouldRetargetMouseClick(context)) return;
+  const common: MouseTarget | null = __ksCommonAncestor(__ksMouseDownTarget, context.targetEl);
+  if (common) context.targetEl = common;
+}
+
+function shouldRetargetMouseClick(context: MouseDispatchContext): boolean {
+  return (
+    isMouseClickType(context.eventType) &&
+    Boolean(__ksMouseDownTarget) &&
+    __ksMouseDownTarget !== context.targetEl
+  );
+}
+
+function isMouseClickType(eventType: string): boolean {
+  return eventType === "click" || eventType === "dblclick" || eventType === "auxclick";
+}
+
+function updateMouseRangeDrag(context: MouseDispatchContext): void {
+  const rangeDrag = currentRangeInputDrag();
+  if (!rangeDrag) return;
+  if (context.eventType === "mousemove") {
+    if (applyRangeInputFromX(rangeDrag.el, context.clientX)) rangeDrag.changed = true;
+    return;
+  }
+  if (context.eventType === "mouseup") finishRangeInputDrag(rangeDrag, context.clientX);
+}
+
+function currentRangeInputDrag(): { el: any; changed: boolean } | null {
+  return __ksRangeDrag && __ksRangeDrag.el ? __ksRangeDrag : null;
+}
+
+function finishRangeInputDrag(rangeDrag: { el: any; changed: boolean }, clientX: number): void {
+  if (applyRangeInputFromX(rangeDrag.el, clientX)) rangeDrag.changed = true;
+  if (rangeDrag.changed) dispatchRangeInputChange(rangeDrag.el);
+  __ksRangeDrag = null;
+}
+
+function dispatchRangeInputChange(element: MouseTarget): void {
+  try {
+    __ks_dispatchTrusted(
+      element,
+      new ksEventCtors.Event("change", { bubbles: true, cancelable: false }),
+    );
+  } catch {}
+}
+
+function isRangeInput(element: MouseTarget | null): element is MouseTarget {
+  if (!element || element.tagName !== "INPUT" || typeof element.getAttribute !== "function") {
+    return false;
+  }
+  return (element.getAttribute("type") || "").toLowerCase() === "range";
+}
+
+function applyRangeInputFromX(element: MouseTarget, clientX: number): boolean {
+  try {
+    const rect = element.getBoundingClientRect?.();
+    if (!rect || !(rect.width > 0)) return false;
+    return setRangeInputValue(element, rangeInputValueAtX(element, rect, clientX));
+  } catch {
+    return false;
+  }
+}
+
+function rangeInputValueAtX(
+  element: MouseTarget,
+  rect: NonNullable<ReturnType<NonNullable<MouseTarget["getBoundingClientRect"]>>>,
+  clientX: number,
+): string {
+  const DEFAULT_RANGE_INPUT_MAX = 100;
+  const RANGE_INPUT_THUMB_MIN_RADIUS_PX = 2;
+  const RANGE_INPUT_THUMB_HEIGHT_FRACTION = 0.5;
+  const RANGE_INPUT_THUMB_WIDTH_FRACTION = 0.25;
+  const RANGE_INPUT_THUMB_RADIUS_FACTOR = 0.8;
+  const RANGE_INPUT_MIN_TRACK_TRAVEL_PX = 1;
+  const min = parseFloat(rangeInputAttribute(element, "min")) || 0;
+  const maxRaw = parseFloat(rangeInputAttribute(element, "max"));
+  const max = Math.max(min, Number.isFinite(maxRaw) ? maxRaw : DEFAULT_RANGE_INPUT_MAX);
+  const step = rangeInputStep(rangeInputAttribute(element, "step"));
+  const thumbRadius =
+    Math.max(
+      RANGE_INPUT_THUMB_MIN_RADIUS_PX,
+      Math.min(
+        rect.height * RANGE_INPUT_THUMB_HEIGHT_FRACTION,
+        rect.width * RANGE_INPUT_THUMB_WIDTH_FRACTION,
+      ),
+    ) * RANGE_INPUT_THUMB_RADIUS_FACTOR;
+  const travel = Math.max(RANGE_INPUT_MIN_TRACK_TRAVEL_PX, rect.width - 2 * thumbRadius);
+  const fraction = Math.min(1, Math.max(0, (clientX - rect.left - thumbRadius) / travel));
+  let raw = min + fraction * (max - min);
+  if (step > 0) raw = min + Math.round((raw - min) / step) * step;
+  raw = Math.min(max, Math.max(min, raw));
+  return String(raw);
+}
+
+function rangeInputAttribute(element: MouseTarget, name: string): string {
+  const getter = element.getAttribute;
+  if (typeof getter !== "function") throw new TypeError("range input has no getAttribute");
+  return getter.call(element, name) ?? "";
+}
+
+function rangeInputStep(stepAttr: string): number {
+  if (stepAttr === "any") return 0;
+  const step = parseFloat(stepAttr);
+  return Number.isFinite(step) && step > 0 ? step : 1;
+}
+
+function setRangeInputValue(element: MouseTarget, next: string): boolean {
+  if (getValueRawOnControl(element) === next) return false;
+  setValueRawOnControl(element, next);
+  try {
+    __ks_dispatchTrusted(
+      element,
+      new ksEventCtors.InputEvent("input", { bubbles: true, cancelable: false }),
+    );
+  } catch {}
+  return true;
+}
+
+function prepareCheckableMouseTarget(context: MouseDispatchContext): void {
+  const target = checkableMouseTarget(context);
+  if (!target) return;
+  context.checkableTarget = target;
+  context.previousCheckedState = !!target.checked;
+  const nextCheckedState = isCheckboxInput(target) ? !context.previousCheckedState : true;
+  setCheckedRaw(target, nextCheckedState);
+}
+
+function checkableMouseTarget(context: MouseDispatchContext): MouseTarget | null {
+  const target = context.targetEl;
+  if (!isClickedMouseInput(context, target)) return null;
+  const type = (target.type || "").toLowerCase();
+  return isCheckableInputType(type) ? target : null;
+}
+
+function isClickedMouseInput(
+  context: MouseDispatchContext,
+  target: MouseTarget | null,
+): target is MouseTarget {
+  return context.eventType === "click" && target !== null && target.tagName === "INPUT";
+}
+
+function isCheckableInputType(type: string): boolean {
+  return type === "checkbox" || type === "radio";
+}
+
+function isCheckboxInput(element: MouseTarget): boolean {
+  return (element.type || "").toLowerCase() === "checkbox";
+}
+
+function setCheckedRaw(element: MouseTarget, value: boolean | undefined): void {
+  let prototype = Object.getPrototypeOf(element);
+  while (prototype) {
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, "checked");
+    if (descriptor && typeof descriptor.set === "function") {
+      descriptor.set.call(element, value);
+      return;
+    }
+    prototype = Object.getPrototypeOf(prototype);
+  }
+  element.checked = value;
+}
+
+function dispatchPointerAndMouseEvents(context: MouseDispatchContext): void {
+  dispatchMousePointerEvents(context);
+  const allowed = context.compatibilityMouseAllowed
+    ? __ks_dispatchTrusted(context.targetEl, context.event)
+    : true;
+  if (context.compatibilityMouseAllowed || context.eventType !== "mousedown") {
+    context.outcome.defaultPrevented = !allowed;
+  }
+}
+
+function dispatchMousePointerEvents(context: MouseDispatchContext): void {
+  if (context.eventType === "mousedown") {
+    __ksPointerDownCanceled = false;
+    __ksPointerDownCanceled = !dispatchMousePointerEvent(context, "pointerdown");
+    context.compatibilityMouseAllowed = !__ksPointerDownCanceled;
+    context.outcome.defaultPrevented = !context.compatibilityMouseAllowed;
+  } else if (context.eventType === "mousemove") {
+    dispatchMousePointerEvent(context, "pointermove");
+    context.compatibilityMouseAllowed = !__ksPointerDownCanceled;
+  } else if (context.eventType === "mouseup") {
+    dispatchMousePointerEvent(context, "pointerup");
+    resetPointerCancellationAfterMouseUp(context);
+  }
+}
+
+function resetPointerCancellationAfterMouseUp(context: MouseDispatchContext): void {
+  if (!__ksPointerDownCanceled) return;
+  context.compatibilityMouseAllowed = false;
+  __ksPointerDownCanceled = false;
+}
+
+function dispatchMousePointerEvent(context: MouseDispatchContext, eventType: string): boolean {
+  if (typeof ksEventCtors.PointerEvent !== "function") return true;
+  const pointerInit = {
+    ...context.eventInit,
+    pointerId: 1,
+    pointerType: "mouse",
+    isPrimary: true,
+  };
+  const coalescedEvents =
+    eventType === "pointermove"
+      ? [new ksEventCtors.PointerEvent(eventType, pointerInit)]
+      : undefined;
+  return __ks_dispatchTrusted(
+    context.targetEl,
+    new ksEventCtors.PointerEvent(eventType, { ...pointerInit, coalescedEvents }),
+  );
+}
+
+function focusTargetAfterMouseDown(context: MouseDispatchContext): void {
+  if (shouldFocusAfterMouseDown(context)) focusMouseTarget(context.targetEl);
+}
+
+function shouldFocusAfterMouseDown(context: MouseDispatchContext): boolean {
+  return context.eventType === "mousedown" && !context.outcome.defaultPrevented;
+}
+
+function focusMouseTarget(target: MouseTarget | null): void {
+  const focusable = findFocusableAncestor(target);
+  if (!focusable || typeof focusable.focus !== "function") {
+    blurActiveDocumentElement();
+    return;
+  }
+  try {
+    focusable.focus();
+  } catch {}
+}
+
+function blurActiveDocumentElement(): void {
+  const activeElement = state.document?.activeElement;
+  if (!activeElement || typeof activeElement.blur !== "function") return;
+  try {
+    activeElement.blur();
+  } catch {}
+}
+
+function updateMouseCaret(context: MouseDispatchContext): void {
+  if (shouldUpdateMouseCaret(context)) {
+    updateCaretFromMouse(
+      context.eventType,
+      context.event,
+      context.targetEl,
+      context.clientX,
+      context.clientY,
+    );
+  }
+  clearMouseCaretAfterMouseUp(context.eventType);
+}
+
+function shouldUpdateMouseCaret(context: MouseDispatchContext): boolean {
+  return isUnpreventedMouseDown(context) || isActiveMouseCaretDrag(context);
+}
+
+function isUnpreventedMouseDown(context: MouseDispatchContext): boolean {
+  return context.eventType === "mousedown" && !context.outcome.defaultPrevented;
+}
+
+function isActiveMouseCaretDrag(context: MouseDispatchContext): boolean {
+  return (
+    context.eventType === "mousemove" && __ksCaretDragActive && (context.event.buttons & 1) === 1
+  );
+}
+
+function clearMouseCaretAfterMouseUp(eventType: string): void {
+  if (eventType === "mouseup") resetMouseCaretState();
+}
+
+function resetMouseCaretState(): void {
+  __ksCaretDragActive = false;
+  __ksControlCaretAnchor = null;
+  __ksCaretDragOrigin = null;
+}
+
+function startMouseRangeDrag(context: MouseDispatchContext): void {
+  if (!shouldStartMouseRangeDrag(context)) return;
+  const target = context.targetEl;
+  if (!target) return;
+  __ksRangeDrag = { el: target, changed: false };
+  if (applyRangeInputFromX(target, context.clientX)) __ksRangeDrag.changed = true;
+}
+
+function shouldStartMouseRangeDrag(context: MouseDispatchContext): boolean {
+  return (
+    context.eventType === "mousedown" &&
+    !context.outcome.defaultPrevented &&
+    isRangeInput(context.targetEl) &&
+    !context.targetEl.disabled
+  );
+}
+
+function dispatchMouseWheelScroll(context: MouseDispatchContext): void {
+  if (!shouldApplyMouseWheelScroll(context)) return;
+  const delta = mouseWheelDelta(context.event);
+  if (!tryScrollWithWheelBridge(context.targetEl, delta.x, delta.y)) scrollByFallback(delta);
+}
+
+function shouldApplyMouseWheelScroll(context: MouseDispatchContext): boolean {
+  return context.eventType === "wheel" && !context.outcome.defaultPrevented;
+}
+
+function mouseWheelDelta(event: MouseInputEvent): { x: number; y: number } {
+  return { x: event.deltaX || 0, y: event.deltaY || 0 };
+}
+
+function scrollByFallback(delta: { x: number; y: number }): void {
+  try {
+    scrollBy(delta.x, delta.y);
+  } catch {}
+}
+
+function tryScrollWithWheelBridge(
+  target: MouseTarget | null,
+  deltaX: number,
+  deltaY: number,
+): boolean {
+  const wheelBridge = ksGlobal.__ks_scrollByWheel;
+  if (typeof wheelBridge !== "function" || !target || typeof target._id !== "number") return false;
+  try {
+    wheelBridge(target._id, deltaX, deltaY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function finishCheckableMouseTarget(context: MouseDispatchContext): void {
+  const target = context.checkableTarget;
+  if (!target) return;
+  if (context.outcome.defaultPrevented) {
+    setCheckedRaw(target, context.previousCheckedState);
+    return;
+  }
+  dispatchCheckableMouseEvents(target);
+}
+
+function dispatchCheckableMouseEvents(target: MouseTarget): void {
+  try {
+    __ks_dispatchTrusted(
+      target,
+      new ksEventCtors.InputEvent("input", { bubbles: true, cancelable: false }),
+    );
+  } catch {}
+  try {
+    __ks_dispatchTrusted(
+      target,
+      new ksEventCtors.Event("change", { bubbles: true, cancelable: false }),
+    );
+  } catch {}
+}
+
+function activateMouseClickTarget(context: MouseDispatchContext): void {
+  activateMouseButton(context);
+  activateMouseLabel(context);
+  toggleMouseSelectDropdown(context);
+  toggleMouseDetails(context);
+  activateMouseAnchor(context);
+}
+
+function successfulMouseClickTarget(context: MouseDispatchContext): MouseTarget | null {
+  if (context.eventType !== "click" || context.outcome.defaultPrevented) return null;
+  return context.targetEl;
+}
+
+function activateMouseButton(context: MouseDispatchContext): void {
+  const target = successfulMouseClickTarget(context);
+  if (!target) return;
+  try {
+    const navigation = buttonActivationNavigation(target);
+    if (navigation) context.outcome.navigateTo = navigation;
+  } catch (error) {
+    console.error("[kitesurf] button activation failed", error);
+  }
+}
+
+function activateMouseLabel(context: MouseDispatchContext): void {
+  const target = successfulMouseClickTarget(context);
+  if (!target) return;
+  // CDP clicks bypass Element.click(); the shim owns forwarding without exposing a page-global
+  // hook or trusting a page-provided isTrusted property.
+  try {
+    __ks_activateLabel?.(target, context.event);
+  } catch (error) {
+    console.error("[kitesurf] label activation failed", error);
+  }
+}
+
+function toggleMouseSelectDropdown(context: MouseDispatchContext): void {
+  const target = successfulMouseClickTarget(context);
+  if (!target) return;
+  try {
+    const select = selectAncestorForMouseTarget(target);
+    const toggle = ksGlobal.__ksSelectDropdownToggle;
+    if (select && typeof toggle === "function") toggle(select);
+  } catch (error) {
+    console.error("[kitesurf] select dropdown toggle failed", error);
+  }
+}
+
+function selectAncestorForMouseTarget(target: MouseTarget): MouseTarget | null {
+  let current: MouseTarget | null | undefined = target;
+  while (isNonSelectMouseAncestor(current)) {
+    current = current.parentNode;
+  }
+  return current ?? null;
+}
+
+function isNonSelectMouseAncestor(current: MouseTarget | null | undefined): current is MouseTarget {
+  return Boolean(
+    current && current !== state.document && (current.tagName || "").toUpperCase() !== "SELECT",
+  );
+}
+
+function toggleMouseDetails(context: MouseDispatchContext): void {
+  const target = successfulMouseClickTarget(context);
+  if (!target) return;
+  try {
+    toggleDetailsFromSummary(target);
+  } catch (error) {
+    console.error("[kitesurf] details toggle failed", error);
+  }
+}
+
+function activateMouseAnchor(context: MouseDispatchContext): void {
+  const target = successfulMouseClickTarget(context);
+  if (!target || target === state.document) return;
+  const navigation = activateAnchorNavigation(target, context.clientX, context.clientY);
+  applyMouseAnchorNavigation(context, navigation);
+}
+
+function applyMouseAnchorNavigation(
+  context: MouseDispatchContext,
+  navigation: ReturnType<typeof activateAnchorNavigation>,
+): void {
+  if (!navigation) return;
+  if (navigation.kind === "hash") {
+    context.outcome.hashNavigateTo = navigation.url;
+  } else if (navigation.kind === "navigate") {
+    context.outcome.navigateTo = navigation.url;
+  }
+}
+
+function applyPendingMouseNavigation(outcome: MouseDispatchOutcome): void {
+  const navigation = takePendingSubmitNav();
+  if (!navigation || typeof navigation.url !== "string") return;
+  if (typeof navigation.postData === "string") {
+    outcome.navigatePost = navigation;
+  } else if (!outcome.navigateTo) {
+    outcome.navigateTo = navigation.url;
+  }
+}
+
+function mouseDispatchReply(outcome: MouseDispatchOutcome): MouseDispatchReply {
+  return {
+    console: drainConsole(),
+    cookieWrites: state.drainCookieWrites(),
+    cdpMutations: drainCdpMutations(),
+    defaultPrevented: outcome.defaultPrevented,
+    navigateTo: outcome.navigateTo,
+    navigatePost: outcome.navigatePost,
+    hashNavigateTo: outcome.hashNavigateTo,
+  };
+}
+
+type KeyEventConstructor = BuildDocumentResult["Event"] | BuildDocumentResult["KeyboardEvent"];
+
+interface KeyDispatchOutcome {
+  defaultPrevented: boolean;
+  navigateTo: string | null;
+  navigatePost: ReturnType<typeof takePendingSubmitNav>;
+}
+
+interface KeyDispatchContext {
+  outcome: KeyDispatchOutcome;
+  eventType: string;
+  init: KeyEventInit;
+  eventConstructor: KeyEventConstructor;
+  event: unknown;
+  focused: ShimElement | null;
+  targetEl: ShimElement | NonNullable<typeof state.document> | null;
+}
+
+interface TextControlEdit {
+  oldValue: string;
+  newValue: string;
+  nextCursor: number;
+}
+
+function emptyKeyDispatchReply(defaultPrevented: boolean): KeyDispatchReply {
+  return {
+    console: drainConsole(),
+    cookieWrites: state.drainCookieWrites(),
+    cdpMutations: drainCdpMutations(),
+    defaultPrevented,
+  };
+}
+
+function keyboardEventConstructor(): KeyEventConstructor {
+  return ksEventCtors.KeyboardEvent || ksEventCtors.Event;
+}
+
+function earlyKeyDispatchReply(
+  type: string,
+  eventConstructor: KeyEventConstructor,
+): KeyDispatchReply | null {
+  if (!canDispatchKeyboardEvent(eventConstructor)) return emptyKeyDispatchReply(false);
+  return keyboardSuppressionReply(type);
+}
+
+function canDispatchKeyboardEvent(eventConstructor: KeyEventConstructor): boolean {
+  return Boolean(state.document) && typeof eventConstructor === "function";
+}
+
+function keyboardSuppressionReply(type: string): KeyDispatchReply | null {
+  if (type === "keydown") __ksSuppressChar = false;
+  if (type === "keypress" && __ksSuppressChar) return emptyKeyDispatchReply(true);
+  return null;
+}
+
+function newKeyDispatchOutcome(): KeyDispatchOutcome {
+  return { defaultPrevented: false, navigateTo: null, navigatePost: null };
+}
+
+function createKeyboardDispatchContext(
+  type: string,
+  init: KeyEventInit,
+  eventConstructor: KeyEventConstructor,
+  outcome: KeyDispatchOutcome,
+): KeyDispatchContext {
+  const eventType = String(type || "keydown");
+  const event = new eventConstructor(eventType, { ...(init || {}), composed: true });
+  const focused = state.getActiveElement();
+  const document = state.document;
+  const targetEl = keyboardDispatchTarget(focused, document);
+  return { outcome, eventType, init, eventConstructor, event, focused, targetEl };
+}
+
+function keyboardDispatchTarget(
+  focused: ShimElement | null,
+  document: typeof state.document,
+): ShimElement | NonNullable<typeof state.document> | null {
+  if (focused) return focused;
+  return keyboardDocumentFallbackTarget(document);
+}
+
+function keyboardDocumentFallbackTarget(
+  document: typeof state.document,
+): ShimElement | NonNullable<typeof state.document> | null {
+  return document?.body || document?.documentElement || document;
+}
+
+function dispatchKeyboardEventBody(context: KeyDispatchContext): void {
+  dispatchPrimaryKeyboardEvent(context);
+  moveTabFocusForKeyboard(context);
+  scrollPageForKeyboard(context);
+  activateKeyboardTarget(context);
+  applyKeyboardContentEditableInput(context);
+  applyKeyboardTextControlInput(context);
+}
+
+function dispatchPrimaryKeyboardEvent(context: KeyDispatchContext): void {
+  const allowed = __ks_dispatchTrusted(context.targetEl, context.event);
+  context.outcome.defaultPrevented = !allowed;
+  if (context.eventType === "keydown" && context.outcome.defaultPrevented) {
+    __ksSuppressChar = true;
+  }
+}
+
+function moveTabFocusForKeyboard(context: KeyDispatchContext): void {
+  if (!isUnmodifiedTabKey(context) || context.outcome.defaultPrevented) return;
+  moveTabFocus(!!context.init.shiftKey);
+}
+
+function isUnmodifiedTabKey(context: KeyDispatchContext): boolean {
+  return (
+    context.eventType === "keydown" &&
+    context.init?.key === "Tab" &&
+    keyboardModifiersUnpressed(context.init)
+  );
+}
+
+function keyboardModifiersUnpressed(init: KeyEventInit): boolean {
+  return !init.altKey && !init.ctrlKey && !init.metaKey;
+}
+
+function scrollPageForKeyboard(context: KeyDispatchContext): void {
+  if (context.eventType !== "keydown" || context.outcome.defaultPrevented) return;
+  scrollForKey(context.init?.key || "", context.init);
+}
+
+function activateKeyboardTarget(context: KeyDispatchContext): void {
+  const keyName = keyboardKeyName(context.init);
+  const isSpace = isSpaceKey(keyName);
+  armSpaceKeyboardTarget(context, isSpace);
+  const activateNow = shouldActivateKeyboardTarget(context, keyName, isSpace);
+  clearReleasedSpaceKeyboardTarget(context, isSpace);
+  if (activateNow) clickKeyboardTarget(context.focused);
+}
+
+function keyboardKeyName(init: KeyEventInit): string {
+  return init && typeof init.key === "string" ? init.key : "";
+}
+
+function isSpaceKey(keyName: string): boolean {
+  return keyName === " " || keyName === "Spacebar";
+}
+
+function armSpaceKeyboardTarget(context: KeyDispatchContext, isSpace: boolean): void {
+  if (context.eventType !== "keydown") return;
+  if (!isSpace) return;
+  __ksSpaceArmedTarget = spaceKeyboardTarget(context.focused, context.outcome.defaultPrevented);
+}
+
+function spaceKeyboardTarget(
+  focused: ShimElement | null,
+  defaultPrevented: boolean,
+): ShimElement | null {
+  if (defaultPrevented || !focused) return null;
+  return isKeyboardActivatable(focused) ? focused : null;
+}
+
+function shouldActivateKeyboardTarget(
+  context: KeyDispatchContext,
+  keyName: string,
+  isSpace: boolean,
+): boolean {
+  const focused = context.focused;
+  if (context.outcome.defaultPrevented || !focused) return false;
+  return (
+    isEnterKeyboardActivation(context, keyName, focused) ||
+    isArmedSpaceKeyboardActivation(context, isSpace, focused)
+  );
+}
+
+function isEnterKeyboardActivation(
+  context: KeyDispatchContext,
+  keyName: string,
+  focused: ShimElement,
+): boolean {
+  return context.eventType === "keydown" && keyName === "Enter" && isKeyboardActivatable(focused);
+}
+
+function isArmedSpaceKeyboardActivation(
+  context: KeyDispatchContext,
+  isSpace: boolean,
+  focused: ShimElement,
+): boolean {
+  return context.eventType === "keyup" && isSpace && __ksSpaceArmedTarget === focused;
+}
+
+function clearReleasedSpaceKeyboardTarget(context: KeyDispatchContext, isSpace: boolean): void {
+  if (context.eventType === "keyup" && isSpace) __ksSpaceArmedTarget = null;
+}
+
+function clickKeyboardTarget(focused: ShimElement | null): void {
+  if (!focused) return;
+  try {
+    focused.click?.();
+  } catch {}
+}
+
+function isKeyboardCharacterEvent(eventType: string): boolean {
+  return eventType === "keydown" || eventType === "keypress";
+}
+
+function applyKeyboardContentEditableInput(context: KeyDispatchContext): void {
+  const editHost = context.outcome.defaultPrevented ? null : editingHostOf(context.focused);
+  if (editHost) dispatchKeyboardContentEditableInput(context, editHost);
+}
+
+function dispatchKeyboardContentEditableInput(
+  context: KeyDispatchContext,
+  editHost: ShimElement,
+): void {
+  const key = keyboardKeyName(context.init);
+  if (isContentEditableDeleteKey(context, key)) {
+    deleteKeyboardContentEditable(editHost, key);
+    return;
+  }
+  if (shouldInsertContentEditableText(context)) {
+    insertKeyboardContentEditableText(context, editHost);
+  }
+}
+
+function isContentEditableDeleteKey(context: KeyDispatchContext, key: string): boolean {
+  return context.eventType === "keydown" && (key === "Backspace" || key === "Delete");
+}
+
+function deleteKeyboardContentEditable(editHost: ShimElement, key: string): void {
+  editContentEditable(
+    editHost,
+    key === "Backspace" ? "deleteContentBackward" : "deleteContentForward",
+    null,
+    __ks_dispatchTrusted,
+  );
+}
+
+function shouldInsertContentEditableText(context: KeyDispatchContext): boolean {
+  return (
+    isKeyboardCharacterEvent(context.eventType) &&
+    typeof context.init.text === "string" &&
+    Boolean(context.init.text) &&
+    !context.init.ctrlKey &&
+    !context.init.metaKey
+  );
+}
+
+function insertKeyboardContentEditableText(
+  context: KeyDispatchContext,
+  editHost: ShimElement,
+): void {
+  if (!dispatchKeyboardKeypressIfNeeded(context)) {
+    context.outcome.defaultPrevented = true;
+    return;
+  }
+  insertTypedContentEditableText(context, editHost);
+}
+
+function insertTypedContentEditableText(context: KeyDispatchContext, editHost: ShimElement): void {
+  const text = context.init.text;
+  if (text === "\r" || text === "\n") {
+    editContentEditable(
+      editHost,
+      context.init.shiftKey ? "insertLineBreak" : "insertParagraph",
+      null,
+      __ks_dispatchTrusted,
+    );
+    return;
+  }
+  if (!hasControlChar(text)) {
+    editContentEditable(editHost, "insertText", text, __ks_dispatchTrusted);
+  }
+}
+
+function dispatchKeyboardKeypressIfNeeded(context: KeyDispatchContext): boolean {
+  if (context.eventType !== "keydown") return true;
+  const keypress = new context.eventConstructor("keypress", { ...context.init, composed: true });
+  return __ks_dispatchTrusted(context.targetEl, keypress);
+}
+
+function applyKeyboardTextControlInput(context: KeyDispatchContext): void {
+  const focused = context.focused;
+  if (
+    !focused ||
+    context.outcome.defaultPrevented ||
+    !isKeyboardCharacterEvent(context.eventType)
+  ) {
+    return;
+  }
+  if (!isKeyboardTextControl(focused)) return;
+  const edit = computeKeyboardTextControlEdit(context, focused);
+  applyKeyboardTextControlEdit(context, focused, edit);
+  submitKeyboardTextControl(context, focused);
+}
+
+function isKeyboardTextControl(element: ShimElement): boolean {
+  return element.tagName === "INPUT" || element.tagName === "TEXTAREA";
+}
+
+function computeKeyboardTextControlEdit(
+  context: KeyDispatchContext,
+  element: ShimElement,
+): TextControlEdit {
+  const oldValue = getValueRawOnControl(element);
+  const selection = textControlSelection(element, oldValue.length);
+  const text = typeof context.init.text === "string" ? context.init.text : "";
+  const key = keyboardKeyName(context.init);
+  const inserted = insertKeyboardTextControlValue(oldValue, text, selection);
+  if (inserted) return { oldValue, ...inserted };
+  const deleted = deleteKeyboardTextControlValue(context, oldValue, key, selection);
+  return {
+    oldValue,
+    ...(deleted ?? { newValue: oldValue, nextCursor: selection.start }),
+  };
+}
+
+function textControlSelection(
+  element: ShimElement,
+  oldLength: number,
+): { start: number; end: number } {
+  const rawStart = typeof element.selectionStart === "number" ? element.selectionStart : oldLength;
+  const rawEnd = typeof element.selectionEnd === "number" ? element.selectionEnd : rawStart;
+  const start = Math.max(0, Math.min(rawStart, oldLength));
+  return { start, end: Math.max(start, Math.min(rawEnd, oldLength)) };
+}
+
+function insertKeyboardTextControlValue(
+  oldValue: string,
+  text: string,
+  selection: { start: number; end: number },
+): { newValue: string; nextCursor: number } | null {
+  if (text.length === 0 || hasControlChar(text)) return null;
+  return {
+    newValue: oldValue.slice(0, selection.start) + text + oldValue.slice(selection.end),
+    nextCursor: selection.start + text.length,
+  };
+}
+
+function deleteKeyboardTextControlValue(
+  context: KeyDispatchContext,
+  oldValue: string,
+  key: string,
+  selection: { start: number; end: number },
+): { newValue: string; nextCursor: number } | null {
+  if (context.eventType !== "keydown" || !isTextDeletionKey(key)) return null;
+  if (selection.start !== selection.end) {
+    return {
+      newValue: oldValue.slice(0, selection.start) + oldValue.slice(selection.end),
+      nextCursor: selection.start,
+    };
+  }
+  if (key === "Backspace") return deleteTextControlCodePointBefore(oldValue, selection.start);
+  return deleteTextControlCodePointAt(oldValue, selection.start);
+}
+
+function isTextDeletionKey(key: string): boolean {
+  return key === "Backspace" || key === "Delete";
+}
+
+function deleteTextControlCodePointBefore(
+  value: string,
+  selectionStart: number,
+): { newValue: string; nextCursor: number } {
+  if (selectionStart === 0) return { newValue: value, nextCursor: selectionStart };
+  const previous = selectionStart - 1;
+  const deleteStart = startsSurrogatePairAt(value, previous) ? previous - 1 : previous;
+  return {
+    newValue: value.slice(0, deleteStart) + value.slice(selectionStart),
+    nextCursor: deleteStart,
+  };
+}
+
+function deleteTextControlCodePointAt(
+  value: string,
+  selectionStart: number,
+): { newValue: string; nextCursor: number } {
+  if (selectionStart >= value.length) return { newValue: value, nextCursor: selectionStart };
+  const deleteEnd = endsSurrogatePairAt(value, selectionStart)
+    ? selectionStart + 2
+    : selectionStart + 1;
+  return {
+    newValue: value.slice(0, selectionStart) + value.slice(deleteEnd),
+    nextCursor: selectionStart,
+  };
+}
+
+const HIGH_SURROGATE_START_CODE_UNIT = 0xd800;
+const HIGH_SURROGATE_END_CODE_UNIT = 0xdbff;
+const LOW_SURROGATE_START_CODE_UNIT = 0xdc00;
+const LOW_SURROGATE_END_CODE_UNIT = 0xdfff;
+
+function startsSurrogatePairAt(value: string, lowIndex: number): boolean {
+  return (
+    lowIndex > 0 &&
+    isLowSurrogateCodeUnit(value.charCodeAt(lowIndex)) &&
+    isHighSurrogateCodeUnit(value.charCodeAt(lowIndex - 1))
+  );
+}
+
+function endsSurrogatePairAt(value: string, highIndex: number): boolean {
+  const lowIndex = highIndex + 1;
+  return (
+    isHighSurrogateCodeUnit(value.charCodeAt(highIndex)) &&
+    lowIndex < value.length &&
+    isLowSurrogateCodeUnit(value.charCodeAt(lowIndex))
+  );
+}
+
+function isHighSurrogateCodeUnit(unit: number): boolean {
+  return unit >= HIGH_SURROGATE_START_CODE_UNIT && unit <= HIGH_SURROGATE_END_CODE_UNIT;
+}
+
+function isLowSurrogateCodeUnit(unit: number): boolean {
+  return unit >= LOW_SURROGATE_START_CODE_UNIT && unit <= LOW_SURROGATE_END_CODE_UNIT;
+}
+
+function applyKeyboardTextControlEdit(
+  context: KeyDispatchContext,
+  element: ShimElement,
+  edit: TextControlEdit,
+): void {
+  if (edit.newValue === edit.oldValue) return;
+  setValueRawOnControl(element, edit.newValue);
+  notifyControlValueMutation(element, edit.nextCursor, context.eventConstructor);
+}
+
+function submitKeyboardTextControl(context: KeyDispatchContext, element: ShimElement): void {
+  if (context.eventType !== "keydown" || keyboardKeyName(context.init) !== "Enter") return;
+  if (element.tagName !== "INPUT") return;
+  dispatchEnterChange(element, context.eventConstructor);
+  const implicitNavigation = submitFormOnEnter(element);
+  if (implicitNavigation) context.outcome.navigateTo = implicitNavigation;
+}
+
+function applyPendingKeyNavigation(outcome: KeyDispatchOutcome): void {
+  const navigation = takePendingSubmitNav();
+  if (!navigation || typeof navigation.url !== "string") return;
+  if (typeof navigation.postData === "string") {
+    outcome.navigatePost = navigation;
+  } else if (!outcome.navigateTo) {
+    outcome.navigateTo = navigation.url;
+  }
+}
+
+function keyDispatchReply(outcome: KeyDispatchOutcome): KeyDispatchReply {
+  return {
+    console: drainConsole(),
+    cookieWrites: state.drainCookieWrites(),
+    cdpMutations: drainCdpMutations(),
+    defaultPrevented: outcome.defaultPrevented,
+    navigateTo: outcome.navigateTo,
+    navigatePost: outcome.navigatePost,
+  };
+}
+
+async function queryDomWithDocument(
+  pageState: QueryDomActiveState,
+  method: QueryDomMethod,
+  queryArgs: Record<string, unknown>,
+): Promise<QueryDomResult<QueryDomMethod>> {
+  switch (method) {
+    case "getDocument":
+    case "nodeSubtree":
+    case "getOuterHTMLAndSeq":
+      return queryDomDocumentRead(pageState, method, queryArgs);
+    case "getOuterHTML":
+      return queryDomOuterHTML(pageState, queryArgs);
+    case "querySelector":
+    case "querySelectorAll":
+    case "matchSelectorList":
+      return queryDomSelectorRead(pageState, method, queryArgs);
+    case "getAncestorElementIds":
+      return queryDomAncestorElementIds(pageState, queryArgs);
+    case "parseStyleSheet":
+      return queryDomParseStylesheet(queryArgs);
+    case "enumerateStyleSheets":
+      return queryDomEnumerateStyleSheets(pageState);
+    case "getSceneStats":
+      return queryDomSceneStats();
+    case "pumpTasks":
+      return queryDomPumpTasks(queryArgs);
+    case "recordScene":
+      return queryDomRecordScene(pageState, queryArgs);
+    case "getFontUrlData":
+      return queryDomGetFontUrlData(queryArgs);
+    case "getPaintResources":
+      return queryDomGetPaintResources(pageState, queryArgs);
+    case "recordPdfScenes":
+      return queryDomRecordPdfScenes(queryArgs);
+    case "getComputedStyle":
+    case "getRect":
+    case "elementFromPoint":
+      return queryDomPaintGeometry(method, queryArgs);
+    case "notRenderedNodeIds":
+      return queryDomNotRenderedNodeIds(queryArgs);
+    case "formStateSnapshot":
+    case "setControlValueAsUser":
+      return queryDomFormState(pageState, method, queryArgs);
+    case "setViewport":
+      return queryDomSetViewport(pageState, queryArgs);
+    case "setMediaType":
+      return queryDomSetMediaType(pageState, queryArgs);
+    case "setSuppressBackgrounds":
+      return queryDomSetSuppressBackgrounds(queryArgs);
+    case "awaitPendingResources":
+      return await queryDomAwaitPendingResources(pageState, queryArgs);
+    case "pageBoxJson":
+    case "setLayoutMode":
+    case "getLayoutMode":
+    case "setCdpDomActive":
+      return queryDomLayoutSettings(pageState, method, queryArgs);
+    case "layoutMetrics": {
+      // One layout walk for both axes; documentScrollSize falls back to
+      // the viewport when there is no paint DOM.
+      const content = documentScrollSize();
+      return {
+        viewportWidth: state.paintViewportW,
+        viewportHeight: state.paintViewportH,
+        scrollX: state.scrollX,
+        scrollY: state.scrollY,
+        contentWidth: content.width,
+        contentHeight: content.height,
+      } satisfies QueryDomResult<"layoutMetrics">;
+    }
+    case "describeNode":
+    case "resolveNode":
+    case "getAttributes":
+    case "focus":
+      return queryDomNodeHandle(pageState, method, queryArgs);
+    case "hasPendingCriticalResources":
+      return queryDomHasPendingCriticalResources(pageState);
+    case "getMemoryStats":
+      return queryDomMemoryStats();
+    case "boaForceCollect":
+    case "getFontFaces":
+    case "getMemprofDump":
+    case "resetMemprof":
+      return queryDomDiagnostics(method);
+    case "webmcpGetTools":
+    case "webmcpStopWatchingTools":
+    case "webmcpCancelTool":
+      return queryDomWebMcpRead(method, queryArgs);
+    case "webmcpCallTool":
+      return await queryDomWebMcpCall(queryArgs);
+    case "getPageState":
+      return queryDomPageState();
+    case "markPaintDamage":
+    case "paintDamageSince":
+      return queryDomPaintDamage(method, queryArgs);
+    default:
+      return {};
   }
 }
 
 type QueryDomActiveState = typeof state & { dom: DomHandle };
+
+type UpstreamSessionStub = NonNullable<ReceivedSessionInit["upstream"]>;
+type OutboundSessionStub = NonNullable<ReceivedSessionInit["outbound"]>;
+
+interface PageScriptSessionCleanup {
+  closed: boolean;
+  upstream: UpstreamSessionStub | null;
+  outbound: OutboundSessionStub | null;
+}
+
+interface DisposableSessionStub {
+  [Symbol.dispose]?: () => void;
+}
+
+function initializePageScriptSession(readTailToken: () => unknown): void {
+  try {
+    setTailToken(readTailToken());
+  } catch {}
+  if (!startupLagWatchdog) return;
+  try {
+    installLagWatchdog();
+  } catch {}
+}
+
+function duplicateUpstreamStub(init: ReceivedSessionInit | undefined): UpstreamSessionStub | null {
+  const stub = init?.upstream ?? null;
+  return stub && stub.dup ? stub.dup() : stub;
+}
+
+function duplicateOutboundStub(init: ReceivedSessionInit | undefined): OutboundSessionStub | null {
+  const stub = init?.outbound ?? null;
+  return stub && stub.dup ? stub.dup() : stub;
+}
+
+function registerSessionUpstream(upstream: UpstreamSessionStub | null): void {
+  if (!upstream) return;
+  registerUpstreamSender((message) => {
+    const upstreamPromise = upstream(message);
+    if (upstreamPromise && upstreamPromise.catch) upstreamPromise.catch(() => {});
+  });
+}
+
+function closePageScriptSession(cleanup: PageScriptSessionCleanup): void {
+  if (cleanup.closed) return;
+  cleanup.closed = true;
+  clearUpstreamSender();
+  if (cleanup.outbound) clearSessionOutbound(cleanup.outbound);
+  disposeSessionStub(cleanup.upstream);
+  disposeSessionStub(cleanup.outbound);
+  sessionClosing = true;
+  resolveSessionClosing();
+}
+
+function disposeSessionStub(stub: DisposableSessionStub | null): void {
+  try {
+    stub?.[Symbol.dispose]?.();
+  } catch {}
+}
+
+function createPageScriptSessionTarget(
+  host: PageScript,
+  closeSession: () => void,
+): RetainedPageScriptSessionTarget {
+  class PageScriptSessionTarget extends RpcTarget implements RetainedPageScriptSessionTarget {
+    call<M extends PageScriptMethod>(
+      method: M,
+      params: PageScriptWireParams[M],
+      meta: WireMeta,
+    ): Promise<PageScriptReply<M>> {
+      return invokeSessionMethod(host, method, params || {}, meta || {});
+    }
+    makeRenderPort() {
+      return host.makeRenderPort();
+    }
+    async close() {
+      // Let the load drain settle before the parent proceeds to kill this isolate.
+      closeSession();
+      try {
+        await state.loadCompletion;
+      } catch {}
+    }
+    [Symbol.dispose]() {
+      closeSession();
+    }
+  }
+  return new PageScriptSessionTarget();
+}
+
+function installPageBinding(raw: string): void {
+  const name = typeof raw === "string" && raw ? raw : null;
+  if (!name) return;
+  const bindingCallback = function (payload: unknown): void {
+    if (typeof payload !== "string") return;
+    sendUpstreamEvent({ event: "kitesurf.bindingCalled", params: { name, payload } });
+  };
+  try {
+    globalThis[name] = bindingCallback;
+  } catch {}
+}
+
+function frameBitmapFromParams(params: FrameBitmapParams): FrameBitmapParams | null {
+  if (!isObjectRecord(params)) return null;
+  if (!isFrameBitmapDimensions(params)) return null;
+  if (!(params.rgba instanceof Uint8Array)) return null;
+  return {
+    ownerBackendNodeId: params.ownerBackendNodeId,
+    width: params.width,
+    height: params.height,
+    rgba: params.rgba,
+  };
+}
+
+function isFrameBitmapDimensions(params: FrameBitmapParams): boolean {
+  return (
+    typeof params.ownerBackendNodeId === "number" &&
+    typeof params.width === "number" &&
+    typeof params.height === "number"
+  );
+}
+
+function applyFrameBitmap(bitmap: FrameBitmapParams): FrameBitmapReply {
+  const dom = state.dom;
+  if (!dom) return { ok: false, rc: -1, error: "dom missing" };
+  return setFrameBitmapOnDom(dom, bitmap);
+}
+
+function setFrameBitmapOnDom(dom: DomHandle, bitmap: FrameBitmapParams): FrameBitmapReply {
+  if (typeof dom.setIframeImage !== "function") {
+    return { ok: false, rc: -1, error: "dom missing" };
+  }
+  try {
+    const resultCode = dom.setIframeImage(
+      bitmap.ownerBackendNodeId,
+      bitmap.width,
+      bitmap.height,
+      bitmap.rgba,
+    );
+    if (resultCode === 0) recordFrameBitmapDamage(bitmap.ownerBackendNodeId);
+    return { ok: resultCode >= 0, rc: resultCode };
+  } catch (error) {
+    return {
+      ok: false,
+      rc: -1,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function recordFrameBitmapDamage(ownerBackendNodeId: number): void {
+  try {
+    getInternalState().damageNodes.add(ownerBackendNodeId | 0);
+  } catch {}
+}
+
+function parseMessageData(dataJson: DeliverMessageParams["dataJson"]): unknown {
+  try {
+    return JSON.parse(String(dataJson ?? "null"));
+  } catch {
+    return null;
+  }
+}
+
+interface MessageDeliveryContext {
+  pageGlobal: any;
+  win: any;
+  data: unknown;
+  origin: string;
+  source: unknown;
+}
+
+function prepareMessageDelivery(params: DeliverMessageParams): MessageDeliveryContext {
+  const { dataJson, origin, sourceFrameOwnerId, fromParent } = params ?? {};
+  const pageGlobal: any = globalThis;
+  const win = pageGlobal.window ?? pageGlobal;
+  return {
+    pageGlobal,
+    win,
+    data: parseMessageData(dataJson),
+    origin: String(origin ?? ""),
+    source: resolveMessageSource(pageGlobal, win, sourceFrameOwnerId, fromParent),
+  };
+}
+
+function dispatchMessageDelivery(context: MessageDeliveryContext): { ok: boolean; error?: string } {
+  try {
+    const MessageEventConstructor: any = context.pageGlobal.MessageEvent;
+    const event = new MessageEventConstructor("message", {
+      data: context.data,
+      origin: context.origin,
+      source: context.source,
+    });
+    context.win.dispatchEvent(event);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function resolveMessageSource(
+  pageGlobal: any,
+  win: any,
+  sourceFrameOwnerId: unknown,
+  fromParent: boolean | undefined,
+): unknown {
+  if (fromParent) return win.parent ?? null;
+  return findSourceFrameWindow(pageGlobal, sourceFrameOwnerId);
+}
+
+function findSourceFrameWindow(pageGlobal: any, sourceFrameOwnerId: unknown): unknown {
+  if (typeof sourceFrameOwnerId !== "number" || sourceFrameOwnerId <= 0) return null;
+  try {
+    return sourceFrameWindowFromDocument(pageGlobal, sourceFrameOwnerId);
+  } catch {}
+  return null;
+}
+
+function sourceFrameWindowFromDocument(pageGlobal: any, ownerNodeId: number): unknown {
+  for (const iframeElement of sourceFrameElements(pageGlobal)) {
+    if (isSourceFrameOwner(iframeElement, ownerNodeId)) {
+      return sourceFrameWindow(iframeElement);
+    }
+  }
+  return null;
+}
+
+function sourceFrameElements(pageGlobal: any): Iterable<unknown> {
+  return pageGlobal.document?.querySelectorAll?.("iframe") ?? [];
+}
+
+function sourceFrameWindow(iframeElement: unknown): unknown {
+  return (iframeElement as any).contentWindow ?? null;
+}
+
+function isSourceFrameOwner(iframeElement: unknown, ownerNodeId: number): boolean {
+  return Boolean(iframeElement && (iframeElement as any)._id === ownerNodeId);
+}
+
+function installIframeContentInDocument(params: IframeContentParams): OkReply {
+  const { ownerBackendNodeId, html, url, failed, frameId, mimeType, crossOrigin } = params ?? {};
+  const iframeElement = state.resolveNodeId?.(ownerBackendNodeId);
+  if (!isIframeContentTarget(iframeElement)) return { ok: true };
+  return installIframeContentForTarget(
+    iframeElement,
+    html,
+    url,
+    failed,
+    frameId,
+    mimeType,
+    crossOrigin,
+  );
+}
+
+function installIframeContentForTarget(
+  iframeElement: ShimElement,
+  html: string,
+  url: string,
+  failed: boolean,
+  frameId: string,
+  mimeType: string | undefined,
+  crossOrigin: boolean | undefined,
+): OkReply {
+  if (crossOrigin === true) return installCrossOriginIframeContent(iframeElement, url, frameId);
+  if (shouldKeepInitialAboutBlank(iframeElement, url)) {
+    (iframeElement as any).__ks_iframeFrameId = frameId;
+    return { ok: true };
+  }
+  const contentDoc = parseIframeContentDocument(html, url, failed, mimeType);
+  const contentWindow = createIframeContentWindow(iframeElement, contentDoc, url);
+  connectIframeContentDocument(contentDoc, contentWindow);
+  storeIframeContent(iframeElement, contentDoc, contentWindow, frameId);
+  fireIframeLoad(iframeElement);
+  return { ok: true };
+}
+
+function isIframeContentTarget(iframeElement: ShimElement | null): iframeElement is ShimElement {
+  return Boolean(iframeElement && String(iframeElement.tagName || "").toLowerCase() === "iframe");
+}
+
+function installCrossOriginIframeContent(
+  iframeElement: ShimElement,
+  url: string,
+  frameId: string,
+): OkReply {
+  const existingWindow = (iframeElement as any).__ks_iframeContentWindow;
+  const win =
+    existingWindow ??
+    __makeCrossOriginContentWindow(iframeElement, typeof url === "string" ? url : "");
+  try {
+    win.document = null;
+  } catch {}
+  (iframeElement as any).__ks_iframeContentDocument = null;
+  (iframeElement as any).__ks_iframeContentWindow = win;
+  (iframeElement as any).__ks_iframeFrameId = frameId;
+  fireIframeLoad(iframeElement);
+  return { ok: true };
+}
+
+function shouldKeepInitialAboutBlank(iframeElement: ShimElement, url: string): boolean {
+  if (url && url !== "about:blank") return false;
+  if (iframeHasSourceAttribute(iframeElement)) return false;
+  return Boolean((iframeElement as any).__ks_iframeContentDocument);
+}
+
+function iframeHasSourceAttribute(iframeElement: ShimElement): boolean {
+  try {
+    return (
+      iframeElement.hasAttribute?.("src") === true ||
+      iframeElement.hasAttribute?.("srcdoc") === true
+    );
+  } catch {
+    return false;
+  }
+}
+
+function parseIframeContentDocument(
+  html: string,
+  url: string,
+  failed: boolean,
+  mimeType: string | undefined,
+): any {
+  let contentDoc: any = null;
+  try {
+    const DOMParserConstructor = ksGlobal.DOMParser;
+    if (DOMParserConstructor) {
+      const parser = new DOMParserConstructor();
+      contentDoc = parser.parseFromString(
+        iframeContentSourceHtml(html, url, failed),
+        pickDomParserMime(mimeType),
+      );
+      if (contentDoc) contentDoc._mutable = true;
+      setFrameReferrer(contentDoc, iframeContentReferrer(url));
+      setIframeDocumentBaseUrl(contentDoc, url);
+    }
+  } catch (error) {
+    warnIframeParseFailure(url, error);
+  }
+  return contentDoc;
+}
+
+function iframeContentSourceHtml(html: string, url: string, failed: boolean): string {
+  if (hasSuccessfulIframeHtml(html, failed)) return html;
+  return emptyIframeSourceHtml(url);
+}
+
+function hasSuccessfulIframeHtml(html: string, failed: boolean): boolean {
+  return !failed && typeof html === "string" && html.length > 0;
+}
+
+function emptyIframeSourceHtml(url: string): string {
+  if (!url || url === "about:blank") return "<html><head></head><body></body></html>";
+  return "<!doctype html><html><head></head><body></body></html>";
+}
+
+function iframeContentReferrer(url: string): string {
+  return url && url !== "about:blank" ? frameNavigationReferrer(url) : state.pageUrl;
+}
+
+function setIframeDocumentBaseUrl(contentDoc: any, url: string): void {
+  if (!contentDoc || !url) return;
+  try {
+    Object.defineProperty(contentDoc, "_baseUrl", {
+      value: url,
+      configurable: true,
+      writable: true,
+    });
+  } catch {}
+}
+
+function warnIframeParseFailure(url: string, error: unknown): void {
+  try {
+    console.warn(
+      "[kitesurf-iframe] parseFromString failed for " + url + ":",
+      error instanceof Error ? error.message : String(error),
+    );
+  } catch {}
+}
+
+function createIframeContentWindow(
+  iframeElement: ShimElement,
+  contentDoc: any,
+  url: string,
+): Record<string, unknown> {
+  const contentWindow: Record<string, unknown> = {
+    document: contentDoc,
+    parent: ksGlobal.window ?? globalThis,
+    top: ksGlobal.window ?? globalThis,
+    frames: [],
+    name: iframeContentWindowName(iframeElement),
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent() {
+      return true;
+    },
+  };
+  setIframeFacadeLocation(
+    contentWindow,
+    iframeElement,
+    contentDoc ? url || "about:blank" : "about:blank",
+  );
+  contentWindow.self = contentWindow;
+  contentWindow.window = contentWindow;
+  contentWindow.frameElement = iframeElement;
+  __decorateContentWindow(contentWindow);
+  __wireContentWindowPostMessage(contentWindow, iframeElement);
+  return contentWindow;
+}
+
+function iframeContentWindowName(iframeElement: ShimElement): string {
+  try {
+    return String(iframeElement.getAttribute?.("name") ?? "");
+  } catch {
+    return "";
+  }
+}
+
+function connectIframeContentDocument(
+  contentDoc: any,
+  contentWindow: Record<string, unknown>,
+): void {
+  if (!contentDoc) return;
+  try {
+    Object.defineProperty(contentDoc, "defaultView", {
+      value: contentWindow,
+      configurable: true,
+    });
+  } catch {}
+}
+
+function storeIframeContent(
+  iframeElement: ShimElement,
+  contentDoc: any,
+  contentWindow: Record<string, unknown>,
+  frameId: string,
+): void {
+  (iframeElement as any).__ks_iframeContentDocument = contentDoc;
+  (iframeElement as any).__ks_iframeContentWindow = contentWindow;
+  (iframeElement as any).__ks_iframeFrameId = frameId;
+}
+
+interface CallFunctionSettings {
+  returnByValue: boolean;
+  awaitPromise: boolean;
+  thisObjectId: string | null;
+}
+
+function callFunctionSettings(options: CallFunctionOnOptions): CallFunctionSettings {
+  return {
+    returnByValue: !!(options && options.returnByValue),
+    awaitPromise: options === undefined ? true : options.awaitPromise !== false,
+    thisObjectId: options && typeof options.thisObjectId === "string" ? options.thisObjectId : null,
+  };
+}
+
+async function evaluateCallFunctionOn(
+  functionDeclaration: string,
+  argumentSpecs: ArgSpec[],
+  settings: CallFunctionSettings,
+): Promise<EvalResultBody> {
+  try {
+    const pageFunction = compileCallFunction(functionDeclaration);
+    const argumentValues = callFunctionArgumentValues(argumentSpecs);
+    const thisValue = callFunctionThisValue(settings.thisObjectId);
+    let value = pageFunction.apply(thisValue, argumentValues);
+    if (shouldAwaitCallFunctionValue(value, settings.awaitPromise)) value = await value;
+    return packResult(value, settings.returnByValue);
+  } catch (error) {
+    return recoverCallFunctionEvaluation(error, functionDeclaration, argumentSpecs, settings);
+  }
+}
+
+function shouldAwaitCallFunctionValue(value: unknown, awaitPromise: boolean): boolean {
+  return awaitPromise && Boolean(value) && typeof Reflect.get(Object(value), "then") === "function";
+}
+
+function recoverCallFunctionEvaluation(
+  error: unknown,
+  functionDeclaration: string,
+  argumentSpecs: ArgSpec[],
+  settings: CallFunctionSettings,
+): Promise<EvalResultBody> | EvalResultBody {
+  if (shouldCallBoaFallback(error)) {
+    return evaluateCallFunctionInBoa(functionDeclaration, argumentSpecs, settings);
+  }
+  return packException(error);
+}
+
+function compileCallFunction(functionDeclaration: string): Function {
+  const functionSource =
+    typeof functionDeclaration === "string" ? functionDeclaration : "undefined";
+  const factory = new SyncFunction("return (" + functionSource + ");");
+  const pageFunction = factory();
+  if (typeof pageFunction !== "function") {
+    throw new TypeError("functionDeclaration did not evaluate to a function");
+  }
+  return pageFunction;
+}
+
+function callFunctionArgumentValues(argumentSpecs: ArgSpec[]): unknown[] {
+  const specs = Array.isArray(argumentSpecs) ? argumentSpecs : [];
+  return specs.map(callFunctionArgumentValue);
+}
+
+function callFunctionArgumentValue(spec: ArgSpec): unknown {
+  if (typeof spec === "string") return parseCallFunctionJson(spec);
+  if (!spec || typeof spec !== "object") return undefined;
+  return callFunctionObjectArgumentValue(spec);
+}
+
+function callFunctionObjectArgumentValue(spec: ArgSpec): unknown {
+  if (typeof spec.objectId === "string") return lookupHandle(spec.objectId);
+  return callFunctionJsonArgumentValue(spec.json);
+}
+
+function callFunctionJsonArgumentValue(value: unknown): unknown {
+  return typeof value === "string" ? parseCallFunctionJson(value) : undefined;
+}
+
+function parseCallFunctionJson(json: string): unknown {
+  try {
+    return JSON.parse(json);
+  } catch {
+    return undefined;
+  }
+}
+
+function callFunctionThisValue(thisObjectId: string | null): unknown {
+  return thisObjectId !== null ? (lookupHandle(thisObjectId) ?? globalThis) : globalThis;
+}
+
+function shouldCallBoaFallback(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.name === "EvalError" &&
+    typeof error.message === "string" &&
+    error.message.includes("Code generation from strings disallowed")
+  );
+}
+
+async function evaluateCallFunctionInBoa(
+  functionDeclaration: string,
+  argumentSpecs: ArgSpec[],
+  settings: CallFunctionSettings,
+): Promise<EvalResultBody> {
+  const functionSource =
+    typeof functionDeclaration === "string" ? functionDeclaration : "undefined";
+  const argumentValues = callFunctionArgumentValues(argumentSpecs);
+  const thisValue = callFunctionThisValue(settings.thisObjectId);
+  try {
+    const boaResult = await ks_call_cdp(
+      functionSource,
+      thisValue,
+      argumentValues,
+      settings.awaitPromise,
+      settings.returnByValue,
+    );
+    return packBoaResult(boaResult, settings.returnByValue);
+  } catch (error) {
+    return packException(error instanceof Error ? error : new Error(String(error)));
+  }
+}
+
+function isPropertyInspectable(value: unknown): value is object {
+  return value !== null && (typeof value === "object" || typeof value === "function");
+}
+
+function collectObjectProperties(objectValue: object, ownOnly: boolean): PropertyDescriptor[] {
+  const result: PropertyDescriptor[] = [];
+  const seen = new Set<string>();
+  appendOwnPropertyDescriptors(objectValue, true, seen, result);
+  if (!ownOnly) appendPrototypePropertyDescriptors(objectValue, seen, result);
+  return result;
+}
+
+function appendOwnPropertyDescriptors(
+  target: object,
+  isOwn: boolean,
+  seen: Set<string>,
+  result: PropertyDescriptor[],
+): void {
+  for (const name of propertyNames(target)) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const entry = propertyDescriptorFor(target, name, isOwn);
+    if (entry) result.push(entry);
+  }
+}
+
+function propertyNames(target: object): string[] {
+  try {
+    return Object.getOwnPropertyNames(target);
+  } catch {
+    return [];
+  }
+}
+
+function propertyDescriptorFor(
+  target: object,
+  name: string,
+  isOwn: boolean,
+): PropertyDescriptor | null {
+  const descriptor = ownPropertyDescriptor(target, name);
+  if (!descriptor) return null;
+  const entry: PropertyDescriptor = {
+    name,
+    configurable: !!descriptor.configurable,
+    enumerable: !!descriptor.enumerable,
+    isOwn,
+  };
+  addPropertyDescriptorContents(entry, descriptor);
+  return entry;
+}
+
+function ownPropertyDescriptor(
+  target: object,
+  name: string,
+): ReturnType<typeof Object.getOwnPropertyDescriptor> {
+  try {
+    return Object.getOwnPropertyDescriptor(target, name);
+  } catch {
+    return undefined;
+  }
+}
+
+function addPropertyDescriptorContents(
+  entry: PropertyDescriptor,
+  descriptor: NonNullable<ReturnType<typeof Object.getOwnPropertyDescriptor>>,
+): void {
+  if ("value" in descriptor) {
+    entry.writable = !!descriptor.writable;
+    safelyPackProperty(descriptor.value, (value) => {
+      entry.value = value;
+    });
+    return;
+  }
+  addPropertyDescriptorAccessors(entry, descriptor);
+}
+
+function addPropertyDescriptorAccessors(
+  entry: PropertyDescriptor,
+  descriptor: NonNullable<ReturnType<typeof Object.getOwnPropertyDescriptor>>,
+): void {
+  if (typeof descriptor.get === "function") {
+    safelyPackProperty(descriptor.get, (value) => {
+      entry.get = value;
+    });
+  }
+  if (typeof descriptor.set === "function") {
+    safelyPackProperty(descriptor.set, (value) => {
+      entry.set = value;
+    });
+  }
+}
+
+function safelyPackProperty(
+  value: unknown,
+  assign: (packed: ReturnType<typeof packResult>) => void,
+): void {
+  try {
+    assign(packResult(value, false));
+  } catch {}
+}
+
+function appendPrototypePropertyDescriptors(
+  objectValue: object,
+  seen: Set<string>,
+  result: PropertyDescriptor[],
+): void {
+  const MAX_PROTOTYPE_DESCRIPTOR_CHAIN_DEPTH = 6;
+  let prototype = objectPrototype(objectValue);
+  let depth = 0;
+  while (prototype && depth++ < MAX_PROTOTYPE_DESCRIPTOR_CHAIN_DEPTH) {
+    appendOwnPropertyDescriptors(prototype, false, seen, result);
+    prototype = objectPrototype(prototype);
+  }
+}
+
+function objectPrototype(value: object): object | null {
+  try {
+    return Object.getPrototypeOf(value);
+  } catch {
+    return null;
+  }
+}
 
 function requireQueryDomDocument(
   pageState: typeof state,
@@ -5074,49 +8012,64 @@ function queryDomDocumentRead(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<QueryDomDocumentReadMethod> {
   switch (method) {
-    case "getDocument": {
-      // Read stamps bracket the synchronous DOM read with the mutation sequence.
-      const before = getInternalState().mutationSeq | 0;
-      const root = sanitizeCdpNodeTree(pageState.dom.getDocument());
-      return {
-        root,
-        ...(queryArgs.includeReadStamp === true
-          ? {
-              readStamp: {
-                before,
-                after: getInternalState().mutationSeq | 0,
-                complete: true,
-              },
-            }
-          : {}),
-      } satisfies QueryDomResult<"getDocument">;
-    }
-    case "nodeSubtree": {
-      const id = numericNodeId(queryArgs);
-      if (id == null) return { node: null } satisfies QueryDomResult<"nodeSubtree">;
-      try {
-        const subtree = pageState.dom.nodeSubtree ? pageState.dom.nodeSubtree(id) : null;
-        return {
-          node: sanitizeCdpNodeTree(subtree) || null,
-        } satisfies QueryDomResult<"nodeSubtree">;
-      } catch {
-        return { node: null } satisfies QueryDomResult<"nodeSubtree">;
-      }
-    }
-    case "getOuterHTMLAndSeq": {
-      let outerHTML = "";
-      try {
-        outerHTML = pageState.dom.outerHTML(0);
-      } catch {}
-      const seq = getInternalState().mutationSeq | 0;
-      return {
-        outerHTML,
-        seq,
-        scrollX: state.scrollX,
-        scrollY: state.scrollY,
-      } satisfies QueryDomResult<"getOuterHTMLAndSeq">;
-    }
+    case "getDocument":
+      return queryDomGetDocument(pageState, queryArgs);
+    case "nodeSubtree":
+      return queryDomNodeSubtree(pageState, queryArgs);
+    case "getOuterHTMLAndSeq":
+      return queryDomOuterHTMLAndSeq(pageState);
   }
+}
+
+function queryDomGetDocument(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"getDocument"> {
+  // Read stamps bracket the synchronous DOM read with the mutation sequence.
+  const before = getInternalState().mutationSeq | 0;
+  const root = sanitizeCdpNodeTree(pageState.dom.getDocument());
+  return {
+    root,
+    ...(queryArgs.includeReadStamp === true
+      ? {
+          readStamp: {
+            before,
+            after: getInternalState().mutationSeq | 0,
+            complete: true,
+          },
+        }
+      : {}),
+  } satisfies QueryDomResult<"getDocument">;
+}
+
+function queryDomNodeSubtree(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"nodeSubtree"> {
+  const id = numericNodeId(queryArgs);
+  if (id === null) return { node: null } satisfies QueryDomResult<"nodeSubtree">;
+  try {
+    return {
+      node: sanitizeCdpNodeTree(pageState.dom.nodeSubtree?.(id)) || null,
+    } satisfies QueryDomResult<"nodeSubtree">;
+  } catch {
+    return { node: null } satisfies QueryDomResult<"nodeSubtree">;
+  }
+}
+
+function queryDomOuterHTMLAndSeq(
+  pageState: QueryDomActiveState,
+): QueryDomResult<"getOuterHTMLAndSeq"> {
+  let outerHTML = "";
+  try {
+    outerHTML = pageState.dom.outerHTML(0);
+  } catch {}
+  return {
+    outerHTML,
+    seq: getInternalState().mutationSeq | 0,
+    scrollX: state.scrollX,
+    scrollY: state.scrollY,
+  } satisfies QueryDomResult<"getOuterHTMLAndSeq">;
 }
 
 function queryDomOuterHTML(
@@ -5126,30 +8079,64 @@ function queryDomOuterHTML(
   const id = numericNodeId(queryArgs) ?? 0;
   try {
     const rawOuterHTML = pageState.dom.outerHTML(id);
-    const sourceDoctype =
-      state.document?.doctype?.parentNode === state.document ? state.sourceDoctype : null;
-    const markerMarkup = state.sourceDoctype ? `<!--${state.sourceDoctype.marker}-->` : null;
-    const markerIndex = id === 0 && markerMarkup ? rawOuterHTML.indexOf(markerMarkup) : -1;
-    const outerHTML =
-      markerIndex >= 0 && markerMarkup
-        ? rawOuterHTML.slice(0, markerIndex) + rawOuterHTML.slice(markerIndex + markerMarkup.length)
-        : rawOuterHTML;
-    if (
-      id !== 0 ||
-      queryArgs.includeDoctype !== true ||
-      !sourceDoctype ||
-      markerIndex < 0 ||
-      /^(?:\s|<!--[\s\S]*?-->)*<!doctype\b/i.test(outerHTML)
-    ) {
-      return { outerHTML } satisfies QueryDomResult<"getOuterHTML">;
-    }
     return {
-      outerHTML:
-        outerHTML.slice(0, markerIndex) + sourceDoctype.markup + outerHTML.slice(markerIndex),
+      outerHTML: rewriteOuterHTMLDoctype(id, queryArgs, rawOuterHTML),
     } satisfies QueryDomResult<"getOuterHTML">;
   } catch {
     return { outerHTML: "" } satisfies QueryDomResult<"getOuterHTML">;
   }
+}
+
+function rewriteOuterHTMLDoctype(
+  id: number,
+  queryArgs: Record<string, unknown>,
+  rawOuterHTML: string,
+): string {
+  const markerMarkup = doctypeMarkerMarkup();
+  const markerIndex = sourceDoctypeMarkerIndex(id, markerMarkup, rawOuterHTML);
+  const withoutMarker = removeDoctypeMarker(rawOuterHTML, markerMarkup, markerIndex);
+  const sourceDoctype = sourceDocumentDoctype();
+  if (!shouldIncludeSourceDoctype(id, queryArgs, sourceDoctype, markerIndex, withoutMarker)) {
+    return withoutMarker;
+  }
+  return insertSourceDoctype(withoutMarker, markerIndex, sourceDoctype.markup);
+}
+
+function doctypeMarkerMarkup(): string | null {
+  return state.sourceDoctype ? `<!--${state.sourceDoctype.marker}-->` : null;
+}
+
+function sourceDoctypeMarkerIndex(id: number, marker: string | null, html: string): number {
+  return id === 0 && marker ? html.indexOf(marker) : -1;
+}
+
+function removeDoctypeMarker(html: string, marker: string | null, index: number): string {
+  if (index < 0 || marker === null) return html;
+  return html.slice(0, index) + html.slice(index + marker.length);
+}
+
+function sourceDocumentDoctype(): typeof state.sourceDoctype {
+  return state.document?.doctype?.parentNode === state.document ? state.sourceDoctype : null;
+}
+
+function shouldIncludeSourceDoctype(
+  id: number,
+  queryArgs: Record<string, unknown>,
+  doctype: typeof state.sourceDoctype,
+  markerIndex: number,
+  outerHTML: string,
+): doctype is NonNullable<typeof state.sourceDoctype> {
+  return (
+    id === 0 &&
+    queryArgs.includeDoctype === true &&
+    doctype !== null &&
+    markerIndex >= 0 &&
+    !/^(?:\s|<!--[\s\S]*?-->)*<!doctype\b/i.test(outerHTML)
+  );
+}
+
+function insertSourceDoctype(html: string, index: number, markup: string): string {
+  return html.slice(0, index) + markup + html.slice(index);
 }
 
 type QueryDomSelectorReadMethod = Extract<
@@ -5163,44 +8150,79 @@ function queryDomSelectorRead(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<QueryDomSelectorReadMethod> {
   switch (method) {
-    case "querySelector": {
-      const selector = String(queryArgs.selector || "");
-      try {
-        const id = pageState.dom.querySelector(selector);
-        return { nodeId: id < 0 ? 0 : id } satisfies QueryDomResult<"querySelector">;
-      } catch (err) {
-        return { nodeId: 0, error: String(err) } satisfies QueryDomResult<"querySelector">;
-      }
-    }
-    case "querySelectorAll": {
-      const selector = String(queryArgs.selector || "");
-      try {
-        const ids = pageState.dom.querySelectorAll(selector);
-        return {
-          nodeIds: Array.from(ids).filter((n): n is number => typeof n === "number" && n >= 0),
-        } satisfies QueryDomResult<"querySelectorAll">;
-      } catch (err) {
-        return { nodeIds: [], error: String(err) } satisfies QueryDomResult<"querySelectorAll">;
-      }
-    }
-    case "matchSelectorList": {
-      const nodeId = numericNodeId(queryArgs);
-      if (nodeId == null) return { matches: [] } satisfies QueryDomResult<"matchSelectorList">;
-      const selectorListText = String(queryArgs.selectorListText || "");
-      const selectors = splitSelectorList(selectorListText);
-      const matches: number[] = [];
-      for (let i = 0; i < selectors.length; i++) {
-        const sel = selectors[i].trim();
-        if (!sel) continue;
-        try {
-          if (pageState.dom.matchesInSubtree(nodeId, sel)) {
-            matches.push(i);
-          }
-        } catch {}
-      }
-      return { matches } satisfies QueryDomResult<"matchSelectorList">;
-    }
+    case "querySelector":
+      return queryDomSelector(pageState, queryArgs);
+    case "querySelectorAll":
+      return queryDomSelectorAll(pageState, queryArgs);
+    case "matchSelectorList":
+      return queryDomMatchSelectorList(pageState, queryArgs);
   }
+}
+
+function queryDomSelector(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"querySelector"> {
+  const selector = String(queryArgs.selector || "");
+  try {
+    const id = pageState.dom.querySelector(selector);
+    return { nodeId: id < 0 ? 0 : id } satisfies QueryDomResult<"querySelector">;
+  } catch (err) {
+    return { nodeId: 0, error: String(err) } satisfies QueryDomResult<"querySelector">;
+  }
+}
+
+function queryDomSelectorAll(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"querySelectorAll"> {
+  const selector = String(queryArgs.selector || "");
+  try {
+    const ids = pageState.dom.querySelectorAll(selector);
+    return {
+      nodeIds: Array.from(ids).filter((n): n is number => typeof n === "number" && n >= 0),
+    } satisfies QueryDomResult<"querySelectorAll">;
+  } catch (err) {
+    return { nodeIds: [], error: String(err) } satisfies QueryDomResult<"querySelectorAll">;
+  }
+}
+
+function queryDomMatchSelectorList(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"matchSelectorList"> {
+  const nodeId = numericNodeId(queryArgs);
+  if (nodeId === null) return { matches: [] } satisfies QueryDomResult<"matchSelectorList">;
+  return {
+    matches: matchingSelectorIndexes(pageState, nodeId, queryArgs),
+  } satisfies QueryDomResult<"matchSelectorList">;
+}
+
+function matchingSelectorIndexes(
+  pageState: QueryDomActiveState,
+  nodeId: number,
+  queryArgs: Record<string, unknown>,
+): number[] {
+  const selectors = splitSelectorList(String(queryArgs.selectorListText || ""));
+  const matches: number[] = [];
+  for (let i = 0; i < selectors.length; i++) {
+    appendSelectorMatch(pageState, nodeId, selectors[i], i, matches);
+  }
+  return matches;
+}
+
+function appendSelectorMatch(
+  pageState: QueryDomActiveState,
+  nodeId: number,
+  selector: string,
+  index: number,
+  matches: number[],
+): void {
+  const trimmedSelector = selector.trim();
+  if (!trimmedSelector) return;
+  try {
+    if (pageState.dom.matchesInSubtree(nodeId, trimmedSelector)) matches.push(index);
+  } catch {}
 }
 
 function queryDomAncestorElementIds(
@@ -5208,27 +8230,54 @@ function queryDomAncestorElementIds(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"getAncestorElementIds"> {
   const id = numericNodeId(queryArgs);
-  if (id == null) return { ancestorIds: [] } satisfies QueryDomResult<"getAncestorElementIds">;
+  if (id === null) return { ancestorIds: [] } satisfies QueryDomResult<"getAncestorElementIds">;
+  return {
+    ancestorIds: collectAncestorElementIds(pageState, id),
+  } satisfies QueryDomResult<"getAncestorElementIds">;
+}
+
+function collectAncestorElementIds(pageState: QueryDomActiveState, id: number): number[] {
   const ancestorIds: number[] = [];
   let currentNodeId = id;
   for (let hops = 0; hops < MAX_ANCESTOR_STYLE_HOPS; hops++) {
-    let parent: number;
-    try {
-      parent = pageState.dom.parentId(currentNodeId);
-    } catch {
-      break;
-    }
-    if (typeof parent !== "number" || parent < 0) break;
-    let info: { nodeType?: number } | null = null;
-    try {
-      info = pageState.dom.nodeInfo(parent);
-    } catch {}
-    if (!info) break;
-    if (info.nodeType === 1) ancestorIds.push(parent);
-    else if (info.nodeType === 9) break;
+    const parent = ancestorParentId(pageState, currentNodeId);
+    if (parent === null) break;
+    const info = ancestorNodeInfo(pageState, parent);
+    if (!appendAncestorElementId(info, parent, ancestorIds)) break;
     currentNodeId = parent;
   }
-  return { ancestorIds } satisfies QueryDomResult<"getAncestorElementIds">;
+  return ancestorIds;
+}
+
+function appendAncestorElementId(
+  info: { nodeType?: number } | null,
+  parent: number,
+  ancestorIds: number[],
+): boolean {
+  if (!info) return false;
+  if (info.nodeType === 1) ancestorIds.push(parent);
+  else if (info.nodeType === 9) return false;
+  return true;
+}
+
+function ancestorParentId(pageState: QueryDomActiveState, nodeId: number): number | null {
+  try {
+    const parent = pageState.dom.parentId(nodeId);
+    return typeof parent === "number" && parent >= 0 ? parent : null;
+  } catch {
+    return null;
+  }
+}
+
+function ancestorNodeInfo(
+  pageState: QueryDomActiveState,
+  nodeId: number,
+): { nodeType?: number } | null {
+  try {
+    return pageState.dom.nodeInfo(nodeId);
+  } catch {
+    return null;
+  }
 }
 
 function queryDomParseStylesheet(
@@ -5287,13 +8336,21 @@ function appendInlineStyleSheets(
 ): void {
   const styleIds = pageState.dom.querySelectorAll("style");
   for (const id of Array.from(styleIds)) {
-    if (typeof id !== "number" || id < 0) continue;
-    let text = "";
-    try {
-      text = pageState.dom.textContent(id) || "";
-    } catch {}
-    sheets.push({ ownerNodeId: id, text, isInline: true });
+    appendInlineStyleSheet(pageState, sheets, id);
   }
+}
+
+function appendInlineStyleSheet(
+  pageState: QueryDomActiveState,
+  sheets: QueryDomEnumeratedStyleSheets,
+  id: unknown,
+): void {
+  if (typeof id !== "number" || id < 0) return;
+  let text = "";
+  try {
+    text = pageState.dom.textContent(id) || "";
+  } catch {}
+  sheets.push({ ownerNodeId: id, text, isInline: true });
 }
 
 function appendLinkedStyleSheets(
@@ -5302,29 +8359,59 @@ function appendLinkedStyleSheets(
 ): void {
   const linkIds = pageState.dom.querySelectorAll("link[rel]");
   for (const id of Array.from(linkIds)) {
-    if (typeof id !== "number" || id < 0) continue;
-    let attrs: unknown[] | undefined;
-    try {
-      attrs = attributesFromNodeInfo(pageState.dom.nodeInfo(id));
-    } catch {}
-    if (!attrs) continue;
-    const href = stylesheetHref(attrs);
-    if (!href) continue;
-    let resolvedUrl = "";
-    try {
-      const base = pageState.dom.baseURL() || "about:blank";
-      resolvedUrl = new URL(href, base).href;
-    } catch {
-      continue;
-    }
-    const cached = resourceCacheStyles.get(resolvedUrl) ?? "";
-    sheets.push({
-      ownerNodeId: id,
-      text: cached,
-      sourceURL: resolvedUrl,
-      isInline: false,
-      cors: stylesheetCors.get(resolvedUrl) ?? "pending",
-    });
+    const sheet = linkedStylesheetForNode(pageState, id);
+    if (sheet) sheets.push(sheet);
+  }
+}
+
+function linkedStylesheetForNode(
+  pageState: QueryDomActiveState,
+  id: unknown,
+): QueryDomEnumeratedStyleSheets[number] | null {
+  if (!isStylesheetNodeId(id)) return null;
+  const attrs = stylesheetAttributesForNode(pageState, id);
+  if (!attrs) return null;
+  const href = stylesheetHref(attrs);
+  const resolvedUrl = resolveStylesheetUrl(pageState, href);
+  if (!resolvedUrl) return null;
+  const cache = stylesheetCacheEntry(resolvedUrl);
+  return {
+    ownerNodeId: id,
+    text: cache.text,
+    sourceURL: resolvedUrl,
+    isInline: false,
+    cors: cache.cors,
+  };
+}
+
+function stylesheetCacheEntry(
+  url: string,
+): Pick<QueryDomEnumeratedStyleSheets[number], "text" | "cors"> {
+  return {
+    text: resourceCacheStyles.get(url) ?? "",
+    cors: stylesheetCors.get(url) ?? "pending",
+  };
+}
+
+function stylesheetAttributesForNode(pageState: QueryDomActiveState, id: number): unknown[] | null {
+  try {
+    return attributesFromNodeInfo(pageState.dom.nodeInfo(id)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function isStylesheetNodeId(id: unknown): id is number {
+  return typeof id === "number" && id >= 0;
+}
+
+function resolveStylesheetUrl(pageState: QueryDomActiveState, href: string | null): string | null {
+  if (!href) return null;
+  try {
+    const base = pageState.dom.baseURL() || "about:blank";
+    return new URL(href, base).href;
+  } catch {
+    return null;
   }
 }
 
@@ -5385,7 +8472,7 @@ async function queryDomPumpTasks(
       idle: false,
       nextRafDelayMs,
     } satisfies QueryDomResult<"pumpTasks">;
-  const idle = seq !== 0 && seq <= wakeAfter && !animating && !hasPendingAnimationFrames();
+  const idle = queryDomPumpTasksIdle(seq, wakeAfter, animating);
   armPaintWake(idle ? wakeAfter : null);
   return {
     seq,
@@ -5394,6 +8481,10 @@ async function queryDomPumpTasks(
     idle,
     nextRafDelayMs,
   } satisfies QueryDomResult<"pumpTasks">;
+}
+
+function queryDomPumpTasksIdle(seq: number, wakeAfter: number, animating: boolean): boolean {
+  return seq !== 0 && seq <= wakeAfter && !animating && !hasPendingAnimationFrames();
 }
 
 interface QueryDomRecordSceneWake {
@@ -5453,14 +8544,25 @@ function armRecordSceneIdleWake(armWake: boolean, seq: number): boolean {
 
 function isRecordSceneUnchanged(wake: QueryDomRecordSceneWake): boolean {
   return (
-    wake.sinceSeq !== null &&
-    wake.seqNow <= wake.sinceSeq &&
-    wake.seqNow !== 0 &&
-    state.scrollX === state.lastRecordScrollX &&
-    state.scrollY === state.lastRecordScrollY &&
-    state.paintViewportW === state.lastRecordViewportW &&
-    state.paintViewportH === state.lastRecordViewportH &&
+    hasRecordSceneSequence(wake) &&
+    hasRecordSceneScrollPosition() &&
+    hasRecordSceneViewport() &&
     !isAnimating()
+  );
+}
+
+function hasRecordSceneSequence(wake: QueryDomRecordSceneWake): boolean {
+  return wake.sinceSeq !== null && wake.seqNow <= wake.sinceSeq && wake.seqNow !== 0;
+}
+
+function hasRecordSceneScrollPosition(): boolean {
+  return state.scrollX === state.lastRecordScrollX && state.scrollY === state.lastRecordScrollY;
+}
+
+function hasRecordSceneViewport(): boolean {
+  return (
+    state.paintViewportW === state.lastRecordViewportW &&
+    state.paintViewportH === state.lastRecordViewportH
   );
 }
 
@@ -5468,34 +8570,9 @@ async function queryDomRecordScene(
   pageState: QueryDomActiveState,
   queryArgs: Record<string, unknown>,
 ): Promise<QueryDomResult<"recordScene">> {
-  // Scene-stream and screencast wake thresholds are tracked independently.
-  const armWake = queryArgs.armWake === true;
-  if (typeof queryArgs.armWake === "boolean") armPaintWake(null, "scene");
-  let pumped = -1;
-  let pumpMs = 0;
-  let nextRafDelayMs: number | undefined;
-  if (queryArgs.pumpRaf === true) {
-    const { frameIntervalMs }: { frameIntervalMs?: unknown } = queryArgs;
-    const pumpResult = await pumpPageTasksAsDriver(frameIntervalMs);
-    pumped = pumpResult.pumped;
-    pumpMs = pumpResult.pumpMs;
-    nextRafDelayMs = pumpResult.nextRafDelayMs;
-  }
-  for (const push of [...getInternalState().pendingCanvasPushes]) push();
-  const seqNow = getInternalState().mutationSeq | 0;
-  const sinceSeq = typeof queryArgs.sinceSeq === "number" ? queryArgs.sinceSeq | 0 : null;
-  const wake = { armWake, pumped, pumpMs, nextRafDelayMs, seqNow, sinceSeq };
+  const wake = await prepareQueryDomRecordSceneWake(queryArgs);
   if (isRecordSceneUnchanged(wake)) {
-    return {
-      unchanged: true,
-      seq: seqNow,
-      idle: armRecordSceneIdleWake(armWake, seqNow),
-      pumped,
-      pumpMs,
-      nextRafDelayMs,
-      scrollX: state.scrollX,
-      scrollY: state.scrollY,
-    } satisfies QueryDomResult<"recordScene">;
+    return unchangedQueryDomRecordScene(wake);
   }
   const preparation = prepareQueryDomRecordScene(pageState, queryArgs, wake);
   if (preparation.kind === "response") return preparation.response;
@@ -5504,89 +8581,191 @@ async function queryDomRecordScene(
   return finishQueryDomRecordScene(preparation.context, rendered);
 }
 
+async function prepareQueryDomRecordSceneWake(
+  queryArgs: Record<string, unknown>,
+): Promise<QueryDomRecordSceneWake> {
+  // Scene-stream and screencast wake thresholds are tracked independently.
+  const armWake = queryArgs.armWake === true;
+  if (typeof queryArgs.armWake === "boolean") armPaintWake(null, "scene");
+  const pump = await pumpQueryDomRecordSceneTasks(queryArgs);
+  for (const push of [...getInternalState().pendingCanvasPushes]) push();
+  const seqNow = getInternalState().mutationSeq | 0;
+  const sinceSeq = typeof queryArgs.sinceSeq === "number" ? queryArgs.sinceSeq | 0 : null;
+  return { armWake, ...pump, seqNow, sinceSeq };
+}
+
+async function pumpQueryDomRecordSceneTasks(
+  queryArgs: Record<string, unknown>,
+): Promise<Pick<QueryDomRecordSceneWake, "pumped" | "pumpMs" | "nextRafDelayMs">> {
+  if (queryArgs.pumpRaf !== true) {
+    return { pumped: -1, pumpMs: 0, nextRafDelayMs: undefined };
+  }
+  const { frameIntervalMs }: { frameIntervalMs?: unknown } = queryArgs;
+  const result = await pumpPageTasksAsDriver(frameIntervalMs);
+  return {
+    pumped: result.pumped,
+    pumpMs: result.pumpMs,
+    nextRafDelayMs: result.nextRafDelayMs,
+  };
+}
+
+function unchangedQueryDomRecordScene(
+  wake: QueryDomRecordSceneWake,
+): QueryDomResult<"recordScene"> {
+  return {
+    unchanged: true,
+    seq: wake.seqNow,
+    idle: armRecordSceneIdleWake(wake.armWake, wake.seqNow),
+    pumped: wake.pumped,
+    pumpMs: wake.pumpMs,
+    nextRafDelayMs: wake.nextRafDelayMs,
+    scrollX: state.scrollX,
+    scrollY: state.scrollY,
+  } satisfies QueryDomResult<"recordScene">;
+}
+
+interface QueryDomRecordSceneSettings {
+  internalState: ReturnType<typeof getInternalState>;
+  epochDamage: Set<number>;
+  epochDamageSize: number;
+  epochLayoutDirty: boolean;
+  epochBase: number;
+  rawImages: boolean;
+  omitBg: boolean;
+  clientWire: boolean;
+  allowPartial: boolean;
+  baseSeq: number;
+  allowScrollShift: boolean;
+}
+
+function queryDomRecordSceneSettings(
+  queryArgs: Record<string, unknown>,
+  internalState: ReturnType<typeof getInternalState>,
+): QueryDomRecordSceneSettings {
+  const epochDamage = internalState.damageNodes;
+  return {
+    internalState,
+    epochDamage,
+    epochDamageSize: epochDamage.size,
+    epochLayoutDirty: !!internalState.layoutDirtySinceRecord,
+    epochBase: internalState.lastRecordSeq | 0,
+    rawImages: queryArgs.images === "raw",
+    omitBg: queryArgs.omitBackground === true,
+    clientWire: queryArgs.producer === "client",
+    allowPartial: queryArgs.allowPartial === true,
+    baseSeq: typeof queryArgs.baseSeq === "number" ? queryArgs.baseSeq | 0 : -1,
+    allowScrollShift: queryArgs.allowScrollShift === true,
+  };
+}
+
 function prepareQueryDomRecordScene(
   pageState: QueryDomActiveState,
   queryArgs: Record<string, unknown>,
   wake: QueryDomRecordSceneWake,
 ): QueryDomRecordScenePreparation {
   const cascadeSeqNow = cascadeSeq();
-  const omitBg = queryArgs.omitBackground === true;
-  const clientWire = queryArgs.producer === "client";
-  const rawImages = queryArgs.images === "raw";
   const internalState = getInternalState();
-  const allowPartial = queryArgs.allowPartial === true;
-  const baseSeq = typeof queryArgs.baseSeq === "number" ? queryArgs.baseSeq | 0 : -1;
-  const epochLayoutDirty = !!internalState.layoutDirtySinceRecord;
-  const epochDamage = internalState.damageNodes;
-  const epochDamageSize = epochDamage.size;
-  // An interleaved scene record can invalidate the renderer's base sequence.
-  const epochBase = internalState.lastRecordSeq | 0;
+  const settings = queryDomRecordSceneSettings(queryArgs, internalState);
   const { paint, fresh: isFreshPaint } = takePaintPrep();
-  if (!paint) {
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
-    return {
-      kind: "response",
-      response: {
-        scene: new Uint8Array(0),
-        seq: wake.seqNow,
-        error: "ensurePaintDom returned null (serialize/parse failed)",
-        fallbackHtml,
-        scrollX: state.scrollX,
-        scrollY: state.scrollY,
-      } satisfies QueryDomResult<"recordScene">,
-    };
-  }
+  if (!paint) return failedQueryDomRecordScenePreparation(pageState, wake);
   prepareCachedPaint(paint, isFreshPaint, cascadeSeqNow);
+  const context = createQueryDomRecordSceneContext(pageState, queryArgs, wake, settings, paint);
+  const skip = queryDomRecordSceneSkipResult(context);
+  if (skip) return { kind: "response", response: skip };
+  return { kind: "ready", context };
+}
+
+function failedQueryDomRecordScenePreparation(
+  pageState: QueryDomActiveState,
+  wake: QueryDomRecordSceneWake,
+): QueryDomRecordScenePreparation {
+  let fallbackHtml = "";
+  try {
+    fallbackHtml = pageState.dom.outerHTML(0) || "";
+  } catch {}
+  return {
+    kind: "response",
+    response: {
+      scene: new Uint8Array(0),
+      seq: wake.seqNow,
+      error: "ensurePaintDom returned null (serialize/parse failed)",
+      fallbackHtml,
+      scrollX: state.scrollX,
+      scrollY: state.scrollY,
+    } satisfies QueryDomResult<"recordScene">,
+  };
+}
+
+function createQueryDomRecordSceneContext(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+  wake: QueryDomRecordSceneWake,
+  settings: QueryDomRecordSceneSettings,
+  paint: DomHandle,
+): QueryDomRecordSceneContext {
   const clip = readSceneClip(queryArgs.clip);
   const hasClip = clip !== null;
   const scrollDx = state.scrollX - state.lastRecordScrollX;
   const scrollDy = state.scrollY - state.lastRecordScrollY;
   const scrolled = scrollDx !== 0 || scrollDy !== 0;
-  const allowScrollShift = queryArgs.allowScrollShift === true;
-  const partialPlan = planPartialScene({
+  const partialPlan = queryDomRecordScenePartialPlan(
+    settings,
+    wake,
     paint,
-    allowPartial,
-    clientWire,
-    epochLayoutDirty,
-    baseSeq,
-    epochBase,
     scrolled,
-    allowScrollShift,
-    scrollDeltaX: scrollDx,
-    scrollDeltaY: scrollDy,
-    sinceSeq: wake.sinceSeq,
+    scrollDx,
+    scrollDy,
     hasClip,
-    epochDamage,
-    viewportWidth: state.paintViewportW || 0,
-    viewportHeight: state.paintViewportH || 0,
-  });
-  const context: QueryDomRecordSceneContext = {
+  );
+  return {
     pageState,
     queryArgs,
     wake,
-    internalState,
-    epochDamageSize,
-    epochLayoutDirty,
-    rawImages,
-    omitBg,
-    clientWire,
-    allowPartial,
-    baseSeq,
+    internalState: settings.internalState,
+    epochDamageSize: settings.epochDamageSize,
+    epochLayoutDirty: settings.epochLayoutDirty,
+    rawImages: settings.rawImages,
+    omitBg: settings.omitBg,
+    clientWire: settings.clientWire,
+    allowPartial: settings.allowPartial,
+    baseSeq: settings.baseSeq,
     paint,
     clip,
     hasClip,
     scrollDx,
     scrollDy,
     scrolled,
-    allowScrollShift,
+    allowScrollShift: settings.allowScrollShift,
     partialPlan,
   };
-  const skip = queryDomRecordSceneSkipResult(context);
-  if (skip) return { kind: "response", response: skip };
-  return { kind: "ready", context };
+}
+
+function queryDomRecordScenePartialPlan(
+  settings: QueryDomRecordSceneSettings,
+  wake: QueryDomRecordSceneWake,
+  paint: DomHandle,
+  scrolled: boolean,
+  scrollDx: number,
+  scrollDy: number,
+  hasClip: boolean,
+): ReturnType<typeof planPartialScene> {
+  return planPartialScene({
+    paint,
+    allowPartial: settings.allowPartial,
+    clientWire: settings.clientWire,
+    epochLayoutDirty: settings.epochLayoutDirty,
+    baseSeq: settings.baseSeq,
+    epochBase: settings.epochBase,
+    scrolled,
+    allowScrollShift: settings.allowScrollShift,
+    scrollDeltaX: scrollDx,
+    scrollDeltaY: scrollDy,
+    sinceSeq: wake.sinceSeq,
+    hasClip,
+    epochDamage: settings.epochDamage,
+    viewportWidth: state.paintViewportW || 0,
+    viewportHeight: state.paintViewportH || 0,
+  });
 }
 
 function queryDomRecordSceneSkipResult(
@@ -5619,91 +8798,144 @@ function queryDomRecordSceneSkipResult(
 }
 
 function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecordSceneRender {
-  const { pageState, paint, rawImages, clientWire, hasClip, clip, omitBg } = context;
-  let scene: Uint8Array | null = null;
-  let emittedPartial = false;
-  let partialClip = context.partialPlan.partialClip;
-  const extraPatches: ScenePatch[] = [];
   try {
-    const memory = coreWasmMemory;
-    const renderScene = rawImages
-      ? (...args: Parameters<typeof paint.renderSceneRaw>) =>
-          renderSceneRawPooled(paint, memory, ...args)
-      : paint.renderScene.bind(paint);
-    const renderClip = (rawImages ? paint.renderSceneClipRaw : paint.renderSceneClip).bind(paint);
-    if (context.partialPlan.scrollClips.length > 0 && !hasClip) {
-      const scrollPatchSet = renderScrollScenePatches(
-        renderClip,
-        context.partialPlan.scrollClips,
-        state.scrollX,
-        state.scrollY,
-        clientWire,
-      );
-      scene = scrollPatchSet.scene;
-      partialClip = scrollPatchSet.partialClip;
-      extraPatches.push(...scrollPatchSet.patches);
-      emittedPartial = true;
-    } else if (partialClip && !hasClip) {
-      scene = renderClip(
-        partialClip.x,
-        partialClip.y,
-        Math.min(MAX_SCENE_CLIP_DIMENSION_PX, partialClip.w),
-        Math.min(MAX_SCENE_CLIP_DIMENSION_PX, partialClip.h),
-        false,
-        clientWire,
-      );
-      emittedPartial = true;
-    } else {
-      scene = clip
-        ? renderClip(
-            Math.floor(clip.x),
-            Math.floor(clip.y),
-            Math.min(MAX_SCENE_CLIP_DIMENSION_PX, Math.ceil(clip.width)),
-            Math.min(MAX_SCENE_CLIP_DIMENSION_PX, Math.ceil(clip.height)),
-            omitBg,
-            clientWire,
-          )
-        : renderScene(state.scrollX, state.scrollY, 0, 0, omitBg, clientWire);
+    const rendered = renderPlannedQueryDomScene(context);
+    if (!rendered.scene || rendered.scene.length === 0) {
+      const error = new Error("renderScene returned empty");
+      return failedQueryDomScene(context, error, "renderScene returned empty");
     }
+    return { kind: "rendered", ...rendered, scene: rendered.scene };
   } catch (e) {
-    invalidatePaintDom();
-    reportEngineError("wasm", e, "renderScene threw");
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
-    return {
-      kind: "response",
-      response: {
-        scene: new Uint8Array(0),
-        seq: getInternalState().mutationSeq | 0,
-        error: errorMessage(e),
-        fallbackHtml,
-        scrollX: state.scrollX,
-        scrollY: state.scrollY,
-      } satisfies QueryDomResult<"recordScene">,
-    };
+    return failedQueryDomScene(context, e, "renderScene threw");
   }
-  if (!scene || scene.length === 0) {
-    invalidatePaintDom();
-    reportEngineError("wasm", new Error("renderScene returned empty"));
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
-    return {
-      kind: "response",
-      response: {
-        scene: new Uint8Array(0),
-        seq: getInternalState().mutationSeq | 0,
-        error: "renderScene returned empty",
-        fallbackHtml,
-        scrollX: state.scrollX,
-        scrollY: state.scrollY,
-      } satisfies QueryDomResult<"recordScene">,
-    };
+}
+
+interface QueryDomPlannedScene {
+  scene: Uint8Array | null;
+  emittedPartial: boolean;
+  partialClip: ReturnType<typeof planPartialScene>["partialClip"];
+  extraPatches: ScenePatch[];
+}
+
+function renderPlannedQueryDomScene(context: QueryDomRecordSceneContext): QueryDomPlannedScene {
+  const renderers = queryDomSceneRenderers(context);
+  if (shouldRenderQueryDomScrollPatches(context)) {
+    return renderQueryDomScrollPatches(context, renderers);
   }
-  return { kind: "rendered", scene, emittedPartial, partialClip, extraPatches };
+  const partialClip = context.partialPlan.partialClip;
+  if (partialClip && !context.hasClip) {
+    return renderQueryDomPartialClip(context, renderers, partialClip);
+  }
+  return renderQueryDomCompleteScene(context, renderers);
+}
+
+function queryDomSceneRenderers(context: QueryDomRecordSceneContext) {
+  const { paint, rawImages } = context;
+  const memory = coreWasmMemory;
+  const renderScene = rawImages
+    ? (...args: Parameters<typeof paint.renderSceneRaw>) =>
+        renderSceneRawPooled(paint, memory, ...args)
+    : paint.renderScene.bind(paint);
+  const renderClip = (rawImages ? paint.renderSceneClipRaw : paint.renderSceneClip).bind(paint);
+  return { renderScene, renderClip };
+}
+
+function shouldRenderQueryDomScrollPatches(context: QueryDomRecordSceneContext): boolean {
+  return context.partialPlan.scrollClips.length > 0 && !context.hasClip;
+}
+
+function renderQueryDomScrollPatches(
+  context: QueryDomRecordSceneContext,
+  renderers: ReturnType<typeof queryDomSceneRenderers>,
+): QueryDomPlannedScene {
+  const result = renderScrollScenePatches(
+    renderers.renderClip,
+    context.partialPlan.scrollClips,
+    state.scrollX,
+    state.scrollY,
+    context.clientWire,
+  );
+  return {
+    scene: result.scene,
+    emittedPartial: true,
+    partialClip: result.partialClip,
+    extraPatches: result.patches,
+  };
+}
+
+function renderQueryDomPartialClip(
+  context: QueryDomRecordSceneContext,
+  renderers: ReturnType<typeof queryDomSceneRenderers>,
+  partialClip: NonNullable<ReturnType<typeof planPartialScene>["partialClip"]>,
+): QueryDomPlannedScene {
+  return {
+    scene: renderers.renderClip(
+      partialClip.x,
+      partialClip.y,
+      Math.min(MAX_SCENE_CLIP_DIMENSION_PX, partialClip.w),
+      Math.min(MAX_SCENE_CLIP_DIMENSION_PX, partialClip.h),
+      false,
+      context.clientWire,
+    ),
+    emittedPartial: true,
+    partialClip,
+    extraPatches: [],
+  };
+}
+
+function renderQueryDomCompleteScene(
+  context: QueryDomRecordSceneContext,
+  renderers: ReturnType<typeof queryDomSceneRenderers>,
+): QueryDomPlannedScene {
+  const scene = context.clip
+    ? renderQueryDomClip(context, renderers)
+    : renderers.renderScene(state.scrollX, state.scrollY, 0, 0, context.omitBg, context.clientWire);
+  return {
+    scene,
+    emittedPartial: false,
+    partialClip: context.partialPlan.partialClip,
+    extraPatches: [],
+  };
+}
+
+function renderQueryDomClip(
+  context: QueryDomRecordSceneContext,
+  renderers: ReturnType<typeof queryDomSceneRenderers>,
+): Uint8Array | null {
+  const clip = context.clip;
+  if (!clip) return null;
+  return renderers.renderClip(
+    Math.floor(clip.x),
+    Math.floor(clip.y),
+    Math.min(MAX_SCENE_CLIP_DIMENSION_PX, Math.ceil(clip.width)),
+    Math.min(MAX_SCENE_CLIP_DIMENSION_PX, Math.ceil(clip.height)),
+    context.omitBg,
+    context.clientWire,
+  );
+}
+
+function failedQueryDomScene(
+  context: QueryDomRecordSceneContext,
+  error: unknown,
+  reportMessage: string,
+): QueryDomRecordSceneRender {
+  invalidatePaintDom();
+  reportEngineError("wasm", error, reportMessage);
+  let fallbackHtml = "";
+  try {
+    fallbackHtml = context.pageState.dom.outerHTML(0) || "";
+  } catch {}
+  return {
+    kind: "response",
+    response: {
+      scene: new Uint8Array(0),
+      seq: getInternalState().mutationSeq | 0,
+      error: errorMessage(error),
+      fallbackHtml,
+      scrollX: state.scrollX,
+      scrollY: state.scrollY,
+    } satisfies QueryDomResult<"recordScene">,
+  };
 }
 
 function finishQueryDomRecordScene(
@@ -5712,32 +8944,66 @@ function finishQueryDomRecordScene(
 ): QueryDomResult<"recordScene"> {
   const { internalState, paint } = context;
   const { scene } = rendered;
-  const { inkIds, inkNow, pinnedNow } = context.partialPlan;
-  const { allowPartial, allowScrollShift, scrolled } = context;
   const outSeq = getInternalState().mutationSeq | 0;
+  commitRecordSceneSequence(internalState, outSeq);
+  refreshRecordSceneInkRects(paint, context.partialPlan.inkIds, context.partialPlan.inkNow);
+  pinnedAtRecord = recordScenePinnedRects(context, paint);
+  saveRecordSceneViewport();
+  recheckIntersectionObservers("layout");
+  const resourceBatch = inlineQueryDomSceneResources(context, scene);
+  return queryDomRecordSceneResponse(context, rendered, outSeq, resourceBatch);
+}
+
+function commitRecordSceneSequence(
+  internalState: ReturnType<typeof getInternalState>,
+  sequence: number,
+): void {
   internalState.damageNodes.clear();
   internalState.layoutDirtySinceRecord = false;
-  internalState.lastRecordSeq = outSeq;
+  internalState.lastRecordSeq = sequence;
+}
+
+function refreshRecordSceneInkRects(
+  paint: DomHandle,
+  inkIds: number[],
+  inkNow: ReturnType<typeof planPartialScene>["inkNow"],
+): void {
+  ensureRecordSceneInkEntries(inkIds);
+  refreshTrackedRecordSceneInkRects(paint, inkNow);
+}
+
+function ensureRecordSceneInkEntries(inkIds: number[]): void {
   for (const id of inkIds) {
     if (inkRects.size >= MAX_TRACKED_INK_RECTS) break;
     if (!inkRects.has(id)) inkRects.set(id, []);
   }
+}
+
+function refreshTrackedRecordSceneInkRects(
+  paint: DomHandle,
+  inkNow: ReturnType<typeof planPartialScene>["inkNow"],
+): void {
   for (const id of inkRects.keys()) {
     const rect = inkNow.get(id) ?? readInkRect(paint, id);
     if (rect) inkRects.set(id, rect);
     else inkRects.delete(id);
   }
-  pinnedAtRecord =
-    allowPartial && allowScrollShift && scrolled
-      ? (pinnedNow ?? readPinnedRects(paint))
-      : undefined;
+}
+
+function recordScenePinnedRects(
+  context: QueryDomRecordSceneContext,
+  paint: DomHandle,
+): ReturnType<typeof planPartialScene>["pinnedNow"] {
+  const { allowPartial, allowScrollShift, scrolled, partialPlan } = context;
+  if (!allowPartial || !allowScrollShift || !scrolled) return undefined;
+  return partialPlan.pinnedNow ?? readPinnedRects(paint);
+}
+
+function saveRecordSceneViewport(): void {
   state.lastRecordScrollX = state.scrollX;
   state.lastRecordScrollY = state.scrollY;
   state.lastRecordViewportW = state.paintViewportW;
   state.lastRecordViewportH = state.paintViewportH;
-  recheckIntersectionObservers("layout");
-  const resourceBatch = inlineQueryDomSceneResources(context, scene);
-  return queryDomRecordSceneResponse(context, rendered, outSeq, resourceBatch);
 }
 
 function inlineQueryDomSceneResources(
@@ -5745,26 +9011,38 @@ function inlineQueryDomSceneResources(
   scene: Uint8Array,
 ): Uint8Array | null {
   const { queryArgs, paint } = context;
-  let resourceBatch: Uint8Array | null = null;
-  const inlineResources = queryArgs.inlineResources === true;
-  if (inlineResources && typeof paint.renderSceneInlineResources === "function") {
-    try {
-      const inlineResourceBatch = paint.renderSceneInlineResources(
-        scene,
-        resourceHashes(queryArgs.haveImages),
-        resourceHashes(queryArgs.haveFonts),
-      );
-      const INLINE_RESOURCE_CAP = 4 * 1024 * 1024;
-      if (
-        inlineResourceBatch &&
-        inlineResourceBatch.length > 0 &&
-        inlineResourceBatch.length <= INLINE_RESOURCE_CAP
-      ) {
-        resourceBatch = inlineResourceBatch;
-      }
-    } catch {}
+  if (
+    queryArgs.inlineResources !== true ||
+    typeof paint.renderSceneInlineResources !== "function"
+  ) {
+    return null;
   }
-  return resourceBatch;
+  return renderInlineSceneResources(paint, queryArgs, scene);
+}
+
+function renderInlineSceneResources(
+  paint: DomHandle,
+  queryArgs: Record<string, unknown>,
+  scene: Uint8Array,
+): Uint8Array | null {
+  const renderInlineResources = paint.renderSceneInlineResources;
+  if (typeof renderInlineResources !== "function") return null;
+  try {
+    const inlineResourceBatch = renderInlineResources.call(
+      paint,
+      scene,
+      resourceHashes(queryArgs.haveImages),
+      resourceHashes(queryArgs.haveFonts),
+    );
+    return hasInlineResourcePayload(inlineResourceBatch) ? inlineResourceBatch : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasInlineResourcePayload(batch: Uint8Array | null): batch is Uint8Array {
+  const INLINE_RESOURCE_CAP = 4 * 1024 * 1024;
+  return batch !== null && batch.length > 0 && batch.length <= INLINE_RESOURCE_CAP;
 }
 
 function queryDomRecordSceneResponse(
@@ -5786,16 +9064,44 @@ function queryDomRecordSceneResponse(
     pumpMs: wake.pumpMs,
     nextRafDelayMs: wake.nextRafDelayMs,
     partial: emittedPartial,
-    clip: emittedPartial ? partialClip : null,
-    shift: emittedPartial && scrolled ? { x: -scrollDx, y: -scrollDy } : undefined,
-    patches: extraPatches.length > 0 ? extraPatches : undefined,
-    baseSeq: emittedPartial ? baseSeq : -1,
+    clip: recordSceneClip(emittedPartial, partialClip),
+    shift: recordSceneShift(emittedPartial, scrolled, scrollDx, scrollDy),
+    patches: recordScenePatches(extraPatches),
+    baseSeq: recordSceneBaseSeq(emittedPartial, baseSeq),
     scrollX: state.scrollX,
     scrollY: state.scrollY,
     damageCount: epochDamageSize,
     layoutDirty: epochLayoutDirty,
-    skipReason: emittedPartial ? "" : skipReason,
+    skipReason: recordSceneSkipReason(emittedPartial, skipReason),
   } satisfies QueryDomResult<"recordScene">;
+}
+
+function recordSceneClip(
+  emittedPartial: boolean,
+  partialClip: ReturnType<typeof planPartialScene>["partialClip"],
+): ReturnType<typeof planPartialScene>["partialClip"] | null {
+  return emittedPartial ? partialClip : null;
+}
+
+function recordSceneShift(
+  emittedPartial: boolean,
+  scrolled: boolean,
+  scrollDx: number,
+  scrollDy: number,
+): { x: number; y: number } | undefined {
+  return emittedPartial && scrolled ? { x: -scrollDx, y: -scrollDy } : undefined;
+}
+
+function recordScenePatches(patches: ScenePatch[]): ScenePatch[] | undefined {
+  return patches.length > 0 ? patches : undefined;
+}
+
+function recordSceneBaseSeq(emittedPartial: boolean, baseSeq: number): number {
+  return emittedPartial ? baseSeq : -1;
+}
+
+function recordSceneSkipReason(emittedPartial: boolean, skipReason: string): string {
+  return emittedPartial ? "" : skipReason;
 }
 
 async function queryDomGetFontUrlData(
@@ -5803,6 +9109,10 @@ async function queryDomGetFontUrlData(
 ): Promise<QueryDomResult<"getFontUrlData">> {
   const url = String(queryArgs.url || "") || fontUrlForKey(String(queryArgs.key || ""));
   if (!url) return { bytes: null, error: "no url" } satisfies QueryDomResult<"getFontUrlData">;
+  return resolveQueryDomFontUrlData(url);
+}
+
+async function resolveQueryDomFontUrlData(url: string): Promise<QueryDomResult<"getFontUrlData">> {
   try {
     const bytes = await resolveFontUrlData(url);
     return (
@@ -5859,55 +9169,60 @@ function queryDomHasPendingCriticalResources(
 function queryDomRecordPdfScenes(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"recordPdfScenes"> {
-  const DEFAULT_PDF_PAPER_WIDTH_CSS_PX = 816;
-  const DEFAULT_PDF_PAPER_HEIGHT_CSS_PX = 1056;
-  const pdfW =
-    queryArgs && typeof queryArgs.width === "number" && queryArgs.width > 0
-      ? queryArgs.width | 0
-      : DEFAULT_PDF_PAPER_WIDTH_CSS_PX;
-  const pdfH =
-    queryArgs && typeof queryArgs.height === "number" && queryArgs.height > 0
-      ? queryArgs.height | 0
-      : DEFAULT_PDF_PAPER_HEIGHT_CSS_PX;
-  const readPx = (v: unknown) =>
-    typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
+  const { width, height } = pdfPaperDimensions(queryArgs);
   const { paint, fresh: isFreshPaint } = takePaintPrep();
-  if (!paint) {
-    return {
-      envelope: new Uint8Array(0),
-      error: "ensurePaintDom returned null",
-    } satisfies QueryDomResult<"recordPdfScenes">;
-  }
+  if (!paint) return pdfSceneFailure("ensurePaintDom returned null");
   prepareCachedPaint(paint, isFreshPaint, cascadeSeq, cascadeSeq);
+  return renderPdfSceneEnvelope(paint, queryArgs, width, height);
+}
+
+const DEFAULT_PDF_PAPER_WIDTH_CSS_PX = 816;
+const DEFAULT_PDF_PAPER_HEIGHT_CSS_PX = 1056;
+
+function pdfPaperDimensions(queryArgs: Record<string, unknown>): { width: number; height: number } {
+  return {
+    width: pdfPaperDimension(queryArgs.width, DEFAULT_PDF_PAPER_WIDTH_CSS_PX),
+    height: pdfPaperDimension(queryArgs.height, DEFAULT_PDF_PAPER_HEIGHT_CSS_PX),
+  };
+}
+
+function pdfPaperDimension(value: unknown, fallback: number): number {
+  return typeof value === "number" && value > 0 ? value | 0 : fallback;
+}
+
+function pdfMarginPixels(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+}
+
+function renderPdfSceneEnvelope(
+  paint: DomHandle,
+  queryArgs: Record<string, unknown>,
+  width: number,
+  height: number,
+): QueryDomResult<"recordPdfScenes"> {
   try {
-    if (typeof paint.recordPdfScenes !== "function") {
-      return {
-        envelope: new Uint8Array(0),
-        error: "recordPdfScenes not exported",
-      } satisfies QueryDomResult<"recordPdfScenes">;
-    }
-    const envelope = paint.recordPdfScenes(
-      pdfW,
-      pdfH,
-      readPx(queryArgs.marginTop),
-      readPx(queryArgs.marginRight),
-      readPx(queryArgs.marginBottom),
-      readPx(queryArgs.marginLeft),
+    const recordPdfScenes = paint.recordPdfScenes;
+    if (typeof recordPdfScenes !== "function")
+      return pdfSceneFailure("recordPdfScenes not exported");
+    const envelope = recordPdfScenes.call(
+      paint,
+      width,
+      height,
+      pdfMarginPixels(queryArgs.marginTop),
+      pdfMarginPixels(queryArgs.marginRight),
+      pdfMarginPixels(queryArgs.marginBottom),
+      pdfMarginPixels(queryArgs.marginLeft),
     );
-    if (!envelope || envelope.length === 0) {
-      return {
-        envelope: new Uint8Array(0),
-        error: "empty pdf scene envelope",
-      } satisfies QueryDomResult<"recordPdfScenes">;
-    }
+    if (!envelope || envelope.length === 0) return pdfSceneFailure("empty pdf scene envelope");
     return { envelope } satisfies QueryDomResult<"recordPdfScenes">;
   } catch (e) {
     invalidatePaintDom();
-    return {
-      envelope: new Uint8Array(0),
-      error: errorMessage(e),
-    } satisfies QueryDomResult<"recordPdfScenes">;
+    return pdfSceneFailure(errorMessage(e));
   }
+}
+
+function pdfSceneFailure(error: string): QueryDomResult<"recordPdfScenes"> {
+  return { envelope: new Uint8Array(0), error } satisfies QueryDomResult<"recordPdfScenes">;
 }
 
 type QueryDomPaintGeometryMethod = Extract<
@@ -5920,52 +9235,71 @@ function queryDomPaintGeometry(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<QueryDomPaintGeometryMethod> {
   switch (method) {
-    case "getComputedStyle": {
-      const id = numericNodeId(queryArgs);
-      if (id == null) return { computedStyle: [] } satisfies QueryDomResult<"getComputedStyle">;
-      const props = computedStyleForAuthId(id);
-      return {
-        computedStyle: (props ?? []).map(({ name, value }) => ({ name, value })),
-      } satisfies QueryDomResult<"getComputedStyle">;
-    }
-    case "getRect": {
-      const id = numericNodeId(queryArgs);
-      if (id == null) return { rect: null } satisfies QueryDomResult<"getRect">;
-      const paint = ensurePaintDom();
-      if (!paint) return { rect: null } satisfies QueryDomResult<"getRect">;
-      try {
-        const range: unknown = paint.getBoundingClientRect(id);
-        if (!isWasmBoundingRect(range)) {
-          return { rect: null } satisfies QueryDomResult<"getRect">;
-        }
-        return {
-          rect: {
-            ...range,
-            x: (Number(range.x) || 0) - state.scrollX,
-            y: (Number(range.y) || 0) - state.scrollY,
-          },
-        } satisfies QueryDomResult<"getRect">;
-      } catch {
-        invalidatePaintDom();
-        return { rect: null } satisfies QueryDomResult<"getRect">;
-      }
-    }
-    case "elementFromPoint": {
-      const clientX = queryArgs && typeof queryArgs.x === "number" ? queryArgs.x : 0;
-      const clientY = queryArgs && typeof queryArgs.y === "number" ? queryArgs.y : 0;
-      const paint = ensurePaintDom();
-      if (!paint) return { nodeId: -1 } satisfies QueryDomResult<"elementFromPoint">;
-      try {
-        const id = paint.elementFromPoint(clientX + state.scrollX, clientY + state.scrollY);
-        return {
-          nodeId: typeof id === "number" && id >= 0 ? id : -1,
-        } satisfies QueryDomResult<"elementFromPoint">;
-      } catch {
-        invalidatePaintDom();
-        return { nodeId: -1 } satisfies QueryDomResult<"elementFromPoint">;
-      }
-    }
+    case "getComputedStyle":
+      return queryDomComputedStyle(queryArgs);
+    case "getRect":
+      return queryDomRect(queryArgs);
+    case "elementFromPoint":
+      return queryDomElementFromPoint(queryArgs);
   }
+}
+
+function queryDomComputedStyle(
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"getComputedStyle"> {
+  const id = numericNodeId(queryArgs);
+  if (id === null) return { computedStyle: [] } satisfies QueryDomResult<"getComputedStyle">;
+  const props = computedStyleForAuthId(id);
+  return {
+    computedStyle: (props ?? []).map(({ name, value }) => ({ name, value })),
+  } satisfies QueryDomResult<"getComputedStyle">;
+}
+
+function queryDomRect(queryArgs: Record<string, unknown>): QueryDomResult<"getRect"> {
+  const id = numericNodeId(queryArgs);
+  if (id === null) return { rect: null } satisfies QueryDomResult<"getRect">;
+  const paint = ensurePaintDom();
+  if (!paint) return { rect: null } satisfies QueryDomResult<"getRect">;
+  try {
+    const range: unknown = paint.getBoundingClientRect(id);
+    return { rect: rectWithScrollOffsetFromWasm(range) } satisfies QueryDomResult<"getRect">;
+  } catch {
+    invalidatePaintDom();
+    return { rect: null } satisfies QueryDomResult<"getRect">;
+  }
+}
+
+function rectWithScrollOffsetFromWasm(range: unknown): QueryDomResult<"getRect">["rect"] {
+  if (!isWasmBoundingRect(range)) return null;
+  return {
+    ...range,
+    x: (Number(range.x) || 0) - state.scrollX,
+    y: (Number(range.y) || 0) - state.scrollY,
+  };
+}
+
+function queryDomElementFromPoint(
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"elementFromPoint"> {
+  const clientX = queryCoordinate(queryArgs.x);
+  const clientY = queryCoordinate(queryArgs.y);
+  const paint = ensurePaintDom();
+  if (!paint) return { nodeId: -1 } satisfies QueryDomResult<"elementFromPoint">;
+  try {
+    const id = paint.elementFromPoint(clientX + state.scrollX, clientY + state.scrollY);
+    return { nodeId: paintNodeId(id) } satisfies QueryDomResult<"elementFromPoint">;
+  } catch {
+    invalidatePaintDom();
+    return { nodeId: -1 } satisfies QueryDomResult<"elementFromPoint">;
+  }
+}
+
+function queryCoordinate(value: unknown): number {
+  return typeof value === "number" ? value : 0;
+}
+
+function paintNodeId(id: unknown): number {
+  return typeof id === "number" && id >= 0 ? id : -1;
 }
 
 async function queryDomNotRenderedNodeIds(
@@ -5975,21 +9309,20 @@ async function queryDomNotRenderedNodeIds(
   const paint = ensurePaintDom();
   if (!paint)
     return { displayNone: [], invisible: [] } satisfies QueryDomResult<"notRenderedNodeIds">;
+  return readNotRenderedNodeIds(paint, queryArgs);
+}
+
+function readNotRenderedNodeIds(
+  paint: DomHandle,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"notRenderedNodeIds"> {
   try {
     const before = getInternalState().mutationSeq | 0;
     // Call through DomHandle rather than asserting a local method shape.
     const renderStatus: unknown = paint.notRenderedNodeIds();
-    const displayNone =
-      isObjectRecord(renderStatus) && isNumberArray(renderStatus.displayNone)
-        ? renderStatus.displayNone
-        : [];
-    const invisible =
-      isObjectRecord(renderStatus) && isNumberArray(renderStatus.invisible)
-        ? renderStatus.invisible
-        : [];
     return {
-      displayNone: Array.from(displayNone),
-      invisible: Array.from(invisible),
+      displayNone: Array.from(notRenderedNodeIdsFromStatus(renderStatus, "displayNone")),
+      invisible: Array.from(notRenderedNodeIdsFromStatus(renderStatus, "invisible")),
       ...(queryArgs.includeReadStamp === true
         ? {
             readStamp: {
@@ -6006,40 +9339,62 @@ async function queryDomNotRenderedNodeIds(
   }
 }
 
+function notRenderedNodeIdsFromStatus(value: unknown, key: string): number[] {
+  const ids = isObjectRecord(value) ? value[key] : undefined;
+  return isNumberArray(ids) ? ids : [];
+}
+
 function queryDomSetViewport(
   pageState: QueryDomActiveState,
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"setViewport"> {
-  const viewportWidth =
-    queryArgs && typeof queryArgs.width === "number"
-      ? Math.max(1, Math.floor(queryArgs.width))
-      : DEFAULT_VIEWPORT_WIDTH_PX;
-  const viewportHeight =
-    queryArgs && typeof queryArgs.height === "number"
-      ? Math.max(1, Math.floor(queryArgs.height))
-      : DEFAULT_VIEWPORT_HEIGHT_PX;
-  const dimsChanged =
-    state.paintViewportW !== viewportWidth || state.paintViewportH !== viewportHeight;
-  state.paintViewportW = viewportWidth;
-  state.paintViewportH = viewportHeight;
+  const viewportWidth = viewportDimension(queryArgs.width, DEFAULT_VIEWPORT_WIDTH_PX);
+  const viewportHeight = viewportDimension(queryArgs.height, DEFAULT_VIEWPORT_HEIGHT_PX);
+  updateViewportDimensions(viewportWidth, viewportHeight);
+  writeViewportToInternalState(viewportWidth, viewportHeight);
+  return applyDomViewport(pageState, viewportWidth, viewportHeight);
+}
+
+function viewportDimension(value: unknown, fallback: number): number {
+  return typeof value === "number" ? Math.max(1, Math.floor(value)) : fallback;
+}
+
+function updateViewportDimensions(width: number, height: number): void {
+  const dimsChanged = state.paintViewportW !== width || state.paintViewportH !== height;
+  state.paintViewportW = width;
+  state.paintViewportH = height;
   if (dimsChanged) {
-    try {
-      const internalState = getInternalState();
-      internalState.mutationSeq = (internalState.mutationSeq | 0) + 1;
-    } catch {}
+    incrementViewportMutationSequence();
   }
+}
+
+function incrementViewportMutationSequence(): void {
   try {
     const internalState = getInternalState();
-    internalState.viewportW = viewportWidth;
-    internalState.viewportH = viewportHeight;
+    internalState.mutationSeq = (internalState.mutationSeq | 0) + 1;
   } catch {}
+}
+
+function writeViewportToInternalState(width: number, height: number): void {
   try {
-    pageState.dom.setViewport(viewportWidth, viewportHeight);
+    const internalState = getInternalState();
+    internalState.viewportW = width;
+    internalState.viewportH = height;
+  } catch {}
+}
+
+function applyDomViewport(
+  pageState: QueryDomActiveState,
+  width: number,
+  height: number,
+): QueryDomResult<"setViewport"> {
+  try {
+    pageState.dom.setViewport(width, height);
     setScrollOffset(state.scrollX, state.scrollY);
     return {
       ok: true,
-      width: viewportWidth,
-      height: viewportHeight,
+      width,
+      height,
       scrollX: state.scrollX,
       scrollY: state.scrollY,
     } satisfies QueryDomResult<"setViewport">;
@@ -6055,24 +9410,12 @@ function queryDomSetMediaType(
   pageState: QueryDomActiveState,
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"setMediaType"> {
-  const mediaType = queryArgs && typeof queryArgs.media === "string" ? queryArgs.media : "";
-  const normalised = mediaType === "print" ? "print" : "screen";
+  const mediaType = queryDomMediaType(queryArgs);
+  const normalised = normalizeMediaType(mediaType);
   const changed = state.currentMediaType !== normalised;
-  const quiet = !!(queryArgs && queryArgs.quiet);
+  const quiet = Boolean(queryArgs.quiet);
   try {
-    pageState.dom.setMediaType(mediaType);
-    if (state.paintCacheHandle) {
-      try {
-        state.paintCacheHandle.setMediaType(mediaType);
-      } catch {}
-    }
-    state.currentMediaType = normalised;
-    if (changed && !quiet) {
-      try {
-        const internalState = getInternalState();
-        internalState.mutationSeq = (internalState.mutationSeq | 0) + 1;
-      } catch {}
-    }
+    applyQueryDomMediaType(pageState, mediaType, normalised, changed, quiet);
     return {
       ok: true,
       media: state.currentMediaType,
@@ -6086,150 +9429,265 @@ function queryDomSetMediaType(
   }
 }
 
+function queryDomMediaType(queryArgs: Record<string, unknown>): string {
+  return typeof queryArgs.media === "string" ? queryArgs.media : "";
+}
+
+function normalizeMediaType(mediaType: string): "print" | "screen" {
+  return mediaType === "print" ? "print" : "screen";
+}
+
+function applyQueryDomMediaType(
+  pageState: QueryDomActiveState,
+  mediaType: string,
+  normalised: "print" | "screen",
+  changed: boolean,
+  quiet: boolean,
+): void {
+  pageState.dom.setMediaType(mediaType);
+  updatePaintCacheMediaType(mediaType);
+  state.currentMediaType = normalised;
+  recordMediaTypeMutation(changed, quiet);
+}
+
+function updatePaintCacheMediaType(mediaType: string): void {
+  if (!state.paintCacheHandle) return;
+  try {
+    state.paintCacheHandle.setMediaType(mediaType);
+  } catch {}
+}
+
+function recordMediaTypeMutation(changed: boolean, quiet: boolean): void {
+  if (!changed || quiet) return;
+  try {
+    const internalState = getInternalState();
+    internalState.mutationSeq = (internalState.mutationSeq | 0) + 1;
+  } catch {}
+}
+
 function queryDomSetSuppressBackgrounds(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"setSuppressBackgrounds"> {
   const enabled = !!(queryArgs && queryArgs.enabled);
-  const SUPPRESS_BACKGROUND_STYLE_ID = "__ks_no_bg";
   try {
     const doc = state.document as any;
     if (!doc)
-      return {
-        ok: false,
-        error: "no document",
-      } satisfies QueryDomResult<"setSuppressBackgrounds">;
-    const existing =
-      typeof doc.getElementById === "function"
-        ? doc.getElementById(SUPPRESS_BACKGROUND_STYLE_ID)
-        : null;
-    if (enabled) {
-      if (existing)
-        return {
-          ok: true,
-          changed: false,
-        } satisfies QueryDomResult<"setSuppressBackgrounds">;
-      const style = doc.createElement("style");
-      style.id = SUPPRESS_BACKGROUND_STYLE_ID;
-      style.textContent =
-        "*,*::before,*::after{" +
-        "background-color:transparent !important;" +
-        "background-image:none !important;" +
-        "}";
-      const head = doc.head || doc.getElementsByTagName?.("head")?.[0];
-      if (!head)
-        return {
-          ok: false,
-          error: "no <head>",
-        } satisfies QueryDomResult<"setSuppressBackgrounds">;
-      head.appendChild(style);
-      return { ok: true, changed: true } satisfies QueryDomResult<"setSuppressBackgrounds">;
-    } else {
-      if (!existing)
-        return {
-          ok: true,
-          changed: false,
-        } satisfies QueryDomResult<"setSuppressBackgrounds">;
-      try {
-        existing.parentNode?.removeChild(existing);
-      } catch (e) {
-        return {
-          ok: false,
-          error: String((e as any)?.message || e),
-        } satisfies QueryDomResult<"setSuppressBackgrounds">;
-      }
-      return { ok: true, changed: true } satisfies QueryDomResult<"setSuppressBackgrounds">;
-    }
+      return { ok: false, error: "no document" } satisfies QueryDomResult<"setSuppressBackgrounds">;
+    const existing = existingBackgroundStyle(doc);
+    return enabled
+      ? enableBackgroundSuppression(doc, existing)
+      : disableBackgroundSuppression(existing);
   } catch (e) {
-    return {
-      ok: false,
-      error: String((e as any)?.message || e),
-    } satisfies QueryDomResult<"setSuppressBackgrounds">;
+    return suppressBackgroundFailure(e);
   }
+}
+
+const SUPPRESS_BACKGROUND_STYLE_ID = "__ks_no_bg";
+
+function existingBackgroundStyle(doc: any): any {
+  return typeof doc.getElementById === "function"
+    ? doc.getElementById(SUPPRESS_BACKGROUND_STYLE_ID)
+    : null;
+}
+
+function enableBackgroundSuppression(
+  doc: any,
+  existing: any,
+): QueryDomResult<"setSuppressBackgrounds"> {
+  if (existing)
+    return { ok: true, changed: false } satisfies QueryDomResult<"setSuppressBackgrounds">;
+  const style = doc.createElement("style");
+  style.id = SUPPRESS_BACKGROUND_STYLE_ID;
+  style.textContent =
+    "*,*::before,*::after{" +
+    "background-color:transparent !important;" +
+    "background-image:none !important;" +
+    "}";
+  const head = suppressionStyleHead(doc);
+  if (!head)
+    return { ok: false, error: "no <head>" } satisfies QueryDomResult<"setSuppressBackgrounds">;
+  head.appendChild(style);
+  return { ok: true, changed: true } satisfies QueryDomResult<"setSuppressBackgrounds">;
+}
+
+function suppressionStyleHead(doc: any): any {
+  return doc.head || doc.getElementsByTagName?.("head")?.[0];
+}
+
+function disableBackgroundSuppression(existing: any): QueryDomResult<"setSuppressBackgrounds"> {
+  if (!existing)
+    return { ok: true, changed: false } satisfies QueryDomResult<"setSuppressBackgrounds">;
+  try {
+    existing.parentNode?.removeChild(existing);
+    return { ok: true, changed: true } satisfies QueryDomResult<"setSuppressBackgrounds">;
+  } catch (error) {
+    return suppressBackgroundFailure(error);
+  }
+}
+
+function suppressBackgroundFailure(error: unknown): QueryDomResult<"setSuppressBackgrounds"> {
+  return {
+    ok: false,
+    error: String((error as any)?.message || error),
+  } satisfies QueryDomResult<"setSuppressBackgrounds">;
 }
 
 async function queryDomAwaitPendingResources(
   pageState: QueryDomActiveState,
   queryArgs: Record<string, unknown>,
 ): Promise<QueryDomResult<"awaitPendingResources">> {
-  const DEFAULT_PENDING_RESOURCE_TIMEOUT_MS = 15000;
-  const timeoutMs =
-    queryArgs && typeof queryArgs.timeoutMs === "number" && queryArgs.timeoutMs > 0
-      ? queryArgs.timeoutMs
-      : DEFAULT_PENDING_RESOURCE_TIMEOUT_MS;
+  const timeoutMs = pendingResourceTimeout(queryArgs.timeoutMs);
   const drainStartedAt = Date.now();
   const deadline = drainStartedAt + timeoutMs;
-
-  if (queryArgs && queryArgs.upgradeFonts === true) {
-    try {
-      upgradeToFullFonts();
-    } catch {}
-  }
-
+  requestPendingFontUpgrade(queryArgs.upgradeFonts);
   if (pageState.dom) demandFacesForScriptText(pageState.dom);
+  const fonts = createPendingFontDrain(timeoutMs);
+  await waitForPendingFonts(fonts);
+  const fontsMs = Date.now() - drainStartedAt;
+  const captureRect = captureRectFromPendingScope(pendingResourceScope(queryArgs.scope));
+  const images = await drainPendingImages(pageState, captureRect, deadline, drainStartedAt);
+  logPendingFontDrain(fonts, fontsMs);
+  return pendingResourceDrainReply(images, fonts, fontsMs);
+}
+
+const DEFAULT_PENDING_RESOURCE_TIMEOUT_MS = 15000;
+
+function pendingResourceTimeout(value: unknown): number {
+  return typeof value === "number" && value > 0 ? value : DEFAULT_PENDING_RESOURCE_TIMEOUT_MS;
+}
+
+function requestPendingFontUpgrade(value: unknown): void {
+  if (value !== true) return;
+  try {
+    upgradeToFullFonts();
+  } catch {}
+}
+
+interface PendingFontDrainState {
+  emoji: ReturnType<typeof emojiPendingPromise>;
+  cjk: ReturnType<typeof cjkPendingPromise>;
+  upgrade: ReturnType<typeof upgradePendingPromise>;
+  promises: Promise<void>[];
+  timedOut: { value: boolean };
+  done: Promise<void>;
+}
+
+function createPendingFontDrain(timeoutMs: number): PendingFontDrainState {
   const emoji = emojiPendingPromise();
   const cjk = cjkPendingPromise();
   const upgrade = upgradePendingPromise();
-  const fontPromises: Promise<void>[] = [];
-  if (emoji) fontPromises.push(emoji.catch(() => {}));
-  if (cjk) fontPromises.push(cjk.catch(() => {}));
-  for (const promise of scriptPendingPromises()) {
-    fontPromises.push(promise.catch(() => {}));
-  }
-  if (upgrade) fontPromises.push(upgrade.catch(() => {}));
-  let fontsTimedOut = false;
-  const fontsDone =
-    fontPromises.length === 0
-      ? NativePromise.resolve()
-      : NativePromise.race([
-          NativePromise.all(fontPromises).then(() => {}),
-          nativeSleep(timeoutMs).then(() => {
-            fontsTimedOut = true;
-          }),
-        ]);
+  const promises = pendingFontPromises(emoji, cjk, upgrade);
+  const timedOut = { value: false };
+  return {
+    emoji,
+    cjk,
+    upgrade,
+    promises,
+    timedOut,
+    done: pendingFontDrainPromise(promises, timeoutMs, timedOut),
+  };
+}
 
-  if (fontPromises.length > 0) await fontsDone;
-  const fontsMs = Date.now() - drainStartedAt;
+function pendingFontPromises(
+  emoji: ReturnType<typeof emojiPendingPromise>,
+  cjk: ReturnType<typeof cjkPendingPromise>,
+  upgrade: ReturnType<typeof upgradePendingPromise>,
+): Promise<void>[] {
+  const promises: Promise<void>[] = [];
+  appendPendingFontPromise(promises, emoji);
+  appendPendingFontPromise(promises, cjk);
+  for (const promise of scriptPendingPromises()) promises.push(promise.catch(() => {}));
+  appendPendingFontPromise(promises, upgrade);
+  return promises;
+}
 
-  const scopeArg =
-    queryArgs && typeof queryArgs.scope === "object"
-      ? (queryArgs.scope as QueryDomArgs<"awaitPendingResources">["scope"])
-      : null;
-  const captureRect = (() => {
-    if (!scopeArg) return null;
-    if (scopeArg.mode === "viewport") {
-      return {
-        x: state.scrollX,
-        y: state.scrollY,
-        w: state.paintViewportW,
-        h: state.paintViewportH,
-      };
-    }
-    if (scopeArg.mode === "rect") {
-      return {
-        x: Number(scopeArg.x) || 0,
-        y: Number(scopeArg.y) || 0,
-        w: Number(scopeArg.w) || 0,
-        h: Number(scopeArg.h) || 0,
-      };
-    }
-    return null;
-  })();
+function appendPendingFontPromise(promises: Promise<void>[], promise: Promise<void> | null): void {
+  if (promise) promises.push(promise.catch(() => {}));
+}
 
-  const images = await drainPendingImages(pageState, captureRect, deadline, drainStartedAt);
-  if (fontPromises.length > 0) {
-    console.log(
-      `[kitesurf-fonts] pre-render font drain settled in ` +
-        `${fontsMs}ms (emoji=${!!emoji} cjk=${!!cjk} ` +
-        `upgrade=${!!upgrade} timedOut=${fontsTimedOut})`,
-    );
-  }
+function pendingFontDrainPromise(
+  promises: Promise<void>[],
+  timeoutMs: number,
+  timedOut: { value: boolean },
+): Promise<void> {
+  if (promises.length === 0) return NativePromise.resolve();
+  return NativePromise.race([
+    NativePromise.all(promises).then(() => {}),
+    nativeSleep(timeoutMs).then(() => {
+      timedOut.value = true;
+    }),
+  ]);
+}
+
+async function waitForPendingFonts(fonts: PendingFontDrainState): Promise<void> {
+  if (fonts.promises.length > 0) await fonts.done;
+}
+
+type PendingResourceScope =
+  | { mode: "viewport" }
+  | { mode: "rect"; x: unknown; y: unknown; w: unknown; h: unknown };
+
+function pendingResourceScope(value: unknown): PendingResourceScope | null {
+  if (!isObjectRecord(value)) return null;
+  if (value.mode === "viewport") return { mode: "viewport" };
+  if (value.mode !== "rect") return null;
+  return { mode: "rect", x: value.x, y: value.y, w: value.w, h: value.h };
+}
+
+function captureRectFromPendingScope(
+  scope: PendingResourceScope | null,
+): PendingImageCaptureRect | null {
+  if (!scope) return null;
+  return scope.mode === "viewport"
+    ? viewportPendingCaptureRect()
+    : explicitPendingCaptureRect(scope);
+}
+
+function viewportPendingCaptureRect(): PendingImageCaptureRect {
+  return {
+    x: state.scrollX,
+    y: state.scrollY,
+    w: state.paintViewportW,
+    h: state.paintViewportH,
+  };
+}
+
+function explicitPendingCaptureRect(
+  scope: Extract<PendingResourceScope, { mode: "rect" }>,
+): PendingImageCaptureRect {
+  return {
+    x: numberOrZero(scope.x),
+    y: numberOrZero(scope.y),
+    w: numberOrZero(scope.w),
+    h: numberOrZero(scope.h),
+  };
+}
+
+function numberOrZero(value: unknown): number {
+  return Number(value) || 0;
+}
+
+function logPendingFontDrain(fonts: PendingFontDrainState, fontsMs: number): void {
+  if (fonts.promises.length === 0) return;
+  console.log(
+    `[kitesurf-fonts] pre-render font drain settled in ` +
+      `${fontsMs}ms (emoji=${!!fonts.emoji} cjk=${!!fonts.cjk} ` +
+      `upgrade=${!!fonts.upgrade} timedOut=${fonts.timedOut.value})`,
+  );
+}
+
+function pendingResourceDrainReply(
+  images: PendingImageDrain,
+  fonts: PendingFontDrainState,
+  fontsMs: number,
+): QueryDomResult<"awaitPendingResources"> {
   return {
     ok: true,
-    waited: images.waited === true || fontPromises.length > 0,
-    timedOut: images.timedOut === true || fontsTimedOut,
+    waited: images.waited === true || fonts.promises.length > 0,
+    timedOut: images.timedOut === true || fonts.timedOut.value,
     fontsMs,
-    fontsTimedOut,
-    fonts: { emoji: !!emoji, cjk: !!cjk, upgrade: !!upgrade },
+    fontsTimedOut: fonts.timedOut.value,
+    fonts: { emoji: !!fonts.emoji, cjk: !!fonts.cjk, upgrade: !!fonts.upgrade },
     images,
   } satisfies QueryDomResult<"awaitPendingResources">;
 }
@@ -6279,66 +9737,122 @@ async function drainPendingImages(
     rectVerdicts: new Map<string, boolean>(),
     rectVerdictSeq: -1,
   };
-  try {
-    ensurePaintDom();
-  } catch {}
-  const MIN_RESOLVE_GAP_MS = 250;
-  const MAX_IMAGE_DRAIN_ITERATION_SAMPLES = 40;
-  const IMAGE_DRAIN_POLL_INTERVAL_MS = 25;
-  let waited = false;
-  let pending = 0;
-  let resolves = 0;
-  let iterations = 0;
-  let lastResolveSheetSeq = -1;
-  let lastResolveAt = 0;
-  const iterTimes: number[] = [];
+  preparePendingImagePaint();
+  const progress = createPendingImageDrainProgress();
   while (true) {
-    iterations++;
-    if (iterTimes.length < MAX_IMAGE_DRAIN_ITERATION_SAMPLES) {
-      iterTimes.push(Date.now() - drainStartedAt);
-    }
-    const sheetSeq = getStylesheetDeliverySeq();
-    const wantResolve =
-      resolves === 0 ||
-      (sheetSeq !== lastResolveSheetSeq && Date.now() - lastResolveAt >= MIN_RESOLVE_GAP_MS);
-    if (wantResolve && (resolves === 0 || Date.now() < deadline)) {
-      lastResolveSheetSeq = sheetSeq;
-      lastResolveAt = Date.now();
-      resolves++;
-      try {
-        pending = dom.discoverPendingImages() | 0;
-      } catch {
-        pending = 0;
-      }
-    } else {
-      pending = readPendingImageCount(dom);
-    }
-    if (captureRect) {
-      if (countRelevantInflightImages(scope) === 0) break;
-    } else if (pending === 0 && resourceInflight.size === 0) {
-      break;
-    }
+    samplePendingImageDrain(progress, drainStartedAt);
+    progress.pending = updatePendingImageCount(dom, progress, deadline);
+    if (pendingImageDrainIsComplete(scope, progress.pending)) break;
     if (Date.now() >= deadline) {
       return reportPendingImageDrainTimeout({
         drainStartedAt,
-        waited,
-        pending,
-        resolves,
-        iterations,
-        iterTimes,
+        waited: progress.waited,
+        pending: progress.pending,
+        resolves: progress.resolves,
+        iterations: progress.iterations,
+        iterTimes: progress.iterTimes,
       });
     }
-    waited = true;
+    progress.waited = true;
     await nativeSleep(IMAGE_DRAIN_POLL_INTERVAL_MS);
   }
+  return completedPendingImageDrain(progress, drainStartedAt);
+}
+
+const MIN_RESOLVE_GAP_MS = 250;
+const MAX_IMAGE_DRAIN_ITERATION_SAMPLES = 40;
+const IMAGE_DRAIN_POLL_INTERVAL_MS = 25;
+
+interface PendingImageDrainProgress {
+  waited: boolean;
+  pending: number;
+  resolves: number;
+  iterations: number;
+  lastResolveSheetSeq: number;
+  lastResolveAt: number;
+  iterTimes: number[];
+}
+
+function createPendingImageDrainProgress(): PendingImageDrainProgress {
   return {
-    waited,
+    waited: false,
+    pending: 0,
+    resolves: 0,
+    iterations: 0,
+    lastResolveSheetSeq: -1,
+    lastResolveAt: 0,
+    iterTimes: [],
+  };
+}
+
+function preparePendingImagePaint(): void {
+  try {
+    ensurePaintDom();
+  } catch {}
+}
+
+function samplePendingImageDrain(
+  progress: PendingImageDrainProgress,
+  drainStartedAt: number,
+): void {
+  progress.iterations++;
+  if (progress.iterTimes.length < MAX_IMAGE_DRAIN_ITERATION_SAMPLES) {
+    progress.iterTimes.push(Date.now() - drainStartedAt);
+  }
+}
+
+function updatePendingImageCount(
+  dom: PendingImageScope["dom"],
+  progress: PendingImageDrainProgress,
+  deadline: number,
+): number {
+  const sheetSeq = getStylesheetDeliverySeq();
+  if (shouldRediscoverPendingImages(progress, sheetSeq, deadline)) {
+    progress.lastResolveSheetSeq = sheetSeq;
+    progress.lastResolveAt = Date.now();
+    progress.resolves++;
+    return discoverPendingImageCount(dom);
+  }
+  return readPendingImageCount(dom);
+}
+
+function shouldRediscoverPendingImages(
+  progress: PendingImageDrainProgress,
+  sheetSeq: number,
+  deadline: number,
+): boolean {
+  const resolveDue =
+    progress.resolves === 0 ||
+    (sheetSeq !== progress.lastResolveSheetSeq &&
+      Date.now() - progress.lastResolveAt >= MIN_RESOLVE_GAP_MS);
+  return resolveDue && (progress.resolves === 0 || Date.now() < deadline);
+}
+
+function discoverPendingImageCount(dom: PendingImageScope["dom"]): number {
+  try {
+    return dom.discoverPendingImages() | 0;
+  } catch {
+    return 0;
+  }
+}
+
+function pendingImageDrainIsComplete(scope: PendingImageScope, pending: number): boolean {
+  if (scope.captureRect) return countRelevantInflightImages(scope) === 0;
+  return pending === 0 && resourceInflight.size === 0;
+}
+
+function completedPendingImageDrain(
+  progress: PendingImageDrainProgress,
+  drainStartedAt: number,
+): PendingImageDrain {
+  return {
+    waited: progress.waited,
     timedOut: false,
     ms: Date.now() - drainStartedAt,
     pending: 0,
     inflight: 0,
-    resolves,
-    iterations,
+    resolves: progress.resolves,
+    iterations: progress.iterations,
     fetchStats: snapshotFetchStats(),
   };
 }
@@ -6353,28 +9867,45 @@ function readPendingImageCount(dom: PendingImageDom): number {
 }
 
 function countRelevantInflightImages(scope: PendingImageScope): number {
-  let relevantCount = 0;
-  for (const url of resourceInflight) {
-    if (!isImageInflight(url)) relevantCount++;
-  }
+  const relevantCount = countNonImageInflightResources();
   if (relevantCount > 0 || !scope.captureRect) return relevantCount;
+  resetImageRelevanceCacheForCascade(scope);
+  return relevantCount + countRelevantImageResources(scope);
+}
+
+function countNonImageInflightResources(): number {
+  let count = 0;
+  for (const url of resourceInflight) {
+    if (!isImageInflight(url)) count++;
+  }
+  return count;
+}
+
+function resetImageRelevanceCacheForCascade(scope: PendingImageScope): void {
   const seqNow = cascadeSeq() | 0;
   if (seqNow !== scope.rectVerdictSeq) {
     scope.rectVerdicts.clear();
     scope.rectVerdictSeq = seqNow;
   }
+}
+
+function countRelevantImageResources(scope: PendingImageScope): number {
+  let count = 0;
   for (const url of imageInflightUrls()) {
-    const cached = scope.rectVerdicts.get(url);
-    if (cached !== undefined) {
-      if (cached) relevantCount++;
-      continue;
-    }
-    const { known, hits } = imageUrlCaptureRelevance(scope.dom, url, scope.captureRect);
-    const relevant = hits || !known;
-    scope.rectVerdicts.set(url, relevant);
-    if (relevant) relevantCount++;
+    if (isRelevantImageResource(scope, url)) count++;
   }
-  return relevantCount;
+  return count;
+}
+
+function isRelevantImageResource(scope: PendingImageScope, url: string): boolean {
+  const cached = scope.rectVerdicts.get(url);
+  if (cached !== undefined) return cached;
+  const captureRect = scope.captureRect;
+  if (!captureRect) return true;
+  const { known, hits } = imageUrlCaptureRelevance(scope.dom, url, captureRect);
+  const relevant = hits || !known;
+  scope.rectVerdicts.set(url, relevant);
+  return relevant;
 }
 
 function imageUrlCaptureRelevance(
@@ -6385,21 +9916,11 @@ function imageUrlCaptureRelevance(
   let known = false;
   let hits = false;
   try {
-    const ids = dom.pendingImageNodes ? Array.from(dom.pendingImageNodes(url)) : [];
+    const ids = pendingImageNodeIds(dom, url);
     for (const id of ids) {
-      const range = dom.getBoundingClientRect ? dom.getBoundingClientRect(id) : null;
-      if (!range) continue;
-      known = true;
-      const rectX = Number(range.x) || 0;
-      const rectY = Number(range.y) || 0;
-      const width = Number(range.width) || 0;
-      const height = Number(range.height) || 0;
-      if (
-        rectX < captureRect.x + captureRect.w &&
-        rectX + width > captureRect.x &&
-        rectY < captureRect.y + captureRect.h &&
-        rectY + height > captureRect.y
-      ) {
+      const result = inspectPendingImageNode(dom, id, captureRect);
+      if (result.known) known = true;
+      if (result.hits) {
         hits = true;
         break;
       }
@@ -6409,6 +9930,36 @@ function imageUrlCaptureRelevance(
     known = false;
   }
   return { known, hits };
+}
+
+function pendingImageNodeIds(dom: PendingImageDom, url: string): number[] {
+  return dom.pendingImageNodes ? Array.from(dom.pendingImageNodes(url)) : [];
+}
+
+function inspectPendingImageNode(
+  dom: PendingImageDom,
+  id: number,
+  captureRect: PendingImageCaptureRect,
+): { known: boolean; hits: boolean } {
+  const range = dom.getBoundingClientRect ? dom.getBoundingClientRect(id) : null;
+  if (!range) return { known: false, hits: false };
+  return { known: true, hits: pendingImageRectOverlapsCapture(range, captureRect) };
+}
+
+function pendingImageRectOverlapsCapture(
+  range: NonNullable<ReturnType<NonNullable<PendingImageDom["getBoundingClientRect"]>>>,
+  captureRect: PendingImageCaptureRect,
+): boolean {
+  const rectX = numberOrZero(range.x);
+  const rectY = numberOrZero(range.y);
+  const width = numberOrZero(range.width);
+  const height = numberOrZero(range.height);
+  return (
+    rectX < captureRect.x + captureRect.w &&
+    rectX + width > captureRect.x &&
+    rectY < captureRect.y + captureRect.h &&
+    rectY + height > captureRect.y
+  );
 }
 
 function reportPendingImageDrainTimeout(options: {
@@ -6458,54 +10009,81 @@ function queryDomLayoutSettings(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<QueryDomLayoutSettingsMethod> {
   switch (method) {
-    case "pageBoxJson": {
-      try {
-        const json = pageState.dom.pageBoxJson();
-        return { ok: true, json } satisfies QueryDomResult<"pageBoxJson">;
-      } catch (e) {
-        return {
-          ok: false,
-          error: String((e && (e as Error).message) || e),
-        } satisfies QueryDomResult<"pageBoxJson">;
-      }
-    }
-    case "setLayoutMode": {
-      const mode = queryArgs && typeof queryArgs.mode === "string" ? queryArgs.mode : "full";
-      try {
-        if (typeof pageState.dom.setLayoutMode === "function") {
-          pageState.dom.setLayoutMode(mode);
-          return {
-            ok: true,
-            mode: pageState.dom.layoutMode ? pageState.dom.layoutMode() : mode,
-          } satisfies QueryDomResult<"setLayoutMode">;
-        }
-        return {
-          ok: false,
-          error: "setLayoutMode unsupported in this wasm build",
-        } satisfies QueryDomResult<"setLayoutMode">;
-      } catch (e) {
-        return {
-          ok: false,
-          error: String((e && (e as Error).message) || e),
-        } satisfies QueryDomResult<"setLayoutMode">;
-      }
-    }
-    case "getLayoutMode": {
-      try {
-        return {
-          mode: pageState.dom.layoutMode ? pageState.dom.layoutMode() : "full",
-        } satisfies QueryDomResult<"getLayoutMode">;
-      } catch {
-        return { mode: "full" } satisfies QueryDomResult<"getLayoutMode">;
-      }
-    }
-    case "setCdpDomActive": {
-      try {
-        ksGlobal.__ks_cdpDomActive = !!(queryArgs && queryArgs.active);
-      } catch {}
-      return { ok: true } satisfies QueryDomResult<"setCdpDomActive">;
-    }
+    case "pageBoxJson":
+      return queryDomPageBoxJson(pageState);
+    case "setLayoutMode":
+      return queryDomSetLayoutMode(pageState, queryArgs);
+    case "getLayoutMode":
+      return queryDomGetLayoutMode(pageState);
+    case "setCdpDomActive":
+      return queryDomSetCdpDomActive(queryArgs);
   }
+}
+
+function queryDomPageBoxJson(pageState: QueryDomActiveState): QueryDomResult<"pageBoxJson"> {
+  try {
+    return { ok: true, json: pageState.dom.pageBoxJson() } satisfies QueryDomResult<"pageBoxJson">;
+  } catch (error) {
+    return {
+      ok: false,
+      error: String((error && (error as Error).message) || error),
+    } satisfies QueryDomResult<"pageBoxJson">;
+  }
+}
+
+function queryDomSetLayoutMode(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"setLayoutMode"> {
+  const mode = typeof queryArgs.mode === "string" ? queryArgs.mode : "full";
+  return applyQueryDomLayoutMode(pageState, mode);
+}
+
+function applyQueryDomLayoutMode(
+  pageState: QueryDomActiveState,
+  mode: string,
+): QueryDomResult<"setLayoutMode"> {
+  if (typeof pageState.dom.setLayoutMode !== "function") {
+    return {
+      ok: false,
+      error: "setLayoutMode unsupported in this wasm build",
+    } satisfies QueryDomResult<"setLayoutMode">;
+  }
+  try {
+    pageState.dom.setLayoutMode(mode);
+    return {
+      ok: true,
+      mode: queryDomLayoutModeOr(pageState, mode),
+    } satisfies QueryDomResult<"setLayoutMode">;
+  } catch (error) {
+    return {
+      ok: false,
+      error: String((error && (error as Error).message) || error),
+    } satisfies QueryDomResult<"setLayoutMode">;
+  }
+}
+
+function queryDomLayoutModeOr(pageState: QueryDomActiveState, fallback: string): string {
+  return pageState.dom.layoutMode ? pageState.dom.layoutMode() : fallback;
+}
+
+function queryDomGetLayoutMode(pageState: QueryDomActiveState): QueryDomResult<"getLayoutMode"> {
+  try {
+    return {
+      mode: pageState.dom.layoutMode ? pageState.dom.layoutMode() : "full",
+    } satisfies QueryDomResult<"getLayoutMode">;
+  } catch {
+    return { mode: "full" } satisfies QueryDomResult<"getLayoutMode">;
+  }
+}
+
+function queryDomSetCdpDomActive(
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"setCdpDomActive"> {
+  try {
+    ksGlobal.__ks_cdpDomActive = Boolean(queryArgs.active);
+  } catch {}
+  return { ok: true } satisfies QueryDomResult<"setCdpDomActive">;
 }
 
 type QueryDomNodeHandleMethod = Extract<
@@ -6519,96 +10097,109 @@ function queryDomNodeHandle(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<QueryDomNodeHandleMethod> {
   switch (method) {
-    case "describeNode": {
-      const id = numericNodeId(queryArgs);
-      if (id == null) {
-        return {
-          node: {
-            nodeId: 0,
-            backendNodeId: 0,
-            nodeType: 1,
-            nodeName: "",
-            localName: "",
-            nodeValue: "",
-          },
-        } satisfies QueryDomResult<"describeNode">;
-      }
-      try {
-        const info = pageState.dom.nodeInfo(id);
-        if (info && typeof info === "object") delete info.attributeNamespaces;
-        return { node: { ...info, backendNodeId: id } } satisfies QueryDomResult<"describeNode">;
-      } catch {
-        return {
-          node: {
-            nodeId: 0,
-            backendNodeId: 0,
-            nodeType: 1,
-            nodeName: "",
-            localName: "",
-            nodeValue: "",
-          },
-        } satisfies QueryDomResult<"describeNode">;
-      }
-    }
-    case "resolveNode": {
-      const id = numericNodeId(queryArgs);
-      if (id == null) return {} satisfies QueryDomResult<"resolveNode">;
-      const element = state.resolveNodeId(id);
-      if (!element) return {} satisfies QueryDomResult<"resolveNode">;
-      const objectId = mintHandle(element);
-      return {
-        object: {
-          type: "object",
-          subtype: "node",
-          className: "Element",
-          description: "Element",
-          objectId,
-        },
-      } satisfies QueryDomResult<"resolveNode">;
-    }
-    case "getAttributes": {
-      const id = numericNodeId(queryArgs);
-      if (id == null) return { attributes: [] } satisfies QueryDomResult<"getAttributes">;
-      try {
-        const info: unknown = pageState.dom.nodeInfo(id);
-        const attributes = isObjectRecord(info) ? info.attributes : undefined;
-        return {
-          attributes: isStringArray(attributes) ? attributes : [],
-        } satisfies QueryDomResult<"getAttributes">;
-      } catch {
-        return { attributes: [] } satisfies QueryDomResult<"getAttributes">;
-      }
-    }
-    case "focus": {
-      const id = numericNodeId(queryArgs);
-      if (id == null) return {} satisfies QueryDomResult<"focus">;
-      const element = state.resolveNodeId(id);
-      if (!element || typeof element.focus !== "function")
-        return {} satisfies QueryDomResult<"focus">;
-      try {
-        element.focus();
-      } catch {}
-      return {} satisfies QueryDomResult<"focus">;
-    }
+    case "describeNode":
+      return queryDomDescribeNode(pageState, queryArgs);
+    case "resolveNode":
+      return queryDomResolveNode(queryArgs);
+    case "getAttributes":
+      return queryDomGetAttributes(pageState, queryArgs);
+    case "focus":
+      return queryDomFocusNode(queryArgs);
   }
 }
 
+function queryDomDescribeNode(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"describeNode"> {
+  const id = numericNodeId(queryArgs);
+  if (id === null) return emptyDescribedNode();
+  try {
+    const info = pageState.dom.nodeInfo(id);
+    if (info && typeof info === "object") delete info.attributeNamespaces;
+    return { node: { ...info, backendNodeId: id } } satisfies QueryDomResult<"describeNode">;
+  } catch {
+    return emptyDescribedNode();
+  }
+}
+
+function emptyDescribedNode(): QueryDomResult<"describeNode"> {
+  return {
+    node: {
+      nodeId: 0,
+      backendNodeId: 0,
+      nodeType: 1,
+      nodeName: "",
+      localName: "",
+      nodeValue: "",
+    },
+  } satisfies QueryDomResult<"describeNode">;
+}
+
+function queryDomResolveNode(queryArgs: Record<string, unknown>): QueryDomResult<"resolveNode"> {
+  const id = numericNodeId(queryArgs);
+  if (id === null) return {} satisfies QueryDomResult<"resolveNode">;
+  const element = state.resolveNodeId(id);
+  if (!element) return {} satisfies QueryDomResult<"resolveNode">;
+  return {
+    object: {
+      type: "object",
+      subtype: "node",
+      className: "Element",
+      description: "Element",
+      objectId: mintHandle(element),
+    },
+  } satisfies QueryDomResult<"resolveNode">;
+}
+
+function queryDomGetAttributes(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"getAttributes"> {
+  const id = numericNodeId(queryArgs);
+  if (id === null) return { attributes: [] } satisfies QueryDomResult<"getAttributes">;
+  try {
+    const info: unknown = pageState.dom.nodeInfo(id);
+    return { attributes: nodeAttributes(info) } satisfies QueryDomResult<"getAttributes">;
+  } catch {
+    return { attributes: [] } satisfies QueryDomResult<"getAttributes">;
+  }
+}
+
+function nodeAttributes(info: unknown): string[] {
+  const attributes = isObjectRecord(info) ? info.attributes : undefined;
+  return isStringArray(attributes) ? attributes : [];
+}
+
+function queryDomFocusNode(queryArgs: Record<string, unknown>): QueryDomResult<"focus"> {
+  const id = numericNodeId(queryArgs);
+  if (id !== null) focusResolvedNode(state.resolveNodeId(id));
+  return {} satisfies QueryDomResult<"focus">;
+}
+
+function focusResolvedNode(element: ShimElement | null): void {
+  if (!element || typeof element.focus !== "function") return;
+  try {
+    element.focus();
+  } catch {}
+}
+
 function queryDomPageState(): QueryDomResult<"getPageState"> {
-  let href = "";
-  let title = "";
-  try {
-    href = String(ksGlobal.location?.href ?? "");
-  } catch {}
-  try {
-    title = String(ksGlobal.document?.title ?? "");
-  } catch {}
   return {
     seq: getInternalState().mutationSeq | 0,
     scrollX: state.scrollX,
     scrollY: state.scrollY,
-    href,
-    title,
+    href: readPageStateString(() => ksGlobal.location?.href),
+    title: readPageStateString(() => ksGlobal.document?.title),
   } satisfies QueryDomResult<"getPageState">;
+}
+
+function readPageStateString(read: () => unknown): string {
+  try {
+    return String(read() ?? "");
+  } catch {
+    return "";
+  }
 }
 
 type QueryDomFormStateMethod = Extract<
@@ -6622,58 +10213,106 @@ function queryDomFormState(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<QueryDomFormStateMethod> {
   switch (method) {
-    case "formStateSnapshot": {
-      // A partial snapshot is incomplete if any control could not be resolved or read.
-      const before = getInternalState().mutationSeq | 0;
-      let complete = true;
-      const values: Array<[number, string]> = [];
-      const checked: Array<[number, boolean]> = [];
-      const selected: Array<[number, boolean]> = [];
-      let ids: number[] = [];
-      try {
-        ids = Array.from(pageState.dom.querySelectorAll("input,textarea,select")).filter(
-          (n): n is number => typeof n === "number" && n >= 0,
-        );
-      } catch {
-        complete = false;
-      }
-      for (const id of ids)
-        complete = collectFormControlState(id, values, checked, selected) && complete;
-      return {
-        values,
-        checked,
-        selected,
-        ...(queryArgs.includeReadStamp === true
-          ? {
-              readStamp: {
-                before,
-                after: getInternalState().mutationSeq | 0,
-                complete,
-              },
-            }
-          : {}),
-      } satisfies QueryDomResult<"formStateSnapshot">;
-    }
-    case "setControlValueAsUser": {
-      const id = numericNodeId(queryArgs);
-      if (id == null)
-        return {
-          changed: false,
-          error: "bad nodeId",
-        } satisfies QueryDomResult<"setControlValueAsUser">;
-      const element = state.resolveNodeId(id);
-      if (!element)
-        return {
-          changed: false,
-          error: "no such node",
-        } satisfies QueryDomResult<"setControlValueAsUser">;
-      const result = setControlValueAsUser(element, Reflect.get(Object(queryArgs), "value"));
-      let value = "";
-      try {
-        value = String(element.value ?? "");
-      } catch {}
-      return { ...result, value } satisfies QueryDomResult<"setControlValueAsUser">;
-    }
+    case "formStateSnapshot":
+      return queryDomFormStateSnapshot(pageState, queryArgs);
+    case "setControlValueAsUser":
+      return queryDomSetControlValueAsUser(queryArgs);
+  }
+}
+
+interface FormStateSnapshotValues {
+  complete: boolean;
+  values: Array<[number, string]>;
+  checked: Array<[number, boolean]>;
+  selected: Array<[number, boolean]>;
+}
+
+function queryDomFormStateSnapshot(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"formStateSnapshot"> {
+  const before = getInternalState().mutationSeq | 0;
+  const snapshot: FormStateSnapshotValues = {
+    complete: true,
+    values: [],
+    checked: [],
+    selected: [],
+  };
+  collectFormStateValues(pageState, snapshot);
+  return formStateSnapshotReply(queryArgs, before, snapshot);
+}
+
+function collectFormStateValues(
+  pageState: QueryDomActiveState,
+  snapshot: FormStateSnapshotValues,
+): void {
+  const ids = formStateNodeIds(pageState);
+  if (ids === null) snapshot.complete = false;
+  for (const id of ids ?? []) {
+    snapshot.complete =
+      collectFormControlState(id, snapshot.values, snapshot.checked, snapshot.selected) &&
+      snapshot.complete;
+  }
+}
+
+function formStateNodeIds(pageState: QueryDomActiveState): number[] | null {
+  try {
+    return Array.from(pageState.dom.querySelectorAll("input,textarea,select")).filter(
+      (node): node is number => typeof node === "number" && node >= 0,
+    );
+  } catch {
+    return null;
+  }
+}
+
+function formStateSnapshotReply(
+  queryArgs: Record<string, unknown>,
+  before: number,
+  snapshot: FormStateSnapshotValues,
+): QueryDomResult<"formStateSnapshot"> {
+  return {
+    values: snapshot.values,
+    checked: snapshot.checked,
+    selected: snapshot.selected,
+    ...(queryArgs.includeReadStamp === true
+      ? {
+          readStamp: {
+            before,
+            after: getInternalState().mutationSeq | 0,
+            complete: snapshot.complete,
+          },
+        }
+      : {}),
+  } satisfies QueryDomResult<"formStateSnapshot">;
+}
+
+function queryDomSetControlValueAsUser(
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"setControlValueAsUser"> {
+  const id = numericNodeId(queryArgs);
+  if (id === null)
+    return {
+      changed: false,
+      error: "bad nodeId",
+    } satisfies QueryDomResult<"setControlValueAsUser">;
+  const element = state.resolveNodeId(id);
+  if (!element)
+    return {
+      changed: false,
+      error: "no such node",
+    } satisfies QueryDomResult<"setControlValueAsUser">;
+  const result = setControlValueAsUser(element, Reflect.get(Object(queryArgs), "value"));
+  return {
+    ...result,
+    value: formControlValue(element),
+  } satisfies QueryDomResult<"setControlValueAsUser">;
+}
+
+function formControlValue(element: ShimElement): string {
+  try {
+    return String(element.value ?? "");
+  } catch {
+    return "";
   }
 }
 
@@ -6688,51 +10327,110 @@ function queryDomPaintDamage(
   const paint = ensurePaintDom();
   if (!paint) return {};
   try {
-    if (method === "markPaintDamage") {
-      paint.paintDamageMark?.();
-      return {};
-    }
-    const raw = String(paint.paintDamageSince?.(numericNodeId(queryArgs) ?? 0) ?? "");
-    return raw ? JSON.parse(raw) : {};
+    return method === "markPaintDamage"
+      ? markQueryDomPaintDamage(paint)
+      : readQueryDomPaintDamage(paint, queryArgs);
   } catch {
     invalidatePaintDom();
     return {};
   }
 }
 
+function markQueryDomPaintDamage(paint: DomHandle): QueryDomResult<"markPaintDamage"> {
+  paint.paintDamageMark?.();
+  return {};
+}
+
+function readQueryDomPaintDamage(
+  paint: DomHandle,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"paintDamageSince"> {
+  const raw = String(paint.paintDamageSince?.(numericNodeId(queryArgs) ?? 0) ?? "");
+  return raw ? JSON.parse(raw) : {};
+}
+
 function queryDomMemoryStats(): QueryDomResult<"getMemoryStats"> {
   const bytes = getCoreWasmMemoryBytes();
   const initialBytes = getCoreWasmMemoryInitialBytes();
-  let bridge = null;
-  try {
-    bridge = { ...JSON.parse(ks_bridge_pins()), ...JSON.parse(ks_cycle_stats()) };
-  } catch {
-    bridge = null;
-  }
-  let domFastpath = null;
-  try {
-    domFastpath = JSON.parse(state.dom?.fastpathStats?.() ?? "null");
-  } catch {
-    domFastpath = null;
-  }
-  let domNodes: number | null = null;
-  try {
-    domNodes = state.dom?.nodeCount?.() ?? null;
-  } catch {
-    domNodes = null;
-  }
   return {
     bytes,
     initialBytes,
     deltaBytes: Math.max(0, bytes - initialBytes),
-    bridge,
-    domFastpath,
-    domNodes,
+    bridge: readBridgeMemoryStats(),
+    domFastpath: readDomFastpathMemoryStats(),
+    domNodes: readDomNodeMemoryCount(),
     wrappers: detachedWrapperStats(),
     paint: paintPrepStats(),
     intersectionObserver: intersectionObserverStats(),
     timerWheel: { ...timerWheelStats(), shim: deferShimStats() },
   } satisfies QueryDomResult<"getMemoryStats">;
+}
+
+type BridgeMemoryStats = NonNullable<QueryDomResult<"getMemoryStats">["bridge"]>;
+type BridgePinStats = Pick<
+  BridgeMemoryStats,
+  | "v8Pins"
+  | "boaPins"
+  | "wrappers"
+  | "weakBoa"
+  | "releasedV8"
+  | "releasedBoa"
+  | "boaHeapBytes"
+  | "boaGcThreshold"
+  | "internerLen"
+  | "internerReclaims"
+  | "internerPendingMods"
+  | "internerQueueIdle"
+  | "ctxReentryDepth"
+  | "ctxReentryMax"
+  | "ctxUnchaperoned"
+  | "pumpPromiseJobs"
+  | "pumpFutures"
+  | "pumpDrainBusy"
+  | "pumpTicketWaiters"
+  | "bgTicks"
+  | "bgProgress"
+  | "bgLastTickMs"
+  | "healedAtEntry"
+>;
+type CycleCollectorStats = Pick<
+  BridgeMemoryStats,
+  | "ccRuns"
+  | "ccGrayPins"
+  | "ccWeakV8"
+  | "ccDeadV8"
+  | "ccWeakened"
+  | "ccRevoked"
+  | "ccDeadReads"
+  | "ccLastMs"
+  | "ccSkipped"
+>;
+
+// Rust emits these fixed, disjoint field sets from the two wasm stats exports.
+function readBridgeMemoryStats(): BridgeMemoryStats | null {
+  try {
+    const bridgePins: BridgePinStats = JSON.parse(ks_bridge_pins());
+    const cycleStats: CycleCollectorStats = JSON.parse(ks_cycle_stats());
+    return { ...bridgePins, ...cycleStats };
+  } catch {
+    return null;
+  }
+}
+
+function readDomFastpathMemoryStats(): QueryDomResult<"getMemoryStats">["domFastpath"] {
+  try {
+    return JSON.parse(state.dom?.fastpathStats?.() ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+function readDomNodeMemoryCount(): number | null {
+  try {
+    return state.dom?.nodeCount?.() ?? null;
+  } catch {
+    return null;
+  }
 }
 
 type QueryDomDiagnosticsMethod = Extract<
@@ -6744,58 +10442,62 @@ function queryDomDiagnostics(
   method: QueryDomDiagnosticsMethod,
 ): QueryDomResult<QueryDomDiagnosticsMethod> {
   switch (method) {
-    case "boaForceCollect": {
-      try {
-        const collected = JSON.parse(ks_boa_force_collect());
-        ks_cycle_collect(false);
-        return collected satisfies QueryDomResult<"boaForceCollect">;
-      } catch (err) {
-        return {
-          error: err instanceof Error ? err.message : String(err),
-        } satisfies QueryDomResult<"boaForceCollect">;
-      }
-    }
-    case "getFontFaces": {
-      try {
-        return { json: font_families_json() } satisfies QueryDomResult<"getFontFaces">;
-      } catch (err) {
-        return {
-          error: err instanceof Error ? err.message : String(err),
-        } satisfies QueryDomResult<"getFontFaces">;
-      }
-    }
-    case "getMemprofDump": {
-      const dump = ksGlobal.__memprof_dump;
-      if (typeof dump !== "function") {
-        return {
-          error: "memprof recorder not installed (build with KITESURF_MEMPROF=1)",
-        } satisfies QueryDomResult<"getMemprofDump">;
-      }
-      try {
-        return { json: dump() } satisfies QueryDomResult<"getMemprofDump">;
-      } catch (err) {
-        return {
-          error: err instanceof Error ? err.message : String(err),
-        } satisfies QueryDomResult<"getMemprofDump">;
-      }
-    }
-    case "resetMemprof": {
-      const reset = ksGlobal.__memprof_reset;
-      if (typeof reset !== "function") {
-        return {
-          error: "memprof recorder not installed (build with KITESURF_MEMPROF=1)",
-        } satisfies QueryDomResult<"resetMemprof">;
-      }
-      try {
-        reset();
-        return { ok: true } satisfies QueryDomResult<"resetMemprof">;
-      } catch (err) {
-        return {
-          error: err instanceof Error ? err.message : String(err),
-        } satisfies QueryDomResult<"resetMemprof">;
-      }
-    }
+    case "boaForceCollect":
+      return queryDomForceCollect();
+    case "getFontFaces":
+      return queryDomFontFaces();
+    case "getMemprofDump":
+      return queryDomMemprofDump();
+    case "resetMemprof":
+      return queryDomResetMemprof();
   }
+}
+
+function queryDomForceCollect(): QueryDomResult<"boaForceCollect"> {
+  try {
+    const collected = JSON.parse(ks_boa_force_collect());
+    ks_cycle_collect(false);
+    return collected satisfies QueryDomResult<"boaForceCollect">;
+  } catch (error) {
+    return { error: diagnosticErrorMessage(error) } satisfies QueryDomResult<"boaForceCollect">;
+  }
+}
+
+function queryDomFontFaces(): QueryDomResult<"getFontFaces"> {
+  try {
+    return { json: font_families_json() } satisfies QueryDomResult<"getFontFaces">;
+  } catch (error) {
+    return { error: diagnosticErrorMessage(error) } satisfies QueryDomResult<"getFontFaces">;
+  }
+}
+
+function queryDomMemprofDump(): QueryDomResult<"getMemprofDump"> {
+  const dump = ksGlobal.__memprof_dump;
+  if (typeof dump !== "function") return missingMemprofRecorder();
+  try {
+    return { json: dump() } satisfies QueryDomResult<"getMemprofDump">;
+  } catch (error) {
+    return { error: diagnosticErrorMessage(error) } satisfies QueryDomResult<"getMemprofDump">;
+  }
+}
+
+function queryDomResetMemprof(): QueryDomResult<"resetMemprof"> {
+  const reset = ksGlobal.__memprof_reset;
+  if (typeof reset !== "function") return missingMemprofRecorder();
+  try {
+    reset();
+    return { ok: true } satisfies QueryDomResult<"resetMemprof">;
+  } catch (error) {
+    return { error: diagnosticErrorMessage(error) } satisfies QueryDomResult<"resetMemprof">;
+  }
+}
+
+function missingMemprofRecorder(): { error: string } {
+  return { error: "memprof recorder not installed (build with KITESURF_MEMPROF=1)" };
+}
+
+function diagnosticErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 type QueryDomWebMcpReadMethod = Extract<
@@ -6863,53 +10565,102 @@ function sourceDoctypeOf(html: string): { markup: string; end: number } | null {
   if (!raw) return null;
   const prefix = match?.[1] ?? "";
   const end = prefix.length + raw.length;
+  return { markup: normalizeDoctypeMarkup(raw), end };
+}
 
-  const body = raw.slice("<!doctype".length, -1).trim();
-  const parsed = body.match(
-    /^([^\s>]+)(?:\s+(PUBLIC|SYSTEM)\s+(?:"([^"]*)"|'([^']*)')(?:\s+(?:"([^"]*)"|'([^']*)'))?)?$/i,
-  );
-  if (!parsed) return { markup: raw, end };
+function normalizeDoctypeMarkup(raw: string): string {
+  const parsed = raw
+    .slice("<!doctype".length, -1)
+    .trim()
+    .match(
+      /^([^\s>]+)(?:\s+(PUBLIC|SYSTEM)\s+(?:"([^"]*)"|'([^']*)')(?:\s+(?:"([^"]*)"|'([^']*)'))?)?$/i,
+    );
+  if (!parsed) return raw;
+  return formatDoctypeMarkup(doctypePartsFromMatch(parsed));
+}
 
-  const name = parsed[1]?.toLowerCase() ?? "html";
-  const keyword = parsed[2]?.toUpperCase();
-  const firstId = parsed[3] ?? parsed[4];
-  const secondId = parsed[5] ?? parsed[6];
-  const quote = (value: string) => (value.includes('"') ? `'${value}'` : `"${value}"`);
-  if (keyword === "PUBLIC" && firstId !== undefined) {
-    const system = secondId === undefined ? "" : ` ${quote(secondId)}`;
-    return {
-      markup: `<!DOCTYPE ${name} PUBLIC ${quote(firstId)}${system}>`,
-      end,
-    };
-  }
-  if (keyword === "SYSTEM" && firstId !== undefined) {
-    return {
-      markup: `<!DOCTYPE ${name} SYSTEM ${quote(firstId)}>`,
-      end,
-    };
-  }
-  return { markup: `<!DOCTYPE ${name}>`, end };
+function doctypePartsFromMatch(parsed: RegExpMatchArray): DoctypeParts {
+  return {
+    name: doctypeName(parsed[1]),
+    keyword: uppercaseDoctypeKeyword(parsed[2]),
+    firstId: firstDoctypeId(parsed[3], parsed[4]),
+    secondId: firstDoctypeId(parsed[5], parsed[6]),
+  };
+}
+
+function doctypeName(value: string | undefined): string {
+  return value ? value.toLowerCase() : "html";
+}
+
+function uppercaseDoctypeKeyword(value: string | undefined): string | undefined {
+  return value ? value.toUpperCase() : undefined;
+}
+
+function firstDoctypeId(first: string | undefined, second: string | undefined): string | undefined {
+  return first ?? second;
+}
+
+interface DoctypeParts {
+  name: string;
+  keyword: string | undefined;
+  firstId: string | undefined;
+  secondId: string | undefined;
+}
+
+function formatDoctypeMarkup(parts: DoctypeParts): string {
+  const publicMarkup = publicDoctypeMarkup(parts);
+  if (publicMarkup) return publicMarkup;
+  const systemMarkup = systemDoctypeMarkup(parts);
+  if (systemMarkup) return systemMarkup;
+  return `<!DOCTYPE ${parts.name}>`;
+}
+
+function publicDoctypeMarkup(parts: DoctypeParts): string | null {
+  if (parts.keyword !== "PUBLIC" || parts.firstId === undefined) return null;
+  const system = parts.secondId === undefined ? "" : ` ${quoteDoctypeId(parts.secondId)}`;
+  return `<!DOCTYPE ${parts.name} PUBLIC ${quoteDoctypeId(parts.firstId)}${system}>`;
+}
+
+function systemDoctypeMarkup(parts: DoctypeParts): string | null {
+  if (parts.keyword !== "SYSTEM" || parts.firstId === undefined) return null;
+  return `<!DOCTYPE ${parts.name} SYSTEM ${quoteDoctypeId(parts.firstId)}>`;
+}
+
+function quoteDoctypeId(value: string): string {
+  return value.includes('"') ? `'${value}'` : `"${value}"`;
 }
 
 function numericNodeId(params: Record<string, unknown>): number | null {
+  const directNodeId = directNumericNodeId(params);
+  if (directNodeId !== null) return directNodeId;
+  return numericNodeIdFromHandle(params.objectId);
+}
+
+function directNumericNodeId(params: Record<string, unknown>): number | null {
   if (typeof params.nodeId === "number") return params.nodeId;
   if (typeof params.backendNodeId === "number") return params.backendNodeId;
-  if (typeof params.objectId === "string") {
-    if (params.objectId.startsWith("node:")) {
-      const nodeId = Number(params.objectId.slice(5));
-      return Number.isFinite(nodeId) ? nodeId : null;
-    }
-    if (params.objectId.startsWith("ps:")) {
-      const nodeObject: unknown = lookupHandle(params.objectId);
-      if (
-        nodeObject !== null &&
-        (typeof nodeObject === "object" || typeof nodeObject === "function")
-      ) {
-        const nodeId: unknown = Reflect.get(nodeObject, "_id");
-        if (typeof nodeId === "number") return nodeId;
-      }
-    }
+  return null;
+}
+
+function numericNodeIdFromHandle(objectId: unknown): number | null {
+  if (typeof objectId !== "string") return null;
+  if (objectId.startsWith("node:")) return parseNodeHandleId(objectId);
+  if (!objectId.startsWith("ps:")) return null;
+  return nodeIdFromPageScriptHandle(objectId);
+}
+
+function parseNodeHandleId(objectId: string): number | null {
+  const nodeId = Number(objectId.slice(5));
+  return Number.isFinite(nodeId) ? nodeId : null;
+}
+
+function nodeIdFromPageScriptHandle(objectId: string): number | null {
+  const nodeObject: unknown = lookupHandle(objectId);
+  if (nodeObject === null || (typeof nodeObject !== "object" && typeof nodeObject !== "function")) {
+    return null;
   }
+  const nodeId: unknown = Reflect.get(nodeObject, "_id");
+  if (typeof nodeId === "number") return nodeId;
   return null;
 }
 

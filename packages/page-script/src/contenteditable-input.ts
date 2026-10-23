@@ -37,11 +37,37 @@ export function editingHostOf(el: ShimElement | null): ShimElement | null {
 
 function firstCaretPosition(host: ShimCaretNode): [ShimCaretNode, number] {
   let node = host;
-  while (node.firstChild && node.firstChild.nodeType === 1 && node.firstChild.nodeName !== "BR") {
-    node = node.firstChild;
-  }
+  while (node.firstChild && hasNonBreakElementChild(node.firstChild)) node = node.firstChild;
   if (node.firstChild && node.firstChild.nodeType === 3) return [node.firstChild, 0];
   return [node, 0];
+}
+
+function hasNonBreakElementChild(node: NonNullable<ShimCaretNode["firstChild"]>): boolean {
+  return node.nodeType === 1 && node.nodeName !== "BR";
+}
+
+function targetOffsets(
+  range: ReturnType<EditSelection["getRangeAt"]>,
+  inputType: EditInputType,
+): { start: number; end: number } {
+  const isTextCaret = range.collapsed && range.startContainer.nodeType === 3;
+  const length = isTextCaret ? (range.startContainer.data || "").length : 0;
+  const start = targetStartOffset(range.startOffset, isTextCaret, inputType);
+  const end = targetEndOffset(range.endOffset, isTextCaret, inputType, length);
+  return { start, end };
+}
+
+function targetStartOffset(start: number, isTextCaret: boolean, inputType: EditInputType): number {
+  return isTextCaret && inputType === "deleteContentBackward" && start > 0 ? start - 1 : start;
+}
+
+function targetEndOffset(
+  end: number,
+  isTextCaret: boolean,
+  inputType: EditInputType,
+  length: number,
+): number {
+  return isTextCaret && inputType === "deleteContentForward" && end < length ? end + 1 : end;
 }
 
 function targetRanges(sel: EditSelection, inputType: EditInputType): unknown[] {
@@ -50,13 +76,7 @@ function targetRanges(sel: EditSelection, inputType: EditInputType): unknown[] {
     | undefined;
   if (typeof StaticRange !== "function" || sel.rangeCount === 0) return [];
   const r = sel.getRangeAt(0);
-  let start = r.startOffset;
-  let end = r.endOffset;
-  if (r.collapsed && r.startContainer.nodeType === 3) {
-    const len = (r.startContainer.data || "").length;
-    if (inputType === "deleteContentBackward" && start > 0) start--;
-    if (inputType === "deleteContentForward" && end < len) end++;
-  }
+  const { start, end } = targetOffsets(r, inputType);
   try {
     return [
       new StaticRange({
@@ -71,22 +91,23 @@ function targetRanges(sel: EditSelection, inputType: EditInputType): unknown[] {
   }
 }
 
-export function editContentEditable(
-  host: ShimElement,
-  inputType: EditInputType,
-  data: string | null,
-  dispatch: Dispatch,
-): boolean {
-  const doc = state.document;
-  const InputEvent = ksEventCtors.InputEvent as
-    | (new (type: string, init: Record<string, unknown>) => unknown)
-    | undefined;
-  const sel = doc?.getSelection?.();
-  if (!doc || !sel || typeof InputEvent !== "function") return true;
+type InputEventCtor = new (type: string, init: Record<string, unknown>) => unknown;
+
+function prepareSelection(host: ShimElement, sel: EditSelection): void {
   if (sel.rangeCount === 0 || !sel.anchorNode || !host.contains?.(sel.anchorNode)) {
     const [node, offset] = firstCaretPosition(host);
     sel.collapse(node, offset);
   }
+}
+
+function dispatchBeforeInput(
+  host: ShimElement,
+  inputType: EditInputType,
+  data: string | null,
+  sel: EditSelection,
+  InputEvent: InputEventCtor,
+  dispatch: Dispatch,
+): boolean {
   const before = new InputEvent("beforeinput", {
     bubbles: true,
     cancelable: true,
@@ -96,24 +117,41 @@ export function editContentEditable(
     data,
     targetRanges: targetRanges(sel, inputType),
   });
-  if (!dispatch(host, before)) return false;
-  if (inputType === "insertText" || inputType === "insertParagraph") {
-    const TextEvent = ksEventCtors.TextEvent as
-      | (new (type: string, init: Record<string, unknown>) => unknown)
-      | undefined;
-    if (typeof TextEvent === "function") {
-      const textInput = new TextEvent("textInput", {
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-        view: state.window,
-        data: inputType === "insertText" ? data : "\n",
-      });
-      if (!dispatch(host, textInput)) return false;
-    }
-  }
-  if (!sel.anchorNode || !host.contains?.(sel.anchorNode)) return true;
-  if (!doc.execCommand?.(COMMANDS[inputType], false, data ?? "")) return true;
+  return dispatch(host, before);
+}
+
+function dispatchTextInput(
+  host: ShimElement,
+  inputType: EditInputType,
+  data: string | null,
+  dispatch: Dispatch,
+): boolean {
+  if (inputType !== "insertText" && inputType !== "insertParagraph") return true;
+  const TextEvent = ksEventCtors.TextEvent as
+    | (new (type: string, init: Record<string, unknown>) => unknown)
+    | undefined;
+  if (typeof TextEvent !== "function") return true;
+  const textInput = new TextEvent("textInput", {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    view: state.window,
+    data: inputType === "insertText" ? data : "\n",
+  });
+  return dispatch(host, textInput);
+}
+
+function dispatchInput(
+  host: ShimElement,
+  inputType: EditInputType,
+  data: string | null,
+  doc: NonNullable<typeof state.document>,
+  sel: EditSelection,
+  InputEvent: InputEventCtor,
+  dispatch: Dispatch,
+): boolean {
+  if (!selectionRemainsInHost(host, sel)) return true;
+  if (!executeEditCommand(doc, inputType, data)) return true;
   dispatch(
     host,
     new InputEvent("input", {
@@ -126,4 +164,49 @@ export function editContentEditable(
     }),
   );
   return true;
+}
+
+function selectionRemainsInHost(host: ShimElement, sel: EditSelection): boolean {
+  return !!sel.anchorNode && !!host.contains?.(sel.anchorNode);
+}
+
+function executeEditCommand(
+  doc: NonNullable<typeof state.document>,
+  inputType: EditInputType,
+  data: string | null,
+): boolean {
+  return !!doc.execCommand?.(COMMANDS[inputType], false, data ?? "");
+}
+
+interface EditingContext {
+  doc: NonNullable<typeof state.document>;
+  sel: EditSelection;
+  InputEvent: InputEventCtor;
+}
+
+function selectionForDocument(doc: typeof state.document) {
+  return doc?.getSelection?.();
+}
+
+function getEditingContext(): EditingContext | null {
+  const doc = state.document;
+  const InputEvent = ksEventCtors.InputEvent as InputEventCtor | undefined;
+  const sel = selectionForDocument(doc);
+  if (!doc || !sel || typeof InputEvent !== "function") return null;
+  return { doc, sel, InputEvent };
+}
+
+export function editContentEditable(
+  host: ShimElement,
+  inputType: EditInputType,
+  data: string | null,
+  dispatch: Dispatch,
+): boolean {
+  const context = getEditingContext();
+  if (!context) return true;
+  const { doc, sel, InputEvent } = context;
+  prepareSelection(host, sel);
+  if (!dispatchBeforeInput(host, inputType, data, sel, InputEvent, dispatch)) return false;
+  if (!dispatchTextInput(host, inputType, data, dispatch)) return false;
+  return dispatchInput(host, inputType, data, doc, sel, InputEvent, dispatch);
 }

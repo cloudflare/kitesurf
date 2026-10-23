@@ -20,9 +20,15 @@ import { state } from "./state.ts";
 let cached: ScriptGateContext | null = null;
 let cachedUrl = "";
 
+function cachedContextFor(documentUrl: string): ScriptGateContext | null {
+  if (cached && cachedUrl === documentUrl) return cached;
+  return null;
+}
+
 function gateContext(): ScriptGateContext {
   const documentUrl = state.pageUrl || "";
-  if (cached && cachedUrl === documentUrl) return cached;
+  const existing = cachedContextFor(documentUrl);
+  if (existing) return existing;
   cachedUrl = documentUrl;
   cached = buildScriptGateContext(documentUrl, {
     cspHeaders: Array.isArray(startupCsp) ? startupCsp : [],
@@ -53,44 +59,53 @@ export async function insertedScriptAllowed(
   });
 }
 
-export function inlineInsertDecisionSync(meta: InsertedScriptMetadata): ScriptGateDecision | null {
-  const ctx = gateContext();
-  if (scriptGateIsNoop(ctx)) return { allowed: true };
-  // Hash policies need async WebCrypto; null sends the caller to the deferred gate.
-  if (inlineHashAlgorithms(ctx.policies).length > 0) return null;
-  if (inlineHashAlgorithms(ctx.reportOnlyPolicies).length > 0) return null;
+function hasInlineHashPolicies(ctx: ScriptGateContext): boolean {
+  return (
+    inlineHashAlgorithms(ctx.policies).length > 0 ||
+    inlineHashAlgorithms(ctx.reportOnlyPolicies).length > 0
+  );
+}
+
+function inlineDecision(ctx: ScriptGateContext, meta: InsertedScriptMetadata): ScriptGateDecision {
   const verdict = cspAllowsScript(ctx.policies, {
     url: null,
     documentUrl: ctx.documentUrl,
     nonce: meta.nonce ?? null,
     runtimeInserted: true,
   });
-  if (verdict.allowed) {
-    const ro = cspAllowsScript(ctx.reportOnlyPolicies, {
-      url: null,
-      documentUrl: ctx.documentUrl,
-      nonce: meta.nonce ?? null,
-      runtimeInserted: true,
-    });
-    return ro.allowed
-      ? { allowed: true }
-      : {
-          allowed: true,
-          reportOnly:
-            `[Report Only] Refused to execute inline script because it ` +
-            `violates the following Content Security Policy directive: ` +
-            `"${ro.directive}".`,
-        };
+  if (!verdict.allowed) {
+    return {
+      allowed: false,
+      reason: "csp",
+      message:
+        `Refused to execute inline script because it violates the ` +
+        `following Content Security Policy directive: ` +
+        `"${verdict.directive}". Either the 'unsafe-inline' keyword, a ` +
+        `hash, or a nonce is required to enable inline execution.`,
+    };
   }
+  const reportOnlyVerdict = cspAllowsScript(ctx.reportOnlyPolicies, {
+    url: null,
+    documentUrl: ctx.documentUrl,
+    nonce: meta.nonce ?? null,
+    runtimeInserted: true,
+  });
+  if (reportOnlyVerdict.allowed) return { allowed: true };
   return {
-    allowed: false,
-    reason: "csp",
-    message:
-      `Refused to execute inline script because it violates the ` +
-      `following Content Security Policy directive: ` +
-      `"${verdict.directive}". Either the 'unsafe-inline' keyword, a ` +
-      `hash, or a nonce is required to enable inline execution.`,
+    allowed: true,
+    reportOnly:
+      `[Report Only] Refused to execute inline script because it ` +
+      `violates the following Content Security Policy directive: ` +
+      `"${reportOnlyVerdict.directive}".`,
   };
+}
+
+export function inlineInsertDecisionSync(meta: InsertedScriptMetadata): ScriptGateDecision | null {
+  const ctx = gateContext();
+  if (scriptGateIsNoop(ctx)) return { allowed: true };
+  // Hash policies need async WebCrypto; null sends the caller to the deferred gate.
+  if (hasInlineHashPolicies(ctx)) return null;
+  return inlineDecision(ctx, meta);
 }
 
 export async function insertedResponseAllowed(

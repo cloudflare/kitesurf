@@ -33,12 +33,21 @@ export function evalInsertedOnBoa(source: string): void {
   ks_eval_page(globalizeForBoa(source));
 }
 
-async function runBaked(module: string): Promise<void> {
-  const mod = (await importModule("./" + module)) as
-    | { default?: { run?: () => unknown }; run?: () => unknown }
-    | undefined;
-  const run = mod?.default?.run ?? mod?.run;
+type BakedModule = { default?: { run?: () => unknown }; run?: () => unknown } | undefined;
+
+function bakedRunner(module: BakedModule): () => unknown {
+  const run = moduleRunner(module);
   if (typeof run !== "function") throw new Error("baked insert has no run()");
+  return run;
+}
+
+function moduleRunner(module: BakedModule): (() => unknown) | undefined {
+  return module?.default?.run ?? module?.run;
+}
+
+async function runBaked(module: string): Promise<void> {
+  const mod = (await importModule("./" + module)) as BakedModule;
+  const run = bakedRunner(mod);
   await run.call(globalThis);
 }
 
@@ -85,17 +94,38 @@ export function fetchGatedModuleSource(url: string): Promise<string> {
 
 const moduleSourceInflight = new Map<string, Promise<string>>();
 
-async function fetchGatedModuleSourceOnce(url: string): Promise<string> {
-  const meta = { url, module: true };
+async function allowedModuleScript(meta: Parameters<typeof insertedScriptAllowed>[0]) {
   const pre = await insertedScriptAllowed(meta);
   reportOnly(pre);
   if (!pre.allowed) {
     reportBlocked(pre);
     throw new Error(pre.message ?? "module blocked by policy");
   }
-  const response = await fetchInsertedScript(pre.upgradeTo ?? url, "");
+  return pre;
+}
+
+async function allowedExternalScript(meta: Parameters<typeof insertedScriptAllowed>[0]) {
+  const pre = await insertedScriptAllowed(meta);
+  reportOnly(pre);
+  if (!pre.allowed) {
+    reportBlocked(pre);
+    throw new Error(pre.reason ?? "blocked by policy");
+  }
+  return pre;
+}
+
+function assertModuleResponseStatus(
+  response: Awaited<ReturnType<typeof fetchInsertedScript>>,
+  url: string,
+): void {
   if (response.status === 0) throw new Error(`fetch(${url}) failed`);
   if (response.status >= 400) throw new Error(`fetch(${url}) HTTP ${response.status}`);
+}
+
+async function allowedModuleResponse(
+  meta: Parameters<typeof insertedScriptAllowed>[0],
+  response: Awaited<ReturnType<typeof fetchInsertedScript>>,
+) {
   const post = await insertedResponseAllowed(meta, {
     contentType: response.contentType,
     contentTypeOptions: response.nosniff,
@@ -106,120 +136,225 @@ async function fetchGatedModuleSourceOnce(url: string): Promise<string> {
     reportBlocked(post);
     throw new Error(post.message ?? "module blocked by policy");
   }
-  if (post.moduleType === "json") {
-    return "export default " + JSON.stringify(JSON.parse(response.source)) + ";";
+  return post;
+}
+
+async function allowedExternalResponse(
+  meta: Parameters<typeof insertedScriptAllowed>[0],
+  response: Awaited<ReturnType<typeof fetchInsertedScript>>,
+): Promise<void> {
+  const post = await insertedResponseAllowed(meta, {
+    contentType: response.contentType,
+    contentTypeOptions: response.nosniff,
+    bytes: response.bytes,
+    opaque: response.opaque,
+  });
+  if (!post.allowed) {
+    reportBlocked(post);
+    throw new Error(post.reason ?? "blocked by policy");
   }
-  return response.source;
+}
+
+function moduleSource(
+  response: Awaited<ReturnType<typeof fetchInsertedScript>>,
+  moduleType: string | undefined,
+): string {
+  if (moduleType !== "json") return response.source;
+  return "export default " + JSON.stringify(JSON.parse(response.source)) + ";";
+}
+
+async function fetchGatedModuleSourceOnce(url: string): Promise<string> {
+  const meta = { url, module: true };
+  const pre = await allowedModuleScript(meta);
+  const response = await fetchInsertedScript(pre.upgradeTo ?? url, "");
+  assertModuleResponseStatus(response, url);
+  const post = await allowedModuleResponse(meta, response);
+  return moduleSource(response, post.moduleType);
 }
 
 export function runInsertedExternalScript(info: InsertedScriptInfo): void {
   const rawSrc = info.src;
-  if (info.type === "module") return;
-  const url = resolveUrl(rawSrc);
+  const url = externalScriptUrl(info);
   if (!url) return;
-  if (startedUrls.has(url)) return;
+  if (!markInsertedScriptStarted(url)) return;
+
+  const inflightKey = "inserted-script:" + url;
+  resourceInflight.add(inflightKey);
+  void executeInsertedScriptTask(info, rawSrc, url, inflightKey);
+}
+
+function externalScriptUrl(info: InsertedScriptInfo): string | null {
+  if (info.type === "module") return null;
+  return resolveUrl(info.src);
+}
+
+function markInsertedScriptStarted(url: string): boolean {
+  if (startedUrls.has(url)) return false;
   if (insertedCount >= MAX_INSERTED_SCRIPTS) {
     console.warn(
       `[ks-inserted-script] budget: skipping ${url} (cap ${MAX_INSERTED_SCRIPTS} per navigate)`,
     );
-    return;
+    return false;
   }
   startedUrls.add(url);
   insertedCount++;
+  return true;
+}
 
-  const meta = {
-    url,
-    integrity: info.integrity || null,
-    nonce: info.nonce || null,
-  };
+interface PreparedInsertedScript {
+  source: string;
+  baked: (typeof startupInsertedBaked)[number] | undefined;
+  bakedModule: string | null;
+}
 
-  const inflightKey = "inserted-script:" + url;
-  resourceInflight.add(inflightKey);
+interface SilentInsertedScript {
+  silent: true;
+  message: string;
+}
 
-  void (async () => {
-    let outcome: "load" | "error" | "silent" = "error";
-    try {
-      const pre = await insertedScriptAllowed(meta);
-      reportOnly(pre);
-      if (!pre.allowed) {
-        reportBlocked(pre);
-        throw new Error(pre.reason ?? "blocked by policy");
-      }
-      const response = await fetchInsertedScript(pre.upgradeTo ?? url, info.crossOrigin ?? null);
-      if (response.status === 0) {
-        // Suppress the script error event for no-response fetches: Next's chunk loader
-        // can turn it into a fatal ChunkLoadError and discard usable SSR markup.
-        // Real HTTP failures still take the normal error-event path.
-        outcome = "silent";
-        throw new Error("fetch failed (no response)");
-      }
-      if (response.status >= 400) throw new Error("HTTP " + response.status);
-      const post = await insertedResponseAllowed(meta, {
-        contentType: response.contentType,
-        contentTypeOptions: response.nosniff,
-        bytes: response.bytes,
-        opaque: response.opaque,
-      });
-      if (!post.allowed) {
-        reportBlocked(post);
-        throw new Error(post.reason ?? "blocked by policy");
-      }
-      const source = response.source;
-      if (insertedBytes + source.length > MAX_INSERTED_SCRIPT_BYTES) {
-        outcome = "silent";
-        throw new Error("byte budget exceeded (" + source.length + " bytes)");
-      }
-      insertedBytes += source.length;
-      const baked = bakedByUrl.get(url);
-      const bakedModule =
-        baked && baked.digest === (await scriptSourceDigest(source)) ? baked.module : null;
+async function fetchPreparedInsertedScript(
+  info: InsertedScriptInfo,
+  url: string,
+): Promise<PreparedInsertedScript | SilentInsertedScript> {
+  const meta = insertedScriptMeta(info, url);
+  const pre = await allowedExternalScript(meta);
+  const response = await fetchInsertedScript(pre.upgradeTo ?? url, info.crossOrigin ?? null);
+  const failure = insertedResponseFailure(response);
+  if (failure) return { silent: true, message: failure };
+  await allowedExternalResponse(meta, response);
+  const source = response.source;
+  if (!reserveInsertedBytes(source)) {
+    return { silent: true, message: "byte budget exceeded (" + source.length + " bytes)" };
+  }
+  const baked = bakedByUrl.get(url);
+  const bakedModule = await matchingBakedModule(baked, source);
+  return { source, baked, bakedModule };
+}
 
-      // A fresh task prevents fetched code from re-entering frames left by the fetch continuation.
-      await new Promise<void>((resolve) => {
-        nativeSetTimeout(resolve, 0);
-      });
+function insertedResponseFailure(
+  response: Awaited<ReturnType<typeof fetchInsertedScript>>,
+): string | null {
+  if (response.status === 0) return "fetch failed (no response)";
+  if (response.status >= 400) throw new Error("HTTP " + response.status);
+  return null;
+}
 
-      const cs = getInternalState();
-      try {
-        cs.setCurrentScript?.(url, -1, "", rawSrc);
-        if (bakedModule) {
-          await runBaked(bakedModule);
-          sendUpstreamEvent({
-            event: "kitesurf.insertedScriptRan",
-            params: { url, bytes: source.length, run: "baked" },
-          });
-        } else {
-          evalInsertedOnBoa(source);
-          sendUpstreamEvent({
-            event: "kitesurf.insertedScriptRan",
-            params: { url, bytes: source.length, run: baked ? "stale" : "boa" },
-          });
-        }
-        outcome = "load";
-      } finally {
-        try {
-          if (cs.endClassicScript) await cs.endClassicScript();
-          else cs.setCurrentScript?.(null);
-        } catch {}
-      }
-    } catch (err) {
-      if (outcome !== "silent") outcome = "error";
-      try {
-        console.warn(
-          "[ks-inserted-script] " +
-            url +
-            " failed: " +
-            (err instanceof Error ? err.message : String(err)) +
-            (outcome === "silent" ? " (no event fired)" : ""),
-        );
-      } catch {}
-    } finally {
-      resourceInflight.delete(inflightKey);
-      if (outcome !== "silent") {
-        try {
-          fireLifecycle(info.id, outcome === "load");
-        } catch {}
-      }
+function reserveInsertedBytes(source: string): boolean {
+  if (insertedBytes + source.length > MAX_INSERTED_SCRIPT_BYTES) return false;
+  insertedBytes += source.length;
+  return true;
+}
+
+async function matchingBakedModule(
+  baked: (typeof startupInsertedBaked)[number] | undefined,
+  source: string,
+): Promise<string | null> {
+  if (!baked) return null;
+  return baked.digest === (await scriptSourceDigest(source)) ? baked.module : null;
+}
+
+function insertedScriptMeta(info: InsertedScriptInfo, url: string) {
+  return { url, integrity: info.integrity || null, nonce: info.nonce || null };
+}
+
+async function executeInsertedScriptTask(
+  info: InsertedScriptInfo,
+  rawSrc: string,
+  url: string,
+  inflightKey: string,
+): Promise<void> {
+  let outcome: "load" | "error" | "silent" = "error";
+  try {
+    outcome = await attemptInsertedScript(info, rawSrc, url);
+  } finally {
+    finishInsertedScript(info, inflightKey, outcome);
+  }
+}
+
+async function attemptInsertedScript(
+  info: InsertedScriptInfo,
+  rawSrc: string,
+  url: string,
+): Promise<"load" | "error" | "silent"> {
+  try {
+    const prepared = await fetchPreparedInsertedScript(info, url);
+    if ("silent" in prepared) {
+      reportInsertedFailure(url, new Error(prepared.message), "silent");
+      return "silent";
     }
-  })();
+    await yieldToNextTask();
+    await runPreparedInsertedScript(prepared, url, rawSrc);
+    return "load";
+  } catch (error) {
+    reportInsertedFailure(url, error, "error");
+    return "error";
+  }
+}
+
+function yieldToNextTask(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    nativeSetTimeout(resolve, 0);
+  });
+}
+
+async function runPreparedInsertedScript(
+  prepared: PreparedInsertedScript,
+  url: string,
+  rawSrc: string,
+): Promise<void> {
+  const cs = getInternalState();
+  try {
+    cs.setCurrentScript?.(url, -1, "", rawSrc);
+    await runInsertedSource(prepared, url);
+  } finally {
+    await endInsertedScript(cs);
+  }
+}
+
+async function runInsertedSource(prepared: PreparedInsertedScript, url: string): Promise<void> {
+  if (prepared.bakedModule) {
+    await runBaked(prepared.bakedModule);
+    sendInsertedScriptEvent(url, prepared.source.length, "baked");
+    return;
+  }
+  evalInsertedOnBoa(prepared.source);
+  sendInsertedScriptEvent(url, prepared.source.length, prepared.baked ? "stale" : "boa");
+}
+
+function sendInsertedScriptEvent(url: string, bytes: number, run: "baked" | "stale" | "boa"): void {
+  sendUpstreamEvent({
+    event: "kitesurf.insertedScriptRan",
+    params: { url, bytes, run },
+  });
+}
+
+async function endInsertedScript(cs: ReturnType<typeof getInternalState>): Promise<void> {
+  try {
+    if (cs.endClassicScript) await cs.endClassicScript();
+    else cs.setCurrentScript?.(null);
+  } catch {}
+}
+
+function reportInsertedFailure(url: string, error: unknown, outcome: "error" | "silent"): void {
+  try {
+    console.warn(
+      "[ks-inserted-script] " +
+        url +
+        " failed: " +
+        (error instanceof Error ? error.message : String(error)) +
+        (outcome === "silent" ? " (no event fired)" : ""),
+    );
+  } catch {}
+}
+
+function finishInsertedScript(
+  info: InsertedScriptInfo,
+  inflightKey: string,
+  outcome: "load" | "error" | "silent",
+): void {
+  resourceInflight.delete(inflightKey);
+  if (outcome === "silent") return;
+  try {
+    fireLifecycle(info.id, outcome === "load");
+  } catch {}
 }

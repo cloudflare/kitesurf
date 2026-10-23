@@ -83,6 +83,15 @@ export const PAGE_SCRIPT_METHODS: PageScriptArgBuilders = {
   ],
 };
 
+function syncOperationLabel<M extends PageScriptMethod>(
+  method: M,
+  params: PageScriptWireParams[M],
+): string {
+  return method === "queryDom"
+    ? `rpc:queryDom:${(params as PageScriptWireParams["queryDom"]).method}`
+    : `rpc:${method}`;
+}
+
 export async function invokeSessionMethod<M extends PageScriptMethod>(
   self: PageScriptSession,
   method: M,
@@ -92,11 +101,7 @@ export async function invokeSessionMethod<M extends PageScriptMethod>(
   enterMethodScope(meta);
   const argBuilder = PAGE_SCRIPT_METHODS[method];
   if (!argBuilder) throw new Error("unknown method: " + method);
-  noteSyncOp(
-    method === "queryDom"
-      ? `rpc:queryDom:${(params as PageScriptWireParams["queryDom"]).method}`
-      : `rpc:${method}`,
-  );
+  noteSyncOp(syncOperationLabel(method, params));
   try {
     const args = argBuilder(params);
     const methodHandler = self[method];

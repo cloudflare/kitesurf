@@ -19,9 +19,10 @@ const BLOCKED_GLOBAL_NAMES = new Set([
   "self",
 ]);
 
-// Mirror classic top-level declarations onto window so Boa inserts share the page global.
-export function globalizeForBoa(source: string): string {
-  const scan = extractTopLevelDecls(source);
+function collectVarNames(scan: ReturnType<typeof extractTopLevelDecls>): {
+  retainedNames: Set<string>;
+  varKeywordStarts: number[];
+} {
   const retainedNames = new Set<string>();
   const varKeywordStarts: number[] = [];
   scan.varSites.forEach((site, siteIndex) => {
@@ -32,39 +33,61 @@ export function globalizeForBoa(source: string): string {
       varKeywordStarts.push(site);
     }
   });
-  const hoistedVarNames = scan.varNames.filter(
+  return { retainedNames, varKeywordStarts };
+}
+
+function withoutBlockedVarNames(
+  scan: ReturnType<typeof extractTopLevelDecls>,
+  retainedNames: Set<string>,
+): string[] {
+  return scan.varNames.filter(
     (name) => !BLOCKED_GLOBAL_NAMES.has(name) && !retainedNames.has(name),
   );
-  let body = source;
-  if (varKeywordStarts.length > 0) {
-    const sourceParts: string[] = [];
-    let copiedThrough = 0;
-    for (const varKeywordStart of varKeywordStarts) {
-      sourceParts.push(body.slice(copiedThrough, varKeywordStart), "   ");
-      copiedThrough = varKeywordStart + 3;
-    }
-    sourceParts.push(body.slice(copiedThrough));
-    body = sourceParts.join("");
+}
+
+function removeVarKeywords(source: string, starts: number[]): string {
+  if (starts.length === 0) return source;
+  const sourceParts: string[] = [];
+  let copiedThrough = 0;
+  for (const start of starts) {
+    sourceParts.push(source.slice(copiedThrough, start), "   ");
+    copiedThrough = start + 3;
   }
-  const declarationPrelude =
-    hoistedVarNames.length === 0
-      ? ""
-      : (hasUseStrictDirective(source) ? '"use strict"; ' : "") +
-        predeclareVarsHead(hoistedVarNames, "window");
-  const hoistedVarNameSet = new Set(hoistedVarNames);
-  const declarationNames = scan.names.filter(
-    (name) => !hoistedVarNameSet.has(name) && !BLOCKED_GLOBAL_NAMES.has(name),
+  sourceParts.push(source.slice(copiedThrough));
+  return sourceParts.join("");
+}
+
+function declarationPrelude(source: string, names: string[]): string {
+  if (names.length === 0) return "";
+  const strictDirective = hasUseStrictDirective(source) ? '"use strict"; ' : "";
+  return strictDirective + predeclareVarsHead(names, "window");
+}
+
+function declarationTail(names: string[], hoistedNames: string[]): string {
+  const hoistedNameSet = new Set(hoistedNames);
+  const declarationNames = names.filter(
+    (name) => !hoistedNameSet.has(name) && !BLOCKED_GLOBAL_NAMES.has(name),
   );
-  const declarationTail =
-    declarationNames.length === 0
-      ? ""
-      : "\n" +
-        declarationNames
-          .map(
-            (name) =>
-              `try { if (typeof ${name} !== "undefined") window.${name} = ${name}; } catch (e) {}`,
-          )
-          .join("\n") +
-        "\n";
-  return declarationPrelude + body + declarationTail;
+  if (declarationNames.length === 0) return "";
+  return (
+    "\n" +
+    declarationNames
+      .map(
+        (name) =>
+          `try { if (typeof ${name} !== "undefined") window.${name} = ${name}; } catch (e) {}`,
+      )
+      .join("\n") +
+    "\n"
+  );
+}
+
+// Mirror classic top-level declarations onto window so Boa inserts share the page global.
+export function globalizeForBoa(source: string): string {
+  const scan = extractTopLevelDecls(source);
+  const { retainedNames, varKeywordStarts } = collectVarNames(scan);
+  const hoistedNames = withoutBlockedVarNames(scan, retainedNames);
+  const body = removeVarKeywords(source, varKeywordStarts);
+  return (
+    declarationPrelude(source, hoistedNames) + body + declarationTail(scan.names, hoistedNames)
+  );
 }

@@ -32,19 +32,37 @@ export function noteWasmTerminated(): void {
   wasmTerminated = true;
 }
 
+type EngineErrorShape = { name?: unknown; message?: unknown; stack?: unknown } | null;
+
+function engineErrorName(error: EngineErrorShape): string {
+  if (error && typeof error.name === "string" && error.name) return error.name;
+  return "Error";
+}
+
+function engineErrorMessage(error: EngineErrorShape, err: unknown): string {
+  if (error && typeof error.message === "string") return error.message;
+  return String(err);
+}
+
+function engineErrorStack(error: EngineErrorShape): string | undefined {
+  if (error && typeof error.stack === "string") return error.stack;
+  return undefined;
+}
+
+function isTerminatedEcho(message: string): boolean {
+  return wasmTerminated && message === "Module terminated";
+}
+
 export function reportEngineError(origin: EngineErrorOrigin, err: unknown, note?: string): void {
   try {
     const MAX_ENGINE_ERROR_STACK_CHARS = 4096;
     const MAX_ENGINE_ERROR_MESSAGE_CHARS = 512;
-    const error = err as { name?: unknown; message?: unknown; stack?: unknown } | null;
-    const name = error && typeof error.name === "string" && error.name ? error.name : "Error";
-    let message = error && typeof error.message === "string" ? error.message : String(err);
-    if (wasmTerminated && message === "Module terminated") return;
+    const error = err as EngineErrorShape;
+    const name = engineErrorName(error);
+    let message = engineErrorMessage(error, err);
+    if (isTerminatedEcho(message)) return;
     if (note) message = note + ": " + message;
-    const stack =
-      error && typeof error.stack === "string"
-        ? error.stack.slice(0, MAX_ENGINE_ERROR_STACK_CHARS)
-        : undefined;
+    const stack = engineErrorStack(error)?.slice(0, MAX_ENGINE_ERROR_STACK_CHARS);
     console.error(
       "[ks-err] " +
         JSON.stringify({

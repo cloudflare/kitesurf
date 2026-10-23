@@ -31,6 +31,66 @@ function mkEvent(type: string, fields: Record<string, unknown>): any {
   return ev;
 }
 
+function pageBaseUri(): string | undefined {
+  try {
+    return ksGlobal.document?.baseURI;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseWebSocketUrl(raw: string): URL {
+  try {
+    return new URL(raw, pageBaseUri());
+  } catch {
+    throw new ksGlobal.DOMException(
+      "WebSocket constructor: '" + raw + "' is not a valid URL.",
+      "SyntaxError",
+    );
+  }
+}
+
+function normalizeWebSocketProtocol(parsed: URL): URL {
+  if (parsed.protocol === "http:") parsed.protocol = "ws:";
+  else if (parsed.protocol === "https:") parsed.protocol = "wss:";
+  if (parsed.protocol !== "ws:" && parsed.protocol !== "wss:") {
+    throw new ksGlobal.DOMException(
+      "WebSocket constructor: scheme must be ws or wss, got '" + parsed.protocol + "'",
+      "SyntaxError",
+    );
+  }
+  return parsed;
+}
+
+function normalizedWebSocketUrl(url: unknown): URL {
+  return normalizeWebSocketProtocol(parseWebSocketUrl(String(url ?? "")));
+}
+
+function webSocketFetchUrl(parsed: URL): string {
+  const httpProtocol = parsed.protocol === "wss:" ? "https:" : "http:";
+  return httpProtocol + parsed.toString().slice(parsed.protocol.length);
+}
+
+function protocolList(protocols: unknown): string {
+  if (Array.isArray(protocols)) return protocols.map(String).join(", ");
+  if (typeof protocols === "string" && protocols) return protocols;
+  return "";
+}
+
+function isBlobLike(data: unknown): boolean {
+  return (
+    data !== null &&
+    typeof data === "object" &&
+    typeof (data as { arrayBuffer?: unknown }).arrayBuffer === "function" &&
+    !(data instanceof ArrayBuffer) &&
+    !ArrayBuffer.isView(data)
+  );
+}
+
+function isTerminalState(readyState: number): boolean {
+  return readyState === CLOSED || readyState === CLOSING;
+}
+
 export function installWebSocketFacade(): void {
   class KsWebSocket {
     static CONNECTING = CONNECTING;
@@ -56,109 +116,98 @@ export function installWebSocketFacade(): void {
     private _settled = false;
 
     constructor(url: unknown, protocols?: unknown) {
-      const raw = String(url ?? "");
-      let base: string | undefined;
-      try {
-        base = ksGlobal.document?.baseURI;
-      } catch {}
-      let parsed: URL;
-      try {
-        parsed = new URL(raw, base);
-      } catch {
-        throw new ksGlobal.DOMException(
-          "WebSocket constructor: '" + raw + "' is not a valid URL.",
-          "SyntaxError",
-        );
-      }
-      if (parsed.protocol === "http:") parsed.protocol = "ws:";
-      else if (parsed.protocol === "https:") parsed.protocol = "wss:";
-      if (parsed.protocol !== "ws:" && parsed.protocol !== "wss:") {
-        throw new ksGlobal.DOMException(
-          "WebSocket constructor: scheme must be ws or wss, got '" + parsed.protocol + "'",
-          "SyntaxError",
-        );
-      }
+      const parsed = normalizedWebSocketUrl(url);
       this.url = parsed.toString();
-      const fetchUrl =
-        (parsed.protocol === "wss:" ? "https:" : "http:") + this.url.slice(parsed.protocol.length);
-      const protoList = Array.isArray(protocols)
-        ? protocols.map(String).join(", ")
-        : typeof protocols === "string" && protocols
-          ? protocols
-          : "";
-      void this._connect(fetchUrl, protoList);
+      void this._connect(webSocketFetchUrl(parsed), protocolList(protocols));
     }
 
     private async _connect(fetchUrl: string, protoList: string): Promise<void> {
       try {
-        const headers: Record<string, string> = { Upgrade: "websocket" };
-        if (protoList) headers["Sec-WebSocket-Protocol"] = protoList;
-        const resp: Response | null | undefined = await (ksGlobal.fetch as typeof globalThis.fetch)(
-          fetchUrl,
-          { headers },
-        );
-        const socket = resp?.webSocket ?? null;
-        if (!socket) {
-          this._fail("WebSocket upgrade failed: HTTP " + (resp?.status ?? "?"));
-          return;
-        }
-        if (this._closeRequested) {
-          try {
-            socket.accept();
-          } catch {}
-          try {
-            socket.close(
-              this._closeRequested.code ?? WEBSOCKET_NORMAL_CLOSURE_CODE,
-              this._closeRequested.reason ?? "",
-            );
-          } catch {}
-          this._finishClose(this._closeRequested.code ?? WEBSOCKET_NORMAL_CLOSURE_CODE, "", true);
-          return;
-        }
-        try {
-          this.protocol = String(resp?.headers?.get?.("sec-websocket-protocol") ?? "") || "";
-        } catch {}
-        socket.accept();
-        this._socket = socket;
-        let delivery: Promise<void> = Promise.resolve();
-        socket.addEventListener("message", (ev) => {
-          const raw = ev?.data;
-          delivery = delivery.then(async () => {
-            let data = raw;
-            const isBlobLike =
-              data !== null &&
-              typeof data === "object" &&
-              typeof (data as { arrayBuffer?: unknown }).arrayBuffer === "function" &&
-              !(data instanceof ArrayBuffer) &&
-              !ArrayBuffer.isView(data);
-            if (this.binaryType === "arraybuffer" && isBlobLike) {
-              try {
-                data = await (data as { arrayBuffer: () => Promise<unknown> }).arrayBuffer();
-              } catch {}
-            } else if (this.binaryType === "blob" && data instanceof ArrayBuffer) {
-              const BlobConstructor = ksGlobal.Blob;
-              if (typeof BlobConstructor === "function") {
-                data = new BlobConstructor([data]);
-              }
-            }
-            this._emit("message", mkEvent("message", { data, origin: this.url }));
-          });
-        });
-        socket.addEventListener("close", (ev) => {
-          this._finishClose(
-            typeof ev?.code === "number" ? ev.code : WEBSOCKET_NO_STATUS_RECEIVED_CODE,
-            String(ev?.reason ?? ""),
-            ev?.wasClean !== false,
-          );
-        });
-        socket.addEventListener("error", () => {
-          this._emit("error", mkEvent("error", {}));
-        });
-        this.readyState = OPEN;
-        this._emit("open", mkEvent("open", {}));
+        this._handleUpgradeResponse(await fetchWebSocketUpgrade(fetchUrl, protoList));
       } catch (err) {
         this._fail("WebSocket connect failed: " + ((err as any)?.message ?? String(err)));
       }
+    }
+
+    private _handleUpgradeResponse(response: Response | null | undefined): void {
+      const socket = response?.webSocket ?? null;
+      if (!socket) {
+        this._fail(upgradeFailureMessage(response));
+        return;
+      }
+      if (this._closeRequested) {
+        this._closeBeforeOpen(socket);
+        return;
+      }
+      this._attachSocket(response, socket);
+    }
+
+    private _closeBeforeOpen(socket: WebSocket): void {
+      const requestedClose = this._closeRequested;
+      if (!requestedClose) return;
+      acceptSocket(socket);
+      closeRequestedSocket(socket, requestedClose);
+      this._finishClose(requestedCloseCode(requestedClose), "", true);
+    }
+
+    private _attachSocket(response: Response | null | undefined, socket: WebSocket): void {
+      this._setProtocol(response);
+      socket.accept();
+      this._socket = socket;
+      this._listenForMessages(socket);
+      socket.addEventListener("close", (event) => this._handleSocketClose(event));
+      socket.addEventListener("error", () => this._emit("error", mkEvent("error", {})));
+      this.readyState = OPEN;
+      this._emit("open", mkEvent("open", {}));
+    }
+
+    private _setProtocol(response: Response | null | undefined): void {
+      this.protocol = readResponseProtocol(response);
+    }
+
+    private _listenForMessages(socket: WebSocket): void {
+      let delivery: Promise<void> = Promise.resolve();
+      socket.addEventListener("message", (event) => {
+        const raw = event?.data;
+        delivery = delivery.then(() => this._emitMessage(raw));
+      });
+    }
+
+    private async _emitMessage(raw: unknown): Promise<void> {
+      const { value: data } = await this._pageMessageData(raw);
+      this._emit("message", mkEvent("message", { data, origin: this.url }));
+    }
+
+    private async _pageMessageData(raw: unknown): Promise<{ value: unknown }> {
+      if (this.binaryType === "arraybuffer" && isBlobLike(raw)) {
+        return { value: await this._readBlobLike(raw) };
+      }
+      if (this.binaryType === "blob" && raw instanceof ArrayBuffer) {
+        return { value: this._wrapArrayBuffer(raw) };
+      }
+      return { value: raw };
+    }
+
+    private async _readBlobLike(data: unknown): Promise<unknown> {
+      try {
+        return await (data as { arrayBuffer: () => Promise<unknown> }).arrayBuffer();
+      } catch {
+        return data;
+      }
+    }
+
+    private _wrapArrayBuffer(data: ArrayBuffer): unknown {
+      const BlobConstructor = ksGlobal.Blob;
+      if (typeof BlobConstructor !== "function") return data;
+      return new BlobConstructor([data]);
+    }
+
+    private _handleSocketClose(event: any): void {
+      this._finishClose(
+        socketCloseCode(event),
+        socketCloseReason(event),
+        socketCloseIsClean(event),
+      );
     }
 
     private _fail(message: string): void {
@@ -181,27 +230,30 @@ export function installWebSocketFacade(): void {
       try {
         event.target = event.currentTarget = this;
       } catch {}
+      this._emitPropertyHandler(type, event);
+      this._emitListeners(type, event);
+    }
+
+    private _emitPropertyHandler(type: string, event: any): void {
       const handler = (this as any)["on" + type];
-      if (typeof handler === "function") {
-        try {
-          handler.call(this, event);
-        } catch (error) {
-          try {
-            console.error("[kitesurf] WebSocket on" + type + " threw:", error);
-          } catch {}
-        }
-      }
+      if (typeof handler === "function") this._invokeListener(handler, event, "on" + type);
+    }
+
+    private _emitListeners(type: string, event: any): void {
       const listeners = this._listeners.get(type);
-      if (listeners) {
-        for (const listener of Array.from(listeners)) {
-          try {
-            listener.call(this, event);
-          } catch (error) {
-            try {
-              console.error("[kitesurf] WebSocket listener threw:", error);
-            } catch {}
-          }
-        }
+      if (!listeners) return;
+      for (const listener of Array.from(listeners)) {
+        this._invokeListener(listener, event, "listener");
+      }
+    }
+
+    private _invokeListener(listener: AnyFn, event: any, source: string): void {
+      try {
+        listener.call(this, event);
+      } catch (error) {
+        try {
+          console.error("[kitesurf] WebSocket " + source + " threw:", error);
+        } catch {}
       }
     }
 
@@ -232,8 +284,12 @@ export function installWebSocketFacade(): void {
         );
       }
       if (this.readyState !== OPEN || !this._socket) return;
+      this._sendOpenSocket(this._socket, data);
+    }
+
+    private _sendOpenSocket(socket: WebSocket, data: unknown): void {
       try {
-        this._socket.send(data as Parameters<WebSocket["send"]>[0]);
+        socket.send(data as Parameters<WebSocket["send"]>[0]);
       } catch (e) {
         try {
           console.warn("[kitesurf] WebSocket.send failed:", e);
@@ -242,15 +298,20 @@ export function installWebSocketFacade(): void {
     }
 
     close(code?: number, reason?: string): void {
-      if (this.readyState === CLOSED || this.readyState === CLOSING) return;
-      if (this.readyState === CONNECTING || !this._socket) {
+      if (isTerminalState(this.readyState)) return;
+      const socket = this._socket;
+      if (this.readyState === CONNECTING || !socket) {
         this._closeRequested = { code, reason };
         this.readyState = CLOSING;
         return;
       }
+      this._closeActiveSocket(socket, code, reason);
+    }
+
+    private _closeActiveSocket(socket: WebSocket, code?: number, reason?: string): void {
       this.readyState = CLOSING;
       try {
-        this._socket.close(code ?? WEBSOCKET_NORMAL_CLOSURE_CODE, reason ?? "");
+        socket.close(code ?? WEBSOCKET_NORMAL_CLOSURE_CODE, reason ?? "");
       } catch {
         this._finishClose(WEBSOCKET_ABNORMAL_CLOSURE_CODE, "", false);
       }
@@ -269,4 +330,64 @@ export function installWebSocketFacade(): void {
     Object.defineProperty(KsWebSocket, "name", { value: "WebSocket" });
   } catch {}
   ksGlobal.WebSocket = KsWebSocket;
+}
+
+async function fetchWebSocketUpgrade(
+  fetchUrl: string,
+  protoList: string,
+): Promise<Response | null | undefined> {
+  const headers: Record<string, string> = { Upgrade: "websocket" };
+  if (protoList) headers["Sec-WebSocket-Protocol"] = protoList;
+  return (ksGlobal.fetch as typeof globalThis.fetch)(fetchUrl, { headers });
+}
+
+function upgradeFailureMessage(response: Response | null | undefined): string {
+  return "WebSocket upgrade failed: HTTP " + (response?.status ?? "?");
+}
+
+function acceptSocket(socket: WebSocket): void {
+  try {
+    socket.accept();
+  } catch {}
+}
+
+function requestedCloseCode(request: { code?: number }): number {
+  return request.code ?? WEBSOCKET_NORMAL_CLOSURE_CODE;
+}
+
+function requestedCloseReason(request: { reason?: string }): string {
+  return request.reason ?? "";
+}
+
+function closeRequestedSocket(
+  socket: WebSocket,
+  request: { code?: number; reason?: string },
+): void {
+  try {
+    socket.close(requestedCloseCode(request), requestedCloseReason(request));
+  } catch {}
+}
+
+function responseProtocolHeader(response: Response | null | undefined): string | null | undefined {
+  return response?.headers?.get?.("sec-websocket-protocol");
+}
+
+function readResponseProtocol(response: Response | null | undefined): string {
+  try {
+    return String(responseProtocolHeader(response) ?? "") || "";
+  } catch {
+    return "";
+  }
+}
+
+function socketCloseCode(event: any): number {
+  return typeof event?.code === "number" ? event.code : WEBSOCKET_NO_STATUS_RECEIVED_CODE;
+}
+
+function socketCloseReason(event: any): string {
+  return String(event?.reason ?? "");
+}
+
+function socketCloseIsClean(event: any): boolean {
+  return event?.wasClean !== false;
 }

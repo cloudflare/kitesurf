@@ -26,18 +26,41 @@ function isHttpWhitespace(codePoint: number): boolean {
   return codePoint === 0x09 || codePoint === 0x0a || codePoint === 0x0d || codePoint === 0x20;
 }
 
-function isHttpTokenCodePoint(codePoint: number): boolean {
+function isAsciiDigit(codePoint: number): boolean {
+  return codePoint >= 0x30 && codePoint <= 0x39;
+}
+
+function isAsciiUppercase(codePoint: number): boolean {
+  return codePoint >= 0x41 && codePoint <= 0x5a;
+}
+
+function isAsciiLowercase(codePoint: number): boolean {
+  return codePoint >= 0x61 && codePoint <= 0x7a;
+}
+
+function isFirstTokenPunctuation(codePoint: number): boolean {
   return (
-    (codePoint >= 0x30 && codePoint <= 0x39) ||
-    (codePoint >= 0x41 && codePoint <= 0x5a) ||
-    (codePoint >= 0x61 && codePoint <= 0x7a) ||
     codePoint === 0x21 ||
     (codePoint >= 0x23 && codePoint <= 0x27) ||
-    (codePoint >= 0x2a && codePoint <= 0x2b) ||
-    (codePoint >= 0x2d && codePoint <= 0x2e) ||
-    (codePoint >= 0x5e && codePoint <= 0x60) ||
-    codePoint === 0x7c ||
-    codePoint === 0x7e
+    (codePoint >= 0x2a && codePoint <= 0x2b)
+  );
+}
+
+function isTokenPunctuationRanges(codePoint: number): boolean {
+  return (codePoint >= 0x2d && codePoint <= 0x2e) || (codePoint >= 0x5e && codePoint <= 0x60);
+}
+
+function isSecondTokenPunctuation(codePoint: number): boolean {
+  return isTokenPunctuationRanges(codePoint) || codePoint === 0x7c || codePoint === 0x7e;
+}
+
+function isHttpTokenCodePoint(codePoint: number): boolean {
+  return (
+    isAsciiDigit(codePoint) ||
+    isAsciiUppercase(codePoint) ||
+    isAsciiLowercase(codePoint) ||
+    isFirstTokenPunctuation(codePoint) ||
+    isSecondTokenPunctuation(codePoint)
   );
 }
 
@@ -118,67 +141,158 @@ function readQuotedParameterValue(
   return { value, position };
 }
 
-export function serializeMimeType(input: string): string {
+interface MimeHeader {
+  value: string;
+  type: string;
+  subtype: string;
+  position: number;
+}
+
+function isValidMimeSubtype(subtype: string): boolean {
+  return subtype !== "" && hasOnlyCodePoints(subtype, isHttpTokenCodePoint);
+}
+
+function parseMimeHeader(input: string): MimeHeader | null {
   const value = trimHttpWhitespace(input);
   const slash = value.indexOf("/");
-  if (slash <= 0) return "";
-
+  if (slash <= 0) return null;
   const type = value.slice(0, slash);
-  if (!hasOnlyCodePoints(type, isHttpTokenCodePoint)) return "";
+  if (!hasOnlyCodePoints(type, isHttpTokenCodePoint)) return null;
+  const subtype = parseMimeSubtype(value, slash + 1);
+  if (!subtype) return null;
+  return { value, type, ...subtype };
+}
 
-  let position = slash + 1;
+function parseMimeSubtype(
+  value: string,
+  position: number,
+): { subtype: string; position: number } | null {
   const semicolon = value.indexOf(";", position);
   const subtypeEnd = semicolon < 0 ? value.length : semicolon;
   const subtype = trimTrailingHttpWhitespace(value.slice(position, subtypeEnd));
-  if (subtype === "" || !hasOnlyCodePoints(subtype, isHttpTokenCodePoint)) {
-    return "";
-  }
+  if (!isValidMimeSubtype(subtype)) return null;
+  return { subtype, position: semicolon < 0 ? value.length : semicolon };
+}
 
+function skipParameterWhitespace(value: string, position: number): number {
+  while (position < value.length && isHttpWhitespace(codePointAt(value, position))) {
+    position += codePointLength(codePointAt(value, position));
+  }
+  return position;
+}
+
+function readParameterName(value: string, position: number): { name: string; position: number } {
+  const nameStart = position;
+  while (position < value.length && value[position] !== ";" && value[position] !== "=") {
+    position += codePointLength(codePointAt(value, position));
+  }
+  return { name: value.slice(nameStart, position).toLowerCase(), position };
+}
+
+function isParameterTerminator(value: string, position: number): boolean {
+  return position < value.length && value[position] === ";";
+}
+
+function readQuotedParameterValueWithTrailing(
+  value: string,
+  position: number,
+): {
+  parameterValue: string;
+  position: number;
+  quoted: boolean;
+} {
+  const quotedValue = readQuotedParameterValue(value, position);
+  position = quotedValue.position;
+  while (position < value.length && value[position] !== ";") {
+    position += codePointLength(codePointAt(value, position));
+  }
+  return { parameterValue: quotedValue.value, position, quoted: true };
+}
+
+function readUnquotedParameterValue(
+  value: string,
+  position: number,
+): {
+  parameterValue: string;
+  position: number;
+  quoted: boolean;
+} {
+  const valueStart = position;
+  while (position < value.length && value[position] !== ";") {
+    position += codePointLength(codePointAt(value, position));
+  }
+  return {
+    parameterValue: trimTrailingHttpWhitespace(value.slice(valueStart, position)),
+    position,
+    quoted: false,
+  };
+}
+
+function readParameterValue(
+  value: string,
+  position: number,
+): { parameterValue: string; position: number; quoted: boolean } {
+  if (value[position] === '"') return readQuotedParameterValueWithTrailing(value, position);
+  return readUnquotedParameterValue(value, position);
+}
+
+function isValidMimeParameter(
+  name: string,
+  value: string,
+  parameters: Map<string, string>,
+): boolean {
+  return (
+    name !== "" &&
+    hasOnlyCodePoints(name, isHttpTokenCodePoint) &&
+    isHttpQuotedString(value) &&
+    !parameters.has(name)
+  );
+}
+
+function storeParameterValue(
+  value: string,
+  position: number,
+  name: string,
+  parameters: Map<string, string>,
+): number | null {
+  if (position >= value.length) return null;
+  const parsed = readParameterValue(value, position);
+  if (!parsed.quoted && parsed.parameterValue === "") return parsed.position;
+  if (isValidMimeParameter(name, parsed.parameterValue, parameters)) {
+    parameters.set(name, parsed.parameterValue);
+  }
+  return parsed.position;
+}
+
+function consumeMimeParameter(
+  value: string,
+  position: number,
+  parameters: Map<string, string>,
+): number | null {
+  position++;
+  position = skipParameterWhitespace(value, position);
+  const parsedName = readParameterName(value, position);
+  position = parsedName.position;
+  if (isParameterTerminator(value, position)) return position;
+  if (position < value.length) position++;
+  return storeParameterValue(value, position, parsedName.name, parameters);
+}
+
+function parseMimeParameters(value: string, position: number): Map<string, string> {
   const parameters = new Map<string, string>();
-  position = semicolon < 0 ? value.length : semicolon;
   while (position < value.length) {
-    position++;
-    while (position < value.length && isHttpWhitespace(codePointAt(value, position))) {
-      position += codePointLength(codePointAt(value, position));
-    }
-
-    const nameStart = position;
-    while (position < value.length && value[position] !== ";" && value[position] !== "=") {
-      position += codePointLength(codePointAt(value, position));
-    }
-    const name = value.slice(nameStart, position).toLowerCase();
-    if (position < value.length && value[position] === ";") continue;
-    if (position < value.length) position++;
-    if (position >= value.length) break;
-
-    let parameterValue = "";
-    if (value[position] === '"') {
-      const quotedValue = readQuotedParameterValue(value, position);
-      parameterValue = quotedValue.value;
-      position = quotedValue.position;
-      while (position < value.length && value[position] !== ";") {
-        position += codePointLength(codePointAt(value, position));
-      }
-    } else {
-      const valueStart = position;
-      while (position < value.length && value[position] !== ";") {
-        position += codePointLength(codePointAt(value, position));
-      }
-      parameterValue = trimTrailingHttpWhitespace(value.slice(valueStart, position));
-      if (parameterValue === "") continue;
-    }
-
-    if (
-      name !== "" &&
-      hasOnlyCodePoints(name, isHttpTokenCodePoint) &&
-      isHttpQuotedString(parameterValue) &&
-      !parameters.has(name)
-    ) {
-      parameters.set(name, parameterValue);
-    }
+    const nextPosition = consumeMimeParameter(value, position, parameters);
+    if (nextPosition === null) break;
+    position = nextPosition;
   }
+  return parameters;
+}
 
-  let serialized = `${type.toLowerCase()}/${subtype.toLowerCase()}`;
+export function serializeMimeType(input: string): string {
+  const header = parseMimeHeader(input);
+  if (!header) return "";
+  const parameters = parseMimeParameters(header.value, header.position);
+  let serialized = `${header.type.toLowerCase()}/${header.subtype.toLowerCase()}`;
   for (const [name, parameterValue] of parameters) {
     serialized += `;${name}=${serializeParameterValue(parameterValue)}`;
   }

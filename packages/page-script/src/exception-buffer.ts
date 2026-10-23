@@ -15,25 +15,52 @@ export interface PushExceptionOptions {
   text?: string;
 }
 
+interface ExceptionDetails {
+  className: string;
+  message: string;
+  stack: string;
+}
+
+type ThrownObject = { name?: unknown; message?: unknown; stack?: unknown };
+
+function exceptionClassName(thrown: ThrownObject): string {
+  if (typeof thrown.name === "string" && thrown.name) return thrown.name;
+  return "Error";
+}
+
+function exceptionMessage(thrown: ThrownObject): string {
+  return typeof thrown.message === "string" ? thrown.message : "";
+}
+
+function exceptionStack(thrown: ThrownObject): string {
+  return typeof thrown.stack === "string" ? thrown.stack : "";
+}
+
+function exceptionDetails(err: unknown): ExceptionDetails {
+  if (err && typeof err === "object") {
+    const thrown = err as ThrownObject;
+    return {
+      className: exceptionClassName(thrown),
+      message: exceptionMessage(thrown),
+      stack: exceptionStack(thrown),
+    };
+  }
+  return { className: "Error", message: String(err), stack: "" };
+}
+
+function completeExceptionStack(details: ExceptionDetails): string {
+  if (!details.stack) return `${details.className}: ${details.message}`;
+  if (/^[A-Z][A-Za-z]*Error/.test(details.stack) || details.stack.startsWith("Error")) {
+    return details.stack;
+  }
+  return `${details.className}: ${details.message}\n${details.stack}`;
+}
+
 export function pushException(err: unknown, opts: PushExceptionOptions): void {
   if (__exceptionBuffer.length >= EXCEPTION_BUFFER_CAP) return;
-
-  let className = "Error";
-  let message = "";
-  let stack = "";
-  if (err && typeof err === "object") {
-    const thrown = err as { name?: unknown; message?: unknown; stack?: unknown };
-    if (typeof thrown.name === "string" && thrown.name) className = thrown.name;
-    if (typeof thrown.message === "string") message = thrown.message;
-    if (typeof thrown.stack === "string") stack = thrown.stack;
-  } else {
-    message = String(err);
-  }
-  if (!stack) {
-    stack = `${className}: ${message}`;
-  } else if (!/^[A-Z][A-Za-z]*Error/.test(stack) && !stack.startsWith("Error")) {
-    stack = `${className}: ${message}\n${stack}`;
-  }
+  const details = exceptionDetails(err);
+  const { className, message } = details;
+  const stack = completeExceptionStack(details);
 
   __exceptionBuffer.push({
     timestamp: Date.now(),

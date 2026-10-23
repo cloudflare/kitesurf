@@ -19,29 +19,44 @@ export type ClassifyTag =
   | "object"
   | "array";
 
+function classifyType(type: string, value: unknown): ClassifyTag {
+  if (type === "function") return "function";
+  if (type === "object") return Array.isArray(value) ? "array" : "object";
+  return type as ClassifyTag;
+}
+
 export function classify(value: unknown): ClassifyTag {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
-  const t = typeof value;
-  if (t === "function") return "function";
-  if (t === "object") return Array.isArray(value) ? "array" : "object";
-  return t as ClassifyTag;
+  return classifyType(typeof value, value);
+}
+
+const NO_SPECIAL_REPLACEMENT = Symbol("no-special-replacement");
+
+function specialReplacement(val: unknown): unknown | typeof NO_SPECIAL_REPLACEMENT {
+  switch (typeof val) {
+    case "bigint":
+      return { __bigint: val.toString() };
+    case "function": {
+      const name = (val as { name?: string }).name || "anonymous";
+      return { __fn: name };
+    }
+    case "symbol":
+      return { __sym: val.description ?? "" };
+    case "object":
+      if (val instanceof Error) {
+        return { __err: { name: val.name, message: val.message, stack: val.stack } };
+      }
+      break;
+  }
+  return NO_SPECIAL_REPLACEMENT;
 }
 
 export function safeReplacer(): (_key: string, val: unknown) => unknown {
   const seen = new WeakSet<object>();
   return function (_key, val) {
-    if (typeof val === "bigint") return { __bigint: val.toString() };
-    if (typeof val === "function") {
-      const name = (val as { name?: string }).name || "anonymous";
-      return { __fn: name };
-    }
-    if (typeof val === "symbol") {
-      return { __sym: (val as symbol).description ?? "" };
-    }
-    if (val instanceof Error) {
-      return { __err: { name: val.name, message: val.message, stack: val.stack } };
-    }
+    const replacement = specialReplacement(val);
+    if (replacement !== NO_SPECIAL_REPLACEMENT) return replacement;
     if (val !== null && typeof val === "object") {
       if (seen.has(val as object)) return { __circular: true };
       seen.add(val as object);
@@ -50,39 +65,154 @@ export function safeReplacer(): (_key: string, val: unknown) => unknown {
   };
 }
 
+function describeFunction(value: unknown): string {
+  const MAX_FUNCTION_DESCRIPTION_CHARS = 200;
+  try {
+    return (value as { toString(): string }).toString().slice(0, MAX_FUNCTION_DESCRIPTION_CHARS);
+  } catch {
+    return "function";
+  }
+}
+
+function describeArray(value: unknown): string {
+  const len = (value as { length?: number }).length ?? 0;
+  return "Array(" + len + ")";
+}
+
+function describeObject(value: unknown): string {
+  if (value instanceof Error) return value.stack || value.name + ": " + value.message;
+  return describeObjectConstructor(value);
+}
+
+function describeObjectConstructor(value: unknown): string {
+  try {
+    const ctor = (value as { constructor?: { name?: string } }).constructor;
+    return ctor?.name || "Object";
+  } catch {
+    return "Object";
+  }
+}
+
 export function describe(value: unknown): string | undefined {
   const sub = classify(value);
-  if (sub === "string") return undefined;
-  if (sub === "boolean") return undefined;
-  if (sub === "null") return "null";
-  if (sub === "undefined") return "undefined";
-  if (sub === "function") {
-    const MAX_FUNCTION_DESCRIPTION_CHARS = 200;
-    try {
-      return (value as { toString(): string }).toString().slice(0, MAX_FUNCTION_DESCRIPTION_CHARS);
-    } catch {
-      return "function";
-    }
+  switch (sub) {
+    case "string":
+    case "boolean":
+      return undefined;
+    case "null":
+      return "null";
+    case "undefined":
+      return "undefined";
+    case "function":
+      return describeFunction(value);
+    case "array":
+      return describeArray(value);
+    case "object":
+      return describeObject(value);
+    default:
+      return String(value);
   }
-  if (sub === "array") {
-    const len = (value as { length?: number }).length ?? 0;
-    return "Array(" + len + ")";
-  }
-  if (sub === "object") {
-    if (value instanceof Error) {
-      return value.stack || value.name + ": " + value.message;
-    }
-    try {
-      const ctor = (value as { constructor?: { name?: string } }).constructor;
-      return ctor?.name || "Object";
-    } catch {
-      return "Object";
-    }
-  }
-  return String(value);
 }
 
 export const SERIALIZATION_BUDGET_EXCEEDED = Symbol("ks-serialization-budget-exceeded");
+
+function isObjectOrFunction(value: unknown): value is object | Function {
+  return (typeof value === "object" && value !== null) || typeof value === "function";
+}
+
+function classNameFallback(sub: ClassifyTag): string {
+  return sub === "array" ? "Array" : sub === "function" ? "Function" : "Object";
+}
+
+function classNameFor(value: unknown, sub: ClassifyTag): string | undefined {
+  if (!isObjectOrFunction(value)) return undefined;
+  const fallback = classNameFallback(sub);
+  try {
+    return value.constructor?.name || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function isPrimitiveTag(sub: ClassifyTag): boolean {
+  switch (sub) {
+    case "string":
+    case "number":
+    case "boolean":
+    case "bigint":
+    case "symbol":
+    case "null":
+    case "undefined":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function serializationErrorMessage(error: unknown): string {
+  if (error === SERIALIZATION_BUDGET_EXCEEDED) return "value exceeds serialization budget";
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+function serializeByValue(
+  value: unknown,
+  nodeBudget: number | undefined,
+): { serialized: unknown; serializationError: string | null } {
+  try {
+    const inner = safeReplacer();
+    let budgetLeft = nodeBudget ?? Infinity;
+    const replacer = (key: string, val: unknown): unknown => {
+      if (--budgetLeft < 0) throw SERIALIZATION_BUDGET_EXCEEDED;
+      return inner(key, val);
+    };
+    return {
+      serialized: JSON.parse(JSON.stringify(value, replacer)),
+      serializationError: null,
+    };
+  } catch (error) {
+    return { serialized: undefined, serializationError: serializationErrorMessage(error) };
+  }
+}
+
+function hasObjectHandle(sub: ClassifyTag): boolean {
+  return sub === "object" || sub === "function" || sub === "array";
+}
+
+function shouldMintObjectId(returnByValue: boolean, sub: ClassifyTag): boolean {
+  return !returnByValue && hasObjectHandle(sub);
+}
+
+function resultType(sub: ClassifyTag): PackedResultType {
+  return sub === "null" || sub === "array" ? "object" : sub;
+}
+
+function serializeResultValue(
+  value: unknown,
+  returnByValue: boolean,
+  sub: ClassifyTag,
+  nodeBudget: number | undefined,
+): { serialized: unknown; serializationError: string | null } {
+  return isPrimitiveTag(sub) || returnByValue
+    ? serializeByValue(value, nodeBudget)
+    : { serialized: undefined, serializationError: null };
+}
+
+function valueJson(serialized: unknown): string | undefined {
+  return serialized === undefined ? undefined : JSON.stringify(serialized);
+}
+
+function packedSubtype(sub: ClassifyTag, value: unknown): "null" | "array" | "error" | undefined {
+  switch (sub) {
+    case "null":
+      return "null";
+    case "array":
+      return "array";
+    case "object":
+      if (value instanceof Error) return "error";
+  }
+  return undefined;
+}
 
 export function packResult(
   value: unknown,
@@ -90,75 +220,33 @@ export function packResult(
   nodeBudget?: number,
 ): PackedResult {
   const sub = classify(value);
-  let className: string | undefined;
-  if ((typeof value === "object" && value !== null) || typeof value === "function") {
-    const fallback = sub === "array" ? "Array" : sub === "function" ? "Function" : "Object";
-    try {
-      className = value.constructor?.name || fallback;
-    } catch {
-      className = fallback;
-    }
-  }
-  const isPrimitive =
-    sub === "string" ||
-    sub === "number" ||
-    sub === "boolean" ||
-    sub === "bigint" ||
-    sub === "symbol" ||
-    sub === "null" ||
-    sub === "undefined";
-  const wantValue = isPrimitive || returnByValue;
-  let serialized: unknown;
-  let serializationError: string | null = null;
-  if (wantValue) {
-    try {
-      const inner = safeReplacer();
-      let budgetLeft = nodeBudget ?? Infinity;
-      const replacer = (key: string, val: unknown): unknown => {
-        if (--budgetLeft < 0) throw SERIALIZATION_BUDGET_EXCEEDED;
-        return inner(key, val);
-      };
-      serialized = JSON.parse(JSON.stringify(value, replacer));
-    } catch (err) {
-      serializationError =
-        err === SERIALIZATION_BUDGET_EXCEEDED
-          ? "value exceeds serialization budget"
-          : err instanceof Error
-            ? err.message
-            : String(err);
-    }
-  }
-  let objectId: string | undefined;
-  if (!returnByValue && (sub === "object" || sub === "function" || sub === "array")) {
-    objectId = mintHandle(value);
-  }
-  const type: PackedResultType = sub === "null" || sub === "array" ? "object" : sub;
-  let subtype: "null" | "array" | "error" | undefined;
-  if (sub === "null") subtype = "null";
-  else if (sub === "array") subtype = "array";
-  else if (sub === "object" && value instanceof Error) subtype = "error";
+  const className = classNameFor(value, sub);
+  const serialization = serializeResultValue(value, returnByValue, sub, nodeBudget);
+  const objectId = shouldMintObjectId(returnByValue, sub) ? mintHandle(value) : undefined;
   return {
     ok: true,
-    type,
-    subtype,
+    type: resultType(sub),
+    subtype: packedSubtype(sub, value),
     className,
     description: describe(value),
-    valueJson: serialized === undefined ? undefined : JSON.stringify(serialized),
-    serializationError,
+    valueJson: valueJson(serialization.serialized),
+    serializationError: serialization.serializationError,
     objectId,
   };
 }
 
+function exceptionMessageAndStack(err: unknown): { message: string; stack: string | undefined } {
+  if (err instanceof Error) return { message: err.message, stack: err.stack };
+  return { message: String(err), stack: undefined };
+}
+
+function exceptionClassName(err: unknown): string {
+  return err instanceof Error ? err.constructor?.name || "Error" : "Error";
+}
+
 export function packException(err: unknown): PackedException {
-  let message: string;
-  let stack: string | undefined;
-  if (err instanceof Error) {
-    message = err.message;
-    stack = err.stack;
-  } else {
-    message = String(err);
-  }
-  const className = err instanceof Error ? err.constructor?.name || "Error" : "Error";
+  const { message, stack } = exceptionMessageAndStack(err);
+  const className = exceptionClassName(err);
   return {
     ok: false,
     exception: {

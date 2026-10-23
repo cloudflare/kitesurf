@@ -38,15 +38,23 @@ export function classForImageHints(
   hints: ReadonlyArray<{ priority: string; lazy: boolean }>,
 ): number {
   if (hints.length === 0) return CLASS_IMAGE;
+  const priorities = imageHintPriorities(hints);
+  if (priorities.anyHigh) return CLASS_FONT;
+  if (priorities.allDeferred) return CLASS_DEFERRED;
+  return CLASS_IMAGE;
+}
+
+function imageHintPriorities(hints: ReadonlyArray<{ priority: string; lazy: boolean }>): {
+  anyHigh: boolean;
+  allDeferred: boolean;
+} {
   let anyHigh = false;
   let allDeferred = true;
   for (const hint of hints) {
     if (hint.priority === "high") anyHigh = true;
     if (!(hint.priority === "low" || hint.lazy)) allDeferred = false;
   }
-  if (anyHigh) return CLASS_FONT;
-  if (allDeferred) return CLASS_DEFERRED;
-  return CLASS_IMAGE;
+  return { anyHigh, allDeferred };
 }
 
 const NativePromiseCtor = Promise;
@@ -99,15 +107,7 @@ export class FetchSlots {
 
   acquire(url: string, resourceClass: number = CLASS_IMAGE): Promise<void> {
     const host = fetchHostKey(url);
-    const lastContestedAdmission = this.lastContestedAdmission;
-    if (
-      lastContestedAdmission &&
-      resourceClass < lastContestedAdmission.resourceClass &&
-      host === lastContestedAdmission.host &&
-      this.now() - lastContestedAdmission.admittedAt <= MISORDER_WINDOW_MS
-    ) {
-      this.misorderHitCount++;
-    }
+    this.notePotentialMisorder(resourceClass, host);
     return new NativePromiseCtor<void>((resolve) => {
       this.pending.push({
         url,
@@ -119,6 +119,18 @@ export class FetchSlots {
       });
       this.scheduleDrain();
     });
+  }
+
+  private notePotentialMisorder(resourceClass: number, host: string): void {
+    const lastContestedAdmission = this.lastContestedAdmission;
+    if (
+      lastContestedAdmission &&
+      resourceClass < lastContestedAdmission.resourceClass &&
+      host === lastContestedAdmission.host &&
+      this.now() - lastContestedAdmission.admittedAt <= MISORDER_WINDOW_MS
+    ) {
+      this.misorderHitCount++;
+    }
   }
 
   poke(): void {
@@ -152,50 +164,48 @@ export class FetchSlots {
 
   private drain(): void {
     if (this.pending.length === 0) return;
-    if (this.boostProbe) {
-      const memo = new Map<string, number | null>();
-      for (const waiter of this.pending) {
-        if (waiter.resourceClass !== CLASS_IMAGE) continue;
-        let boostedClass = memo.get(waiter.url);
-        if (boostedClass === undefined) {
-          try {
-            boostedClass = this.boostProbe(waiter.url);
-          } catch {
-            boostedClass = null;
-          }
-          memo.set(waiter.url, boostedClass);
-        }
-        if (typeof boostedClass === "number" && boostedClass < waiter.resourceClass) {
-          waiter.resourceClass = boostedClass;
-        }
-      }
-    }
+    this.applyBoosts();
     this.pending.sort(
       (left, right) =>
         left.resourceClass - right.resourceClass || left.arrivalSequence - right.arrivalSequence,
     );
     const remainingWaiters: Waiter[] = [];
     for (const waiter of this.pending) {
-      const hostInflightCount = this.hostInflight.get(waiter.host) ?? 0;
-      if (this.globalInflight < this.globalLimit && hostInflightCount < this.perHostLimit) {
-        this.hostInflight.set(waiter.host, hostInflightCount + 1);
-        this.globalInflight++;
-        if (waiter.firstDrain) {
-          this.uncontendedCount++;
-        } else {
-          this.lastContestedAdmission = {
-            resourceClass: waiter.resourceClass,
-            host: waiter.host,
-            admittedAt: this.now(),
-          };
-        }
-        waiter.resume();
-      } else {
-        waiter.firstDrain = false;
-        remainingWaiters.push(waiter);
-      }
+      this.admitOrRetain(waiter, remainingWaiters);
     }
     this.pending = remainingWaiters;
+  }
+
+  private applyBoosts(): void {
+    const probe = this.boostProbe;
+    if (!probe) return;
+    const memo = new Map<string, number | null>();
+    for (const waiter of this.pending) applyWaiterBoost(waiter, memo, probe);
+  }
+
+  private admitOrRetain(waiter: Waiter, remainingWaiters: Waiter[]): void {
+    const hostInflightCount = this.hostInflight.get(waiter.host) ?? 0;
+    if (!this.canAdmit(hostInflightCount)) {
+      waiter.firstDrain = false;
+      remainingWaiters.push(waiter);
+      return;
+    }
+    this.hostInflight.set(waiter.host, hostInflightCount + 1);
+    this.globalInflight++;
+    if (waiter.firstDrain) {
+      this.uncontendedCount++;
+    } else {
+      this.lastContestedAdmission = {
+        resourceClass: waiter.resourceClass,
+        host: waiter.host,
+        admittedAt: this.now(),
+      };
+    }
+    waiter.resume();
+  }
+
+  private canAdmit(hostInflightCount: number): boolean {
+    return this.globalInflight < this.globalLimit && hostInflightCount < this.perHostLimit;
   }
 
   stats(): {
@@ -212,5 +222,34 @@ export class FetchSlots {
       uncontended: this.uncontendedCount,
       misorderHits: this.misorderHitCount,
     };
+  }
+}
+
+function boostedClassFor(
+  url: string,
+  memo: Map<string, number | null>,
+  probe: (url: string) => number | null,
+): number | null {
+  let boostedClass = memo.get(url);
+  if (boostedClass === undefined) {
+    try {
+      boostedClass = probe(url);
+    } catch {
+      boostedClass = null;
+    }
+    memo.set(url, boostedClass);
+  }
+  return boostedClass;
+}
+
+function applyWaiterBoost(
+  waiter: Waiter,
+  memo: Map<string, number | null>,
+  probe: (url: string) => number | null,
+): void {
+  if (waiter.resourceClass !== CLASS_IMAGE) return;
+  const boostedClass = boostedClassFor(waiter.url, memo, probe);
+  if (typeof boostedClass === "number" && boostedClass < waiter.resourceClass) {
+    waiter.resourceClass = boostedClass;
   }
 }

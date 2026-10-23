@@ -15,9 +15,13 @@ import {
   reportBlocked,
   reportOnly,
 } from "./script-policy.ts";
+import type { InsertedScriptMetadata } from "./script-policy.ts";
 import { holdsSharedMemory } from "./shared-memory.ts";
 import { ksEventCtors, ksGlobal, state } from "./state.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
+
+type WorkerMessageParams = Extract<WorkerEventParams, { type: "message" }>;
+type WorkerErrorParams = Extract<WorkerEventParams, { type: "error" }>;
 
 type ListenerFn = (this: unknown, event: Event) => unknown;
 type Listener = { fn: ListenerFn; once: boolean; src: unknown };
@@ -48,6 +52,30 @@ function hasHandleEvent(value: unknown): value is { handleEvent(event: Event): u
     "handleEvent" in value &&
     typeof value.handleEvent === "function"
   );
+}
+
+interface WorkerOptions {
+  type?: unknown;
+  name?: unknown;
+}
+
+function workerOptions(options: unknown): WorkerOptions {
+  return options && typeof options === "object" ? options : {};
+}
+
+function requireWorkerArgument(argumentCount: number): void {
+  if (argumentCount === 0) {
+    throw new TypeError("Failed to construct 'Worker': 1 argument required, but only 0 present.");
+  }
+}
+
+function requireClassicWorker(options: WorkerOptions): void {
+  if (options.type !== undefined && String(options.type) === "module") {
+    throw domException(
+      "Failed to construct 'Worker': Kitesurf does not support module workers yet.",
+      "NotSupportedError",
+    );
+  }
 }
 
 const live = new Map<number, KsWorkerState>();
@@ -91,33 +119,8 @@ function documentBase(): string {
 }
 
 function cloneForWorker(message: unknown, transferOrOptions: unknown): unknown {
-  let transfer: unknown[] = [];
-  if (transferOrOptions !== undefined && transferOrOptions !== null) {
-    if (typeof transferOrOptions !== "object") {
-      throw new TypeError("Transfer list must be an object");
-    }
-    if (isIterable(transferOrOptions)) {
-      transfer = Array.from(transferOrOptions);
-    } else if ("transfer" in transferOrOptions && transferOrOptions.transfer !== undefined) {
-      const list = transferOrOptions.transfer;
-      if (!isIterable(list)) throw new TypeError("Transfer list must be iterable");
-      transfer = Array.from(list);
-    }
-  }
-  const seen = new Set<unknown>();
-  for (const item of transfer) {
-    if ((typeof item !== "object" && typeof item !== "function") || item === null) {
-      throw new TypeError(
-        "Failed to execute 'postMessage' on 'Worker': Transfer list items must be objects",
-      );
-    }
-    if (seen.has(item))
-      throw domException("Duplicate transferable in transfer list", "DataCloneError");
-    seen.add(item);
-    if (!(item instanceof ksGlobal.ArrayBuffer)) {
-      throw domException("Kitesurf can only transfer ArrayBuffers to a worker", "DataCloneError");
-    }
-  }
+  const transfer = transferItems(transferOrOptions);
+  validateTransferItems(transfer);
   const clone: (value: unknown, options?: { transfer: unknown[] }) => unknown =
     ksGlobal.structuredClone;
   const data = transfer.length ? clone(message, { transfer }) : clone(message);
@@ -130,14 +133,68 @@ function cloneForWorker(message: unknown, transferOrOptions: unknown): unknown {
   return data;
 }
 
+function transferItems(transferOrOptions: unknown): unknown[] {
+  if (transferOrOptions === undefined || transferOrOptions === null) return [];
+  if (typeof transferOrOptions !== "object") {
+    throw new TypeError("Transfer list must be an object");
+  }
+  if (isIterable(transferOrOptions)) return Array.from(transferOrOptions);
+  return transferItemsFromOptions(transferOrOptions);
+}
+
+function transferItemsFromOptions(options: object): unknown[] {
+  if (!("transfer" in options) || options.transfer === undefined) return [];
+  const transfer = options.transfer;
+  if (!isIterable(transfer)) throw new TypeError("Transfer list must be iterable");
+  return Array.from(transfer);
+}
+
+function isTransferObject(value: unknown): value is object {
+  return (typeof value === "object" && value !== null) || typeof value === "function";
+}
+
+function validateTransferItems(transfer: unknown[]): void {
+  const seen = new Set<unknown>();
+  for (const item of transfer) {
+    if (!isTransferObject(item)) {
+      throw new TypeError(
+        "Failed to execute 'postMessage' on 'Worker': Transfer list items must be objects",
+      );
+    }
+    if (seen.has(item))
+      throw domException("Duplicate transferable in transfer list", "DataCloneError");
+    seen.add(item);
+    if (!(item instanceof ksGlobal.ArrayBuffer)) {
+      throw domException("Kitesurf can only transfer ArrayBuffers to a worker", "DataCloneError");
+    }
+  }
+}
+
 async function loadSource(url: string): Promise<string> {
   const meta = { url };
+  const pre = await checkWorkerScriptPolicy(meta);
+  return workerSourceForUrl(meta, pre);
+}
+
+type WorkerScriptMetadata = InsertedScriptMetadata & { url: string };
+
+async function checkWorkerScriptPolicy(
+  meta: WorkerScriptMetadata,
+): Promise<Awaited<ReturnType<typeof insertedScriptAllowed>>> {
   const pre = await insertedScriptAllowed(meta);
   reportOnly(pre);
   if (!pre.allowed) {
     reportBlocked(pre);
     throw new Error(pre.reason ?? "blocked by policy");
   }
+  return pre;
+}
+
+async function workerSourceForUrl(
+  meta: WorkerScriptMetadata,
+  pre: Awaited<ReturnType<typeof insertedScriptAllowed>>,
+): Promise<string> {
+  const url = meta.url;
   if (url.startsWith("blob:")) {
     const blob = state.blobUrls.get(url);
     if (!blob) throw new Error("blob URL is not registered (revoked?)");
@@ -148,9 +205,31 @@ async function loadSource(url: string): Promise<string> {
     if (!response.ok) throw new Error(`data: URL failed to load`);
     return await response.text();
   }
+  return fetchWorkerSource(meta, pre);
+}
+
+async function fetchWorkerSource(
+  meta: WorkerScriptMetadata,
+  pre: Awaited<ReturnType<typeof insertedScriptAllowed>>,
+): Promise<string> {
+  const url = meta.url;
   const response = await fetchInsertedScript(pre.upgradeTo ?? url, "");
+  requireSuccessfulWorkerResponse(response);
+  await requireWorkerResponsePolicy(meta, response);
+  return response.source;
+}
+
+function requireSuccessfulWorkerResponse(
+  response: Awaited<ReturnType<typeof fetchInsertedScript>>,
+): void {
   if (response.status === 0) throw new Error("fetch failed");
   if (response.status >= 400) throw new Error(`HTTP ${response.status}`);
+}
+
+async function requireWorkerResponsePolicy(
+  meta: WorkerScriptMetadata,
+  response: Awaited<ReturnType<typeof fetchInsertedScript>>,
+): Promise<void> {
   const post = await insertedResponseAllowed(meta, {
     contentType: response.contentType,
     contentTypeOptions: response.nosniff,
@@ -161,7 +240,6 @@ async function loadSource(url: string): Promise<string> {
     reportBlocked(post);
     throw new Error(post.reason ?? "blocked by policy");
   }
-  return response.source;
 }
 
 let WorkerClass: unknown = null;
@@ -185,41 +263,13 @@ function buildWorkerClass(): unknown {
 
     constructor(scriptURL: unknown, options?: unknown) {
       super();
-      if (arguments.length === 0) {
-        throw new TypeError(
-          "Failed to construct 'Worker': 1 argument required, but only 0 present.",
-        );
-      }
-      const opts: { type?: unknown; name?: unknown } =
-        options && typeof options === "object" ? options : {};
-      if (opts.type !== undefined && String(opts.type) === "module") {
-        throw domException(
-          "Failed to construct 'Worker': Kitesurf does not support module workers yet.",
-          "NotSupportedError",
-        );
-      }
-      let url: URL;
-      try {
-        url = new URL(String(scriptURL), documentBase());
-      } catch {
-        throw domException(
-          `Failed to construct 'Worker': The URL '${String(scriptURL)}' is invalid.`,
-          "SyntaxError",
-        );
-      }
+      requireWorkerArgument(arguments.length);
+      const opts = workerOptions(options);
+      requireClassicWorker(opts);
+      const url = resolveWorkerUrl(scriptURL);
       const href = url.href;
       const origin = documentOrigin();
-      const protocol = url.protocol;
-      const sameOrigin =
-        protocol === "data:" ||
-        (protocol === "blob:" && state.blobUrls.has(href)) ||
-        ((protocol === "http:" || protocol === "https:") && url.origin === origin);
-      if (!sameOrigin) {
-        throw domException(
-          `Failed to construct 'Worker': Script at '${href}' cannot be accessed from origin '${origin}'.`,
-          "SecurityError",
-        );
-      }
+      requireWorkerOrigin(url, href, origin);
       const id = nextWorkerId++;
       const ws: KsWorkerState = {
         id,
@@ -233,46 +283,7 @@ function buildWorkerClass(): unknown {
       Object.defineProperty(this, STATE, { value: ws });
       live.set(id, ws);
       const name = opts.name === undefined ? "" : String(opts.name);
-      const nav: {
-        userAgent?: unknown;
-        language?: unknown;
-        languages?: unknown;
-        platform?: unknown;
-      } = ksGlobal.navigator ?? {};
-      const navigatorInfo = {
-        userAgent: String(nav.userAgent ?? ""),
-        language: String(nav.language ?? "en-US"),
-        languages: isIterable(nav.languages) ? Array.from(nav.languages, String) : ["en-US"],
-        platform: String(nav.platform ?? ""),
-      };
-      void loadSource(href).then(
-        (source) => {
-          if (ws.done) return;
-          sendUpstreamEvent({
-            event: "kitesurf.workerCreate",
-            params: { workerId: id, url: href, name, source, navigator: navigatorInfo },
-          });
-          ws.created = true;
-          for (const data of ws.queue) {
-            sendUpstreamEvent({
-              event: "kitesurf.workerPostMessage",
-              params: { workerId: id, data },
-            });
-          }
-          ws.queue = [];
-        },
-        (err) => {
-          if (ws.done) return;
-          try {
-            console.error(
-              `Failed to load worker script at '${href}': ` +
-                (err instanceof Error ? err.message : String(err)),
-            );
-          } catch {}
-          finish(ws);
-          dispatch(ws, new ksEventCtors.Event("error"));
-        },
-      );
+      startWorkerLoad(ws, href, name, workerNavigatorInfo());
     }
 
     postMessage(message?: unknown, transferOrOptions?: unknown): void {
@@ -302,22 +313,12 @@ function buildWorkerClass(): unknown {
     }
 
     addEventListener(type: unknown, listener: unknown, options?: unknown): void {
-      let fn: ListenerFn | null = null;
-      if (isListenerFn(listener)) {
-        fn = listener;
-      } else if (hasHandleEvent(listener)) {
-        fn = function (event: Event) {
-          return listener.handleEvent(event);
-        };
-      }
+      const fn = listenerFunction(listener);
       if (!fn) return;
-      const once = !!(options && typeof options === "object" && "once" in options && options.once);
-      const listeners = this[STATE].listeners;
+      const once = listenerOnce(options);
+      const ws = this[STATE];
       const key = String(type);
-      const list = listeners.get(key) ?? [];
-      if (list.some((l) => l.src === listener)) return;
-      list.push({ fn, once, src: listener });
-      listeners.set(key, list);
+      addWorkerListener(ws, key, listener, fn, once);
     }
 
     removeEventListener(type: unknown, listener: unknown): void {
@@ -350,86 +351,180 @@ function buildWorkerClass(): unknown {
     if (i >= 0) list.splice(i, 1);
   }
 
-  function dispatch(ws: KsWorkerState, event: Event): void {
-    const worker = ws.owner;
-    for (const key of ["target", "currentTarget", "srcElement"]) {
-      try {
-        Object.defineProperty(event, key, { value: worker, configurable: true, enumerable: true });
-      } catch {}
-    }
-    const type = String(event.type);
-    const handler = ws.handlers.get(type);
-    const list = (ws.listeners.get(type) ?? []).slice();
-    for (const l of list) {
-      if (l.once) removeListener(ws, type, l.src);
-      try {
-        l.fn.call(worker, event);
-      } catch (error) {
-        try {
-          console.error(error);
-        } catch {}
-      }
-    }
-    if (handler) {
-      try {
-        handler.call(worker, event);
-      } catch (error) {
-        try {
-          console.error(error);
-        } catch {}
-      }
-    }
-  }
-
   function finish(ws: KsWorkerState): void {
     ws.done = true;
     ws.queue = [];
     live.delete(ws.id);
   }
 
+  function dispatch(ws: KsWorkerState, event: Event): void {
+    const worker = ws.owner;
+    setWorkerEventTargets(event, worker);
+    const type = String(event.type);
+    const handler = ws.handlers.get(type);
+    dispatchWorkerListeners(ws, type, worker, event);
+    dispatchWorkerHandler(handler, worker, event);
+  }
+
+  function setWorkerEventTargets(event: Event, worker: object): void {
+    for (const key of ["target", "currentTarget", "srcElement"]) {
+      try {
+        Object.defineProperty(event, key, { value: worker, configurable: true, enumerable: true });
+      } catch {}
+    }
+  }
+
+  function dispatchWorkerListeners(
+    ws: KsWorkerState,
+    type: string,
+    worker: object,
+    event: Event,
+  ): void {
+    const list = (ws.listeners.get(type) ?? []).slice();
+    for (const l of list) {
+      if (l.once) removeListener(ws, type, l.src);
+      try {
+        l.fn.call(worker, event);
+      } catch (error) {
+        reportListenerError(error);
+      }
+    }
+  }
+
+  function dispatchWorkerHandler(
+    handler: ListenerFn | null | undefined,
+    worker: object,
+    event: Event,
+  ): void {
+    if (!handler) return;
+    try {
+      handler.call(worker, event);
+    } catch (error) {
+      reportListenerError(error);
+    }
+  }
+
+  function reportListenerError(error: unknown): void {
+    try {
+      console.error(error);
+    } catch {}
+  }
+
+  function startWorkerLoad(
+    ws: KsWorkerState,
+    href: string,
+    name: string,
+    navigatorInfo: WorkerNavigatorInfo,
+  ): void {
+    void loadSource(href).then(
+      (source) => announceWorker(ws, href, name, source, navigatorInfo),
+      (error: unknown) => failWorkerLoad(ws, href, error),
+    );
+  }
+
+  function announceWorker(
+    ws: KsWorkerState,
+    href: string,
+    name: string,
+    source: string,
+    navigatorInfo: WorkerNavigatorInfo,
+  ): void {
+    if (ws.done) return;
+    sendUpstreamEvent({
+      event: "kitesurf.workerCreate",
+      params: { workerId: ws.id, url: href, name, source, navigator: navigatorInfo },
+    });
+    ws.created = true;
+    for (const data of ws.queue) {
+      sendUpstreamEvent({
+        event: "kitesurf.workerPostMessage",
+        params: { workerId: ws.id, data },
+      });
+    }
+    ws.queue = [];
+  }
+
+  function failWorkerLoad(ws: KsWorkerState, href: string, error: unknown): void {
+    if (ws.done) return;
+    try {
+      console.error(
+        `Failed to load worker script at '${href}': ` +
+          (error instanceof Error ? error.message : String(error)),
+      );
+    } catch {}
+    finish(ws);
+    dispatch(ws, new ksEventCtors.Event("error"));
+  }
+
+  function deliverMessage(ws: KsWorkerState, params: WorkerMessageParams): void {
+    const Ctor: MessageEventCtor = ksEventCtors.MessageEvent || ksGlobal.MessageEvent;
+    const event = new Ctor("message", { data: params.data, origin: "" });
+    if (params.data === undefined) {
+      try {
+        Object.defineProperty(event, "data", {
+          value: undefined,
+          configurable: true,
+          enumerable: true,
+        });
+      } catch {}
+    }
+    dispatch(ws, event);
+  }
+
+  function createWorkerErrorEvent(params: WorkerErrorParams): Event {
+    const Ctor: ErrorEventCtor = ksEventCtors.ErrorEvent || ksGlobal.ErrorEvent;
+    const init = {
+      message: params.message,
+      filename: params.filename,
+      lineno: params.lineno,
+      colno: params.colno,
+      cancelable: true,
+    };
+    try {
+      return new Ctor("error", init);
+    } catch {
+      return Object.assign(new ksEventCtors.Event("error", { cancelable: true }), init);
+    }
+  }
+
+  function deliverWorkerError(ws: KsWorkerState, params: WorkerErrorParams): void {
+    const event = createWorkerErrorEvent(params);
+    dispatch(ws, event);
+    reportUnhandledWorkerError(event, params.message);
+  }
+
+  function reportUnhandledWorkerError(event: Event, message: string): void {
+    if (event.defaultPrevented) return;
+    try {
+      console.error(message || "Uncaught error in worker");
+    } catch {}
+  }
+
+  function deliverLoadError(ws: KsWorkerState): void {
+    finish(ws);
+    dispatch(ws, new ksEventCtors.Event("error"));
+  }
+
+  function deliverClosed(ws: KsWorkerState): void {
+    finish(ws);
+  }
+
+  function dispatchWorkerEvent(ws: KsWorkerState, params: WorkerEventParams): void {
+    if (params.type === "message") {
+      deliverMessage(ws, params);
+    } else if (params.type === "error") {
+      deliverWorkerError(ws, params);
+    } else if (params.type === "loadError") {
+      deliverLoadError(ws);
+    } else if (params.type === "closed") {
+      deliverClosed(ws);
+    }
+  }
+
   deliverWorkerEventImpl = (params: WorkerEventParams) => {
     const ws = live.get(Number(params?.workerId));
     if (!ws || ws.done) return;
-    if (params.type === "message") {
-      const Ctor: MessageEventCtor = ksEventCtors.MessageEvent || ksGlobal.MessageEvent;
-      const event = new Ctor("message", { data: params.data, origin: "" });
-      if (params.data === undefined) {
-        try {
-          Object.defineProperty(event, "data", {
-            value: undefined,
-            configurable: true,
-            enumerable: true,
-          });
-        } catch {}
-      }
-      dispatch(ws, event);
-    } else if (params.type === "error") {
-      const Ctor: ErrorEventCtor = ksEventCtors.ErrorEvent || ksGlobal.ErrorEvent;
-      const init = {
-        message: params.message,
-        filename: params.filename,
-        lineno: params.lineno,
-        colno: params.colno,
-        cancelable: true,
-      };
-      let event: Event;
-      try {
-        event = new Ctor("error", init);
-      } catch {
-        event = Object.assign(new ksEventCtors.Event("error", { cancelable: true }), init);
-      }
-      dispatch(ws, event);
-      if (!event.defaultPrevented) {
-        try {
-          console.error(params.message || "Uncaught error in worker");
-        } catch {}
-      }
-    } else if (params.type === "loadError") {
-      finish(ws);
-      dispatch(ws, new ksEventCtors.Event("error"));
-    } else if (params.type === "closed") {
-      finish(ws);
-    }
+    dispatchWorkerEvent(ws, params);
   };
 
   Object.defineProperty(Worker, "name", { value: "Worker", configurable: true });
@@ -443,6 +538,99 @@ function buildWorkerClass(): unknown {
     configurable: true,
   });
   return Worker;
+}
+
+function resolveWorkerUrl(scriptURL: unknown): URL {
+  try {
+    return new URL(String(scriptURL), documentBase());
+  } catch {
+    throw domException(
+      `Failed to construct 'Worker': The URL '${String(scriptURL)}' is invalid.`,
+      "SyntaxError",
+    );
+  }
+}
+
+function isHttpWorkerUrlSameOriginWithProtocol(
+  protocol: string,
+  url: URL,
+  origin: string,
+): boolean {
+  return isHttpProtocol(protocol) && url.origin === origin;
+}
+
+function isSameOriginWorkerUrl(url: URL, href: string, origin: string): boolean {
+  const protocol = url.protocol;
+  if (protocol === "data:") return true;
+  if (protocol === "blob:") return state.blobUrls.has(href);
+  return isHttpWorkerUrlSameOriginWithProtocol(protocol, url, origin);
+}
+
+function isHttpProtocol(protocol: string): boolean {
+  return protocol === "http:" || protocol === "https:";
+}
+
+function requireWorkerOrigin(url: URL, href: string, origin: string): void {
+  if (isSameOriginWorkerUrl(url, href, origin)) return;
+  throw domException(
+    `Failed to construct 'Worker': Script at '${href}' cannot be accessed from origin '${origin}'.`,
+    "SecurityError",
+  );
+}
+
+function navigatorText(value: unknown, fallback: string): string {
+  return String(value ?? fallback);
+}
+
+function navigatorLanguages(nav: { languages?: unknown }): string[] {
+  return isIterable(nav.languages) ? Array.from(nav.languages, String) : ["en-US"];
+}
+
+interface WorkerNavigatorInfo {
+  userAgent: string;
+  language: string;
+  languages: string[];
+  platform: string;
+}
+
+function workerNavigatorInfo(): WorkerNavigatorInfo {
+  const nav: {
+    userAgent?: unknown;
+    language?: unknown;
+    languages?: unknown;
+    platform?: unknown;
+  } = ksGlobal.navigator ?? {};
+  return {
+    userAgent: navigatorText(nav.userAgent, ""),
+    language: navigatorText(nav.language, "en-US"),
+    languages: navigatorLanguages(nav),
+    platform: navigatorText(nav.platform, ""),
+  };
+}
+
+function listenerFunction(listener: unknown): ListenerFn | null {
+  if (isListenerFn(listener)) return listener;
+  if (!hasHandleEvent(listener)) return null;
+  return function (event: Event) {
+    return listener.handleEvent(event);
+  };
+}
+
+function listenerOnce(options: unknown): boolean {
+  return !!(options && typeof options === "object" && "once" in options && options.once);
+}
+
+function addWorkerListener(
+  ws: KsWorkerState,
+  type: string,
+  source: unknown,
+  fn: ListenerFn,
+  once: boolean,
+): void {
+  const list = ws.listeners.get(type) ?? [];
+  if (list.some((listener) => listener.src === source)) return;
+  list.push({ fn, once, src: source });
+  ws.listeners.set(type, list);
 }
 
 let deliverWorkerEventImpl: ((params: WorkerEventParams) => void) | null = null;

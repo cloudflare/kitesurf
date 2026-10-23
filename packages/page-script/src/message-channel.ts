@@ -64,24 +64,8 @@ export function installMessageChannel(
       if (listenerIndex !== -1) this._listeners.splice(listenerIndex, 1);
     }
     dispatchEvent(event: any): boolean {
-      for (const listener of this._listeners.slice()) {
-        try {
-          listener.call(this, event);
-        } catch (error) {
-          try {
-            console.error(error);
-          } catch {}
-        }
-      }
-      if (this._onmessage) {
-        try {
-          this._onmessage.call(this, event);
-        } catch (error) {
-          try {
-            console.error(error);
-          } catch {}
-        }
-      }
+      dispatchPortListeners(this._listeners.slice(), this, event);
+      if (this._onmessage) dispatchPortListener(this._onmessage, this, event);
       return true;
     }
     start(): void {
@@ -93,42 +77,17 @@ export function installMessageChannel(
       }
     }
     _deliver(data: unknown, ports: KsMessagePort[] = []): void {
-      queueTask(() => {
-        let target: any = this;
-        while (target._transferredTo) target = target._transferredTo;
-        if (target !== this) {
-          target._enqueue(data, ports);
-          return;
-        }
-        if (this._closed) return;
-        const pageMessageEvent: unknown =
-          pageMessageEventCtor() || ksGlobal.MessageEvent || MessageEventConstructor;
-        const frozenPorts = Object.freeze(ports.slice());
-        let event: object;
-        try {
-          event = new (pageMessageEvent as PageMessageEventConstructor)("message", {
-            data,
-            ports: frozenPorts,
-          });
-        } catch {
-          event = { type: "message", data };
-        }
-        for (const [propertyName, propertyValue] of [
-          ["ports", frozenPorts],
-          ["target", this],
-          ["currentTarget", this],
-          ["srcElement", this],
-        ] as Array<[string, any]>) {
-          try {
-            Object.defineProperty(event, propertyName, {
-              value: propertyValue,
-              configurable: true,
-              enumerable: true,
-            });
-          } catch {}
-        }
-        this.dispatchEvent(event);
-      });
+      queueTask(() => this._deliverQueued(data, ports));
+    }
+    _deliverQueued(data: unknown, ports: KsMessagePort[]): void {
+      let target: any = this;
+      while (target._transferredTo) target = target._transferredTo;
+      if (target !== this) {
+        target._enqueue(data, ports);
+        return;
+      }
+      if (this._closed) return;
+      this.dispatchEvent(createPortMessageEvent(data, ports, this));
     }
     _enqueue(data: unknown, ports: KsMessagePort[] = []): void {
       if (this._closed) return;
@@ -159,64 +118,10 @@ export function installMessageChannel(
           "Failed to execute 'postMessage' on 'MessagePort': 1 argument required, but only 0 present.",
         );
       }
-      let transfer: unknown[] = [];
-      const transferOptions = transferOrOptions;
-      if (transferOptions !== undefined && transferOptions !== null) {
-        if (typeof transferOptions !== "object") {
-          throw new TypeError("Transfer list must be an object");
-        }
-        if (typeof transferOptions[Symbol.iterator] === "function") {
-          transfer = Array.from(transferOptions);
-        } else if (transferOptions.transfer !== undefined) {
-          const transferList = transferOptions.transfer;
-          if (
-            transferList === null ||
-            typeof transferList !== "object" ||
-            typeof transferList[Symbol.iterator] !== "function"
-          ) {
-            throw new TypeError("options.transfer must be a sequence");
-          }
-          transfer = Array.from(transferList);
-        }
-      }
-      const seen = new Set<unknown>();
-      const portsToTransfer: KsMessagePort[] = [];
-      const buffers: ArrayBuffer[] = [];
-      for (const transferable of transfer) {
-        if (transferable === this) throw dataCloneError("The source port cannot be transferred");
-        if (seen.has(transferable)) throw dataCloneError("Duplicate transferable in transfer list");
-        seen.add(transferable);
-        if (transferable instanceof KsMessagePort) {
-          if (transferable._closed || transferable._detached)
-            throw dataCloneError("MessagePort is already detached");
-          portsToTransfer.push(transferable);
-        } else if (transferable instanceof (ksGlobal.ArrayBuffer as typeof ArrayBuffer)) {
-          buffers.push(transferable);
-        } else {
-          throw dataCloneError("Value is not transferable");
-        }
-      }
-      let cloned: unknown = data;
-      if (canStructuredClone) {
-        try {
-          cloned = buffers.length
-            ? (ksGlobal.structuredClone as PageStructuredClone)(data, { transfer: buffers })
-            : (ksGlobal.structuredClone as PageStructuredClone)(data);
-        } catch (error: any) {
-          throw error && error.name === "DataCloneError"
-            ? error
-            : dataCloneError(String((error && error.message) || error));
-        }
-      } else {
-        for (const buffer of buffers) {
-          if (typeof (buffer as any).transfer === "function") {
-            try {
-              (buffer as any).transfer();
-            } catch {}
-          }
-        }
-      }
-      const outputPorts = portsToTransfer.map((port) => port.__ksTransfer());
+      const transfer = transferListFrom(transferOrOptions);
+      const { ports, buffers } = collectTransferables(transfer, this);
+      const cloned = cloneMessageData(data, buffers);
+      const outputPorts = ports.map((port) => port.__ksTransfer());
       if (this._closed || !this._other) return;
       this._other._enqueue(cloned, outputPorts);
     }
@@ -224,6 +129,159 @@ export function installMessageChannel(
       this._closed = true;
     }
   }
+
+  function dispatchPortListeners(listeners: any[], port: KsMessagePort, event: any): void {
+    for (const listener of listeners) dispatchPortListener(listener, port, event);
+  }
+
+  function dispatchPortListener(listener: any, port: KsMessagePort, event: any): void {
+    try {
+      listener.call(port, event);
+    } catch (error) {
+      try {
+        console.error(error);
+      } catch {}
+    }
+  }
+
+  function createPortMessageEvent(
+    data: unknown,
+    ports: KsMessagePort[],
+    target: KsMessagePort,
+  ): object {
+    const pageMessageEvent: unknown =
+      pageMessageEventCtor() || ksGlobal.MessageEvent || MessageEventConstructor;
+    const frozenPorts = Object.freeze(ports.slice());
+    let event: object;
+    try {
+      event = new (pageMessageEvent as PageMessageEventConstructor)("message", {
+        data,
+        ports: frozenPorts,
+      });
+    } catch {
+      event = { type: "message", data };
+    }
+    definePortEventProperties(event, frozenPorts, target);
+    return event;
+  }
+
+  function definePortEventProperties(
+    event: object,
+    ports: readonly KsMessagePort[],
+    target: KsMessagePort,
+  ): void {
+    for (const [propertyName, propertyValue] of [
+      ["ports", ports],
+      ["target", target],
+      ["currentTarget", target],
+      ["srcElement", target],
+    ] as Array<[string, any]>) {
+      try {
+        Object.defineProperty(event, propertyName, {
+          value: propertyValue,
+          configurable: true,
+          enumerable: true,
+        });
+      } catch {}
+    }
+  }
+
+  function transferListFrom(transferOptions: any): unknown[] {
+    if (transferOptions === undefined || transferOptions === null) return [];
+    return readPresentTransferList(transferOptions);
+  }
+
+  function readPresentTransferList(transferOptions: any): unknown[] {
+    if (typeof transferOptions !== "object") throw new TypeError("Transfer list must be an object");
+    if (isIterable(transferOptions)) return Array.from(transferOptions);
+    const transferList = transferOptions.transfer;
+    if (transferList === undefined) return [];
+    return arrayFromTransferOption(transferList);
+  }
+
+  function isIterable(value: any): boolean {
+    return typeof value[Symbol.iterator] === "function";
+  }
+
+  function arrayFromTransferOption(value: any): unknown[] {
+    if (value === null || typeof value !== "object" || !isIterable(value)) {
+      throw new TypeError("options.transfer must be a sequence");
+    }
+    return Array.from(value);
+  }
+
+  interface TransferableSet {
+    ports: KsMessagePort[];
+    buffers: ArrayBuffer[];
+  }
+
+  function collectTransferables(transfer: unknown[], source: KsMessagePort): TransferableSet {
+    const seen = new Set<unknown>();
+    const result: TransferableSet = { ports: [], buffers: [] };
+    for (const transferable of transfer) {
+      assertUniqueTransferable(transferable, source, seen);
+      classifyTransferable(transferable, result);
+    }
+    return result;
+  }
+
+  function assertUniqueTransferable(
+    transferable: unknown,
+    source: KsMessagePort,
+    seen: Set<unknown>,
+  ): void {
+    if (transferable === source) throw dataCloneError("The source port cannot be transferred");
+    if (seen.has(transferable)) throw dataCloneError("Duplicate transferable in transfer list");
+    seen.add(transferable);
+  }
+
+  function classifyTransferable(transferable: unknown, result: TransferableSet): void {
+    if (transferable instanceof KsMessagePort) {
+      addMessagePortTransfer(transferable, result.ports);
+      return;
+    }
+    if (transferable instanceof (ksGlobal.ArrayBuffer as typeof ArrayBuffer)) {
+      result.buffers.push(transferable);
+      return;
+    }
+    throw dataCloneError("Value is not transferable");
+  }
+
+  function addMessagePortTransfer(port: KsMessagePort, ports: KsMessagePort[]): void {
+    if (port._closed || port._detached) throw dataCloneError("MessagePort is already detached");
+    ports.push(port);
+  }
+
+  function cloneMessageData(data: unknown, buffers: ArrayBuffer[]): unknown {
+    if (canStructuredClone) return cloneWithStructuredClone(data, buffers);
+    detachArrayBuffers(buffers);
+    return data;
+  }
+
+  function cloneWithStructuredClone(data: unknown, buffers: ArrayBuffer[]): unknown {
+    try {
+      return buffers.length
+        ? (ksGlobal.structuredClone as PageStructuredClone)(data, { transfer: buffers })
+        : (ksGlobal.structuredClone as PageStructuredClone)(data);
+    } catch (error: any) {
+      throw normalizeDataCloneError(error);
+    }
+  }
+
+  function normalizeDataCloneError(error: any): unknown {
+    if (error && error.name === "DataCloneError") return error;
+    return dataCloneError(String((error && error.message) || error));
+  }
+
+  function detachArrayBuffers(buffers: ArrayBuffer[]): void {
+    for (const buffer of buffers) {
+      if (typeof (buffer as any).transfer !== "function") continue;
+      try {
+        (buffer as any).transfer();
+      } catch {}
+    }
+  }
+
   class KsMessageChannel {
     port1: KsMessagePort;
     port2: KsMessagePort;
