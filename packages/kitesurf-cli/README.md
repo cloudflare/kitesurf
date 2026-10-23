@@ -48,6 +48,8 @@ cargo install --path packages/kitesurf-cli --locked
 ```
 
 This installs `kitesurf` in Cargo's bin directory (usually `~/.cargo/bin`).
+Linux uses Rustls with the system certificate store and aws-lc-rs; macOS and
+Windows continue to use the platform TLS stack.
 
 ## Run
 

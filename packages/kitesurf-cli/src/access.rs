@@ -31,7 +31,7 @@ pub fn font_client(server: &reqwest::Url, token: Option<&HeaderValue>) -> Result
     if let Some(token) = token {
         headers.insert(ACCESS_HEADER, token.clone());
     }
-    Ok(reqwest::Client::builder()
+    Ok(crate::tls::client_builder()
         .default_headers(headers)
         // Keep redirects on the configured origin to prevent forwarding the Access token.
         .redirect(reqwest::redirect::Policy::custom(move |attempt| {

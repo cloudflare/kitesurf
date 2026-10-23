@@ -17,21 +17,28 @@ cargo_toml_env_vars(
     visibility = ["//packages/renderer-core:__pkg__"],
 )
 
-rust_shared_library(
-    name = "kitesurf_core",
-    srcs = glob(["src/**/*.rs"]),
-    aliases = aliases(),
-    crate_features = ["blitz", "console_error_panic_hook", "default", "pdf"],
-    crate_root = "src/lib.rs",
-    edition = "2021",
-    platform = "//bazel/rust:wasm32_unwind",
-    proc_macro_deps = all_crate_deps(proc_macro = True),
-    rustc_env_files = [":cargo_env"],
-    rustc_flags = ["--crate-type=rlib"],
-    tags = ["manual"],
-    visibility = ["//packages/core/pkg:__pkg__"],
-    deps = all_crate_deps(normal = True),
-)
+[
+    rust_shared_library(
+        name = name,
+        srcs = glob(["src/**/*.rs"]),
+        aliases = aliases(),
+        crate_features = ["blitz", "console_error_panic_hook", "default", "pdf"],
+        crate_name = "kitesurf_core",
+        crate_root = "src/lib.rs",
+        edition = "2021",
+        platform = platform,
+        proc_macro_deps = all_crate_deps(proc_macro = True),
+        rustc_env_files = [":cargo_env"],
+        rustc_flags = ["--crate-type=rlib"],
+        tags = ["manual"],
+        visibility = ["//packages/core/pkg:__pkg__"],
+        deps = all_crate_deps(normal = True),
+    )
+    for name, platform in [
+        ("kitesurf_core", "//bazel/rust:wasm32_unwind"),
+        ("kitesurf_core_memprof", "//bazel/rust:wasm32_memprof"),
+    ]
+]
 
 filegroup(
     name = "renderer_shared_srcs",

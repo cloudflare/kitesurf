@@ -11,7 +11,7 @@ HOSTS = {
     "macos_aarch64": ("aarch64-apple-darwin", ["@platforms//cpu:aarch64", "@platforms//os:macos"]),
 }
 
-def wasm32_rust(name, constraint, rust_std, rustflags):
+def wasm32_rust(name, constraint, rust_std, rustflags, codegen_units = 1):
     native.platform(
         name = name,
         constraint_values = [
@@ -31,7 +31,7 @@ def wasm32_rust(name, constraint, rust_std, rustflags):
             default_edition = "2021",
             dylib_ext = ".wasm",
             exec_triple = exec_triple,
-            extra_rustc_flags = rustflags + ["-Ccodegen-units=1"],
+            extra_rustc_flags = rustflags + ["-Ccodegen-units=%d" % codegen_units],
             iso_date = "2026-05-14",
             linker = "@rust_tools//:rust-lld",
             linker_type = "direct",

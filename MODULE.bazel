@@ -82,6 +82,9 @@ register_toolchains(
     "//bazel/rust:wasm32_scene_host_linux_x86_64_toolchain",
     "//bazel/rust:wasm32_scene_host_linux_aarch64_toolchain",
     "//bazel/rust:wasm32_scene_host_macos_aarch64_toolchain",
+    "//bazel/rust:wasm32_memprof_linux_x86_64_toolchain",
+    "//bazel/rust:wasm32_memprof_linux_aarch64_toolchain",
+    "//bazel/rust:wasm32_memprof_macos_aarch64_toolchain",
     "@rust_toolchains//:all",
 )
 
@@ -132,6 +135,14 @@ cargo_workspaces.workspace(
     lockfile = "//:Cargo.lock",
     members = {"packages/scene-host-wasm": "//packages/scene-host-wasm:Cargo.toml"},
 )
+cargo_workspaces.standalone(
+    name = "cargo_ws_memprof",
+    lockfile = "//scripts/memprof-rewriter:Cargo.lock",
+    members = {
+        "scripts/memprof-rewriter": "//scripts/memprof-rewriter:Cargo.toml",
+        "vendor/wasm-memprof/instrumentor": "//vendor/wasm-memprof/instrumentor:Cargo.toml",
+    },
+)
 cargo_workspaces.vendor(
     name = "cargo_vendor",
     lockfile = "//:Cargo.lock",
@@ -139,6 +150,7 @@ cargo_workspaces.vendor(
 use_repo(
     cargo_workspaces,
     "cargo_vendor",
+    "cargo_ws_memprof",
     "cargo_ws_core",
     "cargo_ws_renderer",
     "cargo_ws_scene_host",
@@ -168,6 +180,22 @@ crate.from_cargo(
     manifests = ["@cargo_ws_scene_host//:Cargo.toml"],
     skip_cargo_lockfile_overwrite = True,
     supported_platform_triples = RUST_HOST_TRIPLES + ["wasm32-unknown-unknown"],
+)
+crate.from_cargo(
+    name = "crates_memprof",
+    cargo_lockfile = "@cargo_ws_memprof//:Cargo.lock",
+    host_tools = "@rust_tools",
+    manifests = ["@cargo_ws_memprof//:Cargo.toml"],
+    skip_cargo_lockfile_overwrite = True,
+    supported_platform_triples = RUST_HOST_TRIPLES,
+)
+crate.from_cargo(
+    name = "crates_cli",
+    cargo_lockfile = "//packages/kitesurf-cli:Cargo.lock",
+    host_tools = "@rust_tools",
+    manifests = ["//packages/kitesurf-cli:Cargo.toml"],
+    skip_cargo_lockfile_overwrite = True,
+    supported_platform_triples = RUST_HOST_TRIPLES,
 )
 
 crate.annotation(
@@ -203,7 +231,7 @@ rust_library(
     crate = "vello_cpu",
     repositories = ["crates"],
 )
-use_repo(crate, "crates", "crates_renderer", "crates_scene_host")
+use_repo(crate, "crates", "crates_cli", "crates_memprof", "crates_renderer", "crates_scene_host")
 use_repo(crate, "crates__boa_gc-0.22.0", "crates__boa_interner-0.22.0", "crates__vello_cpu-0.3.0")
 
 wasm_std_repo = use_repo_rule("//bazel/rust:repos.bzl", "wasm_std_repo")

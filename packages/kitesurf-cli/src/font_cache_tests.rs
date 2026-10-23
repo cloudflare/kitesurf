@@ -25,7 +25,7 @@ impl Directory {
 
     fn cache(&self, url: Url) -> FontCache {
         FontCache {
-            source: FontSource::new(url, Client::new()).unwrap(),
+            source: FontSource::new(url, crate::tls::client_builder().build().unwrap()).unwrap(),
             directory: self.0.join("fonts"),
         }
     }
@@ -296,7 +296,13 @@ async fn font_download_rejects_oversized_declared_and_streamed_bodies() {
         "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\n12345\r\n0\r\n\r\n",
     ] {
         let (url, task) = server(vec![body.as_bytes().to_vec()]).await;
-        let response = Client::new().get(url).send().await.unwrap();
+        let response = crate::tls::client_builder()
+            .build()
+            .unwrap()
+            .get(url)
+            .send()
+            .await
+            .unwrap();
         assert!(font_bytes(response, 4)
             .await
             .unwrap_err()

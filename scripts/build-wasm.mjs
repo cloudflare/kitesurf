@@ -4,7 +4,15 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { execSync } from "node:child_process";
-import { writeFileSync, readFileSync, rmSync, statSync, readdirSync, existsSync } from "node:fs";
+import {
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  readdirSync,
+  existsSync,
+  mkdirSync,
+} from "node:fs";
 import { copyFileSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +22,16 @@ import { getWasmOpt } from "./wasm-opt.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CORE_DIR = resolve(ROOT, "packages/core");
-const PKG_DIR = resolve(CORE_DIR, "pkg");
+function pathOption(flag) {
+  const at = process.argv.indexOf(flag);
+  if (at === -1) return null;
+  const value = process.argv[at + 1];
+  if (!value || value.startsWith("--")) throw new Error(`${flag} requires a path`);
+  return resolve(value);
+}
+
+const postprocessWasm = pathOption("--postprocess");
+const PKG_DIR = pathOption("--out-dir") ?? resolve(CORE_DIR, "pkg");
 const WASM_OUT = resolve(PKG_DIR, "kitesurf_core_bg.wasm");
 const PKG_OUTPUTS = [
   WASM_OUT,
@@ -30,14 +47,22 @@ const reuseWasm = Boolean(process.env.KITESURF_REUSE_WASM);
 
 // Bazel compiles the wasm itself (rules_rust) and hands this script the raw wasm:
 // only the post-passes run, with the tools named by WASM_BINDGEN_BIN/WASM_OPT_BIN.
-const postprocessAt = process.argv.indexOf("--postprocess");
-const postprocessWasm = postprocessAt > 0 ? resolve(process.argv[postprocessAt + 1]) : null;
+const memprof = process.argv.includes("--memprof");
+if (process.env.KITESURF_MEMPROF && !memprof) {
+  console.error("[build-wasm] use `pnpm run build:wasm:memprof` for the Bazel memprof build");
+  process.exit(2);
+}
+if (memprof && !postprocessWasm) {
+  console.error("[build-wasm] memprof requires Bazel's --postprocess wasm input");
+  process.exit(2);
+}
+if (postprocessWasm && !process.env.WASM_BINDGEN_BIN) {
+  console.error("[build-wasm] --postprocess requires WASM_BINDGEN_BIN");
+  process.exit(2);
+}
 
-const memprof = Boolean(process.env.KITESURF_MEMPROF);
-const MEMPROF_SENTINEL = resolve(PKG_DIR, ".memprof-build");
-
-const lastWasMemprof = existsSync(MEMPROF_SENTINEL);
-// Memprof shares the normal output path, so switching profiles must invalidate it.
+const lastWasMemprof = existsSync(resolve(PKG_DIR, "kitesurf_core_bg.wasm.memprof.json"));
+// A staged memprof wasm shares this package path and must not be reused as the normal wasm.
 const force = process.argv.includes("--force") || inCI || memprof || lastWasMemprof;
 
 function shouldRebuild() {
@@ -120,11 +145,7 @@ const wasmBindgen = postprocessWasm
   : getWasmBindgen(WASM_BINDGEN_VERSION);
 console.log(`[build-wasm] using wasm-bindgen ${WASM_BINDGEN_VERSION} at ${wasmBindgen}`);
 
-const cargoCmd = memprof
-  ? "cargo build --profile release-memprof --target wasm32-unknown-unknown --lib" +
-    ` --config 'unstable.build-std=["std","panic_abort"]'` +
-    ` --config 'target.wasm32-unknown-unknown.rustflags=["-C","panic=abort","-C","target-feature=+simd128,+bulk-memory,+nontrapping-fptoint,+sign-ext"]'`
-  : "cargo build --release --target wasm32-unknown-unknown --lib";
+const cargoCmd = "cargo build --release --target wasm32-unknown-unknown --lib";
 if (!postprocessWasm) {
   console.log(`[build-wasm] ${cargoCmd}`);
   execSync(cargoCmd, {
@@ -135,15 +156,12 @@ if (!postprocessWasm) {
 }
 
 const cargoWasm =
-  postprocessWasm ??
-  resolve(
-    CORE_DIR,
-    `target/wasm32-unknown-unknown/${memprof ? "release-memprof" : "release"}/kitesurf_core.wasm`,
-  );
+  postprocessWasm ?? resolve(CORE_DIR, "target/wasm32-unknown-unknown/release/kitesurf_core.wasm");
 if (!existsSync(cargoWasm)) {
   console.error(`[build-wasm] expected ${cargoWasm} after cargo build`);
   process.exit(1);
 }
+mkdirSync(PKG_DIR, { recursive: true });
 // Preserve the package BUILD file that rules_js needs; the Bazel action supplies
 // empty generated outputs.
 if (!postprocessWasm) {
@@ -202,25 +220,20 @@ if (memprof) {
 }
 
 if (memprof) {
-  const rewriterDir = resolve(ROOT, "scripts/memprof-rewriter");
-  const rewriterBin = resolve(rewriterDir, "target/release/memprof-rewriter");
-  if (!existsSync(rewriterBin)) {
-    console.log("[build-wasm] building memprof-rewriter (host crate)");
-    execSync("cargo build --release", { cwd: rewriterDir, stdio: "inherit" });
-  }
+  const rewriterBin = process.env.MEMPROF_REWRITER_BIN;
+  if (!rewriterBin) throw new Error("--memprof requires MEMPROF_REWRITER_BIN");
+  const rewriter = resolve(rewriterBin);
+  if (!existsSync(rewriter)) throw new Error(`memprof-rewriter not found at ${rewriter}`);
   console.log("[build-wasm] memprof: instrumenting wasm");
   const instrumented = `${WASM_OUT}.memprof`;
-  execSync(`"${rewriterBin}" "${WASM_OUT}" "${instrumented}"`, {
+  execSync(`"${rewriter}" "${WASM_OUT}" "${instrumented}"`, {
     stdio: "inherit",
   });
   execSync(`mv "${instrumented}" "${WASM_OUT}"`, { stdio: "inherit" });
   execSync(`mv "${instrumented}.memprof.json" "${WASM_OUT}.memprof.json"`, {
     stdio: "inherit",
   });
-  writeFileSync(MEMPROF_SENTINEL, new Date().toISOString() + "\n");
   console.log("[build-wasm] memprof: wrote instrumented wasm + manifest");
-} else if (existsSync(MEMPROF_SENTINEL)) {
-  rmSync(MEMPROF_SENTINEL, { force: true });
 }
 
 console.log("[build-wasm] post-pass: hide fetchResource bridge");
@@ -299,7 +312,17 @@ console.log("[build-wasm] post-pass: terminated hook");
   } else {
     const FLAG_STORE = "getInt32ArrayMemory0()[__wbg_terminated_addr] = 1;";
     const at = original.indexOf(FLAG_STORE);
-    if (
+    const preamble =
+      "// TERMINATED-HOOK-MARKER-v1 — see scripts/build-wasm.mjs post-pass\n" +
+      "let __ksOnTerminated = null;\n" +
+      "export function __setOnTerminated(fn) {\n" +
+      "  __ksOnTerminated = fn;\n" +
+      "}\n";
+    if (memprof && !original.includes("function __wbg_handle_catch(")) {
+      // panic=abort has no terminate path; preserve the setter expected by PageScript.
+      writeFileSync(gluePath, preamble + original);
+      console.log("[build-wasm]   memprof: no terminate path to hook (panic=abort)");
+    } else if (
       at < 0 ||
       original.indexOf(FLAG_STORE, at + 1) >= 0 ||
       !original.includes("function __wbg_handle_catch(e) {")
@@ -310,17 +333,12 @@ console.log("[build-wasm] post-pass: terminated hook");
           " in __wbg_handle_catch; wasm-bindgen's terminate path changed, revisit the post-pass.",
       );
       process.exit(1);
+    } else {
+      const hook = " try { if (__ksOnTerminated) __ksOnTerminated(e); } catch (_) {}";
+      const end = at + FLAG_STORE.length;
+      writeFileSync(gluePath, preamble + original.slice(0, end) + hook + original.slice(end));
+      console.log("[build-wasm]   hooked __wbg_handle_catch");
     }
-    const preamble =
-      "// TERMINATED-HOOK-MARKER-v1 — see scripts/build-wasm.mjs post-pass\n" +
-      "let __ksOnTerminated = null;\n" +
-      "export function __setOnTerminated(fn) {\n" +
-      "  __ksOnTerminated = fn;\n" +
-      "}\n";
-    const hook = " try { if (__ksOnTerminated) __ksOnTerminated(e); } catch (_) {}";
-    const end = at + FLAG_STORE.length;
-    writeFileSync(gluePath, preamble + original.slice(0, end) + hook + original.slice(end));
-    console.log("[build-wasm]   hooked __wbg_handle_catch");
   }
 }
 
