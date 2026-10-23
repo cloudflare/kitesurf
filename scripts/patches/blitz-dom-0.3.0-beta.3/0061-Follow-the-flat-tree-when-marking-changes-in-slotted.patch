@@ -1,0 +1,120 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 28 Sep 2026 13:41:25 +0100
+Subject: [PATCH] Follow the flat tree when marking changes in slotted content
+
+A slotted node is styled, constructed and laid out under its slot, but
+the dirty bits and the damaged-descendant flags were stamped along DOM
+parents, which jump from the slottable
+straight to the host. The walks that read them go host -> shadow
+content -> slot -> slottable instead, so the shadow-tree ancestors
+looked clean and every walk stopped there: a child revealed inside a
+slotted subtree after the first layout kept display:none, then kept no
+box, then kept its parent's cached zero-size layout. DevTools' own
+screencast viewport is exactly that child.
+
+Marking now climbs the flat tree (slot, then the host of a shadow
+root), and damage propagation also walks a slot's assigned nodes so
+their damage reaches the slot's box parent. Removing a slot resets its
+assignees' assigned_slot, so the climb never reaches a freed slot key.
+---
+ src/layout/damage.rs |  7 +++++++
+ src/mutator.rs       | 12 ++++++++++++
+ src/node/node.rs     | 20 ++++++++++++++++----
+ 3 files changed, 35 insertions(+), 4 deletions(-)
+
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index 671622c..7f7e0cf 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -99,6 +99,13 @@ impl BaseDocument {
+         if let Some(after_id) = self.nodes[node_id].after() {
+             damage_from_children |= self.propagate_damage_flags(after_id);
+         }
++        // Assigned nodes are the host's DOM children, so without this walk their
++        // damage never reaches the slot's box parent and its layout stays cached.
++        if let Some(assigned) = self.nodes[node_id].assigned_nodes.clone() {
++            for slotted in assigned.iter() {
++                damage_from_children |= self.propagate_damage_flags(*slotted);
++            }
++        }
+         // Shadow trees live outside `children`; without this hop a
+         // shadow mutation never bubbles CONSTRUCT damage to the host.
+         if let Some(shadow_root_id) = self.nodes[node_id].attached_shadow_root_id() {
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 35ae8bb..e893f85 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1332,6 +1332,18 @@ impl<'doc> DocumentMutator<'doc> {
+                 doc.remove_author_stylesheet(node_id);
+             }
+
++            // A removed slot's assignees live outside this subtree, and the flat-tree
++            // dirty walks follow assigned_slot: a freed slot would be a dead key.
++            if let Some(assignees) = doc.nodes[node_id].assigned_nodes.take() {
++                for assignee in assignees {
++                    if let Some(slotted) = doc.nodes.get_mut(assignee) {
++                        if slotted.assigned_slot == Some(node_id) {
++                            slotted.assigned_slot = None;
++                        }
++                    }
++                }
++            }
++
+             let node = &mut doc.nodes[node_id];
+             // Stale flat-tree edges must not outlive removal: slab ids
+             // recycle, so a dangling slot pointer would mislead.
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 11d7dcd..7f5e462 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -666,7 +666,7 @@ impl Node {
+     /// This propagates the dirty flag up the tree so that the style traversal
+     /// knows to visit the subtree containing this node.
+     pub fn mark_ancestors_dirty(&self) {
+-        let mut current_id = self.parent;
++        let mut current_id = self.flat_tree_parent();
+         while let Some(parent_id) = current_id {
+             let parent = &self.tree()[parent_id];
+             // If this ancestor already has dirty_descendants set, we can stop
+@@ -676,10 +676,22 @@ impl Node {
+                     break;
+                 }
+             }
+-            current_id = parent.parent;
++            current_id = parent.flat_tree_parent();
+         }
+     }
+
++    /// Style, damage and construct walks all follow the flat tree: a slotted
++    /// node sits under its slot, and a shadow root's content under the host.
++    pub(crate) fn flat_tree_parent(&self) -> Option<NodeId> {
++        if let Some(slot_id) = self.assigned_slot {
++            return Some(slot_id);
++        }
++        if let Some(host) = self.shadow_root_data().map(|data| data.host) {
++            return Some(host);
++        }
++        self.parent
++    }
++
+     /// Returns whether this node or any of its descendants may carry damage.
+     pub fn has_damaged_descendants(&self) -> bool {
+         self.damaged_descendants_flag()
+@@ -705,7 +717,7 @@ impl Node {
+                 return;
+             }
+         }
+-        let mut current_id = self.parent;
++        let mut current_id = self.flat_tree_parent();
+         while let Some(parent_id) = current_id {
+             let parent = &self.tree()[parent_id];
+             // If this ancestor already has damaged_descendants set, we can stop
+@@ -715,6 +727,6 @@ impl Node {
+                     break;
+                 }
+             }
+-            current_id = parent.parent;
++            current_id = parent.flat_tree_parent();
+         }
+     }

@@ -1,0 +1,332 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 12:41:39 +0100
+Subject: [PATCH] Apply SVG2 geometry properties from CSS, including calc()
+
+cx, cy, r, rx, ry, x, y, width and height became presentation attributes
+in SVG2, so a stylesheet may set them: `circle { r: 65px }` is valid and
+WPT's svg/geometry reftests are built on it. is_presentation() predates
+that, so every such declaration was dropped: shapes styled only by CSS
+rendered at their initial geometry, or not at all.
+
+They are also added to is_non_inheritable(): is_inheritable() is defined
+as is_presentation() minus that list, so without it an ancestor's
+`style="r: 10px"` would cascade a radius onto every descendant shape.
+
+`d` is excluded on purpose. As a property it takes path("...") function
+syntax, which the attribute value parser does not accept.
+
+Values the length parser cannot handle (calc(), auto) are dropped as
+before, leaving the initial geometry. For a required dimension that
+means the shape is not rendered, matching the spec's treatment of an
+invalid value.
+
+SVG2 geometry attributes and properties take CSS <length-percentage>,
+which includes calc(). svgtypes has no calc support, so the typed Length
+parse failed and the whole value was dropped: shapes written as
+cx="calc(80px + 60% - 2em)" (the WPT geometry suite's idiom) kept their
+initial geometry and vanished.
+
+convert_calc resolves the linear subset: additive chains of dimension
+terms, and products/quotients of a dimension with plain numbers. Each
+dimension resolves eagerly through convert_length, so percent keeps its
+per-attribute viewport-axis rule and em/ex keep font-size resolution,
+all in the one existing place. Non-linear input (dimension * dimension,
+division by a dimension, nested parens, var()) returns None and keeps
+the drop-to-default behaviour.
+
+Hooked where lengths are read: SvgNode::convert_length for the common
+path, and resolve_rx_ry's separate typed reads, where a calc value
+resolves to a px Length ahead of the auto/negative handling so ellipse
+rx/ry auto-fallback still works.
+---
+ src/parser/converter.rs   |  19 +++++
+ src/parser/shapes.rs      |  16 +++-
+ src/parser/svgtree/mod.rs |  28 +++++++
+ src/parser/units.rs       | 156 ++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 216 insertions(+), 3 deletions(-)
+
+diff --git a/src/parser/converter.rs b/src/parser/converter.rs
+index 2908e28..be06699 100644
+--- a/src/parser/converter.rs
++++ b/src/parser/converter.rs
+@@ -261,6 +261,13 @@ fn string_hash(s: &str) -> u64 {
+     h.finish()
+ }
+
++/// ASCII-case-insensitive "calc(" prefix test over bytes, immune to the
++/// UTF-8 boundary panic a `&str[..5]` slice hits on multibyte input.
++pub(crate) fn starts_with_calc(raw: &str) -> bool {
++    let b = raw.trim_start().as_bytes();
++    b.len() >= 5 && b[..5].eq_ignore_ascii_case(b"calc(")
++}
++
+ impl<'a, 'input: 'a> SvgNode<'a, 'input> {
+     pub(crate) fn convert_length(
+         &self,
+@@ -269,6 +276,18 @@ impl<'a, 'input: 'a> SvgNode<'a, 'input> {
+         state: &State,
+         def: Length,
+     ) -> f32 {
++        // calc() never survives the typed Length parse, so check the raw
++        // value first; an unresolvable calc keeps the drop-to-default path.
++        // Byte-level prefix compare: a str slice at [..5] panics when byte 5
++        // splits a multibyte char (non-ASCII geometry values exist in the wild).
++        if let Some(raw) = self.attribute::<&str>(aid) {
++            if starts_with_calc(raw) {
++                if let Some(n) = units::convert_calc(raw, *self, aid, object_units, state) {
++                    return n;
++                }
++                return units::convert_length(def, *self, aid, object_units, state);
++            }
++        }
+         units::convert_length(
+             self.attribute(aid).unwrap_or(def),
+             *self,
+diff --git a/src/parser/shapes.rs b/src/parser/shapes.rs
+index b541ae1..d69755f 100644
+--- a/src/parser/shapes.rs
++++ b/src/parser/shapes.rs
+@@ -8,7 +8,7 @@ use tiny_skia_path::Path;
+
+ use super::svgtree::{AId, EId, SvgNode};
+ use super::{converter, units};
+-use crate::{ApproxEqUlps, IsValidLength, Rect};
++use crate::{ApproxEqUlps, IsValidLength, Rect, Units};
+
+ pub(crate) fn convert(node: SvgNode, state: &converter::State) -> Option<Arc<Path>> {
+     match node.tag_name()? {
+@@ -128,8 +128,18 @@ fn convert_rect(node: SvgNode, state: &converter::State) -> Option<Arc<Path>> {
+ }
+
+ fn resolve_rx_ry(node: SvgNode, state: &converter::State) -> (f32, f32) {
+-    let mut rx_opt = node.attribute::<Length>(AId::Rx);
+-    let mut ry_opt = node.attribute::<Length>(AId::Ry);
++    // calc() fails the typed parse and would read as "auto"; resolve it
++    // to a px Length here so the auto/negative dance below still applies.
++    let calc_aware = |aid: AId| -> Option<Length> {
++        let raw = node.attribute::<&str>(aid)?;
++        if converter::starts_with_calc(raw) {
++            return units::convert_calc(raw, node, aid, Units::UserSpaceOnUse, state)
++                .map(|n| Length::new(n as f64, svgtypes::LengthUnit::Px));
++        }
++        node.attribute::<Length>(aid)
++    };
++    let mut rx_opt = calc_aware(AId::Rx);
++    let mut ry_opt = calc_aware(AId::Ry);
+
+     // Remove negative values first.
+     if let Some(v) = rx_opt {
+diff --git a/src/parser/svgtree/mod.rs b/src/parser/svgtree/mod.rs
+index 1618f32..7694a17 100644
+--- a/src/parser/svgtree/mod.rs
++++ b/src/parser/svgtree/mod.rs
+@@ -752,6 +752,21 @@ impl AId {
+                 | AId::WhiteSpace
+                 | AId::WordSpacing
+                 | AId::WritingMode
++                // SVG2 geometry properties: settable from CSS, not just as
++                // attributes. `circle { r: 65px }` is a valid stylesheet.
++                // https://www.w3.org/TR/SVG2/geometry.html
++                // `d` is deliberately absent: as a property it takes
++                // `path("...")` function syntax, which the attribute
++                // parser here does not accept.
++                | AId::Cx
++                | AId::Cy
++                | AId::R
++                | AId::Rx
++                | AId::Ry
++                | AId::X
++                | AId::Y
++                | AId::Width
++                | AId::Height
+         )
+     }
+
+@@ -840,6 +855,19 @@ fn is_non_inheritable(id: AId) -> bool {
+             | AId::TextDecoration
+             | AId::Transform
+             | AId::TransformOrigin
++            // Geometry properties are presentation attributes but are not
++            // inherited: without this a `<g style="r: 10px">` would push
++            // its radius onto every descendant shape. is_inheritable() is
++            // is_presentation() minus this list, so they must be here.
++            | AId::Cx
++            | AId::Cy
++            | AId::R
++            | AId::Rx
++            | AId::Ry
++            | AId::X
++            | AId::Y
++            | AId::Width
++            | AId::Height
+     )
+ }
+
+diff --git a/src/parser/units.rs b/src/parser/units.rs
+index ce2c7dd..30d492d 100644
+--- a/src/parser/units.rs
++++ b/src/parser/units.rs
+@@ -87,6 +87,162 @@ pub(crate) fn convert_list(node: SvgNode, aid: AId, state: &converter::State) ->
+     }
+ }
+
++// SVG2 geometry values accept CSS <length-percentage>, which includes
++// calc(). svgtypes has no calc support, so the typed attribute parse
++// fails and the value is silently dropped. This resolves the linear
++// subset eagerly: +/- chains of dimension terms and products of a
++// dimension with plain numbers. Each dimension resolves through
++// convert_length, so %, em, ex and the per-attribute viewport-axis
++// rules stay in one place. Anything non-linear (dimension * dimension,
++// division by a dimension, nested parens, var()) returns None and the
++// caller drops the value as before.
++pub(crate) fn convert_calc(
++    raw: &str,
++    node: SvgNode,
++    aid: AId,
++    object_units: Units,
++    state: &converter::State,
++) -> Option<f32> {
++    let t = raw.trim();
++    if t.len() < 6 || !t[..5].eq_ignore_ascii_case("calc(") || !t.ends_with(')') {
++        return None;
++    }
++    let inner = &t[5..t.len() - 1];
++
++    #[derive(Clone, Copy, Debug, PartialEq)]
++    enum Tok {
++        Num(f64),
++        Dim(f64, Unit),
++        Add,
++        Sub,
++        Mul,
++        Div,
++    }
++
++    // Lexer. A '-' or '+' glued to a digit is a sign; CSS requires
++    // whitespace around additive operators, which disambiguates.
++    let mut toks: Vec<Tok> = Vec::new();
++    let b = inner.as_bytes();
++    let mut i = 0;
++    while i < b.len() {
++        let c = b[i] as char;
++        if c.is_ascii_whitespace() {
++            i += 1;
++        } else if c == '*' {
++            toks.push(Tok::Mul);
++            i += 1;
++        } else if c == '/' {
++            toks.push(Tok::Div);
++            i += 1;
++        } else if (c == '+' || c == '-')
++            && !(i + 1 < b.len()
++                && (b[i + 1] as char).is_ascii_digit()
++                && !matches!(toks.last(), Some(Tok::Num(_) | Tok::Dim(..))))
++        {
++            toks.push(if c == '+' { Tok::Add } else { Tok::Sub });
++            i += 1;
++        } else if c.is_ascii_digit() || c == '.' || c == '+' || c == '-' {
++            let start = i;
++            i += 1; // consume sign or first digit
++            while i < b.len() && ((b[i] as char).is_ascii_digit() || b[i] == b'.') {
++                i += 1;
++            }
++            let num: f64 = inner[start..i].parse().ok()?;
++            let ustart = i;
++            while i < b.len() && ((b[i] as char).is_ascii_alphabetic() || b[i] == b'%') {
++                i += 1;
++            }
++            let unit = match &inner[ustart..i] {
++                "" => None,
++                unit if unit.eq_ignore_ascii_case("px") => Some(Unit::Px),
++                unit if unit.eq_ignore_ascii_case("em") => Some(Unit::Em),
++                unit if unit.eq_ignore_ascii_case("ex") => Some(Unit::Ex),
++                unit if unit.eq_ignore_ascii_case("in") => Some(Unit::In),
++                unit if unit.eq_ignore_ascii_case("cm") => Some(Unit::Cm),
++                unit if unit.eq_ignore_ascii_case("mm") => Some(Unit::Mm),
++                unit if unit.eq_ignore_ascii_case("pt") => Some(Unit::Pt),
++                unit if unit.eq_ignore_ascii_case("pc") => Some(Unit::Pc),
++                "%" => Some(Unit::Percent),
++                _ => return None,
++            };
++            toks.push(match unit {
++                Some(u) => Tok::Dim(num, u),
++                None => Tok::Num(num),
++            });
++        } else {
++            return None; // parens, var(), anything else: not our subset
++        }
++    }
++
++    // Value domain: Scalar (bare <number>) vs Px (resolved length).
++    // A length-typed attribute must come out as Px overall.
++    #[derive(Clone, Copy)]
++    enum Val {
++        Scalar(f64),
++        Px(f64),
++    }
++    let resolve = |n: f64, u: Unit| -> f64 {
++        convert_length(Length::new(n, u), node, aid, object_units, state) as f64
++    };
++
++    let mut idx = 0;
++    let atom = |idx: &mut usize, toks: &[Tok]| -> Option<Val> {
++        match toks.get(*idx)? {
++            Tok::Num(n) => {
++                *idx += 1;
++                Some(Val::Scalar(*n))
++            }
++            Tok::Dim(n, u) => {
++                *idx += 1;
++                Some(Val::Px(resolve(*n, *u)))
++            }
++            _ => None,
++        }
++    };
++    let product = |idx: &mut usize, toks: &[Tok]| -> Option<Val> {
++        let mut acc = atom(idx, toks)?;
++        while let Some(op) = toks.get(*idx) {
++            match op {
++                Tok::Mul | Tok::Div => {
++                    let is_div = matches!(op, Tok::Div);
++                    *idx += 1;
++                    let rhs = atom(idx, toks)?;
++                    acc = match (acc, rhs, is_div) {
++                        (Val::Scalar(a), Val::Scalar(c), false) => Val::Scalar(a * c),
++                        (Val::Scalar(a), Val::Scalar(c), true) if c != 0.0 => Val::Scalar(a / c),
++                        (Val::Px(a), Val::Scalar(c), false) => Val::Px(a * c),
++                        (Val::Px(a), Val::Scalar(c), true) if c != 0.0 => Val::Px(a / c),
++                        (Val::Scalar(a), Val::Px(c), false) => Val::Px(a * c),
++                        _ => return None, // px*px, x/px, div-by-zero
++                    };
++                }
++                _ => break,
++            }
++        }
++        Some(acc)
++    };
++
++    let mut acc = match product(&mut idx, &toks)? {
++        Val::Px(v) => v,
++        Val::Scalar(_) => return None, // a bare <number> is not a length
++    };
++    while idx < toks.len() {
++        let sub = match toks[idx] {
++            Tok::Add => false,
++            Tok::Sub => true,
++            _ => return None,
++        };
++        idx += 1;
++        let rhs = match product(&mut idx, &toks)? {
++            Val::Px(v) => v,
++            Val::Scalar(_) => return None,
++        };
++        acc = if sub { acc - rhs } else { acc + rhs };
++    }
++    let out = acc as f32;
++    out.is_finite().then_some(out)
++}
++
+ fn convert_percent(length: Length, base: f32) -> f32 {
+     base * (length.number as f32) / 100.0
+ }

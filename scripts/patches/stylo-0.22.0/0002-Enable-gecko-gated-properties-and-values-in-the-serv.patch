@@ -1,0 +1,828 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 31 Jul 2026 23:30:32 +0100
+Subject: [PATCH] Enable gecko-gated properties and values in the servo build
+
+Each of these was gated to the gecko engine although nothing
+gecko-specific backs it. Dropping the gate lets the servo build parse
+and compute it.
+
+accent-color: the embedder's form-control paint (checkbox, radio, range)
+reads it to colour the widgets like real browsers, instead of falling
+back to the element's text colour.
+
+appearance: the Appearance value type was already un-gated, and the
+existing extra_prefixes line gives the -webkit-appearance legacy alias,
+which is the spelling stylesheets use for form-control resets. This is
+parse and computed value only; appearance:none does not suppress widget
+chrome in paint.
+
+break-before, break-after, break-inside and box-decoration-break: print
+stylesheets set break-inside:avoid on nearly every table and figure, and
+without the parse a PDF pipeline can never honour them. Fragmentation
+itself is not implemented here.
+
+-webkit-text-fill-color: overlay code editors (a transparent textarea
+stacked on a highlighted <pre>) hide the textarea's glyphs with
+-webkit-text-fill-color: transparent and keep the caret visible with
+caret-color. The longhand was fully defined but gated; it now generates
+into InheritedText for servo with initial value currentcolor, so it
+stays inert until authored.
+
+clip-rule, flood-color and lighting-color: FillRule and Color are
+already compiled for servo (used by clip-path, fill, stop-color and
+others). Nothing downstream consumes them for paint, since SVG filter
+primitives aren't implemented.
+
+word-break: break-word: a compat alias (word-break normal plus
+overflow-wrap anywhere) with no gecko-only machinery behind it.
+
+font-variant-caps all-small-caps, petite-caps, all-petite-caps, unicase
+and titling-caps: mature css-fonts-3 values that map directly to
+OpenType feature tags.
+
+background-clip:text and background-attachment:local were
+extra_gecko_values, so the servo build rejected them. The background
+shorthand drops the whole declaration when any layer keyword fails to
+parse, so stylesheets using the gradient-text pattern (background:
+linear-gradient(..) plus -webkit-background-clip: text) or scroll
+shadows (background-attachment: local) lost their entire background, not
+just the modern keyword. Mirror them into extra_servo_values; the
+paint-side fallback for clip:text lives in blitz-paint.
+
+The legacy multiline-ellipsis pattern (display:-webkit-box,
+-webkit-box-orient:vertical and -webkit-line-clamp:N) needs three
+gecko-gated pieces:
+
+- the WebkitBox display variant (with its parse arms, consts and
+  FlowRoot const);
+- the line-clamp property. Servo gets the line-clamp longhand behind
+  layout.css.line-clamp.enabled (like gecko) and the -webkit-line-clamp
+  legacy shorthand unconditionally;
+- -moz-box-orient (struct xul, generated fresh for servo like the
+  fill/InheritedSVG precedent), whose -webkit-box-orient alias carries
+  the spelling the web uses.
+
+Also un-gate adjust_for_webkit_line_clamp (the Blink-matching
+computed-value rewrite of the clamp trio to flow-root) and set a new
+IS_WEBKIT_LINE_CLAMP_CONTEXT flag when it fires. Layout cannot otherwise
+tell an adjusted flow-root from an authored one, and the clamp must not
+apply to plain blocks that merely set the property.
+
+The remaining parse-only properties:
+
+- css-text: text-wrap-style, hyphens, hyphenate-character,
+  hyphenate-limit-chars, text-autospace (and the text-wrap shorthand)
+- css-fonts: font-size-adjust, font-palette, font-variant-emoji,
+  font-variant-alternates, font-synthesis-{style,small-caps,position}
+  (and the font-synthesis shorthand)
+- anchor-position: anchor-scope, position-try-order,
+  position-visibility (and the position-try shorthand; its
+  position-try-fallbacks sub-longhand loses the layout.unimplemented
+  servo_pref)
+- css-shapes: shape-outside, shape-margin, shape-image-threshold
+- text-decor: text-emphasis-{style,position,color},
+  text-underline-position, text-decoration-{inset,skip-ink} (and the
+  text-emphasis shorthand)
+- multicol: column-rule-{style,color,width}, column-fill (and the
+  column-rule shorthand)
+- contain-intrinsic-{width,height,block-size,inline-size} (and the
+  contain-intrinsic-size shorthand)
+- others: counter-set, resize, field-sizing, transform-box,
+  image-orientation, text-orientation, text-combine-upright,
+  scrollbar-gutter
+
+The five handwritten shorthand modules in shorthands.rs were
+cfg(gecko)-gated like page-break-*; un-gate them. Servo's font style
+struct derives serde, so the newly reachable font value types
+(FontPalette, GenericFontSizeAdjust, FontSynthesisStyle,
+FontVariantAlternates and VariantAlternates, CustomIdent) gain the same
+cfg_attr(servo) serde derives the sibling types carry.
+
+content-visibility stays gecko-gated: its Animate impl is gecko-only,
+and whether blitz honours 'hidden' is unverified.
+
+Co-authored-by: Rui Figueira <rfigueira@cloudflare.com>
+Co-authored-by: Ruskin Constant <ruskin@cloudflare.com>
+---
+ properties/computed_value_flags.rs |  3 ++
+ properties/longhands.toml          | 60 ++++--------------------------
+ properties/shorthands.rs           |  5 ---
+ properties/shorthands.toml         | 10 -----
+ style_adjuster.rs                  |  4 +-
+ values/specified/background.rs     |  2 -
+ values/specified/box.rs            |  7 ----
+ values/specified/font.rs           |  2 +
+ values/specified/text.rs           |  1 -
+ 9 files changed, 14 insertions(+), 80 deletions(-)
+
+diff --git a/properties/computed_value_flags.rs b/properties/computed_value_flags.rs
+index 80944d8..6a80522 100644
+--- a/properties/computed_value_flags.rs
++++ b/properties/computed_value_flags.rs
+@@ -137,6 +137,9 @@ bitflags! {
+
+         /// Whether this style uses `sibling-index()`.
+         const USES_SIBLING_INDEX = 1 << 27;
++
++        /// Whether the legacy WebKit line-clamp adjustment rewrote display.
++        const IS_WEBKIT_LINE_CLAMP_CONTEXT = 1 << 28;
+     }
+ }
+
+diff --git a/properties/longhands.toml b/properties/longhands.toml
+index 0e15437..80390b6 100644
+--- a/properties/longhands.toml
++++ b/properties/longhands.toml
+@@ -101,7 +101,7 @@ type = "LineClamp"
+ initial = "computed::LineClamp::none()"
+ struct = "box"
+ boxed = true
+-engine = "gecko"
++servo_pref = "layout.css.line-clamp.enabled"
+ gecko_pref = "layout.css.line-clamp.enabled"
+ gecko_ffi_name = "mWebkitLineClamp"
+ spec = "https://drafts.csswg.org/css-overflow-4/#propdef-line-clamp"
+@@ -132,7 +132,6 @@ affects = "layout"
+ type = "ColorOrAuto"
+ initial = "generics::color::ColorOrAuto::Auto"
+ struct = "inherited_ui"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-ui-4/#widget-accent"
+ ignored_when_colors_disabled = true
+ affects = "paint"
+@@ -192,7 +191,6 @@ affects = ""
+ type = "ScopedName"
+ initial = "computed::ScopedName::none()"
+ struct = "box"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#propdef-scope"
+ affects = ""
+@@ -323,7 +321,6 @@ affects = ""
+ type = "Appearance"
+ initial = "computed::Appearance::None"
+ struct = "box"
+-servo_pref = "layout.unimplemented"
+ extra_prefixes = ["webkit"]
+ spec = "https://drafts.csswg.org/css-ui-4/#propdef-appearance"
+ animation_type = "discrete"
+@@ -476,7 +473,6 @@ affects = "overflow"
+ type = "BreakBetween"
+ initial = "computed::BreakBetween::Auto"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-break/#propdef-break-after"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -485,7 +481,6 @@ affects = "layout"
+ type = "BreakBetween"
+ initial = "computed::BreakBetween::Auto"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-break/#propdef-break-before"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -494,7 +489,6 @@ affects = "layout"
+ type = "BreakWithin"
+ initial = "computed::BreakWithin::Auto"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-break/#propdef-break-inside"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -548,7 +542,6 @@ servo_restyle_damage = "rebuild_stacking_context"
+ type = "FillRule"
+ initial = "Default::default()"
+ struct = "inherited_svg"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://svgwg.org/svg2-draft/masking.html#ClipRuleProperty"
+ affects = "paint"
+@@ -594,7 +587,6 @@ affects = "layout"
+ type = "Color"
+ initial = "computed_value::T::currentcolor()"
+ struct = "column"
+-engine = "gecko"
+ ignored_when_colors_disabled = true
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule-color"
+ affects = "paint"
+@@ -603,7 +595,6 @@ affects = "paint"
+ type = "BorderStyle"
+ initial = "computed::BorderStyle::None"
+ struct = "column"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule-style"
+ affects = "paint"
+@@ -612,7 +603,6 @@ affects = "paint"
+ type = "BorderSideWidth"
+ initial = "computed::BorderSideWidth::medium()"
+ struct = "column"
+-engine = "gecko"
+ initial_specified_value = "specified::BorderSideWidth::medium()"
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule-width"
+ affects = "layout"
+@@ -639,7 +629,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ logical = true
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+@@ -649,7 +638,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+ affects = "layout"
+@@ -658,7 +646,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ logical = true
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+@@ -668,7 +655,6 @@ affects = "layout"
+ type = "ContainIntrinsicSize"
+ initial = "computed::ContainIntrinsicSize::None"
+ struct = "position"
+-engine = "gecko"
+ logical_group = "contain-intrinsic-size"
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+ affects = "layout"
+@@ -702,9 +688,9 @@ affects = "layout"
+
+ [content-visibility]
+ type = "ContentVisibility"
++engine = "gecko"
+ initial = "computed::ContentVisibility::Visible"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-contain/#content-visibility"
+ affects = "layout"
+
+@@ -732,7 +718,6 @@ affects = "layout"
+ type = "CounterSet"
+ initial = "Default::default()"
+ struct = "counters"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-lists-3/#propdef-counter-set"
+ servo_restyle_damage = "rebuild_box"
+@@ -847,7 +832,6 @@ affects = "layout"
+ type = "Color"
+ initial = "computed::Color::BLACK"
+ struct = "svg"
+-engine = "gecko"
+ spec = "https://drafts.fxtf.org/filter-effects-1/#FloodColorProperty"
+ affects = "paint"
+
+@@ -892,7 +876,6 @@ affects = "layout"
+ type = "FontPalette"
+ initial = "computed::FontPalette::normal()"
+ struct = "font"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-fonts/#font-palette-prop"
+ affects = "layout"
+@@ -911,7 +894,6 @@ affects = "layout"
+ type = "FontSizeAdjust"
+ initial = "computed::FontSizeAdjust::None"
+ struct = "font"
+-servo_pref = "layout.unimplemented"
+ spec = "https://drafts.csswg.org/css-fonts/#propdef-font-size-adjust"
+ gecko_ffi_name = "mFont.sizeAdjust"
+ affects = "layout"
+@@ -940,7 +922,6 @@ affects = "layout"
+ type = "FontSynthesis"
+ initial = "computed::FontSynthesis::Auto"
+ struct = "font"
+-engine = "gecko"
+ gecko_ffi_name = "mFont.synthesisPosition"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-fonts-4/#font-synthesis-position"
+@@ -950,7 +931,6 @@ affects = "layout"
+ type = "FontSynthesis"
+ initial = "computed::FontSynthesis::Auto"
+ struct = "font"
+-engine = "gecko"
+ gecko_ffi_name = "mFont.synthesisSmallCaps"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-fonts-4/#font-synthesis-small-caps"
+@@ -960,7 +940,6 @@ affects = "layout"
+ type = "FontSynthesisStyle"
+ initial = "computed::FontSynthesisStyle::Auto"
+ struct = "font"
+-engine = "gecko"
+ gecko_ffi_name = "mFont.synthesisStyle"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-fonts-4/#font-synthesis-style"
+@@ -1255,7 +1234,6 @@ affects = "layout"
+ type = "Color"
+ initial = "computed::Color::WHITE"
+ struct = "svg"
+-engine = "gecko"
+ spec = "https://drafts.fxtf.org/filter-effects-1#LightingColorProperty"
+ affects = "paint"
+
+@@ -1753,7 +1731,6 @@ type = "PositionTryFallbacks"
+ initial = "computed::PositionTryFallbacks::none()"
+ struct = "position"
+ animation_type = "discrete"
+-servo_pref = "layout.unimplemented"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#position-try-fallbacks"
+ affects = "layout"
+
+@@ -1761,7 +1738,6 @@ affects = "layout"
+ type = "PositionTryOrder"
+ initial = "computed::PositionTryOrder::normal()"
+ struct = "position"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#position-try-order-property"
+ affects = "layout"
+@@ -1770,7 +1746,6 @@ affects = "layout"
+ type = "PositionVisibility"
+ initial = "computed::PositionVisibility::ANCHORS_VISIBLE"
+ struct = "position"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#propdef-position-visibility"
+ affects = "layout"
+@@ -1798,7 +1773,6 @@ affects = "layout"
+ type = "Resize"
+ initial = "computed::Resize::None"
+ struct = "box"
+-engine = "gecko"
+ animation_type = "discrete"
+ gecko_ffi_name = "mResize"
+ spec = "https://drafts.csswg.org/css-ui/#propdef-resize"
+@@ -1929,7 +1903,6 @@ affects = "paint"
+ type = "ScrollbarGutter"
+ initial = "computed::ScrollbarGutter::AUTO"
+ struct = "box"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-overflow-3/#scrollbar-gutter-property"
+ affects = "layout"
+@@ -1938,7 +1911,6 @@ affects = "layout"
+ type = "Opacity"
+ initial = "0.0"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-shapes/#shape-image-threshold-property"
+ affects = "layout"
+
+@@ -1946,7 +1918,6 @@ affects = "layout"
+ type = "NonNegativeLengthPercentage"
+ initial = "computed::NonNegativeLengthPercentage::zero()"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-shapes/#shape-margin-property"
+ affects = "layout"
+
+@@ -1954,7 +1925,6 @@ affects = "layout"
+ type = "basic_shape::ShapeOutside"
+ initial = "generics::basic_shape::ShapeOutside::None"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-shapes/#shape-outside-property"
+ affects = "layout"
+
+@@ -2113,7 +2083,6 @@ affects = "overflow"
+ type = "TransformBox"
+ initial = "computed::TransformBox::ViewBox"
+ struct = "box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-transforms/#transform-box"
+ animation_type = "discrete"
+ affects = "overflow"
+@@ -2507,7 +2476,6 @@ affects = "layout"
+ type = "Color"
+ initial = "computed_value::T::currentcolor()"
+ struct = "inherited_text"
+-engine = "gecko"
+ ignored_when_colors_disabled = true
+ spec = "https://compat.spec.whatwg.org/#the-webkit-text-fill-color"
+ affects = "paint"
+@@ -2543,7 +2511,6 @@ affects = "paint"
+ type = "HyphenateCharacter"
+ initial = "computed::HyphenateCharacter::Auto"
+ struct = "inherited_text"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://www.w3.org/TR/css-text-4/#hyphenate-character"
+ affects = "layout"
+@@ -2552,7 +2519,6 @@ affects = "layout"
+ type = "HyphenateLimitChars"
+ initial = "computed::HyphenateLimitChars::auto()"
+ struct = "inherited_text"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-text-4/#hyphenate-char-limits"
+ affects = "layout"
+ boxed = true
+@@ -2587,7 +2553,6 @@ affects = "layout"
+ type = "TextAutospace"
+ initial = "computed::text::TextAutospace::NO_AUTOSPACE"
+ struct = "inherited_text"
+-engine = "gecko"
+ animation_type = "discrete"
+ gecko_pref = "layout.css.text-autospace.enabled"
+ has_effect_on_gecko_scrollbars = false
+@@ -2620,7 +2585,6 @@ affects = "layout"
+ type = "TextDecorationSkipInk"
+ initial = "computed::TextDecorationSkipInk::Auto"
+ struct = "inherited_text"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-text-decor-4/#text-decoration-skip-ink-property"
+ affects = "overflow"
+@@ -2629,7 +2593,6 @@ affects = "overflow"
+ type = "Color"
+ initial = "computed_value::T::currentcolor()"
+ struct = "inherited_text"
+-engine = "gecko"
+ ignored_when_colors_disabled = true
+ spec = "https://drafts.csswg.org/css-text-decor/#propdef-text-emphasis-color"
+ affects = "paint"
+@@ -2638,7 +2601,6 @@ affects = "paint"
+ type = "TextEmphasisPosition"
+ initial = "computed::TextEmphasisPosition::AUTO"
+ struct = "inherited_text"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-text-decor/#propdef-text-emphasis-position"
+ affects = "layout"
+@@ -2647,7 +2609,6 @@ affects = "layout"
+ type = "TextEmphasisStyle"
+ initial = "computed::TextEmphasisStyle::None"
+ struct = "inherited_text"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-text-decor/#propdef-text-emphasis-style"
+ affects = "overflow"
+@@ -2665,7 +2626,6 @@ affects = "overflow"
+ type = "TextUnderlinePosition"
+ initial = "computed::TextUnderlinePosition::AUTO"
+ struct = "inherited_text"
+-servo_pref = "layout.unimplemented"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-text-decor-3/#text-underline-position-property"
+ servo_restyle_damage = "rebuild_stacking_context"
+@@ -2779,7 +2739,6 @@ type = "TextDecorationInset"
+ initial = "computed::text::TextDecorationInset::get_initial_value()"
+ struct = "text"
+ gecko_pref = "layout.css.text-decoration-inset.enabled"
+-servo_pref = "layout.unimplemented"
+ spec = "https://drafts.csswg.org/css-text-decor-4/#text-decoration-inset-property"
+ boxed = true
+ servo_restyle_damage = "rebuild_stacking_context"
+@@ -3640,7 +3599,7 @@ animation_type = "discrete"
+ affects = "paint"
+ servo_restyle_damage = "repaint"
+ vector = {}
+-keyword = { values = ["scroll", "fixed"], extra_gecko_values = ["local"], gecko_enum_prefix = "StyleImageLayerAttachment" }
++keyword = { values = ["scroll", "fixed"], extra_gecko_values = ["local"], extra_servo_values = ["local"], gecko_enum_prefix = "StyleImageLayerAttachment" }
+
+ [background-clip]
+ type = "BackgroundClip"
+@@ -3752,7 +3711,6 @@ keyword = { values = ["inline", "block", "horizontal", "vertical"] }
+
+ [column-fill]
+ struct = "column"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-fill"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -3777,6 +3735,10 @@ servo_restyle_damage = "rebuild_box"
+ [font-variant-caps.keyword]
+ values = ["normal", "small-caps"]
+ extra_gecko_values = ["all-small-caps", "petite-caps", "all-petite-caps", "unicase", "titling-caps"]
++# Same five values, mature in the spec and just OpenType feature tags
++# (see stylo_to_parley::font_variant_caps); no gecko-only machinery
++# needed to expose them for servo.
++extra_servo_values = ["all-small-caps", "petite-caps", "all-petite-caps", "unicase", "titling-caps"]
+ gecko_constant_prefix = "NS_FONT_VARIANT_CAPS"
+
+ [font-kerning]
+@@ -3789,7 +3751,6 @@ keyword = { values = ["auto", "none", "normal"], gecko_constant_prefix = "NS_FON
+
+ [font-variant-emoji]
+ struct = "font"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-fonts/#propdef-font-variant-emoji"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -3867,7 +3828,6 @@ keyword = { values = ["flex", "legacy"] }
+
+ [text-orientation]
+ struct = "inherited_box"
+-servo_pref = "layout.unimplemented"
+ spec = "https://drafts.csswg.org/css-writing-modes/#propdef-text-orientation"
+ animation_type = "none"
+ affects = "layout"
+@@ -3875,7 +3835,6 @@ keyword = { values = ["mixed", "upright", "sideways"], gecko_aliases = ["sideway
+
+ [image-orientation]
+ struct = "inherited_box"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-images/#propdef-image-orientation"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -3945,7 +3904,6 @@ keyword = { values = ["show", "hide"] }
+
+ [hyphens]
+ struct = "inherited_text"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-text/#propdef-hyphens"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -3972,7 +3930,6 @@ keyword = { values = ["space-around", "start", "center", "space-between"] }
+
+ [text-combine-upright]
+ struct = "inherited_text"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-writing-modes-3/#text-combine-upright"
+ animation_type = "none"
+ affects = "layout"
+@@ -4004,7 +3961,6 @@ keyword = { values = ["wrap", "nowrap"] }
+
+ [text-wrap-style]
+ struct = "inherited_text"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-text-4/#text-wrap-style"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -4190,7 +4146,6 @@ keyword = { values = ["auto", "none"] }
+
+ [field-sizing]
+ struct = "ui"
+-engine = "gecko"
+ spec = "https://drafts.csswg.org/css-ui/#field-sizing"
+ animation_type = "discrete"
+ affects = "layout"
+@@ -4219,7 +4174,6 @@ keyword = { values = ["normal", "reverse"] }
+
+ [-moz-box-orient]
+ struct = "xul"
+-engine = "gecko"
+ spec = "Nonstandard (https://developer.mozilla.org/en-US/docs/Web/CSS/box-orient)"
+ animation_type = "discrete"
+ affects = "layout"
+diff --git a/properties/shorthands.rs b/properties/shorthands.rs
+index 30196e3..de57106 100644
+--- a/properties/shorthands.rs
++++ b/properties/shorthands.rs
+@@ -813,7 +813,6 @@ pub mod columns {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod column_rule {
+     pub use crate::properties::generated::shorthands::column_rule::*;
+
+@@ -848,7 +847,6 @@ pub mod column_rule {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod text_wrap {
+     pub use crate::properties::generated::shorthands::text_wrap::*;
+
+@@ -1626,7 +1624,6 @@ pub mod grid_area {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod position_try {
+     pub use crate::properties::generated::shorthands::position_try::*;
+
+@@ -2934,7 +2931,6 @@ pub mod font_variant {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod font_synthesis {
+     pub use crate::properties::generated::shorthands::font_synthesis::*;
+
+@@ -3111,7 +3107,6 @@ pub mod text_box {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod text_emphasis {
+     pub use crate::properties::generated::shorthands::text_emphasis::*;
+
+diff --git a/properties/shorthands.toml b/properties/shorthands.toml
+index bd1c5dd..5827b04 100644
+--- a/properties/shorthands.toml
++++ b/properties/shorthands.toml
+@@ -218,19 +218,16 @@ sub_properties = ["alignment-baseline", "baseline-shift", "baseline-source"]
+ spec = "https://drafts.csswg.org/css-inline-3/#transverse-alignment"
+
+ [page-break-before]
+-engine = "gecko"
+ flags = "IS_LEGACY_SHORTHAND"
+ sub_properties = ["break-before"]
+ spec = "https://drafts.csswg.org/css-break-3/#page-break-properties"
+
+ [page-break-after]
+-engine = "gecko"
+ flags = "IS_LEGACY_SHORTHAND"
+ sub_properties = ["break-after"]
+ spec = "https://drafts.csswg.org/css-break-3/#page-break-properties"
+
+ [page-break-inside]
+-engine = "gecko"
+ flags = "IS_LEGACY_SHORTHAND"
+ sub_properties = ["break-inside"]
+ spec = "https://drafts.csswg.org/css-break-3/#page-break-properties"
+@@ -285,7 +282,6 @@ rule_types_allowed = ["style", "keyframe", "scope", "position-try"]
+ kind = "two_properties"
+
+ [contain-intrinsic-size]
+-engine = "gecko"
+ sub_properties = ["contain-intrinsic-width", "contain-intrinsic-height"]
+ spec = "https://drafts.csswg.org/css-sizing-4/#intrinsic-size-override"
+ kind = "two_properties"
+@@ -345,7 +341,6 @@ sub_properties = ["align-items", "justify-items"]
+ spec = "https://drafts.csswg.org/css-align/#place-items-property"
+
+ [position-try]
+-engine = "gecko"
+ sub_properties = ["position-try-order", "position-try-fallbacks"]
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#position-try-prop"
+
+@@ -481,7 +476,6 @@ spec = "https://drafts.csswg.org/css-multicol/#propdef-columns"
+ servo_pref = "layout.columns.enabled"
+
+ [column-rule]
+-engine = "gecko"
+ sub_properties = ["column-rule-width", "column-rule-style", "column-rule-color"]
+ spec = "https://drafts.csswg.org/css-multicol/#propdef-column-rule"
+ derive_serialize = true
+@@ -530,7 +524,6 @@ extra_gecko_sub_properties = ["font-variant-emoji"]
+ spec = "https://drafts.csswg.org/css-fonts-3/#propdef-font-variant"
+
+ [font-synthesis]
+-engine = "gecko"
+ sub_properties = ["font-synthesis-weight", "font-synthesis-style", "font-synthesis-small-caps", "font-synthesis-position"]
+ spec = "https://drafts.csswg.org/css-fonts-3/#propdef-font-variant"
+ derive_value_info = false
+@@ -542,13 +535,11 @@ spec = "https://drafts.csswg.org/css-inline/#text-box-shorthand"
+ gecko_pref = "layout.css.text-box.enabled"
+
+ [text-emphasis]
+-engine = "gecko"
+ sub_properties = ["text-emphasis-style", "text-emphasis-color"]
+ spec = "https://drafts.csswg.org/css-text-decor-3/#text-emphasis-property"
+ derive_serialize = true
+
+ [text-wrap]
+-engine = "gecko"
+ sub_properties = ["text-wrap-mode", "text-wrap-style"]
+ spec = "https://www.w3.org/TR/css-text-4/#text-wrap"
+
+@@ -564,7 +555,6 @@ spec = "https://compat.spec.whatwg.org/#the-webkit-text-stroke"
+ derive_serialize = true
+
+ [-webkit-line-clamp]
+-engine = "gecko"
+ flags = "IS_LEGACY_SHORTHAND ALLOWS_DISABLED_SUBPROPERTIES"
+ sub_properties = ["line-clamp"]
+ spec = "https://drafts.csswg.org/css-overflow-4/#webkit-line-clamp"
+diff --git a/style_adjuster.rs b/style_adjuster.rs
+index c14a93f..cd0f53c 100644
+--- a/style_adjuster.rs
++++ b/style_adjuster.rs
+@@ -161,7 +161,6 @@ impl<'a, 'b: 'a> StyleAdjuster<'a, 'b> {
+     /// This makes the element not be a flex container, with all that it
+     /// implies, but it should be safe. It matches blink, see
+     /// https://bugzilla.mozilla.org/show_bug.cgi?id=1786147#c10
+-    #[cfg(feature = "gecko")]
+     fn adjust_for_webkit_line_clamp(&mut self) {
+         use crate::properties::longhands::_moz_box_orient::computed_value::T as BoxOrient;
+         use crate::values::specified::box_::{DisplayInside, DisplayOutside};
+@@ -186,6 +185,8 @@ impl<'a, 'b: 'a> StyleAdjuster<'a, 'b> {
+         self.style
+             .mutate_box()
+             .set_adjusted_display(new_display, false);
++        self.style
++            .add_flags(ComputedValueFlags::IS_WEBKIT_LINE_CLAMP_CONTEXT);
+     }
+
+     /// CSS 2.1 section 9.7:
+@@ -1061,7 +1062,6 @@ impl<'a, 'b: 'a> StyleAdjuster<'a, 'b> {
+         }
+         self.adjust_for_top_layer();
+         self.blockify_if_necessary(layout_parent_style, element);
+-        #[cfg(feature = "gecko")]
+         self.adjust_for_webkit_line_clamp();
+         self.adjust_for_position();
+         self.adjust_for_overflow();
+diff --git a/values/specified/background.rs b/values/specified/background.rs
+index 405d50e..662f90b 100644
+--- a/values/specified/background.rs
++++ b/values/specified/background.rs
+@@ -210,7 +210,6 @@ pub enum BackgroundClip {
+     #[value_info(skip)]
+     NoClip,
+     // TODO: text and border-area are supposed to combine in backgrounds-4...
+-    #[cfg(feature = "gecko")]
+     Text,
+     #[parse(condition = "background_clip_border_area_enabled")]
+     #[value_info(skip)]
+@@ -241,7 +240,6 @@ impl BackgroundClip {
+             Self::ViewBox => ClipValidity::MASK,
+             #[cfg(feature = "gecko")]
+             Self::NoClip => ClipValidity::MASK,
+-            #[cfg(feature = "gecko")]
+             Self::Text => ClipValidity::BACKGROUND,
+             Self::BorderArea => ClipValidity::BACKGROUND,
+         }
+diff --git a/values/specified/box.rs b/values/specified/box.rs
+index 1e4fb97..350c08e 100644
+--- a/values/specified/box.rs
++++ b/values/specified/box.rs
+@@ -170,7 +170,6 @@ pub enum DisplayInside {
+     RubyText,
+     #[cfg(feature = "gecko")]
+     RubyTextContainer,
+-    #[cfg(feature = "gecko")]
+     WebkitBox,
+ }
+
+@@ -238,7 +237,6 @@ impl Display {
+     );
+     pub const Block: Self =
+         Self(((DisplayOutside::Block as u16) << Self::OUTSIDE_SHIFT) | DisplayInside::Flow as u16);
+-    #[cfg(feature = "gecko")]
+     pub const FlowRoot: Self = Self(
+         ((DisplayOutside::Block as u16) << Self::OUTSIDE_SHIFT) | DisplayInside::FlowRoot as u16,
+     );
+@@ -261,11 +259,9 @@ impl Display {
+     #[cfg(feature = "gecko")]
+     pub const Ruby: Self =
+         Self(((DisplayOutside::Inline as u16) << Self::OUTSIDE_SHIFT) | DisplayInside::Ruby as u16);
+-    #[cfg(feature = "gecko")]
+     pub const WebkitBox: Self = Self(
+         ((DisplayOutside::Block as u16) << Self::OUTSIDE_SHIFT) | DisplayInside::WebkitBox as u16,
+     );
+-    #[cfg(feature = "gecko")]
+     pub const WebkitInlineBox: Self = Self(
+         ((DisplayOutside::Inline as u16) << Self::OUTSIDE_SHIFT) | DisplayInside::WebkitBox as u16,
+     );
+@@ -518,9 +514,7 @@ impl DisplayKeyword {
+             "ruby-text" => Full(Display::RubyText),
+             #[cfg(feature = "gecko")]
+             "ruby-text-container" => Full(Display::RubyTextContainer),
+-            #[cfg(feature = "gecko")]
+             "-webkit-box" => Full(Display::WebkitBox),
+-            #[cfg(feature = "gecko")]
+             "-webkit-inline-box" => Full(Display::WebkitInlineBox),
+
+             /// <display-outside> = block | inline | run-in
+@@ -553,7 +547,6 @@ impl ToCss for Display {
+         match *self {
+             Display::Block | Display::Inline => outside.to_css(dest),
+             Display::InlineBlock => dest.write_str("inline-block"),
+-            #[cfg(feature = "gecko")]
+             Display::WebkitInlineBox => dest.write_str("-webkit-inline-box"),
+             Display::TableCaption => dest.write_str("table-caption"),
+             _ => match (outside, inside) {
+diff --git a/values/specified/font.rs b/values/specified/font.rs
+index e63811a..3c090fd 100644
+--- a/values/specified/font.rs
++++ b/values/specified/font.rs
+@@ -1618,6 +1618,7 @@ pub enum FontSynthesis {
+     ToShmem,
+     ToTyped,
+ )]
++#[cfg_attr(feature = "servo", derive(Serialize, Deserialize))]
+ pub enum FontSynthesisStyle {
+     /// This attribute may be synthesized if not supported by a face.
+     Auto,
+@@ -1639,6 +1640,7 @@ pub enum FontSynthesisStyle {
+     ToShmem,
+     ToTyped,
+ )]
++#[cfg_attr(feature = "servo", derive(Serialize, Deserialize))]
+ #[repr(C)]
+ #[typed(todo_derive_fields)]
+ /// Allows authors to choose a palette from those supported by a color font
+diff --git a/values/specified/text.rs b/values/specified/text.rs
+index c4284cb..181eede 100644
+--- a/values/specified/text.rs
++++ b/values/specified/text.rs
+@@ -856,6 +856,5 @@ pub enum WordBreak {
+     ///
+     /// Specifying `word-break: break-word` makes `overflow-wrap` behave as
+     /// `anywhere`, and `word-break` behave like `normal`.
+-    #[cfg(feature = "gecko")]
+     BreakWord,
+ }

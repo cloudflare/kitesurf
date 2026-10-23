@@ -10,6 +10,7 @@ mod damaged_subtree_skip;
 mod glyph_cache_panic;
 mod ink_rect;
 mod inline_block_border;
+mod inline_span_background;
 mod paint_damage;
 mod paint_damage_layout_cache;
 mod rbi_image_cache;

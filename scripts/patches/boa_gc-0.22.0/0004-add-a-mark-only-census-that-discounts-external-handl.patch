@@ -1,0 +1,546 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Wed, 23 Sep 2026 00:59:55 +0100
+Subject: [PATCH] add a mark-only census that discounts external handles
+
+An embedder that pins boa objects in a host-side table makes every
+pinned object look rooted to the collector. census() marks the heap as
+a collection would but discounts one handle per listed pin, so the
+embedder can tell which pinned objects boa itself no longer reaches.
+Census::children lists an object's strong edges without marking, so
+the embedder can group that unreached graph into components. Nothing
+is finalized or freed; marks and root counts are reset afterwards.
+
+A reached script WeakRef roots its target, since script can deref it.
+WeakMap and WeakSet entries keep ephemeron semantics: they never yield
+their keys, so rooting the keys kept every cycle through a
+WeakMap<Element, ...> key alive. An entry of a reached map whose key
+stays unmarked is reported as an edge from the key to its value, since
+script reaches the value through map.get(key) whenever it reaches the
+key.
+---
+ src/internals/ephemeron_box.rs |  36 ++++++-
+ src/internals/weak_map_box.rs  |  17 +++-
+ src/lib.rs                     | 169 +++++++++++++++++++++++++++++++++
+ src/pointers/ephemeron.rs      |   9 +-
+ src/test/census.rs             | 160 +++++++++++++++++++++++++++++++
+ src/test/mod.rs                |   1 +
+ src/trace.rs                   |   7 ++
+ 7 files changed, 395 insertions(+), 4 deletions(-)
+ create mode 100644 src/test/census.rs
+
+diff --git a/src/internals/ephemeron_box.rs b/src/internals/ephemeron_box.rs
+index f88e998..202f0e8 100644
+--- a/src/internals/ephemeron_box.rs
++++ b/src/internals/ephemeron_box.rs
+@@ -1,4 +1,4 @@
+-use crate::{Gc, GcBox, Tracer, trace::Trace};
++use crate::{Gc, GcBox, GcErasedPointer, Tracer, trace::Trace};
+ use std::{cell::UnsafeCell, ptr::NonNull};
+
+ use super::GcHeader;
+@@ -126,6 +126,15 @@ pub(crate) trait ErasedEphemeronBox {
+
+     fn trace_non_roots(&self);
+
++    /// Census-only strong view of a live entry's key and value.
++    unsafe fn census_root(&self, tracer: &mut Tracer);
++
++    /// A live entry's key, for a census.
++    fn census_key(&self) -> Option<GcErasedPointer>;
++
++    /// Census-only trace of a live entry's value alone.
++    unsafe fn census_trace_value(&self, tracer: &mut Tracer);
++
+     /// Runs the finalization logic of the `EphemeronBox`'s held value, if the key is still live,
+     /// and clears its contents.
+     fn finalize_and_clear(&self);
+@@ -163,6 +172,31 @@ impl<K: Trace + ?Sized, V: Trace> ErasedEphemeronBox for EphemeronBox<K, V> {
+         is_key_marked
+     }
+
++    unsafe fn census_root(&self, tracer: &mut Tracer) {
++        // SAFETY: as in trace, a census never mutates or sweeps the heap.
++        let data = unsafe { &*self.data.get() };
++        if let Some(data) = data.as_ref() {
++            tracer.enqueue(data.key.cast());
++            // SAFETY: the ephemeron still owns its value.
++            unsafe { data.value.trace(tracer) }
++        }
++    }
++
++    fn census_key(&self) -> Option<GcErasedPointer> {
++        // SAFETY: as in trace, a census never mutates or sweeps the heap.
++        let data = unsafe { &*self.data.get() };
++        data.as_ref().map(|data| data.key.cast())
++    }
++
++    unsafe fn census_trace_value(&self, tracer: &mut Tracer) {
++        // SAFETY: as in trace, a census never mutates or sweeps the heap.
++        let data = unsafe { &*self.data.get() };
++        if let Some(data) = data.as_ref() {
++            // SAFETY: the ephemeron still owns its value.
++            unsafe { data.value.trace(tracer) }
++        }
++    }
++
+     fn trace_non_roots(&self) {
+         // SAFETY: Tracing always executes before collecting, meaning this cannot cause
+         // use after free.
+diff --git a/src/internals/weak_map_box.rs b/src/internals/weak_map_box.rs
+index d85ba92..75cd95d 100644
+--- a/src/internals/weak_map_box.rs
++++ b/src/internals/weak_map_box.rs
+@@ -1,4 +1,5 @@
+-use crate::{GcRefCell, Trace, Tracer, WeakGc, pointers::RawWeakMap};
++use crate::{GcRefCell, Trace, Tracer, WeakGc, internals::ErasedEphemeronBox, pointers::RawWeakMap};
++use std::ptr::NonNull;
+
+ /// A box that is used to track [`WeakMap`][`crate::WeakMap`]s.
+ pub(crate) struct WeakMapBox<K: Trace + ?Sized + 'static, V: Trace + Sized + 'static> {
+@@ -15,6 +16,9 @@ pub(crate) trait ErasedWeakMapBox {
+
+     /// Traces the weak reference inside of the [`WeakMapBox`] if the weak map is live.
+     unsafe fn trace(&self, tracer: &mut Tracer);
++
++    /// Adds each entry's ephemeron box, for a census.
++    fn census_entries(&self, out: &mut Vec<NonNull<dyn ErasedEphemeronBox>>);
+ }
+
+ impl<K: Trace + ?Sized, V: Trace> ErasedWeakMapBox for WeakMapBox<K, V> {
+@@ -36,4 +40,15 @@ impl<K: Trace + ?Sized, V: Trace> ErasedWeakMapBox for WeakMapBox<K, V> {
+             unsafe { self.map.trace(tracer) }
+         }
+     }
++
++    fn census_entries(&self, out: &mut Vec<NonNull<dyn ErasedEphemeronBox>>) {
++        if let Some(map) = self.map.upgrade()
++            && let Ok(map) = map.try_borrow()
++        {
++            out.extend(map.iter().map(|eph| {
++                let ptr: NonNull<dyn ErasedEphemeronBox> = eph.inner_ptr();
++                ptr
++            }));
++        }
++    }
+ }
+diff --git a/src/lib.rs b/src/lib.rs
+index 1b317af..a73c3c6 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -27,6 +27,7 @@ use internals::{EphemeronBox, ErasedEphemeronBox, ErasedWeakMapBox, WeakMapBox};
+ use pointers::{NonTraceable, RawWeakMap};
+ use std::{
+     cell::{Cell, RefCell},
++    collections::{HashMap, HashSet},
+     mem,
+     ptr::NonNull,
+ };
+@@ -540,6 +541,174 @@ pub fn heap_stats() -> (usize, usize) {
+     })
+ }
+
++/// A non-rooting heap address, valid only while its allocation remains live.
++#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
++pub struct CensusKey(GcErasedPointer);
++
++impl<T: Trace + ?Sized> Gc<T> {
++    /// Returns this allocation's non-rooting census key.
++    #[must_use]
++    pub fn census_key(&self) -> CensusKey {
++        CensusKey(self.as_erased_pointer())
++    }
++}
++
++/// A mark-only pass started by [`census`].
++#[allow(missing_debug_implementations)]
++pub struct Census {
++    tracer: Tracer,
++    // Entries of reached weak maps whose key the census left unmarked. Script
++    // reaches such a value through `map.get(key)` whenever it reaches the key,
++    // so `children` reports it as one of the key's edges.
++    values_by_key: HashMap<GcErasedPointer, Vec<EphemeronPointer>>,
++}
++
++impl Census {
++    /// Was `key` reached from a root other than the discounted handles?
++    ///
++    /// # Safety
++    /// `key` must name an allocation kept live for the whole census.
++    #[must_use]
++    pub unsafe fn is_marked(&self, key: CensusKey) -> bool {
++        // SAFETY: the caller keeps the allocation live.
++        unsafe { key.0.as_ref() }.is_marked()
++    }
++
++    /// Returns strong children without marking them.
++    ///
++    /// # Safety
++    /// `key` must name an allocation kept live for the whole census.
++    pub unsafe fn children(&mut self, key: CensusKey) -> Vec<CensusKey> {
++        self.tracer.record = Some(Vec::new());
++        // SAFETY: the caller keeps the allocation live; its own vtable supplies trace.
++        let trace_fn = unsafe { key.0.as_ref() }.trace_fn();
++        unsafe { trace_fn(key.0, &mut self.tracer) }
++        if let Some(entries) = self.values_by_key.get(&key.0) {
++            for eph in entries {
++                // SAFETY: nothing is swept during a census, so the entry is live.
++                unsafe { eph.as_ref().census_trace_value(&mut self.tracer) }
++            }
++        }
++        self.tracer
++            .record
++            .take()
++            .unwrap_or_default()
++            .into_iter()
++            .map(CensusKey)
++            .collect()
++    }
++}
++
++// A callback may unwind; never leave census marks or discounted root counts
++// behind for the next real collection.
++struct CensusReset<'a>(&'a BoaGc);
++
++impl Drop for CensusReset<'_> {
++    fn drop(&mut self) {
++        for node in &self.0.strongs {
++            // SAFETY: nothing is swept during a census.
++            let node = unsafe { node.as_ref() };
++            node.header.unmark();
++            node.reset_non_root_count();
++        }
++        for eph in &self.0.weaks {
++            // SAFETY: nothing is swept during a census.
++            let header = unsafe { eph.as_ref() }.header();
++            header.unmark();
++            header.reset_non_root_count();
++        }
++    }
++}
++
++/// Marks the heap as a collection would, discounting one external handle for
++/// each entry in `discounted`. Nothing is finalized or freed. A reached
++/// WeakRef target counts as reachable because script can recover it; weak map
++/// entries keep their usual ephemeron semantics.
++///
++/// # Safety
++/// Every key must remain live throughout this call. `f` must not allocate,
++/// drop, or clone GC handles, or otherwise change the heap or its edges.
++pub unsafe fn census<R>(discounted: &[CensusKey], f: impl FnOnce(&mut Census) -> R) -> R {
++    BOA_GC.with(|current| {
++        let gc = current.borrow_mut();
++        let _reset = CensusReset(&gc);
++        Collector::trace_non_roots(&gc);
++        for key in discounted {
++            // SAFETY: the caller keeps each allocation live.
++            unsafe { key.0.as_ref() }.header.inc_non_root_count();
++        }
++        let mut census = Census {
++            tracer: Tracer::new(),
++            values_by_key: HashMap::new(),
++        };
++        drop(Collector::mark_heap(
++            &mut census.tracer,
++            &gc.strongs,
++            &gc.weaks,
++            &gc.weak_maps,
++        ));
++        // Script can deref a WeakRef, so a reached one roots its target. A
++        // WeakMap or WeakSet never yields its keys: its entries keep their
++        // values only while the key is reached, as in a collection.
++        let mut map_list = Vec::new();
++        for map in &gc.weak_maps {
++            // SAFETY: every entry in the heap list is live.
++            unsafe { map.as_ref() }.census_entries(&mut map_list);
++        }
++        let map_entries: HashSet<NonNull<u8>> =
++            map_list.iter().map(|eph| eph.cast::<u8>()).collect();
++        // Externally rooted ephemerons are bridge identity caches, not
++        // script-visible weak references. Each pass drops the entries it
++        // settles, so a rescan only visits what is still pending.
++        let mut pending: Vec<EphemeronPointer> = gc
++            .weaks
++            .iter()
++            .copied()
++            // SAFETY: every entry in the heap list is live.
++            .filter(|eph| !unsafe { eph.as_ref() }.header().is_rooted())
++            .collect();
++        loop {
++            let before = pending.len();
++            pending.retain(|eph| {
++                // SAFETY: every entry in the heap list is live, and the census
++                // never sweeps or mutates the heap.
++                unsafe {
++                    let eph_ref = eph.as_ref();
++                    if !eph_ref.header().is_marked() {
++                        return true;
++                    }
++                    let settled = if map_entries.contains(&eph.cast::<u8>()) {
++                        eph_ref.trace(&mut census.tracer)
++                    } else {
++                        eph_ref.census_root(&mut census.tracer);
++                        true
++                    };
++                    census.tracer.trace_until_empty();
++                    !settled
++                }
++            });
++            if pending.len() == before {
++                break;
++            }
++        }
++        for eph in map_list {
++            // SAFETY: every entry in the heap list is live.
++            let eph_ref = unsafe { eph.as_ref() };
++            if !eph_ref.header().is_marked() {
++                continue;
++            }
++            let Some(key) = eph_ref.census_key() else {
++                continue;
++            };
++            // SAFETY: a live entry's key is live.
++            if !unsafe { key.as_ref() }.is_marked() {
++                census.values_by_key.entry(key).or_default().push(eph);
++            }
++        }
++        f(&mut census)
++    })
++}
++
+ /// Forcefully runs a garbage collection of all inaccessible nodes.
+ pub fn force_collect() {
+     BOA_GC.with(|current| {
+diff --git a/src/pointers/ephemeron.rs b/src/pointers/ephemeron.rs
+index 519381c..9623da6 100644
+--- a/src/pointers/ephemeron.rs
++++ b/src/pointers/ephemeron.rs
+@@ -2,7 +2,7 @@
+
+ use crate::{
+     Allocator, Gc, Tracer, finalizer_safe,
+-    internals::EphemeronBox,
++    internals::{EphemeronBox, ErasedEphemeronBox},
+     trace::{Finalize, Trace},
+ };
+ use std::{ops::Deref, ptr::NonNull};
+@@ -128,7 +128,12 @@ impl<K: Trace + ?Sized, V: Trace> Finalize for Ephemeron<K, V> {
+ // SAFETY: `Ephemeron`s trace implementation only marks its inner box because we want to stop
+ // tracing through weakly held pointers.
+ unsafe impl<K: Trace + ?Sized, V: Trace> Trace for Ephemeron<K, V> {
+-    unsafe fn trace(&self, _tracer: &mut Tracer) {
++    unsafe fn trace(&self, tracer: &mut Tracer) {
++        if tracer.record.is_some() {
++            // SAFETY: this handle keeps its ephemeron live for the census.
++            unsafe { self.inner().census_root(tracer) };
++            return;
++        }
+         // SAFETY: We need to mark the inner box of the `Ephemeron` since it is reachable
+         // from a root and this means it cannot be dropped.
+         unsafe {
+diff --git a/src/test/census.rs b/src/test/census.rs
+new file mode 100644
+index 0000000..8c93844
+--- /dev/null
++++ b/src/test/census.rs
+@@ -0,0 +1,160 @@
++use crate::{Finalize, Gc, GcRefCell, Trace, WeakGc, WeakMap, census, force_collect};
++
++#[derive(Trace, Finalize)]
++struct Node {
++    child: GcRefCell<Option<Gc<Node>>>,
++}
++
++#[test]
++fn census_discounts_only_the_listed_handles_and_records_edges() {
++    let child = Gc::new(Node {
++        child: GcRefCell::new(None),
++    });
++    let root = Gc::new(Node {
++        child: GcRefCell::new(Some(child.clone())),
++    });
++    let root_key = root.census_key();
++    let child_key = child.census_key();
++    let held = root.clone();
++    // SAFETY: all handles remain live, and the callback only inspects keys.
++    unsafe {
++        census(&[root_key, child_key], |c| {
++            assert!(c.is_marked(root_key));
++            assert!(c.is_marked(child_key));
++        });
++    }
++    drop(held);
++    // SAFETY: root and child remain live; no GC handle changes in the callback.
++    unsafe {
++        census(&[root_key, child_key], |c| {
++            assert!(!c.is_marked(root_key));
++            assert!(!c.is_marked(child_key));
++            assert_eq!(c.children(root_key), vec![child_key]);
++        });
++    }
++    force_collect();
++    assert!(root.child.borrow().is_some());
++}
++
++#[test]
++fn census_preserves_script_weak_refs_but_not_external_identity_caches() {
++    let root = Gc::new(Node {
++        child: GcRefCell::new(None),
++    });
++    let cache = WeakGc::new(&root);
++    let key = root.census_key();
++    // SAFETY: root remains live; the callback only reads marks.
++    unsafe {
++        census(&[key], |c| assert!(!c.is_marked(key)));
++    }
++
++    let script_weak_ref = Gc::new(WeakGc::new(&root));
++    // SAFETY: root and the embedded weak handle remain live and unchanged.
++    unsafe {
++        census(&[key], |c| assert!(c.is_marked(key)));
++    }
++    force_collect();
++    assert!(script_weak_ref.upgrade().is_some());
++    assert!(cache.upgrade().is_some());
++
++    drop(root);
++    force_collect();
++    assert!(script_weak_ref.upgrade().is_none());
++    assert!(cache.upgrade().is_none());
++}
++
++#[test]
++fn census_keeps_weak_map_values_only_while_their_key_is_reached() {
++    let key = Gc::new(String::from("key"));
++    let value = Gc::new(String::from("value"));
++    let watch_value = WeakGc::new(&value);
++    let mut map = WeakMap::new();
++    map.insert(&key, value.clone());
++    let key_addr = key.census_key();
++    let value_addr = value.census_key();
++    // SAFETY: key, value, and map remain live; no heap changes in the callback.
++    unsafe {
++        census(&[key_addr, value_addr], |c| {
++            assert!(!c.is_marked(key_addr));
++            assert!(!c.is_marked(value_addr));
++        });
++    }
++    // A script WeakRef can recover the key, and through it the value.
++    let script_weak_ref = Gc::new(WeakGc::new(&key));
++    // SAFETY: as above, plus the WeakRef box stays live and unchanged.
++    unsafe {
++        census(&[key_addr, value_addr], |c| {
++            assert!(c.is_marked(key_addr));
++            assert!(c.is_marked(value_addr));
++        });
++    }
++    drop(script_weak_ref);
++    let held_key = key.clone();
++    // SAFETY: as above.
++    unsafe {
++        census(&[key_addr, value_addr], |c| {
++            assert!(c.is_marked(key_addr));
++            assert!(c.is_marked(value_addr));
++        });
++    }
++    drop(held_key);
++    force_collect();
++    assert!(map.contains_key(&key));
++    assert!(watch_value.upgrade().is_some());
++
++    drop(value);
++    drop(key);
++    force_collect();
++    assert!(watch_value.upgrade().is_none());
++}
++
++#[test]
++fn census_reports_a_reached_weak_maps_value_as_an_edge_of_its_gray_key() {
++    let key = Gc::new(Node {
++        child: GcRefCell::new(None),
++    });
++    let value = Gc::new(Node {
++        child: GcRefCell::new(None),
++    });
++    let mut map = WeakMap::new();
++    map.insert(&key, value.clone());
++    let key_addr = key.census_key();
++    let value_addr = value.census_key();
++    // SAFETY: key, value, and map remain live; no heap changes in the callback.
++    unsafe {
++        census(&[key_addr, value_addr], |c| {
++            assert!(!c.is_marked(key_addr));
++            assert!(!c.is_marked(value_addr));
++            // Script reaches the value through `map.get(key)` whenever it
++            // reaches the key, so the gray walk must see that edge.
++            assert_eq!(c.children(key_addr), vec![value_addr]);
++            assert!(c.children(value_addr).is_empty());
++        });
++    }
++    drop(map);
++    // SAFETY: as above; the map itself is gone, so is the edge.
++    unsafe {
++        census(&[key_addr, value_addr], |c| {
++            assert!(c.children(key_addr).is_empty());
++        });
++    }
++}
++
++#[test]
++fn census_unwind_restores_marks_and_root_counts() {
++    let root = Gc::new(Node {
++        child: GcRefCell::new(None),
++    });
++    let weak = WeakGc::new(&root);
++    let key = root.census_key();
++    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
++        // SAFETY: root stays live and the callback does not mutate the heap.
++        unsafe { census(&[key], |_| panic!("census callback")) }
++    }));
++    assert!(result.is_err());
++    force_collect();
++    assert!(weak.upgrade().is_some());
++    drop(root);
++    force_collect();
++    assert!(weak.upgrade().is_none());
++}
+diff --git a/src/test/mod.rs b/src/test/mod.rs
+index 79b73d2..e2821f4 100644
+--- a/src/test/mod.rs
++++ b/src/test/mod.rs
+@@ -2,6 +2,7 @@ use crate::BOA_GC;
+
+ mod allocation;
+ mod cell;
++mod census;
+ mod erased;
+ mod std_types;
+ mod weak;
+diff --git a/src/trace.rs b/src/trace.rs
+index be0cb2c..6d5dc0e 100644
+--- a/src/trace.rs
++++ b/src/trace.rs
+@@ -22,16 +22,23 @@ use crate::GcErasedPointer;
+ #[allow(missing_debug_implementations)]
+ pub struct Tracer {
+     queue: VecDeque<GcErasedPointer>,
++    // Census edge discovery records children without changing marks.
++    pub(crate) record: Option<Vec<GcErasedPointer>>,
+ }
+
+ impl Tracer {
+     pub(crate) fn new() -> Self {
+         Self {
+             queue: VecDeque::default(),
++            record: None,
+         }
+     }
+
+     pub(crate) fn enqueue(&mut self, node: GcErasedPointer) {
++        if let Some(edges) = &mut self.record {
++            edges.push(node);
++            return;
++        }
+         // Mark on enqueue. Marking on dequeue pushes a node once per incoming edge,
+         // and on wasm32 the worklist can outgrow isize::MAX.
+         // SAFETY: `node` is a live GcBox pointer supplied by a Trace impl, so its

@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 31 Jul 2026 12:18:02 +0100
+Subject: [PATCH] list-style: serialize the position when the type ident
+ shadows it
+
+A <counter-style-name> spelled "inside" serialized alone re-parses as
+list-style-position. Upstream guards a type named "outside" (Bug
+2059467); add the same guard for "inside", so the position is emitted
+whenever the type token could be read back as one. WPT css-lists
+list-style-valid pins the unambiguous form.
+---
+ properties/shorthands.rs | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/properties/shorthands.rs b/properties/shorthands.rs
+index 318d77c..450241b 100644
+--- a/properties/shorthands.rs
++++ b/properties/shorthands.rs
+@@ -1127,8 +1127,13 @@ pub mod list_style {
+             use list_style_type::SpecifiedValue as ListStyleType;
+
+             let mut writer = SequenceWriter::new(dest, " ");
++            // Upstream only guards a type named "outside"; a
++            // <counter-style-name> spelled "inside" serialized alone also
++            // re-parses as list-style-position, so force the position out
++            // for it too.
+             if *self.list_style_position != ListStylePosition::Outside
+                 || self.list_style_type.is_name(&atom!("outside"))
++                || self.list_style_type.is_name(&crate::Atom::from("inside"))
+             {
+                 writer.item(self.list_style_position)?;
+             }

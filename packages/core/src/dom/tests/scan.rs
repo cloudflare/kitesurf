@@ -500,6 +500,28 @@ fn internal_subset_doctype_with_xhtml_root_stays_xml() {
 }
 
 #[test]
+fn xhtml_doctype_after_prolog_misc_stays_xml() {
+    let doctype = concat!(
+        "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" ",
+        "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n",
+    );
+    let body = "<html><head><script src=\"/a.js\" /><script>b();</script></head></html>";
+
+    for prolog_misc in [
+        "<!-- comment before doctype -->\n",
+        "<?xml-stylesheet href=\"theme.css\"?>\n",
+    ] {
+        let html = format!("{prolog_misc}{doctype}{body}");
+        check(&html);
+        let scripts = scan_value(&html)["scripts"].as_array().unwrap().len();
+        assert_eq!(
+            scripts, 2,
+            "XHTML doctype after prolog misc was ignored: {html}"
+        );
+    }
+}
+
+#[test]
 fn start_tag_text_inside_prolog_markup_keeps_the_xhtml_root() {
     for prolog in [
         "<!DOCTYPE html><!-- <svg> --><html ",
@@ -514,6 +536,33 @@ fn start_tag_text_inside_prolog_markup_keeps_the_xhtml_root() {
         let scripts = scan_value(&html)["scripts"].as_array().unwrap().len();
         assert_eq!(scripts, 2, "parsed as HTML: {html}");
     }
+}
+
+#[test]
+fn html_doctype_sniff_ignores_xhtml_outside_the_doctype_and_root_namespace() {
+    for html in [
+        "<!DOCTYPE html><!-- XHTML --><html><head><script src=\"/a.js\" /><script>b();</script></head></html>",
+        "<!DOCTYPE html><htmlish xmlns=\"http://www.w3.org/1999/xhtml\"><head><script src=\"/a.js\" /><script>b();</script></head></htmlish>",
+        "<!DOCTYPE html><html data-note=\"xhtml\"><head><script src=\"/a.js\" /><script>b();</script></head></html>",
+        "<!DOCTYPE html><html>text says xhtml<head><script src=\"/a.js\" /><script>b();</script></head></html>",
+        "<htmlish xmlns=\"http://www.w3.org/1999/xhtml\"><head><script src=\"/a.js\" /><script>b();</script></head></htmlish>",
+        "<!DOCTYPE html><html\u{000c}xmlns=\"http://www.w3.org/1999/xhtml\"><head><script src=\"/a.js\" /><script>b();</script></head></html>",
+        "<!DOCTYPE html>\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><script src=\"/a.js\" /><script>b();</script></head></html>",
+    ] {
+        check(html);
+        let scripts = scan_value(html)["scripts"].as_array().unwrap().len();
+        assert_eq!(scripts, 1, "misrouted as XML: {html}");
+    }
+}
+
+#[test]
+fn xml_stylesheet_processing_instruction_is_not_an_xml_declaration() {
+    let html = concat!(
+        "<?xml-stylesheet href=\"theme.css\"?><html><head>",
+        "<script src=\"/a.js\" /><script>b();</script></head></html>",
+    );
+    check(html);
+    assert_eq!(scan_value(html)["scripts"].as_array().unwrap().len(), 1);
 }
 
 #[test]

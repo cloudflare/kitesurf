@@ -1,0 +1,200 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 26 Jul 2026 07:28:42 +0100
+Subject: [PATCH] Treat <canvas> and <iframe> as replaced elements fed by the
+ embedder
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Blitz had no canvas paint at all: <canvas> laid out as an empty inline
+element (0x16 line box) and painted nothing. Two changes make it a
+first-class replaced element for embedders that rasterize canvas content
+externally (for example, a 2D context implemented in JS that pushes RGBA
+frames):
+
+1. Add "canvas" to both inline replaced-box gates in construct.rs
+   (they listed img/svg/input/textarea/button), so inline-flow
+   canvases become parley inline boxes and get replaced sizing from
+   their width/height attributes.
+
+2. kitesurf_set_canvas_image / kitesurf_clear_canvas_image on
+   BaseDocument: store the pushed framebuffer in the node's
+   SpecialElementData::Image slot (the exact slot apply_loaded_image
+   fills for <img>) so layout sizes the canvas intrinsically and
+   blitz-paint draws the raster in-flow with correct z-order,
+   scaling, and clipping. Same-dims frame updates skip relayout
+   (paint reads the fresh blob); dim changes clear the node cache
+   and insert full damage.
+
+kitesurf_clear_canvas_image applies the same local-name guard as the
+setter. blitz reuses node ids after remove_and_drop_node, so a stale
+canvas wrapper (or a GC-timed surface reaper) clearing a recycled id
+could otherwise wipe a live <img>'s replaced-image data.
+
+Iframes have no in-blitz sub-document paint; an embedder may run them as
+separate documents and rasterize them itself. <iframe> gets the same
+treatment: add iframe to the inline replaced-box gates in construct.rs +
+the replaced-measure element-name gate in layout/mod.rs, and add
+kitesurf_set_iframe_image / kitesurf_clear_iframe_image on BaseDocument
+that store the pushed framebuffer in the node's
+SpecialElementData::Image slot (the exact slot apply_loaded_image fills
+for <img>) so blitz-paint draws the raster in-flow with correct z-order,
+scaling, and clipping. Same-dims frame updates skip relayout; dim
+changes clear the node cache and insert full damage. Iframe local-name
+guard on both setter and clearer survives blitz's slab-id reuse (a stale
+iframe id may now be an <img> whose data must survive).
+
+An out-of-process iframe needs no compositor changes this way: the child
+paints itself and its bitmap becomes the iframe's replaced content.
+
+Co-authored-by: Luís Duarte <lduarte@cloudflare.com>
+---
+ src/document.rs | 134 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 134 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index 6e1b539..93b339a 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1500,6 +1500,140 @@ impl BaseDocument {
+
+     /// Cache a loaded image and apply it to all nodes waiting on it
+     /// (`<img>` elements, `background-image` layers and `mask-image` layers).
++    /// Set a canvas element's framebuffer as its replaced
++    /// image content (same special_data slot an <img> load fills).
++    ///
++    /// Returns: -1 unknown/non-canvas node, 0 stored (same dims as
++    /// before), 1 stored + dims changed (caller must re-layout).
++    pub fn kitesurf_set_canvas_image(
++        &mut self,
++        node_id: NodeId,
++        width: u32,
++        height: u32,
++        data: Arc<Vec<u8>>,
++    ) -> i32 {
++        let Some(node) = self.get_node_mut(node_id) else {
++            return -1;
++        };
++        let Some(el) = node.element_data_mut() else {
++            return -1;
++        };
++        if el.name.local != local_name!("canvas") {
++            return -1;
++        }
++        let size_changed = match &el.special_data {
++            SpecialElementData::Image(d) => match &**d {
++                ImageData::Raster(r) => r.width != width || r.height != height,
++                _ => true,
++            },
++            _ => true,
++        };
++        el.special_data = SpecialElementData::Image(Box::new(ImageData::Raster(
++            RasterImageData::new(width, height, data),
++        )));
++        if size_changed {
++            node.cache_mut().clear();
++            node.insert_damage(ALL_DAMAGE);
++            1
++        } else {
++            0
++        }
++    }
++
++    /// Set an iframe element's rendered bitmap as its
++    /// replaced-element image content (same special_data slot an
++    /// <img> load fills). This is the load-bearing primitive for
++    /// OOPIF rendering: a child page-script isolate paints the
++    /// iframe's document to RGBA via the pageRenderer, the parent
++    /// pushes those bytes here, and blitz-paint draws them in-flow
++    /// with correct z-order, scaling, and clipping: no compositor
++    /// wire changes required.
++    ///
++    /// Guarded on the iframe local-name to survive slab id reuse: a
++    /// stale iframe id may now be an <img> whose data
++    /// must survive. Same-dims frame updates skip relayout; dim
++    /// changes clear the node cache and insert full damage.
++    ///
++    /// Returns: -1 unknown/non-iframe node, 0 stored (same dims as
++    /// before), 1 stored + dims changed (caller must re-layout).
++    pub fn kitesurf_set_iframe_image(
++        &mut self,
++        node_id: NodeId,
++        width: u32,
++        height: u32,
++        data: Arc<Vec<u8>>,
++    ) -> i32 {
++        let Some(node) = self.get_node_mut(node_id) else {
++            return -1;
++        };
++        let Some(el) = node.element_data_mut() else {
++            return -1;
++        };
++        if el.name.local != local_name!("iframe") {
++            return -1;
++        }
++        let size_changed = match &el.special_data {
++            SpecialElementData::Image(d) => match &**d {
++                ImageData::Raster(r) => r.width != width || r.height != height,
++                _ => true,
++            },
++            _ => true,
++        };
++        el.special_data = SpecialElementData::Image(Box::new(ImageData::Raster(
++            RasterImageData::new(width, height, data),
++        )));
++        if size_changed {
++            node.clear_layout_cache();
++            node.insert_damage(ALL_DAMAGE);
++            1
++        } else {
++            0
++        }
++    }
++
++    /// Drop an iframe framebuffer set by
++    /// kitesurf_set_iframe_image (frame detached / re-navigated).
++    /// Same slab-reuse guard as the canvas variant.
++    pub fn kitesurf_clear_iframe_image(&mut self, node_id: NodeId) {
++        let Some(node) = self.get_node_mut(node_id) else {
++            return;
++        };
++        let Some(el) = node.element_data_mut() else {
++            return;
++        };
++        if el.name.local != local_name!("iframe") {
++            return;
++        }
++        if !matches!(el.special_data, SpecialElementData::Image(_)) {
++            return;
++        }
++        el.special_data = SpecialElementData::None;
++        node.clear_layout_cache();
++        node.insert_damage(ALL_DAMAGE);
++    }
++
++    /// Drop a canvas framebuffer set by
++    /// kitesurf_set_canvas_image (canvas removed / reset).
++    pub fn kitesurf_clear_canvas_image(&mut self, node_id: NodeId) {
++        let Some(node) = self.get_node_mut(node_id) else {
++            return;
++        };
++        let Some(el) = node.element_data_mut() else {
++            return;
++        };
++        // Same guard as the setter: node ids are reused (slab), so a
++        // stale canvas id may now be an <img> whose data must survive.
++        if el.name.local != local_name!("canvas") {
++            return;
++        }
++        if !matches!(el.special_data, SpecialElementData::Image(_)) {
++            return;
++        }
++        el.special_data = SpecialElementData::None;
++        node.cache_mut().clear();
++        node.insert_damage(ALL_DAMAGE);
++    }
++
+     fn apply_loaded_image(&mut self, url: &str, image: ImageData) {
+         // Get all nodes waiting for this image
+         let waiting_nodes = self.pending_images.remove(url).unwrap_or_default();

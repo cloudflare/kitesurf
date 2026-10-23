@@ -294,6 +294,8 @@ import {
   font_families_json,
   ks_boa_force_collect,
   ks_bridge_pins,
+  ks_cycle_collect,
+  ks_cycle_stats,
   ks_counter_style_rule,
   ks_parse_inline_style,
   ks_parse_typed_numeric_value,
@@ -2770,6 +2772,42 @@ async function runClassicRegularBucket(
   }
 }
 
+// Collection runs between page tasks, and later epochs are paced by the measured
+// cost so cycle collection stays near 1% of isolate CPU time.
+const CYCLE_COLLECT_INTERVAL_MS = 2000;
+const CYCLE_COLLECT_COST_FACTOR = 100;
+let cycleCollectorStarted = false;
+
+function startCycleCollector(): void {
+  if (cycleCollectorStarted) return;
+  cycleCollectorStarted = true;
+  const tick = (): void => {
+    let costMs = 0;
+    try {
+      costMs = ks_cycle_collect(true);
+    } catch (err) {
+      console.error({
+        event: "cycle_collector_failed",
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        intervalMs: CYCLE_COLLECT_INTERVAL_MS,
+        cycleStats: cycleCollectStatsForLog(),
+      });
+    }
+    nativeSetTimeout(tick, Math.max(CYCLE_COLLECT_INTERVAL_MS, costMs * CYCLE_COLLECT_COST_FACTOR));
+  };
+  nativeSetTimeout(tick, CYCLE_COLLECT_INTERVAL_MS);
+}
+
+function cycleCollectStatsForLog(): unknown {
+  try {
+    const stats: unknown = JSON.parse(ks_cycle_stats());
+    return stats;
+  } catch {
+    return null;
+  }
+}
+
 export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   async fetch(_req: Request) {
     return new Response("PageScript", { status: 404 });
@@ -2781,6 +2819,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     navigateOptions?: NavigateOptions,
   ): Promise<NavigateSummary> {
     state.navigateStarted = true;
+    startCycleCollector();
     const safeUrl = typeof url === "string" ? url : "about:blank";
     const safeHtml =
       typeof html === "string" && html.length > 0
@@ -6666,7 +6705,7 @@ function queryDomMemoryStats(): QueryDomResult<"getMemoryStats"> {
   const initialBytes = getCoreWasmMemoryInitialBytes();
   let bridge = null;
   try {
-    bridge = JSON.parse(ks_bridge_pins());
+    bridge = { ...JSON.parse(ks_bridge_pins()), ...JSON.parse(ks_cycle_stats()) };
   } catch {
     bridge = null;
   }
@@ -6707,7 +6746,9 @@ function queryDomDiagnostics(
   switch (method) {
     case "boaForceCollect": {
       try {
-        return JSON.parse(ks_boa_force_collect()) satisfies QueryDomResult<"boaForceCollect">;
+        const collected = JSON.parse(ks_boa_force_collect());
+        ks_cycle_collect(false);
+        return collected satisfies QueryDomResult<"boaForceCollect">;
       } catch (err) {
         return {
           error: err instanceof Error ? err.message : String(err),

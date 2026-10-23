@@ -1,0 +1,397 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 25 Sep 2026 02:17:43 +0100
+Subject: [PATCH] reparse replaced <style> sheets once per resolve
+
+CSSOM insertRule mirrors the whole rule list into the <style> text on
+every call, and each mutate session reparsed that growing sheet, so N
+inserts cost O(N^2) parse work (a CSS-in-JS library can insert ~130
+rules). A registered sheet's replacement is now queued and reparsed at
+the start of resolve, which every style consumer goes through. A first
+sheet still parses at flush so its @import and @font-face loads start
+early; a removed node drops its queued reparse.
+---
+ src/document.rs | 251 ++++++++++++++++++++++++++++++++++++++----------
+ src/mutator.rs  |   9 +-
+ src/resolve.rs  |   2 +
+ 3 files changed, 212 insertions(+), 50 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 108c7f5..8c8767d 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -205,6 +205,59 @@ pub struct AuthorFontRegistration {
+     pub weight: parley::fontique::FontWeight,
+ }
+
++#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
++pub(crate) struct AuthorSheetCssKey {
++    len: usize,
++    hash: u128,
++}
++
++fn author_sheet_css_key(css: &str) -> AuthorSheetCssKey {
++    use std::hash::{DefaultHasher, Hasher};
++    let half = |seed: u8| {
++        let mut hasher = DefaultHasher::new();
++        hasher.write_u8(seed);
++        hasher.write(css.as_bytes());
++        u128::from(hasher.finish())
++    };
++    AuthorSheetCssKey {
++        len: css.len(),
++        hash: half(0) << 64 | half(1),
++    }
++}
++
++#[derive(Clone, PartialEq, Eq)]
++pub(crate) struct AuthorSheetCacheKey {
++    css: AuthorSheetCssKey,
++    media: Option<Arc<str>>,
++}
++
++#[derive(Default)]
++pub(crate) struct AuthorSheetCacheEntry {
++    without_media: Option<DocumentStyleSheet>,
++    media: HashMap<Arc<str>, DocumentStyleSheet>,
++}
++
++fn find_author_sheet_cache_entry<'a, S: std::hash::BuildHasher>(
++    cache: &'a HashMap<AuthorSheetCssKey, AuthorSheetCacheEntry, S>,
++    css: &AuthorSheetCssKey,
++    media: Option<&str>,
++) -> Option<(
++    &'a AuthorSheetCssKey,
++    Option<&'a Arc<str>>,
++    Option<&'a DocumentStyleSheet>,
++)> {
++    let (css_key, entry) = cache.get_key_value(css)?;
++    let (media_key, sheet) = match media {
++        Some(media) => entry
++            .media
++            .get_key_value(media)
++            .map(|(key, sheet)| (Some(key), Some(sheet)))
++            .unwrap_or((None, None)),
++        None => (None, entry.without_media.as_ref()),
++    };
++    Some((css_key, media_key, sheet))
++}
++
+ pub struct BaseDocument {
+     /// ID of the document
+     id: usize,
+@@ -343,8 +396,12 @@ pub struct BaseDocument {
+     /// Stylesheets added by the useragent
+     /// where the key is the hashed CSS
+     pub(crate) ua_stylesheets: HashMap<String, DocumentStyleSheet>,
+-    /// Parsed author sheets keyed by exact CSS text, then media text.
+-    pub(crate) author_sheet_cache: HashMap<Arc<str>, AuthorSheetCacheEntry>,
++    /// Parsed author sheets keyed by CSS fingerprint, then media text.
++    pub(crate) author_sheet_cache: HashMap<AuthorSheetCssKey, AuthorSheetCacheEntry>,
++    /// Registered <style> nodes whose text changed since the last
++    /// resolve. CSSOM insertRule rewrites the whole sheet text per call, so
++    /// reparsing on every mutate session was quadratic; resolve reparses once.
++    pub(crate) pending_style_nodes: HashSet<NodeId>,
+     /// Cache keys currently registered for style nodes, kept alive until no node
+     /// shares the parsed sheet.
+     pub(crate) author_sheet_keys: HashMap<NodeId, AuthorSheetCacheKey>,
+@@ -572,6 +629,7 @@ impl BaseDocument {
+             url: base_url,
+             ua_stylesheets: HashMap::new(),
+             author_sheet_cache: HashMap::new(),
++            pending_style_nodes: HashSet::new(),
+             author_sheet_keys: HashMap::new(),
+             seen_font_faces: std::collections::HashSet::new(),
+             dirty_shadow_style_roots: Vec::new(),
+@@ -1400,6 +1458,19 @@ impl BaseDocument {
+         }
+     }
+
++    /// Reparse the <style> sheets deferred by DocumentMutator::flush.
++    pub fn process_pending_style_elements(&mut self) {
++        for id in std::mem::take(&mut self.pending_style_nodes) {
++            let is_style = self
++                .nodes
++                .get(id)
++                .is_some_and(|n| n.data.is_element_with_tag_name(&local_name!("style")));
++            if is_style {
++                self.process_style_element(id);
++            }
++        }
++    }
++
+     pub fn process_style_element(&mut self, target_id: NodeId) {
+         // HTML §the-style-element: the sheet applies only while the element's
+         // media attribute matches. Ignoring it applies mobile-only rules
+@@ -1413,57 +1484,82 @@ impl BaseDocument {
+             .attr(local_name!("media"))
+             .map(|s| s.to_string());
+         let css = self.nodes[target_id].text_content();
+-        // Hash on the pre-decode bytes via inline FNV-1a (~2-3 GB/s,
+-        // vs SipHash's ~1 GB/s). For typical CSS (no HTML entities)
+-        // pre-decode and post-decode are byte-identical, so caching
+-        // by pre-decode hash hits the same entries while skipping the
+-        // entity-decode scan entirely on hit. On miss we decode +
+-        // parse as before. Worst case (CSS with real `&amp;`-style
+-        // entities) we get one extra cache entry per distinct raw
+-        // byte form: still correct, just slightly less dedup.
+-        let bytes = css.as_bytes();
+-        let mut h: u64 = 0xcbf29ce484222325;
+-        for &b in bytes {
+-            h ^= b as u64;
+-            h = h.wrapping_mul(0x100000001b3);
+-        }
+-        // The media attribute is part of the sheet's identity: the same
+-        // body under a different media list must not share a cache entry.
+-        if let Some(media) = &media_attr {
+-            h ^= 0xff;
+-            h = h.wrapping_mul(0x100000001b3);
+-            for &b in media.as_bytes() {
+-                h ^= b as u64;
+-                h = h.wrapping_mul(0x100000001b3);
+-            }
+-        }
+-        let cache_key = h;
+-        let sheet = if let Some(cached) = self.author_sheet_cache.get(&cache_key) {
++        let css_key = author_sheet_css_key(&css);
++        let lookup = find_author_sheet_cache_entry(
++            &self.author_sheet_cache,
++            &css_key,
++            media_attr.as_deref(),
++        );
++        let cached = lookup.and_then(|(css_key, media_key, cached)| {
++            let cached = cached?;
+             // Stylo identifies document sheets by the outer Arc and rejects
+             // registering the same one twice. Reuse the parsed contents while
+             // giving each <style> node its own registration identity.
+             let guard = self.guard.read();
+             let contents = cached.0.contents.read_with(&guard).clone();
+-            DocumentStyleSheet(ServoArc::new(Stylesheet {
+-                contents: self.guard.wrap(contents),
+-                shared_lock: self.guard.clone(),
+-                media: cached.0.media.clone(),
+-                disabled: Default::default(),
+-            }))
++            Some((
++                AuthorSheetCacheKey {
++                    css: *css_key,
++                    media: media_key.cloned(),
++                },
++                DocumentStyleSheet(ServoArc::new(Stylesheet {
++                    contents: self.guard.wrap(contents),
++                    shared_lock: self.guard.clone(),
++                    media: cached.0.media.clone(),
++                    disabled: Default::default(),
++                })),
++            ))
++        });
++        let (cache_key, sheet) = if let Some(cached) = cached {
++            cached
+         } else {
+             let decoded = html_escape::decode_html_entities(&css);
+-            let s = self.make_stylesheet_with_media(&decoded, Origin::Author, media_attr.as_deref());
+-            self.author_sheet_cache.insert(cache_key, s.clone());
+-            s
++            let sheet =
++                self.make_stylesheet_with_media(&decoded, Origin::Author, media_attr.as_deref());
++            let css_key = lookup.map(|(css_key, _, _)| *css_key).unwrap_or(css_key);
++            let media_key = media_attr.as_deref().map(Arc::<str>::from);
++            let entry = self.author_sheet_cache.entry(css_key).or_default();
++            if let Some(media) = &media_key {
++                entry.media.insert(media.clone(), sheet.clone());
++            } else {
++                entry.without_media = Some(sheet.clone());
++            }
++            (
++                AuthorSheetCacheKey {
++                    css: css_key,
++                    media: media_key,
++                },
++                sheet,
++            )
+         };
+         self.add_stylesheet_for_node(sheet, target_id);
+-        let previous_key = self.author_sheet_keys.insert(target_id, cache_key);
+-        if let Some(previous) = previous_key {
+-            if previous != cache_key
+-                && !self.author_sheet_keys.values().any(|&key| key == previous)
+-            {
+-                self.author_sheet_cache.remove(&previous);
+-            }
++        let previous_key = self.author_sheet_keys.insert(target_id, cache_key.clone());
++        if let Some(previous) = previous_key.filter(|previous| previous != &cache_key) {
++            self.release_author_sheet_cache_key(&previous);
++        }
++    }
++
++    fn release_author_sheet_cache_key(&mut self, key: &AuthorSheetCacheKey) {
++        if self
++            .author_sheet_keys
++            .values()
++            .any(|current| current == key)
++        {
++            return;
++        }
++        let remove_css = self
++            .author_sheet_cache
++            .get_mut(&key.css)
++            .is_some_and(|entry| {
++                if let Some(media) = &key.media {
++                    entry.media.remove(media.as_ref());
++                } else {
++                    entry.without_media = None;
++                }
++                entry.without_media.is_none() && entry.media.is_empty()
++            });
++        if remove_css {
++            self.author_sheet_cache.remove(&key.css);
+         }
+     }
+
+@@ -1471,9 +1567,7 @@ impl BaseDocument {
+         let Some(previous) = self.author_sheet_keys.remove(&target_id) else {
+             return;
+         };
+-        if !self.author_sheet_keys.values().any(|&key| key == previous) {
+-            self.author_sheet_cache.remove(&previous);
+-        }
++        self.release_author_sheet_cache_key(&previous);
+     }
+
+     pub fn remove_user_agent_stylesheet(&mut self, contents: &str) {
+@@ -4044,6 +4138,7 @@ mod zoom_tests {
+         assert!(shell_provider.redraw_count.load(Ordering::SeqCst) > base);
+     }
+ }
++
+ #[cfg(test)]
+ mod codepoint_probe_tests {
+     use super::*;
+@@ -4066,12 +4161,70 @@ mod codepoint_probe_tests {
+     }
+ }
+
+-
+ #[cfg(test)]
+ mod author_sheet_cache_tests {
+     use super::*;
+     use crate::qual_name;
+
++    #[derive(Default)]
++    struct ConstantHasher;
++
++    impl std::hash::Hasher for ConstantHasher {
++        fn finish(&self) -> u64 {
++            0
++        }
++
++        fn write(&mut self, _: &[u8]) {}
++    }
++
++    #[test]
++    fn hash_map_collisions_keep_distinct_css_and_media_entries() {
++        use std::hash::BuildHasherDefault;
++
++        let doc = BaseDocument::new(DocumentConfig::default());
++        let red_css = "body { color: red; }";
++        let blue_css = "body { color: blue; }";
++        let media = "screen";
++        let mut cache: HashMap<
++            AuthorSheetCssKey,
++            AuthorSheetCacheEntry,
++            BuildHasherDefault<ConstantHasher>,
++        > = HashMap::default();
++        let mut red_entry = AuthorSheetCacheEntry {
++            without_media: Some(doc.make_stylesheet(red_css, Origin::Author)),
++            ..Default::default()
++        };
++        red_entry.media.insert(
++            Arc::from(media),
++            doc.make_stylesheet_with_media(red_css, Origin::Author, Some(media)),
++        );
++        cache.insert(author_sheet_css_key(red_css), red_entry);
++        cache.insert(
++            author_sheet_css_key(blue_css),
++            AuthorSheetCacheEntry {
++                without_media: Some(doc.make_stylesheet(blue_css, Origin::Author)),
++                ..Default::default()
++            },
++        );
++
++        assert_eq!(cache.len(), 2, "the test hasher forces a collision");
++        for (css, media) in [(red_css, None), (blue_css, None), (red_css, Some(media))] {
++            let key = author_sheet_css_key(css);
++            let (css_key, media_key, _sheet) =
++                find_author_sheet_cache_entry(&cache, &key, media).unwrap();
++            assert_eq!(*css_key, key);
++            assert_eq!(media_key.map(|key| key.as_ref()), media);
++        }
++        assert!(
++            find_author_sheet_cache_entry(
++                &cache,
++                &author_sheet_css_key("body { color: green; }"),
++                None
++            )
++            .is_none()
++        );
++    }
++
+     #[test]
+     fn removing_style_nodes_releases_their_shared_cache_entry() {
+         let mut doc = BaseDocument::new(DocumentConfig::default());
+@@ -4810,6 +4963,7 @@ fn note_changed_attr(snapshot: &mut ServoElementSnapshot, name: &LocalName) {
+         snapshot.changed_attrs.push(ident);
+     }
+ }
++
+ fn note_non_latin_text_write(counter: &mut u32, text: &str) {
+     if !text.is_ascii() && text.chars().any(|c| c >= '\u{0530}') {
+         *counter = counter.wrapping_add(1);
+@@ -4827,7 +4981,6 @@ pub(crate) fn note_connected_text_codepoints(
+     }
+ }
+
+-
+ /// Set the bit for every codepoint in `text`.
+ fn set_codepoint_bits(bits: &mut [u64], text: &str) {
+     for ch in text.chars() {
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 1d065ab..35ae8bb 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1123,8 +1123,14 @@ impl<'doc> DocumentMutator<'doc> {
+         }
+
+         // Add/Update inline stylesheets (<style> elements)
++        // A first sheet is parsed now so its @import and @font-face loads start
++        // early; replacing an already registered one waits for resolve.
+         for id in self.style_nodes.drain() {
+-            self.doc.process_style_element(id);
++            if self.doc.nodes_to_stylesheet.contains_key(&id) {
++                self.doc.pending_style_nodes.insert(id);
++            } else {
++                self.doc.process_style_element(id);
++            }
+         }
+
+         // Snapshot form_nodes so we can both reset_form_owner
+@@ -1322,6 +1328,7 @@ impl<'doc> DocumentMutator<'doc> {
+                 .data
+                 .is_element_with_tag_name(&local_name!("style"));
+             if is_style {
++                doc.pending_style_nodes.remove(&node_id);
+                 doc.remove_author_stylesheet(node_id);
+             }
+
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 83339a1..46fdd38 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -72,5 +72,7 @@ impl BaseDocument {
+             return;
+         }
+
++        self.process_pending_style_elements();
++
+         // Process messages that have been sent to our message channel (e.g. loaded resource)
+         self.handle_messages();

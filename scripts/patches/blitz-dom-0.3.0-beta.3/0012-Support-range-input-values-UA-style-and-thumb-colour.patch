@@ -1,0 +1,414 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 26 Jul 2026 00:45:28 +0100
+Subject: [PATCH] Support range input values, UA style and thumb colours
+
+Range inputs previously got no special data, so paint had no value to
+display. Seed RangeInput(value) at layout construction from the
+value/min/max attributes (HTML default: range midpoint) and keep an
+existing variant across construct passes so a live IDL value set by the
+embedder survives. range_input_value() is the accessor for the paint
+layer.
+
+str::parse::<f64>() accepts "NaN", "inf" and "-inf", and f64::clamp
+panics on NaN or min > max, so <input type=range min=NaN> would take the
+whole layout down. Parses go through is_finite() before clamping.
+
+The generic input border/padding/background painted a box around the
+slider widget. Chrome's UA sheet strips these for range; width mirrors
+Chrome's 129px default intrinsic size.
+
+The servo stylo build drops rules with unknown vendor pseudo-elements,
+but pre-accent-color pages (Bootstrap's .form-range included) theme
+sliders exclusively via ::-webkit-slider-thumb / ::-moz-range-thumb
+background colors. Rewrite at parse time: append a synthesized
+'<selector-sans-pseudo> { accent-color: <color> }' rule for every thumb
+rule carrying a background color, at all three parse sites (<style>,
+linked sheets, @import). Selector matching and specificity then work
+naturally; the UA slider paint reads the computed accent-color.
+Appending only; a mis-parse can skip a rewrite but never corrupt the
+sheet.
+---
+ assets/default.css      |  12 +++
+ src/css_compat.rs       | 177 ++++++++++++++++++++++++++++++++++++++++
+ src/document.rs         |   7 +-
+ src/layout/construct.rs |  37 +++++++++
+ src/lib.rs              |   1 +
+ src/mutator.rs          |   1 +
+ src/net.rs              |   8 ++
+ src/node/element.rs     |  17 ++++
+ 8 files changed, 259 insertions(+), 1 deletion(-)
+ create mode 100644 src/css_compat.rs
+
+diff --git a/assets/default.css b/assets/default.css
+index ad76a97..03060be 100644
+--- a/assets/default.css
++++ b/assets/default.css
+@@ -90,6 +90,18 @@ textarea {
+     font-family: monospace;
+ }
+
++/* Range sliders draw their own UA widget (track + thumb,
++   blitz-paint form_controls). The generic input box chrome must not
++   paint underneath: Chrome's UA sheet likewise strips it. Width
++   mirrors Chrome's default 129px intrinsic size. */
++input[type="range"] {
++    border: none;
++    padding: 0;
++    background-color: transparent;
++    width: 129px;
++    height: 1.3em;
++}
++
+ input:focus,
+ textarea:focus {
+     outline: 2px solid #4D90FE;
+diff --git a/src/css_compat.rs b/src/css_compat.rs
+new file mode 100644
+index 0000000..7bf22dc
+--- /dev/null
++++ b/src/css_compat.rs
+@@ -0,0 +1,177 @@
++//! Legacy vendor-pseudo compat rewrites applied to CSS text
++//! before stylo parses it.
++//!
++//! The servo stylo build can't represent `::-webkit-slider-thumb` /
++//! `::-moz-range-thumb` selectors (unknown pseudo-element → the whole
++//! rule is dropped), but that's how the pre-`accent-color` world,
++//! Bootstrap included, themes range sliders. The UA slider paint
++//! reads the computed `accent-color`, so this lifts the thumb
++//! rule's background color into a synthesized `accent-color` rule on
++//! the pseudo-less selector and append it to the sheet. Selector
++//! matching, specificity and media scoping (minus the appended rules
++//! escaping any enclosing @media; acceptable: these rules virtually
++//! never sit inside one) then behave naturally.
++//!
++//! The scanner is deliberately crude: rule bodies in CSS are flat
++//! (grouping at-rules like @media nest selectors, not declarations),
++//! so walking `selector { body }` segments and treating `@…{` as a
++//! grouping-open covers real-world sheets. Brace characters inside
++//! `content: "…"` strings could confuse it in principle; thumb rules
++//! don't carry `content`, and a mis-parse only means a skipped
++//! rewrite, never a corrupted sheet (we only append).
++
++const THUMB_PSEUDOS: [&str; 2] = ["::-webkit-slider-thumb", "::-moz-range-thumb"];
++
++/// Returns `None` when the sheet needs no rewrite (fast path: one
++/// substring scan), otherwise the original CSS with synthesized
++/// `accent-color` rules appended.
++pub fn rewrite_legacy_widget_pseudo_rules(css: &str) -> Option<String> {
++    if !THUMB_PSEUDOS.iter().any(|p| css.contains(p)) {
++        return None;
++    }
++
++    let mut extra = String::new();
++    let bytes = css.as_bytes();
++    let mut seg_start = 0usize;
++    let mut i = 0usize;
++    while i < bytes.len() {
++        match bytes[i] {
++            b'{' => {
++                let selector = css[seg_start..i].trim();
++                if selector.starts_with('@') {
++                    // Grouping at-rule (@media/@supports/@layer): the
++                    // brace opens a rule list, not a declaration body.
++                    // Statement at-rules (@import/@charset) end with
++                    // ';' and never reach here.
++                    seg_start = i + 1;
++                    i += 1;
++                    continue;
++                }
++                // Declaration body: flat; scan to the closing brace.
++                let body_start = i + 1;
++                let Some(rel_end) = css[body_start..].find('}') else {
++                    break;
++                };
++                let body = &css[body_start..body_start + rel_end];
++                process_rule(selector, body, &mut extra);
++                i = body_start + rel_end + 1;
++                seg_start = i;
++            }
++            b'}' => {
++                // Closing a grouping at-rule.
++                seg_start = i + 1;
++                i += 1;
++            }
++            _ => i += 1,
++        }
++    }
++
++    if extra.is_empty() {
++        return None;
++    }
++    let mut out = String::with_capacity(css.len() + extra.len());
++    out.push_str(css);
++    out.push_str(&extra);
++    Some(out)
++}
++
++fn process_rule(selector_list: &str, body: &str, extra: &mut String) {
++    // Collect the selectors that target a thumb pseudo, stripped of
++    // the pseudo itself. `.form-range:focus::-webkit-slider-thumb`
++    // keeps its `:focus`; the cascade sorts that out.
++    let mut stripped: Vec<String> = Vec::new();
++    for sel in selector_list.split(',') {
++        let sel = sel.trim();
++        for pseudo in THUMB_PSEUDOS {
++            if let Some(pos) = sel.find(pseudo) {
++                let mut s = String::with_capacity(sel.len());
++                s.push_str(&sel[..pos]);
++                s.push_str(&sel[pos + pseudo.len()..]);
++                let s = s.trim().to_string();
++                if !s.is_empty() {
++                    stripped.push(s);
++                }
++                break;
++            }
++        }
++    }
++    if stripped.is_empty() {
++        return;
++    }
++
++    let Some(color) = extract_background_color(body) else {
++        return;
++    };
++
++    extra.push_str("\n");
++    extra.push_str(&stripped.join(", "));
++    extra.push_str(" { accent-color: ");
++    extra.push_str(color);
++    extra.push_str("; }");
++}
++
++/// Pull a usable color out of the rule body: `background-color: X`
++/// wins; a `background: X` shorthand is accepted only when its value
++/// is a single token (no url()/gradients/position syntax).
++fn extract_background_color(body: &str) -> Option<&str> {
++    let mut shorthand: Option<&str> = None;
++    for decl in body.split(';') {
++        let Some((prop, value)) = decl.split_once(':') else {
++            continue;
++        };
++        let prop = prop.trim();
++        let value = value.trim().trim_end_matches("!important").trim();
++        if value.is_empty() {
++            continue;
++        }
++        if prop.eq_ignore_ascii_case("background-color") {
++            return Some(value);
++        }
++        if prop.eq_ignore_ascii_case("background")
++            && !value.contains("url(")
++            && !value.contains("gradient")
++            && !value.contains(' ')
++        {
++            shorthand = Some(value);
++        }
++    }
++    shorthand
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn rewrites_bootstrap_thumb_rule() {
++        let css = ".form-range::-webkit-slider-thumb{width:1rem;background-color:navy;border:0}";
++        let out = rewrite_legacy_widget_pseudo_rules(css).unwrap();
++        assert!(out.contains(".form-range { accent-color: navy; }"));
++        assert!(out.starts_with(css));
++    }
++
++    #[test]
++    fn keeps_focus_variant_and_skips_no_color() {
++        let css = ".form-range:focus::-webkit-slider-thumb{box-shadow:0 0 0 1px #fff}";
++        assert!(rewrite_legacy_widget_pseudo_rules(css).is_none());
++    }
++
++    #[test]
++    fn handles_moz_and_media_nesting() {
++        let css = "@media (min-width: 600px) { .r::-moz-range-thumb { background: #123456 } }";
++        let out = rewrite_legacy_widget_pseudo_rules(css).unwrap();
++        assert!(out.contains(".r { accent-color: #123456; }"));
++    }
++
++    #[test]
++    fn fast_path_no_pseudo() {
++        assert!(rewrite_legacy_widget_pseudo_rules("body{color:red}").is_none());
++    }
++
++    #[test]
++    fn important_is_stripped_from_value() {
++        let css = ".r::-webkit-slider-thumb{background-color: rebeccapurple !important;}";
++        let out = rewrite_legacy_widget_pseudo_rules(css).unwrap();
++        assert!(out.contains(".r { accent-color: rebeccapurple; }"));
++    }
++}
+diff --git a/src/document.rs b/src/document.rs
+index 45f8e57..109991c 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1369,8 +1369,13 @@ impl BaseDocument {
+     }
+
+     pub fn make_stylesheet(&self, css: impl AsRef<str>, origin: Origin) -> DocumentStyleSheet {
++        // Legacy ::-webkit-slider-thumb → accent-color
++        // compat rewrite (no-op for sheets without the pseudos).
++        let css = css.as_ref();
++        let rewritten = crate::css_compat::rewrite_legacy_widget_pseudo_rules(css);
++        let css = rewritten.as_deref().unwrap_or(css);
+         let data = Stylesheet::from_str(
+-            css.as_ref(),
++            css,
+             self.url.url_extra_data(),
+             origin,
+             ServoArc::new(self.guard.wrap(MediaList::empty())),
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 970f13e..280f28b 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -470,6 +470,43 @@ fn collect_layout_children_with_wrap(
+             } else if matches!(type_attr, Some("checkbox" | "radio")) {
+                 create_checkbox_input(doc, container_node_id);
+                 return;
++            } else if matches!(type_attr, Some("range")) {
++                // Seed the slider's live value from the
++                // value/min/max attributes (HTML default: midpoint
++                // of the range when no value attribute). Construct
++                // re-runs on every layout pass; keep an existing
++                // RangeInput (it carries the live IDL value).
++                let el = doc.nodes[container_node_id]
++                    .data
++                    .downcast_element_mut()
++                    .unwrap();
++                if !matches!(el.special_data, SpecialElementData::RangeInput(_)) {
++                    // Rust `str::parse::<f64>()` accepts "NaN",
++                    // "inf", "-inf": feeding those into
++                    // f64::clamp panics (requires !NaN and min<=
++                    // max). Untrusted `<input type=range min=NaN>`
++                    // would take the whole layout down; filter to
++                    // finite values before clamping.
++                    fn parse_finite(v: &str) -> Option<f64> {
++                        v.parse::<f64>().ok().filter(|n| n.is_finite())
++                    }
++                    let min = el
++                        .attr(local_name!("min"))
++                        .and_then(parse_finite)
++                        .unwrap_or(0.0);
++                    let max = el
++                        .attr(local_name!("max"))
++                        .and_then(parse_finite)
++                        .unwrap_or(100.0);
++                    let max = max.max(min);
++                    let value = el
++                        .attr(local_name!("value"))
++                        .and_then(parse_finite)
++                        .unwrap_or((min + max) / 2.0)
++                        .clamp(min, max);
++                    el.special_data = SpecialElementData::RangeInput(value);
++                }
++                return;
+             }
+         }
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 792aaf1..0ee900b 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -42,6 +42,7 @@ pub mod node;
+ mod config;
+ /// CSSOM stylesheet access (`document.styleSheets`, `CSSStyleSheet`, `CSSRule`)
+ mod cssom;
++mod css_compat;
+ mod debug;
+ mod events;
+ mod font_metrics;
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 850c612..6d4a468 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1231,6 +1231,7 @@ impl<'doc> DocumentMutator<'doc> {
+                 SpecialElementData::TableRoot(_) => {}
+                 SpecialElementData::TextInput(_) => {}
+                 SpecialElementData::CheckboxInput(_) => {}
++                SpecialElementData::RangeInput(_) => {}
+                 #[cfg(feature = "file-input")]
+                 SpecialElementData::FileInput(_) => {}
+                 SpecialElementData::None => {}
+diff --git a/src/net.rs b/src/net.rs
+index 774198c..ed85adc 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -156,6 +156,10 @@ impl NetHandler for ResourceHandler<StylesheetHandler> {
+
+         // NOTE(Nico): I don't *think* external stylesheets should have HTML entities escaped
+         // let escaped_css = html_escape::decode_html_entities(css);
++        // Legacy ::-webkit-slider-thumb -> accent-color
++        // compat rewrite (no-op for sheets without the pseudos).
++        let rewritten = crate::css_compat::rewrite_legacy_widget_pseudo_rules(css);
++        let css: &str = rewritten.as_deref().unwrap_or(css);
+
+         let sheet = Stylesheet::from_str(
+             css,
+@@ -271,6 +275,10 @@ impl NetHandler for ResourceHandler<NestedStylesheetHandler> {
+
+         // NOTE(Nico): I don't *think* external stylesheets should have HTML entities escaped
+         // let escaped_css = html_escape::decode_html_entities(css);
++        // Legacy ::-webkit-slider-thumb -> accent-color
++        // compat rewrite (no-op for sheets without the pseudos).
++        let rewritten = crate::css_compat::rewrite_legacy_widget_pseudo_rules(css);
++        let css: &str = rewritten.as_deref().unwrap_or(css);
+
+         let sheet = ServoArc::new(Stylesheet::from_str(
+             css,
+diff --git a/src/node/element.rs b/src/node/element.rs
+index c50f4bd..a3eb793 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -369,6 +369,12 @@ pub enum SpecialElementData {
+     TextInput(TextInputData),
+     /// Checkbox checked state
+     CheckboxInput(bool),
++    /// Live IDL value of an `<input type=range>` slider.
++    /// The paint layer combines it with the min/max/step attributes
++    /// to place the thumb; JS updates it via the setInputText wasm
++    /// entry (same IDL-vs-attribute decoupling as TextInput's
++    /// value_override).
++    RangeInput(f64),
+     /// Selected files
+     #[cfg(feature = "file-input")]
+     FileInput(FileData),
+@@ -389,6 +395,7 @@ impl Clone for SpecialElementData {
+             Self::TableRoot(data) => Self::TableRoot(data.clone()),
+             Self::TextInput(data) => Self::TextInput(data.clone()),
+             Self::CheckboxInput(data) => Self::CheckboxInput(*data),
++            Self::RangeInput(data) => Self::RangeInput(*data),
+             #[cfg(feature = "file-input")]
+             Self::FileInput(data) => Self::FileInput(data.clone()),
+             Self::None => Self::None,
+@@ -604,6 +611,15 @@ impl ElementData {
+         }
+     }
+
++    /// Live value of an `<input type=range>`, when the
++    /// special data has been initialized (layout construct pass).
++    pub fn range_input_value(&self) -> Option<f64> {
++        match self.special_data {
++            SpecialElementData::RangeInput(value) => Some(value),
++            _ => None,
++        }
++    }
++
+     pub fn checkbox_input_checked_mut(&mut self) -> Option<&mut bool> {
+         match self.special_data {
+             SpecialElementData::CheckboxInput(ref mut checked) => Some(checked),
+@@ -939,6 +955,7 @@ impl std::fmt::Debug for SpecialElementData {
+             SpecialElementData::TableRoot(_) => f.write_str("NodeSpecificData::TableRoot"),
+             SpecialElementData::TextInput(_) => f.write_str("NodeSpecificData::TextInput"),
+             SpecialElementData::CheckboxInput(_) => f.write_str("NodeSpecificData::CheckboxInput"),
++            SpecialElementData::RangeInput(_) => f.write_str("NodeSpecificData::RangeInput"),
+             #[cfg(feature = "file-input")]
+             SpecialElementData::FileInput(_) => f.write_str("NodeSpecificData::FileInput"),
+             SpecialElementData::None => f.write_str("NodeSpecificData::None"),

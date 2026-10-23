@@ -45,7 +45,11 @@ import {
 import { hasLayoutBox, getRect } from "../layout/cheap.js";
 import { isToolFormActive, isToolSubmitActive } from "../model-context.js";
 import { maybeScheduleSlotchange } from "../events/slotchange.js";
-import { recordDetachedSubtreeIds, stampSubtreeNamedGlobals } from "../window.js";
+import {
+  stampDetachedSubtreeNamedGlobals,
+  stampNamedGlobal,
+  stampSubtreeNamedGlobals,
+} from "../window.js";
 import { dispatchTrustedEvent } from "../events/dispatch.js";
 import {
   focusForwardedTextControl,
@@ -278,7 +282,7 @@ export function parseFragmentInContext(
   dom.dropNode(contextId);
   if (kids.length > 0) bumpMutationSeq();
   syncCheckedFromAttrs(fragment);
-  if (html.indexOf("id") !== -1) recordDetachedSubtreeIds(fragment._id);
+  if (html.indexOf("id") !== -1) stampDetachedSubtreeNamedGlobals(fragment._id);
 }
 
 // Bind on first use. The `dom` binding is null until initState runs.
@@ -732,6 +736,7 @@ class Element extends NodeBase implements Idl.Element {
     if (domSetAttr) {
       if (domSetAttr(this._id, finalName, strValue)) {
         bumpMutationSeq({ attribute: finalName, node: this._id });
+        if (finalName === "id") stampNamedGlobal(this._id, strValue);
         if (ksGlobal.__ks_cdpDomActive) {
           cdpMutations.push({
             kind: "attributeModified",
@@ -819,7 +824,7 @@ class Element extends NodeBase implements Idl.Element {
     if (wasmKey === null) return;
     const needsResanitize = ksAttrNeedsResanitize(this, lookup);
     const oldInputType = needsResanitize && lookup === "type" ? inputTypeOf(this) : null;
-    const cache = attrInstances.get(this._id);
+    const cache = attrInstances.get(this);
     if (cache) {
       const attr = cache.get(wasmKey);
       if (attr) {
@@ -844,6 +849,7 @@ class Element extends NodeBase implements Idl.Element {
     if (domRemoveAttr) {
       if (domRemoveAttr(this._id, wasmKey)) {
         bumpMutationSeq({ attribute: wasmKey, node: this._id });
+        if (wasmKey === "id") stampNamedGlobal(this._id, "");
         if (ksGlobal.__ks_cdpDomActive) {
           cdpMutations.push({
             kind: "attributeRemoved",
@@ -1062,7 +1068,7 @@ class Element extends NodeBase implements Idl.Element {
         ? ksGlobal.__ks_notifyCustomElementAttributeChanged
         : null;
     const nsMap = attrNs.get(this._id);
-    const cache = attrInstances.get(this._id);
+    const cache = attrInstances.get(this);
     if (nsMap) {
       for (const [wasmKey, info] of nsMap) {
         if (info.ns !== ns || info.localName !== localName) continue;
@@ -1124,10 +1130,10 @@ class Element extends NodeBase implements Idl.Element {
     list.length = 0;
     for (const key in byName) delete byName[key];
     const nsMap = attrNs.get(this._id);
-    let cache = attrInstances.get(this._id);
+    let cache = attrInstances.get(this);
     if (!cache) {
       cache = new Map();
-      attrInstances.set(this._id, cache);
+      attrInstances.set(this, cache);
     }
     const seenNames = new Set();
     for (let i = 0; i < flat.length; i += 2) {
@@ -1231,10 +1237,10 @@ class Element extends NodeBase implements Idl.Element {
     } else {
       this.setAttribute(attr.name, attr.value || "");
     }
-    let cache = attrInstances.get(this._id);
+    let cache = attrInstances.get(this);
     if (!cache) {
       cache = new Map();
-      attrInstances.set(this._id, cache);
+      attrInstances.set(this, cache);
     }
     attr._ownerElement = this;
     cache.set(attr.name, attr);

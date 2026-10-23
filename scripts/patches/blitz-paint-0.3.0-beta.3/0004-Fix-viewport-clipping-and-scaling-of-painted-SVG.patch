@@ -1,0 +1,144 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Sun, 2 Aug 2026 22:12:46 +0100
+Subject: [PATCH] Fix viewport clipping and scaling of painted SVG
+
+An svg viewport establishes overflow:hidden by default, but draw_svg
+handed render_svg_tree the object-fit transform with no clip layer, so
+tree content outside the viewBox painted past the element's box. The
+visible case: shrinking a viewBox at runtime (viewBox="0 0 10 10" on a
+200px element) scales user units 20x, and the pre-shrink geometry bled
+across the page. Push a clip layer over the content box around the tree
+render; Mix::Normal with full alpha keeps it a pure clip.
+
+An inline svg element with no viewBox has no geometric scaling: user
+units are CSS px and the viewport only crops (SVG2 section 7.7). The
+usvg tree size for such documents is a synthesized natural size (300x150
+by default), so contain-fitting it against the content box letterboxed
+and shrank the content. A 100px-font <text> in a 100x100 svg painted at
+a third of its size, vertically centered (the reference side of WPT
+viewBox-scaling-text-001). Real viewBoxes (usvg bakes their transform
+into the tree) and replaced hosts (<img>) keep the object-fit path.
+---
+ src/render.rs | 100 +++++++++++++++++++++++++++++++++++++++-----------
+ 1 file changed, 78 insertions(+), 22 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index e602786..962494f 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -1117,36 +1117,92 @@ impl ElementCx<'_, '_> {
+         // let object_fit = self.style.clone_object_fit();
+         let object_position = self.style.clone_object_position();
+
+-        // Apply object-fit algorithm
+-        let container_size = taffy::Size {
+-            width: width as f32,
+-            height: height as f32,
+-        };
+-        let object_size = taffy::Size {
+-            width: svg_size.width(),
+-            height: svg_size.height(),
+-        };
+-        let paint_size = compute_object_fit(container_size, Some(object_size), ObjectFit::Contain);
+-
+-        // Compute object-position
+-        let x_offset = object_position.horizontal.resolve(
+-            CSSPixelLength::new(container_size.width - paint_size.width) / self.scale as f32,
+-        ) * self.scale as f32;
+-        let y_offset = object_position.vertical.resolve(
+-            CSSPixelLength::new(container_size.height - paint_size.height) / self.scale as f32,
+-        ) * self.scale as f32;
+-        let x = x + x_offset.px() as f64;
+-        let y = y + y_offset.px() as f64;
++        let is_inline_svg_element = &*self.element.name.local == "svg";
++        let has_view_box = self
++            .element
++            .svg_image_data()
++            .map(|d| d.viewbox_aspect_ratio().is_some())
++            .unwrap_or(false);
++
++        // An inline <svg> without a viewBox has no geometric scaling: user
++        // units are CSS px and the viewport only crops (SVG2 section 7.7).
++        // The usvg tree size is a synthesized natural size there, so
++        // contain-fitting it would letterbox and shrink the content. Real viewBoxes and
++        // replaced hosts (<img>) keep the object-fit path.
++        let (x, y, x_scale, y_scale) = if is_inline_svg_element && !has_view_box {
++            (x, y, self.scale, self.scale)
++        } else {
++            // Apply object-fit algorithm
++            let container_size = taffy::Size {
++                width: width as f32,
++                height: height as f32,
++            };
++            let object_size = taffy::Size {
++                width: svg_size.width(),
++                height: svg_size.height(),
++            };
++            let paint_size =
++                compute_object_fit(container_size, Some(object_size), ObjectFit::Contain);
+
+-        let x_scale = paint_size.width as f64 / object_size.width as f64;
+-        let y_scale = paint_size.height as f64 / object_size.height as f64;
++            // Compute object-position
++            let x_offset = object_position.horizontal.resolve(
++                CSSPixelLength::new(container_size.width - paint_size.width) / self.scale as f32,
++            ) * self.scale as f32;
++            let y_offset = object_position.vertical.resolve(
++                CSSPixelLength::new(container_size.height - paint_size.height) / self.scale as f32,
++            ) * self.scale as f32;
++            (
++                x + x_offset.px() as f64,
++                y + y_offset.px() as f64,
++                paint_size.width as f64 / object_size.width as f64,
++                paint_size.height as f64 / object_size.height as f64,
++            )
++        };
+
+         let transform = self
+             .transform
+             .pre_scale_non_uniform(x_scale, y_scale)
+             .then_translate(Vec2 { x, y });
+
++        // Clip to the content box. An svg viewport establishes
++        // overflow:hidden by default (UA stylesheet), but render_svg_tree
++        // paints the tree unclipped, so content past the viewBox (for
++        // example after a dynamic viewBox shrink scales user units up)
++        // would bleed outside the element. Only an inline <svg> element ties
++        // its CSS overflow to viewport clipping (author overflow:visible
++        // paints outside). Any other host of svg content, such as an <img>,
++        // is a replaced element that never bleeds, whatever its computed
++        // overflow says (img's initial overflow is visible).
++        let clips = {
++            if is_inline_svg_element {
++                let box_styles = self.style.get_box();
++                !matches!(box_styles.overflow_x, Overflow::Visible)
++                    || !matches!(box_styles.overflow_y, Overflow::Visible)
++            } else {
++                true
++            }
++        };
++        if clips {
++            let clip_rect = kurbo::Rect::new(
++                self.frame.content_box.origin().x,
++                self.frame.content_box.origin().y,
++                self.frame.content_box.origin().x + self.frame.content_box.width(),
++                self.frame.content_box.origin().y + self.frame.content_box.height(),
++            );
++            scene.push_layer(
++                Fill::NonZero,
++                peniko::Mix::Normal,
++                1.0,
++                self.transform,
++                &clip_rect,
++                None,
++                None,
++            );
++        }
+         anyrender_svg::render_svg_tree(scene, svg, transform);
++        if clips {
++            scene.pop_layer();
++        }
+     }
+
+     fn draw_image(&self, scene: &mut impl PaintScene) {

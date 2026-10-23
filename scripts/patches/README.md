@@ -11,8 +11,9 @@ git commit (author, date, subject, message body), so `git log` in the
 materialised tree reads like the crate's local history and each
 logical change is reviewable on its own.
 
-Some legacy commits use the synthetic vendor identity because their
-original author metadata was not available when the series was created.
+Each patch carries its real author. Only the materialiser's own
+`vendor-base` commit and the committer field use the synthetic vendor
+identity.
 
 Materialised at build time by `scripts/get-patched-vendor-crates.mjs`
 into `packages/core/target/vendor-patched/<crate>-<version>/`, where

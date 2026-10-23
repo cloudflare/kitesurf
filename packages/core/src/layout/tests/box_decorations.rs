@@ -33,6 +33,349 @@ fn no_decorations_emits_no_fragments() {
 }
 
 #[test]
+fn background_only_span_emits_single_line_fragment() {
+    let mut fcx = make_font_context();
+    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+
+    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+        font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
+        font_size: 16.0,
+        ..Default::default()
+    };
+    let span_style = parley::style::TextStyle {
+        brush: 42,
+        box_decorations: BoxDecorations {
+            background_brush: Some(42),
+            ..Default::default()
+        },
+        ..root_style.clone()
+    };
+
+    let mut tb = lcx.tree_builder(&mut fcx, 1.0, true, &root_style);
+    tb.push_style_span(span_style);
+    tb.push_text("text");
+    tb.pop_style_span();
+    let (mut layout, _) = tb.build();
+    layout.break_all_lines(Some(800.0));
+
+    let (leads, trails) = layout.debug_cluster_sidecars();
+    assert!(
+        leads.is_empty() && trails.is_empty(),
+        "background-only spans need fragment boundaries, not per-cluster advances"
+    );
+
+    let fragments = layout.span_fragments();
+    assert_eq!(
+        fragments.len(),
+        1,
+        "background-only span must emit a fragment"
+    );
+    assert_eq!(fragments[0].line_index, 0);
+    assert!(fragments[0].x_end > fragments[0].x_start);
+}
+
+fn build_bidi_layout_with_spans(
+    fcx: &mut parley::FontContext,
+    lcx: &mut parley::LayoutContext<Brush>,
+    direction: parley::BaseDirection,
+    max_width: f32,
+    segments: &[(&str, Option<Brush>)],
+) -> (parley::Layout<Brush>, String) {
+    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+        font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
+        font_size: 16.0,
+        ..Default::default()
+    };
+    let mut tb = lcx.tree_builder(fcx, 1.0, true, &root_style);
+    tb.set_base_direction(direction);
+    for &(text, background_brush) in segments {
+        if let Some(background_brush) = background_brush {
+            let span_style = parley::style::TextStyle {
+                brush: background_brush,
+                box_decorations: BoxDecorations {
+                    background_brush: Some(background_brush),
+                    ..Default::default()
+                },
+                ..root_style.clone()
+            };
+            tb.push_style_span(span_style);
+            tb.push_text(text);
+            tb.pop_style_span();
+        } else {
+            tb.push_text(text);
+        }
+    }
+    let (mut layout, text) = tb.build();
+    layout.break_all_lines(Some(max_width));
+    (layout, text)
+}
+
+fn assert_spans_have_fragments(layout: &parley::Layout<Brush>, expected_brushes: &[Brush]) {
+    let fragments = layout.span_fragments();
+    assert_eq!(
+        fragments.len(),
+        expected_brushes.len(),
+        "unexpected span fragments: {fragments:?}"
+    );
+
+    let mut expected_styles: Vec<_> = expected_brushes
+        .iter()
+        .map(|brush| style_index_for_brush(layout, *brush))
+        .collect();
+    let mut fragment_styles: Vec<_> = fragments
+        .iter()
+        .map(|fragment| {
+            assert!(
+                fragment.x_end > fragment.x_start,
+                "empty span fragment: {fragment:?}"
+            );
+            fragment.style_index
+        })
+        .collect();
+    expected_styles.sort_unstable();
+    fragment_styles.sort_unstable();
+    assert_eq!(
+        fragment_styles, expected_styles,
+        "each decorated span must get a fragment"
+    );
+}
+
+fn style_index_for_brush(layout: &parley::Layout<Brush>, brush: Brush) -> u16 {
+    let index = layout
+        .styles()
+        .iter()
+        .position(|style| style.brush == brush)
+        .unwrap_or_else(|| panic!("no style with brush {brush}"));
+    u16::try_from(index).expect("style index fits u16")
+}
+
+fn fragment_for_brush(
+    layout: &parley::Layout<Brush>,
+    brush: Brush,
+) -> &parley::layout::SpanFragment {
+    let style_index = style_index_for_brush(layout, brush);
+    layout
+        .span_fragments()
+        .iter()
+        .find(|fragment| fragment.style_index == style_index)
+        .unwrap_or_else(|| panic!("no span fragment for brush {brush}"))
+}
+
+fn assert_fragment_covers_line(
+    layout: &parley::Layout<Brush>,
+    fragment: &parley::layout::SpanFragment,
+) {
+    assert_eq!(fragment.line_index, 0);
+    assert!(
+        fragment.x_start.abs() < 0.5,
+        "fragment should start at the line origin: {fragment:?}"
+    );
+    assert!(
+        (fragment.x_end - layout.full_width()).abs() < 0.5,
+        "fragment should cover the full line width ({}): {fragment:?}",
+        layout.full_width()
+    );
+}
+
+#[test]
+fn bidi_reordered_spans_each_emit_a_fragment() {
+    let mut fcx = make_font_context();
+    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+
+    let (ltr_layout, ltr_text) = build_bidi_layout_with_spans(
+        &mut fcx,
+        &mut lcx,
+        parley::BaseDirection::Ltr,
+        800.0,
+        &[("before ", None), ("שלום", Some(1)), (" after", None)],
+    );
+    assert_eq!(ltr_text, "before שלום after");
+    assert_spans_have_fragments(&ltr_layout, &[1]);
+
+    let (rtl_layout, rtl_text) = build_bidi_layout_with_spans(
+        &mut fcx,
+        &mut lcx,
+        parley::BaseDirection::Rtl,
+        800.0,
+        &[("שלום", Some(1)), (" ", None), ("abc", Some(2))],
+    );
+    assert_eq!(rtl_text, "שלום abc");
+    assert_spans_have_fragments(&rtl_layout, &[1, 2]);
+    assert!(
+        fragment_for_brush(&rtl_layout, 2).x_start < fragment_for_brush(&rtl_layout, 1).x_start,
+        "the Latin span must appear left of the Hebrew span in the RTL visual order: {:?}",
+        rtl_layout.span_fragments()
+    );
+}
+
+#[test]
+fn rtl_reordered_spans_and_later_ltr_line_keep_fragments() {
+    let mut fcx = make_font_context();
+    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+
+    let (layout, text) = build_bidi_layout_with_spans(
+        &mut fcx,
+        &mut lcx,
+        parley::BaseDirection::Rtl,
+        80.0,
+        &[
+            ("שלום", Some(1)),
+            (" ", None),
+            ("abc", Some(2)),
+            (" ", None),
+            ("later", Some(3)),
+        ],
+    );
+
+    assert_eq!(text, "שלום abc later");
+    assert_spans_have_fragments(&layout, &[1, 2, 3]);
+    let hebrew_fragment = fragment_for_brush(&layout, 1);
+    let latin_fragment = fragment_for_brush(&layout, 2);
+    assert_eq!(hebrew_fragment.line_index, 0);
+    assert_eq!(latin_fragment.line_index, 0);
+    assert!(
+        latin_fragment.x_start < hebrew_fragment.x_start,
+        "the Latin span must appear left of the Hebrew span on the first RTL line: {:?}",
+        layout.span_fragments()
+    );
+    assert_eq!(
+        fragment_for_brush(&layout, 3).line_index,
+        1,
+        "the later pure-LTR span should survive on its wrapped line: {:?}",
+        layout.span_fragments()
+    );
+}
+
+#[test]
+fn decorated_parent_starts_at_leading_child_text() {
+    let mut fcx = make_font_context();
+    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+        font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
+        font_size: 16.0,
+        ..Default::default()
+    };
+    let mark_style = parley::style::TextStyle {
+        brush: 1,
+        box_decorations: BoxDecorations {
+            background_brush: Some(1),
+            ..Default::default()
+        },
+        ..root_style.clone()
+    };
+    let child_style = parley::style::TextStyle {
+        brush: 2,
+        ..root_style.clone()
+    };
+
+    let mut tb = lcx.tree_builder(&mut fcx, 1.0, true, &root_style);
+    tb.push_style_span(mark_style);
+    tb.push_style_span(child_style);
+    tb.push_text("x");
+    tb.pop_style_span();
+    tb.push_text(" y");
+    tb.pop_style_span();
+    let (mut layout, text) = tb.build();
+    layout.break_all_lines(Some(800.0));
+
+    assert_eq!(text, "x y");
+    assert_fragment_covers_line(&layout, fragment_for_brush(&layout, 1));
+}
+
+#[test]
+fn decorated_parent_closes_after_trailing_child_text() {
+    let mut fcx = make_font_context();
+    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+        font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
+        font_size: 16.0,
+        ..Default::default()
+    };
+    let span_style = parley::style::TextStyle {
+        brush: 1,
+        box_decorations: BoxDecorations {
+            background_brush: Some(1),
+            ..Default::default()
+        },
+        ..root_style.clone()
+    };
+    let child_style = parley::style::TextStyle {
+        brush: 2,
+        ..root_style.clone()
+    };
+
+    let mut tb = lcx.tree_builder(&mut fcx, 1.0, true, &root_style);
+    tb.push_style_span(span_style);
+    tb.push_text("a ");
+    tb.push_style_span(child_style);
+    tb.push_text("b");
+    tb.pop_style_span();
+    tb.pop_style_span();
+    let (mut layout, text) = tb.build();
+    layout.break_all_lines(Some(800.0));
+
+    assert_eq!(text, "a b");
+    assert_fragment_covers_line(&layout, fragment_for_brush(&layout, 1));
+}
+
+#[test]
+fn padded_parent_closes_around_background_span_with_trailing_child() {
+    let mut fcx = make_font_context();
+    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+        font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
+        font_size: 16.0,
+        ..Default::default()
+    };
+    let outer_style = parley::style::TextStyle {
+        brush: 1,
+        box_decorations: BoxDecorations {
+            padding_inline_start: 3.0,
+            padding_inline_end: 4.0,
+            border_inline_start_width: 1.0,
+            border_inline_end_width: 2.0,
+            ..Default::default()
+        },
+        ..root_style.clone()
+    };
+    let background_style = parley::style::TextStyle {
+        brush: 2,
+        box_decorations: BoxDecorations {
+            background_brush: Some(2),
+            ..Default::default()
+        },
+        ..root_style.clone()
+    };
+    let child_style = parley::style::TextStyle {
+        brush: 3,
+        ..root_style.clone()
+    };
+
+    let mut tb = lcx.tree_builder(&mut fcx, 1.0, true, &root_style);
+    tb.push_style_span(outer_style);
+    tb.push_text("before ");
+    tb.push_style_span(background_style);
+    tb.push_text("a ");
+    tb.push_style_span(child_style);
+    tb.push_text("b");
+    tb.pop_style_span();
+    tb.pop_style_span();
+    tb.push_text(" after");
+    tb.pop_style_span();
+    let (mut layout, text) = tb.build();
+    layout.break_all_lines(Some(800.0));
+
+    assert_eq!(text, "before a b after");
+    assert_spans_have_fragments(&layout, &[1, 2]);
+    assert_fragment_covers_line(&layout, fragment_for_brush(&layout, 1));
+    let background_fragment = fragment_for_brush(&layout, 2);
+    assert!(
+        background_fragment.x_end > background_fragment.x_start,
+        "the nested background span should close after its child: {background_fragment:?}"
+    );
+}
+
+#[test]
 fn styled_span_emits_single_line_fragment() {
     let mut fcx = make_font_context();
     let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();

@@ -1,0 +1,226 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Tue, 1 Sep 2026 19:36:57 +0100
+Subject: [PATCH] Support a layout rounding step other than one pixel
+
+The terminal backend needs boxes on cell boundaries rather than pixel
+boundaries, and taffy now takes that step from the RoundTree. Store it
+per-document so a single process can host both a terminal document and
+an ordinary rasterised one; the default is (1, 1), taffy's own
+behaviour, so nothing changes for a caller that never sets it.
+
+Under a cell grid, rounding runs after the line break and rounds a box's
+left and right edges independently, so a container nothing touched still
+commits a width up to one cell from the width its lines were broken at.
+The clobber check compared with a half-pixel tolerance, so it declared
+every inline root on such a page stale and re-broke it through parley's
+break_all_lines, which knows nothing about floats. A floated infobox
+therefore stopped shortening any line box: on Wikipedia in the terminal
+grid modes the article text ran straight underneath the infobox, and the
+words it covered were simply gone from the page.
+
+Tolerating a sub-cell difference costs no correction, because on a grid
+where every glyph is one cell wide a width change smaller than a cell
+cannot move a break. The half-pixel tolerance stays wherever the grid is
+off.
+
+A coarse rounding step (a terminal's character grid) rounds table-cell
+boxes but left DetailedGridInfo at fractional coordinates, so collapsed
+borders painted off the cell edges. Keep collapsed-border gutters at
+pixel width and absorb cumulative grid rounding into adjacent tracks so
+table painting follows the cells.
+
+Taffy rounds from document-wide unrounded coordinates, so the table's
+content origin includes every ancestor up the containing_block() chain,
+the box a location is relative to. A sub-cell inset that layout cannot
+round away without making padding negative is subtracted too, so table
+rules end on the snapped cell edge.
+
+An ancestor-only move can change the grid phase while the table cache
+keeps its tracks, so Taffy's raw track metadata is preserved and a
+separate paint copy is derived on each resolve.
+---
+ src/document.rs     | 11 ++++++++
+ src/layout/mod.rs   |  4 +++
+ src/layout/table.rs |  5 ++++
+ src/resolve.rs      | 62 +++++++++++++++++++++++++++++++++++++++++++--
+ 4 files changed, 80 insertions(+), 2 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index d8125f9..4aefe60 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -269,6 +269,10 @@ pub struct BaseDocument {
+     pub(crate) devtool_settings: DevtoolSettings,
+     // Viewport details such as the dimensions, HiDPI scale, and zoom factor,
+     pub(crate) viewport: Viewport,
++    /// The step `taffy::round_layout` snaps this document's
++    /// boxes to, as (x, y). One pixel until a character-cell backend
++    /// sets the cell size.
++    pub(crate) round_grid: (f32, f32),
+     /// CSS counter side tables (list-item values + resolved pseudo
+     /// content), rebuilt by resolve_counters on every resolve pass.
+     pub(crate) counters: crate::layout::counters::CounterOutput,
+@@ -522,6 +526,12 @@ pub struct BaseDocument {
+ }
+
+ impl BaseDocument {
++    /// Snap layout to a `w` x `h` grid instead of whole pixels.
++    pub fn set_round_grid(&mut self, w: f32, h: f32) {
++        let ok = |v: f32| v.is_finite() && v >= 1.0;
++        self.round_grid = if ok(w) && ok(h) { (w, h) } else { (1.0, 1.0) };
++    }
++
+     /// Create a new (empty) [`BaseDocument`] with the specified configuration
+     pub fn new(config: DocumentConfig) -> Self {
+         static ID_GENERATOR: AtomicUsize = AtomicUsize::new(1);
+@@ -622,6 +632,7 @@ impl BaseDocument {
+             subdocument_depth: config.subdocument_depth,
+             damage_summary: DamageSummary::default(),
+             devtool_settings: DevtoolSettings::default(),
++            round_grid: (1.0, 1.0),
+             counters: Default::default(),
+             author_font_registrations: Vec::new(),
+             counters_seen: false,
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index a63f354..5d1598f 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -983,6 +983,10 @@ impl RoundTree for LayoutPassState<'_> {
+     fn get_hoisted_child_id(&self, node_id: NodeId, index: usize) -> NodeId {
+         taffy_node_id(self.node_from_id(node_id).hoisted_children.borrow()[index])
+     }
++
++    fn round_grid(&self) -> (f32, f32) {
++        self.round_grid
++    }
+ }
+
+ pub(crate) struct TaffyDebugTree<'doc>(pub(crate) &'doc BaseDocument);
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index 4d21a76..892be74 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -47,7 +47,10 @@ pub struct TableContext {
+     pub oof_children: Vec<(NodeId, taffy::Position)>,
+     pub rows: Vec<TableRow>,
+     pub columns: Vec<TableColumn>,
++    /// Raw Taffy tracks, retained so a changed terminal-grid phase can re-snap them.
+     pub computed_grid_info: AtomicRefCell<Option<DetailedGridInfo<Atom>>>,
++    /// Tracks consumed by paint; identical to computed_grid_info outside tty mode.
++    pub paint_grid_info: AtomicRefCell<Option<DetailedGridInfo<Atom>>>,
+     pub border_style: Option<ServoArc<Border>>,
+     pub border_collapse: BorderCollapse,
+     /// Backing storage for `calc()` track sizes synthesised by the table layout code.
+@@ -522,6 +525,7 @@ pub(crate) fn build_table_context(
+             rows,
+             columns,
+             computed_grid_info: AtomicRefCell::new(None),
++            paint_grid_info: AtomicRefCell::new(None),
+             border_collapse,
+             border_style: first_cell_border,
+             calc_values,
+@@ -1022,6 +1026,7 @@ impl taffy::LayoutGridContainer for TableTreeWrapper<'_, '_> {
+         _node_id: taffy::NodeId,
+         detailed_grid_info: DetailedGridInfo<Atom>,
+     ) {
++        *self.ctx.paint_grid_info.borrow_mut() = Some(detailed_grid_info.clone());
+         *self.ctx.computed_grid_info.borrow_mut() = Some(detailed_grid_info);
+     }
+ }
+diff --git a/src/resolve.rs b/src/resolve.rs
+index f332ecc..7fce7b6 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -31,9 +31,26 @@ use crate::{
+         },
+         damage::{ALL_DAMAGE, CONSTRUCT_BOX, CONSTRUCT_DESCENDENT, CONSTRUCT_FC},
+     },
+-    node::TextBrush,
++    node::{SpecialElementData, TextBrush},
+ };
+
++fn snap_table_tracks(
++    tracks: &mut taffy::DetailedGridTracksInfo<style::Atom>,
++    raw_origin: f32,
++    paint_origin: f32,
++    step: f32,
++) {
++    if step <= 1.0 || tracks.positions.is_empty() {
++        return;
++    }
++
++    let snap = |value: f32| (value / step).round() * step;
++    for position in &mut tracks.positions {
++        position.start = snap(raw_origin + position.start) - paint_origin;
++        position.end = snap(raw_origin + position.end) - paint_origin;
++    }
++}
++
+ /// A query container, i.e. an element `@container` rules inside it
+ /// size themselves against. `container-type: normal` elements are not one.
+ fn is_size_container(node: &crate::node::Node) -> bool {
+@@ -755,6 +772,44 @@ impl BaseDocument {
+             taffy::round_layout(&mut state, root_element_id);
+         }
+
++        // Paint reads table tracks rather than the cell layouts rounded above.
++        let (grid_x, grid_y) = self.round_grid;
++        if grid_x > 1.0 || grid_y > 1.0 {
++            for (node_id, node) in self.nodes.iter() {
++                let Some(element) = node.element_data() else {
++                    continue;
++                };
++                let SpecialElementData::TableRoot(table) = &element.special_data else {
++                    continue;
++                };
++                let Some(mut grid_info) = table.computed_grid_info.borrow().clone() else {
++                    continue;
++                };
++                let mut table_x = 0.0;
++                let mut table_y = 0.0;
++                let mut ancestor_id = Some(node_id);
++                while let Some(id) = ancestor_id {
++                    let ancestor = &self.nodes[id];
++                    table_x += ancestor.unrounded_layout().location.x;
++                    table_y += ancestor.unrounded_layout().location.y;
++                    ancestor_id = ancestor.containing_block();
++                }
++                snap_table_tracks(
++                    &mut grid_info.columns,
++                    table_x,
++                    (table_x / grid_x).round() * grid_x,
++                    grid_x,
++                );
++                snap_table_tracks(
++                    &mut grid_info.rows,
++                    table_y,
++                    (table_y / grid_y).round() * grid_y,
++                    grid_y,
++                );
++                *table.paint_grid_info.borrow_mut() = Some(grid_info);
++            }
++        }
++
+         self.restore_clobbered_inline_breaks();
+
+         // println!("\n\n");
+@@ -784,6 +839,9 @@ impl BaseDocument {
+         if skip && !cfg!(debug_assertions) {
+             return;
+         }
++        // Rounding runs after line breaking and rounds both box edges.
++        // On a cell grid, a sub-cell width change cannot move a glyph.
++        let width_tol = self.round_grid.0.max(0.5);
+         let mut stale: Vec<(NodeId, f32)> = Vec::new();
+         let mut roots = std::mem::take(&mut self.inline_roots);
+         // Only the push sites can add duplicates or unsorted ids; if none ran
+@@ -819,7 +877,7 @@ impl BaseDocument {
+                 l.size.width - l.padding.left - l.padding.right - l.border.left - l.border.right;
+             if content_w > 0.0 {
+                 let unbroken = !inline.last_break_width.is_finite();
+-                if unbroken || (content_w - inline.last_break_width).abs() > 0.5 {
++                if unbroken || (content_w - inline.last_break_width).abs() > width_tol {
+                     stale.push((id, content_w));
+                 }
+             }

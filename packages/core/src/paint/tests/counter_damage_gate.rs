@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-use crate::DomHandle;
+use crate::{DomHandle, test_support::query_selector_id};
 
 const PAGE: &str = r#"<!DOCTYPE html>
 <html><head><style>
@@ -33,6 +33,13 @@ fn setup(html: &str) -> DomHandle {
     dom
 }
 
+fn assert_counter_order(text: &str, first: &str, second: &str) {
+    assert!(
+        matches!((text.find(first), text.find(second)), (Some(a), Some(b)) if a < b),
+        "expected {first:?} before {second:?}:\n{text}"
+    );
+}
+
 #[test]
 fn counter_text_renders() {
     let txt = setup(PAGE).debug_dump_inline_layouts();
@@ -42,7 +49,7 @@ fn counter_text_renders() {
 #[test]
 fn structural_insert_renumbers() {
     let dom = setup(PAGE);
-    let box_id = dom.query_selector("#box").unwrap() as u32;
+    let box_id = query_selector_id(&dom, "#box");
     let p = dom.create_element("p");
     dom.append_child_node(box_id, p);
     dom.resolve_layout();
@@ -53,7 +60,7 @@ fn structural_insert_renumbers() {
 #[test]
 fn counter_reset_restyle_renumbers() {
     let dom = setup(PAGE);
-    let box_id = dom.query_selector("#box").unwrap() as u32;
+    let box_id = query_selector_id(&dom, "#box");
     dom.set_attribute(box_id, "style", "counter-reset: n 10");
     dom.resolve_layout();
     let txt = dom.debug_dump_inline_layouts();
@@ -63,7 +70,7 @@ fn counter_reset_restyle_renumbers() {
 #[test]
 fn renumber_reaches_an_undamaged_subtree() {
     let dom = setup(SHARED_COUNTER_PAGE);
-    let a = dom.query_selector("#a").unwrap() as u32;
+    let a = query_selector_id(&dom, "#a");
     let p = dom.create_element("p");
     dom.set_attribute(p, "class", "item");
     dom.append_child_node(a, p);
@@ -82,7 +89,7 @@ const ATTR_PAGE: &str = r#"<!DOCTYPE html>
 #[test]
 fn an_attribute_write_reresolves_attr_content() {
     let dom = setup(ATTR_PAGE);
-    let label = dom.query_selector("#label").unwrap() as u32;
+    let label = query_selector_id(&dom, "#label");
     assert!(dom.debug_dump_inline_layouts().contains("one"));
 
     dom.set_attribute(label, "data-label", "two");
@@ -94,7 +101,7 @@ fn an_attribute_write_reresolves_attr_content() {
 #[test]
 fn paint_only_write_keeps_counters() {
     let dom = setup(PAGE);
-    let paint = dom.query_selector("#paint").unwrap() as u32;
+    let paint = query_selector_id(&dom, "#paint");
     for i in 0..3 {
         let bg = if i % 2 == 0 {
             "background:#f00"
@@ -106,4 +113,63 @@ fn paint_only_write_keeps_counters() {
     }
     let txt = dom.debug_dump_inline_layouts();
     assert!(txt.contains("[1]") && txt.contains("[2]"), "{txt}");
+}
+
+const LIST_VALUE_PAGE: &str = r#"<!DOCTYPE html>
+<html><head><style>
+  li::before { content: "[" counter(list-item) "] "; }
+</style></head><body>
+<ol id="list"><li id="first">one</li><li>two</li></ol>
+</body></html>"#;
+
+#[test]
+fn li_value_attribute_write_reresolves_list_item_counters() {
+    let dom = setup(LIST_VALUE_PAGE);
+    let first = query_selector_id(&dom, "#first");
+    let initial = dom.debug_dump_inline_layouts();
+    assert_counter_order(&initial, "[1]", "[2]");
+
+    dom.set_attribute(first, "value", "7");
+    dom.resolve_layout();
+    let updated = dom.debug_dump_inline_layouts();
+    assert_counter_order(&updated, "[7]", "[8]");
+
+    dom.remove_attribute(first, "value");
+    dom.resolve_layout();
+    let restored = dom.debug_dump_inline_layouts();
+    assert_counter_order(&restored, "[1]", "[2]");
+}
+
+#[test]
+fn ol_reversed_attribute_write_and_removal_reresolve_list_item_counters() {
+    let dom = setup(LIST_VALUE_PAGE);
+    let list = query_selector_id(&dom, "#list");
+
+    dom.set_attribute(list, "reversed", "");
+    dom.resolve_layout();
+    let reversed = dom.debug_dump_inline_layouts();
+    assert_counter_order(&reversed, "[2]", "[1]");
+
+    dom.remove_attribute(list, "reversed");
+    dom.resolve_layout();
+    let forward = dom.debug_dump_inline_layouts();
+    assert_counter_order(&forward, "[1]", "[2]");
+}
+
+#[test]
+fn ol_start_attribute_write_reresolves_list_item_counters() {
+    let dom = setup(LIST_VALUE_PAGE);
+    let list = query_selector_id(&dom, "#list");
+    let initial = dom.debug_dump_inline_layouts();
+    assert_counter_order(&initial, "[1]", "[2]");
+
+    dom.set_attribute(list, "start", "5");
+    dom.resolve_layout();
+    let updated = dom.debug_dump_inline_layouts();
+    assert_counter_order(&updated, "[5]", "[6]");
+
+    dom.remove_attribute(list, "start");
+    dom.resolve_layout();
+    let restored = dom.debug_dump_inline_layouts();
+    assert_counter_order(&restored, "[1]", "[2]");
 }

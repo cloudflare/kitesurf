@@ -306,6 +306,29 @@ export function installDeferShim(): void {
     canceledInterval,
   );
 
+  // AbortSignal.timeout arms a native timer, so module scope refuses it. The fallback aborts a
+  // native controller from the deferred setTimeout, so fetch and AbortSignal.any still accept the
+  // signal. Capture the controller before globals.ts swaps in its lazy one.
+  const realAbortTimeout = AbortSignal.timeout;
+  const NativeAbortController = AbortController;
+  const deferredSetTimeout = ksGlobal.setTimeout;
+  AbortSignal.timeout = function timeout(delay: number): AbortSignal {
+    // Convert once so a stateful valueOf runs once, as it does natively.
+    const ms = delay === undefined ? delay : Number(delay);
+    try {
+      return nativeApply(realAbortTimeout, AbortSignal, [ms]);
+    } catch (e) {
+      if (!isDisallowedError(e)) throw e;
+    }
+    const controller = new NativeAbortController();
+    deferredSetTimeout(() => {
+      controller.abort(
+        new DOMException("The operation was aborted due to timeout", "TimeoutError"),
+      );
+    }, ms);
+    return controller.signal;
+  };
+
   if (typeof ksGlobal.fetch === "function") {
     const realFetch = ksGlobal.fetch.bind(globalThis);
     ksGlobal.fetch = wrapAsync(realFetch);

@@ -1,0 +1,752 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 18 Sep 2026 21:34:18 +0100
+Subject: [PATCH] Expand horizontal tabs to CSS tab-size stops
+
+HarfRust shapes a tab as an ordinary glyph (usually the font's missing
+glyph, painted as a box) with a ~1-space advance. Chrome treats a tab
+as invisible whitespace that advances the pen to the next multiple of
+tab-size x space-advance from the line start.
+
+Derive each tab's advance from the pen position wherever layout
+measures a line: the line-fitting pass, the intrinsic-width passes, and
+line commit, which rewrites the tab cluster's advance (and its glyph)
+to the tab stop. All of them share one tab-stop function, so repeated
+breaks are stable, and trimming a trailing tab subtracts the advance it
+actually had. Rewriting the cluster and glyph advances keeps run
+offsets, line metrics, hit-testing and selection consistent. Runs
+with no tab skip all of this.
+
+At commit the glyph is swapped for the font's space glyph (no
+outlines) when the font has one, so paint draws nothing; fonts without
+one keep their own glyph.
+
+Like Chromium, a tab whose remaining distance to the next stop is less
+than half a space width advances to the stop after it, so proportional
+text near a stop does not render a thin tab sliver.
+
+Thread the CSS tab-size value through TextStyle, ResolvedStyle and the
+layout Style so explicit tab-size values are honored (default 8).
+
+The shaped clusters and glyphs live in parley_engine, whose half of
+this patch adds the mutable accessors the rewrite uses. parley reads
+the space glyph with skrifa.
+---
+ Cargo.toml                 |   6 ++
+ src/layout/data.rs         | 131 +++++++++++++++++++++++++--
+ src/layout/line_break.rs   | 176 ++++++++++++++++++++++++++++++++++---
+ src/layout/mod.rs          |   4 +-
+ src/resolve/mod.rs         |   9 +-
+ src/style/mod.rs           |  55 ++++++++++++
+ src/tests/test_builders.rs |   1 +
+ 7 files changed, 364 insertions(+), 18 deletions(-)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 0193cf1..fc9c001 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -50,12 +50,14 @@ libm = [
+     "fontique/libm",
+     "parley_engine/libm",
+     "peniko/libm",
++    "skrifa/libm",
+     "dep:core_maths",
+ ]
+ std = [
+     "fontique/std",
+     "parley_engine/std",
+     "peniko/std",
++    "skrifa/std",
+     "parlance/std",
+ ]
+ system = [
+@@ -95,6 +97,10 @@ default-features = false
+ version = "0.12.0"
+ default-features = false
+
++[dependencies.skrifa]
++version = "0.44.0"
++default-features = false
++
+ [dependencies.smallvec]
+ version = "1.16.2"
+
+diff --git a/src/layout/data.rs b/src/layout/data.rs
+index 97a73ad..ca07bfd 100644
+--- a/src/layout/data.rs
++++ b/src/layout/data.rs
+@@ -2,7 +2,7 @@
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+
+ use crate::inline_box::{InlineBox, LayoutInlineBox};
+-use crate::layout::spacing::{Justification, SpanEdges, Spacing};
++use crate::layout::spacing::{EffectiveSpacing, Justification, SpanEdges, Spacing};
+ use crate::layout::style_metrics::{BoxMetrics, StyleMetrics};
+ use crate::layout::whitespace::whitespace_hangs;
+ use crate::layout::{ContentWidths, LineMetrics, Style};
+@@ -16,7 +16,7 @@ use core::ops::Range;
+ use alloc::vec::Vec;
+ use parlance::BidiLevel;
+ use parley_engine::shape::Whitespace;
+-use parley_engine::{ShapedRun, ShapedSlice, ShapedText};
++use parley_engine::{Atom, ShapedRun, ShapedSlice, ShapedText};
+
+ /// `HarfRust`-based run data
+ #[derive(Clone, Debug, PartialEq)]
+@@ -47,6 +47,13 @@ pub(crate) struct RunData {
+     /// Whether any of this run's clusters carries inline-span box-decoration advance (see
+     /// [`LayoutData::cluster_lead_advance`]).
+     pub(crate) has_span_edges: bool,
++    /// Glyph id of the run's space character. It has no outlines, so swapping a
++    /// tab glyph for this id makes paint draw nothing while the advance
++    /// still moves the pen (kitesurf tab-stop expansion).
++    pub(crate) space_glyph_id: u32,
++    /// Advance of the run's space glyph in layout units, the unit CSS
++    /// `tab-size` multiplies to compute a tab stop.
++    pub(crate) space_advance: f32,
+ }
+
+ /// The metrics of a run's box. This differs from the style-derived box by taking into account any
+@@ -266,6 +273,13 @@ pub(crate) struct LayoutData<B: Brush> {
+     pub(crate) base_level: BidiLevel,
+     /// The length of the text in the layout
+     pub(crate) text_len: usize,
++    /// Whether any run's source text contains a tab; gates the
++    /// line-commit tab expansion pass so tab-free documents pay a
++    /// single boolean check per line instead of a cluster re-walk.
++    /// Layout-scoped by design: a layout with one tab still walks its
++    /// other lines, but tabbed layouts are rare (code blocks), so
++    /// per-line tracking would not pay for its breaker-state plumbing.
++    pub(crate) has_tabs: bool,
+
+     // Output of style resolution (input to line breaking)
+     pub(crate) styles: Vec<Style<B>>,
+@@ -362,6 +376,7 @@ impl<B: Brush> Default for LayoutData<B> {
+             quantize: true,
+             base_level: BidiLevel::new(0),
+             text_len: 0,
++            has_tabs: false,
+             width: 0.,
+             full_width: 0.,
+             height: 0.,
+@@ -393,6 +408,7 @@ impl<B: Brush> LayoutData<B> {
+         self.quantize = true;
+         self.base_level = BidiLevel::new(0);
+         self.text_len = 0;
++        self.has_tabs = false;
+         self.width = 0.;
+         self.full_width = 0.;
+         self.height = 0.;
+@@ -485,6 +501,51 @@ impl<B: Brush> LayoutData<B> {
+         };
+
+         let font = &self.shaped_text.fonts()[shaped_run.font_index];
++
++        // Tab-stop expansion needs the space glyph's id (to
++        // substitute for tab glyphs so nothing paints) and its advance
++        // (the unit `tab-size` multiplies). Read both with skrifa from
++        // the font and variation coordinates the run was shaped with.
++        // Only runs whose source text actually contains a tab ever read
++        // these, so skip the skrifa lookups for the common tab-free run.
++        // Glyph id 0 (`.notdef`) doubles as "no space glyph in this font".
++        let has_tab = self.shaped_text.characters()[shaped_run.characters_range.start as usize
++            ..shaped_run.characters_range.end as usize]
++            .iter()
++            .any(|character| character.whitespace == Whitespace::Tab);
++        if has_tab {
++            self.has_tabs = true;
++        }
++        // A page can supply the font bytes, so a font that won't parse
++        // takes the same no-space-glyph path rather than panicking.
++        let font_ref = has_tab
++            .then(|| skrifa::FontRef::from_index(font.font.data.as_ref(), font.font.index).ok())
++            .flatten();
++        let (space_glyph_id, space_advance) = if let Some(font_ref) = font_ref {
++            let coords: smallvec::SmallVec<[skrifa::instance::NormalizedCoord; 8]> = self
++                .shaped_text
++                .normalized_coords()
++                .get(shaped_run.normalized_coords_range.clone())
++                .unwrap_or(&[])
++                .iter()
++                .map(|coord| skrifa::instance::NormalizedCoord::from_bits(coord.to_bits()))
++                .collect();
++            let space_glyph_id = skrifa::charmap::Charmap::new(&font_ref)
++                .map(' ')
++                .map(|g| g.to_u32())
++                .unwrap_or(0);
++            let space_advance = skrifa::metrics::GlyphMetrics::new(
++                &font_ref,
++                skrifa::instance::Size::new(shaped_run.font_size),
++                coords.as_slice(),
++            )
++            .advance_width(skrifa::GlyphId::new(space_glyph_id))
++            .unwrap_or(0.0);
++            (space_glyph_id, space_advance)
++        } else {
++            (0, 0.0)
++        };
++
+         let run = RunData {
+             font_attrs: fontique::Attributes {
+                 width: run_style.font_width,
+@@ -498,6 +559,8 @@ impl<B: Brush> LayoutData<B> {
+             has_mixed_style_atoms,
+             // Set by `compute_span_edges` once every run is shaped.
+             has_span_edges: false,
++            space_glyph_id,
++            space_advance,
+         };
+
+         self.runs.push(run);
+@@ -508,6 +571,31 @@ impl<B: Brush> LayoutData<B> {
+         });
+     }
+
++    /// The advance to charge for `atom` of run `run_idx` when
++    /// the pen sits at `pen` within the line. A tab advances to the next
++    /// CSS `tab-size` stop, so its width depends on the pen rather than on
++    /// the shaped glyph (or on spacing); every other atom keeps its
++    /// spaced advance. Callers that measure or fit text must use this
++    /// instead of `spacing.atom_advance`, so they agree with the
++    /// commit-time expansion in `expand_line_tabs`.
++    #[inline(always)]
++    pub(crate) fn atom_advance_at(
++        &self,
++        run_idx: usize,
++        spacing: EffectiveSpacing<'_>,
++        atom: &Atom<'_>,
++        pen: f32,
++    ) -> f32 {
++        let cluster = &atom.shaped_clusters()[0];
++        if !self.has_tabs || cluster.whitespace() != Whitespace::Tab {
++            return spacing.atom_advance(atom);
++        }
++        let style = &self.styles[cluster.style_index as usize];
++        style
++            .tab_size
++            .stop_advance(pen, self.runs[run_idx].space_advance)
++    }
++
+     /// The inline-span box decorations charged to the clusters of run `run_idx`, if it has any.
+     #[inline(always)]
+     pub(crate) fn span_edges(&self, run_idx: usize) -> Option<SpanEdges<'_>> {
+@@ -555,6 +643,10 @@ struct ContentWidthsMeasurer {
+     /// `running_min_width` when the hanging whitespace started before the last break
+     /// opportunity, in which case the line consists entirely of hanging whitespace.
+     running_hanging_whitespace: f32,
++    /// The same for `running_max_width`. A tab's advance depends on the pen, which
++    /// differs between the min and max accumulators, so the hanging advance actually added to
++    /// each is tracked separately.
++    running_hanging_whitespace_max: f32,
+
+     /// Whether that running whitespace hangs conditionally before a forced break (following CSS
+     /// Text 4 § 4.3.2, that's the case for `WhiteSpaceCollapse::Preserve`). Conditionally hanging
+@@ -579,6 +671,7 @@ impl ContentWidthsMeasurer {
+             running_min_width: first_line_indent,
+             running_max_width: first_line_indent,
+             running_hanging_whitespace: 0.,
++            running_hanging_whitespace_max: 0.,
+             hangs_conditionally: false,
+             text_wrap_mode: TextWrapMode::Wrap,
+             soft_indent: indent_options.indent_following_soft_wrap_break(indent_amount),
+@@ -616,10 +709,11 @@ impl ContentWidthsMeasurer {
+             .min_width
+             .max(self.running_min_width - self.running_hanging_whitespace);
+         if !self.hangs_conditionally {
+-            self.running_max_width -= self.running_hanging_whitespace;
++            self.running_max_width -= self.running_hanging_whitespace_max;
+         }
+         self.max_width = self.max_width.max(self.running_max_width);
+         self.running_hanging_whitespace = 0.0;
++        self.running_hanging_whitespace_max = 0.0;
+         self.line_has_content = false;
+         self.running_min_width = self.hard_indent;
+         self.running_max_width = self.hard_indent;
+@@ -634,6 +728,9 @@ impl ContentWidthsMeasurer {
+                     let slice = layout_data.shaped_text.run_slice(item.index as u32);
+                     let run_spacing = layout_data.runs[item.index].spacing;
+                     let span_edges = layout_data.span_edges(item.index);
++                    let tab_space_advance = layout_data
++                        .has_tabs
++                        .then(|| layout_data.runs[item.index].space_advance);
+                     // Trailing whitespace can only hang if it ends up at the line's end edge after
+                     // bidi reordering. We don't currently apply UAX #9 L1 (resetting trailing
+                     // whitespace to paragraph level), so only logically-last items that match the
+@@ -647,6 +744,7 @@ impl ContentWidthsMeasurer {
+                             slice,
+                             run_spacing,
+                             None,
++                            tab_space_advance,
+                             can_hang,
+                             is_rtl,
+                         );
+@@ -656,6 +754,7 @@ impl ContentWidthsMeasurer {
+                             slice,
+                             run_spacing,
+                             span_edges,
++                            tab_space_advance,
+                             can_hang,
+                             is_rtl,
+                         );
+@@ -722,6 +821,11 @@ impl ContentWidthsMeasurer {
+     /// with that cluster, as in `atom_hanging_advance`. Inline-span box decorations
+     /// (`span_edges`) are added to the clusters they are charged to. Without `SPACED`, `spacing`
+     /// and `span_edges` are ignored.
++    ///
++    /// With `tab_space_advance` (the run's space advance, given when the layout has
++    /// tabs), a tab's advance is the jump to the next `tab-size` stop from the pen, which is the
++    /// accumulator itself, so min and max get their own advance (without spacing, matching the
++    /// breaker's `LayoutData::atom_advance_at`).
+     #[inline(always)]
+     fn measure_text_run<B: Brush, const SPACED: bool>(
+         &mut self,
+@@ -729,6 +833,7 @@ impl ContentWidthsMeasurer {
+         slice: ShapedSlice<'_>,
+         spacing: Spacing,
+         span_edges: Option<SpanEdges<'_>>,
++        tab_space_advance: Option<f32>,
+         can_hang: bool,
+         is_rtl: bool,
+     ) {
+@@ -787,8 +892,19 @@ impl ContentWidthsMeasurer {
+                     advance += edges.lead[first_cluster + i] + edges.trail[first_cluster + i];
+                 }
+             }
+-            self.running_min_width += advance;
+-            self.running_max_width += advance;
++            let (min_advance, max_advance) = match tab_space_advance {
++                Some(space_advance) if whitespace == Whitespace::Tab => (
++                    style
++                        .tab_size
++                        .stop_advance(self.running_min_width, space_advance),
++                    style
++                        .tab_size
++                        .stop_advance(self.running_max_width, space_advance),
++                ),
++                _ => (advance, advance),
++            };
++            self.running_min_width += min_advance;
++            self.running_max_width += max_advance;
+
+             // A cluster hangs if all of its characters hang. Its first character is checked via the
+             // cached flags so the common case never touches `characters`.
+@@ -805,11 +921,13 @@ impl ContentWidthsMeasurer {
+                             )
+                         }));
+             if hangs {
+-                self.running_hanging_whitespace += advance;
++                self.running_hanging_whitespace += min_advance;
++                self.running_hanging_whitespace_max += max_advance;
+                 self.hangs_conditionally =
+                     style.white_space_collapse == WhiteSpaceCollapse::Preserve;
+             } else {
+                 self.running_hanging_whitespace = 0.0;
++                self.running_hanging_whitespace_max = 0.0;
+             }
+         }
+         self.line_has_content = empty_at != clusters.len();
+@@ -828,6 +946,7 @@ impl ContentWidthsMeasurer {
+         }
+         // Inline boxes don't hang.
+         self.running_hanging_whitespace = 0.0;
++        self.running_hanging_whitespace_max = 0.0;
+         self.running_min_width += inline_box.width;
+         self.running_max_width += inline_box.width;
+         self.line_has_content = true;
+diff --git a/src/layout/line_break.rs b/src/layout/line_break.rs
+index e12eb9b..fed4347 100644
+--- a/src/layout/line_break.rs
++++ b/src/layout/line_break.rs
+@@ -31,6 +31,17 @@ use parley_engine::Atom;
+ use parley_engine::shape::{Character, Whitespace};
+ use smallvec::SmallVec;
+
++/// A tab cluster waiting for its advance to be rewritten to a tab stop.
++struct TabAction {
++    /// Index into [`parley_engine::ShapedText::shaped_clusters`].
++    cluster_idx: u32,
++    /// Expanded shaped advance (to the next tab stop from the pen at the
++    /// tab, less the atom's spacing gaps, which still apply on top).
++    advance: f32,
++    /// The run's space glyph id. It has no outlines, so paint draws nothing.
++    space_glyph_id: u32,
++}
++
+ #[derive(Default)]
+ struct LineLayout {
+     lines: Vec<LineData>,
+@@ -926,11 +937,7 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+         // A line containing only empty inline boxes (and no text) is an invisible line box with
+         // zero height; the strut only applies once the line has content. The trailing empty line
+         // after a final newline has no items and keeps the strut so the cursor has a position.
+-        //
+-        // A forced break (`<br>`, a preserved newline) generates a
+-        // line box whether or not anything in-flow lands on it, so a line that
+-        // ends in one is never invisible, even when its only content is
+-        // out-of-flow (CSS position:absolute/fixed) boxes.
++        // Preserve explicit-break line boxes; only collapse out-of-flow-only lines.
+         let ends_in_forced_break = reason == BreakReason::Explicit;
+         let invisible = !self.state.line.box_metrics.has_content
+             && !self.lines.lines.last().unwrap().item_range.is_empty()
+@@ -1202,7 +1209,20 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+
+                         // Breaking an atom requires reshaping, which we don't do here, so it is
+                         // consumed as a whole (this includes all clusters of a ligature).
+-                        let advance = spacing.atom_advance(&atom);
++                        //
++                        // A tab's advance is the jump to the
++                        // next tab stop from the current pen, not its
++                        // shaped advance, so fitting must derive it from
++                        // `line.x`. Nothing is written back here, so a
++                        // reset to an earlier boundary (or a rebreak of
++                        // an already-expanded layout) re-derives it from
++                        // that pen.
++                        let advance = self.layout.data.atom_advance_at(
++                            run_idx,
++                            spacing,
++                            &atom,
++                            self.state.line.x,
++                        );
+
+                         // Compute the x position of the content being currently processed
+                         let next_x = self.state.line.x + advance;
+@@ -1392,7 +1412,14 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+                         let whitespace = first_character.whitespace;
+                         let is_newline = whitespace == Whitespace::Newline;
+                         let is_separator = is_word_separator(whitespace);
+-                        let advance = spacing.atom_advance(&atom);
++                        // Tabs advance to the next tab stop
++                        // from the current pen (see `break_next`).
++                        let advance = self.layout.data.atom_advance_at(
++                            run_idx,
++                            spacing,
++                            &atom,
++                            self.state.line.x,
++                        );
+
+                         // Compute the x position.
+                         // Newlines don't contribute to line width (matching break_next behavior).
+@@ -1826,7 +1853,7 @@ impl<B: Brush> Drop for BreakLines<'_, B> {
+
+ #[expect(clippy::cast_possible_truncation, reason = "deferred")]
+ fn commit_line<B: Brush>(
+-    layout: &Layout<B>,
++    layout: &mut Layout<B>,
+     lines: &mut LineLayout,
+     state: &mut LineState,
+     max_advance: f32,
+@@ -1931,6 +1958,14 @@ fn commit_line<B: Brush>(
+     // let end_run_idx = lines.line_items.last().map(|item| item.index).unwrap_or(0);
+     let end_item_idx = lines.line_items.len();
+
++    // Expand tabs to tab stops now that the line's items are
++    // known, so the hanging whitespace below and the line's advance see the
++    // expanded widths. Lines without tabs keep the breaker's pen.
++    let line_advance =
++        expand_line_tabs(layout, &lines.line_items[start_item_idx..end_item_idx])
++            .unwrap_or(state.x);
++    let layout = &*layout;
++
+     // Trailing whitespace under `WhiteSpaceCollapse::Preserve` directly preceding a forced break
+     // hangs conditionally (CSS Text 4 § 4.3.2): only the part that doesn't fit hangs. Whitespace
+     // that fits, stays inside the line box, and counts towards alignment and the layout width. The
+@@ -1942,7 +1977,7 @@ fn commit_line<B: Brush>(
+     // Hence an `overflow` of `f32::INFINITY` can be used to model that case.
+     let overflow = match break_reason {
+         BreakReason::Regular | BreakReason::Emergency => f32::INFINITY,
+-        BreakReason::Explicit | BreakReason::None => state.x - max_advance,
++        BreakReason::Explicit | BreakReason::None => line_advance - max_advance,
+     };
+     let (hanging_advance, justification_end_cluster, hanging_opportunities) = hanging_whitespace(
+         layout,
+@@ -1971,7 +2006,7 @@ fn commit_line<B: Brush>(
+         },
+         metrics: LineMetrics {
+             indent: line_indent,
+-            advance: state.x,
++            advance: line_advance,
+             hanging_advance,
+             ..Default::default()
+         },
+@@ -1996,6 +2031,127 @@ fn commit_line<B: Brush>(
+     };
+ }
+
++/// Expand horizontal tabs to tab stops (CSS `tab-size`).
++///
++/// Chromium renders a tab as invisible whitespace that advances the
++/// pen to the next multiple of `tab-size × space advance` from the
++/// line start. HarfRust shapes `\t` as an ordinary glyph, usually
++/// the font's missing glyph painted as a box, so this rewrites the
++/// tab cluster's advance (and its glyph) at line-commit time, when
++/// the pen position within the line is known. The glyph is swapped
++/// for the font's space glyph (no outlines), so paint draws nothing
++/// while the pen still advances. Run offsets, line metrics,
++/// hit-testing and selection all read the same rewritten advance.
++///
++/// `line_items` are the line's items in logical order. Returns the
++/// line's advance with the tabs expanded, or `None` if it has no tab.
++/// Tabs in RTL runs are expanded against the logical-order pen; LTR
++/// (the practically universal case for tabbed code) is exact.
++fn expand_line_tabs<B: Brush>(layout: &mut Layout<B>, line_items: &[LineItemData]) -> Option<f32> {
++    let data = &layout.data;
++    if !data.has_tabs {
++        return None;
++    }
++
++    // Pass 1, read-only: walk the line's items with a pen and
++    // record every tab cluster with the pen at its start.
++    let mut pen = 0.0f32;
++    let mut actions: Vec<TabAction> = Vec::new();
++    for line_item in line_items {
++        match line_item.kind {
++            LayoutItemKind::InlineBox => {
++                let inline_box = &data.inline_boxes[line_item.index].inline_box;
++                if inline_box.kind == InlineBoxKind::InFlow {
++                    pen += inline_box.width;
++                }
++            }
++            LayoutItemKind::TextRun => {
++                let run = &data.runs[line_item.index];
++                let spacing = EffectiveSpacing::new(run.spacing, Justification::NONE)
++                    .with_span_edges(data.span_edges(line_item.index));
++                let slice = data
++                    .shaped_text
++                    .run_slice(line_item.index as u32)
++                    .narrow(line_item.shaped_cluster_range.clone());
++                for atom in slice.atoms_start() {
++                    let cluster = &atom.shaped_clusters()[0];
++                    match cluster.whitespace() {
++                        // Newlines don't contribute to the line's advance.
++                        Whitespace::Newline => {}
++                        Whitespace::Tab => {
++                            // Derived from the pen, never from the
++                            // cluster's current advance, so re-running
++                            // this pass over an already-expanded line is
++                            // idempotent. Same arithmetic the breaker
++                            // fits with (`LayoutData::atom_advance_at`).
++                            let advance =
++                                data.atom_advance_at(line_item.index, spacing, &atom, pen);
++                            actions.push(TabAction {
++                                cluster_idx: atom.shaped_clusters_range().start,
++                                advance: (advance - spacing.gaps(&atom).total()).max(0.0),
++                                space_glyph_id: run.space_glyph_id,
++                            });
++                            pen += advance;
++                        }
++                        _ => pen += spacing.atom_advance(&atom),
++                    }
++                }
++            }
++        }
++    }
++
++    if actions.is_empty() {
++        return None;
++    }
++
++    // Pass 2, apply: rewrite cluster advances and glyph ids so every
++    // downstream reader (run offsets, positioned glyphs, selection,
++    // line metrics) agrees on the tab-stop geometry.
++    let shaped_text = &mut layout.data.shaped_text;
++    for action in &actions {
++        let cluster = &mut shaped_text.shaped_clusters_mut()[action.cluster_idx as usize];
++        cluster.advance = action.advance;
++        // Glyph id 0 means the font has no space glyph; leave the
++        // tab glyph in place rather than substituting `.notdef`
++        // (which would paint the tofu this pass exists to remove).
++        // Still rewrite the glyph advances so painted geometry
++        // matches the cluster advance (hit-testing/selection).
++        if action.space_glyph_id == 0 {
++            if !cluster.has_inline_glyph() {
++                let start = cluster.glyph_offset as usize;
++                let len = usize::from(cluster.glyph_len());
++                let glyphs = shaped_text.glyphs_mut();
++                let end = (start + len).min(glyphs.len());
++                for glyph in &mut glyphs[start..end] {
++                    glyph.advance = 0.0;
++                }
++                if let Some(last) = glyphs[start..end].last_mut() {
++                    last.advance = action.advance;
++                }
++            }
++            continue;
++        }
++        if cluster.has_inline_glyph() {
++            // Single-glyph cluster: the glyph id is stored inline.
++            cluster.glyph_offset = action.space_glyph_id;
++        } else {
++            let start = cluster.glyph_offset as usize;
++            let len = usize::from(cluster.glyph_len());
++            let glyphs = shaped_text.glyphs_mut();
++            let end = (start + len).min(glyphs.len());
++            for glyph in &mut glyphs[start..end] {
++                glyph.id = action.space_glyph_id;
++                glyph.advance = 0.0;
++            }
++            if let Some(last) = glyphs[start..end].last_mut() {
++                last.advance = action.advance;
++            }
++        }
++    }
++
++    Some(pen)
++}
++
+ /// Returns the advance of the whitespace hanging past the end of the line made up of `line_items`,
+ /// the index one past its logically last shaped cluster that's eligible for justification (see
+ /// [`Justification::justification_end_cluster`]), and the number of justification opportunities
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 005f0d2..1693a6f 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -43,7 +43,7 @@ pub use crate::editing::{Cursor, Selection};
+
+ // TODO - Move the following to `style` module and submodules.
+
+-use crate::style::{BoxDecorations, Brush};
++use crate::style::{BoxDecorations, Brush, TabSize};
+ use crate::{LineHeight, OverflowWrap, TextWrapMode, VerticalAlign, WhiteSpaceCollapse};
+
+ /// Style properties.
+@@ -78,6 +78,8 @@ pub struct Style<B: Brush> {
+     pub(crate) text_wrap_mode: TextWrapMode,
+     /// Per-cluster whitespace collapsing and hanging behavior.
+     pub(crate) white_space_collapse: WhiteSpaceCollapse,
++    /// CSS `tab-size`: how far a horizontal tab advances the pen.
++    pub(crate) tab_size: TabSize,
+     /// The locale of the text, if any.
+     ///
+     /// This is useful for consumers exposing the text to assistive technologies,
+diff --git a/src/resolve/mod.rs b/src/resolve/mod.rs
+index 6ad8a6f..a8db851 100644
+--- a/src/resolve/mod.rs
++++ b/src/resolve/mod.rs
+@@ -15,7 +15,7 @@ use super::style::{
+     FontVariation, FontVariations, FontWeight, FontWidth, StyleProperty,
+ };
+ use crate::font::FontContext;
+-use crate::style::TextStyle;
++use crate::style::{TabSize, TextStyle};
+ use crate::util::nearly_eq;
+ use crate::{LineBreak, LineHeight, OverflowWrap, VerticalAlign, layout};
+ use crate::{TextWrapMode, WhiteSpaceCollapse, WordBreak};
+@@ -229,6 +229,10 @@ impl ResolveContext {
+             text_wrap_mode: raw_style.text_wrap_mode,
+             white_space_collapse: raw_style.white_space_collapse,
+             box_decorations: raw_style.box_decorations.scale(scale),
++            tab_size: match raw_style.tab_size {
++                TabSize::Chars(n) => TabSize::Chars(n),
++                TabSize::Px(l) => TabSize::Px(l * scale),
++            },
+         }
+     }
+
+@@ -476,6 +480,8 @@ pub(crate) struct ResolvedStyle<B: Brush> {
+     /// horizontal advance at span boundaries; the painter reads
+     /// every field to emit per-line fragment rectangles.
+     pub(crate) box_decorations: BoxDecorations<B>,
++    /// CSS `tab-size`: how far a horizontal tab advances the pen.
++    pub(crate) tab_size: TabSize,
+ }
+
+ impl<B: Brush> ResolvedStyle<B> {
+@@ -558,6 +564,7 @@ impl<B: Brush> ResolvedStyle<B> {
+             text_wrap_mode: self.text_wrap_mode,
+             white_space_collapse: self.white_space_collapse,
+             box_decorations: self.box_decorations.clone(),
++            tab_size: self.tab_size,
+             locale: self.locale,
+         }
+     }
+diff --git a/src/style/mod.rs b/src/style/mod.rs
+index 99f6023..366e0f4 100644
+--- a/src/style/mod.rs
++++ b/src/style/mod.rs
+@@ -25,6 +25,57 @@ pub use styleset::StyleSet;
+
+ use crate::util::nearly_eq;
+
++/// CSS `tab-size`: how far a horizontal tab advances the pen.
++///
++/// `Chars(n)` is the CSS `<number>` form: the tab advance is `n` times the
++/// advance of the space glyph, and the pen advances to the next multiple of
++/// that distance from the line start. `Px(l)` is the CSS `<length>` form: the
++/// tab advance is exactly `l`. Either way the pen jumps to the next tab stop,
++/// mirroring how Chromium lays out `white-space: pre` text.
++#[derive(Debug, Clone, Copy, PartialEq)]
++pub enum TabSize {
++    /// Number of space-advances per tab (CSS initial is 8).
++    Chars(f32),
++    /// Absolute advance per tab, in the layout's coordinate units.
++    Px(f32),
++}
++
++impl Default for TabSize {
++    fn default() -> Self {
++        Self::Chars(8.0)
++    }
++}
++
++impl TabSize {
++    /// The distance between tab stops for a run whose space glyph advances
++    /// `space_advance`. For `Chars` this is `n × space_advance`; for `Px` the
++    /// absolute value itself.
++    pub(crate) fn stop_spacing(self, space_advance: f32) -> f32 {
++        match self {
++            Self::Chars(n) => n * space_advance,
++            Self::Px(l) => l,
++        }
++    }
++
++    /// The advance of a tab whose pen sits at `pen` from the line start.
++    /// Chromium gives every tab at least half a space of visible width,
++    /// advancing an extra stop when the next one is closer than that. A pen
++    /// exactly on a stop therefore advances a full stop.
++    pub(crate) fn stop_advance(self, pen: f32, space_advance: f32) -> f32 {
++        let spacing = self.stop_spacing(space_advance);
++        if spacing > 0.0 {
++            let distance = spacing - (pen % spacing);
++            if distance < space_advance / 2.0 {
++                distance + spacing
++            } else {
++                distance
++            }
++        } else {
++            0.0
++        }
++    }
++}
++
+ /// Whitespace collapsing and hanging behavior.
+ ///
+ /// Note: Currently only the [`TreeBuilder`](crate::TreeBuilder) collapses white space. The
+@@ -505,6 +556,9 @@ pub struct TextStyle<'family, 'settings, B: Brush> {
+     /// `TreeBuilder::push_style_span` to make that span lay out
+     /// and paint as a real CSS inline fragment with box geometry.
+     pub box_decorations: BoxDecorations<B>,
++    /// CSS `tab-size`: how far a horizontal tab advances the pen.
++    /// Defaults to `Chars(8.0)`, the CSS initial value.
++    pub tab_size: TabSize,
+ }
+
+ impl<B: Brush> Default for TextStyle<'static, 'static, B> {
+@@ -537,6 +591,7 @@ impl<B: Brush> Default for TextStyle<'static, 'static, B> {
+             text_wrap_mode: TextWrapMode::default(),
+             white_space_collapse: WhiteSpaceCollapse::default(),
+             box_decorations: BoxDecorations::default(),
++            tab_size: TabSize::default(),
+         }
+     }
+ }
+diff --git a/src/tests/test_builders.rs b/src/tests/test_builders.rs
+index 729dda8..b398f96 100644
+--- a/src/tests/test_builders.rs
++++ b/src/tests/test_builders.rs
+@@ -241,5 +241,6 @@ fn create_root_style() -> TextStyle<'static, 'static, ColorBrush> {
+         // cross-builder equivalence tests: ranged, tree and
+         // style-run builders must produce identical layouts.
+         box_decorations: Default::default(),
++        tab_size: Default::default(),
+     }
+ }

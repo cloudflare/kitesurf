@@ -165,6 +165,7 @@ import mjsImportIndexHtml from "../assets/mjs-import/index.html";
 import moduleRegistryConfigJson from "../assets/module-registry-config.json";
 import moduleRegistryFallbackJson from "../assets/module-registry-fallback.json";
 import moduleRegistryLibJs from "../assets/module-registry-lib.js";
+import moduleRegistryLiveReaderJs from "../assets/module-registry-live-reader.js";
 import moduleRegistryMalformedJsonTxt from "../assets/module-registry-malformed-json.txt";
 import moduleRegistryMetaJs from "../assets/module-registry-meta.js";
 import moduleRegistrySheetCss from "../assets/module-registry-sheet.css";
@@ -283,6 +284,7 @@ export const STATIC_FIXTURES: Record<string, string | ArrayBuffer> = {
   "importmap-early.js": importmapEarlyJs,
   "module-registry.html": moduleRegistryHtml,
   "module-registry-lib.js": moduleRegistryLibJs,
+  "module-registry-live-reader.js": moduleRegistryLiveReaderJs,
   "module-registry-meta.js": moduleRegistryMetaJs,
   "module-registry-tla.js": moduleRegistryTlaJs,
   "module-registry-config.json": jsonText(moduleRegistryConfigJson),

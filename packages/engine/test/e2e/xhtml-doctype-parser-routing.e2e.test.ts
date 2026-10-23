@@ -85,3 +85,23 @@ test("a tag inside a prolog comment does not end the XHTML sniff", async ({ page
   expect(r.styleText).not.toContain("CDATA");
   expect(r.width).toBe(100);
 });
+
+const SELF_CLOSED_SCRIPT_HEAD =
+  `<head><script type="application/json" id="first" />` +
+  `<script type="application/json" id="second">{"ok":true}</script></head><body></body>`;
+const FALSE_XHTML_MARKERS = [
+  `<!DOCTYPE html><!-- XHTML --><html>${SELF_CLOSED_SCRIPT_HEAD}</html>`,
+  `<!DOCTYPE html><htmlish xmlns="http://www.w3.org/1999/xhtml">${SELF_CLOSED_SCRIPT_HEAD}</htmlish>`,
+  `<htmlish xmlns="http://www.w3.org/1999/xhtml">${SELF_CLOSED_SCRIPT_HEAD}</htmlish>`,
+];
+
+test("XHTML sniff ignores comments and tag-name prefixes", async ({ page }) => {
+  for (const html of FALSE_XHTML_MARKERS) {
+    await setContent(page, html);
+    const result = await page.evaluate(() => ({
+      root: document.documentElement.localName,
+      scripts: document.querySelectorAll("script").length,
+    }));
+    expect(result).toEqual({ root: "html", scripts: 1 });
+  }
+});

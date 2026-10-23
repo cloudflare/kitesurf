@@ -55,3 +55,20 @@ fn minmax_min_content_small_fixed_max_floors() {
         sizes
     );
 }
+
+#[test]
+fn min_content_keeps_nowrap_together_after_a_leading_inline_box() {
+    let sizes = used_columns(
+        r##"<!DOCTYPE html><style>
+          .grid { display: grid; grid-template-columns: minmax(min-content, 2px); width: 300px; font: 16px/20px sans-serif; }
+          .item { white-space: nowrap; }
+          .box { display: inline-block; width: 10px; height: 8px; }
+        </style><div class="grid"><div class="item"><span class="box"></span>x</div></div>"##,
+    );
+    assert!(!sizes.is_empty(), "no grid track info captured");
+    assert!(
+        sizes[0] > 15.0,
+        "min-content should include the no-wrap box and text, got {:?}",
+        sizes
+    );
+}

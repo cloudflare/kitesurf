@@ -1,0 +1,232 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Tue, 15 Sep 2026 21:19:03 +0100
+Subject: [PATCH] Enable container queries, cq units and anchor parsing in
+ servo
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+cq* units were gecko-gated at tokenization, so any calc() containing
+them failed to parse in the servo build. WPT's sign(2cqw - 10px) probes
+across css-color, css-flexbox, css-fonts, css-lists and css-grid hit
+this. The container-size-query plumbing itself is feature-agnostic and
+falls back to the small viewport when there is no container, so only the
+parse gate needs to go.
+
+Servo already compiles the anchor value implementations, but preference
+checks reject every anchor() and anchor-size() value. The remaining
+checks are crate::pref!("layout.css.anchor-positioning.enabled", gecko =
+true), which is off by default in servo. Ship the parser support
+unconditionally and generate the remaining anchor properties for Servo.
+
+The @container rule and the container shorthand were gated to the gecko
+build, so the servo build rejected them at parse time. Drop the gates.
+The shorthand serializes its container-type only when that longhand is
+present and not normal.
+
+Co-authored-by: Luís Duarte <lduarte@cloudflare.com>
+Co-authored-by: bpereira <bpereira@cloudflare.com>
+---
+ properties/longhands.toml    |  3 ---
+ properties/shorthands.rs     |  8 +++++---
+ properties/shorthands.toml   |  1 -
+ stylesheets/rule_parser.rs   |  2 +-
+ values/specified/calc.rs     |  6 ------
+ values/specified/length.rs   | 22 ++++++++--------------
+ values/specified/position.rs | 10 ----------
+ 7 files changed, 14 insertions(+), 38 deletions(-)
+
+diff --git a/properties/longhands.toml b/properties/longhands.toml
+index 80390b6..692455a 100644
+--- a/properties/longhands.toml
++++ b/properties/longhands.toml
+@@ -182,7 +182,6 @@ affects = "layout"
+ type = "AnchorName"
+ initial = "computed::AnchorName::none()"
+ struct = "box"
+-engine = "gecko"
+ animation_type = "discrete"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#propdef-anchor-name"
+ affects = ""
+@@ -1710,7 +1709,6 @@ affects = "layout"
+ type = "PositionAnchor"
+ initial = "computed::PositionAnchor::normal()"
+ struct = "position"
+-engine = "gecko"
+ animation_type = "discrete"
+ rule_types_allowed = ["style", "keyframe", "scope", "position-try"]
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#propdef-position-anchor"
+@@ -1722,7 +1720,6 @@ initial = "computed::PositionArea::none()"
+ struct = "position"
+ animation_type = "discrete"
+ rule_types_allowed = ["style", "keyframe", "scope", "position-try"]
+-servo_pref = "layout.unimplemented"
+ spec = "https://drafts.csswg.org/css-anchor-position-1/#typedef-position-area"
+ affects = "layout"
+
+diff --git a/properties/shorthands.rs b/properties/shorthands.rs
+index de57106..318d77c 100644
+--- a/properties/shorthands.rs
++++ b/properties/shorthands.rs
+@@ -545,7 +545,6 @@ pub mod border {
+     }
+ }
+
+-#[cfg(feature = "gecko")]
+ pub mod container {
+     use super::*;
+     pub use crate::properties::generated::shorthands::container::*;
+@@ -575,9 +574,12 @@ pub mod container {
+             W: fmt::Write,
+         {
+             self.container_name.to_css(dest)?;
+-            if !self.container_type.is_normal() {
++            if self
++                .container_type
++                .is_some_and(|container_type| !container_type.is_normal())
++            {
+                 dest.write_str(" / ")?;
+-                self.container_type.to_css(dest)?;
++                self.container_type.unwrap().to_css(dest)?;
+             }
+             Ok(())
+         }
+diff --git a/properties/shorthands.toml b/properties/shorthands.toml
+index 5827b04..56010df 100644
+--- a/properties/shorthands.toml
++++ b/properties/shorthands.toml
+@@ -209,7 +209,6 @@ spec = "https://wicg.github.io/overscroll-behavior/#overscroll-behavior-properti
+ kind = "two_properties"
+
+ [container]
+-engine = "gecko"
+ sub_properties = ["container-name", "container-type"]
+ spec = "https://drafts.csswg.org/css-contain-3/#container-shorthand"
+
+diff --git a/stylesheets/rule_parser.rs b/stylesheets/rule_parser.rs
+index 885eef9..ea7cbce 100644
+--- a/stylesheets/rule_parser.rs
++++ b/stylesheets/rule_parser.rs
+@@ -282,7 +282,7 @@ impl AtRuleType {
+             "counter-style" if cfg!(feature = "gecko") => Self::CounterStyle,
+             "media" => Self::Media,
+             "custom-media" if crate::pref!("layout.css.custom-media.enabled") => Self::CustomMedia,
+-            "container" if cfg!(feature = "gecko") => Self::Container,
++            "container" => Self::Container,
+             "supports" => Self::Supports,
+             "keyframes" => Self::Keyframes(None),
+             "-webkit-keyframes" => Self::Keyframes(Some(VendorPrefix::WebKit)),
+diff --git a/values/specified/calc.rs b/values/specified/calc.rs
+index 4ac4b91..f3ad3f5 100644
+--- a/values/specified/calc.rs
++++ b/values/specified/calc.rs
+@@ -807,9 +807,6 @@ impl GenericAnchorFunction<Box<CalcNode>, Box<GenericAnchorFunctionFallback<Leaf
+         additional_functions: AdditionalFunctions,
+         input: &mut Parser,
+     ) -> Result<Self, ParseError> {
+-        if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) {
+-            return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+-        }
+         input.parse_nested_block(|i| {
+             let target_element = i.try_parse(|i| DashedIdent::parse(context, i)).ok();
+             let side = GenericAnchorSide::parse_in_calc(context, i)?;
+@@ -837,9 +834,6 @@ impl GenericAnchorFunction<Box<CalcNode>, Box<GenericAnchorFunctionFallback<Leaf
+
+ impl GenericAnchorSizeFunction<Box<GenericAnchorFunctionFallback<Leaf>>> {
+     fn parse_in_calc(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+-        if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) {
+-            return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+-        }
+         GenericAnchorSizeFunction::parse_inner(context, input, |i| {
+             parse_anchor_function_fallback(context, AdditionalFunctions::ANCHOR_SIZE, i)
+         })
+diff --git a/values/specified/length.rs b/values/specified/length.rs
+index 74908fe..008397d 100644
+--- a/values/specified/length.rs
++++ b/values/specified/length.rs
+@@ -188,12 +188,13 @@ impl LengthUnit {
+             "dvi" if !in_page_rule => Self::Dvi,
+             // Container query lengths. Inherit the limitation from viewport units since
+             // we may fall back to them.
+-            "cqw" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqw,
+-            "cqh" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqh,
+-            "cqi" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqi,
+-            "cqb" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqb,
+-            "cqmin" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqmin,
+-            "cqmax" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqmax,
++            // Servo uses the same container-size plumbing and viewport fallback.
++            "cqw" if !in_page_rule => Self::Cqw,
++            "cqh" if !in_page_rule => Self::Cqh,
++            "cqi" if !in_page_rule => Self::Cqi,
++            "cqb" if !in_page_rule => Self::Cqb,
++            "cqmin" if !in_page_rule => Self::Cqmin,
++            "cqmax" if !in_page_rule => Self::Cqmax,
+             _ => return Err(()),
+         })
+     }
+@@ -1867,8 +1868,7 @@ impl Size {
+                                "auto" => Auto);
+         parse_fit_content_function!(Size, input, context, allow_quirks);
+
+-        let allow_anchor = allow_anchor_functions == ParseAnchorFunctions::Yes
+-            && crate::pref!("layout.css.anchor-positioning.enabled", gecko = true);
++        let allow_anchor = allow_anchor_functions == ParseAnchorFunctions::Yes;
+         match input
+             .try_parse(|i| NonNegativeLengthPercentage::parse_quirky(context, i, allow_quirks))
+         {
+@@ -1961,9 +1961,6 @@ impl MaxSize {
+             .try_parse(|i| NonNegativeLengthPercentage::parse_quirky(context, i, allow_quirks))
+         {
+             Ok(length) => return Ok(GenericMaxSize::LengthPercentage(length)),
+-            Err(e) if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) => {
+-                return Err(e.into())
+-            },
+             Err(_) => (),
+         };
+         if let Ok(length) = input.try_parse(|i| {
+@@ -2002,9 +1999,6 @@ impl Margin {
+         }
+         match input.try_parse(|i| i.expect_ident_matching("auto")) {
+             Ok(_) => return Ok(Self::Auto),
+-            Err(e) if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) => {
+-                return Err(e.into())
+-            },
+             Err(_) => (),
+         };
+         if let Ok(l) = input.try_parse(|i| {
+diff --git a/values/specified/position.rs b/values/specified/position.rs
+index a9e3101..0022988 100644
+--- a/values/specified/position.rs
++++ b/values/specified/position.rs
+@@ -2163,9 +2163,6 @@ impl Inset {
+         }
+         match input.try_parse(|i| i.expect_ident_matching("auto")) {
+             Ok(_) => return Ok(Self::Auto),
+-            Err(e) if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) => {
+-                return Err(e.into());
+-            },
+             Err(_) => (),
+         };
+         Self::parse_anchor_functions_quirky(context, input, allow_quirks)
+@@ -2188,10 +2185,6 @@ impl Inset {
+         input: &mut Parser,
+         allow_quirks: AllowQuirks,
+     ) -> Result<Self, ParseError> {
+-        debug_assert!(
+-            crate::pref!("layout.css.anchor-positioning.enabled", gecko = true),
+-            "How are we parsing with pref off?"
+-        );
+         if let Ok(inner) = input.try_parse(|i| AnchorFunction::parse(context, i)) {
+             return Ok(Self::AnchorFunction(Box::new(inner)));
+         }
+@@ -2217,9 +2210,6 @@ pub type AnchorFunction = GenericAnchorFunction<specified::Percentage, Inset>;
+
+ impl Parse for AnchorFunction {
+     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+-        if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) {
+-            return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+-        }
+         input.expect_function_matching("anchor")?;
+         input.parse_nested_block(|i| {
+             let target_element = i.try_parse(|i| DashedIdent::parse(context, i)).ok();

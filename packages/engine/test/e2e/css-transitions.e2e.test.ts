@@ -12,6 +12,46 @@ function rgb(value: string): number[] {
   return m[1].split(",").map((p) => Number(p.trim()));
 }
 
+test.for(["transition", "animation"])(
+  "%s keeps its sampled time across synchronous style changes",
+  async (kind, { page }) => {
+    const sampleCount = 20;
+    await setContent(
+      page,
+      `<!doctype html><style>
+      #target { clip-path: inset(0px) }
+      @keyframes clip { from { clip-path: inset(0px) } to { clip-path: inset(1000px) } }
+    </style><div id="target"></div><div id="other"></div>`,
+    );
+
+    const samples = await page.evaluate(
+      (kind, sampleCount) => {
+        const target = document.getElementById("target");
+        const other = document.getElementById("other");
+        if (!target || !other) throw new Error("missing animation targets");
+        getComputedStyle(target).clipPath;
+        if (kind === "transition") {
+          target.style.transition = "clip-path 100s -50s linear";
+          target.style.clipPath = "inset(1000px)";
+        } else {
+          target.style.animation = "clip 100s -50s linear";
+        }
+        const samples = [];
+        for (let i = 0; i < sampleCount; i++) {
+          other.style.width = `${i}px`;
+          other.getBoundingClientRect();
+          samples.push(getComputedStyle(target).clipPath);
+        }
+        return samples;
+      },
+      kind,
+      sampleCount,
+    );
+
+    expect(samples).toEqual(Array(sampleCount).fill("inset(500px)"));
+  },
+);
+
 test("a transition interpolates instead of jumping to its target", async ({ page }) => {
   await setContent(page, html);
 

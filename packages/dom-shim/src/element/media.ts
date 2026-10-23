@@ -46,7 +46,7 @@ function newTextTrack(trackEl: Element) {
   };
 }
 type TextTrackStub = ReturnType<typeof newTextTrack>;
-const textTrackCache = new Map<number, TextTrackStub>();
+const textTrackCache = new WeakMap<Element, TextTrackStub>();
 type AddedTextTrackStub = {
   kind: string;
   label: string;
@@ -59,10 +59,10 @@ type AddedTextTrackStub = {
 };
 
 function makeTextTrack(trackEl: Element): TextTrackStub {
-  const cached = textTrackCache.get(trackEl._id);
-  if (cached && cached.__el === trackEl) return cached;
+  const cached = textTrackCache.get(trackEl);
+  if (cached) return cached;
   const tt = newTextTrack(trackEl);
-  textTrackCache.set(trackEl._id, tt);
+  textTrackCache.set(trackEl, tt);
   return tt;
 }
 function makeTextTrackList(mediaEl: Element) {

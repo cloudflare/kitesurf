@@ -177,6 +177,17 @@ fn calc_in_css_geometry_declarations_resolves_too() {
 }
 
 #[test]
+fn calc_geometry_units_are_ascii_case_insensitive() {
+    let tree = tree_of(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+              <style>circle { cx: calc(10pX); cy: 10px; r: calc(2PX); fill: blue }</style>
+              <circle/>
+            </svg>"##,
+    );
+    assert_eq!(first_path_bbox(&tree), Some((8, 8, 4, 4)));
+}
+
+#[test]
 fn non_ascii_and_malformed_geometry_values_do_not_panic() {
     assert!(!paints(r##"<circle style="r: héllo"/>"##));
     assert!(!paints(r##"<circle r="ééééé"/>"##));

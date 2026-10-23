@@ -230,6 +230,15 @@ impl<T: Clone> PinSlab<T> {
         self.released += 1;
         v
     }
+    fn replace(&mut self, h: u64, v: T) -> Option<T> {
+        let i = (h & 0xffff_ffff) as usize;
+        let e = self.entries.get_mut(i)?;
+        if e.0 & PIN_GEN_MASK != (h >> 32) as u32 {
+            return None;
+        }
+        let current = e.1.as_mut()?;
+        Some(std::mem::replace(current, v))
+    }
     fn live(&self) -> usize {
         self.entries.len() - self.free.len()
     }
@@ -359,6 +368,15 @@ fn weak_deref(w: &wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
 // Watch a minted wrapper: when V8 collects it, release the boa pin
 // (+ its wrapper-cache slot) so boa GC can reclaim the object graph.
 fn fr_register(wrapper: &wasm_bindgen::JsValue, boa_pin: u64, wrapper_slot: Option<u64>) {
+    let watched = match wrapper_slot {
+        // boa_v8_store already holds this wrapper in a WeakRef.
+        Some(slot) if weak_available() => Some(PinWrapper::Slot(slot)),
+        _ => make_weak(wrapper).map(PinWrapper::Weak),
+    };
+    if let Some(w) = watched {
+        PIN_WRAPPER.with(|m| m.borrow_mut().insert(boa_pin, w));
+        CC.with(|s| s.borrow_mut().wrapper_gen += 1);
+    }
     let _ = with_weak_rt(|rt| {
         let held = js_sys::Array::of2(
             &wasm_bindgen::JsValue::from_f64(boa_pin as f64),
@@ -376,10 +394,19 @@ fn finalize_held(held: wasm_bindgen::JsValue) {
     let boa_pin = arr.get(0).as_f64().unwrap_or(-1.0);
     let slot = arr.get(1).as_f64().unwrap_or(-1.0);
     if boa_pin >= 0.0 {
+        let pin = boa_pin as u64;
         BOA.with(|t| {
-            t.borrow_mut().release(boa_pin as u64);
+            t.borrow_mut().release(pin);
         });
-        SLOTTED.with(|s| s.borrow_mut().remove(&(boa_pin as u64)));
+        SLOTTED.with(|s| s.borrow_mut().remove(&pin));
+        let watched = PIN_WRAPPER.with(|m| m.borrow_mut().remove(&pin)).is_some();
+        CC.with(|s| {
+            let mut s = s.borrow_mut();
+            s.pin_comp.remove(&pin);
+            if watched {
+                s.wrapper_gen += 1;
+            }
+        });
     }
     if slot >= 0.0 {
         BOA_V8.with(|t| {
@@ -398,9 +425,445 @@ struct KsV8Release {
     handle: u64,
 }
 impl boa_engine::gc::Finalize for KsV8Release {}
-// SAFETY: no GC-managed fields to trace.
+// SAFETY: no GC-managed fields to trace. The trace hook only records the
+// handle while the cycle collector's census runs, and never touches the heap.
 unsafe impl boa_engine::gc::Trace for KsV8Release {
-    boa_engine::gc::empty_trace!();
+    unsafe fn trace(&self, _tracer: &mut boa_engine::gc::Tracer) {
+        CENSUS_SINK.with(|s| {
+            if let Some(v) = s.borrow_mut().as_mut() {
+                v.push(self.handle);
+            }
+        });
+    }
+    unsafe fn trace_non_roots(&self) {}
+    fn run_finalizer(&self) {
+        boa_engine::gc::Finalize::finalize(self);
+    }
+}
+
+thread_local! {
+    static CENSUS_SINK: RefCell<Option<Vec<u64>>> = const { RefCell::new(None) };
+}
+
+// Each heap pins what it hands the other, so a cycle through the seam is invisible to both GCs.
+// The collector hands V8 the boa-unreachable ("gray") graph as keeper ephemerons on the gray pins'
+// wrappers and weakens those V8 pins, turning the cycle V8-only. Any re-entry (get_boa, get_v8,
+// an identity-cache hit) makes its component strong again first.
+#[derive(Default)]
+struct CycleState {
+    comps: Vec<Vec<u64>>,
+    pin_comp: rustc_hash::FxHashMap<u64, usize>,
+    // V8 handles whose slab entry holds a WeakRef. None: the object is gone.
+    weak: rustc_hash::FxHashMap<u64, Option<usize>>,
+    keepers: Option<js_sys::WeakMap>,
+    runs: u64,
+    weakened: u64,
+    revoked: u64,
+    dead_reads: u64,
+    last_gray_pins: usize,
+    last_ms: f64,
+    idle_sig: Option<[u64; 9]>,
+    skipped: u64,
+    gray_sig: Option<u64>,
+    idle_streak: u32,
+    backoff_ticks: u32,
+    // Bumped whenever a pin's watched wrapper is added or dropped.
+    wrapper_gen: u64,
+    epoch_wrapper_gen: u64,
+    epoch_revoked: u64,
+    carried: u64,
+}
+
+// Each epoch that rebuilds the previous gray graph doubles the wait before the next, up to 2^4
+// ticks; a different graph resets it. Skipping only keeps pins strong longer, so a cycle formed
+// meanwhile is collected late, not leaked.
+const CC_MAX_IDLE_SHIFT: u32 = 4;
+
+fn gray_graph_sig(g: &GrayGraph) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = rustc_hash::FxHasher::default();
+    g.pins.hash(&mut h);
+    g.handles.hash(&mut h);
+    g.children.hash(&mut h);
+    h.finish()
+}
+
+thread_local! {
+    static CC: RefCell<CycleState> = RefCell::new(CycleState::default());
+    static CC_ACTIVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    // Boa pin -> the V8 wrapper whose death releases it, held weakly.
+    static PIN_WRAPPER: RefCell<rustc_hash::FxHashMap<u64, PinWrapper>> =
+        RefCell::new(rustc_hash::FxHashMap::default());
+}
+
+enum PinWrapper {
+    // The wrapper's BOA_V8 identity-cache slot, released together with the pin.
+    Slot(u64),
+    Weak(wasm_bindgen::JsValue),
+}
+
+fn pin_wrapper(pin: u64) -> Option<wasm_bindgen::JsValue> {
+    let weak = PIN_WRAPPER.with(|m| match m.borrow().get(&pin)? {
+        PinWrapper::Slot(slot) => BOA_V8.with(|t| t.borrow().get(*slot)),
+        PinWrapper::Weak(w) => Some(w.clone()),
+    })?;
+    Some(weak_deref(&weak))
+}
+
+fn cc_weak_state(h: u64) -> Option<Option<usize>> {
+    if !CC_ACTIVE.with(std::cell::Cell::get) {
+        return None;
+    }
+    CC.with(|s| s.borrow().weak.get(&h).copied())
+}
+
+fn cc_sync_active() {
+    CC.with(|s| CC_ACTIVE.with(|a| a.set(!s.borrow().weak.is_empty())));
+}
+
+// Make a component strong again. A pin whose object V8 already collected
+// stays weak (and dead) until its sentinel releases the slot.
+fn cc_revoke(c: usize) {
+    let hs = CC.with(|s| {
+        s.borrow_mut()
+            .comps
+            .get_mut(c)
+            .map(std::mem::take)
+            .unwrap_or_default()
+    });
+    if hs.is_empty() {
+        return;
+    }
+    for h in hs {
+        if !CC.with(|s| s.borrow().weak.contains_key(&h)) {
+            continue;
+        }
+        let target = V8
+            .with(|t| t.borrow().get(h))
+            .map(|w| weak_deref(&w))
+            .filter(|v| !v.is_undefined());
+        CC.with(|s| {
+            let mut s = s.borrow_mut();
+            match target {
+                Some(v) => {
+                    V8.with(|t| t.borrow_mut().replace(h, v));
+                    s.weak.remove(&h);
+                }
+                None => {
+                    s.weak.insert(h, None);
+                }
+            }
+        });
+    }
+    CC.with(|s| s.borrow_mut().revoked += 1);
+    cc_sync_active();
+}
+
+fn cc_touch_v8(h: u64) {
+    if let Some(Some(c)) = cc_weak_state(h) {
+        cc_revoke(c);
+    }
+}
+
+fn cc_touch_pin(pin: u64) {
+    if !CC_ACTIVE.with(std::cell::Cell::get) {
+        return;
+    }
+    if let Some(c) = CC.with(|s| s.borrow().pin_comp.get(&pin).copied()) {
+        cc_revoke(c);
+    }
+}
+
+use crate::js::boa_cc_graph::{condense, GrayGraph};
+
+fn gray_graph() -> GrayGraph {
+    use std::collections::{HashMap, HashSet};
+    let registered: HashSet<u64> = PIN_WRAPPER.with(|m| m.borrow().keys().copied().collect());
+    BOA.with(|t| {
+        let t = t.borrow();
+        // Only pins a wrapper's death can release are discounted; any other
+        // pin is permanent, so it stays a root.
+        let mut pins = Vec::new();
+        let mut keys = Vec::new();
+        for (i, (gen, o)) in t.entries.iter().enumerate() {
+            let Some(o) = o else { continue };
+            let h = ((u64::from(*gen & PIN_GEN_MASK)) << 32) | i as u64;
+            if registered.contains(&h) {
+                pins.push(h);
+                keys.push(o.census_key());
+            }
+        }
+        CENSUS_SINK.with(|s| *s.borrow_mut() = Some(Vec::new()));
+        // SAFETY: every key is the census key of a live pin box in `t.entries`.
+        // `t` stays borrowed for the whole census, so nothing is swept or freed.
+        let graph = unsafe {
+            boa_engine::gc::census(&keys, |c| {
+                let rooted: HashSet<u64> = CENSUS_SINK
+                    .with(|s| s.borrow_mut().take())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect();
+                let mut index: HashMap<boa_engine::gc::CensusKey, usize> = HashMap::new();
+                let mut nodes: Vec<boa_engine::gc::CensusKey> = Vec::new();
+                let mut edges: Vec<Vec<usize>> = Vec::new();
+                let mut owned: Vec<Vec<u64>> = Vec::new();
+                let mut gray_pins: Vec<(u64, usize)> = Vec::new();
+                let mut stack = Vec::new();
+                for (pin, key) in pins.iter().zip(&keys) {
+                    // `keys` keeps each pin handle live for the census.
+                    if c.is_marked(*key) {
+                        continue;
+                    }
+                    let start = match index.get(key) {
+                        Some(&n) => n,
+                        None => {
+                            index.insert(*key, nodes.len());
+                            nodes.push(*key);
+                            edges.push(Vec::new());
+                            owned.push(Vec::new());
+                            stack.push(nodes.len() - 1);
+                            nodes.len() - 1
+                        }
+                    };
+                    gray_pins.push((*pin, start));
+                    while let Some(x) = stack.pop() {
+                        CENSUS_SINK.with(|s| *s.borrow_mut() = Some(Vec::new()));
+                        // `nodes` only holds keys of live boxes reached from `keys`.
+                        let kids = c.children(nodes[x]);
+                        let hs = CENSUS_SINK
+                            .with(|s| s.borrow_mut().take())
+                            .unwrap_or_default();
+                        owned[x] = hs.into_iter().filter(|h| !rooted.contains(h)).collect();
+                        for kid in kids {
+                            // A child of a live box is live.
+                            if c.is_marked(kid) {
+                                continue;
+                            }
+                            let y = match index.get(&kid) {
+                                Some(&y) => y,
+                                None => {
+                                    index.insert(kid, nodes.len());
+                                    nodes.push(kid);
+                                    edges.push(Vec::new());
+                                    owned.push(Vec::new());
+                                    stack.push(nodes.len() - 1);
+                                    nodes.len() - 1
+                                }
+                            };
+                            edges[x].push(y);
+                        }
+                    }
+                }
+                condense(gray_pins, &edges, owned)
+            })
+        };
+        CENSUS_SINK.with(|s| *s.borrow_mut() = None);
+        graph
+    })
+}
+
+// Everything an epoch's result depends on. New gray garbage needs a boa
+// allocation (heap bytes), a pin or wrapper change, a release, or a
+// revocation, so an unchanged signature means the last epoch's weakening
+// still stands and a rerun would only redo it.
+fn cc_idle_sig() -> [u64; 9] {
+    let (v8, boa, wrappers, rel_v8, rel_boa) = bridge_pin_stats();
+    let heap = boa_engine::gc::heap_stats().0 as u64;
+    [
+        v8 as u64,
+        boa as u64,
+        wrappers as u64,
+        rel_v8,
+        rel_boa,
+        heap,
+        CC.with(|s| s.borrow().revoked),
+        V8_RELEASE_QUEUE.with(|q| q.borrow().len() as u64),
+        PIN_WRAPPER.with(|m| m.borrow().len() as u64),
+    ]
+}
+
+/// One collector epoch: retire the previous epoch's weak pins, then weaken the gray graph's V8
+/// pins behind their keepers. With `idle_skip`, an epoch whose inputs are unchanged is skipped.
+/// Returns the epoch's wall time in ms (0 when nothing ran).
+pub(crate) fn cycle_collect(idle_skip: bool) -> f64 {
+    use std::collections::HashMap;
+    if !weak_available()
+        || (PIN_WRAPPER.with(|m| m.borrow().is_empty()) && !CC_ACTIVE.with(std::cell::Cell::get))
+    {
+        return 0.0;
+    }
+    if idle_skip {
+        let backing_off = CC.with(|s| {
+            let mut s = s.borrow_mut();
+            let wait = s.backoff_ticks > 0;
+            if wait {
+                s.backoff_ticks -= 1;
+                s.skipped += 1;
+            }
+            wait
+        });
+        if backing_off {
+            return 0.0;
+        }
+    }
+    if idle_skip && CC.with(|s| s.borrow().idle_sig) == Some(cc_idle_sig()) {
+        CC.with(|s| s.borrow_mut().skipped += 1);
+        return 0.0;
+    }
+    let started = js_sys::Date::now();
+    drain_v8_releases();
+    // The census reads only the boa heap and which pins have wrappers, never
+    // the V8 slab, so it can run before the last epoch's state is retired.
+    let g = gray_graph();
+    let gray_sig = gray_graph_sig(&g);
+    // The last epoch's keepers still stand if the graph is unchanged, nothing revoked them and no
+    // watched wrapper came or went.
+    let carried = CC.with(|s| {
+        let mut st = s.borrow_mut();
+        let carry = st.keepers.is_some()
+            && st.gray_sig == Some(gray_sig)
+            && st.revoked == st.epoch_revoked
+            && st.wrapper_gen == st.epoch_wrapper_gen;
+        if carry {
+            st.carried += 1;
+        }
+        carry
+    });
+    if carried {
+        return cc_finish_epoch(started, gray_sig, g.pins.len());
+    }
+    let epochs = CC.with(|s| s.borrow().comps.len());
+    for c in 0..epochs {
+        cc_revoke(c);
+    }
+    CC.with(|s| {
+        let mut s = s.borrow_mut();
+        s.comps.clear();
+        s.pin_comp.clear();
+        s.keepers = None;
+    });
+    // A keeper per SCC holds its own V8 values plus its children's keepers, so a wrapper keeps
+    // alive exactly what its boa object reaches.
+    let mut keeper: Vec<Option<wasm_bindgen::JsValue>> = Vec::with_capacity(g.handles.len());
+    let mut values: Vec<Vec<(u64, wasm_bindgen::JsValue)>> = Vec::with_capacity(g.handles.len());
+    for s in 0..g.handles.len() {
+        let own: Vec<(u64, wasm_bindgen::JsValue)> = g.handles[s]
+            .iter()
+            .filter(|h| cc_weak_state(**h).is_none())
+            .filter_map(|&h| V8.with(|t| t.borrow().get(h)).map(|v| (h, v)))
+            .filter(|(_, v)| v.is_object() || v.is_function())
+            .collect();
+        let kids: Vec<&wasm_bindgen::JsValue> = g.children[s]
+            .iter()
+            .filter_map(|&c| keeper[c].as_ref())
+            .collect();
+        keeper.push(match (own.len(), kids.len()) {
+            (0, 0) => None,
+            (0, 1) => Some(kids[0].clone()),
+            _ => {
+                let arr = js_sys::Array::new();
+                for (_, v) in &own {
+                    arr.push(v);
+                }
+                for k in kids {
+                    arr.push(k);
+                }
+                Some(arr.into())
+            }
+        });
+        values.push(own);
+    }
+    // The ephemerons must be in place before any slab entry turns weak: a
+    // V8 GC can run at any allocation below.
+    let keepers = js_sys::WeakMap::new();
+    for &(pin, s) in &g.pins {
+        let Some(k) = &keeper[s] else { continue };
+        let w = pin_wrapper(pin);
+        if let Some(w) = w.filter(|w| w.is_object() || w.is_function()) {
+            keepers.set(w.unchecked_ref(), k);
+        }
+    }
+    let mut comp_of: HashMap<usize, usize> = HashMap::new();
+    let mut comps: Vec<Vec<u64>> = Vec::new();
+    // A handle shared by several SCCs is weakened once; condense put its owners in one group.
+    let mut done = std::collections::HashSet::new();
+    for (s, own) in values.into_iter().enumerate() {
+        for (h, v) in own {
+            if !done.insert(h) {
+                continue;
+            }
+            let Some(w) = make_weak(&v) else { continue };
+            V8.with(|t| t.borrow_mut().replace(h, w));
+            let c = *comp_of.entry(g.group[s]).or_insert_with(|| {
+                comps.push(Vec::new());
+                comps.len() - 1
+            });
+            comps[c].push(h);
+        }
+    }
+    CC.with(|st| {
+        let mut st = st.borrow_mut();
+        for (c, hs) in comps.iter().enumerate() {
+            st.weakened += hs.len() as u64;
+            for &h in hs {
+                st.weak.insert(h, Some(c));
+            }
+        }
+        for &(pin, s) in &g.pins {
+            if let Some(&c) = comp_of.get(&g.group[s]) {
+                st.pin_comp.insert(pin, c);
+            }
+        }
+        st.comps = comps;
+        st.keepers = Some(keepers);
+    });
+    cc_sync_active();
+    cc_finish_epoch(started, gray_sig, g.pins.len())
+}
+
+fn cc_finish_epoch(started: f64, gray_sig: u64, gray_pins: usize) -> f64 {
+    CC.with(|st| {
+        let mut st = st.borrow_mut();
+        st.runs += 1;
+        st.last_gray_pins = gray_pins;
+        if st.gray_sig == Some(gray_sig) {
+            st.idle_streak = (st.idle_streak + 1).min(CC_MAX_IDLE_SHIFT);
+            st.backoff_ticks = (1 << st.idle_streak) - 1;
+        } else {
+            st.gray_sig = Some(gray_sig);
+            st.idle_streak = 0;
+            st.backoff_ticks = 0;
+        }
+        st.epoch_revoked = st.revoked;
+        st.epoch_wrapper_gen = st.wrapper_gen;
+        st.last_ms = js_sys::Date::now() - started;
+    });
+    let sig = cc_idle_sig();
+    CC.with(|s| {
+        let mut s = s.borrow_mut();
+        s.idle_sig = Some(sig);
+        s.last_ms
+    })
+}
+
+pub(crate) fn cycle_stats() -> String {
+    CC.with(|s| {
+        let s = s.borrow();
+        let live = s.weak.values().filter(|c| c.is_some()).count();
+        format!(
+            "{{\"ccRuns\":{},\"ccGrayPins\":{},\"ccWeakV8\":{},\"ccDeadV8\":{},\"ccWeakened\":{},\"ccRevoked\":{},\"ccDeadReads\":{},\"ccLastMs\":{},\"ccSkipped\":{},\"ccCarried\":{}}}",
+            s.runs,
+            s.last_gray_pins,
+            live,
+            s.weak.len() - live,
+            s.weakened,
+            s.revoked,
+            s.dead_reads,
+            s.last_ms,
+            s.skipped,
+            s.carried
+        )
+    })
 }
 impl boa_engine::JsData for KsV8Release {}
 impl Drop for KsV8Release {
@@ -478,6 +941,7 @@ fn drain_v8_releases() {
             if let Some(w) = PIN_WEAK_BOA.with(|m| m.borrow_mut().remove(&h)) {
                 WEAK_BOA.with(|t| t.borrow_mut().release(w));
             }
+            CC.with(|s| s.borrow_mut().weak.remove(&h));
         }
     });
 }
@@ -545,8 +1009,19 @@ pub(crate) fn pin_v8_value(v: wasm_bindgen::JsValue) -> u64 {
 }
 
 pub(crate) fn get_v8(handle: u64) -> wasm_bindgen::JsValue {
+    if cc_weak_state(handle).is_some() {
+        cc_touch_v8(handle);
+        if cc_weak_state(handle).is_some() {
+            CC.with(|s| s.borrow_mut().dead_reads += 1);
+            return wasm_bindgen::JsValue::UNDEFINED;
+        }
+    }
     V8.with(|t| t.borrow().get(handle))
         .unwrap_or(wasm_bindgen::JsValue::UNDEFINED)
+}
+
+pub(crate) fn replace_v8_value(handle: u64, value: wasm_bindgen::JsValue) -> bool {
+    V8.with(|t| t.borrow_mut().replace(handle, value)).is_some()
 }
 
 thread_local! {
@@ -558,6 +1033,7 @@ fn pin_boa(o: JsObject) -> u64 {
 }
 
 fn get_boa(handle: u64) -> Option<JsObject> {
+    cc_touch_pin(handle);
     BOA.with(|t| t.borrow().get(handle))
 }
 
@@ -724,7 +1200,7 @@ thread_local! {
         RefCell::new(std::collections::HashMap::new());
 }
 
-fn boa_str_to_v8(s: &JsString) -> wasm_bindgen::JsValue {
+pub(crate) fn boa_str_to_v8(s: &JsString) -> wasm_bindgen::JsValue {
     if s.len() > 64 {
         return wasm_bindgen::JsValue::from_str(&s.to_std_string_escaped());
     }
@@ -850,7 +1326,8 @@ fn pin_v8_fn(v: &wasm_bindgen::JsValue) -> u64 {
     });
     // Revalidate a hit: the pin is released once its last proxy dies.
     if let Some(h) = cached {
-        if V8.with(|t| t.borrow().get(h)).is_some() {
+        cc_touch_v8(h);
+        if cc_weak_state(h).is_none() && V8.with(|t| t.borrow().get(h)).is_some() {
             return h;
         }
     }
@@ -870,15 +1347,16 @@ fn pin_v8_fn(v: &wasm_bindgen::JsValue) -> u64 {
 // collect unused proxies; thresholded sweeps remove dead map entries.
 fn v8_fn_to_boa_proxy(
     v: &wasm_bindgen::JsValue,
-    this_handle: Option<u64>,
+    this: Option<(u64, &JsObject)>,
     ctx: &mut Context,
 ) -> JsObject {
     let fn_handle = pin_v8_fn(v);
+    let this_handle = this.map(|(h, _)| h);
     let key = (fn_handle, this_handle);
     if let Some(p) = METHOD_PROXY_CACHE.with(|c| c.borrow().get(&key).and_then(|w| w.upgrade())) {
         return p;
     }
-    let proxy = make_v8_proxy(fn_handle, this_handle, true, ctx);
+    let proxy = make_v8_proxy(fn_handle, this, true, ctx);
     METHOD_PROXY_CACHE.with(|c| {
         let mut m = c.borrow_mut();
         if m.len() >= MPC_SWEEP_AT.with(|s| s.get()) {
@@ -1228,16 +1706,17 @@ fn v8_object_to_boa(v: wasm_bindgen::JsValue, ctx: &mut Context) -> BoaValue {
             return o.into();
         }
     }
-    let callable = v.is_function();
-    if !callable {
-        if let Some(h) = v8_boa_cache_get(&v) {
-            if let Some(o) = weak_boa_get(h) {
-                return o.into();
+    if v.is_function() {
+        return v8_fn_to_boa_proxy(&v, None, ctx).into();
+    }
+    if let Some(o) = v8_boa_cache_get(&v).and_then(weak_boa_get) {
+        // Boa may keep this proxy, so its pin cannot stay weak.
+        if CC_ACTIVE.with(std::cell::Cell::get) {
+            if let Some(n) = bridged_v8_handle(&o, ctx) {
+                cc_touch_v8(n);
             }
         }
-    }
-    if callable {
-        return v8_fn_to_boa_proxy(&v, None, ctx).into();
+        return o.into();
     }
     let handle = pin(v.clone());
     let proxy = make_v8_proxy(handle, None, false, ctx);
@@ -1328,7 +1807,7 @@ fn getter_threw(e: wasm_bindgen::JsValue, ctx: &mut Context) -> JsResult<BoaValu
 fn v8_property_to_boa(
     value: wasm_bindgen::JsValue,
     key: Option<&str>,
-    receiver: u64,
+    receiver: (u64, &JsObject),
     ctx: &mut Context,
 ) -> BoaValue {
     if let Some(handle) = boa_unwrap_handle(&value) {
@@ -1362,7 +1841,7 @@ fn trap_get(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
         let v8sym = boa_symbol_to_v8(&sym, ctx);
         let v8 = get_v8(handle);
         return match with_v8(ctx, || js_sys::Reflect::get(&v8, v8sym.as_ref())) {
-            Ok(res) => Ok(v8_property_to_boa(res, None, handle, ctx)),
+            Ok(res) => Ok(v8_property_to_boa(res, None, (handle, &target), ctx)),
             Err(e) => getter_threw(e, ctx),
         };
     }
@@ -1374,12 +1853,17 @@ fn trap_get(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
     // boa→blitz DOM short-circuit: whitelisted reads on branded node
     // proxies answer inside the wasm (dom_fastpath.rs); None falls
     // through to the crossing below, unchanged.
-    if let Some(fast) = crate::js::dom_fastpath::try_fast_get(handle, &key, ctx) {
+    if let Some(fast) = crate::js::dom_fastpath::try_fast_get(handle, &key, &target, ctx) {
         return Ok(fast);
     }
     let v8 = get_v8(handle);
     match with_v8(ctx, || js_sys::Reflect::get(&v8, &v8_key(&key))) {
-        Ok(res) => Ok(v8_property_to_boa(res, Some(key.as_str()), handle, ctx)),
+        Ok(res) => Ok(v8_property_to_boa(
+            res,
+            Some(key.as_str()),
+            (handle, &target),
+            ctx,
+        )),
         Err(e) => getter_threw(e, ctx),
     }
 }
@@ -1735,7 +2219,10 @@ fn mirrored_descriptor(
                 .to_string(ctx)
                 .map(|s| s.to_std_string_escaped())
                 .unwrap_or_default();
-            if s == "__ks_h" || s == "__ks_t" || s == "__ks_rel" || s == "__ks_trel" {
+            if matches!(
+                s.as_str(),
+                "__ks_h" | "__ks_t" | "__ks_tt" | "__ks_rel" | "__ks_trel"
+            ) {
                 return Ok(None);
             }
         }
@@ -1814,7 +2301,7 @@ fn trap_gopd(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult
 
 fn make_v8_proxy(
     value_handle: u64,
-    this_handle: Option<u64>,
+    this: Option<(u64, &JsObject)>,
     callable: bool,
     ctx: &mut Context,
 ) -> JsObject {
@@ -1870,13 +2357,14 @@ fn make_v8_proxy(
             }
         });
     }
-    if let Some(t) = this_handle {
+    if let Some((t, receiver)) = this {
         hide_on_target(&target, js_string!("__ks_t"), (t as f64).into());
-        // A cached method proxy outlives the object proxy it was read from, so it holds the
-        // receiver's pin too: a first share counts that live proxy, and the last holder releases.
+        // Preserve the receiver pin's shared-holder count, and expose its target
+        // to the census so a live method also keeps the receiver's graph alive.
         FN_PIN_REFS.with(|r| *r.borrow_mut().entry(t).or_insert(1) += 1);
-        let receiver = JsObject::from_proto_and_data(None, KsV8Release { handle: t });
-        hide_on_target(&target, js_string!("__ks_trel"), receiver.into());
+        let sentinel = JsObject::from_proto_and_data(None, KsV8Release { handle: t });
+        hide_on_target(&target, js_string!("__ks_trel"), sentinel.into());
+        hide_on_target(&target, js_string!("__ks_tt"), receiver.clone().into());
     }
     let handler = proxy_handler(callable, ctx);
     // Not the Proxy constructor: calling it ran a VM frame per mint, and its stack
@@ -3336,14 +3824,32 @@ fn boa_object_to_v8_proxy(obj: JsObject) -> (wasm_bindgen::JsValue, u64) {
     (proxy, handle)
 }
 
-fn live_export_resolve(ns_handle: f64, name: &JsString, ctx: &mut Context) -> BoaValue {
+// Reuses the last Boa conversion only while the raw V8 value is SameValue-identical.
+fn live_export_resolve(
+    ns_handle: f64,
+    raw_value_handle: u64,
+    name: &JsString,
+    cached_value: Option<BoaValue>,
+    ctx: &mut Context,
+) -> BoaValue {
     let ns = get_v8(ns_handle as u64);
-    let name_s = name.to_std_string_escaped();
-    let v = with_v8(ctx, || {
-        js_sys::Reflect::get(&ns, &wasm_bindgen::JsValue::from_str(&name_s))
-    })
-    .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
-    v8_to_boa(v, ctx)
+    let key = boa_str_to_v8(name);
+    let has_cached_value = cached_value.is_some();
+    let (value, unchanged) = with_v8(ctx, || {
+        let value = js_sys::Reflect::get(&ns, &key).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+        let unchanged = has_cached_value && js_sys::Object::is(&value, &get_v8(raw_value_handle));
+        (value, unchanged)
+    });
+    if unchanged {
+        if let Some(cached) = cached_value {
+            return cached;
+        }
+    }
+
+    let converted = v8_to_boa(value.clone(), ctx);
+    let updated = replace_v8_value(raw_value_handle, value);
+    debug_assert!(updated, "live-export raw-value pin must outlive its marker");
+    converted
 }
 
 pub(crate) fn install_global_bridge(ctx: &mut Context) {

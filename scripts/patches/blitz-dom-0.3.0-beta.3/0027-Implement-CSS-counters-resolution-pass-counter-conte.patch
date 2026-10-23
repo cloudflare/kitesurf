@@ -1,0 +1,1065 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Sun, 2 Aug 2026 01:24:27 +0100
+Subject: [PATCH] Implement CSS counters: resolution pass + counter() content +
+ markers
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Counters simply didn't exist: pe_content_text handled a single literal
+string and list markers came from a naive sibling index. Everything
+else (counter()/counters()/attr() in generated content, counter-reset/
+-increment/-set, ol[start]/ol[reversed]/li[value], reversed() auto
+numbering) rendered as nothing or as the wrong number. The whole WPT
+css-lists counter corpus failed on it.
+
+layout/counters.rs adds a document-order pass (after styling, before
+box construction) producing side tables: the list-item value per list
+item and resolved ::before/::after content strings. Box construction
+consumes them in pe_content_text_resolved and the marker builder;
+markers gained decimal-leading-zero/lower- and upper-roman formatting.
+
+The behavioural corners, each pinned by WPT css-lists:
+- Scopes follow CSS 2.2 §12.4: creator + descendants + following
+  siblings, sibling resets shadow at the same depth, implicitly
+  created counters live at the root (counter-slot-order pins 1,2,3
+  across slot boundaries), and traversal follows the flat tree.
+- The HTML-implied list scope runs after the CSS resets so it beats
+  the UA sheet's plain 'ol { counter-reset: list-item }', but yields
+  to an author reversed()/non-zero reset (li-value-reversed-023).
+- Element order is reset → increment (implicit list-item one included,
+  even on li[value] items) → li[value] → counter-set
+  (li-value-counter-reset-001 pins CSS counter-set beating value).
+- reversed() auto-start = X − S: X is the first counter-set value in
+  scope (or minus the last increment when there is none) and S the
+  increment sum up to that set; plus one virtual increment when the
+  setting element doesn't increment itself (li-value-reversed-019).
+  Scanning covers pseudo-element declarations too.
+
+css-lists reftests: 55/158 → 87/158. Not covered (pre-existing FAILs):
+::marker content replacement, ::marker styling, and counter scoping
+across shadow-boundary resets (counter-slot-order-scoping).
+
+stylo substitutes attr() at computed-value time, so it reaches the pass
+as a String item.
+---
+ src/document.rs         |   8 +
+ src/layout/construct.rs |  23 +-
+ src/layout/counters.rs  | 728 ++++++++++++++++++++++++++++++++++++++++
+ src/layout/list.rs      |  93 ++---
+ src/layout/mod.rs       |   1 +
+ src/resolve.rs          |   4 +
+ 6 files changed, 795 insertions(+), 62 deletions(-)
+ create mode 100644 src/layout/counters.rs
+
+diff --git a/src/document.rs b/src/document.rs
+index 71bc71e..538ed42 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -207,6 +207,12 @@ pub struct BaseDocument {
+     pub(crate) devtool_settings: DevtoolSettings,
+     // Viewport details such as the dimensions, HiDPI scale, and zoom factor,
+     pub(crate) viewport: Viewport,
++    /// CSS counter side tables (list-item values + resolved pseudo
++    /// content), rebuilt by resolve_counters on every resolve pass.
++    pub(crate) counters: crate::layout::counters::CounterOutput,
++    /// Sticky positive gate: set once a resolve pass finds any counter
++    /// usage, so later passes skip the flat usage scan (see counters.rs).
++    pub(crate) counters_seen: bool,
+     /// CSS media type used to evaluate `@media` rules.
+     pub(crate) media_type: MediaType,
+     /// Changes to the stylist [`Device`] that have been requested since the
+@@ -503,6 +509,8 @@ impl BaseDocument {
+             incremental_layout: config.incremental.unwrap_or(true),
+             subdocument_depth: config.subdocument_depth,
+             devtool_settings: DevtoolSettings::default(),
++            counters: Default::default(),
++            counters_seen: false,
+             url: base_url,
+             ua_stylesheets: HashMap::new(),
+             author_sheet_cache: HashMap::new(),
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index f4f819c..8876e3a 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1126,6 +1126,25 @@ fn pe_content_text(style: &style::properties::ComputedValues) -> Option<String>
+     }
+ }
+
++// Pseudo content with counters/attr/multiple items resolves through the
++// side table the resolve_counters pass built; plain strings stay inline.
++fn pe_content_text_resolved(
++    doc: &BaseDocument,
++    node_id: NodeId,
++    pseudo_idx: usize,
++    style: &style::properties::ComputedValues,
++) -> Option<String> {
++    let over = if pseudo_idx == 1 {
++        doc.counters.before_text.get(&node_id)
++    } else {
++        doc.counters.after_text.get(&node_id)
++    };
++    if let Some(t) = over {
++        return Some(t.clone());
++    }
++    pe_content_text(style)
++}
++
+ fn flush_pseudo_elements(doc: &mut BaseDocument, node_id: NodeId) {
+     let (before_style, after_style, before_node_id, after_node_id) = {
+         let node = &doc.nodes[node_id];
+@@ -1172,7 +1191,7 @@ fn flush_pseudo_elements(doc: &mut BaseDocument, node_id: NodeId) {
+                     .insert(NodeFlags::IS_IN_DOCUMENT);
+             }
+
+-            if let Some(text) = pe_content_text(pe_style) {
++            if let Some(text) = pe_content_text_resolved(doc, node_id, idx, pe_style) {
+                 let text_node_id = doc.create_text_node(&text);
+                 doc.nodes[text_node_id].parent = Some(new_node_id);
+                 doc.nodes[new_node_id].children.push(text_node_id);
+@@ -1202,7 +1221,7 @@ fn flush_pseudo_elements(doc: &mut BaseDocument, node_id: NodeId) {
+             // the style-pointer comparison below, as the pseudo-element's style may
+             // already have been updated by `sync_pseudo_element_styles` during the
+             // style traversal without the text having been updated.
+-            let new_text = pe_content_text(&pe_style);
++            let new_text = pe_content_text_resolved(doc, node_id, idx, &pe_style);
+             let existing_text_node_id = doc.nodes[pe_node_id]
+                 .children
+                 .first()
+diff --git a/src/layout/counters.rs b/src/layout/counters.rs
+new file mode 100644
+index 0000000..8e5d7ce
+--- /dev/null
++++ b/src/layout/counters.rs
+@@ -0,0 +1,728 @@
++//! CSS counters (CSS 2.2 §12.4 / css-lists-3): a document-order pass run
++//! after styling and before box construction.
++//!
++//! Produces side tables consumed by box construction: the `list-item`
++//! counter value per list item (markers) and resolved ::before/::after
++//! content strings for `counter()`/`counters()`/`attr()`/multi-item content.
++
++use std::collections::HashMap;
++
++use markup5ever::local_name;
++use blitz_traits::node_id::NodeId;
++use style::Atom;
++use style::counter_style::CounterStyle;
++use style::values::computed::{Content, ContentItem};
++
++use crate::BaseDocument;
++
++/// Side tables produced by `resolve_counters`, keyed by node id.
++#[derive(Default)]
++pub struct CounterOutput {
++    /// display:list-item element -> its `list-item` counter value.
++    pub list_item_values: HashMap<NodeId, i32>,
++    /// element -> resolved ::before content text (non-trivial content only).
++    pub before_text: HashMap<NodeId, String>,
++    /// element -> resolved ::after content text (non-trivial content only).
++    pub after_text: HashMap<NodeId, String>,
++}
++
++/// One instantiated counter: CSS2.2 scope = the creating element, its
++/// descendants, and its following siblings (popped when the parent closes).
++struct Scope {
++    value: i32,
++    owner_depth: usize,
++    /// list-item scopes created by <ol reversed> count downwards.
++    reversed: bool,
++}
++
++#[derive(Default)]
++struct CounterState {
++    stacks: HashMap<Atom, Vec<Scope>>,
++    /// Live scopes in creation order. DFS pops every deeper scope before
++    /// creating a new one, so owner depths are non-decreasing toward the
++    /// top: pop_deeper_than only ever peels entries off this stack's end
++    /// (O(1) amortized, instead of scanning every counter name per element).
++    order: Vec<(Atom, usize)>,
++    /// Shared reversed-prescan budget for the whole pass.
++    prescan_budget: PrescanBudget,
++}
++
++impl CounterState {
++    // Sibling counter-reset shadows the previous sibling's scope instead
++    // of nesting inside it (both were created at the same tree depth).
++    fn create(&mut self, name: &Atom, value: i32, depth: usize, reversed: bool) {
++        let stack = self.stacks.entry(name.clone()).or_default();
++        if let Some(top) = stack.last_mut() {
++            if top.owner_depth == depth {
++                top.value = value;
++                top.reversed = reversed;
++                return;
++            }
++        }
++        stack.push(Scope {
++            value,
++            owner_depth: depth,
++            reversed,
++        });
++        // Depth-0 scopes (the root element's own, and the implicit-root
++        // ones set/increment create) never pop: pop_deeper_than(d) only
++        // peels owner_depth > d and d is never negative. Keeping them off
++        // the order stack preserves its non-decreasing-depth invariant:
++        // an implicit-root entry pushed mid-subtree would otherwise sit on
++        // top of deeper entries and block them from ever popping.
++        if depth > 0 {
++            self.order.push((name.clone(), depth));
++        }
++    }
++
++    // counter-set / counter-increment target the innermost scope. A
++    // missing scope creates one at the root: browsers keep implicitly
++    // created counters visible to everything that follows in flat-tree
++    // order (WPT counter-slot-order pins 1,2,3 across slot boundaries).
++    fn set(&mut self, name: &Atom, value: i32, _depth: usize) {
++        match self.stacks.get_mut(name).and_then(|s| s.last_mut()) {
++            Some(top) => top.value = value,
++            None => self.create(name, value, 0, false),
++        }
++    }
++
++    fn increment(&mut self, name: &Atom, by: i32, _depth: usize) {
++        match self.stacks.get_mut(name).and_then(|s| s.last_mut()) {
++            Some(top) => top.value = top.value.saturating_add(by),
++            None => self.create(name, by, 0, false),
++        }
++    }
++
++    fn innermost(&self, name: &Atom) -> Option<&Scope> {
++        self.stacks.get(name).and_then(|s| s.last())
++    }
++
++    fn value(&self, name: &Atom) -> i32 {
++        self.innermost(name).map(|s| s.value).unwrap_or(0)
++    }
++
++    fn all_values(&self, name: &Atom) -> Vec<i32> {
++        self.stacks
++            .get(name)
++            .map(|s| s.iter().map(|sc| sc.value).collect())
++            .unwrap_or_default()
++    }
++
++    fn pop_deeper_than(&mut self, depth: usize) {
++        while self
++            .order
++            .last()
++            .is_some_and(|(_, owner_depth)| *owner_depth > depth)
++        {
++            let (name, _) = self.order.pop().unwrap();
++            if let Some(stack) = self.stacks.get_mut(&name) {
++                stack.pop();
++            }
++        }
++    }
++}
++
++/// Format a counter value in a given counter style. Out-of-range values
++/// for alphabetic/roman systems fall back to decimal, per css-counter-styles.
++pub fn format_counter(value: i32, style: &CounterStyle) -> String {
++    match style {
++        CounterStyle::None => String::new(),
++        CounterStyle::Name(name) => format_named(value, name.0.as_ref()),
++        CounterStyle::String(s) => s.to_string(),
++        CounterStyle::Symbols { symbols, .. } => {
++            let syms = &symbols.0;
++            if syms.is_empty() {
++                return value.to_string();
++            }
++            let idx = (i64::from(value) - 1).rem_euclid(syms.len() as i64) as usize;
++            match &syms[idx] {
++                style::counter_style::Symbol::String(s) => s.to_string(),
++                style::counter_style::Symbol::Ident(id) => id.0.to_string(),
++            }
++        }
++    }
++}
++
++fn format_named(value: i32, name: &str) -> String {
++    match name {
++        "decimal" => value.to_string(),
++        "decimal-leading-zero" => {
++            if value < 0 {
++                format!("-{:02}", -(value as i64))
++            } else {
++                format!("{:02}", value)
++            }
++        }
++        "lower-alpha" | "lower-latin" => alpha(value, false),
++        "upper-alpha" | "upper-latin" => alpha(value, true),
++        "lower-roman" => roman(value, false),
++        "upper-roman" => roman(value, true),
++        "disc" => "•".to_string(),
++        "circle" => "◦".to_string(),
++        "square" => "▪".to_string(),
++        "disclosure-open" => "▾".to_string(),
++        "disclosure-closed" => "▸".to_string(),
++        "none" => String::new(),
++        _ => value.to_string(),
++    }
++}
++
++fn alpha(value: i32, upper: bool) -> String {
++    if value < 1 {
++        return value.to_string();
++    }
++    let mut v = value as u32;
++    let mut out = Vec::new();
++    while v > 0 {
++        v -= 1;
++        let c = b'a' + (v % 26) as u8;
++        out.push(if upper { c.to_ascii_uppercase() } else { c } as char);
++        v /= 26;
++    }
++    out.reverse();
++    out.into_iter().collect()
++}
++
++fn roman(value: i32, upper: bool) -> String {
++    if !(1..=3999).contains(&value) {
++        return value.to_string();
++    }
++    const M: [(i32, &str); 13] = [
++        (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"), (100, "c"),
++        (90, "xc"), (50, "l"), (40, "xl"), (10, "x"), (9, "ix"),
++        (5, "v"), (4, "iv"), (1, "i"),
++    ];
++    let mut v = value;
++    let mut out = String::new();
++    for (n, s) in M {
++        while v >= n {
++            out.push_str(s);
++            v -= n;
++        }
++    }
++    if upper { out.to_uppercase() } else { out }
++}
++
++/// Accumulator for the reversed() auto-start rule: `start = X − S`, where
++/// S sums increments up to and including the first setting element, and X
++/// is that set's value: or, with no set in scope, minus the last
++/// non-zero increment (the final value lands on its own magnitude).
++#[derive(Default)]
++struct ReversedScan {
++    sum: i64,
++    last_inc: i64,
++    frozen: bool,
++    any: bool,
++    set_value: Option<i64>,
++}
++
++/// Shared node budget for all reversed-auto-start prescans in one resolve.
++/// N sibling reversed() resets each scan their scope, so untrusted CSS can
++/// otherwise drive O(N²) node visits. When the budget runs out remaining
++/// scans freeze where they are: numbering degrades, CPU stays bounded.
++pub(crate) struct PrescanBudget(pub(crate) usize);
++
++impl Default for PrescanBudget {
++    fn default() -> Self {
++        // Generous for real content: documents with reversed counters have
++        // a handful, and each scope is typically a short list.
++        PrescanBudget(100_000)
++    }
++}
++
++impl ReversedScan {
++    fn increment(&mut self, by: i32) {
++        if self.frozen || by == 0 {
++            return;
++        }
++        self.sum += by as i64;
++        self.last_inc = by as i64;
++        self.any = true;
++    }
++
++    fn set(&mut self, value: i32, element_incremented: bool) {
++        if self.frozen {
++            return;
++        }
++        // A setter that doesn't itself increment still consumes one step
++        // of the sequence: count a virtual increment of the last size
++        // (WPT li-value-reversed-019: set on a non-incrementing div).
++        if !element_incremented && self.any {
++            self.sum += self.last_inc;
++        }
++        self.set_value = Some(value as i64);
++        self.frozen = true;
++    }
++
++    fn start_value(&self) -> i32 {
++        let raw = match self.set_value {
++            Some(x) => x - self.sum,
++            None if self.any => -self.last_inc - self.sum,
++            None => 0,
++        };
++        raw.clamp(i32::MIN as i64 + 1, i32::MAX as i64) as i32
++    }
++}
++
++impl BaseDocument {
++    /// css-lists §instantiating-counters: a reversed() counter without an
++    /// explicit value starts so the last increment before the first
++    /// counter-set (or scope end) lands on its own magnitude. Prescan the
++    /// scope: this element's remaining declarations, its subtree, and its
++    /// following siblings' subtrees: minus regions shadowed by a nested
++    /// reset of the same counter name.
++    fn reversed_auto_start(
++        &self,
++        origin: NodeId,
++        name: &Atom,
++        is_list_item: bool,
++        subtree_only: bool,
++        budget: &mut PrescanBudget,
++    ) -> i32 {
++        let mut scan = ReversedScan::default();
++        // The origin's own increments/sets apply to the new scope (its
++        // reset instantiated it), but its implicit list-item increment
++        // does not (an <ol> is not a list item).
++        self.scan_element_decls(origin, name, is_list_item, &mut scan, false);
++        self.scan_children(self.nodes[origin].flat_children().to_vec(), name, is_list_item, &mut scan, budget);
++        // A CSS reversed() scope extends to the origin's following
++        // siblings; the HTML-implied list scope is subtree-only.
++        if !subtree_only {
++            if let Some(parent) = self.nodes[origin].parent {
++                let sibs = self.nodes[parent].flat_children();
++                if let Some(pos) = sibs.iter().position(|&s| s == origin) {
++                    let rest: Vec<NodeId> = sibs[pos + 1..].to_vec();
++                    self.scan_children(rest, name, is_list_item, &mut scan, budget);
++                }
++            }
++        }
++        scan.start_value()
++    }
++
++    // True when this element instantiates a new scope for `name`. Both
++    // CSS counter-reset and the HTML-implied list scope (the UA sheet's
++    // `ol, ul, menu { counter-reset: list-item }`) cover the resetting
++    // element's subtree and its following siblings (counter-list-item-2
++    // pins the sibling behaviour: an li after a nested ol continues the
++    // nested scope, not the outer one).
++    fn resets_name(&self, node_id: NodeId, name: &Atom, is_list_item: bool) -> bool {
++        let node = &self.nodes[node_id];
++        let Some(el) = node.element_data() else { return false };
++        let Some(styles) = node.primary_styles() else { return false };
++        if styles
++            .get_counters()
++            .counter_reset
++            .iter()
++            .any(|p| p.name.0 == *name)
++        {
++            return true;
++        }
++        is_list_item
++            && matches!(
++                el.name.local,
++                local_name!("ol") | local_name!("ul") | local_name!("menu") | local_name!("dir")
++            )
++    }
++
++    fn scan_pseudo_decls(&self, node_id: NodeId, idx: usize, name: &Atom, scan: &mut ReversedScan) {
++        let style_data = self.nodes[node_id].try_stylo_element_data().and_then(|s| s.get());
++        let Some(pseudo) = style_data.as_ref().and_then(|d| d.styles.pseudos.as_array()[idx].clone()) else {
++            return;
++        };
++        let pc = pseudo.get_counters();
++        for pair in pc.counter_increment.iter() {
++            if pair.name.0 == *name {
++                scan.increment(pair.value);
++            }
++        }
++        if let Some(v) = pc.counter_set.iter().find(|p| p.name.0 == *name).map(|p| p.value) {
++            scan.set(v, true);
++        }
++    }
++
++    fn scan_element_decls(
++        &self,
++        node_id: NodeId,
++        name: &Atom,
++        is_list_item: bool,
++        scan: &mut ReversedScan,
++        implicit: bool,
++    ) {
++        let node = &self.nodes[node_id];
++        let Some(el) = node.element_data() else { return };
++        let Some(styles) = node.primary_styles() else { return };
++        let counters_style = styles.get_counters();
++        let mut mentioned = false;
++        let mut incremented = false;
++        for pair in counters_style.counter_increment.iter() {
++            if pair.name.0 == *name {
++                scan.increment(pair.value);
++                mentioned = true;
++                incremented = incremented || pair.value != 0;
++            }
++        }
++        // Reversed scopes count implicit list-item increments as -1.
++        if implicit && is_list_item && !mentioned && styles.clone_display().is_list_item() {
++            scan.increment(-1);
++            incremented = true;
++        }
++        let css_set = counters_style
++            .counter_set
++            .iter()
++            .find(|p| p.name.0 == *name)
++            .map(|p| p.value);
++        let li_value = (is_list_item && el.name.local == local_name!("li"))
++            .then(|| el.attr_parsed::<i32>(local_name!("value")))
++            .flatten();
++        // CSS counter-set lands after the li value attribute (main pass
++        // order), so it wins as the effective set value at this element.
++        if let Some(v) = css_set.or(li_value) {
++            scan.set(v, incremented);
++        }
++        // ::before is document-order-first inside this element (index 1;
++        // the pseudos array really is [after, before]).
++        self.scan_pseudo_decls(node_id, 1, name, scan);
++    }
++
++    // Scan a sibling run: any reset of the name (CSS counter-reset or a
++    // nested list's UA-sheet scope) shadows the rest of the run.
++    fn scan_children(
++        &self,
++        children: Vec<NodeId>,
++        name: &Atom,
++        is_list_item: bool,
++        scan: &mut ReversedScan,
++        budget: &mut PrescanBudget,
++    ) {
++        for child in children {
++            if self.resets_name(child, name, is_list_item) {
++                break;
++            }
++            self.scan_reversed(child, name, is_list_item, scan, budget);
++        }
++    }
++
++    fn scan_reversed(
++        &self,
++        node_id: NodeId,
++        name: &Atom,
++        is_list_item: bool,
++        scan: &mut ReversedScan,
++        budget: &mut PrescanBudget,
++    ) {
++        if scan.frozen {
++            return;
++        }
++        // Out of budget: freeze this scan where it is (see PrescanBudget).
++        if budget.0 == 0 {
++            scan.frozen = true;
++            return;
++        }
++        budget.0 -= 1;
++        let node = &self.nodes[node_id];
++        if node.element_data().is_none() {
++            return;
++        }
++        let Some(styles) = node.primary_styles() else { return };
++        if styles.clone_display().is_none() {
++            return;
++        }
++        self.scan_element_decls(node_id, name, is_list_item, scan, true);
++        self.scan_children(self.nodes[node_id].flat_children().to_vec(), name, is_list_item, scan, budget);
++        self.scan_pseudo_decls(node_id, 0, name, scan);
++    }
++
++    /// Resolve counters for the whole document. Runs after styling (needs
++    /// computed counter-* and pseudo styles), before box construction.
++    pub(crate) fn resolve_counters(&mut self) {
++        // Cheap flat gate: counter-free documents (no list items, no
++        // counter-* declarations, no non-trivial pseudo content) skip
++        // the recursive pass entirely: it costs HashMap traffic and
++        // string building per element, this is slice-emptiness checks.
++
++        // The positive result is sticky: once a document uses counters it
++        // will keep using them (a nav <ul> doesn't come and go), so
++        // counter-using documents pay the gate scan exactly once and
++        // counter-free ones trade one cheap flat scan per resolve for the
++        // full recursive pass. Deeper style-system integration (dirty
++        // bits at declaration time) is the eventual O(1) answer.
++        if !self.counters_seen {
++            if !self.document_uses_counters() {
++                if !self.counters.list_item_values.is_empty()
++                    || !self.counters.before_text.is_empty()
++                    || !self.counters.after_text.is_empty()
++                {
++                    self.counters = CounterOutput::default();
++                }
++                return;
++            }
++            self.counters_seen = true;
++        }
++        let mut out = CounterOutput::default();
++        let mut state = CounterState::default();
++        let root = self.root_element().id;
++        self.resolve_counters_for(root, 0, &mut state, &mut out);
++        self.counters = out;
++    }
++
++    fn document_uses_counters(&self) -> bool {
++        for (_, node) in self.tree().iter() {
++            let Some(styles) = node.primary_styles() else {
++                continue;
++            };
++            if styles.clone_display().is_list_item() {
++                return true;
++            }
++            let cs = styles.get_counters();
++            if !cs.counter_reset.is_empty()
++                || !cs.counter_increment.is_empty()
++                || !cs.counter_set.is_empty()
++            {
++                return true;
++            }
++            // Pseudo-elements count when their content needs resolution
++            // (anything beyond one literal string) OR they carry counter
++            // declarations of their own (those apply even under trivial
++            // content, so the pass must run for them).
++            let style_data = node.try_stylo_element_data().and_then(|s| s.get());
++            let has_counter_pseudo = style_data
++                .map(|d| {
++                    d.styles.pseudos.as_array().iter().flatten().any(|p| {
++                        let pc = p.get_counters();
++                        if !pc.counter_reset.is_empty()
++                            || !pc.counter_increment.is_empty()
++                            || !pc.counter_set.is_empty()
++                        {
++                            return true;
++                        }
++                        match &pc.content {
++                            Content::Items(item_data) => {
++                                let items = &item_data.items[0..item_data.alt_start];
++                                !(items.len() == 1
++                                    && matches!(items[0], ContentItem::String(_)))
++                            }
++                            _ => false,
++                        }
++                    })
++                })
++                .unwrap_or(false);
++            if has_counter_pseudo {
++                return true;
++            }
++        }
++        false
++    }
++
++    fn resolve_counters_for(
++        &self,
++        node_id: NodeId,
++        depth: usize,
++        state: &mut CounterState,
++        out: &mut CounterOutput,
++    ) {
++        let node = &self.nodes[node_id];
++        let Some(el) = node.element_data() else { return };
++        let Some(styles) = node.primary_styles() else { return };
++        let display = styles.clone_display();
++        if display.is_none() {
++            return;
++        }
++
++        let list_item_name = Atom::from("list-item");
++        let tag = &el.name.local;
++
++        // css-lists processing order within one element: counters are
++        // (1) instantiated, (2) incremented, (3) set.
++        let counters_style = styles.get_counters();
++        for pair in counters_style.counter_reset.iter() {
++            let value = if pair.is_reversed && pair.value == i32::MIN {
++                self.reversed_auto_start(
++                    node_id,
++                    &pair.name.0,
++                    pair.name.0 == list_item_name,
++                    false,
++                    &mut state.prescan_budget,
++                )
++            } else {
++                pair.value
++            };
++            state.create(&pair.name.0, value, depth, pair.is_reversed);
++        }
++        // HTML-implied list-item scopes: <ol> honours start/reversed. This
++        // runs after the CSS resets so it overrides the UA stylesheet's
++        // plain `ol { counter-reset: list-item }` (which would otherwise
++        // clobber the reversed()/start semantics the attributes carry).
++
++        // An author reset (reversed() or a non-zero value) must win over
++        // the attributes, so those skip the HTML-implied branch entirely.
++        let author_list_item_reset = counters_style
++            .counter_reset
++            .iter()
++            .any(|p| p.name.0 == list_item_name && (p.is_reversed || p.value != 0));
++        if !author_list_item_reset
++            && matches!(*tag, local_name!("ol") | local_name!("ul") | local_name!("menu") | local_name!("dir"))
++        {
++            let (start, reversed) = if *tag == local_name!("ol") {
++                (
++                    el.attr_parsed::<i32>(local_name!("start")),
++                    el.has_attr(local_name!("reversed")),
++                )
++            } else {
++                (None, false)
++            };
++            let value = match (reversed, start) {
++                (false, s) => s.unwrap_or(1) - 1,
++                // Reversed with explicit start: the pre-decrement lands the
++                // first item exactly on `start`.
++                (true, Some(s)) => s.saturating_add(1),
++                // Auto start: chosen so the last increment lands on its own
++                // magnitude (css-lists §instantiating-counters).
++                (true, None) => {
++                    self.reversed_auto_start(node_id, &list_item_name, true, false, &mut state.prescan_budget)
++                }
++            };
++            state.create(&list_item_name, value, depth, reversed);
++        }
++
++        let mut incremented_list_item = false;
++        for pair in counters_style.counter_increment.iter() {
++            state.increment(&pair.name.0, pair.value, depth);
++            if pair.name.0 == list_item_name {
++                incremented_list_item = true;
++            }
++        }
++        // The implicit list-item increment applies even on li[value] items
++        // (the set lands afterwards) unless counter-increment mentions it.
++        if display.is_list_item() && !incremented_list_item {
++            let rev = state
++                .innermost(&list_item_name)
++                .map(|s| s.reversed)
++                .unwrap_or(false);
++            state.increment(&list_item_name, if rev { -1 } else { 1 }, depth);
++        }
++        // The li value attribute is a presentational hint: it lands before
++        // CSS counter-set, which therefore wins when both are present.
++        if display.is_list_item() && *tag == local_name!("li") {
++            if let Some(v) = el.attr_parsed::<i32>(local_name!("value")) {
++                state.set(&list_item_name, v, depth);
++            }
++        }
++        for pair in counters_style.counter_set.iter() {
++            state.set(&pair.name.0, pair.value, depth);
++        }
++        if display.is_list_item() {
++            out.list_item_values
++                .insert(node_id, state.value(&list_item_name));
++        }
++
++        // Pseudo-element styles: note the array really is [after, before]
++        // (see flush_pseudo_elements); resolve ::before now, ::after later.
++        let style_data = node.try_stylo_element_data().and_then(|s| s.get());
++        let pseudos = style_data
++            .map(|d| d.styles.pseudos.as_array().clone());
++        if let Some(before) = pseudos.as_ref().and_then(|p| p[1].as_ref()) {
++            if let Some(text) = self.resolve_content(before, state, depth) {
++                out.before_text.insert(node_id, text);
++            }
++        }
++
++        // Flat-tree children: slot assignment and shadow roots reorder
++        // content, and counters follow the rendered (flat) order.
++        for &child in self.nodes[node_id].flat_children() {
++            self.resolve_counters_for(child, depth + 1, state, out);
++        }
++
++        // ::after sees scopes created by the element's children (it is
++        // their following sibling), so resolve before popping them.
++        if let Some(after) = pseudos.as_ref().and_then(|p| p[0].as_ref()) {
++            if let Some(text) = self.resolve_content(after, state, depth) {
++                out.after_text.insert(node_id, text);
++            }
++        }
++        state.pop_deeper_than(depth);
++    }
++
++    /// Stringify a pseudo's `content` when it needs counter/attr resolution.
++    /// Plain single-string content returns None (existing path handles it).
++    fn resolve_content(
++        &self,
++        pseudo_style: &style::properties::ComputedValues,
++        state: &mut CounterState,
++        depth: usize,
++    ) -> Option<String> {
++        let Content::Items(item_data) = &pseudo_style.get_counters().content else {
++            return None;
++        };
++        // A content-bearing pseudo generates a box, so its own counter
++        // properties apply even when the content is a plain literal
++        // (`::before { content: '•'; counter-increment: foo }` must still
++        // increment). Element order again: reset → increment → set.
++        let pc = pseudo_style.get_counters();
++        for pair in pc.counter_reset.iter() {
++            state.create(&pair.name.0, pair.value, depth + 1, pair.is_reversed);
++        }
++        for pair in pc.counter_increment.iter() {
++            state.increment(&pair.name.0, pair.value, depth + 1);
++        }
++        for pair in pc.counter_set.iter() {
++            state.set(&pair.name.0, pair.value, depth + 1);
++        }
++
++        let items = &item_data.items[0..item_data.alt_start];
++        let trivial = items.len() == 1 && matches!(items[0], ContentItem::String(_));
++        if trivial {
++            return None;
++        }
++
++        let mut text = String::new();
++        for item in items {
++            match item {
++                ContentItem::String(s) => text.push_str(s),
++                ContentItem::Counter(name, style) => {
++                    text.push_str(&format_counter(state.value(&name.0), style));
++                }
++                ContentItem::Counters(name, sep, style) => {
++                    let vals = state.all_values(&name.0);
++                    if vals.is_empty() {
++                        text.push_str(&format_counter(0, style));
++                    } else {
++                        let parts: Vec<String> =
++                            vals.iter().map(|&v| format_counter(v, style)).collect();
++                        text.push_str(&parts.join(sep));
++                    }
++                }
++                // `attr()` reaches here as a String: stylo substitutes it at
++                // computed-value time.
++                // Quotes and images are out of scope for this pass.
++                _ => {}
++            }
++        }
++        Some(text)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::format_counter;
++    use style::{
++        counter_style::{CounterStyle, Symbol, Symbols, SymbolsType},
++        ArcSlice,
++    };
++
++    #[test]
++    fn symbols_format_i32_min_without_overflow() {
++        let style = CounterStyle::Symbols {
++            ty: SymbolsType::Cyclic,
++            symbols: Symbols(ArcSlice::from_iter(
++                vec![
++                    Symbol::String(String::from("first").into()),
++                    Symbol::String(String::from("second").into()),
++                    Symbol::String(String::from("third").into()),
++                ]
++                .into_iter(),
++            )),
++        };
++
++        assert_eq!(format_counter(i32::MIN, &style), "first");
++    }
++}
+diff --git a/src/layout/list.rs b/src/layout/list.rs
+index 0d4dbab..005e911 100644
+--- a/src/layout/list.rs
++++ b/src/layout/list.rs
+@@ -8,6 +8,7 @@ use style::{
+
+ use crate::{
+     BaseDocument,
++    layout::counters::format_counter,
+     node::{ListItemLayout, ListItemLayoutPosition, Marker},
+     stylo_to_parley,
+ };
+@@ -25,7 +26,15 @@ pub(super) fn collect_list_item_children(
+         children.reverse();
+     }
+     for child in children.into_iter() {
+-        if let Some(layout) = node_list_item_child(doc, child, *index) {
++        // The counter pass owns numbering (ol[start]/li[value]/counter-*);
++        // the sibling index only backstops nodes the pass didn't visit.
++        let value = doc
++            .counters
++            .list_item_values
++            .get(&child)
++            .copied()
++            .unwrap_or((*index + 1) as i32);
++        if let Some(layout) = node_list_item_child(doc, child, value) {
+             let node = &mut doc.nodes[child];
+             node.element_data_mut().unwrap().list_item_data = Some(Box::new(layout));
+             *index += 1;
+@@ -44,7 +53,7 @@ pub(super) fn collect_list_item_children(
+ fn node_list_item_child(
+     doc: &mut BaseDocument,
+     child_id: NodeId,
+-    index: usize,
++    value: i32,
+ ) -> Option<ListItemLayout> {
+     let node = &doc.nodes[child_id];
+
+@@ -73,7 +82,7 @@ fn node_list_item_child(
+     let styles = node.primary_styles().unwrap();
+     let list_style_type = styles.clone_list_style_type();
+     let list_style_position = styles.clone_list_style_position();
+-    let marker = marker_for_style(list_style_type.clone(), index)?;
++    let marker = marker_for_style(list_style_type.clone(), value)?;
+
+     let position = match list_style_position {
+         ListStylePosition::Inside => ListItemLayoutPosition::Inside,
+@@ -112,47 +121,27 @@ fn node_list_item_child(
+     Some(ListItemLayout { marker, position })
+ }
+
+-// Determine the marker to render for a given list style type
+-fn marker_for_style(list_style_type: ListStyleType, index: usize) -> Option<Marker> {
++// Determine the marker to render for a given list style type and the
++// list-item counter value (1-based; negatives/zero happen via counter-set).
++fn marker_for_style(list_style_type: ListStyleType, value: i32) -> Option<Marker> {
+     Some(match list_style_type.0 {
+         CounterStyle::None => return None,
+         CounterStyle::Name(name) => match &*name.0 {
+-            "lower-alpha" => {
+-                let mut marker = String::new();
+-                build_alpha_marker(index, &mut marker);
+-                Marker::String(format!("{marker}. "))
+-            }
+-            "upper-alpha" => {
+-                let mut marker = String::new();
+-                build_alpha_marker(index, &mut marker);
+-                Marker::String(format!("{}. ", marker.to_ascii_uppercase()))
+-            }
+-            "decimal" => Marker::String(format!("{}. ", index + 1)),
+             "disc" => Marker::Char('•'),
+             "circle" => Marker::Char('◦'),
+             "square" => Marker::Char('▪'),
+             "disclosure-open" => Marker::Char('▾'),
+             "disclosure-closed" => Marker::Char('▸'),
++            "decimal" | "decimal-leading-zero" | "lower-alpha" | "lower-latin" | "upper-alpha"
++            | "upper-latin" | "lower-roman" | "upper-roman" => Marker::String(format!(
++                "{}. ",
++                format_counter(value, &CounterStyle::Name(name))
++            )),
+             _ => Marker::Char('□'),
+         },
+         CounterStyle::String(atom_string) => Marker::String(atom_string.as_ref().to_string()),
+-        CounterStyle::Symbols { symbols, .. } => {
+-            // Use symbols from counter-style definition
+-            let syms = &symbols.0;
+-            let len = syms.len();
+-            if len == 0 {
+-                Marker::Char('•')
+-            } else {
+-                // Cycle through symbols based on index: 1st, 2nd, 1st, 2nd, etc.
+-                let idx = if len > 1 { index % len } else { 0 };
+-                // Symbol is String or Ident variant, extract the string value
+-                let sym = &syms[idx];
+-                let marker_str = match sym {
+-                    style::counter_style::Symbol::String(s) => s.to_string(),
+-                    style::counter_style::Symbol::Ident(id) => id.0.to_string(),
+-                };
+-                Marker::String(marker_str)
+-            }
++        style @ CounterStyle::Symbols { .. } => {
++            Marker::String(format_counter(value, &style))
+         }
+     })
+ }
+@@ -166,22 +155,6 @@ fn font_for_bullet_style(list_style_type: ListStyleType) -> Option<FontFamily<'s
+     None
+ }
+
+-const ALPHABET: [char; 26] = [
+-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+-    't', 'u', 'v', 'w', 'x', 'y', 'z',
+-];
+-
+-// Construct alphanumeric marker from index, appending characters when index exceeds powers of 26
+-fn build_alpha_marker(index: usize, str: &mut String) {
+-    let rem = index % 26;
+-    let sym = ALPHABET[rem];
+-    str.insert(0, sym);
+-    let rest = (index - rem) as i64 / 26 - 1;
+-    if rest >= 0 {
+-        build_alpha_marker(rest as usize, str);
+-    }
+-}
+-
+ #[cfg(test)]
+ mod tests {
+     use crate::node::Marker;
+@@ -199,24 +172,24 @@ mod tests {
+
+     #[test]
+     fn test_marker_for_disc() {
+-        let result = marker_for_style(ListStyleType::disc(), 0);
++        let result = marker_for_style(ListStyleType::disc(), 1);
+         assert_eq!(result, Some(Marker::Char('•')));
+     }
+
+     #[test]
+     fn test_marker_for_decimal() {
+-        let result_1 = marker_for_style(list_style("decimal"), 0);
+-        let result_2 = marker_for_style(list_style("decimal"), 1);
++        let result_1 = marker_for_style(list_style("decimal"), 1);
++        let result_2 = marker_for_style(list_style("decimal"), 2);
+         assert_eq!(result_1, Some(Marker::String("1. ".to_string())));
+         assert_eq!(result_2, Some(Marker::String("2. ".to_string())));
+     }
+
+     #[test]
+     fn test_marker_for_lower_alpha() {
+-        let result_1 = marker_for_style(list_style("lower-alpha"), 0);
+-        let result_2 = marker_for_style(list_style("lower-alpha"), 1);
+-        let result_extended_1 = marker_for_style(list_style("lower-alpha"), 26);
+-        let result_extended_2 = marker_for_style(list_style("lower-alpha"), 27);
++        let result_1 = marker_for_style(list_style("lower-alpha"), 1);
++        let result_2 = marker_for_style(list_style("lower-alpha"), 2);
++        let result_extended_1 = marker_for_style(list_style("lower-alpha"), 27);
++        let result_extended_2 = marker_for_style(list_style("lower-alpha"), 28);
+         assert_eq!(result_1, Some(Marker::String("a. ".to_string())));
+         assert_eq!(result_2, Some(Marker::String("b. ".to_string())));
+         assert_eq!(result_extended_1, Some(Marker::String("aa. ".to_string())));
+@@ -225,10 +198,10 @@ mod tests {
+
+     #[test]
+     fn test_marker_for_upper_alpha() {
+-        let result_1 = marker_for_style(list_style("upper-alpha"), 0);
+-        let result_2 = marker_for_style(list_style("upper-alpha"), 1);
+-        let result_extended_1 = marker_for_style(list_style("upper-alpha"), 26);
+-        let result_extended_2 = marker_for_style(list_style("upper-alpha"), 27);
++        let result_1 = marker_for_style(list_style("upper-alpha"), 1);
++        let result_2 = marker_for_style(list_style("upper-alpha"), 2);
++        let result_extended_1 = marker_for_style(list_style("upper-alpha"), 27);
++        let result_extended_2 = marker_for_style(list_style("upper-alpha"), 28);
+         assert_eq!(result_1, Some(Marker::String("A. ".to_string())));
+         assert_eq!(result_2, Some(Marker::String("B. ".to_string())));
+         assert_eq!(result_extended_1, Some(Marker::String("AA. ".to_string())));
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 81050b4..576fa2a 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -23,6 +23,7 @@ use taffy::{
+ };
+
+ pub(crate) mod construct;
++pub(crate) mod counters;
+ pub(crate) mod damage;
+ pub(crate) mod inline;
+ pub(crate) mod list;
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 4dc59dc..cfe6fc1 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -91,6 +91,10 @@ impl BaseDocument {
+         // loading; see flush_needed_font_faces).
+         self.flush_needed_font_faces();
+
++        // CSS counters: list-item values + counter()/attr() pseudo content.
++        // Needs computed styles; box construction consumes the side tables.
++        self.resolve_counters();
++
+         // Non-incremental mode is "every node is damaged every frame": mark the
+         // whole tree and let the same damage pipeline reconstruct and relayout
+         // everything.

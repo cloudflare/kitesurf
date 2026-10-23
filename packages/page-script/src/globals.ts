@@ -1746,6 +1746,14 @@ export function installGlobals(
           }
         },
         clearResourceTimings() {},
+        // Resource timing entries are not stored, so sizing leaves marks and measures alone.
+        setResourceTimingBufferSize(_size: unknown) {
+          if (arguments.length < 1) {
+            throw new TypeError(
+              "Failed to execute 'setResourceTimingBufferSize' on 'Performance': 1 argument required, but only 0 present.",
+            );
+          }
+        },
         timing: {
           connectStart: 0,
           connectEnd: 0,

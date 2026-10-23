@@ -4,7 +4,7 @@
 
 #![cfg(test)]
 
-use crate::DomHandle;
+use crate::{DomHandle, test_support::query_selector_id};
 
 const FILTERS_HTML: &str = r##"<!DOCTYPE html>
 <html><head><style>
@@ -130,6 +130,55 @@ fn undecorated_inline_anchor_has_nonzero_bbox() {
         "anchor height should be one line box; got h={} (rect {:?})",
         rect.3,
         rect,
+    );
+}
+
+const BACKGROUND_SPAN_HTML: &str = r##"<!doctype html>
+<style>
+* { margin: 0; padding: 0; }
+body { width: 800px; font-size: 16px; line-height: 40px; }
+</style>
+<p><a id="link">results <mark id="mark">foo</mark> here</a></p>"##;
+
+#[test]
+fn descendant_background_does_not_clip_inline_ancestor_rect() {
+    let dom = DomHandle::new(BACKGROUND_SPAN_HTML, "https://test.example/");
+    dom.resolve_layout();
+
+    let link = query_selector_id(&dom, "#link");
+    let mark = query_selector_id(&dom, "#mark");
+    let link = dom.test_get_inline_aware_rect(link);
+    let mark = dom.test_get_inline_aware_rect(mark);
+
+    assert!(
+        link.0 < mark.0,
+        "link must include its leading text: {link:?} vs {mark:?}"
+    );
+    assert!(
+        link.0 + link.2 > mark.0 + mark.2,
+        "link must include its trailing text: {link:?} vs {mark:?}"
+    );
+}
+
+#[test]
+fn background_only_inline_rect_uses_glyph_height() {
+    let dom = DomHandle::new(
+        r##"<!doctype html>
+        <style>
+        * { margin: 0; padding: 0; }
+        body { font-size: 16px; line-height: 40px; }
+        </style>
+        <p><span id="highlight" style="background: yellow">foo</span></p>"##,
+        "https://test.example/",
+    );
+    dom.resolve_layout();
+
+    let id = query_selector_id(&dom, "#highlight");
+    let rect = dom.test_get_inline_aware_rect(id);
+
+    assert!(
+        rect.3 > 8.0 && rect.3 < 30.0,
+        "background-only inline should use glyph height, not line height: {rect:?}"
     );
 }
 

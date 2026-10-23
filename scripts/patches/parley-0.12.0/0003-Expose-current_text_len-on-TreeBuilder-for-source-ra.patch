@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 16:56:53 +0100
+Subject: [PATCH] Expose current_text_len on TreeBuilder for source-range
+ recording
+
+Embedders need to know where each pushed text chunk lands in the
+final layout string, for example to record per-text-node ranges for
+painting DOM selections. Reports committed + pending length: pending
+collapsible whitespace counts as the single space it collapses to,
+so a chunk's range ends after its trailing space whenever more
+content follows.
+---
+ src/builder.rs      |  7 +++++++
+ src/resolve/tree.rs | 16 ++++++++++++++--
+ 2 files changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/src/builder.rs b/src/builder.rs
+index c895d49..91ada65 100644
+--- a/src/builder.rs
++++ b/src/builder.rs
+@@ -299,6 +299,13 @@ impl<'b, B: Brush> TreeBuilder<'b, B> {
+         self.lcx.tree_style_builder.has_pending_whitespace()
+     }
+
++    /// Current layout-text length, counting pending whitespace only when it would be kept.
++    pub fn current_text_len(&self) -> usize {
++        self.lcx
++            .tree_style_builder
++            .text_len_with_pending_whitespace()
++    }
++
+     pub fn push_inline_box(&mut self, mut inline_box: InlineBox) {
+         if inline_box.kind == InlineBoxKind::InFlow {
+             self.lcx.tree_style_builder.flush_pending_whitespace();
+diff --git a/src/resolve/tree.rs b/src/resolve/tree.rs
+index 6b4caa0..68c7551 100644
+--- a/src/resolve/tree.rs
++++ b/src/resolve/tree.rs
+@@ -173,8 +173,7 @@ impl<B: Brush> TreeStyleBuilder<B> {
+         // Whitespace at the start of the inline formatting context is removed, as is whitespace
+         // immediately following a preserved segment break. Whitespace following a preserved space
+         // or tab is retained, as only collapsible whitespace collapses.
+-        let is_at_start = self.text.is_empty() && !self.last_item_is_inline_box;
+-        if is_at_start || self.text.ends_with(is_segment_break) {
++        if self.pending_whitespace_will_be_discarded() {
+             return;
+         }
+
+@@ -276,6 +275,19 @@ impl<B: Brush> TreeStyleBuilder<B> {
+         self.pending_whitespace.is_some()
+     }
+
++    /// Length of the text if pending whitespace were resolved now.
++    pub(crate) fn text_len_with_pending_whitespace(&self) -> usize {
++        self.text.len()
++            + usize::from(
++                self.pending_whitespace.is_some() && !self.pending_whitespace_will_be_discarded(),
++            )
++    }
++
++    fn pending_whitespace_will_be_discarded(&self) -> bool {
++        (self.text.is_empty() && !self.last_item_is_inline_box)
++            || self.text.ends_with(is_segment_break)
++    }
++
+     /// Begins a child span with the given style, which subsequent text is attributed to.
+     pub(crate) fn push_style_span(&mut self, style: ResolvedStyle<B>) {
+         self.tree.push(StyleTreeNode {

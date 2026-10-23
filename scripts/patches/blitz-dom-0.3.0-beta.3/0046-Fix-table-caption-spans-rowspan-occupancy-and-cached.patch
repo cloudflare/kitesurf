@@ -1,0 +1,315 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Wed, 26 Aug 2026 23:12:35 +0100
+Subject: [PATCH] Fix table caption spans, rowspan occupancy and cached styles
+
+CSS tables use capmin when a caption contributes to an auto table's
+intrinsic width. Measuring the caption at max-content made Wikipedia
+thumbnail figures expand to the full unwrapped caption instead of the
+image width.
+
+The synthetic grid cell for a caption spans every column (ColumnCursor's
+num_columns, which includes rowspan-occupied columns) rather than
+contributing capmin to one column. In the separated-borders model the
+outer border spacing is synthetic table padding outside the caption's
+grid area, so the caption also extends across that padding, without
+removing the spacing around the cells.
+
+Only fixed-layout tables take their column widths from the first content
+row after a caption; ColumnCursor tracks that row. Auto tables keep
+their tracks flexible regardless of caption order, so a caption's
+minimum width can still widen them. Placement past the supported column
+limit saturates instead of overflowing.
+
+Table root and cell Taffy styles store raw calc pointers into
+ComputedValues. Keep those source allocations alive for as long as the
+cached table context can use the pointers after a restyle.
+
+ColumnCursor stored `rowspan - 1` per column, but `start_row` decrements
+before the next row's cells are placed, so a `rowspan=2` cell freed its
+column for the very row it spans into. The cursor then put that row's
+first cell in the occupied column, while taffy's dense placement puts it
+one column to the right. `num_columns` came out one short and captions
+spanned too few columns: `<td rowspan=2>` + a second-row `<td>` gave a
+250px table with a 100px caption.
+
+Store the rows remaining including the current one. Upstream's
+ColumnCursor has the off-by-one.
+---
+ src/layout/table.rs | 145 ++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 139 insertions(+), 6 deletions(-)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index 7f794bb..4d21a76 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -39,6 +39,8 @@ pub struct TableTreeWrapper<'a, 'doc> {
+ #[derive(Debug)]
+ pub struct TableContext {
+     pub style: taffy::Style<Atom>,
++    // Taffy's compact calc values borrow from the computed style.
++    _style_source: ServoArc<ComputedValues>,
+     pub cells: Vec<TableCell>,
+     /// Absolutely positioned descendants of the table's row groups and rows (and of the
+     /// table itself). They take no part in the table grid.
+@@ -52,6 +54,45 @@ pub struct TableContext {
+     /// Taffy stores calc values as raw pointers, so these must outlive the `style`.
+     #[allow(dead_code)]
+     calc_values: Vec<LengthPercentage>,
++    caption_margin_adjustments: Vec<Arc<CaptionMarginAdjustment>>,
++}
++
++#[derive(Debug)]
++struct CaptionMarginAdjustment {
++    value: taffy::LengthPercentageAuto,
++    spacing: f32,
++}
++
++impl CaptionMarginAdjustment {
++    fn resolve(&self, inner_width: f32) -> f32 {
++        let outer_width = inner_width + 2.0 * self.spacing;
++        let value = match self.value.expand() {
++            taffy::ExpandedLengthPercentageAuto::Length(value) => value,
++            taffy::ExpandedLengthPercentageAuto::Percent(value) => value * outer_width,
++            taffy::ExpandedLengthPercentageAuto::Calc(value) => {
++                resolve_calc_value(value, outer_width)
++            }
++            taffy::ExpandedLengthPercentageAuto::Auto => unreachable!(),
++        };
++        value - self.spacing
++    }
++}
++
++fn compensate_caption_margin(
++    value: taffy::LengthPercentageAuto,
++    spacing: f32,
++    adjustments: &mut Vec<Arc<CaptionMarginAdjustment>>,
++) -> taffy::LengthPercentageAuto {
++    if value.is_auto() {
++        return value;
++    }
++
++    // Taffy's grid area excludes the synthetic outer border spacing. Resolve
++    // the author margin against the full table, then map it into that area.
++    let adjustment = Arc::new(CaptionMarginAdjustment { value, spacing });
++    let pointer = Arc::as_ptr(&adjustment).cast();
++    adjustments.push(adjustment);
++    taffy::LengthPercentageAuto::calc(pointer)
+ }
+
+ // #[derive(Debug, Clone, Eq, PartialEq)]
+@@ -69,6 +110,8 @@ pub struct TableCell {
+     /// Index of the column the cell originates in
+     pub column: u16,
+     style: taffy::Style<Atom>,
++    _style_source: ServoArc<ComputedValues>,
++    is_caption: bool,
+ }
+
+ /// Tracks the current column position while walking the table's cells, so that
+@@ -80,8 +123,11 @@ struct ColumnCursor {
+     col: u16,
+     /// The total number of columns seen so far
+     num_columns: u16,
+-    /// For each column, the number of further rows it is occupied by a rowspan cell
++    /// For each column, the number of rows, counting the current one, it is occupied by
++    /// a rowspan cell
+     rowspans: Vec<u16>,
++    /// The first row holding table content rather than a caption
++    first_content_row: Option<u16>,
+ }
+
+ impl ColumnCursor {
+@@ -100,13 +146,23 @@ impl ColumnCursor {
+         self.col
+     }
+
++    /// Whether `row` is the first row with table content. A leading
++    /// caption opens its own row, so `row == 1` would miss the real first row.
++    fn is_first_content_row(&mut self, row: u16) -> bool {
++        *self.first_content_row.get_or_insert(row) == row
++    }
++
+     fn place(&mut self, colspan: u16, rowspan: u16) {
+-        let end = self.col + colspan;
++        // Stop at the supported column limit instead of overflowing.
++        let end = self.col.saturating_add(colspan);
+         if self.rowspans.len() < end as usize {
+             self.rowspans.resize(end as usize, 0);
+         }
++        // Count the current row too. `start_row` decrements before
++        // the next row's cells are placed, so storing `rowspan - 1` freed a
++        // `rowspan=2` cell's column one row early.
+         for remaining in &mut self.rowspans[self.col as usize..end as usize] {
+-            *remaining = rowspan - 1;
++            *remaining = rowspan;
+         }
+         self.col = end;
+         self.num_columns = self.num_columns.max(end);
+@@ -233,6 +289,7 @@ pub(crate) fn build_table_context(
+     };
+
+     let mut style = table_taffy_style(&stylo_styles, wm);
++    let style_source = ServoArc::clone(&*stylo_styles);
+     style.item_is_table = true;
+     // Use `dense` row-flow so that each cell scans the row from its
+     // leftmost column for the first free track. Without `dense`,
+@@ -360,6 +417,27 @@ pub(crate) fn build_table_context(
+             }
+         }
+     }
++    let column_count = num_columns.max(1);
++    let mut caption_margin_adjustments = Vec::new();
++    for caption in cells.iter_mut().filter(|cell| cell.is_caption) {
++        caption.style.grid_column = taffy::Line {
++            start: style_helpers::line(1),
++            end: style_helpers::span(column_count),
++        };
++        if border_collapse == BorderCollapse::Separate {
++            let spacing_x = border_spacing.width.px();
++            caption.style.margin.left = compensate_caption_margin(
++                caption.style.margin.left,
++                spacing_x,
++                &mut caption_margin_adjustments,
++            );
++            caption.style.margin.right = compensate_caption_margin(
++                caption.style.margin.right,
++                spacing_x,
++                &mut caption_margin_adjustments,
++            );
++        }
++    }
+
+     style.grid_template_columns = column_sizes.into_iter().map(|dim| dim.into()).collect();
+     // A row's `height` is a minimum: the row grows to fit the content of its cells.
+@@ -438,6 +516,7 @@ pub(crate) fn build_table_context(
+     (
+         TableContext {
+             style,
++            _style_source: style_source,
+             cells,
+             oof_children,
+             rows,
+@@ -446,6 +525,7 @@ pub(crate) fn build_table_context(
+             border_collapse,
+             border_style: first_cell_border,
+             calc_values,
++            caption_margin_adjustments,
+         },
+         layout_children,
+     )
+@@ -670,6 +750,7 @@ fn collect_table_cells(
+                 .map(|v| v.clamp(1, 65534))
+                 .unwrap_or(1);
+             let mut style = table_taffy_style(stylo_style, wm);
++            let style_source = ServoArc::clone(&**stylo_style);
+             let col = cursor.next_free();
+
+             // In the collapsed borders model the borders are laid out as gutters between
+@@ -692,7 +773,8 @@ fn collect_table_cells(
+             // Column widths from `<col>` elements take precedence over cell widths
+             let col_needs_width =
+                 (col as usize) >= columns.len() || columns[col as usize].max.is_auto();
+-            if *row == 1 && col_needs_width {
++            let is_first_content_row = cursor.is_first_content_row(*row);
++            if is_fixed && is_first_content_row && col_needs_width {
+                 let column: TrackSizingFunction = match style.size.width.tag() {
+                     taffy::CompactLength::LENGTH_TAG => {
+                         let len = style.size.width.value();
+@@ -768,6 +850,8 @@ fn collect_table_cells(
+                 row: row.saturating_sub(1),
+                 column: col,
+                 style,
++                _style_source: style_source,
++                is_caption: false,
+             });
+
+             cursor.place(colspan, rowspan);
+@@ -791,8 +875,15 @@ fn collect_table_cells(
+             }
+             let stylo_style = &node.primary_styles().unwrap();
+             let mut style = table_taffy_style(stylo_style, wm);
++            let style_source = ServoArc::clone(&**stylo_style);
+             let col = cursor.next_free();
+-            if *row == 1 && (col as usize) >= columns.len() {
++            let is_caption = display.outside() == DisplayOutside::TableCaption;
++            let is_first_content_row = !is_caption && cursor.is_first_content_row(*row);
++            if !is_caption
++                && is_fixed
++                && is_first_content_row
++                && (col as usize) >= columns.len()
++            {
+                 columns.resize(col as usize, style_helpers::auto());
+                 columns.push(style_helpers::auto());
+             }
+@@ -809,6 +900,8 @@ fn collect_table_cells(
+                 row: row.saturating_sub(1),
+                 column: col,
+                 style,
++                _style_source: style_source,
++                is_caption,
+             });
+             cursor.place(1, 1);
+         }
+@@ -869,6 +962,14 @@ impl taffy::LayoutPartialTree for TableTreeWrapper<'_, '_> {
+     }
+
+     fn resolve_calc_value(&self, calc_ptr: *const (), parent_size: f32) -> f32 {
++        if let Some(adjustment) = self
++            .ctx
++            .caption_margin_adjustments
++            .iter()
++            .find(|adjustment| Arc::as_ptr(adjustment).cast() == calc_ptr)
++        {
++            return adjustment.resolve(parent_size);
++        }
+         resolve_calc_value(calc_ptr, parent_size)
+     }
+
+@@ -880,9 +981,18 @@ impl taffy::LayoutPartialTree for TableTreeWrapper<'_, '_> {
+     fn compute_child_layout(
+         &mut self,
+         node_id: taffy::NodeId,
+-        inputs: taffy::tree::LayoutInput,
++        mut inputs: taffy::tree::LayoutInput,
+     ) -> taffy::LayoutOutput {
+         let cell = &self.ctx.cells[usize::from(node_id)];
++        // CSS 2.2 §17.5.2: captions contribute their minimum width to an
++        // auto-width table, not their unwrapped max-content width.
++        if cell.is_caption
++            && inputs.axis == taffy::RequestedAxis::Horizontal
++            && inputs.known_dimensions.width.is_none()
++            && inputs.available_space.width == taffy::AvailableSpace::MaxContent
++        {
++            inputs.available_space.width = taffy::AvailableSpace::MinContent;
++        }
+         let node_id = crate::taffy_node_id(cell.node_id);
+         self.doc.compute_child_layout(node_id, inputs)
+     }
+@@ -915,3 +1025,26 @@ impl taffy::LayoutGridContainer for TableTreeWrapper<'_, '_> {
+         *self.ctx.computed_grid_info.borrow_mut() = Some(detailed_grid_info);
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::ColumnCursor;
++
++    #[test]
++    fn column_cursor_keeps_a_rowspan_column_occupied_in_later_rows() {
++        let mut cursor = ColumnCursor::default();
++        cursor.start_row();
++        assert_eq!(cursor.next_free(), 0);
++        cursor.place(1, 2);
++
++        // Row 2: column 0 still belongs to the rowspan cell.
++        cursor.start_row();
++        assert_eq!(cursor.next_free(), 1);
++        cursor.place(1, 1);
++        assert_eq!(cursor.num_columns, 2);
++
++        // Row 3: the rowspan has ended.
++        cursor.start_row();
++        assert_eq!(cursor.next_free(), 0);
++    }
++}

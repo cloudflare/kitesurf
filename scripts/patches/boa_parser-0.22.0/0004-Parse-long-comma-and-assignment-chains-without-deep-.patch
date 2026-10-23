@@ -1,0 +1,311 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 19 Oct 2026 12:19:36 +0100
+Subject: [PATCH] Parse long comma and assignment chains without deep recursion
+
+A bundle chunk can be one statement of thousands of comma-joined calls.
+The left-leaning tree that made was that many levels deep, and every
+recursive pass over it (scope analysis, the bytecompiler, Drop) overran
+the 1 MiB wasm stack. The comma operator is associative, so a balanced
+tree evaluates the same operands in the same order; chains under 32
+operands keep the old shape and identical bytecode.
+
+AssignmentExpression parsed `target =` and then recursed into itself for
+the right-hand side, so `a = (b = (c = ...))` kept two of its frames on
+the stack per nesting level, ~1 KiB each on wasm, and `a = b = c = ...`
+recursed once per `=`. Minified code is full of both; reCAPTCHA's
+constructor nests the parenthesized form ~75 deep.
+
+Each step now returns either the chain's final value or a pending
+target, and the targets fold from the right once the value is parsed:
+the same nodes, anonymous function names and errors as before (281 npm
+bundles and 200k generated scripts digest identically).
+
+Deepest nesting boa-bench compiles, after the precedence-parsing patch:
+`o.p=(o.p=(...))` 174 -> 230, `((...))` 209 -> 230, `a=b=...=1` 1066 ->
+2254. Compile suite unchanged.
+---
+ src/parser/expression/assignment/mod.rs | 112 ++++++++++++++++--------
+ src/parser/expression/mod.rs            |  46 +++++++---
+ 2 files changed, 110 insertions(+), 48 deletions(-)
+
+diff --git a/src/parser/expression/assignment/mod.rs b/src/parser/expression/assignment/mod.rs
+index c4e36ee..31260fd 100644
+--- a/src/parser/expression/assignment/mod.rs
++++ b/src/parser/expression/assignment/mod.rs
+@@ -33,7 +33,10 @@ use crate::{
+ };
+ use boa_ast::{
+     Expression, Keyword, Punctuator, Span, Spanned,
+-    expression::operator::assign::{Assign, AssignOp, AssignTarget},
++    expression::{
++        Identifier,
++        operator::assign::{Assign, AssignOp, AssignTarget},
++    },
+     operations::{ContainsSymbol, bound_names, contains, lexically_declared_names},
+ };
+ use boa_interner::Interner;
+@@ -81,6 +84,17 @@ impl AssignmentExpression {
+     }
+ }
+
++/// One `target op` of an assignment chain, waiting for its right-hand side, and the name an
++/// anonymous function on that side takes from the target.
++type PendingAssign = (AssignTarget, AssignOp, Option<Identifier>);
++
++/// What one step of [`AssignmentExpression`] parsed: the final value of the chain, or an
++/// assignment target whose right-hand side starts at the next token.
++enum AssignmentStep {
++    Value(Expression),
++    Target(PendingAssign),
++}
++
+ impl<R> TokenParser<R> for AssignmentExpression
+ where
+     R: ReadChar,
+@@ -88,13 +102,39 @@ where
+     type Output = Expression;
+
+     fn parse(self, cursor: &mut Cursor<R>, interner: &mut Interner) -> ParseResult<Expression> {
++        // `a = (b = ...)` recursed into this frame for every right-hand side, two frames per
++        // nesting level; a loop keeps one, and `a = b = c` does not recurse at all.
++        let mut pending: Vec<PendingAssign> = Vec::new();
++        let mut rhs = loop {
++            match self.step(cursor, interner)? {
++                AssignmentStep::Value(value) => break value,
++                AssignmentStep::Target(target) => pending.push(target),
++            }
++        };
++        while let Some((target, op, name)) = pending.pop() {
++            if let Some(ident) = name {
++                rhs.set_anonymous_function_definition_name(&ident);
++            }
++            rhs = Assign::new(op, target, rhs).into();
++        }
++        Ok(rhs)
++    }
++}
++
++impl AssignmentExpression {
++    fn step<R: ReadChar>(
++        self,
++        cursor: &mut Cursor<R>,
++        interner: &mut Interner,
++    ) -> ParseResult<AssignmentStep> {
+         cursor.set_goal(InputElement::RegExp);
+
+         match cursor.peek(0, interner).or_abrupt()?.kind() {
+             // [+Yield]YieldExpression[?In, ?Await]
+             TokenKind::Keyword((Keyword::Yield, _)) if self.allow_yield.0 => {
+                 return YieldExpression::new(self.allow_in, self.allow_await)
+-                    .parse(cursor, interner);
++                    .parse(cursor, interner)
++                    .map(AssignmentStep::Value);
+             }
+             // ArrowFunction[?In, ?Yield, ?Await] -> ArrowParameters[?Yield, ?Await] -> BindingIdentifier[?Yield, ?Await]
+             TokenKind::IdentifierName(_)
+@@ -113,7 +153,7 @@ where
+                 {
+                     return ArrowFunction::new(self.allow_in, self.allow_yield, self.allow_await)
+                         .parse(cursor, interner)
+-                        .map(Expression::from);
++                        .map(|arrow| AssignmentStep::Value(arrow.into()));
+                 }
+             }
+             //  AsyncArrowFunction[?In, ?Yield, ?Await]
+@@ -141,9 +181,11 @@ where
+                             TokenKind::Punctuator(Punctuator::Arrow)
+                         )))
+                 {
+-                    return Ok(AsyncArrowFunction::new(self.allow_in, self.allow_yield)
+-                        .parse(cursor, interner)?
+-                        .into());
++                    return Ok(AssignmentStep::Value(
++                        AsyncArrowFunction::new(self.allow_in, self.allow_yield)
++                            .parse(cursor, interner)?
++                            .into(),
++                    ));
+                 }
+             }
+             _ => {}
+@@ -158,7 +200,7 @@ where
+             .parse(cursor, interner)?;
+
+         // If the left hand side is a parameter list, we must parse an arrow function.
+-        let mut lhs = match lhs {
++        let lhs = match lhs {
+             FormalParameterListOrExpression::FormalParameterList {
+                 fpl: parameters, ..
+             } => {
+@@ -222,14 +264,16 @@ where
+                 let linear_span = start_linear_span.union(linear_pos_end);
+
+                 let body_span_end = body.span().end();
+-                return Ok(boa_ast::function::ArrowFunction::new(
+-                    None,
+-                    parameters,
+-                    body,
+-                    linear_span,
+-                    Span::new(position, body_span_end),
+-                )
+-                .into());
++                return Ok(AssignmentStep::Value(
++                    boa_ast::function::ArrowFunction::new(
++                        None,
++                        parameters,
++                        body,
++                        linear_span,
++                        Span::new(position, body_span_end),
++                    )
++                    .into(),
++                ));
+             }
+             FormalParameterListOrExpression::Expression(expression) => expression,
+         };
+@@ -248,17 +292,12 @@ where
+                     };
+
+                     if let Some(target) = AssignTarget::from_expression(&lhs, cursor.strict()) {
+-                        let mut expr = self.parse(cursor, interner)?;
+-                        if let Some(ident) = lhs_name {
+-                            expr.set_anonymous_function_definition_name(&ident);
+-                        }
+-                        lhs = Assign::new(AssignOp::Assign, target, expr).into();
+-                    } else {
+-                        return Err(Error::lex(LexError::Syntax(
+-                            "Invalid left-hand side in assignment".into(),
+-                            tok.span().start(),
+-                        )));
++                        return Ok(AssignmentStep::Target((target, AssignOp::Assign, lhs_name)));
+                     }
++                    return Err(Error::lex(LexError::Syntax(
++                        "Invalid left-hand side in assignment".into(),
++                        tok.span().start(),
++                    )));
+                 }
+                 TokenKind::Punctuator(p) if p.as_assign_op().is_some() => {
+                     cursor.advance(interner);
+@@ -266,27 +305,26 @@ where
+                         AssignTarget::from_expression_simple(&lhs, cursor.strict())
+                     {
+                         let assignop = p.as_assign_op().expect("assignop disappeared");
+-
+-                        let mut rhs = self.parse(cursor, interner)?;
+-                        if (assignop == AssignOp::BoolAnd
++                        let name = if (assignop == AssignOp::BoolAnd
+                             || assignop == AssignOp::BoolOr
+                             || assignop == AssignOp::Coalesce)
+                             && let AssignTarget::Identifier(ident) = target
+                         {
+-                            rhs.set_anonymous_function_definition_name(&ident);
+-                        }
+-                        lhs = Assign::new(assignop, target, rhs).into();
+-                    } else {
+-                        return Err(Error::lex(LexError::Syntax(
+-                            "Invalid left-hand side in assignment".into(),
+-                            tok.span().start(),
+-                        )));
++                            Some(ident)
++                        } else {
++                            None
++                        };
++                        return Ok(AssignmentStep::Target((target, assignop, name)));
+                     }
++                    return Err(Error::lex(LexError::Syntax(
++                        "Invalid left-hand side in assignment".into(),
++                        tok.span().start(),
++                    )));
+                 }
+                 _ => {}
+             }
+         }
+
+-        Ok(lhs)
++        Ok(AssignmentStep::Value(lhs))
+     }
+ }
+diff --git a/src/parser/expression/mod.rs b/src/parser/expression/mod.rs
+index 654e8af..144374f 100644
+--- a/src/parser/expression/mod.rs
++++ b/src/parser/expression/mod.rs
+@@ -146,45 +146,69 @@ where
+     type Output = ast::Expression;
+
+     fn parse(self, cursor: &mut Cursor<R>, interner: &mut Interner) -> ParseResult<Self::Output> {
+-        let mut lhs = AssignmentExpression::new(self.allow_in, self.allow_yield, self.allow_await)
++        let first = AssignmentExpression::new(self.allow_in, self.allow_yield, self.allow_await)
+             .parse(cursor, interner)?;
++        let mut rest = Vec::new();
+         while let Some(tok) = cursor.peek(0, interner)? {
+             match *tok.kind() {
+                 TokenKind::Punctuator(Punctuator::Comma) => {
+                     if cursor.peek(1, interner).or_abrupt()?.kind()
+                         == &TokenKind::Punctuator(Punctuator::CloseParen)
+                     {
+-                        return Ok(lhs);
++                        break;
+                     }
+
+                     if cursor.peek(1, interner).or_abrupt()?.kind()
+                         == &TokenKind::Punctuator(Punctuator::Spread)
+                     {
+-                        return Ok(lhs);
++                        break;
+                     }
+
+                     cursor.advance(interner);
+
+-                    lhs = Binary::new(
+-                        Punctuator::Comma
+-                            .as_binary_op()
+-                            .expect("Could not get binary operation."),
+-                        lhs,
++                    rest.push(
+                         AssignmentExpression::new(
+                             self.allow_in,
+                             self.allow_yield,
+                             self.allow_await,
+                         )
+                         .parse(cursor, interner)?,
+-                    )
+-                    .into();
++                    );
+                 }
+                 _ => break,
+             }
+         }
+
+-        Ok(lhs)
++        Ok(comma_chain(first, rest))
++    }
++}
++
++/// Chains shorter than this keep upstream's left-leaning tree, so nearly all code
++/// parses to the same AST and bytecode as upstream.
++const LEFT_LEANING_COMMA_OPERANDS: usize = 32;
++
++/// `a, b, c` runs the same operands in the same order whatever the tree's shape, so long
++/// chains build balanced: scope analysis, bytecompile and drop recurse log2(n) deep, not n.
++fn comma_chain(first: ast::Expression, rest: Vec<ast::Expression>) -> ast::Expression {
++    fn comma(lhs: ast::Expression, rhs: ast::Expression) -> ast::Expression {
++        Binary::new(BinaryOp::Comma, lhs, rhs).into()
++    }
++    fn balanced(items: &mut std::vec::IntoIter<ast::Expression>, n: usize) -> ast::Expression {
++        if n == 1 {
++            return items.next().expect("one operand per slot");
++        }
++        let lhs = balanced(items, n / 2);
++        let rhs = balanced(items, n - n / 2);
++        comma(lhs, rhs)
++    }
++    if rest.len() < LEFT_LEANING_COMMA_OPERANDS {
++        return rest.into_iter().fold(first, comma);
+     }
++    let n = rest.len() + 1;
++    let mut all = Vec::with_capacity(n);
++    all.push(first);
++    all.extend(rest);
++    balanced(&mut all.into_iter(), n)
+ }
+
+ /// Parses a logical expression expression.

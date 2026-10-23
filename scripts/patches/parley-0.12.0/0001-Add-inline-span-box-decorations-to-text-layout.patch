@@ -15,31 +15,40 @@ Without this, button-styled <a>/<span> elements inside inline-flow
 containers (todomvc filter pills, "Clear completed", any styled inline
 link) render as plain text.
 ---
- src/builder.rs             | 118 +++++++++++++++++++++++++
- src/layout/data.rs         | 139 +++++++++++++++++++++++++++++-
- src/layout/layout.rs       |  67 +++++++++++++++
+ src/builder.rs             | 238 +++++++++++++++++++++++++++++++++++++
+ src/layout/data.rs         | 154 +++++++++++++++++++++++-
+ src/layout/layout.rs       |  68 +++++++++++
  src/layout/line.rs         |   2 +-
- src/layout/line_break.rs   | 131 +++++++++++++++++++++++++++-
- src/layout/mod.rs          |  14 ++-
- src/layout/run.rs          |  12 ++-
- src/layout/spacing.rs      |  36 +++++++-
+ src/layout/line_break.rs   | 141 +++++++++++++++++++++-
+ src/layout/mod.rs          |  16 ++-
+ src/layout/run.rs          |  12 +-
+ src/layout/spacing.rs      |  36 +++++-
  src/layout/whitespace.rs   |   2 +-
- src/resolve/mod.rs         |  45 +++++++++-
- src/resolve/range.rs       |  10 +++
- src/resolve/tree.rs        | 126 +++++++++++++++++++++++++--
- src/style/mod.rs           | 172 +++++++++++++++++++++++++++++++++++++
- src/tests/test_builders.rs |   5 ++
- src/tests/utils/asserts.rs |  19 ++++
- 15 files changed, 871 insertions(+), 27 deletions(-)
+ src/resolve/mod.rs         |  35 +++++-
+ src/resolve/range.rs       |  11 ++
+ src/resolve/tree.rs        |  30 +++--
+ src/style/mod.rs           | 172 +++++++++++++++++++++++++++
+ src/tests/test_builders.rs |   5 +
+ src/tests/utils/asserts.rs |  21 ++++
+ 15 files changed, 915 insertions(+), 28 deletions(-)
 
 diff --git a/src/builder.rs b/src/builder.rs
-index 4d5dcf2..ec066c2 100644
+index 4d5dcf2..51cf612 100644
 --- a/src/builder.rs
 +++ b/src/builder.rs
-@@ -168,6 +168,13 @@ impl<'b, B: Brush> StyleRunBuilder<'b, B> {
+@@ -8,6 +8,7 @@ use super::context::LayoutContext;
+ use super::style::{Brush, StyleProperty, TextStyle};
+
+ use super::layout::Layout;
++use super::layout::SpanBoundary;
+
+ use alloc::string::String;
+ use core::ops::{Bound, Range, RangeBounds};
+@@ -168,6 +169,14 @@ impl<'b, B: Brush> StyleRunBuilder<'b, B> {
          self.lcx.style_runs.push(StyleRun {
              style_index,
              range: range.clone(),
++            tree_span_index: None,
 +            // Same rationale as the ranged-builder StyleRun emit:
 +            // this builder has no nested span concept, so each
 +            // explicit `push_style_run` is treated as a complete
@@ -50,10 +59,11 @@ index 4d5dcf2..ec066c2 100644
          });
          self.cursor = range.end;
      }
-@@ -213,6 +220,11 @@ impl<'b, B: Brush> StyleRunBuilder<'b, B> {
+@@ -213,6 +222,12 @@ impl<'b, B: Brush> StyleRunBuilder<'b, B> {
              self.lcx.style_runs.push(StyleRun {
                  style_index: 0,
                  range: 0..0,
++                tree_span_index: None,
 +                // Empty layout: flag conservatively as a singleton.
 +                // The flag values are inert: there are no clusters
 +                // to charge span advance to.
@@ -62,10 +72,11 @@ index 4d5dcf2..ec066c2 100644
              });
          }
          build_into_layout(layout, text.as_ref(), self.lcx, self.fcx, self.options);
-@@ -348,6 +360,12 @@ fn build_into_layout<B: Brush>(
+@@ -348,6 +363,13 @@ fn build_into_layout<B: Brush>(
          lcx.style_runs.push(StyleRun {
              style_index: 0,
              range: 0..0,
++            tree_span_index: None,
 +            // Empty layout: flag conservatively as a singleton.
 +            // The default ResolvedStyle has empty BoxDecorations
 +            // anyway, so the line-breaker will not charge any
@@ -75,7 +86,7 @@ index 4d5dcf2..ec066c2 100644
          });
      }
      assert!(
-@@ -422,6 +440,106 @@ fn build_into_layout<B: Brush>(
+@@ -422,6 +444,222 @@ fn build_into_layout<B: Brush>(
      // Move inline boxes into the layout
      layout.data.inline_boxes.clear();
      core::mem::swap(&mut layout.data.inline_boxes, &mut lcx.inline_boxes);
@@ -83,13 +94,11 @@ index 4d5dcf2..ec066c2 100644
 +    compute_span_edges(layout, lcx);
 +}
 +
-+/// Computes per-cluster lead/trail advance contributions for
-+/// inline-span box decorations. For each StyleRun whose flags
-+/// (is_span_first / is_span_last) say it owns a span boundary,
-+/// and whose style has non-empty BoxDecorations, locate the
-+/// matching first / last shaped cluster of that run and stamp the
-+/// contribution onto the parallel `cluster_lead_advance` /
-+/// `cluster_trail_advance` vectors.
++/// Computes per-cluster inline advances and span boundaries for
++/// decorated inline spans. Boundaries are separate from advances
++/// because a background-only span still needs a fragment.
++/// Tree-built runs contribute to their source span and every ancestor;
++/// flat runs use their explicit first/last flags.
 +///
 +/// Why post-shaping: clusters don't exist before shaping.
 +/// Why on absolute text offsets: a single StyleRun can span
@@ -105,34 +114,48 @@ index 4d5dcf2..ec066c2 100644
 +/// see letter spacing. Like letter spacing, the gaps are applied in
 +/// visual order, so this is LTR-only.
 +///
-+/// Layouts without any decorated span leave both vectors empty,
-+/// which turns the whole mechanism off.
 +fn compute_span_edges<B: Brush>(layout: &mut Layout<B>, lcx: &LayoutContext<B>) {
 +    let data = &mut layout.data;
 +    data.cluster_lead_advance.clear();
 +    data.cluster_trail_advance.clear();
++    data.span_starts.clear();
++    data.span_ends.clear();
 +
-+    let edge = |style_run: &StyleRun| {
-+        let decos = &lcx.style_table[style_run.style_index as usize].box_decorations;
++    let decoration_edges = |style_index: u16| {
++        let decos = &lcx.style_table[usize::from(style_index)].box_decorations;
 +        let lead = decos.padding_inline_start + decos.border_inline_start_width;
 +        let trail = decos.padding_inline_end + decos.border_inline_end_width;
-+        (
-+            if style_run.is_span_first { lead } else { 0.0 },
-+            if style_run.is_span_last { trail } else { 0.0 },
-+        )
++        (lead, trail, decos.background_brush.is_some())
 +    };
-+    if !lcx.style_runs.iter().any(|style_run| {
-+        let (lead, trail) = edge(style_run);
-+        lead > 0.0 || trail > 0.0
-+    }) {
++    let needs_span = |style_index: u16| {
++        let (lead, trail, has_background) = decoration_edges(style_index);
++        lead > 0.0 || trail > 0.0 || has_background
++    };
++    let has_decorated_span = lcx.style_runs.iter().any(|style_run| {
++        if needs_span(style_run.style_index) {
++            return true;
++        }
++        let Some(mut span_index) = style_run.tree_span_index else {
++            return false;
++        };
++        loop {
++            if needs_span(span_index) {
++                return true;
++            }
++            let parent = lcx.style_table[usize::from(span_index)].parent;
++            if parent == span_index {
++                return false;
++            }
++            span_index = parent;
++        }
++    });
++    if !has_decorated_span {
 +        return;
 +    }
 +
 +    let shaped_text = &data.shaped_text;
 +    let characters = shaped_text.characters();
 +    let clusters = shaped_text.shaped_clusters();
-+    data.cluster_lead_advance.resize(clusters.len(), 0.0);
-+    data.cluster_trail_advance.resize(clusters.len(), 0.0);
 +
 +    // Shaped clusters are stored in logical order, so their
 +    // absolute offsets ascend and a single sweep finds the first
@@ -162,28 +185,132 @@ index 4d5dcf2..ec066c2 100644
 +        }
 +    }
 +
++    // A tree span can receive text through any descendant. Accumulate
++    // each run's cluster range into every enclosing tree span before
++    // placing that span's decoration boundaries.
++    let mut tree_span_first_last = alloc::vec::Vec::new();
++    for (style_run, run_clusters) in lcx.style_runs.iter().zip(first_last.iter().copied()) {
++        let (Some(mut span_index), Some((first, last))) = (style_run.tree_span_index, run_clusters)
++        else {
++            continue;
++        };
++        if tree_span_first_last.is_empty() {
++            tree_span_first_last.resize(lcx.style_table.len(), None);
++        }
++        loop {
++            let entry = &mut tree_span_first_last[usize::from(span_index)];
++            match entry {
++                Some((_, span_last)) => *span_last = last,
++                None => *entry = Some((first, last)),
++            }
++            let parent = lcx.style_table[usize::from(span_index)].parent;
++            if parent == span_index {
++                break;
++            }
++            span_index = parent;
++        }
++    }
++
 +    for (style_run, entry) in lcx.style_runs.iter().zip(first_last) {
 +        let Some((first, last)) = entry else {
 +            continue;
 +        };
-+        let (lead, trail) = edge(style_run);
-+        data.cluster_lead_advance[first] += lead;
-+        data.cluster_trail_advance[last] += trail;
++        if style_run.tree_span_index.is_some() {
++            continue;
++        }
++        let (span_lead, span_trail, has_background) = decoration_edges(style_run.style_index);
++        let lead = if style_run.is_span_first {
++            span_lead
++        } else {
++            0.0
++        };
++        let trail = if style_run.is_span_last {
++            span_trail
++        } else {
++            0.0
++        };
++        if lead != 0.0 || trail != 0.0 {
++            if data.cluster_lead_advance.is_empty() {
++                data.cluster_lead_advance.resize(clusters.len(), 0.0);
++                data.cluster_trail_advance.resize(clusters.len(), 0.0);
++            }
++            data.cluster_lead_advance[first] += lead;
++            data.cluster_trail_advance[last] += trail;
++        }
++        if lead <= 0.0 && trail <= 0.0 && !has_background {
++            continue;
++        }
++        if style_run.is_span_first {
++            data.span_starts.push(SpanBoundary {
++                cluster_index: first,
++                style_index: style_run.style_index,
++            });
++        }
++        if style_run.is_span_last {
++            data.span_ends.push(SpanBoundary {
++                cluster_index: last,
++                style_index: style_run.style_index,
++            });
++        }
++    }
++
++    // Tree style IDs are allocated parent-first, so starts on the
++    // same cluster are pushed outer-to-inner. Ends are reversed by
++    // cluster below to pop inner-to-outer.
++    for (style_index, entry) in tree_span_first_last.into_iter().enumerate() {
++        let Some((first, last)) = entry else {
++            continue;
++        };
++        let style_index = u16::try_from(style_index).expect("style index fits u16");
++        let (lead, trail, has_background) = decoration_edges(style_index);
++        if lead != 0.0 || trail != 0.0 {
++            if data.cluster_lead_advance.is_empty() {
++                data.cluster_lead_advance.resize(clusters.len(), 0.0);
++                data.cluster_trail_advance.resize(clusters.len(), 0.0);
++            }
++            data.cluster_lead_advance[first] += lead;
++            data.cluster_trail_advance[last] += trail;
++        }
++        if lead <= 0.0 && trail <= 0.0 && !has_background {
++            continue;
++        }
++        data.span_starts.push(SpanBoundary {
++            cluster_index: first,
++            style_index,
++        });
++        data.span_ends.push(SpanBoundary {
++            cluster_index: last,
++            style_index,
++        });
++    }
++
++    data.span_starts
++        .sort_by_key(|boundary| boundary.cluster_index);
++    data.span_ends
++        .sort_by_key(|boundary| boundary.cluster_index);
++    let mut end = 0;
++    while end < data.span_ends.len() {
++        let cluster_index = data.span_ends[end].cluster_index;
++        let mut next = end + 1;
++        while next < data.span_ends.len() && data.span_ends[next].cluster_index == cluster_index {
++            next += 1;
++        }
++        data.span_ends[end..next].reverse();
++        end = next;
 +    }
 +
 +    for (run, shaped_run) in data.runs.iter_mut().zip(shaped_text.runs()) {
 +        let range = shaped_run.shaped_clusters_range.start as usize
 +            ..shaped_run.shaped_clusters_range.end as usize;
-+        run.has_span_edges = data.cluster_lead_advance[range.clone()]
-+            .iter()
-+            .chain(&data.cluster_trail_advance[range])
-+            .any(|advance| *advance != 0.0);
++        let leads = data.cluster_lead_advance.get(range.clone()).unwrap_or(&[]);
++        let trails = data.cluster_trail_advance.get(range).unwrap_or(&[]);
++        run.has_span_edges = leads.iter().chain(trails).any(|advance| *advance != 0.0);
 +    }
  }
 
  fn resolve_range(range: impl RangeBounds<usize>, len: usize) -> Range<usize> {
 diff --git a/src/layout/data.rs b/src/layout/data.rs
-index e6ab383..88121a1 100644
+index e6ab383..1d78dea 100644
 --- a/src/layout/data.rs
 +++ b/src/layout/data.rs
 @@ -2,7 +2,7 @@
@@ -205,7 +332,7 @@ index e6ab383..88121a1 100644
  }
 
  /// The metrics of a run's box. This differs from the style-derived box by taking into account any
-@@ -79,6 +82,64 @@ pub enum BreakReason {
+@@ -79,6 +82,70 @@ pub enum BreakReason {
      Emergency,
  }
 
@@ -236,23 +363,21 @@ index e6ab383..88121a1 100644
 +/// painter coordinates.
 +#[derive(Copy, Clone, Debug, PartialEq)]
 +pub struct SpanFragment {
-+    /// Index into `LayoutData::styles[]`. The painter looks up
-+    /// `styles[style_index].box_decorations` for the fill /
-+    /// border / radius values. Same index used by the cluster
-+    /// glyphs on this line, so the fragment tracks the same span.
++    /// Index into `LayoutData::styles[]` for the span's own style.
++    /// An ancestor span can have a different style index from its
++    /// descendant glyph runs; the painter reads its box decorations
++    /// through this index.
 +    pub style_index: u16,
 +    /// Index of the line this fragment belongs to. The painter
 +    /// pairs this with `LayoutData::lines[line_index]` to get
 +    /// vertical metrics (baseline, ascent, descent).
 +    pub line_index: u32,
-+    /// Line-relative left edge of the fragment, including the
-+    /// span's leading padding + border. Pre-charged into the
-+    /// breaker's `line.x` via `cluster_lead_advance` so it
-+    /// matches the visible glyph offset.
++    /// Line-relative left edge of the fragment, including any
++    /// leading padding + border charged into the breaker's `line.x`
++    /// via `cluster_lead_advance`.
 +    pub x_start: f32,
-+    /// Line-relative right edge, including the span's trailing
-+    /// padding + border. Same charging story via
-+    /// `cluster_trail_advance`.
++    /// Line-relative right edge, including any trailing padding +
++    /// border charged via `cluster_trail_advance`.
 +    pub x_end: f32,
 +    /// `true` if this fragment is the first one for its span
 +    /// (i.e. the span begins on this line, at its first cluster).
@@ -267,10 +392,18 @@ index e6ab383..88121a1 100644
 +    pub is_last_fragment: bool,
 +}
 +
++/// A span boundary at a shaped-cluster index. The span's horizontal
++/// advance can be zero, as with a background-only inline span.
++#[derive(Copy, Clone, Debug, PartialEq)]
++pub(crate) struct SpanBoundary {
++    pub(crate) cluster_index: usize,
++    pub(crate) style_index: u16,
++}
++
  #[derive(Clone, Default, Debug, PartialEq)]
  pub(crate) struct LineData {
      /// Range of the source text.
-@@ -210,6 +271,51 @@ pub(crate) struct LayoutData<B: Brush> {
+@@ -210,6 +277,56 @@ pub(crate) struct LayoutData<B: Brush> {
      pub(crate) runs: Vec<RunData>,
      pub(crate) items: Vec<LayoutItem>,
 
@@ -278,9 +411,9 @@ index e6ab383..88121a1 100644
 +    /// box decoration that begins at this cluster: the
 +    /// `padding_inline_start + border_inline_start_width` of any
 +    /// span whose first cluster is this one. Parallel to
-+    /// [`ShapedText::shaped_clusters`] once `build_into_layout` has
-+    /// finalized, or empty when no span in the layout has box
-+    /// decorations.
++    /// [`ShapedText::shaped_clusters`] when any span contributes a
++    /// nonzero inline advance, or empty otherwise. Background-only
++    /// spans still have fragment boundaries without these vectors.
 +    ///
 +    /// Charged as a spacing gap visually before the cluster's atom
 +    /// (see `EffectiveSpacing::gaps`), so line breaking, content
@@ -294,6 +427,11 @@ index e6ab383..88121a1 100644
 +    /// visually after the cluster's atom. See
 +    /// `cluster_lead_advance`.
 +    pub(crate) cluster_trail_advance: Vec<f32>,
++
++    /// Span boundaries for fragment generation, including boundaries whose
++    /// corresponding inline advance is zero.
++    pub(crate) span_starts: Vec<SpanBoundary>,
++    pub(crate) span_ends: Vec<SpanBoundary>,
 +
 +    /// Per-line inline-span fragment rectangles. Each entry
 +    /// describes one rectangle the painter should fill (with
@@ -322,27 +460,31 @@ index e6ab383..88121a1 100644
      // Output of line breaking
      /// The lines in the
      pub(crate) lines: Vec<LineData>,
-@@ -254,6 +360,9 @@ impl<B: Brush> Default for LayoutData<B> {
+@@ -254,6 +371,11 @@ impl<B: Brush> Default for LayoutData<B> {
              shaped_text: ShapedText::new(),
              runs: Vec::new(),
              items: Vec::new(),
 +            cluster_lead_advance: Vec::new(),
 +            cluster_trail_advance: Vec::new(),
++            span_starts: Vec::new(),
++            span_ends: Vec::new(),
 +            span_fragments: Vec::new(),
              lines: Vec::new(),
              line_items: Vec::new(),
              aligned_subtree_offsets: Vec::new(),
-@@ -283,6 +392,9 @@ impl<B: Brush> LayoutData<B> {
+@@ -283,6 +405,11 @@ impl<B: Brush> LayoutData<B> {
          self.shaped_text.clear();
          self.runs.clear();
          self.items.clear();
 +        self.cluster_lead_advance.clear();
 +        self.cluster_trail_advance.clear();
++        self.span_starts.clear();
++        self.span_ends.clear();
 +        self.span_fragments.clear();
          self.lines.clear();
          self.line_items.clear();
          self.aligned_subtree_offsets.clear();
-@@ -369,6 +481,8 @@ impl<B: Brush> LayoutData<B> {
+@@ -369,6 +496,8 @@ impl<B: Brush> LayoutData<B> {
              spacing,
              run_box,
              has_mixed_style_atoms,
@@ -351,7 +493,7 @@ index e6ab383..88121a1 100644
          };
 
          self.runs.push(run);
-@@ -379,6 +493,15 @@ impl<B: Brush> LayoutData<B> {
+@@ -379,6 +508,15 @@ impl<B: Brush> LayoutData<B> {
          });
      }
 
@@ -367,7 +509,7 @@ index e6ab383..88121a1 100644
      /// Calculates the min- and max-content widths of the layout.
      ///
      /// The max-content width is the widest line when breaking only at forced breaks. The
-@@ -495,6 +618,7 @@ impl ContentWidthsMeasurer {
+@@ -495,6 +633,7 @@ impl ContentWidthsMeasurer {
                  LayoutItemKind::TextRun => {
                      let slice = layout_data.shaped_text.run_slice(item.index as u32);
                      let run_spacing = layout_data.runs[item.index].spacing;
@@ -375,7 +517,7 @@ index e6ab383..88121a1 100644
                      // Trailing whitespace can only hang if it ends up at the line's end edge after
                      // bidi reordering. We don't currently apply UAX #9 L1 (resetting trailing
                      // whitespace to paragraph level), so only logically-last items that match the
-@@ -502,11 +626,12 @@ impl ContentWidthsMeasurer {
+@@ -502,11 +641,12 @@ impl ContentWidthsMeasurer {
                      let can_hang = item.bidi_level == layout_data.base_level;
                      let is_rtl = item.bidi_level.is_rtl();
 
@@ -389,7 +531,7 @@ index e6ab383..88121a1 100644
                              can_hang,
                              is_rtl,
                          );
-@@ -515,6 +640,7 @@ impl ContentWidthsMeasurer {
+@@ -515,6 +655,7 @@ impl ContentWidthsMeasurer {
                              &layout_data.styles,
                              slice,
                              run_spacing,
@@ -397,7 +539,7 @@ index e6ab383..88121a1 100644
                              can_hang,
                              is_rtl,
                          );
-@@ -571,16 +697,20 @@ impl ContentWidthsMeasurer {
+@@ -571,16 +712,20 @@ impl ContentWidthsMeasurer {
      ///
      /// With `SPACED`, each atom's spacing gap is added to the cluster on its visual end, i.e., its
      /// logically last cluster for LTR and its logically first cluster for RTL. The gap then hangs
@@ -419,7 +561,7 @@ index e6ab383..88121a1 100644
          let clusters = slice.shaped_clusters();
          // The cluster index at which nothing has been placed on the current line yet, if any.
          let mut empty_at = if self.line_has_content { usize::MAX } else { 0 };
-@@ -631,6 +761,9 @@ impl ContentWidthsMeasurer {
+@@ -631,6 +776,9 @@ impl ContentWidthsMeasurer {
                  if owns_gap {
                      advance += gap;
                  }
@@ -430,10 +572,10 @@ index e6ab383..88121a1 100644
              self.running_min_width += advance;
              self.running_max_width += advance;
 diff --git a/src/layout/layout.rs b/src/layout/layout.rs
-index 4b0cf9a..7509aca 100644
+index 4b0cf9a..97fba62 100644
 --- a/src/layout/layout.rs
 +++ b/src/layout/layout.rs
-@@ -173,6 +173,73 @@ impl<B: Brush> Layout<B> {
+@@ -173,6 +173,74 @@ impl<B: Brush> Layout<B> {
          self.data.inline_boxes.iter_mut().map(|b| &mut b.inline_box)
      }
 
@@ -456,8 +598,9 @@ index 4b0cf9a..7509aca 100644
 +    /// vectors so downstream regression tests can verify which
 +    /// clusters got charged with span-boundary advance. Hidden
 +    /// from docs because the storage format is not part of the
-+    /// stable API. Both are empty when no span in the layout has
-+    /// box decorations.
++    /// stable API. Both are empty when no span contributes a
++    /// nonzero inline advance; background-only spans still emit
++    /// fragments without populating them.
 +    #[doc(hidden)]
 +    pub fn debug_cluster_sidecars(&self) -> (&[f32], &[f32]) {
 +        (
@@ -521,7 +664,7 @@ index 1569071..e3ed9e4 100644
      /// The next atom in visual order, if it has been peeked but not yet consumed.
      peeked: Option<Atom<'a>>,
 diff --git a/src/layout/line_break.rs b/src/layout/line_break.rs
-index 3c3798c..58f8243 100644
+index 3c3798c..7d3fc82 100644
 --- a/src/layout/line_break.rs
 +++ b/src/layout/line_break.rs
 @@ -18,7 +18,7 @@ use crate::layout::style_metrics::{
@@ -543,7 +686,7 @@ index 3c3798c..58f8243 100644
 
                      let line_height = run.data.line_height;
 
-@@ -1626,6 +1627,124 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+@@ -1626,6 +1627,134 @@ impl<'a, B: Brush> BreakLines<'a, B> {
      }
  }
 
@@ -552,11 +695,10 @@ index 3c3798c..58f8243 100644
 +    /// `SpanFragment` for each inline span whose first and last
 +    /// cluster live on that line (single-line spans).
 +    ///
-+    /// `cluster_lead_advance[i] > 0` marks the first cluster of a
-+    /// span (where the lead charge fires) and
-+    /// `cluster_trail_advance[i] > 0` marks the last. A span whose
-+    /// lead and trail are both within one line produces a single
-+    /// fragment; a span that straddles a line break produces none.
++    /// Explicit span boundaries mark the first and last clusters,
++    /// independently of whether either boundary adds advance. A span
++    /// whose boundaries are within one line produces one fragment;
++    /// a span that straddles a line break produces none.
 +    ///
 +    /// Tracking is done via a small "open spans" stack of
 +    /// (style_index, x_start_for_span). A lead pushes onto it, and
@@ -567,12 +709,10 @@ index 3c3798c..58f8243 100644
 +        let mut fragments = core::mem::take(&mut self.layout.data.span_fragments);
 +        fragments.clear();
 +        let data = &self.layout.data;
-+        if data.cluster_lead_advance.is_empty() {
++        if data.span_starts.is_empty() || data.span_ends.is_empty() {
 +            self.layout.data.span_fragments = fragments;
 +            return;
 +        }
-+        let clusters = data.shaped_text.shaped_clusters();
-+
 +        struct OpenSpan {
 +            style_index: u16,
 +            x_start: f32,
@@ -619,9 +759,15 @@ index 3c3798c..58f8243 100644
 +                    // leading padding+border, which is a gap before
 +                    // the atom.
 +                    for ci in atom_clusters.clone() {
-+                        if data.cluster_lead_advance[ci] > 0.0 {
++                        let first_boundary = data
++                            .span_starts
++                            .partition_point(|boundary| boundary.cluster_index < ci);
++                        for boundary in data.span_starts[first_boundary..]
++                            .iter()
++                            .take_while(|boundary| boundary.cluster_index == ci)
++                        {
 +                            open_spans.push(OpenSpan {
-+                                style_index: clusters[ci].style_index,
++                                style_index: boundary.style_index,
 +                                x_start: x,
 +                            });
 +                        }
@@ -633,20 +779,27 @@ index 3c3798c..58f8243 100644
 +                    // so x is now at the outer edge of the trailing
 +                    // padding+border. Use as fragment x_end.
 +                    for ci in atom_clusters {
-+                        if data.cluster_trail_advance[ci] > 0.0
-+                            && open_spans
-+                                .last()
-+                                .is_some_and(|s| s.style_index == clusters[ci].style_index)
++                        let first_boundary = data
++                            .span_ends
++                            .partition_point(|boundary| boundary.cluster_index < ci);
++                        for boundary in data.span_ends[first_boundary..]
++                            .iter()
++                            .take_while(|boundary| boundary.cluster_index == ci)
 +                        {
-+                            let span = open_spans.pop().unwrap();
-+                            fragments.push(SpanFragment {
-+                                style_index: span.style_index,
-+                                line_index,
-+                                x_start: span.x_start,
-+                                x_end: x,
-+                                is_first_fragment: true,
-+                                is_last_fragment: true,
-+                            });
++                            if open_spans
++                                .last()
++                                .is_some_and(|span| span.style_index == boundary.style_index)
++                            {
++                                let span = open_spans.pop().unwrap();
++                                fragments.push(SpanFragment {
++                                    style_index: span.style_index,
++                                    line_index,
++                                    x_start: span.x_start,
++                                    x_end: x,
++                                    is_first_fragment: true,
++                                    is_last_fragment: true,
++                                });
++                            }
 +                        }
 +                    }
 +                }
@@ -668,7 +821,7 @@ index 3c3798c..58f8243 100644
  impl<B: Brush> Drop for BreakLines<'_, B> {
      fn drop(&mut self) {
          // Compute the overall width and height of the entire layout
-@@ -1664,6 +1783,11 @@ impl<B: Brush> Drop for BreakLines<'_, B> {
+@@ -1664,6 +1793,11 @@ impl<B: Brush> Drop for BreakLines<'_, B> {
          self.layout.data.height = height as f32;
          self.layout.data.layout_max_advance = self.state.layout_max_advance;
 
@@ -680,7 +833,7 @@ index 3c3798c..58f8243 100644
          // Save the computed lines to the layout
          self.lines.swap(&mut self.layout.data);
      }
-@@ -1905,7 +2029,8 @@ fn hanging_whitespace<B: Brush>(
+@@ -1905,7 +2039,8 @@ fn hanging_whitespace<B: Brush>(
                  let effective_spacing = EffectiveSpacing::new(
                      layout.data.runs[line_item.index].spacing,
                      Justification::NONE,
@@ -691,7 +844,7 @@ index 3c3798c..58f8243 100644
                      .data
                      .shaped_text
 diff --git a/src/layout/mod.rs b/src/layout/mod.rs
-index 6e2baba..014e5de 100644
+index 6e2baba..005f0d2 100644
 --- a/src/layout/mod.rs
 +++ b/src/layout/mod.rs
 @@ -25,7 +25,7 @@ pub(crate) mod data;
@@ -703,6 +856,15 @@ index 6e2baba..014e5de 100644
  pub use layout::Layout;
  pub use line::{GlyphRun, Line, LineMetrics, PositionedInlineBox, PositionedLayoutItem};
  pub use line_break::{
+@@ -33,7 +33,7 @@ pub use line_break::{
+ };
+ pub use run::Run;
+
+-pub(crate) use data::{LayoutData, LayoutItem, LayoutItemKind, LineData, LineItemData};
++pub(crate) use data::{LayoutData, LayoutItem, LayoutItemKind, LineData, LineItemData, SpanBoundary};
+ pub(crate) use line::LineItem;
+ pub(crate) use spacing::Spacing;
+
 @@ -43,7 +43,7 @@ pub use crate::editing::{Cursor, Selection};
 
  // TODO - Move the following to `style` module and submodules.
@@ -857,7 +1019,7 @@ index 2b2ae69..93144cd 100644
  ) -> (f32, bool) {
      let gaps = spacing.gaps(atom);
 diff --git a/src/resolve/mod.rs b/src/resolve/mod.rs
-index f465832..8ba7362 100644
+index f465832..6ad8a6f 100644
 --- a/src/resolve/mod.rs
 +++ b/src/resolve/mod.rs
 @@ -11,8 +11,8 @@ pub(crate) use range::RangedStyleBuilder;
@@ -871,45 +1033,35 @@ index f465832..8ba7362 100644
  };
  use crate::font::FontContext;
  use crate::style::TextStyle;
-@@ -32,10 +32,37 @@ pub(crate) struct RangedStyle<B: Brush> {
+@@ -32,10 +32,27 @@ pub(crate) struct RangedStyle<B: Brush> {
  }
 
  /// Run that references a style in a shared style table.
 +///
-+/// In addition to the style and the byte range, each run carries
-+/// two flags that describe its position within its containing
-+/// style span (one `<a>`/`<span>` element in CSS terms):
-+/// `is_span_first` is set on the first text run that lives inside
-+/// the span, and `is_span_last` on the last. When both are set,
-+/// the run is the entire span (singleton case). When neither, the
-+/// run is interior: text that sits between nested spans, or
-+/// between a span and a sibling.
-+///
-+/// The line-breaker reads these flags to know where to charge
-+/// CSS inline-box decoration advance: at the first cluster of a
-+/// `is_span_first` run, it charges `padding_inline_start +
-+/// border_inline_start_width`, and at the last cluster of a
-+/// `is_span_last` run it charges the matching `_end` values. A
-+/// run with empty `BoxDecorations` (the default, upstream
-+/// behavior, including the document's root style) charges
-+/// nothing regardless of these flags.
++/// In addition to the style and byte range, tree-built runs carry
++/// `tree_span_index`, the canonical style-table index of the span
++/// that received their text. The layout builder follows that span's
++/// parent chain so decorations cover text in descendant spans too.
++/// Flat run builders have no tree topology, so their `is_span_first`
++/// and `is_span_last` flags describe each run's own span instead.
  #[derive(Debug, Clone)]
  pub(crate) struct StyleRun {
      pub(crate) style_index: u16,
      pub(crate) range: Range<usize>,
++    /// Canonical style-table index of the TreeStyleBuilder node
++    /// that received this text, rather than a wrappable variant;
++    /// `None` for flat run builders.
++    pub(crate) tree_span_index: Option<u16>,
 +    /// `true` if this run is the first text inside its span.
-+    /// Always `true` for ranged builds (no nesting). Set on
-+    /// tree-built runs by the first commit after a
-+    /// `push_style_span`.
++    /// Always `true` for flat run builders.
 +    pub(crate) is_span_first: bool,
 +    /// `true` if this run is the last text inside its span.
-+    /// Always `true` for ranged builds. Set on tree-built runs
-+    /// by `pop_style_span`.
++    /// Always `true` for flat run builders.
 +    pub(crate) is_span_last: bool,
  }
 
  #[derive(Clone)]
-@@ -169,6 +196,7 @@ impl ResolveContext {
+@@ -169,6 +186,7 @@ impl ResolveContext {
              StyleProperty::OverflowWrap(value) => OverflowWrap(*value),
              StyleProperty::TextWrapMode(value) => TextWrapMode(*value),
              StyleProperty::WhiteSpaceCollapse(value) => WhiteSpaceCollapse(*value),
@@ -917,7 +1069,7 @@ index f465832..8ba7362 100644
          }
      }
 
-@@ -210,6 +238,7 @@ impl ResolveContext {
+@@ -210,6 +228,7 @@ impl ResolveContext {
              overflow_wrap: raw_style.overflow_wrap,
              text_wrap_mode: raw_style.text_wrap_mode,
              white_space_collapse: raw_style.white_space_collapse,
@@ -925,7 +1077,7 @@ index f465832..8ba7362 100644
          }
      }
 
-@@ -400,6 +429,8 @@ pub(crate) enum ResolvedProperty<B: Brush> {
+@@ -400,6 +419,8 @@ pub(crate) enum ResolvedProperty<B: Brush> {
      TextWrapMode(TextWrapMode),
      /// Whitespace collapsing and hanging behavior.
      WhiteSpaceCollapse(WhiteSpaceCollapse),
@@ -934,7 +1086,7 @@ index f465832..8ba7362 100644
  }
 
  /// Flattened group of style properties.
-@@ -448,6 +479,13 @@ pub(crate) struct ResolvedStyle<B: Brush> {
+@@ -448,6 +469,13 @@ pub(crate) struct ResolvedStyle<B: Brush> {
      pub(crate) text_wrap_mode: TextWrapMode,
      /// Whitespace collapsing and hanging behavior.
      pub(crate) white_space_collapse: WhiteSpaceCollapse,
@@ -948,7 +1100,7 @@ index f465832..8ba7362 100644
  }
 
  impl<B: Brush> ResolvedStyle<B> {
-@@ -481,6 +519,7 @@ impl<B: Brush> ResolvedStyle<B> {
+@@ -481,6 +509,7 @@ impl<B: Brush> ResolvedStyle<B> {
              OverflowWrap(value) => self.overflow_wrap = value,
              TextWrapMode(value) => self.text_wrap_mode = value,
              WhiteSpaceCollapse(value) => self.white_space_collapse = value,
@@ -956,7 +1108,7 @@ index f465832..8ba7362 100644
          }
      }
 
-@@ -513,6 +552,7 @@ impl<B: Brush> ResolvedStyle<B> {
+@@ -513,6 +542,7 @@ impl<B: Brush> ResolvedStyle<B> {
              OverflowWrap(value) => self.overflow_wrap == *value,
              TextWrapMode(value) => self.text_wrap_mode == *value,
              WhiteSpaceCollapse(value) => self.white_space_collapse == *value,
@@ -964,7 +1116,7 @@ index f465832..8ba7362 100644
          }
      }
 
-@@ -527,6 +567,7 @@ impl<B: Brush> ResolvedStyle<B> {
+@@ -527,6 +557,7 @@ impl<B: Brush> ResolvedStyle<B> {
              overflow_wrap: self.overflow_wrap,
              text_wrap_mode: self.text_wrap_mode,
              white_space_collapse: self.white_space_collapse,
@@ -973,13 +1125,14 @@ index f465832..8ba7362 100644
          }
      }
 diff --git a/src/resolve/range.rs b/src/resolve/range.rs
-index 7bc3d0d..eec45c6 100644
+index 7bc3d0d..fce1da7 100644
 --- a/src/resolve/range.rs
 +++ b/src/resolve/range.rs
-@@ -168,6 +168,16 @@ impl<B: Brush> RangedStyleBuilder<B> {
+@@ -168,6 +168,17 @@ impl<B: Brush> RangedStyleBuilder<B> {
              style_runs.push(StyleRun {
                  style_index,
                  range: style.range,
++                tree_span_index: None,
 +                // The ranged builder has no concept of nested
 +                // spans; each run owns its full span and is both
 +                // first and last. Box decorations on a ranged
@@ -994,28 +1147,10 @@ index 7bc3d0d..eec45c6 100644
          }
 
 diff --git a/src/resolve/tree.rs b/src/resolve/tree.rs
-index c102610..c950343 100644
+index c102610..6b4caa0 100644
 --- a/src/resolve/tree.rs
 +++ b/src/resolve/tree.rs
-@@ -16,6 +16,9 @@ struct StyleTreeNode<B: Brush> {
-     /// The style's id when it is used for whitespace that wrapping is allowed after, which differs
-     /// from `style_id` only for spans that disable wrapping.
-     wrappable_style_id: Option<u16>,
-+    /// Whether no text has been committed to this span yet, so the next
-+    /// [`StyleRun`] it starts is the span's first (`StyleRun::is_span_first`).
-+    is_span_first: bool,
- }
-
- /// A collapsible whitespace sequence that has not been committed yet.
-@@ -93,6 +96,7 @@ impl<B: Brush> TreeStyleBuilder<B> {
-             style: root_style,
-             style_id: Some(0),
-             wrappable_style_id: None,
-+            is_span_first: true,
-         });
-         self.current_span = 0;
-     }
-@@ -183,7 +187,7 @@ impl<B: Brush> TreeStyleBuilder<B> {
+@@ -183,7 +183,7 @@ impl<B: Brush> TreeStyleBuilder<B> {
          } else {
              self.resolve_style_id(pending.span)
          };
@@ -1024,7 +1159,7 @@ index c102610..c950343 100644
      }
 
      /// The style table index of the span that text is currently being pushed into.
-@@ -194,25 +198,50 @@ impl<B: Brush> TreeStyleBuilder<B> {
+@@ -194,21 +194,32 @@ impl<B: Brush> TreeStyleBuilder<B> {
      /// Appends already white space processed `text` to the buffer, attributed to `span`.
      fn commit_text(&mut self, span: usize, text: &str) {
          let style_index = self.resolve_style_id(span);
@@ -1037,11 +1172,11 @@ index c102610..c950343 100644
 +    /// Appends already white space processed `text` to the buffer with the given style, attributed
 +    /// to `span`.
 +    ///
-+    /// A new run is flagged `is_span_first` if it is the first text committed to `span`, so the
-+    /// line breaker can charge the span's leading box decorations (padding + border) there; see
-+    /// [`Self::pop_style_span`] for the trailing side. Runs never merge across spans, as each span
-+    /// has style ids of its own.
++    /// The run records the canonical tree style that received its text, allowing the layout
++    /// builder to place decoration boundaries for this span and its ancestors. Runs never merge
++    /// across spans, as each span has style ids of its own.
 +    fn commit_styled_text(&mut self, span: usize, style_index: u16, text: &str) {
++        let tree_span_index = self.resolve_style_id(span);
          let start = self.text.len();
          self.text.push_str(text);
          match self.style_runs.last_mut() {
@@ -1053,149 +1188,27 @@ index c102610..c950343 100644
 -                range: start..self.text.len(),
 -            }),
 +            _ => {
-+                let is_span_first = core::mem::take(&mut self.tree[span].is_span_first);
 +                self.style_runs.push(StyleRun {
 +                    style_index,
 +                    range: start..self.text.len(),
-+                    is_span_first,
++                    tree_span_index: Some(tree_span_index),
++                    is_span_first: false,
 +                    is_span_last: false,
 +                });
 +            }
          }
          self.last_item_is_inline_box = false;
      }
-
-+    /// Flags the last committed run `is_span_last` if it belongs to `span`, so the line breaker
-+    /// charges the span's trailing box decorations there. A span whose last text sits in a child
-+    /// span gets no trailing charge, and a collapsible space committed after the span ended (it
-+    /// only is once followed by content) joins the flagged run.
-+    fn mark_span_last(&mut self, span: usize) {
-+        let node = &self.tree[span];
-+        if let Some(run) = self.style_runs.last_mut()
-+            && (Some(run.style_index) == node.style_id
-+                || Some(run.style_index) == node.wrappable_style_id)
-+        {
-+            run.is_span_last = true;
-+        }
-+    }
-+
-     /// The index of `span`'s style in the style table, adding it (and any ancestors that have not
-     /// yet been added) to the table if necessary. Ancestors are added first so that a style's
-     /// parent always has a lower index than the style itself.
-@@ -272,6 +301,7 @@ impl<B: Brush> TreeStyleBuilder<B> {
-             style,
-             style_id: None,
-             wrappable_style_id: None,
-+            is_span_first: true,
-         });
-         self.current_span = self.tree.len() - 1;
-     }
-@@ -290,6 +320,7 @@ impl<B: Brush> TreeStyleBuilder<B> {
-
-     /// Ends the current span, returning to its parent.
-     pub(crate) fn pop_style_span(&mut self) {
-+        self.mark_span_last(self.current_span);
-         self.current_span = self.tree[self.current_span]
-             .parent
-             .expect("Popped root style");
-@@ -304,6 +335,7 @@ impl<B: Brush> TreeStyleBuilder<B> {
-         while self.tree[self.current_span].parent.is_some() {
-             self.pop_style_span();
-         }
-+        self.mark_span_last(self.current_span);
-
-         style_table.clear();
-         style_runs.clear();
-@@ -315,6 +347,8 @@ impl<B: Brush> TreeStyleBuilder<B> {
+@@ -315,6 +326,9 @@ impl<B: Brush> TreeStyleBuilder<B> {
              style_runs.push(StyleRun {
                  style_index: 0,
                  range: 0..0,
-+                is_span_first: true,
-+                is_span_last: true,
++                tree_span_index: Some(0),
++                is_span_first: false,
++                is_span_last: false,
              });
          }
 
-@@ -619,4 +653,80 @@ mod tests {
-         assert!(!builder.has_pending_whitespace());
-         builder.pop_style_span();
-     }
-+
-+    /// Inline-span box-decoration patch: `is_span_first` /
-+    /// `is_span_last` flags are set on `StyleRun` so the line-
-+    /// breaker knows where to charge enter/leave advance.
-+    ///
-+    /// Topology under test (same as
-+    /// `reuses_parent_and_root_style_ids_after_nested_pop` so the
-+    /// flag interpretation can be matched against documented
-+    /// style indices):
-+    ///
-+    /// ```text
-+    /// text:        R   A   B   C   D
-+    /// style_index: 0   1   2   1   0
-+    ///                  ↑   ↑       ↑
-+    ///                  open span 1
-+    ///                      open span 2
-+    ///                          (B is also span 2's last text)
-+    ///                              (close span 2 → "C" is span 1
-+    ///                               continuation, not first)
-+    ///                                  close span 1 → "C" was
-+    ///                                                last for
-+    ///                                                span 1
-+    /// ```
-+    ///
-+    /// Expected flags:
-+    ///   - run "R" (span 0 root):  first=true  (root start),
-+    ///                              last=false (more root text
-+    ///                                          coming)
-+    ///   - run "A" (span 1 entry): first=true,  last=false
-+    ///   - run "B" (span 2 only):  first=true,  last=true (span
-+    ///                              2 is a singleton)
-+    ///   - run "C" (span 1 tail):  first=false, last=true (span
-+    ///                              1 closed via pop_style_span)
-+    ///   - run "D" (span 0 tail):  first=false, last=true (root
-+    ///                              closed via finish())
-+    #[test]
-+    fn span_first_last_flags_track_nested_spans() {
-+        let mut builder = TreeStyleBuilder::<u32>::default();
-+        builder.begin(ResolvedStyle::default());
-+        builder.push_text("R");
-+        builder.push_style_modification_span([ResolvedProperty::FontSize(20.)].into_iter());
-+        builder.push_text("A");
-+        builder.push_style_modification_span([ResolvedProperty::LetterSpacing(1.)].into_iter());
-+        builder.push_text("B");
-+        builder.pop_style_span();
-+        builder.push_text("C");
-+        builder.pop_style_span();
-+        builder.push_text("D");
-+
-+        let mut style_table = Vec::new();
-+        let mut style_runs = Vec::new();
-+        let _ = builder.finish(&mut style_table, &mut style_runs);
-+
-+        assert_eq!(style_runs.len(), 5);
-+        // Run R: span 0 root, first text, more to come.
-+        assert!(style_runs[0].is_span_first, "R should be span_first");
-+        assert!(!style_runs[0].is_span_last, "R should NOT be span_last");
-+        // Run A: first text inside span 1, but a child span 2 will
-+        // open, so "A" itself is not the last text of span 1.
-+        assert!(style_runs[1].is_span_first, "A should be span_first");
-+        assert!(!style_runs[1].is_span_last, "A should NOT be span_last");
-+        // Run B: singleton inside span 2.
-+        assert!(style_runs[2].is_span_first, "B should be span_first");
-+        assert!(style_runs[2].is_span_last, "B should be span_last");
-+        // Run C: span 1 continuation, back in span 1 after popping
-+        // span 2. Not the first text of span 1 (A was), but it is
-+        // the last (because the next op is pop_style_span
-+        // for span 1).
-+        assert!(!style_runs[3].is_span_first, "C should NOT be span_first");
-+        assert!(style_runs[3].is_span_last, "C should be span_last");
-+        // Run D: span 0 continuation (final text). Not first; but
-+        // it's the last text emitted before finish() drains the
-+        // remaining open spans.
-+        assert!(!style_runs[4].is_span_first, "D should NOT be span_first");
-+        assert!(style_runs[4].is_span_last, "D should be span_last");
-+    }
- }
 diff --git a/src/style/mod.rs b/src/style/mod.rs
 index d9977df..99f6023 100644
 --- a/src/style/mod.rs
@@ -1417,10 +1430,10 @@ index 315f1c2..729dda8 100644
  }
 
 diff --git a/src/tests/utils/asserts.rs b/src/tests/utils/asserts.rs
-index f74f24b..1e5501f 100644
+index f74f24b..9ce4cbb 100644
 --- a/src/tests/utils/asserts.rs
 +++ b/src/tests/utils/asserts.rs
-@@ -95,6 +95,25 @@ pub(crate) fn assert_eq_layout_data<B: Brush>(a: &LayoutData<B>, b: &LayoutData<
+@@ -95,6 +95,27 @@ pub(crate) fn assert_eq_layout_data<B: Brush>(a: &LayoutData<B>, b: &LayoutData<
          b.shaped_text.glyphs(),
          "{case} glyphs mismatch"
      );
@@ -1436,6 +1449,8 @@ index f74f24b..1e5501f 100644
 +        a.cluster_trail_advance, b.cluster_trail_advance,
 +        "{case} cluster_trail_advance mismatch"
 +    );
++    assert_eq!(a.span_starts, b.span_starts, "{case} span_starts mismatch");
++    assert_eq!(a.span_ends, b.span_ends, "{case} span_ends mismatch");
 +    // Per-line span fragment rectangles. Generated by the line-
 +    // breaker's post-pass; for default BoxDecorations on every
 +    // span this is empty.

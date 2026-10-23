@@ -1,0 +1,168 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 3 Aug 2026 19:15:35 +0100
+Subject: [PATCH] context: recover and inspect leaked VM stack state
+
+Two paths leave state on the VM that nothing pops, and both end the same
+way: the residue accumulates until stack_size_limit trips, and from then
+on every execution fails at once with "exceeded maximum call stack
+length". The embedder is left with a context that can no longer run JS.
+
+- Error unwinds that cross host re-entry boundaries can leak vm.stack
+  entries, for example when a host trampoline re-enters a suspended
+  context through a raw pointer. One observed case: React
+  hydration-mismatch throws inside animation rAF callbacks leaked a few
+  slots per tick, and the context died after about 45 seconds.
+- A panic out of the interpreter (boa's own `index out of bounds` on a
+  minified third-party script, say) unwinds straight past every
+  `pop_frame`, so the frames it was running stay on `vm.frames` and
+  their registers stay on `vm.stack` for the life of the context.
+
+ks_clear_residual_stack recovers both at an idle point. With no frame
+other than the VM's permanent dummy frame at index 0 (frames.len() <=
+1), the value stack must be empty too, so it is drained. Stranded frames
+are reclaimed too, gated on `ks_execution_depth() == 0`: with no
+bytecode run live on the native stack, whatever is on the VM is by
+definition unreachable. The counter is a thread-local kept by a Drop
+guard in `run`/`run_async_with_budget`, so it unwinds with the panic
+rather than counting it forever. Popping (not truncating) restores the
+environment and realm each frame saved, the same way a normal return
+does. The VM's dummy frame is never popped.
+
+JsObject::call/construct track host_call_depth with a manual increment
+and decrement that a panic also skips, which inflates the recursion
+count for good, so the reclaim resets it too.
+
+ks_vm_stats is a diagnostic companion. The idle-point drain never fired
+on the poisoned-context repro because frames were non-empty, so the
+stack growth is pinned by live suspended executions, not residue. Expose
+(frames, stack) so the embedder can log occupancy over time and find
+what accumulates. Both probes skip the VM's permanent dummy frame, so
+frames == 0 means idle.
+---
+ src/context/mod.rs | 36 ++++++++++++++++++++++++++++++++++++
+ src/vm/mod.rs      | 43 +++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 79 insertions(+)
+
+diff --git a/src/context/mod.rs b/src/context/mod.rs
+index 78453d2..982dedf 100644
+--- a/src/context/mod.rs
++++ b/src/context/mod.rs
+@@ -494,6 +494,42 @@ impl Context {
+         self.job_executor().enqueue_job(job, self);
+     }
+
++    /// With no bytecode run live, whatever an unwind or panic left on the VM
++    /// is garbage that would trip the limits forever; reclaim it, returning the slots freed.
++    #[inline]
++    pub fn ks_clear_residual_stack(&mut self) -> usize {
++        // A panic unwind skips every `pop_frame` and every host-call decrement, so
++        // stranded frames pin their registers and the recursion count never drops.
++        if crate::vm::ks_execution_depth() != 0 {
++            return 0;
++        }
++        while self.vm.pop_frame().is_some() {}
++        self.vm.host_call_depth = 0;
++        self.vm.pending_exception = None;
++        self.vm.set_return_value(JsValue::undefined());
++        let n = self.vm.stack.len();
++        self.vm.stack.clear();
++        n
++    }
++
++    /// (call frames excluding the dummy, value-stack slots). frames == 0
++    /// with slots left is leaked residue; frames > 0 is a suspended execution.
++    #[inline]
++    pub fn ks_vm_stats(&self) -> (usize, usize) {
++        (self.vm.frames.len().saturating_sub(1), self.vm.stack.len())
++    }
++
++    /// Names of the frames currently pinning the VM, bottom-up (the
++    /// dummy frame excluded). Identifies which suspended execution never completes.
++    pub fn ks_vm_frame_names(&self) -> Vec<String> {
++        self.vm
++            .frames
++            .iter()
++            .skip(1)
++            .map(|f| f.code_block().name().to_std_string_escaped())
++            .collect()
++    }
++
+     /// Runs all the jobs with the provided job executor.
+     #[inline]
+     pub fn run_jobs(&mut self) -> JsResult<()> {
+diff --git a/src/vm/mod.rs b/src/vm/mod.rs
+index 5f6170b..85f3b47 100644
+--- a/src/vm/mod.rs
++++ b/src/vm/mod.rs
+@@ -133,6 +133,18 @@ impl Stack {
+         }
+     }
+
++    /// Number of live value slots, for the occupancy and residual-stack
++    /// probes on Context (ks_vm_stats, ks_clear_residual_stack).
++    pub(crate) fn len(&self) -> usize {
++        self.stack.len()
++    }
++
++    /// Drop every value slot. Only sound when no frame is executing,
++    /// which ks_clear_residual_stack checks first.
++    pub(crate) fn clear(&mut self) {
++        self.stack.clear();
++    }
++
+     /// Get a register value by index, relative to the given frame's `rp`.
+     pub(crate) fn get_register(&self, frame: &CallFrame, index: usize) -> Option<&JsValue> {
+         self.stack.get(frame.rp as usize + index)
+@@ -675,6 +687,35 @@ impl Vm {
+     }
+ }
+
++// How many bytecode runs are live on the native stack. An embedder that
++// survives panics needs to know when what is left on the VM is garbage.
++thread_local! {
++    static KS_EXEC_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
++}
++
++/// Zero means no `run`/`run_async_with_budget` is executing, so anything
++/// left on `vm.frames`/`vm.stack` was stranded by a panic unwind.
++pub(crate) fn ks_execution_depth() -> usize {
++    KS_EXEC_DEPTH.with(std::cell::Cell::get)
++}
++
++// Drop (not a plain decrement) so the count is restored while a panic unwinds
++// through the interpreter, which is the case that matters.
++struct KsExecDepthGuard;
++
++impl KsExecDepthGuard {
++    fn enter() -> Self {
++        KS_EXEC_DEPTH.with(|d| d.set(d.get() + 1));
++        Self
++    }
++}
++
++impl Drop for KsExecDepthGuard {
++    fn drop(&mut self) {
++        KS_EXEC_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
++    }
++}
++
+ #[allow(clippy::print_stdout)]
+ #[cfg(feature = "trace")]
+ impl Context {
+@@ -951,6 +992,7 @@ impl Context {
+     /// "clock cycles" have passed.
+     #[allow(clippy::future_not_send)]
+     pub(crate) async fn run_async_with_budget(&mut self, budget: u32) -> CompletionRecord {
++        let _ks_depth = KsExecDepthGuard::enter();
+         let mut runtime_budget: u32 = budget;
+
+         while let Some(byte) = self
+@@ -986,6 +1028,7 @@ impl Context {
+     }
+
+     pub(crate) fn run(&mut self) -> CompletionRecord {
++        let _ks_depth = KsExecDepthGuard::enter();
+         while let Some(byte) = self
+             .vm
+             .frame()

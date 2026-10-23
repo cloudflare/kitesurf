@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Wed, 23 Sep 2026 01:00:09 +0100
+Subject: [PATCH] object: expose an object's census key
+
+Lets an embedder pass objects it already pins to boa_gc::census
+without cloning them, which would add a root.
+---
+ src/object/jsobject.rs | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/object/jsobject.rs b/src/object/jsobject.rs
+index 2333013..d1cdcbf 100644
+--- a/src/object/jsobject.rs
++++ b/src/object/jsobject.rs
+@@ -255,6 +255,12 @@ impl JsObject {
+         JsObject { inner }
+     }
+
++    /// The heap address of this object for `boa_gc::census`, without adding a root.
++    #[must_use]
++    pub fn census_key(&self) -> boa_gc::CensusKey {
++        self.inner.census_key()
++    }
++
+     /// Downcasts the object's inner data if the object is of type `T`.
+     ///
+     /// # Panics

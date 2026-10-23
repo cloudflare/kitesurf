@@ -16,12 +16,28 @@ https://opensource.org/licenses/Apache-2.0
   // Everything on this page is left to workerd's URL resolution: a
   // cross-origin full-URL specifier, a JSON record with its attribute,
   // a path-absolute specifier, and two query variants of one module.
-  import { lib } from "https://ks-alt.invalid/__fixtures/module-registry-lib.js";
+  import {
+    lib,
+    count,
+    incrementCount,
+    initializedValue,
+    setInitializedValue,
+  } from "https://ks-alt.invalid/__fixtures/module-registry-lib.js";
   import config from "./module-registry-config.json" with { type: "json" };
   import { url as queryA } from "/__fixtures/module-registry-meta.js?v=a";
   import { url as queryB } from "./module-registry-meta.js?v=b";
+  incrementCount();
+  const incrementedCount = count;
+  setInitializedValue("first");
+  const firstInitializedValue = initializedValue;
+  setInitializedValue("second");
   globalThis.registryResult = {
     lib,
+    mutableExports: {
+      incrementedCount,
+      firstInitializedValue,
+      secondInitializedValue: initializedValue,
+    },
     config,
     queryA,
     queryB,
@@ -68,6 +84,11 @@ https://opensource.org/licenses/Apache-2.0
   } catch (e) {
     result.fallbackMalformed = String(e);
   }
+  // Boa links this module to the baked library above; its imports must see
+  // later writes to the library's `let` exports.
+  const liveReader = "live-reader";
+  const reader = await import(`./module-registry-${liveReader}.js`);
+  result.boaLiveCount = [reader.read(), reader.bump(), reader.read()];
   result.done = true;
 </script>
 <script type="module" src="/__fixtures/module-registry-tla.js"></script>

@@ -1,0 +1,160 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 22 Sep 2026 22:24:26 +0100
+Subject: [PATCH] Fix line breaks around out-of-flow and atomic inline boxes
+
+parley 0.12 already gives a line without in-flow content an invisible,
+zero-height line box. Keep one exception: a line that ends in a forced
+break (`<br>`, a preserved newline) keeps its line box, as the forced
+break generates one whether or not anything in-flow lands on it.
+
+The exception is keyed on the line's own break, not the previous line's.
+A line that only follows a forced break and holds nothing but
+out-of-flow boxes is still invisible: Chrome lays `text<br><br><abs>`
+out as two lines, and `text<br><abs><br>x` as three.
+
+The breaker marked a wrap opportunity after every inline box and started
+its lagged text-wrap-mode at the default (wrap), so inline-blocks inside
+white-space:nowrap wrapped onto new lines. parley 0.12 already marks the
+opportunity only when the line's wrap mode allows wrapping; seed the
+mode from the first style run, so that also holds before any text.
+---
+ src/layout/data.rs       | 25 +++++++++++++++++++------
+ src/layout/line_break.rs | 29 +++++++++++++++++++++++++----
+ 2 files changed, 44 insertions(+), 10 deletions(-)
+
+diff --git a/src/layout/data.rs b/src/layout/data.rs
+index 1d78dea..97a73ad 100644
+--- a/src/layout/data.rs
++++ b/src/layout/data.rs
+@@ -662,7 +662,10 @@ impl ContentWidthsMeasurer {
+                     }
+                 }
+                 LayoutItemKind::InlineBox => {
+-                    let inline_box = &layout_data.inline_boxes[item.index].inline_box;
++                    let layout_box = &layout_data.inline_boxes[item.index];
++                    let inline_box = &layout_box.inline_box;
++                    let parent_style_index = usize::from(layout_box.parent_style_index);
++                    let box_wrap_mode = layout_data.styles[parent_style_index].text_wrap_mode;
+                     if inline_box.kind == InlineBoxKind::InFlow {
+                         let next = items.as_slice().iter().find(|next| {
+                             next.kind == LayoutItemKind::TextRun
+@@ -679,7 +682,11 @@ impl ContentWidthsMeasurer {
+                             Some(_) => true,
+                             None => false,
+                         };
+-                        self.measure_inline_box(inline_box, followed_by_inline_content);
++                        self.measure_inline_box(
++                            inline_box,
++                            box_wrap_mode,
++                            followed_by_inline_content,
++                        );
+                     }
+                 }
+             }
+@@ -808,10 +815,15 @@ impl ContentWidthsMeasurer {
+         self.line_has_content = empty_at != clusters.len();
+     }
+
+-    fn measure_inline_box(&mut self, inline_box: &InlineBox, followed_by_inline_content: bool) {
++    fn measure_inline_box(
++        &mut self,
++        inline_box: &InlineBox,
++        box_wrap_mode: TextWrapMode,
++        followed_by_inline_content: bool,
++    ) {
+         // Inline boxes have soft wrap opportunities on both sides.
+-        let wraps = self.text_wrap_mode == TextWrapMode::Wrap;
+-        if wraps {
++        // The prior mode applies before the box; its parent mode applies after it.
++        if self.text_wrap_mode == TextWrapMode::Wrap {
+             self.soft_break(self.line_has_content);
+         }
+         // Inline boxes don't hang.
+@@ -819,7 +831,8 @@ impl ContentWidthsMeasurer {
+         self.running_min_width += inline_box.width;
+         self.running_max_width += inline_box.width;
+         self.line_has_content = true;
+-        if wraps && followed_by_inline_content {
++        self.text_wrap_mode = box_wrap_mode;
++        if box_wrap_mode == TextWrapMode::Wrap && followed_by_inline_content {
+             self.soft_break(true);
+             // Nothing has been placed on the new line yet.
+             self.line_has_content = false;
+diff --git a/src/layout/line_break.rs b/src/layout/line_break.rs
+index 7d3fc82..e12eb9b 100644
+--- a/src/layout/line_break.rs
++++ b/src/layout/line_break.rs
+@@ -849,10 +849,18 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+         lines.lines.clear();
+         lines.line_items.clear();
+         lines.aligned_subtree_offsets.clear();
++        // The lagged wrap mode starts from the paragraph's first
++        // style, not `Wrap`, so a paragraph that opens with an inline box
++        // inside `white-space: nowrap` doesn't get a break opportunity
++        // (or a hanging-space break) before any text has been seen.
++        let mut state = BreakerState::default();
++        if let Some(style) = layout.data.styles.first() {
++            state.line.text_wrap_mode = style.text_wrap_mode;
++        }
+         let mut this = Self {
+             layout,
+             lines,
+-            state: BreakerState::default(),
++            state,
+             prev_state: None,
+             done: false,
+         };
+@@ -918,8 +926,15 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+         // A line containing only empty inline boxes (and no text) is an invisible line box with
+         // zero height; the strut only applies once the line has content. The trailing empty line
+         // after a final newline has no items and keeps the strut so the cursor has a position.
++        //
++        // A forced break (`<br>`, a preserved newline) generates a
++        // line box whether or not anything in-flow lands on it, so a line that
++        // ends in one is never invisible, even when its only content is
++        // out-of-flow (CSS position:absolute/fixed) boxes.
++        let ends_in_forced_break = reason == BreakReason::Explicit;
+         let invisible = !self.state.line.box_metrics.has_content
+-            && !self.lines.lines.last().unwrap().item_range.is_empty();
++            && !self.lines.lines.last().unwrap().item_range.is_empty()
++            && !ends_in_forced_break;
+         let line_height = if invisible {
+             0.
+         } else {
+@@ -1060,7 +1075,10 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+
+             match item.kind {
+                 LayoutItemKind::InlineBox => {
+-                    let inline_box = &self.layout.data.inline_boxes[item.index].inline_box;
++                    let layout_box = &self.layout.data.inline_boxes[item.index];
++                    let inline_box = &layout_box.inline_box;
++                    let parent_style_index = usize::from(layout_box.parent_style_index);
++                    let box_wrap_mode = self.layout.data.styles[parent_style_index].text_wrap_mode;
+
+                     // In-flow boxes are aligned relative to their containing style's span box
+                     // (see `append_aligned_inline_box_to_line`). Out-of-flow boxes are not in-flow
+@@ -1094,19 +1112,22 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+
+                     // If the box fits on the current line (or we are at the start of the current line)
+                     // then simply move on to the next item
++                    // The prior mode governs wrapping before the box; its parent mode applies after.
+                     if next_x <= max_advance || self.state.line.text_wrap_mode != TextWrapMode::Wrap
+                     {
+                         self.append_layout_inline_box(item.index, next_x);
++                        self.state.line.text_wrap_mode = box_wrap_mode;
+
+                         // There is a soft wrap opportunity after an inline box, unless wrapping
+                         // is disabled
+-                        if self.state.line.text_wrap_mode == TextWrapMode::Wrap {
++                        if box_wrap_mode == TextWrapMode::Wrap {
+                             self.state.mark_line_break_opportunity();
+                         }
+                     } else {
+                         // If we're at the start of the line, this box will never fit, so consume it and accept the overflow.
+                         let reason = if self.state.line.x == 0.0 {
+                             self.append_layout_inline_box(item.index, next_x);
++                            self.state.line.text_wrap_mode = box_wrap_mode;
+                             BreakReason::Emergency
+                         } else {
+                             BreakReason::Regular

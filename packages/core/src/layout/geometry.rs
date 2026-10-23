@@ -532,94 +532,62 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
         false
     };
 
+    // Fragments contribute only the queried inline's own padding and border. Its text and
+    // atomic children come from the glyph runs and in-flow inline boxes below.
     let styles = layout.styles();
-    let mut min_x = f32::MAX;
-    let mut min_y = f32::MAX;
-    let mut max_x = f32::MIN;
-    let mut max_y = f32::MIN;
-    let mut found_any = false;
-    for fragment in layout.span_fragments() {
-        let Some(style) = styles.get(fragment.style_index as usize) else {
-            continue;
-        };
-        let styled_id = style.brush.id;
-        if !accepted(styled_id) {
-            continue;
+    let fragment_bounds = layout.span_fragments().iter().filter_map(|fragment| {
+        let style = styles.get(fragment.style_index as usize)?;
+        let decorations = &style.box_decorations;
+        let has_padding_or_border = decorations.padding_inline_start > 0.0
+            || decorations.padding_inline_end > 0.0
+            || decorations.padding_block_start > 0.0
+            || decorations.padding_block_end > 0.0
+            || decorations.border_inline_start_width > 0.0
+            || decorations.border_inline_end_width > 0.0
+            || decorations.border_block_start_width > 0.0
+            || decorations.border_block_end_width > 0.0;
+        if style.brush.id != node_id || !has_padding_or_border {
+            return None;
         }
-        let Some(line) = lines.get(fragment.line_index as usize) else {
-            continue;
-        };
-        let metrics = line.metrics();
+        let metrics = lines.get(fragment.line_index as usize)?.metrics();
         let x_origin = metrics.inline_min_coord + metrics.offset;
         let x0 = root_abs.x + content_off_x + x_origin + fragment.x_start;
         let x1 = root_abs.x + content_off_x + x_origin + fragment.x_end;
         let y0 = root_abs.y + content_off_y + metrics.block_min_coord;
         let y1 = root_abs.y + content_off_y + metrics.block_max_coord;
-        let (x0, y0, x1, y1) = transform_bounds(x0, y0, x1, y1);
-        if x0 < min_x {
-            min_x = x0;
-        }
-        if x1 > max_x {
-            max_x = x1;
-        }
-        if y0 < min_y {
-            min_y = y0;
-        }
-        if y1 > max_y {
-            max_y = y1;
-        }
-        found_any = true;
-    }
-    if !found_any {
-        let fallback_item_bounds =
-            |item: parley::layout::PositionedLayoutItem<'_, blitz_dom::node::TextBrush>| match item
+        Some(transform_bounds(x0, y0, x1, y1))
+    });
+    let item_bounds = lines
+        .iter()
+        .flat_map(|line| line.items())
+        .filter_map(|item| match item {
+            parley::layout::PositionedLayoutItem::GlyphRun(run)
+                if accepted(run.style().brush.id) =>
             {
-                parley::layout::PositionedLayoutItem::GlyphRun(run)
-                    if accepted(run.style().brush.id) =>
-                {
-                    // Glyph-run coordinates include the line's alignment offset.
-                    let metrics = run.run().font_metrics();
-                    let baseline = run.baseline();
-                    let x0 = root_abs.x + content_off_x + run.offset();
-                    let x1 = x0 + run.advance();
-                    let y0 = root_abs.y + content_off_y + baseline - metrics.ascent;
-                    let y1 = root_abs.y + content_off_y + baseline + metrics.descent;
-                    Some(transform_bounds(x0, y0, x1, y1))
-                }
-                parley::layout::PositionedLayoutItem::InlineBox(ibox)
-                    if ibox.kind == parley::InlineBoxKind::InFlow
-                        && accepted(NodeId::from_u64(ibox.id)) =>
-                {
-                    let x0 = root_abs.x + content_off_x + ibox.x;
-                    let y0 = root_abs.y + content_off_y + ibox.y;
-                    Some(transform_bounds(x0, y0, x0 + ibox.width, y0 + ibox.height))
-                }
-                _ => None,
-            };
-        for line in &lines {
-            for item in line.items() {
-                let Some((x0, y0, x1, y1)) = fallback_item_bounds(item) else {
-                    continue;
-                };
-                if x0 < min_x {
-                    min_x = x0;
-                }
-                if x1 > max_x {
-                    max_x = x1;
-                }
-                if y0 < min_y {
-                    min_y = y0;
-                }
-                if y1 > max_y {
-                    max_y = y1;
-                }
-                found_any = true;
+                // Glyph-run coordinates include the line's alignment offset.
+                let metrics = run.run().font_metrics();
+                let baseline = run.baseline();
+                let x0 = root_abs.x + content_off_x + run.offset();
+                let x1 = x0 + run.advance();
+                let y0 = root_abs.y + content_off_y + baseline - metrics.ascent;
+                let y1 = root_abs.y + content_off_y + baseline + metrics.descent;
+                Some(transform_bounds(x0, y0, x1, y1))
             }
-        }
-    }
-    if !found_any {
-        return None;
-    }
+            parley::layout::PositionedLayoutItem::InlineBox(ibox)
+                if ibox.kind == parley::InlineBoxKind::InFlow
+                    && accepted(NodeId::from_u64(ibox.id)) =>
+            {
+                let x0 = root_abs.x + content_off_x + ibox.x;
+                let y0 = root_abs.y + content_off_y + ibox.y;
+                Some(transform_bounds(x0, y0, x0 + ibox.width, y0 + ibox.height))
+            }
+            _ => None,
+        });
+    let (min_x, min_y, max_x, max_y) = fragment_bounds.chain(item_bounds).reduce(
+        |(ax0, ay0, ax1, ay1), (bx0, by0, bx1, by1)| {
+            (ax0.min(bx0), ay0.min(by0), ax1.max(bx1), ay1.max(by1))
+        },
+    )?;
     Some(Rect::resolved(min_x, min_y, max_x - min_x, max_y - min_y))
 }
 
@@ -711,7 +679,7 @@ fn svg_canvas_bbox(
     let key: &str = match elem.attr(local_name!("id")).filter(|s| !s.is_empty()) {
         Some(id) => id,
         None => {
-            synthetic = blitz_dom::node::svg_snapshot_id(host.svg_snapshot_index(node.id)?);
+            synthetic = host.svg_snapshot_id(node.id)?;
             &synthetic
         }
     };

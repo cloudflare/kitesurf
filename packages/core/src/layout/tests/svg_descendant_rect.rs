@@ -89,6 +89,24 @@ fn shape_without_id_is_found_through_the_stamped_id() {
 }
 
 #[test]
+fn synthetic_shape_ids_do_not_alias_author_ids() {
+    let dom = DomHandle::new(
+        r#"<!DOCTYPE html><style>body { margin: 0 }</style>
+        <svg width="100" height="100">
+          <rect id="ks-svg-internal-0-2" x="1" y="2" width="3" height="4"/>
+          <rect x="20" y="30" width="10" height="12"/>
+        </svg>"#,
+        "https://test.example/",
+    );
+    dom.resolve_layout();
+    assert_rect(
+        rect_of(&dom, "rect:last-of-type"),
+        (20.0, 30.0, 10.0, 12.0),
+        "shape with colliding synthetic id",
+    );
+}
+
+#[test]
 fn viewbox_scales_user_units_into_the_content_box() {
     let dom = DomHandle::new(
         r#"<!DOCTYPE html><style>body { margin: 0 }</style>

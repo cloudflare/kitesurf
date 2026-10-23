@@ -16,7 +16,7 @@ walks a subtree bulk-attached between two cascades (Vue or React
 hydration after an early paint) hit styles.primary().unwrap() and
 panicked the cascade. An unstyled subtree has nothing to invalidate,
 since the next traversal styles it from scratch, so skip it like
-display:none. This should land upstream in stylo.
+display:none.
 ---
  invalidation/element/state_and_attributes.rs | 11 ++++++++++-
  macros.rs                                    |  9 ++++-----

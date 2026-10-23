@@ -1,0 +1,165 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 5 Sep 2026 11:13:20 +0100
+Subject: [PATCH] Keep computed calc trees correct and panic-free
+
+A unit multiplier can only fold through a node when that node supports
+product distribution. Keep the product around min(), max(), and clamp()
+so computed serialization preserves the required 1 * term form.
+
+A NaN wins min() or max() only when the NaN branches have compatible
+units. Keep the function when relative and absolute units cannot be
+reduced to one leaf.
+
+Computed calc trees can contain empty sums, incompatible dimensions, or
+final numeric leaves. Treat them as safe fallback values so layout does
+not repeatedly unwind or crash the worker.
+
+Empty sums simplify to numeric zero before construction. Keep the
+existing conversion to a length without a debug-only panic, so malformed
+trees stay recoverable in all build profiles.
+---
+ values/computed/length_percentage.rs | 27 +++++++----------
+ values/generics/calc.rs              | 44 ++++++++++++++++++----------
+ 2 files changed, 39 insertions(+), 32 deletions(-)
+
+diff --git a/values/computed/length_percentage.rs b/values/computed/length_percentage.rs
+index da52986..cc5b853 100644
+--- a/values/computed/length_percentage.rs
++++ b/values/computed/length_percentage.rs
+@@ -242,13 +242,7 @@ impl LengthPercentage {
+                 ComputedLeaf::Percentage(p) => Self::new_percent(Percentage(
+                     clamping_mode.clamp(crate::values::normalize(p.get())),
+                 )),
+-                ComputedLeaf::Number(number) => {
+-                    debug_assert!(
+-                        false,
+-                        "The final result of a <length-percentage> should never be a number"
+-                    );
+-                    Self::new_length(Length::new(number))
+-                },
++                ComputedLeaf::Number(number) => Self::new_length(Length::new(number)),
+                 ComputedLeaf::Angle(..) | ComputedLeaf::Time(..) | ComputedLeaf::Resolution(..) => {
+                     debug_assert!(
+                             false,
+@@ -643,8 +637,7 @@ impl CalcLengthPercentage {
+     /// Resolves the percentage.
+     #[inline]
+     pub fn resolve(&self, basis: Length) -> Length {
+-        // unwrap() is fine because the conversion below is infallible.
+-        if let ComputedLeaf::Length(px) = self
++        let resolved = self
+             .node
+             .resolve_map(|leaf| {
+                 Ok(if let ComputedLeaf::Percentage(p) = leaf {
+@@ -652,13 +645,15 @@ impl CalcLengthPercentage {
+                 } else {
+                     leaf.clone()
+                 })
+-            })
+-            .unwrap()
+-        {
+-            Length::new(self.clamping_mode.clamp(px.px())).normalized()
+-        } else {
+-            unreachable!("resolve_map should turn percentages to lengths, and parsing should ensure that we don't end up with a number");
+-        }
++            });
++        let px = match resolved {
++            Ok(ComputedLeaf::Length(px)) => px.px(),
++            // new_calc() already treats a final numeric leaf as a length.
++            Ok(ComputedLeaf::Number(number)) => number,
++            // Invalid computed calc trees must not panic during layout.
++            Ok(_) | Err(()) => 0.0,
++        };
++        Length::new(self.clamping_mode.clamp(px)).normalized()
+     }
+
+     /// Return a clone of this node with all anchor functions computed and replaced with
+diff --git a/values/generics/calc.rs b/values/generics/calc.rs
+index 1aace38..4c0fa27 100644
+--- a/values/generics/calc.rs
++++ b/values/generics/calc.rs
+@@ -979,10 +979,6 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+     pub fn try_product_in_place(&mut self, other: &mut Self) -> bool {
+         if let Ok(resolved) = other.resolve() {
+             if let Some(number) = resolved.as_number() {
+-                if number == 1.0 {
+-                    return true;
+-                }
+-
+                 if self.is_product_distributive() {
+                     if self.map(|v| v * number).is_err() {
+                         return false;
+@@ -994,11 +990,6 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+
+         if let Ok(resolved) = self.resolve() {
+             if let Some(number) = resolved.as_number() {
+-                if number == 1.0 {
+-                    std::mem::swap(self, other);
+-                    return true;
+-                }
+-
+                 if other.is_product_distributive() {
+                     if other.map(|v| v * number).is_err() {
+                         return false;
+@@ -1278,7 +1269,10 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                 Ok((1.0 / value, ty))
+             },
+             Self::Sum(children) => {
+-                let (mut value, mut ty) = children[0].resolve_internal(leaf_to_output_fn)?;
++                let Some(first) = children.first() else {
++                    return Ok((0.0, NumericType::number()));
++                };
++                let (mut value, mut ty) = first.resolve_internal(leaf_to_output_fn)?;
+
+                 for child in children.iter().skip(1) {
+                     let (right, right_ty) = child.resolve_internal(leaf_to_output_fn)?;
+@@ -1997,17 +1991,30 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                     MinMaxOp::Max => cmp::Ordering::Greater,
+                 };
+
+-                if value_or_stop!(children[0].is_nan_leaf()) {
+-                    replace_self_with!(&mut children[0]);
++                let mut nan_index = None;
++                for i in 0..children.len() {
++                    if !value_or_stop!(children[i].is_nan_leaf()) {
++                        continue;
++                    }
++                    if let Some(previous) = nan_index {
++                        let same_unit = match (&children[previous], &children[i]) {
++                            (Self::Leaf(a), Self::Leaf(b)) => a.is_same_unit_as(b),
++                            _ => false,
++                        };
++                        if !same_unit {
++                            return SimplificationResult::Unchanged;
++                        }
++                    }
++                    nan_index = Some(i);
++                }
++
++                if let Some(index) = nan_index {
++                    replace_self_with!(&mut children[index]);
+                     return SimplificationResult::Simplified;
+                 }
+
+                 let mut result = 0;
+                 for i in 1..children.len() {
+-                    if value_or_stop!(children[i].is_nan_leaf()) {
+-                        replace_self_with!(&mut children[i]);
+-                        return SimplificationResult::Simplified;
+-                    }
+                     let o = match children[i].compare(&children[result]) {
+                         // We can't compare all the children, so we can't
+                         // know which one will actually win. Bail out and
+@@ -2028,6 +2035,11 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                 SimplificationResult::Simplified
+             },
+             Self::Sum(ref mut children_slot) => {
++                if children_slot.is_empty() {
++                    *self = Self::Leaf(L::new_number(0.0));
++                    return SimplificationResult::Simplified;
++                }
++
+                 let mut sums_to_merge = SmallVec::<[_; 3]>::new();
+                 let mut extra_kids = 0;
+                 for (i, child) in children_slot.iter().enumerate() {

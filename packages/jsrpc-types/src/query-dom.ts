@@ -35,6 +35,15 @@ export interface PageScriptGauges {
     /** VM-stack values leaked by a crossing, cleared at the outermost V8->boa
      * entry; a steady climb names a bridge path that strands values. */
     healedAtEntry: number;
+    ccRuns: number;
+    ccGrayPins: number;
+    ccWeakV8: number;
+    ccDeadV8: number;
+    ccWeakened: number;
+    ccRevoked: number;
+    ccDeadReads: number;
+    ccLastMs: number;
+    ccSkipped: number;
   } | null;
   domFastpath?: {
     fastHits: number;

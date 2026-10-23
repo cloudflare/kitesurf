@@ -1,0 +1,154 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 12 Oct 2026 11:07:14 +0100
+Subject: [PATCH] Follow boa_ast's boxed variants and stop cloning parentheses
+
+A parenthesized expression cloned its contents out of the cover
+grammar's list and dropped the original, so every (function () {...})
+wrapper briefly held two copies of the whole bundle. Take it instead.
+
+Build the boxed boa_ast variants through their From impls rather than
+the tuple constructors, which now take a Box.
+---
+ src/parser/expression/assignment/mod.rs |  2 +-
+ src/parser/expression/primary/mod.rs    |  4 ++--
+ src/parser/statement/switch/tests.rs    |  2 +-
+ src/parser/statement/try_stm/tests.rs   | 20 ++++++++++----------
+ 4 files changed, 14 insertions(+), 14 deletions(-)
+
+diff --git a/src/parser/expression/assignment/mod.rs b/src/parser/expression/assignment/mod.rs
+index 8d305c6..c4e36ee 100644
+--- a/src/parser/expression/assignment/mod.rs
++++ b/src/parser/expression/assignment/mod.rs
+@@ -113,7 +113,7 @@ where
+                 {
+                     return ArrowFunction::new(self.allow_in, self.allow_yield, self.allow_await)
+                         .parse(cursor, interner)
+-                        .map(Expression::ArrowFunction);
++                        .map(Expression::from);
+                 }
+             }
+             //  AsyncArrowFunction[?In, ?Yield, ?Await]
+diff --git a/src/parser/expression/primary/mod.rs b/src/parser/expression/primary/mod.rs
+index 63cd1fd..e773205 100644
+--- a/src/parser/expression/primary/mod.rs
++++ b/src/parser/expression/primary/mod.rs
+@@ -480,9 +480,9 @@ where
+                     "multiple expressions in parenthesized expression",
+                 ));
+             }
+-            if let InnerExpression::Expression(expression) = &expressions[0] {
++            if let Some(InnerExpression::Expression(expression)) = expressions.pop() {
+                 return Ok(ast::Expression::Parenthesized(Parenthesized::new(
+-                    expression.clone(),
++                    expression,
+                     Span::new(span_start.start(), span.end()),
+                 ))
+                 .into());
+diff --git a/src/parser/statement/switch/tests.rs b/src/parser/statement/switch/tests.rs
+index 91d818c..5aab4fe 100644
+--- a/src/parser/statement/switch/tests.rs
++++ b/src/parser/statement/switch/tests.rs
+@@ -167,7 +167,7 @@ fn check_separated_switch() {
+                 .unwrap(),
+             ))
+             .into(),
+-            Statement::Switch(Switch::new(
++            Statement::from(Switch::new(
+                 Identifier::new(a, Span::new((5, 2), (5, 3))).into(),
+                 vec![
+                     Case::new(
+diff --git a/src/parser/statement/try_stm/tests.rs b/src/parser/statement/try_stm/tests.rs
+index 5f6b16a..0e3a370 100644
+--- a/src/parser/statement/try_stm/tests.rs
++++ b/src/parser/statement/try_stm/tests.rs
+@@ -17,7 +17,7 @@ fn check_inline_with_empty_try_catch() {
+     check_script_parser(
+         "try { } catch(e) {}",
+         vec![
+-            Statement::Try(Try::new(
++            Statement::from(Try::new(
+                 Block::default(),
+                 ErrorHandler::Catch(Catch::new(
+                     Some(
+@@ -42,7 +42,7 @@ fn check_inline_with_var_decl_inside_try() {
+     check_script_parser(
+         "try { var x = 1; } catch(e) {}",
+         vec![
+-            Statement::Try(Try::new(
++            Statement::from(Try::new(
+                 (
+                     vec![
+                         Statement::Var(VarDeclaration(
+@@ -84,7 +84,7 @@ fn check_inline_with_var_decl_inside_catch() {
+     check_script_parser(
+         "try { var x = 1; } catch(e) { var x = 1; }",
+         vec![
+-            Statement::Try(Try::new(
++            Statement::from(Try::new(
+                 (
+                     vec![
+                         Statement::Var(VarDeclaration(
+@@ -143,7 +143,7 @@ fn check_inline_with_empty_try_catch_finally() {
+     check_script_parser(
+         "try {} catch(e) {} finally {}",
+         vec![
+-            Statement::Try(Try::new(
++            Statement::from(Try::new(
+                 Block::default(),
+                 ErrorHandler::Full(
+                     Catch::new(
+@@ -170,7 +170,7 @@ fn check_inline_with_empty_try_finally() {
+     check_script_parser(
+         "try {} finally {}",
+         vec![
+-            Statement::Try(Try::new(
++            Statement::from(Try::new(
+                 Block::default(),
+                 ErrorHandler::Finally(Finally::from(Block::default())),
+             ))
+@@ -186,7 +186,7 @@ fn check_inline_with_empty_try_var_decl_in_finally() {
+     check_script_parser(
+         "try {} finally { var x = 1; }",
+         vec![
+-            Statement::Try(Try::new(
++            Statement::from(Try::new(
+                 Block::default(),
+                 ErrorHandler::Finally(Finally::from(Block::from((
+                     vec![StatementListItem::Statement(
+@@ -218,7 +218,7 @@ fn check_inline_empty_try_paramless_catch() {
+     check_script_parser(
+         "try {} catch { var x = 1; }",
+         vec![
+-            Statement::Try(Try::new(
++            Statement::from(Try::new(
+                 Block::default(),
+                 ErrorHandler::Catch(Catch::new(
+                     None,
+@@ -255,7 +255,7 @@ fn check_inline_with_binding_pattern_object() {
+     check_script_parser(
+         "try {} catch ({ a, b: c }) {}",
+         vec![
+-            Statement::Try(Try::new(
++            Statement::from(Try::new(
+                 Block::default(),
+                 ErrorHandler::Catch(Catch::new(
+                     Some(
+@@ -299,7 +299,7 @@ fn check_inline_with_binding_pattern_array() {
+     check_script_parser(
+         "try {} catch ([a, b]) {}",
+         vec![
+-            Statement::Try(Try::new(
++            Statement::from(Try::new(
+                 Block::from((vec![], PSEUDO_LINEAR_POS)),
+                 ErrorHandler::Catch(Catch::new(
+                     Some(
+@@ -340,7 +340,7 @@ fn check_catch_with_var_redeclaration() {
+     check_script_parser(
+         "try {} catch(e) { var e = 'oh' }",
+         vec![
+-            Statement::Try(Try::new(
++            Statement::from(Try::new(
+                 Block::from((vec![], PSEUDO_LINEAR_POS)),
+                 ErrorHandler::Catch(Catch::new(
+                     Some(

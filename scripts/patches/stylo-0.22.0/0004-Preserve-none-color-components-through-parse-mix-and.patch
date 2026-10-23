@@ -7,38 +7,134 @@ Subject: [PATCH] Preserve none color components through parse, mix and
 rgb(), hsl() and hwb() with none components eagerly resolved into the
 legacy srgb form, which cannot represent none. Computed values came out
 as rgb(0, 0, 0), and color-mix carry-forward never saw the missing
-components. With this patch:
+components. The serialization rules below follow Blink, as pinned by
+WPT color-{valid,computed}-{rgb,hsl,hwb}, color-valid-relative-color,
+color-computed-relative-color and color-{valid,computed}-color-mix-function.
+
+Parsing and computed values:
 
 - resolve_to_absolute keeps the none flags. rgb() stays legacy-tagged
-  (specified serialization is still rgb(0, 0, 0) per WPT
-  color-valid-rgb) but the flags survive; hsl() and hwb() skip the
-  legacy tag entirely when any component is none.
+  (specified serialization is still rgb(0, 0, 0)) but the flags
+  survive; hsl() and hwb() skip the legacy tag entirely when any
+  component is none.
 - AbsoluteColor::to_css falls back to the modern form for
   none-carrying colors: color(srgb ...) for legacy srgb, and functional
-  hsl()/hwb() (percent form) instead of the srgb conversion.
-- The specified serialization differs per WPT: the Absolute wrapper
-  writes legacy-with-zeros for rgb and number-form hsl()/hwb().
-- Bare relative-color channel keywords (r, g, b, ...) carry a none
-  origin channel forward instead of substituting 0; calc() still gets 0.
+  hsl()/hwb() instead of the srgb conversion. s/l (w/b) carry '%' only
+  where the author wrote a percent, tracked per component
+  (C1_AS_PERCENT / C2_AS_PERCENT), so computed values round-trip.
+  Relative-origin and color-mix results use plain numbers.
+- The specified serialization writes legacy-with-zeros for rgb and
+  number-form hsl()/hwb().
+
+Relative colors and color-mix:
+
+- Bare channel keywords (r, g, b, ...) carry a none origin channel
+  forward in rgb(), hsl(), hwb(), lab() and oklab(); calc() still gets
+  0. lch(), oklch() and color() zero them, matching Chrome (the WPT
+  rows carry a 'FIXME: Clarify with spec editors').
+- hsl() and hwb() relative origins and color-mix items that carry none
+  read back as the resolved legacy rgb, with none as 0. The legacy text
+  is stamped as the nested color's authored serialization at parse time
+  (Color::stamp_nested_legacy_authored); the stored value keeps its
+  none flags for channel keywords and mixing.
 - mix_many skips the srgb conversion for none-carrying results, which
   would lose them.
+- css-values-5 no longer invalidates an all-zero percentage sum: the
+  items mix with equal weight and the result's alpha is multiplied by
+  zero. Folding pairwise at 50/50 matches Chrome's
+  color(srgb 0.25 0.12549 0.5 / 0) for three items.
 
-Covers the none rows of WPT color-{valid,computed}-{rgb,hsl,hwb},
-color-computed-relative-color and color-computed-color-mix-function.
+A color function that stays symbolic (some component is a calc()
+resolvable only at computed-value time) echoed every literal component
+as authored: rgb(.. 0% 0% / 50%) instead of the canonical
+rgb(.. 0 0 / 0.5) that WPT color-valid-* expects. Literal components
+now serialize as numbers in the function's reference scale, with the
+per-slot clamps the spec applies (rgb 0..255, lab/lch lightness 0..100,
+ok* lightness 0..1, chroma and saturation floor 0, alpha 0..1). Hues
+drop their angle unit. Relative colors (origin present) keep echoing
+the authored form, since WPT color-valid-relative-color asserts the
+percent-preserving behavior there.
 ---
- color/color_function.rs   | 46 +++++++++++++++++++--------------------
- color/component.rs        |  9 ++++----
- color/mix.rs              |  3 ++-
- color/mod.rs              | 13 ++++++++++-
- color/to_css.rs           | 30 +++++++++++++++++++++++++
- values/specified/color.rs | 25 +++++++++++++++++----
- 6 files changed, 91 insertions(+), 35 deletions(-)
+ color/color_function.rs   | 200 ++++++++++++++++++++++++++++++++------
+ color/component.rs        |  24 ++++-
+ color/mix.rs              |  23 +++--
+ color/mod.rs              |  17 +++-
+ color/parsing.rs          |   5 +-
+ color/to_css.rs           |  36 +++++++
+ values/specified/color.rs |  51 +++++++++-
+ 7 files changed, 306 insertions(+), 50 deletions(-)
 
 diff --git a/color/color_function.rs b/color/color_function.rs
-index 4e168a1..0f29984 100644
+index 4e168a1..f7cf9f4 100644
 --- a/color/color_function.rs
 +++ b/color/color_function.rs
-@@ -338,27 +338,26 @@ impl ColorFunction<ComputedColor> {
+@@ -18,6 +18,7 @@ use crate::values::{
+     specified::color::Color as SpecifiedColor,
+ };
+ use cssparser::color::{clamp_floor_256_f32, OPAQUE};
++use style_traits::ToCss;
+
+ /// Represents a specified color function.
+ #[derive(Clone, Debug, MallocSizeOf, PartialEq, ToAnimatedValue, ToShmem)]
+@@ -213,6 +214,19 @@ impl<Color> ColorFunction<Color> {
+             }};
+         }
+
++        macro_rules! convert_kw_zero {
++            ($variant:ident, $space:expr, $c0:expr, $c1:expr, $c2:expr, $alpha:expr) => {{
++                let converted = abs_origin.map(|o| o.to_color_space($space));
++                ColorFunction::$variant(
++                    Optional::from(origin),
++                    $c0.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    $c1.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    $c2.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    $alpha.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                )
++            }};
++        }
++
+         match self {
+             ColorFunction::Rgb(_, r, g, b, alpha) => {
+                 // rgb(..) channels are in the [0..255] range, so map the origin's
+@@ -245,13 +259,13 @@ impl<Color> ColorFunction<Color> {
+                 convert!(Lab, ColorSpace::Lab, c0, c1, c2, alpha)
+             },
+             ColorFunction::Lch(_, c0, c1, c2, alpha) => {
+-                convert!(Lch, ColorSpace::Lch, c0, c1, c2, alpha)
++                convert_kw_zero!(Lch, ColorSpace::Lch, c0, c1, c2, alpha)
+             },
+             ColorFunction::Oklab(_, c0, c1, c2, alpha) => {
+                 convert!(Oklab, ColorSpace::Oklab, c0, c1, c2, alpha)
+             },
+             ColorFunction::Oklch(_, c0, c1, c2, alpha) => {
+-                convert!(Oklch, ColorSpace::Oklch, c0, c1, c2, alpha)
++                convert_kw_zero!(Oklch, ColorSpace::Oklch, c0, c1, c2, alpha)
+             },
+             ColorFunction::Color(_, c0, c1, c2, alpha, color_space) => {
+                 let converted = abs_origin.map(|o| {
+@@ -262,10 +276,10 @@ impl<Color> ColorFunction<Color> {
+                 });
+                 ColorFunction::Color(
+                     Optional::from(origin),
+-                    c0.to_computed_value(context, converted.as_ref()),
+-                    c1.to_computed_value(context, converted.as_ref()),
+-                    c2.to_computed_value(context, converted.as_ref()),
+-                    alpha.to_computed_value(context, converted.as_ref()),
++                    c0.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    c1.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    c2.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
++                    alpha.to_computed_value_kw_none_as_zero(context, converted.as_ref()),
+                     *color_space,
+                 )
+             },
+@@ -334,67 +348,77 @@ impl ColorFunction<ComputedColor> {
+                 const LIGHTNESS_RANGE: f32 = 100.0;
+                 const SATURATION_RANGE: f32 = 100.0;
+
++                let c1_percent = matches!(s, ColorComponent::Value(NumberOrPercentageComponent::Percentage(_)));
++                let c2_percent = matches!(l, ColorComponent::Value(NumberOrPercentageComponent::Percentage(_)));
++
+                 // If the origin color was *NOT* specified, then we stick with the
                  // old way of serializing the value to rgb(..). Otherwise we don't
                  // use the rgb(..) syntax, because we should allow the color to be
                  // out of gamut and not clamp.
@@ -77,7 +173,11 @@ index 4e168a1..0f29984 100644
 
                  if use_rgb_sytax {
                      result.flags.insert(ColorFlags::IS_LEGACY_SRGB);
-@@ -367,31 +366,30 @@ impl ColorFunction<ComputedColor> {
++                } else {
++                    result.flags.set(ColorFlags::C1_AS_PERCENT, c1_percent);
++                    result.flags.set(ColorFlags::C2_AS_PERCENT, c2_percent);
+                 }
+
                  result
              },
              ColorFunction::Hwb(origin_color, h, w, b, alpha) => {
@@ -93,6 +193,9 @@ index 4e168a1..0f29984 100644
 -                    h.resolve()?.map(|angle| normalize_hue(angle.degrees())),
 -                    w.resolve()?.map(|w| {
 -                        if use_rgb_sytax {
++                let c1_percent = matches!(w, ColorComponent::Value(NumberOrPercentageComponent::Percentage(_)));
++                let c2_percent = matches!(b, ColorComponent::Value(NumberOrPercentageComponent::Percentage(_)));
++
 +                let h = h.resolve()?.map(|angle| normalize_hue(angle.degrees()));
 +                let w = w.resolve()?.map(|w| {
 +                        if no_origin {
@@ -120,8 +223,168 @@ index 4e168a1..0f29984 100644
 
                  if use_rgb_sytax {
                      result.flags.insert(ColorFlags::IS_LEGACY_SRGB);
++                } else {
++                    result.flags.set(ColorFlags::C1_AS_PERCENT, c1_percent);
++                    result.flags.set(ColorFlags::C2_AS_PERCENT, c2_percent);
+                 }
+
+                 result
+@@ -553,28 +577,100 @@ impl<C: style_traits::ToCss> style_traits::ToCss for ColorFunction<C> {
+             }};
+         }
+
++        let canonical = origin_color.is_none();
++
++        macro_rules! num {
++            ($component:expr, $basis:expr, $min:expr, $max:expr) => {{
++                write_num_or_pct_canonical($component, $basis, $min, $max, dest)?;
++            }};
++        }
++
++        macro_rules! hue {
++            ($component:expr) => {{
++                write_angle_canonical($component, dest)?;
++            }};
++        }
++
+         match self {
++            Self::Rgb(_, c0, c1, c2, _) if canonical => {
++                num!(c0, 255.0, Some(0.0), Some(255.0));
++                dest.write_str(" ")?;
++                num!(c1, 255.0, Some(0.0), Some(255.0));
++                dest.write_str(" ")?;
++                num!(c2, 255.0, Some(0.0), Some(255.0));
++            },
+             Self::Rgb(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Hsl(_, c0, c1, c2, _) if canonical => {
++                hue!(c0);
++                dest.write_str(" ")?;
++                num!(c1, 100.0, Some(0.0), None);
++                dest.write_str(" ")?;
++                num!(c2, 100.0, None, None);
++            },
+             Self::Hsl(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Hwb(_, c0, c1, c2, _) if canonical => {
++                hue!(c0);
++                dest.write_str(" ")?;
++                num!(c1, 100.0, None, None);
++                dest.write_str(" ")?;
++                num!(c2, 100.0, None, None);
++            },
+             Self::Hwb(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Lab(_, c0, c1, c2, _) if canonical => {
++                num!(c0, 100.0, Some(0.0), Some(100.0));
++                dest.write_str(" ")?;
++                num!(c1, 125.0, None, None);
++                dest.write_str(" ")?;
++                num!(c2, 125.0, None, None);
++            },
+             Self::Lab(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Lch(_, c0, c1, c2, _) if canonical => {
++                num!(c0, 100.0, Some(0.0), Some(100.0));
++                dest.write_str(" ")?;
++                num!(c1, 150.0, Some(0.0), None);
++                dest.write_str(" ")?;
++                hue!(c2);
++            },
+             Self::Lch(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Oklab(_, c0, c1, c2, _) if canonical => {
++                num!(c0, 1.0, Some(0.0), Some(1.0));
++                dest.write_str(" ")?;
++                num!(c1, 0.4, None, None);
++                dest.write_str(" ")?;
++                num!(c2, 0.4, None, None);
++            },
+             Self::Oklab(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Oklch(_, c0, c1, c2, _) if canonical => {
++                num!(c0, 1.0, Some(0.0), Some(1.0));
++                dest.write_str(" ")?;
++                num!(c1, 0.4, Some(0.0), None);
++                dest.write_str(" ")?;
++                hue!(c2);
++            },
+             Self::Oklch(_, c0, c1, c2, _) => {
+                 serialize_components!(c0, c1, c2);
+             },
++            Self::Color(_, c0, c1, c2, _, color_space) if canonical => {
++                color_space.to_css(dest)?;
++                dest.write_str(" ")?;
++                num!(c0, 1.0, None, None);
++                dest.write_str(" ")?;
++                num!(c1, 1.0, None, None);
++                dest.write_str(" ")?;
++                num!(c2, 1.0, None, None);
++            },
+             Self::Color(_, c0, c1, c2, _, color_space) => {
+                 color_space.to_css(dest)?;
+                 dest.write_str(" ")?;
+@@ -593,9 +689,51 @@ impl<C: style_traits::ToCss> style_traits::ToCss for ColorFunction<C> {
+
+         if !omit_alpha {
+             dest.write_str(" / ")?;
+-            alpha.to_css(dest)?;
++            if canonical {
++                write_num_or_pct_canonical(alpha, 1.0, Some(0.0), Some(1.0), dest)?;
++            } else {
++                alpha.to_css(dest)?;
++            }
+         }
+
+         dest.write_str(")")
+     }
+ }
++
++fn write_num_or_pct_canonical<W>(
++    component: &ColorComponent<NumberOrPercentageComponent>,
++    basis: f32,
++    min: Option<f32>,
++    max: Option<f32>,
++    dest: &mut style_traits::CssWriter<W>,
++) -> std::fmt::Result
++where
++    W: std::fmt::Write,
++{
++    match component {
++        ColorComponent::Value(value) => {
++            let mut number = value.to_number(basis);
++            if let Some(min) = min {
++                number = number.max(min);
++            }
++            if let Some(max) = max {
++                number = number.min(max);
++            }
++            number.to_css(dest)
++        },
++        other => other.to_css(dest),
++    }
++}
++
++fn write_angle_canonical<W>(
++    component: &ColorComponent<NumberOrAngleComponent>,
++    dest: &mut style_traits::CssWriter<W>,
++) -> std::fmt::Result
++where
++    W: std::fmt::Write,
++{
++    match component {
++        ColorComponent::Value(value) => value.degrees().to_css(dest),
++        other => other.to_css(dest),
++    }
++}
 diff --git a/color/component.rs b/color/component.rs
-index 1d6cdc6..2603aa6 100644
+index 1d6cdc6..c86ff68 100644
 --- a/color/component.rs
 +++ b/color/component.rs
 @@ -118,11 +118,10 @@ impl<ValueType: ColorComponentType> ColorComponent<ValueType> {
@@ -140,12 +403,38 @@ index 1d6cdc6..2603aa6 100644
                  },
                  None => Self::ChannelKeyword(*channel_keyword),
              },
+@@ -152,6 +151,21 @@ impl<ValueType: ColorComponentType> ColorComponent<ValueType> {
+         }
+     }
+
++    /// Compute a component, but map a bare channel keyword whose origin is
++    /// `none` to zero. Lab-family and `color()` relative colors use this rule.
++    pub fn to_computed_value_kw_none_as_zero(
++        &self,
++        context: Option<&computed::Context>,
++        origin_color: Option<&AbsoluteColor>,
++    ) -> Self {
++        let result = self.to_computed_value(context, origin_color);
++        if matches!(self, Self::ChannelKeyword(_)) && matches!(result, Self::None) {
++            Self::Value(ValueType::from_value(0.0))
++        } else {
++            result
++        }
++    }
++
+     /// Resolve an already-computed [ColorComponent] into a float. None is
+     /// "none". This assumes color channel references have already been
+     /// substituted by [`to_computed_value`], and so does not require an origin
 diff --git a/color/mix.rs b/color/mix.rs
-index aede32e..8105e7f 100644
+index aede32e..b9dea56 100644
 --- a/color/mix.rs
 +++ b/color/mix.rs
-@@ -175,9 +175,10 @@ pub fn mix_many(
+@@ -173,18 +173,21 @@ pub fn mix_many(
+     // Convert a mix result into the syntax required by the flags:
+     // - modern syntax when requested (converting legacy spaces like hsl/hwb to srgb), otherwise;
      // - legacy srgb when every mixed color used legacy syntax.
++    // Computed before `items` is re-weighted below, so the closure doesn't borrow it.
++    let all_legacy = items.iter().all(|item| item.color.is_legacy_syntax());
      let finalize = |result: AbsoluteColor| -> AbsoluteColor {
          if flags.contains(ColorMixFlags::RESULT_IN_MODERN_SYNTAX) {
 -            if result.is_legacy_syntax() {
@@ -156,8 +445,62 @@ index aede32e..8105e7f 100644
                  let mut srgb = result.to_color_space(ColorSpace::Srgb);
                  srgb.flags.remove(ColorFlags::IS_LEGACY_SRGB);
                  srgb
+             } else {
+                 result
+             }
+-        } else if items.iter().all(|item| item.color.is_legacy_syntax()) {
++        } else if all_legacy {
+             result.into_srgb_legacy()
+         } else {
+             result
+@@ -199,13 +202,14 @@ pub fn mix_many(
+     let normalize = flags.contains(ColorMixFlags::NORMALIZE_WEIGHTS);
+     let mut weight_scale = 1.0;
+     let mut alpha_multiplier = 1.0;
++    let mut zero_sum = false;
+     if normalize {
+         // https://drafts.csswg.org/css-color-5/#color-mix-percent-norm
+         let sum: f32 = items.iter().map(|item| item.weight).sum();
+         if sum == 0.0 {
+-            return finalize(AbsoluteColor::TRANSPARENT_BLACK.to_color_space(interpolation.space));
+-        }
+-        if (sum - 1.0).abs() > f32::EPSILON {
++            zero_sum = true;
++            alpha_multiplier = 0.0;
++        } else if (sum - 1.0).abs() > f32::EPSILON {
+             weight_scale = 1.0 / sum;
+             if sum < 1.0 {
+                 alpha_multiplier = sum;
+@@ -221,13 +225,15 @@ pub fn mix_many(
+     for item in rest {
+         let weight = item.weight * weight_scale;
+         let combined = accumulated_weight + weight;
+-        if combined == 0.0 {
++        if combined == 0.0 && !zero_sum {
+             // If both are 0, this fold doesn't contribute anything to the result.
+             continue;
+         }
+         let right = convert_for_mix(&item.color, interpolation.space);
+
+-        let (left_weight, right_weight) = if normalize {
++        let (left_weight, right_weight) = if zero_sum {
++            (0.5, 0.5)
++        } else if normalize {
+             (accumulated_weight / combined, weight / combined)
+         } else {
+             (accumulated_weight, weight)
+@@ -261,6 +267,9 @@ pub fn mix_many(
+         alpha,
+     );
+     result.flags = accumulated_color.flags;
++    result
++        .flags
++        .remove(ColorFlags::C1_AS_PERCENT | ColorFlags::C2_AS_PERCENT);
+
+     finalize(result)
+ }
 diff --git a/color/mod.rs b/color/mod.rs
-index 944f05f..598d71e 100644
+index 944f05f..10c54ca 100644
 --- a/color/mod.rs
 +++ b/color/mod.rs
 @@ -12,7 +12,7 @@ pub mod component;
@@ -169,7 +512,18 @@ index 944f05f..598d71e 100644
 
  use self::parsing::ChannelKeyword;
  use crate::derives::*;
-@@ -369,6 +369,17 @@ impl From<ColorComponent<f32>> for ComponentDetails {
+@@ -238,6 +238,10 @@ bitflags! {
+         /// Marks that this color is in the legacy color format. This flag is
+         /// only valid for the `Srgb` color space.
+         const IS_LEGACY_SRGB = 1 << 4;
++        /// Serialize the second HSL/HWB component as a percentage.
++        const C1_AS_PERCENT = 1 << 5;
++        /// Serialize the third HSL/HWB component as a percentage.
++        const C2_AS_PERCENT = 1 << 6;
+     }
+ }
+
+@@ -369,6 +373,17 @@ impl From<ColorComponent<f32>> for ComponentDetails {
  }
 
  impl AbsoluteColor {
@@ -187,11 +541,27 @@ index 944f05f..598d71e 100644
      /// A fully transparent color in the legacy syntax.
      pub const TRANSPARENT_BLACK: Self = Self {
          components: ColorComponents(0.0, 0.0, 0.0),
+diff --git a/color/parsing.rs b/color/parsing.rs
+index c3010bf..1007ea7 100644
+--- a/color/parsing.rs
++++ b/color/parsing.rs
+@@ -259,7 +259,10 @@ fn parse_origin_color(
+         return Ok(None);
+     }
+
+-    SpecifiedColor::parse(context, arguments).map(Some)
++    let mut origin = SpecifiedColor::parse(context, arguments)?;
++    origin.stamp_nested_legacy_authored();
++
++    Ok(Some(origin))
+ }
+
+ #[inline]
 diff --git a/color/to_css.rs b/color/to_css.rs
-index 91f0f5c..87b792b 100644
+index 91f0f5c..012041b 100644
 --- a/color/to_css.rs
 +++ b/color/to_css.rs
-@@ -41,6 +41,29 @@ impl<'a> ToCss for ModernComponent<'a> {
+@@ -41,6 +41,30 @@ impl<'a> ToCss for ModernComponent<'a> {
      }
  }
 
@@ -199,7 +569,8 @@ index 91f0f5c..87b792b 100644
 +pub(crate) fn write_hsl_hwb_functional<W>(
 +    color: &AbsoluteColor,
 +    dest: &mut CssWriter<W>,
-+    percent: bool,
++    c1_percent: bool,
++    c2_percent: bool,
 +) -> fmt::Result
 +where
 +    W: Write,
@@ -207,7 +578,7 @@ index 91f0f5c..87b792b 100644
 +    debug_assert!(matches!(color.color_space, ColorSpace::Hsl | ColorSpace::Hwb));
 +    dest.write_str(if color.color_space == ColorSpace::Hsl { "hsl(" } else { "hwb(" })?;
 +    ModernComponent(&color.c0()).to_css(dest)?;
-+    for component in [color.c1(), color.c2()] {
++    for (component, percent) in [(color.c1(), c1_percent), (color.c2(), c2_percent)] {
 +        dest.write_char(' ')?;
 +        ModernComponent(&component).to_css(dest)?;
 +        if percent && matches!(component, Some(value) if value.is_finite()) {
@@ -221,7 +592,7 @@ index 91f0f5c..87b792b 100644
  impl ToCss for NumberOrPercentageComponent {
      fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
      where
-@@ -78,6 +101,11 @@ impl ToCss for AbsoluteColor {
+@@ -78,6 +102,11 @@ impl ToCss for AbsoluteColor {
      {
          match self.color_space {
              ColorSpace::Srgb if self.flags.contains(ColorFlags::IS_LEGACY_SRGB) => {
@@ -233,17 +604,22 @@ index 91f0f5c..87b792b 100644
                  // The "none" keyword is not supported in the rgb/rgba legacy syntax.
                  let has_alpha = self.alpha != OPAQUE;
 
-@@ -96,6 +124,8 @@ impl ToCss for AbsoluteColor {
+@@ -96,6 +125,13 @@ impl ToCss for AbsoluteColor {
              ColorSpace::Hsl | ColorSpace::Hwb => {
                  if self.flags.contains(ColorFlags::IS_LEGACY_SRGB) {
                      self.into_srgb_legacy().to_css(dest)
 +                } else if self.has_none_components() {
-+                    write_hsl_hwb_functional(self, dest, true)
++                    write_hsl_hwb_functional(
++                        self,
++                        dest,
++                        self.flags.contains(ColorFlags::C1_AS_PERCENT),
++                        self.flags.contains(ColorFlags::C2_AS_PERCENT),
++                    )
                  } else {
                      self.to_color_space(ColorSpace::Srgb).to_css(dest)
                  }
 diff --git a/values/specified/color.rs b/values/specified/color.rs
-index 9e85b87..ff2d780 100644
+index 9e85b87..e8a72d8 100644
 --- a/values/specified/color.rs
 +++ b/values/specified/color.rs
 @@ -6,7 +6,7 @@
@@ -255,7 +631,17 @@ index 9e85b87..ff2d780 100644
  use crate::derives::*;
  use crate::device::Device;
  use crate::parser::{Parse, ParserContext};
-@@ -171,9 +171,26 @@ impl ToCss for Absolute {
+@@ -67,7 +67,8 @@ impl ColorMix {
+             loop {
+                 let mut percentage = try_parse_percentage(input);
+
+-                let color = Color::parse_internal(context, input, preserve_authored)?;
++                let mut color = Color::parse_internal(context, input, preserve_authored)?;
++                color.stamp_nested_legacy_authored();
+
+                 if percentage.is_none() {
+                     percentage = try_parse_percentage(input);
+@@ -171,10 +172,32 @@ impl ToCss for Absolute {
          W: Write,
      {
          if let Some(ref authored) = self.authored {
@@ -277,7 +663,12 @@ index 9e85b87..ff2d780 100644
 +                    return color.to_css(dest);
 +                },
 +                ColorSpace::Hsl | ColorSpace::Hwb => {
-+                    return crate::color::to_css::write_hsl_hwb_functional(&self.color, dest, false);
++                    return crate::color::to_css::write_hsl_hwb_functional(
++                        &self.color,
++                        dest,
++                        false,
++                        false,
++                    );
 +                },
 +                _ => {},
 +            }
@@ -285,3 +676,29 @@ index 9e85b87..ff2d780 100644
 +        self.color.to_css(dest)
      }
  }
+
+@@ -678,6 +701,24 @@ impl ToTyped for Color {
+ }
+
+ impl Color {
++    /// Stamp the legacy serialization used for nested missing-component HSL/HWB colors.
++    pub fn stamp_nested_legacy_authored(&mut self) {
++        if let Self::Absolute(ref mut absolute) = *self {
++            if absolute.authored.is_none()
++                && absolute.color.has_none_components()
++                && matches!(absolute.color.color_space, ColorSpace::Hsl | ColorSpace::Hwb)
++            {
++                absolute.authored = Some(
++                    absolute
++                        .color
++                        .into_srgb_legacy()
++                        .to_css_string()
++                        .into_boxed_str(),
++                );
++            }
++        }
++    }
++
+     /// Returns whether this color is allowed in forced-colors mode.
+     pub fn honored_in_forced_colors_mode(
+         &self,

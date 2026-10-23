@@ -11,9 +11,12 @@ InvalidSize, so parse_viewbox() cannot tell a zero viewBox from a
 missing one.
 
 has_rendering_disabling_viewbox() reads the RAW attribute and reports
-that distinction. Only a well-formed four-number value with a
-non-positive extent disables rendering; an unparseable value keeps the
-existing lenient behaviour of ignoring the attribute.
+that distinction. Only a well-formed four-number value with a zero
+extent disables rendering. A negative extent is an error, and error
+processing ignores the attribute, so the element renders its normal
+view, the same as for an unparseable value. WPT
+viewBox-baseVal-change-invalid flips a valid viewBox to width -100 and
+expects the content to come back, unscaled.
 
 Applied at the four places that were wrong: the svg element (root and
 nested), a symbol referenced by use, and a marker, where returning None
@@ -29,42 +32,42 @@ from_fallback yields no paint when the FuncIRI has no fallback).
  4 files changed, 49 insertions(+)
 
 diff --git a/src/parser/converter.rs b/src/parser/converter.rs
-index 2908e28..cb94a0c 100644
+index be06699..aecee59 100644
 --- a/src/parser/converter.rs
 +++ b/src/parser/converter.rs
-@@ -287,6 +287,31 @@ impl<'a, 'input: 'a> SvgNode<'a, 'input> {
+@@ -306,6 +306,31 @@ impl<'a, 'input: 'a> SvgNode<'a, 'input> {
          NonZeroRect::from_xywh(vb.x as f32, vb.y as f32, vb.w as f32, vb.h as f32)
      }
 
-+    /// SVG2: a `viewBox` whose width or height is zero disables rendering
-+    /// of the element (coords.html#ViewBoxAttribute); negative is an error.
-+    ///
-+    /// This is not the same as `parse_viewbox() == None`, which also covers
-+    /// an absent attribute, meaning no viewport transform. The two
-+    /// have to be distinguished, or a zero viewBox silently renders as if it
-+    /// were never specified.
-+    ///
-+    /// Reads the raw value: `svgtypes::ViewBox::from_str` rejects a
-+    /// non-positive extent as InvalidSize, so a typed read cannot tell a
-+    /// zero viewBox from a missing one. Only a well-formed four-number
-+    /// value disables rendering; anything unparseable keeps usvg's existing
-+    /// lenient behaviour of ignoring the attribute.
++    /// Whether a well-formed `viewBox` has a zero width or height, which
++    /// disables rendering (SVG2 coords.html#ViewBoxAttribute). Negative or
++    /// malformed values are ignored, so the element renders normally. Reads
++    /// the raw attribute because `svgtypes::ViewBox::from_str` rejects a zero
++    /// extent, so `parse_viewbox()` cannot tell it from an absent attribute.
 +    pub fn has_rendering_disabling_viewbox(&self) -> bool {
 +        let Some(raw) = self.attribute::<&str>(AId::ViewBox) else {
 +            return false;
 +        };
-+        let nums: Vec<f64> = raw
-+            .split(|c: char| c == ',' || c.is_ascii_whitespace())
-+            .filter(|s| !s.is_empty())
-+            .filter_map(|s| s.parse::<f64>().ok())
-+            .collect();
-+        nums.len() == 4 && (nums[2] <= 0.0 || nums[3] <= 0.0)
++        // Parse the list so malformed separators cannot disappear between values.
++        let mut parser = svgtypes::NumberListParser::from(raw);
++        let mut nums = [0.0; 4];
++        for num in &mut nums {
++            let Some(Ok(value)) = parser.next() else {
++                return false;
++            };
++            *num = value;
++        }
++        if parser.next().is_some() {
++            return false;
++        }
++
++        nums[2] >= 0.0 && nums[3] >= 0.0 && (nums[2] == 0.0 || nums[3] == 0.0)
 +    }
 +
      pub fn resolve_length(&self, aid: AId, state: &State, def: f32) -> f32 {
          debug_assert!(
              !matches!(aid, AId::BaselineShift | AId::FontSize),
-@@ -631,6 +656,11 @@ pub(crate) fn convert_element(node: SvgNode, state: &State, cache: &mut Cache, p
+@@ -650,6 +675,11 @@ pub(crate) fn convert_element(node: SvgNode, state: &State, cache: &mut Cache, p
          return;
      }
 

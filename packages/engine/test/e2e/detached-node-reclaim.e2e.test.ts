@@ -233,3 +233,32 @@ test(
     expect(after.domNodes - before, "nodes left in the tree after GC").toBeLessThan(300);
   },
 );
+
+test("dropping a replaced ID owner keeps the bare global of its connected successor", async ({
+  page,
+}) => {
+  // Neither original is ever wrapped, so textContent drops them and forgets their IDs. A deep
+  // clone takes one ID through insertion and a created node takes the other through `id`.
+  await setContent(
+    page,
+    `<div id="cloneHost"><p id="remounted">clone</p></div><div id="host"><p id="app">old</p></div><script>
+    const cloneHost = document.getElementById("cloneHost");
+    document.body.appendChild(cloneHost.cloneNode(true));
+    cloneHost.textContent = "";
+    const host = document.getElementById("host");
+    host.textContent = "";
+    const next = document.createElement("p");
+    next.id = "app";
+    next.textContent = "new";
+    host.appendChild(next);
+    globalThis.remountResult = [
+      typeof remounted === "undefined" ? null : remounted.textContent,
+      typeof app === "undefined" ? null : app.textContent,
+    ];
+  </script>`,
+  );
+  expect(await page.evaluate(() => Reflect.get(globalThis, "remountResult"))).toEqual([
+    "clone",
+    "new",
+  ]);
+});
