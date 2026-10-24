@@ -6,6 +6,7 @@ load("@npm//packages/engine:typescript/package_json.bzl", tsc = "bin")
 load("@npm//packages/engine:wrangler/package_json.bzl", wrangler = "bin")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//bazel:checks.bzl", "tsc_test", "workspace_configs")
+load("//bazel:host_run.bzl", "host_run")
 load("//bazel:paths.bzl", "bin_relative")
 
 npm_link_all_packages(name = "node_modules")
@@ -146,6 +147,11 @@ js_run_binary(
 # `bazel run` it before `wrangler dev`: copies the built wasm, bundles and RBI files to the
 # source-tree paths the dev server reads (scripts/stage-dev-build.mjs).
 js_binary(
+    name = "dev_build_tool",
+    entry_point = "//scripts:stage_dev_build",
+)
+
+host_run(
     name = "dev_build",
     data = [
         ":rbi_json",
@@ -157,7 +163,7 @@ js_binary(
         "//packages/renderer-core:wasm_pkg",
         "//packages/worker-script:pkg",
     ],
-    entry_point = "//scripts:stage_dev_build",
+    tool = ":dev_build_tool",
 )
 
 # `bazel run //packages/engine:e2e -- <file-substring>` runs the matching e2e files against the
