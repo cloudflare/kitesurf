@@ -44,7 +44,8 @@ function copyTree(source, target) {
   return files;
 }
 
-const workspace = process.env.BUILD_WORKSPACE_DIRECTORY;
+// An embedding workspace can stage into the engine checkout instead of its own root.
+const workspace = process.env.KITESURF_SOURCE_ROOT ?? process.env.BUILD_WORKSPACE_DIRECTORY;
 if (!workspace) {
   const target = MEMPROF_ONLY ? "//packages/core/pkg:stage_memprof" : "//packages/engine:dev_build";
   console.error(`[dev-build] run this through \`bazel run ${target}\``);
