@@ -2,9 +2,7 @@
 
 load("@rules_rust//rust:toolchain.bzl", "rust_toolchain")
 
-# Every host the graph builds on, with the constraints toolchain resolution matches it by. Each
-# flavour gets one toolchain per host, all built from @rust_tools (the running host's tools), so
-# resolution only ever selects the one whose exec triple is the machine running Bazel.
+# Each execution platform gets its own binaries, including when execution is remote.
 HOSTS = {
     "linux_aarch64": ("aarch64-unknown-linux-gnu", ["@platforms//cpu:aarch64", "@platforms//os:linux"]),
     "linux_x86_64": ("x86_64-unknown-linux-gnu", ["@platforms//cpu:x86_64", "@platforms//os:linux"]),
@@ -22,25 +20,28 @@ def wasm32_rust(name, constraint, rust_std, rustflags, codegen_units = 1):
         visibility = ["//visibility:public"],
     )
     for host, (exec_triple, exec_constraints) in HOSTS.items():
+        tools = "@rust_exec_%s//:" % host
         rust_toolchain(
             name = "%s_%s_impl" % (name, host),
             binary_ext = ".wasm",
-            cargo = "@rust_tools//:cargo",
+            cargo = tools + "cargo",
             channel = "nightly",
             debug_info = {"dbg": "0", "fastbuild": "0", "opt": "0"},
             default_edition = "2021",
             dylib_ext = ".wasm",
             exec_triple = exec_triple,
+            # Staged wasm can be a tool dependency; its panic and target flags must not change.
+            extra_exec_rustc_flags = rustflags + ["-Ccodegen-units=%d" % codegen_units],
             extra_rustc_flags = rustflags + ["-Ccodegen-units=%d" % codegen_units],
             iso_date = "2026-05-14",
-            linker = "@rust_tools//:rust-lld",
+            linker = tools + "rust-lld",
             linker_type = "direct",
             lto = ":lto_manual",
             opt_level = {"dbg": "3", "fastbuild": "3", "opt": "3"},
-            rust_doc = "@rust_tools//:rustdoc",
+            rust_doc = tools + "rustdoc",
             rust_std = rust_std,
-            rustc = "@rust_tools//:rustc",
-            rustc_lib = "@rust_tools//:rustc_lib",
+            rustc = tools + "rustc",
+            rustc_lib = tools + "rustc_lib",
             staticlib_ext = ".a",
             stdlib_linkflags = [],
             strip_level = {"dbg": "debuginfo", "fastbuild": "debuginfo", "opt": "debuginfo"},
