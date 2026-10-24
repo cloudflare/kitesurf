@@ -41,9 +41,11 @@ js_run_binary(
     name = "rbi",
     srcs = [
         ":scene_host_wasm",
+        "//packages/core:scene_record_rs",
+    ],
+    tools = [
         "//bazel:wasm_opt",
         "//bazel:wasm_opt_runtime",
-        "//packages/core:scene_record_rs",
     ],
     outs = [
         "rbi/scene_host.json",

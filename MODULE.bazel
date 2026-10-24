@@ -57,9 +57,15 @@ rust.toolchain(
     versions = [RUST_NIGHTLY],
 )
 use_repo(rust, "rust_toolchains")
+use_repo(
+    rust,
+    rust_exec_linux_aarch64 = "rust_linux_aarch64__aarch64-unknown-linux-gnu__nightly_tools",
+    rust_exec_linux_x86_64 = "rust_linux_x86_64__x86_64-unknown-linux-gnu__nightly_tools",
+    rust_exec_macos_aarch64 = "rust_macos_aarch64__aarch64-apple-darwin__nightly_tools",
+)
 
-# @rust_tools is the toolchain for the machine running Bazel, whichever host that is. Repository
-# rules (cargo update, crate_universe) and the wasm32 toolchains use it.
+# Repository rules (cargo update, crate_universe) run on the Bazel client's host, not its
+# execution platform, and therefore still use host-specific tools.
 rust_host_tools = use_extension("@rules_rust//rust:extensions.bzl", "rust_host_tools")
 rust_host_tools.host_tools(
     name = "rust_tools",

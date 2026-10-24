@@ -22,8 +22,7 @@ platform(
     parents = ["@platforms//host"],
 )
 
-# One config_setting per supported host (wasm32.bzl HOSTS), for selects that need the running
-# host's binaries or its standard library.
+# One config_setting per supported execution platform (wasm32.bzl HOSTS).
 [
     config_setting(
         name = host,
@@ -33,16 +32,27 @@ platform(
     for host, (_, constraints) in HOSTS.items()
 ]
 
-# The running host's prebuilt standard library, which `cargo -Zbuild-std` links the wasm32 std's
-# build scripts against (std.bzl).
+# Build-std links its build scripts against the execution platform's prebuilt standard library.
 alias(
     name = "host_std",
     actual = select({
-        ":" + host: "@rust_tools//:rust_std-" + triple
+        ":" + host: "@rust_exec_%s//:rust_std-%s" % (host, triple)
         for host, (triple, _) in HOSTS.items()
     }),
     visibility = ["//visibility:public"],
 )
+
+# Build-std tools follow the action's execution platform, not the Bazel client's host.
+[
+    alias(
+        name = "exec_" + tool,
+        actual = select({
+            ":" + host: "@rust_exec_%s//:%s" % (host, tool)
+            for host in HOSTS
+        }),
+    )
+    for tool in ["cargo", "rustc", "rustc_lib", "rust-lld"]
+]
 
 rust_lto_flag(
     name = "lto_manual",

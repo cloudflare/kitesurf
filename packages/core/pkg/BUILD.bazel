@@ -7,10 +7,12 @@ load("//bazel:paths.bzl", "bin_relative", "exec_path")
 js_run_binary(
     name = "wasm_pkg",
     srcs = [
+        "//packages/core:kitesurf_core",
+    ],
+    tools = [
         "//bazel:wasm_bindgen",
         "//bazel:wasm_opt",
         "//bazel:wasm_opt_runtime",
-        "//packages/core:kitesurf_core",
     ],
     outs = [
         "kitesurf_core.d.ts",
@@ -38,8 +40,10 @@ js_run_binary(
 js_run_binary(
     name = "wasm_pkg_memprof",
     srcs = [
-        "//bazel:wasm_bindgen",
         "//packages/core:kitesurf_core_memprof",
+    ],
+    tools = [
+        "//bazel:wasm_bindgen",
         "//scripts/memprof-rewriter",
     ],
     outs = ["memprof/" + name for name in [

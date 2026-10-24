@@ -40,7 +40,8 @@ js_binary(
 
 js_run_binary(
     name = "wasm_pkg",
-    srcs = [":renderer_core", "//bazel:wasm_bindgen"],
+    srcs = [":renderer_core"],
+    tools = ["//bazel:wasm_bindgen"],
     outs = [
         "pkg/renderer_core.d.ts",
         "pkg/renderer_core.glue.d.ts",

@@ -135,7 +135,7 @@ wasm_std = rule(
     attrs = {
         "src": attr.label(mandatory = True, allow_single_file = [".tar"]),
         "_cargo": attr.label(
-            default = "@rust_tools//:cargo",
+            default = "//bazel/rust:exec_cargo",
             cfg = "exec",
             allow_single_file = True,
         ),
@@ -143,12 +143,12 @@ wasm_std = rule(
             default = "//bazel/rust:host_std",
             cfg = "exec",
         ),
-        "_linker": attr.label(default = "@rust_tools//:rust-lld", cfg = "exec"),
+        "_linker": attr.label(default = "//bazel/rust:exec_rust-lld", cfg = "exec"),
         "_rustc": attr.label(
-            default = "@rust_tools//:rustc",
+            default = "//bazel/rust:exec_rustc",
             cfg = "exec",
             allow_single_file = True,
         ),
-        "_rustc_lib": attr.label(default = "@rust_tools//:rustc_lib", cfg = "exec"),
+        "_rustc_lib": attr.label(default = "//bazel/rust:exec_rustc_lib", cfg = "exec"),
     },
 )
