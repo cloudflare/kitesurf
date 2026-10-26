@@ -4,6 +4,7 @@
 
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
+import { decodePng } from "./png";
 
 const LIME = "rgb(0, 255, 0)";
 
@@ -45,4 +46,28 @@ test("dir and lang writes restyle inherited and sibling selector matches", async
 
   const after = await page.evaluate(readBackgrounds);
   expect(after).toEqual({ rtl: LIME, auto: LIME, self: LIME, fr: LIME });
+});
+
+test("an inline dir write paints an inherited :dir() sibling rule", async ({ page }) => {
+  await setContent(
+    page,
+    `<!doctype html><style>
+      html, body { margin: 0 }
+      #outer { direction: ltr }
+      #subject:dir(rtl) + span { background-color: lime }
+      #target { font: 16px/24px sans-serif }
+    </style>
+    <div id="outer" style="-webkit-locale: 'en'">
+      <div><div id="subject"></div><span id="target">&nbsp;latin</span></div>
+    </div>
+    <script>
+      const outer = document.getElementById("outer");
+      outer.offsetTop;
+      outer.setAttribute("dir", "rtl");
+    </script>`,
+  );
+
+  const png = await decodePng(await page.screenshot({ type: "png" }));
+  const pixel = (10 * png.width + 1) * 4;
+  expect(Array.from(png.data.slice(pixel, pixel + 4))).toEqual([0, 255, 0, 255]);
 });
