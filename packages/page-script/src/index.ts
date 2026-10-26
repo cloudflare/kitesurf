@@ -261,6 +261,7 @@ import {
   DEFAULT_VIEWPORT_WIDTH_PX,
   ksEventCtors,
   ksGlobal,
+  shimEventCtor,
   state,
 } from "./state.ts";
 import { sanitizeCdpNodeTree } from "./cdp-nodes.ts";
@@ -2461,7 +2462,7 @@ function toggleDetailsFromSummary(targetEl: MouseTarget): void {
   try {
     __ks_dispatchTrusted(
       details,
-      new ksEventCtors.Event("toggle", { bubbles: false, cancelable: false }),
+      new (shimEventCtor("Event"))("toggle", { bubbles: false, cancelable: false }),
     );
   } catch {}
 }
@@ -2494,7 +2495,7 @@ function activateAnchorNavigation(
       const stateForPopstate = win.history?.state ?? null;
       queuePageTask(() => {
         try {
-          const event: unknown = new ksEventCtors.HashChangeEvent("hashchange", {
+          const event: unknown = new (shimEventCtor("HashChangeEvent"))("hashchange", {
             bubbles: false,
             cancelable: false,
             oldURL: previous,
@@ -2505,7 +2506,7 @@ function activateAnchorNavigation(
       });
       queuePageTask(() => {
         try {
-          const event: unknown = new ksEventCtors.PopStateEvent("popstate", {
+          const event: unknown = new (shimEventCtor("PopStateEvent"))("popstate", {
             bubbles: false,
             cancelable: false,
             state: stateForPopstate,
@@ -3126,7 +3127,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
             const stateForPopstate = state.window.history?.state ?? null;
             queuePageTask(() => {
               try {
-                const event: any = new ksEventCtors.HashChangeEvent("hashchange", {
+                const event: any = new (shimEventCtor("HashChangeEvent"))("hashchange", {
                   bubbles: false,
                   cancelable: false,
                   oldURL: previous,
@@ -3137,7 +3138,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
             });
             queuePageTask(() => {
               try {
-                const event: any = new ksEventCtors.PopStateEvent("popstate", {
+                const event: any = new (shimEventCtor("PopStateEvent"))("popstate", {
                   bubbles: false,
                   cancelable: false,
                   state: stateForPopstate,
@@ -4403,19 +4404,19 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       const POINTER_EVENT_TYPES = ["click", "auxclick", "dblclick", "contextmenu"];
       let event: MouseInputEvent;
       if (eventType === "wheel" && typeof ksEventCtors.WheelEvent === "function") {
-        event = new ksEventCtors.WheelEvent(eventType, eventInit);
+        event = new (shimEventCtor("WheelEvent"))(eventType, eventInit);
       } else if (
         POINTER_EVENT_TYPES.indexOf(eventType) !== -1 &&
         typeof ksEventCtors.PointerEvent === "function"
       ) {
-        event = new ksEventCtors.PointerEvent(eventType, {
+        event = new (shimEventCtor("PointerEvent"))(eventType, {
           ...eventInit,
           pointerId: 1,
           pointerType: "mouse",
           isPrimary: true,
         });
       } else {
-        event = new ksEventCtors.MouseEvent(eventType, eventInit);
+        event = new (shimEventCtor("MouseEvent"))(eventType, eventInit);
       }
 
       let targetEl = mouseTargetAtPoint(eventType, clientX, clientY, event);
@@ -4500,7 +4501,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           try {
             __ks_dispatchTrusted(
               element,
-              new ksEventCtors.InputEvent("input", {
+              new (shimEventCtor("InputEvent"))("input", {
                 bubbles: true,
                 cancelable: false,
               }),
@@ -4521,7 +4522,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           try {
             __ks_dispatchTrusted(
               rangeDrag.el,
-              new ksEventCtors.Event("change", {
+              new (shimEventCtor("Event"))("change", {
                 bubbles: true,
                 cancelable: false,
               }),
@@ -4568,11 +4569,11 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         };
         const coalescedEvents =
           eventType === "pointermove"
-            ? [new ksEventCtors.PointerEvent(eventType, pointerInit)]
+            ? [new (shimEventCtor("PointerEvent"))(eventType, pointerInit)]
             : undefined;
         return __ks_dispatchTrusted(
           targetEl,
-          new ksEventCtors.PointerEvent(eventType, {
+          new (shimEventCtor("PointerEvent"))(eventType, {
             ...pointerInit,
             coalescedEvents,
           }),
@@ -4663,14 +4664,14 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           setCheckedRaw(targetEl, previousCheckedState);
         } else {
           try {
-            const inputEv = new ksEventCtors.InputEvent("input", {
+            const inputEv = new (shimEventCtor("InputEvent"))("input", {
               bubbles: true,
               cancelable: false,
             });
             __ks_dispatchTrusted(targetEl, inputEv);
           } catch {}
           try {
-            const changeEv = new ksEventCtors.Event("change", {
+            const changeEv = new (shimEventCtor("Event"))("change", {
               bubbles: true,
               cancelable: false,
             });
@@ -4756,7 +4757,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   async dispatchKeyEvent(type: string, init: KeyEventInit): Promise<KeyDispatchReply> {
     const KeyboardEventConstructor:
       | BuildDocumentResult["Event"]
-      | BuildDocumentResult["KeyboardEvent"] = ksEventCtors.KeyboardEvent || ksEventCtors.Event;
+      | BuildDocumentResult["KeyboardEvent"]
+      | undefined = ksEventCtors.KeyboardEvent || ksEventCtors.Event;
     if (!state.document || typeof KeyboardEventConstructor !== "function") {
       return {
         console: drainConsole(),
