@@ -261,6 +261,9 @@ export interface TargetState {
   pageScriptLease: WorkerLease | null;
   navigateGeneration: number;
   wheelTeardownDepth: number;
+  // A navigation an input started and replied before; the next input waits for it, so it never
+  // lands in the document being retired.
+  inputNavigation?: Promise<void>;
   isolateLimitReportedGen?: number;
   navigationHistory: NavigationHistoryEntry[];
   navigationHistoryIndex: number;

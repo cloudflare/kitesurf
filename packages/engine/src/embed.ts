@@ -32,6 +32,7 @@ export type { CdpRequest, CdpResponse } from "./cdp/types.ts";
 export { arrivalOf } from "./cdp/arrival.ts";
 export { ensurePageScript } from "./cdp/dom.ts";
 export { handleInput } from "./cdp/input.ts";
+export type { HandleInputOptions } from "./cdp/input.ts";
 export { buildTree } from "./cdp/accessibility.ts";
 export type { AxNode, BuiltTree, DomNode } from "./cdp/accessibility.ts";
 export { handlePage, mainFrame } from "./cdp/page.ts";

@@ -81,11 +81,20 @@ function configureWheelDispatch(
   });
 }
 
+export interface HandleInputOptions {
+  // Chrome replies once the input is dispatched and reports a navigation it starts through Page
+  // events. The CDP router asks for that; an embedder judging a click by its page leaves it off.
+  replyOnDispatch?: boolean;
+}
+
 export async function handleInput(
   ctx: DispatchCtx,
   req: CdpRequest,
   expected?: { targetId: string; generation: number },
+  { replyOnDispatch = false }: HandleInputOptions = {},
 ): Promise<unknown> {
+  const pendingNavigation = pickTarget(ctx, req.sessionId)?.inputNavigation;
+  if (pendingNavigation) await pendingNavigation;
   const expectedStub = expected ? pickTarget(ctx, req.sessionId)?.pageScript : undefined;
   const assertExpected = (target: TargetState | undefined): void => {
     if (
@@ -229,7 +238,7 @@ export async function handleInput(
         emitMutations(ctx, target, result.cdpMutations);
         if (p.type !== "mouseReleased") {
           releaseWheelFencesNow();
-          await maybeFollowAnchor(ctx, result, req.sessionId);
+          await followNavigation(ctx, target, result, req.sessionId, !replyOnDispatch);
         }
         if (p.type === "mousePressed" && p.button === "right") {
           assertExpected(target);
@@ -257,7 +266,7 @@ export async function handleInput(
             clickResult.navigatePost || clickResult.navigateTo || clickResult.hashNavigateTo
               ? clickResult
               : result;
-          await maybeFollowAnchor(ctx, navigationResult, req.sessionId);
+          await followNavigation(ctx, target, navigationResult, req.sessionId, !replyOnDispatch);
         }
         return {};
       } catch (err) {
@@ -306,7 +315,7 @@ export async function handleInput(
         emitConsole(ctx, result.console, req.sessionId);
         emitMutations(ctx, target, result.cdpMutations);
         for (const release of releaseWheelFences) release();
-        await maybeFollowAnchor(ctx, result, req.sessionId);
+        await followNavigation(ctx, target, result, req.sessionId, !replyOnDispatch);
         return {};
       } catch (err) {
         assertExpected(target);
@@ -492,6 +501,41 @@ function emitConsole(
     const ev = consoleEntryToCdpEvent(e, ctxId);
     ctx.emit({ method: ev.method, params: ev.params, sessionId });
   }
+}
+
+type NavigationResult = Parameters<typeof maybeFollowAnchor>[1];
+
+function startsNavigation(result: NavigationResult): boolean {
+  return (
+    !!result &&
+    (typeof result.navigatePost?.url === "string" || !!result.navigateTo || !!result.hashNavigateTo)
+  );
+}
+
+// Page.navigate replies once the new document has loaded, which held a link click's mouseup for
+// seconds: puppeteer's locator timed out on clicks that had in fact navigated.
+async function followNavigation(
+  ctx: DispatchCtx,
+  target: TargetState,
+  result: NavigationResult,
+  sessionId: string | undefined,
+  wait: boolean,
+): Promise<void> {
+  if (!startsNavigation(result)) return;
+  const navigation = maybeFollowAnchor(ctx, result, sessionId);
+  if (wait) return navigation;
+  const pending: Promise<void> = navigation
+    .catch((err: unknown) =>
+      console.warn("kitesurf: input-started navigation failed", {
+        targetId: target.targetId,
+        sessionId,
+        error: err instanceof Error ? (err.stack ?? err.message) : String(err),
+      }),
+    )
+    .finally(() => {
+      if (target.inputNavigation === pending) target.inputNavigation = undefined;
+    });
+  target.inputNavigation = pending;
 }
 
 async function maybeFollowAnchor(
