@@ -7642,12 +7642,12 @@
     "reason": "T18 enrollment (css-variables): 2/6 subtests pass Records the outcome this produces. The previous expectation was stale: reproduced on CI and locally."
   },
   "/css/css-variables/variable-created-document.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 1/2 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-variables/variable-created-element.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 2/3 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-variables/variable-css-wide-keywords-after-substitution.html": {
     "expected": "FAIL",
@@ -7662,8 +7662,8 @@
     "reason": "T18 enrollment (css-variables): 10/11 subtests pass"
   },
   "/css/css-variables/variable-cycles.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 0/11 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-variables/variable-declaration-01.html": {
     "expected": "PASS",
@@ -7908,12 +7908,12 @@
     "reason": "T18 enrollment (css-variables): measured PASS"
   },
   "/css/css-variables/variable-definition-cascading.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 0/9 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-variables/variable-definition-keywords.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 5/8 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-variables/variable-definition.html": {
     "expected": "FAIL",
@@ -8472,8 +8472,8 @@
     "reason": "T18 enrollment (css-variables): measured PASS"
   },
   "/css/css-variables/variables-animation-math-functions.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "getComputedStyle now reads custom properties, so the old vacuous pass (\"\" against \"\") is gone: CSS transitions do not interpolate a registered custom property, and animations land 0.01deg off."
   },
   "/css/css-variables/variables-substitute-guaranteed-invalid.html": {
     "expected": "PASS",
