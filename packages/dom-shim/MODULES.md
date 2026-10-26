@@ -158,9 +158,11 @@ One line per file (skip the declaration twins `internal-state.ts` and
    page-script). Do NOT use the internal-state struct for
    dom-shim-internal sharing — that's what state.ts is for.
 
-5. **`__ks_*` prefix is a deliberate marker for page-JS-invisible
-   names** that cross module boundaries to page-script side. Never
-   drop the prefix; never use it for purely intra-package names.
+5. **Engine hooks that cross to page-script go on the internals
+   record** (`internals.ts`, camelCase, no prefix), never on
+   globalThis. The `__ks_*` prefix stays only on keys of the
+   buildDocument export bag (`__ks_dispatchTrustedEvent`); never use it
+   for purely intra-package names.
 
 6. **`__ksExports` is the page-script wire contract.** The names in
    that object (set / read by page-script's PageScript class) are
@@ -275,7 +277,6 @@ its defining file), DON'T export it. There's no need for the
 old `__foo` convention as a "soft private" marker — TypeScript +
 ESM enforce module boundaries.
 
-If a symbol crosses to page-script (i.e. lives on `globalThis`
-or in the `__ksExports` bag), use the `__ks_` prefix to flag the
-contract. Examples: `__ks_dispatchTrustedEvent`, `__ks_isTrustedGetter`,
+If a symbol crosses to page-script in the `__ksExports` bag, use the
+`__ks_` prefix to flag the contract. Examples: `__ks_dispatchTrustedEvent`, `__ks_isTrustedGetter`,
 `__ks_documentImpl_location_get`.

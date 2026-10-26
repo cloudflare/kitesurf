@@ -9,6 +9,7 @@ import { ksGlobal, dom } from "./state.js";
 import { getInternalState } from "./internal-state.js";
 import { canvas2dCache, postMutationHooks } from "./registries.js";
 import { markBrandWrapped } from "./webidl.js";
+import { ksInternals } from "./internals.js";
 
 const CtxWeakRef: any =
   ksGlobal.WeakRef ??
@@ -56,7 +57,7 @@ function noteOutlineDemand(): void {
   if (fontHold) return;
   let p: any = null;
   try {
-    p = ksGlobal.__ksFontOutlineDemand?.();
+    p = ksInternals.demandFontOutlines?.();
   } catch {}
   if (p && typeof p.then === "function") {
     fontHold = p;
@@ -1151,7 +1152,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       const d = dom as any;
       let fontsReady = true;
       try {
-        fontsReady = ksGlobal.__ks_fontDemand?.() ?? true;
+        fontsReady = ksInternals.demandDeferredFonts?.() ?? true;
       } catch {
         fontsReady = true;
       }

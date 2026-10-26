@@ -125,6 +125,7 @@ import {
   ksResanitizeInputValue,
   ksPushInputText,
 } from "./forms/input-state.js";
+import { ksInternals } from "../internals.js";
 
 const attributeStyleMaps = new WeakMap<object, StylePropertyMap>();
 const computedStyleMaps = new WeakMap<object, ReturnType<typeof makeComputedStyleMap>>();
@@ -260,7 +261,7 @@ function demandSvgTextOutlines(html: string, contextNs: string | null) {
     (/<svg[\s/>]/i.test(html) || contextNs === SVG_NS)
   ) {
     try {
-      ksGlobal.__ksFontOutlineDemand?.();
+      ksInternals.demandFontOutlines?.();
     } catch {}
   }
 }
@@ -722,9 +723,9 @@ class Element extends NodeBase implements Idl.Element {
     const isHtmlElement = this.namespaceURI === HTML_NS;
     const finalName = isHtmlElement ? asciiLowercase(nm) : nm;
     const customAttributeHook =
-      ksGlobal.__ks_customElementObservesAttribute?.(this, finalName) &&
-      typeof ksGlobal.__ks_notifyCustomElementAttributeChanged === "function"
-        ? ksGlobal.__ks_notifyCustomElementAttributeChanged
+      ksInternals.customElementObservesAttribute?.(this, finalName) &&
+      typeof ksInternals.notifyCustomElementAttributeChanged === "function"
+        ? ksInternals.notifyCustomElementAttributeChanged
         : null;
     const oldValue =
       mutationObserverCount() === 0 && !customAttributeHook ? null : this.getAttribute(finalName);
@@ -737,7 +738,7 @@ class Element extends NodeBase implements Idl.Element {
       if (domSetAttr(this._id, finalName, strValue)) {
         bumpMutationSeq({ attribute: finalName, node: this._id });
         if (finalName === "id") stampNamedGlobal(this._id, strValue);
-        if (ksGlobal.__ks_cdpDomActive) {
+        if (ksInternals.cdpDomActive) {
           cdpMutations.push({
             kind: "attributeModified",
             nodeId: this._id,
@@ -802,9 +803,9 @@ class Element extends NodeBase implements Idl.Element {
     const isHtmlElement = !elNs || elNs.ns === HTML_NS;
     const lookup = isHtmlElement ? asciiLowercase(name) : name;
     const customAttributeHook =
-      ksGlobal.__ks_customElementObservesAttribute?.(this, lookup) &&
-      typeof ksGlobal.__ks_notifyCustomElementAttributeChanged === "function"
-        ? ksGlobal.__ks_notifyCustomElementAttributeChanged
+      ksInternals.customElementObservesAttribute?.(this, lookup) &&
+      typeof ksInternals.notifyCustomElementAttributeChanged === "function"
+        ? ksInternals.notifyCustomElementAttributeChanged
         : null;
     const flat = this._attrFlat();
     const nsMap = attrNs.get(this._id);
@@ -850,7 +851,7 @@ class Element extends NodeBase implements Idl.Element {
       if (domRemoveAttr(this._id, wasmKey)) {
         bumpMutationSeq({ attribute: wasmKey, node: this._id });
         if (wasmKey === "id") stampNamedGlobal(this._id, "");
-        if (ksGlobal.__ks_cdpDomActive) {
+        if (ksInternals.cdpDomActive) {
           cdpMutations.push({
             kind: "attributeRemoved",
             nodeId: this._id,
@@ -948,9 +949,9 @@ class Element extends NodeBase implements Idl.Element {
     const prefix = colon >= 0 ? qualifiedName.slice(0, colon) : null;
     const localName = colon >= 0 ? qualifiedName.slice(colon + 1) : qualifiedName;
     const customAttributeHook =
-      ksGlobal.__ks_customElementObservesAttribute?.(this, localName) &&
-      typeof ksGlobal.__ks_notifyCustomElementAttributeChanged === "function"
-        ? ksGlobal.__ks_notifyCustomElementAttributeChanged
+      ksInternals.customElementObservesAttribute?.(this, localName) &&
+      typeof ksInternals.notifyCustomElementAttributeChanged === "function"
+        ? ksInternals.notifyCustomElementAttributeChanged
         : null;
     if (prefix && !ns) {
       throw new DOMException(
@@ -1063,9 +1064,9 @@ class Element extends NodeBase implements Idl.Element {
     if (typeof localName !== "string" || localName.length === 0) return;
     const ns = namespace ? String(namespace) : null;
     const customAttributeHook =
-      ksGlobal.__ks_customElementObservesAttribute?.(this, localName) &&
-      typeof ksGlobal.__ks_notifyCustomElementAttributeChanged === "function"
-        ? ksGlobal.__ks_notifyCustomElementAttributeChanged
+      ksInternals.customElementObservesAttribute?.(this, localName) &&
+      typeof ksInternals.notifyCustomElementAttributeChanged === "function"
+        ? ksInternals.notifyCustomElementAttributeChanged
         : null;
     const nsMap = attrNs.get(this._id);
     const cache = attrInstances.get(this);

@@ -12,6 +12,7 @@ export type {
 export {
   createInternalState,
   getInternalState,
+  getInternals,
   sendUpstreamEvent,
   registerUpstreamSender,
   clearUpstreamSender,

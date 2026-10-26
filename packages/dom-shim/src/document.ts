@@ -5,7 +5,6 @@
 // Live and detached Document implementations; parser-backed documents live in parser.ts.
 
 import {
-  ksGlobal,
   dom,
   liveDocument,
   windowObj,
@@ -122,6 +121,7 @@ import {
   compareDocumentPosition,
 } from "./node-base.js";
 import { __ks_documentImpl_location_get, __ks_documentImpl_location_set } from "./window.js";
+import { ksInternals } from "./internals.js";
 
 function ksState() {
   return getInternalState();
@@ -143,7 +143,7 @@ function rootViewport(): { w: number; h: number } {
 }
 
 function upgradeIfCustomElement(node: unknown, tag: string): void {
-  const hook: unknown = ksGlobal.__ks_upgradeCustomElement;
+  const hook: unknown = ksInternals.upgradeCustomElement;
   if (typeof hook !== "function") return;
   try {
     hook(node, tag);
@@ -980,7 +980,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     const nsForWasm = ns == null ? "" : String(ns);
     if (ns === SVG_NS && local === "text") {
       try {
-        ksGlobal.__ksFontOutlineDemand?.();
+        ksInternals.demandFontOutlines?.();
       } catch {}
     }
     const id =
@@ -1124,8 +1124,8 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   get fonts(): DocumentFontSet {
     if (!this.__fontFaceSet) {
       const faces = new Set();
-      const fontsReadyHook = ksGlobal.__ks_fontsReady;
-      const fontsInflightHook = ksGlobal.__ks_fontsInflightCount;
+      const fontsReadyHook = ksInternals.fontsReady;
+      const fontsInflightHook = ksInternals.fontsInflightCount;
       const self: DocumentFontSet = {
         get ready() {
           const p = fontsReadyHook
@@ -2882,7 +2882,7 @@ export {
 // For page-script's HTMLElement constructor: a wrapper with no upgrade.
 // `new CustomElementCtor()` already runs the user constructor, and a
 // second run throws when V8 re-initializes private fields.
-ksGlobal.__ks_createElementNoUpgrade = (tag: string) => {
+ksInternals.createElementNoUpgrade = (tag: string) => {
   try {
     const id = dom.createElement(String(tag).toLowerCase());
     return nodeFor(id);

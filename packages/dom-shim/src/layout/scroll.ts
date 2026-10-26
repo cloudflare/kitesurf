@@ -18,6 +18,7 @@ import { bumpMutationSeq, markDamageNode } from "../mutations/seq.js";
 import { KsEvent } from "../events/event.js";
 import { dispatchTrustedEvent, dispatchTrustedOnKey } from "../events/dispatch.js";
 import { MAX_SCROLL_CHAIN_HOPS } from "../constants.js";
+import { ksInternals } from "../internals.js";
 
 const WHEEL_SCROLL_REMAINDER_EPSILON_CSS_PX = 0.5;
 
@@ -194,8 +195,8 @@ function scrollNodeByWheel(
 
 function scrollByWheel(hitNodeId: number, dx: number, dy: number): boolean {
   const state: WheelScrollState = { remainingX: dx, remainingY: dy, handled: false };
-  const cellX = Math.max(0, Number(ksGlobal.__ks_tty_cell_w) || 0);
-  const cellY = Math.max(0, Number(ksGlobal.__ks_tty_cell_h) || 0);
+  const cellX = Math.max(0, Number(ksInternals.ttyCellWidth) || 0);
+  const cellY = Math.max(0, Number(ksInternals.ttyCellHeight) || 0);
   const htmlId = dom.querySelector("html");
   let cur = hitNodeId;
   let safety = 0;
@@ -224,7 +225,7 @@ function scrollByWheel(hitNodeId: number, dx: number, dy: number): boolean {
   }
   return state.handled;
 }
-ksGlobal.__ks_scrollByWheel = scrollByWheel;
+ksInternals.scrollByWheel = scrollByWheel;
 
 function setScrollOffset(
   x: unknown,

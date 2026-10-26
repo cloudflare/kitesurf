@@ -6,10 +6,11 @@
 
 import type { RawCdpMutation } from "@kitesurf/jsrpc-types/shared";
 import type { DomHandle } from "../../core/pkg/kitesurf_core";
-import { ksGlobal, dom, ops, cdpMutations, type DomOperation } from "./state.js";
+import { dom, ops, cdpMutations, type DomOperation } from "./state.js";
 import { stampNamedGlobal } from "./window.js";
 import { bumpMutationSeq } from "./mutations/seq.js";
 import { isAttachedToDocument, safeChildNodeCount } from "./mutations/attached.js";
+import { ksInternals } from "./internals.js";
 
 // Bound on first use because `dom` is still null at module load.
 let domSetAttr: DomHandle["setAttribute"] | null = null;
@@ -30,7 +31,7 @@ function recordOpImpl(op: DomOperation): void {
     if (!domSetAttr(op.node, op.name, value)) return;
     bumpMutationSeq({ attribute: op.name, node: op.node });
     if (op.name === "id") stampNamedGlobal(op.node, String(value));
-    if (ksGlobal.__ks_cdpDomActive) {
+    if (ksInternals.cdpDomActive) {
       cdpMutations.push({
         kind: "attributeModified",
         nodeId: op.node,
@@ -44,7 +45,7 @@ function recordOpImpl(op: DomOperation): void {
     if (!domRemoveAttr(op.node, op.name)) return;
     bumpMutationSeq({ attribute: op.name, node: op.node });
     if (op.name === "id") stampNamedGlobal(op.node, "");
-    if (ksGlobal.__ks_cdpDomActive) {
+    if (ksInternals.cdpDomActive) {
       cdpMutations.push({
         kind: "attributeRemoved",
         nodeId: op.node,
@@ -102,7 +103,7 @@ function recordOpImpl(op: DomOperation): void {
 }
 /** Appends CDP mutations when enabled; structural events require an attached node. */
 function recordCdpMutationImpl(event: RawCdpMutation): void {
-  if (!ksGlobal.__ks_cdpDomActive) return;
+  if (!ksInternals.cdpDomActive) return;
   const kind = event.kind;
   if (
     kind === "attributeModified" ||

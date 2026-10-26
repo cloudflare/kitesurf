@@ -91,11 +91,12 @@ import {
 import { addListener, removeListener } from "./events/dispatch.js";
 import { dispatchOnKey } from "./events/dispatch.js";
 import { maybeScheduleSlotchange } from "./events/slotchange.js";
+import { ksInternals } from "./internals.js";
 
 const MAX_CONNECTED_NODE_ANCESTOR_HOPS = 8192;
 
 function notifyConnectedCallbacks(child: any): void {
-  const hook = ksGlobal.__ks_notifyConnected;
+  const hook = ksInternals.notifyConnected;
   if (typeof hook === "function") {
     try {
       hook(child);

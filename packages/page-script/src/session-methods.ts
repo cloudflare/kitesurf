@@ -13,9 +13,10 @@ import type {
   WireMeta,
 } from "@kitesurf/jsrpc-types/page-script";
 import { drainDeferParked } from "./defer-shim.ts";
-import { ksGlobal, state } from "./state.ts";
+import { state } from "./state.ts";
 import { noteSyncOp } from "./lag-monitor.ts";
 import { set_ks_trace_parent } from "./wasm-glue.js";
+import { ksInternals } from "./internals.ts";
 
 type ReceivedMeta = Partial<WireMeta>;
 type MethodArguments<M extends PageScriptMethod> = Parameters<PageScriptSession[M]>;
@@ -30,7 +31,7 @@ export function updateClockFloor(timestamp: unknown): void {
 
 export function enterMethodScope(meta: ReceivedMeta): void {
   const traceParent = typeof meta.tp === "string" ? meta.tp : "";
-  ksGlobal.__ksTp = traceParent;
+  ksInternals.traceParent = traceParent;
   try {
     set_ks_trace_parent(traceParent);
   } catch {}
@@ -38,7 +39,7 @@ export function enterMethodScope(meta: ReceivedMeta): void {
 
   // Upgrade callbacks before parked I/O; connected callbacks can start requests.
   try {
-    ksGlobal.__ks_drainCustomElementUpgrades?.();
+    state.drainCustomElementUpgrades?.();
   } catch {}
 
   drainDeferParked();

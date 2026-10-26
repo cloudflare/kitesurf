@@ -177,6 +177,17 @@ export function clearUpstreamSender(): void {
 
 const _state: KitesurfInternalState = createInternalState();
 
+// The hooks dom-shim, page-script and the wasm core call each other through, typed per package
+// (DomShimInternals, PageScriptInternals). No prototype, so a missing hook reads as undefined.
+// The wasm and the e2e tests have no import, so it is also on globalThis under a registered symbol:
+// non-enumerable and non-writable. Its fields stay writable for the tests that stub a hook.
+const ksInternals: object = Object.create(null);
+Object.defineProperty(globalThis, Symbol.for("kitesurf.internals"), { value: ksInternals });
+
+export function getInternals(): object {
+  return ksInternals;
+}
+
 export function getInternalState(): KitesurfInternalState {
   return _state;
 }
