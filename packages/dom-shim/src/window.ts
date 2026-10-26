@@ -10,6 +10,7 @@
 import { makeStyleDeclaration, type StyleDeclarationBackend } from "./style-declaration.js";
 import {
   ksGlobal,
+  ksGlobalByKey,
   dom,
   documentImpl,
   getCurrentUrl,
@@ -1143,7 +1144,7 @@ export function installWindow(
         boundFromWindow.set(v, own);
         return own;
       }
-      const v = ksGlobal[prop];
+      const v = ksGlobalByKey[prop];
       if (v === undefined && !(prop in globalThis)) {
         const named = namedAccess(prop);
         if (named !== undefined) return named;
@@ -1204,7 +1205,7 @@ export function installWindow(
       }
       if (onGlobal || !onWindow) {
         try {
-          ksGlobal[prop] = value;
+          ksGlobalByKey[prop] = value;
         } catch {}
       }
       return true;
@@ -1226,7 +1227,7 @@ export function installWindow(
       if (ok && mirror) {
         try {
           if ("value" in desc) {
-            ksGlobal[prop] = (desc as any).value;
+            ksGlobalByKey[prop] = (desc as any).value;
           } else {
             Reflect.defineProperty(ksGlobal, prop, {
               get: desc.get ? () => windowObj[prop] : undefined,

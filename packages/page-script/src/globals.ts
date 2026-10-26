@@ -5,7 +5,7 @@
 // Installs browser-facing globals and adapters in the PageScript realm.
 
 import { resolveImportMap, resolveModuleRegistryUrl } from "./__ks_import_map.js";
-import type { BuildDocumentResult, ShimDocument, ShimWindow } from "./types.ts";
+import type { BuildDocumentResult, ShimDocument, ShimNavigator, ShimWindow } from "./types.ts";
 import {
   ks_bridge_buffer_bytes,
   ks_bridge_ever_minted,
@@ -23,6 +23,7 @@ import {
   DEFAULT_VIEWPORT_WIDTH_PX,
   ksEventCtors,
   ksGlobal,
+  ksGlobalByKey,
   state,
 } from "./state.ts";
 import { fetchGatedModuleSource } from "./inserted-scripts.ts";
@@ -34,8 +35,7 @@ import { getBlobMimeType, normalizeBlobType, setBlobMimeType } from "./mime-type
 
 const MAX_IMAGE_DATA_PIXELS = 4096 * 4096;
 
-type PageNavigator = Navigator & {
-  mediaDevices?: unknown;
+type PageNavigator = ShimNavigator & {
   userAgentData?: unknown;
   webdriver?: unknown;
 };
@@ -328,7 +328,7 @@ export function installGlobals(
         delete (o as Record<string, unknown>)[name];
       } catch {}
     }
-    if (typeof ksGlobal[name] !== "undefined") {
+    if (typeof ksGlobalByKey[name] !== "undefined") {
       try {
         Object.defineProperty(globalThis, name, {
           value: undefined,
@@ -519,9 +519,9 @@ export function installGlobals(
       } catch {}
     } catch {}
     // Publish through the shim-global view, not WorkerGlobalScope's typed event methods.
-    ksGlobal.addEventListener = win.addEventListener.bind(win);
-    ksGlobal.removeEventListener = win.removeEventListener.bind(win);
-    ksGlobal.dispatchEvent = win.dispatchEvent.bind(win);
+    ksGlobalByKey.addEventListener = win.addEventListener.bind(win);
+    ksGlobalByKey.removeEventListener = win.removeEventListener.bind(win);
+    ksGlobalByKey.dispatchEvent = win.dispatchEvent.bind(win);
 
     // Workerd host methods can reject detached calls, so page globals need bound receiver shadows.
     const __ks_boundCache = new WeakMap<Function, Function>();
@@ -1029,7 +1029,7 @@ export function installGlobals(
       typeof globalThis.BroadcastChannel !== "function" ||
       !(globalThis.BroadcastChannel.prototype as any)?.postMessage
     ) {
-      const EventTargetConstructor: typeof EventTarget | undefined = ksGlobal.EventTarget;
+      const EventTargetConstructor = ksGlobal.EventTarget;
       if (typeof EventTargetConstructor === "function") {
         class BroadcastChannel extends EventTargetConstructor {
           private _name: string;
@@ -1390,7 +1390,7 @@ export function installGlobals(
       "MediaList",
       "StyleSheet",
     ] as const satisfies readonly (keyof BuildDocumentResult)[]) {
-      if (built[constructorName]) ksGlobal[constructorName] = built[constructorName];
+      if (built[constructorName]) ksGlobalByKey[constructorName] = built[constructorName];
     }
     for (const constructorName of [
       "CSSStyleValue",
@@ -1437,7 +1437,7 @@ export function installGlobals(
       "DOMRect",
       "DOMRectList",
     ] as const satisfies readonly (keyof BuildDocumentResult)[]) {
-      if (built[constructorName]) ksGlobal[constructorName] = built[constructorName];
+      if (built[constructorName]) ksGlobalByKey[constructorName] = built[constructorName];
     }
     ks_eval_page(`
       for (const valueConstructor of [
@@ -1466,7 +1466,8 @@ export function installGlobals(
     if (built.CanvasPattern) ksGlobal.CanvasPattern = built.CanvasPattern;
     if (built.getSelection) globalThis.getSelection = built.getSelection;
     {
-      const __nativePerf: Performance | undefined = ksGlobal.performance;
+      const __nativePerf: Pick<Performance, "now" | "timeOrigin"> | undefined =
+        ksGlobal.performance;
       const __nativeNow =
         __nativePerf && typeof __nativePerf.now === "function"
           ? __nativePerf.now.bind(__nativePerf)
@@ -2899,7 +2900,7 @@ export function installGlobals(
           registry.set(tagName, customElementConstructor);
           observedAttributes.set(customElementConstructor, observedAttributeNames);
           try {
-            ksGlobal.__ks_ctorTagNames.set(customElementConstructor, String(tagName));
+            ksGlobal.__ks_ctorTagNames?.set(customElementConstructor, String(tagName));
           } catch {}
           pendingUpgrades.push({ tagName, customElementConstructor });
           const resolvers = whenDefinedResolvers.get(tagName);
@@ -3731,7 +3732,7 @@ export function installGlobals(
     }
     for (const name of ["XPathResult", "XPathExpression", "XPathEvaluator"]) {
       const constructor: unknown = built ? Reflect.get(built, name) : undefined;
-      if (typeof constructor === "function") ksGlobal[name] = constructor;
+      if (typeof constructor === "function") ksGlobalByKey[name] = constructor;
     }
     installBlobMimeTypeSerialization();
     try {
@@ -3820,7 +3821,7 @@ export function installGlobals(
           this._sent = false;
         }
         _fire(name) {
-          let event = null;
+          let event: InstanceType<typeof ksEventCtors.Event> | null = null;
           try {
             event = new ksEventCtors.Event(name);
           } catch {}
@@ -4574,7 +4575,7 @@ export function installGlobals(
       });
     } catch {}
     for (const [name, value] of Object.entries(indexedDbGlobals)) {
-      if (typeof ksGlobal[name] !== "undefined") continue;
+      if (typeof ksGlobalByKey[name] !== "undefined") continue;
       try {
         Object.defineProperty(globalThis, name, {
           value,
@@ -4633,7 +4634,7 @@ export function installGlobals(
       "WebAssembly",
     ];
     for (const name of ownConstructorNames) {
-      const constructor = ksGlobal[name];
+      const constructor = ksGlobalByKey[name];
       if (typeof constructor === "undefined") continue;
       if (Object.prototype.hasOwnProperty.call(globalThis, name)) continue;
       try {
@@ -4828,7 +4829,7 @@ export function installGlobals(
     ];
     const unconstructible = new Set(["SharedWorker"]);
     for (const name of idlStubs) {
-      if (typeof ksGlobal[name] !== "undefined") continue;
+      if (typeof ksGlobalByKey[name] !== "undefined") continue;
       const cls = unconstructible.has(name)
         ? {
             [name]: class {
@@ -5096,7 +5097,7 @@ export function installGlobals(
     ];
     const winOwnKeys = new Set(Reflect.ownKeys(win));
     for (const k of mirrorKeys) {
-      const globalValue = ksGlobal[k];
+      const globalValue = ksGlobalByKey[k];
       if (globalValue === undefined) continue;
       if (winOwnKeys.has(k)) continue;
       try {
@@ -5112,21 +5113,21 @@ export function installGlobals(
     delete globalThis.document;
     delete globalThis.window;
     delete globalThis.location;
-    delete ksGlobal.navigator;
+    delete ksGlobalByKey.navigator;
     delete globalThis.history;
-    if (ksGlobal.self === win) delete ksGlobal.self;
+    if (ksGlobal.self === win) delete ksGlobalByKey.self;
     if (globalThis.top === win) delete globalThis.top;
     if (globalThis.parent === win) delete globalThis.parent;
     if (globalThis.frames === win) delete globalThis.frames;
     delete globalThis.frameElement;
     delete globalThis.opener;
-    delete ksGlobal.Event;
+    delete ksGlobalByKey.Event;
     delete globalThis.MouseEvent;
     delete globalThis.KeyboardEvent;
     delete globalThis.Element;
     delete globalThis.HTMLElement;
     delete globalThis.Node;
-    delete ksGlobal.EventTarget;
+    delete ksGlobalByKey.EventTarget;
     delete globalThis.getComputedStyle;
   }
 }
@@ -5204,7 +5205,7 @@ function installBlobMimeTypeSerialization(): void {
         error,
       });
     }
-    ksGlobal[name] = constructor;
+    ksGlobalByKey[name] = constructor;
   };
 
   wrapConstructor("Blob", 1);

@@ -1124,10 +1124,8 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   get fonts(): DocumentFontSet {
     if (!this.__fontFaceSet) {
       const faces = new Set();
-      const fontsReadyHook = (globalThis as { __ks_fontsReady?: () => Promise<void> })
-        .__ks_fontsReady;
-      const fontsInflightHook = (globalThis as { __ks_fontsInflightCount?: () => number })
-        .__ks_fontsInflightCount;
+      const fontsReadyHook = ksGlobal.__ks_fontsReady;
+      const fontsInflightHook = ksGlobal.__ks_fontsInflightCount;
       const self: DocumentFontSet = {
         get ready() {
           const p = fontsReadyHook

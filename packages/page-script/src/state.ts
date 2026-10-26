@@ -7,6 +7,7 @@
 import type { RawCdpMutation } from "@kitesurf/jsrpc-types/shared";
 import type { LoadCompletion } from "@kitesurf/jsrpc-types/page-script";
 import type {
+  BuildDocumentResult,
   DomHandle,
   ShimDocument,
   ShimElement,
@@ -75,10 +76,19 @@ export interface PageScriptState {
   settleLoadCompletionArmed: () => void;
 }
 
-// This arbitrary-key view is for page shims, not WorkerGlobalScope's event types.
+// globalThis with the keys page-script and dom-shim add to it (PageScriptGlobals in types.ts).
 export const ksGlobal = globalThis as ShimGlobal;
 
-export const ksEventCtors: ShimGlobal = {};
+// The same object for computed keys (constructor-install loops). No type can list those keys,
+// so reads are `unknown` and need narrowing.
+export const ksGlobalByKey: Record<PropertyKey, unknown> = globalThis;
+
+// Every buildDocument constructor named Event or *Event.
+type ShimEventCtorName = Extract<keyof BuildDocumentResult, "Event" | `${string}Event`>;
+
+// installGlobals fills this before page JS or any engine-synthesized event can run, so readers
+// treat every constructor as present.
+export const ksEventCtors = {} as Pick<BuildDocumentResult, ShimEventCtorName>;
 
 let settleArmed: () => void = () => {};
 const armedDeferred = new Promise<void>((resolve) => {

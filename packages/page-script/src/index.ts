@@ -2076,7 +2076,7 @@ const TLA_SETTLE_BUDGET_MS = 1_500;
 
 function fireIframeLoad(iframeElement: any) {
   try {
-    const EventConstructor = ksEventCtors.Event || ksGlobal.CsEvent;
+    const EventConstructor = ksEventCtors.Event;
     if (!EventConstructor) return;
     compileEventAttribute(iframeElement, "onload");
     const event = new EventConstructor("load", { bubbles: false, cancelable: false });
@@ -3445,8 +3445,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       let moduleSuccessCount = 0;
       let moduleFailureCount = 0;
       try {
-        const drainUpgrades = (globalThis as { __ks_drainCustomElementUpgrades?: () => void })
-          .__ks_drainCustomElementUpgrades;
+        const drainUpgrades = ksGlobal.__ks_drainCustomElementUpgrades;
         const pendingImports: Array<Promise<void>> = [];
         const trackModuleImport = (
           moduleIndex: number,
@@ -4062,7 +4061,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       (iframeElement as any).__ks_iframeFrameId = frameId;
       return { ok: true };
     }
-    let contentDoc = null;
+    let contentDoc: FrameDocument | null = null;
     try {
       const DOMParserConstructor = ksGlobal.DOMParser;
       // An about:blank document has no doctype, so it is in quirks mode.
@@ -4647,9 +4646,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         const dx = event.deltaX || 0;
         const dy = event.deltaY || 0;
         const wheelBridge = ksGlobal.__ks_scrollByWheel;
-        let bridgeAvailable =
-          typeof wheelBridge === "function" && !!targetEl && typeof targetEl._id === "number";
-        if (bridgeAvailable) {
+        let bridgeAvailable = false;
+        if (typeof wheelBridge === "function" && targetEl && typeof targetEl._id === "number") {
+          bridgeAvailable = true;
           try {
             wheelBridge(targetEl._id, dx, dy);
           } catch {

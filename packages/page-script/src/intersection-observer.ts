@@ -6,7 +6,7 @@
 
 import { ensurePaintDom, invalidatePaintDom } from "./paint.ts";
 import { getInternalState } from "./internal-state.js";
-import { ksEventCtors, ksGlobal, state } from "./state.ts";
+import { ksEventCtors, ksGlobal, ksGlobalByKey, state } from "./state.ts";
 import { pushException } from "./exception-buffer.ts";
 import type { DomRect as Rect } from "./types.ts";
 
@@ -672,7 +672,7 @@ export function installIntersectionObserver(
     try {
       Object.defineProperty(globalThis, name, descriptor);
     } catch {
-      ksGlobal[name] = value;
+      ksGlobalByKey[name] = value;
     }
   };
   publish("IntersectionObserverEntry", IntersectionObserverEntry);

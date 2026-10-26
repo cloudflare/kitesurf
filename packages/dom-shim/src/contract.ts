@@ -10,6 +10,7 @@ export type {
   AuthScrollInfoSnapshot,
   BuildDocumentOpts,
 } from "./state.js";
+export type { DomShimGlobals } from "./global-scope.js";
 export {
   buildDocument,
   listModelContextTools,

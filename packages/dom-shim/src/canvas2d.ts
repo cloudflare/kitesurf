@@ -42,7 +42,7 @@ postMutationHooks.push(() => {
 const PUSH_MIN_INTERVAL_MS = 66;
 
 function pushMinIntervalMs(): number {
-  const v = ksGlobal.__KS_CANVAS_PUSH_MS | 0;
+  const v = Number(ksGlobal.__KS_CANVAS_PUSH_MS) | 0;
   return v > 0 ? v : PUSH_MIN_INTERVAL_MS;
 }
 
@@ -1151,8 +1151,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       const d = dom as any;
       let fontsReady = true;
       try {
-        fontsReady =
-          (globalThis as { __ks_fontDemand?: () => boolean }).__ks_fontDemand?.() ?? true;
+        fontsReady = ksGlobal.__ks_fontDemand?.() ?? true;
       } catch {
         fontsReady = true;
       }

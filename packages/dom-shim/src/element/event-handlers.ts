@@ -4,7 +4,7 @@
 
 // Installs IDL event-handler properties and connects content attributes to listeners.
 
-import { documentImpl as document, ksGlobal } from "../state.js";
+import { documentImpl as document, ksGlobal, ksGlobalByKey } from "../state.js";
 import {
   ALL_EVENT_HANDLERS,
   WINDOW_EVENT_HANDLERS,
@@ -140,12 +140,12 @@ function installAttrEventHandler(
 
 function forwardHandlerToWindow(name: string, fn: unknown) {
   try {
-    ksGlobal[name] = fn;
+    ksGlobalByKey[name] = fn;
   } catch {}
   try {
     const win = ksGlobal.window;
-    if (win && win !== globalThis) {
-      win[name] = fn;
+    if (typeof win === "object" && win !== null && win !== globalThis) {
+      Reflect.set(win, name, fn);
     }
   } catch {}
 }

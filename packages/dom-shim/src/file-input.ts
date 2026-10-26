@@ -8,7 +8,7 @@
 // Opaque Blobs submit an empty body but keep their name and type.
 
 import type * as Idl from "./idl/types.generated.js";
-import { ksGlobal } from "./state.js";
+import { ksGlobal, ksGlobalByKey } from "./state.js";
 import { finalizeInterface, idlInterfaceMeta } from "./webidl.js";
 
 export const fileInputFiles: Map<number, File[]> = new Map();
@@ -357,4 +357,6 @@ ksGlobal.DataTransfer = KsDataTransfer;
 ksGlobal.DataTransferItem = KsDataTransferItem;
 ksGlobal.DataTransferItemList = KsDataTransferItemList;
 ksGlobal.File = KsFile;
-ksGlobal.Blob = KsBlob;
+// Through the untyped view: KsBlob is a function constructor over NativeBlob.prototype, which
+// TypeScript cannot see as `typeof Blob`. Readers keep `typeof Blob`, which page code gets.
+ksGlobalByKey.Blob = KsBlob;

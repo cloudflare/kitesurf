@@ -59,9 +59,9 @@ export function installConsoleWrapper(): void {
   if (__consoleInstalled) return;
   __consoleInstalled = true;
   type Logger = (...args: unknown[]) => void;
-  const originalConsole = (ksGlobal.console || {}) as Record<string, unknown>;
+  const originalConsole: object = ksGlobal.console || {};
   const bind = (methodName: string, fallback: Logger): Logger => {
-    const loggerMethod = originalConsole[methodName];
+    const loggerMethod: unknown = Reflect.get(originalConsole, methodName);
     if (typeof loggerMethod === "function") {
       return (loggerMethod as Logger).bind(originalConsole);
     }
