@@ -1,10 +1,12 @@
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary", "js_test")
 load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//packages/engine:typescript/package_json.bzl", tsc = "bin")
 load("@npm//packages/engine:wrangler/package_json.bzl", wrangler = "bin")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("//bazel:checks.bzl", "tsc_test", "workspace_configs")
 load("//bazel:host_run.bzl", "host_run")
 load("//bazel:paths.bzl", "bin_relative")
@@ -123,9 +125,34 @@ filegroup(
     visibility = ["//packages/scene-host-wasm:__pkg__"],
 )
 
+# `--config=devtools` (.bazelrc) sets this: the engine assets then serve the prebuilt Chrome
+# DevTools frontend at /inspector/, for KITESURF_INSPECTOR_BASE_URL=/inspector/inspector.html.
+# Off, @devtools_frontend is never fetched.
+bool_flag(
+    name = "bundle_devtools",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "bundle_devtools_enabled",
+    flag_values = {":bundle_devtools": "True"},
+)
+
+# Empty with the flag off rather than absent: both settings share bazel-bin, where an earlier
+# flag-on tree would otherwise outlive the switch.
+copy_to_directory(
+    name = "inspector",
+    srcs = select({
+        ":bundle_devtools_enabled": ["@devtools_frontend//:frontend"],
+        "//conditions:default": [],
+    }),
+    out = "public/inspector",
+    include_external_repositories = ["*devtools_frontend"],
+)
+
 filegroup(
     name = "assets",
-    srcs = [":public", ":rbi_json", ":rbi_wasm"],
+    srcs = [":inspector", ":public", ":rbi_json", ":rbi_wasm"],
     visibility = ["//visibility:public"],
 )
 

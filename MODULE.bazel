@@ -417,6 +417,66 @@ rust_stdlib_filegroup(
     ),
 )
 
+# The Chrome DevTools frontend that --config=devtools stages at /inspector/. To re-pin, take the
+# newest Linux_x64 snapshot at or below Chrome Stable's chromium_main_branch_position (chromiumdash
+# fetch_releases); its REVISIONS and DEPS give the commits. The bucket prunes old revs: on a 404,
+# re-pin. Pinned: Chrome 156.0.8078.47 Stable (position 1706539, devtools bf69d041b0ad).
+DEVTOOLS_FRONTEND_REV = "1706520"
+# Snapshot 1706520: chromium 23b351114f05, devtools 2d671c506c4e, 6 devtools commits behind Stable.
+DEVTOOLS_FRONTEND_COMMIT = "2d671c506c4e5f8958b027e26047deb0acfbd7f9"
+# The zip holds no license files. Fetch the repository's own and, for each shipped third_party
+# directory, the "License File" its README.chromium names, at the snapshot's devtools commit.
+DEVTOOLS_FRONTEND_LICENSES = {
+    "LICENSE": "sha256-/xHURftBoQh8djDhIKsV8aLLZ8G3Bxc8tJQUGAX8o14=",
+    "third_party/acorn/package/LICENSE": "sha256-dqh2z4hv+b4qi14uhlFP7QYiPIyfDB6e6WBuk4QeALc=",
+    "third_party/axe-core/LICENSE": "sha256-rxdbnZbuk8IaA2FS4bkFsLlTBNSujCySHHYJEAuo334=",
+    "third_party/chromium/LICENSE": "sha256-/xHURftBoQh8djDhIKsV8aLLZ8G3Bxc8tJQUGAX8o14=",
+    "third_party/codemirror/package/LICENSE": "sha256-o/L+Ksa0caqAxzfF0oPdBJvckDpzg17m1NLKwC/dU78=",
+    "third_party/codemirror.next/LICENSE": "sha256-qo9lgZpHHBol+zwIFsWnXkXwCbeJnSku48xw2dvdj34=",
+    "third_party/csp_evaluator/package/LICENSE":
+        "sha256-WNHhf/5RCaeuKWyq/K39vmp9F28LxKsB4SpomwSZ2L0=",
+    "third_party/diff/LICENSE": "sha256-WNHhf/5RCaeuKWyq/K39vmp9F28LxKsB4SpomwSZ2L0=",
+    "third_party/i18n/LICENSE": "sha256-fslmGor6+rHu41I9bxoZPv92MUpasQtM6Wrv2HYhsMM=",
+    "third_party/intl-messageformat/LICENSE": "sha256-AhLp/9YPTC4FQmrBcrkSZiVrn/TA8BVuhbdhodb14X8=",
+    "third_party/json5/LICENSE": "sha256-U+Wf6xMFhyLZd8aZ6wQHx7zi+TyUm2gbvS/zFphTWSc=",
+    "third_party/legacy-javascript/LICENSE": "sha256-z8d0m5b2O9McPEK1xHG/dWgUBT6EfBDz6wA0F7xSPTA=",
+    "third_party/lighthouse/LICENSE": "sha256-fslmGor6+rHu41I9bxoZPv92MUpasQtM6Wrv2HYhsMM=",
+    "third_party/lit/LICENSE": "sha256-RdMXmdDblWzD61RpNGq72bcCW6vF/yn6sQ1wldqZLvE=",
+    "third_party/marked/LICENSE": "sha256-kZaL9njow9lOv4WW6Yypy1/KHGVVtT9yGpQMtQ8bPWY=",
+    "third_party/puppeteer/LICENSE": "sha256-onygcmmzUYVQsug67RPq3X0U2SS1hk4UiJtAzyJ1MMo=",
+    "third_party/puppeteer-replay/package/LICENSE":
+        "sha256-z8d0m5b2O9McPEK1xHG/dWgUBT6EfBDz6wA0F7xSPTA=",
+    "third_party/source-map-scopes-codec/LICENSE":
+        "sha256-U7RHXRzajEZGW7r/hUMmMfCDDMLApLKCNLfk0S2GLns=",
+    "third_party/third-party-web/LICENSE": "sha256-4fKpKBPQpxYMi7DifaZuwvZZnygyrltNn5XBCOYK9eY=",
+    "third_party/vscode.web-custom-data/package/LICENSE.md":
+        "sha256-ws/MuBL+SCEBqPBFl9/FqZkaaydIJmxHrJG2parhU4M=",
+    "third_party/wasmparser/package/LICENSE": "sha256-DVQuDIgE45qn836wDaWnYhSdxoLXgpRRKH4RuTjpRZQ=",
+    "third_party/web-vitals/package/LICENSE": "sha256-v97e1AQOBdoxyptiOdyDvSP6JqyNuHNCp8pDY/aJFv8=",
+}
+# Fetched only when a target in the build graph needs it, which needs the bundle_devtools flag.
+http_archive(
+    name = "devtools_frontend",
+    build_file = "//bazel:devtools_frontend.BUILD",
+    remote_file_integrity = DEVTOOLS_FRONTEND_LICENSES,
+    remote_file_urls = {
+        path: [
+            "https://raw.githubusercontent.com/ChromeDevTools/devtools-frontend/%s/%s%s" % (
+                DEVTOOLS_FRONTEND_COMMIT,
+                "" if path == "LICENSE" else "front_end/",
+                path,
+            ),
+        ]
+        for path in DEVTOOLS_FRONTEND_LICENSES
+    },
+    sha256 = "0dd553703b21906d92051c3e165053ca0d1b97f78a184e87f2c74651d2031cbd",
+    strip_prefix = "devtools-frontend/gen/third_party/devtools-frontend/src/front_end",
+    url = (
+        "https://storage.googleapis.com/chromium-browser-snapshots/Linux_x64/%s/" +
+        "devtools-frontend.zip"
+    ) % DEVTOOLS_FRONTEND_REV,
+)
+
 wpt_editing = use_repo_rule("//packages/dom-shim:editing_repo.bzl", "wpt_editing")
 wpt_editing(
     name = "wpt_editing",
