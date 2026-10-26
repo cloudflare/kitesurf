@@ -270,10 +270,9 @@ npm.npm_translate_lock(
     npmrc = "//:.npmrc",
     pnpm_lock = "//:pnpm-lock.yaml",
     public_hoist_packages = {
-        "buffer": [""],
         "devtools-protocol@0.0.1669207": [""],
         "undici": [""],
-        "zod@4.6.5": [""],
+        "zod@4.6.7": [""],
     },
 )
 use_repo(npm, "npm")
