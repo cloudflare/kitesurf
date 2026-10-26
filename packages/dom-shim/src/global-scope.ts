@@ -48,9 +48,6 @@ export interface DomShimGlobals {
   // Page JS may reassign these through window's setters, so readers check typeof before calling.
   requestAnimationFrame?: (callback: (time: number) => void) => number;
   cancelAnimationFrame?: (handle: number) => void;
-
-  // Test override for the canvas push throttle, in ms. Set by page JS.
-  __KS_CANVAS_PUSH_MS?: unknown;
 }
 
 export type ShimGlobal = typeof globalThis & DomShimGlobals;

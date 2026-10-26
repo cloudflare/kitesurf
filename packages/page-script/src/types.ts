@@ -191,10 +191,6 @@ export interface PageScriptGlobals extends DomShimGlobals {
   // reads __ks_resolve_import_map too.
   __ks_resolve_import_map?: (spec: unknown, referrerUrl?: string) => string;
   __ks_import?: (spec: unknown, referrerUrl?: string) => unknown;
-  // Installed by the engine's memprof build.
-  __ks_memprof_imports?: unknown;
-  __memprof_dump?: () => string;
-  __memprof_reset?: () => void;
 }
 
 // The `CSS` namespace object (globals.ts): its functions plus one `CSS.<unit>()` factory per CSS

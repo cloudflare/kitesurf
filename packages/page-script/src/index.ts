@@ -6759,7 +6759,7 @@ function queryDomDiagnostics(
       }
     }
     case "getMemprofDump": {
-      const dump = ksGlobal.__memprof_dump;
+      const dump = ksInternals.memprofDump;
       if (typeof dump !== "function") {
         return {
           error: "memprof recorder not installed (build with KITESURF_MEMPROF=1)",
@@ -6774,7 +6774,7 @@ function queryDomDiagnostics(
       }
     }
     case "resetMemprof": {
-      const reset = ksGlobal.__memprof_reset;
+      const reset = ksInternals.memprofReset;
       if (typeof reset !== "function") {
         return {
           error: "memprof recorder not installed (build with KITESURF_MEMPROF=1)",

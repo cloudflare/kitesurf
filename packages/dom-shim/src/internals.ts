@@ -49,6 +49,9 @@ export interface DomShimInternals {
   createElementNoUpgrade?: (tag: string) => unknown;
   scrollByWheel?: (hitNodeId: number, dx: number, dy: number) => boolean;
   toggleSelectDropdown?: (select: unknown) => boolean;
+
+  // Set by tests and benches: overrides the canvas push backstop, in ms.
+  canvasPushMs?: unknown;
 }
 
 export const ksInternals = getInternals() as DomShimInternals;

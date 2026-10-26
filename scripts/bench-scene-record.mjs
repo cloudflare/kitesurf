@@ -27,7 +27,7 @@ async function doomSetup(page) {
   if (CANVAS_PUSH_MS > 0) {
     await page
       .evaluate((ms) => {
-        globalThis.__KS_CANVAS_PUSH_MS = ms;
+        globalThis[Symbol.for("kitesurf.internals")].canvasPushMs = ms;
       }, CANVAS_PUSH_MS)
       .catch(() => {});
     console.log(`  [doom] canvas push interval override: ${CANVAS_PUSH_MS}ms`);
