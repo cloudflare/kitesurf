@@ -8,13 +8,14 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -72,86 +73,92 @@ function git(args, cwd, { inherit = false } = {}) {
   });
 }
 
-let cargoFetchAttempted = false;
-function ensureRegistryExtracted() {
-  if (cargoFetchAttempted) return;
-  cargoFetchAttempted = true;
-  const cargoToml = resolve(REPO_ROOT, "Cargo.toml");
-  const backup = resolve(REPO_ROOT, "Cargo.toml.vendor-bootstrap.bak");
-  const cargoLock = resolve(REPO_ROOT, "Cargo.lock");
-  log("cargo registry source missing; running `cargo fetch` to populate it");
-  const original = readFileSync(cargoToml, "utf8");
-  // Without the patch block, cargo fetch re-resolves and rewrites the lockfile; restore it too.
-  const originalLock = readFileSync(cargoLock, "utf8");
-  writeFileSync(backup, original);
-  try {
-    // Bootstrap without unresolved patch paths or vendor-only features, then restore the manifest.
-    const lines = original.split("\n");
-    let inBlock = false;
-    for (let i = 0; i < lines.length; i++) {
-      const ln = lines[i];
-      if (!inBlock) {
-        if (ln.trim() === "[patch.crates-io]") {
-          inBlock = true;
-          lines[i] = "# " + ln;
-        }
-        continue;
-      }
-      if (ln.trim() === "" || ln.startsWith("[")) {
-        inBlock = false;
-        continue;
-      }
-      lines[i] = "# " + ln;
+function checkLockedVersions() {
+  const lock = readFileSync(resolve(REPO_ROOT, "Cargo.lock"), "utf8");
+  // Cargo writes package identity fields as single-line strings, including path-patched crates.
+  const packages = lock.split(/^\[\[package\]\]\s*$/m).slice(1);
+  for (const { name, version } of CRATES) {
+    const versions = packages
+      .filter((pkg) => pkg.match(/^name = "([^"]+)"$/m)?.[1] === name)
+      .map((pkg) => pkg.match(/^version = "([^"]+)"$/m)?.[1]);
+    if (!versions.includes(version)) {
+      throw new Error(
+        `${name}-${version} does not match Cargo.lock (found: ${versions.join(", ") || "missing"}). ` +
+          "Update CRATES and the patch series together with Cargo.lock before retrying.",
+      );
     }
-    const neutered = lines.join("\n");
-    const bootstrapSafe = neutered.replace(
-      /^(\s*vello_cpu\s*=\s*\{[^}\n]*features\s*=\s*\[)([^\]]*)(\])/gm,
-      (_match, pre, feats, post) => {
-        const stripped = feats
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s !== '"poly-pnorm"')
-          .join(", ");
-        return pre + stripped + post;
-      },
+  }
+}
+
+const CARGO_FETCH_TIMEOUT_MS = 5 * 60 * 1000;
+
+function ensureRegistryExtracted() {
+  checkLockedVersions();
+  const missing = CRATES.filter(({ name, version }) => !lookupRegistrySource(name, version));
+  if (missing.length === 0) return;
+  const labels = missing.map(({ name, version }) => `${name}-${version}`).join(", ");
+  log(`fetching exact registry sources: ${labels}`);
+  const work = mkdtempSync(join(tmpdir(), "kitesurf-vendor-fetch-"));
+  try {
+    // Resolve in isolation: removing workspace patches would upgrade semver-compatible crates.
+    const dependencies = missing.map(
+      ({ name, version }) => `${name} = { version = "=${version}", default-features = false }`,
     );
-    writeFileSync(cargoToml, bootstrapSafe);
-    execSync("cargo fetch", {
+    writeFileSync(
+      join(work, "Cargo.toml"),
+      '[package]\nname = "kitesurf-vendor-fetch"\nversion = "0.0.0"\nedition = "2021"\n' +
+        '[workspace]\n[lib]\npath = "lib.rs"\n[dependencies]\n' +
+        dependencies.join("\n") +
+        "\n",
+    );
+    writeFileSync(join(work, "lib.rs"), "");
+    // Keep the repository's rustup toolchain and Cargo configuration, not its dependency graph.
+    execFileSync("cargo", ["fetch", "--manifest-path", join(work, "Cargo.toml")], {
       cwd: REPO_ROOT,
+      env: {
+        ...process.env,
+        CARGO_HOME: resolve(process.env.CARGO_HOME || join(homedir(), ".cargo")),
+        CARGO_HTTP_TIMEOUT: "30",
+        CARGO_NET_RETRY: "2",
+      },
+      timeout: CARGO_FETCH_TIMEOUT_MS,
+      killSignal: "SIGKILL",
       stdio: ["ignore", "inherit", "inherit"],
     });
+  } catch (cause) {
+    throw new Error(
+      `Could not fetch registry sources for ${labels}. ` +
+        "Check the cargo error above and registry connectivity, then retry vendor:apply.",
+      { cause },
+    );
   } finally {
-    writeFileSync(cargoToml, original);
-    writeFileSync(cargoLock, originalLock);
-    rmSync(backup, { force: true });
+    rmSync(work, { recursive: true, force: true });
   }
+}
+
+/** @returns {string | null} */
+function lookupRegistrySource(crateName, version) {
+  const cargoRoot = resolve(process.env.CARGO_HOME || resolve(homedir(), ".cargo"));
+  const srcRoot = resolve(cargoRoot, "registry/src");
+  if (!existsSync(srcRoot)) return null;
+  const indexDirs = readdirSync(srcRoot).filter((s) => s.startsWith("index.crates.io-"));
+  for (const indexDir of indexDirs) {
+    const candidate = resolve(srcRoot, indexDir, `${crateName}-${version}`);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
 }
 
 /** @returns {string} */
 function findRegistrySource(crateName, version) {
-  const cargoRoot = resolve(process.env.CARGO_HOME || resolve(homedir(), ".cargo"));
-  const srcRoot = resolve(cargoRoot, "registry/src");
-  const tryLookup = () => {
-    if (!existsSync(srcRoot)) return null;
-    const indexDirs = execSync(`ls "${srcRoot}"`, { encoding: "utf8" })
-      .split("\n")
-      .map((s) => s.trim())
-      .filter((s) => s.startsWith("index.crates.io-"));
-    for (const indexDir of indexDirs) {
-      const candidate = resolve(srcRoot, indexDir, `${crateName}-${version}`);
-      if (existsSync(candidate)) return candidate;
-    }
-    return null;
-  };
-  const first = tryLookup();
+  const first = lookupRegistrySource(crateName, version);
   if (first) return first;
   ensureRegistryExtracted();
-  const second = tryLookup();
+  const second = lookupRegistrySource(crateName, version);
   if (second) return second;
   throw new Error(
     `${crateName}-${version} not present in cargo registry even after ` +
-      `cargo fetch. Check scripts/get-patched-vendor-crates.mjs CRATES ` +
-      `versions match the root Cargo.lock.`,
+      `cargo fetch. Check CARGO_HOME and registry source replacement settings, then retry vendor:apply.`,
   );
 }
 
@@ -244,6 +251,7 @@ function applyOne({ name, version }) {
 
 /** @returns {Record<string, string>} */
 function applyAll() {
+  checkLockedVersions();
   mkdirSync(OUT_ROOT, { recursive: true });
   const paths = {};
   for (const crate of CRATES) {

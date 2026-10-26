@@ -38,6 +38,11 @@ crate at the named version. The pristine tarball is whatever
 `~/.cargo/registry/src/index.crates.io-*/<crate>-<version>/`
 contains after `cargo fetch`.
 
+On a cold cache, the materialiser fetches missing crates with exact version
+requirements in a temporary workspace, leaving the repository's manifest and
+lockfile untouched. It checks every patched version against `Cargo.lock` before
+materialising. Cached sources do not require a fetch.
+
 `scripts/get-patched-vendor-crates.mjs` materialises each crate into
 `packages/core/target/vendor-patched/<crate>-<version>/` as a **real
 git repo**:
