@@ -39,6 +39,15 @@ everyone.
 If your pull request was closed before you were vouched, link it from the issue.
 A maintainer can reopen it after vouching for you.
 
+## The triage bot
+
+When the triage bot is on, it reads new issues first. It tries to reproduce
+the bug in Kitesurf and in Chrome, finds the cause, and may open a pull request
+with a fix. Its `triage:` label shows where your issue is. If it asks for a
+reproduction, or says it could not reproduce the bug, reply with more detail
+and it tries again. A maintainer reviews every pull request the bot opens. See
+[scripts/triage/README.md](scripts/triage/README.md).
+
 ## Agree on the problem and scope first
 
 Features and intentional behavior changes need a maintainer to approve the

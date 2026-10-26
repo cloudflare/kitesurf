@@ -1,0 +1,132 @@
+name: Issue triage
+
+# An agent reproduces, diagnoses, verifies and tries to fix each new bug
+# report, using the skill in .agents/skills/triage. Labels on the issue
+# hold all the state. The bot opens pull requests but cannot merge them.
+# See scripts/triage/README.md.
+#
+# Off until the repository variable TRIAGE_ENABLED is "true". Forks never
+# inherit repository variables, so the bot does not run there.
+
+on:
+  issues:
+    types: [opened, reopened, closed]
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+concurrency:
+  group: triage-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    # A comment starts a run only on an open issue that is not in a final
+    # state, and only from the reporter or a maintainer, so strangers cannot
+    # spend runner minutes and model credits by commenting.
+    if: >-
+      vars.TRIAGE_ENABLED == 'true' &&
+      !github.event.issue.pull_request &&
+      (github.event_name != 'issue_comment' || (
+        github.event.comment.user.type != 'Bot' &&
+        github.event.issue.state == 'open' &&
+        !contains(github.event.issue.labels.*.name, 'triage: fix verified') &&
+        !contains(github.event.issue.labels.*.name, 'triage: not actionable') &&
+        !contains(github.event.issue.labels.*.name, 'triage: skipped') &&
+        (github.event.comment.user.login == github.event.issue.user.login ||
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      issues: read
+    env:
+      # Closing an issue only deletes the fix branch. A comment on an
+      # issue in a terminal state is ignored. Neither needs a build.
+      NEEDS_BUILD: >-
+        ${{ github.event.action != 'closed' &&
+            !contains(github.event.issue.labels.*.name, 'triage: fix verified') &&
+            !contains(github.event.issue.labels.*.name, 'triage: not actionable') &&
+            !contains(github.event.issue.labels.*.name, 'triage: skipped') }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Restores the Bazel cache that ci.yml saves on main, so a run on an
+      # unchanged main skips most of the Rust-to-wasm build. Issue events
+      # run with github.ref set to main, so turn saving off: a run driven by
+      # untrusted issue text must not write main's caches.
+      - if: env.NEEDS_BUILD == 'true'
+        uses: ./.github/actions/setup
+        with:
+          rust: "true"
+          bazel-cache: "true"
+          save-cache: "false"
+      - if: env.NEEDS_BUILD == 'true'
+        run: pnpm install --frozen-lockfile
+      # The action reads its build-command input but never runs it, so build
+      # here. The agent's `pnpm run dev` then reuses this Bazel output.
+      - if: env.NEEDS_BUILD == 'true'
+        run: pnpm run build
+      # The reproduce step runs the same repro in Chrome and diffs the
+      # result. ubuntu-latest ships Google Chrome. Fail early if it moves.
+      - if: env.NEEDS_BUILD == 'true'
+        run: google-chrome --version
+
+      # CONTRIBUTING.md requires a DCO sign-off on every commit, and the
+      # action commits with a plain `git commit -m`. This hook adds the
+      # sign-off for the bot's identity, so its pull requests pass the DCO
+      # check. The maintainer who merges is the one who certifies the fix.
+      - if: env.NEEDS_BUILD == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/triage-hooks"
+          cat > "$RUNNER_TEMP/triage-hooks/commit-msg" <<'HOOK'
+          #!/usr/bin/env bash
+          # The author identity without its timestamp, so the sign-off
+          # matches the author email that scripts/check-dco.mjs compares.
+          set -euo pipefail
+          ident="$(git var GIT_AUTHOR_IDENT | sed -E 's/ [0-9]+ [-+][0-9]{4}$//')"
+          [[ -n "$ident" ]] || { echo "commit-msg: no author identity" >&2; exit 1; }
+          exec git interpret-trailers --in-place --if-exists addIfDifferent \
+            --trailer "Signed-off-by: $ident" "$1"
+          HOOK
+          chmod +x "$RUNNER_TEMP/triage-hooks/commit-msg"
+
+      # A short-lived (1 hour) token for the kitesurf-bot GitHub App,
+      # limited to this repository. Created last so no build step can
+      # see it.
+      - id: bot-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ vars.TRIAGE_BOT_APP_ID }}
+          private-key: ${{ secrets.TRIAGE_BOT_PRIVATE_KEY }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+
+      # Pinned to a commit: v0.4.0 predates the Workers AI inputs. Review
+      # the upstream diff before you bump this.
+      - uses: withastro/triagebot-action@51d30da13c0bd571a3822fc56882de40fead0086
+        env:
+          # Point git at the sign-off hook for the action's own commit. The
+          # environment overrides the core.hooksPath that pnpm install sets,
+          # and the agent's shell does not inherit it.
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: core.hooksPath
+          GIT_CONFIG_VALUE_0: ${{ runner.temp }}/triage-hooks
+        with:
+          read-token: ${{ secrets.GITHUB_TOKEN }}
+          write-token: ${{ steps.bot-token.outputs.token }}
+          cloudflare-api-key: ${{ secrets.TRIAGE_CF_AI_TOKEN }}
+          cloudflare-account-id: ${{ secrets.TRIAGE_CF_ACCOUNT_ID }}
+          anthropic-api-key: ${{ secrets.TRIAGE_ANTHROPIC_API_KEY }}
+          triage-model: ${{ vars.TRIAGE_MODEL || 'cloudflare-workers-ai/@cf/moonshotai/kimi-k2.7-code' }}
+          verification-model: ${{ vars.TRIAGE_VERIFICATION_MODEL || 'cloudflare-workers-ai/@cf/moonshotai/kimi-k2.6' }}
+          triage-skill: .agents/skills/triage
+          # No per-issue preview Worker yet (Phase 2), so every fix goes
+          # straight to a pull request that a maintainer reviews.
+          auto-pr-on-fix: "true"
+          bot-logins: ${{ vars.TRIAGE_BOT_LOGIN }}
