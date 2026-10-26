@@ -5,7 +5,7 @@
 // Runs the source-based legacy script plan and dispatches document lifecycle events.
 // The normal path bundles classic scripts into one sloppy CJS module; this plan runs only when the
 // parent supplied no bundle (an OOPIF child, or a navigate whose bake threw). Everything runs on
-// boa, which parses the sources itself.
+// boa. Only external modules and their imports pass the script gate; classic and inline do not.
 
 import { globalizeForBoa } from "./boa-classic.ts";
 import { ksEventCtors, state } from "./state.ts";
@@ -18,6 +18,9 @@ export interface ScriptDescriptor {
   defer: boolean;
   async: boolean;
   body: string;
+  // Empty collapses to null, the rule scan.rs and the engine's DOM fallback use.
+  nonce: string | null;
+  integrity: string | null;
   _resolvedUrl?: string;
 }
 
@@ -88,6 +91,8 @@ export function extractScripts(): ScriptDescriptor[] {
       defer: "defer" in attrs,
       async: "async" in attrs,
       body,
+      nonce: attrs.nonce || null,
+      integrity: attrs.integrity?.trim() || null,
     });
   }
   return out;
@@ -244,6 +249,14 @@ export async function runAsyncPhase(plan: ScriptPlan): Promise<void> {
 // inline module a distinct record.
 const inlineModuleSources = new Map<string, string>();
 let inlineModuleCounter = 0;
+// The gate needs an entry module's own nonce and integrity; its imports carry neither.
+const entryModuleAttributes = new Map<string, { nonce: string | null; integrity: string | null }>();
+
+export function entryModuleGateAttributes(
+  url: string,
+): { nonce: string | null; integrity: string | null } | undefined {
+  return entryModuleAttributes.get(url);
+}
 
 // One-shot: boa caches the parsed record, so the source is never asked for twice.
 export function takeInlineModuleSource(url: string): string | undefined {
@@ -269,6 +282,7 @@ export async function runModulePhase(plan: ScriptPlan): Promise<void> {
         continue;
       }
       moduleUrl = url;
+      entryModuleAttributes.set(url, { nonce: script.nonce, integrity: script.integrity });
     } else {
       const source = script.body || "";
       if (!source.trim()) continue;
@@ -286,6 +300,7 @@ export async function runModulePhase(plan: ScriptPlan): Promise<void> {
       console.error("[" + (script.src ? moduleUrl : "<inline-module>") + "]", err);
     } finally {
       inlineModuleSources.delete(moduleUrl);
+      entryModuleAttributes.delete(moduleUrl);
     }
   }
 }
