@@ -1067,16 +1067,14 @@ export async function handlePage(
       const url = sanitizeBaseUrl(requestedUrl);
       target.url = url;
       target.html = html;
-      const isSyntheticUrl = url === "https://kitesurf.local/";
       releaseTargetDom(target);
-      target.docScan = null;
       target.docCsp = null;
       target.docCspReportOnly = null;
       target.docCharset = null;
-      if (!isSyntheticUrl) {
-        target.docScan = scanDocument(html);
-        target.title = target.docScan.title;
-      }
+      // Scan every document, synthetic origin included: the scan is what puts its scripts
+      // through the script gate and into the bundle.
+      target.docScan = scanDocument(html);
+      target.title = target.docScan.title;
       ctx.browser.dedicatedWorkers.terminateTarget(target.targetId, "setDocumentContent");
       const {
         console: capturedConsole,
