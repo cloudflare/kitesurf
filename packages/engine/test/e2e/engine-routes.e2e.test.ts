@@ -82,6 +82,59 @@ test("the web Inspect shortcut still needs a hosted frontend", async () => {
   expect(await response.text()).toContain("Inspector base URL not configured");
 });
 
+test("a path-only inspector base redirects to the request origin over wss", async () => {
+  const response = await env.ENGINE_SAME_ORIGIN_INSPECTOR.fetch("https://ks.invalid/?inspect=1", {
+    redirect: "manual",
+  });
+  expect(response.status).toBe(302);
+  expect(response.headers.get("location")).toBe(
+    "https://ks.invalid/inspector/inspector.html?wss=" +
+      encodeURIComponent("ks.invalid/devtools/page/kitesurf"),
+  );
+});
+
+test("a path-only inspector base redirects to the request origin over ws", async () => {
+  const response = await env.ENGINE_SAME_ORIGIN_INSPECTOR.fetch("http://ks.invalid/?inspect=1", {
+    redirect: "manual",
+  });
+  expect(response.status).toBe(302);
+  const location = new URL(response.headers.get("location") ?? "");
+  expect(location.origin + location.pathname).toBe("http://ks.invalid/inspector/inspector.html");
+  expect(location.searchParams.get("ws")).toBe("ks.invalid/devtools/page/kitesurf");
+  expect(location.searchParams.has("wss")).toBe(false);
+});
+
+test("a path-only inspector base keeps the /?url= initialUrl", async () => {
+  const response = await env.ENGINE_SAME_ORIGIN_INSPECTOR.fetch(
+    "https://ks.invalid/?url=" + encodeURIComponent("https://example.com/"),
+    { redirect: "manual" },
+  );
+  expect(response.status).toBe(302);
+  const location = new URL(response.headers.get("location") ?? "");
+  expect(location.origin + location.pathname).toBe("https://ks.invalid/inspector/inspector.html");
+  expect(location.searchParams.get("wss")).toBe(
+    "ks.invalid/devtools/page/kitesurf?initialUrl=" + encodeURIComponent("https://example.com/"),
+  );
+});
+
+test("discovery advertises a path-only inspector base as a relative frontend URL", async () => {
+  for (const protocol of ["http:", "https:"]) {
+    const scheme = protocol === "https:" ? "wss" : "ws";
+    for (const path of ["/json", "/json/list", "/json/list/"]) {
+      const response = await env.ENGINE_SAME_ORIGIN_INSPECTOR.fetch(
+        `${protocol}//ks.invalid${path}`,
+      );
+      expect(response.status, path).toBe(200);
+      expect(await response.json(), path).toEqual([
+        expect.objectContaining({
+          webSocketDebuggerUrl: `${scheme}://ks.invalid/devtools/page/kitesurf`,
+          devtoolsFrontendUrl: `/inspector/inspector.html?${scheme}=ks.invalid/devtools/page/kitesurf`,
+        }),
+      ]);
+    }
+  }
+});
+
 test("/json/protocol is an empty object", async () => {
   const res = await engine("/json/protocol");
   expect(await res.json()).toEqual({});

@@ -10,7 +10,7 @@ import { armLocalTracing } from "./tracing-local.ts";
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono, type Context, type ErrorHandler } from "hono";
 import { z } from "zod";
-import { inspectorBaseUrlOrNull } from "./inspector.ts";
+import { absoluteInspectorBaseUrl, inspectorBaseUrlOrNull } from "./inspector.ts";
 import { DEFAULT_ENGINE_HOST, type EngineHost } from "./host.ts";
 
 // Loopback service binding for PageScript subresource fetches.
@@ -166,7 +166,9 @@ app.get("/", async (c, next) => {
   const wsValue = `${requestHost}/devtools/page/kitesurf${initialQuery}`;
   const params = new URLSearchParams();
   params.set(wsScheme, wsValue);
-  const target = inspectorBase.replace(/\/$/, "") + "?" + params.toString();
+  // Response.redirect needs an absolute URL; a same-origin frontend shares the WebSocket's host.
+  const frontend = absoluteInspectorBaseUrl(inspectorBase, `${url.protocol}//${requestHost}`);
+  const target = frontend.replace(/\/$/, "") + "?" + params.toString();
   return Response.redirect(target, 302);
 });
 
@@ -206,7 +208,8 @@ function discoveryList(c: Context<EngineApp>): Response {
     faviconUrl: `${url.protocol}//${host}/favicon.ico`,
   };
   // Chrome's discovery UI needs this field even for "inspect fallback";
-  // omitting it makes both actions silently do nothing.
+  // omitting it makes both actions silently do nothing. A path-only base
+  // stays relative, like Chrome's own /json/list, which chrome://inspect accepts.
   entry.devtoolsFrontendUrl =
     (inspectorBase ?? CHROME_BUNDLED_INSPECTOR_URL).replace(/\/$/, "") +
     `?${scheme}=${host}/devtools/page/kitesurf`;

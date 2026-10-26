@@ -13,3 +13,11 @@ export function inspectorBaseUrlOrNull(env: {
   const trimmed = raw.trim();
   return trimmed === "" ? null : trimmed;
 }
+
+/**
+ * Resolve a path-only base (`/inspector/inspector.html`, a same-origin frontend copy) against
+ * `origin`. Any other value is returned unchanged.
+ */
+export function absoluteInspectorBaseUrl(base: string, origin: string): string {
+  return base.startsWith("/") ? new URL(base, origin).href : base;
+}
