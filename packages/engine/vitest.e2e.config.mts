@@ -196,6 +196,12 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
     "kitesurf-engine-no-inspector",
     { ...engineBindings, KITESURF_INSPECTOR_BASE_URL: "" },
   );
+  // The same-origin frontend copy that the bundle_devtools build stages; the routes need no assets.
+  const sameOriginInspectorEngineWorker = engineWorkerOptions(
+    "kitesurf-engine-same-origin-inspector",
+    "kitesurf-engine-same-origin-inspector",
+    { ...engineBindings, KITESURF_INSPECTOR_BASE_URL: "/inspector/inspector.html" },
+  );
 
   const extraEngineWorkers = (opts.extraEngines ?? []).map((engine) =>
     engineWorkerOptions(engine.name, engine.outboundService, {
@@ -213,6 +219,7 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
           serviceBindings: {
             ENGINE: "kitesurf-engine",
             ENGINE_NO_INSPECTOR: "kitesurf-engine-no-inspector",
+            ENGINE_SAME_ORIGIN_INSPECTOR: "kitesurf-engine-same-origin-inspector",
             ...opts.serviceBindings,
             OTLP_CAPTURE: "kitesurf-otlp-capture",
             CORE_WASM: "kitesurf-core-wasm",
@@ -221,6 +228,7 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
           workers: [
             engineWorker as never,
             noInspectorEngineWorker as never,
+            sameOriginInspectorEngineWorker as never,
             ...(extraEngineWorkers as never[]),
             fixturesWorker as never,
             ...((opts.workers ?? []).concat(fixtureWorkers) as never[]),
