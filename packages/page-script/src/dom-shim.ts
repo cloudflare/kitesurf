@@ -24,5 +24,4 @@ export type {
   BuildDocumentOpts,
   BuildDocumentResult,
   DomShimGlobals,
-  DomShimInternals,
 } from "@kitesurf/dom-shim/contract";

@@ -27,11 +27,17 @@ test("iframe-bitmap-paint", async ({ page }) => {
       rgba[i + 2] = 0;
       rgba[i + 3] = 255;
     }
-    const dom = (globalThis as any)[Symbol.for("kitesurf.internals")].domDebug;
-    if (!dom || typeof dom.setIframeImage !== "function") {
+    const internals: unknown = Reflect.get(globalThis, Symbol.for("kitesurf.internals"));
+    const dom: unknown =
+      typeof internals === "object" && internals !== null
+        ? Reflect.get(internals, "domDebug")
+        : undefined;
+    const setIframeImage: unknown =
+      typeof dom === "object" && dom !== null ? Reflect.get(dom, "setIframeImage") : undefined;
+    if (typeof setIframeImage !== "function") {
       return { ok: false, why: "setIframeImage not exposed" };
     }
-    const result = dom.setIframeImage(nodeId, W, H, rgba);
+    const result = setIframeImage.call(dom, nodeId, W, H, rgba);
     return { ok: true, nodeId, rc: result };
   });
   expect(rc.ok, `push failed: ${JSON.stringify(rc)}`).toBe(true);

@@ -159,8 +159,8 @@ One line per file (skip the declaration twins `internal-state.ts` and
    dom-shim-internal sharing — that's what state.ts is for.
 
 5. **Engine hooks that cross to page-script go on the internals
-   record** (`internals.ts`, camelCase, no prefix), never on
-   globalThis. The `__ks_*` prefix stays only on keys of the
+   record** (`KitesurfInternals` in internal-state, read through
+   `internals.ts`; camelCase, no prefix), never on globalThis. The `__ks_*` prefix stays only on keys of the
    buildDocument export bag (`__ks_dispatchTrustedEvent`); never use it
    for purely intra-package names.
 

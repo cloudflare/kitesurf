@@ -7,6 +7,7 @@
 export type {
   BundleDiag,
   IframePost,
+  KitesurfInternals,
   KitesurfInternalState,
 } from "../../page-script/src/internal-state";
 export {
