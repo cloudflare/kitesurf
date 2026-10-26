@@ -93,10 +93,19 @@ export const ksGlobalByKey: Record<PropertyKey, unknown> = globalThis;
 
 // Every buildDocument constructor named Event or *Event.
 type ShimEventCtorName = Extract<keyof BuildDocumentResult, "Event" | `${string}Event`>;
+export type ShimEventCtors = Pick<BuildDocumentResult, ShimEventCtorName>;
 
-// installGlobals fills this before page JS or any engine-synthesized event can run, so readers
-// treat every constructor as present.
-export const ksEventCtors = {} as Pick<BuildDocumentResult, ShimEventCtorName>;
+// The dom-shim event constructors, which engine-created events use instead of a globalThis.Event
+// that page libraries can overwrite. Empty until installGlobals fills it.
+export const ksEventCtors: Partial<ShimEventCtors> = {};
+
+// One captured constructor. Before installGlobals it throws the TypeError a bare
+// `new ksEventCtors.X()` would have.
+export function shimEventCtor<K extends ShimEventCtorName>(name: K): ShimEventCtors[K] {
+  const ctor = ksEventCtors[name];
+  if (ctor === undefined) throw new TypeError(`${name} is not installed yet`);
+  return ctor;
+}
 
 let settleArmed: () => void = () => {};
 const armedDeferred = new Promise<void>((resolve) => {

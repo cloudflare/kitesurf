@@ -4,7 +4,7 @@
 
 // Installs the page WebSocket facade over workerd's WebSocket-upgrade fetch.
 
-import { ksEventCtors, ksGlobal, ksGlobalByKey } from "./state.ts";
+import { ksGlobal, ksGlobalByKey, shimEventCtor } from "./state.ts";
 
 type AnyFn = (...args: unknown[]) => unknown;
 
@@ -19,7 +19,7 @@ const WEBSOCKET_ABNORMAL_CLOSURE_CODE = 1006;
 function mkEvent(type: string, fields: Record<string, unknown>): any {
   let ev: any;
   try {
-    ev = new ksEventCtors.Event(type);
+    ev = new (shimEventCtor("Event"))(type);
   } catch {
     ev = { type };
   }

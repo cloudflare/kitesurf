@@ -16,11 +16,11 @@ import {
   reportOnly,
 } from "./script-policy.ts";
 import { holdsSharedMemory } from "./shared-memory.ts";
-import { ksEventCtors, ksGlobal, state } from "./state.ts";
+import { ksEventCtors, ksGlobal, shimEventCtor, state, type ShimEventCtors } from "./state.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
 
 // Events here are always the shim's (ksEventCtors), never workerd's.
-type PageEvent = InstanceType<typeof ksEventCtors.Event>;
+type PageEvent = InstanceType<ShimEventCtors["Event"]>;
 type ListenerFn = (this: unknown, event: PageEvent) => unknown;
 type Listener = { fn: ListenerFn; once: boolean; src: unknown };
 
@@ -272,7 +272,7 @@ function buildWorkerClass(): unknown {
             );
           } catch {}
           finish(ws);
-          dispatch(ws, new ksEventCtors.Event("error"));
+          dispatch(ws, new (shimEventCtor("Event"))("error"));
         },
       );
     }
@@ -418,7 +418,7 @@ function buildWorkerClass(): unknown {
       try {
         event = new Ctor("error", init);
       } catch {
-        event = Object.assign(new ksEventCtors.Event("error", { cancelable: true }), init);
+        event = Object.assign(new (shimEventCtor("Event"))("error", { cancelable: true }), init);
       }
       dispatch(ws, event);
       if (!event.defaultPrevented) {
@@ -428,7 +428,7 @@ function buildWorkerClass(): unknown {
       }
     } else if (params.type === "loadError") {
       finish(ws);
-      dispatch(ws, new ksEventCtors.Event("error"));
+      dispatch(ws, new (shimEventCtor("Event"))("error"));
     } else if (params.type === "closed") {
       finish(ws);
     }

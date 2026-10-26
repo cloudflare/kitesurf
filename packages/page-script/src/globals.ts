@@ -25,7 +25,9 @@ import {
   ksEventCtors,
   ksGlobal,
   ksGlobalByKey,
+  shimEventCtor,
   state,
+  type ShimEventCtors,
 } from "./state.ts";
 import { fetchGatedModuleSource } from "./inserted-scripts.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
@@ -3829,9 +3831,9 @@ export function installGlobals(
           this._sent = false;
         }
         _fire(name) {
-          let event: InstanceType<typeof ksEventCtors.Event> | null = null;
+          let event: InstanceType<ShimEventCtors["Event"]> | null = null;
           try {
-            event = new ksEventCtors.Event(name);
+            event = new (shimEventCtor("Event"))(name);
           } catch {}
           const handler = (this as any)["on" + name];
           if (typeof handler === "function") {
@@ -4207,7 +4209,7 @@ export function installGlobals(
         _fire(type: string, detail?: any) {
           let event: any;
           try {
-            event = new ksEventCtors.Event(type, { bubbles: false, cancelable: false });
+            event = new (shimEventCtor("Event"))(type, { bubbles: false, cancelable: false });
             if (detail) Object.assign(event, detail);
           } catch {
             event = { type, ...detail };
