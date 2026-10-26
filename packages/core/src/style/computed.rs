@@ -708,10 +708,34 @@ impl DomHandle {
         serde_wasm_bindgen::to_value(&props).map_err(|e| JsError::new(&e.to_string()))
     }
 
+    // `--name`'s computed value with var() substituted, "" when unset. Scripts parseInt() CSS
+    // variables read this way, and "" for a set one gave them NaN.
+    fn computed_custom_property(&self, node_id: u32, name: &str) -> Option<String> {
+        if name.is_empty() {
+            return None;
+        }
+        self.ensure_layout();
+        let internal_id = self.resolve_node_id(node_id)?;
+        let doc = self.doc.try_borrow().ok()?;
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            use style_traits::ToCss as _;
+            let styles = doc.get_node(internal_id)?.primary_styles()?;
+            let atom = ::stylo_atoms::Atom::from(name);
+            let value = styles.custom_properties().get_for_cssom(&atom);
+            Some(value.map(|v| v.to_css_string()).unwrap_or_default())
+        }))
+        .ok()
+        .flatten()
+    }
+
     #[wasm_bindgen(js_name = "computedStyleValue")]
     pub fn computed_style_value(&self, node_id: u32, name: &str) -> Option<String> {
         if self.layout_mode.get() == LayoutMode::Off {
             return None;
+        }
+        // computedStyle's bulk list holds longhands only, so a custom property answers here.
+        if let Some(custom) = name.strip_prefix("--") {
+            return self.computed_custom_property(node_id, custom);
         }
         let id = ::style::properties::PropertyId::parse_enabled_for_all_content(name)
             .ok()?

@@ -273,7 +273,8 @@ export function computedStyleForAuthId(
 
 export function computedStyleValueForAuthId(authId: number, name: string): string | null {
   if (typeof authId !== "number" || authId < 0 || name === "page-orientation") return null;
-  if (cascadeSeq() === computedStyleCacheSeq) {
+  // The bulk list holds no custom property, so a cached one cannot answer `--name`.
+  if (cascadeSeq() === computedStyleCacheSeq && !name.startsWith("--")) {
     const cached = computedStyleCache.get(`${authId}|`);
     if (cached !== undefined) {
       for (const p of cached) if (p.name === name) return p.value;

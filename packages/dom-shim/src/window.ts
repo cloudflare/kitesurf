@@ -649,6 +649,12 @@ export function installWindow(
         // then Stylo assembles shorthands (font, margin, background, ...).
         getPropertyValue(name) {
           const k = String(name);
+          // Custom properties live only on the single-value path: the bulk longhand list has none.
+          if (k.startsWith("--")) {
+            if (!hasNodeId || pseudoNorm || !valueForAuthId) return "";
+            const value = valueForAuthId(nodeId, k);
+            return typeof value === "string" ? value : "";
+          }
           if (singleOk) {
             const value = single(k);
             if (value !== null) return value;
