@@ -43,7 +43,7 @@ common:bazelflare --modify_execution_info=CopyFile=+no-remote-exec,CopyDirectory
 # executors have instead of the .wpt and .playwright checkouts in this tree.
 common:bazelflare --action_env=KITESURF_PW_BASE=/opt/playwright
 common:bazelflare --action_env=KITESURF_WPT_DIR=/opt/wpt
-# Add the prebuilt Chrome DevTools frontend (about 250 MB to download once) to the engine assets
-# at /inspector/ (packages/engine:bundle_devtools).
+# Stage the prebuilt Chrome DevTools frontend (about 250 MB to download once) into the engine assets
+# at /inspector/. `pnpm run dev` takes it from `common --config=devtools` in .bazelrc.user.
 common:devtools --//packages/engine:bundle_devtools
 try-import %workspace%/.bazelrc.user

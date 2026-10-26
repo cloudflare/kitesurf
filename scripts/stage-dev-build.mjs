@@ -27,6 +27,9 @@ const OUTPUTS = [
   { dir: "packages/page-renderer/dist" },
   { dir: "packages/worker-script/dist" },
 ];
+// Empty unless built with --config=devtools. An empty one deletes the source-tree copy instead of
+// staging nothing into it, so `wrangler dev` does not serve an earlier build's DevTools frontend.
+const OPTIONAL_OUTPUTS = ["packages/engine/public/inspector"];
 const MEMPROF_ONLY = process.argv.includes("--memprof");
 
 // Runfiles are links into bazel-out, so follow them. Copies keep Bazel's read-only mode, which
@@ -76,5 +79,10 @@ if (MEMPROF_ONLY) {
   stageDirectory("packages/core/pkg/memprof", "packages/core/pkg", ["package.json", "BUILD.bazel"]);
 } else {
   for (const { dir, keep = [] } of OUTPUTS) stageDirectory(dir, dir, keep);
+  for (const dir of OPTIONAL_OUTPUTS) {
+    const from = join(runfiles, dir);
+    if (existsSync(from) && readdirSync(from).length > 0) stageDirectory(dir, dir);
+    else rmSync(join(workspace, dir), { recursive: true, force: true });
+  }
 }
 console.log(`[dev-build] staged into ${workspace}`);

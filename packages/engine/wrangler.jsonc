@@ -32,9 +32,10 @@
     "KITESURF_PAGE_CPU_MS_CAP": "",
     "KITESURF_PAGE_WALL_MS_CAP": "",
     "KITESURF_LAG_WATCHDOG": "",
-    // DevTools frontend for the `/?url=` shortcut and `/json/list`. It must
-    // accept `?wss=<endpoint>` or `?ws=<endpoint>`. Empty disables the web
-    // shortcut; Chrome discovery falls back to its bundled frontend.
+    // DevTools frontend for the `/?url=` shortcut and `/json/list`. It must accept
+    // `?wss=<endpoint>` or `?ws=<endpoint>`. Empty disables the web shortcut; Chrome
+    // discovery falls back to its bundled frontend. A `--config=devtools` build serves
+    // a same-origin copy: set the path `/inspector/inspector.html`.
     "KITESURF_INSPECTOR_BASE_URL": "",
     // Web Bot Auth: origin of the key directory that publishes the public
     // half of the WEB_BOT_AUTH_JWK secret. Empty disables signing.
