@@ -12,7 +12,7 @@ import { getInternalState, sendUpstreamEvent } from "./internal-state.js";
 import { importModule, startupInsertedBaked } from "./startup-probe.ts";
 import { nativeSetTimeout } from "./native-scheduling.ts";
 import { fetchInsertedScript, resourceInflight } from "./resource-fetch.ts";
-import { dispatchLifecycle } from "./scripts.ts";
+import { dispatchLifecycle, takeInlineModuleSource } from "./scripts.ts";
 import {
   insertedResponseAllowed,
   insertedScriptAllowed,
@@ -75,6 +75,8 @@ export interface InsertedScriptInfo {
 }
 
 export function fetchGatedModuleSource(url: string): Promise<string> {
+  const inline = takeInlineModuleSource(url);
+  if (inline !== undefined) return Promise.resolve(inline);
   let pending = moduleSourceInflight.get(url);
   if (!pending) {
     pending = fetchGatedModuleSourceOnce(url).finally(() => moduleSourceInflight.delete(url));
