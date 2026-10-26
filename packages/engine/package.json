@@ -34,7 +34,7 @@
     "kitesurf-core": "workspace:*",
     "nanoid": "^6.0.1",
     "web-bot-auth": "^0.1.3",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@cloudflare/puppeteer": "1.1.0",
