@@ -44,20 +44,19 @@ test("document.fonts.ready delegates to the lazy-font hook", async ({ page }) =>
     timeout: 20_000,
   });
   const observed = await page.evaluate(async () => {
-    const g = globalThis as typeof globalThis & {
-      __ks_fontsReady?: () => Promise<void>;
-      __ks_fontsInflightCount?: () => number;
-    };
+    const g: unknown = Reflect.get(globalThis, Symbol.for("kitesurf.internals"));
+    if (typeof g !== "object" || g === null) throw new Error("no internals record");
     const hooksPresent =
-      typeof g.__ks_fontsReady === "function" && typeof g.__ks_fontsInflightCount === "function";
+      typeof Reflect.get(g, "fontsReady") === "function" &&
+      typeof Reflect.get(g, "fontsInflightCount") === "function";
 
     let inflight = 2;
     let resolveGate!: () => void;
     const gate = new Promise<void>((r) => {
       resolveGate = r;
     });
-    g.__ks_fontsInflightCount = () => inflight;
-    g.__ks_fontsReady = () => gate;
+    Reflect.set(g, "fontsInflightCount", () => inflight);
+    Reflect.set(g, "fontsReady", () => gate);
 
     const fonts = document.fonts;
     const statusWhileLoading = fonts.status;

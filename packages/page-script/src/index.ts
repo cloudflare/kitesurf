@@ -183,6 +183,10 @@ import {
   upgradeToFullFonts,
 } from "./font-loader.ts";
 
+// The UA stylesheet text, cached by the first enumerateStyleSheets query;
+// it never changes within an isolate.
+let uaStylesheetText: string | undefined;
+
 const SESSION_CLOSED_ERROR = new Error("PageScript session closed");
 let sessionClosing = false;
 let resolveSessionClosing = () => {};
@@ -239,7 +243,7 @@ setAuthorFontUpgradeHook(async () => {
   }
 });
 
-ksGlobal.__ksFontOutlineDemand = (): Promise<void> | null => {
+ksInternals.demandFontOutlines = (): Promise<void> | null => {
   if (fontLoaderMode() !== "lazy") return null;
   return upgradeToFullFonts();
 };
@@ -329,13 +333,14 @@ import {
   detachedWrapperStats,
 } from "./dom-shim.js";
 import type { BuildDocumentResult } from "./dom-shim.js";
+import { ksInternals } from "./internals.ts";
 
 import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
 
 const ISOLATE_KILL_MARKER: IsolateKillMarker = "[ks-kill]";
 
-ksGlobal.__ksJsSpanEnter = ks_js_span_enter;
-ksGlobal.__ksJsSpanExit = ks_js_span_exit;
+ksInternals.jsSpanEnter = ks_js_span_enter;
+ksInternals.jsSpanExit = ks_js_span_exit;
 
 interface FragmentLookupDoc {
   getElementById?: (id: string) => unknown;
@@ -391,7 +396,7 @@ let __ksControlCaretAnchor: { el: any; offset: number } | null = null;
 let __ksCaretDragOrigin: { x: number; y: number } | null = null;
 
 function caretX(clientX: number, clientY: number, eventType: string): number {
-  const cellWidth = Number(ksGlobal.__ks_tty_cell_w) || 0;
+  const cellWidth = Number(ksInternals.ttyCellWidth) || 0;
   if (!(cellWidth > 0)) return clientX;
   const left = Math.floor(clientX / cellWidth) * cellWidth;
   const CARET_CELL_EDGE_INSET_PX = 0.5;
@@ -555,8 +560,8 @@ function scrollForKey(key: string, init: KeyScrollInit | undefined): void {
   }
 
   const ttyKeyboard = init?.ttyKeyboard === true;
-  const cellHeight = Number(ksGlobal.__ks_tty_cell_h) || 0;
-  const cellWidth = Number(ksGlobal.__ks_tty_cell_w) || 0;
+  const cellHeight = Number(ksInternals.ttyCellHeight) || 0;
+  const cellWidth = Number(ksInternals.ttyCellWidth) || 0;
   const lineHeight = cellHeight || DEFAULT_KEY_SCROLL_STEP_PX;
   const lineWidth = cellWidth || DEFAULT_KEY_SCROLL_STEP_PX;
   const pageHeight = Math.max(lineHeight, state.paintViewportH - lineHeight);
@@ -591,7 +596,7 @@ function scrollForKey(key: string, init: KeyScrollInit | undefined): void {
   }
   if (!scrollDeltaX && !scrollDeltaY) return;
   const scrollTarget = focused || state.document.body;
-  const scrollByWheel: unknown = ksGlobal.__ks_scrollByWheel;
+  const scrollByWheel: unknown = ksInternals.scrollByWheel;
   if (typeof scrollByWheel === "function" && typeof scrollTarget?._id === "number") {
     try {
       if (scrollByWheel(scrollTarget._id, scrollDeltaX, scrollDeltaY)) return;
@@ -2088,15 +2093,15 @@ function fireIframeLoad(iframeElement: any) {
 }
 
 installResourceFetchBridge();
-ksGlobal.__ks_fontsReady = async () => {
+ksInternals.fontsReady = async () => {
   if (fontDeferActive()) {
     await awaitDeferredFonts();
     kickLayoutForFontFaceDiscovery();
   }
   return fontsIdle();
 };
-ksGlobal.__ks_fontsInflightCount = fontsInflightCount;
-ksGlobal.__ks_fontDemand = demandDeferredFonts;
+ksInternals.fontsInflightCount = fontsInflightCount;
+ksInternals.demandDeferredFonts = demandDeferredFonts;
 installFetchShim();
 installConsoleWrapper();
 // Install deferral after the fetch shim so retries still use the page's outbound path.
@@ -2668,7 +2673,7 @@ function attributesFromNodeInfo(info: unknown): unknown[] | undefined {
   return isUnknownArray(info.attributes) ? info.attributes : undefined;
 }
 
-function drainPageCustomElementUpgrades(upgrades: (() => void) | undefined): void {
+function drainPageCustomElementUpgrades(upgrades: (() => void) | null): void {
   if (typeof upgrades !== "function") return;
   try {
     upgrades();
@@ -2922,7 +2927,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       try {
         setDarkColorScheme(navigateOptions.darkColorScheme);
       } catch {}
-      ksGlobal.__ks_dark_scheme = navigateOptions.darkColorScheme;
+      state.darkColorScheme = navigateOptions.darkColorScheme;
     }
     if (
       navigateOptions &&
@@ -2963,8 +2968,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           typeof navigateOptions.ttyCellH === "number" && navigateOptions.ttyCellH > 0
             ? navigateOptions.ttyCellH
             : DEFAULT_TTY_CELL_HEIGHT_PX;
-        ksGlobal.__ks_tty_cell_w = cellWidth;
-        ksGlobal.__ks_tty_cell_h = cellHeight;
+        ksInternals.ttyCellWidth = cellWidth;
+        ksInternals.ttyCellHeight = cellHeight;
         const ratio = monoAdvancePerEm();
         if (ratio > 0) {
           const fontPx = cellWidth / ratio;
@@ -3022,9 +3027,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         state.dom.setViewport(viewportWidth, viewportHeight);
       } catch {}
     }
-    try {
-      ksGlobal.__ks_dom_debug = state.dom;
-    } catch {}
+    ksInternals.domDebug = state.dom;
     state.scrollX = 0;
     state.scrollY = 0;
     invalidatePaintDom();
@@ -3253,13 +3256,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     __ks_dispatchTrustedEvent = built.__ks_dispatchTrustedEvent || null;
     __ks_activateLabel = built.__ks_activateLabel;
     state.dispatchTrustedEvent = __ks_dispatchTrusted;
-    ksGlobal.__ks_canonicalize_inline_style = (css: string) => {
-      try {
-        return ks_parse_inline_style(css);
-      } catch {
-        return [];
-      }
-    };
     installGlobals(state.document, state.window, built);
     preinstallStaticIframes();
     ksSpan("dom.mark_engine_functions", null, () =>
@@ -3445,7 +3441,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       let moduleSuccessCount = 0;
       let moduleFailureCount = 0;
       try {
-        const drainUpgrades = ksGlobal.__ks_drainCustomElementUpgrades;
+        const drainUpgrades = state.drainCustomElementUpgrades;
         const pendingImports: Array<Promise<void>> = [];
         const trackModuleImport = (
           moduleIndex: number,
@@ -3717,7 +3713,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         loadPhases.plInflightEnd = finalSettleState[2];
       }
       try {
-        ksGlobal.__ks_drainCustomElementUpgrades?.();
+        state.drainCustomElementUpgrades?.();
         await drainSettleMicrotasks();
         const afterUpgradeState = getSettleState();
         if (
@@ -4645,7 +4641,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       if (eventType === "wheel" && !defaultPrevented) {
         const dx = event.deltaX || 0;
         const dy = event.deltaY || 0;
-        const wheelBridge = ksGlobal.__ks_scrollByWheel;
+        const wheelBridge = ksInternals.scrollByWheel;
         let bridgeAvailable = false;
         if (typeof wheelBridge === "function" && targetEl && typeof targetEl._id === "number") {
           bridgeAvailable = true;
@@ -4708,7 +4704,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           while (sel && sel !== state.document && (sel.tagName || "").toUpperCase() !== "SELECT") {
             sel = sel.parentNode;
           }
-          const toggle = ksGlobal.__ksSelectDropdownToggle;
+          const toggle = ksInternals.toggleSelectDropdown;
           if (
             sel &&
             (sel.tagName || "").toUpperCase() === "SELECT" &&
@@ -5252,15 +5248,14 @@ function queryDomEnumerateStyleSheets(
 ): QueryDomResult<"enumerateStyleSheets"> {
   try {
     const sheets: QueryDomEnumeratedStyleSheets = [];
-    let uaText = ksGlobal.__ks_uaStylesheetText as string | undefined;
-    if (typeof uaText !== "string") {
+    if (uaStylesheetText === undefined) {
       try {
-        uaText = ks_ua_stylesheet();
+        uaStylesheetText = ks_ua_stylesheet();
       } catch {
-        uaText = "";
+        uaStylesheetText = "";
       }
-      ksGlobal.__ks_uaStylesheetText = uaText;
     }
+    const uaText = uaStylesheetText;
     if (uaText.length > 0) {
       sheets.push({
         ownerNodeId: -1,
@@ -6500,7 +6495,7 @@ function queryDomLayoutSettings(
     }
     case "setCdpDomActive": {
       try {
-        ksGlobal.__ks_cdpDomActive = !!(queryArgs && queryArgs.active);
+        ksInternals.cdpDomActive = !!(queryArgs && queryArgs.active);
       } catch {}
       return { ok: true } satisfies QueryDomResult<"setCdpDomActive">;
     }

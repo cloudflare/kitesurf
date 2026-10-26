@@ -2,13 +2,12 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// The page isolate's globalThis as dom-shim sees it. page-script shares the same globalThis, so
-// its PageScriptGlobals extends this. A key one package writes and the other reads belongs here.
+// The page isolate's globalThis as dom-shim sees it; page-script's PageScriptGlobals extends it.
 // `typeof globalThis` lacks what workers-types declares as a class or const (DOMException, Blob,
-// crypto, console), so those, the page globals the shim installs and every hook are listed here.
+// crypto, console), so those and the page globals the shim installs are listed here. Engine hooks
+// live on the internals record instead (internals.ts).
 
 import type { DocumentImpl } from "./document.js";
-import type { Element } from "./element/element.js";
 import type { KsDataTransfer, KsFileList } from "./file-input.js";
 import type * as Idl from "./idl/types.generated.js";
 
@@ -50,36 +49,8 @@ export interface DomShimGlobals {
   requestAnimationFrame?: (callback: (time: number) => void) => number;
   cancelAnimationFrame?: (handle: number) => void;
 
-  // Engine hooks. page-script installs most; dom-shim installs the __ksLabelActivate,
-  // __ksSelectDropdown*, __ks_scrollByWheel and __ks_createElementNoUpgrade entry points.
-  __ks_cdpDomActive?: boolean;
-  __ks_tty_cell_w?: number;
-  __ks_tty_cell_h?: number;
-  // Trace parent of the current RPC, stamped by ws-dispatch.
-  __ksTp?: string;
   // Test override for the canvas push throttle, in ms. Set by page JS.
   __KS_CANVAS_PUSH_MS?: unknown;
-  __ksJsSpanEnter?: (op: string, bytes: number, detail: string) => number;
-  __ksJsSpanExit?: (slot: number) => void;
-  __ksFontOutlineDemand?: () => Promise<void> | null;
-  __ks_fontsReady?: () => Promise<void>;
-  __ks_fontsInflightCount?: () => number;
-  __ks_fontDemand?: () => boolean;
-  __ks_notifyConnected?: (root: Element) => void;
-  __ks_upgradeCustomElement?: (element: Element, tagName: string) => void;
-  __ks_customElementObservesAttribute?: (element: Element, name: string) => boolean;
-  __ks_notifyCustomElementAttributeChanged?: (
-    element: Element,
-    name: string,
-    oldValue: string | null,
-    newValue: string | null,
-    namespace: string | null,
-  ) => void;
-  __ks_createElementNoUpgrade?: (tag: string) => unknown;
-  __ks_scrollByWheel?: (hitNodeId: number, dx: number, dy: number) => boolean;
-  __ksLabelActivate?: (target: unknown, original?: unknown) => void;
-  __ksSelectDropdownToggle?: (select: unknown) => boolean;
-  __ksSelectDropdownClose?: () => void;
 }
 
 export type ShimGlobal = typeof globalThis & DomShimGlobals;

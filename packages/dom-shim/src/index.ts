@@ -120,6 +120,8 @@ import { NodeFilter, TreeWalker, NodeIterator } from "./traversal.js";
 import { XPathEvaluator, XPathExpression, XPathResult } from "./xpath.js";
 import { FormData } from "./form-data.js";
 import "./record.js";
+// UA <select> dropdown overlay — installs ksInternals.toggleSelectDropdown
+// for page-script's click default action.
 import "./select-dropdown.js";
 import {
   AttrCls,

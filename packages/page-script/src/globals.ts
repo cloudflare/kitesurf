@@ -12,6 +12,7 @@ import {
   ks_eval_page,
   ks_import,
   ks_is_bridged,
+  ks_parse_inline_style,
   ks_set_boa_strict,
 } from "./wasm-glue.js";
 import { matchWasmByUrl, matchWasmByBytes, matchWasmByBytesSync } from "./wasm-baked.ts";
@@ -32,6 +33,7 @@ import { indexedDbGlobals } from "./indexeddb.ts";
 import { createScheduler } from "./scheduler.ts";
 import { installIdleCallbackGlobals, installPageTaskGlobals, queuePortTask } from "./page-tasks.ts";
 import { getBlobMimeType, normalizeBlobType, setBlobMimeType } from "./mime-type.ts";
+import { ksInternals } from "./internals.ts";
 
 const MAX_IMAGE_DATA_PIXELS = 4096 * 4096;
 
@@ -258,6 +260,14 @@ function installWebAssemblyShim(): void {
   } catch {}
 }
 
+// installGlobals runs again on teardown; Function and eval are patched once.
+let functionPatched = false;
+let evalPatched = false;
+// Reverse registry (ctor to defined tag), filled by customElements.define() and read by the
+// HTMLElement constructor. Module-level: only the first installGlobals defines customElements,
+// but every call re-wraps HTMLElement, so both must see the same map.
+const ctorTagNames = new WeakMap<object, string>();
+
 export function installGlobals(
   doc: ShimDocument | null,
   win: ShimWindow | null,
@@ -339,8 +349,8 @@ export function installGlobals(
       } catch {}
     }
   }
-  if (!ksGlobal.__ks_function_patched) {
-    ksGlobal.__ks_function_patched = true;
+  if (!functionPatched) {
+    functionPatched = true;
     const NativeFunction = globalThis.Function;
     const Patched: any = function (this: any, ...args: any[]) {
       try {
@@ -403,8 +413,8 @@ export function installGlobals(
       return fetchGatedModuleSource(String(url));
     };
   }
-  if (!globalThis.__ks_eval_patched) {
-    globalThis.__ks_eval_patched = true;
+  if (!evalPatched) {
+    evalPatched = true;
     const nativeEval = globalThis.eval;
     globalThis.eval = function (src: unknown): unknown {
       if (typeof src !== "string") return src;
@@ -2142,11 +2152,14 @@ export function installGlobals(
       });
       ksGlobal.OffscreenCanvas = OffscreenCanvas;
     }
-    const ksCanonicalize = ksGlobal.__ks_canonicalize_inline_style as
-      | ((css: string) => Array<{ name: string; value: string }>)
-      | undefined;
+    const ksCanonicalize = (css: string) => {
+      try {
+        return ks_parse_inline_style(css);
+      } catch {
+        return [];
+      }
+    };
     const declSupported = (name: string, value: string): boolean => {
-      if (typeof ksCanonicalize !== "function") return false;
       try {
         const decls = ksCanonicalize(`${name}: ${value}`);
         if (Array.isArray(decls) && decls.length > 0) return true;
@@ -2376,7 +2389,7 @@ export function installGlobals(
       const MEDIA_QUERY_PERCENT_SCALE = 100;
       const MEDIA_QUERY_DPI_PER_DPPX = 96;
       const MEDIA_QUERY_DPCM_PER_DPPX = 37.7953;
-      const __ksMediaState = {
+      const mediaState = {
         get width() {
           return Number(globalThis.innerWidth) || DEFAULT_VIEWPORT_WIDTH_PX;
         },
@@ -2387,7 +2400,7 @@ export function installGlobals(
           return Number(globalThis.devicePixelRatio) || 1;
         },
         get colorScheme(): "light" | "dark" | "no-preference" {
-          return ksGlobal.__ks_dark_scheme === true ? "dark" : "light";
+          return state.darkColorScheme ? "dark" : "light";
         },
         reducedMotion: "no-preference" as "reduce" | "no-preference",
         contrast: "no-preference" as "more" | "less" | "no-preference",
@@ -2398,7 +2411,6 @@ export function installGlobals(
         colorBits: 8,
         mediaType: "screen" as "screen" | "print" | "all",
       };
-      ksGlobal.__ksMediaState = __ksMediaState;
 
       const parseLength = (valueText: string): number => {
         const match = /^(-?\d+(?:\.\d+)?)\s*(px|em|rem|vw|vh|%)?$/.exec(valueText.trim());
@@ -2413,9 +2425,9 @@ export function installGlobals(
             return numericValue * MEDIA_QUERY_EM_REFERENCE_PX;
           case "vw":
           case "%":
-            return (numericValue / MEDIA_QUERY_PERCENT_SCALE) * __ksMediaState.width;
+            return (numericValue / MEDIA_QUERY_PERCENT_SCALE) * mediaState.width;
           case "vh":
-            return (numericValue / MEDIA_QUERY_PERCENT_SCALE) * __ksMediaState.height;
+            return (numericValue / MEDIA_QUERY_PERCENT_SCALE) * mediaState.height;
           default:
             return NaN;
         }
@@ -2442,7 +2454,6 @@ export function installGlobals(
                 .slice(colon + 1)
                 .trim()
                 .toLowerCase();
-        const mediaState = __ksMediaState;
         const widthMatch = name.match(/^(min-|max-)?(device-)?width$/);
         if (widthMatch) {
           const requestedWidth = parseLength(value);
@@ -2498,7 +2509,6 @@ export function installGlobals(
       };
 
       const evalMediaType = (mediaType: string): boolean => {
-        const mediaState = __ksMediaState;
         if (mediaType === "all") return true;
         if (mediaType === mediaState.mediaType) return true;
         return false;
@@ -2605,8 +2615,6 @@ export function installGlobals(
     }
     if (typeof globalThis.HTMLElement === "function") {
       const Base = globalThis.HTMLElement;
-      const ctorTagNames = new WeakMap();
-      ksGlobal.__ks_ctorTagNames = ctorTagNames;
       const upgradeTargets: Array<{ target: any; consumed: boolean }> = [];
       const htmlInterfaces: readonly unknown[] = Object.values(built.htmlElementInterfaces ?? {});
       const shimElementClasses = new WeakSet<object>(
@@ -2624,7 +2632,7 @@ export function installGlobals(
             return frame.target;
           }
           const tag = ctorTagNames.get(new.target);
-          const mint = ksGlobal.__ks_createElementNoUpgrade;
+          const mint = ksInternals.createElementNoUpgrade;
           if (tag && typeof mint === "function") {
             const element = mint(tag);
             if (element) {
@@ -2763,7 +2771,7 @@ export function installGlobals(
           console.warn("[kitesurf] custom element upgrade failed for " + tagName, error);
         }
       };
-      ksGlobal.__ks_upgradeCustomElement = (element: any, tagName: string): void => {
+      ksInternals.upgradeCustomElement = (element: any, tagName: string): void => {
         const customElementConstructor = registry.get(tagName);
         if (typeof customElementConstructor !== "function") return;
         upgradeCustomElement(element, customElementConstructor, {
@@ -2771,7 +2779,7 @@ export function installGlobals(
           fireConnectedCallback: false,
         });
       };
-      ksGlobal.__ks_notifyCustomElementAttributeChanged = (
+      ksInternals.notifyCustomElementAttributeChanged = (
         element: any,
         name: string,
         oldValue: string | null,
@@ -2804,7 +2812,7 @@ export function installGlobals(
           console.warn("[kitesurf] attributeChangedCallback for " + tagName + " threw", error);
         }
       };
-      ksGlobal.__ks_customElementObservesAttribute = (element: any, name: string): boolean => {
+      ksInternals.customElementObservesAttribute = (element: any, name: string): boolean => {
         const customElementConstructor = registry.get(String(element?.localName || ""));
         return !!(
           customElementConstructor &&
@@ -2850,8 +2858,8 @@ export function installGlobals(
           }
         }
       };
-      ksGlobal.__ks_drainCustomElementUpgrades = drainUpgrades;
-      ksGlobal.__ks_notifyConnected = (rootElement: any) => {
+      state.drainCustomElementUpgrades = drainUpgrades;
+      ksInternals.notifyConnected = (rootElement: any) => {
         try {
           if (registry.size === 0) return;
           if (!rootElement || rootElement.nodeType !== 1 || !rootElement.isConnected) return;
@@ -2900,7 +2908,7 @@ export function installGlobals(
           registry.set(tagName, customElementConstructor);
           observedAttributes.set(customElementConstructor, observedAttributeNames);
           try {
-            ksGlobal.__ks_ctorTagNames?.set(customElementConstructor, String(tagName));
+            ctorTagNames.set(customElementConstructor, String(tagName));
           } catch {}
           pendingUpgrades.push({ tagName, customElementConstructor });
           const resolvers = whenDefinedResolvers.get(tagName);

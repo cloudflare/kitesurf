@@ -74,6 +74,14 @@ export interface PageScriptState {
 
   loadCompletionArmed: Promise<void>;
   settleLoadCompletionArmed: () => void;
+
+  // The navigate's emulated color scheme, mirrored for the shim's matchMedia so it agrees with
+  // the cascade.
+  darkColorScheme: boolean;
+
+  // Runs queued custom-element upgrades. installGlobals sets it; module imports and inbound calls
+  // drain in handler scope, where callbacks may do I/O.
+  drainCustomElementUpgrades: (() => void) | null;
 }
 
 // globalThis with the keys page-script and dom-shim add to it (PageScriptGlobals in types.ts).
@@ -138,4 +146,7 @@ export const state: PageScriptState = {
   navigateStarted: false,
   loadCompletionArmed: armedDeferred,
   settleLoadCompletionArmed: () => settleArmed(),
+
+  darkColorScheme: false,
+  drainCustomElementUpgrades: null,
 };

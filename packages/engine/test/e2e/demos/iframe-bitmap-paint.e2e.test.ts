@@ -27,7 +27,7 @@ test("iframe-bitmap-paint", async ({ page }) => {
       rgba[i + 2] = 0;
       rgba[i + 3] = 255;
     }
-    const dom = (globalThis as any).__ks_dom_debug;
+    const dom = (globalThis as any)[Symbol.for("kitesurf.internals")].domDebug;
     if (!dom || typeof dom.setIframeImage !== "function") {
       return { ok: false, why: "setIframeImage not exposed" };
     }

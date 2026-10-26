@@ -6,7 +6,7 @@
 
 import { SpanStatusCode } from "@opentelemetry/api";
 import type { Attributes, Span, SpanContext, Tracer } from "@opentelemetry/api";
-import { ksGlobal } from "./state.js";
+import { ksInternals } from "./internals.js";
 
 let armed = false;
 
@@ -162,7 +162,7 @@ class KsSpan implements Span {
   constructor(name: string, attributes?: Attributes) {
     this._name = name;
     const top = stack[stack.length - 1];
-    this._parent = top ? top.spanContext().spanId : (ksGlobal.__ksTp as string) || null;
+    this._parent = top ? top.spanContext().spanId : ksInternals.traceParent || null;
     this._ctx = { traceId: traceId(), spanId: randHex(8), traceFlags: 1 };
     if (attributes) this.setAttributes(attributes);
     this._start = nowNano();
@@ -232,8 +232,8 @@ const ksTracer: Tracer = {
     const opts = (typeof rest[0] === "object" && rest[0] !== null ? rest[0] : undefined) as
       | { attributes?: Attributes }
       | undefined;
-    const enter = ksGlobal.__ksJsSpanEnter;
-    const exit = ksGlobal.__ksJsSpanExit;
+    const enter = ksInternals.jsSpanEnter;
+    const exit = ksInternals.jsSpanExit;
     if (fn && typeof enter === "function" && typeof exit === "function") {
       let bytes = -1;
       let detail = "";

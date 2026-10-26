@@ -8,7 +8,6 @@
 import type { BuildDocumentResult, DomShimGlobals } from "./dom-shim.js";
 
 // DomHandle's runtime value comes from the loaded worker's wasm-bindgen sibling.
-import type { DomHandle } from "../../core/pkg/kitesurf_core";
 export type { DomHandle } from "../../core/pkg/kitesurf_core";
 
 export interface ShimCaretNode {
@@ -188,8 +187,7 @@ export interface PageScriptGlobals extends DomShimGlobals {
   FontFace?: Function;
   CSS?: KsCssNamespace;
 
-  // Engine hooks owned by page-script.
-  __ks_function_patched?: boolean;
+  // Engine hooks still on globalThis: wasm reads these by name.
   // Boa's trampolines into V8.
   __ks_thisfwd?: (call: Function, ctor: Function, handle: number) => Function;
   __ks_argpack?: (call: Function, fnHandle: number, recvHandle: number) => Function;
@@ -197,16 +195,6 @@ export interface PageScriptGlobals extends DomShimGlobals {
   __ks_import?: (spec: unknown, referrerUrl?: string) => unknown;
   __ks_native_import?: (url: unknown) => Promise<unknown>;
   __ks_module_source?: (url: unknown) => Promise<string>;
-  __ks_dark_scheme?: boolean;
-  __ksMediaState?: unknown;
-  // Custom-element constructor → defined tag name.
-  __ks_ctorTagNames?: WeakMap<object, string>;
-  __ks_drainCustomElementUpgrades?: () => void;
-  __ks_canonicalize_inline_style?: (
-    css: string,
-  ) => Array<{ name: string; value: string; important?: boolean }>;
-  __ks_uaStylesheetText?: string;
-  __ks_dom_debug?: DomHandle | null;
   // Installed by the engine's memprof build.
   __ks_memprof_imports?: unknown;
   __memprof_dump?: () => string;

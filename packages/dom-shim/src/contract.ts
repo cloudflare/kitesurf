@@ -11,6 +11,7 @@ export type {
   BuildDocumentOpts,
 } from "./state.js";
 export type { DomShimGlobals } from "./global-scope.js";
+export type { DomShimInternals } from "./internals.js";
 export {
   buildDocument,
   listModelContextTools,

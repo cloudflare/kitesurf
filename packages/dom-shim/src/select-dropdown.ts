@@ -9,6 +9,7 @@ import { ksGlobal } from "./state.js";
 import { isOptionEffectivelyDisabled, selectOptions } from "./element/forms/select-options.js";
 import type { Element } from "./element/element.js";
 import { HTMLSelectElement } from "./element/forms/select.js";
+import { ksInternals } from "./internals.js";
 
 // At most one dropdown is open at a time.
 let openState: {
@@ -131,5 +132,4 @@ export function closeSelectDropdown(): void {
   closeDropdown();
 }
 
-ksGlobal.__ksSelectDropdownToggle = toggleSelectDropdown;
-ksGlobal.__ksSelectDropdownClose = closeDropdown;
+ksInternals.toggleSelectDropdown = toggleSelectDropdown;
