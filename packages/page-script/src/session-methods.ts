@@ -23,9 +23,8 @@ type MethodArguments<M extends PageScriptMethod> = Parameters<PageScriptSession[
 
 export function updateClockFloor(timestamp: unknown): void {
   if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) return;
-  const clockState = globalThis as { __ks_clock_floor_ms?: number };
-  if (!clockState.__ks_clock_floor_ms || timestamp > clockState.__ks_clock_floor_ms) {
-    clockState.__ks_clock_floor_ms = timestamp;
+  if (!ksInternals.clockFloorMs || timestamp > ksInternals.clockFloorMs) {
+    ksInternals.clockFloorMs = timestamp;
   }
 }
 

@@ -13,6 +13,9 @@ pub(crate) mod boa_cc_graph;
 pub(crate) mod dom_fastpath;
 #[cfg(target_arch = "wasm32")]
 pub(crate) mod exports;
+// Only the wasm-only boa bridge and the wasm clock read it.
+#[cfg(target_arch = "wasm32")]
+pub(crate) mod internals;
 
 #[cfg(test)]
 mod tests;

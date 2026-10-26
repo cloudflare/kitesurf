@@ -187,14 +187,10 @@ export interface PageScriptGlobals extends DomShimGlobals {
   FontFace?: Function;
   CSS?: KsCssNamespace;
 
-  // Engine hooks still on globalThis: wasm reads these by name.
-  // Boa's trampolines into V8.
-  __ks_thisfwd?: (call: Function, ctor: Function, handle: number) => Function;
-  __ks_argpack?: (call: Function, fnHandle: number, recvHandle: number) => Function;
+  // Called by name from the engine's rewritten module code, so they stay page globals; the wasm
+  // reads __ks_resolve_import_map too.
   __ks_resolve_import_map?: (spec: unknown, referrerUrl?: string) => string;
   __ks_import?: (spec: unknown, referrerUrl?: string) => unknown;
-  __ks_native_import?: (url: unknown) => Promise<unknown>;
-  __ks_module_source?: (url: unknown) => Promise<string>;
   // Installed by the engine's memprof build.
   __ks_memprof_imports?: unknown;
   __memprof_dump?: () => string;

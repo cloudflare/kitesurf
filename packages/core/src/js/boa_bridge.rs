@@ -2581,27 +2581,15 @@ fn tramp_shims() -> (
     t
 }
 
-// PageScript helpers bind trampoline shims; read each global at mint time so
-// page replacements remain observable.
-thread_local! {
-    static HELPER_KEYS: RefCell<std::collections::HashMap<&'static str, wasm_bindgen::JsValue>> =
-        RefCell::new(std::collections::HashMap::new());
-}
-
+// PageScript helpers bind trampoline shims, read from the internals record at mint time so a test
+// stub (boa-ctx-reentry) remains observable.
 fn helper_wrap3(
     name: &'static str,
     a: &wasm_bindgen::JsValue,
     b: &wasm_bindgen::JsValue,
     c: &wasm_bindgen::JsValue,
 ) -> wasm_bindgen::JsValue {
-    let key = HELPER_KEYS.with(|k| {
-        k.borrow_mut()
-            .entry(name)
-            .or_insert_with(|| wasm_bindgen::JsValue::from_str(name))
-            .clone()
-    });
-    let found = js_sys::Reflect::get(&js_sys::global(), &key).ok();
-    if let Some(helper) = found {
+    if let Some(helper) = crate::js::internals::get(name) {
         // typeof, not `instanceof Function`: this runs with boa's borrow
         // live, and an instanceof on a bridged function would fire its
         // getPrototypeOf trap and re-enter boa (the ctx-reentry hijack).
@@ -2657,7 +2645,7 @@ fn make_boa_fn_trampoline(boa_fn: JsObject, ctx: &mut Context) -> (wasm_bindgen:
     let unwrap_handle = pin_boa(boa_fn);
     let (call, ctor, _) = tramp_shims();
     let f = helper_wrap3(
-        "__ks_thisfwd",
+        "wrapBoaFunction",
         &call,
         &ctor,
         &wasm_bindgen::JsValue::from_f64(unwrap_handle as f64),
@@ -2681,7 +2669,7 @@ fn make_boa_method_trampoline(
     let unwrap_handle = pin_boa(boa_fn);
     let (_, _, method) = tramp_shims();
     let f = helper_wrap3(
-        "__ks_argpack",
+        "wrapBoaMethod",
         &method,
         &wasm_bindgen::JsValue::from_f64(unwrap_handle as f64),
         &wasm_bindgen::JsValue::from_f64(recv_handle as f64),

@@ -13,6 +13,19 @@ import { getInternals } from "./internal-state.js";
 export interface PageScriptInternals extends DomShimInternals {
   // The live DomHandle, for e2e tests that inspect wasm state directly.
   domDebug?: DomHandle | null;
+
+  // Read by the wasm core (packages/core/src/js/internals.rs). Close a small V8 function over a
+  // boa trampoline shim and its pin handle(s), so a crossing costs no wasm-bindgen closure.
+  wrapBoaFunction?: (call: Function, construct: Function, handle: number) => Function;
+  wrapBoaMethod?: (call: Function, fnHandle: number, receiverHandle: number) => Function;
+  // A baked module's V8 namespace, so boa reuses it instead of fetching.
+  nativeImport?: (url: unknown) => Promise<unknown>;
+  // A module body for boa's fetch-and-interpret path, through the script gate.
+  fetchModuleSource?: (url: unknown) => Promise<string>;
+  // Run due page timers while boa awaits; returns how many ran. Installed read-only.
+  readonly pumpDueTimers?: (deadlineMs?: number) => number;
+  // Ms until the next page timer is due, or Infinity.
+  readonly nextTimerDelay?: () => number;
 }
 
 export const ksInternals = getInternals() as PageScriptInternals;

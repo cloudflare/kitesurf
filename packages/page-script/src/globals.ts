@@ -376,8 +376,8 @@ export function installGlobals(
     ksGlobal.Function = Patched;
   }
   // Forward the call receiver; construction uses Boa's separate [[Construct]] path.
-  if (!ksGlobal.__ks_thisfwd) {
-    ksGlobal.__ks_thisfwd = function (call: any, ctor: any, handle: number) {
+  if (!ksInternals.wrapBoaFunction) {
+    ksInternals.wrapBoaFunction = function (call, ctor, handle) {
       return function (this: any) {
         if (new.target !== undefined) {
           return ctor(handle, Array.prototype.slice.call(arguments));
@@ -386,8 +386,8 @@ export function installGlobals(
       };
     };
   }
-  if (!ksGlobal.__ks_argpack) {
-    ksGlobal.__ks_argpack = function (call: any, fnHandle: number, recvHandle: number) {
+  if (!ksInternals.wrapBoaMethod) {
+    ksInternals.wrapBoaMethod = function (call, fnHandle, recvHandle) {
       return function () {
         return call(fnHandle, recvHandle, Array.prototype.slice.call(arguments));
       };
@@ -403,13 +403,13 @@ export function installGlobals(
       return ks_import(String(spec), referrerUrl || ksGlobal.location?.href || "about:blank");
     };
   }
-  if (!ksGlobal.__ks_native_import) {
-    ksGlobal.__ks_native_import = function (url: unknown): Promise<unknown> {
+  if (!ksInternals.nativeImport) {
+    ksInternals.nativeImport = function (url) {
       return import(resolveModuleRegistryUrl(url));
     };
   }
-  if (!ksGlobal.__ks_module_source) {
-    ksGlobal.__ks_module_source = function (url: unknown): Promise<string> {
+  if (!ksInternals.fetchModuleSource) {
+    ksInternals.fetchModuleSource = function (url) {
       return fetchGatedModuleSource(String(url));
     };
   }
