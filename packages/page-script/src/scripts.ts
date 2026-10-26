@@ -4,11 +4,13 @@
 
 // Runs the source-based legacy script plan and dispatches document lifecycle events.
 // The normal path bundles classic scripts into one sloppy CJS module; this plan runs only when the
-// parent supplied no bundle, and it is not script-gated.
+// parent supplied no bundle (an OOPIF child, or a navigate whose bake threw). Everything runs on
+// boa, which parses the sources itself.
 
-import { AsyncFunction } from "./eval-helpers.ts";
+import { globalizeForBoa } from "./boa-classic.ts";
 import { ksEventCtors, state } from "./state.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
+import { ks_eval_page, ks_import } from "./wasm-glue.js";
 
 export interface ScriptDescriptor {
   src: string | null;
@@ -112,20 +114,12 @@ async function fetchScriptSource(url: string): Promise<string> {
   return await response.text();
 }
 
+// The loaded worker refuses native code generation after startup, so the body runs on boa,
+// globalized like a runtime insert so its top-level declarations land on window.
 async function runOneClassic(source: string, label: string): Promise<void> {
   if (!source) return;
   try {
-    if (/\bawait\b/.test(source)) {
-      const scriptFunction = new AsyncFunction(source);
-      await scriptFunction();
-    } else {
-      let src = source;
-      const m =
-        /^\s*(?:\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*)*("use strict"|'use strict')\s*;?\s*/.exec(src);
-      if (m) src = src.slice(0, m.index) + src.slice(m.index + m[0].length);
-      // eslint-disable-next-line no-eval
-      (0, eval)(src);
-    }
+    ks_eval_page(globalizeForBoa(source));
   } catch (err) {
     console.error("[" + label + "]", err);
   }
@@ -169,6 +163,7 @@ export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
     return fetchPromise;
   };
 
+  // Boa's loader fetches module sources, through the script gate, when runModulePhase imports them.
   for (const script of [...regular, ...deferred, ...async_, ...modules]) {
     if (!script.src) continue;
     const url = resolveScriptUrl(script.src);
@@ -177,7 +172,7 @@ export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
       continue;
     }
     script._resolvedUrl = url;
-    startFetch(url);
+    if (script.kind !== "module") startFetch(url);
   }
 
   return { regular, deferred, async_, modules, sourceCache };
@@ -243,221 +238,54 @@ export async function runAsyncPhase(plan: ScriptPlan): Promise<void> {
   );
 }
 
-type ModuleExports = Record<string, unknown>;
+// Boa's module loader parses each module and fetches its imports through the script gate
+// (fetchGatedModuleSource). An inline module has no URL, so it goes in under a fragment of the
+// document URL: relative imports still resolve against the document, and the fragment keeps each
+// inline module a distinct record.
+const inlineModuleSources = new Map<string, string>();
+let inlineModuleCounter = 0;
 
-const moduleExportsCache = new Map<string, Promise<ModuleExports>>();
-
-async function loadModule(spec: string, baseUrl: string): Promise<ModuleExports> {
-  const url = (() => {
-    try {
-      return new URL(spec, baseUrl).toString();
-    } catch {
-      return null;
-    }
-  })();
-  if (!url) {
-    console.warn("[kitesurf] cannot resolve module specifier:", spec);
-    return {};
-  }
-  const cached = moduleExportsCache.get(url);
-  if (cached) return cached;
-  const modulePromise: Promise<ModuleExports> = (async () => {
-    let source: string;
-    try {
-      source = await fetchScriptSource(url);
-    } catch (err) {
-      console.warn("[kitesurf] module fetch failed for " + url, err);
-      return {};
-    }
-    const exportsObj: ModuleExports = {};
-    const { code, deps } = transpileModule(source);
-    const depEntries = await Promise.all(
-      deps.map(async (d) => [d.local, await loadModule(d.spec, url)] as const),
-    );
-    const depBindings: Record<string, ModuleExports> = {};
-    for (const [name, ns] of depEntries) depBindings[name] = ns;
-    try {
-      const paramNames = ["__ks_exports", "__ks_baseUrl", ...Object.keys(depBindings)];
-      const paramValues: unknown[] = [exportsObj, url, ...Object.values(depBindings)];
-      const moduleFunction = new AsyncFunction(...paramNames, code);
-      await moduleFunction(...paramValues);
-    } catch (err) {
-      console.warn("[kitesurf] module exec failed for " + url, err);
-    }
-    return exportsObj;
-  })();
-  moduleExportsCache.set(url, modulePromise);
-  return modulePromise;
+// One-shot: boa caches the parsed record, so the source is never asked for twice.
+export function takeInlineModuleSource(url: string): string | undefined {
+  const source = inlineModuleSources.get(url);
+  if (source !== undefined) inlineModuleSources.delete(url);
+  return source;
 }
 
-interface ModuleDep {
-  local: string;
-  spec: string;
-}
-
-function transpileModule(source: string): { code: string; deps: ModuleDep[] } {
-  let out = source;
-  const deps: ModuleDep[] = [];
-  let depCounter = 0;
-  const nextDepLocal = () => "__ks_dep_" + ++depCounter;
-
-  out = out.replace(
-    /\bimport\s*\*\s*as\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*from\s*(['"])([^'"\n]+)\2\s*;?/g,
-    (_, ns, _q, spec) => {
-      const local = nextDepLocal();
-      deps.push({ local, spec });
-      return "const " + ns + " = " + local + ";";
-    },
-  );
-
-  out = out.replace(
-    /\bimport\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*,\s*\{([^}]*)\}\s*from\s*(['"])([^'"\n]+)\3\s*;?/g,
-    (_, def, named, _q, spec) => {
-      const local = nextDepLocal();
-      deps.push({ local, spec });
-      return (
-        "const " +
-        def +
-        " = " +
-        local +
-        ".default; " +
-        "const {" +
-        rewriteNamedBindings(named) +
-        "} = " +
-        local +
-        ";"
-      );
-    },
-  );
-
-  out = out.replace(
-    /\bimport\s*\{([^}]*)\}\s*from\s*(['"])([^'"\n]+)\2\s*;?/g,
-    (_, named, _q, spec) => {
-      const local = nextDepLocal();
-      deps.push({ local, spec });
-      return "const {" + rewriteNamedBindings(named) + "} = " + local + ";";
-    },
-  );
-
-  out = out.replace(
-    /\bimport\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*from\s*(['"])([^'"\n]+)\2\s*;?/g,
-    (_, def, _q, spec) => {
-      const local = nextDepLocal();
-      deps.push({ local, spec });
-      return "const " + def + " = " + local + ".default;";
-    },
-  );
-
-  out = out.replace(/\bimport\s*(['"])([^'"\n]+)\1\s*;?/g, (_, _q, spec) => {
-    const local = nextDepLocal();
-    deps.push({ local, spec });
-    return "void " + local + ";";
-  });
-
-  out = out.replace(
-    /\bimport\s*\(\s*(['"])([^'"\n]+)\1\s*\)/g,
-    (_, _q, spec) => "__ks_loadModule(" + JSON.stringify(spec) + ", __ks_baseUrl)",
-  );
-
-  out = out.replace(
-    /\bexport\s+(const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=/g,
-    "$1 $2 = __ks_exports.$2 =",
-  );
-
-  out = out.replace(
-    /\bexport\s+(async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
-    "$1function $2",
-  );
-  const funcExportNames: string[] = [];
-  source.replace(/\bexport\s+(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)/g, (_, name) => {
-    funcExportNames.push(name);
-    return "";
-  });
-  for (const name of funcExportNames) {
-    out += "; __ks_exports." + name + " = " + name + ";";
-  }
-
-  const classExportNames: string[] = [];
-  source.replace(/\bexport\s+class\s+([A-Za-z_$][A-Za-z0-9_$]*)/g, (_, name) => {
-    classExportNames.push(name);
-    return "";
-  });
-  out = out.replace(/\bexport\s+class\s+/g, "class ");
-  for (const name of classExportNames) {
-    out += "; __ks_exports." + name + " = " + name + ";";
-  }
-
-  out = out.replace(/\bexport\s*\{([^}]*)\}\s*;?/g, (_, body) => {
-    const parts = body
-      .split(",")
-      .map((s: string) => s.trim())
-      .filter(Boolean);
-    return parts
-      .map((p: string) => {
-        const m = /^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/.exec(p);
-        if (m) return "__ks_exports." + m[2] + " = " + m[1] + ";";
-        const m2 = /^([A-Za-z_$][A-Za-z0-9_$]*)$/.exec(p);
-        if (m2) return "__ks_exports." + m2[1] + " = " + m2[1] + ";";
-        return "";
-      })
-      .join(" ");
-  });
-
-  out = out.replace(/\bexport\s+default\s+/g, "__ks_exports.default = ");
-
-  return { code: out, deps };
-}
-
-function rewriteNamedBindings(body: string): string {
-  return body
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((p) => {
-      const m = /^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/.exec(p);
-      return m ? m[1] + ": " + m[2] : p;
-    })
-    .join(", ");
+function inlineModuleUrl(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  url.hash = "__ks_inline_module_" + ++inlineModuleCounter;
+  return url.toString();
 }
 
 export async function runModulePhase(plan: ScriptPlan): Promise<void> {
+  // HTML evaluates parser-inserted modules in document order.
   for (const script of plan.modules) {
-    let source = "";
-    let label = "<inline-module>";
-    let baseUrl = state.pageUrl;
+    let moduleUrl: string;
     if (script.src) {
       const url = script._resolvedUrl;
       if (!url) {
         console.error("[kitesurf] cannot resolve module <script src>: " + String(script.src));
         continue;
       }
-      label = url;
-      baseUrl = url;
-      const fetchResult = await plan.sourceCache.get(url);
-      if (!fetchResult || !fetchResult.ok) {
-        console.error(
-          "[kitesurf] module <script src> fetch failed for " + url,
-          fetchErrorDetail(fetchResult) || "unknown fetch error",
-        );
+      moduleUrl = url;
+    } else {
+      const source = script.body || "";
+      if (!source.trim()) continue;
+      try {
+        moduleUrl = inlineModuleUrl(state.pageUrl || "about:blank");
+      } catch {
+        console.error("[kitesurf] cannot address inline module for " + state.pageUrl);
         continue;
       }
-      source = fetchResult.source;
-    } else {
-      source = script.body || "";
-      if (!source.trim()) continue;
+      inlineModuleSources.set(moduleUrl, source);
     }
     try {
-      const exportsObj: ModuleExports = {};
-      const { code, deps } = transpileModule(source);
-      const depEntries = await Promise.all(
-        deps.map(async (d) => [d.local, await loadModule(d.spec, baseUrl)] as const),
-      );
-      const paramNames = ["__ks_exports", "__ks_baseUrl", ...depEntries.map(([n]) => n)];
-      const paramValues: unknown[] = [exportsObj, baseUrl, ...depEntries.map(([, v]) => v)];
-      const moduleFunction = new AsyncFunction(...paramNames, code);
-      await moduleFunction(...paramValues);
+      await ks_import(moduleUrl, state.pageUrl || "about:blank");
     } catch (err) {
-      console.error("[" + label + "]", err);
+      console.error("[" + (script.src ? moduleUrl : "<inline-module>") + "]", err);
+    } finally {
+      inlineModuleSources.delete(moduleUrl);
     }
   }
 }
