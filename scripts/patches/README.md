@@ -36,7 +36,7 @@ library wiring and `AGENTS.md` for the architectural background.
 Each series applies against the **registry tarball** for the named
 crate at the named version. The pristine tarball is whatever
 `~/.cargo/registry/src/index.crates.io-*/<crate>-<version>/`
-contains after `cargo fetch`.
+contains after `cargo info --locked --registry crates-io <crate>@<version>`.
 
 `scripts/get-patched-vendor-crates.mjs` materialises each crate into
 `packages/core/target/vendor-patched/<crate>-<version>/` as a **real
