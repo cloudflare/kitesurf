@@ -4,7 +4,8 @@
 
 // An OOPIF child has no parent bundle, so page-script's source pipeline (scripts.ts) runs it.
 // The loaded worker refuses native code generation, so this pins that classic and module scripts
-// run on boa with real module semantics, not through a regex rewrite into `AsyncFunction`.
+// run on boa with real module semantics, not through a regex rewrite into `AsyncFunction`. The
+// setDocumentContent cases pin that synthetic-origin content goes through the parent's scan.
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
 
@@ -56,4 +57,33 @@ test("an OOPIF child runs classic and module scripts on boa", async ({ page, cdp
     got = r.result.value ?? null;
   }
   expect(JSON.parse(got ?? "null")).toEqual({ ...EXPECTED, liveBinding: 1 });
+});
+
+test("setDocumentContent on a synthetic origin runs the page's scripts", async ({ cdpSession }) => {
+  // Puppeteer registers a script to evaluate on new documents. The bundle
+  // then held only that script, and the page's own scripts never ran.
+  await cdpSession.send("Page.setDocumentContent", {
+    frameId: "main",
+    html: `<!doctype html><body>${SCRIPTS}</body>`,
+  });
+  const r = await cdpSession.send("Runtime.evaluate", {
+    expression: "JSON.stringify([location.href, window.r])",
+    returnByValue: true,
+  });
+  expect(JSON.parse(r.result.value)).toEqual(["https://kitesurf.local/", EXPECTED]);
+});
+
+test("setDocumentContent enforces the markup's meta CSP", async ({ cdpSession }) => {
+  // The nonce'd pair proves scripts run at all, so the blocked pair can't pass vacuously.
+  await cdpSession.send("Page.setDocumentContent", {
+    frameId: "main",
+    html: `<!doctype html><head><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-ok'"></head>
+<body><script nonce="ok">window.ran = ["classic"];</script><script type="module" nonce="ok">window.ran.push("module");</script>
+<script>window.ran.push("blocked classic");</script><script type="module">window.ran.push("blocked module");</script></body>`,
+  });
+  const r = await cdpSession.send("Runtime.evaluate", {
+    expression: "JSON.stringify(window.ran ?? null)",
+    returnByValue: true,
+  });
+  expect(JSON.parse(r.result.value)).toEqual(["classic", "module"]);
 });
