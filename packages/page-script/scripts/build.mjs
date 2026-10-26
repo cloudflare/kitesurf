@@ -48,6 +48,9 @@ function memprofBanner() {
   }
   const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"));
   const hookClosures = manifest.tracees.map(generateHookClosure).join("\n");
+  // Install the sampling heap recorder before wasm initialization, on the internals record
+  // (internal-state.js evaluates before this bundle's body). The startup WebAssembly.Instance
+  // wrapper reads memprofImports.
   return `// ---- wasm-memprof recorder (injected by build.mjs, KITESURF_MEMPROF=1) ----
 const __memprofSampleRate = parseInt(globalThis.MEMPROF_SAMPLE_RATE || "2048", 10);
 let __memprofNextSample = __memprofSampleRate;
@@ -92,8 +95,9 @@ function __memprofRecordFree(ptr) {
 }
 const __memprofImports = {};
 ${hookClosures}
-globalThis.__ks_memprof_imports = __memprofImports;
-globalThis.__memprof_dump = function() {
+const __memprofInternals = globalThis[Symbol.for("kitesurf.internals")];
+__memprofInternals.memprofImports = __memprofImports;
+__memprofInternals.memprofDump = function() {
   const groups = new Map();
   let inUseBytes = 0;
   for (const [_ptr, { size, stack }] of __memprofInUse) {
@@ -133,7 +137,7 @@ globalThis.__memprof_dump = function() {
     samples,
   });
 };
-globalThis.__memprof_reset = function() {
+__memprofInternals.memprofReset = function() {
   __memprofInUse.clear();
   __memprofTotalAllocs = 0; __memprofTotalFrees = 0; __memprofSampledAllocs = 0;
   __memprofStart = Date.now();

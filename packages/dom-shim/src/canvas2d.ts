@@ -43,7 +43,7 @@ postMutationHooks.push(() => {
 const PUSH_MIN_INTERVAL_MS = 66;
 
 function pushMinIntervalMs(): number {
-  const v = Number(ksGlobal.__KS_CANVAS_PUSH_MS) | 0;
+  const v = Number(ksInternals.canvasPushMs) | 0;
   return v > 0 ? v : PUSH_MIN_INTERVAL_MS;
 }
 

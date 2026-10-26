@@ -21,7 +21,7 @@ test("a canvas drawn after its last push shows in the next frame", async ({ page
   await setContent(
     page,
     `<body style="margin:0"><canvas id=c width=40 height=40></canvas><script>
-      globalThis.__KS_CANVAS_PUSH_MS = ${PUSH_BACKSTOP_MS};
+      globalThis[Symbol.for("kitesurf.internals")].canvasPushMs = ${PUSH_BACKSTOP_MS};
       const ctx = c.getContext("2d");
       globalThis.draw = (color) => { ctx.fillStyle = color; ctx.fillRect(0, 0, 40, 40); };
     </script>`,

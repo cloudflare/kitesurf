@@ -28,7 +28,7 @@ import {
 import { initSync, ks_bridge_install_desc_helpers } from "./wasm-glue.js";
 import wasmModule from "./core_bg.wasm";
 
-import { ksGlobal } from "./state.ts";
+import { ksInternals } from "./internals.ts";
 
 let coreWasmMemory: WebAssembly.Memory | null = null;
 const OriginalWebAssemblyInstance = WebAssembly.Instance;
@@ -39,9 +39,9 @@ const trackedInstance = new Proxy(OriginalWebAssemblyInstance, {
     if (
       imports &&
       (typeof imports === "object" || typeof imports === "function") &&
-      ksGlobal.__ks_memprof_imports
+      ksInternals.memprofImports
     ) {
-      Object.assign(imports, { wmprof: ksGlobal.__ks_memprof_imports });
+      Object.assign(imports, { wmprof: ksInternals.memprofImports });
     }
     const instance = Reflect.construct(target, argumentsList);
     if (

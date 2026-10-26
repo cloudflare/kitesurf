@@ -26,6 +26,11 @@ export interface PageScriptInternals extends DomShimInternals {
   readonly pumpDueTimers?: (deadlineMs?: number) => number;
   // Ms until the next page timer is due, or Infinity.
   readonly nextTimerDelay?: () => number;
+
+  // Installed by the memprof build's recorder banner.
+  memprofImports?: object;
+  memprofDump?: () => string;
+  memprofReset?: () => void;
 }
 
 export const ksInternals = getInternals() as PageScriptInternals;

@@ -32,17 +32,8 @@ let initialized = false;
 function ensureInit(): void {
   if (initialized) return;
   __setBridgeFetchResource((_id: number, _url: string, _kind: string) => {});
-  // SAFETY: This engine isolate owns the field; PageScript's namesake is separate.
-  // TypeScript has no declaration for this private initialization hook.
-  // Verified by: packages/engine/test/e2e/target-dom-reclaim.e2e.test.ts.
-  const g = globalThis as typeof globalThis & {
-    __ks_memprof_imports?: WebAssembly.ModuleImports;
-  };
-  let memprofImports = g.__ks_memprof_imports;
-  if (!memprofImports) {
-    memprofImports = new Proxy<WebAssembly.ModuleImports>({}, { get: () => () => {} });
-    g.__ks_memprof_imports = memprofImports;
-  }
+  // Parent instances need no-op imports when the wasm is instrumented for memprof.
+  const noopMemprofImports = new Proxy<WebAssembly.ModuleImports>({}, { get: () => () => {} });
   // Capture exported memory while initSync creates its otherwise-hidden instance.
   const OrigInstance = WebAssembly.Instance;
   // SAFETY: This view narrows the temporary mutation to WebAssembly.Instance only.
@@ -54,7 +45,7 @@ function ensureInit(): void {
     imports?: WebAssembly.Imports,
   ) {
     if (imports && !imports.wmprof) {
-      imports.wmprof = memprofImports;
+      imports.wmprof = noopMemprofImports;
     }
     const inst = new OrigInstance(module, imports);
     if (inst.exports && inst.exports.memory instanceof WebAssembly.Memory) {
