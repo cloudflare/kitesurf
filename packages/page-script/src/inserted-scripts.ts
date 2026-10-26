@@ -12,7 +12,7 @@ import { getInternalState, sendUpstreamEvent } from "./internal-state.js";
 import { importModule, startupInsertedBaked } from "./startup-probe.ts";
 import { nativeSetTimeout } from "./native-scheduling.ts";
 import { fetchInsertedScript, resourceInflight } from "./resource-fetch.ts";
-import { dispatchLifecycle, takeInlineModuleSource } from "./scripts.ts";
+import { dispatchLifecycle, entryModuleGateAttributes, takeInlineModuleSource } from "./scripts.ts";
 import {
   insertedResponseAllowed,
   insertedScriptAllowed,
@@ -88,7 +88,7 @@ export function fetchGatedModuleSource(url: string): Promise<string> {
 const moduleSourceInflight = new Map<string, Promise<string>>();
 
 async function fetchGatedModuleSourceOnce(url: string): Promise<string> {
-  const meta = { url, module: true };
+  const meta = { url, module: true, ...entryModuleGateAttributes(url) };
   const pre = await insertedScriptAllowed(meta);
   reportOnly(pre);
   if (!pre.allowed) {
