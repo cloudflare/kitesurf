@@ -20,17 +20,13 @@ const FIXTURES_DIST = resolve(HERE, process.env.KS_E2E_FIXTURES_DIST ?? "test/e2
 type ModuleRule = Parameters<typeof compileModuleRules>[0][number];
 type WranglerWorkerOptions = ReturnType<typeof unstable_getMiniflareWorkerOptions>["workerOptions"];
 
-function defaultIfUndefined<T>(value: T | undefined, fallback: T): T {
-  return value ?? fallback;
-}
-
 function makeVitestOptions(opts: EngineE2EOptions) {
   return {
     // Vitest's default CSS stub would erase raw fixture response bytes.
     css: { include: [/\.css\?raw$/] },
     globalSetup: [resolve(HERE, "test/e2e/global-setup.ts")],
-    dir: defaultIfUndefined(opts.dir, HERE),
-    include: defaultIfUndefined(opts.include, ["test/e2e/**/*.e2e.test.ts"]),
+    dir: opts.dir ?? HERE,
+    include: opts.include ?? ["test/e2e/**/*.e2e.test.ts"],
     ...(opts.exclude ? { exclude: opts.exclude } : {}),
     isolate: false,
     testTimeout: 120_000,
@@ -243,7 +239,7 @@ function makeEngineE2eConfig(
       cloudflareTest({
         miniflare: {
           compatibilityDate: "2026-09-11",
-          bindings: defaultIfUndefined(opts.bindings, {}),
+          bindings: opts.bindings ?? {},
           serviceBindings: {
             ENGINE: "kitesurf-engine",
             ENGINE_NO_INSPECTOR: "kitesurf-engine-no-inspector",
@@ -257,7 +253,7 @@ function makeEngineE2eConfig(
             noInspectorEngineWorker as never,
             ...(extraEngineWorkers as never[]),
             fixturesWorker as never,
-            ...(defaultIfUndefined(opts.workers, []).concat(fixtureWorkers) as never[]),
+            ...((opts.workers ?? []).concat(fixtureWorkers) as never[]),
             otlpCaptureWorker as never,
             coreWasmWorker as never,
             sceneHostWorker as never,

@@ -74,12 +74,8 @@ function firstStackFrame(stack) {
   return (stack ?? [])[0] ?? { fn: "<empty>" };
 }
 
-function normalize(name) {
-  return stripHashes(name);
-}
-
 function sampleKey(frame) {
-  return normalize(frame.fn ?? "<?>");
+  return stripHashes(frame.fn ?? "<?>");
 }
 
 function sampleCount(sample) {

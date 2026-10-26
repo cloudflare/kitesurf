@@ -94,6 +94,10 @@ const FORMAT_MODES = new Map([
   ["--write", "format-write"],
 ]);
 
+function parseMode(args) {
+  return parseSingleArgumentMode(args) ?? parseFormatMode(args);
+}
+
 function parseSingleArgumentMode(args) {
   if (args.length !== 1) return null;
   return SINGLE_ARGUMENT_MODES.get(args[0]) ?? null;
@@ -102,10 +106,6 @@ function parseSingleArgumentMode(args) {
 function parseFormatMode(args) {
   if (args.length !== 2 || args[0] !== "format") return null;
   return FORMAT_MODES.get(args[1]) ?? null;
-}
-
-function parseMode(args) {
-  return parseSingleArgumentMode(args) ?? parseFormatMode(args);
 }
 
 function cargoEnvironment(rustflags) {
@@ -402,10 +402,6 @@ function commandResultExitCode(result) {
   return SIGNAL_EXIT_CODES[result.signal] ?? 1;
 }
 
-function failedCommandExitCode(failure) {
-  return commandResultExitCode(failure);
-}
-
 function printCommandFailures(failures, operation) {
   process.stderr.write(`[rust] ${failures.length} ${operation} command(s) failed\n`);
   for (const failure of failures) {
@@ -414,7 +410,7 @@ function printCommandFailures(failures, operation) {
         `${failure.signal ? `signal ${failure.signal}` : `status ${failure.status}`})\n`,
     );
   }
-  process.exitCode = failedCommandExitCode(failures[0]);
+  process.exitCode = commandResultExitCode(failures[0]);
 }
 
 async function runCommands(commands, operation) {

@@ -30,7 +30,7 @@ export const conciseCommentsRule = {
     type: "layout",
     docs: { description: "Keep ordinary comment blocks short and scannable." },
   },
-  create(context: CommentRuleContext) {
+  create(context: CommentRuleContext): ReturnType<typeof createConciseCommentsVisitor> {
     return createConciseCommentsVisitor(context.sourceCode, context.report);
   },
 } satisfies Rule;

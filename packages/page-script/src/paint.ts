@@ -344,10 +344,6 @@ function isComputedStyleProperty(value: unknown): value is ComputedStyleProperty
   return true;
 }
 
-function filterComputedProperties(raw: unknown[]): ComputedStyleProperty[] {
-  return raw.filter(isComputedStyleProperty);
-}
-
 function cacheComputedStyle(
   key: string,
   props: Array<{ name: string; value: string; computed?: string; unresolved?: string }>,
@@ -375,7 +371,7 @@ function readAndCacheComputedStyle(
   try {
     const raw = readComputedStyle(paint, authId, pseudo);
     if (!Array.isArray(raw)) return null;
-    const props = filterComputedProperties(raw);
+    const props = raw.filter(isComputedStyleProperty);
     cacheComputedStyle(key, props);
     return props;
   } catch {

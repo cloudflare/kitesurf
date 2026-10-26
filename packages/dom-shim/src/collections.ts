@@ -57,10 +57,6 @@ import type { ParsedElement } from "./parser.js";
 import { dropUnwrappedSubtrees } from "./node-base.js";
 import { makeStylePropertyMap } from "./css-typed-om.js";
 
-function appendIdlNode(parent: Idl.Node, child: Idl.Node): void {
-  parent.appendChild(child);
-}
-
 function ksState() {
   return getInternalState();
 }
@@ -367,7 +363,7 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
     if (deep) {
       for (const child of Array.from<Idl.Node>(this.childNodes)) {
         if (child && typeof child.cloneNode === "function") {
-          appendIdlNode(clone, child.cloneNode(true));
+          clone.appendChild(child.cloneNode(true));
         }
       }
     }
@@ -619,7 +615,7 @@ class HTMLOptionsCollectionCls extends HtmlCollectionCls implements Idl.HTMLOpti
       assertOptionsReferenceDescendant(select, refNode);
       insertOptionBefore(refNode, item);
     } else {
-      appendIdlNode(select, item);
+      select.appendChild(item);
     }
   }
   remove(index: number): void {
@@ -780,7 +776,7 @@ function appendOptionAtIndex(
   for (let i = list.length; i < capped; i++) {
     select.appendChild(doc.createElement("option"));
   }
-  if (index <= OPTIONS_COLLECTION_MAX) appendIdlNode(select, option);
+  if (index <= OPTIONS_COLLECTION_MAX) select.appendChild(option);
 }
 
 // RadioNodeList is returned for repeated form-control names. Its value reads

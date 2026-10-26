@@ -2258,20 +2258,17 @@ interface ScreencastStartState {
   ownerSessionId: string | undefined;
 }
 
-function screencastStartOptions(req: PageStartScreencastRequest): ScreencastStartOptions {
-  return screencastOptionsFromParams(req.params);
-}
-
-function defaultScreencastStartOptions(): ScreencastStartOptions {
-  return {
-    format: "jpeg",
-    quality: DEFAULT_IMAGE_QUALITY,
-    maxWidth: DEFAULT_VIEWPORT_WIDTH,
-    maxHeight: DEFAULT_VIEWPORT_HEIGHT,
-    everyNthFrame: 1,
-    pollIntervalMs: POLL_INTERVAL_MS,
-    maxInFlight: 1,
-  };
+async function handlePageStartScreencast(
+  ctx: DispatchCtx,
+  target: TargetState,
+  req: PageCommand,
+): Promise<unknown> {
+  if (req.method !== "Page.startScreencast") return {};
+  const options = screencastOptionsFromParams(req.params);
+  const ownerSessionId = req.sessionId || undefined;
+  const start = createScreencastStartState(ctx, target, options, ownerSessionId);
+  const formerDrain = handoffScreencastOwner(ctx, target, start.existing, ownerSessionId);
+  return applyScreencastStartConfiguration(ctx, target, start, options, formerDrain);
 }
 
 function screencastOptionsFromParams(
@@ -2302,6 +2299,18 @@ function screencastOptionsFromParams(
       MAX_SCREENCAST_FRAMES_IN_FLIGHT,
       1,
     ),
+  };
+}
+
+function defaultScreencastStartOptions(): ScreencastStartOptions {
+  return {
+    format: "jpeg",
+    quality: DEFAULT_IMAGE_QUALITY,
+    maxWidth: DEFAULT_VIEWPORT_WIDTH,
+    maxHeight: DEFAULT_VIEWPORT_HEIGHT,
+    everyNthFrame: 1,
+    pollIntervalMs: POLL_INTERVAL_MS,
+    maxInFlight: 1,
   };
 }
 
@@ -2364,29 +2373,6 @@ function handoffScreencastOwner(
   return drainBarrier;
 }
 
-async function handlePageStartScreencast(
-  ctx: DispatchCtx,
-  target: TargetState,
-  req: PageCommand,
-): Promise<unknown> {
-  if (req.method !== "Page.startScreencast") return {};
-  const options = screencastStartOptions(req);
-  const ownerSessionId = req.sessionId || undefined;
-  const start = createScreencastStartState(ctx, target, options, ownerSessionId);
-  const formerDrain = handoffScreencastOwner(ctx, target, start.existing, ownerSessionId);
-  return applyScreencastStartConfiguration(ctx, target, start, options, formerDrain);
-}
-
-function screencastIsAttached(
-  ctx: DispatchCtx,
-  target: TargetState,
-  state: ScreencastState,
-): boolean {
-  if (state.stopped || ctx.browser.wsClosing) return false;
-  if (ctx.browser.targets.get(target.targetId) !== target) return false;
-  return ctx.browser.screencasts.get(target.targetId) === state;
-}
-
 async function applyScreencastStartConfiguration(
   ctx: DispatchCtx,
   target: TargetState,
@@ -2436,6 +2422,16 @@ function screencastConfigurationIsCurrent(
 ): boolean {
   if (!screencastIsAttached(ctx, target, state)) return false;
   return target.screencastConfigurationVersion === configurationVersion;
+}
+
+function screencastIsAttached(
+  ctx: DispatchCtx,
+  target: TargetState,
+  state: ScreencastState,
+): boolean {
+  if (state.stopped || ctx.browser.wsClosing) return false;
+  if (ctx.browser.targets.get(target.targetId) !== target) return false;
+  return ctx.browser.screencasts.get(target.targetId) === state;
 }
 
 async function setScreencastViewport(

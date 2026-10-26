@@ -870,10 +870,6 @@ function precedingAxis(node: XNode): XNode[] {
   return out;
 }
 
-function attributeAxis(node: XNode): XNode[] {
-  return attributesOf(node);
-}
-
 const AXIS_HANDLERS: Record<Axis, (node: XNode) => XNode[]> = {
   self: (node) => [node],
   child: childAxis,
@@ -886,7 +882,7 @@ const AXIS_HANDLERS: Record<Axis, (node: XNode) => XNode[]> = {
   "preceding-sibling": precedingSiblingAxis,
   following: followingAxis,
   preceding: precedingAxis,
-  attribute: attributeAxis,
+  attribute: attributesOf,
   namespace: () => [],
 };
 

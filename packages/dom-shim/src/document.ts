@@ -852,43 +852,6 @@ function equalDocumentChildLists(left: Idl.NodeList, right: Idl.NodeList): boole
   return true;
 }
 
-function copyDetachedDocumentMetadata(
-  source: DetachedDocument,
-  destination: DetachedDocument,
-): void {
-  if (source._contentType) {
-    Object.defineProperty(destination, "_contentType", {
-      value: source._contentType,
-      enumerable: false,
-    });
-  }
-  if (source._baseUrl) {
-    Object.defineProperty(destination, "_baseUrl", {
-      value: source._baseUrl,
-      enumerable: false,
-    });
-  }
-}
-
-function copyDetachedDocumentChildren(
-  source: DetachedDocument,
-  destination: DetachedDocument,
-): void {
-  for (const child of source.childNodes) {
-    if (child && typeof child.cloneNode === "function") destination.append(child.cloneNode(true));
-  }
-}
-
-function cloneDetachedDocument(
-  source: DetachedDocument,
-  deep: boolean | undefined,
-): DetachedDocument {
-  const clone = new DetachedDocument();
-  copyDetachedDocumentMetadata(source, clone);
-  if (deep) copyDetachedDocumentChildren(source, clone);
-  return clone;
-}
-
 function documentChildListContains(children: readonly unknown[], node: unknown): boolean {
   return Boolean(children && children.indexOf(node) >= 0);
 }
@@ -1392,13 +1355,9 @@ function isScriptElement(script: Element | null | undefined): script is Element 
   );
 }
 
-function scriptSourceMatches(source: unknown, rawSrc: unknown, src: string): boolean {
-  return source === rawSrc || source === src;
-}
-
 function hasMatchingScriptSource(script: Element, rawSrc: unknown, src: string): boolean {
   const source = script.getAttribute ? script.getAttribute("src") : null;
-  return source != null && scriptSourceMatches(source, rawSrc, src);
+  return source != null && (source === rawSrc || source === src);
 }
 
 function matchesCurrentScriptSource(
@@ -2839,7 +2798,10 @@ class DetachedDocument implements Idl.Document {
     return equalDocumentChildLists(this.childNodes, other.childNodes);
   }
   cloneNode(deep?: boolean) {
-    return cloneDetachedDocument(this, deep);
+    const clone = new DetachedDocument();
+    copyDetachedDocumentMetadata(this, clone);
+    if (deep) copyDetachedDocumentChildren(this, clone);
+    return clone;
   }
   // Inclusive descendant check. The document itself is not in the host's
   // parent chain, so self needs its own check.
@@ -3166,6 +3128,34 @@ class DetachedDocument implements Idl.Document {
   }
   exitPointerLock(): void {}
 }
+
+function copyDetachedDocumentMetadata(
+  source: DetachedDocument,
+  destination: DetachedDocument,
+): void {
+  if (source._contentType) {
+    Object.defineProperty(destination, "_contentType", {
+      value: source._contentType,
+      enumerable: false,
+    });
+  }
+  if (source._baseUrl) {
+    Object.defineProperty(destination, "_baseUrl", {
+      value: source._baseUrl,
+      enumerable: false,
+    });
+  }
+}
+
+function copyDetachedDocumentChildren(
+  source: DetachedDocument,
+  destination: DetachedDocument,
+): void {
+  for (const child of source.childNodes) {
+    if (child && typeof child.cloneNode === "function") destination.append(child.cloneNode(true));
+  }
+}
+
 // On* handler IDL attributes for DetachedDocument.prototype are
 // installed by index.ts via installIdlHandlersOn (shared installer).
 

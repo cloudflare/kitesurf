@@ -4339,7 +4339,7 @@ function evalInsertedInlineScript(source: string): void {
 }
 
 export class PageScript extends WorkerEntrypoint implements PageScriptSession {
-  async fetch(_req: Request) {
+  async fetch(_req: Request): Promise<Response> {
     return new Response("PageScript", { status: 404 });
   }
 
@@ -5049,7 +5049,7 @@ function createNavigationBuildOptions(
     getComputedStyleValueForAuthId: computedStyleValueForAuthId,
     getExternalSheetRules: externalSheetRulesForNode,
     getScrollOffset: navigationScrollOffset,
-    setScrollOffset: navigationSetScrollOffset,
+    setScrollOffset,
     setWheelScrollOffset: (x, y) => navigationWheelScrollOffset(context, x, y),
     armTransitionDrain,
   };
@@ -5208,10 +5208,6 @@ function validNavigationHitTestId(id: unknown): number {
 
 function navigationScrollOffset(): { x: number; y: number } {
   return { x: state.scrollX, y: state.scrollY };
-}
-
-function navigationSetScrollOffset(x: number, y: number): ReturnType<typeof setScrollOffset> {
-  return setScrollOffset(x, y);
 }
 
 function navigationWheelScrollOffset(
