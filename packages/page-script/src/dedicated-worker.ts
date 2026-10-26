@@ -19,14 +19,16 @@ import { holdsSharedMemory } from "./shared-memory.ts";
 import { ksEventCtors, ksGlobal, state } from "./state.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
 
-type ListenerFn = (this: unknown, event: Event) => unknown;
+// Events here are always the shim's (ksEventCtors), never workerd's.
+type PageEvent = InstanceType<typeof ksEventCtors.Event>;
+type ListenerFn = (this: unknown, event: PageEvent) => unknown;
 type Listener = { fn: ListenerFn; once: boolean; src: unknown };
 
-type MessageEventCtor = new (type: string, init: { data: unknown; origin: string }) => Event;
+type MessageEventCtor = new (type: string, init: { data: unknown; origin: string }) => PageEvent;
 type ErrorEventCtor = new (
   type: string,
   init: { message: string; filename: string; lineno: number; colno: number; cancelable: boolean },
-) => Event;
+) => PageEvent;
 
 function isIterable(value: unknown): value is Iterable<unknown> {
   return (
@@ -41,7 +43,7 @@ function isListenerFn(value: unknown): value is ListenerFn {
   return typeof value === "function";
 }
 
-function hasHandleEvent(value: unknown): value is { handleEvent(event: Event): unknown } {
+function hasHandleEvent(value: unknown): value is { handleEvent(event: PageEvent): unknown } {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -177,7 +179,7 @@ export function installWorker(): void {
 }
 
 function buildWorkerClass(): unknown {
-  const EventTargetBase: typeof EventTarget = ksGlobal.EventTarget;
+  const EventTargetBase = ksGlobal.EventTarget;
   const STATE = Symbol("kitesurf-worker-state");
 
   class Worker extends EventTargetBase {
@@ -306,7 +308,7 @@ function buildWorkerClass(): unknown {
       if (isListenerFn(listener)) {
         fn = listener;
       } else if (hasHandleEvent(listener)) {
-        fn = function (event: Event) {
+        fn = function (event: PageEvent) {
           return listener.handleEvent(event);
         };
       }
@@ -324,7 +326,7 @@ function buildWorkerClass(): unknown {
       removeListener(this[STATE], String(type), listener);
     }
 
-    dispatchEvent(event: Event): boolean {
+    dispatchEvent(event: PageEvent): boolean {
       dispatch(this[STATE], event);
       return !event.defaultPrevented;
     }
@@ -350,7 +352,7 @@ function buildWorkerClass(): unknown {
     if (i >= 0) list.splice(i, 1);
   }
 
-  function dispatch(ws: KsWorkerState, event: Event): void {
+  function dispatch(ws: KsWorkerState, event: PageEvent): void {
     const worker = ws.owner;
     for (const key of ["target", "currentTarget", "srcElement"]) {
       try {
@@ -412,7 +414,7 @@ function buildWorkerClass(): unknown {
         colno: params.colno,
         cancelable: true,
       };
-      let event: Event;
+      let event: PageEvent;
       try {
         event = new Ctor("error", init);
       } catch {

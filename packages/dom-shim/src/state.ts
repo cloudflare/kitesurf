@@ -17,6 +17,7 @@ import type {
 } from "./collections.js";
 import type { Element } from "./element/element.js";
 import type { CommentNode, NodeBase, TextNode } from "./node-base.js";
+import type { ShimGlobal } from "./global-scope.js";
 import { resetRegistries } from "./registries.js";
 
 type DomHandle = WasmDomHandle;
@@ -484,7 +485,9 @@ export function initState(d: DomHandle, url: string, cookies: string, o?: BuildD
   resetRegistries();
 }
 
-export type ShimGlobal = typeof globalThis & Record<PropertyKey, any>;
-
-// PageScript and the shim install dynamic hooks on this page-realm global.
+// globalThis with the keys this package and page-script add to it (see global-scope.ts).
 export const ksGlobal = globalThis as ShimGlobal;
+
+// The same object for computed keys: window.ts's Proxy traps, named-element globals and on*
+// handler forwarding. No type can list those keys, so reads are `unknown` and need narrowing.
+export const ksGlobalByKey: Record<PropertyKey, unknown> = globalThis;

@@ -16,7 +16,7 @@ import {
   responseHeaderGet,
   responseHeaders,
 } from "./native-http.ts";
-import { ksGlobal, state } from "./state.ts";
+import { ksGlobal, ksGlobalByKey, state } from "./state.ts";
 import { takeTrustedRequestMeta } from "./trusted-fetch.ts";
 import { routeViaSession } from "./session-outbound.ts";
 import { serializeMimeType, setBlobMimeType } from "./mime-type.ts";
@@ -291,14 +291,16 @@ function installRequestShim(): void {
     );
     const request = new.target
       ? Reflect.construct(RealRequest, [resolvedInput, effectiveInit], new.target)
-      : new RealRequest(resolvedInput, effectiveInit);
+      : Reflect.construct(RealRequest, [resolvedInput, effectiveInit]);
     requestReferrers.set(request, referrerState);
     return request;
   }
   WrappedRequest.prototype = RealRequest.prototype;
   Object.defineProperty(WrappedRequest, "name", { value: "Request" });
   (WrappedRequest as any).__ksWrapped = true;
-  ksGlobal.Request = WrappedRequest;
+  // Through the untyped view: a function constructor over RealRequest.prototype, which
+  // TypeScript cannot see as `typeof Request`.
+  ksGlobalByKey.Request = WrappedRequest;
   patchFormDataRealmCrossing(RealRequest.prototype);
   patchBodyBlobMimeType(RealRequest.prototype);
   installRequestReferrerAttributes(RealRequest.prototype);
@@ -433,7 +435,7 @@ function installResponseShim(): void {
     if (new.target) {
       return Reflect.construct(RealResponse, [effectiveBody, effectiveInit], new.target);
     }
-    return new RealResponse(effectiveBody, effectiveInit);
+    return Reflect.construct(RealResponse, [effectiveBody, effectiveInit]);
   }
   WrappedResponse.prototype = RealResponse.prototype;
   for (const propertyName of Object.getOwnPropertyNames(RealResponse)) {
@@ -446,7 +448,9 @@ function installResponseShim(): void {
   }
   Object.defineProperty(WrappedResponse, "name", { value: "Response" });
   (WrappedResponse as any).__ksWrapped = true;
-  ksGlobal.Response = WrappedResponse;
+  // Through the untyped view: a function constructor over RealResponse.prototype with its
+  // statics copied on, which TypeScript cannot see as `typeof Response`.
+  ksGlobalByKey.Response = WrappedResponse;
   patchFormDataRealmCrossing(RealResponse.prototype);
   patchBodyBlobMimeType(RealResponse.prototype);
 }

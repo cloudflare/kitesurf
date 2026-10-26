@@ -23,7 +23,9 @@ A pnpm monorepo. One line per package; read the code for details.
   machinery, and `src/tty/` the terminal UA styles.
 - `packages/page-script/`: the per-page runtime, bundled to a string and loaded through
   `env.LOADER`. Owns navigation, script execution and CDP DOM/eval routing. `state.ts` is the
-  shared mutable state and holds `ksGlobal`, the package's only arbitrary-key view of `globalThis`.
+  shared mutable state and holds `ksGlobal`, the package's typed view of `globalThis`
+  (`PageScriptGlobals`, which extends dom-shim's `DomShimGlobals`). Declare a new global or hook
+  there; computed keys go through `ksGlobalByKey`.
 - `packages/dom-shim/`: the in-sandbox DOM (`buildDocument` and the Element, Node, Event and CSSOM
   classes), bundled to a string.
 - `packages/core/`: Rust to wasm on Blitz. `DomHandle`, paint and screenshots, PDF, boa eval, the

@@ -13,7 +13,7 @@ import type {
   WireMeta,
 } from "@kitesurf/jsrpc-types/page-script";
 import { drainDeferParked } from "./defer-shim.ts";
-import { state } from "./state.ts";
+import { ksGlobal, state } from "./state.ts";
 import { noteSyncOp } from "./lag-monitor.ts";
 import { set_ks_trace_parent } from "./wasm-glue.js";
 
@@ -30,7 +30,7 @@ export function updateClockFloor(timestamp: unknown): void {
 
 export function enterMethodScope(meta: ReceivedMeta): void {
   const traceParent = typeof meta.tp === "string" ? meta.tp : "";
-  (globalThis as { __ksTp?: string }).__ksTp = traceParent;
+  ksGlobal.__ksTp = traceParent;
   try {
     set_ks_trace_parent(traceParent);
   } catch {}
@@ -38,9 +38,7 @@ export function enterMethodScope(meta: ReceivedMeta): void {
 
   // Upgrade callbacks before parked I/O; connected callbacks can start requests.
   try {
-    (
-      globalThis as { __ks_drainCustomElementUpgrades?: () => void }
-    ).__ks_drainCustomElementUpgrades?.();
+    ksGlobal.__ks_drainCustomElementUpgrades?.();
   } catch {}
 
   drainDeferParked();

@@ -20,4 +20,8 @@ export {
   armKsOtel,
   ksSpan,
 } from "@kitesurf/dom-shim/contract";
-export type { BuildDocumentOpts, BuildDocumentResult } from "@kitesurf/dom-shim/contract";
+export type {
+  BuildDocumentOpts,
+  BuildDocumentResult,
+  DomShimGlobals,
+} from "@kitesurf/dom-shim/contract";

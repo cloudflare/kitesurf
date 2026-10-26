@@ -6,6 +6,7 @@
 
 import {
   ksGlobal,
+  ksGlobalByKey,
   WINDOW_KEY,
   windowObj,
   windowProxy,
@@ -485,7 +486,7 @@ function dispatchOnKeyInnerUnsafe(
 ): boolean {
   try {
     const handlerName = "on" + metadata.type;
-    const bare = ksGlobal[handlerName];
+    const bare = ksGlobalByKey[handlerName];
     if (typeof bare === "function" && windowProxy && windowProxy[handlerName] == null) {
       windowProxy[handlerName] = bare;
     }
