@@ -155,7 +155,8 @@ app.get("/", async (c, next) => {
       "Inspector base URL not configured. Set the\n" +
         "KITESURF_INSPECTOR_BASE_URL env var on the engine worker\n" +
         "to a hosted Chrome DevTools Frontend build (any URL that\n" +
-        "accepts `?wss=<endpoint>`), or use\n" +
+        "accepts `?wss=<endpoint>`), or to /inspector/inspector.html\n" +
+        "after a `--config=devtools` build, or use\n" +
         "chrome://inspect → Configure → Discover network targets\n" +
         "and add this host.\n",
       { status: 501, headers: { "content-type": "text/plain; charset=utf-8" } },

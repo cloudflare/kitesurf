@@ -32,7 +32,7 @@ copy_to_bin(
 
 copy_to_bin(
     name = "public",
-    srcs = glob(["public/**"], exclude = ["public/rbi/**"]),
+    srcs = glob(["public/**"], exclude = ["public/inspector/**", "public/rbi/**"]),
     visibility = [
         "//packages/engine/test/e2e:__pkg__",
         "//tests/pw:__pkg__",
@@ -181,6 +181,7 @@ js_binary(
 host_run(
     name = "dev_build",
     data = [
+        ":inspector",
         ":rbi_json",
         ":rbi_wasm",
         "//packages/core/pkg:pkg",
