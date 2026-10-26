@@ -91,12 +91,12 @@ fn resolve_specifier(specifier: &str, referrer: &Referrer) -> Result<String, Str
 }
 
 async fn gated_module_source(url: &str) -> Option<Result<String, String>> {
-    let global = js_sys::global();
-    let hook = js_sys::Reflect::get(&global, &JsValue::from_str("__ks_module_source")).ok()?;
-    let hook: js_sys::Function = hook.dyn_into().ok()?;
+    let hook: js_sys::Function = crate::js::internals::get("fetchModuleSource")?
+        .dyn_into()
+        .ok()?;
     let promise = hook
-        .call1(&global, &JsValue::from_str(url))
-        .map_err(|_| format!("__ks_module_source({url}) threw"));
+        .call1(&JsValue::UNDEFINED, &JsValue::from_str(url))
+        .map_err(|_| format!("fetchModuleSource({url}) threw"));
     let promise = match promise {
         Ok(p) => p,
         Err(e) => return Some(Err(e)),
@@ -149,10 +149,10 @@ async fn fetch_module_source(url: String) -> Result<String, String> {
 }
 
 async fn native_import_namespace(url: String) -> Option<wasm_bindgen::JsValue> {
-    let global = js_sys::global();
-    let f = js_sys::Reflect::get(&global, &JsValue::from_str("__ks_native_import")).ok()?;
-    let f: js_sys::Function = f.dyn_into().ok()?;
-    let promise = f.call1(&global, &JsValue::from_str(&url)).ok()?;
+    let f: js_sys::Function = crate::js::internals::get("nativeImport")?.dyn_into().ok()?;
+    let promise = f
+        .call1(&JsValue::UNDEFINED, &JsValue::from_str(&url))
+        .ok()?;
     let ns = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise))
         .await
         .ok()?;
@@ -1099,14 +1099,12 @@ async fn yield_to_v8_microtasks() {
 }
 
 fn pump_due_page_timers(deadline: f64) -> bool {
-    let global = js_sys::global();
-    let Ok(hook) = js_sys::Reflect::get(&global, &JsValue::from_str("__ks_pump_due_timers")) else {
+    let Some(Ok(hook)) =
+        crate::js::internals::get("pumpDueTimers").map(|v| v.dyn_into::<js_sys::Function>())
+    else {
         return false;
     };
-    let Ok(hook) = hook.dyn_into::<js_sys::Function>() else {
-        return false;
-    };
-    hook.call1(&global, &JsValue::from_f64(deadline))
+    hook.call1(&JsValue::UNDEFINED, &JsValue::from_f64(deadline))
         .ok()
         .and_then(|value| value.as_f64())
         .is_some_and(|count| count > 0.0)
@@ -1115,11 +1113,9 @@ fn pump_due_page_timers(deadline: f64) -> bool {
 const AWAITED_YIELD_MAX_MS: f64 = 16.0;
 
 fn awaited_yield_ms() -> i32 {
-    let global = js_sys::global();
-    let delay = js_sys::Reflect::get(&global, &JsValue::from_str("__ks_next_timer_delay"))
-        .ok()
+    let delay = crate::js::internals::get("nextTimerDelay")
         .and_then(|hook| hook.dyn_into::<js_sys::Function>().ok())
-        .and_then(|hook| hook.call0(&global).ok())
+        .and_then(|hook| hook.call0(&JsValue::UNDEFINED).ok())
         .and_then(|value| value.as_f64())
         .unwrap_or(1.0);
     delay.clamp(1.0, AWAITED_YIELD_MAX_MS).ceil() as i32

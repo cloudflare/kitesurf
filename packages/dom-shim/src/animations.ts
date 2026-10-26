@@ -9,6 +9,7 @@ import type * as Idl from "./idl/types.generated.js";
 import { KsEvent, setEventCurrentTarget, setEventTarget } from "./events/event.js";
 import { bumpMutationSeq } from "./mutations/seq.js";
 import { dom, ksGlobal } from "./state.js";
+import { ksInternals } from "./internals.js";
 
 type TaskScheduler = (fn: () => void, ms: number) => unknown;
 type Direction = "normal" | "reverse" | "alternate" | "alternate-reverse";
@@ -32,8 +33,8 @@ export function setAnimationTaskScheduler(scheduler: TaskScheduler): void {
 // over and the time Rust measures from it agree. In production Date.now freezes within a
 // turn, so deltas around synchronous work read 0.
 function clockMs(): number {
-  const floor = Number(Reflect.get(globalThis, "__ks_clock_floor_ms"));
-  return Number.isFinite(floor) ? Math.max(Date.now(), floor) : Date.now();
+  // updateClockFloor only ever stores a finite number.
+  return Math.max(Date.now(), ksInternals.clockFloorMs ?? 0);
 }
 
 function domException(message: string, name: string): Error {

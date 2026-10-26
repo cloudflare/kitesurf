@@ -294,15 +294,13 @@ fn now_for_animations() -> f64 {
         wasm_bindgen_futures::spawn_local(async {
             ANIMATION_CLOCK.set(None);
         });
+        // Date.now() can freeze during execution, so the parent stamps its own clock onto every
+        // message and page-script mirrors the max into ksInternals.clockFloorMs. Take whichever
+        // clock is further along.
         let mut now_ms = js_sys::Date::now();
-        if let Ok(v) = js_sys::Reflect::get(
-            &js_sys::global(),
-            &wasm_bindgen::JsValue::from_str("__ks_clock_floor_ms"),
-        ) {
-            if let Some(floor) = v.as_f64() {
-                if floor > now_ms {
-                    now_ms = floor;
-                }
+        if let Some(floor) = js::internals::get("clockFloorMs").and_then(|v| v.as_f64()) {
+            if floor > now_ms {
+                now_ms = floor;
             }
         }
         let now = now_ms / 1000.0;

@@ -19,6 +19,9 @@ export interface DomShimInternals {
   ttyCellHeight?: number;
   // Trace parent of the current RPC (the `tp` envelope field).
   traceParent?: string;
+  // The highest parent clock sample, in epoch ms. Date.now() can freeze within a turn, so
+  // animation time floors to this; the wasm core reads it too.
+  clockFloorMs?: number;
   jsSpanEnter?: (op: string, bytes: number, detail: string) => number;
   jsSpanExit?: (slot: number) => void;
   // In lazy font mode, upgrades to the full fonts so text shaped outside layout (canvas, SVG)

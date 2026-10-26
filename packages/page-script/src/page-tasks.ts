@@ -18,6 +18,7 @@ import {
 } from "./intersection-observer.ts";
 import { ks_bridge_ever_minted, ks_run_page_jobs } from "./wasm-glue.js";
 import { drainSettleMicrotasks, isEngineScheduling, NativePromise } from "./native-scheduling.ts";
+import { ksInternals } from "./internals.ts";
 import { ksGlobal } from "./state.ts";
 import type { ShimWindow } from "./types.ts";
 
@@ -640,23 +641,19 @@ export function installPageTaskGlobals(
   defineEnumerableProto: (prototype: object, methods: Record<string, Function>) => void,
 ): void {
   installTimerWheel();
-  try {
-    Object.defineProperty(ksGlobal, "__ks_pump_due_timers", {
+  // The wasm drains due timers through these while boa awaits a promise.
+  // Read-only, so page JS reaching the record can't swap the timer pump.
+  if (!ksInternals.pumpDueTimers) {
+    Object.defineProperty(ksInternals, "pumpDueTimers", {
       value: (deadlineMs?: number) => pumpDueTimers(deadlineMs, 1),
-      configurable: false,
-      enumerable: false,
-      writable: false,
     });
-    Object.defineProperty(ksGlobal, "__ks_next_timer_delay", {
+    Object.defineProperty(ksInternals, "nextTimerDelay", {
       value: () => {
         const nextEntry = nextTimerWheelEntry();
         return nextEntry ? Math.max(0, nextEntry.due - nativeTimerNow()) : Infinity;
       },
-      configurable: false,
-      enumerable: false,
-      writable: false,
     });
-  } catch {}
+  }
   const setTimer: NonNullable<typeof engineSetTimeout> = ksGlobal.setTimeout.bind(globalThis);
   const clearTimer: NonNullable<typeof engineClearTimeout> = ksGlobal.clearTimeout.bind(globalThis);
   engineSetTimeout = setTimer;
