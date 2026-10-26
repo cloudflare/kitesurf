@@ -261,7 +261,21 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       return {};
     }
 
-    case "DOM.scrollIntoViewIfNeeded":
+    case "DOM.scrollIntoViewIfNeeded": {
+      // An empty reply read as success: puppeteer skipped its own fallback scroll, and its
+      // locator re-checked an off-screen element until it timed out.
+      if (!ps) return {};
+      const id = numericNodeId(req.params);
+      const objectId = req.params?.objectId;
+      const rect = req.params?.rect;
+      const reply = await session.call.scrollIntoViewIfNeeded({
+        ...(id != null ? { nodeId: id } : typeof objectId === "string" ? { objectId } : {}),
+        ...(rect ? { rect } : {}),
+      });
+      if (!reply.found) throw new Error("Node is detached from document");
+      return {};
+    }
+
     case "DOM.highlightNode":
     case "DOM.hideHighlight":
       return {};

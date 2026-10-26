@@ -188,6 +188,15 @@ export interface QueryDomMethods {
     result: FormStateSnapshot & { readStamp?: ReadStamp };
   };
   focus: { args: { nodeId: number }; result: EmptyArgs };
+  // DOM.scrollIntoViewIfNeeded: `found` is false when the id names no node of this document.
+  scrollIntoViewIfNeeded: {
+    args: {
+      nodeId?: number;
+      objectId?: string;
+      rect?: { x: number; y: number; width: number; height: number };
+    };
+    result: { found: boolean; scrolled?: boolean };
+  };
   getPageState: {
     args: EmptyArgs;
     result: { seq?: number; scrollX?: number; scrollY?: number; href?: string; title?: string };
