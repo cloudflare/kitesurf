@@ -5029,6 +5029,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       case "getAttributes":
       case "focus":
         return queryDomNodeHandle(state, method, queryArgs);
+      case "scrollIntoViewIfNeeded":
+        return queryDomScrollIntoView(queryArgs);
       case "hasPendingCriticalResources":
         return queryDomHasPendingCriticalResources(state);
       case "getMemoryStats":
@@ -6591,6 +6593,46 @@ function queryDomNodeHandle(
       return {} satisfies QueryDomResult<"focus">;
     }
   }
+}
+
+// Chrome's center-if-needed: a rect already wholly in the viewport stays put, any other is
+// centred. Puppeteer's locator scrolls this way and re-checks before every click.
+function queryDomScrollIntoView(
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"scrollIntoViewIfNeeded"> {
+  const id = numericNodeId(queryArgs);
+  const node = id == null ? null : state.resolveNodeId(id);
+  const element =
+    node && typeof node.getBoundingClientRect === "function" ? node : (node?.parentElement ?? null);
+  const box = element?.getBoundingClientRect?.() ?? null;
+  if (!element || !box || typeof element.scrollIntoView !== "function") return { found: false };
+  const sub = rectArg(queryArgs.rect);
+  const r = sub
+    ? { left: box.left + sub.x, top: box.top + sub.y, width: sub.width, height: sub.height }
+    : box;
+  const vw = Number(ksGlobal.innerWidth) || 0;
+  const vh = Number(ksGlobal.innerHeight) || 0;
+  if (r.left >= 0 && r.top >= 0 && r.left + r.width <= vw && r.top + r.height <= vh) {
+    return { found: true, scrolled: false };
+  }
+  element.scrollIntoView({ block: "center", inline: "center" });
+  return { found: true, scrolled: true };
+}
+
+// CDP's optional DOM.Rect, relative to the node's border box; anything else reads as absent.
+function rectArg(v: unknown): { x: number; y: number; width: number; height: number } | null {
+  if (typeof v !== "object" || v === null) return null;
+  const num = (key: string): number | null => {
+    const n: unknown = Reflect.get(v, key);
+    return typeof n === "number" && Number.isFinite(n) ? n : null;
+  };
+  const x = num("x");
+  const y = num("y");
+  const width = num("width");
+  const height = num("height");
+  return x !== null && y !== null && width !== null && height !== null
+    ? { x, y, width, height }
+    : null;
 }
 
 function queryDomPageState(): QueryDomResult<"getPageState"> {
