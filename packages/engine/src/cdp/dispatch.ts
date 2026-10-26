@@ -129,7 +129,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await handleFetch(ctx, req);
         break;
       case "Input":
-        result = await handleInput(ctx, req);
+        result = await handleInput(ctx, req, undefined, { replyOnDispatch: true });
         break;
       case "Kitesurf": {
         result = await handleKitesurf(ctx, req);
