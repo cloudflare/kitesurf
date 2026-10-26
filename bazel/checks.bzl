@@ -3,7 +3,6 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
 
 HOISTED = [
-    "//:node_modules/buffer",
     "//:node_modules/devtools-protocol",
     "//:node_modules/undici",
     "//:node_modules/zod",
