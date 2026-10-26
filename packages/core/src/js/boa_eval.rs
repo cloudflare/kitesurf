@@ -1161,6 +1161,9 @@ async fn drive_cdp(
                 }
                 PromiseState::Rejected(v) => {
                     let ctx = unsafe { &mut *ptr };
+                    if let Some(original) = bridged_v8_throw(&v, ctx) {
+                        return Err(original);
+                    }
                     let msg = v
                         .to_string(ctx)
                         .map(|s| s.to_std_string_escaped())
@@ -1192,6 +1195,20 @@ async fn drive_cdp(
         // any async-job wait so a concurrent driver can interleave.
         pump(ptr, || !matches!(promise.state(), PromiseState::Pending)).await;
     }
+}
+
+// A throw from page code V8 ran (a natively baked script) reaches boa as a
+// bridged proxy, which formats as "{ }". Hand V8 its own error back, so the
+// CDP exception keeps the class, message and stack the page threw.
+fn bridged_v8_throw(thrown: &BoaValue, ctx: &mut Context) -> Option<JsValue> {
+    let obj = thrown.as_object()?;
+    crate::js::boa_bridge::bridged_v8_handle(&obj, ctx).map(crate::js::boa_bridge::get_v8)
+}
+
+fn cdp_throw(e: &boa_engine::JsError, ctx: &mut Context) -> JsValue {
+    e.as_opaque()
+        .and_then(|thrown| bridged_v8_throw(thrown, ctx))
+        .unwrap_or_else(|| js_sys::Error::new(&format!("{e}")).into())
 }
 
 fn build_envelope(value: BoaValue, ctx: &mut Context) -> String {
@@ -1243,7 +1260,7 @@ pub fn ks_eval_cdp(src: String, await_promise: bool, return_by_value: bool) -> j
                     heal_residual_stack(ctx);
                     let value = match ctx.eval(Source::from_bytes(src.as_bytes())) {
                         Ok(v) => v,
-                        Err(e) => return Err(js_sys::Error::new(&format!("{e}")).into()),
+                        Err(e) => return Err(cdp_throw(&e, ctx)),
                     };
                     (ptr, value)
                 };
@@ -1298,7 +1315,7 @@ pub fn ks_call_cdp(
                     }
                     let value = match callable.call(&this_boa, &boa_args, ctx) {
                         Ok(v) => v,
-                        Err(e) => return Err(js_sys::Error::new(&format!("{e}")).into()),
+                        Err(e) => return Err(cdp_throw(&e, ctx)),
                     };
                     (ptr, value)
                 };
