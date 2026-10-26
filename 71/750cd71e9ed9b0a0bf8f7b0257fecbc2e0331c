@@ -1,0 +1,21 @@
+packages/engine/test/e2e/bridge-dom-fastpath.e2e.test.ts
+  s_4ba79f911c93c4::t_a24f3004ef10ea 254,256-257,264,266-267
+  s_4ba79f911c93c4::t_746c226a6f815a 244,251
+  s_4ba79f911c93c4::t_1bc7582188dae4 245-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "71750cd71e9ed9b0a0bf8f7b0257fecbc2e0331c",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

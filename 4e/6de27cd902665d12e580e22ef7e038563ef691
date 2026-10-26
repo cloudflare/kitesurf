@@ -1,0 +1,87 @@
+packages/page-script/src/workerd-unsafe-eval.d.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 1-7
+packages/engine/test/e2e/global-setup.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 16,36-54,72-73,81
+packages/page-script/scripts/build.mjs
+  s_4a0765e9f35327::t_1ee8473f43ab18 202
+packages/engine/test/native-script-source.test.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 1-88
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 246,251-256,259,261-265,366-386
+packages/engine/test/page-script-compat.test.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 38-39,54-55
+packages/engine/test/walk-module-graph.test.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 29,720-753
+packages/page-script/src/script-policy.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 26-30,53-55
+packages/page-script/src/state.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 126-128,217-220
+packages/engine/src/eval/page-script.ts
+  s_4a0765e9f35327::t_048f9caea27601 1405-1417
+  s_4a0765e9f35327::t_1ee8473f43ab18 37,857-858,1006-1051,1099-1101,1126,1288,1293,1298,1350
+packages/page-script/src/eval-mode.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 5,13-48
+packages/engine/src/eval/outbound.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 55-58,227-249,281-309,775-986,992-998
+packages/engine/src/cdp/page.ts
+  s_4a0765e9f35327::t_048f9caea27601 38
+  s_4a0765e9f35327::t_1ee8473f43ab18 37,39-41,141,2811,2878-2915,3061,3140-3141,3193-3195
+packages/core/src/lib.rs
+  s_4a0765e9f35327::t_1ee8473f43ab18 333,798,802,804-807,811,839,847,855,870,1859,1879,1887
+packages/engine/src/eval/page-script-compat.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 40-41
+packages/core/src/boa_disabled.rs
+  s_4a0765e9f35327::t_1ee8473f43ab18 1-72
+packages/engine/src/wasm.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 458-464
+packages/page-script/src/inserted-scripts.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 39,238-240
+packages/engine/package.json
+  s_4a0765e9f35327::t_1ee8473f43ab18 9
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 2259-2276,2282-2292,2297-2308,2314-2328
+packages/engine/test/e2e/workerd-native-browser.e2e.test.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 1-364
+packages/page-script/src/globals.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 28,32-37,622-632,652,655-690,735-739,742-750,757-763,773-775,796-800
+packages/page-script/src/__ks_startup_probe_input.d.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 18-20,23-28,64
+scripts/build-wasm.mjs
+  s_4a0765e9f35327::t_1ee8473f43ab18 93-94,102,104-108,281-285,327-329,332,335,620-624
+packages/page-script/src/index.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 219,1147-1158,1821-1825,1907,2012-2044,2130,2157-2175,2186-2193,2243-2245,2270-2271,2477-2480,2482-2484,3131-3134
+packages/core/Cargo.toml
+  s_4a0765e9f35327::t_1ee8473f43ab18 215,220,249-251
+packages/page-script/src/eval-helpers.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 12,26-27,827-832,1257,1287-1304,1618-1620,1627,1636
+packages/engine/src/eval/walk-module-graph.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 89,98-164
+packages/page-script/src/native-script-source.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 1-49
+packages/engine/vitest.e2e.config.mts
+  s_4a0765e9f35327::t_1ee8473f43ab18 95-97,217-221
+packages/page-script/src/startup-probe.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 13,36,94,154-166
+turbo.json
+  s_4a0765e9f35327::t_1ee8473f43ab18 90-92,97
+packages/page-script/package.json
+  s_4a0765e9f35327::t_1ee8473f43ab18 20-21
+packages/page-script/src/scripts.ts
+  s_4a0765e9f35327::t_1ee8473f43ab18 14-21,29-31,33-37,55,108-112,133-146,149-158,167-191,194-196,200-201,205-249,265,268,285-293,297,306,310,318-321,323,331,334,346,356,358-363,370,380,394-395,398,408-417,451-457,655-663,666,668-691,693-726
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4e6de27cd902665d12e580e22ef7e038563ef691",
+  "prompts": {},
+  "sessions": {
+    "s_4a0765e9f35327": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22de99daffe33APq8G4JKs5uV",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

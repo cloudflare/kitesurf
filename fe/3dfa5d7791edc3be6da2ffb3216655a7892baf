@@ -1,0 +1,98 @@
+packages/shadow-replay/src/comparison/response.ts
+  s_47461e6af773a3::t_06fca6d3a1887e 10-20,53-54,60,66,68-69,72-74,81-113,129,131,133,137-138
+packages/script-gate/src/mime.ts
+  s_47461e6af773a3::t_06fca6d3a1887e 90-91
+packages/core/src/scene_replay.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 283-284,310-311,2161-2162
+docs/DOM_SHIM.md
+  s_47461e6af773a3::t_06fca6d3a1887e 167-175
+  s_47461e6af773a3::t_a5c44ec044e087 176-178
+packages/core/src/pdf_paint.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 1-3,144-146,198,237-238,428,569-570,574,608-609
+packages/script-gate/src/csp.ts
+  s_47461e6af773a3::t_06fca6d3a1887e 88-89,141-149,151-158,172-173,181-183,185-195,197-199,349-356
+packages/core/src/tty_input.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 109
+packages/core/src/scene_record.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 1,3-5,31,33,43,67,71,75,162,169,375-377,381-382,425-426,430,456-457,1056,1436-1437,1488-1489,1510-1511,1972-1973,1993-1994,1999,2004-2005,2009-2010
+packages/core/src/fonts.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 632-633,1443-1444
+packages/core/src/boa_bridge.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 524-525,573-574,646-648,1497-1499,1647-1648,1719-1720,1944-1945,2136,2202-2204,2471-2472,2499-2500,2822-2823,2930-2931,2954-2955,3226
+  s_47461e6af773a3::t_174a5a665bfd22 3227
+packages/core/src/tty_grid.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 91-94,100-101,130,132-133,176-177,181-182,187,754-755,961-962,984-985,993-994,1165-1166,1187-1188
+.opencode/skills/kitesurf-deslop/SKILL.md
+  s_47461e6af773a3::t_06fca6d3a1887e 67-73,77-80,306
+  s_c6d6a3ac21fe46::t_d12df06b2597aa 307-310
+packages/core/src/lib.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 555,1695-1696,1835-1836,2768-2769,3991-3992,6078,8385
+  s_47461e6af773a3::t_76c5cfe1f10144 8386
+packages/core/src/ks_tracing.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 1-4,23-24,37-38,96-98,204-205,239-240,255
+packages/kitesurf-cli/src/main.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 573-574,866-867
+packages/core/src/canvas2d.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 510-511,1309-1311,1517-1519,1538-1539
+packages/core/src/boa_eval.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 744-745,747-748,917-918,1028-1029
+  s_47461e6af773a3::t_f206044ddd49d6 1030
+packages/shadow-replay/src/comparison/content.ts
+  s_47461e6af773a3::t_06fca6d3a1887e 7-10,155-157
+  s_47461e6af773a3::t_c7c82ced89bc8b 6
+packages/shadow-replay/src/comparison/accessibility.ts
+  s_47461e6af773a3::t_06fca6d3a1887e 2-5,16-20,22-23,26-35,48-49,52,60-61,75-79,82-89,98,103-104,121-125,128-136,145,157-159
+  s_20642805355ab4::t_22d233df8f3caa 21
+  s_47461e6af773a3::t_b56a587d2ba481 1
+tests/interactivity-flows/lib/net-archive.ts
+  s_47461e6af773a3::t_7ec0cbd5809817 68,89
+  s_47461e6af773a3::t_06fca6d3a1887e 5,66-67,69,71-88,90,94-137,139-151,156-163,170-171,197-198,291-293,300
+  s_47461e6af773a3::t_f545a02d72ca89 301-302
+packages/core/src/screenshot.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 1-2,41-42,219-220,226-227,237,243,252-253,260-261
+packages/core/src/net.rs
+  s_47461e6af773a3::t_06fca6d3a1887e 27,44-45,51,126,134,158,186-187,189-190,197,202-203,208-209,231,236-237,240,243,253-255,258,261,264,267-268,271-273,280,284,286-287,290-292,295-297,299-300,303-304,306-307,330-336,340,342,344,354-361,367-372,375,379-387,391-398,401-405,429,433-434,436-437,443-447,472,475-477,481-484,489,527,531,536-537,540-545,547,552-553,558-559,564-565,570-571,576,580,586-587,592-593,598-599,607-608,617,620-621,628,631-632,641-643,661,663-667,673-685
+packages/bench-report/src/chrome-cold-report.ts
+  s_47461e6af773a3::t_06fca6d3a1887e 26-34,36-44
+packages/page-renderer/src/index.ts
+  s_47461e6af773a3::t_06fca6d3a1887e 55-57,59,61-73,76-78,436-437
+packages/script-gate/test/gate.test.ts
+  s_47461e6af773a3::t_06fca6d3a1887e 333-336,346-351
+packages/shadow-replay/src/comparison/screenshot.ts
+  s_47461e6af773a3::t_06fca6d3a1887e 7-11,129-130,134-138,144
+  s_47461e6af773a3::t_324f03d5e5662a 6
+packages/bench-report/src/bench-tail.ts
+  s_47461e6af773a3::t_06fca6d3a1887e 171-173,175,177,179,181,187,190,193-206,209-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fe3dfa5d7791edc3be6da2ffb3216655a7892baf",
+  "prompts": {},
+  "sessions": {
+    "s_20642805355ab4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e2fe02ffeBPRkxpXKpYOZzY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_47461e6af773a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecfb22472ffeHmFwF7YQFPmr1S",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

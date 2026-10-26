@@ -1,0 +1,19 @@
+packages/page-script/src/console-buffer.ts
+  s_d357b260f2be6b::t_c0e9e9f504c23b 151-172,195-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f9d008dd31d968486cc16f5b8b28e59dc468c11b",
+  "prompts": {},
+  "sessions": {
+    "s_d357b260f2be6b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_edeb94b8dffeNheYIHpqY8BMkr",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

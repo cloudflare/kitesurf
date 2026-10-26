@@ -1,0 +1,19 @@
+packages/core/src/sticky.rs
+  s_479f7a46340b56::t_a3ef5c0735ebf1 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3f58559d20041753a86c0b32ad36a0bae1a125a8",
+  "prompts": {},
+  "sessions": {
+    "s_479f7a46340b56": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_012e8f953ffeBE1ySMwmNeqr7E",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

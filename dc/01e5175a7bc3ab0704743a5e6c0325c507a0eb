@@ -1,0 +1,21 @@
+packages/dom-shim/src/window.ts
+  s_4ba79f911c93c4::t_6c530cc99e2750 614
+packages/core/src/container_query_image_flush_test.rs
+  s_4ba79f911c93c4::t_286bb60e1cac8e 1,7,19,53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dc01e5175a7bc3ab0704743a5e6c0325c507a0eb",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

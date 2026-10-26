@@ -1,0 +1,24 @@
+docs/DOM_SHIM.md
+  s_db62237ce9a445::t_926d4089a92650 53-55
+packages/dom-shim/MODULES.md
+  s_db62237ce9a445::t_926d4089a92650 94
+packages/engine/src/cdp/page.ts
+  s_db62237ce9a445::t_51befbbc83bb77 4602-4603
+  s_db62237ce9a445::t_43ebecd1ad5124 4604-4605,4650-4651
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "aa6c2a5f333dcb859365eda558e40a986d6297af",
+  "prompts": {},
+  "sessions": {
+    "s_db62237ce9a445": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25d89749ffe1DHFSv3WId84ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

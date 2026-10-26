@@ -1,0 +1,21 @@
+packages/engine/src/eval/prefetch-scripts.ts
+  s_492d322fdb5636::t_5321bd0b3ee534 352-354
+  s_492d322fdb5636::t_dec83ddf75f3a3 328-351,355-359,361-436
+  s_492d322fdb5636::t_5c754a7eca4fda 360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7b22c205523f95e7f71f403ac5a8723ef1c7237d",
+  "prompts": {},
+  "sessions": {
+    "s_492d322fdb5636": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff5bcdb4effed9sVCVwDFXLQ3u",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

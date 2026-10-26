@@ -1,0 +1,34 @@
+packages/engine/test/e2e/idl-handler-rekey.e2e.test.ts
+  s_84e075edc4e375::t_33cf6439a3cbde 53-54
+packages/engine/src/cdp/target.ts
+  s_84e075edc4e375::t_e24fd1715c9f5c 1130
+packages/engine/test/e2e/detached-subtree-reclaim.e2e.test.ts
+  s_84e075edc4e375::t_633a2f68cd00dd 11
+  s_84e075edc4e375::t_2c4b2c959ebee6 70,88,107
+packages/dom-shim/src/reclaim.ts
+  s_84e075edc4e375::t_48ec83c9346dc4 209
+  s_84e075edc4e375::t_f2e3fbb0847031 254,257,259,270,274,279
+packages/engine/src/cdp/runtime.ts
+  s_84e075edc4e375::t_e24fd1715c9f5c 291
+packages/engine/src/cdp/page-session.ts
+  s_84e075edc4e375::t_e24fd1715c9f5c 185
+packages/core/src/lib.rs
+  s_84e075edc4e375::t_0c51eb7c9dfbda 5390-5391
+  s_84e075edc4e375::t_e4da17177d0ef2 5392-5393,5473
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "74b7e8169c448ee9b6270fcf314320ba4b921b4d",
+  "prompts": {},
+  "sessions": {
+    "s_84e075edc4e375": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35f4b437ffeIIFIlfhUNCTacY",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+packages/engine/test/e2e/accessibility.e2e.test.ts
+  s_a75fa05553ff55::t_d4add58eeb4692 21
+  s_a75fa05553ff55::t_ebdfbba7fe86f7 1-20,22-167,196-232
+  s_a75fa05553ff55::t_5c915eb590dd36 168-195
+packages/engine/src/cdp/accessibility.ts
+  s_a75fa05553ff55::t_271b7020ff9329 1-28,40-80,97-285,287-314,319-749,752-917,922-945,948-994,996-997
+  s_a75fa05553ff55::t_8c91619826d262 750-751
+  s_a75fa05553ff55::t_53aa8a2c85afa3 995
+  s_a75fa05553ff55::t_9ba76e5afcbfae 286
+  s_a75fa05553ff55::t_a99700fc555d44 81-96
+  s_a75fa05553ff55::t_42fbe2fa70f1ba 29-39
+  s_a75fa05553ff55::t_f53537abd13384 918-921
+  s_a75fa05553ff55::t_38e24c1eb067d5 315-318
+  s_a75fa05553ff55::t_535faece0cb22b 946-947
+packages/engine/src/cdp/dispatch.ts
+  s_a75fa05553ff55::t_a8590f47b0c9ea 22
+  s_a75fa05553ff55::t_c882e8e2744f9e 147-157
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_a75fa05553ff55::t_63a968335589b4 93-136
+  s_a75fa05553ff55::t_e4149d07ef965a 1044-1045
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9ac917ac7e16d5f82c282077ded4566163933754",
+  "prompts": {},
+  "sessions": {
+    "s_a75fa05553ff55": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_056baad8fffe4Zn5Jf0262lNuZ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

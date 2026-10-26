@@ -1,0 +1,20 @@
+scripts/build-wasm.mjs
+  s_4efb85c8268621::t_c09b7fa5387da0 475-510,512-515
+  s_4efb85c8268621::t_79ec8a1b64bd68 511
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7098d53f16b35bf3d7c8f26eac58f6735cca5292",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

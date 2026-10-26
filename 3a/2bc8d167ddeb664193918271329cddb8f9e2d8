@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-memory-preserve-duplicate-author-sheet-identity.patch
+  s_f5785bea72e01e::t_855293b272ff25 1-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3a2bc8d167ddeb664193918271329cddb8f9e2d8",
+  "prompts": {},
+  "sessions": {
+    "s_f5785bea72e01e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f51217a23ffeok4Sc2bqio2KUk",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

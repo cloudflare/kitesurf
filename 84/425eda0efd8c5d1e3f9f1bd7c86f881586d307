@@ -1,0 +1,62 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-Snap-terminal-table-tracks-with-cell-layout.patch
+  s_1c957943e307aa::t_62bd47475ea50a 1-12,15-16,18-19,21-32,34-37,42-47,49-64,66-69,85-88,90,95-102
+  s_1c957943e307aa::t_ec4151f70dc184 13-14,17,20,33,38-41,48,65,70-84,89,91-94
+scripts/patches/blitz-paint-0.3.0-beta.2/0030-Keep-collapsed-borders-when-terminal-tracks-collapse.patch
+  s_1c957943e307aa::t_d6c54648588032 13-14,17,20,22,34-101
+scripts/patches/blitz-dom-0.3.0-beta.2/0125-Carry-the-layout-rounding-step-on-the-document.patch
+  s_1c957943e307aa::t_62bd47475ea50a 12,14,17,20-23,25-26,28-31,33,35,44-45,53,56,58,65
+scripts/patches/blitz-paint-0.3.0-beta.2/0029-Paint-table-cell-text-at-its-aligned-offset.patch
+  s_1c957943e307aa::t_ff662f04371478 19
+  s_1c957943e307aa::t_d6c54648588032 22,25,33-35
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-Account-for-table-ancestors-when-snapping-tracks.patch
+  s_1c957943e307aa::t_62bd47475ea50a 1-12,15-16,18-19,21-28,30-32,34,43-44,48-51,53,58-60
+  s_1c957943e307aa::t_ec4151f70dc184 13-14,17,20,29,33,35-42,45-47,52,54-57
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Hit-text-only-on-the-line-that-contains-the-point.patch
+  s_1c957943e307aa::t_62bd47475ea50a 1-55
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Retain-raw-table-tracks-across-terminal-reflow.patch
+  s_1c957943e307aa::t_ec4151f70dc184 49,52,60-62
+  s_1c957943e307aa::t_62bd47475ea50a 1-48,50-51,53-59,63-67
+scripts/patches/blitz-paint-0.3.0-beta.2/0027-Paint-checkboxes-and-radios-which-blitz-never-did.patch
+  s_1c957943e307aa::t_d6c54648588032 5-7,26,32,34,37
+  s_1c957943e307aa::t_ff662f04371478 23,77
+scripts/patches/taffy-0.14.0/0008-Let-a-backend-round-layout-to-something-other-than-a.patch
+  s_1c957943e307aa::t_86098762aef707 38-40,43,46,59,72,75,97,100,121-123,131,133,136,145
+scripts/patches/blitz-paint-0.3.0-beta.2/0026-Mark-which-part-of-an-element-each-op-paints.patch
+  s_1c957943e307aa::t_d6c54648588032 25-26,29,32,34,41,44-45,49,51,55,70,72,76,79,83,86-101
+scripts/patches/blitz-dom-0.3.0-beta.2/0131-Align-table-tracks-to-their-final-paint-origin.patch
+  s_1c957943e307aa::t_62bd47475ea50a 3-4,9,16,18-28,31-32,34,42,44-45,48-51,54-56
+  s_1c957943e307aa::t_ec4151f70dc184 13-14,29-30,33,35-37,40-41,43,46-47,52-53
+  s_1c957943e307aa::t_732119a8fcace1 17,38-39
+  s_1c957943e307aa::t_8ebdf19211487b 1-2,5-8,10-12,15
+scripts/patches/blitz-paint-0.3.0-beta.2/0031-Paint-tables-from-adjusted-track-geometry.patch
+  s_1c957943e307aa::t_d6c54648588032 18,21,29,31,34,37
+scripts/patches/blitz-paint-0.3.0-beta.2/0032-Align-table-row-backgrounds-with-paint-tracks.patch
+  s_1c957943e307aa::t_909d73cf440bd4 13-14,17,20-21,24,26,28-31,36,39
+  s_1c957943e307aa::t_d6c54648588032 22-23,25,27,34-35,37-38,41
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-Honor-vertical-alignment-inside-table-cells.patch
+  s_1c957943e307aa::t_62bd47475ea50a 1-114
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-Tolerate-a-sub-cell-width-change-instead-of-re-break.patch
+  s_1c957943e307aa::t_62bd47475ea50a 22-23,26,29-30,33-34,36,39
+packages/core/src/tty_modes.rs
+  s_1c957943e307aa::t_7c5dc5cbc52ad3 62,85,141,149,198-199,627,629,705,751,783,831
+docs/TERMINAL.md
+  s_1c957943e307aa::t_7c5dc5cbc52ad3 95,111,114
+scripts/dev-term.mjs
+  s_1c957943e307aa::t_7c5dc5cbc52ad3 24-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "84425eda0efd8c5d1e3f9f1bd7c86f881586d307",
+  "prompts": {},
+  "sessions": {
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

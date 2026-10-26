@@ -1,0 +1,107 @@
+packages/dom-shim/src/collections.ts
+  s_f50b7cd97baf3e::t_9ddbadd4f5bf6d 945-954
+  s_f50b7cd97baf3e::t_20589dc1db77c2 612-657
+packages/dom-shim/src/file-input.ts
+  s_f50b7cd97baf3e::t_2adadb352018ff 210-219
+  s_f50b7cd97baf3e::t_ba9c81274eb5a5 82-99
+packages/dom-shim/src/element.ts
+  s_f50b7cd97baf3e::t_22da7233de44bb 89,92-93
+  s_f50b7cd97baf3e::t_e4967df10324d2 703-704,707
+  s_f50b7cd97baf3e::t_b94f0e3bb7562f 842-844
+  s_f50b7cd97baf3e::t_38987bbba55c36 813-816
+  s_f50b7cd97baf3e::t_4ecbb1929b7c31 3947-3950,3953-3955
+  s_f50b7cd97baf3e::t_c1b0136e41f403 8118-8121,8126-8127,8129-8130,8132
+  s_f50b7cd97baf3e::t_ec007c2c415410 705-706,708-709
+  s_f50b7cd97baf3e::t_2f8b4f2c458731 845-846
+  s_f50b7cd97baf3e::t_3d646b533f900a 3796-3799
+  s_f50b7cd97baf3e::t_3394c6fb5fd892 3832-3845,3871-3872
+  s_f50b7cd97baf3e::t_450a9de2d218a7 3847-3869
+  s_f50b7cd97baf3e::t_873b6f1d42dc5f 937-940
+  s_f50b7cd97baf3e::t_8ebb7b27cbbaf1 3986-3992,4001-4004,4007-4010,4016
+  s_f50b7cd97baf3e::t_325eefabf7ca01 4438-4447,4453
+packages/dom-shim/src/index.ts
+  s_f50b7cd97baf3e::t_32083eaa0c0cc5 443-453,469-487
+  s_f50b7cd97baf3e::t_b77490228aa708 462-468
+  s_f50b7cd97baf3e::t_6799c8401948ee 454-461
+  s_f50b7cd97baf3e::t_fc31414e2b3a3b 626-635
+packages/engine/src/eval/page-script.ts
+  s_c9f68948e839d2::t_73817fadd9d495 284-286,290
+packages/engine/test/e2e/demos/png.ts
+  s_c9f68948e839d2::t_fa21bb0ec3e10b 1-6,8-98
+packages/page-script/src/index.ts
+  s_c9f68948e839d2::t_4531f615b89902 1074-1076
+scripts/patches/blitz-dom-0.3.0-beta.1/0012-Implement-slot-assignment-named-slots-fallback-slott.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-539
+scripts/patches/blitz-dom-0.3.0-beta.1/0010-Scope-shadow-tree-stylesheets-via-per-root-AuthorSty.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-365
+scripts/patches/blitz-dom-0.3.0-beta.1/0008-Route-layout-construction-through-the-flat-tree-shad.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-329
+scripts/patches/blitz-dom-0.3.0-beta.1/0009-kitesurf_clear_canvas_image-guard-on-canvas-local-na.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-33
+scripts/patches/blitz-dom-0.3.0-beta.1/0004-Only-clamp-replaced-elements-to-available-INLINE-spa.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-51
+scripts/patches/blitz-dom-0.3.0-beta.1/0005-Wire-attach_shadow-through-the-mutator-shadow-aware-.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-164
+scripts/patches/blitz-dom-0.3.0-beta.1/0006-Implement-stylo-s-shadow-topology-traits-flat-tree-t.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-161
+scripts/patches/blitz-dom-0.3.0-beta.1/0003-Derive-replaced-aspect-ratio-from-attributes-when-co.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-107
+scripts/patches/blitz-dom-0.3.0-beta.1/0013-Keep-shadow-tree-ids-out-of-the-document-ID-map.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-57
+scripts/patches/blitz-dom-0.3.0-beta.1/0011-Parse-shadow-root-innerHTML-under-a-temp-host-named-.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-51
+scripts/patches/blitz-dom-0.3.0-beta.1/0007-Treat-canvas-as-a-replaced-element-with-a-JS-fed-fra.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-121
+scripts/patches/blitz-dom-0.3.0-beta.1/0014-Skip-slot-assignment-recompute-when-nothing-could-ha.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-110
+packages/engine/src/eval/page-script-session.ts
+  s_c9f68948e839d2::t_cd016343fc7297 454-456,460
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bd497309399259fab34e58803648b0976f182a96",
+  "prompts": {},
+  "sessions": {
+    "s_235fc72330162e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06b22cb53ffeQlQzk6XxWrfHM7",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_86e5da766eb425": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0665bed1cffeoMugykK9pn22Wf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_896b78e3e98938": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0694a798affehyyFlYZR8S3ZCm",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/core/src/lib.rs
+  s_93b484cedebccd::t_29886831dd39b5 4092,4225-4229,4265-4275,4279,4308-4310
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f15fce1d75a04d6cbcb4fbe0ed0477d14f11fa3c",
+  "prompts": {},
+  "sessions": {
+    "s_93b484cedebccd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31d712fdffeuTQq5D6PMopaPg",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+.cloudflare/flamingo/plans/kitesurf-cdp-screenshot-burst.edge-plan
+  s_53806db5ffcdc2::t_17b93230ed56b8 15-16
+  s_53806db5ffcdc2::t_1a28b954a42676 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fac04a88cf0945635d94909ac8f4b85428a200c9",
+  "prompts": {},
+  "sessions": {
+    "s_53806db5ffcdc2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f91c49fe4ffeXETbByJyRzfnM1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

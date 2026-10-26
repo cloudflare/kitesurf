@@ -1,0 +1,23 @@
+packages/engine/test/e2e/html/text-fill-color.html
+  s_f19c180209e8f6::t_752001f645eb2b 17-34,40-41
+packages/engine/test/e2e/text-fill-color.e2e.test.ts
+  s_f19c180209e8f6::t_20616255d347b3 33-34,45,81-95,117-128
+scripts/patches/blitz-paint-0.3.0-beta.2/0025-paint-keep-text-visible-when-gradient-clipping-is-un.patch
+  s_f19c180209e8f6::t_f58b9f11f631f0 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b1a79790a1cab51f0c3e4262566bcef423781194",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

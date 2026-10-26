@@ -1,0 +1,33 @@
+packages/dom-shim/src/collections.ts
+  s_f5785bea72e01e::t_57f08bab89b7b2 36,2521,2526-2529
+packages/dom-shim/src/element.ts
+  s_f5785bea72e01e::t_ecf082b34c2244 5144-5153,5156
+packages/dom-shim/src/node-base.ts
+  s_77e8d6f4044102::t_8ccd1df5a6af77 853,864
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_f5785bea72e01e::t_1770169e3682ce 67-68,77-84,88-89,98-103,115-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1e2f3898694b50a6f7d480a89592d7d6951a0b63",
+  "prompts": {},
+  "sessions": {
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_f5785bea72e01e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f51217a23ffeok4Sc2bqio2KUk",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

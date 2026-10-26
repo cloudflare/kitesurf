@@ -1,0 +1,21 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0100-kitesurf-clear-taffy-cache-for-RELAYOUT-damage-and-f.patch
+  s_991c8660c98c38::t_eb98b976b403b2 1-65
+tests/wpt-expectations.json
+  s_991c8660c98c38::t_2708250b550ad3 8627,27754-27761,27763
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2a94e18981b29b5105bbc008232f8b00cdfe897c",
+  "prompts": {},
+  "sessions": {
+    "s_991c8660c98c38": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009892ce1ffeHHnJ6vwrpWm3CZ",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

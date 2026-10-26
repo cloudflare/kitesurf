@@ -1,0 +1,30 @@
+packages/website/src/pages/landing/Landing.tsx
+  s_4acd3f313775ac::t_098a52c6828ea4 29,40
+packages/website/src/pages/landing/Hero.tsx
+  s_4acd3f313775ac::t_098a52c6828ea4 8-12,40-45,50,68
+docs/STATEFUL_SESSIONS.md
+  s_4acd3f313775ac::t_098a52c6828ea4 32-51,57
+packages/website/src/routes.tsx
+  s_4acd3f313775ac::t_098a52c6828ea4 14-15,19-25,79
+packages/website/src/styles/landing.css
+  s_4acd3f313775ac::t_098a52c6828ea4 171-184
+packages/website/src/client/landing.ts
+  s_4acd3f313775ac::t_098a52c6828ea4 29-33
+  s_4acd3f313775ac::t_6d73531aee5fb8 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "08af7e724dafe26e99ea98a0a17cc4a5248f0827",
+  "prompts": {},
+  "sessions": {
+    "s_4acd3f313775ac": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f043692f9ffengU1yq6aOljVvB",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

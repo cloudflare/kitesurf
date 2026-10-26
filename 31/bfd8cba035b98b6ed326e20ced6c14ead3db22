@@ -1,0 +1,52 @@
+packages/engine/test/e2e/html/counters-ref.html
+  s_92fb250e055c45::t_1cae310fe8f6bb 1-19
+packages/engine/test/e2e/html/counters.html
+  s_92fb250e055c45::t_2feb2ef71096d3 1-19
+packages/engine/test/e2e/table-anonymous-boxes.e2e.test.ts
+  s_92fb250e055c45::t_e7fb853cf78e33 7,9-11,13-15,17-46
+packages/engine/test/e2e/sticky-position.e2e.test.ts
+  s_92fb250e055c45::t_9ed793794880c6 8,10,13-17,23-25,27-28,34-35,37-42,44,46-56,58-82,89-92,94-161,215-253
+packages/engine/test/e2e/html/table-fixup.html
+  s_92fb250e055c45::t_ac08c137f862f6 1-21
+packages/engine/test/e2e/percent-margin-basis.e2e.test.ts
+  s_92fb250e055c45::t_f149efef4e65e3 13-50
+packages/engine/test/e2e/css-counters.e2e.test.ts
+  s_92fb250e055c45::t_6fa03abf853d14 6-32
+packages/engine/test/e2e/scrollable-overflow-origin.e2e.test.ts
+  s_92fb250e055c45::t_05be90086e8c9a 11-57
+packages/engine/test/e2e/html/percent-margin.html
+  s_92fb250e055c45::t_3465fa0d6b51e5 1-18
+packages/engine/test/e2e/grid-abspos-static-position.e2e.test.ts
+  s_92fb250e055c45::t_7978d72b5386b6 6-7,9-11,13-15,17-33
+packages/engine/test/e2e/grid-auto-row-content-size.e2e.test.ts
+  s_92fb250e055c45::t_49f794e3da78a5 10,13-15,17-19,21-23,25-34,36-42
+packages/engine/test/e2e/html/grid-abspos.html
+  s_92fb250e055c45::t_ed7da4b3f09dd2 1-13
+packages/engine/test/e2e/root-element-metrics.e2e.test.ts
+  s_92fb250e055c45::t_a330d006d4cabd 9-11,13-14,16-23,25-37,39-45,47-56
+packages/engine/test/e2e/html/grid-auto-row.html
+  s_92fb250e055c45::t_569cc7e48e94e5 1-18
+packages/engine/test/e2e/html/sticky.html
+  s_92fb250e055c45::t_76260490389d27 1-52
+packages/engine/test/e2e/html/offset-geometry.html
+  s_92fb250e055c45::t_e815e517df4459 1-25
+packages/engine/test/e2e/offset-geometry.e2e.test.ts
+  s_92fb250e055c45::t_d85db9459ba83f 4,6,8-9,12-13,16-52,54-89,91-104
+  s_92fb250e055c45::t_3cf486e7f48ab8 10,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "31bfd8cba035b98b6ed326e20ced6c14ead3db22",
+  "prompts": {},
+  "sessions": {
+    "s_92fb250e055c45": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00cd7bcc5ffeWnRyPkGpNTDL9p",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

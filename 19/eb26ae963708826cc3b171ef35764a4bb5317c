@@ -1,0 +1,33 @@
+packages/core/src/lib.rs
+  s_a3b42a28f6acb3::t_e981b9372f90ed 675-676,910-911,914,928-929
+  s_a3b42a28f6acb3::t_1f65d4616b0a63 931
+  s_a3b42a28f6acb3::t_b4b0fcf12a5087 5915-5917
+  s_a3b42a28f6acb3::t_48a29a5627fa53 5914
+packages/core/src/id_map_test.rs
+  s_a3b42a28f6acb3::t_d8746d4123a1cf 1-2
+packages/core/src/scan_test.rs
+  s_a3b42a28f6acb3::t_a0a537f0413586 1-3,80,391-392,413-414,440,473,493,506,528,543,561,597-598,619,634,683
+scripts/patches/blitz-dom-0.3.0-beta.2/0174-kitesurf-hold-cached-svg-trees-weakly.patch
+  s_a3b42a28f6acb3::t_c1bf334952babd 15
+  s_a3b42a28f6acb3::t_3e1118e4d18a53 63
+  s_a3b42a28f6acb3::t_8aad0556c26210 6,16-19,67
+  s_a3b42a28f6acb3::t_e981b9372f90ed 21-22
+scripts/patches/blitz-dom-0.3.0-beta.2/0178-Reduce-retained-DOM-storage.patch
+  s_a3b42a28f6acb3::t_3dc6bdcbe29330 15,24-25,29,934,1252,1261,1268-1270,1276-1278,1320,1328,1482,1497,1524,1542,1553,1562,1578,1587,1612,1621,1630,1639,1648,1671,1680,1689,1698,1707,1716,1725,1734,1743
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "19eb26ae963708826cc3b171ef35764a4bb5317c",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

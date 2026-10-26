@@ -1,0 +1,19 @@
+packages/renderer-core/scripts/build.mjs
+  s_b59a5e4402e532::t_474c5bebc2ceb6 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "991d0f683754b3fb4e97f845328d628b9ffb2799",
+  "prompts": {},
+  "sessions": {
+    "s_b59a5e4402e532": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f03983a75ffe2QyEFcjNBkwb60",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

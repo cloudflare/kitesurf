@@ -1,0 +1,21 @@
+docs/WEBGL.md
+  s_9dd8789c49786c::t_e5a8c925607937 251,253-300
+  s_9dd8789c49786c::t_dbbe148ef0fb4b 302-303
+  s_9dd8789c49786c::t_d1335a2d731c2b 301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "52878f7f61922facd630cc498cd2323d2cf31794",
+  "prompts": {},
+  "sessions": {
+    "s_9dd8789c49786c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff7f85c31ffeOYEKPHEExTb524",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

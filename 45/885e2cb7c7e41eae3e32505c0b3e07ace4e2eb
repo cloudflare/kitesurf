@@ -1,0 +1,19 @@
+tests/wpt-expectations.json
+  s_5fb30807a62e14::t_5d9693c5a6fd6f 2150-2181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "45885e2cb7c7e41eae3e32505c0b3e07ace4e2eb",
+  "prompts": {},
+  "sessions": {
+    "s_5fb30807a62e14": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f42002932ffeO4pEgQ6dRbcqCu",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

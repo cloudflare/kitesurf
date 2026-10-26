@@ -1,0 +1,24 @@
+.gitlab-ci.yml
+  s_c7c305a7ae0077::t_6836ec596e568f 328-330
+scripts/check-unwind-stack.mjs
+  s_c7c305a7ae0077::t_ef040e4d239a64 34
+  s_c7c305a7ae0077::t_25b3d8e4ad6dcd 62
+  s_c7c305a7ae0077::t_f42f99fefddaee 1-17,22-33,35-61,63-65
+  s_c7c305a7ae0077::t_6ec7201d91b2b3 18-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9de54e7598a172b600a17e78e7bb8aae5857e931",
+  "prompts": {},
+  "sessions": {
+    "s_c7c305a7ae0077": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_020fc9bb3ffeCYDeh4qVcugbmY",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+docs/STORAGE_STATE.md
+  s_41d5a40b9168bd::t_83617571f0959f 1-84
+packages/engine/src/cdp/target.ts
+  s_41d5a40b9168bd::t_83617571f0959f 94-104
+packages/engine/src/cdp/kitesurf.ts
+  s_41d5a40b9168bd::t_83617571f0959f 15-20,112-116,428-431,434-435,437-441,446-447,450-451
+  s_41d5a40b9168bd::t_7b743de959d858 108-111,427,432-433,436,442-445,448-449
+packages/engine/test/e2e/storage-state.e2e.test.ts
+  s_41d5a40b9168bd::t_83617571f0959f 1-142
+packages/engine/src/cdp/protocol-extensions.ts
+  s_41d5a40b9168bd::t_7b743de959d858 333-334,336-343,511-512,514-518
+  s_41d5a40b9168bd::t_61b6bab4f6f9eb 335
+packages/engine/src/state/storage-state.ts
+  s_41d5a40b9168bd::t_83617571f0959f 1-19,21-27,33,35-202
+packages/engine/test/storage-state.test.ts
+  s_41d5a40b9168bd::t_83617571f0959f 1-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "966e322a57d24c68d01ee7462df48417dbbc86ff",
+  "prompts": {},
+  "sessions": {
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

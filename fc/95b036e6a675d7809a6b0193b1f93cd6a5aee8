@@ -1,0 +1,35 @@
+packages/engine/test/e2e/BUILD.bazel
+  s_68f612160d5274::t_aac74d64a5f725 2,40-64,71-76
+  s_68f612160d5274::t_cd1fddedb019bc 65-70,77
+  s_68f612160d5274::t_e5ed7ed3af175e 78
+packages/engine/BUILD.bazel
+  s_68f612160d5274::t_cd1fddedb019bc 12
+  s_68f612160d5274::t_b896744440c202 13-19
+  s_68f612160d5274::t_d0114d32af6a87 20-21,51-56,199
+BUILD.bazel
+  s_c6d6a3ac21fe46::t_da90732adcfafe 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fc95b036e6a675d7809a6b0193b1f93cd6a5aee8",
+  "prompts": {},
+  "sessions": {
+    "s_68f612160d5274": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb50dc78cffeHxrVi6XCBevr9C",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

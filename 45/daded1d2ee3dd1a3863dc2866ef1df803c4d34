@@ -1,0 +1,53 @@
+docs/CANVAS2D.md
+  s_198fdbc4c2e86a::t_90f8ba628343fe 48-50,53-60
+  s_d9ecccdb16496d::t_a86434b2daaac5 48-50,53-60
+packages/core/src/canvas2d.rs
+  s_198fdbc4c2e86a::t_183252d4d73225 1216-1219,1221-1232,1318-1327
+packages/dom-shim/src/canvas2d.ts
+  s_198fdbc4c2e86a::t_0e3b0e4c5acef8 486-495,497-501,503-504
+  s_d9ecccdb16496d::t_8e60a7dc74d08d 486-495,497-501,503-504
+packages/engine/test/e2e/canvas-image-bytes.e2e.test.ts
+  s_198fdbc4c2e86a::t_a5dec1c27afd2d 4,10-21,23-28,30,33,35-52,55-87
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_198fdbc4c2e86a::t_e3d2db5272a4ce 2552-2563,2663-2664,4138-4181,4183-4185,4416-4497
+packages/engine/src/cdp/page.ts
+  s_d9ecccdb16496d::t_7147d949eedcd9 719-722,5701-5703
+packages/engine/src/eval/walk-module-graph.ts
+  s_d9ecccdb16496d::t_7147d949eedcd9 628-636,639
+packages/page-script/src/index.ts
+  s_d9ecccdb16496d::t_7147d949eedcd9 1001-1004,1006
+packages/engine/src/eval/outbound.ts
+  s_d9ecccdb16496d::t_7147d949eedcd9 115-129,472-473
+packages/engine/test/e2e/sealed-outbound-identity.e2e.test.ts
+  s_d9ecccdb16496d::t_7147d949eedcd9 81-107
+packages/page-script/src/ws-dispatch.ts
+  s_d9ecccdb16496d::t_7147d949eedcd9 157-158,160
+packages/engine/src/eval/oopif-render.ts
+  s_d9ecccdb16496d::t_7147d949eedcd9 141-143
+docs/CORS.md
+  s_198fdbc4c2e86a::t_0f57dba9331696 50-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "45daded1d2ee3dd1a3863dc2866ef1df803c4d34",
+  "prompts": {},
+  "sessions": {
+    "s_198fdbc4c2e86a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_038f9c03effej9If9NChDlRX8m",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_d9ecccdb16496d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03b959d9effev00SNORc7M35W1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

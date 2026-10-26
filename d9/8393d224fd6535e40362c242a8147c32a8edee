@@ -1,0 +1,41 @@
+scripts/wpt-batched.mjs
+  s_0ce9ee358b5cab::t_db8265f9ab95af 440
+  s_0ce9ee358b5cab::t_7283e4e1c1a388 55
+  s_0ce9ee358b5cab::t_5a557a229e1d0e 545
+  s_0ce9ee358b5cab::t_21f0cc9b0ad7fa 111
+  s_0ce9ee358b5cab::t_c7b0cfd6425b11 365-386
+docs/TESTING.md
+  s_0ce9ee358b5cab::t_6c7d2d8bde748d 145-171
+scripts/wpt-fetch-baseline.mjs
+  s_0ce9ee358b5cab::t_470ea36c44d9e4 22-26,29,35
+  s_0ce9ee358b5cab::t_3b2e462b8ea1ba 166-170
+  s_0ce9ee358b5cab::t_719df9656b6b73 126
+.gitlab-ci.yml
+  s_0ce9ee358b5cab::t_4a29a5c946eeb0 537-542
+  s_0ce9ee358b5cab::t_0ec856220a3f8f 483,487-489,491-493,523-536,543-589,592-600,602-628,631-635,643,645-647,649,651-664,666-678,680-686,690,706
+  s_0ce9ee358b5cab::t_ea080aa05b4ec5 79-92
+  s_0ce9ee358b5cab::t_500fb8930f513f 484-485
+  s_0ce9ee358b5cab::t_21b029a81ff7e1 1530-1532,1539,1541
+  s_0ce9ee358b5cab::t_32c19d5817e4a8 4-6
+  s_0ce9ee358b5cab::t_d872ff74d27472 636-638,644,650
+  s_0ce9ee358b5cab::t_c7a2ec656dd82b 679,687-689,692-693,695-704
+  s_0ce9ee358b5cab::t_ec48baac8dda34 665
+scripts/wpt-merge-shards.mjs
+  s_0ce9ee358b5cab::t_ed78a2bb9412d5 1-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d98393d224fd6535e40362c242a8147c32a8edee",
+  "prompts": {},
+  "sessions": {
+    "s_0ce9ee358b5cab": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0175663cafferFTojqYhnIHVzU",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

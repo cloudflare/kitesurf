@@ -1,0 +1,57 @@
+scripts/patches/parley-0.11.1/0008-Preserve-parent-line-height-for-inline-boxes.patch
+  s_77e8d6f4044102::t_0db11484d6609f 1-26
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Resolve-relative-inline-insets-against-used-height.patch
+  s_77e8d6f4044102::t_0db11484d6609f 1-61
+scripts/patches/blitz-dom-0.3.0-beta.2/0131-Preserve-supported-font-source-fallbacks.patch
+  s_77e8d6f4044102::t_0db11484d6609f 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-Resolve-fixed-percentage-sizes-against-the-viewport.patch
+  s_77e8d6f4044102::t_0db11484d6609f 1-34
+scripts/patches/README.md
+  s_77e8d6f4044102::t_0db11484d6609f 108-109
+packages/engine/test/e2e/anchor-positioning-parsing.e2e.test.ts
+  s_77e8d6f4044102::t_0db11484d6609f 17,22
+packages/engine/test/e2e/float-layout-regressions.e2e.test.ts
+  s_77e8d6f4044102::t_0db11484d6609f 1-30
+scripts/patches/taffy-0.14.0/0008-Include-float-content-box-inset-in-BFC-height.patch
+  s_77e8d6f4044102::t_0db11484d6609f 1-25
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-Apply-relative-insets-to-inline-floats.patch
+  s_77e8d6f4044102::t_0db11484d6609f 1-92
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_77e8d6f4044102::t_0db11484d6609f 1-337
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-Fix-absolute-inline-box-positioning.patch
+  s_77e8d6f4044102::t_0db11484d6609f 1-47
+packages/core/src/sticky_reset_test.rs
+  s_77e8d6f4044102::t_0db11484d6609f 208-347
+packages/page-script/src/paint.ts
+  s_77e8d6f4044102::t_0db11484d6609f 133-135,139-145,147-149,153-154,163-165,169-174,176-178
+packages/engine/test/e2e/root-element-metrics.e2e.test.ts
+  s_77e8d6f4044102::t_0db11484d6609f 58-211
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Fix-hit-testing-for-padded-inline-roots.patch
+  s_77e8d6f4044102::t_0db11484d6609f 1-78
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_77e8d6f4044102::t_0db11484d6609f 1-204
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-Preserve-parent-line-metrics-for-inline-boxes.patch
+  s_77e8d6f4044102::t_0db11484d6609f 1-281
+scripts/patches/blitz-dom-0.3.0-beta.2/0125-Use-natural-font-metrics-for-inline-line-height.patch
+  s_77e8d6f4044102::t_0db11484d6609f 1-299
+packages/engine/test/e2e/layout-test-helpers.ts
+  s_77e8d6f4044102::t_0db11484d6609f 1-25
+packages/core/src/lib.rs
+  s_77e8d6f4044102::t_0db11484d6609f 3211,3279-3331,3335-3336
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "992870b7acc7246b0855fea1ec9925225ab7e86b",
+  "prompts": {},
+  "sessions": {
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

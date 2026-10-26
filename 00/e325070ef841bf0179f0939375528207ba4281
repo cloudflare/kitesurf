@@ -1,0 +1,24 @@
+README.md
+  s_4ba79f911c93c4::t_11a2d469674ce6 33-39
+docs/DEPLOYING.md
+  s_4ba79f911c93c4::t_824cb9dfeccad0 39-68,71-74
+  s_4ba79f911c93c4::t_044c492b795fee 75
+docs/BUILD_TOOLING.md
+  s_4ba79f911c93c4::t_655babfd3b9d2e 498-502,515-516
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "00e325070ef841bf0179f0939375528207ba4281",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

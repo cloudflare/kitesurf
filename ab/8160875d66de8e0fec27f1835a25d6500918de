@@ -1,0 +1,50 @@
+scripts/patches/boa_engine-0.20.0/0014-object-expose-an-object-s-census-key.patch
+  s_c1d1c93f383cfd::t_4052bfc9bea1b7 1-28
+packages/engine/test/e2e/bridge-cycle-collect.e2e.test.ts
+  s_c1d1c93f383cfd::t_fe6a7216fc06dc 1-43,46-87,89-94,96-99,101-135,137-156,161-162,169-177
+  s_c1d1c93f383cfd::t_c449f574261808 256
+  s_c1d1c93f383cfd::t_239f627639b4bf 157-160
+  s_c1d1c93f383cfd::t_750037e5565f85 178,209,224
+  s_c1d1c93f383cfd::t_378f9c10302da9 165-168
+  s_c1d1c93f383cfd::t_bc0d7a6ec666b4 163-164
+  s_c1d1c93f383cfd::t_d3ad871730ca44 227-228,230-252,258-261,263
+  s_c1d1c93f383cfd::t_4b3ea4bf667151 254-255
+  s_c1d1c93f383cfd::t_17ac0a7c3022bd 44-45,88,95,100
+  s_c1d1c93f383cfd::t_0d896de82904b3 257
+  s_c1d1c93f383cfd::t_3c97f10a0dbfa1 217,229,253
+  s_c1d1c93f383cfd::t_ef773783b37928 226,262
+  s_c1d1c93f383cfd::t_df5f977482eb21 179-208,210-216,218-223,225
+  s_c1d1c93f383cfd::t_ab9e6d53d3ea69 136
+packages/core/src/dom_fastpath.rs
+  s_c1d1c93f383cfd::t_9099728d9f97cf 34,114-116,165-172,423-444,446-463,465-467,485-517,519-525,530-534,545-552,570-571,576,578,581
+packages/core/src/boa_bridge.rs
+  s_c1d1c93f383cfd::t_9099728d9f97cf 308-315,447-449,467,469,471-472,494-495,497-940,989,1061-1067,1082,1326-1327,1346,1350,1355,1710-1715,1845,1865,1888,2357,2457,2513,2515-2518,2980-2982,3075-3079,3101-3106,3206-3220,3424-3433,3573-3574,3607
+scripts/patches/boa_gc-0.20.0/0004-add-a-mark-only-census-that-discounts-external-handl.patch
+  s_c1d1c93f383cfd::t_d695325a01955b 14-18,203
+  s_c1d1c93f383cfd::t_96a0447739156e 1-13,19-202,204-225
+packages/page-script/src/index.ts
+  s_c1d1c93f383cfd::t_9099728d9f97cf 239-240,1256-1274,1284,5078,5109-5111
+  s_c1d1c93f383cfd::t_a447b44a3833e0 5107
+packages/page-script/src/wasm-glue.d.ts
+  s_c1d1c93f383cfd::t_9099728d9f97cf 46-48
+docs/BOA_V8_FLOW.md
+  s_c1d1c93f383cfd::t_9099728d9f97cf 598-606,650-680,685-687
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_9099728d9f97cf 719-734
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ab8160875d66de8e0fec27f1835a25d6500918de",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+AGENTS.md
+  s_2c0997009df69f::t_509fe641b9c8c2 142
+docs/EXTERNAL_AUTH.md
+  s_2c0997009df69f::t_b79971917525f7 1-200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "95cf9852a3b09e6ec6f38b55c30ac40e8b03d552",
+  "prompts": {},
+  "sessions": {
+    "s_2c0997009df69f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f215b4eeaffe2z5WUXyfH9V73a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

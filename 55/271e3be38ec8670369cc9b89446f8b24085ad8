@@ -1,0 +1,104 @@
+packages/page-script/src/index.ts
+  s_4efb85c8268621::t_065cd42c98642b 1538-1544,1547-1549,1559-1562,1564
+  s_4efb85c8268621::t_aee963381afd5d 5336-5339
+  s_4efb85c8268621::t_7e94118eab7fa0 1555-1558
+  s_4efb85c8268621::t_d32524b7c0b6b3 5523
+  s_4efb85c8268621::t_8e90286fa91308 1516,1518
+  s_4efb85c8268621::t_02131550dc2720 1517,1532-1537,1565-1569
+  s_4efb85c8268621::t_8371a115803dc3 5353-5355
+  s_4efb85c8268621::t_5e653b01d94d26 1519-1521,1525,1527-1531,1563,1571-1573
+  s_4efb85c8268621::t_12bcfdef1e9e6c 5522,5524,5527
+  s_4efb85c8268621::t_925aa7283c27dd 1570
+  s_4efb85c8268621::t_d911840e126bd4 1514-1515,1522-1524,1526,1545-1546,1550-1554,5333-5334,5347-5349,5517-5521
+  s_4efb85c8268621::t_6543100b440d3c 5335,5361
+  s_4efb85c8268621::t_3f419726f0c339 5332,5340
+  s_4efb85c8268621::t_c8f11253a662fc 5528-5536
+  s_4efb85c8268621::t_36798bb6e4c0ff 5525-5526
+packages/engine/test/e2e/demos/page-renderer-screencast.e2e.test.ts
+  s_4efb85c8268621::t_573cd09766a448 4
+packages/engine/test/fixtures-worker/assets/classic-seed-boot.js
+  s_4efb85c8268621::t_cefaabb66c19e3 1-15
+packages/engine/test/e2e/demos/absolute-path-transitive-demo.e2e.test.ts
+  s_4efb85c8268621::t_76466677c54f75 23-30
+packages/engine/test/e2e/awaited-eval-message-channel.e2e.test.ts
+  s_4efb85c8268621::t_921f82c190c69a 1-40
+packages/engine/test/fixtures-worker/assets/classic-seed.html
+  s_4efb85c8268621::t_eb762c378d1d05 1-3
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_4efb85c8268621::t_680279dba2a9c1 1528-1529
+  s_4efb85c8268621::t_2388ef32301617 741-742
+  s_4efb85c8268621::t_e80045acb2fdd1 1530-1537
+  s_4efb85c8268621::t_e23691b6b771c8 1480-1485
+packages/engine/test/fixtures-worker/assets/classic-seed-chunk.js
+  s_4efb85c8268621::t_a31c77384aad2f 1-4
+packages/core/src/boa_eval.rs
+  s_4efb85c8268621::t_1514e6cab79c51 1151-1152,1192,1218-1222
+  s_4efb85c8268621::t_ecbc0db80773fb 1139
+  s_4efb85c8268621::t_ecc13bd8b32972 1213-1216
+  s_4efb85c8268621::t_1ed58be841b353 1211-1212
+  s_4efb85c8268621::t_d3f450633a22fc 1131-1138,1140-1150,1217
+packages/engine/src/cdp/page.ts
+  s_4efb85c8268621::t_397f85e6a6414d 4368,4375
+  s_4efb85c8268621::t_bae73190b52ef5 8048-8055
+  s_4efb85c8268621::t_be74147b0bbb1e 8057-8058,8061,8070-8072
+  s_4efb85c8268621::t_4f2c65168ab18d 4444-4448,4450-4452
+  s_4efb85c8268621::t_1a6711857b769e 8130,8133-8137
+  s_4efb85c8268621::t_c88fb5e5d41ca3 4449
+  s_4efb85c8268621::t_950a6f2e7d6fa6 4410
+  s_4efb85c8268621::t_eb17d14631276b 4360-4361
+  s_4efb85c8268621::t_ad69f17c16e404 4359,4362-4364,4366-4367,4369,4371,4373,4378-4381,4383
+  s_4efb85c8268621::t_9e1607074de9f1 4341-4344
+  s_4efb85c8268621::t_dd5ccbc4ceb80c 4437-4443,4453
+  s_4efb85c8268621::t_3da2fd122b05f0 4405-4409,4411-4413
+  s_4efb85c8268621::t_b17d7b5147dee2 8059-8060
+  s_4efb85c8268621::t_d11f2fe6c03747 4339-4340,4345-4354,4356-4358,4365,4370,4372,4374,4376-4377,4382,4384-4386
+  s_4efb85c8268621::t_f6198ac08de2c8 8038-8041,8046
+  s_4efb85c8268621::t_b8dbba740513a8 4355
+  s_4efb85c8268621::t_573cd09766a448 2114
+  s_4efb85c8268621::t_9339003393f0e8 8131-8132
+  s_4efb85c8268621::t_ea363cb7e2c0de 7791-7793
+  s_4efb85c8268621::t_c081f3eb23593d 8042-8045
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_4efb85c8268621::t_dedbd2e6b71296 32-37,39-47
+  s_4efb85c8268621::t_f31fe5bcb6ef0e 3-31,38,48-81,84-166
+  s_4efb85c8268621::t_c058913ba13d4b 82-83
+  s_4efb85c8268621::t_e75fd7f54e0bf2 167-218
+  s_4efb85c8268621::t_81c411376376ca 1-2
+packages/engine/src/cdp/types.ts
+  s_4efb85c8268621::t_5477936cf986ff 529
+packages/engine/src/cdp/page-session.ts
+  s_4efb85c8268621::t_7ae55b4de3897e 141-143,146-147,152
+  s_4efb85c8268621::t_2a1c1430720e06 145,148-151
+  s_4efb85c8268621::t_680279dba2a9c1 144
+packages/engine/src/eval/walk-module-graph.ts
+  s_4efb85c8268621::t_5477936cf986ff 1129-1131,1133-1134
+  s_4efb85c8268621::t_76466677c54f75 1003,1044-1051,1124
+  s_4efb85c8268621::t_8e4a7778443e29 1125-1128,1132,1135
+packages/dom-shim/src/mutations/seq.ts
+  s_4efb85c8268621::t_573cd09766a448 8-9
+packages/engine/test/fixtures-worker/assets/classic-seed-dep.js
+  s_4efb85c8268621::t_d44eaff495e7e6 1
+packages/page-script/src/globals.ts
+  s_4efb85c8268621::t_d3f450633a22fc 5130-5143
+packages/engine/test/e2e/classic-seed-walk.e2e.test.ts
+  s_4efb85c8268621::t_a005cbfe9c3d23 3-28
+  s_4efb85c8268621::t_b84eb58075e35b 1-2
+packages/dom-shim/src/index.ts
+  s_4efb85c8268621::t_573cd09766a448 382-383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "55271e3be38ec8670369cc9b89446f8b24085ad8",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

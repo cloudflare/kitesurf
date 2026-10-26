@@ -1,0 +1,183 @@
+packages/page-script/src/wasm-glue.d.ts
+  s_ccf5542acfcceb::t_b9ca8663d72d1f 202
+  s_1c957943e307aa::t_c7f839509397ff 203-205
+  s_ccf5542acfcceb::t_ccf18c017af737 203-205
+packages/page-script/src/index.ts
+  s_1c957943e307aa::t_c7f839509397ff 258,1818-1829
+  s_ccf5542acfcceb::t_096ba68b55a864 258,1818-1829
+  s_91836f22884cfe::t_b1f0b8cd3a95ac 4597,4604-4605
+  s_91836f22884cfe::t_828ee0f4a254e3 4607
+packages/core/src/lib.rs
+  s_1c957943e307aa::t_c7f839509397ff 448-484,884,942,1141,1157-1162,5988,5991-5996,6045,6060
+  s_ccf5542acfcceb::t_06f6fb7c9eecfd 884,1141,5988,6045
+  s_ccf5542acfcceb::t_449068e93a2d9e 476-477
+  s_ccf5542acfcceb::t_b7ea92bfb2498a 448-475,478-484,942,1161,5995,6060
+packages/page-script/src/globals.ts
+  s_1c957943e307aa::t_c7f839509397ff 2914-2922
+  s_ccf5542acfcceb::t_76d9eb56b30b49 2914-2922
+packages/engine/src/eval/page-script.ts
+  s_1c957943e307aa::t_c7f839509397ff 334-337
+  s_ccf5542acfcceb::t_096ba68b55a864 334-337
+packages/engine/test/e2e/table-collapsed-border-spans.e2e.test.ts
+  s_7981d85a04bb1e::t_38d0b5e70250fd 1-61,65-69,75-90
+Cargo.toml
+  s_ccf5542acfcceb::t_8162a02cfee604 75-79
+  s_1c957943e307aa::t_4bfa8f7e178be5 80
+scripts/patches/anyrender-0.13.0/0002-Carry-form-control-state-on-ScenePart.patch
+  s_ccf5542acfcceb::t_709c04d21aaa68 1-5,14-35
+  s_ccf5542acfcceb::t_6c2b3fc032ca47 6-13
+scripts/patches/anyrender-0.13.0/0001-Add-PaintScene-begin_part-end_part.patch
+  s_ccf5542acfcceb::t_709c04d21aaa68 1-70
+scripts/patches/README.md
+  s_ccf5542acfcceb::t_1804d86af77958 112-119
+  s_1c957943e307aa::t_4bfa8f7e178be5 77
+scripts/patches/blitz-paint-0.3.0-beta.2/0026-Mark-which-part-of-an-element-each-op-paints.patch
+  s_ccf5542acfcceb::t_aca0372b66d565 1-24,27-28,30-31,33,35-40,42-43,46-48,50,52-54,56-69,71,73-75,77-78,80-82,84-85
+  s_91836f22884cfe::t_ab3088a625aba2 1-24,27-28,30-31,33,35-40,42-43,46-48,50,52-54,56-69,71,73-75,77-78,80-82,84-85
+scripts/patches/blitz-paint-0.3.0-beta.2/0027-Paint-checkboxes-and-radios-which-blitz-never-did.patch
+  s_ccf5542acfcceb::t_183d3f81a93f42 9-17
+  s_ccf5542acfcceb::t_aca0372b66d565 1-4,1-4,8,8,18-22,24-25,27-31,33,35-36,38-76,78-110
+  s_91836f22884cfe::t_ab3088a625aba2 1-4,8-22,24-25,27-31,33,35-36,38-76,78-110
+packages/core/src/scene_replay.rs
+  s_ccf5542acfcceb::t_316bd48b159493 1036
+packages/core/src/scene_decode.rs
+  s_ccf5542acfcceb::t_316bd48b159493 1403
+  s_ccf5542acfcceb::t_fc05ea0be5e4ae 542-545,887-888,899
+  s_ccf5542acfcceb::t_19e3d51d8624b6 1617
+  s_ccf5542acfcceb::t_a2a1a3046a6462 845,1572-1616,1618-1632
+  s_ccf5542acfcceb::t_ec2937f4d6f2d4 1554-1571,1633-1673
+  s_ccf5542acfcceb::t_d489431017cd0b 424-462,555-563,836-844
+packages/core/src/scene_record.rs
+  s_ccf5542acfcceb::t_365437f4ea798d 2131-2135
+  s_ccf5542acfcceb::t_aa827549caecf2 2121-2123
+  s_ccf5542acfcceb::t_5e069d342bec74 1186,1321-1322
+  s_ccf5542acfcceb::t_a59efc692ab750 2670-2698
+  s_ccf5542acfcceb::t_f7c25df4f1fefa 1859-1873
+  s_ccf5542acfcceb::t_1e1e380376656a 33-48
+  s_ccf5542acfcceb::t_3456fa311c69b2 20-32,280,297-306,1056-1063,1876-1897,1899-1910
+packages/page-script/src/font-loader.ts
+  s_ccf5542acfcceb::t_7dd2c1bbdcba54 255
+Cargo.lock
+  s_ccf5542acfcceb::t_ea350471ef71ba 447,450,453-454,568
+  s_91836f22884cfe::t_a8ab9a148bcf97 447-454
+scripts/patches/blitz-dom-0.3.0-beta.2/0104-kitesurf-bound-shadow-child-damage-lookup.patch
+  s_91836f22884cfe::t_c23dc3e3f22778 1-16,18-19,22-24,26,28-32,36-49,51-57
+scripts/patches/blitz-dom-0.3.0-beta.2/0102-kitesurf-propagate-damage-through-shadow-roots.patch
+  s_91836f22884cfe::t_c23dc3e3f22778 1-26,28-29,31-32,40-45,48-64,66
+scripts/patches/blitz-paint-0.3.0-beta.2/0023-Let-a-re-homed-abspos-escape-its-flow-parent-s-overf.patch
+  s_91836f22884cfe::t_ab3088a625aba2 1-36,39-40,42-43,47,48,50-51,53-60,62-67,71,73-75,77,80-81,84-97,99,102-105,106-109
+scripts/patches/blitz-paint-0.3.0-beta.2/0022-Lean-synthetic-italic-to-the-right-not-the-left.patch
+  s_91836f22884cfe::t_ab3088a625aba2 1-26,29-30,32-33,35-37,40-43
+scripts/patches/blitz-dom-0.3.0-beta.2/0103-kitesurf-rebuild-nested-shadow-layout-children.patch
+  s_91836f22884cfe::t_c23dc3e3f22778 1-17,19-20,22-32,34-40,42-44,46-47,50-55
+packages/engine/vitest.e2e.config.mts
+  s_91836f22884cfe::t_5ad62df0c267f1 116
+packages/engine/test/e2e/table-caption-sizing.e2e.test.ts
+  s_a13b6e3e2039d4::t_88ab1c6640dd33 1-3,5-6,7-38,57-63,90-91,93-99,103-104,109-112,149-152,169-173
+  s_a13b6e3e2039d4::t_d7e810c19085bd 68
+  s_a13b6e3e2039d4::t_fd48aa7ed255eb 153-155
+  s_a13b6e3e2039d4::t_d15b710ba77a31 39-44,64-65,69-72,89,113-122,156-157
+  s_3d13b96ccbbed6::t_74223c148b48d8 66-67
+scripts/patches/blitz-dom-0.3.0-beta.2/0105-Size-table-captions-from-their-minimum-width.patch
+  s_a13b6e3e2039d4::t_2803da87015d8d 9-13
+  s_a13b6e3e2039d4::t_4a4210e1d668bb 1-8,14-18,20-21,23,25-27,29,31-39,41-42,44-55,57-72,74-75
+scripts/patches/blitz-dom-0.3.0-beta.2/0107-Track-the-table-s-maximum-column-count.patch
+  s_a13b6e3e2039d4::t_c3a7c991d921b8 1-16,18-19,21-24,26,29-35,37-49,51-52,54-60,62-68,70-76,78,80-84,86-92
+scripts/patches/blitz-dom-0.3.0-beta.2/0108-Count-columns-occupied-by-rowspans.patch
+  s_a13b6e3e2039d4::t_87ebade00f0da5 1-16,18-19,21-24,26,29-35,37-43,45-51,53-59,61-69,71,73-83,85-92,94-95,97-117,119
+scripts/patches/blitz-dom-0.3.0-beta.2/0106-Span-table-captions-across-every-column.patch
+  s_a13b6e3e2039d4::t_cad9fffd67163e 1-16,18-19,21-31,33
+scripts/patches/blitz-paint-0.3.0-beta.2/0024-Offset-collapsed-table-borders-to-the-table-s-conten.patch
+  s_7981d85a04bb1e::t_2aa8be75ceb77e 1-10,15-18,29,32-33,35-36,38-39,41,43-46,60-61,63-67,68-71,73-77,79-81,83-85,87-91,93-95,97-99,101-103,105-107
+  s_91836f22884cfe::t_482289fdb3bca1 11-14,19-28,72,78,82,86,92,96,100,104
+scripts/get-patched-vendor-crates.mjs
+  s_1c957943e307aa::t_4bfa8f7e178be5 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6963a9c4b48ddc6ff9ee232004b5439084e1a1b2",
+  "prompts": {},
+  "sessions": {
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_3d13b96ccbbed6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbfd0d45fffeA5nq4ZiGDKSH9X",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_6d0ca96e2dd664": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f991deab6ffeSaiB4VVMWxK8LM",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_748a25868f96d0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fccc0f54affe1bh2BFFK0PXWWe",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_75ec8a9f61c1a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fac679ed1ffecrwrIIAqPO2iog",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_7981d85a04bb1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd142cefaffez3gql9xA3APsAN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_8e9b4acc6322c3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4ab387e8ffeCFOsakV1iJf3ye",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_a13b6e3e2039d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fbfe61744ffeUjJS5Giydrau9I",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

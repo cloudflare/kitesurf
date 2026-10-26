@@ -1,0 +1,23 @@
+README.md
+  186c7446eb111515 136-145,189-194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "03bde08bb74db015b84dfbf5ec3175cd269baed6",
+  "prompts": {
+    "186c7446eb111515": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1d449ebafffeUAkGqQnnh8Msky",
+        "model": "anthropic/claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 0,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    }
+  }
+}

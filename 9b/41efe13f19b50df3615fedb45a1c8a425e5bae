@@ -1,0 +1,22 @@
+packages/core/src/canvas2d.rs
+  s_de9b73755c1191::t_8a9346baee6649 2109
+  s_de9b73755c1191::t_1d672847179dd1 482,488-490,496,1469,1969,1986,2000
+packages/core/src/lib.rs
+  s_de9b73755c1191::t_1d672847179dd1 5528
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9b41efe13f19b50df3615fedb45a1c8a425e5bae",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

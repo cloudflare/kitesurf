@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0142-Remove-unused-fixed-anchor-import.patch
+  s_ef26f8dd06f5df::t_1500f3968af2d9 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4a774b538f26265f81a2a6127d95c10c199ccc71",
+  "prompts": {},
+  "sessions": {
+    "s_ef26f8dd06f5df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3be04914ffe7HHtOkszWCc5pa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

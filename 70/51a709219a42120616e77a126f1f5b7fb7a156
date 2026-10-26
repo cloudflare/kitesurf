@@ -1,0 +1,19 @@
+packages/page-script/src/globals.ts
+  s_860beb39e40eaf::t_f65022d68e7130 1266-1274,1278-1280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7051a709219a42120616e77a126f1f5b7fb7a156",
+  "prompts": {},
+  "sessions": {
+    "s_860beb39e40eaf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fef3b8583ffe99e2ywl496FZdd",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

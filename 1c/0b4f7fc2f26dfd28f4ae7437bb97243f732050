@@ -1,0 +1,19 @@
+packages/engine/src/cdp/page.ts
+  s_febe8d41b549be::t_99a949c866ea9e 7458,7465,7473,7479-7485
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1c0b4f7fc2f26dfd28f4ae7437bb97243f732050",
+  "prompts": {},
+  "sessions": {
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+packages/website/src/styles/bench.css
+  s_c1a6940130844c::t_a42372d4f75b47 499-500,504-509
+  s_c1a6940130844c::t_a16ae537d5e482 669-673
+  s_c1a6940130844c::t_f0e2dbd1a482b1 454
+  s_c1a6940130844c::t_627cee620eebc8 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3f82ee27da1cf9336bdf0cb1999eb1900f16aeb6",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

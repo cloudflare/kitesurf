@@ -1,0 +1,58 @@
+scripts/patches/stylo-0.20.0/0034-Support-definite-calc-size-values.patch
+  s_280ef410dd4391::t_15fa050666730e 1-482
+scripts/patches/stylo_taffy-0.3.0-beta.2/0006-Convert-definite-calc-size-values.patch
+  s_280ef410dd4391::t_15fa050666730e 1-51
+packages/engine/test/e2e/calc-size.e2e.test.ts
+  s_4979f45fcb7320::t_b8e04bb7739001 48-49
+  s_4979f45fcb7320::t_c0fc1662b7961c 39-40
+  s_280ef410dd4391::t_e2360bf53f51e4 29-31,36-38,41-44
+  s_4979f45fcb7320::t_3a524bf2647970 27-28
+  s_4979f45fcb7320::t_4a5d7c2a64a5b9 66-73
+  s_af503fe63063e5::t_94cbb44cffa87d 1-26,32-35,45-47,50-65,74-92
+packages/core/src/lib.rs
+  s_af503fe63063e5::t_8b597aa28aad5a 307-308
+  s_af503fe63063e5::t_afd4bccd671992 306
+scripts/patches/stylo-0.20.0/0035-Box-calc-size-sizing-values.patch
+  s_280ef410dd4391::t_1dbb2589c821c9 1-69
+scripts/patches/stylo-0.20.0/0037-Fix-calc-size-argument-serialization.patch
+  s_280ef410dd4391::t_6804c9e9095ff9 1-277
+packages/core/src/calc_size_test.rs
+  s_af503fe63063e5::t_9d69920754144d 1-105,109-110,112-128,179-272,274-275
+  s_280ef410dd4391::t_0e3f93411dffa8 273
+  s_4979f45fcb7320::t_d5994b737a081c 106-108,111
+  s_4979f45fcb7320::t_808b5eb360691f 129-178
+scripts/patches/stylo-0.20.0/0036-Fix-boxed-calc-size-conversion.patch
+  s_280ef410dd4391::t_8ae63d0938a98b 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2e38654dcf7c057b297aca62313d76d092a57b71",
+  "prompts": {},
+  "sessions": {
+    "s_280ef410dd4391": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3f8f6783ffeu8A4j6VBSym1ud",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4979f45fcb7320": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c9948e7ffejiCcgA0gK9B8Dm",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_af503fe63063e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3d7bd510ffe7Z9E7m4eJW2Kj3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

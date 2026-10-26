@@ -1,0 +1,46 @@
+packages/engine/src/cdp/page.ts
+  s_4acd3f313775ac::t_e3caf14d63522a 46-52,2112,2119-2121,4750-4753,4756
+  s_4acd3f313775ac::t_48dc94ba30ab22 4754-4755
+docs/SCRIPT_LOADING.md
+  s_4acd3f313775ac::t_01d18ae0e557a2 220-239
+packages/engine/test/fixtures-worker/src/static.ts
+  s_4acd3f313775ac::t_e3caf14d63522a 159-160,630-633
+packages/engine/src/eval/learned-scripts.ts
+  s_4acd3f313775ac::t_bb22a7230912ed 118-147
+packages/page-script/src/inserted-scripts.ts
+  s_4acd3f313775ac::t_bb22a7230912ed 123-125
+packages/engine/src/cdp/connection.ts
+  s_4acd3f313775ac::t_d05d1f1e8ffe90 331
+packages/engine/src/cdp/target.ts
+  s_4acd3f313775ac::t_5f7829ae85287f 206
+packages/engine/src/cdp/types.ts
+  s_4acd3f313775ac::t_1b9721e3c26cf8 293-298
+packages/engine/src/eval/walk-module-graph.ts
+  s_4acd3f313775ac::t_a715e24e4e126c 698-699,744-746,881-882,1125-1144,1705,1946,1976
+packages/engine/test/e2e/learned-module-bake.e2e.test.ts
+  s_4acd3f313775ac::t_349be709019b8a 1-36
+packages/engine/test/fixtures-worker/assets/learned-module.html
+  s_4acd3f313775ac::t_c7ecfc00386549 1-16
+packages/engine/test/fixtures-worker/assets/learned-module.js
+  s_4acd3f313775ac::t_658bdae2461983 1-5
+packages/engine/test/learned-scripts.test.ts
+  s_4acd3f313775ac::t_7298570be5dee1 6,8,90-115
+packages/engine/test/walk-module-graph.test.ts
+  s_4acd3f313775ac::t_ea448233d56c6a 360-423
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "28557eb4839618055489266d0b26f79fa6aa1d5e",
+  "prompts": {},
+  "sessions": {
+    "s_4acd3f313775ac": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f043692f9ffengU1yq6aOljVvB",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

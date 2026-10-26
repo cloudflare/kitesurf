@@ -1,0 +1,29 @@
+.gitlab/build-images/Dockerfile.build
+  s_4ba79f911c93c4::t_b7151f69c95880 35
+docs/AGENT_BENCH_CONTAINERS.md
+  s_4ba79f911c93c4::t_0e2dc51b66f5d5 100
+docs/engine/BUILD_TOOLING.md
+  s_4ba79f911c93c4::t_1eb45f840082ff 14
+docs/engine/DEPLOYING.md
+  s_4ba79f911c93c4::t_0c9d4c2620d211 54,56
+tests/interactivity-flows/README.md
+  s_4ba79f911c93c4::t_cd2e001e5d6e8c 23,67,641
+tests/interactivity-flows/flows.ts
+  s_4ba79f911c93c4::t_68746828b1cbaa 834
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cab0c7de3d80a897ad5f21f63f9e85c086259fc0",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

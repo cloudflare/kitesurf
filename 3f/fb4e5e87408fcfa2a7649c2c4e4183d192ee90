@@ -1,0 +1,39 @@
+packages/core/src/inline_flow_rect_test.rs
+  s_a094f29c9d41a0::t_4be0257c37f56e 185-202
+packages/core/src/lib.rs
+  s_c1d1c93f383cfd::t_e32419364cc952 7258-7259,7266-7291
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_ef26f8dd06f5df::t_c531b8f2257529 243-248,297-310
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3ffb4e5e87408fcfa2a7649c2c4e4183d192ee90",
+  "prompts": {},
+  "sessions": {
+    "s_a094f29c9d41a0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f40703a5effe2N55Cbv1hV6ByD",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_ef26f8dd06f5df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3be04914ffe7HHtOkszWCc5pa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

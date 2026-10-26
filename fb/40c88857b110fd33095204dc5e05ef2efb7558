@@ -1,0 +1,70 @@
+packages/engine/src/eval/page-script.ts
+  s_c39b250795ef75::t_88f0e8617bf335 1178-1182
+  s_c39b250795ef75::t_b0093613b18a65 1216-1219,1225,1227-1230,1232-1237,1241
+packages/engine/src/eval/script-bundle.ts
+  s_c39b250795ef75::t_71501becb48c2c 161-166,613,671
+  s_c39b250795ef75::t_8756e748f97fd1 18
+packages/engine/test/walk-module-graph.test.ts
+  s_c39b250795ef75::t_a18a6f68286811 73-97
+packages/script-gate/src/index.ts
+  s_c39b250795ef75::t_eaa31040580d51 26-27,29
+packages/engine/test/script-bundle-runtime.test.ts
+  s_c39b250795ef75::t_88f0e8617bf335 136
+packages/page-script/src/inserted-scripts.ts
+  s_c39b250795ef75::t_7d9c38cd506b00 118-125
+packages/script-gate/src/gate.ts
+  s_c39b250795ef75::t_462a1c0af8e7cd 401-405,408,440
+  s_c39b250795ef75::t_a81ba73c9c226f 26-31
+  s_c39b250795ef75::t_60883c89bd16f5 66-75
+  s_c39b250795ef75::t_a3751b08155553 352-360,381-387
+  s_c39b250795ef75::t_975a14376a7b00 362-368
+packages/engine/src/eval/walk-module-graph.ts
+  s_c39b250795ef75::t_dc2edbf934bc4e 1413
+  s_c39b250795ef75::t_cc528f1dd31541 1543,1548,1581-1582
+  s_c39b250795ef75::t_57435b8a6b51bb 68
+  s_c39b250795ef75::t_b3ac34c367365d 7-18,46-57
+  s_c39b250795ef75::t_2fcaf61165d91b 1068
+  s_c39b250795ef75::t_b1c58448872d2b 701-703,708
+  s_c39b250795ef75::t_49a50f55b4838c 631-639
+  s_c39b250795ef75::t_159d0fc1a1096e 1702-1704,1714-1726,1728-1731,1733,1744-1746,1748,1763-1765,1767-1768,1777-1781,1790-1793,1812-1813,1817-1818,1881,1883-1885
+  s_c39b250795ef75::t_9d3dd1d2a9670b 1242-1273
+  s_c39b250795ef75::t_262716d0c5af78 286-296
+  s_c39b250795ef75::t_8e4c917ad31290 880-884
+  s_c39b250795ef75::t_4edf93b41bd50e 1086
+  s_c39b250795ef75::t_05fc9ffa3d2773 284-285,297-309
+  s_c39b250795ef75::t_b117994ee35a58 941-946
+  s_c39b250795ef75::t_7044c236417221 1208
+  s_c39b250795ef75::t_f4029097d59457 473-478,490
+  s_c39b250795ef75::t_367597797a27cc 529
+packages/script-gate/src/mime.ts
+  s_c39b250795ef75::t_e1d7e0622295b0 67-71,73,83-85
+  s_c39b250795ef75::t_ca871b63407c7d 52-66,72,74-82,86-87
+packages/script-gate/test/gate.test.ts
+  s_c39b250795ef75::t_3c0024d980dfd4 17
+  s_c39b250795ef75::t_b7c04dacb114df 324,326-328,331,337,341-347
+  s_c39b250795ef75::t_aa80862d8d2c3d 355,357-363,366,368-371,381
+  s_c39b250795ef75::t_9bf4d63f7e9d7b 350-354,356,364-365,367,372-380
+  s_c39b250795ef75::t_41f72627236a7b 348-349
+packages/page-script/src/globals.ts
+  s_c39b250795ef75::t_56e32e7dc29d36 387,390-391
+packages/engine/src/cdp/page.ts
+  s_c39b250795ef75::t_258fd0febd187c 2733,2736-2739,3557-3559
+packages/core/src/boa_eval.rs
+  s_c39b250795ef75::t_15002a4d954510 277-282
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fb40c88857b110fd33095204dc5e05ef2efb7558",
+  "prompts": {},
+  "sessions": {
+    "s_c39b250795ef75": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f611d125effePYy5TeTmmwVpWd",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

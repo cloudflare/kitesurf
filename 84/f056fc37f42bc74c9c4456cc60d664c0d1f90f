@@ -1,0 +1,19 @@
+packages/engine/test/e2e/xpath.e2e.test.ts
+  s_4ba79f911c93c4::t_3f7ca1211522fe 282-284,287,291-292,294-297,301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "84f056fc37f42bc74c9c4456cc60d664c0d1f90f",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

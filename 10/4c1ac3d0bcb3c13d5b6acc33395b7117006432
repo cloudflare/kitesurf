@@ -1,0 +1,27 @@
+scripts/patches/jpeg-encoder-0.7.0/0002-Speed-up-the-Huffman-AC-writer.patch
+  s_103b7f1f0713cd::t_bf86ca7b24f019 1-154
+Cargo.toml
+  s_103b7f1f0713cd::t_bf86ca7b24f019 33-35,103-105
+scripts/get-patched-vendor-crates.mjs
+  s_103b7f1f0713cd::t_bf86ca7b24f019 62
+scripts/patches/jpeg-encoder-0.7.0/0001-Encode-RGBA-images-with-wasm-SIMD128.patch
+  s_103b7f1f0713cd::t_bf86ca7b24f019 1-657
+scripts/patches/README.md
+  s_103b7f1f0713cd::t_bf86ca7b24f019 89,136-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "104c1ac3d0bcb3c13d5b6acc33395b7117006432",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

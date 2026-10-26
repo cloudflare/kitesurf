@@ -1,0 +1,31 @@
+packages/core/src/glyph_cache_panic_test.rs
+  s_40a77a88c7e719::t_89110c31db4c6b 1-101
+packages/core/src/lib.rs
+  s_40a77a88c7e719::t_6d6563e7103444 4770
+  s_40a77a88c7e719::t_d760cfdefe3f93 130-131
+  s_40a77a88c7e719::t_93cfdc4daefec3 4750-4766,4775
+  s_40a77a88c7e719::t_61a40c157c47a3 129
+  s_40a77a88c7e719::t_20328cb5f40fc4 4767-4769,4771-4772
+packages/core/src/scene_record.rs
+  s_40a77a88c7e719::t_1ef51e8c062264 1716-1717
+  s_40a77a88c7e719::t_37304a90dd5c8f 1693-1694,1701-1715,1718-1730
+  s_40a77a88c7e719::t_f7b2d6e15a915d 1910-1914,1922
+  s_40a77a88c7e719::t_4ca7fa4511a1e1 1905-1906
+  s_40a77a88c7e719::t_c43fc0ec3ddc69 1900,1907,1915-1921
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "526e97257560eb5c72fcc89aacae2f043089aa59",
+  "prompts": {},
+  "sessions": {
+    "s_40a77a88c7e719": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00899d021ffeusxbvHVto59doi",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,37 @@
+packages/page-script/src/index.ts
+  s_c28e6be4d27bfa::t_ebe6651ef7ecde 256,1816-1817
+  s_c28e6be4d27bfa::t_614ef715563ee9 1818
+packages/core/src/style.rs
+  s_c28e6be4d27bfa::t_e43c1a6e120bae 15,18-20,29,108,110,112,114-117,119-135,137
+  s_c28e6be4d27bfa::t_ebe6651ef7ecde 22,92-107,109,111,113,118,136,138-158,160-168,170-221
+  s_c28e6be4d27bfa::t_3db4208979067f 159,169
+  s_c28e6be4d27bfa::t_330479f01c606f 222
+packages/engine/test/e2e/cssom-counter-style-rule.e2e.test.ts
+  s_c28e6be4d27bfa::t_d76cfd2d5c0b1a 5
+  s_c28e6be4d27bfa::t_87806060473474 90-91,110,124
+  s_c28e6be4d27bfa::t_eba673b18f94e8 94,99,127,132
+packages/dom-shim/src/state.ts
+  s_c28e6be4d27bfa::t_ebe6651ef7ecde 44-48,120-122,483-485
+  s_c28e6be4d27bfa::t_e44ee28918d36f 486
+packages/dom-shim/src/collections.ts
+  s_c28e6be4d27bfa::t_95f2155bda59ae 4,1622-1636,1639,1642-1644
+  s_c28e6be4d27bfa::t_d76cfd2d5c0b1a 1678-1680,1697-1703,1719-1720,1724-1725,1731
+packages/page-script/src/wasm-glue.d.ts
+  s_c28e6be4d27bfa::t_ebe6651ef7ecde 79-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9ce8c2bbe069d38b39fbd41e3b17fa562a5dad8e",
+  "prompts": {},
+  "sessions": {
+    "s_c28e6be4d27bfa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f55dc77c3ffeV7ULiGF173kFe6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

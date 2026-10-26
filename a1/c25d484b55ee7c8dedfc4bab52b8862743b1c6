@@ -1,0 +1,48 @@
+packages/dom-shim/src/collections.ts
+  s_6aaa3704780b80::t_1a31eeda9fc270 2295
+packages/dom-shim/src/file-input.ts
+  s_6aaa3704780b80::t_292af3fc5abe91 134
+  s_6aaa3704780b80::t_06f56d230e8a10 191-193
+  s_6aaa3704780b80::t_7bc55eb07996aa 169-181
+  s_6aaa3704780b80::t_9670bf4838d8a4 166
+  s_888afb7fb58595::t_55e969ba154d96 160-165,167-168,182,184-190,194-199,305-308
+packages/dom-shim/src/canvas2d.ts
+  s_6aaa3704780b80::t_0e17ae6d67499f 379
+  s_888afb7fb58595::t_0029af2cf7c5cd 130,380,382
+packages/dom-shim/src/element.ts
+  s_888afb7fb58595::t_0f20b67e581841 846-848,9527-9529,9644-9645
+packages/dom-shim/src/window.ts
+  s_888afb7fb58595::t_3c2814afc2faf8 564,578,975-978
+packages/engine/test/e2e/event-handler-idl.e2e.test.ts
+  s_6aaa3704780b80::t_2b0101b64618e9 44-49,51,58,62-67,70-72,74,77-83,85-91
+  s_6aaa3704780b80::t_a16c778f9806fe 75-76
+  s_6aaa3704780b80::t_3e21b41a781ff4 59-60
+  s_6aaa3704780b80::t_b0a8d0e12b6b47 50,52-57,61,73,84
+packages/page-script/src/globals.ts
+  s_6aaa3704780b80::t_b0a8d0e12b6b47 15-20,24-27,1544-1555,1558-1561
+  s_6aaa3704780b80::t_2b0101b64618e9 1538-1543,1556-1557,1562-1565,1570-1575,1580-1587
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a1c25d484b55ee7c8dedfc4bab52b8862743b1c6",
+  "prompts": {},
+  "sessions": {
+    "s_6aaa3704780b80": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7fb4f1bfffetWy0uMcVTwuQPB",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_888afb7fb58595": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7d94f633ffeREBl69WJvei04X",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

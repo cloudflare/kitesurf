@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.3/0152-Resolve-placeholder-style-for-text-controls.patch
+  s_c71513e62bff82::t_e53b1522308989 1-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "75a31097e04dcd8dc24146ea860d68106a78efb3",
+  "prompts": {},
+  "sessions": {
+    "s_c71513e62bff82": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eab9d8527ffeeBdxqD3HzMzIeo",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

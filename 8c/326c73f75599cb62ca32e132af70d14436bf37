@@ -1,0 +1,182 @@
+packages/dom-shim/src/file-input.ts
+  s_c1d1c93f383cfd::t_23613c5d240cfd 15,105-116
+  s_c1d1c93f383cfd::t_f5ce7217a48876 117
+packages/dom-shim/src/index.ts
+  s_c1d1c93f383cfd::t_67fb659b89a232 290-291
+  s_c1d1c93f383cfd::t_23613c5d240cfd 199-203,265-271,548-551,657-660
+  s_c1d1c93f383cfd::t_5af0aa5abd90ac 564,568,608
+  s_c1d1c93f383cfd::t_c847d7e4080639 278-289,292-295
+packages/dom-shim/src/state.ts
+  s_c1d1c93f383cfd::t_23613c5d240cfd 15,224-239,292-308,379-395
+packages/dom-shim/src/events/dispatch.ts
+  s_c1d1c93f383cfd::t_23613c5d240cfd 241-251
+packages/engine/src/cdp/page-session.ts
+  s_a8efabeafbb520::t_37061084c4c90b 213
+  s_84e075edc4e375::t_e24fd1715c9f5c 185
+packages/dom-shim/src/fastpath.ts
+  s_c1d1c93f383cfd::t_23613c5d240cfd 49-53,58-62
+packages/dom-shim/src/node-base.ts
+  s_c1d1c93f383cfd::t_23613c5d240cfd 6,30-36,128-131,136-268,430-441,491,526,556,742,744,803-805,1080-1081,1114,1117-1154,1159,1163,1167,1215-1217,1304,1311,1318,1329,1393,1411,1413,1489,1498,1637,1663,1674,1776,1783,1906,2021-2023,2025,2217,2247,2249,2254,2321,2359,2396,2434,2778-2779,2843
+packages/engine/test/e2e/idl-handler-rekey.e2e.test.ts
+  s_84e075edc4e375::t_33cf6439a3cbde 53-54
+  s_97e47553cbf63d::t_f65a227558dd23 1-52,55
+packages/dom-shim/src/registries.ts
+  s_97e47553cbf63d::t_c9e61d18a30f5e 193
+  s_c1d1c93f383cfd::t_23613c5d240cfd 21-158,164-192,309-311,315,319-334,336-338,430-493,500-501,512-513,521
+  s_62bb7ddef1543d::t_b4364c1515e62b 335
+packages/engine/test/e2e/detached-subtree-reclaim.e2e.test.ts
+  s_c1d1c93f383cfd::t_54bcf30c2ad72b 12-13,15-19,21-30
+  s_3633e34d454d26::t_39e8809f9d7785 46-69,71-72,132-156
+  s_c1d1c93f383cfd::t_4c8fb004b01030 1
+  s_62bb7ddef1543d::t_603bc854d460e4 73-87,89-106,108-131
+  s_84e075edc4e375::t_633a2f68cd00dd 11
+  s_3a4fd7c59703fa::t_263621cd8fb43e 14,20,33-34,38-39,160-173,175-198,213-243,249-274,276-279,283-287,294-322,324-328
+  s_84e075edc4e375::t_2c4b2c959ebee6 70,88,107
+  s_3a4fd7c59703fa::t_924bbd29874397 2-10,31-32,35-37,40-45,157-159,174,199-212,244-248,275,280-282,288-293,323,329-334
+packages/engine/src/cdp/runtime.ts
+  s_84e075edc4e375::t_e24fd1715c9f5c 291
+packages/dom-shim/src/layout/cheap.ts
+  s_c1d1c93f383cfd::t_23613c5d240cfd 23,59-64
+  s_c1d1c93f383cfd::t_4c790fbe31e6c1 65
+packages/dom-shim/src/events/slotchange.ts
+  s_c1d1c93f383cfd::t_23613c5d240cfd 7,15-25
+  s_c1d1c93f383cfd::t_8a130075723d9f 26
+packages/dom-shim/src/mutations/observer.ts
+  s_c1d1c93f383cfd::t_23613c5d240cfd 12-16,349-385,560-565
+  s_c1d1c93f383cfd::t_612903a1426f3d 386-387
+  s_96c7b0ba2d899c::t_a3620ce596ad5e 566
+packages/page-script/src/defer-shim.ts
+  s_a8efabeafbb520::t_37061084c4c90b 101-122
+packages/dom-shim/src/reclaim.ts
+  s_5d5f2016211f39::t_b26dbe843cdbb5 25-27,42,66,89,92-96,107-110,115,119
+  s_0dc69ec924b463::t_e498d04e764637 128-131
+  s_c1d1c93f383cfd::t_4d47b595040ced 158-162
+  s_5d5f2016211f39::t_736acd3aabde7a 290
+  s_0dc69ec924b463::t_b2c03cab9be1a3 18-20
+  s_5d5f2016211f39::t_43de00a29de837 239,242,246,248-251,278,280-289,291-293,296-304,306-317
+  s_c1d1c93f383cfd::t_18407046f70ccc 91
+  s_3a4fd7c59703fa::t_30fa2359b5c6a9 1-17,21-24,28-32,38-41,43-65,67-86,90,97-106,120,133-135,138-139,141,145-148,154-156,166-168,175-176,185,187-208,212-214,218-225,229-238,240-241,243-245,247,252-253,255-256,258,260-269,271-273,275-277,305,318-320
+  s_2c584420f0a19b::t_5cd290c87410a6 226-228
+  s_5d5f2016211f39::t_f0538ce6030b48 111-114,116-118
+  s_0dc69ec924b463::t_e70ec674b1ec4b 33-37,180-184
+  s_0bc4e758ea0f2c::t_d1459469ab73d7 87-88,294-295
+  s_84e075edc4e375::t_f2e3fbb0847031 254,257,259,270,274,279
+  s_2c584420f0a19b::t_8bcde1bfc78816 121-127,132
+  s_84e075edc4e375::t_48ec83c9346dc4 209
+  s_2c584420f0a19b::t_71a693b192dd72 210-211,215-217
+  s_2c584420f0a19b::t_563afac59ae3e8 136-137,140,142-144,149-153,157,163-165,169-174,177-179,186
+packages/engine/test/e2e/reclaim-pending-stylesheet.e2e.test.ts
+  s_612b213404f243::t_1eeffeeeecf71a 1-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8c326c73f75599cb62ca32e132af70d14436bf37",
+  "prompts": {},
+  "sessions": {
+    "s_0bc4e758ea0f2c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f377eab02ffeQvdhp0kGH0ON5I",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_0dc69ec924b463": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f37843897ffeLnunKTLlNZBfmO",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_2c584420f0a19b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f37c3358dffeZEDAKx3bKk3aeG",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_3633e34d454d26": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f37ba1a2bffeabFg9dCp1rm9BV",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_3a4fd7c59703fa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3a5d202fffedhJ9qDAEAanTWs",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_5d5f2016211f39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f379b45d6ffehYDfor3AitrgtO",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_612b213404f243": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f38551c59ffe7yL9R747cT5UaS",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_62bb7ddef1543d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f378ff6e0ffe6Oe0vPX1DiAgUt",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_84e075edc4e375": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35f4b437ffeIIFIlfhUNCTacY",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_96c7b0ba2d899c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3853c8b2ffeyXfHWslbOieXAr",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_97e47553cbf63d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3ab0f8a2ffeeuWIZIzhK6Rn1t",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_a8efabeafbb520": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f366f3734ffeMdkel3S81weRt6",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

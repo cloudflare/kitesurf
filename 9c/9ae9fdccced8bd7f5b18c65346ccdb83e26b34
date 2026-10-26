@@ -1,0 +1,21 @@
+scripts/regen-vendor-patches.mjs
+  s_dfd792beae87ba::t_5475eb81600973 147-156
+scripts/get-patched-vendor-crates.mjs
+  s_dfd792beae87ba::t_5a81e03d30aba3 228-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9c9ae9fdccced8bd7f5b18c65346ccdb83e26b34",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

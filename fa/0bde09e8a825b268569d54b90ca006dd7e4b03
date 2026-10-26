@@ -1,0 +1,49 @@
+packages/engine/src/cdp/kitesurf.ts
+  s_4d971b01fcd83b::t_57062e4931acf3 108
+packages/engine/tsconfig.json
+  s_65abc89251632c::t_2991b71b6bfd19 24-25
+packages/engine/package.json
+  s_65abc89251632c::t_2991b71b6bfd19 19-20
+packages/engine/src/quickactions/pdf.ts
+  s_65abc89251632c::t_2991b71b6bfd19 136
+packages/engine/test/e2e/cloudflare-env.ts
+  s_65abc89251632c::t_2991b71b6bfd19 1-2,5
+packages/engine/src/cdp/types.ts
+  s_4d971b01fcd83b::t_57062e4931acf3 6,32
+packages/engine/src/cdp/page.ts
+  s_4d971b01fcd83b::t_57062e4931acf3 1531
+packages/engine/test/e2e/tsconfig.json
+  s_4d971b01fcd83b::t_57062e4931acf3 10
+packages/engine/test/fixtures-worker/tsconfig.json
+  s_65abc89251632c::t_2991b71b6bfd19 1-9
+AGENTS.md
+  s_4d971b01fcd83b::t_57062e4931acf3 217
+packages/engine/src/cdp-client.ts
+  s_4d971b01fcd83b::t_57062e4931acf3 5
+turbo.json
+  s_65abc89251632c::t_2991b71b6bfd19 46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fa0bde09e8a825b268569d54b90ca006dd7e4b03",
+  "prompts": {},
+  "sessions": {
+    "s_4d971b01fcd83b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee3ae124bffeM1E267Xi90FUc7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    },
+    "s_65abc89251632c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef446c8cfffeC9NogyjHDidIEP",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/bench-report/src/bench-runner.ts
+  s_5f3448ddbd7fba::t_7d8380300f319a 193-195,197-208,230-232,235-240,242-243,246-255,257,261-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "32a7e78ddd00dba4a4578ad410d079cf10614f48",
+  "prompts": {},
+  "sessions": {
+    "s_5f3448ddbd7fba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_046e753d3ffes03EhHMjlrJN7V",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

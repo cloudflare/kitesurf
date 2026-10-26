@@ -1,0 +1,22 @@
+docs/WEBGL.md
+  s_492d322fdb5636::t_8a5a8318542ba1 251,253-487,494-502,506-520,525-527
+  s_492d322fdb5636::t_aba8b66d8faafc 503-505
+  s_492d322fdb5636::t_3df1f31528977a 521-524
+  s_492d322fdb5636::t_1f9fa4805721d1 488-493
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ba15d5eaa8238d30622ba2c7dd9666895e5b7427",
+  "prompts": {},
+  "sessions": {
+    "s_492d322fdb5636": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff5bcdb4effed9sVCVwDFXLQ3u",
+        "model": "claude-fable-5"
+      },
+      "human_author": null
+    }
+  }
+}

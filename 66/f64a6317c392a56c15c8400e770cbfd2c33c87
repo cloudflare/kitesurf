@@ -1,0 +1,28 @@
+packages/engine/test/e2e/ua-font-aliases.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_038ee7f41ec51d 87,129,131-134,136,138,140,146,166
+  s_f2f1dbce2d5d5d::t_647e4534e75825 18-32,45,51,82
+packages/core/src/fonts.rs
+  s_f2f1dbce2d5d5d::t_038ee7f41ec51d 1119-1120
+  s_f2f1dbce2d5d5d::t_53c3a31620e568 649-650
+docs/FONTS.md
+  s_f2f1dbce2d5d5d::t_7b9921f18fe2ce 294-296
+  s_f2f1dbce2d5d5d::t_038ee7f41ec51d 35-36,299
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_f2f1dbce2d5d5d::t_038ee7f41ec51d 598-601
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "66f64a6317c392a56c15c8400e770cbfd2c33c87",
+  "prompts": {},
+  "sessions": {
+    "s_f2f1dbce2d5d5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaf4cb2b5ffeHlvt6Yw56JGX3h",
+        "model": "unknown"
+      },
+      "human_author": "Nuno Pereira <npereira@cloudflare.com>"
+    }
+  }
+}

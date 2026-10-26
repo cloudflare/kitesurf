@@ -1,0 +1,23 @@
+CONTRIBUTING.md
+  s_c6d6a3ac21fe46::t_39129cef32799d 1-72
+CODE_OF_CONDUCT.md
+  s_c6d6a3ac21fe46::t_bdf7e1686cc6c9 1-132
+SECURITY.md
+  s_c6d6a3ac21fe46::t_39129cef32799d 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7fd9ffca6355436495d14402dc45b1792851d1dd",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

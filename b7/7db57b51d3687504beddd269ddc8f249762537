@@ -1,0 +1,27 @@
+packages/website/src/routes.tsx
+  s_c1a6940130844c::t_9b8e9738cded37 35,43
+packages/website/src/pages/wpt/format.ts
+  s_c1a6940130844c::t_e2beda50f8ff9e 2,42,45-52,56-62
+  s_c1a6940130844c::t_861a943e98ca49 41
+  s_c1a6940130844c::t_88837348d384f1 43,53-55
+  s_c1a6940130844c::t_7b003e7faaefa5 44
+packages/website/src/pages/wpt/format.test.ts
+  s_c1a6940130844c::t_439c237f869e67 1-12,14-24
+  s_c1a6940130844c::t_5452b2ebcb40d9 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b77db57b51d3687504beddd269ddc8f249762537",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+packages/engine/src/cdp/target.ts
+  s_86e5da766eb425::t_483961b4dd4996 538-617,619-697
+  s_86e5da766eb425::t_681bc37152b994 618
+  s_86e5da766eb425::t_9ec8823a40dca2 51-57
+packages/engine/src/cdp/dispatch.ts
+  s_86e5da766eb425::t_6df1f08f4bfee5 8-13
+  s_86e5da766eb425::t_e2ca43d4392189 90-105
+packages/engine/src/cdp/page.ts
+  s_86e5da766eb425::t_8913d3f8cfe798 4093-4098
+  s_86e5da766eb425::t_72930aeda91e0a 3181-3186
+  s_86e5da766eb425::t_813ad0312bb163 49-53
+packages/engine/test/e2e/demos/oopif-heap-usage.e2e.test.ts
+  s_86e5da766eb425::t_750c2ddddbe0e3 1-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9415a8ec1e74c0d4051863c14b366407060e96bd",
+  "prompts": {},
+  "sessions": {
+    "s_86e5da766eb425": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0665bed1cffeoMugykK9pn22Wf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

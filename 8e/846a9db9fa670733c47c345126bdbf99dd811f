@@ -1,0 +1,150 @@
+packages/engine/src/eval/page-script.ts
+  s_4b450167e630e8::t_ec7f42bb6ddf26 952
+  s_4b450167e630e8::t_36435d78edc4c9 1190-1194,1211,1213,1228-1231,1237,1239-1242,1244-1249,1253
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 1212
+  s_c39b250795ef75::t_1e01e4ab05fc23 603-606,944,945-955
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_4b450167e630e8::t_36435d78edc4c9 220-232,632-633,1368-1396,1426-1431,1548-1551,1556-1558,3010-3019
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 214-215,218-219,630-631,1424-1425
+packages/page-script/src/inserted-scripts.ts
+  s_4b450167e630e8::t_36435d78edc4c9 118-125
+docs/SCRIPT_LOADING.md
+  s_4b450167e630e8::t_36435d78edc4c9 124-133,137-141,144-162
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 134-136,142-143
+packages/engine/src/eval/script-bundle.ts
+  s_4b450167e630e8::t_36435d78edc4c9 18,161-167,613,671,999,1003
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 168,614,997-998
+packages/script-gate/test/gate.test.ts
+  s_4b450167e630e8::t_36435d78edc4c9 17,324,326-328,331,337,341-381
+packages/page-script/src/globals.ts
+  s_4b450167e630e8::t_36435d78edc4c9 7,586-596,599-602,607,610-611,614
+packages/engine/test/fixtures-worker/assets/module-registry-config.json
+  s_4b450167e630e8::t_36435d78edc4c9 1
+packages/engine/test/fixtures-worker/assets/module-registry-lib.js
+  s_4b450167e630e8::t_36435d78edc4c9 1
+packages/engine/test/script-bundle-runtime.test.ts
+  s_4b450167e630e8::t_36435d78edc4c9 136
+  s_c39b250795ef75::t_1e01e4ab05fc23 160-168
+packages/engine/test/walk-module-graph.test.ts
+  s_4b450167e630e8::t_36435d78edc4c9 73-97
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 13-19,99-218
+  s_1dcff5bc38c3a1::t_60cf0b06300eaf 219
+packages/engine/src/cdp/page.ts
+  s_4b450167e630e8::t_36435d78edc4c9 2701-2703,2705,2733,2736-2739,3557-3559
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 2681-2687,2704,2714
+  s_c39b250795ef75::t_1e01e4ab05fc23 2329
+packages/engine/vitest.e2e.config.mts
+  s_4b450167e630e8::t_36435d78edc4c9 192-194
+  s_c39b250795ef75::t_eb986a49c202e7 143,152,163,173,206-207,217-218
+packages/script-gate/src/gate.ts
+  s_4b450167e630e8::t_36435d78edc4c9 27-31,66-75,352-360,362-368,381-387,401-405,408,440
+packages/script-gate/src/index.ts
+  s_4b450167e630e8::t_36435d78edc4c9 26-27,29
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_4b450167e630e8::t_36435d78edc4c9 23-24
+  s_c39b250795ef75::t_246baf8feb8100 5-6
+packages/script-gate/src/mime.ts
+  s_4b450167e630e8::t_36435d78edc4c9 52-87
+packages/page-script/scripts/build.mjs
+  s_4b450167e630e8::t_36435d78edc4c9 217
+packages/engine/test/fixtures-worker/assets/module-registry.html
+  s_4b450167e630e8::t_36435d78edc4c9 1-48
+packages/engine/test/fixtures-worker/assets/module-registry-meta.js
+  s_4b450167e630e8::t_36435d78edc4c9 1
+packages/page-script/src/wasm-glue.d.ts
+  s_4b450167e630e8::t_36435d78edc4c9 38
+packages/engine/test/e2e/module-registry.e2e.test.ts
+  s_4b450167e630e8::t_36435d78edc4c9 1-57
+packages/page-script/src/index.ts
+  s_4b450167e630e8::t_36435d78edc4c9 1363-1371,2524-2562,2568-2569,2571-2581,2591-2601
+packages/core/src/boa_eval.rs
+  s_4b450167e630e8::t_36435d78edc4c9 49-77,84-89,91-92,241-250,277-282,1075-1077,1079,1100-1102
+packages/engine/src/eval/walk-module-graph.ts
+  s_4b450167e630e8::t_36435d78edc4c9 7-18,46-57,68,118-126,242-243,248,252,255-258,284-301,304-309,338-422,427-431,461-462,469-478,490,513-521,624-632,694-696,701,759,800-804,817-819,821,873-877,918-919,931,934-939,1039-1042,1056,1074,1196,1230-1261,1401,1531,1536,1569-1570,1593,1661-1700,1702-1709,1712-1714,1716-1719,1721,1732-1739,1741-1743,1749,1751-1756,1765-1769,1772-1799,1802-1807,1811,1816-1821,1843,1869,1871-1873,1876-1878,1880
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 127-241,244-247,249-251,253-254,259-283,302-303,702,744-745,758,760,820,1710-1711,1800-1801,1879
+packages/engine/test/fixtures-worker/assets/module-registry-tla.js
+  s_4b450167e630e8::t_36435d78edc4c9 1-10
+packages/core/src/scan_test.rs
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 108,119-135,229,311-322
+  s_1dcff5bc38c3a1::t_a5b4c86e8cfbc3 323-324
+packages/page-script/src/__ks_import_map.d.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 10,14
+tests/wpt-tests.json
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 6235,6310-6321
+packages/engine/test/e2e/import-map.e2e.test.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 1-21
+packages/core/src/scan.rs
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 99-106,117-118,243,291-300,610,621
+  s_1dcff5bc38c3a1::t_6c95d63256dceb 98
+packages/engine/src/wasm.ts
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 188-193
+packages/engine/test/fixtures-worker/assets/importmap.html
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 1-33
+packages/engine/test/fixtures-worker/assets/importmap-lazy.js
+  s_1dcff5bc38c3a1::t_3f266b5d31a5d9 1-3
+packages/engine/wrangler.jsonc
+  s_c39b250795ef75::t_246baf8feb8100 5,23-25
+packages/bench-report/package.json
+  s_c39b250795ef75::t_a4b1c06decedf9 19
+packages/shadow-replay/package.json
+  s_c39b250795ef75::t_a4b1c06decedf9 28
+packages/engine/package.json
+  s_c39b250795ef75::t_096b5ea4fdbd14 42,45,48
+packages/engine/vitest.config.mts
+  s_c39b250795ef75::t_eb986a49c202e7 46-47
+packages/engine/src/eval/page-renderer.ts
+  s_c39b250795ef75::t_3095991ad2c521 34-37,174-179
+packages/wpt-report/package.json
+  s_c39b250795ef75::t_a4b1c06decedf9 19
+packages/engine/src/cdp/connection.ts
+  s_c39b250795ef75::t_4e57ff1bb58887 486-490
+pnpm-lock.yaml
+  s_c39b250795ef75::t_879ee216693401 70-71,121,145-146,154-155,163-164,269-270,284-285,433-434,453-454,465-466,477-478,489-490,501-502,556-558,896-897,908-909,914-915,924-925,934-935,944-945,954-955,964-965,974-975,984-985,994-995,1004-1005,1014-1015,1025-1026,1037-1038,1049-1050,1061-1062,1073-1074,1085-1086,1097-1098,1109-1110,1120-1121,1124-1125,1135-1136,1147-1148,1159-1160,2058-2059,2228-2229,2231-2235,2495-2496,2510-2511,2515,2860,2864,2866,2872,2874,2878,2900,2906,2912,2918,2924,3034-3038,3222,3224,3232,3234,3237,3239,3245,3251,3257,3263,3269,3275,3281,3287,3293,3299,3307,3309,3317,3319,3327,3329,3337,3339,3347,3349,3357,3359,3367,3369,3377,3379,3387,3389,3392,3394,3400,3406,3412,3593,3600,4238,4241,4243,4247,4464,4470-4495,4732,4734-4738,4757,4760,4763,4766,4771,4775,4778,4781,4784,4789-4806
+tests/wpt-expectations.json
+  s_c39b250795ef75::t_56abf9e75011ea 18673,18681-18682,18685-18686,18689-18690,18693-18694
+packages/engine/test/e2e/bridge-defineproperty.e2e.test.ts
+  s_4b450167e630e8::t_364b36cfb093ed 53-54,114
+packages/engine/test/e2e/html/bridge-defineprop.html
+  s_4b450167e630e8::t_14297eaa6ea485 15-21
+packages/engine/test/e2e/domexception-binding-shape.e2e.test.ts
+  s_4b450167e630e8::t_975e0fc45aa60a 11-13
+packages/engine/test/e2e/bridge-array-lazy.e2e.test.ts
+  s_4b450167e630e8::t_975e0fc45aa60a 275-277
+packages/engine/test/e2e/event-handler-idl.e2e.test.ts
+  s_4b450167e630e8::t_4c72c33f76c688 92-117
+packages/core/src/boa_bridge.rs
+  s_4b450167e630e8::t_fb282363b98af2 1471-1478,1806-1808,1833-1834,1844-1859
+  s_4b450167e630e8::t_e530ba961deebf 1840-1843
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8e846a9db9fa670733c47c345126bdbf99dd811f",
+  "prompts": {},
+  "sessions": {
+    "s_1dcff5bc38c3a1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e310ec6ffen31DSEk4bSFAtg",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_4b450167e630e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e08b52affe2claqo3m243AcK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_c39b250795ef75": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f611d125effePYy5TeTmmwVpWd",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

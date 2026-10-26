@@ -1,0 +1,23 @@
+packages/engine/test/e2e/shadow-dom.e2e.test.ts
+  s_46371821d5f8e9::t_e287feaefe20d5 6,8-10,12-48,50-66,68-80,82-100
+packages/engine/test/e2e/html/shadow-dom.html
+  s_46371821d5f8e9::t_48c03e42c8e9cc 1-152
+packages/engine/test/e2e/html-raw.d.ts
+  s_46371821d5f8e9::t_3c68a3586eda8d 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "47aa93ee84e7119460b2d4dc72b4194345b936e5",
+  "prompts": {},
+  "sessions": {
+    "s_46371821d5f8e9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00d107a2bffegmHwZNZ4m4wIp9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+tests/wpt-expectations.json
+  s_2093bfec3117c9::t_4d225148c47685 9223-9224,9227-9228,9280,9284,9288,9304,9308,9312,10411-10412,16417-16418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "135db511cbfde4229c2356743e0a55b0f1d10f47",
+  "prompts": {},
+  "sessions": {
+    "s_2093bfec3117c9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0508dac78ffeJdI1H6arENzGsN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

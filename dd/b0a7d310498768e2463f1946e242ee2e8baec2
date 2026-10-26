@@ -1,0 +1,26 @@
+packages/engine/src/cdp/page.ts
+  s_5c1b02e84abf98::t_e9a043b5ef7b48 7429,7431,7438-7442,7450
+packages/engine/test/e2e/iframe-legacy-charset.e2e.test.ts
+  s_5c1b02e84abf98::t_e9a043b5ef7b48 1-24
+packages/engine/test/fixtures-worker/assets/iframe-euckr-host.html
+  s_5c1b02e84abf98::t_e9a043b5ef7b48 1-9
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_5c1b02e84abf98::t_e9a043b5ef7b48 296-305,668-669,1188-1193
+  s_5c1b02e84abf98::t_089a07bf79fad7 1194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ddb0a7d310498768e2463f1946e242ee2e8baec2",
+  "prompts": {},
+  "sessions": {
+    "s_5c1b02e84abf98": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f30040622ffeRDWxAQLi3obXvV",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

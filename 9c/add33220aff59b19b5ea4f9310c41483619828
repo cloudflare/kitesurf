@@ -1,0 +1,42 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_91836f22884cfe::t_1a0f20e4e40d84 2497-2499,2501-2515
+  s_91836f22884cfe::t_7449193c718c15 2500
+packages/engine/src/term-session.ts
+  s_91836f22884cfe::t_24154060b774aa 748-753
+  s_91836f22884cfe::t_d64482cfda7db9 268
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_91836f22884cfe::t_1a0f20e4e40d84 1,6-24,84-116,122,126-128
+  s_91836f22884cfe::t_f257c40fd2d662 117-121,123-125
+  s_91836f22884cfe::t_4f98e641f24ce4 2-5,25-26,28-29,33-39,46,54-74,129
+  s_91836f22884cfe::t_959f829a7ae63b 75-82
+  s_91836f22884cfe::t_a1544f9ab91a0a 27,30-32,40-45,47,83
+  s_91836f22884cfe::t_1b14195b430675 48-53
+scripts/dev-term.mjs
+  s_91836f22884cfe::t_107161c5c6f642 15,18-20,31-33
+  s_91836f22884cfe::t_3e4e426233599e 141,143-158
+scripts/dev-term-args.test.mjs
+  s_91836f22884cfe::t_9598a4589ef350 1-35
+scripts/dev-term-args.mjs
+  s_91836f22884cfe::t_f3ad7d749a6dc1 1-45
+packages/engine/test/term-target.test.ts
+  s_91836f22884cfe::t_c0b2ecc51558e3 127
+packages/tty-css-preview/extension/fallback-level1.css
+  s_91836f22884cfe::t_bf516bc57d2555 176-191
+  s_91836f22884cfe::t_f4ffa1afc2a0e6 175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9cadd33220aff59b19b5ea4f9310c41483619828",
+  "prompts": {},
+  "sessions": {
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

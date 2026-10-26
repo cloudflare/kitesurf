@@ -1,0 +1,29 @@
+packages/engine/src/cdp/page.ts
+  s_f25a28b9ca576f::t_4f7a12f08ae678 69,168-177,876-881,907-923,925-930,939-952,6855-6859
+packages/engine/src/cookies.ts
+  s_f25a28b9ca576f::t_4ce08fe36c73f1 123-135,396-398,400-401
+packages/engine/src/eval/redirect-walk.ts
+  s_f25a28b9ca576f::t_7d0d23addb4de3 141-149,151,261-262,278
+packages/engine/test/e2e/redirect-per-hop-gating.e2e.test.ts
+  s_f25a28b9ca576f::t_7d0d23addb4de3 188-259
+packages/engine/test/redirect-walk.test.ts
+  s_f25a28b9ca576f::t_7d0d23addb4de3 272-273,280-284,288
+packages/engine/test/cookies.test.ts
+  s_f25a28b9ca576f::t_ee087e6b4d01c3 279-302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "43397bcbe83fe0d92a695a017921292a00e6210f",
+  "prompts": {},
+  "sessions": {
+    "s_f25a28b9ca576f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd79f44fcffeIcm0JpIPfO5rEA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

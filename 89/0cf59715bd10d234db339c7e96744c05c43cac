@@ -1,0 +1,95 @@
+packages/engine/test/walk-module-graph.test.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 13,15,19-20,221-254
+packages/core/src/boa_disabled.rs
+  s_f79ebc3dd819a9::t_ca6709df269d75 1-72
+packages/engine/test/e2e/global-setup.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 16,36-54,72-73,81
+packages/page-script/package.json
+  s_f79ebc3dd819a9::t_ca6709df269d75 20-21
+packages/page-script/src/scripts.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 14-21,29-31,33-37,55,108-112,133-146,149-158,167-191,194-196,200-201,205-249,265,268,285-293,297,306,310,318-321,323,331,334,346,356,358-363,370,380,394-395,398,408-417,451-457,655-663,666,668-691,693-726
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 246,251-256,259,261-265,366-386
+packages/page-script/src/state.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 111-113,200-203
+packages/engine/src/eval/page-script.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 36,830-831,981-1026,1074-1076,1101,1264,1269,1274,1326,1417-1429
+packages/page-script/src/index.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 235,1436,2228-2232,2357,2519,2619,2646-2664,2675-2680,2732,2759-2760,3101-3103,3105-3107,3922-3925
+packages/core/Cargo.toml
+  s_f79ebc3dd819a9::t_ca6709df269d75 181,186,209-211
+packages/engine/src/eval/walk-module-graph.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 89,98-164
+packages/page-script/src/eval-helpers.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 12,25-26,823-828,1253,1283-1300,1614-1616,1623,1632
+packages/page-script/src/script-policy.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 26-30,53-55
+packages/page-script/src/__ks_startup_probe_input.d.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 18-20,23-28,64
+packages/page-script/src/globals.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 22,26-31,563-573,593,596-631,686-690,692,701,708-714,724-726,747-751
+  s_e14db85d7d877c::t_efed9cd438e654 693-700
+packages/engine/package.json
+  s_f79ebc3dd819a9::t_ca6709df269d75 9
+packages/engine/src/cdp/page.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 25-28,128,2617,2684-2721,2865,2944-2945,2997-2999
+packages/engine/src/eval/outbound.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 55-58,218-240,272-300,656-867,873-879
+scripts/build-wasm.mjs
+  s_f79ebc3dd819a9::t_ca6709df269d75 93-94,102,104-108,281-285,327-329,332,335,620-624
+turbo.json
+  s_f79ebc3dd819a9::t_ca6709df269d75 84-86,91
+packages/core/src/lib.rs
+  s_f79ebc3dd819a9::t_ca6709df269d75 277,632,636,638,640-641,645,673,681,689,704,1632,1652,1660
+  s_e14db85d7d877c::t_90103227217fa4 639
+packages/engine/src/eval/page-script-compat.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 40-41
+packages/engine/test/e2e/workerd-native-browser.e2e.test.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 1-364
+packages/engine/src/wasm.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 376-382
+packages/page-script/src/inserted-scripts.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 39,224-226
+packages/page-script/src/startup-probe.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 13,36,94,154-166
+packages/page-script/scripts/build.mjs
+  s_f79ebc3dd819a9::t_ca6709df269d75 202
+packages/page-script/src/workerd-unsafe-eval.d.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 1-7
+packages/engine/test/native-script-source.test.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 1-88
+packages/page-script/src/native-script-source.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 1-49
+packages/page-script/src/eval-mode.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 5,13-48
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 2122-2139,2145-2155,2160-2171,2177-2191
+packages/engine/test/page-script-compat.test.ts
+  s_f79ebc3dd819a9::t_ca6709df269d75 38-39,54-55
+packages/engine/vitest.e2e.config.mts
+  s_f79ebc3dd819a9::t_ca6709df269d75 95-97,217-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "890cf59715bd10d234db339c7e96744c05c43cac",
+  "prompts": {},
+  "sessions": {
+    "s_e14db85d7d877c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f58aefaa7ffesWXuu74hnx5qny",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f79ebc3dd819a9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73ea9d42ffeDByxHT6tGAtq9Z",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

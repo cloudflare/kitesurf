@@ -1,0 +1,21 @@
+packages/engine/src/cdp/protocol-extensions.ts
+  s_41d5a40b9168bd::t_151b7a733dee3f 296-335,510
+packages/engine/src/state/storage-state.ts
+  s_41d5a40b9168bd::t_151b7a733dee3f 20,28-32,34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1337e440db009a216deb0d84a95077966ed66fe9",
+  "prompts": {},
+  "sessions": {
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

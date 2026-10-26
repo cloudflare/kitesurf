@@ -1,0 +1,20 @@
+packages/page-script/src/font-loader.ts
+  s_2093bfec3117c9::t_bba73eff1c6ba8 161-183
+  s_2093bfec3117c9::t_8f293a3f8dccf8 425-429
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2099b8e5ea1a62d0e492fe667c0a54e32d92f3c8",
+  "prompts": {},
+  "sessions": {
+    "s_2093bfec3117c9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0508dac78ffeJdI1H6arENzGsN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

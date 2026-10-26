@@ -1,0 +1,29 @@
+scripts/patches/boa_engine-0.20.0/0010-module-resolve-export-entries-to-JsStrings-at-constr.patch
+  s_c6d6a3ac21fe46::t_10ca92dcd96fe4 169
+scripts/patches/boa_engine-0.20.0/0008-script-module-drop-the-retained-AST-after-the-one-ti.patch
+  s_c6d6a3ac21fe46::t_bfb6660dee33ce 151
+  s_c6d6a3ac21fe46::t_a64f71cb51df43 50
+scripts/patches/boa_engine-0.20.0/0009-module-expose-has_pending_source-for-embedder-intern.patch
+  s_c6d6a3ac21fe46::t_7710e52ba98554 29
+scripts/patches/blitz-dom-0.3.0-beta.3/0111-Queue-each-font-face-once-per-document.patch
+  s_c6d6a3ac21fe46::t_d27c2f5b95235e 14
+  s_c6d6a3ac21fe46::t_ee3e05082d452e 22
+scripts/patches/blitz-dom-0.3.0-beta.3/0113-Gate-font-face-fetches-on-unicode-range-against-the-.patch
+  s_c6d6a3ac21fe46::t_1cb4b98f30e8e5 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c4af154356dbcf60ad1d4d1d7e6354a1849250a4",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

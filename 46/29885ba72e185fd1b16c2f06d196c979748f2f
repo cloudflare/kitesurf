@@ -1,0 +1,32 @@
+packages/engine/src/eval/redirect-walk.ts
+  s_faa0a9eb9c1377::t_6f8680e3c68685 216-231,362-367,377-390
+  s_faa0a9eb9c1377::t_09f01db7d64a2f 263-265,285-293,296
+packages/engine/test/fixtures-worker/assets/redirect-gate-deep.html
+  s_faa0a9eb9c1377::t_4f849403523f68 1
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_faa0a9eb9c1377::t_4f849403523f68 789-790,1639-1644
+  s_faa0a9eb9c1377::t_cf0a42460d76ea 1645
+packages/engine/test/e2e/redirect-per-hop-gating.e2e.test.ts
+  s_faa0a9eb9c1377::t_4bf966fda37d68 192-240
+packages/engine/src/cdp/page.ts
+  s_faa0a9eb9c1377::t_c01ee2ad0ae318 6831,6833,6836
+  s_faa0a9eb9c1377::t_764bdb0205787d 6829-6830,6832,6834-6835,6837-6843
+packages/engine/test/redirect-walk.test.ts
+  s_faa0a9eb9c1377::t_7d91f4e5a44b89 90,107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4629885ba72e185fd1b16c2f06d196c979748f2f",
+  "prompts": {},
+  "sessions": {
+    "s_faa0a9eb9c1377": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe42e8adcffe1fCcZnrnIZSCl1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

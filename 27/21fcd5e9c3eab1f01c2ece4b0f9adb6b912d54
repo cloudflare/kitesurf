@@ -1,0 +1,61 @@
+examples/auto-navigate-demo.mjs
+  s_c1a6940130844c::t_7931070ff5cd6c 68-80,82
+  s_c1a6940130844c::t_f5cd3f5f9a3363 24,26-27
+packages/website/wrangler.jsonc
+  s_c1a6940130844c::t_449bb23dfe0a43 12
+  s_c1a6940130844c::t_e9fccef9dfaef9 9-11
+packages/website/src/pages/wpt/format.ts
+  s_c1a6940130844c::t_ab67aa1c6545b5 32
+README.md
+  s_c1a6940130844c::t_7d66ee03971b1c 87-88
+  s_c1a6940130844c::t_17cfa336bc8f12 28-29
+  s_c1a6940130844c::t_9c1a399711e340 164-165
+  s_c1a6940130844c::t_013e97724710ff 357
+docs/RELEASING.md
+  s_c1a6940130844c::t_f63fa67b86532f 15-16
+  s_c1a6940130844c::t_ea4dd4762a660c 42-54
+  s_c1a6940130844c::t_d6f4a4481c9202 71-72
+bench/README.md
+  s_c1a6940130844c::t_fff9567e976bd6 186
+  s_c1a6940130844c::t_70c3a092555f61 206-208
+  s_c1a6940130844c::t_bc41580c05208c 3-4
+packages/bench-report/src/landing-urls.ts
+  s_c1a6940130844c::t_503194ffb11237 24-27
+  s_c1a6940130844c::t_4f71e132e25924 3-5,7
+  s_c1a6940130844c::t_38b1819a328ac4 78
+  s_c1a6940130844c::t_7e4a6e909930f0 17,19
+packages/engine/src/index.ts
+  s_c1a6940130844c::t_f045f2f5da5788 132-134
+  s_c1a6940130844c::t_8ffd936e4d7421 428,432
+  s_c1a6940130844c::t_c24f51118c827f 454
+  s_c1a6940130844c::t_68242e3225250d 481-484
+packages/website/scripts/capture-showcase.mjs
+  s_c1a6940130844c::t_5b27720e6f54ce 1-54
+packages/engine/wrangler.jsonc
+  s_c1a6940130844c::t_6c0866dd81d657 185-188,191
+  s_c1a6940130844c::t_2cb94281423f52 438-441
+  s_c1a6940130844c::t_6df335572860b2 42
+  s_c1a6940130844c::t_a3ec888432358e 465,469
+  s_c1a6940130844c::t_277fcfb773cfd8 153
+.gitlab-ci.yml
+  s_c1a6940130844c::t_c5c1fcd0584aad 1902-1904
+  s_c1a6940130844c::t_c31a074fa59897 1949-1988
+AGENTS.md
+  s_c1a6940130844c::t_01626229b81bda 85-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2721fcd5e9c3eab1f01c2ece4b0f9adb6b912d54",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

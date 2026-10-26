@@ -1,0 +1,24 @@
+packages/engine/src/cdp/runtime.ts
+  s_4efb85c8268621::t_925aa7283c27dd 752-754
+  s_4efb85c8268621::t_35513e8459152f 775-779,786
+  s_4efb85c8268621::t_02131550dc2720 756-760,769-770,780-785
+  s_4efb85c8268621::t_f0c15912a2ef14 750
+packages/engine/test/e2e/runtime-wait-for-selector.e2e.test.ts
+  s_4efb85c8268621::t_35513e8459152f 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "180102231f27832ab52d0227b43fb2059dedb1b9",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

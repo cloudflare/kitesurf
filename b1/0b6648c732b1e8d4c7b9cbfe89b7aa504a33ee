@@ -1,0 +1,19 @@
+bench/load/quickaction.k6.js
+  s_ff879cea7f8711::t_a89ed6cef8ea61 142-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b10b6648c732b1e8d4c7b9cbfe89b7aa504a33ee",
+  "prompts": {},
+  "sessions": {
+    "s_ff879cea7f8711": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb03c0cdfffe3NsKeS3J2RA8VU",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+packages/engine/test/walk-module-graph.test.ts
+  s_b4fdc13c720191::t_6f5b2555a66ab1 363-365,369-370,373,375-378
+  s_b4fdc13c720191::t_034261599c33bc 366-368,371-372,374,379-380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "573c817fe254ba2b9cfb5fc0fc013c7d0976d36e",
+  "prompts": {},
+  "sessions": {
+    "s_b4fdc13c720191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f39c04b0bffeNrb1se2CiEtxrS",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+packages/engine/src/eval/outbound.ts
+  s_d9ecccdb16496d::t_cd3adef452a565 71-75,216,1163-1170,1211,1232
+packages/engine/src/eval/egress-breaker.ts
+  s_d9ecccdb16496d::t_688ad6b502252e 1-100
+packages/engine/test/egress-breaker.test.ts
+  s_d9ecccdb16496d::t_68e56643ae9dcd 1-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2051b719d29cd6d631534709cc3ec2886eca4897",
+  "prompts": {},
+  "sessions": {
+    "s_d9ecccdb16496d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03b959d9effev00SNORc7M35W1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

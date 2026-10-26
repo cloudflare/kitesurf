@@ -1,0 +1,21 @@
+packages/core/examples/webgl-aquarium.rs
+  s_f977f0f910b2b1::t_fe9e11da336d62 116-122,125-126
+  s_f977f0f910b2b1::t_9acf905ee5b779 123-124
+  s_f977f0f910b2b1::t_13fe3bc5704c4c 127-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "266584ccd5330a47433fd80d7aec4678817bc680",
+  "prompts": {},
+  "sessions": {
+    "s_f977f0f910b2b1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb817b8e3ffemNhmAdrY3UMtPl",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+packages/core/src/sticky.rs
+  s_a2feeea1972b1e::t_681610536cf8a2 239-241,244
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_a2feeea1972b1e::t_43c5d39511a3d8 61-83,130-139,143
+  s_a2feeea1972b1e::t_ba80e84566bb02 140-142
+  s_a2feeea1972b1e::t_6c8913efe027c1 144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d944b80aa63ee01baeea6a5d4ebdae889f977dc9",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

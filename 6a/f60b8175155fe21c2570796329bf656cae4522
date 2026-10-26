@@ -1,0 +1,33 @@
+scripts/wpt-retry-bazel.sh
+  s_4ba79f911c93c4::t_ab76ddf6093ff8 9
+  s_4ba79f911c93c4::t_bf8705ade34227 1-8,10-16,26
+  s_4ba79f911c93c4::t_c2debc9e839a4e 17-25
+scripts/ci-wpt-bazel.sh
+  s_4ba79f911c93c4::t_ee8599ca7ca07c 48
+scripts/wpt-bazel-retry.mjs
+  s_4ba79f911c93c4::t_293a577a4596a0 91
+scripts/wpt-draws.mjs
+  s_4ba79f911c93c4::t_f1582bca1868f9 34-38,45
+  s_4ba79f911c93c4::t_b63dce85124f50 44
+  s_4ba79f911c93c4::t_8504c2ac45170a 32-33
+scripts/wpt-retry-bazel.test.mjs
+  s_4ba79f911c93c4::t_6589a4efb4779d 56-63
+  s_4ba79f911c93c4::t_984e49df3c2515 1-55,64
+  s_4ba79f911c93c4::t_32decd1b3f0346 65-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6af60b8175155fe21c2570796329bf656cae4522",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

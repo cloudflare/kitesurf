@@ -1,0 +1,2572 @@
+packages/engine/test/e2e/demos/dynamic-import-bake-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/oopif-render.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/shadow-dom.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/message-channel-task-queue.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/e2e/accessibility-tree-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 8
+packages/engine/test/fixtures-worker/assets/cors-sheet-clean.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/cs-micro-b.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/svg_css_fill_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/network-enable.test.ts
+  s_c6d6a3ac21fe46::t_afc3916b855954 283
+  s_c6d6a3ac21fe46::t_8dec96c69c80c6 1-4
+packages/engine/test/fixtures-worker/assets/external-scripts.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/element/forms/output.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/author-webfont-custody.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/idl-interface-shape.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/page-renderer/package.json
+  s_c6d6a3ac21fe46::t_53b837c88e80e4 5
+packages/engine/test/e2e/global-setup.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/bridge-inherit-v8.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynprobe-leaf2.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-select-cdp-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-baked.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/page-script.ts
+  s_c6d6a3ac21fe46::t_88335d096093c8 350
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/redirect-per-hop-gating.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/load-event-propagation.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/context-lifecycle.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/css-inline-style-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/cors-sheet-same-origin.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/boa-evalless-phase10a.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/form-data-blob-entries.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/canvas-drawimage.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/probe-late.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/astro-island.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/ce-mixin-chunk.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/test/e2e/boa-contextual-class-name.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/wasm-boot.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/box_shadow_blur_accuracy_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/src/eval/denied-outbound.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/e2e/external-outbound.e2e.test.ts
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 8
+packages/engine/test/e2e/demos/oopif-heap-usage.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/tty-wheel-grid.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/iframe-nested-l2.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/svg_descendant_rect_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/seam-plain.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/scene_record.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/e2e/crawl-quick-action.e2e.test.ts
+  s_c6d6a3ac21fe46::t_778ca98eecccf8 45,53-54,56,58-59,62,67,87,91,95,100,105,116,123,142,147,158,165,170,190,198,204,209,221
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 5
+  s_c6d6a3ac21fe46::t_e4e52c72db6e26 52
+packages/dom-shim/src/constants.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/network.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/timer-wheel-foreign-clear.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/wpt-regression-debt.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/mjs-import-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/resource-type-not-page-settable.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/editing/implementation.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/forms/input.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+scripts/build-tracker-list.mjs
+  s_c6d6a3ac21fe46::t_3060713a149543 121-122
+  s_c6d6a3ac21fe46::t_c56bb0afaf3aff 123
+packages/core/src/lib.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/dom-primitives-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/html-classes.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-shared-leaf.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/forms/textarea.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/ce-mixin-late.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe-leaf.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/navigator-send-beacon.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/importmap-early.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/grid-abspos.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/caret-after-typing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/module-registry-tla.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/tty/focus.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/focus_pseudoclass_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/cssom-roundtrip-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/dedicated-worker.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+README.md
+  s_c6d6a3ac21fe46::t_8574bf28e5e611 141-143
+packages/engine/test/css-handler.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/boa-evalless-phase10b.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-fnprops.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g12.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g3.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/lifecycle-async.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/cssom-rule-interfaces.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/renderer-laziness.e2e.test.ts
+  s_c6d6a3ac21fe46::t_8574bf28e5e611 14-15,37
+  s_c6d6a3ac21fe46::t_743506c4291f69 22-23
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/span-sink.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/iframe-content-document-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/script-execution-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-shared-mid.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/cookie-redirect-domain.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/font-face-variable.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/scene_decode.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/bridge-defineproperty.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/boa-evalless-phase7.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/screencast-placeholder-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/no-acao-inline-svg.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/cors-sheet-echo-origin.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/trusted-fetch-metadata.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+.githooks/post-checkout
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/dom-shim/src/element/html-element.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/cors-stylesheets.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/cors-sheet-no-attr.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/events.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/tabs-tab-stops.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/wheel-queue.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/computed-style-reads.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/cookie-samesite-redirect.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/document-referrer.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/seam-runtime.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/test/fixtures-worker/assets/graphprobe/gc2.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/current-script-microtask.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/idl-conformance.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/grid-min-content-floor-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/boa-getter-throws.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/internal-state.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/sticky.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/seam-collections.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/lifecycle-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/iframe-load-order.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/trusted-events.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/boa-interner-reclaim.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/module-init-shim-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/nested-modinit-target.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/test/fixtures-worker/assets/cross-origin-font.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/cookies.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/scene_determinism_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/inner_text_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/walk-module-graph.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/conic-gradient.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/unsafe-bindings.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/resource-quiet-chain.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/window.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/background-reopen-lifecycle.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/legacy-charset-url-encoding.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/runtime-wait-for-selector.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/webkit-box-line-clamp.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-named.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-host-quads.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/text_encoding.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/corp-classic-script.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/incremental-shadow-insert.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/nested_inline_abspos_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/sprite-icons.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fetch-slots.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/accept-encoding.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-selection-paint-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/hostile-timers.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/root-element-metrics.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/wasm-boot.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/clock-floor-stamp-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/events/slotchange.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/mjs-import/child.mjs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/smoke.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/dispatch-env.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/media-text-tracks.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/inline-wasm.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/src/dynamic/fonts.ts
+  s_c6d6a3ac21fe46::t_02b281b7cc5524 1-4
+packages/engine/test/e2e/wasm-panic-unwind.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/table-collapsed-border-spans.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/author-webfont.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_7f6596f1234259 115
+packages/engine/test/e2e/demos/history-shim-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/web-bot-auth.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-input-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/abs-chain-entry.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/core/src/abspos_containing_block_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/forms/submission.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/speculative-prefetch.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/measurement.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/constraint-validity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/xhtml-doctype-parser-routing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/sticky-body-overflow.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/eval/external-outbound.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/domparser-fragment-remove-child.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/event-target-instance-listeners.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/grid-auto-row.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/classic-seed-dep.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/set-content.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/kitesurf.ts
+  s_c6d6a3ac21fe46::t_88335d096093c8 352,418
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-textarea-bidi.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/idl/model.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/canvas-aspect-ratio-hack.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/inline_flow_rect_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-dir-auto-value.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/window-global-scope.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/boa-object-from-page.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/page-script/package.json
+  s_c6d6a3ac21fe46::t_53b837c88e80e4 5
+packages/engine/test/e2e/demos/dom-mutation-events-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/lifecycle-defer.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/msgchannel-modinit.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/canvas2d.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_a9fbe1331a924b 1031
+internal/packages/engine-cf/src/index.ts
+  s_c6d6a3ac21fe46::t_62f44ed06bae13 66-69
+  s_c6d6a3ac21fe46::t_19316e18766577 5-7,13-17,22-29,64-65,70-95,97-134,139-197
+  s_c6d6a3ac21fe46::t_4b3c67168152ae 41-58,135-138
+  s_c6d6a3ac21fe46::t_581be80dfc6286 96
+  s_c6d6a3ac21fe46::t_88335d096093c8 18-21
+packages/engine/test/fixtures-worker/assets/iframe-lazy-no-load-block.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-arity.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/tty_omni.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/media-texttracks.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/inline-style-flush.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/picture-srcset-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/html-instanceof-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/flex-svg-intrinsic.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/event-handler-idl.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/stylo_extraction_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/viewport.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_0a6b9567669321 5-28
+packages/engine/test/e2e/demos/fixed-in-fixed-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/png.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/seam-deferred.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/model-context.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 3-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g18.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/script-navigation-tab.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/reentrant-new-function-scope.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/webfont-link.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/filereader-event-tasks.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/checked_svg_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/svg_currentcolor_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/pushstate-refetch-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/scripts/editing-implementation.mjs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/browser-context.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/page.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_76486913120a60 42
+  s_c6d6a3ac21fe46::t_88335d096093c8 1161
+  s_c6d6a3ac21fe46::t_a5bbfe86b32ab4 2334,4512
+packages/engine/test/e2e/html/canvas-2d.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/cookie-passthrough-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/trust.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/table-anonymous-boxes.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/ws-boot-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+scripts/check-license-headers.test.mjs
+  s_c6d6a3ac21fe46::t_b1861aea7f7369 1-4,8,10-11,13-26,29-48,51-63,66-68,71-85,87-91
+  s_c6d6a3ac21fe46::t_034d979591a4f1 9,12,95-102,105-111
+  s_c6d6a3ac21fe46::t_e640283e855c0c 113-117
+packages/dom-shim/src/util/strings.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/util/scroll-args.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-form-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/bridge-array-lazy.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-instanceof-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/vendor-prefix-style.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/svg-anchor-xlink-href.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/pdf.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/iframe-nested-frame-tree.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/dynamic-behavior-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/navigate-style-script-order.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/canvas-image-bytes.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/tracker-blocklist.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/intersection-observer.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/runtime-compile-script-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/awaited-eval-no-deadline.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/boa-bridge-fidelity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/inserted-script-bake.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/otel.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/forms/fieldset.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-realworld-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/link-onload-media.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/forms-misc-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/external-outbound.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-mid-reexport.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-host-budget.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/eval/next-route-chunks.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-validation-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/resolve.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/current-script.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/mouse-input-fields.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/seam-coll-route.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/page-script/src/paint.ts
+  s_c6d6a3ac21fe46::t_9faa1234aef558 13,87
+packages/engine/test/e2e/no-set-immediate.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/events/dispatch.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/animation_clock_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/onhashchange-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/bridge-dom-fastpath.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/css-computed-style-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+docs/DEPLOYING.md
+  s_c6d6a3ac21fe46::t_8574bf28e5e611 65-66
+packages/engine/test/fixtures-worker/assets/graphprobe/gc6.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/tail-trace-registry.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/import-map.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/unit/caller.test.ts
+  s_c6d6a3ac21fe46::t_01aa23a5606435 10
+packages/core/src/svg_view_fragment_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/eval-during-navigate.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/tag-attributes.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/viewport-drain.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/sticky-root-overflow.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/style.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/dispatch-env.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/tty-todomvc-controls.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/cdp-envelope.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/table.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/web-bot-auth.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/computed-style-used-values.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/counters-ref.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/hit_test_transform_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/page-renderer.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/defer-shim-nested-modinit-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/keyboard-scroll.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/post-load-settle.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/package.json
+  s_c6d6a3ac21fe46::t_581be80dfc6286 26-27
+packages/engine/test/e2e/demos/event-handler-hydration.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/script-gate.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/iframe-detach-before-load.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/cloudflare-env.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_a374a87c5bc788 25-26
+packages/engine/test/fixtures-worker/assets/dynimport-chunk.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/registries.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/css-highlight-api.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/oopif-detach-teardown.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/image-paint.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/svg-sprite-icons.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/svg-paint-fidelity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/interception-abandoned-park.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/boa-call-receiver.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/unit/cdp-client.test.ts
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 7-8
+packages/core/src/pdf_paint.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/iframe-srcdoc.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/font-shaping.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-3
+  s_c6d6a3ac21fe46::t_e86a052dd03afd 5
+packages/engine/test/e2e/html/offset-geometry.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/modules-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/wasm-bake-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/boa-ctx-reentry.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/vertical-scroll-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/css-supports-condition.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/attribution-tail.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/container-queries.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/inspector.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/dripping-image-body.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/expose-function.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/button-descendant-submit.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/boa-seam-collections-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/canvas.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/webfont-probes.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/keyboard-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynprobe-user-b.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/inline-wasm.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/replaced-display-table.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/defer.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/webfont.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/click-selector-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/render_scene_resolve_loop_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/canvas-aspect-ratio-hack.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/oopif-postmessage.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/external-sheet.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/font-face-unicode-range-gating.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/interner-batch-two.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/mutations/observer.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/img-dimensions.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/inline-svg-vertical-align.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/light-dark-color-scheme.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/package.json
+  s_c6d6a3ac21fe46::t_069738a4c9982a 46
+packages/engine/test/e2e/demos/layout-cheap-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/intrinsic-sizing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/link-media-print.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/anchor-positioning-parsing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/xhr-boot-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/layout/cheap.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/xpath.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/raf-wrap-reentrancy.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/range.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/canvas-context-interface.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/check-visibility.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/session-deadlines.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/tracing.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/external-sheet.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/forms-post-submit-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/tty_input.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/canvas-text.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/forms-step-numeric-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/svg-dynamic-text.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/print-media-emulation-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/screencast-partial-image.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/cdp/protocol-extensions.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/boa-import-meta-url.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/diag-spans.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/oopif-runtime-evaluate.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/importmap.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/forms-value-repaint-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/radar_grid_repro_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/element-own-properties.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-cycle-b.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/container_query_image_flush_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-baked-default.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/dom-innerhtml-rebuild-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/lazy-load-event.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/settle-microtask-chain.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/classic-regex-globals.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/awaited-eval-message-channel.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/boa-heap-shape.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/importmeta-chunk.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/stylesheet_anchor_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/module-registry-meta.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/location-assign-navigates.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/sticky.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/document-fonts-ready.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/svg-css-attrs.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/ink_rect_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/page-wrapped-create-element.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/engine-wasm-probe.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/canvas-raw-renderer.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/settle-static.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/otlp-capture-worker.mjs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/settle-chained.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/cookies-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g17.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/bg-image-capture.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/cdp/webmcp.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-child-worker.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/inset-box-shadow.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/isolate-id.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/inline-span-white-space.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/scrollable-overflow-origin.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/color_serialization_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/iframe-euckr-host.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/element/media.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/hostile-global-timers.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+.gitignore
+  s_c6d6a3ac21fe46::t_52a55e303f3914 65
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/tracing-local.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/computed-style-cache.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/slow-document-headers.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-child-blue.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/eval/limit-registry.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/wasm-modules.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/page-renderer-cjk.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/boa_bridge.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/settle-probe.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/transitions.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/runtime.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/webidl.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/canvas-2d-draw.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/cookie-jar-registry.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-radio-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/select-default-submit.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/src/quickactions/forward-headers.ts
+  s_c6d6a3ac21fe46::t_39cc207ed2f532 1
+packages/engine/test/e2e/demos/ce-upgrade-pipeline.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/css-matched-styles-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/img-data-url-load.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/forms/selection.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/sticky-position.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/abs-chain-dep.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/test/e2e/html/script-font-dir.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/scrollintoview-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/accessibility-select-default.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/tla-import-bug.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/shadow-scroll-ownership.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g1.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/cors-sheet-echo-origin.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/html-element-chain.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/lazy-coalesce.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/tty_ansi.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/oopif-prespawn.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/font-heavy.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/damaged_subtree_skip_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/blank-page-document.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynprobe-user-a.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/public-suffix.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/rect.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/read-capped.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/image.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/selection-paint-bridge.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/node_handle_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/sealed-outbound-identity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/tty/stylesheet.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/page-renderer-parity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/inline-box-model.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/boa-concurrent-import-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-host-worker.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/rbi-credit-window.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/engine-memory-accounting.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/tracker-blocklist.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/trusted-fetch-intrinsic.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/unforgeable-location-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/boa-accessor-descriptor.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/collections.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/dom_fastpath.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-alias.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/css-typed-om.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynimport.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/index.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/idl-interface-shape.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-annexb.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-dynamic-host.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/importmap-csp.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/boa-realm-intrinsics.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/interner-batch-one.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/diag-spans.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/eager-slow-load.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/link-media.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/mjs-import/index.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/inner_text.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/svg-sizing.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/layer-budget.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/replay-stub-worker.mjs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/layout/scroll.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/inline-opacity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/rehomed_reach_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-child-red.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/cssom-stub-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynprobe-imports-baked.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/parser.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/iframe-nested-l3.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/img-load-events.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/inline-bidi-direction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/isolate-wall-cap.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/worker-script/package.json
+  s_c6d6a3ac21fe46::t_53b837c88e80e4 5
+packages/engine/test/e2e/demos/skip-speculative-raster.e2e.test.ts
+  s_c6d6a3ac21fe46::t_7f6596f1234259 9-12
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_bd00f08dfd546f 28
+packages/core/src/net.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/counter_damage_gate_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/form-data.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynamic-app.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/oopif-host.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/legacy-event-init.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/modules.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/script-font-dir.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/wba-test-key.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/target.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/embedded.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/scan_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/raf-overrun-frame-gap.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+NOTICE
+  s_c6d6a3ac21fe46::t_3db532f8bc49bd 2,20-23
+  s_c6d6a3ac21fe46::t_4c192eeed82552 24
+packages/engine/test/e2e/cdp-scene-stream.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/page-script-tail.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/prefixed-attribute-writes.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/accessibility.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_4cc9486504a735 10
+packages/engine/test/e2e/boa-null-base-message.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/bridge-construct.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/viewport-drain.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/document-title-svg.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-activation-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/exec-command.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/cookie-jar-registry.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/scene-stream-idle-frames.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/document-kind.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/puppeteer-eval.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/carrier-spans.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/seam-coll-runtime.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/dom-shim/src/input-types.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/tab_expansion_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/css-getstylesheettext-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/idl-conformance.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/network-event-shape-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/contract.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/svg-ratio-sizing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/bench-static.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+package.json
+  s_c6d6a3ac21fe46::t_214fdf8c948e40 34
+packages/dom-shim/src/transitions.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/euckr-form.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/isolate-kill.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/attributes-live-namednodemap.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/src/cdp-client.ts
+  s_c6d6a3ac21fe46::t_39cc207ed2f532 12,17
+packages/engine/test/cors.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/dedicated-workers.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/observability.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/src/admit.ts
+  s_c6d6a3ac21fe46::t_fff0fcd2f6ee8b 4-11,23-28
+packages/core/src/inline_break_index_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/grid_minmax_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/test/e2e/demos/shadow-dir-directionality.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/dom-rect.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-range-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/document.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/hoist_incremental_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynprobe-raf.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/cross-origin-redirect-shell.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/oopif-worker-budget.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-child-postmessage.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/native-function-shape.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/forms/input-state.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/fixed-position-viewport.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/settle-mutation-ticker.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/iframe-cycle.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe-baked.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynprobe-tree-dep.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/iframe-events.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/inserted-script.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/font-face-variable-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/img-src-change.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/seam-plain-route.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/test/fixtures-worker/assets/lifecycle.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/forms-textarea-default-paint.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+docs/TRACING.md
+  s_c6d6a3ac21fe46::t_8574bf28e5e611 34,37,45
+packages/engine/src/eval/outbound.ts
+  s_c6d6a3ac21fe46::t_b345f67e98ac6b 1831-1835
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_88335d096093c8 1029,1070
+packages/engine/test/e2e/link-onload-media.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/screenshot.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/table-caption-sizing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/inner-text-getter.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/oversize-document.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/shadow.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/svg-sprite-sidebar.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g16.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-child-quads.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe-ce.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/svg-css-attribute-values.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/screencast-viewport-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/cdp-read.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/flex-wrap-stretch-fit.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/settle-timer-ticker.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/svg_geometry_properties_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/font-face-unicode-range.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/tracked.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/boa-seam-identity-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/fonts.rs
+  s_c6d6a3ac21fe46::t_01e61c61fcea84 2170
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/dedicated-worker.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/inline-wasm-bake.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/html-encoding.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/iframe-frame-tree-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/oversize-body-streams.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/dom-parser-dataset.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/img-dimensions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/mc-conformance.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/forms/label.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/absolute-path-import-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/classic-seed-walk.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/inline-bidi-isolation.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/inline-box-baseline-shift.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/percent-margin.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/traversal.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 3-6
+packages/engine/src/cdp/network-events.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/animation_fill_mode_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/wasm.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/redirect-walk.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/classic-computed-import.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/canvas-text-upgrade.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/screencast-pipeline-order.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/text-fill-color.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/keyboard.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/dom-mutate2-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/accessibility-live-select.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/late-timer-image-load.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/tldraw-app-shell.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-host-color-swap.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/regular.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/page-script/src/font-loader.ts
+  s_c6d6a3ac21fe46::t_583b0293b91320 591
+packages/engine/test/e2e/demos/css-stylesheet-added-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/node-base.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/svg-dash-stroke.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/fastpath.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/iframe-location-relative.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/gc4.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/document-types.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/boa-evalless-phase1.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/anchor-invalid-url-protocol.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/sticky_reset_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/event-listener-fixes-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/hit_test_paint_order_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/local-tracing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/angular_snapshot.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/cssom-page-rules.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/prefetch-scripts.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/data_uri_bg_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/test/e2e/idl-conformance.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/unit/quickaction.test.ts
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 12,21-26,1558,1575,1601,1621,1638,1665,1674,1698
+  s_c6d6a3ac21fe46::t_01aa23a5606435 16
+packages/engine/test/e2e/timer-wheel.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/svg_zero_viewbox_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/transition-reused-node-slot.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/tty_grid.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/grid-auto-row-content-size.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/matchmedia-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+scripts/generate-webidl-bindings.mjs
+  s_c6d6a3ac21fe46::t_3060713a149543 80-83
+  s_c6d6a3ac21fe46::t_bde2843bc47c45 1-4
+docs/PAGE_RENDERER.md
+  s_c6d6a3ac21fe46::t_8574bf28e5e611 90-94
+packages/core/src/glyph_cache_panic_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/navigation-fidelity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/index.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/inserted-bake.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/src/dynamic/http-responses.ts
+  s_c6d6a3ac21fe46::t_9573afe5e29228 5-6,8,12,14-15,17,21,25-27,29,31,38,41-42,45
+  s_c6d6a3ac21fe46::t_4cc9486504a735 46
+  s_c6d6a3ac21fe46::t_65280bdad24024 1-4
+packages/dom-shim/src/text-encoding.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/transform_2d_subset_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/contenteditable-typing.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/window-computed-style-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/util/validation.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/tty/stylesheet.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-6
+  s_c6d6a3ac21fe46::t_b80b4b62461326 1
+packages/engine/test/document-kind.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/table-fixup.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/invalid-selector-throws.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/iframe-bitmap-paint.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/tab-focus.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/svg-sprite-sidebar.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/tests_data/radar-page.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
+  s_c6d6a3ac21fe46::t_7f6596f1234259 79
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/css-counters.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/cors-sheet-redirect.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/absolute-path-transitive-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/cors-sheet-no-acao.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/entity-parse-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+docs/SCRIPT_LOADING.md
+  s_c6d6a3ac21fe46::t_8574bf28e5e611 34
+packages/engine/test/e2e/inline-visibility-hidden.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/css-external-sheets-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/iframe-reinsert.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g4.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/pixel-free-shaping-fonts.e2e.test.ts
+  s_c6d6a3ac21fe46::t_7f6596f1234259 77
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/text-fill-color.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/boa-evalless-phase4.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/svg-document-render.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/prefetch-wasm.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/input.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/page-renderer-emoji.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/late-timer-insert.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/style-property-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/clip-regions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/inner-text-getter.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe-leaf3.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/tracker-blocklist.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_4cc9486504a735 15-16
+packages/dom-shim/src/event-handler-names.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g10.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/element-scroll-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/package.json
+  s_c6d6a3ac21fe46::t_53b837c88e80e4 5
+packages/dom-shim/src/element/svg.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/forms/select-options.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/opaque-image-render.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/images-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/fetch-interception.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g19.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/seam-route.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/offset-geometry.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/screencast-partial-image.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/external-scripts-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/canvas-detached-append.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/float_cache_incremental_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/lazy-coalesce.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/element/forms/validity.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/sentry.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/image-dims.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynprobe.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/png.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/engine-routes.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/host.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/cssom-counter-style-rule.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/svg-dynamic-text-upgrade.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+Cargo.toml
+  s_c6d6a3ac21fe46::t_e65ff9557039c6 4
+packages/engine/test/fixtures-worker/assets/tla-import-helper.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/page-renderer-pdf.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/white-space-pre-line.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/accessibility.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe-raf-wrap.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c6d6a3ac21fe46::t_9573afe5e29228 10,48
+  s_c6d6a3ac21fe46::t_ef455cd77e0354 1-4
+packages/engine/test/e2e/text-setters.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/blank-page-fetch.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/box_decorations_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/subtlecrypto-generatekey-errors.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/fetch-slot-order.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/module-registry.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/cdp/outbound-filter-registry.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/frames.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-child-color-swap.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/agent-control.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/mutation-settle-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/svg-shape-client-rect.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynimport-var.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g5.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/absolute-path-import.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/canvas2d.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/inline-script.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/page-renderer-screencast.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/debugger.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/e2e/links-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 5
+packages/engine/test/e2e/demos/dom-eval-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/reload-loop.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/pseudo-text-font-arrival.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g8.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/jsrpc-types/package.json
+  s_c6d6a3ac21fe46::t_53b837c88e80e4 5
+packages/engine/src/cdp/connection.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_88335d096093c8 349,356
+packages/engine/src/eval/learned-scripts.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/canvas-2d-draw-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/eval-report.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/percent-margin-basis.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/custom-element-attributes.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-formdata-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/gc1.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/range-live-mutation-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/load-events.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/cascade_panic_recovery_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/carrier-spans.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/bridge-pin-identity.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/boa_panic_recovery_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/css-transitions.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/calc_resolution_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/hoisted-inline-rebreak.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/lazy-load-event.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/layout-test-helpers.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynprobe-classic.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/mutations/attached.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/absolute-path-transitive.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/core-wasm-worker.mjs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/svg-overflow-clip.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/render-features.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/tty/nav-params.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g9.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/agent-landing.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/scene_replay.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/fetch-interception.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/inline-style-attribute-resync.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/script-bundle.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-var.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/abs-chain-root.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/test/e2e/demos/img-load-events-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/harness.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/webmcp-declarative.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/webfont-face.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/mouse-move-debounce-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/xpath.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/event-handlers.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/tracker-iframes.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/boa_eval.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/boa-evalless-phase2.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-mid-star.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g6.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/page-script-generation.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/blob-mime-type.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/pdf-image-smoke.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/cdp-input-and-box-model.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/iframe-location-invalid-assignment.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/classic-seed-chunk.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/custom-element-import-node.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/shadow-dom.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/css-ua-styles-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/css-typed-om.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/e2e/entry.ts
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 1
+packages/engine/test/e2e/demos/conic-gradient.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g2.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/cors.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/detached-wrappers.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/cssom-atrule-mirror.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/iframe-child.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/element/forms/form.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/bridge-defineprop.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/pdf-break-properties.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/src/external-session.ts
+  s_c6d6a3ac21fe46::t_39cc207ed2f532 7,13-14,19,24-25
+packages/core/src/ks_tracing.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/location-mutate-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/link-media-scope.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/perf-timing-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/unsafe-now.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/boa-evalless-phase3.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/mc-conformance.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/cdp/dedicated-workers.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/attribution-tail.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/cookies.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/hit-test-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/stale-node-matches.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/e2e/html-font-defer.e2e.test.ts
+  s_c6d6a3ac21fe46::t_7f6596f1234259 4
+packages/engine/test/e2e/domexception-binding-shape.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/connect.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/shadow_dom_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/tty-nav-params-page-initiated.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/iframe-dynamic-cdp-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/classic-seed-boot.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/cs-micro-a.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynamic-app-mod.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/element.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/iframe-load-order.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/storage-cookies.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/anonymous-block-style-flush.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/iframe-dom-reclaim.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/window-constructors.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/range-contextual-fragment.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/module-registry-lib.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/canvas-natural-size.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/tla-import-iife-fix-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/select-dropdown.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/hello.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/unit/crawl.test.ts
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 3-5
+packages/engine/test/e2e/element-measurement.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g15.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/tty/stylesheet-level2.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+internal/packages/engine-cf/test/unit/ax-serialize.test.ts
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 19
+packages/engine/test/e2e/demos/auto-navigate-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/settle-late-timer.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/redirect-gate-deep.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/cdp/css.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/fixed-position.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe-tree.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/pdf-page-margins.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/selection-api.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/script-gate/package.json
+  s_c6d6a3ac21fe46::t_53b837c88e80e4 5
+packages/engine/test/fixtures-worker/assets/inserted-script.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+internal/packages/engine-cf/test/e2e/quickaction-containment.e2e.test.ts
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 29
+packages/dom-shim/src/file-input.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/oopif-quads-paint.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/concimport.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/bg-image-capture.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynprobe-graph.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/module-registry.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/seam-plain-runtime.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/test/fixtures-worker/assets/classic-seed.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/gc5.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/window-page-functions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/inline_block_border_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/oopif-late-spawn.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/target-dom-reclaim.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/cs-microtask.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/external-module.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/iframe-bitmap.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/tty_modes.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/dispatch.ts
+  s_c6d6a3ac21fe46::t_76486913120a60 31
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/font-face-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/raw-text-inner-html.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/offscreen-canvas-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/iframe-host.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/hostile-timers.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/interner-broken.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/css-inherited-styles-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/redirect-gate.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/devtools-elements-live-update-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/positioned-root-hoist.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/src/quickactions/render-session.ts
+  s_c6d6a3ac21fe46::t_76486913120a60 4-10,23
+packages/engine/test/e2e/demos/oopif-elements-panel.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/svg-overflow-clip.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/gc3.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/legacy-charset-sheet.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/rbi.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/boa-finally-stack.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/float_with_trailing_comment_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/e2e/cloudflare-env.ts
+  s_c6d6a3ac21fe46::t_01aa23a5606435 5
+  s_c6d6a3ac21fe46::t_b09e11d7452d97 3-4,6-19,24-33
+packages/engine/test/e2e/event-handler-idl.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/runtime-remote-object-classname.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/oopif-host-postmessage.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/egress-tripwire-worker.mjs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/rate-limit.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-3
+  s_c6d6a3ac21fe46::t_fff0fcd2f6ee8b 25-27,30,75
+packages/engine/test/e2e/floating-popup.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/mouse-events-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/e2e/scrape-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 4
+packages/engine/test/e2e/html/counters.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/dom-shim/src/element/forms/button.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/page-renderer-relaunch.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/absolute-path-target.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 2-5
+packages/engine/test/e2e/demos/network-extra-headers-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/hit_test_pointer_events_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/hit_test_block_axis_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/record.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/entity-parse.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/cdp/types.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+  s_c6d6a3ac21fe46::t_261e3a13894f6e 221,228
+packages/engine/test/e2e/demos/style-media-attr-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/fixture-script-escaping.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/state.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/float-layout-regressions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/reflect.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/page-script/src/resource-fetch.ts
+  s_c6d6a3ac21fe46::t_fd62ee573a003f 32
+packages/engine/test/e2e/demos/top-level-await-fetch-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/fixtures-binding.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/waits.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/no-cors-opaque.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/dom.ts
+  s_c6d6a3ac21fe46::t_2cd70fe2bbd21c 542
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/canvas-detached-append.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/importmap-lazy.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/corner-shape-paint.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/boa-seam-plain-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/cors-bypass-matrix.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-select-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/async.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/font-face.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+scripts/check-license-headers.mjs
+  s_c6d6a3ac21fe46::t_214fdf8c948e40 6,8,242
+  s_c6d6a3ac21fe46::t_4866f521ae52ca 115-126,129-137,140-141,143-145,147-151,153-154,180-184
+  s_c6d6a3ac21fe46::t_e640283e855c0c 142
+  s_c6d6a3ac21fe46::t_b1861aea7f7369 1-3,7,10-30,35-37,42-45,58-59,62-64,66-84,156-165,167,170-179,186,188-193,195-202,204,207-212,215-216,219-225,228-233,235-241,243-250,252,255-256
+  s_c6d6a3ac21fe46::t_5eb75afef95279 46,56,60-61,87-101,103-112,168
+packages/engine/test/fixtures-worker/assets/module-registry-sheet.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/cdp/scene-stream.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/event-own-properties.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html/text-setters.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/inserted-script-globals.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/theme-flip-repaint.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/page-script/src/wasm-glue.ts
+  s_c6d6a3ac21fe46::t_a66bfbd12db2dd 176
+packages/dom-shim/src/mutations/seq.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/forms-file-input-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/accessibility-parity.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/text-input-caret-font.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/network-ua-override-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/iframe-nested-l1.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/scan.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+docs/NETWORKING.md
+  s_c6d6a3ac21fe46::t_8574bf28e5e611 92-94,124-126,148-150
+packages/core/src/paint_damage_layout_cache_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/network-stylesheet-headers-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/outbound-forward.test.ts
+  s_c6d6a3ac21fe46::t_afc3916b855954 6
+  s_c6d6a3ac21fe46::t_2bd02c22445dab 1-4
+packages/engine/test/e2e/fetch-init-headers.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/tty-css-preview/package.json
+  s_c6d6a3ac21fe46::t_53b837c88e80e4 5
+packages/engine/test/e2e/bridge-pin-stats.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/e2e/quickaction-body-retention.e2e.test.ts
+  s_c6d6a3ac21fe46::t_a374a87c5bc788 6-9
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 5
+packages/core/src/has_invalidation_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/inserted-bake.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/tla-import-fix.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/cross-origin-nav-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/resource-store.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/css-block.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/graphprobe/g7.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/rbi-protocol.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/gateway-font-shaping.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/rbi_image_cache_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/fetch-priority-probe.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/forms-selection-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g11.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/header-intrinsic-tamper.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/kitesurf-cli/package.json
+  s_c6d6a3ac21fe46::t_53b837c88e80e4 5
+packages/dom-shim/src/element/forms/listed.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/svg_sprite_use_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/iframe-legacy-charset.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/nested-modinit.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/inserted-ok.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/eval/worker-budget.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/oopif-rerender.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/inline_break_restore_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/astro-island-component.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/shaping-metrics.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/dynprobe-shared.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/children-options-sameobject.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-obj.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/cssom-insert-rule-cascade.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/boa-evalless-phase11.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/pdf-css-bg-smoke.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/cdp/network-events-registry.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/svg-geometry-length.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/img-srcset-reload-complete.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/events/event.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/script-inserted-text-fonts.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/events-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/html-raw.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+internal/packages/engine-cf/test/e2e/snapshot-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_f7780a450a81c3 4
+packages/engine/test/e2e/demos/forms-select-dropdown-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/bench-canvas.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/demos/webrtc-stub-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/aria.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/index.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/link-media-screen.css
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/session-outbound.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/tty_cell_grid_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/dom-attribute-namespace-wire.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/interface-own-properties.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/agent-reloading.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/cookies.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/graphprobe/g-dep-default.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/rbi-navigation-damage.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/svg_natural_size_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/transition-settles-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/forms/meter.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/fetch.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/forms/select.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/forms/labelable.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/redirect-gate-xo.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/core/src/svg_mutation_resnapshot_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/page-script/src/index.ts
+  s_c6d6a3ac21fe46::t_4a04308ee87a1c 193
+packages/engine/test/e2e/eval-across-navigation.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/screenshot-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/detached-node-reclaim.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/grid-abspos-static-position.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/pseudo-computed-style.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/typed-input-value-tracker.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/style-churn-memory.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/element/interfaces.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/page-session.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/link-onload-media.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/fixtures-worker/assets/http-response-page.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+  s_c6d6a3ac21fe46::t_9573afe5e29228 11-13,20,28
+packages/engine/test/fixtures-worker/assets/graphprobe/g-cycle-a.js
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/accessibility.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/font-face-unicode-range-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/dynprobe-arity.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/test/e2e/abspos-escapes-overflow-clip.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/demos/boa-evalless-phase9.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/src/cdp/dom-release.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/e2e/stylo-layout-misc-values.e2e.test.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/core/src/abs_filters_width_test.rs
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/engine/test/fixtures-worker/assets/latin1-sheet.html
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-6
+packages/engine/src/cdp/runtime.ts
+  s_c6d6a3ac21fe46::t_2b00ad4f258364 1-4
+packages/dom-shim/src/css-typed-om.webidl.generated.ts
+  s_c6d6a3ac21fe46::t_d5d5e9eb50e3b0 1-4
+packages/dom-shim/src/idl/model.generated.ts
+  s_c6d6a3ac21fe46::t_251b5fd38186db 1-4
+packages/dom-shim/src/idl/runtime.generated.ts
+  s_c6d6a3ac21fe46::t_8cefd985bfe2d1 1-4
+packages/dom-shim/src/idl/types.generated.ts
+  s_c6d6a3ac21fe46::t_6cbc4b13354629 1-4
+packages/engine/src/eval/tracker-list.generated.ts
+  s_c6d6a3ac21fe46::t_f19671f219a44f 1-3
+packages/engine/test/fixtures-worker/assets/webmcp-module.html
+  s_c6d6a3ac21fe46::t_3b6ce840e329e0 1-6
+packages/engine/test/fixtures-worker/assets/webmcp-tools.html
+  s_c6d6a3ac21fe46::t_c795b0ab0a488a 1-6
+packages/engine/test/fixtures-worker/assets/worker-at-load.html
+  s_c6d6a3ac21fe46::t_dee6bdcc852802 1-6
+packages/engine/test/fixtures-worker/assets/worker-echo.js
+  s_c6d6a3ac21fe46::t_9f8d369c6c598b 1-4
+packages/engine/test/fixtures-worker/assets/worker-host.html
+  s_c6d6a3ac21fe46::t_16a698d274ac95 1-6
+packages/engine/test/fixtures-worker/assets/ws-boot.html
+  s_c6d6a3ac21fe46::t_cb44af41377782 1-6
+packages/engine/test/fixtures-worker/assets/xhr-boot.html
+  s_c6d6a3ac21fe46::t_94fad109b9bd3c 1-6
+packages/engine/test/fixtures-worker/assets/xhr-boot.js
+  s_c6d6a3ac21fe46::t_a105335b769308 1-4
+packages/engine/test/fixtures-worker/src/dynamic/bench.ts
+  s_c6d6a3ac21fe46::t_c98bee9b13b01b 1-4
+packages/engine/test/fixtures-worker/src/dynamic/cors.ts
+  s_c6d6a3ac21fe46::t_053ff4661bf5f6 1-4
+packages/engine/test/fixtures-worker/src/dynamic/documents.ts
+  s_c6d6a3ac21fe46::t_8f11801529ae2b 1-4
+packages/engine/test/fixtures-worker/src/dynamic/frames.ts
+  s_c6d6a3ac21fe46::t_cf0732d5b9f43c 1-4
+packages/engine/test/fixtures-worker/src/dynamic/scripts.ts
+  s_c6d6a3ac21fe46::t_8fa96104cf67e6 1-4
+packages/engine/test/fixtures-worker/src/dynamic/slow.ts
+  s_c6d6a3ac21fe46::t_b3f54bd2379785 1-4
+packages/engine/test/fixtures-worker/src/dynamic/ws-echo.ts
+  s_c6d6a3ac21fe46::t_aacb780e81b127 1-4
+packages/engine/test/fixtures-worker/src/index.ts
+  s_c6d6a3ac21fe46::t_4b2d5d8d64d5ba 1-4
+packages/engine/test/fixtures-worker/src/png.ts
+  s_c6d6a3ac21fe46::t_118bb720382ac0 1-4
+packages/engine/test/fixtures-worker/src/snapshot.ts
+  s_c6d6a3ac21fe46::t_ee568daacd0690 1-4
+packages/engine/test/fixtures-worker/src/static.ts
+  s_c6d6a3ac21fe46::t_18574de08d76e3 1-4
+packages/engine/test/fixtures-worker/src/util.ts
+  s_c6d6a3ac21fe46::t_21f29e350fdef2 1-4
+packages/engine/test/frame-domain-and-registry.test.ts
+  s_c6d6a3ac21fe46::t_a803dc6904d435 1-4
+packages/engine/test/image-dims.test.ts
+  s_c6d6a3ac21fe46::t_e095ee18274324 1-4
+packages/engine/test/inspector.test.ts
+  s_c6d6a3ac21fe46::t_1437740da3ce56 1-4
+packages/engine/test/isolate-id.test.ts
+  s_c6d6a3ac21fe46::t_87ad0855c291cd 1-4
+packages/engine/test/learned-scripts.test.ts
+  s_c6d6a3ac21fe46::t_8645a72a8e1582 1-4
+packages/engine/test/module-eval-scope-probe.test.ts
+  s_c6d6a3ac21fe46::t_dd8e057bbfe497 1-4
+packages/engine/test/native-functions-walk.test.ts
+  s_c6d6a3ac21fe46::t_2e9f575973916e 1-4
+packages/engine/test/network-events-body-budget.test.ts
+  s_c6d6a3ac21fe46::t_fe11de7f9e0e6e 1-4
+packages/engine/test/next-route-chunks.test.ts
+  s_c6d6a3ac21fe46::t_15a9d2fd0e9e4b 1-4
+packages/engine/test/page-renderer-timeout.test.ts
+  s_c6d6a3ac21fe46::t_272d8c2c0f750a 1-4
+packages/engine/test/page-script-cache-key.test.ts
+  s_c6d6a3ac21fe46::t_2df5f76b690f5b 1-4
+packages/engine/test/page-script-generation.test.ts
+  s_c6d6a3ac21fe46::t_9a817232edf389 1-4
+packages/engine/test/page-script-rpc-session.test.ts
+  s_c6d6a3ac21fe46::t_4f5df193d1a7c3 1-4
+packages/engine/test/page-session.test.ts
+  s_c6d6a3ac21fe46::t_5af4a222e4b86f 1-4
+packages/engine/test/proxy-redirect.test.ts
+  s_c6d6a3ac21fe46::t_d856a4707b96f3 1-4
+packages/engine/test/rbi-heartbeat.test.ts
+  s_c6d6a3ac21fe46::t_b55a6d1e2c891c 1-4
+packages/engine/test/rbi-pacing.test.ts
+  s_c6d6a3ac21fe46::t_3cc62bf8c579a7 1-4
+packages/engine/test/rbi-resource-batch.test.ts
+  s_c6d6a3ac21fe46::t_760086cf7b7f91 1-4
+packages/engine/test/read-capped.test.ts
+  s_c6d6a3ac21fe46::t_b9822179a30a7c 1-4
+packages/engine/test/redirect-walk.test.ts
+  s_c6d6a3ac21fe46::t_2d665f46d66f55 1-4
+packages/engine/test/resource-store.test.ts
+  s_c6d6a3ac21fe46::t_425ade5ced823d 1-4
+packages/engine/test/script-bundle-runtime.test.ts
+  s_c6d6a3ac21fe46::t_cabeeff8a4d37c 1-4
+packages/engine/test/script-bundle.test.ts
+  s_c6d6a3ac21fe46::t_fbf86dc6a0691a 1-4
+packages/engine/test/sentry-tail.test.ts
+  s_c6d6a3ac21fe46::t_e2b42e74eb5097 1-4
+packages/engine/test/target-close.test.ts
+  s_c6d6a3ac21fe46::t_50e8574dd30283 1-4
+packages/engine/test/tracing-local.test.ts
+  s_c6d6a3ac21fe46::t_7b0fca017934af 1-4
+packages/engine/test/tty-nav-params.test.ts
+  s_c6d6a3ac21fe46::t_99c807d87d8954 1-4
+packages/engine/test/tty-stylesheet.test.ts
+  s_c6d6a3ac21fe46::t_d2f009c60fcd01 1-4
+packages/engine/test/ua-override.test.ts
+  s_c6d6a3ac21fe46::t_bd0ef17fe4c403 1-4
+packages/engine/test/unsafe-now.test.ts
+  s_c6d6a3ac21fe46::t_96da36e3b919cb 1-4
+packages/engine/test/walk-module-graph.test.ts
+  s_c6d6a3ac21fe46::t_e090e1b07dbd7d 1-4
+packages/engine/test/web-bot-auth.test.ts
+  s_c6d6a3ac21fe46::t_2c7adbd0914286 1-4
+packages/engine/test/wheel-queue.test.ts
+  s_c6d6a3ac21fe46::t_bde41cb07462b9 1-4
+packages/engine/test/worker-budget.test.ts
+  s_c6d6a3ac21fe46::t_dca84f748552d8 1-4
+packages/engine/vitest.config.mts
+  s_c6d6a3ac21fe46::t_1f139d5460413c 1-4
+packages/engine/vitest.e2e.config.mts
+  s_c6d6a3ac21fe46::t_b631684a95e6d1 1-4
+packages/jsrpc-types/src/dedicated-worker.ts
+  s_c6d6a3ac21fe46::t_0943d8021110a4 1-4
+packages/jsrpc-types/src/page-renderer.ts
+  s_c6d6a3ac21fe46::t_714d91fa8ecc90 1-4
+packages/jsrpc-types/src/query-dom.ts
+  s_c6d6a3ac21fe46::t_e06f789f80645b 1-4
+packages/jsrpc-types/src/shared.ts
+  s_c6d6a3ac21fe46::t_5955b2ba5c7ec7 1-4
+packages/kitesurf-cli/src/access.rs
+  s_c6d6a3ac21fe46::t_7813d39366b8c9 1-4
+packages/kitesurf-cli/src/cli.rs
+  s_c6d6a3ac21fe46::t_45976d81402633 1-4
+packages/kitesurf-cli/src/main.rs
+  s_c6d6a3ac21fe46::t_87d414594b2b1b 1-4
+packages/kitesurf-cli/src/wasm.rs
+  s_c6d6a3ac21fe46::t_e064fec92c5464 1-4
+packages/page-renderer/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_37c764089f6f16 1-4
+packages/page-renderer/src/index.ts
+  s_c6d6a3ac21fe46::t_a0082eb65d9534 1-4
+packages/page-renderer/src/shims.ts
+  s_c6d6a3ac21fe46::t_ded7ec4290f846 1-4
+packages/page-renderer/src/wasm-glue.ts
+  s_c6d6a3ac21fe46::t_5ac444be4677f5 1-4
+packages/page-renderer/test/types.contract.ts
+  s_c6d6a3ac21fe46::t_66cbed00230289 1-4
+packages/page-script/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_6d896894eb1996 1-4
+packages/page-script/src/__ks_import_map.ts
+  s_c6d6a3ac21fe46::t_ec15d1e67ac87d 1-4
+packages/page-script/src/__ks_user_classic_async.ts
+  s_c6d6a3ac21fe46::t_3b956f0e275bf3 1-4
+packages/page-script/src/__ks_user_classic_regular.ts
+  s_c6d6a3ac21fe46::t_ea4d6c5aadf876 1-4
+packages/page-script/src/__ks_wasm_registry.ts
+  s_c6d6a3ac21fe46::t_3bd07ef41036ba 1-4
+packages/page-script/src/boa-classic.ts
+  s_c6d6a3ac21fe46::t_b682bf0b510d2c 1-4
+packages/page-script/src/cdp-nodes.ts
+  s_c6d6a3ac21fe46::t_ef67f492274d2d 1-4
+packages/page-script/src/console-buffer.ts
+  s_c6d6a3ac21fe46::t_d6335e8ae5fa3e 1-4
+packages/page-script/src/contenteditable-input.ts
+  s_c6d6a3ac21fe46::t_17d2c2268657e2 1-4
+packages/page-script/src/dedicated-worker.ts
+  s_c6d6a3ac21fe46::t_0c2c39b82eac8c 1-4
+packages/page-script/src/defer-shim.ts
+  s_c6d6a3ac21fe46::t_e02467d30dec54 1-4
+packages/page-script/src/dom-shim.ts
+  s_c6d6a3ac21fe46::t_d96292ac9936dd 1-4
+packages/page-script/src/engine-error.ts
+  s_c6d6a3ac21fe46::t_3539e434f4c46e 1-4
+packages/page-script/src/eval-helpers.ts
+  s_c6d6a3ac21fe46::t_3eed9ca1f09b61 1-4
+packages/page-script/src/eval-results.ts
+  s_c6d6a3ac21fe46::t_87cf3d548fdba3 1-4
+packages/page-script/src/exception-buffer.ts
+  s_c6d6a3ac21fe46::t_1b2ed331a180b7 1-4
+packages/page-script/src/fetch-shim.ts
+  s_c6d6a3ac21fe46::t_d79392f622df74 1-4
+packages/page-script/src/fetch-slots.ts
+  s_c6d6a3ac21fe46::t_4a7df3729a319f 1-4
+packages/page-script/src/globals.ts
+  s_c6d6a3ac21fe46::t_117e262b282521 1-4
+packages/page-script/src/handles.ts
+  s_c6d6a3ac21fe46::t_8b736a5fdf993f 1-4
+packages/page-script/src/indexeddb.ts
+  s_c6d6a3ac21fe46::t_98a3654c270693 1-4
+packages/page-script/src/init-shims.ts
+  s_c6d6a3ac21fe46::t_fcb3d85b2a9876 1-4
+packages/page-script/src/inserted-scripts.ts
+  s_c6d6a3ac21fe46::t_d13eb1391d4c73 1-4
+packages/page-script/src/internal-state.ts
+  s_c6d6a3ac21fe46::t_dcce6a05ef4af6 1-4
+packages/page-script/src/intersection-observer.ts
+  s_c6d6a3ac21fe46::t_da81fae47c9292 1-4
+packages/page-script/src/lag-monitor.ts
+  s_c6d6a3ac21fe46::t_35d3b4523587e7 1-4
+packages/page-script/src/message-channel.ts
+  s_c6d6a3ac21fe46::t_ff114e4d775a3d 1-4
+packages/page-script/src/mime-type.ts
+  s_c6d6a3ac21fe46::t_e9b9e25b171713 1-4
+packages/page-script/src/native-functions.ts
+  s_c6d6a3ac21fe46::t_36694c1ff23cc5 1-4
+packages/page-script/src/native-http.ts
+  s_c6d6a3ac21fe46::t_4aece54baa8dde 1-4
+packages/page-script/src/native-scheduling.ts
+  s_c6d6a3ac21fe46::t_91e2b23315d537 1-4
+packages/page-script/src/pack.ts
+  s_c6d6a3ac21fe46::t_ff5b78585c7053 1-4
+packages/page-script/src/page-tasks.ts
+  s_c6d6a3ac21fe46::t_1c152813da385b 1-4
+packages/page-script/src/scheduler.ts
+  s_c6d6a3ac21fe46::t_b3366d22c84dab 1-4
+packages/page-script/src/script-policy.ts
+  s_c6d6a3ac21fe46::t_9a38d51fe69bd2 1-4
+packages/page-script/src/scripts.ts
+  s_c6d6a3ac21fe46::t_7c3baaf0d70b33 1-4
+packages/page-script/src/selectors.ts
+  s_c6d6a3ac21fe46::t_fe08ed208a2643 1-4
+packages/page-script/src/session-methods.ts
+  s_c6d6a3ac21fe46::t_c353f4e473dffe 1-4
+packages/page-script/src/session-outbound.ts
+  s_c6d6a3ac21fe46::t_8dcde35d7b61bf 1-4
+packages/page-script/src/shared-memory.ts
+  s_c6d6a3ac21fe46::t_a88065c3fef1b0 1-4
+packages/page-script/src/shims.ts
+  s_c6d6a3ac21fe46::t_f451a178b624c7 1-4
+packages/page-script/src/state.ts
+  s_c6d6a3ac21fe46::t_a8f4f2f7e3a765 1-4
+packages/page-script/src/svg-sprites.ts
+  s_c6d6a3ac21fe46::t_4def505d4ccb6f 1-4
+packages/page-script/src/transitions.ts
+  s_c6d6a3ac21fe46::t_079d4d6488dea0 1-4
+packages/page-script/src/trusted-fetch.ts
+  s_c6d6a3ac21fe46::t_d0e227333417b9 1-4
+packages/page-script/src/types.ts
+  s_c6d6a3ac21fe46::t_09afda922c20b2 1-4
+packages/page-script/src/wasm-baked.ts
+  s_c6d6a3ac21fe46::t_eb37890c611497 1-4
+packages/page-script/src/websocket.ts
+  s_c6d6a3ac21fe46::t_2487ccd91e399c 1-4
+packages/renderer-core/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_cb1d54abfc8af2 1-4
+packages/renderer-core/src/lib.rs
+  s_c6d6a3ac21fe46::t_b673cbef7e28ef 1-4
+packages/scene-host-wasm/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_0b647e93a53a6a 1-4
+packages/scene-host-wasm/src/lib.rs
+  s_c6d6a3ac21fe46::t_f90ad66e26b473 1-4
+packages/scene-host-wasm/test/abi.test.mjs
+  s_c6d6a3ac21fe46::t_0c338c592b2581 1-4
+packages/script-gate/src/classic-scan.ts
+  s_c6d6a3ac21fe46::t_c88df07b486f22 1-4
+packages/script-gate/src/csp.ts
+  s_c6d6a3ac21fe46::t_aa38cb14089f69 1-4
+packages/script-gate/src/digest.ts
+  s_c6d6a3ac21fe46::t_49c4a220caa9ed 1-4
+packages/script-gate/src/gate.ts
+  s_c6d6a3ac21fe46::t_ac3d8d04992ec9 1-4
+packages/script-gate/src/gateway-headers.ts
+  s_c6d6a3ac21fe46::t_9ceeb8668b1828 1-4
+packages/script-gate/src/index.ts
+  s_c6d6a3ac21fe46::t_d3f709e7dbe5d1 1-4
+packages/script-gate/src/mime.ts
+  s_c6d6a3ac21fe46::t_7686b06a515bb8 1-4
+packages/script-gate/src/sri.ts
+  s_c6d6a3ac21fe46::t_8bf4c63aebb090 1-4
+packages/script-gate/test/classic-scan.test.ts
+  s_c6d6a3ac21fe46::t_8bb8c23e9f3b25 1-4
+packages/script-gate/test/digest.test.ts
+  s_c6d6a3ac21fe46::t_5819afa69c85e9 1-4
+packages/script-gate/test/gate.test.ts
+  s_c6d6a3ac21fe46::t_4fa4b3eefadfb6 1-4
+packages/tty-css-preview/extension/background.js
+  s_c6d6a3ac21fe46::t_46e28ef68075cc 1-4
+packages/tty-css-preview/extension/content.js
+  s_c6d6a3ac21fe46::t_74e235e9084881 1-4
+packages/tty-css-preview/extension/fallback-level1.css
+  s_c6d6a3ac21fe46::t_b9b0f3278008d4 1-6
+packages/tty-css-preview/extension/fallback-level2.css
+  s_c6d6a3ac21fe46::t_807402bd17a7b3 1-6
+packages/tty-css-preview/extension/popup.css
+  s_c6d6a3ac21fe46::t_d405e0fd1041ea 1-6
+packages/tty-css-preview/extension/popup.html
+  s_c6d6a3ac21fe46::t_2594c213531bec 1-6
+packages/tty-css-preview/extension/popup.js
+  s_c6d6a3ac21fe46::t_4ae2d9e9eae4b0 1-4
+packages/tty-css-preview/extension/scroll.js
+  s_c6d6a3ac21fe46::t_ed3dcf88cdc437 1-4
+packages/tty-css-preview/extension/snap.js
+  s_c6d6a3ac21fe46::t_830e77e7390a97 1-4
+packages/tty-css-preview/extension/update.js
+  s_c6d6a3ac21fe46::t_f4ce05eeb2853e 1-4
+packages/tty-css-preview/src/server.mjs
+  s_c6d6a3ac21fe46::t_6a8f97c283d208 1-4
+packages/tty-css-preview/test/content-script-fixture.mjs
+  s_c6d6a3ac21fe46::t_7249cd89f35587 1-4
+packages/tty-css-preview/test/content.test.mjs
+  s_c6d6a3ac21fe46::t_3a93b44577e16b 1-4
+packages/tty-css-preview/test/grid.test.mjs
+  s_c6d6a3ac21fe46::t_977f1792743642 1-4
+packages/tty-css-preview/test/scroll.test.mjs
+  s_c6d6a3ac21fe46::t_0695acc5670d07 1-4
+packages/tty-css-preview/test/server.test.mjs
+  s_c6d6a3ac21fe46::t_df51ab28d63b14 1-4
+packages/tty-css-preview/test/snap.test.mjs
+  s_c6d6a3ac21fe46::t_7541e0b8d7e5ef 1-4
+packages/tty-css-preview/test/update.test.mjs
+  s_c6d6a3ac21fe46::t_813b3988e27f40 1-4
+packages/worker-script/scripts/build.mjs
+  s_c6d6a3ac21fe46::t_20a0616d69e116 1-4
+packages/worker-script/src/__ks_worker_script.ts
+  s_c6d6a3ac21fe46::t_6e3abc64e69ef9 1-4
+packages/worker-script/src/index.ts
+  s_c6d6a3ac21fe46::t_f70bf164c6fd1d 1-4
+packages/worker-script/src/scope.ts
+  s_c6d6a3ac21fe46::t_685049c584189b 1-4
+packages/worker-script/src/shims.ts
+  s_c6d6a3ac21fe46::t_f6400dc966b491 1-4
+pnpm-lock.yaml
+  s_c6d6a3ac21fe46::t_987e25352c89d0 117-120,127,145,311,339,357,4846,4854,5762,5769-5770,8377,8388
+scripts/ax-dump.mjs
+  s_c6d6a3ac21fe46::t_e6b4fe36f7f272 1-4
+scripts/bench-scene-record.mjs
+  s_c6d6a3ac21fe46::t_1700884250fd2c 1-4
+scripts/build-wasm.mjs
+  s_c6d6a3ac21fe46::t_ee924da6ef7c00 2-5
+scripts/declaration-twin-guard.mjs
+  s_c6d6a3ac21fe46::t_f115ef2205aab2 1-4
+scripts/dev-ports.sh
+  s_c6d6a3ac21fe46::t_29f6c17cd27a5a 1-4
+scripts/dump-gecko-only-longhands.mjs
+  s_c6d6a3ac21fe46::t_8c6eb6cbd7cc72 2-5
+scripts/e2e-perf.mjs
+  s_c6d6a3ac21fe46::t_395caf9c8b2a82 1-4
+scripts/get-patched-vendor-crates.mjs
+  s_c6d6a3ac21fe46::t_4c64a5b25719b1 2-5
+scripts/get-wasm-bindgen.mjs
+  s_c6d6a3ac21fe46::t_e7b5a9a0b7d49b 1-4
+scripts/memprof-rewriter/src/main.rs
+  s_c6d6a3ac21fe46::t_15ecfb3e11542b 1-4
+scripts/memprof.mjs
+  s_c6d6a3ac21fe46::t_c086348f57adf2 1-4
+scripts/pull-sccache.mjs
+  s_c6d6a3ac21fe46::t_0e1e6eb40c8cbb 1-4
+scripts/pull-sccache.test.mjs
+  s_c6d6a3ac21fe46::t_e2c380f70e2a86 1-4
+scripts/pw-run.mjs
+  s_c6d6a3ac21fe46::t_fbcec1ae7e94ed 1-4
+scripts/pw-setup.mjs
+  s_c6d6a3ac21fe46::t_1215b50a21d565 1-4
+scripts/regen-vendor-patches.mjs
+  s_c6d6a3ac21fe46::t_e9fc66a954bc63 2-5
+scripts/strip-emoji-svg.py
+  s_c6d6a3ac21fe46::t_6a51e3151d5c31 2-5
+scripts/ts-strict-ratchet.mjs
+  s_c6d6a3ac21fe46::t_e85916d8009cdd 1-4
+scripts/wasm-opt.mjs
+  s_c6d6a3ac21fe46::t_4aaba6a1f0f9f7 1-4
+scripts/webidl-ts-types.mjs
+  s_c6d6a3ac21fe46::t_61afc8aec910ea 1-4
+scripts/wpt-batched.mjs
+  s_c6d6a3ac21fe46::t_aab59559380c1f 1-4
+scripts/wpt-collateral.mjs
+  s_c6d6a3ac21fe46::t_6cc63ce9c3ee27 1-4
+scripts/wpt-collateral.test.mjs
+  s_c6d6a3ac21fe46::t_b86c8f0ed73507 1-4
+scripts/wpt-exec.mjs
+  s_c6d6a3ac21fe46::t_5c702035c54856 1-4
+scripts/wpt-inventory.mjs
+  s_c6d6a3ac21fe46::t_1bc31ca418eb56 1-4
+scripts/wpt-inventory.test.mjs
+  s_c6d6a3ac21fe46::t_7aebc84a165937 1-4
+scripts/wpt-merge-shards.mjs
+  s_c6d6a3ac21fe46::t_1dc475b7b4fb77 1-4
+scripts/wpt-ref-cache.mjs
+  s_c6d6a3ac21fe46::t_5d0ee773d85d39 1-4
+scripts/wpt-ref-cache.test.mjs
+  s_c6d6a3ac21fe46::t_d6571da2ec487b 1-4
+scripts/wpt-serve.mjs
+  s_c6d6a3ac21fe46::t_56713a77f11f61 1-4
+scripts/wpt-setup.mjs
+  s_c6d6a3ac21fe46::t_bd72c804341095 1-4
+scripts/wpt-shared.mjs
+  s_c6d6a3ac21fe46::t_48bf958977ddb1 1-4
+scripts/wpt-shared.test.mjs
+  s_c6d6a3ac21fe46::t_27da8b1251942f 1-4
+scripts/wpt-testdriver.mjs
+  s_c6d6a3ac21fe46::t_b43dd0b44c302d 1-4
+vendor/wasm-memprof/instrumentor/src/bin/instrumentor.rs
+  s_c6d6a3ac21fe46::t_6f4f4c2031dc43 1-3
+vendor/wasm-memprof/instrumentor/src/call_graph.rs
+  s_c6d6a3ac21fe46::t_35579209fad588 1-3
+vendor/wasm-memprof/instrumentor/src/lib.rs
+  s_c6d6a3ac21fe46::t_2eca4eb5c158d1 1-5
+vendor/wasm-memprof/instrumentor/src/replace.rs
+  s_c6d6a3ac21fe46::t_48110209349c0b 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9f4d6c378cc66dae5200605451f11f362f70a86c",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

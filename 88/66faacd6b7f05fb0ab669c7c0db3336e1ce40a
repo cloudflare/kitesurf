@@ -1,0 +1,25 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0118-Stage-pseudo-element-damage-writes.patch
+  s_14fc14ef8f57e3::t_03ca78b68ce1d1 1-8,14-28
+  s_14fc14ef8f57e3::t_076a5817e709d0 9-13
+packages/core/src/taffy_style_source_test.rs
+  s_14fc14ef8f57e3::t_3583ebd5365451 73-115
+scripts/patches/blitz-dom-0.3.0-beta.2/0119-Stage-every-pseudo-style-replacement.patch
+  s_14fc14ef8f57e3::t_076a5817e709d0 9-13
+  s_14fc14ef8f57e3::t_403277cf117532 1-8,14-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8866faacd6b7f05fb0ab669c7c0db3336e1ce40a",
+  "prompts": {},
+  "sessions": {
+    "s_14fc14ef8f57e3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f91943103ffemcQ5v9AuqJiB0D",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

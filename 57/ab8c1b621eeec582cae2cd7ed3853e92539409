@@ -1,0 +1,25 @@
+packages/page-script/src/index.ts
+  s_de9b73755c1191::t_2a8f3c0202674e 371,3341,3347-3348,3350-3353
+packages/engine/test/e2e/mouse-input-fields.e2e.test.ts
+  s_de9b73755c1191::t_2a8f3c0202674e 1-111
+packages/dom-shim/src/events/event.ts
+  s_de9b73755c1191::t_2a8f3c0202674e 654-655,672-673
+packages/engine/src/cdp/input.ts
+  s_de9b73755c1191::t_2a8f3c0202674e 116-127,134,166-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "57ab8c1b621eeec582cae2cd7ed3853e92539409",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

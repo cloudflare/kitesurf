@@ -1,0 +1,49 @@
+packages/engine/test/fixtures-worker/assets/written-mod-a.js
+  s_cf72bc8665a55a::t_45e21ff4ca9e3f 1-5
+packages/engine/test/fixtures-worker/assets/written-script-order.html
+  s_cf72bc8665a55a::t_29bc511dc896d0 1-13
+packages/dom-shim/src/mutations/observer.ts
+  s_cf72bc8665a55a::t_2ed59c2285e7d4 525-537,589
+  s_13716c95882f21::t_2391b63fc3815d 590
+packages/dom-shim/src/document.ts
+  s_cf72bc8665a55a::t_33cc7819d8c291 61,1583
+packages/engine/test/fixtures-worker/assets/written-mod-b.js
+  s_cf72bc8665a55a::t_45e21ff4ca9e3f 1-4
+packages/page-script/src/index.ts
+  s_cf72bc8665a55a::t_39767b316080d3 102-103,105-106,113-117,2379,2394
+  s_13716c95882f21::t_2f662bdac2cd27 118
+  s_13716c95882f21::t_d8cdcc32641d6f 104
+  s_13716c95882f21::t_ca920c2d257532 2710-2719
+packages/engine/test/e2e/written-script-order.e2e.test.ts
+  s_cf72bc8665a55a::t_a3644eab7a58f0 22-27
+  s_cf72bc8665a55a::t_2698c2dcc5bd7c 1-21,28-43
+packages/page-script/src/inserted-scripts.ts
+  s_cf72bc8665a55a::t_628ebf061f28c7 76-106,185,267-279
+packages/engine/test/fixtures-worker/src/static.ts
+  s_13716c95882f21::t_5166ca5416453d 246-248
+  s_13716c95882f21::t_4516e601df07c1 630-634
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d24395b4ede439fb5b6058e1e53ca2b8fd15d43e",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_cf72bc8665a55a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00382b600ffeKKvCWdmK9ZTiAt",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

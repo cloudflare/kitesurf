@@ -1,0 +1,21 @@
+packages/engine/test/e2e/legacy-charset-url-encoding.e2e.test.ts
+  s_b0bff6c749373b::t_1a773720cb49f6 143-160
+packages/page-script/src/globals.ts
+  s_b0bff6c749373b::t_2fe554980bbf41 42-47,50-71,5191-5198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e68fae0816d5f4fedbdb581be7f75177ac8bacbb",
+  "prompts": {},
+  "sessions": {
+    "s_b0bff6c749373b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f01e505e3ffeYGxi5TryF52yhF",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

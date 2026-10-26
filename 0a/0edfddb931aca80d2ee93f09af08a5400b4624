@@ -1,0 +1,66 @@
+packages/engine/src/quickactions/pdf.ts
+  s_bc31533f9cf69e::t_c99c8dd342f72f 99
+  s_bc31533f9cf69e::t_239bd837d7adfa 160
+  s_bc31533f9cf69e::t_291e3adea87d17 19-24,26-30,35,37-39,41-43,45-46,49-51
+  s_bc31533f9cf69e::t_b63f31ab0e2c81 192
+  s_bc31533f9cf69e::t_47e0b18ca6d4ad 25
+  s_bc31533f9cf69e::t_14032dbe812d86 98,100-104,112-122
+  s_bc31533f9cf69e::t_c5579d1d671731 145,147,159,161,167-179,191,193
+  s_bc31533f9cf69e::t_b8a70d8aabdba2 146
+packages/engine/src/quickactions/index.ts
+  s_bc31533f9cf69e::t_44320d83f693bd 1392-1393,1406-1410,1414,1417-1418
+  s_bc31533f9cf69e::t_29c8466ed280e5 1051-1053
+  s_bc31533f9cf69e::t_c353b170c43e3c 760-773,780-804
+  s_bc31533f9cf69e::t_de5193fef9f9e2 911-934,948
+  s_bc31533f9cf69e::t_e6235447e18e6f 41
+  s_bc31533f9cf69e::t_f4bb18ac3f08ca 970-972,985-987,1073-1075
+packages/engine/test/quickaction.test.ts
+  s_bc31533f9cf69e::t_ad1f20c994bc0f 667-668
+  s_bc31533f9cf69e::t_f17f828f4a44c7 671
+  s_bc31533f9cf69e::t_2f5662f0b9d253 571-666,669-670,672-727
+packages/engine/src/quickactions/render-session.ts
+  s_bc31533f9cf69e::t_9d8900e830afd8 226
+  s_bc31533f9cf69e::t_8a830522b8d800 177-179,189-192
+packages/engine/src/quickactions/screenshot.ts
+  s_bc31533f9cf69e::t_8557df615b46bd 32-38,40-44,49,51-53,55-57,59-60,63-65
+  s_bc31533f9cf69e::t_7815769befd71a 96
+  s_bc31533f9cf69e::t_b632790b2095c6 95,97-101,109-117
+  s_bc31533f9cf69e::t_482366b7c93c82 39
+  s_bc31533f9cf69e::t_47da9d9091bcff 313,315-319
+  s_bc31533f9cf69e::t_72787973aac088 381
+  s_bc31533f9cf69e::t_8e757a0598eb77 422
+  s_bc31533f9cf69e::t_8df26a2f512b28 362-380,382-399,421,423
+  s_bc31533f9cf69e::t_70b669aa8d5eb2 314
+  s_bc31533f9cf69e::t_780d8d74a29499 164-173,180-189
+packages/engine/src/index.ts
+  s_bc31533f9cf69e::t_642eb0965c6778 419-422,425,427,429
+packages/engine/src/quickactions/content.ts
+  s_bc31533f9cf69e::t_a2c88903ea0386 32
+  s_bc31533f9cf69e::t_7a420a894ff8fe 135,169,171
+  s_bc31533f9cf69e::t_515d15e84f0ed9 112,114-118,125-133
+  s_bc31533f9cf69e::t_0e2aecbf4a3907 113
+  s_bc31533f9cf69e::t_d032265d1038cf 170
+  s_bc31533f9cf69e::t_e629c807722746 26-31,33-47,52,54-56,58-60,62-63,66-68,78,80-84,92-100,134
+  s_bc31533f9cf69e::t_b71cd6bf0a47df 136
+  s_bc31533f9cf69e::t_de76a662fbb5fb 79
+packages/engine/src/quickactions/brapi.ts
+  s_bc31533f9cf69e::t_f50f77db1e42b6 1-199,201-247,249-286
+  s_bc31533f9cf69e::t_fc53ef6793b3d7 248
+  s_bc31533f9cf69e::t_0dc077c715a1bf 200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a0edfddb931aca80d2ee93f09af08a5400b4624",
+  "prompts": {},
+  "sessions": {
+    "s_bc31533f9cf69e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_07bb4b4fdffevxFL7ckUInREID",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

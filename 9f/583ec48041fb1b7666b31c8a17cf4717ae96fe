@@ -1,0 +1,22 @@
+packages/dom-shim/src/file-input.ts
+  s_f7ec73c9adf3da::t_38cecf445db1f5 294-315,317-329
+packages/engine/test/e2e/bridge-array-lazy.e2e.test.ts
+  s_f7ec73c9adf3da::t_c36dc77e3a1302 265-274,279-286,288-295,297-302
+  s_f7ec73c9adf3da::t_5991c441eeef2e 275-278,287,296
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9f583ec48041fb1b7666b31c8a17cf4717ae96fe",
+  "prompts": {},
+  "sessions": {
+    "s_f7ec73c9adf3da": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0039dc60fffeReHC2v7DrRftyQ",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

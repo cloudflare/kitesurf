@@ -1,0 +1,21 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0176-kitesurf-size-root-hoisted-abspos-boxes-by-the-initi.patch
+  s_5ef13aa2ca5d9a::t_166bd1701be708 1-59
+packages/core/src/abspos_containing_block_test.rs
+  s_5ef13aa2ca5d9a::t_5338fdc3cf6c9e 208-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "404b0f11df96a0f8777b860628b78e06b37c025c",
+  "prompts": {},
+  "sessions": {
+    "s_5ef13aa2ca5d9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed3357cbbffeROEK7xP7OmXTdD",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

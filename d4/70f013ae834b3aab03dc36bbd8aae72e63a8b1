@@ -1,0 +1,25 @@
+packages/dom-shim/src/index.ts
+  6a2a9b274b991f2d 168-174,221-235,241-273,275,310-313,316-332,337-341,485-495,501-512
+examples/layout-compare-demo.mjs
+  6a2a9b274b991f2d 1-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "d470f013ae834b3aab03dc36bbd8aae72e63a8b1",
+  "prompts": {
+    "6a2a9b274b991f2d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_20bc9a875ffeCiJYS2gPu5dB8E",
+        "model": "anthropic/claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira",
+      "messages": [],
+      "total_additions": 345,
+      "total_deletions": 18,
+      "accepted_lines": 345,
+      "overriden_lines": 0
+    }
+  }
+}

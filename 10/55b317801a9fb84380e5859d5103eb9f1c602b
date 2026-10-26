@@ -1,0 +1,23 @@
+packages/engine/src/cdp/page.ts
+  s_8dc62bd8441313::t_8436fd9578ebb4 20-21,241-305,530-532,908,1031-1032,1069,2562-2563,2579-2580,2583-2592,2817,3055-3061,3089-3100
+packages/engine/src/cdp/types.ts
+  s_8dc62bd8441313::t_88e9e2ac69518d 931-937
+packages/engine/src/tracing.ts
+  s_8dc62bd8441313::t_7f2ccd331a6785 39-91,102,104-105,117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1055b317801a9fb84380e5859d5103eb9f1c602b",
+  "prompts": {},
+  "sessions": {
+    "s_8dc62bd8441313": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_004487024ffeR4XvwRtJw9vlsH",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

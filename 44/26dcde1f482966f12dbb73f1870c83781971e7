@@ -1,0 +1,19 @@
+packages/terminal-client/src/main.rs
+  s_63365f51c8df96::t_f381c7ecaf9566 287,340,577-583,598-609,629-653,753,768,781,786-813
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4426dcde1f482966f12dbb73f1870c83781971e7",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

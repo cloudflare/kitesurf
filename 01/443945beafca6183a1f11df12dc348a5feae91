@@ -1,0 +1,24 @@
+packages/engine/test/page-renderer-timeout.test.ts
+  s_4efb85c8268621::t_3c1cb73985d4e4 11-19,24-34,39-41,46-53,71,75-78,87,90-92,101
+  s_4efb85c8268621::t_fd6e2fab50e0bc 20-23,35-38
+  s_4efb85c8268621::t_717482628dd77a 62-65,82-85
+  s_4efb85c8268621::t_d1e70c7b86e21d 42-43,60,73,88-89
+  s_4efb85c8268621::t_79faacf028ceb4 93-94
+  s_4efb85c8268621::t_2724a2ef4aa56b 96-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "01443945beafca6183a1f11df12dc348a5feae91",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

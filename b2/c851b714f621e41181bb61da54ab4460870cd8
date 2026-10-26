@@ -1,0 +1,29 @@
+docs/engine/TESTING.md
+  s_4ba79f911c93c4::t_3263b0497fe281 5-6,23-24,68-69
+docs/engine/BUILD_TOOLING.md
+  s_4ba79f911c93c4::t_f6a7b8fc03174c 3-5,17
+tests/interactivity-flows/README.md
+  s_4ba79f911c93c4::t_38ffb766459995 552-553
+packages/jev-playground/README.md
+  s_4ba79f911c93c4::t_7ead426a76a31f 90
+docs/CI.md
+  s_4ba79f911c93c4::t_3b1a3e669d51f4 246-248
+docs/TESTING.md
+  s_4ba79f911c93c4::t_dd765b69fdac25 22-23,34-36,95-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b2c851b714f621e41181bb61da54ab4460870cd8",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

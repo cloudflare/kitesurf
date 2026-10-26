@@ -1,0 +1,30 @@
+packages/engine/test/e2e/canvas-image-bytes.e2e.test.ts
+  s_03997f732ec005::t_2873326ffd602f 47
+  s_03997f732ec005::t_4c3aa4d11ee6e7 42-46,48-53,61,66-68,72-83,85-90
+  s_03997f732ec005::t_329c75652403cc 62-65,69-71
+  s_03997f732ec005::t_4becc879ca8769 41,54-60,84
+packages/dom-shim/src/canvas2d.ts
+  s_03997f732ec005::t_3f7fb7ff068ce2 698
+  s_03997f732ec005::t_978157df63f809 643,656-661,685-688,697,699-700,707-709
+packages/core/src/lib.rs
+  s_03997f732ec005::t_978157df63f809 5634-5642,5647-5648,5654,5656-5666,5676-5683
+  s_03997f732ec005::t_4c3aa4d11ee6e7 5633,5667-5669
+  s_03997f732ec005::t_7dbfefc5a2bdb2 5655
+  s_03997f732ec005::t_612e3ce33750c5 5643-5646,5649-5653,5670-5675
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ee802f3812664987182a3f0dac0535e35c0693bd",
+  "prompts": {},
+  "sessions": {
+    "s_03997f732ec005": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0eae1bebffeH0x3Q3vwkoOycu",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

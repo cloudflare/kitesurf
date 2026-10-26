@@ -1,0 +1,61 @@
+autoresearch.checks.sh
+  0143a3d1abfa6c4c 100-107,109-119,121-122,126-128
+autoresearch.ideas.md
+  0143a3d1abfa6c4c 1-534
+autoresearch.jsonl
+  0143a3d1abfa6c4c 1-26
+bench/gold/sapo.jpeg.sha256
+  0143a3d1abfa6c4c 1
+bench/gold/wikipedia.jpeg.sha256
+  0143a3d1abfa6c4c 1
+packages/core/src/screenshot.rs
+  0143a3d1abfa6c4c 330-339,341-345,349-354,356-402,405-410
+packages/page-script/scripts/build.mjs
+  0143a3d1abfa6c4c 30-34,79-82
+scripts/autoresearch-median.mjs
+  0143a3d1abfa6c4c 1-184
+scripts/gold-screenshot-check.mjs
+  0143a3d1abfa6c4c 2,4-6,8-9,11-14,19,43-56,86,119-129,132-133,136,141-143,147,149,151,156-157,159-160,163,170,175-178,181-183,185,188-189,194-213
+scripts/patches/blitz-dom-0.3.0-alpha.2.patch
+  0143a3d1abfa6c4c 3-57,60-65,73,75
+scripts/capture-fixture.mjs
+  0143a3d1abfa6c4c 66-79,82
+bench/fixtures/sapo.html
+  0143a3d1abfa6c4c 1-11745
+packages/dom-shim/scripts/build.mjs
+  0143a3d1abfa6c4c 19-24,54-57
+autoresearch.sh
+  0143a3d1abfa6c4c 4-24,34-37,39-45,47-144,147,152-199,201-206,209-212,215-222,226-230,232-234
+autoresearch.md
+  0143a3d1abfa6c4c 1,5-39,58-61,76-80,83-90,102,106-182,188-193,200-202,204-205,207,209-214,216-219,227-228,231-259,268-334
+bench/fixtures/wikipedia.html
+  0143a3d1abfa6c4c 1-778
+packages/page-script/src/index.ts
+  0143a3d1abfa6c4c 3633-3641,3955-3957,3963,3970-3972,3976,4973-4985,4987-5002
+scripts/autoresearch-bench.mjs
+  0143a3d1abfa6c4c 48,52-75,110,126,190-241,244,246,248,250,256-277,280,282-287,294
+scripts/build-wasm.mjs
+  0143a3d1abfa6c4c 220-274
+packages/dom-shim/src/index.ts
+  0143a3d1abfa6c4c 3931-3944,3949
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "ce67e6aa55bf2af29eff541e7d3ae8e2c57fb725",
+  "prompts": {
+    "0143a3d1abfa6c4c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1d2495d0effeiCHO4hEKu8upVn",
+        "model": "anthropic/claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira",
+      "messages": [],
+      "total_additions": 15330,
+      "total_deletions": 971,
+      "accepted_lines": 15330,
+      "overriden_lines": 0
+    }
+  }
+}

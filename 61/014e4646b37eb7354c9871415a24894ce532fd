@@ -1,0 +1,28 @@
+packages/core/Cargo.toml
+  s_103b7f1f0713cd::t_172bd32e3c1048 238-239
+  s_103b7f1f0713cd::t_46c2df8b0c9c4e 240
+scripts/patches/blitz-dom-0.3.0-beta.2/0147-kitesurf-keep-layout-caches-for-paint-only-damage.patch
+  s_103b7f1f0713cd::t_1c3584eff5f237 1-30
+packages/core/src/paint_damage_layout_cache_test.rs
+  s_103b7f1f0713cd::t_172bd32e3c1048 1-72
+packages/core/src/lib.rs
+  s_103b7f1f0713cd::t_172bd32e3c1048 257-258
+Cargo.lock
+  s_103b7f1f0713cd::t_c5fbfe3c89b459 1457
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "61014e4646b37eb7354c9871415a24894ce532fd",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

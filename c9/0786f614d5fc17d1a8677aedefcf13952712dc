@@ -1,0 +1,36 @@
+packages/engine/src/wasm.ts
+  s_0d1d30f19cc9dc::t_7e4bb0f59356b0 21,230-241
+  s_0d1d30f19cc9dc::t_d88981b82ab7a6 242-243
+packages/engine/test/e2e/gateway-font-shaping.e2e.test.ts
+  s_0d1d30f19cc9dc::t_69b2f224cca80b 1-3,12-24,29-30,34-37,43-47,51-53,55-60,71-78,81-84,88-91
+  s_0d1d30f19cc9dc::t_c2830f0338bf5f 26-27,48-49
+  s_0d1d30f19cc9dc::t_0c3ca2c4f391f3 4-11,25,28,31-33,38-42,50,54,61-70,79-80,85-87
+docs/FONTS.md
+  s_0d1d30f19cc9dc::t_529c9a72ba7bba 31-60
+packages/engine/src/eval/outbound.ts
+  s_0d1d30f19cc9dc::t_10c3bf181f79a4 155-170
+  s_0d1d30f19cc9dc::t_f9d0281415b480 1430-1491
+  s_0d1d30f19cc9dc::t_9af857269d6240 57,1742
+  s_0d1d30f19cc9dc::t_cf431aca281293 1492
+  s_0d1d30f19cc9dc::t_629242801f800a 1667
+packages/engine/src/eval/page-script.ts
+  s_0d1d30f19cc9dc::t_6dbeda2b3c7a85 1210-1212
+packages/engine/src/eval/shaping-cache.ts
+  s_0d1d30f19cc9dc::t_03a3b984f26c11 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c90786f614d5fc17d1a8677aedefcf13952712dc",
+  "prompts": {},
+  "sessions": {
+    "s_0d1d30f19cc9dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_037c06dd9ffesDNWihuHLbPLHI",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

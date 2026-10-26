@@ -1,0 +1,31 @@
+packages/core/src/boa_bridge.rs
+  s_d9a39360f54d10::t_9d3b9b035ea875 2922-2925
+  s_d9a39360f54d10::t_8ef0e0238c9d39 2761
+  s_d9a39360f54d10::t_43a64f76095301 2722-2744
+packages/engine/test/e2e/bridge-inherit-v8.e2e.test.ts
+  s_d9a39360f54d10::t_13433cd2f666f2 57,61-65,67-69
+  s_d9a39360f54d10::t_bb113ab7686e0c 203-207,209,212-221,223-226,229-231,233,235-237
+  s_d9a39360f54d10::t_385b4c6578d396 58-60,66,70-84
+  s_d9a39360f54d10::t_1b5e8f217a2a84 222
+  s_d9a39360f54d10::t_7d83f46b254fd2 208
+  s_d9a39360f54d10::t_a4f37e0f9b61fa 210-211
+  s_d9a39360f54d10::t_3d0d45d59f0e88 227-228
+  s_d9a39360f54d10::t_e6a9afa762773c 232
+  s_d9a39360f54d10::t_4939f9d5b85635 234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "96ef0f9b3401b1149a118855572770bc34c451df",
+  "prompts": {},
+  "sessions": {
+    "s_d9a39360f54d10": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c86bac2ffepqLIUlEVR0woGz",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

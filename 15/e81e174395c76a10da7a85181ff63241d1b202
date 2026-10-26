@@ -1,0 +1,22 @@
+packages/engine/test/e2e/evaluate-native-throw.e2e.test.ts
+  s_51883bcd41804d::t_637e53c09c7dad 1-17
+packages/core/src/boa_eval.rs
+  s_51883bcd41804d::t_7f993444fddd98 1378-1380,1496,1559
+  s_51883bcd41804d::t_a715131d84e944 1423-1436
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "15e81e174395c76a10da7a85181ff63241d1b202",
+  "prompts": {},
+  "sessions": {
+    "s_51883bcd41804d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb0be12b4ffe8DWpP2vehyQw9d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

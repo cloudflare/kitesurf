@@ -1,0 +1,22 @@
+packages/page-script/src/paint.ts
+  s_46581e2f222abb::t_ce829c32cd8b19 61-63
+  s_46581e2f222abb::t_bbcc1e6fbdf4e6 26
+packages/core/src/lib.rs
+  s_46581e2f222abb::t_2e1f97f7b105f5 808
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b1642ec617132c1052eadc87bf5cebf6e942e3fa",
+  "prompts": {},
+  "sessions": {
+    "s_46581e2f222abb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_034ccb3baffeLXyWaEfrDSKzki",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

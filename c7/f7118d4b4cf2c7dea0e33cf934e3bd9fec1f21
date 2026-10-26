@@ -1,0 +1,21 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0081-Stop-an-inline-rebuild-stealing-a-hoisted-box-s-layo.patch
+  s_4ac4166a7212ba::t_2b942183e74a07 1-79
+packages/core/src/hoist_incremental_test.rs
+  s_4ac4166a7212ba::t_cc1444a03ba885 94-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c7f7118d4b4cf2c7dea0e33cf934e3bd9fec1f21",
+  "prompts": {},
+  "sessions": {
+    "s_4ac4166a7212ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_032e8b63affeTSAvbfFC32TWpR",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,72 @@
+packages/dom-shim/src/element.ts
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 2535-2544
+scripts/patches/blitz-dom-0.3.0-beta.1/0081-kitesurf-re-collect-nodes-that-hoisted-a-box-away.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-40
+scripts/patches/blitz-dom-0.3.0-beta.1/0082-kitesurf-re-break-clobbered-inlines-without-rebuildi.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-271
+packages/dom-shim/src/layout/scroll.ts
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 99-100
+scripts/patches/blitz-dom-0.3.0-beta.1/0079-kitesurf-replay-hoists-from-parents-a-partial-resolv.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-115
+scripts/patches/blitz-dom-0.3.0-beta.1/0083-kitesurf-bust-the-layout-cache-for-nodes-that-regist.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-83
+scripts/patches/blitz-dom-0.3.0-beta.1/0077-kitesurf-keep-incremental-layout-from-dropping-the-l.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-109
+scripts/patches/blitz-dom-0.3.0-beta.1/0084-Give-display-flow-root-its-own-block-formatting-cont.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-48
+packages/engine/test/e2e/clip-regions.e2e.test.ts
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-49
+scripts/patches/taffy-0.12.2/0009-Clear-past-every-float-on-the-cleared-sides-not-the-.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-117
+packages/core/src/svg_mutation_resnapshot_test.rs
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 90-91,93-95
+AGENTS.md
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 82-83,238-272,492-494
+scripts/patches/blitz-paint-0.3.0-beta.1/0012-Clip-the-element-away-when-inset-leaves-an-empty-reg.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-45
+scripts/patches/blitz-dom-0.3.0-beta.1/0078-kitesurf-rebuild-the-inline-svg-snapshot-when-its-su.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-84
+scripts/patches/blitz-paint-0.3.0-beta.1/0013-Apply-the-legacy-clip-property-when-painting.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-118
+scripts/patches/stylo-0.19.0/0024-kitesurf-never-start-a-CSS-transition.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-78
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_ef356dba00b095 797-799
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 726-729,735,749-796,1876-1879
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-53
+scripts/patches/blitz-dom-0.3.0-beta.1/0080-kitesurf-re-break-inline-containers-a-measure-pass-l.patch
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-236
+packages/core/src/animation_clock_test.rs
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-2,4-11,37-40,69-74
+  s_50d45ac3d4c7e5::t_ba46a6c5d176d1 75
+docs/SVG.md
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 32-38
+packages/core/src/hoist_incremental_test.rs
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 1-93
+packages/engine/test/e2e/element-measurement.e2e.test.ts
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 56-106
+packages/core/Cargo.toml
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 84
+packages/core/src/radar_grid_repro_test.rs
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 29-89
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_66ef9ee0405bd4 111-112,824,829,832-833,835-836,843-844,846,2849-2852,5812-5832,5900-5901,6251-6306
+  s_50d45ac3d4c7e5::t_16ef32fececb49 110,6307-6308
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f5a51f31ca910a8929817c4662a65bd90fa00494",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

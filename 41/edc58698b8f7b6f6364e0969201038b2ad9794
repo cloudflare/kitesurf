@@ -1,0 +1,19 @@
+packages/engine/src/eval/page-script.ts
+  s_42eaecb6226837::t_04a8a35b54f6aa 958-960
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "41edc58698b8f7b6f6364e0969201038b2ad9794",
+  "prompts": {},
+  "sessions": {
+    "s_42eaecb6226837": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_005e9e9e9ffej6l67B3hZASGrx",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

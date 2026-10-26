@@ -1,0 +1,27 @@
+docs/TESTING.md
+  s_ed42c140dc5554::t_aaca1243f2768f 297-309
+scripts/pw-run.mjs
+  s_ed42c140dc5554::t_5c93ff1637c801 8-12,19
+  s_ed42c140dc5554::t_808938dac6dfca 46-47
+  s_ed42c140dc5554::t_c07f4111bd39df 159-166
+  s_ed42c140dc5554::t_e94ec7da0cbc1a 54-59
+  s_ed42c140dc5554::t_d54e0a5f23d766 299-303,308,312-321
+  s_ed42c140dc5554::t_5d2ce4d959e685 352-353,355-359
+  s_ed42c140dc5554::t_aaa0c98e6bb3c1 238,240-244,248-249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1403231ffe1245d59969c40400c0953d6c802af6",
+  "prompts": {},
+  "sessions": {
+    "s_ed42c140dc5554": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00431c173ffeNb2EcjlYLbALXc",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

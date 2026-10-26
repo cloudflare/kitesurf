@@ -1,0 +1,19 @@
+packages/engine-cf/BUILD.bazel
+  s_4ba79f911c93c4::t_54b96f5cafddf3 148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4a659a0db1f41b5d7de307fec8d9f37457b3ff84",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

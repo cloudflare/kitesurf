@@ -1,0 +1,29 @@
+packages/dom-shim/src/element/event-handlers.ts
+  s_a3b42a28f6acb3::t_1c4e533f5803de 82
+  s_a3b42a28f6acb3::t_d2fd7ddae98829 43
+  s_a3b42a28f6acb3::t_19b07a6088672f 46
+packages/page-script/src/index.ts
+  s_a3b42a28f6acb3::t_f047247be0a7c1 5888-5889
+  s_a3b42a28f6acb3::t_5008947d781df5 1865-1868
+packages/dom-shim/src/mutations/observer.ts
+  s_a3b42a28f6acb3::t_3012dcfabcbcc1 158-163,167-170
+  s_a3b42a28f6acb3::t_2d5912170a1428 150-154
+docs/CANVAS2D.md
+  s_a3b42a28f6acb3::t_eeecfa77f05607 56-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2636ea5abd2d07c4b7af2ae8b179b8e7509d3e86",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

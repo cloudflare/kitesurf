@@ -1,0 +1,19 @@
+scripts/patches/parley-0.11.1/0010-kitesurf-make-tab-expansion-pen-aware-throughout-lay.patch
+  s_c1d1c93f383cfd::t_350d95d6b6c258 4,6,8-11,14,101-252,254,257-293,303-310,313-325,352-388
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "af99893be745478626bc30b5ba72b30057fd4246",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

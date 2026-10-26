@@ -1,0 +1,24 @@
+docs/CANVAS2D.md
+  s_a3b42a28f6acb3::t_f358d89df40186 54-58
+packages/dom-shim/src/canvas2d.ts
+  s_a3b42a28f6acb3::t_f358d89df40186 511
+  s_a3b42a28f6acb3::t_e7a328c0b72fd5 503-504
+packages/engine/test/e2e/canvas-detached-readback.e2e.test.ts
+  s_a3b42a28f6acb3::t_f358d89df40186 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "054dc0d88072113211ec4bc0054b0ab0c197c19a",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

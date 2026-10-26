@@ -1,0 +1,22 @@
+packages/engine/test/e2e/detached-listener-reclaim.e2e.test.ts
+  s_c1d1c93f383cfd::t_997399a526b155 30-31,39-49,101-103
+  s_c1d1c93f383cfd::t_1a0f3419cb55d8 60-61,74,94,99
+  s_c1d1c93f383cfd::t_ce7884b67d8b8a 79
+  s_c1d1c93f383cfd::t_e41ecb57f9059a 73,77-78,98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4a8848a28bd52090a58ce77532bc27bd25f0194a",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

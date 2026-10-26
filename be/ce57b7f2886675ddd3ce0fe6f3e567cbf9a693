@@ -1,0 +1,43 @@
+packages/dom-shim/src/element/tag-attributes.ts
+  s_89db36e0a74dbd::t_c8205494c39ef3 4
+  s_89db36e0a74dbd::t_b2a663a488e4c7 282-284,289-291,303-308,328-329,338,354-355
+packages/dom-shim/src/element/media.ts
+  s_89db36e0a74dbd::t_f8762f17a3e693 4
+  s_89db36e0a74dbd::t_3159d2bdd9b65e 67-68
+packages/dom-shim/src/element/aria.ts
+  s_89db36e0a74dbd::t_33fc0b82f8e1a2 2-5,17,79
+  s_89db36e0a74dbd::t_c976d5c3094ab9 63
+packages/dom-shim/src/element/shadow.ts
+  s_89db36e0a74dbd::t_f8762f17a3e693 5
+  s_89db36e0a74dbd::t_3159d2bdd9b65e 73
+packages/dom-shim/src/element/forms/input.ts
+  s_89db36e0a74dbd::t_debd81c71840d5 338-339
+  s_89db36e0a74dbd::t_9d0261ab126dc9 56,321,327-328,337,340-344
+packages/dom-shim/src/element/forms/button.ts
+  s_89db36e0a74dbd::t_6a81ee32ef2c6c 3,95,97,99,104-106,119
+packages/dom-shim/src/element/forms/selection.ts
+  s_89db36e0a74dbd::t_fb4cacaa49ee40 9,134,138-139,143,155-156,160,171-172,176
+packages/dom-shim/src/element/reflect.ts
+  s_89db36e0a74dbd::t_0c84bb5c6627da 20-43,329
+packages/dom-shim/src/element/html-element.ts
+  s_89db36e0a74dbd::t_0c7fade4b423b6 12,27-28,192,194
+  s_89db36e0a74dbd::t_a7e265a0a206cc 15,17-18,57-123
+packages/dom-shim/src/element/forms/validity.ts
+  s_89db36e0a74dbd::t_fb4cacaa49ee40 9,251-252,254-255,257-258,276-277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bece57b7f2886675ddd3ce0fe6f3e567cbf9a693",
+  "prompts": {},
+  "sessions": {
+    "s_89db36e0a74dbd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec8081742ffeOUo1byYY6GJ5h5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

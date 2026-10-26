@@ -1,0 +1,66 @@
+packages/webgl/README.md
+  s_cf72bc8665a55a::t_077c96dd056caa 1-129
+packages/webgl/worker/index.js
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-5,7-81
+  s_cf72bc8665a55a::t_7827885dabd94c 6
+packages/webgl/src/vm.rs
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-143,147-825
+  s_cf72bc8665a55a::t_3d4b056496e40a 144-146
+packages/webgl/src/mesh.rs
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-37
+packages/webgl/scripts/bench.mjs
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-32
+packages/webgl/shaders/teapot.frag
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-57
+packages/webgl/src/bin/render.rs
+  s_cf72bc8665a55a::t_7827885dabd94c 3,18
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-2,4-17,19-39
+packages/webgl/scripts/gen-teapot.mjs
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-33,35-57
+  s_cf72bc8665a55a::t_7827885dabd94c 34
+packages/webgl/src/lib.rs
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-9
+packages/webgl/src/exec.rs
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-368
+packages/webgl/Cargo.toml
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1,4,7-8,11-13,18,20-25,28
+  s_cf72bc8665a55a::t_6195b305dfa7c9 2-3,5-6,9-10,14-17,19,26-27
+packages/webgl/src/raster.rs
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-274
+.gitignore
+  s_cf72bc8665a55a::t_83a8b20f142134 40-45
+packages/webgl/src/shim.rs
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-78
+packages/webgl/src/pipeline.rs
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-205
+packages/webgl/src/bin/disasm.rs
+  s_cf72bc8665a55a::t_7827885dabd94c 1
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 2-12
+packages/webgl/src/wasm.rs
+  s_cf72bc8665a55a::t_7827885dabd94c 23
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-22,24-138
+packages/webgl/shaders/teapot.vert
+  s_cf72bc8665a55a::t_bd0ef52e1d7ab7 1-24
+packages/webgl/worker/wrangler.jsonc
+  s_cf72bc8665a55a::t_bacaea51d2b6d8 1-9
+packages/webgl/scripts/build.mjs
+  s_cf72bc8665a55a::t_b8d10febdfbbde 1-24
+packages/webgl/Cargo.lock
+  s_cf72bc8665a55a::t_061e267642dacd 1-356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9a2e73977dee3feb7f2b4395d85fa87b2ef31fe0",
+  "prompts": {},
+  "sessions": {
+    "s_cf72bc8665a55a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00382b600ffeKKvCWdmK9ZTiAt",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

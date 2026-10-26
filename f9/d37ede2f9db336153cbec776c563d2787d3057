@@ -1,0 +1,31 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0020-paint-stop-resolving-styles-the-common-element-disca.patch
+  s_40a77a88c7e719::t_b17706c35fc768 1-73
+packages/core/src/scene_record.rs
+  s_40a77a88c7e719::t_63350e4965b9f2 305,311-316,321,323-330,450-452,463,471-477,529,533,535-537,614,632,659,668-673,710-712,719,791,798-816,1103-1125,1140-1142,1157-1160,1185,1218-1219,1221,1581-1585,1589-1590,1599-1604,1608-1610,1612,1644-1704,1852-1855,1857,1864-1878,1930,1974,2372-2404
+scripts/patches/blitz-paint-0.3.0-beta.1/0018-paint-skip-border-and-background-work-that-draws-not.patch
+  s_40a77a88c7e719::t_b17706c35fc768 1-93
+packages/core/src/scene_determinism_test.rs
+  s_40a77a88c7e719::t_63350e4965b9f2 1-118
+scripts/patches/blitz-paint-0.3.0-beta.1/0019-paint-stop-building-clip-BezPaths-nothing-reads.patch
+  s_40a77a88c7e719::t_b17706c35fc768 1-93
+packages/core/src/lib.rs
+  s_40a77a88c7e719::t_63350e4965b9f2 456-459,715-716,4678-4686,4707-4710,4735-4736
+  s_40a77a88c7e719::t_b7c8bca83c4dda 126-127
+  s_40a77a88c7e719::t_549fca5137bcc1 128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f9d37ede2f9db336153cbec776c563d2787d3057",
+  "prompts": {},
+  "sessions": {
+    "s_40a77a88c7e719": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00899d021ffeusxbvHVto59doi",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

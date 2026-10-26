@@ -1,0 +1,33 @@
+docs/CORS.md
+  s_0d1d30f19cc9dc::t_dbae67ed4b6b4b 40-49
+  s_0d1d30f19cc9dc::t_838e03526c2d63 85-102
+  s_0d1d30f19cc9dc::t_550d07f16ab594 11-12
+packages/engine/src/eval/outbound.ts
+  s_0d1d30f19cc9dc::t_5ce9cd534c2048 424-431
+  s_0d1d30f19cc9dc::t_8867650c93ebbc 12-16
+  s_0d1d30f19cc9dc::t_8222c603a184a3 403
+packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
+  s_0d1d30f19cc9dc::t_afffb867096940 1-139
+packages/page-script/src/resource-fetch.ts
+  s_0d1d30f19cc9dc::t_6ba520221bd84f 273-277
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_0d1d30f19cc9dc::t_91ae4b51b16ffe 1843-1844
+  s_0d1d30f19cc9dc::t_87315b5dc0883b 4325-4351
+  s_0d1d30f19cc9dc::t_011d8fb4f5dff9 667-716
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8dd9f7d81a9c88c6272bb9bfd7698bf2a55b8354",
+  "prompts": {},
+  "sessions": {
+    "s_0d1d30f19cc9dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_037c06dd9ffesDNWihuHLbPLHI",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

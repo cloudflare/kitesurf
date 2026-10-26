@@ -1,0 +1,43 @@
+.opencode/skills/simple-english/references/strict-vocabulary.md
+  s_1c614017132fa1::t_dcbcc49246d3e5 1-77
+.opencode/skills/simple-english/references/use-cases.md
+  s_1c614017132fa1::t_dcbcc49246d3e5 1-64
+.opencode/skills/kitesurf-deslop/SKILL.md
+  s_1c614017132fa1::t_3c659782493d2f 353-354,447-450
+  s_1c614017132fa1::t_ae37df0368fa5a 355
+  s_1c614017132fa1::t_2aa4ea8d964cc8 390-392,400-402,413-414,426-429
+  s_1c614017132fa1::t_19d44f4f867eb1 22-69
+  s_1c614017132fa1::t_75b63a18fad1d4 135-140
+  s_1c614017132fa1::t_19c1691c6cf7d0 3,101-105
+  s_1c614017132fa1::t_d5e0e6e32c1e3c 115-117,132-133,141-144,146,326,329-331
+  s_1c614017132fa1::t_e02648de5ab157 1-2,4-12,70-79,84-100,106-114,118-131,134,145,147-187,191-195,198-325,327-328,332-352,356-389,393-399,403-412,415-425,430-446,451-455
+  s_1c614017132fa1::t_8b58ed34fe9b1c 13-21
+  s_1c614017132fa1::t_d478d536a65f5c 80-83
+  s_1c614017132fa1::t_3e70838bc82efe 188-190,196-197
+.opencode/skills/simple-english/SKILL.md
+  s_1c614017132fa1::t_dcbcc49246d3e5 1-102
+.opencode/skills/simple-english/references/checklist.md
+  s_1c614017132fa1::t_dcbcc49246d3e5 1-55
+.opencode/skills/simple-english/references/word-swaps.md
+  s_1c614017132fa1::t_dcbcc49246d3e5 1-58
+.opencode/skills/humanizer/SKILL.md
+  s_1c614017132fa1::t_dcbcc49246d3e5 1-68
+.opencode/skills/slop-removal/SKILL.md
+  s_1c614017132fa1::t_dcbcc49246d3e5 1-277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8af6d3877b600f8c70eb477f8f2beae9bc1f8c6f",
+  "prompts": {},
+  "sessions": {
+    "s_1c614017132fa1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f375c0401ffevg11K5PrOA50nW",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

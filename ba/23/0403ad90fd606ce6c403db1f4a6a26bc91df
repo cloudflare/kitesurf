@@ -1,0 +1,23 @@
+scripts/wpt-batched.mjs
+  s_8deef65a89b902::t_23f4d68190ec64 76-77,442-444
+  s_8deef65a89b902::t_270790bd1229d7 243-245
+  s_8deef65a89b902::t_052361a925dd2f 109
+  s_8deef65a89b902::t_86266803f1370d 149-155
+  s_8deef65a89b902::t_3f1d74cf92cff7 193-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ba230403ad90fd606ce6c403db1f4a6a26bc91df",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

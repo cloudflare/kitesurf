@@ -1,0 +1,39 @@
+wiki-decomp-probe.tmp.mjs
+  s_c9f68948e839d2::t_54e0afb390b5a9 1-43
+wiki-ab-probe.tmp.mjs
+  s_c9f68948e839d2::t_86b45a4f3760e4 8
+  s_c9f68948e839d2::t_46d32b96b1811c 1-7,9-33,38
+  s_c9f68948e839d2::t_3c50806a5ffe3d 34-37
+heap-probe.tmp.mjs
+  s_c9f68948e839d2::t_1856fab6bb16eb 1-88
+measure-probe.tmp.mjs
+  s_c9f68948e839d2::t_791f0a91412de1 1-31
+natwidth-probe.tmp.mjs
+  s_c9f68948e839d2::t_4e8c3a7e8e5c5c 1-9
+packages/engine/src/cdp/runtime.ts
+  s_c9f68948e839d2::t_0b305883cfdac0 77-86
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_c9f68948e839d2::t_c3c98c93d251b9 2-5
+ping-probe.tmp.mjs
+  s_c9f68948e839d2::t_fb565ea20c1e33 1-20
+renderer-vm-probe.tmp.mjs
+  s_c9f68948e839d2::t_35d2c1a32bdd08 1-36
+screencast-probe.tmp.mjs
+  s_c9f68948e839d2::t_aa4c10840a5bc6 1-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6473769fa689dbce2b98c3ee493827cec6d9f571",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

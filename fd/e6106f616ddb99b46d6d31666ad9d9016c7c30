@@ -1,0 +1,27 @@
+packages/wpt-report/src/index.ts
+  s_8289b6490b9c80::t_b51ec6dc8a5ad4 26-29
+  s_8289b6490b9c80::t_0bc7daff5c68d7 6
+packages/wpt-report/wrangler.jsonc
+  s_8289b6490b9c80::t_3f742419d84345 31-34
+packages/wpt-report/scripts/build.mjs
+  s_8289b6490b9c80::t_68da5f50fed757 303-314,318-322
+  s_8289b6490b9c80::t_7e55cde52fe64f 413-443,448,450-451,456-457
+  s_8289b6490b9c80::t_8d7258bf873d81 30-35
+  s_8289b6490b9c80::t_6f0b75e0fd323e 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fde6106f616ddb99b46d6d31666ad9d9016c7c30",
+  "prompts": {},
+  "sessions": {
+    "s_8289b6490b9c80": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff0d9ecd9ffekMAylJvotqhXN1",
+        "model": "claude-fable-5"
+      },
+      "human_author": null
+    }
+  }
+}

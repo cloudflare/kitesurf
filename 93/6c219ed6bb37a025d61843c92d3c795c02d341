@@ -1,0 +1,28 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0017-Add-DocumentMutator-set_text_input_selection-JS-sele.patch
+  s_f50b7cd97baf3e::t_246bc3b275729e 1-15,17-58,63-73
+  s_f50b7cd97baf3e::t_12b709bd8d551f 16,59-62
+packages/dom-shim/src/element.ts
+  s_f50b7cd97baf3e::t_6cfca32dcd942c 4857,4878,4915,4928
+  s_f50b7cd97baf3e::t_be456855b426fd 4975
+  s_f50b7cd97baf3e::t_7c2c1f790f977a 4823-4837
+packages/core/src/lib.rs
+  s_f50b7cd97baf3e::t_f9288ece5bf789 2052-2072
+packages/engine/test/e2e/demos/forms-selection-paint-demo.e2e.test.ts
+  s_f50b7cd97baf3e::t_118a6383d9cfaa 1-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "936c219ed6bb37a025d61843c92d3c795c02d341",
+  "prompts": {},
+  "sessions": {
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,257 @@
+packages/engine/test/e2e/demos/oopif-detach-teardown.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 39-44,62-64
+packages/engine/test/e2e/demos/vertical-scroll-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 10
+packages/engine/test/e2e/demos/screencast-placeholder-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 25-28,35,54-64
+packages/engine/test/e2e/anchor-positioning-parsing.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 34-57,64
+packages/engine/test/e2e/demos/boa-seam-identity-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 32-37
+packages/engine/test/e2e/demos/iframe-content-document-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 15,20-22,24-26,28-42,45-47,54,59,65,70,76
+packages/engine/test/e2e/demos/img-load-events-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 33-50
+packages/engine/test/e2e/demos/cookies-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 22
+packages/engine/test/e2e/demos/devtools-elements-live-update-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 101,105-114,132-153,207-219,238-251
+packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 23,42-47
+packages/engine/test/e2e/demos/page-renderer-cjk.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 47
+packages/engine/test/e2e/demos/screencast-viewport-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 30,91-92
+packages/engine/test/e2e/rbi-scene-wire.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 63,76,79-82,84-107,113,120,170,202,226
+packages/engine/test/e2e/demos/boa-evalless-phase2.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 14
+packages/engine/test/e2e/demos/forms-realworld-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 105-111
+packages/engine/test/e2e/demos/oopif-heap-usage.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 16-31,111-112,114-120
+packages/engine/test/e2e/demos/ce-upgrade-pipeline.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 22-40
+packages/engine/test/e2e/demos/network-stylesheet-headers-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 45-48,52-54,58-60
+packages/engine/test/e2e/demos/conic-gradient.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 30-34
+packages/engine/test/e2e/demos/network-event-shape-probe.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 63-72
+packages/engine/test/e2e/viewport-drain.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 41-44,46-51
+packages/engine/test/e2e/demos/images-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 28,61-72,103
+packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 29-35
+packages/engine/test/e2e/demos/network-extra-headers-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 20,56-59
+packages/engine/test/e2e/demos/click-selector-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 14
+packages/engine/test/e2e/demos/canvas-aspect-ratio-hack.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 20-25
+packages/engine/test/e2e/demos/page-renderer-screencast.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 44-47,53-57,76-85
+packages/engine/test/e2e/demos/boa-evalless-phase1.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 15
+packages/engine/test/e2e/demos/events-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 19,41-47,54-55,57
+packages/engine/test/e2e/demos/mc-conformance.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 25-31
+packages/engine/test/e2e/demos/top-level-await-fetch-probe.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 50,97-101
+packages/engine/test/e2e/harness.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 26-28
+packages/engine/test/e2e/renderer-laziness.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 106-109
+packages/engine/test/e2e/classic-computed-import.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 27-37
+packages/engine/test/e2e/demos/font-face-variable-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 37-38
+packages/engine/test/e2e/demos/img-srcset-reload-complete.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 15,25-35,49-51,55-60,88,112-128
+packages/engine/test/e2e/demos/boa-evalless-phase10a.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 11,17-26,29
+packages/engine/test/e2e/no-cors-opaque.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 125-132,135
+packages/engine/test/e2e/iframe-dom-reclaim.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 71-75,77-81
+packages/engine/test/e2e/demos/dom-innerhtml-rebuild-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 76-91
+packages/engine/test/e2e/demos/dom-mutation-events-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 135-144,160-169,180-186,206-211,240-245,263-271,312-323
+packages/engine/test/e2e/demos/mouse-events-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 26,103-111
+packages/engine/test/e2e/pdf-page-margins.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 47-52
+packages/engine/test/e2e/classic-seed-walk.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 14-24
+packages/engine/test/e2e/resource-type-not-page-settable.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 197-203,206,256-262,265
+packages/engine/test/e2e/demos/external-scripts-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 32,44-48,58-67
+packages/engine/test/e2e/demos/cookie-passthrough-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 56-58
+packages/engine/test/e2e/inserted-script.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 27-34
+packages/engine/test/e2e/demos/picture-srcset-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 45,125-140,181-192
+packages/engine/test/e2e/demos/css-getstylesheettext-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 65-68,89-92
+packages/engine/test/e2e/demos/lifecycle-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 97-106
+packages/engine/test/e2e/demos/module-init-shim-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 47
+packages/engine/test/e2e/demos/iframe-frame-tree-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 15
+packages/engine/test/e2e/demos/canvas-detached-append.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 20-25
+packages/engine/test/e2e/demos/iframe-dynamic-cdp-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 37-61
+packages/engine/test/e2e/demos/absolute-path-import-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 29-35
+packages/engine/test/e2e/blank-page-document.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 74-78
+packages/engine/test/e2e/demos/css-computed-style-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 58-61
+packages/engine/test/e2e/demos/font-face-unicode-range-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 46-67
+packages/engine/test/e2e/demos/hello.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 6
+packages/engine/test/e2e/demos/style-property-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 24
+packages/engine/test/e2e/navigation-fidelity.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 75,78-84,89,91
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 35-37,42-43,57-73,148-150,155-156,167-183,185-188,252-254,259-260,271-287,289,397-399,404-405,422-434
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 98-100,105-106,117-133,135-137,228-230,235-236,247-263,267-269,271-272,322-324,329-330,341-358,367-369,371-374,408-410,415-416,427-444,447-449,451-454
+packages/engine/test/e2e/demos/dom-mutate2-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 10
+packages/engine/test/e2e/trusted-fetch-intrinsic.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 53-60,64,68,79,128-135,140,144,148
+packages/engine/test/e2e/demos/mjs-import-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 32-41
+packages/engine/test/e2e/screencast-partial-image.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 41,46-47,55-75,90,116-119,121-126,129-131
+packages/engine/test/e2e/demos/xhr-boot-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 23-28
+packages/engine/test/e2e/demos/boa-evalless-phase4.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 12,16-25,28
+packages/engine/test/e2e/inline-wasm-bake.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 28-35
+packages/engine/test/e2e/demos/boa-evalless-phase7.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 12
+packages/engine/test/e2e/element-measurement.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 37-45,51-57
+packages/engine/test/e2e/demos/onhashchange-probe.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 15-16
+packages/engine/test/e2e/demos/wasm-bake-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 37-42
+packages/engine/test/e2e/demos/boa-evalless-phase10b.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 8,14-21
+packages/engine/test/e2e/current-script-microtask.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 30-35
+packages/engine/test/e2e/demos/cross-origin-nav-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 23
+packages/engine/test/e2e/demos/hit-test-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 25,67-72,91
+packages/engine/test/e2e/event-target-instance-listeners.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 65-68
+packages/engine/test/e2e/fetch-interception.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 256-257,259-268
+packages/engine/test/e2e/demos/oopif-worker-budget.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 29-32
+packages/engine/test/e2e/iframe-load-order.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 56,58-68,132-140
+packages/engine/test/e2e/demos/network-ua-override-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 16,25-39,48-53,60-63,65-66,69
+packages/engine/test/e2e/demos/css-matched-styles-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 64-67
+packages/engine/test/e2e/filereader-event-tasks.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 46-49
+packages/engine/test/e2e/window-global-scope.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 224-227,231
+packages/engine/test/e2e/demos/ws-boot-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 23-28
+packages/engine/test/e2e/demos/css-ua-styles-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 50-56
+packages/engine/test/e2e/author-webfont.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 35-45
+packages/engine/test/e2e/gateway-font-shaping.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 65-71
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 683-694
+packages/engine/test/e2e/lazy-load-event.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 35-38,40-45
+packages/engine/test/e2e/redirect-per-hop-gating.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 309-310,312-330,336-356
+packages/engine/test/e2e/demos/oopif-runtime-evaluate.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 34-43
+packages/engine/test/e2e/author-webfont-custody.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 23-29
+packages/engine/test/e2e/demos/boa-seam-collections-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 39-44
+packages/engine/test/e2e/svg-dynamic-text-upgrade.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 20-24
+packages/engine/test/e2e/quickaction-body-retention.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 41-46
+packages/engine/test/e2e/demos/modules-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 13,20-27,44,47-49
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 25-30
+packages/engine/test/e2e/raf-wrap-reentrancy.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 24-34
+packages/engine/test/e2e/boa-bridge-fidelity.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 19-27
+packages/engine/test/e2e/demos/screencast-wheel-coalescing.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 39-41,44-45,59-76,175,178-179,184-203,250,491-492,554-556,559-560,572-592,598,609-610,616-638,647,657
+packages/engine/test/e2e/demos/absolute-path-transitive-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 34-43
+packages/engine/test/e2e/demos/boa-evalless-phase3.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 11
+packages/engine/test/e2e/demos/svg-sprite-sidebar.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 21-22
+packages/engine/test/e2e/demos/css-inherited-styles-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 58-64,73-78
+packages/engine/test/e2e/demos/forms-activation-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 74-78
+packages/engine/test/e2e/demos/cssom-atrule-mirror.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 46-52
+packages/engine/test/e2e/demos/screenshot-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 25
+packages/engine/test/e2e/demos/canvas-2d-draw-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 26-31
+packages/engine/test/e2e/demos/keyboard-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 10,45-51
+packages/engine/test/e2e/interception-abandoned-park.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 29,31-32,34,37-39
+packages/engine/test/e2e/demos/font-face-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 113-125
+packages/engine/test/e2e/engine-memory-accounting.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 35-40,42
+packages/engine/test/e2e/demos/boa-seam-plain-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 31-36
+packages/engine/test/e2e/demos/tla-import-iife-fix-probe.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 51,54,67-78,118
+packages/engine/test/e2e/demos/boa-concurrent-import-demo.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 26-42
+packages/engine/test/e2e/canvas-text-upgrade.e2e.test.ts
+  s_fd5ace4703f987::t_d4e2360fed0328 25-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c022a75ec4789369d8feea2c518903880dbdebc2",
+  "prompts": {},
+  "sessions": {
+    "s_fd5ace4703f987": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3b64596affeSYmZpuA13NLow2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+packages/core/src/lib.rs
+  s_a6a77fd90718e0::t_5758b59bb8c427 316-317
+  s_a6a77fd90718e0::t_ed3065e01acbc6 315
+packages/core/src/inline_block_baseline_test.rs
+  s_a6a77fd90718e0::t_5758b59bb8c427 1-49
+scripts/patches/taffy-0.15.0/0010-Report-a-block-container-s-last-baseline.patch
+  s_a6a77fd90718e0::t_20217a122997f6 1-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5cd800dfe965d4561a54d521f3ba4303bf1bda96",
+  "prompts": {},
+  "sessions": {
+    "s_a6a77fd90718e0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ece986e0affeZIbc7Dl5XWAB8y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

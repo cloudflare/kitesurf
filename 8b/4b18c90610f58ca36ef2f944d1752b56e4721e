@@ -1,0 +1,43 @@
+packages/scene-client/Cargo.toml
+  s_66dcd752fbc9dc::t_ddbf55fb8f2a47 18
+packages/core/Cargo.toml
+  s_66dcd752fbc9dc::t_f8a5cd38522e08 253-254
+  s_66dcd752fbc9dc::t_636a8ba7e27ece 98
+scripts/patches/vello_cpu-0.0.9/0001-Replace-the-blurred-rect-p-norm-with-a-polynomial-in.patch
+  s_40a77a88c7e719::t_f32690e70e2cf9 31,33,36,78,85-86,120,133,143,151
+  s_66dcd752fbc9dc::t_69744de088e1b0 3,21-24
+scripts/patches/vello_cpu-0.0.9/0002-Add-poly-pnorm-feature-gate-for-the-blurred-rect-p-n.patch
+  s_2237b316b5d1aa::t_0689132ab1f6d6 1-232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8b4b18c90610f58ca36ef2f944d1752b56e4721e",
+  "prompts": {},
+  "sessions": {
+    "s_2237b316b5d1aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_007f694f3ffeSRQ1SioIOgOd1f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_40a77a88c7e719": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00899d021ffeusxbvHVto59doi",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_66dcd752fbc9dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_007c4ca0cffem64CSPljVfAf1E",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": null
+    }
+  }
+}

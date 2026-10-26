@@ -1,0 +1,21 @@
+packages/storage-state-extension/extension/icons/icon.svg
+  s_ebc9d43f49867a::t_8b30293120c2de 1-15
+packages/storage-state-extension/extension/manifest.json
+  s_ebc9d43f49867a::t_c419169c223cb2 7,12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "10e2e513219a5c7294467ad4e536973c8a8325fe",
+  "prompts": {},
+  "sessions": {
+    "s_ebc9d43f49867a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0d62d6bfffeEicn5CQ06c8WIb",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

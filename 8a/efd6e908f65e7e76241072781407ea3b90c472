@@ -1,0 +1,24 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_df0ebce696128f::t_7975a2d7a8e7c2 483-504
+  s_df0ebce696128f::t_240d30a047c07d 2332-2333
+packages/engine/test/e2e/sticky-position.e2e.test.ts
+  s_df0ebce696128f::t_3419697f05190f 192-229
+scripts/patches/taffy-0.12.2/0010-Block-layout-min-height-alone-is-not-a-percentage-re.patch
+  s_df0ebce696128f::t_914ab77f83cca5 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8aefd6e908f65e7e76241072781407ea3b90c472",
+  "prompts": {},
+  "sessions": {
+    "s_df0ebce696128f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_013408b4cffePZ1qM0zJdo82E7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

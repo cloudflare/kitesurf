@@ -1,0 +1,59 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0142-Fix-hit-testing-for-padded-inline-roots.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-Carry-the-layout-rounding-step-on-the-document.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-66
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-Resolve-fixed-percentage-sizes-against-the-viewport.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-34
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-memory-manage-cached-author-sheet-lifetimes.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-158
+scripts/patches/blitz-dom-0.3.0-beta.2/0134-Apply-relative-insets-to-inline-floats.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-92
+scripts/patches/blitz-dom-0.3.0-beta.2/0137-Fix-absolute-inline-box-positioning.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-47
+scripts/patches/blitz-dom-0.3.0-beta.2/0124-Restyle-container-queries-against-laid-out-container.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-165
+scripts/patches/blitz-dom-0.3.0-beta.2/0125-Resolve-an-atomic-inline-s-own-intrinsic-width-keywo.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-140
+scripts/patches/blitz-dom-0.3.0-beta.2/0139-Retain-raw-table-tracks-across-terminal-reflow.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-67
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-Use-natural-font-metrics-for-inline-line-height.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-299
+scripts/patches/blitz-dom-0.3.0-beta.2/0135-Snap-terminal-table-tracks-with-cell-layout.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-102
+scripts/patches/blitz-dom-0.3.0-beta.2/0123-Pass-inline-alignment-and-x-height-to-Parley.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-431
+scripts/patches/blitz-dom-0.3.0-beta.2/0136-Account-for-table-ancestors-when-snapping-tracks.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-60
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Tolerate-a-sub-cell-width-change-instead-of-re-break.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-47
+scripts/patches/blitz-dom-0.3.0-beta.2/0140-Align-table-tracks-to-their-final-paint-origin.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-56
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-Hit-text-only-on-the-line-that-contains-the-point.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-55
+scripts/patches/blitz-dom-0.3.0-beta.2/0141-Preserve-supported-font-source-fallbacks.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Honor-vertical-alignment-inside-table-cells.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-114
+scripts/patches/blitz-dom-0.3.0-beta.2/0131-memory-support-embedder-managed-node-reclamation.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-57
+scripts/patches/blitz-dom-0.3.0-beta.2/0138-Resolve-relative-inline-insets-against-used-height.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-61
+scripts/patches/blitz-dom-0.3.0-beta.2/0133-Preserve-parent-line-metrics-for-inline-boxes.patch
+  s_db3a1fb479bcda::t_4020264e40b345 1-284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0c798edf77dffac8497e7f17bd9708968ad03ce1",
+  "prompts": {},
+  "sessions": {
+    "s_db3a1fb479bcda": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f45cc0b70ffeJklqn6y6yGrDaB",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

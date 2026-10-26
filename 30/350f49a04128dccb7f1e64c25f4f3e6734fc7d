@@ -1,0 +1,48 @@
+packages/core/src/sticky.rs
+  s_2237b316b5d1aa::t_0286a946a2123d 247,250,256-287
+  s_2237b316b5d1aa::t_0f73508fefb3c3 150-152
+  s_2237b316b5d1aa::t_f5edf42ecf0016 288,406
+packages/core/src/counter_damage_gate_test.rs
+  s_2237b316b5d1aa::t_ae496242ab8860 81-103
+packages/core/src/scene_record.rs
+  s_2237b316b5d1aa::t_70df415092c97e 313-315
+packages/core/src/sticky_reset_test.rs
+  s_2237b316b5d1aa::t_0d6f4808f860e2 71,73,94-96,99,103-123,125-127,130-135,137-140
+  s_2237b316b5d1aa::t_423f3c55749b1e 72,74-93,97-98,100-102,124,128-129,136
+  s_2237b316b5d1aa::t_c60bb72891142d 141-143,200
+packages/core/src/lib.rs
+  s_2237b316b5d1aa::t_438e038fe13634 3237-3238,6043-6046
+  s_2237b316b5d1aa::t_f545daa03016b3 3267-3268
+  s_2237b316b5d1aa::t_a74853f19cd270 4769-4787
+  s_2237b316b5d1aa::t_91485c8a698aca 433-436
+  s_2237b316b5d1aa::t_08b399344ed649 2628-2632
+  s_2237b316b5d1aa::t_35f5fcb6185555 2516
+  s_2237b316b5d1aa::t_47af574252d40f 4750-4752
+  s_2237b316b5d1aa::t_c9c75d25c13003 437,730,2517,2626,2633,3235-3236,3239-3242,3255,3269-3271,3284,4749,4753-4755,4788-4790,6047-6049
+packages/core/src/damaged_subtree_skip_test.rs
+  s_2237b316b5d1aa::t_07dacbdeeb511e 2
+packages/core/src/hoist_incremental_test.rs
+  s_2237b316b5d1aa::t_78a536e5595529 306-393
+scripts/patches/blitz-dom-0.3.0-beta.1/0103-Parse-each-SVG-once-and-cache-the-tree-on-its-source.patch
+  s_2237b316b5d1aa::t_93d172549752cb 28-29,32,35,43,53-56,61-63,72,82,96-98,103-107,119
+scripts/patches/blitz-dom-0.3.0-beta.1/0107-Gate-per-resolve-work-on-damage.patch
+  s_2237b316b5d1aa::t_327a9321c2e5e8 105,107-108,110-111,113,115,143,167,172-177,181,206-209,222,232-233,237,256,266-276,280,284,308,322,326,340-350,425,463,466,468,533-546,564,629,632-642,650-656,660,665-671,701-740,1103,1115-1123,1132-1146,1376,1379-1386,1388-1402,1509,1515,1518,1520,1533,1541,1556,1574,1596
+scripts/patches/taffy-0.12.2/0013-Stop-the-measure-cache-evicting-entries-it-still-nee.patch
+  s_2237b316b5d1aa::t_0494e465d446fb 28-29,32,41,49-56,58-141,148-151,154,156-160,162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "30350f49a04128dccb7f1e64c25f4f3e6734fc7d",
+  "prompts": {},
+  "sessions": {
+    "s_2237b316b5d1aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_007f694f3ffeSRQ1SioIOgOd1f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

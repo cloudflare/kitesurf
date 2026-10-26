@@ -1,0 +1,21 @@
+packages/engine/test/e2e/font-face-unicode-range-gating.e2e.test.ts
+  s_93b484cedebccd::t_bf2ec4e897f4fa 102-125
+docs/FONTS.md
+  s_93b484cedebccd::t_bf2ec4e897f4fa 147-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e204f236abe5bd29aa8636463792a612237a124c",
+  "prompts": {},
+  "sessions": {
+    "s_93b484cedebccd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31d712fdffeuTQq5D6PMopaPg",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

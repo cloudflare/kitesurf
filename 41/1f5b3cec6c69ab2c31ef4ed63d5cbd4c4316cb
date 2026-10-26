@@ -1,0 +1,27 @@
+scripts/patches/blitz-paint-0.3.0-beta.1/0022-Offset-collapsed-table-borders-to-the-table-s-conten.patch
+  s_91836f22884cfe::t_482289fdb3bca1 11-14,19-28,30-31,34,66,75-87,92,98,102,106,112,116,120,124
+scripts/patches/blitz-paint-0.3.0-beta.1/0026-Lean-synthetic-italic-to-the-right-not-the-left.patch
+  s_91836f22884cfe::t_c108b2f9babf5a 31
+scripts/patches/blitz-paint-0.3.0-beta.1/0024-Paint-checkboxes-and-radios-which-blitz-never-did.patch
+  s_91836f22884cfe::t_69bd033ad56687 5-7
+scripts/patches/blitz-paint-0.3.0-beta.1/0025-Sketch-mode-box-SVG-content-instead-of-painting-the-.patch
+  s_91836f22884cfe::t_09dbd426cb482f 48,51,66
+scripts/patches/blitz-paint-0.3.0-beta.1/0027-Let-a-re-homed-abspos-escape-its-flow-parent-s-overf.patch
+  s_91836f22884cfe::t_215465cb042e2b 41,44-45,47,71,87,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "411f5b3cec6c69ab2c31ef4ed63d5cbd4c4316cb",
+  "prompts": {},
+  "sessions": {
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

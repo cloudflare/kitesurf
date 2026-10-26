@@ -1,0 +1,72 @@
+packages/dom-shim/src/range.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 13,708-710,724-729,731
+packages/dom-shim/src/idl/type-gaps.json
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 90-94
+packages/dom-shim/src/element/table.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 3,34-42,57-58,91,119
+packages/dom-shim/src/select-dropdown.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 18-19,29,37,47-48,89,109
+packages/dom-shim/src/index.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 686
+packages/dom-shim/strict-baseline.json
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 6
+packages/dom-shim/src/element/html-element.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 2,109
+packages/page-script/src/types.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 130
+packages/page-script/src/globals.ts
+  s_9dfd70098e6253::t_5eecd32b970bfb 861
+packages/dom-shim/src/node-base.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 8,28,39,598,614,623,1102,1105
+packages/dom-shim/src/element/forms/select.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 6,87
+packages/dom-shim/src/window.ts
+  s_9dfd70098e6253::t_27a5baf88b6436 960,969
+  s_9dfd70098e6253::t_036626f761cbf2 7,1497
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 31-32,125-128,131,148,159,165,176,216,222,396-426,504,556,602,611-612,620,623,646,657-660,683,686,688-689,742,921,927,936,945,950,954,959,962,965-966,968,983,1002,1019-1023,1254,1316,1363,1501,1535,1541,1610,1653,1687,1737
+packages/dom-shim/src/registries.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 173-176
+packages/page-script/src/index.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 521
+packages/dom-shim/src/state.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 21,41,314-319,338-345,353-354,447-451
+packages/dom-shim/src/mutations/observer.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 64
+packages/dom-shim/src/element/forms/input.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 2,310
+packages/dom-shim/src/element/forms/form.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 5,72
+packages/dom-shim/src/element/forms/labelable.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 1,28
+packages/dom-shim/src/element/forms/label.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 2,14
+packages/dom-shim/src/collections.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 136
+packages/dom-shim/src/element/forms/listed.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 1,18
+packages/dom-shim/src/element/element.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 16,26,1288,2278
+packages/dom-shim/src/document.ts
+  s_9dfd70098e6253::t_036626f761cbf2 14
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 207,453,1454,1462-1463,1465
+packages/dom-shim/src/element/forms/input-state.ts
+  s_9dfd70098e6253::t_1e33ad8f4c24d4 1,192
+packages/dom-shim/src/idl/types.generated.ts
+  s_9dfd70098e6253::t_6bd790dfda0c00 2442
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "90bf7247f163e169025abac344850727d21f7434",
+  "prompts": {},
+  "sessions": {
+    "s_9dfd70098e6253": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eac07b0abffeZGgpW9LtWY7xPB",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

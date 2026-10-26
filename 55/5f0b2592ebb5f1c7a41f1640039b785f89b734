@@ -1,0 +1,22 @@
+packages/engine/test/e2e/anchor-positioning-parsing.e2e.test.ts
+  s_5de5a0b7011c6d::t_e17cd3d1ae7d28 28
+  s_5de5a0b7011c6d::t_4c54284f3351d1 41-46
+  s_5de5a0b7011c6d::t_3febb87fd02eff 6-12,23,29,40,47-53
+  s_5de5a0b7011c6d::t_073fa74eb8ba8d 13-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "555f0b2592ebb5f1c7a41f1640039b785f89b734",
+  "prompts": {},
+  "sessions": {
+    "s_5de5a0b7011c6d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f594feed1ffenbEe9zCda9KV19",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

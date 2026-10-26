@@ -1,0 +1,35 @@
+packages/core/src/webgl/pipeline.rs
+  s_cf72bc8665a55a::t_4e885f19aebaf9 384
+  s_cf72bc8665a55a::t_f35a3651f013bb 383
+packages/dom-shim/src/webgl.ts
+  s_cf72bc8665a55a::t_a11b9315c7d21b 350-352
+  s_cf72bc8665a55a::t_4e885f19aebaf9 353-354
+packages/core/src/webgl/gl.rs
+  s_cf72bc8665a55a::t_76dfbb97083ac3 154-159,209,255,284,290-291,795-802
+  s_cf72bc8665a55a::t_4e885f19aebaf9 17,42,141-143,203-205,309,316-319,521-525,529
+  s_cf72bc8665a55a::t_7d4262faa0cb43 170-174,217-219,277,285-289,734,736-737
+  s_cf72bc8665a55a::t_f0810c1f9c18eb 279-283,293
+  s_cf72bc8665a55a::t_f35a3651f013bb 136-139,200-201,314-315,517-520,526
+packages/core/src/webgl_test.rs
+  s_cf72bc8665a55a::t_f35a3651f013bb 90
+  s_cf72bc8665a55a::t_4e885f19aebaf9 91
+packages/core/src/webgl/raster.rs
+  s_cf72bc8665a55a::t_4e885f19aebaf9 91-140,277,418-434,436
+  s_cf72bc8665a55a::t_33fa8a3c605d58 55-90,276,367,415-417
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3fbf8f09535c203c721df08ed09ac90cfff52f1a",
+  "prompts": {},
+  "sessions": {
+    "s_cf72bc8665a55a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00382b600ffeKKvCWdmK9ZTiAt",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

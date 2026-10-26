@@ -1,0 +1,22 @@
+scripts/wait-for-main-wasm.mjs
+  s_4376a60b5dde28::t_5763a1618ee2e7 47,68-69,76-83,90-94
+scripts/wait-for-main-wasm.test.mjs
+  s_4376a60b5dde28::t_eeaf0fc01615ec 3,6,23,28-32,34-95,98-134
+  s_4376a60b5dde28::t_5763a1618ee2e7 4-5,33,96-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "169c55c1042fddde986ea8c394e3a5380d42ce1f",
+  "prompts": {},
+  "sessions": {
+    "s_4376a60b5dde28": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f14b8631efferhlYRR5J3BCy65",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

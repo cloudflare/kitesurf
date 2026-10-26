@@ -1,0 +1,39 @@
+packages/website/src/client/hero-shader.ts
+  s_909163843c9dee::t_8a780be97967f1 8
+  s_909163843c9dee::t_52c34204f536c1 88
+  s_909163843c9dee::t_5a9795c82a547c 1-5,10,12,22-24,26,28,38,46,56,67-69,80
+packages/website/src/client/landing.ts
+  s_909163843c9dee::t_52c34204f536c1 104,106-109
+packages/website/scripts/build.mjs
+  s_909163843c9dee::t_52c34204f536c1 7,47-48,51
+packages/website/src/styles/base.css
+  s_909163843c9dee::t_52c34204f536c1 214-216
+packages/website/src/respond.tsx
+  s_909163843c9dee::t_09a74bbe083263 22,26
+  s_909163843c9dee::t_52c34204f536c1 24-25,27
+packages/website/src/pages/landing/Hero.tsx
+  s_909163843c9dee::t_52c34204f536c1 3,48
+packages/website/scripts/capture-showcase.mjs
+  s_909163843c9dee::t_52c34204f536c1 48
+packages/website/src/components/Document.tsx
+  s_909163843c9dee::t_c80608a149f623 11
+packages/website/src/routes.tsx
+  s_909163843c9dee::t_52c34204f536c1 6
+  s_909163843c9dee::t_09a74bbe083263 16,75-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c6b048cb3ecb47f12d92a80660750c9e7a4cac31",
+  "prompts": {},
+  "sessions": {
+    "s_909163843c9dee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1b8ee7e2ffe0ZSBgOtK2CgnBd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Brandon Strittmatter <bstrittmatter@cloudflare.com>"
+    }
+  }
+}

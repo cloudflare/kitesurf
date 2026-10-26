@@ -1,0 +1,52 @@
+packages/page-script/src/session-methods.ts
+  s_e5734d2cdd8842::t_63d8d635ef6c0e 27-28
+packages/core/src/boa_bridge.rs
+  s_e5734d2cdd8842::t_bb94b314a987a1 3651
+  s_e5734d2cdd8842::t_dd99f92155e772 2378-2380,2387,2461,2488
+packages/page-script/src/globals.ts
+  s_e5734d2cdd8842::t_63d8d635ef6c0e 207-208,220-221,248-249,255-256
+packages/page-script/src/internals.ts
+  s_e5734d2cdd8842::t_63d8d635ef6c0e 13-27
+packages/page-script/src/page-tasks.ts
+  s_e5734d2cdd8842::t_63d8d635ef6c0e 16,670-675
+packages/engine/test/e2e/boa-ctx-reentry.e2e.test.ts
+  s_e5734d2cdd8842::t_e89526564b44dd 122
+  s_e5734d2cdd8842::t_1dd1ffff53f832 123-124
+  s_e5734d2cdd8842::t_49ebe8aa5e663c 140,142-143
+  s_e5734d2cdd8842::t_01fcf634507ece 139,141
+docs/SCRIPT_GATE.md
+  s_e5734d2cdd8842::t_49ebe8aa5e663c 25
+packages/core/src/internals.rs
+  s_e5734d2cdd8842::t_6125adb41802b9 1-47
+packages/core/src/lib.rs
+  s_e5734d2cdd8842::t_38bf73b2af0a7e 581,584-586
+  s_e5734d2cdd8842::t_33121f3ca2306c 53
+packages/page-script/src/types.ts
+  s_e5734d2cdd8842::t_0a551d9bc90569 218-219
+packages/core/src/boa_eval.rs
+  s_e5734d2cdd8842::t_38bf73b2af0a7e 98,100-101,159-160,1291-1292,1295,1306,1308
+docs/BOA_V8_FLOW.md
+  s_e5734d2cdd8842::t_49ebe8aa5e663c 245
+packages/dom-shim/src/internals.ts
+  s_e5734d2cdd8842::t_6643a2402ad4cb 23-26
+packages/dom-shim/src/animations.ts
+  s_e5734d2cdd8842::t_d39fe6cdcb0667 8,31-32
+packages/engine/test/e2e/demos/clock-floor-stamp-demo.e2e.test.ts
+  s_e5734d2cdd8842::t_49ebe8aa5e663c 18-20,33-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f917bff24504ffe7729071ae48790db76c12d48c",
+  "prompts": {},
+  "sessions": {
+    "s_e5734d2cdd8842": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb7b5c1b1ffemNY2McWVkjToXQ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_19384c32fdab9f::t_00be47795ad413 1888-1891
+  s_19384c32fdab9f::t_86363851f33fc7 4431-4441
+tests/wpt-expectations.json
+  s_19384c32fdab9f::t_27c28b65085027 8614-8617
+tests/wpt-tests.json
+  s_19384c32fdab9f::t_6e266dace90355 3708
+packages/engine/test/e2e/cors-stylesheets.e2e.test.ts
+  s_19384c32fdab9f::t_1c3629472875fe 33,176-184
+  s_19384c32fdab9f::t_42dd567c487650 185-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "88b2158ed567ad378aea388c8e5bf24b5c9b82e4",
+  "prompts": {},
+  "sessions": {
+    "s_19384c32fdab9f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0368b49f1ffepX0vL0s6u0roul",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

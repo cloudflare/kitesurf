@@ -1,0 +1,35 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0084-Skip-a-font-family-still-waiting-on-a-face-for-the-w.patch
+  s_e7dc27bdab5fff::t_a579319134aa5e 40,43,53,65,79,82,98
+scripts/patches/blitz-dom-0.3.0-beta.1/0085-Decode-legacy-non-UTF-8-stylesheets-instead-of-dropp.patch
+  s_e7dc27bdab5fff::t_88b7b01a10cb5a 39
+scripts/patches/blitz-dom-0.3.0-beta.1/0087-kitesurf-keep-incremental-layout-from-losing-content.patch
+  s_e7dc27bdab5fff::t_fbb50be8b7a533 220,285,295,376,379,403,414,445,461,472,497,507
+scripts/patches/blitz-dom-0.3.0-beta.1/0089-Re-scope-a-linked-stylesheet-when-its-media-attribut.patch
+  s_e7dc27bdab5fff::t_979f2a3907794a 30,33,42,51
+scripts/patches/blitz-dom-0.3.0-beta.1/0090-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
+  s_e7dc27bdab5fff::t_febcd5152c7513 29,32
+scripts/patches/blitz-dom-0.3.0-beta.1/0091-Stamp-a-restyle-hint-when-remove_node-unlinks-a-chil.patch
+  s_e7dc27bdab5fff::t_efc5564ad0b799 20,23
+scripts/patches/blitz-dom-0.3.0-beta.1/0092-Drive-the-relative-selector-invalidator-for-tree-mut.patch
+  s_e7dc27bdab5fff::t_883c55b7007b69 36,39,51,63,77,93
+scripts/patches/blitz-dom-0.3.0-beta.1/0093-Stop-an-inline-rebuild-stealing-a-hoisted-box-s-layo.patch
+  s_e7dc27bdab5fff::t_a5bd0dacf195c6 34,37,45
+scripts/patches/blitz-dom-0.3.0-beta.1/0094-white-space-map-preserve-breaks-to-parley-s-Preserve.patch
+  s_e7dc27bdab5fff::t_5b340dc574d340 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "23cd12aaffab995ceabc9622762c917de4e7bbdd",
+  "prompts": {},
+  "sessions": {
+    "s_e7dc27bdab5fff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00a4f8786ffeFB2n8VkGusS6CL",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

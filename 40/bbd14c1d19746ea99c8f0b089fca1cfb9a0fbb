@@ -1,0 +1,22 @@
+packages/core/src/boa_eval.rs
+  s_103b7f1f0713cd::t_2069601fd5cf69 353,358,1037,1049-1066,1071-1095
+  s_103b7f1f0713cd::t_7bc039f19a7bc4 1096
+packages/engine/test/e2e/timer-wheel.e2e.test.ts
+  s_103b7f1f0713cd::t_5e4e20d4dba6d9 202-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "40bbd14c1d19746ea99c8f0b089fca1cfb9a0fbb",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

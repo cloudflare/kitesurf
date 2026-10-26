@@ -1,0 +1,34 @@
+packages/dom-shim/src/registries.ts
+  s_ef26f8dd06f5df::t_797321dd416a4a 167-170
+packages/dom-shim/src/element.ts
+  s_ef26f8dd06f5df::t_49efcac8f8d925 1320-1324,1327-1328
+  s_ef26f8dd06f5df::t_e7af5dad8293ba 1412-1449
+packages/dom-shim/src/collections.ts
+  s_ef26f8dd06f5df::t_0617023396422d 3571,3575
+  s_ef26f8dd06f5df::t_514862f5ae8be3 3686
+  s_ef26f8dd06f5df::t_7937ab2d35da2f 18
+  s_ef26f8dd06f5df::t_883cc273ea5598 3593,3614,3621-3622,3648
+  s_ef26f8dd06f5df::t_6820c9729e158b 3437-3443,3446,3453,3459
+  s_ef26f8dd06f5df::t_321093933ccf10 3557,3562
+packages/engine/test/e2e/attributes-live-namednodemap.e2e.test.ts
+  s_ef26f8dd06f5df::t_e6578dcd7e58f9 1-85
+packages/dom-shim/src/state.ts
+  s_ef26f8dd06f5df::t_6b92482bb1cc1c 332-334
+  s_ef26f8dd06f5df::t_841acfa489ef20 352-358
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "139507db4c4898c701f0c681cd6f2238459818cf",
+  "prompts": {},
+  "sessions": {
+    "s_ef26f8dd06f5df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3be04914ffe7HHtOkszWCc5pa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

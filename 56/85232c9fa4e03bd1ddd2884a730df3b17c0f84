@@ -1,0 +1,19 @@
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_f63687b74db073::t_ccf2fb3a6ffd4f 533-535,556-558,571-573,588-589
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5685232c9fa4e03bd1ddd2884a730df3b17c0f84",
+  "prompts": {},
+  "sessions": {
+    "s_f63687b74db073": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eced88d35ffeD2Ko0HBnteRp7U",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

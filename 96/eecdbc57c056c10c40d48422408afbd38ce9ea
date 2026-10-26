@@ -1,0 +1,21 @@
+scripts/patches/taffy-0.12.2/0010-Cache-the-lowest-float-bottom-per-side-so-clearing-s.patch
+  s_febe8d41b549be::t_bea5ea236bedca 1-88
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_febe8d41b549be::t_bea5ea236bedca 30,45-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "96eecdbc57c056c10c40d48422408afbd38ce9ea",
+  "prompts": {},
+  "sessions": {
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

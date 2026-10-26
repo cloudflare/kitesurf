@@ -1,0 +1,40 @@
+scripts/patches/jpeg-encoder-0.7.0/0001-Vectorize-per-block-encode-stages-with-wasm-SIMD128.patch
+  s_103b7f1f0713cd::t_8a71a967cf22ad 1-28,31-149,151-152,154-159,163-517
+  s_103b7f1f0713cd::t_c63f398b614e13 29-30,150,153,160-162
+scripts/patches/jpeg-encoder-0.7.0/0006-Always-inline-the-Huffman-bit-writer.patch
+  s_103b7f1f0713cd::t_a678c4a22ef61f 1-29
+scripts/patches/README.md
+  s_103b7f1f0713cd::t_e58e528a0bd34d 88
+  s_103b7f1f0713cd::t_4db4a5b6ed9eed 131-134
+Cargo.toml
+  s_103b7f1f0713cd::t_6e1e76720ea36b 94-96
+scripts/patches/jpeg-encoder-0.7.0/0005-Skip-color-conversion-for-chroma-rows-the-encoder-ne.patch
+  s_103b7f1f0713cd::t_a678c4a22ef61f 1-126
+scripts/patches/jpeg-encoder-0.7.0/0007-Apply-the-zigzag-order-with-SIMD-shuffles-on-wasm.patch
+  s_103b7f1f0713cd::t_a678c4a22ef61f 1-94
+scripts/patches/jpeg-encoder-0.7.0/0004-Fuse-block-sampling-DCT-and-quantization-on-wasm-SIM.patch
+  s_103b7f1f0713cd::t_a678c4a22ef61f 1-279
+scripts/get-patched-vendor-crates.mjs
+  s_103b7f1f0713cd::t_6e1e76720ea36b 61
+scripts/patches/jpeg-encoder-0.7.0/0003-Use-a-64-bit-Huffman-bit-accumulator-on-every-target.patch
+  s_103b7f1f0713cd::t_a678c4a22ef61f 1-58
+scripts/patches/jpeg-encoder-0.7.0/0002-Skip-zero-AC-coefficients-with-a-nonzero-bitmask.patch
+  s_103b7f1f0713cd::t_c63f398b614e13 22,25
+  s_103b7f1f0713cd::t_8a71a967cf22ad 1-21,23-24,26-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "48a1053eae21f7ae35b4fe2d597e69ec74b57679",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

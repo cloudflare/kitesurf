@@ -1,0 +1,80 @@
+packages/dom-shim/src/state.ts
+  s_e5734d2cdd8842::t_547931059a127f 19
+  s_e5734d2cdd8842::t_e3a054b3815fd1 628-637
+packages/page-script/src/intersection-observer.ts
+  s_e5734d2cdd8842::t_6511fd4225c5dc 3
+  s_e5734d2cdd8842::t_2f91109e17d17a 669
+packages/dom-shim/src/global-scope.ts
+  s_e5734d2cdd8842::t_0906cbaf699345 1-16,22-51,53-65,68-70,74-91
+  s_e5734d2cdd8842::t_50a82096b3b263 71-73
+  s_e5734d2cdd8842::t_3b420f0388fc2f 17-21,52,66-67
+packages/page-script/src/websocket.ts
+  s_e5734d2cdd8842::t_eb7223e4319fe3 265-266
+packages/page-script/src/globals.ts
+  s_e5734d2cdd8842::t_2f91109e17d17a 160,1172,1186,3307,4163,4208,4341,4456
+  s_e5734d2cdd8842::t_6ac032f65122dd 1225,4572
+  s_e5734d2cdd8842::t_709721175c6fad 4,21,4480
+  s_e5734d2cdd8842::t_eb7223e4319fe3 2554,3083,3141,3389,4475,4486,4492
+packages/dom-shim/src/document.ts
+  s_e5734d2cdd8842::t_d2c4cd6116971a 1099-1100
+packages/dom-shim/src/contract.ts
+  s_e5734d2cdd8842::t_6ecf0534f453be 9
+packages/page-script/src/state.ts
+  s_e5734d2cdd8842::t_735b424416b47a 7,127-128,131-138
+  s_e5734d2cdd8842::t_eb7223e4319fe3 144-146
+packages/dom-shim/src/canvas2d.ts
+  s_e5734d2cdd8842::t_d2c4cd6116971a 1031
+  s_e5734d2cdd8842::t_3b420f0388fc2f 35
+packages/dom-shim/src/window.ts
+  s_e5734d2cdd8842::t_53130ade332057 7,1364,1431,1459,1502,1511
+packages/page-script/src/index.ts
+  s_e5734d2cdd8842::t_78a781489d70df 2647
+  s_e5734d2cdd8842::t_eb7223e4319fe3 1721
+  s_e5734d2cdd8842::t_6ac032f65122dd 3337,4032-4034
+packages/page-script/src/defer-shim.ts
+  s_e5734d2cdd8842::t_6ac032f65122dd 119-122
+packages/page-script/src/session-methods.ts
+  s_e5734d2cdd8842::t_78a781489d70df 13,38,50
+AGENTS.md
+  s_e5734d2cdd8842::t_24552a2c720fe2 45-49
+packages/dom-shim/src/file-input.ts
+  s_e5734d2cdd8842::t_3b420f0388fc2f 321-323
+packages/dom-shim/src/element/event-handlers.ts
+  s_e5734d2cdd8842::t_53130ade332057 112,116
+  s_e5734d2cdd8842::t_4fa6429d9c600c 1
+packages/dom-shim/src/events/dispatch.ts
+  s_e5734d2cdd8842::t_53130ade332057 638
+  s_e5734d2cdd8842::t_4fa6429d9c600c 17
+packages/page-script/src/dedicated-worker.ts
+  s_e5734d2cdd8842::t_86385b6769d054 191
+  s_e5734d2cdd8842::t_6ac032f65122dd 19-21,27,31,43,311,329,358,404
+packages/page-script/src/fetch-shim.ts
+  s_e5734d2cdd8842::t_eb7223e4319fe3 307,314-316,447,464-466
+packages/page-script/src/dom-shim.ts
+  s_e5734d2cdd8842::t_6ecf0534f453be 23
+packages/page-script/src/types.ts
+  s_e5734d2cdd8842::t_78a781489d70df 6-8
+  s_e5734d2cdd8842::t_6ecf0534f453be 139,153-156,252-254
+  s_e5734d2cdd8842::t_6ac032f65122dd 138
+  s_e5734d2cdd8842::t_107db002b987d5 158-162,167-197,217-251
+  s_e5734d2cdd8842::t_eb7223e4319fe3 141-147,157,163-166,198-216
+  s_e5734d2cdd8842::t_e959d592c998b2 140
+packages/page-script/src/console-buffer.ts
+  s_e5734d2cdd8842::t_eb7223e4319fe3 67,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eaa6c4470dec9970f6f941903278fda663ebb9a8",
+  "prompts": {},
+  "sessions": {
+    "s_e5734d2cdd8842": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb7b5c1b1ffemNY2McWVkjToXQ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

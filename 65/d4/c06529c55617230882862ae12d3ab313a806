@@ -1,0 +1,24 @@
+packages/core/src/fonts.rs
+  s_007aa98d65e76a::t_2a6b3972d423e2 630
+  s_007aa98d65e76a::t_68a906a5e79081 710
+  s_007aa98d65e76a::t_05345f660c7168 2508
+  s_007aa98d65e76a::t_17cb84e08e4ae2 572,624-629,631,675
+scripts/patches/blitz-dom-0.3.0-beta.2/0148-record-author-font-family-names.patch
+  s_007aa98d65e76a::t_7bd75eb9c986bb 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "65d4c06529c55617230882862ae12d3ab313a806",
+  "prompts": {},
+  "sessions": {
+    "s_007aa98d65e76a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author follow-up cloudflare/brapi/kitesurf!384",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

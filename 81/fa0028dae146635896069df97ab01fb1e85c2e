@@ -1,0 +1,30 @@
+internal/scripts/wpt-report-refresh.mjs
+  s_c6d6a3ac21fe46::t_a7d4220a6bf1c0 23-28
+  s_c6d6a3ac21fe46::t_fc21bc46598aa6 20
+  s_c6d6a3ac21fe46::t_8d12ea2cab7969 1
+internal/scripts/wpt-history-append.mjs
+  s_c6d6a3ac21fe46::t_98b1b18b3451b9 1
+  s_c6d6a3ac21fe46::t_18f2eda6d37b36 14
+internal/scripts/wpt-compare.mjs
+  s_c6d6a3ac21fe46::t_16461d6616734f 41
+  s_c6d6a3ac21fe46::t_cae57399490992 104
+  s_c6d6a3ac21fe46::t_afbafde8636ca8 345
+  s_c6d6a3ac21fe46::t_d53bad5dfc10c1 1
+  s_c6d6a3ac21fe46::t_b4a3b849dfa6f6 181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "81fa0028dae146635896069df97ab01fb1e85c2e",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

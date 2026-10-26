@@ -1,0 +1,21 @@
+packages/engine/src/eval/outbound.ts
+  s_d99fa5b77d13e0::t_5a87221d007ec3 975-983,1437-1440
+packages/engine/test/e2e/demos/cookie-passthrough-demo.e2e.test.ts
+  s_d99fa5b77d13e0::t_20d5f7286552c4 29-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1e244a1a9c811f5d45860d0de0d89476dc93dffa",
+  "prompts": {},
+  "sessions": {
+    "s_d99fa5b77d13e0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff16bedb2ffeFbYGnICET27x4e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

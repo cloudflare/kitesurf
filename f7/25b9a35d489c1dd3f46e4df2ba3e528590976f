@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0098-dom-borrow-the-style-cell-once-per-primary_styles.patch
+  s_dfd792beae87ba::t_d1f1d349ce36a1 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f725b9a35d489c1dd3f46e4df2ba3e528590976f",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

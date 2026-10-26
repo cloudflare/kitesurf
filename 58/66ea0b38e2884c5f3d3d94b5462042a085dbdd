@@ -1,0 +1,32 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0109-memory-evict-replaced-author-sheets.patch
+  s_f5785bea72e01e::t_427cf1b67f6872 1-47
+packages/dom-shim/src/collections.ts
+  s_f5785bea72e01e::t_2ca689f651eaec 2339-2342,2353,2361-2384,2568
+packages/core/src/lib.rs
+  s_f5785bea72e01e::t_b6d81b61ad03a2 2215-2232
+packages/engine/test/e2e/text-content-memory.e2e.test.ts
+  s_f5785bea72e01e::t_ead22f59eadd6f 1-11,18,20-25,39,46,56,58-59
+  s_f5785bea72e01e::t_c0053a95a3cc4e 12-17,19,26-38,40-45,47-55,57
+scripts/patches/stylo-0.19.0/0027-perf-reduce-retained-CSS-capacity.patch
+  s_f5785bea72e01e::t_24e48250cc64ee 1-35
+packages/dom-shim/src/node-base.ts
+  s_f5785bea72e01e::t_a13ccaf90d28d1 177-190
+  s_f5785bea72e01e::t_6f21a5e104d4b4 834-851,853-857,859-867,869-874,878-885,887,892,896
+  s_f5785bea72e01e::t_f48f7feacdf0c2 58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5866ea0b38e2884c5f3d3d94b5462042a085dbdd",
+  "prompts": {},
+  "sessions": {
+    "s_f5785bea72e01e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f51217a23ffeok4Sc2bqio2KUk",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

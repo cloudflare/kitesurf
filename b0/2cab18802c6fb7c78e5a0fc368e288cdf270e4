@@ -1,0 +1,20 @@
+packages/engine/src/eval/outbound.ts
+  s_4541a12f76935c::t_b3e7f79260e889 223-230
+  s_4541a12f76935c::t_69839894cdaf02 583-591
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b02cab18802c6fb7c78e5a0fc368e288cdf270e4",
+  "prompts": {},
+  "sessions": {
+    "s_4541a12f76935c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03658fc3bffeBex6lexPOhdhP7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

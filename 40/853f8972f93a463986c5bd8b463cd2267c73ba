@@ -1,0 +1,24 @@
+packages/engine/test/e2e/demos/oopif-runtime-evaluate.e2e.test.ts
+  s_20642805355ab4::t_1d974101aac54d 58-64
+packages/engine/test/fixtures-worker/assets/oopif-child-quads.html
+  s_20642805355ab4::t_1d974101aac54d 3
+packages/engine/src/eval/oopif-render.ts
+  s_20642805355ab4::t_c0192b144a7442 519-520,525-528
+  s_20642805355ab4::t_efa00f3afdcd54 198-202,204,206-209,213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "40853f8972f93a463986c5bd8b463cd2267c73ba",
+  "prompts": {},
+  "sessions": {
+    "s_20642805355ab4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e2fe02ffeBPRkxpXKpYOZzY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

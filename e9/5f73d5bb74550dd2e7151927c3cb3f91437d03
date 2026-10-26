@@ -1,0 +1,19 @@
+packages/engine/test/e2e/rbi-scene-wire.e2e.test.ts
+  s_dfd792beae87ba::t_31e221e211399d 18-32,97,175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e95f73d5bb74550dd2e7151927c3cb3f91437d03",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

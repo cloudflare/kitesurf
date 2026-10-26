@@ -1,0 +1,19 @@
+packages/engine/src/cdp/page.ts
+  s_28a60e7a7f3371::t_1c488192757bcb 5458-5461
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c3656fe8423cde43dd32e32cfdf3c3393516091d",
+  "prompts": {},
+  "sessions": {
+    "s_28a60e7a7f3371": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc2704a84ffeJd2GgC0u80wjm4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

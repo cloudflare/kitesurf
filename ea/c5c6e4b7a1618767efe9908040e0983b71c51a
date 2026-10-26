@@ -1,0 +1,21 @@
+scripts/patches/stylo-0.20.0/0039-Preserve-clipped-overflow-axes.patch
+  s_280ef410dd4391::t_03331215c4e068 1-48
+scripts/patches/stylo-0.20.0/0040-Support-definite-calc-size-values.patch
+  s_280ef410dd4391::t_03331215c4e068 1-632
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eac5c6e4b7a1618767efe9908040e0983b71c51a",
+  "prompts": {},
+  "sessions": {
+    "s_280ef410dd4391": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3f8f6783ffeu8A4j6VBSym1ud",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+scripts/wpt-compare.mjs
+  s_315423d64a6ddb::t_1059d3bb93608a 157-160,164-196,198-200,202-205,207-208,210-219,222,231,250
+  s_315423d64a6ddb::t_f92350b6801b1f 197,201,206,284
+  s_315423d64a6ddb::t_607ad357e5f1f8 296,508,511-513,563-565
+  s_315423d64a6ddb::t_6ce5089519db10 496-501
+  s_315423d64a6ddb::t_d11b578da30ff6 492-495,502-503,510,554,566
+scripts/wpt-compare.test.mjs
+  s_315423d64a6ddb::t_5552e797a51d22 1-26,31-47,60-78,80-85,93-98,101,103-117
+  s_315423d64a6ddb::t_88f847fc02596a 79,99-100
+  s_315423d64a6ddb::t_fb51459a06b79e 132-133,152-194
+  s_315423d64a6ddb::t_f92350b6801b1f 27-30,48-59,86-92
+  s_315423d64a6ddb::t_239b8c00d6f18b 102
+  s_315423d64a6ddb::t_d11957bcd21af4 118-131,134-151,195
+tests/wpt-expectations.json
+  s_315423d64a6ddb::t_26febd34b06a02 7336-7341,7478-7483,8016-8021,8158-8163
+docs/TESTING.md
+  s_315423d64a6ddb::t_88dd1638dc1e99 53-57
+scripts/wpt-batched.mjs
+  s_315423d64a6ddb::t_d11b578da30ff6 786
+  s_315423d64a6ddb::t_6ce5089519db10 787
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cf031a76d1cd74941e462e2364afda4fb8a89e05",
+  "prompts": {},
+  "sessions": {
+    "s_315423d64a6ddb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fa89773b8ffeAqoEf6QScTTJQa",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

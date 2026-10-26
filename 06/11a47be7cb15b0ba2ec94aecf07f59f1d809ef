@@ -1,0 +1,21 @@
+scripts/wpt-compare.mjs
+  s_26ff982f25d437::t_d229e8cdc78b20 23-26,236-248,260-269,311,324,331,334,488,514,534-537,734-740,796,891,970
+scripts/wpt-compare.test.mjs
+  s_26ff982f25d437::t_5863d0abac930b 197-270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0611a47be7cb15b0ba2ec94aecf07f59f1d809ef",
+  "prompts": {},
+  "sessions": {
+    "s_26ff982f25d437": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1daa4bd0ffef9AmDLJgT70jRR",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

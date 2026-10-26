@@ -1,0 +1,29 @@
+packages/engine/test/node/session-store.test.ts
+  s_bf847f99fe8063::t_f4e00bb32cad6d 1-12,14-90
+  s_bf847f99fe8063::t_fb54ec19e2a2ef 13
+packages/engine/src/state/session-store.ts
+  s_bf847f99fe8063::t_781847b198f86a 303,305-317,319,321
+  s_bf847f99fe8063::t_f2f5ee344c11f6 1-302,304,318,320,322-324
+.gitlab-ci.yml
+  s_bf847f99fe8063::t_7341295ea9f997 598-599
+packages/engine/test/node/node-sql.ts
+  s_bf847f99fe8063::t_fb54ec19e2a2ef 1-30
+packages/engine/package.json
+  s_bf847f99fe8063::t_7341295ea9f997 23-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e278c60e6d3615a604e4abd9fe3080361c9766e3",
+  "prompts": {},
+  "sessions": {
+    "s_bf847f99fe8063": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f177050d8ffefiikrogdFB3Zzv",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

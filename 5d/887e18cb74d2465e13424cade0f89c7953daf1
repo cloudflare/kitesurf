@@ -1,0 +1,20 @@
+Cargo.toml
+  s_103b7f1f0713cd::t_397ae05c612752 35
+  s_103b7f1f0713cd::t_05c956621ef9d8 33-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5d887e18cb74d2465e13424cade0f89c7953daf1",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,61 @@
+packages/engine/test/fixtures-worker/assets/probe-late.css
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1
+packages/engine/test/fixtures-worker/assets/svg-overflow-clip.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1-13
+packages/engine/test/fixtures-worker/assets/tracker-iframes.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_c8e1d72dc1bd57::t_713e693438d91f 13-20
+packages/engine/test/fixtures-worker/assets/entity-parse.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1
+packages/engine/test/fixtures-worker/assets/cookies.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1-19
+packages/engine/test/fixtures-worker/assets/no-acao-inline-svg.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1
+packages/engine/test/fixtures-worker/assets/css-block.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1-9
+packages/engine/test/fixtures-worker/assets/mjs-import/child.mjs
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1-2
+packages/engine/test/fixtures-worker/assets/mjs-import/index.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_c8e1d72dc1bd57::t_9f506a60c2dc61 142,199-201,779-800,1320-1323,1547-1648,2492,2498,2503
+packages/engine/vitest.e2e.config.mts
+  s_c8e1d72dc1bd57::t_ff330566f3a024 97-107
+packages/engine/test/fixtures-worker/assets/tracked.css
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1
+packages/engine/test/fixtures-worker/assets/webfont-face.css
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1-7
+packages/engine/test/fixtures-worker/src/assets.d.ts
+  s_c8e1d72dc1bd57::t_eb26f734567f1b 19-26
+packages/engine/test/fixtures-worker/assets/image-paint.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1
+packages/engine/test/fixtures-worker/assets/webmcp-module.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1-19
+packages/engine/test/fixtures-worker/assets/webfont.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1-49
+packages/engine/test/fixtures-worker/assets/tracker-blocklist.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1
+packages/engine/test/fixtures-worker/assets/xhr-data.txt
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1
+packages/engine/test/fixtures-worker/assets/webmcp-tools.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1-50
+packages/engine/test/fixtures-worker/assets/iframe-reinsert.html
+  s_c8e1d72dc1bd57::t_9ccbf8605ec976 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "98309292462e709db0cb90be71501f18359c67e2",
+  "prompts": {},
+  "sessions": {
+    "s_c8e1d72dc1bd57": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00b911f6effepxAhy4PC0bpQtm",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

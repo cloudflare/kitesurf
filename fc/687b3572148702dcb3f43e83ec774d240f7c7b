@@ -1,0 +1,37 @@
+packages/engine/test/e2e/global-setup.ts
+  s_c6d6a3ac21fe46::t_6ebe78231cdc32 14-16,55
+packages/engine/test/e2e/quickaction-containment.e2e.test.ts
+  s_c6d6a3ac21fe46::t_3b3df11954a278 28,129,132
+packages/engine/test/e2e/scrape-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_3b3df11954a278 3,37,63
+packages/engine/test/e2e/crawl-quick-action.e2e.test.ts
+  s_c6d6a3ac21fe46::t_3b3df11954a278 5,73
+packages/engine/vitest.e2e.config.mts
+  s_c6d6a3ac21fe46::t_e1d6a2c8058cc7 10,249
+  s_c6d6a3ac21fe46::t_38df773964ba55 77-78
+  s_c6d6a3ac21fe46::t_6ebe78231cdc32 3,52-56,58,61,69,82,215,229,239
+packages/engine/test/e2e/engine-routes.e2e.test.ts
+  s_c6d6a3ac21fe46::t_e39b7ed0fa238c 2,54,57-63
+packages/engine/test/e2e/cloudflare-env.ts
+  s_c6d6a3ac21fe46::t_e1d6a2c8058cc7 45,47
+packages/engine/test/e2e/entry.ts
+  s_c6d6a3ac21fe46::t_e1d6a2c8058cc7 1-8
+packages/engine/test/e2e/snapshot-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_3b3df11954a278 3,33,50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fc687b3572148702dcb3f43e83ec774d240f7c7b",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

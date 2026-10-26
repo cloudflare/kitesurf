@@ -1,0 +1,31 @@
+scripts/patches/README.md
+  s_4ba79f911c93c4::t_023db4cd175216 108-109
+scripts/patches/blitz-dom-0.3.0-beta.2/0121-Fix-replaced-inline-and-root-line-metrics.patch
+  s_4ba79f911c93c4::t_b0613160c1d965 42
+scripts/patches/blitz-dom-0.3.0-beta.2/0119-Fix-font-and-inline-metrics.patch
+  s_4ba79f911c93c4::t_b0613160c1d965 10,12-14,17,20,27,91,100,236,239,244,247-251,254-256
+scripts/patches/blitz-dom-0.3.0-beta.2/0122-Gate-natural-font-metric-queries.patch
+  s_4ba79f911c93c4::t_b0613160c1d965 8-9,12,15,31
+scripts/patches/blitz-dom-0.3.0-beta.2/0120-Fix-inline-positioning-and-hit-testing.patch
+  s_4ba79f911c93c4::t_b0613160c1d965 11-13,16,19,37-43,52,64,111-131
+packages/page-script/src/index.ts
+  s_4ba79f911c93c4::t_5e926b5185e42f 4129
+packages/core/src/sticky.rs
+  s_4ba79f911c93c4::t_d2f10eeb9c315e 243,245-254
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "910008fca8515148c486e50e89dd85b86c5adeb7",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
