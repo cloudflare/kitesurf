@@ -19,6 +19,7 @@ import type {
   WorkerUpstreamMessage,
 } from "@kitesurf/jsrpc-types/dedicated-worker";
 import type { SandboxOutboundOverride } from "./outbound.ts";
+import { disposeRpcHandle } from "./rpc-handle.ts";
 import {
   PAGE_SCRIPT_COMPAT_DATE,
   PAGE_SCRIPT_COMPAT_FLAGS,
@@ -119,24 +120,6 @@ function settleWithin(promise: Promise<unknown>, ms: number): Promise<void> {
   });
 }
 
-// Worker RPC promises are callable stubs, so disposal must accept functions too.
-function hasDisposeSymbol(stub: unknown): stub is object & { [Symbol.dispose]: unknown } {
-  return (
-    stub !== null &&
-    (typeof stub === "object" || typeof stub === "function") &&
-    Symbol.dispose in stub
-  );
-}
-
-function disposeStub(stub: unknown): void {
-  if (!hasDisposeSymbol(stub)) return;
-  const dispose = stub[Symbol.dispose];
-  if (typeof dispose !== "function") return;
-  try {
-    dispose.call(stub);
-  } catch {}
-}
-
 export function spawnDedicatedWorker(
   env: { LOADER: WorkerLoader },
   ctx: ExecutionContext,
@@ -210,7 +193,7 @@ export function spawnDedicatedWorker(
             try {
               await session.close();
             } finally {
-              disposeStub(session);
+              disposeRpcHandle(session);
             }
           }),
           TEARDOWN_GRACE_MS,
@@ -222,9 +205,9 @@ export function spawnDedicatedWorker(
             TEARDOWN_GRACE_MS,
           );
         } finally {
-          disposeStub(killing);
+          disposeRpcHandle(killing);
         }
-        disposeStub(entrypoint);
+        disposeRpcHandle(entrypoint);
       })();
       return terminated;
     },

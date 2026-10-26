@@ -21,6 +21,7 @@ import type {
   RenderStage,
 } from "@kitesurf/jsrpc-types/page-renderer";
 import type { DynamicWorkerBudget, WorkerLease } from "./worker-budget.ts";
+import { disposeRpcHandle } from "./rpc-handle.ts";
 
 export type { RenderStage };
 
@@ -57,25 +58,12 @@ type RendererStub = Fetcher<PageRendererEntrypoint>;
 
 class RendererTimeoutError extends Error {}
 
-// RPC promises are disposable stubs at runtime, though their declared type is Promise<T>.
-function hasDisposeSymbol<Value extends object>(
-  value: Value,
-): value is Value & { [Symbol.dispose]: unknown } {
-  return Symbol.dispose in value;
-}
-
-function disposeRendererKill(killing: ReturnType<RendererStub["killIsolate"]>): void {
-  if (!hasDisposeSymbol(killing)) return;
-  const dispose = killing[Symbol.dispose];
-  if (typeof dispose === "function") dispose.call(killing);
-}
-
 function disposeRenderer(stub: RendererStub | null, reason: string): void {
   if (!stub || typeof stub.killIsolate !== "function") return;
   try {
     const killing = stub.killIsolate(reason);
     void withTimeout(Promise.resolve(killing), ISOLATE_KILL_GRACE_MS, "PageRenderer.killIsolate")
-      .finally(() => disposeRendererKill(killing))
+      .finally(() => disposeRpcHandle(killing))
       .catch(() => {});
   } catch {}
 }

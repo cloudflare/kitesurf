@@ -23,6 +23,7 @@ import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsr
 import type { RenderPortStub } from "@kitesurf/jsrpc-types/page-renderer";
 import type { PageScriptStub, UpstreamEventHandler } from "./page-script.ts";
 import { notifyIsolateLimit } from "./limit-registry.ts";
+import { disposeRpcHandle } from "./rpc-handle.ts";
 
 export type RpcSessionCallable = Pick<RetainedPageScriptSessionStub, "close"> &
   Pick<RetainedPageScriptSession, "call"> & {
@@ -88,14 +89,6 @@ function rpcErrorMessage(error: unknown): string {
 
 function shouldIgnoreTransportDeath(dead: boolean, raw: string): boolean {
   return dead || !/execution context which hosts this/i.test(raw);
-}
-
-function disposeStub(stub: unknown): void {
-  const dispose = (stub as { [Symbol.dispose]?: unknown } | null)?.[Symbol.dispose];
-  if (typeof dispose !== "function") return;
-  try {
-    dispose.call(stub);
-  } catch {}
 }
 
 function settleTeardownWithin(promise: Promise<unknown>): Promise<void> {
@@ -179,7 +172,7 @@ export class PageScriptRpcSession implements PageScriptStub {
 
   private acceptOpenedSession(session: RpcSessionCallable): RpcSessionCallable {
     if (this.dead) {
-      if (!this.closeReady) disposeStub(session);
+      if (!this.closeReady) disposeRpcHandle(session);
       return session;
     }
     this.session = session;
@@ -264,13 +257,13 @@ export class PageScriptRpcSession implements PageScriptStub {
   private disposeRenderPort(): void {
     const port = this.renderPortStub;
     this.renderPortStub = null;
-    disposeStub(port);
+    disposeRpcHandle(port);
   }
 
   private disposeSession(): void {
     const session = this.session;
     this.session = null;
-    if (!this.closeReady) disposeStub(session);
+    if (!this.closeReady) disposeRpcHandle(session);
   }
 
   private async call<M extends PageScriptMethod>(
@@ -397,7 +390,7 @@ export class PageScriptRpcSession implements PageScriptStub {
         })
         .then((port) => {
           if (this.dead) {
-            disposeStub(port);
+            disposeRpcHandle(port);
             throw new Error(`PageScript session is dead (${this.deadReason ?? "unknown"})`);
           }
           this.renderPortStub = port;
@@ -421,7 +414,9 @@ export class PageScriptRpcSession implements PageScriptStub {
         // Keep the disposable RPC promise: Promise.resolve drops its pipeline handle,
         // which can pin the aborted invocation after rejection on the pinned runtime.
         const killing = ep.killIsolate?.(reason);
-        return settleTeardownWithin(Promise.resolve(killing)).finally(() => disposeStub(killing));
+        return settleTeardownWithin(Promise.resolve(killing)).finally(() =>
+          disposeRpcHandle(killing),
+        );
       } catch {}
     });
   }
@@ -430,7 +425,7 @@ export class PageScriptRpcSession implements PageScriptStub {
     if (this.dead) return;
     this.retiring = true;
     const closeSession = (session: RpcSessionCallable): Promise<void> => {
-      const dispose = () => disposeStub(session);
+      const dispose = () => disposeRpcHandle(session);
       if (typeof session.close === "function") {
         try {
           return Promise.resolve(session.close()).then(dispose, dispose);
