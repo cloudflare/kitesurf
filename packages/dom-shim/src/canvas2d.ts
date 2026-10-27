@@ -10,20 +10,21 @@ import { getInternalState } from "./internal-state.js";
 import { canvas2dCache, postMutationHooks } from "./registries.js";
 import { markBrandWrapped } from "./webidl.js";
 import { ksInternals } from "./internals.js";
+import { errorMessage } from "./util/strings.js";
 
-const CtxWeakRef: any =
-  ksGlobal.WeakRef ??
-  class {
-    private _v: any;
-    constructor(v: any) {
-      this._v = v;
-    }
-    deref() {
-      return this._v;
-    }
-  };
+class PinnedRef<T extends object> {
+  private _v: T;
+  constructor(v: T) {
+    this._v = v;
+  }
+  deref(): T {
+    return this._v;
+  }
+}
+const CtxWeakRef: new <T extends object>(v: T) => { deref(): T | undefined } =
+  ksGlobal.WeakRef ?? PinnedRef;
 
-const detachedDirty = new Set<{ deref(): any }>();
+const detachedDirty = new Set<{ deref(): CanvasHost | undefined }>();
 postMutationHooks.push(() => {
   if (detachedDirty.size === 0) return;
   for (const ref of [...detachedDirty]) {
@@ -55,7 +56,7 @@ const heldPushes: Set<() => void> = new Set();
 
 function noteOutlineDemand(): void {
   if (fontHold) return;
-  let p: any = null;
+  let p: Promise<void> | null | undefined = null;
   try {
     p = ksInternals.demandFontOutlines?.();
   } catch {}
@@ -96,9 +97,19 @@ function bumpPaintNeutral(nodeId?: number): void {
 
 const MAX_IMAGE_DATA_PIXELS = 4096 * 4096;
 
-function makeImageData(w: number, h: number, data?: Uint8ClampedArray): any {
-  const width = Math.max(1, w | 0);
-  const height = Math.max(1, h | 0);
+// What the context hands back: the page's ImageData, or this record where
+// the global is missing.
+type ImageDataLike = {
+  readonly width: number;
+  readonly height: number;
+  readonly data: Uint8ClampedArray;
+  readonly colorSpace?: string;
+};
+
+// w and h are page values; `Number(v) | 0` is the ToInt32 that `v | 0` does.
+function makeImageData(w: unknown, h: unknown, data?: Uint8ClampedArray): ImageDataLike {
+  const width = Math.max(1, Number(w) | 0);
+  const height = Math.max(1, Number(h) | 0);
   if (!data && width * height > MAX_IMAGE_DATA_PIXELS) {
     throw new RangeError("ImageData size exceeds the supported range");
   }
@@ -116,9 +127,7 @@ function domExc(message: string, name: string): Error {
   try {
     return new ksGlobal.DOMException(message, name);
   } catch {
-    const e: any = new Error(message);
-    e.name = name;
-    return e;
+    return Object.assign(new Error(message), { name });
   }
 }
 
@@ -440,9 +449,35 @@ for (const name of Object.keys(pathMethodNames)) {
 }
 
 const CONTEXT_IMPL = Symbol("kitesurfCanvasContextImpl");
-type ContextImpl = Record<PropertyKey, unknown>;
 
-type CanvasHost = { _id: number; width?: number; height?: number; isConnected?: boolean };
+type CanvasHost = {
+  _id: number;
+  width?: number;
+  height?: number;
+  isConnected?: boolean;
+  __ks2dCtx?: CanvasRenderingContext2DImpl;
+};
+// A drawImage or createPattern source as the page passes it. Not
+// brand-checked: imageSource resolves it through its node id, and the
+// other members are read as the element wrappers carry them.
+type SourceWrapper = {
+  _id?: unknown;
+  __ks2dCtx?: { __ksFlushForRead?(): void };
+  complete?: boolean;
+  naturalWidth?: unknown;
+};
+// putImageData's argument, read the same way: width, height and data.
+type ImageDataInput = { width?: unknown; height?: unknown; data?: Uint8ClampedArray };
+// setTransform's matrix argument: a DOMMatrix2DInit, or a DOMMatrix with
+// the m11..m42 aliases.
+type MatrixInput = Idl.DOMMatrix2DInit & {
+  m11?: number;
+  m12?: number;
+  m21?: number;
+  m22?: number;
+  m41?: number;
+  m42?: number;
+};
 
 // installContextForwarders defines the interface members on this prototype.
 export interface CanvasRenderingContext2DImpl extends Idl.CanvasRenderingContext2D {
@@ -456,12 +491,11 @@ export class CanvasRenderingContext2DImpl implements Idl.CanvasRenderingContext2
   }
 }
 
-function implOf(self: unknown): ContextImpl {
-  const impl =
-    typeof self === "object" && self !== null
-      ? (self as { [CONTEXT_IMPL]?: ContextImpl })[CONTEXT_IMPL]
-      : undefined;
-  if (!impl) throw new TypeError("Illegal invocation");
+// Keyed by member name, for the forwarders.
+function implOf(self: unknown): Record<string, unknown> {
+  const impl: unknown =
+    typeof self === "object" && self !== null ? Reflect.get(self, CONTEXT_IMPL) : undefined;
+  if (!isRecord(impl)) throw new TypeError("Illegal invocation");
   return impl;
 }
 
@@ -471,9 +505,7 @@ function named<F extends Function>(fn: F, name: string, length: number): F {
   markBrandWrapped(fn);
   return fn;
 }
-export function makeCanvas2DContext(
-  canvas: Idl.HTMLCanvasElement & { _id: number },
-): CanvasRenderingContext2DImpl {
+export function makeCanvas2DContext(canvas: CanvasHost): CanvasRenderingContext2DImpl {
   noteOutlineDemand();
   // installContextForwarders builds this prototype; the symbol binds per-canvas state.
   const ctx = Object.create(CanvasRenderingContext2DImpl.prototype) as CanvasRenderingContext2DImpl;
@@ -481,7 +513,11 @@ export function makeCanvas2DContext(
   return ctx;
 }
 
-function buildContextImpl(canvas: CanvasHost): ContextImpl {
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function buildContextImpl(canvas: CanvasHost) {
   const dbg = { attempts: 0, pushes: 0, opsSent: 0, last: "" };
   const selfRef = new CtxWeakRef(canvas);
   function isLive(): boolean {
@@ -494,7 +530,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
   let pendingFullPut: { w: number; h: number; data: Uint8ClampedArray } | null = null;
   let putStaging: Uint8ClampedArray | null = null;
   let lastPushTs = 0;
-  let trailingTimer: any = null;
+  let trailingTimer: ReturnType<typeof setTimeout> | null = null;
   let sizeSent = false;
   let st: CanvasState = defaultState();
   const stack: CanvasState[] = [];
@@ -519,7 +555,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       const bytes = new Uint8Array(p.data.buffer, p.data.byteOffset, p.data.byteLength);
       dom.canvasPutImageData(canvas._id, 0, 0, p.w, p.h, bytes);
     } catch (e) {
-      dbg.last = "put threw: " + ((e as any)?.message ?? String(e));
+      dbg.last = "put threw: " + errorMessage(e);
     }
   }
 
@@ -548,7 +584,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       dbg.opsSent += batch.length;
       dbg.last = "ops rc=" + rc;
     } catch (e) {
-      dbg.last = "ops threw: " + ((e as any)?.message ?? String(e));
+      dbg.last = "ops threw: " + errorMessage(e);
     }
   }
 
@@ -603,7 +639,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
         bumpPaintNeutral(canvas._id);
       }
     } catch (e) {
-      dbg.last = "flush threw: " + ((e as any)?.message ?? String(e));
+      dbg.last = "flush threw: " + errorMessage(e);
     }
     lastPushTs = Date.now();
   }
@@ -642,19 +678,20 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
   }
   for (const prop of ["width", "height"]) {
     let proto = canvas;
-    let desc: any = null;
+    let desc: PropertyDescriptor | undefined;
     while (proto && !desc) {
       desc = Object.getOwnPropertyDescriptor(proto, prop);
       proto = Object.getPrototypeOf(proto);
     }
-    if (desc && desc.set) {
+    const setter = desc?.set;
+    if (desc && setter) {
       try {
         Object.defineProperty(canvas, prop, {
           configurable: true,
           enumerable: true,
           get: desc.get,
-          set(v: any) {
-            desc.set.call(this, v);
+          set(v: unknown) {
+            setter.call(this, v);
             resetAll();
           },
         });
@@ -663,14 +700,14 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
   }
 
   for (const meth of ["setAttribute", "removeAttribute", "toggleAttribute"]) {
-    const originalMethod = (canvas as any)[meth];
+    const originalMethod: unknown = Reflect.get(canvas, meth);
     if (typeof originalMethod !== "function") continue;
     try {
       Object.defineProperty(canvas, meth, {
         configurable: true,
         writable: true,
         enumerable: false,
-        value: function (name: any, ...rest: any[]) {
+        value: function (this: unknown, name: unknown, ...rest: unknown[]) {
           const result = originalMethod.call(this, name, ...rest);
           const attributeName = String(name).toLowerCase();
           if (attributeName === "width" || attributeName === "height") resetAll();
@@ -693,7 +730,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     return null;
   }
 
-  function setStyle(which: "fillStyle" | "strokeStyle", v: any): void {
+  function setStyle(which: "fillStyle" | "strokeStyle", v: unknown): void {
     if (typeof v === "string") {
       const css = serializeColor(v);
       if (!css) return;
@@ -701,6 +738,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       enqueue({ o: which, g: { k: "color", c: css } });
       return;
     }
+    if (!(v instanceof CanvasGradientShim) && !(v instanceof CanvasPatternShim)) return;
     const g = styleSpec(v);
     if (!g) return;
     st[which] = v;
@@ -721,7 +759,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     ];
   }
 
-  function imageSource(img: any): CanvasImageSource | null {
+  function imageSource(img: SourceWrapper | null | undefined): CanvasImageSource | null {
     if (!img || typeof img !== "object") return null;
     // Resolve source type and URL from wasm instead of trusting page-writable wrapper attributes.
     const id = img._id;
@@ -768,27 +806,27 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     }
   }
 
-  const ctx: any = {
+  const ctx = {
     canvas,
     __ksDbg: dbg,
 
     get fillStyle() {
       return st.fillStyle;
     },
-    set fillStyle(v: any) {
+    set fillStyle(v: unknown) {
       setStyle("fillStyle", v);
     },
     get strokeStyle() {
       return st.strokeStyle;
     },
-    set strokeStyle(v: any) {
+    set strokeStyle(v: unknown) {
       setStyle("strokeStyle", v);
     },
 
     get globalAlpha() {
       return st.globalAlpha;
     },
-    set globalAlpha(v: any) {
+    set globalAlpha(v: unknown) {
       const n = Number(v);
       if (Number.isFinite(n) && n >= 0 && n <= 1) {
         st.globalAlpha = n;
@@ -798,7 +836,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get globalCompositeOperation() {
       return st.globalCompositeOperation;
     },
-    set globalCompositeOperation(v: any) {
+    set globalCompositeOperation(v: unknown) {
       const s = String(v);
       if (COMPOSITES.indexOf(s) >= 0) {
         st.globalCompositeOperation = s;
@@ -809,7 +847,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get lineWidth() {
       return st.lineWidth;
     },
-    set lineWidth(v: any) {
+    set lineWidth(v: unknown) {
       const n = Number(v);
       if (Number.isFinite(n) && n > 0) {
         st.lineWidth = n;
@@ -819,7 +857,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get lineCap() {
       return st.lineCap;
     },
-    set lineCap(v: any) {
+    set lineCap(v: unknown) {
       const s = String(v);
       if (LINE_CAPS.indexOf(s) >= 0) {
         st.lineCap = s;
@@ -829,7 +867,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get lineJoin() {
       return st.lineJoin;
     },
-    set lineJoin(v: any) {
+    set lineJoin(v: unknown) {
       const s = String(v);
       if (LINE_JOINS.indexOf(s) >= 0) {
         st.lineJoin = s;
@@ -839,14 +877,14 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get miterLimit() {
       return st.miterLimit;
     },
-    set miterLimit(v: any) {
+    set miterLimit(v: unknown) {
       const n = Number(v);
       if (Number.isFinite(n) && n > 0) {
         st.miterLimit = n;
         enqueue({ o: "miterLimit", a: [n] });
       }
     },
-    setLineDash(segments: any) {
+    setLineDash(segments: Iterable<unknown> | ArrayLike<unknown> | null | undefined) {
       const arr = Array.from(segments ?? [], Number);
       if (arr.some((v) => !Number.isFinite(v) || v < 0)) return;
       st.lineDash = arr.length % 2 === 1 ? arr.concat(arr) : arr;
@@ -858,7 +896,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get lineDashOffset() {
       return st.lineDashOffset;
     },
-    set lineDashOffset(v: any) {
+    set lineDashOffset(v: unknown) {
       const n = Number(v);
       if (Number.isFinite(n)) {
         st.lineDashOffset = n;
@@ -869,7 +907,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get font() {
       return st.font;
     },
-    set font(v: any) {
+    set font(v: unknown) {
       const s = String(v);
       if (s) {
         st.font = s;
@@ -879,7 +917,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get textAlign() {
       return st.textAlign;
     },
-    set textAlign(v: any) {
+    set textAlign(v: unknown) {
       const s = String(v);
       if (TEXT_ALIGNS.indexOf(s) >= 0) {
         st.textAlign = s;
@@ -889,7 +927,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get textBaseline() {
       return st.textBaseline;
     },
-    set textBaseline(v: any) {
+    set textBaseline(v: unknown) {
       const s = String(v);
       if (TEXT_BASELINES.indexOf(s) >= 0) {
         st.textBaseline = s;
@@ -899,14 +937,14 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get imageSmoothingEnabled() {
       return st.imageSmoothingEnabled;
     },
-    set imageSmoothingEnabled(v: any) {
+    set imageSmoothingEnabled(v: unknown) {
       st.imageSmoothingEnabled = !!v;
       enqueue({ o: "smoothing", a: [v ? 1 : 0] });
     },
     get imageSmoothingQuality() {
       return st.imageSmoothingQuality;
     },
-    set imageSmoothingQuality(v: any) {
+    set imageSmoothingQuality(v: unknown) {
       const s = String(v);
       if (["low", "medium", "high"].indexOf(s) >= 0) st.imageSmoothingQuality = s;
     },
@@ -914,28 +952,28 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get letterSpacing() {
       return st.letterSpacing;
     },
-    set letterSpacing(v: any) {
+    set letterSpacing(v: unknown) {
       const s = parseCssSpacing(v);
       if (s !== null) st.letterSpacing = s;
     },
     get wordSpacing() {
       return st.wordSpacing;
     },
-    set wordSpacing(v: any) {
+    set wordSpacing(v: unknown) {
       const s = parseCssSpacing(v);
       if (s !== null) st.wordSpacing = s;
     },
     get fontKerning() {
       return st.fontKerning;
     },
-    set fontKerning(v: any) {
+    set fontKerning(v: unknown) {
       const s = String(v);
       if (["auto", "normal", "none"].indexOf(s) >= 0) st.fontKerning = s;
     },
     get fontStretch() {
       return st.fontStretch;
     },
-    set fontStretch(v: any) {
+    set fontStretch(v: unknown) {
       const s = String(v);
       if (
         [
@@ -955,7 +993,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get fontVariantCaps() {
       return st.fontVariantCaps;
     },
-    set fontVariantCaps(v: any) {
+    set fontVariantCaps(v: unknown) {
       const s = String(v);
       if (
         [
@@ -974,7 +1012,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get textRendering() {
       return st.textRendering;
     },
-    set textRendering(v: any) {
+    set textRendering(v: unknown) {
       const s = String(v);
       if (["auto", "optimizeSpeed", "optimizeLegibility", "geometricPrecision"].indexOf(s) >= 0)
         st.textRendering = s;
@@ -982,7 +1020,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     get direction() {
       return st.direction;
     },
-    set direction(v: any) {
+    set direction(v: unknown) {
       const s = String(v);
       if (["ltr", "rtl", "inherit"].indexOf(s) >= 0) st.direction = s;
     },
@@ -997,7 +1035,14 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       enqueue({ o: "restore" });
     },
 
-    setTransform(a: any, b?: any, c?: any, d?: any, e?: any, f?: any) {
+    setTransform(
+      a?: MatrixInput | number,
+      b?: unknown,
+      c?: unknown,
+      d?: unknown,
+      e?: unknown,
+      f?: unknown,
+    ) {
       let m: number[];
       if (typeof a === "object" && a) {
         m = [
@@ -1015,7 +1060,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       st.transform = m;
       enqueue({ o: "setTransform", a: m });
     },
-    transform(a: any, b: any, c: any, d: any, e: any, f: any) {
+    transform(a: unknown, b: unknown, c: unknown, d: unknown, e: unknown, f: unknown) {
       const m = [a, b, c, d, e, f].map(Number);
       if (m.some((v) => !Number.isFinite(v))) return;
       st.transform = matMul(mat(), m);
@@ -1025,19 +1070,19 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       st.transform = [1, 0, 0, 1, 0, 0];
       enqueue({ o: "resetTransform" });
     },
-    translate(x: any, y: any) {
+    translate(x: unknown, y: unknown) {
       const m = [Number(x), Number(y)];
       if (m.some((v) => !Number.isFinite(v))) return;
       st.transform = matMul(mat(), [1, 0, 0, 1, m[0], m[1]]);
       enqueue({ o: "translate", a: m });
     },
-    scale(x: any, y: any) {
+    scale(x: unknown, y: unknown) {
       const m = [Number(x), Number(y)];
       if (m.some((v) => !Number.isFinite(v))) return;
       st.transform = matMul(mat(), [m[0], 0, 0, m[1], 0, 0]);
       enqueue({ o: "scale", a: m });
     },
-    rotate(angle: any) {
+    rotate(angle: unknown) {
       const radians = Number(angle);
       if (!Number.isFinite(radians)) return;
       const cos = Math.cos(radians);
@@ -1066,13 +1111,13 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       };
     },
 
-    fillRect(x: any, y: any, w: any, h: any) {
+    fillRect(x: unknown, y: unknown, w: unknown, h: unknown) {
       enqueue({ o: "fillRect", a: [Number(x), Number(y), Number(w), Number(h)] });
     },
-    strokeRect(x: any, y: any, w: any, h: any) {
+    strokeRect(x: unknown, y: unknown, w: unknown, h: unknown) {
       enqueue({ o: "strokeRect", a: [Number(x), Number(y), Number(w), Number(h)] });
     },
-    clearRect(x: any, y: any, w: any, h: any) {
+    clearRect(x: unknown, y: unknown, w: unknown, h: unknown) {
       enqueue({ o: "clearRect", a: [Number(x), Number(y), Number(w), Number(h)] });
     },
 
@@ -1113,23 +1158,23 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
         if (path) enqueue({ o: "pathPop" });
       }
     },
-    isPointInStroke(_x: any, _y: any) {
+    isPointInStroke(_x: unknown, _y: unknown) {
       return false;
     },
 
-    fillText(text: any, x: any, y: any, maxWidth?: any) {
+    fillText(text: unknown, x: unknown, y: unknown, maxWidth?: unknown) {
       noteOutlineDemand();
       const a = [Number(x), Number(y)];
       if (maxWidth !== undefined) a.push(Number(maxWidth));
       enqueue({ o: "fillText", s: String(text), a });
     },
-    strokeText(text: any, x: any, y: any, maxWidth?: any) {
+    strokeText(text: unknown, x: unknown, y: unknown, maxWidth?: unknown) {
       noteOutlineDemand();
       const a = [Number(x), Number(y)];
       if (maxWidth !== undefined) a.push(Number(maxWidth));
       enqueue({ o: "strokeText", s: String(text), a });
     },
-    measureText(text: any) {
+    measureText(text: unknown) {
       let fontsReady = true;
       try {
         fontsReady = ksInternals.demandDeferredFonts?.() ?? true;
@@ -1153,29 +1198,37 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       }
     },
 
-    createLinearGradient(x0: any, y0: any, x1: any, y1: any) {
+    createLinearGradient(x0: unknown, y0: unknown, x1: unknown, y1: unknown) {
       const v = [x0, y0, x1, y1].map(Number);
       if (v.some((n) => !Number.isFinite(n))) throw domExc("non-finite", "NotSupportedError");
       return new CanvasGradientShim(CANVAS_STYLE_TOKEN, { k: "linear", v, stops: [] });
     },
-    createRadialGradient(x0: any, y0: any, r0: any, x1: any, y1: any, r1: any) {
+    createRadialGradient(
+      x0: unknown,
+      y0: unknown,
+      r0: unknown,
+      x1: unknown,
+      y1: unknown,
+      r1: unknown,
+    ) {
       const v = [x0, y0, r0, x1, y1, r1].map(Number);
       if (v.some((n) => !Number.isFinite(n))) throw domExc("non-finite", "NotSupportedError");
       if (v[2] < 0 || v[5] < 0) throw domExc("negative radius", "IndexSizeError");
       return new CanvasGradientShim(CANVAS_STYLE_TOKEN, { k: "radial", v, stops: [] });
     },
-    createConicGradient(startAngle: any, x: any, y: any) {
+    createConicGradient(startAngle: unknown, x: unknown, y: unknown) {
       const v = [startAngle, x, y].map(Number);
       if (v.some((n) => !Number.isFinite(n))) throw domExc("non-finite", "NotSupportedError");
       return new CanvasGradientShim(CANVAS_STYLE_TOKEN, { k: "conic", v, stops: [] });
     },
-    createPattern(image: any, repetition: any) {
+    createPattern(image: SourceWrapper | null | undefined, repetition: unknown) {
       const rep = repetition == null || repetition === "" ? "repeat" : String(repetition);
       if (["repeat", "repeat-x", "repeat-y", "no-repeat"].indexOf(rep) < 0) {
         throw domExc("invalid repetition", "SyntaxError");
       }
       const src = imageSource(image);
-      if (!src) return null;
+      // imageSource answers null for a missing image.
+      if (!src || !image) return null;
       if (src.kind === "canvas" && image && image.__ks2dCtx) {
         try {
           image.__ks2dCtx.__ksFlushForRead?.();
@@ -1192,7 +1245,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       return new CanvasPatternShim(CANVAS_STYLE_TOKEN, spec);
     },
 
-    drawImage(img: any, ...args: any[]) {
+    drawImage(img: SourceWrapper | null | undefined, ...args: unknown[]) {
       const src = imageSource(img);
       if (!src) return;
       let a: number[];
@@ -1215,19 +1268,19 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       flushOps();
     },
 
-    createImageData(a: any, b?: any) {
+    createImageData(a: ImageDataInput | number | null | undefined, b?: unknown) {
       if (typeof a === "object" && a && typeof a.width === "number") {
         return makeImageData(a.width, a.height);
       }
       return makeImageData(a, b);
     },
 
-    putImageData(img: any, dx: number, dy: number) {
+    putImageData(img: ImageDataInput | null | undefined, dx: number, dy: number) {
       if (!img || !img.data || !img.width || !img.height) return;
       const x0 = dx | 0;
       const y0 = dy | 0;
-      const iw = img.width | 0;
-      const ih = img.height | 0;
+      const iw = Number(img.width) | 0;
+      const ih = Number(img.height) | 0;
       if (x0 === 0 && y0 === 0 && iw === curW() && ih === curH()) {
         if (!isLive()) {
           dbg.last = "stale";
@@ -1264,7 +1317,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
         const bytes = new Uint8Array(data.buffer, data.byteOffset, iw * ih * 4);
         dom.canvasPutImageData(canvas._id, x0, y0, iw, ih, bytes);
       } catch (e) {
-        dbg.last = "put threw: " + ((e as any)?.message ?? String(e));
+        dbg.last = "put threw: " + errorMessage(e);
       }
       schedulePush();
     },
@@ -1280,7 +1333,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
           throw domExc("The canvas has been tainted by cross-origin data.", "SecurityError");
         }
       } catch (e) {
-        if ((e as any)?.name === "SecurityError") throw e;
+        if (e != null && Reflect.get(Object(e), "name") === "SecurityError") throw e;
         // Bridge failure — fall through to the (fail-closed)
         // wasm read; if the surface is tainted the pixels
         // still won't leak.
@@ -1290,7 +1343,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
         const bytes: Uint8Array = dom.canvasGetImageData(canvas._id, sx | 0, sy | 0, w, h);
         if (bytes && bytes.length === w * h * 4) out.data.set(bytes);
       } catch (e) {
-        dbg.last = "get threw: " + ((e as any)?.message ?? String(e));
+        dbg.last = "get threw: " + errorMessage(e);
       }
       return out;
     },
