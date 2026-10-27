@@ -1,0 +1,69 @@
+packages/dom-shim/src/element/load-events.ts
+  s_325e022d8487b0::t_58924222e6b27c 163
+  s_325e022d8487b0::t_808708691e9c2f 7
+packages/dom-shim/src/idl/type-gaps.json
+  s_325e022d8487b0::t_58924222e6b27c 103-107
+packages/dom-shim/src/node-base.ts
+  s_325e022d8487b0::t_2377a2ee708468 1734
+  s_325e022d8487b0::t_58924222e6b27c 17-19,59,821-823,902,921,923,945-946,956-957,1102,1703,1708-1709,1820-1821,1848
+packages/dom-shim/src/element/element.ts
+  s_325e022d8487b0::t_2bae5f25e715fe 121,513,516
+  s_325e022d8487b0::t_58924222e6b27c 24-26,510-512,1375,1456,1574,1936,1939
+  s_325e022d8487b0::t_2377a2ee708468 341,452
+  s_325e022d8487b0::t_b4c122dca36278 120
+packages/dom-shim/src/element/table.ts
+  s_325e022d8487b0::t_8f7985b37b19d8 63
+  s_325e022d8487b0::t_58924222e6b27c 61-62,64-67,88,91,94,102
+packages/dom-shim/src/fastpath.ts
+  s_325e022d8487b0::t_58924222e6b27c 7,193
+packages/dom-shim/src/state.ts
+  s_325e022d8487b0::t_fa5cf63a3d66c2 163
+  s_325e022d8487b0::t_58924222e6b27c 9,15,18-19,21-28,30,125,282-283,286,289-361,488-492,496-498,501-503
+  s_325e022d8487b0::t_25d08f4bd7bca8 31
+packages/page-script/src/index.ts
+  s_325e022d8487b0::t_2bae5f25e715fe 2198
+packages/dom-shim/src/element/shadow.ts
+  s_325e022d8487b0::t_58924222e6b27c 8-9,30,74-79,88
+packages/dom-shim/src/collections.ts
+  s_325e022d8487b0::t_618a6c01344e3e 193,3755,3827,3830
+  s_325e022d8487b0::t_c91555a6f21382 684
+  s_325e022d8487b0::t_58924222e6b27c 19,54,194-195,197-212,543-544,563-564,824-825,3403,3753,3764-3768,3770,3808-3813
+  s_325e022d8487b0::t_808708691e9c2f 400,402
+packages/dom-shim/strict-baseline.json
+  s_325e022d8487b0::t_808708691e9c2f 7
+packages/dom-shim/src/element/html-tag.ts
+  s_325e022d8487b0::t_58924222e6b27c 24,27,31
+packages/dom-shim/src/document.ts
+  s_325e022d8487b0::t_b6bb5955233dfd 863-864,1305,1314,1321,1329
+  s_325e022d8487b0::t_58924222e6b27c 15-17,182,589,626-627,631-632,670,685,696,707,718,729,906,999,1006,1033,1072,1545-1546
+  s_325e022d8487b0::t_618a6c01344e3e 75
+packages/page-script/src/types.ts
+  s_325e022d8487b0::t_58924222e6b27c 35,40,45
+  s_325e022d8487b0::t_a27c13efcb6352 56-57
+  s_325e022d8487b0::t_88ba7187fe12aa 58
+packages/dom-shim/src/element/forms/select-options.ts
+  s_325e022d8487b0::t_58924222e6b27c 7,22-24
+packages/dom-shim/src/range.ts
+  s_325e022d8487b0::t_7dad0ec8b4081f 623
+  s_325e022d8487b0::t_58924222e6b27c 14-16,38-39,95,249,258,277-279,282,289-290,293,302-303,357-358,362,369-370,373,397-398,401,408-409,412,437-439,501,621-622,624-625,800,805,868-870,879-881
+packages/dom-shim/src/registries.ts
+  s_325e022d8487b0::t_58924222e6b27c 14,18,144,149,151-154
+packages/dom-shim/src/idl/types.generated.ts
+  s_325e022d8487b0::t_22bb89a54af888 2759
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "db06f294b387620655b561181d933240e3d00cda",
+  "prompts": {},
+  "sessions": {
+    "s_325e022d8487b0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e87e6cc17ffeE3am0OA8I2bLOK",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
