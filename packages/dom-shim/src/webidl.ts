@@ -7,6 +7,8 @@
 import type { WebIdlRuntimeInterface } from "./idl/model.js";
 import { WEBIDL_RUNTIME } from "./idl/runtime.generated.js";
 
+// A class or interface object: a constructor, so its prototype is an object.
+type InterfaceObject = Function & { readonly prototype: object };
 export interface InterfaceMeta {
   name: string;
   length?: number;
@@ -16,7 +18,7 @@ export interface InterfaceMeta {
   brandOps?: boolean;
   brandAttrs?: boolean;
   brandDuck?: boolean;
-  parent?: any;
+  parent?: InterfaceObject;
   strictInstance?: boolean;
   promiseOps?: string[];
 }
@@ -36,24 +38,26 @@ const FINALIZED_NAME = Symbol("ks-finalized-name");
 const isProtoOf = Object.prototype.isPrototypeOf;
 const hasOwn = Object.prototype.hasOwnProperty;
 
-function makeBrandCheck(proto: any, duck: boolean | undefined) {
-  if (!duck) return (v: any) => isProtoOf.call(proto, v);
-  return (v: any) =>
-    isProtoOf.call(proto, v) ||
+function makeBrandCheck(proto: object, duck: boolean | undefined): (v: unknown) => boolean {
+  // isPrototypeOf answers false for a primitive, so `v != null` keeps
+  // the result and gives the call its Object.
+  if (!duck) return (v) => v != null && isProtoOf.call(proto, v);
+  return (v) =>
+    (v != null && isProtoOf.call(proto, v)) ||
     (v !== null &&
       typeof v === "object" &&
       !hasOwn.call(v, "constructor") &&
-      typeof v.nodeType === "number");
+      typeof Reflect.get(v, "nodeType") === "number");
 }
 
 function brandWrapOp(
-  fn: any,
+  fn: Function,
   required: number | undefined,
-  check: (v: any) => boolean,
+  check: (v: unknown) => boolean,
   promiseReturning?: boolean,
-): any {
-  if (fn[BRAND_WRAPPED]) return fn;
-  const wrapped = function (this: any) {
+): Function {
+  if (isBrandWrapped(fn)) return fn;
+  const wrapped = function (this: unknown) {
     if (!check(this)) {
       const err = new TypeError("Illegal invocation");
       if (promiseReturning) return Promise.reject(err);
@@ -69,7 +73,7 @@ function brandWrapOp(
       throw err;
     }
     // eslint-disable-next-line prefer-rest-params
-    return fn.apply(this, arguments as any);
+    return fn.apply(this, arguments);
   };
   Object.defineProperty(wrapped, "name", {
     value: fn.name,
@@ -87,8 +91,12 @@ function brandWrapOp(
   return wrapped;
 }
 
-function brandWrapAccessor(fn: any, name: string, check: (v: any) => boolean): any {
-  const wrapped = function (this: any, v?: any) {
+function brandWrapAccessor(
+  fn: Function,
+  name: string,
+  check: (v: unknown) => boolean,
+): (this: unknown, v?: unknown) => unknown {
+  const wrapped = function (this: unknown, v?: unknown) {
     if (!check(this)) throw new TypeError("Illegal invocation");
     return fn.call(this, v);
   };
@@ -108,17 +116,17 @@ function brandWrapAccessor(fn: any, name: string, check: (v: any) => boolean): a
   return wrapped;
 }
 
-function redefine(obj: any, key: PropertyKey, desc: PropertyDescriptor): void {
+function redefine(obj: object, key: PropertyKey, desc: PropertyDescriptor): void {
   const cur = Object.getOwnPropertyDescriptor(obj, key);
   if (cur && !cur.configurable) return;
   Object.defineProperty(obj, key, desc);
 }
 
 /** Applies pinned WebIDL names, prototype links, descriptors, and receiver checks to a class. */
-export function finalizeInterface(C: any, meta: InterfaceMeta): void {
+export function finalizeInterface(C: InterfaceObject, meta: InterfaceMeta): void {
   const proto = C.prototype;
   const prior = Object.prototype.hasOwnProperty.call(C, FINALIZED_NAME)
-    ? (C as any)[FINALIZED_NAME]
+    ? Reflect.get(C, FINALIZED_NAME)
     : undefined;
   if (prior !== undefined && prior !== meta.name) return;
   if (prior === undefined) {
@@ -142,7 +150,7 @@ export function finalizeInterface(C: any, meta: InterfaceMeta): void {
     !Object.prototype.hasOwnProperty.call(C, Symbol.hasInstance)
   ) {
     Object.defineProperty(C, Symbol.hasInstance, {
-      value: (v: any) => v != null && proto.isPrototypeOf(v),
+      value: (v: unknown) => v != null && proto.isPrototypeOf(v),
       writable: false,
       enumerable: false,
       configurable: true,
@@ -169,7 +177,7 @@ export function finalizeInterface(C: any, meta: InterfaceMeta): void {
     if (!d || !d.configurable) continue;
     let changed = !d.enumerable;
     d.enumerable = true;
-    if (meta.brandOps && typeof d.value === "function" && !d.value[BRAND_WRAPPED]) {
+    if (meta.brandOps && typeof d.value === "function" && !isBrandWrapped(d.value)) {
       d.value = brandWrapOp(
         d.value,
         meta.methodLengths ? meta.methodLengths[key] : undefined,
@@ -230,7 +238,7 @@ export function finalizeInterface(C: any, meta: InterfaceMeta): void {
     for (const name of Object.keys(meta.staticMethodLengths)) {
       const d = Object.getOwnPropertyDescriptor(C, name);
       if (!d || typeof d.value !== "function" || !d.configurable) continue;
-      if (!d.value[BRAND_WRAPPED]) {
+      if (!isBrandWrapped(d.value)) {
         d.value = brandWrapOp(d.value, meta.staticMethodLengths[name], () => true, false);
       }
       d.enumerable = true;
@@ -286,8 +294,11 @@ interface GeneratedInterfaceMeta {
   readonly iterable?: "pair" | "value" | null;
 }
 
-function generatedInterfaceObject(implementation: any, constructible: boolean): any {
-  const exposed = function (this: any) {
+function generatedInterfaceObject(
+  implementation: InterfaceObject,
+  constructible: boolean,
+): InterfaceObject {
+  const exposed = function (this: unknown) {
     if (!constructible || !new.target) throw new TypeError("Illegal constructor");
     return Reflect.construct(implementation, Array.from(arguments), new.target);
   };
@@ -312,7 +323,7 @@ function generatedInterfaceObject(implementation: any, constructible: boolean): 
 }
 
 export function finalizeGeneratedInterfaces(
-  globals: Record<string, any>,
+  globals: Record<string, unknown>,
   interfaces: readonly GeneratedInterfaceMeta[],
 ): void {
   for (const meta of interfaces) {
@@ -327,7 +338,7 @@ export function finalizeGeneratedInterfaces(
     finalizeInterface(C, {
       name: meta.name,
       length: meta.length,
-      ...(parent ? { parent } : {}),
+      ...(typeof parent === "function" ? { parent } : {}),
       methodLengths: { ...meta.methodLengths },
       staticMethodLengths: { ...meta.staticMethodLengths },
       brandOps: true,
@@ -343,7 +354,10 @@ export function finalizeGeneratedInterfaces(
       const parentInterface = globals[parent.name];
       for (const name of Object.keys(parent.staticMethodLengths)) {
         if (hasOwn.call(C, name)) continue;
-        const descriptor = Object.getOwnPropertyDescriptor(parentInterface, name);
+        // getOwnPropertyDescriptor's own TypeError for a missing parent.
+        if (parentInterface == null)
+          throw new TypeError("Cannot convert undefined or null to object");
+        const descriptor = Object.getOwnPropertyDescriptor(Object(parentInterface), name);
         if (descriptor) Object.defineProperty(C, name, descriptor);
       }
       parent = parent.parent ? byName.get(parent.parent) : undefined;
@@ -371,31 +385,5 @@ export function finalizeGeneratedInterfaces(
         configurable: true,
       });
     }
-  }
-}
-
-export function defineReadonlyAttrs(
-  C: any,
-  attrs: Record<string, string | ((self: any) => any)>,
-): void {
-  for (const name of Object.keys(attrs)) {
-    const src = attrs[name];
-    const read = typeof src === "function" ? src : (self: any) => self[src];
-    const getter = function (this: any) {
-      if (!isProtoOf.call(C.prototype, this)) throw new TypeError("Illegal invocation");
-      return read(this);
-    };
-    Object.defineProperty(getter, "name", {
-      value: `get ${name}`,
-      writable: false,
-      enumerable: false,
-      configurable: true,
-    });
-    markBrandWrapped(getter);
-    Object.defineProperty(C.prototype, name, {
-      enumerable: true,
-      configurable: true,
-      get: getter,
-    });
   }
 }
