@@ -610,7 +610,11 @@ export async function handlePage(
       target.pendingNavAbort?.abort();
       const navAbort = new AbortController();
       target.pendingNavAbort = navAbort;
-      target.loaderId = makeTargetId();
+      // An input-started navigation announced its loader in Page.frameStartedNavigating.
+      target.loaderId =
+        ksParams?._kitesurfInternal === true && typeof ksParams._kitesurfLoaderId === "string"
+          ? ksParams._kitesurfLoaderId
+          : makeTargetId();
       const loaderId = target.loaderId;
 
       try {
@@ -2434,6 +2438,34 @@ function targetSessionsNetwork(
     return Array.from(target.sessions);
   }
   return [fallback ? fallback : undefined];
+}
+
+// Chrome announces a renderer-initiated navigation before the input that started it replies, and
+// chrome-devtools-mcp waits for a click's page only when frameStartedNavigating comes first.
+export function emitInputNavigationStarted(
+  ctx: DispatchCtx,
+  target: TargetState,
+  nav: { url: string; loaderId: string; reason: Protocol.Page.ClientNavigationReason },
+  sessionId: string | undefined,
+): void {
+  const frameId = target.frameId;
+  for (const s of targetSessions(target, sessionId)) {
+    ctx.emit({
+      method: "Page.frameRequestedNavigation",
+      params: { frameId, reason: nav.reason, url: nav.url, disposition: "currentTab" },
+      sessionId: s,
+    });
+    ctx.emit({
+      method: "Page.frameStartedNavigating",
+      params: {
+        frameId,
+        url: nav.url,
+        loaderId: nav.loaderId,
+        navigationType: "differentDocument",
+      },
+      sessionId: s,
+    });
+  }
 }
 
 function emitFrameStartedLoading(

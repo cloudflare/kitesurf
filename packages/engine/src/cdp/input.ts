@@ -5,13 +5,14 @@
 // Mouse and keyboard events enter PageScript; other Input methods are no-ops.
 // Hit-testing is partial, and the DOM shim does not implement KeyboardEvent.
 
-import type { CdpRequest, TargetState } from "./types.ts";
+import { makeTargetId, type CdpRequest, type TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
 import { makeFrameInfo, makeMainFrameState } from "./frames.ts";
 import type { MouseEventInit } from "@kitesurf/jsrpc-types/page-script";
 import type { ConsoleEntry } from "@kitesurf/jsrpc-types/shared";
 import { consoleEntryToCdpEvent } from "../eval/page-script.ts";
 import { emitMutations } from "./dom.ts";
+import { emitInputNavigationStarted } from "./page.ts";
 import { terminalSceneWheelQueue } from "./scene-stream.ts";
 import {
   fenceWheelQueues,
@@ -522,7 +523,8 @@ async function followNavigation(
   wait: boolean,
 ): Promise<void> {
   if (!startsNavigation(result)) return;
-  const navigation = maybeFollowAnchor(ctx, result, sessionId);
+  const loaderId = announceNavigation(ctx, target, result, sessionId);
+  const navigation = maybeFollowAnchor(ctx, result, sessionId, loaderId);
   if (wait) return navigation;
   const pending: Promise<void> = navigation
     .catch((err: unknown) =>
@@ -536,6 +538,23 @@ async function followNavigation(
       if (target.inputNavigation === pending) target.inputNavigation = undefined;
     });
   target.inputNavigation = pending;
+}
+
+// A new document's navigation is announced before its input replies, under the loader id the
+// Page.navigate that loads it adopts; a fragment change stays within the document.
+function announceNavigation(
+  ctx: DispatchCtx,
+  target: TargetState,
+  result: NavigationResult,
+  sessionId: string | undefined,
+): string | undefined {
+  const post = result?.navigatePost;
+  const url = typeof post?.url === "string" ? post.url : result?.navigateTo;
+  if (!url) return undefined;
+  const loaderId = makeTargetId();
+  const reason = post ? "formSubmissionPost" : "other";
+  emitInputNavigationStarted(ctx, target, { url, loaderId, reason }, sessionId);
+  return loaderId;
 }
 
 async function maybeFollowAnchor(
@@ -553,7 +572,9 @@ async function maybeFollowAnchor(
     | null
     | undefined,
   sessionId: string | undefined,
+  loaderId?: string,
 ): Promise<void> {
+  const announced = loaderId ? { _kitesurfLoaderId: loaderId } : {};
   const navigateTo = result?.navigateTo;
   const hashNavigateTo = result?.hashNavigateTo;
   const navigatePost = result?.navigatePost;
@@ -569,6 +590,7 @@ async function maybeFollowAnchor(
           _kitesurfPostData: navigatePost.postData ?? "",
           _kitesurfPostContentType:
             navigatePost.postContentType ?? "application/x-www-form-urlencoded",
+          ...announced,
         },
         sessionId,
       });
@@ -586,7 +608,7 @@ async function maybeFollowAnchor(
       await dispatch(ctx, {
         id: -1,
         method: "Page.navigate",
-        params: { url: navigateTo, _kitesurfInternal: true },
+        params: { url: navigateTo, _kitesurfInternal: true, ...announced },
         sessionId,
       });
     } catch (err) {
