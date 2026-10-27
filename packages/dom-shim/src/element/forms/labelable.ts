@@ -13,6 +13,7 @@ import type { HTMLElement } from "../html-element.js";
 
 // https://html.spec.whatwg.org/#category-label
 const LABELABLE_TAGS = new Set(["button", "meter", "output", "progress", "select", "textarea"]);
+// Every labelable tag maps to an HTMLElement subclass.
 function isLabelable(el: unknown): el is HTMLElement {
   if (isHtmlTag(el, "input")) return inputTypeOf(el) !== "hidden";
   const tag = htmlTagOf(el);

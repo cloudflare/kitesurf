@@ -4,7 +4,7 @@
 
 // Collects successful form controls and encodes URL-encoded or multipart submissions.
 
-import { ksGlobal } from "../../state.js";
+import { elementDocument, ksGlobal } from "../../state.js";
 import {
   encodeHtmlBytes,
   urlencodedSerialize,
@@ -179,8 +179,8 @@ function formEncoding(form: HTMLFormElement): string {
 }
 
 function namedTargetIframe(form: HTMLFormElement, name: string): Element | null {
-  const doc = form.ownerDocument;
-  if (!doc || typeof doc.getElementsByTagName !== "function") return null;
+  const doc = elementDocument(form);
+  if (typeof doc.getElementsByTagName !== "function") return null;
   const frames = doc.getElementsByTagName("iframe");
   for (let i = 0; i < frames.length; i++) {
     if (frames[i].getAttribute("name") === name) return frames[i];

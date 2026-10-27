@@ -45,7 +45,9 @@
       "all": "the live document leaves it out: browsers make HTMLAllCollection falsy, which JS can't emulate, and a truthy value sends pages down old-IE paths",
       "styleSheets": "returns an array of the sheets, not a StyleSheetList",
       "getElementsByName": "returns an array, not a live NodeList",
-      "createEvent": "may return a BeforeUnloadEvent, whose string returnValue TypeScript can't relate to Event's boolean one"
+      "createEvent": "may return a BeforeUnloadEvent, whose string returnValue TypeScript can't relate to Event's boolean one",
+      "head": "a createDocument document answers the first element with that local name, in any namespace, typed Element",
+      "body": "a createDocument document answers the first element with that local name, in any namespace, typed Element"
     }
   },
   "Element": {
