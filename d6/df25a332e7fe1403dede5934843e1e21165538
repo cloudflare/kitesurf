@@ -1,0 +1,54 @@
+packages/dom-shim/src/element/reflect.ts
+  s_325e022d8487b0::t_59732179ac1294 70,88,108,142,227,382
+packages/dom-shim/src/model-context.ts
+  s_325e022d8487b0::t_59732179ac1294 342-344,353,357,360,364-365,496-500
+  s_325e022d8487b0::t_4197f84b08ba76 345-349
+packages/page-script/src/types.ts
+  s_325e022d8487b0::t_59732179ac1294 101-103,110-111,113-114
+  s_325e022d8487b0::t_b7bfa1471b18f0 109
+packages/dom-shim/src/xpath.ts
+  s_325e022d8487b0::t_59732179ac1294 1349,1361,1366-1367,1370,1377,1381,1386-1387,1390
+packages/dom-shim/src/node-base.ts
+  s_325e022d8487b0::t_b7bfa1471b18f0 927
+packages/page-script/src/index.ts
+  s_325e022d8487b0::t_59732179ac1294 1596-1598
+packages/dom-shim/src/range.ts
+  s_325e022d8487b0::t_59732179ac1294 697,953,964,967,1492,1500,1573,1590,1614,1637,1664,1703,1705,1725,1743,1780
+packages/dom-shim/src/element/html-element.ts
+  s_325e022d8487b0::t_59732179ac1294 124
+packages/dom-shim/src/animations.ts
+  s_325e022d8487b0::t_59732179ac1294 442-447,467,540,805-809,816,993-995,1000
+packages/dom-shim/src/element/rect.ts
+  s_325e022d8487b0::t_4197f84b08ba76 25
+  s_325e022d8487b0::t_59732179ac1294 17,70
+packages/dom-shim/src/form-data.ts
+  s_325e022d8487b0::t_59732179ac1294 70
+packages/dom-shim/src/mutations/observer.ts
+  s_325e022d8487b0::t_59732179ac1294 662
+packages/dom-shim/src/document.ts
+  s_325e022d8487b0::t_59732179ac1294 219-221,1472,2169
+packages/dom-shim/src/element/svg.ts
+  s_325e022d8487b0::t_59732179ac1294 116,122,128,134
+packages/dom-shim/src/window.ts
+  s_325e022d8487b0::t_59732179ac1294 518,529-535,538,567,783-787,797-801,811
+packages/dom-shim/src/parser.ts
+  s_325e022d8487b0::t_59732179ac1294 931-932,1373
+  s_325e022d8487b0::t_4197f84b08ba76 1370-1371
+  s_325e022d8487b0::t_b7bfa1471b18f0 296,481,545,559-562,645,712,935,940,945,1027
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d6df25a332e7fe1403dede5934843e1e21165538",
+  "prompts": {},
+  "sessions": {
+    "s_325e022d8487b0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e87e6cc17ffeE3am0OA8I2bLOK",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
