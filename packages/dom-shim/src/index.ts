@@ -344,7 +344,13 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
 
   installIdlHandlersOn(DocumentImpl.prototype);
 
-  function installAsOwn(target: any, sourceProto: any, names: string[]) {
+  // An interface class: what these helpers read off it.
+  type InterfaceClass = { readonly prototype: object };
+  function installAsOwn(
+    target: InterfaceClass | null | undefined,
+    sourceProto: object | null | undefined,
+    names: string[],
+  ) {
     if (!target || !target.prototype || !sourceProto) return;
     for (const name of names) {
       if (Object.prototype.hasOwnProperty.call(target.prototype, name)) {
@@ -384,7 +390,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   }
   installAsOwn(HTMLElement, Element.prototype, ["click", "focus", "blur"]);
 
-  function forceEnumerableProtoOwnProps(klass: any) {
+  function forceEnumerableProtoOwnProps(klass: InterfaceClass | null | undefined) {
     if (!klass || !klass.prototype) return;
     const proto = klass.prototype;
     for (const name of Object.getOwnPropertyNames(proto)) {

@@ -4,6 +4,8 @@
 
 // Handles document and element scroll offsets, wheel chaining, and trusted scroll events.
 
+import type { KsScrollInfo } from "../../../core/pkg/kitesurf_core";
+import type { NodeBase } from "../node-base.js";
 import { ksGlobal, dom, WINDOW_KEY, opts, nodeFor } from "../state.js";
 import type { AuthScrollInfoSnapshot } from "../state.js";
 import {
@@ -60,7 +62,7 @@ function nodeScrollInfoSafe(nodeId: number): AuthScrollInfoSnapshot | null {
     try {
       const layoutInfo = scrollInfoCb(nodeId);
       if (layoutInfo && typeof layoutInfo === "object") {
-        let wasmInfo: any = null;
+        let wasmInfo: KsScrollInfo | null = null;
         try {
           wasmInfo = dom.nodeScrollInfo(nodeId);
         } catch {}
@@ -93,7 +95,7 @@ function nodeScrollInfoSafe(nodeId: number): AuthScrollInfoSnapshot | null {
   return null;
 }
 
-function fireElementScroll(el: any): void {
+function fireElementScroll(el: NodeBase): void {
   const id: number = el._id;
   if (id == null) return;
   try {
@@ -250,7 +252,7 @@ function setScrollOffset(
   }
   if (fireEvent && (before.x !== after.x || before.y !== after.y)) {
     try {
-      let docKey: any = WINDOW_KEY;
+      let docKey: number | string = WINDOW_KEY;
       try {
         docKey = dom.documentNodeId();
       } catch {}
@@ -265,7 +267,7 @@ function setScrollOffset(
     const scheduleScrollend = () => {
       if (mySeq !== scrollendSeq) return;
       try {
-        let docKey: any = WINDOW_KEY;
+        let docKey: number | string = WINDOW_KEY;
         try {
           docKey = dom.documentNodeId();
         } catch {}
