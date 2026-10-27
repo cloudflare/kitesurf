@@ -744,8 +744,8 @@ export interface Document extends Node {
   readonly readyState: DocumentReadyState;
   title: string;
   dir: string;
-  body: HTMLElement | null;
-  readonly head: HTMLHeadElement | null;
+  // body: HTMLElement | null;
+  // readonly head: HTMLHeadElement | null;
   readonly images: HTMLCollection;
   readonly embeds: HTMLCollection;
   readonly plugins: HTMLCollection;

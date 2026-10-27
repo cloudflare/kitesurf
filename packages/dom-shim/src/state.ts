@@ -22,6 +22,7 @@ import type {
 import {
   CDATA_SECTION_NODE,
   COMMENT_NODE,
+  DOCTYPE_NODE,
   DOCUMENT_FRAGMENT_NODE,
   DOCUMENT_NODE,
   ELEMENT_NODE,
@@ -29,7 +30,13 @@ import {
   TEXT_NODE,
 } from "./constants.js";
 import type { Element } from "./element/element.js";
-import type { CharacterDataNode, CommentNode, NodeBase, TextNode } from "./node-base.js";
+import type {
+  CharacterDataNode,
+  CommentNode,
+  DocumentTypeNode,
+  NodeBase,
+  TextNode,
+} from "./node-base.js";
 import { fragmentIds, resetRegistries } from "./registries.js";
 import type { ShimGlobal } from "./global-scope.js";
 
@@ -334,6 +341,12 @@ export function isDocumentNode(
   node: NodeBase | DetachedDocument | null | undefined,
 ): node is DocumentImpl | DetachedDocument {
   return !!node && node.nodeType === DOCUMENT_NODE;
+}
+// A DocumentType wrapper: nodeFor's for a wasm doctype, or a synthetic one.
+export function isDoctypeNode(
+  node: { readonly nodeType: number } | null | undefined,
+): node is DocumentTypeNode {
+  return !!node && node.nodeType === DOCTYPE_NODE;
 }
 // A DocumentFragment wrapper: a fragment stand-in or a shadow root.
 export function isFragmentNode(

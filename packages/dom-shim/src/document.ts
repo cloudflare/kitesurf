@@ -14,6 +14,7 @@ import {
   nodeFor,
   elementFor,
   isElementNode,
+  isDoctypeNode,
   mintedNode,
   makeNodeList,
   makeHtmlCollection,
@@ -108,6 +109,8 @@ import {
   makeStyleSheetList,
   adoptedStyleSheets,
   type DocumentFragmentImpl,
+  type HtmlCollectionCls,
+  type NodeListCls,
 } from "./collections.js";
 import { RangeImpl, getSelection, rangeAfterInsert, rangeBeforeRemove } from "./range.js";
 import { NodeIterator, TreeWalker } from "./traversal.js";
@@ -276,10 +279,29 @@ interface DocumentImpl
     >,
     SharedDocumentTypeGaps {}
 
+type ForeignDocumentMethod =
+  | "querySelector"
+  | "querySelectorAll"
+  | "getElementById"
+  | "getElementsByTagName";
+// DOMPurify calls document.getElementsByTagName on a parsed document, which
+// must not answer from the live DOM. Such a receiver (anything with its own
+// _dom) answers with its own method. It isn't a DocumentImpl, whatever the
+// method's `this` type says, so the cast below carries the same fiction.
+function foreignDocumentMethod<K extends ForeignDocumentMethod>(
+  self: unknown,
+  name: K,
+): DocumentImpl[K] | null {
+  if (!self || typeof self !== "object" || !Reflect.get(self, "_dom")) return null;
+  const method: unknown = Reflect.get(self, name);
+  if (typeof method !== "function" || method === DocumentImpl.prototype[name]) return null;
+  return method as DocumentImpl[K];
+}
+
 class DocumentImpl extends NodeBase implements Idl.Document {
   // Storage behind the childNodes, doctype and implementation accessors.
-  declare _doctype: any;
-  declare _docChildNodes: any;
+  declare _doctype: DocumentTypeNode | undefined;
+  declare _docChildNodes: NodeListCls<NodeBase> | undefined;
   declare _doctypeMarker: string | null;
   declare _implementation: DOMImplementationCls | undefined;
   // Set on createHTMLDocument documents; undefined on the live document.
@@ -405,7 +427,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     cookieWrites.push(raw);
   }
   // Blitz drops doctypes during parse, so keep a synthetic node for this document.
-  get doctype() {
+  get doctype(): DocumentTypeNode {
     if (!this._doctype) {
       const synth: DocumentTypeNode = Object.create(DocumentTypeNode.prototype);
       Object.defineProperty(synth, "_info", {
@@ -440,17 +462,18 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       });
       syntheticParent.set(synth, this);
       nodeOwnerDoc.set(synth, this);
+      return synth;
     }
     return this._doctype;
   }
   // Keep the synthetic doctype at its source position without changing Blitz's XHTML sniff.
-  get childNodes() {
+  get childNodes(): NodeListCls<NodeBase> {
     if (!this._docChildNodes) {
       const self = this;
       const id = this._id;
       const list = makeNodeList(() => {
         const ids = Array.from(dom.childIds(id));
-        const wasmKids = ids.map((cid) => nodeFor(cid)).filter(Boolean);
+        const wasmKids = ids.map((cid) => nodeFor(cid)).filter((n): n is NodeBase => n !== null);
         // Keep the marker at its source position; leading comments alter Blitz's XHTML sniff.
         let doctypeIdx = self._doctypeMarker
           ? wasmKids.findIndex(
@@ -472,6 +495,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
         writable: false,
         enumerable: false,
       });
+      return list;
     }
     return this._docChildNodes;
   }
@@ -590,7 +614,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     if (!el) return null;
     if (!el.rootStamped) {
       const proto = (name: string): (() => number) | null => {
-        let p: any = Object.getPrototypeOf(el);
+        let p: object | null = Object.getPrototypeOf(el);
         while (p) {
           const d = Object.getOwnPropertyDescriptor(p, name);
           if (d && typeof d.get === "function") return d.get as () => number;
@@ -621,12 +645,12 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     }
     return el;
   }
-  get head() {
+  get head(): Element | null {
     const id = dom.querySelector("head");
     const el = id >= 0 ? elementFor(id) : null;
     return isHtmlTag(el, "head") ? el : null;
   }
-  get body() {
+  get body(): Element | null {
     const id = dom.querySelector("body");
     const el = id >= 0 ? elementFor(id) : null;
     return isHtmlTag(el, "body") ? el : null;
@@ -649,7 +673,8 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     if (docEl) return docEl;
     const kids = this.childNodes;
     for (let i = 0; i < kids.length; i++) {
-      if (kids[i].nodeType === ELEMENT_NODE) return kids[i];
+      const kid = kids[i];
+      if (isElementNode(kid)) return kid;
     }
     return null;
   }
@@ -763,65 +788,40 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     return animationsFor(this, true);
   }
 
-  querySelector(selector: string) {
+  querySelector(selector: string): Element | null {
     if (arguments.length < 1) {
       throw new TypeError(
         "Failed to execute 'querySelector' on 'Document': 1 argument required, but only 0 present.",
       );
     }
     // Cross-doc receiver, see getElementsByTagName.
-    if (
-      this &&
-      (this as any)._dom &&
-      typeof (this as any).querySelector === "function" &&
-      (this as any).querySelector !== DocumentImpl.prototype.querySelector
-    ) {
-      return (this as any).querySelector(selector);
-    }
+    const foreign = foreignDocumentMethod(this, "querySelector");
+    if (foreign) return foreign.call(this, selector);
     return scopedQuerySelector(DOCUMENT_ID, selector);
   }
-  querySelectorAll(selector: string) {
+  querySelectorAll(selector: string): NodeListCls<Element> {
     if (arguments.length < 1) {
       throw new TypeError(
         "Failed to execute 'querySelectorAll' on 'Document': 1 argument required, but only 0 present.",
       );
     }
-    if (
-      this &&
-      (this as any)._dom &&
-      typeof (this as any).querySelectorAll === "function" &&
-      (this as any).querySelectorAll !== DocumentImpl.prototype.querySelectorAll
-    ) {
-      return (this as any).querySelectorAll(selector);
-    }
+    const foreign = foreignDocumentMethod(this, "querySelectorAll");
+    if (foreign) return foreign.call(this, selector);
     return scopedQuerySelectorAll(DOCUMENT_ID, selector);
   }
-  getElementById(id: string) {
+  getElementById(id: string): Element | null {
     // Cross-doc receiver, see getElementsByTagName.
-    if (
-      this &&
-      (this as any)._dom &&
-      typeof (this as any).getElementById === "function" &&
-      (this as any).getElementById !== DocumentImpl.prototype.getElementById
-    ) {
-      return (this as any).getElementById(id);
-    }
+    const foreign = foreignDocumentMethod(this, "getElementById");
+    if (foreign) return foreign.call(this, id);
     // DOMString conversion: null searches for "null". No element matches "".
     const key = String(id);
     if (key === "") return null;
     const nid = dom.getElementById(key);
-    return nid >= 0 ? nodeFor(nid) : null;
+    return nid >= 0 ? elementFor(nid) : null;
   }
-  getElementsByTagName(name: string) {
-    // Respect cross-document receivers; DOMPurify calls this with its parsed document.
-    if (
-      this &&
-      (this as any)._dom &&
-      typeof (this as any).getElementsByTagName === "function" &&
-      (this as any).getElementsByTagName !== DocumentImpl.prototype.getElementsByTagName
-    ) {
-      return (this as any).getElementsByTagName(name);
-    }
+  getElementsByTagName(name: string): HtmlCollectionCls {
+    const foreign = foreignDocumentMethod(this, "getElementsByTagName");
+    if (foreign) return foreign.call(this, name);
     // Filter `*` in JS: the wasm case-insensitive selector is wrong for
     // non-ASCII tags (see Element.getElementsByTagName).
     const qname = String(name);
@@ -842,7 +842,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     const ln = String(localName);
     return makeHtmlCollection(() => {
       try {
-        const cand = Array.from<Element>(scopedQuerySelectorAll(DOCUMENT_ID, "*"));
+        const cand = Array.from(scopedQuerySelectorAll(DOCUMENT_ID, "*"));
         return cand.filter((el) => {
           const elNs = el.namespaceURI || null;
           if (ns !== "*" && elNs !== ns) return false;
@@ -1272,7 +1272,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       } catch {}
     }
     const rawSrc = st.currentScriptRawSrc;
-    const matchNode = (node: any): boolean => {
+    const matchNode = (node: Element | null | undefined): boolean => {
       if (!node || typeof node.tagName !== "string" || node.tagName.toUpperCase() !== "SCRIPT")
         return false;
       const a = node.getAttribute ? node.getAttribute("src") : null;
@@ -1439,7 +1439,8 @@ class DOMImplementationCls implements Idl.DOMImplementation {
       enumerable: false,
     });
     if (doctype != null && typeof doctype === "object") {
-      doc._topChildren.push(doctype);
+      // The check above let only nodeType-10 objects through: a doctype.
+      doc._topChildren.push(doctype as DocumentTypeNode);
       syntheticParent.set(doctype, doc);
       nodeOwnerDoc.set(doctype, doc);
     }
@@ -1547,13 +1548,13 @@ class DetachedDocument implements Idl.Document {
   declare readonly parentNode: null;
   declare readonly ownerDocument: null;
   declare _hostId: number;
-  declare _host: any;
-  declare _topChildren: any[];
-  declare _cnList: any;
+  declare _host: Element;
+  declare _topChildren: NodeBase[];
+  declare _cnList: NodeListCls<NodeBase> | undefined;
   declare _baseUrl: string;
   declare _contentType: string;
   declare _isHtml: boolean;
-  declare _implementation: any;
+  declare _implementation: DOMImplementationCls | undefined;
   // The namespace createDocument() was given; null for createHTMLDocument
   // and DOMParser. contentType and the element factories branch on it.
   declare _createElementNs: string | null | undefined;
@@ -1621,7 +1622,7 @@ class DetachedDocument implements Idl.Document {
       enumerable: false,
     });
     Object.defineProperty(this, "_host", {
-      value: nodeFor(hostId),
+      value: mintedNode(hostId, ELEMENT_NODE),
       enumerable: false,
     });
     hostIdToDoc.set(hostId, this);
@@ -1659,14 +1660,16 @@ class DetachedDocument implements Idl.Document {
     return "application/xml";
   }
   // Memoized: childNodes must return the same live NodeList every time.
-  get childNodes() {
+  get childNodes(): NodeListCls<NodeBase> {
     if (!this._cnList) {
       const self = this;
+      const list = makeNodeList(() => self._topChildren.slice());
       Object.defineProperty(this, "_cnList", {
-        value: makeNodeList(() => self._topChildren.slice()),
+        value: list,
         writable: false,
         enumerable: false,
       });
+      return list;
     }
     return this._cnList;
   }
@@ -1677,17 +1680,17 @@ class DetachedDocument implements Idl.Document {
     const n = this._topChildren.length;
     return n > 0 ? this._topChildren[n - 1] : null;
   }
-  get documentElement() {
+  get documentElement(): Element | null {
     for (let i = 0; i < this._topChildren.length; i++) {
       const c = this._topChildren[i];
-      if (c && c.nodeType === ELEMENT_NODE) return c;
+      if (isElementNode(c)) return c;
     }
     return null;
   }
-  get doctype() {
+  get doctype(): DocumentTypeNode | null {
     for (let i = 0; i < this._topChildren.length; i++) {
       const c = this._topChildren[i];
-      if (c && c.nodeType === DOCTYPE_NODE) return c;
+      if (isDoctypeNode(c)) return c;
     }
     return null;
   }
@@ -1736,8 +1739,8 @@ class DetachedDocument implements Idl.Document {
     // Step 6 also keeps the doctype before the document element.
     const top = this._topChildren;
     // The existing element and doctype children, ignoring `child` on replace.
-    let elementChild = null;
-    let doctypeChild = null;
+    let elementChild: NodeBase | null = null;
+    let doctypeChild: NodeBase | null = null;
     for (let i = 0; i < top.length; i++) {
       const c = top[i];
       if (isReplace && c === child) continue;
@@ -2025,13 +2028,15 @@ class DetachedDocument implements Idl.Document {
   append(...nodes: Array<NodeBase | string>) {
     assertDocumentInsertAllowed(this, nodes, "append", /*atFront*/ false);
     this._host.append(...nodes);
-    for (const n of nodes) this._topChildren.push(n);
+    // assertDocumentInsertAllowed rejected any string (a Text child).
+    for (const n of nodes) if (typeof n !== "string") this._topChildren.push(n);
   }
   prepend(...nodes: Array<NodeBase | string>) {
     assertDocumentInsertAllowed(this, nodes, "prepend", /*atFront*/ true);
     this._host.prepend(...nodes);
     for (let i = nodes.length - 1; i >= 0; i--) {
-      this._topChildren.unshift(nodes[i]);
+      const n = nodes[i];
+      if (typeof n !== "string") this._topChildren.unshift(n);
     }
   }
   replaceChildren(...nodes: Array<NodeBase | string>) {
@@ -2046,7 +2051,7 @@ class DetachedDocument implements Idl.Document {
     );
     this._host.replaceChildren(...nodes);
     this._topChildren.length = 0;
-    for (const n of nodes) this._topChildren.push(n);
+    for (const n of nodes) if (typeof n !== "string") this._topChildren.push(n);
   }
   // DetachedDocument does not extend NodeBase, so it defines the Node
   // identity, comparison and namespace methods itself.
@@ -2157,7 +2162,7 @@ class DetachedDocument implements Idl.Document {
     if (other === this) return true;
     if (other == null) return false;
     // A synthetic doctype is not in the wasm parent chain.
-    if (this._topChildren && this._topChildren.indexOf(other) >= 0) {
+    if (this._topChildren && (this._topChildren as readonly unknown[]).indexOf(other) >= 0) {
       return true;
     }
     // Wasm-backed descendants reach _hostId through their parent chain.
@@ -2358,7 +2363,7 @@ class DetachedDocument implements Idl.Document {
     return dispatchOnKey(() => this._hostId, event);
   }
   // The first <head> under documentElement, or null.
-  get head() {
+  get head(): Element | null {
     const root = this.documentElement;
     if (!root) return null;
     try {
@@ -2368,7 +2373,7 @@ class DetachedDocument implements Idl.Document {
     return null;
   }
   // The first <body> under documentElement, or null.
-  get body() {
+  get body(): Element | null {
     const root = this.documentElement;
     if (!root) return null;
     try {
@@ -2390,7 +2395,7 @@ class DetachedDocument implements Idl.Document {
   set title(v) {
     const root = this.documentElement;
     if (!root) return;
-    let t: any = null;
+    let t: Element | null = null;
     try {
       t = root.querySelector ? root.querySelector("title") : null;
     } catch {}
@@ -2398,7 +2403,7 @@ class DetachedDocument implements Idl.Document {
       // No <title>: create one in <head>, or in documentElement without one.
       try {
         t = this.createElement("title");
-        let head: any = null;
+        let head: Element | null = null;
         try {
           head = root.querySelector ? root.querySelector("head") : null;
         } catch {}
@@ -2567,10 +2572,10 @@ type SharedDocumentMember =
 interface SharedDocumentTypeGaps {
   createEvent(interfaceName: string): KsEvent | KsBeforeUnloadEvent;
 }
-function bodyColor(body: Idl.HTMLElement | null, attribute: string): string {
+function bodyColor(body: Element | null, attribute: string): string {
   return body ? body.getAttribute(attribute) || "" : "";
 }
-function setBodyColor(body: Idl.HTMLElement | null, attribute: string, value: string | null): void {
+function setBodyColor(body: Element | null, attribute: string, value: string | null): void {
   if (body) body.setAttribute(attribute, value === null ? "" : String(value));
 }
 const sharedDocumentMembers: Pick<Idl.Document, SharedDocumentMember> &
@@ -2736,11 +2741,14 @@ const sharedDocumentMembers: Pick<Idl.Document, SharedDocumentMember> &
   // dir reflects the root element's dir; a non-HTML root has none.
   get dir() {
     const el = this.documentElement;
-    return el ? (el as Idl.HTMLElement).dir : "";
+    if (!el) return "";
+    // Every element wrapper is an HTMLElement, which has dir.
+    const dir: unknown = Reflect.get(el, "dir");
+    return typeof dir === "string" ? dir : "";
   },
   set dir(value: string) {
     const el = this.documentElement;
-    if (el) (el as Idl.HTMLElement).dir = value;
+    if (el) Reflect.set(el, "dir", value);
   },
   // The legacy event factory: an uninitialized event of the interface the
   // name maps to, matched case-insensitively. An unknown name throws
@@ -2826,11 +2834,7 @@ for (const proto of [DocumentImpl.prototype, DetachedDocument.prototype]) {
 // Keep XMLDocument's interface identity separate from other Document nodes.
 class XMLDocument extends DetachedDocument implements Idl.XMLDocument {
   static [Symbol.hasInstance](v: unknown): boolean {
-    return (
-      v !== null &&
-      (typeof v === "object" || typeof v === "function") &&
-      XMLDocument.prototype.isPrototypeOf(v)
-    );
+    return v != null && XMLDocument.prototype.isPrototypeOf(v);
   }
 }
 
