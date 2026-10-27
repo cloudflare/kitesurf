@@ -309,7 +309,7 @@ type CheckVisibilityOptions = {
   visibilityProperty?: boolean;
 };
 function flatTreeParentElement(el: Element): Element | null {
-  const slot: unknown = Reflect.get(el, "assignedSlot");
+  const slot = el.assignedSlot;
   if (slot instanceof Element) return slot;
   const parent: unknown = el.parentElement;
   if (parent instanceof Element) return parent;

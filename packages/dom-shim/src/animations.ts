@@ -828,7 +828,7 @@ export class KsAnimation implements Idl.Animation {
       try {
         if (typeof cb === "function") cb.call(this, event);
         else if (typeof cb === "object" && cb !== null) {
-          const handleEvent: unknown = Reflect.get(cb, "handleEvent");
+          const handleEvent = cb.handleEvent;
           if (typeof handleEvent === "function") Reflect.apply(handleEvent, cb, [event]);
         }
       } catch (err) {
