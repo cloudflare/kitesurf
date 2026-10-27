@@ -38,6 +38,18 @@ pub(crate) fn svg_natural_dimensions(
     }
 }
 
+// The TypeScript shape of a serialized Rect (getBoundingClientRect).
+#[wasm_bindgen(typescript_custom_section)]
+const TS_RECT: &str = r#"
+export interface KsLayoutRect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    hasBox?: boolean;
+}
+"#;
+
 #[derive(Serialize)]
 pub(crate) struct Rect {
     pub(crate) x: f32,
@@ -452,6 +464,16 @@ fn transformed_rect_for_node(doc: &BaseDocument, node_id: NodeId) -> Option<Rect
     ))
 }
 
+// The TypeScript shape of OffsetMetrics.
+#[wasm_bindgen(typescript_custom_section)]
+const TS_OFFSET_METRICS: &str = r#"
+export interface KsOffsetMetrics {
+    parent: number;
+    top: number;
+    left: number;
+}
+"#;
+
 #[derive(Serialize)]
 struct OffsetMetrics {
     parent: f64,
@@ -834,7 +856,10 @@ impl DomHandle {
         vec![v.window_size.0, v.window_size.1]
     }
 
-    #[wasm_bindgen(js_name = "getBoundingClientRect")]
+    #[wasm_bindgen(
+        js_name = "getBoundingClientRect",
+        unchecked_return_type = "KsLayoutRect | null"
+    )]
     pub fn get_bounding_client_rect(&self, node_id: u32) -> Result<JsValue, JsError> {
         if self.layout_mode.get() == LayoutMode::Off {
             return serde_wasm_bindgen::to_value(&Rect::ZERO)
@@ -969,7 +994,10 @@ impl DomHandle {
         serde_json::to_string(&geometry).map_err(|e| JsError::new(&e.to_string()))
     }
 
-    #[wasm_bindgen(js_name = "offsetMetrics")]
+    #[wasm_bindgen(
+        js_name = "offsetMetrics",
+        unchecked_return_type = "KsOffsetMetrics | null"
+    )]
     pub fn offset_metrics(&self, node_id: u32) -> Result<JsValue, JsError> {
         use ::style::properties::generated::longhands::position::computed_value::T as Position;
         if self.layout_mode.get() == LayoutMode::Off {

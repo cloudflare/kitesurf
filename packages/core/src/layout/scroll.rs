@@ -31,6 +31,34 @@ pub(crate) fn is_scroll_container(node: &blitz_dom::Node) -> bool {
     })
 }
 
+// The TypeScript shapes of ScrollInfo and ScrollOffset.
+#[wasm_bindgen(typescript_custom_section)]
+const TS_SCROLL: &str = r#"
+export interface KsScrollInfo {
+    scrollTop: number;
+    scrollLeft: number;
+    scrollWidth: number;
+    scrollHeight: number;
+    clientWidth: number;
+    clientHeight: number;
+    clientTop: number;
+    clientLeft: number;
+    contentWidth: number;
+    contentHeight: number;
+    hasBox: boolean;
+    overflowsX: boolean;
+    overflowsY: boolean;
+    userScrollableX: boolean;
+    userScrollableY: boolean;
+    stopScrollChainX: boolean;
+    stopScrollChainY: boolean;
+}
+export interface KsScrollOffset {
+    x: number;
+    y: number;
+}
+"#;
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ScrollInfo {
@@ -140,7 +168,10 @@ impl DomHandle {
         }
     }
 
-    #[wasm_bindgen(js_name = "nodeScrollInfo")]
+    #[wasm_bindgen(
+        js_name = "nodeScrollInfo",
+        unchecked_return_type = "KsScrollInfo | null"
+    )]
     pub fn node_scroll_info(&self, node_id: u32) -> Result<JsValue, JsError> {
         match self.read_scroll_info(node_id) {
             Some(i) => serde_wasm_bindgen::to_value(&i).map_err(|e| JsError::new(&e.to_string())),
@@ -305,7 +336,10 @@ impl DomHandle {
         info_result.unwrap_or(None)
     }
 
-    #[wasm_bindgen(js_name = "setNodeScrollOffset")]
+    #[wasm_bindgen(
+        js_name = "setNodeScrollOffset",
+        unchecked_return_type = "KsScrollOffset | null"
+    )]
     pub fn set_node_scroll_offset(&self, node_id: u32, x: f64, y: f64) -> Result<JsValue, JsError> {
         match self.write_scroll_offset(node_id, x, y) {
             Some(o) => serde_wasm_bindgen::to_value(&o).map_err(|e| JsError::new(&e.to_string())),

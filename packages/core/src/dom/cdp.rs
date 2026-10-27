@@ -23,6 +23,38 @@ struct NotRenderedIds {
     invisible: Vec<u32>,
 }
 
+// The TypeScript shape of a serialized CdpNode, for the methods that return
+// one (nodeInfo, getDocument, nodeSubtree). serde_wasm_bindgen writes a
+// skipped or None field as absent or undefined, hence the optional members.
+// Keep it in step with CdpNode and CdpAttributeNamespace.
+#[wasm_bindgen(typescript_custom_section)]
+const TS_CDP_NODE: &str = r#"
+export interface KsAttributeNamespace {
+    qualifiedName: string;
+    namespaceURI: string;
+    prefix?: string;
+    localName: string;
+}
+export interface KsNodeInfo {
+    nodeId: number;
+    backendNodeId: number;
+    nodeType: number;
+    nodeName: string;
+    localName: string;
+    nodeValue: string;
+    childNodeCount: number;
+    attributes?: string[];
+    attributeNamespaces?: KsAttributeNamespace[];
+    documentURL?: string;
+    baseURL?: string;
+    xmlVersion?: string;
+    children?: KsNodeInfo[];
+    shadowRoots?: KsNodeInfo[];
+    shadowRootType?: "open" | "closed";
+    namespaceURI?: string;
+}
+"#;
+
 #[derive(Serialize)]
 pub(crate) struct CdpNode {
     #[serde(rename = "nodeId")]

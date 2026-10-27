@@ -232,7 +232,7 @@ impl DomHandle {
         self.base_url.clone()
     }
 
-    #[wasm_bindgen(js_name = "getDocument")]
+    #[wasm_bindgen(js_name = "getDocument", unchecked_return_type = "KsNodeInfo | null")]
     pub fn get_document(&self) -> Result<JsValue, JsError> {
         let doc = match self.doc.try_borrow() {
             Ok(d) => d,
@@ -245,7 +245,7 @@ impl DomHandle {
         serde_wasm_bindgen::to_value(&cdp).map_err(|e| JsError::new(&e.to_string()))
     }
 
-    #[wasm_bindgen(js_name = "nodeSubtree")]
+    #[wasm_bindgen(js_name = "nodeSubtree", unchecked_return_type = "KsNodeInfo | null")]
     pub fn node_subtree(&self, node_id: u32) -> Result<JsValue, JsError> {
         let Some(internal_id) = self.resolve_node_id(node_id) else {
             return Ok(JsValue::NULL);
@@ -319,7 +319,11 @@ impl DomHandle {
     }
 
     #[wasm_bindgen(js_name = "canonicalizeSelectorNs")]
-    pub fn canonicalize_selector_ns(&self, selector: &str, prefixes: JsValue) -> Option<String> {
+    pub fn canonicalize_selector_ns(
+        &self,
+        selector: &str,
+        #[wasm_bindgen(unchecked_param_type = "Record<string, string>")] prefixes: JsValue,
+    ) -> Option<String> {
         let map: std::collections::HashMap<String, String> =
             serde_wasm_bindgen::from_value(prefixes).ok()?;
         let default_ns = map.get("").cloned();
@@ -525,7 +529,7 @@ impl DomHandle {
         }
     }
 
-    #[wasm_bindgen(js_name = "nodeInfo")]
+    #[wasm_bindgen(js_name = "nodeInfo", unchecked_return_type = "KsNodeInfo | null")]
     pub fn node_info(&self, node_id: u32) -> Result<JsValue, JsError> {
         let internal_id = self
             .resolve_node_id(node_id)
@@ -626,7 +630,7 @@ impl DomHandle {
         out
     }
 
-    #[wasm_bindgen(js_name = "innerTextRendered")]
+    #[wasm_bindgen(js_name = "innerTextRendered", unchecked_return_type = "string | null")]
     pub fn inner_text_rendered(&self, node_id: u32) -> JsValue {
         if self.layout_mode.get() == LayoutMode::Off {
             return JsValue::NULL;

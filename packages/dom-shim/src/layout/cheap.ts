@@ -4,6 +4,7 @@
 
 // Provides approximate block-flow geometry when full layout is disabled or unavailable.
 
+import type { KsLayoutRect } from "../../../core/pkg/kitesurf_core";
 import { dom, getRectByAuthId } from "../state.js";
 import { getInternalState } from "../internal-state.js";
 import {
@@ -121,7 +122,7 @@ function cheapInfo(id: number): {
 } {
   try {
     const info = dom.nodeInfo(id);
-    const type = (info && info.nodeType) | 0;
+    const type = (info?.nodeType ?? 0) | 0;
     const tag = info && typeof info.localName === "string" ? info.localName.toLowerCase() : "";
     const text = info && typeof info.nodeValue === "string" ? info.nodeValue : "";
     let display: "block" | "inline" | "none" | "" = "";
@@ -383,9 +384,12 @@ export function getRect(nodeId: number): { x: number; y: number; width: number; 
     if (rect) return toViewport({ x: rect.x, y: rect.y, width: rect.w, height: rect.h });
     return { x: 0, y: 0, width: 0, height: 0 };
   }
+  let rect: KsLayoutRect | null = null;
   try {
-    const rect = dom.getBoundingClientRect(nodeId);
-    if (rect && (rect.width < 0 || rect.height < 0)) {
+    rect = dom.getBoundingClientRect(nodeId);
+  } catch {}
+  if (rect) {
+    if (rect.width < 0 || rect.height < 0) {
       return { x: 0, y: 0, width: 0, height: 0 };
     }
     return toViewport({
@@ -394,12 +398,13 @@ export function getRect(nodeId: number): { x: number; y: number; width: number; 
       width: rect.width ?? 0,
       height: rect.height ?? 0,
     });
-  } catch {
-    try {
-      cheapLayoutEnsure();
-      const rect = cheapRects.get(nodeId);
-      if (rect) return toViewport({ x: rect.x, y: rect.y, width: rect.w, height: rect.h });
-    } catch {}
-    return { x: 0, y: 0, width: 0, height: 0 };
   }
+  // Serve from the cheap cache if the wasm layout query throws, or
+  // returns null because the document is borrowed.
+  try {
+    cheapLayoutEnsure();
+    const cheap = cheapRects.get(nodeId);
+    if (cheap) return toViewport({ x: cheap.x, y: cheap.y, width: cheap.w, height: cheap.h });
+  } catch {}
+  return { x: 0, y: 0, width: 0, height: 0 };
 }

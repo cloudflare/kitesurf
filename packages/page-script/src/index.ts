@@ -5076,7 +5076,7 @@ function queryDomDocumentRead(
     case "getDocument": {
       // Read stamps bracket the synchronous DOM read with the mutation sequence.
       const before = getInternalState().mutationSeq | 0;
-      const root = sanitizeCdpNodeTree(pageState.dom.getDocument());
+      const root = sanitizeCdpNodeTree(pageState.dom.getDocument()) ?? undefined;
       return {
         root,
         ...(queryArgs.includeReadStamp === true
@@ -6533,20 +6533,21 @@ function queryDomNodeHandle(
       }
       try {
         const info = pageState.dom.nodeInfo(id);
-        if (info && typeof info === "object") delete info.attributeNamespaces;
-        return { node: { ...info, backendNodeId: id } } satisfies QueryDomResult<"describeNode">;
-      } catch {
-        return {
-          node: {
-            nodeId: 0,
-            backendNodeId: 0,
-            nodeType: 1,
-            nodeName: "",
-            localName: "",
-            nodeValue: "",
-          },
-        } satisfies QueryDomResult<"describeNode">;
-      }
+        if (info) {
+          delete info.attributeNamespaces;
+          return { node: { ...info, backendNodeId: id } } satisfies QueryDomResult<"describeNode">;
+        }
+      } catch {}
+      return {
+        node: {
+          nodeId: 0,
+          backendNodeId: 0,
+          nodeType: 1,
+          nodeName: "",
+          localName: "",
+          nodeValue: "",
+        },
+      } satisfies QueryDomResult<"describeNode">;
     }
     case "resolveNode": {
       const id = numericNodeId(queryArgs);
