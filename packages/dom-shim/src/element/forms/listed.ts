@@ -62,27 +62,19 @@ function isFormListed(el: unknown): el is ListedElement {
 }
 
 function isInsideExemptLegend(control: Element, disabledFieldset: HTMLFieldSetElement): boolean {
-  const firstLegend = firstLegendChild(disabledFieldset);
-  if (!firstLegend) return false;
-  return hasLegendAncestor(control.parentNode, disabledFieldset, firstLegend);
-}
-
-function firstLegendChild(disabledFieldset: HTMLFieldSetElement): HTMLLegendElement | null {
+  let firstLegend: HTMLLegendElement | null = null;
   const kids = disabledFieldset.children;
-  if (!kids) return null;
-  for (let i = 0; i < kids.length; i++) {
-    const child = kids[i];
-    if (isHtmlTag(child, "legend")) return child;
+  if (kids) {
+    for (let i = 0; i < kids.length; i++) {
+      const child = kids[i];
+      if (isHtmlTag(child, "legend")) {
+        firstLegend = child;
+        break;
+      }
+    }
   }
-  return null;
-}
-
-function hasLegendAncestor(
-  node: Idl.Node | null,
-  disabledFieldset: HTMLFieldSetElement,
-  firstLegend: HTMLLegendElement,
-): boolean {
-  let p = node;
+  if (!firstLegend) return false;
+  let p = control.parentNode;
   while (p && p !== disabledFieldset) {
     if (p === firstLegend) return true;
     p = p.parentNode;

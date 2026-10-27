@@ -113,26 +113,20 @@ function snapshotBits(bits: unknown): string | null {
   if (!isIterable(bits)) return "";
   let out = "";
   for (const part of bits) {
-    const snapshot = snapshotPart(part);
-    if (snapshot === null) return null;
-    out += snapshot;
+    if (typeof part === "string") {
+      out += binaryString(encoder.encode(part));
+    } else if (part instanceof ArrayBuffer) {
+      out += binaryString(new Uint8Array(part));
+    } else if (ArrayBuffer.isView(part)) {
+      out += binaryString(new Uint8Array(part.buffer, part.byteOffset, part.byteLength));
+    } else {
+      // Wrapped KsFile instances carry their synchronous snapshot under this key.
+      const nested = part ? (part as { __ksBits?: unknown }).__ksBits : undefined;
+      if (typeof nested !== "string") return null;
+      out += nested;
+    }
   }
   return out;
-}
-
-function snapshotPart(part: unknown): string | null {
-  if (typeof part === "string") return binaryString(encoder.encode(part));
-  if (part instanceof ArrayBuffer) return binaryString(new Uint8Array(part));
-  return snapshotViewOrNestedPart(part);
-}
-
-function snapshotViewOrNestedPart(part: unknown): string | null {
-  if (ArrayBuffer.isView(part)) {
-    return binaryString(new Uint8Array(part.buffer, part.byteOffset, part.byteLength));
-  }
-  // Wrapped KsFile instances carry their synchronous snapshot under this key.
-  const nested = part ? (part as { __ksBits?: unknown }).__ksBits : undefined;
-  return typeof nested === "string" ? nested : null;
 }
 
 const BINARY_STRING_CHUNK = 32 * 1024;

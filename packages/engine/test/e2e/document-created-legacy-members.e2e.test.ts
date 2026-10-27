@@ -29,3 +29,18 @@ test("a created document has the live document's legacy members", async ({ page,
     lastModified: true,
   });
 }, 60_000);
+
+test("a created document creates and normalizes its title", async ({ page }) => {
+  await setContent(page, "<div></div>");
+  const result = await page.evaluate(() => {
+    const doc = document.implementation.createHTMLDocument();
+    const before = doc.title;
+    doc.title = "  Example \n title  ";
+    return {
+      before,
+      title: doc.title,
+      text: doc.head?.querySelector("title")?.textContent,
+    };
+  });
+  expect(result).toEqual({ before: "", title: "Example title", text: "  Example \n title  " });
+});

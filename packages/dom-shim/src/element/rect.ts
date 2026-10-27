@@ -14,21 +14,6 @@ function rectState(rect: object): RectState {
   return state;
 }
 type RectInit = { x?: unknown; y?: unknown; width?: unknown; height?: unknown };
-type RectInitValues = [x: unknown, y: unknown, width: unknown, height: unknown];
-
-function rectInitValues(other?: RectInit | null): RectInitValues {
-  const position = rectPositionValues(other);
-  const size = rectSizeValues(other);
-  return [position[0], position[1], size[0], size[1]];
-}
-
-function rectPositionValues(other?: RectInit | null): [x: unknown, y: unknown] {
-  return [other?.x ?? 0, other?.y ?? 0];
-}
-
-function rectSizeValues(other?: RectInit | null): [width: unknown, height: unknown] {
-  return [other?.width ?? 0, other?.height ?? 0];
-}
 
 export class DOMRectReadOnly implements Idl.DOMRectReadOnly {
   constructor(x: unknown = 0, y: unknown = 0, width: unknown = 0, height: unknown = 0) {
@@ -40,7 +25,7 @@ export class DOMRectReadOnly implements Idl.DOMRectReadOnly {
     });
   }
   static fromRect(other?: RectInit | null): DOMRectReadOnly {
-    return new this(...rectInitValues(other));
+    return new this(other?.x ?? 0, other?.y ?? 0, other?.width ?? 0, other?.height ?? 0);
   }
   get x() {
     return rectState(this).x;
@@ -85,7 +70,7 @@ export class DOMRectReadOnly implements Idl.DOMRectReadOnly {
 }
 export class DOMRect extends DOMRectReadOnly implements Idl.DOMRect {
   static fromRect(other?: RectInit | null): DOMRect {
-    return new this(...rectInitValues(other));
+    return new this(other?.x ?? 0, other?.y ?? 0, other?.width ?? 0, other?.height ?? 0);
   }
   get x() {
     return rectState(this).x;

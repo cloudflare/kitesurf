@@ -349,17 +349,6 @@ function reflectedTokenList(
   return list;
 }
 
-function htmlRelListTag(local: string): boolean {
-  return local === "a" || local === "area" || local === "link";
-}
-
-function supportsRelList(ns: string | null, local: string): boolean {
-  return (
-    (ns === HTML_NS && htmlRelListTag(local)) ||
-    ((ns === SVG_NS || ns === MATHML_NS) && local === "a")
-  );
-}
-
 function syncCheckedInputs(
   inputs: Iterable<number>,
   checked: Set<number>,
@@ -447,10 +436,6 @@ function exposedAttributeName(nsMap: ReturnType<typeof attrNs.get>, wasmKey: str
     if (info && info.qname) return info.qname;
   }
   return wasmKey;
-}
-
-function attributeLookupName(el: Element, name: string, lower: string): string {
-  return lower === name || el.namespaceURI === HTML_NS ? lower : name;
 }
 
 function normalizedAttributeNamespace(namespace: string | null): string | null {
@@ -1254,20 +1239,6 @@ function scrollPositionUnchanged(
   return nx === info.scrollLeft && ny === info.scrollTop;
 }
 
-function nextElementScrollCoordinate(v: unknown, limit: number): number {
-  return Math.max(0, Math.min(Number(v) || 0, limit));
-}
-
-function setRootScrollTop(v: unknown): void {
-  const cur = scrollOffset();
-  setScrollOffset(cur.x, Number(v) || 0);
-}
-
-function setRootScrollLeft(v: unknown): void {
-  const cur = scrollOffset();
-  setScrollOffset(Number(v) || 0, cur.y);
-}
-
 function scrollByNormalized(el: Element, norm: NormalizedScrollArgs) {
   const dx = norm.left == null ? 0 : norm.left;
   const dy = norm.top == null ? 0 : norm.top;
@@ -1806,7 +1777,13 @@ class Element extends NodeBase implements Idl.Element {
   get relList(): Idl.DOMTokenList | undefined {
     const ns = this.namespaceURI;
     const local = this.localName;
-    if (!supportsRelList(ns, local)) return undefined;
+    const isHtml = ns === HTML_NS;
+    const isSvg = ns === SVG_NS;
+    const isMathMl = ns === MATHML_NS;
+    const ok =
+      (isHtml && (local === "a" || local === "area" || local === "link")) ||
+      ((isSvg || isMathMl) && local === "a");
+    if (!ok) return undefined;
     return reflectedTokenList(this, relListCache, "rel", REL_SUPPORTED);
   }
   set relList(v) {
@@ -1851,11 +1828,17 @@ class Element extends NodeBase implements Idl.Element {
     // Limitation: the document is not checked to be an HTML document.
     // https://dom.spec.whatwg.org/#dom-element-getattribute
     const lower = asciiLowercase(name);
-    const lookup = attributeLookupName(this, name, lower);
+    const lookup = lower === name || this.namespaceURI === HTML_NS ? lower : name;
     const flat = this._attrFlat();
     const nsMap = attrNs.get(this._id);
     for (let i = 0; i < flat.length; i += 2) {
-      if (exposedAttributeName(nsMap, flat[i]) === lookup) return flat[i + 1];
+      const wasmKey = flat[i];
+      let exposed = wasmKey;
+      if (nsMap) {
+        const info = nsMap.get(wasmKey);
+        if (info && info.qname) exposed = info.qname;
+      }
+      if (exposed === lookup) return flat[i + 1];
     }
     return null;
   }
@@ -2419,15 +2402,25 @@ class Element extends NodeBase implements Idl.Element {
   set scrollTop(v) {
     const htmlId = dom.querySelector("html");
     if (this._id === htmlId) {
-      setRootScrollTop(v);
+      const cur = scrollOffset();
+      setScrollOffset(cur.x, Number(v) || 0);
       return;
     }
     const info = nodeScrollInfoSafe(this._id);
     if (!info) return;
     if (!info.overflowsY) return;
-    const next = nextElementScrollCoordinate(v, info.scrollHeight);
+    const next = Math.max(0, Math.min(Number(v) || 0, info.scrollHeight));
     if (next === info.scrollTop) return;
-    commitElementScroll(this, info.scrollLeft, next);
+    let offset: unknown = null;
+    try {
+      offset = dom.setNodeScrollOffset(this._id, info.scrollLeft, next);
+    } catch {
+      return;
+    }
+    if (!offset) return;
+    markDamageNode(this._id);
+    bumpMutationSeq();
+    fireElementScroll(this);
   }
   get scrollLeft() {
     const htmlId = dom.querySelector("html");
@@ -2438,15 +2431,25 @@ class Element extends NodeBase implements Idl.Element {
   set scrollLeft(v) {
     const htmlId = dom.querySelector("html");
     if (this._id === htmlId) {
-      setRootScrollLeft(v);
+      const cur = scrollOffset();
+      setScrollOffset(Number(v) || 0, cur.y);
       return;
     }
     const info = nodeScrollInfoSafe(this._id);
     if (!info) return;
     if (!info.overflowsX) return;
-    const next = nextElementScrollCoordinate(v, info.scrollWidth);
+    const next = Math.max(0, Math.min(Number(v) || 0, info.scrollWidth));
     if (next === info.scrollLeft) return;
-    commitElementScroll(this, next, info.scrollTop);
+    let offset: unknown = null;
+    try {
+      offset = dom.setNodeScrollOffset(this._id, next, info.scrollTop);
+    } catch {
+      return;
+    }
+    if (!offset) return;
+    markDamageNode(this._id);
+    bumpMutationSeq();
+    fireElementScroll(this);
   }
   get scrollWidth() {
     const info = nodeScrollInfoSafe(this._id);
@@ -2783,26 +2786,20 @@ class Element extends NodeBase implements Idl.Element {
         if (!hadInData && !hadRaw) return;
         expandCoveringRawKeys(key);
       };
-      const parsedLonghandNames = (parsed: Array<{ name: string }>) => {
-        const keys: string[] = [];
-        for (const d of parsed) {
-          if (d && typeof d.name === "string") keys.push(cssPropToCamel(d.name));
-        }
-        return keys;
-      };
-      const parseLonghandCss = (canonicalize: NonNullable<typeof canon>, key: string) => {
-        try {
-          return canonicalize(`${cssPropCamelToKebab(key)}: inherit`) || [];
-        } catch {
-          return [];
-        }
-      };
       const longhandKeysOf = (key: string): string[] => {
         if (!canon || key.startsWith("--")) return [];
         let keys = longhandKeysCache.get(key);
         if (keys) return keys;
-        const parsed = parseLonghandCss(canon, key);
-        keys = parsedLonghandNames(parsed);
+        let parsed: Array<{ name: string }>;
+        try {
+          parsed = canon(`${cssPropCamelToKebab(key)}: inherit`) || [];
+        } catch {
+          parsed = [];
+        }
+        keys = [];
+        for (const d of parsed) {
+          if (d && typeof d.name === "string") keys.push(cssPropToCamel(d.name));
+        }
         longhandKeysCache.set(key, keys);
         return keys;
       };
@@ -2930,14 +2927,6 @@ class Element extends NodeBase implements Idl.Element {
           for (const key of Object.keys(data)) yield cssPropCamelToKebab(key);
         },
       };
-      const isLegacyCamelProp = (prop: PropertyKey) =>
-        typeof prop === "string" && !prop.includes("-") && /^(?:moz|ms|o)[A-Z]/.test(prop);
-      const hasStyleProperty = (key: string, prop: PropertyKey) => {
-        if (key.startsWith("--") || /^(?:webkit|moz|ms|o)-/.test(String(prop))) return false;
-        if (key in data) return true;
-        if (isLegacyCamelProp(prop)) return false;
-        return longhandKeysOf(key).length > 0;
-      };
 
       // The CSS properties, camelCase or kebab-case.
       st = makeStyleDeclaration(backend, {
@@ -2955,7 +2944,12 @@ class Element extends NodeBase implements Idl.Element {
         has(_t, prop) {
           const key = styleDeclKey(prop);
           if (typeof key !== "string") return false;
-          return hasStyleProperty(key, prop);
+          if (key.startsWith("--") || /^(?:webkit|moz|ms|o)-/.test(String(prop))) return false;
+          if (key in data) return true;
+          if (typeof prop === "string" && !prop.includes("-") && /^(?:moz|ms|o)[A-Z]/.test(prop)) {
+            return false;
+          }
+          return longhandKeysOf(key).length > 0;
         },
         deleteProperty(_t, prop) {
           const key = styleDeclKey(prop);
@@ -3095,25 +3089,19 @@ class Element extends NodeBase implements Idl.Element {
       if (/[A-Z]/.test(suffix)) return null;
       return suffix.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
     }
-    const dataAttributeName = (a: Idl.Attr | null) => {
-      if (!a) return null;
-      const nm = a.name || a.nodeName;
-      if (typeof nm !== "string" || !nm.startsWith("data-")) return null;
-      return dashToCamel(nm.slice(5));
-    };
-    const appendDataName = (out: string[], seen: Set<string>, camel: string | null) => {
-      if (camel === null) return;
-      if (seen.has(camel)) return;
-      seen.add(camel);
-      out.push(camel);
-    };
     function listDataAttrs() {
       const out: string[] = [];
-      const seen = new Set<string>();
+      const seen = new Set();
       try {
         for (const a of target.attributes || []) {
-          const camel = dataAttributeName(a);
-          appendDataName(out, seen, camel);
+          if (!a) continue;
+          const nm = a.name || a.nodeName;
+          if (typeof nm !== "string" || !nm.startsWith("data-")) continue;
+          const camel = dashToCamel(nm.slice(5));
+          if (camel === null) continue;
+          if (seen.has(camel)) continue;
+          seen.add(camel);
+          out.push(camel);
         }
       } catch {}
       return out;
@@ -3216,17 +3204,6 @@ type TextFragmentDocument = {
   createTextNode(data: string): NodeBase;
   createElement(localName: string): Element;
 };
-function appendRenderedLineBreak(
-  ch: string,
-  next: string | undefined,
-  run: string,
-  doc: TextFragmentDocument,
-  nodes: NodeBase[],
-): number {
-  if (run) nodes.push(doc.createTextNode(run));
-  nodes.push(doc.createElement("br"));
-  return ch === "\r" && next === "\n" ? 2 : 1;
-}
 // Each CRLF, CR or LF becomes a <br>. Text between them becomes a Text node.
 // https://html.spec.whatwg.org/#rendered-text-fragment
 function renderedTextFragmentNodes(value: unknown, doc: TextFragmentDocument): NodeBase[] {
@@ -3237,8 +3214,12 @@ function renderedTextFragmentNodes(value: unknown, doc: TextFragmentDocument): N
   while (i < s.length) {
     const ch = s[i];
     if (ch === "\r" || ch === "\n") {
-      i += appendRenderedLineBreak(ch, s[i + 1], run, doc, nodes);
-      run = "";
+      if (run) {
+        nodes.push(doc.createTextNode(run));
+        run = "";
+      }
+      nodes.push(doc.createElement("br"));
+      i += ch === "\r" && s[i + 1] === "\n" ? 2 : 1;
     } else {
       run += ch;
       i += 1;

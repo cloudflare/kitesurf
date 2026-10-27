@@ -204,15 +204,11 @@ export function parseDateTimeLocal(value: string): number | null {
     d = +m[3],
     h = +m[4],
     mi = +m[5];
-  const s = parseOptionalNumber(m[6]);
-  const ms = parseFractionalMilliseconds(m[7]);
-  if (!isValidDateParts(m[1].length, y, mo, d)) return null;
-  if (!isValidTime(h, mi, s)) return null;
+  const s = m[6] ? +m[6] : 0;
+  const ms = m[7] ? +m[7].padEnd(3, "0") : 0;
+  if (m[1].length < 4 || !isValidYMD(y, mo, d)) return null;
+  if (h > 23 || mi > 59 || s > 59) return null;
   return utcMs(y, mo - 1, d, h, mi, s, ms);
-}
-
-function isValidDateParts(yearLength: number, year: number, month: number, day: number): boolean {
-  return yearLength >= 4 && isValidYMD(year, month, day);
 }
 
 export function parseNumber(value: string): number | null {
@@ -501,15 +497,11 @@ function rangeValue(parsed: number | null, min: number, max: number): number {
 }
 
 function snapRangeValue(value: number, min: number, max: number, opts?: SanitizeOpts): number {
-  const step = rangeStep(opts);
+  const step = resolvedStep("range", opts?.stepAttr ?? null);
   if (step != null && max >= min) {
     return snapRangeStep(value, min, max, step, opts);
   }
   return value;
-}
-
-function rangeStep(opts?: SanitizeOpts): number | null {
-  return resolvedStep("range", opts?.stepAttr ?? null);
 }
 
 function snapRangeStep(

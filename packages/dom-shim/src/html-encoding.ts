@@ -90,33 +90,14 @@ function sniffMetaEncoding(bytes: Uint8Array): string | null {
     bytes.subarray(0, META_CHARSET_SNIFF_BYTES),
   );
   for (const tag of prefix.matchAll(/<meta(?=[\s/])([^>]*)/gi)) {
-    const label = metaCharsetLabel(tag[1] ?? "");
-    const encoding = normalizeMetaEncoding(label);
+    const label = charsetFromMetaAttributes(parseMetaAttributes(tag[1] ?? ""));
+    const encoding = label === null ? null : getEncoding(label);
     if (encoding === null) continue;
+    if (encoding === "utf-16le" || encoding === "utf-16be") return "utf-8";
+    if (encoding === "x-user-defined") return "windows-1252";
     return encoding;
   }
   return null;
-}
-
-function normalizeMetaEncoding(label: string | null): string | null {
-  const encoding = getMetaEncoding(label);
-  if (encoding === null) return null;
-  if (isUtf16Encoding(encoding)) return "utf-8";
-  if (encoding === "x-user-defined") return "windows-1252";
-  return encoding;
-}
-
-function getMetaEncoding(label: string | null): string | null {
-  if (label === null) return null;
-  return getEncoding(label);
-}
-
-function isUtf16Encoding(encoding: string): boolean {
-  return encoding === "utf-16le" || encoding === "utf-16be";
-}
-
-function metaCharsetLabel(attributes: string): string | null {
-  return charsetFromMetaAttributes(parseMetaAttributes(attributes));
 }
 
 function parseMetaAttributes(attributes: string): Map<string, string> {

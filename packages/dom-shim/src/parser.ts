@@ -198,24 +198,24 @@ function removeParsedChild(parent: Record<string, unknown>, child: unknown): voi
   Reflect.apply(removeChild, parent, [child]);
 }
 
-type ParsedTextNode = Record<string, unknown> & { nodeType: typeof TEXT_NODE };
-
-function isParsedTextNode(child: unknown): child is ParsedTextNode {
-  return isParsedObject(child) && child.nodeType === TEXT_NODE;
-}
-
-function mergeFollowingParsedText(
+function normalizeParsedText(
   parent: Record<string, unknown>,
   children: unknown[],
   index: number,
   child: Record<string, unknown>,
-  data: string,
 ): number {
+  const data = String(child.nodeValue ?? "");
+  if (data === "") {
+    removeParsedChild(parent, child);
+    children[index] = null;
+    return index;
+  }
+
   let merged = data;
   let nextIndex = index + 1;
   while (nextIndex < children.length) {
     const nextChild = children[nextIndex];
-    if (!isParsedTextNode(nextChild)) break;
+    if (!isParsedObject(nextChild) || nextChild.nodeType !== TEXT_NODE) break;
     merged += String(nextChild.nodeValue ?? "");
     removeParsedChild(parent, nextChild);
     children[nextIndex] = null;
@@ -225,49 +225,20 @@ function mergeFollowingParsedText(
   return nextIndex - 1;
 }
 
-function normalizeParsedText(
-  parent: Record<string, unknown>,
-  children: unknown[],
-  index: number,
-  child: Record<string, unknown>,
-): number {
-  const data = String(child.nodeValue ?? "");
-  if (data !== "") {
-    return mergeFollowingParsedText(parent, children, index, child, data);
-  }
-  removeParsedChild(parent, child);
-  children[index] = null;
-  return index;
-}
-
-function parsedChildren(
-  current: unknown,
-): { parent: Record<string, unknown>; children: unknown[] } | null {
-  if (!isParsedObject(current) || !Array.isArray(current.childNodes)) return null;
-  return { parent: current, children: [...current.childNodes] };
-}
-
-function normalizeParsedChild(
-  current: Record<string, unknown>,
-  children: unknown[],
-  index: number,
-  child: unknown,
-  parents: unknown[],
-): number {
-  if (!isParsedObject(child)) return index;
-  if (isParsedTextNode(child)) return normalizeParsedText(current, children, index, child);
-  if (child.nodeType === ELEMENT_NODE) parents.push(child);
-  return index;
-}
-
 function normalizeParsedSubtree(parent: unknown): void {
   const parents: unknown[] = [parent];
   while (parents.length > 0) {
     const current = parents.pop();
-    const parsed = parsedChildren(current);
-    if (!parsed) continue;
-    for (let i = 0; i < parsed.children.length; i++) {
-      i = normalizeParsedChild(parsed.parent, parsed.children, i, parsed.children[i], parents);
+    if (!isParsedObject(current) || !Array.isArray(current.childNodes)) continue;
+    const children: unknown[] = [...current.childNodes];
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      if (!isParsedObject(child)) continue;
+      if (child.nodeType === TEXT_NODE) {
+        i = normalizeParsedText(current, children, i, child);
+      } else if (child.nodeType === ELEMENT_NODE) {
+        parents.push(child);
+      }
     }
   }
 }
@@ -316,56 +287,6 @@ function parsedElementNamespace(handle: DomHandle, id: number, nodeType: number)
 function parsedCharacterDataInfo(element: ParsedElement) {
   if (element.nodeType !== TEXT_NODE && element.nodeType !== COMMENT_NODE) return null;
   return parsedInfo(element._dom, element._id);
-}
-
-function isParsedCharacterData(element: ParsedElement): boolean {
-  return element.nodeType === TEXT_NODE || element.nodeType === COMMENT_NODE;
-}
-
-function parsedCharacterDataMutable(element: ParsedElement): boolean {
-  return !!element.ownerDocument?._mutable;
-}
-
-function updateParsedCharacterData(element: ParsedElement, text: string): boolean {
-  return element.nodeType === COMMENT_NODE
-    ? element._dom.setCommentData(element._id, text)
-    : element._dom.setNodeText(element._id, text);
-}
-
-function setParsedCharacterData(element: ParsedElement, value: unknown): void {
-  if (!isParsedCharacterData(element)) return;
-  if (!parsedCharacterDataMutable(element)) {
-    throw notSupported("CharacterData.nodeValue on DOMParser result (read-only)");
-  }
-  const text = String(value ?? "");
-  const updated = updateParsedCharacterData(element, text);
-  if (!updated) throw new Error("CharacterData.nodeValue: stale parsed node");
-}
-
-function parsedParentId(element: ParsedElement): number | null {
-  try {
-    const parentId = element._dom.parentId(element._id);
-    return parentId < 0 ? null : parentId;
-  } catch {
-    return null;
-  }
-}
-
-function parsedParentFromInfo(
-  element: ParsedElement,
-  parentId: number,
-  info: ReturnType<DomHandle["nodeInfo"]>,
-): ParsedOwnerDocumentValue | ParsedElement | null {
-  if (!info) return null;
-  if (info.nodeType === DOCUMENT_NODE) return element.ownerDocument || null;
-  return getOrCreateParsedNode(element._dom, parentId, element.ownerDocument);
-}
-
-function parsedParentNode(element: ParsedElement): ParsedOwnerDocumentValue | ParsedElement | null {
-  const parentId = parsedParentId(element);
-  if (parentId === null) return null;
-  const info = parsedInfo(element._dom, parentId);
-  return parsedParentFromInfo(element, parentId, info);
 }
 
 function parsedContainsDescendant(element: ParsedElement, other: ParsedElement): boolean {
@@ -492,22 +413,6 @@ function removeParsedElementChild(handle: DomHandle, child: ParsedAppendCandidat
   } catch {}
 }
 
-type ParsedFragmentChild = Record<string, unknown> & { _dom: DomHandle; _id: number };
-
-function isParsedFragmentChild(handle: DomHandle, child: unknown): child is ParsedFragmentChild {
-  return isParsedObject(child) && child._dom === handle && typeof child._id === "number";
-}
-
-function removeParsedFragmentChild(
-  handle: DomHandle,
-  fragmentId: number,
-  child: ParsedFragmentChild,
-): void {
-  if (handle.parentId(child._id) !== fragmentId || !handle.removeNode(child._id)) {
-    throw new DOMException("removeChild: child is not a child of parent", "NotFoundError");
-  }
-}
-
 function parsedDeepCloneId(handle: DomHandle, id: number): number {
   let newId = -1;
   try {
@@ -538,26 +443,6 @@ function fragmentChildIds(handle: DomHandle, fragmentId: number): number[] {
   } catch {
     return [];
   }
-}
-
-function parsedElementChildren(
-  handle: DomHandle,
-  ids: number[],
-  ownerDoc: ParsedOwnerDocumentValue,
-): Array<ParsedElement | null> {
-  const out: Array<ParsedElement | null> = [];
-  for (const id of ids) {
-    let info;
-    try {
-      info = handle.nodeInfo(id);
-    } catch {
-      continue;
-    }
-    if (info && info.nodeType === ELEMENT_NODE) {
-      out.push(getOrCreateParsedNode(handle, id, ownerDoc));
-    }
-  }
-  return out;
 }
 
 function parsedNodeList(
@@ -637,7 +522,18 @@ class ParsedElement {
     return info ? info.nodeValue || "" : null;
   }
   set nodeValue(value) {
-    setParsedCharacterData(this, value);
+    if (this.nodeType !== TEXT_NODE && this.nodeType !== COMMENT_NODE) return;
+    if (!this.ownerDocument?._mutable) {
+      throw notSupported("CharacterData.nodeValue on DOMParser result (read-only)");
+    }
+    const text = String(value ?? "");
+    const updated =
+      this.nodeType === COMMENT_NODE
+        ? this._dom.setCommentData(this._id, text)
+        : this._dom.setNodeText(this._id, text);
+    if (!updated) {
+      throw new Error("CharacterData.nodeValue: stale parsed node");
+    }
   }
   getAttribute(name: string): string | null {
     if (this.nodeType !== ELEMENT_NODE) return null;
@@ -739,7 +635,18 @@ class ParsedElement {
     return kids.length > 0 ? kids[kids.length - 1] : null;
   }
   get parentNode(): ParsedOwnerDocumentValue | ParsedElement | null {
-    return parsedParentNode(this);
+    let parentId: number | null;
+    try {
+      const id = this._dom.parentId(this._id);
+      parentId = id < 0 ? null : id;
+    } catch {
+      return null;
+    }
+    if (parentId === null) return null;
+    const info = parsedInfo(this._dom, parentId);
+    if (!info) return null;
+    if (info.nodeType === DOCUMENT_NODE) return this.ownerDocument || null;
+    return getOrCreateParsedNode(this._dom, parentId, this.ownerDocument);
   }
   get parentElement(): ParsedOwnerDocumentValue | ParsedElement {
     const p = this.parentNode;
@@ -918,11 +825,22 @@ class ParsedFragment {
     return kids.map((cid) => getOrCreateParsedNode(this._dom, cid, this.ownerDocument));
   }
   get children(): Array<ParsedElement | null> {
-    return parsedElementChildren(
-      this._dom,
-      fragmentChildIds(this._dom, this._id),
-      this.ownerDocument,
-    );
+    const handle = this._dom;
+    const ids = fragmentChildIds(this._dom, this._id);
+    const ownerDoc = this.ownerDocument;
+    const out: Array<ParsedElement | null> = [];
+    for (const id of ids) {
+      let info;
+      try {
+        info = handle.nodeInfo(id);
+      } catch {
+        continue;
+      }
+      if (info && info.nodeType === ELEMENT_NODE) {
+        out.push(getOrCreateParsedNode(handle, id, ownerDoc));
+      }
+    }
+    return out;
   }
   get firstChild(): ParsedElement | null {
     const k = this.childNodes;
@@ -940,11 +858,15 @@ class ParsedFragment {
     return appendParsedChild(this, child, "appendChild on read-only fragment");
   }
   removeChild<T>(child: T): T {
-    assertParsedMutable(this.ownerDocument, "removeChild on read-only fragment");
-    if (!isParsedFragmentChild(this._dom, child)) {
+    if (!this.ownerDocument || !this.ownerDocument._mutable) {
+      throw notSupported("removeChild on read-only fragment");
+    }
+    if (!isParsedObject(child) || child._dom !== this._dom || typeof child._id !== "number") {
       throw notSupported("removeChild: unsupported fragment child");
     }
-    removeParsedFragmentChild(this._dom, this._id, child);
+    if (this._dom.parentId(child._id) !== this._id || !this._dom.removeNode(child._id)) {
+      throw new DOMException("removeChild: child is not a child of parent", "NotFoundError");
+    }
     return child;
   }
   querySelector(selector: unknown): ParsedElement | null {
@@ -1077,67 +999,6 @@ function leadingDoctype(source: string, html: boolean): DoctypeInfo | null {
   };
 }
 
-function parsedStyleSheetIds(handle: DomHandle): number[] {
-  return Array.from<number>(
-    typeof handle.querySelectorAllInSubtree === "function"
-      ? handle.querySelectorAllInSubtree(handle.documentNodeId(), "style, link[rel='stylesheet']")
-      : handle.querySelectorAll("style, link[rel='stylesheet']"),
-  );
-}
-
-function parsedStyleSheet(
-  handle: DomHandle,
-  id: number,
-  document: ParsedDocument,
-): InstanceType<typeof CSSStyleSheetCtor> {
-  const sheet = new CSSStyleSheetCtor();
-  let text = "";
-  try {
-    text = handle.textContent(id) || "";
-  } catch {}
-  if (text) sheet.replaceSync(text);
-  try {
-    styleSheetFields(sheet).ownerNode = getOrCreateParsedNode(handle, id, document);
-  } catch {}
-  return sheet;
-}
-
-function parsedStyleSheets(handle: DomHandle, document: ParsedDocument) {
-  const list: Array<InstanceType<typeof CSSStyleSheetCtor>> = [];
-  try {
-    for (const id of parsedStyleSheetIds(handle)) {
-      list.push(parsedStyleSheet(handle, id, document));
-    }
-  } catch {}
-  Object.defineProperty(list, "item", {
-    value: (i: number): InstanceType<typeof CSSStyleSheetCtor> | null => list[i] || null,
-    enumerable: false,
-    configurable: true,
-    writable: true,
-  });
-  return list;
-}
-
-function parsedDocumentElement(handle: DomHandle, document: ParsedDocument): ParsedElement | null {
-  const rootId = handle.documentNodeId();
-  let children: number[];
-  try {
-    children = Array.from(handle.childIds(rootId));
-  } catch {
-    return null;
-  }
-  for (const id of children) {
-    let info;
-    try {
-      info = handle.nodeInfo(id);
-    } catch {
-      continue;
-    }
-    if (isElementNodeInfo(info)) return getOrCreateParsedNode(handle, id, document);
-  }
-  return null;
-}
-
 function parsedDocumentQuerySelector(handle: DomHandle, selector: string): number {
   try {
     return handle.querySelector(selector);
@@ -1152,71 +1013,6 @@ function parsedDocumentQuerySelectorAll(handle: DomHandle, selector: string): nu
   } catch (error) {
     throw parsedSelectorError("querySelectorAll", "Document", selector, error);
   }
-}
-
-function parsedWasmTrapMessage(operation: string, error: unknown): string {
-  return operation + ": wasm trap: " + (error instanceof Error ? error.message : String(error));
-}
-
-function createParsedElementId(
-  document: ParsedDocument,
-  tag: string,
-  namespace: string | null,
-  isHtmlDocument: boolean,
-): number {
-  try {
-    if (!isHtmlDocument && typeof document._dom.createElementVerbatim === "function") {
-      return document._dom.createElementVerbatim(tag, namespace || "");
-    }
-    return document._dom.createElement(tag);
-  } catch (error) {
-    throw new Error(parsedWasmTrapMessage("createElement", error));
-  }
-}
-
-function createParsedElementNsId(
-  document: ParsedDocument,
-  namespace: string | null,
-  qualifiedName: string,
-): number {
-  try {
-    return typeof document._dom.createElementNS === "function"
-      ? document._dom.createElementNS(namespace || "", qualifiedName)
-      : document._dom.createElement(qualifiedName.split(":").pop() || qualifiedName);
-  } catch (error) {
-    throw new Error(parsedWasmTrapMessage("createElementNS", error));
-  }
-}
-
-function parsedCreateElement(
-  document: ParsedDocument,
-  tagName: unknown,
-  contentType: string,
-): ParsedElement {
-  const isHtmlDocument = contentType === "text/html";
-  const namespace = isHtmlDocument || contentType === "application/xhtml+xml" ? HTML_NS : null;
-  const tag = String(tagName);
-  validateXMLName(isHtmlDocument ? tag.toLowerCase() : tag);
-  const id = createParsedElementId(document, tag, namespace, isHtmlDocument);
-  const element = parsedNodeFor(document._dom, id, document);
-  element.ownerDocument = document;
-  element.namespaceURI = namespace;
-  return element;
-}
-
-function parsedCreateElementNS(
-  document: ParsedDocument,
-  namespaceURI: unknown,
-  qualifiedName: unknown,
-): ParsedElement {
-  const namespace = namespaceURI == null || namespaceURI === "" ? null : String(namespaceURI);
-  const name = qualifiedName == null ? String(qualifiedName) : String(qualifiedName);
-  const [, prefix] = validateAndExtract(namespace, name);
-  const id = createParsedElementNsId(document, namespace, name);
-  const element = parsedNodeFor(document._dom, id, document);
-  element.namespaceURI = namespace;
-  element.prefix = prefix;
-  return element;
 }
 
 // XML qualified-name matcher: browser-permissive, NOT strict XML 1.0
@@ -1330,7 +1126,37 @@ class ParsedDocument {
   }
   // Parsed sheets are a snapshot of inline text; later edits are not reflected.
   get styleSheets(): Array<InstanceType<typeof CSSStyleSheetCtor>> {
-    return parsedStyleSheets(this._dom, this);
+    const list: Array<InstanceType<typeof CSSStyleSheetCtor>> = [];
+    try {
+      const ids = Array.from<number>(
+        typeof this._dom.querySelectorAllInSubtree === "function"
+          ? this._dom.querySelectorAllInSubtree(
+              this._dom.documentNodeId(),
+              "style, link[rel='stylesheet']",
+            )
+          : this._dom.querySelectorAll("style, link[rel='stylesheet']"),
+      );
+      for (const id of ids) {
+        const sheet = new CSSStyleSheetCtor();
+        // Read the <style> text content and parse it into rules.
+        let text = "";
+        try {
+          text = this._dom.textContent(id) || "";
+        } catch {}
+        if (text) sheet.replaceSync(text);
+        try {
+          styleSheetFields(sheet).ownerNode = getOrCreateParsedNode(this._dom, id, this);
+        } catch {}
+        list.push(sheet);
+      }
+    } catch {}
+    Object.defineProperty(list, "item", {
+      value: (i: number): InstanceType<typeof CSSStyleSheetCtor> | null => list[i] || null,
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    });
+    return list;
   }
   get title(): string {
     try {
@@ -1340,7 +1166,24 @@ class ParsedDocument {
     }
   }
   get documentElement(): ParsedElement | null {
-    return parsedDocumentElement(this._dom, this);
+    const handle = this._dom;
+    const rootId = handle.documentNodeId();
+    let children: number[];
+    try {
+      children = Array.from(handle.childIds(rootId));
+    } catch {
+      return null;
+    }
+    for (const id of children) {
+      let info;
+      try {
+        info = handle.nodeInfo(id);
+      } catch {
+        continue;
+      }
+      if (isElementNodeInfo(info)) return getOrCreateParsedNode(handle, id, this);
+    }
+    return null;
   }
   lookupNamespaceURI(prefix: unknown): string | null {
     const root = this.documentElement;
@@ -1418,14 +1261,48 @@ class ParsedDocument {
     if (!this._mutable) {
       throw notSupported("Document.createElement on DOMParser result");
     }
-    const contentType = this._contentType;
-    return parsedCreateElement(this, tagName, contentType);
+    const ct = this._contentType;
+    const isHtmlDoc = ct === "text/html";
+    const ns = isHtmlDoc || ct === "application/xhtml+xml" ? HTML_NS : null;
+    const tag = String(tagName);
+    validateXMLName(isHtmlDoc ? tag.toLowerCase() : tag);
+    let id;
+    try {
+      if (!isHtmlDoc && typeof this._dom.createElementVerbatim === "function") {
+        id = this._dom.createElementVerbatim(tag, ns || "");
+      } else {
+        id = this._dom.createElement(tag);
+      }
+    } catch (e) {
+      throw new Error("createElement: wasm trap: " + (e instanceof Error ? e.message : String(e)));
+    }
+    const el = parsedNodeFor(this._dom, id, this);
+    el.ownerDocument = this;
+    el.namespaceURI = ns;
+    return el;
   }
   createElementNS(namespaceURI: unknown, qualifiedName: unknown): ParsedElement {
     if (!this._mutable) {
       throw notSupported("Document.createElementNS on DOMParser result");
     }
-    return parsedCreateElementNS(this, namespaceURI, qualifiedName);
+    const ns = namespaceURI == null || namespaceURI === "" ? null : String(namespaceURI);
+    const qn = qualifiedName == null ? String(qualifiedName) : String(qualifiedName);
+    const [, prefix] = validateAndExtract(ns, qn);
+    let id;
+    try {
+      id =
+        typeof this._dom.createElementNS === "function"
+          ? this._dom.createElementNS(ns || "", qn)
+          : this._dom.createElement(qn.split(":").pop() || qn);
+    } catch (e) {
+      throw new Error(
+        "createElementNS: wasm trap: " + (e instanceof Error ? e.message : String(e)),
+      );
+    }
+    const el = parsedNodeFor(this._dom, id, this);
+    el.namespaceURI = ns;
+    el.prefix = prefix;
+    return el;
   }
   createTextNode(text: unknown): ParsedElement {
     if (!this._mutable) {

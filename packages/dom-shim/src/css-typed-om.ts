@@ -3457,15 +3457,11 @@ function retryStyleMapWrite(
   cssText: string,
   previous: string,
 ): string {
-  removeStyleMapProperty(declaration, property);
+  declaration.removeProperty?.(property);
   setStyleMapProperty(declaration, property, cssText);
   const written = declaration.getPropertyValue(property);
   if (!written && previous) setStyleMapProperty(declaration, property, previous);
   return written;
-}
-
-function removeStyleMapProperty(declaration: StyleDeclarationLike, property: string): void {
-  declaration.removeProperty?.(property);
 }
 
 function setStyleMapProperty(

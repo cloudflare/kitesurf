@@ -23,34 +23,23 @@ export function getDocId(): number {
 // The walk stops at a fixed bound so a corrupt parent chain can't
 // loop forever.
 export function isAttachedToDocument(nodeId: number): boolean {
-  if (!isValidNodeId(nodeId)) return false;
+  if (typeof nodeId !== "number" || nodeId < 0) return false;
   const docId = getDocId();
   if (docId < 0) return false;
   if (nodeId === docId) return true;
-  return hasDocumentAncestor(nodeId, docId);
-}
-
-function hasDocumentAncestor(nodeId: number, docId: number): boolean {
   let cur = nodeId;
   for (let hops = 0; hops < MAX_DOCUMENT_ATTACHMENT_ANCESTOR_HOPS; hops++) {
-    const parent = parentIdOrNull(cur);
-    if (parent === null || parent < 0) return false;
+    let parent: number;
+    try {
+      parent = dom.parentId(cur);
+    } catch {
+      return false;
+    }
+    if (parent < 0) return false;
     if (parent === docId) return true;
     cur = parent;
   }
   return false;
-}
-
-function isValidNodeId(nodeId: number): boolean {
-  return typeof nodeId === "number" && nodeId >= 0;
-}
-
-function parentIdOrNull(nodeId: number): number | null {
-  try {
-    return dom.parentId(nodeId);
-  } catch {
-    return null;
-  }
 }
 
 export function safeChildNodeCount(parentId: number): number {
@@ -67,19 +56,18 @@ export function safeChildNodeCount(parentId: number): number {
 // 0 is CDP's "no previous sibling" value, also used when the child
 // isn't found.
 export function previousSiblingNodeId(parentId: number, childId: number): number {
-  if (!isValidNodeId(parentId) || !isValidNodeId(childId)) return 0;
+  if (typeof parentId !== "number" || parentId < 0) return 0;
+  if (typeof childId !== "number" || childId < 0) return 0;
   try {
     const ids = dom.childIds(parentId);
     if (!ids) return 0;
-    return precedingSibling(ids, childId);
+    for (let i = 0; i < ids.length; i++) {
+      if (ids[i] === childId) {
+        return i === 0 ? 0 : ids[i - 1];
+      }
+    }
+    return 0;
   } catch {
     return 0;
   }
-}
-
-function precedingSibling(ids: ArrayLike<number>, childId: number): number {
-  for (let i = 0; i < ids.length; i++) {
-    if (ids[i] === childId) return i === 0 ? 0 : ids[i - 1];
-  }
-  return 0;
 }

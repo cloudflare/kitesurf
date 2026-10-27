@@ -25,23 +25,13 @@ function svgDocumentOf(
   const d = el.contentDocument ?? null;
   if (!d) return null;
   try {
-    return isSvgDocument(d) ? d : null;
+    const ct = String(d.contentType ?? "");
+    if (ct.includes("svg")) return d;
+    const root = d.documentElement;
+    return root && String(root.localName ?? "").toLowerCase() === "svg" ? d : null;
   } catch {
     return null;
   }
-}
-
-function isSvgDocument(document: Idl.Document): boolean {
-  return hasSvgContentType(document) || hasSvgRoot(document);
-}
-
-function hasSvgContentType(document: Idl.Document): boolean {
-  return String(document.contentType ?? "").includes("svg");
-}
-
-function hasSvgRoot(document: Idl.Document): boolean {
-  const root = document.documentElement;
-  return Boolean(root && String(root.localName ?? "").toLowerCase() === "svg");
 }
 
 // The reflections below the class install these, and tag-attributes.ts

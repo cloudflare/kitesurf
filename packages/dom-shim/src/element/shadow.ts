@@ -38,60 +38,40 @@ class HTMLSlotElement extends HTMLElement implements Idl.HTMLSlotElement {
 // Keep attachShadow on HTMLElement because DocumentFragmentImpl extends Element.
 HTMLElement.prototype.attachShadow = function (this: HTMLElement, opts) {
   const mode = opts && opts.mode;
-  assertShadowRootMode(mode);
-  assertHtmlShadowHost(this);
-  assertNoExistingShadowRoot(this._id);
-  const rootId = dom.attachShadow(this._id, mode);
-  assertShadowRootCreated(rootId);
-  shadowRootModes.set(rootId, mode);
-  recordShadowRootPushed(this, rootId);
-  return nodeFor(rootId);
-};
-
-function assertShadowRootMode(mode: unknown): asserts mode is "open" | "closed" {
   if (mode !== "open" && mode !== "closed") {
     throw new TypeError(
       "Failed to execute 'attachShadow' on 'Element': mode must be 'open' or 'closed'",
     );
   }
-}
-
-function assertHtmlShadowHost(host: HTMLElement): void {
-  if (host.namespaceURI !== HTML_NS) {
+  if (this.namespaceURI !== HTML_NS) {
     throw new DOMException(
       "attachShadow: host element must be in the HTML namespace",
       "NotSupportedError",
     );
   }
-}
-
-function assertNoExistingShadowRoot(hostId: number): void {
-  if (dom.shadowRootId(hostId) >= 0) {
+  if (dom.shadowRootId(this._id) >= 0) {
     throw new DOMException(
       "Shadow root cannot be created on a host which already hosts a shadow root",
       "NotSupportedError",
     );
   }
-}
-
-function assertShadowRootCreated(rootId: number): void {
+  const rootId = dom.attachShadow(this._id, mode);
   if (rootId < 0) {
     throw new DOMException("Unable to attach a shadow root here", "NotSupportedError");
   }
-}
-
-function recordShadowRootPushed(host: HTMLElement, rootId: number): void {
+  shadowRootModes.set(rootId, mode);
   try {
     const root = dom.nodeSubtree(rootId);
     if (root) {
       recordCdpMutation({
         kind: "shadowRootPushed",
-        hostId: host._id,
+        hostId: this._id,
         root,
       });
     }
   } catch {}
-}
+  return nodeFor(rootId);
+};
 
 defineAttribute(Element.prototype, "shadowRoot", {
   get() {

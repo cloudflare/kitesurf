@@ -12,37 +12,24 @@ import { MAX_SHADOW_ROOT_HOPS } from "../constants.js";
 
 function rootChainOf(nodeId: number): Set<number> {
   const chain = new Set<number>();
-  if (isInvalidShadowNodeId(nodeId)) return chain;
+  if (nodeId == null || nodeId < 0) return chain;
   let cur = nodeId;
-  for (let safety = 0; safety < MAX_SHADOW_ROOT_HOPS; safety++) {
-    const rootId = shadowRootFor(cur);
+  let safety = 0;
+  while (safety++ < MAX_SHADOW_ROOT_HOPS) {
+    let rootId = -1;
+    try {
+      rootId = dom.shadowHostId(cur) >= 0 ? cur : dom.containingShadowRootId(cur);
+    } catch {}
     if (rootId < 0) break;
     chain.add(rootId);
-    const host = shadowHostFor(rootId);
+    let host = -1;
+    try {
+      host = dom.shadowHostId(rootId);
+    } catch {}
     if (host < 0) break;
     cur = host;
   }
   return chain;
-}
-
-function isInvalidShadowNodeId(nodeId: number): boolean {
-  return nodeId == null || nodeId < 0;
-}
-
-function shadowRootFor(nodeId: number): number {
-  try {
-    return dom.shadowHostId(nodeId) >= 0 ? nodeId : dom.containingShadowRootId(nodeId);
-  } catch {
-    return -1;
-  }
-}
-
-function shadowHostFor(nodeId: number): number {
-  try {
-    return dom.shadowHostId(nodeId);
-  } catch {
-    return -1;
-  }
 }
 
 export interface EventState {
@@ -749,11 +736,13 @@ export class KsUIEvent extends KsEvent implements Idl.UIEvent {
   constructor(type: string, init?: (Idl.UIEventInit & { sourceCapabilities?: unknown }) | null) {
     super(type, init);
     const i = init || {};
-    validateUIEventView(i);
+    if (i.view != null && typeof i.view !== "object") {
+      throw new TypeError("UIEvent: view must be a Window or null");
+    }
     this.#view = i.view ?? null;
-    this.#detail = eventNumberFromInit(i, "detail", 0);
+    this.#detail = typeof i.detail === "number" ? i.detail : 0;
     this.#sourceCapabilities = i.sourceCapabilities ?? null;
-    this.#which = eventNumberFromInit(i, "which", 0);
+    this.#which = typeof i.which === "number" ? i.which : 0;
   }
   get sourceCapabilities(): unknown {
     return this.#sourceCapabilities;
@@ -778,12 +767,6 @@ export class KsUIEvent extends KsEvent implements Idl.UIEvent {
     this.initEvent(type, bubbles, cancelable);
     this.#view = view ?? null;
     this.#detail = typeof detail === "number" ? detail : 0;
-  }
-}
-
-function validateUIEventView(i: Idl.UIEventInit & { sourceCapabilities?: unknown }): void {
-  if (i.view != null && typeof i.view !== "object") {
-    throw new TypeError("UIEvent: view must be a Window or null");
   }
 }
 
@@ -962,19 +945,16 @@ export class KsMouseEvent extends KsUIEvent implements Idl.MouseEvent {
     const state = eventState(this);
     if (state.dispatched) return;
     this.initUIEvent(type, bubbles, cancelable, view, detail);
-    this.#setCoordinates(screenX, screenY, clientX, clientY);
+    this.#screenX = typeof screenX === "number" ? screenX : 0;
+    this.#screenY = typeof screenY === "number" ? screenY : 0;
+    this.#clientX = typeof clientX === "number" ? clientX : 0;
+    this.#clientY = typeof clientY === "number" ? clientY : 0;
     this.#modifiers.Control = !!ctrlKey;
     this.#modifiers.Alt = !!altKey;
     this.#modifiers.Shift = !!shiftKey;
     this.#modifiers.Meta = !!metaKey;
     this.#button = typeof button === "number" ? button : 0;
     state.relatedTarget = relatedTarget ?? null;
-  }
-  #setCoordinates(screenX?: number, screenY?: number, clientX?: number, clientY?: number): void {
-    this.#screenX = typeof screenX === "number" ? screenX : 0;
-    this.#screenY = typeof screenY === "number" ? screenY : 0;
-    this.#clientX = typeof clientX === "number" ? clientX : 0;
-    this.#clientY = typeof clientY === "number" ? clientY : 0;
   }
 }
 

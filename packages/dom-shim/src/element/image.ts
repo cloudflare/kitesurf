@@ -165,26 +165,15 @@ function decodeError(): Error {
 // https://html.spec.whatwg.org/#dom-img-width
 function imageDimension(el: HTMLImageElement, attrName: "width" | "height", axis: 0 | 1): number {
   const info = nodeScrollInfoSafe(el._id);
-  const layoutDimension = imageLayoutDimension(info, axis);
-  if (layoutDimension !== null) return layoutDimension;
+  if (info && info.hasBox) {
+    return Math.round(axis === 0 ? info.contentWidth : info.contentHeight);
+  }
   const raw = el.getAttribute(attrName);
-  const attributeDimension = imageAttributeDimension(raw);
-  if (attributeDimension !== null) return attributeDimension;
+  if (raw != null) {
+    const n = htmlParseInteger(raw);
+    if (n != null && n >= 0) return n;
+  }
   return imageNaturalSizeFor(el)?.[axis] ?? 0;
-}
-
-function imageLayoutDimension(
-  info: ReturnType<typeof nodeScrollInfoSafe>,
-  axis: 0 | 1,
-): number | null {
-  if (!info || !info.hasBox) return null;
-  return Math.round(axis === 0 ? info.contentWidth : info.contentHeight);
-}
-
-function imageAttributeDimension(raw: string | null): number | null {
-  if (raw == null) return null;
-  const value = htmlParseInteger(raw);
-  return value !== null && value >= 0 ? value : null;
 }
 function setImageDimension(
   el: HTMLImageElement,

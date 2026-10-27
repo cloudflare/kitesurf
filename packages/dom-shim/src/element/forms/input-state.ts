@@ -22,27 +22,14 @@ function runCloneStepsDeep(src: NodeBase | null, clone: NodeBase | null): void {
   const srcKids = src.childNodes;
   const cloneKids = clone.childNodes;
   if (!srcKids || !cloneKids) return;
-  runCloneChildPairs(srcKids, cloneKids);
-}
-
-type NodeChildren = NonNullable<NodeBase["childNodes"]>;
-
-function runCloneChildPairs(srcKids: NodeChildren, cloneKids: NodeChildren): void {
   const n = Math.min(srcKids.length, cloneKids.length);
   for (let i = 0; i < n; i++) {
     const s = srcKids[i];
     const c = cloneKids[i];
-    runCloneChildPair(s, c);
+    if (!s || !c) continue;
+    runCloneSteps(s, c);
+    runCloneStepsDeep(s, c);
   }
-}
-
-function runCloneChildPair(
-  src: NodeBase | null | undefined,
-  clone: NodeBase | null | undefined,
-): void {
-  if (!src || !clone) return;
-  runCloneSteps(src, clone);
-  runCloneStepsDeep(src, clone);
 }
 
 function runCloneSteps(src: NodeBase | null, clone: NodeBase | null): void {
@@ -236,21 +223,17 @@ function ksSanitizeInputValue(
 }
 type InputValueMode = "default/on" | "filename" | "default" | "value";
 function inputValueMode(type: string): InputValueMode {
-  switch (type) {
-    case "checkbox":
-    case "radio":
-      return "default/on";
-    case "file":
-      return "filename";
-    case "hidden":
-    case "submit":
-    case "reset":
-    case "image":
-    case "button":
-      return "default";
-    default:
-      return "value";
-  }
+  if (type === "checkbox" || type === "radio") return "default/on";
+  if (type === "file") return "filename";
+  if (
+    type === "hidden" ||
+    type === "submit" ||
+    type === "reset" ||
+    type === "image" ||
+    type === "button"
+  )
+    return "default";
+  return "value";
 }
 
 function uncheckSiblingRadios(input: Element, name: string): void {

@@ -37,3 +37,27 @@ test("DOMParser fragments do not remove nodes owned by another parent", async ({
     fragmentChildCount: 0,
   });
 });
+
+test("parsed documents expose their root and fragment element children", async ({ page }) => {
+  await setContent(page, "<div></div>");
+  const result = await page.evaluate(() => {
+    const parsed = new DOMParser().parseFromString("<div></div>", "text/html");
+    const root = parsed.documentElement;
+    const fragment = parsed.createDocumentFragment();
+    fragment.appendChild(parsed.createTextNode("text"));
+    fragment.appendChild(parsed.createElement("span"));
+    fragment.appendChild(parsed.createElement("b"));
+    return {
+      root: root?.localName,
+      rootParent: root?.parentNode === parsed,
+      childCount: fragment.childNodes.length,
+      children: Array.from(fragment.children, (child) => child.localName),
+    };
+  });
+  expect(result).toEqual({
+    root: "html",
+    rootParent: true,
+    childCount: 3,
+    children: ["span", "b"],
+  });
+});

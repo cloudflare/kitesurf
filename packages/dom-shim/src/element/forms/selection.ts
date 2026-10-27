@@ -54,42 +54,18 @@ function ksSetSelectionRange(
   end: number,
   direction: string | undefined,
 ) {
-  const range = clampSelectionRange(control, start, end, direction);
+  const len = (control.value || "").length;
+  const b = Math.min(end, len);
+  const a = Math.min(start, b);
+  const dir = direction === "forward" || direction === "backward" ? direction : "none";
   const s = selectionStateOf(control);
-  const changed = selectionRangeChanged(s, range);
-  s.start = range.start;
-  s.end = range.end;
-  s.direction = range.direction;
+  const changed = s.start !== a || s.end !== b || s.direction !== dir;
+  s.start = a;
+  s.end = b;
+  s.direction = dir;
   if (!changed) return;
   ksPushSelectionToWasm(control);
   ksFireControlSelectionchange(control);
-  queueSelectEvent(control);
-}
-
-function clampSelectionRange(
-  control: TextControl,
-  start: number,
-  end: number,
-  direction: string | undefined,
-): SelectionState {
-  const len = (control.value || "").length;
-  const endPosition = Math.min(end, len);
-  const startPosition = Math.min(start, endPosition);
-  const resolvedDirection =
-    direction === "forward" || direction === "backward" ? direction : "none";
-  return { start: startPosition, end: endPosition, direction: resolvedDirection };
-}
-
-function selectionRangeChanged(
-  state: SelectionState,
-  range: Pick<SelectionState, "start" | "end" | "direction">,
-): boolean {
-  return (
-    state.start !== range.start || state.end !== range.end || state.direction !== range.direction
-  );
-}
-
-function queueSelectEvent(control: TextControl): void {
   const id = control._id;
   if (pendingSelectEvent.has(id)) return;
   pendingSelectEvent.add(id);

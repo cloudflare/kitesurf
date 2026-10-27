@@ -6,7 +6,6 @@
 
 import type * as Idl from "../idl/types.generated.js";
 import type { Element } from "./element.js";
-import type { scopedQuerySelectorAll } from "../collections.js";
 import { makeHtmlCollection, documentImpl as document } from "../state.js";
 import { HTML_NS } from "../constants.js";
 import {
@@ -72,18 +71,25 @@ class HTMLTableElement extends HTMLElement implements Idl.HTMLTableElement {
     return makeHtmlCollection(() => Array.from<Element>(this.querySelectorAll("tr")));
   }
   insertRow(index?: number): HTMLTableRowElement {
-    const idx = normalizeTableIndex(index);
+    const idx = index === undefined || index === -1 ? -1 : index | 0;
     const doc = this.ownerDocument || document;
     const tr: HTMLTableRowElement = doc.createElement("tr");
     // A table with no rows puts the first row in a tbody, creating one if needed.
     // https://html.spec.whatwg.org/#dom-table-insertrow
     const rows = this.querySelectorAll("tr");
     if (rows.length === 0) {
-      appendFirstTableRow(this, doc, tr);
-      return tr;
+      let tbody = this.querySelector("tbody");
+      if (!tbody) {
+        tbody = doc.createElement("tbody");
+        this.appendChild(tbody);
+      }
+      tbody.appendChild(tr);
+    } else if (idx === -1 || idx === rows.length) {
+      rows[rows.length - 1].parentNode.appendChild(tr);
+    } else {
+      if (idx < 0 || idx > rows.length) throw rangeError("insertRow", idx);
+      rows[idx].parentNode.insertBefore(tr, rows[idx]);
     }
-    if (idx === -1 || idx === rows.length) appendAfterLastTableRow(rows, tr);
-    else insertTableRowAt(rows, tr, idx);
     return tr;
   }
   deleteRow(index: number): void {
@@ -103,10 +109,15 @@ class HTMLTableSectionElement extends HTMLElement implements Idl.HTMLTableSectio
     return makeHtmlCollection(() => Array.from<Element>(this.querySelectorAll(":scope > tr")));
   }
   insertRow(index?: number): HTMLTableRowElement {
-    const idx = normalizeTableIndex(index);
+    const idx = index === undefined || index === -1 ? -1 : index | 0;
     const tr: HTMLTableRowElement = (this.ownerDocument || document).createElement("tr");
     const rows = this.querySelectorAll(":scope > tr");
-    insertRowInSection(this, tr, rows, idx);
+    if (idx === -1 || idx === rows.length) {
+      this.appendChild(tr);
+    } else {
+      if (idx < 0 || idx > rows.length) throw rangeError("insertRow", idx);
+      this.insertBefore(tr, rows[idx]);
+    }
     return tr;
   }
   deleteRow(index: number): void {
@@ -128,10 +139,15 @@ class HTMLTableRowElement extends HTMLElement implements Idl.HTMLTableRowElement
     );
   }
   insertCell(index?: number): HTMLTableCellElement {
-    const idx = normalizeTableIndex(index);
+    const idx = index === undefined || index === -1 ? -1 : index | 0;
     const td: HTMLTableCellElement = (this.ownerDocument || document).createElement("td");
     const cells = this.querySelectorAll(":scope > td, :scope > th");
-    insertCellInRow(this, td, cells, idx);
+    if (idx === -1 || idx === cells.length) {
+      this.appendChild(td);
+    } else {
+      if (idx < 0 || idx > cells.length) throw rangeError("insertCell", idx);
+      this.insertBefore(td, cells[idx]);
+    }
     return td;
   }
   deleteCell(index: number): void {
@@ -151,94 +167,19 @@ class HTMLTableCellElement extends HTMLElement implements Idl.HTMLTableCellEleme
     // Only cells directly owned by an HTML tr have a cell index.
     // https://html.spec.whatwg.org/#dom-tdth-cellindex
     const parent = this.parentElement;
-    if (!isCellIndexParent(parent)) return -1;
-    return tableCellIndex(parent, this);
+    if (!parent) return -1;
+    if (parent.tagName !== "TR") return -1;
+    if (parent.namespaceURI !== HTML_NS) return -1;
+    const kids = parent.children;
+    let idx = 0;
+    for (let i = 0; i < kids.length; i++) {
+      const c = kids[i];
+      if (c === this) return idx;
+      const t = c.tagName;
+      if (t === "TD" || t === "TH") idx++;
+    }
+    return -1;
   }
-}
-
-function normalizeTableIndex(index: number | undefined): number {
-  return index === undefined || index === -1 ? -1 : index | 0;
-}
-
-function appendFirstTableRow(
-  table: HTMLTableElement,
-  doc: Idl.Document,
-  row: HTMLTableRowElement,
-): void {
-  let body = table.querySelector("tbody");
-  if (!body) {
-    body = doc.createElement("tbody");
-    table.appendChild(body);
-  }
-  body.appendChild(row);
-}
-
-function tableRowParent(row: Idl.Node, method: "appendChild" | "insertBefore"): Idl.Node {
-  const parent = row.parentNode;
-  if (parent === null) {
-    throw new TypeError(`Cannot read properties of null (reading '${method}')`);
-  }
-  return parent;
-}
-
-function appendAfterLastTableRow(
-  rows: ReturnType<typeof scopedQuerySelectorAll>,
-  row: HTMLTableRowElement,
-): void {
-  tableRowParent(rows[rows.length - 1], "appendChild").appendChild(row);
-}
-
-function insertTableRowAt(
-  rows: ReturnType<typeof scopedQuerySelectorAll>,
-  row: HTMLTableRowElement,
-  index: number,
-): void {
-  if (index < 0 || index > rows.length) throw rangeError("insertRow", index);
-  tableRowParent(rows[index], "insertBefore").insertBefore(row, rows[index]);
-}
-
-function insertRowInSection(
-  section: Idl.HTMLTableSectionElement,
-  row: HTMLTableRowElement,
-  rows: ReturnType<typeof scopedQuerySelectorAll>,
-  index: number,
-): void {
-  if (index === -1 || index === rows.length) {
-    section.appendChild(row);
-    return;
-  }
-  if (index < 0 || index > rows.length) throw rangeError("insertRow", index);
-  section.insertBefore(row, rows[index]);
-}
-
-function insertCellInRow(
-  row: Idl.HTMLTableRowElement,
-  cell: HTMLTableCellElement,
-  cells: ReturnType<typeof scopedQuerySelectorAll>,
-  index: number,
-): void {
-  if (index === -1 || index === cells.length) {
-    row.appendChild(cell);
-    return;
-  }
-  if (index < 0 || index > cells.length) throw rangeError("insertCell", index);
-  row.insertBefore(cell, cells[index]);
-}
-
-function isCellIndexParent(parent: Element | null): parent is Element {
-  return Boolean(parent && parent.tagName === "TR" && parent.namespaceURI === HTML_NS);
-}
-
-function tableCellIndex(parent: Element, cell: HTMLTableCellElement): number {
-  const kids = parent.children;
-  let index = 0;
-  for (let i = 0; i < kids.length; i++) {
-    const child = kids[i];
-    if (child === cell) return index;
-    const tag = child.tagName;
-    if (tag === "TD" || tag === "TH") index++;
-  }
-  return -1;
 }
 
 const MAX_COL_SPAN = 1000;

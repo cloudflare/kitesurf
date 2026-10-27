@@ -154,22 +154,14 @@ function isObjectLike(value: unknown): value is object {
   return value !== null && (typeof value === "object" || typeof value === "function");
 }
 
-// adoptNode and importNode reject shadow roots but accept plain DocumentFragments.
-function isDocumentFragmentNode(node: object): boolean {
-  return "nodeType" in node && node.nodeType === DOCUMENT_FRAGMENT_NODE;
-}
-
-function shadowRootNodeId(node: object): number | null {
-  if (!("_id" in node) || typeof node._id !== "number" || node._id < 0) return null;
-  return node._id;
-}
-
 // blitz's shadowHostId is >= 0 only for real shadow roots.
 function isShadowRootNode(node: unknown): boolean {
   if (node === null || typeof node !== "object") return false;
-  if (!isDocumentFragmentNode(node)) return false;
-  const id = shadowRootNodeId(node);
-  return id !== null && dom.shadowHostId(id) >= 0;
+  if (!("nodeType" in node) || node.nodeType !== DOCUMENT_FRAGMENT_NODE) return false;
+  if (!("_id" in node) || typeof node._id !== "number" || node._id < 0) {
+    return false;
+  }
+  return dom.shadowHostId(node._id) >= 0;
 }
 
 // Resolve the mutable <base href> against the caller's fallback URL.
@@ -185,36 +177,22 @@ function computeDocBaseURI(fallback: string): string {
 }
 function resolveDocBaseURI(fallback: string): string {
   try {
-    const href = documentBaseHref();
-    return resolveBaseHref(href, fallback) || fallback;
+    const baseId = dom ? dom.querySelector("base[href]") : -1;
+    if (baseId && baseId > 0) {
+      // DomHandle has no getAttribute, so read through the Element wrapper.
+      const node = nodeFor(baseId);
+      const href =
+        node && typeof node.getAttribute === "function" ? node.getAttribute("href") : null;
+      if (href != null && href !== "") {
+        try {
+          return new URL(String(href), fallback).toString();
+        } catch {
+          /* malformed: the spec falls back to the fallback URL */
+        }
+      }
+    }
   } catch {}
   return fallback;
-}
-
-function documentBaseElementId(): number {
-  return dom ? dom.querySelector("base[href]") : -1;
-}
-
-function documentBaseHref(): string | null {
-  const baseId = documentBaseElementId();
-  if (!(baseId && baseId > 0)) return null;
-  // DomHandle has no getAttribute, so read through the Element wrapper.
-  const node = nodeFor(baseId);
-  return baseElementHrefAttribute(node);
-}
-
-function baseElementHrefAttribute(node: Element | null): string | null {
-  return node && typeof node.getAttribute === "function" ? node.getAttribute("href") : null;
-}
-
-function resolveBaseHref(href: string | null, fallback: string): string | null {
-  if (href == null || href === "") return null;
-  try {
-    return new URL(String(href), fallback).toString();
-  } catch {
-    // Malformed URLs fall back to the caller's base URL.
-    return null;
-  }
 }
 
 const NODE_CONSTANTS = {
@@ -406,46 +384,6 @@ function appendDocumentRoot(doc: XMLDocument, namespaceURI: unknown, qualifiedNa
     doc._topChildren.push(root);
     nodeOwnerDoc.set(root, doc);
   }
-}
-
-function validateDocumentTypeName(name: string): void {
-  for (let index = 0; index < name.length; index++) {
-    const code = name.charCodeAt(index);
-    if (code <= 0x1f || code === 0x20 || code === 0x3e) {
-      throw new DOMException(
-        "createDocumentType: '" + name + "' is not a valid qualified name",
-        "InvalidCharacterError",
-      );
-    }
-  }
-}
-
-function constructDocumentType(
-  name: string,
-  publicId: unknown,
-  systemId: unknown,
-  ownerDocument: DocumentImpl | DetachedDocument | ParsedDocument | undefined,
-): DocumentTypeNode {
-  const synthetic = Object.create(DocumentTypeNode.prototype);
-  Object.defineProperty(synthetic, "_info", {
-    value: {
-      nodeType: DOCTYPE_NODE,
-      nodeName: name,
-      localName: "",
-      nodeValue: "",
-    },
-    enumerable: false,
-  });
-  Object.defineProperty(synthetic, "_id", {
-    value: nextSyntheticId(),
-    enumerable: false,
-  });
-  Object.defineProperty(synthetic, "name", { value: name });
-  Object.defineProperty(synthetic, "publicId", { value: String(publicId ?? "") });
-  Object.defineProperty(synthetic, "systemId", { value: String(systemId ?? "") });
-  // The doctype belongs to the implementation's document, not the page's.
-  if (ownerDocument) nodeOwnerDoc.set(synthetic, ownerDocument);
-  return synthetic;
 }
 
 const DOCUMENT_INSERTABLE_NODE_TYPES = new Set([
@@ -677,16 +615,6 @@ function detachDocumentNodeForInsertion(document: DetachedDocument, node: NodeBa
   return existingIndex;
 }
 
-function insertHostDocumentNodeAtIndex(
-  document: DetachedDocument,
-  node: NodeBase,
-  index: number,
-): void {
-  const anchor = document._hostAnchorForInsertion(index + 1);
-  if (anchor) document._host.insertBefore(node, anchor);
-  else document._host.appendChild(node);
-}
-
 function assertInsertBeforeArgumentCount(argumentCount: number): void {
   if (argumentCount < 2) {
     throw new TypeError(
@@ -734,72 +662,11 @@ function insertDocumentFragmentBefore(
   return fragment;
 }
 
-function assertOldDocumentChild(document: DetachedDocument, oldNode: NodeBase): void {
-  if (oldNode == null || document._topChildren.indexOf(oldNode) < 0) {
-    throw new DOMException(
-      "replaceChild: old child is not a child of this document",
-      "NotFoundError",
-    );
-  }
-}
-
-function validateDocumentReplacement(
-  document: DetachedDocument,
-  newNode: NodeBase,
-  oldNode: NodeBase,
-): void {
-  if (newNode && newNode.nodeType === DOCUMENT_FRAGMENT_NODE) {
-    document._validateDocumentPreInsertion(newNode, oldNode, "replaceChild", true);
-  } else {
-    document._validateDocumentPreInsertion(newNode, oldNode, "replaceChild", true);
-  }
-}
-
-function removeReplacedDocumentChild(
-  document: DetachedDocument,
-  oldNode: NodeBase,
-  oldIndex: number,
-): void {
-  rangeBeforeRemove(document, oldIndex, oldNode);
-  document._topChildren.splice(oldIndex, 1);
-  if (oldNode.nodeType !== DOCTYPE_NODE) {
-    try {
-      document._host.removeChild(oldNode);
-    } catch {}
-  }
-}
-
-function insertDocumentReplacement(
-  document: DetachedDocument,
-  newNode: NodeBase,
-  oldIndex: number,
-): void {
-  if (newNode.nodeType === DOCUMENT_FRAGMENT_NODE) {
-    const children = Array.from<NodeBase>(newNode.childNodes);
-    let insertIndex = oldIndex;
-    for (const child of children) {
-      document._insertOneAtIndex(child, insertIndex);
-      insertIndex++;
-    }
-  } else {
-    document._insertOneAtIndex(newNode, oldIndex);
-  }
-}
-
 function findDocumentDescendant(root: Element, tagName: string): Element | null {
   try {
     return root.querySelector ? root.querySelector(tagName) : null;
   } catch {
     return null;
-  }
-}
-
-function documentTitleText(root: Element | null): string {
-  if (!root) return "";
-  try {
-    return titleTextForRoot(root);
-  } catch {
-    return "";
   }
 }
 
@@ -825,31 +692,6 @@ function createDocumentTitle(
   } catch {
     return null;
   }
-}
-
-function setDocumentTitle(
-  root: Element | null,
-  value: unknown,
-  createElement: (tagName: string) => Element,
-): void {
-  if (!root) return;
-  let title = findDocumentDescendant(root, "title");
-  if (!title) title = createDocumentTitle(root, createElement);
-  if (title) title.textContent = value == null ? "" : String(value);
-}
-
-function equalDocumentChild(left: Idl.Node | null, right: Idl.Node | null): boolean {
-  if (!left || !right) return left === right;
-  if (typeof left.isEqualNode !== "function") return false;
-  return left.isEqualNode(right);
-}
-
-function equalDocumentChildLists(left: Idl.NodeList, right: Idl.NodeList): boolean {
-  if (left.length !== right.length) return false;
-  for (let index = 0; index < left.length; index++) {
-    if (!equalDocumentChild(left[index], right[index])) return false;
-  }
-  return true;
 }
 
 function documentChildListContains(children: readonly unknown[], node: unknown): boolean {
@@ -1037,34 +879,6 @@ function assertImportNodeIsNotShadowRoot(node: NodeBase): void {
   if (isShadowRootNode(node)) {
     throw new DOMException("importNode: cannot import a ShadowRoot", "NotSupportedError");
   }
-}
-
-function assertDetachedImportNodeIsObject(node: unknown): asserts node is object {
-  if (node === null || typeof node !== "object") {
-    throw new TypeError("importNode: node must be a Node");
-  }
-}
-
-function assertDetachedImportNodeIsNotDocument(node: object): void {
-  if ("nodeType" in node && node.nodeType === DOCUMENT_NODE) {
-    throw new DOMException("importNode: cannot import a Document", "NotSupportedError");
-  }
-}
-
-function cloneDetachedImportNode(node: object, deep: unknown): unknown {
-  if ("cloneNode" in node && typeof node.cloneNode === "function") {
-    return node.cloneNode(Boolean(deep));
-  }
-  throw new TypeError("importNode: node must be a Node");
-}
-
-function importDetachedNode(node: unknown, deep: unknown): unknown {
-  assertDetachedImportNodeIsObject(node);
-  assertDetachedImportNodeIsNotDocument(node);
-  if (isShadowRootNode(node)) {
-    throw new DOMException("importNode: cannot import a ShadowRoot", "NotSupportedError");
-  }
-  return cloneDetachedImportNode(node, deep);
 }
 
 function importDocumentNode(
@@ -2397,8 +2211,43 @@ class DOMImplementationCls implements Idl.DOMImplementation {
     // The spec validates qname as a QName, but browsers only reject a
     // space, ">" or a C0 control character.
     const name = String(qname ?? "");
-    validateDocumentTypeName(name);
-    return constructDocumentType(name, publicId, systemId, this.#ownerDocument);
+    for (let i = 0; i < name.length; i++) {
+      const c = name.charCodeAt(i);
+      if (c <= 0x1f || c === 0x20 || c === 0x3e) {
+        throw new DOMException(
+          "createDocumentType: '" + name + "' is not a valid qualified name",
+          "InvalidCharacterError",
+        );
+      }
+    }
+    const synth = Object.create(DocumentTypeNode.prototype);
+    Object.defineProperty(synth, "_info", {
+      value: {
+        nodeType: DOCTYPE_NODE,
+        nodeName: name,
+        localName: "",
+        nodeValue: "",
+      },
+      enumerable: false,
+    });
+    Object.defineProperty(synth, "_id", {
+      value: nextSyntheticId(),
+      enumerable: false,
+    });
+    Object.defineProperty(synth, "name", {
+      value: name,
+    });
+    Object.defineProperty(synth, "publicId", {
+      value: String(publicId ?? ""),
+    });
+    Object.defineProperty(synth, "systemId", {
+      value: String(systemId ?? ""),
+    });
+    // The doctype belongs to the implementation's document, not the page's.
+    if (this.#ownerDocument) {
+      nodeOwnerDoc.set(synth, this.#ownerDocument);
+    }
+    return synth;
   }
 }
 
@@ -2696,13 +2545,33 @@ class DetachedDocument implements Idl.Document {
     return node;
   }
   _insertOneAtIndex(node: NodeBase, idx: number): void {
-    const existingIndex = detachDocumentNodeForInsertion(this, node);
-    if (existingIndex !== null && existingIndex < idx) idx--;
+    const curParent = node.parentNode;
+    if (curParent && curParent !== this) {
+      try {
+        curParent.removeChild(node);
+      } catch {}
+    } else if (curParent === this) {
+      const existing = this._topChildren.indexOf(node);
+      if (existing >= 0) {
+        rangeBeforeRemove(this, existing, node);
+        this._topChildren.splice(existing, 1);
+        if (existing < idx) idx--;
+      }
+    }
     // A doctype has no wasm parent, so syntheticParent gives it one.
     nodeOwnerDoc.set(node, this);
-    this._topChildren.splice(idx, 0, node);
-    if (node.nodeType === DOCTYPE_NODE) syntheticParent.set(node, this);
-    else insertHostDocumentNodeAtIndex(this, node, idx);
+    if (node.nodeType === DOCTYPE_NODE) {
+      this._topChildren.splice(idx, 0, node);
+      syntheticParent.set(node, this);
+    } else {
+      this._topChildren.splice(idx, 0, node);
+      const hostAnchor = this._hostAnchorForInsertion(idx + 1);
+      if (hostAnchor) {
+        this._host.insertBefore(node, hostAnchor);
+      } else {
+        this._host.appendChild(node);
+      }
+    }
     // Live range boundaries after idx shift right by one.
     rangeAfterInsert(this, idx, 1);
   }
@@ -2728,12 +2597,36 @@ class DetachedDocument implements Idl.Document {
     return node;
   }
   replaceChild(newNode: NodeBase, oldNode: NodeBase) {
-    assertOldDocumentChild(this, oldNode);
-    validateDocumentReplacement(this, newNode, oldNode);
+    if (oldNode == null || this._topChildren.indexOf(oldNode) < 0) {
+      throw new DOMException(
+        "replaceChild: old child is not a child of this document",
+        "NotFoundError",
+      );
+    }
+    if (newNode && newNode.nodeType === DOCUMENT_FRAGMENT_NODE) {
+      this._validateDocumentPreInsertion(newNode, oldNode, "replaceChild", true);
+    } else {
+      this._validateDocumentPreInsertion(newNode, oldNode, "replaceChild", true);
+    }
     if (newNode === oldNode) return oldNode;
     const oldIdx = this._topChildren.indexOf(oldNode);
-    removeReplacedDocumentChild(this, oldNode, oldIdx);
-    insertDocumentReplacement(this, newNode, oldIdx);
+    rangeBeforeRemove(this, oldIdx, oldNode);
+    this._topChildren.splice(oldIdx, 1);
+    if (oldNode.nodeType !== DOCTYPE_NODE) {
+      try {
+        this._host.removeChild(oldNode);
+      } catch {}
+    }
+    if (newNode.nodeType === DOCUMENT_FRAGMENT_NODE) {
+      const kids = Array.from<NodeBase>(newNode.childNodes);
+      let insertIdx = oldIdx;
+      for (const k of kids) {
+        this._insertOneAtIndex(k, insertIdx);
+        insertIdx++;
+      }
+    } else {
+      this._insertOneAtIndex(newNode, oldIdx);
+    }
     return oldNode;
   }
   // Document children may contain one Element and one DocumentType, with
@@ -2795,7 +2688,17 @@ class DetachedDocument implements Idl.Document {
   isEqualNode(other: Idl.Node | null) {
     if (!other || other.nodeType !== DOCUMENT_NODE) return false;
     // Documents compare by children only, not by URL or other metadata.
-    return equalDocumentChildLists(this.childNodes, other.childNodes);
+    const a = this.childNodes;
+    const b = other.childNodes;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      const ai = a[i],
+        bi = b[i];
+      if (!ai || !bi) return ai === bi;
+      if (typeof ai.isEqualNode !== "function") return false;
+      if (!ai.isEqualNode(bi)) return false;
+    }
+    return true;
   }
   cloneNode(deep?: boolean) {
     const clone = new DetachedDocument();
@@ -3000,11 +2903,21 @@ class DetachedDocument implements Idl.Document {
   }
   // The first <title>'s text with whitespace collapsed, or "".
   get title() {
-    return documentTitleText(this.documentElement);
+    const root = this.documentElement;
+    if (!root) return "";
+    try {
+      return titleTextForRoot(root);
+    } catch {
+      return "";
+    }
   }
   set title(v) {
+    const root = this.documentElement;
+    if (!root) return;
+    let title = findDocumentDescendant(root, "title");
     // No <title>: create one in <head>, or in documentElement without one.
-    setDocumentTitle(this.documentElement, v, (tagName) => this.createElement(tagName));
+    if (!title) title = createDocumentTitle(root, (tagName) => this.createElement(tagName));
+    if (title) title.textContent = v == null ? "" : String(v);
   }
   // The live document is a DocumentImpl, so `document instanceof Document`
   // needs this: anything with nodeType 9 counts.
@@ -3508,7 +3421,19 @@ class XMLDocument extends DetachedDocument implements Idl.XMLDocument {
 
 Object.defineProperty(DetachedDocument.prototype, "importNode", {
   value: function importNode(node: unknown, deep?: unknown) {
-    return importDetachedNode(node, deep);
+    if (node === null || typeof node !== "object") {
+      throw new TypeError("importNode: node must be a Node");
+    }
+    if ("nodeType" in node && node.nodeType === DOCUMENT_NODE) {
+      throw new DOMException("importNode: cannot import a Document", "NotSupportedError");
+    }
+    if (isShadowRootNode(node)) {
+      throw new DOMException("importNode: cannot import a ShadowRoot", "NotSupportedError");
+    }
+    if ("cloneNode" in node && typeof node.cloneNode === "function") {
+      return node.cloneNode(Boolean(deep));
+    }
+    throw new TypeError("importNode: node must be a Node");
   },
   writable: true,
   configurable: true,

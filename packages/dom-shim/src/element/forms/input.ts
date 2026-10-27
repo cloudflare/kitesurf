@@ -112,10 +112,53 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
     this.setAttribute("type", String(v));
   }
   get value() {
-    return inputValue(this);
+    const state = inputStateOf(this);
+    const type = inputTypeOf(this);
+    const mode = inputValueMode(type);
+    const attr = this.getAttribute("value");
+    switch (mode) {
+      case "value":
+        return inputValueModeValue(this, state, attr);
+      case "default":
+        return reflectedInputValue(attr, "");
+      case "default/on":
+        return reflectedInputValue(attr, "on");
+      case "filename":
+        return inputFileValue(this._id);
+    }
+    return "";
   }
   set value(v) {
-    setInputValue(this, v);
+    const s = inputStateOf(this);
+    const t = inputTypeOf(this);
+    const mode = inputValueMode(t);
+    const str = v === null ? "" : String(v);
+    if (mode === "filename") {
+      if (str !== "") {
+        throw new DOMException(
+          "HTMLInputElement.value: setting non-empty value on file input not allowed",
+          "InvalidStateError",
+        );
+      }
+      setInputFiles(this._id, []);
+      s.valueDirty = true;
+      s.value = "";
+      return;
+    }
+    if (mode === "default" || mode === "default/on") {
+      this.setAttribute("value", str);
+      return;
+    }
+    if (s.defaultValueAttr === undefined) {
+      s.defaultValueAttr = this.getAttribute("value") ?? "";
+    }
+    const beforeValue = this.value;
+    s.valueDirty = true;
+    s.value = ksSanitizeInputValue(this, str);
+    ksPushInputText(this, s.value);
+    if (supportsSelection(this) && s.value !== beforeValue) {
+      ksCollapseSelectionToEnd(this);
+    }
   }
   get defaultValue() {
     const s = inputState.get(this._id);
@@ -136,7 +179,25 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
     return this.hasAttribute("checked");
   }
   set checked(v) {
-    setInputChecked(this, v);
+    const s = inputStateOf(this);
+    const bool = !!v;
+    if (s.checkedDirty && s.checked === bool) return;
+    s.checkedDirty = true;
+    s.checked = bool;
+    try {
+      const domHandle = dom;
+      if (typeof domHandle.setCheckboxChecked === "function") {
+        domHandle.setCheckboxChecked(this._id, bool);
+      }
+    } catch {}
+    markDamageNode(this._id);
+    bumpMutationSeq();
+    if (bool && inputTypeOf(this) === "radio") {
+      const name = this.getAttribute("name");
+      if (name) {
+        uncheckSiblingRadios(this, name);
+      }
+    }
   }
   get defaultChecked() {
     return this.hasAttribute("checked");
@@ -264,7 +325,23 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
     return parsed == null ? NaN : parsed;
   }
   set valueAsNumber(v) {
-    setInputValueAsNumber(this, v);
+    const number = Number(v);
+    if (number === Infinity || number === -Infinity) {
+      throw new TypeError("valueAsNumber: value is infinite");
+    }
+    const type = inputTypeOf(this);
+    if (!isSteppable(type)) {
+      throw new DOMException(
+        "valueAsNumber: not supported on input[type=" + type + "]",
+        "InvalidStateError",
+      );
+    }
+    if (Number.isNaN(number)) {
+      this.value = "";
+      return;
+    }
+    const serialized = serializeByType(type, number);
+    this.value = parsedNumberString(type, serialized);
   }
   get valueAsDate() {
     const t = inputTypeOf(this);
@@ -334,24 +411,6 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
   }
 }
 
-function inputValue(input: HTMLInputElement): string {
-  const state = inputStateOf(input);
-  const type = inputTypeOf(input);
-  const mode = inputValueMode(type);
-  const attr = input.getAttribute("value");
-  switch (mode) {
-    case "value":
-      return inputValueModeValue(input, state, attr);
-    case "default":
-      return reflectedInputValue(attr, "");
-    case "default/on":
-      return reflectedInputValue(attr, "on");
-    case "filename":
-      return inputFileValue(input._id);
-  }
-  return "";
-}
-
 function inputValueModeValue(
   input: HTMLInputElement,
   state: ReturnType<typeof inputStateOf>,
@@ -369,104 +428,6 @@ function inputFileValue(id: number): string {
   const files = fileInputFiles.get(id);
   if (files && files.length > 0) return "C:\\fakepath\\" + (files[0].name || "");
   return "";
-}
-
-function setInputValue(input: HTMLInputElement, value: unknown): void {
-  const state = inputStateOf(input);
-  const type = inputTypeOf(input);
-  const mode = inputValueMode(type);
-  const stringValue = value === null ? "" : String(value);
-  switch (mode) {
-    case "filename":
-      setFileInputValue(input, state, stringValue);
-      return;
-    case "default":
-    case "default/on":
-      input.setAttribute("value", stringValue);
-      return;
-    case "value":
-      setTextInputValue(input, state, stringValue);
-  }
-}
-
-function setFileInputValue(
-  input: HTMLInputElement,
-  state: ReturnType<typeof inputStateOf>,
-  value: string,
-): void {
-  if (value !== "") {
-    throw new DOMException(
-      "HTMLInputElement.value: setting non-empty value on file input not allowed",
-      "InvalidStateError",
-    );
-  }
-  setInputFiles(input._id, []);
-  state.valueDirty = true;
-  state.value = "";
-}
-
-function setTextInputValue(
-  input: HTMLInputElement,
-  state: ReturnType<typeof inputStateOf>,
-  value: string,
-): void {
-  if (state.defaultValueAttr === undefined) {
-    state.defaultValueAttr = input.getAttribute("value") ?? "";
-  }
-  const beforeValue = input.value;
-  state.valueDirty = true;
-  state.value = ksSanitizeInputValue(input, value);
-  ksPushInputText(input, state.value);
-  if (supportsSelection(input) && state.value !== beforeValue) {
-    ksCollapseSelectionToEnd(input);
-  }
-}
-
-function setInputChecked(input: HTMLInputElement, value: unknown): void {
-  const state = inputStateOf(input);
-  const checked = !!value;
-  if (state.checkedDirty && state.checked === checked) return;
-  state.checkedDirty = true;
-  state.checked = checked;
-  writeInputChecked(input, checked);
-  markDamageNode(input._id);
-  bumpMutationSeq();
-  if (checked) uncheckRadioSiblingsIfNeeded(input);
-}
-
-function writeInputChecked(input: HTMLInputElement, checked: boolean): void {
-  try {
-    const domHandle = dom;
-    if (typeof domHandle.setCheckboxChecked === "function") {
-      domHandle.setCheckboxChecked(input._id, checked);
-    }
-  } catch {}
-}
-
-function uncheckRadioSiblingsIfNeeded(input: HTMLInputElement): void {
-  if (inputTypeOf(input) !== "radio") return;
-  const name = input.getAttribute("name");
-  if (name) uncheckSiblingRadios(input, name);
-}
-
-function setInputValueAsNumber(input: HTMLInputElement, value: unknown): void {
-  const number = Number(value);
-  if (number === Infinity || number === -Infinity) {
-    throw new TypeError("valueAsNumber: value is infinite");
-  }
-  const type = inputTypeOf(input);
-  if (!isSteppable(type)) {
-    throw new DOMException(
-      "valueAsNumber: not supported on input[type=" + type + "]",
-      "InvalidStateError",
-    );
-  }
-  if (Number.isNaN(number)) {
-    input.value = "";
-    return;
-  }
-  const serialized = serializeByType(type, number);
-  input.value = parsedNumberString(type, serialized);
 }
 
 function parsedNumberString(type: string, value: string): string {

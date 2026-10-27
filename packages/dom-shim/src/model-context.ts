@@ -475,30 +475,22 @@ function notifyDeclarativeChanges(
 }
 
 function scheduleDeclarativeRefresh(hint?: MutationHint): void {
-  if (!declarativeRefreshNeeded()) return;
-  if (!declarativeHintMayAddCandidate(hint)) return;
-  declarativeRefreshQueued = true;
-  queueMicrotask(() => {
-    declarativeRefreshQueued = false;
-    if (!declarativeInterestActive()) return;
-    refreshDeclarativeTools(true);
-  });
-}
-
-function declarativeInterestActive(): boolean {
-  return declarativeWatchActive || pageDeclarativeInterest;
-}
-
-function declarativeRefreshNeeded(): boolean {
-  return declarativeInterestActive() && !declarativeRefreshQueued;
-}
-
-function declarativeHintMayAddCandidate(hint?: MutationHint): boolean {
-  return !(
+  if ((!declarativeWatchActive && !pageDeclarativeInterest) || declarativeRefreshQueued) {
+    return;
+  }
+  if (
     declarativeCandidates === 0 &&
     hint !== undefined &&
     (typeof hint === "string" || !DECLARATIVE_ATTRIBUTES.has(hint.attribute.toLowerCase()))
-  );
+  ) {
+    return;
+  }
+  declarativeRefreshQueued = true;
+  queueMicrotask(() => {
+    declarativeRefreshQueued = false;
+    if (!declarativeWatchActive && !pageDeclarativeInterest) return;
+    refreshDeclarativeTools(true);
+  });
 }
 
 export function stopModelContextToolWatch(watchRevision: unknown): void {
@@ -1041,27 +1033,6 @@ function runToolExecution(
   });
 }
 
-function fromOriginsError(options: unknown): Error | null {
-  const fromOrigins = optionsRecord(options).fromOrigins;
-  if (fromOrigins === undefined) return null;
-  if (!Array.isArray(fromOrigins)) return new TypeError("getTools: fromOrigins must be a sequence");
-  return untrustworthyOriginError(
-    fromOrigins,
-    (origin) =>
-      `getTools: fromOrigins entry "${String(origin)}" is not a potentially-trustworthy origin`,
-  );
-}
-
-function contextTools(context: ModelContext): SerializedTool[] {
-  const out = snapshot(context._tools);
-  if (!context._isMain) return out;
-  markDeclarativeInterest();
-  refreshDeclarativeTools(true);
-  for (const entry of declarativeTools.values()) out.push(serializeDeclarative(entry));
-  out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-  return out;
-}
-
 let allowConstruct = false;
 export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
   declare _tools: Map<string, ToolDefinition>;
@@ -1145,10 +1116,33 @@ export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
     if (!this._isFullyActive()) {
       return Promise.reject(inactiveDocumentError("getTools"));
     }
-    const error = fromOriginsError(options);
-    if (error) return Promise.reject(error);
+    const opts = isObjectLike(options) ? options : {};
+    const fromOrigins = opts.fromOrigins;
+    if (fromOrigins !== undefined) {
+      if (!Array.isArray(fromOrigins)) {
+        return Promise.reject(new TypeError("getTools: fromOrigins must be a sequence"));
+      }
+      for (const origin of fromOrigins) {
+        if (typeof origin !== "string" || !isTrustworthyOrigin(origin)) {
+          return Promise.reject(
+            domError(
+              `getTools: fromOrigins entry "${String(origin)}" is not a potentially-trustworthy origin`,
+              "SecurityError",
+            ),
+          );
+        }
+      }
+    }
     const win = this._getWindow() as WebMCP.RegisteredTool["window"];
-    const out = contextTools(this);
+    const out = snapshot(this._tools);
+    if (this._isMain) {
+      markDeclarativeInterest();
+      refreshDeclarativeTools(true);
+      for (const entry of declarativeTools.values()) {
+        out.push(serializeDeclarative(entry));
+      }
+      out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    }
     return Promise.resolve(out.map((tool) => ({ ...tool, window: win })));
   }
 }
@@ -1393,24 +1387,11 @@ function waitForManualSubmission(
 function fillDeclarativeControls(form: DeclarativeForm, args: Record<string, unknown>): void {
   const elements = form?.elements;
   for (let i = 0; elements && i < elements.length; i++) {
-    fillDeclarativeControl(elements[i], args);
+    const control = elements[i];
+    const field = String(control?.name ?? "");
+    if (!field || !(field in args) || control?.disabled === true) continue;
+    setControlValue(control, args[field]);
   }
-}
-
-function fillDeclarativeControl(control: DeclarativeControl, args: Record<string, unknown>): void {
-  const field = String(control?.name ?? "");
-  if (!canFillDeclarativeControl(control, field, args)) return;
-  setControlValue(control, args[field]);
-}
-
-function canFillDeclarativeControl(
-  control: DeclarativeControl,
-  field: string,
-  args: Record<string, unknown>,
-): boolean {
-  if (!field) return false;
-  if (!(field in args)) return false;
-  return control?.disabled !== true;
 }
 
 interface SettableControl {

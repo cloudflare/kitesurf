@@ -485,23 +485,21 @@ function countDocumentChildType(counts: DocumentChildCounts, nodeType: unknown):
   else if (nodeType === DOCTYPE_NODE) counts.doctypes++;
 }
 
-function countFragmentDocumentChild(counts: DocumentChildCounts, child: unknown, op: string): void {
-  const nodeType = readUnknownNodeType(child);
-  if (isDocumentTextNodeType(nodeType)) {
-    throw new DOMException(
-      op + ": Document cannot have a Text node child",
-      "HierarchyRequestError",
-    );
-  }
-  countDocumentChildType(counts, nodeType);
-}
-
 function fragmentDocumentChildCounts(fragment: NodeLikeInput, op: string) {
   const counts = { elements: 0, doctypes: 0 };
   try {
     const children = fragment.childNodes;
     if (!children) return counts;
-    for (const child of children) countFragmentDocumentChild(counts, child, op);
+    for (const child of children) {
+      const nodeType = readUnknownNodeType(child);
+      if (isDocumentTextNodeType(nodeType)) {
+        throw new DOMException(
+          op + ": Document cannot have a Text node child",
+          "HierarchyRequestError",
+        );
+      }
+      countDocumentChildType(counts, nodeType);
+    }
   } catch (error) {
     if (isHierarchyRequestError(error)) throw error;
   }
@@ -608,11 +606,13 @@ function assertDocumentInsertAllowed(
   }
 }
 
-function assertDoctypeParent(parent: NodeBase, op: string): void {
+function assertDoctypeOnlyInDocument(parent: NodeBase, child: unknown, op: string): void {
+  if (!child) return;
+  const childType = tryReadNodeType(child);
+  if (!childType.ok || childType.value !== DOCTYPE_NODE) return;
   const parentType = tryReadNodeType(parent);
   if (!parentType.ok) return;
-  const isHostStandIn = isHostDocumentStandIn(parent);
-  if (parentType.value !== DOCUMENT_NODE && !isHostStandIn) {
+  if (parentType.value !== DOCUMENT_NODE && !isHostDocumentStandIn(parent)) {
     throw new DOMException(
       op + ": doctype must be inserted into a document",
       "HierarchyRequestError",
@@ -620,51 +620,21 @@ function assertDoctypeParent(parent: NodeBase, op: string): void {
   }
 }
 
-function assertDoctypeOnlyInDocument(parent: NodeBase, child: unknown, op: string): void {
-  if (!child) return;
-  const childType = tryReadNodeType(child);
-  if (!childType.ok) return;
-  if (childType.value !== DOCTYPE_NODE) return;
-  assertDoctypeParent(parent, op);
-}
-
-function isDocumentParent(parent: NodeBase): boolean {
-  const parentType = tryReadNodeType(parent);
-  if (!parentType.ok) return false;
-  const isHostStandIn = isHostDocumentStandIn(parent);
-  return parentType.value === DOCUMENT_NODE || isHostStandIn;
-}
-
 function assertNotTextIntoDocument(parent: NodeBase, child: unknown, op: string): void {
   if (!child) return;
-  if (!isDocumentParent(parent)) return;
+  const parentType = tryReadNodeType(parent);
+  if (!parentType.ok) return;
+  const parentIsDoc = parentType.value === DOCUMENT_NODE || isHostDocumentStandIn(parent);
+  if (!parentIsDoc) return;
   const childType = tryReadNodeType(child);
-  if (!childType.ok) return;
-  if (childType.value === TEXT_NODE) {
-    throw new DOMException(
-      op + ": cannot insert a Text node directly under a document",
-      "HierarchyRequestError",
-    );
-  }
+  if (!childType.ok || childType.value !== TEXT_NODE) return;
+  throw new DOMException(
+    op + ": cannot insert a Text node directly under a document",
+    "HierarchyRequestError",
+  );
 }
 
 type NodeWithOptionalDom = NodeBase & { _dom?: unknown };
-
-function nodesShareDom(node: NodeWithOptionalDom, cur: NodeWithOptionalDom): boolean {
-  return !node._dom || !cur._dom || node._dom === cur._dom;
-}
-
-function isInclusiveAncestorCandidate(
-  node: NodeWithOptionalDom,
-  nodeId: number | null,
-  cur: NodeWithOptionalDom,
-): boolean {
-  const sharesDom = nodesShareDom(node, cur);
-  if (nodeId !== null && typeof cur._id === "number" && sharesDom) {
-    return cur._id === nodeId;
-  }
-  return cur === node;
-}
 
 function assertNotAncestor(
   parent: NodeWithOptionalDom,
@@ -675,7 +645,12 @@ function assertNotAncestor(
   const nodeId = typeof node._id === "number" ? node._id : null;
   let cur = parent;
   while (cur) {
-    if (isInclusiveAncestorCandidate(node, nodeId, cur)) {
+    const sharesDom = !node._dom || !cur._dom || node._dom === cur._dom;
+    const same =
+      nodeId !== null && typeof cur._id === "number" && sharesDom
+        ? cur._id === nodeId
+        : cur === node;
+    if (same) {
       throw new DOMException(
         op + ": new child is an inclusive ancestor of parent",
         "HierarchyRequestError",
@@ -703,29 +678,20 @@ function safeReferenceId(parentId: number, referenceId: number) {
 }
 
 function assertCanHaveChildren(self: NodeBase, op: string): void {
-  const nodeType = childParentNodeType(self);
-  if (!isLeafParentType(nodeType)) return;
-  const name = childlessNodeName(self);
-  throw new DOMException(op + ": " + name + " nodes cannot have children", "HierarchyRequestError");
-}
-
-function childParentNodeType(self: NodeBase): unknown {
-  let nodeType;
+  let t;
   try {
-    nodeType = self.nodeType;
+    t = self.nodeType;
   } catch {
-    nodeType = undefined;
+    t = undefined;
   }
-  if (typeof nodeType !== "number") nodeType = self._info && self._info.nodeType;
-  return nodeType;
-}
-
-function isLeafParentType(nodeType: unknown): boolean {
-  return typeof nodeType === "number" && LEAF_PARENT_TYPES.has(nodeType);
-}
-
-function childlessNodeName(self: NodeBase): string {
-  return self.nodeName || (self._info && self._info.nodeName) || "leaf";
+  if (typeof t !== "number") t = self._info && self._info.nodeType;
+  if (typeof t === "number" && LEAF_PARENT_TYPES.has(t)) {
+    const name = self.nodeName || (self._info && self._info.nodeName) || "leaf";
+    throw new DOMException(
+      op + ": " + name + " nodes cannot have children",
+      "HierarchyRequestError",
+    );
+  }
 }
 
 function isTemplateNodeId(id: unknown): id is number {
@@ -1031,32 +997,6 @@ function recordTextContentMutations(
   recordObservedTextContentChildren(node, observed, added, existing);
 }
 
-function setNodeTextContent(node: NodeBase, value: unknown): void {
-  if (node._id < 0) {
-    setSyntheticTextContent(node, value);
-    return;
-  }
-  const text = String(value ?? "");
-  const observed = hasChildListObserver(node._id);
-  const removed = removeTextContentChildren(
-    node,
-    textContentChildIds(node._id),
-    observed,
-    hasSubtreeObserver(node._id),
-  );
-  includeObservedSyntheticChildren(node, removed.existing, observed);
-  const added = createTextContentChild(node, text, observed);
-  bumpMutationSeq("text");
-  recordTextContentMutations(
-    node,
-    removed.removedIds,
-    added.id,
-    observed,
-    added.nodes,
-    removed.existing,
-  );
-}
-
 function removeEmptyNormalizedText(
   parent: NodeBase,
   children: NormalizationChildren,
@@ -1133,37 +1073,12 @@ function normalizeNodeChildren(parent: NodeBase): void {
   }
 }
 
-function nodeHasDomAncestor(parent: NodeBase, other: any): boolean {
-  if (typeof other._id !== "number") return false;
-  let current = other._id;
-  let safety = 0;
-  while (safety < MAX_NODE_ANCESTOR_HOPS) {
-    if (current === parent._id) return true;
-    const parentId = readDomParentId(current);
-    if (isTerminalParentId(parentId, current)) return false;
-    current = parentId;
-    safety++;
-  }
-  return false;
-}
-
-function isTerminalParentId(parentId: number | null, currentId: number): boolean {
-  return parentId === null || parentId < 0 || parentId === currentId;
-}
-
 function readDomParentId(nodeId: number): number | null {
   try {
     return dom.parentId(nodeId);
   } catch {
     return null;
   }
-}
-
-function nodeContains(parent: NodeBase, other: any): boolean {
-  if (other == null) return false;
-  if (other === parent) return true;
-  if (syntheticParent.get(other) === (parent as object)) return true;
-  return nodeHasDomAncestor(parent, other);
 }
 
 function cachedNodeParentId(node: NodeBase, currentSequence: number): number | null {
@@ -1178,14 +1093,6 @@ function cachedNodeParentId(node: NodeBase, currentSequence: number): number | n
   } catch {
     return null;
   }
-}
-
-function nodeParent(node: NodeBase): any {
-  const parentId = cachedNodeParentId(node, ksState().childSeq | 0);
-  if (parentId === null || parentId < 0) return null;
-  const hostDocument = hostIdToDoc.get(parentId);
-  if (hostDocument) return hostDocument;
-  return nodeFor(parentId);
 }
 
 function siblingIndexInBounds(index: number, length: number): boolean {
@@ -1893,11 +1800,6 @@ function skipRelativeNodes(node: NodeBase | null, nodes: Set<unknown>): NodeBase
   return node;
 }
 
-function skipPreviousRelativeNodes(node: NodeBase | null, nodes: Set<unknown>): NodeBase | null {
-  while (node && nodes.has(node)) node = node.previousSibling;
-  return node;
-}
-
 function convertRelativeNodes(nodes: readonly unknown[]): NodeLikeInput[] {
   return nodes.map((node) => (isNodeLike(node) ? node : createTextNodeInternal(String(node))));
 }
@@ -1916,16 +1818,6 @@ function insertRelativeNodes(parent: Idl.Node, nodes: Idl.Node[], anchor: Idl.No
     if (anchor) parent.insertBefore(node, anchor);
     else parent.appendChild(node);
   }
-}
-
-function insertRelativeBefore(target: NodeBase, nodes: readonly (Idl.Node | string)[]): void {
-  const parent = target.parentNode;
-  if (!parent) return;
-  const included = relativeNodeSet(nodes);
-  const previous = skipPreviousRelativeNodes(target.previousSibling, included);
-  const initialAnchor = previous ? previous.nextSibling : parent.firstChild;
-  const anchor = skipRelativeNodes(initialAnchor, included);
-  insertRelativeNodes(parent, convertInsertionNodes(nodes), anchor);
 }
 
 function insertRelativeAfter(target: NodeBase, nodes: readonly (Idl.Node | string)[]): void {
@@ -2194,24 +2086,6 @@ function insertAdjacentHTMLNode(target: NodeBase, position: unknown, html: unkno
   invalidAdjacentHtmlPosition(position);
 }
 
-function nextConnectedAncestor(node: any): any {
-  if (node.parentNode) return node.parentNode;
-  if (node.nodeType === DOCUMENT_FRAGMENT_NODE && node.host) return node.host;
-  return null;
-}
-
-function nodeIsConnected(node: NodeBase): boolean {
-  const seen = new Set<any>();
-  for (let hops = 0; hops < MAX_CONNECTED_NODE_ANCESTOR_HOPS; hops++) {
-    if (!node) return false;
-    if (node.nodeType === DOCUMENT_NODE) return true;
-    if (seen.has(node)) return false;
-    seen.add(node);
-    node = nextConnectedAncestor(node);
-  }
-  return false;
-}
-
 function runNodeCloneSteps(
   node: NodeBase,
   clone: NodeCloneValue | null,
@@ -2301,7 +2175,29 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     return collectTextContent(this._id);
   }
   set textContent(value) {
-    setNodeTextContent(this, value);
+    if (this._id < 0) {
+      setSyntheticTextContent(this, value);
+      return;
+    }
+    const text = String(value ?? "");
+    const observed = hasChildListObserver(this._id);
+    const removed = removeTextContentChildren(
+      this,
+      textContentChildIds(this._id),
+      observed,
+      hasSubtreeObserver(this._id),
+    );
+    includeObservedSyntheticChildren(this, removed.existing, observed);
+    const added = createTextContentChild(this, text, observed);
+    bumpMutationSeq("text");
+    recordTextContentMutations(
+      this,
+      removed.removedIds,
+      added.id,
+      observed,
+      added.nodes,
+      removed.existing,
+    );
   }
   get childNodes(): any {
     const cached = nodeListCache.get(this);
@@ -2327,14 +2223,37 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     return this.childNodes.length > 0;
   }
   contains(other) {
-    return nodeContains(this, other);
+    if (other == null) return false;
+    if (other === this) return true;
+    const sp = syntheticParent.get(other);
+    if (sp === (this as object)) return true;
+    if (typeof other._id !== "number") return false;
+    let cur = other._id;
+    let safety = 0;
+    while (safety < MAX_NODE_ANCESTOR_HOPS) {
+      if (cur === this._id) return true;
+      let p;
+      try {
+        p = dom.parentId(cur);
+      } catch {
+        return false;
+      }
+      if (p < 0 || p === cur) return false;
+      cur = p;
+      safety++;
+    }
+    return false;
   }
   normalize() {
     normalizeNodeChildren(this);
   }
 
   get parentNode() {
-    return nodeParent(this);
+    const parentId = cachedNodeParentId(this, ksState().childSeq | 0);
+    if (parentId === null || parentId < 0) return null;
+    const hostDocument = hostIdToDoc.get(parentId);
+    if (hostDocument) return hostDocument;
+    return nodeFor(parentId);
   }
   get parentElement() {
     const p = this.parentNode;
@@ -2378,7 +2297,22 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     return replaceNodeChild(this, newChild, oldChild);
   }
   before(...nodes: Parameters<Idl.Element["before"]>): void {
-    insertRelativeBefore(this, nodes);
+    const parent = this.parentNode;
+    if (!parent) return;
+    const argSet = new Set(nodes.filter(isNodeLike));
+    let viablePrev = this.previousSibling;
+    while (viablePrev && argSet.has(viablePrev)) {
+      viablePrev = viablePrev.previousSibling;
+    }
+    let anchor = viablePrev ? viablePrev.nextSibling : parent.firstChild;
+    while (anchor && argSet.has(anchor)) {
+      anchor = anchor.nextSibling;
+    }
+    const converted = nodes.map((n) => (isNodeLike(n) ? n : createTextNodeInternal(String(n))));
+    for (const node of converted) {
+      if (anchor) parent.insertBefore(node, anchor);
+      else parent.appendChild(node);
+    }
   }
   after(...nodes: Parameters<Idl.Element["after"]>): void {
     insertRelativeAfter(this, nodes);
@@ -2426,7 +2360,16 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   }
 
   get isConnected() {
-    return nodeIsConnected(this);
+    let n = this as any;
+    const seen = new Set();
+    for (let i = 0; i < MAX_CONNECTED_NODE_ANCESTOR_HOPS; i++) {
+      if (!n) return false;
+      if (n.nodeType === DOCUMENT_NODE) return true;
+      if (seen.has(n)) return false;
+      seen.add(n);
+      n = n.parentNode || (n.nodeType === DOCUMENT_FRAGMENT_NODE && n.host ? n.host : null);
+    }
+    return false;
   }
 }
 const NODE_CONSTANTS = {
@@ -2454,36 +2397,6 @@ for (const k of Object.keys(NODE_CONSTANTS)) {
   NodeBase.prototype[k] = NODE_CONSTANTS[k];
 }
 
-type NodeWithOptionalHost = NodeBase & { host?: NodeBase | null };
-
-function treeRoot(node: NodeWithOptionalHost): NodeWithOptionalHost {
-  let parent;
-  while ((parent = node.parentNode)) node = parent;
-  return node;
-}
-
-function shadowHost(node: NodeWithOptionalHost): NodeBase | null {
-  if (!node || node.nodeType !== DOCUMENT_FRAGMENT_NODE || typeof node.host === "undefined") {
-    return null;
-  }
-  return node.host || null;
-}
-
-function composedTreeRoot(root: NodeWithOptionalHost): NodeWithOptionalHost {
-  let host = shadowHost(root);
-  while (host) {
-    root = treeRoot(host);
-    host = shadowHost(root);
-  }
-  return root;
-}
-
-function getRootNodeForNode(node: NodeWithOptionalHost, options: any): NodeWithOptionalHost {
-  const root = treeRoot(node);
-  if (options && options.composed) return composedTreeRoot(root);
-  return root;
-}
-
 NodeBase.prototype.isSameNode = function (other) {
   if (!other) return false;
   return this === other || this._id === other._id;
@@ -2492,7 +2405,19 @@ NodeBase.prototype.isEqualNode = function (other) {
   return isEqualNode(this, other);
 };
 NodeBase.prototype.getRootNode = function (options) {
-  return getRootNodeForNode(this, options);
+  let n: NodeBase & { host?: NodeBase | null } = this;
+  let p;
+  while ((p = n.parentNode)) n = p;
+
+  if (options && options.composed) {
+    while (n && n.nodeType === DOCUMENT_FRAGMENT_NODE && typeof n.host !== "undefined" && n.host) {
+      let hop = n.host;
+      let hp;
+      while ((hp = hop.parentNode)) hop = hp;
+      n = hop;
+    }
+  }
+  return n;
 };
 NodeBase.prototype.compareDocumentPosition = function (other) {
   return compareDocumentPosition(this, other);
@@ -2546,56 +2471,26 @@ function findNamespaceAttribute<T>(
   return { found: false };
 }
 
-function matchesDefaultNamespaceDeclaration(
-  attributePrefix: string | null,
-  localName: string,
-): boolean {
-  return attributePrefix === null && localName === "xmlns";
-}
-
-function matchesNamedNamespaceDeclaration(
-  attributePrefix: string | null,
-  localName: string,
-  prefix: string,
-): boolean {
-  return attributePrefix === "xmlns" && localName === prefix;
-}
-
-function namespaceDeclarationNameMatches(attribute: Idl.Attr, prefix: string | null): boolean {
-  const attributePrefix = attribute.prefix === undefined ? null : attribute.prefix;
-  const localName = attribute.localName || attribute.name;
-  return prefix === null
-    ? matchesDefaultNamespaceDeclaration(attributePrefix, localName)
-    : matchesNamedNamespaceDeclaration(attributePrefix, localName, prefix);
-}
-
-function matchesNamespaceDeclaration(attribute: Idl.Attr, prefix: string | null): boolean {
-  if ((attribute.namespaceURI || null) !== XMLNS_NS) return false;
-  return namespaceDeclarationNameMatches(attribute, prefix);
-}
-
-function namespaceAtElement(
-  element: NamespaceLookupNode,
-  prefix: string | null,
-): NamespaceAttributeResult<string | null> {
-  const elementPrefix = element.prefix === undefined ? null : element.prefix;
-  const elementNamespace = element.namespaceURI || null;
-  if (elementNamespace && elementPrefix === prefix) {
-    return { found: true, value: elementNamespace };
-  }
-  return findNamespaceAttribute(
-    element,
-    (attribute) => matchesNamespaceDeclaration(attribute, prefix),
-    (attribute) => attribute.value || null,
-  );
-}
-
 function locateNamespace(elem: NamespaceLookupNode, prefix: string | null): string | null {
-  let current: NamespaceLookupNode | null = elem;
-  while (current && current.nodeType === ELEMENT_NODE) {
-    const namespace = namespaceAtElement(current, prefix);
-    if (namespace.found) return namespace.value;
-    current = current.parentNode;
+  let n: NamespaceLookupNode | null = elem;
+  while (n && n.nodeType === ELEMENT_NODE) {
+    const elPrefix = n.prefix === undefined ? null : n.prefix;
+    const elNs = n.namespaceURI || null;
+    if (elNs && elPrefix === prefix) return elNs;
+    const declaration = findNamespaceAttribute(
+      n,
+      (attribute) => {
+        if ((attribute.namespaceURI || null) !== XMLNS_NS) return false;
+        const attributePrefix = attribute.prefix === undefined ? null : attribute.prefix;
+        const localName = attribute.localName || attribute.name;
+        return prefix === null
+          ? attributePrefix === null && localName === "xmlns"
+          : attributePrefix === "xmlns" && localName === prefix;
+      },
+      (attribute) => attribute.value || null,
+    );
+    if (declaration.found) return declaration.value;
+    n = n.parentNode;
   }
   return null;
 }
@@ -3078,86 +2973,49 @@ function writeCharacterData(node: any, value: unknown): void {
   writeLiveTextCharacterData(node, next, oldValue);
 }
 
-function isCachedNodeWrapperArgument(arg: unknown, info: unknown): boolean {
-  return (
-    typeof arg === "number" &&
-    info !== null &&
-    typeof info === "object" &&
-    typeof Reflect.get(info, "nodeType") === "number"
-  );
-}
-
-function createTextNodeBacking(arg: unknown): {
-  id: number;
-  data: string;
-  info: any;
-} {
-  const data = arg === undefined ? "" : String(arg);
-  const id = dom.createTextNode(data);
-  const info = (dom.nodeInfo ? dom.nodeInfo(id) : null) || {
-    nodeType: TEXT_NODE,
-    nodeName: "#text",
-    localName: "",
-    nodeValue: data,
-  };
-  return { id, data, info };
-}
-
-function createCommentNodeBacking(arg: unknown): {
-  id: number;
-  data: string;
-  info: any;
-} {
-  const data = arg === undefined ? "" : String(arg);
-  const id = dom.createComment(data);
-  commentData.set(id, data);
-  const info = (dom.nodeInfo ? dom.nodeInfo(id) : null) || {
-    nodeType: COMMENT_NODE,
-    nodeName: "#comment",
-    localName: "",
-    nodeValue: data,
-  };
-  return { id, data, info };
-}
-
-function hasSurrogateCodeUnit(value: string): boolean {
-  for (let index = 0; index < value.length; index++) {
-    const codeUnit = value.charCodeAt(index);
-    if (codeUnit >= 0xd800 && codeUnit <= 0xdfff) return true;
-  }
-  return false;
-}
-
-function refreshTextInfoFromDom(node: TextNode): void {
-  try {
-    const fresh = dom.nodeInfo(node._id);
-    if (fresh) node._info = fresh;
-  } catch {}
-}
-
 class TextNode extends CharacterDataNode implements Idl.Text {
   // NodeBase.prototype installs the Slottable mixin's assignedSlot.
   declare readonly assignedSlot: Idl.HTMLSlotElement | null;
   _typeCheckSeq?: number;
   constructor(arg, info) {
-    if (isCachedNodeWrapperArgument(arg, info)) {
+    if (
+      typeof arg === "number" &&
+      info !== null &&
+      typeof info === "object" &&
+      typeof info.nodeType === "number"
+    ) {
       super(arg, info);
       return;
     }
-    const backing = createTextNodeBacking(arg);
-    super(backing.id, backing.info);
+    const data = arg === undefined ? "" : String(arg);
+    const id = dom.createTextNode(data);
+    const cachedInfo = (dom.nodeInfo ? dom.nodeInfo(id) : null) || {
+      nodeType: TEXT_NODE,
+      nodeName: "#text",
+      localName: "",
+      nodeValue: data,
+    };
+    super(id, cachedInfo);
     this._typeCheckSeq = ksState().mutationSeq | 0;
-    cache.set(backing.id, this);
+    cache.set(id, this);
   }
   _refreshTextInfo(): void {
     const curSeq = ksState().mutationSeq | 0;
     if (this._typeCheckSeq === curSeq) return;
     const cached = this._info && this._info.nodeValue;
-    if (typeof cached === "string" && hasSurrogateCodeUnit(cached)) {
-      this._typeCheckSeq = curSeq;
-      return;
+    if (typeof cached === "string") {
+      for (let i = 0; i < cached.length; i++) {
+        const c = cached.charCodeAt(i);
+        if (c >= 0xd800 && c <= 0xdfff) {
+          this._typeCheckSeq = curSeq;
+          return;
+        }
+      }
     }
-    refreshTextInfoFromDom(this);
+    try {
+      const fresh = dom.nodeInfo(this._id);
+      if (fresh) this._info = fresh;
+    } catch {}
     this._typeCheckSeq = curSeq;
   }
   get data() {
@@ -3231,14 +3089,27 @@ class TextNode extends CharacterDataNode implements Idl.Text {
 class CommentNode extends CharacterDataNode implements Idl.Comment {
   _typeCheckSeq?: number;
   constructor(arg, info) {
-    if (isCachedNodeWrapperArgument(arg, info)) {
+    if (
+      typeof arg === "number" &&
+      info !== null &&
+      typeof info === "object" &&
+      typeof info.nodeType === "number"
+    ) {
       super(arg, info);
       return;
     }
-    const backing = createCommentNodeBacking(arg);
-    super(backing.id, backing.info);
+    const data = arg === undefined ? "" : String(arg);
+    const id = dom.createComment(data);
+    commentData.set(id, data);
+    const cachedInfo = (dom.nodeInfo ? dom.nodeInfo(id) : null) || {
+      nodeType: COMMENT_NODE,
+      nodeName: "#comment",
+      localName: "",
+      nodeValue: data,
+    };
+    super(id, cachedInfo);
     this._typeCheckSeq = ksState().mutationSeq | 0;
-    cache.set(backing.id, this);
+    cache.set(id, this);
   }
   get data() {
     const v = commentData.get(this._id);

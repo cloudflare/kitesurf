@@ -164,32 +164,6 @@ function propertyFunction(desc: PropertyDescriptor): unknown {
   return desc.get ?? desc.value;
 }
 
-interface FastpathElement {
-  _id?: unknown;
-  nodeType?: unknown;
-  ownerDocument?: unknown;
-}
-
-function candidateElementId(element: FastpathElement): number | null {
-  const id = element._id;
-  if (typeof id !== "number" || !Number.isInteger(id) || id < 0) return null;
-  return id;
-}
-
-function brandElement(obj: unknown, document: object): number {
-  const element = obj as FastpathElement | null;
-  if (!element) return -1;
-  const id = candidateElementId(element);
-  if (id === null) return -1;
-  if (nodeFor(id) !== obj) return -1;
-  if (!isElementInDocument(element, document)) return -1;
-  return id;
-}
-
-function isElementInDocument(element: FastpathElement, document: object): boolean {
-  return element.nodeType === ELEMENT_NODE && element.ownerDocument === document;
-}
-
 function findHolder(
   prop: string,
   root: object = Element.prototype,
@@ -220,7 +194,13 @@ export function installFastpath(document: object): void {
     // ops, since every node op bails on it (it is marked special below).
     if (obj === document) return DOCUMENT_ID;
     try {
-      return brandElement(obj, document);
+      const el = obj as { _id?: unknown; nodeType?: unknown; ownerDocument?: unknown } | null;
+      const id = el?._id;
+      if (typeof id !== "number" || !Number.isInteger(id) || id < 0) return -1;
+      if (nodeFor(id) !== obj) return -1;
+      if (el!.nodeType !== ELEMENT_NODE) return -1;
+      if (el!.ownerDocument !== document) return -1;
+      return id;
     } catch {
       return -1;
     }

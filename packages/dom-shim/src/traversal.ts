@@ -28,22 +28,11 @@ const NodeFilter = Object.freeze({
 });
 
 function traversalFilterThrow(node: Idl.Node | null, whatToShow: number, filter: unknown): number {
-  const shown = traversalTypeResult(node, whatToShow);
-  if (shown !== NodeFilter.FILTER_ACCEPT) return shown;
-  if (node === null) return NodeFilter.FILTER_REJECT;
-  return invokeTraversalFilter(node, filter);
-}
-
-function traversalTypeResult(node: Idl.Node | null, whatToShow: number): number {
   if (!node) return NodeFilter.FILTER_REJECT;
   const nt = node.nodeType;
   if (nt == null) return NodeFilter.FILTER_REJECT;
   const bit = 1 << (nt - 1);
   if ((whatToShow & bit) === 0) return NodeFilter.FILTER_SKIP;
-  return NodeFilter.FILTER_ACCEPT;
-}
-
-function invokeTraversalFilter(node: Idl.Node, filter: unknown): number {
   if (filter == null) return NodeFilter.FILTER_ACCEPT;
   let result: unknown;
   if (typeof filter === "function") {
@@ -75,18 +64,6 @@ function hasSiblingTraversalParent(
 
 function hasPreviousTraversalParent(parent: Idl.Node | null, root: Idl.Node): parent is Idl.Node {
   return parent !== null && parent !== root;
-}
-
-function shouldAdjustIteratorReference(
-  removedNode: Idl.Node,
-  root: Idl.Node,
-  reference: Idl.Node,
-): boolean {
-  return (
-    removedNode !== root &&
-    isInclusiveAncestor(removedNode, reference) &&
-    !isInclusiveAncestor(removedNode, root)
-  );
 }
 
 class TreeWalker implements Idl.TreeWalker {
@@ -401,16 +378,14 @@ class NodeIterator implements Idl.NodeIterator {
 
   // Reposition before detach while the removed subtree's old neighbors are still available.
   #preRemove(removedNode: Idl.Node): void {
-    if (!shouldAdjustIteratorReference(removedNode, this.#root, this.#reference)) return;
+    if (removedNode === this.#root) return;
+    if (!isInclusiveAncestor(removedNode, this.#reference)) return;
+    if (isInclusiveAncestor(removedNode, this.#root)) return;
     if (!this.#pointerBefore) {
       const p = previousNodeFlat(removedNode);
       if (p) this.#reference = p;
       return;
     }
-    this.#moveReferenceBeforeRemovedNode(removedNode);
-  }
-
-  #moveReferenceBeforeRemovedNode(removedNode: Idl.Node): void {
     const next = nextNodeAfterDescendants(removedNode);
     if (next) {
       this.#reference = next;

@@ -145,23 +145,14 @@ function appendButtonEntry(
 }
 
 const isFileEntry = (v: unknown): v is SubmissionFile =>
-  isObjectLike(v) && hasStringFileName(v) && hasNumericFileSize(v) && hasArrayBufferMethod(v);
-
-function isObjectLike(v: unknown): v is object {
-  return typeof v === "object" && v !== null;
-}
-
-function hasStringFileName(v: object): boolean {
-  return "name" in v && typeof v.name === "string";
-}
-
-function hasNumericFileSize(v: object): boolean {
-  return "size" in v && typeof v.size === "number";
-}
-
-function hasArrayBufferMethod(v: object): boolean {
-  return "arrayBuffer" in v && typeof v.arrayBuffer === "function";
-}
+  typeof v === "object" &&
+  v !== null &&
+  "name" in v &&
+  typeof v.name === "string" &&
+  "size" in v &&
+  typeof v.size === "number" &&
+  "arrayBuffer" in v &&
+  typeof v.arrayBuffer === "function";
 function multipartEscape(s: unknown) {
   return String(s).replace(/\r/g, "%0D").replace(/\n/g, "%0A").replace(/"/g, "%22");
 }
@@ -195,74 +186,43 @@ function encodeFormBody(
   encoding: string,
 ): { body: string; contentType: string } {
   // The parent decodes this JSON string one code unit at a time to recover request bytes.
-  if (enctype === "text/plain") return encodeTextPlain(entries, encoding);
-  if (enctype === "multipart/form-data") return encodeMultipart(entries, encoding);
+  const toLatin1Wire = (s: string): string =>
+    binaryString(encodeHtmlBytes(encoding, s) ?? _MPEncoder.encode(s));
+  if (enctype === "text/plain") {
+    let body = "";
+    for (const [n, v] of entries) {
+      body += toLatin1Wire(`${n}=${isFileEntry(v) ? v.name : v}\r\n`);
+    }
+    return { body, contentType: "text/plain" };
+  }
+  if (enctype === "multipart/form-data") {
+    const boundary = generateMultipartBoundary();
+    let body = "";
+    for (const [n, v] of entries) {
+      if (isFileEntry(v)) {
+        const bits = typeof v.__ksBits === "string" ? v.__ksBits : "";
+        body += toLatin1Wire(
+          `--${boundary}\r\n` +
+            `Content-Disposition: form-data; name="${multipartEscape(n)}"; filename="${multipartEscape(v.name)}"\r\n` +
+            `Content-Type: ${sanitizeMimeType(v.type)}\r\n\r\n`,
+        );
+        body += bits;
+        body += toLatin1Wire("\r\n");
+      } else {
+        body += toLatin1Wire(
+          `--${boundary}\r\n` +
+            `Content-Disposition: form-data; name="${multipartEscape(n)}"\r\n\r\n` +
+            `${v}\r\n`,
+        );
+      }
+    }
+    body += toLatin1Wire(`--${boundary}--\r\n`);
+    return { body, contentType: `multipart/form-data; boundary=${boundary}` };
+  }
   return {
     body: urlencodedSerialize(formStringEntries(entries), encoding),
     contentType: "application/x-www-form-urlencoded",
   };
-}
-
-function toLatin1Wire(value: string, encoding: string): string {
-  return binaryString(encodeHtmlBytes(encoding, value) ?? _MPEncoder.encode(value));
-}
-
-function encodeTextPlain(
-  entries: readonly SubmissionEntry[],
-  encoding: string,
-): { body: string; contentType: string } {
-  let body = "";
-  for (const [name, value] of entries) {
-    body += toLatin1Wire(`${name}=${isFileEntry(value) ? value.name : value}\r\n`, encoding);
-  }
-  return { body, contentType: "text/plain" };
-}
-
-function encodeMultipart(
-  entries: readonly SubmissionEntry[],
-  encoding: string,
-): { body: string; contentType: string } {
-  const boundary = generateMultipartBoundary();
-  let body = "";
-  for (const [name, value] of entries) {
-    body += isFileEntry(value)
-      ? encodeMultipartFile(name, value, boundary, encoding)
-      : encodeMultipartString(name, value, boundary, encoding);
-  }
-  body += toLatin1Wire(`--${boundary}--\r\n`, encoding);
-  return { body, contentType: `multipart/form-data; boundary=${boundary}` };
-}
-
-function encodeMultipartFile(
-  name: string,
-  file: SubmissionFile,
-  boundary: string,
-  encoding: string,
-): string {
-  const bits = typeof file.__ksBits === "string" ? file.__ksBits : "";
-  let body = toLatin1Wire(
-    `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="${multipartEscape(name)}"; filename="${multipartEscape(file.name)}"\r\n` +
-      `Content-Type: ${sanitizeMimeType(file.type)}\r\n\r\n`,
-    encoding,
-  );
-  body += bits;
-  body += toLatin1Wire("\r\n", encoding);
-  return body;
-}
-
-function encodeMultipartString(
-  name: string,
-  value: string,
-  boundary: string,
-  encoding: string,
-): string {
-  return toLatin1Wire(
-    `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="${multipartEscape(name)}"\r\n\r\n` +
-      `${value}\r\n`,
-    encoding,
-  );
 }
 
 function formStringEntries(entries: readonly SubmissionEntry[]): Array<[string, string]> {

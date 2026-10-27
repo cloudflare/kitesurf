@@ -1174,50 +1174,27 @@ export function installWindow(
       );
     }
   };
-  const isTransferSequence = (raw: unknown): raw is Iterable<unknown> =>
-    raw !== null &&
-    typeof raw === "object" &&
-    typeof (raw as Partial<Iterable<unknown>>)[Symbol.iterator] === "function";
-  const transferSequence = (raw: unknown): Iterable<unknown> => {
-    if (!isTransferSequence(raw)) {
+  const pmConvertTransfer = (raw: unknown): object[] => {
+    if (raw === undefined) return [];
+    if (
+      raw === null ||
+      typeof raw !== "object" ||
+      typeof (raw as Partial<Iterable<unknown>>)[Symbol.iterator] !== "function"
+    ) {
       throw new TypeError(
         "Failed to execute 'postMessage' on 'Window': The provided value cannot be converted to a sequence.",
       );
     }
-    return raw;
-  };
-  const isTransferableObject = (value: unknown): value is object =>
-    value !== null && (typeof value === "object" || typeof value === "function");
-  const pmConvertTransfer = (raw: unknown): object[] => {
-    if (raw === undefined) return [];
     const out: object[] = [];
-    for (const v of transferSequence(raw)) {
-      if (!isTransferableObject(v)) {
+    for (const v of raw as Iterable<unknown>) {
+      if (v === null || (typeof v !== "object" && typeof v !== "function")) {
         throw new TypeError(
           "Failed to execute 'postMessage' on 'Window': Transferable entry is not an object.",
         );
       }
-      out.push(v);
+      out.push(v as object);
     }
     return out;
-  };
-  const postMessageUsesOptions = (args: readonly unknown[]): boolean => {
-    const target = args[1];
-    if (args.length >= 3 || target === undefined) return false;
-    return target === null || typeof target === "object";
-  };
-  const postMessageInput = (args: readonly unknown[]) => {
-    let targetOrigin: unknown = args[1];
-    let rawTransfer: unknown = args.length >= 3 ? args[2] : undefined;
-    if (postMessageUsesOptions(args)) {
-      const options = (targetOrigin ?? {}) as {
-        targetOrigin?: unknown;
-        transfer?: unknown;
-      };
-      rawTransfer = options.transfer;
-      targetOrigin = options.targetOrigin;
-    }
-    return { targetOrigin, rawTransfer };
   };
   const pmParseArgs = (args: readonly unknown[]): { target: string; transfer: object[] } => {
     if (args.length === 0) {
@@ -1225,69 +1202,61 @@ export function installWindow(
         "Failed to execute 'postMessage' on 'Window': 1 argument required, but only 0 present.",
       );
     }
-    const { targetOrigin, rawTransfer } = postMessageInput(args);
+    let targetOrigin: unknown = args[1];
+    let rawTransfer: unknown = args.length >= 3 ? args[2] : undefined;
+    if (
+      args.length < 3 &&
+      targetOrigin !== undefined &&
+      (targetOrigin === null || typeof targetOrigin === "object")
+    ) {
+      const opts = (targetOrigin ?? {}) as {
+        targetOrigin?: unknown;
+        transfer?: unknown;
+      };
+      rawTransfer = opts.transfer;
+      targetOrigin = opts.targetOrigin;
+    }
     return {
       target: pmCheckTargetOrigin(targetOrigin),
       transfer: pmConvertTransfer(rawTransfer),
     };
   };
-  const isMessagePortTransfer = (
-    value: object,
-    MessagePortCtor: unknown,
-  ): value is PmTransferablePort =>
-    typeof MessagePortCtor === "function" && value instanceof MessagePortCtor;
-  const assertTransferPortIsAttached = (port: PmTransferablePort): void => {
-    if (port._closed || port._detached) {
-      throw pmDataCloneError("MessagePort is already detached.");
-    }
-  };
-  const addPostMessageTransfer = (
-    value: object,
-    MessagePortCtor: unknown,
-    seen: Set<object>,
-    buffers: ArrayBuffer[],
-    ports: PmTransferablePort[],
-  ): void => {
-    if (seen.has(value)) throw pmDataCloneError("Duplicate transferable in transfer list.");
-    seen.add(value);
-    if (isMessagePortTransfer(value, MessagePortCtor)) {
-      assertTransferPortIsAttached(value);
-      ports.push(value);
-      return;
-    }
-    if (value instanceof ArrayBuffer) {
-      buffers.push(value);
-      return;
-    }
-    throw pmDataCloneError("Value is not transferable.");
-  };
-  const clonePostMessageValue = (message: unknown, buffers: ArrayBuffer[]): unknown => {
-    const clone = (globalThis as { structuredClone?: PmStructuredClone }).structuredClone;
-    if (typeof clone === "function") {
-      return buffers.length ? clone(message, { transfer: buffers }) : clone(message);
-    }
-    return JSON.parse(pmSerialize(message)) as unknown;
-  };
-  const transferPostMessagePorts = (ports: PmTransferablePort[]): Idl.MessagePort[] =>
-    ports.map(
-      (port) =>
-        (typeof port.__ksTransfer === "function" ? port.__ksTransfer() : port) as Idl.MessagePort,
-    );
   const pmSerializeWithTransfer = (
     message: unknown,
     transfer: readonly object[],
   ): { cloned: unknown; ports: Idl.MessagePort[] } => {
-    const MessagePortCtor = (globalThis as { MessagePort?: unknown }).MessagePort;
+    const MP = (globalThis as { MessagePort?: unknown }).MessagePort;
     const seen = new Set<object>();
     const buffers: ArrayBuffer[] = [];
     const ports: PmTransferablePort[] = [];
-    for (const value of transfer) {
-      addPostMessageTransfer(value, MessagePortCtor, seen, buffers, ports);
+    for (const t of transfer) {
+      if (seen.has(t)) {
+        throw pmDataCloneError("Duplicate transferable in transfer list.");
+      }
+      seen.add(t);
+      if (typeof MP === "function" && t instanceof MP) {
+        const port = t as PmTransferablePort;
+        if (port._closed || port._detached) {
+          throw pmDataCloneError("MessagePort is already detached.");
+        }
+        ports.push(port);
+      } else if (t instanceof ArrayBuffer) {
+        buffers.push(t);
+      } else {
+        throw pmDataCloneError("Value is not transferable.");
+      }
     }
-    return {
-      cloned: clonePostMessageValue(message, buffers),
-      ports: transferPostMessagePorts(ports),
-    };
+    const SC = (globalThis as { structuredClone?: PmStructuredClone }).structuredClone;
+    let cloned: unknown;
+    if (typeof SC === "function") {
+      cloned = buffers.length ? SC(message, { transfer: buffers }) : SC(message);
+    } else {
+      cloned = JSON.parse(pmSerialize(message)) as unknown;
+    }
+    const outPorts = ports.map(
+      (p) => (typeof p.__ksTransfer === "function" ? p.__ksTransfer() : p) as Idl.MessagePort,
+    );
+    return { cloned, ports: outPorts };
   };
   const frameContext = getInternalState().frameContext;
   const createParentWindowStub = function (): any {
@@ -1556,20 +1525,20 @@ export function stampNamedGlobal(nodeId: number, name: string): void {
   recordNamedGlobal(nodeId, name, isConnectedNode(nodeId));
 }
 
-function isRecordableNamedGlobal(name: string): boolean {
-  return typeof name === "string" && name.length > 0 && !/^[0-9_$]/.test(name);
-}
-
-function namedGlobalEntry(name: string) {
+function recordNamedGlobal(nodeId: number, name: string, connected: boolean): void {
+  if (nodeIdName.get(nodeId) !== name) forgetIdGlobal(nodeId);
+  if (typeof name !== "string" || name.length === 0) return;
+  if (/^[0-9_$]/.test(name)) return;
+  nodeIdName.set(nodeId, name);
   let entry = stampedNames.get(name);
   if (!entry) {
     entry = { getter: () => namedGlobalValue(name), nodeIds: new Set() };
     stampedNames.set(name, entry);
   }
-  return entry;
-}
-
-function installNamedGlobalAccessor(name: string, getter: () => unknown): void {
+  entry.nodeIds.add(nodeId);
+  // An own property here is a real global or the page's own; a named property never shadows it.
+  if (!connected || isReservedGlobalName(name)) return;
+  const getter = entry.getter;
   try {
     Object.defineProperty(ksGlobal, name, {
       configurable: true,
@@ -1586,17 +1555,6 @@ function installNamedGlobalAccessor(name: string, getter: () => unknown): void {
       },
     });
   } catch {}
-}
-
-function recordNamedGlobal(nodeId: number, name: string, connected: boolean): void {
-  if (nodeIdName.get(nodeId) !== name) forgetIdGlobal(nodeId);
-  if (!isRecordableNamedGlobal(name)) return;
-  nodeIdName.set(nodeId, name);
-  const entry = namedGlobalEntry(name);
-  entry.nodeIds.add(nodeId);
-  // An own property here is a real global or the page's own; a named property never shadows it.
-  if (!connected || isReservedGlobalName(name)) return;
-  installNamedGlobalAccessor(name, entry.getter);
 }
 
 function isConnectedNode(nodeId: number): boolean {
@@ -1805,24 +1763,19 @@ function idFromNodeInfo(info: unknown) {
   return findIdAttribute(attributes);
 }
 
-function initialNamedNodeIds(): Int32Array | null {
-  try {
-    if (typeof dom.querySelectorAll !== "function") return null;
-    return dom.querySelectorAll("[id]");
-  } catch {
-    return null;
-  }
-}
-
-function stampInitialNamedGlobalId(nodeId: number): void {
-  if (typeof nodeId !== "number" || nodeId <= 0) return;
-  const id = idAttributeOf(nodeId);
-  // A document-scoped query only returns connected nodes.
-  if (id !== null) recordNamedGlobal(nodeId, id, true);
-}
-
 export function stampInitialNamedGlobals(): void {
-  const ids = initialNamedNodeIds();
+  let ids: Int32Array | null;
+  try {
+    ids = typeof dom.querySelectorAll === "function" ? dom.querySelectorAll("[id]") : null;
+  } catch {
+    return;
+  }
   if (!ids || typeof ids !== "object") return;
-  for (let i = 0; i < ids.length; i++) stampInitialNamedGlobalId(ids[i]);
+  for (let i = 0; i < ids.length; i++) {
+    const nodeId = ids[i];
+    if (typeof nodeId !== "number" || nodeId <= 0) continue;
+    const id = idAttributeOf(nodeId);
+    // A document-scoped query only returns connected nodes.
+    if (id !== null) recordNamedGlobal(nodeId, id, true);
+  }
 }

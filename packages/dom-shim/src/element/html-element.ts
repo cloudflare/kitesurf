@@ -129,20 +129,16 @@ class HTMLElement extends Element implements Idl.HTMLElement {
   set outerText(v: string) {
     // Non-HTML elements have no outerText IDL attribute and receive an expando.
     // https://html.spec.whatwg.org/#dom-outertext
-    setOuterText(this, v);
+    const namespace = this.namespaceURI;
+    if (isNonHtmlOuterTextNamespace(namespace)) {
+      setNonHtmlOuterText(this, v);
+      return;
+    }
+    if (!this.parentNode) {
+      throw new DOMException("The element has no parent.", "NoModificationAllowedError");
+    }
+    replaceElementWithOuterText(this, v);
   }
-}
-
-function setOuterText(element: HTMLElement, value: string): void {
-  const namespace = element.namespaceURI;
-  if (isNonHtmlOuterTextNamespace(namespace)) {
-    setNonHtmlOuterText(element, value);
-    return;
-  }
-  if (!element.parentNode) {
-    throw new DOMException("The element has no parent.", "NoModificationAllowedError");
-  }
-  replaceElementWithOuterText(element, value);
 }
 
 function isNonHtmlOuterTextNamespace(namespace: string | null): boolean {

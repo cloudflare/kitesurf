@@ -84,6 +84,24 @@ test("an empty keyframe property is ignored without reading its value", async ({
   expect(result).toEqual([false]);
 });
 
+test("a held animation still reads its timeline when currentTime is accessed", async ({ page }) => {
+  await setContent(page, "<div></div>");
+  const result = await page.evaluate(() => {
+    const timeline = new DocumentTimeline();
+    const animation = new Animation(null, timeline);
+    animation.currentTime = 37;
+    let reads = 0;
+    Object.defineProperty(timeline, "currentTime", {
+      get() {
+        reads++;
+        return 100;
+      },
+    });
+    return { currentTime: animation.currentTime, reads };
+  });
+  expect(result).toEqual({ currentTime: 37, reads: 1 });
+});
+
 test("paused animations compute the values Chrome computes", async ({ page }) => {
   await setContent(page, PROBES);
   const got = await page.evaluate(() => Reflect.get(globalThis, "__probes"));

@@ -164,20 +164,15 @@ function outsideDropdownListener(overlay: Element, select: HTMLSelectElement): (
 // when it handled the click.
 export function toggleSelectDropdown(select: unknown): boolean {
   if (!(select instanceof HTMLSelectElement)) return false;
-  if (!isPopupSelect(select)) return false;
+  if (select.disabled) return false;
+  if (select.hasAttribute("multiple")) return false;
+  const sizeAttr = parseInt(select.getAttribute("size") || "0", 10);
+  if (sizeAttr > 1) return false;
   if (openState && openState.select === select) {
     closeDropdown();
   } else {
     openDropdown(select);
   }
-  return true;
-}
-
-function isPopupSelect(select: HTMLSelectElement): boolean {
-  if (select.disabled) return false;
-  if (select.hasAttribute("multiple")) return false;
-  const sizeAttr = parseInt(select.getAttribute("size") || "0", 10);
-  if (sizeAttr > 1) return false;
   return true;
 }
 

@@ -366,10 +366,6 @@ class XPathLexer {
   }
 }
 
-function lex(src: string): Tok[] {
-  return new XPathLexer(src).tokenize();
-}
-
 type Resolver = ((prefix: string) => unknown) | { lookupNamespaceURI: unknown } | null;
 
 function resolvePrefix(resolver: Resolver, prefix: string): string {
@@ -618,7 +614,7 @@ class Parser {
     const steps: Step[] = [];
     if (this.is("op", "/")) {
       this.next();
-      if (this.startsStep()) this.relativePath(steps, false);
+      if (startsStepToken(this.peek())) this.relativePath(steps, false);
       return { t: "path", start: "root", steps };
     }
     if (this.is("op", "//")) {
@@ -627,10 +623,6 @@ class Parser {
     }
     this.relativePath(steps, false);
     return { t: "path", start: "context", steps };
-  }
-
-  private startsStep(): boolean {
-    return startsStepToken(this.peek());
   }
 
   private relativePath(steps: Step[], leadingSeparator: boolean): void {
@@ -698,7 +690,7 @@ class Parser {
 }
 
 export function compile(src: string, resolver: Resolver): Expr {
-  return new Parser(src, lex(src), resolver).parse();
+  return new Parser(src, new XPathLexer(src).tokenize(), resolver).parse();
 }
 
 function isAttr(n: XNode | null | undefined): boolean {

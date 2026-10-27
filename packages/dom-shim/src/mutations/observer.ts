@@ -143,13 +143,13 @@ export class MutationRecord implements Idl.MutationRecord {
     if (token !== RECORD_TOKEN) throw new TypeError("Illegal constructor");
     this.#type = type;
     this.#target = target;
-    this.#addedNodes = nodeListOrEmpty(extras.addedNodes);
-    this.#removedNodes = nodeListOrEmpty(extras.removedNodes);
-    this.#previousSibling = siblingOrNull(extras.previousSibling);
-    this.#nextSibling = siblingOrNull(extras.nextSibling);
-    this.#attributeName = stringOrNull(extras.attributeName);
-    this.#attributeNamespace = stringOrNull(extras.attributeNamespace);
-    this.#oldValue = stringOrNull(extras.oldValue);
+    this.#addedNodes = extras.addedNodes || [];
+    this.#removedNodes = extras.removedNodes || [];
+    this.#previousSibling = extras.previousSibling || null;
+    this.#nextSibling = extras.nextSibling || null;
+    this.#attributeName = extras.attributeName ?? null;
+    this.#attributeNamespace = extras.attributeNamespace ?? null;
+    this.#oldValue = extras.oldValue ?? null;
   }
   get type() {
     return this.#type;
@@ -178,18 +178,6 @@ export class MutationRecord implements Idl.MutationRecord {
   get oldValue() {
     return this.#oldValue;
   }
-}
-
-function nodeListOrEmpty(nodes?: NodeBase[]): NodeBase[] {
-  return nodes || [];
-}
-
-function siblingOrNull(node?: NodeBase | null): NodeBase | null {
-  return node || null;
-}
-
-function stringOrNull(value?: string | null): string | null {
-  return value ?? null;
 }
 
 function makeRecord(
@@ -314,16 +302,20 @@ function targetMatchesRegistration(
   subtree: boolean,
 ): boolean {
   if (registeredTargetId === targetId) return true;
-  return subtree && hasRegisteredAncestor(targetId, registeredTargetId);
-}
-
-function hasRegisteredAncestor(targetId: number, registeredTargetId: number): boolean {
+  if (!subtree) return false;
   let cur = targetId;
-  for (let safety = 0; safety < OBSERVER_ANCESTOR_HOP_LIMIT; safety++) {
-    const parent = observerParentId(cur);
-    if (invalidObserverParent(parent, cur)) return false;
+  let safety = 0;
+  while (safety < OBSERVER_ANCESTOR_HOP_LIMIT) {
+    let parent;
+    try {
+      parent = (dom as any).parentId(cur);
+    } catch {
+      return false;
+    }
+    if (parent < 0 || parent === cur) return false;
     if (parent === registeredTargetId) return true;
     cur = parent;
+    safety++;
   }
   return false;
 }
@@ -356,40 +348,33 @@ export function hasSubtreeObserver(targetId: number): boolean {
   return matched;
 }
 
-function isNewTransientSource(entry: ObserverRegistration, rootId: number): boolean {
-  return entry.options.subtree && entry.targetId !== rootId && observerMatchesTarget(entry, rootId);
-}
-
-function collectTransientSources(rootId: number): Set<ObserverRegistration> {
+export function registerTransientObservers(rootId: number): void {
   const sources = new Set<ObserverRegistration>();
   for (const entry of mutationObservers) {
-    if (isNewTransientSource(entry, rootId)) sources.add(entry);
+    if (
+      entry.options.subtree &&
+      entry.targetId !== rootId &&
+      observerMatchesTarget(entry, rootId)
+    ) {
+      sources.add(entry);
+    }
   }
   forEachMatchingTransientSource(rootId, (source) => sources.add(source));
-  return sources;
-}
-
-function registerTransientSource(rootId: number, source: ObserverRegistration): void {
-  let targetSources = transientSourcesByTarget.get(rootId);
-  if (!targetSources) {
-    targetSources = new Set();
-    transientSourcesByTarget.set(rootId, targetSources);
-  }
-  if (targetSources.has(source)) return;
-  targetSources.add(source);
-  moPendingObservers.add(source.observer);
-  let sourceTargets = transientTargetsBySource.get(source);
-  if (!sourceTargets) {
-    sourceTargets = new Set();
-    transientTargetsBySource.set(source, sourceTargets);
-  }
-  sourceTargets.add(rootId);
-}
-
-export function registerTransientObservers(rootId: number): void {
-  const sources = collectTransientSources(rootId);
   for (const source of sources) {
-    registerTransientSource(rootId, source);
+    let targetSources = transientSourcesByTarget.get(rootId);
+    if (!targetSources) {
+      targetSources = new Set();
+      transientSourcesByTarget.set(rootId, targetSources);
+    }
+    if (targetSources.has(source)) continue;
+    targetSources.add(source);
+    moPendingObservers.add(source.observer);
+    let sourceTargets = transientTargetsBySource.get(source);
+    if (!sourceTargets) {
+      sourceTargets = new Set();
+      transientTargetsBySource.set(source, sourceTargets);
+    }
+    sourceTargets.add(rootId);
   }
   if (moPendingObservers.size > 0) scheduleMoDelivery();
 }
@@ -548,21 +533,21 @@ function invokeIframeHook(hook: (element: unknown) => void, element: unknown): v
   } catch {}
 }
 
-function notifyDirectIframeInsert(
-  hook: (element: unknown) => void,
-  insertedNode: LinkishNode,
-): void {
-  if (String(insertedNode.tagName ?? "").toUpperCase() === "IFRAME") {
-    invokeIframeHook(hook, insertedNode);
-  }
-}
-
 function notifyIframeInserts(insertedNode: LinkishNode, nested: LinkishNode[]): void {
   const hook = getInternalState().afterIframeInsert;
   if (typeof hook !== "function") return;
   try {
-    notifyDirectIframeInsert(hook, insertedNode);
-    for (const el of nested) invokeIframeHook(hook, el);
+    const tag = String(insertedNode.tagName ?? "").toUpperCase();
+    if (tag === "IFRAME") {
+      try {
+        hook(insertedNode);
+      } catch {}
+    }
+    for (const el of nested) {
+      try {
+        hook(el);
+      } catch {}
+    }
   } catch {}
 }
 
@@ -624,12 +609,6 @@ interface ScriptInsertDetails {
   readonly integrity: string;
   readonly nonce: string;
   readonly crossOrigin: string | null;
-}
-
-interface ResourceDescendants {
-  readonly iframes: LinkishNode[];
-  readonly scripts: LinkishNode[];
-  readonly links: LinkishNode[];
 }
 
 export function markRuntimeCreatedScript(id: number): void {
@@ -844,28 +823,21 @@ function notifyScriptInserts(insertedNode: LinkishNode, nested: LinkishNode[]): 
   } catch {}
 }
 
-function addResourceDescendant(el: LinkishNode, groups: ResourceDescendants): void {
-  const tag = String(el.localName ?? "").toLowerCase();
-  if (tag === "iframe") groups.iframes.push(el);
-  else if (tag === "script") groups.scripts.push(el);
-  else if (tag === "link") groups.links.push(el);
-}
-
-function collectResourceDescendants(insertedNode: LinkishNode): ResourceDescendants {
-  const groups: ResourceDescendants = { iframes: [], scripts: [], links: [] };
+export function notifySubtreeInserts(insertedNode: LinkishNode): void {
+  // Snapshot resource descendants before insertion hooks can mutate the subtree.
+  const iframes: LinkishNode[] = [];
+  const scripts: LinkishNode[] = [];
+  const links: LinkishNode[] = [];
   try {
     if (typeof insertedNode.querySelectorAll === "function") {
       for (const el of Array.from(insertedNode.querySelectorAll("iframe,script,link"))) {
-        addResourceDescendant(el, groups);
+        const tag = String(el.localName ?? "").toLowerCase();
+        if (tag === "iframe") iframes.push(el);
+        else if (tag === "script") scripts.push(el);
+        else if (tag === "link") links.push(el);
       }
     }
   } catch {}
-  return groups;
-}
-
-export function notifySubtreeInserts(insertedNode: LinkishNode): void {
-  // Snapshot resource descendants before insertion hooks can mutate the subtree.
-  const { iframes, scripts, links } = collectResourceDescendants(insertedNode);
   notifyIframeInserts(insertedNode, iframes);
   notifyScriptInserts(insertedNode, scripts);
   notifyLinkInserts(insertedNode, links);

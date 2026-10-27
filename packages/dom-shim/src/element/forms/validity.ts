@@ -68,19 +68,14 @@ function applyTypeMismatch(
   value: string,
 ) {
   if (!value) return;
-  if (type === "email") return applyEmailTypeMismatch(control, flags, value);
-  if (type === "url" && !isValidUrl(stripAsciiWhitespace(value))) flags.typeMismatch = true;
-}
-
-function applyEmailTypeMismatch(
-  control: HTMLInputElement,
-  flags: ValidityFlags,
-  value: string,
-): void {
-  if (control.multiple) {
-    const parts = value.split(",").map(stripAsciiWhitespace);
-    if (parts.some((part) => !isValidEmail(part))) flags.typeMismatch = true;
-  } else if (!isValidEmail(stripAsciiWhitespace(value))) {
+  if (type === "email") {
+    if (control.multiple) {
+      const parts = value.split(",").map(stripAsciiWhitespace);
+      if (parts.some((part) => !isValidEmail(part))) flags.typeMismatch = true;
+    } else if (!isValidEmail(stripAsciiWhitespace(value))) {
+      flags.typeMismatch = true;
+    }
+  } else if (type === "url" && !isValidUrl(stripAsciiWhitespace(value))) {
     flags.typeMismatch = true;
   }
 }

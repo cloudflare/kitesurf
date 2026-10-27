@@ -114,109 +114,29 @@ function resetTextArea(textarea: HTMLTextAreaElement) {
 
 function resetSelect(select: HTMLSelectElement) {
   const options = selectOptions(select);
-  resetOptionSelection(options);
-  if (!select.multiple && !hasSelectedOption(options)) selectFirstEnabledOption(options);
-  resyncSelectLabel(select);
-}
-
-function resetOptionSelection(options: ReturnType<typeof selectOptions>): void {
   for (const option of options) {
     optionSelected.set(option._id, {
       selected: option.defaultSelected,
       dirty: false,
     });
   }
-}
-
-function hasSelectedOption(options: ReturnType<typeof selectOptions>): boolean {
-  for (const option of options) {
-    if (optionSelected.get(option._id)?.selected) return true;
-  }
-  return false;
-}
-
-function selectFirstEnabledOption(options: ReturnType<typeof selectOptions>): void {
-  for (const option of options) {
-    if (option.disabled) continue;
-    optionSelected.set(option._id, { selected: true, dirty: false });
-    break;
-  }
-}
-
-function collectFormElements(form: HTMLFormElement): Element[] {
-  const out: Element[] = [];
-  const seen = new Set<Element>();
-  appendDescendantFormElements(form, out, seen);
-  appendExternalFormElements(form, out, seen);
-  return out;
-}
-
-function appendDescendantFormElements(
-  form: HTMLFormElement,
-  out: Element[],
-  seen: Set<Element>,
-): void {
-  for (const control of formListedDescendants(form)) {
-    if (control.form === form) {
-      out.push(control);
-      seen.add(control);
+  if (!select.multiple) {
+    let anySelected = false;
+    for (const option of options) {
+      if (optionSelected.get(option._id)?.selected) {
+        anySelected = true;
+        break;
+      }
+    }
+    if (!anySelected) {
+      for (const option of options) {
+        if (option.disabled) continue;
+        optionSelected.set(option._id, { selected: true, dirty: false });
+        break;
+      }
     }
   }
-}
-
-function appendExternalFormElements(
-  form: HTMLFormElement,
-  out: Element[],
-  seen: Set<Element>,
-): void {
-  if (!form.id) return;
-  const doc = form.ownerDocument || document;
-  try {
-    const externals = doc.querySelectorAll(`[form="${form.id}"]`);
-    appendExternalElements(externals, form, out, seen);
-  } catch {}
-}
-
-function appendExternalElements(
-  externals: Iterable<Element>,
-  form: HTMLFormElement,
-  out: Element[],
-  seen: Set<Element>,
-): void {
-  for (const element of externals) {
-    if (!isNewExternalFormElement(element, form, seen)) continue;
-    out.push(element);
-    seen.add(element);
-  }
-}
-
-function isNewExternalFormElement(
-  element: Element,
-  form: HTMLFormElement,
-  seen: Set<Element>,
-): boolean {
-  return !seen.has(element) && isFormListed(element) && element.form === form;
-}
-
-function currentFormAction(): string {
-  try {
-    const doc = ksGlobal.document;
-    return String(doc?.URL || "");
-  } catch {
-    return "";
-  }
-}
-
-function resolveFormActionUrl(raw: string, form: HTMLFormElement): string {
-  try {
-    return new URL(raw, form.baseURI || undefined).toString();
-  } catch {
-    return raw;
-  }
-}
-
-function isMissingFormAction(raw: string | null): raw is null | "" {
-  return raw == null || raw === "";
+  resyncSelectLabel(select);
 }
 
 function isSubmitButton(
@@ -402,7 +322,7 @@ function dispatchFormNavigation(
   method: string,
 ): string | null {
   if (targetFrame) {
-    navigateFormInFrame(targetFrame, plan);
+    getInternalState().navigateIframe?.(targetFrame, plan.request.url, plan.post);
     return null;
   }
   const state = getInternalState();
@@ -412,14 +332,7 @@ function dispatchFormNavigation(
   } else if (typeof ksSendUpstreamEvent === "function") {
     ksSendUpstreamEvent({ event: "kitesurf.formSubmitNavigate", params: plan.request });
   }
-  return formSubmissionReturnValue(method, plan.request.url);
-}
-
-function navigateFormInFrame(targetFrame: Element, plan: FormNavigationPlan): void {
-  getInternalState().navigateIframe?.(targetFrame, plan.request.url, plan.post);
-}
-
-function formSubmissionReturnValue(method: string, url: string): string | null {
+  const url = plan.request.url;
   return method === "post" ? null : url;
 }
 
@@ -481,10 +394,29 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
     const cached = elementsCollections.get(this);
     if (cached) return cached;
     const form = this;
-    const coll = makeHtmlCollection<HTMLFormControlsCollection>(
-      () => collectFormElements(form),
-      HTMLFormControlsCollectionCls,
-    );
+    const coll = makeHtmlCollection<HTMLFormControlsCollection>(() => {
+      const out: Element[] = [];
+      const seen = new Set<Element>();
+      for (const control of formListedDescendants(form)) {
+        if (control.form === form) {
+          out.push(control);
+          seen.add(control);
+        }
+      }
+      if (form.id) {
+        const doc = form.ownerDocument || document;
+        try {
+          const externals = doc.querySelectorAll(`[form="${form.id}"]`);
+          for (const e of externals) {
+            if (!seen.has(e) && isFormListed(e) && e.form === form) {
+              out.push(e);
+              seen.add(e);
+            }
+          }
+        } catch {}
+      }
+      return out;
+    }, HTMLFormControlsCollectionCls);
     elementsCollections.set(this, coll);
     return coll;
   }
@@ -513,8 +445,19 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
   }
   get action() {
     const raw = this.getAttribute("action");
-    if (isMissingFormAction(raw)) return currentFormAction();
-    return resolveFormActionUrl(raw, this);
+    if (raw == null || raw === "") {
+      try {
+        const doc = ksGlobal.document;
+        return String(doc?.URL || "");
+      } catch {
+        return "";
+      }
+    }
+    try {
+      return new URL(raw, this.baseURI || undefined).toString();
+    } catch {
+      return raw;
+    }
   }
   set action(v) {
     this.setAttribute("action", String(v));

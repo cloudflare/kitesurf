@@ -40,32 +40,21 @@ export function setWrapperSweepScheduler(scheduler: Scheduler): void {
   schedule = scheduler;
 }
 
-postMutationHooks.push((hint) => scheduleSweepForMutation(hint));
-
-function scheduleSweepForMutation(hint: unknown): void {
+postMutationHooks.push((hint) => {
   // Attribute writes, character data and Web Animations style changes cannot detach
   // a node, so none of them needs a wrapper sweep.
-  if (!mutationMayDetach(hint)) return;
-  const scheduler = schedule;
-  if (!registry || !scheduler || sweepArmed) return;
-  armSweep(scheduler);
-}
-
-function mutationMayDetach(hint: unknown): boolean {
-  return typeof hint !== "object" && hint !== "data" && hint !== "style";
-}
-
-function armSweep(scheduler: Scheduler): void {
+  if (typeof hint === "object" || hint === "data" || hint === "style") return;
+  if (!registry || !schedule || sweepArmed) return;
   sweepArmed = true;
   try {
-    scheduler(() => {
+    schedule(() => {
       sweepArmed = false;
       sweepDetachedWrappers();
     }, SWEEP_DELAY_MS);
   } catch {
     sweepArmed = false;
   }
-}
+});
 
 function rootsOf(ids: number[]): number[] {
   return Array.from(dom.detachedRoots(Uint32Array.from(ids)));

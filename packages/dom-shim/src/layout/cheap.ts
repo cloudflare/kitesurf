@@ -442,10 +442,10 @@ export function cheapHit(x: number, y: number): number {
   let bestId = -1;
   let bestArea = Infinity;
   cheapRects.forEach((r, id) => {
-    if (!containsCheapPoint(r, x, y)) return;
-    if (!hasPositiveCheapArea(r)) return;
+    if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) return;
+    if (r.w <= 0 || r.h <= 0) return;
     const info = cheapInfo(id);
-    if (!isElementOrDocument(info)) return;
+    if (info.type !== ELEMENT_NODE && info.type !== DOCUMENT_NODE) return;
     const area = r.w * r.h;
     if (area < bestArea) {
       bestArea = area;
@@ -455,23 +455,13 @@ export function cheapHit(x: number, y: number): number {
   return bestId;
 }
 
-function containsCheapPoint(
-  rect: { x: number; y: number; w: number; h: number },
-  x: number,
-  y: number,
-): boolean {
-  return !(x < rect.x || x >= rect.x + rect.w || y < rect.y || y >= rect.y + rect.h);
-}
-
-function hasPositiveCheapArea(rect: { w: number; h: number }): boolean {
-  return rect.w > 0 && rect.h > 0;
-}
-
 export function hasLayoutBox(nodeId: number): boolean {
-  if (isInvalidLayoutNodeId(nodeId)) return true;
+  if (typeof nodeId !== "number" || nodeId < 0) return true;
   try {
-    const rect = readLayoutRect(nodeId, getRectByAuthId);
-    if (hasNegativeRect(rect)) return false;
+    const rect = getRectByAuthId
+      ? getRectByAuthId(nodeId)
+      : (dom as any).getBoundingClientRect(nodeId);
+    if (rect && (rect.width < 0 || rect.height < 0)) return false;
   } catch {}
   return true;
 }
@@ -490,10 +480,6 @@ interface WasmRectLike {
 
 function isInvalidLayoutNodeId(nodeId: number): boolean {
   return typeof nodeId !== "number" || nodeId < 0;
-}
-
-function readLayoutRect(nodeId: number, getAuthRect: typeof getRectByAuthId): AuthRect {
-  return getAuthRect ? getAuthRect(nodeId) : (dom as any).getBoundingClientRect(nodeId);
 }
 
 function hasNegativeRect(rect: AuthRect): boolean {

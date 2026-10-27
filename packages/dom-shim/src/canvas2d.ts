@@ -323,70 +323,7 @@ function fillRule(v: unknown): "evenodd" | "nonzero" {
   return v === "evenodd" ? "evenodd" : "nonzero";
 }
 
-function roundRectRadii(radii: unknown): unknown[] {
-  if (radii === undefined) return [0];
-  return Array.isArray(radii) ? radii : [radii];
-}
-
-function nonNegativeRadius(value: number): number {
-  if (value < 0) throw new RangeError("negative radius");
-  return value;
-}
-
-function roundRectRadiusComponent(radius: object, axis: "x" | "y"): number {
-  const value = Number((axis in radius ? Reflect.get(radius, axis) : undefined) ?? 0);
-  return nonNegativeRadius(value);
-}
-
-function roundRectRadiusPair(radius: unknown): number[] {
-  if (typeof radius !== "object" || radius === null) {
-    const value = nonNegativeRadius(Number(radius));
-    return [value, value];
-  }
-  return [roundRectRadiusComponent(radius, "x"), roundRectRadiusComponent(radius, "y")];
-}
-
-function expandedRoundRectCorners(pairs: number[][]): number[][] {
-  switch (pairs.length) {
-    case 1:
-      return [pairs[0], pairs[0], pairs[0], pairs[0]];
-    case 2:
-      return [pairs[0], pairs[1], pairs[0], pairs[1]];
-    case 3:
-      return [pairs[0], pairs[1], pairs[2], pairs[1]];
-    default:
-      return pairs;
-  }
-}
-
-function roundRectArguments(
-  x: unknown,
-  y: unknown,
-  w: unknown,
-  h: unknown,
-  corners: number[][],
-): number[] {
-  return [
-    Number(x),
-    Number(y),
-    Number(w),
-    Number(h),
-    corners[0][0],
-    corners[0][1],
-    corners[1][0],
-    corners[1][1],
-    corners[2][0],
-    corners[2][1],
-    corners[3][0],
-    corners[3][1],
-  ];
-}
-
 const IDENTITY_TRANSFORM = [1, 0, 0, 1, 0, 0] as const;
-
-function isIdentityTransform(matrix: number[]): boolean {
-  return matrix.every((value, index) => value === IDENTITY_TRANSFORM[index]);
-}
 
 function pathBuilders(emit: (op: CanvasOp) => void) {
   return {
@@ -433,13 +370,40 @@ function pathBuilders(emit: (op: CanvasOp) => void) {
       emit({ o: "rect", a: [Number(x), Number(y), Number(w), Number(h)] });
     },
     roundRect(x: unknown, y: unknown, w: unknown, h: unknown, radii?: unknown) {
-      const list = roundRectRadii(radii);
+      const list: unknown[] = radii === undefined ? [0] : Array.isArray(radii) ? radii : [radii];
       if (list.length < 1 || list.length > 4) {
         throw new RangeError("roundRect: 1-4 radii required");
       }
-      const pairs = list.map(roundRectRadiusPair);
-      const corners = expandedRoundRectCorners(pairs);
-      const a = roundRectArguments(x, y, w, h, corners);
+      const pairs = list.map((r) => {
+        if (typeof r === "object" && r !== null) {
+          const rx = Number(("x" in r ? r.x : undefined) ?? 0);
+          const ry = Number(("y" in r ? r.y : undefined) ?? 0);
+          if (rx < 0 || ry < 0) throw new RangeError("negative radius");
+          return [rx, ry];
+        }
+        const n = Number(r);
+        if (n < 0) throw new RangeError("negative radius");
+        return [n, n];
+      });
+      let c: number[][];
+      if (pairs.length === 1) c = [pairs[0], pairs[0], pairs[0], pairs[0]];
+      else if (pairs.length === 2) c = [pairs[0], pairs[1], pairs[0], pairs[1]];
+      else if (pairs.length === 3) c = [pairs[0], pairs[1], pairs[2], pairs[1]];
+      else c = pairs;
+      const a = [
+        Number(x),
+        Number(y),
+        Number(w),
+        Number(h),
+        c[0][0],
+        c[0][1],
+        c[1][0],
+        c[1][1],
+        c[2][0],
+        c[2][1],
+        c[3][0],
+        c[3][1],
+      ];
       if (a.some((v) => !Number.isFinite(v))) return;
       emit({ o: "roundRect", a });
     },
@@ -492,7 +456,21 @@ export class Path2D implements Idl.Path2D {
   }
 }
 
-const pathMethodNames = pathBuilders(() => {});
+const pathMethodNames = pathBuilders(() => {
+  if (detachedDirty.size === 0) return;
+  for (const ref of [...detachedDirty]) {
+    const c = ref.deref();
+    if (!c) {
+      detachedDirty.delete(ref);
+      continue;
+    }
+    if (!c.isConnected) continue;
+    detachedDirty.delete(ref);
+    try {
+      c.__ks2dCtx?.__ksConnectedPush?.();
+    } catch {}
+  }
+});
 function isPathMethod(name: string): name is keyof typeof pathMethodNames {
   return Object.hasOwn(pathMethodNames, name);
 }
@@ -640,30 +618,26 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     return Math.max(1, Number(canvas.height) || 150) | 0;
   }
 
-  function applyPendingPut(put: { w: number; h: number; data: Uint8ClampedArray }): void {
+  function sendPendingPut(): void {
+    if (!pendingFullPut) return;
+    if (!isLive()) {
+      pendingFullPut = null;
+      dbg.last = "stale";
+      return;
+    }
+    const p = pendingFullPut;
+    pendingFullPut = null;
     const d = dom as any;
     if (typeof d?.canvasPutImageData !== "function") {
       dbg.last = "no-wasm-entry";
       return;
     }
     try {
-      const bytes = new Uint8Array(put.data.buffer, put.data.byteOffset, put.data.byteLength);
-      d.canvasPutImageData(canvas._id, 0, 0, put.w, put.h, bytes);
+      const bytes = new Uint8Array(p.data.buffer, p.data.byteOffset, p.data.byteLength);
+      d.canvasPutImageData(canvas._id, 0, 0, p.w, p.h, bytes);
     } catch (e) {
-      dbg.last = "put threw: " + canvasErrorDetail(e);
+      dbg.last = "put threw: " + ((e as any)?.message ?? String(e));
     }
-  }
-
-  function sendPendingPut(): void {
-    const put = pendingFullPut;
-    if (!put) return;
-    if (!isLive()) {
-      pendingFullPut = null;
-      dbg.last = "stale";
-      return;
-    }
-    pendingFullPut = null;
-    applyPendingPut(put);
   }
 
   function clearStaleQueue(): void {
@@ -748,35 +722,6 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     enqueue({ o: "pathPop" });
   }
 
-  function markCanvasDetached(): void {
-    dbg.last = "detached";
-    detachedDirty.add(selfRef);
-    lastPushTs = Date.now();
-  }
-
-  function recordCanvasFlush(rc: number): void {
-    dbg.last = "flush rc=" + rc;
-    if (rc >= 0 && rc !== 2) {
-      dbg.pushes++;
-      bumpPaintNeutral(canvas._id);
-    }
-  }
-
-  function flushConnectedCanvas(): void {
-    const d = dom as any;
-    if (typeof d?.canvasFlush !== "function") {
-      dbg.last = "no-wasm-entry";
-      return;
-    }
-    try {
-      const rc = d.canvasFlush(canvas._id);
-      recordCanvasFlush(rc);
-    } catch (e) {
-      dbg.last = "flush threw: " + canvasErrorDetail(e);
-    }
-    lastPushTs = Date.now();
-  }
-
   function pushNow(): void {
     getInternalState().pendingCanvasPushes.delete(pushNow);
     dbg.attempts++;
@@ -786,11 +731,28 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     }
     // Avoid allocating a surface for a detached probe; explicit readback still flushes.
     if (!canvas.isConnected) {
-      markCanvasDetached();
+      dbg.last = "detached";
+      detachedDirty.add(selfRef);
+      lastPushTs = Date.now();
       return;
     }
     flushOps();
-    flushConnectedCanvas();
+    const d = dom as any;
+    if (typeof d?.canvasFlush !== "function") {
+      dbg.last = "no-wasm-entry";
+      return;
+    }
+    try {
+      const rc = d.canvasFlush(canvas._id);
+      dbg.last = "flush rc=" + rc;
+      if (rc >= 0 && rc !== 2) {
+        dbg.pushes++;
+        bumpPaintNeutral(canvas._id);
+      }
+    } catch (e) {
+      dbg.last = "flush threw: " + ((e as any)?.message ?? String(e));
+    }
+    lastPushTs = Date.now();
   }
 
   function schedulePush(): void {
@@ -911,36 +873,23 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     return matrix.every(Number.isFinite);
   }
 
-  function imageId(image: any): number | null {
-    const id = image._id;
-    return typeof id === "number" && id >= 0 ? id : null;
-  }
-
-  function readCanvasSourceInfo(id: number): { kind: string; src: string } | null {
-    try {
-      return dom.canvasSourceInfo(id);
-    } catch {
-      return null;
-    }
-  }
-
-  function sourceFromInfo(
-    id: number,
-    info: { kind: string; src: string },
-  ): CanvasImageSource | null {
-    if (info.kind === "canvas") return { id, kind: "canvas" };
-    if (info.kind === "img") return { id, kind: "img", oc: isImgOriginClean(info.src) };
-    return null;
-  }
-
   function imageSource(img: any): CanvasImageSource | null {
     if (!img || typeof img !== "object") return null;
     // Resolve source type and URL from wasm instead of trusting page-writable wrapper attributes.
-    const id = imageId(img);
-    if (id === null) return null;
-    const info = readCanvasSourceInfo(id);
+    const id = img._id;
+    if (typeof id !== "number" || id < 0) return null;
+    let info: { kind: string; src: string } | null;
+    try {
+      info = dom.canvasSourceInfo(id);
+    } catch {
+      return null;
+    }
     if (!info) return null;
-    return sourceFromInfo(id, info);
+    if (info.kind === "canvas") return { id, kind: "canvas" };
+    if (info.kind === "img") {
+      return { id, kind: "img", oc: isImgOriginClean(info.src) };
+    }
+    return null;
   }
 
   let imageOrigin: { src: string; baseHref: string; docOrigin: string; clean: boolean } | null =
@@ -995,76 +944,12 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     }
   }
 
-  function pointPathArguments(
-    pathOrX: unknown,
-    xOrY: unknown,
-    yOrRule: unknown,
-    maybeRule: unknown,
-  ): [Path2D | null, unknown, unknown, unknown] {
-    const path = pathOrX instanceof Path2D ? pathOrX : null;
-    const [x, y, rule] = path ? [xOrY, yOrRule, maybeRule] : [pathOrX, xOrY, yOrRule];
-    return [path, x, y, rule];
-  }
-
-  function hasCanvasPathHitTest(d: any): boolean {
-    return typeof d?.canvasIsPointInPath === "function";
-  }
-
-  function queryCanvasPath(d: any, x: unknown, y: unknown, rule: unknown): boolean {
-    try {
-      return !!d.canvasIsPointInPath(
-        canvas._id,
-        Number(x),
-        Number(y),
-        fillRule(rule) === "evenodd",
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  function fontDemandReady(): boolean {
-    try {
-      return (globalThis as { __ks_fontDemand?: () => boolean }).__ks_fontDemand?.() ?? true;
-    } catch {
-      return true;
-    }
-  }
-
-  function emptyTextMetrics() {
-    return {
-      width: 0,
-      actualBoundingBoxLeft: 0,
-      actualBoundingBoxRight: 0,
-      actualBoundingBoxAscent: 0,
-      actualBoundingBoxDescent: 0,
-      fontBoundingBoxAscent: 0,
-      fontBoundingBoxDescent: 0,
-    };
-  }
-
-  function readCanvasTextMetrics(
-    d: any,
-    text: unknown,
-    fallback: ReturnType<typeof emptyTextMetrics>,
-  ) {
-    try {
-      return JSON.parse(d.canvasMeasureText(String(text ?? ""), st.font));
-    } catch {
-      return fallback;
-    }
-  }
-
   function patternRepetition(repetition: any): string {
     const value = repetition == null || repetition === "" ? "repeat" : String(repetition);
     if (["repeat", "repeat-x", "repeat-y", "no-repeat"].indexOf(value) < 0) {
       throw domExc("invalid repetition", "SyntaxError");
     }
     return value;
-  }
-
-  function hasCanvasContext(image: any): boolean {
-    return Boolean(image && image.__ks2dCtx);
   }
 
   function flushImageContext(image: any): void {
@@ -1075,7 +960,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
 
   function flushCanvasSourceForRead(image: any, source: CanvasImageSource): void {
     if (source.kind !== "canvas") return;
-    if (!hasCanvasContext(image)) return;
+    if (!image || !image.__ks2dCtx) return;
     flushImageContext(image);
   }
 
@@ -1549,7 +1434,7 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
         m41: m[4],
         m42: m[5],
         is2D: true,
-        isIdentity: isIdentityTransform(m),
+        isIdentity: m.every((value, index) => value === IDENTITY_TRANSFORM[index]),
       };
     },
 
@@ -1580,13 +1465,24 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       else enqueue({ o: "clip", s: fillRule(pathOrRule) });
     },
     isPointInPath(pathOrX: unknown, xOrY?: unknown, yOrRule?: unknown, maybeRule?: unknown) {
-      const [path, x, y, rule] = pointPathArguments(pathOrX, xOrY, yOrRule, maybeRule);
+      const path = pathOrX instanceof Path2D ? pathOrX : null;
+      const [x, y, rule] = path ? [xOrY, yOrRule, maybeRule] : [pathOrX, xOrY, yOrRule];
       const d = dom as any;
-      if (!hasCanvasPathHitTest(d)) return false;
-      if (path) pushPathOps(path, "isPointInPath");
+      if (typeof d?.canvasIsPointInPath !== "function") return false;
+      if (path) {
+        enqueue({ o: "pathPush" });
+        for (const pathOp of opsOf(path, "isPointInPath")) enqueue(pathOp);
+      }
       flushOps();
       try {
-        return queryCanvasPath(d, x, y, rule);
+        return !!d.canvasIsPointInPath(
+          canvas._id,
+          Number(x),
+          Number(y),
+          fillRule(rule) === "evenodd",
+        );
+      } catch {
+        return false;
       } finally {
         if (path) enqueue({ o: "pathPop" });
       }
@@ -1609,9 +1505,28 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     },
     measureText(text: any) {
       const d = dom as any;
-      const fallback = emptyTextMetrics();
-      if (!fontDemandReady() || typeof d?.canvasMeasureText !== "function") return fallback;
-      return readCanvasTextMetrics(d, text, fallback);
+      let fontsReady = true;
+      try {
+        fontsReady =
+          (globalThis as { __ks_fontDemand?: () => boolean }).__ks_fontDemand?.() ?? true;
+      } catch {
+        fontsReady = true;
+      }
+      const fallback = {
+        width: 0,
+        actualBoundingBoxLeft: 0,
+        actualBoundingBoxRight: 0,
+        actualBoundingBoxAscent: 0,
+        actualBoundingBoxDescent: 0,
+        fontBoundingBoxAscent: 0,
+        fontBoundingBoxDescent: 0,
+      };
+      if (!fontsReady || typeof d?.canvasMeasureText !== "function") return fallback;
+      try {
+        return JSON.parse(d.canvasMeasureText(String(text ?? ""), st.font));
+      } catch {
+        return fallback;
+      }
     },
 
     createLinearGradient(x0: any, y0: any, x1: any, y1: any) {

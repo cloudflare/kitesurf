@@ -139,27 +139,18 @@ export function listenerOptionsHadPassive(options: unknown): boolean {
 export function addListener(key: any, type: string, listener: any, options: unknown): void {
   if (typeof type !== "string") return;
   const opts = normalizeListenerOptions(options);
-  if (!isListener(listener)) return;
-  const passive = passiveForListener(key, type, options, opts.passive);
+  if (listener == null) return;
+  if (typeof listener !== "function" && typeof listener !== "object") return;
+  let passive = opts.passive;
+  if (!listenerOptionsHadPassive(options)) {
+    passive = defaultPassiveFor(key, type);
+  }
   const list = listenersFor(key, type, true)!;
-  if (hasListener(list, listener, opts.capture)) return;
+  for (const entry of list) {
+    if (entry.listener === listener && entry.capture === opts.capture) return;
+  }
   list.push({ listener, capture: opts.capture, once: opts.once, passive });
   noteListenerType(type);
-}
-
-function isListener(listener: any): boolean {
-  return listener != null && (typeof listener === "function" || typeof listener === "object");
-}
-
-function passiveForListener(key: any, type: string, options: unknown, passive: boolean): boolean {
-  return listenerOptionsHadPassive(options) ? passive : defaultPassiveFor(key, type);
-}
-
-function hasListener(list: ListenerEntry[], listener: any, capture: boolean): boolean {
-  for (const entry of list) {
-    if (entry.listener === listener && entry.capture === capture) return true;
-  }
-  return false;
 }
 
 export function defaultPassiveFor(key: any, type: string): boolean {
@@ -196,29 +187,19 @@ function isDefaultPassiveElementTarget(element: any, key: any): boolean {
 
 export function removeListener(key: any, type: string, listener: any, options: unknown): void {
   if (typeof type !== "string") return;
-  const capture = captureForRemoveOptions(options);
+  let capture = false;
+  if (options !== null && options !== undefined) {
+    if (typeof options === "object" || typeof options === "function") {
+      capture = !!(options as any).capture;
+    } else {
+      capture = !!options;
+    }
+  }
   const list = listenersFor(key, type, false);
   if (!list) return;
-  removeMatchingListener(list, type, listener, capture);
-}
-
-function captureForRemoveOptions(options: unknown): boolean {
-  if (options === null || options === undefined) return false;
-  if (typeof options === "object" || typeof options === "function") {
-    return !!(options as any).capture;
-  }
-  return !!options;
-}
-
-function removeMatchingListener(
-  list: ListenerEntry[],
-  type: string,
-  listener: any,
-  capture: boolean,
-): void {
   for (let i = 0; i < list.length; i++) {
-    const entry = list[i];
-    if (entry.listener === listener && entry.capture === capture) {
+    const e = list[i];
+    if (e.listener === listener && e.capture === capture) {
       list.splice(i, 1);
       noteListenerRemoved(type);
       return;

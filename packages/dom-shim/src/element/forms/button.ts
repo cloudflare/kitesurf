@@ -21,14 +21,6 @@ import { HTMLInputElement } from "./input.js";
 import type { HTMLFormElement } from "./form.js";
 
 const BUTTON_TYPES = new Set(["submit", "reset", "button"]);
-const BUTTON_COMMANDS = new Set([
-  "show-modal",
-  "close",
-  "request-close",
-  "toggle-popover",
-  "show-popover",
-  "hide-popover",
-]);
 
 // installValidityMixin and the loops below the class install these.
 interface HTMLButtonElement extends Pick<
@@ -60,7 +52,17 @@ class HTMLButtonElement extends HTMLElement implements Idl.HTMLButtonElement {
     if (raw == null) return "";
     if (raw.startsWith("--")) return raw;
     const lower = raw.toLowerCase();
-    return BUTTON_COMMANDS.has(lower) ? lower : "";
+    if (
+      lower === "show-modal" ||
+      lower === "close" ||
+      lower === "request-close" ||
+      lower === "toggle-popover" ||
+      lower === "show-popover" ||
+      lower === "hide-popover"
+    ) {
+      return lower;
+    }
+    return "";
   }
   set command(v) {
     this.setAttribute("command", String(v));

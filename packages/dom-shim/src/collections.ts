@@ -602,7 +602,9 @@ class HTMLOptionsCollectionCls extends HtmlCollectionCls implements Idl.HTMLOpti
     const refNode = optionsReference(this, before);
     if (refNode) {
       assertOptionsReferenceDescendant(select, refNode);
-      insertOptionBefore(refNode, item);
+      // SAFETY: the ancestor walk validates normal nodes; keep the second read
+      // so page-overridden parentNode getters retain their behavior.
+      (refNode.parentNode as Idl.Node).insertBefore(item, refNode);
     } else {
       select.appendChild(item);
     }
@@ -656,15 +658,6 @@ function assertOptionsReferenceDescendant(select: HTMLSelectElement, refNode: Id
     "HTMLOptionsCollection.add: before is not a descendant of the select",
     "NotFoundError",
   );
-}
-
-function insertOptionBefore(
-  refNode: Idl.Element,
-  item: Idl.HTMLOptionElement | Idl.HTMLOptGroupElement,
-): void {
-  // SAFETY: the ancestor walk validates normal nodes; keep the second read
-  // so page-overridden parentNode getters retain their behavior.
-  (refNode.parentNode as Idl.Node).insertBefore(item, refNode);
 }
 
 function removeOptionAtIndex(list: Element[] | undefined, index: number): void {
@@ -779,37 +772,29 @@ function isRadio(node: Idl.Node): node is HTMLInputElement {
 
 class RadioNodeListCls extends NodeListCls implements Idl.RadioNodeList {
   get value() {
-    return radioNodeListValue(this);
+    try {
+      for (const node of this) {
+        const value = checkedRadioValue(node);
+        if (value !== null) return value;
+      }
+    } catch {}
+    return "";
   }
   set value(v: string) {
-    setRadioNodeListValue(this, v);
+    try {
+      for (const node of this) {
+        if (setMatchingRadio(node, v)) return;
+      }
+    } catch {}
   }
   get [Symbol.toStringTag](): "RadioNodeList" {
     return "RadioNodeList";
   }
 }
 
-function radioNodeListValue(nodes: Iterable<Idl.Node>): string {
-  try {
-    for (const node of nodes) {
-      const value = checkedRadioValue(node);
-      if (value !== null) return value;
-    }
-  } catch {}
-  return "";
-}
-
 function checkedRadioValue(node: Idl.Node): string | null {
   if (!isRadio(node) || !node.checked) return null;
   return node.value || "on";
-}
-
-function setRadioNodeListValue(nodes: Iterable<Idl.Node>, value: string): void {
-  try {
-    for (const node of nodes) {
-      if (setMatchingRadio(node, value)) return;
-    }
-  } catch {}
 }
 
 function setMatchingRadio(node: Idl.Node, value: string): boolean {
@@ -3433,14 +3418,6 @@ function rememberStyleSheetForNode(
   if (ownerNode && id >= 0) sheetCache.set(ownerNode, sheet);
 }
 
-function isStyleSheetElement(ownerNode: Element | ParsedElement | null): boolean {
-  return Boolean(ownerNode && ownerNode.tagName === "STYLE");
-}
-
-function isLinkStyleSheetElement(ownerNode: Element | ParsedElement | null): boolean {
-  return Boolean(ownerNode && ownerNode.tagName === "LINK");
-}
-
 function makeStyleSheetRuleList(): RuleList {
   const rules: AnyCssRule[] = [];
   Object.defineProperty(rules, "item", {
@@ -3712,8 +3689,8 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
   const id = styleSheetNodeId(ownerNode);
   const cached = cachedStyleSheetForNode(ownerNode, id);
   if (cached) return cached;
-  const isStyleEl = isStyleSheetElement(ownerNode);
-  const isLinkEl = isLinkStyleSheetElement(ownerNode);
+  const isStyleEl = ownerNode?.tagName === "STYLE";
+  const isLinkEl = ownerNode?.tagName === "LINK";
   const rules = makeStyleSheetRuleList();
   const href = styleSheetHref(ownerNode, isLinkEl);
   // The backing state is in sheetRecords; this stub uses the public prototype.

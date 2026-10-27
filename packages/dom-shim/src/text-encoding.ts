@@ -40,19 +40,15 @@ export function outputEncoding(encoding: string): string {
 }
 
 export function characterSetOf(node: unknown): string {
-  if (!hasOwnerDocument(node)) return "UTF-8";
+  if (typeof node !== "object" || node === null || !("ownerDocument" in node)) {
+    return "UTF-8";
+  }
   const doc = node.ownerDocument;
-  if (!hasCharacterSet(doc)) return "UTF-8";
+  if (typeof doc !== "object" || doc === null || !("characterSet" in doc)) {
+    return "UTF-8";
+  }
   const cs = doc.characterSet;
   return typeof cs === "string" && cs ? cs : "UTF-8";
-}
-
-function hasOwnerDocument(node: unknown): node is { ownerDocument: unknown } {
-  return typeof node === "object" && node !== null && "ownerDocument" in node;
-}
-
-function hasCharacterSet(doc: unknown): doc is { characterSet: unknown } {
-  return typeof doc === "object" && doc !== null && "characterSet" in doc;
 }
 
 export function encodingParseUrl(

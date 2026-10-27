@@ -196,18 +196,10 @@ function appendInputEntry(
       }
       break;
     case "file":
-      appendFileInputEntries(entries, name, el);
+      appendFileEntries(entries, name, fileInputFiles.get(el._id) || []);
       return;
   }
   entries.push({ name, value: el.value });
-}
-
-function appendFileInputEntries(
-  entries: FormDataEntry[],
-  name: string,
-  el: HTMLInputElement,
-): void {
-  appendFileEntries(entries, name, fileInputFiles.get(el._id) || []);
 }
 
 function appendSelectEntries(entries: FormDataEntry[], name: string, el: HTMLSelectElement): void {

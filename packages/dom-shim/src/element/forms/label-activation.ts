@@ -10,7 +10,6 @@ import type { KsMouseEvent } from "../../events/event.js";
 import { isElementWrapper, isHtmlTag } from "../html-tag.js";
 import { inputTypeOf } from "./input-state.js";
 import type { Element } from "../element.js";
-import type { HTMLLabelElement } from "./label.js";
 
 export type ForwardedClick = {
   trusted: boolean;
@@ -74,26 +73,17 @@ function isInteractiveContent(el: Element): boolean {
 // An unprevented click on a label, or on non-interactive content in it, is a click on its control.
 // Without it a styled checkbox under its label never ticked.
 export function labelControlFor(target: unknown): Element | null {
-  const label = containingLabel(target);
-  if (!label) return null;
-  // label.control only returns a labelable element, which is always a wrapper.
-  const control = label.control;
-  // Both click paths pass the shim Element that received the click.
-  if (excludeForwardedClickControl(control, target)) return null;
-  return control;
-}
-
-function containingLabel(target: unknown): HTMLLabelElement | null {
-  let node: unknown = target;
-  for (; isElementWrapper(node); node = node.parentNode) {
-    if (isHtmlTag(node, "label")) return node;
-    if (isInteractiveContent(node)) return null;
+  let n: unknown = target;
+  for (; isElementWrapper(n); n = n.parentNode) {
+    if (isHtmlTag(n, "label")) break;
+    if (isInteractiveContent(n)) return null;
   }
-  return null;
-}
-
-function excludeForwardedClickControl(control: Element | null, target: unknown): boolean {
-  return !control || control === target || control.contains(target as Element);
+  if (!isHtmlTag(n, "label")) return null;
+  // label.control only returns a labelable element, which is always a wrapper.
+  const control = n.control;
+  // Both click paths pass the shim Element that received the click.
+  if (!control || control === target || control.contains(target as Element)) return null;
+  return control;
 }
 
 export function focusForwardedTextControl(control: Element): void {
