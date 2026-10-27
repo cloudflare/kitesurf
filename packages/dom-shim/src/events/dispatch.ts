@@ -22,6 +22,7 @@ import { hostIdToDoc } from "../registries.js";
 import { ksSpan, safeEventType } from "../otel.js";
 import {
   KsErrorEvent,
+  type KsEvent,
   type EventState,
   eventState,
   exposesRelatedTarget,
@@ -35,7 +36,7 @@ import { noteListenerRemoved, noteListenerType } from "../transitions.js";
 import { __ks_setEventTrusted, __ks_trustedFlags } from "../trust.js";
 import { MAX_SHADOW_ROOT_HOPS } from "../constants.js";
 
-let contentAttrHydrator: ((target: any, type: string) => void) | null = null;
+let contentAttrHydrator: ((target: Idl.EventTarget, type: string) => void) | null = null;
 const eventsInFlight = new WeakSet<object>();
 const MAX_EVENT_PATH_HOPS = 1024;
 
@@ -48,14 +49,15 @@ interface DispatchMetadata {
   composed: boolean;
 }
 
-type EventTargetKey = number | string | object;
+// A node id, WINDOW_KEY, or a non-node EventTarget itself.
+type EventTargetKey = number | string | Idl.EventTarget;
 
 interface PropagationEntry {
   key: EventTargetKey;
   target: EventTargetKey;
 }
 
-export function setContentAttrHydrator(fn: (target: any, type: string) => void): void {
+export function setContentAttrHydrator(fn: (target: Idl.EventTarget, type: string) => void): void {
   contentAttrHydrator = fn;
 }
 
@@ -67,18 +69,18 @@ function isObjectKey(key: unknown): key is Idl.EventTarget {
 
 const nodeListenerRegistry = new WeakMap<object, Map<string, ListenerEntry[]>>();
 
-export function listenersFor(key: any, type: string, create: boolean): ListenerEntry[] | null {
+export function listenersFor(
+  key: EventTargetKey,
+  type: string,
+  create: boolean,
+): ListenerEntry[] | null {
   if (typeof key === "number") {
     const wrapper = liveWrapper(key) ?? (create ? nodeFor(key) : undefined);
     if (!wrapper) return null;
     return listenersIn(nodeListenerRegistry, wrapper, type, create);
   }
-  return listenersIn(
-    isObjectKey(key) ? objectListenerRegistry : listenerRegistry,
-    key,
-    type,
-    create,
-  );
+  if (isObjectKey(key)) return listenersIn(objectListenerRegistry, key, type, create);
+  return listenersIn(listenerRegistry, key, type, create);
 }
 
 function listenersIn<K>(
@@ -117,9 +119,9 @@ export function normalizeListenerOptions(options: unknown): NormalizedListenerOp
   }
   if (typeof options === "object" || typeof options === "function") {
     return {
-      capture: !!(options as any).capture,
-      once: !!(options as any).once,
-      passive: !!(options as any).passive,
+      capture: !!Reflect.get(options, "capture"),
+      once: !!Reflect.get(options, "once"),
+      passive: !!Reflect.get(options, "passive"),
     };
   }
   return { capture: !!options, once: false, passive: false };
@@ -129,12 +131,17 @@ export function listenerOptionsHadPassive(options: unknown): boolean {
   return (
     options != null &&
     typeof options === "object" &&
-    "passive" in (options as any) &&
-    (options as any).passive !== undefined
+    "passive" in options &&
+    options.passive !== undefined
   );
 }
 
-export function addListener(key: any, type: string, listener: any, options: unknown): void {
+export function addListener(
+  key: EventTargetKey,
+  type: unknown,
+  listener: unknown,
+  options: unknown,
+): void {
   if (typeof type !== "string") return;
   const opts = normalizeListenerOptions(options);
   if (listener == null) return;
@@ -151,13 +158,13 @@ export function addListener(key: any, type: string, listener: any, options: unkn
   noteListenerType(type);
 }
 
-export function defaultPassiveFor(key: any, type: string): boolean {
+export function defaultPassiveFor(key: EventTargetKey, type: string): boolean {
   if (type !== "touchstart" && type !== "touchmove" && type !== "wheel" && type !== "mousewheel") {
     return false;
   }
   if (key === WINDOW_KEY) return true;
   try {
-    const doc: any = (windowObj && (windowObj as any).document) || documentImpl;
+    const doc = (windowObj && windowObj.document) || documentImpl;
     if (!doc) return false;
     if (key === doc._id) return true;
     const html = doc.documentElement;
@@ -168,12 +175,17 @@ export function defaultPassiveFor(key: any, type: string): boolean {
   return false;
 }
 
-export function removeListener(key: any, type: string, listener: any, options: unknown): void {
+export function removeListener(
+  key: EventTargetKey,
+  type: unknown,
+  listener: unknown,
+  options: unknown,
+): void {
   if (typeof type !== "string") return;
   let capture = false;
   if (options !== null && options !== undefined) {
     if (typeof options === "object" || typeof options === "function") {
-      capture = !!(options as any).capture;
+      capture = !!Reflect.get(options, "capture");
     } else {
       capture = !!options;
     }
@@ -203,7 +215,7 @@ function flatParentId(nodeId: number): number {
   }
 }
 
-function retargetId(aId: number, bKey: any): number {
+function retargetId(aId: number, bKey: EventTargetKey): number {
   let a = aId;
   let safety = 0;
   while (safety++ < MAX_SHADOW_ROOT_HOPS) {
@@ -246,7 +258,7 @@ function retargetId(aId: number, bKey: any): number {
 }
 
 export function propagationPath(
-  targetKey: any,
+  targetKey: EventTargetKey,
   composed?: boolean,
   eventType?: string,
 ): PropagationEntry[] {
@@ -286,9 +298,9 @@ function setEventRelatedTarget(
 }
 
 function applyRetargeting(
-  event: any,
+  event: KsEvent,
   entry: PropagationEntry,
-  targetKey: any,
+  targetKey: EventTargetKey,
   origRelatedId: number,
 ): boolean {
   setEventTarget(event, targetForKey(entry.target));
@@ -311,6 +323,15 @@ export function targetForKey(key: unknown): Idl.EventTarget | null {
     return nodeFor ? nodeFor(key) : null;
   }
   return null;
+}
+
+// The stack, else the message, of a thrown value, for the console.
+function errorStackOrMessage(thrown: unknown): unknown {
+  if (!thrown) return String(thrown);
+  const stack: unknown = Reflect.get(Object(thrown), "stack");
+  if (stack) return stack;
+  const message: unknown = Reflect.get(Object(thrown), "message");
+  return message ? message : String(thrown);
 }
 
 function isDispatchObject(value: unknown): value is object {
@@ -364,7 +385,10 @@ export function reportException(thrown: unknown): void {
   }
 }
 
-export function dispatchOnKey(targetKey: any, event: any): boolean {
+export function dispatchOnKey(
+  targetKey: EventTargetKey | (() => EventTargetKey),
+  event: unknown,
+): boolean {
   return dispatchLocked(
     event,
     false,
@@ -372,7 +396,7 @@ export function dispatchOnKey(targetKey: any, event: any): boolean {
   );
 }
 
-export function dispatchTrustedOnKey(targetKey: any, event: any): boolean {
+export function dispatchTrustedOnKey(targetKey: EventTargetKey, event: unknown): boolean {
   return dispatchLocked(event, true, () => targetKey);
 }
 
@@ -380,20 +404,24 @@ export function dispatchTrustedOnKey(targetKey: any, event: any): boolean {
  * Dispatches a trusted event to Window or its canonical node wrapper.
  * Invalid node targets throw `TypeError`.
  */
-export function dispatchTrustedEvent(target: any, event: any): boolean {
+export function dispatchTrustedEvent(target: object | null, event: unknown): boolean {
   return dispatchLocked(event, true, () => {
     if (target === windowProxy) return WINDOW_KEY;
     // Only the canonical wrapper may dispatch a trusted event for a node ID.
-    const candidates = [target?._id, target?._hostId];
+    const candidates: unknown[] = target
+      ? [Reflect.get(target, "_id"), Reflect.get(target, "_hostId")]
+      : [];
     for (const key of candidates) {
-      if (targetForKey(key) === target) return key;
+      if (typeof key === "number" && targetForKey(key) === target) return key;
     }
     throw new TypeError("Invalid trusted event target");
   });
 }
 
-function assertEvent(event: any): void {
-  if (!event || !__ks_trustedFlags.has(event)) {
+// Every event the shim constructs registers its trust flag, so the flag
+// marks a KsEvent.
+function assertEvent(event: unknown): asserts event is KsEvent {
+  if (!isDispatchObject(event) || !__ks_trustedFlags.has(event)) {
     throw new TypeError("dispatchEvent: argument must be an Event");
   }
 }
@@ -411,25 +439,29 @@ function snapshotDispatchMetadata(state: EventState): DispatchMetadata {
 // Lock before reading page-owned properties: their getters can try to redispatch the event.
 // Always restore dispatch state so a thrown getter cannot leave the event locked.
 // Dispatch flags: https://dom.spec.whatwg.org/#concept-event-dispatch
-function dispatchLocked(event: any, trusted: boolean, resolveTargetKey: () => any): boolean {
+function dispatchLocked(
+  event: unknown,
+  trusted: boolean,
+  resolveTargetKey: () => EventTargetKey,
+): boolean {
   assertEvent(event);
   const state = eventState(event);
   if (eventsInFlight.has(event)) {
     throw new DOMException("Event is already being dispatched", "InvalidStateError");
   }
   eventsInFlight.add(event);
-  let targetKey: any;
-  let origRelated: any;
+  let targetKey: EventTargetKey | undefined;
+  let origRelated: unknown;
   let origRelatedId = -1;
   let relatedCaptured = false;
-  let prevGlobalEvent: any;
-  let prevWindowEvent: any;
+  let prevGlobalEvent: unknown;
+  let prevWindowEvent: unknown;
   try {
     prevGlobalEvent = ksGlobal.event;
   } catch {}
   if (windowObj) {
     try {
-      prevWindowEvent = "event" in (windowObj as any) ? (windowObj as any).event : undefined;
+      prevWindowEvent = "event" in windowObj ? windowObj.event : undefined;
     } catch {}
   }
   try {
@@ -439,11 +471,15 @@ function dispatchLocked(event: any, trusted: boolean, resolveTargetKey: () => an
     targetKey = resolveTargetKey();
     const metadata = snapshotDispatchMetadata(state);
     __ks_setEventTrusted(event, trusted);
-    origRelated = (event as any).relatedTarget;
+    origRelated = Reflect.get(event, "relatedTarget");
     relatedCaptured = true;
-    origRelatedId = origRelated && typeof origRelated._id === "number" ? origRelated._id : -1;
+    const relatedId: unknown = isDispatchObject(origRelated)
+      ? Reflect.get(origRelated, "_id")
+      : undefined;
+    origRelatedId = typeof relatedId === "number" ? relatedId : -1;
+    const key = targetKey;
     return ksSpan("dom.dispatchEvent", { event_type: safeEventType(metadata.type) }, () =>
-      dispatchOnKeyInnerUnsafe(targetKey, event, state, metadata, origRelated, origRelatedId),
+      dispatchOnKeyInnerUnsafe(key, event, state, metadata, origRelatedId),
     );
   } finally {
     state.currentTarget = null;
@@ -458,8 +494,10 @@ function dispatchLocked(event: any, trusted: boolean, resolveTargetKey: () => an
       } catch {}
     }
     if (relatedCaptured) {
+      // Put back the value read before dispatch. Page code can store
+      // anything in relatedTarget; dispatch never checks it.
       try {
-        setEventRelatedTarget(event, origRelated);
+        setEventRelatedTarget(event, origRelated as Idl.EventTarget | null);
       } catch {}
     }
     try {
@@ -467,7 +505,7 @@ function dispatchLocked(event: any, trusted: boolean, resolveTargetKey: () => an
     } catch {}
     if (windowObj) {
       try {
-        (windowObj as any).event = prevWindowEvent;
+        windowObj.event = prevWindowEvent;
       } catch {}
     }
     eventsInFlight.delete(event);
@@ -475,11 +513,10 @@ function dispatchLocked(event: any, trusted: boolean, resolveTargetKey: () => an
 }
 
 function dispatchOnKeyInnerUnsafe(
-  targetKey: any,
-  event: any,
+  targetKey: EventTargetKey,
+  event: KsEvent,
   state: EventState,
   metadata: DispatchMetadata,
-  origRelated: any,
   origRelatedId: number,
 ): boolean {
   try {
@@ -496,7 +533,7 @@ function dispatchOnKeyInnerUnsafe(
   } catch {}
   if (windowObj) {
     try {
-      (windowObj as any).event = event;
+      windowObj.event = event;
     } catch {}
   }
   const path = propagationPath(targetKey, metadata.composed, metadata.type);
@@ -568,7 +605,7 @@ function invokeListenerCallback(listener: ListenerEntry["listener"], event: any)
 
 export function invokeListeners(
   list: ListenerEntry[],
-  event: any,
+  event: KsEvent,
   captureOnly: boolean | null,
 ): void {
   // Listener changes do not alter this pass, but removed entries are skipped.
@@ -586,7 +623,7 @@ export function invokeListeners(
         noteListenerRemoved(event.type);
       }
     }
-    let thrown: any = null;
+    let thrown: unknown = null;
     let threw = false;
     const prevPassive = isEventInPassiveListener(event);
     setEventInPassiveListener(event, !!entry.passive);
@@ -603,11 +640,7 @@ export function invokeListeners(
           "[kitesurf] event listener for",
           event.type,
           "threw:",
-          thrown && thrown.stack
-            ? thrown.stack
-            : thrown && thrown.message
-              ? thrown.message
-              : String(thrown),
+          errorStackOrMessage(thrown),
         );
       } catch {}
     }
