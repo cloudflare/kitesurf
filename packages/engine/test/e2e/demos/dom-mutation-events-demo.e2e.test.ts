@@ -10,19 +10,15 @@ function nodeHasId(node, id): boolean {
   return index >= 0 && attrs[index + 1] === id;
 }
 
-function pushChildren(stack, node): void {
-  if (Array.isArray(node.children)) {
-    for (const child of node.children) stack.push(child);
-  }
-}
-
 function findById(root, id) {
   const stack = [root];
   while (stack.length) {
     const node = stack.pop();
     if (!node) continue;
     if (nodeHasId(node, id)) return node;
-    pushChildren(stack, node);
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) stack.push(child);
+    }
   }
   return null;
 }

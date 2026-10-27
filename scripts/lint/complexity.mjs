@@ -95,18 +95,14 @@ function isOxlintDiagnostic(value) {
   );
 }
 
-/** @param {unknown} value @returns {number | null} */
-function safeDiagnosticCoordinate(value) {
-  return typeof value === "number" && Number.isSafeInteger(value) ? value : null;
-}
-
 /** @param {unknown[]} labels @returns {DiagnosticLocation} */
 function diagnosticLocation(labels) {
   const firstLabel = labels[0];
   const span = isRecord(firstLabel) && isRecord(firstLabel.span) ? firstLabel.span : undefined;
   return {
-    line: safeDiagnosticCoordinate(span?.line),
-    column: safeDiagnosticCoordinate(span?.column),
+    line: typeof span?.line === "number" && Number.isSafeInteger(span.line) ? span.line : null,
+    column:
+      typeof span?.column === "number" && Number.isSafeInteger(span.column) ? span.column : null,
   };
 }
 
@@ -116,46 +112,6 @@ function complexityScore(message) {
   if (scoreMatch === null) return null;
   const score = Number(scoreMatch[1]);
   return Number.isSafeInteger(score) ? score : null;
-}
-
-/** @param {unknown} diagnostic */
-function assertOxlintDiagnostic(diagnostic) {
-  if (!isOxlintDiagnostic(diagnostic)) {
-    throw new Error("Oxlint JSON output contained an invalid diagnostic.");
-  }
-}
-
-/** @param {OxlintDiagnostic} diagnostic @param {string} file @param {DiagnosticLocation} location @returns {NativeError | null} */
-function nativeErrorFromDiagnostic(diagnostic, file, location) {
-  if (diagnostic.severity !== "error") return null;
-  return {
-    file,
-    line: location.line,
-    column: location.column,
-    ruleId: diagnostic.code,
-    message: diagnostic.message,
-  };
-}
-
-/** @param {OxlintDiagnostic} diagnostic @param {string} file @param {DiagnosticLocation} location @returns {ComplexityFinding | null} */
-function complexityFindingFromDiagnostic(diagnostic, file, location) {
-  if (!isComplexityRule(diagnostic.code)) return null;
-  const score = complexityScore(diagnostic.message);
-  if (score === null || location.line === null || location.column === null) {
-    throw new Error("An Oxlint complexity diagnostic did not include a score and location.");
-  }
-  return { file, line: location.line, column: location.column, score };
-}
-
-/** @param {unknown} diagnostic @param {string} root @returns {{finding: ComplexityFinding | null, nativeError: NativeError | null}} */
-function parseOxlintDiagnostic(diagnostic, root) {
-  assertOxlintDiagnostic(diagnostic);
-  const file = displayPath(diagnostic.filename, root);
-  const location = diagnosticLocation(diagnostic.labels);
-  return {
-    finding: complexityFindingFromDiagnostic(diagnostic, file, location),
-    nativeError: nativeErrorFromDiagnostic(diagnostic, file, location),
-  };
 }
 
 /**
@@ -176,9 +132,28 @@ function parseOxlintReport(stdout, root) {
   const nativeErrors = [];
 
   for (const diagnostic of output.diagnostics) {
-    const parsed = parseOxlintDiagnostic(diagnostic, root);
-    if (parsed.nativeError !== null) nativeErrors.push(parsed.nativeError);
-    if (parsed.finding !== null) findings.push(parsed.finding);
+    if (!isOxlintDiagnostic(diagnostic)) {
+      throw new Error("Oxlint JSON output contained an invalid diagnostic.");
+    }
+    const file = displayPath(diagnostic.filename, root);
+    const { line, column } = diagnosticLocation(diagnostic.labels);
+
+    if (diagnostic.severity === "error") {
+      nativeErrors.push({
+        file,
+        line,
+        column,
+        ruleId: diagnostic.code,
+        message: diagnostic.message,
+      });
+    }
+    if (!isComplexityRule(diagnostic.code)) continue;
+
+    const score = complexityScore(diagnostic.message);
+    if (score === null || line === null || column === null) {
+      throw new Error("An Oxlint complexity diagnostic did not include a score and location.");
+    }
+    findings.push({ file, line, column, score });
   }
 
   return { findings, nativeErrors };

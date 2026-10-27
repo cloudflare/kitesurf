@@ -407,23 +407,6 @@ function viewportDims(): { w: number; h: number } {
   };
 }
 
-function resolveWindowDocument(): any {
-  const doc = documentImpl as any;
-  return doc?.get?.() ?? doc;
-}
-
-function countDocumentFrames(doc: any): number {
-  return doc?.querySelectorAll?.("iframe")?.length ?? 0;
-}
-
-function windowFrameCount(): number {
-  try {
-    return countDocumentFrames(resolveWindowDocument());
-  } catch {
-    return 0;
-  }
-}
-
 const COMPUTED_STYLE_PSEUDOS = new Set(["before", "after", "marker", "selection", "first-letter"]);
 
 function computedStyleNodeId(element: any): number {
@@ -687,7 +670,12 @@ export function installWindow(
       return window;
     },
     get length() {
-      return windowFrameCount();
+      try {
+        const doc = (documentImpl as any)?.get?.() ?? documentImpl;
+        return doc?.querySelectorAll?.("iframe")?.length ?? 0;
+      } catch {
+        return 0;
+      }
     },
     get opener() {
       return null;
@@ -787,25 +775,20 @@ export function installWindow(
       let singleSeq = -1;
       let singleValues: Map<string, string> | null = null;
       const isCachedAtSequence = (sequence: number) => cachedMap !== null && cachedSeq === sequence;
-      const resetSingleValues = (sequence: number) => {
-        if (singleSeq === sequence) return;
-        singleSeq = sequence;
-        singleValues = null;
-      };
-      const readSingleValue = (dash: string): string | null => {
+      const single = (dash: string): string | null => {
+        const curSeq = ksState().mutationSeq | 0;
+        if (isCachedAtSequence(curSeq)) return null;
+        if (singleSeq !== curSeq) {
+          singleSeq = curSeq;
+          singleValues = null;
+        }
+        const hit = singleValues?.get(dash);
+        if (hit !== undefined) return hit;
         if (!valueForAuthId) return null;
         const value = valueForAuthId(nodeId, dash);
         if (typeof value !== "string") return null;
         (singleValues ??= new Map()).set(dash, value);
         return value;
-      };
-      const single = (dash: string): string | null => {
-        const curSeq = ksState().mutationSeq | 0;
-        if (isCachedAtSequence(curSeq)) return null;
-        resetSingleValues(curSeq);
-        const hit = singleValues?.get(dash);
-        if (hit !== undefined) return hit;
-        return readSingleValue(dash);
       };
       const clearResolvedCache = (sequence: number) => {
         cachedMap = null;

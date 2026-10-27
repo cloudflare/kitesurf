@@ -460,30 +460,18 @@ function installNodeMethodsAsOwn(): void {
   installAsOwn(HTMLElement, Element.prototype, ["click", "focus", "blur"]);
 }
 
-function shouldMakePrototypeMemberEnumerable(
-  name: string,
-  descriptor: PropertyDescriptor | undefined,
-): descriptor is PropertyDescriptor {
-  return (
-    name !== "constructor" &&
-    descriptor !== undefined &&
-    !descriptor.enumerable &&
-    descriptor.configurable !== false
-  );
-}
-
-function makeEnumerablePrototypeMember(proto: object, name: string): void {
-  const descriptor = Object.getOwnPropertyDescriptor(proto, name);
-  if (!shouldMakePrototypeMemberEnumerable(name, descriptor)) return;
-  try {
-    Object.defineProperty(proto, name, { ...descriptor, enumerable: true });
-  } catch {}
-}
-
 function forceEnumerableProtoOwnProps(klass: any): void {
   if (!klass || !klass.prototype) return;
-  for (const name of Object.getOwnPropertyNames(klass.prototype)) {
-    makeEnumerablePrototypeMember(klass.prototype, name);
+  const proto = klass.prototype;
+  for (const name of Object.getOwnPropertyNames(proto)) {
+    if (name === "constructor") continue;
+    const descriptor = Object.getOwnPropertyDescriptor(proto, name);
+    if (!descriptor) continue;
+    if (descriptor.enumerable === true) continue;
+    if (descriptor.configurable === false) continue;
+    try {
+      Object.defineProperty(proto, name, { ...descriptor, enumerable: true });
+    } catch {}
   }
 }
 

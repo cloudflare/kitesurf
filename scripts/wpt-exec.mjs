@@ -458,23 +458,18 @@ function normalizeSubtest(s) {
 }
 
 function classifyResult(harnessStatus, subtests, counts) {
-  if (harnessStatus !== "OK") return classifyHarnessFailure(harnessStatus);
-  if (counts && Object.keys(counts).length > 0) return classifyCounts(counts);
-  if (subtests.length === 0) return "PASS";
-  return classifySubtests(subtests);
-}
-
-function classifyHarnessFailure(harnessStatus) {
-  return harnessStatus === "TIMEOUT" ? "TIMEOUT" : "ERROR";
-}
-
-function classifyCounts(counts) {
-  const statuses = Object.keys(counts);
-  return statuses.length === 1 && statuses[0] === "PASS" ? "PASS" : "FAIL";
-}
-
-function classifySubtests(subtests) {
-  return subtests.every((subtest) => subtest.status === "PASS") ? "PASS" : "FAIL";
+  if (harnessStatus !== "OK") {
+    if (harnessStatus === "TIMEOUT") return "TIMEOUT";
+    return "ERROR";
+  }
+  if (counts && Object.keys(counts).length > 0) {
+    const statuses = Object.keys(counts);
+    return statuses.length === 1 && statuses[0] === "PASS" ? "PASS" : "FAIL";
+  }
+  if (subtests.length === 0) {
+    return "PASS";
+  }
+  return subtests.every((s) => s.status === "PASS") ? "PASS" : "FAIL";
 }
 
 function withDeadline(label, ms, work) {
@@ -1412,26 +1407,22 @@ async function recoverWorker(state, engine, triggerLaneTag) {
   return recovered;
 }
 
-function formatUnexpectedResultLine(tag, path, ms, result, expected) {
-  if (expected !== "PASS" && result.actual === "PASS") {
-    return `  ${tag}${path} ${yellow("?PASS")} ${dim(`${ms}ms`)}  ${dim(`expected ${expected}, got PASS`)}`;
-  }
-  const reason = result.reason ? ` — ${result.reason.slice(0, 60)}` : "";
-  return `  ${tag}${path} ${red("✗")} ${dim(`${ms}ms`)}  ${red(result.actual)} ${dim(`(expected ${expected})${reason}`)}`;
-}
-
-function formatExpectedResultLine(tag, path, ms, result, skippedAsSlow) {
-  if (skippedAsSlow) return `  ${tag}${path} ${dim("⤵")} ${dim(`${ms}ms`)}  ${dim("SKIP (slow)")}`;
-  const okTag = result.actual === "PASS" ? green("✓") : dim("·");
-  const detail = result.counts ? dim(` (${formatCounts(result.counts)})`) : "";
-  return `  ${tag}${path} ${okTag} ${dim(`${ms}ms`)}  ${dim(result.actual)}${detail}`;
-}
-
 function formatResultLine(laneTag, testPath, ms, result, expected, matched, skippedAsSlow) {
   const tag = laneTag ? `${dim(laneTag)} ` : "";
   const path = testPath.padEnd(60);
-  if (!matched) return formatUnexpectedResultLine(tag, path, ms, result, expected);
-  return formatExpectedResultLine(tag, path, ms, result, skippedAsSlow);
+  if (!matched) {
+    if (expected !== "PASS" && result.actual === "PASS") {
+      return `  ${tag}${path} ${yellow("?PASS")} ${dim(`${ms}ms`)}  ${dim(`expected ${expected}, got PASS`)}`;
+    }
+    const reason = result.reason ? ` — ${result.reason.slice(0, 60)}` : "";
+    return `  ${tag}${path} ${red("✗")} ${dim(`${ms}ms`)}  ${red(result.actual)} ${dim(`(expected ${expected})${reason}`)}`;
+  }
+  if (skippedAsSlow) {
+    return `  ${tag}${path} ${dim("⤵")} ${dim(`${ms}ms`)}  ${dim("SKIP (slow)")}`;
+  }
+  const okTag = result.actual === "PASS" ? green("✓") : dim("·");
+  const detail = result.counts ? dim(` (${formatCounts(result.counts)})`) : "";
+  return `  ${tag}${path} ${okTag} ${dim(`${ms}ms`)}  ${dim(result.actual)}${detail}`;
 }
 
 function createClient(engine, laneTag) {

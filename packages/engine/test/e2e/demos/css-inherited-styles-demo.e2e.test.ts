@@ -17,22 +17,17 @@ type MatchedRule = {
 };
 type InheritedEntry = { matchedCSSRules: MatchedRule[] };
 
-function nodeHasId(node: CdpNode, id: string): boolean {
-  const i = (node.attributes || []).indexOf("id");
-  return i >= 0 && (node.attributes || [])[i + 1] === id;
-}
-
-function nodeChildren(node: CdpNode): CdpNode[] {
-  return Array.isArray(node.children) ? node.children : [];
-}
-
 function findById(root: CdpNode, id: string): CdpNode | null {
   const stack = [root];
   while (stack.length) {
     const node = stack.pop();
     if (!node) continue;
-    if (nodeHasId(node, id)) return node;
-    for (const child of nodeChildren(node)) stack.push(child);
+    const attributes = node.attributes || [];
+    const index = attributes.indexOf("id");
+    if (index >= 0 && attributes[index + 1] === id) return node;
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) stack.push(child);
+    }
   }
   return null;
 }

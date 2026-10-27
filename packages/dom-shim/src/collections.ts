@@ -496,7 +496,14 @@ class HtmlCollectionCls implements Idl.HTMLCollection {
     const key = String(name);
     if (key === "") return null;
     const list = htmlCollectionFn(this, "namedItem")();
-    return firstElementById(list, key) ?? firstElementByName(list, key);
+    for (const el of list) {
+      if (el.getAttribute && el.getAttribute("id") === key) return el;
+    }
+    for (const el of list) {
+      if (!htmlCollectionExposesName(el)) continue;
+      if (el.getAttribute && el.getAttribute("name") === key) return el;
+    }
+    return null;
   }
   get length() {
     return htmlCollectionFn(this, "length")().length;
@@ -509,40 +516,22 @@ class HtmlCollectionCls implements Idl.HTMLCollection {
   }
 }
 
-function firstElementById(list: Element[], key: string): Element | null {
-  for (const element of list) {
-    if (element.getAttribute && element.getAttribute("id") === key) return element;
-  }
-  return null;
-}
-
-function firstElementByName(list: Element[], key: string): Element | null {
-  for (const element of list) {
-    if (!htmlCollectionExposesName(element)) continue;
-    if (element.getAttribute && element.getAttribute("name") === key) return element;
-  }
-  return null;
-}
-
 // The elements whose id, or name where the element exposes one, is key,
 // in tree order.
 function namedMatches(list: Element[], key: string): Element[] {
   const out: Element[] = [];
   const seen = new Set<Element>();
   for (const el of list) {
-    if (!isNamedMatch(el, key) || seen.has(el)) continue;
-    seen.add(el);
-    out.push(el);
+    if (!el || !el.getAttribute) continue;
+    const isMatch =
+      el.getAttribute("id") === key ||
+      (htmlCollectionExposesName(el) && el.getAttribute("name") === key);
+    if (isMatch && !seen.has(el)) {
+      seen.add(el);
+      out.push(el);
+    }
   }
   return out;
-}
-
-function isNamedMatch(element: Element | null | undefined, key: string): element is Element {
-  if (!element || !element.getAttribute) return false;
-  return (
-    element.getAttribute("id") === key ||
-    (htmlCollectionExposesName(element) && element.getAttribute("name") === key)
-  );
 }
 
 // Repeated form-control names produce a live RadioNodeList whose value reads
@@ -623,7 +612,10 @@ class HTMLOptionsCollectionCls extends HtmlCollectionCls implements Idl.HTMLOpti
     if (!select) return;
     const i = Number(index) | 0;
     const list = htmlCollectionGetters.get(this)?.();
-    removeOptionAtIndex(list, i);
+    if (Array.isArray(list) && i >= 0 && i < list.length) {
+      const o = list[i];
+      if (o && o.parentNode) o.parentNode.removeChild(o);
+    }
   }
 }
 
@@ -900,23 +892,23 @@ function makeHtmlCollection(
 
   function exposedNames(list) {
     const names: string[] = [];
-    const seen = new Set<string>();
-    for (const el of list) appendExposedNames(el, seen, names);
-    return names;
-  }
-
-  function appendExposedNames(el: Element, seen: Set<string>, names: string[]): void {
-    if (!el || !el.getAttribute) return;
-    appendUniqueExposedName(el.getAttribute("id"), seen, names);
-    if (htmlCollectionExposesName(el)) {
-      appendUniqueExposedName(el.getAttribute("name"), seen, names);
+    const seen = new Set();
+    for (const el of list) {
+      if (!el || !el.getAttribute) continue;
+      const id = el.getAttribute("id");
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        names.push(id);
+      }
+      if (htmlCollectionExposesName(el)) {
+        const nm = el.getAttribute("name");
+        if (nm && !seen.has(nm)) {
+          seen.add(nm);
+          names.push(nm);
+        }
+      }
     }
-  }
-
-  function appendUniqueExposedName(name: string | null, seen: Set<string>, names: string[]): void {
-    if (!name || seen.has(name)) return;
-    seen.add(name);
-    names.push(name);
+    return names;
   }
 
   // A supported name's value, the same for a read and for reflection:
@@ -924,7 +916,14 @@ function makeHtmlCollection(
   // first id match wins, then the first name match.
   function namedValue(t: object, name: string, list: Element[]) {
     if (protoCls === HTMLFormControlsCollectionCls) return formControlsNamedItem.call(t, name);
-    return firstElementById(list, name) ?? firstElementByName(list, name);
+    for (const el of list) {
+      if (el.getAttribute && el.getAttribute("id") === name) return el;
+    }
+    for (const el of list) {
+      if (!htmlCollectionExposesName(el)) continue;
+      if (el.getAttribute && el.getAttribute("name") === name) return el;
+    }
+    return null;
   }
   // Supported names exclude indexes and own/prototype properties, as WebIDL
   // specifies for named-property visibility:
@@ -1072,62 +1071,6 @@ function makeHtmlCollection(
     }
   }
 
-  function htmlCollectionPropertyDescriptor(
-    t: object,
-    prop: PropertyKey,
-  ): PropertyDescriptor | undefined {
-    if (Object.prototype.hasOwnProperty.call(shadow, prop)) {
-      return {
-        value: shadow[prop],
-        writable: true,
-        enumerable: true,
-        configurable: true,
-      };
-    }
-    if (prop === "length") return htmlCollectionLengthDescriptor();
-    const indexDescriptor = htmlCollectionIndexDescriptor(prop);
-    if (indexDescriptor) return indexDescriptor;
-    const namedDescriptor = htmlCollectionNamedDescriptor(t, prop);
-    return namedDescriptor ?? Reflect.getOwnPropertyDescriptor(t, prop);
-  }
-
-  function htmlCollectionLengthDescriptor(): PropertyDescriptor {
-    return {
-      value: memoGetList().length,
-      writable: false,
-      enumerable: false,
-      configurable: true,
-    };
-  }
-
-  function htmlCollectionIndexDescriptor(prop: PropertyKey): PropertyDescriptor | undefined {
-    if (typeof prop !== "string" || !/^\d+$/.test(prop)) return undefined;
-    const index = +prop;
-    const list = memoGetList();
-    if (index >= list.length) return undefined;
-    return {
-      value: list[index],
-      writable: false,
-      enumerable: true,
-      configurable: true,
-    };
-  }
-
-  function htmlCollectionNamedDescriptor(
-    t: object,
-    prop: PropertyKey,
-  ): PropertyDescriptor | undefined {
-    if (typeof prop !== "string" || !isVisibleName(t, prop)) return undefined;
-    const named = namedValue(t, prop, memoGetList());
-    if (!named) return undefined;
-    return {
-      value: named,
-      writable: false,
-      enumerable: false,
-      configurable: true,
-    };
-  }
-
   let proxy: HtmlCollectionProxyTarget;
   proxy = new Proxy(target, {
     get(t, prop, receiver) {
@@ -1158,7 +1101,48 @@ function makeHtmlCollection(
       return htmlCollectionOwnKeys(t, memoGetList());
     },
     getOwnPropertyDescriptor(t, prop) {
-      return htmlCollectionPropertyDescriptor(t, prop);
+      if (Object.prototype.hasOwnProperty.call(shadow, prop)) {
+        return {
+          value: shadow[prop],
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        };
+      }
+      if (prop === "length") {
+        return {
+          value: memoGetList().length,
+          writable: false,
+          enumerable: false,
+          configurable: true,
+        };
+      }
+      if (typeof prop === "string") {
+        if (/^\d+$/.test(prop)) {
+          const i = +prop;
+          const list = memoGetList();
+          if (i < list.length) {
+            return {
+              value: list[i],
+              writable: false,
+              enumerable: true,
+              configurable: true,
+            };
+          }
+        }
+        if (isVisibleName(t, prop)) {
+          const named = namedValue(t, prop, memoGetList());
+          if (named) {
+            return {
+              value: named,
+              writable: false,
+              enumerable: false,
+              configurable: true,
+            };
+          }
+        }
+      }
+      return Reflect.getOwnPropertyDescriptor(t, prop);
     },
   });
   htmlCollectionGetters.set(proxy, getList);
@@ -1391,52 +1375,28 @@ interface SelectorCanonicalizer {
   canonicalizeSelector(selector: string): string | undefined;
   canonicalizeSelectorNs?(selector: string, prefixes: Record<string, string>): string | undefined;
 }
-interface SupportsParenState {
-  depth: number;
-  quote: string | null;
-  closeIndex: number;
-}
 
 function matchingSupportsParen(raw: string, open: number): number {
-  const state: SupportsParenState = { depth: 0, quote: null, closeIndex: -1 };
-  for (let i = open; i < raw.length;) {
-    i = scanSupportsParenCharacter(raw, i, state);
-    if (state.closeIndex >= 0) return state.closeIndex;
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = open; i < raw.length; i++) {
+    const c = raw[i];
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    if (c === "(") depth++;
+    else if (c === ")") {
+      depth--;
+      if (depth === 0) return i;
+    }
   }
   return -1;
-}
-
-function scanSupportsParenCharacter(raw: string, index: number, state: SupportsParenState): number {
-  const character = raw[index];
-  if (state.quote) return scanQuotedSupportsCharacter(character, index, state);
-  if (character === '"' || character === "'") {
-    state.quote = character;
-    return index + 1;
-  }
-  return scanUnquotedSupportsCharacter(character, index, state);
-}
-
-function scanQuotedSupportsCharacter(
-  character: string,
-  index: number,
-  state: SupportsParenState,
-): number {
-  if (character === "\\") return index + 2;
-  if (character === state.quote) state.quote = null;
-  return index + 1;
-}
-
-function scanUnquotedSupportsCharacter(
-  character: string,
-  index: number,
-  state: SupportsParenState,
-): number {
-  if (character === "(") state.depth++;
-  else if (character === ")") {
-    state.depth--;
-    if (state.depth === 0) state.closeIndex = index;
-  }
-  return index + 1;
 }
 
 interface ImportSupportsScanState {
@@ -1511,62 +1471,37 @@ function sheetNamespacePrefixes(sheet: unknown): Record<string, string> | null {
   try {
     const rules = (sheet as { cssRules?: { length: number; item(i: number): unknown } })?.cssRules;
     if (!rules) return null;
-    return namespacePrefixesFromRules(rules);
+    let out: Record<string, string> | null = null;
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules.item(i) as { type?: number; prefix?: string; namespaceURI?: string };
+      if (rule && rule.type === 10 && typeof rule.namespaceURI === "string") {
+        out = out || {};
+        out[typeof rule.prefix === "string" ? rule.prefix : ""] = rule.namespaceURI;
+      }
+    }
+    return out;
   } catch {
     return null;
   }
-}
-
-function namespacePrefixesFromRules(rules: {
-  length: number;
-  item(i: number): unknown;
-}): Record<string, string> | null {
-  let prefixes: Record<string, string> | null = null;
-  for (let i = 0; i < rules.length; i++) {
-    const rule = rules.item(i) as { type?: number; prefix?: string; namespaceURI?: string };
-    if (!isNamespaceRule(rule)) continue;
-    prefixes = addNamespacePrefix(prefixes, rule);
-  }
-  return prefixes;
-}
-
-function isNamespaceRule(
-  rule: { type?: number; namespaceURI?: string } | null | undefined,
-): rule is { type: number; prefix?: string; namespaceURI: string } {
-  return !!rule && rule.type === 10 && typeof rule.namespaceURI === "string";
-}
-
-function addNamespacePrefix(
-  prefixes: Record<string, string> | null,
-  rule: { prefix?: string; namespaceURI: string },
-): Record<string, string> {
-  const result = prefixes || {};
-  const prefix = typeof rule.prefix === "string" ? rule.prefix : "";
-  result[prefix] = rule.namespaceURI;
-  return result;
 }
 
 function canonicalizeSelectorOrNull(sel: unknown, sheet?: unknown): string | null {
   const s = String(sel);
   try {
     const cap = selectorCanonicalizer(dom);
-    if (!cap) return s;
-    return canonicalizeSelectorWith(cap, s, sheet);
+    if (cap) {
+      const prefixes = sheet ? sheetNamespacePrefixes(sheet) : null;
+      if (prefixes && typeof cap.canonicalizeSelectorNs === "function") {
+        const v = cap.canonicalizeSelectorNs(s, prefixes);
+        return typeof v === "string" ? v : null;
+      }
+      const v = cap.canonicalizeSelector(s);
+      return typeof v === "string" ? v : null;
+    }
   } catch {
     return null;
   }
-}
-
-function canonicalizeSelectorWith(
-  canonicalizer: SelectorCanonicalizer,
-  selector: string,
-  sheet: unknown,
-): string | null {
-  const prefixes = sheet ? sheetNamespacePrefixes(sheet) : null;
-  if (prefixes && typeof canonicalizer.canonicalizeSelectorNs === "function") {
-    return canonicalizedSelector(canonicalizer.canonicalizeSelectorNs(selector, prefixes));
-  }
-  return canonicalizedSelector(canonicalizer.canonicalizeSelector(selector));
+  return s;
 }
 
 function canonicalizedSelector(value: string | undefined): string | null {
@@ -1730,38 +1665,27 @@ function makeRuleList(arr: AnyCssRule[]): RuleList {
   return arr as RuleList;
 }
 
-function assertInsertRuleArgument(argumentCount: number): void {
-  if (argumentCount === 0) {
-    throw new TypeError("Failed to execute 'insertRule': 1 argument required, but only 0 present.");
-  }
-}
-
-function ruleInsertionIndex(index: unknown, rules: RuleList): number {
-  const insertionIndex = index === undefined ? 0 : Number(index) >>> 0;
-  if (insertionIndex > rules.length) {
-    throw new DOMException("Index out of bounds", "IndexSizeError");
-  }
-  return insertionIndex;
-}
-
-function assertGroupingRuleAllowed(kind: string): void {
-  if (kind === "import" || kind === "namespace") {
-    throw new DOMException("Rule not allowed inside a grouping rule", "HierarchyRequestError");
-  }
-}
-
 class CSSGroupingRuleCls extends CSSRuleInterface implements Idl.CSSGroupingRule {
   get cssRules(): RuleList | undefined {
     return rs<"childRules">(this).childRules;
   }
   insertRule(text?: unknown, index?: unknown) {
-    assertInsertRuleArgument(arguments.length);
+    if (arguments.length === 0) {
+      throw new TypeError(
+        "Failed to execute 'insertRule': 1 argument required, but only 0 present.",
+      );
+    }
     const s = rs<"childRules">(this);
     const rules = s.childRules;
-    const i = ruleInsertionIndex(index, rules);
+    const i = index === undefined ? 0 : Number(index) >>> 0;
+    if (i > rules.length) {
+      throw new DOMException("Index out of bounds", "IndexSizeError");
+    }
     const parsed = parseSingleRuleOrThrow(text);
     const kind = classifyRuleKind(parsed);
-    assertGroupingRuleAllowed(kind);
+    if (kind === "import" || kind === "namespace") {
+      throw new DOMException("Rule not allowed inside a grouping rule", "HierarchyRequestError");
+    }
     const rule = constructRule(parsed, s.parentSheet, this, s.onMutate);
     if (!rule) throw ruleSyntaxError(text);
     rules.splice(i, 0, rule);
@@ -1924,31 +1848,33 @@ class CSSPageRuleCls extends CSSGroupingRuleCls implements Idl.CSSPageRule {
   // implements, so this overrides rather than extends it. Duplicates
   // are allowed and document order is kept (WPT cssom/margin-003.html).
   insertRule(text?: unknown, index?: unknown) {
-    assertInsertRuleArgument(arguments.length);
+    if (arguments.length === 0) {
+      throw new TypeError(
+        "Failed to execute 'insertRule': 1 argument required, but only 0 present.",
+      );
+    }
     const s = rs<"childRules">(this);
     const rules = s.childRules;
-    const i = ruleInsertionIndex(index, rules);
-    const parsed = parsePageMarginRule(text);
-    const name = marginRuleNameOf(parsed.selectorText);
+    const i = index === undefined ? 0 : Number(index) >>> 0;
+    if (i > rules.length) {
+      throw new DOMException("Index out of bounds", "IndexSizeError");
+    }
+    const split = splitStylesheetRules(text);
+    if (split.unbalanced || split.length !== 1 || split.trailingGarbage) {
+      throw ruleSyntaxError(text);
+    }
+    const name = marginRuleNameOf(split[0].selectorText);
     if (!name) {
       throw new DOMException(
         "Only margin at-rules may be inserted into a @page rule",
         "SyntaxError",
       );
     }
-    const rule = constructMarginRule(parsed, name, s.parentSheet, this, s.onMutate);
+    const rule = constructMarginRule(split[0], name, s.parentSheet, this, s.onMutate);
     rules.splice(i, 0, rule);
     if (s.onMutate) s.onMutate();
     return i;
   }
-}
-
-function parsePageMarginRule(text: unknown): ParsedRuleChunk {
-  const split = splitStylesheetRules(text);
-  if (split.unbalanced || split.length !== 1 || split.trailingGarbage) {
-    throw ruleSyntaxError(text);
-  }
-  return split[0];
 }
 
 // One @top-left / @bottom-center / … margin at-rule nested in a
@@ -2178,22 +2104,19 @@ interface CounterStyleRuleDto {
 }
 
 function counterStyleDto(value: unknown): CounterStyleRuleDto | null {
-  return isCounterStyleRuleDto(value) ? value : null;
-}
-
-function isCounterStyleRuleDto(value: unknown): value is CounterStyleRuleDto {
-  if (!isObjectRecord(value)) return false;
-  if (typeof value.name !== "string" || !Array.isArray(value.descriptors)) return false;
-  return value.descriptors.every(isCounterStyleDescriptor);
-}
-
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isCounterStyleDescriptor(value: unknown): value is { name: string; value: string } {
-  if (!isObjectRecord(value)) return false;
-  return typeof value.name === "string" && typeof value.value === "string";
+  if (!value || typeof value !== "object") return null;
+  const dto = value as Partial<CounterStyleRuleDto>;
+  if (typeof dto.name !== "string" || !Array.isArray(dto.descriptors)) return null;
+  for (const descriptor of dto.descriptors) {
+    if (
+      !descriptor ||
+      typeof descriptor.name !== "string" ||
+      typeof descriptor.value !== "string"
+    ) {
+      return null;
+    }
+  }
+  return dto as CounterStyleRuleDto;
 }
 
 function parseCounterStyle(css: string, field = "", value = ""): CounterStyleRuleDto | null {
@@ -2518,83 +2441,6 @@ function ruleStyleCascadeText(style: RuleStyleDecl): string {
   return ruleStyleHooksOf(style).cascadeText();
 }
 
-function ruleStyleDeclarationFactory() {
-  return opts && typeof opts.createRuleStyleDeclaration === "function"
-    ? opts.createRuleStyleDeclaration
-    : null;
-}
-
-type RuleStyleDeclarationFactory = NonNullable<ReturnType<typeof ruleStyleDeclarationFactory>>;
-
-function createRuleStyleStore(
-  factory: RuleStyleDeclarationFactory | null,
-  context: "style" | "keyframe" | "font-face" | "page",
-  initialDeclText: unknown,
-  baseUrl: string,
-): RuleStyleDeclarationStore | null {
-  if (!factory) return null;
-  try {
-    return factory(context, String(initialDeclText || ""), baseUrl);
-  } catch {
-    return null;
-  }
-}
-
-function initializeRuleStyleData(
-  pending: boolean,
-  initialDeclText: unknown,
-  data: Record<string, string>,
-): void {
-  if (!pending && initialDeclText) parseCssTextInto(initialDeclText, data);
-}
-
-function setRuleStyleStoreProperty(
-  store: RuleStyleDeclarationStore,
-  name: unknown,
-  value: unknown,
-  priority: unknown,
-  notify: () => void,
-): void {
-  const changed = store.setProperty(
-    String(name),
-    value == null ? "" : String(value),
-    String(priority),
-  );
-  if (changed) notify();
-}
-
-function setFallbackRuleStyleProperty(
-  data: Record<string, string>,
-  name: unknown,
-  value: unknown,
-  notify: () => void,
-): void {
-  const key = cssPropToCamel(String(name));
-  const text = value == null ? "" : String(value);
-  if (text === "") delete data[key];
-  else data[key] = text;
-  notify();
-}
-
-function setRuleStyleValue(
-  key: string,
-  value: unknown,
-  data: Record<string, string>,
-  storeFor: () => RuleStyleDeclarationStore | null,
-  notify: () => void,
-): boolean {
-  const text = value == null ? "" : String(value);
-  const store = storeFor();
-  if (store) {
-    if (store.setProperty(cssPropCamelToKebab(key), text, "")) notify();
-    return true;
-  }
-  if (text === "") delete data[key];
-  else data[key] = text;
-  notify();
-  return true;
-}
-
 function makeRuleStyleDeclaration(
   initialDeclText,
   context: "style" | "keyframe" | "font-face" | "page" = "style",
@@ -2605,17 +2451,24 @@ function makeRuleStyleDeclaration(
   // alive while detached rules remain readable through `.style`; never free it
   // eagerly in deleteRule. Creation waits for the first read or write.
   let made: RuleStyleDeclarationStore | null = null;
-  const createStore = ruleStyleDeclarationFactory();
+  const createStore =
+    opts && typeof opts.createRuleStyleDeclaration === "function"
+      ? opts.createRuleStyleDeclaration
+      : null;
   let pending = createStore !== null;
   function storeFor(): RuleStyleDeclarationStore | null {
     if (pending) {
       pending = false;
-      made = createRuleStyleStore(createStore, context, initialDeclText, baseUrl);
+      if (createStore) {
+        try {
+          made = createStore(context, String(initialDeclText || ""), baseUrl);
+        } catch {}
+      }
       if (!made && initialDeclText) parseCssTextInto(initialDeclText, data);
     }
     return made;
   }
-  initializeRuleStyleData(pending, initialDeclText, data);
+  if (!pending && initialDeclText) parseCssTextInto(initialDeclText, data);
   // Hooks live beside the data bag, not in it: bag keys serialize as CSS
   // declarations and count toward length, item and iteration.
   const hooks: RuleStyleHooks = {
@@ -2660,10 +2513,16 @@ function makeRuleStyleDeclaration(
     setProperty(name, value, priority = "") {
       const store = storeFor();
       if (store) {
-        setRuleStyleStoreProperty(store, name, value, priority, notify);
+        if (store.setProperty(String(name), value == null ? "" : String(value), String(priority))) {
+          notify();
+        }
         return;
       }
-      setFallbackRuleStyleProperty(data, name, value, notify);
+      const key = cssPropToCamel(String(name));
+      const v = value == null ? "" : String(value);
+      if (v === "") delete data[key];
+      else data[key] = v;
+      notify();
     },
     removeProperty(name) {
       const store = storeFor();
@@ -2701,7 +2560,16 @@ function makeRuleStyleDeclaration(
     set(_t, prop, value) {
       const key = styleDeclKey(prop);
       if (typeof key !== "string") return false;
-      return setRuleStyleValue(key, value, data, storeFor, notify);
+      const v = value == null ? "" : String(value);
+      const store = storeFor();
+      if (store) {
+        if (store.setProperty(cssPropCamelToKebab(key), v, "")) notify();
+        return true;
+      }
+      if (v === "") delete data[key];
+      else data[key] = v;
+      notify();
+      return true;
     },
     has(_t, prop) {
       const key = styleDeclKey(prop);
@@ -2761,44 +2629,42 @@ const KNOWN_AT_RULES = new Set([
   "document",
 ]);
 
-const CLASSIFIED_AT_RULE_KINDS = new Map<string, string>([
-  ["media", "media"],
-  ["supports", "supports"],
-  ["import", "import"],
-  ["namespace", "namespace"],
-  ["font-face", "font-face"],
-  ["font-palette-values", "font-palette-values"],
-  ["font-feature-values", "font-feature-values"],
-  ["keyframes", "keyframes"],
-  ["-webkit-keyframes", "keyframes"],
-  ["page", "page"],
-  ["charset", "charset"],
-  ["counter-style", "counter-style"],
-]);
-
 function classifyRuleKind(parsed: ParsedRuleChunk): string {
   const sel = String(parsed.selectorText || "");
   const raw = String(parsed.cssText || "");
   if (marginRuleNameOf(sel)) return "margin";
-  return classifyRulePrelude(sel, raw);
-}
-
-function classifyRulePrelude(selectorText: string, rawText: string): string {
-  const name = atRuleName(selectorText || rawText);
-  if (!name) return selectorText ? "style" : "invalid";
-  return classifyAtRuleName(name, selectorText);
-}
-
-function atRuleName(text: string): string | null {
-  const match = text.match(/^@([a-zA-Z-]+)/);
-  return match ? match[1].toLowerCase() : null;
-}
-
-function classifyAtRuleName(name: string, selectorText: string): string {
-  if (name === "layer") return selectorText ? "layer-block" : "layer-statement";
-  const kind = CLASSIFIED_AT_RULE_KINDS.get(name);
-  if (kind) return kind;
-  return KNOWN_AT_RULES.has(name) ? "unknown" : "invalid";
+  const at = (sel || raw).match(/^@([a-zA-Z-]+)/);
+  if (!at) return sel ? "style" : "invalid";
+  const name = at[1].toLowerCase();
+  switch (name) {
+    case "media":
+      return "media";
+    case "supports":
+      return "supports";
+    case "layer":
+      return sel ? "layer-block" : "layer-statement";
+    case "import":
+      return "import";
+    case "namespace":
+      return "namespace";
+    case "font-face":
+      return "font-face";
+    case "font-palette-values":
+      return "font-palette-values";
+    case "font-feature-values":
+      return "font-feature-values";
+    case "keyframes":
+    case "-webkit-keyframes":
+      return "keyframes";
+    case "page":
+      return "page";
+    case "charset":
+      return "charset";
+    case "counter-style":
+      return "counter-style";
+    default:
+      return KNOWN_AT_RULES.has(name) ? "unknown" : "invalid";
+  }
 }
 
 function ruleTextForCascade(rule: AnyCssRule): string {
@@ -2835,17 +2701,12 @@ function isConstructibleRuleKind(kind: string): boolean {
 }
 
 function ruleStyleBaseUrl(parentSheet: CSSStyleSheetCtor | null): string {
-  return parentStyleSheetHref(parentSheet) || documentBaseUrl() || opts?.pageUrl || "about:blank";
-}
-
-function parentStyleSheetHref(parentSheet: CSSStyleSheetCtor | null): string | null {
   const href = parentSheet && (parentSheet as { href?: unknown }).href;
-  return typeof href === "string" && href ? href : null;
-}
-
-function documentBaseUrl(): string | null {
-  const base = ksGlobal.document && ksGlobal.document.baseURI;
-  return typeof base === "string" && base ? base : null;
+  if (typeof href === "string" && href) return href;
+  const documentBase = ksGlobal.document && ksGlobal.document.baseURI;
+  return typeof documentBase === "string" && documentBase
+    ? documentBase
+    : opts?.pageUrl || "about:blank";
 }
 
 function ruleParentFields(
@@ -3747,26 +3608,15 @@ function reparseStyleSheetFromText(state: DocumentStyleSheetRuntime, text: strin
   state.lastParsedText = text;
 }
 
-function canSyncLinkStyleSheet(state: DocumentStyleSheetRuntime): boolean {
-  return !state.linkRulesLoaded && state.id >= 0 && Boolean(getExternalSheetRules);
-}
-
-function readExternalStyleSheetRules(
-  id: number,
-): ReturnType<NonNullable<typeof getExternalSheetRules>> | null {
-  if (!getExternalSheetRules) return null;
+function syncLinkStyleSheet(state: DocumentStyleSheetRuntime, strict: boolean): void {
+  if (state.linkRulesLoaded || state.id < 0 || !getExternalSheetRules) return;
+  let response: ReturnType<NonNullable<typeof getExternalSheetRules>> | null = null;
   try {
-    return getExternalSheetRules(id);
+    response = getExternalSheetRules(state.id);
   } catch {
-    return null;
+    return;
   }
-}
-
-function applyExternalStyleSheetRules(
-  state: DocumentStyleSheetRuntime,
-  response: ReturnType<NonNullable<typeof getExternalSheetRules>>,
-  strict: boolean,
-): void {
+  if (!response) return;
   if (response.state === "denied") {
     if (strict) {
       throw securityError(
@@ -3779,13 +3629,6 @@ function applyExternalStyleSheetRules(
   if (response.state !== "clean") return;
   reparseStyleSheetFromText(state, String(response.text || ""));
   state.linkRulesLoaded = true;
-}
-
-function syncLinkStyleSheet(state: DocumentStyleSheetRuntime, strict: boolean): void {
-  if (!canSyncLinkStyleSheet(state)) return;
-  const response = readExternalStyleSheetRules(state.id);
-  if (!response) return;
-  applyExternalStyleSheetRules(state, response, strict);
 }
 
 function syncDocumentStyleSheet(state: DocumentStyleSheetRuntime, strict = false): void {
@@ -4311,50 +4154,6 @@ function tokenListIndex(prop: PropertyKey): number | null {
   return +prop;
 }
 
-function tokenListIteratorMethod(prop: PropertyKey) {
-  switch (prop) {
-    case "values":
-      return Array.prototype.values;
-    case "keys":
-      return Array.prototype.keys;
-    case "entries":
-      return Array.prototype.entries;
-    case "forEach":
-      return Array.prototype.forEach;
-    default:
-      return undefined;
-  }
-}
-
-function getTokenListProperty(
-  target: DOMTokenListCls,
-  prop: PropertyKey,
-  receiver: unknown,
-  getter: () => string[],
-): unknown {
-  if (prop === "length") return getter().length;
-  const index = tokenListIndex(prop);
-  if (index !== null) {
-    const tokens = getter();
-    return index < tokens.length ? tokens[index] : undefined;
-  }
-  const iterator = tokenListIteratorMethod(prop);
-  if (iterator !== undefined) return iterator;
-  return Reflect.get(target, prop, receiver);
-}
-
-function hasTokenListProperty(
-  target: DOMTokenListCls,
-  prop: PropertyKey,
-  getter: () => string[],
-): boolean {
-  if (prop === "length") return true;
-  const index = tokenListIndex(prop);
-  if (index !== null) return index < getter().length;
-  if (tokenListIteratorMethod(prop) !== undefined) return true;
-  return prop in target;
-}
-
 function makeDOMTokenList(
   read: () => string | null,
   write: (value: string) => void,
@@ -4364,7 +4163,20 @@ function makeDOMTokenList(
   const getter = () => parseTokens(read());
   const proxy = new Proxy(target, {
     get(t, prop, receiver) {
-      return getTokenListProperty(t, prop, receiver, getter);
+      if (prop === "length") return getter().length;
+      if (typeof prop === "string" && /^\d+$/.test(prop)) {
+        const i = +prop;
+        const tokens = getter();
+        return i < tokens.length ? tokens[i] : undefined;
+      }
+      // WebIDL iterable<DOMString>: WPT DOMTokenList-iteration checks that
+      // these are Array.prototype's own functions. finalizeInterface would
+      // wrap them on the prototype, so the proxy serves them.
+      if (prop === "values") return Array.prototype.values;
+      if (prop === "keys") return Array.prototype.keys;
+      if (prop === "entries") return Array.prototype.entries;
+      if (prop === "forEach") return Array.prototype.forEach;
+      return Reflect.get(t, prop, receiver);
     },
     set(t, prop, value) {
       // Indexed writes are rejected.
@@ -4372,7 +4184,13 @@ function makeDOMTokenList(
       return Reflect.set(t, prop, value);
     },
     has(t, prop) {
-      return hasTokenListProperty(t, prop, getter);
+      if (prop === "length") return true;
+      if (typeof prop === "string" && /^\d+$/.test(prop)) {
+        return +prop < getter().length;
+      }
+      if (prop === "values" || prop === "keys" || prop === "entries" || prop === "forEach")
+        return true;
+      return prop in t;
     },
     ownKeys() {
       const tokens = getter();
@@ -4593,7 +4411,31 @@ function makeNamedNodeMap(
     },
     getOwnPropertyDescriptor(t, prop) {
       sync();
-      return namedNodeMapOwnPropertyDescriptor(t, prop, list, byName);
+      if (typeof prop === "string" && /^\d+$/.test(prop)) {
+        const i = +prop;
+        if (i < list.length) {
+          return {
+            value: list[i],
+            writable: false,
+            enumerable: true,
+            configurable: true,
+          };
+        }
+      }
+      // Agree with ownKeys on which names are own.
+      if (
+        typeof prop === "string" &&
+        byName[prop] !== undefined &&
+        !(hidesUppercaseNames(list) && /[A-Z]/.test(prop))
+      ) {
+        return {
+          value: byName[prop],
+          writable: false,
+          enumerable: false,
+          configurable: true,
+        };
+      }
+      return Reflect.getOwnPropertyDescriptor(t, prop);
     },
   });
   // Prototype methods run with the proxy as `this`; internal code may
@@ -4628,64 +4470,20 @@ function getNamedNodeMapProperty(
   return Reflect.get(target, prop, receiver);
 }
 
-function namedNodeMapIndexDescriptor(
-  index: number,
-  list: AttrCls[],
-): PropertyDescriptor | undefined {
-  if (index >= list.length) return undefined;
-  return {
-    value: list[index],
-    writable: false,
-    enumerable: true,
-    configurable: true,
-  };
-}
-
-function namedNodeMapAttributeDescriptor(
-  prop: PropertyKey,
-  list: AttrCls[],
-  byName: Record<string, AttrCls>,
-): PropertyDescriptor | undefined {
-  if (!hasNamedNodeMapName(prop, byName)) return undefined;
-  if (hidesUppercaseNames(list) && /[A-Z]/.test(prop)) return undefined;
-  return {
-    value: byName[prop],
-    writable: false,
-    enumerable: false,
-    configurable: true,
-  };
-}
-
-function namedNodeMapOwnPropertyDescriptor(
-  target: NamedNodeMapCls,
-  prop: PropertyKey,
-  list: AttrCls[],
-  byName: Record<string, AttrCls>,
-): PropertyDescriptor | undefined {
-  const index = tokenListIndex(prop);
-  if (index !== null) {
-    const descriptor = namedNodeMapIndexDescriptor(index, list);
-    if (descriptor) return descriptor;
-  }
-  // Agree with ownKeys on which names are own.
-  const descriptor = namedNodeMapAttributeDescriptor(prop, list, byName);
-  return descriptor ?? Reflect.getOwnPropertyDescriptor(target, prop);
-}
-
 function filterByQualifiedName(candidates: Element[], qname: string): Element[] {
   const asciiLower = qname.replace(/[A-Z]/g, (c) => c.toLowerCase());
   const out: Element[] = [];
-  for (const element of candidates) {
-    if (matchesQualifiedName(element, qname, asciiLower)) out.push(element);
+  for (const el of candidates) {
+    const ns = el.namespaceURI || HTML_NS;
+    const elNsEntry = elemNs.get(el._id);
+    const elQname = elNsEntry ? elNsEntry.qname : el.localName || "";
+    if (ns === HTML_NS) {
+      if (elQname === asciiLower) out.push(el);
+    } else {
+      if (elQname === qname) out.push(el);
+    }
   }
   return out;
-}
-
-function matchesQualifiedName(element: Element, qname: string, asciiLower: string): boolean {
-  const namespace = element.namespaceURI || HTML_NS;
-  const namespaceEntry = elemNs.get(element._id);
-  const elementName = namespaceEntry ? namespaceEntry.qname : element.localName || "";
-  return namespace === HTML_NS ? elementName === asciiLower : elementName === qname;
 }
 
 function scopedQuerySelector(rootId: number, selector: string): Idl.Element | null {

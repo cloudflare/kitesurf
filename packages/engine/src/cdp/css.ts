@@ -334,42 +334,19 @@ async function readStyleAttribute(
   session: PageSession | null,
   nodeId: number,
 ): Promise<string | null> {
-  const attrs = await readPageAttributes(session, nodeId);
-  if (attrs) return findStyleInFlat(attrs);
-  return readFallbackStyleAttribute(target, nodeId);
-}
-
-async function readPageAttributes(
-  session: PageSession | null,
-  nodeId: number,
-): Promise<string[] | null> {
-  if (!session) return null;
-  const result = await session.tryCall.getAttributes({ nodeId });
+  const result = session ? await session.tryCall.getAttributes({ nodeId }) : null;
   const attrs = result?.attributes;
-  return Array.isArray(attrs) ? attrs : null;
-}
-
-function readFallbackStyleAttribute(
-  target: TargetState | undefined,
-  nodeId: number,
-): string | null {
+  if (Array.isArray(attrs)) return findStyleInFlat(attrs);
   if (!target) return null;
   const fallbackDom = ensureTargetDom(target);
   if (!fallbackDom) return null;
   try {
-    return readStyleFromDom(fallbackDom, nodeId);
+    const info = fallbackDom.nodeInfo(nodeId) as { attributes?: string[] };
+    const fallbackAttrs = info?.attributes;
+    return Array.isArray(fallbackAttrs) ? findStyleInFlat(fallbackAttrs) : null;
   } catch {
     return null;
   }
-}
-
-function readStyleFromDom(
-  dom: NonNullable<ReturnType<typeof ensureTargetDom>>,
-  nodeId: number,
-): string | null {
-  const info = dom.nodeInfo(nodeId) as { attributes?: string[] };
-  const attrs = info?.attributes;
-  return Array.isArray(attrs) ? findStyleInFlat(attrs) : null;
 }
 
 function findStyleInFlat(attrs: string[]): string | null {
@@ -689,16 +666,7 @@ async function fetchOpaqueSheetText(
     const hit = opaqueSheetText.get(url);
     if (hit !== undefined) return hit;
   }
-  const text = await requestOpaqueSheetText(sandboxOutbound, url);
-  if (hostEgress) return text;
-  cacheOpaqueSheetText(url, text);
-  return text;
-}
-
-async function requestOpaqueSheetText(
-  sandboxOutbound: SandboxOutboundOverride,
-  url: string,
-): Promise<string> {
+  let text = "";
   try {
     const resp = await sandboxOutbound.final(
       new Request(url, {
@@ -709,18 +677,15 @@ async function requestOpaqueSheetText(
         signal: AbortSignal.timeout(OPAQUE_SHEET_FETCH_TIMEOUT_MS),
       }),
     );
-    return resp.ok ? await resp.text() : "";
-  } catch {
-    return "";
-  }
-}
-
-function cacheOpaqueSheetText(url: string, text: string): void {
+    if (resp.ok) text = await resp.text();
+  } catch {}
+  if (hostEgress) return text;
   if (opaqueSheetText.size >= OPAQUE_SHEET_TEXT_MAX) {
     const oldest = opaqueSheetText.keys().next().value;
     if (oldest !== undefined) opaqueSheetText.delete(oldest);
   }
   opaqueSheetText.set(url, text);
+  return text;
 }
 
 export async function syncStyleSheetsFromEnumeration(
@@ -1044,11 +1009,17 @@ function splitDeclarationRanges(
   const out: Array<{ startLine: number; startColumn: number; endLine: number; endColumn: number }> =
     [];
   const segment = { start };
+  const flush = (segmentEnd: number): void => {
+    const range = trimRange(text, segment.start, segmentEnd);
+    if (range.start >= range.end) return;
+    if (!hasColon(text, range.start, range.end)) return;
+    out.push(rangeBetween(range.start, range.end, offsetToPos));
+  };
   forEachTopLevelDelimiter(text, start, end, ";", CSS_BRACKETS_AND_BRACES, (segmentEnd) => {
-    appendTrimmedDeclarationRange(out, text, segment.start, segmentEnd, offsetToPos);
+    flush(segmentEnd);
     segment.start = segmentEnd + 1;
   });
-  appendTrimmedDeclarationRange(out, text, segment.start, end, offsetToPos);
+  flush(end);
   return out;
 }
 
@@ -1061,19 +1032,6 @@ function appendTrimmedRange(
 ): void {
   const range = trimRange(text, start, end);
   if (range.start >= range.end) return;
-  out.push(rangeBetween(range.start, range.end, offsetToPos));
-}
-
-function appendTrimmedDeclarationRange(
-  out: Array<{ startLine: number; startColumn: number; endLine: number; endColumn: number }>,
-  text: string,
-  start: number,
-  end: number,
-  offsetToPos: (off: number) => { startLine: number; startColumn: number },
-): void {
-  const range = trimRange(text, start, end);
-  if (range.start >= range.end) return;
-  if (!hasColon(text, range.start, range.end)) return;
   out.push(rangeBetween(range.start, range.end, offsetToPos));
 }
 

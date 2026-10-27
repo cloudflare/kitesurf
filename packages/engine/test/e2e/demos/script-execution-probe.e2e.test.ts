@@ -12,29 +12,22 @@ type DomSummaryNode = {
   children?: DomSummaryNode[];
 };
 
-function formatAttributes(attributes: string[] | undefined): string[] {
-  const summary: string[] = [];
-  const values = attributes ?? [];
-  for (let i = 0; i + 1 < values.length; i += 2) {
-    summary.push(values[i] + "=" + JSON.stringify(values[i + 1]));
-  }
-  return summary;
-}
-
-function summarizeElement(node: DomSummaryNode): string {
-  const attributes = formatAttributes(node.attributes);
-  const children = node.children ? node.children.length : 0;
-  return (
-    node.nodeName +
-    (attributes.length ? "[" + attributes.join(",") + "]" : "") +
-    " kids=" +
-    children
-  );
-}
-
 function appendDomSummary(node: DomSummaryNode | null | undefined, summary: string[]): void {
   if (!node) return;
-  if (node.nodeType === 1) summary.push(summarizeElement(node));
+  if (node.nodeType === 1) {
+    const attributes: string[] = [];
+    const values = node.attributes ?? [];
+    for (let index = 0; index + 1 < values.length; index += 2) {
+      attributes.push(values[index] + "=" + JSON.stringify(values[index + 1]));
+    }
+    const children = node.children ? node.children.length : 0;
+    summary.push(
+      node.nodeName +
+        (attributes.length ? "[" + attributes.join(",") + "]" : "") +
+        " kids=" +
+        children,
+    );
+  }
   for (const child of node.children ?? []) appendDomSummary(child, summary);
 }
 

@@ -353,44 +353,34 @@ export class CSSNumericValue extends CSSStyleValue implements Idl.CSSNumericValu
       throw new DOMException("Duplicate units", "SyntaxError");
     }
     const terms = sumTerms(this);
-    if (!units.length) return sumInCanonicalUnits(terms);
-    return sumInRequestedUnits(terms, units);
+    if (!units.length) {
+      const totals = new Map<string, number>();
+      for (const term of terms) {
+        const unit = canonicalUnit(term.unit);
+        const value = unit === term.unit ? term.value : term.to(unit).value;
+        totals.set(unit, (totals.get(unit) || 0) + value);
+      }
+      return new CSSMathSum(
+        ...[...totals]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([unit, value]) => new CSSUnitValue(value, unit)),
+      );
+    }
+    units.slice(1).reduce((type, unit) => addTypes(type, numericType(unit)), numericType(units[0]));
+    const totals = units.map(() => 0);
+    for (const term of terms) {
+      let converted = false;
+      for (let i = 0; i < units.length; i++) {
+        try {
+          totals[i] += term.to(units[i]).value;
+          converted = true;
+          break;
+        } catch {}
+      }
+      if (!converted) throw new TypeError("Value has units not present in the sum");
+    }
+    return new CSSMathSum(...units.map((unit, i) => new CSSUnitValue(totals[i], unit)));
   }
-}
-
-function sumInCanonicalUnits(terms: CSSUnitValue[]): CSSMathSum {
-  const totals = new Map<string, number>();
-  for (const term of terms) {
-    const unit = canonicalUnit(term.unit);
-    const value = unit === term.unit ? term.value : term.to(unit).value;
-    totals.set(unit, (totals.get(unit) || 0) + value);
-  }
-  return new CSSMathSum(
-    ...[...totals]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([unit, value]) => new CSSUnitValue(value, unit)),
-  );
-}
-
-function sumInRequestedUnits(terms: CSSUnitValue[], units: string[]): CSSMathSum {
-  units.slice(1).reduce((type, unit) => addTypes(type, numericType(unit)), numericType(units[0]));
-  const totals = units.map(() => 0);
-  for (const term of terms) {
-    sumTermToRequestedUnits(term, units, totals);
-  }
-  return new CSSMathSum(...units.map((unit, i) => new CSSUnitValue(totals[i], unit)));
-}
-
-function sumTermToRequestedUnits(term: CSSUnitValue, units: string[], totals: number[]): void {
-  let converted = false;
-  for (let i = 0; i < units.length; i++) {
-    try {
-      totals[i] += term.to(units[i]).value;
-      converted = true;
-      break;
-    } catch {}
-  }
-  if (!converted) throw new TypeError("Value has units not present in the sum");
 }
 
 function canonicalUnit(unit: string): string {
@@ -721,26 +711,13 @@ function invertForArithmetic(value: CSSNumericValue): CSSNumericValue {
 
 function representativeUnit(value: CSSNumericValue): string | null {
   if (value instanceof CSSUnitValue) return value.unit;
-  const child = representativeChild(value);
-  if (child) return representativeUnit(child);
-  return null;
-}
-
-function representativeChild(value: CSSNumericValue): CSSNumericValue | null {
-  if (value instanceof CSSMathNegate || value instanceof CSSMathInvert) return value.value;
-  if (value instanceof CSSMathClamp) return value.lower;
-  return firstListOperand(value);
-}
-
-function firstListOperand(value: CSSNumericValue): CSSNumericValue | null {
-  if (
-    value instanceof CSSMathSum ||
-    value instanceof CSSMathMin ||
-    value instanceof CSSMathMax ||
-    value instanceof CSSMathProduct
-  ) {
-    return value.values._values[0];
+  if (value instanceof CSSMathNegate || value instanceof CSSMathInvert)
+    return representativeUnit(value.value);
+  if (value instanceof CSSMathSum || value instanceof CSSMathMin || value instanceof CSSMathMax) {
+    return representativeUnit(value.values._values[0]);
   }
+  if (value instanceof CSSMathProduct) return representativeUnit(value.values._values[0]);
+  if (value instanceof CSSMathClamp) return representativeUnit(value.lower);
   return null;
 }
 
@@ -1095,15 +1072,9 @@ function colorAngle(value: unknown, description: string, allowUndefined: boolean
   const keyword = colorKeyword(value);
   if (keyword) return keyword;
   if (allowUndefined && value === undefined) return new CSSKeywordValue("undefined");
-  const numeric = numericColorAngle(value);
-  if (numeric) return numeric;
-  return colorSyntaxError(`${description} must be an angle or none`);
-}
-
-function numericColorAngle(value: unknown): CSSColorChannel | null {
   if (typeof value === "number") return new CSSUnitValue(value, "deg");
   if (value instanceof CSSNumericValue && hasNumericType(value, { angle: 1 })) return value;
-  return null;
+  return colorSyntaxError(`${description} must be an angle or none`);
 }
 
 function serializeColorFunction(
@@ -1128,31 +1099,8 @@ function simpleColorNumeric(
   if (!match) return null;
   const value = Number(match[1]);
   const unit = match[2]?.toLowerCase();
-  return simpleColorNumericValue(value, unit, kind);
-}
-
-function simpleColorNumericValue(
-  value: number,
-  unit: string | undefined,
-  kind: "rgb" | "percent" | "number" | "angle",
-): CSSColorChannel | null {
   if (unit === "%") return new CSSUnitValue(value, "percent");
-  if (unit) return simpleColorNumericWithUnit(value, unit, kind);
-  return simpleColorNumericWithoutUnit(value, kind);
-}
-
-function simpleColorNumericWithUnit(
-  value: number,
-  unit: string,
-  kind: "rgb" | "percent" | "number" | "angle",
-): CSSColorChannel | null {
-  return kind === "angle" ? new CSSUnitValue(value, unit) : null;
-}
-
-function simpleColorNumericWithoutUnit(
-  value: number,
-  kind: "rgb" | "percent" | "number" | "angle",
-): CSSColorChannel {
+  if (unit) return kind === "angle" ? new CSSUnitValue(value, unit) : null;
   if (kind === "percent") return new CSSUnitValue(value * 100, "percent");
   if (kind === "angle") return new CSSUnitValue(value, "deg");
   return new CSSUnitValue(value, "number");
@@ -1163,27 +1111,10 @@ function splitColorFunction(body: string): { channels: string[]; alpha?: string 
   if (slash.length > 2) return { channels: [] };
   const commaSyntax = slash[0].includes(",");
   let channels = commaSyntax ? slash[0].split(",") : slash[0].trim().split(/\s+/);
-  const alpha = splitColorAlpha(slash, commaSyntax, channels);
+  let alpha: string | undefined = slash[1]?.trim();
+  if (commaSyntax && !alpha && channels.length === 4) alpha = channels.pop()?.trim();
   channels = channels.map((value) => value.trim()).filter(Boolean);
   return { channels, ...(alpha ? { alpha } : {}) };
-}
-
-function splitColorAlpha(
-  slash: string[],
-  commaSyntax: boolean,
-  channels: string[],
-): string | undefined {
-  let alpha: string | undefined = slash[1]?.trim();
-  if (usesFourthCommaChannel(commaSyntax, alpha, channels)) alpha = channels.pop()?.trim();
-  return alpha;
-}
-
-function usesFourthCommaChannel(
-  commaSyntax: boolean,
-  alpha: string | undefined,
-  channels: string[],
-): boolean {
-  return commaSyntax && !alpha && channels.length === 4;
 }
 
 const PINNED_NAMED_COLORS: Record<string, [number, number, number, number?]> = {
@@ -1680,19 +1611,11 @@ function callTypedParser(
 ): unknown {
   try {
     return name === "parseTypedNumericValue"
-      ? callTypedNumericParser(first)
-      : callTypedStyleParser(first, second);
+      ? opts?.parseTypedNumericValue?.(first)
+      : opts?.parseTypedStyleValue?.(first, second || "");
   } catch {
     return null;
   }
-}
-
-function callTypedNumericParser(cssText: string): unknown {
-  return opts?.parseTypedNumericValue?.(cssText);
-}
-
-function callTypedStyleParser(property: string, cssText: string | undefined): unknown {
-  return opts?.parseTypedStyleValue?.(property, cssText || "");
 }
 
 function dtoObject(value: unknown): Record<string, unknown> | null {
@@ -1885,33 +1808,17 @@ function typedUnparsedValue(dto: Record<string, unknown>): CSSUnparsedValue | nu
 
 function reifyTypedList(property: string, cssText: string): CSSStyleValue[] | null {
   const result = dtoObject(callTypedParser("parseTypedStyleValue", property, cssText));
-  if (!hasTypedListValues(result)) return null;
+  if (!result || !Array.isArray(result.values)) return null;
   const values: CSSStyleValue[] = [];
   for (const item of result.values) {
-    const value = reifyTypedListItem(item, property);
+    const dto = dtoObject(item);
+    if (dto?.type === "keyword" || dto?.type === "generic") return null;
+    const value = typedValueFromDto(item, property);
     if (!value) return null;
+    value._associatedProperty = property;
     values.push(value);
   }
   return values.length ? values : null;
-}
-
-function hasTypedListValues(
-  result: Record<string, unknown> | null,
-): result is Record<string, unknown> & { values: unknown[] } {
-  return !!result && Array.isArray(result.values);
-}
-
-function reifyTypedListItem(item: unknown, property: string): CSSStyleValue | null {
-  const dto = dtoObject(item);
-  if (isGenericOrKeywordDto(dto)) return null;
-  const value = typedValueFromDto(item, property);
-  if (!value) return null;
-  value._associatedProperty = property;
-  return value;
-}
-
-function isGenericOrKeywordDto(dto: Record<string, unknown> | null): boolean {
-  return dto?.type === "keyword" || dto?.type === "generic";
 }
 
 export class CSSVariableReferenceValue implements Idl.CSSVariableReferenceValue {
@@ -2886,23 +2793,21 @@ function normalizeProperty(name: unknown): string {
 const supportedPropertyCache = new Map<string, boolean>();
 function assertSupportedProperty(property: string) {
   if (property.startsWith("--")) return;
-  if (supportedProperty(property) === false) {
-    throw new TypeError(`Unsupported property: ${property}`);
-  }
-}
-
-function supportedProperty(property: string): boolean | undefined {
   let supported = supportedPropertyCache.get(property);
-  if (supported !== undefined) return supported;
-  const canon = inlineStyleCanonicalizer();
-  if (!canon) return undefined;
-  try {
-    supported = canon(`${property}: initial`).length > 0;
-  } catch {
-    supported = false;
+  if (supported === undefined) {
+    const canon =
+      opts && typeof opts.canonicalizeInlineStyle === "function"
+        ? opts.canonicalizeInlineStyle
+        : null;
+    if (!canon) return;
+    try {
+      supported = canon(`${property}: initial`).length > 0;
+    } catch {
+      supported = false;
+    }
+    supportedPropertyCache.set(property, supported);
   }
-  supportedPropertyCache.set(property, supported);
-  return supported;
+  if (!supported) throw new TypeError(`Unsupported property: ${property}`);
 }
 
 const IMAGE_PROPERTIES = new Set([
@@ -3297,12 +3202,20 @@ export class StylePropertyMap extends StylePropertyMapReadOnly implements Idl.St
   append(propertyName: unknown, ...values: Array<CSSStyleValue | string>) {
     const property = normalizeProperty(propertyName);
     assertSupportedProperty(property);
-    assertAppendableStyleMapValues(property, values);
+    if (
+      !LIST_VALUED_PROPERTIES.has(property) ||
+      values.length === 0 ||
+      values.some((value) => value instanceof CSSUnparsedValue || /^var\(/i.test(String(value)))
+    ) {
+      throw new TypeError("Property does not accept multiple values");
+    }
     const current = this._declaration().getPropertyValue(property);
     const shorthand = property.startsWith("transition-")
       ? this._declaration().getPropertyValue("transition")
       : "";
-    assertNoVariableReferenceToAppend(current, shorthand);
+    if (/var\(/i.test(current) || /var\(/i.test(shorthand)) {
+      throw new TypeError("Cannot append to a variable reference");
+    }
     const combined = [...(current ? splitTopLevelCommas(current) : []), ...values.map(String)].join(
       ", ",
     );
@@ -3448,10 +3361,6 @@ function isCombinedVariableReferenceInput(value: StyleMapInput): boolean {
   return value instanceof CSSUnparsedValue || /var\(/i.test(String(value));
 }
 
-function isVariableReferenceInput(value: StyleMapInput): boolean {
-  return value instanceof CSSUnparsedValue || /^var\(/i.test(String(value));
-}
-
 function validateStyleMapValue(
   property: string,
   cssText: string,
@@ -3595,21 +3504,6 @@ function storeAssociatedStyleMapValue(
     return;
   }
   map._associatedValues.set(property, { declarationValue: written, value: storedAssociated });
-}
-
-function assertAppendableStyleMapValues(property: string, values: StyleMapInput[]): void {
-  if (!LIST_VALUED_PROPERTIES.has(property) || values.length === 0) {
-    throw new TypeError("Property does not accept multiple values");
-  }
-  if (values.some(isVariableReferenceInput)) {
-    throw new TypeError("Property does not accept multiple values");
-  }
-}
-
-function assertNoVariableReferenceToAppend(current: string, shorthand: string): void {
-  if (/var\(/i.test(current) || /var\(/i.test(shorthand)) {
-    throw new TypeError("Cannot append to a variable reference");
-  }
 }
 
 function cloneAssociatedValue(value: CSSStyleValue, property: string): CSSStyleValue {
@@ -3844,22 +3738,12 @@ function cloneColorChannel(value: CSSColorChannel): CSSColorChannel {
 
 function cloneNumericValue(value: CSSNumericValue): CSSNumericValue {
   if (value instanceof CSSUnitValue) return new CSSUnitValue(value.value, value.unit);
-  const clone = cloneNumericCompositeValue(value);
-  if (clone) return clone;
-  throw new TypeError("Unknown CSS numeric value");
-}
-
-function cloneNumericCompositeValue(value: CSSNumericValue): CSSNumericValue | null {
   if (value instanceof CSSMathSum)
     return new CSSMathSum(...Array.from(value.values, cloneNumericValue));
   if (value instanceof CSSMathProduct)
     return new CSSMathProduct(...Array.from(value.values, cloneNumericValue));
   if (value instanceof CSSMathNegate) return new CSSMathNegate(cloneNumericValue(value.value));
   if (value instanceof CSSMathInvert) return new CSSMathInvert(cloneNumericValue(value.value));
-  return cloneNumericRangeValue(value);
-}
-
-function cloneNumericRangeValue(value: CSSNumericValue): CSSNumericValue | null {
   if (value instanceof CSSMathMin)
     return new CSSMathMin(...Array.from(value.values, cloneNumericValue));
   if (value instanceof CSSMathMax)
@@ -3871,7 +3755,7 @@ function cloneNumericRangeValue(value: CSSNumericValue): CSSNumericValue | null 
       cloneNumericValue(value.upper),
     );
   }
-  return null;
+  throw new TypeError("Unknown CSS numeric value");
 }
 
 export function makeAttributeStyleMap(element: {

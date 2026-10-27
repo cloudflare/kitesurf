@@ -43,30 +43,20 @@ async function readSheet(page: Page): Promise<Probe> {
       return { ok: false, error: "no-sheet", count: 0, selectors: [], href: "" };
     }
     const href = String((sheet as CSSStyleSheet).href ?? "");
-
-    function errorMessage(error: unknown): string {
-      return String((error as DOMException)?.name || error);
-    }
-
-    function readSelectors(rules: CSSRuleList): string[] {
-      const selectors: string[] = [];
-      for (let i = 0; i < rules.length; i++) {
-        const rule = rules[i] as CSSStyleRule;
-        if (rule && typeof rule.selectorText === "string") {
-          selectors.push(rule.selectorText);
-        }
-      }
-      return selectors;
-    }
-
     try {
       const rules = (sheet as CSSStyleSheet).cssRules;
-      const selectors = readSelectors(rules);
+      const selectors: string[] = [];
+      for (let i = 0; i < rules.length; i++) {
+        const r = rules[i] as CSSStyleRule;
+        if (r && typeof r.selectorText === "string") {
+          selectors.push(r.selectorText);
+        }
+      }
       return { ok: true, error: "", count: rules.length, selectors, href };
     } catch (e) {
       return {
         ok: false,
-        error: errorMessage(e),
+        error: String((e as DOMException)?.name || e),
         count: 0,
         selectors: [],
         href,

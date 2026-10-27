@@ -102,7 +102,6 @@ const REVERSE_AXES = new Set<Axis>([
 const OPERATOR_PREFIX_PUNCTUATION = new Set(["@", "::", "(", "[", ","]);
 const NODE_TYPES = new Set(["comment", "text", "processing-instruction", "node"]);
 const OPERATOR_NAMES = new Set(["and", "or", "mod", "div"]);
-const FILTER_START_TYPES = new Set<Tok["t"]>(["var", "str", "num", "fn"]);
 const STEP_START_TYPES = new Set<Tok["t"]>(["name", "type", "axis"]);
 const STEP_START_PUNCTUATION = new Set(["@", ".", ".."]);
 
@@ -159,12 +158,6 @@ const NAME_START_RANGES: ReadonlyArray<readonly [number, number]> = [
   [0xfdf0, 0xfffd],
   [0x10000, 0xeffff],
 ];
-const NAME_CHAR_RANGES: ReadonlyArray<readonly [number, number]> = [
-  [0x30, 0x39],
-  [0x300, 0x36f],
-  [0x203f, 0x2040],
-];
-const NAME_CHAR_POINTS = new Set([0x2d, 0x2e, 0xb7]);
 
 function inCodePointRange(codePoint: number, [start, end]: readonly [number, number]): boolean {
   return codePoint >= start && codePoint <= end;
@@ -176,15 +169,16 @@ function isNameStart(codePoint: number): boolean {
   );
 }
 
-function isNameCharExtra(codePoint: number): boolean {
-  return (
-    NAME_CHAR_POINTS.has(codePoint) ||
-    NAME_CHAR_RANGES.some((range) => inCodePointRange(codePoint, range))
-  );
-}
-
 function isNameChar(codePoint: number): boolean {
-  return isNameStart(codePoint) || isNameCharExtra(codePoint);
+  return (
+    isNameStart(codePoint) ||
+    (codePoint >= 0x30 && codePoint <= 0x39) ||
+    codePoint === 0x2d ||
+    codePoint === 0x2e ||
+    codePoint === 0xb7 ||
+    (codePoint >= 0x300 && codePoint <= 0x36f) ||
+    (codePoint >= 0x203f && codePoint <= 0x2040)
+  );
 }
 
 function isNumberStart(source: string, index: number, current: string): boolean {
@@ -378,62 +372,53 @@ function lex(src: string): Tok[] {
 
 type Resolver = ((prefix: string) => unknown) | { lookupNamespaceURI: unknown } | null;
 
-function namespacePrefixError(prefix: string): DOMException {
-  return new DOMException(
-    `The string '${prefix}' is not a valid namespace prefix.`,
-    "NamespaceError",
-  );
-}
-
-function callNamespaceResolver(resolver: Resolver, prefix: string): unknown {
-  if (typeof resolver === "function") return resolver(prefix);
-  if (resolver === null) return null;
-  const lookupNamespaceURI = resolver.lookupNamespaceURI;
-  if (typeof lookupNamespaceURI !== "function") {
-    throw new TypeError("XPathNSResolver.lookupNamespaceURI is not callable");
-  }
-  return lookupNamespaceURI.call(resolver, prefix);
-}
-
-function stringifyNamespace(namespace: unknown, prefix: string): string {
-  try {
-    return String(namespace);
-  } catch (error) {
-    reportException(error);
-    throw namespacePrefixError(prefix);
-  }
-}
-
 function resolvePrefix(resolver: Resolver, prefix: string): string {
-  let ns: unknown;
+  let ns: unknown = null;
   try {
-    ns = callNamespaceResolver(resolver, prefix);
+    if (typeof resolver === "function") {
+      ns = resolver(prefix);
+    } else if (resolver !== null) {
+      const lookupNamespaceURI = resolver.lookupNamespaceURI;
+      if (typeof lookupNamespaceURI !== "function") {
+        throw new TypeError("XPathNSResolver.lookupNamespaceURI is not callable");
+      }
+      ns = lookupNamespaceURI.call(resolver, prefix);
+    }
   } catch (error) {
     reportException(error);
-    throw namespacePrefixError(prefix);
+    throw new DOMException(
+      `The string '${prefix}' is not a valid namespace prefix.`,
+      "NamespaceError",
+    );
   }
   if (ns === null || ns === undefined) {
-    throw namespacePrefixError(prefix);
+    throw new DOMException(
+      `The string '${prefix}' is not a valid namespace prefix.`,
+      "NamespaceError",
+    );
   }
   if (typeof ns === "symbol") {
     reportException(new TypeError("XPathNSResolver.lookupNamespaceURI returned a Symbol"));
-    throw namespacePrefixError(prefix);
+    throw new DOMException(
+      `The string '${prefix}' is not a valid namespace prefix.`,
+      "NamespaceError",
+    );
   }
-  return stringifyNamespace(ns, prefix);
-}
-
-function startsFilterExpression(token: Tok): boolean {
-  return FILTER_START_TYPES.has(token.t) || (token.t === "punct" && token.v === "(");
+  try {
+    return String(ns);
+  } catch (error) {
+    reportException(error);
+    throw new DOMException(
+      `The string '${prefix}' is not a valid namespace prefix.`,
+      "NamespaceError",
+    );
+  }
 }
 
 function startsStepToken(token: Tok): boolean {
   return (
     STEP_START_TYPES.has(token.t) || (token.t === "punct" && STEP_START_PUNCTUATION.has(token.v))
   );
-}
-
-function filterExpression(primary: Expr, predicates: Expr[]): Expr {
-  return predicates.length ? { t: "filter", e: primary, preds: predicates } : primary;
 }
 
 function isLiteralPrimary(token: Tok): token is Tok & { t: "num" | "str" } {
@@ -564,10 +549,16 @@ class Parser {
 
   private pathExpr(): Expr {
     const p = this.peek();
-    if (!startsFilterExpression(p)) return this.locationPath();
+    const startsFilter =
+      p.t === "var" ||
+      p.t === "str" ||
+      p.t === "num" ||
+      p.t === "fn" ||
+      (p.t === "punct" && p.v === "(");
+    if (!startsFilter) return this.locationPath();
     const primary = this.primaryExpr();
     const preds = this.predicates();
-    let e: Expr = filterExpression(primary, preds);
+    let e: Expr = preds.length ? { t: "filter", e: primary, preds } : primary;
     if (this.is("op", "/") || this.is("op", "//")) {
       const steps: Step[] = [];
       this.relativePath(steps, true);
@@ -763,32 +754,22 @@ function descendantsReversed(n: XNode, out: XNode[]): void {
   }
 }
 
-function isXmlnsNamespace(attribute: XNode): boolean {
-  return attribute.namespaceURI === XMLNS_NS;
-}
-
-function isXmlnsName(attribute: XNode): boolean {
-  return attribute.name === "xmlns" || String(attribute.name).startsWith("xmlns:");
-}
-
-function isNamespaceDeclaration(attribute: XNode): boolean {
-  return isXmlnsNamespace(attribute) || isXmlnsName(attribute);
-}
-
-function appendAttributes(list: ArrayLike<XNode | null>, out: XNode[]): void {
-  for (let i = 0; i < list.length; i++) {
-    const attribute = list[i];
-    if (!attribute || isNamespaceDeclaration(attribute)) continue;
-    out.push(attribute);
-  }
-}
-
 function attributesOf(n: XNode): XNode[] {
   if (n?.nodeType !== ELEMENT_NODE) return [];
   const list = n.attributes;
   const out: XNode[] = [];
   if (!list) return out;
-  appendAttributes(list, out);
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    if (
+      !a ||
+      a.namespaceURI === XMLNS_NS ||
+      a.name === "xmlns" ||
+      String(a.name).startsWith("xmlns:")
+    )
+      continue;
+    out.push(a);
+  }
   return out;
 }
 
@@ -1094,23 +1075,13 @@ function toNumber(v: Value): number {
 }
 
 function numberToString(x: number): string {
-  const special = specialNumberString(x);
-  if (special !== null) return special;
-  const string = String(x);
-  if (!/e/i.test(string)) return string;
-  return expandExponentialNumber(string);
-}
-
-function specialNumberString(value: number): string | null {
-  if (Number.isNaN(value)) return "NaN";
-  if (value === Infinity) return "Infinity";
-  if (value === -Infinity) return "-Infinity";
-  if (value === 0) return "0";
-  return null;
-}
-
-function expandExponentialNumber(string: string): string {
-  const [mant, expStr] = string.toLowerCase().split("e") as [string, string];
+  if (Number.isNaN(x)) return "NaN";
+  if (x === Infinity) return "Infinity";
+  if (x === -Infinity) return "-Infinity";
+  if (x === 0) return "0";
+  const s = String(x);
+  if (!/e/i.test(s)) return s;
+  const [mant, expStr] = s.toLowerCase().split("e") as [string, string];
   const neg = mant.startsWith("-");
   const digits = mant.replace(/^-/, "").replace(".", "");
   const intLen = (mant.replace(/^-/, "").split(".")[0] ?? "").length;
@@ -1158,46 +1129,26 @@ function compareAtoms(op: string, a: Value, b: Value): boolean {
   return compareOrdered(op, a, b);
 }
 
-function compareNodeSets(op: string, left: NodeSet, right: NodeSet): boolean {
-  const rightValues = right.map(stringValue);
-  return left.some((node) => {
-    const leftValue = stringValue(node);
-    return rightValues.some((value) => compareAtoms(op, leftValue, value));
-  });
-}
-
-function compareNodeSetValueAtom(
-  op: string,
-  node: XNode,
-  other: number | string,
-  setOnLeft: boolean,
-): boolean {
-  const nodeValue =
-    typeof other === "number" ? stringToNumber(stringValue(node)) : stringValue(node);
-  return setOnLeft ? compareAtoms(op, nodeValue, other) : compareAtoms(op, other, nodeValue);
-}
-
-function compareNodeSetAndValue(
-  op: string,
-  nodes: NodeSet,
-  other: number | string | boolean,
-  setOnLeft: boolean,
-): boolean {
-  if (typeof other === "boolean") {
-    const nodeSetValue = toBoolean(nodes);
-    return setOnLeft
-      ? compareAtoms(op, nodeSetValue, other)
-      : compareAtoms(op, other, nodeSetValue);
-  }
-  return nodes.some((node) => compareNodeSetValueAtom(op, node, other, setOnLeft));
-}
-
 function compare(op: string, a: Value, b: Value): boolean {
-  if (isNodeSet(a)) {
-    if (isNodeSet(b)) return compareNodeSets(op, a, b);
-    return compareNodeSetAndValue(op, a, b, true);
+  if (isNodeSet(a) && isNodeSet(b)) {
+    const bs = b.map(stringValue);
+    return a.some((n) => {
+      const s = stringValue(n);
+      return bs.some((t) => compareAtoms(op, s, t));
+    });
   }
-  if (isNodeSet(b)) return compareNodeSetAndValue(op, b, a, false);
+  if (isNodeSet(a) || isNodeSet(b)) {
+    const set = (isNodeSet(a) ? a : b) as NodeSet;
+    const other = (isNodeSet(a) ? b : a) as number | string | boolean;
+    if (typeof other === "boolean")
+      return isNodeSet(a)
+        ? compareAtoms(op, toBoolean(set), other)
+        : compareAtoms(op, other, toBoolean(set));
+    return set.some((n) => {
+      const s = typeof other === "number" ? stringToNumber(stringValue(n)) : stringValue(n);
+      return isNodeSet(a) ? compareAtoms(op, s, other) : compareAtoms(op, other, s);
+    });
+  }
   return compareAtoms(op, a, b);
 }
 
@@ -1245,37 +1196,24 @@ function firstOf(c: Ctx, args: Expr[]): XNode | null {
   return set[0] ?? null;
 }
 
-function addWantedId(
-  id: string | null | undefined,
-  node: XNode,
-  wanted: Set<string>,
-  found: XNode[],
-): void {
-  if (id === null) return;
-  if (id === undefined) return;
-  if (!wanted.has(id)) return;
-  found.push(node);
-  wanted.delete(id);
-}
-
-function addIdMatch(node: XNode, wanted: Set<string>, found: XNode[]): void {
-  if (node.nodeType !== ELEMENT_NODE) return;
-  addWantedId(node.getAttribute?.("id"), node, wanted, found);
-}
-
-function findIdMatches(node: XNode, wanted: Set<string>, found: XNode[]): void {
-  addIdMatch(node, wanted, found);
-  for (let child = firstChild(node); child && wanted.size; child = nextSibling(child)) {
-    findIdMatches(child, wanted, found);
-  }
-}
-
 function idLookup(c: Ctx, ids: string[]): NodeSet {
   const root = c.ev.root;
   const found: XNode[] = [];
   const wanted = new Set(ids.filter(Boolean));
   if (!wanted.size) return found;
-  findIdMatches(root, wanted, found);
+  const walk = (node: XNode): void => {
+    if (node.nodeType === ELEMENT_NODE) {
+      const id = node.getAttribute?.("id");
+      if (id !== null && id !== undefined && wanted.has(id)) {
+        found.push(node);
+        wanted.delete(id);
+      }
+    }
+    for (let child = firstChild(node); child && wanted.size; child = nextSibling(child)) {
+      walk(child);
+    }
+  };
+  walk(root);
   return c.ev.sort(found);
 }
 

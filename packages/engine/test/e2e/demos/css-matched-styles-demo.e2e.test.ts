@@ -9,22 +9,17 @@ type CdpNode = Protocol.DOM.Node;
 type RuleMatch = Protocol.CSS.RuleMatch;
 type MatchedStyles = Protocol.CSS.GetMatchedStylesForNodeResponse;
 
-function nodeHasId(node: CdpNode, wantId: string): boolean {
-  const i = (node.attributes || []).indexOf("id");
-  return i >= 0 && (node.attributes || [])[i + 1] === wantId;
-}
-
-function nodeChildren(node: CdpNode): CdpNode[] {
-  return Array.isArray(node.children) ? node.children : [];
-}
-
 function findById(root: CdpNode, wantId: string): CdpNode | null {
   const stack = [root];
   while (stack.length) {
     const node = stack.pop();
     if (!node) continue;
-    if (nodeHasId(node, wantId)) return node;
-    for (const child of nodeChildren(node)) stack.push(child);
+    const attributes = node.attributes || [];
+    const index = attributes.indexOf("id");
+    if (index >= 0 && attributes[index + 1] === wantId) return node;
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) stack.push(child);
+    }
   }
   return null;
 }
