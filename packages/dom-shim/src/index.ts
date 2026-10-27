@@ -223,7 +223,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     typeof opts.getCurrentUrl === "function" ? opts.getCurrentUrl : () => opts.pageUrl;
   ksState().lastMutationAt = Date.now();
 
-  function makeNamedAccessProxy(node, localName) {
+  function makeNamedAccessProxy(node: Element, localName: string) {
     const isForm = localName === "form";
     return new Proxy(node, {
       get(t, prop, receiver) {
@@ -263,7 +263,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     fileInputLists.delete(nodeId);
   }
 
-  function nodeFor(nodeId) {
+  function nodeFor(nodeId: number): NodeBase | null {
     if (nodeId == null || nodeId < 0) return null;
     const cached = liveWrapper(nodeId);
     if (cached) {
@@ -731,7 +731,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     XPathResult,
     XPathExpression,
     XPathEvaluator,
-    setReadyState: (s) => {
+    setReadyState: (s: unknown) => {
       if (s === "loading" || s === "interactive" || s === "complete") {
         setReadyState(s);
       }
@@ -742,12 +742,13 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
       cookieWrites.length = 0;
       return out;
     },
-    setCookieString: (s) => {
+    setCookieString: (s: string) => {
       setCookieString(s);
     },
-    nodeFor: (id) => nodeFor(id),
-    notifyImageResults: (nodeIds, ok) => notifyImageResults(nodeIds, ok),
-    notifyStylesheetResults: (url, ok) => notifyStylesheetResults(url, ok),
+    nodeFor: (id: number) => nodeFor(id),
+    notifyImageResults: (nodeIds: Iterable<unknown> | null | undefined, ok: boolean) =>
+      notifyImageResults(nodeIds, ok),
+    notifyStylesheetResults: (url: string, ok: boolean) => notifyStylesheetResults(url, ok),
     getActiveElement: () => activeElement,
     getOpLog: () => ops,
     drainCdpMutations: () => {

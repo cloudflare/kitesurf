@@ -23,14 +23,14 @@ const imageLoadResults = new Map<number, boolean>();
 const pendingImageReloads = new Set<number>();
 
 // Advancing on every src/srcset write rejects queued results from older requests.
-const imageRequestGen = new Map();
-function bumpImageRequestGen(id) {
+const imageRequestGen = new Map<number, number>();
+function bumpImageRequestGen(id: number) {
   const next = (imageRequestGen.get(id) || 0) + 1;
   imageRequestGen.set(id, next);
   return next;
 }
 
-function queueImageTerminalEvent(id, gen, pumpDecodes = false) {
+function queueImageTerminalEvent(id: number, gen: number, pumpDecodes = false) {
   try {
     setTimeout(() => {
       if (imageRequestGen.get(id) !== gen) return;
@@ -46,7 +46,7 @@ function queueImageTerminalEvent(id, gen, pumpDecodes = false) {
   } catch {}
 }
 
-function resolveImageUrl(raw, el) {
+function resolveImageUrl(raw: string, el: Element) {
   try {
     return new URL(raw, el.baseURI || pageUrl).href;
   } catch {
@@ -61,7 +61,7 @@ function isFetchableImageUrl(resolved: string | null): resolved is string {
       resolved.startsWith("data:"))
   );
 }
-function srcsetHasNoFetchableCandidate(srcset, el) {
+function srcsetHasNoFetchableCandidate(srcset: string, el: Element) {
   let seen = 0;
   for (const part of String(srcset).split(",")) {
     const raw = part.trim().split(/\s+/)[0];

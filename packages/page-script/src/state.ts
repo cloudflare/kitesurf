@@ -64,7 +64,7 @@ export interface PageScriptState {
   getActiveElement: () => ShimElement | null;
   drainCdpMutationsRaw: () => RawCdpMutation[];
   dispatchTrustedEvent: (target: ShimNode, event: unknown) => boolean;
-  notifyImageResults: (nodeIds: ArrayLike<number>, ok: boolean) => void;
+  notifyImageResults: (nodeIds: Iterable<number>, ok: boolean) => void;
 
   notifyStylesheetResults: (url: string, ok: boolean) => void;
 
