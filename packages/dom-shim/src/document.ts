@@ -743,9 +743,10 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   get adoptedStyleSheets() {
     return adoptedStyleSheets;
   }
-  set adoptedStyleSheets(v) {
+  // The IDL's type; the page's value is not checked beyond being iterable.
+  set adoptedStyleSheets(v: Idl.CSSStyleSheet[]) {
     // Clear, then push each sheet, so the mirror reconcile runs.
-    const a: any = adoptedStyleSheets;
+    const a = adoptedStyleSheets;
     a.length = 0;
     if (v && typeof v[Symbol.iterator] === "function") {
       for (const s of v) a.push(s);

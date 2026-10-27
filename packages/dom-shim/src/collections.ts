@@ -14,6 +14,7 @@ import {
 import {
   ksGlobal,
   dom,
+  pageUrl,
   liveDocument,
   windowObj,
   elementFor,
@@ -53,7 +54,7 @@ import { bumpMutationSeq } from "./mutations/seq.js";
 import { recordAttributeMutation } from "./mutations/observer.js";
 import { Element, HTMLInputElement } from "./element/index.js";
 import type { HTMLOptionElement, HTMLSelectElement } from "./element/forms/select.js";
-import type { NodeBase } from "./node-base.js";
+import type { NodeBase, WrapperInfo } from "./node-base.js";
 import type { ParsedElement } from "./parser.js";
 import { dropUnwrappedSubtrees } from "./node-base.js";
 import { makeStylePropertyMap } from "./css-typed-om.js";
@@ -137,19 +138,21 @@ class AttrCls implements Idl.Attr {
   get nodeType() {
     return 2;
   }
-  isSameNode(other) {
+  isSameNode(other: Idl.Node | null) {
     if (!other) return false;
     return this === other;
   }
-  isEqualNode(other) {
+  isEqualNode(other: Idl.Node | null) {
     if (!other || other.nodeType !== ATTRIBUTE_NODE) return false;
+    // Any ATTRIBUTE_NODE object compares by these slots, as an Attr does.
+    const o = other as Partial<Pick<AttrCls, "_namespaceURI" | "_localName" | "_value">>;
     return (
-      this._namespaceURI === other._namespaceURI &&
-      this._localName === other._localName &&
-      this._value === other._value
+      this._namespaceURI === o._namespaceURI &&
+      this._localName === o._localName &&
+      this._value === o._value
     );
   }
-  get baseURI(): string | null {
+  get baseURI(): string {
     const owner = this._ownerElement;
     if (owner && typeof owner.baseURI === "string") return owner.baseURI;
     try {
@@ -158,10 +161,12 @@ class AttrCls implements Idl.Attr {
         if (typeof u === "string") return u;
       }
     } catch {}
-    return null;
+    // Attrs exist only once buildDocument has built the window, so this
+    // is unreachable from page code; it answers what the document would.
+    return pageUrl;
   }
-  cloneNode(_deep) {
-    const a = Object.create(AttrCls.prototype);
+  cloneNode(_deep?: boolean) {
+    const a: AttrCls = Object.create(AttrCls.prototype);
     a._name = this._name;
     a._value = this._value;
     a._nodeValue = this._nodeValue;
@@ -172,17 +177,17 @@ class AttrCls implements Idl.Attr {
     a._ownerElement = null;
     return a;
   }
-  lookupNamespaceURI(prefix) {
+  lookupNamespaceURI(prefix: string | null) {
     const owner = this._ownerElement;
     if (!owner) return null;
     return owner.lookupNamespaceURI(prefix);
   }
-  lookupPrefix(namespace) {
+  lookupPrefix(namespace: string | null) {
     const owner = this._ownerElement;
     if (!owner) return null;
     return owner.lookupPrefix(namespace);
   }
-  isDefaultNamespace(namespace) {
+  isDefaultNamespace(namespace: string | null) {
     const ns = namespace === "" ? null : namespace;
     return this.lookupNamespaceURI(null) === ns;
   }
@@ -341,7 +346,7 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
   // constructor, Element's `(nodeId, info)` setup reads node 0 (`<html>`) as
   // its first child instead of the fragment child.
   // The constructor WPT checks that an appended Text becomes `firstChild`.
-  constructor(nodeId, info) {
+  constructor(nodeId?: number, info?: WrapperInfo) {
     if (typeof nodeId === "number" && info) {
       super(nodeId, info);
     } else {
@@ -359,10 +364,10 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
   get nodeName() {
     return "#document-fragment";
   }
-  cloneNode(deep) {
+  cloneNode(deep?: boolean) {
     const clone = createDocumentFragmentInternal();
     if (deep) {
-      for (const child of Array.from<Idl.Node>(this.childNodes)) {
+      for (const child of Array.from(this.childNodes)) {
         if (child && typeof child.cloneNode === "function") {
           clone.appendChild(child.cloneNode(true));
         }
@@ -405,7 +410,7 @@ let __shadowRootAllowConstruct = false;
 // root.styleSheets is [SameObject].
 const shadowStyleSheets = new WeakMap<ShadowRootImpl, EmptyStyleSheetList>();
 class ShadowRootImpl extends DocumentFragmentImpl implements Idl.ShadowRoot {
-  constructor(nodeId, info) {
+  constructor(nodeId: number, info: WrapperInfo) {
     if (!__shadowRootAllowConstruct) {
       throw new TypeError("Illegal constructor");
     }
@@ -471,7 +476,7 @@ class EmptyStyleSheetList implements Idl.StyleSheetList {
   }
 }
 
-function mintShadowRoot(nodeId: number, info: unknown): ShadowRootImpl {
+function mintShadowRoot(nodeId: number, info: WrapperInfo): ShadowRootImpl {
   __shadowRootAllowConstruct = true;
   return new ShadowRootImpl(nodeId, info);
 }
@@ -740,7 +745,7 @@ class RadioNodeListCls extends NodeListCls implements Idl.RadioNodeList {
   }
 }
 
-function htmlCollectionExposesName(el) {
+function htmlCollectionExposesName(el: Element | null | undefined) {
   if (!el) return false;
   return el.namespaceURI === HTML_NS;
 }
@@ -803,7 +808,7 @@ function makeHtmlCollection(
 
   let cachedNames: string[] | null = null;
   let cachedNamesSeq = -1;
-  function memoExposedNames(list) {
+  function memoExposedNames(list: Element[]) {
     const curSeq = ksState().mutationSeq | 0;
     if (cachedNames !== null && cachedNamesSeq === curSeq) return cachedNames;
     cachedNames = exposedNames(list);
@@ -811,7 +816,7 @@ function makeHtmlCollection(
     return cachedNames;
   }
 
-  function exposedNames(list) {
+  function exposedNames(list: Element[]) {
     const names: string[] = [];
     const seen = new Set();
     for (const el of list) {
@@ -894,7 +899,8 @@ function makeHtmlCollection(
       }
       const optionsOwner = t[OPTIONS_OWNER_SYM];
       if (optionsOwner && (prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop)))) {
-        return optionsCollectionSet(optionsOwner, prop, value, memoGetList());
+        // Only makeHtmlCollection's extras put a <select> under this symbol.
+        return optionsCollectionSet(optionsOwner as HTMLSelectElement, prop, value, memoGetList());
       }
       // selectedIndex is the prototype's setter, not an expando.
       if (optionsOwner && prop === "selectedIndex") {
@@ -2142,7 +2148,7 @@ function ruleStyleCascadeText(style: RuleStyleDecl): string {
 }
 
 function makeRuleStyleDeclaration(
-  initialDeclText,
+  initialDeclText: string,
   context: "style" | "keyframe" | "font-face" | "page" = "style",
   baseUrl = opts?.pageUrl || "about:blank",
 ): RuleStyleDecl {
@@ -2885,9 +2891,7 @@ function securityError(message: string): Error {
   try {
     return new ksGlobal.DOMException(message, "SecurityError");
   } catch {
-    const e = new Error(message);
-    e.name = "SecurityError";
-    return e;
+    return Object.assign(new Error(message), { name: "SecurityError" });
   }
 }
 
@@ -2958,7 +2962,7 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
       dom.appendChildNode(id, mirrorTextId);
     }
   }
-  function reparseFromText(text) {
+  function reparseFromText(text: string) {
     rules.length = 0;
     for (const p of splitStylesheetRules(text)) {
       if (!isConstructibleRuleKind(classifyRuleKind(p))) continue;
@@ -2968,7 +2972,7 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
     lastParsedText = text;
   }
   let linkRulesLoaded = false;
-  function syncFromLink(strict) {
+  function syncFromLink(strict: boolean) {
     if (linkRulesLoaded || id < 0 || !getExternalSheetRules) return;
     let res;
     try {
@@ -3794,11 +3798,13 @@ function scopedQuerySelectorAll(rootId: number, selectorArg: unknown): NodeListC
     try {
       dom.querySelectorAll(selector);
     } catch (err) {
+      // The wasm selector parser may throw any value, not just an Error.
+      const e = err as { message?: unknown } | null | undefined;
       throw new DOMException(
         "Failed to execute 'querySelectorAll': '" +
           selector +
           "' is not a valid selector. " +
-          (err && (err as any).message ? (err as any).message : String(err)),
+          (e && e.message ? e.message : String(e)),
         "SyntaxError",
       );
     }
