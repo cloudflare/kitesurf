@@ -6,7 +6,6 @@
     "lib": ["ES2022"],
     "types": ["@cloudflare/workers-types"],
     "strict": true,
-    "noImplicitAny": false,
     "useDefineForClassFields": false,
     "skipLibCheck": true,
     "esModuleInterop": true,

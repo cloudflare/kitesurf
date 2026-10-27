@@ -158,7 +158,6 @@ test_suite(
         "//packages/core/pkg:memprof_build",
         "//packages/dom-shim:build",
         "//packages/dom-shim:types",
-        "//packages/dom-shim:types_strict",
         "//packages/engine:types",
         "//packages/engine:types_e2e",
         "//packages/engine:types_e2e_demos",
