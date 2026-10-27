@@ -108,11 +108,10 @@ function isInclusiveDescendant(ancestor, node): boolean {
     typeof ancestor._id === "number" &&
     typeof node._id === "number" &&
     ancestor._id >= 0 &&
-    node._id >= 0 &&
-    typeof (dom as any).isInclusiveAncestor === "function"
+    node._id >= 0
   ) {
     try {
-      return (dom as any).isInclusiveAncestor(ancestor._id, node._id) === true;
+      return dom.isInclusiveAncestor(ancestor._id, node._id) === true;
     } catch {}
   }
   let cur = node;
@@ -1468,8 +1467,7 @@ class SelectionImpl implements Idl.Selection {
 
   #pushToWasm() {
     try {
-      const domHandle: any = dom;
-      if (!domHandle) return;
+      if (!dom) return;
       try {
         getInternalState().layoutDirtySinceRecord = true;
       } catch {}
@@ -1496,14 +1494,11 @@ class SelectionImpl implements Idl.Selection {
       if (
         typeof startNodeId === "number" &&
         typeof endNodeId === "number" &&
-        !(startNode === endNode && startOffset === endOffset) &&
-        typeof domHandle.setDomSelection === "function"
+        !(startNode === endNode && startOffset === endOffset)
       ) {
-        domHandle.setDomSelection(startNodeId, startOffset, endNodeId, endOffset);
-      } else if (typeof domHandle.clearDomSelection === "function") {
-        domHandle.clearDomSelection();
+        dom.setDomSelection(startNodeId, startOffset, endNodeId, endOffset);
       } else {
-        return;
+        dom.clearDomSelection();
       }
       bumpMutationSeq("paint");
     } catch {}

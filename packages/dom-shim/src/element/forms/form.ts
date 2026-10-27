@@ -77,10 +77,7 @@ function resetInput(input: HTMLInputElement) {
     state.checkedDirty = false;
     state.checked = false;
     try {
-      const domHandle = dom;
-      if (typeof domHandle.setCheckboxChecked === "function") {
-        domHandle.setCheckboxChecked(input._id, input.hasAttribute("checked"));
-      }
+      dom.setCheckboxChecked(input._id, input.hasAttribute("checked"));
     } catch {}
   } else if (type !== "submit" && type !== "reset" && type !== "button" && type !== "image") {
     if (type === "file") {

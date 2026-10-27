@@ -2896,7 +2896,7 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
   let lastParsedText: string | null = null;
   let mirrorTextId = -1;
   function readNodeText() {
-    if (!isStyleEl || id < 0 || !dom.textContent) return "";
+    if (!isStyleEl || id < 0) return "";
     try {
       return String(dom.textContent(id) || "");
     } catch {
@@ -2915,14 +2915,12 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
   }
   function writeMirrorText(text: string) {
     // Reuse the unwrapped mirror node to avoid leaving detached nodes in Blitz's slab.
-    const children = dom.childIds ? dom.childIds(id) : null;
+    const children = dom.childIds(id);
     const reusable =
       mirrorTextId >= 0 &&
-      children !== null &&
       children.length === 1 &&
       children[0] === mirrorTextId &&
-      !hasLiveWrapper(mirrorTextId) &&
-      typeof dom.setNodeText === "function";
+      !hasLiveWrapper(mirrorTextId);
     if (reusable) {
       if (text) {
         dom.setNodeText(mirrorTextId, text);
@@ -2933,10 +2931,8 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
       }
       return;
     }
-    if (children) {
-      for (const cid of children) dom.removeNode(cid);
-      dropUnwrappedSubtrees(children);
-    }
+    for (const cid of children) dom.removeNode(cid);
+    dropUnwrappedSubtrees(children);
     mirrorTextId = -1;
     if (text) {
       mirrorTextId = dom.createTextNode(text);

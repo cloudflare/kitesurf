@@ -1469,11 +1469,10 @@ function idFromNodeInfo(info: unknown) {
 export function stampInitialNamedGlobals(): void {
   let ids: Int32Array | null;
   try {
-    ids = typeof dom.querySelectorAll === "function" ? dom.querySelectorAll("[id]") : null;
+    ids = dom.querySelectorAll("[id]");
   } catch {
     return;
   }
-  if (!ids || typeof ids !== "object") return;
   for (let i = 0; i < ids.length; i++) {
     const nodeId = ids[i];
     if (typeof nodeId !== "number" || nodeId <= 0) continue;

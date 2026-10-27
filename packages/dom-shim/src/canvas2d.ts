@@ -123,10 +123,8 @@ function domExc(message: string, name: string): Error {
 }
 
 function serializeColor(v: unknown): string {
-  const d = dom as any;
-  if (typeof d?.canvasSerializeColor !== "function") return "";
   try {
-    return d.canvasSerializeColor(String(v));
+    return dom.canvasSerializeColor(String(v));
   } catch {
     return "";
   }
@@ -517,14 +515,9 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     }
     const p = pendingFullPut;
     pendingFullPut = null;
-    const d = dom as any;
-    if (typeof d?.canvasPutImageData !== "function") {
-      dbg.last = "no-wasm-entry";
-      return;
-    }
     try {
       const bytes = new Uint8Array(p.data.buffer, p.data.byteOffset, p.data.byteLength);
-      d.canvasPutImageData(canvas._id, 0, 0, p.w, p.h, bytes);
+      dom.canvasPutImageData(canvas._id, 0, 0, p.w, p.h, bytes);
     } catch (e) {
       dbg.last = "put threw: " + ((e as any)?.message ?? String(e));
     }
@@ -550,13 +543,8 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     }
     const batch = q;
     q = [];
-    const d = dom as any;
-    if (typeof d?.canvasApplyOps !== "function") {
-      dbg.last = "no-wasm-entry";
-      return;
-    }
     try {
-      const rc = d.canvasApplyOps(canvas._id, JSON.stringify(batch));
+      const rc = dom.canvasApplyOps(canvas._id, JSON.stringify(batch));
       dbg.opsSent += batch.length;
       dbg.last = "ops rc=" + rc;
     } catch (e) {
@@ -607,13 +595,8 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       return;
     }
     flushOps();
-    const d = dom as any;
-    if (typeof d?.canvasFlush !== "function") {
-      dbg.last = "no-wasm-entry";
-      return;
-    }
     try {
-      const rc = d.canvasFlush(canvas._id);
+      const rc = dom.canvasFlush(canvas._id);
       dbg.last = "flush rc=" + rc;
       if (rc >= 0 && rc !== 2) {
         dbg.pushes++;
@@ -1112,15 +1095,13 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
     isPointInPath(pathOrX: unknown, xOrY?: unknown, yOrRule?: unknown, maybeRule?: unknown) {
       const path = pathOrX instanceof Path2D ? pathOrX : null;
       const [x, y, rule] = path ? [xOrY, yOrRule, maybeRule] : [pathOrX, xOrY, yOrRule];
-      const d = dom as any;
-      if (typeof d?.canvasIsPointInPath !== "function") return false;
       if (path) {
         enqueue({ o: "pathPush" });
         for (const pathOp of opsOf(path, "isPointInPath")) enqueue(pathOp);
       }
       flushOps();
       try {
-        return !!d.canvasIsPointInPath(
+        return !!dom.canvasIsPointInPath(
           canvas._id,
           Number(x),
           Number(y),
@@ -1149,7 +1130,6 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       enqueue({ o: "strokeText", s: String(text), a });
     },
     measureText(text: any) {
-      const d = dom as any;
       let fontsReady = true;
       try {
         fontsReady = ksInternals.demandDeferredFonts?.() ?? true;
@@ -1165,9 +1145,9 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
         fontBoundingBoxAscent: 0,
         fontBoundingBoxDescent: 0,
       };
-      if (!fontsReady || typeof d?.canvasMeasureText !== "function") return fallback;
+      if (!fontsReady) return fallback;
       try {
-        return JSON.parse(d.canvasMeasureText(String(text ?? ""), st.font));
+        return JSON.parse(dom.canvasMeasureText(String(text ?? ""), st.font));
       } catch {
         return fallback;
       }
@@ -1279,15 +1259,10 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       }
       ensureSize();
       flushOps();
-      const d = dom as any;
-      if (typeof d?.canvasPutImageData !== "function") {
-        dbg.last = "no-wasm-entry";
-        return;
-      }
       try {
         const data: Uint8ClampedArray = img.data;
         const bytes = new Uint8Array(data.buffer, data.byteOffset, iw * ih * 4);
-        d.canvasPutImageData(canvas._id, x0, y0, iw, ih, bytes);
+        dom.canvasPutImageData(canvas._id, x0, y0, iw, ih, bytes);
       } catch (e) {
         dbg.last = "put threw: " + ((e as any)?.message ?? String(e));
       }
@@ -1300,20 +1275,19 @@ function buildContextImpl(canvas: CanvasHost): ContextImpl {
       if (w <= 0 || h <= 0) throw domExc("zero-size", "IndexSizeError");
       if (!isLive()) return makeImageData(w, h);
       flushOps();
-      const d = dom as any;
-      if (typeof d?.canvasIsOriginClean === "function") {
-        try {
-          if (!d.canvasIsOriginClean(canvas._id)) {
-            throw domExc("The canvas has been tainted by cross-origin data.", "SecurityError");
-          }
-        } catch (e) {
-          if ((e as any)?.name === "SecurityError") throw e;
+      try {
+        if (!dom.canvasIsOriginClean(canvas._id)) {
+          throw domExc("The canvas has been tainted by cross-origin data.", "SecurityError");
         }
+      } catch (e) {
+        if ((e as any)?.name === "SecurityError") throw e;
+        // Bridge failure — fall through to the (fail-closed)
+        // wasm read; if the surface is tainted the pixels
+        // still won't leak.
       }
       const out = makeImageData(w, h);
-      if (typeof d?.canvasGetImageData !== "function") return out;
       try {
-        const bytes: Uint8Array = d.canvasGetImageData(canvas._id, sx | 0, sy | 0, w, h);
+        const bytes: Uint8Array = dom.canvasGetImageData(canvas._id, sx | 0, sy | 0, w, h);
         if (bytes && bytes.length === w * h * 4) out.data.set(bytes);
       } catch (e) {
         dbg.last = "get threw: " + ((e as any)?.message ?? String(e));

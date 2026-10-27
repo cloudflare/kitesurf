@@ -27,7 +27,7 @@ const canvasSurfaceReaper = (() => {
       if (canvas2dCache.get(held.id) !== held.entry) return;
       canvas2dCache.delete(held.id);
       try {
-        dom?.clearCanvasPixels(held.id);
+        dom.clearCanvasPixels(held.id);
       } catch {}
     });
   } catch {
@@ -50,8 +50,8 @@ function canvasPngBytes(canvas: HTMLCanvasElement): Uint8Array | null {
   const cached = canvas2dCache.get(canvas._id);
   if (!cached || cached.deref() !== canvas) return null;
   try {
-    const bytes = dom?.canvasEncodePng(canvas._id);
-    if (bytes && bytes.length > 0) return bytes;
+    const bytes = dom.canvasEncodePng(canvas._id);
+    if (bytes.length > 0) return bytes;
   } catch {}
   return null;
 }
@@ -59,11 +59,9 @@ function canvasPngBytes(canvas: HTMLCanvasElement): Uint8Array | null {
 // canvas before this check. Readback from a tainted canvas throws SecurityError.
 // https://html.spec.whatwg.org/#concept-canvas-origin-clean
 function ensureCanvasOriginClean(canvas: HTMLCanvasElement): void {
-  const isClean = dom?.canvasIsOriginClean;
-  if (typeof isClean !== "function") return;
   let clean = true;
   try {
-    clean = !!isClean.call(dom, canvas._id);
+    clean = !!dom.canvasIsOriginClean(canvas._id);
   } catch {
     clean = true;
   }
@@ -94,7 +92,7 @@ class HTMLCanvasElement extends HTMLElement implements Idl.HTMLCanvasElement {
     if (cachedWrapper === this && this.__ks2dCtx) return this.__ks2dCtx;
     if (cached && cachedWrapper !== this) {
       try {
-        dom?.clearCanvasPixels(id);
+        dom.clearCanvasPixels(id);
       } catch {}
     }
     const ctx = makeCanvas2DContext(this);

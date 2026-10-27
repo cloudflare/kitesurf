@@ -983,10 +983,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
         ksInternals.demandFontOutlines?.();
       } catch {}
     }
-    const id =
-      typeof (dom as any).createElementNS === "function"
-        ? (dom as any).createElementNS(nsForWasm, localForWasm)
-        : dom.createElement(localForWasm);
+    const id = dom.createElementNS(nsForWasm, localForWasm);
     // Keyed by node id so the namespace survives a new wrapper.
     elemNs.set(id, {
       qname: qn,

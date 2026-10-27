@@ -61,7 +61,7 @@ function rootsOf(ids: number[]): number[] {
 }
 
 export function sweepDetachedWrappers(): number {
-  if (!registry || typeof dom.detachedRoots !== "function") return 0;
+  if (!registry) return 0;
   const ids: number[] = [];
   for (const id of cache.keys()) {
     if (id >= 0 && id !== DOCUMENT_ID && !adoptedWrapperIds.has(id)) ids.push(id);
@@ -110,7 +110,7 @@ export function sweepDetachedWrappers(): number {
 function imageLoading(id: number, w?: object): boolean {
   if (w && (w as { localName?: unknown }).localName !== "img") return false;
   try {
-    return typeof dom.imageIsPending === "function" && dom.imageIsPending(id);
+    return dom.imageIsPending(id);
   } catch {
     return false;
   }

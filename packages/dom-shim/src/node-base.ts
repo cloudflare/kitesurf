@@ -189,16 +189,16 @@ function copyCommentDataToClone(sourceId: number, cloneId: number): void {
     const text = commentData.get(sourceId) ?? "";
     commentData.set(cloneId, text);
     try {
-      if ((dom as any).setCommentData) (dom as any).setCommentData(cloneId, text);
+      dom.setCommentData(cloneId, text);
     } catch {}
   }
-  let srcChildren: number[] = [];
-  let cloneChildren: number[] = [];
+  let srcChildren: ArrayLike<number> = [];
+  let cloneChildren: ArrayLike<number> = [];
   try {
-    srcChildren = (dom as any).childIds ? (dom as any).childIds(sourceId) : [];
+    srcChildren = dom.childIds(sourceId);
   } catch {}
   try {
-    cloneChildren = (dom as any).childIds ? (dom as any).childIds(cloneId) : [];
+    cloneChildren = dom.childIds(cloneId);
   } catch {}
   const n = Math.min(srcChildren?.length || 0, cloneChildren?.length || 0);
   for (let i = 0; i < n; i++) {
@@ -214,13 +214,13 @@ function copyElemNsToClone(sourceId: number, cloneId: number): void {
       fastpathMarkSpecial(cloneId);
     }
   }
-  let srcChildren: number[] = [];
-  let cloneChildren: number[] = [];
+  let srcChildren: ArrayLike<number> = [];
+  let cloneChildren: ArrayLike<number> = [];
   try {
-    srcChildren = (dom as any).childIds ? (dom as any).childIds(sourceId) : [];
+    srcChildren = dom.childIds(sourceId);
   } catch {}
   try {
-    cloneChildren = (dom as any).childIds ? (dom as any).childIds(cloneId) : [];
+    cloneChildren = dom.childIds(cloneId);
   } catch {}
   const n = Math.min(srcChildren?.length || 0, cloneChildren?.length || 0);
   for (let i = 0; i < n; i++) {
@@ -231,8 +231,7 @@ function copyElemNsToClone(sourceId: number, cloneId: number): void {
 function unwrappedSubtreeIds(nodeId: number): number[] | null {
   if (hasLiveWrapper(nodeId) || adoptedWrapperIds.has(nodeId)) return null;
   try {
-    if (typeof dom.descendantsOf !== "function") return null;
-    const descendants = Array.from(dom.descendantsOf(nodeId)) as number[];
+    const descendants = Array.from(dom.descendantsOf(nodeId));
     if (descendants.some((id) => hasLiveWrapper(id) || adoptedWrapperIds.has(id))) return null;
     descendants.push(nodeId);
     return descendants;
@@ -246,7 +245,7 @@ export function subtreeHasCachedWrapper(nodeId: number): boolean {
 }
 
 function dropUnwrappedSubtree(nodeId: number): boolean {
-  if (nodeId < 0 || typeof dom.dropNode !== "function") return false;
+  if (nodeId < 0) return false;
   const droppedIds = unwrappedSubtreeIds(nodeId);
   if (!droppedIds || !dom.dropNode(nodeId)) return false;
   forgetNodeIds(droppedIds);
@@ -759,7 +758,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     const text = String(value ?? "");
     const existing: any[] = [];
     const removedIds: number[] = [];
-    const rawIds = dom.childIds ? Array.from(dom.childIds(this._id)) : [];
+    const rawIds = Array.from(dom.childIds(this._id));
     const observed = hasChildListObserver(this._id);
     const transientlyObserved = hasSubtreeObserver(this._id);
     for (const cid of rawIds) {
@@ -1042,7 +1041,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       dom.appendChildNode(this._id, child._id);
       bumpMutationSeq(undefined, true);
       {
-        const newIdx = (dom.childIds ? dom.childIds(this._id).length : 0) - 1;
+        const newIdx = dom.childIds(this._id).length - 1;
         if (newIdx >= 0) rangeAfterInsert(this, newIdx, 1);
       }
       if (oldParent && !intraParent && typeof oldParent._id === "number" && oldParent._id >= 0) {
@@ -1203,11 +1202,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     } catch {}
     const intraParent = oldParent === this;
     const insertBeforeOldIndex = oldParent ? nodeIndexOf(newChild) : -1;
-    const refIndex = refChild
-      ? nodeIndexOf(refChild)
-      : dom.childIds
-        ? dom.childIds(this._id).length
-        : 0;
+    const refIndex = refChild ? nodeIndexOf(refChild) : dom.childIds(this._id).length;
     try {
       const curParent = dom.parentId(newId);
       if (curParent === this._id) {
@@ -2087,27 +2082,23 @@ function writeCharacterData(node, value) {
   }
   if (node.nodeType === COMMENT_NODE) {
     commentData.set(node._id, next);
-    if (typeof (dom as any).setCommentData === "function") {
-      try {
-        (dom as any).setCommentData(node._id, next);
-      } catch {}
-    }
+    try {
+      dom.setCommentData(node._id, next);
+    } catch {}
     recordCharacterDataMutation(node, oldValue);
     return;
   }
-  if (typeof dom.setNodeText === "function") {
-    try {
-      dom.setNodeText(node._id, next);
-      bumpMutationSeq("data");
-      recordCdpMutation({
-        kind: "characterDataModified",
-        nodeId: node._id,
-        characterData: next,
-      });
-      recordCharacterDataMutation(node, oldValue);
-      return;
-    } catch {}
-  }
+  try {
+    dom.setNodeText(node._id, next);
+    bumpMutationSeq("data");
+    recordCdpMutation({
+      kind: "characterDataModified",
+      nodeId: node._id,
+      characterData: next,
+    });
+    recordCharacterDataMutation(node, oldValue);
+    return;
+  } catch {}
   recordOp({ kind: "setNodeText", node: node._id, text: next });
   recordCharacterDataMutation(node, oldValue);
 }
@@ -2128,7 +2119,7 @@ class TextNode extends CharacterDataNode implements Idl.Text {
     }
     const data = arg === undefined ? "" : String(arg);
     const id = dom.createTextNode(data);
-    const cachedInfo = (dom.nodeInfo ? dom.nodeInfo(id) : null) || {
+    const cachedInfo = dom.nodeInfo(id) || {
       nodeType: TEXT_NODE,
       nodeName: "#text",
       localName: "",
@@ -2240,7 +2231,7 @@ class CommentNode extends CharacterDataNode implements Idl.Comment {
     const data = arg === undefined ? "" : String(arg);
     const id = dom.createComment(data);
     commentData.set(id, data);
-    const cachedInfo = (dom.nodeInfo ? dom.nodeInfo(id) : null) || {
+    const cachedInfo = dom.nodeInfo(id) || {
       nodeType: COMMENT_NODE,
       nodeName: "#comment",
       localName: "",

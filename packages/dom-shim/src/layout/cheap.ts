@@ -66,7 +66,7 @@ let cheapLayoutSeq = -1;
 
 export function layoutMode(): "full" | "off" {
   try {
-    const m = dom.layoutMode && dom.layoutMode();
+    const m = dom.layoutMode();
     return m === "off" ? "off" : "full";
   } catch {
     return "full";
@@ -75,7 +75,7 @@ export function layoutMode(): "full" | "off" {
 
 function cheapViewport(): { w: number; h: number } {
   try {
-    const v = dom.viewportSize && dom.viewportSize();
+    const v = dom.viewportSize();
     if (v && v.length >= 2) {
       return {
         w: Number(v[0]) || DEFAULT_VIEWPORT_WIDTH_CSS_PX,
