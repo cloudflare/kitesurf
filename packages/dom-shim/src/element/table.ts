@@ -58,6 +58,13 @@ interface HTMLTableCellElement extends Pick<
   | "width"
 > {}
 
+// A row the table's own query matched sits inside the table, so it has a
+// parent; reading through null threw this TypeError before.
+function rowParent(row: Element) {
+  const parent = row.parentNode;
+  if (!parent) throw new TypeError("table row has no parent");
+  return parent;
+}
 function rangeError(method: string, index: number): DOMException {
   return new DOMException(method + ": index " + index + " out of range", "IndexSizeError");
 }
@@ -78,17 +85,13 @@ class HTMLTableElement extends HTMLElement implements Idl.HTMLTableElement {
     // https://html.spec.whatwg.org/#dom-table-insertrow
     const rows = this.querySelectorAll("tr");
     if (rows.length === 0) {
-      let tbody = this.querySelector("tbody");
-      if (!tbody) {
-        tbody = doc.createElement("tbody");
-        this.appendChild(tbody);
-      }
+      const tbody = this.querySelector("tbody") ?? this.appendChild(doc.createElement("tbody"));
       tbody.appendChild(tr);
     } else if (idx === -1 || idx === rows.length) {
-      rows[rows.length - 1].parentNode.appendChild(tr);
+      rowParent(rows[rows.length - 1]).appendChild(tr);
     } else {
       if (idx < 0 || idx > rows.length) throw rangeError("insertRow", idx);
-      rows[idx].parentNode.insertBefore(tr, rows[idx]);
+      rowParent(rows[idx]).insertBefore(tr, rows[idx]);
     }
     return tr;
   }
@@ -96,7 +99,7 @@ class HTMLTableElement extends HTMLElement implements Idl.HTMLTableElement {
     const rows = this.querySelectorAll("tr");
     const i = index === -1 ? rows.length - 1 : index | 0;
     if (i < 0 || i >= rows.length) throw rangeError("deleteRow", i);
-    rows[i].parentNode.removeChild(rows[i]);
+    rowParent(rows[i]).removeChild(rows[i]);
   }
 }
 

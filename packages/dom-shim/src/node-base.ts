@@ -14,6 +14,9 @@ import {
   windowObj,
   pageUrl,
   nodeFor,
+  elementFor,
+  isElementNode,
+  isShadowRootNode,
   makeNodeList,
   runCloneSteps,
   runCloneStepsDeep,
@@ -53,6 +56,7 @@ import {
 } from "./registries.js";
 import { getInternalState } from "./internal-state.js";
 import type { DocumentFragmentImpl } from "./collections.js";
+import type { DetachedDocument } from "./document.js";
 import type { Element } from "./element/element.js";
 import {
   ELEMENT_NODE,
@@ -814,7 +818,9 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     const id = this._id;
     const list = makeNodeList(() => {
       const ids = Array.from(dom.childIds(id));
-      return ids.map((cid) => cache.get(cid) || nodeFor(cid)).filter(Boolean);
+      return ids
+        .map((cid) => cache.get(cid) || nodeFor(cid))
+        .filter((n): n is NodeBase => n !== null);
     }, "childSeq");
     nodeListCache.set(this, list);
     return list;
@@ -893,7 +899,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     visit(this);
   }
 
-  get parentNode() {
+  get parentNode(): NodeBase | DetachedDocument | null {
     const curSeq = ksState().childSeq | 0;
     let p;
     if (this._parentIdSeq === curSeq && this._parentIdCache !== -2) {
@@ -912,9 +918,9 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     if (hostDoc) return hostDoc;
     return nodeFor(p);
   }
-  get parentElement() {
+  get parentElement(): Element | null {
     const p = this.parentNode;
-    return p && p.nodeType === ELEMENT_NODE ? p : null;
+    return isElementNode(p) ? p : null;
   }
   get nextSibling() {
     if (this == null) return null;
@@ -936,7 +942,8 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     let i = indexById(kids, this._id);
     if (i < 0) return null;
     for (i = i + 1; i < kids.length; i++) {
-      if (kids[i] && kids[i].nodeType === ELEMENT_NODE) return kids[i] as Element;
+      const kid = kids[i];
+      if (isElementNode(kid)) return kid;
     }
     return null;
   }
@@ -946,7 +953,8 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     let i = indexById(kids, this._id);
     if (i < 0) return null;
     for (i = i - 1; i >= 0; i--) {
-      if (kids[i] && kids[i].nodeType === ELEMENT_NODE) return kids[i] as Element;
+      const kid = kids[i];
+      if (isElementNode(kid)) return kid;
     }
     return null;
   }
@@ -1091,7 +1099,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     assertCanHaveChildren(this, "insertBefore");
     assertNotAncestor(this, newChild, "insertBefore");
     if (refChild && typeof refChild._id === "number" && refChild._id >= 0) {
-      let refParent = null;
+      let refParent: NodeBase | DetachedDocument | null = null;
       try {
         refParent = refChild.parentNode;
       } catch {
@@ -1692,13 +1700,13 @@ NodeBase.prototype.isEqualNode = function (other) {
   return isEqualNode(this, other);
 };
 NodeBase.prototype.getRootNode = function (options) {
-  let n: NodeBase & { host?: NodeBase | null } = this;
+  let n: NodeBase | DetachedDocument = this;
   let p;
   while ((p = n.parentNode)) n = p;
 
   if (options && options.composed) {
-    while (n && n.nodeType === DOCUMENT_FRAGMENT_NODE && typeof n.host !== "undefined" && n.host) {
-      let hop = n.host;
+    while (isShadowRootNode(n) && n.host) {
+      let hop: NodeBase | DetachedDocument = n.host;
       let hp;
       while ((hp = hop.parentNode)) hop = hp;
       n = hop;
@@ -1723,7 +1731,7 @@ Object.defineProperty(NodeBase.prototype, "assignedSlot", {
     return nodeFor(slotId);
   },
 });
-type NamespaceLookupNode = NodeBase & {
+type NamespaceLookupNode = (NodeBase | DetachedDocument) & {
   attributes?: ArrayLike<Idl.Attr | null> | null;
   prefix?: string | null;
   namespaceURI?: string | null;
@@ -1809,8 +1817,8 @@ NodeBase.prototype.lookupPrefix = function (
   } else {
     n = this.parentNode;
   }
-  while (n && n.nodeType !== ELEMENT_NODE) n = n.parentNode;
-  while (n && n.nodeType === ELEMENT_NODE) {
+  while (n && !isElementNode(n)) n = n.parentNode;
+  while (isElementNode(n)) {
     const elPrefix = n.prefix === undefined ? null : n.prefix;
     const elNs = n.namespaceURI || null;
     if (elNs === namespace && elPrefix) return elPrefix;
@@ -1837,7 +1845,7 @@ function computeBaseURI(): string {
   try {
     const baseId = dom ? dom.querySelector("base[href]") : -1;
     if (baseId && baseId > 0) {
-      const node = nodeFor(baseId);
+      const node = elementFor(baseId);
       const href =
         node && typeof node.getAttribute === "function" ? node.getAttribute("href") : null;
       if (href != null && href !== "") {

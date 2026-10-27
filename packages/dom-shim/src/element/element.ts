@@ -21,6 +21,9 @@ import {
   documentImpl as document,
   makeHtmlCollection,
   nodeFor,
+  elementFor,
+  isElementNode,
+  isFragmentNode,
   scopedQuerySelector,
   scopedQuerySelectorAll,
   filterByQualifiedName,
@@ -76,7 +79,6 @@ import {
   REL_SUPPORTED,
   SANDBOX_SUPPORTED,
   ELEMENT_NODE,
-  DOCUMENT_FRAGMENT_NODE,
   HTML_NS,
   SVG_NS,
   MATHML_NS,
@@ -115,6 +117,8 @@ import {
   subtreeHasCachedWrapper,
   dropUnwrappedSubtrees,
 } from "../node-base.js";
+import type { DetachedDocument } from "../document.js";
+import type { HTMLFormElement } from "./forms/form.js";
 import { StylePropertyMap, makeComputedStyleMap } from "../css-typed-om.js";
 import { makeDomRect, makeDomRectList } from "./rect.js";
 import { idlEventHandlerNameSet, installAttrEventHandler } from "./event-handlers.js";
@@ -334,7 +338,7 @@ function setElementScrollOffset(nodeId: number, left: number, top: number) {
   markDamageNode(nodeId);
   bumpMutationSeq();
   try {
-    const el: Element | null = nodeFor(nodeId);
+    const el = elementFor(nodeId);
     if (el) fireElementScroll(el);
   } catch {}
   return true;
@@ -445,7 +449,7 @@ function runClickSteps(el: Element, forwarded: ForwardedClick | null): void {
   // ToggleEvent after the open attribute changes; this fires a plain event at once.
   // https://html.spec.whatwg.org/#the-summary-element
   if (!ev.defaultPrevented) {
-    let summaryEl: NodeBase | null = el;
+    let summaryEl: NodeBase | DetachedDocument | null = el;
     while (
       summaryEl &&
       summaryEl.nodeType === ELEMENT_NODE &&
@@ -503,10 +507,13 @@ class Element extends NodeBase implements Idl.Element {
   declare _attrFlatCache: string[] | null;
   declare _attrFlatCacheSeq: number;
   declare _typeCheckSeq: number;
-  get form(): Idl.HTMLFormElement | null {
+  // Set on the documentElement wrapper once document.documentElement has
+  // stamped the viewport-sized client and scroll getters on it.
+  declare rootStamped?: true;
+  get form(): HTMLFormElement | null {
     return null;
   }
-  set form(_v: Idl.HTMLFormElement | null) {}
+  set form(_v: HTMLFormElement | null) {}
   // Runs after setAttribute or removeAttribute changes an attribute of an HTML element; value is
   // null for a removal. Limitation: the other attribute mutation paths do not run it.
   // https://dom.spec.whatwg.org/#concept-element-attributes-change-ext
@@ -1365,7 +1372,7 @@ class Element extends NodeBase implements Idl.Element {
         "NoModificationAllowedError",
       );
     }
-    if (parent.nodeType !== ELEMENT_NODE && parent.nodeType !== DOCUMENT_FRAGMENT_NODE) {
+    if (!isElementNode(parent) && !isFragmentNode(parent)) {
       throw new (ksGlobal.DOMException || Error)(
         "Cannot set outerHTML when parent is not an Element or DocumentFragment",
         "NoModificationAllowedError",
@@ -1446,7 +1453,7 @@ class Element extends NodeBase implements Idl.Element {
       const out: Element[] = [];
       for (const cid of ids) {
         const n = nodeFor(cid);
-        if (n && n.nodeType === ELEMENT_NODE) out.push(n);
+        if (isElementNode(n)) out.push(n);
       }
       return out;
     });
@@ -1564,7 +1571,7 @@ class Element extends NodeBase implements Idl.Element {
     const sel = String(selector);
     try {
       const matchedId = dom.closestInTree(this._id, sel);
-      return matchedId >= 0 ? nodeFor(matchedId) : null;
+      return matchedId >= 0 ? elementFor(matchedId) : null;
     } catch (err) {
       // Selector failures may be Error objects or plain objects with a message.
       const e = err as { message?: unknown } | null | undefined;
@@ -1926,10 +1933,10 @@ class Element extends NodeBase implements Idl.Element {
     const scroll = scrollOffset();
     return { parent: -1, top: rect.y + scroll.y, left: rect.x + scroll.x };
   }
-  get offsetParent(): Idl.Element | null {
+  get offsetParent(): Element | null {
     const metrics = this._offsetMetrics();
     const parentId = Number(metrics.parent);
-    return parentId >= 0 ? nodeFor(parentId) : null;
+    return parentId >= 0 ? elementFor(parentId) : null;
   }
   get offsetTop(): number {
     return Math.round(this._offsetMetrics().top);

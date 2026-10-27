@@ -4,7 +4,7 @@
 
 // Converts image and stylesheet resource results into DOM load and error events.
 
-import { dom, pageUrl, nodeFor, liveDocument } from "../state.js";
+import { dom, pageUrl, elementFor, liveDocument } from "../state.js";
 import { linkLoadFired } from "../registries.js";
 import { KsEvent } from "../events/event.js";
 import { installAttrEventHandler } from "./event-handlers.js";
@@ -160,7 +160,7 @@ export function notifyImageResults(
     pendingImageReloads.delete(id);
     let el: Element | null = null;
     try {
-      el = nodeFor(id);
+      el = elementFor(id);
     } catch {}
     const applied = ok && el ? imageNaturalSizeFor(el) !== null : ok;
     imageLoadResults.set(id, applied);

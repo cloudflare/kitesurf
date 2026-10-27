@@ -21,11 +21,14 @@ import type { HTMLMeterElement, HTMLProgressElement } from "./forms/meter.js";
 import type { HTMLOutputElement } from "./forms/output.js";
 import type { HTMLOptGroupElement, HTMLOptionElement, HTMLSelectElement } from "./forms/select.js";
 import type { HTMLTextAreaElement } from "./forms/textarea.js";
+import type { HTMLBodyElement, HTMLHeadElement } from "./html-classes.js";
 
 interface HtmlTagMap {
+  body: InstanceType<typeof HTMLBodyElement>;
   button: HTMLButtonElement;
   fieldset: HTMLFieldSetElement;
   form: HTMLFormElement;
+  head: InstanceType<typeof HTMLHeadElement>;
   input: HTMLInputElement;
   label: HTMLLabelElement;
   legend: HTMLLegendElement;

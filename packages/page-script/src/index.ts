@@ -2195,7 +2195,7 @@ interface MouseTarget extends ShimElement {
   pseudo?: (name: string) => unknown;
   setAttribute?: (name: string, value: string) => void;
   removeAttribute?: (name: string) => void;
-  form?: NonNullable<ShimElement["form"]> & { reset?: () => void };
+  form?: (NonNullable<ShimElement["form"]> & { reset?: () => void }) | null;
 }
 
 type AttributeTarget = MouseTarget &

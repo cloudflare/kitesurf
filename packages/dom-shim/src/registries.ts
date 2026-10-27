@@ -11,9 +11,11 @@ import type { Element } from "./element/element.js";
 import type {
   AttrCls,
   CSSStyleSheetCtor,
+  DOMTokenListCls,
   DocumentFragmentImpl,
   HtmlCollectionCls,
   HTMLOptionsCollectionCls,
+  NodeListCls,
 } from "./collections.js";
 import type { DetachedDocument, DocumentImpl } from "./document.js";
 import type { ParsedDocument } from "./parser.js";
@@ -139,17 +141,17 @@ export const stampedPiIds = new Set<number>();
 
 export const commentData = new Map<number, string>();
 
-export const nodeListCache = new WeakMap<object, any>();
+export const nodeListCache = new WeakMap<object, NodeListCls>();
 
 export const childrenCache = new WeakMap<object, HtmlCollectionCls>();
 export const optionsCache = new WeakMap<object, HTMLOptionsCollectionCls>();
 
-export const classListCache = new WeakMap<object, any>();
+export const classListCache = new WeakMap<object, DOMTokenListCls>();
 
-export const relListCache = new WeakMap<object, any>();
-export const htmlForCache = new WeakMap<object, any>();
-export const sandboxCache = new WeakMap<object, any>();
-export const sizesCache = new WeakMap<object, any>();
+export const relListCache = new WeakMap<object, DOMTokenListCls>();
+export const htmlForCache = new WeakMap<object, DOMTokenListCls>();
+export const sandboxCache = new WeakMap<object, DOMTokenListCls>();
+export const sizesCache = new WeakMap<object, DOMTokenListCls>();
 
 // Per-instance getter / setter functions for the various
 // collection / proxy types. WeakMap-keyed by the proxy itself.
