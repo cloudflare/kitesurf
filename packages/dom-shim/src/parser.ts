@@ -587,9 +587,7 @@ class ParsedElement {
   cloneNode(_deep?: unknown): ParsedElement | null {
     let newId = -1;
     try {
-      if (typeof this._dom.deepCloneNode === "function") {
-        newId = this._dom.deepCloneNode(this._id);
-      }
+      newId = this._dom.deepCloneNode(this._id);
     } catch {}
     if (newId < 0) {
       try {
@@ -606,8 +604,7 @@ class ParsedElement {
       throw notSupported("removeAttribute on DOMParser result (read-only)");
     }
     try {
-      const fn = this._dom.removeAttribute;
-      if (typeof fn === "function") fn.call(this._dom, this._id, String(name));
+      this._dom.removeAttribute(this._id, String(name));
     } catch {}
   }
   addEventListener(): void {}
@@ -958,12 +955,10 @@ class ParsedDocument {
     const list: Array<InstanceType<typeof CSSStyleSheetCtor>> = [];
     try {
       const ids = Array.from<number>(
-        typeof this._dom.querySelectorAllInSubtree === "function"
-          ? this._dom.querySelectorAllInSubtree(
-              this._dom.documentNodeId(),
-              "style, link[rel='stylesheet']",
-            )
-          : this._dom.querySelectorAll("style, link[rel='stylesheet']"),
+        this._dom.querySelectorAllInSubtree(
+          this._dom.documentNodeId(),
+          "style, link[rel='stylesheet']",
+        ),
       );
       for (const id of ids) {
         const sheet = new CSSStyleSheetCtor();
@@ -1126,7 +1121,7 @@ class ParsedDocument {
     validateXMLName(isHtmlDoc ? tag.toLowerCase() : tag);
     let id;
     try {
-      if (!isHtmlDoc && typeof this._dom.createElementVerbatim === "function") {
+      if (!isHtmlDoc) {
         id = this._dom.createElementVerbatim(tag, ns || "");
       } else {
         id = this._dom.createElement(tag);
@@ -1148,10 +1143,7 @@ class ParsedDocument {
     const [, prefix] = validateAndExtract(ns, qn);
     let id;
     try {
-      id =
-        typeof this._dom.createElementNS === "function"
-          ? this._dom.createElementNS(ns || "", qn)
-          : this._dom.createElement(qn.split(":").pop() || qn);
+      id = this._dom.createElementNS(ns || "", qn);
     } catch (e) {
       throw new Error(
         "createElementNS: wasm trap: " + (e instanceof Error ? e.message : String(e)),

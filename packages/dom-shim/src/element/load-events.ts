@@ -36,7 +36,7 @@ function queueImageTerminalEvent(id, gen, pumpDecodes = false) {
       if (imageRequestGen.get(id) !== gen) return;
       if (pumpDecodes) {
         try {
-          dom.pumpResourceMessages?.();
+          dom.pumpResourceMessages();
         } catch {}
       }
       try {
@@ -109,7 +109,7 @@ function invalidateImageLoadStateFor(el: HTMLImageElement): void {
         return;
       }
       try {
-        if (dom.imageCacheHas?.(resolved)) {
+        if (dom.imageCacheHas(resolved)) {
           pendingImageReloads.delete(id);
           queueImageTerminalEvent(id, gen);
           return;
@@ -117,7 +117,7 @@ function invalidateImageLoadStateFor(el: HTMLImageElement): void {
       } catch {}
     }
     try {
-      if (typeof dom.imageIsPending === "function" && !dom.imageIsPending(id)) {
+      if (!dom.imageIsPending(id)) {
         pendingImageReloads.delete(id);
         queueImageTerminalEvent(id, gen);
         return;
@@ -142,8 +142,8 @@ function invalidateImageLoadStateFor(el: HTMLImageElement): void {
 // Read the decoded size from wasm so cache hits are included.
 function imageNaturalSizeFor(el: Element): [number, number] | null {
   try {
-    const imageSize = dom.imageNaturalSize?.(el._id);
-    if (imageSize && imageSize.length >= 2) return [imageSize[0], imageSize[1]];
+    const imageSize = dom.imageNaturalSize(el._id);
+    if (imageSize.length >= 2) return [imageSize[0], imageSize[1]];
   } catch {}
   return null;
 }

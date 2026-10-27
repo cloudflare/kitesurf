@@ -129,11 +129,7 @@ function ksCollapseSelectionToEnd(control: TextControl): void {
 function ksPushSelectionToWasm(control: TextControl) {
   try {
     const s = selectionStateOf(control);
-    const domHandle = dom;
-    if (
-      typeof domHandle.setInputSelection === "function" &&
-      domHandle.setInputSelection(control._id, s.start | 0, s.end | 0)
-    ) {
+    if (dom.setInputSelection(control._id, s.start | 0, s.end | 0)) {
       markDamageNode(control._id);
       bumpMutationSeq();
     }

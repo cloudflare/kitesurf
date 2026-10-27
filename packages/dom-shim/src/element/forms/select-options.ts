@@ -92,14 +92,13 @@ function selectedOptionsOf(
 
 function resyncSelectLabel(select: Element | null): void {
   if (!isHtmlTag(select, "select")) return;
-  if (typeof dom.setSelectLabel !== "function") return;
   const opts = selectOptions(select);
   let chosen: HTMLOptionElement | null = null;
   chosen = selectedOptionsOf(select, opts)[0] ?? null;
   if (!chosen && opts.length > 0) chosen = opts[0];
   const text = chosen ? chosen.textContent || "" : null;
   let removedLabelId = -1;
-  if (!text && typeof dom.childIds === "function") {
+  if (!text) {
     const ids = Array.from<number>(dom.childIds(select._id));
     const lastId = ids.at(-1);
     if (lastId !== undefined) {

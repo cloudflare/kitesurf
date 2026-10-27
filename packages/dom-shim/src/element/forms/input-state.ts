@@ -114,9 +114,8 @@ function inputTypeOf(input: Pick<Element, "getAttribute">): string {
 }
 function ksPushInputText(el: Element, str: string): void {
   try {
-    const domHandle = dom;
     // This updates the editor buffer without rewriting the value content attribute.
-    if (typeof domHandle.setInputText === "function" && domHandle.setInputText(el._id, str)) {
+    if (dom.setInputText(el._id, str)) {
       markDamageNode(el._id);
       bumpMutationSeq();
     }
@@ -221,11 +220,8 @@ function uncheckSiblingRadios(input: Element, name: string): void {
     s.checkedDirty = true;
     s.checked = false;
     try {
-      const domHandle = dom;
-      if (typeof domHandle.setCheckboxChecked === "function") {
-        domHandle.setCheckboxChecked(cand._id, false);
-        markDamageNode(cand._id);
-      }
+      dom.setCheckboxChecked(cand._id, false);
+      markDamageNode(cand._id);
     } catch {}
   }
   bumpMutationSeq();

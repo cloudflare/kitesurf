@@ -245,11 +245,9 @@ function syncCheckedFromAttrs(root: { _id: number }): void {
   } catch {
     return;
   }
-  const domHandle = dom;
-  if (typeof domHandle.setCheckboxChecked !== "function") return;
   for (const id of inputs) {
     try {
-      domHandle.setCheckboxChecked(id, checked.has(id));
+      dom.setCheckboxChecked(id, checked.has(id));
     } catch {}
   }
 }
@@ -294,9 +292,8 @@ let domAttrFnsBound = false;
 function ensureDomAttrFns() {
   if (domAttrFnsBound) return;
   domAttrFnsBound = true;
-  const d = dom;
-  domSetAttr = typeof d.setAttribute === "function" ? d.setAttribute.bind(d) : null;
-  domRemoveAttr = typeof d.removeAttribute === "function" ? d.removeAttribute.bind(d) : null;
+  domSetAttr = dom.setAttribute.bind(dom);
+  domRemoveAttr = dom.removeAttribute.bind(dom);
 }
 
 type CheckVisibilityOptions = {
@@ -1303,7 +1300,7 @@ class Element extends NodeBase implements Idl.Element {
       const frag = ensureTemplateContent(this._id);
       const observed = hasChildListObserver(frag._id);
       const transientlyObserved = hasSubtreeObserver(frag._id);
-      const oldChildIds = dom.childIds ? Array.from(dom.childIds(frag._id)) : [];
+      const oldChildIds = Array.from(dom.childIds(frag._id));
       const oldChildren = observed ? Array.from<NodeBase>(frag.childNodes) : null;
       if (transientlyObserved) {
         for (const childId of oldChildIds) {
@@ -1326,7 +1323,7 @@ class Element extends NodeBase implements Idl.Element {
     }
     const observed = hasChildListObserver(this._id);
     const transientlyObserved = hasSubtreeObserver(this._id);
-    const oldChildIds = dom.childIds ? Array.from(dom.childIds(this._id)) : [];
+    const oldChildIds = Array.from(dom.childIds(this._id));
     const oldChildren = observed ? Array.from<NodeBase>(this.childNodes) : null;
     if (transientlyObserved) {
       for (const childId of oldChildIds) {
@@ -1418,7 +1415,7 @@ class Element extends NodeBase implements Idl.Element {
       return undefined;
     }
     try {
-      const s: unknown = dom.innerTextRendered?.(this._id);
+      const s: unknown = dom.innerTextRendered(this._id);
       if (typeof s === "string") return s;
     } catch {}
     return this.textContent;
@@ -1922,12 +1919,8 @@ class Element extends NodeBase implements Idl.Element {
       if (metrics) return metrics;
     } catch {}
     try {
-      // Older wasm bundles may not expose the optional legacy offsetMetrics method.
-      const offsetMetrics: unknown = Reflect.get(dom, "offsetMetrics");
-      if (typeof offsetMetrics === "function") {
-        const metrics = read((id) => Reflect.apply(offsetMetrics, dom, [id]));
-        if (metrics) return metrics;
-      }
+      const metrics = read((id: number) => dom.offsetMetrics(id));
+      if (metrics) return metrics;
     } catch {}
     const rect = getRect(this._id);
     const scroll = scrollOffset();
@@ -2371,10 +2364,7 @@ class Element extends NodeBase implements Idl.Element {
     const tag = typeof this.tagName === "string" ? this.tagName.toUpperCase() : "";
     if (tag === "INPUT") {
       try {
-        const domHandle = dom;
-        if (typeof domHandle.setCheckboxChecked === "function") {
-          domHandle.setCheckboxChecked(this._id, next);
-        }
+        dom.setCheckboxChecked(this._id, next);
       } catch {}
     }
     markDamageNode(this._id);
@@ -2521,7 +2511,7 @@ class Element extends NodeBase implements Idl.Element {
     if (old === this) return;
     setActiveElement(this);
     try {
-      if (typeof this._id === "number" && this._id >= 0 && typeof dom.setFocus === "function") {
+      if (typeof this._id === "number" && this._id >= 0) {
         dom.setFocus(this._id);
         if (old) markDamageNode(old._id);
         markDamageNode(this._id);
@@ -2575,11 +2565,9 @@ class Element extends NodeBase implements Idl.Element {
     if (activeElement !== this) return;
     setActiveElement(null);
     try {
-      if (typeof dom.clearFocus === "function") {
-        dom.clearFocus();
-        markDamageNode(this._id);
-        bumpMutationSeq();
-      }
+      dom.clearFocus();
+      markDamageNode(this._id);
+      bumpMutationSeq();
     } catch {}
     try {
       this.dispatchEvent(

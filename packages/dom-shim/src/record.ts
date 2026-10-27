@@ -19,8 +19,8 @@ let attrFnsBound = false;
 function bindAttrFns() {
   if (attrFnsBound) return;
   attrFnsBound = true;
-  domSetAttr = typeof dom.setAttribute === "function" ? dom.setAttribute.bind(dom) : null;
-  domRemoveAttr = typeof dom.removeAttribute === "function" ? dom.removeAttribute.bind(dom) : null;
+  domSetAttr = dom.setAttribute.bind(dom);
+  domRemoveAttr = dom.removeAttribute.bind(dom);
 }
 
 /** Applies a queued operation; direct node methods record structural CDP events separately. */

@@ -185,10 +185,7 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
     s.checkedDirty = true;
     s.checked = bool;
     try {
-      const domHandle = dom;
-      if (typeof domHandle.setCheckboxChecked === "function") {
-        domHandle.setCheckboxChecked(this._id, bool);
-      }
+      dom.setCheckboxChecked(this._id, bool);
     } catch {}
     markDamageNode(this._id);
     bumpMutationSeq();
@@ -407,7 +404,7 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
     const state = inputState.get(this._id);
     const checked = state?.checkedDirty ? !!state.checked : value !== null;
     try {
-      dom.setCheckboxChecked?.(this._id, checked);
+      dom.setCheckboxChecked(this._id, checked);
     } catch {}
     if (checked && !state?.checkedDirty && type === "radio") {
       const name = this.getAttribute("name");
