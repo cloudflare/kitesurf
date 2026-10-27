@@ -47,7 +47,8 @@
       "getElementsByName": "returns an array, not a live NodeList",
       "createEvent": "may return a BeforeUnloadEvent, whose string returnValue TypeScript can't relate to Event's boolean one",
       "head": "a createDocument document answers the first element with that local name, in any namespace, typed Element",
-      "body": "a createDocument document answers the first element with that local name, in any namespace, typed Element"
+      "body": "a createDocument document answers the first element with that local name, in any namespace, typed Element",
+      "importNode": "null where cloneNode is: a synthetic node"
     }
   },
   "Element": {
@@ -104,7 +105,8 @@
   },
   "Node": {
     "omit": {
-      "ownerDocument": "may be a DOMParser ParsedDocument, which doesn't implement Document"
+      "ownerDocument": "may be a DOMParser ParsedDocument, which doesn't implement Document",
+      "cloneNode": "null for a synthetic node, which has no wasm node to clone"
     }
   },
   "ShadowRoot": {

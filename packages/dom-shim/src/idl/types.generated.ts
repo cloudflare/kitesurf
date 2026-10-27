@@ -728,7 +728,7 @@ export interface Document extends Node {
   createCDATASection(data: string): CDATASection;
   createComment(data: string): Comment;
   createProcessingInstruction(target: string, data: string): ProcessingInstruction;
-  importNode(node: Node, options?: boolean | ImportNodeOptions): Node;
+  // importNode(node: Node, options?: boolean | ImportNodeOptions): Node;
   adoptNode(node: Node): Node;
   createAttribute(localName: string): Attr;
   createAttributeNS(namespace: string | null, qualifiedName: string): Attr;
@@ -2459,7 +2459,7 @@ export interface Node extends EventTarget {
   nodeValue: string | null;
   textContent: string | null;
   normalize(): void;
-  cloneNode(subtree?: boolean): Node;
+  // cloneNode(subtree?: boolean): Node;
   isEqualNode(otherNode: Node | null): boolean;
   isSameNode(otherNode: Node | null): boolean;
   compareDocumentPosition(other: Node): number;

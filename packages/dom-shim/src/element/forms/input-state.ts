@@ -200,12 +200,14 @@ function inputValueMode(type: string): InputValueMode {
 function uncheckSiblingRadios(input: Element, name: string): void {
   const myForm = resolveFormOwner(input);
   const doc = elementDocument(input);
-  let scope = doc;
+  let scope: { querySelectorAll(selectors: string): Iterable<unknown> } = doc;
   try {
     const root = typeof input.getRootNode === "function" ? input.getRootNode() : null;
-    if (root && typeof root.querySelectorAll === "function") scope = root;
+    // Element and fragment roots query their subtree; a Text root has none.
+    if (root && "querySelectorAll" in root && typeof root.querySelectorAll === "function")
+      scope = root;
   } catch {}
-  let candidates;
+  let candidates: Iterable<unknown>;
   try {
     candidates = scope.querySelectorAll(`input[type=radio][name=${JSON.stringify(name)}]`);
   } catch {

@@ -53,10 +53,15 @@ import {
 import { bumpMutationSeq } from "./mutations/seq.js";
 import { recordAttributeMutation } from "./mutations/observer.js";
 import { Element, HTMLInputElement } from "./element/index.js";
-import type { HTMLOptionElement, HTMLSelectElement } from "./element/forms/select.js";
+import type {
+  HTMLOptGroupElement,
+  HTMLOptionElement,
+  HTMLSelectElement,
+} from "./element/forms/select.js";
+import type { HTMLElement } from "./element/html-element.js";
 import type { NodeBase, WrapperInfo } from "./node-base.js";
 import type { ParsedElement } from "./parser.js";
-import { dropUnwrappedSubtrees } from "./node-base.js";
+import { cloneWrapper, dropUnwrappedSubtrees } from "./node-base.js";
 import { makeStylePropertyMap } from "./css-typed-om.js";
 
 function ksState() {
@@ -165,7 +170,7 @@ class AttrCls implements Idl.Attr {
     // is unreachable from page code; it answers what the document would.
     return pageUrl;
   }
-  cloneNode(_deep?: boolean) {
+  cloneNode(_deep?: boolean): AttrCls {
     const a: AttrCls = Object.create(AttrCls.prototype);
     a._name = this._name;
     a._value = this._value;
@@ -369,7 +374,7 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
     if (deep) {
       for (const child of Array.from(this.childNodes)) {
         if (child && typeof child.cloneNode === "function") {
-          clone.appendChild(child.cloneNode(true));
+          clone.appendChild(cloneWrapper(child, true));
         }
       }
     }
@@ -603,10 +608,7 @@ class HTMLOptionsCollectionCls extends HtmlCollectionCls implements Idl.HTMLOpti
     if (select) select.selectedIndex = v;
   }
   // Keep the WebIDL signature; runtime compatibility is based on tagName, not a brand check.
-  add(
-    item: Idl.HTMLOptionElement | Idl.HTMLOptGroupElement,
-    before?: Idl.HTMLElement | number | null,
-  ): void {
+  add(item: HTMLOptionElement | HTMLOptGroupElement, before?: HTMLElement | number | null): void {
     const select = this[OPTIONS_OWNER_SYM];
     if (!select) {
       throw new TypeError("HTMLOptionsCollection.add: missing owner select");

@@ -58,6 +58,7 @@ import {
 import { getInternalState } from "./internal-state.js";
 import type { DocumentFragmentImpl, NodeListCls } from "./collections.js";
 import type { DetachedDocument } from "./document.js";
+import type { ParsedElement } from "./parser.js";
 import type { Element } from "./element/element.js";
 import {
   ELEMENT_NODE,
@@ -101,7 +102,7 @@ import { ksInternals } from "./internals.js";
 
 const MAX_CONNECTED_NODE_ANCESTOR_HOPS = 8192;
 
-function notifyConnectedCallbacks(child: any): void {
+function notifyConnectedCallbacks(child: NodeBase): void {
   const hook = ksInternals.notifyConnected;
   if (typeof hook === "function") {
     try {
@@ -124,6 +125,22 @@ export type AdoptableNode = {
   parentNode?: unknown;
   ownerDocument?: unknown;
 };
+
+// _id and _dom as the tree checks read them off any node argument: a
+// DetachedDocument has neither, a live wrapper has no _dom, and a DOMParser
+// node has both.
+function treeId(n: object): unknown {
+  return Reflect.get(n, "_id");
+}
+function treeDom(n: object): unknown {
+  return Reflect.get(n, "_dom");
+}
+
+// The parent side of the tree checks: a node wrapper, or a DetachedDocument.
+type TreeParent = NodeBase | DetachedDocument;
+// A node argument the tree checks read. The IDL says Node; page code may
+// pass any object, and the checks read nodeType, _id and _dom themselves.
+type TreeArg = TreeParent | ParsedElement;
 
 export function adoptIntoDom(
   destDom: DomHandle,
@@ -174,6 +191,17 @@ export function adoptIntoDom(
   if (destOwnerDoc !== undefined) wrapper.ownerDocument = destOwnerDoc;
 }
 
+// The clone of a node inside a tree: cloneNode answers a DetachedDocument
+// only for a document and null only for a synthetic node with no clone,
+// neither of which a fragment, a document's children or a Range clones.
+export function cloneWrapper(node: NodeBase, deep: boolean): NodeBase {
+  const clone = node.cloneNode(deep);
+  if (!clone || !NodeBase.prototype.isPrototypeOf(clone)) {
+    throw new TypeError("cloneNode: this node has no wrapper clone");
+  }
+  return clone as NodeBase;
+}
+
 export function parsedAttrs(handle: DomHandle, id: number): Array<{ name: string; value: string }> {
   let info;
   try {
@@ -195,7 +223,7 @@ export function parsedAttrs(handle: DomHandle, id: number): Array<{ name: string
 
 function copyCommentDataToClone(sourceId: number, cloneId: number): void {
   if (typeof sourceId !== "number" || typeof cloneId !== "number") return;
-  let srcInfo: any, cloneInfo: any;
+  let srcInfo: KsNodeInfo | null, cloneInfo: KsNodeInfo | null;
   try {
     srcInfo = dom.nodeInfo(sourceId);
   } catch {
@@ -281,7 +309,7 @@ export function dropUnwrappedSubtrees(nodeIds: Iterable<number>): number {
   return dropped;
 }
 
-function collectTextContent(rootId): string {
+function collectTextContent(rootId: number): string {
   let out = "";
   const stack = [rootId];
   while (stack.length) {
@@ -305,19 +333,20 @@ function collectTextContent(rootId): string {
   }
   return out;
 }
-function toUint32(v): number {
+function toUint32(v: number): number {
   return v >>> 0;
 }
 
-function isNodeLike(v): boolean {
+function isNodeLike(v: unknown): v is NodeBase {
   if (v == null) return false;
   if (typeof v !== "object" && typeof v !== "function") return false;
-  if (typeof v._id === "number") return true;
-  if (typeof v.nodeType === "number") return true;
+  // A node-like object is treated as a node wrapper from here on.
+  if (typeof Reflect.get(v, "_id") === "number") return true;
+  if (typeof Reflect.get(v, "nodeType") === "number") return true;
   return false;
 }
 
-function assertNotDocumentChild(child, op): void {
+function assertNotDocumentChild(child: TreeArg | null | undefined, op: string): void {
   if (!child) return;
   let nt;
   try {
@@ -330,7 +359,11 @@ function assertNotDocumentChild(child, op): void {
   }
 }
 
-function assertOneElementChild(parent, newChild, op): void {
+function assertOneElementChild(
+  parent: TreeParent,
+  newChild: TreeArg | null | undefined,
+  op: string,
+): void {
   if (!newChild) return;
   let pType;
   try {
@@ -338,7 +371,8 @@ function assertOneElementChild(parent, newChild, op): void {
   } catch {
     return;
   }
-  const isHostStandIn = typeof parent._id === "number" && hostIdToDoc.has(parent._id);
+  const parentId = treeId(parent);
+  const isHostStandIn = typeof parentId === "number" && hostIdToDoc.has(parentId);
   const parentIsDoc = pType === DOCUMENT_NODE || isHostStandIn;
   if (!parentIsDoc) return;
   let cType;
@@ -348,8 +382,10 @@ function assertOneElementChild(parent, newChild, op): void {
     return;
   }
   if (cType !== ELEMENT_NODE) return;
-  const doc = isHostStandIn ? hostIdToDoc.get(parent._id) : parent;
+  const doc = isHostStandIn && typeof parentId === "number" ? hostIdToDoc.get(parentId) : parent;
   let existing = 0;
+  // Reading through undefined threw into the catch below, which returns.
+  if (!doc) return;
   try {
     const kids = doc.childNodes;
     for (let i = 0; i < kids.length; i++) {
@@ -372,7 +408,7 @@ function isHierarchyRequestError(error: unknown) {
   return !!error && (error as { name?: unknown }).name === "HierarchyRequestError";
 }
 
-function fragmentDocumentChildCounts(fragment: any, op: string) {
+function fragmentDocumentChildCounts(fragment: NodeBase, op: string) {
   let elements = 0;
   let doctypes = 0;
   try {
@@ -393,7 +429,13 @@ function fragmentDocumentChildCounts(fragment: any, op: string) {
   return { elements, doctypes };
 }
 
-function assertDocumentInsertAllowed(doc, nodes, op, _atFront, ignoreExisting?): void {
+function assertDocumentInsertAllowed(
+  doc: TreeParent,
+  nodes: readonly unknown[],
+  op: string,
+  _atFront: boolean,
+  ignoreExisting?: boolean,
+): void {
   let existingElements = 0;
   let existingDoctypes = 0;
   if (!ignoreExisting) {
@@ -456,7 +498,11 @@ function assertDocumentInsertAllowed(doc, nodes, op, _atFront, ignoreExisting?):
   }
 }
 
-function assertDoctypeOnlyInDocument(parent, child, op): void {
+function assertDoctypeOnlyInDocument(
+  parent: TreeParent,
+  child: TreeArg | null | undefined,
+  op: string,
+): void {
   if (!child) return;
   let nt;
   try {
@@ -471,7 +517,8 @@ function assertDoctypeOnlyInDocument(parent, child, op): void {
   } catch {
     return;
   }
-  const isHostStandIn = typeof parent._id === "number" && hostIdToDoc.has(parent._id);
+  const parentId = treeId(parent);
+  const isHostStandIn = typeof parentId === "number" && hostIdToDoc.has(parentId);
   if (pType !== DOCUMENT_NODE && !isHostStandIn) {
     throw new DOMException(
       op + ": doctype must be inserted into a document",
@@ -480,7 +527,11 @@ function assertDoctypeOnlyInDocument(parent, child, op): void {
   }
 }
 
-function assertNotTextIntoDocument(parent, child, op): void {
+function assertNotTextIntoDocument(
+  parent: TreeParent,
+  child: TreeArg | null | undefined,
+  op: string,
+): void {
   if (!child) return;
   let pType;
   try {
@@ -488,7 +539,8 @@ function assertNotTextIntoDocument(parent, child, op): void {
   } catch {
     return;
   }
-  const isHostStandIn = typeof parent._id === "number" && hostIdToDoc.has(parent._id);
+  const parentId = treeId(parent);
+  const isHostStandIn = typeof parentId === "number" && hostIdToDoc.has(parentId);
   const parentIsDoc = pType === DOCUMENT_NODE || isHostStandIn;
   if (!parentIsDoc) return;
   let cType;
@@ -505,16 +557,18 @@ function assertNotTextIntoDocument(parent, child, op): void {
   }
 }
 
-function assertNotAncestor(parent, node, op): void {
+function assertNotAncestor(parent: TreeParent, node: TreeArg | null | undefined, op: string): void {
   if (!node) return;
-  const nodeId = typeof node._id === "number" ? node._id : null;
-  let cur = parent;
+  const rawNodeId = treeId(node);
+  const nodeId = typeof rawNodeId === "number" ? rawNodeId : null;
+  const nodeDom = treeDom(node);
+  let cur: TreeParent | null = parent;
   while (cur) {
-    const sharesDom = !node._dom || !cur._dom || node._dom === cur._dom;
+    const curDom = treeDom(cur);
+    const curId = treeId(cur);
+    const sharesDom = !nodeDom || !curDom || nodeDom === curDom;
     const same =
-      nodeId !== null && typeof cur._id === "number" && sharesDom
-        ? cur._id === nodeId
-        : cur === node;
+      nodeId !== null && typeof curId === "number" && sharesDom ? curId === nodeId : cur === node;
     if (same) {
       throw new DOMException(
         op + ": new child is an inclusive ancestor of parent",
@@ -542,7 +596,7 @@ function safeReferenceId(parentId: number, referenceId: number) {
   }
 }
 
-function assertCanHaveChildren(self, op): void {
+function assertCanHaveChildren(self: NodeBase, op: string): void {
   let t;
   try {
     t = self.nodeType;
@@ -558,7 +612,7 @@ function assertCanHaveChildren(self, op): void {
     );
   }
 }
-function isTemplateElement(id): boolean {
+function isTemplateElement(id: unknown): boolean {
   if (typeof id !== "number" || id < 0) return false;
   let info;
   try {
@@ -584,7 +638,7 @@ function ensureTemplateContent(templateId: number): DocumentFragmentImpl {
   fragmentIds.add(fragId);
   frag = nodeFor(fragId) as DocumentFragmentImpl;
   templateContentFragment.set(templateId, frag);
-  let kids;
+  let kids: number[];
   try {
     kids = Array.from(dom.childIds(templateId));
   } catch {
@@ -603,7 +657,7 @@ function ensureTemplateContent(templateId: number): DocumentFragmentImpl {
   }
   return frag;
 }
-function eventTargetKey(target: KsEventTarget): any {
+function eventTargetKey(target: KsEventTarget): number | KsEventTarget {
   const id = target._id;
   return typeof id === "number" ? id : target;
 }
@@ -675,19 +729,19 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     return this._info?.nodeValue;
   }
   set data(_v: unknown) {}
-  _attrFlat?(): any[];
+  _attrFlat?(): string[];
   _serializeForAppend?(): string;
-  get innerHTML(): any {
+  get innerHTML(): string | undefined {
     return undefined;
   }
-  set innerHTML(_v: any) {}
-  declare isSameNode: (other: any) => boolean;
-  declare isEqualNode: (other: any) => boolean;
-  declare getRootNode: (options?: any) => any;
-  declare compareDocumentPosition: (other: any) => number;
-  declare lookupNamespaceURI: (prefix: any) => any;
-  declare lookupPrefix: (ns: any) => any;
-  declare isDefaultNamespace: (ns: any) => boolean;
+  set innerHTML(_v: unknown) {}
+  declare isSameNode: (other: Idl.Node | null) => boolean;
+  declare isEqualNode: (other: Idl.Node | null) => boolean;
+  declare getRootNode: (options?: Idl.GetRootNodeOptions) => NodeBase | DetachedDocument;
+  declare compareDocumentPosition: (other: Idl.Node) => number;
+  declare lookupNamespaceURI: (prefix: string | null) => string | null;
+  declare lookupPrefix: (ns: string | null) => string | null;
+  declare isDefaultNamespace: (ns: string | null) => boolean;
   constructor(nodeId: number, info: WrapperInfo) {
     super();
     this._id = nodeId;
@@ -695,16 +749,19 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     this._parentIdCache = -2;
     this._parentIdSeq = -1;
   }
-  static [Symbol.hasInstance](v): boolean {
+  static [Symbol.hasInstance](v: unknown): boolean {
     if (v == null) return false;
     if (typeof v !== "object" && typeof v !== "function") return false;
     if (NodeBase.prototype.isPrototypeOf(v)) return true;
-    return typeof v.nodeType === "number";
+    return typeof Reflect.get(v, "nodeType") === "number";
   }
-  cloneNode(deep) {
+  // A document's clone is a DetachedDocument (DocumentImpl.cloneNode).
+  cloneNode(deep?: boolean): NodeBase | DetachedDocument | null {
     if (this._id < 0) return null;
     if (this.nodeType === PROCESSING_INSTRUCTION_NODE) {
-      const tgt = (this as any).target || this.nodeName || "";
+      // createProcessingInstruction stamps target, a string, on the wrapper.
+      const stamped: unknown = Reflect.get(this, "target");
+      const tgt = stamped ? String(stamped) : this.nodeName || "";
       return liveDocument().createProcessingInstruction(tgt, this.data ?? "");
     }
     let cloneNode;
@@ -727,12 +784,14 @@ class NodeBase extends KsEventTarget implements Idl.Node {
         return liveDocument().createComment(this.data ?? "");
       }
       if (nt === PROCESSING_INSTRUCTION_NODE) {
-        const tgt = (this as any).target || this.nodeName || "";
+        // createProcessingInstruction stamps target, a string, on the wrapper.
+        const stamped: unknown = Reflect.get(this, "target");
+        const tgt = stamped ? String(stamped) : this.nodeName || "";
         return liveDocument().createProcessingInstruction(tgt, this.data ?? "");
       }
       if (nt === ELEMENT_NODE) {
         const nsEntry = elemNs.get(this._id);
-        let clone: any;
+        let clone: Element;
         if (nsEntry && nsEntry.viaNS !== false) {
           clone = createElementNSInternal(nsEntry.ns, nsEntry.qname);
         } else {
@@ -752,12 +811,15 @@ class NodeBase extends KsEventTarget implements Idl.Node {
         cloneNode = nodeFor(id);
       }
     }
-    try {
-      runCloneSteps(this, cloneNode);
-      if (deep === true) {
-        runCloneStepsDeep(this, cloneNode);
-      }
-    } catch {}
+    // Both steps return at once for a null clone.
+    if (cloneNode) {
+      try {
+        runCloneSteps(this, cloneNode);
+        if (deep === true) {
+          runCloneStepsDeep(this, cloneNode);
+        }
+      } catch {}
+    }
     return cloneNode;
   }
   get nodeType() {
@@ -786,7 +848,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       return;
     }
     const text = String(value ?? "");
-    const existing: any[] = [];
+    const existing: NodeBase[] = [];
     const removedIds: number[] = [];
     const rawIds = Array.from(dom.childIds(this._id));
     const observed = hasChildListObserver(this._id);
@@ -803,11 +865,11 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       dom.removeNode(c._id);
     }
     if (observed) {
-      for (const c of Array.from<any>(this.childNodes)) {
+      for (const c of Array.from(this.childNodes)) {
         if (typeof c._id === "number" && c._id < 0) existing.push(c);
       }
     }
-    let added: any[] = [];
+    let added: NodeBase[] = [];
     let addedId = -1;
     if (text.length > 0) {
       addedId = dom.createTextNode(text);
@@ -862,13 +924,14 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   hasChildNodes() {
     return this.childNodes.length > 0;
   }
-  contains(other) {
+  contains(other: unknown) {
     if (other == null) return false;
     if (other === this) return true;
     const sp = syntheticParent.get(other);
     if (sp === (this as object)) return true;
-    if (typeof other._id !== "number") return false;
-    let cur = other._id;
+    const otherId: unknown = Reflect.get(Object(other), "_id");
+    if (typeof otherId !== "number") return false;
+    let cur = otherId;
     let safety = 0;
     while (safety < MAX_NODE_ANCESTOR_HOPS) {
       if (cur === this._id) return true;
@@ -885,9 +948,9 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     return false;
   }
   normalize() {
-    const visit = (parent) => {
+    const visit = (parent: NodeBase | null) => {
       if (!parent) return;
-      const children = Array.from<any>(parent.childNodes);
+      const children: (NodeBase | null)[] = Array.from(parent.childNodes);
       for (let i = 0; i < children.length; i++) {
         const c = children[i];
         if (!c) continue;
@@ -988,10 +1051,12 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     if (owner) return owner;
     return liveWindow().document;
   }
-  appendChild(child) {
+  appendChild<T extends NodeBase>(child: T): T {
     maybeScheduleSlotchange(this._id);
     if (!child) throw notSupported("appendChild: null/undefined child");
-    if (child._dom && child._dom !== dom) {
+    // A DOMParser node carries its own handle.
+    const childDom = treeDom(child);
+    if (childDom && childDom !== dom) {
       try {
         adoptIntoDom(dom, child, document);
       } catch {}
@@ -1009,7 +1074,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       childNT = null;
     }
     if (childNT === DOCUMENT_FRAGMENT_NODE && typeof child._id === "number" && child._id >= 0) {
-      const kids = Array.from<any>(child.childNodes);
+      const kids = Array.from(child.childNodes);
       if (kids.length === 0) return child;
       // Validate every fragment child before moving any; failure must not partially consume it.
       for (const k of kids) {
@@ -1159,7 +1224,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       typeof newChild._id === "number" &&
       newChild._id >= 0
     ) {
-      const kids = Array.from<any>(newChild.childNodes);
+      const kids = Array.from(newChild.childNodes);
       if (kids.length === 0) return newChild;
       // Validate every fragment child first so insertion failure cannot partially consume it.
       for (const k of kids) {
@@ -1278,7 +1343,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     notifyConnectedCallbacks(newChild);
     return newChild;
   }
-  removeChild(child) {
+  removeChild<T extends NodeBase>(child: T): T {
     maybeScheduleSlotchange(this._id);
     if (child == null || (typeof child !== "object" && typeof child !== "function")) {
       throw new TypeError("removeChild: argument must be a Node");
@@ -1290,7 +1355,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       throw new DOMException("removeChild: child is not a child of parent", "NotFoundError");
     }
     {
-      let pn = null;
+      let pn: TreeParent | null = null;
       try {
         pn = child.parentNode;
       } catch {
@@ -1325,7 +1390,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     recordChildListMutation(this, [], [child], removedPrev, removedNext);
     return child;
   }
-  replaceChild(newChild, oldChild) {
+  replaceChild<T extends NodeBase>(newChild: NodeBase, oldChild: T): T {
     maybeScheduleSlotchange(this._id);
     assertCanHaveChildren(this, "replaceChild");
     if (!newChild) {
@@ -1336,7 +1401,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       throw new TypeError("replaceChild: second argument is not a Node");
     }
     {
-      let oldParent = null;
+      let oldParent: TreeParent | null = null;
       try {
         oldParent = oldChild.parentNode;
       } catch {
@@ -1438,7 +1503,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     stampConnectedNamedGlobals(newChild._id);
     return oldChild;
   }
-  before(...nodes): void {
+  before(...nodes: Array<NodeBase | string>): void {
     const parent = this.parentNode;
     if (!parent) return;
     const argSet = new Set(nodes.filter(isNodeLike));
@@ -1456,7 +1521,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       else parent.appendChild(node);
     }
   }
-  after(...nodes): void {
+  after(...nodes: Array<NodeBase | string>): void {
     const parent = this.parentNode;
     if (!parent) return;
     const argSet = new Set(nodes.filter(isNodeLike));
@@ -1470,7 +1535,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       else parent.appendChild(node);
     }
   }
-  replaceWith(...nodes): void {
+  replaceWith(...nodes: Array<NodeBase | string>): void {
     const parent = this.parentNode;
     if (!parent) return;
     const argSet = new Set(nodes.filter(isNodeLike));
@@ -1490,13 +1555,13 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     const parent = this.parentNode;
     if (parent) parent.removeChild(this);
   }
-  append(...nodes): void {
+  append(...nodes: Array<NodeBase | string>): void {
     for (const n of nodes) {
       const node = isNodeLike(n) ? n : createTextNodeInternal(String(n));
       this.appendChild(node);
     }
   }
-  prepend(...nodes): void {
+  prepend(...nodes: Array<NodeBase | string>): void {
     const first = this.firstChild;
     for (const n of nodes) {
       const node = isNodeLike(n) ? n : createTextNodeInternal(String(n));
@@ -1504,12 +1569,12 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       else this.appendChild(node);
     }
   }
-  replaceChildren(...nodes): void {
+  replaceChildren(...nodes: Array<NodeBase | string>): void {
     const converted = nodes.map((n) => (isNodeLike(n) ? n : createTextNodeInternal(String(n))));
-    const prospective: any[] = [];
+    const prospective: NodeBase[] = [];
     for (const node of converted) {
       const children =
-        node.nodeType === DOCUMENT_FRAGMENT_NODE ? Array.from<any>(node.childNodes) : [node];
+        node.nodeType === DOCUMENT_FRAGMENT_NODE ? Array.from(node.childNodes) : [node];
       for (const child of children) {
         const previous = prospective.indexOf(child);
         if (previous !== -1) prospective.splice(previous, 1);
@@ -1536,18 +1601,18 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       assertNotDocumentChild(node, "replaceChildren");
       if (!isDocument) assertDoctypeOnlyInDocument(this, node, "replaceChildren");
     }
-    const existing = Array.from<any>(this.childNodes);
+    const existing = Array.from(this.childNodes);
     suppressChildListMutations(this, () => {
       for (const c of existing) this.removeChild(c);
       for (const c of converted) this.appendChild(c);
     });
-    const added = Array.from<any>(this.childNodes);
+    const added = Array.from(this.childNodes);
     if (added.length > 0 || existing.length > 0) {
       recordChildListMutation(this, added, existing, null, null);
     }
   }
 
-  insertAdjacentElement(position, element): Idl.Element | null {
+  insertAdjacentElement(position: string, element: Element): Idl.Element | null {
     if (!element || typeof element._id !== "number") {
       throw notSupported("insertAdjacentElement: unsupported element");
     }
@@ -1595,7 +1660,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     parent.insertBefore(element, next || null);
     return element;
   }
-  insertAdjacentText(position, data): void {
+  insertAdjacentText(position: string, data: string): void {
     const pos = typeof position === "string" ? position.toLowerCase() : "";
     const valid =
       pos === "beforebegin" || pos === "afterbegin" || pos === "beforeend" || pos === "afterend";
@@ -1625,18 +1690,18 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       parent.insertBefore(text, next || null);
     }
   }
-  insertAdjacentHTML(position, html): void {
+  insertAdjacentHTML(position: string, html: string): void {
     const htmlText = String(html == null ? "" : html);
     return ksSpan("dom.insertAdjacentHTML", { html_bytes: htmlText.length }, () =>
       this.__insertAdjacentHTML(position, htmlText),
     );
   }
-  __insertAdjacentHTML(position, html): void {
+  __insertAdjacentHTML(position: string, html: string): void {
     const pos = typeof position === "string" ? position.toLowerCase() : "";
     if (pos === "afterbegin" || pos === "beforeend") {
       const tmp = createElementInternal("div");
       tmp.innerHTML = String(html == null ? "" : html);
-      const newNodes = Array.from<any>(tmp.childNodes);
+      const newNodes = Array.from(tmp.childNodes);
       if (pos === "afterbegin") {
         const ref = this.firstChild;
         for (const n of newNodes) {
@@ -1661,7 +1726,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       }
       const tmp = createElementInternal("div");
       tmp.innerHTML = String(html == null ? "" : html);
-      const newNodes = Array.from<any>(tmp.childNodes);
+      const newNodes = Array.from(tmp.childNodes);
       if (pos === "beforebegin") {
         for (const n of newNodes) parent.insertBefore(n, this);
       } else {
@@ -1680,14 +1745,14 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   }
 
   get isConnected() {
-    let n = this as any;
-    const seen = new Set();
+    let n: TreeParent | null = this;
+    const seen = new Set<TreeParent>();
     for (let i = 0; i < MAX_CONNECTED_NODE_ANCESTOR_HOPS; i++) {
       if (!n) return false;
       if (n.nodeType === DOCUMENT_NODE) return true;
       if (seen.has(n)) return false;
       seen.add(n);
-      n = n.parentNode || (n.nodeType === DOCUMENT_FRAGMENT_NODE && n.host ? n.host : null);
+      n = n.parentNode || (isShadowRootNode(n) && n.host ? n.host : null);
     }
     return false;
   }
@@ -1712,14 +1777,13 @@ const NODE_CONSTANTS = {
   DOCUMENT_POSITION_CONTAINED_BY,
   DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC,
 };
-for (const k of Object.keys(NODE_CONSTANTS)) {
-  NodeBase[k] = NODE_CONSTANTS[k];
-  NodeBase.prototype[k] = NODE_CONSTANTS[k];
-}
+Object.assign(NodeBase, NODE_CONSTANTS);
+Object.assign(NodeBase.prototype, NODE_CONSTANTS);
 
 NodeBase.prototype.isSameNode = function (other) {
   if (!other) return false;
-  return this === other || this._id === other._id;
+  // Object() so a primitive reads undefined, as `other._id` did.
+  return this === other || this._id === treeId(Object(other));
 };
 NodeBase.prototype.isEqualNode = function (other) {
   return isEqualNode(this, other);
@@ -1890,7 +1954,23 @@ Object.defineProperty(NodeBase.prototype, "baseURI", {
   },
 });
 
-function isEqualNode(a, b): boolean {
+// The members isEqualNode compares, by node type, read off any Node.
+type EqualityNode = Idl.Node & {
+  name?: string;
+  publicId?: string;
+  systemId?: string;
+  namespaceURI?: string | null;
+  prefix?: string | null;
+  localName?: string | null;
+  attributes?: ArrayLike<{ namespaceURI: string | null; localName: string; value: string }>;
+  value?: string;
+  target?: string;
+  data?: string;
+};
+function isEqualNode(
+  a: EqualityNode | null | undefined,
+  b: EqualityNode | null | undefined,
+): boolean {
   if (!a || !b) return false;
   if (a === b) return true;
   if (a.nodeType !== b.nodeType) return false;
@@ -1907,8 +1987,10 @@ function isEqualNode(a, b): boolean {
       if (a.localName !== b.localName) return false;
       const aa = a.attributes;
       const bb = b.attributes;
+      // Every element has attributes; reading through undefined threw this.
+      if (!aa || !bb) throw new TypeError("isEqualNode: element has no attributes");
       if (aa.length !== bb.length) return false;
-      const aMap = new Map();
+      const aMap = new Map<string, string>();
       for (let i = 0; i < aa.length; i++) {
         const at = aa[i];
         const k = (at.namespaceURI || "") + "|" + at.localName;
@@ -1960,17 +2042,14 @@ function rootOrder(root: object): number {
   return order;
 }
 
-function compareDocumentPosition(self, other): number {
+function compareDocumentPosition(self: Idl.Node, other: Idl.Node): number {
   if (!other) {
     throw new TypeError("compareDocumentPosition: argument required");
   }
   if (self === other) return 0;
-  function chain(n) {
-    const c: NodeBase[] = [];
-    while (n) {
-      c.unshift(n);
-      n = n.parentNode;
-    }
+  function chain(start: Idl.Node): Idl.Node[] {
+    const c: Idl.Node[] = [];
+    for (let n: Idl.Node | null = start; n; n = n.parentNode) c.unshift(n);
     return c;
   }
   const a = chain(self);
@@ -1997,10 +2076,12 @@ function compareDocumentPosition(self, other): number {
   const aChild = a[i];
   const bChild = b[i];
   for (let k = 0; k < kids.length; k++) {
-    if (kids[k] === aChild || (kids[k]._id != null && kids[k]._id === aChild._id)) {
+    const kid = kids[k];
+    const kidId = kid ? treeId(kid) : undefined;
+    if (kids[k] === aChild || (kidId != null && kidId === treeId(aChild))) {
       return DOCUMENT_POSITION_FOLLOWING;
     }
-    if (kids[k] === bChild || (kids[k]._id != null && kids[k]._id === bChild._id)) {
+    if (kids[k] === bChild || (kidId != null && kidId === treeId(bChild))) {
       return DOCUMENT_POSITION_PRECEDING;
     }
   }
@@ -2012,7 +2093,7 @@ class CharacterDataNode extends NodeBase implements Idl.CharacterData {
     return this.data.length;
   }
 
-  substringData(offset, count) {
+  substringData(offset: number, count: number) {
     if (arguments.length < 2) {
       throw new TypeError(
         "substringData: 2 arguments required, but only " + arguments.length + " present",
@@ -2032,14 +2113,14 @@ class CharacterDataNode extends NodeBase implements Idl.CharacterData {
     return data.slice(offset, end);
   }
 
-  appendData(data) {
+  appendData(data: string) {
     if (arguments.length < 1) {
       throw new TypeError("appendData: 1 argument required, but 0 present");
     }
     this.replaceData(this.length, 0, data);
   }
 
-  insertData(offset, data) {
+  insertData(offset: number, data: string) {
     if (arguments.length < 2) {
       throw new TypeError(
         "insertData: 2 arguments required, but only " + arguments.length + " present",
@@ -2048,7 +2129,7 @@ class CharacterDataNode extends NodeBase implements Idl.CharacterData {
     this.replaceData(offset, 0, data);
   }
 
-  deleteData(offset, count) {
+  deleteData(offset: number, count: number) {
     if (arguments.length < 2) {
       throw new TypeError(
         "deleteData: 2 arguments required, but only " + arguments.length + " present",
@@ -2057,7 +2138,7 @@ class CharacterDataNode extends NodeBase implements Idl.CharacterData {
     this.replaceData(offset, count, "");
   }
 
-  replaceData(offset, count, data) {
+  replaceData(offset: number, count: number, data: string) {
     if (arguments.length < 3) {
       throw new TypeError(
         "replaceData: 3 arguments required, but only " + arguments.length + " present",
@@ -2089,7 +2170,7 @@ class CharacterDataNode extends NodeBase implements Idl.CharacterData {
 
 let suppressRangeUpdate = false;
 
-function writeCharacterData(node, value) {
+function writeCharacterData(node: CharacterDataNode, value: unknown) {
   if (!node) return;
   const next = value === null ? "" : String(value);
   if (!suppressRangeUpdate) {
@@ -2141,14 +2222,16 @@ class TextNode extends CharacterDataNode implements Idl.Text {
   // NodeBase.prototype installs the Slottable mixin's assignedSlot.
   declare readonly assignedSlot: Idl.HTMLSlotElement | null;
   _typeCheckSeq?: number;
-  constructor(arg, info) {
+  constructor(arg?: unknown, info?: unknown) {
     if (
       typeof arg === "number" &&
       info !== null &&
       typeof info === "object" &&
-      typeof info.nodeType === "number"
+      typeof Reflect.get(info, "nodeType") === "number"
     ) {
-      super(arg, info);
+      // A numeric nodeType is the whole check: nodeFor passes a nodeInfo
+      // snapshot, and page code can reach this branch with anything.
+      super(arg, info as WrapperInfo);
       return;
     }
     const data = arg === undefined ? "" : String(arg);
@@ -2252,14 +2335,16 @@ class TextNode extends CharacterDataNode implements Idl.Text {
 
 class CommentNode extends CharacterDataNode implements Idl.Comment {
   _typeCheckSeq?: number;
-  constructor(arg, info) {
+  constructor(arg?: unknown, info?: unknown) {
     if (
       typeof arg === "number" &&
       info !== null &&
       typeof info === "object" &&
-      typeof info.nodeType === "number"
+      typeof Reflect.get(info, "nodeType") === "number"
     ) {
-      super(arg, info);
+      // A numeric nodeType is the whole check: nodeFor passes a nodeInfo
+      // snapshot, and page code can reach this branch with anything.
+      super(arg, info as WrapperInfo);
       return;
     }
     const data = arg === undefined ? "" : String(arg);
@@ -2309,8 +2394,8 @@ class DocumentTypeNode extends NodeBase implements Idl.DocumentType {
   get textContent() {
     return null;
   }
-  set textContent(_v) {}
-  get parentNode() {
+  set textContent(_v: string | null) {}
+  get parentNode(): NodeBase | DetachedDocument | null {
     const sp = syntheticParent.get(this);
     if (sp) return sp;
     return super.parentNode;
@@ -2322,8 +2407,8 @@ class DocumentTypeNode extends NodeBase implements Idl.DocumentType {
     if (owner) return owner;
     return super.ownerDocument;
   }
-  cloneNode(_deep) {
-    const synth = Object.create(DocumentTypeNode.prototype);
+  cloneNode(_deep?: boolean): DocumentTypeNode {
+    const synth: DocumentTypeNode = Object.create(DocumentTypeNode.prototype);
     Object.defineProperty(synth, "_info", {
       value: {
         nodeType: DOCTYPE_NODE,
