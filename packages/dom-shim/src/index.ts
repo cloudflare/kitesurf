@@ -235,15 +235,17 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
         }
         try {
           if (/^\d+$/.test(prop)) {
-            const list = isForm
+            const list: unknown = isForm
               ? Reflect.get(t, "elements", receiver)
               : Reflect.get(t, "options", receiver);
-            return list ? list[prop] : undefined;
+            // elements and options are collection objects.
+            return list ? (Reflect.get(Object(list), prop) as unknown) : undefined;
           }
           if (isForm) {
-            const m = Reflect.get(t, "namedItem", receiver);
+            const m: unknown = Reflect.get(t, "namedItem", receiver);
             if (typeof m === "function") {
-              return m.call(receiver, prop) ?? undefined;
+              const named: unknown = m.call(receiver, prop);
+              return named ?? undefined;
             }
           }
         } catch {}

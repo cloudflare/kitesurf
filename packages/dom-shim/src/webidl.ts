@@ -73,7 +73,8 @@ function brandWrapOp(
       throw err;
     }
     // eslint-disable-next-line prefer-rest-params
-    return fn.apply(this, arguments);
+    const result: unknown = fn.apply(this, arguments);
+    return result;
   };
   Object.defineProperty(wrapped, "name", {
     value: fn.name,
@@ -98,7 +99,8 @@ function brandWrapAccessor(
 ): (this: unknown, v?: unknown) => unknown {
   const wrapped = function (this: unknown, v?: unknown) {
     if (!check(this)) throw new TypeError("Illegal invocation");
-    return fn.call(this, v);
+    const result: unknown = fn.call(this, v);
+    return result;
   };
   Object.defineProperty(wrapped, "name", {
     value: name,
@@ -125,7 +127,7 @@ function redefine(obj: object, key: PropertyKey, desc: PropertyDescriptor): void
 /** Applies pinned WebIDL names, prototype links, descriptors, and receiver checks to a class. */
 export function finalizeInterface(C: InterfaceObject, meta: InterfaceMeta): void {
   const proto = C.prototype;
-  const prior = Object.prototype.hasOwnProperty.call(C, FINALIZED_NAME)
+  const prior: unknown = Object.prototype.hasOwnProperty.call(C, FINALIZED_NAME)
     ? Reflect.get(C, FINALIZED_NAME)
     : undefined;
   if (prior !== undefined && prior !== meta.name) return;
@@ -300,7 +302,8 @@ function generatedInterfaceObject(
 ): InterfaceObject {
   const exposed = function (this: unknown) {
     if (!constructible || !new.target) throw new TypeError("Illegal constructor");
-    return Reflect.construct(implementation, Array.from(arguments), new.target);
+    const instance: unknown = Reflect.construct(implementation, Array.from(arguments), new.target);
+    return instance;
   };
   for (const key of Reflect.ownKeys(implementation)) {
     if (key === "name" || key === "length" || key === "prototype") continue;

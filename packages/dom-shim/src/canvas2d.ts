@@ -708,7 +708,7 @@ function buildContextImpl(canvas: CanvasHost) {
         writable: true,
         enumerable: false,
         value: function (this: unknown, name: unknown, ...rest: unknown[]) {
-          const result = originalMethod.call(this, name, ...rest);
+          const result: unknown = originalMethod.call(this, name, ...rest);
           const attributeName = String(name).toLowerCase();
           if (attributeName === "width" || attributeName === "height") resetAll();
           return result;
@@ -1192,7 +1192,11 @@ function buildContextImpl(canvas: CanvasHost) {
       };
       if (!fontsReady) return fallback;
       try {
-        return JSON.parse(dom.canvasMeasureText(String(text ?? ""), st.font));
+        // canvasMeasureText serializes the same fields as the fallback above.
+        const metrics: typeof fallback = JSON.parse(
+          dom.canvasMeasureText(String(text ?? ""), st.font),
+        );
+        return metrics;
       } catch {
         return fallback;
       }

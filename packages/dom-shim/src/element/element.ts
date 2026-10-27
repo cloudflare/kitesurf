@@ -2466,7 +2466,9 @@ class Element extends NodeBase implements Idl.Element {
       return /-[a-z]/.test(name);
     }
     const DSM = ksGlobal.DOMStringMap;
-    const backing = Object.create(DSM && DSM.prototype ? DSM.prototype : Object.prototype);
+    const backing: Record<string, string> = Object.create(
+      DSM && DSM.prototype ? DSM.prototype : Object.prototype,
+    );
     return new Proxy(backing, {
       get(t, prop, receiver) {
         if (typeof prop === "string" && !isInvalidDatasetName(prop)) {
