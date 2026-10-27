@@ -4,6 +4,7 @@
 
 // Moves detached-tree wrappers to weak storage and reclaims wasm nodes after collection.
 
+import type { DomHandle } from "../../core/pkg/kitesurf_core";
 import { dropUnwrappedSubtrees } from "./node-base.js";
 import {
   adoptedWrapperIds,
@@ -164,20 +165,24 @@ function mayHoldWeak(nodeId: number): boolean {
   }
 }
 
-export function installDetachedWrapperHooks(handle: unknown): void {
+type HookedMethod = "appendChildNode" | "insertBeforeNode" | "replaceChildNode" | "removeNode";
+/** Hook the DomHandle's insertion and removal primitives. */
+export function installDetachedWrapperHooks(handle: DomHandle): void {
   if (!registry) return;
-  const h = handle as Record<string, unknown>;
-  const proto = Object.getPrototypeOf(h) as Record<string, unknown>;
-  const wrap = (name: string, nodeArg: number, after: (id: number) => void) => {
-    const orig = proto[name];
+  const proto: DomHandle = Object.getPrototypeOf(handle);
+  const wrap = (name: HookedMethod, nodeArg: number, after: (id: number) => void) => {
+    const orig: Function = proto[name];
     if (typeof orig !== "function") return;
-    h[name] = function (this: unknown, ...args: unknown[]) {
+    // An own property on this handle shadows the prototype method. A
+    // failed write throws, as the assignment it replaces did.
+    const installed = Reflect.set(handle, name, function (this: unknown, ...args: unknown[]) {
       const id = args[nodeArg];
       const weak = typeof id === "number" && mayHoldWeak(id);
-      const out = (orig as (...a: unknown[]) => unknown).apply(this, args);
+      const out: unknown = orig.apply(this, args);
       if (weak && typeof id === "number") after(id);
       return out;
-    };
+    });
+    if (!installed) throw new TypeError(`Cannot assign to DomHandle.${name}`);
   };
   wrap("appendChildNode", 1, revive);
   wrap("insertBeforeNode", 1, revive);
