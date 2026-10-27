@@ -242,7 +242,10 @@ NodeListCls.prototype.concat = Array.prototype.concat;
 /**
  * Creates a live NodeList; contents refresh when the selected mutation sequence changes.
  */
-function makeNodeList(getList: () => NodeBase[], seqKey?: NodeListSeqKey): NodeListCls;
+function makeNodeList<T extends NodeBase = NodeBase>(
+  getList: () => T[],
+  seqKey?: NodeListSeqKey,
+): NodeListCls<T>;
 function makeNodeList<L extends NodeListCls>(
   getList: () => NodeBase[],
   seqKey: NodeListSeqKey,

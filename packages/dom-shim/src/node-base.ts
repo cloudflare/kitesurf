@@ -56,7 +56,7 @@ import {
   nodeListCache,
 } from "./registries.js";
 import { getInternalState } from "./internal-state.js";
-import type { DocumentFragmentImpl } from "./collections.js";
+import type { DocumentFragmentImpl, NodeListCls } from "./collections.js";
 import type { DetachedDocument } from "./document.js";
 import type { Element } from "./element/element.js";
 import {
@@ -813,7 +813,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       recordChildListMutation(this, added, existing, null, null);
     }
   }
-  get childNodes(): any {
+  get childNodes(): NodeListCls<NodeBase> {
     const cached = nodeListCache.get(this);
     if (cached) return cached;
     const id = this._id;

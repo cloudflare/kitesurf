@@ -391,7 +391,10 @@ export function nodePeek(nodeId: number): unknown {
 }
 
 export type NodeListSeqKey = "mutationSeq" | "childSeq";
-type MakeNodeList = (getList: () => NodeBase[], seqKey?: NodeListSeqKey) => NodeListCls;
+type MakeNodeList = <T extends NodeBase>(
+  getList: () => T[],
+  seqKey?: NodeListSeqKey,
+) => NodeListCls<T>;
 type MakeHtmlCollection = {
   (
     getList: () => Element[],
@@ -437,7 +440,10 @@ export function setMakeDOMTokenList(fn: MakeDOMTokenList): void {
 export function setMakeNamedNodeMap(fn: MakeNamedNodeMap): void {
   makeNamedNodeMapFn = fn;
 }
-export function makeNodeList(getList: () => NodeBase[], seqKey?: NodeListSeqKey): NodeListCls {
+export function makeNodeList<T extends NodeBase = NodeBase>(
+  getList: () => T[],
+  seqKey?: NodeListSeqKey,
+): NodeListCls<T> {
   return makeNodeListFn!(getList, seqKey);
 }
 export function makeHtmlCollection(

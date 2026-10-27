@@ -144,7 +144,7 @@ export const stampedPiIds = new Set<number>();
 
 export const commentData = new Map<number, string>();
 
-export const nodeListCache = new WeakMap<object, NodeListCls>();
+export const nodeListCache = new WeakMap<object, NodeListCls<NodeBase>>();
 
 export const childrenCache = new WeakMap<object, HtmlCollectionCls>();
 export const optionsCache = new WeakMap<object, HTMLOptionsCollectionCls>();
