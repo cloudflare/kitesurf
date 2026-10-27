@@ -1172,11 +1172,11 @@ interface ParsedRuleList extends Array<ParsedRuleChunk> {
 type RuleStyleDecl = StyleDeclaration;
 
 interface FeatureValuesMap {
-  get(k: unknown): number[] | undefined;
-  set(k: unknown, v: unknown): FeatureValuesMap;
-  delete(k: unknown): boolean;
+  get(k: string): number[] | undefined;
+  set(k: string, v: number | number[]): FeatureValuesMap;
+  delete(k: string): boolean;
   clear(): void;
-  has(k: unknown): boolean;
+  has(k: string): boolean;
   readonly size: number;
   forEach(cb: (v: number[], k: string, m: FeatureValuesMap) => void, thisArg?: unknown): void;
   entries(): IterableIterator<[string, number[]]>;
@@ -1476,7 +1476,7 @@ class CSSGroupingRuleCls extends CSSRuleInterface implements Idl.CSSGroupingRule
   get cssRules(): RuleList | undefined {
     return rs<"childRules">(this).childRules;
   }
-  insertRule(text?: unknown, index?: unknown) {
+  insertRule(text: string, index?: number) {
     if (arguments.length === 0) {
       throw new TypeError(
         "Failed to execute 'insertRule': 1 argument required, but only 0 present.",
@@ -1499,7 +1499,7 @@ class CSSGroupingRuleCls extends CSSRuleInterface implements Idl.CSSGroupingRule
     if (s.onMutate) s.onMutate();
     return i;
   }
-  deleteRule(index?: unknown) {
+  deleteRule(index: number) {
     if (arguments.length === 0) {
       throw new TypeError(
         "Failed to execute 'deleteRule': 1 argument required, but only 0 present.",
@@ -1532,7 +1532,7 @@ class CSSMediaRuleCls extends CSSConditionRuleCls {
   get media(): MediaListCls {
     return rs<"media">(this).media;
   }
-  set media(v: unknown) {
+  set media(v: string) {
     rs<"media">(this).media.mediaText = v == null ? "" : String(v);
   }
   get conditionText(): string {
@@ -1631,7 +1631,7 @@ class CSSPageRuleCls extends CSSGroupingRuleCls implements Idl.CSSPageRule {
   // not the generic grouping-rule grammar CSSGroupingRuleCls.insertRule
   // implements, so this overrides rather than extends it. Duplicates
   // are allowed and document order is kept (WPT cssom/margin-003.html).
-  insertRule(text?: unknown, index?: unknown) {
+  insertRule(text: string, index?: number) {
     if (arguments.length === 0) {
       throw new TypeError(
         "Failed to execute 'insertRule': 1 argument required, but only 0 present.",
@@ -1769,7 +1769,7 @@ class CSSFontFaceRuleCls extends CSSRuleInterface {
   get style(): RuleStyleDecl {
     return rs<"style">(this).style;
   }
-  set style(v: unknown) {
+  set style(v: string) {
     rs<"style">(this).style.cssText = String(v == null ? "" : v);
   }
 }
@@ -1791,7 +1791,7 @@ class CSSFontFeatureValuesRuleCls extends CSSRuleInterface {
   get fontFamily(): string {
     return rs(this).name || "";
   }
-  set fontFamily(v: unknown) {
+  set fontFamily(v: string) {
     rs(this).name = String(v == null ? "" : v);
   }
   get annotation(): FeatureValuesMap {
@@ -2456,16 +2456,16 @@ function constructKeyframe(
 function makeFeatureValuesMap(onMutateRef: { fn: (() => void) | null }) {
   const m = new Map<string, number[]>();
   const api: FeatureValuesMap = {
-    get(k: unknown) {
+    get(k: string) {
       return m.get(String(k));
     },
-    set(k: unknown, v: unknown) {
+    set(k: string, v: number | number[]) {
       const arr = Array.isArray(v) ? v.map(Number) : [Number(v)];
       m.set(String(k), arr);
       if (onMutateRef.fn) onMutateRef.fn();
       return api;
     },
-    delete(k: unknown) {
+    delete(k: string) {
       const deleted = m.delete(String(k));
       if (onMutateRef.fn) onMutateRef.fn();
       return deleted;
@@ -2474,7 +2474,7 @@ function makeFeatureValuesMap(onMutateRef: { fn: (() => void) | null }) {
       m.clear();
       if (onMutateRef.fn) onMutateRef.fn();
     },
-    has(k: unknown) {
+    has(k: string) {
       return m.has(String(k));
     },
     get size() {

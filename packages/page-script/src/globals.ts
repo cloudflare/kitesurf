@@ -2357,7 +2357,7 @@ export function installGlobals(
       "dppx",
       "fr",
     ]) {
-      ksGlobal.CSS[unit] = (value: unknown) => new built.CSSUnitValue(value, unit);
+      ksGlobal.CSS[unit] = (value: number) => new built.CSSUnitValue(value, unit);
     }
     class Highlight extends Set<unknown> {
       priority = 0;

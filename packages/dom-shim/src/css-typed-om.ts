@@ -196,11 +196,11 @@ export class CSSStyleValue implements Idl.CSSStyleValue {
     this._associatedProperty = associatedProperty;
   }
 
-  static parse(propertyName: unknown, cssText: unknown): CSSStyleValue {
+  static parse(propertyName: string, cssText: string): CSSStyleValue {
     return CSSStyleValue.parseAll(propertyName, cssText)[0];
   }
 
-  static parseAll(propertyName: unknown, cssText: unknown): CSSStyleValue[] {
+  static parseAll(propertyName: string, cssText: string): CSSStyleValue[] {
     const property = normalizeProperty(propertyName);
     assertSupportedProperty(property);
     const text = String(cssText);
@@ -235,7 +235,7 @@ export class CSSImageValue extends CSSStyleValue implements Idl.CSSImageValue {}
 export class CSSKeywordValue extends CSSStyleValue implements Idl.CSSKeywordValue {
   _value: string;
 
-  constructor(value: unknown) {
+  constructor(value: string) {
     const text = String(value);
     if (!text) throw new TypeError("CSS keyword must not be empty");
     super(text);
@@ -245,7 +245,7 @@ export class CSSKeywordValue extends CSSStyleValue implements Idl.CSSKeywordValu
   get value(): string {
     return this._value;
   }
-  set value(value: unknown) {
+  set value(value: string) {
     const text = String(value);
     if (!text) throw new TypeError("CSS keyword must not be empty");
     this._value = text;
@@ -254,7 +254,7 @@ export class CSSKeywordValue extends CSSStyleValue implements Idl.CSSKeywordValu
 }
 
 export class CSSNumericValue extends CSSStyleValue implements Idl.CSSNumericValue {
-  static parse(cssText: unknown): CSSNumericValue {
+  static parse(cssText: string): CSSNumericValue {
     const text = String(cssText);
     const parsed = typedValueFromDto(callTypedParser("parseTypedNumericValue", text));
     if (!(parsed instanceof CSSNumericValue)) {
@@ -307,7 +307,7 @@ export class CSSNumericValue extends CSSStyleValue implements Idl.CSSNumericValu
     return values.every((value) => numericEquals(this, toNumericValue(value)));
   }
 
-  to(unitValue: unknown): CSSUnitValue {
+  to(unitValue: string): CSSUnitValue {
     const unit = normalizeUnit(unitValue);
     const value = evaluateNumeric(this);
     const target = evaluateNumeric(new CSSUnitValue(1, unit));
@@ -317,7 +317,7 @@ export class CSSNumericValue extends CSSStyleValue implements Idl.CSSNumericValu
     return new CSSUnitValue(value.value / target.value, unit);
   }
 
-  toSum(...unitValues: unknown[]): CSSMathSum {
+  toSum(...unitValues: string[]): CSSMathSum {
     const units = unitValues.map((value) => normalizeUnit(value));
     if (new Set(units).size !== units.length) {
       throw new DOMException("Duplicate units", "SyntaxError");
@@ -368,7 +368,7 @@ export class CSSUnitValue extends CSSNumericValue implements Idl.CSSUnitValue {
   _value: number;
   _unit: string;
 
-  constructor(value: unknown, unitValue: unknown) {
+  constructor(value: number, unitValue: string) {
     const number = Number(value);
     if (!Number.isFinite(number)) throw new TypeError("CSS unit value must be finite");
     const unit = normalizeUnit(unitValue, true);
@@ -381,7 +381,7 @@ export class CSSUnitValue extends CSSNumericValue implements Idl.CSSUnitValue {
   get value(): number {
     return this._value;
   }
-  set value(value: unknown) {
+  set value(value: number) {
     const number = Number(value);
     if (!Number.isFinite(number)) throw new TypeError("CSS unit value must be finite");
     this._value = number;
@@ -1062,7 +1062,7 @@ function parseColorValue(cssText: unknown): CSSStyleValue {
 }
 
 export class CSSColorValue extends CSSStyleValue implements Idl.CSSColorValue {
-  static parse(cssText: unknown): CSSStyleValue {
+  static parse(cssText: string): CSSStyleValue {
     return parseColorValue(cssText);
   }
 }
@@ -1072,7 +1072,12 @@ export class CSSRGB extends CSSColorValue implements Idl.CSSRGB {
   _g!: CSSColorChannel;
   _b!: CSSColorChannel;
   _alpha!: CSSColorChannel;
-  constructor(r: unknown, g: unknown, b: unknown, alpha: unknown = 1) {
+  constructor(
+    r: Idl.CSSColorRGBComp,
+    g: Idl.CSSColorRGBComp,
+    b: Idl.CSSColorRGBComp,
+    alpha: Idl.CSSColorPercent = 1,
+  ) {
     super();
     this.r = r;
     this.g = g;
@@ -1082,25 +1087,25 @@ export class CSSRGB extends CSSColorValue implements Idl.CSSRGB {
   get r(): CSSColorChannel {
     return this._r;
   }
-  set r(value: unknown) {
+  set r(value: Idl.CSSColorRGBComp) {
     this._r = colorRgbComponent(value, "r");
   }
   get g(): CSSColorChannel {
     return this._g;
   }
-  set g(value: unknown) {
+  set g(value: Idl.CSSColorRGBComp) {
     this._g = colorRgbComponent(value, "g");
   }
   get b(): CSSColorChannel {
     return this._b;
   }
-  set b(value: unknown) {
+  set b(value: Idl.CSSColorRGBComp) {
     this._b = colorRgbComponent(value, "b");
   }
   get alpha(): CSSColorChannel {
     return this._alpha;
   }
-  set alpha(value: unknown) {
+  set alpha(value: Idl.CSSColorPercent) {
     this._alpha = colorPercent(value, "alpha");
   }
   toString() {
@@ -1113,7 +1118,12 @@ export class CSSHSL extends CSSColorValue implements Idl.CSSHSL {
   _s!: CSSColorChannel;
   _l!: CSSColorChannel;
   _alpha!: CSSColorChannel;
-  constructor(h: unknown, s: unknown, l: unknown, alpha: unknown = 1) {
+  constructor(
+    h: Idl.CSSColorAngle,
+    s: Idl.CSSColorPercent,
+    l: Idl.CSSColorPercent,
+    alpha: Idl.CSSColorPercent = 1,
+  ) {
     super();
     this.h = h;
     this.s = s;
@@ -1123,25 +1133,25 @@ export class CSSHSL extends CSSColorValue implements Idl.CSSHSL {
   get h(): CSSColorChannel {
     return this._h;
   }
-  set h(value: unknown) {
+  set h(value: Idl.CSSColorAngle) {
     this._h = colorAngle(value, "h", true);
   }
   get s(): CSSColorChannel {
     return this._s;
   }
-  set s(value: unknown) {
+  set s(value: Idl.CSSColorPercent) {
     this._s = colorPercent(value, "s");
   }
   get l(): CSSColorChannel {
     return this._l;
   }
-  set l(value: unknown) {
+  set l(value: Idl.CSSColorPercent) {
     this._l = colorPercent(value, "l");
   }
   get alpha(): CSSColorChannel {
     return this._alpha;
   }
-  set alpha(value: unknown) {
+  set alpha(value: Idl.CSSColorPercent) {
     this._alpha = colorPercent(value, "alpha");
   }
   toString() {
@@ -1154,36 +1164,43 @@ export class CSSHWB extends CSSColorValue implements Idl.CSSHWB {
   _w!: CSSColorChannel;
   _b!: CSSColorChannel;
   _alpha!: CSSColorChannel;
-  constructor(h: unknown, w: unknown, b: unknown, alpha: unknown = 1) {
+  constructor(
+    h: Idl.CSSNumericValue,
+    w: Idl.CSSColorPercent,
+    b: Idl.CSSColorPercent,
+    alpha: Idl.CSSColorPercent = 1,
+  ) {
     super();
     this.h = h;
     this.w = w;
     this.b = b;
     this.alpha = alpha;
   }
+  // CSSHWB's members are type gaps. h takes the pinned IDL's type; w, b and
+  // alpha also take a keyword (none), as the other color classes do.
   get h(): CSSColorChannel {
     return this._h;
   }
-  set h(value: unknown) {
+  set h(value: Idl.CSSNumericValue) {
     if (!(value instanceof CSSNumericValue)) throw new TypeError("h must be a CSSNumericValue");
     this._h = colorAngle(value, "h");
   }
   get w(): CSSColorChannel {
     return this._w;
   }
-  set w(value: unknown) {
+  set w(value: Idl.CSSColorPercent) {
     this._w = colorPercent(value, "w");
   }
   get b(): CSSColorChannel {
     return this._b;
   }
-  set b(value: unknown) {
+  set b(value: Idl.CSSColorPercent) {
     this._b = colorPercent(value, "b");
   }
   get alpha(): CSSColorChannel {
     return this._alpha;
   }
-  set alpha(value: unknown) {
+  set alpha(value: Idl.CSSColorPercent) {
     this._alpha = colorPercent(value, "alpha");
   }
   toString() {
@@ -1197,7 +1214,12 @@ abstract class CSSCartesianColor extends CSSColorValue {
   _b!: CSSColorChannel;
   _alpha!: CSSColorChannel;
   _functionName = "lab";
-  constructor(l: unknown, a: unknown, b: unknown, alpha: unknown = 1) {
+  constructor(
+    l: Idl.CSSColorPercent,
+    a: Idl.CSSColorNumber,
+    b: Idl.CSSColorNumber,
+    alpha: Idl.CSSColorPercent = 1,
+  ) {
     super();
     this.l = l;
     this.a = a;
@@ -1207,25 +1229,25 @@ abstract class CSSCartesianColor extends CSSColorValue {
   get l(): CSSColorChannel {
     return this._l;
   }
-  set l(value: unknown) {
+  set l(value: Idl.CSSColorPercent) {
     this._l = colorPercent(value, "l");
   }
   get a(): CSSColorChannel {
     return this._a;
   }
-  set a(value: unknown) {
+  set a(value: Idl.CSSColorNumber) {
     this._a = colorNumber(value, "a");
   }
   get b(): CSSColorChannel {
     return this._b;
   }
-  set b(value: unknown) {
+  set b(value: Idl.CSSColorNumber) {
     this._b = colorNumber(value, "b");
   }
   get alpha(): CSSColorChannel {
     return this._alpha;
   }
-  set alpha(value: unknown) {
+  set alpha(value: Idl.CSSColorPercent) {
     this._alpha = colorPercent(value, "alpha");
   }
   toString(): string {
@@ -1244,7 +1266,12 @@ abstract class CSSPolarColor extends CSSColorValue {
   _h!: CSSColorChannel;
   _alpha!: CSSColorChannel;
   _functionName = "lch";
-  constructor(l: unknown, c: unknown, h: unknown, alpha: unknown = 1) {
+  constructor(
+    l: Idl.CSSColorPercent,
+    c: Idl.CSSColorPercent,
+    h: Idl.CSSColorAngle,
+    alpha: Idl.CSSColorPercent = 1,
+  ) {
     super();
     this.l = l;
     this.c = c;
@@ -1254,25 +1281,25 @@ abstract class CSSPolarColor extends CSSColorValue {
   get l(): CSSColorChannel {
     return this._l;
   }
-  set l(value: unknown) {
+  set l(value: Idl.CSSColorPercent) {
     this._l = colorPercent(value, "l");
   }
   get c(): CSSColorChannel {
     return this._c;
   }
-  set c(value: unknown) {
+  set c(value: Idl.CSSColorPercent) {
     this._c = colorPercent(value, "c");
   }
   get h(): CSSColorChannel {
     return this._h;
   }
-  set h(value: unknown) {
+  set h(value: Idl.CSSColorAngle) {
     this._h = colorAngle(value, "h");
   }
   get alpha(): CSSColorChannel {
     return this._alpha;
   }
-  set alpha(value: unknown) {
+  set alpha(value: Idl.CSSColorPercent) {
     this._alpha = colorPercent(value, "alpha");
   }
   toString(): string {
@@ -1286,11 +1313,12 @@ export class CSSOKLCH extends CSSPolarColor implements Idl.CSSOKLCH {
 }
 
 function colorKeywordish(value: unknown): CSSKeywordValue {
-  return value instanceof CSSKeywordValue ? value : new CSSKeywordValue(value);
+  return value instanceof CSSKeywordValue ? value : new CSSKeywordValue(String(value));
 }
 
 function colorAlpha(value: unknown): CSSNumericValue {
-  const numeric = value instanceof CSSNumericValue ? value : new CSSUnitValue(value, "number");
+  const numeric =
+    value instanceof CSSNumericValue ? value : new CSSUnitValue(Number(value), "number");
   if (!hasNumericType(numeric, {})) throw new TypeError("alpha must be a number");
   return numeric;
 }
@@ -1334,7 +1362,11 @@ export class CSSColor extends CSSColorValue implements Idl.CSSColor {
   _colorSpace!: CSSKeywordValue;
   _channels: CSSColorChannel[];
   _alpha!: CSSNumericValue;
-  constructor(colorSpace: unknown, channels: unknown, alpha: unknown = 1) {
+  constructor(
+    colorSpace: Idl.CSSKeywordish,
+    channels: Idl.CSSColorPercent[],
+    alpha: Idl.CSSNumberish = 1,
+  ) {
     super();
     this._channels = observableColorChannels(channels);
     lockSlot(this, "_channels");
@@ -1344,20 +1376,20 @@ export class CSSColor extends CSSColorValue implements Idl.CSSColor {
   get colorSpace(): CSSKeywordValue {
     return this._colorSpace;
   }
-  set colorSpace(value: unknown) {
+  set colorSpace(value: Idl.CSSKeywordish) {
     this._colorSpace = colorKeywordish(value);
   }
   get channels(): CSSColorChannel[] {
     return this._channels;
   }
-  set channels(value: unknown) {
+  set channels(value: Idl.CSSColorPercent[]) {
     const channels = colorChannels(value);
     this._channels.splice(0, this._channels.length, ...channels);
   }
   get alpha(): CSSNumericValue {
     return this._alpha;
   }
-  set alpha(value: unknown) {
+  set alpha(value: Idl.CSSNumberish) {
     this._alpha = colorAlpha(value);
   }
   toString() {
@@ -1502,7 +1534,7 @@ export class CSSVariableReferenceValue implements Idl.CSSVariableReferenceValue 
   _variable: string;
   _fallback: CSSUnparsedValue | null;
 
-  constructor(variable: unknown, fallback: CSSUnparsedValue | null = null) {
+  constructor(variable: string, fallback: CSSUnparsedValue | null = null) {
     const name = String(variable);
     if (!/^--[^\s]+$/.test(name)) throw new TypeError("Invalid custom property name");
     if (fallback !== null && !(fallback instanceof CSSUnparsedValue)) {
@@ -1907,7 +1939,7 @@ for (const [name, [index, twoDimensionalValue]] of Object.entries(MATRIX_FIELDS)
     get(this: DOMMatrix) {
       return matrixState(this).values[index];
     },
-    set(this: DOMMatrix, value: unknown) {
+    set(this: DOMMatrix, value: number) {
       this._set(index, value, twoDimensionalValue);
     },
     enumerable: true,
@@ -1945,19 +1977,19 @@ export class CSSTranslate extends CSSTransformComponent implements Idl.CSSTransl
   get x(): CSSNumericValue {
     return this._x;
   }
-  set x(value: unknown) {
+  set x(value: Idl.CSSNumericValue) {
     this._x = asLengthPercentage(value, "x");
   }
   get y(): CSSNumericValue {
     return this._y;
   }
-  set y(value: unknown) {
+  set y(value: Idl.CSSNumericValue) {
     this._y = asLengthPercentage(value, "y");
   }
   get z(): CSSNumericValue {
     return this._z;
   }
-  set z(value: unknown) {
+  set z(value: Idl.CSSNumericValue) {
     this._z = asLength(value, "z");
   }
   toMatrix() {
@@ -2002,25 +2034,25 @@ export class CSSRotate extends CSSTransformComponent implements Idl.CSSRotate {
   get x(): CSSNumericValue {
     return this._x;
   }
-  set x(value: unknown) {
+  set x(value: Idl.CSSNumberish) {
     this._x = asNumberish(value, "x");
   }
   get y(): CSSNumericValue {
     return this._y;
   }
-  set y(value: unknown) {
+  set y(value: Idl.CSSNumberish) {
     this._y = asNumberish(value, "y");
   }
   get z(): CSSNumericValue {
     return this._z;
   }
-  set z(value: unknown) {
+  set z(value: Idl.CSSNumberish) {
     this._z = asNumberish(value, "z");
   }
   get angle(): CSSNumericValue {
     return this._angle;
   }
-  set angle(value: unknown) {
+  set angle(value: Idl.CSSNumericValue) {
     this._angle = asAngle(value, "angle");
   }
   toMatrix() {
@@ -2055,19 +2087,19 @@ export class CSSScale extends CSSTransformComponent implements Idl.CSSScale {
   get x(): CSSNumericValue {
     return this._x;
   }
-  set x(value: unknown) {
+  set x(value: Idl.CSSNumberish) {
     this._x = asNumberish(value, "x");
   }
   get y(): CSSNumericValue {
     return this._y;
   }
-  set y(value: unknown) {
+  set y(value: Idl.CSSNumberish) {
     this._y = asNumberish(value, "y");
   }
   get z(): CSSNumericValue {
     return this._z;
   }
-  set z(value: unknown) {
+  set z(value: Idl.CSSNumberish) {
     this._z = asNumberish(value, "z");
   }
   toMatrix() {
@@ -2603,12 +2635,12 @@ export class StylePropertyMapReadOnly
     this._declaration = declaration;
   }
 
-  get(propertyName: unknown) {
+  get(propertyName: string) {
     const property = normalizeProperty(propertyName);
     assertSupportedProperty(property);
     return this.getAll(property)[0];
   }
-  getAll(propertyName: unknown) {
+  getAll(propertyName: string) {
     const property = normalizeProperty(propertyName);
     assertSupportedProperty(property);
     const text = this._declaration().getPropertyValue(property);
@@ -2620,7 +2652,7 @@ export class StylePropertyMapReadOnly
     for (const value of values) value._associatedProperty = property;
     return values;
   }
-  has(propertyName: unknown) {
+  has(propertyName: string) {
     return this.get(propertyName) !== undefined;
   }
   protected _entries() {
@@ -2668,7 +2700,7 @@ export class StylePropertyMapReadOnly
 export class StylePropertyMap extends StylePropertyMapReadOnly implements Idl.StylePropertyMap {
   _associatedValues = new Map<string, { declarationValue: string; value: CSSStyleValue }>();
 
-  get(propertyName: unknown) {
+  get(propertyName: string) {
     const property = normalizeProperty(propertyName);
     assertSupportedProperty(property);
     const associated = this._associatedValues.get(property);
@@ -2683,7 +2715,7 @@ export class StylePropertyMap extends StylePropertyMapReadOnly implements Idl.St
     this._associatedValues.delete(property);
     return super.get(property);
   }
-  set(propertyName: unknown, ...values: Array<CSSStyleValue | string>) {
+  set(propertyName: string, ...values: Array<CSSStyleValue | string>) {
     const property = normalizeProperty(propertyName);
     assertSupportedProperty(property);
     if (
@@ -2791,7 +2823,7 @@ export class StylePropertyMap extends StylePropertyMapReadOnly implements Idl.St
       this._associatedValues.delete(property);
     }
   }
-  append(propertyName: unknown, ...values: Array<CSSStyleValue | string>) {
+  append(propertyName: string, ...values: Array<CSSStyleValue | string>) {
     const property = normalizeProperty(propertyName);
     assertSupportedProperty(property);
     if (
@@ -2813,7 +2845,7 @@ export class StylePropertyMap extends StylePropertyMapReadOnly implements Idl.St
     );
     this.set(property, combined);
   }
-  delete(propertyName: unknown) {
+  delete(propertyName: string) {
     const property = normalizeProperty(propertyName);
     assertSupportedProperty(property);
     this._associatedValues.delete(property);
