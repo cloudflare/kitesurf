@@ -630,7 +630,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     rangeBounds(clone).endOffset = rangeBounds(this).endOffset;
     return clone;
   }
-  createContextualFragment(markup: string): Idl.DocumentFragment {
+  createContextualFragment(markup: Idl.TrustedHTML | string): Idl.DocumentFragment {
     const node = rangeBounds(this).startContainer;
     const doc = isDocumentNode(node) ? node : node.ownerDocument;
     // Only a document has no owner document, and that took the first arm.

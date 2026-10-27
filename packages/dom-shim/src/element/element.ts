@@ -723,7 +723,7 @@ class Element extends NodeBase implements Idl.Element {
   hasAttributes() {
     return this._attrFlat().length > 0;
   }
-  setAttribute(name: string, value: string) {
+  setAttribute(name: string, value: string | Idl.TrustedType) {
     const nm = String(name ?? "");
     validateAttrName(nm);
     const isHtmlElement = this.namespaceURI === HTML_NS;
@@ -933,7 +933,7 @@ class Element extends NodeBase implements Idl.Element {
     this.setAttribute(lower, "");
     return true;
   }
-  setAttributeNS(namespace: string | null, qualifiedName: string, value: string) {
+  setAttributeNS(namespace: string | null, qualifiedName: string, value: string | Idl.TrustedType) {
     // Limitation: DOM splits at the first colon, so "a:b:c" is valid there.
     // This rejects it.
     // https://dom.spec.whatwg.org/#validate-and-extract

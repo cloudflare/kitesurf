@@ -208,10 +208,11 @@ class KsDataTransferItemList implements Idl.DataTransferItemList {
   }
   // The IDL overloads by argument count: add(data, type) adds a string,
   // add(file) a File, and anything else fails the conversion to File.
-  add(...args: unknown[]): KsDataTransferItem {
-    const [data, type] = args;
+  add(data: string, type: string): KsDataTransferItem;
+  add(data: Idl.File): KsDataTransferItem;
+  add(data: string | Idl.File, type?: string): KsDataTransferItem {
     let item: KsDataTransferItem;
-    if (args.length >= 2) {
+    if (arguments.length >= 2) {
       item = new KsDataTransferItem(DATA_TRANSFER_TOKEN, String(type), String(data));
     } else if (data instanceof NativeFile) {
       item = new KsDataTransferItem(DATA_TRANSFER_TOKEN, data.type, data);

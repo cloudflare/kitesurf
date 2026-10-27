@@ -143,7 +143,7 @@ class FormData implements Idl.FormData {
       }
     }
   }
-  append(name: string, value: unknown, filename?: string) {
+  append(name: string, value: string | Idl.Blob, filename?: string) {
     if (arguments.length >= 3) requireBlobWithFilename(value, "append");
     // WebIDL DOMString conversion: null and undefined become "null" and
     // "undefined".
@@ -169,7 +169,7 @@ class FormData implements Idl.FormData {
     const n = String(name);
     return this.#entries.some((e) => e.name === n);
   }
-  set(name: string, value: unknown, filename?: string) {
+  set(name: string, value: string | Idl.Blob, filename?: string) {
     if (arguments.length >= 3) requireBlobWithFilename(value, "set");
     const n = String(name);
     const fname = filename !== undefined ? String(filename) : undefined;
