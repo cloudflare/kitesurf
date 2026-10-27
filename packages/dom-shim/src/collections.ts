@@ -3781,7 +3781,7 @@ function scopedQuerySelectorAll(rootId: number, selector: string): NodeListCls |
         "SyntaxError",
       );
     }
-    return [];
+    return makeStaticNodeList([]);
   }
   let ids: number[];
   try {
