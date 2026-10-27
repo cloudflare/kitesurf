@@ -114,18 +114,34 @@ function ksState() {
   return getInternalState();
 }
 
-export function adoptIntoDom(destDom: any, wrapper: any, destOwnerDoc?: any): void {
+// A wrapper adoptIntoDom can move: a live wrapper or a DOMParser one,
+// seen through the fields it rewrites.
+// _id is whatever the page left there; parentNode and ownerDocument are
+// written as plain assignments, which throw on a live wrapper's getters.
+export type AdoptableNode = {
+  _dom?: DomHandle;
+  _id?: unknown;
+  parentNode?: unknown;
+  ownerDocument?: unknown;
+};
+
+export function adoptIntoDom(
+  destDom: DomHandle,
+  wrapper: AdoptableNode | null | undefined,
+  destOwnerDoc?: unknown,
+): void {
   if (!wrapper || !wrapper._dom || wrapper._dom === destDom) return;
   const sourceDom = wrapper._dom;
-  const sourceId = wrapper._id;
-  let info;
+  // wasm-bindgen converts a node id argument to a number; do it here.
+  const sourceId = Number(wrapper._id);
+  let info: KsNodeInfo | null;
   try {
     info = sourceDom.nodeInfo(sourceId);
   } catch {
     info = null;
   }
   if (!info) return;
-  let newId;
+  let newId: number;
   if (info.nodeType === ELEMENT_NODE) {
     const tag = (info.nodeName || "DIV").toLowerCase();
     try {
