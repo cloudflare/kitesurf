@@ -15,33 +15,6 @@ export const INVENTORY_TYPES = ["testharness", "reftest", "print-reftest", "cras
 
 const MANIFEST_VERSION = 9;
 
-function manifestUrl(item, path) {
-  return Array.isArray(item) && typeof item[0] === "string" ? item[0] : path;
-}
-
-function countManifestLeaf(leaf, path, urlBase, urls) {
-  let count = 0;
-  for (const item of leaf.slice(1)) {
-    urls.add(urlBase + manifestUrl(item, path));
-    count++;
-  }
-  return count;
-}
-
-function childPath(path, name) {
-  return path ? `${path}/${name}` : name;
-}
-
-function countManifestNode(node, path, urlBase, urls) {
-  if (node == null || typeof node !== "object") return 0;
-  if (Array.isArray(node)) return countManifestLeaf(node, path, urlBase, urls);
-  let count = 0;
-  for (const [name, child] of Object.entries(node)) {
-    count += countManifestNode(child, childPath(path, name), urlBase, urls);
-  }
-  return count;
-}
-
 /**
  * @param {{version: number, url_base?: string, items: Record<string, unknown>}} manifest
  * @returns {{types: Record<string, number>, tests: string[]}}
@@ -57,8 +30,24 @@ export function inventoryFromManifest(manifest, types = INVENTORY_TYPES) {
   /** @type {Record<string, number>} */
   const counts = {};
   for (const type of types) {
-    // Manifest v9 trie leaves start with a hash; later entries carry URLs and metadata.
-    counts[type] = countManifestNode(manifest.items[type], "", urlBase, urls);
+    let count = 0;
+    /** @param {unknown} node @param {string} path */
+    const walk = (node, path) => {
+      if (node == null || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        // Manifest v9 trie leaves start with a hash; later entries carry URLs and metadata.
+        for (const item of node.slice(1)) {
+          const url = Array.isArray(item) && typeof item[0] === "string" ? item[0] : path;
+          urls.add(urlBase + url);
+          count++;
+        }
+        return;
+      }
+      for (const [name, child] of Object.entries(node))
+        walk(child, path ? `${path}/${name}` : name);
+    };
+    walk(manifest.items[type], "");
+    counts[type] = count;
   }
   return { types: counts, tests: [...urls].sort() };
 }
@@ -130,31 +119,15 @@ function parseArgs(argv) {
     pythonPath: null,
   };
   for (let i = 0; i < argv.length; i++) {
-    switch (argv[i]) {
-      case "--out":
-        opts.out = resolve(argv[++i]);
-        break;
-      case "--manifest":
-        opts.manifest = resolve(argv[++i]);
-        break;
-      case "--no-reference":
-        opts.reference = false;
-        break;
-      case "--wpt-dir":
-        opts.wptDir = resolve(argv[++i]);
-        break;
-      case "--revision-file":
-        opts.pin = JSON.parse(readFileSync(resolve(argv[++i]), "utf8")).revision;
-        break;
-      case "--add-reference":
-        opts.addReference = resolve(argv[++i]);
-        break;
-      case "--pythonpath":
-        opts.pythonPath = resolve(argv[++i]);
-        break;
-      default:
-        throw new Error(`unknown option: ${argv[i]}`);
-    }
+    if (argv[i] === "--out") opts.out = resolve(argv[++i]);
+    else if (argv[i] === "--manifest") opts.manifest = resolve(argv[++i]);
+    else if (argv[i] === "--no-reference") opts.reference = false;
+    else if (argv[i] === "--wpt-dir") opts.wptDir = resolve(argv[++i]);
+    else if (argv[i] === "--revision-file")
+      opts.pin = JSON.parse(readFileSync(resolve(argv[++i]), "utf8")).revision;
+    else if (argv[i] === "--add-reference") opts.addReference = resolve(argv[++i]);
+    else if (argv[i] === "--pythonpath") opts.pythonPath = resolve(argv[++i]);
+    else throw new Error(`unknown option: ${argv[i]}`);
   }
   return opts;
 }

@@ -22,42 +22,22 @@ export function deviating(expectations, byFile, filter) {
     .sort((left, right) => (left.test < right.test ? -1 : left.test > right.test ? 1 : 0));
 }
 
-function parseArgs(argv) {
+function main(argv) {
   let results;
   let filter;
   for (let i = 0; i < argv.length; i++) {
-    switch (argv[i]) {
-      case "--results":
-        results = argv[++i];
-        break;
-      case "--filter":
-        filter = argv[++i];
-        break;
-      default:
-        console.error(USAGE);
-        process.exit(2);
+    if (argv[i] === "--results") results = argv[++i];
+    else if (argv[i] === "--filter") filter = argv[++i];
+    else {
+      console.error(USAGE);
+      process.exit(2);
     }
   }
-  return { results, filter };
-}
-
-function requireWorkspaceResults(workspace, results) {
+  const workspace = process.env.BUILD_WORKSPACE_DIRECTORY;
   if (!workspace || !results) {
     console.error(`${USAGE}\n(run it with bazel run, which sets BUILD_WORKSPACE_DIRECTORY)`);
     process.exit(2);
   }
-}
-
-function printRows(expectations, rows) {
-  for (const row of rows) {
-    console.log(`  ${expectations[row.test]?.expected ?? "PASS"} → ${row.actual}  ${row.test}`);
-  }
-}
-
-function main(argv) {
-  const { results, filter } = parseArgs(argv);
-  const workspace = process.env.BUILD_WORKSPACE_DIRECTORY;
-  requireWorkspaceResults(workspace, results);
   const file = resolve(workspace, "tests/wpt-expectations.json");
   const expectations = JSON.parse(readFileSync(file, "utf8"));
   const rows = deviating(
@@ -65,7 +45,8 @@ function main(argv) {
     JSON.parse(readFileSync(resolve(results), "utf8")).byFile,
     filter,
   );
-  printRows(expectations, rows);
+  for (const row of rows)
+    console.log(`  ${expectations[row.test]?.expected ?? "PASS"} → ${row.actual}  ${row.test}`);
   if (!rows.length) {
     console.log("[update-expectations] no changes; tests/wpt-expectations.json is unchanged");
     return;

@@ -8,8 +8,7 @@ test("Typed OM maps round-trip keyword and numeric values", async ({ page }) => 
   await page.goto("data:text/html,<!doctype html><div id='target'></div>");
   const result = await page.evaluate(() => {
     const g = globalThis as any;
-    const constructorName = (error: any) => error?.constructor?.name;
-    const errorName = (error: any) => String(error?.name || constructorName(error) || "");
+    const errorName = (error: any) => String(error?.name || error?.constructor?.name || "");
     const errorDetails = (error: any) => ({
       errorName: errorName(error),
       errorMessage: `${error.name}: ${error.message}`,

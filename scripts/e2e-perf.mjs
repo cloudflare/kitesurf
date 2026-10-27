@@ -161,8 +161,9 @@ function waitForFrame(session, sentinelWallSec, timeoutMs) {
       try {
         await session.send("Page.screencastFrameAck", { sessionId: params.sessionId });
       } catch {}
-      const serverTs = frameTimestamp(params);
-      if (shouldIgnoreFrame(done, sentinelWallSec, serverTs)) return;
+      if (done) return;
+      const serverTs = params?.metadata?.timestamp ?? 0;
+      if (sentinelWallSec > 0 && serverTs > 0 && serverTs < sentinelWallSec) return;
       done = true;
       session.off("Page.screencastFrame", handler);
       resolveFrame({
@@ -180,14 +181,6 @@ function waitForFrame(session, sentinelWallSec, timeoutMs) {
       resolveFrame(null);
     }, timeoutMs);
   });
-}
-
-function frameTimestamp(params) {
-  return params?.metadata?.timestamp ?? 0;
-}
-
-function shouldIgnoreFrame(done, sentinelWallSec, serverTs) {
-  return done || (sentinelWallSec > 0 && serverTs > 0 && serverTs < sentinelWallSec);
 }
 
 async function drainOneFrame(session, timeoutMs = 2000) {

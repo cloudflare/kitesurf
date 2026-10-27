@@ -396,29 +396,6 @@ function isLocalUnknownCandidate(
   return !isExportedModuleBinding(node, exported);
 }
 
-function isNonLocalAssertionFlow(
-  node: TypeAssertion,
-  variables: ReadonlyMap<string, Variable>,
-): boolean {
-  return (
-    isMutableVariableFlow(node, variables) ||
-    isParameterDefaultValue(node) ||
-    isReturnExpression(node)
-  );
-}
-
-function isProtectedAssertion(
-  node: TypeAssertion,
-  variables: ReadonlyMap<string, Variable>,
-  exported: ReadonlySet<string>,
-): boolean {
-  return (
-    hasAssertionChain(node) ||
-    isNonLocalAssertionFlow(node, variables) ||
-    isInsideExportedBinding(node, exported)
-  );
-}
-
 function reportUnknownVariable(
   context: Context,
   node: ESTree.VariableDeclarator,
@@ -442,18 +419,6 @@ function hasUnknownTypeEvidence(
   variables: ReadonlyMap<string, Variable>,
 ): boolean {
   return isBareUnknown(annotation) && knownValueEvidence(initializer, variables);
-}
-
-function reportUnknownAssertion(
-  context: Context,
-  node: TypeAssertion,
-  variables: ReadonlyMap<string, Variable>,
-  exported: ReadonlySet<string>,
-): void {
-  if (!isBareUnknown(node.typeAnnotation)) return;
-  if (isProtectedAssertion(node, variables, exported)) return;
-  if (!knownValueEvidence(node.expression, variables)) return;
-  context.report({ node: unwrapType(node.typeAnnotation), messageId: "assertion" });
 }
 
 export const noUnnecessaryUnknownRule = defineRule({
@@ -490,8 +455,22 @@ export const noUnnecessaryUnknownRule = defineRule({
     const reportVariable = (node: ESTree.VariableDeclarator): void =>
       reportUnknownVariable(context, node, variables, exported);
 
-    const reportAssertion = (node: TypeAssertion): void =>
-      reportUnknownAssertion(context, node, variables, exported);
+    const reportAssertion = (node: TypeAssertion): void => {
+      if (
+        !isBareUnknown(node.typeAnnotation) ||
+        hasAssertionParent(node) ||
+        hasAssertionChild(node) ||
+        isMutableVariableFlow(node, variables) ||
+        isParameterDefaultValue(node) ||
+        isReturnExpression(node) ||
+        isInsideExportedBinding(node, exported) ||
+        !knownValueEvidence(node.expression, variables)
+      ) {
+        return;
+      }
+
+      context.report({ node: unwrapType(node.typeAnnotation), messageId: "assertion" });
+    };
 
     return {
       Program(program) {

@@ -179,54 +179,50 @@ function lineCommentBody(source, span) {
   return source.slice(start, span.end).trim();
 }
 
-/** @param {string} source @param {number} start @param {number} end @param {boolean} first @param {boolean} last @returns {{start: number, end: number}} */
-function trimBlockCommentDelimiters(source, start, end, first, last) {
-  if (first) start += 2;
-  if (last && source.slice(end - 2, end) === "*/") end -= 2;
-  return { start, end };
-}
-
-/** @param {string} source @param {number} start @param {boolean} first @returns {number} */
-function skipBlockCommentDecoration(source, start, first) {
-  if (source[start] !== "*" && !(first && source[start] === "!")) return start;
-  start++;
-  if (source[start] === " ") start++;
-  return start;
-}
-
 /** @param {string} source @param {number} start @param {number} end @param {boolean} first @param {boolean} last @returns {string} */
 function blockCommentBody(source, start, end, first, last) {
-  ({ start, end } = trimBlockCommentDelimiters(source, start, end, first, last));
+  if (first) start += 2;
+  if (last && source.slice(end - 2, end) === "*/") end -= 2;
   while (start < end && source.charAt(start).trim() === "") start++;
-  start = skipBlockCommentDecoration(source, start, first);
+  if (source[start] === "*" || (first && source[start] === "!")) {
+    start++;
+    if (source[start] === " ") start++;
+  }
   return source.slice(start, end).trim();
 }
 
-/** @param {string} source @param {CommentSpan[]} spans @param {PhysicalLine[]} physicalLines @param {number} lineCursor @param {number} tabWidth @returns {{lines: CommentLine[], nextLineCursor: number}} */
-function getLineCommentLines(source, spans, physicalLines, lineCursor, tabWidth) {
+/**
+ * @param {string} source
+ * @param {CommentSpan[]} spans
+ * @param {"line" | "block"} kind
+ * @param {PhysicalLine[]} physicalLines
+ * @param {number} lineCursor
+ * @param {number} tabWidth
+ * @returns {{lines: CommentLine[], nextLineCursor: number}}
+ */
+function getCommentLines(source, spans, kind, physicalLines, lineCursor, tabWidth) {
   /** @type {CommentLine[]} */
   const lines = [];
-  for (const span of spans) {
-    lineCursor = findLineIndex(physicalLines, lineCursor, span.start);
-    const physicalLine = physicalLines[lineCursor];
-    if (physicalLine === undefined) throw new RangeError("comment line is outside the source");
-    if (span.end > physicalLine.end) {
-      throw new RangeError("Line comment span must not include a line terminator");
+  if (kind === "line") {
+    for (const span of spans) {
+      lineCursor = findLineIndex(physicalLines, lineCursor, span.start);
+      const physicalLine = physicalLines[lineCursor];
+      if (physicalLine === undefined) throw new RangeError("comment line is outside the source");
+      if (span.end > physicalLine.end) {
+        throw new RangeError("Line comment span must not include a line terminator");
+      }
+      lines.push({
+        line: lineCursor + 1,
+        column: span.start - physicalLine.start,
+        visualWidth: measureColumns(source, physicalLine.start, span.end, tabWidth),
+        body: lineCommentBody(source, span),
+      });
     }
-    lines.push({
-      line: lineCursor + 1,
-      column: span.start - physicalLine.start,
-      visualWidth: measureColumns(source, physicalLine.start, span.end, tabWidth),
-      body: lineCommentBody(source, span),
-    });
+    return { lines, nextLineCursor: lineCursor };
   }
-  return { lines, nextLineCursor: lineCursor };
-}
 
-/** @param {string} source @param {CommentSpan} span @param {PhysicalLine[]} physicalLines @param {number} lineCursor @param {number} tabWidth @returns {{lines: CommentLine[], nextLineCursor: number}} */
-function getBlockCommentLines(source, span, physicalLines, lineCursor, tabWidth) {
-  /** @type {CommentLine[]} */
-  const lines = [];
+  const span = spans[0];
+  if (span === undefined) throw new RangeError("block comment span is missing");
   lineCursor = findLineIndex(physicalLines, lineCursor, span.start);
   const firstLine = lineCursor;
   while (lineCursor < physicalLines.length) {
@@ -251,48 +247,26 @@ function getBlockCommentLines(source, span, physicalLines, lineCursor, tabWidth)
   return { lines, nextLineCursor: lineCursor };
 }
 
-/**
- * @param {string} source
- * @param {CommentSpan[]} spans
- * @param {"line" | "block"} kind
- * @param {PhysicalLine[]} physicalLines
- * @param {number} lineCursor
- * @param {number} tabWidth
- * @returns {{lines: CommentLine[], nextLineCursor: number}}
- */
-function getCommentLines(source, spans, kind, physicalLines, lineCursor, tabWidth) {
-  if (kind === "line")
-    return getLineCommentLines(source, spans, physicalLines, lineCursor, tabWidth);
-  const span = spans[0];
-  if (span === undefined) throw new RangeError("block comment span is missing");
-  return getBlockCommentLines(source, span, physicalLines, lineCursor, tabWidth);
-}
-
 /** @param {string} source @param {number} start @param {number} end @returns {number} */
 function firstNonWhitespace(source, start, end) {
   while (start < end && source.charAt(start).trim() === "") start++;
   return start;
 }
 
-/** @param {number} code @returns {boolean} */
-function isAsciiDigit(code) {
-  return code >= 48 && code <= 57;
-}
-
-/** @param {string} value @param {number} offset @returns {boolean} */
-function hasFourDigitsAt(value, offset) {
-  return (
-    isAsciiDigit(value.charCodeAt(offset)) &&
-    isAsciiDigit(value.charCodeAt(offset + 1)) &&
-    isAsciiDigit(value.charCodeAt(offset + 2)) &&
-    isAsciiDigit(value.charCodeAt(offset + 3))
-  );
-}
-
 /** @param {string} value @returns {boolean} */
 function hasYear(value) {
   for (let offset = 0; offset + 3 < value.length; offset++) {
-    if (hasFourDigitsAt(value, offset)) return true;
+    if (
+      value.charCodeAt(offset) >= 48 &&
+      value.charCodeAt(offset) <= 57 &&
+      value.charCodeAt(offset + 1) >= 48 &&
+      value.charCodeAt(offset + 1) <= 57 &&
+      value.charCodeAt(offset + 2) >= 48 &&
+      value.charCodeAt(offset + 2) <= 57 &&
+      value.charCodeAt(offset + 3) >= 48 &&
+      value.charCodeAt(offset + 3) <= 57
+    )
+      return true;
   }
   return false;
 }

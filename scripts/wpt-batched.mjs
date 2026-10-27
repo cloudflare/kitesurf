@@ -126,37 +126,26 @@ function readCgroupValue(path) {
   }
 }
 
-function positiveCpuQuota(rawQuota, rawPeriod) {
-  const quota = Number(rawQuota);
-  const period = Number(rawPeriod);
-  if (quota > 0 && period > 0) return quota / period;
-  return null;
-}
-
-function cgroupV2CpuQuota(raw) {
-  if (!raw) return null;
-  const [quota, period] = raw.split(/\s+/);
-  if (quota === "max") return null;
-  return positiveCpuQuota(quota, period);
-}
-
-function cgroupV1CpuQuota() {
-  return positiveCpuQuota(
-    readCgroupValue("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"),
-    readCgroupValue("/sys/fs/cgroup/cpu/cpu.cfs_period_us"),
-  );
-}
-
-function cgroupCpuQuota() {
-  const v2 = readCgroupValue("/sys/fs/cgroup/cpu.max");
-  if (v2) return cgroupV2CpuQuota(v2);
-  return cgroupV1CpuQuota();
-}
-
 function cpuLimit() {
   const host =
     typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length;
-  const quota = cgroupCpuQuota();
+  const read = (p) => {
+    try {
+      return readFileSync(p, "utf8").trim();
+    } catch {
+      return null;
+    }
+  };
+  let quota = null;
+  const v2 = read("/sys/fs/cgroup/cpu.max");
+  if (v2) {
+    const [q, period] = v2.split(/\s+/);
+    if (q !== "max" && Number(q) > 0 && Number(period) > 0) quota = Number(q) / Number(period);
+  } else {
+    const q = Number(read("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"));
+    const period = Number(read("/sys/fs/cgroup/cpu/cpu.cfs_period_us"));
+    if (q > 0 && period > 0) quota = q / period;
+  }
   if (quota === null) return host;
   return Math.max(1, Math.min(host, Math.floor(quota)));
 }
@@ -543,32 +532,24 @@ function canStartBootSet(set, freed, ports) {
 }
 
 const BOOT_LOG_TAIL_LINES = 60;
-function bootChildState(child) {
-  if (!child) return "never spawned";
-  if (child.exitCode !== null) return `exited ${child.exitCode}`;
-  if (child.signalCode) return `killed by ${child.signalCode}`;
-  return `still running as pid ${child.pid}`;
-}
 
 function reportBootFailure(port, child, bootMs, attempt) {
-  const state = bootChildState(child);
+  const state = !child
+    ? "never spawned"
+    : child.exitCode !== null
+      ? `exited ${child.exitCode}`
+      : child.signalCode
+        ? `killed by ${child.signalCode}`
+        : `still running as pid ${child.pid}`;
   console.error(
     red(
       `[batched] engine on port ${port} failed health after ${bootMs}ms (wrangler ${state}), attempt ${attempt}/${BOOT_ATTEMPTS}; ${devLogFor(port)}:`,
     ),
   );
-  reportBootLog(readBootLog(port));
-}
-
-function readBootLog(port) {
+  let text = null;
   try {
-    return readFileSync(devLogFor(port), "utf8");
-  } catch {
-    return null;
-  }
-}
-
-function reportBootLog(text) {
+    text = readFileSync(devLogFor(port), "utf8");
+  } catch {}
   if (!text || !text.trim()) {
     console.error(dim("           (log is empty)"));
     return;
@@ -1378,40 +1359,23 @@ function compactRow(row) {
   };
 }
 
-function countUnexpectedResult(row) {
-  if (!row.unexpected) return { fail: 0, pass: 0 };
-  if (row.expected !== "PASS" && row.outcome === "PASS") return { fail: 0, pass: 1 };
-  return { fail: 1, pass: 0 };
-}
-
-function incrementOutcome(byOutcome, outcome) {
-  byOutcome[outcome] = (byOutcome[outcome] || 0) + 1;
-}
-
-function commitSha() {
-  return (process.env.CI_COMMIT_SHORT_SHA || gitShortSha()).trim();
-}
-
-function currentRef() {
-  return process.env.CI_COMMIT_BRANCH || process.env.CI_COMMIT_REF_NAME || "local";
-}
-
 function writeConsolidated(outPath, byFile) {
   const byOutcome = {};
   let unexpectedFail = 0;
   let unexpectedPass = 0;
-  for (const row of Object.values(byFile)) {
-    incrementOutcome(byOutcome, row.outcome);
-    const unexpected = countUnexpectedResult(row);
-    unexpectedFail += unexpected.fail;
-    unexpectedPass += unexpected.pass;
+  for (const e of Object.values(byFile)) {
+    byOutcome[e.outcome] = (byOutcome[e.outcome] || 0) + 1;
+    if (e.unexpected) {
+      if (e.expected !== "PASS" && e.outcome === "PASS") unexpectedPass++;
+      else unexpectedFail++;
+    }
   }
   const total = Object.keys(byFile).length;
-  const commit = commitSha();
+  const commit = (process.env.CI_COMMIT_SHORT_SHA || gitShortSha()).trim();
   const doc = {
     commit: commit || null,
     date: new Date().toISOString(),
-    ref: currentRef(),
+    ref: process.env.CI_COMMIT_BRANCH || process.env.CI_COMMIT_REF_NAME || "local",
     summary: {
       total,
       expected: total - unexpectedFail - unexpectedPass,
@@ -1426,7 +1390,7 @@ function writeConsolidated(outPath, byFile) {
 }
 
 function writeFull(outPath, results, summary) {
-  const commit = commitSha();
+  const commit = (process.env.CI_COMMIT_SHORT_SHA || gitShortSha()).trim();
   const doc = {
     date: new Date().toISOString(),
     base: WPT_BASE,

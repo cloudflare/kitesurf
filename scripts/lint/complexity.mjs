@@ -212,11 +212,6 @@ function nativeDiagnosticFailure(nativeErrors) {
   return null;
 }
 
-/** @param {ReturnType<typeof spawnSync>} result @param {NativeError[]} nativeErrors @returns {{exitCode: number, reason: string} | null} */
-function processFailure(result, nativeErrors) {
-  return oxlintExecutionFailure(result) ?? nativeDiagnosticFailure(nativeErrors);
-}
-
 /** @param {string} reason @param {number} exitCode @param {NativeError[]} nativeErrors @returns {ComplexityAnalysis} */
 function failedAnalysis(reason, exitCode, nativeErrors) {
   return { ok: false, exitCode, reason, nativeErrors };
@@ -224,7 +219,7 @@ function failedAnalysis(reason, exitCode, nativeErrors) {
 
 /** @param {ReturnType<typeof spawnSync>} result @param {OxlintParseResult} parsed @param {NativeError[]} nativeErrors @returns {ComplexityAnalysis} */
 function analyzeParsedReport(result, parsed, nativeErrors) {
-  const processError = processFailure(result, nativeErrors);
+  const processError = oxlintExecutionFailure(result) ?? nativeDiagnosticFailure(nativeErrors);
   if (processError !== null) {
     return failedAnalysis(processError.reason, processError.exitCode, nativeErrors);
   }

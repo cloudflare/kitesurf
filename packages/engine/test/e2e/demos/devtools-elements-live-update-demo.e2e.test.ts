@@ -51,12 +51,11 @@ function hasLoadEvent(events: PageModeEvent[], start: number): boolean {
   return events.slice(start).some((event) => event.method === "Page.loadEventFired");
 }
 
-function insertedNodeName(event: PageModeEvent): string | undefined {
-  return (event.params?.node as { nodeName?: string } | undefined)?.nodeName;
-}
-
 function isInsertedNode(event: PageModeEvent, nodeName: string): boolean {
-  return event.method === "DOM.childNodeInserted" && insertedNodeName(event) === nodeName;
+  return (
+    event.method === "DOM.childNodeInserted" &&
+    (event.params?.node as { nodeName?: string } | undefined)?.nodeName === nodeName
+  );
 }
 
 function isAttributeModified(event: PageModeEvent, name: string): boolean {

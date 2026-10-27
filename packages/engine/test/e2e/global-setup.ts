@@ -39,38 +39,16 @@ function fixtureWorkerBuilds(): Array<{ wranglerConfig: string; outdir: string }
   return fixtureWorkerBuildsSchema.parse(value);
 }
 
-function providedDistsReady(): boolean {
-  const bothProvided = process.env.KS_E2E_ENGINE_DIST && process.env.KS_E2E_FIXTURES_DIST;
-  if (!bothProvided) return false;
-  const engineEntryExists = existsSync(resolve(ENGINE_DIST, "index.js"));
-  const fixturesEntryExists = existsSync(resolve(FIXTURES_DIST, "index.js"));
-  if (!engineEntryExists || !fixturesEntryExists) {
-    throw new Error("The provided e2e engine or fixtures dist is missing index.js");
-  }
-  return true;
-}
-
-function buildFixtureWorkers(runE: (cmd: string, args: string[], cwd?: string) => void): void {
-  for (const fixtureWorker of fixtureWorkerBuilds()) {
-    runE(
-      "pnpm",
-      [
-        "exec",
-        "wrangler",
-        "deploy",
-        "--dry-run",
-        "--config",
-        fixtureWorker.wranglerConfig,
-        "--outdir",
-        fixtureWorker.outdir,
-      ],
-      ENGINE_DIR,
-    );
-  }
-}
-
 export default function setup(): void {
-  if (providedDistsReady()) return;
+  if (process.env.KS_E2E_ENGINE_DIST && process.env.KS_E2E_FIXTURES_DIST) {
+    if (
+      !existsSync(resolve(ENGINE_DIST, "index.js")) ||
+      !existsSync(resolve(FIXTURES_DIST, "index.js"))
+    ) {
+      throw new Error("The provided e2e engine or fixtures dist is missing index.js");
+    }
+    return;
+  }
   const runE = (cmd: string, args: string[], cwd = REPO_ROOT) =>
     execFileSync(cmd, args, { cwd, stdio: "inherit" });
   runE(
@@ -87,7 +65,22 @@ export default function setup(): void {
     ],
     ENGINE_DIR,
   );
-  buildFixtureWorkers(runE);
+  for (const fixtureWorker of fixtureWorkerBuilds()) {
+    runE(
+      "pnpm",
+      [
+        "exec",
+        "wrangler",
+        "deploy",
+        "--dry-run",
+        "--config",
+        fixtureWorker.wranglerConfig,
+        "--outdir",
+        fixtureWorker.outdir,
+      ],
+      ENGINE_DIR,
+    );
+  }
   // Outside Bazel the dist is bundled from the source tree, so stage the Bazel-built wasm, bundles
   // and RBI files into it first, as `pnpm run dev` does.
   if (!process.env.KS_E2E_SKIP_BUILD) runE("bazel", ["run", "//packages/engine:dev_build"]);

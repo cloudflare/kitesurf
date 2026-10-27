@@ -24,16 +24,12 @@ function wrappedValueOr(item, fallback) {
   return item?.value ?? fallback;
 }
 
-function optionalWrappedValue(item) {
-  return item?.value;
-}
-
 function normalizeText(value) {
   return value.replace(/\s+/g, " ").trim();
 }
 
 function propertyEntry(property) {
-  return [property.name, optionalWrappedValue(property.value)];
+  return [property.name, property.value?.value];
 }
 
 function compareProperties(a, b) {

@@ -152,28 +152,16 @@ const MODIFIER_BIT = {
  * text: string, shifted: boolean
  * }} ResolvedKey */
 
-function resolvePuaKey(value) {
+/** @param {string} value
+ * @returns {ResolvedKey} */
+export function resolveKey(value) {
   const pua = PUA_KEYS[value];
-  if (!pua) return null;
-  const [key, code, keyCode, location] = pua;
-  const text = key === " " ? " " : "";
-  return { key, code, keyCode, location, text, shifted: false };
-}
-
-function resolvePunctuationKey(ch) {
-  const punct = PUNCT[ch];
-  if (!punct) return { key: ch, code: "", keyCode: 0, location: 0, text: ch, shifted: false };
-  return {
-    key: ch,
-    code: punct[0],
-    keyCode: punct[1],
-    location: 0,
-    text: ch,
-    shifted: SHIFTED.has(ch),
-  };
-}
-
-function resolveLetterKey(ch) {
+  if (pua) {
+    const [key, code, keyCode, location] = pua;
+    const text = key === " " ? " " : "";
+    return { key, code, keyCode, location, text, shifted: false };
+  }
+  const ch = value;
   if (ch >= "a" && ch <= "z") {
     return {
       key: ch,
@@ -194,33 +182,28 @@ function resolveLetterKey(ch) {
       shifted: true,
     };
   }
-  return null;
-}
-
-function resolveDigitKey(ch) {
-  if (ch < "0" || ch > "9") return null;
-  return {
-    key: ch,
-    code: `Digit${ch}`,
-    keyCode: ch.charCodeAt(0),
-    location: 0,
-    text: ch,
-    shifted: false,
-  };
-}
-
-function resolveCharacterKey(ch) {
-  const letter = resolveLetterKey(ch);
-  if (letter) return letter;
-  const digit = resolveDigitKey(ch);
-  if (digit) return digit;
-  return resolvePunctuationKey(ch);
-}
-
-/** @param {string} value
- * @returns {ResolvedKey} */
-export function resolveKey(value) {
-  return resolvePuaKey(value) ?? resolveCharacterKey(value);
+  if (ch >= "0" && ch <= "9") {
+    return {
+      key: ch,
+      code: `Digit${ch}`,
+      keyCode: ch.charCodeAt(0),
+      location: 0,
+      text: ch,
+      shifted: false,
+    };
+  }
+  const punct = PUNCT[ch];
+  if (punct) {
+    return {
+      key: ch,
+      code: punct[0],
+      keyCode: punct[1],
+      location: 0,
+      text: ch,
+      shifted: SHIFTED.has(ch),
+    };
+  }
+  return { key: ch, code: "", keyCode: 0, location: 0, text: ch, shifted: false };
 }
 
 export const TESTDRIVER_BINDING = "__ks_testdriver";

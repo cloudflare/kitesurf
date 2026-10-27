@@ -309,44 +309,26 @@ function runPlaywright(wsEndpoint, specFiles, grep, tag) {
   return collectResults(jsonOut);
 }
 
-function mapStatus(status) {
-  switch (status) {
-    case "passed":
-      return "PASS";
-    case "timedOut":
-      return "TIMEOUT";
-    case "skipped":
-      return "SKIP";
-    default:
-      return "FAIL";
-  }
-}
-
-function collectSpec(spec, titles, out) {
-  const file = spec.file.replace(/\\/g, "/");
-  for (const test of spec.tests ?? []) {
-    const status = test.results?.length
-      ? mapStatus(test.results[test.results.length - 1].status)
-      : "SKIP";
-    const id = `${file}::${[...titles, spec.title].join(" › ")}`;
-    out[id] = status;
-  }
-}
-
-function suiteTitles(suite, titles) {
-  return suite.title ? [...titles, suite.title] : titles;
-}
-
-function collectSuite(suite, titles, out) {
-  const childTitles = suiteTitles(suite, titles);
-  for (const child of suite.suites ?? []) collectSuite(child, childTitles, out);
-  for (const spec of suite.specs ?? []) collectSpec(spec, titles, out);
-}
-
 function collectResults(jsonPath) {
   const report = JSON.parse(readFileSync(jsonPath, "utf8"));
   const out = {};
-  for (const suite of report.suites ?? []) collectSuite(suite, [], out);
+  const mapStatus = (s) =>
+    s === "passed" ? "PASS" : s === "timedOut" ? "TIMEOUT" : s === "skipped" ? "SKIP" : "FAIL";
+  const walk = (suite, titles) => {
+    for (const child of suite.suites ?? [])
+      walk(child, suite.title ? [...titles, suite.title] : titles);
+    for (const spec of suite.specs ?? []) {
+      const file = spec.file.replace(/\\/g, "/");
+      for (const t of spec.tests ?? []) {
+        const status = t.results?.length
+          ? mapStatus(t.results[t.results.length - 1].status)
+          : "SKIP";
+        const id = `${file}::${[...titles, spec.title].join(" › ")}`;
+        out[id] = status;
+      }
+    }
+  };
+  for (const suite of report.suites ?? []) walk(suite, []);
   return out;
 }
 

@@ -14,31 +14,37 @@ const proxyAssetUrls = (text: string, host: string) =>
 
 export const snapshot = new Hono();
 
-async function snapshotAsset(host: string, rest: string): Promise<Response> {
-  const key = host + rest;
-  let hit = assetCache.get(key);
-  if (!hit) {
-    const upstream = await fetch(`https://${host}${rest}`);
-    if (!upstream.ok) {
-      return new Response(`asset upstream ${upstream.status}`, { status: 502 });
-    }
-    const type = upstream.headers.get("content-type") || "application/octet-stream";
-    let body: ArrayBuffer;
-    if (/javascript|ecmascript|css|json/i.test(type)) {
-      const text = proxyAssetUrls(await upstream.text(), host);
-      body = new TextEncoder().encode(text).buffer as ArrayBuffer;
-    } else {
-      body = await upstream.arrayBuffer();
-    }
-    hit = { body, type };
-    assetCache.set(key, hit);
+snapshot.all("/snapshot/:host/*", async (c) => {
+  const host = c.req.param("host");
+  const rest = c.req.path.slice(`/__fixtures/snapshot/${host}`.length) || "/";
+  if (!ALLOWED_HOSTS.has(host)) {
+    return new Response("host not allowed", { status: 403 });
   }
-  return new Response(hit.body.slice(0), {
-    headers: { "content-type": hit.type, "cache-control": "no-store" },
-  });
-}
 
-async function snapshotDocument(host: string, rest: string): Promise<Response> {
+  if (rest.startsWith("/assets/")) {
+    const key = host + rest;
+    let hit = assetCache.get(key);
+    if (!hit) {
+      const upstream = await fetch(`https://${host}${rest}`);
+      if (!upstream.ok) {
+        return new Response(`asset upstream ${upstream.status}`, { status: 502 });
+      }
+      const type = upstream.headers.get("content-type") || "application/octet-stream";
+      let body: ArrayBuffer;
+      if (/javascript|ecmascript|css|json/i.test(type)) {
+        const text = proxyAssetUrls(await upstream.text(), host);
+        body = new TextEncoder().encode(text).buffer as ArrayBuffer;
+      } else {
+        body = await upstream.arrayBuffer();
+      }
+      hit = { body, type };
+      assetCache.set(key, hit);
+    }
+    return new Response(hit.body.slice(0), {
+      headers: { "content-type": hit.type, "cache-control": "no-store" },
+    });
+  }
+
   const key = host + rest;
   let html = htmlCache.get(key);
   if (!html) {
@@ -54,18 +60,4 @@ async function snapshotDocument(host: string, rest: string): Promise<Response> {
   return new Response(html, {
     headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
   });
-}
-
-snapshot.all("/snapshot/:host/*", async (c) => {
-  const host = c.req.param("host");
-  const rest = c.req.path.slice(`/__fixtures/snapshot/${host}`.length) || "/";
-  if (!ALLOWED_HOSTS.has(host)) {
-    return new Response("host not allowed", { status: 403 });
-  }
-
-  if (rest.startsWith("/assets/")) {
-    return snapshotAsset(host, rest);
-  }
-
-  return snapshotDocument(host, rest);
 });

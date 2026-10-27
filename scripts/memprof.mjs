@@ -74,33 +74,24 @@ function firstStackFrame(stack) {
   return (stack ?? [])[0] ?? { fn: "<empty>" };
 }
 
-function sampleKey(frame) {
-  return stripHashes(frame.fn ?? "<?>");
-}
-
-function sampleCount(sample) {
-  return sample.count ?? 1;
-}
-
-function sampleMaximum(sample) {
-  return sample.max ?? sample.size;
-}
-
-function addSample(agg, sample) {
-  const frame = firstInteresting(sample.stack);
-  const key = sampleKey(frame);
-  let entry = agg.get(key);
-  if (!entry) {
-    entry = { bytes: 0, count: 0, max: 0 };
-    agg.set(key, entry);
+function analyze(dump) {
+  const agg = new Map();
+  let totalBytes = 0;
+  for (const s of dump.samples ?? []) {
+    totalBytes += s.size;
+    const f = firstInteresting(s.stack);
+    const key = stripHashes(f.fn ?? "<?>");
+    let e = agg.get(key);
+    if (!e) {
+      e = { bytes: 0, count: 0, max: 0 };
+      agg.set(key, e);
+    }
+    e.bytes += s.size;
+    e.count += s.count ?? 1;
+    const sampleMax = s.max ?? s.size;
+    if (sampleMax > e.max) e.max = sampleMax;
   }
-  entry.bytes += sample.size;
-  entry.count += sampleCount(sample);
-  const sampleMax = sampleMaximum(sample);
-  if (sampleMax > entry.max) entry.max = sampleMax;
-}
 
-function printSummary(dump, totalBytes) {
   console.log(
     `Total samples: ${(dump.samples ?? []).length} | in-use: ${(dump.in_use_bytes / BYTES_PER_MIB).toFixed(2)} MiB ` +
       `(${(totalBytes / BYTES_PER_MIB).toFixed(2)} verified) | total_allocs: ${dump.total_allocs} | ` +
@@ -113,9 +104,6 @@ function printSummary(dump, totalBytes) {
     `${"bytes".padStart(11)}  ${"MiB".padStart(7)}  ${"count".padStart(6)}  ${"max".padStart(8)}  call site`,
   );
   console.log("-".repeat(140));
-}
-
-function printAttributionSites(agg) {
   const ranked = [...agg.entries()].sort((a, b) => b[1].bytes - a[1].bytes);
   for (const [k, v] of ranked.slice(0, topN)) {
     console.log(
@@ -123,17 +111,6 @@ function printAttributionSites(agg) {
         `${v.count.toString().padStart(6)}  ${v.max.toString().padStart(8)}  ${k.slice(0, 110)}`,
     );
   }
-}
-
-function analyze(dump) {
-  const agg = new Map();
-  let totalBytes = 0;
-  for (const sample of dump.samples ?? []) {
-    totalBytes += sample.size;
-    addSample(agg, sample);
-  }
-  printSummary(dump, totalBytes);
-  printAttributionSites(agg);
 }
 
 function requireCaptureInput() {

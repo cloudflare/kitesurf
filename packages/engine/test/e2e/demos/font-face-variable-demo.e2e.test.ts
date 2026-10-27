@@ -39,10 +39,6 @@ function assertVariableProbeCount(probe: FamilyInfo | null): void {
   expect(probe?.faceCount, `VarProbe registered with 1 face: got ${JSON.stringify(probe)}`).toBe(1);
 }
 
-function firstVariableFace(probe: FamilyInfo | null): FaceInfo | undefined {
-  return probe?.faces?.[0];
-}
-
 function assertVariableFaceAxis(face: FaceInfo | undefined): void {
   expect(face?.hasWghtAxis, `face keeps its wght axis: face=${JSON.stringify(face)}`).toBe(true);
 }
@@ -74,7 +70,7 @@ test("font-face-variable-demo", async ({ browser }) => {
   const dump = await cdp.send("Kitesurf.getFontFaces");
   const varProbe = findVariableProbe(dump);
   assertVariableProbeCount(varProbe);
-  const face = firstVariableFace(varProbe);
+  const face = varProbe?.faces?.[0];
   assertVariableFaceAxis(face);
   assertVariableFaceWeight(face);
 

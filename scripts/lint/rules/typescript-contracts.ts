@@ -174,55 +174,6 @@ function findClassAt(
   return closest;
 }
 
-function shouldSkipStaticHeritage(heritage: ts.HeritageClause, isStatic: boolean): boolean {
-  return isStatic && heritage.token === ts.SyntaxKind.ImplementsKeyword;
-}
-
-function inheritedOwnerType(
-  checker: ts.TypeChecker,
-  heritage: ts.HeritageClause,
-  owner: ts.ExpressionWithTypeArguments,
-  isStatic: boolean,
-): ts.Type {
-  return isStatic && heritage.token === ts.SyntaxKind.ExtendsKeyword
-    ? checker.getTypeAtLocation(owner.expression)
-    : checker.getTypeFromTypeNode(owner);
-}
-
-function heritageHasMemberContract(
-  checker: ts.TypeChecker,
-  heritage: ts.HeritageClause,
-  name: string,
-  kind: ContractMemberKind,
-  isStatic: boolean,
-): boolean {
-  for (const owner of heritage.types) {
-    if (shouldSkipStaticHeritage(heritage, isStatic)) continue;
-    if (
-      memberContract(checker, inheritedOwnerType(checker, heritage, owner, isStatic), name, kind)
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function classHasMemberContract(
-  checker: ts.TypeChecker,
-  classes: readonly ts.ClassLikeDeclaration[],
-  sourceFile: ts.SourceFile,
-  memberStart: number,
-  name: string,
-  kind: ContractMemberKind,
-  isStatic: boolean,
-): boolean {
-  const declaration = findClassAt(classes, sourceFile, memberStart);
-  for (const heritage of declaration?.heritageClauses ?? []) {
-    if (heritageHasMemberContract(checker, heritage, name, kind, isStatic)) return true;
-  }
-  return false;
-}
-
 function createHost(
   fileName: string,
   sourceText: string,
@@ -392,15 +343,18 @@ function sessionFor(cached: CachedProgram, sourceFile: ts.SourceFile): TypeScrip
       );
     },
     hasClassMember(memberStart, name, kind, isStatic) {
-      return classHasMemberContract(
-        checker,
-        index.classes,
-        sourceFile,
-        memberStart,
-        name,
-        kind,
-        isStatic,
-      );
+      const declaration = findClassAt(index.classes, sourceFile, memberStart);
+      for (const heritage of declaration?.heritageClauses ?? []) {
+        for (const owner of heritage.types) {
+          if (isStatic && heritage.token === ts.SyntaxKind.ImplementsKeyword) continue;
+          const ownerType =
+            isStatic && heritage.token === ts.SyntaxKind.ExtendsKeyword
+              ? checker.getTypeAtLocation(owner.expression)
+              : checker.getTypeFromTypeNode(owner);
+          if (memberContract(checker, ownerType, name, kind)) return true;
+        }
+      }
+      return false;
     },
   };
 }

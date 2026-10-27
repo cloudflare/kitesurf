@@ -4,17 +4,6 @@
 
 import { expect, test } from "../harness";
 
-function expectImageRect(rect, id: string): void {
-  expect(
-    rect && rect.w === 64 && rect.h === 64,
-    `${id}-rect: ${JSON.stringify(rect)}`,
-  ).toBeTruthy();
-}
-
-function expectImageHit(hit, id: string): void {
-  expect(hit && hit.id === id, `${id}-hit: ${JSON.stringify(hit)}`).toBeTruthy();
-}
-
 test("images-demo", async ({ page }) => {
   const RED_8x8_B64 =
     "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP4z8CAFWEXHbQSACj/P8Fu7N9hAAAAAElFTkSuQmCC";
@@ -62,9 +51,18 @@ test("images-demo", async ({ page }) => {
     };
   });
   console.log("[img] geometry:", probe);
-  expectImageRect(probe.dataImg, "data-img");
-  expectImageRect(probe.bg, "bg");
-  expectImageRect(probe.dynImg, "dyn-img");
+  expect(
+    probe.dataImg && probe.dataImg.w === 64 && probe.dataImg.h === 64,
+    `data-img-rect: ${JSON.stringify(probe.dataImg)}`,
+  ).toBeTruthy();
+  expect(
+    probe.bg && probe.bg.w === 64 && probe.bg.h === 64,
+    `bg-rect: ${JSON.stringify(probe.bg)}`,
+  ).toBeTruthy();
+  expect(
+    probe.dynImg && probe.dynImg.w === 64 && probe.dynImg.h === 64,
+    `dyn-img-rect: ${JSON.stringify(probe.dynImg)}`,
+  ).toBeTruthy();
 
   const buf = await page.screenshot({ encoding: "binary" });
   console.log(`[img] screenshot captured (${buf.length} bytes)`);
@@ -86,7 +84,13 @@ test("images-demo", async ({ page }) => {
     { probe },
   );
   console.log("[img] hit-tests:", sample);
-  expectImageHit(sample.dataImg, "data-img");
-  expectImageHit(sample.bg, "bg");
-  expectImageHit(sample.dynImg, "dyn-img");
+  expect(
+    sample.dataImg && sample.dataImg.id === "data-img",
+    `data-img-hit: ${JSON.stringify(sample.dataImg)}`,
+  ).toBeTruthy();
+  expect(sample.bg && sample.bg.id === "bg", `bg-hit: ${JSON.stringify(sample.bg)}`).toBeTruthy();
+  expect(
+    sample.dynImg && sample.dynImg.id === "dyn-img",
+    `dyn-img-hit: ${JSON.stringify(sample.dynImg)}`,
+  ).toBeTruthy();
 });

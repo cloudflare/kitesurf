@@ -560,7 +560,8 @@ function addInterfaceTypeGaps(missing, omit, iface, spec) {
   }
 }
 
-function loadTypeGaps(missing) {
+function loadGaps() {
+  const missing = loadMissingGaps();
   const omit = new Map();
   const parent = new Map();
   const typeGaps = JSON.parse(fs.readFileSync(path.join(root, TYPE_GAPS), "utf8"));
@@ -569,10 +570,6 @@ function loadTypeGaps(missing) {
     if (spec.parent) parent.set(iface, spec.parent);
   }
   return { missing, omit, parent };
-}
-
-function loadGaps() {
-  return loadTypeGaps(loadMissingGaps());
 }
 
 // ---- driver ----

@@ -7,30 +7,25 @@ import { decodePng, sample, near, type DecodedPng } from "./png";
 
 const URL_BASE = "http://127.0.0.1:8787/__fixtures/svg-document.svg";
 
-function includePixel(
-  bounds: { x0: number; y0: number; x1: number; y1: number },
-  x: number,
-  y: number,
-) {
-  if (x < bounds.x0) bounds.x0 = x;
-  if (y < bounds.y0) bounds.y0 = y;
-  if (x > bounds.x1) bounds.x1 = x;
-  if (y > bounds.y1) bounds.y1 = y;
-}
-
 function bbox(
   png: DecodedPng,
   want: [number, number, number],
 ): { x0: number; y0: number; x1: number; y1: number } | null {
-  const bounds = { x0: Infinity, y0: Infinity, x1: -1, y1: -1 };
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -1,
+    y1 = -1;
   for (let y = 0; y < png.height; y++) {
     for (let x = 0; x < png.width; x++) {
       if (near(sample(png, x, y), want, 6)) {
-        includePixel(bounds, x, y);
+        if (x < x0) x0 = x;
+        if (y < y0) y0 = y;
+        if (x > x1) x1 = x;
+        if (y > y1) y1 = y;
       }
     }
   }
-  return bounds.x1 < 0 ? null : bounds;
+  return x1 < 0 ? null : { x0, y0, x1, y1 };
 }
 
 async function shoot(page: any, which: string): Promise<DecodedPng> {

@@ -19,19 +19,25 @@ test("preserves tag-specific element discriminators", async ({ page }) => {
     const input: Element = document.createElement("input");
     const button: Element = document.createElement("button");
 
-    const getTarget = (selector: string): Element | null => {
-      let target: Element | null = document.querySelector(selector);
-      if (window.HTMLIFrameElement && target instanceof window.HTMLIFrameElement) {
-        try {
-          target = target.contentDocument!.head;
-        } catch {
-          target = null;
+    const styleLoaderRepro = (() => {
+      const memo: Record<string, Element | null | undefined> = {};
+      const getTarget = (selector: string) => {
+        if (memo[selector] === undefined) {
+          let target: Element | null = document.querySelector(selector);
+          if (window.HTMLIFrameElement && target instanceof window.HTMLIFrameElement) {
+            try {
+              target = target.contentDocument!.head;
+            } catch {
+              target = null;
+            }
+          }
+          memo[selector] = target;
         }
-      }
-      return target;
-    };
-    const target = getTarget("head");
-    const styleLoaderRepro = target !== null && target.tagName === "HEAD";
+        return memo[selector];
+      };
+      const target = getTarget("head");
+      return target !== null && target !== undefined && target.tagName === "HEAD";
+    })();
 
     const selection = document.getSelection();
     const range = document.createRange();
@@ -54,19 +60,19 @@ test("preserves tag-specific element discriminators", async ({ page }) => {
       divIsHTMLElement: div instanceof window.HTMLElement,
       divIsElement: div instanceof window.Element,
       imgIsImage: img instanceof window.HTMLImageElement,
-      iframeName: window.HTMLIFrameElement.name,
-      formName: window.HTMLFormElement.name,
-      anchorName: window.HTMLAnchorElement.name,
+      iframeName: window.HTMLIFrameElement && window.HTMLIFrameElement.name,
+      formName: window.HTMLFormElement && window.HTMLFormElement.name,
+      anchorName: window.HTMLAnchorElement && window.HTMLAnchorElement.name,
       divIsSvg: div instanceof window.SVGElement,
-      svgName: window.SVGElement.name,
+      svgName: window.SVGElement && window.SVGElement.name,
       styleLoaderRepro,
       hasFocus: document.hasFocus(),
       visibilityState: document.visibilityState,
       hidden: document.hidden,
       execCommandReturn: document.execCommand("copy"),
       querySupported: document.queryCommandSupported("copy"),
-      selectionShaped: selection?.rangeCount === 0,
-      rangeShaped: rangeRect?.width === 0,
+      selectionShaped: selection && selection.rangeCount === 0,
+      rangeShaped: range && rangeRect && rangeRect.width === 0,
       currentScriptIsNull: document.currentScript === null,
     };
   });

@@ -10,10 +10,6 @@ declare global {
   }
 }
 
-function firstSubmission(submissions: Window["__submissions"]): Record<string, unknown> {
-  return submissions?.[0] ?? {};
-}
-
 test("forms-realworld-demo", async ({ page }) => {
   await page.goto(
     "data:text/html," +
@@ -69,10 +65,7 @@ test("forms-realworld-demo", async ({ page }) => {
 
   await page.click("#submit-btn");
   let subs = await page.evaluate(() => window.__submissions);
-  expect(
-    firstSubmission(subs).validationFailed,
-    "empty form rejected by checkValidity",
-  ).toBeTruthy();
+  expect(subs[0]?.validationFailed, "empty form rejected by checkValidity").toBeTruthy();
 
   await page.evaluate(() => {
     window.__submissions = [];
@@ -87,11 +80,11 @@ test("forms-realworld-demo", async ({ page }) => {
 
   await page.click("#submit-btn");
   subs = await page.evaluate(() => window.__submissions);
-  expect(firstSubmission(subs).name, "name not Alice").toBe("Alice");
-  expect(firstSubmission(subs).email, "email wrong").toBe("alice@example.com");
-  expect(firstSubmission(subs).color, "color wrong").toBe("green");
-  expect(firstSubmission(subs).plan, "plan wrong").toBe("free");
-  expect(firstSubmission(subs).newsletter, "newsletter wrong").toBe("monthly");
+  expect(subs[0]?.name, "name not Alice").toBe("Alice");
+  expect(subs[0]?.email, "email wrong").toBe("alice@example.com");
+  expect(subs[0]?.color, "color wrong").toBe("green");
+  expect(subs[0]?.plan, "plan wrong").toBe("free");
+  expect(subs[0]?.newsletter, "newsletter wrong").toBe("monthly");
 
   await page.evaluate(() => {
     window.__submissions = [];
@@ -101,7 +94,7 @@ test("forms-realworld-demo", async ({ page }) => {
   });
   await page.click("#submit-btn");
   subs = await page.evaluate(() => window.__submissions);
-  expect(firstSubmission(subs).plan, "plan should be pro").toBe("pro");
+  expect(subs[0]?.plan, "plan should be pro").toBe("pro");
 
   await page.evaluate(() => {
     window.__submissions = [];
@@ -114,7 +107,7 @@ test("forms-realworld-demo", async ({ page }) => {
     })
     .catch(() => {});
   subs = await page.evaluate(() => window.__submissions);
-  expect(firstSubmission(subs).name, "enter submit didn't fire correctly").toBe("Alice");
+  expect(subs[0]?.name, "enter submit didn't fire correctly").toBe("Alice");
 
   await page.evaluate(() => {
     const form = document.getElementById("form") as HTMLFormElement;
@@ -126,7 +119,6 @@ test("forms-realworld-demo", async ({ page }) => {
     bio: document.querySelector("textarea").value,
     plan: document.querySelector<HTMLInputElement>('input[name="plan"]:checked')?.value || "none",
   }));
-  expect(afterReset.name, "reset clears name").toBe("");
-  expect(afterReset.email, "reset clears email").toBe("");
+  expect(afterReset.name === "" && afterReset.email === "", "reset didn't clear text").toBeTruthy();
   expect(afterReset.plan, "plan should restore to default 'free'").toBe("free");
 });

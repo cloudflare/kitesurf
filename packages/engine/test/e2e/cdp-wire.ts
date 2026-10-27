@@ -9,22 +9,19 @@ interface CfWebSocket {
   addEventListener(type: string, callback: (event: { data: string | ArrayBuffer }) => void): void;
 }
 
-function hasFunction(value: object, key: string): boolean {
-  return key in value && typeof Reflect.get(value, key) === "function";
-}
-
-function hasCdpSocketMethods(value: object): boolean {
-  return (
-    hasFunction(value, "accept") &&
-    hasFunction(value, "send") &&
-    hasFunction(value, "close") &&
-    hasFunction(value, "addEventListener")
-  );
-}
-
 function isCfWebSocket(value: unknown): value is CfWebSocket {
-  if (typeof value !== "object" || value === null) return false;
-  return hasCdpSocketMethods(value);
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "accept" in value &&
+    typeof value.accept === "function" &&
+    "send" in value &&
+    typeof value.send === "function" &&
+    "close" in value &&
+    typeof value.close === "function" &&
+    "addEventListener" in value &&
+    typeof value.addEventListener === "function"
+  );
 }
 
 function isCdpReply(message: unknown): message is { id: unknown } {

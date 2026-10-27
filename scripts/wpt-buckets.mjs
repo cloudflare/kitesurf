@@ -19,31 +19,16 @@ function parseArgs(argv) {
   const options = { durations: [], budgetMs: 35_000, maxTests: 96, engines: 2, defaultMs: 1000 };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    switch (arg) {
-      case "--durations":
-        options.durations.push(resolve(argv[++i]));
-        break;
-      case "--budget-ms":
-        options.budgetMs = Number(argv[++i]);
-        break;
-      case "--max-tests":
-        options.maxTests = Number(argv[++i]);
-        break;
-      case "--engines":
-        options.engines = Number(argv[++i]);
-        break;
-      case "--default-ms":
-        options.defaultMs = Number(argv[++i]);
-        break;
-      case "--default-only":
-        options.defaultOnly = true;
-        break;
-      case "--check":
-        options.check = true;
-        break;
-      default:
-        console.error(USAGE);
-        process.exit(2);
+    if (arg === "--durations") options.durations.push(resolve(argv[++i]));
+    else if (arg === "--budget-ms") options.budgetMs = Number(argv[++i]);
+    else if (arg === "--max-tests") options.maxTests = Number(argv[++i]);
+    else if (arg === "--engines") options.engines = Number(argv[++i]);
+    else if (arg === "--default-ms") options.defaultMs = Number(argv[++i]);
+    else if (arg === "--default-only") options.defaultOnly = true;
+    else if (arg === "--check") options.check = true;
+    else {
+      console.error(USAGE);
+      process.exit(2);
     }
   }
   return options;

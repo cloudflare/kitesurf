@@ -28,10 +28,6 @@ function isRedirectRealm(origin: string, frameId: unknown): frameId is string {
   return origin === BLOCKED_HOP_ORIGIN && isString(frameId);
 }
 
-function frameIdForContext(context: ExecutionContext["context"]): unknown {
-  return context?.auxData?.frameId;
-}
-
 function recordExecutionContext(
   value: unknown,
   origins: string[],
@@ -42,7 +38,7 @@ function recordExecutionContext(
   const origin = context?.origin;
   if (!isString(origin)) return;
   origins.push(origin);
-  const frameId = frameIdForContext(context);
+  const frameId = context?.auxData?.frameId;
   if (isRedirectRealm(origin, frameId)) realmFrameIds.add(frameId);
 }
 

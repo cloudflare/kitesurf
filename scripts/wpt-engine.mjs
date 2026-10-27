@@ -44,32 +44,17 @@ function parseArgs(argv) {
       if (!value) throw new Error(`${arg} requires a value`);
       return value;
     };
-    switch (arg) {
-      case "--config":
-        options.config = resolve(next());
-        break;
-      case "--dist":
-        options.dist = resolve(next());
-        break;
-      case "--assets":
-        options.assets = resolve(next());
-        break;
-      case "--port":
-        options.port = Number(next());
-        break;
-      case "--inspector-port":
-        options.inspectorPort = Number(next());
-        break;
-      case "--var": {
-        const value = next();
-        const at = value.indexOf(":");
-        if (at < 1) throw new Error(`--var wants KEY:VALUE, got ${value}`);
-        options.vars[value.slice(0, at)] = value.slice(at + 1);
-        break;
-      }
-      default:
-        throw new Error(`unknown option: ${arg}`);
-    }
+    if (arg === "--config") options.config = resolve(next());
+    else if (arg === "--dist") options.dist = resolve(next());
+    else if (arg === "--assets") options.assets = resolve(next());
+    else if (arg === "--port") options.port = Number(next());
+    else if (arg === "--inspector-port") options.inspectorPort = Number(next());
+    else if (arg === "--var") {
+      const value = next();
+      const at = value.indexOf(":");
+      if (at < 1) throw new Error(`--var wants KEY:VALUE, got ${value}`);
+      options.vars[value.slice(0, at)] = value.slice(at + 1);
+    } else throw new Error(`unknown option: ${arg}`);
   }
   return options;
 }

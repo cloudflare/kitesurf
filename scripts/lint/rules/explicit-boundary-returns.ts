@@ -149,50 +149,6 @@ function hasCallableOwnerContract(
   return hasSemanticCallableOwnerContract(type, contracts);
 }
 
-function matchesMemberKind(memberKind: string, kind: ContractMemberKind): boolean {
-  return kind === "get" ? memberKind === "get" : memberKind === "method";
-}
-
-function hasMethodSignatureContract(
-  member: TypeLiteralMember,
-  name: string,
-  kind: ContractMemberKind,
-): boolean {
-  return (
-    member.type === "TSMethodSignature" &&
-    propertyName(member.key, member.computed) === name &&
-    matchesMemberKind(member.kind, kind) &&
-    member.returnType !== null
-  );
-}
-
-function hasPropertySignatureContract(
-  member: TypeLiteralMember,
-  name: string,
-  kind: ContractMemberKind,
-  contracts: () => TypeScriptContracts | null,
-): boolean {
-  if (member.type !== "TSPropertySignature") return false;
-  if (propertyName(member.key, member.computed) !== name || member.typeAnnotation === null) {
-    return false;
-  }
-  return (
-    kind === "get" || hasCallableOwnerContract(member.typeAnnotation.typeAnnotation, contracts)
-  );
-}
-
-function hasMemberLiteralContract(
-  member: TypeLiteralMember,
-  name: string,
-  kind: ContractMemberKind,
-  contracts: () => TypeScriptContracts | null,
-): boolean {
-  return (
-    hasMethodSignatureContract(member, name, kind) ||
-    hasPropertySignatureContract(member, name, kind, contracts)
-  );
-}
-
 function hasMemberOwnerContract(
   type: ESTree.TSType,
   name: string,
@@ -203,7 +159,25 @@ function hasMemberOwnerContract(
     return hasMemberOwnerContract(type.typeAnnotation, name, kind, contracts);
   }
   if (type.type === "TSTypeLiteral") {
-    return type.members.some((member) => hasMemberLiteralContract(member, name, kind, contracts));
+    return type.members.some((member) => {
+      if (member.type === "TSMethodSignature") {
+        return (
+          propertyName(member.key, member.computed) === name &&
+          (kind === "get" ? member.kind === "get" : member.kind === "method") &&
+          member.returnType !== null
+        );
+      }
+      if (
+        member.type !== "TSPropertySignature" ||
+        propertyName(member.key, member.computed) !== name ||
+        member.typeAnnotation === null
+      ) {
+        return false;
+      }
+      return (
+        kind === "get" || hasCallableOwnerContract(member.typeAnnotation.typeAnnotation, contracts)
+      );
+    });
   }
   return hasSemanticMemberOwnerContract(type, name, kind, contracts);
 }

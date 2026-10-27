@@ -96,37 +96,20 @@ function hasSetter(attribute: WebIdlAttribute): boolean {
   );
 }
 
-function gradeConstantData(
-  gaps: string[],
-  where: string,
-  seen: Extract<MemberReport, { k: "d" }>,
-  value: number | boolean,
-): void {
-  if (seen.v !== value) gaps.push(`${where}: is ${String(seen.v)}, expected ${String(value)}`);
-  if (seen.w || seen.c || !seen.e) {
-    gaps.push(`${where}: expected non-writable, enumerable, non-configurable`);
-  }
-}
-
 function gradeConstant(
   gaps: string[],
   where: string,
   seen: MemberReport | undefined,
   value: number | boolean,
 ): void {
-  switch (seen?.k) {
-    case undefined:
-    case "-":
-      gaps.push(`${where}: missing constant`);
-      return;
-    case "i":
-      gaps.push(`${where}: inherited, not own`);
-      return;
-    case "a":
-      gaps.push(`${where}: accessor, expected a data property`);
-      return;
-    case "d":
-      gradeConstantData(gaps, where, seen, value);
+  if (!seen || seen.k === "-") gaps.push(`${where}: missing constant`);
+  else if (seen.k === "i") gaps.push(`${where}: inherited, not own`);
+  else if (seen.k === "a") gaps.push(`${where}: accessor, expected a data property`);
+  else {
+    if (seen.v !== value) gaps.push(`${where}: is ${String(seen.v)}, expected ${String(value)}`);
+    if (seen.w || seen.c || !seen.e) {
+      gaps.push(`${where}: expected non-writable, enumerable, non-configurable`);
+    }
   }
 }
 

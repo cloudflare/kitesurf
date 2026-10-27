@@ -34,9 +34,7 @@ const MEMPROF_MODIFIED = `${VENDORED_MEMPROF}lib.rs`;
 const TODOMVC_SNAPSHOT = "packages/core/tests_data/angular_snapshot.html";
 const TYPESCRIPT_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts"]);
 const JAVASCRIPT_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".cjs"]);
-const HTML_EXTENSIONS = new Set([".html", ".htm", ".xhtml"]);
 const BLOCK_COMMENT_EXTENSIONS = new Set([".css", ".c", ".h"]);
-const HASH_COMMENT_EXTENSIONS = new Set([".py", ".sh"]);
 const GENERATED_WEBIDL = new Set([
   "packages/dom-shim/src/css-typed-om.webidl.generated.ts",
   "packages/dom-shim/src/idl/model.generated.ts",
@@ -156,9 +154,15 @@ export function headerInsertionOffset(file, text) {
 
 function commentStyle(file) {
   const extension = extname(file).toLowerCase();
-  if (HTML_EXTENSIONS.has(extension)) return "html";
-  if (BLOCK_COMMENT_EXTENSIONS.has(extension)) return "block";
-  if (HASH_COMMENT_EXTENSIONS.has(extension) || file === ".githooks/post-checkout") return "hash";
+  if (extension === ".html" || extension === ".htm" || extension === ".xhtml") {
+    return "html";
+  }
+  if (extension === ".css" || extension === ".c" || extension === ".h") {
+    return "block";
+  }
+  if (extension === ".py" || extension === ".sh" || file === ".githooks/post-checkout") {
+    return "hash";
+  }
   return "line";
 }
 
