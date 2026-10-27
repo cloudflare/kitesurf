@@ -365,18 +365,11 @@ function gateValue(win: any): string {
   const internal = getInternalState();
   return [
     internal.mutationSeq | 0,
-    windowNumber(win, "scrollX"),
-    windowNumber(win, "scrollY"),
-    windowNumber(win, "innerWidth"),
-    windowNumber(win, "innerHeight"),
+    Number(win?.scrollX) || 0,
+    Number(win?.scrollY) || 0,
+    Number(win?.innerWidth) || 0,
+    Number(win?.innerHeight) || 0,
   ].join("/");
-}
-
-function windowNumber(
-  win: any,
-  property: "scrollX" | "scrollY" | "innerWidth" | "innerHeight",
-): number {
-  return Number(win?.[property]) || 0;
 }
 
 function queueTask(callback: () => void): void {

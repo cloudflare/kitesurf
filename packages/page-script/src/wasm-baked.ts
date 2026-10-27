@@ -107,31 +107,25 @@ function moduleForCandidates(
   return null;
 }
 
-async function digestHex(bytes: Uint8Array): Promise<string> {
-  const copy = new Uint8Array(bytes);
-  const digest = await crypto.subtle.digest("SHA-256", copy.buffer);
-  const digestBytes = new Uint8Array(digest);
-  const WASM_DIGEST_HEX_RADIX = 16;
-  const WASM_DIGEST_HEX_BYTE_WIDTH = 2;
-  let hex = "";
-  for (let i = 0; i < digestBytes.length; i++) {
-    hex += digestBytes[i].toString(WASM_DIGEST_HEX_RADIX).padStart(WASM_DIGEST_HEX_BYTE_WIDTH, "0");
-  }
-  return hex;
-}
-
-function moduleForDigest(hex: string, candidates: DecodedEntry[]): BakedWasmModule | null {
-  for (const entry of candidates) {
-    if (entry.sha256 === hex) return bakedWasm[entry.url] ?? null;
-  }
-  return null;
-}
-
 export async function matchWasmByBytes(src: unknown): Promise<BakedWasmModule | null> {
   const u8 = toU8(src);
   if (!u8) return null;
-  if (isEmptyWasm(u8)) return emptyModule;
+  if (u8.length === EMPTY_WASM.length && bytesEqual(u8, Uint8Array.from(EMPTY_WASM))) {
+    return emptyModule;
+  }
   const candidates = fingerprintCandidates(u8);
   if (candidates.length === 0) return null;
-  return moduleForDigest(await digestHex(u8), candidates);
+  const copy = new Uint8Array(u8);
+  const digest = await crypto.subtle.digest("SHA-256", copy.buffer);
+  const d8 = new Uint8Array(digest);
+  const WASM_DIGEST_HEX_RADIX = 16;
+  const WASM_DIGEST_HEX_BYTE_WIDTH = 2;
+  let hex = "";
+  for (let i = 0; i < d8.length; i++) {
+    hex += d8[i].toString(WASM_DIGEST_HEX_RADIX).padStart(WASM_DIGEST_HEX_BYTE_WIDTH, "0");
+  }
+  for (const e of candidates) {
+    if (e.sha256 === hex) return bakedWasm[e.url] ?? null;
+  }
+  return null;
 }

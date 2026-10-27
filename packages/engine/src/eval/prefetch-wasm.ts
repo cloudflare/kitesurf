@@ -47,32 +47,21 @@ function inlineWasmKey(sha256: string): string {
   return "inline-wasm:sha256:" + sha256;
 }
 
-function hasInlineWasmCandidate(body: string): boolean {
-  return (
-    body !== "" && body.indexOf("WebAssembly") !== -1 && body.indexOf(INLINE_WASM_B64_PREFIX) !== -1
-  );
-}
-
-function scanInlineWasmBody(body: string, found: string[], seen: Set<string>): boolean {
-  INLINE_WASM_B64_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = INLINE_WASM_B64_RE.exec(body)) !== null) {
-    const literal = match[1];
-    if (!literal) continue;
-    if (seen.has(literal)) continue;
-    seen.add(literal);
-    found.push(literal);
-    if (found.length >= MAX_WASM_URLS) return true;
-  }
-  return false;
-}
-
 export function scanForInlineWasm(sources: Array<{ body: string }>): string[] {
   const found: string[] = [];
   const seen = new Set<string>();
   for (const { body } of sources) {
-    if (!hasInlineWasmCandidate(body)) continue;
-    if (scanInlineWasmBody(body, found, seen)) return found;
+    if (!body || body.indexOf("WebAssembly") === -1) continue;
+    if (body.indexOf(INLINE_WASM_B64_PREFIX) === -1) continue;
+    INLINE_WASM_B64_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = INLINE_WASM_B64_RE.exec(body)) !== null) {
+      const lit = m[1];
+      if (!lit || seen.has(lit)) continue;
+      seen.add(lit);
+      found.push(lit);
+      if (found.length >= MAX_WASM_URLS) return found;
+    }
   }
   return found;
 }

@@ -122,7 +122,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       return attachToBrowserTarget(ctx);
 
     case "Target.detachFromTarget":
-      return detachFromTargetCommand(ctx, req);
+      return detachFromTarget(ctx, req.params?.sessionId);
 
     case "Target.activateTarget":
       return {};
@@ -227,24 +227,12 @@ function createTarget(
 ): { targetId: string } {
   const target = createPageTarget(
     ctx,
-    targetCreateUrl(req.params),
-    validateTargetBrowserContext(ctx, targetCreateContextId(req.params)),
+    req.params?.url ?? "about:blank",
+    validateTargetBrowserContext(ctx, req.params?.browserContextId),
   );
   ctx.emit({ method: "Target.targetCreated", params: { targetInfo: targetInfo(ctx, target) } });
   attachCreatedTarget(ctx, target);
   return { targetId: target.targetId };
-}
-
-function targetCreateUrl(
-  params: Extract<CdpRequest, { method: "Target.createTarget" }>["params"],
-): string {
-  return params?.url ?? "about:blank";
-}
-
-function targetCreateContextId(
-  params: Extract<CdpRequest, { method: "Target.createTarget" }>["params"],
-): string | undefined {
-  return params?.browserContextId;
 }
 
 function validateTargetBrowserContext(
@@ -346,13 +334,6 @@ function attachToBrowserTarget(ctx: DispatchCtx): { sessionId: string } {
   const browser = ctx.browser.targets.get(BROWSER_TARGET_ID);
   if (browser) browser.sessions.add(sessionId);
   return { sessionId };
-}
-
-function detachFromTargetCommand(
-  ctx: DispatchCtx,
-  req: Extract<CdpRequest, { method: "Target.detachFromTarget" }>,
-): Record<string, never> {
-  return detachFromTarget(ctx, req.params?.sessionId);
 }
 
 function detachFromTarget(ctx: DispatchCtx, sessionId: string | undefined): Record<string, never> {

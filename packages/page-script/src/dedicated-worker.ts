@@ -313,12 +313,22 @@ function buildWorkerClass(): unknown {
     }
 
     addEventListener(type: unknown, listener: unknown, options?: unknown): void {
-      const fn = listenerFunction(listener);
+      let fn: ListenerFn | null = null;
+      if (isListenerFn(listener)) {
+        fn = listener;
+      } else if (hasHandleEvent(listener)) {
+        fn = function (event: Event) {
+          return listener.handleEvent(event);
+        };
+      }
       if (!fn) return;
-      const once = listenerOnce(options);
-      const ws = this[STATE];
+      const once = !!(options && typeof options === "object" && "once" in options && options.once);
+      const listeners = this[STATE].listeners;
       const key = String(type);
-      addWorkerListener(ws, key, listener, fn, once);
+      const list = listeners.get(key) ?? [];
+      if (list.some((l) => l.src === listener)) return;
+      list.push({ fn, once, src: listener });
+      listeners.set(key, list);
     }
 
     removeEventListener(type: unknown, listener: unknown): void {
@@ -505,10 +515,6 @@ function buildWorkerClass(): unknown {
     dispatch(ws, new ksEventCtors.Event("error"));
   }
 
-  function deliverClosed(ws: KsWorkerState): void {
-    finish(ws);
-  }
-
   function dispatchWorkerEvent(ws: KsWorkerState, params: WorkerEventParams): void {
     if (params.type === "message") {
       deliverMessage(ws, params);
@@ -517,7 +523,7 @@ function buildWorkerClass(): unknown {
     } else if (params.type === "loadError") {
       deliverLoadError(ws);
     } else if (params.type === "closed") {
-      deliverClosed(ws);
+      finish(ws);
     }
   }
 
@@ -606,31 +612,6 @@ function workerNavigatorInfo(): WorkerNavigatorInfo {
     languages: navigatorLanguages(nav),
     platform: navigatorText(nav.platform, ""),
   };
-}
-
-function listenerFunction(listener: unknown): ListenerFn | null {
-  if (isListenerFn(listener)) return listener;
-  if (!hasHandleEvent(listener)) return null;
-  return function (event: Event) {
-    return listener.handleEvent(event);
-  };
-}
-
-function listenerOnce(options: unknown): boolean {
-  return !!(options && typeof options === "object" && "once" in options && options.once);
-}
-
-function addWorkerListener(
-  ws: KsWorkerState,
-  type: string,
-  source: unknown,
-  fn: ListenerFn,
-  once: boolean,
-): void {
-  const list = ws.listeners.get(type) ?? [];
-  if (list.some((listener) => listener.src === source)) return;
-  list.push({ fn, once, src: source });
-  ws.listeners.set(type, list);
 }
 
 let deliverWorkerEventImpl: ((params: WorkerEventParams) => void) | null = null;

@@ -32,8 +32,6 @@ type EnsurePageScriptFn = (
   target: TargetState | undefined,
 ) => PageScriptStub | null;
 
-const READY_RETRY = Symbol("ready-retry");
-
 let ensureImpl: EnsurePageScriptFn | null = null;
 
 export function registerEnsurePageScript(fn: EnsurePageScriptFn): void {
@@ -178,24 +176,20 @@ export class PageSession {
    */
   async ready(): Promise<PageScriptStub | null> {
     if (this.#pinned) return this.live();
-    while (true) {
-      const attempt = await this.#readyAttempt();
-      if (attempt !== READY_RETRY) return attempt;
+    for (;;) {
+      const gate = this.#target.blankReady;
+      if (gate) await gate;
+      const stub = this.ensure();
+      if (stub) {
+        await this.#settleBlank();
+        // Recheck after the await because navigation may have replaced this stub.
+        if (this.#target.pageScript === stub) return stub;
+        continue;
+      }
+      if (!this.#target.blankReady || this.#target.blankReady === gate) {
+        return null;
+      }
     }
-  }
-
-  async #readyAttempt(): Promise<PageScriptStub | null | typeof READY_RETRY> {
-    const gate = this.#target.blankReady;
-    if (gate) await gate;
-    const stub = this.ensure();
-    if (stub) return this.#recheckStub(stub);
-    return shouldStopWaitingForStub(stub, this.#target.blankReady, gate) ? null : READY_RETRY;
-  }
-
-  async #recheckStub(stub: PageScriptStub): Promise<PageScriptStub | typeof READY_RETRY> {
-    await this.#settleBlank();
-    // Recheck after the await because navigation may have replaced this stub.
-    return isCurrentStub(this.#target, stub) ? stub : READY_RETRY;
   }
 
   // A pinned view must not hop to a newer document after an awaited read.
@@ -234,25 +228,6 @@ export class PageSession {
     const blank = this.#target.blankReady;
     if (blank) await blank;
   }
-}
-
-function isCurrentStub(target: TargetState, stub: PageScriptStub): boolean {
-  return target.pageScript === stub;
-}
-
-function readySetupSettled(
-  blankReady: Promise<void> | null | undefined,
-  gate: Promise<void> | null | undefined,
-): boolean {
-  return !blankReady || blankReady === gate;
-}
-
-function shouldStopWaitingForStub(
-  stub: PageScriptStub | null,
-  blankReady: Promise<void> | null | undefined,
-  gate: Promise<void> | null | undefined,
-): boolean {
-  return !stub && readySetupSettled(blankReady, gate);
 }
 
 function isCurrentPinnedStub(

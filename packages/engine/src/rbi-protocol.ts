@@ -39,31 +39,16 @@ export const MAX_MISSING_RESOURCE_LIST_B64_CHARS = 64 * 1024;
 const U64_MAX = (1n << 64n) - 1n;
 const MAX_FONT_KEY_DECIMAL_DIGITS = 20;
 
-function isValidFontKeyRange(from: number, to: number): boolean {
-  return to > from && to - from <= MAX_FONT_KEY_DECIMAL_DIGITS;
-}
-
-function isAsciiDigit(byte: number | undefined): byte is number {
-  return byte !== undefined && byte >= 48 && byte <= 57;
-}
-
 function engineFontKey(batch: Uint8Array, from: number, to: number): bigint | null {
-  if (!isValidFontKeyRange(from, to)) return null;
+  if (to <= from || to - from > MAX_FONT_KEY_DECIMAL_DIGITS) return null;
   let key = 0n;
   for (let i = from; i < to; i++) {
     const byte = batch[i];
-    if (!isAsciiDigit(byte)) return null;
+    if (byte === undefined || byte < 48 || byte > 57) return null;
     key = key * 10n + BigInt(byte - 48);
   }
-  return isSupportedEngineFontKey(key) ? key : null;
-}
-
-function isEngineFontKey(key: bigint): boolean {
-  return (key & ENGINE_KEY_MARKER) !== 0n;
-}
-
-function isSupportedEngineFontKey(key: bigint): boolean {
-  return key <= U64_MAX && isEngineFontKey(key);
+  if (key > U64_MAX) return null;
+  return key & ENGINE_KEY_MARKER ? key : null;
 }
 
 interface EngineResourceReplacement {
@@ -219,53 +204,43 @@ export function supplyEngineResources(
   return mergeParts(rewritten.parts);
 }
 
-interface ScannedEntry {
-  start: number;
-  end: number;
-  key: string;
-  kind: number;
-  id: bigint;
-  hasBytes: boolean;
-}
-
-function isImageReference(batch: Uint8Array, payload: number, len: number, kind: number): boolean {
-  return (
-    kind === RBI_KIND_IMAGE &&
-    len === IMAGE_REF_PAYLOAD &&
-    batch[payload + IMAGE_REF_FORMAT_OFFSET] === IMAGE_FORMAT_ENGINE_REF
-  );
-}
-
-function isFontReference(batch: Uint8Array, payload: number, len: number, kind: number): boolean {
-  return (
-    kind === RBI_KIND_FONT_DATA && len > FONT_ENTRY_HEAD && batch[payload] === FONT_DATA_REF_ASSET
-  );
-}
-
-function scanEntry(batch: Uint8Array, dv: DataView, p: number): ScannedEntry | null {
-  if (p + RBI_ENTRY_HEAD > batch.length) return null;
-  const len = dv.getUint32(p + RBI_ENTRY_LENGTH_OFFSET, true);
-  const end = p + RBI_ENTRY_HEAD + len;
-  if (end > batch.length) return null;
-  const kind = dv.getUint8(p);
-  const payload = p + RBI_ENTRY_HEAD;
-  const imageRef = isImageReference(batch, payload, len, kind);
-  const fontRef = isFontReference(batch, payload, len, kind);
-  const id = dv.getBigUint64(p + RBI_ENTRY_ID_OFFSET, true);
-  return { start: p, end, key: `${kind}:${id}`, kind, id, hasBytes: !imageRef && !fontRef };
-}
-
 function scanEntries(batch: Uint8Array) {
-  const found: ScannedEntry[] = [];
+  const found: {
+    start: number;
+    end: number;
+    key: string;
+    kind: number;
+    id: bigint;
+    hasBytes: boolean;
+  }[] = [];
   if (batch.length < RBI_BATCH_HEAD) return found;
   const dv = new DataView(batch.buffer, batch.byteOffset, batch.byteLength);
   const count = dv.getUint32(0, true);
   let p = RBI_BATCH_HEAD;
   for (let n = 0; n < count && p + RBI_ENTRY_HEAD <= batch.length; n++) {
-    const entry = scanEntry(batch, dv, p);
-    if (!entry) break;
-    found.push(entry);
-    p = entry.end;
+    const len = dv.getUint32(p + RBI_ENTRY_LENGTH_OFFSET, true);
+    const payload = p + RBI_ENTRY_HEAD;
+    const end = payload + len;
+    if (end > batch.length) break;
+    const kind = dv.getUint8(p);
+    const imageRef =
+      kind === RBI_KIND_IMAGE &&
+      len === IMAGE_REF_PAYLOAD &&
+      batch[payload + IMAGE_REF_FORMAT_OFFSET] === IMAGE_FORMAT_ENGINE_REF;
+    const fontRef =
+      kind === RBI_KIND_FONT_DATA &&
+      len > FONT_ENTRY_HEAD &&
+      batch[payload] === FONT_DATA_REF_ASSET;
+    const id = dv.getBigUint64(p + RBI_ENTRY_ID_OFFSET, true);
+    found.push({
+      start: p,
+      end,
+      key: `${kind}:${id}`,
+      kind,
+      id,
+      hasBytes: !imageRef && !fontRef,
+    });
+    p = end;
   }
   return found;
 }

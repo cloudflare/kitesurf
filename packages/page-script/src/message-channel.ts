@@ -77,7 +77,42 @@ export function installMessageChannel(
       }
     }
     _deliver(data: unknown, ports: KsMessagePort[] = []): void {
-      queueTask(() => this._deliverQueued(data, ports));
+      queueTask(() => {
+        let target: any = this;
+        while (target._transferredTo) target = target._transferredTo;
+        if (target !== this) {
+          target._enqueue(data, ports);
+          return;
+        }
+        if (this._closed) return;
+        const pageMessageEvent: unknown =
+          pageMessageEventCtor() || ksGlobal.MessageEvent || MessageEventConstructor;
+        const frozenPorts = Object.freeze(ports.slice());
+        let event: object;
+        try {
+          event = new (pageMessageEvent as PageMessageEventConstructor)("message", {
+            data,
+            ports: frozenPorts,
+          });
+        } catch {
+          event = { type: "message", data };
+        }
+        for (const [propertyName, propertyValue] of [
+          ["ports", frozenPorts],
+          ["target", this],
+          ["currentTarget", this],
+          ["srcElement", this],
+        ] as Array<[string, any]>) {
+          try {
+            Object.defineProperty(event, propertyName, {
+              value: propertyValue,
+              configurable: true,
+              enumerable: true,
+            });
+          } catch {}
+        }
+        this.dispatchEvent(event);
+      });
     }
     _deliverQueued(data: unknown, ports: KsMessagePort[]): void {
       let target: any = this;

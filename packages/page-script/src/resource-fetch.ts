@@ -740,20 +740,13 @@ function readFontKey(response: Response): string {
 
 function readOpaqueImage(response: Response): OpaqueImage | null {
   const key = responseHeaderGet(response, RESOURCE_KEY_HEADER) ?? "";
-  if (key === "" || key === "0") return null;
-  const dimensions = opaqueImageDimensions(response);
-  return dimensions ? { key, w: dimensions.width, h: dimensions.height } : null;
-}
-
-function isValidOpaqueImageDimensions(width: number, height: number): boolean {
-  return Number.isInteger(width) && Number.isInteger(height) && width > 0 && height > 0;
-}
-
-function opaqueImageDimensions(response: Response): { width: number; height: number } | null {
   const width = Number(responseHeaderGet(response, IMAGE_WIDTH_HEADER) ?? "");
   const height = Number(responseHeaderGet(response, IMAGE_HEIGHT_HEADER) ?? "");
-  if (!isValidOpaqueImageDimensions(width, height)) return null;
-  return { width, height };
+  if (key === "" || key === "0") return null;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+  return { key, w: width, h: height };
 }
 
 const inflightFetches = new Map<string, Promise<FetchResult>>();
@@ -878,64 +871,53 @@ export async function fetchInsertedScript(
     releaseFetchSlot(url);
   };
   try {
-    const headers = insertedScriptHeaders(insertedScriptCorsMode(crossOrigin));
+    const corsMode = crossOrigin == null ? "no-cors" : "cors";
+    const headers: Record<string, string> = {
+      "x-kitesurf-script-cors": corsMode,
+      accept: "*/*",
+    };
+    if (state.connectionId) {
+      headers["x-kitesurf-connection-id"] = state.connectionId;
+    }
+    if (state.mainFrameId) headers["x-kitesurf-frame-id"] = state.mainFrameId;
+    if (state.cookieKey) headers["x-kitesurf-cookie-key"] = state.cookieKey;
     const response = await trustedFetch(
       url,
       { headers },
       { resourceType: "Script", initiator: "script" },
     );
     release();
-    return await insertedScriptResult(response);
+    if (!response.ok) {
+      return {
+        status: response.status || 0,
+        source: "",
+        bytes: EMPTY_BYTES,
+        contentType: null,
+        nosniff: null,
+        opaque: true,
+      };
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return {
+      status: response.status,
+      source: new TextDecoder("utf-8").decode(bytes),
+      bytes,
+      contentType: response.headers.get("content-type"),
+      nosniff: response.headers.get(KITESURF_NOSNIFF_HEADER),
+      opaque: responseIsOpaque(response.headers.get(KITESURF_CORS_VERDICT_HEADER)),
+    };
   } catch {
-    return insertedScriptFailure(0);
+    return {
+      status: 0,
+      source: "",
+      bytes: EMPTY_BYTES,
+      contentType: null,
+      nosniff: null,
+      opaque: true,
+    };
   } finally {
     release();
   }
-}
-
-type InsertedScriptResult = Awaited<ReturnType<typeof fetchInsertedScript>>;
-
-function insertedScriptCorsMode(crossOrigin: string | null): string {
-  return crossOrigin == null ? "no-cors" : "cors";
-}
-
-async function insertedScriptResult(response: Response): Promise<InsertedScriptResult> {
-  if (!response.ok) return insertedScriptFailure(response.status || 0);
-  return insertedScriptResponse(response);
-}
-
-function insertedScriptHeaders(corsMode: string): Record<string, string> {
-  const headers: Record<string, string> = {
-    "x-kitesurf-script-cors": corsMode,
-    accept: "*/*",
-  };
-  addOptionalFetchHeader(headers, "x-kitesurf-connection-id", state.connectionId);
-  addOptionalFetchHeader(headers, "x-kitesurf-frame-id", state.mainFrameId);
-  addOptionalFetchHeader(headers, "x-kitesurf-cookie-key", state.cookieKey);
-  return headers;
-}
-
-function insertedScriptFailure(status: number): InsertedScriptResult {
-  return {
-    status,
-    source: "",
-    bytes: EMPTY_BYTES,
-    contentType: null,
-    nosniff: null,
-    opaque: true,
-  };
-}
-
-async function insertedScriptResponse(response: Response): Promise<InsertedScriptResult> {
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  return {
-    status: response.status,
-    source: new TextDecoder("utf-8").decode(bytes),
-    bytes,
-    contentType: response.headers.get("content-type"),
-    nosniff: response.headers.get(KITESURF_NOSNIFF_HEADER),
-    opaque: responseIsOpaque(response.headers.get(KITESURF_CORS_VERDICT_HEADER)),
-  };
 }
 
 const EMPTY_BYTES = new Uint8Array(0);

@@ -319,7 +319,9 @@ export class NetworkEventTracker {
       type: Protocol.Network.ResourceType;
     },
   ): void {
-    const { rec, prevUrl } = this.updateRedirectRecord(requestId, opts.newUrl);
+    const rec = this.records.get(requestId);
+    const prevUrl = rec?.url ?? opts.newUrl;
+    if (rec) rec.url = opts.newUrl;
     const sessionIds = rec?.sessionIds ?? [];
     if (!this.wantsEvents(sessionIds)) return;
     const ts = this.monotonicSeconds();
@@ -346,7 +348,15 @@ export class NetworkEventTracker {
       requestId,
       loaderId: opts.loaderId,
       documentURL: opts.newUrl,
-      request: redirectRequest(opts),
+      request: {
+        url: opts.newUrl,
+        method: opts.method,
+        headers: opts.headers,
+        initialPriority: opts.type === "Document" ? "VeryHigh" : "Medium",
+        referrerPolicy: "strict-origin-when-cross-origin",
+        mixedContentType: "none",
+        isSameSite: true,
+      },
       timestamp: ts,
       wallTime: Date.now() / MILLISECONDS_PER_SECOND,
       initiator: { type: "other" },
@@ -364,16 +374,6 @@ export class NetworkEventTracker {
       },
       sessionIds,
     );
-  }
-
-  private updateRedirectRecord(
-    requestId: Protocol.Network.RequestId,
-    newUrl: string,
-  ): { rec: RequestRecord | undefined; prevUrl: string } {
-    const rec = this.records.get(requestId);
-    const prevUrl = rec?.url ?? newUrl;
-    if (rec) rec.url = newUrl;
-    return { rec, prevUrl };
   }
 
   completeRequest(requestId: Protocol.Network.RequestId, opts: CompleteRequestOpts): void {
@@ -704,15 +704,6 @@ function requestFor(
     mixedContentType: "none",
     isSameSite: true,
   };
-}
-
-function redirectRequest(opts: {
-  newUrl: string;
-  method: string;
-  headers: Record<string, string>;
-  type: ResourceType;
-}): Protocol.Network.Request {
-  return requestFor(opts.newUrl, opts.method, opts.headers, opts.type);
 }
 
 function responseEvent(

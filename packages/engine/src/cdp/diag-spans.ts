@@ -68,22 +68,17 @@ export class DiagSpanTracker {
 
   settleFromSummary(phases: Record<string, number>): void {
     for (const [key, value] of Object.entries(phases)) {
-      this.settleSummaryEntry(key, value);
+      if (typeof value !== "number" || !Number.isFinite(value)) continue;
+      const stem = SUMMARY_PHASE_RE.exec(key)?.[1];
+      if (stem === undefined) continue;
+      const op = stem.replace(/([A-Z])/g, "_$1").toLowerCase();
+      if (this.closed.has(op)) continue;
+      if (!this.open.has(op)) {
+        this.start(op);
+        if (!this.open.has(op)) continue;
+      }
+      this.end(op, { child_ms: value, from_summary: true });
     }
-  }
-
-  private settleSummaryEntry(key: string, value: number): void {
-    if (!isFiniteNumber(value)) return;
-    const op = operationFromSummaryKey(key);
-    if (!op || this.closed.has(op)) return;
-    if (!this.ensureSummarySpan(op)) return;
-    this.end(op, { child_ms: value, from_summary: true });
-  }
-
-  private ensureSummarySpan(op: string): boolean {
-    if (this.open.has(op)) return true;
-    this.start(op);
-    return this.open.has(op);
   }
 
   closeAll(reason: string): void {
@@ -101,10 +96,6 @@ function stringField(params: Record<string, unknown>, key: string): string {
 function numericField(params: Record<string, unknown>, key: string): number | null {
   const value = params[key];
   return typeof value === "number" ? value : null;
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
 }
 
 function diagnosticName(name: string): string {
@@ -144,9 +135,4 @@ function isDiagnosticTag(key: string, value: unknown): value is number {
 
 function diagnosticChildMs(time: number | null, entry: OpenDiagSpan | undefined): number | null {
   return time !== null && entry?.startT != null ? +(time - entry.startT).toFixed(1) : null;
-}
-
-function operationFromSummaryKey(key: string): string | null {
-  const stem = SUMMARY_PHASE_RE.exec(key)?.[1];
-  return stem === undefined ? null : stem.replace(/([A-Z])/g, "_$1").toLowerCase();
 }

@@ -198,43 +198,21 @@ export function isSafelistedMethod(method: string): boolean {
 }
 
 export function filterCorsResponseHeaders(headers: Headers, credentialsInclude: boolean): Headers {
-  const { wildcard, explicit } = exposedCorsHeaders(headers, credentialsInclude);
+  const exposed = parseTokenList(headers.get("access-control-expose-headers"));
+  const wildcard = !credentialsInclude && exposed !== null && exposed.includes("*");
+  const explicit = new Set((exposed ?? []).map((n) => n.toLowerCase()));
   const out = new Headers();
   for (const [name, value] of headers.entries()) {
     const lower = name.toLowerCase();
-    if (isFilteredCorsResponseHeader(lower)) continue;
+    if (FORBIDDEN_RESPONSE_HEADERS.has(lower)) continue;
+    if (lower.startsWith(PLUMBING_PREFIX)) continue;
     if (SAFELISTED_RESPONSE_HEADERS.has(lower)) {
       out.append(name, value);
       continue;
-    } else if (isExplicitlyExposedCorsHeader(lower, wildcard, explicit)) out.append(name, value);
+    }
+    if (wildcard || explicit.has(lower)) out.append(name, value);
   }
   return out;
-}
-
-function exposedCorsHeaders(
-  headers: Headers,
-  credentialsInclude: boolean,
-): {
-  wildcard: boolean;
-  explicit: Set<string>;
-} {
-  const exposed = parseTokenList(headers.get("access-control-expose-headers"));
-  return {
-    wildcard: !credentialsInclude && exposed !== null && exposed.includes("*"),
-    explicit: new Set((exposed ?? []).map((name) => name.toLowerCase())),
-  };
-}
-
-function isFilteredCorsResponseHeader(name: string): boolean {
-  return FORBIDDEN_RESPONSE_HEADERS.has(name) || name.startsWith(PLUMBING_PREFIX);
-}
-
-function isExplicitlyExposedCorsHeader(
-  name: string,
-  wildcard: boolean,
-  explicit: Set<string>,
-): boolean {
-  return wildcard || explicit.has(name);
 }
 
 export interface CorsPreflightVerdict {

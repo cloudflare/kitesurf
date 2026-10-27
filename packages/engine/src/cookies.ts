@@ -204,46 +204,21 @@ export function createCookieJar(): CookieJar {
     return out;
   }
 
-  function isCrossSite(ctx: RequestContext | undefined, host: string): boolean {
-    return (
-      ctx !== undefined &&
-      (ctx.initiatorHost === null || siteKey(ctx.initiatorHost.toLowerCase()) !== siteKey(host))
-    );
-  }
-
-  function isStrictCrossSite(ctx: RequestContext | undefined, crossSite: boolean): boolean {
-    return crossSite && ctx?.topLevel === true;
-  }
-
-  function cookieMatchesRequest(
-    cookie: CookieEntry,
-    parts: { path: string; trustworthy: boolean },
-    crossSite: boolean,
-    strictOnly: boolean,
-  ): boolean {
-    if (isDisallowedBySameSite(cookie, crossSite, strictOnly)) return false;
-    if (cookie.secure && !parts.trustworthy) return false;
-    if (!pathMatches(cookie.path, parts.path)) return false;
-    return true;
-  }
-
-  function isDisallowedBySameSite(
-    cookie: CookieEntry,
-    crossSite: boolean,
-    strictOnly: boolean,
-  ): boolean {
-    if (strictOnly && cookie.sameSite === "Strict") return true;
-    return crossSite && !strictOnly && cookie.sameSite !== "None";
-  }
-
   function getForUrl(urlStr: string, ctx?: RequestContext): CookieEntry[] {
     const parts = urlParts(urlStr);
     if (!parts) return [];
-    const crossSite = isCrossSite(ctx, parts.host);
-    const strictOnly = isStrictCrossSite(ctx, crossSite);
-    const matched = candidateEntries(parts.host).filter((cookie) =>
-      cookieMatchesRequest(cookie, parts, crossSite, strictOnly),
-    );
+    const crossSite =
+      ctx !== undefined &&
+      (ctx.initiatorHost === null ||
+        siteKey(ctx.initiatorHost.toLowerCase()) !== siteKey(parts.host));
+    const strictOnly = crossSite && ctx?.topLevel === true;
+    const matched = candidateEntries(parts.host).filter((c) => {
+      if (strictOnly && c.sameSite === "Strict") return false;
+      if (crossSite && !strictOnly && c.sameSite !== "None") return false;
+      if (c.secure && !parts.trustworthy) return false;
+      if (!pathMatches(c.path, parts.path)) return false;
+      return true;
+    });
     matched.sort((a, b) => b.path.length - a.path.length || a.createdAt - b.createdAt);
     return matched;
   }
@@ -295,21 +270,25 @@ export function createCookieJar(): CookieJar {
     return true;
   }
 
-  function parseCookiePair(first: string | undefined): { name: string; value: string } | null {
+  function parseSetCookie(raw: string): {
+    name: string;
+    value: string;
+    attrs: Map<string, string>;
+  } | null {
+    if (!raw) return null;
+    const segments = raw
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const first = segments[0];
     if (first === undefined) return null;
     const eq = first.indexOf("=");
     if (eq < 0) return null;
     const name = first.slice(0, eq).trim();
     const value = first.slice(eq + 1).trim();
-    if (!isValidCookiePair(name, value)) return null;
-    return { name, value };
-  }
-
-  function isValidCookiePair(name: string, value: string): boolean {
-    return name.length > 0 && isValidCookieName(name) && isValidCookieValue(value);
-  }
-
-  function parseCookieAttributes(segments: string[]): Map<string, string> {
+    if (!name) return null;
+    if (!isValidCookieName(name)) return null;
+    if (!isValidCookieValue(value)) return null;
     const attrs = new Map<string, string>();
     for (let i = 1; i < segments.length; i++) {
       const seg = segments[i];
@@ -321,22 +300,7 @@ export function createCookieJar(): CookieJar {
         attrs.set(seg.slice(0, eq2).trim().toLowerCase(), seg.slice(eq2 + 1).trim());
       }
     }
-    return attrs;
-  }
-
-  function parseSetCookie(raw: string): {
-    name: string;
-    value: string;
-    attrs: Map<string, string>;
-  } | null {
-    if (!raw) return null;
-    const segments = raw
-      .split(";")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const pair = parseCookiePair(segments[0]);
-    if (!pair) return null;
-    return { ...pair, attrs: parseCookieAttributes(segments) };
+    return { name, value, attrs };
   }
 
   function buildEntry(
@@ -570,56 +534,40 @@ export function createCookieJar(): CookieJar {
     return out;
   }
 
-  function removalHost(opts: { url?: string; domain?: string }): string | undefined {
+  function remove(opts: { name: string; url?: string; domain?: string; path?: string }): number {
+    const wantName = opts.name;
     let host: string | undefined;
     if (opts.domain) host = opts.domain.toLowerCase().replace(/^\./, "");
     else if (opts.url) {
       const parts = urlParts(opts.url);
       if (parts) host = parts.host;
     }
-    return host;
-  }
-
-  function removeMatching(
-    list: CookieEntry[],
-    name: string,
-    path: string | undefined,
-  ): { kept: CookieEntry[]; removed: number } {
+    const wantPath = opts.path;
     let removed = 0;
-    const kept = list.filter((cookie) => {
-      if (cookie.name !== name) return true;
-      if (path !== undefined && cookie.path !== path) return true;
-      removed++;
-      return false;
-    });
-    return { kept, removed };
-  }
-
-  function removeFromHost(host: string, name: string, path: string | undefined): number {
-    const list = byHost.get(host);
-    if (!list) return 0;
-    const result = removeMatching(list, name, path);
-    if (result.kept.length === 0) byHost.delete(host);
-    else byHost.set(host, result.kept);
-    return result.removed;
-  }
-
-  function removeEverywhere(name: string, path: string | undefined): number {
-    let removed = 0;
-    for (const [host, list] of byHost) {
-      const result = removeMatching(list, name, path);
-      removed += result.removed;
-      if (result.kept.length === 0) byHost.delete(host);
-      else byHost.set(host, result.kept);
+    if (host) {
+      const list = byHost.get(host);
+      if (!list) return 0;
+      const kept = list.filter((c) => {
+        if (c.name !== wantName) return true;
+        if (wantPath !== undefined && c.path !== wantPath) return true;
+        removed++;
+        return false;
+      });
+      if (kept.length === 0) byHost.delete(host);
+      else byHost.set(host, kept);
+    } else {
+      for (const [h, list] of byHost) {
+        const kept = list.filter((c) => {
+          if (c.name !== wantName) return true;
+          if (wantPath !== undefined && c.path !== wantPath) return true;
+          removed++;
+          return false;
+        });
+        if (kept.length === 0) byHost.delete(h);
+        else byHost.set(h, kept);
+      }
     }
     return removed;
-  }
-
-  function remove(opts: { name: string; url?: string; domain?: string; path?: string }): number {
-    const host = removalHost(opts);
-    return host
-      ? removeFromHost(host, opts.name, opts.path)
-      : removeEverywhere(opts.name, opts.path);
   }
 
   function clear(): void {

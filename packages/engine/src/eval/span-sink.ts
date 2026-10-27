@@ -56,18 +56,6 @@ function attachInContext(
   return local && stamped ? local.runWithSpanContext(stamped, attach) : attach();
 }
 
-function boundedRecords(records: string[]): { kept: string[]; dropped: number } {
-  const kept: string[] = [];
-  let bytes = 0;
-  for (const record of records) {
-    if (typeof record !== "string") continue;
-    if (kept.length >= MAX_RECORDS_PER_CALL || bytes + record.length > MAX_BYTES_PER_CALL) break;
-    kept.push(record);
-    bytes += record.length;
-  }
-  return { kept, dropped: records.length - kept.length };
-}
-
 export class SpanSink extends WorkerEntrypoint<SinkEnv, SinkProps> {
   emit(records: string[]): number {
     const stamped = this.ctx.props?.localTraceParent;
@@ -80,14 +68,23 @@ export class SpanSink extends WorkerEntrypoint<SinkEnv, SinkProps> {
 
   #attach(tracer: Tracer, records: string[]): number {
     if (tracer.getSpanContext() === null) return 0;
-    const { kept, dropped } = boundedRecords(records);
+    const kept: string[] = [];
+    let bytes = 0;
+    for (const r of records) {
+      if (typeof r !== "string") continue;
+      if (kept.length >= MAX_RECORDS_PER_CALL || bytes + r.length > MAX_BYTES_PER_CALL) {
+        break;
+      }
+      kept.push(r);
+      bytes += r.length;
+    }
     const kind = this.ctx.props?.kind;
     const result = attachChunked(
       tracer,
       "child.spans",
       typeof kind === "string" ? { kind } : {},
       kept.map((value) => ({ key: "otel.span", value })),
-      dropped > 0 ? { recordsDropped: dropped } : {},
+      records.length > kept.length ? { recordsDropped: records.length - kept.length } : {},
     );
     return result.attached;
   }

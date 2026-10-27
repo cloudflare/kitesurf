@@ -161,54 +161,45 @@ async function runOneClassic(source: string, label: string): Promise<void> {
   }
 }
 
-function classifyScript(script: ScriptDescriptor, plan: ScriptPlan): void {
-  if (script.kind === "module") {
-    plan.modules.push(script);
-    return;
-  }
-  if (isExternalAsyncScript(script)) {
-    plan.async_.push(script);
-  } else if (isExternalDeferredScript(script)) {
-    plan.deferred.push(script);
-  } else {
-    plan.regular.push(script);
-  }
-}
-
-function isExternalAsyncScript(script: ScriptDescriptor): boolean {
-  return script.async && !!script.src;
-}
-
-function isExternalDeferredScript(script: ScriptDescriptor): boolean {
-  return script.defer && !!script.src;
-}
-
-function startScriptFetch(
-  sourceCache: Map<string, Promise<FetchResult>>,
-  url: string,
-): Promise<FetchResult> {
-  const existing = sourceCache.get(url);
-  if (existing) return existing;
-  const fetchPromise: Promise<FetchResult> = (async () => {
-    try {
-      const source = await fetchScriptSource(url);
-      return { ok: true, source };
-    } catch (err) {
-      return {
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
-  })();
-  sourceCache.set(url, fetchPromise);
-  return fetchPromise;
-}
-
-function prefetchScript(
-  scripts: ScriptDescriptor[],
-  sourceCache: Map<string, Promise<FetchResult>>,
-): void {
+export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
+  const regular: ScriptDescriptor[] = [];
+  const deferred: ScriptDescriptor[] = [];
+  const async_: ScriptDescriptor[] = [];
+  const modules: ScriptDescriptor[] = [];
   for (const script of scripts) {
+    if (script.kind === "module") {
+      modules.push(script);
+      continue;
+    }
+    if (script.async && script.src) {
+      async_.push(script);
+    } else if (script.defer && script.src) {
+      deferred.push(script);
+    } else {
+      regular.push(script);
+    }
+  }
+
+  const sourceCache = new Map<string, Promise<FetchResult>>();
+  const startFetch = (url: string) => {
+    const existing = sourceCache.get(url);
+    if (existing) return existing;
+    const fetchPromise: Promise<FetchResult> = (async () => {
+      try {
+        const source = await fetchScriptSource(url);
+        return { ok: true, source };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    })();
+    sourceCache.set(url, fetchPromise);
+    return fetchPromise;
+  };
+
+  for (const script of [...regular, ...deferred, ...async_, ...modules]) {
     if (!script.src) continue;
     const url = resolveScriptUrl(script.src);
     if (!url) {
@@ -216,49 +207,44 @@ function prefetchScript(
       continue;
     }
     script._resolvedUrl = url;
-    startScriptFetch(sourceCache, url);
+    startFetch(url);
   }
-}
 
-export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
-  const plan: ScriptPlan = {
-    regular: [],
-    deferred: [],
-    async_: [],
-    modules: [],
-    sourceCache: new Map(),
-  };
-  for (const script of scripts) classifyScript(script, plan);
-  prefetchScript(
-    [...plan.regular, ...plan.deferred, ...plan.async_, ...plan.modules],
-    plan.sourceCache,
-  );
-
-  return plan;
+  return { regular, deferred, async_, modules, sourceCache };
 }
 
 export async function runRegularPhase(plan: ScriptPlan): Promise<void> {
   for (const script of plan.regular) {
-    await runRegularScript(script, plan.sourceCache);
+    if (script.src) {
+      const url = script._resolvedUrl;
+      if (!url) continue;
+      const fetchResult = await plan.sourceCache.get(url);
+      if (!fetchResult || !fetchResult.ok) {
+        console.error(
+          "[kitesurf] <script src> fetch failed for " + url + ": " + fetchErrorDetail(fetchResult),
+        );
+        continue;
+      }
+      await runOneClassic(fetchResult.source, url);
+    } else {
+      await runOneClassic(script.body, "<inline>");
+    }
   }
   for (const script of plan.deferred) {
-    await runExternalScript(
-      script,
-      plan.sourceCache,
-      "[kitesurf] deferred <script src> fetch failed for ",
-    );
+    const url = script._resolvedUrl;
+    if (!url) continue;
+    const fetchResult = await plan.sourceCache.get(url);
+    if (!fetchResult || !fetchResult.ok) {
+      console.error(
+        "[kitesurf] deferred <script src> fetch failed for " +
+          url +
+          ": " +
+          fetchErrorDetail(fetchResult),
+      );
+      continue;
+    }
+    await runOneClassic(fetchResult.source, url);
   }
-}
-
-async function runRegularScript(
-  script: ScriptDescriptor,
-  sourceCache: Map<string, Promise<FetchResult>>,
-): Promise<void> {
-  if (script.src) {
-    await runExternalScript(script, sourceCache, "[kitesurf] <script src> fetch failed for ");
-    return;
-  }
-  await runOneClassic(script.body, "<inline>");
 }
 
 async function runExternalScript(
@@ -473,73 +459,43 @@ function rewriteNamedBindings(body: string): string {
 
 export async function runModulePhase(plan: ScriptPlan): Promise<void> {
   for (const script of plan.modules) {
-    const module = await moduleSource(script, plan.sourceCache);
-    if (module) await executeModule(module.source, module.baseUrl, module.label);
-  }
-}
-
-interface ModuleSource {
-  source: string;
-  baseUrl: string;
-  label: string;
-}
-
-async function moduleSource(
-  script: ScriptDescriptor,
-  sourceCache: Map<string, Promise<FetchResult>>,
-): Promise<ModuleSource | null> {
-  if (!script.src) return inlineModuleSource(script.body);
-  return externalModuleSource(script, sourceCache);
-}
-
-function inlineModuleSource(body: string): ModuleSource | null {
-  const source = body || "";
-  return source.trim() ? { source, baseUrl: state.pageUrl, label: "<inline-module>" } : null;
-}
-
-async function externalModuleSource(
-  script: ScriptDescriptor,
-  sourceCache: Map<string, Promise<FetchResult>>,
-): Promise<ModuleSource | null> {
-  const url = script._resolvedUrl;
-  if (!url) {
-    console.error("[kitesurf] cannot resolve module <script src>: " + String(script.src));
-    return null;
-  }
-  const fetchResult = await sourceCache.get(url);
-  return moduleFromFetchResult(url, fetchResult);
-}
-
-function moduleFromFetchResult(
-  url: string,
-  fetchResult: FetchResult | undefined,
-): ModuleSource | null {
-  if (!fetchResult || !fetchResult.ok) {
-    console.error(
-      "[kitesurf] module <script src> fetch failed for " + url,
-      fetchErrorDetail(fetchResult) || "unknown fetch error",
-    );
-    return null;
-  }
-  return { source: fetchResult.source, baseUrl: url, label: url };
-}
-
-async function executeModule(source: string, baseUrl: string, label: string): Promise<void> {
-  try {
-    const exportsObj: ModuleExports = {};
-    const { code, deps } = transpileModule(source);
-    const depEntries = await Promise.all(
-      deps.map(
-        async (dependency) =>
-          [dependency.local, await loadModule(dependency.spec, baseUrl)] as const,
-      ),
-    );
-    const paramNames = ["__ks_exports", "__ks_baseUrl", ...depEntries.map(([name]) => name)];
-    const paramValues: unknown[] = [exportsObj, baseUrl, ...depEntries.map(([, value]) => value)];
-    const moduleFunction = new AsyncFunction(...paramNames, code);
-    await moduleFunction(...paramValues);
-  } catch (err) {
-    console.error("[" + label + "]", err);
+    let source = "";
+    let label = "<inline-module>";
+    let baseUrl = state.pageUrl;
+    if (script.src) {
+      const url = script._resolvedUrl;
+      if (!url) {
+        console.error("[kitesurf] cannot resolve module <script src>: " + String(script.src));
+        continue;
+      }
+      label = url;
+      baseUrl = url;
+      const fetchResult = await plan.sourceCache.get(url);
+      if (!fetchResult || !fetchResult.ok) {
+        console.error(
+          "[kitesurf] module <script src> fetch failed for " + url,
+          fetchErrorDetail(fetchResult) || "unknown fetch error",
+        );
+        continue;
+      }
+      source = fetchResult.source;
+    } else {
+      source = script.body || "";
+      if (!source.trim()) continue;
+    }
+    try {
+      const exportsObj: ModuleExports = {};
+      const { code, deps } = transpileModule(source);
+      const depEntries = await Promise.all(
+        deps.map(async (d) => [d.local, await loadModule(d.spec, baseUrl)] as const),
+      );
+      const paramNames = ["__ks_exports", "__ks_baseUrl", ...depEntries.map(([n]) => n)];
+      const paramValues: unknown[] = [exportsObj, baseUrl, ...depEntries.map(([, v]) => v)];
+      const moduleFunction = new AsyncFunction(...paramNames, code);
+      await moduleFunction(...paramValues);
+    } catch (err) {
+      console.error("[" + label + "]", err);
+    }
   }
 }
 

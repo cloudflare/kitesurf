@@ -46,68 +46,29 @@ export async function readCapped(
 ): Promise<CappedRead> {
   if (!body) return { bytes: new Uint8Array(0), rest: null, failure: null };
   const reader = body.getReader();
-  const state = { chunks: [] as Uint8Array[], total: 0 };
-  const failure = await fillCappedChunks(reader, state, cap, onCharge);
-  if (failure) return failure;
-  return concatenateChunks(state.chunks, state.total);
-}
-
-interface ChunkState {
-  chunks: Uint8Array[];
-  total: number;
-}
-
-type CappedChunkRead = { done: true } | { done: false; failure: CappedRead | null };
-
-function recordChunk(
-  value: Uint8Array,
-  state: ChunkState,
-  cap: number,
-  onCharge: ((delta: number) => boolean) | undefined,
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-): CappedRead | null {
-  state.chunks.push(value);
-  state.total += value.byteLength;
-  if (onCharge && !onCharge(value.byteLength)) {
-    return { bytes: null, rest: replayFrom(state.chunks, reader), failure: "budget" };
-  }
-  if (state.total > cap) {
-    return { bytes: null, rest: replayFrom(state.chunks, reader), failure: "cap" };
-  }
-  return null;
-}
-
-async function fillCappedChunks(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  state: ChunkState,
-  cap: number,
-  onCharge: ((delta: number) => boolean) | undefined,
-): Promise<CappedRead | null> {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
   try {
     for (;;) {
-      const next = await readCappedChunk(reader, state, cap, onCharge);
-      if (next.done) break;
-      if (next.failure !== null) return next.failure;
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      chunks.push(value);
+      total += value.byteLength;
+      if (onCharge && !onCharge(value.byteLength)) {
+        return {
+          bytes: null,
+          rest: replayFrom(chunks, reader),
+          failure: "budget",
+        };
+      }
+      if (total > cap) {
+        return { bytes: null, rest: replayFrom(chunks, reader), failure: "cap" };
+      }
     }
   } catch {
-    return { bytes: null, rest: replayFrom(state.chunks, reader), failure: "error" };
+    return { bytes: null, rest: replayFrom(chunks, reader), failure: "error" };
   }
-  return null;
-}
-
-async function readCappedChunk(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  state: ChunkState,
-  cap: number,
-  onCharge: ((delta: number) => boolean) | undefined,
-): Promise<CappedChunkRead> {
-  const { done, value } = await reader.read();
-  if (done) return { done: true };
-  if (!value) return { done: false, failure: null };
-  return { done: false, failure: recordChunk(value, state, cap, onCharge, reader) };
-}
-
-function concatenateChunks(chunks: Uint8Array[], total: number): CappedRead {
   const out = new Uint8Array(total);
   let at = 0;
   for (const c of chunks) {

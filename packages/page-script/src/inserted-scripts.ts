@@ -94,16 +94,6 @@ export function fetchGatedModuleSource(url: string): Promise<string> {
 
 const moduleSourceInflight = new Map<string, Promise<string>>();
 
-async function allowedModuleScript(meta: Parameters<typeof insertedScriptAllowed>[0]) {
-  const pre = await insertedScriptAllowed(meta);
-  reportOnly(pre);
-  if (!pre.allowed) {
-    reportBlocked(pre);
-    throw new Error(pre.message ?? "module blocked by policy");
-  }
-  return pre;
-}
-
 async function allowedExternalScript(meta: Parameters<typeof insertedScriptAllowed>[0]) {
   const pre = await insertedScriptAllowed(meta);
   reportOnly(pre);
@@ -112,31 +102,6 @@ async function allowedExternalScript(meta: Parameters<typeof insertedScriptAllow
     throw new Error(pre.reason ?? "blocked by policy");
   }
   return pre;
-}
-
-function assertModuleResponseStatus(
-  response: Awaited<ReturnType<typeof fetchInsertedScript>>,
-  url: string,
-): void {
-  if (response.status === 0) throw new Error(`fetch(${url}) failed`);
-  if (response.status >= 400) throw new Error(`fetch(${url}) HTTP ${response.status}`);
-}
-
-async function allowedModuleResponse(
-  meta: Parameters<typeof insertedScriptAllowed>[0],
-  response: Awaited<ReturnType<typeof fetchInsertedScript>>,
-) {
-  const post = await insertedResponseAllowed(meta, {
-    contentType: response.contentType,
-    contentTypeOptions: response.nosniff,
-    bytes: response.bytes,
-    opaque: response.opaque,
-  });
-  if (!post.allowed) {
-    reportBlocked(post);
-    throw new Error(post.message ?? "module blocked by policy");
-  }
-  return post;
 }
 
 async function allowedExternalResponse(
@@ -155,21 +120,31 @@ async function allowedExternalResponse(
   }
 }
 
-function moduleSource(
-  response: Awaited<ReturnType<typeof fetchInsertedScript>>,
-  moduleType: string | undefined,
-): string {
-  if (moduleType !== "json") return response.source;
-  return "export default " + JSON.stringify(JSON.parse(response.source)) + ";";
-}
-
 async function fetchGatedModuleSourceOnce(url: string): Promise<string> {
   const meta = { url, module: true };
-  const pre = await allowedModuleScript(meta);
+  const pre = await insertedScriptAllowed(meta);
+  reportOnly(pre);
+  if (!pre.allowed) {
+    reportBlocked(pre);
+    throw new Error(pre.message ?? "module blocked by policy");
+  }
   const response = await fetchInsertedScript(pre.upgradeTo ?? url, "");
-  assertModuleResponseStatus(response, url);
-  const post = await allowedModuleResponse(meta, response);
-  return moduleSource(response, post.moduleType);
+  if (response.status === 0) throw new Error(`fetch(${url}) failed`);
+  if (response.status >= 400) throw new Error(`fetch(${url}) HTTP ${response.status}`);
+  const post = await insertedResponseAllowed(meta, {
+    contentType: response.contentType,
+    contentTypeOptions: response.nosniff,
+    bytes: response.bytes,
+    opaque: response.opaque,
+  });
+  if (!post.allowed) {
+    reportBlocked(post);
+    throw new Error(post.message ?? "module blocked by policy");
+  }
+  if (post.moduleType === "json") {
+    return "export default " + JSON.stringify(JSON.parse(response.source)) + ";";
+  }
+  return response.source;
 }
 
 export function runInsertedExternalScript(info: InsertedScriptInfo): void {

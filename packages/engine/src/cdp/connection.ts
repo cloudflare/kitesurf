@@ -255,9 +255,9 @@ function createConnectionAnalytics(init: ConnectionInitialization): KitesurfAnal
       buildVersion: nonNullishString(env.KITESURF_VERSION),
       colo: requestColo(request),
     },
-    new SafePerformance(hostClock(env)),
+    new SafePerformance((env as { HOST_CLOCK?: HostClockTimer }).HOST_CLOCK),
     {
-      factory: telemetryFactory(opts),
+      factory: opts?.host?.telemetry,
       request,
       props: ctx.props,
       env,
@@ -273,14 +273,6 @@ function nonNullishString(value: string | undefined): string {
 function requestColo(request: Request): string {
   const cloudflare = request.cf as { colo?: string } | undefined;
   return cloudflare?.colo ?? "";
-}
-
-function hostClock(env: Env): HostClockTimer | undefined {
-  return (env as { HOST_CLOCK?: HostClockTimer }).HOST_CLOCK;
-}
-
-function telemetryFactory(opts: HandleWebSocketOptions | undefined) {
-  return opts?.host?.telemetry;
 }
 
 function registerConnectionRequestBlocker(
@@ -304,7 +296,7 @@ function createBrowserState(
     sandboxOutbound: createSandboxOutboundOverride(
       (ctx as ExecutionContext & { exports: SandboxOutboundExports }).exports,
       env,
-      externalOutbound(opts),
+      opts?.externalOutbound,
     ),
     contexts: new Map(),
     nextBrowserContextId: 1,
@@ -334,21 +326,10 @@ function createBrowserState(
     rendererSessionId: null,
     engineSessionId: null,
     wsClosing: false,
-    attributionHeaders: connectionAttributionHeaders(request, opts),
+    attributionHeaders: pickHeaders(request, opts?.host?.attributionHeaders),
   };
   browser.workerBudget.countPageTargets = () => countPageTargets(browser);
   return browser;
-}
-
-function externalOutbound(opts: HandleWebSocketOptions | undefined): ExternalOutbound | undefined {
-  return opts?.externalOutbound;
-}
-
-function connectionAttributionHeaders(
-  request: Request,
-  opts: HandleWebSocketOptions | undefined,
-): Record<string, string> {
-  return pickHeaders(request, opts?.host?.attributionHeaders);
 }
 
 function countPageTargets(browser: BrowserState): number {
@@ -371,17 +352,13 @@ function createDispatchContext(
   return {
     browser,
     emit: (event) => sendPayload(init.server, metrics, event),
-    commandExtension: commandExtension(env, opts),
+    commandExtension: opts?.host?.createCdpCommandExtension?.(env),
     requestBlocker,
     env: buildDispatchEnv(env),
     ctx,
     connectionId,
     analytics,
   };
-}
-
-function commandExtension(env: Env, opts: HandleWebSocketOptions | undefined) {
-  return opts?.host?.createCdpCommandExtension?.(env);
 }
 
 function createTracedDispatch(

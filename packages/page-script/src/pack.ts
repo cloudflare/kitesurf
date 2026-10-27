@@ -31,32 +31,20 @@ export function classify(value: unknown): ClassifyTag {
   return classifyType(typeof value, value);
 }
 
-const NO_SPECIAL_REPLACEMENT = Symbol("no-special-replacement");
-
-function specialReplacement(val: unknown): unknown | typeof NO_SPECIAL_REPLACEMENT {
-  switch (typeof val) {
-    case "bigint":
-      return { __bigint: val.toString() };
-    case "function": {
-      const name = (val as { name?: string }).name || "anonymous";
-      return { __fn: name };
-    }
-    case "symbol":
-      return { __sym: val.description ?? "" };
-    case "object":
-      if (val instanceof Error) {
-        return { __err: { name: val.name, message: val.message, stack: val.stack } };
-      }
-      break;
-  }
-  return NO_SPECIAL_REPLACEMENT;
-}
-
 export function safeReplacer(): (_key: string, val: unknown) => unknown {
   const seen = new WeakSet<object>();
   return function (_key, val) {
-    const replacement = specialReplacement(val);
-    if (replacement !== NO_SPECIAL_REPLACEMENT) return replacement;
+    if (typeof val === "bigint") return { __bigint: val.toString() };
+    if (typeof val === "function") {
+      const name = (val as { name?: string }).name || "anonymous";
+      return { __fn: name };
+    }
+    if (typeof val === "symbol") {
+      return { __sym: (val as symbol).description ?? "" };
+    }
+    if (val instanceof Error) {
+      return { __err: { name: val.name, message: val.message, stack: val.stack } };
+    }
     if (val !== null && typeof val === "object") {
       if (seen.has(val as object)) return { __circular: true };
       seen.add(val as object);

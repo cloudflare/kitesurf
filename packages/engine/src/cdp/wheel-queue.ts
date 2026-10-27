@@ -47,19 +47,7 @@ export class WheelQueue {
 
   enqueue(init: MouseEventInit): Promise<void> {
     if (!this.isAccepting) return Promise.resolve();
-    return this.#enqueueAccepted(init);
-  }
 
-  #enqueueAccepted(init: MouseEventInit): Promise<void> {
-    const batch = this.#coalesceOrCreate(init);
-    batch.deltaX += typeof init.deltaX === "number" ? init.deltaX : 0;
-    batch.deltaY += typeof init.deltaY === "number" ? init.deltaY : 0;
-    const reply = new Promise<void>((resolve) => batch.pending.push(resolve));
-    if (!this.#draining && this.#scheduled === null) void this.#drain();
-    return reply;
-  }
-
-  #coalesceOrCreate(init: MouseEventInit): WheelBatch {
     const last = this.#batches[this.#batches.length - 1];
     let batch = last && "kind" in last ? undefined : last;
     if (!batch || !canCoalesceWheel(batch.init, init)) {
@@ -68,7 +56,11 @@ export class WheelQueue {
     } else {
       batch.init = init;
     }
-    return batch;
+    batch.deltaX += typeof init.deltaX === "number" ? init.deltaX : 0;
+    batch.deltaY += typeof init.deltaY === "number" ? init.deltaY : 0;
+    const reply = new Promise<void>((resolve) => batch.pending.push(resolve));
+    if (!this.#draining && this.#scheduled === null) void this.#drain();
+    return reply;
   }
 
   async fence(): Promise<(() => void) | null> {
@@ -349,28 +341,16 @@ export async function waitForWheelHandoffDrain(
 
 function canCoalesceWheel(previous: MouseEventInit, next: MouseEventInit): boolean {
   return (
-    sameWheelModifiers(previous, next) &&
-    sameWheelPosition(previous, next) &&
-    sameWheelButtons(previous, next) &&
-    previous.deltaMode === next.deltaMode
-  );
-}
-
-function sameWheelModifiers(previous: MouseEventInit, next: MouseEventInit): boolean {
-  return (
     previous.altKey === next.altKey &&
     previous.ctrlKey === next.ctrlKey &&
     previous.metaKey === next.metaKey &&
-    previous.shiftKey === next.shiftKey
+    previous.shiftKey === next.shiftKey &&
+    previous.clientX === next.clientX &&
+    previous.clientY === next.clientY &&
+    previous.button === next.button &&
+    previous.buttons === next.buttons &&
+    previous.deltaMode === next.deltaMode
   );
-}
-
-function sameWheelPosition(previous: MouseEventInit, next: MouseEventInit): boolean {
-  return previous.clientX === next.clientX && previous.clientY === next.clientY;
-}
-
-function sameWheelButtons(previous: MouseEventInit, next: MouseEventInit): boolean {
-  return previous.button === next.button && previous.buttons === next.buttons;
 }
 
 function removeFromQueueList(queues: WheelQueue[], queue: WheelQueue): void {

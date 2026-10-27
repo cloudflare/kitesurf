@@ -279,7 +279,18 @@ function pickBackendId(params: unknown, tree: BuiltTree): number | null {
 }
 
 function pickExplicitBackendId(params: unknown): number | null {
-  return requestedBackendId(params);
+  const p = (params ?? {}) as {
+    nodeId?: number;
+    backendNodeId?: number;
+    objectId?: string;
+  };
+  if (typeof p.backendNodeId === "number" && p.backendNodeId > 0) return p.backendNodeId;
+  if (typeof p.nodeId === "number" && p.nodeId > 0) return p.nodeId;
+  if (typeof p.objectId === "string") {
+    const m = /^(?:node|ps):(\d+)$/.exec(p.objectId);
+    if (m) return Number(m[1]);
+  }
+  return null;
 }
 
 function requestedBackendId(params: unknown): number | null {
@@ -1464,11 +1475,19 @@ function titleName(attrs: Map<string, string>): string {
 function computeDescription(attrs: Map<string, string>, ctx: BuildCtx): string {
   const describedBy = attrs.get("aria-describedby");
   if (describedBy) {
-    const joined = textFromAriaReferences(describedBy, ctx);
+    const parts: string[] = [];
+    for (const id of describedBy.trim().split(/\s+/)) {
+      const backend = ctx.idAttrToBackend.get(id);
+      if (backend == null) continue;
+      const found = findByBackend(ctx, backend);
+      if (found) parts.push(textFromSubtree(found));
+    }
+    const joined = parts.join(" ").trim();
     if (joined) return joined;
   }
   const ariaDesc = attrs.get("aria-description");
-  return ariaDesc && ariaDesc.trim() ? ariaDesc.trim() : "";
+  if (ariaDesc && ariaDesc.trim()) return ariaDesc.trim();
+  return "";
 }
 
 function computeValue(
@@ -1638,7 +1657,9 @@ function computeProperties(
   listDepth: number,
 ): NonNullable<AxNode["properties"]> {
   const out: NonNullable<AxNode["properties"]> = [];
-  const push: PushAxProperty = (name, type, value) => appendAxProperty(out, name, type, value);
+  const push: PushAxProperty = (name, type, value) => {
+    out.push({ name, value: { type, value } });
+  };
   addHeadingLevel(tag, push);
   addAriaLevel(attrs, push);
   addListItemLevel(role, attrs, listDepth, push);
@@ -1659,15 +1680,6 @@ function computeProperties(
 }
 
 type PushAxProperty = (name: string, type: string, value: unknown) => void;
-
-function appendAxProperty(
-  out: NonNullable<AxNode["properties"]>,
-  name: string,
-  type: string,
-  value: unknown,
-): void {
-  out.push({ name, value: { type, value } });
-}
 
 function addHeadingLevel(tag: string, push: PushAxProperty): void {
   if (/^h[1-6]$/.test(tag)) push("level", "integer", Number(tag.slice(1)));
@@ -2094,29 +2106,15 @@ function isFocusableByTag(tag: string, attrs: Map<string, string>): boolean {
 function findWrappingLabel(ctx: BuildCtx, node: DomNode): string {
   const selfId = node.backendNodeId;
   if (typeof selfId !== "number") return "";
-  return findWrappingLabelById(ctx, selfId);
-}
-
-type WrappingLabelStep = { label: string } | { stop: true } | { next: DomNode | undefined };
-
-function findWrappingLabelById(ctx: BuildCtx, selfId: number): string {
-  let current = ctx.parentOf.get(selfId);
-  for (let depth = 0; current && depth < 8; depth++) {
-    const step = wrappingLabelStep(ctx, current, selfId);
-    if ("label" in step) return step.label;
-    if ("stop" in step) return "";
-    current = step.next;
+  let cur = ctx.parentOf.get(selfId);
+  for (let depth = 0; cur && depth < 8; depth++) {
+    const tag = (cur.localName || cur.nodeName || "").toLowerCase();
+    if (tag === "label") return textFromSubtree(cur, selfId);
+    const pid = cur.backendNodeId;
+    if (typeof pid !== "number") return "";
+    cur = ctx.parentOf.get(pid);
   }
   return "";
-}
-
-function wrappingLabelStep(ctx: BuildCtx, current: DomNode, selfId: number): WrappingLabelStep {
-  if (localTag(current) === "label") {
-    return { label: textFromSubtree(current, selfId) };
-  }
-  const parentId = current.backendNodeId;
-  if (typeof parentId !== "number") return { stop: true };
-  return { next: ctx.parentOf.get(parentId) };
 }
 
 function collectSubtree(tree: BuiltTree, rootId: string, out: Map<string, AxNode>): void {

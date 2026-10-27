@@ -3154,10 +3154,6 @@ function installWindowGlobals(
         return normalized.negated ? !matches : matches;
       };
 
-      const evalQueryList = (queryList: string): boolean => {
-        return splitTopLevelMediaQuery(queryList, ",").some(evalQuery);
-      };
-
       class MediaQueryList {
         media: string;
         onchange: any = null;
@@ -3165,7 +3161,7 @@ function installWindowGlobals(
           this.media = media;
         }
         get matches() {
-          return evalQueryList(this.media);
+          return splitTopLevelMediaQuery(this.media, ",").some(evalQuery);
         }
         addEventListener() {}
         removeEventListener() {}
@@ -4799,7 +4795,10 @@ function installWindowGlobals(
           if (allowed.indexOf(v) !== -1) this._responseType = v;
         }
         get response() {
-          return xhrResponse(this);
+          const responseType = this._responseType;
+          if (responseType === "" || responseType === "text") return this._text;
+          if (this.readyState !== 4) return null;
+          return xhrResponseForType(this, responseType);
         }
         get responseText() {
           const responseType = this._responseType;
@@ -4971,12 +4970,6 @@ function installWindowGlobals(
         if (responseType === "blob") return cachedXhrBlobResponse(xhr);
         if (responseType === "json") return cachedXhrJsonResponse(xhr);
         return null;
-      };
-      const xhrResponse = function xhrResponse(xhr: XMLHttpRequestCls): unknown {
-        const responseType = xhr._responseType;
-        if (responseType === "" || responseType === "text") return xhr._text;
-        if (xhr.readyState !== 4) return null;
-        return xhrResponseForType(xhr, responseType);
       };
       const normalizeXhrMethod = function normalizeXhrMethod(method: unknown): string {
         return String(method == null ? "" : method).toUpperCase();

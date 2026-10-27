@@ -230,30 +230,27 @@ export function installWebSocketFacade(): void {
       try {
         event.target = event.currentTarget = this;
       } catch {}
-      this._emitPropertyHandler(type, event);
-      this._emitListeners(type, event);
-    }
-
-    private _emitPropertyHandler(type: string, event: any): void {
       const handler = (this as any)["on" + type];
-      if (typeof handler === "function") this._invokeListener(handler, event, "on" + type);
-    }
-
-    private _emitListeners(type: string, event: any): void {
-      const listeners = this._listeners.get(type);
-      if (!listeners) return;
-      for (const listener of Array.from(listeners)) {
-        this._invokeListener(listener, event, "listener");
-      }
-    }
-
-    private _invokeListener(listener: AnyFn, event: any, source: string): void {
-      try {
-        listener.call(this, event);
-      } catch (error) {
+      if (typeof handler === "function") {
         try {
-          console.error("[kitesurf] WebSocket " + source + " threw:", error);
-        } catch {}
+          handler.call(this, event);
+        } catch (error) {
+          try {
+            console.error("[kitesurf] WebSocket on" + type + " threw:", error);
+          } catch {}
+        }
+      }
+      const listeners = this._listeners.get(type);
+      if (listeners) {
+        for (const listener of Array.from(listeners)) {
+          try {
+            listener.call(this, event);
+          } catch (error) {
+            try {
+              console.error("[kitesurf] WebSocket listener threw:", error);
+            } catch {}
+          }
+        }
       }
     }
 

@@ -5,7 +5,6 @@
 // Tracks page-created dedicated workers and routes their events into CDP sessions.
 
 import type {
-  WorkerErrorInfo,
   WorkerEventParams,
   WorkerNavigatorInfo,
   WorkerStartReply,
@@ -107,17 +106,6 @@ function workerScriptSource(params: ReceivedUpstreamParams): Pick<WorkerLaunch, 
   };
 }
 
-function workerErrorEvent(workerId: number, params: WorkerErrorInfo): WorkerEventParams {
-  return {
-    workerId,
-    type: "error",
-    message: String(params.message ?? ""),
-    filename: String(params.filename ?? ""),
-    lineno: Number(params.lineno ?? 0) | 0,
-    colno: Number(params.colno ?? 0) | 0,
-  };
-}
-
 function protocolOf(url: string): string {
   try {
     return new URL(url).protocol;
@@ -189,28 +177,19 @@ export class DedicatedWorkers {
       this.create(ctx, owner, key, workerId, params);
       return;
     }
-    this.handleExistingWorker(this.workers.get(key), event, params);
-  }
-
-  private handleExistingWorker(
-    entry: WorkerEntry | undefined,
-    event: UpstreamEventName,
-    params: ReceivedUpstreamParams,
-  ): void {
+    const entry = this.workers.get(key);
     if (!entry || entry.dead) return;
     if (event === "kitesurf.workerTerminate") {
       this.retire(entry, "Worker.terminate()");
       return;
     }
-    if (event === "kitesurf.workerPostMessage") this.postToWorker(entry, params.data);
-  }
-
-  private postToWorker(entry: WorkerEntry, data: unknown): void {
-    if (!entry.started) {
-      entry.pending.push(data);
-      return;
+    if (event === "kitesurf.workerPostMessage") {
+      if (!entry.started) {
+        entry.pending.push(params.data);
+        return;
+      }
+      this.deliver(entry, params.data);
     }
-    this.deliver(entry, data);
   }
 
   terminateTarget(targetId: string, reason: string): void {
@@ -469,21 +448,23 @@ export class DedicatedWorkers {
 
   private fromWorker(entry: WorkerEntry, message: WorkerUpstreamMessage): void {
     if (entry.dead) return;
-    this.routeWorkerMessage(entry, message);
-  }
-
-  private routeWorkerMessage(entry: WorkerEntry, message: WorkerUpstreamMessage): void {
     const workerId = entry.workerId;
     if (message.event === "worker.message") {
       this.toPage(entry, { workerId, type: "message", data: message.params.data });
-      return;
+    } else if (message.event === "worker.error") {
+      const params = message.params;
+      this.toPage(entry, {
+        workerId,
+        type: "error",
+        message: String(params.message ?? ""),
+        filename: String(params.filename ?? ""),
+        lineno: Number(params.lineno ?? 0) | 0,
+        colno: Number(params.colno ?? 0) | 0,
+      });
+    } else if (message.event === "worker.closed") {
+      this.toPage(entry, { workerId, type: "closed" });
+      this.retire(entry, "self.close()");
     }
-    if (message.event === "worker.error") {
-      this.toPage(entry, workerErrorEvent(workerId, message.params));
-      return;
-    }
-    this.toPage(entry, { workerId, type: "closed" });
-    this.retire(entry, "self.close()");
   }
 
   private toPage(entry: WorkerEntry, params: WorkerEventParams): void {

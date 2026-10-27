@@ -15,41 +15,31 @@ export function sanitizeCdpNodeTree<T>(node: T): T {
   return node;
 }
 
-function isVisibleChild(child: unknown, marker: string): boolean {
-  return !(isCdpNode(child) && child.nodeType === 8 && child.nodeValue === marker);
-}
-
-function sanitizeChildren(value: Record<string, unknown>, marker: string | undefined): void {
-  const childNodes = value.children;
-  if (!Array.isArray(childNodes)) return;
-  const children: unknown[] = childNodes;
-  const visibleChildren = marker
-    ? children.filter((child) => isVisibleChild(child, marker))
-    : children;
-  updateChildren(value, children, visibleChildren);
-}
-
-function updateChildren(
-  value: Record<string, unknown>,
-  children: unknown[],
-  visibleChildren: unknown[],
-): void {
-  for (const child of visibleChildren) sanitizeNode(child);
-  if (visibleChildren.length === children.length) return;
-  value.children = visibleChildren;
-  if (typeof value.childNodeCount === "number") value.childNodeCount = visibleChildren.length;
-}
-
-function sanitizeShadowRoots(value: Record<string, unknown>): void {
-  const shadowRoots = value.shadowRoots;
-  if (!Array.isArray(shadowRoots)) return;
-  const roots: unknown[] = shadowRoots;
-  for (const root of roots) sanitizeNode(root);
-}
-
 function sanitizeNode(value: unknown): void {
+  const marker = state.sourceDoctype?.marker;
   if (!isCdpNode(value)) return;
+
   delete value.attributeNamespaces;
-  sanitizeChildren(value, state.sourceDoctype?.marker);
-  sanitizeShadowRoots(value);
+
+  const childNodes = value.children;
+  if (Array.isArray(childNodes)) {
+    const children: unknown[] = childNodes;
+    const visibleChildren = marker
+      ? children.filter(
+          (child) => !(isCdpNode(child) && child.nodeType === 8 && child.nodeValue === marker),
+        )
+      : children;
+    for (const child of visibleChildren) sanitizeNode(child);
+    if (visibleChildren.length !== children.length) {
+      value.children = visibleChildren;
+      if (typeof value.childNodeCount === "number") {
+        value.childNodeCount = visibleChildren.length;
+      }
+    }
+  }
+  const shadowRoots = value.shadowRoots;
+  if (Array.isArray(shadowRoots)) {
+    const roots: unknown[] = shadowRoots;
+    for (const root of roots) sanitizeNode(root);
+  }
 }

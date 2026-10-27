@@ -84,16 +84,11 @@ function removeNoscriptNode(dom: DomHandle, id: number | undefined): void {
 export function ensureTargetDom(target: TargetState): DomHandle | null {
   if (target.dom) return target.dom;
   if (!target.html || !domFactory) return null;
-  return rehydrateTargetDom(target, target.html, domFactory);
-}
-
-function rehydrateTargetDom(
-  target: TargetState,
-  html: string,
-  factory: (html: string, baseUrl: string) => DomHandle,
-): DomHandle | null {
   try {
-    const dom = factory(html, targetBaseUrl(target.url));
+    const dom = domFactory(
+      target.html,
+      target.url && /^https?:/.test(target.url) ? target.url : "https://kitesurf.local/",
+    );
     stripNoscript(dom);
     target.dom = dom;
     return dom;
@@ -108,8 +103,4 @@ function rehydrateTargetDom(
     );
     return null;
   }
-}
-
-function targetBaseUrl(url: string): string {
-  return url && /^https?:/.test(url) ? url : "https://kitesurf.local/";
 }

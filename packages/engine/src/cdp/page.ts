@@ -107,7 +107,7 @@ import type { OutboundProps, SandboxOutboundOverride } from "../eval/outbound.ts
 import { getOutboundInflight } from "../eval/outbound.ts";
 import { walkRedirects } from "../eval/redirect-walk.ts";
 import { siteKey } from "../public-suffix.ts";
-import { PageRendererManager, withTimeout, type RenderFrameResult } from "../eval/page-renderer.ts";
+import { PageRendererManager, withTimeout } from "../eval/page-renderer.ts";
 import { headersToRecord, type NetworkEventTracker } from "./network-events.ts";
 import { effectiveExtraHeaders } from "./network.ts";
 import { isWorkerUpstreamEvent } from "./dedicated-workers.ts";
@@ -279,14 +279,6 @@ async function renderViaPageRenderer(
   const res = await traceSpan(tracer, "render.frame", () =>
     manager.renderFrame(ps, { ...opts, traced }),
   );
-  return pageRendererFrameResult(res);
-}
-
-function pageRendererFrameResult(
-  res: RenderFrameResult,
-):
-  | { bytes?: Uint8Array; unchanged?: boolean; seq: number; scrollX: number; scrollY: number }
-  | { failed: string; stage: "record" | "rasterize" } {
   if (res.ok && res.unchanged === true) {
     return {
       unchanged: true,
@@ -295,26 +287,20 @@ function pageRendererFrameResult(
       scrollY: res.scrollY,
     };
   }
-  if (hasNoPageRendererFrameBytes(res)) return failedPageRendererFrame(res);
+  if (!res.ok || !res.bytes || res.bytes.length === 0) {
+    const reason = res.error ?? "unknown render failure";
+    console.warn("kitesurf: pageRenderer renderFrame failed:", reason);
+    return {
+      failed: reason,
+      stage: res.stage === "record" ? "record" : "rasterize",
+    };
+  }
   return {
     bytes: res.bytes,
     seq: res.seq,
     scrollX: res.scrollX,
     scrollY: res.scrollY,
   };
-}
-
-function hasNoPageRendererFrameBytes(res: RenderFrameResult): boolean {
-  return !res.ok || !res.bytes || res.bytes.length === 0;
-}
-
-function failedPageRendererFrame(res: RenderFrameResult): {
-  failed: string;
-  stage: "record" | "rasterize";
-} {
-  const reason = res.error ?? "unknown render failure";
-  console.warn("kitesurf: pageRenderer renderFrame failed:", reason);
-  return { failed: reason, stage: res.stage === "record" ? "record" : "rasterize" };
 }
 
 function recordNavigationHistory(target: TargetState, url: string, transitionType: string): void {
@@ -811,7 +797,7 @@ function navigationInput(req: PageNavigateRequest): NavigationInput {
     url: navigationUrl(params),
     postData: navigationPostData(params),
     postContentType: navigationPostContentType(params),
-    referrer: navigationReferrer(params),
+    referrer: params?.referrer,
     transitionType: navigationTransitionType(params),
     internal: isInternalNavigation(params),
   };
@@ -829,10 +815,6 @@ function navigationPostContentType(params: PageNavigateRequest["params"]): strin
   return typeof params?._kitesurfPostContentType === "string"
     ? params._kitesurfPostContentType
     : "application/x-www-form-urlencoded";
-}
-
-function navigationReferrer(params: PageNavigateRequest["params"]): unknown {
-  return params?.referrer;
 }
 
 function navigationTransitionType(params: PageNavigateRequest["params"]): string {
@@ -1695,7 +1677,7 @@ async function handlePageSetDocumentContent(
   {
     if (target.type !== "page") return { error: "setDocumentContent requires a page target" };
     const html = pageDocumentContentHtml(req);
-    const url = pageDocumentContentUrl(target);
+    const url = sanitizeBaseUrl(target.url || "about:blank");
     resetDocumentContentState(target, html, url);
     ctx.browser.dedicatedWorkers.terminateTarget(target.targetId, "setDocumentContent");
     const {
@@ -1729,10 +1711,6 @@ async function handlePageSetDocumentContent(
 function pageDocumentContentHtml(req: PageCommand): string {
   if (req.method !== "Page.setDocumentContent") return "";
   return req.params?.html ?? "";
-}
-
-function pageDocumentContentUrl(target: TargetState): string {
-  return sanitizeBaseUrl(target.url || "about:blank");
 }
 
 function releaseDocumentContentDom(target: TargetState): void {
@@ -4129,24 +4107,13 @@ function navErrorText(err: unknown, aborted: boolean): string | null {
   if (aborted) return "net::ERR_ABORTED";
   const name = err instanceof Error ? err.name : "";
   const msg = err instanceof Error ? err.message : String(err);
-  return matchingNavigationError(name, msg);
-}
-
-function matchingNavigationError(name: string, message: string): string | null {
-  const rules = [
-    { matches: name === "AbortError", text: "net::ERR_ABORTED" },
-    { matches: /\baborted\b/i.test(message), text: "net::ERR_ABORTED" },
-    { matches: name === "InvalidRedirectError", text: "net::ERR_INVALID_REDIRECT" },
-    { matches: /refused/i.test(message), text: "net::ERR_CONNECTION_REFUSED" },
-    { matches: /ECONNREFUSED/i.test(message), text: "net::ERR_CONNECTION_REFUSED" },
-    { matches: /network connection lost/i.test(message), text: "net::ERR_CONNECTION_REFUSED" },
-    { matches: /ENOTFOUND/i.test(message), text: "net::ERR_NAME_NOT_RESOLVED" },
-    { matches: /name not resolved/i.test(message), text: "net::ERR_NAME_NOT_RESOLVED" },
-    { matches: /could not resolve/i.test(message), text: "net::ERR_NAME_NOT_RESOLVED" },
-    { matches: /dns/i.test(message), text: "net::ERR_NAME_NOT_RESOLVED" },
-  ];
-  for (const rule of rules) {
-    if (rule.matches) return rule.text;
+  if (name === "AbortError" || /\baborted\b/i.test(msg)) return "net::ERR_ABORTED";
+  if (name === "InvalidRedirectError") return "net::ERR_INVALID_REDIRECT";
+  if (/refused|ECONNREFUSED|network connection lost/i.test(msg)) {
+    return "net::ERR_CONNECTION_REFUSED";
+  }
+  if (/ENOTFOUND|name not resolved|could not resolve|dns/i.test(msg)) {
+    return "net::ERR_NAME_NOT_RESOLVED";
   }
   return null;
 }
@@ -4752,67 +4719,28 @@ const DRIVE_MAX_MS = 15_000;
 
 function drivePageTasks(ctx: DispatchCtx, target: TargetState, loaded: Promise<unknown>): void {
   const generation = target.navigateGeneration;
+  const browser = ctx.browser;
   let isLoaded = false;
   void loaded.finally(() => {
     isLoaded = true;
   });
-  ctx.ctx.waitUntil(drivePageTaskLoop(ctx, target, generation, () => isLoaded));
-}
-
-async function drivePageTaskLoop(
-  ctx: DispatchCtx,
-  target: TargetState,
-  generation: number,
-  isLoaded: () => boolean,
-): Promise<void> {
-  const start = Date.now();
-  let idleSince: number | null = null;
-  while (Date.now() - start < DRIVE_MAX_MS) {
-    if (pageTaskDriveIsStale(ctx.browser, target, generation)) return;
-    const result = await pumpPageTasks(target);
-    const step = pageTaskDriveStep(result, idleSince, isLoaded());
-    if (step.kind === "stop") return;
-    if (step.kind === "worked") {
-      idleSince = null;
-      continue;
+  const work = (async () => {
+    const start = Date.now();
+    let idleSince: number | null = null;
+    while (Date.now() - start < DRIVE_MAX_MS) {
+      if (browser.wsClosing || target.navigateGeneration !== generation) return;
+      const r = await pumpPageTasks(target);
+      if (!r || r.pumped < 0) return;
+      if (r.pumped > 0) {
+        idleSince = null;
+        continue;
+      }
+      idleSince ??= Date.now();
+      if (isLoaded && Date.now() - idleSince >= DRIVE_IDLE_STOP_MS) return;
+      await new Promise((resolve) => setTimeout(resolve, DRIVE_IDLE_POLL_MS));
     }
-    idleSince = step.idleSince;
-    await new Promise((resolve) => setTimeout(resolve, DRIVE_IDLE_POLL_MS));
-  }
-}
-
-type PageTaskDriveStep =
-  | { kind: "stop" }
-  | { kind: "worked" }
-  | { kind: "idle"; idleSince: number };
-
-function pageTaskDriveStep(
-  result: PumpTasksResult | null,
-  idleSince: number | null,
-  isLoaded: boolean,
-): PageTaskDriveStep {
-  if (!result) return { kind: "stop" };
-  if (result.pumped < 0) return { kind: "stop" };
-  if (result.pumped > 0) return { kind: "worked" };
-  const nextIdleSince = markPageTaskIdle(idleSince);
-  if (shouldStopAfterPageTaskIdle(isLoaded, nextIdleSince)) return { kind: "stop" };
-  return { kind: "idle", idleSince: nextIdleSince };
-}
-
-function pageTaskDriveIsStale(
-  browser: DispatchCtx["browser"],
-  target: TargetState,
-  generation: number,
-): boolean {
-  return browser.wsClosing || target.navigateGeneration !== generation;
-}
-
-function markPageTaskIdle(idleSince: number | null): number {
-  return idleSince ?? Date.now();
-}
-
-function shouldStopAfterPageTaskIdle(isLoaded: boolean, idleSince: number): boolean {
-  return isLoaded && Date.now() - idleSince >= DRIVE_IDLE_STOP_MS;
+  })();
+  ctx.ctx.waitUntil(work);
 }
 
 const NETWORK_IDLE_QUIET_MS = 500;
@@ -4825,77 +4753,49 @@ function scheduleNetworkIdleEmit(
   frame: FrameState,
   sessions: ReadonlyArray<string | undefined>,
 ): void {
-  const work = runNetworkIdleWait(ctx, target, frame.frameId, frame.loaderId, sessions);
-  ctx.ctx.waitUntil(work);
-}
-
-interface NetworkIdleStep {
-  quietSince: number | null;
-  done: boolean;
-}
-
-async function runNetworkIdleWait(
-  ctx: DispatchCtx,
-  target: TargetState,
-  frameId: string,
-  loaderId: string,
-  sessions: ReadonlyArray<string | undefined>,
-): Promise<void> {
-  const start = Date.now();
-  let quietSince: number | null = null;
-  while (Date.now() - start < NETWORK_IDLE_MAX_WAIT_MS) {
-    const step = await pollNetworkIdle(ctx, target, quietSince, start);
-    quietSince = step.quietSince;
-    if (step.done) break;
-  }
-  if (ctx.browser.wsClosing) return;
-  emitNetworkIdleLifecycle(ctx, frameId, loaderId, sessions);
-}
-
-async function pollNetworkIdle(
-  ctx: DispatchCtx,
-  target: TargetState,
-  quietSince: number | null,
-  start: number,
-): Promise<NetworkIdleStep> {
-  if (ctx.browser.wsClosing) return { quietSince, done: true };
-  const leftMs = NETWORK_IDLE_MAX_WAIT_MS - (Date.now() - start);
-  if (leftMs <= 0) return { quietSince, done: true };
-  await pumpPageTasks(target, Math.min(leftMs, PUMP_TASKS_TIMEOUT_MS));
-  if (ctx.browser.wsClosing) return { quietSince, done: true };
+  const frameId = frame.frameId;
+  const loaderId = frame.loaderId;
   const tracker = ctx.browser.networkEvents;
-  tracker.drain();
-  const step = advanceNetworkIdleQuietPeriod(tracker.getInFlight(), quietSince);
-  if (step.done) return step;
-  await new Promise((resolve) => setTimeout(resolve, NETWORK_IDLE_POLL_MS));
-  return step;
-}
-
-function advanceNetworkIdleQuietPeriod(
-  inFlight: number,
-  quietSince: number | null,
-): NetworkIdleStep {
-  if (inFlight !== 0) return { quietSince: null, done: false };
-  if (quietSince === null) return { quietSince: Date.now(), done: false };
-  return {
-    quietSince,
-    done: Date.now() - quietSince >= NETWORK_IDLE_QUIET_MS,
-  };
-}
-
-function emitNetworkIdleLifecycle(
-  ctx: DispatchCtx,
-  frameId: string,
-  loaderId: string,
-  sessions: ReadonlyArray<string | undefined>,
-): void {
-  const params: Protocol.Page.LifecycleEventEvent = {
-    frameId,
-    loaderId,
-    name: "networkIdle",
-    timestamp: Date.now() / MILLISECONDS_PER_SECOND,
-  };
-  emitLifecycleEvent(ctx, sessions, params);
+  const browser = ctx.browser;
+  const work = (async () => {
+    const start = Date.now();
+    let quietSince: number | null = null;
+    while (Date.now() - start < NETWORK_IDLE_MAX_WAIT_MS) {
+      if (browser.wsClosing) return;
+      const leftMs = NETWORK_IDLE_MAX_WAIT_MS - (Date.now() - start);
+      if (leftMs <= 0) break;
+      await pumpPageTasks(target, Math.min(leftMs, PUMP_TASKS_TIMEOUT_MS));
+      if (browser.wsClosing) return;
+      tracker.drain();
+      const inFlight = tracker.getInFlight();
+      if (inFlight === 0) {
+        if (quietSince === null) {
+          quietSince = Date.now();
+        } else if (Date.now() - quietSince >= NETWORK_IDLE_QUIET_MS) {
+          break;
+        }
+      } else {
+        quietSince = null;
+      }
+      await new Promise((resolve) => setTimeout(resolve, NETWORK_IDLE_POLL_MS));
+    }
+    if (browser.wsClosing) return;
+    const ts = Date.now() / MILLISECONDS_PER_SECOND;
+    const params: Protocol.Page.LifecycleEventEvent = {
+      frameId,
+      loaderId,
+      name: "networkIdle",
+      timestamp: ts,
+    };
+    for (const s of sessions) {
+      ctx.emit({
+        method: "Page.lifecycleEvent",
+        params,
+        sessionId: s,
+      });
+    }
+  })();
+  ctx.ctx.waitUntil(work);
 }
 
 function emitNavigationLifecycle(
@@ -5261,68 +5161,43 @@ function renderJsonRow(value: unknown, keyJson: string | null, last: boolean): s
       ? ""
       : `<span class="json-key">${escapeHtml(keyJson)}</span><span class="json-punct">: </span>`;
   const trailing = last ? "" : `<span class="json-punct">,</span>`;
-  if (isJsonScalarValue(value)) return renderJsonScalarRow(value, keyHtml, trailing);
-  if (Array.isArray(value)) return renderJsonArrayRow(value, keyHtml, trailing, last);
-  return renderJsonObjectRow(value as Record<string, unknown>, keyHtml, trailing, last);
-}
 
-function isJsonScalarValue(value: unknown): boolean {
-  return value === null || typeof value !== "object";
-}
-
-function renderJsonScalarRow(value: unknown, keyHtml: string, trailing: string): string {
-  return `<div class="json-row">${keyHtml}${renderJsonScalar(value)}${trailing}</div>`;
-}
-
-function renderJsonArrayRow(
-  value: unknown[],
-  keyHtml: string,
-  trailing: string,
-  last: boolean,
-): string {
-  if (value.length === 0) {
-    return `<div class="json-row">${keyHtml}<span class="json-punct">[]</span>${trailing}</div>`;
+  if (value === null || typeof value !== "object") {
+    return `<div class="json-row">${keyHtml}${renderJsonScalar(value)}${trailing}</div>`;
   }
-  const children = value
-    .map((item, index) => renderJsonRow(item, null, index === value.length - 1))
-    .join("");
-  return renderJsonContainerRow(keyHtml, trailing, last, "[", "]", children);
-}
 
-function renderJsonObjectRow(
-  value: Record<string, unknown>,
-  keyHtml: string,
-  trailing: string,
-  last: boolean,
-): string {
-  const entries = Object.entries(value);
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return `<div class="json-row">${keyHtml}<span class="json-punct">[]</span>${trailing}</div>`;
+    }
+    const children = value
+      .map((item, index) => renderJsonRow(item, null, index === value.length - 1))
+      .join("");
+    return (
+      `<div class="json-row json-collapsible">` +
+      `<span class="json-toggle" aria-hidden="true">\u25bc</span>` +
+      `<span class="json-summary">${keyHtml}<span class="json-punct">[</span>` +
+      `<span class="json-preview">\u2026]${last ? "" : ","}</span></span>` +
+      `<div class="json-children">${children}</div>` +
+      `<div class="json-close"><span class="json-punct">]</span>${trailing}</div>` +
+      `</div>`
+    );
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>);
   if (entries.length === 0) {
     return `<div class="json-row">${keyHtml}<span class="json-punct">{}</span>${trailing}</div>`;
   }
   const children = entries
-    .map(([key, item], index) =>
-      renderJsonRow(item, JSON.stringify(key), index === entries.length - 1),
-    )
+    .map(([k, v], index) => renderJsonRow(v, JSON.stringify(k), index === entries.length - 1))
     .join("");
-  return renderJsonContainerRow(keyHtml, trailing, last, "{", "}", children);
-}
-
-function renderJsonContainerRow(
-  keyHtml: string,
-  trailing: string,
-  last: boolean,
-  open: "[" | "{",
-  close: "]" | "}",
-  children: string,
-): string {
-  const preview = `${open === "[" ? "…]" : "…}"}${last ? "" : ","}`;
   return (
     `<div class="json-row json-collapsible">` +
     `<span class="json-toggle" aria-hidden="true">\u25bc</span>` +
-    `<span class="json-summary">${keyHtml}<span class="json-punct">${open}</span>` +
-    `<span class="json-preview">${preview}</span></span>` +
+    `<span class="json-summary">${keyHtml}<span class="json-punct">{</span>` +
+    `<span class="json-preview">\u2026}${last ? "" : ","}</span></span>` +
     `<div class="json-children">${children}</div>` +
-    `<div class="json-close"><span class="json-punct">${close}</span>${trailing}</div>` +
+    `<div class="json-close"><span class="json-punct">}</span>${trailing}</div>` +
     `</div>`
   );
 }
@@ -5404,26 +5279,33 @@ interface IframeElementInfo {
 }
 
 function findIframes(dom: DomHandle): IframeElementInfo[] {
-  const ids = queryNodeIds(dom, "iframe");
-  if (!ids) return [];
-  const out: IframeElementInfo[] = [];
+  let ids: Int32Array;
+  try {
+    ids = dom.querySelectorAll("iframe");
+  } catch {
+    return [];
+  }
+  const out: Array<{
+    nodeId: number;
+    src: string | null;
+    name: string | null;
+    loading: string | null;
+  }> = [];
   for (const id of ids) {
-    const iframe = iframeInfoForNode(dom, id);
-    if (iframe) out.push(iframe);
+    if (id < 0) continue;
+    const info = safeNodeInfo(dom, id);
+    if (!info) continue;
+    const src = readAttr(info.attributes, "src");
+    const name = readAttr(info.attributes, "name");
+    const loading = readAttr(info.attributes, "loading");
+    out.push({
+      nodeId: id,
+      src: src ?? null,
+      name: name ?? null,
+      loading: loading ?? null,
+    });
   }
   return out;
-}
-
-function iframeInfoForNode(dom: DomHandle, nodeId: number): IframeElementInfo | null {
-  if (nodeId < 0) return null;
-  const info = safeNodeInfo(dom, nodeId);
-  if (!info) return null;
-  return {
-    nodeId,
-    src: readAttr(info.attributes, "src"),
-    name: readAttr(info.attributes, "name"),
-    loading: readAttr(info.attributes, "loading"),
-  };
 }
 
 function iframeDelaysLoadEvent(loading: string | null | undefined): boolean {
@@ -5480,34 +5362,22 @@ const OOPIF_POLL_TIMEOUT_MS = 10_000;
 async function pollOopifFrames(ctx: DispatchCtx, target: TargetState): Promise<void> {
   const parentPs = target.pageScript;
   if (!parentPs) return;
-  for (const frame of target.frames.values()) {
-    await pollOopifFrameOrRetry(ctx, target, frame, parentPs);
+  for (const f of target.frames.values()) {
+    const child = f.pageScript;
+    if (!child) {
+      if (
+        f.oopifBlocked &&
+        !f.requestBlocked &&
+        !f.detached &&
+        !f.oopifSpawning &&
+        ctx.browser.workerBudget.canSpawnOopif()
+      ) {
+        ctx.ctx.waitUntil(spawnOopifPipeline(ctx, target, f));
+      }
+      continue;
+    }
+    await pollOopifFrame(ctx, target, f, child, parentPs);
   }
-}
-
-async function pollOopifFrameOrRetry(
-  ctx: DispatchCtx,
-  target: TargetState,
-  frame: FrameState,
-  parentPageScript: PageScriptStub,
-): Promise<void> {
-  const childPageScript = frame.pageScript;
-  if (!childPageScript) {
-    retryBlockedOopifSpawn(ctx, target, frame);
-    return;
-  }
-  await pollOopifFrame(ctx, target, frame, childPageScript, parentPageScript);
-}
-
-function retryBlockedOopifSpawn(ctx: DispatchCtx, target: TargetState, frame: FrameState): void {
-  if (!isOopifSpawnRetryable(ctx, frame)) return;
-  ctx.ctx.waitUntil(spawnOopifPipeline(ctx, target, frame));
-}
-
-function isOopifSpawnRetryable(ctx: DispatchCtx, frame: FrameState): boolean {
-  if (!frame.oopifBlocked) return false;
-  if (frame.requestBlocked || frame.detached || frame.oopifSpawning) return false;
-  return ctx.browser.workerBudget.canSpawnOopif();
 }
 
 const oopifPassInFlight = new WeakMap<TargetState, Promise<void>>();
@@ -5670,17 +5540,18 @@ function refuseBlockedFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
   if (f.requestBlocked) return true;
   const blocker = ctx.requestBlocker;
   if (!blocker) return false;
-  const verdict = classifyRequest(blocker, f.url, parentHostForFrame(target, f), "Document");
+  const verdict = classifyRequest(
+    blocker,
+    f.url,
+    hostnameFromOrigin(parentOriginUrl(target, f)),
+    "Document",
+  );
   if (!verdict) return false;
   f.requestBlocked = true;
   f.oopifBlocked = false;
   recordBlockedFrameRequest(ctx, target, f);
   console.warn(`[kitesurf-oopif] ${verdict.reason}, ${f.url} renders blank`);
   return true;
-}
-
-function parentHostForFrame(target: TargetState, frame: FrameState): string {
-  return hostnameFromOrigin(parentOriginUrl(target, frame));
 }
 
 function parentOriginUrl(target: TargetState, frame: FrameState): string {
@@ -6276,40 +6147,21 @@ function discoverChildFramesFromScan(
 async function backfillIframeOwnerNodeIds(target: TargetState): Promise<void> {
   const ps = target.pageScript;
   if (!ps) return;
-  const frames = framesMissingOwnerNodeIds(target);
+  const frames = [...target.frames.values()]
+    .filter((f) => f.parentFrameId === mainFrame(target).frameId)
+    .filter((f) => f.ownerBackendNodeId === -1);
   if (frames.length === 0) return;
-  const ids = await queryIframeNodeIds(ps);
-  if (!ids) return;
-  applyIframeOwnerNodeIds(frames, ids);
-}
-
-async function queryIframeNodeIds(ps: PageScriptStub): Promise<unknown[] | null> {
   try {
     const r = await stubQueryDom(ps, "querySelectorAll", {
       selector: "iframe",
     });
-    return Array.isArray(r?.nodeIds) ? r.nodeIds : [];
-  } catch {
-    return null;
-  }
-}
-
-function applyIframeOwnerNodeIds(frames: FrameState[], ids: unknown[]): void {
-  const count = Math.min(frames.length, ids.length);
-  for (let i = 0; i < count; i++) {
-    backfillIframeOwnerNodeId(frames[i], ids[i]);
-  }
-}
-
-function framesMissingOwnerNodeIds(target: TargetState): FrameState[] {
-  const mainFrameId = mainFrame(target).frameId;
-  return [...target.frames.values()].filter(
-    (frame) => frame.parentFrameId === mainFrameId && frame.ownerBackendNodeId === -1,
-  );
-}
-
-function backfillIframeOwnerNodeId(frame: FrameState | undefined, nodeId: unknown): void {
-  if (frame && typeof nodeId === "number") frame.ownerBackendNodeId = nodeId;
+    const ids = Array.isArray(r?.nodeIds) ? r.nodeIds : [];
+    for (let i = 0; i < frames.length && i < ids.length; i++) {
+      const frame = frames[i];
+      const id = ids[i];
+      if (frame && typeof id === "number") frame.ownerBackendNodeId = id;
+    }
+  } catch {}
 }
 
 const MAX_IFRAME_DEPTH = 8;

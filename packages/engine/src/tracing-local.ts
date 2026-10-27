@@ -285,8 +285,7 @@ export class OtlpExporter {
   }
 
   async #flush(): Promise<void> {
-    const target = this.#target;
-    if (this.#queue.length === 0 || target === null) return;
+    if (this.#queue.length === 0 || this.#target === null) return;
     const batch = this.#queue;
     this.#queue = [];
     const init: RequestInit = {
@@ -296,30 +295,22 @@ export class OtlpExporter {
       signal: AbortSignal.timeout(OTLP_EXPORT_TIMEOUT_MS),
     };
     try {
-      await sendOtlpBatch(target, init);
+      const res =
+        "url" in this.#target
+          ? await fetch(this.#target.url, init)
+          : await this.#target.binding.fetch("http://otlp-capture/v1/traces", init);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await res.body?.cancel();
     } catch (err) {
-      this.#warnExportFailure(err);
+      if (this.#warned) return;
+      this.#warned = true;
+      console.warn(
+        `[local-trace] OTLP export failed (further failures silent): ${
+          err instanceof Error ? err.message : String(err)
+        } — is the collector up? (pnpm dev:tracing)`,
+      );
     }
   }
-
-  #warnExportFailure(err: unknown): void {
-    if (this.#warned) return;
-    this.#warned = true;
-    console.warn(
-      `[local-trace] OTLP export failed (further failures silent): ${
-        err instanceof Error ? err.message : String(err)
-      } — is the collector up? (pnpm dev:tracing)`,
-    );
-  }
-}
-
-async function sendOtlpBatch(target: OtlpTarget, init: RequestInit): Promise<void> {
-  const response =
-    "url" in target
-      ? await fetch(target.url, init)
-      : await target.binding.fetch("http://otlp-capture/v1/traces", init);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  await response.body?.cancel();
 }
 
 function otlpValue(v: TagValue): OtlpValue {

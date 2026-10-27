@@ -184,14 +184,10 @@ interface EditingContext {
   InputEvent: InputEventCtor;
 }
 
-function selectionForDocument(doc: typeof state.document) {
-  return doc?.getSelection?.();
-}
-
 function getEditingContext(): EditingContext | null {
   const doc = state.document;
   const InputEvent = ksEventCtors.InputEvent as InputEventCtor | undefined;
-  const sel = selectionForDocument(doc);
+  const sel = doc?.getSelection?.();
   if (!doc || !sel || typeof InputEvent !== "function") return null;
   return { doc, sel, InputEvent };
 }

@@ -161,41 +161,29 @@ export function rectWithScrollOffset(rect: DomRect | null): DomRect | null {
   };
 }
 
-function updateScrollWidth(extents: { maxWidth: number }, info: DomScrollInfo): void {
-  extents.maxWidth = Math.max(
-    extents.maxWidth,
-    (Number(info.clientWidth) || 0) + (Number(info.scrollWidth) || 0),
-  );
-}
-
-function updateScrollHeight(extents: { maxHeight: number }, info: DomScrollInfo): void {
-  extents.maxHeight = Math.max(
-    extents.maxHeight,
-    (Number(info.clientHeight) || 0) + (Number(info.scrollHeight) || 0),
-  );
-}
-
-function documentScrollExtents(paint: DomHandle): { maxWidth: number; maxHeight: number } {
-  const extents = { maxWidth: state.paintViewportW, maxHeight: state.paintViewportH };
+export function documentScrollSize(): { width: number; height: number } {
+  const paint = ensurePaintDom();
+  if (!paint) return { width: state.paintViewportW, height: state.paintViewportH };
+  let maxWidth = state.paintViewportW;
+  let maxHeight = state.paintViewportH;
   try {
     const id = paint.querySelector("html");
     if (typeof id === "number" && id >= 0) {
       const info = paint.nodeScrollInfo(id) as DomScrollInfo | null;
       if (info) {
-        updateScrollWidth(extents, info);
-        updateScrollHeight(extents, info);
+        maxWidth = Math.max(
+          maxWidth,
+          (Number(info.clientWidth) || 0) + (Number(info.scrollWidth) || 0),
+        );
+        maxHeight = Math.max(
+          maxHeight,
+          (Number(info.clientHeight) || 0) + (Number(info.scrollHeight) || 0),
+        );
       }
     }
   } catch {
     invalidatePaintDom();
   }
-  return extents;
-}
-
-export function documentScrollSize(): { width: number; height: number } {
-  const paint = ensurePaintDom();
-  if (!paint) return { width: state.paintViewportW, height: state.paintViewportH };
-  const { maxWidth, maxHeight } = documentScrollExtents(paint);
   return {
     width: Math.max(state.paintViewportW, Math.ceil(maxWidth)),
     height: Math.max(state.paintViewportH, Math.ceil(maxHeight)),

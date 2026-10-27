@@ -461,29 +461,12 @@ function installWorkerClock(createdAt: number): void {
   const nowFn = perf.now;
   if (typeof nowFn !== "function") return;
   const nativeNow = (): number => Number(Reflect.apply(nowFn, perf, []));
-  const nativeOrigin = performanceTimeOrigin(perf);
+  const nativeOrigin =
+    "timeOrigin" in perf && typeof perf.timeOrigin === "number" ? perf.timeOrigin : 0;
   const current = nativeNow();
-  const startedAt = workerStartOffset(createdAt, nativeOrigin, current);
-  const timeOrigin = nativeOrigin + startedAt;
-  installPerformanceClock(perf, nativeNow, startedAt, timeOrigin);
-}
-
-function performanceTimeOrigin(perf: object): number {
-  if (!("timeOrigin" in perf) || typeof perf.timeOrigin !== "number") return 0;
-  return perf.timeOrigin;
-}
-
-function workerStartOffset(createdAt: number, nativeOrigin: number, current: number): number {
   const requested = Number.isFinite(createdAt) ? createdAt - nativeOrigin : current;
-  return Math.min(requested, current);
-}
-
-function installPerformanceClock(
-  perf: object,
-  nativeNow: () => number,
-  startedAt: number,
-  timeOrigin: number,
-): void {
+  const startedAt = Math.min(requested, current);
+  const timeOrigin = nativeOrigin + startedAt;
   try {
     Object.defineProperty(perf, "now", {
       value: function now() {

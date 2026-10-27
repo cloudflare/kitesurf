@@ -156,31 +156,25 @@ export async function retireStub(
   deps: GenerationDeps = {},
 ): Promise<UnloadHarvest | null> {
   const stub = holder.pageScript;
-  if (intent === "frameTeardown") return retireFrameStub(holder, stub, reason, deps);
-  if (intent === "closeTarget") return retireClosingTarget(holder, stub, reason, deps);
-  return retireActiveStub(holder, stub, intent, reason, deps);
-}
 
-async function retireClosingTarget(
-  holder: StubHolder,
-  stub: PageScriptStub | null,
-  reason: string,
-  deps: GenerationDeps,
-): Promise<null> {
-  holder.pageScript = null;
-  holder.blankReady = null;
-  releaseLease(holder);
-  if (stub) await disposeStub(stub, { unload: "none", reason }, deps);
-  return null;
-}
+  if (intent === "frameTeardown") {
+    holder.pageScript = null;
+    // Return the shared worker slot before background unload can wait on RPC.
+    releaseLease(holder);
+    if (stub) void disposeStub(stub, { unload: "background", reason }, deps);
+    return null;
+  }
 
-async function retireActiveStub(
-  holder: StubHolder,
-  stub: PageScriptStub | null,
-  intent: Exclude<RetireIntent, "frameTeardown" | "closeTarget">,
-  reason: string,
-  deps: GenerationDeps,
-): Promise<UnloadHarvest | null> {
+  if (intent === "closeTarget") {
+    holder.pageScript = null;
+    holder.blankReady = null;
+    releaseLease(holder);
+    if (stub) {
+      await disposeStub(stub, { unload: "none", reason }, deps);
+    }
+    return null;
+  }
+
   let harvest: UnloadHarvest | null = null;
   if (stub) {
     harvest = await disposeStub(
@@ -193,19 +187,6 @@ async function retireActiveStub(
   if (intent !== "navigate") holder.blankReady = null;
   releaseLease(holder);
   return harvest;
-}
-
-function retireFrameStub(
-  holder: StubHolder,
-  stub: PageScriptStub | null,
-  reason: string,
-  deps: GenerationDeps,
-): null {
-  holder.pageScript = null;
-  // Return the shared worker slot before background unload can wait on RPC.
-  releaseLease(holder);
-  if (stub) void disposeStub(stub, { unload: "background", reason }, deps);
-  return null;
 }
 
 /** Publishes a stub unless it is already stale; stale stubs are disposed and return `false`. */

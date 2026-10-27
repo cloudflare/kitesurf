@@ -125,28 +125,16 @@ const ANY_SCRIPT_RANGE = new RegExp(
     "]",
 );
 
-function entityCodePoint(match: RegExpMatchArray): number {
-  const hexadecimal = match[1];
-  return Number.parseInt(hexadecimal ?? match[2], hexadecimal ? 16 : 10);
-}
-
-function isUnicodeScalar(codePoint: number): boolean {
-  return codePoint > 0 && codePoint <= 0x10ffff && !(codePoint >= 0xd800 && codePoint <= 0xdfff);
-}
-
-function decodedEntityText(html: string): string {
+function scriptScanText(html: string): string {
+  if (!html.includes("&#")) return html;
   let decoded = "";
   const refs = /&#(?:x([0-9a-f]+)|([0-9]+));?/gi;
   for (const match of html.matchAll(refs)) {
-    const codePoint = entityCodePoint(match);
-    if (isUnicodeScalar(codePoint)) decoded += String.fromCodePoint(codePoint);
+    const cp = Number.parseInt(match[1] ?? match[2], match[1] ? 16 : 10);
+    if (cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff)) {
+      decoded += String.fromCodePoint(cp);
+    }
   }
-  return decoded;
-}
-
-function scriptScanText(html: string): string {
-  if (!html.includes("&#")) return html;
-  const decoded = decodedEntityText(html);
   return decoded ? html + decoded : html;
 }
 
@@ -512,20 +500,8 @@ function scriptFontsForText(perScriptScan: string): ScriptFont[] {
   return scripts;
 }
 
-function wantsSymbols2(html: string | undefined, symbols: boolean): boolean {
-  return Boolean(symbols && html && needsSymbols2(html));
-}
-
-function wantsCjkFont(html: string | undefined): boolean {
-  return Boolean(html && needsCjk(html));
-}
-
 function wantsMonoFont(html: string | undefined): boolean {
   return forceMono || Boolean(html && needsMono(html));
-}
-
-function wantsSerifFont(html: string | undefined): boolean {
-  return Boolean(html && needsSerif(html));
 }
 
 function computeFontWants(html?: string): FontWants {
@@ -533,11 +509,11 @@ function computeFontWants(html?: string): FontWants {
   const perScriptScan = html ? scriptScanText(html) : "";
   return {
     symbols,
-    symbols2: wantsSymbols2(html, symbols),
+    symbols2: Boolean(symbols && html && needsSymbols2(html)),
     emoji: needsEmoji(perScriptScan),
-    cjk: wantsCjkFont(html),
+    cjk: Boolean(html && needsCjk(html)),
     mono: wantsMonoFont(html),
-    serif: wantsSerifFont(html),
+    serif: Boolean(html && needsSerif(html)),
     scripts: scriptFontsForText(perScriptScan),
   };
 }
@@ -654,26 +630,12 @@ export function deferredDegradedReads(): number {
 
 const deferSettledEmpty = new Set<string>();
 
-function hasDeferredCoreBytes(): boolean {
-  return Boolean(deferStash.sans && deferStash.sansItalic);
-}
-
-function optionalDeferredCoreReady(
-  wanted: boolean,
-  bytes: Uint8Array | null,
-  label: string,
-): boolean {
-  return !wanted || Boolean(bytes) || deferSettledEmpty.has(label);
-}
-
 function deferCoreBytesReady(): boolean {
-  const wants = deferWants;
-  if (!wants) return false;
-  return (
-    hasDeferredCoreBytes() &&
-    optionalDeferredCoreReady(wants.serif, deferStash.serif, "serif") &&
-    optionalDeferredCoreReady(wants.mono, deferStash.mono, "mono")
-  );
+  if (!deferWants) return false;
+  if (!deferStash.sans || !deferStash.sansItalic) return false;
+  if (deferWants.serif && !deferStash.serif && !deferSettledEmpty.has("serif")) return false;
+  if (deferWants.mono && !deferStash.mono && !deferSettledEmpty.has("mono")) return false;
+  return true;
 }
 
 function deferredCoreBuffers(): { sans: Uint8Array; sansItalic: Uint8Array } | null {
@@ -755,43 +717,35 @@ function tryRegisterDeferred(): boolean {
   return true;
 }
 
-type DeferredFontTier = "core" | "optional" | "extra";
-type DeferredFontKick = (
-  fetchPromise: Promise<Uint8Array>,
-  storeBytes: (bytes: Uint8Array) => void,
-  tier: DeferredFontTier,
-  label: string,
-) => void;
-
-function deferredFontBytesLoaded(bytes: Uint8Array, storeBytes: (bytes: Uint8Array) => void): void {
-  storeBytes(bytes);
-  if (deferDemandArmed) tryRegisterDeferred();
-}
-
-function deferredFontFetchFailed(error: unknown, tier: DeferredFontTier, label: string): void {
-  if (tier === "core") deferCoreFailed = true;
-  if (tier === "optional") {
-    deferSettledEmpty.add(label);
-    if (deferDemandArmed) tryRegisterDeferred();
-  }
-  console.warn(`[kitesurf-fonts] deferred ${label} fetch failed:`, String(error));
-}
-
-function kickDeferredFontFetch(
-  all: Promise<void>[],
-  fetchPromise: Promise<Uint8Array>,
-  storeBytes: (bytes: Uint8Array) => void,
-  tier: DeferredFontTier,
-  label: string,
-): void {
-  all.push(
-    fetchPromise
-      .then((bytes) => deferredFontBytesLoaded(bytes, storeBytes))
-      .catch((error) => deferredFontFetchFailed(error, tier, label)),
-  );
-}
-
-function scheduleCoreFontPrefetch(kick: DeferredFontKick): void {
+export function startFontPrefetch(html?: string): void {
+  if (deferStarted) return;
+  deferStarted = true;
+  decideFontMode(html);
+  const wants = computeFontWants(html);
+  deferWants = wants;
+  const all: Promise<void>[] = [];
+  const kick = (
+    fetchPromise: Promise<Uint8Array>,
+    storeBytes: (bytes: Uint8Array) => void,
+    tier: "core" | "optional" | "extra",
+    label: string,
+  ): void => {
+    all.push(
+      fetchPromise
+        .then((bytes) => {
+          storeBytes(bytes);
+          if (deferDemandArmed) tryRegisterDeferred();
+        })
+        .catch((error) => {
+          if (tier === "core") deferCoreFailed = true;
+          if (tier === "optional") {
+            deferSettledEmpty.add(label);
+            if (deferDemandArmed) tryRegisterDeferred();
+          }
+          console.warn(`[kitesurf-fonts] deferred ${label} fetch failed:`, String(error));
+        }),
+    );
+  };
   kick(fetchFaceBytes(UA_FONT_PATHS[0]), (bytes) => (deferStash.sans = bytes), "core", "sans");
   kick(
     fetchFaceBytes(UA_FONT_PATHS[1]),
@@ -799,9 +753,6 @@ function scheduleCoreFontPrefetch(kick: DeferredFontKick): void {
     "core",
     "sans-italic",
   );
-}
-
-function scheduleOptionalCoreFontPrefetch(wants: FontWants, kick: DeferredFontKick): void {
   if (wants.serif) {
     kick(
       fetchFaceBytes(UA_FONT_PATHS[2]),
@@ -813,9 +764,6 @@ function scheduleOptionalCoreFontPrefetch(wants: FontWants, kick: DeferredFontKi
   if (wants.mono) {
     kick(fetchFaceBytes(MONO_FONT_PATH), (bytes) => (deferStash.mono = bytes), "optional", "mono");
   }
-}
-
-function scheduleSpecialFontPrefetch(wants: FontWants, kick: DeferredFontKick): void {
   if (wants.symbols) {
     kick(
       fetchFaceBytes(SYMBOL_FONT_PATHS[0]),
@@ -848,9 +796,6 @@ function scheduleSpecialFontPrefetch(wants: FontWants, kick: DeferredFontKick): 
       "cjk",
     );
   }
-}
-
-function scheduleScriptFontPrefetch(wants: FontWants, kick: DeferredFontKick): void {
   for (const scriptFont of wants.scripts) {
     kick(
       fetchFaceBytes(scriptFont.path),
@@ -859,25 +804,6 @@ function scheduleScriptFontPrefetch(wants: FontWants, kick: DeferredFontKick): v
       scriptFont.tag,
     );
   }
-}
-
-export function startFontPrefetch(html?: string): void {
-  if (deferStarted) return;
-  deferStarted = true;
-  decideFontMode(html);
-  const wants = computeFontWants(html);
-  deferWants = wants;
-  const all: Promise<void>[] = [];
-  const kick: DeferredFontKick = (
-    fetchPromise: Promise<Uint8Array>,
-    storeBytes: (bytes: Uint8Array) => void,
-    tier: DeferredFontTier,
-    label: string,
-  ) => kickDeferredFontFetch(all, fetchPromise, storeBytes, tier, label);
-  scheduleCoreFontPrefetch(kick);
-  scheduleOptionalCoreFontPrefetch(wants, kick);
-  scheduleSpecialFontPrefetch(wants, kick);
-  scheduleScriptFontPrefetch(wants, kick);
   deferFetchSettled = Promise.all(all).then(() => undefined);
   console.log(
     `[kitesurf-fonts] deferred: prefetching ${all.length} face file(s), registration on demand`,

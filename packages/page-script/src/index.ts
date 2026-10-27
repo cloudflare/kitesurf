@@ -213,47 +213,37 @@ function afterFontUpgrade(): void {
 }
 setFontUpgradeCallback(afterFontUpgrade);
 
-const MAX_FONT_UPGRADE_ERROR_URL_CHARS = 80;
-
-function pendingAuthorFontUpgradeUrls(): string[] {
-  const dom = state.dom;
-  if (!dom || typeof dom.pendingAuthorFontUpgrades !== "function") return [];
-  try {
-    return dom.pendingAuthorFontUpgrades() ?? [];
-  } catch {
-    return [];
-  }
-}
-
-async function fetchAuthorFontUpgrade(url: string): Promise<readonly [string, Uint8Array | null]> {
-  try {
-    return [url, await resolveFontUrlData(url)] as const;
-  } catch (error) {
-    console.warn(
-      `[kitesurf-fonts] author upgrade fetch ${url.slice(0, MAX_FONT_UPGRADE_ERROR_URL_CHARS)} failed:`,
-      String(error),
-    );
-    return [url, null] as const;
-  }
-}
-
-function applyAuthorFontUpgrade(url: string, bytes: Uint8Array | null): void {
-  if (!bytes || bytes.length === 0) return;
-  try {
-    upgradeAuthorFontFace(url, bytes);
-  } catch (error) {
-    console.warn(
-      `[kitesurf-fonts] author upgrade swap ${url.slice(0, MAX_FONT_UPGRADE_ERROR_URL_CHARS)} failed:`,
-      String(error),
-    );
-  }
-}
-
 setAuthorFontUpgradeHook(async () => {
-  const urls = pendingAuthorFontUpgradeUrls();
-  const fetched = await Promise.all(urls.map(fetchAuthorFontUpgrade));
+  const MAX_FONT_UPGRADE_ERROR_URL_CHARS = 80;
+  const dom = state.dom;
+  if (!dom || typeof dom.pendingAuthorFontUpgrades !== "function") return;
+  let urls: string[] = [];
+  try {
+    urls = dom.pendingAuthorFontUpgrades() ?? [];
+  } catch {}
+  const fetched = await Promise.all(
+    urls.map(async (url) => {
+      try {
+        return [url, await resolveFontUrlData(url)] as const;
+      } catch (e) {
+        console.warn(
+          `[kitesurf-fonts] author upgrade fetch ${url.slice(0, MAX_FONT_UPGRADE_ERROR_URL_CHARS)} failed:`,
+          String(e),
+        );
+        return [url, null] as const;
+      }
+    }),
+  );
   for (const [url, bytes] of fetched) {
-    applyAuthorFontUpgrade(url, bytes);
+    if (!bytes || bytes.length === 0) continue;
+    try {
+      upgradeAuthorFontFace(url, bytes);
+    } catch (e) {
+      console.warn(
+        `[kitesurf-fonts] author upgrade swap ${url.slice(0, MAX_FONT_UPGRADE_ERROR_URL_CHARS)} failed:`,
+        String(e),
+      );
+    }
   }
 });
 
@@ -1339,40 +1329,6 @@ function warnIframeFailure(error: unknown, context: Record<string, unknown>): vo
   } catch {}
 }
 
-function facadeLocationBaseUrl(): string | undefined {
-  return state.document?.baseURI || state.pageUrl || undefined;
-}
-
-function invalidFacadeLocationUrlError(iframeEl: object, contentWindow: object): DOMException {
-  const error = new DOMException("Invalid URL", "SyntaxError");
-  const frameWindow: unknown = Reflect.get(iframeEl, "__ks_iframeContentWindow", iframeEl);
-  const frameDomException: unknown =
-    Reflect.get(contentWindow, "DOMException", contentWindow) ??
-    (isObjectRecord(frameWindow)
-      ? Reflect.get(frameWindow, "DOMException", frameWindow)
-      : undefined);
-  if (typeof frameDomException === "function") {
-    Object.defineProperty(error, "constructor", { value: frameDomException });
-  }
-  return error;
-}
-
-function resolveFacadeLocationHref(href: string, iframeEl: object, contentWindow: object): string {
-  try {
-    return new URL(href, facadeLocationBaseUrl()).toString();
-  } catch {
-    throw invalidFacadeLocationUrlError(iframeEl, contentWindow);
-  }
-}
-
-function navigateFacadeLocation(iframeEl: object, resolved: string): void {
-  try {
-    handleIframeSrcChange(iframeEl, resolved);
-  } catch (error) {
-    warnIframeFailure(error, { operation: "navigate location", url: resolved });
-  }
-}
-
 function __makeFacadeLocation(iframeEl: object, url: string, contentWindow: object) {
   let current = url;
   const loc: FacadeLocation = {
@@ -1381,9 +1337,28 @@ function __makeFacadeLocation(iframeEl: object, url: string, contentWindow: obje
     },
     set href(v: string) {
       const href = locationInputString(v);
-      const resolved = resolveFacadeLocationHref(href, iframeEl, contentWindow);
+      let resolved = "";
+      try {
+        resolved = new URL(href, state.document?.baseURI || state.pageUrl || undefined).toString();
+      } catch {
+        const error = new DOMException("Invalid URL", "SyntaxError");
+        const frameWindow: unknown = Reflect.get(iframeEl, "__ks_iframeContentWindow", iframeEl);
+        const FrameDOMException: unknown =
+          Reflect.get(contentWindow, "DOMException", contentWindow) ??
+          (isObjectRecord(frameWindow)
+            ? Reflect.get(frameWindow, "DOMException", frameWindow)
+            : undefined);
+        if (typeof FrameDOMException === "function") {
+          Object.defineProperty(error, "constructor", { value: FrameDOMException });
+        }
+        throw error;
+      }
       current = resolved;
-      navigateFacadeLocation(iframeEl, resolved);
+      try {
+        handleIframeSrcChange(iframeEl, resolved);
+      } catch (error) {
+        warnIframeFailure(error, { operation: "navigate location", url: resolved });
+      }
     },
     get origin() {
       try {
@@ -1880,60 +1855,46 @@ function setFrameReferrer(doc: FrameDocument | null, referrer: string): void {
   if (doc) doc._referrer = referrer;
 }
 
-function preparePlaceholderDocument(
-  contentDoc: any,
-  documentUrl: string,
-  referrer: string | undefined,
-): void {
-  if (!contentDoc) return;
-  contentDoc._mutable = true;
-  setFrameReferrer(contentDoc, referrer ?? state.pageUrl);
-  if (documentUrl) {
-    try {
-      Object.defineProperty(contentDoc, "_baseUrl", {
-        value: documentUrl,
-        configurable: true,
-        writable: true,
-      });
-    } catch {}
-  }
-}
-
-function parsePlaceholderDocument(
+function installPlaceholderContentDocument(
+  iframeEl: any,
+  url: string,
+  win: any,
   DOMParserConstructor: any,
-  documentUrl: string,
-  referrer: string | undefined,
-): any {
+  docUrl?: string,
+  // Unset for the initial about:blank document, whose referrer is its
+  // creator's URL; a navigation to about:blank passes its own.
+  referrer?: string,
+) {
   let contentDoc: any = null;
+  const documentUrl = docUrl ?? url;
   try {
     const parser = new DOMParserConstructor();
     // No doctype: an about:blank document is in quirks mode.
     contentDoc = parser.parseFromString("<html><head></head><body></body></html>", "text/html");
+    if (contentDoc) (contentDoc as any)._mutable = true;
+    setFrameReferrer(contentDoc, referrer ?? state.pageUrl);
+    if (contentDoc && documentUrl) {
+      try {
+        Object.defineProperty(contentDoc, "_baseUrl", {
+          value: documentUrl,
+          configurable: true,
+          writable: true,
+        });
+      } catch {}
+    }
   } catch {}
-  preparePlaceholderDocument(contentDoc, documentUrl, referrer);
-  return contentDoc;
-}
-
-function placeholderFrameName(iframeEl: any): string {
-  try {
-    return String(iframeEl.getAttribute?.("name") ?? "");
-  } catch {
-    return "";
-  }
-}
-
-function createPlaceholderContentWindow(
-  iframeEl: any,
-  url: string,
-  win: any,
-  contentDoc: any,
-): any {
   const contentWindow: any = {
     document: contentDoc,
     parent: win,
     top: win,
     frames: [],
-    name: placeholderFrameName(iframeEl),
+    name: (() => {
+      try {
+        return String(iframeEl.getAttribute?.("name") ?? "");
+      } catch {
+        return "";
+      }
+    })(),
     addEventListener() {},
     removeEventListener() {},
     dispatchEvent() {
@@ -1946,33 +1907,14 @@ function createPlaceholderContentWindow(
   contentWindow.frameElement = iframeEl;
   __decorateContentWindow(contentWindow);
   __wireContentWindowPostMessage(contentWindow, iframeEl);
-  return contentWindow;
-}
-
-function setPlaceholderDefaultView(contentDoc: any, contentWindow: any): void {
-  if (!contentDoc) return;
-  try {
-    Object.defineProperty(contentDoc, "defaultView", {
-      value: contentWindow,
-      configurable: true,
-    });
-  } catch {}
-}
-
-function installPlaceholderContentDocument(
-  iframeEl: any,
-  url: string,
-  win: any,
-  DOMParserConstructor: any,
-  docUrl?: string,
-  // Unset for the initial about:blank document, whose referrer is its
-  // creator's URL; a navigation to about:blank passes its own.
-  referrer?: string,
-) {
-  const documentUrl = docUrl ?? url;
-  const contentDoc = parsePlaceholderDocument(DOMParserConstructor, documentUrl, referrer);
-  const contentWindow = createPlaceholderContentWindow(iframeEl, url, win, contentDoc);
-  setPlaceholderDefaultView(contentDoc, contentWindow);
+  if (contentDoc) {
+    try {
+      Object.defineProperty(contentDoc, "defaultView", {
+        value: contentWindow,
+        configurable: true,
+      });
+    } catch {}
+  }
   iframeEl.__ks_iframeContentDocument = contentDoc;
   iframeEl.__ks_iframeContentWindow = contentWindow;
 }
@@ -2257,39 +2199,18 @@ function dispatchWindowUnload(): void {
 
 function compileEventAttribute(element: any, handlerName: string): void {
   try {
-    compileEventAttributeIfNeeded(element, handlerName);
-  } catch {}
-}
-
-function compileEventAttributeIfNeeded(element: any, handlerName: string): void {
-  if (hasEventAttributeHandler(element, handlerName)) return;
-  const handlerSource = eventAttributeHandlerSource(element, handlerName);
-  if (handlerSource === null) return;
-  const eventHandler = compileAttributeHandler(handlerSource);
-  if (eventHandler) assignEventAttributeHandler(element, handlerName, eventHandler);
-}
-
-function hasEventAttributeHandler(element: any, handlerName: string): boolean {
-  return typeof element?.[handlerName] === "function";
-}
-
-function eventAttributeHandlerSource(element: any, handlerName: string): string | null {
-  const source = element?.getAttribute?.(handlerName);
-  if (typeof source !== "string" || source.length === 0) return null;
-  return source;
-}
-
-function compileAttributeHandler(handlerSource: string): Function | null {
-  try {
-    return new Function("event", handlerSource);
-  } catch {
-    return null;
-  }
-}
-
-function assignEventAttributeHandler(element: any, handlerName: string, handler: Function): void {
-  try {
-    element[handlerName] = handler;
+    if (typeof element?.[handlerName] === "function") return;
+    const handlerSource = element?.getAttribute?.(handlerName);
+    if (typeof handlerSource !== "string" || handlerSource.length === 0) return;
+    let eventHandler: Function;
+    try {
+      eventHandler = new Function("event", handlerSource);
+    } catch {
+      return;
+    }
+    try {
+      element[handlerName] = eventHandler;
+    } catch {}
   } catch {}
 }
 
@@ -3121,74 +3042,62 @@ function resourceHashes(value: unknown): Uint8Array {
   throw new TypeError("Resource hashes must be a Uint8Array");
 }
 
-function spanSinkFromWorker(self: any): any {
-  return self?.env?.KS_SPAN_SINK;
-}
-
-function disarmSpanSink(): void {
-  if (!__ksSpanHookArmed) return;
-  try {
-    ks_set_emit_hook(null);
-  } catch {}
-  __ksSpanHookArmed = false;
-}
-
-function flushSpanBatch(self: any, sink: any): void {
-  __ksSpanFlushScheduled = false;
-  if (__ksSpanBuf.length === 0) return;
-  const batch = __ksSpanBuf;
-  __ksSpanBuf = [];
-  const flushPromise = Promise.resolve()
-    .then(() => sink.emit(batch))
-    .catch(() => {});
-  try {
-    self.ctx.waitUntil(flushPromise);
-  } catch {}
-}
-
-function scheduleSpanFlush(self: any, sink: any): void {
-  const flush = (): void => flushSpanBatch(self, sink);
-  if (__ksSpanBuf.length >= __KS_SPAN_FLUSH_HIGH_WATER) {
-    flush();
-    return;
-  }
-  if (__ksSpanFlushScheduled) return;
-  __ksSpanFlushScheduled = true;
-  try {
-    nativeSetTimeout(flush, 0);
-  } catch {
-    queueMicrotask(flush);
-  }
-}
-
-function recordSpanForSink(self: any, sink: any, record: string): void {
-  if (__ksSpanTotal >= __KS_SPAN_BUDGET) {
-    if (!__ksSpanCapped) {
-      __ksSpanCapped = true;
-      __ksSpanBuf.push(
-        `{"name":"child.spans.capped","attributes":[{"key":"budget","value":{"intValue":"${__KS_SPAN_BUDGET}"}}]}`,
-      );
-      scheduleSpanFlush(self, sink);
-    }
-    return;
-  }
-  __ksSpanTotal++;
-  __ksSpanBuf.push(record);
-  scheduleSpanFlush(self, sink);
-}
-
 function armSpanSink(self: any, traced: boolean): void {
-  const sink = spanSinkFromWorker(self);
+  const sink = self?.env?.KS_SPAN_SINK;
   if (!traced || !sink) {
-    disarmSpanSink();
+    if (__ksSpanHookArmed) {
+      try {
+        ks_set_emit_hook(null);
+      } catch {}
+      __ksSpanHookArmed = false;
+    }
     return;
   }
   __ksSpanTotal = 0;
   __ksSpanCapped = false;
   if (__ksSpanHookArmed) return;
   __ksSpanHookArmed = true;
+  const flush = () => {
+    __ksSpanFlushScheduled = false;
+    if (__ksSpanBuf.length === 0) return;
+    const batch = __ksSpanBuf;
+    __ksSpanBuf = [];
+    const flushPromise = Promise.resolve()
+      .then(() => sink.emit(batch))
+      .catch(() => {});
+    try {
+      self.ctx.waitUntil(flushPromise);
+    } catch {}
+  };
+  const schedule = () => {
+    if (__ksSpanBuf.length >= __KS_SPAN_FLUSH_HIGH_WATER) {
+      flush();
+      return;
+    }
+    if (__ksSpanFlushScheduled) return;
+    __ksSpanFlushScheduled = true;
+    try {
+      nativeSetTimeout(flush, 0);
+    } catch {
+      queueMicrotask(flush);
+    }
+  };
   try {
-    ks_set_emit_hook((record: string) => recordSpanForSink(self, sink, record));
+    ks_set_emit_hook((rec: string) => {
+      if (__ksSpanTotal >= __KS_SPAN_BUDGET) {
+        if (!__ksSpanCapped) {
+          __ksSpanCapped = true;
+          __ksSpanBuf.push(
+            `{"name":"child.spans.capped","attributes":[{"key":"budget","value":{"intValue":"${__KS_SPAN_BUDGET}"}}]}`,
+          );
+          schedule();
+        }
+        return;
+      }
+      __ksSpanTotal++;
+      __ksSpanBuf.push(rec);
+      schedule();
+    });
   } catch {
     __ksSpanHookArmed = false;
   }
@@ -3792,26 +3701,22 @@ function formSubmitControlType(element: ShimElement): string {
   return ((element.getAttribute && element.getAttribute("type")) || "").toLowerCase();
 }
 
-function isDefaultSubmitButton(element: ShimElement): boolean {
-  const type = formSubmitControlType(element);
-  return isButtonDefaultSubmit(element, type) || isInputDefaultSubmit(element, type);
-}
-
-function isButtonDefaultSubmit(element: ShimElement, type: string): boolean {
-  return element.tagName === "BUTTON" && (type === "" || type === "submit");
-}
-
-function isInputDefaultSubmit(element: ShimElement, type: string): boolean {
-  return element.tagName === "INPUT" && (type === "submit" || type === "image");
-}
-
 function findDefaultSubmitButton(form: NonNullable<ShimElement["form"]>): ShimElement | null {
+  let defaultButton: ShimElement | null = null;
   const elements = form.elements;
   for (let i = 0; i < elements.length; i++) {
     const element = elements[i];
-    if (isDefaultSubmitButton(element)) return element;
+    const type = ((element.getAttribute && element.getAttribute("type")) || "").toLowerCase();
+    if (element.tagName === "BUTTON" && (type === "" || type === "submit")) {
+      defaultButton = element;
+      break;
+    }
+    if (element.tagName === "INPUT" && (type === "submit" || type === "image")) {
+      defaultButton = element;
+      break;
+    }
   }
-  return null;
+  return defaultButton;
 }
 
 const IMPLICIT_SUBMIT_EXCLUDED_TYPES = new Set([
@@ -3876,10 +3781,6 @@ function resolveFormControlNode(id: number): ShimElement | null {
 
 const CHECKED_INPUT_TYPES = new Set(["checkbox", "radio"]);
 
-function isCheckedInputType(type: string): boolean {
-  return CHECKED_INPUT_TYPES.has(type);
-}
-
 function collectCheckedInputState(
   id: number,
   element: ShimElement,
@@ -3888,7 +3789,7 @@ function collectCheckedInputState(
 ): boolean | null {
   if (tagName !== "input") return null;
   const inputType = String(readFormControlAttribute(element, "type") || "text").toLowerCase();
-  if (!isCheckedInputType(inputType)) return null;
+  if (!CHECKED_INPUT_TYPES.has(inputType)) return null;
   try {
     checked.push([id, !!Reflect.get(element, "checked")]);
     return true;
@@ -3951,32 +3852,18 @@ function collectFormControlState(
   return collectOtherFormControlState(id, element, tagName, values, selected);
 }
 
-function linkAttributeString(value: unknown): string {
-  return String(value ?? "");
-}
-
-function stylesheetLinkAttributes(attributes: unknown[]): { rel: string; href: string } {
+function stylesheetHref(attributes: unknown[]): string | null {
   let rel = "";
   let href = "";
   for (let index = 0; index + 1 < attributes.length; index += 2) {
-    const name = linkAttributeString(attributes[index]).toLowerCase();
-    const value = linkAttributeString(attributes[index + 1]);
+    const name = String(attributes[index] ?? "").toLowerCase();
+    const value = String(attributes[index + 1] ?? "");
     if (name === "rel") rel = value;
     else if (name === "href") href = value;
   }
-  return { rel, href };
-}
-
-function isStylesheetRelation(rel: string): boolean {
-  const tokens = new Set(rel.split(/\s+/).map((token) => token.toLowerCase()));
-  return tokens.has("stylesheet") && !tokens.has("alternate");
-}
-
-function stylesheetHref(attributes: unknown[]): string | null {
-  const link = stylesheetLinkAttributes(attributes);
-  if (!isStylesheetRelation(link.rel)) return null;
-  if (!link.href) return null;
-  return link.href;
+  const tokens = rel.split(/\s+/).map((token) => token.toLowerCase());
+  if (!tokens.includes("stylesheet") || tokens.includes("alternate") || !href) return null;
+  return href;
 }
 
 function attributesFromNodeInfo(info: unknown): unknown[] | undefined {
@@ -4888,8 +4775,8 @@ function installNavigationTtyGrid(options: NavigateOptions | undefined): void {
 }
 
 function installNavigationTtyGridForCss(css: string, options: NavigateOptions | undefined): void {
-  const cellWidth = navigationTtyCellWidth(options);
-  const cellHeight = navigationTtyCellHeight(options);
+  const cellWidth = positiveOptionOr(options?.ttyCellW, 8);
+  const cellHeight = positiveOptionOr(options?.ttyCellH, 17);
   ksGlobal.__ks_tty_cell_w = cellWidth;
   ksGlobal.__ks_tty_cell_h = cellHeight;
   const ratio = monoAdvancePerEm();
@@ -4899,14 +4786,6 @@ function installNavigationTtyGridForCss(css: string, options: NavigateOptions | 
   }
   setTtyCellGrid(0, 0);
   console.warn("[kitesurf-tty] no mono face registered; sheet NOT installed");
-}
-
-function navigationTtyCellWidth(options: NavigateOptions | undefined): number {
-  return positiveOptionOr(options?.ttyCellW, 8);
-}
-
-function navigationTtyCellHeight(options: NavigateOptions | undefined): number {
-  return positiveOptionOr(options?.ttyCellH, 17);
 }
 
 function positiveOptionOr(value: number | undefined, fallback: number): number {
@@ -8226,54 +8105,27 @@ function queryDomAncestorElementIds(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"getAncestorElementIds"> {
   const id = numericNodeId(queryArgs);
-  if (id === null) return { ancestorIds: [] } satisfies QueryDomResult<"getAncestorElementIds">;
-  return {
-    ancestorIds: collectAncestorElementIds(pageState, id),
-  } satisfies QueryDomResult<"getAncestorElementIds">;
-}
-
-function collectAncestorElementIds(pageState: QueryDomActiveState, id: number): number[] {
+  if (id == null) return { ancestorIds: [] } satisfies QueryDomResult<"getAncestorElementIds">;
   const ancestorIds: number[] = [];
   let currentNodeId = id;
   for (let hops = 0; hops < MAX_ANCESTOR_STYLE_HOPS; hops++) {
-    const parent = ancestorParentId(pageState, currentNodeId);
-    if (parent === null) break;
-    const info = ancestorNodeInfo(pageState, parent);
-    if (!appendAncestorElementId(info, parent, ancestorIds)) break;
+    let parent: number;
+    try {
+      parent = pageState.dom.parentId(currentNodeId);
+    } catch {
+      break;
+    }
+    if (typeof parent !== "number" || parent < 0) break;
+    let info: { nodeType?: number } | null = null;
+    try {
+      info = pageState.dom.nodeInfo(parent);
+    } catch {}
+    if (!info) break;
+    if (info.nodeType === 1) ancestorIds.push(parent);
+    else if (info.nodeType === 9) break;
     currentNodeId = parent;
   }
-  return ancestorIds;
-}
-
-function appendAncestorElementId(
-  info: { nodeType?: number } | null,
-  parent: number,
-  ancestorIds: number[],
-): boolean {
-  if (!info) return false;
-  if (info.nodeType === 1) ancestorIds.push(parent);
-  else if (info.nodeType === 9) return false;
-  return true;
-}
-
-function ancestorParentId(pageState: QueryDomActiveState, nodeId: number): number | null {
-  try {
-    const parent = pageState.dom.parentId(nodeId);
-    return typeof parent === "number" && parent >= 0 ? parent : null;
-  } catch {
-    return null;
-  }
-}
-
-function ancestorNodeInfo(
-  pageState: QueryDomActiveState,
-  nodeId: number,
-): { nodeType?: number } | null {
-  try {
-    return pageState.dom.nodeInfo(nodeId);
-  } catch {
-    return null;
-  }
+  return { ancestorIds } satisfies QueryDomResult<"getAncestorElementIds">;
 }
 
 function queryDomParseStylesheet(
@@ -8620,148 +8472,89 @@ function unchangedQueryDomRecordScene(
   } satisfies QueryDomResult<"recordScene">;
 }
 
-interface QueryDomRecordSceneSettings {
-  internalState: ReturnType<typeof getInternalState>;
-  epochDamage: Set<number>;
-  epochDamageSize: number;
-  epochLayoutDirty: boolean;
-  epochBase: number;
-  rawImages: boolean;
-  omitBg: boolean;
-  clientWire: boolean;
-  allowPartial: boolean;
-  baseSeq: number;
-  allowScrollShift: boolean;
-}
-
-function queryDomRecordSceneSettings(
-  queryArgs: Record<string, unknown>,
-  internalState: ReturnType<typeof getInternalState>,
-): QueryDomRecordSceneSettings {
-  const epochDamage = internalState.damageNodes;
-  return {
-    internalState,
-    epochDamage,
-    epochDamageSize: epochDamage.size,
-    epochLayoutDirty: !!internalState.layoutDirtySinceRecord,
-    epochBase: internalState.lastRecordSeq | 0,
-    rawImages: queryArgs.images === "raw",
-    omitBg: queryArgs.omitBackground === true,
-    clientWire: queryArgs.producer === "client",
-    allowPartial: queryArgs.allowPartial === true,
-    baseSeq: typeof queryArgs.baseSeq === "number" ? queryArgs.baseSeq | 0 : -1,
-    allowScrollShift: queryArgs.allowScrollShift === true,
-  };
-}
-
 function prepareQueryDomRecordScene(
   pageState: QueryDomActiveState,
   queryArgs: Record<string, unknown>,
   wake: QueryDomRecordSceneWake,
 ): QueryDomRecordScenePreparation {
   const cascadeSeqNow = cascadeSeq();
+  const omitBg = queryArgs.omitBackground === true;
+  const clientWire = queryArgs.producer === "client";
+  const rawImages = queryArgs.images === "raw";
   const internalState = getInternalState();
-  const settings = queryDomRecordSceneSettings(queryArgs, internalState);
+  const allowPartial = queryArgs.allowPartial === true;
+  const baseSeq = typeof queryArgs.baseSeq === "number" ? queryArgs.baseSeq | 0 : -1;
+  const epochLayoutDirty = !!internalState.layoutDirtySinceRecord;
+  const epochDamage = internalState.damageNodes;
+  const epochDamageSize = epochDamage.size;
+  // An interleaved scene record can invalidate the renderer's base sequence.
+  const epochBase = internalState.lastRecordSeq | 0;
   const { paint, fresh: isFreshPaint } = takePaintPrep();
-  if (!paint) return failedQueryDomRecordScenePreparation(pageState, wake);
+  if (!paint) {
+    let fallbackHtml = "";
+    try {
+      fallbackHtml = pageState.dom.outerHTML(0) || "";
+    } catch {}
+    return {
+      kind: "response",
+      response: {
+        scene: new Uint8Array(0),
+        seq: wake.seqNow,
+        error: "ensurePaintDom returned null (serialize/parse failed)",
+        fallbackHtml,
+        scrollX: state.scrollX,
+        scrollY: state.scrollY,
+      } satisfies QueryDomResult<"recordScene">,
+    };
+  }
   prepareCachedPaint(paint, isFreshPaint, cascadeSeqNow);
-  const context = createQueryDomRecordSceneContext(pageState, queryArgs, wake, settings, paint);
-  const skip = queryDomRecordSceneSkipResult(context);
-  if (skip) return { kind: "response", response: skip };
-  return { kind: "ready", context };
-}
-
-function failedQueryDomRecordScenePreparation(
-  pageState: QueryDomActiveState,
-  wake: QueryDomRecordSceneWake,
-): QueryDomRecordScenePreparation {
-  let fallbackHtml = "";
-  try {
-    fallbackHtml = pageState.dom.outerHTML(0) || "";
-  } catch {}
-  return {
-    kind: "response",
-    response: {
-      scene: new Uint8Array(0),
-      seq: wake.seqNow,
-      error: "ensurePaintDom returned null (serialize/parse failed)",
-      fallbackHtml,
-      scrollX: state.scrollX,
-      scrollY: state.scrollY,
-    } satisfies QueryDomResult<"recordScene">,
-  };
-}
-
-function createQueryDomRecordSceneContext(
-  pageState: QueryDomActiveState,
-  queryArgs: Record<string, unknown>,
-  wake: QueryDomRecordSceneWake,
-  settings: QueryDomRecordSceneSettings,
-  paint: DomHandle,
-): QueryDomRecordSceneContext {
   const clip = readSceneClip(queryArgs.clip);
   const hasClip = clip !== null;
   const scrollDx = state.scrollX - state.lastRecordScrollX;
   const scrollDy = state.scrollY - state.lastRecordScrollY;
   const scrolled = scrollDx !== 0 || scrollDy !== 0;
-  const partialPlan = queryDomRecordScenePartialPlan(
-    settings,
-    wake,
+  const allowScrollShift = queryArgs.allowScrollShift === true;
+  const partialPlan = planPartialScene({
     paint,
+    allowPartial,
+    clientWire,
+    epochLayoutDirty,
+    baseSeq,
+    epochBase,
     scrolled,
-    scrollDx,
-    scrollDy,
+    allowScrollShift,
+    scrollDeltaX: scrollDx,
+    scrollDeltaY: scrollDy,
+    sinceSeq: wake.sinceSeq,
     hasClip,
-  );
-  return {
+    epochDamage,
+    viewportWidth: state.paintViewportW || 0,
+    viewportHeight: state.paintViewportH || 0,
+  });
+  const context: QueryDomRecordSceneContext = {
     pageState,
     queryArgs,
     wake,
-    internalState: settings.internalState,
-    epochDamageSize: settings.epochDamageSize,
-    epochLayoutDirty: settings.epochLayoutDirty,
-    rawImages: settings.rawImages,
-    omitBg: settings.omitBg,
-    clientWire: settings.clientWire,
-    allowPartial: settings.allowPartial,
-    baseSeq: settings.baseSeq,
+    internalState,
+    epochDamageSize,
+    epochLayoutDirty,
+    rawImages,
+    omitBg,
+    clientWire,
+    allowPartial,
+    baseSeq,
     paint,
     clip,
     hasClip,
     scrollDx,
     scrollDy,
     scrolled,
-    allowScrollShift: settings.allowScrollShift,
+    allowScrollShift,
     partialPlan,
   };
-}
-
-function queryDomRecordScenePartialPlan(
-  settings: QueryDomRecordSceneSettings,
-  wake: QueryDomRecordSceneWake,
-  paint: DomHandle,
-  scrolled: boolean,
-  scrollDx: number,
-  scrollDy: number,
-  hasClip: boolean,
-): ReturnType<typeof planPartialScene> {
-  return planPartialScene({
-    paint,
-    allowPartial: settings.allowPartial,
-    clientWire: settings.clientWire,
-    epochLayoutDirty: settings.epochLayoutDirty,
-    baseSeq: settings.baseSeq,
-    epochBase: settings.epochBase,
-    scrolled,
-    allowScrollShift: settings.allowScrollShift,
-    scrollDeltaX: scrollDx,
-    scrollDeltaY: scrollDy,
-    sinceSeq: wake.sinceSeq,
-    hasClip,
-    epochDamage: settings.epochDamage,
-    viewportWidth: state.paintViewportW || 0,
-    viewportHeight: state.paintViewportH || 0,
-  });
+  const skip = queryDomRecordSceneSkipResult(context);
+  if (skip) return { kind: "response", response: skip };
+  return { kind: "ready", context };
 }
 
 function queryDomRecordSceneSkipResult(
@@ -10209,106 +10002,58 @@ function queryDomFormState(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<QueryDomFormStateMethod> {
   switch (method) {
-    case "formStateSnapshot":
-      return queryDomFormStateSnapshot(pageState, queryArgs);
-    case "setControlValueAsUser":
-      return queryDomSetControlValueAsUser(queryArgs);
-  }
-}
-
-interface FormStateSnapshotValues {
-  complete: boolean;
-  values: Array<[number, string]>;
-  checked: Array<[number, boolean]>;
-  selected: Array<[number, boolean]>;
-}
-
-function queryDomFormStateSnapshot(
-  pageState: QueryDomActiveState,
-  queryArgs: Record<string, unknown>,
-): QueryDomResult<"formStateSnapshot"> {
-  const before = getInternalState().mutationSeq | 0;
-  const snapshot: FormStateSnapshotValues = {
-    complete: true,
-    values: [],
-    checked: [],
-    selected: [],
-  };
-  collectFormStateValues(pageState, snapshot);
-  return formStateSnapshotReply(queryArgs, before, snapshot);
-}
-
-function collectFormStateValues(
-  pageState: QueryDomActiveState,
-  snapshot: FormStateSnapshotValues,
-): void {
-  const ids = formStateNodeIds(pageState);
-  if (ids === null) snapshot.complete = false;
-  for (const id of ids ?? []) {
-    snapshot.complete =
-      collectFormControlState(id, snapshot.values, snapshot.checked, snapshot.selected) &&
-      snapshot.complete;
-  }
-}
-
-function formStateNodeIds(pageState: QueryDomActiveState): number[] | null {
-  try {
-    return Array.from(pageState.dom.querySelectorAll("input,textarea,select")).filter(
-      (node): node is number => typeof node === "number" && node >= 0,
-    );
-  } catch {
-    return null;
-  }
-}
-
-function formStateSnapshotReply(
-  queryArgs: Record<string, unknown>,
-  before: number,
-  snapshot: FormStateSnapshotValues,
-): QueryDomResult<"formStateSnapshot"> {
-  return {
-    values: snapshot.values,
-    checked: snapshot.checked,
-    selected: snapshot.selected,
-    ...(queryArgs.includeReadStamp === true
-      ? {
-          readStamp: {
-            before,
-            after: getInternalState().mutationSeq | 0,
-            complete: snapshot.complete,
-          },
-        }
-      : {}),
-  } satisfies QueryDomResult<"formStateSnapshot">;
-}
-
-function queryDomSetControlValueAsUser(
-  queryArgs: Record<string, unknown>,
-): QueryDomResult<"setControlValueAsUser"> {
-  const id = numericNodeId(queryArgs);
-  if (id === null)
-    return {
-      changed: false,
-      error: "bad nodeId",
-    } satisfies QueryDomResult<"setControlValueAsUser">;
-  const element = state.resolveNodeId(id);
-  if (!element)
-    return {
-      changed: false,
-      error: "no such node",
-    } satisfies QueryDomResult<"setControlValueAsUser">;
-  const result = setControlValueAsUser(element, Reflect.get(Object(queryArgs), "value"));
-  return {
-    ...result,
-    value: formControlValue(element),
-  } satisfies QueryDomResult<"setControlValueAsUser">;
-}
-
-function formControlValue(element: ShimElement): string {
-  try {
-    return String(element.value ?? "");
-  } catch {
-    return "";
+    case "formStateSnapshot": {
+      // A partial snapshot is incomplete if any control could not be resolved or read.
+      const before = getInternalState().mutationSeq | 0;
+      let complete = true;
+      const values: Array<[number, string]> = [];
+      const checked: Array<[number, boolean]> = [];
+      const selected: Array<[number, boolean]> = [];
+      let ids: number[] = [];
+      try {
+        ids = Array.from(pageState.dom.querySelectorAll("input,textarea,select")).filter(
+          (n): n is number => typeof n === "number" && n >= 0,
+        );
+      } catch {
+        complete = false;
+      }
+      for (const id of ids)
+        complete = collectFormControlState(id, values, checked, selected) && complete;
+      return {
+        values,
+        checked,
+        selected,
+        ...(queryArgs.includeReadStamp === true
+          ? {
+              readStamp: {
+                before,
+                after: getInternalState().mutationSeq | 0,
+                complete,
+              },
+            }
+          : {}),
+      } satisfies QueryDomResult<"formStateSnapshot">;
+    }
+    case "setControlValueAsUser": {
+      const id = numericNodeId(queryArgs);
+      if (id == null)
+        return {
+          changed: false,
+          error: "bad nodeId",
+        } satisfies QueryDomResult<"setControlValueAsUser">;
+      const element = state.resolveNodeId(id);
+      if (!element)
+        return {
+          changed: false,
+          error: "no such node",
+        } satisfies QueryDomResult<"setControlValueAsUser">;
+      const result = setControlValueAsUser(element, Reflect.get(Object(queryArgs), "value"));
+      let value = "";
+      try {
+        value = String(element.value ?? "");
+      } catch {}
+      return { ...result, value } satisfies QueryDomResult<"setControlValueAsUser">;
+    }
   }
 }
 
@@ -10323,110 +10068,51 @@ function queryDomPaintDamage(
   const paint = ensurePaintDom();
   if (!paint) return {};
   try {
-    return method === "markPaintDamage"
-      ? markQueryDomPaintDamage(paint)
-      : readQueryDomPaintDamage(paint, queryArgs);
+    if (method === "markPaintDamage") {
+      paint.paintDamageMark?.();
+      return {};
+    }
+    const raw = String(paint.paintDamageSince?.(numericNodeId(queryArgs) ?? 0) ?? "");
+    return raw ? JSON.parse(raw) : {};
   } catch {
     invalidatePaintDom();
     return {};
   }
 }
 
-function markQueryDomPaintDamage(paint: DomHandle): QueryDomResult<"markPaintDamage"> {
-  paint.paintDamageMark?.();
-  return {};
-}
-
-function readQueryDomPaintDamage(
-  paint: DomHandle,
-  queryArgs: Record<string, unknown>,
-): QueryDomResult<"paintDamageSince"> {
-  const raw = String(paint.paintDamageSince?.(numericNodeId(queryArgs) ?? 0) ?? "");
-  return raw ? JSON.parse(raw) : {};
-}
-
 function queryDomMemoryStats(): QueryDomResult<"getMemoryStats"> {
   const bytes = getCoreWasmMemoryBytes();
   const initialBytes = getCoreWasmMemoryInitialBytes();
+  let bridge = null;
+  try {
+    bridge = { ...JSON.parse(ks_bridge_pins()), ...JSON.parse(ks_cycle_stats()) };
+  } catch {
+    bridge = null;
+  }
+  let domFastpath = null;
+  try {
+    domFastpath = JSON.parse(state.dom?.fastpathStats?.() ?? "null");
+  } catch {
+    domFastpath = null;
+  }
+  let domNodes: number | null = null;
+  try {
+    domNodes = state.dom?.nodeCount?.() ?? null;
+  } catch {
+    domNodes = null;
+  }
   return {
     bytes,
     initialBytes,
     deltaBytes: Math.max(0, bytes - initialBytes),
-    bridge: readBridgeMemoryStats(),
-    domFastpath: readDomFastpathMemoryStats(),
-    domNodes: readDomNodeMemoryCount(),
+    bridge,
+    domFastpath,
+    domNodes,
     wrappers: detachedWrapperStats(),
     paint: paintPrepStats(),
     intersectionObserver: intersectionObserverStats(),
     timerWheel: { ...timerWheelStats(), shim: deferShimStats() },
   } satisfies QueryDomResult<"getMemoryStats">;
-}
-
-type BridgeMemoryStats = NonNullable<QueryDomResult<"getMemoryStats">["bridge"]>;
-type BridgePinStats = Pick<
-  BridgeMemoryStats,
-  | "v8Pins"
-  | "boaPins"
-  | "wrappers"
-  | "weakBoa"
-  | "releasedV8"
-  | "releasedBoa"
-  | "boaHeapBytes"
-  | "boaGcThreshold"
-  | "internerLen"
-  | "internerReclaims"
-  | "internerPendingMods"
-  | "internerQueueIdle"
-  | "ctxReentryDepth"
-  | "ctxReentryMax"
-  | "ctxUnchaperoned"
-  | "pumpPromiseJobs"
-  | "pumpFutures"
-  | "pumpDrainBusy"
-  | "pumpTicketWaiters"
-  | "bgTicks"
-  | "bgProgress"
-  | "bgLastTickMs"
-  | "healedAtEntry"
->;
-type CycleCollectorStats = Pick<
-  BridgeMemoryStats,
-  | "ccRuns"
-  | "ccGrayPins"
-  | "ccWeakV8"
-  | "ccDeadV8"
-  | "ccWeakened"
-  | "ccRevoked"
-  | "ccDeadReads"
-  | "ccLastMs"
-  | "ccSkipped"
->;
-
-// Rust emits these fixed, disjoint field sets from the two wasm stats exports.
-function readBridgeMemoryStats(): BridgeMemoryStats | null {
-  try {
-    const bridgePins: BridgePinStats = JSON.parse(ks_bridge_pins());
-    const cycleStats: CycleCollectorStats = JSON.parse(ks_cycle_stats());
-    return { ...bridgePins, ...cycleStats };
-  } catch {
-    return null;
-  }
-}
-
-function readDomFastpathMemoryStats(): QueryDomResult<"getMemoryStats">["domFastpath"] {
-  try {
-    return JSON.parse(state.dom?.fastpathStats?.() ?? "null");
-  } catch {
-    return null;
-  }
-}
-
-function readDomNodeMemoryCount(): number | null {
-  try {
-    return state.dom?.nodeCount?.() ?? null;
-  } catch {
-    return null;
-  }
 }
 
 type QueryDomDiagnosticsMethod = Extract<

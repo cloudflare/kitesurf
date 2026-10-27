@@ -7,7 +7,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { CdpMutation } from "@kitesurf/jsrpc-types/shared";
 
-import type { CdpEvent, CdpRequest, FrameState, TargetState } from "./types.ts";
+import type { CdpEvent, CdpRequest, TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
 import {
   getOrCreatePageScript,
@@ -241,21 +241,10 @@ async function getOuterHTML(
 ): Promise<unknown> {
   const nodeId = numericNodeId(req.params);
   if (context.pageScript) {
-    return getPageScriptOuterHTML(context, nodeId, includeDoctype(req));
+    const includeDocumentType = req.params?.includeDoctype === true;
+    return context.session.call.getOuterHTML(outerHTMLArgs(nodeId, includeDocumentType));
   }
   return getLocalOuterHTML(context.target, nodeId);
-}
-
-function includeDoctype(req: Extract<CdpRequest, { method: "DOM.getOuterHTML" }>): boolean {
-  return req.params?.includeDoctype === true;
-}
-
-function getPageScriptOuterHTML(
-  context: DomCommandContext,
-  nodeId: number | null,
-  includeDocumentType: boolean,
-): Promise<unknown> {
-  return context.session.call.getOuterHTML(outerHTMLArgs(nodeId, includeDocumentType));
 }
 
 function outerHTMLArgs(
@@ -280,15 +269,9 @@ async function describeNode(
 ): Promise<unknown> {
   const nodeId = numericNodeId(req.params);
   if (context.pageScript) {
-    return context.session.call.describeNode(describeNodeArgs(nodeId, requestedObjectId(req)));
+    return context.session.call.describeNode(describeNodeArgs(nodeId, req.params?.objectId));
   }
   return describeLocalNode(context.target, nodeId);
-}
-
-function requestedObjectId(
-  req: Extract<CdpRequest, { method: "DOM.describeNode" }>,
-): string | undefined {
-  return req.params?.objectId;
 }
 
 function describeNodeArgs(
@@ -517,45 +500,33 @@ function requireDom(target: TargetState): NonNullable<TargetState["dom"]> {
 }
 
 function annotateIframeFrameIds(root: unknown, target: TargetState): void {
-  const owners = crossOriginFrameOwners(target);
-  if (owners.size === 0) return;
-  walkCdpNode(root, owners);
-}
-
-function crossOriginFrameOwners(target: TargetState): Map<number, string> {
-  const owners = new Map<number, string>();
-  for (const frame of target.frames.values()) {
-    if (isCrossOriginFrameOwner(frame)) {
-      owners.set(frame.ownerBackendNodeId, frame.frameId);
+  const byOwner = new Map<number, string>();
+  for (const f of target.frames.values()) {
+    if (f.parentFrameId !== null && f.isCrossOrigin && f.ownerBackendNodeId > 0) {
+      byOwner.set(f.ownerBackendNodeId, f.frameId);
     }
   }
-  return owners;
-}
-
-function isCrossOriginFrameOwner(frame: FrameState): boolean {
-  return frame.parentFrameId !== null && frame.isCrossOrigin && frame.ownerBackendNodeId > 0;
-}
-
-function walkCdpNode(root: unknown, owners: ReadonlyMap<number, string>): void {
-  if (!isCdpRecord(root)) return;
-  annotateCdpNodeFrameId(root, owners);
-  walkCdpChildren(root.children, owners);
-}
-
-function annotateCdpNodeFrameId(
-  node: Record<string, unknown>,
-  owners: ReadonlyMap<number, string>,
-): void {
-  if (node.nodeName !== "IFRAME" || typeof node.backendNodeId !== "number") return;
-  const frameId = owners.get(node.backendNodeId);
-  if (frameId !== undefined) node.frameId = frameId;
-}
-
-function walkCdpChildren(children: unknown, owners: ReadonlyMap<number, string>): void {
-  if (!Array.isArray(children)) return;
-  for (const child of children) {
-    if (isCdpRecord(child)) walkCdpNode(child, owners);
-  }
+  if (byOwner.size === 0 || !root || typeof root !== "object") return;
+  const walk = (n: {
+    nodeName?: string;
+    backendNodeId?: number;
+    frameId?: string;
+    children?: unknown[];
+  }): void => {
+    if (
+      n.nodeName === "IFRAME" &&
+      typeof n.backendNodeId === "number" &&
+      byOwner.has(n.backendNodeId)
+    ) {
+      n.frameId = byOwner.get(n.backendNodeId);
+    }
+    if (Array.isArray(n.children)) {
+      for (const c of n.children) {
+        if (c && typeof c === "object") walk(c as typeof n);
+      }
+    }
+  };
+  walk(root as Parameters<typeof walk>[0]);
 }
 
 function isCdpRecord(value: unknown): value is Record<string, unknown> {
@@ -972,17 +943,15 @@ function emitReboundChildNodesToSessions(
 }
 
 function childNodesForRebind(node: unknown): Protocol.DOM.Node[] | null {
-  if (!isCdpRecord(node)) return null;
-  const children = node.children;
+  if (!node || typeof node !== "object") return null;
+  const children = (node as { children?: unknown }).children;
   if (!Array.isArray(children)) return null;
-  return children.every(isRebindNode) ? (children as Protocol.DOM.Node[]) : null;
-}
-
-function isRebindNode(value: unknown): boolean {
-  if (!isCdpRecord(value)) return false;
-  return (
-    typeof value.nodeId === "number" &&
-    typeof value.nodeName === "string" &&
-    typeof value.nodeType === "number"
-  );
+  for (const c of children) {
+    if (!c || typeof c !== "object") return null;
+    const n = c as { nodeId?: unknown; nodeName?: unknown; nodeType?: unknown };
+    if (typeof n.nodeId !== "number") return null;
+    if (typeof n.nodeName !== "string") return null;
+    if (typeof n.nodeType !== "number") return null;
+  }
+  return children as Protocol.DOM.Node[];
 }

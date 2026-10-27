@@ -111,29 +111,13 @@ function reportWorkerRunError(error: unknown, scriptUrl: string): WorkerStartRep
   return handled ? { ok: true } : { ok: false, error: info };
 }
 
-function defaultWorkerRun(mod: typeof import("./__ks_worker_script.js")) {
-  return mod?.default?.run;
-}
-
-function namedWorkerRun(mod: typeof import("./__ks_worker_script.js")) {
-  return mod?.run;
-}
-
-function callableWorkerRun(run: (typeof import("./__ks_worker_script.js"))["run"]) {
-  return typeof run === "function" ? run : null;
-}
-
-function selectedWorkerRun(mod: typeof import("./__ks_worker_script.js")) {
-  return callableWorkerRun(defaultWorkerRun(mod) ?? namedWorkerRun(mod));
-}
-
 async function runWorkerScript(
   mod: typeof import("./__ks_worker_script.js"),
   scriptUrl: string,
 ): Promise<WorkerStartReply> {
   try {
-    const run = selectedWorkerRun(mod);
-    if (run) await run.call(globalThis);
+    const run = mod?.default?.run ?? mod?.run;
+    if (typeof run === "function") await run.call(globalThis);
     return { ok: true };
   } catch (error) {
     return reportWorkerRunError(error, scriptUrl);

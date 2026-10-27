@@ -237,27 +237,24 @@ const VALID_CACHE_MODES = new Set([
 
 const WORKERD_CACHE_MODES = new Set(["no-store", "no-cache"]);
 
-function validateCacheMode(cache: string, init: any, isFetchCall: boolean): void {
+function validateAndStripCache(init: any, isFetchCall: boolean): any {
+  if (!init || typeof init !== "object" || (init as any).cache === undefined) return init;
+  const cache = String((init as any).cache);
   if (!VALID_CACHE_MODES.has(cache)) {
     throw new TypeError(
       `Failed to construct 'Request': The provided value '${cache}' is not a valid enum value of type RequestCache.`,
     );
   }
-  if (cache !== "only-if-cached") return;
-  if ((init as any).mode !== "same-origin") {
-    throw new TypeError(
-      "Failed to construct 'Request': 'only-if-cached' can be set only if 'mode' is 'same-origin'.",
-    );
+  if (cache === "only-if-cached") {
+    if ((init as any).mode !== "same-origin") {
+      throw new TypeError(
+        "Failed to construct 'Request': 'only-if-cached' can be set only if 'mode' is 'same-origin'.",
+      );
+    }
+    if (isFetchCall) {
+      throw new TypeError("Failed to fetch: no cached response for 'only-if-cached' request.");
+    }
   }
-  if (isFetchCall) {
-    throw new TypeError("Failed to fetch: no cached response for 'only-if-cached' request.");
-  }
-}
-
-function validateAndStripCache(init: any, isFetchCall: boolean): any {
-  if (!init || typeof init !== "object" || (init as any).cache === undefined) return init;
-  const cache = String((init as any).cache);
-  validateCacheMode(cache, init, isFetchCall);
   if (WORKERD_CACHE_MODES.has(cache)) return init;
   const strippedInit = { ...init };
   delete strippedInit.cache;
@@ -459,43 +456,28 @@ function installResponseShim(): void {
   if (typeof RealResponse !== "function") return;
   if ((RealResponse as any).__ksWrapped) return;
 
-  const WrappedResponse = function WrappedResponse(this: any, body?: any, init?: any) {
+  function WrappedResponse(this: any, body?: any, init?: any) {
     const effectiveBody = body instanceof FormData ? formDataToMultipartBlob(body) : body;
     const effectiveInit = withNormalizedHeaderInit(init);
     if (new.target) {
       return Reflect.construct(RealResponse, [effectiveBody, effectiveInit], new.target);
     }
     return new RealResponse(effectiveBody, effectiveInit);
-  };
+  }
   WrappedResponse.prototype = RealResponse.prototype;
-  copyResponseStaticProperties(RealResponse, WrappedResponse);
+  for (const propertyName of Object.getOwnPropertyNames(RealResponse)) {
+    if (propertyName === "length" || propertyName === "name" || propertyName === "prototype")
+      continue;
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(RealResponse, propertyName);
+      if (descriptor) Object.defineProperty(WrappedResponse, propertyName, descriptor);
+    } catch {}
+  }
   Object.defineProperty(WrappedResponse, "name", { value: "Response" });
   (WrappedResponse as any).__ksWrapped = true;
   ksGlobal.Response = WrappedResponse;
   patchFormDataRealmCrossing(RealResponse.prototype);
   patchBodyBlobMimeType(RealResponse.prototype);
-}
-
-function isResponseIntrinsicProperty(propertyName: string): boolean {
-  return propertyName === "length" || propertyName === "name" || propertyName === "prototype";
-}
-
-function copyResponseStaticProperty(
-  source: Function,
-  target: Function,
-  propertyName: string,
-): void {
-  if (isResponseIntrinsicProperty(propertyName)) return;
-  try {
-    const descriptor = Object.getOwnPropertyDescriptor(source, propertyName);
-    if (descriptor) Object.defineProperty(target, propertyName, descriptor);
-  } catch {}
-}
-
-function copyResponseStaticProperties(source: Function, target: Function): void {
-  for (const propertyName of Object.getOwnPropertyNames(source)) {
-    copyResponseStaticProperty(source, target, propertyName);
-  }
 }
 
 function installBlobMimeTypePatch(prototype: object, blob: Function): void {
@@ -654,42 +636,35 @@ function requestUrlString(resolved: unknown, inputRequest: PageRequest | null): 
 const CARRIED_STATUS_HEADER = "x-kitesurf-status";
 const STATUS_CARRIER = 599;
 
-function responseHeadersWithoutCarriedStatus(response: Response): Headers {
+function restoreCarriedStatus(response: Response): Response {
+  const carried = responseHeaderGet(response, CARRIED_STATUS_HEADER);
+  if (carried === null) return response;
+  const authentic = response.status === STATUS_CARRIER;
+  const actualStatus = authentic ? Number(carried) : NaN;
   const visibleHeaders = newHeaders();
   for (const [name, value] of hdrEntries(responseHeaders(response))) {
     if (name.toLowerCase() !== CARRIED_STATUS_HEADER) {
       hdrAppend(visibleHeaders, name, value);
     }
   }
-  return visibleHeaders;
-}
-
-function restoreResponseStatus(response: Response, actualStatus: number): void {
-  if (!Number.isFinite(actualStatus) || actualStatus <= 0) return;
-  Object.defineProperty(response, "status", {
-    value: actualStatus,
-    configurable: true,
-    enumerable: true,
-  });
-  Object.defineProperty(response, "ok", {
-    value: actualStatus >= 200 && actualStatus <= 299,
-    configurable: true,
-    enumerable: true,
-  });
-}
-
-function restoreCarriedStatus(response: Response): Response {
-  const carried = responseHeaderGet(response, CARRIED_STATUS_HEADER);
-  if (carried === null) return response;
-  const actualStatus = response.status === STATUS_CARRIER ? Number(carried) : NaN;
-  const visibleHeaders = responseHeadersWithoutCarriedStatus(response);
   try {
     Object.defineProperty(response, "headers", {
       value: visibleHeaders,
       configurable: true,
       enumerable: true,
     });
-    restoreResponseStatus(response, actualStatus);
+    if (Number.isFinite(actualStatus) && actualStatus > 0) {
+      Object.defineProperty(response, "status", {
+        value: actualStatus,
+        configurable: true,
+        enumerable: true,
+      });
+      Object.defineProperty(response, "ok", {
+        value: actualStatus >= 200 && actualStatus <= 299,
+        configurable: true,
+        enumerable: true,
+      });
+    }
   } catch {}
   return response;
 }
@@ -702,10 +677,6 @@ type RequestBodySnapshot = {
   replayable: Uint8Array | null;
   body: Uint8Array | ReadableStream<Uint8Array>;
 };
-
-function throwIfRequestBodyAborted(signal?: AbortSignal): void {
-  signal?.throwIfAborted?.();
-}
 
 async function readRequestBody(
   reader: ReadableStreamDefaultReader<Uint8Array>,
@@ -778,16 +749,12 @@ async function snapshotRequestBody(
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {
-    throwIfRequestBodyAborted(signal);
+    signal?.throwIfAborted?.();
     const readResult = await readRequestBody(reader);
     if (readResult.done) return completeRequestBodySnapshot(chunks, total);
     total = appendRequestBodyChunk(reader, chunks, total, readResult.value);
     if (total > cap) return replayOversizeRequestBody(reader, chunks);
   }
-}
-
-function throwIfRedirectAborted(signal?: AbortSignal): void {
-  signal?.throwIfAborted?.();
 }
 
 async function throwIfBlockedResponse(response: Response): Promise<void> {
@@ -1083,7 +1050,7 @@ async function followRedirectLoop(
   for (;;) {
     const decision = inspectRedirect(state, context.redirectMode);
     if (decision.kind === "done") return decision.result;
-    throwIfRedirectAborted(signal);
+    signal?.throwIfAborted?.();
     const handoff = await followReplacementRedirect(realFetch, state, decision.location, context);
     if (handoff !== null) return handoff;
     const target = parseRedirectTarget(decision.location, state.currentUrl);
@@ -1132,10 +1099,6 @@ function resolveFetchInput(input: FetchInput): FetchInput {
 
 function pageRequestFromInput(input: FetchInput): PageRequest | null {
   return typeof Request === "function" && input instanceof Request ? (input as PageRequest) : null;
-}
-
-function coerceFetchInit(init: FetchInit): KsRequestInit | undefined {
-  return serializeFormDataBodyInInit(validateAndStripCache(init, true));
 }
 
 function sourceFetchHeaders(
@@ -1691,7 +1654,7 @@ export function installFetchShim(): void {
     let resolved = resolveFetchInput(input);
     const inputRequest = pageRequestFromInput(input);
     const origin = pageOriginFromUrl(state.pageUrl);
-    const initMaybeCoerced = coerceFetchInit(init);
+    const initMaybeCoerced = serializeFormDataBodyInInit(validateAndStripCache(init, true));
     const mergedInit: KsRequestInit = { ...(initMaybeCoerced || {}) };
     const requestHeaders = createFetchRequestHeaders(
       init,

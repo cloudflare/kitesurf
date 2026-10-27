@@ -370,41 +370,16 @@ export function resolveImportMapSpecifier(
   importer: string,
   importMap: ParsedImportMap,
 ): string | null {
-  const { asUrl, normalized } = normalizeModuleSpecifier(specifier, importer);
-  const scoped = resolveInScopes(normalized, asUrl, importer, importMap);
-  if (scoped !== undefined) return scoped;
-  const mapped = resolveInSpecifierMap(normalized, asUrl, importMap.imports);
-  if (mapped !== undefined) return mapped;
-  return unresolvedModuleSpecifier(asUrl);
-}
-
-function normalizeModuleSpecifier(
-  specifier: string,
-  importer: string,
-): {
-  asUrl: URL | null;
-  normalized: string;
-} {
   const asUrl = parseUrlLikeSpecifier(specifier, importer);
-  return { asUrl, normalized: asUrl?.href ?? specifier };
-}
-
-function unresolvedModuleSpecifier(asUrl: URL | null): string | null {
-  return asUrl === null ? null : asUrl.href;
-}
-
-function resolveInScopes(
-  normalized: string,
-  asUrl: URL | null,
-  importer: string,
-  importMap: ParsedImportMap,
-): string | null | undefined {
+  const normalized = asUrl?.href ?? specifier;
   for (const [scope, mappings] of scopesBySpecificity(importMap)) {
     if (!scopeMatches(scope, importer)) continue;
     const resolved = resolveInSpecifierMap(normalized, asUrl, mappings);
     if (resolved !== undefined) return resolved;
   }
-  return undefined;
+  const mapped = resolveInSpecifierMap(normalized, asUrl, importMap.imports);
+  if (mapped !== undefined) return mapped;
+  return asUrl?.href ?? null;
 }
 
 type LexedImport = ReturnType<typeof lexerParse>[0][number];
@@ -419,22 +394,16 @@ function nativelyResolvesTo(specifier: string, importer: string, target: string)
   return resolveAgainstImporter(specifier, importer) === target;
 }
 
-function isSpecifierQuote(quote: string | undefined): boolean {
-  return quote === '"' || quote === "'" || quote === "`";
-}
-
-function hasDynamicSpecifierContent(value: string, quote: string | undefined): boolean {
-  return value.includes("${") || value.includes("\\") || value.includes(quote ?? "");
-}
-
 function constSpecifier(raw: string): string | null {
-  const source = raw.trim();
-  if (source.length < 2) return null;
-  const quote = source[0];
-  if (!isSpecifierQuote(quote) || source[source.length - 1] !== quote) return null;
-  const inner = source.slice(1, -1);
-  if (hasDynamicSpecifierContent(inner, quote)) return null;
-  return inner;
+  const s = raw.trim();
+  if (s.length < 2) return null;
+  const q = s[0];
+  if ((q === '"' || q === "'" || q === "`") && s[s.length - 1] === q) {
+    const inner = s.slice(1, -1);
+    if (inner.includes("${") || inner.includes("\\") || inner.includes(q)) return null;
+    return inner;
+  }
+  return null;
 }
 
 function importMetaResolveEnd(
@@ -1182,16 +1151,12 @@ function seedClassicDescriptor(
   addClassicSeedUrls(state, descriptor, result.seeds);
 }
 
-function inlineModuleEntryUrl(state: ModuleGraphState, descriptor: ParentScriptDescriptor): string {
-  return inlineModuleUrl(state.entryBaseUrl, state.moduleEntryIndex.get(descriptor) ?? 0);
-}
-
 function recordInlineModuleStatics(
   state: ModuleGraphState,
   descriptor: ParentScriptDescriptor,
 ): void {
   const body = descriptor.body ?? "";
-  const entryUrl = inlineModuleEntryUrl(state, descriptor);
+  const entryUrl = inlineModuleUrl(state.entryBaseUrl, state.moduleEntryIndex.get(descriptor) ?? 0);
   const imports = parseClassicImports(body, entryUrl);
   if (imports === null) return;
   for (const imp of imports) recordInlineModuleStatic(state, entryUrl, imp);

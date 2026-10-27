@@ -309,71 +309,54 @@ export interface RunExpressionOpts {
 
 export type RunExpressionResult = EvalResult;
 
-interface BoaResultEnvelope {
-  k: string;
-  j?: string;
-  v?: string;
-  d?: string;
-  message?: string;
-  name?: string;
-}
-
-type BoaResultPacker = (envelope: BoaResultEnvelope) => EvalResultBody;
-
-function packBoaThrown(envelope: BoaResultEnvelope): EvalResultBody {
-  const error = new Error(envelope.message || "boa error");
-  if (envelope.name) error.name = envelope.name;
-  return packException(error);
-}
-
-function packBoaBigInt(envelope: BoaResultEnvelope): EvalResultBody {
-  try {
-    return packResult(BigInt(envelope.v as string), true);
-  } catch {
-    return packResult(envelope.v, true);
-  }
-}
-
-function packBoaFunction(envelope: BoaResultEnvelope): EvalResultBody {
-  const syntheticFunction = function boaFunction(): void {};
-  try {
-    syntheticFunction.toString = () => envelope.d || "function () { [boa] }";
-  } catch {}
-  return packResult(syntheticFunction, true);
-}
-
-function packBoaJsonValue(envelope: BoaResultEnvelope): EvalResultBody {
-  let value: unknown = null;
-  try {
-    value = JSON.parse(envelope.j as string);
-  } catch {
-    value = null;
-  }
-  return packResult(value, true);
-}
-
-const BOA_RESULT_PACKERS = new Map<string, BoaResultPacker>([
-  ["throw", packBoaThrown],
-  ["undef", () => packResult(undefined, true)],
-  ["big", packBoaBigInt],
-  ["sym", (envelope) => packResult(Symbol(envelope.d || ""), true)],
-  ["fn", packBoaFunction],
-]);
-
-function packParsedBoaResult(envelope: BoaResultEnvelope): EvalResultBody {
-  const packer = BOA_RESULT_PACKERS.get(envelope.k);
-  return packer ? packer(envelope) : packBoaJsonValue(envelope);
-}
-
 export function packBoaResult(raw: unknown, returnByValue: boolean): EvalResultBody {
   if (!returnByValue) return packResult(raw, false);
-  let envelope: BoaResultEnvelope;
+  let envelope: {
+    k: string;
+    j?: string;
+    v?: string;
+    d?: string;
+    message?: string;
+    name?: string;
+  };
   try {
     envelope = JSON.parse(String(raw));
   } catch {
     return packResult(raw, true);
   }
-  return packParsedBoaResult(envelope);
+  switch (envelope.k) {
+    case "throw": {
+      const error = new Error(envelope.message || "boa error");
+      if (envelope.name) error.name = envelope.name;
+      return packException(error);
+    }
+    case "undef":
+      return packResult(undefined, true);
+    case "big":
+      try {
+        return packResult(BigInt(envelope.v as string), true);
+      } catch {
+        return packResult(envelope.v, true);
+      }
+    case "sym":
+      return packResult(Symbol(envelope.d || ""), true);
+    case "fn": {
+      const syntheticFunction = function boaFunction(): void {};
+      try {
+        syntheticFunction.toString = () => envelope.d || "function () { [boa] }";
+      } catch {}
+      return packResult(syntheticFunction, true);
+    }
+    default: {
+      let value: unknown = null;
+      try {
+        value = JSON.parse(envelope.j as string);
+      } catch {
+        value = null;
+      }
+      return packResult(value, true);
+    }
+  }
 }
 
 export async function boaEvalFallback(

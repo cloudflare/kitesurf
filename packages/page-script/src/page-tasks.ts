@@ -854,49 +854,39 @@ let pageTaskPumpInFlight: Promise<PageTaskPumpResult> | null = null;
 export async function pumpDuePageTasks(): Promise<PageTaskPumpResult> {
   if (pageTaskPumpInFlight) return pageTaskPumpInFlight;
 
-  const pumpPromise = runPageTaskPump();
+  const pumpPromise = (async () => {
+    const pumpStartedAt = Date.now();
+    const deadlineMs = pumpStartedAt + PUMP_BUDGET_MS;
+    let tasksPumped = 0;
+    let nextRafDelayMs: number | undefined;
+    try {
+      let timerTurns = 0;
+      for (;;) {
+        const pageTasksPumped = pumpPageTask(deadlineMs);
+        if (pageTasksPumped === 0) break;
+        tasksPumped += pageTasksPumped;
+        await drainSettleMicrotasks();
+        if (Date.now() >= deadlineMs || ++timerTurns >= MAX_PUMP_TIMER_TURNS) break;
+      }
+      if (Date.now() < deadlineMs) {
+        const framesPumped = pumpAnimationFrames(deadlineMs);
+        const frameDueAt = rafFrameDueAt();
+        tasksPumped += framesPumped;
+        await null;
+        if (framesPumped === 0 && rafQueue.size > 0) {
+          const remainingMs = frameDueAt - Date.now();
+          if (remainingMs > 0) nextRafDelayMs = remainingMs;
+        }
+      }
+    } catch {
+      tasksPumped = -2;
+    }
+    return { pumped: tasksPumped, pumpMs: Date.now() - pumpStartedAt, nextRafDelayMs };
+  })();
   pageTaskPumpInFlight = pumpPromise;
   try {
     return await pumpPromise;
   } finally {
     pageTaskPumpInFlight = null;
   }
-}
-
-async function runPageTaskPump(): Promise<PageTaskPumpResult> {
-  const pumpStartedAt = Date.now();
-  const deadlineMs = pumpStartedAt + PUMP_BUDGET_MS;
-  let tasksPumped = 0;
-  let nextRafDelayMs: number | undefined;
-  try {
-    let timerTurns = 0;
-    let pageTasksPumped = pumpPageTask(deadlineMs);
-    while (pageTasksPumped > 0) {
-      tasksPumped += pageTasksPumped;
-      await drainSettleMicrotasks();
-      timerTurns++;
-      if (shouldStopTimerPump(deadlineMs, timerTurns)) break;
-      pageTasksPumped = pumpPageTask(deadlineMs);
-    }
-    if (Date.now() < deadlineMs) {
-      const framesPumped = pumpAnimationFrames(deadlineMs);
-      const frameDueAt = rafFrameDueAt();
-      tasksPumped += framesPumped;
-      await null;
-      nextRafDelayMs = nextRafPumpDelay(framesPumped, frameDueAt);
-    }
-  } catch {
-    tasksPumped = -2;
-  }
-  return { pumped: tasksPumped, pumpMs: Date.now() - pumpStartedAt, nextRafDelayMs };
-}
-
-function shouldStopTimerPump(deadlineMs: number, timerTurns: number): boolean {
-  return Date.now() >= deadlineMs || timerTurns >= MAX_PUMP_TIMER_TURNS;
-}
-
-function nextRafPumpDelay(framesPumped: number, frameDueAt: number): number | undefined {
-  if (framesPumped !== 0 || rafQueue.size === 0) return undefined;
-  const remainingMs = frameDueAt - Date.now();
-  return remainingMs > 0 ? remainingMs : undefined;
 }

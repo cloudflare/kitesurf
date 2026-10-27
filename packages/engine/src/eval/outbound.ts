@@ -273,11 +273,17 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     // Inflight accounting covers headers only (body streams past the
     // return) — matching the platform's awaiting-headers socket cap.
     const conn = props?.connectionId ?? request.headers.get(CONNECTION_ID_HEADER) ?? "";
-    beginOutboundInflight(conn);
+    if (conn) {
+      outboundInflight.set(conn, (outboundInflight.get(conn) ?? 0) + 1);
+    }
     try {
       return await SandboxOutbound.fetchTraced(env, props, request);
     } finally {
-      endOutboundInflight(conn);
+      if (conn) {
+        const n = (outboundInflight.get(conn) ?? 1) - 1;
+        if (n <= 0) outboundInflight.delete(conn);
+        else outboundInflight.set(conn, n);
+      }
     }
   }
 
@@ -361,18 +367,6 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     if (policy.kind === "respond") return policy.response;
     return runOutboundPolicy(policy.value);
   }
-}
-
-function beginOutboundInflight(connectionId: string): void {
-  if (!connectionId) return;
-  outboundInflight.set(connectionId, (outboundInflight.get(connectionId) ?? 0) + 1);
-}
-
-function endOutboundInflight(connectionId: string): void {
-  if (!connectionId) return;
-  const count = (outboundInflight.get(connectionId) ?? 1) - 1;
-  if (count <= 0) outboundInflight.delete(connectionId);
-  else outboundInflight.set(connectionId, count);
 }
 
 function localTraceParent(
@@ -1010,19 +1004,11 @@ function outboundForwardRequestOptions(
     resourceType: state.resourceType,
     pageOrigin: state.pageOrigin,
     extraHeaders,
-    pageUrl: pageUrlFromProps(props),
-    referrerPolicy: referrerPolicyFromProps(props),
+    pageUrl: props?.pageUrl,
+    referrerPolicy: props?.referrerPolicy,
     wbaHeaders,
     corsMode: state.needsCorsCheck || state.sheetWantsCors,
   };
-}
-
-function pageUrlFromProps(props: OutboundProps | undefined): string | undefined {
-  return props?.pageUrl;
-}
-
-function referrerPolicyFromProps(props: OutboundProps | undefined): string | undefined {
-  return props?.referrerPolicy;
 }
 
 type ContinueInterceptAction = Extract<InterceptAction, { kind: "continue" }>;

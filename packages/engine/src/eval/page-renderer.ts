@@ -69,7 +69,6 @@ function disposeRenderer(stub: RendererStub | null, reason: string): void {
 }
 
 type RenderFrameReply = Awaited<ReturnType<PageRendererEntrypoint["renderFrame"]>>;
-type RenderPdfReply = Awaited<ReturnType<PageRendererEntrypoint["renderPdf"]>>;
 
 function isPartialFrame(phases: string[] | undefined): boolean {
   return (
@@ -115,19 +114,6 @@ function framePosition(reply: RenderFrameReply): {
     seq: typeof reply.seq === "number" ? reply.seq : 0,
     scrollX: typeof reply.scrollX === "number" ? reply.scrollX : 0,
     scrollY: typeof reply.scrollY === "number" ? reply.scrollY : 0,
-  };
-}
-
-function hasRenderPdfError(reply: RenderPdfReply): boolean {
-  return Boolean(reply.error || !(reply.bytes instanceof Uint8Array) || reply.bytes.length === 0);
-}
-
-function pdfErrorResult(reply: RenderPdfReply): RenderPdfResult {
-  return {
-    ok: false,
-    stage: reply.stage ?? "raster",
-    error: reply.error ?? "renderer returned empty bytes",
-    info: reply.info,
   };
 }
 
@@ -263,20 +249,6 @@ function traceParentOptions(traceParentId: string | null): { tp?: string } {
   return traceParentId ? { tp: traceParentId } : {};
 }
 
-function pdfRenderOptions(opts: RenderPdfOptions, traceParentId: string | null): RenderPdfOpts {
-  return {
-    paperWidth: opts.paperWidth,
-    paperHeight: opts.paperHeight,
-    omitBackground: opts.omitBackground,
-    marginTop: opts.marginTop,
-    marginRight: opts.marginRight,
-    marginBottom: opts.marginBottom,
-    marginLeft: opts.marginLeft,
-    ...(opts.traced ? { traced: true } : {}),
-    ...(traceParentId ? { tp: traceParentId } : {}),
-  };
-}
-
 function frameRecordError(error: unknown): RenderFrameResult {
   return {
     ok: false,
@@ -285,14 +257,6 @@ function frameRecordError(error: unknown): RenderFrameResult {
     seq: 0,
     scrollX: 0,
     scrollY: 0,
-  };
-}
-
-function pdfRecordError(error: unknown): RenderPdfResult {
-  return {
-    ok: false,
-    stage: "record",
-    error: `getRenderPort failed: ${errorMessage(error)}`,
   };
 }
 
@@ -519,12 +483,26 @@ export class PageRendererManager {
     try {
       port = await withTimeout(source.getRenderPort(), PORT_MINT_TIMEOUT_MS, "getRenderPort");
     } catch (error) {
-      return pdfRecordError(error);
+      return {
+        ok: false,
+        stage: "record",
+        error: `getRenderPort failed: ${error instanceof Error ? error.message : String(error)}`,
+      };
     }
     const reply = await withTimeout(
       stub.renderPdf(
         port,
-        pdfRenderOptions(opts, traceParentId),
+        {
+          paperWidth: opts.paperWidth,
+          paperHeight: opts.paperHeight,
+          omitBackground: opts.omitBackground,
+          marginTop: opts.marginTop,
+          marginRight: opts.marginRight,
+          marginBottom: opts.marginBottom,
+          marginLeft: opts.marginLeft,
+          ...(opts.traced ? { traced: true } : {}),
+          ...(traceParentId ? { tp: traceParentId } : {}),
+        },
         (path: string) => this.fetchFontAsset(path),
         async (key: string) => this.fetchStoredImage(key),
         async (key: string) => this.fetchStoredFont(key),
@@ -533,7 +511,14 @@ export class PageRendererManager {
       "renderPdf",
     );
     this.logSlowPhases("renderPdf", reply.phases);
-    if (hasRenderPdfError(reply)) return pdfErrorResult(reply);
+    if (reply.error || !(reply.bytes instanceof Uint8Array) || reply.bytes.length === 0) {
+      return {
+        ok: false,
+        stage: reply.stage ?? "raster",
+        error: reply.error ?? "renderer returned empty bytes",
+        info: reply.info,
+      };
+    }
     this.framesRendered += 1;
     return { ok: true, bytes: reply.bytes, info: reply.info };
   }

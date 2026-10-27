@@ -15,7 +15,6 @@ const POLICIES = new Set([
   "strict-origin-when-cross-origin",
   "unsafe-url",
 ]);
-const TRUSTWORTHY_SCHEMES = new Set(["data:", "file:", "https:", "wss:"]);
 
 // A Referrer-Policy header may list several tokens; the last one the UA
 // recognises wins, and an empty or unknown list means the default.
@@ -32,11 +31,9 @@ export function parseReferrerPolicy(header: string | null | undefined): string {
 // and hosts a frame can navigate to here.
 function isPotentiallyTrustworthy(url: URL): boolean {
   if (url.href === "about:blank" || url.href === "about:srcdoc") return true;
-  if (TRUSTWORTHY_SCHEMES.has(url.protocol)) return true;
-  return isLocalHost(url.hostname);
-}
-
-function isLocalHost(host: string): boolean {
+  if (url.protocol === "data:" || url.protocol === "file:") return true;
+  if (url.protocol === "https:" || url.protocol === "wss:") return true;
+  const host = url.hostname;
   return (
     host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1" || host === "[::1]"
   );

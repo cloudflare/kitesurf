@@ -705,14 +705,6 @@ function unchangedFrameReply(
   return recordReply?.unchanged === true ? { unchanged: true, ...position } : null;
 }
 
-function recordSceneBytes(recordReply: FrameRecordReply): Uint8Array | null {
-  return asU8(recordReply?.scene);
-}
-
-function recordPatches(recordReply: FrameRecordReply): FrameRecordPatch[] {
-  return recordReply?.patches ?? [];
-}
-
 function preparedFrameScene(
   recordReply: FrameRecordReply,
   scene: Uint8Array,
@@ -728,7 +720,7 @@ function preparedFrameScene(
     frame: {
       recordReply,
       scene,
-      patches: recordPatches(recordReply),
+      patches: recordReply?.patches ?? [],
       ...position,
     },
   };
@@ -743,7 +735,7 @@ function prepareFrameRecord(
   const position = framePosition(recordReply);
   const unchanged = unchangedFrameReply(recordReply, position);
   if (unchanged !== null) return { kind: "reply", reply: unchanged };
-  const scene = recordSceneBytes(recordReply);
+  const scene = asU8(recordReply?.scene);
   if (!isNonemptyBytes(scene)) {
     return { kind: "reply", reply: emptyFrameSceneReply(recordReply, phases, position) };
   }
@@ -786,10 +778,6 @@ function frameClip(frame: FrameScene): FrameClip | null | undefined {
   return frame.recordReply?.clip;
 }
 
-function frameShift(frame: FrameScene): FrameShift | null | undefined {
-  return frame.recordReply?.shift;
-}
-
 function shiftedPartialInput(
   frame: FrameScene,
   isPartial: boolean,
@@ -797,7 +785,7 @@ function shiftedPartialInput(
   if (!isPartial) return null;
   const clip = frameClip(frame);
   if (!clip) return null;
-  const shift = frameShift(frame);
+  const shift = frame.recordReply?.shift;
   if (!shift) return null;
   return { clip, shift };
 }

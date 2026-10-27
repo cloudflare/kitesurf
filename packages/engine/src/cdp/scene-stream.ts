@@ -157,26 +157,16 @@ function page(
   sessionId: string | undefined,
 ): TargetState | null {
   if (targetId !== undefined) {
-    return pageById(ctx, targetId);
+    const target = ctx.browser.targets.get(targetId);
+    return target?.type === "page" ? target : null;
   }
-  if (sessionId) return pageForSession(ctx, sessionId);
-  return firstPage(ctx);
-}
-
-function pageById(ctx: DispatchCtx, targetId: string): TargetState | null {
-  const target = ctx.browser.targets.get(targetId);
-  return target?.type === "page" ? target : null;
-}
-
-function pageForSession(ctx: DispatchCtx, sessionId: string): TargetState | null {
-  for (const target of ctx.browser.targets.values()) {
-    if (target.type === "page" && target.sessions.has(sessionId)) return target;
+  if (sessionId) {
+    for (const target of ctx.browser.targets.values()) {
+      if (target.type === "page" && target.sessions.has(sessionId)) return target;
+    }
+    return null;
   }
-  return null;
-}
-
-function firstPage(ctx: DispatchCtx): TargetState | null {
-  return [...ctx.browser.targets.values()].find((target) => target.type === "page") ?? null;
+  return [...ctx.browser.targets.values()].find((t) => t.type === "page") ?? null;
 }
 
 function base64(bytes: Uint8Array): string {

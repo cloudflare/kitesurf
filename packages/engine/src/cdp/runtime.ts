@@ -39,28 +39,19 @@ function resolveExecutionContextFrame(
   target: TargetState | null | undefined,
   contextId: number | undefined,
 ): FrameState | null | false {
-  if (isBuiltInExecutionContext(contextId)) return null;
-  if (!target) return false;
-  if (isIsolatedWorldContext(target, contextId)) return null;
-  return findFrameByExecutionContext(target, contextId) ?? false;
-}
-
-function isBuiltInExecutionContext(contextId: number | undefined): boolean {
-  return !contextId || contextId === EXEC_CONTEXT_ID || contextId === ISOLATED_WORLD_CONTEXT_ID;
-}
-
-function isIsolatedWorldContext(target: TargetState, contextId: number | undefined): boolean {
-  return (target.isolatedWorlds ?? []).some((world) => world.id === contextId);
-}
-
-function findFrameByExecutionContext(
-  target: TargetState,
-  contextId: number | undefined,
-): FrameState | undefined {
-  for (const frame of target.frames.values()) {
-    if (frame.execContextId === contextId) return frame;
+  if (!contextId || contextId === EXEC_CONTEXT_ID || contextId === ISOLATED_WORLD_CONTEXT_ID) {
+    return null;
   }
-  return undefined;
+  if (!target) return false;
+  if ((target.isolatedWorlds ?? []).some((w) => w.id === contextId)) {
+    return null;
+  }
+  for (const f of target.frames.values()) {
+    if (f.execContextId === contextId) {
+      return f;
+    }
+  }
+  return false;
 }
 
 function assertLiveContextId(target: TargetState | null | undefined, id: unknown): void {
@@ -494,30 +485,18 @@ async function getProperties(
   ctx: DispatchCtx,
   req: Extract<CdpRequest, { method: "Runtime.getProperties" }>,
 ): Promise<{ result: Record<string, unknown>[] }> {
-  const objectId = runtimeObjectId(propertiesObjectId(req));
+  const objectId = runtimeObjectId(req.params?.objectId);
   if (objectId === null) return { result: [] };
   const pageScript = pageScriptForTarget(pickTarget(ctx, req.sessionId));
   if (!pageScript) return { result: [] };
   try {
     const { result: descriptors } = await pageScript.getProperties(objectId, {
-      ownProperties: propertiesOwnOption(req),
+      ownProperties: req.params?.ownProperties !== false,
     });
     return { result: descriptors.map(propertyDescriptorToCdp) };
   } catch {
     return { result: [] };
   }
-}
-
-function propertiesObjectId(
-  req: Extract<CdpRequest, { method: "Runtime.getProperties" }>,
-): string | undefined {
-  return req.params?.objectId;
-}
-
-function propertiesOwnOption(
-  req: Extract<CdpRequest, { method: "Runtime.getProperties" }>,
-): boolean {
-  return ownPropertiesOption(req.params?.ownProperties);
 }
 
 function runtimeObjectId(value: string | undefined): string | null {
@@ -527,10 +506,6 @@ function runtimeObjectId(value: string | undefined): string | null {
 
 function pageScriptForTarget(target: TargetState | undefined): PageScriptStub | null {
   return target?.pageScript ?? null;
-}
-
-function ownPropertiesOption(value: boolean | undefined): boolean {
-  return value !== false;
 }
 
 type PropertyDescriptor = Awaited<ReturnType<PageScriptStub["getProperties"]>>["result"][number];
@@ -749,32 +724,15 @@ function originOf(url: string): string {
 }
 
 function tryTrivial(expr: string): unknown {
-  const normalized = expr.trim().replace(/;$/, "");
-  const primitive = primitiveTrivialValue(normalized);
-  if (primitive.matched) return primitive.value;
-  const stringValue = trivialStringValue(normalized);
-  if (stringValue !== undefined) return stringValue;
-  return trivialNumberValue(normalized);
-}
-
-type PrimitiveTrivialValue = { matched: true; value: number | boolean | null } | { matched: false };
-
-function primitiveTrivialValue(expression: string): PrimitiveTrivialValue {
-  if (expression === "1+1") return { matched: true, value: 2 };
-  if (expression === "true") return { matched: true, value: true };
-  if (expression === "false") return { matched: true, value: false };
-  if (expression === "null") return { matched: true, value: null };
-  return { matched: false };
-}
-
-function trivialStringValue(expression: string): string | undefined {
-  const literal = /^"([^"\\]*)"$/.exec(expression) ?? /^'([^'\\]*)'$/.exec(expression);
-  return literal?.[1];
-}
-
-function trivialNumberValue(expression: string): number | undefined {
-  if (!/^-?\d+(\.\d+)?$/.test(expression)) return undefined;
-  return Number(expression);
+  const e = expr.trim().replace(/;$/, "");
+  if (e === "1+1") return 2;
+  if (e === "true") return true;
+  if (e === "false") return false;
+  if (e === "null") return null;
+  const lit = /^"([^"\\]*)"$/.exec(e) ?? /^'([^'\\]*)'$/.exec(e);
+  if (lit) return lit[1];
+  if (/^-?\d+(\.\d+)?$/.test(e)) return Number(e);
+  return undefined;
 }
 
 function encodeArgSpecs(

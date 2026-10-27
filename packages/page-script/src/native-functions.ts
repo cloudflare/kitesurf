@@ -100,22 +100,6 @@ const MAX_PROTOTYPE_CHAIN_HOPS = 8;
 type NativeVisit = (obj: unknown, depth: number) => void;
 type NativeVisitChain = (proto: unknown, depth: number) => void;
 
-function isObjectLike(value: unknown): value is object {
-  return (typeof value === "object" || typeof value === "function") && value !== null;
-}
-
-function shouldSkipNativeObject(obj: object, seen: Set<object>): boolean {
-  return obj === Object.prototype || obj === Function.prototype || seen.has(obj);
-}
-
-function ownKeysOf(obj: object): (string | symbol)[] | null {
-  try {
-    return Reflect.ownKeys(obj);
-  } catch {
-    return null;
-  }
-}
-
 function isShallowEngineObject(value: unknown, depth: number): value is object {
   return (
     !!value &&
@@ -166,29 +150,23 @@ function visitNativeKey(
   visitChain(Object.getPrototypeOf(value), depth + 1);
 }
 
-function visitNativeKeys(
-  obj: object,
-  keys: (string | symbol)[],
-  depth: number,
-  visit: NativeVisit,
-  visitChain: NativeVisitChain,
-): void {
-  for (const key of keys) {
-    try {
-      visitNativeKey(obj, key, depth, visit, visitChain);
-    } catch {}
-  }
-}
-
 export function markEngineFunctions(roots: readonly unknown[]): void {
   const seen = new Set<object>();
   const visit = (obj: unknown, depth: number): void => {
-    if (!isObjectLike(obj)) return;
-    if (shouldSkipNativeObject(obj, seen)) return;
+    if ((typeof obj !== "object" && typeof obj !== "function") || obj === null) return;
+    if (obj === Object.prototype || obj === Function.prototype || seen.has(obj)) return;
     seen.add(obj);
-    const keys = ownKeysOf(obj);
-    if (!keys) return;
-    visitNativeKeys(obj, keys, depth, visit, visitChain);
+    let keys: (string | symbol)[];
+    try {
+      keys = Reflect.ownKeys(obj);
+    } catch {
+      return;
+    }
+    for (const key of keys) {
+      try {
+        visitNativeKey(obj, key, depth, visit, visitChain);
+      } catch {}
+    }
   };
   const visitChain = (proto: unknown, depth: number): void => {
     try {

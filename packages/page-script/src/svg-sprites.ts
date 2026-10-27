@@ -175,35 +175,17 @@ function warnSpriteLoadFailure(url: string, error: unknown): void {
   } catch {}
 }
 
-function collectWantedSprites(): string[] {
+export function resolveExternalSvgSprites(): Promise<void> {
   const wanted: string[] = [];
   for (const use of collectUses()) {
     const ref = externalRef(use);
-    if (!ref || !isUnseenSprite(ref.url, wanted)) continue;
-    wanted.push(ref.url);
-    if (wanted.length >= MAX_SPRITES) break;
+    if (!ref) continue;
+    if (loadedSprites.has(ref.url) || failedSprites.has(ref.url)) continue;
+    if (!wanted.includes(ref.url)) {
+      wanted.push(ref.url);
+      if (wanted.length >= MAX_SPRITES) break;
+    }
   }
-  return wanted;
-}
-
-function isUnseenSprite(url: string, wanted: string[]): boolean {
-  return !loadedSprites.has(url) && !failedSprites.has(url) && !wanted.includes(url);
-}
-
-async function fetchWantedSprites(wanted: string[]): Promise<void> {
-  for (const url of wanted) resourceInflight.add("sprite:" + url);
-  try {
-    await Promise.all(
-      wanted.map((url) => loadSprite(url).finally(() => resourceInflight.delete("sprite:" + url))),
-    );
-    rewriteSpriteUses();
-  } catch {
-    for (const url of wanted) resourceInflight.delete("sprite:" + url);
-  }
-}
-
-export function resolveExternalSvgSprites(): Promise<void> {
-  const wanted = collectWantedSprites();
   if (wanted.length === 0) {
     rewriteSpriteUses();
     return Promise.resolve();
@@ -211,7 +193,19 @@ export function resolveExternalSvgSprites(): Promise<void> {
   try {
     console.warn(`[ks-sprites] fetching ${wanted.length} sprite(s): ${wanted.join(", ")}`);
   } catch {}
-  return fetchWantedSprites(wanted);
+  for (const url of wanted) resourceInflight.add("sprite:" + url);
+  return (async () => {
+    try {
+      await Promise.all(
+        wanted.map((url) =>
+          loadSprite(url).finally(() => resourceInflight.delete("sprite:" + url)),
+        ),
+      );
+      rewriteSpriteUses();
+    } catch {
+      for (const url of wanted) resourceInflight.delete("sprite:" + url);
+    }
+  })();
 }
 
 const LATE_SPRITE_SWEEP_PASSES = 12;

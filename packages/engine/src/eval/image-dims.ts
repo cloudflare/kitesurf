@@ -295,13 +295,9 @@ function indexOfByte(bytes: Uint8Array, byte: number, from: number, limit: numbe
 }
 
 export function sniffImageDims(bytes: Uint8Array): ImageDims | null {
-  const dims = sniffKnownImageFormat(bytes);
+  const dims = sniffStandardImageFormat(bytes) ?? sniffIsobmff(bytes);
   if (!dims || !hasValidDimensions(dims)) return null;
   return dims;
-}
-
-function sniffKnownImageFormat(bytes: Uint8Array): ImageDims | null {
-  return sniffStandardImageFormat(bytes) ?? sniffIsobmff(bytes);
 }
 
 function sniffStandardImageFormat(bytes: Uint8Array): ImageDims | null {
