@@ -4,7 +4,7 @@
 
 // Implements node wrappers, tree mutations, cloning, and text operations over the wasm DOM.
 
-import type { DomHandle } from "../../core/pkg/kitesurf_core";
+import type { DomHandle, KsNodeInfo } from "../../core/pkg/kitesurf_core";
 import type * as Idl from "./idl/types.generated.js";
 import {
   ksGlobal,
@@ -638,6 +638,11 @@ function indexById(kids: ArrayLike<NodeBase>, id: number): number {
   return -1;
 }
 
+// What a wrapper knows about its node: nodeInfo's snapshot, or the literal
+// a synthetic node (doctype, processing instruction) builds by hand.
+export type WrapperInfo = Pick<KsNodeInfo, "nodeType" | "nodeName" | "localName" | "nodeValue"> &
+  Partial<KsNodeInfo>;
+
 class NodeBase extends KsEventTarget implements Idl.Node {
   // Installed on the prototype below the class.
   declare baseURI: string;
@@ -646,11 +651,14 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   _parentIdSeq: number;
   declare _typeCheckSeq?: number;
   declare _attrFlatCache?: string[] | null;
-  _info: any;
-  get data(): any {
-    return this._info ? this._info.nodeValue : undefined;
+  _info: WrapperInfo;
+  // Typed for NodeBase receivers, which always carry _info. `?.` because a
+  // ParsedElement receiver borrows these getters without one, and reads
+  // undefined, outside what TypeScript sees as `this`.
+  get data(): string {
+    return this._info?.nodeValue;
   }
-  set data(_v: any) {}
+  set data(_v: unknown) {}
   _attrFlat?(): any[];
   _serializeForAppend?(): string;
   get innerHTML(): any {
@@ -664,7 +672,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   declare lookupNamespaceURI: (prefix: any) => any;
   declare lookupPrefix: (ns: any) => any;
   declare isDefaultNamespace: (ns: any) => boolean;
-  constructor(nodeId, info) {
+  constructor(nodeId: number, info: WrapperInfo) {
     super();
     this._id = nodeId;
     this._info = info;
@@ -746,16 +754,16 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     const own = Object.getOwnPropertyDescriptor(this, "nodeName");
     return own && "value" in own ? own.value : "";
   }
-  get nodeValue() {
+  get nodeValue(): string | null {
     return null;
   }
-  set nodeValue(_v) {}
-  get textContent() {
+  set nodeValue(_v: string | null) {}
+  get textContent(): string | null {
     if (this._id < 0) return this._info.nodeValue || "";
     if (stampedPiIds.size === 0) return dom.textContent(this._id);
     return collectTextContent(this._id);
   }
-  set textContent(value) {
+  set textContent(value: string | null) {
     if (this._id < 0) {
       const text = String(value ?? "");
       if (this._info) this._info.nodeValue = text;
@@ -826,12 +834,12 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     nodeListCache.set(this, list);
     return list;
   }
-  get firstChild() {
+  get firstChild(): NodeBase | null {
     if (this == null) return null;
     const kids = childArray(this);
     return kids.length > 0 ? kids[0] : null;
   }
-  get lastChild() {
+  get lastChild(): NodeBase | null {
     const kids = childArray(this);
     return kids.length > 0 ? kids[kids.length - 1] : null;
   }
@@ -923,14 +931,14 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     const p = this.parentNode;
     return isElementNode(p) ? p : null;
   }
-  get nextSibling() {
+  get nextSibling(): NodeBase | null {
     if (this == null) return null;
     const kids = parentChildArray(this);
     if (!kids) return null;
     const i = indexById(kids, this._id);
     return i >= 0 && i + 1 < kids.length ? kids[i + 1] : null;
   }
-  get previousSibling() {
+  get previousSibling(): NodeBase | null {
     const kids = parentChildArray(this);
     if (!kids) return null;
     const i = indexById(kids, this._id);

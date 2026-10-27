@@ -347,7 +347,10 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
     } else {
       const id = dom.createElement("div");
       fragmentIds.add(id);
-      super(id, dom.nodeInfo(id));
+      // A node created a line above always has a snapshot.
+      const created = dom.nodeInfo(id);
+      if (!created) throw new TypeError("dom-shim: new fragment node has no info");
+      super(id, created);
     }
   }
   get nodeType() {
@@ -355,9 +358,6 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
   }
   get nodeName() {
     return "#document-fragment";
-  }
-  get tagName(): undefined {
-    return undefined;
   }
   cloneNode(deep) {
     const clone = createDocumentFragmentInternal();
@@ -385,6 +385,17 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
     return null;
   }
 }
+
+// tagName is not defined on DocumentFragment per spec — it's inherited
+// from Element which reads from wasm. Force undefined. Defined here, not
+// as a class getter, because Element types tagName as a string.
+Object.defineProperty(DocumentFragmentImpl.prototype, "tagName", {
+  get: function tagName() {
+    return undefined;
+  },
+  enumerable: false,
+  configurable: true,
+});
 
 // A shadow root backed by the wasm ShadowRoot node (attachShadow). It
 // extends the fragment class so nodeType, nodeName and the queries fit.

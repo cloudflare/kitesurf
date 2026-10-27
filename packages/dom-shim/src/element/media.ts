@@ -4,6 +4,7 @@
 
 // Implements media-element state and events plus the shim's text-track stand-ins.
 
+import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
 import { KsEvent } from "../events/event.js";
 import {
@@ -121,7 +122,7 @@ interface HTMLMediaElement extends Pick<
 // the setters accept and drop what they get. The track members return object
 // stubs (idl/type-gaps.json).
 class HTMLMediaElement extends HTMLElement implements Idl.HTMLMediaElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLMediaElement");
   }
@@ -257,7 +258,7 @@ function copyMediaMembers(target: typeof HTMLElement): void {
 
 interface HTMLAudioElement extends MediaMembers {}
 class HTMLAudioElement extends HTMLElement implements Idl.HTMLAudioElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLAudioElement");
   }
@@ -267,7 +268,7 @@ class HTMLAudioElement extends HTMLElement implements Idl.HTMLAudioElement {
 interface HTMLVideoElement
   extends MediaMembers, Pick<Idl.HTMLVideoElement, "width" | "height" | "poster" | "playsInline"> {}
 class HTMLVideoElement extends HTMLElement implements Idl.HTMLVideoElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLVideoElement");
   }

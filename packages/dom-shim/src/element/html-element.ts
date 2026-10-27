@@ -4,6 +4,7 @@
 
 // Defines HTMLElement and installs its shared attributes and helper behavior.
 
+import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
 import { elementDocument } from "../state.js";
 import { MATHML_NS, SVG_NS, TEXT_NODE } from "../constants.js";
@@ -120,7 +121,7 @@ class HTMLElement extends Element implements Idl.HTMLElement {
   get outerText(): string | undefined {
     return this.innerText;
   }
-  set outerText(v: string) {
+  set outerText(v: unknown) {
     // Non-HTML elements have no outerText IDL attribute and receive an expando.
     // https://html.spec.whatwg.org/#dom-outertext
     const ns = this.namespaceURI;
@@ -209,7 +210,7 @@ function defineHTMLClass<I extends Idl.HTMLElement>(
 ): HTMLElementClass<HTMLElement & IdlOwnMembers<I>> {
   const cls = {
     [name]: class extends HTMLElement {
-      constructor(nodeId: number, info: unknown, token?: symbol) {
+      constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
         super(nodeId, info);
         checkInternalConstruct(token, name);
       }

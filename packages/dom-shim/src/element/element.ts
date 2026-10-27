@@ -4,10 +4,11 @@
 
 // Implements Element attributes, queries, geometry, style, scrolling, and focus behavior.
 
+import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
 import { makeStyleDeclaration, type StyleDeclarationBackend } from "../style-declaration.js";
 import type { EventHandlerName } from "../event-handler-names.js";
-import type { AttrCls as AttrImpl, DOMTokenListCls } from "../collections.js";
+import type { AttrCls as AttrImpl, DOMTokenListCls, DocumentFragmentImpl } from "../collections.js";
 import {
   makeDOMTokenList,
   dom,
@@ -523,7 +524,7 @@ class Element extends NodeBase implements Idl.Element {
   // checkbox, anchor, summary and label steps.
   // https://dom.spec.whatwg.org/#eventtarget-activation-behavior
   [activationBehavior](): void {}
-  constructor(nodeId: number, info: unknown) {
+  constructor(nodeId: number, info: WrapperInfo) {
     super(nodeId, info);
     this._attrFlatCache = null;
   }
@@ -1351,7 +1352,7 @@ class Element extends NodeBase implements Idl.Element {
     syncCheckedFromAttrs(this);
     if (htmlText.indexOf("id") !== -1) stampSubtreeNamedGlobals(this);
   }
-  get content(): ReturnType<typeof ensureTemplateContent> | undefined {
+  get content(): DocumentFragmentImpl | undefined {
     if (!isTemplateElement(this._id)) return undefined;
     return ensureTemplateContent(this._id);
   }
@@ -1426,7 +1427,8 @@ class Element extends NodeBase implements Idl.Element {
       const s: unknown = dom.innerTextRendered(this._id);
       if (typeof s === "string") return s;
     } catch {}
-    return this.textContent;
+    // An element's textContent is never null; only a document's is.
+    return this.textContent ?? "";
   }
   set innerText(value) {
     const v = value === null ? "" : String(value);
