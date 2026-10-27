@@ -6595,8 +6595,8 @@ function queryDomNodeHandle(
   }
 }
 
-// Chrome's center-if-needed: a rect already wholly in the viewport stays put, any other is
-// centred. Puppeteer's locator scrolls this way and re-checks before every click.
+// Chrome's center-if-needed: a rect wholly shown by the viewport and by every clipping ancestor
+// stays put, any other is centred. Puppeteer's locator scrolls this way and re-checks per click.
 function queryDomScrollIntoView(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"scrollIntoViewIfNeeded"> {
@@ -6612,11 +6612,50 @@ function queryDomScrollIntoView(
     : box;
   const vw = Number(ksGlobal.innerWidth) || 0;
   const vh = Number(ksGlobal.innerHeight) || 0;
-  if (r.left >= 0 && r.top >= 0 && r.left + r.width <= vw && r.top + r.height <= vh) {
-    return { found: true, scrolled: false };
-  }
+  const inViewport = r.left >= 0 && r.top >= 0 && r.left + r.width <= vw && r.top + r.height <= vh;
+  if (inViewport && !clippedByAncestor(element._id, r)) return { found: true, scrolled: false };
   element.scrollIntoView({ block: "center", inline: "center" });
   return { found: true, scrolled: true };
+}
+
+interface ViewportRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+// The overflow boxes Element.scrollIntoView scrolls, below the root: a rect outside one's client
+// area is hidden though the window would show it, like a button in a scrolled consent dialog.
+function clippedByAncestor(elementId: number | undefined, r: ViewportRect): boolean {
+  const dom = state.dom;
+  const paint = ensurePaintDom();
+  if (typeof elementId !== "number" || !dom || !paint) return false;
+  let cur = elementId;
+  try {
+    const rootId = dom.querySelector("html");
+    for (let hops = 0; hops < MAX_ANCESTOR_STYLE_HOPS; hops++) {
+      const parent = dom.parentId(cur);
+      if (typeof parent !== "number" || parent < 0 || parent === rootId) return false;
+      if (clipsRect(paint, parent, r)) return true;
+      cur = parent;
+    }
+  } catch {
+    invalidatePaintDom();
+  }
+  return false;
+}
+
+function clipsRect(paint: DomHandle, id: number, r: ViewportRect): boolean {
+  const info: unknown = paint.nodeScrollInfo(id);
+  const box = rectWithScrollOffset(paint.getBoundingClientRect(id));
+  if (typeof info !== "object" || info === null || !box) return false;
+  const num = (key: string): number => Number(Reflect.get(info, key)) || 0;
+  const left = box.x + num("clientLeft");
+  const top = box.y + num("clientTop");
+  const outX = r.left < left || r.left + r.width > left + num("clientWidth");
+  const outY = r.top < top || r.top + r.height > top + num("clientHeight");
+  return (!!Reflect.get(info, "overflowsX") && outX) || (!!Reflect.get(info, "overflowsY") && outY);
 }
 
 // CDP's optional DOM.Rect, relative to the node's border box; anything else reads as absent.
