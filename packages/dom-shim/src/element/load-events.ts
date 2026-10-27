@@ -168,7 +168,7 @@ export function notifyImageResults(
     const type = applied ? "load" : "error";
     const attrName = applied ? "onload" : "onerror";
     try {
-      if (typeof el[attrName] !== "function") {
+      if (typeof Reflect.get(el, attrName) !== "function") {
         const source = el.getAttribute?.(attrName);
         if (typeof source === "string" && source.length > 0) {
           installAttrEventHandler(el, attrName, source);
@@ -210,7 +210,7 @@ export function notifyStylesheetResults(url: unknown, ok: boolean): void {
     const type = ok ? "load" : "error";
     const attrName = ok ? "onload" : "onerror";
     try {
-      if (typeof el[attrName] !== "function") {
+      if (typeof Reflect.get(el, attrName) !== "function") {
         const source = el.getAttribute?.(attrName);
         if (typeof source === "string" && source.length > 0) {
           installAttrEventHandler(el, attrName, source);
