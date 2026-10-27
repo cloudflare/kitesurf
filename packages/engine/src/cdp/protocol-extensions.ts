@@ -37,6 +37,7 @@ declare module "devtools-protocol" {
         _kitesurfInternal?: boolean;
         _kitesurfPostData?: string;
         _kitesurfPostContentType?: string;
+        _kitesurfLoaderId?: string;
       }
       interface StartScreencastRequest {
         minFrameIntervalMs?: integer;

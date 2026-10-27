@@ -63,6 +63,8 @@ test("a fragment link click has moved the frame's URL by the time it replies", a
   const x = box.x + box.width / 2,
     y = box.y + box.height / 2;
   const cdp = await page.createCDPSession();
+  const started: string[] = [];
+  cdp.on("Page.frameStartedNavigating", (e) => started.push(e.url));
   await cdp.send("Input.dispatchMouseEvent", {
     type: "mousePressed",
     x,
@@ -81,6 +83,63 @@ test("a fragment link click has moved the frame's URL by the time it replies", a
   });
   const { frameTree } = await cdp.send("Page.getFrameTree");
   expect(frameTree.frame.url).toBe("https://ks.invalid/__fixtures/lifecycle.html#later");
+  expect(started).toEqual([]);
+}, 60_000);
+
+// chrome-devtools-mcp waits for a click's navigation only if Page.frameStartedNavigating arrives
+// within 100 ms of the reply; without it, it snapshots the document being retired.
+test("a link click announces the navigation before it replies, with the new document's loader", async ({
+  page,
+}) => {
+  await page.goto("https://ks.invalid/__fixtures/lifecycle.html", { waitUntil: "load" });
+  await page.evaluate(() => {
+    const a = document.createElement("a");
+    a.id = "next";
+    a.href = "/__fixtures/slow-document.html?ms=1000";
+    a.textContent = "next";
+    a.style.cssText = "display:block;width:120px;height:40px";
+    document.body.prepend(a);
+  });
+  const box = await (await page.$("#next"))?.boundingBox();
+  if (!box) throw new Error("#next has no layout box");
+  const x = box.x + box.width / 2,
+    y = box.y + box.height / 2;
+  const cdp = await page.createCDPSession();
+  await cdp.send("Page.enable");
+  const { frameTree } = await cdp.send("Page.getFrameTree");
+  const order: string[] = [];
+  let loaderId = "";
+  cdp.on("Page.frameRequestedNavigation", (e) => order.push(`requested ${e.reason} ${e.url}`));
+  cdp.on("Page.frameStartedNavigating", (e) => {
+    order.push(`started ${e.navigationType} ${e.url}`);
+    loaderId = e.loaderId;
+    expect(e.frameId).toBe(frameTree.frame.id);
+  });
+  const navigated = new Promise<string>((resolve) =>
+    cdp.on("Page.frameNavigated", (e) => {
+      if (e.frame.id === frameTree.frame.id) resolve(e.frame.loaderId);
+    }),
+  );
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x,
+    y,
+    button: "left",
+    buttons: 1,
+    clickCount: 1,
+  });
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x,
+    y,
+    button: "left",
+    buttons: 0,
+    clickCount: 1,
+  });
+  order.push("reply");
+  const url = "https://ks.invalid/__fixtures/slow-document.html?ms=1000";
+  expect(order).toEqual([`requested other ${url}`, `started differentDocument ${url}`, "reply"]);
+  expect(await navigated).toBe(loaderId);
 }, 60_000);
 
 test("Enter's implicit submit replies on dispatch, and the next input waits for the document it asked for", async ({
