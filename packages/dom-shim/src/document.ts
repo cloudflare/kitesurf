@@ -66,6 +66,7 @@ import {
 import { createEditingEngine, type EditingEngine } from "./editing/implementation.js";
 import type { ParsedDocument } from "./parser.js";
 import type { Element } from "./element/element.js";
+import type { DomHandle } from "../../core/pkg/kitesurf_core";
 import type * as Idl from "./idl/types.generated.js";
 import { cssEscape } from "./util/strings.js";
 import {
@@ -1539,7 +1540,7 @@ interface DetachedDocument
 class DetachedDocument implements Idl.Document {
   // Set by the constructor and the createDocument, createHTMLDocument and
   // DOMParser paths.
-  declare _dom: any;
+  declare _dom: DomHandle;
   declare _hostId: number;
   declare _host: any;
   declare _topChildren: any[];

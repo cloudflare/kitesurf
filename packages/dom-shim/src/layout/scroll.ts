@@ -62,7 +62,7 @@ function nodeScrollInfoSafe(nodeId: number): AuthScrollInfoSnapshot | null {
       if (layoutInfo && typeof layoutInfo === "object") {
         let wasmInfo: any = null;
         try {
-          wasmInfo = (dom as any).nodeScrollInfo(nodeId);
+          wasmInfo = dom.nodeScrollInfo(nodeId);
         } catch {}
         return {
           scrollTop: wasmInfo?.scrollTop ?? layoutInfo.scrollTop ?? 0,
@@ -87,7 +87,7 @@ function nodeScrollInfoSafe(nodeId: number): AuthScrollInfoSnapshot | null {
     } catch {}
   }
   try {
-    const info = (dom as any).nodeScrollInfo(nodeId);
+    const info = dom.nodeScrollInfo(nodeId);
     if (info && typeof info === "object") return info;
   } catch {}
   return null;

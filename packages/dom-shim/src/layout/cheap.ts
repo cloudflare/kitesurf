@@ -338,9 +338,7 @@ export function cheapHit(x: number, y: number): number {
 export function hasLayoutBox(nodeId: number): boolean {
   if (typeof nodeId !== "number" || nodeId < 0) return true;
   try {
-    const rect = getRectByAuthId
-      ? getRectByAuthId(nodeId)
-      : (dom as any).getBoundingClientRect(nodeId);
+    const rect = getRectByAuthId ? getRectByAuthId(nodeId) : dom.getBoundingClientRect(nodeId);
     if (rect && (rect.width < 0 || rect.height < 0)) return false;
   } catch {}
   return true;
@@ -386,7 +384,7 @@ export function getRect(nodeId: number): { x: number; y: number; width: number; 
     return { x: 0, y: 0, width: 0, height: 0 };
   }
   try {
-    const rect = (dom as any).getBoundingClientRect(nodeId);
+    const rect = dom.getBoundingClientRect(nodeId);
     if (rect && (rect.width < 0 || rect.height < 0)) {
       return { x: 0, y: 0, width: 0, height: 0 };
     }
