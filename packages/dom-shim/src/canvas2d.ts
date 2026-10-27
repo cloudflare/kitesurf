@@ -304,46 +304,52 @@ function pathBuilders(emit: (op: CanvasOp) => void) {
     closePath() {
       emit({ o: "closePath" });
     },
-    moveTo(x: unknown, y: unknown) {
+    moveTo(x: number, y: number) {
       emit({ o: "moveTo", a: [Number(x), Number(y)] });
     },
-    lineTo(x: unknown, y: unknown) {
+    lineTo(x: number, y: number) {
       emit({ o: "lineTo", a: [Number(x), Number(y)] });
     },
-    quadraticCurveTo(cx: unknown, cy: unknown, x: unknown, y: unknown) {
+    quadraticCurveTo(cx: number, cy: number, x: number, y: number) {
       emit({ o: "quad", a: [Number(cx), Number(cy), Number(x), Number(y)] });
     },
-    bezierCurveTo(c1x: unknown, c1y: unknown, c2x: unknown, c2y: unknown, x: unknown, y: unknown) {
+    bezierCurveTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number) {
       emit({ o: "bezier", a: [c1x, c1y, c2x, c2y, x, y].map(Number) });
     },
-    arc(x: unknown, y: unknown, r: unknown, a0: unknown, a1: unknown, ccw?: unknown) {
+    arc(x: number, y: number, r: number, a0: number, a1: number, ccw?: boolean) {
       const rr = Number(r);
       if (rr < 0) throw domExc("negative radius", "IndexSizeError");
       emit({ o: "arc", a: [Number(x), Number(y), rr, Number(a0), Number(a1), ccw ? 1 : 0] });
     },
-    arcTo(x1: unknown, y1: unknown, x2: unknown, y2: unknown, r: unknown) {
+    arcTo(x1: number, y1: number, x2: number, y2: number, r: number) {
       const rr = Number(r);
       if (rr < 0) throw domExc("negative radius", "IndexSizeError");
       emit({ o: "arcTo", a: [Number(x1), Number(y1), Number(x2), Number(y2), rr] });
     },
     // eslint-disable-next-line max-params -- Canvas ellipse keeps its WebIDL signature.
     ellipse(
-      x: unknown,
-      y: unknown,
-      rx: unknown,
-      ry: unknown,
-      rot: unknown,
-      a0: unknown,
-      a1: unknown,
-      ccw?: unknown,
+      x: number,
+      y: number,
+      rx: number,
+      ry: number,
+      rot: number,
+      a0: number,
+      a1: number,
+      ccw?: boolean,
     ) {
       if (Number(rx) < 0 || Number(ry) < 0) throw domExc("negative radius", "IndexSizeError");
       emit({ o: "ellipse", a: [x, y, rx, ry, rot, a0, a1, ccw ? 1 : 0].map(Number) });
     },
-    rect(x: unknown, y: unknown, w: unknown, h: unknown) {
+    rect(x: number, y: number, w: number, h: number) {
       emit({ o: "rect", a: [Number(x), Number(y), Number(w), Number(h)] });
     },
-    roundRect(x: unknown, y: unknown, w: unknown, h: unknown, radii?: unknown) {
+    roundRect(
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      radii?: number | Idl.DOMPointInit | (number | Idl.DOMPointInit)[],
+    ) {
       const list: unknown[] = radii === undefined ? [0] : Array.isArray(radii) ? radii : [radii];
       if (list.length < 1 || list.length > 4) {
         throw new RangeError("roundRect: 1-4 radii required");
@@ -412,14 +418,14 @@ function matrixOps(m: unknown): CanvasOp[] | null {
 type CanvasPathMethods = ReturnType<typeof pathBuilders>;
 export interface Path2D extends CanvasPathMethods {}
 export class Path2D implements Idl.Path2D {
-  constructor(init?: unknown) {
+  constructor(init?: Path2D | string) {
     const ops: CanvasOp[] = [];
     path2dOps.set(this, ops);
     if (init instanceof Path2D) ops.push(...opsOf(init, "constructor"));
     else if (init !== undefined) ops.push({ o: "svgPath", s: String(init) });
   }
 
-  addPath(path: unknown, transform?: unknown): void {
+  addPath(path: Idl.Path2D, transform?: Idl.DOMMatrix2DInit): void {
     if (!(path instanceof Path2D)) throw new TypeError("Path2D.addPath: argument is not a Path2D");
     const added = opsOf(path, "addPath");
     const ops = opsOf(this, "addPath");
@@ -813,20 +819,20 @@ function buildContextImpl(canvas: CanvasHost) {
     get fillStyle() {
       return st.fillStyle;
     },
-    set fillStyle(v: unknown) {
+    set fillStyle(v: string | Idl.CanvasGradient | Idl.CanvasPattern) {
       setStyle("fillStyle", v);
     },
     get strokeStyle() {
       return st.strokeStyle;
     },
-    set strokeStyle(v: unknown) {
+    set strokeStyle(v: string | Idl.CanvasGradient | Idl.CanvasPattern) {
       setStyle("strokeStyle", v);
     },
 
     get globalAlpha() {
       return st.globalAlpha;
     },
-    set globalAlpha(v: unknown) {
+    set globalAlpha(v: number) {
       const n = Number(v);
       if (Number.isFinite(n) && n >= 0 && n <= 1) {
         st.globalAlpha = n;
@@ -836,7 +842,7 @@ function buildContextImpl(canvas: CanvasHost) {
     get globalCompositeOperation() {
       return st.globalCompositeOperation;
     },
-    set globalCompositeOperation(v: unknown) {
+    set globalCompositeOperation(v: string) {
       const s = String(v);
       if (COMPOSITES.indexOf(s) >= 0) {
         st.globalCompositeOperation = s;
@@ -847,27 +853,29 @@ function buildContextImpl(canvas: CanvasHost) {
     get lineWidth() {
       return st.lineWidth;
     },
-    set lineWidth(v: unknown) {
+    set lineWidth(v: number) {
       const n = Number(v);
       if (Number.isFinite(n) && n > 0) {
         st.lineWidth = n;
         enqueue({ o: "lineWidth", a: [n] });
       }
     },
-    get lineCap() {
+    // The enum setters take the IDL enum; the state keeps the keyword they
+    // validated as a string.
+    get lineCap(): string {
       return st.lineCap;
     },
-    set lineCap(v: unknown) {
+    set lineCap(v: Idl.CanvasLineCap) {
       const s = String(v);
       if (LINE_CAPS.indexOf(s) >= 0) {
         st.lineCap = s;
         enqueue({ o: "lineCap", s });
       }
     },
-    get lineJoin() {
+    get lineJoin(): string {
       return st.lineJoin;
     },
-    set lineJoin(v: unknown) {
+    set lineJoin(v: Idl.CanvasLineJoin) {
       const s = String(v);
       if (LINE_JOINS.indexOf(s) >= 0) {
         st.lineJoin = s;
@@ -877,14 +885,14 @@ function buildContextImpl(canvas: CanvasHost) {
     get miterLimit() {
       return st.miterLimit;
     },
-    set miterLimit(v: unknown) {
+    set miterLimit(v: number) {
       const n = Number(v);
       if (Number.isFinite(n) && n > 0) {
         st.miterLimit = n;
         enqueue({ o: "miterLimit", a: [n] });
       }
     },
-    setLineDash(segments: Iterable<unknown> | ArrayLike<unknown> | null | undefined) {
+    setLineDash(segments: number[]) {
       const arr = Array.from(segments ?? [], Number);
       if (arr.some((v) => !Number.isFinite(v) || v < 0)) return;
       st.lineDash = arr.length % 2 === 1 ? arr.concat(arr) : arr;
@@ -896,7 +904,7 @@ function buildContextImpl(canvas: CanvasHost) {
     get lineDashOffset() {
       return st.lineDashOffset;
     },
-    set lineDashOffset(v: unknown) {
+    set lineDashOffset(v: number) {
       const n = Number(v);
       if (Number.isFinite(n)) {
         st.lineDashOffset = n;
@@ -907,27 +915,27 @@ function buildContextImpl(canvas: CanvasHost) {
     get font() {
       return st.font;
     },
-    set font(v: unknown) {
+    set font(v: string) {
       const s = String(v);
       if (s) {
         st.font = s;
         enqueue({ o: "font", s });
       }
     },
-    get textAlign() {
+    get textAlign(): string {
       return st.textAlign;
     },
-    set textAlign(v: unknown) {
+    set textAlign(v: Idl.CanvasTextAlign) {
       const s = String(v);
       if (TEXT_ALIGNS.indexOf(s) >= 0) {
         st.textAlign = s;
         enqueue({ o: "textAlign", s });
       }
     },
-    get textBaseline() {
+    get textBaseline(): string {
       return st.textBaseline;
     },
-    set textBaseline(v: unknown) {
+    set textBaseline(v: Idl.CanvasTextBaseline) {
       const s = String(v);
       if (TEXT_BASELINES.indexOf(s) >= 0) {
         st.textBaseline = s;
@@ -937,14 +945,14 @@ function buildContextImpl(canvas: CanvasHost) {
     get imageSmoothingEnabled() {
       return st.imageSmoothingEnabled;
     },
-    set imageSmoothingEnabled(v: unknown) {
+    set imageSmoothingEnabled(v: boolean) {
       st.imageSmoothingEnabled = !!v;
       enqueue({ o: "smoothing", a: [v ? 1 : 0] });
     },
-    get imageSmoothingQuality() {
+    get imageSmoothingQuality(): string {
       return st.imageSmoothingQuality;
     },
-    set imageSmoothingQuality(v: unknown) {
+    set imageSmoothingQuality(v: Idl.ImageSmoothingQuality) {
       const s = String(v);
       if (["low", "medium", "high"].indexOf(s) >= 0) st.imageSmoothingQuality = s;
     },
@@ -952,28 +960,28 @@ function buildContextImpl(canvas: CanvasHost) {
     get letterSpacing() {
       return st.letterSpacing;
     },
-    set letterSpacing(v: unknown) {
+    set letterSpacing(v: string) {
       const s = parseCssSpacing(v);
       if (s !== null) st.letterSpacing = s;
     },
     get wordSpacing() {
       return st.wordSpacing;
     },
-    set wordSpacing(v: unknown) {
+    set wordSpacing(v: string) {
       const s = parseCssSpacing(v);
       if (s !== null) st.wordSpacing = s;
     },
-    get fontKerning() {
+    get fontKerning(): string {
       return st.fontKerning;
     },
-    set fontKerning(v: unknown) {
+    set fontKerning(v: Idl.CanvasFontKerning) {
       const s = String(v);
       if (["auto", "normal", "none"].indexOf(s) >= 0) st.fontKerning = s;
     },
-    get fontStretch() {
+    get fontStretch(): string {
       return st.fontStretch;
     },
-    set fontStretch(v: unknown) {
+    set fontStretch(v: Idl.CanvasFontStretch) {
       const s = String(v);
       if (
         [
@@ -990,10 +998,10 @@ function buildContextImpl(canvas: CanvasHost) {
       )
         st.fontStretch = s;
     },
-    get fontVariantCaps() {
+    get fontVariantCaps(): string {
       return st.fontVariantCaps;
     },
-    set fontVariantCaps(v: unknown) {
+    set fontVariantCaps(v: Idl.CanvasFontVariantCaps) {
       const s = String(v);
       if (
         [
@@ -1009,18 +1017,18 @@ function buildContextImpl(canvas: CanvasHost) {
         st.fontVariantCaps = s;
       }
     },
-    get textRendering() {
+    get textRendering(): string {
       return st.textRendering;
     },
-    set textRendering(v: unknown) {
+    set textRendering(v: Idl.CanvasTextRendering) {
       const s = String(v);
       if (["auto", "optimizeSpeed", "optimizeLegibility", "geometricPrecision"].indexOf(s) >= 0)
         st.textRendering = s;
     },
-    get direction() {
+    get direction(): string {
       return st.direction;
     },
-    set direction(v: unknown) {
+    set direction(v: Idl.CanvasDirection) {
       const s = String(v);
       if (["ltr", "rtl", "inherit"].indexOf(s) >= 0) st.direction = s;
     },
@@ -1037,11 +1045,11 @@ function buildContextImpl(canvas: CanvasHost) {
 
     setTransform(
       a?: MatrixInput | number,
-      b?: unknown,
-      c?: unknown,
-      d?: unknown,
-      e?: unknown,
-      f?: unknown,
+      b?: number,
+      c?: number,
+      d?: number,
+      e?: number,
+      f?: number,
     ) {
       let m: number[];
       if (typeof a === "object" && a) {
@@ -1060,7 +1068,7 @@ function buildContextImpl(canvas: CanvasHost) {
       st.transform = m;
       enqueue({ o: "setTransform", a: m });
     },
-    transform(a: unknown, b: unknown, c: unknown, d: unknown, e: unknown, f: unknown) {
+    transform(a: number, b: number, c: number, d: number, e: number, f: number) {
       const m = [a, b, c, d, e, f].map(Number);
       if (m.some((v) => !Number.isFinite(v))) return;
       st.transform = matMul(mat(), m);
@@ -1070,19 +1078,19 @@ function buildContextImpl(canvas: CanvasHost) {
       st.transform = [1, 0, 0, 1, 0, 0];
       enqueue({ o: "resetTransform" });
     },
-    translate(x: unknown, y: unknown) {
+    translate(x: number, y: number) {
       const m = [Number(x), Number(y)];
       if (m.some((v) => !Number.isFinite(v))) return;
       st.transform = matMul(mat(), [1, 0, 0, 1, m[0], m[1]]);
       enqueue({ o: "translate", a: m });
     },
-    scale(x: unknown, y: unknown) {
+    scale(x: number, y: number) {
       const m = [Number(x), Number(y)];
       if (m.some((v) => !Number.isFinite(v))) return;
       st.transform = matMul(mat(), [m[0], 0, 0, m[1], 0, 0]);
       enqueue({ o: "scale", a: m });
     },
-    rotate(angle: unknown) {
+    rotate(angle: number) {
       const radians = Number(angle);
       if (!Number.isFinite(radians)) return;
       const cos = Math.cos(radians);
@@ -1111,13 +1119,13 @@ function buildContextImpl(canvas: CanvasHost) {
       };
     },
 
-    fillRect(x: unknown, y: unknown, w: unknown, h: unknown) {
+    fillRect(x: number, y: number, w: number, h: number) {
       enqueue({ o: "fillRect", a: [Number(x), Number(y), Number(w), Number(h)] });
     },
-    strokeRect(x: unknown, y: unknown, w: unknown, h: unknown) {
+    strokeRect(x: number, y: number, w: number, h: number) {
       enqueue({ o: "strokeRect", a: [Number(x), Number(y), Number(w), Number(h)] });
     },
-    clearRect(x: unknown, y: unknown, w: unknown, h: unknown) {
+    clearRect(x: number, y: number, w: number, h: number) {
       enqueue({ o: "clearRect", a: [Number(x), Number(y), Number(w), Number(h)] });
     },
 
@@ -1125,19 +1133,24 @@ function buildContextImpl(canvas: CanvasHost) {
       enqueue({ o: "beginPath" });
     },
     ...pathBuilders(enqueue),
-    fill(pathOrRule?: unknown, rule?: unknown) {
+    fill(pathOrRule?: Idl.Path2D | Idl.CanvasFillRule, rule?: Idl.CanvasFillRule) {
       if (pathOrRule instanceof Path2D) withPath2D(pathOrRule, { o: "fill", s: fillRule(rule) });
       else enqueue({ o: "fill", s: fillRule(pathOrRule) });
     },
-    stroke(path?: unknown) {
+    stroke(path?: Idl.Path2D) {
       if (path instanceof Path2D) withPath2D(path, { o: "stroke" });
       else enqueue({ o: "stroke" });
     },
-    clip(pathOrRule?: unknown, rule?: unknown) {
+    clip(pathOrRule?: Idl.Path2D | Idl.CanvasFillRule, rule?: Idl.CanvasFillRule) {
       if (pathOrRule instanceof Path2D) withPath2D(pathOrRule, { o: "clip", s: fillRule(rule) });
       else enqueue({ o: "clip", s: fillRule(pathOrRule) });
     },
-    isPointInPath(pathOrX: unknown, xOrY?: unknown, yOrRule?: unknown, maybeRule?: unknown) {
+    isPointInPath(
+      pathOrX: Idl.Path2D | number,
+      xOrY?: number,
+      yOrRule?: number | Idl.CanvasFillRule,
+      maybeRule?: Idl.CanvasFillRule,
+    ) {
       const path = pathOrX instanceof Path2D ? pathOrX : null;
       const [x, y, rule] = path ? [xOrY, yOrRule, maybeRule] : [pathOrX, xOrY, yOrRule];
       if (path) {
@@ -1158,23 +1171,23 @@ function buildContextImpl(canvas: CanvasHost) {
         if (path) enqueue({ o: "pathPop" });
       }
     },
-    isPointInStroke(_x: unknown, _y: unknown) {
+    isPointInStroke(_pathOrX: Idl.Path2D | number, _xOrY: number) {
       return false;
     },
 
-    fillText(text: unknown, x: unknown, y: unknown, maxWidth?: unknown) {
+    fillText(text: string, x: number, y: number, maxWidth?: number) {
       noteOutlineDemand();
       const a = [Number(x), Number(y)];
       if (maxWidth !== undefined) a.push(Number(maxWidth));
       enqueue({ o: "fillText", s: String(text), a });
     },
-    strokeText(text: unknown, x: unknown, y: unknown, maxWidth?: unknown) {
+    strokeText(text: string, x: number, y: number, maxWidth?: number) {
       noteOutlineDemand();
       const a = [Number(x), Number(y)];
       if (maxWidth !== undefined) a.push(Number(maxWidth));
       enqueue({ o: "strokeText", s: String(text), a });
     },
-    measureText(text: unknown) {
+    measureText(text: string) {
       let fontsReady = true;
       try {
         fontsReady = ksInternals.demandDeferredFonts?.() ?? true;
@@ -1202,30 +1215,23 @@ function buildContextImpl(canvas: CanvasHost) {
       }
     },
 
-    createLinearGradient(x0: unknown, y0: unknown, x1: unknown, y1: unknown) {
+    createLinearGradient(x0: number, y0: number, x1: number, y1: number) {
       const v = [x0, y0, x1, y1].map(Number);
       if (v.some((n) => !Number.isFinite(n))) throw domExc("non-finite", "NotSupportedError");
       return new CanvasGradientShim(CANVAS_STYLE_TOKEN, { k: "linear", v, stops: [] });
     },
-    createRadialGradient(
-      x0: unknown,
-      y0: unknown,
-      r0: unknown,
-      x1: unknown,
-      y1: unknown,
-      r1: unknown,
-    ) {
+    createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number) {
       const v = [x0, y0, r0, x1, y1, r1].map(Number);
       if (v.some((n) => !Number.isFinite(n))) throw domExc("non-finite", "NotSupportedError");
       if (v[2] < 0 || v[5] < 0) throw domExc("negative radius", "IndexSizeError");
       return new CanvasGradientShim(CANVAS_STYLE_TOKEN, { k: "radial", v, stops: [] });
     },
-    createConicGradient(startAngle: unknown, x: unknown, y: unknown) {
+    createConicGradient(startAngle: number, x: number, y: number) {
       const v = [startAngle, x, y].map(Number);
       if (v.some((n) => !Number.isFinite(n))) throw domExc("non-finite", "NotSupportedError");
       return new CanvasGradientShim(CANVAS_STYLE_TOKEN, { k: "conic", v, stops: [] });
     },
-    createPattern(image: SourceWrapper | null | undefined, repetition: unknown) {
+    createPattern(image: SourceWrapper | null | undefined, repetition: string) {
       const rep = repetition == null || repetition === "" ? "repeat" : String(repetition);
       if (["repeat", "repeat-x", "repeat-y", "no-repeat"].indexOf(rep) < 0) {
         throw domExc("invalid repetition", "SyntaxError");
@@ -1249,7 +1255,7 @@ function buildContextImpl(canvas: CanvasHost) {
       return new CanvasPatternShim(CANVAS_STYLE_TOKEN, spec);
     },
 
-    drawImage(img: SourceWrapper | null | undefined, ...args: unknown[]) {
+    drawImage(img: SourceWrapper | null | undefined, ...args: number[]) {
       const src = imageSource(img);
       if (!src) return;
       let a: number[];
@@ -1272,7 +1278,7 @@ function buildContextImpl(canvas: CanvasHost) {
       flushOps();
     },
 
-    createImageData(a: ImageDataInput | number | null | undefined, b?: unknown) {
+    createImageData(a: ImageDataInput | number | null | undefined, b?: number) {
       if (typeof a === "object" && a && typeof a.width === "number") {
         return makeImageData(a.width, a.height);
       }
