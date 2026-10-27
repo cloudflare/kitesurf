@@ -4,6 +4,7 @@
 
 // Selects an element wrapper class from its HTML tag and namespace.
 
+import type { WrapperInfo } from "../node-base.js";
 import { HTMLElement } from "./html-element.js";
 import { htmlInterfaceTag } from "./html-tag.js";
 import { HTMLInputElement } from "./forms/input.js";
@@ -75,7 +76,7 @@ import {
 
 type ElementClass = new (
   nodeId: number,
-  info: unknown,
+  info: WrapperInfo,
   token: typeof import("./html-element.js").InternalElementCtorToken,
 ) => HTMLElement;
 

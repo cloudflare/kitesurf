@@ -4,6 +4,7 @@
 
 // Implements table-related HTML element classes and their row, cell, and caption helpers.
 
+import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
 import type { Element } from "./element.js";
 import { makeHtmlCollection, elementDocument } from "../state.js";
@@ -79,7 +80,7 @@ function rangeError(method: string, index: number): DOMException {
 }
 
 class HTMLTableElement extends HTMLElement implements Idl.HTMLTableElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLTableElement");
   }
@@ -113,7 +114,7 @@ class HTMLTableElement extends HTMLElement implements Idl.HTMLTableElement {
 }
 
 class HTMLTableSectionElement extends HTMLElement implements Idl.HTMLTableSectionElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLTableSectionElement");
   }
@@ -141,7 +142,7 @@ class HTMLTableSectionElement extends HTMLElement implements Idl.HTMLTableSectio
 }
 
 class HTMLTableRowElement extends HTMLElement implements Idl.HTMLTableRowElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLTableRowElement");
   }
@@ -171,7 +172,7 @@ class HTMLTableRowElement extends HTMLElement implements Idl.HTMLTableRowElement
 }
 
 class HTMLTableCellElement extends HTMLElement implements Idl.HTMLTableCellElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLTableCellElement");
   }

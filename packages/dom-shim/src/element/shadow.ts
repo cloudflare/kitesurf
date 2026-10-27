@@ -4,6 +4,7 @@
 
 // Implements shadow roots and slots plus declarative shadow-root conversion.
 
+import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
 import { dom, nodeFor, shadowRootFor, shadowRootModes } from "../state.js";
 import type { NodeBase } from "../node-base.js";
@@ -18,7 +19,7 @@ interface HTMLSlotElement extends Pick<Idl.HTMLSlotElement, "name"> {}
 
 // Slots take their assigned nodes from the wasm DOM; there is no assign().
 class HTMLSlotElement extends HTMLElement implements Idl.HTMLSlotElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLSlotElement");
   }

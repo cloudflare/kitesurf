@@ -4,6 +4,7 @@
 
 // Implements HTMLCanvasElement dimensions, cached 2D contexts, and bitmap export.
 
+import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
 import { ksGlobal, dom } from "../state.js";
 import { canvas2dCache } from "../registries.js";
@@ -79,7 +80,7 @@ interface HTMLCanvasElement extends Pick<Idl.HTMLCanvasElement, "width" | "heigh
 class HTMLCanvasElement extends HTMLElement implements Idl.HTMLCanvasElement {
   // The 2D context, cached on the element by its first getContext("2d").
   declare __ks2dCtx?: ReturnType<typeof makeCanvas2DContext>;
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLCanvasElement");
   }
