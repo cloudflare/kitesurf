@@ -16,6 +16,8 @@ const HTML = `<!doctype html>
       <a id="solo">Play Solo</a>
     </div>
   </div>
+  <!-- Duplicate id checks that the helper returns the first document-order match. -->
+  <div id="buttons"></div>
 </body>
 </html>`;
 
@@ -90,17 +92,11 @@ function hasId(node: any, id: string): boolean {
   return index >= 0 && attrs[index + 1] === id;
 }
 
-function pushChildren(stack: any[], node: any): void {
-  for (const child of node?.children ?? []) stack.push(child);
-}
-
 function findById(node: any, id: string): any {
-  const stack = [node];
-  while (stack.length) {
-    const candidate = stack.pop();
-    if (!candidate) continue;
-    if (hasId(candidate, id)) return candidate;
-    pushChildren(stack, candidate);
+  if (hasId(node, id)) return node;
+  for (const child of node?.children ?? []) {
+    const match = findById(child, id);
+    if (match) return match;
   }
   return null;
 }
