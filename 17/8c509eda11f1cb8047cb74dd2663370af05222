@@ -1,0 +1,75 @@
+packages/dom-shim/src/layout/scroll.ts
+  s_325e022d8487b0::t_664d4de63eb999 21,198-199,228
+packages/page-script/src/state.ts
+  s_325e022d8487b0::t_664d4de63eb999 77-84,149-151
+packages/page-script/src/globals.ts
+  s_325e022d8487b0::t_664d4de63eb999 15,36,263-270,352-353,416-417,2155-2161,2392,2403,2428,2430,2635,2774,2782,2815,2861-2862,2911
+packages/engine/test/e2e/range-contextual-fragment.e2e.test.ts
+  s_325e022d8487b0::t_664d4de63eb999 89-91,100
+packages/page-script/src/index.ts
+  s_325e022d8487b0::t_664d4de63eb999 186-189,246,336,342-343,399,563-564,599,2096,2103-2104,2676,2930,2971-2972,3030,3444,3716,4644,4707,5251,5253,5255,5258,6498
+packages/page-script/src/internal-state.ts
+  s_325e022d8487b0::t_664d4de63eb999 180-190
+packages/dom-shim/MODULES.md
+  s_325e022d8487b0::t_664d4de63eb999 161-165,280-281
+packages/dom-shim/src/canvas2d.ts
+  s_325e022d8487b0::t_664d4de63eb999 12,60,1155
+packages/page-script/src/session-methods.ts
+  s_325e022d8487b0::t_664d4de63eb999 16,19,34,42
+packages/dom-shim/src/internals.ts
+  s_325e022d8487b0::t_d5aeccfc22e2f6 1-3,5-9,14,17,24-25,30,44-45
+  s_325e022d8487b0::t_42447abe3371b1 4,10-13,15-16,18-23,26-29,31-43,46-51
+packages/dom-shim/src/element/element.ts
+  s_325e022d8487b0::t_664d4de63eb999 128,264,726-728,741,806-808,854,952-954,1067-1069
+packages/page-script/src/dom-shim.ts
+  s_325e022d8487b0::t_664d4de63eb999 27
+packages/dom-shim/src/global-scope.ts
+  s_325e022d8487b0::t_664d4de63eb999 5,7-8
+packages/engine/test/e2e/demos/iframe-bitmap-paint.e2e.test.ts
+  s_325e022d8487b0::t_664d4de63eb999 30
+packages/dom-shim/src/node-base.ts
+  s_325e022d8487b0::t_664d4de63eb999 94,99
+AGENTS.md
+  s_325e022d8487b0::t_664d4de63eb999 27-30
+packages/engine/test/e2e/demos/document-fonts-ready.e2e.test.ts
+  s_325e022d8487b0::t_fa5d302a291a4a 10-11,13-14,21-22
+packages/engine/test/e2e/demos/font-heavy.e2e.test.ts
+  s_325e022d8487b0::t_fa5d302a291a4a 47-48,50-51,58-59
+packages/dom-shim/src/document.ts
+  s_325e022d8487b0::t_664d4de63eb999 124,146,983,1127-1128,2885
+packages/dom-shim/src/internal-state.ts
+  s_325e022d8487b0::t_664d4de63eb999 15
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_325e022d8487b0::t_fa5d302a291a4a 17,19-22
+packages/dom-shim/src/contract.ts
+  s_325e022d8487b0::t_664d4de63eb999 14
+packages/page-script/src/internals.ts
+  s_325e022d8487b0::t_d5aeccfc22e2f6 1-7
+  s_325e022d8487b0::t_42447abe3371b1 8-18
+packages/dom-shim/src/otel.ts
+  s_325e022d8487b0::t_664d4de63eb999 9,165,235-236
+packages/dom-shim/src/select-dropdown.ts
+  s_325e022d8487b0::t_664d4de63eb999 12,135
+packages/page-script/src/types.ts
+  s_325e022d8487b0::t_664d4de63eb999 190
+packages/dom-shim/src/record.ts
+  s_325e022d8487b0::t_664d4de63eb999 9,13,34,48,106
+packages/dom-shim/src/index.ts
+  s_325e022d8487b0::t_664d4de63eb999 123-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "178c509eda11f1cb8047cb74dd2663370af05222",
+  "prompts": {},
+  "sessions": {
+    "s_325e022d8487b0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e87e6cc17ffeE3am0OA8I2bLOK",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
