@@ -106,10 +106,15 @@ type ImageDataLike = {
   readonly colorSpace?: string;
 };
 
-// w and h are page values; `Number(v) | 0` is the ToInt32 that `v | 0` does.
+// ToInt32 on a page value with `|`, which throws a TypeError for a BigInt where Number()
+// would convert it. The cast only satisfies the operator's operand type.
+function toInt32(value: unknown): number {
+  return (value as number) | 0;
+}
+
 function makeImageData(w: unknown, h: unknown, data?: Uint8ClampedArray): ImageDataLike {
-  const width = Math.max(1, Number(w) | 0);
-  const height = Math.max(1, Number(h) | 0);
+  const width = Math.max(1, toInt32(w));
+  const height = Math.max(1, toInt32(h));
   if (!data && width * height > MAX_IMAGE_DATA_PIXELS) {
     throw new RangeError("ImageData size exceeds the supported range");
   }
@@ -1289,8 +1294,8 @@ function buildContextImpl(canvas: CanvasHost) {
       if (!img || !img.data || !img.width || !img.height) return;
       const x0 = dx | 0;
       const y0 = dy | 0;
-      const iw = Number(img.width) | 0;
-      const ih = Number(img.height) | 0;
+      const iw = toInt32(img.width);
+      const ih = toInt32(img.height);
       if (x0 === 0 && y0 === 0 && iw === curW() && ih === curH()) {
         if (!isLive()) {
           dbg.last = "stale";
