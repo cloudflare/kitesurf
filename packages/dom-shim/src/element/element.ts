@@ -2627,7 +2627,7 @@ Object.defineProperty(Element.prototype, Symbol.unscopables, {
 });
 type TextFragmentDocument = {
   createTextNode(data: string): NodeBase;
-  createElement(localName: string): Element;
+  createElement(localName: string): NodeBase;
 };
 // Each CRLF, CR or LF becomes a <br>. Text between them becomes a Text node.
 // https://html.spec.whatwg.org/#rendered-text-fragment

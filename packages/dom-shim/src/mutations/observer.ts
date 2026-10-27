@@ -446,6 +446,7 @@ function notifyIframeInserts(insertedNode: LinkishNode, nested: LinkishNode[]): 
 }
 
 interface RemovedNode {
+  readonly nodeType?: number;
   readonly tagName?: string;
   readonly querySelectorAll?: (
     selectors: string,

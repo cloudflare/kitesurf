@@ -24,7 +24,7 @@ import { getInternalState } from "./internal-state.js";
 import { markRuntimeCreatedScript } from "./mutations/observer.js";
 import { nodeListGetters, nodeOwnerDoc } from "./registries.js";
 import { makeDomRect, makeDomRectList } from "./element/rect.js";
-import type { NodeBase } from "./node-base.js";
+import { cloneWrapper, type NodeBase } from "./node-base.js";
 import {
   ATTRIBUTE_NODE,
   CDATA_SECTION_NODE,
@@ -289,7 +289,7 @@ function rangeCloneOrExtract(
   const isCharData = isCharacterDataNode;
 
   if (origStartN === origEndN && isCharacterDataNode(origStartN)) {
-    const clone = origStartN.cloneNode(false);
+    const clone = cloneWrapper(origStartN, false);
     try {
       clone.data = origStartN.substringData(origStartO, origEndO - origStartO);
     } catch {
@@ -368,7 +368,7 @@ function rangeCloneOrExtract(
 
   // A character-data first partially contained child is origStartN.
   if (isCharData(firstPartiallyContainedChild) && isCharacterDataNode(origStartN)) {
-    const clone = origStartN.cloneNode(false);
+    const clone = cloneWrapper(origStartN, false);
     const len = nodeLength(origStartN);
     try {
       clone.data = origStartN.substringData(origStartO, len - origStartO);
@@ -386,7 +386,7 @@ function rangeCloneOrExtract(
       }
     }
   } else if (firstPartiallyContainedChild) {
-    const clone = firstPartiallyContainedChild.cloneNode(false);
+    const clone = cloneWrapper(firstPartiallyContainedChild, false);
     frag.appendChild(clone);
     const subrange = makeTransientRange(
       origStartN,
@@ -400,7 +400,7 @@ function rangeCloneOrExtract(
 
   for (const c of containedChildren) {
     if (mode === "clone") {
-      frag.appendChild(c.cloneNode(true));
+      frag.appendChild(cloneWrapper(c, true));
     } else {
       frag.appendChild(c);
     }
@@ -408,7 +408,7 @@ function rangeCloneOrExtract(
 
   // A character-data last partially contained child is origEndN.
   if (isCharData(lastPartiallyContainedChild) && isCharacterDataNode(origEndN)) {
-    const clone = origEndN.cloneNode(false);
+    const clone = cloneWrapper(origEndN, false);
     try {
       clone.data = origEndN.substringData(0, origEndO);
     } catch {
@@ -425,7 +425,7 @@ function rangeCloneOrExtract(
       }
     }
   } else if (lastPartiallyContainedChild) {
-    const clone = lastPartiallyContainedChild.cloneNode(false);
+    const clone = cloneWrapper(lastPartiallyContainedChild, false);
     frag.appendChild(clone);
     const subrange = makeTransientRange(lastPartiallyContainedChild, 0, origEndN, origEndO);
     const subFrag = rangeCloneOrExtract(subrange, mode);

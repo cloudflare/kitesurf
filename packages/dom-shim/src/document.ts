@@ -125,6 +125,7 @@ import {
   type TextNode,
   type CommentNode,
   DocumentTypeNode,
+  cloneWrapper,
   assertDocumentInsertAllowed,
   compareDocumentPosition,
 } from "./node-base.js";
@@ -552,7 +553,10 @@ class DocumentImpl extends NodeBase implements Idl.Document {
 
   // Partial importNode: elements, text, comments, attrs and fragments.
   // The clone is not in xmlOwned, so tagName follows HTML rules.
-  importNode(node: NodeBase, deep?: boolean | Idl.ImportNodeOptions) {
+  importNode(
+    node: NodeBase,
+    deep?: boolean | Idl.ImportNodeOptions,
+  ): ReturnType<NodeBase["cloneNode"]> {
     if (!node) throw notSupported("importNode: node is null/undefined");
     // Importing a shadow root is a NotSupportedError.
     if (isShadowRootNode(node)) {
@@ -575,7 +579,8 @@ class DocumentImpl extends NodeBase implements Idl.Document {
         for (let i = 0; i < node.childNodes.length; i++) {
           const child = node.childNodes[i];
           const childClone = this.importNode(child, true);
-          if (childClone) clone.appendChild(childClone);
+          // A child is never a document, so its import is a wrapper (with an _id).
+          if (childClone && "_id" in childClone) clone.appendChild(childClone);
         }
       }
       return clone;
@@ -598,7 +603,8 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       if (deep && node.childNodes) {
         for (let i = 0; i < node.childNodes.length; i++) {
           const childClone = this.importNode(node.childNodes[i], true);
-          if (childClone) frag.appendChild(childClone);
+          // A child is never a document, so its import is a wrapper (with an _id).
+          if (childClone && "_id" in childClone) frag.appendChild(childClone);
         }
       }
       return frag;
@@ -1035,7 +1041,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   }
   // Limitation: wasm has no PI nodes, so a PI is a Text node stamped with
   // nodeType 7, nodeName and target. DetachedDocument does the same.
-  createProcessingInstruction(target: string, data: string): Idl.ProcessingInstruction {
+  createProcessingInstruction(target: string, data: string): TextNode & Idl.ProcessingInstruction {
     validatePIArgs(target, data);
     const t = this.createTextNode(String(data ?? ""));
     Object.defineProperty(t, "nodeType", { value: 7, enumerable: false, configurable: true });
@@ -1051,7 +1057,8 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     // Element.textContent skips stamped PI ids. The id stays live because
     // setting textContent detaches nodes without dropping them.
     if (t && t._id != null && t._id >= 0) stampedPiIds.add(t._id);
-    return t;
+    // The stamps above make the text node a processing instruction.
+    return t as TextNode & Idl.ProcessingInstruction;
   }
   // A Text node stamped with nodeType 4. Limitation: the spec throws for
   // HTML documents, but this does not.
@@ -1532,7 +1539,6 @@ interface DetachedDocument
       | "nodeType"
       | "nodeName"
       | "location"
-      | "importNode"
       | "modelContext"
       | Extract<keyof Idl.Document, `on${string}`>
       | SharedDocumentMember
@@ -2133,7 +2139,7 @@ class DetachedDocument implements Idl.Document {
     }
     return true;
   }
-  cloneNode(deep?: boolean) {
+  cloneNode(deep?: boolean): DetachedDocument {
     const c = new DetachedDocument();
     if (this._contentType) {
       Object.defineProperty(c, "_contentType", {
@@ -2150,7 +2156,7 @@ class DetachedDocument implements Idl.Document {
     if (deep) {
       for (const child of this.childNodes) {
         if (child && typeof child.cloneNode === "function") {
-          c.append(child.cloneNode(true));
+          c.append(cloneWrapper(child, true));
         }
       }
     }
@@ -2289,7 +2295,7 @@ class DetachedDocument implements Idl.Document {
     return t;
   }
   // Limitation: a PI is a Text node stamped with nodeType 7 and target.
-  createProcessingInstruction(target: string, data: string): Idl.ProcessingInstruction {
+  createProcessingInstruction(target: string, data: string): TextNode & Idl.ProcessingInstruction {
     validatePIArgs(target, data);
     const t = createTextNodeInternal(String(data ?? ""));
     Object.defineProperty(t, "nodeType", { value: 7, enumerable: false });
@@ -2303,7 +2309,8 @@ class DetachedDocument implements Idl.Document {
     // Mark id as a PI so Element.textContent skips its data.
     if (t && t._id != null && t._id >= 0) stampedPiIds.add(t._id);
     nodeOwnerDoc.set(t, this);
-    return t;
+    // The stamps above make the text node a processing instruction.
+    return t as TextNode & Idl.ProcessingInstruction;
   }
   // Queries scope to this document's tree by running on the host.
   getElementsByTagName(name: string) {
