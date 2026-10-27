@@ -67,7 +67,7 @@ class FormData implements Idl.FormData {
    * Dispatches `formdata` before collecting fields.
    * Invalid forms or submitters throw a DOMException named `TypeError`, or an Error fallback.
    */
-  constructor(form?: unknown, submitter?: unknown) {
+  constructor(form?: Idl.HTMLFormElement, submitter?: Idl.HTMLElement | null) {
     if (form == null) return;
     if (!(form instanceof HTMLFormElement)) {
       throw new (ksGlobal.DOMException || Error)(

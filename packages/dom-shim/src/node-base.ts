@@ -924,7 +924,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   hasChildNodes() {
     return this.childNodes.length > 0;
   }
-  contains(other: unknown) {
+  contains(other: Idl.Node | null): boolean {
     if (other == null) return false;
     if (other === this) return true;
     const sp = syntheticParent.get(other);

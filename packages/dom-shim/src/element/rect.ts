@@ -13,9 +13,8 @@ function rectState(rect: object): RectState {
   if (!state) throw new TypeError("Illegal invocation");
   return state;
 }
-type RectInit = { x?: unknown; y?: unknown; width?: unknown; height?: unknown };
 export class DOMRectReadOnly implements Idl.DOMRectReadOnly {
-  constructor(x: unknown = 0, y: unknown = 0, width: unknown = 0, height: unknown = 0) {
+  constructor(x: number = 0, y: number = 0, width: number = 0, height: number = 0) {
     rectStates.set(this, {
       x: Number(x),
       y: Number(y),
@@ -23,7 +22,7 @@ export class DOMRectReadOnly implements Idl.DOMRectReadOnly {
       height: Number(height),
     });
   }
-  static fromRect(other?: RectInit | null): DOMRectReadOnly {
+  static fromRect(other?: Idl.DOMRectInit | null): DOMRectReadOnly {
     return new this(other?.x ?? 0, other?.y ?? 0, other?.width ?? 0, other?.height ?? 0);
   }
   get x() {
@@ -68,7 +67,7 @@ export class DOMRectReadOnly implements Idl.DOMRectReadOnly {
   }
 }
 export class DOMRect extends DOMRectReadOnly implements Idl.DOMRect {
-  static fromRect(other?: RectInit | null): DOMRect {
+  static fromRect(other?: Idl.DOMRectInit | null): DOMRect {
     return new this(other?.x ?? 0, other?.y ?? 0, other?.width ?? 0, other?.height ?? 0);
   }
   get x() {

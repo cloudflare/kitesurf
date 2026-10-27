@@ -1346,7 +1346,7 @@ export class XPathExpression implements Idl.XPathExpression {
     this.#expr = expr;
   }
 
-  evaluate(contextNode: unknown, type = 0, result: unknown = null): XPathResult {
+  evaluate(contextNode: Idl.Node, type = 0, result: Idl.XPathResult | null = null): XPathResult {
     if (!isNode(contextNode))
       throw new TypeError(
         "Failed to execute 'evaluate' on 'XPathExpression': parameter 1 is not of type 'Node'.",
@@ -1358,36 +1358,36 @@ export class XPathExpression implements Idl.XPathExpression {
   }
 }
 
-export function createExpression(expression: unknown, resolver: Resolver = null): XPathExpression {
+export function createExpression(expression: string, resolver: Resolver = null): XPathExpression {
   return new XPathExpression(INTERNAL_CONSTRUCT, compile(String(expression), resolver));
 }
 
 export function evaluateXPath(
-  expression: unknown,
-  contextNode: unknown,
+  expression: string,
+  contextNode: Idl.Node,
   resolver: Resolver = null,
   type = 0,
-  result: unknown = null,
+  result: Idl.XPathResult | null = null,
 ): XPathResult {
   reusableResult(result);
   return createExpression(expression, resolver).evaluate(contextNode, type, result);
 }
 
 export class XPathEvaluator implements Idl.XPathEvaluator {
-  createExpression(expression: unknown, resolver: Resolver = null): XPathExpression {
+  createExpression(expression: string, resolver: Resolver = null): XPathExpression {
     return createExpression(expression, resolver);
   }
 
-  createNSResolver<T>(nodeResolver: T): T {
+  createNSResolver<T extends Idl.Node>(nodeResolver: T): T {
     return nodeResolver;
   }
 
   evaluate(
-    expression: unknown,
-    contextNode: unknown,
+    expression: string,
+    contextNode: Idl.Node,
     resolver: Resolver = null,
     type = 0,
-    result: unknown = null,
+    result: Idl.XPathResult | null = null,
   ): XPathResult {
     return evaluateXPath(expression, contextNode, resolver, type, result);
   }

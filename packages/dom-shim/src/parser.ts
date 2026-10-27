@@ -293,7 +293,7 @@ class ParsedElement {
     for (const a of attrs) if (a.name === name) return a.value;
     return null;
   }
-  lookupNamespaceURI(prefix: unknown): string | null {
+  lookupNamespaceURI(prefix: string | null): string | null {
     return lookupParsedNamespaceURI(this, prefix);
   }
   hasAttribute(name: string): boolean {
@@ -478,7 +478,7 @@ class ParsedElement {
   webkitMatchesSelector(selector: string): boolean {
     return this.matches(selector);
   }
-  contains(other: unknown): boolean {
+  contains(other: Idl.Node | null): boolean {
     if (!other || !(other instanceof ParsedElement)) return false;
     if (other._dom !== this._dom) return false;
     if (other._id === this._id) return true;
@@ -542,7 +542,7 @@ class ParsedElement {
     return child;
   }
   // Page-owned wrappers may carry dynamic handle metadata.
-  removeChild<T>(child: T): T {
+  removeChild<T extends Idl.Node>(child: T): T {
     if (!this.ownerDocument || !this.ownerDocument._mutable) {
       throw notSupported("removeChild on DOMParser result (read-only)");
     }
@@ -556,7 +556,10 @@ class ParsedElement {
     return child;
   }
   // Node wrappers stay dynamic; a non-null reference remains unsupported.
-  insertBefore<T extends AdoptableNode | null | undefined>(newChild: T, refChild: unknown): T {
+  insertBefore<T extends AdoptableNode | null | undefined>(
+    newChild: T,
+    refChild: Idl.Node | null,
+  ): T {
     if (!this.ownerDocument || !this.ownerDocument._mutable) {
       throw notSupported("insertBefore on DOMParser result (read-only)");
     }
@@ -639,7 +642,7 @@ class ParsedFragment {
     this.ownerDocument = ownerDoc || null;
     this.parentNode = null;
   }
-  lookupNamespaceURI(prefix: unknown): string | null {
+  lookupNamespaceURI(prefix: string | null): string | null {
     return lookupParsedNamespaceURI(this, prefix);
   }
   get childNodes(): Array<ParsedElement | null> {
@@ -706,7 +709,7 @@ class ParsedFragment {
     } catch {}
     return child;
   }
-  removeChild<T>(child: T): T {
+  removeChild<T extends Idl.Node>(child: T): T {
     if (!this.ownerDocument || !this.ownerDocument._mutable) {
       throw notSupported("removeChild on read-only fragment");
     }
@@ -925,21 +928,21 @@ class ParsedDocument {
     return "complete";
   }
   evaluate(
-    expression: unknown,
-    contextNode: unknown,
+    expression: string,
+    contextNode: Idl.Node,
     resolver: XPathResolver = null,
     type = 0,
-    result: unknown = null,
+    result: Idl.XPathResult | null = null,
   ): ReturnType<typeof evaluateXPath> {
     return evaluateXPath(expression, contextNode, resolver, type, result);
   }
   createExpression(
-    expression: unknown,
+    expression: string,
     resolver: XPathResolver = null,
   ): ReturnType<typeof createExpression> {
     return createExpression(expression, resolver);
   }
-  createNSResolver(nodeResolver: unknown): unknown {
+  createNSResolver<T extends Idl.Node>(nodeResolver: T): T {
     return nodeResolver;
   }
   // "" for a DOMParser document, which no request produced. The
@@ -1021,7 +1024,7 @@ class ParsedDocument {
     }
     return null;
   }
-  lookupNamespaceURI(prefix: unknown): string | null {
+  lookupNamespaceURI(prefix: string | null): string | null {
     const root = this.documentElement;
     return root ? root.lookupNamespaceURI(prefix) : null;
   }
@@ -1364,10 +1367,10 @@ function parseDocument(input: string, type: unknown): ParsedDocument {
 
 class DOMParser implements Idl.DOMParser {
   /**
-   * Parses to a separate document; unsupported string MIME types throw `TypeError`.
-   * XML MIME types use the forgiving HTML parser, so malformed XML yields no parser error.
+   * Parses to a separate document; unsupported string MIME types throw `TypeError`. XML MIME
+   * types use the forgiving HTML parser. str is unknown: TrustedHTML isn't modeled.
    */
-  parseFromString(str: unknown, type: unknown): ParsedDocument {
+  parseFromString(str: unknown, type: Idl.DOMParserSupportedType): ParsedDocument {
     const input = typeof str === "string" ? str : String(str ?? "");
     return ksSpan("dom.parseFromString", { html_bytes: input.length }, () =>
       parseDocument(input, type),

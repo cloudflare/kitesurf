@@ -113,25 +113,25 @@ Object.defineProperty(Element.prototype, "viewBox", {
       get x() {
         return parse()[0];
       },
-      set x(v: unknown) {
+      set x(v: number) {
         write(0, v);
       },
       get y() {
         return parse()[1];
       },
-      set y(v: unknown) {
+      set y(v: number) {
         write(1, v);
       },
       get width() {
         return parse()[2];
       },
-      set width(v: unknown) {
+      set width(v: number) {
         write(2, v);
       },
       get height() {
         return parse()[3];
       },
-      set height(v: unknown) {
+      set height(v: number) {
         write(3, v);
       },
     });
