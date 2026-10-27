@@ -149,7 +149,7 @@ export interface BuildDocumentOpts {
   encodeHtml?: (encoding: string, input: string) => Uint8Array;
 }
 
-export let dom: DomHandle = null as any;
+export let dom!: DomHandle;
 export let pageUrl: string = "";
 export let initialCookieString: string = "";
 export let opts: BuildDocumentOpts | undefined = undefined;
@@ -199,8 +199,8 @@ export function setReadyState(s: "loading" | "interactive" | "complete"): void {
   readyState = s;
 }
 
-export let activeElement: any = null;
-export function setActiveElement(el: any): void {
+export let activeElement: Element | null = null;
+export function setActiveElement(el: Element | null): void {
   activeElement = el;
 }
 
@@ -210,7 +210,7 @@ export function setCookieString(s: string): void {
   cookieString = typeof s === "string" ? s : "";
 }
 
-export const listenerRegistry = new Map<any, Map<string, ListenerEntry[]>>();
+export const listenerRegistry = new Map<string, Map<string, ListenerEntry[]>>();
 
 export const WINDOW_KEY = "window";
 
