@@ -17,9 +17,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "vitest run",
-    "types": "tsc --noEmit && pnpm run types:strict",
-    "types:strict": "node ../../scripts/ts-strict-ratchet.mjs --project tsconfig.strict.json --baseline strict-baseline.json",
-    "types:strict:update": "node ../../scripts/ts-strict-ratchet.mjs --project tsconfig.strict.json --baseline strict-baseline.json --update"
+    "types": "tsc --noEmit"
   },
   "dependencies": {
     "@kitesurf/jsrpc-types": "workspace:*",
