@@ -13,6 +13,7 @@ import {
   parseFragmentInContext,
   isCharacterDataNode,
   isDocumentNode,
+  isShadowRootNode,
   isTextNode,
   isElementNode,
 } from "./state.js";
@@ -33,10 +34,12 @@ import {
   DOCTYPE_NODE,
   ELEMENT_NODE,
   HTML_NS,
-  PROCESSING_INSTRUCTION_NODE,
   TEXT_NODE,
 } from "./constants.js";
 import type { DetachedDocument } from "./document.js";
+import type { ParsedDocument } from "./parser.js";
+import type { DocumentFragmentImpl, ShadowRootImpl } from "./collections.js";
+import type { Element } from "./element/element.js";
 type LiveRangeEntry = RangeBounds<BoundaryNode | null> & { composedSel?: boolean };
 
 const MAX_COMPOSED_ANCESTOR_HOPS = 4096;
@@ -71,15 +74,10 @@ const liveRanges = {
   },
 };
 
-function nodeLength(node): number {
+function nodeLength(node: BoundaryNode | null | undefined): number {
   if (!node) return 0;
   const t = node.nodeType;
-  if (
-    t === TEXT_NODE ||
-    t === CDATA_SECTION_NODE ||
-    t === PROCESSING_INSTRUCTION_NODE ||
-    t === COMMENT_NODE
-  ) {
+  if (isCharacterDataNode(node)) {
     const d = node.data;
     return typeof d === "string" ? d.length : 0;
   }
@@ -88,7 +86,7 @@ function nodeLength(node): number {
   return kids ? kids.length : 0;
 }
 
-function nodeIndexOf(node): number {
+function nodeIndexOf(node: BoundaryNode | null | undefined): number {
   const parent = node?.parentNode;
   return parent ? Array.prototype.indexOf.call(childArray(parent), node) : -1;
 }
@@ -99,24 +97,28 @@ function childArray(node: NodeBase | DetachedDocument): ArrayLike<NodeBase> {
   return get ? get() : kids;
 }
 
-function rootOf(node): NodeBase {
-  let cur = node;
+function rootOf(node: BoundaryNode | null | undefined): BoundaryNode | null | undefined {
+  let cur: BoundaryNode | null | undefined = node;
   while (cur && cur.parentNode) cur = cur.parentNode;
   return cur;
 }
 
-function isInclusiveDescendant(ancestor, node): boolean {
+function isInclusiveDescendant(
+  ancestor: BoundaryNode | null | undefined,
+  node: BoundaryNode | null | undefined,
+): boolean {
+  // A DetachedDocument has no _id.
+  const ancestorId = ancestor && "_id" in ancestor ? ancestor._id : undefined;
+  const nodeId = node && "_id" in node ? node._id : undefined;
   if (
     ancestor !== node &&
-    ancestor &&
-    node &&
-    typeof ancestor._id === "number" &&
-    typeof node._id === "number" &&
-    ancestor._id >= 0 &&
-    node._id >= 0
+    typeof ancestorId === "number" &&
+    typeof nodeId === "number" &&
+    ancestorId >= 0 &&
+    nodeId >= 0
   ) {
     try {
-      return dom.isInclusiveAncestor(ancestor._id, node._id) === true;
+      return dom.isInclusiveAncestor(ancestorId, nodeId) === true;
     } catch {}
   }
   let cur = node;
@@ -127,7 +129,7 @@ function isInclusiveDescendant(ancestor, node): boolean {
   return false;
 }
 
-function compareBoundary(aN, aO, bN, bO): number {
+function compareBoundary(aN: BoundaryNode, aO: number, bN: BoundaryNode, bO: number): number {
   if (aN === bN) {
     if (aO < bO) return -1;
     if (aO > bO) return 1;
@@ -146,13 +148,13 @@ function compareBoundary(aN, aO, bN, bO): number {
     const idx = nodeIndexOf(cur);
     return idx < aO ? 1 : -1;
   }
-  const aAncestors: any[] = [];
-  let cur = aN;
+  const aAncestors: BoundaryNode[] = [];
+  let cur: BoundaryNode | null = aN;
   while (cur) {
     aAncestors.push(cur);
     cur = cur.parentNode;
   }
-  let bCur = bN;
+  let bCur: BoundaryNode | null = bN;
   while (bCur) {
     const i = aAncestors.indexOf(bCur);
     if (i >= 0) {
@@ -169,7 +171,7 @@ function compareBoundary(aN, aO, bN, bO): number {
   return NaN;
 }
 
-function rangeAssertNotDoctype(node, opName) {
+function rangeAssertNotDoctype(node: BoundaryNode | null | undefined, opName: string): void {
   if (node && node.nodeType === DOCTYPE_NODE) {
     throw new DOMException(
       opName + ": doctype is not a valid boundary point node",
@@ -178,7 +180,7 @@ function rangeAssertNotDoctype(node, opName) {
   }
 }
 
-function rangeAssertOffsetInBounds(node, offset, opName) {
+function rangeAssertOffsetInBounds(node: BoundaryNode, offset: number, opName: string): void {
   const u = offset >>> 0;
   const len = nodeLength(node);
   if (u > len) {
@@ -189,7 +191,7 @@ function rangeAssertOffsetInBounds(node, offset, opName) {
   }
 }
 
-function nodeIsContainedBy(node, range) {
+function nodeIsContainedBy(node: BoundaryNode, range: object): boolean {
   const parent = node.parentNode;
   if (!parent) return false;
   const idx = nodeIndexOf(node);
@@ -207,30 +209,31 @@ function nodeIsContainedBy(node, range) {
   );
   return startVsBefore <= 0 && endVsAfter >= 0;
 }
-function nodeIsPartiallyContained(node, range) {
+function nodeIsPartiallyContained(node: BoundaryNode, range: object) {
   const startInSubtree = isInclusiveDescendant(node, rangeBounds(range).startContainer);
   const endInSubtree = isInclusiveDescendant(node, rangeBounds(range).endContainer);
   return startInSubtree !== endInSubtree;
 }
-function isInclusiveAncestorOf(ancestor, other) {
+function isInclusiveAncestorOf(
+  ancestor: BoundaryNode | null | undefined,
+  other: BoundaryNode | null | undefined,
+): boolean {
   return isInclusiveDescendant(ancestor, other);
 }
 
-function makeDOMException(name, msg): Error {
+function makeDOMException(name: string, msg: string): Error {
   try {
     return new DOMException(msg, name);
   } catch {
-    const e = new Error(msg);
-    (e as any).name = name;
-    return e;
+    return Object.assign(new Error(msg), { name });
   }
 }
 
-function rangePartiallyContainedNonTextNodes(range) {
-  function isText(t) {
+function rangePartiallyContainedNonTextNodes(range: object) {
+  function isText(t: number) {
     return t === TEXT_NODE || t === CDATA_SECTION_NODE;
   }
-  function walk(node) {
+  function walk(node: BoundaryNode): boolean {
     if (
       node !== rangeBounds(range).startContainer &&
       node !== rangeBounds(range).endContainer &&
@@ -255,7 +258,7 @@ function rangePartiallyContainedNonTextNodes(range) {
   return walk(common);
 }
 
-function rangeCommonAncestor(range) {
+function rangeCommonAncestor(range: object) {
   let n: BoundaryNode | null = rangeBounds(range).startContainer;
   while (n && !isInclusiveDescendant(n, rangeBounds(range).endContainer)) {
     n = n.parentNode;
@@ -263,11 +266,19 @@ function rangeCommonAncestor(range) {
   return n;
 }
 
-function makeTransientRange(sN, sO, eN, eO): AbstractRangeImpl {
+function makeTransientRange(
+  sN: BoundaryNode,
+  sO: number,
+  eN: BoundaryNode,
+  eO: number,
+): AbstractRangeImpl {
   return new AbstractRangeImpl(ABSTRACT_RANGE_TOKEN, sN, sO, eN, eO);
 }
 
-function rangeCloneOrExtract(range, mode) {
+function rangeCloneOrExtract(
+  range: AbstractRangeImpl,
+  mode: "clone" | "extract",
+): DocumentFragmentImpl {
   const frag = liveDocument().createDocumentFragment();
   if (range.collapsed) return frag;
 
@@ -430,7 +441,7 @@ function rangeCloneOrExtract(range, mode) {
   return frag;
 }
 
-function rangeExtractOrDelete(range): void {
+function rangeExtractOrDelete(range: AbstractRangeImpl): void {
   if (range.collapsed) return;
   rangeCloneOrExtract(range, "extract");
 }
@@ -492,8 +503,11 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
   static END_TO_END = 2;
   static END_TO_START = 3;
 
-  constructor(ownerDoc?: any) {
-    const def = ownerDoc != null ? ownerDoc : document;
+  // createRange passes its document. A DOMParser ParsedDocument is not a
+  // BoundaryNode: the Range code reads it only through the node members it
+  // shares (nodeType, childNodes, parentNode), as it always has.
+  constructor(ownerDoc?: BoundaryNode | ParsedDocument | null) {
+    const def = (ownerDoc != null ? ownerDoc : liveDocument()) as BoundaryNode;
     super(ABSTRACT_RANGE_TOKEN, def, 0, def, 0);
     liveRanges.add(rangeBounds(this));
   }
@@ -506,7 +520,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     return cur || rangeBounds(this).startContainer;
   }
 
-  _setStartInternal(node, offset): void {
+  _setStartInternal(node: BoundaryNode, offset: number): void {
     rangeAssertNotDoctype(node, "setStart");
     rangeAssertOffsetInBounds(node, offset, "setStart");
     // Ranges cannot span roots; setting an endpoint in another root collapses the other endpoint.
@@ -522,7 +536,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     }
     selNotifyRangeMutated(this, "start");
   }
-  _setEndInternal(node, offset): void {
+  _setEndInternal(node: BoundaryNode, offset: number): void {
     rangeAssertNotDoctype(node, "setEnd");
     rangeAssertOffsetInBounds(node, offset, "setEnd");
     const sameRoot = rootOf(node) === rootOf(rangeBounds(this).startContainer);
@@ -543,41 +557,41 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     selNotifyRangeMutated(this, "end");
   }
 
-  setStart(node, offset) {
+  setStart(node: BoundaryNode, offset: number) {
     this._setStartInternal(node, offset >>> 0);
   }
-  setEnd(node, offset) {
+  setEnd(node: BoundaryNode, offset: number) {
     this._setEndInternal(node, offset >>> 0);
   }
-  setStartBefore(node) {
+  setStartBefore(node: BoundaryNode) {
     const parent = node && node.parentNode;
     if (!parent) {
       throw new DOMException("setStartBefore: node has no parent", "InvalidNodeTypeError");
     }
     this._setStartInternal(parent, nodeIndexOf(node));
   }
-  setStartAfter(node) {
+  setStartAfter(node: BoundaryNode) {
     const parent = node && node.parentNode;
     if (!parent) {
       throw new DOMException("setStartAfter: node has no parent", "InvalidNodeTypeError");
     }
     this._setStartInternal(parent, nodeIndexOf(node) + 1);
   }
-  setEndBefore(node) {
+  setEndBefore(node: BoundaryNode) {
     const parent = node && node.parentNode;
     if (!parent) {
       throw new DOMException("setEndBefore: node has no parent", "InvalidNodeTypeError");
     }
     this._setEndInternal(parent, nodeIndexOf(node));
   }
-  setEndAfter(node) {
+  setEndAfter(node: BoundaryNode) {
     const parent = node && node.parentNode;
     if (!parent) {
       throw new DOMException("setEndAfter: node has no parent", "InvalidNodeTypeError");
     }
     this._setEndInternal(parent, nodeIndexOf(node) + 1);
   }
-  collapse(toStart) {
+  collapse(toStart?: boolean) {
     if (toStart) {
       rangeBounds(this).endContainer = rangeBounds(this).startContainer;
       rangeBounds(this).endOffset = rangeBounds(this).startOffset;
@@ -587,7 +601,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     }
     selNotifyRangeMutated(this);
   }
-  selectNode(node) {
+  selectNode(node: BoundaryNode) {
     const parent = node && node.parentNode;
     if (!parent) {
       throw new DOMException("selectNode: node has no parent", "InvalidNodeTypeError");
@@ -600,7 +614,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     rangeBounds(this).endOffset = idx + 1;
     selNotifyRangeMutated(this);
   }
-  selectNodeContents(node) {
+  selectNodeContents(node: BoundaryNode) {
     rangeAssertNotDoctype(node, "selectNodeContents");
     rangeBounds(this).startContainer = node;
     rangeBounds(this).startOffset = 0;
@@ -680,7 +694,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     }
   }
 
-  compareBoundaryPoints(how, other) {
+  compareBoundaryPoints(how: number, other: unknown) {
     how = (how >>> 0) & 0xffff;
     if (!other || !(other instanceof RangeImpl)) {
       throw new TypeError("compareBoundaryPoints: source range is not a Range");
@@ -694,7 +708,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
         "WrongDocumentError",
       );
     }
-    let aN, aO, bN, bO;
+    let aN: BoundaryNode, aO: number, bN: BoundaryNode, bO: number;
     switch (how) {
       case 0:
         aN = rangeBounds(this).startContainer;
@@ -724,7 +738,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     return compareBoundary(aN, aO, bN, bO);
   }
 
-  comparePoint(node, offset) {
+  comparePoint(node: BoundaryNode, offset: number) {
     if (!node || typeof node !== "object" || typeof node.nodeType !== "number") {
       throw new TypeError("comparePoint: argument must be a Node");
     }
@@ -748,7 +762,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
       return 1;
     return 0;
   }
-  isPointInRange(node, offset) {
+  isPointInRange(node: BoundaryNode, offset: number) {
     if (!node || typeof node !== "object" || typeof node.nodeType !== "number") {
       throw new TypeError("isPointInRange: argument must be a Node");
     }
@@ -770,7 +784,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     const b = compareBoundary(node, u, rangeBounds(this).endContainer, rangeBounds(this).endOffset);
     return a >= 0 && b <= 0;
   }
-  intersectsNode(node) {
+  intersectsNode(node: BoundaryNode) {
     if (
       node === undefined ||
       node === null ||
@@ -813,19 +827,19 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     const isText = isTextNode;
     if (isText(sN)) out += (sN.data || "").slice(sO);
     const ca = this.commonAncestorContainer;
-    function* dfs(root) {
+    function* dfs(root: BoundaryNode): Generator<BoundaryNode> {
       yield root;
       const kids = root.childNodes;
       if (kids) for (let i = 0; i < kids.length; i++) yield* dfs(kids[i]);
     }
-    let startAnchor;
+    let startAnchor: BoundaryNode | null;
     if (isText(sN)) {
       startAnchor = sN;
     } else {
       const kids = sN.childNodes;
       startAnchor = sO < kids.length ? kids[sO] : null;
     }
-    let endAnchor;
+    let endAnchor: BoundaryNode | null;
     if (isText(eN)) {
       endAnchor = eN;
     } else {
@@ -860,7 +874,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
   extractContents() {
     return rangeCloneOrExtract(this, "extract");
   }
-  insertNode(node) {
+  insertNode(node: NodeBase) {
     if (!node || typeof node !== "object" || typeof node.nodeType !== "number") {
       throw new TypeError("insertNode: argument is not a Node");
     }
@@ -907,7 +921,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
       rangeBounds(this).endOffset = idx + 1;
     }
   }
-  surroundContents(newParent) {
+  surroundContents(newParent: NodeBase) {
     if (!newParent) throw new TypeError("surroundContents: argument is not a Node");
     const range = this;
     const partial = rangePartiallyContainedNonTextNodes(range);
@@ -936,8 +950,9 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
   }
 }
 
-function selAssertNode(v: any, opName: string) {
-  if (!v || typeof v !== "object" || typeof v.nodeType !== "number") {
+function selAssertNode(v: unknown, opName: string): asserts v is BoundaryNode {
+  // Duck-typed like the Range guards: anything with a numeric nodeType.
+  if (!v || typeof v !== "object" || typeof Reflect.get(v, "nodeType") !== "number") {
     throw new TypeError(
       "Failed to execute '" + opName + "' on 'Selection': parameter is not of type 'Node'.",
     );
@@ -953,9 +968,9 @@ function selNotifyRangeMutated(range: unknown, changedEndpoint?: string) {
   if (selectionImpl) notifyRangeMutated(selectionImpl, range, changedEndpoint);
 }
 
-function composedSteps(node: any): { root: any; steps: number[] } {
+function composedSteps(node: BoundaryNode): { root: BoundaryNode; steps: number[] } {
   const steps: number[] = [];
-  let cur = node;
+  let cur: BoundaryNode = node;
   let hops = 0;
   while (cur && hops++ < MAX_COMPOSED_ANCESTOR_HOPS) {
     const p = cur.parentNode;
@@ -964,7 +979,7 @@ function composedSteps(node: any): { root: any; steps: number[] } {
       cur = p;
       continue;
     }
-    if (cur.nodeType === DOCUMENT_FRAGMENT_NODE && cur.host) {
+    if (isHostedShadowRoot(cur)) {
       steps.push(-1);
       cur = cur.host;
       continue;
@@ -975,7 +990,12 @@ function composedSteps(node: any): { root: any; steps: number[] } {
   return { root: cur, steps };
 }
 
-function compareComposed(aN: any, aO: number, bN: any, bO: number): number {
+function compareComposed(
+  aN: BoundaryNode | null,
+  aO: number,
+  bN: BoundaryNode | null,
+  bO: number,
+): number {
   if (aN === bN) return aO < bO ? -1 : aO > bO ? 1 : 0;
   if (!aN || !bN) return NaN;
   const A = composedSteps(aN);
@@ -990,23 +1010,29 @@ function compareComposed(aN: any, aO: number, bN: any, bO: number): number {
   return bO <= A.steps[n] ? 1 : -1;
 }
 
-function isShadowRootNode(v: any): boolean {
-  return !!v && v.nodeType === DOCUMENT_FRAGMENT_NODE && !!v.host;
+// A shadow root whose host is still there.
+function isHostedShadowRoot(
+  v: BoundaryNode | null | undefined,
+): v is ShadowRootImpl & { host: Element } {
+  return isShadowRootNode(v) && !!v.host;
 }
 
-function composedRootOf(node: any): any {
+function composedRootOf(node: BoundaryNode | null): BoundaryNode | null {
   let cur = node;
   while (cur && cur.parentNode) cur = cur.parentNode;
   return cur;
 }
 
-function isShadowIncludingInclusiveAncestor(anc: any, of: any): boolean {
-  let cur = of;
+function isShadowIncludingInclusiveAncestor(
+  anc: BoundaryNode | null,
+  of: BoundaryNode | null,
+): boolean {
+  let cur: BoundaryNode | null = of;
   let hops = 0;
   while (cur && hops++ < MAX_COMPOSED_ANCESTOR_HOPS) {
     if (cur === anc) return true;
     const p = cur.parentNode;
-    if (!p && cur.nodeType === DOCUMENT_FRAGMENT_NODE && cur.host) {
+    if (!p && isHostedShadowRoot(cur)) {
       cur = cur.host;
       continue;
     }
@@ -1015,13 +1041,13 @@ function isShadowIncludingInclusiveAncestor(anc: any, of: any): boolean {
   return false;
 }
 
-function selComposedRootIsDocument(node: any): boolean {
-  let cur = node;
+function selComposedRootIsDocument(node: BoundaryNode | null): boolean {
+  let cur: BoundaryNode | null = node;
   let hops = 0;
   while (cur && hops++ < MAX_SELECTION_ANCESTOR_HOPS) {
     if (cur === document) return true;
     const p = cur.parentNode;
-    if (!p && cur.nodeType === DOCUMENT_FRAGMENT_NODE && cur.host) {
+    if (!p && isHostedShadowRoot(cur)) {
       cur = cur.host;
       continue;
     }
@@ -1030,13 +1056,18 @@ function selComposedRootIsDocument(node: any): boolean {
   return false;
 }
 
-function selRescope(node: any, offset: number, roots: any[], bias: number) {
+function selRescope(
+  node: BoundaryNode | null,
+  offset: number,
+  roots: ShadowRootImpl[],
+  bias: number,
+): [BoundaryNode, number] | null {
   let cur = node;
   let off = offset;
   let hops = 0;
   while (cur && hops++ < MAX_COMPOSED_ANCESTOR_HOPS) {
     const root = composedRootOf(cur);
-    if (!isShadowRootNode(root)) break;
+    if (!isHostedShadowRoot(root)) break;
     let opted = false;
     for (const candidateRoot of roots) {
       if (isShadowIncludingInclusiveAncestor(root, candidateRoot)) {
@@ -1097,15 +1128,23 @@ const SEL_BLOCK_TAGS = new Set([
 ]);
 
 // Selection.modify walks a DOM-derived text stream because this shim has no line boxes.
+// One text node or <br> of the run, at its offset in the run's text.
+interface TextRunEntry {
+  node: NodeBase;
+  start: number;
+  len: number;
+  text: boolean;
+}
+type TextRun = NonNullable<ReturnType<typeof selBuildTextRun>>;
 function selBuildTextRun() {
-  const body = (document as any).body || (document as any).documentElement;
+  const body = document && (document.body || document.documentElement);
   if (!body) return null;
-  const entries: any[] = [];
-  const starts = new Map<any, number>();
-  const extents = new Map<any, number[]>();
+  const entries: TextRunEntry[] = [];
+  const starts = new Map<BoundaryNode, number>();
+  const extents = new Map<BoundaryNode, number[]>();
   const breaks = new Set<number>([0]);
   let text = "";
-  const visit = (node: any) => {
+  const visit = (node: NodeBase | null | undefined) => {
     if (!node) return;
     const t = node.nodeType;
     if (t === TEXT_NODE) {
@@ -1116,6 +1155,7 @@ function selBuildTextRun() {
       return;
     }
     if (t !== ELEMENT_NODE) return;
+    if (!isElementNode(node)) return;
     const tag = node.tagName;
     if (typeof tag === "string" && SEL_SKIP_TAGS.test(tag)) return;
     starts.set(node, text.length);
@@ -1139,12 +1179,12 @@ function selBuildTextRun() {
   return { entries, starts, text, breaks, extents };
 }
 
-function selEditingHostOf(node: any) {
+function selEditingHostOf(node: BoundaryNode | null) {
   let cur = node && node.nodeType === ELEMENT_NODE ? node : node && node.parentNode;
   let hops = 0;
-  let host: any = null;
+  let host: Element | null = null;
   while (cur && hops++ < MAX_SELECTION_ANCESTOR_HOPS) {
-    if (cur.nodeType === ELEMENT_NODE && typeof cur.getAttribute === "function") {
+    if (isElementNode(cur) && typeof cur.getAttribute === "function") {
       const ce = cur.getAttribute("contenteditable");
       if (ce === "" || ce === "true") host = cur;
       else if (ce === "false") break;
@@ -1154,9 +1194,9 @@ function selEditingHostOf(node: any) {
   return host;
 }
 
-function selRunLineBoundary(run: any, p: number, forward: boolean) {
+function selRunLineBoundary(run: TextRun, p: number, forward: boolean) {
   let best = forward ? run.text.length : 0;
-  for (const b of run.breaks as Set<number>) {
+  for (const b of run.breaks) {
     if (forward) {
       if (b > p && b < best) best = b;
     } else if (b <= p && b > best) best = b;
@@ -1164,11 +1204,11 @@ function selRunLineBoundary(run: any, p: number, forward: boolean) {
   return best;
 }
 
-function selDirectionAt(node: any) {
+function selDirectionAt(node: BoundaryNode | null) {
   let cur = node;
   let hops = 0;
   while (cur && hops++ < MAX_SELECTION_ANCESTOR_HOPS) {
-    if (cur.nodeType === ELEMENT_NODE && typeof cur.getAttribute === "function") {
+    if (isElementNode(cur) && typeof cur.getAttribute === "function") {
       const d = cur.getAttribute("dir");
       if (d === "rtl" || d === "ltr") return d;
     }
@@ -1177,7 +1217,7 @@ function selDirectionAt(node: any) {
   return "ltr";
 }
 
-function selRunPositionOf(run: any, node: any, offset: number) {
+function selRunPositionOf(run: TextRun, node: BoundaryNode | null, offset: number) {
   if (!node) return -1;
   if (node.nodeType === TEXT_NODE) {
     const s = run.starts.get(node);
@@ -1198,9 +1238,9 @@ function selRunPositionOf(run: any, node: any, offset: number) {
   return end;
 }
 
-function selRunResolve(run: any, p: number, forward: boolean) {
-  let before: any = null;
-  let after: any = null;
+function selRunResolve(run: TextRun, p: number, forward: boolean): [NodeBase, number] | null {
+  let before: TextRunEntry | null = null;
+  let after: TextRunEntry | null = null;
   for (const e of run.entries) {
     if (!e.text) continue;
     if (e.start < p && p <= e.start + e.len) before = e;
@@ -1216,7 +1256,7 @@ function selRunResolve(run: any, p: number, forward: boolean) {
   return null;
 }
 
-function selRunWordBoundary(run: any, p: number, forward: boolean) {
+function selRunWordBoundary(run: TextRun, p: number, forward: boolean) {
   const s = run.text;
   const ws = (i: number) => /\s/.test(s.charAt(i));
   if (forward) {
@@ -1291,11 +1331,18 @@ class SelectionImpl implements Idl.Selection {
       this.#pushToWasm();
       return null;
     }
-    if (hasComposedRange && !selComposedRootIsDocument(rangeBounds(range).startContainer)) {
+    // hasComposedRange means both composed containers are set.
+    const { startContainer: composedStart, endContainer: composedEnd } = composedRange;
+    if (
+      hasComposedRange &&
+      composedStart &&
+      composedEnd &&
+      !selComposedRootIsDocument(rangeBounds(range).startContainer)
+    ) {
       try {
         const updatedRange = new RangeImpl(document);
-        updatedRange._setStartInternal(composedRange.startContainer, composedRange.startOffset);
-        updatedRange._setEndInternal(composedRange.endContainer, composedRange.endOffset);
+        updatedRange._setStartInternal(composedStart, composedRange.startOffset);
+        updatedRange._setEndInternal(composedEnd, composedRange.endOffset);
         this.#range = updatedRange;
         return updatedRange;
       } catch {}
@@ -1389,7 +1436,12 @@ class SelectionImpl implements Idl.Selection {
     return this.#composed.startContainer !== null;
   }
 
-  #applyAnchorFocus(anchorNode: any, anchorOffset: number, focusNode: any, focusOffset: number) {
+  #applyAnchorFocus(
+    anchorNode: BoundaryNode,
+    anchorOffset: number,
+    focusNode: BoundaryNode,
+    focusOffset: number,
+  ) {
     const comparison = compareComposed(anchorNode, anchorOffset, focusNode, focusOffset);
     const backward = comparison > 0;
     const startNode = backward ? focusNode : anchorNode;
@@ -1437,18 +1489,19 @@ class SelectionImpl implements Idl.Selection {
     }
   }
 
-  getComposedRanges(options?: any) {
-    const roots: any[] = [];
+  getComposedRanges(options?: unknown) {
+    const roots: ShadowRootImpl[] = [];
     if (options !== undefined && options !== null) {
       if (typeof options !== "object") {
         throw new TypeError(
           "Failed to execute 'getComposedRanges' on 'Selection': parameter is not an object.",
         );
       }
-      const sr = options.shadowRoots;
+      const sr: unknown = Reflect.get(options, "shadowRoots");
       if (sr !== undefined && sr !== null) {
-        for (const root of sr) {
-          if (!isShadowRootNode(root)) {
+        // for-of throws the page's TypeError for a non-iterable, as before.
+        for (const root of sr as Iterable<BoundaryNode | null>) {
+          if (!isHostedShadowRoot(root)) {
             throw new TypeError(
               "Failed to execute 'getComposedRanges' on 'Selection': " +
                 "parameter is not of type 'ShadowRoot'.",
@@ -1487,9 +1540,9 @@ class SelectionImpl implements Idl.Selection {
       // Paint composed endpoints; a single-tree Range cannot represent a cross-shadow selection.
       const composedRange = this.#hasComposed() ? this.#composed : null;
       const range = this.#range;
-      let startNode: any,
+      let startNode: BoundaryNode | null = null,
         startOffset = 0,
-        endNode: any,
+        endNode: BoundaryNode | null = null,
         endOffset = 0;
       if (composedRange) {
         startNode = composedRange.startContainer;
@@ -1502,8 +1555,8 @@ class SelectionImpl implements Idl.Selection {
         endNode = rangeBounds(range).endContainer;
         endOffset = rangeBounds(range).endOffset;
       }
-      const startNodeId = startNode && startNode._id;
-      const endNodeId = endNode && endNode._id;
+      const startNodeId = startNode && "_id" in startNode ? startNode._id : undefined;
+      const endNodeId = endNode && "_id" in endNode ? endNode._id : undefined;
       if (
         typeof startNodeId === "number" &&
         typeof endNodeId === "number" &&
@@ -1517,7 +1570,7 @@ class SelectionImpl implements Idl.Selection {
     } catch {}
   }
 
-  addRange(range) {
+  addRange(range: unknown) {
     selAssertArgs(1, arguments.length, "addRange");
     if (!(range instanceof RangeImpl)) {
       throw new TypeError(
@@ -1534,7 +1587,7 @@ class SelectionImpl implements Idl.Selection {
   empty() {
     this.removeAllRanges();
   }
-  removeRange(range) {
+  removeRange(range: unknown) {
     selAssertArgs(1, arguments.length, "removeRange");
     if (!(range instanceof RangeImpl)) {
       throw new TypeError(
@@ -1558,14 +1611,14 @@ class SelectionImpl implements Idl.Selection {
     return range;
   }
 
-  collapse(node, offset) {
+  collapse(node: unknown, offset?: number) {
     selAssertArgs(1, arguments.length, "collapse");
     if (node === null) {
       this.removeAllRanges();
       return;
     }
     selAssertNode(node, "collapse");
-    const o = offset >>> 0;
+    const o = (offset ?? 0) >>> 0;
     if (node.nodeType === DOCTYPE_NODE) {
       throw new DOMException(
         "collapse: doctype is not a valid boundary point node",
@@ -1581,7 +1634,7 @@ class SelectionImpl implements Idl.Selection {
     range._setEndInternal(node, o);
     this.#apply(range, false, [node, o, node, o]);
   }
-  setPosition(node, offset) {
+  setPosition(node: unknown, offset?: number) {
     selAssertArgs(1, arguments.length, "setPosition");
     return this.collapse(node, offset);
   }
@@ -1608,10 +1661,10 @@ class SelectionImpl implements Idl.Selection {
     this.#apply(range, false);
   }
 
-  extend(node, offset) {
+  extend(node: unknown, offset?: number) {
     selAssertArgs(1, arguments.length, "extend");
     selAssertNode(node, "extend");
-    const o = offset >>> 0;
+    const o = (offset ?? 0) >>> 0;
     if (!selComposedRootIsDocument(node)) return;
     if (!this.#live()) {
       throw new DOMException("extend: there is no selection", "InvalidStateError");
@@ -1641,10 +1694,17 @@ class SelectionImpl implements Idl.Selection {
       this.#applyAnchorFocus(node, o, node, o);
       return;
     }
+    // #live() above found a range, so there is an anchor.
+    if (!anchorNode) return;
     this.#applyAnchorFocus(anchorNode, anchorOffset, node, o);
   }
 
-  setBaseAndExtent(anchorNode, anchorOffset, focusNode, focusOffset) {
+  setBaseAndExtent(
+    anchorNode: unknown,
+    anchorOffset: number,
+    focusNode: unknown,
+    focusOffset: number,
+  ) {
     selAssertArgs(4, arguments.length, "setBaseAndExtent");
     selAssertNode(anchorNode, "setBaseAndExtent");
     selAssertNode(focusNode, "setBaseAndExtent");
@@ -1662,7 +1722,7 @@ class SelectionImpl implements Idl.Selection {
     this.#applyAnchorFocus(anchorNode, normalizedAnchorOffset, focusNode, normalizedFocusOffset);
   }
 
-  selectAllChildren(node) {
+  selectAllChildren(node: unknown) {
     selAssertArgs(1, arguments.length, "selectAllChildren");
     selAssertNode(node, "selectAllChildren");
     if (node.nodeType === DOCTYPE_NODE) {
@@ -1680,7 +1740,7 @@ class SelectionImpl implements Idl.Selection {
     this.#apply(range, false, [node, 0, node, childCount]);
   }
 
-  containsNode(node, allowPartialContainment) {
+  containsNode(node: unknown, allowPartialContainment?: boolean) {
     selAssertArgs(1, arguments.length, "containsNode");
     selAssertNode(node, "containsNode");
     const range = this.#live();
@@ -1717,7 +1777,7 @@ class SelectionImpl implements Idl.Selection {
     return startsBeforeNode <= 0 && endsAfterNode <= 0;
   }
 
-  modify(alter, direction, granularity) {
+  modify(alter?: unknown, direction?: unknown, granularity?: unknown) {
     const alt = String(alter == null ? "" : alter).toLowerCase();
     const dir = String(direction == null ? "" : direction).toLowerCase();
     const gran = String(granularity == null ? "" : granularity).toLowerCase();
@@ -1772,7 +1832,9 @@ class SelectionImpl implements Idl.Selection {
     if (alt === "move") {
       this.#applyAnchorFocus(point[0], point[1], point[0], point[1]);
     } else {
-      this.#applyAnchorFocus(this.anchorNode, this.anchorOffset, point[0], point[1]);
+      // #live() above found a range, so there is an anchor.
+      const anchor = this.anchorNode;
+      if (anchor) this.#applyAnchorFocus(anchor, this.anchorOffset, point[0], point[1]);
     }
   }
 
@@ -1850,7 +1912,7 @@ class StaticRangeImpl extends AbstractRangeImpl implements Idl.StaticRange {
   }
 }
 
-function rangeAfterInsert(parent, refIndex, count): void {
+function rangeAfterInsert(parent: BoundaryNode, refIndex: number, count: number): void {
   if (liveRanges.size === 0) return;
   for (const range of liveRanges) {
     if (range.startContainer === parent && range.startOffset > refIndex) {
@@ -1862,7 +1924,7 @@ function rangeAfterInsert(parent, refIndex, count): void {
   }
 }
 
-function rangeBeforeRemove(parent, index, child): void {
+function rangeBeforeRemove(parent: BoundaryNode, index: number, child: BoundaryNode): void {
   if (liveRanges.size === 0) return;
   for (const range of liveRanges) {
     // Composed selection endpoints follow shadow hosts; ordinary Range endpoints remain tree-local.
@@ -1882,7 +1944,12 @@ function rangeBeforeRemove(parent, index, child): void {
   }
 }
 
-function rangeBeforeReplaceData(node, offset, count, insertedLength): void {
+function rangeBeforeReplaceData(
+  node: BoundaryNode,
+  offset: number,
+  count: number,
+  insertedLength: number,
+): void {
   if (liveRanges.size === 0) return;
   const delta = insertedLength - count;
   const cutEnd = offset + count;
@@ -1904,7 +1971,7 @@ function rangeBeforeReplaceData(node, offset, count, insertedLength): void {
   }
 }
 
-function rangeAfterSplitText(node, offset, newNode): void {
+function rangeAfterSplitText(node: BoundaryNode, offset: number, newNode: BoundaryNode): void {
   if (liveRanges.size === 0) return;
   const parent = node.parentNode || null;
   const newIdx = parent ? nodeIndexOf(newNode) : -1;
