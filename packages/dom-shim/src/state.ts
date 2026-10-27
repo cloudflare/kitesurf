@@ -395,11 +395,11 @@ export function mintedNode<K extends keyof WrapperByNodeType>(
 }
 // nodeFor's cache hit and nothing else (null on a miss). Pure by contract: the
 // boa fast path runs it without re-arming revalidation, see fastpath.ts.
-let nodePeekFn: ((nodeId: number) => unknown) | null = null;
-export function setNodePeek(fn: (nodeId: number) => unknown): void {
+let nodePeekFn: ((nodeId: number) => NodeBase | null) | null = null;
+export function setNodePeek(fn: (nodeId: number) => NodeBase | null): void {
   nodePeekFn = fn;
 }
-export function nodePeek(nodeId: number): unknown {
+export function nodePeek(nodeId: number): NodeBase | null {
   return nodePeekFn ? nodePeekFn(nodeId) : null;
 }
 

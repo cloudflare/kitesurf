@@ -335,7 +335,8 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   // nodeFor's first branch only. The stamp is read as an own data property so a
   // page-defined _typeCheckSeq accessor (or Object.prototype.value) never runs.
   setNodePeek((nodeId) => {
-    const cached = peekApply(peekMapGet, cache, [nodeId]);
+    // Map.prototype.get on the wrapper cache.
+    const cached: NodeBase | undefined = peekApply(peekMapGet, cache, [nodeId]);
     if (!cached) return null;
     const stamp = peekGopd(cached, "_typeCheckSeq");
     if (!stamp || !peekApply(peekHasOwn, stamp, ["value"])) return null;
