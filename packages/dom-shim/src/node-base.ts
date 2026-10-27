@@ -145,7 +145,7 @@ type TreeArg = TreeParent | ParsedElement;
 export function adoptIntoDom(
   destDom: DomHandle,
   wrapper: AdoptableNode | null | undefined,
-  destOwnerDoc?: unknown,
+  destOwnerDoc?: NodeOwnerDocument | null,
 ): void {
   if (!wrapper || !wrapper._dom || wrapper._dom === destDom) return;
   const sourceDom = wrapper._dom;
