@@ -105,13 +105,16 @@ export interface ShimDocument extends ShimNode {
   execCommand?: (command: string, showUI: boolean, value: string) => boolean;
 }
 
+type ShimWindowProducer = BuildDocumentResult["window"];
+type ShimGetComputedStyle = NonNullable<ShimWindowProducer["getComputedStyle"]>;
+
 export interface ShimWindow extends ShimNode {
-  // Method syntax: the shim takes an EventListener, and callers pass one.
-  addEventListener(type: string, listener: unknown, opts?: unknown): void;
-  removeEventListener(type: string, listener: unknown, opts?: unknown): void;
+  addEventListener: ShimWindowProducer["addEventListener"];
+  removeEventListener: ShimWindowProducer["removeEventListener"];
   history?: { state?: unknown };
-  // Method syntax: the shim takes an Element, and callers pass one.
-  getComputedStyle?(element: unknown): { getPropertyValue(property: string): string };
+  getComputedStyle?(
+    element: ShimElement | Parameters<ShimGetComputedStyle>[0],
+  ): Pick<ReturnType<ShimGetComputedStyle>, "getPropertyValue">;
   location?: { href?: string; search?: string; [k: string]: unknown };
   navigator: ShimNavigator;
 }

@@ -424,9 +424,9 @@ function setMathOperator(value: CSSMathValue, operator: Idl.CSSMathOperator): vo
   });
 }
 
-function lockSlot(value: object, name: PropertyKey): void {
+function lockSlot<T extends object, K extends keyof T>(value: T, name: K): void {
   Object.defineProperty(value, name, {
-    value: Reflect.get(value, name) as unknown,
+    value: value[name],
     writable: false,
     enumerable: false,
     configurable: false,
