@@ -379,7 +379,7 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
     if (assigned) return assigned;
     return fileListFor(getInputFiles(this._id));
   }
-  set files(v: unknown) {
+  set files(v: Idl.FileList | null) {
     if (inputTypeOf(this) !== "file") return;
     if (v === null || v === undefined) return;
     if (!isKsFileList(v)) {

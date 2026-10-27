@@ -15,8 +15,9 @@ export const fileInputFiles: Map<number, File[]> = new Map();
 
 const FILELIST_GUARD = Symbol("kitesurf-filelist-guard");
 
-// FileList is a FileAPI interface, which the pinned IDL model leaves out.
-export class KsFileList {
+// FileList is a FileAPI interface: the generated types have it, but the
+// conformance model leaves it out.
+export class KsFileList implements Idl.FileList {
   declare readonly length: number;
   // The constructor stores the files as own index properties.
   readonly [index: number]: File;

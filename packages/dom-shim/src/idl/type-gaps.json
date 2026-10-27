@@ -5,6 +5,11 @@
       "baseURI": "the getter fallback returns null when no base URI is available"
     }
   },
+  "Blob": {
+    "omit": {
+      "textStream": "the page's Blob is workerd's, whose types have no textStream; FileAPI is read for types only, so the conformance ledger can't list it"
+    }
+  },
   "CSSGroupingRule": {
     "omit": {
       "cssRules": "an array with item(), not a CSSRuleList: CSSRuleList isn't exposed"
