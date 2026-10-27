@@ -694,7 +694,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     }
   }
 
-  compareBoundaryPoints(how: number, other: unknown) {
+  compareBoundaryPoints(how: number, other: Idl.Range) {
     how = (how >>> 0) & 0xffff;
     if (!other || !(other instanceof RangeImpl)) {
       throw new TypeError("compareBoundaryPoints: source range is not a Range");
@@ -950,7 +950,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
   }
 }
 
-function selAssertNode(v: unknown, opName: string): asserts v is BoundaryNode {
+function selAssertNode(v: Idl.Node, opName: string): asserts v is BoundaryNode {
   // Duck-typed like the Range guards: anything with a numeric nodeType.
   if (!v || typeof v !== "object" || typeof Reflect.get(v, "nodeType") !== "number") {
     throw new TypeError(
@@ -961,10 +961,10 @@ function selAssertNode(v: unknown, opName: string): asserts v is BoundaryNode {
 
 let notifyRangeMutated!: (
   selection: SelectionImpl,
-  range: unknown,
+  range: Idl.Range,
   changedEndpoint?: string,
 ) => void;
-function selNotifyRangeMutated(range: unknown, changedEndpoint?: string) {
+function selNotifyRangeMutated(range: Idl.Range, changedEndpoint?: string) {
   if (selectionImpl) notifyRangeMutated(selectionImpl, range, changedEndpoint);
 }
 
@@ -1489,7 +1489,7 @@ class SelectionImpl implements Idl.Selection {
     }
   }
 
-  getComposedRanges(options?: unknown) {
+  getComposedRanges(options?: Idl.GetComposedRangesOptions) {
     const roots: ShadowRootImpl[] = [];
     if (options !== undefined && options !== null) {
       if (typeof options !== "object") {
@@ -1497,7 +1497,7 @@ class SelectionImpl implements Idl.Selection {
           "Failed to execute 'getComposedRanges' on 'Selection': parameter is not an object.",
         );
       }
-      const sr: unknown = Reflect.get(options, "shadowRoots");
+      const sr = options.shadowRoots;
       if (sr !== undefined && sr !== null) {
         // for-of throws the page's TypeError for a non-iterable, as before.
         for (const root of sr as Iterable<BoundaryNode | null>) {
@@ -1570,7 +1570,7 @@ class SelectionImpl implements Idl.Selection {
     } catch {}
   }
 
-  addRange(range: unknown) {
+  addRange(range: Idl.Range) {
     selAssertArgs(1, arguments.length, "addRange");
     if (!(range instanceof RangeImpl)) {
       throw new TypeError(
@@ -1587,7 +1587,7 @@ class SelectionImpl implements Idl.Selection {
   empty() {
     this.removeAllRanges();
   }
-  removeRange(range: unknown) {
+  removeRange(range: Idl.Range) {
     selAssertArgs(1, arguments.length, "removeRange");
     if (!(range instanceof RangeImpl)) {
       throw new TypeError(
@@ -1611,7 +1611,7 @@ class SelectionImpl implements Idl.Selection {
     return range;
   }
 
-  collapse(node: unknown, offset?: number) {
+  collapse(node: Idl.Node | null, offset?: number) {
     selAssertArgs(1, arguments.length, "collapse");
     if (node === null) {
       this.removeAllRanges();
@@ -1634,7 +1634,7 @@ class SelectionImpl implements Idl.Selection {
     range._setEndInternal(node, o);
     this.#apply(range, false, [node, o, node, o]);
   }
-  setPosition(node: unknown, offset?: number) {
+  setPosition(node: Idl.Node | null, offset?: number) {
     selAssertArgs(1, arguments.length, "setPosition");
     return this.collapse(node, offset);
   }
@@ -1661,7 +1661,7 @@ class SelectionImpl implements Idl.Selection {
     this.#apply(range, false);
   }
 
-  extend(node: unknown, offset?: number) {
+  extend(node: Idl.Node, offset?: number) {
     selAssertArgs(1, arguments.length, "extend");
     selAssertNode(node, "extend");
     const o = (offset ?? 0) >>> 0;
@@ -1700,9 +1700,9 @@ class SelectionImpl implements Idl.Selection {
   }
 
   setBaseAndExtent(
-    anchorNode: unknown,
+    anchorNode: Idl.Node,
     anchorOffset: number,
-    focusNode: unknown,
+    focusNode: Idl.Node,
     focusOffset: number,
   ) {
     selAssertArgs(4, arguments.length, "setBaseAndExtent");
@@ -1722,7 +1722,7 @@ class SelectionImpl implements Idl.Selection {
     this.#applyAnchorFocus(anchorNode, normalizedAnchorOffset, focusNode, normalizedFocusOffset);
   }
 
-  selectAllChildren(node: unknown) {
+  selectAllChildren(node: Idl.Node) {
     selAssertArgs(1, arguments.length, "selectAllChildren");
     selAssertNode(node, "selectAllChildren");
     if (node.nodeType === DOCTYPE_NODE) {
@@ -1740,7 +1740,7 @@ class SelectionImpl implements Idl.Selection {
     this.#apply(range, false, [node, 0, node, childCount]);
   }
 
-  containsNode(node: unknown, allowPartialContainment?: boolean) {
+  containsNode(node: Idl.Node, allowPartialContainment?: boolean) {
     selAssertArgs(1, arguments.length, "containsNode");
     selAssertNode(node, "containsNode");
     const range = this.#live();
@@ -1777,7 +1777,7 @@ class SelectionImpl implements Idl.Selection {
     return startsBeforeNode <= 0 && endsAfterNode <= 0;
   }
 
-  modify(alter?: unknown, direction?: unknown, granularity?: unknown) {
+  modify(alter?: string, direction?: string, granularity?: string) {
     const alt = String(alter == null ? "" : alter).toLowerCase();
     const dir = String(direction == null ? "" : direction).toLowerCase();
     const gran = String(granularity == null ? "" : granularity).toLowerCase();

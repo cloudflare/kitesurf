@@ -67,7 +67,7 @@ function defineReflectedString<P extends Element>(
       const v = this.getAttribute(attrName);
       return v == null ? "" : v;
     },
-    set(this: Element, value: unknown) {
+    set(this: Element, value: string) {
       this.setAttribute(attrName, String(value));
     },
   });
@@ -85,7 +85,7 @@ function defineReflectedStringNullEmpty<P extends Element>(
       const v = this.getAttribute(attrName);
       return v == null ? "" : v;
     },
-    set(this: Element, value: unknown) {
+    set(this: Element, value: string | null) {
       if (value === null) {
         this.setAttribute(attrName, "");
         return;
@@ -105,7 +105,7 @@ function defineReflectedBoolean<P extends Element>(
     get(this: Element) {
       return this.hasAttribute(attrName);
     },
-    set(this: Element, value: unknown) {
+    set(this: Element, value: boolean) {
       if (value) this.setAttribute(attrName, "");
       else this.removeAttribute(attrName);
     },
@@ -139,7 +139,7 @@ function defineReflectedEnumWithDefaults<P extends Element>(
       const lc = asciiLowercaseFast(String(v));
       return lookup.has(lc) ? lc : invalidDefault;
     },
-    set(this: Element, value: unknown) {
+    set(this: Element, value: string) {
       this.setAttribute(attrName, String(value));
     },
   });
@@ -224,7 +224,7 @@ function defineReflectedUrl<P extends Element>(
         return raw;
       }
     },
-    set(this: Element, value: unknown) {
+    set(this: Element, value: string) {
       this.setAttribute(attrName, String(value));
     },
   });
@@ -379,7 +379,7 @@ function defineReflectedCrossOrigin<P extends Element>(
       if (lc === "use-credentials") return "use-credentials";
       return "anonymous";
     },
-    set(this: Element, value: unknown) {
+    set(this: Element, value: string | null) {
       if (value === null || value === undefined) {
         this.removeAttribute("crossorigin");
         return;

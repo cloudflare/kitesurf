@@ -659,7 +659,7 @@ export class MutationObserverImpl implements Idl.MutationObserver {
    * Empty or contradictory options throw `TypeError`.
    * Old-value and filter options infer the matching observation flag.
    */
-  observe(target: unknown, options?: Idl.MutationObserverInit) {
+  observe(target: Idl.Node, options?: Idl.MutationObserverInit) {
     if (!isObservable(target)) {
       throw new TypeError("MutationObserver.observe: invalid target");
     }

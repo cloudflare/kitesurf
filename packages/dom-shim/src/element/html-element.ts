@@ -121,7 +121,7 @@ class HTMLElement extends Element implements Idl.HTMLElement {
   get outerText(): string | undefined {
     return this.innerText;
   }
-  set outerText(v: unknown) {
+  set outerText(v: string) {
     // Non-HTML elements have no outerText IDL attribute and receive an expando.
     // https://html.spec.whatwg.org/#dom-outertext
     const ns = this.namespaceURI;

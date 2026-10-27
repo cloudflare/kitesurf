@@ -1593,7 +1593,9 @@ function compileEventAttribute(element: any, handlerName: string): void {
   } catch {}
 }
 
-function pickDomParserMime(contentType: string | null | undefined): string {
+// Returns one of DOMParser's supported types, as parseFromString declares
+// them, so the return type is the inferred union of the literals below.
+function pickDomParserMime(contentType: string | null | undefined) {
   if (typeof contentType !== "string" || contentType.length === 0) {
     return "text/html";
   }

@@ -216,7 +216,9 @@ function editingEngine(doc: DocumentImpl): EditingEngine {
   doc.__editing ??= createEditingEngine(
     doc,
     getSelection,
-    (element) => liveWindow().getComputedStyle(element),
+    // The untyped WPT engine also passes a parentNode that may not be an
+    // element; the shim's getComputedStyle answers an empty style for it.
+    (element) => liveWindow().getComputedStyle(element as Idl.Element),
     NODE_CONSTANTS,
   );
   return doc.__editing;
@@ -1467,7 +1469,7 @@ class DOMImplementationCls implements Idl.DOMImplementation {
     }
     return doc;
   }
-  createDocumentType(qname: unknown, publicId: unknown, systemId: unknown): DocumentTypeNode {
+  createDocumentType(qname: string, publicId: string, systemId: string): DocumentTypeNode {
     // The spec validates qname as a QName, but browsers only reject a
     // space, ">" or a C0 control character.
     const name = String(qname ?? "");
@@ -2164,7 +2166,7 @@ class DetachedDocument implements Idl.Document {
   }
   // Inclusive descendant check. The document itself is not in the host's
   // parent chain, so self needs its own check.
-  contains(other: unknown) {
+  contains(other: Idl.Node | null) {
     if (other === this) return true;
     if (other == null) return false;
     // A synthetic doctype is not in the wasm parent chain.

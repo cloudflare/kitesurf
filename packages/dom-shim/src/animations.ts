@@ -439,7 +439,12 @@ export class KsKeyframeEffect extends KsAnimationEffect implements Idl.KeyframeE
   #target: Idl.Element | null = null;
   #composite: "replace" | "add" | "accumulate" = "replace";
   _keyframes: Keyframe[] = [];
-  constructor(target: unknown, keyframes?: unknown, options?: unknown) {
+  // The copy constructor's KeyframeEffect source, or a target element.
+  constructor(
+    target: Idl.Element | Idl.KeyframeEffect | null,
+    keyframes?: object | null,
+    options?: number | Idl.KeyframeEffectOptions,
+  ) {
     super(ILLEGAL);
     if (target instanceof KsKeyframeEffect) {
       this.#target = target.#target;
@@ -459,8 +464,7 @@ export class KsKeyframeEffect extends KsAnimationEffect implements Idl.KeyframeE
       applyTiming(this._timing, { duration: options });
     } else if (options !== undefined && options !== null) {
       applyTiming(this._timing, options);
-      const composite: unknown =
-        typeof options === "object" ? Reflect.get(options, "composite") : undefined;
+      const composite = typeof options === "object" ? options.composite : undefined;
       if (composite !== undefined)
         this.#composite = enumValue(
           composite,
@@ -533,7 +537,7 @@ export class KsAnimationPlaybackEvent extends KsEvent {
   }
 }
 
-type ListenerEntry = { callback: unknown; once: boolean; handler?: string };
+type ListenerEntry = { callback: Idl.EventListener | null; once: boolean; handler?: string };
 
 let nextAnimationId = 1;
 // Animations a page started but no longer references keep playing (they stay relevant),
@@ -798,14 +802,18 @@ export class KsAnimation implements Idl.Animation {
     for (const name of names) if (name) style.setProperty(name, computed.getPropertyValue(name));
   }
 
-  addEventListener(type: string, callback: unknown, options?: boolean | { once?: boolean }): void {
+  addEventListener(
+    type: string,
+    callback: Idl.EventListener | null,
+    options?: boolean | Idl.AddEventListenerOptions,
+  ): void {
     if (callback === null || callback === undefined) return;
     const list = this.#listeners.get(type) ?? [];
     if (list.some((l) => l.callback === callback && !l.handler)) return;
     list.push({ callback, once: typeof options === "object" && !!options?.once });
     this.#listeners.set(type, list);
   }
-  removeEventListener(type: string, callback: unknown): void {
+  removeEventListener(type: string, callback: Idl.EventListener | null): void {
     const list = this.#listeners.get(type);
     const at = list?.findIndex((l) => l.callback === callback && !l.handler) ?? -1;
     if (list && at >= 0) list.splice(at, 1);
@@ -982,14 +990,14 @@ export class KsAnimation implements Idl.Animation {
 }
 
 export function animateElement(
-  element: unknown,
-  keyframes: unknown,
-  options?: unknown,
+  element: Idl.Element,
+  keyframes: object | null,
+  options?: number | Idl.KeyframeAnimationOptions,
 ): KsAnimation {
   const effect = new KsKeyframeEffect(element, keyframes, options);
   const animation = new KsAnimation(effect, getDocumentTimeline());
   if (options !== null && typeof options === "object") {
-    const id: unknown = Reflect.get(options, "id");
+    const id = options.id;
     if (id !== undefined) animation.id = String(id);
   }
   animation.play();

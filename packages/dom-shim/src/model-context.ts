@@ -339,28 +339,30 @@ function notifyChanged(context: ModelContext): void {
 
 // ModelContext has no node ID, so listeners cannot use the node-keyed DOM registry.
 class ToolEventTarget {
-  private _listeners = new Map<string, Array<(e: unknown) => void>>();
+  private _listeners = new Map<string, Array<(event: Idl.Event) => void>>();
 
-  addEventListener(type: unknown, listener: unknown, _options: unknown = undefined): void {
+  // Only function listeners are kept; a handleEvent object is ignored.
+  addEventListener(
+    type: string,
+    listener: Idl.EventListener | null,
+    _options: boolean | Idl.AddEventListenerOptions | undefined = undefined,
+  ): void {
     if (typeof listener !== "function") return;
     const key = String(type);
     const list = this._listeners.get(key) ?? [];
-    if (!list.includes(listener as (e: unknown) => void)) {
-      list.push(listener as (e: unknown) => void);
-    }
+    if (!list.includes(listener)) list.push(listener);
     this._listeners.set(key, list);
   }
 
-  removeEventListener(type: unknown, listener: unknown): void {
+  removeEventListener(type: string, listener: Idl.EventListener | null): void {
     const list = this._listeners.get(String(type));
     if (!list) return;
-    const at = list.indexOf(listener as (e: unknown) => void);
+    const at = typeof listener === "function" ? list.indexOf(listener) : -1;
     if (at >= 0) list.splice(at, 1);
   }
 
-  dispatchEvent(event: unknown): boolean {
-    const ev = event as { type?: string };
-    const list = this._listeners.get(String(ev?.type ?? ""));
+  dispatchEvent(event: Idl.Event): boolean {
+    const list = this._listeners.get(String(event?.type ?? ""));
     for (const listener of list ? list.slice() : []) {
       try {
         listener.call(this, event);
@@ -491,7 +493,11 @@ export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
     }
   }
 
-  addEventListener(type: unknown, listener: unknown, options?: unknown): void {
+  addEventListener(
+    type: string,
+    listener: Idl.EventListener | null,
+    options?: boolean | Idl.AddEventListenerOptions,
+  ): void {
     if (this._isMain && String(type) === "toolchange") {
       markDeclarativeInterest();
     }

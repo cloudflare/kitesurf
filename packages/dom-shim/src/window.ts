@@ -515,7 +515,7 @@ function buildWindow(document: DocumentImpl) {
     get pageYOffset() {
       return scrollOffset().y;
     },
-    scrollTo(_xOrOptions?: unknown, _y?: unknown) {
+    scrollTo(_xOrOptions?: Idl.ScrollToOptions | number, _y?: number) {
       const args = arguments;
       return (async () => {
         const norm = normalizeScrollArgs(args, "scrollTo");
@@ -526,10 +526,16 @@ function buildWindow(document: DocumentImpl) {
         setScrollOffset(left, top);
       })();
     },
-    scroll(this: { scrollTo(...args: unknown[]): unknown }, ...args: unknown[]) {
+    // A rest parameter keeps scroll.length at 0, as the IDL has it.
+    scroll(
+      this: {
+        scrollTo(...args: [xOrOptions?: Idl.ScrollToOptions | number, y?: number]): Promise<void>;
+      },
+      ...args: [xOrOptions?: Idl.ScrollToOptions | number, y?: number]
+    ) {
       return this.scrollTo(...args);
     },
-    scrollBy(_xOrOptions?: unknown, _y?: unknown) {
+    scrollBy(_xOrOptions?: Idl.ScrollToOptions | number, _y?: number) {
       const args = arguments;
       return (async () => {
         const norm = normalizeScrollArgs(args, "scrollBy");
@@ -558,7 +564,7 @@ function buildWindow(document: DocumentImpl) {
     get fetch() {
       return globalThis.fetch;
     },
-    getComputedStyle(element: unknown, pseudoArg?: unknown) {
+    getComputedStyle(element: Idl.Element, pseudoArg?: string | null) {
       return windowObj[GET_COMPUTED_STYLE_INTERNAL](element, pseudoArg, false);
     },
     [GET_COMPUTED_STYLE_INTERNAL](
@@ -780,7 +786,11 @@ function buildWindow(document: DocumentImpl) {
       assertWindowReceiver(this);
       return selectionSingleton();
     }, "getSelection"),
-    addEventListener(type: string, listener: unknown, options?: unknown) {
+    addEventListener(
+      type: string,
+      listener: Idl.EventListener | null,
+      options?: boolean | Idl.AddEventListenerOptions,
+    ) {
       if (arguments.length < 2) {
         throw new TypeError(
           "Failed to execute 'addEventListener' on 'EventTarget': 2 arguments required, but only " +
@@ -790,7 +800,11 @@ function buildWindow(document: DocumentImpl) {
       }
       addListener(WINDOW_KEY, type, listener, options);
     },
-    removeEventListener(type: string, listener: unknown, options?: unknown) {
+    removeEventListener(
+      type: string,
+      listener: Idl.EventListener | null,
+      options?: boolean | Idl.EventListenerOptions,
+    ) {
       if (arguments.length < 2) {
         throw new TypeError(
           "Failed to execute 'removeEventListener' on 'EventTarget': 2 arguments required, but only " +
@@ -800,7 +814,7 @@ function buildWindow(document: DocumentImpl) {
       }
       removeListener(WINDOW_KEY, type, listener, options);
     },
-    dispatchEvent(event: unknown) {
+    dispatchEvent(event: Idl.Event) {
       return dispatchOnKey(WINDOW_KEY, event);
     },
     event: undefined as unknown,

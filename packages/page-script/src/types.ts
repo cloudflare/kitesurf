@@ -98,17 +98,20 @@ export interface ShimDocument extends ShimNode {
       endOffset: number;
       collapsed: boolean;
     };
-    extend: (node: unknown, offset: number) => void;
-    collapse: (node: unknown, offset: number) => void;
+    // Method syntax: the shim takes a Node, and callers pass one.
+    extend(node: unknown, offset: number): void;
+    collapse(node: unknown, offset: number): void;
   } | null;
   execCommand?: (command: string, showUI: boolean, value: string) => boolean;
 }
 
 export interface ShimWindow extends ShimNode {
-  addEventListener: BuildDocumentResult["document"]["addEventListener"];
-  removeEventListener: BuildDocumentResult["document"]["removeEventListener"];
+  // Method syntax: the shim takes an EventListener, and callers pass one.
+  addEventListener(type: string, listener: unknown, opts?: unknown): void;
+  removeEventListener(type: string, listener: unknown, opts?: unknown): void;
   history?: { state?: unknown };
-  getComputedStyle?: (element: ShimElement) => { getPropertyValue(property: string): string };
+  // Method syntax: the shim takes an Element, and callers pass one.
+  getComputedStyle?(element: unknown): { getPropertyValue(property: string): string };
   location?: { href?: string; search?: string; [k: string]: unknown };
   navigator: ShimNavigator;
 }
