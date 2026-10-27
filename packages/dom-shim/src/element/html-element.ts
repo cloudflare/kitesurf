@@ -199,7 +199,7 @@ type IdlOwnMembers<I> = Omit<I, keyof Idl.HTMLElement>;
 // The class defineHTMLClass returns: HTMLElement's statics, with a constructor
 // and prototype typed as the instance I.
 type HTMLElementClass<I extends HTMLElement> = Omit<typeof HTMLElement, "prototype"> & {
-  new (nodeId: number, info: unknown, token: typeof InternalElementCtorToken): I;
+  new (nodeId: number, info: WrapperInfo, token: typeof InternalElementCtorToken): I;
   readonly prototype: I;
 };
 

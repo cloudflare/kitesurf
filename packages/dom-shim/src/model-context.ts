@@ -131,7 +131,8 @@ function toCdpTool(def: ToolDefinition): CdpTool {
   const out: CdpTool = { name: def.name, description: def.description };
   if (def.inputSchema !== "") {
     try {
-      out.inputSchema = JSON.parse(def.inputSchema);
+      const schema: unknown = JSON.parse(def.inputSchema);
+      out.inputSchema = schema;
     } catch {}
   }
   if (def.annotations !== null) {
@@ -1154,7 +1155,8 @@ function isChildDocumentFullyActive(doc: object): boolean {
 function jsonSafe(value: unknown): unknown {
   try {
     const json = JSON.stringify(value);
-    return json === undefined ? null : JSON.parse(json);
+    const parsed: unknown = json === undefined ? null : JSON.parse(json);
+    return parsed;
   } catch {
     return null;
   }
@@ -1193,7 +1195,7 @@ function declarativeResult(out: unknown): ToolCallResult {
     content: [],
     isError: false,
     rawOutput: true,
-    output: JSON.parse(serialized),
+    output: JSON.parse(serialized) as unknown,
   };
 }
 

@@ -1020,7 +1020,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     validateAttrName(nm);
     // The live document is HTML, so ASCII-lowercase the name.
     const finalName = nm.replace(/[A-Z]/g, (c) => c.toLowerCase());
-    const attr = Object.create(AttrCls.prototype);
+    const attr: AttrCls = Object.create(AttrCls.prototype);
     attr._name = finalName;
     attr._value = "";
     attr._nodeValue = "";
@@ -1480,7 +1480,7 @@ class DOMImplementationCls implements Idl.DOMImplementation {
         );
       }
     }
-    const synth = Object.create(DocumentTypeNode.prototype);
+    const synth: DocumentTypeNode = Object.create(DocumentTypeNode.prototype);
     Object.defineProperty(synth, "_info", {
       value: {
         nodeType: DOCTYPE_NODE,
@@ -2265,7 +2265,7 @@ class DetachedDocument implements Idl.Document {
     const nm = String(name == null ? String(name) : name);
     validateAttrName(nm);
     const finalName = this._isHtml ? nm.replace(/[A-Z]/g, (c) => c.toLowerCase()) : nm;
-    const attr = Object.create(AttrCls.prototype);
+    const attr: AttrCls = Object.create(AttrCls.prototype);
     attr._name = finalName;
     attr._value = "";
     attr._nodeValue = "";
@@ -2713,7 +2713,7 @@ const sharedDocumentMembers: Pick<Idl.Document, SharedDocumentMember> &
     if ((qn === "xmlns" || prefix === "xmlns") !== isXmlnsNs) {
       throw new DOMException("createAttributeNS: xmlns qname/prefix mismatch", "NamespaceError");
     }
-    const attr = Object.create(AttrCls.prototype);
+    const attr: AttrCls = Object.create(AttrCls.prototype);
     attr._name = qn;
     attr._value = "";
     attr._nodeValue = "";

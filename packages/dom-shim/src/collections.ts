@@ -892,7 +892,7 @@ function makeHtmlCollection(
         const found = namedValue(t, prop, memoGetList());
         if (found) return found;
       }
-      const v = Reflect.get(t, prop, receiver);
+      const v: unknown = Reflect.get(t, prop, receiver);
       return v;
     },
     set(t, prop, value, receiver) {
@@ -1682,7 +1682,7 @@ function constructMarginRule(
   parentRule: CSSRuleInterface | null,
   onMutate: (() => void) | null,
 ): AnyCssRule {
-  const rule = Object.create(CSSMarginRuleCls.prototype);
+  const rule: CSSMarginRuleCls = Object.create(CSSMarginRuleCls.prototype);
   const style = makeRuleStyleDeclaration(
     parsed.declText || "",
     "style",
