@@ -7,6 +7,7 @@
 import type { DomHandle as WasmDomHandle } from "../../core/pkg/kitesurf_core";
 import type { RawCdpMutation } from "@kitesurf/jsrpc-types/shared";
 import type { DetachedDocument, DocumentImpl } from "./document.js";
+import type { ShimWindow } from "./window.js";
 import type {
   AttrCls as Attr,
   DOMTokenListCls,
@@ -22,6 +23,7 @@ import {
   CDATA_SECTION_NODE,
   COMMENT_NODE,
   DOCUMENT_FRAGMENT_NODE,
+  DOCUMENT_NODE,
   ELEMENT_NODE,
   PROCESSING_INSTRUCTION_NODE,
   TEXT_NODE,
@@ -217,6 +219,12 @@ export function liveDocument(): DocumentImpl {
   if (documentImpl === null) throw new TypeError("dom-shim: no document is built");
   return documentImpl;
 }
+// An element's node document: the page document or a DetachedDocument. The
+// only wrapper a DOMParser document owns is a doctype its DOMImplementation
+// made, so NodeBase.ownerDocument's ParsedDocument case never applies here.
+export function elementDocument(el: Element): DocumentImpl | DetachedDocument {
+  return (el.ownerDocument as DocumentImpl | DetachedDocument | null) || liveDocument();
+}
 export let createElementInternal = (tag: string): Element => liveDocument().createElement(tag);
 export let createElementNSInternal = (ns: string | null, qname: string): Element =>
   liveDocument().createElementNS(ns, qname);
@@ -239,13 +247,19 @@ export function setDocumentImpl(d: DocumentImpl): void {
   createDocumentFragmentInternal = () => cf.call(d);
 }
 
-export let windowObj: any = null;
-export function setWindowObj(w: any): void {
+export let windowObj: ShimWindow | null = null;
+// windowObj for code that only runs once installWindow has set it. A read
+// before that throws the TypeError the null access did.
+export function liveWindow(): ShimWindow {
+  if (windowObj === null) throw new TypeError("dom-shim: no window is built");
+  return windowObj;
+}
+export function setWindowObj(w: ShimWindow): void {
   windowObj = w;
 }
 
-export let windowProxy: any = null;
-export function setWindowProxy(w: any): void {
+export let windowProxy: ShimWindow | null = null;
+export function setWindowProxy(w: ShimWindow): void {
   windowProxy = w;
 }
 
@@ -313,6 +327,13 @@ export function isTextNode(
   node: { readonly nodeType: number } | null | undefined,
 ): node is TextNode {
   return !!node && (node.nodeType === TEXT_NODE || node.nodeType === CDATA_SECTION_NODE);
+}
+// A document a node wrapper or a Range can sit in. (A DOMParser
+// ParsedDocument is also nodeType 9, but is neither.)
+export function isDocumentNode(
+  node: NodeBase | DetachedDocument | null | undefined,
+): node is DocumentImpl | DetachedDocument {
+  return !!node && node.nodeType === DOCUMENT_NODE;
 }
 // A DocumentFragment wrapper: a fragment stand-in or a shadow root.
 export function isFragmentNode(

@@ -459,7 +459,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   cache.set(DOCUMENT_ID, document);
   setDocumentImpl(document);
 
-  const { window, Window } = installWindow(document, dom);
+  const { window, Window } = installWindow(document);
 
   createModelContext({
     getWindow: () => window,

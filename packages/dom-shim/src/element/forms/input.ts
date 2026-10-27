@@ -5,7 +5,7 @@
 // Implements HTMLInputElement values, checkedness, type-specific state, files, and selection.
 
 import type * as Idl from "../../idl/types.generated.js";
-import { dom, documentImpl as document } from "../../state.js";
+import { dom, elementDocument } from "../../state.js";
 import { inputState } from "../../registries.js";
 import { markDamageNode, bumpMutationSeq } from "../../mutations/seq.js";
 import {
@@ -365,7 +365,7 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
   get list() {
     const ref = this.getAttribute("list");
     if (!ref) return null;
-    const doc = this.ownerDocument || document;
+    const doc = elementDocument(this);
     const el = doc.getElementById(ref);
     return el instanceof HTMLDataListElement ? el : null;
   }

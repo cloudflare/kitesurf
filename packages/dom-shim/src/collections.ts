@@ -17,6 +17,7 @@ import {
   liveDocument,
   windowObj,
   elementFor,
+  elementDocument,
   setCollectionsClasses,
   shadowRootModes,
   DOCUMENT_ID,
@@ -152,7 +153,7 @@ class AttrCls implements Idl.Attr {
     const owner = this._ownerElement;
     if (owner && typeof owner.baseURI === "string") return owner.baseURI;
     try {
-      if (typeof windowObj !== "undefined" && windowObj.document) {
+      if (windowObj && windowObj.document) {
         const u = windowObj.document.baseURI;
         if (typeof u === "string") return u;
       }
@@ -653,7 +654,7 @@ function optionsCollectionSet(
   value: unknown,
   list: Element[],
 ) {
-  const doc = select.ownerDocument || ksGlobal.document;
+  const doc = elementDocument(select);
   if (prop === "length") {
     const n = Math.min(OPTIONS_COLLECTION_MAX, Number(value) >>> 0);
     const cur = list.length;

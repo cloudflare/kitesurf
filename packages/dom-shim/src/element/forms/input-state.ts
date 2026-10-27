@@ -4,7 +4,7 @@
 
 // Stores input dirty-state and runs form-control clone and attribute-change steps.
 
-import { dom, documentImpl as document } from "../../state.js";
+import { dom, elementDocument } from "../../state.js";
 import { inputState, type InputControlState } from "../../registries.js";
 import { markDamageNode, bumpMutationSeq } from "../../mutations/seq.js";
 import { computeStep, sanitizeValue } from "../../input-types.js";
@@ -199,7 +199,7 @@ function inputValueMode(type: string): InputValueMode {
 
 function uncheckSiblingRadios(input: Element, name: string): void {
   const myForm = resolveFormOwner(input);
-  const doc = input.ownerDocument || document;
+  const doc = elementDocument(input);
   let scope = doc;
   try {
     const root = typeof input.getRootNode === "function" ? input.getRootNode() : null;

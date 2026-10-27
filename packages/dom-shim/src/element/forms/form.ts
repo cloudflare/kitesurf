@@ -8,7 +8,7 @@ import type * as Idl from "../../idl/types.generated.js";
 import { HTML_NS } from "../../constants.js";
 import {
   makeHtmlCollection,
-  documentImpl as document,
+  elementDocument,
   HTMLFormControlsCollectionCls,
   makeNodeList,
   ksGlobal,
@@ -146,7 +146,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
         }
       }
       if (form.id) {
-        const doc = form.ownerDocument || document;
+        const doc = elementDocument(form);
         try {
           const externals = doc.querySelectorAll(`[form="${form.id}"]`);
           for (const e of externals) {

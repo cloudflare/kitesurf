@@ -7,7 +7,7 @@
 import {
   dom,
   liveDocument,
-  windowObj,
+  liveWindow,
   windowProxy as window,
   getCurrentUrl,
   hitTestViaPaint,
@@ -212,7 +212,7 @@ function editingEngine(doc: DocumentImpl): EditingEngine {
   doc.__editing ??= createEditingEngine(
     doc,
     getSelection,
-    (element) => windowObj.getComputedStyle(element),
+    (element) => liveWindow().getComputedStyle(element),
     NODE_CONSTANTS,
   );
   return doc.__editing;
@@ -496,7 +496,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     }
     // nodeOwnerDoc has no entry for nodes of the live document, so adopting
     // into it deletes entries and adopting into a detached document sets them.
-    const isLive = this === windowObj.document;
+    const isLive = this === liveWindow().document;
     const stamp = (n: NodeBase | null) => {
       if (!n || typeof n !== "object") return;
       if (isLive) {
@@ -1529,7 +1529,6 @@ interface DetachedDocument
       Idl.Document,
       | "nodeType"
       | "nodeName"
-      | "ownerDocument"
       | "location"
       | "importNode"
       | "modelContext"
@@ -1542,8 +1541,10 @@ class DetachedDocument implements Idl.Document {
   // Set by the constructor and the createDocument, createHTMLDocument and
   // DOMParser paths.
   declare _dom: DomHandle;
-  // The constructor defines it as a null own property: a document has no parent.
+  // The constructor defines both as null own properties: a document has no
+  // parent and no owner document.
   declare readonly parentNode: null;
+  declare readonly ownerDocument: null;
   declare _hostId: number;
   declare _host: any;
   declare _topChildren: any[];

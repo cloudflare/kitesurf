@@ -108,7 +108,7 @@ export interface ShimWindow extends ShimNode {
   addEventListener: BuildDocumentResult["document"]["addEventListener"];
   removeEventListener: BuildDocumentResult["document"]["removeEventListener"];
   history?: { state?: unknown };
-  getComputedStyle?: (element: ShimElement) => { visibility: string };
+  getComputedStyle?: (element: ShimElement) => { getPropertyValue(property: string): string };
   location?: { href?: string; search?: string; [k: string]: unknown };
   navigator: ShimNavigator;
 }
