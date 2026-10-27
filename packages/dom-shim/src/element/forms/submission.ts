@@ -183,7 +183,8 @@ function namedTargetIframe(form: HTMLFormElement, name: string): Element | null 
   if (typeof doc.getElementsByTagName !== "function") return null;
   const frames = doc.getElementsByTagName("iframe");
   for (let i = 0; i < frames.length; i++) {
-    if (frames[i].getAttribute("name") === name) return frames[i];
+    const frame = frames[i];
+    if (frame && frame.getAttribute("name") === name) return frame;
   }
   return null;
 }

@@ -205,7 +205,9 @@ class ParsedElement {
     this.nodeType = info ? info.nodeType : ELEMENT_NODE;
     this.localName = info ? info.localName || "" : "";
     const ownerCt: string | null =
-      ownerDoc && ownerDoc._contentType ? String(ownerDoc._contentType) : null;
+      ownerDoc && "_contentType" in ownerDoc && ownerDoc._contentType
+        ? String(ownerDoc._contentType)
+        : null;
     const isHtmlDoc = ownerCt === "text/html" || ownerCt == null;
     if (this.nodeType !== ELEMENT_NODE) {
       this.nodeName = info ? info.nodeName : "";
@@ -297,7 +299,7 @@ class ParsedElement {
   get attributes(): ParsedAttribute[] {
     const list = parsedAttrs(this._dom, this._id);
     Object.defineProperty(list, "getNamedItem", {
-      value: (name) => list.find((a) => a.name === name) || null,
+      value: (name: unknown) => list.find((a) => a.name === name) || null,
     });
     return list;
   }
@@ -482,10 +484,13 @@ class ParsedElement {
     }
     return descendants.indexOf(other._id) >= 0;
   }
-  _scopedQS(selector): number[] {
-    if (typeof selector !== "string") {
+  _scopedQS(selectorArg: unknown): number[] {
+    let selector: string;
+    if (typeof selectorArg === "string") {
+      selector = selectorArg;
+    } else {
       try {
-        selector = String(selector);
+        selector = String(selectorArg);
       } catch {
         throw new DOMException(
           "Failed to execute 'querySelector' on parsed document: selector argument is not a valid string",
