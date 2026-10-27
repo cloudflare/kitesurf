@@ -34,18 +34,10 @@ function runCloneStepsDeep(src: NodeBase | null, clone: NodeBase | null): void {
 
 function runCloneSteps(src: NodeBase | null, clone: NodeBase | null): void {
   if (!src || !clone) return;
-  runCloneStepsForNodes(src, clone);
-}
-
-function runCloneStepsForNodes(src: NodeBase, clone: NodeBase): void {
-  const tag = cloneSourceTag(src);
+  const tag = src.nodeName || src._info?.nodeName;
   if (tag === "SCRIPT") cloneScriptState(src, clone);
   if (tag === "INPUT") cloneInputState(src, clone);
   else if (tag === "TEXTAREA") cloneTextAreaState(src, clone);
-}
-
-function cloneSourceTag(src: NodeBase): string | undefined {
-  return src.nodeName || src._info?.nodeName;
 }
 
 function cloneScriptState(src: NodeBase, clone: NodeBase): void {

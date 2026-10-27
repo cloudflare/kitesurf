@@ -252,27 +252,15 @@ function setRangeTextImplementation(
   const oldStart = selection.start;
   const oldEnd = selection.end;
   const bounds = rangeTextBounds(argumentCount, start, end, oldStart, oldEnd, value.length);
-  const replacementText = normalizeRangeTextReplacement(replacement);
+  const replacementText = replacement == null ? "" : String(replacement);
   const newValue = value.slice(0, bounds.start) + replacementText + value.slice(bounds.end);
   // Coalesce the value and range updates into one selectionchange after the final range is set.
   setSuppressedInputValue(control, newValue);
   const mode = selectMode || "preserve";
   const range = rangeAfterReplacement(mode, bounds, replacementText.length, oldStart, oldEnd);
-  const finalChanged = rangeTextSelectionChanged(range, oldStart, oldEnd);
+  const finalChanged = range.start !== oldStart || range.end !== oldEnd;
   setSuppressedSelectionRange(control, range, selection.direction);
   if (finalChanged) ksFireControlSelectionchange(control);
-}
-
-function normalizeRangeTextReplacement(replacement: string): string {
-  return replacement == null ? "" : String(replacement);
-}
-
-function rangeTextSelectionChanged(
-  range: SelectionRange,
-  oldStart: number,
-  oldEnd: number,
-): boolean {
-  return range.start !== oldStart || range.end !== oldEnd;
 }
 
 function validateRangeTextCall(control: TextControl, argumentCount: number): void {

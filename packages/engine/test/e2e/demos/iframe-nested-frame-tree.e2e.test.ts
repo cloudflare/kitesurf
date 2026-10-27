@@ -8,8 +8,8 @@ test("iframe-nested-frame-tree", async ({ browser }) => {
   const URL_BASE = process.env.KITESURF_FIXTURE_BASE ?? "http://127.0.0.1:8787";
 
   const page = await browser.newPage();
-  const attached: any[] = [];
-  const stopped: any[] = [];
+  const attached: unknown[] = [];
+  const stopped: unknown[] = [];
   const startupOrder = new Map<string, string[]>();
   const recordStartup = (frameId: string, event: string) => {
     const events = startupOrder.get(frameId) ?? [];

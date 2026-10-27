@@ -216,34 +216,21 @@ export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
 export async function runRegularPhase(plan: ScriptPlan): Promise<void> {
   for (const script of plan.regular) {
     if (script.src) {
-      const url = script._resolvedUrl;
-      if (!url) continue;
-      const fetchResult = await plan.sourceCache.get(url);
-      if (!fetchResult || !fetchResult.ok) {
-        console.error(
-          "[kitesurf] <script src> fetch failed for " + url + ": " + fetchErrorDetail(fetchResult),
-        );
-        continue;
-      }
-      await runOneClassic(fetchResult.source, url);
+      await runExternalScript(
+        script,
+        plan.sourceCache,
+        "[kitesurf] <script src> fetch failed for ",
+      );
     } else {
       await runOneClassic(script.body, "<inline>");
     }
   }
   for (const script of plan.deferred) {
-    const url = script._resolvedUrl;
-    if (!url) continue;
-    const fetchResult = await plan.sourceCache.get(url);
-    if (!fetchResult || !fetchResult.ok) {
-      console.error(
-        "[kitesurf] deferred <script src> fetch failed for " +
-          url +
-          ": " +
-          fetchErrorDetail(fetchResult),
-      );
-      continue;
-    }
-    await runOneClassic(fetchResult.source, url);
+    await runExternalScript(
+      script,
+      plan.sourceCache,
+      "[kitesurf] deferred <script src> fetch failed for ",
+    );
   }
 }
 

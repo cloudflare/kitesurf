@@ -20,23 +20,15 @@ test("preserves tag-specific element discriminators", async ({ page }) => {
     const button: Element = document.createElement("button");
 
     const styleLoaderRepro = (() => {
-      const memo: Record<string, Element | null | undefined> = {};
-      const getTarget = (selector: string) => {
-        if (memo[selector] === undefined) {
-          let target: Element | null = document.querySelector(selector);
-          if (window.HTMLIFrameElement && target instanceof window.HTMLIFrameElement) {
-            try {
-              target = target.contentDocument!.head;
-            } catch {
-              target = null;
-            }
-          }
-          memo[selector] = target;
+      let target: Element | null | undefined = document.querySelector("head");
+      if (window.HTMLIFrameElement && target instanceof window.HTMLIFrameElement) {
+        try {
+          target = target.contentDocument!.head;
+        } catch {
+          target = null;
         }
-        return memo[selector];
-      };
-      const target = getTarget("head");
-      return target !== null && target !== undefined && target.tagName === "HEAD";
+      }
+      return target != null && target.tagName === "HEAD";
     })();
 
     const selection = document.getSelection();

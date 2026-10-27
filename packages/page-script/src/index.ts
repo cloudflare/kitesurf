@@ -3706,7 +3706,7 @@ function findDefaultSubmitButton(form: NonNullable<ShimElement["form"]>): ShimEl
   const elements = form.elements;
   for (let i = 0; i < elements.length; i++) {
     const element = elements[i];
-    const type = ((element.getAttribute && element.getAttribute("type")) || "").toLowerCase();
+    const type = formSubmitControlType(element);
     if (element.tagName === "BUTTON" && (type === "" || type === "submit")) {
       defaultButton = element;
       break;
@@ -10086,21 +10086,15 @@ function queryDomMemoryStats(): QueryDomResult<"getMemoryStats"> {
   let bridge = null;
   try {
     bridge = { ...JSON.parse(ks_bridge_pins()), ...JSON.parse(ks_cycle_stats()) };
-  } catch {
-    bridge = null;
-  }
+  } catch {}
   let domFastpath = null;
   try {
     domFastpath = JSON.parse(state.dom?.fastpathStats?.() ?? "null");
-  } catch {
-    domFastpath = null;
-  }
+  } catch {}
   let domNodes: number | null = null;
   try {
     domNodes = state.dom?.nodeCount?.() ?? null;
-  } catch {
-    domNodes = null;
-  }
+  } catch {}
   return {
     bytes,
     initialBytes,

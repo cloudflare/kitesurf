@@ -544,28 +544,22 @@ export function createCookieJar(): CookieJar {
     }
     const wantPath = opts.path;
     let removed = 0;
-    if (host) {
-      const list = byHost.get(host);
-      if (!list) return 0;
+    const removeFromHost = (key: string, list: CookieEntry[]): void => {
       const kept = list.filter((c) => {
         if (c.name !== wantName) return true;
         if (wantPath !== undefined && c.path !== wantPath) return true;
         removed++;
         return false;
       });
-      if (kept.length === 0) byHost.delete(host);
-      else byHost.set(host, kept);
+      if (kept.length === 0) byHost.delete(key);
+      else byHost.set(key, kept);
+    };
+    if (host) {
+      const list = byHost.get(host);
+      if (!list) return 0;
+      removeFromHost(host, list);
     } else {
-      for (const [h, list] of byHost) {
-        const kept = list.filter((c) => {
-          if (c.name !== wantName) return true;
-          if (wantPath !== undefined && c.path !== wantPath) return true;
-          removed++;
-          return false;
-        });
-        if (kept.length === 0) byHost.delete(h);
-        else byHost.set(h, kept);
-      }
+      for (const [key, list] of byHost) removeFromHost(key, list);
     }
     return removed;
   }

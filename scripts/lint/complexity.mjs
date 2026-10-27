@@ -173,16 +173,6 @@ function tryParseOxlintReport(stdout, root) {
   }
 }
 
-/** @param {number | null} status @returns {number} */
-function processExitCode(status) {
-  return status ?? 1;
-}
-
-/** @param {number | null} status @returns {string | number} */
-function processStatusLabel(status) {
-  return status ?? "unknown";
-}
-
 /** @param {ReturnType<typeof spawnSync>} result @returns {{exitCode: number, reason: string} | null} */
 function oxlintExecutionFailure(result) {
   if (result.error !== undefined) {
@@ -194,8 +184,8 @@ function oxlintExecutionFailure(result) {
   if (result.status !== 0) {
     const status = result.status;
     return {
-      exitCode: processExitCode(status),
-      reason: `Oxlint exited with status ${processStatusLabel(status)}.`,
+      exitCode: status ?? 1,
+      reason: `Oxlint exited with status ${status ?? "unknown"}.`,
     };
   }
   return null;

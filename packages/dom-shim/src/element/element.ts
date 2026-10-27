@@ -1496,10 +1496,6 @@ function finishCheckableClick(
   return false;
 }
 
-function clickHref(el: Element) {
-  return el.getAttribute && el.getAttribute("href");
-}
-
 function navigateToClickHref(rawHref: string): void {
   try {
     if (windowObj && windowObj.location) {
@@ -1509,7 +1505,7 @@ function navigateToClickHref(rawHref: string): void {
 }
 
 function followClickHref(el: Element): void {
-  const rawHref = clickHref(el);
+  const rawHref = el.getAttribute && el.getAttribute("href");
   if (typeof rawHref === "string" && rawHref.length > 0) {
     navigateToClickHref(rawHref);
   }
@@ -1567,30 +1563,14 @@ function activateSummary(el: Element): void {
   }
 }
 
-function maybeFollowClickHref(el: Element, ev: KsPointerEvent, tag: string): void {
-  if (!ev.defaultPrevented && tag === "A") followClickHref(el);
-}
-
 function afterClickDispatch(el: Element, ev: KsPointerEvent, tag: string): void {
-  maybeFollowClickHref(el, ev, tag);
+  if (!ev.defaultPrevented && tag === "A") followClickHref(el);
   if (!ev.defaultPrevented) el[activationBehavior]();
   // Only the first summary child toggles its details. Limitation: HTML queues a
   // ToggleEvent after the open attribute changes; this fires a plain event at once.
   // https://html.spec.whatwg.org/#the-summary-element
   if (!ev.defaultPrevented) activateSummary(el);
   if (!ev.defaultPrevented) activateLabel(el);
-}
-
-function clickInputType(el: Element, tag: string): string {
-  return tag === "INPUT" ? String(el.type || "").toLowerCase() : "";
-}
-
-function clickTag(el: Element): string {
-  return (el.nodeName || "").toUpperCase();
-}
-
-function isCheckableInput(tag: string, type: string): boolean {
-  return tag === "INPUT" && (type === "checkbox" || type === "radio");
 }
 
 function beginCheckableClick(el: Element, type: string) {
@@ -1620,9 +1600,9 @@ function dispatchClick(el: Element, forwarded: ForwardedClick | null): KsPointer
 // The forwarded click runs this same algorithm directly, not a page-replaceable control.click().
 // Forwarding data stays on the call stack so reentrant or later scripted clicks cannot inherit it.
 function runClickSteps(el: Element, forwarded: ForwardedClick | null): void {
-  const tag = clickTag(el);
-  const type = clickInputType(el, tag);
-  const isCheckable = isCheckableInput(tag, type);
+  const tag = (el.nodeName || "").toUpperCase();
+  const type = tag === "INPUT" ? String(el.type || "").toLowerCase() : "";
+  const isCheckable = tag === "INPUT" && (type === "checkbox" || type === "radio");
 
   // Disabled controls skip click. Limitation: a disabled fieldset ancestor does not.
   if (el.disabled === true) {
