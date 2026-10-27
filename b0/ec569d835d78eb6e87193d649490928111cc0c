@@ -1,0 +1,66 @@
+packages/dom-shim/src/element/html-element.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 8,140
+packages/dom-shim/src/element/table.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 9,68-76,91-92,125,155
+packages/dom-shim/src/idl/type-gaps.json
+  s_325e022d8487b0::t_a574c1e8d824f5 103-107
+packages/dom-shim/src/index.ts
+  s_325e022d8487b0::t_30b910dfc34720 462
+packages/dom-shim/src/range.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 15,621-623,636-641,643
+packages/dom-shim/src/element/forms/input.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 8,368
+packages/dom-shim/src/registries.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 124-127
+packages/dom-shim/src/select-dropdown.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 8-9,19,27,37-38,79,101
+packages/dom-shim/src/state.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 10,26,222-227,250-257,261-262,331-337
+packages/dom-shim/src/element/forms/labelable.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 7,39
+packages/dom-shim/src/collections.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 156
+  s_325e022d8487b0::t_864ff1778b0b49 20,657
+packages/dom-shim/src/document.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 10,215,499,1544-1545,1547
+packages/page-script/src/types.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 111
+packages/dom-shim/src/element/forms/listed.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 8,23
+packages/dom-shim/src/element/element.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 21,31,1443,2337
+packages/dom-shim/src/element/forms/label.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 8,22
+packages/dom-shim/src/element/forms/form.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 11,149
+packages/dom-shim/src/element/forms/select.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 12,104
+packages/page-script/src/index.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 504
+packages/dom-shim/src/window.ts
+  s_325e022d8487b0::t_30b910dfc34720 321
+  s_325e022d8487b0::t_a574c1e8d824f5 55,141,152,158,164,181,187,314-320,322-343,387,433,465,472,475,478,483,518,529-530,532,561,564-568,570-573,612,773,777,787,797,800,802,807-808,810,813-814,816-817,828,844,866-870,1079,1139,1161,1265,1270,1416,1465
+  s_325e022d8487b0::t_ab047339b9f762 344-349
+packages/dom-shim/src/element/forms/input-state.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 7,202
+packages/dom-shim/src/node-base.ts
+  s_325e022d8487b0::t_a574c1e8d824f5 14,50,962,965
+packages/dom-shim/src/idl/types.generated.ts
+  s_325e022d8487b0::t_b283b7eca87f65 2449
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b0ec569d835d78eb6e87193d649490928111cc0c",
+  "prompts": {},
+  "sessions": {
+    "s_325e022d8487b0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e87e6cc17ffeE3am0OA8I2bLOK",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}
