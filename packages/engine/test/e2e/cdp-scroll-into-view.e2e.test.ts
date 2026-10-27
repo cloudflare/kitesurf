@@ -49,3 +49,41 @@ test("puppeteer's ElementHandle.scrollIntoView brings a node below the fold into
   await far.scrollIntoView();
   expect(await far.isIntersectingViewport()).toBe(true);
 }, 60_000);
+
+// A scroll container clips what the window would show: the node below sits inside the viewport
+// but under the box's fold, and IntersectionObserver (puppeteer's re-check) sees it hidden.
+const BOXED = `<div id=box style="height:200px;overflow:auto"><div style="height:400px"></div><button id=inner>Inner</button></div>`;
+
+test("DOM.scrollIntoViewIfNeeded scrolls a node its scroll container hides, though the window would show it", async ({
+  page,
+}) => {
+  await setContent(page, BOXED);
+  const geometry = () =>
+    page.evaluate(() => {
+      const box = document.getElementById("box");
+      const inner = document.getElementById("inner");
+      if (!box || !inner) throw new Error("no #box or #inner");
+      const b = box.getBoundingClientRect();
+      const r = inner.getBoundingClientRect();
+      return {
+        scrollTop: box.scrollTop,
+        inBox: r.top >= b.top && r.bottom <= b.top + box.clientHeight,
+        inWindow: r.top >= 0 && r.bottom <= window.innerHeight,
+      };
+    });
+  expect(await geometry()).toEqual({ scrollTop: 0, inBox: false, inWindow: true });
+  const session = await page.createCDPSession();
+  const { root } = await session.send("DOM.getDocument", { depth: -1 });
+  const { nodeId } = await session.send("DOM.querySelector", {
+    nodeId: root.nodeId,
+    selector: "#inner",
+  });
+  await session.send("DOM.scrollIntoViewIfNeeded", { nodeId });
+  const after = await geometry();
+  expect(after.scrollTop).toBeGreaterThan(0);
+  expect(after.inBox).toBe(true);
+
+  const inner = await page.$("#inner");
+  if (!inner) throw new Error("no #inner");
+  expect(await inner.isIntersectingViewport()).toBe(true);
+}, 60_000);
