@@ -43,7 +43,7 @@ type ParsedOwnerDocumentValue = ParsedOwnerDocument | null;
 
 function DomHandleCtor(html: string, baseUrl: string): DomHandle {
   // The wasm instance constructor creates an independent parser handle.
-  return new (dom as any).constructor(html, baseUrl);
+  return new (dom.constructor as typeof DomHandle)(html, baseUrl);
 }
 
 const parsedNodeCache = new WeakMap<object, Map<number, ParsedElement>>();

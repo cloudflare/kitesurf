@@ -192,11 +192,11 @@ export function removeListener(key: any, type: string, listener: any, options: u
 
 function flatParentId(nodeId: number): number {
   try {
-    const slot = (dom as any).assignedSlotOf(nodeId);
+    const slot = dom.assignedSlotOf(nodeId);
     if (slot >= 0) return slot;
   } catch {}
   try {
-    const parent = (dom as any).parentId(nodeId);
+    const parent = dom.parentId(nodeId);
     return parent >= 0 && parent !== nodeId ? parent : -1;
   } catch {
     return -1;
@@ -209,7 +209,7 @@ function retargetId(aId: number, bKey: any): number {
   while (safety++ < MAX_SHADOW_ROOT_HOPS) {
     let rootA = -1;
     try {
-      rootA = (dom as any).shadowHostId(a) >= 0 ? a : (dom as any).containingShadowRootId(a);
+      rootA = dom.shadowHostId(a) >= 0 ? a : dom.containingShadowRootId(a);
     } catch {}
     if (rootA < 0) return a;
     let contains = false;
@@ -219,7 +219,7 @@ function retargetId(aId: number, bKey: any): number {
       while (s2++ < MAX_SHADOW_ROOT_HOPS) {
         let rootB = -1;
         try {
-          rootB = (dom as any).shadowHostId(b) >= 0 ? b : (dom as any).containingShadowRootId(b);
+          rootB = dom.shadowHostId(b) >= 0 ? b : dom.containingShadowRootId(b);
         } catch {}
         if (rootB < 0) break;
         if (rootB === rootA) {
@@ -228,7 +228,7 @@ function retargetId(aId: number, bKey: any): number {
         }
         let host = -1;
         try {
-          host = (dom as any).shadowHostId(rootB);
+          host = dom.shadowHostId(rootB);
         } catch {}
         if (host < 0) break;
         b = host;
@@ -237,7 +237,7 @@ function retargetId(aId: number, bKey: any): number {
     if (contains) return a;
     let host = -1;
     try {
-      host = (dom as any).shadowHostId(rootA);
+      host = dom.shadowHostId(rootA);
     } catch {}
     if (host < 0) return a;
     a = host;
@@ -258,9 +258,7 @@ export function propagationPath(
   if (composed === false) {
     try {
       stopAtRoot =
-        (dom as any).shadowHostId(targetKey) >= 0
-          ? targetKey
-          : (dom as any).containingShadowRootId(targetKey);
+        dom.shadowHostId(targetKey) >= 0 ? targetKey : dom.containingShadowRootId(targetKey);
     } catch {}
   }
 

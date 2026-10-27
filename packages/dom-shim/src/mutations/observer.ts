@@ -212,7 +212,7 @@ function forEachMatchingTransientSource(
     if (sources) for (const source of sources) visit(source);
     let parent;
     try {
-      parent = (dom as any).parentId(cur);
+      parent = dom.parentId(cur);
     } catch {
       return;
     }
@@ -259,7 +259,7 @@ function targetMatchesRegistration(
   while (safety < OBSERVER_ANCESTOR_HOP_LIMIT) {
     let parent;
     try {
-      parent = (dom as any).parentId(cur);
+      parent = dom.parentId(cur);
     } catch {
       return false;
     }

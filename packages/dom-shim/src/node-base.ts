@@ -4,6 +4,7 @@
 
 // Implements node wrappers, tree mutations, cloning, and text operations over the wasm DOM.
 
+import type { DomHandle } from "../../core/pkg/kitesurf_core";
 import type * as Idl from "./idl/types.generated.js";
 import {
   ksGlobal,
@@ -152,7 +153,7 @@ export function adoptIntoDom(destDom: any, wrapper: any, destOwnerDoc?: any): vo
   if (destOwnerDoc !== undefined) wrapper.ownerDocument = destOwnerDoc;
 }
 
-export function parsedAttrs(handle: any, id: number): Array<{ name: string; value: string }> {
+export function parsedAttrs(handle: DomHandle, id: number): Array<{ name: string; value: string }> {
   let info;
   try {
     info = handle.nodeInfo(id);
@@ -175,12 +176,12 @@ function copyCommentDataToClone(sourceId: number, cloneId: number): void {
   if (typeof sourceId !== "number" || typeof cloneId !== "number") return;
   let srcInfo: any, cloneInfo: any;
   try {
-    srcInfo = (dom as any).nodeInfo(sourceId);
+    srcInfo = dom.nodeInfo(sourceId);
   } catch {
     return;
   }
   try {
-    cloneInfo = (dom as any).nodeInfo(cloneId);
+    cloneInfo = dom.nodeInfo(cloneId);
   } catch {
     return;
   }
