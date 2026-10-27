@@ -32,7 +32,15 @@ export interface DomShimGlobals {
   DataTransfer?: typeof KsDataTransfer;
   DataTransferItem?: unknown;
   DataTransferItemList?: unknown;
-  ImageData?: new (data: Uint8ClampedArray, width: number, height: number) => unknown;
+  ImageData?: new (
+    data: Uint8ClampedArray,
+    width: number,
+    height: number,
+  ) => {
+    readonly width: number;
+    readonly height: number;
+    readonly data: Uint8ClampedArray;
+  };
   DOMStringMap?: { prototype: object };
   document?: DocumentImpl;
   window?: unknown;

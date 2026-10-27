@@ -86,3 +86,12 @@ export function cssEscape(s: unknown): string {
 export function isReservedGlobalName(name: string): boolean {
   return Object.prototype.hasOwnProperty.call(globalThis, name);
 }
+
+// A thrown value's message, else the value as a string. Reads `message`
+// the way `(e as { message?: unknown })?.message` would, primitives
+// included.
+export function errorMessage(e: unknown): string {
+  if (e == null) return String(e);
+  const message: unknown = Reflect.get(Object(e), "message");
+  return message != null ? String(message) : String(e);
+}
