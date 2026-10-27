@@ -12,6 +12,9 @@ import {
   getCurrentUrl,
   hitTestViaPaint,
   nodeFor,
+  elementFor,
+  isElementNode,
+  mintedNode,
   makeNodeList,
   makeHtmlCollection,
   activeElement,
@@ -69,6 +72,7 @@ import type { Element } from "./element/element.js";
 import type { DomHandle } from "../../core/pkg/kitesurf_core";
 import type * as Idl from "./idl/types.generated.js";
 import { cssEscape } from "./util/strings.js";
+import { isHtmlTag } from "./element/html-tag.js";
 import {
   validateAttrName,
   isValidXmlName,
@@ -128,10 +132,6 @@ function ksState() {
   return getInternalState();
 }
 
-function isElementNode(node: NodeBase | null | undefined): node is Element {
-  return node != null && node.nodeType === ELEMENT_NODE;
-}
-
 function rootViewport(): { w: number; h: number } {
   try {
     const { viewportW, viewportH } = getInternalState();
@@ -179,7 +179,7 @@ function resolveDocBaseURI(fallback: string): string {
     const baseId = dom ? dom.querySelector("base[href]") : -1;
     if (baseId && baseId > 0) {
       // DomHandle has no getAttribute, so read through the Element wrapper.
-      const node = nodeFor(baseId);
+      const node = elementFor(baseId);
       const href =
         node && typeof node.getAttribute === "function" ? node.getAttribute("href") : null;
       if (href != null && href !== "") {
@@ -586,7 +586,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   get documentElement() {
     const id = dom.querySelector("html");
     if (id < 0) return null;
-    const el = nodeFor(id);
+    const el = elementFor(id);
     if (!el) return null;
     if (!el.rootStamped) {
       const proto = (name: string): (() => number) | null => {
@@ -623,11 +623,13 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   }
   get head() {
     const id = dom.querySelector("head");
-    return id >= 0 ? nodeFor(id) : null;
+    const el = id >= 0 ? elementFor(id) : null;
+    return isHtmlTag(el, "head") ? el : null;
   }
   get body() {
     const id = dom.querySelector("body");
-    return id >= 0 ? nodeFor(id) : null;
+    const el = id >= 0 ? elementFor(id) : null;
+    return isHtmlTag(el, "body") ? el : null;
   }
   // ParentNode mixin members. children is a live HTMLCollection of the
   // element nodes in childNodes.
@@ -665,7 +667,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       const ids = dom.querySelectorAll("form");
       const out: Element[] = [];
       for (const id of ids) {
-        const n: Element | null = nodeFor(id);
+        const n = elementFor(id);
         if (n) out.push(n);
       }
       return out;
@@ -680,7 +682,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       const ids = dom.querySelectorAll("embed");
       const out: Element[] = [];
       for (const id of ids) {
-        const n: Element | null = nodeFor(id);
+        const n = elementFor(id);
         if (n) out.push(n);
       }
       return out;
@@ -691,7 +693,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       const ids = dom.querySelectorAll("script");
       const out: Element[] = [];
       for (const id of ids) {
-        const n: Element | null = nodeFor(id);
+        const n = elementFor(id);
         if (n) out.push(n);
       }
       return out;
@@ -702,7 +704,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       const ids = dom.querySelectorAll("img");
       const out: Element[] = [];
       for (const id of ids) {
-        const n: Element | null = nodeFor(id);
+        const n = elementFor(id);
         if (n) out.push(n);
       }
       return out;
@@ -713,7 +715,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       const ids = dom.querySelectorAll("a[href], area[href]");
       const out: Element[] = [];
       for (const id of ids) {
-        const n: Element | null = nodeFor(id);
+        const n = elementFor(id);
         if (n) out.push(n);
       }
       return out;
@@ -724,7 +726,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       const ids = dom.querySelectorAll("a[name]");
       const out: Element[] = [];
       for (const id of ids) {
-        const n: Element | null = nodeFor(id);
+        const n = elementFor(id);
         if (n) out.push(n);
       }
       return out;
@@ -858,8 +860,8 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     if (t === "") return [];
     try {
       return Array.from(dom.querySelectorAll('[name="' + t.replace(/"/g, '\\"') + '"]'))
-        .map((id) => nodeFor(id))
-        .filter(Boolean);
+        .map((id) => elementFor(id))
+        .filter((n): n is Element => n !== null);
     } catch {
       return [];
     }
@@ -901,7 +903,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       ns: HTML_NS,
       viaNS: false,
     });
-    const node = nodeFor(id);
+    const node = mintedNode(id, ELEMENT_NODE);
     // A defined custom element is constructed synchronously, so its
     // constructor has run when createElement returns. github's behaviors.js
     // reads `createElement("turbo-frame").delegate`, set in the constructor.
@@ -994,14 +996,14 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     // The namespace lives in elemNs, not in blitz, so the boa-to-blitz
     // fast path must never answer for this node (fastpath.ts).
     fastpathMarkSpecial(id);
-    const node = nodeFor(id);
+    const node = mintedNode(id, ELEMENT_NODE);
     if (isHtmlNs) upgradeIfCustomElement(node, localForWasm);
     return node;
   }
   createTextNode(data: string): TextNode {
     // WebIDL DOMString conversion preserves "null" and "undefined".
     const id = dom.createTextNode(String(data));
-    return nodeFor(id);
+    return mintedNode(id, TEXT_NODE);
   }
   // Blitz has no detached attributes, so this builds the same Attr object
   // that .attributes uses, with no owner element.
@@ -1028,7 +1030,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     const id = dom.createComment(text);
     // Blitz's create_comment_node takes no data, so keep it here.
     commentData.set(id, text);
-    return nodeFor(id);
+    return mintedNode(id, COMMENT_NODE);
   }
   // Limitation: wasm has no PI nodes, so a PI is a Text node stamped with
   // nodeType 7, nodeName and target. DetachedDocument does the same.
@@ -1067,7 +1069,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   createDocumentFragment(): DocumentFragmentImpl {
     const id = dom.createElement("div");
     fragmentIds.add(id);
-    return nodeFor(id);
+    return mintedNode(id, DOCUMENT_FRAGMENT_NODE);
   }
   createTreeWalker(root: Idl.Node, whatToShow?: number, filter?: Idl.NodeFilter | null) {
     // A non-Node root is a TypeError. A numeric nodeType stands in for the
@@ -1300,7 +1302,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     if (hitTestViaPaint) {
       try {
         const id = hitTestViaPaint(px, py);
-        if (id >= 0) return nodeFor(id);
+        if (id >= 0) return elementFor(id);
       } catch {}
     }
     const scroll = scrollOffset();
@@ -1309,14 +1311,14 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     if (layoutMode() === "off") {
       const id = cheapHit(dx, dy);
       if (id < 0) return null;
-      return nodeFor(id);
+      return elementFor(id);
     }
     // A wasm panic unwinds and the DOM survives, so fall back to the cheap walker.
     // Returning null would route the click to body and the input would
     // never focus.
     try {
       const id = dom.elementFromPoint(dx, dy);
-      if (id >= 0) return nodeFor(id);
+      if (id >= 0) return elementFor(id);
       // A clean miss: the cheap walker would just guess body.
       return null;
     } catch {
@@ -1324,7 +1326,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     }
     try {
       const id = cheapHit(dx, dy);
-      if (id >= 0) return nodeFor(id);
+      if (id >= 0) return elementFor(id);
     } catch {}
     return null;
   }
@@ -1528,7 +1530,6 @@ interface DetachedDocument
       | "nodeType"
       | "nodeName"
       | "ownerDocument"
-      | "parentNode"
       | "location"
       | "importNode"
       | "modelContext"
@@ -1541,6 +1542,8 @@ class DetachedDocument implements Idl.Document {
   // Set by the constructor and the createDocument, createHTMLDocument and
   // DOMParser paths.
   declare _dom: DomHandle;
+  // The constructor defines it as a null own property: a document has no parent.
+  declare readonly parentNode: null;
   declare _hostId: number;
   declare _host: any;
   declare _topChildren: any[];

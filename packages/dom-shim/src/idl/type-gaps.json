@@ -100,6 +100,11 @@
       "removedNodes": "an array, not a NodeList: it has length and indexes but no item()"
     }
   },
+  "ShadowRoot": {
+    "omit": {
+      "host": "null when wasm no longer has a host for the shadow root id; the IDL type is non-null"
+    }
+  },
   "StyleSheet": {
     "omit": {
       "ownerNode": "a DOMParser document's sheets are owned by a ParsedElement, which doesn't implement Element"

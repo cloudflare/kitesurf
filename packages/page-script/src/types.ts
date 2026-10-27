@@ -32,17 +32,17 @@ export interface ShimElement extends ShimNode {
   namespaceURI?: string | null;
   type?: string;
   checked?: boolean;
-  value?: string;
+  value?: string | number;
   isContentEditable?: boolean;
   hasAttribute?: (name: string) => boolean;
   getAttribute?: (name: string) => string | null;
   getBoundingClientRect?: () => DomRect | null;
-  getClientRects?: () => DomRect[];
+  getClientRects?: () => ArrayLike<DomRect | null>;
   querySelectorAll?: (sel: string) => ArrayLike<ShimElement>;
   querySelector?: (sel: string) => ShimElement | null;
   closest?: (sel: string) => ShimElement | null;
   focus?: () => void;
-  scrollIntoView?: (options: { block: string; inline: string }) => void;
+  scrollIntoView?: (options: { block: "nearest"; inline: "nearest" }) => void;
   blur?: () => void;
   click?: () => void;
   selectionStart?: number | null;
@@ -53,8 +53,9 @@ export interface ShimElement extends ShimNode {
   __ksMarkUserEdited?: () => void;
   form?: {
     elements: ArrayLike<ShimElement>;
-    __ksRequestSubmit?: (submitter?: unknown) => string | void;
-  };
+    // Method syntax: the shim takes a submitter element, and callers pass one.
+    __ksRequestSubmit?(submitter?: unknown): string | null | void;
+  } | null;
 }
 
 export interface ShimEvent {

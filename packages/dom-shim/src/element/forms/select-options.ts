@@ -4,7 +4,7 @@
 
 // Resolves option lists and selectedness for select controls.
 
-import { dom } from "../../state.js";
+import { dom, isElementNode } from "../../state.js";
 import { TEXT_NODE } from "../../constants.js";
 import { SelectednessWeakMap, optionSelected, selectednessWrites } from "../../registries.js";
 import { getInternalState } from "../../internal-state.js";
@@ -19,8 +19,9 @@ function isOptionEffectivelyDisabled(option: HTMLOptionElement | null | undefine
   if (option.disabled) return true;
   let p = option.parentNode;
   while (p) {
-    if (p.localName === "optgroup" && p.disabled) return true;
-    if (p.localName === "select") break;
+    // Any element named optgroup or select counts, in any namespace.
+    if (isElementNode(p) && p.localName === "optgroup" && p.disabled) return true;
+    if (isElementNode(p) && p.localName === "select") break;
     p = p.parentNode;
   }
   return false;

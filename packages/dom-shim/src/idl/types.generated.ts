@@ -2756,7 +2756,7 @@ export interface ShadowRoot extends DocumentFragment {
   readonly slotAssignment: SlotAssignmentMode;
   readonly clonable: boolean;
   readonly serializable: boolean;
-  readonly host: Element;
+  // readonly host: Element;
   onslotchange: EventHandler;
   // setHTML(html: string, options?: SetHTMLOptions): void;
   // setHTMLUnsafe(html: unknown | string, options?: SetHTMLUnsafeOptions): void;

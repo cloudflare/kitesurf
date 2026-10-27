@@ -11,6 +11,9 @@ import {
   dom,
   createDocumentFragmentInternal,
   parseFragmentInContext,
+  isCharacterDataNode,
+  isTextNode,
+  isElementNode,
 } from "./state.js";
 import { KsEvent } from "./events/event.js";
 import { dispatchTrustedEvent } from "./events/dispatch.js";
@@ -32,7 +35,8 @@ import {
   PROCESSING_INSTRUCTION_NODE,
   TEXT_NODE,
 } from "./constants.js";
-type LiveRangeEntry = RangeBounds<NodeBase | null> & { composedSel?: boolean };
+import type { DetachedDocument } from "./document.js";
+type LiveRangeEntry = RangeBounds<BoundaryNode | null> & { composedSel?: boolean };
 
 const MAX_COMPOSED_ANCESTOR_HOPS = 4096;
 const MAX_SELECTION_ANCESTOR_HOPS = 1024;
@@ -88,7 +92,7 @@ function nodeIndexOf(node): number {
   return parent ? Array.prototype.indexOf.call(childArray(parent), node) : -1;
 }
 
-function childArray(node: NodeBase): ArrayLike<NodeBase> {
+function childArray(node: NodeBase | DetachedDocument): ArrayLike<NodeBase> {
   const kids = node.childNodes;
   const get = nodeListGetters.get(kids);
   return get ? get() : kids;
@@ -242,8 +246,7 @@ function rangePartiallyContainedNonTextNodes(range) {
     }
     return false;
   }
-  const ca = rangeBounds(range).startContainer;
-  let common = ca;
+  let common: BoundaryNode | null = rangeBounds(range).startContainer;
   while (common && !isInclusiveDescendant(common, rangeBounds(range).endContainer)) {
     common = common.parentNode;
   }
@@ -252,7 +255,7 @@ function rangePartiallyContainedNonTextNodes(range) {
 }
 
 function rangeCommonAncestor(range) {
-  let n = rangeBounds(range).startContainer;
+  let n: BoundaryNode | null = rangeBounds(range).startContainer;
   while (n && !isInclusiveDescendant(n, rangeBounds(range).endContainer)) {
     n = n.parentNode;
   }
@@ -271,28 +274,23 @@ function rangeCloneOrExtract(range, mode) {
   const origStartO = rangeBounds(range).startOffset;
   const origEndN = rangeBounds(range).endContainer;
   const origEndO = rangeBounds(range).endOffset;
-  const isCharData = (n) =>
-    n &&
-    (n.nodeType === TEXT_NODE ||
-      n.nodeType === CDATA_SECTION_NODE ||
-      n.nodeType === PROCESSING_INSTRUCTION_NODE ||
-      n.nodeType === COMMENT_NODE);
+  const isCharData = isCharacterDataNode;
 
-  if (origStartN === origEndN && isCharData(origStartN)) {
+  if (origStartN === origEndN && isCharacterDataNode(origStartN)) {
     const clone = origStartN.cloneNode(false);
     try {
-      clone.data = (origStartN as any).substringData(origStartO, origEndO - origStartO);
+      clone.data = origStartN.substringData(origStartO, origEndO - origStartO);
     } catch {
       const d = origStartN.data || "";
       clone.data = d.slice(origStartO, origEndO);
     }
     frag.appendChild(clone);
     if (mode === "extract") {
-      if (typeof (origStartN as any).replaceData === "function") {
-        (origStartN as any).replaceData(origStartO, origEndO - origStartO, "");
+      if (typeof origStartN.replaceData === "function") {
+        origStartN.replaceData(origStartO, origEndO - origStartO, "");
       } else {
         const d = origStartN.data || "";
-        (origStartN as any).data = d.slice(0, origStartO) + d.slice(origEndO);
+        origStartN.data = d.slice(0, origStartO) + d.slice(origEndO);
       }
       rangeBounds(range).endContainer = origStartN;
       rangeBounds(range).endOffset = origStartO;
@@ -301,6 +299,8 @@ function rangeCloneOrExtract(range, mode) {
   }
 
   const commonAncestor = rangeCommonAncestor(range);
+  // Both boundary points share a root, so this only fails on a corrupt range.
+  if (!commonAncestor) throw new TypeError("Range has no common ancestor");
 
   let firstPartiallyContainedChild: NodeBase | null = null;
   if (!isInclusiveAncestorOf(origStartN, origEndN)) {
@@ -354,22 +354,23 @@ function rangeCloneOrExtract(range, mode) {
     }
   }
 
-  if (isCharData(firstPartiallyContainedChild)) {
+  // A character-data first partially contained child is origStartN.
+  if (isCharData(firstPartiallyContainedChild) && isCharacterDataNode(origStartN)) {
     const clone = origStartN.cloneNode(false);
     const len = nodeLength(origStartN);
     try {
-      clone.data = (origStartN as any).substringData(origStartO, len - origStartO);
+      clone.data = origStartN.substringData(origStartO, len - origStartO);
     } catch {
       const d = origStartN.data || "";
       clone.data = d.slice(origStartO, len);
     }
     frag.appendChild(clone);
     if (mode === "extract") {
-      if (typeof (origStartN as any).replaceData === "function") {
-        (origStartN as any).replaceData(origStartO, len - origStartO, "");
+      if (typeof origStartN.replaceData === "function") {
+        origStartN.replaceData(origStartO, len - origStartO, "");
       } else {
         const d = origStartN.data || "";
-        (origStartN as any).data = d.slice(0, origStartO);
+        origStartN.data = d.slice(0, origStartO);
       }
     }
   } else if (firstPartiallyContainedChild) {
@@ -393,21 +394,22 @@ function rangeCloneOrExtract(range, mode) {
     }
   }
 
-  if (isCharData(lastPartiallyContainedChild)) {
+  // A character-data last partially contained child is origEndN.
+  if (isCharData(lastPartiallyContainedChild) && isCharacterDataNode(origEndN)) {
     const clone = origEndN.cloneNode(false);
     try {
-      clone.data = (origEndN as any).substringData(0, origEndO);
+      clone.data = origEndN.substringData(0, origEndO);
     } catch {
       const d = origEndN.data || "";
       clone.data = d.slice(0, origEndO);
     }
     frag.appendChild(clone);
     if (mode === "extract") {
-      if (typeof (origEndN as any).replaceData === "function") {
-        (origEndN as any).replaceData(0, origEndO, "");
+      if (typeof origEndN.replaceData === "function") {
+        origEndN.replaceData(0, origEndO, "");
       } else {
         const d = origEndN.data || "";
-        (origEndN as any).data = d.slice(origEndO);
+        origEndN.data = d.slice(origEndO);
       }
     }
   } else if (lastPartiallyContainedChild) {
@@ -432,7 +434,9 @@ function rangeExtractOrDelete(range): void {
   rangeCloneOrExtract(range, "extract");
 }
 
-type BoundaryNode = NodeBase;
+// A DetachedDocument (createDocument, DOMParser-free XML documents) can hold
+// a boundary point too.
+type BoundaryNode = NodeBase | DetachedDocument;
 interface RangeBounds<N = BoundaryNode> {
   startContainer: N;
   startOffset: number;
@@ -494,7 +498,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
   }
 
   get commonAncestorContainer() {
-    let cur = rangeBounds(this).startContainer;
+    let cur: BoundaryNode | null = rangeBounds(this).startContainer;
     while (cur && !isInclusiveDescendant(cur, rangeBounds(this).endContainer)) {
       cur = cur.parentNode;
     }
@@ -614,12 +618,11 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
   createContextualFragment(markup: string): Idl.DocumentFragment {
     const node = rangeBounds(this).startContainer;
     const doc = node.nodeType === DOCUMENT_NODE ? node : node.ownerDocument;
-    let element =
-      node.nodeType === ELEMENT_NODE
-        ? node
-        : node.nodeType === TEXT_NODE || node.nodeType === COMMENT_NODE
-          ? node.parentElement
-          : null;
+    let element = isElementNode(node)
+      ? node
+      : node.nodeType === TEXT_NODE || node.nodeType === COMMENT_NODE
+        ? node.parentElement
+        : null;
     if (!element || (element.localName === "html" && element.namespaceURI === HTML_NS)) {
       element = null;
     }
@@ -794,12 +797,12 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     const sO = rangeBounds(this).startOffset;
     const eN = rangeBounds(this).endContainer;
     const eO = rangeBounds(this).endOffset;
-    if (sN === eN && (sN.nodeType === TEXT_NODE || sN.nodeType === CDATA_SECTION_NODE)) {
+    if (sN === eN && isTextNode(sN)) {
       const d = sN.data || "";
       return d.slice(sO, eO);
     }
     let out = "";
-    const isText = (n) => n && (n.nodeType === TEXT_NODE || n.nodeType === CDATA_SECTION_NODE);
+    const isText = isTextNode;
     if (isText(sN)) out += (sN.data || "").slice(sO);
     const ca = this.commonAncestorContainer;
     function* dfs(root) {
@@ -862,9 +865,9 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
         "insertNode: start container is a ProcessingInstruction/Comment",
       );
     }
-    let referenceChild = null;
-    let parent: NodeBase;
-    if (startType === 3 || startType === 4) {
+    let referenceChild: NodeBase | null = null;
+    let parent: NodeBase | DetachedDocument;
+    if (isTextNode(sN)) {
       const textParent = sN.parentNode;
       if (!textParent) {
         throw makeDOMException(
@@ -873,7 +876,9 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
         );
       }
       parent = textParent;
-      referenceChild = (sN as any).splitText ? (sN as any).splitText(sO) : sN.nextSibling;
+      // A DOMParser text node (nodeType 3, no splitText) can be the
+      // boundary too; it inserts before the next sibling instead.
+      referenceChild = typeof sN.splitText === "function" ? sN.splitText(sO) : sN.nextSibling;
     } else {
       parent = sN;
       const kids = sN.childNodes;

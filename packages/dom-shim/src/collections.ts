@@ -16,7 +16,7 @@ import {
   dom,
   liveDocument,
   windowObj,
-  nodeFor,
+  elementFor,
   setCollectionsClasses,
   shadowRootModes,
   DOCUMENT_ID,
@@ -51,7 +51,7 @@ import {
 import { bumpMutationSeq } from "./mutations/seq.js";
 import { recordAttributeMutation } from "./mutations/observer.js";
 import { Element, HTMLInputElement } from "./element/index.js";
-import type { HTMLSelectElement } from "./element/forms/select.js";
+import type { HTMLOptionElement, HTMLSelectElement } from "./element/forms/select.js";
 import type { NodeBase } from "./node-base.js";
 import type { ParsedElement } from "./parser.js";
 import { dropUnwrappedSubtrees } from "./node-base.js";
@@ -190,25 +190,26 @@ class AttrCls implements Idl.Attr {
 // ----- NodeList -----------------------------------------------------------
 // Live per-wrapper list; the proxy reflects current tree state. WPT checks
 // Array.prototype method identity, and internal callers use aliases like findIndex.
-class NodeListCls implements Idl.NodeList {
-  readonly [index: number]: Idl.Node;
+// T is the item type: NodeBase for the shim's own lists, Element for selector matches.
+class NodeListCls<T extends Idl.Node = Idl.Node> implements Idl.NodeList {
+  readonly [index: number]: T;
   declare readonly length: number;
-  declare [Symbol.iterator]: () => ArrayIterator<Idl.Node>;
-  declare keys: typeof Array.prototype.keys;
-  declare values: typeof Array.prototype.values;
-  declare entries: typeof Array.prototype.entries;
-  declare forEach: typeof Array.prototype.forEach;
-  declare findIndex: typeof Array.prototype.findIndex;
-  declare find: typeof Array.prototype.find;
-  declare indexOf: typeof Array.prototype.indexOf;
-  declare includes: typeof Array.prototype.includes;
-  declare map: typeof Array.prototype.map;
-  declare filter: typeof Array.prototype.filter;
-  declare slice: typeof Array.prototype.slice;
-  declare some: typeof Array.prototype.some;
-  declare every: typeof Array.prototype.every;
-  declare reduce: typeof Array.prototype.reduce;
-  declare concat: typeof Array.prototype.concat;
+  declare [Symbol.iterator]: () => ArrayIterator<T>;
+  declare keys: T[]["keys"];
+  declare values: T[]["values"];
+  declare entries: T[]["entries"];
+  declare forEach: T[]["forEach"];
+  declare findIndex: T[]["findIndex"];
+  declare find: T[]["find"];
+  declare indexOf: T[]["indexOf"];
+  declare includes: T[]["includes"];
+  declare map: T[]["map"];
+  declare filter: T[]["filter"];
+  declare slice: T[]["slice"];
+  declare some: T[]["some"];
+  declare every: T[]["every"];
+  declare reduce: T[]["reduce"];
+  declare concat: T[]["concat"];
   item(index: number): Idl.Node | null {
     const list = nodeListGetters.get(this);
     if (!list) return null;
@@ -396,9 +397,9 @@ class ShadowRootImpl extends DocumentFragmentImpl implements Idl.ShadowRoot {
     __shadowRootAllowConstruct = false;
     super(nodeId, info);
   }
-  get host() {
+  get host(): Element | null {
     const hostId = dom.shadowHostId(this._id);
-    return hostId >= 0 ? nodeFor(hostId) : null;
+    return hostId >= 0 ? elementFor(hostId) : null;
   }
   get mode() {
     return shadowRootModes.get(this._id) || "open";
@@ -539,8 +540,8 @@ class HTMLFormControlsCollectionCls
   // can't do; the first signature repeats the base one so the class still
   // extends it.
   namedItem(name: string): Element | null;
-  namedItem(name: string): Idl.RadioNodeList | Idl.Element | null;
-  namedItem(name: string): Idl.RadioNodeList | Idl.Element | null {
+  namedItem(name: string): Idl.RadioNodeList | Element | null;
+  namedItem(name: string): Idl.RadioNodeList | Element | null {
     const key = String(name);
     if (key === "") return null;
     const getList = htmlCollectionFn(this, "namedItem");
@@ -559,6 +560,8 @@ const formControlsNamedItem = HTMLFormControlsCollectionCls.prototype.namedItem;
 const OPTIONS_OWNER_SYM = Symbol("optionsOwner");
 class HTMLOptionsCollectionCls extends HtmlCollectionCls implements Idl.HTMLOptionsCollection {
   declare readonly [OPTIONS_OWNER_SYM]?: HTMLSelectElement;
+  // The owner <select>'s list holds only its options.
+  readonly [index: number]: HTMLOptionElement;
   get [Symbol.toStringTag](): string {
     return "HTMLOptionsCollection";
   }
@@ -678,7 +681,7 @@ function optionsCollectionSet(
     throw new TypeError("HTMLOptionsCollection: indexed value must be an HTMLOptionElement");
   }
   // SAFETY: the existing tag-name check accepts option-shaped values without branding them.
-  const option = value as Idl.HTMLOptionElement;
+  const option = value as HTMLOptionElement;
   if (idx < list.length) {
     const o = list[idx];
     if (o && o.parentNode) o.parentNode.replaceChild(option, o);
@@ -818,7 +821,8 @@ function makeHtmlCollection(
   // form.elements answers a shared name with a RadioNodeList; otherwise the
   // first id match wins, then the first name match.
   function namedValue(t: object, name: string, list: Element[]) {
-    if (protoCls === HTMLFormControlsCollectionCls) return formControlsNamedItem.call(t, name);
+    if (protoCls?.prototype === HTMLFormControlsCollectionCls.prototype)
+      return formControlsNamedItem.call(t, name);
     for (const el of list) {
       if (el.getAttribute && el.getAttribute("id") === name) return el;
     }
@@ -3396,7 +3400,7 @@ function makeStyleSheetList(): ItemList<CSSStyleSheetCtor> {
   try {
     const ids = Array.from(dom.querySelectorAll("style, link"));
     for (const nid of ids) {
-      const node = nodeFor(nid);
+      const node = elementFor(nid);
       if (!node) continue;
       if (node.tagName === "LINK") {
         const rel = (node.getAttribute("rel") || "").toLowerCase();
@@ -3746,10 +3750,9 @@ function filterByQualifiedName(candidates: Element[], qname: string): Element[] 
   return out;
 }
 
-function scopedQuerySelector(rootId: number, selector: string): Idl.Element | null {
+function scopedQuerySelector(rootId: number, selector: unknown): Element | null {
   const all = scopedQuerySelectorAll(rootId, selector);
-  // SAFETY: the wasm selector returns only element IDs.
-  return all.length > 0 ? (all[0] as Idl.Element) : null;
+  return all.length > 0 ? all[0] : null;
 }
 
 const pseudoElementRegex =
@@ -3758,10 +3761,13 @@ export function selectorHasPseudoElement(selector: string): boolean {
   return pseudoElementRegex.test(selector);
 }
 
-function scopedQuerySelectorAll(rootId: number, selector: string): NodeListCls | [] {
-  if (typeof selector !== "string") {
+function scopedQuerySelectorAll(rootId: number, selectorArg: unknown): NodeListCls<Element> {
+  let selector: string;
+  if (typeof selectorArg === "string") {
+    selector = selectorArg;
+  } else {
     try {
-      selector = String(selector);
+      selector = String(selectorArg);
     } catch {
       throw new DOMException(
         "Failed to execute 'querySelectorAll': selector argument is not a valid string",
@@ -3799,7 +3805,12 @@ function scopedQuerySelectorAll(rootId: number, selector: string): NodeListCls |
       "SyntaxError",
     );
   }
-  return makeStaticNodeList(ids.map((id) => nodeFor(id)).filter(Boolean));
+  const matches: Element[] = [];
+  for (const id of ids) {
+    const el = elementFor(id);
+    if (el) matches.push(el);
+  }
+  return makeStaticNodeList(matches);
 }
 
 const nodeListLenSym = Symbol.for("kitesurf.nodeListLength");
@@ -3813,10 +3824,10 @@ Object.defineProperty(NodeListCls.prototype, "length", {
 });
 
 /** Creates a NodeList snapshot whose contents do not track later DOM changes. */
-function makeStaticNodeList(items: Idl.Node[]): NodeListCls {
+function makeStaticNodeList<T extends NodeBase>(items: ArrayLike<T>): NodeListCls<T> {
   // SAFETY: every numeric index and the length slot are installed before return.
   type WritableNodeList = {
-    -readonly [K in keyof NodeListCls]: NodeListCls[K];
+    -readonly [K in keyof NodeListCls<T>]: NodeListCls<T>[K];
   } & { [nodeListLenSym]: number };
   const writable = Object.create(NodeListCls.prototype) as WritableNodeList;
   const n = items.length;

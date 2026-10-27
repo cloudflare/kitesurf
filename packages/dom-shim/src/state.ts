@@ -6,19 +6,30 @@
 
 import type { DomHandle as WasmDomHandle } from "../../core/pkg/kitesurf_core";
 import type { RawCdpMutation } from "@kitesurf/jsrpc-types/shared";
-import type { DocumentImpl } from "./document.js";
+import type { DetachedDocument, DocumentImpl } from "./document.js";
 import type {
   AttrCls as Attr,
   DOMTokenListCls,
   DocumentFragmentImpl,
   HtmlCollectionCls,
+  ShadowRootImpl,
   NamedNodeMapCls,
   NodeListCls,
+  scopedQuerySelector as ScopedQuerySelectorImpl,
+  scopedQuerySelectorAll as ScopedQuerySelectorAllImpl,
 } from "./collections.js";
+import {
+  CDATA_SECTION_NODE,
+  COMMENT_NODE,
+  DOCUMENT_FRAGMENT_NODE,
+  ELEMENT_NODE,
+  PROCESSING_INSTRUCTION_NODE,
+  TEXT_NODE,
+} from "./constants.js";
 import type { Element } from "./element/element.js";
-import type { CommentNode, NodeBase, TextNode } from "./node-base.js";
+import type { CharacterDataNode, CommentNode, NodeBase, TextNode } from "./node-base.js";
+import { fragmentIds, resetRegistries } from "./registries.js";
 import type { ShimGlobal } from "./global-scope.js";
-import { resetRegistries } from "./registries.js";
 
 type DomHandle = WasmDomHandle;
 
@@ -111,7 +122,7 @@ export interface BuildDocumentOpts {
   getRectByAuthId?: (id: number) => AuthRectSnapshot | null;
   getScrollInfoByAuthId?: (id: number) => AuthScrollInfoSnapshot | null;
   getOffsetMetricsByAuthId?: (id: number) => AuthOffsetMetricsSnapshot | null;
-  getStickyShiftByAuthId?: (id: number) => any;
+  getStickyShiftByAuthId?: (id: number) => Float32Array | null;
   hitTestViaPaint?: (x: number, y: number) => number;
   getComputedStyleForAuthId?: (
     id: number,
@@ -149,7 +160,7 @@ export let getRectByAuthId: ((id: number) => AuthRectSnapshot | null) | null = n
 export let getScrollInfoByAuthId: ((id: number) => AuthScrollInfoSnapshot | null) | null = null;
 export let getOffsetMetricsByAuthId: ((id: number) => AuthOffsetMetricsSnapshot | null) | null =
   null;
-export let getStickyShiftByAuthId: ((id: number) => any) | null = null;
+export let getStickyShiftByAuthId: ((id: number) => Float32Array | null) | null = null;
 export let hitTestViaPaint: ((x: number, y: number) => number) | null = null;
 export let getComputedStyleValueForAuthId: ((id: number, name: string) => string | null) | null =
   null;
@@ -268,12 +279,85 @@ export function fastpathMarkSpecial(nodeId: number): void {
   } catch {}
 }
 
-let nodeForFn: ((nodeId: number) => any) | null = null;
-export function setNodeFor(fn: (nodeId: number) => any): void {
+let nodeForFn: ((nodeId: number) => NodeBase | null) | null = null;
+export function setNodeFor(fn: (nodeId: number) => NodeBase | null): void {
   nodeForFn = fn;
 }
-export function nodeFor(nodeId: number): any {
+export function nodeFor(nodeId: number): NodeBase | null {
   return nodeForFn!(nodeId);
+}
+// nodeFor builds an Element subclass for every element node, so a wrapper
+// whose nodeType is ELEMENT_NODE is an Element. (A DocumentFragment
+// stand-in extends Element too, but reports DOCUMENT_FRAGMENT_NODE.)
+export function isElementNode(
+  node: { readonly nodeType: number } | null | undefined,
+): node is Element {
+  return !!node && node.nodeType === ELEMENT_NODE;
+}
+// Text, CDATA and processing-instruction nodes are TextNode wrappers with a
+// stamped nodeType, and comments are CommentNode wrappers.
+export function isCharacterDataNode(
+  node: { readonly nodeType: number } | null | undefined,
+): node is CharacterDataNode {
+  if (!node) return false;
+  const t = node.nodeType;
+  return (
+    t === TEXT_NODE ||
+    t === CDATA_SECTION_NODE ||
+    t === PROCESSING_INSTRUCTION_NODE ||
+    t === COMMENT_NODE
+  );
+}
+// A Text or CDATA node: both are TextNode wrappers.
+export function isTextNode(
+  node: { readonly nodeType: number } | null | undefined,
+): node is TextNode {
+  return !!node && (node.nodeType === TEXT_NODE || node.nodeType === CDATA_SECTION_NODE);
+}
+// A DocumentFragment wrapper: a fragment stand-in or a shadow root.
+export function isFragmentNode(
+  node: { readonly nodeType: number } | null | undefined,
+): node is DocumentFragmentImpl {
+  return !!node && node.nodeType === DOCUMENT_FRAGMENT_NODE;
+}
+// The wrapper for a node id that names an element, such as a selector
+// match. Null when the id is gone or names some other kind of node.
+export function elementFor(nodeId: number): Element | null {
+  const node = nodeForFn!(nodeId);
+  return isElementNode(node) ? node : null;
+}
+// nodeFor wraps a node that wasm reports as a fragment as a ShadowRoot; the
+// fragment stand-ins are wasm elements listed in fragmentIds.
+export function isShadowRootNode(
+  node: NodeBase | DetachedDocument | null | undefined,
+): node is ShadowRootImpl {
+  return isFragmentNode(node) && !fragmentIds.has(node._id);
+}
+// The wrapper for a shadow root id.
+export function shadowRootFor(nodeId: number): ShadowRootImpl | null {
+  const node = nodeForFn!(nodeId);
+  return isShadowRootNode(node) ? node : null;
+}
+// The wrapper class nodeFor picks for each kind of node a caller creates.
+interface WrapperByNodeType {
+  [ELEMENT_NODE]: Element;
+  [TEXT_NODE]: TextNode;
+  [COMMENT_NODE]: CommentNode;
+  [DOCUMENT_FRAGMENT_NODE]: DocumentFragmentImpl;
+}
+// The wrapper for a node the caller has just created in wasm. A fresh node
+// is live and nodeFor wraps it with the class for its nodeType, so the
+// TypeError marks a broken invariant, not a page error.
+export function mintedNode<K extends keyof WrapperByNodeType>(
+  nodeId: number,
+  nodeType: K,
+): WrapperByNodeType[K] {
+  const node = nodeForFn!(nodeId);
+  if (!node || node.nodeType !== nodeType) {
+    throw new TypeError(`dom-shim: new node ${nodeId} did not wrap as nodeType ${nodeType}`);
+  }
+  // nodeFor chose the class from this nodeType (see WrapperByNodeType).
+  return node as WrapperByNodeType[K];
 }
 // nodeFor's cache hit and nothing else (null on a miss). Pure by contract: the
 // boa fast path runs it without re-arming revalidation, see fastpath.ts.
@@ -401,17 +485,22 @@ export function parseFragmentInContext(...args: Parameters<ParseFragmentInContex
   wired(parseFragmentInContextFn, "parseFragmentInContext")(...args);
 }
 
-type ScopedQuery = (rootId: number, selector: string) => any;
-let scopedQuerySelectorFn: ScopedQuery | null = null;
-let scopedQuerySelectorAllFn: ScopedQuery | null = null;
-export function setScopedQueries(qs: any, qsa: any): void {
+type ScopedQuerySelector = typeof ScopedQuerySelectorImpl;
+type ScopedQuerySelectorAll = typeof ScopedQuerySelectorAllImpl;
+let scopedQuerySelectorFn: ScopedQuerySelector | null = null;
+let scopedQuerySelectorAllFn: ScopedQuerySelectorAll | null = null;
+export function setScopedQueries(qs: ScopedQuerySelector, qsa: ScopedQuerySelectorAll): void {
   scopedQuerySelectorFn = qs;
   scopedQuerySelectorAllFn = qsa;
 }
-export function scopedQuerySelector(...args: Parameters<ScopedQuery>): ReturnType<ScopedQuery> {
+export function scopedQuerySelector(
+  ...args: Parameters<ScopedQuerySelector>
+): ReturnType<ScopedQuerySelector> {
   return wired(scopedQuerySelectorFn, "scopedQuerySelector")(...args);
 }
-export function scopedQuerySelectorAll(...args: Parameters<ScopedQuery>): ReturnType<ScopedQuery> {
+export function scopedQuerySelectorAll(
+  ...args: Parameters<ScopedQuerySelectorAll>
+): ReturnType<ScopedQuerySelectorAll> {
   return wired(scopedQuerySelectorAllFn, "scopedQuerySelectorAll")(...args);
 }
 
