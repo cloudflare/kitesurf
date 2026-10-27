@@ -68,6 +68,19 @@ def strict_ratchet_test(
         **kwargs
     )
 
+def no_explicit_any_test(name, data, dirs = ["src"], size = "small", **kwargs):
+    """scripts/check-no-explicit-any.mjs over dirs: no written-out `any` without a `// any:` reason;
+    data is the sources plus the typescript the script parses them with."""
+    js_test(
+        name = name,
+        args = dirs,
+        chdir = native.package_name(),
+        data = data,
+        entry_point = "//scripts:check_no_explicit_any",
+        size = size,
+        **kwargs
+    )
+
 def workspace_configs():
     """Export this package's package.json and tsconfig inputs for root guards."""
     js_library(

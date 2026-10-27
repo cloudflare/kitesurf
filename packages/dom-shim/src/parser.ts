@@ -29,7 +29,13 @@ import {
   selectorHasPseudoElement,
 } from "./collections.js";
 import { RangeImpl } from "./range.js";
-import { adoptIntoDom, parsedAttrs, type NodeBase, type DocumentTypeNode } from "./node-base.js";
+import {
+  adoptIntoDom,
+  parsedAttrs,
+  type AdoptableNode,
+  type NodeBase,
+  type DocumentTypeNode,
+} from "./node-base.js";
 import { ALL_EVENT_HANDLERS } from "./event-handler-names.js";
 import { createExpression, evaluateXPath } from "./xpath.js";
 type XPathResolver = Parameters<typeof evaluateXPath>[2];
@@ -512,11 +518,11 @@ class ParsedElement {
     }
   }
   // Page-owned wrappers use dynamic slots across live and parser-owned handles.
-  appendChild<T>(child: T): T {
+  appendChild<T extends AdoptableNode | null | undefined>(child: T): T {
     if (!this.ownerDocument || !this.ownerDocument._mutable) {
       throw notSupported("appendChild on DOMParser result (read-only)");
     }
-    const candidate = child as any;
+    const candidate = child;
     if (!candidate) throw notSupported("appendChild: null/undefined child");
     if (candidate._dom && candidate._dom !== this._dom) {
       adoptIntoDom(this._dom, candidate, this.ownerDocument);
@@ -540,17 +546,17 @@ class ParsedElement {
     if (!this.ownerDocument || !this.ownerDocument._mutable) {
       throw notSupported("removeChild on DOMParser result (read-only)");
     }
-    const candidate = child as any;
-    if (!candidate || typeof candidate._id !== "number") {
+    const childId: unknown = child ? Reflect.get(Object(child), "_id") : undefined;
+    if (typeof childId !== "number") {
       throw notSupported("removeChild: invalid child");
     }
     try {
-      this._dom.removeNode(candidate._id);
+      this._dom.removeNode(childId);
     } catch {}
     return child;
   }
   // Node wrappers stay dynamic; a non-null reference remains unsupported.
-  insertBefore<T>(newChild: T, refChild: unknown): T {
+  insertBefore<T extends AdoptableNode | null | undefined>(newChild: T, refChild: unknown): T {
     if (!this.ownerDocument || !this.ownerDocument._mutable) {
       throw notSupported("insertBefore on DOMParser result (read-only)");
     }
@@ -677,11 +683,11 @@ class ParsedFragment {
     normalizeParsedSubtree(this);
   }
   // Page-owned wrappers use dynamic slots across live and parser-owned handles.
-  appendChild<T>(child: T): T {
+  appendChild<T extends AdoptableNode | null | undefined>(child: T): T {
     if (!this.ownerDocument || !this.ownerDocument._mutable) {
       throw notSupported("appendChild on read-only fragment");
     }
-    const candidate = child as any;
+    const candidate = child;
     if (!candidate) throw notSupported("appendChild: null/undefined child");
     if (candidate._dom && candidate._dom !== this._dom) {
       adoptIntoDom(this._dom, candidate, this.ownerDocument);

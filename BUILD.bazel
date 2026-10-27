@@ -157,6 +157,7 @@ test_suite(
         ":ts_coverage_test",
         "//packages/core/pkg:memprof_build",
         "//packages/dom-shim:build",
+        "//packages/dom-shim:no_explicit_any",
         "//packages/dom-shim:types",
         "//packages/engine:types",
         "//packages/engine:types_e2e",

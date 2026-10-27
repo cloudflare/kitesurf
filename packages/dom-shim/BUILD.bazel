@@ -3,7 +3,7 @@ load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@npm//packages/dom-shim:typescript/package_json.bzl", tsc = "bin")
-load("//bazel:checks.bzl", "tsc_test", "workspace_configs")
+load("//bazel:checks.bzl", "no_explicit_any_test", "tsc_test", "workspace_configs")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -96,6 +96,15 @@ tsc_test(
         "//:node_modules/@cloudflare/workers-types",
         "//packages/core/pkg",
         "//packages/page-script:internal_state",
+    ],
+)
+
+# The `types` script's second half: no explicit `any` in src/.
+no_explicit_any_test(
+    name = "no_explicit_any",
+    data = [
+        ":node_modules/typescript",
+        ":srcs",
     ],
 )
 
