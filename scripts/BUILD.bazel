@@ -291,6 +291,12 @@ js_library(
 )
 
 js_library(
+    name = "check_no_explicit_any",
+    srcs = ["check-no-explicit-any.mjs"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+js_library(
     name = "ts_strict_ratchet",
     srcs = ["ts-strict-ratchet.mjs"],
     visibility = ["//visibility:public"],

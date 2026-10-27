@@ -590,7 +590,7 @@ function dispatchOnKeyInnerUnsafe(
   return !(metadata.cancelable && isEventDefaultPrevented(event));
 }
 
-function invokeListenerCallback(listener: ListenerEntry["listener"], event: any) {
+function invokeListenerCallback(listener: ListenerEntry["listener"], event: KsEvent): void {
   if (typeof listener === "function") {
     listener.call(event.currentTarget, event);
     return;

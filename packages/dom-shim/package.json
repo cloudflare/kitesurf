@@ -17,7 +17,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "vitest run",
-    "types": "tsc --noEmit"
+    "types": "tsc --noEmit && node ../../scripts/check-no-explicit-any.mjs src"
   },
   "dependencies": {
     "@kitesurf/jsrpc-types": "workspace:*",
