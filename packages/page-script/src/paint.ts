@@ -13,14 +13,7 @@ import {
 import { getInternalState } from "./internal-state.js";
 import { noteSyncOp } from "./lag-monitor.ts";
 import { state } from "./state.ts";
-import type { DomHandle, DomRect } from "./types.ts";
-
-interface DomScrollInfo {
-  clientWidth: number;
-  scrollWidth: number;
-  clientHeight: number;
-  scrollHeight: number;
-}
+import type { DomHandle } from "./types.ts";
 
 const POOLED_SCENE_MIN_BYTES = 256 * 1024;
 const POOLED_SCENE_SLACK_BYTES = 64 * 1024;
@@ -135,7 +128,7 @@ export function invalidatePaintDom(): void {
   state.paintCacheViewportH = 0;
 }
 
-export function rectWithScrollOffset(rect: DomRect | null): DomRect | null {
+export function rectWithScrollOffset<R extends { x: number; y: number }>(rect: R | null): R | null {
   if (!rect) return rect;
   return {
     ...rect,
@@ -152,7 +145,7 @@ export function documentScrollSize(): { width: number; height: number } {
   try {
     const id = paint.querySelector("html");
     if (typeof id === "number" && id >= 0) {
-      const info = paint.nodeScrollInfo(id) as DomScrollInfo | null;
+      const info = paint.nodeScrollInfo(id);
       if (info) {
         maxWidth = Math.max(
           maxWidth,

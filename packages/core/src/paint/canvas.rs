@@ -53,7 +53,10 @@ impl DomHandle {
         }
     }
 
-    #[wasm_bindgen(js_name = "canvasSourceInfo")]
+    #[wasm_bindgen(
+        js_name = "canvasSourceInfo",
+        unchecked_return_type = "{ kind: \"canvas\" | \"img\"; src: string } | null"
+    )]
     pub fn canvas_source_info(&self, node_id: u32) -> Result<JsValue, JsError> {
         let Some(internal_id) = self.resolve_node_id(node_id) else {
             return Ok(JsValue::NULL);
