@@ -501,7 +501,7 @@ function moveTabFocus(reverse: boolean): void {
     const tabIndex = Number.isFinite(parsedTabIndex) ? parsedTabIndex : 0;
     if (tabIndex < 0) continue;
     if (!element.getClientRects?.()?.length) continue;
-    const visibility = state.window?.getComputedStyle?.(element).visibility;
+    const visibility = state.window?.getComputedStyle?.(element).getPropertyValue("visibility");
     if (visibility === "hidden" || visibility === "collapse") continue;
     focusableElements.push({ element, tabIndex, domOrder: focusableElements.length });
   }

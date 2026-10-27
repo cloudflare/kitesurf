@@ -5,7 +5,7 @@
 // Defines HTMLElement and installs its shared attributes and helper behavior.
 
 import type * as Idl from "../idl/types.generated.js";
-import { documentImpl as document } from "../state.js";
+import { elementDocument } from "../state.js";
 import { MATHML_NS, SVG_NS, TEXT_NODE } from "../constants.js";
 import {
   defineReflectedString,
@@ -137,7 +137,7 @@ class HTMLElement extends Element implements Idl.HTMLElement {
       throw new DOMException("The element has no parent.", "NoModificationAllowedError");
     }
     const value = v === null ? "" : String(v);
-    const doc = this.ownerDocument || document;
+    const doc = elementDocument(this);
     const next = this.nextSibling;
     const previous = this.previousSibling;
     const nodes = renderedTextFragmentNodes(value, doc);

@@ -100,6 +100,11 @@
       "removedNodes": "an array, not a NodeList: it has length and indexes but no item()"
     }
   },
+  "Node": {
+    "omit": {
+      "ownerDocument": "may be a DOMParser ParsedDocument, which doesn't implement Document"
+    }
+  },
   "ShadowRoot": {
     "omit": {
       "host": "null when wasm no longer has a host for the shadow root id; the IDL type is non-null"

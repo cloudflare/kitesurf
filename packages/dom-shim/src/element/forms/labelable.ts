@@ -4,7 +4,7 @@
 
 // Finds labelable controls and creates their live associated-label lists.
 
-import { documentImpl as document, makeNodeList } from "../../state.js";
+import { elementDocument, makeNodeList } from "../../state.js";
 import type { NodeListCls } from "../../collections.js";
 import { inputTypeOf } from "./input-state.js";
 import { htmlTagOf, isHtmlTag } from "../html-tag.js";
@@ -36,7 +36,7 @@ function computeLabelsForControl(control: Element): Element[] {
     p = p.parentNode;
   }
   if (control.id) {
-    const doc = control.ownerDocument || document;
+    const doc = elementDocument(control);
     try {
       const all = doc.querySelectorAll("label[for]");
       for (const l of all) {

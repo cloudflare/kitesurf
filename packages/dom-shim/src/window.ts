@@ -52,6 +52,7 @@ import { getSelection as selectionSingleton } from "./range.js";
 import { getInternalState } from "./internal-state.js";
 import { KsPopStateEvent, postMessageEvent } from "./events/event.js";
 import type * as Idl from "./idl/types.generated.js";
+import type { DocumentImpl } from "./document.js";
 import { sendUpstreamEvent } from "./internal-state.js";
 import {
   GLOBAL_EVENT_HANDLERS,
@@ -137,7 +138,7 @@ export function __ks_documentImpl_location_set(v: unknown): void {
 Object.defineProperties(location, {
   href: {
     get: () => getCurrentUrl(),
-    set: (v: any) => locationMutate("href", String(v)),
+    set: (v: unknown) => locationMutate("href", String(v)),
     enumerable: true,
     configurable: false,
   },
@@ -148,19 +149,19 @@ Object.defineProperties(location, {
   port: { get: () => locUrl()?.port ?? "", enumerable: true, configurable: false },
   pathname: {
     get: () => locUrl()?.pathname ?? "",
-    set: (v: any) => locationMutate("pathname", String(v)),
+    set: (v: unknown) => locationMutate("pathname", String(v)),
     enumerable: true,
     configurable: false,
   },
   search: {
     get: () => locUrl()?.search ?? "",
-    set: (v: any) => locationMutate("search", String(v)),
+    set: (v: unknown) => locationMutate("search", String(v)),
     enumerable: true,
     configurable: false,
   },
   hash: {
     get: () => locUrl()?.hash ?? "",
-    set: (v: any) => locationMutate("hash", String(v)),
+    set: (v: unknown) => locationMutate("hash", String(v)),
     enumerable: true,
     configurable: false,
   },
@@ -177,13 +178,13 @@ Object.defineProperties(location, {
     configurable: false,
   },
   assign: {
-    value: (url: any) => locationMutate("href", String(url)),
+    value: (url: unknown) => locationMutate("href", String(url)),
     writable: false,
     enumerable: true,
     configurable: false,
   },
   replace: {
-    value: (url: any) => locationMutate("href", String(url)),
+    value: (url: unknown) => locationMutate("href", String(url)),
     writable: false,
     enumerable: true,
     configurable: false,
@@ -310,15 +311,42 @@ function viewportDims(): { w: number; h: number } {
   };
 }
 
-export function installWindow(
-  document: any,
-  dom: any,
-): {
-  window: any;
-  windowObj: any;
-  Window: any;
-} {
-  void dom;
+// Keys page code adds, and the keys the window Proxy forwards by name.
+type Expandos = { [key: string]: unknown; [key: symbol]: unknown };
+// The [LegacyUnforgeable] accessors (and [Replaceable] parent) that
+// installWindow defines after the window literal.
+interface WindowAccessors<W> {
+  readonly window: W;
+  readonly document: DocumentImpl;
+  location: LocationSurface;
+  readonly top: W | ParentWindowStub;
+  readonly parent: W | ParentWindowStub;
+}
+// window.parent and window.top in an OOPIF child isolate.
+interface ParentWindowStub {
+  closed: boolean;
+  location: { href: string; toString(): string };
+  frames: never[];
+  postMessage(...args: unknown[]): void;
+  focus(): void;
+  blur(): void;
+  addEventListener(): void;
+  removeEventListener(): void;
+  dispatchEvent(): boolean;
+  self?: ParentWindowStub;
+  window?: ParentWindowStub;
+  parent?: ParentWindowStub;
+  top?: ParentWindowStub;
+}
+// The window object (windowObj) and its Proxy (window) share this type.
+export type ShimWindow = ReturnType<typeof installWindow>["windowObj"];
+
+// The return type is the window literal's own, inferred inside buildWindow.
+export function installWindow(document: DocumentImpl): ReturnType<typeof buildWindow> {
+  return buildWindow(document);
+}
+
+function buildWindow(document: DocumentImpl) {
   type HistoryEntry = { url: string; state: unknown };
 
   const historyStack: HistoryEntry[] = [{ url: getCurrentUrl() || "", state: null }];
@@ -356,7 +384,7 @@ export function installWindow(
     return target.toString();
   };
 
-  const history: any = {
+  const history = {
     get state() {
       return historyStack[historyIndex]?.state ?? null;
     },
@@ -402,7 +430,7 @@ export function installWindow(
       };
       queuePopstate(() => {
         try {
-          const ev: any = new KsPopStateEvent("popstate", {
+          const ev = new KsPopStateEvent("popstate", {
             bubbles: false,
             cancelable: false,
             state: stateForPopstate,
@@ -434,26 +462,25 @@ export function installWindow(
     },
   };
 
-  const windowObj: any = {
+  const windowLiteral = {
     get navigator() {
       return navigator;
     },
     get history() {
       return history;
     },
-    get self() {
+    get self(): WindowObj {
       return window;
     },
-    get parent() {
+    get parent(): WindowObj {
       return window;
     },
-    get frames() {
+    get frames(): WindowObj {
       return window;
     },
     get length() {
       try {
-        const doc = (documentImpl as any)?.get?.() ?? documentImpl;
-        return doc?.querySelectorAll?.("iframe")?.length ?? 0;
+        return documentImpl?.querySelectorAll("iframe").length ?? 0;
       } catch {
         return 0;
       }
@@ -488,9 +515,7 @@ export function installWindow(
     get pageYOffset() {
       return scrollOffset().y;
     },
-    scrollTo(xOrOptions: any, y: any) {
-      void xOrOptions;
-      void y;
+    scrollTo(_xOrOptions?: unknown, _y?: unknown) {
       const args = arguments;
       return (async () => {
         const norm = normalizeScrollArgs(args, "scrollTo");
@@ -501,12 +526,10 @@ export function installWindow(
         setScrollOffset(left, top);
       })();
     },
-    scroll(...args: any[]) {
-      return (this as any).scrollTo(...args);
+    scroll(this: { scrollTo(...args: unknown[]): unknown }, ...args: unknown[]) {
+      return this.scrollTo(...args);
     },
-    scrollBy(xOrOptions: any, y: any) {
-      void xOrOptions;
-      void y;
+    scrollBy(_xOrOptions?: unknown, _y?: unknown) {
       const args = arguments;
       return (async () => {
         const norm = normalizeScrollArgs(args, "scrollBy");
@@ -535,12 +558,19 @@ export function installWindow(
     get fetch() {
       return globalThis.fetch;
     },
-    getComputedStyle(element: any, pseudoArg?: any) {
+    getComputedStyle(element: unknown, pseudoArg?: unknown) {
       return windowObj[GET_COMPUTED_STYLE_INTERNAL](element, pseudoArg, false);
     },
-    [GET_COMPUTED_STYLE_INTERNAL](element: any, pseudoArg?: any, computedValuesOnly = false) {
+    [GET_COMPUTED_STYLE_INTERNAL](
+      element: unknown,
+      pseudoArg?: unknown,
+      computedValuesOnly = false,
+    ) {
       const nodeId =
-        element && typeof element === "object" && typeof element._id === "number"
+        typeof element === "object" &&
+        element !== null &&
+        "_id" in element &&
+        typeof element._id === "number"
           ? element._id
           : -1;
       const pseudoNorm = (() => {
@@ -579,7 +609,7 @@ export function installWindow(
         const curSeq = ksState().mutationSeq | 0;
         if (cachedMap !== null && cachedSeq === curSeq) return cachedMap;
         const props = ksSpan("dom.getComputedStyle", null, () =>
-          (getComputedStyleForAuthId as any)(nodeId, pseudoNorm || undefined),
+          getComputedStyleForAuthId?.(nodeId, pseudoNorm || undefined),
         );
         if (!Array.isArray(props)) {
           cachedMap = null;
@@ -746,11 +776,11 @@ export function installWindow(
         },
       });
     },
-    getSelection: markNoBind(function (this: any) {
+    getSelection: markNoBind(function (this: unknown) {
       assertWindowReceiver(this);
       return selectionSingleton();
     }, "getSelection"),
-    addEventListener(type: any, listener: any, options: any) {
+    addEventListener(type: string, listener: unknown, options?: unknown) {
       if (arguments.length < 2) {
         throw new TypeError(
           "Failed to execute 'addEventListener' on 'EventTarget': 2 arguments required, but only " +
@@ -760,7 +790,7 @@ export function installWindow(
       }
       addListener(WINDOW_KEY, type, listener, options);
     },
-    removeEventListener(type: any, listener: any, options: any) {
+    removeEventListener(type: string, listener: unknown, options?: unknown) {
       if (arguments.length < 2) {
         throw new TypeError(
           "Failed to execute 'removeEventListener' on 'EventTarget': 2 arguments required, but only " +
@@ -770,26 +800,27 @@ export function installWindow(
       }
       removeListener(WINDOW_KEY, type, listener, options);
     },
-    dispatchEvent(event: any) {
+    dispatchEvent(event: unknown) {
       return dispatchOnKey(WINDOW_KEY, event);
     },
-    event: undefined,
+    event: undefined as unknown,
     // Return the runtime callback directly; a forwarding wrapper can re-enter its wasm FnMut.
-    get requestAnimationFrame(): any {
+    get requestAnimationFrame(): unknown {
       const g = ksGlobal.requestAnimationFrame;
       if (typeof g === "function") return g;
       return (rafFallbackFn ??= (cb) => setTimeout(() => cb(Date.now()), RAF_FALLBACK_DELAY_MS));
     },
-    set requestAnimationFrame(v: any) {
-      ksGlobal.requestAnimationFrame = v;
+    set requestAnimationFrame(v: unknown) {
+      ksGlobalByKey.requestAnimationFrame = v;
     },
-    get cancelAnimationFrame(): any {
+    get cancelAnimationFrame(): unknown {
       const g = ksGlobal.cancelAnimationFrame;
       if (typeof g === "function") return g;
-      return (cafFallbackFn ??= (id) => clearTimeout(id as any));
+      // The page's id goes to clearTimeout unchanged; it converts it itself.
+      return (cafFallbackFn ??= (id) => clearTimeout(id as number));
     },
-    set cancelAnimationFrame(v: any) {
-      ksGlobal.cancelAnimationFrame = v;
+    set cancelAnimationFrame(v: unknown) {
+      ksGlobalByKey.cancelAnimationFrame = v;
     },
     alert: () => {
       throw notSupported("alert");
@@ -800,7 +831,7 @@ export function installWindow(
     prompt: () => {
       throw notSupported("prompt");
     },
-    open: (url?: any, _target?: any, _features?: any) => {
+    open: (url?: unknown, _target?: unknown, _features?: unknown) => {
       const raw = url == null || url === "" ? "about:blank" : String(url);
       const base =
         typeof windowObj.document !== "undefined" &&
@@ -816,7 +847,7 @@ export function installWindow(
           "SyntaxError",
         );
       }
-      const stub: any = {
+      const stub = {
         closed: false,
         document: null,
         location: {
@@ -838,7 +869,11 @@ export function installWindow(
   };
 
   class Window {}
-  Object.setPrototypeOf(windowObj, Window.prototype);
+  Object.setPrototypeOf(windowLiteral, Window.prototype);
+  // defineProperties below adds the [LegacyUnforgeable] accessors the
+  // literal leaves out, and page code or the Proxy traps may write any key.
+  type WindowObj = typeof windowLiteral & WindowAccessors<WindowObj> & Expandos;
+  const windowObj = windowLiteral as WindowObj;
 
   const boundFromWindow = new WeakMap<object, Function>();
   const pageAssigned = new WeakSet<object>();
@@ -1047,7 +1082,7 @@ export function installWindow(
     return { cloned, ports: outPorts };
   };
   const frameContext = getInternalState().frameContext;
-  const parentWindowStub: any = frameContext
+  const parentWindowStub: ParentWindowStub | null = frameContext
     ? {
         closed: false,
         location: { href: "", toString: () => "" },
@@ -1107,7 +1142,7 @@ export function installWindow(
     },
     location: {
       get: () => location,
-      set: (v: any) => {
+      set: (v: unknown) => {
         location.href = String(v);
       },
       enumerable: true,
@@ -1129,7 +1164,7 @@ export function installWindow(
 
   const pageDefinedGetters = new Set<string | symbol>();
   // Preserve target descriptors before global fallback to satisfy Window's Proxy invariants.
-  const window = new Proxy(windowObj, {
+  const window: WindowObj = new Proxy(windowObj, {
     has(_t, prop) {
       if (prop in windowObj || prop in globalThis) return true;
       return namedAccess(prop) !== undefined;
@@ -1233,12 +1268,12 @@ export function installWindow(
       if (ok && mirror) {
         try {
           if ("value" in desc) {
-            ksGlobalByKey[prop] = (desc as any).value;
+            ksGlobalByKey[prop] = desc.value;
           } else {
             Reflect.defineProperty(ksGlobal, prop, {
               get: desc.get ? () => windowObj[prop] : undefined,
               set: desc.set
-                ? (v: any) => {
+                ? (v: unknown) => {
                     windowObj[prop] = v;
                   }
                 : undefined,
@@ -1384,7 +1419,7 @@ function namedIframeAccess(doc: IframeRoot, prop: string): NamedIframeAccess {
   return { matched: false };
 }
 
-function namedAccess(prop: any) {
+function namedAccess(prop: PropertyKey) {
   if (typeof prop !== "string" || prop.length === 0) return undefined;
   if (/^\d+$/.test(prop)) {
     try {
@@ -1433,7 +1468,7 @@ export function stampDetachedSubtreeNamedGlobals(rootId: number): void {
 const KS_NO_BIND = Symbol("ks-no-bind");
 function markNoBind<F extends object>(fn: F, idlName?: string): F {
   try {
-    (fn as any)[KS_NO_BIND] = true;
+    Reflect.set(fn, KS_NO_BIND, true);
   } catch {}
   if (idlName) {
     try {

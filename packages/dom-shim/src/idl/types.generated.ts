@@ -2446,7 +2446,7 @@ export interface Node extends EventTarget {
   readonly nodeName: string;
   readonly baseURI: string;
   readonly isConnected: boolean;
-  readonly ownerDocument: Document | null;
+  // readonly ownerDocument: Document | null;
   getRootNode(options?: GetRootNodeOptions): Node;
   readonly parentNode: Node | null;
   readonly parentElement: Element | null;

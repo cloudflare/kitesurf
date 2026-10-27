@@ -18,7 +18,7 @@ import {
   AttrCls,
   makeNamedNodeMap,
   createElementInternal,
-  documentImpl as document,
+  elementDocument,
   makeHtmlCollection,
   nodeFor,
   elementFor,
@@ -28,6 +28,7 @@ import {
   scopedQuerySelectorAll,
   filterByQualifiedName,
   windowObj,
+  liveWindow,
   getStickyShiftByAuthId,
   getOffsetMetricsByAuthId,
   opts,
@@ -1439,7 +1440,7 @@ class Element extends NodeBase implements Idl.Element {
       });
       return;
     }
-    const nodes = renderedTextFragmentNodes(v, this.ownerDocument || document);
+    const nodes = renderedTextFragmentNodes(v, elementDocument(this));
     this.textContent = "";
     for (const n of nodes) this.appendChild(n);
   }
@@ -2333,7 +2334,7 @@ class Element extends NodeBase implements Idl.Element {
     if (!map) {
       map = makeComputedStyleMap(
         this,
-        (element) => windowObj[GET_COMPUTED_STYLE_INTERNAL](element, undefined, true),
+        (element) => liveWindow()[GET_COMPUTED_STYLE_INTERNAL](element, undefined, true),
         this.attributeStyleMap,
       );
       computedStyleMaps.set(this, map);

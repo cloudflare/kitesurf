@@ -11,7 +11,7 @@ import {
   dom,
   documentImpl as document,
   liveDocument,
-  windowObj,
+  liveWindow,
   pageUrl,
   nodeFor,
   elementFor,
@@ -47,6 +47,7 @@ import {
   elemNs,
   hostIdToDoc,
   nodeOwnerDoc,
+  type NodeOwnerDocument,
   syntheticParent,
   fragmentIds,
   templateContentFragment,
@@ -958,10 +959,10 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     }
     return null;
   }
-  get ownerDocument() {
+  get ownerDocument(): NodeOwnerDocument | null {
     const owner = nodeOwnerDoc.get(this);
     if (owner) return owner;
-    return windowObj.document;
+    return liveWindow().document;
   }
   appendChild(child) {
     maybeScheduleSlotchange(this._id);

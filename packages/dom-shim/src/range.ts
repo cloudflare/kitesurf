@@ -12,6 +12,7 @@ import {
   createDocumentFragmentInternal,
   parseFragmentInContext,
   isCharacterDataNode,
+  isDocumentNode,
   isTextNode,
   isElementNode,
 } from "./state.js";
@@ -617,7 +618,9 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
   }
   createContextualFragment(markup: string): Idl.DocumentFragment {
     const node = rangeBounds(this).startContainer;
-    const doc = node.nodeType === DOCUMENT_NODE ? node : node.ownerDocument;
+    const doc = isDocumentNode(node) ? node : node.ownerDocument;
+    // Only a document has no owner document, and that took the first arm.
+    if (!doc) throw new TypeError("createContextualFragment: start container has no document");
     let element = isElementNode(node)
       ? node
       : node.nodeType === TEXT_NODE || node.nodeType === COMMENT_NODE
@@ -630,9 +633,14 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     const localName = element ? element.localName : "body";
     const html = String(markup);
     if ("_dom" in doc && doc._dom) {
-      const context = doc.createElementNS(ns, localName);
+      // Only a DetachedDocument gets here. A boundary point sits in a node
+      // wrapper or a DetachedDocument, and the one wrapper a DOMParser
+      // document owns is a doctype its DOMImplementation made, which
+      // can't hold a boundary point.
+      const detached = doc as DetachedDocument;
+      const context = detached.createElementNS(ns, localName);
       context.innerHTML = html;
-      const fragment = doc.createDocumentFragment();
+      const fragment = detached.createDocumentFragment();
       while (context.firstChild) fragment.appendChild(context.firstChild);
       return fragment;
     }

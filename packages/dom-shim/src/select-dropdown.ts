@@ -5,7 +5,8 @@
 // Manages the shim's single open select popup and its selection events.
 
 import { KsEvent, KsInputEvent } from "./events/event.js";
-import { ksGlobal } from "./state.js";
+import { elementDocument, ksGlobal } from "./state.js";
+import type * as Idl from "./idl/types.generated.js";
 import { isOptionEffectivelyDisabled, selectOptions } from "./element/forms/select-options.js";
 import type { Element } from "./element/element.js";
 import { HTMLSelectElement } from "./element/forms/select.js";
@@ -15,7 +16,7 @@ import { ksInternals } from "./internals.js";
 let openState: {
   select: HTMLSelectElement;
   overlay: Element;
-  outsideListener: (ev: Event) => void;
+  outsideListener: (ev: Idl.Event) => void;
 } | null = null;
 
 function closeDropdown(): void {
@@ -23,7 +24,7 @@ function closeDropdown(): void {
   const { overlay, outsideListener } = openState;
   openState = null;
   try {
-    const doc = overlay.ownerDocument;
+    const doc = elementDocument(overlay);
     doc.removeEventListener("click", outsideListener, true);
   } catch {}
   try {
@@ -33,8 +34,8 @@ function closeDropdown(): void {
 
 function openDropdown(select: HTMLSelectElement): void {
   closeDropdown();
-  const doc = select.ownerDocument;
-  if (!doc || !doc.body) return;
+  const doc = elementDocument(select);
+  if (!doc.body) return;
 
   let rect: ReturnType<HTMLSelectElement["getBoundingClientRect"]> | null = null;
   try {
@@ -75,7 +76,7 @@ function openDropdown(select: HTMLSelectElement): void {
     row.textContent = opt.text || "\u00a0";
     if (!disabled) {
       const index = i;
-      row.addEventListener("click", (ev: Event) => {
+      row.addEventListener("click", (ev: Idl.Event) => {
         try {
           ev.stopPropagation();
         } catch {}
@@ -97,7 +98,7 @@ function openDropdown(select: HTMLSelectElement): void {
 
   // Click-away closes. Capture phase so a row's stopPropagation
   // doesn't starve it; the row handler closes anyway.
-  const outsideListener = (ev: Event) => {
+  const outsideListener = (ev: Idl.Event) => {
     let n: unknown = ev && ev.target;
     while (n) {
       if (n === overlay || n === select) return;

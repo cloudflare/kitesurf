@@ -121,7 +121,10 @@ export const attrInstances = new WeakMap<Element, Map<string, AttrCls>>();
 
 export const elementOwnerIsHtml = new Map<number, boolean>();
 
-export const nodeOwnerDoc = new WeakMap<object, DocumentImpl | DetachedDocument | ParsedDocument>();
+// A node's document, when it isn't the live page document. DOMParser
+// documents count: a node can be adopted into one.
+export type NodeOwnerDocument = DocumentImpl | DetachedDocument | ParsedDocument;
+export const nodeOwnerDoc = new WeakMap<object, NodeOwnerDocument>();
 
 export const syntheticParent = new WeakMap<object, DocumentImpl | DetachedDocument>();
 

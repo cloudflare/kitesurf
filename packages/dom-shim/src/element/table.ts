@@ -6,7 +6,7 @@
 
 import type * as Idl from "../idl/types.generated.js";
 import type { Element } from "./element.js";
-import { makeHtmlCollection, documentImpl as document } from "../state.js";
+import { makeHtmlCollection, elementDocument } from "../state.js";
 import { HTML_NS } from "../constants.js";
 import {
   defineReflectedStringNullEmpty,
@@ -65,6 +65,15 @@ function rowParent(row: Element) {
   if (!parent) throw new TypeError("table row has no parent");
   return parent;
 }
+// The owner document's createElement makes the new row or cell: the page
+// document or a DetachedDocument, which wrap an HTML tr or td with these
+// classes. Only a page that replaced createElement can fail the check.
+function created<T extends object>(cls: { prototype: T }, el: object, tag: string): T {
+  if (!cls.prototype.isPrototypeOf(el)) {
+    throw new TypeError(`createElement("${tag}") did not return a ${tag} element`);
+  }
+  return el as T;
+}
 function rangeError(method: string, index: number): DOMException {
   return new DOMException(method + ": index " + index + " out of range", "IndexSizeError");
 }
@@ -79,8 +88,8 @@ class HTMLTableElement extends HTMLElement implements Idl.HTMLTableElement {
   }
   insertRow(index?: number): HTMLTableRowElement {
     const idx = index === undefined || index === -1 ? -1 : index | 0;
-    const doc = this.ownerDocument || document;
-    const tr: HTMLTableRowElement = doc.createElement("tr");
+    const doc = elementDocument(this);
+    const tr = created(HTMLTableRowElement, doc.createElement("tr"), "tr");
     // A table with no rows puts the first row in a tbody, creating one if needed.
     // https://html.spec.whatwg.org/#dom-table-insertrow
     const rows = this.querySelectorAll("tr");
@@ -113,7 +122,7 @@ class HTMLTableSectionElement extends HTMLElement implements Idl.HTMLTableSectio
   }
   insertRow(index?: number): HTMLTableRowElement {
     const idx = index === undefined || index === -1 ? -1 : index | 0;
-    const tr: HTMLTableRowElement = (this.ownerDocument || document).createElement("tr");
+    const tr = created(HTMLTableRowElement, elementDocument(this).createElement("tr"), "tr");
     const rows = this.querySelectorAll(":scope > tr");
     if (idx === -1 || idx === rows.length) {
       this.appendChild(tr);
@@ -143,7 +152,7 @@ class HTMLTableRowElement extends HTMLElement implements Idl.HTMLTableRowElement
   }
   insertCell(index?: number): HTMLTableCellElement {
     const idx = index === undefined || index === -1 ? -1 : index | 0;
-    const td: HTMLTableCellElement = (this.ownerDocument || document).createElement("td");
+    const td = created(HTMLTableCellElement, elementDocument(this).createElement("td"), "td");
     const cells = this.querySelectorAll(":scope > td, :scope > th");
     if (idx === -1 || idx === cells.length) {
       this.appendChild(td);
