@@ -1690,7 +1690,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       parent.insertBefore(text, next || null);
     }
   }
-  insertAdjacentHTML(position: string, html: string): void {
+  insertAdjacentHTML(position: string, html: string | Idl.TrustedHTML): void {
     const htmlText = String(html == null ? "" : html);
     return ksSpan("dom.insertAdjacentHTML", { html_bytes: htmlText.length }, () =>
       this.__insertAdjacentHTML(position, htmlText),

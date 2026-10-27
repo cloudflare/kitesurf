@@ -572,7 +572,7 @@ class ParsedElement {
   replaceChild(): never {
     throw notSupported("replaceChild on DOMParser result (read-only)");
   }
-  setAttribute(name: unknown, value: unknown): void {
+  setAttribute(name: string, value: string | Idl.TrustedType): void {
     if (!this.ownerDocument || !this.ownerDocument._mutable) {
       throw notSupported("setAttribute on DOMParser result (read-only)");
     }
@@ -580,7 +580,11 @@ class ParsedElement {
       this._dom.setAttribute(this._id, String(name), String(value));
     } catch {}
   }
-  setAttributeNS(_namespaceURI: unknown, qualifiedName: unknown, value: unknown): void {
+  setAttributeNS(
+    _namespaceURI: string | null,
+    qualifiedName: string,
+    value: string | Idl.TrustedType,
+  ): void {
     if (!this.ownerDocument || !this.ownerDocument._mutable) {
       throw notSupported("setAttributeNS on DOMParser result (read-only)");
     }
@@ -1367,10 +1371,10 @@ function parseDocument(input: string, type: unknown): ParsedDocument {
 
 class DOMParser implements Idl.DOMParser {
   /**
-   * Parses to a separate document; unsupported string MIME types throw `TypeError`. XML MIME
-   * types use the forgiving HTML parser. str is unknown: TrustedHTML isn't modeled.
+   * Parses to a separate document; unsupported string MIME types throw `TypeError`.
+   * XML MIME types use the forgiving HTML parser, so malformed XML yields no parser error.
    */
-  parseFromString(str: unknown, type: Idl.DOMParserSupportedType): ParsedDocument {
+  parseFromString(str: Idl.TrustedHTML | string, type: Idl.DOMParserSupportedType): ParsedDocument {
     const input = typeof str === "string" ? str : String(str ?? "");
     return ksSpan("dom.parseFromString", { html_bytes: input.length }, () =>
       parseDocument(input, type),

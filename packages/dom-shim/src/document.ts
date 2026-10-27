@@ -1101,7 +1101,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   // Limitation: write() runs after parse, so it appends the markup to body
   // or documentElement. It must not throw: a throw stops the rest of the
   // classic-script bucket.
-  write(...args: string[]) {
+  write(...args: Array<Idl.TrustedHTML | string>) {
     try {
       const markup = args.join("");
       if (!markup) return;
@@ -1112,7 +1112,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       while (tmp.firstChild) host.appendChild(tmp.firstChild);
     } catch {}
   }
-  writeln(...args: string[]) {
+  writeln(...args: Array<Idl.TrustedHTML | string>) {
     this.write(args.join("") + "\n");
   }
   open() {
