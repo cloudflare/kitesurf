@@ -3830,9 +3830,12 @@ function makeStaticNodeList<T extends NodeBase>(items: ArrayLike<T>): NodeListCl
     -readonly [K in keyof NodeListCls<T>]: NodeListCls<T>[K];
   } & { [nodeListLenSym]: number };
   const writable = Object.create(NodeListCls.prototype) as WritableNodeList;
-  const n = items.length;
-  for (let i = 0; i < n; i++) writable[i] = items[i];
+  const snapshot = Array.from(items);
+  const n = snapshot.length;
+  for (let i = 0; i < n; i++) writable[i] = snapshot[i];
   writable[nodeListLenSym] = n;
+  // item() reads the list through this getter, so give the static list one.
+  nodeListGetters.set(writable, () => snapshot);
   return writable;
 }
 
