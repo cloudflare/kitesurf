@@ -2,48 +2,57 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// A document.write'd <script src> is PARSER-INSERTED: the spec puts it at the
-// parser insertion point, so it blocks the parser and runs before DCL.
+// document.write'd scripts are parser-inserted: they run in write order, not
+// fetch-completion order, and DOMContentLoaded waits for them. Pre-ES6
+// loaders such as tdl.js write one script per module and depend on both.
+import type { Page } from "@cloudflare/puppeteer";
+import { expect, test } from "./harness";
 
-// This is how every pre-ES6 loader works — tdl.js's require() writes a script
-// tag per module — and getting it wrong is invisible rather than loud. The
+const ORIGIN = "http://127.0.0.1:8787";
 
-// modules simply arrive after DOMContentLoaded, so a jQuery $(fn) ready
-// handler runs with the whole library still undefined and throws somewhere
-// unrelated. webglsamples.org/aquarium died on `tdl.sync.SyncManager`.
+const written = (query: string) =>
+  `<script src="/__fixtures/written-script.js?${query}"><\\/script>`;
 
-// Two generations, because a written script writes more of them: the drain has
-// to re-check rather than await the snapshot it started with.
-
-import { test } from "./harness";
-import { expect } from "vitest";
-
-test("document.write'd scripts run, in order, before DOMContentLoaded", async ({ browser }) => {
-  const page = (await browser.pages())[0] ?? (await browser.newPage());
-
-  // A real origin, not setContent: the written script is a SUBRESOURCE, and
-  // a data: URL page has an opaque origin that never fetches it (fact 25).
-  await page.goto("http://127.0.0.1:8787/__fixtures/written-script-order.html", {
-    waitUntil: "domcontentloaded",
-    timeout: 30000,
+// The page records the order at DCL. Reading it later would pass even if the
+// scripts ran after DCL.
+async function orderAtDcl(page: Page, writes: string): Promise<{ atDcl: string; all: string }> {
+  const u = new URL(`${ORIGIN}/__fixtures/policy-doc.html`);
+  u.searchParams.set(
+    "body",
+    `<script>
+  globalThis.__written = [];
+  document.addEventListener("DOMContentLoaded", function () {
+    globalThis.__atDcl = globalThis.__written.join(",");
   });
-
-  const deadline = Date.now() + 30000;
-  let state: { atDcl?: string; all?: string } = {};
-  while (Date.now() < deadline) {
-    state = await page.evaluate(() => {
+  document.write('${writes}');
+</script>`,
+  );
+  await page.goto(u.toString(), { waitUntil: "domcontentloaded", timeout: 30_000 });
+  const read = () =>
+    page.evaluate(() => {
       const atDcl: unknown = Reflect.get(globalThis, "__atDcl");
-      const written: unknown = Reflect.get(globalThis, "__written");
+      const all: unknown = Reflect.get(globalThis, "__written");
       return {
-        atDcl: typeof atDcl === "string" ? atDcl : undefined,
-        all: Array.isArray(written) ? written.join(",") : "",
+        atDcl: typeof atDcl === "string" ? atDcl : "",
+        all: Array.isArray(all) ? all.join(",") : "",
       };
     });
-    if (typeof state.atDcl === "string") break;
-    await new Promise((r) => setTimeout(r, 250));
-  }
+  await expect.poll(async () => (await read()).atDcl, { timeout: 30_000 }).not.toBe("");
+  return read();
+}
 
-  // Both generations ran, in write order, and DCL saw them.
-  expect(state.atDcl).toBe("a,b");
-  expect(state.all).toBe("a,b");
+test("a slow written script still runs before the one written after it", async ({ page }) => {
+  const order = await orderAtDcl(page, written("tag=a&ms=800") + written("tag=b"));
+  expect(order).toEqual({ atDcl: "a,b", all: "a,b" });
+});
+
+test("an inline written script waits for the external one written before it", async ({ page }) => {
+  const inline = `<script>globalThis.__written.push("inline")<\\/script>`;
+  const order = await orderAtDcl(page, written("tag=a&ms=500") + inline);
+  expect(order).toEqual({ atDcl: "a,inline", all: "a,inline" });
+});
+
+test("scripts a written script writes run before DOMContentLoaded", async ({ page }) => {
+  const order = await orderAtDcl(page, written("tag=a&next=b"));
+  expect(order).toEqual({ atDcl: "a,b", all: "a,b" });
 });

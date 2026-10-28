@@ -103,6 +103,7 @@ import { resolveExternalSvgSprites, startLateSpriteSweep } from "./svg-sprites.t
 import {
   drainWrittenScripts,
   evalInsertedOnBoa,
+  queueWrittenScript,
   runInsertedExternalScript,
 } from "./inserted-scripts.ts";
 import { editContentEditable, editingHostOf } from "./contenteditable-input.ts";
@@ -3362,22 +3363,26 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         }
       };
       const inlineMeta = { url: null, nonce, body: source };
-      const sync = inlineInsertDecisionSync(inlineMeta);
-      if (sync) {
-        reportOnly(sync);
-        if (sync.allowed) runInline();
-        else reportBlocked(sync);
-        return;
-      }
-      void (async () => {
-        const verdict = await insertedScriptAllowed(inlineMeta);
-        reportOnly(verdict);
-        if (!verdict.allowed) {
-          reportBlocked(verdict);
-          return;
+      const runGated = (): Promise<void> | undefined => {
+        const sync = inlineInsertDecisionSync(inlineMeta);
+        if (sync) {
+          reportOnly(sync);
+          if (sync.allowed) runInline();
+          else reportBlocked(sync);
+          return undefined;
         }
-        runInline();
-      })();
+        return (async () => {
+          const verdict = await insertedScriptAllowed(inlineMeta);
+          reportOnly(verdict);
+          if (!verdict.allowed) {
+            reportBlocked(verdict);
+            return;
+          }
+          runInline();
+        })();
+      };
+      if (rec.written === true) queueWrittenScript(runGated);
+      else void runGated();
     };
     if (typeof built.applyDeclarativeShadowRoots === "function") {
       try {
