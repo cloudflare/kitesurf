@@ -4624,12 +4624,6 @@ export function installGlobals(
       status: "",
       origin: typeof ksGlobal.location?.origin === "string" ? ksGlobal.location.origin : "",
       originAgentCluster: false,
-      navigation: {
-        entries() {
-          return [];
-        },
-        currentEntry: null,
-      },
       clientInformation: ksGlobal.navigator,
     };
     for (const [name, value] of Object.entries(winMiscDefaults)) {
