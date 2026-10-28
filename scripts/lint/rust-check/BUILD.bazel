@@ -1,0 +1,42 @@
+load("@crates_rust_check//:defs.bzl", "all_crate_deps")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_test")
+load("//bazel:rust_checks.bzl", "rust_comments_test", "rust_lint_tests", "rust_nesting_test")
+
+exports_files(
+    ["Cargo.lock", "Cargo.toml"],
+    visibility = ["//:__pkg__"],
+)
+
+exports_files(
+    ["nesting-test.sh"],
+    visibility = ["//visibility:public"],
+)
+
+rust_binary(
+    name = "rust-check",
+    srcs = ["src/main.rs"],
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = all_crate_deps(normal = True),
+)
+
+rust_nesting_test(
+    name = "nesting_test",
+    srcs = ["src/main.rs"],
+)
+
+rust_comments_test(
+    name = "comments_test",
+    srcs = ["src/main.rs"],
+)
+
+rust_test(
+    name = "rust_check_test",
+    srcs = ["src/main.rs"],
+    edition = "2021",
+    deps = all_crate_deps(normal = True),
+)
+
+rust_lint_tests(
+    targets = ["rust-check"],
+)

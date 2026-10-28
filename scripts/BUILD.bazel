@@ -127,13 +127,12 @@ _LINT_DATA = glob(
     "//:node_modules/oxfmt",
     "//:node_modules/oxlint",
     "//:node_modules/typescript",
-    "//:rust_toolchain",
 ]
 
-# `bazel run //scripts:lint -- format --check|--write`, `-- lint:js`, `-- lint:rust` or `-- lint`.
-# It checks the workspace it runs from, which may be a host workspace running @kitesurf//scripts:lint,
-# with oxfmt and oxlint from Bazel's npm tree. The Rust half runs cargo through rustup, because
-# clippy also checks the wasm32 targets, whose standard library the Bazel host tools lack.
+# `bazel run //scripts:lint -- format --check|--write` or `-- lint:js`. It checks the workspace
+# it runs from, which may be a host workspace running @kitesurf//scripts:lint, with oxfmt and
+# oxlint from Bazel's npm tree. The Rust gates are Bazel tests (`bazel test //:rust_lint`), wired
+# per package through //bazel:rust_checks.bzl.
 js_binary(
     name = "lint",
     data = _LINT_DATA,
@@ -268,6 +267,23 @@ js_library(
     name = "tracked_files",
     srcs = ["tracked-files.mjs"],
     visibility = ["//:__pkg__"],
+)
+
+# The Rust comment-policy gate's runfiles entry (check-rust-comments.mjs remains the
+# checkout-driven twin); rust_comments_test passes each package's sources as runfiles paths.
+js_library(
+    name = "rust_comments_check_entry",
+    srcs = ["lint/check-rust-comments-bazel.mjs"],
+    visibility = ["//visibility:public"],
+)
+
+js_library(
+    name = "rust_comments_check",
+    srcs = [
+        "lint/comment-policy.mjs",
+        "lint/rust-comments.mjs",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 [
