@@ -33,7 +33,7 @@ jobs:
       - name: Fail on generated drift
         run: git diff --exit-code
       - run: pnpm run format:check
-      - run: pnpm run lint
+      - run: pnpm run lint:js
       - run: bazel run //scripts:workspace_checks
       - if: always()
         run: df -h /
