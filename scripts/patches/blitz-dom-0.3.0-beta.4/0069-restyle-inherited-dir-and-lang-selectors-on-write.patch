@@ -5,11 +5,11 @@ Subject: [PATCH] restyle inherited dir and lang selectors on write
 
 Stylo only invalidates selectors anchored on the changed node, so inherited :dir() and :lang() matches can stay stale. Restyling the parent subtree covers descendants and later sibling combinators without a Stylo patch or dir=auto content tracking.
 ---
- src/mutator.rs | 94 ++++++++++++++++++++++++++++++++++++++++++++++++++
- 1 file changed, 94 insertions(+)
+ src/mutator.rs | 98 +++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 97 insertions(+), 1 deletion(-)
 
 diff --git a/src/mutator.rs b/src/mutator.rs
-index 2c9b418..c75197f 100644
+index 2c9b418..060bc50 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
 @@ -356,6 +356,23 @@ impl DocumentMutator<'_> {
@@ -52,14 +52,25 @@ index 2c9b418..c75197f 100644
          }
 
          if name.local == local_name!("id") && node_is_in_document {
-@@ -3159,6 +3178,81 @@ mod test {
+@@ -2465,7 +2484,9 @@ mod test {
+     use blitz_traits::node_id::NodeId;
+     use blitz_traits::shell::{ColorScheme, ShellProvider, Viewport};
+
+-    use crate::{Attribute, BaseDocument, DocumentConfig, ElementData, NodeData, qual_name};
++    use crate::{
++        Attribute, BaseDocument, DocumentConfig, ElementData, NodeData, UserAgentStylesheet, qual_name,
++    };
+
+     #[test]
+     fn srcset_single_url_no_descriptor() {
+@@ -3159,6 +3180,81 @@ mod test {
          );
      }
 
 +    fn dir_test_tree(css: &str) -> (BaseDocument, NodeId, NodeId, NodeId) {
 +        let mut document = BaseDocument::new(DocumentConfig {
 +            viewport: Some(Viewport::new(800, 600, 1.0, ColorScheme::Light)),
-+            ua_stylesheets: Some(vec![css.to_string()]),
++            ua_stylesheets: vec![UserAgentStylesheet::parse(css)],
 +            ..Default::default()
 +        });
 +        let root_id = document.root_node().id;
