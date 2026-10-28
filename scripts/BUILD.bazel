@@ -325,6 +325,7 @@ js_library(
 )
 
 _HELPERS_DATA = glob(["*.mjs"]) + [
+    "lint/scope.mjs",
     # check-public-imports.mjs parses imports with the TypeScript compiler, and
     # engine-e2e-config.test.mjs loads the engine's e2e vitest config.
     "//:node_modules/typescript",

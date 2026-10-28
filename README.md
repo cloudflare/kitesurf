@@ -114,14 +114,12 @@ pnpm run check                    # type checks, bundles, and repository checks
 pnpm run test:unit                # engine vitest and Rust host tests
 pnpm run test:e2e <file-substring>
 pnpm run format:check             # oxfmt; pnpm run format rewrites the same files
+pnpm run format:rust              # format Rust with Bazel's pinned rustfmt
 pnpm run lint                     # oxlint, the custom lint rules, and Rust lint
 ```
 
-To fix a Rust formatting failure, run this from the repository root for each affected file:
-
-```bash
-bazel run @rust_tools//:rustfmt -- --edition 2021 --config-path "$PWD/rustfmt.toml" --config skip_children=true "$PWD/path/to/file.rs"
-```
+The Rust formatter rewrites tracked and non-ignored untracked files, excluding
+paths in `.oxfmtrc.json`.
 
 `pnpm run build` copies the Bazel-built WebAssembly, bundles, and RBI files into
 the source tree, where `wrangler dev` reads them. Other targets run directly,
