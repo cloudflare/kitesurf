@@ -3381,7 +3381,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           runInline();
         })();
       };
-      if (rec.written === true) queueWrittenScript(runGated);
+      if (rec.written === true) queueWrittenScript(runGated, true);
       else void runGated();
     };
     if (typeof built.applyDeclarativeShadowRoots === "function") {

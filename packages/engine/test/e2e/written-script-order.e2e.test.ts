@@ -52,6 +52,18 @@ test("an inline written script waits for the external one written before it", as
   expect(order).toEqual({ atDcl: "a,inline", all: "a,inline" });
 });
 
+test("an inline script that a written script writes runs inside its document.write", async ({
+  page,
+}) => {
+  const order = await orderAtDcl(page, written("tag=a&inline=i"));
+  expect(order).toEqual({ atDcl: "a,i,a-after", all: "a,i,a-after" });
+});
+
+test("an inline script waits for an external script its writer wrote first", async ({ page }) => {
+  const order = await orderAtDcl(page, written("tag=a&next=b&inline=i"));
+  expect(order).toEqual({ atDcl: "a,a-after,b,i", all: "a,a-after,b,i" });
+});
+
 test("scripts a written script writes run before DOMContentLoaded", async ({ page }) => {
   const order = await orderAtDcl(page, written("tag=a&next=b"));
   expect(order).toEqual({ atDcl: "a,b", all: "a,b" });
