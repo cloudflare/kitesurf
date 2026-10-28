@@ -7,6 +7,7 @@
 mod inner_text;
 mod font_face_unicode_range;
 mod node_handle;
+mod outer_html;
 mod scan;
 mod shadow_dom;
 mod template_resources;

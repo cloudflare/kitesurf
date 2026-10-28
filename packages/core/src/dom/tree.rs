@@ -120,16 +120,43 @@ pub(crate) fn has_layout_data(node: &Node) -> bool {
     )
 }
 
+enum SerializeStep<'a> {
+    Open(&'a Node),
+    Close(&'a str),
+}
+
+// An explicit stack, not recursion: a deeply nested DOM overflowed the wasm call stack.
 fn write_outer_html(doc: &BaseDocument, node: &Node, out: &mut String) {
-    use blitz_dom::node::{Attribute, SpecialElementData};
-    match &node.data {
-        NodeData::Document(_) | NodeData::ShadowRoot(_) => {
-            for &cid in &node.children {
-                if let Some(c) = doc.get_node(cid) {
-                    write_outer_html(doc, c, out);
-                }
+    let mut stack = vec![SerializeStep::Open(node)];
+    while let Some(step) = stack.pop() {
+        match step {
+            SerializeStep::Open(node) => write_node_open(doc, node, out, &mut stack),
+            SerializeStep::Close(local) => {
+                out.push_str("</");
+                out.push_str(local);
+                out.push('>');
             }
         }
+    }
+}
+
+fn push_children<'a>(doc: &'a BaseDocument, node: &'a Node, stack: &mut Vec<SerializeStep<'a>>) {
+    for &cid in node.children.iter().rev() {
+        if let Some(c) = doc.get_node(cid) {
+            stack.push(SerializeStep::Open(c));
+        }
+    }
+}
+
+fn write_node_open<'a>(
+    doc: &'a BaseDocument,
+    node: &'a Node,
+    out: &mut String,
+    stack: &mut Vec<SerializeStep<'a>>,
+) {
+    use blitz_dom::node::{Attribute, SpecialElementData};
+    match &node.data {
+        NodeData::Document(_) | NodeData::ShadowRoot(_) => push_children(doc, node, stack),
         NodeData::Comment { contents } => {
             out.push_str("<!--");
             out.push_str(contents);
@@ -170,6 +197,7 @@ fn write_outer_html(doc: &BaseDocument, node: &Node, out: &mut String) {
                 return;
             }
 
+            stack.push(SerializeStep::Close(local));
             if is_raw_text_element(local) {
                 for &cid in &node.children {
                     let Some(child) = doc.get_node(cid) else {
@@ -181,16 +209,8 @@ fn write_outer_html(doc: &BaseDocument, node: &Node, out: &mut String) {
                     out.push_str(&text.content);
                 }
             } else {
-                for &cid in &node.children {
-                    if let Some(c) = doc.get_node(cid) {
-                        write_outer_html(doc, c, out);
-                    }
-                }
+                push_children(doc, node, stack);
             }
-
-            out.push_str("</");
-            out.push_str(local);
-            out.push('>');
         }
     }
 }
