@@ -70,7 +70,12 @@ class HTMLButtonElement extends HTMLElement implements Idl.HTMLButtonElement {
   get commandForElement() {
     const ref = this.getAttribute("commandfor");
     if (!ref) return null;
-    return commandTargetById(this.ownerDocument, ref);
+    const doc = this.ownerDocument;
+    try {
+      return doc?.getElementById?.(ref) || null;
+    } catch {
+      return null;
+    }
   }
   // The value is not checked to be an Element, only to have getAttribute.
   set commandForElement(v: Idl.Element | null) {
@@ -120,16 +125,6 @@ class HTMLButtonElement extends HTMLElement implements Idl.HTMLButtonElement {
   }
 }
 
-function commandTargetById(
-  doc: Idl.HTMLButtonElement["ownerDocument"],
-  ref: string,
-): Idl.Element | null {
-  try {
-    return doc?.getElementById?.(ref) || null;
-  } catch {
-    return null;
-  }
-}
 installValidityMixin(HTMLButtonElement);
 
 const popoverTargets = new WeakMap<object, Idl.Element | null>();

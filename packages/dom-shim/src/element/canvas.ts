@@ -68,22 +68,16 @@ function encodeCanvasPng(id: number): Uint8Array | null {
 function ensureCanvasOriginClean(canvas: HTMLCanvasElement): void {
   const isClean = dom?.canvasIsOriginClean;
   if (typeof isClean !== "function") return;
-  if (!canvasIsOriginClean(isClean, canvas._id)) {
+  const id = canvas._id;
+  let originClean = true;
+  try {
+    originClean = !!isClean.call(dom, id);
+  } catch {}
+  if (!originClean) {
     throw new (ksGlobal.DOMException || Error)(
       "The canvas has been tainted by cross-origin data.",
       "SecurityError",
     );
-  }
-}
-
-function canvasIsOriginClean(
-  isClean: NonNullable<typeof dom>["canvasIsOriginClean"],
-  id: number,
-): boolean {
-  try {
-    return !!isClean.call(dom, id);
-  } catch {
-    return true;
   }
 }
 // The reflections below the class install these.

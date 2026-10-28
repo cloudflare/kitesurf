@@ -198,20 +198,6 @@ function bridgeDetailValue(current: string, value: Attributes[string]): string {
   return value;
 }
 
-function enterBridgeSpan(bridge: SpanBridge, name: string, bytes: number, detail: string): number {
-  try {
-    return bridge.enter(name, bytes, detail);
-  } catch {
-    return -1;
-  }
-}
-
-function exitBridgeSpan(bridge: SpanBridge, slot: number): void {
-  try {
-    bridge.exit(slot);
-  } catch {}
-}
-
 function runBridgeCallback(
   callback: ActiveSpanCallback,
   slot: number,
@@ -220,7 +206,11 @@ function runBridgeCallback(
   try {
     return callback(NOOP_SPAN);
   } finally {
-    if (slot >= 0) exitBridgeSpan(bridge, slot);
+    if (slot >= 0) {
+      try {
+        bridge.exit(slot);
+      } catch {}
+    }
   }
 }
 
@@ -231,7 +221,10 @@ function startBridgedSpan(
   bridge: SpanBridge,
 ): unknown {
   const { bytes, detail } = bridgeDetails(attributes);
-  const slot = enterBridgeSpan(bridge, name, bytes, detail);
+  let slot = -1;
+  try {
+    slot = bridge.enter(name, bytes, detail);
+  } catch {}
   return runBridgeCallback(callback, slot, bridge);
 }
 

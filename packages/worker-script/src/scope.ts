@@ -78,10 +78,6 @@ function listenerSignal(options: { once?: unknown; signal?: unknown }): AbortSig
   return options.signal instanceof AbortSignal ? options.signal : undefined;
 }
 
-function listenerList(type: string): ListenerRecord[] {
-  return listeners.get(type) ?? [];
-}
-
 function addAbortRemoval(signal: AbortSignal | undefined, type: string, listener: unknown): void {
   signal?.addEventListener?.("abort", () => removeListener(type, listener), { once: true });
 }
@@ -94,7 +90,7 @@ function registerListener(
 ): void {
   const signal = listenerSignal(opts);
   if (signal?.aborted) return;
-  const list = listenerList(type);
+  const list = listeners.get(type) ?? [];
   if (list.some((r) => r.src === listener)) return;
   const record: ListenerRecord = { fn, src: listener, once: !!opts.once, removed: false };
   list.push(record);

@@ -333,14 +333,6 @@ function cheapElementAtPoint(x: number, y: number): Element | null {
   return id >= 0 ? nodeFor(id) : null;
 }
 
-function fallbackCheapElementAtPoint(x: number, y: number): Element | null {
-  try {
-    return cheapElementAtPoint(x, y);
-  } catch {
-    return null;
-  }
-}
-
 function assertCreateDocumentHasArguments(argumentCount: number): void {
   if (argumentCount < 2) {
     throw new TypeError("DOMImplementation.createDocument requires at least 2 arguments");
@@ -694,21 +686,9 @@ function createDocumentTitle(
   }
 }
 
-function documentChildListContains(children: readonly unknown[], node: unknown): boolean {
-  return Boolean(children && children.indexOf(node) >= 0);
-}
-
 function documentNodeId(node: unknown): number | null {
   const id = (node as { _id?: unknown })._id;
   return typeof id === "number" ? id : null;
-}
-
-function safeDocumentParentId(nodeId: number): number {
-  try {
-    return dom.parentId(nodeId);
-  } catch {
-    return -1;
-  }
 }
 
 function isTerminalDocumentParent(parentId: number, nodeId: number): boolean {
@@ -720,7 +700,12 @@ function hostContainsNode(hostId: number, nodeId: number): boolean {
   let currentId = nodeId;
   let safety = 0;
   while (safety < MAX_NODE_ANCESTOR_HOPS) {
-    const parentId = safeDocumentParentId(currentId);
+    let parentId: number;
+    try {
+      parentId = dom.parentId(currentId);
+    } catch {
+      parentId = -1;
+    }
     if (isTerminalDocumentParent(parentId, currentId)) return false;
     if (parentId === hostId) return true;
     currentId = parentId;
@@ -731,7 +716,8 @@ function hostContainsNode(hostId: number, nodeId: number): boolean {
 
 function detachedDocumentContainsNode(document: DetachedDocument, node: unknown): boolean {
   if (node == null) return false;
-  if (documentChildListContains(document._topChildren, node)) return true;
+  const topChildren = document._topChildren;
+  if (topChildren && topChildren.indexOf(node) >= 0) return true;
   const nodeId = documentNodeId(node);
   if (nodeId === null) return false;
   return hostContainsNode(document._hostId, nodeId);
@@ -902,7 +888,9 @@ function importElementNode(
   const namespace = importedElementNamespace(source);
   const qualifiedName = importedElementQualifiedName(source);
   const clone = document.createElementNS(namespace, qualifiedName);
-  copyImportedAttributesSafely(source, clone);
+  try {
+    copyImportedAttributes(source, clone);
+  } catch {}
   appendImportedChildren(document, source, clone, deep);
   return clone;
 }
@@ -923,12 +911,6 @@ function importedElementLocalName(source: Element): string {
 
 function importedElementPrefix(source: Element): string | null {
   return source.prefix || null;
-}
-
-function copyImportedAttributesSafely(source: Element, destination: Element): void {
-  try {
-    copyImportedAttributes(source, destination);
-  } catch {}
 }
 
 function importTextOrCommentNode(document: DocumentImpl, node: NodeBase) {
@@ -2110,7 +2092,11 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     // never focus.
     const domHit = completedDomPointHit(domElementAtPoint(dx, dy));
     if (domHit.completed) return domHit.element;
-    return fallbackCheapElementAtPoint(dx, dy);
+    try {
+      return cheapElementAtPoint(dx, dy);
+    } catch {
+      return null;
+    }
   }
   elementsFromPoint(x: number, y: number): Element[] {
     // The current hit test returns only the topmost match.

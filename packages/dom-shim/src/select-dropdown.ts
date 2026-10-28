@@ -38,7 +38,12 @@ function openDropdown(select: HTMLSelectElement): void {
   const doc = select.ownerDocument;
   if (!doc || !doc.body) return;
 
-  const rect = dropdownRect(select);
+  let rect: ReturnType<HTMLSelectElement["getBoundingClientRect"]> | null;
+  try {
+    rect = select.getBoundingClientRect();
+  } catch {
+    rect = null;
+  }
   if (!rect) return;
   const win = ksGlobal;
   const pageX = (win.scrollX | 0) + rect.left;
@@ -53,16 +58,6 @@ function openDropdown(select: HTMLSelectElement): void {
     doc.addEventListener("click", outsideListener, true);
   } catch {}
   openState = { select, overlay, outsideListener };
-}
-
-function dropdownRect(
-  select: HTMLSelectElement,
-): ReturnType<HTMLSelectElement["getBoundingClientRect"]> | null {
-  try {
-    return select.getBoundingClientRect();
-  } catch {
-    return null;
-  }
 }
 
 function createDropdownOverlay(

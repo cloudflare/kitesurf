@@ -59,13 +59,12 @@ function cloneInputState(src: NodeBase, clone: NodeBase): void {
   cloneState.checked = !!srcState.checked;
   cloneState.indeterminate = !!srcState.indeterminate;
   cloneState.userEdited = !!srcState.userEdited;
-  if (cloneState.checkedDirty) setClonedCheckboxChecked(clone, cloneState.checked);
-}
-
-function setClonedCheckboxChecked(clone: NodeBase, checked: boolean): void {
-  try {
-    dom.setCheckboxChecked(clone._id, checked);
-  } catch {}
+  if (cloneState.checkedDirty) {
+    const checked = cloneState.checked;
+    try {
+      dom.setCheckboxChecked(clone._id, checked);
+    } catch {}
+  }
 }
 
 function cloneTextAreaState(src: NodeBase, clone: NodeBase): void {

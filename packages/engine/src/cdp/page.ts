@@ -4518,7 +4518,7 @@ async function completeLoadSummary(
   urlAtSchedule: string,
   summary: Partial<LoadCompletion>,
 ): Promise<void> {
-  if (!isCurrentLoadCompletion(ctx, target, generation)) return;
+  if (!isCurrentTargetGeneration(ctx, target, generation)) return;
   settleLoadDiagSpans(target, summary);
   applyLoadSummaryCookies(ctx, target, summary.cookieWrites, urlAtSchedule);
   emitLoadSummaryEvents(ctx, target, summary, sessionId);
@@ -4527,7 +4527,7 @@ async function completeLoadSummary(
   emitFrameLoadComplete(ctx, target, mainFrame(target), sessionId);
 }
 
-function isCurrentLoadCompletion(
+function isCurrentTargetGeneration(
   ctx: DispatchCtx,
   target: TargetState,
   generation: number,
@@ -6032,21 +6032,13 @@ async function applyInitialOopifRaster(
     return;
   }
   const dimensions = oopifPollFrameDimensions(frame, result);
-  if (!dimensions || !isCurrentOopifGeneration(ctx, target, generation)) return;
+  if (!dimensions || !isCurrentTargetGeneration(ctx, target, generation)) return;
   const response = await parentPageScript.setFrameBitmap({
     ownerBackendNodeId: frame.ownerBackendNodeId,
     ...dimensions,
     rgba: result.bytes,
   });
   updateInitialOopifRenderSequence(frame, result, response);
-}
-
-function isCurrentOopifGeneration(
-  ctx: DispatchCtx,
-  target: TargetState,
-  generation: number,
-): boolean {
-  return !ctx.browser.wsClosing && target.navigateGeneration === generation;
 }
 
 function updateInitialOopifRenderSequence(
@@ -6211,18 +6203,10 @@ function handleTargetUpstreamEvent(
   event: UpstreamEventName,
   params: ReceivedUpstreamParams,
 ): void {
-  if (!isCurrentUpstreamGeneration(ctx, target, generation)) return;
+  if (!isCurrentTargetGeneration(ctx, target, generation)) return;
   if (handleUpstreamSignalEvent(ctx, target, event, params)) return;
   if (handleWorkerEvent(ctx, workerOwner, event, params)) return;
   handleUpstreamFrameEvent(ctx, target, undefined, event, params);
-}
-
-function isCurrentUpstreamGeneration(
-  ctx: DispatchCtx,
-  target: TargetState,
-  generation: number,
-): boolean {
-  return target.navigateGeneration === generation && !ctx.browser.wsClosing;
 }
 
 function handleUpstreamSignalEvent(

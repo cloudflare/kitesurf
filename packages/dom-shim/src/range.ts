@@ -636,14 +636,6 @@ function rangeRectTarget(startNode: BoundaryNode): RangeRectTarget | null {
   return hasRangeRectMethod(node) ? node : null;
 }
 
-function safeRangeRect(node: RangeRectTarget): Idl.DOMRect | null {
-  try {
-    return node.getBoundingClientRect();
-  } catch {
-    return null;
-  }
-}
-
 function assertRangeNodeArgument(node: unknown, operation: string): void {
   if (
     node === null ||
@@ -1056,7 +1048,12 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
   }
   _approxRangeRect(): Idl.DOMRect | null {
     const node = rangeRectTarget(rangeBounds(this).startContainer);
-    return node ? safeRangeRect(node) : null;
+    if (!node) return null;
+    try {
+      return node.getBoundingClientRect();
+    } catch {
+      return null;
+    }
   }
 
   compareBoundaryPoints(how, other) {
@@ -1636,12 +1633,6 @@ function selectionPaintBounds(composedRange: LiveRangeEntry | null, range: Range
   return null;
 }
 
-function markSelectionLayoutDirty(): void {
-  try {
-    getInternalState().layoutDirtySinceRecord = true;
-  } catch {}
-}
-
 function rangeBoundaryNodeId(node: NodeBase | null | undefined): number | null | undefined {
   return node && node._id;
 }
@@ -2031,7 +2022,9 @@ class SelectionImpl implements Idl.Selection {
     try {
       const domHandle: any = dom;
       if (!domHandle) return;
-      markSelectionLayoutDirty();
+      try {
+        getInternalState().layoutDirtySinceRecord = true;
+      } catch {}
       // Paint composed endpoints; a single-tree Range cannot represent a cross-shadow selection.
       const composedRange = this.#hasComposed() ? this.#composed : null;
       const bounds = selectionPaintBounds(composedRange, this.#range);

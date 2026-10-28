@@ -107,26 +107,14 @@ function activateFormButton(
   if (control.disabled) return;
   const form = control.form;
   if (!form) return;
-  if (kind === "submit") submitFormFromButton(form, control);
-  else resetFormFromButton(form);
-}
-
-function submitFormFromButton(
-  form: HTMLFormElement,
-  control: HTMLButtonElement | HTMLInputElement,
-): void {
   try {
-    form.__ksRequestSubmit(control);
+    if (kind === "submit") {
+      form.__ksRequestSubmit(control);
+    } else {
+      form.reset();
+    }
   } catch {
-    /* spec'd throw paths */
-  }
-}
-
-function resetFormFromButton(form: HTMLFormElement): void {
-  try {
-    form.reset();
-  } catch {
-    /* unlikely */
+    /* Button activation suppresses form errors. */
   }
 }
 

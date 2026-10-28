@@ -109,7 +109,12 @@ function hydrateAttrHandler(target: ContentAttrTarget, propName: string, type: s
 }
 
 function installContentAttrHandler(target: ContentAttrTarget, propName: string): void {
-  const source = readContentAttr(target, propName);
+  let source: unknown;
+  try {
+    source = target.getAttribute(propName);
+  } catch {
+    source = null;
+  }
   if (typeof source !== "string" || !source) return;
   try {
     installAttrEventHandler(target, propName, source);
@@ -130,14 +135,6 @@ function markAttrHandlerHydrated(target: object, type: string): boolean {
 function hasIdlHandler(target: ContentAttrTarget, type: string): boolean {
   const slots = target[idlHandlerSym];
   return Boolean(slots && slots[type]);
-}
-
-function readContentAttr(target: ContentAttrTarget, name: string): unknown {
-  try {
-    return target.getAttribute(name);
-  } catch {
-    return null;
-  }
 }
 
 function installAttrEventHandler(

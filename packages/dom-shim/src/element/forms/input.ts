@@ -439,7 +439,9 @@ function synchronizeCheckedAttribute(input: HTMLInputElement, value: string | nu
   if (!isCheckboxOrRadio(type)) return;
   const state = inputState.get(input._id);
   const checked = checkedAttributeValue(state, value);
-  writeCheckedAttribute(input, checked);
+  try {
+    dom.setCheckboxChecked?.(input._id, checked);
+  } catch {}
   if (shouldUncheckAttributeRadio(checked, state, type)) uncheckAttributeRadioSiblings(input);
 }
 
@@ -452,12 +454,6 @@ function checkedAttributeValue(
   value: string | null,
 ): boolean {
   return state?.checkedDirty ? !!state.checked : value !== null;
-}
-
-function writeCheckedAttribute(input: HTMLInputElement, checked: boolean): void {
-  try {
-    dom.setCheckboxChecked?.(input._id, checked);
-  } catch {}
 }
 
 function shouldUncheckAttributeRadio(

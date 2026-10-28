@@ -38,17 +38,11 @@ function queueImageTerminalEvent(id, gen, pumpDecodes = false): void {
 
 function dispatchQueuedImageTerminalEvent(id: number, gen: number, pumpDecodes: boolean): void {
   if (imageRequestGen.get(id) !== gen) return;
-  if (pumpDecodes) pumpImageDecodes();
-  notifyImageTerminalResult(id);
-}
-
-function pumpImageDecodes(): void {
-  try {
-    dom.pumpResourceMessages?.();
-  } catch {}
-}
-
-function notifyImageTerminalResult(id: number): void {
+  if (pumpDecodes) {
+    try {
+      dom.pumpResourceMessages?.();
+    } catch {}
+  }
   try {
     notifyImageResults([id], true);
   } catch {}
@@ -296,17 +290,14 @@ function installLoadErrorAttributeSource(el: Element, attrName: LoadErrorAttribu
 
 export function notifyStylesheetResults(url: unknown, ok: boolean): void {
   if (!url) return;
-  const links = stylesheetLinks();
+  let links: Idl.NodeList | null;
+  try {
+    links = liveDocument().querySelectorAll("link");
+  } catch {
+    links = null;
+  }
   if (!links) return;
   for (const node of Array.from(links)) notifyStylesheetNode(node, url, ok);
-}
-
-function stylesheetLinks(): Idl.NodeList | null {
-  try {
-    return liveDocument().querySelectorAll("link");
-  } catch {
-    return null;
-  }
 }
 
 function notifyStylesheetNode(node: Idl.Node | null, url: unknown, ok: boolean): void {

@@ -56,24 +56,6 @@ interface InflightCall {
   settled: boolean;
 }
 
-interface PageScriptSessionSettings {
-  defaultTimeoutMs: number;
-  getTraceParent: (() => string | null) | undefined;
-  now: () => number;
-  scriptName: string | null;
-  wallCapMs: number;
-}
-
-function pageScriptSessionSettings(opts: PageScriptRpcSessionOptions): PageScriptSessionSettings {
-  return {
-    defaultTimeoutMs: opts.defaultTimeoutMs ?? 60_000,
-    getTraceParent: opts.getTraceParent,
-    now: opts.now ?? (() => Date.now()),
-    scriptName: opts.scriptName ?? null,
-    wallCapMs: opts.wallCapMs ?? 0,
-  };
-}
-
 function upstreamParams(message: UpstreamMessage): ReceivedUpstreamParams | null {
   if (!message || typeof message.event !== "string") return null;
   return message.params && typeof message.params === "object" ? message.params : {};
@@ -122,12 +104,11 @@ export class PageScriptRpcSession implements PageScriptStub {
 
   constructor(entrypoint: RpcSessionEntrypoint, opts: PageScriptRpcSessionOptions = {}) {
     this.entrypoint = entrypoint;
-    const settings = pageScriptSessionSettings(opts);
-    this.defaultTimeoutMs = settings.defaultTimeoutMs;
-    this.getTraceParent = settings.getTraceParent;
-    this.now = settings.now;
-    this.scriptName = settings.scriptName;
-    this.armWallCap(settings.wallCapMs);
+    this.defaultTimeoutMs = opts.defaultTimeoutMs ?? 60_000;
+    this.getTraceParent = opts.getTraceParent;
+    this.now = opts.now ?? (() => Date.now());
+    this.scriptName = opts.scriptName ?? null;
+    this.armWallCap(opts.wallCapMs ?? 0);
     const outbound = opts.outbound;
     const doOpen = () => this.openSession(outbound);
     const opened = opts.wrapOpen ? opts.wrapOpen(doOpen) : doOpen();

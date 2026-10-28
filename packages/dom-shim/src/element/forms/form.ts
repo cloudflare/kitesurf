@@ -149,14 +149,6 @@ function isSubmitButton(
   );
 }
 
-function validateSubmitter(
-  form: HTMLFormElement,
-  submitter: Idl.HTMLElement | null | undefined,
-): void {
-  if (submitter === null || submitter === undefined) return;
-  assertValidSubmitter(form, submitter);
-}
-
 function assertValidSubmitter(form: HTMLFormElement, submitter: Idl.HTMLElement): void {
   if (!isSubmitButton(submitter)) {
     throw new (ksGlobal.DOMException || Error)(
@@ -214,14 +206,10 @@ function submitterTargetAttribute(
   form: HTMLFormElement,
   submitter: Idl.HTMLElement | null,
 ): string {
-  if (!submitterHasTargetAttribute(submitter)) return form.getAttribute("target") || "";
-  return submitter.getAttribute("formtarget") || "";
-}
-
-function submitterHasTargetAttribute(
-  submitter: Idl.HTMLElement | null,
-): submitter is Idl.HTMLElement {
-  return !!(submitter && submitter.hasAttribute && submitter.hasAttribute("formtarget"));
+  if (submitter && submitterHasAttribute(submitter, "target")) {
+    return submitter.getAttribute("formtarget") || "";
+  }
+  return form.getAttribute("target") || "";
 }
 
 function isDefaultTarget(targetAttr: string, keyword: string): boolean {
@@ -272,10 +260,6 @@ function submissionAction(form: HTMLFormElement, submitter: Idl.HTMLElement | nu
   return submitterHasAttribute(submitter, "action")
     ? submitterAttribute(submitter, "action")
     : form.getAttribute("action");
-}
-
-function submissionBase(): string | undefined {
-  return (windowObj && windowObj.location && windowObj.location.href) || undefined;
 }
 
 function submissionUrl(
@@ -344,7 +328,7 @@ function performFormSubmission(
   try {
     const method = submissionMethod(form, submitter);
     if (method === "dialog") return null;
-    const base = submissionBase();
+    const base = (windowObj && windowObj.location && windowObj.location.href) || undefined;
     const url = submissionUrl(form, submitter, base);
     const encoding = formEncoding(form);
     const entries = collectFormEntries(form, submitter || null, encoding);
@@ -355,27 +339,15 @@ function performFormSubmission(
   }
 }
 
-function formNodeInfo(id: number): { nodeName?: unknown } | null {
-  let info: { nodeName?: unknown } | null = null;
-  try {
-    info = dom.nodeInfo(id);
-  } catch {}
-  return info;
-}
-
 function assertFormNode(id: number, info: { nodeName?: unknown } | null): void {
   const namespace = elemNs.get(id);
-  if (!info) throw new TypeError("Illegal invocation");
-  if (!isFormNodeInfo(info)) throw new TypeError("Illegal invocation");
-  if (hasNonHtmlFormNamespace(namespace)) throw new TypeError("Illegal invocation");
-}
-
-function isFormNodeInfo(info: { nodeName?: unknown }): boolean {
-  return String(info.nodeName || "").toUpperCase() === "FORM";
-}
-
-function hasNonHtmlFormNamespace(namespace: ReturnType<typeof elemNs.get>): boolean {
-  return Boolean(namespace && namespace.ns !== HTML_NS);
+  if (
+    !info ||
+    String(info.nodeName || "").toUpperCase() !== "FORM" ||
+    Boolean(namespace && namespace.ns !== HTML_NS)
+  ) {
+    throw new TypeError("Illegal invocation");
+  }
 }
 
 function resetFormControls(elements: HTMLFormControlsCollection): void {
@@ -536,7 +508,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
     if (formsFiringSubmit.has(this)) {
       return this.__ksPerformSubmission(submitter ?? null);
     }
-    validateSubmitter(this, submitter);
+    if (submitter !== null && submitter !== undefined) assertValidSubmitter(this, submitter);
     return dispatchFormSubmit(this, submitter);
   }
   __ksPerformSubmission(submitter: Idl.HTMLElement | null): string | null {
@@ -545,7 +517,11 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
     return performFormSubmission(this, submitter, target.targetFrame);
   }
   reset() {
-    const info = formNodeInfo(this._id);
+    const infoId = this._id;
+    let info: { nodeName?: unknown } | null = null;
+    try {
+      info = dom.nodeInfo(infoId);
+    } catch {}
     assertFormNode(this._id, info);
     const ev = new KsEvent("reset", { bubbles: true, cancelable: true });
     dispatchTrustedEvent(this, ev);
