@@ -81,10 +81,13 @@ export interface InsertedScriptInfo {
 // the writing one does not wait; only DOMContentLoaded does.
 let writtenChain: Promise<void> = Promise.resolve();
 let writtenPending = 0;
+// Written scripts in writtenPending whose code is running now. An inline
+// script they write is not queued behind them, only behind the waiting ones.
+let writtenExecuting = 0;
 
 const trackWritten = (run: Promise<void>): void => {
   writtenPending++;
-  writtenChain = run.then(
+  const settled = run.then(
     () => {
       writtenPending--;
     },
@@ -92,13 +95,14 @@ const trackWritten = (run: Promise<void>): void => {
       writtenPending--;
     },
   );
+  writtenChain = writtenChain.then(() => settled);
 };
 
-// Runs a written script's task in write order. With nothing queued ahead it
-// runs now, so an inline script runs inside the document.write that wrote it.
-// Otherwise it runs in a fresh task after the queued ones settle.
-export function queueWrittenScript(task: () => Promise<void> | undefined): void {
-  if (writtenPending === 0) {
+// Runs a written script's task in write order, in a fresh task after the
+// queued ones settle. With nothing waiting ahead it runs now: an inline script
+// runs inside the document.write that wrote it, even inside a written script.
+export function queueWrittenScript(task: () => Promise<void> | undefined, inline: boolean): void {
+  if (writtenPending - (inline ? writtenExecuting : 0) === 0) {
     const run = task();
     if (run) trackWritten(run);
     return;
@@ -107,7 +111,13 @@ export function queueWrittenScript(task: () => Promise<void> | undefined): void 
     await new Promise<void>((resolve) => {
       nativeSetTimeout(resolve, 0);
     });
-    await task();
+    // An external script's body counts itself while its code runs.
+    if (inline) writtenExecuting++;
+    try {
+      await task();
+    } finally {
+      if (inline) writtenExecuting--;
+    }
   };
   trackWritten(writtenChain.then(deferred, deferred));
 }
@@ -243,6 +253,7 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
       });
 
       const cs = getInternalState();
+      if (info.written) writtenExecuting++;
       try {
         cs.setCurrentScript?.(url, -1, "", rawSrc);
         if (bakedModule) {
@@ -264,6 +275,7 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
           if (cs.endClassicScript) await cs.endClassicScript();
           else cs.setCurrentScript?.(null);
         } catch {}
+        if (info.written) writtenExecuting--;
       }
     } catch (err) {
       if (outcome !== "silent") outcome = "error";
@@ -286,6 +298,6 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
     }
   };
 
-  if (info.written) queueWrittenScript(body);
+  if (info.written) queueWrittenScript(body, false);
   else void body();
 }

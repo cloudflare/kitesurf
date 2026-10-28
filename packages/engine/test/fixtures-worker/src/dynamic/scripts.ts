@@ -98,16 +98,24 @@ const inlineWasmJs = inlineWasmTemplate.replace(
 );
 scripts.all("/inline-wasm.js", (c) => c.body(inlineWasmJs, 200, { "content-type": JS }));
 
-// A script for document.write order tests: it waits `ms`, records `tag`, and
-// writes the script for `next` when given.
+// A script for document.write order tests: it waits `ms` and records `tag`.
+// With `next` it writes the script for that tag. With `inline` it writes an
+// inline script that records that tag, then records `<tag>-after`.
 scripts.all("/written-script.js", async (c) => {
   const word = (name: string) => (c.req.query(name) ?? "").replace(/[^a-z0-9-]/gi, "");
   await sleep(intQuery(c, "ms", { fallback: 0, min: 0, max: 3000 }));
+  const push = (value: string) =>
+    `globalThis.__written = (globalThis.__written || []).concat([${JSON.stringify(value)}]);`;
   const tag = word("tag");
   const next = word("next");
-  const write = next
-    ? `document.write('<script src="/__fixtures/written-script.js?tag=${next}"><\\/script>');\n`
-    : "";
-  const record = `globalThis.__written = (globalThis.__written || []).concat([${JSON.stringify(tag)}]);\n`;
-  return c.body(record + write, 200, { "content-type": JS });
+  const inline = word("inline");
+  let body = push(tag) + "\n";
+  if (next) {
+    body += `document.write('<script src="/__fixtures/written-script.js?tag=${next}"><\\/script>');\n`;
+  }
+  if (inline) {
+    body += `document.write('<script>${push(inline)}<\\/script>');\n`;
+    body += push(`${tag}-after`) + "\n";
+  }
+  return c.body(body, 200, { "content-type": JS });
 });
