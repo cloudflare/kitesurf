@@ -1069,6 +1069,8 @@ class Element extends NodeBase implements Idl.Element {
   removeAttributeNS(namespace: string | null, localName: string) {
     if (typeof localName !== "string" || localName.length === 0) return;
     const ns = namespace ? String(namespace) : null;
+    const elNs = elemNs.get(this._id);
+    const runsChangeSteps = ns === null && (!elNs || elNs.ns === HTML_NS);
     const customAttributeHook =
       ksInternals.customElementObservesAttribute?.(this, localName) &&
       typeof ksInternals.notifyCustomElementAttributeChanged === "function"
@@ -1103,6 +1105,7 @@ class Element extends NodeBase implements Idl.Element {
         if (customAttributeHook) {
           customAttributeHook(this, localName, oldValue, null, ns);
         }
+        if (runsChangeSteps) this[attributeChangeSteps](localName, null);
         return;
       }
     }
@@ -1126,6 +1129,7 @@ class Element extends NodeBase implements Idl.Element {
         if (customAttributeHook) {
           customAttributeHook(this, localName, oldValue, null, null);
         }
+        if (runsChangeSteps) this[attributeChangeSteps](localName, null);
         return;
       }
     }
