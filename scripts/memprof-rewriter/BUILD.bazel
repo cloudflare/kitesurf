@@ -1,5 +1,6 @@
 load("@crates_memprof//:defs.bzl", "all_crate_deps")
 load("@rules_rust//rust:defs.bzl", "rust_binary")
+load("//bazel:rust_checks.bzl", "rust_comments_test", "rust_lint_tests", "rust_nesting_test")
 
 exports_files([
     "Cargo.lock",
@@ -12,4 +13,18 @@ rust_binary(
     edition = "2021",
     visibility = ["//packages/core/pkg:__pkg__"],
     deps = all_crate_deps(normal = True) + ["//vendor/wasm-memprof/instrumentor"],
+)
+
+rust_nesting_test(
+    name = "nesting_test",
+    srcs = ["src/main.rs"],
+)
+
+rust_comments_test(
+    name = "comments_test",
+    srcs = ["src/main.rs"],
+)
+
+rust_lint_tests(
+    targets = ["memprof-rewriter"],
 )

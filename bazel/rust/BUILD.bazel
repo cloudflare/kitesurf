@@ -3,6 +3,7 @@ load("@rules_rust//rust:defs.bzl", "rust_shared_library")
 load("@wasm32_unwind_std//:flags.bzl", "RUSTFLAGS")
 load("//bazel:executors.bzl", "RUST")
 load(":wasm32.bzl", "HOSTS", "wasm32_rust")
+load("//bazel:rust_checks.bzl", "rust_comments_test", "rust_lint_tests", "rust_nesting_test")
 
 constraint_setting(name = "panic")
 constraint_value(name = "unwind", constraint_setting = ":panic")
@@ -90,4 +91,18 @@ rust_shared_library(
     srcs = ["unwind_smoke.rs"],
     platform = ":wasm32_unwind",
     tags = ["manual"],
+)
+
+rust_nesting_test(
+    name = "nesting_test",
+    srcs = ["unwind_smoke.rs"],
+)
+
+rust_comments_test(
+    name = "comments_test",
+    srcs = ["unwind_smoke.rs"],
+)
+
+rust_lint_tests(
+    targets = ["unwind_smoke"],
 )

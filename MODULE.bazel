@@ -8,6 +8,7 @@ bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_nodejs", version = "6.7.6")
 bazel_dep(name = "rules_rust", version = "0.74.0")
+bazel_dep(name = "rules_shell", version = "0.6.1")
 
 # Patched registry crates are downloaded and patched by Bazel rather than copied from Cargo paths.
 single_version_override(
@@ -203,6 +204,14 @@ crate.from_cargo(
     skip_cargo_lockfile_overwrite = True,
     supported_platform_triples = RUST_HOST_TRIPLES,
 )
+crate.from_cargo(
+    name = "crates_rust_check",
+    cargo_lockfile = "//scripts/lint/rust-check:Cargo.lock",
+    host_tools = "@rust_tools",
+    manifests = ["//scripts/lint/rust-check:Cargo.toml"],
+    skip_cargo_lockfile_overwrite = True,
+    supported_platform_triples = RUST_HOST_TRIPLES,
+)
 
 crate.annotation(
     crate = "write-fonts",
@@ -237,7 +246,7 @@ rust_library(
     crate = "vello_cpu",
     repositories = ["crates"],
 )
-use_repo(crate, "crates", "crates_cli", "crates_memprof", "crates_renderer", "crates_scene_host")
+use_repo(crate, "crates", "crates_cli", "crates_memprof", "crates_renderer", "crates_rust_check", "crates_scene_host")
 use_repo(crate, "crates__boa_gc-0.22.0", "crates__boa_interner-0.22.0", "crates__vello_cpu-0.3.0")
 
 wasm_std_repo = use_repo_rule("//bazel/rust:repos.bzl", "wasm_std_repo")

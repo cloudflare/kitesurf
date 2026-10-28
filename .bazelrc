@@ -4,6 +4,9 @@ common --repo_env=DO_NOT_TRACK=1
 # rules_rust registers one toolchain per channel, and rust-toolchain.toml pins a nightly: without
 # this the host toolchain that builds proc-macros and build scripts never matches.
 common --@rules_rust//rust/toolchain/channel=nightly
+# The clippy and rustfmt aspects default to empty configs; use the files cargo reads.
+common --@rules_rust//rust/settings:clippy.toml=//:clippy.toml
+common --@rules_rust//rust/settings:rustfmt.toml=//:rustfmt.toml
 # Like cargo, a crate's dependents start on its metadata, not its codegen.
 common --@rules_rust//rust/settings:pipelined_compilation=true
 # Repository rules get no PATH; cc autoconfiguration needs one to find the gcc that links

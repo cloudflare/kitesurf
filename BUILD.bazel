@@ -5,8 +5,10 @@ load("@npm//:defs.bzl", "npm_link_all_packages")
 npm_link_all_packages(name = "node_modules")
 
 exports_files([
+    "clippy.toml",
     "package.json",
     "pnpm-workspace.yaml",
+    "rustfmt.toml",
 ])
 
 copy_to_bin(
@@ -18,12 +20,6 @@ copy_to_bin(
 copy_to_bin(
     name = "oxlintrc",
     srcs = [".oxlintrc.json"],
-    visibility = ["//scripts:__pkg__"],
-)
-
-copy_to_bin(
-    name = "rust_toolchain",
-    srcs = ["rust-toolchain.toml"],
     visibility = ["//scripts:__pkg__"],
 )
 
@@ -177,5 +173,42 @@ test_suite(
         "//scripts:helpers_test",
         "//scripts:lint_test",
         "//scripts:lint_types",
+    ],
+)
+
+# The Rust lint gates: clippy, rustfmt, control-flow nesting and the comment policy over every
+# package's Rust sources. CI runs `bazel test //:rust_lint`; they need no cargo install.
+test_suite(
+    name = "rust_lint",
+    tests = [
+        "//bazel/rust:clippy_test",
+        "//bazel/rust:comments_test",
+        "//bazel/rust:fmt_test",
+        "//bazel/rust:nesting_test",
+        "//packages/core:clippy_test",
+        "//packages/core:comments_test",
+        "//packages/core:fmt_test",
+        "//packages/core:nesting_test",
+        "//packages/kitesurf-cli:clippy_test",
+        "//packages/kitesurf-cli:comments_test",
+        "//packages/kitesurf-cli:fmt_test",
+        "//packages/kitesurf-cli:nesting_test",
+        "//packages/renderer-core:clippy_test",
+        "//packages/renderer-core:comments_test",
+        "//packages/renderer-core:fmt_test",
+        "//packages/renderer-core:nesting_test",
+        "//packages/scene-host-wasm:clippy_test",
+        "//packages/scene-host-wasm:comments_test",
+        "//packages/scene-host-wasm:fmt_test",
+        "//packages/scene-host-wasm:nesting_test",
+        "//scripts/lint/rust-check:clippy_test",
+        "//scripts/lint/rust-check:comments_test",
+        "//scripts/lint/rust-check:fmt_test",
+        "//scripts/lint/rust-check:nesting_test",
+        "//scripts/lint/rust-check:rust_check_test",
+        "//scripts/memprof-rewriter:clippy_test",
+        "//scripts/memprof-rewriter:comments_test",
+        "//scripts/memprof-rewriter:fmt_test",
+        "//scripts/memprof-rewriter:nesting_test",
     ],
 )
