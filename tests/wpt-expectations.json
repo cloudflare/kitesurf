@@ -2546,8 +2546,8 @@
     "reason": "T18 enrollment (css-display): measured PASS"
   },
   "/css/css-display/display-contents-focusable-001.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-display): 0/1 subtests pass"
+    "expected": "PASS",
+    "reason": "Passes since getComputedStyle reads custom properties. Previous pin: FAIL (T18 enrollment, 0/1)."
   },
   "/css/css-display/display-contents-inline-001.html": {
     "expected": "PASS",
@@ -6229,15 +6229,16 @@
   },
   "/css/css-values/attr-argument-grammar.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 9/15 subtests pass"
+    "reason": "8/15 subtests pass. stylo does not substitute var() inside attr()'s arguments (name, type or unit position). The lost pass, attr(var(--y), 3px) on --x, was vacuous: getComputedStyle read custom properties as \"\". -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-values/attr-container-style-query.html": {
     "expected": "FAIL",
     "reason": "T18 enrollment (css-values): 0/1 subtests pass"
   },
   "/css/css-values/attr-css-wide-keywords.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 7/21 subtests pass"
+    "expected": "PASS",
+    "reason": "Passes since getComputedStyle reads custom properties. Previous pin: FAIL (T18 enrollment, 7/21)."
   },
   "/css/css-values/attr-cycle.html": {
     "expected": "FAIL",
@@ -6252,8 +6253,8 @@
     "reason": null
   },
   "/css/css-values/attr-length-specified.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 0/3 subtests pass"
+    "expected": "PASS",
+    "reason": "Passes since getComputedStyle reads custom properties. Previous pin: FAIL (T18 enrollment, 0/3)."
   },
   "/css/css-values/attr-namespace-wildcard.html": {
     "expected": "PASS",
@@ -6296,8 +6297,8 @@
     "reason": "T18 enrollment (css-values): 9/14 subtests pass"
   },
   "/css/css-values/attr-security-transition-interpolated.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 1/3 subtests pass"
+    "expected": "PASS",
+    "reason": "Passes since getComputedStyle reads custom properties. Previous pin: FAIL (T18 enrollment, 1/3)."
   },
   "/css/css-values/attr-security-transition.html": {
     "expected": "PASS",
@@ -6843,11 +6844,13 @@
   },
   "/css/css-values/if-conditionals.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 16/202 subtests pass"
+    "reason": "stylo 0.22 has no if(): 0/203 subtests pass. The 16 earlier passes were vacuous: getComputedStyle read every custom property as \"\", so both sides of each comparison matched. -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-values/if-cycle.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 17/46 subtests pass"
+    "reason": "stylo 0.22 has no if(): 10/46 subtests pass. The 7 lost passes were vacuous: getComputedStyle read every custom property as \"\", so both sides of each comparison matched. -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-values/if-function-revert-rule.html": {
     "expected": "FAIL",
@@ -7062,8 +7065,8 @@
     "reason": "T18 enrollment (css-values): 10/37 subtests pass"
   },
   "/css/css-values/random-in-container-query.tentative.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 2/9 subtests pass"
+    "expected": "PASS",
+    "reason": "Passes since getComputedStyle reads custom properties. Previous pin: FAIL (T18 enrollment, 2/9)."
   },
   "/css/css-values/random-in-custom-function.tentative.html": {
     "expected": "FAIL",
@@ -7651,7 +7654,8 @@
   },
   "/css/css-variables/variable-css-wide-keywords-after-substitution.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 5/6 subtests pass"
+    "reason": "4/6 subtests pass. stylo treats revert-layer produced by var() substitution as unset (custom_properties.rs TODO, csswg-drafts#9131), so it does not revert to the lower layer. The revert-layer pass was vacuous: getComputedStyle read custom properties as \"\". -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-variables/variable-css-wide-keywords.html": {
     "expected": "FAIL",
@@ -8473,7 +8477,8 @@
   },
   "/css/css-variables/variables-animation-math-functions.html": {
     "expected": "FAIL",
-    "reason": "getComputedStyle now reads custom properties, so the old vacuous pass (\"\" against \"\") is gone: CSS transitions do not interpolate a registered custom property, and animations land 0.01deg off."
+    "reason": "getComputedStyle now reads custom properties, so the old vacuous pass (\"\" against \"\") is gone: CSS transitions do not interpolate a registered custom property, and animations land 0.01deg off. -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-variables/variables-substitute-guaranteed-invalid.html": {
     "expected": "PASS",
@@ -9689,8 +9694,8 @@
     "reason": "15/20 subtests pass. dir=auto input-type gating is incomplete: the value is consulted for types whose directionality must NOT come from it (checkbox, radio, image), the telephone state is not forced to ltr inside an RTL block, and a dynamic type change doesn't re-resolve. HTML \u00a7the-dir-attribute limits value-derived directionality to the text-ish input states."
   },
   "/css/selectors/has-specificity.html": {
-    "expected": "FAIL",
-    "reason": "Not a :has() bug: the test reads CSS custom properties via getComputedStyle().getPropertyValue('--tN'), which kitesurf doesn't expose (all 8 subtests read '' so fail). :has() specificity itself is computed by the selectors crate; blocked on custom-property CSSOM support."
+    "expected": "PASS",
+    "reason": "Passes since getComputedStyle reads custom properties; the test reads its results from --tN. Previous pin: FAIL (0/8, blocked on custom-property CSSOM support)."
   },
   "/css/selectors/invalidation/dir-pseudo-class-in-has.html": {
     "expected": "FAIL",
@@ -38984,5 +38989,40 @@
   "/html/semantics/document-metadata/the-meta-element/pragma-directives/attr-meta-http-equiv-refresh/parsing.html?131-last": {
     "expected": "PASS",
     "reason": "document.referrer on frame documents: measured PASS on two runs"
+  },
+  "/css/css-mixins/function-relative-units.html": {
+    "expected": "FAIL",
+    "reason": "stylo 0.22 has no @function. The PASS was vacuous: getComputedStyle read every custom property as \"\", so --actual and --expected matched. Custom-property reads now return real values (0/11). -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/dashed-function-cycles.html": {
+    "expected": "FAIL",
+    "reason": "stylo 0.22 has no @function. The PASS was vacuous: getComputedStyle read every custom property as \"\", so --actual and --expected matched. Custom-property reads now return real values (0/25). -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/dashed-function-eval.html": {
+    "expected": "FAIL",
+    "reason": "stylo 0.22 has no @function. The PASS was vacuous: getComputedStyle read every custom property as \"\", so --actual and --expected matched. Custom-property reads now return real values (0/89). -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/function-conditionals.html": {
+    "expected": "FAIL",
+    "reason": "stylo 0.22 has no @function. The PASS was vacuous: getComputedStyle read every custom property as \"\", so --actual and --expected matched. Custom-property reads now return real values (0/22). -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/function-parameter-types.tentative.html": {
+    "expected": "FAIL",
+    "reason": "stylo 0.22 has no @function. The PASS was vacuous: getComputedStyle read every custom property as \"\", so --actual and --expected matched. Custom-property reads now return real values (0/7). -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/function-shadow.html": {
+    "expected": "FAIL",
+    "reason": "stylo 0.22 has no @function. The PASS was vacuous: getComputedStyle read every custom property as \"\", so --actual and --expected matched. Custom-property reads now return real values (1/11). -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/local-if-substitution.html": {
+    "expected": "FAIL",
+    "reason": "stylo 0.22 has neither @function nor if(). The PASS was vacuous: getComputedStyle read every custom property as \"\", so --actual and --expected matched. Custom-property reads now return real values (0/20). -- acceptedRegression: a missing feature exposed, not a behaviour change. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   }
 }
