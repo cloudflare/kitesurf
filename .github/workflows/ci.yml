@@ -16,28 +16,50 @@ concurrency:
 # The e2e, Playwright and WPT suites need more memory than a standard hosted runner has, so CI runs
 # only the build and the lighter lanes. Run the others locally (AGENTS.md, "Running").
 jobs:
-  # One job, so the Rust crates compile once: the tests and the dev build share one Bazel output
-  # tree, and the checks, the lint tests, the Rust host tests and the vitest suite one invocation.
-  ci:
+  # Keep the wasm consumers together: splitting Vitest's three Bazel shards across runners would
+  # compile the engine three times. Native tests have no wasm dependency and run independently.
+  bazel:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: engine
+            name: build
+            targets: //:check //packages/engine:vitest //packages/engine:dev_build
+            free-disk-space: "true"
+          - lane: rust-tests
+            name: test
+            targets: //packages/core:host_tests
+            free-disk-space: "false"
     steps:
       - uses: actions/checkout@v4
       - id: setup
         uses: ./.github/actions/setup
         with:
-          rust: "true"
           bazel-cache: "true"
-      - run: pnpm install --frozen-lockfile
-      - run: bazel test --keep_going --test_output=errors //:check //packages/core:host_tests //packages/engine:vitest
-      - run: pnpm run build
+          bazel-cache-scope: ${{ matrix.lane }}
+          free-disk-space: ${{ matrix.free-disk-space }}
+      - name: Run checks and tests
+        run: bazel test --keep_going --test_output=errors ${{ matrix.targets }}
+      - name: Stage the dev build
+        if: matrix.lane == 'engine'
+        run: pnpm run build
       - name: Fail on generated drift
+        if: matrix.lane == 'engine'
         run: git diff --exit-code
-      - run: pnpm run format:check
-      # Before lint: the lint runs this checker with cargo --offline, so its crates must be fetched.
-      - run: cargo test --manifest-path scripts/lint/rust-check/Cargo.toml --locked nesting
-      - run: pnpm run lint
-      - run: bazel run //scripts:workspace_checks
+      - name: Upload failed test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.lane }}
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test.xml
+          retention-days: 7
+          if-no-files-found: ignore
       - if: always()
         run: df -h /
       # Only main saves, so PR runs cannot evict main's entry from the 10 GB repository quota. Save
@@ -51,3 +73,37 @@ jobs:
             ~/.cache/bazel-disk
             ~/.cache/bazel-repo
           key: ${{ steps.setup.outputs.bazel-cache-key }}
+
+  # Source checks need neither the wasm build nor its multi-gigabyte cache. Only this lane uses
+  # rustup and Cargo, for rustfmt, Clippy and the nesting checker.
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          rust: "true"
+      - name: Check formatting
+        run: pnpm run format:check
+      - name: Check workspace boundaries and license headers
+        run: bazel run //scripts:workspace_checks
+      # Before lint: the lint runs this checker with cargo --offline, so its crates must be fetched.
+      - name: Test the Rust nesting checker
+        run: cargo test --manifest-path scripts/lint/rust-check/Cargo.toml --locked nesting
+      - name: Lint sources
+        run: pnpm run lint
+
+  # One merge gate that fails if any work job fails or is skipped.
+  verify:
+    name: verify
+    if: always()
+    needs: [bazel, lint]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every lane to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: jq -e 'all(.[]; .result == "success")' <<< "$RESULTS"

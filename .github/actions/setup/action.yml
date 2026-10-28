@@ -9,6 +9,14 @@ inputs:
     description: Restore Bazel's disk and repository caches; the job saves them itself.
     required: false
     default: "false"
+  bazel-cache-scope:
+    description: Isolate caches for lanes that build different targets.
+    required: false
+    default: shared
+  free-disk-space:
+    description: Remove unused runner SDKs before a large build.
+    required: false
+    default: "false"
 outputs:
   bazel-cache-key:
     description: The key the job saves the Bazel caches under.
@@ -21,7 +29,7 @@ runs:
   steps:
     # A cold Bazel build of every lane fills the runner's root disk. Drop SDKs the jobs never use;
     # keep /opt/hostedtoolcache, where setup-node finds Node.
-    - if: inputs.bazel-cache == 'true'
+    - if: inputs.free-disk-space == 'true'
       name: Free disk space
       shell: bash
       run: |
@@ -41,11 +49,10 @@ runs:
     - uses: actions/setup-node@v4
       with:
         node-version: 22
-        cache: pnpm
     - if: inputs.rust == 'true'
       shell: bash
       run: rustup show
-    # Holds the cargo clippy output of `pnpm run lint`; Bazel never writes packages/core/target.
+    # Holds the Cargo clippy output of `pnpm run lint`; Bazel never writes packages/core/target.
     # Only main saves, so PR runs cannot evict main's entries from the 10 GB repository quota.
     - if: inputs.rust == 'true'
       uses: Swatinem/rust-cache@v2
@@ -55,11 +62,13 @@ runs:
         cache-on-failure: "true"
     # The runner image ships bazelisk as `bazel`. CI must never rewrite MODULE.bazel.lock: a stale
     # one is a commit missing its lockfile update.
+    - name: Enforce the Bazel lockfile
+      shell: bash
+      run: echo "common --lockfile_mode=error" >> .bazelrc.user
     - if: inputs.bazel-cache == 'true'
       shell: bash
       run: |
         {
-          echo "common --lockfile_mode=error"
           echo "common --disk_cache=$HOME/.cache/bazel-disk"
           echo "common --repository_cache=$HOME/.cache/bazel-repo"
         } >> .bazelrc.user
@@ -71,7 +80,7 @@ runs:
         path: |
           ~/.cache/bazel-disk
           ~/.cache/bazel-repo
-        key: bazel-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock', 'Cargo.lock', 'pnpm-lock.yaml') }}-${{ github.sha }}
+        key: bazel-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bazel-cache-scope }}-${{ hashFiles('MODULE.bazel.lock', 'Cargo.lock', 'pnpm-lock.yaml') }}-${{ github.sha }}
         restore-keys: |
-          bazel-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock', 'Cargo.lock', 'pnpm-lock.yaml') }}-
-          bazel-${{ runner.os }}-
+          bazel-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bazel-cache-scope }}-${{ hashFiles('MODULE.bazel.lock', 'Cargo.lock', 'pnpm-lock.yaml') }}-
+          bazel-${{ runner.os }}-${{ runner.arch }}-${{ inputs.bazel-cache-scope }}-
