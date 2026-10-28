@@ -5125,32 +5125,29 @@ function queryDomOuterHTML(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"getOuterHTML"> {
   const id = numericNodeId(queryArgs) ?? 0;
-  try {
-    const rawOuterHTML = pageState.dom.outerHTML(id);
-    const sourceDoctype =
-      state.document?.doctype?.parentNode === state.document ? state.sourceDoctype : null;
-    const markerMarkup = state.sourceDoctype ? `<!--${state.sourceDoctype.marker}-->` : null;
-    const markerIndex = id === 0 && markerMarkup ? rawOuterHTML.indexOf(markerMarkup) : -1;
-    const outerHTML =
-      markerIndex >= 0 && markerMarkup
-        ? rawOuterHTML.slice(0, markerIndex) + rawOuterHTML.slice(markerIndex + markerMarkup.length)
-        : rawOuterHTML;
-    if (
-      id !== 0 ||
-      queryArgs.includeDoctype !== true ||
-      !sourceDoctype ||
-      markerIndex < 0 ||
-      /^(?:\s|<!--[\s\S]*?-->)*<!doctype\b/i.test(outerHTML)
-    ) {
-      return { outerHTML } satisfies QueryDomResult<"getOuterHTML">;
-    }
-    return {
-      outerHTML:
-        outerHTML.slice(0, markerIndex) + sourceDoctype.markup + outerHTML.slice(markerIndex),
-    } satisfies QueryDomResult<"getOuterHTML">;
-  } catch {
-    return { outerHTML: "" } satisfies QueryDomResult<"getOuterHTML">;
+  // Let a serialization failure reach the CDP caller; an empty string reads as an empty page.
+  const rawOuterHTML = pageState.dom.outerHTML(id);
+  const sourceDoctype =
+    state.document?.doctype?.parentNode === state.document ? state.sourceDoctype : null;
+  const markerMarkup = state.sourceDoctype ? `<!--${state.sourceDoctype.marker}-->` : null;
+  const markerIndex = id === 0 && markerMarkup ? rawOuterHTML.indexOf(markerMarkup) : -1;
+  const outerHTML =
+    markerIndex >= 0 && markerMarkup
+      ? rawOuterHTML.slice(0, markerIndex) + rawOuterHTML.slice(markerIndex + markerMarkup.length)
+      : rawOuterHTML;
+  if (
+    id !== 0 ||
+    queryArgs.includeDoctype !== true ||
+    !sourceDoctype ||
+    markerIndex < 0 ||
+    /^(?:\s|<!--[\s\S]*?-->)*<!doctype\b/i.test(outerHTML)
+  ) {
+    return { outerHTML } satisfies QueryDomResult<"getOuterHTML">;
   }
+  return {
+    outerHTML:
+      outerHTML.slice(0, markerIndex) + sourceDoctype.markup + outerHTML.slice(markerIndex),
+  } satisfies QueryDomResult<"getOuterHTML">;
 }
 
 type QueryDomSelectorReadMethod = Extract<
