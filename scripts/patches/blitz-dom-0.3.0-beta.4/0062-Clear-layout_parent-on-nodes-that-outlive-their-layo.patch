@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 28 Sep 2026 14:28:31 +0100
+Subject: [PATCH] Clear layout_parent on nodes that outlive their layout parent
+
+A node's layout parent is not always its DOM parent: inline runs beside
+a block sit in an anonymous block, slottables under a shadow-tree box.
+Re-collection frees the old anonymous blocks, and a node detached in the
+same pass is not collected again, so it kept a layout_parent into a
+freed slab slot. The next getBoundingClientRect walked it and panicked
+(node.rs absolute_position, 1152 times on the DevTools Elements panel,
+each one a panic-recovery round).
+
+remove_node_from_tree now clears layout_parent on every surviving child
+or layout child that still points at the node being removed.
+---
+ src/document.rs | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index 3e25f5c..86acc17 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1214,5 +1214,23 @@ impl BaseDocument {
+     /// it so that stale NodeIds are never dereferenced after the slot is freed.
+     pub(crate) fn remove_node_from_tree(&mut self, node_id: NodeId) -> Option<Node> {
+         self.clear_interaction_state_for_removed_node(node_id);
++        // Anonymous blocks, slots and hoist targets lay out nodes they do not own,
++        // which outlive them here; a dangling layout_parent panics every rect walk.
++        let laid_out: Vec<NodeId> = self
++            .nodes
++            .get(node_id)
++            .map(|node| {
++                let mut ids = node.children.to_vec();
++                ids.extend(node.layout_children.borrow().iter().flatten().copied());
++                ids
++            })
++            .unwrap_or_default();
++        for child_id in laid_out {
++            if let Some(child) = self.nodes.get(child_id) {
++                if child.layout_parent.get() == Some(node_id) {
++                    child.layout_parent.set(None);
++                }
++            }
++        }
+         self.nodes.remove(node_id)
+     }

@@ -16,7 +16,7 @@ ratatui-image = { version = "=8.1.1", default-features = false }
 # Stylo (Servo/Firefox CSS engine). Used directly by `style/cssom.rs` for
 # stylesheet parsing exposed to JS, and indirectly by Blitz for
 # cascade + computed styles. Pin matches the version blitz
-# 0.3.0-beta.3 uses so we don't end up with two Stylos in the
+# 0.3.0-beta.4 uses so we don't end up with two Stylos in the
 # build.
 stylo = { version = "0.22", default-features = false, features = ["servo"] }
 stylo_atoms = "0.22"
@@ -84,14 +84,14 @@ foldhash = "0.2"
 # html5ever/markup5ever (the blitz-dom re-export comment near the blitz block
 # still holds — one QualName universe per build).
 html5ever = "=0.40.1"
-blitz-traits = { version = "=0.3.0-beta.3", default-features = false }
-blitz-dom = { version = "=0.3.0-beta.3", default-features = false, features = [
+blitz-traits = { version = "=0.3.0-beta.4", default-features = false }
+blitz-dom = { version = "=0.3.0-beta.4", default-features = false, features = [
   "svg",
   "floats",
   "woff",
 ] }
-blitz-html = { version = "=0.3.0-beta.3", default-features = false }
-blitz-paint = { version = "=0.3.0-beta.3", default-features = false, features = ["svg"] }
+blitz-html = { version = "=0.3.0-beta.4", default-features = false }
+blitz-paint = { version = "=0.3.0-beta.4", default-features = false, features = ["svg"] }
 # Direct dep so getBoundingClientRect can read a shape's bbox out of
 # the inline-svg snapshot blitz-dom already holds (svg_canvas_bbox);
 # the crate is in the artifact through blitz-dom either way.

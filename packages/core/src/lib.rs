@@ -8,7 +8,9 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use blitz_dom::{BaseDocument, DocumentConfig, NodeData, DEFAULT_CSS as BLITZ_DEFAULT_CSS};
+use blitz_dom::{
+    BaseDocument, DocumentConfig, NodeData, UserAgentStylesheet, DEFAULT_CSS as BLITZ_DEFAULT_CSS,
+};
 use blitz_html::{HtmlDocument, HtmlProvider};
 use blitz_traits::NodeId;
 use wasm_bindgen::prelude::*;
@@ -220,17 +222,17 @@ pub(crate) static STYLE_CASCADE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mut
 static DIMS_ONLY_IMAGES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 thread_local! {
-    static TTY_UA_CSS: std::cell::RefCell<Option<String>> =
+    static TTY_UA_SHEET: std::cell::RefCell<Option<UserAgentStylesheet>> =
         const { std::cell::RefCell::new(None) };
 }
 
 #[wasm_bindgen(js_name = "setTtyUaCss")]
 pub fn set_tty_ua_css(css: String) {
-    TTY_UA_CSS.with(|c| {
+    TTY_UA_SHEET.with(|c| {
         *c.borrow_mut() = if css.trim().is_empty() {
             None
         } else {
-            Some(css)
+            Some(UserAgentStylesheet::parse(&css))
         };
     });
 }
@@ -245,8 +247,8 @@ pub fn set_tty_cell_grid(w: f32, h: f32) {
     TTY_CELL.with(|c| c.set(if ok(w) && ok(h) { Some((w, h)) } else { None }));
 }
 
-fn tty_ua_sheet() -> Option<String> {
-    TTY_UA_CSS.with(|c| c.borrow().clone())
+fn tty_ua_sheet() -> Option<UserAgentStylesheet> {
+    TTY_UA_SHEET.with(|c| c.borrow().clone())
 }
 
 static DARK_COLOR_SCHEME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -464,8 +466,8 @@ impl DomHandle {
             ..Default::default()
         };
         let mut doc = HtmlDocument::from_html(html, config);
-        if let Some(css) = tty_ua_sheet() {
-            doc.add_user_agent_stylesheet(&css);
+        if let Some(sheet) = tty_ua_sheet() {
+            doc.add_user_agent_stylesheet(sheet);
         }
         if let Some((cw, ch)) = TTY_CELL.with(|c| c.get()) {
             let base: &mut BaseDocument = doc.as_mut();

@@ -1,0 +1,517 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 4 Aug 2026 11:36:12 +0100
+Subject: [PATCH] Keep incremental layout from losing content
+
+The `incremental` feature gates box construction on damage, so
+resolve_layout_children only re-collects a node whose damage carries
+CONSTRUCT_FC | CONSTRUCT_BOX. Everything that used to be rebuilt on
+every pass now has to earn it, and several things silently stopped
+happening.
+
+A node with no cached layout_children re-collects regardless: it has
+nothing to skip to, and a panic mid-layout would otherwise strand it as
+None and resolve the whole page to zero height.
+
+Inline <svg> serializes to usvg at box construction, and SVG-internal
+attributes cascade to nothing, so stylo computes no damage and the
+snapshot froze. set_attribute now walks to the outermost enclosing <svg>
+and stamps CONSTRUCT_BOX.
+
+Inline containers that a measure pass left at max-content, and inlines a
+re-collect clobbered, are re-broken against the box the node actually
+kept rather than by rebuilding the float context. A rebuilt tree has no
+lines and only taffy makes lines, so "no lines" now counts as a
+break-width mismatch too. Nodes that registered floats bust their layout
+cache.
+
+restore_clobbered_inline_breaks has nothing dirty to key off, so it
+runs every resolve. Its inline roots come from an index appended at the
+four sites that install inline_layout_data, pruned in the same retain
+that performs the width check and sorted only when a push site ran,
+instead of a walk over the whole slab. On a 271k-node page only 82.8k
+nodes carry inline_layout_data, and hunting for them cost 3.9ms of an
+8.1ms layout phase (now 6.4ms). A root escaping the index would
+silently never re-break, so a debug_assert re-derives the set the slow
+way on every debug resolve.
+---
+ src/document.rs      |  9 ++++
+ src/layout/inline.rs | 99 +++++++++++++++++++++++++++++++++++---------
+ src/layout/mod.rs    | 11 +++--
+ src/mutator.rs       | 44 +++++++++++++++++++-
+ src/node/node.rs     |  8 ++++
+ src/node/text.rs     | 23 +++++++++-
+ src/resolve.rs       | 82 +++++++++++++++++++++++++++++++++++-
+ 7 files changed, 248 insertions(+), 28 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 49cf471..41b99e7 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -407,6 +407,13 @@ pub struct BaseDocument {
+     pub(crate) iframe_loads: HashMap<NodeId, crate::iframe::IframeLoad>,
+     /// Set of changed nodes for updating the accessibility tree
+     pub(crate) changed_nodes: HashSet<NodeId>,
++    /// Nodes that have been given inline_layout_data. A superset, pruned
++    /// where it is read: restore_clobbered_inline_breaks only cares about
++    /// inline roots, and scanning the slab to find them dominated layout.
++    pub(crate) inline_roots: Vec<NodeId>,
++    /// Length of `inline_roots` when it was last left sorted+deduped, so a
++    /// frame that pushed nothing new can skip re-sorting 80k+ entries.
++    pub(crate) inline_roots_settled: usize,
+     /// Set of changed nodes for updating the accessibility tree
+     pub(crate) deferred_construction_nodes: Vec<ConstructionTask>,
+
+@@ -596,6 +603,8 @@ impl BaseDocument {
+             pending_resource_deallocations: Vec::new(),
+
+             changed_nodes: HashSet::new(),
++            inline_roots: Vec::new(),
++            inline_roots_settled: 0,
+             deferred_construction_nodes: Vec::new(),
+             image_cache: HashMap::new(),
+             dims_only_images: config.dims_only_images,
+diff --git a/src/layout/inline.rs b/src/layout/inline.rs
+index 2a789e5..71935b5 100644
+--- a/src/layout/inline.rs
++++ b/src/layout/inline.rs
+@@ -339,6 +339,7 @@ impl LayoutPassState<'_> {
+                 .downcast_element_mut()
+                 .unwrap()
+                 .inline_layout_data = Some(inline_layout);
++            self.inline_roots.push(node_id);
+             return LayoutOutput::from_outer_size(
+                 Size::ZERO.maybe_max(container_pb.sum_axes().map(Some)),
+             );
+@@ -638,6 +639,7 @@ impl LayoutPassState<'_> {
+                 .downcast_element_mut()
+                 .unwrap()
+                 .inline_layout_data = Some(inline_layout);
++            self.inline_roots.push(node_id);
+
+             let measured_size = inputs.known_dimensions.unwrap_or(taffy::Size {
+                 width: width.ceil() / scale,
+@@ -663,6 +665,11 @@ impl LayoutPassState<'_> {
+             .layout
+             .set_text_indent(resolved_text_indent * scale, indent_options);
+
++        // Remember the content width these lines were broken
++        // at, in CSS px. A later measure pass can clobber parley, and
++        // resolve re-breaks to this width to put it back.
++        inline_layout.last_break_width = width / scale;
++
+         #[cfg(not(feature = "floats"))]
+         {
+             inline_layout.layout.break_all_lines(Some(width));
+@@ -756,6 +763,7 @@ impl LayoutPassState<'_> {
+                             clear,
+                             false,
+                         );
++                        self.nodes[node_id].placed_floats.set(true);
+
+                         let min_y = state.line_y() / scale as f64; //.max(pos.y as f64);
+                         let next_slot =
+@@ -805,17 +813,7 @@ impl LayoutPassState<'_> {
+             breaker.finish();
+         }
+
+-        // -webkit-box + orient:vertical + line-clamp:N was rewritten to
+-        // flow-root at computed-value time; the stylo flag says clamp here.
+-        let clamp_lines = self.nodes[node_id].primary_styles().and_then(|s| {
+-            use style::computed_value_flags::ComputedValueFlags;
+-            if !s.flags.contains(ComputedValueFlags::IS_WEBKIT_LINE_CLAMP_CONTEXT) {
+-                return None;
+-            }
+-            let clamp = s.get_box().clone__webkit_line_clamp();
+-            (!clamp.is_none()).then(|| clamp.0.max(1) as usize)
+-        });
+-        if let Some(max_lines) = clamp_lines {
++        if let Some(max_lines) = self.inline_clamp_lines(node_id) {
+             inline_layout.layout.truncate_lines(max_lines);
+         }
+
+@@ -828,15 +826,7 @@ impl LayoutPassState<'_> {
+             container_pb.top + float_height_contribution,
+         );
+
+-        let (alignment, last_line_alignment) = self.nodes[node_id]
+-            .primary_styles()
+-            .map(|s| {
+-                (
+-                    stylo_to_parley::text_align(s.clone_text_align()),
+-                    stylo_to_parley::text_align_last(s.clone_text_align_last()),
+-                )
+-            })
+-            .unwrap_or((parley::layout::Alignment::Start, None));
++        let (alignment, last_line_alignment) = self.inline_alignment(node_id);
+
+         inline_layout.layout.align(
+             alignment,
+@@ -933,8 +923,16 @@ impl LayoutPassState<'_> {
+         // Store sizes and positions of inline boxes
+         let mut ibox_order: u32 = 0;
+         let mut span_cb_flags = StyleFlags::empty();
++        // A measure pass must not commit geometry. It runs at
++        // max-content, so writing positions here parks an inline box off
++        // the right edge of the narrower box the container committed to,
++        // and it clips away.
++        let commit_positions = inputs.run_mode == taffy::RunMode::PerformLayout;
+         for line in inline_layout.layout.lines() {
+             for item in line.items() {
++                if !commit_positions {
++                    break;
++                }
+                 if let parley::layout::PositionedLayoutItem::InlineBox(ibox) = item {
+                     let order = ibox_order;
+                     ibox_order += 1;
+@@ -1198,6 +1196,7 @@ impl LayoutPassState<'_> {
+             .downcast_element_mut()
+             .unwrap()
+             .inline_layout_data = Some(inline_layout);
++        self.inline_roots.push(node_id);
+
+         let oof_position_inset = taffy::Rect {
+             left: border.left,
+@@ -1245,3 +1244,63 @@ impl LayoutPassState<'_> {
+ fn f32_max(a: f32, b: f32) -> f32 {
+     a.max(b)
+ }
++
++impl crate::BaseDocument {
++    // Re-break a container's text to a width it already
++    // committed to, without re-running layout. Repairing at the parley
++    // level is deliberate: replaying `compute_inline_layout` would need
++    // a block context that is gone by now, and passing `None` builds a
++    // fresh BFC whose empty float bands relocate every float to the top.
++    pub(crate) fn rebreak_inline_to_width(&mut self, node_id: NodeId, css_width: f32) {
++        let scale = self.viewport.scale();
++        let clamp_lines = self.inline_clamp_lines(node_id);
++        let (alignment, last_line_alignment) = self.inline_alignment(node_id);
++        let Some(inline_layout) = self.nodes[node_id]
++            .data
++            .downcast_element_mut()
++            .and_then(|el| el.inline_layout_data.as_mut())
++        else {
++            return;
++        };
++        inline_layout.layout.break_all_lines(Some(css_width * scale));
++        if let Some(max_lines) = clamp_lines {
++            inline_layout.layout.truncate_lines(max_lines);
++        }
++        inline_layout.layout.align(
++            alignment,
++            AlignmentOptions {
++                align_when_overflowing: false,
++                last_line_alignment,
++            },
++        );
++        inline_layout.last_break_width = css_width;
++    }
++
++    // -webkit-box + orient:vertical + line-clamp:N was rewritten to
++    // flow-root at computed-value time; the stylo flag says clamp here.
++    fn inline_clamp_lines(&self, node_id: NodeId) -> Option<usize> {
++        self.nodes[node_id].primary_styles().and_then(|s| {
++            use style::computed_value_flags::ComputedValueFlags;
++            if !s.flags.contains(ComputedValueFlags::IS_WEBKIT_LINE_CLAMP_CONTEXT) {
++                return None;
++            }
++            let clamp = s.get_box().clone_line_clamp();
++            clamp.max_lines.lines_value().map(|lines| lines.0.max(1) as usize)
++        })
++    }
++
++    fn inline_alignment(
++        &self,
++        node_id: NodeId,
++    ) -> (parley::layout::Alignment, Option<parley::layout::Alignment>) {
++        self.nodes[node_id]
++            .primary_styles()
++            .map(|s| {
++                (
++                    stylo_to_parley::text_align(s.clone_text_align()),
++                    stylo_to_parley::text_align_last(s.clone_text_align_last()),
++                )
++            })
++            .unwrap_or((parley::layout::Alignment::Start, None))
++    }
++}
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 576fa2a..b5aac78 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -756,10 +756,13 @@ impl taffy::CacheTree for LayoutPassState<'_> {
+         node_id: NodeId,
+         inputs: &taffy::LayoutInput,
+     ) -> Option<taffy::LayoutOutput> {
+-        self.node_from_id_mut(node_id)
+-            .try_layout_data_mut()?
+-            .cache
+-            .get(inputs)
++        let node = self.node_from_id_mut(node_id);
++        // A cached container never re-registers its floats into
++        // the BFC, so later floats see empty bands. Re-run these.
++        if node.placed_floats.get() {
++            return None;
++        }
++        node.try_layout_data_mut()?.cache.get(inputs)
+     }
+
+     #[inline]
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 66b7fce..e667522 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -3,14 +3,14 @@ use std::collections::HashSet;
+ use std::mem;
+ use std::ops::{Deref, DerefMut};
+
+-use crate::layout::damage::ALL_DAMAGE;
++use crate::layout::damage::{ALL_DAMAGE, CONSTRUCT_BOX};
+ use crate::net::{ImageHandler, ResourceHandler, StylesheetHandler};
+ use crate::node::{CanvasData, NodeFlags, ShadowRootMode, SpecialElementData, TextInputData};
+ use crate::stylo_device::DeviceChanges;
+ use crate::util::ImageType;
+ use crate::{
+     Attribute, BaseDocument, Document, ElementData, LocalName, Node, NodeData, QualName,
+-    local_name, qual_name,
++    local_name, ns, qual_name,
+ };
+ use blitz_traits::shell::Viewport;
+ use style::Atom;
+@@ -287,6 +287,44 @@ impl DocumentMutator<'_> {
+         }
+     }
+
++    /// An inline `<svg>` is serialized to usvg once, at box
++    /// construction (see construct.rs), so nothing inside it re-renders
++    /// unless that root's box is rebuilt. The restyle hint a mutation
++    /// leaves behind does not do that: SVG-internal attributes cascade to
++    /// nothing, so stylo computes no damage and incremental layout skips
++    /// the subtree, leaving a stale snapshot on screen forever.
++    fn mark_enclosing_svg_for_reconstruction(&mut self, node_id: NodeId) {
++        // Only an SVG-namespaced node can be part of a snapshot, so every
++        // HTML write (the overwhelming majority) skips the walk here
++        // rather than paying it to reach the root and find nothing.
++        // (HTML inside <foreignObject> is exempt: usvg drops it.)
++        if !self.doc.nodes[node_id]
++            .data
++            .downcast_element()
++            .is_some_and(|el| el.name.ns == ns!(svg))
++        {
++            return;
++        }
++        // The outermost svg is the one holding the snapshot; nested <svg>
++        // elements are serialized as part of it and never construct a box.
++        let mut svg_root = None;
++        let mut cur = Some(node_id);
++        while let Some(id) = cur {
++            let node = &self.doc.nodes[id];
++            if node
++                .data
++                .downcast_element()
++                .is_some_and(|el| el.name.local == local_name!("svg"))
++            {
++                svg_root = Some(id);
++            }
++            cur = node.parent;
++        }
++        if let Some(id) = svg_root {
++            self.doc.nodes[id].insert_damage(CONSTRUCT_BOX);
++        }
++    }
++
+     pub fn set_attribute(&mut self, node_id: NodeId, name: QualName, value: &str) {
+         let node_is_in_document = self.doc.nodes[node_id].flags.is_in_document();
+         if node_is_in_document {
+@@ -323,6 +361,8 @@ impl DocumentMutator<'_> {
+             // Without this, the traversal may skip nodes with pending RestyleHint/damage
+             // because it uses dirty_descendants flags to determine which subtrees to visit.
+             self.doc.nodes[node_id].mark_ancestors_dirty();
++
++            self.mark_enclosing_svg_for_reconstruction(node_id);
+         }
+
+         if name.local == local_name!("id") && node_is_in_document {
+diff --git a/src/node/node.rs b/src/node/node.rs
+index d16e38f..85ed03e 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -139,6 +139,13 @@ pub struct Node {
+     /// paint_parent_override), rebuilt with this node's paint children.
+     pub rehomed_paint_children: RefCell<ThinVec<NodeId>>,
+
++    /// This node's inline pass placed a float into the shared
++    /// block formatting context. Floats are registered as a side effect
++    /// of laying the container out, so serving it from the layout cache
++    /// leaves the bands empty and a later float in the same BFC stacks
++    /// at the top instead of below this one (todomvc's quote columns).
++    pub placed_floats: Cell<bool>,
++
+     /// Union of re-homed paint boxes reachable through this node, in
+     /// this node's own coordinate space (border-box origin), CSS px.
+     /// (x0, y0, x1, y1); None = no re-homed content below here.
+@@ -452,6 +459,7 @@ impl Node {
+             paint_children: RefCell::new(None),
+             paint_parent_override: Cell::new(None),
+             rehomed_paint_children: RefCell::new(ThinVec::new()),
++            placed_floats: Cell::new(false),
+             rehomed_reach: Cell::new(None),
+             stacking_context: None,
+             sc_contribution_cache: RefCell::new(ThinVec::new()),
+diff --git a/src/node/text.rs b/src/node/text.rs
+index 5e2190c..76926cc 100644
+--- a/src/node/text.rs
++++ b/src/node/text.rs
+@@ -21,7 +21,7 @@ impl TextBrush {
+     }
+ }
+
+-#[derive(Clone, Default)]
++#[derive(Clone)]
+ pub struct TextLayout {
+     pub text: String,
+     pub content_widths: Option<ContentWidths>,
+@@ -38,6 +38,27 @@ pub struct TextLayout {
+     // (measured committed+pending around each push), consumed by
+     // the DOM-selection paint bridge with clamping.
+     pub node_ranges: Vec<(NodeId, core::ops::Range<usize>)>,
++    /// Content width `layout` currently holds lines for, or
++    /// NaN when it holds none: a rebuilt tree has no lines until
++    /// something breaks it. resolve compares this against the committed
++    /// box and re-breaks on either mismatch. See restore_clobbered_inline_breaks.
++    pub last_break_width: f32,
++}
++
++impl Default for TextLayout {
++    fn default() -> Self {
++        Self {
++            text: String::new(),
++            content_widths: None,
++            layout: parley::layout::Layout::default(),
++            block_offset: 0.0,
++            span_cb_flags: stylo_taffy::StyleFlags::empty(),
++            node_ranges: Vec::new(),
++            // NaN = no lines yet; the repair scan gives it some once
++            // the node has a committed box.
++            last_break_width: f32::NAN,
++        }
++    }
+ }
+
+ impl TextLayout {
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 8f5963d..39c2ca9 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -382,7 +382,15 @@ impl BaseDocument {
+             let mut damage = doc.nodes[node_id].damage().unwrap_or(ALL_DAMAGE);
+             let _flags = doc.nodes[node_id].flags;
+
+-            if damage.intersects(CONSTRUCT_FC | CONSTRUCT_BOX) {
++            // A node with no cached children has nothing to skip
++            // TO, so it must re-collect whatever its damage says. The skip
++            // branch below take()s the list and restores it at the end, so
++            // a panic anywhere in between (the embedder recovers from wasm
++            // panics) leaves it None forever. Without this the
++            // whole page silently resolves to zero height on the next pass.
++            let ks_gate_open = damage.intersects(CONSTRUCT_FC | CONSTRUCT_BOX)
++                || doc.nodes[node_id].layout_children.borrow().is_none();
++            if ks_gate_open {
+                 //} || flags.contains(NodeFlags::IS_INLINE_ROOT) {
+
+                 // Deallocate the anonymous blocks created for this node in the
+@@ -515,6 +523,9 @@ impl BaseDocument {
+                     let font_ctx_mut = &mut *self.font_ctx.lock().unwrap();
+
+                     layout.content_widths = None;
++                    // The rebuild throws the lines away with the tree, so
++                    // the recorded break width describes nothing.
++                    layout.last_break_width = f32::NAN;
+                     build_inline_layout_into(
+                         &self.nodes,
+                         layout_ctx_mut,
+@@ -551,6 +562,7 @@ impl BaseDocument {
+                         .element_data_mut()
+                         .unwrap()
+                         .inline_layout_data = Some(layout);
++                    self.inline_roots.push(result.node_id);
+                 }
+             }
+         }
+@@ -592,7 +604,75 @@ impl BaseDocument {
+         #[cfg(not(feature = "writing-mode"))]
+         taffy::round_layout(&mut state, root_element_id);
+
++        self.restore_clobbered_inline_breaks();
++
+         // println!("\n\n");
+         // taffy::print_tree(self, root_node_id)
+     }
++
++    /// A measure pass can run after a container's final layout pass and
++    /// leave parley broken at max-content, so card text painted on one
++    /// 474px line inside a 249px block. Nothing dirties afterwards,
++    /// so there is no later resolve to correct it. Re-break any container
++    /// whose lines do not match the box it committed to, back to that
++    /// box. Steady state finds none.
++    ///
++    /// NaN is the other half of "doesn't match": box construction rebuilds
++    /// the parley tree with no lines at all, and taffy only re-breaks it
++    /// if an ancestor relaid out: so construct damage under a warm
++    /// ancestor left todomvc's quote paragraph correctly sized and blank.
++    ///
++    /// This walks every node on every resolve, deliberately: the whole
++    /// reason it exists is that nothing is left dirty to key off, so a
++
++    /// damage gate would skip exactly the passes it has to run on.
++    /// Non-inline nodes bail on the downcast, well under the cascade above.
++    fn restore_clobbered_inline_breaks(&mut self) {
++        let mut stale: Vec<(NodeId, f32)> = Vec::new();
++        let mut roots = std::mem::take(&mut self.inline_roots);
++        // Only the push sites can add duplicates or unsorted ids; if none ran
++        // this frame the vec is still sorted from last time.
++        if roots.len() > self.inline_roots_settled {
++            roots.sort_unstable();
++            roots.dedup();
++        }
++        debug_assert!(
++            !self.nodes.iter().any(|(id, n)| n
++                .data
++                .downcast_element()
++                .is_some_and(|el| el.inline_layout_data.is_some())
++                && roots.binary_search(&id).is_err()),
++            "an inline root escaped the index; its breaks would never restore"
++        );
++        // Prune dead entries in the same pass that checks them: retain keeps
++        // the sort order, so the invariant above survives.
++        let nodes = &self.nodes;
++        roots.retain(|&id| {
++            let Some(node) = nodes.get(id) else {
++                return false;
++            };
++            let Some(inline) = node
++                .data
++                .downcast_element()
++                .and_then(|el| el.inline_layout_data.as_ref())
++            else {
++                return false;
++            };
++            let l = node.final_layout();
++            let content_w =
++                l.size.width - l.padding.left - l.padding.right - l.border.left - l.border.right;
++            if content_w > 0.0 {
++                let unbroken = !inline.last_break_width.is_finite();
++                if unbroken || (content_w - inline.last_break_width).abs() > 0.5 {
++                    stale.push((id, content_w));
++                }
++            }
++            true
++        });
++        self.inline_roots_settled = roots.len();
++        self.inline_roots = roots;
++        for (id, content_w) in stale {
++            self.rebreak_inline_to_width(id, content_w);
++        }
++    }
+ }

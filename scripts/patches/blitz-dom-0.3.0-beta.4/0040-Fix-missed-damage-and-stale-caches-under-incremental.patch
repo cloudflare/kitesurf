@@ -1,0 +1,268 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 12 Aug 2026 16:50:25 +0100
+Subject: [PATCH] Fix missed damage and stale caches under incremental layout
+
+Each of these left a node with stale style, boxes or layout once box
+construction became damage-gated.
+
+remove_node marked the parent's ancestors dirty and stamped damage, but
+never put a RestyleHint on the parent itself, unlike its sibling
+remove_and_drop_node. The traversal therefore reached the parent's
+subtree without anything asking for a recascade, so every selector that
+reads the parent's child list kept stale style after a removeChild:
+:empty, :nth-child and :has all reproduce.
+
+This is the detach-without-drop path that a DOM's removeChild and
+Element.remove use, so page JS hits it directly.
+
+`YieldData::InlineBoxBreak` binds the float's id as `node_id`, shadowing
+the container the whole function is laying out; so the cache bust meant
+for the container landed on the float box. The container it was written
+to protect kept cache-hitting, and its floats never re-registered into
+the block formatting context: a float in a sibling container held the
+band position the first float had before it grew.
+
+The float's id is `float_id` now, which is what the shadowing cost us.
+
+Retire the flag where the node's boxes are rebuilt rather than latching
+it for the document's life. The inline pass is the wrong place to clear
+it: `float:none` restructures the content into anonymous blocks and the
+old container never runs an inline pass again, so it would bust its
+cache forever. A float change is box-tree damage, so the re-collect that
+handles it is exactly the point the registration stops being true.
+
+Under incremental layout, stylo computes RestyleDamage::RELAYOUT for
+style changes that affect layout but not box structure (min-height,
+width, height). The damage gate in resolve_layout_children only
+re-collects for CONSTRUCT_FC | CONSTRUCT_BOX, so RELAYOUT-only nodes
+keep their old layout_children but should still have their layout
+recomputed. Taffy's cache is keyed on available_space and parent_size,
+not on style, so a style change without a cache clear returns stale
+layout.
+
+1. propagate_damage_flags now clears node.cache when the damage
+   contains RELAYOUT, in addition to ONLY_RELAYOUT | CONSTRUCT_BOX.
+   Stylo's damage levels are cumulative masks: REPAINT,
+   REBUILD_STACKING_CONTEXT and RECALCULATE_OVERFLOW are all subsets of
+   RELAYOUT, so the test is contains(), not intersects(). Otherwise a
+   transform or opacity change cleared every ancestor's taffy cache, and
+   each CSS animation tick re-ran grid track sizing up the tree.
+2. Table roots cache a TableContext during box construction that
+   includes table styles (min-height, border-spacing). Under incremental
+   layout this context never updates for RELAYOUT-only changes, so force
+   CONSTRUCT_BOX on table roots with RELAYOUT and build_table_context
+   re-runs.
+
+Fixes table-grid-item-dynamic-002 and related incremental layout
+regressions where dynamic style changes on tables were ignored.
+
+border-spacing, border-collapse, caption-side and empty-cells are
+inherited, and an anonymous table wrapper only ever picks them up from
+its parent via style_for_anonymous during box construction.
+
+compute_layout_damage did not look at the InheritedTable struct, so a
+change to any of them fell through to bare RELAYOUT. The parent never
+re-collected, create_anonymous_table never re-ran, and the wrapper kept
+the border-spacing it was created with.
+
+Stylo itself declares all four servo_restyle_damage="rebuild_box"; this
+just stops blitz's hand-rolled damage from dropping that on the floor.
+
+Inserting a node under a parent that is not yet on a dirty path left the
+traversal blind to the new child, so newly inserted nested shadow
+content was never styled or collected. Mark the parent's descendants
+dirty on insertion so the next layout pass reaches the new children.
+
+invalidate_inline_contexts damages every inline root so its text
+re-shapes, but for an anonymous root it damaged only the layout parent.
+That works for wrapper blocks, because the parent's re-collect frees and
+rebuilds them. A pseudo-element is anonymous too, but it lives in the
+element's before/after slot and the re-collect reuses it. So a block
+whose only text is its own ::before kept the glyphs it shaped before the
+webfont arrived. desmos.com's icons (<i> blocks and flex items with
+::before content) painted as tofu for the whole session.
+
+Damage the anonymous root itself as well as its parent.
+
+An atomic inline's vertical-align becomes its parley
+InlineBox::vertical_align when the box is constructed, so a change to
+baseline-shift or alignment-baseline has to reconstruct the box. Without
+it a vertical-align change left the box at its old shift.
+
+Co-authored-by: Rui Figueira <rfigueira@cloudflare.com>
+---
+ src/layout/damage.rs | 43 ++++++++++++++++++++++++++++++++++++++++---
+ src/layout/inline.rs | 10 ++++++----
+ src/mutator.rs       | 12 ++++++++++++
+ src/resolve.rs       |  5 +++++
+ 4 files changed, 63 insertions(+), 7 deletions(-)
+
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index 5d8373a..b3e7531 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -113,6 +113,18 @@ impl BaseDocument {
+             damage.insert(RestyleDamage::RELAYOUT);
+         }
+
++        // Table roots cache a TableContext during box construction
++        // that includes the table's style (min-height, border-spacing, etc.).
++        // Under incremental layout, RELAYOUT damage does not re-collect, so the
++        // TableContext stays stale and taffy reads old styles. Force box
++        // reconstruction for table roots whenever their layout styles change.
++        if damage.contains(RestyleDamage::RELAYOUT)
++            && !damage.contains(CONSTRUCT_BOX)
++            && self.nodes[node_id].flags.is_table_root()
++        {
++            damage.insert(CONSTRUCT_BOX);
++        }
++
+         // Compute damage to propagate to parent
+         let mut damage_for_parent = damage; // & RestyleDamage::RELAYOUT;
+
+@@ -144,8 +156,15 @@ impl BaseDocument {
+
+         // If the node or any of it's children have been mutated or their layout styles
+         // have changed, then we should clear it's layout cache.
++        //
++        // Stylo's damage levels are cumulative masks (REPAINT is a subset of
++        // RELAYOUT), so only `contains` means relayout. `intersects` cleared
++        // every ancestor's cache for a transform or opacity change, and each
++        // CSS animation tick re-ran grid track sizing up the tree.
+         let mut invalidate_anonymous_ancestors = false;
+-        if damage.intersects(ONLY_RELAYOUT | CONSTRUCT_BOX) {
++        if damage.intersects(ONLY_RELAYOUT | CONSTRUCT_BOX)
++            || damage.contains(RestyleDamage::RELAYOUT)
++        {
+             node.invalidate_layout_cache();
+             invalidate_anonymous_ancestors = true;
+             damage.remove(ONLY_RELAYOUT);
+@@ -398,6 +417,11 @@ pub(crate) fn compute_layout_damage(old: &ComputedValues, new: &ComputedValues)
+             || old_box.position != new_box.position
+             || old_box.contain != new_box.contain
+             || old.clone_visibility() != new.clone_visibility()
++            // An atomic inline's vertical-align becomes its parley
++            // InlineBox::vertical_align when the box is constructed, so a change
++            // has to reconstruct it or the box keeps its old shift.
++            || old.clone_baseline_shift() != new.clone_baseline_shift()
++            || old.clone_alignment_baseline() != new.clone_alignment_baseline()
+         {
+             return true;
+         }
+@@ -406,6 +430,15 @@ pub(crate) fn compute_layout_damage(old: &ComputedValues, new: &ComputedValues)
+             return true;
+         }
+
++        // border-spacing/-collapse/caption-side/empty-cells are inherited, and reach an
++        // anonymous table wrapper only via style_for_anonymous at box-construction time.
++
++        // Stylo declares them servo_restyle_damage="rebuild_box"; without a rebuild here the
++        // parent never re-collects, so the wrapper keeps the values it was created with.
++        if old.get_inherited_table() != new.get_inherited_table() {
++            return true;
++        }
++
+         if new_box.display.outside() == DisplayOutside::Block
+             && new_box.display.inside() == DisplayInside::Flow
+         {
+@@ -527,10 +560,14 @@ impl BaseDocument {
+             };
+
+             if element.inline_layout_data.is_some() {
++                // A pseudo-element is anonymous too, but its parent's
++                // re-collect reuses it instead of rebuilding it like a wrapper
++                // block, so it must carry the damage itself. Without this, a
++                // block whose only text is its own ::before kept the glyphs it
++                // shaped before the webfont arrived (for example an icon font).
++                node.insert_damage(ALL_DAMAGE);
+                 if node.is_anonymous() {
+                     anon_nodes.push(node.id);
+-                } else {
+-                    node.insert_damage(ALL_DAMAGE);
+                 }
+             } else if let Some(input) = element.text_input_data_mut() {
+                 input.editor.set_scale(scale);
+diff --git a/src/layout/inline.rs b/src/layout/inline.rs
+index 71935b5..67fbbba 100644
+--- a/src/layout/inline.rs
++++ b/src/layout/inline.rs
+@@ -728,10 +728,12 @@ impl LayoutPassState<'_> {
+                     }
+                     YieldData::InlineBoxBreak(box_break_data) => {
+                         let state = breaker.state_mut();
+-                        let node_id = NodeId::from_u64(box_break_data.inline_box_id);
++                        // Not the container: naming it node_id
++                        // shadowed the container and sent its cache bust here.
++                        let float_id = NodeId::from_u64(box_break_data.inline_box_id);
+
+                         let (direction, clear, margin) = {
+-                            let style = self.child_layout_style(&self.nodes[node_id]);
++                            let style = self.child_layout_style(&self.nodes[float_id]);
+                             // We can assume that the box is a float because we only set `break_on_box: true` for floats
+                             let direction = match style.float() {
+                                 Float::Left => taffy::FloatDirection::Left,
+@@ -750,7 +752,7 @@ impl LayoutPassState<'_> {
+                         let margin_sum = margin.sum_axes();
+
+                         let mut output = self.compute_child_layout(
+-                            crate::taffy_node_id(node_id),
++                            crate::taffy_node_id(float_id),
+                             float_child_inputs,
+                         );
+                         let min_y = state.line_y() as f32 / scale;
+@@ -778,7 +780,7 @@ impl LayoutPassState<'_> {
+                             x: pos.x + margin.left + container_pb.left,
+                             y: pos.y + margin.top + container_pb.top,
+                         };
+-                        let layout = self.nodes[node_id].unrounded_layout_mut();
++                        let layout = self.nodes[float_id].unrounded_layout_mut();
+                         layout.size = output.size;
+                         layout.location = location;
+                         layout.margin = margin;
+diff --git a/src/mutator.rs b/src/mutator.rs
+index e667522..ab79c5a 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -695,6 +695,17 @@ impl DocumentMutator<'_> {
+             self.mutations_occurred |= node_is_in_document;
+             let parent = &mut self.doc.nodes[parent_id];
+             parent.insert_damage(ALL_DAMAGE);
++
++            // Marking ancestors dirty without stamping a hint leaves
++            // nothing to recascade the parent.
++
++            // Any selector reading the parent's child list (`:empty`,
++            // `:nth-child`, `:has`) would keep stale style after removeChild.
++            if parent.flags.is_in_document() {
++                if let Some(mut data) = parent.try_stylo_element_data_mut().and_then(|s| s.get_mut()) {
++                    data.hint |= RestyleHint::restyle_subtree();
++                }
++            }
+             // Mark ancestors dirty so the style traversal visits this subtree.
+             parent.mark_ancestors_dirty();
+             parent.children.retain(|id| *id != node_id);
+@@ -886,6 +897,7 @@ impl DocumentMutator<'_> {
+             {
+                 data.hint |= RestyleHint::restyle_subtree();
+             }
++            new_parent.set_dirty_descendants();
+             // Mark ancestors dirty so the style traversal visits this subtree.
+             new_parent.mark_ancestors_dirty();
+         }
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 39c2ca9..a5a55b8 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -406,6 +406,11 @@ impl BaseDocument {
+                 collect_layout_children(doc, node_id, &mut collected);
+                 let layout_children = collected.children;
+                 doc.nodes[node_id].anonymous_blocks = collected.anonymous_blocks;
++                // Float registration is a product of this node's boxes, so
++                // a rebuild retires the cache bust its last inline pass
++                // left behind: otherwise a block that ever held a float
++                // is locked out of taffy's cache for the document's life.
++                doc.nodes[node_id].placed_floats.set(false);
+
+                 // Recurse into newly collected layout children
+                 for child_id in layout_children.iter().copied() {

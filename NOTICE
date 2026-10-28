@@ -117,7 +117,7 @@ Generated WebIDL metadata
     licenses/MIT-Webref.txt.
 
 WPT-derived corner-shape contours
-  - scripts/patches/blitz-paint-0.3.0-beta.3/0017-Paint-corner-shape-on-backgrounds-and-clips.patch
+  - scripts/patches/blitz-paint-0.3.0-beta.4/0017-Paint-corner-shape-on-backgrounds-and-clips.patch
     adds src/kurbo_css/corner_shape.rs, a Rust adaptation of WPT's
     css/css-borders/corner-shape/resources/render-corner-shape.js.
     Copyright web-platform-tests contributors; 3-Clause BSD.

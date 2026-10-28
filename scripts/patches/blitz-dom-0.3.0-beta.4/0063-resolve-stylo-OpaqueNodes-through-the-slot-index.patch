@@ -1,0 +1,228 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 28 Sep 2026 20:14:12 +0100
+Subject: [PATCH] resolve stylo OpaqueNodes through the slot index
+
+BlitzNode::opaque packs the NodeId into stylo's usize OpaqueNode. On
+wasm32 that keeps only the slot index and drops the version, so
+NodeId::from_u64(opaque) rebuilt the key at version 1 and missed every
+node in a reused slot. The animation sweep read the miss as "not in
+the document" and cleared the node's transitions and animations on
+each resolve, so they never advanced. The snapshot cleanup and the
+:has() invalidation walk skipped those nodes the same way.
+
+example.com rebuilds each paragraph with innerHTML. The first span of
+every paragraph after the first lands in the slot the previous parse's
+fragment root freed, and its opacity transition never ran.
+
+NodeTree now keeps each slot index's current id (slot_ids), and
+id_from_opaque resolves through it on any pointer width.
+---
+ src/document.rs | 40 ++++++++++++++++++++++++++++++++++------
+ src/stylo.rs    | 18 ++++++++----------
+ src/tree.rs     | 41 +++++++++++++++++++++++++++++++++++++++--
+ 3 files changed, 81 insertions(+), 18 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 86acc17..9f24d74 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -45,7 +45,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
+ use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock, RwLockReadGuard, RwLockWriteGuard};
+ use std::task::{Context as TaskContext, Waker};
+ use style::Atom;
+-use style::animation::DocumentAnimationSet;
++use style::animation::{AnimationSetKey, DocumentAnimationSet};
+ use style::attr::{AttrIdentifier, AttrValue};
+ use style::computed_value_flags::ComputedValueFlags;
+ use style::data::{ElementData as StyloElementData, ElementStyles};
+@@ -60,9 +60,9 @@ use style::values::computed::UserSelect;
+ use style::values::computed::ui::CursorKind;
+ use style::{
+     device::Device,
+-    dom::{TDocument, TNode},
++    dom::{OpaqueNode, TDocument, TNode},
+     media_queries::MediaList,
+-    selector_parser::SnapshotMap,
++    selector_parser::{PseudoElement, SnapshotMap},
+     shared_lock::{SharedRwLock, StylesheetGuards},
+     stylesheets::{AllowImportRules, DocumentStyleSheet, Origin, Stylesheet},
+     stylist::Stylist,
+@@ -1232,9 +1232,38 @@ impl BaseDocument {
+                 }
+             }
+         }
++        if self.nodes.get(node_id).is_some_and(|node| node.is_element()) {
++            self.remove_animation_sets_for_dropped_node(node_id);
++        }
+         self.nodes.remove(node_id)
+     }
+
++    fn remove_animation_sets_for_dropped_node(&self, node_id: NodeId) {
++        let mut sets = self.animations.sets.write();
++        if sets.is_empty() {
++            return;
++        }
++        // OpaqueNode keeps only the slot on wasm32, so clear both key forms before reuse.
++        let full_id = node_id.as_u64() as usize;
++        let slot_id = node_id.as_u64() as u32 as usize;
++        let opaque_ids: &[usize] = if full_id == slot_id {
++            &[full_id]
++        } else {
++            &[full_id, slot_id]
++        };
++        for &opaque_id in opaque_ids {
++            sets.remove(&AnimationSetKey::new_for_non_pseudo(OpaqueNode(opaque_id)));
++            sets.remove(&AnimationSetKey::new_for_pseudo(
++                OpaqueNode(opaque_id),
++                PseudoElement::Before,
++            ));
++            sets.remove(&AnimationSetKey::new_for_pseudo(
++                OpaqueNode(opaque_id),
++                PseudoElement::After,
++            ));
++        }
++    }
++
+     /// The nearest element ancestor of `node_id` that is still in the
+     /// document. Used to retarget hover/active state when the node they
+     /// reference is removed. Tolerates already-removed ancestors (subtree
+@@ -2054,9 +2083,8 @@ impl BaseDocument {
+     // triggered it queued, and every retry re-panics (livelock).
+     pub fn clear_style_snapshots(&mut self) {
+         for opaque in self.snapshots.keys() {
+-            let id = NodeId::from_u64(opaque.id() as u64);
+-            if let Some(node) = self.nodes.get_mut(id) {
+-                node.set_has_snapshot(false);
++            if let Some(id) = self.nodes.id_from_opaque(opaque.id()) {
++                self.nodes[id].set_has_snapshot(false);
+             }
+         }
+         self.snapshots.clear();
+diff --git a/src/stylo.rs b/src/stylo.rs
+index 795d3c8..d2f7f6f 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -109,7 +109,7 @@ impl crate::document::BaseDocument {
+         // Mark actively animating nodes as dirty
+         let mut sets = self.animations.sets.write();
+         for (key, set) in sets.iter_mut() {
+-            let node_id = NodeId::from_u64(key.node.id() as u64);
++            let node_id = self.nodes.id_from_opaque(key.node.id());
+
+             // Drop animations belonging to nodes that are no longer in the
+             // document. A removed element is never restyled, so it would never
+@@ -117,15 +117,14 @@ impl crate::document::BaseDocument {
+             // would then keep `has_active_animations` set forever and force a
+             // redraw every frame. Emptying the set here lets the `retain` below
+             // discard it so the flag can clear on this same pass.
+-            let in_document = self
+-                .nodes
+-                .get(node_id)
++            let in_document = node_id
++                .and_then(|id| self.nodes.get(id))
+                 .is_some_and(|node| node.flags.is_in_document());
+-            if !in_document {
++            let Some(node_id) = node_id.filter(|_| in_document) else {
+                 set.animations.clear();
+                 set.transitions.clear();
+                 continue;
+-            }
++            };
+
+             // Only a set with something left to tick can change what it
+             // contributes; a finished fill or a paused animation cannot.
+@@ -194,9 +193,8 @@ impl crate::document::BaseDocument {
+             .extend(nodes_needing_style_image_flush);
+
+         for opaque in self.snapshots.keys() {
+-            let id = NodeId::from_u64(opaque.id() as u64);
+-            if let Some(node) = self.nodes.get_mut(id) {
+-                node.set_has_snapshot(false);
++            if let Some(id) = self.nodes.id_from_opaque(opaque.id()) {
++                self.nodes[id].set_has_snapshot(false);
+             }
+         }
+         self.snapshots.clear();
+@@ -281,7 +279,7 @@ impl crate::document::BaseDocument {
+         let quirks_mode = self.stylist.quirks_mode();
+
+         for (opaque, snapshot) in self.snapshots.iter() {
+-            let Some(node) = self.nodes.get(NodeId::from_u64(opaque.id() as u64)) else {
++            let Some(node) = self.nodes.id_from_opaque(opaque.id()).map(|id| &self.nodes[id]) else {
+                 continue;
+             };
+             let Some(element) = TNode::as_element(&node) else {
+diff --git a/src/tree.rs b/src/tree.rs
+index 964a44f..9bc8cc4 100644
+--- a/src/tree.rs
++++ b/src/tree.rs
+@@ -45,6 +45,16 @@ pub struct NodeTree {
+     /// paint moves `viewport_scroll` to translate the scene. `None` means the
+     /// fixed boxes follow `viewport_scroll` as usual.
+     fixed_anchor: Option<crate::Point<f64>>,
++    /// Each slot index's current id (raw `NodeId`), 0 for a free
++    /// slot. Backs `id_from_opaque`.
++    slot_ids: Vec<u64>,
++}
++
++/// The slot index of an id: the low half of the slotmap FFI encoding, which
++/// keeps the version in the high half.
++#[inline(always)]
++fn slot_index(raw: u64) -> usize {
++    (raw & 0xffff_ffff) as usize
+ }
+
+ impl NodeTree {
+@@ -54,9 +64,28 @@ impl NodeTree {
+             geometry_generation: AtomicU64::new(1),
+             viewport_scroll: crate::Point::ZERO,
+             fixed_anchor: None,
++            slot_ids: Vec::new(),
+         }
+     }
+
++    /// The live node behind a stylo `OpaqueNode` (`BlitzNode::opaque`).
++    ///
++    /// `OpaqueNode` wraps a `usize`, so on wasm32 it keeps only the slot
++    /// index and loses the version. `NodeId::from_u64(opaque)` then rebuilt
++    /// the key at version 1, which misses every node living in a reused slot.
++    /// Stylo's animation sweep took that miss for "not in the document" and
++    /// cleared the node's transitions on every resolve, so they never
++    /// advanced: a span that lands in the slot a previous innerHTML's
++    /// fragment root freed stayed at its start opacity. `slot_ids` maps each slot index to its current id,
++    /// so the lookup works whatever the pointer width.
++    pub fn id_from_opaque(&self, opaque: usize) -> Option<NodeId> {
++        let raw = opaque as u64;
++        let id = NodeId::from_u64(*self.slot_ids.get(slot_index(raw))?);
++        // A 64-bit opaque still has its version: reject a stale one.
++        let stale = raw >> 32 != 0 && raw != id.as_u64();
++        (!stale && self.contains_key(id)).then_some(id)
++    }
++
+     pub fn viewport_scroll(&self) -> crate::Point<f64> {
+         self.viewport_scroll
+     }
+@@ -127,12 +156,20 @@ impl NodeTree {
+
+     /// Insert a node constructed with knowledge of its own id.
+     pub(crate) fn insert_with_key(&mut self, f: impl FnOnce(NodeId) -> Node) -> NodeId {
+-        to_id(self.map.insert_with_key(|key| f(to_id(key))))
++        let id = to_id(self.map.insert_with_key(|key| f(to_id(key))));
++        let index = slot_index(id.as_u64());
++        if self.slot_ids.len() <= index {
++            self.slot_ids.resize(index + 1, 0);
++        }
++        self.slot_ids[index] = id.as_u64();
++        id
+     }
+
+     /// Remove the node with the given id, returning it if it was still live.
+     pub(crate) fn remove(&mut self, id: NodeId) -> Option<Node> {
+-        self.map.remove(to_key(id))
++        let node = self.map.remove(to_key(id))?;
++        self.slot_ids[slot_index(id.as_u64())] = 0;
++        Some(node)
+     }
+
+     /// Iterate over all live `(NodeId, &Node)` pairs.

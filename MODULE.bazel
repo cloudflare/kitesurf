@@ -103,12 +103,12 @@ cargo_workspaces.patched(
         "anyrender-0.14.0": "1755d0ef8e00e87b6b825dfbe5a35d34d3b302e97e80a48e93f9cd361fbada06",
         "anyrender_vello_cpu-0.18.0":
             "a09d9356dd2b2f032345711a350c0e2326a854cb5070f899265bc80fb33884b1",
-        "blitz-dom-0.3.0-beta.3":
-            "53e58a506e20e90b69ab8b03f933c125237361c31b0dae0e7e149c5bcbf9b28a",
-        "blitz-html-0.3.0-beta.3":
-            "0bf860f5757da5c14a2cb986987d2be392e9abc9e2a42d815a699649f08a7cee",
-        "blitz-paint-0.3.0-beta.3":
-            "31dd8929dd745efd8ada25f977a163b4c17fd8e9804cb7f42441df63215d2fdd",
+        "blitz-dom-0.3.0-beta.4":
+            "a814bfd3ad19e6d8d26f99c75188062baca499564f9abe44250230962427d183",
+        "blitz-html-0.3.0-beta.4":
+            "eddd638e05f3f3efb9f2d37f0406e7834ea023727e1678524488aa70eb639615",
+        "blitz-paint-0.3.0-beta.4":
+            "28803328124d7b7ea5f8f41501513ccb005559e9f6baf33fa0c1fb7612654a93",
         "boa_ast-0.22.0": "9221b0a090572b4a118b46c5874c0781fe4bc9546b85f0a615b8bfb609ca4ed7",
         "boa_engine-0.22.0": "5d6aaf7fdc4299df68adb67e1a5440a51d34630a1f5271b9698fd74bc97b60d9",
         "boa_gc-0.22.0": "af82119558ab1002d1978c8459b53a3ebb506177d29a3aca37c07c1777b1d966",
@@ -120,8 +120,8 @@ cargo_workspaces.patched(
         "ratatui-image-8.1.1": "3ecc67e9f7d0ac69e0f712f58b1a9d5a04d8daeeb3628f4d6b67580abb88b7cb",
         "selectors-0.41.0": "8322aebea94a6cc288ff884e8a49bdbceef60206c400c6c46d22e62fc4fd91a6",
         "stylo-0.22.0": "7a255e46af2478628c48daab3774090caabd7812b1dd3ca98801c2b9c53491ed",
-        "stylo_taffy-0.3.0-beta.3":
-            "58d910649e40ac76167e51da4692180beadba181581b26d501024a132772f5a3",
+        "stylo_taffy-0.3.0-beta.4":
+            "3d932deb3145f9e1c4159d09237f7999a29632fba9125896abb364dab080e0c0",
         "taffy-0.15.0": "3c8480887e8803986d96a7173729565520d4bbb721ad6b7ad6941a22897207aa",
         "usvg-0.48.1": "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91",
         "vello_cpu-0.3.0": "ed1fec424fbba6acf6cbc78bb526447eb77590d95f40419d598870fe37535212",
