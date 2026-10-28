@@ -14,4 +14,5 @@ mod has_invalidation;
 mod resolved_transform;
 mod stylesheet_anchor;
 mod svg_css_fill;
+mod svg_css_opacity;
 mod svg_currentcolor;

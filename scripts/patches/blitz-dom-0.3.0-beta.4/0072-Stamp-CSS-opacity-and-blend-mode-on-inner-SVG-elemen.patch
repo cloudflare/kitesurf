@@ -1,0 +1,120 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Wed, 28 Oct 2026 16:07:16 +0000
+Subject: [PATCH] Stamp CSS opacity and blend mode on inner SVG elements
+
+usvg reads only the serialized snapshot, so an author rule's opacity or
+mix-blend-mode on an element inside an inline <svg> never reached it.
+radar.cloudflare.com dims its chart annotations with a class rule
+(opacity: 0.2), and they painted fully opaque over the chart lines.
+
+The serializer now stamps the computed opacity, and mix-blend-mode in the
+style attribute (usvg reads it only there), when they differ from the
+initial value. An element with only an opacity attribute keeps it.
+---
+ src/node/serialize.rs | 73 +++++++++++++++++++++++++++----------------
+ 1 file changed, 46 insertions(+), 27 deletions(-)
+
+diff --git a/src/node/serialize.rs b/src/node/serialize.rs
+index 01fcbb9..bbad670 100644
+--- a/src/node/serialize.rs
++++ b/src/node/serialize.rs
+@@ -320,18 +320,33 @@ impl Node {
+                 // too fed usvg a CSS-serialized family list it resolved
+                 // differently from parley (Ahem became no glyphs at all,
+                 // blanking a clipPath built from <text>).
+-                let font_stamps: Option<[(&str, String); 1]> = if opts.resolve_current_color
+-                    && matches!(&*data.name.local, "text" | "tspan" | "textPath")
+-                {
+-                    self.primary_styles().map(|style| {
+-                        [(
++                let mut stamps: Vec<(&str, String)> = Vec::new();
++                // usvg reads mix-blend-mode only from a `style` attribute.
++                let mut style_stamp: Option<String> = None;
++                let styles = opts.resolve_current_color.then(|| self.primary_styles()).flatten();
++                if let Some(style) = &styles {
++                    if matches!(&*data.name.local, "text" | "tspan" | "textPath") {
++                        stamps.push((
+                             "font-size",
+                             format!("{}", style.clone_font_size().used_size().px()),
+-                        )]
+-                    })
+-                } else {
+-                    None
+-                };
++                        ));
++                    }
++                    // usvg reads only the snapshot, so an author rule's opacity or
++                    // blend mode never reached it. Stamp them when they differ from
++                    // the initial value, which leaves a lone attribute as it is.
++                    // The root's own opacity and blend are painted with its CSS box.
++                    if nesting > 0 {
++                        let opacity = style.clone_opacity();
++                        if opacity != 1.0 {
++                            stamps.push(("opacity", format!("{opacity}")));
++                        }
++                        let blend = style.clone_mix_blend_mode();
++                        if blend != style::computed_values::mix_blend_mode::T::Normal {
++                            style_stamp = Some(format!("mix-blend-mode:{}", blend.to_css_string()));
++                        }
++                    }
++                }
++                drop(styles);
+
+                 // The snapshot root keeps its own open tag (the
+                 // caller pattern-matches on it); every descendant element
+@@ -352,7 +367,7 @@ impl Node {
+                     _ => None,
+                 };
+                 for attr in data.attrs() {
+-                    if font_stamps.is_some() && &*attr.name.local == "font-size" {
++                    if stamps.iter().any(|(name, _)| *name == &*attr.name.local) {
+                         continue;
+                     }
+                     if stamp_id.is_some() && &*attr.name.local == "id" {
+@@ -361,25 +376,29 @@ impl Node {
+                     writer.push(' ');
+                     write_attr_name(&attr.name, writer);
+                     writer.push_str("=\"");
+-                    #[allow(clippy::unnecessary_unwrap)] // Convert to if-let chain once stabilised
+-                    if current_color.is_some() && attr.value.contains("currentColor") {
+-                        let value = attr
+-                            .value
+-                            .replace("currentColor", current_color.as_ref().unwrap());
+-                        encode_quoted_attribute_to_string(&value, writer);
+-                    } else {
+-                        encode_quoted_attribute_to_string(&attr.value, writer);
++                    let mut value = std::borrow::Cow::Borrowed(attr.value.as_str());
++                    if let Some(color) = &current_color {
++                        if value.contains("currentColor") {
++                            value = std::borrow::Cow::Owned(value.replace("currentColor", color));
++                        }
++                    }
++                    if attr.name.ns == ns!() && &*attr.name.local == "style" {
++                        if let Some(stamp) = style_stamp.take() {
++                            value = std::borrow::Cow::Owned(format!("{value};{stamp}"));
++                        }
+                     }
++                    encode_quoted_attribute_to_string(&value, writer);
+                     writer.push('"');
+                 }
+-                if let Some(stamps) = &font_stamps {
+-                    for (name, value) in stamps {
+-                        writer.push(' ');
+-                        writer.push_str(name);
+-                        writer.push_str("=\"");
+-                        encode_quoted_attribute_to_string(value, writer);
+-                        writer.push('"');
+-                    }
++                if let Some(stamp) = style_stamp.take() {
++                    stamps.push(("style", stamp));
++                }
++                for (name, value) in &stamps {
++                    writer.push(' ');
++                    writer.push_str(name);
++                    writer.push_str("=\"");
++                    encode_quoted_attribute_to_string(value, writer);
++                    writer.push('"');
+                 }
+                 if let Some((index, prefix)) = stamp_id {
+                     writer.push_str(" id=\"");
