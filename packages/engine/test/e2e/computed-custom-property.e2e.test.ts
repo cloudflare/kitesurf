@@ -44,3 +44,25 @@ test("getComputedStyle reads custom properties: own, inherited, var()-substitute
     parsed: 17,
   });
 }, 60_000);
+
+// css-values-5 makes <url> invalid in attr()'s type(), so an attribute can never become a URL.
+test("attr() rejects type(<url>) but still substitutes other types", async ({ page }) => {
+  await setContent(
+    page,
+    `<style>
+    #el { --url: attr(data-url type(<url>)); --fallback: attr(data-url type(<url>), none);
+          --length: attr(data-len type(<length>)); }
+  </style><div id=el data-url='url("https://does-not-exist.test/a.png")' data-len=3px></div>`,
+  );
+  const read = await page.evaluate(() => {
+    const el = document.getElementById("el");
+    if (!el) throw new Error("no #el");
+    const cs = getComputedStyle(el);
+    return {
+      url: cs.getPropertyValue("--url"),
+      fallback: cs.getPropertyValue("--fallback"),
+      length: cs.getPropertyValue("--length"),
+    };
+  });
+  expect(read).toEqual({ url: "", fallback: "none", length: "3px" });
+}, 60_000);

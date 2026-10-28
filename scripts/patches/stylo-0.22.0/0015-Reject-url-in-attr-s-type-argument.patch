@@ -1,0 +1,51 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Wed, 28 Oct 2026 22:47:59 +0000
+Subject: [PATCH] Reject <url> in attr()'s type() argument
+
+css-values-5 makes <url> invalid as a syntax component in attr()'s
+type(), because an attribute must never be able to build a URL that
+leaks it to a third party. type(<url>) parsed like any other syntax, so
+attr(data-foo type(<url>)) substituted the attribute as a working URL.
+It now parses as an invalid attr type, which falls back or makes the
+declaration invalid at computed-value time.
+---
+ custom_properties.rs | 18 ++++++++++++++----
+ 1 file changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/custom_properties.rs b/custom_properties.rs
+index 04337b4..b367510 100644
+--- a/custom_properties.rs
++++ b/custom_properties.rs
+@@ -12,7 +12,7 @@ use crate::dom::AttributeTracker;
+ use crate::properties::{CSSWideKeyword, PrioritaryPropertyId};
+ use crate::properties_and_values::{
+     rule::Descriptors as PropertyDescriptors,
+-    syntax::Descriptor as SyntaxDescriptor,
++    syntax::{data_type::DataType, ComponentName, Descriptor as SyntaxDescriptor},
+     value::{
+         AllowComputationallyDependent, ComputedValue as ComputedRegisteredValue,
+         SpecifiedValue as SpecifiedRegisteredValue,
+@@ -1375,9 +1375,19 @@ fn parse_attr_type(input: &mut Parser) -> AttributeType {
+     input
+         .try_parse(|input| {
+             Ok(match input.next()? {
+-                Token::Function(name) if name.eq_ignore_ascii_case("type") => AttributeType::Type(
+-                    input.parse_nested_block(SyntaxDescriptor::from_css_parser)?,
+-                ),
++                Token::Function(name) if name.eq_ignore_ascii_case("type") => {
++                    let syntax = input.parse_nested_block(SyntaxDescriptor::from_css_parser)?;
++                    // attr() values can't become URLs, so <url> is invalid in type().
++                    // https://drafts.csswg.org/css-values-5/#attr-notation
++                    let has_url = syntax.components.iter().any(|component| {
++                        matches!(component.name(), ComponentName::DataType(DataType::Url))
++                    });
++                    if has_url {
++                        AttributeType::Invalid
++                    } else {
++                        AttributeType::Type(syntax)
++                    }
++                },
+                 Token::Ident(ident) => {
+                     if ident.eq_ignore_ascii_case("raw-string") {
+                         AttributeType::RawString
