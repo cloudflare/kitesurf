@@ -8,6 +8,7 @@
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "format": "bazel run //scripts:lint -- format --write",
     "format:check": "bazel run //scripts:lint -- format --check",
+    "format:rust": "node scripts/format-rust.mjs",
     "lint": "pnpm run lint:js && pnpm run lint:rust",
     "lint:js": "bazel run //scripts:lint -- lint:js",
     "lint:complexity": "bazel run //scripts:lint_complexity",
