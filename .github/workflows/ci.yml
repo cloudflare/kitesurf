@@ -26,16 +26,13 @@ jobs:
       - id: setup
         uses: ./.github/actions/setup
         with:
-          rust: "true"
           bazel-cache: "true"
       - run: pnpm install --frozen-lockfile
-      - run: bazel test --keep_going --test_output=errors //:check //packages/core:host_tests //packages/engine:vitest
+      - run: bazel test --keep_going --test_output=errors //:check //:rust_lint //packages/core:host_tests //packages/engine:vitest
       - run: pnpm run build
       - name: Fail on generated drift
         run: git diff --exit-code
       - run: pnpm run format:check
-      # Before lint: the lint runs this checker with cargo --offline, so its crates must be fetched.
-      - run: cargo test --manifest-path scripts/lint/rust-check/Cargo.toml --locked nesting
       - run: pnpm run lint
       - run: bazel run //scripts:workspace_checks
       - if: always()

@@ -92,8 +92,8 @@ Run the checks that cover what you changed rather than every lane in the repo.
 - Bazelisk, installed as `bazel`. Bazel builds and tests everything, and fetches
   its own Rust toolchains, wasm-bindgen, and binaryen.
 - On macOS, GNU tar (`brew install gnu-tar`).
-- Rust through rustup, only for `pnpm run lint:rust` and for editing vendored
-  crate patches. `rust-toolchain.toml` pins `nightly-2026-05-14` with the
+- Rust through rustup, only for editing vendored crate patches.
+  `rust-toolchain.toml` pins `nightly-2026-05-14` with the
   `wasm32-unknown-unknown` target, the same nightly Bazel uses.
 
 ```bash
@@ -115,7 +115,8 @@ pnpm run test:e2e <file-substring>
 ```
 
 Pass a file-name substring to `test:e2e` to run only the files you touched. For
-Rust changes, also run `pnpm run test:rust` and `pnpm run lint:rust`. CI runs
+Rust changes, also run `pnpm run test:rust` and `pnpm run lint:rust` (the Rust
+gates as Bazel tests). CI runs
 the build, the checks, the Rust host tests and the vitest suite. It does not run
 the e2e, WPT or Playwright lanes, so run the ones your change touches.
 

@@ -23,9 +23,8 @@ so you can use it with CDP clients such as Puppeteer.
 - Node.js 22 or newer
 - pnpm 9.15.4, which the repository pins in `package.json`
 - On macOS, GNU tar (`brew install gnu-tar`)
-- Rust through [rustup](https://rustup.rs/), only for `pnpm run lint:rust` and
-  for editing the vendored crate patches. `rust-toolchain.toml` pins the same
-  nightly that Bazel uses.
+- Rust through [rustup](https://rustup.rs/), only for editing the vendored
+  crate patches. `rust-toolchain.toml` pins the same nightly that Bazel uses.
 
 Install pnpm separately if it is not already available:
 
