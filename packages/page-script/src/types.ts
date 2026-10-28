@@ -5,7 +5,7 @@
 // Defines structural views of DOM-shim values consumed by PageScript.
 
 // Derive listener signatures from the dom-shim producer instead of maintaining a local copy.
-import type { BuildDocumentResult, DomShimGlobals } from "./dom-shim.js";
+import type { BuildDocumentResult, DomShimGlobals, ScrollIntoViewOptions } from "./dom-shim.js";
 
 // DomHandle's runtime value comes from the loaded worker's wasm-bindgen sibling.
 export type { DomHandle } from "../../core/pkg/kitesurf_core";
@@ -42,7 +42,7 @@ export interface ShimElement extends ShimNode {
   querySelector?: (sel: string) => ShimElement | null;
   closest?: (sel: string) => ShimElement | null;
   focus?: () => void;
-  scrollIntoView?: (options: { block: "nearest"; inline: "nearest" }) => void;
+  scrollIntoView?: (options: ScrollIntoViewOptions) => void;
   blur?: () => void;
   click?: () => void;
   selectionStart?: number | null;

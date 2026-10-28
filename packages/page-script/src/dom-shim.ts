@@ -24,4 +24,5 @@ export type {
   BuildDocumentOpts,
   BuildDocumentResult,
   DomShimGlobals,
+  ScrollIntoViewOptions,
 } from "@kitesurf/dom-shim/contract";

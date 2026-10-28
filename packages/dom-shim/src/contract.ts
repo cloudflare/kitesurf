@@ -11,6 +11,7 @@ export type {
   BuildDocumentOpts,
 } from "./state.js";
 export type { DomShimGlobals } from "./global-scope.js";
+export type { ScrollIntoViewOptions } from "./idl/types.generated.js";
 export {
   buildDocument,
   listModelContextTools,
