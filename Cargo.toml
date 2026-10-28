@@ -65,11 +65,11 @@ parley = { path = "packages/core/target/vendor-patched/parley-0.12.0" }
 # parley 0.12 moved analysis, bidi and shaping into parley_engine, so the
 # base-direction and tab-stop patches carry an engine half here.
 parley_engine = { path = "packages/core/target/vendor-patched/parley_engine-0.12.0" }
-blitz-dom = { path = "packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.3" }
-blitz-paint = { path = "packages/core/target/vendor-patched/blitz-paint-0.3.0-beta.3" }
+blitz-dom = { path = "packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.4" }
+blitz-paint = { path = "packages/core/target/vendor-patched/blitz-paint-0.3.0-beta.4" }
 # Patched so the XHTML sniff stops at the first non-root start tag: a minified
 # page mentioning "xhtml" anywhere on its one line was parsed as XML.
-blitz-html = { path = "packages/core/target/vendor-patched/blitz-html-0.3.0-beta.3" }
+blitz-html = { path = "packages/core/target/vendor-patched/blitz-html-0.3.0-beta.4" }
 # Patched to add PaintScene::begin_part/end_part — defaulted no-ops that
 # let blitz-paint say WHICH part of WHICH element it is about to draw, so
 # a consumer does not have to infer it back from geometry. The scene
@@ -81,7 +81,7 @@ anyrender_vello_cpu = { path = "packages/core/target/vendor-patched/anyrender_ve
 taffy = { path = "packages/core/target/vendor-patched/taffy-0.15.0" }
 # Patched so sticky insets stop reaching taffy as relative offsets
 # (taffy would blindly shift the box; sticky.rs owns the shift).
-stylo_taffy = { path = "packages/core/target/vendor-patched/stylo_taffy-0.3.0-beta.3" }
+stylo_taffy = { path = "packages/core/target/vendor-patched/stylo_taffy-0.3.0-beta.4" }
 stylo = { path = "packages/core/target/vendor-patched/stylo-0.22.0" }
 selectors = { path = "packages/core/target/vendor-patched/selectors-0.41.0" }
 boa_ast = { path = "packages/core/target/vendor-patched/boa_ast-0.22.0" }

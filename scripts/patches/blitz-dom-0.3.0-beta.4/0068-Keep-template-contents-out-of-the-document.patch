@@ -1,0 +1,137 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 21 Oct 2026 19:17:51 +0100
+Subject: [PATCH] Keep template contents out of the document
+
+blitz-html parses template contents directly under the <template>
+element; it does not create a #document-fragment wrapper. This parser
+tree shape differs from Chrome's fragment-backed template.content, and
+direct script-appended children remain a known Chrome divergence. Those
+nodes were marked in-document like any other child, so an <img> in a
+template started a fetch, and template text fed the @font-face codepoint
+index, pulling subsets for text that never renders.
+
+Nodes attached under a <template> or its contents fragment are now
+inert: they are not flagged in-document, their subtree is not walked for
+document bookkeeping, their text does not reach the codepoint index, and
+an <img> inside them does not load. Content moved out of the template
+into the document is processed when it is inserted, and an inserted
+subtree's text folds into the codepoint index then.
+---
+ src/document.rs |  2 +-
+ src/mutator.rs  | 59 ++++++++++++++++++++++++++++++++++++++++++-------
+ 2 files changed, 52 insertions(+), 9 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index f5928fb..8bebdae 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -5216,7 +5216,7 @@ pub(crate) fn note_connected_text_codepoints(
+ }
+
+ /// Set the bit for every codepoint in `text`.
+-fn set_codepoint_bits(bits: &mut [u64], text: &str) {
++pub(crate) fn set_codepoint_bits(bits: &mut [u64], text: &str) {
+     for ch in text.chars() {
+         let cp = ch as usize;
+         bits[cp >> 6] |= 1u64 << (cp & 63);
+diff --git a/src/mutator.rs b/src/mutator.rs
+index e2f7029..2c9b418 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -18,12 +18,39 @@ use style::invalidation::element::restyle_hints::RestyleHint;
+ use style::stylesheets::OriginSet;
+ use thin_vec::ThinVec;
+
++const TEMPLATE_CONTENTS_FRAGMENT_NAME: &str = "#document-fragment";
++
+ macro_rules! tag_and_attr {
+     ($tag:tt, $attr:tt) => {
+         (&local_name!($tag), &local_name!($attr))
+     };
+ }
+
++/// Whether `node_id` is a `<template>`, its contents fragment, or inside one. Template contents
++/// are never flagged in-document, so the walk ends at the first in-document node: O(1) for the
++/// usual insertion into a live tree.
++fn is_template_inert_context(doc: &BaseDocument, node_id: NodeId) -> bool {
++    let mut current = Some(node_id);
++    while let Some(id) = current {
++        let Some(node) = doc.get_node(id) else {
++            return false;
++        };
++        let in_template_context = node.element_data().is_some_and(|element| {
++            element.name.ns == ns!(html)
++                && (element.name.local == local_name!("template")
++                    || &*element.name.local == TEMPLATE_CONTENTS_FRAGMENT_NAME)
++        });
++        if in_template_context {
++            return true;
++        }
++        if node.flags.is_in_document() {
++            return false;
++        }
++        current = node.parent;
++    }
++    false
++}
++
+ #[derive(Debug, Clone)]
+ pub enum AppendTextErr {
+     /// The node is not a text node
+@@ -867,7 +894,8 @@ impl DocumentMutator<'_> {
+         // Any child-list mutation can reshape slot assignment (host
+         // children, slot fallback, or slot discovery in a shadow tree).
+         self.doc.slot_assignments_dirty = true;
+-        let new_parent_is_in_document = self.doc.nodes[parent_id].flags.is_in_document();
++        let new_parent_is_in_document = self.doc.nodes[parent_id].flags.is_in_document()
++            && !is_template_inert_context(self.doc, parent_id);
+         self.mutations_occurred |= new_parent_is_in_document && !child_ids.is_empty();
+
+         // A reparent is a removal from the old position, so it needs the same
+@@ -1246,16 +1274,25 @@ impl<'doc> DocumentMutator<'doc> {
+
+     fn process_added_subtree(&mut self, node_id: NodeId) {
+         self.doc.iter_subtree_mut(node_id, |node_id, doc| {
+-            if let Some(text) = doc.nodes[node_id].text_data() {
+-                crate::document::note_connected_text_codepoints(
+-                    &mut doc.used_codepoints,
+-                    &mut doc.non_latin_text_writes,
+-                    &text.content,
+-                );
++            let in_template_contents = doc.nodes[node_id]
++                .parent
++                .is_some_and(|parent_id| is_template_inert_context(doc, parent_id));
++            let in_document = !in_template_contents;
++            if in_document {
++                if let Some(text) = doc.nodes[node_id].text_data() {
++                    crate::document::note_connected_text_codepoints(
++                        &mut doc.used_codepoints,
++                        &mut doc.non_latin_text_writes,
++                        &text.content,
++                    );
++                }
+             }
+             let node = &mut doc.nodes[node_id];
+-            node.flags.set(NodeFlags::IS_IN_DOCUMENT, true);
++            node.flags.set(NodeFlags::IS_IN_DOCUMENT, in_document);
+             node.insert_damage(ALL_DAMAGE);
++            if in_template_contents {
++                return;
++            }
+
+             // If the node has an "id" attribute, store it in the ID map.
+             if let Some(id_attr) = node.attr(local_name!("id")).map(ToString::to_string) {
+@@ -1701,6 +1738,12 @@ impl<'doc> DocumentMutator<'doc> {
+         for waiting in self.doc.pending_images.values_mut() {
+             waiting.retain(|(id, ty)| !(*id == target_id && matches!(ty, ImageType::Image)));
+         }
++        if self.doc.nodes[target_id]
++            .parent
++            .is_some_and(|parent_id| is_template_inert_context(self.doc, parent_id))
++        {
++            return;
++        }
+         if let Some(raw_src) = self.select_image_url(target_id) {
+             if !raw_src.is_empty() {
+                 // Fallible resolve. `img.src = "http://"`

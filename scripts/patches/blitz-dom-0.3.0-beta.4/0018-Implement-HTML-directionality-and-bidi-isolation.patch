@@ -1,0 +1,551 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 13:42:31 +0100
+Subject: [PATCH] Implement HTML directionality and bidi isolation
+
+Every inline layout resolved bidi with parley's whole-text autodetect,
+ignoring CSS direction, so dir=rtl blocks rendered with whatever base
+the text happened to start with. The inline-layout root now stamps its
+computed direction on the tree builder, and unicode-bidi:plaintext (pre
+dir=auto) maps to AutoPerParagraph.
+
+Directionality follows whatwg/html#9796, and the dir-shadow WPT suite
+pins each edge:
+
+- Node::html_directionality_is_rtl walks the light tree plus the
+  shadow-root -> host crossing. Slotted nodes do not take HTML
+  directionality from their assigned slot even though CSS direction
+  inherits through the flat tree (dir-shadow-03: ltr :dir with rtl
+  computed on the same element). :dir() matches against it.
+- dir=auto cannot ride a selector: its first-strong scan excludes
+  bdi/script/style/textarea subtrees and dir-attributed descendants
+  (the dir_auto-contained-* reftests probe exactly this). The scan runs
+  in tree order with parley::first_strong_direction per text node,
+  defaulting to ltr, and resolves into the cascade as a presentational
+  hint on direction, so getComputedStyle and flat-tree inheritance see
+  the result and author direction rules override it.
+- The scan uses assigned nodes when the auto element is a slot and
+  light children otherwise. Slots met as descendants contribute
+  nothing, since assigned nodes must not leak into shadow-side scans
+  (dir-shadow-30/34), and shadow trees are not descendants of their
+  host (dir-shadow-33).
+
+The UBA runs over the whole paragraph text and knows nothing about
+markup, so a strong character inside <span dir=rtl> reordered its LTR
+siblings; HTML requires dir-attributed inlines (and bdi/bdo) to be
+directional isolates. Layout construction wraps each inline element
+whose computed unicode-bidi is non-normal in the matching controls:
+isolate -> LRI/RLI ... PDI; isolate-override -> isolate + LRO/RLO ...
+PDF+PDI; legacy embed/bidi-override -> LRE/RLE/LRO/RLO ... PDF. The
+isolate direction is the element's computed direction, not first-strong
+of the rendered stream, since a host's shadow text must not steer its
+isolate (the dir-shadow-33 reference uses dir=ltr). The controls are
+invisible outside the resolver: Cf characters contribute no glyphs
+(parley contributes_to_shaping), TextBrush attribution is keyed by node
+id, and no offset-based consumer crosses into DOM space. Spans with
+unicode-bidi: normal inject nothing.
+
+Also fix bdo: the UA rule 'bdo, bdo:-moz-has-dir-attr' was dropped whole
+because one selector fails to parse; bdo[dir] restores the intended
+specificity over the [dir] rules.
+
+create_text_editor maps computed direction and unicode-bidi onto the
+parley editor, but unicode-bidi:plaintext still resolved to a single
+whole-text direction. HTML's dir=auto on textarea, pre and input means
+the per-paragraph first-strong heuristic, so map plaintext to
+parley::BaseDirection::AutoPerParagraph.
+
+The UA rule that gives those elements plaintext used
+:-moz-dir-attr-like-auto, which servo stylo does not support, so it
+never matched. Replace it with textarea/pre/input[dir="auto" i].
+
+HTML computes a text control's auto- directionality from its value, but
+the scan walked DOM children: inputs have none and a textarea's children
+are only the default value, so :dir() and the cascade hint disagreed
+with the rendered direction after script value writes (paint was already
+right via unicode-bidi:plaintext). Read the editor's value_override
+first (set_text_input_value restyles the control on every IDL write, so
+no new invalidation is needed), then the value attribute for inputs;
+textareas fall through to child text = the default value.
+
+The input type attribute is an ASCII-case-insensitive enumerated
+attribute whose unknown/empty values fall to the text state; and three
+gates matched lowercase literals only: construct's editor gate, the
+pre-layout value seed, and the taffy leaf-measure in layout/mod.rs
+(whose text-type list also omitted number, so type="TEXT"/""/"bogus"
+rendered as an empty sliver and dropped pre-layout .value writes).
+Normalize all three identically; the inline-walk hidden-input checks go
+case-insensitive too.
+---
+ assets/default.css      |  13 +++--
+ src/layout/construct.rs | 106 +++++++++++++++++++++++++++++++-----
+ src/layout/mod.rs       |  17 +++++-
+ src/mutator.rs          |  15 +++--
+ src/node/node.rs        | 118 ++++++++++++++++++++++++++++++++++++++++
+ src/stylo.rs            |  32 +++++++++++
+ 6 files changed, 275 insertions(+), 26 deletions(-)
+
+diff --git a/assets/default.css b/assets/default.css
+index a5b6603..0631aaf 100644
+--- a/assets/default.css
++++ b/assets/default.css
+@@ -239,15 +239,18 @@ output {
+     unicode-bidi: isolate;
+ }
+
+-/* We need the "bdo:-moz-has-dir-attr" bit because "bdo" has lower
+-   specificity than the ":-moz-has-dir-attr" selector above. */
++/* The -moz selector invalidated the whole list (CSS drops a
++   rule when any selector fails to parse): bdo got nothing. */
+ bdo,
+-bdo:-moz-has-dir-attr {
++bdo[dir] {
+     unicode-bidi: isolate-override;
+ }
+
+-textarea:-moz-dir-attr-like-auto,
+-pre:-moz-dir-attr-like-auto {
++/* dir=auto on text-bearing controls means per-paragraph
++   first-strong (plaintext); non-textual inputs never paint text. */
++textarea[dir="auto" i],
++pre[dir="auto" i],
++input[dir="auto" i] {
+     unicode-bidi: plaintext;
+ }
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index f38030b..6073ade 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -4,8 +4,8 @@ use std::sync::Arc;
+
+ use markup5ever::{QualName, local_name, ns};
+ use parley::{
+-    FontContext, InlineBox, InlineBoxKind, LayoutContext, StyleProperty, TreeBuilder,
+-    WhiteSpaceCollapse,
++    BaseDirection, FontContext, InlineBox, InlineBoxKind, LayoutContext, StyleProperty,
++    TreeBuilder, WhiteSpaceCollapse,
+ };
+ use style::{
+     computed_values::position::T as PositionProperty,
+@@ -773,16 +773,26 @@ fn collect_layout_children_with_wrap(
+         // Handle text inputs
+         let tag_name = el.name.local.as_ref();
+         if matches!(tag_name, "input" | "textarea") {
+-            let type_attr: Option<&str> = doc.nodes[container_node_id]
++            // Type is an ASCII-ci enumerated attribute and
++            // unknown/empty values fall to the Text state per HTML:
++            // type="TEXT" / type="" / type="foo" must all build an
++            // editor, not silently render nothing.
++            let type_attr: Option<String> = doc.nodes[container_node_id]
+                 .data
+                 .downcast_element()
+-                .and_then(|el| el.attr(local_name!("type")));
++                .and_then(|el| el.attr(local_name!("type")))
++                .map(|t| t.to_ascii_lowercase());
++            let type_attr: Option<&str> = type_attr.as_deref();
+             if tag_name == "textarea" {
+                 create_text_editor(doc, container_node_id, true);
+                 return;
+-            } else if matches!(
++            } else if !matches!(
+                 type_attr,
+-                None | Some("text" | "password" | "email" | "number" | "search" | "tel" | "url")
++                Some(
++                    "checkbox" | "radio" | "range" | "hidden" | "submit" | "button"
++                        | "reset" | "file" | "image" | "color" | "date"
++                        | "datetime-local" | "month" | "week" | "time"
++                )
+             ) {
+                 create_text_editor(doc, container_node_id, false);
+                 return;
+@@ -1306,9 +1316,16 @@ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multi
+         .primary_styles()
+         .map(|s| stylo_to_parley::text_align(s.clone_text_align()))
+         .unwrap_or(parley::layout::Alignment::Start);
++    // `unicode-bidi: plaintext` (the UA sheet's dir=auto rule for
++    // text controls) means per-paragraph first-strong, not whole-text.
+     let base_direction = node
+         .primary_styles()
+-        .map(|s| stylo_to_parley::base_direction(s.clone_direction(), s.clone_unicode_bidi()))
++        .map(|s| match s.clone_unicode_bidi() {
++            style::computed_values::unicode_bidi::T::Plaintext => {
++                parley::BaseDirection::AutoPerParagraph
++            }
++            bidi => stylo_to_parley::base_direction(s.clone_direction(), bidi),
++        })
+         .unwrap_or(parley::BaseDirection::Auto);
+
+     let initial_text = if is_multiline {
+@@ -1485,7 +1502,7 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+             NodeData::Element(element_data) | NodeData::AnonymousBlock(element_data) => {
+                 // if the input type is hidden, hide it
+                 if *element_data.name.local == *"input" {
+-                    if let Some("hidden") = element_data.attr(local_name!("type")) {
++                    if element_data.attr(local_name!("type")).is_some_and(|t| t.eq_ignore_ascii_case("hidden")) {
+                         return;
+                     }
+                 }
+@@ -1543,6 +1560,35 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+     }
+ }
+
++// UAX#9 control pair for a computed unicode-bidi value.
++// Isolates close with PDI, embeds/overrides with PDF.
++
++// The isolate direction follows computed direction: dir=auto is
++// already resolved into it by the presentational hint (stylo.rs),
++// with the HTML scan exclusions FSI can't express (dir-shadow-33:
++// shadow text must not steer a host's isolate). Plaintext keeps
++// FSI: it is first-strong-of-content by definition.
++fn bidi_wrap_chars(
++    ub: style::computed_values::unicode_bidi::T,
++    rtl: bool,
++) -> (&'static str, &'static str) {
++    use style::computed_values::unicode_bidi::T as UnicodeBidi;
++    match ub {
++        UnicodeBidi::Isolate => (if rtl { "\u{2067}" } else { "\u{2066}" }, "\u{2069}"),
++        UnicodeBidi::Plaintext => ("\u{2068}", "\u{2069}"),
++        UnicodeBidi::IsolateOverride => {
++            if rtl {
++                ("\u{2067}\u{202E}", "\u{202C}\u{2069}")
++            } else {
++                ("\u{2066}\u{202D}", "\u{202C}\u{2069}")
++            }
++        }
++        UnicodeBidi::Embed => (if rtl { "\u{202B}" } else { "\u{202A}" }, "\u{202C}"),
++        UnicodeBidi::BidiOverride => (if rtl { "\u{202E}" } else { "\u{202D}" }, "\u{202C}"),
++        UnicodeBidi::Normal => ("", ""),
++    }
++}
++
+ pub(crate) fn build_inline_layout_into(
+     nodes: &crate::NodeTree,
+     layout_ctx: &mut LayoutContext<TextBrush>,
+@@ -1569,11 +1615,19 @@ pub(crate) fn build_inline_layout_into(
+
+     // Create a parley tree builder
+     let mut builder = layout_ctx.tree_builder(font_ctx, scale, true, &parley_style);
+-    if let Some(style) = root_node_style.as_deref() {
+-        builder.set_base_direction(stylo_to_parley::base_direction(
+-            style.clone_direction(),
+-            style.clone_unicode_bidi(),
+-        ));
++
++    // Stamp the block's bidi base direction; parley's
++    // default whole-text autodetect ignores CSS direction entirely.
++
++    // Computed direction is authoritative: dir=auto resolves into
++    // the cascade via the presentational hint (stylo.rs).
++    if let Some(s) = root_node_style.as_deref() {
++        use style::computed_values::unicode_bidi::T as UnicodeBidi;
++        let base_direction = match s.clone_unicode_bidi() {
++            UnicodeBidi::Plaintext => BaseDirection::AutoPerParagraph,
++            bidi => stylo_to_parley::base_direction(s.clone_direction(), bidi),
++        };
++        builder.set_base_direction(base_direction);
+     }
+
+     let text_transform = root_node_style
+@@ -1659,7 +1713,7 @@ pub(crate) fn build_inline_layout_into(
+             NodeData::Element(element_data) | NodeData::AnonymousBlock(element_data) => {
+                 // if the input type is hidden, hide it
+                 if *element_data.name.local == *"input" {
+-                    if let Some("hidden") = element_data.attr(local_name!("type")) {
++                    if element_data.attr(local_name!("type")).is_some_and(|t| t.eq_ignore_ascii_case("hidden")) {
+                         return;
+                     }
+                 }
+@@ -1744,6 +1798,22 @@ pub(crate) fn build_inline_layout_into(
+                             builder.pop_style_span();
+                             text_transformer.word_break(builder);
+                         } else {
++                            // Inline bidi isolation: wrap the span's
++                            // text in the controls its unicode-bidi implies.
++
++                            // Cf chars shape to nothing and TextBrush spans are
++                            // node-id keyed, so only the resolver sees them.
++                            let bidi_wrap = style.and_then(|s| {
++                                use style::computed_values::direction::T as Direction;
++                                use style::computed_values::unicode_bidi::T as UnicodeBidi;
++                                let ub = s.clone_unicode_bidi();
++                                if matches!(ub, UnicodeBidi::Normal) {
++                                    return None;
++                                }
++                                let rtl = s.clone_direction() == Direction::Rtl;
++                                Some(bidi_wrap_chars(ub, rtl))
++                            });
++
+                             // node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+                             let style = node
+                                 .primary_styles()
+@@ -1755,6 +1825,10 @@ pub(crate) fn build_inline_layout_into(
+
+                             builder.push_style_span(style);
+
++                            if let Some((open, _)) = bidi_wrap {
++                                builder.push_text(open);
++                            }
++
+                             if let Some(before_id) = node.before() {
+                                 build_inline_layout_recursive(
+                                     builder,
+@@ -1784,6 +1858,10 @@ pub(crate) fn build_inline_layout_into(
+                                 );
+                             }
+
++                            if let Some((_, close)) = bidi_wrap {
++                                builder.push_text(close);
++                            }
++
+                             builder.pop_style_span();
+                         }
+                     }
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index d1312b7..c210a48 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -327,7 +327,14 @@ impl LayoutPassState<'_> {
+                 }
+
+                 if *element_data.name.local == *"input" {
+-                    match element_data.attr(local_name!("type")) {
++                    // Same ASCII-ci type normalization as
++                    // construct's editor gate: unknown/empty types
++                    // fall to the Text state, so their leaf layout
++                    // must match (else the editor paints in a sliver).
++                    let type_attr = element_data
++                        .attr(local_name!("type"))
++                        .map(|t| t.to_ascii_lowercase());
++                    match type_attr.as_deref() {
+                         // if the input type is hidden, hide it
+                         Some("hidden") => {
+                             return taffy::LayoutOutput::HIDDEN;
+@@ -355,7 +362,12 @@ impl LayoutPassState<'_> {
+                                 },
+                             );
+                         }
+-                        None | Some("text" | "password" | "email" | "tel" | "url" | "search") => {
++                        Some(
++                            "radio" | "range" | "submit" | "button" | "reset" | "file"
++                            | "image" | "color" | "date" | "datetime-local" | "month"
++                            | "week" | "time",
++                        ) => {}
++                        _ => {
+                             return compute_leaf_layout(
+                                 inputs,
+                                 &node.layout_style(),
+@@ -370,7 +382,6 @@ impl LayoutPassState<'_> {
+                                 },
+                             );
+                         }
+-                        _ => {}
+                     }
+                 }
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 026b900..e7ed00a 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1751,11 +1751,18 @@ impl<'doc> DocumentMutator<'doc> {
+         if element.text_input_data_mut().is_none() {
+             let tag: &str = &element.name.local;
+             let is_multiline = tag == "textarea";
++            // Mirror construct's gate: ASCII-ci type matching with
++            // unknown/empty falling to the Text state per HTML.
++            let ty = element
++                .attr(local_name!("type"))
++                .map(|t| t.to_ascii_lowercase());
+             let is_text_input = tag == "input"
+-                && matches!(
+-                    element.attr(local_name!("type")),
+-                    None | Some(
+-                        "text" | "password" | "email" | "number" | "search" | "tel" | "url"
++                && !matches!(
++                    ty.as_deref(),
++                    Some(
++                        "checkbox" | "radio" | "range" | "hidden" | "submit" | "button"
++                            | "reset" | "file" | "image" | "color" | "date"
++                            | "datetime-local" | "month" | "week" | "time"
+                     )
+                 );
+             if !(is_multiline || is_text_input) {
+diff --git a/src/node/node.rs b/src/node/node.rs
+index d8b5aa1..0d0ae02 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -1354,6 +1354,124 @@ impl Node {
+         out
+     }
+
++    // HTML "the directionality" with whatwg/html#9796's
++    // shadow rules; drives :dir() matching and the dir=auto hint.
++
++    // The upward chain is the light tree plus the shadow-root→host
++    // crossing. Slotted nodes do not take directionality from their
++    // assigned slot (dir-shadow-03/04/31: dir=rtl on the slot gives
++    // ltr :dir but rtl computed; CSS inherits flat, HTML doesn't).
++    pub(crate) fn html_directionality_is_rtl(&self) -> bool {
++        let mut cur = Some(self.id);
++        while let Some(id) = cur {
++            let node = self.with(id);
++            if let Some(el) = node.data.downcast_element() {
++                let dir = el.attr(local_name!("dir"));
++                if let Some(d) = dir {
++                    if d.eq_ignore_ascii_case("rtl") {
++                        return true;
++                    }
++                    if d.eq_ignore_ascii_case("ltr") {
++                        return false;
++                    }
++                }
++                // bdi defaults to auto; an invalid dir value on it
++                // is also auto per HTML's "undefined" attr state.
++                let auto = dir.is_some_and(|d| d.eq_ignore_ascii_case("auto"))
++                    || el.name.local == local_name!("bdi");
++                if auto {
++                    return node.dir_auto_scan_is_rtl().unwrap_or(false);
++                }
++            }
++            cur = node.directionality_flat_parent();
++        }
++        false
++    }
++
++    fn directionality_flat_parent(&self) -> Option<NodeId> {
++        let parent_id = self.parent?;
++        if let NodeData::ShadowRoot(ref data) = self.with(parent_id).data {
++            return Some(data.host);
++        }
++        Some(parent_id)
++    }
++
++    // HTML auto-directionality: tree-order first-strong scan. Slots
++    // scan their assigned nodes (fallback content when unassigned);
++    // other elements scan light children: a host's shadow tree is
++    // not its descendant. Excluded subtrees match the spec list.
++    pub(crate) fn dir_auto_scan_is_rtl(&self) -> Option<bool> {
++        // HTML: a text control's auto-directionality comes from its
++        // value, not its children. The dirty IDL value lives in the
++        // editor's value_override (set_text_input_value restyles the
++        // control on every write, so the cascade hint stays fresh);
++        // pre-dirty falls back to the value attribute for inputs.
++        // Textareas fall through to child text = the default value.
++        if let Some(el) = self.data.downcast_element() {
++            if let Some(data) = el.text_input_data() {
++                if let Some(v) = &data.value_override {
++                    return match parley::first_strong_direction(v) {
++                        Some(parley::BaseDirection::Rtl) => Some(true),
++                        Some(_) => Some(false),
++                        None => None,
++                    };
++                }
++            }
++            if el.name.local == local_name!("input") {
++                let v = el.attr(local_name!("value")).unwrap_or("");
++                return match parley::first_strong_direction(v) {
++                    Some(parley::BaseDirection::Rtl) => Some(true),
++                    Some(_) => Some(false),
++                    None => None,
++                };
++            }
++        }
++        fn scan(node: &Node, is_scan_root: bool) -> Option<bool> {
++            match &node.data {
++                NodeData::Text(t) => match parley::first_strong_direction(&t.content) {
++                    Some(parley::BaseDirection::Rtl) => Some(true),
++                    Some(_) => Some(false),
++                    None => None,
++                },
++                NodeData::Element(el) | NodeData::AnonymousBlock(el) => {
++                    if !is_scan_root {
++                        let tag = &el.name.local;
++                        if *tag == local_name!("bdi")
++                            || *tag == local_name!("script")
++                            || *tag == local_name!("style")
++                            || *tag == local_name!("textarea")
++                        {
++                            return None;
++                        }
++                        // A slot met as a descendant contributes
++                        // nothing: its assigned nodes belong to the
++                        // light tree and must not leak into shadow-
++                        // side scans (WPT dir-shadow-30/34 pin this).
++                        if node.is_slot_element() {
++                            return None;
++                        }
++                        if el.attr(local_name!("dir")).is_some_and(|d| {
++                            d.eq_ignore_ascii_case("auto")
++                                || d.eq_ignore_ascii_case("ltr")
++                                || d.eq_ignore_ascii_case("rtl")
++                        }) {
++                            return None;
++                        }
++                    }
++                    let kids: &[NodeId] = if node.is_slot_element() {
++                        node.flat_children()
++                    } else {
++                        &node.children
++                    };
++                    kids.iter()
++                        .find_map(|child| scan(&node.with(*child), false))
++                }
++                _ => None,
++            }
++        }
++        scan(self, true)
++    }
++
+     fn write_text_content(&self, out: &mut String) {
+         match &self.data {
+             NodeData::Text(data) => {
+diff --git a/src/stylo.rs b/src/stylo.rs
+index 33478ae..41dd68f 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -510,6 +510,16 @@ impl selectors::Element for BlitzNode<'_> {
+     ) -> bool {
+         match *pseudo_class {
+             NonTSPseudoClass::Active => self.element_state().contains(ElementState::ACTIVE),
++            // :dir() matches HTML directionality (not the
++            // CSS direction property): unknown idents never match.
++            NonTSPseudoClass::Dir(ref dir) => {
++                let rtl = self.html_directionality_is_rtl();
++                match &**dir {
++                    "rtl" => rtl,
++                    "ltr" => !rtl,
++                    _ => false,
++                }
++            }
+             NonTSPseudoClass::AnyLink => self
+                 .element_state()
+                 .intersects(ElementState::VISITED_OR_UNVISITED),
+@@ -1040,6 +1050,28 @@ impl<'a> TElement for BlitzNode<'a> {
+             ));
+         };
+
++        // Dir=auto can't ride a stylesheet (its scan skips
++        // subtrees no selector can express): resolve it here so
++        // getComputedStyle().direction and flat-tree inheritance see
++        // the result. ltr/rtl attrs stay on the UA [dir] rules.
++        {
++            use style::properties::longhands::direction::SpecifiedValue as Direction;
++            let dir_attr = elem.attr(local_name!("dir"));
++            let has_fixed = dir_attr.is_some_and(|d| {
++                d.eq_ignore_ascii_case("ltr") || d.eq_ignore_ascii_case("rtl")
++            });
++            let dir_auto = dir_attr.is_some_and(|d| d.eq_ignore_ascii_case("auto"))
++                || (*tag == local_name!("bdi") && !has_fixed);
++            if dir_auto {
++                let rtl = self.dir_auto_scan_is_rtl().unwrap_or(false);
++                push_style(PropertyDeclaration::Direction(if rtl {
++                    Direction::Rtl
++                } else {
++                    Direction::Ltr
++                }));
++            }
++        }
++
+         fn parse_color_attr(value: &str) -> Option<(u8, u8, u8, f32)> {
+             if !value.starts_with('#') {
+                 return None;

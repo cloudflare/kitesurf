@@ -72,13 +72,13 @@ All plumbing git invocations run with `GIT_CONFIG_GLOBAL=/dev/null` /
 | --------------------- | -------------- | ------------------------------------------------ | ---------------- |
 | `parley`              | `0.12.0`       | `linebender/parley`, path `parley/`              | registry tarball |
 | `parley_engine`       | `0.12.0`       | `linebender/parley`, path `parley_engine/`       | registry tarball |
-| `blitz-dom`           | `0.3.0-beta.3` | `DioxusLabs/blitz`, path `packages/blitz-dom/`   | registry tarball |
-| `blitz-paint`         | `0.3.0-beta.3` | `DioxusLabs/blitz`, path `packages/blitz-paint/` | registry tarball |
-| `blitz-html`          | `0.3.0-beta.3` | `DioxusLabs/blitz`, path `packages/blitz-html/`  | registry tarball |
+| `blitz-dom`           | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-dom/`   | registry tarball |
+| `blitz-paint`         | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-paint/` | registry tarball |
+| `blitz-html`          | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-html/`  | registry tarball |
 | `anyrender`           | `0.14.0`       | `DioxusLabs/anyrender`, path `crates/anyrender/` | registry tarball |
 | `anyrender_vello_cpu` | `0.18.0`       | `DioxusLabs/anyrender`                           | registry tarball |
 | `taffy`               | `0.15.0`       | `DioxusLabs/taffy`                               | registry tarball |
-| `stylo_taffy`         | `0.3.0-beta.3` | `DioxusLabs/blitz`, path `packages/stylo_taffy/` | registry tarball |
+| `stylo_taffy`         | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/stylo_taffy/` | registry tarball |
 | `stylo`               | `0.22.0`       | servo `stylo`                                    | registry tarball |
 | `selectors`           | `0.41.0`       | servo `selectors`                                | registry tarball |
 | `boa_ast`             | `0.22.0`       | `boa-dev/boa`, path `core/ast/`                  | registry tarball |
@@ -169,15 +169,15 @@ plain git:
 pnpm run vendor:apply
 
 # Edit, e.g.:
-$EDITOR packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.3/src/document.rs
+$EDITOR packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.4/src/document.rs
 
 # Iterate: cargo picks up edits in place. Bazel does not, until the regen.
 (cd packages/core && cargo check --target wasm32-unknown-unknown)
 
 # Once the fix is good, COMMIT it in the vendor tree. The commit
 # message becomes the patch — subject + body explaining why.
-git -C packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.3 add -A
-git -C packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.3 commit
+git -C packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.4 add -A
+git -C packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.4 commit
 
 # Write the series back out:
 pnpm run vendor:regen                 # all crates

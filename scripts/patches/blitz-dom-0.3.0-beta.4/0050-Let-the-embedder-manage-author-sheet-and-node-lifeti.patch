@@ -1,0 +1,193 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 17 Sep 2026 20:33:03 +0100
+Subject: [PATCH] Let the embedder manage author sheet and node lifetimes
+
+Evict replaced and removed style-node cache entries when their final
+owner disappears. Share parsed contents while keeping a distinct Stylo
+registration identity for each live style node. Cover identity and
+surviving cascade when one duplicate is removed.
+
+Detach replaced nodes so embedders can preserve live wrappers, then
+report every recursively dropped node, including attached shadow trees,
+when reclamation is safe.
+---
+ src/document.rs | 87 +++++++++++++++++++++++++++++++++++++++++++++++--
+ src/mutator.rs  | 17 ++++++++--
+ 2 files changed, 100 insertions(+), 4 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index dd6481f..a6e9d06 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -387,6 +387,9 @@ pub struct BaseDocument {
+     /// (an Arc bump), while each <style> node still registers
+     /// individually with the stylist (so cascade order is unchanged).
+     pub(crate) author_sheet_cache: HashMap<u64, DocumentStyleSheet>,
++    /// The cache key currently registered for each style node. Replacing a
++    /// CSS-in-JS sheet must release the previous parse when no node shares it.
++    pub(crate) author_sheet_keys: HashMap<NodeId, u64>,
+
+     /// Shadow roots whose scoped author styles changed since the last
+     /// resolve; drained (and flushed into CascadeData) by the stylist.
+@@ -588,6 +591,7 @@ impl BaseDocument {
+             counters_built_once: false,
+             url: base_url,
+             author_sheet_cache: HashMap::new(),
++            author_sheet_keys: HashMap::new(),
+             dirty_shadow_style_roots: Vec::new(),
+             shadow_roots: HashSet::new(),
+             slot_assignments_dirty: true,
+@@ -1242,7 +1246,7 @@ impl BaseDocument {
+             // Shadow trees hang off ElementData::shadow_root rather than
+             // children, so drop them explicitly or their slots leak.
+             if let Some(shadow_root_id) = node.attached_shadow_root_id() {
+-                self.drop_node_ignoring_parent(shadow_root_id);
++                self.drop_node_ignoring_parent_with(shadow_root_id, on_drop);
+             }
+
+             if node.is_shadow_root() {
+@@ -1445,7 +1449,17 @@ impl BaseDocument {
+         }
+         let cache_key = h;
+         let sheet = if let Some(cached) = self.author_sheet_cache.get(&cache_key) {
+-            cached.clone()
++            // Stylo identifies document sheets by the outer Arc and rejects
++            // registering the same one twice. Reuse the parsed contents while
++            // giving each <style> node its own registration identity.
++            let guard = self.guard.read();
++            let contents = cached.0.contents.read_with(&guard).clone();
++            DocumentStyleSheet(ServoArc::new(Stylesheet {
++                contents: self.guard.wrap(contents),
++                shared_lock: self.guard.clone(),
++                media: cached.0.media.clone(),
++                disabled: Default::default(),
++            }))
+         } else {
+             let decoded = html_escape::decode_html_entities(&css);
+             let s = self.make_stylesheet_with_media(&decoded, Origin::Author, media_attr.as_deref());
+@@ -1453,6 +1467,23 @@ impl BaseDocument {
+             s
+         };
+         self.add_stylesheet_for_node(sheet, target_id);
++        let previous_key = self.author_sheet_keys.insert(target_id, cache_key);
++        if let Some(previous) = previous_key {
++            if previous != cache_key
++                && !self.author_sheet_keys.values().any(|&key| key == previous)
++            {
++                self.author_sheet_cache.remove(&previous);
++            }
++        }
++    }
++
++    pub(crate) fn remove_author_stylesheet(&mut self, target_id: NodeId) {
++        let Some(previous) = self.author_sheet_keys.remove(&target_id) else {
++            return;
++        };
++        if !self.author_sheet_keys.values().any(|&key| key == previous) {
++            self.author_sheet_cache.remove(&previous);
++        }
+     }
+
+     pub fn remove_user_agent_stylesheet(&mut self, sheet: &UserAgentStylesheet) {
+@@ -3891,6 +3922,58 @@ mod zoom_tests {
+     }
+ }
+
++#[cfg(test)]
++mod author_sheet_cache_tests {
++    use super::*;
++    use crate::qual_name;
++
++    #[test]
++    fn removing_style_nodes_releases_their_shared_cache_entry() {
++        let mut doc = BaseDocument::new(DocumentConfig::default());
++        let root_id = doc.root_node().id;
++        let (first, second, body) = {
++            let mut mutator = doc.mutate();
++            let html = mutator.create_element(qual_name!("html"), vec![]);
++            let first = mutator.create_element(qual_name!("style"), vec![]);
++            let second = mutator.create_element(qual_name!("style"), vec![]);
++            let body = mutator.create_element(qual_name!("body"), vec![]);
++            let first_text = mutator.create_text_node("body { color: red; }");
++            let second_text = mutator.create_text_node("body { color: red; }");
++            mutator.append_children(first, &[first_text]);
++            mutator.append_children(second, &[second_text]);
++            mutator.append_children(html, &[first, second, body]);
++            mutator.append_children(root_id, &[html]);
++            (first, second, body)
++        };
++
++        assert_eq!(doc.author_sheet_keys.len(), 2);
++        assert_eq!(doc.author_sheet_cache.len(), 1);
++        assert_ne!(
++            &doc.nodes_to_stylesheet[&first].0,
++            &doc.nodes_to_stylesheet[&second].0,
++        );
++
++        doc.resolve(0.0);
++        assert_eq!(
++            doc.nodes[body].primary_styles().unwrap().clone_color(),
++            style::color::AbsoluteColor::srgb_legacy(255, 0, 0, 1.0),
++        );
++
++        doc.mutate().remove_and_drop_node(first);
++        assert_eq!(doc.author_sheet_keys.len(), 1);
++        assert_eq!(doc.author_sheet_cache.len(), 1);
++        doc.resolve(0.0);
++        assert_eq!(
++            doc.nodes[body].primary_styles().unwrap().clone_color(),
++            style::color::AbsoluteColor::srgb_legacy(255, 0, 0, 1.0),
++        );
++
++        doc.mutate().remove_and_drop_node(second);
++        assert!(doc.author_sheet_keys.is_empty());
++        assert!(doc.author_sheet_cache.is_empty());
++    }
++}
++
+ #[cfg(test)]
+ mod hover_state_tests {
+     use super::*;
+diff --git a/src/mutator.rs b/src/mutator.rs
+index c09f88e..289ef2d 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1177,7 +1177,13 @@ impl<'doc> DocumentMutator<'doc> {
+     }
+
+     pub fn set_inner_html(&mut self, node_id: NodeId, html: &str) {
+-        self.remove_and_drop_all_children(node_id);
++        // The embedder may still hold wrappers for replaced children. Detach
++        // them here; the DOM shim drops only subtrees it can prove are
++        // unwrapped after this operation returns.
++        let old_children = self.doc.nodes[node_id].children.clone();
++        for child_id in old_children {
++            self.remove_node(child_id);
++        }
+
+         // html5ever's fragment parser needs an element context (its
+         // elem_name callback panics otherwise). Shadow roots parse
+@@ -1303,6 +1309,13 @@ impl<'doc> DocumentMutator<'doc> {
+             // ancestor chain, IME disable on blur of a focused input).
+             doc.clear_interaction_state_for_removed_node(node_id);
+
++            let is_style = doc.nodes[node_id]
++                .data
++                .is_element_with_tag_name(&local_name!("style"));
++            if is_style {
++                doc.remove_author_stylesheet(node_id);
++            }
++
+             let node = &mut doc.nodes[node_id];
+             // Stale flat-tree edges must not outlive removal: slab ids
+             // recycle, so a dangling slot pointer would mislead.
+@@ -1827,7 +1840,7 @@ impl<'doc> DocumentMutator<'doc> {
+         match (existing_label, normalized) {
+             (Some(text_id), Some(s)) => self.set_node_text(text_id, s),
+             (Some(text_id), None) => {
+-                self.remove_and_drop_node(text_id);
++                self.remove_node(text_id);
+             }
+             (None, Some(s)) => {
+                 let text_id = self.create_text_node(s);

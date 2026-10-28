@@ -1,0 +1,149 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Tue, 22 Sep 2026 00:28:21 +0100
+Subject: [PATCH] Mark semantic parts in painted scenes
+
+Name backgrounds, borders, markers, decorations, and form controls so
+non-pixel consumers do not have to infer their purpose from geometry.
+Keep decoration markers tied to their owning node and reuse the
+existing form-control painter so raster output stays unchanged.
+---
+ src/render.rs               | 15 ++++++++++++++-
+ src/render/form_controls.rs |  6 +++++-
+ src/text.rs                 |  6 ++++++
+ 3 files changed, 25 insertions(+), 2 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 5a66cc6..69fcbef 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -18,7 +18,7 @@ use crate::layers::LayerManager;
+ use crate::sizing::compute_object_fit;
+ use crate::text::DrawTextContext;
+ use crate::{CustomWidgetSceneMap, SELECTION_COLOR};
+-use anyrender::{PaintScene, Scene};
++use anyrender::{PaintScene, Scene, ScenePart};
+ use blitz_dom::node::{
+     ListItemLayout, ListItemLayoutPosition, Marker, NodeData, RasterImageData, TextInputData,
+     TextNodeData,
+@@ -505,7 +505,9 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         // by the layer that wraps it, so the whole traversal below is dead work.
+         let clipped_away = is_empty_clip_region(clip_path_shape.as_ref());
+
++        scene.begin_part(node_id.as_u64(), ScenePart::Outline);
+         cx.draw_outline(scene);
++        scene.end_part();
+         cx.draw_outset_box_shadow(scene);
+
+         // Outline and outset shadow paint outside the clip-path layer here, so they
+@@ -600,11 +602,20 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                     filter,
+                     backdrop_filter,
+                     |scene| {
++                        let part_id = node_id.as_u64();
++                        scene.begin_part(part_id, ScenePart::Background);
+                         cx.draw_background(scene);
++                        scene.end_part();
+                         cx.draw_inset_box_shadow(scene);
++                        scene.begin_part(part_id, ScenePart::TableRowBackground);
+                         cx.draw_table_row_backgrounds(scene);
++                        scene.end_part();
++                        scene.begin_part(part_id, ScenePart::TableBorder);
+                         cx.draw_table_borders(scene);
++                        scene.end_part();
++                        scene.begin_part(part_id, ScenePart::Border);
+                         cx.draw_border(scene);
++                        scene.end_part();
+                         cx.stroke_devtools(scene);
+
+                         // TODO: allow layers with opacity to be unclipped (overflow: visible)
+@@ -649,7 +660,9 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                                 cx.draw_input(scene);
+                                 cx.draw_text_input_text(scene, content_position);
+                                 cx.draw_inline_layout(scene, content_position);
++                                scene.begin_part(node_id.as_u64(), ScenePart::Marker);
+                                 cx.draw_marker(scene, content_position);
++                                scene.end_part();
+                                 cx.draw_children(scene, cx.transform, child_clip_rect, should_clip);
+                             },
+                         );
+diff --git a/src/render/form_controls.rs b/src/render/form_controls.rs
+index 5338912..e93fc0c 100644
+--- a/src/render/form_controls.rs
++++ b/src/render/form_controls.rs
+@@ -1,6 +1,6 @@
+ use super::ElementCx;
+ use crate::color::{Color, ToColorColor as _};
+-use anyrender::PaintScene;
++use anyrender::{PaintScene, ScenePart};
+ use blitz_dom::local_name;
+ use kurbo::{Affine, BezPath, Cap, Circle, Join, Point, RoundedRect, Stroke, Vec2};
+ use peniko::Fill;
+@@ -94,11 +94,15 @@ impl ElementCx<'_, '_> {
+
+         match type_attr {
+             Some("checkbox") => {
++                scene.begin_part(self.node.id.as_u64(), ScenePart::Checkbox { checked });
+                 draw_checkbox(scene, checked, frame, self.transform, accent_color, scale);
++                scene.end_part();
+             }
+             Some("radio") => {
++                scene.begin_part(self.node.id.as_u64(), ScenePart::Radio { checked });
+                 let center = frame.center();
+                 draw_radio_button(scene, checked, center, self.transform, accent_color, scale);
++                scene.end_part();
+             }
+             _ => {}
+         }
+diff --git a/src/text.rs b/src/text.rs
+index a59d447..d4acab1 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -264,6 +264,7 @@ fn decoration_size(
+ #[allow(clippy::too_many_arguments)]
+ fn draw_decoration_line(
+     scene: &mut impl PaintScene,
++    node_id: u64,
+     transform: Affine,
+     scale: f64,
+     x0: f64,
+@@ -284,6 +285,7 @@ fn draw_decoration_line(
+     if w <= 0.0 {
+         return;
+     }
++    scene.begin_part(node_id, anyrender::ScenePart::TextDecoration);
+     let y = (baseline - offset + size / 2.0) as f64;
+     let size = size as f64;
+     let butt_stroke = Stroke::new(size).with_caps(Cap::Butt);
+@@ -365,6 +367,7 @@ fn draw_decoration_line(
+             scene.stroke(&stroke, transform, brush, None, &path);
+         }
+     }
++    scene.end_part();
+ }
+
+ /// Paint the decorations accumulated for one line, one line per decorating box.
+@@ -454,6 +457,7 @@ fn flush_line_decorations(
+             // A `double` underline extends downward, away from the text.
+             draw_decoration_line(
+                 scene,
++                acc.node_id.as_u64(),
+                 transform,
+                 scale,
+                 acc.min_x,
+@@ -490,6 +494,7 @@ fn flush_line_decorations(
+             // A `double` overline extends upward, away from the text.
+             draw_decoration_line(
+                 scene,
++                acc.node_id.as_u64(),
+                 transform,
+                 scale,
+                 acc.min_x,
+@@ -522,6 +527,7 @@ fn flush_line_decorations(
+
+             draw_decoration_line(
+                 scene,
++                acc.node_id.as_u64(),
+                 transform,
+                 scale,
+                 acc.min_x,

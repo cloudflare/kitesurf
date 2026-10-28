@@ -1,0 +1,462 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 24 Jul 2026 13:28:19 +0100
+Subject: [PATCH] Scope shadow-tree stylesheets via per-root AuthorStyles
+
+<style> elements inside a shadow tree now register with their root's
+AuthorStyles (stylo's per-shadow cascade store) instead of the
+document stylist; TShadowRoot::style_data hands the built CascadeData
+to the rule collector, which already knows how to consult it (:host,
+scoped rules, cascade order). Dirty roots are queued and their
+CascadeData rebuilt at resolve_stylist; invalidation is a wholesale
+host-subtree restyle at mutation time rather than plumbing
+StylesheetInvalidationSet.
+
+The subtle part is where a sheet was registered vs where its node
+lives now: blitz processes <style> on every mutation that touches it
+(maybe_record_node), so a detached style gets a document-stylist
+registration first and a scoped one after insertion. Removal must
+therefore target the recorded scope - nodes_to_stylesheet's value now
+carries it - or the stale copy stays behind and leaks rules across
+the boundary (and shadow-scoped entries must not serve as
+insert-before anchors for the document stylist).
+
+Also defuses the todo!() in implicit_scope_for_sheet_in_shadow_root:
+returning None misdirects @scope inside shadow sheets (unimplementable
+while OpaqueElement is a bare NodeId), vastly better than a panic.
+---
+ src/cssom.rs     |  15 ++++---
+ src/document.rs  | 102 ++++++++++++++++++++++++++++++++++++++++++-----
+ src/mutator.rs   |  27 +++++++++----
+ src/node/node.rs |  48 +++++++++++++++++++++-
+ src/stylo.rs     |  39 ++++++++++++++----
+ 5 files changed, 197 insertions(+), 34 deletions(-)
+
+diff --git a/src/cssom.rs b/src/cssom.rs
+index 11df06f..19df3b8 100644
+--- a/src/cssom.rs
++++ b/src/cssom.rs
+@@ -310,7 +310,7 @@ impl BaseDocument {
+     pub fn stylesheet_disabled(&self, node_id: NodeId) -> bool {
+         self.nodes_to_stylesheet
+             .get(&node_id)
+-            .is_some_and(|sheet| sheet.0.disabled())
++            .is_some_and(|(sheet, _)| sheet.0.disabled())
+     }
+
+     /// Set the disabled flag of the stylesheet owned by `node_id`. A disabled
+@@ -319,7 +319,7 @@ impl BaseDocument {
+     ///
+     /// Returns `false` if the node owns no stylesheet.
+     pub fn set_stylesheet_disabled(&mut self, node_id: NodeId, disabled: bool) -> bool {
+-        let Some(sheet) = self.nodes_to_stylesheet.get(&node_id) else {
++        let Some((sheet, _)) = self.nodes_to_stylesheet.get(&node_id) else {
+             return false;
+         };
+         if sheet.0.set_disabled(disabled) {
+@@ -396,7 +396,7 @@ impl BaseDocument {
+
+     /// The number of rules in the rule list at `path` (`CSSRuleList.length`)
+     pub fn stylesheet_rule_count(&self, node_id: NodeId, path: &[usize]) -> Option<usize> {
+-        let sheet = self.nodes_to_stylesheet.get(&node_id)?;
++        let (sheet, _) = self.nodes_to_stylesheet.get(&node_id)?;
+         let guard = self.guard.read();
+         let list = Self::resolve_rule_list(sheet, &guard, path, |_| {})?;
+         Some(match list {
+@@ -407,7 +407,7 @@ impl BaseDocument {
+
+     /// The CSSOM-visible attributes of the rule at `path`
+     pub fn stylesheet_rule_info(&self, node_id: NodeId, path: &[usize]) -> Option<CssRuleInfo> {
+-        let sheet = self.nodes_to_stylesheet.get(&node_id)?;
++        let (sheet, _) = self.nodes_to_stylesheet.get(&node_id)?;
+         let guard = self.guard.read();
+         let handle = Self::resolve_rule(sheet, &guard, path, |_| {})?;
+         let mut css_text = CssStringWriter::new();
+@@ -453,6 +453,7 @@ impl BaseDocument {
+             .nodes_to_stylesheet
+             .get(&node_id)
+             .ok_or(CssomError::NotFound)?
++            .0
+             .clone();
+         let loader = self.stylesheet_loader();
+         let lock = &self.guard;
+@@ -551,6 +552,7 @@ impl BaseDocument {
+             .nodes_to_stylesheet
+             .get(&node_id)
+             .ok_or(CssomError::NotFound)?
++            .0
+             .clone();
+         let lock = &self.guard;
+
+@@ -597,7 +599,7 @@ impl BaseDocument {
+         path: &[usize],
+         guard: &SharedRwLockReadGuard,
+     ) -> Option<DeclarationTarget> {
+-        let sheet = self.nodes_to_stylesheet.get(&node_id)?;
++        let (sheet, _) = self.nodes_to_stylesheet.get(&node_id)?;
+         let handle = Self::resolve_rule(sheet, guard, path, |_| {})?;
+         declaration_target(&handle, guard)
+     }
+@@ -610,7 +612,7 @@ impl BaseDocument {
+         node_id: NodeId,
+         path: &[usize],
+     ) -> Option<(DocumentStyleSheet, Vec<CssRule>, CssRule, DeclarationTarget)> {
+-        let sheet = self.nodes_to_stylesheet.get(&node_id)?.clone();
++        let sheet = self.nodes_to_stylesheet.get(&node_id)?.0.clone();
+         let guard = self.guard.read();
+         let mut ancestors = Vec::with_capacity(path.len());
+         let handle = Self::resolve_rule(&sheet, &guard, path, |rule| ancestors.push(rule.clone()))?;
+@@ -868,6 +870,7 @@ impl BaseDocument {
+             .nodes_to_stylesheet
+             .get(&node_id)
+             .ok_or(CssomError::NotFound)?
++            .0
+             .clone();
+         let lock = &self.guard;
+
+diff --git a/src/document.rs b/src/document.rs
+index 625323d..77c6923 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -339,7 +339,10 @@ pub struct BaseDocument {
+     /// returns the first in tree order.
+     pub(crate) nodes_to_id: HashMap<String, SmallVec<[NodeId; 1]>>,
+     /// Map of `<style>` and `<link>` node IDs to their associated stylesheet
+-    pub(crate) nodes_to_stylesheet: BTreeMap<NodeId, DocumentStyleSheet>,
++    // Value carries the registration scope (None = document stylist,
++    // Some(id) = that shadow root) so removal targets the right set:
++    // a <style> can be processed detached first and scoped later.
++    pub(crate) nodes_to_stylesheet: BTreeMap<NodeId, (DocumentStyleSheet, Option<NodeId>)>,
+     /// Incremented whenever `nodes_to_stylesheet` changes (a stylesheet is
+     /// added, replaced or removed), so that CSSOM wrappers can detect that
+     /// their cached rule data is stale.
+@@ -354,6 +357,10 @@ pub struct BaseDocument {
+     /// (an Arc bump), while each <style> node still registers
+     /// individually with the stylist (so cascade order is unchanged).
+     pub(crate) author_sheet_cache: HashMap<u64, DocumentStyleSheet>,
++
++    /// Shadow roots whose scoped author styles changed since the last
++    /// resolve; drained (and flushed into CascadeData) by the stylist.
++    pub(crate) dirty_shadow_style_roots: Vec<NodeId>,
+     /// Map from form control node ID's to their associated forms node ID's
+     pub(crate) controls_to_form: HashMap<NodeId, NodeId>,
+     /// Nodes that contain sub documents
+@@ -509,6 +516,7 @@ impl BaseDocument {
+             devtool_settings: DevtoolSettings::default(),
+             url: base_url,
+             author_sheet_cache: HashMap::new(),
++            dirty_shadow_style_roots: Vec::new(),
+             nodes_to_stylesheet: BTreeMap::new(),
+             stylesheet_generation: 0,
+             font_ctx,
+@@ -912,10 +920,8 @@ impl BaseDocument {
+             return existing;
+         }
+
+-        let shadow_root_id = self.create_node(NodeData::ShadowRoot(ShadowRootData {
+-            host: host_id,
+-            mode,
+-        }));
++        let shadow_root_id =
++            self.create_node(NodeData::ShadowRoot(ShadowRootData::new(host_id, mode)));
+
+         // parent = host (while staying OUT of host.children) keeps
+         // mark_ancestors_dirty working across the shadow boundary.
+@@ -1249,7 +1255,7 @@ impl BaseDocument {
+     /// Iterate over the author stylesheets (from `<style>` and `<link>` nodes)
+     /// currently associated with this document
+     pub fn author_stylesheets(&self) -> impl Iterator<Item = &DocumentStyleSheet> {
+-        self.nodes_to_stylesheet.values()
++        self.nodes_to_stylesheet.values().map(|(sheet, _)| sheet)
+     }
+
+     /// Iterate over the user-agent stylesheets currently associated with this document
+@@ -1296,11 +1302,23 @@ impl BaseDocument {
+     }
+
+     pub fn add_stylesheet_for_node(&mut self, stylesheet: DocumentStyleSheet, node_id: NodeId) {
+-        let old = self.nodes_to_stylesheet.insert(node_id, stylesheet.clone());
++        // Style elements inside a shadow tree register with that
++        // root's scoped AuthorStyles instead of the document stylist.
++        let shadow_scope = self.nodes[node_id].containing_shadow_root_id();
++
++        let old = self
++            .nodes_to_stylesheet
++            .insert(node_id, (stylesheet.clone(), shadow_scope));
+         self.stylesheet_generation += 1;
+
+-        if let Some(old) = old {
+-            self.stylist.remove_stylesheet(old, &self.guard.read())
++        // Remove the old sheet from wherever it was registered, which
++        // can differ from the node's current scope (detached-then-
++        // scoped <style> elements get processed in both states).
++        if let Some((old_sheet, old_scope)) = old {
++            match old_scope {
++                Some(shadow_root_id) => self.remove_shadow_stylesheet(shadow_root_id, old_sheet),
++                None => self.stylist.remove_stylesheet(old_sheet, &self.guard.read()),
++            }
+         }
+
+         // Fetch @font-face fonts
+@@ -1319,12 +1337,29 @@ impl BaseDocument {
+         let element = &mut self.nodes[node_id].element_data_mut().unwrap();
+         element.special_data = SpecialElementData::Stylesheet(stylesheet.clone());
+
++        if let Some(shadow_root_id) = shadow_scope {
++            // Appends arrive in tree order (process_added_subtree is a
++            // pre-order walk), which preserves document order per root.
++            if let NodeData::ShadowRoot(ref mut data) = self.nodes[shadow_root_id].data {
++                data.author_styles.stylesheets.append_stylesheet(
++                    None,
++                    &Default::default(),
++                    stylesheet,
++                    &self.guard.read(),
++                );
++            }
++            self.note_shadow_style_change(shadow_root_id);
++            return;
++        }
++
+         // TODO: Nodes could potentially get reused so ordering by node_id might be wrong.
++        // Only document-scoped entries exist in the stylist, so only
++        // they are valid insert-before anchors.
+         let insertion_point = self
+             .nodes_to_stylesheet
+             .range((Bound::Excluded(node_id), Bound::Unbounded))
+-            .next()
+-            .map(|(_, sheet)| sheet);
++            .find(|(_, (_, scope))| scope.is_none())
++            .map(|(_, (sheet, _))| sheet);
+
+         if let Some(insertion_point) = insertion_point {
+             self.stylist.insert_stylesheet_before(
+@@ -1338,6 +1373,51 @@ impl BaseDocument {
+         }
+     }
+
++    /// Remove a sheet from a shadow root's scoped set (no-op when the
++    /// sheet was never registered there).
++    pub(crate) fn remove_shadow_stylesheet(
++        &mut self,
++        shadow_root_id: NodeId,
++        stylesheet: DocumentStyleSheet,
++    ) {
++        let guard = self.guard.clone();
++        if let Some(node) = self.nodes.get_mut(shadow_root_id) {
++            if let NodeData::ShadowRoot(ref mut data) = node.data {
++                data.author_styles.stylesheets.remove_stylesheet(
++                    None,
++                    &Default::default(),
++                    stylesheet,
++                    &guard.read(),
++                );
++            }
++        }
++        self.note_shadow_style_change(shadow_root_id);
++    }
++
++    /// Queue a scoped-styles rebuild and restyle the host subtree; we
++    /// invalidate wholesale instead of via StylesheetInvalidationSet.
++    pub(crate) fn note_shadow_style_change(&mut self, shadow_root_id: NodeId) {
++        self.dirty_shadow_style_roots.push(shadow_root_id);
++
++        let Some(host_id) = self
++            .nodes
++            .get(shadow_root_id)
++            .and_then(|n| n.shadow_root_data())
++            .map(|d| d.host)
++        else {
++            return;
++        };
++        let host = &mut self.nodes[host_id];
++        host.insert_damage(ALL_DAMAGE);
++        if let Some(mut data) = host
++            .try_stylo_element_data_mut()
++            .and_then(|data| data.get_mut())
++        {
++            data.hint |= style::invalidation::element::restyle_hints::RestyleHint::restyle_subtree();
++        }
++        host.mark_ancestors_dirty();
++    }
++
+     pub fn handle_messages(&mut self) {
+         // Remove event Reciever from the Document so that we can process events
+         // without holding a borrow to the Document
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 73ca7ac..8900dc7 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1277,13 +1277,26 @@ impl<'doc> DocumentMutator<'doc> {
+             unreachable!();
+         };
+
+-        let guard = self.doc.guard.read();
+-        self.doc.stylist.remove_stylesheet(stylesheet, &guard);
+-        self.doc
+-            .stylist
+-            .force_stylesheet_origins_dirty(OriginSet::all());
+-
+-        self.doc.nodes_to_stylesheet.remove(&node_id);
++        // Unregister from wherever the sheet was recorded as living
++        // (the node may already be detached when the unload op runs).
++        let recorded_scope = self
++            .doc
++            .nodes_to_stylesheet
++            .remove(&node_id)
++            .and_then(|(_, scope)| scope);
++        match recorded_scope {
++            Some(shadow_root_id) => {
++                self.doc.remove_shadow_stylesheet(shadow_root_id, stylesheet);
++            }
++            None => {
++                let guard = self.doc.guard.read();
++                self.doc.stylist.remove_stylesheet(stylesheet, &guard);
++                drop(guard);
++                self.doc
++                    .stylist
++                    .force_stylesheet_origins_dirty(OriginSet::all());
++            }
++        }
+         self.doc.stylesheet_generation += 1;
+     }
+
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 620ef24..3c48228 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -27,7 +27,8 @@ use style::properties::generated::longhands::position::computed_value::T as Posi
+ use style::selector_parser::RestyleDamage;
+ use style::servo_arc::Arc as ServoArc;
+ use style::shared_lock::SharedRwLock;
+-use style::stylesheets::UrlExtraData;
++use style::author_styles::AuthorStyles;
++use style::stylesheets::{DocumentStyleSheet, UrlExtraData};
+ use style::values::computed::CSSPixelLength;
+ use style::values::computed::Display as StyloDisplay;
+ use style::values::computed::Rotate;
+@@ -855,10 +856,39 @@ pub enum ShadowRootMode {
+
+ /// Root of a shadow tree; the host element links here via
+ /// ElementData::shadow_root and `host` points back at it.
+-#[derive(Debug, Clone)]
+ pub struct ShadowRootData {
+     pub host: NodeId,
+     pub mode: ShadowRootMode,
++    /// Scoped author stylesheets: rules from this shadow tree's own
++    /// <style> elements, consulted via TShadowRoot::style_data.
++    pub author_styles: AuthorStyles<DocumentStyleSheet>,
++}
++
++impl ShadowRootData {
++    pub fn new(host: NodeId, mode: ShadowRootMode) -> Self {
++        Self {
++            host,
++            mode,
++            author_styles: AuthorStyles::new(),
++        }
++    }
++}
++
++// Manual impls: AuthorStyles is neither Clone nor Debug. A cloned
++// shadow root starts with empty styles (its <style> nodes re-register).
++impl Clone for ShadowRootData {
++    fn clone(&self) -> Self {
++        Self::new(self.host, self.mode)
++    }
++}
++
++impl std::fmt::Debug for ShadowRootData {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        f.debug_struct("ShadowRootData")
++            .field("host", &self.host)
++            .field("mode", &self.mode)
++            .finish_non_exhaustive()
++    }
+ }
+
+ /// The different kinds of nodes in the DOM.
+@@ -1066,6 +1096,20 @@ impl Node {
+         self.element_data().and_then(|el| el.shadow_root)
+     }
+
++    /// Nearest enclosing shadow root's node id, walking light parents.
++    /// None for nodes in the document tree proper.
++    pub fn containing_shadow_root_id(&self) -> Option<NodeId> {
++        let mut current = self.parent;
++        while let Some(id) = current {
++            let node = self.with(id);
++            if node.is_shadow_root() {
++                return Some(id);
++            }
++            current = node.parent;
++        }
++        None
++    }
++
+     /// Flat-tree children for layout/paint: hosts render their shadow
+     /// root's children; everything else renders its DOM children.
+     pub fn flat_children(&self) -> &[NodeId] {
+diff --git a/src/stylo.rs b/src/stylo.rs
+index e7b6427..5f16f21 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -63,6 +63,27 @@ impl crate::document::BaseDocument {
+     pub fn resolve_stylist(&mut self, now: f64) {
+         style::thread_state::enter(ThreadState::LAYOUT);
+
++        // Rebuild scoped CascadeData for shadow roots whose <style>
++        // set changed; invalidation was done wholesale at mutation.
++        let dirty_roots = std::mem::take(&mut self.dirty_shadow_style_roots);
++        for shadow_root_id in dirty_roots {
++            let Some(node) = self.nodes.get_mut(shadow_root_id) else {
++                continue;
++            };
++            let NodeData::ShadowRoot(ref mut data) = node.data else {
++                continue;
++            };
++            // Steal the styles so stylist + styles can borrow disjointly.
++            let mut styles = std::mem::replace(
++                &mut data.author_styles,
++                style::author_styles::AuthorStyles::new(),
++            );
++            let _ = styles.flush(&mut self.stylist, &self.guard.read());
++            if let NodeData::ShadowRoot(ref mut data) = self.nodes[shadow_root_id].data {
++                data.author_styles = styles;
++            }
++        }
++
+         let guard = &self.guard;
+         let guards = StylesheetGuards {
+             author: &guard.read(),
+@@ -284,9 +305,10 @@ impl<'a> TShadowRoot for BlitzNode<'a> {
+     where
+         Self: 'b,
+     {
+-        // Topology-only for now: scoped stylesheet collection lands
+-        // with the author-styles patch; None styles like an empty root.
+-        None
++        // Self: 'b bounds 'a: 'b, so handing out the node's cascade
++        // data at 'b is sound (it lives in the slab entry itself).
++        let node: &'b Node = self;
++        node.shadow_root_data().map(|d| &*d.author_styles.data)
+     }
+ }
+
+@@ -726,11 +748,12 @@ impl<'a> TElement for BlitzNode<'a> {
+         _opaque_host: OpaqueElement,
+         _sheet_index: usize,
+     ) -> Option<ImplicitScopeRoot> {
+-        // We cannot currently implement this as we are using the NodeId as the OpaqueElement,
+-        // and need a reference to the Slab to convert it back into an Element
+-        //
+-        // Luckily it is only needed for shadow dom.
+-        todo!();
++        // Unimplementable while OpaqueElement is a bare NodeId (no slab
++        // to rehydrate through): see the comment on `opaque()` above.
++
++        // None = no implicit @scope root; only misdirects @scope rules
++        // inside shadow sheets, vastly better than a todo!() panic.
++        None
+     }
+
+     // Flat tree: a shadow host's traversal children are its shadow
