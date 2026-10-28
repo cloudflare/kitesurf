@@ -5,6 +5,7 @@
 // Loads each page generation's PageScript isolate and wires its RPC, egress, and tails.
 
 import type Protocol from "devtools-protocol";
+import { pageIsolateEntry } from "./page-isolate-entry.ts";
 import wasmGlueSource from "../../../core/pkg/kitesurf_core.glue.js";
 import { DOM_SHIM_SOURCE } from "@kitesurf/dom-shim";
 import { INTERNAL_STATE_SOURCE, PAGE_SCRIPT_SOURCE } from "@kitesurf/page-script";
@@ -197,6 +198,8 @@ interface GetOrCreatePageScriptOptions {
   initTimings: PageScriptInitTimings | undefined;
   capOverrides: PageIsolateCapOverrides | undefined;
   sandboxOutbound: SandboxOutboundOverride;
+  /** Extra modules and the host class name for this isolate (EngineHost.pageIsolate). */
+  pageIsolate?: { modules?: Record<string, string>; hostClassName?: string };
 }
 
 /** Loads one PageScript worker for the supplied target generation and returns its RPC adapter. */
@@ -212,6 +215,7 @@ export function getOrCreatePageScript({
   initTimings,
   capOverrides,
   sandboxOutbound,
+  pageIsolate,
 }: GetOrCreatePageScriptOptions): PageScriptStub {
   const cx = ctx as CtxWithExports;
   const wall = makeWallClock(env);
@@ -347,10 +351,11 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
     cookieKey: key.cookieKey ?? "",
     pixelFree,
   };
+  const mainModule = pageIsolateEntry(modules, pageIsolate);
   const stub = env.LOADER.load({
     compatibilityDate: PAGE_SCRIPT_COMPAT_DATE,
     compatibilityFlags: [...PAGE_SCRIPT_COMPAT_FLAGS],
-    mainModule: "page.js",
+    mainModule,
     modules,
     env: {
       KS_TAIL_TOKEN: tailToken,
