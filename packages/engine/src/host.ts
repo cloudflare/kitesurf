@@ -13,6 +13,7 @@ import type { EngineCdpCommandExtension } from "./cdp/dispatch.ts";
 import type { ExternalOutbound } from "./eval/external-outbound.ts";
 import { landingPage } from "./landing.ts";
 import type { RequestBlocker } from "./request-blocker.ts";
+import { MemorySessionStore, type SessionStore } from "./state/session-store.ts";
 
 export interface ConnectionOptions {
   /**
@@ -59,6 +60,28 @@ export interface EngineHost {
    * An external outbound takes precedence. Unset uses `fetch`.
    */
   egress?(env: Env, ctx: ExecutionContext): ExternalOutbound | undefined;
+  /**
+   * Creates the store a session keeps its data in. Unset, or returning nothing, keeps every
+   * table on the isolate heap (`MemorySessionStore`), which is what a plain session wants.
+   */
+  createSessionStore?(connectionId: string, env: Env): SessionStore | undefined;
+  /**
+   * Extra modules for each page isolate, and the name of a Durable Object class one exports.
+   * The engine generates the entry module, since the class lookup reads only its exports.
+   */
+  pageIsolate?: {
+    modules?: Record<string, string>;
+    hostClassName?: string;
+  };
+}
+
+/** The store for this connection: the host's, or one on the heap. */
+export function resolveSessionStore(
+  connectionId: string,
+  env: Env,
+  host?: EngineHost,
+): SessionStore {
+  return host?.createSessionStore?.(connectionId, env) ?? new MemorySessionStore();
 }
 
 /** Applies host overrides and defaults before opening a CDP connection. */
