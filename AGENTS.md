@@ -107,7 +107,7 @@ Bazel builds and tests everything; the root `package.json` scripts are front end
 build step or check as a Bazel target, not as a pnpm script or a script that CI calls directly.
 `pnpm run build` (`bazel run //packages/engine:dev_build`) copies the wasm, the loaded-worker
 bundles and the RBI files into the source tree, where `wrangler dev` and tools outside Bazel read
-them. The exceptions run cargo through rustup: `lint:rust`, the vendor patch workflow and the
+them. The exceptions run cargo through rustup: the vendor patch workflow and the
 memprof build (`pnpm run dev:memprof`).
 
 ## Vendored crate patches
